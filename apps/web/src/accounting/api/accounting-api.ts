@@ -338,3 +338,31 @@ export async function createAccount(
     body: JSON.stringify(payload),
   });
 }
+
+export type JournalLineDraftPayload = {
+  lineNumber: number;
+  accountId: string;
+  direction: 'DEBIT' | 'CREDIT';
+  amount: string;
+};
+
+export type CreateJournalPayload = {
+  chartId: string;
+  periodId: string;
+  description: string;
+  occurredOn: string;
+  currencyCode: string;
+  sourceKind: string;
+  sourceId: string;
+  sourceReference: string;
+  idempotencyKey: string;
+  lines: JournalLineDraftPayload[];
+};
+
+export async function createJournal(payload: CreateJournalPayload): Promise<JournalEntry> {
+  return requestJson<JournalEntry>('/api/v1/accounting/journals', {
+    method: 'POST',
+    headers: jsonHeaders(),
+    body: JSON.stringify(payload),
+  });
+}
