@@ -7,16 +7,23 @@ import {
   requestJson,
 } from '../../financial-ui/enterprise-api';
 import type {
+  Account,
+  AccountLedger,
+  AccountsList,
   AccountingPeriod,
+  BalanceSheet,
   ChartOfAccounts,
+  ChartsList,
+  CloseRuns,
+  FixedAssetRegister,
   GeneralLedger,
+  IncomeStatement,
   JournalBook,
   JournalEntry,
+  JournalListPage,
   LedgerReconstruction,
-  IncomeStatement,
-  BalanceSheet,
+  PeriodsList,
   TrialBalance,
-  FixedAssetRegister,
 } from '../types/accounting.types';
 
 export { BackofficeApiError };
@@ -217,4 +224,117 @@ export async function reverseFixedAssetAcquisition(
 
 export async function probeFixedAssetReadAccess(signal?: AbortSignal): Promise<boolean> {
   return probeReadAccess(`/api/v1/accounting/fixed-assets/${BACKOFFICE_PROBE_ID}`, signal);
+}
+
+export async function listCharts(unitId: string, signal?: AbortSignal): Promise<ChartsList> {
+  const params = new URLSearchParams({ unitId });
+  return requestJson<ChartsList>(`/api/v1/accounting/charts?${params.toString()}`, {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+}
+
+export async function listAccounts(chartId: string, signal?: AbortSignal): Promise<AccountsList> {
+  return requestJson<AccountsList>(`/api/v1/accounting/charts/${chartId}/accounts`, {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+}
+
+export async function listPeriods(
+  chartId: string,
+  status?: 'OPEN' | 'CLOSED',
+  signal?: AbortSignal,
+): Promise<PeriodsList> {
+  const params = status ? new URLSearchParams({ status }) : '';
+  return requestJson<PeriodsList>(
+    `/api/v1/accounting/charts/${chartId}/periods${params ? `?${params.toString()}` : ''}`,
+    { method: 'GET', headers: authHeaders(), signal },
+  );
+}
+
+export type JournalListQuery = {
+  periodId?: string;
+  status?: 'DRAFT' | 'POSTED';
+  kind?: 'ENTRY' | 'REVERSAL';
+  occurredFrom?: string;
+  occurredTo?: string;
+  sourceKind?: string;
+  accountId?: string;
+  page: number;
+  pageSize: number;
+};
+
+export async function listJournals(
+  chartId: string,
+  query: JournalListQuery,
+  signal?: AbortSignal,
+): Promise<JournalListPage> {
+  const params = new URLSearchParams();
+  params.set('page', String(query.page));
+  params.set('pageSize', String(query.pageSize));
+  if (query.periodId) params.set('periodId', query.periodId);
+  if (query.status) params.set('status', query.status);
+  if (query.kind) params.set('kind', query.kind);
+  if (query.occurredFrom) params.set('occurredFrom', query.occurredFrom);
+  if (query.occurredTo) params.set('occurredTo', query.occurredTo);
+  if (query.sourceKind) params.set('sourceKind', query.sourceKind);
+  if (query.accountId) params.set('accountId', query.accountId);
+  return requestJson<JournalListPage>(`/api/v1/accounting/charts/${chartId}/journals?${params.toString()}`, {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+}
+
+export async function getAccountLedger(
+  periodId: string,
+  accountId: string,
+  page: number,
+  pageSize = 30,
+  signal?: AbortSignal,
+): Promise<AccountLedger> {
+  const params = new URLSearchParams({
+    accountId,
+    page: String(page),
+    pageSize: String(pageSize),
+  });
+  return requestJson<AccountLedger>(`/api/v1/accounting/periods/${periodId}/ledger?${params.toString()}`, {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+}
+
+export async function getPeriodCloseRuns(periodId: string, signal?: AbortSignal): Promise<CloseRuns> {
+  return requestJson<CloseRuns>(`/api/v1/accounting/periods/${periodId}/close-runs`, {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+}
+
+export async function updateAccount(
+  chartId: string,
+  accountId: string,
+  payload: { name?: string; status?: 'ACTIVE' | 'INACTIVE' },
+): Promise<Account> {
+  return requestJson<Account>(`/api/v1/accounting/charts/${chartId}/accounts/${accountId}`, {
+    method: 'PATCH',
+    headers: jsonHeaders(),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function createAccount(
+  chartId: string,
+  payload: { code: string; name: string; class: string; parentId?: string },
+): Promise<Account> {
+  return requestJson<Account>(`/api/v1/accounting/charts/${chartId}/accounts`, {
+    method: 'POST',
+    headers: jsonHeaders(),
+    body: JSON.stringify(payload),
+  });
 }

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { EmptyState, Field, Input } from '../../ui';
+import { useCallback, useMemo, useState } from 'react';
+import { Alert, Button, EmptyState, Field, Input, Select } from '../../ui';
 import {
   FilterCard,
   ModulePage,
@@ -16,133 +16,252 @@ import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { PERIOD_STATUS_LABELS } from '../../financial-ui/labels';
 import { MoneyActionForm } from '../../financial-ui/MoneyActionForm';
 import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge';
-import { closePeriod, reopenPeriod } from '../api/accounting-api';
+import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
+import {
+  closePeriod,
+  getPeriodCloseRuns,
+  listCharts,
+  listPeriods,
+  reopenPeriod,
+} from '../api/accounting-api';
 import { mapAccountingErrorToMessage } from '../api/accounting-error-messages';
-import type { AccountingPeriod } from '../types/accounting.types';
+import type { AccountingPeriod, ChartsList, CloseRuns, PeriodsList } from '../types/accounting.types';
+
+const RUN_STATUS_LABELS: Record<string, string> = {
+  SUCCEEDED: 'Concluído',
+  BLOCKED: 'Bloqueado',
+};
 
 export function PeriodClosePage() {
+  const [unitId, setUnitId] = useState('');
+  const [submittedUnit, setSubmittedUnit] = useState('');
+  const [chartId, setChartId] = useState('');
   const [periodId, setPeriodId] = useState('');
-  const [rowVersion, setRowVersion] = useState('1');
-  const [period, setPeriod] = useState<AccountingPeriod | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const chartsQuery = useBackofficeQuery<ChartsList>({
+    enabled: submittedUnit.trim() !== '',
+    autoLoad: submittedUnit.trim() !== '',
+    loader: (signal) => listCharts(submittedUnit.trim(), signal),
+    mapError: mapAccountingErrorToMessage,
+  });
+  const periodsQuery = useBackofficeQuery<PeriodsList>({
+    enabled: Boolean(chartId),
+    autoLoad: Boolean(chartId),
+    loader: (signal) => listPeriods(chartId, undefined, signal),
+    mapError: mapAccountingErrorToMessage,
+  });
+  const runsQuery = useBackofficeQuery<CloseRuns>({
+    enabled: Boolean(periodId),
+    autoLoad: Boolean(periodId),
+    loader: (signal) => getPeriodCloseRuns(periodId, signal),
+    mapError: mapAccountingErrorToMessage,
+  });
+
+  const charts = chartsQuery.state.phase === 'ready' ? chartsQuery.state.data.items : [];
+  const periods = periodsQuery.state.phase === 'ready' ? periodsQuery.state.data.items : [];
+  const period = useMemo(
+    () => periods.find((candidate) => candidate.id === periodId) ?? null,
+    [periods, periodId],
+  );
+  const runs = runsQuery.state.phase === 'ready' ? runsQuery.state.data.runs : [];
+
+  const reloadPeriodsAndRuns = useCallback(async () => {
+    await periodsQuery.reload();
+    if (periodId) {
+      await runsQuery.reload();
+    }
+    setNotice(null);
+  }, [periodId, periodsQuery, runsQuery]);
 
   return (
     <ModulePage>
       <ModulePageHeader
         title="Fechamentos"
-        description="Fechar ou reabrir competência envia a versão e a justificativa ao servidor. O navegador não decide o close."
+        description="Períodos e fechamentos são lidos do servidor. Fechar ou reabrir envia a versão atual e a justificativa; o navegador não decide o close."
       />
       <FilterCard>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Field label="Identificador do período" htmlFor="close-period-id">
-            <Input id="close-period-id" value={periodId} onChange={(event) => setPeriodId(event.target.value)} />
-          </Field>
-          <Field label="Versão do período" htmlFor="close-row-version">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
+          <Field label="Unidade operacional" htmlFor="close-unit">
             <Input
-              id="close-row-version"
-              inputMode="numeric"
-              value={rowVersion}
-              onChange={(event) => setRowVersion(event.target.value)}
+              id="close-unit"
+              value={unitId}
+              placeholder="ex.: unit-a"
+              onChange={(event) => setUnitId(event.target.value)}
             />
+          </Field>
+          <div className="flex items-end">
+            <Button
+              onClick={() => {
+                setPeriodId('');
+                setSubmittedUnit(unitId.trim());
+              }}
+              disabled={unitId.trim() === ''}
+            >
+              Carregar
+            </Button>
+          </div>
+          <Field label="Plano de contas" htmlFor="close-chart">
+            <Select
+              id="close-chart"
+              value={chartId}
+              onChange={(event) => {
+                setChartId(event.target.value);
+                setPeriodId('');
+              }}
+              disabled={charts.length === 0}
+            >
+              <option value="">Selecione…</option>
+              {charts.map((chart) => (
+                <option key={chart.id} value={chart.id}>
+                  {chart.code} — {chart.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Período contábil" htmlFor="close-period">
+            <Select
+              id="close-period"
+              value={periodId}
+              onChange={(event) => setPeriodId(event.target.value)}
+              disabled={periods.length === 0}
+            >
+              <option value="">Selecione o período…</option>
+              {periods.map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>
+                  {candidate.code} — {candidate.startsOn} a {candidate.endsOn} (
+                  {PERIOD_STATUS_LABELS[candidate.status] ?? candidate.status})
+                </option>
+              ))}
+            </Select>
           </Field>
         </div>
       </FilterCard>
 
+      {chartsQuery.state.phase === 'denied' || periodsQuery.state.phase === 'denied' ? (
+        <div className="mb-4">
+          <Alert tone="error">Sem permissão para consultar períodos contábeis desta unidade.</Alert>
+        </div>
+      ) : null}
       {!period ? (
         <EmptyState
-          title="Nenhum fechamento carregado"
-          description="Informe o período e a versão atuais. O resultado só aparece depois da resposta do servidor."
+          title="Nenhum período selecionado"
+          description="Carregue a unidade e selecione o plano e o período contábil; versão e histórico vêm da API."
         />
       ) : (
         <>
-          {period.status === 'CLOSED' ? <div className="mb-4"><ClosedPeriodBanner /></div> : null}
+          {period.status === 'CLOSED' ? (
+            <div className="mb-4">
+              <ClosedPeriodBanner />
+            </div>
+          ) : null}
+          {notice ? (
+            <div className="mb-4">
+              <Alert tone="info">{notice}</Alert>
+            </div>
+          ) : null}
           <div className="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5">
             <DefinitionList
               items={[
                 {
                   label: 'Status',
-                  value: <FinanceStatusBadge status={period.status} labels={PERIOD_STATUS_LABELS} />,
+                  value: (
+                    <FinanceStatusBadge status={period.status} labels={PERIOD_STATUS_LABELS} />
+                  ),
                 },
                 { label: 'Código', value: period.code },
                 { label: 'Início', value: period.startsOn },
                 { label: 'Fim', value: period.endsOn },
-                { label: 'Versão', value: String(period.rowVersion) },
+                { label: 'Versão atual', value: String(period.rowVersion) },
                 { label: 'Reaberturas', value: String(period.reopenCount) },
               ]}
             />
           </div>
-          {period.closeChecks.length > 0 ? (
-            <ModuleTableCard>
-              <table className={moduleTableClass} aria-label="Checagens de fechamento">
-                <thead className={moduleTableHeadClass}>
-                  <tr>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
-                      Checagem
-                    </th>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
-                      Resultado
-                    </th>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
-                      Bloqueia
-                    </th>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
-                      Detalhe
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {period.closeChecks.map((check) => (
-                    <tr key={check.kind} className={moduleTableRowClass}>
-                      <td className={moduleTableCellClass}>{check.kind}</td>
-                      <td className={moduleTableCellClass}>{check.result}</td>
-                      <td className={moduleTableCellClass}>{check.blocking ? 'Sim' : 'Não'}</td>
-                      <td className={`${moduleTableCellClass} whitespace-normal`}>{check.detail}</td>
+
+          {runs.length > 0 ? (
+            <>
+              <h2 className="mb-3 text-base font-semibold text-gray-900">Histórico de fechamentos</h2>
+              <ModuleTableCard>
+                <table className={moduleTableClass} aria-label="Execuções de fechamento do período">
+                  <thead className={moduleTableHeadClass}>
+                    <tr>
+                      <th scope="col" className={moduleTableHeaderCellClass}>
+                        Status
+                      </th>
+                      <th scope="col" className={moduleTableHeaderCellClass}>
+                        Quando
+                      </th>
+                      <th scope="col" className={moduleTableHeaderCellClass}>
+                        Checagens
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </ModuleTableCard>
+                  </thead>
+                  <tbody>
+                    {runs.map((run) => (
+                      <tr key={run.id} className={moduleTableRowClass}>
+                        <td className={moduleTableCellClass}>
+                          {RUN_STATUS_LABELS[run.status] ?? run.status}
+                        </td>
+                        <td className={moduleTableCellClass}>
+                          {new Date(run.createdAt).toLocaleString('pt-BR')}
+                        </td>
+                        <td className={moduleTableCellClass}>
+                          <ul className="list-none space-y-1">
+                            {run.checks.map((check) => (
+                              <li key={`${run.id}-${check.kind}`}>
+                                <span className="font-mono text-xs">{check.kind}</span>:{' '}
+                                {check.result}
+                                {check.blocking ? ' (bloqueia)' : ''} — {check.detail}
+                              </li>
+                            ))}
+                          </ul>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </ModuleTableCard>
+            </>
           ) : null}
+
+          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <MoneyActionForm
+              title="Fechar período"
+              description="O servidor avalia o checklist configurável e bloqueia lançamentos concorrentes."
+              confirmTitle="Fechar período"
+              confirmDescription="O close ocorre em transação única sob bloqueio do período."
+              confirmLabel="Fechar"
+              reasonLabel="Justificativa"
+              disabled={period.status !== 'OPEN'}
+              mapError={mapAccountingErrorToMessage}
+              onReload={() => void reloadPeriodsAndRuns()}
+              onSubmit={async ({ reason }) => {
+                await closePeriod(period.id, {
+                  rowVersion: period.rowVersion,
+                  reason: reason ?? '',
+                });
+              }}
+            />
+            <MoneyActionForm
+              title="Reabrir período"
+              description="Reabertura exige capability específica e justificativa no servidor."
+              confirmTitle="Reabrir período"
+              confirmDescription="Somente o backend autoriza a reabertura e registra o histórico."
+              confirmLabel="Reabrir"
+              reasonLabel="Justificativa"
+              disabled={period.status !== 'CLOSED'}
+              mapError={mapAccountingErrorToMessage}
+              onReload={() => void reloadPeriodsAndRuns()}
+              onSubmit={async ({ reason }) => {
+                await reopenPeriod(period.id, {
+                  rowVersion: period.rowVersion,
+                  reason: reason ?? '',
+                });
+              }}
+            />
+          </div>
         </>
       )}
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <MoneyActionForm
-          title="Fechar período"
-          description="O servidor avalia o checklist configurável. Quitação não é exigida pela política padrão."
-          confirmTitle="Fechar período"
-          confirmDescription="O close ocorre sob bloqueio do período no backend."
-          confirmLabel="Fechar"
-          reasonLabel="Justificativa"
-          disabled={!periodId.trim()}
-          mapError={mapAccountingErrorToMessage}
-          onSubmit={async ({ reason }) => {
-            const next = await closePeriod(periodId.trim(), {
-              rowVersion: Number(rowVersion),
-              reason: reason ?? '',
-            });
-            setPeriod(next);
-            setRowVersion(String(next.rowVersion));
-          }}
-        />
-        <MoneyActionForm
-          title="Reabrir período"
-          description="Reabertura exige permissão específica e justificativa no servidor."
-          confirmTitle="Reabrir período"
-          confirmDescription="Somente o backend autoriza a reabertura."
-          confirmLabel="Reabrir"
-          reasonLabel="Justificativa"
-          disabled={!periodId.trim()}
-          mapError={mapAccountingErrorToMessage}
-          onSubmit={async ({ reason }) => {
-            const next = await reopenPeriod(periodId.trim(), {
-              rowVersion: Number(rowVersion),
-              reason: reason ?? '',
-            });
-            setPeriod(next);
-            setRowVersion(String(next.rowVersion));
-          }}
-        />
-      </div>
     </ModulePage>
   );
 }

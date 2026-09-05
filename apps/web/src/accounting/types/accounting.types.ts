@@ -1,16 +1,37 @@
+export type ChartStatus = 'ACTIVE' | 'INACTIVE';
+export type AccountClass = 'ASSET' | 'LIABILITY' | 'EQUITY' | 'REVENUE' | 'EXPENSE';
+export type AccountStatus = 'ACTIVE' | 'INACTIVE';
+export type PeriodStatus = 'OPEN' | 'CLOSED';
+export type JournalStatus = 'DRAFT' | 'POSTED';
+export type JournalKind = 'ENTRY' | 'REVERSAL';
+export type JournalDirection = 'DEBIT' | 'CREDIT';
+export type NormalBalance = 'DEBIT' | 'CREDIT';
+export type PeriodCloseRunStatus = 'SUCCEEDED' | 'BLOCKED';
+export type PeriodCloseCheckResult = 'PASS' | 'FAIL' | 'INFORMATIONAL';
+
 export type ChartOfAccounts = {
   id: string;
   unitId: string;
   code: string;
   name: string;
-  status: string;
+  status: ChartStatus;
   createdAt: string;
   updatedAt: string;
 };
 
+export type Account = {
+  id: string;
+  chartId: string;
+  parentId: string | null;
+  code: string;
+  name: string;
+  class: AccountClass;
+  status: AccountStatus;
+};
+
 export type PeriodCloseCheck = {
   kind: string;
-  result: string;
+  result: PeriodCloseCheckResult;
   blocking: boolean;
   observedCount: number;
   detail: string;
@@ -23,7 +44,7 @@ export type AccountingPeriod = {
   code: string;
   startsOn: string;
   endsOn: string;
-  status: string;
+  status: PeriodStatus;
   reopenCount: number;
   rowVersion: number;
   closedAt: string | null;
@@ -35,7 +56,11 @@ export type JournalLine = {
   id: string;
   lineNumber: number;
   accountId: string;
-  direction: string;
+  accountCode?: string;
+  accountName?: string;
+  accountClass?: AccountClass;
+  accountStatus?: AccountStatus;
+  direction: JournalDirection;
   amount: string;
   description: string | null;
 };
@@ -45,8 +70,8 @@ export type JournalEntry = {
   chartId: string;
   periodId: string;
   unitId: string;
-  status: string;
-  kind: string;
+  status: JournalStatus;
+  kind: JournalKind;
   description: string;
   occurredOn: string;
   currencyCode: string;
@@ -55,6 +80,7 @@ export type JournalEntry = {
   sourceReference: string;
   idempotencyKey: string;
   reversesEntryId: string | null;
+  entryNumber: number | null;
   postedAt: string | null;
   rowVersion: number;
   debitTotal: string;
@@ -81,32 +107,34 @@ export type JournalBook = {
   balanced: boolean;
 };
 
+export type GeneralLedgerAccount = {
+  accountId: string;
+  code: string;
+  name: string;
+  class: AccountClass;
+  openingDebits: string;
+  openingCredits: string;
+  periodDebits: string;
+  periodCredits: string;
+  closingDebits: string;
+  closingCredits: string;
+  closingBalanceDebit: string;
+  closingBalanceCredit: string;
+  movements: Array<{
+    journalEntryId: string;
+    occurredOn: string;
+    description: string;
+    sourceReference: string;
+    kind: string;
+    direction: JournalDirection;
+    amount: string;
+  }>;
+};
+
 export type GeneralLedger = {
   periodId: string;
   source: string;
-  accounts: Array<{
-    accountId: string;
-    code: string;
-    name: string;
-    class: string;
-    openingDebits: string;
-    openingCredits: string;
-    periodDebits: string;
-    periodCredits: string;
-    closingDebits: string;
-    closingCredits: string;
-    closingBalanceDebit: string;
-    closingBalanceCredit: string;
-    movements: Array<{
-      journalEntryId: string;
-      occurredOn: string;
-      description: string;
-      sourceReference: string;
-      kind: string;
-      direction: string;
-      amount: string;
-    }>;
-  }>;
+  accounts: GeneralLedgerAccount[];
 };
 
 export type TrialBalance = {
@@ -116,7 +144,7 @@ export type TrialBalance = {
     accountId: string;
     code: string;
     name: string;
-    class: string;
+    class: AccountClass;
     debit: string;
     credit: string;
   }>;
@@ -144,6 +172,66 @@ export type BalanceSheet = {
   equity: string;
   netIncome: string;
   balanced: boolean;
+};
+
+// Contratos das consultas criadas para a UI (listagens server-side)
+export type ChartsList = { unitId: string; items: ChartOfAccounts[] };
+export type AccountsList = { chartId: string; items: Account[] };
+export type PeriodsList = { chartId: string; items: AccountingPeriod[] };
+
+export type JournalListPage = {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  items: JournalEntry[];
+};
+
+export type SideBalance = { side: NormalBalance; amount: string };
+
+export type AccountLedgerMovement = {
+  journalEntryId: string;
+  occurredOn: string;
+  description: string;
+  sourceReference: string;
+  kind: JournalKind;
+  direction: JournalDirection;
+  amount: string;
+  runningBalance: SideBalance;
+};
+
+export type AccountLedger = {
+  periodId: string;
+  account: {
+    id: string;
+    code: string;
+    name: string;
+    class: AccountClass;
+    status: AccountStatus;
+    normalBalance: NormalBalance;
+  } | null;
+  source: string;
+  openingBalance: SideBalance;
+  periodDebits: string;
+  periodCredits: string;
+  closingBalance: SideBalance;
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  movements: AccountLedgerMovement[];
+};
+
+export type PeriodCloseRun = {
+  id: string;
+  status: PeriodCloseRunStatus;
+  createdAt: string;
+  checks: PeriodCloseCheck[];
+};
+
+export type CloseRuns = {
+  periodId: string;
+  runs: PeriodCloseRun[];
 };
 
 export type FixedAssetRegister = {
