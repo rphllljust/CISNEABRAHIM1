@@ -616,3 +616,12 @@ Classificação: **interpretação de engenharia**. Fecha o furo de tesouraria n
 | Scorecard financeiro 7.0; ED-006 | transferência tesouraria sem matriz | nenhuma BR nova; SOD CANDIDATE | `SOD_DUTIES.TreasuryTransfer` / `TreasuryReverse` no opener/ator original | `treasury.integration` 9/9; SOD 6/6 | opener não transfere; checker distinto |
 | SRC-006 ∩ SRC-007 | `NÃO CREDENCIADO` | BR-043..045 `CONFIRMED` | port default SRC-006; submit bloqueia; AUTHORIZED exige protocolo; legendas na resposta/UI gated | `fiscal-credentialing.spec` 4/4; `fiscal.integration` 6/6; `fiscal-accounting` 9/9 | Fiscal produto permanece 4.0; flag off |
 | ED-005 | ledger/estoque/folha/compras fora da R1 | — | nenhuma exposição nova; custeio e folha oficial permanecem `UNDECIDED` | — | scores 7.0 / 6.2 de superfície R1 inalterados |
+
+## INTEGRAÇÃO LOCAL (rede local) back ↔ banco ↔ front — 2026-09-07
+
+Classificação: **interpretação de engenharia / operações**. Subiu o stack local (PostgreSQL + API + Web) acessível na LAN e corrigiu derivações reais de integração (schema de banco × código; grants de dev). Nenhuma regra empresarial nova `CONFIRMED`. Produção permanece NO-GO.
+
+| SOURCE | EVIDENCE | BUSINESS RULE | IMPLEMENTATION | TEST | ACCEPTANCE |
+| ------ | -------- | ------------- | -------------- | ---- | ---------- |
+| Pedido do responsável (“suba na rede local e integre back/banco/front”); FRONT-BACK-ALIGN-001 | `GET /api/v1/clients` → 500 `purchase_order_requirement does not exist`; journal local registrava migrations 0070–0073 como aplicadas sem o DDL (arquivos editados após apply) | nenhuma BR nova | reset local documentado (DB-RESET-001) em dev+test; migrations 76/76 reaplicadas; guard p/ banco novo + probes de efeito 0070–0073 em `syncDrizzleJournal` (`scripts/lib/database-test-env.mjs`); `pg` resolvido do pacote em `wait-for-postgres.mjs`; resource types de grants do dev-login alinhados ao catálogo authz (`scripts/repair-dev-login.mjs`) | `db:migrate` dev+test idempotente; health/ready 200; varredura de endpoints por módulo | clients/contracts/people 200 (eram 500/403); API `:3000` e Web `:5173` bindados em `0.0.0.0` (LAN `192.168.1.89`); proxy e CORS 200 |
+| seeds oficiais do repo | dev-operator + UAT vertical (2 cenários) | — | `auth:repair:dev-login`; `scripts/seed-dev-demo-data.mjs` | login HTTP 200; dashboards executivo/operacional com dados | 2 clientes; 2 OS; 2 medições; 2 billing records; emissão de documento exige registry de emissor (`OWN_COMPANY_*`), não inventado |

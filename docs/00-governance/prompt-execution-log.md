@@ -11699,3 +11699,94 @@ COMMIT: DONE (7f8642a)
 BLOCKER 8/9 (persiste, observacao 2/3): HEAD nao autocontido - 22 imports (probe commitado) resolvem apenas para WIP nao commitado do programa concorrente; aguardando commit do WIP para build limpo rc=0.
 NEXT: round 3 -> se WIP nao committado, registrar blocker formal com condicao concreta.
 ```
+```text
+PROMPT: INTEGRACAO LOCAL (REDE LOCAL) BACK-BANCO-FRONT
+TITLE: Subir o stack local na rede local e fechar a integracao entre PostgreSQL, API e Web
+STARTED_AT: 2026-09-07T22:10:00-04:00
+FINISHED_AT: 2026-09-07T23:35:00-04:00
+STATUS: PASS_WITH_RESTRICTIONS
+FILES_CREATED: (nenhum dominio; somente dados de demonstracao em banco local dev)
+FILES_CHANGED:
+  scripts/lib/database-test-env.mjs        (guard p/ banco novo no syncDrizzleJournal + probes de efeito 0070-0073)
+  scripts/repair-dev-login.mjs             (resolveResourceType alinhado ao catalogo AUTHZ_RESOURCE_TYPES)
+  scripts/wait-for-postgres.mjs            (pg resolvido do contexto @cisne/database - pnpm nao hoista pg na raiz)
+  docs/01-foundation/requirements-traceability.md
+  docs/00-governance/prompt-execution-log.md
+QUALITY_GATE: PASS (com restricoes registradas)
+FUNCTIONAL_CODE_CREATED: NO (somente scripts de operacao/dev e estado do ambiente)
+NEXT_PROMPT_EXECUTED: NO
+
+SCOPE:
+  Subir na rede local: PostgreSQL local (docker/compose.yaml), API (:3000) e Web Vite (:5173)
+  acessiveis em 0.0.0.0 / 192.168.1.89, com CORS e proxy /api funcionais.
+  Integracao back-banco-front: corrigir derivação schema × codigo e autorizacao de dev que
+  impediam o front de refletir o back (500/403).
+  Sem ligar FEATURE_MODULE_* globalmente (ja true no .env de dev/LAN). Sem inventar emissor
+  fiscal nem dados empresariais. Sem executar Prompt 93. Sem declarar GO.
+
+CLASSIFICATION:
+  Interpretacao de engenharia / operacoes. Nenhuma regra empresarial nova CONFIRMED.
+  Producao permanece NO-GO (PILOT_OBSERVATION_WINDOW_NOT_COMPLETED).
+
+DIAGNOSTICO (evidencias):
+  - Ambiente estava todo parado (sem Docker/Postgres/API/Web); HML (3100/5174) subiu junto com
+    o engine do Docker Desktop (restart unless-stopped) e NAO foi tocado.
+  - GET /api/v1/clients -> HTTP 500: column "purchase_order_requirement" does not exist.
+  - journal drizzle local (dev e test) registrava migrations 0070-0073 como aplicadas SEM o DDL:
+    arquivos de migration foram editados apos o apply (hash antigo registrado; drizzle-kit so
+    aplica por max(created_at) do journal, nunca reaplica meio de sequencia).
+  - db:migrate:test quebrava em banco novo: syncDrizzleJournal consultava
+    drizzle.__drizzle_migrations antes de a tabela existir.
+  - pnpm db:reset quebrava no wait-for-postgres.mjs (import ESM de 'pg' sem dependencia na raiz).
+  - grants do dev-login: actions sem prefixo mapeado caiam em resource Platform -> PDP
+    (action+resource exatos) negava contracts (COMMERCIAL_DENIED) e people (PERSON_DENIED).
+
+CORRECOES:
+  - Reset local documentado (DB-RESET-001, volume cisne_local_pg_data validado) e migrations
+    76/76 reaplicadas de verdade em cisne_local_dev e cisne_local_test.
+  - syncDrizzleJournal: early-return quando drizzle.__drizzle_migrations nao existe (banco novo);
+    probes de efeito para 0070 (fin.receivable_collections), 0071 (pty.clients.purchase_order_requirement),
+    0072 (pty.legal_entities), 0073 (bil.recurring_billing_schedules) - mesmo invariante ja existente
+    para 0074: "domain tag MUST have a probe so an incomplete DB is not marked applied".
+  - repair-dev-login: mapeamento prefixo->resource type completo (people:contracts:supplier:
+    procurement:issuer:finance:*:accounting:fiscal:inventory:payroll: etc.) segundo authz-resources.ts.
+  - wait-for-postgres: createRequire a partir de packages/database (pnpm per-package node_modules).
+  - Dev operator recriado (auth:repair:dev-login; grants completos) e seed de demonstracao
+    (scripts/seed-dev-demo-data.mjs; 2 cenarios UAT) para a UI exibir dados reais do banco.
+
+QUALITY GATES:
+  - docker: cisne_local_postgres healthy; HML intacto (cisne_hml_api 3100, cisne_hml_web 5174).
+  - migrations: dev journal=76/76; test 76/76; db:migrate idempotente (reexecucao PASS).
+  - health/ready HTTP 200 com database up (latencia ~111ms na 1a; posterior normal).
+  - API bind 0.0.0.0:3000; Web Vite bind :5173 (host: true) com proxy /api -> 127.0.0.1:3000.
+  - login dev-operator@cisne-rondonia.invalid (senha sintetica dev) -> HTTP 200.
+  - Varredura de endpoints: clients 200 (dados), service-orders 200, proposals 200,
+    commercial/contracts 200 (era 403), people 200 (era 403), resources/catalog/documents/alerts/
+    modules/registry/dashboard/* 200, finance/receivables+payables 200; suplliers detail 400
+    INVALID_ID em UUID zero (semantica de probe correta); accounting/charts e dashboard exigem
+    unitId (200 com unitId=unit-demo-local); sem 500 remanescentes nos caminhos principais.
+  - LAN: SPA http://192.168.1.89:5173 200; proxy LAN -> /api/v1/health/ready 200;
+    CORS preflight origin http://192.168.1.89:5173 -> 204 com Access-Control-Allow-Origin.
+  - node --check nos 3 scripts alterados: PASS. Commits: 0fe4604, e519b2f, d720d32.
+  - Prompt 93 nao executado; producao permanece NO-GO.
+
+NOTES / RESTRICOES (honestas):
+  - db:reset completo agora roda sozinho ate as migrations (corrigido); nesta sessao o reset foi
+    executado antes do fix do wait-for-postgres (container ja Healthy) e seguiu via db:migrate.
+  - Reset apagou a massa sintetica anterior do banco dev local (17 clientes/11 OS de sessoes
+    antigas); recriada massa menor via seeds oficiais (2 clientes/2 OS/2 medições/2 billing
+    records) - dados dev sao regeneraveis; nada empresarial real foi perdido.
+  - Emissao de documento de faturamento exige emissor registrado (registry OWN_COMPANY_* /
+    SRC-005); sem OWN_COMPANY_* no .env o backend responde honestamente (issuer ausente) - NAO
+    inventado. UAT vertical de seed fecha FAIL so na etapa de emissao por isso.
+  - Acesso de OUTROS dispositivos na LAN depende de regra de entrada no Windows Firewall para
+    3000/5173 (nao adicionada nesta sessao; comandos fornecidos no relatorio).
+  - O servico HML (compose docker/hml, porta 5433/3100/5174) permanece no ar com os dados do
+    piloto; nao foi alterado.
+
+COMMIT: DONE (0fe4604 fix scripts database-test-env; e519b2f fix scripts repair-dev-login;
+              d720d32 fix scripts wait-for-postgres)
+WORKING TREE: DIRTY (WIP pre-existente preservado: apps/web/src/accounting/accounting-backoffice.ui.test.tsx
+              e docs/inputs/_write_src003.py - nao tocados)
+NEXT: STOP
+```
