@@ -78,6 +78,12 @@ const MIGRATION_EFFECT_CHECKS = {
   '0035_service_orders_list_perf_index': { index: 'service_orders_unit_status_created_idx' },
   '0036_workforce_members_baseline': { table: 'wrk.workforce_members' },
   '0037_purchase_order_balance': { table: 'com.purchase_order_consumption_entries' },
+  '0070_receivable_collections': { table: 'fin.receivable_collections' },
+  '0071_operational_authority_gates': {
+    column: ['pty', 'clients', 'purchase_order_requirement'],
+  },
+  '0072_legal_establishment_master': { table: 'pty.legal_entities' },
+  '0073_recurring_billing_schedule': { table: 'bil.recurring_billing_schedules' },
   '0074_access_administration': { table: '"authorization".access_roles' },
 };
 
@@ -126,6 +132,15 @@ async function migrationEffectsPresent(pool, tag) {
 
 export async function syncDrizzleJournal(pool) {
   const journal = readDrizzleJournal();
+
+  // Fresh databases have no drizzle journal table yet — the migrator creates it
+  // on first run. Reconciliation is only meaningful once the table exists, so
+  // bail out early instead of failing on `drizzle.__drizzle_migrations`.
+  const hasMigrationsTable = await tableExists(pool, 'drizzle.__drizzle_migrations');
+  if (!hasMigrationsTable) {
+    return { inserted: 0, removed: 0, reason: 'migration journal table not created yet' };
+  }
+
   const applied = await pool.query('SELECT hash FROM drizzle.__drizzle_migrations');
   const appliedHashes = new Set(applied.rows.map((row) => row.hash));
 
