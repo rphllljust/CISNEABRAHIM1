@@ -1,5 +1,12 @@
+import { createRequire } from 'node:module';
+import { resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import { Pool } from 'pg';
+
+// Resolve 'pg' from the @cisne/database package context (pnpm per-package
+// node_modules), like the other repo scripts — the workspace root does not
+// declare pg as a direct dependency.
+const requireFromDatabase = createRequire(resolve(process.cwd(), 'packages/database/package.json'));
+const { Pool } = requireFromDatabase('pg');
 
 const databaseUrl = process.env['DATABASE_URL'];
 
