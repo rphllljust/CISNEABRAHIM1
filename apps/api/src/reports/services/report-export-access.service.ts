@@ -37,6 +37,8 @@ export type CreateReportExportInput = {
   correlationId?: string | null;
 };
 
+const EXPORT_STATUSES = ['PENDING', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED'] as const;
+
 @Injectable()
 export class ReportExportAccessService {
   constructor(
@@ -131,6 +133,43 @@ export class ReportExportAccessService {
     return this.serializeExport(exportRow);
   }
 
+  async listExports(
+    actor: IdentityAuthzContext,
+    input: {
+      page?: string | number;
+      pageSize?: string | number;
+      status?: string;
+      reportType?: string;
+    },
+  ) {
+    // Fail closed: somente atores que podem acessar ao menos um relatório
+    // conseguem listar as exportações que eles próprios solicitaram.
+    await this.assertAnyReportAccess(actor);
+
+    const page = this.parsePage(input.page, 0);
+    const pageSize = Math.min(this.parsePage(input.pageSize, 30), 100);
+    const rawStatus = input.status?.trim();
+    const status = rawStatus ? rawStatus.toUpperCase() : undefined;
+    if (status && !(EXPORT_STATUSES as readonly string[]).includes(status)) {
+      throw new ReportHttpException(400, REPORT_ERROR_CODES.INVALID_REQUEST, 'Invalid export status filter.');
+    }
+    const reportType = input.reportType?.trim() ? this.parseReportType(input.reportType) : undefined;
+
+    const { rows, total } = await this.exports.listForActor({
+      identityId: actor.identityId,
+      page,
+      pageSize,
+      status,
+      reportType,
+    });
+    return {
+      items: rows.map((row) => this.serializeExport(row)),
+      total,
+      page,
+      pageSize,
+    };
+  }
+
   async downloadExport(actor: IdentityAuthzContext, exportId: string) {
     const exportRow = await this.exports.findByIdForActor(exportId, actor.identityId);
     if (!exportRow) {
@@ -221,6 +260,26 @@ export class ReportExportAccessService {
     if (!(await this.canAccessReportAsync(actor, reportType))) {
       throw new ReportHttpException(403, REPORT_ERROR_CODES.ACCESS_DENIED, 'Access denied.');
     }
+  }
+
+  private async assertAnyReportAccess(actor: IdentityAuthzContext): Promise<void> {
+    for (const reportType of Object.values(REPORT_TYPES)) {
+      if (await this.canAccessReportAsync(actor, reportType)) {
+        return;
+      }
+    }
+    throw new ReportHttpException(403, REPORT_ERROR_CODES.ACCESS_DENIED, 'Access denied.');
+  }
+
+  private parsePage(raw: string | number | undefined, fallback: number): number {
+    if (raw === undefined || raw === null || raw === '') {
+      return fallback;
+    }
+    const value = Number(raw);
+    if (!Number.isInteger(value) || value < 0) {
+      throw new ReportHttpException(400, REPORT_ERROR_CODES.INVALID_REQUEST, 'Invalid pagination value.');
+    }
+    return value;
   }
 
   private async canAccessReportAsync(actor: IdentityAuthzContext, reportType: ReportType): Promise<boolean> {

@@ -198,6 +198,82 @@ describe('Reports PostgreSQL integration', () => {
     ).rejects.toBeInstanceOf(ReportHttpException);
   });
 
+  it('lists only the actor own exports with pagination, newest first', async () => {
+    for (let index = 0; index < 3; index += 1) {
+      await access.createExport(
+        { identityId: identityA, sessionId: 's-a' },
+        { reportType: REPORT_TYPES.ServiceOrdersByPeriod, format: 'CSV', filters: {} },
+      );
+    }
+
+    const first = await access.listExports(
+      { identityId: identityA, sessionId: 's-a' },
+      { page: 0, pageSize: 2 },
+    );
+    expect(first.items).toHaveLength(2);
+    expect(first.total).toBe(3);
+    expect(first.page).toBe(0);
+    expect(first.pageSize).toBe(2);
+
+    const second = await access.listExports(
+      { identityId: identityA, sessionId: 's-a' },
+      { page: 1, pageSize: 2 },
+    );
+    expect(second.items).toHaveLength(1);
+
+    const otherActor = await access.listExports(
+      { identityId: identityB, sessionId: 's-b' },
+      { page: 0, pageSize: 10 },
+    );
+    expect(otherActor.items).toHaveLength(0);
+    expect(otherActor.total).toBe(0);
+  });
+
+  it('filters export history by status and rejects invalid filters', async () => {
+    await access.createExport(
+      { identityId: identityA, sessionId: 's-a' },
+      { reportType: REPORT_TYPES.ServiceOrdersByPeriod, format: 'CSV', filters: {} },
+    );
+    await access.createExport(
+      { identityId: identityA, sessionId: 's-a' },
+      { reportType: REPORT_TYPES.ServiceOrdersByPeriod, format: 'CSV', filters: {} },
+    );
+
+    const completed = await access.listExports(
+      { identityId: identityA, sessionId: 's-a' },
+      { status: 'COMPLETED' },
+    );
+    expect(completed.total).toBe(2);
+
+    await expect(
+      access.listExports(
+        { identityId: identityA, sessionId: 's-a' },
+        { status: 'BOGUS' },
+      ),
+    ).rejects.toBeInstanceOf(ReportHttpException);
+    await expect(
+      access.listExports(
+        { identityId: identityA, sessionId: 's-a' },
+        { reportType: 'NOPE' },
+      ),
+    ).rejects.toBeInstanceOf(ReportHttpException);
+    await expect(
+      access.listExports(
+        { identityId: identityA, sessionId: 's-a' },
+        { page: -1 },
+      ),
+    ).rejects.toBeInstanceOf(ReportHttpException);
+  });
+
+  it('denies export history list without any report access (fail closed)', async () => {
+    const suffix = crypto.randomUUID();
+    const identityNoAccess = (await insertIdentity(pool, `report-denied-${suffix}`)).identityId;
+
+    await expect(
+      access.listExports({ identityId: identityNoAccess, sessionId: 's-n' }, {}),
+    ).rejects.toBeInstanceOf(ReportHttpException);
+  });
+
   it('includes business timezone in report contract', async () => {
     await insertServiceOrder(pool, {
       orderNumber: 'SO-TZ',

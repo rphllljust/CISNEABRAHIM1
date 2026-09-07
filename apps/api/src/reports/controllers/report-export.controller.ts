@@ -57,6 +57,20 @@ export class ReportExportController {
     );
   }
 
+  @Get('exports')
+  listExports(
+    @CurrentAuth() auth: AccessTokenClaims,
+    @Query('page') page = '0',
+    @Query('pageSize') pageSize = '30',
+    @Query('status') status?: string,
+    @Query('reportType') reportType?: string,
+  ) {
+    return this.accessService.listExports(
+      { identityId: auth.sub, sessionId: auth.sid },
+      { page, pageSize, status, reportType },
+    );
+  }
+
   @Get('exports/:exportId')
   getExport(@CurrentAuth() auth: AccessTokenClaims, @Param('exportId') exportId: string) {
     return this.accessService.getExport({ identityId: auth.sub, sessionId: auth.sid }, exportId);

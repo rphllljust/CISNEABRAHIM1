@@ -81,6 +81,46 @@ export class ReportExportRepository {
     return result.rows[0] ?? null;
   }
 
+  async listForActor(input: {
+    identityId: string;
+    page: number;
+    pageSize: number;
+    status?: string;
+    reportType?: string;
+  }): Promise<{ rows: ReportExportRow[]; total: number }> {
+    const conditions = ['requested_by_identity_id = $1'];
+    const params: unknown[] = [input.identityId];
+    let index = 1;
+    if (input.status) {
+      index += 1;
+      conditions.push(`status = $${index}`);
+      params.push(input.status);
+    }
+    if (input.reportType) {
+      index += 1;
+      conditions.push(`report_type = $${index}`);
+      params.push(input.reportType);
+    }
+    const where = conditions.join(' AND ');
+
+    const filterParams = params.slice();
+    params.push(input.pageSize, input.page * input.pageSize);
+    index += 2;
+
+    const rows = await this.pool().query<ReportExportRow>(
+      `SELECT * FROM rpt.report_exports
+       WHERE ${where}
+       ORDER BY created_at DESC, id DESC
+       LIMIT $${index - 1} OFFSET $${index}`,
+      params,
+    );
+    const count = await this.pool().query<{ total: number }>(
+      `SELECT count(*)::int AS total FROM rpt.report_exports WHERE ${where}`,
+      filterParams,
+    );
+    return { rows: rows.rows, total: count.rows[0]?.total ?? 0 };
+  }
+
   async markRunning(id: string): Promise<void> {
     await this.pool().query(
       `UPDATE rpt.report_exports SET status = 'RUNNING' WHERE id = $1 AND status IN ('PENDING', 'RUNNING')`,
