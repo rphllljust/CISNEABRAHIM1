@@ -1,5 +1,6 @@
 import { HttpStatus } from '@nestjs/common';
 import { AuthzHttpException } from '../../authorization/errors/authz-http.exception';
+import { InvalidUuidError } from '../../platform/kernel/uuid';
 import { BankReconciliationError } from '../domain/bank-reconciliation';
 import { BankReconciliationValidationError } from '../domain/bank-reconciliation.validation';
 import { FINANCE_ERROR_CODES } from '../errors/finance-error-codes';
@@ -15,6 +16,11 @@ export function mapBankReconciliationError(error: unknown): FinanceHttpException
   }
   if (error instanceof FinanceHttpException) {
     return error;
+  }
+  if (error instanceof InvalidUuidError) {
+    // Propaga para o InvalidUuidFilter global -> 400 INVALID_ID (mesma semantica
+    // dos demais modulos). Sem isso um id malformado virava 500 INTERNAL.
+    throw error;
   }
   if (error instanceof BankReconciliationValidationError) {
     return new FinanceHttpException(
