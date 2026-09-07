@@ -11790,3 +11790,77 @@ WORKING TREE: DIRTY (WIP pre-existente preservado: apps/web/src/accounting/accou
               e docs/inputs/_write_src003.py - nao tocados)
 NEXT: STOP
 ```
+```text
+PROMPT: ANALISE E CONSTRUCAO DE APIS
+TITLE: Analisar a superficie de API (frontend runtime x backend) e construir o que estiver faltando
+STARTED_AT: 2026-09-07T23:40:00-04:00
+FINISHED_AT: 2026-09-07T23:50:00-04:00
+STATUS: PASS_WITH_RESTRICTIONS
+FILES_CREATED:
+  apps/api/src/finance/services/bank-reconciliation-access.errors.spec.ts
+FILES_CHANGED:
+  apps/api/src/reports/repositories/report-export.repository.ts (listForActor)
+  apps/api/src/reports/services/report-export-access.service.ts (listExports + fail-closed)
+  apps/api/src/reports/controllers/report-export.controller.ts (GET /reports/exports)
+  apps/api/src/reports/reports.integration.spec.ts (3 novos casos)
+  apps/api/src/finance/services/bank-reconciliation-access.errors.ts (InvalidUuidError propaga -> 400)
+  docs/01-foundation/requirements-traceability.md
+  docs/00-governance/prompt-execution-log.md
+QUALITY_GATE: PASS (com restricoes registradas)
+FUNCTIONAL_CODE_CREATED: YES (endpoint de leitura + correcao HTTP)
+NEXT_PROMPT_EXECUTED: NO
+
+SCOPE:
+  Analisar as APIs do ponto de vista do frontend runtime (todas as chamadas /api/v1 em apps/web)
+  x rotas reais registradas no backend, e construir as lacunas comprovadas.
+  Sem antecipar escopo especulativo: nenhum endpoint novo para UI inexistente; nenhum dado
+  empresarial inventado. Sem executar Prompt 93. Sem declarar GO.
+
+CLASSIFICATION:
+  Interpretacao de engenharia. Nenhuma regra empresarial nova CONFIRMED.
+  Producao permanece NO-GO.
+
+ANALISE (metodo e evidencias):
+  - Auditor estatico em tmp/audit-api-surface.mjs (nao commitado; tmp/ e gitignored):
+    309 chamadas runtime do web; 376 rotas backend; comparacao por path normalizado + metodo.
+  - Resultado: toda chamada runtime do frontend tem rota correspondente no backend; as telas dos
+    modulos por-id (payroll/inventory/procurement/fiscal/accounting) usam GET por identificador
+    e formularios (design documentado: 'o frontend nao inventa lista') - NAO sao lacunas.
+  - Varredura HTTP real (token dev) das listagens GET usadas pela UI: maioria 200; 400 exigem
+    query/param (accounting/ledger, reports preview, search); 404 em raizes de modulos por-id =
+    design; UNICO DEFEITO 500: GET /finance/bank-reconciliation/statements/import
+    (FINANCE_VALIDATION_FAILED) - id malformado 'import' casava GET statements/:statementId e
+    caia no catch generico do mapper (500) em vez de 400.
+  - Lacuna de familia: reports/exports tinha POST (create), GET :id, download, DELETE - sem GET
+    de historico; recurso nao descobrivel apos a criacao.
+
+CONSTRUCAO:
+  - GET /api/v1/reports/exports: historico paginado SO do proprio ator (requested_by_identity_id),
+    filtros status/reportType validados, ORDER BY created_at DESC; acesso fail-closed (403 sem
+    ao menos um report access); mesmo serializer do getExport; sem IDOR.
+  - Correcao finance: mapBankReconciliationError agora propaga InvalidUuidError para o
+    InvalidUuidFilter global -> 400 INVALID_ID (sem 500 em id malformado).
+
+QUALITY GATES:
+  - unit bank-reconciliation-access.errors.spec.ts 2/2 PASS
+  - integracao reports.integration.spec.ts 9/9 PASS (PG real; 3 novos: listagem por ator com
+    paginacao/ordenacao, filtros invalidos -> 400, negacao sem grant)
+  - typecheck @cisne/api exit 0; eslint dos arquivos alterados PASS
+  - HTTP (API rebuilt e reiniciada): GET /reports/exports -> 200 {"items":[],...};
+    POST /reports/exports?reportType=SERVICE_ORDERS_BY_PERIOD&format=CSV -> 201 COMPLETED
+    (rowCount 2, downloadReady true); GET /reports/exports -> 200 total=1 com o item;
+    GET /finance/bank-reconciliation/statements/import -> 400 INVALID_ID (era 500).
+  - Prompt 93 nao executado; producao permanece NO-GO.
+
+NOTES / RESTRICOES:
+  - Listagem de exports e apenas backend/read-model (sem tela nova): a UI atual de Relatorios nao
+    lista historico; adicionar painel de historico na UI e rodada propria (nao inventado agora).
+  - Familia de listas GET para payroll/inventory/procurement/fiscal NAO foi criada: as telas atuais
+    sao por-identificador por design; criar listas sem UI consumidora seria escopo especulativo.
+  - tmp/audit-api-surface.mjs ficou em tmp/ (gitignored) como evidencia de auditoria local.
+  - WIP pre-existente preservado (accounting-backoffice.ui.test.tsx, docs/inputs/_write_src003.py).
+
+COMMIT: DONE (por area: feat(api) reports export list; fix(finance) invalid id 400; docs)
+WORKING TREE: DIRTY (WIP pre-existente preservado)
+NEXT: STOP
+```
