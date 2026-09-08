@@ -12365,3 +12365,20 @@ NOTAS: build-dashboard-kpis pre-existente agrega contagens de series ja resolvid
 RESULTADO: VISUALIZATION PRIMITIVES: PASS | REUSABLE PRIMITIVES: 4 (ChartStateNotice, AccessibleDataTable, Kpi, chartCardClassName) | DUPLICATED CHART LOGIC: 0 | CLIENT KPI CALCULATIONS: 0 (primitives nao calculam) | FALSE ZERO PRESENTATION: 0 | ACCESSIBILITY REGRESSIONS: 0 | DASHBOARD REGRESSIONS: NONE (16/16)
 NEXT: STOP (FILTER_DRILL_CONTRACT | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
 ```
+```text
+PROMPT: FILTER + DRILL CONTRACT
+STATUS: PASS
+SCOPE/AUDITORIA (EVOLVE, sem FilterV2/segundo parser/nova semantica de period/query params paralelos):
+  - Filtros existentes ja certificados: REPORT-FILTER-001 (reports allowlist/period), deadline kernel (service-orders), aging scopes, service-order list com filtros derivados 'overdue'/'approaching-due' interpretados com o MESMO kernel de deadline (so.deadline_for <= NOW, nao-terminal) e hrefs de drill hoje hardcoded no serializer do executive dashboard.
+ARTEFATO: apps/api/src/platform/analytics/filter-drill-contract.ts (FDC-001):
+  - Registry unico DrillDestination (metricId->route->filterParam->capability->semantics->equality) para destinos drillaveis reais; helper buildDrillHref/drillHrefForMetric (elimina URL manual no serializer).
+  - Semantica unica: 'overdue'/'approaching-due' sao filtros DERIVADOS (kernel de deadline), nunca status literal; mesma semantica em Analytics/Dashboard/Report/Lista. DRILL_AUTHORIZATION_NOTE: URL/filtro nunca e boundary de seguranca - lista destino revalida capability/scope/unit.
+  - Equality: service_orders.overdue_count = COUNT_EQUALITY_PROVEN; approaching-due = DERIVED_SAME_KERNEL_NOT_TESTED; receivables.overdue_count (billing browse) = BROWSE_ONLY_NO_COUNT_EQUALITY (paridade de contagem nao prometida - documentado).
+INTEGRACAO: executive-dashboard-response.serializer passa a montar hrefs de atencao (OS vencidas/vencendo em breve/recebiveis vencidos) via registry (strings identicas as anteriores - sem quebra de contrato).
+GATES:
+  - unit filter-drill-contract 6/6 PASS; serializer executive 2/2 PASS; regressao executive-dashboard.integration 5/5 PASS (hrefs inalterados).
+  - integracao PG real drill-equality 2/2 PASS: (1) BI agregado (atencao overdue-service-orders count=1) == populacao da lista filtrada pelo kernel canonico (1) com vencida/futura/terminal COMPLETED/CANCELLED excluidos; href == registry; (2) zero resultados: sem atencao fabricada e lista 0 (igualdade no zero real).
+RESULTADO: FILTER CONTRACT: PASS | DRILL CONTRACT: PASS | DRILLABLE METRICS: 1 (service_orders.overdue_count, paridade comprovada) | FILTER SEMANTIC MISMATCHES: 0 | DRILL COUNT MISMATCHES: 0 (para metricas comprovadas) | CROSS-SCOPE LEAKS: 0 | UNSAFE URL AUTHORITY: 0 | CLIENT BUSINESS RULES: 0 | REGRESSIONS: NONE (8/8 unit + 7 integracao incl. exec 5)
+NOTAS: destinos 'approaching-due' (mesmo kernel, nao testado separadamente) e 'overdue-receivables' (browse; paridade exige lista de recebiveis dedicada - fora deste prompt) permanecem no registry com flags honestas. Consumo no frontend (hrefs) mantem rota unica derivada do backend.
+NEXT: STOP (BI_PERFORMANCE_AUTHORIZATION_GATE | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
+```
