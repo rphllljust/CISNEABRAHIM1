@@ -61,7 +61,7 @@ describe('REPORT AUTHZ HTTP NEGATIVE', () => {
         action,
         resourceType,
         scopeType: unitId ? AUTHZ_SCOPES.Unit : AUTHZ_SCOPES.Global,
-        resourceId: unitId ?? null,
+        resourceId: unitId ?? undefined,
         grantedByIdentityId: identityId,
       });
     }
