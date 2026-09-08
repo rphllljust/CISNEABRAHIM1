@@ -12228,3 +12228,17 @@ GATES (rodada fresca, base limpa):
 RESULTADO: REPORT WORKER: PASS | HANDLER REGISTERED: PASS | STUCK EXPORTS: 0 (estado real banco: 0 antes da rodada) | DUPLICATE EXPORTS: 0 | INVALID STATE TRANSITIONS: 0 | REGRESSIONS: NONE (22/22 PASS)
 NEXT: STOP (proximos candidatos listados no prompt - DEADLINE_SEMANTIC_KERNEL | STOP_AND_FIX - nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
 ```
+```text
+PROMPT: DEADLINE SEMANTIC KERNEL (reexecucao/validacao)
+STATUS: PASS (sem alteracao de codigo - nucleo canonico ja em HEAD; EVOLVE_EXISTING sem refatorar)
+AUDITORIA DE ESTADO:
+  - Proprietario semantico unico ja existente: funcao de banco so.deadline_for(uuid) (migration 0076) + nucleo TS service-orders/domain/deadline-semantics.ts (factories deadlineExpr/overdueClause<=NOW/approachingClause com thresholdParam).
+  - Consumidores convergidos (grep): analytics (aging-read-model), executive-dashboard, operational-dashboard, reports (ServiceOrdersOverdue), alerts (alert-candidate), observability (business-metrics-collector), service-order-list.query ? todos via so.deadline_for e comparador <= NOW(). Zero copias de UNION ALL MIN(deadline); zero 'deadline < NOW'; threshold via AGING_APPROACHING_DUE_DAYS (resolveApproachingDueThresholdDays), sem hardcode 7 em codigo.
+  - Observability: serviceOrdersOverdue usa so.deadline_for <= NOW() com status nao-terminal; catch nunca silencioso -> BusinessMetricsCollectionError + recordFailure + getLastCollectionError (spec unit 4/4 cobre schema drift propagando).
+  - Sem DeadlineServiceV2, segundo engine, segunda regra SQL, tabela paralela ou nova fonte de verdade.
+GATES (rodada fresca, base limpa, PostgreSQL real):
+  - integracao 29/29 PASS: deadline-semantics 4/4 (REMOVED ignorada; terminal fora do vencido; boundary <= exato; timezone da sessao nao altera deadline; reconciliacao final aging==executive==SQL ground-truth), aging 3/3, productivity 4/4, alerts 2/2 (overdue exatamente no deadline + dedup + resolucao), operational 2/2, executive 5/5, reports 9/9.
+  - unit 22/22 PASS: aging.domain 15/15 (deadline==now, terminal, threshold ausente/presente), service-order-list.query 3/3, business-metrics-collector 4/4 (erro de query/schema propaga + diagnostico; sem 0 silencioso).
+RESULTADO: DEADLINE SEMANTICS: PASS | CANONICAL DEADLINE SOURCE: so.deadline_for(uuid) (migration 0076) + deadline-semantics.ts | DIVERGENT IMPLEMENTATIONS: 0 | HARDCODED DEADLINE THRESHOLDS: 0 | SILENT DEADLINE FAILURES: 0 | CROSS-SURFACE MISMATCHES: 0 | REGRESSIONS: NONE (29/29 integracao + 22/22 unit)
+NEXT: STOP (REPORT_FILTER_CONTRACT | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
+```
