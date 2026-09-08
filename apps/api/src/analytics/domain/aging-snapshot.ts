@@ -21,7 +21,12 @@ export type AgingAmountMetric = {
 };
 
 export type AgingSnapshot = {
+  snapshotId: string;
   generatedAt: string;
+  dataAsOf: string;
+  partial: boolean;
+  partialReasons?: string[];
+  consistency: 'SINGLE_WINDOW' | 'MIXED';
   businessTimezone: string;
   approachingDueThresholdDays: number;
   bucketPolicy: AgingBucketPolicy;

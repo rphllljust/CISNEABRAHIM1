@@ -373,3 +373,31 @@ export function validateAndResolveReportFilters(type: ReportType, raw: ReportFil
 
   return out;
 }
+
+/**
+ * REPORT EXECUTION MODES (AN-SEM-001)
+ * PREVIEW é sempre LIVE. EXPORT declara LIVE (query-time, sem reprodutibilidade)
+ * ou FROZEN_SNAPSHOT (o arquivo/contrato e o congelamento, com snapshotId).
+ */
+export const REPORT_EXECUTION_MODES = {
+  PreviewLive: 'PREVIEW = LIVE',
+  ExportLive: 'EXPORT = LIVE',
+  ExportFrozen: 'EXPORT = FROZEN_SNAPSHOT',
+} as const;
+
+const REPORT_EXPORT_MODE: Record<ReportType, string> = {
+  SERVICE_ORDERS_BY_PERIOD: 'EXPORT = LIVE',
+  SERVICE_ORDERS_BY_CLIENT: 'EXPORT = LIVE',
+  SERVICE_ORDERS_BY_SERVICE: 'EXPORT = LIVE',
+  SERVICE_ORDERS_OVERDUE: 'EXPORT = LIVE',
+  OPERATIONAL_PRODUCTIVITY: 'EXPORT = LIVE',
+  ASSET_UTILIZATION: 'EXPORT = LIVE',
+  MEASUREMENTS: 'EXPORT = LIVE',
+  FINANCIAL_AGING: 'EXPORT = FROZEN_SNAPSHOT',
+  BILLING: 'EXPORT = LIVE',
+  RECEIPTS: 'EXPORT = LIVE',
+};
+
+export function reportExportMode(type: ReportType): 'EXPORT = LIVE' | 'EXPORT = FROZEN_SNAPSHOT' {
+  return REPORT_EXPORT_MODE[type] as 'EXPORT = LIVE' | 'EXPORT = FROZEN_SNAPSHOT';
+}

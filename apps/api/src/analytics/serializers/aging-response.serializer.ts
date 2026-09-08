@@ -1,9 +1,15 @@
 import type { AgingBucketPolicy } from '../domain/aging-bucket.policy';
 import type { AgingSnapshot, AgingVisibility } from '../domain/aging-snapshot';
+import { buildSnapshotEnvelope } from '../../platform/analytics/snapshot-semantics';
 import type { AgingReadModelCounts } from '../repositories/aging-read-model.repository';
 
 export function buildAgingSnapshot(input: {
+  snapshotId?: string;
   generatedAt: string;
+  dataAsOf?: string;
+  partial?: boolean;
+  partialReasons?: string[];
+  consistency?: 'SINGLE_WINDOW' | 'MIXED';
   businessTimezone: string;
   approachingDueThresholdDays: number;
   bucketPolicy: AgingBucketPolicy;
@@ -11,7 +17,14 @@ export function buildAgingSnapshot(input: {
   counts: AgingReadModelCounts;
 }): AgingSnapshot {
   return {
-    generatedAt: input.generatedAt,
+    ...buildSnapshotEnvelope({
+      windowKey: input.businessTimezone,
+      dataAsOf: input.dataAsOf ?? input.generatedAt,
+      generatedAt: input.generatedAt,
+      partial: input.partial ?? false,
+      partialReasons: input.partialReasons,
+      consistency: input.consistency ?? 'SINGLE_WINDOW',
+    }),
     businessTimezone: input.businessTimezone,
     approachingDueThresholdDays: input.approachingDueThresholdDays,
     bucketPolicy: input.bucketPolicy,
