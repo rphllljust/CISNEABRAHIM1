@@ -12242,3 +12242,18 @@ GATES (rodada fresca, base limpa, PostgreSQL real):
 RESULTADO: DEADLINE SEMANTICS: PASS | CANONICAL DEADLINE SOURCE: so.deadline_for(uuid) (migration 0076) + deadline-semantics.ts | DIVERGENT IMPLEMENTATIONS: 0 | HARDCODED DEADLINE THRESHOLDS: 0 | SILENT DEADLINE FAILURES: 0 | CROSS-SURFACE MISMATCHES: 0 | REGRESSIONS: NONE (29/29 integracao + 22/22 unit)
 NEXT: STOP (REPORT_FILTER_CONTRACT | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
 ```
+```text
+PROMPT: REPORT FILTER CONTRACT (reexecucao/validacao)
+STATUS: PASS (sem alteracao de codigo - contrato ja em HEAD; commit original 679fe98; EVOLVE_EXISTING sem refatorar)
+AUDITORIA DE ESTADO (report-type.ts REPORT-FILTER-001):
+  - Catalogo por tipo: allowedFilters + requiredCapability + scopeResource + temporal. Capability por dominio do dado: SO -> service-orders:service-order:list; Measurements -> measurements:measurement:read; Billing/Receipts/FinancialAging -> billing:billing-record:read. Sem requiredAction generico.
+  - FinancialAging: allowedFilters [] (rejeita qualquer filtro); contrato canonico FIN-SEM-001 inalterado (dados via snapshot de aging financeiro).
+  - validateAndResolveReportFilters: chave fora da allowlist => erro ANTES do SQL; from/to em par ISO+ordem; period resolvido para from/to somente em tipo temporal; injecao rejeitada por formato.
+  - SQL parametrizado; scope aplicado antes da leitura/agregacao (scopeForReport + filtros de coluna por alias por tipo).
+GATES (rodada fresca, base limpa):
+  - unit 7/7 PASS: report-filter-contract 6/6 (valido, invalido, FinancialAging rejeita tudo, from/to par+ordem+ISO, period temporal->from/to, period nao-temporal) + report-execution-mode 1/1 (FinancialAging FROZEN_SNAPSHOT).
+  - integracao 17/17 PASS: reports.integration 9/9 (incl. export sync, escopo unit, IDOR, CSV sanitizado, formato rejeitado), financial-aging-report-source 2/2 (FinancialAging posicao canonica + escopo), report-generation.worker 6/6 (export async >500 linhas, restart, duplicate, retry, cancel).
+  - e2e authz negativa HTTP 6/6 PASS: anonimo 401; sem grant 403 (fail closed); billing-only nao ve Measurements (403); measurement-only nao ve relatorio de OS (fim do requiredAction generico); filtro invalido/injection -> 400 antes do SQL; escopo errado nao vaza unidade.
+RESULTADO: REPORT FILTERS: PASS | FILTER ALLOWLIST: PASS | AUTHZ RESOURCE MAPPING: PASS | SILENTLY IGNORED FILTERS: 0 | SQL FILTER ERRORS: 0 | AUTHZ MISMATCHES: 0 | CROSS-SCOPE LEAKS: 0 | REGRESSIONS: NONE (7/7 unit + 17/17 integracao + 6/6 e2e)
+NEXT: STOP (BUSINESS_METRIC_OBSERVABILITY | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
+```
