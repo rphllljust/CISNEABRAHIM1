@@ -12399,3 +12399,18 @@ LIMITACOES REGISTRADAS (nao mascaradas): base local pequena - sem indice novo po
 RESULTADO: BI PERFORMANCE: PASS | BI AUTHORIZATION: PASS | CRITICAL N+1: 0 | UNBOUNDED INTERACTIVE QUERIES: 0 | CROSS-SCOPE LEAKS: 0 | AGGREGATION LEAKS: 0 | CATALOG AUTHZ DRIFT: 0 | CRITICAL SLOW QUERIES: 0 | BI-INDUCED DEADLOCKS: 0 | OLTP CRITICAL REGRESSIONS: 0 | REGRESSIONS: NONE (gate evidence 4/4 novos + regressoes BI desta sessao verdes)
 NEXT: STOP (COMPOSITE_DASHBOARDS | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
 ```
+```text
+PROMPT: COMPOSITE DASHBOARDS
+STATUS: PASS (EVOLVE do painel unico /app; sem DashboardV2/stack paralela/board builder)
+AUDITORIA:
+  - Painel executivo ja composto a partir de UM snapshot unico (GET /dashboard/executive via useExecutiveDashboard - single fetch, sem N+1 HTTP), secoes: KPIs (DashboardKpiStrip), produtividade (ProductivityPanel), atencoes (AttentionBlock), graficos Bar/Line/SLA/Aging (VIZ-001 apos refatoracao); painel operacional com contrato existente; backend mascara financeiro por capability (exec tests) e agrega com scope antes da agregacao.
+  - Regra anti-duplicacao: nada novo em paralelo; formulas inalteradas; FIN-SEM-001 intacto; sem FEATURE nova.
+ARTEFATO: apps/web/src/dashboard/semantic-dashboard.ts
+  - Espelho SMC-001 (15 CONFIRMED, versao unica 1.0.0; nenhum BLOCKED/CANDIDATE) + isConfirmedMetric.
+  - COMPOSITE_METRIC_CARDS (8 cards de metrica exibidos no painel executivo): service_orders.overdue_count (Attention, drill certified-count), approaching_due_count (Attention, browse), receivables.overdue_count (Bar, browse) + overdue_amount (Table), productivity.completed_count/on_time_rate/avg_cycle_hours/rework_rate (Kpi). Cada card: metricId/metricVersion/visualization/filters/drill/href. Series nao-KPI (status/throughput/SLA semanal) ficam fora como metrica inventada.
+  - assertRenderableCard: metrica fora do catalogo/BLOCKED nunca vira card; drill 'certified-count' so em service_orders.overdue_count (igualdade comprovada FDC-001); browse nao promete igualdade numerica.
+TESTES (web jsdom): semantic-dashboard 4/4 PASS (15 CONFIRMED unicos; cards renderizaveis; CONFIRMED RENDERED=8; BLOCKED rejeitado; drill certificado apenas OS overdue / browse sem promessa). Regressao dashboard: executive 5/5, premium 4/4, primitives 5/5, drill-contract 3/3 - NONE. eslint web + typecheck web PASS.
+RESULTADO: COMPOSITE DASHBOARDS: PASS | CONFIRMED METRICS RENDERED: 8 | BLOCKED METRICS RENDERED: 0 | CLIENT BUSINESS FORMULAS: 0 | HTTP N+1: 0 (snapshot unico) | CROSS-SCOPE LEAKS: 0 (backend masking/scope) | FALSE ZERO: 0 (ChartStateNotice NO_DATA != 0) | DRILL CONTRACT VIOLATIONS: 0 | ACCESSIBILITY REGRESSIONS: 0 | DASHBOARD REGRESSIONS: NONE (16/16 unit)
+NOTES: camada declarativa adotada como fonte de metadados de render; visualizacao efetiva continua a mesma dos componentes ja existentes (sem segundo motor). KPIs/series fora do SMC-001 nao sao declarados como metrica.
+NEXT: STOP (CISNE_BI_QUALITY_GATE | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
+```
