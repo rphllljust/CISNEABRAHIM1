@@ -12100,3 +12100,10 @@ SCOPE: builder canonico de posicao de recebivel (FIN-SEM-001) com asOf explicito
 NEXT: awaitingPayment -> posicao financeira; fixture cadeia 10 cenarios; reconciliacao Finance=Analytics=Exec; rerun BI CORRECTION GATE. NAO certificado ainda.
 NOTES: Prompt 93 nao executado; sem push; WIP preservado; producao NO-GO.
 ```
+
+```text
+PROMPT: STOP_AND_FIX (FINANCIAL) — passo 2
+STATUS: IN_PROGRESS
+SCOPE: awaitingPayment agora usa posicao financeira (FIN-SEM-001) OPEN/PARTIALLY_PAID por saldo residual; overdueReceivables ja financeiro; prepared permanece operacional. Gates: lint/typecheck PASS; integracao finance NO_DATA 1 + aging 3 PASS.
+NEXT: fixture cadeia 10 cenarios + reconciliacao + rerun gate. NAO certificado.
+```
