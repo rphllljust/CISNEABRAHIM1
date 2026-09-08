@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { formatDateLabel } from '../../utils/dashboard-formatters';
+import { AccessibleDataTable, chartCardClassName } from '../../primitives';
 import type { ExecutiveTrendPoint } from '../../types/dashboard.types';
 
 type DashboardLineChartProps = {
@@ -14,9 +15,6 @@ const WIDTH = 260;
 const HEIGHT = 90;
 const PLOT_TOP = 8;
 const PLOT_BOTTOM = 70;
-
-const CHART_CARD =
-  'm-0 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5';
 
 export function DashboardLineChart({
   chartId,
@@ -44,7 +42,7 @@ export function DashboardLineChart({
 
   return (
     <figure
-      className={CHART_CARD}
+      className={chartCardClassName}
       aria-labelledby={titleId}
       aria-describedby={`${descId} ${summaryId}`}
     >
@@ -125,7 +123,19 @@ export function DashboardLineChart({
             {summary}
           </p>
 
-          <AccessibleTrendTable points={points} caption={`Dados de ${title}`} />
+          <AccessibleDataTable
+            caption={`Dados de ${title}`}
+            columns={[
+              { key: 'date', header: 'Data' },
+              { key: 'opened', header: 'Abertas' },
+              { key: 'completed', header: 'Concluídas' },
+            ]}
+            rows={points}
+            rowKey={(point) => point.date}
+            cell={(point, key) =>
+              key === 'date' ? formatDateLabel(point.date) : key === 'opened' ? point.opened : point.completed
+            }
+          />
         </>
       )}
 
@@ -153,34 +163,4 @@ function buildPath(
 
 function pathToPolyline(path: Array<{ x: number; y: number }>): string {
   return path.map((point) => `${point.x},${point.y}`).join(' ');
-}
-
-function AccessibleTrendTable({
-  points,
-  caption,
-}: {
-  points: ExecutiveTrendPoint[];
-  caption: string;
-}) {
-  return (
-    <table className="sr-only">
-      <caption>{caption}</caption>
-      <thead>
-        <tr>
-          <th scope="col">Data</th>
-          <th scope="col">Abertas</th>
-          <th scope="col">Concluídas</th>
-        </tr>
-      </thead>
-      <tbody>
-        {points.map((point) => (
-          <tr key={point.date}>
-            <th scope="row">{formatDateLabel(point.date)}</th>
-            <td>{point.opened}</td>
-            <td>{point.completed}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
 }

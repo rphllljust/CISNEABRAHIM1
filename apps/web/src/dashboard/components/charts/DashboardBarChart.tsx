@@ -1,5 +1,6 @@
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import { cn } from '../../../ui/utils/cn';
+import { AccessibleDataTable, chartCardClassName } from '../../primitives';
 
 type BarItem = {
   key: string;
@@ -14,9 +15,6 @@ type DashboardBarChartProps = {
   summary: string;
   items: BarItem[];
 };
-
-const CHART_CARD =
-  'm-0 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5';
 
 export function DashboardBarChart({
   chartId,
@@ -34,7 +32,7 @@ export function DashboardBarChart({
 
   return (
     <figure
-      className={CHART_CARD}
+      className={chartCardClassName}
       aria-labelledby={titleId}
       aria-describedby={`${descId} ${summaryId}`}
     >
@@ -84,7 +82,16 @@ export function DashboardBarChart({
             })}
           </div>
 
-          <AccessibleDataTable items={items} caption={`Dados de ${title}`} />
+          <AccessibleDataTable
+            caption={`Dados de ${title}`}
+            columns={[
+              { key: 'label', header: 'Categoria' },
+              { key: 'value', header: 'Quantidade' },
+            ]}
+            rows={items}
+            rowKey={(item) => item.key}
+            cell={(item, key) => (key === 'label' ? item.label : item.value)}
+          />
         </>
       )}
 
@@ -94,28 +101,5 @@ export function DashboardBarChart({
         </p>
       ) : null}
     </figure>
-  );
-}
-
-function AccessibleDataTable({ items, caption }: { items: BarItem[]; caption: string }) {
-  const tableId = useId();
-  return (
-    <table className="sr-only" id={tableId}>
-      <caption>{caption}</caption>
-      <thead>
-        <tr>
-          <th scope="col">Categoria</th>
-          <th scope="col">Quantidade</th>
-        </tr>
-      </thead>
-      <tbody>
-        {items.map((item) => (
-          <tr key={item.key}>
-            <th scope="row">{item.label}</th>
-            <td>{item.value}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
   );
 }

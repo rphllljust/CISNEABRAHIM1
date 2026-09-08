@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { formatMoney } from '../../utils/dashboard-formatters';
+import { AccessibleDataTable, chartCardClassName } from '../../primitives';
 import type { ExecutiveFinancialAgingBucket } from '../../types/dashboard.types';
 
 type DashboardAgingChartProps = {
@@ -9,9 +10,6 @@ type DashboardAgingChartProps = {
   summary: string;
   buckets: ExecutiveFinancialAgingBucket[];
 };
-
-const CHART_CARD =
-  'm-0 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5';
 
 export function DashboardAgingChart({
   chartId,
@@ -29,7 +27,7 @@ export function DashboardAgingChart({
 
   return (
     <figure
-      className={CHART_CARD}
+      className={chartCardClassName}
       aria-labelledby={titleId}
       aria-describedby={`${descId} ${summaryId}`}
     >
@@ -80,25 +78,19 @@ export function DashboardAgingChart({
             {summary}
           </p>
 
-          <table className="sr-only">
-            <caption>Dados de {title}</caption>
-            <thead>
-              <tr>
-                <th scope="col">Faixa</th>
-                <th scope="col">Quantidade</th>
-                <th scope="col">Valor</th>
-              </tr>
-            </thead>
-            <tbody>
-              {buckets.map((bucket) => (
-                <tr key={bucket.bandId}>
-                  <th scope="row">{bucket.label}</th>
-                  <td>{bucket.count}</td>
-                  <td>{formatMoney(bucket.totalAmount)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <AccessibleDataTable
+            caption={`Dados de ${title}`}
+            columns={[
+              { key: 'label', header: 'Faixa' },
+              { key: 'count', header: 'Quantidade' },
+              { key: 'totalAmount', header: 'Valor' },
+            ]}
+            rows={buckets}
+            rowKey={(bucket) => bucket.bandId}
+            cell={(bucket, key) =>
+              key === 'label' ? bucket.label : key === 'count' ? bucket.count : formatMoney(bucket.totalAmount)
+            }
+          />
         </>
       )}
 

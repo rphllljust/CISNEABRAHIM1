@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AccessibleDataTable, chartCardClassName } from '../../primitives';
 import type { ExecutiveSlaPoint } from '../../types/dashboard.types';
 
 type DashboardSlaChartProps = {
@@ -8,9 +9,6 @@ type DashboardSlaChartProps = {
   summary: string;
   points: ExecutiveSlaPoint[];
 };
-
-const CHART_CARD =
-  'm-0 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5';
 
 export function DashboardSlaChart({
   chartId,
@@ -28,7 +26,7 @@ export function DashboardSlaChart({
 
   return (
     <figure
-      className={CHART_CARD}
+      className={chartCardClassName}
       aria-labelledby={titleId}
       aria-describedby={`${descId} ${summaryId}`}
     >
@@ -101,27 +99,26 @@ export function DashboardSlaChart({
             {summary}
           </p>
 
-          <table className="sr-only">
-            <caption>Dados de {title}</caption>
-            <thead>
-              <tr>
-                <th scope="col">Período</th>
-                <th scope="col">No prazo</th>
-                <th scope="col">Vencidas</th>
-                <th scope="col">Elegíveis</th>
-              </tr>
-            </thead>
-            <tbody>
-              {points.map((point) => (
-                <tr key={point.periodLabel}>
-                  <th scope="row">{point.periodLabel}</th>
-                  <td>{point.onTime}</td>
-                  <td>{point.overdue}</td>
-                  <td>{point.eligible}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <AccessibleDataTable
+            caption={`Dados de ${title}`}
+            columns={[
+              { key: 'period', header: 'Período' },
+              { key: 'onTime', header: 'No prazo' },
+              { key: 'overdue', header: 'Vencidas' },
+              { key: 'eligible', header: 'Elegíveis' },
+            ]}
+            rows={points}
+            rowKey={(point) => point.periodLabel}
+            cell={(point, key) =>
+              key === 'period'
+                ? point.periodLabel
+                : key === 'onTime'
+                  ? point.onTime
+                  : key === 'overdue'
+                    ? point.overdue
+                    : point.eligible
+            }
+          />
         </>
       )}
 
