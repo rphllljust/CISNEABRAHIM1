@@ -85,6 +85,7 @@ const MIGRATION_EFFECT_CHECKS = {
   '0072_legal_establishment_master': { table: 'pty.legal_entities' },
   '0073_recurring_billing_schedule': { table: 'bil.recurring_billing_schedules' },
   '0074_access_administration': { table: '"authorization".access_roles' },
+  '0076_deadline_kernel': { fn: ['so', 'deadline_for'] },
 };
 
 async function migrationEffectsPresent(pool, tag) {
@@ -125,6 +126,19 @@ async function migrationEffectsPresent(pool, tag) {
     const result = await pool.query('SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = $1) AS exists', [
       check.index,
     ]);
+    return result.rows[0]?.exists === true;
+  }
+  if (check.fn) {
+    const [schema, fnName] = check.fn;
+    const result = await pool.query(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM pg_proc p
+         INNER JOIN pg_namespace n ON n.oid = p.pronamespace
+         WHERE n.nspname = $1 AND p.proname = $2
+       ) AS exists`,
+      [schema, fnName],
+    );
     return result.rows[0]?.exists === true;
   }
   return null;
