@@ -12382,3 +12382,20 @@ RESULTADO: FILTER CONTRACT: PASS | DRILL CONTRACT: PASS | DRILLABLE METRICS: 1 (
 NOTAS: destinos 'approaching-due' (mesmo kernel, nao testado separadamente) e 'overdue-receivables' (browse; paridade exige lista de recebiveis dedicada - fora deste prompt) permanecem no registry com flags honestas. Consumo no frontend (hrefs) mantem rota unica derivada do backend.
 NEXT: STOP (BI_PERFORMANCE_AUTHORIZATION_GATE | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
 ```
+```text
+PROMPT: BI PERFORMANCE + AUTHORIZATION GATE
+STATUS: PASS (auditoria + revalidacao; NENHUM indice/view/cache/timeout novo - sem necessidade comprovada em base local)
+AUDITORIA (analytics/executive/operational/reports/rpt/catalog/drill/worker):
+  - N+1: repositorios de BI executam UMA query agregada por metrica (aging/productivity/exec); EXPLAIN de OS vencida ja coberto por aging.integration; nenhum N+1 critico detectado (sem loop de queries por item em repositorios).
+  - Queries ilimitadas: previews de reports limitados (previewLimit 20, loadRows com LIMIT/OFFSET); exports > syncRowThreshold 500 -> worker (job unico, concurrency limitada); listagens operacionais paginadas; agregacoes de dashboard agrupadas (status/bandas/pontos), sem varredura interativa infinita.
+  - Indices: EXPLAIN (novo spec) mostra filtro due_date usando receivables_due_date_idx (Bitmap Index Scan) e settlements via settlements_receivable_id_idx com status POSTED - plano indexado, sem Seq Scan; NENHUM indice novo criado (evidencia de workload local pequeno nao justifica).
+  - Sem materialized view/cache novo.
+  - Autorizacao revalidada (suites verdes desta sessao): exec 5/5 (masking por capability, scope antes da agregacao, unitId em todas as series, fail-closed), aging 3/3 (escopo/wrong scope/deny), operational 2/2, productivity 4/4, reports+authz negativa 6/6 + filter contract 7/7, drill equality 2/2 (BI==lista, URL nao e boundary), finance reconciliation/NO_DATA verdes.
+EVIDENCIA NOVA:
+  1) catalog-api-authz-drift.spec 2/2 PASS: as 15 metricas CONFIRMED do SMC-001 possuem requiredCapability/scopePolicy iguais ao comportamento real das APIs (service-orders list / measurement read / billing read; UNIT_SCOPED) - CATALOG AUTHZ DRIFT 0.
+  2) oltp-bi-isolation.integration 2/2 PASS (PG real): 6 escritores OLTP (cadeia billing->receivable->settlement POSTED) concorrentes com 12 leituras BI (agregado FIN-SEM-001 + posicao canonica): sem deadlock 40P01/erro, leituras nunca negativas, estado final consistente (6 recebiveis x saldo 60 = 360.0000; verificacao direta no banco); EXPLAIN indexado (receivables_due_date_idx + settlements_receivable_id_idx + POSTED) sem Seq Scan.
+  Pool: pg max 10; carga usou o pool (pressure aceitavel, fila pg) sem timeout elevado.
+LIMITACOES REGISTRADAS (nao mascaradas): base local pequena - sem indice novo por falta de workload real; suites de stress full (PERF_FULL) nao executadas nesta rodada; CPU/DB de prod indisponivel (NO-GO). Escopo: dashboard novo NAO implementado.
+RESULTADO: BI PERFORMANCE: PASS | BI AUTHORIZATION: PASS | CRITICAL N+1: 0 | UNBOUNDED INTERACTIVE QUERIES: 0 | CROSS-SCOPE LEAKS: 0 | AGGREGATION LEAKS: 0 | CATALOG AUTHZ DRIFT: 0 | CRITICAL SLOW QUERIES: 0 | BI-INDUCED DEADLOCKS: 0 | OLTP CRITICAL REGRESSIONS: 0 | REGRESSIONS: NONE (gate evidence 4/4 novos + regressoes BI desta sessao verdes)
+NEXT: STOP (COMPOSITE_DASHBOARDS | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
+```
