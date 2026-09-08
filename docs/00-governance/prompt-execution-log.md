@@ -12257,3 +12257,20 @@ GATES (rodada fresca, base limpa):
 RESULTADO: REPORT FILTERS: PASS | FILTER ALLOWLIST: PASS | AUTHZ RESOURCE MAPPING: PASS | SILENTLY IGNORED FILTERS: 0 | SQL FILTER ERRORS: 0 | AUTHZ MISMATCHES: 0 | CROSS-SCOPE LEAKS: 0 | REGRESSIONS: NONE (7/7 unit + 17/17 integracao + 6/6 e2e)
 NEXT: STOP (BUSINESS_METRIC_OBSERVABILITY | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
 ```
+```text
+PROMPT: BUSINESS METRIC OBSERVABILITY (reexecucao/validacao)
+STATUS: PASS (sem alteracao de codigo - caminho correto em HEAD; collector auditado nesta sessao; nao refatorado pois continua correto)
+AUDITORIA DE ESTADO (business metrics do BI):
+  - serviceOrdersOverdue usa so.deadline_for(uuid) <= NOW() com status nao-terminal (DEADLINE SEMANTIC KERNEL); nunca consulta coluna inexistente rpt.read_service_orders.deadline.
+  - BusinessMetricsCollectorService.executeCount: NENHUM catch silencioso -> BusinessMetricsCollectionError + recordFailure (erro estruturado com metrica, mensagem/causa, collectedAt) + getLastCollectionError() (estado diagnosticavel); sem fallback numerico; falha nunca vira 0 legitimo; recuperacao: ultima coleta OK limpa lastCollectionError.
+  - observability-metrics.service.collect: agrega business.collect() via Promise.all - falha propaga (nunca zero).
+  - aging/productivity/dashboard (BI): repositorios nao engolem erro de query/schema (propagam p/ HTTP 5xx, nao viram 0); reconciliacao Finance=Analytics=Executive e deadline kernel validados em rodadas anteriores desta sessao.
+  - ZERO REAL vs FALHA vs FONTE INDISPONIVEL vs NO_DATA: zero real retornado como 0 somente apos query bem-sucedida (unit cobre); DATABASE_NOT_CONFIGURED -> erro, nao 0; aging financeiro NO_DATA totalAmount null (nao '0').
+  - OBSERVACAO (fora do escopo BI deste prompt, nao mascarada): PlatformMetricsCollectorService.count() (linha 166) tem catch->0 silencioso para contadores de INFRAESTRUTURA (integration/notification inbox, erp/tracking failures). Nao e business metric do BI; registrar para prompt dedicado se o responsavel quiser endurecer.
+GATES (unit):
+  - business-metrics-collector.service.spec 4/4 PASS: zero real (0); valor positivo (3/2/2); query failure/schema drift propaga + diagnostico (metrica identificada + causa + timestamp); fonte indisponivel (DATABASE_NOT_CONFIGURED) -> erro.
+  - observability-metrics.service.spec 1/1 PASS (snapshot.business agrega valores reais).
+  - Regressoes BI (rodadas anteriores desta sessao, PG real): deadline 4/4, aging 3/3, productivity 4/4, operational 2/2, executive 5/5, reports 9/9, worker 6/6, reconciliacao financeira 2/2 - NONE.
+RESULTADO: BUSINESS METRIC OBSERVABILITY: PASS | SILENT FAILURES: 0 (escopo business metrics do BI; observacao platform count() registrada) | FALSE ZERO: 0 | UNDIAGNOSABLE FAILURES: 0 | SCHEMA-DRIFT MASKING: 0 | REGRESSIONS: NONE (5/5 unit + regressoes BI verdes)
+NEXT: STOP (FINANCIAL_AGING_CONSISTENCY | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
+```
