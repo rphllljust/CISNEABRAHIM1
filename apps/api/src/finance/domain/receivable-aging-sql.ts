@@ -127,3 +127,13 @@ export function buildReceivablePositionsSql(opts: ReceivableAgingSqlOptions): st
           WHERE ${opts.scopeClause}${extra}
             AND bd.lifecycle IN ('ACTIVE', 'CANCELLED')`;
 }
+
+/** Posicao a vencer (OPEN ou PARTIALLY_PAID), saldo residual > 0. */
+export function buildAwaitingReceivableAggregateSql(opts: ReceivableAgingSqlOptions): string {
+  const { tzParam } = opts;
+  return `SELECT COUNT(*)::int AS count,
+                 COALESCE(SUM(remaining), 0)::text AS total_amount,
+                 MIN(due_date - (NOW() AT TIME ZONE ${tzParam})::date)::int AS max_days_until_due
+          FROM (${buildReceivablePositionsSql(opts)}) positions
+          WHERE status IN ('OPEN', 'PARTIALLY_PAID')`;
+}

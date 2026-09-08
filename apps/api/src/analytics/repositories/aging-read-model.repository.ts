@@ -3,7 +3,7 @@ import type { Pool } from 'pg';
 import { sumMoneyAmounts } from '../../platform/kernel/money-math';
 import type { ScopeSqlPredicate } from '../../authorization/services/scope-enforcement.service';
 import { DatabaseService } from '../../infrastructure/database/database.service';
-import { buildOverdueReceivableAggregateSql } from '../../finance/domain/receivable-aging-sql';
+import { buildAwaitingReceivableAggregateSql, buildOverdueReceivableAggregateSql } from '../../finance/domain/receivable-aging-sql';
 import { TERMINAL_SERVICE_ORDER_STATUSES } from '../../service-orders/domain/service-order.state-machine';
 import type { AgingVisibility } from '../domain/aging-snapshot';
 import { prefixScopeAlias, remapScope, type AgingScopeFilters } from './aging-scope';
@@ -350,39 +350,20 @@ export class AgingReadModelRepository {
     const mapped = remapScope(scope, 0);
     const params = [...mapped.params, businessTimezone];
     const tzParam = `$${params.length}`;
+    // Posicao financeira real a vencer (FIN-SEM-001): recebiveis OPEN/PARTIALLY_PAID
+    // por saldo residual (principal - settlements POSTED) — nunca billing_documents.
+    const sql = buildAwaitingReceivableAggregateSql({ scopeClause: mapped.clause, tzParam });
     const result = await this.pool().query<{
       count: number;
       total_amount: string | null;
-      max_age_days: number | null;
       max_days_until_due: number | null;
-    }>(
-      `SELECT COUNT(*)::int AS count,
-              COALESCE(SUM(bd.total_amount), 0)::text AS total_amount,
-              MAX(
-                FLOOR(EXTRACT(EPOCH FROM (NOW() - bd.issued_at)) / 86400)
-              )::int AS max_age_days,
-              MAX(
-                CASE
-                  WHEN bd.due_date IS NULL THEN NULL
-                  ELSE (
-                    bd.due_date::date - (NOW() AT TIME ZONE ${tzParam})::date
-                  )
-                END
-              )::int AS max_days_until_due
-       FROM rpt.read_billing_documents bd
-       WHERE ${mapped.clause}
-         AND bd.status = 'FINALIZED'
-         AND (
-           bd.due_date IS NULL
-           OR bd.due_date::date >= (NOW() AT TIME ZONE ${tzParam})::date
-         )`,
-      params,
-    );
+    }>(sql, params);
     const row = result.rows[0];
+    const count = row?.count ?? 0;
     return {
-      count: row?.count ?? 0,
-      totalAmount: normalizeAmount(row?.total_amount),
-      maxAgeDays: row?.max_age_days ?? null,
+      count,
+      totalAmount: count > 0 ? normalizeAmount(row?.total_amount) : null,
+      maxAgeDays: null,
       maxDaysUntilDue: row?.max_days_until_due ?? null,
       maxDaysOverdue: null,
     };
