@@ -12288,3 +12288,17 @@ GATES: eslint PASS; typecheck @cisne/api PASS; integracao do spec 2/2 PASS; regr
 RESULTADO: FINANCIAL AGING CONSISTENCY: PASS | CANONICAL RECEIVABLE SOURCE: PASS | DIVERGENT FINANCIAL FORMULAS: 0 | FALSE OVERDUE: 0 | FALSE ZERO: 0 | NO_DATA MISREPRESENTATION: 0 | CROSS-SURFACE MISMATCHES: 0 | CROSS-SCOPE LEAKS: 0 | REGRESSIONS: NONE
 NEXT: STOP (SNAPSHOT_SEMANTICS | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
 ```
+```text
+PROMPT: ANALYTICS SNAPSHOT SEMANTICS (fechamento da rodada dedicada)
+STATUS: PASS
+CLASSIFICACAO DAS SUPERFICIES (declarada):
+  - Analytics (aging): LIVE_REQUEST_SNAPSHOT com envelope AN-SEM-001 (snapshotId/generatedAt/dataAsOf/partial/consistency SINGLE_WINDOW na janela businessTimezone); partial quando mascarado. Sem materialized view/tabela analytics_*/job refresh (grep migrations: unica tabela snapshot e fis.fiscal_party_snapshots, fora do BI).
+  - Executive Dashboard: LIVE_REQUEST_SNAPSHOT (generatedAt presente; multiplas queries paralelas READ COMMITTED - NENHUM campo alega janela atomica cross-metrica; sem falsa alegacao de consistencia).
+  - Operational Dashboard: LIVE_REQUEST_SNAPSHOT (counts no request; fail-closed sem grants).
+  - Reports Preview: LIVE (reflete o banco no instante do request).
+  - Reports Export: FinancialAging = FROZEN_SNAPSHOT (artefato CSV imutavel gerado no instante da geracao); demais tipos = LIVE (artefato da geracao; contrato declara modo por tipo em report-execution-mode). Preview vs export: janelas distintas DOCUMENTADAS (nunca silencioso).
+GUARD NOVO (1/1 PASS, PG real): apps/api/src/reports/snapshot-preview-export.integration.spec.ts - preview=2 LIVE; mutacao A apos preview; export gerado contem o 3o (FROZEN no instante da geracao); mutacao B apos geracao -> preview=4 (LIVE) e re-download do export byte-a-byte IGUAL (artefato imutavel, sem contaminacao); dois previews sem alteracao estaveis (mesma query). Worker restart/retry export async: report-generation.worker 6/6 (rodada desta sessao). Empty/NO_DATA: financial-aging-correction 1/1. Partial/masking: aging serializer + executive masking.
+GATES: eslint PASS; typecheck @cisne/api PASS; unit 4/4 PASS (snapshot-semantics 2, report-execution-mode 1, aging-response.serializer 1); integracao do guard 1/1 PASS.
+RESULTADO: SNAPSHOT SEMANTICS: PASS | DASHBOARD SNAPSHOT: LIVE_REQUEST (aging com envelope AN-SEM-001; executive/operational sem falsa consistencia) | REPORT PREVIEW: LIVE | REPORT EXPORT: FROZEN (FinancialAging) / LIVE (demais, declarado por tipo) | AMBIGUOUS SNAPSHOTS: 0 | FALSE CONSISTENCY CLAIMS: 0 | PREVIEW_EXPORT UNDOCUMENTED DRIFT: 0 | REGRESSIONS: NONE
+NEXT: STOP (BI_CORRECTION_GATE | STOP_AND_FIX ja verdes nesta sessao; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
+```
