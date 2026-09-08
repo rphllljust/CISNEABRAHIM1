@@ -102,6 +102,14 @@ describe('FINANCIAL aging reconciliation Finance = Analytics = Executive (Postgr
 
   afterAll(async () => {
     delete process.env['AGING_BUCKET_BANDS'];
+    if (pool) {
+      // Remove residuos do proprio processo para nao contaminar outras suites na mesma base.
+      await truncateFinanceTables(pool);
+      await truncateBillingTables(pool);
+      await truncateServiceOrderTables(pool);
+      await truncateClientTables(pool);
+      await truncateIdentityAndAuthorizationTables(pool);
+    }
     await pool?.end();
     await moduleRef?.close();
   });

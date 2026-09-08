@@ -1,3 +1,10 @@
+import {
+  truncateBillingTables,
+  truncateClientTables,
+  truncateFinanceTables,
+  truncateIdentityAndAuthorizationTables,
+  truncateServiceOrderTables,
+} from '@cisne/database';
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { applyAuthTestEnv } from '../auth/test/auth-test-env';
@@ -29,6 +36,14 @@ describe('FINANCIAL fixture chain (billing -> receivable -> settlements)', () =>
   });
 
   afterAll(async () => {
+    if (pool) {
+      // Remove residuos do proprio processo para nao contaminar outras suites na mesma base.
+      await truncateFinanceTables(pool);
+      await truncateBillingTables(pool);
+      await truncateServiceOrderTables(pool);
+      await truncateClientTables(pool);
+      await truncateIdentityAndAuthorizationTables(pool);
+    }
     await pool?.end();
   });
 
