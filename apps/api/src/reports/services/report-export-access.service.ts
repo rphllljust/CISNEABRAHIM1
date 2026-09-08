@@ -7,8 +7,6 @@ import {
   SECURITY_AUDIT_RESOURCE_TYPES,
 } from '../../audit/types/security-audit.types';
 import { AuthorizationRepository } from '../../authorization/repositories/authorization.repository';
-import { AUTHZ_ACTIONS } from '../../authorization/types/authz-actions';
-import { AUTHZ_RESOURCE_TYPES } from '../../authorization/types/authz-resources';
 import type { IdentityAuthzContext } from '../../authorization/types/authz-decision';
 import { ObjectStorageService } from '../../documents/storage/object-storage.service';
 import { BACKGROUND_JOB_KINDS } from '../../platform/background-jobs/domain/background-job-kind';
@@ -19,7 +17,10 @@ import {
   REPORT_FORMATS,
   REPORT_POLICY,
   REPORT_TYPES,
+  ReportFilterValidationError,
   isReportType,
+  reportFilterPolicy,
+  validateAndResolveReportFilters,
   type ReportContract,
   type ReportFilters,
   type ReportFormat,
@@ -73,8 +74,9 @@ export class ReportExportAccessService {
 
   async preview(actor: IdentityAuthzContext, input: CreateReportExportInput) {
     const reportType = this.parseReportType(input.reportType);
+    const filters = this.validateFilters(reportType, input.filters ?? {});
     await this.assertAccess(actor, reportType);
-    const contract = this.buildContract(actor, reportType, input.filters ?? {});
+    const contract = this.buildContract(actor, reportType, filters);
     const preview = await this.generation.buildPreview(actor, reportType, contract);
     return {
       contract: { ...contract, generatedAt: null },
@@ -86,13 +88,14 @@ export class ReportExportAccessService {
   async createExport(actor: IdentityAuthzContext, input: CreateReportExportInput) {
     const reportType = this.parseReportType(input.reportType);
     const format = this.parseFormat(input.format);
+    const filters = this.validateFilters(reportType, input.filters ?? {});
     await this.assertAccess(actor, reportType);
 
     if (format !== REPORT_FORMATS.Csv) {
       throw new ReportHttpException(400, REPORT_ERROR_CODES.FORMAT_UNSUPPORTED, 'Format not supported yet.');
     }
 
-    const contract = this.buildContract(actor, reportType, input.filters ?? {});
+    const contract = this.buildContract(actor, reportType, filters);
     const estimatedRows = await this.data.countRows(actor, reportType, contract.filters);
 
     const exportRow = await this.exports.createExport({
@@ -264,6 +267,17 @@ export class ReportExportAccessService {
     throw new ReportHttpException(400, REPORT_ERROR_CODES.INVALID_REQUEST, 'Invalid report format.');
   }
 
+  private validateFilters(reportType: ReportType, filters: ReportFilters): ReportFilters {
+    try {
+      return validateAndResolveReportFilters(reportType, filters);
+    } catch (error) {
+      if (error instanceof ReportFilterValidationError) {
+        throw new ReportHttpException(400, REPORT_ERROR_CODES.INVALID_REQUEST, `Invalid filters: ${error.reason}`);
+      }
+      throw error;
+    }
+  }
+
   private async assertAccess(actor: IdentityAuthzContext, reportType: ReportType): Promise<void> {
     if (!(await this.canAccessReportAsync(actor, reportType))) {
       throw new ReportHttpException(403, REPORT_ERROR_CODES.ACCESS_DENIED, 'Access denied.');
@@ -291,55 +305,17 @@ export class ReportExportAccessService {
   }
 
   private async canAccessReportAsync(actor: IdentityAuthzContext, reportType: ReportType): Promise<boolean> {
-    const action = this.requiredAction(reportType);
-    if (!action) {
-      return false;
-    }
+    const policy = reportFilterPolicy(reportType);
     const grants = await this.authorizationRepository.findActiveGrants(
       actor.identityId,
-      action,
-      AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+      policy.requiredCapability as never,
+      policy.scopeResource as never,
     );
-    if (reportType === REPORT_TYPES.AssetUtilization) {
-      const assetGrants = await this.authorizationRepository.findActiveGrants(
-        actor.identityId,
-        AUTHZ_ACTIONS.ResourcesAssetList,
-        AUTHZ_RESOURCE_TYPES.ResourcesAsset,
-      );
-      return assetGrants.length > 0;
-    }
-    if (
-      reportType === REPORT_TYPES.OperationalProductivity ||
-      reportType === REPORT_TYPES.FinancialAging
-    ) {
-      return grants.length > 0 || (await this.hasAnyOperationalGrant(actor));
-    }
     return grants.length > 0;
   }
 
-  private async hasAnyOperationalGrant(actor: IdentityAuthzContext): Promise<boolean> {
-    const checks = await Promise.all([
-      this.authorizationRepository.findActiveGrants(
-        actor.identityId,
-        AUTHZ_ACTIONS.ServiceOrdersServiceOrderList,
-        AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
-      ),
-      this.authorizationRepository.findActiveGrants(
-        actor.identityId,
-        AUTHZ_ACTIONS.BillingBillingRecordRead,
-        AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
-      ),
-    ]);
-    return checks.some((grants) => grants.length > 0);
-  }
-
   private requiredAction(reportType: ReportType) {
-    switch (reportType) {
-      case REPORT_TYPES.AssetUtilization:
-        return AUTHZ_ACTIONS.ResourcesAssetList;
-      default:
-        return AUTHZ_ACTIONS.ServiceOrdersServiceOrderList;
-    }
+    return reportFilterPolicy(reportType).requiredCapability;
   }
 
   private async recordAudit(
