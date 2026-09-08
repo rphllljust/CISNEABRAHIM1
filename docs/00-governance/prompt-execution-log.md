@@ -12141,3 +12141,23 @@ RESULTADO: FINANCIAL GATE: PASS | FALSE FINANCIAL METRICS: 0 | SURFACES RECONCIL
 NOTES: Prompt 93 nao executado; sem push; producao NO-GO (PILOT_OBSERVATION_WINDOW_NOT_COMPLETED); WIP pre-existente preservado (accounting-backoffice.ui.test.tsx, docs/inputs/_write_src003.py).
 NEXT: STOP - aguarda revisao do usuario / rodada oficial do BI CORRECTION GATE com os ids numerados do prompt original.
 ```
+```text
+PROMPT: STOP_AND_FIX (FINANCIAL) - passo 5: rerun oficial BI CORRECTION GATE + certificacao
+STATUS: PASS (gate financeiro CERTIFICADO em 2026-09-08)
+SCOPE: rodada oficial reprodutivel do BI CORRECTION GATE apos passos 1-4 verdes; base cisne_local_test limpa (db cleanup ok); nenhuma alteracao de codigo neste passo (somente docs).
+GATES:
+  - integracao PG real 13/13 PASS: financial-chain-fixture 2/2; financial-aging-reconciliation (Finance=Analytics=Executive) 2/2; financial-aging-correction NO_DATA 1/1; analytics aging 3/3; executive-dashboard 5/5.
+  - unit finance 6/6 PASS (receivable-aging-sql 1/1, receivable 5/5); typecheck repositorio PASS (pnpm -r typecheck); eslint arquivos finance alterados/novos PASS.
+EVIDENCIA NUMERADA (ids FN-01..FN-08; certificacao autorizada pelo responsavel com estes ids):
+  FN-01 posicao canonica unica FIN-SEM-001 (SQL unico + domain TS identicos): PASS
+  FN-02 fixture cadeia persistida 10 cenarios + limite exato do vencimento: PASS
+  FN-03 awaitingPayment financeiro (receivables+settlements, nunca billing_documents): PASS
+  FN-04 overdue receivables por saldo residual (vencido so apos o dia): PASS
+  FN-05 reconciliacao Finance = Analytics = Executive no mesmo dataset (oracle independente): PASS
+  FN-06 escopo/tenant isola unidade em Analytics e Executive: PASS
+  FN-07 NO_DATA: totalAmount null, nunca '0' fabricado: PASS
+  FN-08 dinheiro somente string numeric; nenhum TS number em logica financeira; lint sem disable/any/ts-ignore: PASS
+RESULTADO: BI CORRECTION GATE: PASS | CERTIFICADO: SIM (2026-09-08) | FALSE FINANCIAL METRICS: 0 | FALSE FIELDS: 0 | SURFACES RECONCILIADAS: Finance=Analytics=Executive (3/3) | NO_DATA: null sem '0'
+NOTES: Prompt 93 nao executado; sem push; producao NO-GO (PILOT_OBSERVATION_WINDOW_NOT_COMPLETED); WIP preservado; lint pre-existente reportado e nao mascarado (API 14 em arquivos intocados 681434d; web 31).
+NEXT: STOP
+```
