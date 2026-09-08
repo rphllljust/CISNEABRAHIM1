@@ -232,6 +232,23 @@ export class BackgroundJobsRepository {
     return result.rows[0] ?? null;
   }
 
+  /**
+   * Remove um job que ainda não começou (PENDING, sem lease). Usado para que um
+   * cancelamento de export impeça processamento futuro "quando possível" —
+   * jobs já reclamados (RUNNING/lease) não são apagados; nesse caso o gerador
+   * re-checa o estado CANCELLED antes de finalizar.
+   */
+  async cancelPendingJob(jobId: string, client?: PoolClient): Promise<boolean> {
+    const result = await this.pool(client).query(
+      `DELETE FROM plt.background_jobs
+       WHERE id = $1::uuid
+         AND status = $2
+         AND lease_owner IS NULL`,
+      [jobId, BACKGROUND_JOB_STATUSES.Pending],
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
+
   async countByStatus(status: string, client?: PoolClient): Promise<number> {
     const result = await this.pool(client).query<{ count: string }>(
       `SELECT COUNT(*)::text AS count FROM plt.background_jobs WHERE status = $1`,
