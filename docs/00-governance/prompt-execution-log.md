@@ -12302,3 +12302,20 @@ GATES: eslint PASS; typecheck @cisne/api PASS; unit 4/4 PASS (snapshot-semantics
 RESULTADO: SNAPSHOT SEMANTICS: PASS | DASHBOARD SNAPSHOT: LIVE_REQUEST (aging com envelope AN-SEM-001; executive/operational sem falsa consistencia) | REPORT PREVIEW: LIVE | REPORT EXPORT: FROZEN (FinancialAging) / LIVE (demais, declarado por tipo) | AMBIGUOUS SNAPSHOTS: 0 | FALSE CONSISTENCY CLAIMS: 0 | PREVIEW_EXPORT UNDOCUMENTED DRIFT: 0 | REGRESSIONS: NONE
 NEXT: STOP (BI_CORRECTION_GATE | STOP_AND_FIX ja verdes nesta sessao; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
 ```
+```text
+PROMPT: SEMANTIC METRIC CATALOG
+STATUS: PASS
+SCOPE/AUDITORIA:
+  - Nenhum catalogo semantico de metricas de BI existia (modulo catalog = catalogo de servicos; notification-intent-catalog = intents) -> criado artefato canonico minimo, sem MetricDefinitionV2, sem segundo engine, sem copia de SQL, sem tabela paralela. O catalogo DESCREVE a metrica e aponta para a fonte canonica (sem SQL interno).
+  - EVOLVE de contratos existentes como fonte de semantica: so.deadline_for (0076), FIN-SEM-001 (receivable-aging-sql.ts), AgingReadModelRepository, ProductivityReadModelRepository/productivity-summary (RateMetric com numerador/denominador no backend).
+ARTEFATO: apps/api/src/analytics/domain/semantic-metric-catalog.ts (SMC-001):
+  - MetricDefinition com id/version/concept/domain/grain/unit/valueType/source/engine/dimensions/allowedFilters/timezonePolicy/nullPolicy/availabilityPolicy/freshnessPolicy/requiredCapability/scopePolicy/status + numerator/denominator (somente taxas) + blockedReason (BLOCKED).
+  - Status: CONFIRMED (fonte+engine comprovados), CANDIDATE, BLOCKED (legada rejeitada).
+  - validateMetricDefinitions/assertSemanticMetricCatalogValid (ids unicos, versao unica por id, fonte/engine obrigatorios, capability/scope validos, taxa exige num/den, BLOCKED exige motivo); lookupSemanticMetric; contadores.
+  - 16 CONFIRMED (service-orders overdue/approaching/awaiting-billing 3; measurements aging 1; billing awaiting-preparation/prepared count+amount 3; FIN-SEM-001 awaiting-payment overdue count+amount 4; productivity completed/on-time/avg-cycle/rework 4) + 1 BLOCKED (legado overdue por billing_documents FINALIZED). CANDIDATE 0 (nenhuma promovida sem fonte primaria).
+  - Authz por dominio real: finance/billing -> billing:billing-record:read; measurement -> measurements:measurement:read; OS/productivity -> service-orders:service-order:list (nada generico cruzado). Sem formula no frontend; NO_DATA != 0 (amounts NO_DATA_NULL; counts ZERO_REAL); DDP-024 respeitado (buckets so via env).
+TESTES (unit): semantic-metric-catalog.spec 11/11 PASS: catalogo valido (ids/versoes unicas; CONFIRMED com fonte/engine; cap/scope validos); id duplicado; versao duplicada; CONFIRMED sem fonte/engine; capability invalida; scope invalido; CANDIDATE aceito; BLOCKED exige motivo; taxas com numerador/denominador; NO_DATA != 0; lookup; serializavel; authz por dominio.
+REGRESSION: unit 42/42 PASS (catalog 11, aging.domain 15, productivity.domain 8, exec serializer 2, report-filter-contract 6); integracoes BI verdes em rodadas anteriores desta sessao (aging/executive/operational/productivity/reports/worker/finance).
+RESULTADO: SEMANTIC CATALOG: PASS | CONFIRMED METRICS: 16 | CANDIDATE METRICS: 0 | BLOCKED METRICS: 1 | DUPLICATED METRICS: 0 | METRICS WITHOUT SOURCE: 0 para CONFIRMED | CLIENT FORMULAS: 0 | AUTHZ MISMATCHES: 0 | REGRESSIONS: NONE
+NEXT: STOP (METRIC_VERSIONING_LINEAGE | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
+```
