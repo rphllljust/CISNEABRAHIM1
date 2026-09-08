@@ -12034,3 +12034,19 @@ COMMIT: DONE (por area: feat(db) 0076 funcao kernel; fix(scripts) probe fn; feat
 WORKING TREE: DIRTY (WIP pre-existente preservado)
 NEXT: STOP
 ```
+```text
+PROMPT: DEADLINE SEMANTIC KERNEL (continuacao - fechamento do passo de testes)
+TITLE: Spec dedicado de fronteira/reconciliacao do nucleo de prazo/vencimento
+STARTED_AT: 2026-09-08T02:15:00-04:00
+FINISHED_AT: 2026-09-08T02:25:00-04:00
+STATUS: PASS
+SCOPE: Fechar a lacuna de teste do prompt original (passo 4) com spec proprio.
+IMPLEMENTACAO: src/service-orders/deadline-semantics.integration.spec.ts (PG real).
+QUALITY GATES:
+  - 4/4 PASS: funcao ignora janela REMOVED e status terminal fora do vencido; boundary < vs <= com
+    reconciliacao aging == executive == SQL ground-truth no mesmo dataset; timezone da sessao nao altera
+    o deadline (EPOCH identico em UTC e America/Sao_Paulo); reconciliacao final (2 vencidos + 1 approaching).
+COMMIT: DONE (test + docs)
+WORKING TREE: DIRTY (WIP pre-existente preservado)
+NEXT: STOP
+```
