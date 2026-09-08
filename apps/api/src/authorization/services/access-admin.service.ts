@@ -31,7 +31,6 @@ import {
   findSodConflicts,
   isAnchoredScope,
   type CapabilityWithScope,
-  type AccessAdminSodRuleId,
 } from '../domain/access-admin-rules';
 import type {
   CreateAccessRoleCommand,
@@ -519,7 +518,7 @@ export class AccessAdminService {
           identityId,
           identityLogin: rows[0]?.identity_login ?? null,
           roleCodes: [...new Set(rows.map((row) => row.role_code))],
-          rule: finding.ruleId as AccessAdminSodRuleId,
+          rule: finding.ruleId,
           capabilityA: finding.capabilityA,
           capabilityB: finding.capabilityB,
           status: 'ACTIVE',

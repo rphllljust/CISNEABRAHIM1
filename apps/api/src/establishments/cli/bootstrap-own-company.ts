@@ -26,7 +26,7 @@ async function main(): Promise<void> {
     throw new Error('BOOTSTRAP_IDENTITY_ID is required (a valid identity in identity.identities).');
   }
 
-  const cfg = buildOwnCompanyBootstrapConfig(process.env as Record<string, string>);
+  const cfg = buildOwnCompanyBootstrapConfig(process.env);
 
   const pool = new Pool({ connectionString: databaseUrl });
   const client = await pool.connect();

@@ -107,7 +107,7 @@ export function parseUpdateAccessRoleInput(body: unknown): UpdateAccessRoleComma
     label: record['label'] === undefined ? undefined : assertString(record['label'], 'label'),
     description:
       record['description'] === undefined ? undefined : assertString(record['description'], 'description'),
-    status: status as 'ACTIVE' | 'INACTIVE' | undefined,
+    status: status,
     capabilities:
       record['capabilities'] === undefined
         ? undefined

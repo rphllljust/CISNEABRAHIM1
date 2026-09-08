@@ -201,7 +201,7 @@ function subtractCents(amount: string, cents: number): string {
 }
 
 async function seedDefaultIssuer(pool: import('pg').Pool): Promise<void> {
-  let legal = await pool.query<{ id: string }>(
+  const legal = await pool.query<{ id: string }>(
     `SELECT id FROM pty.legal_entities WHERE legal_name = 'CISNE RONDONIA COMERCIO E SERVICOS LTDA' LIMIT 1`,
   );
   let legalEntityId = legal.rows[0]?.id;
@@ -214,7 +214,7 @@ async function seedDefaultIssuer(pool: import('pg').Pool): Promise<void> {
     legalEntityId = inserted.rows[0]!.id;
   }
 
-  let establishment = await pool.query<{ id: string }>(
+  const establishment = await pool.query<{ id: string }>(
     `SELECT id FROM pty.establishments WHERE legal_entity_id = $1 AND code = 'MATRIZ' LIMIT 1`,
     [legalEntityId],
   );

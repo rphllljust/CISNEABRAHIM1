@@ -126,7 +126,7 @@ describe('transport dispatch domain', () => {
       recordDeparture(dispatchTrip(makePlan()), '2026-09-05T08:05:00.000Z'),
       '2026-09-05T18:00:00.000Z',
       'evid-2',
-    ) as TripExecution;
+    );
     expect(() => cancelTrip(completed, 'Depois')).toThrow(TRANSPORT_DISPATCH_ERROR_CODES.TRIP_TERMINAL);
     expect(() => assertTripExecutionImmutable(completed)).toThrow(
       TRANSPORT_DISPATCH_ERROR_CODES.EXECUTION_IMMUTABLE,

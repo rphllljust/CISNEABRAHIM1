@@ -25,7 +25,7 @@ import {
   reopenPeriod,
 } from '../api/accounting-api';
 import { mapAccountingErrorToMessage } from '../api/accounting-error-messages';
-import type { AccountingPeriod, ChartsList, CloseRuns, PeriodsList } from '../types/accounting.types';
+import type { ChartsList, CloseRuns, PeriodsList } from '../types/accounting.types';
 
 const RUN_STATUS_LABELS: Record<string, string> = {
   SUCCEEDED: 'Concluído',

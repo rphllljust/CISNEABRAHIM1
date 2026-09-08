@@ -225,7 +225,7 @@ export function createContractsFetchMock(options: ContractsFetchMockOptions = {}
         /^\/api\/v1\/commercial\/contracts\/([^/]+)\/(activate|close|expire|documents)$/,
       );
       const detailMatch = pathname.match(/^\/api\/v1\/commercial\/contracts\/([^/]+)$/);
-      const contractId = (actionMatch?.[1] ?? detailMatch?.[1] ?? '') as string;
+      const contractId = (actionMatch?.[1] ?? detailMatch?.[1] ?? '');
 
       if (!detailMatch && !actionMatch) {
         return contractError('COMMERCIAL_CONTRACT_NOT_FOUND', 404);
@@ -281,43 +281,43 @@ export function createContractsFetchMock(options: ContractsFetchMockOptions = {}
         const updated = patch({
           contractNumber:
             typeof body['contractNumber'] === 'string' && body['contractNumber']
-              ? (body['contractNumber'] as string)
+              ? (body['contractNumber'])
               : existing.contractNumber,
           title:
             typeof body['title'] === 'string' && body['title']
-              ? (body['title'] as string)
+              ? (body['title'])
               : existing.title,
           scopeDescription:
             body['scopeDescription'] === null
               ? null
               : typeof body['scopeDescription'] === 'string' && body['scopeDescription']
-                ? (body['scopeDescription'] as string)
+                ? (body['scopeDescription'])
                 : existing.scopeDescription,
           validFrom:
             typeof body['validFrom'] === 'string' && body['validFrom']
-              ? (body['validFrom'] as string)
+              ? (body['validFrom'])
               : existing.validFrom,
           validTo:
             body['validTo'] === null
               ? null
               : typeof body['validTo'] === 'string' && body['validTo']
-                ? (body['validTo'] as string)
+                ? (body['validTo'])
                 : existing.validTo,
           currencyCode:
             typeof body['currencyCode'] === 'string' && body['currencyCode']
-              ? (body['currencyCode'] as string)
+              ? (body['currencyCode'])
               : existing.currencyCode,
           paymentTerms:
             body['paymentTerms'] === null
               ? null
               : typeof body['paymentTerms'] === 'string' && body['paymentTerms']
-                ? (body['paymentTerms'] as string)
+                ? (body['paymentTerms'])
                 : existing.paymentTerms,
           paymentMethod:
             body['paymentMethod'] === null
               ? null
               : typeof body['paymentMethod'] === 'string' && body['paymentMethod']
-                ? (body['paymentMethod'] as string)
+                ? (body['paymentMethod'])
                 : existing.paymentMethod,
           rowVersion: existing.rowVersion + 1,
         });

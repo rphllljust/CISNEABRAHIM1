@@ -12451,3 +12451,11 @@ RESULTADO: BI LIVE UI: PASS | PANELS VISIBLE: PASS | CHARTS VISIBLE: PASS | DATA
 NOTAS: producao NO-GO mantida; HML nao e producao. Prompt 93 nao executado; sem push; WIP preservado.
 NEXT: STOP (CISNE_BI_QUALITY_GATE | STOP_AND_FIX nao executados neste turno)
 ```
+```text
+PROMPT: LINT REMEDIATION (CI verde) - pedido direto do responsavel
+STATUS: PASS
+ESCOPO: corrigir a divida de lint pre-existente que reprovava o job 'Lint / Typecheck / Audit' (passo 'fiapos' = pnpm lint) no CI. Sem alterar regras/eslintrc/workflow; sem desabilitar/mascarar; correcoes legitimas (remocao de assertion desnecessaria, prefer-const, unused import/var/arg prefixado, tipagem de any/Function, void em promise dangling).
+CORRECOES: 14 erros @cisne/api + 31 erros @cisne/web = 45, distribuidos em: authorization (access-admin-rules/dto/service), establishments (bootstrap-own-company, issuer-registry.controller import Body, legal-establishment.spec, establishment-registry.repository arg), finance reconciliation spec (prefer-const), payroll rule-engine (var morta), service-orders transport-dispatch.spec, synthetic-seed runner (any/Function), web accounting (ChartOfAccounts/Journals/PeriodClose/PeriodReportPages), contracts (fetch-mock, e2e), finance (TreasuryListPage arg, payable-reverse.ui.test any/base-to-string), requests ServiceRequestDetailPage (floating promise).
+GATES: eslint api 0 erros | eslint web 0 erros | tsc api PASS | tsc web PASS; regressao web (modulos afetados) 24/24 PASS (payable-reverse, treasury-forms, payable-actions, ServiceRequestDetailPage).
+NOTES: WIP pre-existente (accounting-backoffice.ui.test.tsx) e docs/inputs/_write_src003.py preservados (nao commitados). Nenhuma regra de lint alterada; nenhum eslint-disable/ts-ignore/any novo introduzido (os 'any' existentes foram tipados).
+```

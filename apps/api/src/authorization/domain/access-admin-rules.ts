@@ -246,13 +246,13 @@ export function assertAssignableScope(scopeType: string): AuthzScopeType {
   if (!isAuthzScopeType(scopeType)) {
     throw new AccessAdminRuleError('INVALID_SCOPE', 'Unknown scope type.');
   }
-  if (!ASSIGNABLE_SCOPE_TYPES.has(scopeType as AuthzScopeType)) {
+  if (!ASSIGNABLE_SCOPE_TYPES.has(scopeType)) {
     throw new AccessAdminRuleError(
       'SCOPE_NOT_ASSIGNABLE',
       'Scope type is not assignable to an access role.',
     );
   }
-  return scopeType as AuthzScopeType;
+  return scopeType;
 }
 
 export function isAnchoredScope(scopeType: AuthzScopeType): boolean {

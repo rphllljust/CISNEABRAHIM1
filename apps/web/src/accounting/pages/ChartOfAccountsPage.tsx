@@ -97,7 +97,7 @@ export function ChartOfAccountsPage() {
     try {
       await action();
       await accountsQuery.reload();
-    } catch (error) {
+    } catch {
       setChartActionError(mapAccountingErrorToMessage(undefined, 0));
     }
   }
@@ -252,7 +252,7 @@ export function ChartOfAccountsPage() {
                             variant="secondary"
                             onClick={() =>
                               void runChartAction(() =>
-                                updateAccount(activeChartId as string, row.id, { status: 'INACTIVE' }),
+                                updateAccount(activeChartId, row.id, { status: 'INACTIVE' }),
                               )
                             }
                           >
@@ -263,7 +263,7 @@ export function ChartOfAccountsPage() {
                             variant="secondary"
                             onClick={() =>
                               void runChartAction(() =>
-                                updateAccount(activeChartId as string, row.id, { status: 'ACTIVE' }),
+                                updateAccount(activeChartId, row.id, { status: 'ACTIVE' }),
                               )
                             }
                           >
@@ -278,7 +278,7 @@ export function ChartOfAccountsPage() {
             </table>
           </ModuleTableCard>
           <CreateAccountPanel
-            chartId={activeChartId as string}
+            chartId={activeChartId}
             accounts={accountRows}
             onCreated={() => {
               void accountsQuery.reload();
@@ -339,7 +339,7 @@ function CreateAccountPanel({
       setName('');
       setParentId('');
       onCreated();
-    } catch (createError) {
+    } catch {
       setError(mapAccountingErrorToMessage(undefined, 0));
     } finally {
       setSubmitting(false);

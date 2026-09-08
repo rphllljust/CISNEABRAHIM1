@@ -95,7 +95,7 @@ export function TreasuryListPage() {
           setDraft(EMPTY_DRAFT);
           void reload();
         }}
-        onSubmit={async (idempotencyKey) => {
+        onSubmit={async (_idempotencyKey) => {
           await openTreasuryAccount({
             unitId: draft.unitId.trim(),
             kind: draft.kind,

@@ -145,7 +145,9 @@ function createPayableReverseFetchMock(options: ReverseFetchOptions = {}) {
     );
     if (reverseMatch && method === 'POST') {
       calls.count += 1;
-      const body = init?.body ? JSON.parse(String(init.body)) : {};
+      const raw = init?.body;
+      const body: Record<string, unknown> =
+        typeof raw === 'string' ? (JSON.parse(raw) as Record<string, unknown>) : ((raw ?? {}) as Record<string, unknown>);
       bodies.push(body);
       if (options.conflict) {
         return jsonResponse(

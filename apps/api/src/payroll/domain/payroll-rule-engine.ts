@@ -125,7 +125,6 @@ export function evaluatePayrollRule(
     throw new PayrollEngineError(PAYROLL_ENGINE_ERROR_CODES.PAYROLL_RULE_NOT_CONFIGURED, input.ruleId);
   }
   const scale = version.config.scale ?? 2;
-  const rateScale = 4;
   const baseScaled = toScaled(input.base, 4);
   const quantityScaled = toScaled(input.quantity, 4);
   // result = base * quantity (rate/parâmetros aplicados pelo chamador via config validada)
