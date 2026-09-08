@@ -12202,3 +12202,14 @@ COMMIT: a1250bf (test)
 NOTES: Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado.
 NEXT: STOP
 ```
+```text
+PROMPT: EXECUTIVE DASHBOARD AUTHZ FIX (reexecucao/validacao)
+STATUS: PASS
+SCOPE: revalidar a implementacao existente em HEAD (c6d5693 executive authz masking + scope-before-aggregation + unitId; f7fe042 analytics per-metric capability scoping) sem alterar codigo nem formula; requisitos: capability/resource por metrica; scope antes da agregacao; unitId em todas as series compativeis; ausencia de grant sem inferencia por KPI/total/count/chart; sem autorizacao no frontend; sem capability nova fora do catalogo.
+GATES:
+  - integracao 11/11 PASS: executive-dashboard 5/5 (OWNER_ADMIN global + unitId em todas as series; EMPLOYEE masking de utilization/evidence/rework; wrong scope sem agregacao fora do escopo; cross-scope por capability; fail-closed 403 sem grant), operational 2/2, productivity 4/4.
+  - unit serializers dashboard 3/3 PASS.
+  - e2e adversarial (bypass direto) PASS: intruder GET /api/v1/dashboard/executive -> DASHBOARD_ACCESS_DENIED (controller JwtAuthGuard + fail-closed no access service).
+RESULTADO: EXECUTIVE AUTHZ: PASS | CROSS-SCOPE LEAKS: 0 | UNAUTHORIZED METRICS: 0 | CLIENT-SIDE AUTHORITY: 0 | REGRESSIONS: NONE (reexecucao sem alteracao de codigo; commits originais c6d5693/f7fe042 intactos)
+NEXT: STOP
+```
