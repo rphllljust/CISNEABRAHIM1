@@ -12070,3 +12070,14 @@ COMMIT: (spec reports authz negative)
 WORKING TREE: DIRTY (WIP pre-existente preservado)
 NEXT: STOP
 ```
+
+```text
+PROMPT: BUSINESS METRIC OBSERVABILITY FIX
+STATUS: PASS
+SCOPE: serviceOrdersOverdue sem coluna inexistente (so.deadline_for canonico); proibido catch silencioso->0; falha => log estruturado + BusinessMetricsCollectionError + getLastCollectionError() (health/diagnostic).
+RESULT: unit 4/4 (valor real 3; zero real 0 sem erro; query failure/schema drift propaga + diagnostico; sem conexao erro). lint+typecheck PASS.
+NOTES: Prompt 93 nao executado; producao NO-GO.
+COMMIT: fix observability
+WORKING TREE: DIRTY (WIP pre-existente preservado)
+NEXT: STOP
+```
