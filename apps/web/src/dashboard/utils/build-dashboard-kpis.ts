@@ -1,5 +1,6 @@
 import type { ExecutiveDashboardSnapshot } from '../types/dashboard.types';
 import { formatPercent } from './dashboard-formatters';
+import { frontendDrillHrefForMetric } from '../drill-contract';
 import { SERVICE_ORDER_STATUSES } from '../../service-orders/types/service-order.types';
 import {
   SERVICE_ORDER_ACTIVE_STATUS,
@@ -116,7 +117,7 @@ export function buildDashboardKpis(snapshot: ExecutiveDashboardSnapshot): Dashbo
         value: String(overdueCount),
         unit: overdueCount === 1 ? 'documento' : 'documentos',
         context: snapshot.charts.financialAging.summary,
-        href: '/app/billing?filter=overdue',
+        href: frontendDrillHrefForMetric('receivables.overdue_count') ?? '/app/billing?filter=overdue',
         ariaLabel: `Recebíveis vencidos: ${overdueCount} documentos`,
         variant: 'warning',
       });
