@@ -11957,3 +11957,43 @@ COMMIT: DONE (por area: feat(analytics) masking+scope no read-model; feat(dashbo
 WORKING TREE: DIRTY (WIP pre-existente preservado)
 NEXT: STOP
 ```
+```text
+PROMPT: REPORT_GENERATION WORKER FIX
+TITLE: Corrigir fiacao do REPORT_GENERATION no worker (handler executavel + cancelamento)
+STARTED_AT: 2026-09-08T01:00:00-04:00
+FINISHED_AT: 2026-09-08T01:25:00-04:00
+STATUS: PASS
+CLASSIFICATION: Interpretacao de engenharia / sistemas distribuidos. Nenhuma regra empresarial nova
+               CONFIRMED; producao permanece NO-GO.
+DIAGNOSTICO:
+  - WorkerAppModule NAO importava ReportsModule: o handler REPORT_GENERATION (registrado por
+    ReportsWorkerBootstrap em ReportsModule) so existia no processo HTTP -> job reclamado pelo worker
+    resultava em NO_HANDLER_FOR_REPORT_GENERATION e exports >500 linhas nunca completavam.
+  - cancelExport marcava a export como CANCELLED mas nao impedia o job pendente de rodar depois.
+  - transicoes de export nao eram a prova de cancelamento: markCompleted/markFailed incondicionais
+    podiam sobrescrever CANCELLED (cancel em voo) e markRunning nao aceitava FAILED (retry apos falha
+    deixava a export travada).
+CORRECOES:
+  - worker/worker-app.module.ts: ReportsModule importado no processo worker (ReportsWorkerBootstrap
+    registra o handler via BackgroundJobHandlerRegistry no onModuleInit; registro e idempotente e o
+    poller e timer-based, entao a ordem register-vs-start e segura).
+  - background-jobs.repository: cancelPendingJob(jobId) remove job PENDING sem lease (impede claim
+    futuro); nao toca jobs em voo.
+  - reports/report-export.repository: markRunning aceita FAILED (retry); markCompleted guarda
+    WHERE status='RUNNING'; markFailed nao sobrescreve CANCELLED/COMPLETED.
+  - reports/report-export-access.service: cancelExport agora tambem remove o job pendente
+    (export.background_job_id) quando ainda nao iniciado.
+  - reports/report-generation.service: re-le o estado apos markRunning e aborta se CANCELLED.
+QUALITY GATES:
+  - Novo spec report-generation.worker.integration.spec.ts 6/6 PASS (PG real): handler registrado
+    (fiacao); export >500 linhas PENDING->RUNNING(processing)->COMPLETED (row_count 505, storage
+    gravado); worker restart (lease expirado -> PENDING -> completa); job duplicado (mesma key -> 1);
+    falha transiente (export apagada -> REPORT_EXPORT_NOT_FOUND) -> retry -> sucesso (attempt 2);
+    cancelExport remove job pendente e nao processa (export CANCELLED, storage nulo, NO_HANDLER=0).
+  - Regressao: reports.integration 9/9 e background-worker.integration 7/7 PASS; typecheck + lint + build PASS.
+RESULTADO: REPORT WORKER: PASS | NO_HANDLER_ERRORS: 0 | STUCK EXPORTS: 0 (cenarios cobertos)
+COMMIT: DONE (por area: fix(worker) import ReportsModule; fix(background-jobs) cancelPendingJob;
+               fix(reports) cancel+guards; test(reports) worker integration; docs)
+WORKING TREE: DIRTY (WIP pre-existente preservado)
+NEXT: STOP
+```
