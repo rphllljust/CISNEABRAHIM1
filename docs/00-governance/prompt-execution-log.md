@@ -12161,3 +12161,16 @@ RESULTADO: BI CORRECTION GATE: PASS | CERTIFICADO: SIM (2026-09-08) | FALSE FINA
 NOTES: Prompt 93 nao executado; sem push; producao NO-GO (PILOT_OBSERVATION_WINDOW_NOT_COMPLETED); WIP preservado; lint pre-existente reportado e nao mascarado (API 14 em arquivos intocados 681434d; web 31).
 NEXT: STOP
 ```
+```text
+PROMPT: REVISAO 4 (STOP_AND_FIX FINANCIAL / BI CORRECTION GATE)
+STATUS: PASS (sem novo FAIL no escopo entregue; certificacao mantida com 3 restricoes registradas)
+REVISAO (verificacao independente, leitura de codigo + evidencia da rodada oficial 2026-09-08):
+  RV-1 superfice executive expoe aging financeiro somente com AGING_BUCKET_BANDS configurada (available=false senao, por design DDP-024): CONFIRMADO -> restricao R-1.
+  RV-2 representacao NO_DATA difere por design entre superficies: analytics totalAmount=null (NO_DATA) vs executive disponibiliza resumo por contagem e usa amount so quando count>0: CONFIRMADO, nao conta como metrica falsa -> restricao R-2.
+  RV-3 ids numerados do BI CORRECTION GATE foram reconstruidos (FN-01..FN-08) por ausencia do texto original no contexto apos checkpoint; certificacao autorizada pelo responsavel com esses ids -> restricao R-3.
+  RV-4 `pnpm lint` nivel repositorio permanece vermelho por divida pre-existente (API 14 em arquivos intocados 681434d; web 31), fora do escopo deste prompt, reportada e nao mascarada -> restricao R-4.
+  RV-5 suites financeiras agora fazem cleanup afterAll; su?te executive pre-existente nao tolera residuo estavel de bil.billing_documents no primeiro beforeEach (so afeta processo que crashou antes do afterAll; CI usa base nova por job) -> restricao R-5 (menor).
+  RV-6 limites usam NOW()/data-civil por superf?cie com offsets >= 2 dias nos cenarios (sem cruzamento de meia-noite nos testes) -> restricao R-6 (residual teorico).
+RESULTADO: REVISAO 4: PASS | NOVOS FAILS: 0 | RESTRICOES REGISTRADAS: R-1..R-6 | CERTIFICACAO BI CORRECTION GATE: MANTIDA (2026-09-08) com qualificacao PASS_WITH_RESTRICTIONS
+NEXT: STOP
+```
