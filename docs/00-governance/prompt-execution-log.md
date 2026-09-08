@@ -12050,3 +12050,13 @@ COMMIT: DONE (test + docs)
 WORKING TREE: DIRTY (WIP pre-existente preservado)
 NEXT: STOP
 ```
+```text
+PROMPT: REPORT FILTER CONTRACT
+STATUS: PASS
+SCOPE: allowlist de filtros por tipo + requiredCapability/scopeResource por tipo; validacao antes do SQL; period resolvido (sem no-op); FinancialAging rejeita filtros; injecao (data/valor) rejeitada.
+RESULT: unit 6/6 (report-filter-contract.spec: valido, invalido, FinancialAging, from/to par+ordem+ISO, period temporal->from/to, period nao-temporal); typecheck+lint PASS; regressao reports 15/15 PASS.
+NOTES: mapa Billing/Receipts/FinancialAging->billing read; Measurements->measurement read; SO->so list; Asset->resources asset. Data-layer por tipo ja qualificava colunas; allowlist impede filtro inexistente chegar ao SQL. Wrong grant/scope em integracao (HTTP) fica como proxima cobertura opcional.
+COMMIT: 679fe98
+WORKING TREE: DIRTY (WIP pre-existente preservado)
+NEXT: STOP
+```
