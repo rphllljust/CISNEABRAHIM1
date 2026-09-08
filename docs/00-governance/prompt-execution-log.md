@@ -12092,3 +12092,11 @@ COMMIT: c4226ee
 WORKING TREE: DIRTY (WIP pre-existente preservado)
 NEXT: STOP
 ```
+
+```text
+PROMPT: STOP_AND_FIX (FINANCIAL) — passo 1
+STATUS: IN_PROGRESS (commit 1/6)
+SCOPE: builder canonico de posicao de recebivel (FIN-SEM-001) com asOf explicito e status (OPEN/PARTIALLY_PAID/PAID/OVERDUE/CANCELLED); unit 1/1 + lint + typecheck PASS.
+NEXT: awaitingPayment -> posicao financeira; fixture cadeia 10 cenarios; reconciliacao Finance=Analytics=Exec; rerun BI CORRECTION GATE. NAO certificado ainda.
+NOTES: Prompt 93 nao executado; sem push; WIP preservado; producao NO-GO.
+```
