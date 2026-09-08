@@ -11904,3 +11904,56 @@ COMMIT: NOT_REQUIRED
 WORKING TREE: DIRTY (WIP pre-existente preservado)
 NEXT: STOP (aguarda decisao do responsavel sobre quais gaps corrigir)
 ```
+```text
+PROMPT: EXECUTIVE DASHBOARD AUTHZ FIX
+TITLE: Aplicar grants e scope em TODAS as metricas do executive dashboard (masking por capability)
+STARTED_AT: 2026-09-07T23:55:00-04:00
+FINISHED_AT: 2026-09-08T00:45:00-04:00
+STATUS: PASS
+CLASSIFICATION: Interpretacao de engenharia / seguranca (backend). Sem regra nova no frontend.
+               Nenhuma regra empresarial nova CONFIRMED; producao permanece NO-GO.
+SCOPE:
+  - Cada metrica do bloco de produtividade passa a ter capability correspondente e scope antes
+    da agregacao no executive dashboard; unitId afeta todas as series compativeis; ator sem grant
+    nao infere dados por total/chart/count. Sem criar regra no frontend.
+MAPEAMENTO CAPABILITY -> METRICA (resource service-orders:service-order):
+  - completed / onTimeRate / averageCycleTime -> ServiceOrdersServiceOrderList (mesmo dominio da
+    lista de OS autorizada; prazo de OS ja e exposto nesse dominio).
+  - utilization (janelas planned/allocated) -> ServiceOrdersResourceAllocationRead.
+  - evidenceCompleteness (execution_evidence/entries) -> ServiceOrdersExecutionRead.
+  - reworkRate / measurementAcceptance -> MeasurementsMeasurementRead.
+IMPLEMENTACAO:
+  - analytics/domain/productivity-masking.ts (novo): maskProductivityRawAggregatesForCapabilities,
+    condicoes INDEPENDENTES (nao else-if) - ator sem resources E sem measurements nao infere nenhum
+    dos blocos; zeros viram 'indisponivel' no serializer.
+  - analytics/repositories/productivity-read-model.repository.ts: novo context opcional
+    resourceScope/executionScope; allow_res/allow_ev via EXISTS (alias so_res/so_ev) restringem
+    utilization e evidence ANTES da agregacao; parametros encadeados sem colisao.
+  - dashboard/services/executive-dashboard-access.service.ts: resolve hasGrant(execution) e usa
+    visibility.resources; passa resourceScope/executionScope ao repo; mascara raw; unitId agora
+    vai tambem para charts e contadores (antes so produtividade).
+  - dashboard/repositories/executive-dashboard.repository.ts: unitId aplicado a status distribution,
+    throughput, SLA, overdue meta e aging financeiro (bd.unit_id); corrigido bind de loadOverdueMeta.
+  - dashboard/repositories/operational-dashboard.repository.ts: countOperationalMetrics aceita
+    unitId e filtra por unidade cada dominio (sr/so/ra-join/br/bd/d).
+QUALITY GATES:
+  - typecheck @cisne/api PASS; eslint arquivos alterados PASS.
+  - integracao nova executive-dashboard.integration.spec.ts 5/5 PASS (PG real): OWNER_ADMIN (global)
+    ve todas as metricas + unitId em todas as series; EMPLOYEE (SO unit A) nao infere utilization/
+    evidence/rework (0/0, available false) e nao vaza unidade B; grant com escopo errado (SO A +
+    resources/execution/measurements B) agrega 0 (denominadores 0); cross-scope (SO global +
+    capabilities unit A) soma apenas A (utilization den 7200, evidence den 1, rework den 2);
+    outsider sem grant -> 403 DASHBOARD_ACCESS_DENIED.
+  - regressao operational-dashboard.integration.spec.ts 2/2 e productivity.integration.spec.ts 4/4 PASS.
+  - HTTP live: GET /dashboard/executive 200 (dev operator).
+  - Prompt 93 nao executado; producao permanece NO-GO.
+NOTES:
+  - Surface analytics (endpoint /analytics/productivity) nao foi alterada nesta rodada; ela ainda usa
+    mascara propria com bug de else-if para o caso resources=false+measurements=false (debito de
+    alinhamento registrado; comportamento do dashboard nao depende disso).
+  - Aging financeiro/series por deadline continuam no dominio de leitura de OS (coerente com a
+    listagem de OS autorizada, que ja expoe prazo).
+COMMIT: DONE (por area: feat(analytics) masking+scope no read-model; feat(dashboard) exec authz + spec; docs)
+WORKING TREE: DIRTY (WIP pre-existente preservado)
+NEXT: STOP
+```
