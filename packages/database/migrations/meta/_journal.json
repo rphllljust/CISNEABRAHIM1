@@ -533,6 +533,13 @@
                         "when":  1788393600000,
                         "tag":  "0075_accounting_entry_number",
                         "breakpoints":  true
+                    },
+                    {
+                        "idx":  76,
+                        "version":  "7",
+                        "when":  1788479999000,
+                        "tag":  "0076_deadline_kernel",
+                        "breakpoints":  true
                     }
                 ]
 }
