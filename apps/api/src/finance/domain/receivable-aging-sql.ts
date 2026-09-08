@@ -16,6 +16,8 @@
 export type ReceivableAgingSqlOptions = {
   scopeClause: string;
   tzParam: string;
+  /** Data de referencia (ex.: $N de um placeholder date/texto) para classificar vencido x a vencer. */
+  asOfParam?: string;
   /** Filtro extra (ex.: AND bd.unit_id = $N) aplicado antes da agregação. */
   extraClause?: string;
 };
@@ -61,4 +63,67 @@ export function buildOverdueReceivableBucketsSql(opts: ReceivableAgingSqlOptions
           WHERE remaining > 0
             AND due_date < (NOW() AT TIME ZONE ${tzParam})::date
           GROUP BY 1`;
+}
+
+/**
+ * Posicao canonica por recebivel (FIN-SEM-001):
+ * remaining = principal - SUM(settlements POSTED); status derivado pela mesma
+ * regra de finance/domain/receivable.deriveReceivableStatus usando data de
+ * referencia (asOf) explicita (permite classificar vencido x a vencer).
+ * Nenhuma formula duplicada em consumidores.
+ */
+export type ReceivablePositionStatus =
+  | 'OPEN'
+  | 'PARTIALLY_PAID'
+  | 'PAID'
+  | 'OVERDUE'
+  | 'CANCELLED';
+
+export function buildReceivablePositionsSql(opts: ReceivableAgingSqlOptions): string {
+  const extra = opts.extraClause ?? '';
+  const asOfDateExpr =
+    opts.asOfParam !== undefined
+      ? `(${opts.asOfParam})::date`
+      : `(NOW() AT TIME ZONE ${opts.tzParam})::date`;
+  return `SELECT
+            bd.id,
+            bd.unit_id,
+            bd.client_id,
+            bd.due_date,
+            bd.principal,
+            COALESCE(
+              (SELECT SUM(s.amount)
+               FROM fin.settlements s
+               WHERE s.receivable_id = bd.id AND s.status = 'POSTED'),
+              0
+            ) AS settled,
+            (bd.principal
+             - COALESCE(
+                 (SELECT SUM(s.amount)
+                  FROM fin.settlements s
+                  WHERE s.receivable_id = bd.id AND s.status = 'POSTED'),
+                 0
+               )
+            ) AS remaining,
+            CASE
+              WHEN bd.lifecycle = 'CANCELLED' THEN 'CANCELLED'
+              WHEN (bd.principal
+                    - COALESCE(
+                        (SELECT SUM(s.amount)
+                         FROM fin.settlements s
+                         WHERE s.receivable_id = bd.id AND s.status = 'POSTED'),
+                        0
+                      )) <= 0 THEN 'PAID'
+              WHEN bd.due_date < ${asOfDateExpr} THEN 'OVERDUE'
+              WHEN COALESCE(
+                     (SELECT SUM(s.amount)
+                      FROM fin.settlements s
+                      WHERE s.receivable_id = bd.id AND s.status = 'POSTED'),
+                     0
+                   ) > 0 THEN 'PARTIALLY_PAID'
+              ELSE 'OPEN'
+            END AS status
+          FROM fin.receivables bd
+          WHERE ${opts.scopeClause}${extra}
+            AND bd.lifecycle IN ('ACTIVE', 'CANCELLED')`;
 }
