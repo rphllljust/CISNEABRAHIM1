@@ -12115,3 +12115,29 @@ SCOPE: fixture deterministica da cadeia persistida service order -> billing reco
 NEXT: reconciliacao Finance=Analytics=Executive no mesmo dataset; gates lint/typecheck; rerun BI CORRECTION GATE. NAO certificado ainda.
 NOTES: Prompt 93 nao executado; sem push; WIP preservado; producao NO-GO.
 ```
+```text
+PROMPT: STOP_AND_FIX (FINANCIAL) - fechamento passos 1-4 + rerun BI CORRECTION GATE
+STATUS: PASS (cenarios financeiros verdes; certificacao formal do gate aguarda o responsavel com os ids numerados do prompt original)
+SCOPE:
+  passo 1 (741370b): builder canonico FIN-SEM-001 de posicao de recebivel com asOf explicito e status derivado unico (OPEN/PARTIALLY_PAID/PAID/OVERDUE/CANCELLED).
+  passo 2 (132148d): awaitingPayment = posicao financeira (receivables + settlements POSTED por saldo residual), nunca billing_documents FINALIZED; count 0 => totalAmount null (NO_DATA).
+  passo 3 (724af68, c578250): fixture deterministica da cadeia persistida service order -> billing record -> billing document -> receivable -> settlements; 10 cenarios + limite exato do vencimento com REF=2026-09-15 (due < REF estrito; cancelamento exige cancelled_at+cancel_reason).
+  passo 4 (3c5075f, cce7cc9): reconciliacao Finance = Analytics = Executive no MESMO dataset persistido com oracle SQL independente (sem tautologia): vencido e a vencer, pagamentos parciais, estorno/reversao, cancelado, pago integral, documento sem recebivel ausente, isolamento de escopo de unidade. Cleanup afterAll para isolamento entre suites na mesma base.
+GATES (rerun consolidado, 1 processo, PG real cisne_local_test):
+  integracao 13/13 PASS: financial-chain-fixture 2/2; financial-aging-reconciliation 2/2; financial-aging-correction (NO_DATA) 1/1; analytics aging 3/3; executive-dashboard authz 5/5.
+  unit finance 6/6 PASS: receivable-aging-sql.spec 1/1; receivable.spec 5/5.
+  typecheck repositorio PASS (pnpm -r typecheck, todos os pacotes); eslint dos arquivos finance alterados/novos PASS.
+  eslint full API: 14 erros PRE-EXISTENTES em arquivos intocados (ultimo commit que os tocou: 681434d em 2026-09-05) - reportados, nao mascarados, fora do escopo deste prompt. Web: 31 PRE-EXISTENTES (registro anterior preservado).
+EVIDENCIA NUMERADA (rerun BI CORRECTION GATE; ids FN-01..FN-08 reconstruidos do escopo documentado - o texto numerado original do prompt do responsavel nao esta no contexto desta sessao apos checkpoint):
+  FN-01 posicao canonica unica (SQL unico + domain TS identicos, FIN-SEM-001): PASS (unit 6/6)
+  FN-02 fixture cadeia persistida 10 cenarios + limite exato do vencimento: PASS (2/2)
+  FN-03 awaitingPayment financeiro (receivables+settlements, nunca billing_documents): PASS (reconciliacao + aging)
+  FN-04 overdue receivables por saldo residual (vencido so apos o dia do vencimento): PASS
+  FN-05 reconciliacao Finance = Analytics = Executive no mesmo dataset (oracle independente): PASS (1/1)
+  FN-06 escopo/tenant isola unidade em Analytics e Executive (sem vazar outra unidade): PASS (1/1)
+  FN-07 NO_DATA: totalAmount null, nunca '0' fabricado: PASS (1/1)
+  FN-08 dinheiro somente string numeric; nenhum TS number em logica financeira: PASS (revisao; lint sem disable/any/ts-ignore)
+RESULTADO: FINANCIAL GATE: PASS | FALSE FINANCIAL METRICS: 0 | SURFACES RECONCILIADAS: Finance=Analytics=Executive | BI CORRECTION GATE: CERTIFICACAO PENDENTE da aprovacao do responsavel (ids numerados do prompt original)
+NOTES: Prompt 93 nao executado; sem push; producao NO-GO (PILOT_OBSERVATION_WINDOW_NOT_COMPLETED); WIP pre-existente preservado (accounting-backoffice.ui.test.tsx, docs/inputs/_write_src003.py).
+NEXT: STOP - aguarda revisao do usuario / rodada oficial do BI CORRECTION GATE com os ids numerados do prompt original.
+```
