@@ -11864,3 +11864,43 @@ COMMIT: DONE (por area: feat(api) reports export list; fix(finance) invalid id 4
 WORKING TREE: DIRTY (WIP pre-existente preservado)
 NEXT: STOP
 ```
+```text
+PROMPT: BI EXISTING ASSET AUDIT
+TITLE: Auditoria read-only dos ativos de BI existentes (analytics, dashboard, reports, schema rpt, charts)
+STARTED_AT: 2026-09-08T00:10:00-04:00
+FINISHED_AT: 2026-09-08T00:40:00-04:00
+STATUS: PASS (auditoria; nenhum codigo alterado)
+CLASSIFICATION: Interpretacao de engenharia / auditoria read-only. Nenhum arquivo de codigo alterado;
+               nenhuma regra empresarial nova CONFIRMED; producao permanece NO-GO.
+SCOPE: Auditar apps/api/src/analytics, apps/api/src/dashboard, apps/api/src/reports, schema rpt,
+       apps/web/src/dashboard/components/charts; classificar read models, engines, metricas,
+       exports, grants, charts, filtros, snapshots como COMPLETE/PARTIAL/MISSING/DUPLICATED.
+       Nao implementar nada. Nao criar modulo equivalente ao existente.
+METHOD: 5 subagentes read-only por area + verificacao independente dos achados criticos
+        (grep/leitura). Evidencia arquivo:linha em cada relatorio.
+RESULT:
+  BI AUDIT: FAIL (integridade BI com duplicacoes divergentes e metricas sem fonte valida)
+  Ver detalhes no relatorio ao usuario; lista consolidada de PARTIAL/MISSING/DUPLICATED la registrada.
+ACHADOS CRITICOS (verificados independentemente):
+  - rpt.read_* (0043 e 0044-0073) sao views pass-through SELECT * ... OFFSET 0 (sem denormalizacao).
+  - BusinessMetricsCollectorService consulta rpt.read_service_orders.deadline (coluna inexistente);
+    catch engole erro -> serviceOrdersOverdue sempre 0 (metrica de observabilidade silenciosamente quebrada).
+  - Worker REPORT_GENERATION sem fiacao: WorkerAppModule nao importa ReportsModule; handler registrado
+    apenas no processo HTTP -> NO_HANDLER_FOR_REPORT_GENERATION; exports >500 linhas nunca completam.
+  - Aging/vencimento de OS derivado em SQL em >=5 locais com criterios divergentes
+    (ra.status ACTIVE vs sem status; < vs <=; threshold 7 hardcoded vs env AGING_APPROACHING_DUE_DAYS).
+  - overdue receivables conta bil.billing_documents FINALIZED ignorando pagamentos vs finance
+    (receivable OVERDUE por saldo); aging financeiro do dashboard sobrepoe o relatorio FinancialAging.
+  - Sem tabela/job de snapshot de BI (snapshot = DTO efemero por request; unico artefato real e o CSV).
+  - Executive dashboard nao aplica mask por grants de resources/measurements (utilization/evidence);
+    unitId filtra apenas produtividade (charts ignoram unidade).
+  - Reports: filtros sem allowlist por tipo (podem gerar erro SQL; FinancialAging ignora filtros);
+    gate requiredAction default SO-list desalinhado do data-scope (billing/measurement read);
+    get/download sem reavaliacao de grant atual.
+  - Web: painel unico /app consome snapshot executive; pipeline operacional + DashboardFilters mortos;
+    charts OK x contratos; duplicacoes de KpiCell/CHART_CARD/formatMoney.
+QUALITY GATE: PASS (somente leitura; nenhum arquivo alterado)
+COMMIT: NOT_REQUIRED
+WORKING TREE: DIRTY (WIP pre-existente preservado)
+NEXT: STOP (aguarda decisao do responsavel sobre quais gaps corrigir)
+```
