@@ -12174,3 +12174,16 @@ REVISAO (verificacao independente, leitura de codigo + evidencia da rodada ofici
 RESULTADO: REVISAO 4: PASS | NOVOS FAILS: 0 | RESTRICOES REGISTRADAS: R-1..R-6 | CERTIFICACAO BI CORRECTION GATE: MANTIDA (2026-09-08) com qualificacao PASS_WITH_RESTRICTIONS
 NEXT: STOP
 ```
+```text
+PROMPT: REVISAO 5 (STOP_AND_FIX FINANCIAL / BI CORRECTION GATE)
+STATUS: PASS (nenhum novo FAIL; certificacao mantida com restricoes R5-3/R5-4 adicionais)
+REVISAO (verificacao independente; leitura de codigo + 2 rodadas consecutivas da suite financeira):
+  RV5-1 oracle da reconciliacao e independente (SQL inline com data literal; builders importados apenas para a superficie Finance) - sem tautologia: PASS
+  RV5-2 classes disjuntas sem dupla contagem (awaiting = OPEN/PARTIALLY_PAID ? saldo>0 & due>=hoje; overdue ? saldo>0 & due<hoje; paid e cancelado excluidos): PASS (leitura + totais 3/3)
+  RV5-3 sobrepagamento: saldo<=0 => PAID mesmo com due vencida; dominio tem assertNoOverpayment mas cenario de sobrepagamento nao esta no gate -> restricao R5-3 (fora do escopo; nenhuma regra violada)
+  RV5-4 precisao de redacao: overdue reconciliado em Finance=Analytics=Executive; awaiting so existe em Finance e Analytics (Executive nao expoe awaiting) -> restricao R5-4 (redacao dos registros anteriores ajustada nesta nota)
+  RV5-5 reprodutibilidade: 2 rodadas consecutivas 5/5 cada (10 execucoes verdes) sem flakiness: PASS
+  RV5-6 nenhum TS number para dinheiro nas superficies do gate (counts int; amounts string/numeric): PASS
+RESULTADO: REVISAO 5: PASS | NOVOS FAILS: 0 | RESTRICOES ADICIONAIS: R5-3, R5-4 | CERTIFICACAO BI CORRECTION GATE: MANTIDA (PASS_WITH_RESTRICTIONS)
+NEXT: STOP
+```
