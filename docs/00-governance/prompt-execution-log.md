@@ -12274,3 +12274,17 @@ GATES (unit):
 RESULTADO: BUSINESS METRIC OBSERVABILITY: PASS | SILENT FAILURES: 0 (escopo business metrics do BI; observacao platform count() registrada) | FALSE ZERO: 0 | UNDIAGNOSABLE FAILURES: 0 | SCHEMA-DRIFT MASKING: 0 | REGRESSIONS: NONE (5/5 unit + regressoes BI verdes)
 NEXT: STOP (FINANCIAL_AGING_CONSISTENCY | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
 ```
+```text
+PROMPT: FINANCIAL AGING CONSISTENCY (fechamento formal)
+STATUS: PASS
+SCOPE/AUDITORIA:
+  - Ja comprovado e nao refatorado: FinancialAging Report usa FIN-SEM-001 (posicao fin.receivables + settlements POSTED); pagamento parcial reduz saldo; doc sem receivable ausente; NO_DATA nunca vira 0 ficticio; reconciliacao Finance=Analytics=Executive (spec dedicado) e certificacao BI CORRECTION GATE (FN-01..FN-08) verdes.
+  - Formula de aging financeiro em superf?cies BI: unica (receivable-aging-sql.ts FIN-SEM-001 + money-math receivable.ts); grep sem soma direta de billing_documents em analytics/executive/report; buckets so por env AGING_BUCKET_BANDS (DDP-024), sem inventar politica.
+  - Distincao mantida: OPERATIONAL billing aging (awaitingPreparation/prepared/Receipts listagem; alerts billingAging 7d) != RECEIVABLE FINANCIAL AGING (awaitingPayment/overdueReceivables); conceitos nao fundidos.
+GUARD NOVO (2/2 PASS, PG real): apps/api/src/finance/financial-aging-consistency.integration.spec.ts
+  1) Concorrencia pagamento x leitura canonica: 10 pagamentos de 100 intercalados com leituras -> saldo 900..100 estritamente decrescente, nunca negativo; apos integral saldo=0 (zero real) e recebivel some do overdue; controle a vencer intacto (500); verificacao direta no banco (principal - SUM POSTED = 0).
+  2) Invariante de schema: settlement_status enum so ['POSTED'] (nao-POSTED nao representavel) e builders canonicos filtram s.status = 'POSTED' (defesa em profundidade).
+GATES: eslint PASS; typecheck @cisne/api PASS; integracao do spec 2/2 PASS; regressoes BI desta sessao verdes (reconciliacao 2/2, chain 2/2, NO_DATA 1/1, aging 3/3, productivity 4/4, executive 5/5, operational 2/2, reports 9/9+2/2, worker 6/6, deadline 4/4).
+RESULTADO: FINANCIAL AGING CONSISTENCY: PASS | CANONICAL RECEIVABLE SOURCE: PASS | DIVERGENT FINANCIAL FORMULAS: 0 | FALSE OVERDUE: 0 | FALSE ZERO: 0 | NO_DATA MISREPRESENTATION: 0 | CROSS-SURFACE MISMATCHES: 0 | CROSS-SCOPE LEAKS: 0 | REGRESSIONS: NONE
+NEXT: STOP (SNAPSHOT_SEMANTICS | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
+```
