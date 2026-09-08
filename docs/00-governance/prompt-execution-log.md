@@ -12187,3 +12187,18 @@ REVISAO (verificacao independente; leitura de codigo + 2 rodadas consecutivas da
 RESULTADO: REVISAO 5: PASS | NOVOS FAILS: 0 | RESTRICOES ADICIONAIS: R5-3, R5-4 | CERTIFICACAO BI CORRECTION GATE: MANTIDA (PASS_WITH_RESTRICTIONS)
 NEXT: STOP
 ```
+```text
+PROMPT: STOP_AND_FIX (FINANCIAL) - passo 6: auditoria da fonte do relatorio FinancialAging
+STATUS: PASS
+SCOPE/RESULTADO DA AUDITORIA:
+  - FinancialAging NAO tem SQL tabular proprio: buildTabularQuery cai no default (fromClause null) e loadRows/countRows usam loadAggregateRows -> AgingAccessService.getAgingSnapshot (Analytics). Nenhum caminho do FinancialAging le billing_documents FINALIZED como aging de recebivel (grep reports: billing_documents usado somente no relatorio Receipts, que e listagem de documentos emitidos, nao aging).
+  - awaiting_payment e overdue_receivables do relatorio ja vem da posicao canonica FIN-SEM-001 (fin.receivables + settlements POSTED) via snapshot - sem correcao de codigo necessaria.
+  - awaiting_preparation e prepared permanecem metricas operacionais do pipeline de faturamento (semantica separada e documentada; nao sao aging de recebivel).
+GUARD ADICIONADO: apps/api/src/reports/financial-aging-report-source.integration.spec.ts 2/2 PASS:
+  1) FinancialAging vem da posicao canonica: pagamento POSTED reduz o valor (1000-300=700), doc sem recebivel ausente, igual ao snapshot Analytics, countRows=4 (buckets fixos);
+  2) FinancialAging respeita escopo de unidade do ator (mesma regra do snapshot).
+GATES: eslint PASS; typecheck @cisne/api PASS; regressao reports.integration 9/9 PASS.
+COMMIT: a1250bf (test)
+NOTES: Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado.
+NEXT: STOP
+```
