@@ -12414,3 +12414,17 @@ RESULTADO: COMPOSITE DASHBOARDS: PASS | CONFIRMED METRICS RENDERED: 8 | BLOCKED 
 NOTES: camada declarativa adotada como fonte de metadados de render; visualizacao efetiva continua a mesma dos componentes ja existentes (sem segundo motor). KPIs/series fora do SMC-001 nao sao declarados como metrica.
 NEXT: STOP (CISNE_BI_QUALITY_GATE | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
 ```
+```text
+PROMPT: BI RUNTIME UI WIRING
+STATUS: PASS (rota real /app comprovada com E2E frontend; nova pagina NAO criada)
+AUDITORIA DA ROTA:
+  - /app monta OperationalDashboardPage (usado pelo painel executivo/operacional): useExecutiveDashboard (1 GET /api/v1/dashboard/executive - sem N+1 HTTP) -> snapshot -> AttentionBlock, DashboardKpiStrip, graficos Bar/Line/SLA, ProductivityPanel, Aging financeiro (condicional visibility.financialAging + available), shortcuts. Estados loading/denied/error/partial ja tratados; snapshot e mascarado pelo backend (cab/capability; front nao resolve autorizacao).
+  - semantic-dashboard.ts e COMPOSITE_METRIC_CARDS estavam apenas declarativos -> AGORA integrados na pagina: ancoras semanticas de runtime (semanticSectionAttrs/semanticMetricAttrs) presas a produtividade (4 metricas) e financeira (overdue_count + overdue_amount); guard assertRenderableCard impede card nao-CONFIRMED/BLOCKED; nada de formula no React.
+EVIDENCIA (E2E frontend sobre a rota real /app com login e snapshot real do mock, 2 testes):
+  - dashboard.e2e.test 2/2 PASS: renderiza painel com 4 figures (Bar/Line/SLA/Aging), ancoras data-bi-metrics presentes (finance incl. receivables.overdue_amount, productivity 4 ids), metrica BLOCKED ausente do DOM, KPI cards >=1, UMA unica chamada a /dashboard/executive, period refletido na URL; regressao executive 5/5, premium 4/4, semantic-dashboard 4/4.
+  - SEMANTIC UI PARITY (automatico) PASS: todo metricId@version do front existe e esta CONFIRMED no SMC-001 (3/3, SEMANTIC UI DRIFT 0; front sem formula/source/engine/nullPolicy/timezone/authz).
+GATES: eslint web (alterados) PASS; typecheck web PASS.
+RESULTADO: BI RUNTIME UI: PASS | PANELS VISIBLE: PASS | CHARTS VISIBLE: PASS (4 figures) | DATA WIRED: PASS (snapshot unico mascarado -> cards/graficos) | AUTHZ PRESERVED: PASS (snapshot backend; secoes financeiras somente com capability/available) | REGRESSIONS: NONE (15/15 frontend)
+NOTAS (nao mascaradas): validacao visual em NAVEGADOR real com servidores live e checagem de dimensoes/overflow/hydration/console nao executada nesta sessao (exige dev env API:3000+Web:5173); a prova de rota foi feita pelo E2E jsdom equivalente (App real + login + DOM na rota /app). RUNTIME JS ERRORS/FAILED NETWORK: contexto de teste usa mock com 200/404 controlado - os 401/403/500 reais sao cobertos pelas suites backend/HTTP (authz negativa, reports, exec fail-closed) ja verdes.
+NEXT: STOP (CISNE_BI_QUALITY_GATE | STOP_AND_FIX nao executados neste turno; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
+```
