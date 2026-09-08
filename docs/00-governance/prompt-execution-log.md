@@ -12081,3 +12081,14 @@ COMMIT: fix observability
 WORKING TREE: DIRTY (WIP pre-existente preservado)
 NEXT: STOP
 ```
+
+```text
+PROMPT: ANALYTICS SNAPSHOT SEMANTICS
+STATUS: PASS (contrato e declaracao; janela unica/dashboard e testes divergencia pendem rodada dedicada)
+SCOPE: definicao AN-SEM-001; envelope snapshotId/generatedAt/dataAsOf/partial/consistency (buildSnapshotEnvelope); AgingSnapshot expoe envelope; reports declaram EXPORT LIVE vs FROZEN_SNAPSHOT (FinancialAging frozen). Sem materialized view.
+RESULT: unit 3/3 + report-mode 1/1 + aging integration 3/3; lint+typecheck PASS.
+NOTES: dashboard janela unica e divergencia preview/export/concorrencia seguem como proxima rodada (nao simuladas). Prompt 93 nao executado; producao NO-GO.
+COMMIT: c4226ee
+WORKING TREE: DIRTY (WIP pre-existente preservado)
+NEXT: STOP
+```
