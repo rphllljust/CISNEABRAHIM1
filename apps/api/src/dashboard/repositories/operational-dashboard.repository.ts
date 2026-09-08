@@ -138,23 +138,8 @@ export class OperationalDashboardRepository {
                FROM rpt.read_service_orders so
                WHERE ${mapped.clause}${u}
                  AND so.status IN ('RELEASED', 'IN_EXECUTION', 'PAUSED')
-                 AND (
-                   EXISTS (
-                     SELECT 1
-                     FROM rpt.read_planned_resources pr
-                     WHERE pr.service_order_id = so.id
-                       AND pr.status = 'PLANNED'
-                       AND pr.operational_end IS NOT NULL
-                       AND pr.operational_end < NOW()
-                   )
-                   OR EXISTS (
-                     SELECT 1
-                     FROM rpt.read_resource_allocations ra
-                     WHERE ra.service_order_id = so.id
-                       AND ra.status = 'ACTIVE'
-                       AND ra.operational_end < NOW()
-                   )
-                 )`,
+                 AND so.deadline_for(so.id) IS NOT NULL
+                 AND so.deadline_for(so.id) <= NOW()`,
               params,
             );
           })()

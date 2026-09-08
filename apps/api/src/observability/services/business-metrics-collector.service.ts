@@ -29,10 +29,10 @@ export class BusinessMetricsCollectorService {
 
     const [serviceOrdersOverdue, measurementsAging, billingAging] = await Promise.all([
       this.count(pool, `SELECT COUNT(*)::text AS count
-        FROM rpt.read_service_orders
-        WHERE deadline IS NOT NULL
-          AND deadline < NOW()
-          AND status NOT IN (${terminalStatuses})`),
+        FROM rpt.read_service_orders so
+        WHERE so.status NOT IN (${terminalStatuses})
+          AND so.deadline_for(so.id) IS NOT NULL
+          AND so.deadline_for(so.id) <= NOW()`),
       this.count(pool, `SELECT COUNT(*)::text AS count
         FROM rpt.read_measurements
         WHERE status IN ('SUBMITTED', 'UNDER_REVIEW')

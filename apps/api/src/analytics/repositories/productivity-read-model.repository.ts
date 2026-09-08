@@ -193,22 +193,7 @@ export class ProductivityReadModelRepository {
           evidence.evidence_complete,
           ${allowResSql} AS allow_res,
           ${allowEvSql} AS allow_ev
-        FROM rpt.read_service_orders so
-        LEFT JOIN LATERAL (
-          SELECT MIN(deadline) AS deadline
-          FROM (
-            SELECT pr.operational_end AS deadline
-            FROM rpt.read_planned_resources pr
-            WHERE pr.service_order_id = so.id
-              AND pr.status = 'PLANNED'
-              AND pr.operational_end IS NOT NULL
-            UNION ALL
-            SELECT ra.operational_end AS deadline
-            FROM rpt.read_resource_allocations ra
-            WHERE ra.service_order_id = so.id
-              AND ra.operational_end IS NOT NULL
-          ) sources
-        ) deadlines ON TRUE
+        FROM rpt.read_service_orders so LEFT JOIN LATERAL (SELECT so.deadline_for(so.id) AS deadline) deadlines ON TRUE
         LEFT JOIN LATERAL (
           SELECT COALESCE(
             SUM(

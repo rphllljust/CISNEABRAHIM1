@@ -51,22 +51,7 @@ export class AlertCandidateRepository {
          so.paused_at,
          so.updated_at,
          deadlines.deadline
-       FROM rpt.read_service_orders so
-       LEFT JOIN LATERAL (
-         SELECT MIN(deadline) AS deadline
-         FROM (
-           SELECT pr.operational_end AS deadline
-           FROM rpt.read_planned_resources pr
-           WHERE pr.service_order_id = so.id
-             AND pr.status = 'PLANNED'
-             AND pr.operational_end IS NOT NULL
-           UNION ALL
-           SELECT ra.operational_end AS deadline
-           FROM rpt.read_resource_allocations ra
-           WHERE ra.service_order_id = so.id
-             AND ra.operational_end IS NOT NULL
-         ) sources
-       ) deadlines ON TRUE
+       FROM rpt.read_service_orders so LEFT JOIN LATERAL (SELECT so.deadline_for(so.id) AS deadline) deadlines ON TRUE
        WHERE so.status NOT IN (${TERMINAL_SERVICE_ORDER_SQL})`,
     );
     return result.rows.map((row) => ({

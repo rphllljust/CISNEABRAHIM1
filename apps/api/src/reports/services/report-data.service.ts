@@ -239,24 +239,13 @@ export class ReportDataService {
       case REPORT_TYPES.ServiceOrdersOverdue:
         return {
           fromClause: `rpt.read_service_orders so
-                       LEFT JOIN LATERAL (
-                         SELECT MIN(deadline) AS deadline
-                         FROM (
-                           SELECT pr.operational_end AS deadline
-                           FROM rpt.read_planned_resources pr
-                           WHERE pr.service_order_id = so.id AND pr.status = 'PLANNED' AND pr.operational_end IS NOT NULL
-                           UNION ALL
-                           SELECT ra.operational_end AS deadline
-                           FROM rpt.read_resource_allocations ra
-                           WHERE ra.service_order_id = so.id AND ra.operational_end IS NOT NULL
-                         ) d
-                       ) dl ON TRUE`,
+                       LEFT JOIN LATERAL (SELECT so.deadline_for(so.id) AS deadline) dl ON TRUE`,
           selectClause: `SELECT so.order_number AS "orderNumber",
                                 so.unit_id AS "unitId",
                                 so.status::text AS status,
                                 dl.deadline AS deadline,
                                 GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (NOW() - dl.deadline)) / 86400))::int AS "delayDays"`,
-          whereClause: `${whereClause} AND so.status NOT IN (${TERMINAL_SQL}) AND dl.deadline IS NOT NULL AND dl.deadline < NOW()`,
+          whereClause: `${whereClause} AND so.status NOT IN (${TERMINAL_SQL}) AND dl.deadline IS NOT NULL AND dl.deadline <= NOW()`,
           orderBy: '"delayDays" DESC',
           params,
         };
