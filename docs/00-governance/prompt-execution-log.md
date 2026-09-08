@@ -12428,3 +12428,26 @@ RESULTADO: BI RUNTIME UI: PASS | PANELS VISIBLE: PASS | CHARTS VISIBLE: PASS (4 
 NOTAS (nao mascaradas): validacao visual em NAVEGADOR real com servidores live e checagem de dimensoes/overflow/hydration/console nao executada nesta sessao (exige dev env API:3000+Web:5173); a prova de rota foi feita pelo E2E jsdom equivalente (App real + login + DOM na rota /app). RUNTIME JS ERRORS/FAILED NETWORK: contexto de teste usa mock com 200/404 controlado - os 401/403/500 reais sao cobertos pelas suites backend/HTTP (authz negativa, reports, exec fail-closed) ja verdes.
 NEXT: STOP (CISNE_BI_QUALITY_GATE | STOP_AND_FIX nao executados neste turno; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
 ```
+```text
+PROMPT: BI LIVE BROWSER DELIVERY FIX
+STATUS: PASS (instancia real HML atualizada e validada em navegador real - nao jsdom)
+DIAGNOSTICO (causa raiz, antes da correcao):
+  - PORT 5173 = vite dev LOCAL (PID node, apps/web) servindo a arvore atual.
+  - PORT 5174 = container Docker cisne_hml_web (imagem hml-web:latest com 3 dias) mapeado 0.0.0.0:5174->80. O container havia sido criado de um snapshot antigo em %TEMP% (cisne-approval-*: compose.working_dir em AppData\Local\Temp) - por isso a UI antiga. 5173 NAO e a app real do usuario.
+  - Bundle servido (pre-fix) NAO continha os marcadores novos (data-bi-metrics/semantic-dashboard/DashboardKpiStrip ausentes) => STALE BUILD YES.
+CORRECAO DA CADEIA (sem novo frontend/rota/servidor):
+  1) Rebuild e redeploy dos containers HML a partir da arvore do repositorio (docker compose -f docker/hml/compose.yaml --env-file .env.hml build web api && up -d): cisne_hml_web/hml_api recriados; SERVED COMMIT = HEAD atual (web build novo: dashboard/primitive/semantic incl.).
+  2) API executive respondeu 500 real (errorCode 42883 = undefined function): banco HML nao tinha a migration 0076 (so.deadline_for). Aplicadas migrations hermeticas no container (MIGRATIONS OK applied=2 total=77); probe so.deadline_for ok.
+VALIDACAO EM NAVEGADOR REAL (Chromium headless via Playwright, rota http://127.0.0.1:5174/app; evidencia C:\CISNEABRAHIM\tmp\bi-live.png e bi-live-report.json):
+  - ROUTE /app: PASS (main presente, URL /app)
+  - EXECUTIVE API: PASS (GET /api/v1/dashboard/executive?period=week => 200; shape generatedAt/businessTimezone/period/visibility(financialAging true)/attention/charts presentes)
+  - LIVE CHART FIGURES: 3 (Bar status, Line throughput, SLA) cada width=349 height=293, display=block, visibility=visible, opacity=1 -> ZERO-SIZE CHARTS: 0 | HIDDEN BY CSS: 0
+  - LIVE KPI CARDS: 2 (indicadores no DOM)
+  - BAR/LINE/SLA VISIBLE: PASS | AGING VISIBLE: NOT_AVAILABLE (financialAging.available=false: HML nao configura AGING_BUCKET_BANDS - politica DDP-024; nao e falha de autorizacao)
+  - BLOCKED METRICS RENDERED: 0; ancora data-bi-metrics presente p/ produtividade; RUNTIME page errors: 0.
+  - FAILED CRITICAL NETWORK REQUESTS (dashboard/executive + assets de chart): 0. Observado ruido pre-existente fora da rota BI: 403 em listas de modulos sem capability (proposals/purchase-orders/catalog/payroll/authz probe - negacao correta) e 404 de ids placeholder (screens de outros modulos); documentado, nao mascarado.
+STALE BUILD: NO (apos correcao) | WRONG PORT/PROCESS: YES antes da correcao (5174 era container de snapshot antigo) - corrigido para a arvore atual.
+RESULTADO: BI LIVE UI: PASS | PANELS VISIBLE: PASS | CHARTS VISIBLE: PASS | DATA WIRED: PASS | AUTHZ PRESERVED: PASS (403 de modulos sem capability = denials) | REGRESSIONS: NONE
+NOTAS: producao NO-GO mantida; HML nao e producao. Prompt 93 nao executado; sem push; WIP preservado.
+NEXT: STOP (CISNE_BI_QUALITY_GATE | STOP_AND_FIX nao executados neste turno)
+```
