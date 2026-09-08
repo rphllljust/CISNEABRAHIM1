@@ -11,6 +11,8 @@ export type ProductivityQueryContext = {
   toExclusive: Date;
   serviceOrderScope: ScopeSqlPredicate | null;
   measurementScope: ScopeSqlPredicate | null;
+  resourceScope?: ScopeSqlPredicate | null;
+  executionScope?: ScopeSqlPredicate | null;
   groupBy: ProductivityGroupBy;
   unitFilter?: string;
   archetypeFilter?: string;
@@ -107,6 +109,21 @@ export class ProductivityReadModelRepository {
     }
     const whereClause = filters.join(' AND ');
 
+    // Scope aplicado ANTES da agregação por métrica: uma OS só contribui com
+    // utilization quando o ator pode ler alocações no escopo dela, e com
+    // evidence quando pode ler execução. Predicados referenciam alias proprio
+    // (so_res/so_ev) para nao colidir com o alias 'so' da OS.
+    const allowedFragment = (scope: ScopeSqlPredicate | null | undefined, alias: string): string => {
+      if (!scope) {
+        return 'TRUE';
+      }
+      const res = remapScope(prefixScopeAlias(scope, alias), params.length);
+      params.push(...res.params);
+      return `EXISTS (SELECT 1 FROM rpt.read_service_orders ${alias} WHERE ${alias}.id = so.id AND ${res.clause})`;
+    };
+    const allowResSql = allowedFragment(context.resourceScope, 'so_res');
+    const allowEvSql = allowedFragment(context.executionScope, 'so_ev');
+
     const groupSelect =
       context.groupBy === 'unit'
         ? `so.unit_id AS group_key, so.unit_id AS group_label`
@@ -135,10 +152,10 @@ export class ProductivityReadModelRepository {
           0
         )::float8 AS cycle_time_total_hours,
         COUNT(*) FILTER (WHERE started_at IS NOT NULL)::int AS cycle_time_sample_size,
-        COALESCE(SUM(allocated_seconds), 0)::float8 AS utilization_numerator_seconds,
-        COALESCE(SUM(planned_seconds), 0)::float8 AS utilization_denominator_seconds,
-        COUNT(*) FILTER (WHERE evidence_complete IS TRUE)::int AS evidence_numerator,
-        COUNT(*)::int AS evidence_denominator
+        COALESCE(SUM(allocated_seconds) FILTER (WHERE allow_res), 0)::float8 AS utilization_numerator_seconds,
+        COALESCE(SUM(planned_seconds) FILTER (WHERE allow_res), 0)::float8 AS utilization_denominator_seconds,
+        COUNT(*) FILTER (WHERE evidence_complete IS TRUE AND allow_ev)::int AS evidence_numerator,
+        COUNT(*) FILTER (WHERE allow_ev)::int AS evidence_denominator
       FROM scoped_completed`
         : `SELECT
         group_key,
@@ -155,10 +172,10 @@ export class ProductivityReadModelRepository {
           0
         )::float8 AS cycle_time_total_hours,
         COUNT(*) FILTER (WHERE started_at IS NOT NULL)::int AS cycle_time_sample_size,
-        COALESCE(SUM(allocated_seconds), 0)::float8 AS utilization_numerator_seconds,
-        COALESCE(SUM(planned_seconds), 0)::float8 AS utilization_denominator_seconds,
-        COUNT(*) FILTER (WHERE evidence_complete IS TRUE)::int AS evidence_numerator,
-        COUNT(*)::int AS evidence_denominator
+        COALESCE(SUM(allocated_seconds) FILTER (WHERE allow_res), 0)::float8 AS utilization_numerator_seconds,
+        COALESCE(SUM(planned_seconds) FILTER (WHERE allow_res), 0)::float8 AS utilization_denominator_seconds,
+        COUNT(*) FILTER (WHERE evidence_complete IS TRUE AND allow_ev)::int AS evidence_numerator,
+        COUNT(*) FILTER (WHERE allow_ev)::int AS evidence_denominator
       FROM scoped_completed
       ${groupByClause}`;
 
@@ -173,7 +190,9 @@ export class ProductivityReadModelRepository {
           deadlines.deadline,
           planned.planned_seconds,
           allocated.allocated_seconds,
-          evidence.evidence_complete
+          evidence.evidence_complete,
+          ${allowResSql} AS allow_res,
+          ${allowEvSql} AS allow_ev
         FROM rpt.read_service_orders so
         LEFT JOIN LATERAL (
           SELECT MIN(deadline) AS deadline
