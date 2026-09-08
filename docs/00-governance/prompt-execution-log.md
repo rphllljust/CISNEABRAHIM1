@@ -12335,3 +12335,19 @@ TESTES: metric-versioning.spec 10/10 PASS (lookup id+version; versao atual; vers
 RESULTADO: METRIC VERSIONING: PASS | LINEAGE: PASS | IMMUTABLE PUBLISHED VERSIONS: PASS | CONFIRMED WITHOUT LINEAGE: 0 | CIRCULAR LINEAGE: 0 | BLOCKED CURRENT METRICS: 0 | HISTORICAL DRIFT: 0 | DUPLICATED FORMULAS: 0 | REGRESSIONS: NONE (21/21 unit)
 NEXT: STOP (VISUALIZATION_PRIMITIVES | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
 ```
+```text
+PROMPT: SEMANTIC CATALOG CARDINALITY RECONCILIATION
+STATUS: PASS (causa identificada: erro de contagem/documentacao na evidencia SMC-001; nenhuma metrica removida/perdida)
+CAUSA RAIZ:
+  - Comparacao por metricId/version/status entre o catalogo no commit 5d63e80 e HEAD: conjuntos IDENTICOS (16 entradas = 15 CONFIRMED + 1 BLOCKED nos dois pontos). A evidencia do passo SMC-001 relatou "CONFIRMED METRICS: 16" usando o TOTAL de entradas do catalogo (16) no lugar do numero de CONFIRMED (15). Correcao somente da evidencia (este registro); nenhuma correcao automatica de codigo foi feita.
+CONJUNTOS (5d63e80 -> HEAD):
+  UNCHANGED: 16 | ADDED: 0 | REMOVED: 0 | STATUS_CHANGED: 0 | VERSION_SUPERSEDED: 0 (no catalogo real; superseded e mecanica testada via amostras sinteticas em metric-versioning.spec)
+  Metricas logicas CONFIRMED atuais: 15 (nenhuma desapareceu silenciosamente); BLOCKED: receivables.overdue_count_by_finalized_billing_documents (0.0.1) permanece nao utilizavel (resolveCurrentMetric undefined; fora de currentConfirmedIds).
+  Lineage presente para todas as 15 CONFIRMED atuais (validateVersionedCatalog sem issues; CONFIRMED WITHOUT LINEAGE: 0).
+VALORES CORRIGIDOS:
+  PREVIOUS CONFIRMED (real, 5d63e80): 15 (evidencia anterior errada: 16)
+  CURRENT CONFIRMED DEFINITIONS: 15 | CURRENT CONFIRMED LOGICAL METRICS: 15
+TESTES: catalog 11/11 + versioning 10/10 = 21/21 PASS (nenhum metricId CONFIRMED sumiu; BLOCKED nao utilizavel; resolveCurrentMetric correto; todas atuais com lineage; quantidade logica consistente 15).
+RESULTADO: PREVIOUS CONFIRMED: 15 (nao 16 - erro de contagem na evidencia) | CURRENT CONFIRMED DEFINITIONS: 15 | CURRENT CONFIRMED LOGICAL METRICS: 15 | REMOVED WITHOUT JUSTIFICATION: 0 | STATUS DRIFT: 0 | UNRESOLVED METRIC LOSS: 0 | CATALOG CONTINUITY: PASS
+NEXT: STOP (VISUALIZATION_PRIMITIVES | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
+```
