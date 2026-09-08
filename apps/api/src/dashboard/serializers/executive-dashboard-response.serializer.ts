@@ -8,6 +8,10 @@ import type {
 } from '../domain/executive-dashboard';
 import type { DashboardVisibility } from '../domain/operational-dashboard';
 import { buildOperationalDashboardSnapshot } from './operational-dashboard-response.serializer';
+import {
+  buildDrillHref,
+  drillDestinationByAttentionId,
+} from '../../platform/analytics/filter-drill-contract';
 
 export function buildExecutiveDashboardSnapshot(input: {
   generatedAt: string;
@@ -97,7 +101,7 @@ function buildAttentionItems(input: {
       label: 'OS vencidas',
       count: overdue.count,
       severity: 'critical',
-      href: '/app/service-orders?filter=overdue',
+      href: buildDrillHref(drillDestinationByAttentionId('overdue-service-orders')!),
       ariaLabel: `OS vencidas: ${overdue.count} itens. Maior atraso ${input.chartData.overdueMaxDelayDays ?? 0} dias.`,
       maxDelayDays: input.chartData.overdueMaxDelayDays,
       detail:
@@ -113,7 +117,7 @@ function buildAttentionItems(input: {
       label: 'OS vencendo em breve',
       count: input.chartData.approachingDueCount,
       severity: 'warning',
-      href: '/app/service-orders?filter=approaching-due',
+      href: buildDrillHref(drillDestinationByAttentionId('approaching-due-service-orders')!),
       ariaLabel: `OS vencendo em breve: ${input.chartData.approachingDueCount} itens`,
       maxDelayDays: null,
       detail: 'Prazo nos próximos 7 dias',
@@ -140,7 +144,7 @@ function buildAttentionItems(input: {
       label: 'Faturamentos vencidos',
       count: input.chartData.overdueReceivablesCount,
       severity: 'critical',
-      href: '/app/billing?filter=overdue',
+      href: buildDrillHref(drillDestinationByAttentionId('overdue-receivables')!),
       ariaLabel: `Faturamentos vencidos: ${input.chartData.overdueReceivablesCount} itens`,
       maxDelayDays: null,
       detail: `Exposição: R$ ${input.chartData.overdueReceivablesAmount}`,
