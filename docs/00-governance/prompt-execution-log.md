@@ -12351,3 +12351,17 @@ TESTES: catalog 11/11 + versioning 10/10 = 21/21 PASS (nenhum metricId CONFIRMED
 RESULTADO: PREVIOUS CONFIRMED: 15 (nao 16 - erro de contagem na evidencia) | CURRENT CONFIRMED DEFINITIONS: 15 | CURRENT CONFIRMED LOGICAL METRICS: 15 | REMOVED WITHOUT JUSTIFICATION: 0 | STATUS DRIFT: 0 | UNRESOLVED METRIC LOSS: 0 | CATALOG CONTINUITY: PASS
 NEXT: STOP (VISUALIZATION_PRIMITIVES | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
 ```
+```text
+PROMPT: VISUALIZATION PRIMITIVES
+STATUS: PASS
+SCOPE/AUDITORIA (web dashboard):
+  - Kernel visual existente: 4 graficos (Bar/Line/Aging/SLA) ja em SVG/CSS proprio sem biblioteca externa (sem Chart.js/Recharts/D3/Nivo/ECharts/CDN), com acessibilidade existente (figure+figcaption+aria, botoes keyboard com aria-pressed, tabelas sr-only). Nenhuma stack nova.
+  - Duplicacoes comprovadas removidas dentro do kernel: const CHART_CARD identica em 4 arquivos -> chartCardClassName unico; tabelas acessiveis locais (AccessibleDataTable em Bar, AccessibleTrendTable em Line, tabelas sr-only em Aging/SLA) -> AccessibleDataTable<T> generico unico; KpiCell local -> primitiva Kpi (canonica). Sem ChartsV2/DashboardV2/segundo design system.
+  - formatMoney: dentro do dashboard ja havia umico (dashboard-formatters); copias em contracts/proposals/purchase-orders/accounting/measurement sao PRE-EXISTENTES de outros modulos (fora do kernel de visualizacao; nao mascaradas; fora do escopo deste prompt sem redesign amplo).
+ARTEFATO: apps/web/src/dashboard/primitives/index.tsx (VIZ-001): ChartStateNotice (loading/error(alert)/denied/noData/empty/partial; NUNCA renderiza 0 para sem-dado; NO_DATA != 0; denied/available=false nao aparecem como zero), AccessibleDataTable<T> (caption/columnheader/rowheader th scope=row), Kpi presentacional (valor resolvido pelo backend; aria-label; link/article), chartCardClassName. Nenhuma regra empresarial calculada; graficos continuam recebendo series do backend.
+REFATORACAO: DashboardBarChart/LineChart/AgingChart/SlaChart passam a usar chartCardClassName + AccessibleDataTable generico; DashboardKpiStrip usa Kpi. Comportamento visual/DOM preservado (th scope=row mantido -> sem regressao de papel acessivel).
+GATES: eslint web (arquivos alterados) PASS; typecheck web PASS; vitest jsdom dashboard 16/16 PASS (primitives 5/5 + dashboard.executive 5/5 + dashboard.premium 4/4 + dashboard.components 2/2) incl. estados/NO_DATA/zero falso/acessibilidade (rowheader/columnheader/caption/roles) e regressao dos testes existentes.
+NOTAS: build-dashboard-kpis pre-existente agrega contagens de series ja resolvidas (util legado de painel, fora das primitives e inalterado). Lint web full: divida pre-existente 31 (registro anterior) preservada.
+RESULTADO: VISUALIZATION PRIMITIVES: PASS | REUSABLE PRIMITIVES: 4 (ChartStateNotice, AccessibleDataTable, Kpi, chartCardClassName) | DUPLICATED CHART LOGIC: 0 | CLIENT KPI CALCULATIONS: 0 (primitives nao calculam) | FALSE ZERO PRESENTATION: 0 | ACCESSIBILITY REGRESSIONS: 0 | DASHBOARD REGRESSIONS: NONE (16/16)
+NEXT: STOP (FILTER_DRILL_CONTRACT | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
+```
