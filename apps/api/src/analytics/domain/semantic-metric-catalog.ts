@@ -49,6 +49,8 @@ export type MetricValueType = 'integer' | 'decimal(18,4)' | 'rate' | 'hours';
 export type MetricDefinition = {
   id: string;
   version: string;
+  /** Quando nova versao semantica e publicada, versoes anteriores apontam para ela (imutaveis). */
+  supersededByVersion?: string;
   concept: string;
   domain: MetricDomain;
   grain: string;
