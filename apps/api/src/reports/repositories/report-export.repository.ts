@@ -123,7 +123,7 @@ export class ReportExportRepository {
 
   async markRunning(id: string): Promise<void> {
     await this.pool().query(
-      `UPDATE rpt.report_exports SET status = 'RUNNING' WHERE id = $1 AND status IN ('PENDING', 'RUNNING')`,
+      `UPDATE rpt.report_exports SET status = 'RUNNING' WHERE id = $1 AND status IN ('PENDING', 'RUNNING', 'FAILED')`,
       [id],
     );
   }
@@ -136,6 +136,8 @@ export class ReportExportRepository {
     generatedAt: string;
     contract: ReportContract;
   }): Promise<void> {
+    // Guarda por estado: um export cancelado (CANCELLED) durante a geração nunca
+    // é sobrescrito para COMPLETED.
     await this.pool().query(
       `UPDATE rpt.report_exports
        SET status = 'COMPLETED',
@@ -144,7 +146,7 @@ export class ReportExportRepository {
            file_size_bytes = $4,
            contract = $5::jsonb,
            completed_at = $6::timestamptz
-       WHERE id = $1`,
+       WHERE id = $1 AND status = 'RUNNING'`,
       [
         input.id,
         input.storageKey,
@@ -160,7 +162,7 @@ export class ReportExportRepository {
     await this.pool().query(
       `UPDATE rpt.report_exports
        SET status = 'FAILED', error_message = $2, completed_at = NOW()
-       WHERE id = $1`,
+       WHERE id = $1 AND status NOT IN ('CANCELLED', 'COMPLETED')`,
       [id, errorMessage.slice(0, 2000)],
     );
   }

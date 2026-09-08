@@ -13,6 +13,7 @@ import type { IdentityAuthzContext } from '../../authorization/types/authz-decis
 import { ObjectStorageService } from '../../documents/storage/object-storage.service';
 import { BACKGROUND_JOB_KINDS } from '../../platform/background-jobs/domain/background-job-kind';
 import { BackgroundJobEnqueueService } from '../../platform/background-jobs/services/background-job-enqueue.service';
+import { BackgroundJobsRepository } from '../../platform/background-jobs/repositories/background-jobs.repository';
 import {
   REPORT_DEFINITIONS,
   REPORT_FORMATS,
@@ -46,6 +47,7 @@ export class ReportExportAccessService {
     private readonly data: ReportDataService,
     private readonly generation: ReportGenerationService,
     private readonly enqueue: BackgroundJobEnqueueService,
+    private readonly jobs: BackgroundJobsRepository,
     private readonly objectStorage: ObjectStorageService,
     private readonly audit: SecurityAuditService,
     private readonly authorizationRepository: AuthorizationRepository,
@@ -202,6 +204,12 @@ export class ReportExportAccessService {
       throw new ReportHttpException(409, REPORT_ERROR_CODES.INVALID_REQUEST, 'Completed export cannot be cancelled.');
     }
     await this.exports.markCancelled(exportId);
+    // Impede processamento futuro "quando possível": remove o job ainda não
+    // reclamado (PENDING sem lease). Job em voo é coberto pelo gerador, que
+    // re-checa CANCELLED antes de finalizar (markCompleted guardado por estado).
+    if (exportRow.background_job_id) {
+      await this.jobs.cancelPendingJob(exportRow.background_job_id);
+    }
     return { id: exportId, status: 'CANCELLED' };
   }
 

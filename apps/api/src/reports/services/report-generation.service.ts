@@ -34,6 +34,11 @@ export class ReportGenerationService {
     }
 
     await this.exports.markRunning(exportId);
+    // Cancelamento pode chegar entre o start e a leitura de estado: não processar.
+    const started = await this.exports.findById(exportId);
+    if (started?.status === 'CANCELLED') {
+      return;
+    }
     const definition = REPORT_DEFINITIONS[exportRow.report_type];
     const columnKeys = definition.columns.map((column) => column.key);
     const headers = definition.columns.map((column) => column.header);
