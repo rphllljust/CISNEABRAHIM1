@@ -10,6 +10,7 @@ import { OperationalDashboardSkeleton } from '../components/OperationalDashboard
 import { ProductivityPanel } from '../components/ProductivityPanel';
 import { useExecutiveDashboard } from '../hooks/useExecutiveDashboard';
 import { buildDashboardKpis } from '../utils/build-dashboard-kpis';
+import { semanticMetricAttrs, semanticSectionAttrs } from '../semantic-dashboard';
 import '../dashboard.css';
 
 function formatGeneratedAt(value: string): string {
@@ -164,11 +165,23 @@ export function OperationalDashboardPage() {
           ) : null}
 
           {snapshot.visibility.productivity && snapshot.productivity ? (
-            <ProductivityPanel productivity={snapshot.productivity} />
+            <div
+              {...semanticSectionAttrs([
+                'productivity.completed_count',
+                'productivity.on_time_rate',
+                'productivity.avg_cycle_hours',
+                'productivity.rework_rate',
+              ])}
+            >
+              <ProductivityPanel productivity={snapshot.productivity} />
+            </div>
           ) : null}
 
           {snapshot.visibility.financialAging && snapshot.charts.financialAging.available ? (
-            <section aria-labelledby="finance-heading">
+            <section
+              {...semanticSectionAttrs(['receivables.overdue_count', 'receivables.overdue_amount'])}
+              aria-labelledby="finance-heading"
+            >
               <header className="mb-4">
                 <h2 id="finance-heading" className="m-0 text-base font-semibold text-gray-900">
                   Visão financeira
@@ -177,13 +190,15 @@ export function OperationalDashboardPage() {
                   Recebíveis vencidos por faixa de aging configurada.
                 </p>
               </header>
-              <DashboardAgingChart
-                chartId="financial-aging"
-                title={snapshot.charts.financialAging.title}
-                description={snapshot.charts.financialAging.description}
-                summary={snapshot.charts.financialAging.summary}
-                buckets={snapshot.charts.financialAging.buckets}
-              />
+              <div {...semanticMetricAttrs('receivables.overdue_count')}>
+                <DashboardAgingChart
+                  chartId="financial-aging"
+                  title={snapshot.charts.financialAging.title}
+                  description={snapshot.charts.financialAging.description}
+                  summary={snapshot.charts.financialAging.summary}
+                  buckets={snapshot.charts.financialAging.buckets}
+                />
+              </div>
             </section>
           ) : null}
 

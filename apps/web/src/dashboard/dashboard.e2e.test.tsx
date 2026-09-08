@@ -53,6 +53,21 @@ describe('operational dashboard e2e (frontend)', () => {
     );
     expect(dashboardCalls.length).toBeGreaterThanOrEqual(1);
     expect(requestUrl(dashboardCalls[0]![0])).toContain('period=week');
+
+    // BI RUNTIME UI WIRING: cards e graficos presentes no DOM da rota /app (nao apenas declarados)
+    const mainElement = screen.getByRole('main');
+    expect(mainElement.querySelectorAll('figure')).toHaveLength(4); // Bar + Line + SLA + Aging
+    const finance = mainElement.querySelector('[data-bi-metrics*="receivables.overdue_count"]');
+    expect(finance).not.toBeNull();
+    expect(finance?.getAttribute('data-bi-metrics')).toContain('receivables.overdue_amount');
+    expect(mainElement.querySelector('[data-bi-metrics*="productivity.completed_count"]')).not.toBeNull();
+    // metrica BLOCKED nunca e renderizada como card valido
+    expect(
+      mainElement.querySelectorAll('[data-bi-metrics*="overdue_count_by_finalized_billing_documents"]'),
+    ).toHaveLength(0);
+    // KPI cards visiveis na faixa de indicadores (mock: 5 KPIs derivados)
+    const kpiList = mainElement.querySelector('[aria-labelledby="kpi-heading"] [role="list"]');
+    expect(kpiList?.children.length).toBeGreaterThanOrEqual(1);
   });
 
   it('reflects period filter in URL when user changes period', async () => {

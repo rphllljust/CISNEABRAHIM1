@@ -137,3 +137,40 @@ export function assertRenderableCard(card: DashboardCardRef): void {
     throw new Error(`COMPOSITE_DASHBOARD_UNPROVEN_DRILL_EQUALITY ${card.metricId}`);
   }
 }
+
+export function compositeMetricCard(metricId: string): DashboardCardRef {
+  const card = COMPOSITE_METRIC_CARDS.find((entry) => entry.metricId === metricId);
+  if (!card) {
+    throw new Error(`COMPOSITE_DASHBOARD_UNKNOWN_CARD ${metricId}`);
+  }
+  assertRenderableCard(card);
+  return card;
+}
+
+/**
+ * Ancoras semanticas de runtime (DOM): ligam a secao renderizada ao metricId do
+ * catalogo SMC-001 (exigencia BI RUNTIME UI WIRING). So composicao; nunca regra.
+ * Metricas fora do catalogo jamais passam aqui.
+ */
+export function semanticSectionAttrs(metricIds: string[]): { 'data-bi-metrics': string } {
+  if (metricIds.length === 0) {
+    throw new Error('COMPOSITE_DASHBOARD_EMPTY_SECTION');
+  }
+  for (const metricId of metricIds) {
+    compositeMetricCard(metricId);
+  }
+  return { 'data-bi-metrics': metricIds.join(',') };
+}
+
+export function semanticMetricAttrs(metricId: string): {
+  'data-bi-metric': string;
+  'data-bi-version': string;
+  'data-bi-viz': string;
+} {
+  const card = compositeMetricCard(metricId);
+  return {
+    'data-bi-metric': card.metricId,
+    'data-bi-version': card.metricVersion,
+    'data-bi-viz': card.visualization,
+  };
+}
