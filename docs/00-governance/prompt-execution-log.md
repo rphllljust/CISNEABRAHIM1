@@ -12213,3 +12213,18 @@ GATES:
 RESULTADO: EXECUTIVE AUTHZ: PASS | CROSS-SCOPE LEAKS: 0 | UNAUTHORIZED METRICS: 0 | CLIENT-SIDE AUTHORITY: 0 | REGRESSIONS: NONE (reexecucao sem alteracao de codigo; commits originais c6d5693/f7fe042 intactos)
 NEXT: STOP
 ```
+```text
+PROMPT: REPORT_GENERATION WORKER FIX (reexecucao/validacao)
+STATUS: PASS (sem alteracao de codigo - infraestrutura ja correta em HEAD; sem refatorar)
+AUDITORIA DE ESTADO (antes de alterar codigo):
+  - WorkerAppModule importa ReportsModule (1x) + BackgroundJobsModule; sem segunda fila/worker/modulo duplicado (grep REPORT_GENERATION: kind unico em background-job-kind.ts; handler unico em reports/handlers/report-generation.handler.ts).
+  - ReportsWorkerBootstrap (provider de ReportsModule) registra o handler REPORT_GENERATION no BackgroundJobHandlerRegistry via onModuleInit (registro idempotente).
+  - Estado real do banco (cisne_local_test) antes da rodada: plt.background_jobs 0 linhas; rpt.report_exports 0 linhas (nada pendente/preso). Residuo pos-suites (fixtures) limpo apos a rodada.
+  - Nenhum aumento de timeout para mascarar defeito; syncRowThreshold 500 mantido (export 505 exercita o caminho assincrono).
+GATES (rodada fresca, base limpa):
+  - report-generation.worker.integration 6/6 PASS: fia??o (handler registrado); export >500 linhas PENDING->RUNNING->COMPLETED; restart do worker (lease expirado -> PENDING -> completa); duplicate (mesma idempotency_key nao duplica); falha transiente -> retry -> sucesso; cancelExport remove job pendente e impede processamento futuro.
+  - background-worker.integration 7/7 PASS (transicoes, concurrency, retry/FAILED, cancelamento em voo com guards markCompleted/markFailed, crash/recovery via lease).
+  - reports.integration 9/9 PASS (regressao export list/preview/download/formats/IDOR/escopo).
+RESULTADO: REPORT WORKER: PASS | HANDLER REGISTERED: PASS | STUCK EXPORTS: 0 (estado real banco: 0 antes da rodada) | DUPLICATE EXPORTS: 0 | INVALID STATE TRANSITIONS: 0 | REGRESSIONS: NONE (22/22 PASS)
+NEXT: STOP (proximos candidatos listados no prompt - DEADLINE_SEMANTIC_KERNEL | STOP_AND_FIX - nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
+```
