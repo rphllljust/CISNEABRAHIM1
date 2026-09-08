@@ -79,7 +79,7 @@ function JournalListRoute() {
   const accountsQuery = useBackofficeQuery<AccountsList>({
     enabled: Boolean(chartId),
     autoLoad: Boolean(chartId),
-    loader: (signal) => listAccounts(chartId as string, signal),
+    loader: (signal) => listAccounts(chartId, signal),
     mapError: mapAccountingErrorToMessage,
   });
   const journalsQuery = useBackofficeQuery<JournalListPage>({
@@ -87,7 +87,7 @@ function JournalListRoute() {
     autoLoad: Boolean(periodId),
     loader: (signal) =>
       listJournals(
-        chartId as string,
+        chartId,
         {
           periodId,
           status: statusFilter === 'ALL' ? undefined : statusFilter,
@@ -510,7 +510,7 @@ function ManualDraftCard({
       setOccurredOn('');
       setAmount('');
       onCreated();
-    } catch (createError) {
+    } catch {
       setError(mapAccountingErrorToMessage(undefined, 0));
     } finally {
       setSubmitting(false);

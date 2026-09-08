@@ -52,7 +52,7 @@ describe('legal establishment master domain', () => {
   it('guards status transitions (inativação) and rejects same/invalid transitions', () => {
     expect(() => assertStatusTransition(LEGAL_ENTITY_STATUSES.Active, LEGAL_ENTITY_STATUSES.Inactive)).not.toThrow();
     expect(() => assertStatusTransition(LEGAL_ENTITY_STATUSES.Inactive, LEGAL_ENTITY_STATUSES.Active)).not.toThrow();
-    expect(() => assertStatusTransition('ACTIVE' as never, 'CANCELLED' as never)).toThrow(
+    expect(() => assertStatusTransition('ACTIVE', 'CANCELLED' as never)).toThrow(
       'LEGAL_ESTABLISHMENT_INVALID_STATUS_TRANSITION',
     );
     expect(() =>

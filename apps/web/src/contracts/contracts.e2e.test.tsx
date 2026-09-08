@@ -18,7 +18,7 @@ function captureRequests(
 ): CapturedRequest[] {
   return mock.mock.calls.map((call) => {
     const input = call[0] as RequestInfo;
-    const init = (call[1] ?? {}) as RequestInit;
+    const init = (call[1] ?? {});
     const { pathname } = parseRequestPath(input);
     const method = init.method ?? 'GET';
     let body: Record<string, unknown> | undefined;

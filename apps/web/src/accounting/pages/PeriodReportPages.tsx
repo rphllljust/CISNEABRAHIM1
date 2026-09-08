@@ -108,7 +108,7 @@ function PeriodReportShell({ kind }: { kind: ReportKind }) {
   const accountsQuery = useBackofficeQuery<AccountsList>({
     enabled: Boolean(chartId),
     autoLoad: Boolean(chartId),
-    loader: (signal) => listAccounts(chartId as string, signal),
+    loader: (signal) => listAccounts(chartId, signal),
     mapError: mapAccountingErrorToMessage,
   });
 
@@ -121,32 +121,32 @@ function PeriodReportShell({ kind }: { kind: ReportKind }) {
     enabled: kind === 'journal' && Boolean(periodId),
     autoLoad: kind === 'journal' && Boolean(periodId),
     loader: (signal) =>
-      listJournals(chartId as string, { periodId, status: 'POSTED', page: journalPage, pageSize: 50 }, signal),
+      listJournals(chartId, { periodId, status: 'POSTED', page: journalPage, pageSize: 50 }, signal),
     mapError: mapAccountingErrorToMessage,
   });
   const ledgerQuery = useBackofficeQuery<Awaited<ReturnType<typeof getAccountLedger>>>({
     enabled: kind === 'ledger' && Boolean(periodId) && Boolean(accountId),
     autoLoad: kind === 'ledger' && Boolean(periodId) && Boolean(accountId),
     loader: (signal) =>
-      getAccountLedger(periodId as string, accountId as string, journalPage, 30, signal),
+      getAccountLedger(periodId, accountId, journalPage, 30, signal),
     mapError: mapAccountingErrorToMessage,
   });
   const trialQuery = useBackofficeQuery<TrialBalance>({
     enabled: kind === 'trial' && Boolean(periodId),
     autoLoad: kind === 'trial' && Boolean(periodId),
-    loader: (signal) => getTrialBalance(periodId as string, signal),
+    loader: (signal) => getTrialBalance(periodId, signal),
     mapError: mapAccountingErrorToMessage,
   });
   const incomeQuery = useBackofficeQuery<IncomeStatement>({
     enabled: kind === 'income' && Boolean(periodId),
     autoLoad: kind === 'income' && Boolean(periodId),
-    loader: (signal) => getIncomeStatement(periodId as string, signal),
+    loader: (signal) => getIncomeStatement(periodId, signal),
     mapError: mapAccountingErrorToMessage,
   });
   const balanceQuery = useBackofficeQuery<BalanceSheet>({
     enabled: kind === 'balance' && Boolean(periodId),
     autoLoad: kind === 'balance' && Boolean(periodId),
-    loader: (signal) => getBalanceSheet(periodId as string, signal),
+    loader: (signal) => getBalanceSheet(periodId, signal),
     mapError: mapAccountingErrorToMessage,
   });
 

@@ -75,7 +75,8 @@ type DbClient = Pool | PoolClient;
 
 function formatSeedError(error: unknown): string {
   if (error && typeof error === 'object' && 'getResponse' in error && typeof error.getResponse === 'function') {
-    const body = error.getResponse();
+    const getResponse = (error as { getResponse: () => unknown }).getResponse;
+    const body: unknown = getResponse();
     return typeof body === 'string' ? body : JSON.stringify(body);
   }
   if (error instanceof Error) {

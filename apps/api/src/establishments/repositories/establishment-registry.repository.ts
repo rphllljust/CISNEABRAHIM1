@@ -765,7 +765,7 @@ export class EstablishmentRegistryRepository {
     );
   }
 
-  private mapDuplicateViolation(error: unknown, normalizedNumber: string): unknown {
+  private mapDuplicateViolation(error: unknown, _normalizedNumber: string): unknown {
     if (typeof error === 'object' && error !== null && 'code' in error && error.code === '23505') {
       return new LegalEstablishmentError('TAX_REGISTRATION_DUPLICATE');
     }

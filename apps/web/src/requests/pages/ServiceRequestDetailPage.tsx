@@ -123,7 +123,7 @@ export function ServiceRequestDetailPage() {
       const detail = await convertServiceRequest(serviceRequest.id, serviceRequest.rowVersion);
       const convertedServiceOrderId = detail.serviceRequest.convertedServiceOrderId;
       if (convertedServiceOrderId) {
-        navigate(`/app/service-orders/${convertedServiceOrderId}/planning`);
+        void navigate(`/app/service-orders/${convertedServiceOrderId}/planning`);
         return;
       }
       setState({ phase: 'ready', detail });
