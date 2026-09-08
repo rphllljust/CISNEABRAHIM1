@@ -31,6 +31,15 @@ function remapScope(scope: ScopeSqlPredicate, paramOffset: number): { clause: st
   return { clause, params: scope.params };
 }
 
+/** Anexa ` AND <alias>.unit_id = $N` quando um filtro de unidade foi pedido. */
+function unitClause(params: unknown[], unitId: string | undefined, alias: string): string {
+  if (!unitId) {
+    return '';
+  }
+  params.push(unitId);
+  return ` AND ${alias}.unit_id = $${params.length}`;
+}
+
 @Injectable()
 export class OperationalDashboardRepository {
   constructor(private readonly databaseService: DatabaseService) {}
@@ -46,139 +55,185 @@ export class OperationalDashboardRepository {
   async countOperationalMetrics(
     visibility: DashboardVisibility,
     scopes: OperationalDashboardScopeFilters,
+    unitId?: string,
   ): Promise<OperationalDashboardCounts> {
     const tasks: Array<Promise<number>> = [];
 
     tasks.push(
       visibility.serviceRequests && scopes.serviceRequestScope
-        ? this.countScoped(
-            `SELECT COUNT(*)::text AS count
-             FROM rpt.read_service_requests sr
-             WHERE ${remapScope(scopes.serviceRequestScope, 0).clause}
-               AND sr.status IN ('SUBMITTED', 'UNDER_REVIEW')`,
-            remapScope(scopes.serviceRequestScope, 0).params,
-          )
+        ? (() => {
+            const mapped = remapScope(scopes.serviceRequestScope, 0);
+            const params: unknown[] = [...mapped.params];
+            const u = unitClause(params, unitId, 'sr');
+            return this.countScoped(
+              `SELECT COUNT(*)::text AS count
+               FROM rpt.read_service_requests sr
+               WHERE ${mapped.clause}${u}
+                 AND sr.status IN ('SUBMITTED', 'UNDER_REVIEW')`,
+              params,
+            );
+          })()
         : Promise.resolve(0),
     );
 
     tasks.push(
       visibility.serviceOrders && scopes.serviceOrderScope
-        ? this.countScoped(
-            `SELECT COUNT(*)::text AS count
-             FROM rpt.read_service_orders so
-             WHERE ${remapScope(scopes.serviceOrderScope, 0).clause}
-               AND so.status = 'PREPARED'`,
-            remapScope(scopes.serviceOrderScope, 0).params,
-          )
+        ? (() => {
+            const mapped = remapScope(scopes.serviceOrderScope, 0);
+            const params: unknown[] = [...mapped.params];
+            const u = unitClause(params, unitId, 'so');
+            return this.countScoped(
+              `SELECT COUNT(*)::text AS count
+               FROM rpt.read_service_orders so
+               WHERE ${mapped.clause}${u}
+                 AND so.status = 'PREPARED'`,
+              params,
+            );
+          })()
         : Promise.resolve(0),
     );
 
     tasks.push(
       visibility.serviceOrders && scopes.serviceOrderScope
-        ? this.countScoped(
-            `SELECT COUNT(*)::text AS count
-             FROM rpt.read_service_orders so
-             WHERE ${remapScope(scopes.serviceOrderScope, 0).clause}
-               AND so.status = 'RELEASED'`,
-            remapScope(scopes.serviceOrderScope, 0).params,
-          )
+        ? (() => {
+            const mapped = remapScope(scopes.serviceOrderScope, 0);
+            const params: unknown[] = [...mapped.params];
+            const u = unitClause(params, unitId, 'so');
+            return this.countScoped(
+              `SELECT COUNT(*)::text AS count
+               FROM rpt.read_service_orders so
+               WHERE ${mapped.clause}${u}
+                 AND so.status = 'RELEASED'`,
+              params,
+            );
+          })()
         : Promise.resolve(0),
     );
 
     tasks.push(
       visibility.serviceOrders && scopes.serviceOrderScope
-        ? this.countScoped(
-            `SELECT COUNT(*)::text AS count
-             FROM rpt.read_service_orders so
-             WHERE ${remapScope(scopes.serviceOrderScope, 0).clause}
-               AND so.status IN ('IN_EXECUTION', 'PAUSED')`,
-            remapScope(scopes.serviceOrderScope, 0).params,
-          )
+        ? (() => {
+            const mapped = remapScope(scopes.serviceOrderScope, 0);
+            const params: unknown[] = [...mapped.params];
+            const u = unitClause(params, unitId, 'so');
+            return this.countScoped(
+              `SELECT COUNT(*)::text AS count
+               FROM rpt.read_service_orders so
+               WHERE ${mapped.clause}${u}
+                 AND so.status IN ('IN_EXECUTION', 'PAUSED')`,
+              params,
+            );
+          })()
         : Promise.resolve(0),
     );
 
     tasks.push(
       visibility.serviceOrders && scopes.serviceOrderScope
-        ? this.countScoped(
-            `SELECT COUNT(DISTINCT so.id)::text AS count
-             FROM rpt.read_service_orders so
-             WHERE ${remapScope(scopes.serviceOrderScope, 0).clause}
-               AND so.status IN ('RELEASED', 'IN_EXECUTION', 'PAUSED')
-               AND (
-                 EXISTS (
-                   SELECT 1
-                   FROM rpt.read_planned_resources pr
-                   WHERE pr.service_order_id = so.id
-                     AND pr.status = 'PLANNED'
-                     AND pr.operational_end IS NOT NULL
-                     AND pr.operational_end < NOW()
-                 )
-                 OR EXISTS (
-                   SELECT 1
-                   FROM rpt.read_resource_allocations ra
-                   WHERE ra.service_order_id = so.id
-                     AND ra.status = 'ACTIVE'
-                     AND ra.operational_end < NOW()
-                 )
-               )`,
-            remapScope(scopes.serviceOrderScope, 0).params,
-          )
+        ? (() => {
+            const mapped = remapScope(scopes.serviceOrderScope, 0);
+            const params: unknown[] = [...mapped.params];
+            const u = unitClause(params, unitId, 'so');
+            return this.countScoped(
+              `SELECT COUNT(DISTINCT so.id)::text AS count
+               FROM rpt.read_service_orders so
+               WHERE ${mapped.clause}${u}
+                 AND so.status IN ('RELEASED', 'IN_EXECUTION', 'PAUSED')
+                 AND (
+                   EXISTS (
+                     SELECT 1
+                     FROM rpt.read_planned_resources pr
+                     WHERE pr.service_order_id = so.id
+                       AND pr.status = 'PLANNED'
+                       AND pr.operational_end IS NOT NULL
+                       AND pr.operational_end < NOW()
+                   )
+                   OR EXISTS (
+                     SELECT 1
+                     FROM rpt.read_resource_allocations ra
+                     WHERE ra.service_order_id = so.id
+                       AND ra.status = 'ACTIVE'
+                       AND ra.operational_end < NOW()
+                   )
+                 )`,
+              params,
+            );
+          })()
         : Promise.resolve(0),
     );
 
     tasks.push(
       visibility.resources && scopes.resourceScope
-        ? this.countScoped(
-            `SELECT COUNT(*)::text AS count
-             FROM rpt.read_resource_allocations ra
-             INNER JOIN rpt.read_service_orders so ON so.id = ra.service_order_id
-             WHERE ra.status = 'ACTIVE'
-               AND ${remapScope(scopes.resourceScope, 0).clause}`,
-            remapScope(scopes.resourceScope, 0).params,
-          )
+        ? (() => {
+            const mapped = remapScope(scopes.resourceScope, 0);
+            const params: unknown[] = [...mapped.params];
+            const u = unitClause(params, unitId, 'so');
+            return this.countScoped(
+              `SELECT COUNT(*)::text AS count
+               FROM rpt.read_resource_allocations ra
+               INNER JOIN rpt.read_service_orders so ON so.id = ra.service_order_id
+               WHERE ra.status = 'ACTIVE'
+                 AND ${mapped.clause}${u}`,
+              params,
+            );
+          })()
         : Promise.resolve(0),
     );
 
     tasks.push(
       visibility.measurements && scopes.measurementScope
-        ? this.countScoped(
-            `SELECT COUNT(*)::text AS count
-             FROM rpt.read_measurements m
-             INNER JOIN rpt.read_service_orders so ON so.id = m.service_order_id
-             WHERE m.status IN ('SUBMITTED', 'UNDER_REVIEW')
-               AND ${remapScope(scopes.measurementScope, 0).clause}`,
-            remapScope(scopes.measurementScope, 0).params,
-          )
+        ? (() => {
+            const mapped = remapScope(scopes.measurementScope, 0);
+            const params: unknown[] = [...mapped.params];
+            const u = unitClause(params, unitId, 'so');
+            return this.countScoped(
+              `SELECT COUNT(*)::text AS count
+               FROM rpt.read_measurements m
+               INNER JOIN rpt.read_service_orders so ON so.id = m.service_order_id
+               WHERE m.status IN ('SUBMITTED', 'UNDER_REVIEW')
+                 AND ${mapped.clause}${u}`,
+              params,
+            );
+          })()
         : Promise.resolve(0),
     );
 
     tasks.push(
       visibility.billing && scopes.serviceOrderScope
-        ? this.countScoped(
-            `SELECT COUNT(DISTINCT so.id)::text AS count
-             FROM rpt.read_service_orders so
-             LEFT JOIN rpt.read_billing_records br ON br.service_order_id = so.id AND br.status = 'PREPARED'
-             LEFT JOIN rpt.read_billing_documents bd ON bd.billing_record_id = br.id AND bd.status = 'FINALIZED'
-             WHERE so.status = 'COMPLETED'
-               AND ${remapScope(scopes.serviceOrderScope, 0).clause}
-               AND (br.id IS NULL OR bd.id IS NULL)`,
-            remapScope(scopes.serviceOrderScope, 0).params,
-          )
+        ? (() => {
+            const mapped = remapScope(scopes.serviceOrderScope, 0);
+            const params: unknown[] = [...mapped.params];
+            const u = unitClause(params, unitId, 'so');
+            return this.countScoped(
+              `SELECT COUNT(DISTINCT so.id)::text AS count
+               FROM rpt.read_service_orders so
+               LEFT JOIN rpt.read_billing_records br ON br.service_order_id = so.id AND br.status = 'PREPARED'
+               LEFT JOIN rpt.read_billing_documents bd ON bd.billing_record_id = br.id AND bd.status = 'FINALIZED'
+               WHERE so.status = 'COMPLETED'
+                 AND ${mapped.clause}${u}
+                 AND (br.id IS NULL OR bd.id IS NULL)`,
+              params,
+            );
+          })()
         : Promise.resolve(0),
     );
 
-    tasks.push(this.countDivergences(visibility, scopes));
+    tasks.push(this.countDivergences(visibility, scopes, unitId));
 
     tasks.push(
       visibility.documents && scopes.documentScope
-        ? this.countScoped(
-            `SELECT COUNT(*)::text AS count
-             FROM rpt.read_documents d
-             WHERE d.status = 'ACTIVE'
-               AND (d.current_version_number IS NULL OR d.current_version_number < 1)
-               AND ${remapScope(scopes.documentScope, 0).clause}`,
-            remapScope(scopes.documentScope, 0).params,
-          )
+        ? (() => {
+            const mapped = remapScope(scopes.documentScope, 0);
+            const params: unknown[] = [...mapped.params];
+            const u = unitClause(params, unitId, 'd');
+            return this.countScoped(
+              `SELECT COUNT(*)::text AS count
+               FROM rpt.read_documents d
+               WHERE d.status = 'ACTIVE'
+                 AND (d.current_version_number IS NULL OR d.current_version_number < 1)
+                 AND ${mapped.clause}${u}`,
+              params,
+            );
+          })()
         : Promise.resolve(0),
     );
 
@@ -201,30 +256,35 @@ export class OperationalDashboardRepository {
   private async countDivergences(
     visibility: DashboardVisibility,
     scopes: OperationalDashboardScopeFilters,
+    unitId?: string,
   ): Promise<number> {
     const tasks: Promise<number>[] = [];
 
     if (visibility.measurements && scopes.measurementScope) {
       const mapped = remapScope(scopes.measurementScope, 0);
+      const params: unknown[] = [...mapped.params];
+      const u = unitClause(params, unitId, 'so');
       tasks.push(
         this.countScoped(
           `SELECT COUNT(*)::text AS count
            FROM rpt.read_measurements m
            INNER JOIN rpt.read_service_orders so ON so.id = m.service_order_id
-           WHERE m.status = 'REJECTED' AND ${mapped.clause}`,
-          mapped.params,
+           WHERE m.status = 'REJECTED' AND ${mapped.clause}${u}`,
+          params,
         ),
       );
     }
 
     if (visibility.billing && scopes.billingScope) {
       const mapped = remapScope(scopes.billingScope, 0);
+      const params: unknown[] = [...mapped.params];
+      const u = unitClause(params, unitId, 'br');
       tasks.push(
         this.countScoped(
           `SELECT COUNT(*)::text AS count
            FROM rpt.read_billing_records br
-           WHERE br.status = 'VOIDED' AND ${mapped.clause}`,
-          mapped.params,
+           WHERE br.status = 'VOIDED' AND ${mapped.clause}${u}`,
+          params,
         ),
       );
     }

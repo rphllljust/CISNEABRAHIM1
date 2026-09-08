@@ -6,6 +6,7 @@ import {
   resolveProductivityPeriod,
 } from '../../analytics/domain/productivity-period';
 import { resolveBusinessTimezone } from '../../analytics/domain/business-timezone';
+import { maskProductivityRawAggregatesForCapabilities } from '../../analytics/domain/productivity-masking';
 import { PRODUCTIVITY_GROUP_BY } from '../../analytics/domain/productivity-summary';
 import { AuthorizationRepository } from '../../authorization/repositories/authorization.repository';
 import { ScopeEnforcementService } from '../../authorization/services/scope-enforcement.service';
@@ -66,14 +67,28 @@ export class ExecutiveDashboardAccessService {
       ? await this.scopeFor(actor, AUTHZ_ACTIONS.BillingBillingRecordRead, 'bd')
       : null;
 
+    // Capabilities que governam métricas de produtividade por fonte de dados.
+    const resourcesGranted = visibility.resources;
+    const executionGranted = await this.hasGrant(
+      actor,
+      AUTHZ_ACTIONS.ServiceOrdersExecutionRead,
+      AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+    );
+
     const scopes = await this.buildOperationalScopes(actor, visibility);
-    const operationalCounts = await this.operationalRepository.countOperationalMetrics(visibility, scopes);
+    const unitId = query.unitId?.trim() || undefined;
+    const operationalCounts = await this.operationalRepository.countOperationalMetrics(
+      visibility,
+      scopes,
+      unitId,
+    );
 
     const [chartData, productivityResult] = await Promise.all([
       serviceOrderScope
         ? this.executiveRepository.loadChartData({
             serviceOrderScope,
             billingDocumentScope,
+            unitId,
             fromInclusive: period.fromInclusive,
             toExclusive: period.toExclusive,
             businessTimezone,
@@ -97,11 +112,27 @@ export class ExecutiveDashboardAccessService {
             measurementScope: visibility.measurements
               ? await this.scopeFor(actor, AUTHZ_ACTIONS.MeasurementsMeasurementRead, 'so')
               : null,
+            resourceScope: resourcesGranted
+              ? await this.scopeFor(actor, AUTHZ_ACTIONS.ServiceOrdersResourceAllocationRead)
+              : null,
+            executionScope: executionGranted
+              ? await this.scopeFor(actor, AUTHZ_ACTIONS.ServiceOrdersExecutionRead)
+              : null,
             groupBy: PRODUCTIVITY_GROUP_BY.None,
-            unitFilter: query.unitId?.trim() || undefined,
+            unitFilter: unitId,
           })
         : Promise.resolve({ overall: null, groups: [] }),
     ]);
+
+    const productivityRaw =
+      productivityResult.overall === null
+        ? null
+        : maskProductivityRawAggregatesForCapabilities(productivityResult.overall, {
+            serviceOrders: visibility.serviceOrders,
+            measurements: visibility.measurements,
+            resources: resourcesGranted,
+            execution: executionGranted,
+          });
 
     return buildExecutiveDashboardSnapshot({
       generatedAt: new Date().toISOString(),
@@ -118,8 +149,21 @@ export class ExecutiveDashboardAccessService {
       },
       operationalCounts,
       chartData,
-      productivityRaw: productivityResult.overall,
+      productivityRaw,
     });
+  }
+
+  private async hasGrant(
+    actor: IdentityAuthzContext,
+    action: (typeof AUTHZ_ACTIONS)[keyof typeof AUTHZ_ACTIONS],
+    resourceType: (typeof AUTHZ_RESOURCE_TYPES)[keyof typeof AUTHZ_RESOURCE_TYPES],
+  ): Promise<boolean> {
+    const grants = await this.authorizationRepository.findActiveGrants(
+      actor.identityId,
+      action,
+      resourceType,
+    );
+    return grants.length > 0;
   }
 
   private async buildOperationalScopes(actor: IdentityAuthzContext, visibility: DashboardVisibility) {
