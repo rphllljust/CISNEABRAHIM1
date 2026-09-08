@@ -12107,3 +12107,11 @@ STATUS: IN_PROGRESS
 SCOPE: awaitingPayment agora usa posicao financeira (FIN-SEM-001) OPEN/PARTIALLY_PAID por saldo residual; overdueReceivables ja financeiro; prepared permanece operacional. Gates: lint/typecheck PASS; integracao finance NO_DATA 1 + aging 3 PASS.
 NEXT: fixture cadeia 10 cenarios + reconciliacao + rerun gate. NAO certificado.
 ```
+
+```text
+PROMPT: STOP_AND_FIX (FINANCIAL) - passo 3
+STATUS: IN_PROGRESS
+SCOPE: fixture deterministica da cadeia persistida service order -> billing record -> billing document -> receivable -> settlements; 10 cenarios (open, parcial, pago, vencido, vencido parcial, cancelado, multiplos pagamentos, estorno/reversao, documento sem recebivel ausente da posicao) classificados pela posicao canonica FIN-SEM-001 (buildReceivablePositionsSql) com REF=2026-09-15 explicita (sem NOW()). Cancelamento exige cancelled_at+cancel_reason (receivables_cancelled_consistency_chk); semantica estrita due < REF (due == REF ainda a vencer; REF-1 vencido). Gates: eslint PASS; integracao 2/2 PASS.
+NEXT: reconciliacao Finance=Analytics=Executive no mesmo dataset; gates lint/typecheck; rerun BI CORRECTION GATE. NAO certificado ainda.
+NOTES: Prompt 93 nao executado; sem push; WIP preservado; producao NO-GO.
+```
