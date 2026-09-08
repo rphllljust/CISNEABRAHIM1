@@ -12319,3 +12319,19 @@ REGRESSION: unit 42/42 PASS (catalog 11, aging.domain 15, productivity.domain 8,
 RESULTADO: SEMANTIC CATALOG: PASS | CONFIRMED METRICS: 16 | CANDIDATE METRICS: 0 | BLOCKED METRICS: 1 | DUPLICATED METRICS: 0 | METRICS WITHOUT SOURCE: 0 para CONFIRMED | CLIENT FORMULAS: 0 | AUTHZ MISMATCHES: 0 | REGRESSIONS: NONE
 NEXT: STOP (METRIC_VERSIONING_LINEAGE | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
 ```
+```text
+PROMPT: METRIC VERSIONING AND LINEAGE
+STATUS: PASS
+SCOPE: EVOLVE_EXISTING sobre SMC-001 (sem catalogo novo, MetricDefinitionV2, tabela, banco, engine ou SQL duplicado). Modulo companion apps/api/src/analytics/domain/metric-versioning.ts + evolucao do tipo MetricDefinition (campo opcional supersededByVersion) em semantic-metric-catalog.ts.
+VERSIONAMENTO:
+  - Regra formalizada: metadata-only (label/concept) NAO exige nova versao; mudanca em source/engine/numerador/denominador/grain/unit/valueType/timezonePolicy/nullPolicy/availabilityPolicy/allowedFilters(bucket/policy)/requiredCapability/scopePolicy => exige nova MetricVersion (changedSemanticFields/requiresNewVersionOnSemanticChange).
+  - Versoes publicadas imutaveis (deepFreeze nas definicoes e lineage do catalogo oficial; nunca sobrescritas; versao antiga marca supersededByVersion).
+  - resolveCurrentMetric(id) resolve somente versao atual CONFIRMED (max versao, nao superseded); CANDIDATE/BLOCKED nunca current; lookupMetricVersion(id, version) explicito (qualquer status p/ inspecao).
+  - compareSemanticVersions semver numerico.
+LINEAGE (15 CONFIRMED): MetricDefinition -> engine/regra canonica (def.engine) -> read model/query contract (lineage.readModel) -> dominio proprietario (domainOwner) -> fonte transacional (source). Referencia artefatos existentes (so.deadline_for, FIN-SEM-001 receivable-aging-sql.ts, AgingReadModelRepository, ProductivityReadModelRepository/productivity-summary); sem copiar SQL. dependsOn declarativo com deteccao de ciclo (DFS) e checagem de dependencia existente.
+REPRODUCAO HISTORICA: SEMANTIC VERSIONING != DATA SNAPSHOT VERSIONING; sem preservacao de data-snapshot => canReproduceHistoricalValue() false (nunca afirma historico congelado inventado).
+BLOCKED: nunca resolvido como current (resolveCurrentMetric undefined) nem exposto como utilizavel (nao entra em currentConfirmedIds).
+TESTES: metric-versioning.spec 10/10 PASS (lookup id+version; versao atual; versao inexistente; id inexistente; duas versoes validas -> maior current; antiga imutavel/superseded; metadata-only nao exige nova versao; mudanca semantica exige; numerador/denominador; lineage completo p/ 15 CONFIRMED; source inexistente -> CONFIRMED_WITHOUT_LINEAGE; dependencia circular detectada; BLOCKED nao current; semantica vs data-snapshot; compareSemanticVersions). Regressao catalog 11/11 PASS (15 CONFIRMED + 1 BLOCKED) + eslint + typecheck PASS.
+RESULTADO: METRIC VERSIONING: PASS | LINEAGE: PASS | IMMUTABLE PUBLISHED VERSIONS: PASS | CONFIRMED WITHOUT LINEAGE: 0 | CIRCULAR LINEAGE: 0 | BLOCKED CURRENT METRICS: 0 | HISTORICAL DRIFT: 0 | DUPLICATED FORMULAS: 0 | REGRESSIONS: NONE (21/21 unit)
+NEXT: STOP (VISUALIZATION_PRIMITIVES | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
+```
