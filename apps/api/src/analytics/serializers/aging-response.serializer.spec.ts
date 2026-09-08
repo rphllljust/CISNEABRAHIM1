@@ -59,6 +59,6 @@ describe('buildAgingSnapshot', () => {
 
     expect(snapshot.operational.overdueServiceOrders.count).toBe(1);
     expect(snapshot.financial.prepared.count).toBe(0);
-    expect(snapshot.financial.prepared.totalAmount).toBe('0');
+    expect(snapshot.financial.prepared.totalAmount).toBeNull(); // NO_DATA
   });
 });

@@ -4,6 +4,7 @@ import { sumMoneyAmounts } from '../../platform/kernel/money-math';
 import type { ScopeSqlPredicate } from '../../authorization/services/scope-enforcement.service';
 import { DatabaseService } from '../../infrastructure/database/database.service';
 import { parseAgingBucketPolicyFromEnv } from '../../analytics/domain/aging-bucket.policy';
+import { buildOverdueReceivableBucketsSql } from '../../finance/domain/receivable-aging-sql';
 import type { ExecutiveChartRawData, ExecutiveFinancialAgingBucket } from '../domain/executive-dashboard';
 import { prefixScopeAlias, remapScope } from '../../analytics/repositories/aging-scope';
 
@@ -217,16 +218,11 @@ export class ExecutiveDashboardRepository {
     const tzParam = `$${params.length}`;
 
     const result = await this.pool().query<{ days_overdue: number; count: number; total_amount: string }>(
-      `SELECT
-         GREATEST(0, ((NOW() AT TIME ZONE ${tzParam})::date - bd.due_date::date))::int AS days_overdue,
-         COUNT(*)::int AS count,
-         COALESCE(SUM(bd.total_amount), 0)::text AS total_amount
-       FROM rpt.read_billing_documents bd
-       WHERE ${mapped.clause}${unit}
-         AND bd.status = 'FINALIZED'
-         AND bd.due_date IS NOT NULL
-         AND bd.due_date::date < (NOW() AT TIME ZONE ${tzParam})::date
-       GROUP BY 1`,
+      buildOverdueReceivableBucketsSql({
+        scopeClause: mapped.clause,
+        tzParam,
+        extraClause: unit,
+      }),
       params,
     );
 

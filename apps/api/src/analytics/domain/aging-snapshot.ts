@@ -14,7 +14,7 @@ export type AgingCountMetric = {
 
 export type AgingAmountMetric = {
   count: number;
-  totalAmount: string;
+  totalAmount: string | null;
   maxAgeDays: number | null;
   maxDaysUntilDue: number | null;
   maxDaysOverdue: number | null;

@@ -50,7 +50,7 @@ function toCountMetric(row: { count: number; maxAgeDays: number | null }) {
 
 function toAmountMetric(row: {
   count: number;
-  totalAmount: string;
+  totalAmount: string | null;
   maxAgeDays: number | null;
   maxDaysUntilDue: number | null;
   maxDaysOverdue: number | null;
@@ -67,7 +67,7 @@ function toAmountMetric(row: {
 function hiddenAmountMetric() {
   return {
     count: 0,
-    totalAmount: '0',
+    totalAmount: null,
     maxAgeDays: null,
     maxDaysUntilDue: null,
     maxDaysOverdue: null,

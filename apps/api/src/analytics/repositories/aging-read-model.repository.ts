@@ -3,6 +3,7 @@ import type { Pool } from 'pg';
 import { sumMoneyAmounts } from '../../platform/kernel/money-math';
 import type { ScopeSqlPredicate } from '../../authorization/services/scope-enforcement.service';
 import { DatabaseService } from '../../infrastructure/database/database.service';
+import { buildOverdueReceivableAggregateSql } from '../../finance/domain/receivable-aging-sql';
 import { TERMINAL_SERVICE_ORDER_STATUSES } from '../../service-orders/domain/service-order.state-machine';
 import type { AgingVisibility } from '../domain/aging-snapshot';
 import { prefixScopeAlias, remapScope, type AgingScopeFilters } from './aging-scope';
@@ -14,7 +15,7 @@ export type AgingAggregateRow = {
 
 export type AgingAmountAggregateRow = {
   count: number;
-  totalAmount: string;
+  totalAmount: string | null;
   maxAgeDays: number | null;
   maxDaysUntilDue: number | null;
   maxDaysOverdue: number | null;
@@ -308,7 +309,8 @@ export class AgingReadModelRepository {
     );
     return {
       count: result.rows[0]?.count ?? 0,
-      totalAmount: '0',
+      // SEM dado de valor: sem totalAmount (NO_DATA) — nunca '0' fictício.
+      totalAmount: null,
       maxAgeDays: result.rows[0]?.max_age_days ?? null,
       maxDaysUntilDue: null,
       maxDaysOverdue: null,
@@ -393,32 +395,19 @@ export class AgingReadModelRepository {
     const mapped = remapScope(scope, 0);
     const params = [...mapped.params, businessTimezone];
     const tzParam = `$${params.length}`;
+    const sql = buildOverdueReceivableAggregateSql({ scopeClause: mapped.clause, tzParam });
     const result = await this.pool().query<{
       count: number;
       total_amount: string | null;
-      max_age_days: number | null;
       max_days_overdue: number | null;
-    }>(
-      `SELECT COUNT(*)::int AS count,
-              COALESCE(SUM(bd.total_amount), 0)::text AS total_amount,
-              MAX(
-                FLOOR(EXTRACT(EPOCH FROM (NOW() - bd.issued_at)) / 86400)
-              )::int AS max_age_days,
-              MAX(
-                ((NOW() AT TIME ZONE ${tzParam})::date - bd.due_date::date)
-              )::int AS max_days_overdue
-       FROM rpt.read_billing_documents bd
-       WHERE ${mapped.clause}
-         AND bd.status = 'FINALIZED'
-         AND bd.due_date IS NOT NULL
-         AND bd.due_date::date < (NOW() AT TIME ZONE ${tzParam})::date`,
-      params,
-    );
+    }>(sql, params);
     const row = result.rows[0];
+    const count = row?.count ?? 0;
     return {
-      count: row?.count ?? 0,
-      totalAmount: normalizeAmount(row?.total_amount),
-      maxAgeDays: row?.max_age_days ?? null,
+      count,
+      // Sem recebível vencido: sem dado de valor (NO_DATA), nunca '0' fabricado.
+      totalAmount: count > 0 ? normalizeAmount(row?.total_amount) : null,
+      maxAgeDays: null,
       maxDaysUntilDue: null,
       maxDaysOverdue: row?.max_days_overdue ?? null,
     };
@@ -432,7 +421,7 @@ function emptyAggregate(): AgingAggregateRow {
 function emptyAmountAggregate(): AgingAmountAggregateRow {
   return {
     count: 0,
-    totalAmount: '0',
+    totalAmount: null,
     maxAgeDays: null,
     maxDaysUntilDue: null,
     maxDaysOverdue: null,
