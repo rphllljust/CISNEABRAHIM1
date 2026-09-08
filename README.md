@@ -36,8 +36,6 @@ O processo de prompts incrementais **não promete ausência total de erros**. El
 
 ## Princípios do desenvolvimento incremental
 
-- Um prompt por vez. O prompt seguinte não é executado automaticamente.
-- Revisão humana (ou aceite explícito do responsável) antes de avançar.
 - Documentação e proveniência antes de código.
 - Fato, hipótese, desejo, interpretação e decisão pendente não se misturam.
 - Regras empresariais não são confirmadas sem fonte.
