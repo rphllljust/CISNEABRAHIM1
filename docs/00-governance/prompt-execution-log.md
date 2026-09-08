@@ -11997,3 +11997,40 @@ COMMIT: DONE (por area: fix(worker) import ReportsModule; fix(background-jobs) c
 WORKING TREE: DIRTY (WIP pre-existente preservado)
 NEXT: STOP
 ```
+```text
+PROMPT: DEADLINE SEMANTIC KERNEL
+TITLE: Uma unica definicao de prazo/vencimento (deadline/overdue/days/approaching) reutilizada em todas as superficies
+STARTED_AT: 2026-09-08T01:40:00-04:00
+FINISHED_AT: 2026-09-08T02:10:00-04:00
+STATUS: PASS
+CLASSIFICATION: Interpretacao de engenharia / dominio-dados. Sem regra empresarial nova CONFIRMED
+               (semantica ja registrada na politica pura service-order-overdue.policy). Producao NO-GO.
+SCOPE:
+  Eliminar definicoes divergentes de prazo/vencimento de OS por janela operacional e centralizar em UM nucleo.
+  - deadline(so) = MIN(operational_end) de janelas abertas (planned PLANNED | allocations ACTIVE), exclui
+    REMOVED/REALLOCATED.
+  - overdue = deadline <= NOW() e status nao-terminal (alinhado a politica existente: deadline == now => overdue).
+  - approaching = deadline > NOW() e <= NOW() + AGING_APPROACHING_DUE_DAYS (threshold existente, sem inventar).
+IMPLEMENTACAO:
+  - Migration 0076: funcao SQL unica so.deadline_for(uuid) (fonte unica do calculo de deadline).
+  - apps/api/src/service-orders/domain/deadline-semantics.ts: nucleo TS (fabricas de clausulas canonicas +
+    reexport do resolveApproachingDueDays existente).
+  - Refatoracao para a funcao unica nos repositorios que copiavam o SQL (UNION/LATERAL MIN(deadline)):
+    productivity-read-model, aging-read-model (overdue + approaching), executive-dashboard (SLA + overdue meta +
+    approaching), alert-candidate, service-order-list.query, report-data (OS vencidas), business-metrics collector
+    (corrige metrica serviceOrdersOverdue que consultava coluna inexistente) e count de OS vencidas do operational.
+  - Comparacoes convergidas para canonicas (<= NOW() overdue). Nenhuma copia de UNION deadline restante (grep 0).
+QUALITY GATES:
+  - migrations dev+test aplicadas (0076); sync de teste ganhou probe de efeito p/ funcoes (scripts).
+  - unit: service-order-list.query.spec 3/3 e aging.domain.spec 15/15 (boundary deadline==now, terminal, threshold).
+  - integracao PG real 25/25: aging 3/3, productivity 4/4, alerts 2/2 (overdue exatamente no deadline), operational 2/2,
+    executive 5/5, reports 9/9.
+  - typecheck + lint + build PASS.
+NOTES:
+  - Aging financeiro por due_date de documento (bd.due_date) permanece campo-fonte proprio (finance fora das
+    superficies listadas); kernel deste prompt cobre prazo/vencimento de OS por janela operacional.
+  - REPORTS Worker: suite previa continua verde; nenhum NO_HANDLER/STUCK.
+COMMIT: DONE (por area: feat(db) 0076 funcao kernel; fix(scripts) probe fn; feat(api) kernel+refactor superficies; docs)
+WORKING TREE: DIRTY (WIP pre-existente preservado)
+NEXT: STOP
+```
