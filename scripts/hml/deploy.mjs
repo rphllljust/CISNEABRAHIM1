@@ -1,14 +1,6 @@
-import { config } from 'dotenv';
-import { resolve } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { loadRepoEnvFiles } from '../lib/env.mjs';
+import { runPackageScript } from '../lib/run-package-script.mjs';
 
-config({ path: resolve(process.cwd(), '.env.hml') });
-config({ path: resolve(process.cwd(), '.env') });
+loadRepoEnvFiles(['.env.hml', '.env']);
 
-const result = spawnSync('npx', ['tsx', 'apps/api/src/ops/hml/cli/run-hml-deploy.ts'], {
-  stdio: 'inherit',
-  shell: process.platform === 'win32',
-  env: process.env,
-});
-
-process.exit(result.status ?? 1);
+process.exit(runPackageScript('hml:deploy'));

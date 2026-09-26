@@ -1,9 +1,7 @@
-import { config } from 'dotenv';
-import { resolve } from 'node:path';
+import { loadRepoEnvFiles } from '../lib/env.mjs';
 import { spawnSync } from 'node:child_process';
 
-config({ path: resolve(process.cwd(), '.env.hml') });
-config({ path: resolve(process.cwd(), '.env') });
+loadRepoEnvFiles(['.env.hml', '.env']);
 
 if (process.env['CISNE_ENV'] !== 'hml') {
   console.error('CISNE_ENV must be hml');
