@@ -862,6 +862,66 @@ describe('Service order planning and allocation PostgreSQL integration', () => {
     );
   });
 
+  it('releases active allocations when the service order is cancelled', async () => {
+    const { actor } = await seedActor();
+    const { released: cancelledOrder } = await seedReleasedOrder(actor, TEST_CNPJ);
+    const { released: otherOrder } = await seedReleasedOrder(actor, TEST_CNPJ_ALT);
+    const asset = await createWaterTruck(actor, `WT-${crypto.randomUUID().slice(0, 6)}`);
+
+    const now = Date.now();
+    const window = {
+      operationalStart: new Date(now + 2 * 60 * 60 * 1000).toISOString(),
+      operationalEnd: new Date(now + 4 * 60 * 60 * 1000).toISOString(),
+    };
+
+    const plannedCancelled = await planningAccess.planResource(actor, cancelledOrder.id, {
+      requirementKind: PLANNED_RESOURCE_KINDS.PhysicalResource,
+      resourceTypeCode: 'WATER_TRUCK',
+      plannedQuantity: '1',
+    });
+    const allocation = await planningAccess.allocateResource(actor, cancelledOrder.id, {
+      plannedResourceId: plannedCancelled.id,
+      physicalAssetId: asset.id,
+      ...window,
+    });
+
+    const cancelled = await serviceOrdersAccess.cancel(actor, cancelledOrder.id, {
+      rowVersion: cancelledOrder.rowVersion,
+      cancellationReason: 'Demanda cancelada pelo cliente antes da execução',
+    });
+    expect(cancelled.status).toBe(SERVICE_ORDER_STATUSES.Cancelled);
+
+    // OS cancelada nao pode manter compromisso ativo sobre o ativo.
+    const allocationRow = await pool.query<{ status: string }>(
+      `SELECT status::text AS status FROM res.resource_allocations WHERE id = $1`,
+      [allocation.id],
+    );
+    expect(allocationRow.rows[0]?.status).toBe('REMOVED');
+
+    // O ativo fica livre para outra OS na mesma janela.
+    const plannedOther = await planningAccess.planResource(actor, otherOrder.id, {
+      requirementKind: PLANNED_RESOURCE_KINDS.PhysicalResource,
+      resourceTypeCode: 'WATER_TRUCK',
+      plannedQuantity: '1',
+    });
+    const reallocated = await planningAccess.allocateResource(actor, otherOrder.id, {
+      plannedResourceId: plannedOther.id,
+      physicalAssetId: asset.id,
+      ...window,
+    });
+    expect(reallocated.physicalAssetId).toBe(asset.id);
+
+    const events = await listTimelineEvents(cancelledOrder.id);
+    const releasedEvents = events.filter(
+      (event) => event.event_type === SERVICE_ORDER_HISTORY_EVENTS.AllocationRemoved,
+    );
+    expect(releasedEvents).toHaveLength(1);
+    expect(releasedEvents[0]?.payload).toMatchObject({
+      allocationId: allocation.id,
+      reason: 'SERVICE_ORDER_CANCELLED',
+    });
+  });
+
   it('blocks removing planned resource with active allocations', async () => {
     const { actor } = await seedActor();
     const { released } = await seedReleasedOrder(actor);

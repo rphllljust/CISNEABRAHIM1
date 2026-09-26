@@ -30,6 +30,7 @@ import type {
   ServiceSnapshotResourceRequirement,
   ServiceSnapshotSource,
 } from '../domain/service-order-snapshot';
+import { releaseActiveAllocationsForServiceOrder } from './resource-planning-allocation-rows';
 import {
   buildServiceOrderTransitionFields,
   historyEventForServiceOrderTransition,
@@ -733,6 +734,14 @@ export class ServiceOrdersRepository {
 
       if (input.transition === 'release') {
         await maybeInjectFault(this.faultInjection, FAULT_HOOKS.ServiceOrderReleaseAfterMutationBeforeHistory);
+      }
+      if (input.transition === 'cancel') {
+        // Mesma transacao: a OS nao pode ficar cancelada mantendo compromisso
+        // ativo sobre ativo fisico ou mao de obra.
+        await releaseActiveAllocationsForServiceOrder(client, {
+          serviceOrderId: updated.id,
+          actorIdentityId: input.actorIdentityId,
+        });
       }
       await insertServiceOrderHistoryEvent(client, {
         serviceOrderId: updated.id,
