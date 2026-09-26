@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
 import { DatabaseService } from '../../infrastructure/database/database.service';
-import { ANCHORED_SCOPE_TYPES, type AuthzScopeType } from '../types/authz-scopes';
+import { ANCHORED_SCOPE_TYPES, AUTHZ_SCOPES, type AuthzScopeType } from '../types/authz-scopes';
 
 export type ScopedRecordRow = {
   id: string;
@@ -113,5 +113,20 @@ export class ScopeContextRepository {
       [recordId, label],
     );
     return result.rows[0] ?? null;
+  }
+
+  async ensureUnitScopeRef(refId: string): Promise<void> {
+    await this.insertScopeRef(this.pool(), AUTHZ_SCOPES.Unit, refId);
+  }
+
+  async listUnitScopeRefs(): Promise<string[]> {
+    const result = await this.pool().query<{ ref_id: string }>(
+      `SELECT ref_id
+       FROM "authorization".scope_refs
+       WHERE scope_type = $1
+       ORDER BY ref_id`,
+      [AUTHZ_SCOPES.Unit],
+    );
+    return result.rows.map((row) => row.ref_id);
   }
 }

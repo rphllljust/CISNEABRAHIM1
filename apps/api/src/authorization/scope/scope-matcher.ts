@@ -210,11 +210,13 @@ export function toResourceContextFromServiceOrder(serviceOrder: {
   id: string;
   unit_id: string;
   client_id: string | null;
+  assigned_identity_id?: string | null;
 }): AuthzResourceContext {
   return {
     resourceId: serviceOrder.id,
     unitId: serviceOrder.unit_id,
     clientId: serviceOrder.client_id ?? undefined,
+    assignedIdentityId: serviceOrder.assigned_identity_id ?? undefined,
   };
 }
 

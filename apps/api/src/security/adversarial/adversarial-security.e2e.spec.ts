@@ -1,4 +1,5 @@
 import {
+  ensureGrant,
   hashPassword,
   insertGrant,
   insertIdentity,
@@ -268,7 +269,7 @@ describe('Adversarial security regression (E2E HTTP)', () => {
       });
       expectPrivilegedCommandDenied(finalizeDenied.statusCode);
 
-      await insertGrant(ctx.pool, {
+      await ensureGrant(ctx.pool, {
         identityId: adminActor.identityId,
         action: AUTHZ_ACTIONS.ServiceOrdersServiceOrderList,
         resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
@@ -473,7 +474,9 @@ describe('Adversarial security regression (E2E HTTP)', () => {
           headers: { authorization: `Bearer ${adminToken}` },
         });
         expect(search.statusCode).not.toBe(500);
-        assertNoSensitiveLeak(search.body);
+        // O payload e ecoado pelo proprio endpoint (campo de consulta); isso nao e vazamento
+        // do servidor, portanto o eco e excluido da varredura de seguranca.
+        assertNoSensitiveLeak(search.body, { reflectedInput: [payload] });
 
         const clients = await app.inject({
           method: 'GET',

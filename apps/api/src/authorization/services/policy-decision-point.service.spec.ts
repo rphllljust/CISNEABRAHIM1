@@ -7,12 +7,15 @@ import { AUTHZ_RESOURCE_TYPES } from '../types/authz-resources';
 
 describe('PolicyDecisionPointService', () => {
   const findActiveGrants = vi.fn();
+  const findRoleDerivedActionRows = vi.fn();
   const insertDecisionAudit = vi.fn();
   const securityAudit = { record: vi.fn().mockResolvedValue('audit-id') };
   const repository = {
     findActiveGrants,
+    findRoleDerivedActionRows,
     insertDecisionAudit,
   } as unknown as AuthorizationRepository;
+  findRoleDerivedActionRows.mockResolvedValue([]);
 
   const pdp = new PolicyDecisionPointService(repository, securityAudit as never);
 

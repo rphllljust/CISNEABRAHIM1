@@ -204,11 +204,17 @@ export class ScopeEnforcementService {
     return this.buildCommercialRecordListFilter(grants);
   }
 
-  buildServiceOrderListFilter(grants: GrantRow[]): ScopeSqlPredicate {
-    return this.buildCommercialRecordListFilter(grants);
+  buildServiceOrderListFilter(grants: GrantRow[], identityId?: string): ScopeSqlPredicate {
+    return this.buildCommercialRecordListFilter(grants, {
+      assignedIdentityId: identityId,
+      tableAlias: 'so',
+    });
   }
 
-  private buildCommercialRecordListFilter(grants: GrantRow[]): ScopeSqlPredicate {
+  private buildCommercialRecordListFilter(
+    grants: GrantRow[],
+    options?: { assignedIdentityId?: string; tableAlias?: string },
+  ): ScopeSqlPredicate {
     const hasGlobal = grants.some(
       (grant) => grant.scope_type === AUTHZ_SCOPES.Global && grant.resource_id === null,
     );
@@ -238,6 +244,31 @@ export class ScopeEnforcementService {
     if (clientIds.length > 0) {
       params.push(clientIds);
       clauses.push(`client_id = ANY($${params.length}::uuid[])`);
+    }
+    const assignedGrants = grants.filter((grant) => grant.scope_type === AUTHZ_SCOPES.Assigned);
+    if (assignedGrants.length > 0 && options?.assignedIdentityId) {
+      params.push(options.assignedIdentityId);
+      const identityParam = params.length;
+      const alias = options.tableAlias ? `${options.tableAlias}.` : '';
+      const assignedClause = `EXISTS (
+        SELECT 1
+        FROM res.resource_allocations ra
+        INNER JOIN wrk.workforce_members wm ON wm.id = ra.workforce_member_id
+        WHERE ra.service_order_id = ${alias}id
+          AND ra.status = 'ACTIVE'::res.resource_allocation_status
+          AND wm.status = 'ACTIVE'::wrk.workforce_member_status
+          AND wm.identity_id = $${identityParam}::uuid
+      )`;
+      const assignedResourceIds = assignedGrants
+        .filter((grant) => grant.resource_id !== null)
+        .map((grant) => grant.resource_id as string);
+      if (assignedResourceIds.length > 0) {
+        params.push(assignedResourceIds);
+        clauses.push(`(${assignedClause} AND ${alias}id::text = ANY($${params.length}::text[]))`);
+      }
+      if (assignedGrants.some((grant) => grant.resource_id === null)) {
+        clauses.push(assignedClause);
+      }
     }
 
     if (clauses.length === 0) {

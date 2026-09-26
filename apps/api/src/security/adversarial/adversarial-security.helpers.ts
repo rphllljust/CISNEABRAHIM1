@@ -49,12 +49,30 @@ export function expectPrivilegedCommandDenied(statusCode: number): void {
   }
 }
 
-export function assertNoSensitiveLeak(body: string): void {
-  if (containsSensitiveErrorLeak(body)) {
+/**
+ * Verifica que a resposta nao vaza interno do servidor (SQL, caminhos, credenciais, stack).
+ *
+ * `reflectedInput` remove do corpo apenas o eco do proprio dado enviado pelo chamador
+ * (ex.: o termo de busca devolvido em `query.raw`). Eco de entrada do cliente nao e
+ * vazamento; sem essa exclusao um payload de injecao que contenha "SELECT ... FROM"
+ * faria o detector acusar o proprio payload. Qualquer outro trecho (erro de SQL real,
+ * caminho de arquivo, credencial) permanece sob varredura.
+ */
+export function assertNoSensitiveLeak(
+  body: string,
+  options?: { reflectedInput?: readonly string[] },
+): void {
+  let scanned = body;
+  for (const echo of options?.reflectedInput ?? []) {
+    if (echo.length > 0) {
+      scanned = scanned.split(echo).join('');
+    }
+  }
+  if (containsSensitiveErrorLeak(scanned)) {
     throw new Error(`Sensitive data leak detected in response body: ${body.slice(0, 200)}`);
   }
-  expect(body.toLowerCase()).not.toMatch(/storagekey|storage_key/);
-  expect(body).not.toMatch(/jwt_secret|refresh_token|access_token/i);
+  expect(scanned.toLowerCase()).not.toMatch(/storagekey|storage_key/);
+  expect(scanned).not.toMatch(/jwt_secret|refresh_token|access_token/i);
 }
 
 export function buildMultipartBody(

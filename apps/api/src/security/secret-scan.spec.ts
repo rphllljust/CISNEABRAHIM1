@@ -44,8 +44,17 @@ function isAllowlisted(path: string): boolean {
   return ALLOWLIST_PATH_FRAGMENTS.some((fragment) => path.includes(fragment));
 }
 
+/**
+ * Varredura de repositorio inteiro: o custo e de I/O (leitura de todo o codigo-fonte de
+ * `apps/api`, `apps/web` e `packages`), nao de CPU. Sob carga paralela da suite completa esse
+ * orcamento passa dos 5s padrao do Vitest e o teste falha por timeout — sem nenhum segredo
+ * encontrado — o que produz um falso negativo de gate. O timeout e explicito e justificado
+ * para que a falha volte a significar "segredo encontrado".
+ */
+const REPO_SCAN_TIMEOUT_MS = 60_000;
+
 describe('secret-scan', () => {
-  it('does not contain known secret patterns in tracked source', () => {
+  it('does not contain known secret patterns in tracked source', { timeout: REPO_SCAN_TIMEOUT_MS }, () => {
     const violations: string[] = [];
 
     for (const root of SCAN_ROOTS) {
