@@ -1188,6 +1188,42 @@ async function assertPreDeltaState(connectionString, deltaFile) {
       return;
     }
 
+    if (deltaFile === '0081_receivable_settlement_reversal_columns.sql') {
+      const reversedStatus = await client.query(
+        `SELECT EXISTS (
+           SELECT 1
+           FROM pg_enum e
+           INNER JOIN pg_type t ON t.oid = e.enumtypid
+           INNER JOIN pg_namespace n ON n.oid = t.typnamespace
+           WHERE n.nspname = 'fin'
+             AND t.typname = 'settlement_status'
+             AND e.enumlabel = 'REVERSED'
+         ) AS exists`,
+      );
+      if (!reversedStatus.rows[0]?.exists) {
+        throw new Error('Expected fin.settlement_status REVERSED before 0081 delta');
+      }
+      const reversalColumns = await client.query(
+        `SELECT 1
+         FROM information_schema.columns
+         WHERE table_schema = 'fin'
+           AND table_name = 'settlements'
+           AND column_name IN (
+             'reversed_at',
+             'reversed_by_identity_id',
+             'reversal_reason',
+             'reversal_idempotency_key'
+           )
+         LIMIT 1`,
+      );
+      if ((reversalColumns.rowCount ?? 0) > 0) {
+        throw new Error(
+          'Incremental baseline incorrectly contains fin.settlements reversal columns before 0081',
+        );
+      }
+      return;
+    }
+
     throw new Error(`Unsupported incremental delta migration: ${deltaFile}`);
   } finally {
     await client.end();
