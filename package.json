@@ -15,7 +15,9 @@
   },
   "scripts": {
     "install:deps": "pnpm install",
-    "lint": "turbo run lint",
+    "lint": "node scripts/check-scripts.mjs && turbo run lint",
+    "gate:scripts": "node scripts/check-scripts.mjs",
+    "gate:scripts:self-test": "node scripts/check-scripts.mjs --self-test",
     "format": "prettier --write \"apps/**\" \"packages/**\" \"docs/17-bootstrap/**\" \"docs/18-database-foundation/**\" \"*.{json,mjs,md}\"",
     "format:check": "prettier --check \"apps/**\" \"packages/**\" \"docs/17-bootstrap/**\" \"docs/18-database-foundation/**\" \"*.{json,mjs,md}\"",
     "typecheck": "turbo run typecheck",
