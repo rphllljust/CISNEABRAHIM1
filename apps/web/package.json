@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "preview:visual": "vite preview --host 127.0.0.1 --port 4173 --strictPort",
     "lint": "eslint \"src/**/*.{ts,tsx}\" \"e2e/**/*.ts\" \"playwright.config.ts\"",
-    "typecheck": "tsc -b",
+    "typecheck": "tsc -b --force",
     "test": "vitest run --config vite.config.ts",
     "test:frontend-resilience": "vitest run --config vite.config.ts src/frontend-resilience/frontend-resilience.ui.test.tsx src/ui/ui.components.test.tsx src/ui/ui.robustness.test.tsx src/idempotency-retry/idempotency-retry.ui.test.tsx src/dashboard/components/dashboard.executive.test.tsx src/dashboard/dashboard.e2e.test.tsx src/shell/shell.robustness.test.tsx src/vertical/vertical-quality-gate.e2e.test.tsx src/clients/pages/ClientEditPage.test.tsx src/service-orders/service-order-execution.e2e.test.tsx src/service-orders/service-order-measurement.e2e.test.tsx src/billing/billing.e2e.test.tsx src/proposals/proposals.e2e.test.tsx src/pages/LoginPage.test.tsx",
     "test:visual": "playwright test",

@@ -75,19 +75,29 @@ export function TransportListPage() {
   }, [loadPage, offset]);
 
   if (listState.phase === 'loading') {
-    return <ModuleLoadingState title="Transporte" message="Carregando ordens de transporte..." />;
+    return (
+      <ModulePage>
+        <ModuleLoadingState title="Transporte" message="Carregando ordens de transporte..." />
+      </ModulePage>
+    );
   }
   if (listState.phase === 'denied') {
-    return <ModuleDeniedState title="Transporte" message="Você não tem permissão para listar transportes." />;
+    return (
+      <ModulePage>
+        <ModuleDeniedState title="Transporte" message="Você não tem permissão para listar transportes." />
+      </ModulePage>
+    );
   }
   if (listState.phase === 'error') {
     return (
-      <ModuleErrorState
+      <ModulePage>
+        <ModuleErrorState
         title="Transporte"
         message={listState.message}
         retryable={listState.retryable}
         onRetry={() => void loadPage(offset)}
       />
+      </ModulePage>
     );
   }
 

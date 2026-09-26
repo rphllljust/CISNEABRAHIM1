@@ -116,27 +116,33 @@ export function ServiceDefinitionsListPage() {
 
   if (listState.phase === 'loading') {
     return (
-      <ModuleLoadingState title="Catálogo de serviços" message="Carregando definições…" />
+      <ModulePage>
+        <ModuleLoadingState title="Catálogo de serviços" message="Carregando definições…" />
+      </ModulePage>
     );
   }
 
   if (listState.phase === 'denied') {
     return (
-      <ModuleDeniedState
+      <ModulePage>
+        <ModuleDeniedState
         title="Catálogo de serviços"
         message="Você não tem permissão para listar o catálogo."
       />
+      </ModulePage>
     );
   }
 
   if (listState.phase === 'error') {
     return (
-      <ModuleErrorState
+      <ModulePage>
+        <ModuleErrorState
         title="Catálogo de serviços"
         message={listState.message}
         retryable={listState.retryable}
         onRetry={() => void loadPage(0)}
       />
+      </ModulePage>
     );
   }
 

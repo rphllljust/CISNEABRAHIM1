@@ -28,33 +28,33 @@ export function AttentionBlock({ items }: AttentionBlockProps) {
   }
 
   return (
-    <section aria-labelledby="attention-heading" className="mb-10">
-      <header className="mb-4">
+    <section aria-labelledby="attention-heading">
+      <header className="mb-3">
         <h2 id="attention-heading" className="text-base font-semibold text-gray-900">
           Atenção necessária
         </h2>
       </header>
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3" role="list">
+      <div className="grid gap-3" role="list">
         {items.map((item) => {
           const isOverdue = item.id === 'overdue-service-orders';
           const card = (
             <div
               className={cn(
-                'rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5',
+                'min-h-24 rounded-md bg-white p-3.5 shadow-sm ring-1 ring-gray-900/5',
                 isOverdue && 'ring-red-500/20',
               )}
             >
               <p className="text-sm font-medium text-gray-500">{item.label}</p>
-              <p className="mt-2 text-3xl font-semibold tracking-tight text-gray-900 tabular-nums" aria-hidden="true">
+              <p className="mt-1 text-xl font-semibold text-gray-900 tabular-nums" aria-hidden="true">
                 {item.count}
               </p>
-              {item.detail ? <p className="mt-2 text-xs text-gray-400">{item.detail}</p> : null}
+              {item.detail ? <p className="mt-1 text-xs text-gray-400">{item.detail}</p> : null}
               {item.maxDelayDays !== null && isOverdue ? (
-                <Badge tone="error" className="mt-3">
+                <Badge tone="error" className="mt-2">
                   Prioridade máxima
                 </Badge>
               ) : null}
-              <p className="mt-3 text-xs font-medium text-brand-600">Ver lista filtrada</p>
+              <p className="mt-2 text-xs font-medium text-brand-600">Ver lista filtrada</p>
             </div>
           );
 

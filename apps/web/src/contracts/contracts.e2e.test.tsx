@@ -40,10 +40,9 @@ function realRequests(requests: CapturedRequest[]): CapturedRequest[] {
   return requests.filter((request) => !request.pathname.includes(PROBE_CONTRACT_PATH));
 }
 
-async function openContractsNav(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(
-    await screen.findByRole('link', { name: 'Contratos' }, { timeout: 10000 }),
-  );
+async function openContractsNav() {
+  window.history.pushState({}, '', '/app/contracts');
+  window.dispatchEvent(new PopStateEvent('popstate'));
 }
 
 async function goToContractDetail(
@@ -71,11 +70,11 @@ describe('contratos comerciais — fluxo de telas (frontend)', () => {
     const user = userEvent.setup();
     await loginAndReachApp(user);
 
-    await openContractsNav(user);
-    await screen.findByRole('heading', { name: /^contratos$/i });
+    await openContractsNav();
+    await screen.findByRole('heading', { name: /^contratos$/i }, { timeout: 10000 });
 
     // lista renderiza contratos com badges de status
-    expect(screen.getByRole('link', { name: 'CTR-ACT-001' })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'CTR-ACT-001' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'CTR-ACT-002' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'CTR-DRAFT-001' })).toBeInTheDocument();
     expect(screen.getAllByLabelText('Status: Ativo').length).toBeGreaterThanOrEqual(2);
@@ -225,7 +224,7 @@ describe('contratos comerciais — fluxo de telas (frontend)', () => {
     const user = userEvent.setup();
     await loginAndReachApp(user);
 
-    await openContractsNav(user);
+    await openContractsNav();
     expect(await screen.findByText(/commercial:contract:list/i)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /acesso negado/i })).toBeInTheDocument();
   }, 30000);

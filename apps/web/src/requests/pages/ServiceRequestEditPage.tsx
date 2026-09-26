@@ -69,6 +69,8 @@ export function ServiceRequestEditPage() {
           desiredStartAt: toDatetimeLocalValue(request.desiredStartAt),
           desiredEndAt: toDatetimeLocalValue(request.desiredEndAt),
           operationalNotes: request.operationalNotes ?? '',
+          serviceDefinitionId: request.serviceDefinitionId ?? '',
+          serviceDefinitionVersionId: request.serviceDefinitionVersionId ?? '',
         },
       });
     } catch (error) {

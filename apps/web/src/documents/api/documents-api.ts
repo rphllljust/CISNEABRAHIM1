@@ -133,6 +133,15 @@ async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
   }
 }
 
+export async function listDocuments(signal?: AbortSignal): Promise<DocumentDetail[]> {
+  const body = await requestJson<{ items: DocumentDetail[] }>('/api/v1/documents?limit=100&offset=0', {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+  return body.items;
+}
+
 export async function getDocument(documentId: string, signal?: AbortSignal): Promise<DocumentDetail> {
   return requestJson<DocumentDetail>(`/api/v1/documents/${documentId}`, {
     method: 'GET',

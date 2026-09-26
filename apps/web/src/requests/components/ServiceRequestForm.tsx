@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { useId, type FormEvent } from 'react';
+import { useId, useState, type FormEvent } from 'react';
 import {
   SERVICE_REQUEST_ORIGINS,
   type ServiceRequestOrigin,
@@ -15,15 +15,24 @@ type ClientOption = {
   label: string;
 };
 
+type ServiceOption = {
+  id: string;
+  versionId: string;
+  label: string;
+};
+
 type ServiceRequestFormProps = {
   mode: 'create' | 'edit';
   values: ServiceRequestFormValues;
   clients: ClientOption[];
   clientsLoading: boolean;
+  units?: string[];
+  services?: ServiceOption[];
   fieldErrors: ServiceRequestFormFieldErrors;
   submitError: string | null;
   submitting: boolean;
   onChange: (values: ServiceRequestFormValues) => void;
+  onRegisterUnit?: (refId: string) => Promise<string[]>;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   cancelHref: string;
 };
@@ -33,14 +42,19 @@ export function ServiceRequestForm({
   values,
   clients,
   clientsLoading,
+  units = [],
+  services = [],
   fieldErrors,
   submitError,
   submitting,
   onChange,
+  onRegisterUnit,
   onSubmit,
   cancelHref,
 }: ServiceRequestFormProps) {
   const formErrorId = useId();
+  const [unitDraft, setUnitDraft] = useState('');
+  const [unitMessage, setUnitMessage] = useState<string | null>(null);
 
   function updateField<K extends keyof ServiceRequestFormValues>(
     key: K,
@@ -137,14 +151,62 @@ export function ServiceRequestForm({
           </div>
           <div className="form-field">
             <label htmlFor="request-unit">Unidade operacional</label>
-            <input
-              id="request-unit"
-              value={values.unitId}
-              onChange={(event) => updateField('unitId', event.target.value)}
-              required
-              disabled={submitting || mode === 'edit'}
-              aria-invalid={fieldErrors.unitId ? true : undefined}
-            />
+            {units.length > 0 ? (
+              <select
+                id="request-unit"
+                value={values.unitId}
+                onChange={(event) => updateField('unitId', event.target.value)}
+                required
+                disabled={submitting || mode === 'edit'}
+                aria-invalid={fieldErrors.unitId ? true : undefined}
+              >
+                <option value="">Selecione</option>
+                {units.map((unitId) => (
+                  <option key={unitId} value={unitId}>
+                    {unitId}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                id="request-unit"
+                value={values.unitId}
+                onChange={(event) => updateField('unitId', event.target.value)}
+                required
+                disabled={submitting || mode === 'edit'}
+                aria-invalid={fieldErrors.unitId ? true : undefined}
+              />
+            )}
+            {mode === 'create' && onRegisterUnit ? (
+              <div className="form-field">
+                <label htmlFor="request-unit-new">Registrar unidade</label>
+                <input
+                  id="request-unit-new"
+                  value={unitDraft}
+                  onChange={(event) => setUnitDraft(event.target.value)}
+                  disabled={submitting}
+                  placeholder="Código, ex. UN-POA-01"
+                />
+                <button
+                  type="button"
+                  disabled={submitting || unitDraft.trim().length < 2}
+                  onClick={() => {
+                    void onRegisterUnit(unitDraft)
+                      .then((items) => {
+                        setUnitMessage('Unidade registrada.');
+                        setUnitDraft('');
+                        if (items.includes(unitDraft.trim().toUpperCase())) {
+                          updateField('unitId', unitDraft.trim().toUpperCase());
+                        }
+                      })
+                      .catch(() => setUnitMessage('Não foi possível registrar a unidade.'));
+                  }}
+                >
+                  Registrar unidade
+                </button>
+                {unitMessage ? <p role="status">{unitMessage}</p> : null}
+              </div>
+            ) : null}
             {fieldErrors.unitId ? (
               <span className="field-error" role="alert">
                 {fieldErrors.unitId}
@@ -192,6 +254,33 @@ export function ServiceRequestForm({
 
       <section aria-labelledby="request-details-heading">
         <h2 id="request-details-heading">Detalhes da demanda</h2>
+        <div className="form-field">
+          <label htmlFor="request-service">Serviço do catálogo</label>
+          <select
+            id="request-service"
+            value={values.serviceDefinitionVersionId}
+            onChange={(event) => {
+              const versionId = event.target.value;
+              const service = services.find((item) => item.versionId === versionId);
+              onChange({
+                ...values,
+                serviceDefinitionVersionId: versionId,
+                serviceDefinitionId: service?.id ?? '',
+              });
+            }}
+            disabled={submitting || services.length === 0}
+          >
+            <option value="">Sem serviço vinculado</option>
+            {services.map((service) => (
+              <option key={service.versionId} value={service.versionId}>
+                {service.label}
+              </option>
+            ))}
+          </select>
+          {services.length === 0 ? (
+            <p className="field-hint">Publique um serviço no catálogo para converter a solicitação em OS.</p>
+          ) : null}
+        </div>
         <div className="form-field">
           <label htmlFor="request-description">Descrição</label>
           <textarea

@@ -104,6 +104,38 @@ export function createShellFetchMock(options: ShellFetchMockOptions = {}) {
       });
     }
 
+    if (pathname === '/api/v1/service-orders' && method === 'GET') {
+      return jsonResponse({ items: [], total: 0, limit: 1, offset: 0 });
+    }
+
+    if (pathname === '/api/v1/requests/service-requests' && method === 'GET') {
+      return jsonResponse({ items: [], limit: 1, offset: 0 });
+    }
+
+    if (pathname === '/api/v1/analytics/operational-profitability' && method === 'GET') {
+      return jsonResponse({
+        generatedAt: new Date().toISOString(),
+        businessTimezone: 'America/Porto_Velho',
+        period: { preset: 'week', from: '2026-08-23', to: '2026-08-29', fromInclusive: '', toExclusive: '' },
+        groupBy: 'none',
+        visibility: { revenue: true, costs: true },
+        summary: {
+          operationalRevenue: '0',
+          realizedCost: '0',
+          operationalMargin: '0',
+          revenueSupportedCount: 0,
+          costSupportedCount: 0,
+          marginComputableCount: 0,
+          serviceOrderCount: 0,
+          formula: 'operational_revenue - realized_cost = operational_margin',
+          disclaimer: 'Operational profitability is indicative and not official accounting.',
+          currencyCode: 'BRL',
+        },
+        groups: [],
+        lines: [],
+      });
+    }
+
     if (url.includes('/api/v1/reports/catalog') && method === 'GET') {
       return jsonResponse([
         {

@@ -86,26 +86,34 @@ export function ClientsListPage() {
   }, [loadPage]);
 
   if (listState.phase === 'loading') {
-    return <ModuleLoadingState title="Clientes" message="Carregando Clientes…" />;
+    return (
+      <ModulePage>
+        <ModuleLoadingState title="Clientes" message="Carregando Clientes…" />
+      </ModulePage>
+    );
   }
 
   if (listState.phase === 'denied') {
     return (
-      <ModuleDeniedState
+      <ModulePage>
+        <ModuleDeniedState
         title="Clientes"
         message="Você não tem permissão para listar Clientes."
       />
+      </ModulePage>
     );
   }
 
   if (listState.phase === 'error') {
     return (
-      <ModuleErrorState
+      <ModulePage>
+        <ModuleErrorState
         title="Clientes"
         message={listState.message}
         retryable={listState.retryable}
         onRetry={() => void loadPage(0)}
       />
+      </ModulePage>
     );
   }
 

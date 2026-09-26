@@ -137,26 +137,34 @@ export function FleetListPage() {
   }, [searchInput]);
 
   if (listState.phase === 'loading' && summary === null) {
-    return <ModuleLoadingState title="Frota" message="Carregando veículos…" />;
+    return (
+      <ModulePage>
+        <ModuleLoadingState title="Frota" message="Carregando veículos…" />
+      </ModulePage>
+    );
   }
 
   if (listState.phase === 'denied') {
     return (
-      <ModuleDeniedState
+      <ModulePage>
+        <ModuleDeniedState
         title="Frota"
         message="Você não tem permissão para listar veículos da frota."
       />
+      </ModulePage>
     );
   }
 
   if (listState.phase === 'error') {
     return (
-      <ModuleErrorState
+      <ModulePage>
+        <ModuleErrorState
         title="Frota"
         message={listState.message}
         retryable={listState.retryable}
         onRetry={() => void loadPage(0)}
       />
+      </ModulePage>
     );
   }
 

@@ -10,6 +10,9 @@ export const MOCK_PERIOD_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa6';
 export const MOCK_CHART_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa7';
 export const MOCK_FISCAL_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa8';
 export const MOCK_CALC_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa9';
+export const MOCK_FISCAL_PERIOD_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10';
+export const MOCK_ASSESSMENT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa11';
+export const MOCK_OBLIGATION_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa12';
 
 export type FinanceFetchMockOptions = {
   receivableListAllowed?: boolean;
@@ -24,6 +27,7 @@ export type FinanceFetchMockOptions = {
   closedPeriod?: boolean;
   classificationIncomplete?: boolean;
   receivableCount?: number;
+  fiscalDocumentCount?: number;
   settleCalls?: { count: number };
 };
 
@@ -275,6 +279,134 @@ export function createFinanceFetchMock(options: FinanceFetchMockOptions = {}) {
             duplicate: false,
           })),
         });
+    }
+
+    if (pathname === '/api/v1/requests/service-requests/operational-units' && method === 'GET') {
+      return jsonResponse({ items: ['unit-1'] });
+    }
+
+    if (pathname === '/api/v1/fiscal/documents' && method === 'GET') {
+      if (options.fiscalAllowed === false) {
+        return denied('FISCAL_DENIED');
+      }
+      if (options.fiscalDocumentCount === 0) {
+        return jsonResponse({ items: [], total: 0, page: 0, pageSize: 20 });
+      }
+      return jsonResponse({
+        items: [
+          {
+            id: MOCK_FISCAL_ID,
+            unitId: 'unit-1',
+            status: 'READY',
+            sourceKind: 'BILLING_DOCUMENT',
+            billingDocumentId: 'doc-1',
+            description: 'NF de serviço',
+            currencyCode: 'BRL',
+            issuedOn: '2026-08-20',
+            rowVersion: 1,
+            updatedAt: '2026-08-20T12:00:00.000Z',
+            lastProtocolCode: '35260812345678000199550010000000011000000010',
+            lastAuthorizationOutcome: 'AUTHORIZED',
+          },
+        ],
+        total: 1,
+        page: 0,
+        pageSize: 20,
+      });
+    }
+
+    if (pathname === '/api/v1/fiscal/periods' && method === 'GET') {
+      if (options.fiscalAllowed === false) {
+        return denied('FISCAL_DENIED');
+      }
+      return jsonResponse({
+        items: [
+          {
+            id: MOCK_FISCAL_PERIOD_ID,
+            unitId: 'unit-1',
+            periodKey: '2026-08',
+            status: 'OPEN',
+            openedAt: '2026-08-01T00:00:00.000Z',
+            closedAt: null,
+            reopenedAt: null,
+            reopenCount: 0,
+            rowVersion: 1,
+          },
+        ],
+        total: 1,
+        page: 0,
+        pageSize: 20,
+      });
+    }
+
+    if (pathname === '/api/v1/fiscal/tax/assessments' && method === 'GET') {
+      if (options.taxAllowed === false) {
+        return denied('FISCAL_DENIED');
+      }
+      return jsonResponse({
+        items: [
+          {
+            id: MOCK_ASSESSMENT_ID,
+            unitId: 'unit-1',
+            taxCalculationId: 'calc-1',
+            taxRuleId: 'rule-1',
+            taxRuleVersionId: 'ver-1',
+            taxComponent: 'ISS',
+            periodKey: '2026-08',
+            currencyCode: 'BRL',
+            assessedAmount: '5.0000',
+            status: 'FINALIZED',
+            supersedesAssessmentId: null,
+            rowVersion: 1,
+            finalizedAt: '2026-09-01T12:00:00.000Z',
+            cancelledAt: null,
+            cancelReason: null,
+            createdAt: '2026-08-31T12:00:00.000Z',
+            obligation: {
+              id: MOCK_OBLIGATION_ID,
+              status: 'OPEN',
+              amount: '5.0000',
+              payableId: MOCK_PAYABLE_ID,
+            },
+          },
+        ],
+        total: 1,
+        page: 0,
+        pageSize: 20,
+      });
+    }
+
+    if (pathname === '/api/v1/fiscal/tax/rules' && method === 'GET') {
+      if (options.taxAllowed === false) {
+        return denied('FISCAL_DENIED');
+      }
+      return jsonResponse({
+        items: [
+          {
+            id: 'rule-1',
+            unitId: 'unit-1',
+            code: 'ISS-SVC',
+            name: 'ISS sobre serviços',
+            status: 'ACTIVE',
+            versionCount: 2,
+            publishedVersion: {
+              id: 'ver-1',
+              versionNumber: 2,
+              status: 'PUBLISHED',
+              calculationMethod: 'PERCENT_OF_BASE',
+              rate: '0.0500',
+              fixedAmount: null,
+              sourceReference: 'LC 116/2003',
+              effectiveFrom: '2026-01-01',
+              effectiveTo: null,
+              publishedAt: '2026-01-01T12:00:00.000Z',
+            },
+          },
+        ],
+        total: 1,
+        page: 0,
+        pageSize: 20,
+      });
     }
 
     if (pathname.startsWith('/api/v1/fiscal/documents/') && method === 'GET') {

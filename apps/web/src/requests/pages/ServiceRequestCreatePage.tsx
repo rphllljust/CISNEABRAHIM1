@@ -1,7 +1,13 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState, type FormEvent } from 'react';
 import { ClientsApiError, listClients } from '../../clients/api/clients-api';
-import { createServiceRequest, ServiceRequestsApiError } from '../api/service-requests-api';
+import { listServiceDefinitions, listServiceDefinitionVersions } from '../../catalog/api/service-catalog-api';
+import {
+  createServiceRequest,
+  listOperationalUnits,
+  registerOperationalUnit,
+  ServiceRequestsApiError,
+} from '../api/service-requests-api';
 import { mapRequestErrorToMessage } from '../api/request-error-messages';
 import { ServiceRequestForm } from '../components/ServiceRequestForm';
 import { useServiceRequestCapabilities } from '../hooks/useServiceRequestCapabilities';
@@ -22,6 +28,8 @@ export function ServiceRequestCreatePage() {
   const [submitting, setSubmitting] = useState(false);
   const [clients, setClients] = useState<{ id: string; label: string }[]>([]);
   const [clientsLoading, setClientsLoading] = useState(true);
+  const [units, setUnits] = useState<string[]>([]);
+  const [services, setServices] = useState<{ id: string; versionId: string; label: string }[]>([]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -40,6 +48,31 @@ export function ServiceRequestCreatePage() {
       .finally(() => {
         if (!controller.signal.aborted) {
           setClientsLoading(false);
+        }
+      });
+    void listOperationalUnits(controller.signal)
+      .then((response) => setUnits(response.items))
+      .catch(() => setUnits([]));
+    void listServiceDefinitions({ limit: 100, offset: 0, status: 'ACTIVE' }, controller.signal)
+      .then(async (response) => {
+        const published = response.items.filter((item) => item.latestPublishedVersion !== null);
+        const options = await Promise.all(
+          published.map(async (item) => {
+            const versions = await listServiceDefinitionVersions(item.id, controller.signal);
+            const current = versions.find((version) => version.status === 'PUBLISHED');
+            if (!current) {
+              return null;
+            }
+            return { id: item.id, versionId: current.id, label: `${current.code} v${current.version}` };
+          }),
+        );
+        if (!controller.signal.aborted) {
+          setServices(options.filter((item): item is { id: string; versionId: string; label: string } => item !== null));
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setServices([]);
         }
       });
     return () => controller.abort();
@@ -108,10 +141,17 @@ export function ServiceRequestCreatePage() {
         values={values}
         clients={clients}
         clientsLoading={clientsLoading}
+        units={units}
+        services={services}
         fieldErrors={fieldErrors}
         submitError={submitError}
         submitting={submitting}
         onChange={setValues}
+        onRegisterUnit={async (refId) => {
+          const response = await registerOperationalUnit(refId);
+          setUnits(response.items);
+          return response.items;
+        }}
         onSubmit={(event) => void handleSubmit(event)}
         cancelHref="/app/requests"
       />

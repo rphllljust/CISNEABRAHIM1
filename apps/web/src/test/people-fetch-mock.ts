@@ -10,6 +10,8 @@ export type PeopleFetchMockOptions = {
   personUpdateAllowed?: boolean;
   personDeactivateAllowed?: boolean;
   personActivateAllowed?: boolean;
+  personCreateError?: { code: string; status: number };
+  laborTypes?: Array<{ code: string; name: string }>;
 };
 
 function personError(code: string, status: number): Response {
@@ -35,6 +37,7 @@ export function createPeopleFetchMock(options: PeopleFetchMockOptions = {}) {
   const updateAllowed = options.personUpdateAllowed ?? true;
   const deactivateAllowed = options.personDeactivateAllowed ?? true;
   const activateAllowed = options.personActivateAllowed ?? true;
+  const laborTypes = options.laborTypes ?? [{ code: 'OPERATOR', name: 'Operador' }];
 
   const store: Person[] = [
     {
@@ -60,6 +63,9 @@ export function createPeopleFetchMock(options: PeopleFetchMockOptions = {}) {
     const method = init?.method ?? 'GET';
 
     if (!pathname.startsWith('/api/v1/people')) {
+      if (pathname === '/api/v1/resources/labor-types' && method === 'GET') {
+        return jsonResponse({ items: laborTypes });
+      }
       return shellMock(input, init);
     }
 
@@ -90,6 +96,9 @@ export function createPeopleFetchMock(options: PeopleFetchMockOptions = {}) {
       };
       if (!body.legalName || body.legalName.trim().length === 0) {
         return personError('PERSON_VALIDATION_FAILED', 400);
+      }
+      if (options.personCreateError) {
+        return personError(options.personCreateError.code, options.personCreateError.status);
       }
       const created: Person = {
         id: crypto.randomUUID(),

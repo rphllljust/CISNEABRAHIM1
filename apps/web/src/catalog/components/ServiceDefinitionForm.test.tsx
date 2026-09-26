@@ -4,6 +4,7 @@ import { ServiceDefinitionForm } from './ServiceDefinitionForm';
 import { createEmptyFormState } from '../utils/catalog-form-state';
 
 const referenceData = {
+  categories: [],
   units: [{ id: '1', code: 'DAY', name: 'Dia', status: 'ACTIVE' }],
   resourceTypes: [{ id: '1', code: 'TRUCK', name: 'Caminhão', status: 'ACTIVE' }],
   laborTypes: [{ id: '1', code: 'DRIVER', name: 'Motorista', status: 'ACTIVE' }],

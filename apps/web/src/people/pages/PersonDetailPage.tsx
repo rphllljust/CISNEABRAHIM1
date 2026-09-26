@@ -210,8 +210,8 @@ export function PersonDetailPage() {
       <section aria-labelledby="person-os-heading">
         <h2 id="person-os-heading">Ordens de serviço</h2>
         <p className="text-sm text-gray-600">
-          A alocação de pessoa executora em OS ainda não está disponível nesta versão. Planejamento
-          de mão de obra continua referenciando tipos operacionais do catálogo, sem vínculo individual.
+          A atribuição deste empregado a uma ordem de serviço é feita no planejamento da OS, depois
+          da liberação. Somente o empregado atribuído executa a ordem.
         </p>
       </section>
 

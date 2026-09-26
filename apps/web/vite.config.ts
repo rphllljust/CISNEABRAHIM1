@@ -40,5 +40,9 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
     fileParallelism: false,
+    env: {
+      VITE_FEATURE_MODULE_REPORTS: 'true',
+      VITE_FEATURE_MODULE_OPERATIONAL_PROFITABILITY: 'true',
+    },
   },
 });

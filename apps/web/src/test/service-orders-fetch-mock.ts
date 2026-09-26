@@ -9,6 +9,7 @@ import {
 } from '../assets/types/physical-asset.types';
 import type { PlannedResource, ResourceAllocation } from '../service-orders/types/resource-planning.types';
 import { SERVICE_ORDER_STATUSES } from '../service-orders/types/service-order.types';
+import { PERSON_STATUSES, type Person } from '../people/types/person.types';
 
 export const MOCK_SERVICE_ORDER_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 export const MOCK_PLANNED_RESOURCE_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
@@ -17,6 +18,7 @@ export const MOCK_BILLING_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 export const MOCK_BILLING_DOCUMENT_ID = '11111111-1111-4111-8111-111111111112';
 export const MOCK_ASSET_A_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 export const MOCK_ASSET_B_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+export const MOCK_WORKFORCE_MEMBER_ID = '99999999-9999-4999-8999-999999999999';
 const PROBE_SERVICE_ORDER_ID = '00000000-0000-4000-8000-000000000010';
 const PROBE_MEASUREMENT_ID = '00000000-0000-4000-8000-000000000020';
 const TRUCK_TYPE_ID = '11111111-1111-4111-8111-111111111111';
@@ -103,6 +105,24 @@ export function createServiceOrdersFetchMock(options: ServiceOrdersFetchMockOpti
   const billingReadAllowed = options.billingReadAllowed ?? true;
   const billingDocumentAllowed = options.billingDocumentAllowed ?? true;
   const billingDocumentReadAllowed = options.billingDocumentReadAllowed ?? true;
+  const people: Person[] = [
+    {
+      id: MOCK_WORKFORCE_MEMBER_ID,
+      memberCode: 'EMP-DEV-001',
+      legalName: 'Empregado Dev Um',
+      preferredName: 'Dev Um',
+      defaultLaborTypeCode: 'OPERATOR',
+      defaultLaborTypeName: 'Operador',
+      externalErpId: null,
+      status: PERSON_STATUSES.Active,
+      version: 1,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      deactivatedAt: null,
+      deactivationReason: null,
+      serviceOrderAllocationSupported: true,
+    },
+  ];
 
   type MockMeasurementItem = {
     id: string;
@@ -1380,6 +1400,44 @@ export function createServiceOrdersFetchMock(options: ServiceOrdersFetchMockOpti
       });
     }
 
+    if (pathname.startsWith('/api/v1/resources/physical-assets/') && method === 'GET') {
+      const auth = init?.headers ? new Headers(init.headers).get('authorization') : null;
+      if (!auth?.startsWith('Bearer ')) {
+        return orderError('AUTH_UNAUTHORIZED', 401);
+      }
+      if (options.assetListAllowed === false) {
+        return orderError('ASSET_DENIED', 403);
+      }
+      const assetId = pathname.slice('/api/v1/resources/physical-assets/'.length);
+      const asset = planningAssets.find((item) => item.id === assetId);
+      if (!asset) {
+        return orderError('ASSET_NOT_FOUND', 404);
+      }
+      return jsonResponse(asset);
+    }
+
+    if (pathname === '/api/v1/people' && method === 'GET') {      const auth = init?.headers ? new Headers(init.headers).get('authorization') : null;
+      if (!auth?.startsWith('Bearer ')) {
+        return orderError('AUTH_UNAUTHORIZED', 401);
+      }
+      const limit = Number(searchParams.get('limit') ?? '20');
+      const offset = Number(searchParams.get('offset') ?? '0');
+      const status = searchParams.get('status');
+      const defaultLaborTypeCode = searchParams.get('defaultLaborTypeCode');
+      let items = [...people];
+      if (status) {
+        items = items.filter((person) => person.status === status);
+      }
+      if (defaultLaborTypeCode) {
+        items = items.filter((person) => person.defaultLaborTypeCode === defaultLaborTypeCode);
+      }
+      return jsonResponse({
+        items: items.slice(offset, offset + limit),
+        limit,
+        offset,
+      });
+    }
+
     if (!pathname.startsWith('/api/v1/service-orders')) {
       return upstream(input, init);
     }
@@ -1494,21 +1552,43 @@ export function createServiceOrdersFetchMock(options: ServiceOrdersFetchMockOpti
       const body = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as {
         plannedResourceId?: string;
         physicalAssetId?: string;
+        workforceMemberId?: string;
         operationalStart?: string;
         operationalEnd?: string;
       };
-      const asset = planningAssets.find((item) => item.id === body.physicalAssetId);
-      if (!asset) {
-        return orderError('SERVICE_ORDERS_ASSET_NOT_FOUND', 404);
-      }
-      if (asset.lifecycleStatus !== ASSET_LIFECYCLE_STATUSES.Active) {
-        return orderError('SERVICE_ORDERS_ASSET_INACTIVE', 409);
+      const plannedResource = planned.find((item) => item.id === body.plannedResourceId);
+      const isLabor = plannedResource?.requirementKind === 'LABOR';
+      const asset = body.physicalAssetId
+        ? planningAssets.find((item) => item.id === body.physicalAssetId)
+        : null;
+      const person = body.workforceMemberId
+        ? people.find((item) => item.id === body.workforceMemberId)
+        : null;
+      if (isLabor) {
+        if (!person) {
+          return orderError('SERVICE_ORDERS_WORKFORCE_MEMBER_NOT_FOUND', 404);
+        }
+        if (person.status !== PERSON_STATUSES.Active) {
+          return orderError('SERVICE_ORDERS_WORKFORCE_MEMBER_INACTIVE', 409);
+        }
+        if (person.defaultLaborTypeCode !== plannedResource?.laborTypeCode) {
+          return orderError('SERVICE_ORDERS_WORKFORCE_MEMBER_LABOR_TYPE_MISMATCH', 409);
+        }
+      } else {
+        if (!asset) {
+          return orderError('SERVICE_ORDERS_ASSET_NOT_FOUND', 404);
+        }
+        if (asset.lifecycleStatus !== ASSET_LIFECYCLE_STATUSES.Active) {
+          return orderError('SERVICE_ORDERS_ASSET_INACTIVE', 409);
+        }
       }
       const interval = parseInterval(body.operationalStart ?? '', body.operationalEnd ?? '');
       const conflict = allocations.some(
         (item) =>
           item.status === 'ACTIVE' &&
-          item.physicalAssetId === body.physicalAssetId &&
+          (isLabor
+            ? item.workforceMemberId === body.workforceMemberId
+            : item.physicalAssetId === body.physicalAssetId) &&
           intervalsOverlap(interval, parseInterval(item.operationalStart, item.operationalEnd)),
       );
       if (conflict) {
@@ -1518,8 +1598,9 @@ export function createServiceOrdersFetchMock(options: ServiceOrdersFetchMockOpti
         id: crypto.randomUUID(),
         serviceOrderId: allocationsListMatch[1]!,
         plannedResourceId: body.plannedResourceId ?? null,
-        physicalAssetId: body.physicalAssetId!,
-        resourceTypeCode: asset.resourceTypeCode,
+        physicalAssetId: body.physicalAssetId ?? null,
+        workforceMemberId: body.workforceMemberId ?? null,
+        resourceTypeCode: isLabor ? plannedResource?.laborTypeCode ?? 'LABOR' : asset!.resourceTypeCode,
         operationalStart: body.operationalStart!,
         operationalEnd: body.operationalEnd!,
         status: 'ACTIVE',

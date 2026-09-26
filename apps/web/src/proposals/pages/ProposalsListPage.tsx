@@ -88,26 +88,34 @@ export function ProposalsListPage() {
   }, [loadPage]);
 
   if (listState.phase === 'loading') {
-    return <ModuleLoadingState title="Propostas comerciais" message="Carregando propostas…" />;
+    return (
+      <ModulePage>
+        <ModuleLoadingState title="Propostas comerciais" message="Carregando propostas…" />
+      </ModulePage>
+    );
   }
 
   if (listState.phase === 'denied') {
     return (
-      <ModuleDeniedState
+      <ModulePage>
+        <ModuleDeniedState
         title="Propostas comerciais"
         message="Você não tem permissão para listar propostas."
       />
+      </ModulePage>
     );
   }
 
   if (listState.phase === 'error') {
     return (
-      <ModuleErrorState
+      <ModulePage>
+        <ModuleErrorState
         title="Propostas comerciais"
         message={listState.message}
         retryable={listState.retryable}
         onRetry={() => void loadPage(0)}
       />
+      </ModulePage>
     );
   }
 

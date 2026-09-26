@@ -168,6 +168,25 @@ export async function getServiceRequestSummary(
   });
 }
 
+export async function registerOperationalUnit(refId: string): Promise<{ items: string[] }> {
+  return requestJson<{ items: string[] }>('/api/v1/requests/service-requests/operational-units', {
+    method: 'POST',
+    headers: {
+      ...authHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ refId }),
+  });
+}
+
+export async function listOperationalUnits(signal?: AbortSignal): Promise<{ items: string[] }> {
+  return requestJson<{ items: string[] }>('/api/v1/requests/service-requests/operational-units', {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+}
+
 export async function getServiceRequest(
   serviceRequestId: string,
   signal?: AbortSignal,

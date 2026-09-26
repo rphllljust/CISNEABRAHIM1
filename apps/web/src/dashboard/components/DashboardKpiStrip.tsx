@@ -16,7 +16,7 @@ export function DashboardKpiStrip({ kpis }: DashboardKpiStripProps) {
 
   return (
     <section aria-labelledby="kpi-heading">
-      <header className="mb-4">
+      <header className="mb-3">
         <h2 id="kpi-heading" className="text-base font-semibold text-gray-900">
           Indicadores principais
         </h2>
@@ -24,11 +24,15 @@ export function DashboardKpiStrip({ kpis }: DashboardKpiStripProps) {
       </header>
 
       <div
-        className="mb-12 grid grid-cols-1 overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-900/5 sm:grid-cols-2 sm:divide-x sm:divide-gray-200 lg:grid-cols-4"
+        className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
         role="list"
       >
         {kpis.map((kpi, index) => (
-          <div key={kpi.id} role="listitem">
+          <div
+            key={kpi.id}
+            className="overflow-hidden rounded-md bg-white shadow-sm ring-1 ring-gray-900/5"
+            role="listitem"
+          >
             <Kpi kpi={kpi} highlighted={isHighlightedKpi(kpi, index, kpis.length)} />
           </div>
         ))}

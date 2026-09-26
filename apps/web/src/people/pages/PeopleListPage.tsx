@@ -85,26 +85,34 @@ export function PeopleListPage() {
   }, [loadPage]);
 
   if (listState.phase === 'loading') {
-    return <ModuleLoadingState title="Pessoas" message="Carregando Pessoas…" />;
+    return (
+      <ModulePage>
+        <ModuleLoadingState title="Pessoas" message="Carregando Pessoas…" />
+      </ModulePage>
+    );
   }
 
   if (listState.phase === 'denied') {
     return (
-      <ModuleDeniedState
+      <ModulePage>
+        <ModuleDeniedState
         title="Pessoas"
         message="Você não tem permissão para listar Pessoas."
       />
+      </ModulePage>
     );
   }
 
   if (listState.phase === 'error') {
     return (
-      <ModuleErrorState
+      <ModulePage>
+        <ModuleErrorState
         title="Pessoas"
         message={listState.message}
         retryable={listState.retryable}
         onRetry={() => void loadPage(0)}
       />
+      </ModulePage>
     );
   }
 

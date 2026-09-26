@@ -80,4 +80,25 @@ describe('auth flow e2e (frontend)', () => {
       expect(screen.getByRole('heading', { name: /service unavailable/i })).toBeInTheDocument();
     });
   });
+
+  it('keeps the session when the bootstrap refresh is rate limited (429)', async () => {
+    sessionStorage.setItem('cisne.refreshToken', 'refresh-token');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 429,
+        json: async () => ({ error: { code: 'RATE_LIMIT_EXCEEDED', message: 'Too many requests.' } }),
+      }),
+    );
+    window.history.pushState({}, '', '/app');
+    render(<App />);
+
+    // Limite transitorio: estado indisponivel com retentativa, NAO tela de login.
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /service unavailable/i })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('heading', { name: LOGIN_FORM_HEADING })).not.toBeInTheDocument();
+    expect(sessionStorage.getItem('cisne.refreshToken')).toBe('refresh-token');
+  });
 });

@@ -95,14 +95,31 @@ export function ServiceDefinitionForm({
           />
         </div>
         <div className="form-field">
-          <label htmlFor={categoryId}>Categoria (UUID)</label>
-          <input
-            id={categoryId}
-            value={state.categoryId}
-            onChange={(event) => update('categoryId', event.target.value)}
-            disabled={readOnly}
-            required
-          />
+          <label htmlFor={categoryId}>Categoria</label>
+          {referenceData.categories.length > 0 ? (
+            <select
+              id={categoryId}
+              value={state.categoryId}
+              onChange={(event) => update('categoryId', event.target.value)}
+              disabled={readOnly}
+              required
+            >
+              <option value="">Selecione</option>
+              {referenceData.categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name} ({category.code})
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              id={categoryId}
+              value={state.categoryId}
+              onChange={(event) => update('categoryId', event.target.value)}
+              disabled={readOnly}
+              required
+            />
+          )}
           {errors.categoryId ? <p className="field-error">{errors.categoryId}</p> : null}
         </div>
         <div className="form-field">

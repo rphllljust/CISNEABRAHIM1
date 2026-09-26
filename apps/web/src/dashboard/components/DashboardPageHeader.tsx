@@ -28,23 +28,23 @@ export function DashboardPageHeader({
   const hasExtraFilters = activeFilters.length > 0;
 
   return (
-    <div className="mb-8">
-      <nav className="mb-5 flex text-sm text-gray-500" aria-label="Localização">
+    <div className="mb-6">
+      <nav className="mb-3 flex text-sm text-gray-500" aria-label="Localização">
         <span className="hover:text-gray-700">Início</span>
         <span className="mx-2 text-gray-300">/</span>
         <span className="font-medium text-gray-900">Painel operacional</span>
       </nav>
 
-      <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="mb-1.5 text-xs font-semibold tracking-wider text-brand-600 uppercase">
+          <p className="mb-1 text-xs font-semibold tracking-wider text-brand-600 uppercase">
             Operação e controle
           </p>
-          <h1 className="text-2xl font-semibold tracking-tight text-gray-900">{title}</h1>
-          {periodLabel ? <p className="mt-1.5 text-sm text-gray-500">{periodLabel}</p> : null}
+          <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
+          {periodLabel ? <p className="mt-1 text-sm text-gray-500">{periodLabel}</p> : null}
         </div>
 
-        <div className="mt-5 flex items-end gap-4 md:mt-0" aria-label="Controles do painel">
+        <div className="mt-4 flex flex-wrap items-end gap-3 md:mt-0 md:justify-end" aria-label="Controles do painel">
           {generatedAt && generatedAtFormatted ? (
             <div>
               <p className="mb-1.5 text-xs text-gray-500">Atualizado</p>
@@ -60,7 +60,7 @@ export function DashboardPageHeader({
             </label>
             <select
               id="dashboard-period"
-              className="rounded-md border-0 bg-white py-2 pr-8 pl-3 text-sm text-gray-900 ring-1 ring-gray-300 ring-inset outline-none focus:ring-2 focus:ring-brand-500"
+              className="h-10 rounded-md border-0 bg-white py-2 pr-8 pl-3 text-sm text-gray-900 ring-1 ring-gray-300 ring-inset outline-none focus:ring-2 focus:ring-brand-500"
               value={period}
               onChange={(event) => onPeriodChange(event.target.value)}
             >
@@ -74,7 +74,7 @@ export function DashboardPageHeader({
 
           <button
             type="button"
-            className="dashboard-page__refresh inline-flex items-center rounded-md border-0 bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:opacity-65"
+            className="dashboard-page__refresh inline-flex h-10 items-center rounded-md border-0 bg-brand-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:opacity-65"
             onClick={onRefresh}
             disabled={isRefreshing}
             aria-busy={isRefreshing}

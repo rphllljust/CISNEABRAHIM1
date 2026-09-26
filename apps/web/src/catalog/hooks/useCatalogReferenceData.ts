@@ -4,14 +4,17 @@ import {
   listMeasurementModelPolicies,
   listPhysicalResourceTypes,
   listPricingModelPolicies,
+  listServiceCategories,
   listUnitsOfMeasure,
   type LaborTypeOption,
+  type ServiceCategoryOption,
   type PolicyOption,
   type ResourceTypeOption,
   type UnitOfMeasureOption,
 } from '../api/catalog-reference-api';
 
 export type CatalogReferenceData = {
+  categories: ServiceCategoryOption[];
   units: UnitOfMeasureOption[];
   resourceTypes: ResourceTypeOption[];
   laborTypes: LaborTypeOption[];
@@ -20,6 +23,7 @@ export type CatalogReferenceData = {
 };
 
 const EMPTY_REFERENCE_DATA: CatalogReferenceData = {
+  categories: [],
   units: [],
   resourceTypes: [],
   laborTypes: [],
@@ -36,15 +40,16 @@ export function useCatalogReferenceData() {
     let cancelled = false;
 
     void Promise.all([
+      listServiceCategories(controller.signal),
       listUnitsOfMeasure(controller.signal),
       listPhysicalResourceTypes(controller.signal),
       listLaborTypes(controller.signal),
       listPricingModelPolicies(controller.signal),
       listMeasurementModelPolicies(controller.signal),
     ])
-      .then(([units, resourceTypes, laborTypes, pricingModels, measurementModels]) => {
+      .then(([categories, units, resourceTypes, laborTypes, pricingModels, measurementModels]) => {
         if (!cancelled) {
-          setData({ units, resourceTypes, laborTypes, pricingModels, measurementModels });
+          setData({ categories, units, resourceTypes, laborTypes, pricingModels, measurementModels });
           setLoading(false);
         }
       })

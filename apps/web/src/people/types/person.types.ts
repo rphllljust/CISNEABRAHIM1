@@ -31,7 +31,7 @@ export type Person = {
   updatedAt: string;
   deactivatedAt: string | null;
   deactivationReason: string | null;
-  serviceOrderAllocationSupported: false;
+  serviceOrderAllocationSupported: boolean;
 };
 
 export type PersonHistoryEvent = {

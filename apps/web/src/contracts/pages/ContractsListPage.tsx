@@ -89,26 +89,34 @@ export function ContractsListPage() {
   }, [loadPage]);
 
   if (listState.phase === 'loading') {
-    return <ModuleLoadingState title="Contratos" message="Carregando contratos…" />;
+    return (
+      <ModulePage>
+        <ModuleLoadingState title="Contratos" message="Carregando contratos…" />
+      </ModulePage>
+    );
   }
 
   if (listState.phase === 'denied') {
     return (
-      <ModuleDeniedState
+      <ModulePage>
+        <ModuleDeniedState
         title="Contratos"
         message="Você não tem permissão para listar contratos comerciais."
       />
+      </ModulePage>
     );
   }
 
   if (listState.phase === 'error') {
     return (
-      <ModuleErrorState
+      <ModulePage>
+        <ModuleErrorState
         title="Contratos"
         message={listState.message}
         retryable={listState.retryable}
         onRetry={() => void loadPage(0)}
       />
+      </ModulePage>
     );
   }
 

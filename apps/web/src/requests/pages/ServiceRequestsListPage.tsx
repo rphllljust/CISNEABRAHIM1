@@ -111,27 +111,33 @@ export function ServiceRequestsListPage() {
 
   if (listState.phase === 'loading') {
     return (
-      <ModuleLoadingState title="Solicitações de serviço" message="Carregando solicitações…" />
+      <ModulePage>
+        <ModuleLoadingState title="Solicitações de serviço" message="Carregando solicitações…" />
+      </ModulePage>
     );
   }
 
   if (listState.phase === 'denied') {
     return (
-      <ModuleDeniedState
+      <ModulePage>
+        <ModuleDeniedState
         title="Solicitações de serviço"
         message="Você não tem permissão para listar solicitações."
       />
+      </ModulePage>
     );
   }
 
   if (listState.phase === 'error') {
     return (
-      <ModuleErrorState
+      <ModulePage>
+        <ModuleErrorState
         title="Solicitações de serviço"
         message={listState.message}
         retryable={listState.retryable}
         onRetry={() => void loadPage(0)}
       />
+      </ModulePage>
     );
   }
 

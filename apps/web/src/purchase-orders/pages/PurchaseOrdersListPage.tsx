@@ -89,26 +89,34 @@ export function PurchaseOrdersListPage() {
   }, [loadPage]);
 
   if (listState.phase === 'loading') {
-    return <ModuleLoadingState title="Pedidos de compra" message="Carregando pedidos…" />;
+    return (
+      <ModulePage>
+        <ModuleLoadingState title="Pedidos de compra" message="Carregando pedidos…" />
+      </ModulePage>
+    );
   }
 
   if (listState.phase === 'denied') {
     return (
-      <ModuleDeniedState
+      <ModulePage>
+        <ModuleDeniedState
         title="Pedidos de compra"
         message="Você não tem permissão para listar pedidos de compra."
       />
+      </ModulePage>
     );
   }
 
   if (listState.phase === 'error') {
     return (
-      <ModuleErrorState
+      <ModulePage>
+        <ModuleErrorState
         title="Pedidos de compra"
         message={listState.message}
         retryable={listState.retryable}
         onRetry={() => void loadPage(0)}
       />
+      </ModulePage>
     );
   }
 

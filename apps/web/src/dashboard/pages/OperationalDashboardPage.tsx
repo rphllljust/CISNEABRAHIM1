@@ -57,7 +57,7 @@ export function OperationalDashboardPage() {
 
   if (state.phase === 'loading') {
     return (
-      <main id="main-content" className="dashboard-page w-full">
+      <main id="main-content" className="dashboard-page w-full max-w-7xl">
         <DashboardPageHeader
           {...headerProps}
           periodLabel={null}
@@ -72,7 +72,7 @@ export function OperationalDashboardPage() {
 
   if (state.phase === 'denied') {
     return (
-      <main id="main-content" className="dashboard-page w-full">
+      <main id="main-content" className="dashboard-page w-full max-w-7xl">
         <DashboardPageHeader
           {...headerProps}
           periodLabel={null}
@@ -97,7 +97,7 @@ export function OperationalDashboardPage() {
   const periodLabel = snapshot ? formatPeriodLabel(snapshot.period.from, snapshot.period.to) : null;
 
   return (
-    <main id="main-content" className="dashboard-page w-full">
+    <main id="main-content" className="dashboard-page w-full max-w-7xl">
       <DashboardPageHeader
         {...headerProps}
         periodLabel={periodLabel}
@@ -120,9 +120,10 @@ export function OperationalDashboardPage() {
 
       {snapshot ? (
         <>
-          <AttentionBlock items={snapshot.attention} />
-
-          <DashboardKpiStrip kpis={kpis} />
+          <div className="mb-8 grid gap-5 xl:grid-cols-[minmax(18rem,0.72fr)_minmax(38rem,1.6fr)] xl:items-start">
+            <AttentionBlock items={snapshot.attention} />
+            <DashboardKpiStrip kpis={kpis} />
+          </div>
 
           {snapshot.visibility.serviceOrders ? (
             <section aria-labelledby="operational-heading">

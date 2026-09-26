@@ -85,6 +85,20 @@ export async function listPricingModelPolicies(signal?: AbortSignal): Promise<Po
   return body?.items ?? [];
 }
 
+export type ServiceCategoryOption = {
+  id: string;
+  code: string;
+  name: string;
+};
+
+export async function listServiceCategories(signal?: AbortSignal): Promise<ServiceCategoryOption[]> {
+  const body = await requestJson<{ items: ServiceCategoryOption[] }>(
+    '/api/v1/catalog/service-definitions/categories',
+    signal,
+  );
+  return body?.items ?? [];
+}
+
 export async function listMeasurementModelPolicies(signal?: AbortSignal): Promise<PolicyOption[]> {
   const body = await requestJson<{ items: PolicyOption[] }>(
     '/api/v1/commercial/measurement-models',

@@ -150,6 +150,8 @@ export type CreateServiceRequestPayload = {
   desiredStartAt?: string;
   desiredEndAt?: string;
   operationalNotes?: string;
+  serviceDefinitionId?: string;
+  serviceDefinitionVersionId?: string;
   proposalId?: string;
   purchaseOrderId?: string;
   idempotencyKey?: string;
@@ -166,6 +168,8 @@ export type UpdateServiceRequestDraftPayload = {
   desiredStartAt?: string | null;
   desiredEndAt?: string | null;
   operationalNotes?: string | null;
+  serviceDefinitionId?: string | null;
+  serviceDefinitionVersionId?: string | null;
   proposalId?: string | null;
   purchaseOrderId?: string | null;
 };

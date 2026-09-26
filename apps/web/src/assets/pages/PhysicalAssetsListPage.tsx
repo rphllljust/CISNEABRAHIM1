@@ -149,26 +149,34 @@ export function PhysicalAssetsListPage() {
   }, [searchInput]);
 
   if (listState.phase === 'loading' && summary === null) {
-    return <ModuleLoadingState title="Ativos físicos" message="Carregando ativos…" />;
+    return (
+      <ModulePage>
+        <ModuleLoadingState title="Ativos físicos" message="Carregando ativos…" />
+      </ModulePage>
+    );
   }
 
   if (listState.phase === 'denied') {
     return (
-      <ModuleDeniedState
+      <ModulePage>
+        <ModuleDeniedState
         title="Ativos físicos"
         message="Você não tem permissão para listar ativos físicos."
       />
+      </ModulePage>
     );
   }
 
   if (listState.phase === 'error') {
     return (
-      <ModuleErrorState
+      <ModulePage>
+        <ModuleErrorState
         title="Ativos físicos"
         message={listState.message}
         retryable={listState.retryable}
         onRetry={() => void loadPage(0)}
       />
+      </ModulePage>
     );
   }
 

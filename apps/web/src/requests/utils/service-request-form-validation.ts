@@ -20,6 +20,8 @@ export type ServiceRequestFormValues = {
   desiredStartAt: string;
   desiredEndAt: string;
   operationalNotes: string;
+  serviceDefinitionId: string;
+  serviceDefinitionVersionId: string;
 };
 
 export type ServiceRequestFormFieldErrors = Partial<Record<keyof ServiceRequestFormValues, string>>;
@@ -89,6 +91,8 @@ export function buildCreatePayload(values: ServiceRequestFormValues): CreateServ
     desiredStartAt: values.desiredStartAt ? new Date(values.desiredStartAt).toISOString() : undefined,
     desiredEndAt: values.desiredEndAt ? new Date(values.desiredEndAt).toISOString() : undefined,
     operationalNotes: values.operationalNotes.trim() || undefined,
+    serviceDefinitionId: values.serviceDefinitionId.trim() || undefined,
+    serviceDefinitionVersionId: values.serviceDefinitionVersionId.trim() || undefined,
   };
 }
 
@@ -107,6 +111,8 @@ export function buildUpdatePayload(
     desiredStartAt: values.desiredStartAt ? new Date(values.desiredStartAt).toISOString() : null,
     desiredEndAt: values.desiredEndAt ? new Date(values.desiredEndAt).toISOString() : null,
     operationalNotes: values.operationalNotes.trim() || null,
+    serviceDefinitionId: values.serviceDefinitionId.trim() || null,
+    serviceDefinitionVersionId: values.serviceDefinitionVersionId.trim() || null,
   };
 }
 
@@ -126,6 +132,8 @@ export const EMPTY_SERVICE_REQUEST_FORM: ServiceRequestFormValues = {
   desiredStartAt: '',
   desiredEndAt: '',
   operationalNotes: '',
+  serviceDefinitionId: '',
+  serviceDefinitionVersionId: '',
 };
 
 export function toDatetimeLocalValue(value: string | null): string {

@@ -106,12 +106,9 @@ export function Kpi({ kpi, highlighted }: { kpi: DashboardKpi; highlighted: bool
       <p className={cn('text-sm font-medium', highlighted ? 'text-brand-800' : 'text-gray-500')}>
         {kpi.label}
       </p>
-      <p className="mt-2 flex items-baseline gap-1.5">
+      <p className="mt-1.5 flex items-baseline gap-1.5">
         <span
-          className={cn(
-            'text-3xl font-semibold tracking-tight tabular-nums',
-            highlighted ? 'text-brand-700' : 'text-gray-900',
-          )}
+          className={cn('text-xl font-semibold tabular-nums', highlighted ? 'text-brand-700' : 'text-gray-900')}
           aria-hidden="true"
         >
           {kpi.value}
@@ -123,14 +120,14 @@ export function Kpi({ kpi, highlighted }: { kpi: DashboardKpi; highlighted: bool
         ) : null}
       </p>
       {kpi.context ? (
-        <p className={cn('mt-2 text-xs', highlighted ? 'text-brand-700/60' : 'text-gray-400')}>
+        <p className={cn('mt-1.5 text-xs', highlighted ? 'text-brand-700/60' : 'text-gray-400')}>
           {kpi.context}
         </p>
       ) : null}
     </>
   );
 
-  const cellClass = cn('px-6 py-6', highlighted && 'bg-brand-50/60');
+  const cellClass = cn('min-h-24 px-3.5 py-3.5', highlighted && 'bg-brand-50/60');
 
   if (kpi.href) {
     return (

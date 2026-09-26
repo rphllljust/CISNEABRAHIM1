@@ -40,18 +40,18 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 let refreshInFlight: Promise<void> | null = null;
 
-async function runRefresh(signal?: AbortSignal): Promise<void> {
+async function runRefresh(): Promise<void> {
   const refreshToken = tokenStore.getRefreshToken();
   if (!refreshToken) {
     throw new AuthApiError(401, 'AUTH_UNAUTHORIZED', 'session_expired');
   }
-  const tokens = await refreshRequest(refreshToken, signal);
+  const tokens = await refreshRequest(refreshToken);
   tokenStore.setTokens(tokens.accessToken, tokens.refreshToken);
 }
 
-async function refreshWithMutex(signal?: AbortSignal): Promise<void> {
+async function refreshWithMutex(): Promise<void> {
   if (!refreshInFlight) {
-    refreshInFlight = runRefresh(signal).finally(() => {
+    refreshInFlight = runRefresh().finally(() => {
       refreshInFlight = null;
     });
   }
@@ -89,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const existingAccess = tokenStore.getAccessToken();
       if (!existingAccess && tokenStore.getRefreshToken()) {
-        await refreshWithMutex(controller.signal);
+        await refreshWithMutex();
       }
 
       const accessToken = tokenStore.getAccessToken();
@@ -105,6 +105,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (isNetworkError(error)) {
+        setState({ status: 'unavailable', identityId: null, sessionId: null });
+        return;
+      }
+      // Rate limit no bootstrap NAO invalida a sessao: o refresh token continua no
+      // sessionStorage e a sessao pode ser retomada quando a janela reabrir. Limitar
+      // (429) e condicao transitoria/de infraestrutura, nao credencial invalida; destruir
+      // a sessao aqui deslogaria o usuario por excesso de recargas/navegacao (o limite e
+      // por IP+user-agent). Reaproveita o estado `unavailable` ja tratado pelo ProtectedRoute.
+      if (error instanceof AuthApiError && error.status === 429) {
         setState({ status: 'unavailable', identityId: null, sessionId: null });
         return;
       }

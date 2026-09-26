@@ -66,19 +66,29 @@ export function RentalsListPage() {
   }, [loadPage, offset]);
 
   if (listState.phase === 'loading') {
-    return <ModuleLoadingState title="Locações" message="Carregando ordens de locação…" />;
+    return (
+      <ModulePage>
+        <ModuleLoadingState title="Locações" message="Carregando ordens de locação…" />
+      </ModulePage>
+    );
   }
   if (listState.phase === 'denied') {
-    return <ModuleDeniedState title="Locações" message="Você não tem permissão para listar locações." />;
+    return (
+      <ModulePage>
+        <ModuleDeniedState title="Locações" message="Você não tem permissão para listar locações." />
+      </ModulePage>
+    );
   }
   if (listState.phase === 'error') {
     return (
-      <ModuleErrorState
+      <ModulePage>
+        <ModuleErrorState
         title="Locações"
         message={listState.message}
         retryable={listState.retryable}
         onRetry={() => void loadPage(offset)}
       />
+      </ModulePage>
     );
   }
 
