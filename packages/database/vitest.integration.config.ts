@@ -11,5 +11,9 @@ export default defineConfig({
     include: ['src/**/*.integration.spec.ts'],
     fileParallelism: false,
     sequence: { concurrent: false },
+    // Serializa o acesso ao TEST_DATABASE_URL compartilhado entre PROCESSOS (advisory lock),
+    // igual ao @cisne/api. Sem isto, specs que truncam tabelas compartilhadas colidem com
+    // qualquer outro runner na mesma base e o gate falha com "deadlock detected".
+    setupFiles: ['./src/test-builders/integration-test-db-serializer.ts'],
   },
 });

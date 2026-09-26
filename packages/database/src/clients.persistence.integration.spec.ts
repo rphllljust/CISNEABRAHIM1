@@ -44,10 +44,26 @@ describe('Clients persistence migration', () => {
        WHERE schemaname = 'pty'
        ORDER BY tablename`,
     );
+    // Lista completa e atual do schema `pty` — mesma igualdade exata usada pelo sibling de
+    // catalogo. O 0006 cria a baseline de clientes; o 0064 (supplier master) e o 0072 (legal
+    // establishment master) acrescentam as demais tabelas do schema, que estavam ausentes desta
+    // lista (asserção impossivel de satisfazer em banco migrado). Tabela nova em `pty` continua
+    // exigindo manutencao explicita desta lista.
     expect(tables.rows.map((row) => row.tablename)).toEqual([
       'client_addresses',
       'client_contacts',
       'clients',
+      'establishment_certificates',
+      'establishment_history_events',
+      'establishment_tax_registration_history_events',
+      'establishment_tax_registrations',
+      'establishments',
+      'legal_entities',
+      'legal_entity_history_events',
+      'supplier_addresses',
+      'supplier_contacts',
+      'supplier_history_events',
+      'suppliers',
     ]);
   });
 

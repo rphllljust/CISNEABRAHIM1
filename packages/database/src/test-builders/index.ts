@@ -11,6 +11,7 @@ export {
   type BuiltSession,
 } from './identity-builders';
 export {
+  ensureGrant,
   insertGrant,
   insertScopeRef,
   insertScopedRecord,
