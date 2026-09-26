@@ -13,6 +13,7 @@ const { AUTHZ_RESOURCE_TYPES } = requireFromApi('./dist/authorization/types/auth
 const { AUTHZ_SCOPES } = requireFromApi('./dist/authorization/types/authz-scopes.js');
 const {
   ABRAHIM_OWNER_LOGIN,
+  EMPREGADO_LOGIN,
   MONICA_OWNER_LOGIN,
   RAFAEL_DEVELOPER_LOGIN,
   runOperationalProfilesSeed,
@@ -25,11 +26,21 @@ const {
  * lista nao exista em dois lugares; a senha e estatica aqui e em
  * `packages/database/scripts/seed-profiles.mjs`.
  *
- * `globalDevGrants` controla quem recebe o conjunto GLOBAL completo (todas as 263 actions).
- * Somente os donos. O empregado operacional NAO entra nesse conjunto: a regra registrada e
- * "EMPREGADO: somente ASSIGNED" (prompt-execution-log, "CORRECAO DE PERMISSOES — EMPREGADO
- * SOBRE-PRIVILEGIADO — 2026-09-25"). O conjunto minimo dele vem do seed canonico, aplicado
- * ao final de cada banco por `applyCanonicalProfiles`.
+ * `broadDevAccess` controla quem recebe o conjunto GLOBAL completo (todas as 263 actions) —
+ * tanto como capability do papel quanto como grant direto. Vale para os donos e para o
+ * desenvolvedor, por decisao registrada em 2026-09-25.
+ *
+ * O empregado operacional NAO entra nesse conjunto. A regra registrada e "EMPREGADO: somente
+ * ASSIGNED" (prompt-execution-log, "CORRECAO DE PERMISSOES — EMPREGADO SOBRE-PRIVILEGIADO —
+ * 2026-09-25"). Para ele, este script NAO cria papel nem adiciona capability alguma: o papel
+ * e o conjunto minimo dele sao propriedade do seed canonico, aplicado ao final de cada banco
+ * por `applyCanonicalProfiles`.
+ *
+ * Historico (por que a guarda existe nos dois caminhos): a correcao de 2026-09-25 revogou os
+ * 249 grants GLOBAL diretos do empregado, mas o PDP tambem concede por capability de papel
+ * (`policy-decision-point.service.ts`, `findRoleDerivedActionRows`). Enquanto este script
+ * atribuia as 263 actions ao papel do empregado, o sobre-privilegio continuava efetivo: em
+ * 2026-09-25 o login do empregado respondia 200 em `/api/v1/authz/access-admin/*`.
  */
 const STATIC_DEV_PROFILES = [
   {
@@ -38,7 +49,7 @@ const STATIC_DEV_PROFILES = [
     roleCode: 'OWNER',
     roleLabel: 'Dono',
     roleDescription: 'Dono estático do CISNE com acesso global de desenvolvimento.',
-    globalDevGrants: true,
+    broadDevAccess: true,
   },
   {
     login: MONICA_OWNER_LOGIN,
@@ -46,7 +57,7 @@ const STATIC_DEV_PROFILES = [
     roleCode: 'OWNER',
     roleLabel: 'Dono',
     roleDescription: 'Dono estático do CISNE com acesso global de desenvolvimento.',
-    globalDevGrants: true,
+    broadDevAccess: true,
   },
   {
     login: RAFAEL_DEVELOPER_LOGIN,
@@ -54,7 +65,15 @@ const STATIC_DEV_PROFILES = [
     roleCode: 'DEVELOPER',
     roleLabel: 'Desenvolvedor',
     roleDescription: 'Desenvolvedor estático do CISNE com acesso global de desenvolvimento.',
-    globalDevGrants: false,
+    broadDevAccess: true,
+  },
+  {
+    login: EMPREGADO_LOGIN,
+    password: 'Cisne-Empregado-2026!',
+    roleCode: null,
+    roleLabel: null,
+    roleDescription: null,
+    broadDevAccess: false,
   },
 ];
 const TARGET_DATABASES = ['cisne_local_dev', 'cisne_runtime'];
@@ -109,8 +128,7 @@ async function repairCredential(connectionString, profile) {
          WHERE id = $1`,
         [row.identity_id],
       );
-      const grantsAdded = await ensureGlobalDevGrantsForProfile(pool, row.identity_id, profile);
-      await ensureStaticRoleAssignment(pool, row.identity_id, row.identity_id, profile);
+      const grantsAdded = await applyBroadDevAccess(pool, row.identity_id, profile);
       await pool.query('COMMIT');
       return { outcome: 'updated', identityId: row.identity_id, grantsAdded };
     }
@@ -126,8 +144,7 @@ async function repairCredential(connectionString, profile) {
        VALUES ($1, $2, $3, $4)`,
       [credentialId, identityId, login, passwordHash],
     );
-    const grantsAdded = await ensureGlobalDevGrantsForProfile(pool, identityId, profile);
-    await ensureStaticRoleAssignment(pool, identityId, identityId, profile);
+    const grantsAdded = await applyBroadDevAccess(pool, identityId, profile);
     await pool.query('COMMIT');
     return { outcome: 'created', identityId, grantsAdded };
   } catch (error) {
@@ -139,16 +156,20 @@ async function repairCredential(connectionString, profile) {
 }
 
 /**
- * Conjunto GLOBAL completo (todas as 263 actions) e conveniencia de dono, nao regra de negocio.
- * O perfil marcado com `globalDevGrants: false` (empregado operacional) e ignorado aqui de
- * proposito: sem essa guarda, `auth:repair:dev-login` reinstalava os 72 grants
- * financeiro/contabil/fiscal no login do empregado e desfazia a correcao registrada em
- * prompt-execution-log (2026-09-25).
+ * Acesso GLOBAL amplo de desenvolvimento: grants diretos + papel com todas as 263 actions.
+ *
+ * Para `broadDevAccess: false` (empregado operacional) NADA e aplicado — nem grant, nem papel,
+ * nem capability. A guarda cobre os DOIS caminhos de autorizacao de proposito: o PDP concede
+ * por grant direto E por capability de papel (`policy-decision-point.service.ts`,
+ * `findRoleDerivedActionRows`). Guardar apenas os grants deixava o sobre-privilegio efetivo:
+ * em 2026-09-25 o login do empregado respondia 200 em `/api/v1/authz/access-admin/*` mesmo com
+ * a tabela `grants` limpa.
  */
-async function ensureGlobalDevGrantsForProfile(pool, identityId, profile) {
-  if (!profile.globalDevGrants) {
+async function applyBroadDevAccess(pool, identityId, profile) {
+  if (!profile.broadDevAccess) {
     return 0;
   }
+  await ensureStaticRoleAssignment(pool, identityId, identityId, profile);
   return ensureDevelopmentGlobalGrants(pool, identityId);
 }
 
@@ -322,8 +343,9 @@ async function main() {
       }
     }
 
-    // O seed canonico e quem garante papel e conjunto minimo de grants de cada perfil
-    // (incluindo os 11 do empregado operacional). E aditivo e idempotente: nunca revoga.
+    // O seed canonico e quem garante papel e conjunto minimo de grants do empregado
+    // operacional (login `empregado@`, papel EMPREGADO, escopo ASSIGNED). E aditivo e
+    // idempotente: nunca revoga.
     try {
       const canonical = await applyCanonicalProfiles(targetUrl);
       results.push({
@@ -341,6 +363,9 @@ async function main() {
   process.stdout.write(
     `${JSON.stringify({
       logins: STATIC_DEV_PROFILES.map((profile) => normalizeLogin(profile.login)),
+      broadDevAccessLogins: STATIC_DEV_PROFILES.filter((profile) => profile.broadDevAccess).map(
+        (profile) => normalizeLogin(profile.login),
+      ),
       passwordSource: 'static-development-profiles',
       results,
     })}\n`,
@@ -363,7 +388,7 @@ async function applyCanonicalProfiles(connectionString) {
     const result = await runOperationalProfilesSeed(pool, {
       controlePassword: passwordForLogin(ABRAHIM_OWNER_LOGIN),
       controleFinanceiroPassword: passwordForLogin(MONICA_OWNER_LOGIN),
-      empregadoPassword: passwordForLogin(RAFAEL_DEVELOPER_LOGIN),
+      empregadoPassword: passwordForLogin(EMPREGADO_LOGIN),
     });
     return {
       controleGrantsAdded: result.controleGrants,

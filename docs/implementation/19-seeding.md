@@ -30,33 +30,56 @@ pnpm db:seed:dev
 
 ## STATIC_DEV_PROFILES (logins estáticos de desenvolvimento) — 2026-09-25
 
-Requisito do responsável: os três logins de desenvolvimento abaixo são **estáticos** — precisam
+Requisito do responsável: os logins de desenvolvimento abaixo são **estáticos** — precisam
 funcionar sempre com exatamente estas credenciais, sem geração em runtime e sem override por
 variável de ambiente.
 
-| Perfil | Login | Senha estática | Papel | Escopo |
-| ------ | ----- | -------------- | ----- | ------ |
-| Dono | `abrahim@cisne-rondonia.invalid` | `Cisne-Abrahim-2026!` | `OWNER` | GLOBAL |
-| Dono | `monica@cisne-rondonia.invalid` | `Cisne-Monica-2026!` | `OWNER` | GLOBAL |
-| Empregado operacional | `rafael@cisne-rondonia.invalid` | `Cisne-Rafael-Dev-2026!` | `DEVELOPER` | ASSIGNED + mínimo global |
+| Perfil | Login | Senha estática | Papel | Escopo | Acesso |
+| ------ | ----- | -------------- | ----- | ------ | ------ |
+| Dono | `abrahim@cisne-rondonia.invalid` | `Cisne-Abrahim-2026!` | `OWNER` | GLOBAL | Amplo (263 capabilities) |
+| Dono | `monica@cisne-rondonia.invalid` | `Cisne-Monica-2026!` | `OWNER` | GLOBAL | Amplo (263 capabilities) |
+| Desenvolvedor | `rafael@cisne-rondonia.invalid` | `Cisne-Rafael-Dev-2026!` | `DEVELOPER` | GLOBAL | Amplo (263 capabilities) |
+| Empregado operacional | `empregado@cisne-rondonia.invalid` | `Cisne-Empregado-2026!` | `EMPREGADO` | GLOBAL + ASSIGNED | Mínimo (0 financeiro/contábil/fiscal) |
+
+**Decisão registrada (2026-09-25).** `rafael@` é o **desenvolvedor com acesso global**, não o
+empregado operacional. Antes desta decisão o mesmo login era definido como "Desenvolvedor com
+acesso global de desenvolvimento" (`repair-dev-login.mjs`) e como "empregado operacional, somente
+ASSIGNED" (`operational-profiles.ts`) — um conflito de fonte, não resolvido por conveniência.
+O empregado operacional passou a ter login próprio, `empregado@`, com o perfil mínimo. O membro
+operacional `EMP-DEV-001` (`UN-DEV-001`) aponta para `empregado@`.
 
 Definição canônica: `packages/database/src/seed/operational-profiles.ts` (identificadores, papéis,
-grants). Aplicação: `packages/database/scripts/seed-profiles.mjs` (`pnpm --filter @cisne/database
-seed:profiles`) e `scripts/repair-dev-login.mjs` (`pnpm auth:repair:dev-login`, que repara
-credencial, reativa identidade desabilitada e aplica o seed canônico aditivo).
+grants dos perfis de negócio). Aplicação: `packages/database/scripts/seed-profiles.mjs`
+(`pnpm --filter @cisne/database seed:profiles`, perfis de negócio) e `scripts/repair-dev-login.mjs`
+(`pnpm auth:repair:dev-login`, que repara credencial, reativa identidade desabilitada, aplica o
+acesso amplo dos três perfis de dev e aplica o seed canônico aditivo). O desenvolvedor com acesso
+global fica no `repair-dev-login.mjs` porque o conjunto completo (263 actions) vem do catálogo da
+API, que `packages/database` não importa.
 
 | Garantia | Como |
 | -------- | ---- |
 | Senha estática | Literal no script de seed — **sem** override por `CISNE_*_PASSWORD` |
-| Idempotente | Reexecução não altera contagem de grants nem cria duplicata |
-| Empregado com menor privilégio | `rafael` **não** recebe o conjunto GLOBAL completo (0 grants financeiro/contábil/fiscal; 7 ASSIGNED + 4 GLOBAL de documento/ativo/insumo) |
-| Donos com acesso amplo de dev | `abrahim`/`monica` recebem todas as 263 actions em escopo GLOBAL |
+| Idempotente | Reexecução não altera contagem de capabilities nem de grants, nem cria duplicata |
+| Empregado com menor privilégio | `empregado@` não recebe o conjunto GLOBAL completo: papel `EMPREGADO` com 17 capabilities e **0** financeiro/contábil/fiscal; grants 7 GLOBAL + 10 ASSIGNED, **0** sensíveis |
+| Acesso amplo é explícito | Só os perfis marcados com `broadDevAccess` recebem as 263 actions — como grant direto **e** como capability de papel |
 | Proibido em produção | `runOperationalProfilesSeed` chama `assertDevelopmentOnly` |
 
+**Autorização tem dois caminhos — os dois precisam da guarda.** O PDP concede por grant direto e
+por capability de papel (`apps/api/src/authorization/services/policy-decision-point.service.ts`,
+`findRoleDerivedActionRows`). A correção registrada em 2026-09-25 revogou os grants GLOBAL diretos
+do antigo login do empregado, mas o papel dele continuou com as 263 actions — e o sobre-privilégio
+seguia **efetivo**: em 2026-09-25 aquele login respondia `200` em `/api/v1/authz/access-admin/*`.
+Corrigir apenas a tabela `grants` não basta; este é o invariante que `applyBroadDevAccess` protege.
+
 ```powershell
-pnpm --filter @cisne/database seed:profiles   # aplica/restaura os três logins estáticos
-pnpm auth:repair:dev-login                    # repara credencial em cisne_local_dev e cisne_runtime
+pnpm --filter @cisne/database seed:profiles   # perfis de negócio (abrahim, monica, empregado)
+pnpm auth:repair:dev-login                    # os 4 logins estáticos em cisne_local_dev e cisne_runtime
 ```
+
+Verificação usada (logins e permissão efetiva, não só a tabela de grants): login HTTP dos 4 perfis
+e sondagem de `/api/v1/authz/access-admin/identities`, `/api/v1/finance/payables`,
+`/api/v1/service-orders` por perfil. `empregado@` recebe `403` no console de acesso e `200` em
+ordens de serviço; `rafael@` recebe `200` em ambos, por decisão.
 
 **Exceção registrada (conflito com a regra histórica "Sem senha em código").** A regra da seção
 *Segurança* permanece válida para todo o resto: senhas reais, de produção e de homologação nunca
@@ -64,6 +87,11 @@ entram no código, e `PRODUCTION_BOOTSTRAP` continua exigindo variáveis de ambi
 explícita. A exceção é estritamente: identidades **sintéticas de desenvolvimento**, em domínio
 reservado RFC 2606 (`cisne-rondonia.invalid`), que nunca existem em HML nem em produção, e que o
 responsável exige como valor fixo. Não reutilizar esses valores fora de desenvolvimento.
+
+Identidades antigas de desenvolvimento que **permanecem no banco** (`controle@`,
+`controle-financeiro@`, `dev-operator@`) não fazem parte dos logins estáticos. A última carrega 263
+grants GLOBAL diretos e nenhum papel. Não foram removidas (preservação de histórico); se o banco
+dev for recriado, elas não voltam.
 
 ## SYNTHETIC_BUSINESS_SEED (development / homologation)
 

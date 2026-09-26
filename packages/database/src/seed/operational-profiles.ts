@@ -6,13 +6,22 @@ import { hashPassword } from './password-policy';
 
 export const ABRAHIM_OWNER_LOGIN = 'abrahim@cisne-rondonia.invalid';
 export const MONICA_OWNER_LOGIN = 'monica@cisne-rondonia.invalid';
+/**
+ * Desenvolvedor estatico com acesso GLOBAL de desenvolvimento (decisao registrada em
+ * 2026-09-25, prompt-execution-log). NAO e o empregado operacional: um mesmo login nao pode
+ * ser, ao mesmo tempo, "acesso global de desenvolvimento" e "somente ASSIGNED". O empregado
+ * operacional tem login proprio (`EMPREGADO_LOGIN`). As credenciais, o papel e o conjunto
+ * GLOBAL deste perfil sao aplicados por `scripts/repair-dev-login.mjs`, que enxerga o
+ * catalogo de actions da API — `packages/database` nao depende de `apps/api`.
+ */
 export const RAFAEL_DEVELOPER_LOGIN = 'rafael@cisne-rondonia.invalid';
 export const CONTROLE_LOGIN = ABRAHIM_OWNER_LOGIN;
 export const CONTROLE_FINANCEIRO_LOGIN = MONICA_OWNER_LOGIN;
-export const EMPREGADO_LOGIN = RAFAEL_DEVELOPER_LOGIN;
+/** Empregado operacional: somente as ordens atribuidas a ele (escopo ASSIGNED). */
+export const EMPREGADO_LOGIN = 'empregado@cisne-rondonia.invalid';
 export const CONTROLE_ROLE_CODE = 'OWNER';
 export const CONTROLE_FINANCEIRO_ROLE_CODE = 'OWNER';
-export const EMPREGADO_ROLE_CODE = 'DEVELOPER';
+export const EMPREGADO_ROLE_CODE = 'EMPREGADO';
 export const EMPREGADO_MEMBER_CODE = 'EMP-DEV-001';
 export const OPERATIONAL_UNIT_REF = 'UN-DEV-001';
 
@@ -411,9 +420,12 @@ async function ensureWorkforceMember(pool: Pool, identityId: string): Promise<st
 }
 
 /**
- * Perfis m뿯½nimos de desenvolvimento: CONTROLE e EMPREGADO.
- * Grants GLOBAL s뿯½o o que os servi뿯½os de OS/financeiro consultam al뿯½m do PDP.
- * N뿯½o atribui OS a ningu뿯½m.
+ * Perfis minimos de desenvolvimento: CONTROLE, CONTROLE_FINANCEIRO e EMPREGADO.
+ * Grants GLOBAL sao o que os servicos de OS/financeiro consultam alem do PDP.
+ * Nao atribui OS a ninguem.
+ *
+ * O desenvolvedor com acesso global (`RAFAEL_DEVELOPER_LOGIN`) NAO entra aqui: ele recebe
+ * todas as actions do catalogo, que este pacote nao enxerga (ver `repair-dev-login.mjs`).
  */
 export async function runOperationalProfilesSeed(
   pool: Pool,
@@ -440,8 +452,8 @@ export async function runOperationalProfilesSeed(
   const empregadoRole = await ensureRole(
     pool,
     EMPREGADO_ROLE_CODE,
-    'Desenvolvedor',
-    'Perfil estático de desenvolvedor com acesso global de desenvolvimento.',
+    'Empregado',
+    'Perfil estático do empregado operacional: somente as ordens atribuídas (ASSIGNED), sem financeiro, contábil ou fiscal.',
     controle.identityId,
     EMPREGADO_GRANTS.map((grant) => grant.action),
   );

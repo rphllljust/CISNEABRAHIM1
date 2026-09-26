@@ -13132,3 +13132,74 @@ Os tres identificadores existiam em `cisne_local_dev` e estavam `active`, mas **
 Escopo nao coberto: HML (`cisne_hml`) **nao** recebeu estes logins — la permanece `hml-admin@cisne.invalid`. `cisne_runtime` nao existe no PostgreSQL local; os dois scripts reportam esse banco como `skipped` com a razao, sem ocultar a falha.
 
 | Resultado | `PASS` — os tres logins estaticos autenticam com as senhas exatas informadas, com o empregado mantido em menor privilegio e sem regressao de gate |
+
+---
+
+## CORRECAO: AUTORIZACAO POR CAPABILITY DE PAPEL — split desenvolvedor x empregado — 2026-09-25
+
+| Campo | Valor |
+| ----- | ----- |
+| Status | `PASS` (corrigido + verificado) |
+| Classificacao | Bug real / autorizacao / seed de desenvolvimento |
+| Decisao do responsavel | `rafael@` e o **desenvolvedor com acesso global**; o empregado operacional passa a ter login proprio |
+| Producao | `NO-GO` mantido (blocker externo de piloto) |
+
+### Retificacao do registro anterior
+
+O registro imediatamente acima ("LOGINS ESTATICOS DE DESENVOLVIMENTO") afirma que o empregado ficou com "0 financeiro/contabil/fiscal". Aquilo era verdade **apenas para a tabela `authorization.grants`** (11 linhas). A permissao **efetiva** nao foi verificada naquela rodada e continuava ampla. Este registro corrige a afirmacao; o texto anterior permanece como esta (nao se apaga historico).
+
+### Achado 1 (o segundo caminho de autorizacao — escalada efetiva)
+
+O PDP concede acesso por **grant direto** E por **capability de papel**: `policy-decision-point.service.ts` chama `findRoleDerivedActionRows` ("uma capability de role igual a action pedida e atribuida a identidade concede acesso com as mesmas regras de escopo das grants").
+
+`scripts/repair-dev-login.mjs` (`ensureStaticRole` -> `ensureRoleCapabilities`) atribuia `Object.values(AUTHZ_ACTIONS)` — **263** actions — ao papel de **todo** perfil. Consequencia materializada no banco dev:
+
+| Papel | Capabilities | Incluia |
+| ----- | ------------ | ------- |
+| `DEVELOPER` (atribuido ao antigo login do empregado, GLOBAL) | 263 | `authz:access-admin:read`, `authz:access-admin:manage`, `authz:grant:create/revoke`, todo `finance:*`, `accounting:*`, `fiscal:*` |
+
+Prova por HTTP, com o login entao tratado como "empregado de menor privilegio": `GET /api/v1/authz/access-admin/identities` -> **200**; `GET /api/v1/authz/access-admin/catalog` -> **200**; sem token -> 401. Ou seja, a correcao de 2026-09-25 (que revogou 249 grants diretos) nao fechou o acesso: limpou o artefato visivel e deixou intacta a origem real da permissao.
+
+A guarda que eu havia adicionado na rodada anterior cobria apenas `ensureDevelopmentGlobalGrants` (grants diretos). Era insuficiente pela mesma razao.
+
+### Achado 2 (conflito de fonte no mesmo login)
+
+`rafael@cisne-rondonia.invalid` estava definido simultaneamente como:
+- "Desenvolvedor estatico do CISNE com acesso global de desenvolvimento" (`scripts/repair-dev-login.mjs`);
+- "empregado operacional, somente ASSIGNED" (`operational-profiles.ts`, `EMPREGADO_LOGIN = RAFAEL_DEVELOPER_LOGIN`) — a regra registrada em 2026-09-25.
+
+Um login nao pode ser as duas coisas. Conflito registrado e levado ao responsavel; **nao** resolvido por preferencia tecnica (`AGENTS.md`, regra 13).
+
+### Decisao e correcao
+
+Decisao do responsavel: `rafael@` = desenvolvedor com acesso global (intencional). O empregado operacional recebeu login proprio — `empregado@cisne-rondonia.invalid`, identidade que **ja existia** no banco dev com o papel `EMPREGADO` (nao foi inventado um login novo).
+
+1. `operational-profiles.ts`: `EMPREGADO_LOGIN = 'empregado@cisne-rondonia.invalid'` (separado de `RAFAEL_DEVELOPER_LOGIN`); `EMPREGADO_ROLE_CODE = 'EMPREGADO'` (era `'DEVELOPER'`, o que emprestava ao empregado o papel amplo do desenvolvedor); rotulo/descricao do papel corrigidos.
+2. `seed-profiles.mjs`: senha estatica propria do empregado (`Cisne-Empregado-2026!`); a checagem de drift passou a comparar `empregado` em vez de `rafael`.
+3. `repair-dev-login.mjs`: `globalDevGrants` renomeado para `broadDevAccess` e a guarda movida para `applyBroadDevAccess`, que agora cobre **os dois** caminhos (papel + grants). Para `broadDevAccess: false` o script nao cria papel, nao adiciona capability e nao insere grant. `rafael@` voltou a `broadDevAccess: true`, conforme a decisao; `empregado@` entrou na lista com `false` e `roleCode: null`.
+4. `applyCanonicalProfiles` passou a semear o empregado com a credencial do **proprio** empregado (antes usava a do `rafael@`).
+5. Membro operacional `EMP-DEV-001`: relinkado de `rafael@` para `empregado@` (`ensureWorkforceMember` faz o relink a cada execucao).
+
+### Verificacao
+
+| Item | Resultado |
+| ---- | --------- |
+| Login HTTP dos 4 perfis (`POST /api/v1/auth/login`) | PASS — `abrahim` 200, `monica` 200, `rafael` 200, `empregado` 200 |
+| `empregado@` -> `/api/v1/authz/access-admin/identities` e `/catalog` | **403** (antes: 200) |
+| `empregado@` -> `/api/v1/service-orders` | 200 (escopo ASSIGNED) |
+| `rafael@` -> `/api/v1/authz/access-admin/*` | 200 (amplo, **por decisao**) |
+| Papel `EMPREGADO` | 17 capabilities, **0** financeiro/contabil/fiscal/authz (nao virou 263) |
+| `empregado@` grants | 7 GLOBAL + 10 ASSIGNED, **0** sensiveis |
+| `rafael@` | papel `DEVELOPER` 263 capabilities + 263 grants GLOBAL (amplo, por decisao) |
+| Membro `EMP-DEV-001` | relinkado para `empregado@` |
+| `seed.bootstrap.integration.spec.ts` | 10/10 PASS |
+| `@cisne/database` lint + typecheck; Prettier | PASS |
+| Idempotencia | reexecucao com `grantsAdded: 0` e sem alterar contagem de capabilities |
+
+### Observacoes honestas (nao corrigidas nesta rodada)
+
+- **Semantica de negacao inconsistente entre superficies irmas de financeiro.** Para um ator sem nenhum grant financeiro, `GET /api/v1/finance/receivables` responde `403 FINANCE_DENIED`, enquanto `GET /api/v1/finance/payables` e `GET /api/v1/finance/treasury/accounts` respondem `200 []`. **Nao ha vazamento de dado**: `payables-access.service.ts#list` avalia a autorizacao **por linha** e descarta as negadas (`catch { continue }`), entao o ator so ve linhas permitidas — com base vazia, a resposta e lista vazia. O efeito pratico e que um ator sem permissao nao distingue "sem dado" de "sem permissao". Registrado como inconsistencia; corrigir isso muda o contrato HTTP de superficies existentes e exige rodada propria.
+- **Identidades antigas permanecem no banco dev**: `controle@` (papel `CONTROLE`, 112 grants), `controle-financeiro@` (3), `dev-operator@` (**263 grants GLOBAL diretos, sem papel**). Nao foram removidas (preservacao de historico), mas nao fazem parte dos logins estaticos nem voltam se o banco dev for recriado. `dev-operator@` e a de maior atencao.
+- **Sessao travada da suite de integracao**: a primeira execucao do gate ficou 180s no `beforeAll` esperando o advisory lock do banco de teste. Causa: uma sessao orfa de `cisne_local_test` (pid 62179, `idle`, ultima query `INSERT INTO pty.establishment_tax_registrations`, 6min parada) segurava o lock; havia ainda uma sessao `active` presa em `TRUNCATE`. As duas foram encerradas com `pg_terminate_backend` e o gate passou. E residuo de execucao anterior, nao um defeito do codigo deste prompt — mas o sintoma (timeout de hook em vez de erro claro) e uma lacuna de diagnostico.
+
+| Resultado | `PASS` — `rafael@` amplo por decisao, `empregado@` com login proprio e perfil minimo efetivo, escalada por capability de papel fechada nos dois caminhos de autorizacao |

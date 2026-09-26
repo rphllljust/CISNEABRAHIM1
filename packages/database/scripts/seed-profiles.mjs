@@ -41,14 +41,19 @@ if (!process.env['NODE_ENV']) {
 /**
  * Logins estaticos de desenvolvimento.
  *
- * As senhas sao estaticas por requisito do responsavel: os tres logins abaixo precisam
- * funcionar sempre com exatamente estes valores. Nao ha override por variavel de ambiente —
- * um `CISNE_*_PASSWORD` exportado no shell mudaria o login silenciosamente e quebraria o
- * requisito. Os identificadores vem do modulo canonico (`./dist/seed/operational-profiles.js`).
+ * As senhas sao estaticas por requisito do responsavel: estes logins precisam funcionar
+ * sempre com exatamente estes valores. Nao ha override por variavel de ambiente — um
+ * `CISNE_*_PASSWORD` exportado no shell mudaria o login silenciosamente e quebraria o
+ * requisito. Os identificadores vem do modulo canonico
+ * (`./dist/seed/operational-profiles.js`).
+ *
+ * `rafael@` NAO esta nesta lista: ele e o desenvolvedor com acesso GLOBAL (decisao de
+ * 2026-09-25) e e semeado por `scripts/repair-dev-login.mjs`, que enxerga o catalogo de
+ * actions da API. O empregado operacional tem login proprio (`empregado@`).
  */
 const controlePassword = 'Cisne-Abrahim-2026!';
 const controleFinanceiroPassword = 'Cisne-Monica-2026!';
-const empregadoPassword = 'Cisne-Rafael-Dev-2026!';
+const empregadoPassword = 'Cisne-Empregado-2026!';
 
 const requireFromDatabase = createRequire(resolve(packageRoot, 'package.json'));
 const { Pool } = requireFromDatabase('pg');
@@ -77,12 +82,12 @@ try {
   const seededLogins = {
     abrahim: ABRAHIM_OWNER_LOGIN,
     monica: CONTROLE_FINANCEIRO_LOGIN,
-    rafael: EMPREGADO_LOGIN,
+    empregado: EMPREGADO_LOGIN,
   };
   const expectedLogins = {
     abrahim: result.controleLogin,
     monica: result.controleFinanceiroLogin,
-    rafael: result.empregadoLogin,
+    empregado: result.empregadoLogin,
   };
   for (const [profile, expected] of Object.entries(expectedLogins)) {
     if (seededLogins[profile] !== expected) {
