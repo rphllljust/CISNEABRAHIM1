@@ -420,7 +420,7 @@ describe('Finance receivables PostgreSQL integration', () => {
     expect(settled.remainingBalance).toBe('60');
 
     const reversed = await receivablesAccess.reverseSettlement(
-      checker,
+      originator,
       opened.id,
       settled.settlements[0]!.id,
       { reason: 'Recebimento lançado em conta incorreta.', idempotencyKey: `rev-${crypto.randomUUID()}` },
@@ -443,7 +443,7 @@ describe('Finance receivables PostgreSQL integration', () => {
       idempotencyKey: `settle-${crypto.randomUUID()}`,
     });
     const original = settled.settlements[0]!;
-    await receivablesAccess.reverseSettlement(checker, opened.id, original.id, {
+    await receivablesAccess.reverseSettlement(originator, opened.id, original.id, {
       reason: 'Correção autorizada.',
       idempotencyKey: `rev-${crypto.randomUUID()}`,
     });
@@ -498,19 +498,19 @@ describe('Finance receivables PostgreSQL integration', () => {
     });
     const key = `rev-${crypto.randomUUID()}`;
 
-    const first = await receivablesAccess.reverseSettlement(checker, opened.id, settled.settlements[0]!.id, {
+    const first = await receivablesAccess.reverseSettlement(originator, opened.id, settled.settlements[0]!.id, {
       reason: 'Correção autorizada.', idempotencyKey: key,
     });
-    const replay = await receivablesAccess.reverseSettlement(checker, opened.id, settled.settlements[0]!.id, {
+    const replay = await receivablesAccess.reverseSettlement(originator, opened.id, settled.settlements[0]!.id, {
       reason: 'Correção autorizada.', idempotencyKey: key,
     });
 
     expect(replay.settlements).toHaveLength(1);
     expect(replay.remainingBalance).toBe('100');
-    expect(first.settlements[0]?.reversedAt).toBe(replay.settlements[0]?.reversedAt);
+    expect(String(first.settlements[0]?.reversedAt)).toBe(String(replay.settlements[0]?.reversedAt));
 
     await expect(
-      receivablesAccess.reverseSettlement(checker, opened.id, settled.settlements[0]!.id, {
+      receivablesAccess.reverseSettlement(originator, opened.id, settled.settlements[0]!.id, {
         reason: 'Nova tentativa.', idempotencyKey: `rev-2-${crypto.randomUUID()}`,
       }),
     ).rejects.toMatchObject({ code: FINANCE_ERROR_CODES.SETTLEMENT_ALREADY_REVERSED });

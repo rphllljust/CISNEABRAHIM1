@@ -223,11 +223,13 @@ export class ReceivablesAccessService implements FinanceReceivablePort {
     });
     try {
       const validated = validateReverseSettlementInput(input);
+      const settlements = await this.repository.listSettlements(receivableId);
+      const source = settlements.find((item) => item.id === settlementId);
       const scope = resolveSodScope(row.unit_id);
       await this.sod.enforce(actor, {
         duty: SOD_DUTIES.ReceivableReverse,
-        originatorIdentityId: row.created_by_identity_id,
-        amount: '0',
+        originatorIdentityId: source?.actor_identity_id,
+        amount: source?.amount ?? '0',
         ...scope,
       });
       const reversed = await this.repository.reverseSettlement({

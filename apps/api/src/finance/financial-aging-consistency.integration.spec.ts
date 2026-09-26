@@ -19,8 +19,11 @@ import { bindFinancialChain, type BoundFinancialChain } from '../test/financial-
  * FINANCIAL AGING CONSISTENCY — fechamento.
  * - Concorrencia pagamento x leitura canonica (FIN-SEM-001): saldo nunca negativo,
  *   sequencia monotona nao-crescente e exclusao apos pagamento integral (zero real).
- * - Invariante de schema: settlement_status so possui POSTED; builder canonicos filtram
- *   s.status = 'POSTED' (defesa em profundidade; nao-POSTED nao e representavel).
+ * - Invariante de schema e de leitura: fin.settlement_status e ('POSTED','REVERSED') —
+ *   0044 criou o tipo com POSTED e 0080 acrescentou REVERSED para o estorno do
+ *   recebimento. Os builders canonicos de aging continuam somando SOMENTE POSTED:
+ *   REVERSED permanece no historico do fato, mas nao abate o saldo devedor
+ *   (prova de efeito no ultimo teste deste arquivo).
  * Dinheiro somente string numeric. Base PostgreSQL real.
  */
 
@@ -35,7 +38,7 @@ function relDate(offsetDays: number): string {
 const OVERDUE_SQL = buildOverdueReceivableAggregateSql({ scopeClause: 'TRUE', tzParam: '$1' });
 const AWAITING_SQL = buildAwaitingReceivableAggregateSql({ scopeClause: 'TRUE', tzParam: '$1' });
 
-describe('FINANCIAL AGING CONSISTENCY - concorrencia e invariante POSTED (PostgreSQL real)', () => {
+describe('FINANCIAL AGING CONSISTENCY - concorrencia e invariante POSTED|REVERSED (PostgreSQL real)', () => {
   let pool: Pool;
   let chain: BoundFinancialChain;
   let actorId: string;
@@ -114,7 +117,7 @@ describe('FINANCIAL AGING CONSISTENCY - concorrencia e invariante POSTED (Postgr
     expect(compareMoneyAmounts(direct.rows[0]!.remaining, '0')).toBe(0);
   });
 
-  it('invariante: settlement_status so POSTED (nao-POSTED nao representavel) e builders filtram POSTED', async () => {
+  it('invariante: settlement_status POSTED|REVERSED, builders de aging somam so POSTED e REVERSED nao abate o saldo', async () => {
     const labels = await pool.query<{ enumlabel: string }>(
       `SELECT e.enumlabel
        FROM pg_enum e
@@ -122,8 +125,40 @@ describe('FINANCIAL AGING CONSISTENCY - concorrencia e invariante POSTED (Postgr
        WHERE t.typname = 'settlement_status'
        ORDER BY e.enumsortorder`,
     );
-    expect(labels.rows.map((row) => row.enumlabel)).toEqual(['POSTED']);
+    expect(labels.rows.map((row) => row.enumlabel)).toEqual(['POSTED', 'REVERSED']);
     expect(OVERDUE_SQL).toContain("s.status = 'POSTED'");
     expect(AWAITING_SQL).toContain("s.status = 'POSTED'");
+
+    // Prova de efeito do contrato: o recebimento estornado continua registrado, mas a
+    // posicao de aging nao o desconta. A construcao do estado aqui e direta de proposito —
+    // o fluxo de estorno (SoD, idempotencia, reconciliacao) e o objeto de
+    // receivables.integration.spec.ts; aqui o objeto sob teste e o SQL canonico de aging.
+    const reversedRec = await chain.chain({
+      unit: 'fc-reversed',
+      principal: '100.0000',
+      dueDate: relDate(-1),
+    });
+    await chain.settle(reversedRec, '40.0000');
+
+    const afterPosted = await pool.query<{ count: number; total_amount: string }>(OVERDUE_SQL, [TZ]);
+    expect(afterPosted.rows[0]?.count ?? 0).toBe(1);
+    expect(compareMoneyAmounts(afterPosted.rows[0]!.total_amount, '60.0000')).toBe(0);
+
+    await pool.query(
+      `UPDATE fin.settlements
+       SET status = 'REVERSED',
+           reversed_at = NOW(),
+           reversal_reason = $2,
+           reversal_idempotency_key = $3
+       WHERE receivable_id = $1`,
+      [reversedRec, 'Estorno para prova da invariante de aging.', `rev-aging-${crypto.randomUUID()}`],
+    );
+
+    const afterReversal = await pool.query<{ count: number; total_amount: string }>(OVERDUE_SQL, [TZ]);
+    expect(afterReversal.rows[0]?.count ?? 0).toBe(1);
+    expect(compareMoneyAmounts(afterReversal.rows[0]!.total_amount, '100.0000')).toBe(0);
+
+    const awaitingAfterReversal = await pool.query<{ count: number }>(AWAITING_SQL, [TZ]);
+    expect(awaitingAfterReversal.rows[0]?.count ?? 0).toBe(0);
   });
 });
