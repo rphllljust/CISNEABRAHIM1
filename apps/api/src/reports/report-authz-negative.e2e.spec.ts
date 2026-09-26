@@ -22,6 +22,7 @@ describe('REPORT AUTHZ HTTP NEGATIVE', () => {
   let app: NestFastifyApplication;
   let pool: Pool;
   const testDatabaseUrl = process.env['TEST_DATABASE_URL'];
+  const previousReportsFlag = process.env['FEATURE_MODULE_REPORTS'];
   const REPORT = '/api/v1/reports';
 
   beforeAll(async () => {
@@ -29,6 +30,7 @@ describe('REPORT AUTHZ HTTP NEGATIVE', () => {
       throw new Error('TEST_DATABASE_URL is required.');
     }
     applyAuthTestEnv(testDatabaseUrl);
+    process.env['FEATURE_MODULE_REPORTS'] = 'true';
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -47,6 +49,11 @@ describe('REPORT AUTHZ HTTP NEGATIVE', () => {
   });
 
   afterAll(async () => {
+    if (previousReportsFlag === undefined) {
+      delete process.env['FEATURE_MODULE_REPORTS'];
+    } else {
+      process.env['FEATURE_MODULE_REPORTS'] = previousReportsFlag;
+    }
     await pool?.end();
     await app.close();
   });
