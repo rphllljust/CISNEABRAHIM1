@@ -123,6 +123,7 @@ export class ResourcePlanningRepository {
 
   async createPlannedResource(input: CreatePlannedResourcePersistenceInput): Promise<PlannedResourceRow> {
     const client = await this.pool().connect();
+    let evictWith: Error | undefined;
     try {
       await client.query('BEGIN');
       const result = await client.query<PlannedResourceRow>(
@@ -164,10 +165,10 @@ export class ResourcePlanningRepository {
       await client.query('COMMIT');
       return row;
     } catch (error) {
-      await client.query('ROLLBACK');
+      evictWith = await this.rollbackKeepingPrimaryCause(client);
       throw error;
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 
@@ -821,6 +822,26 @@ export class ResourcePlanningRepository {
     assetId: string,
   ): Promise<PhysicalAssetAllocationContext | null> {
     return lockPhysicalAssetForAllocation(client, assetId);
+  }
+
+  /**
+   * ROLLBACK no caminho de erro sem mascarar a causa primaria.
+   *
+   * Mesmo contrato do helper provado em `packages/database/src/transaction.ts` e do
+   * idioma ja aplicado em `establishment-registry.repository.ts`: a falha da operacao
+   * continua sendo a causa propagada (a excecao de negocio nao vira erro de conexao) e,
+   * quando o proprio ROLLBACK falha, a conexao e DESCARTADA via `client.release(err)`
+   * em vez de voltar ao pool com a transacao em estado desconhecido.
+   */
+  private async rollbackKeepingPrimaryCause(client: PoolClient): Promise<Error | undefined> {
+    try {
+      await client.query('ROLLBACK');
+      return undefined;
+    } catch (rollbackFailure) {
+      return rollbackFailure instanceof Error
+        ? rollbackFailure
+        : new Error(String(rollbackFailure));
+    }
   }
 
   /**

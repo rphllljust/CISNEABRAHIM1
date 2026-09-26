@@ -749,6 +749,31 @@ $$;`);
       await applySqlFile(pool, '0079_clients_list_indexes.sql');
     }
 
+    const hasSettlementReversedStatus = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM pg_enum e
+         INNER JOIN pg_type t ON t.oid = e.enumtypid
+         INNER JOIN pg_namespace n ON n.oid = t.typnamespace
+         WHERE n.nspname = 'fin'
+           AND t.typname = 'settlement_status'
+           AND e.enumlabel = 'REVERSED'
+       ) AS exists`,
+    );
+    if (!hasSettlementReversedStatus.rows[0]?.exists) {
+      await applySqlFile(pool, '0080_receivable_settlement_reversal.sql');
+    }
+
+    const hasSettlementReversalColumns = await columnExists(
+      pool,
+      'fin',
+      'settlements',
+      'reversal_idempotency_key',
+    );
+    if (!hasSettlementReversalColumns) {
+      await applySqlFile(pool, '0081_receivable_settlement_reversal_columns.sql');
+    }
+
     await syncDrizzleJournal(pool);
   } finally {
     await pool.end();

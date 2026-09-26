@@ -317,6 +317,7 @@ export class ReceivablesRepository {
     input: ReverseSettlementPersistenceInput,
   ): Promise<ReverseSettlementPersistenceResult> {
     const client = await this.pool().connect();
+    let evictWith: Error | undefined;
     try {
       await client.query('BEGIN');
       // Ordem de lock do financeiro: receivable -> settlement.
@@ -397,7 +398,7 @@ export class ReceivablesRepository {
         idempotent: false,
       };
     } catch (error) {
-      await client.query('ROLLBACK');
+      evictWith = await this.rollbackKeepingPrimaryCause(client);
       if (isUniqueViolation(error)) {
         // Reversao concorrente com a mesma chave: devolve o fato ja efetivado.
         const existing = await this.pool().query<SettlementRow>(
@@ -413,7 +414,7 @@ export class ReceivablesRepository {
       }
       throw error;
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 
@@ -486,6 +487,34 @@ export class ReceivablesRepository {
       [receivableId],
     );
     return result.rows;
+  }
+
+  /**
+   * ROLLBACK no caminho de erro sem mascarar a causa primaria.
+   *
+   * Mesmo contrato do helper provado em `packages/database/src/transaction.ts` e do
+   * idioma ja aplicado em `establishment-registry.repository.ts`:
+   *
+   * - a falha da OPERACAO continua sendo a causa propagada, com `code` e demais campos
+   *   preservados para o mapeamento de erro do chamador;
+   * - devolve `undefined` quando o ROLLBACK foi confirmado, e a conexao pode voltar ao
+   *   pool; devolve o erro do ROLLBACK quando ele tambem falhou, para que a conexao seja
+   *   DESCARTADA (`client.release(err)` remove a conexao do pool) em vez de reutilizada
+   *   com a transacao em estado desconhecido.
+   *
+   * Sem isso, `await client.query('ROLLBACK')` dentro do `catch` substitui o erro de
+   * negocio pelo erro do ROLLBACK — um 23505 de reversao concorrente chegaria ao
+   * chamador como erro generico de conexao, quebrando o replay idempotente.
+   */
+  private async rollbackKeepingPrimaryCause(client: PoolClient): Promise<Error | undefined> {
+    try {
+      await client.query('ROLLBACK');
+      return undefined;
+    } catch (rollbackFailure) {
+      return rollbackFailure instanceof Error
+        ? rollbackFailure
+        : new Error(String(rollbackFailure));
+    }
   }
 }
 
