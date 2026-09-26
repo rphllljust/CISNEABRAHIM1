@@ -230,6 +230,62 @@ describe('Documents PostgreSQL integration', () => {
 
     const listed = await documentsAccess.list(unitBReader, { limit: 20, offset: 0 });
     expect(listed.items).toHaveLength(0);
+    // O total usa o MESMO predicado da pagina: fora do escopo nao ha documento para contar.
+    expect(listed.total).toBe(0);
+  });
+
+  it('returns the total of the whole filtered set, not the size of the page', async () => {
+    const actor = await seedActor();
+    const unitBReader = await seedActor('UNIT_B');
+    const pdf = minimalPdfBuffer();
+    const seed = (title: string, categoryCode: DocumentCategory) =>
+      documentsAccess.createWithUpload(
+        actor,
+        { title, categoryCode, classificationCode: 'INTERNAL', unitId: UNIT_A },
+        { buffer: pdf, filename: 'evidence.pdf', mimetype: 'application/pdf' },
+      );
+
+    await seed('Evidência UAT — Locação de equipamento', DOCUMENT_CATEGORIES.Evidence);
+    await seed('Evidência UAT — Transporte de carga municipal', DOCUMENT_CATEGORIES.Evidence);
+    await seed('Contrato assinado', DOCUMENT_CATEGORIES.General);
+    await seed('Nota de faturamento', DOCUMENT_CATEGORIES.BillingDocument);
+
+    // Pag 1 de 20 sobre 4 documentos: o total e do CONJUNTO. Se `total` viesse da pagina, aqui
+    // seriam 4 — mas com limit=1 a prova fica inequivoca: 1 item, total 4.
+    const single = await documentsAccess.list(actor, { limit: 1, offset: 0 });
+    expect(single.items).toHaveLength(1);
+    expect(single.total).toBe(4);
+
+    // Navegacao real: a ultima pagina devolve o resto, e o total nao muda com o offset.
+    const secondPage = await documentsAccess.list(actor, { limit: 3, offset: 3 });
+    expect(secondPage.items).toHaveLength(1);
+    expect(secondPage.total).toBe(4);
+
+    const beyondEnd = await documentsAccess.list(actor, { limit: 3, offset: 12 });
+    expect(beyondEnd.items).toHaveLength(0);
+    expect(beyondEnd.total).toBe(4);
+
+    // Mesmos filtros da pagina: o total acompanha busca e tipo.
+    const byTitle = await documentsAccess.list(actor, {
+      limit: 20,
+      offset: 0,
+      q: 'Evidência UAT',
+    });
+    expect(byTitle.total).toBe(2);
+
+    const byCategory = await documentsAccess.list(actor, {
+      limit: 20,
+      offset: 0,
+      categoryCode: DOCUMENT_CATEGORIES.Evidence,
+      q: 'Transporte',
+    });
+    expect(byCategory.items).toHaveLength(1);
+    expect(byCategory.total).toBe(1);
+
+    // Fora do escopo autorizado, nem pagina nem total: o count nao vaza o que a lista esconde.
+    const otherUnit = await documentsAccess.list(unitBReader, { limit: 20, offset: 0 });
+    expect(otherUnit.items).toHaveLength(0);
+    expect(otherUnit.total).toBe(0);
   });
 
   it('filters by title and category without breaking the authorized scope', async () => {

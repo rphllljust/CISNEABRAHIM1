@@ -39,6 +39,20 @@ export type DocumentDetail = {
   updatedAt: string;
 };
 
+/**
+ * Pagina da listagem.
+ *
+ * `total` e o tamanho do CONJUNTO escopado e filtrado — nao o tamanho da pagina — e e o que decide
+ * se existe proxima pagina. Sem ele a UI so poderia adivinhar por "a pagina veio cheia", o que
+ * oferece uma pagina fantasma quando o total e multiplo exato do tamanho da pagina.
+ */
+export type DocumentListResponse = {
+  items: DocumentDetail[];
+  limit: number;
+  offset: number;
+  total: number;
+};
+
 export type DocumentVersion = {
   id: string;
   documentId: string;

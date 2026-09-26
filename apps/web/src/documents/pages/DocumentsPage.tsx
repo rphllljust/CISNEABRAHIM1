@@ -15,6 +15,7 @@ import {
   ModuleLoadingState,
   ModulePage,
   ModulePageHeader,
+  ModulePagination,
   filterControlClass,
   filterLabelClass,
 } from '../../ui/module-layout';
@@ -31,6 +32,8 @@ import { formatDateTimePtBr } from '../utils/document-format';
 import {
   buildDocumentContextLabel,
   DOCUMENT_CATEGORY_OPTIONS,
+  formatDocumentCount,
+  formatDocumentRangeLabel,
   formatDocumentStatus,
   formatDocumentVersion,
 } from '../utils/document-list-labels';
@@ -50,12 +53,16 @@ export function DocumentsPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [retryable, setRetryable] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  // `total` e do CONJUNTO escopado e filtrado — nao da pagina. E o que permite dizer a pagina atual
+  // e desabilitar "Próxima" sem a heuristica de "a pagina veio cheia".
+  const [total, setTotal] = useState(0);
 
-  // Busca e tipo sao resolvidos no SERVIDOR: a lista traz apenas a primeira pagina, entao filtrar
-  // no browser mostraria um recorte como se fosse o cadastro inteiro.
+  // Busca e tipo sao resolvidos no SERVIDOR: a lista traz apenas uma pagina, entao filtrar no browser
+  // mostraria um recorte como se fosse o cadastro inteiro.
   const [searchInput, setSearchInput] = useState('');
   const [appliedSearch, setAppliedSearch] = useState('');
   const [categoryCode, setCategoryCode] = useState<'' | DocumentCategory>('');
+  const [offset, setOffset] = useState(0);
   // Recarga pedida pelo usuario percorre o mesmo ciclo de vida do efeito: assim tambem e cancelavel.
   const [reloadToken, setReloadToken] = useState(0);
   const searchInputId = useId();
@@ -65,26 +72,33 @@ export function DocumentsPage() {
     if (searchInput === appliedSearch) {
       return;
     }
-    const timer = setTimeout(() => setAppliedSearch(searchInput), SEARCH_DEBOUNCE_MS);
+    const timer = setTimeout(() => {
+      setAppliedSearch(searchInput);
+      // Mudar a consulta volta para a PRIMEIRA pagina: manter o offset anterior mostraria uma
+      // pagina que nao existe mais para o novo conjunto.
+      setOffset(0);
+    }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [appliedSearch, searchInput]);
 
   const load = useCallback(
-    async (search: string, category: '' | DocumentCategory, signal: AbortSignal) => {
+    async (search: string, category: '' | DocumentCategory, pageOffset: number, signal: AbortSignal) => {
       // Uma recarga preserva o resultado anterior: trocar a tela inteira por "Carregando…" faria a
       // tabela sumir a cada ajuste de filtro. So a primeira carga nao tem o que preservar.
       setPhase((current) => (current === 'ready' ? current : 'loading'));
       setIsRefreshing(true);
       try {
-        const documents = await listDocuments(signal, {
+        const response = await listDocuments(signal, {
           q: search.trim() || undefined,
           categoryCode: category || undefined,
+          offset: pageOffset,
         });
-        // Requisicao superada (outro filtro ja assumiu) nao escreve no estado.
+        // Requisicao superada (outro filtro ou pagina ja assumiu) nao escreve no estado.
         if (signal.aborted) {
           return;
         }
-        setItems(documents);
+        setItems(response.items);
+        setTotal(response.total);
         setPhase('ready');
       } catch (error) {
         // O cancelamento do proprio efeito nao e falha de carga.
@@ -117,9 +131,9 @@ export function DocumentsPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    void load(appliedSearch, categoryCode, controller.signal);
+    void load(appliedSearch, categoryCode, offset, controller.signal);
     return () => controller.abort();
-  }, [appliedSearch, categoryCode, load, reloadToken]);
+  }, [appliedSearch, categoryCode, load, offset, reloadToken]);
 
   if (phase === 'loading' || capabilitiesLoading) {
     return (
@@ -154,11 +168,13 @@ export function DocumentsPage() {
   }
 
   const hasFilters = appliedSearch.trim() !== '' || categoryCode !== '';
-  const isCatalogueEmpty = items.length === 0 && !hasFilters;
-  const isNoResult = items.length === 0 && hasFilters;
-  // O backend nao devolve `total`: a pagina cheia e a unica evidencia de que existem mais
-  // documentos. Dizer isso e melhor do que apresentar um recorte como se fosse o acervo inteiro.
-  const isTruncated = items.length >= DOCUMENT_LIST_PAGE_SIZE;
+  // Com `total` real, os estados deixam de ser deduzidos do tamanho da pagina: "sem resultado" e o
+  // conjunto vazio, "pagina inexistente" e o conjunto COM itens mas nenhum nesta pagina.
+  const isCatalogueEmpty = total === 0 && !hasFilters;
+  const isNoResult = total === 0 && hasFilters;
+  const isOutOfRange = items.length === 0 && total > 0;
+  const totalPages = Math.ceil(total / DOCUMENT_LIST_PAGE_SIZE);
+  const pageNumber = Math.floor(offset / DOCUMENT_LIST_PAGE_SIZE) + 1;
 
   return (
     <ModulePage>
@@ -195,7 +211,11 @@ export function DocumentsPage() {
             id={categoryFilterId}
             className={filterControlClass}
             value={categoryCode}
-            onChange={(event) => setCategoryCode(event.target.value as '' | DocumentCategory)}
+            onChange={(event) => {
+              setCategoryCode(event.target.value as '' | DocumentCategory);
+              // Mudar o filtro volta para a primeira pagina, pelo mesmo motivo da busca.
+              setOffset(0);
+            }}
           >
             <option value="">Todos</option>
             {DOCUMENT_CATEGORY_OPTIONS.map((option) => (
@@ -214,6 +234,7 @@ export function DocumentsPage() {
               setSearchInput('');
               setAppliedSearch('');
               setCategoryCode('');
+              setOffset(0);
             }}
           >
             Limpar
@@ -227,11 +248,24 @@ export function DocumentsPage() {
         ) : null}
       </div>
 
-      {isTruncated ? (
-        <p role="status" className="mb-4 text-sm text-gray-500">
-          Exibindo os {DOCUMENT_LIST_PAGE_SIZE} documentos mais recentes. Use a busca ou o filtro de
-          tipo para localizar os demais.
-        </p>
+      {isOutOfRange ? (
+        <div
+          className="rounded-xl bg-white p-6 text-sm text-gray-600 shadow-sm ring-1 ring-gray-900/5"
+          role="status"
+        >
+          <p className="font-semibold text-gray-900">
+            Esta página não existe mais para os filtros aplicados.
+          </p>
+          <p className="mt-2">
+            Existem {formatDocumentCount(total)} {total === 1 ? 'documento' : 'documentos'} no
+            total, em {formatDocumentCount(totalPages)} {totalPages === 1 ? 'página' : 'páginas'}.
+          </p>
+          <p className="mt-4">
+            <Button type="button" variant="secondary" onClick={() => setOffset(0)}>
+              Ir para a primeira página
+            </Button>
+          </p>
+        </div>
       ) : null}
 
       {isCatalogueEmpty ? (
@@ -264,6 +298,7 @@ export function DocumentsPage() {
                 setSearchInput('');
                 setAppliedSearch('');
                 setCategoryCode('');
+                setOffset(0);
               }}
             >
               Limpar filtros
@@ -345,6 +380,20 @@ export function DocumentsPage() {
             </DataTableBody>
           </DataTable>
         </div>
+      ) : null}
+
+      {/* "Existe proxima" vem do TOTAL informado pelo backend, e nao da heuristica "a pagina veio
+          cheia" — que oferecia uma pagina fantasma quando o total era multiplo exato do tamanho da
+          pagina. */}
+      {total > 0 || offset > 0 ? (
+        <ModulePagination
+          pageNumber={pageNumber}
+          rangeLabel={`Documentos ${formatDocumentRangeLabel(offset, items.length, total)}`}
+          previousDisabled={offset === 0}
+          nextDisabled={offset + items.length >= total}
+          onPrevious={() => setOffset(Math.max(0, offset - DOCUMENT_LIST_PAGE_SIZE))}
+          onNext={() => setOffset(offset + DOCUMENT_LIST_PAGE_SIZE)}
+        />
       ) : null}
     </ModulePage>
   );

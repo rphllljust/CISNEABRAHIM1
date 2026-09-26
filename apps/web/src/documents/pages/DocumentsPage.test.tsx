@@ -12,6 +12,13 @@ import { DOCUMENT_CATEGORIES } from '../types/document.types';
 
 const UAT_TITLE = 'Evidência UAT — Locação de equipamento';
 
+/**
+ * O mock da plataforma JA semeia um documento ('Anexo demo') em todo handler. Os totais esperados
+ * nos testes de paginacao sao, portanto, `semeados + 1` — e o total esperado e sempre escrito de
+ * forma explicita, para que a prova seja sobre o conjunto real e nao sobre um numero magico.
+ */
+const BASE_DOCUMENTS = 1;
+
 function renderPage() {
   return renderWithProviders(
     <Routes>
@@ -170,7 +177,7 @@ describe('DocumentsPage', () => {
         return Promise.resolve({
           ok: true,
           status: 200,
-          json: async () => ({ items: [], limit: 100, offset: 0 }),
+          json: async () => ({ items: [], limit: 20, offset: 0, total: 0 }),
         } as Response);
       }
       return null;
@@ -246,7 +253,7 @@ describe('DocumentsPage', () => {
     release({
       ok: true,
       status: 200,
-      json: async () => ({ items: [], limit: 100, offset: 0 }),
+      json: async () => ({ items: [], limit: 20, offset: 0, total: 0 }),
     } as Response);
 
     await waitFor(() => {
@@ -290,7 +297,120 @@ describe('DocumentsPage', () => {
 
     renderPage();
 
-    expect(await screen.findByText(/100 documentos mais recentes/i)).toBeInTheDocument();
+    // Com paginacao real, "pagina cheia" deixa de ser um aviso e passa a ser navegacao: o rodape
+    // informa a faixa visivel e o total do conjunto.
+    expect(await screen.findByText(new RegExp(`1–20 de ${100 + BASE_DOCUMENTS}`))).toBeInTheDocument();
+  });
+
+  it('paginates with the real total and never offers a ghost page', async () => {
+    const { mock, documents } = createPageFetchMock();
+    for (let index = 0; index < 25; index += 1) {
+      seed(documents, index + 1, `Documento ${String(index + 1).padStart(2, '0')}`, DOCUMENT_CATEGORIES.General);
+    }
+    const total = 25 + BASE_DOCUMENTS;
+    vi.stubGlobal('fetch', mock);
+    const user = userEvent.setup();
+
+    renderPage();
+    await screen.findByText(new RegExp(`1–20 de ${total}`));
+
+    // A pagina atual vem do TOTAL, nao do tamanho da pagina.
+    expect(screen.getByRole('button', { name: /anterior/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /próxima/i })).toBeEnabled();
+
+    await user.click(screen.getByRole('button', { name: /próxima/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(new RegExp(`21–${total} de ${total}`))).toBeInTheDocument();
+    });
+    // O offset foi para o SERVIDOR, e a ultima pagina nao oferece proxima.
+    expect(listQueries(mock).some((params) => params.get('offset') === '20')).toBe(true);
+    expect(screen.getByRole('button', { name: /próxima/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /anterior/i })).toBeEnabled();
+
+    await user.click(screen.getByRole('button', { name: /anterior/i }));
+    await waitFor(() => {
+      expect(screen.getByText(new RegExp(`1–20 de ${total}`))).toBeInTheDocument();
+    });
+  });
+
+  it('does not offer a next page when the total is an exact multiple of the page size', async () => {
+    // O defeito historico: com "a pagina veio cheia logo existe mais", 20 de 20 oferecia uma pagina
+    // fantasma. O total informado pelo backend diz que esta e a ultima pagina. 19 semeados + o
+    // documento padrao do mock = 20 exatos.
+    const { mock, documents } = createPageFetchMock();
+    for (let index = 0; index < 20 - BASE_DOCUMENTS; index += 1) {
+      seed(documents, index + 1, `Documento ${String(index + 1).padStart(2, '0')}`, DOCUMENT_CATEGORIES.General);
+    }
+    vi.stubGlobal('fetch', mock);
+
+    renderPage();
+
+    expect(await screen.findByText(/1–20 de 20/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /próxima/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /anterior/i })).toBeDisabled();
+  });
+
+  it('returns to the first page when the query changes', async () => {
+    const { mock, documents } = createPageFetchMock();
+    for (let index = 0; index < 25; index += 1) {
+      seed(documents, index + 1, `Documento ${String(index + 1).padStart(2, '0')}`, DOCUMENT_CATEGORIES.General);
+    }
+    const total = 25 + BASE_DOCUMENTS;
+    vi.stubGlobal('fetch', mock);
+    const user = userEvent.setup();
+
+    renderPage();
+    await screen.findByText(new RegExp(`1–20 de ${total}`));
+    await user.click(screen.getByRole('button', { name: /próxima/i }));
+    await screen.findByText(new RegExp(`21–${total} de ${total}`));
+
+    // Nova consulta volta para a primeira pagina: manter o offset mostraria uma pagina que nao
+    // existe mais para o novo conjunto.
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Tipo' }), 'GENERAL');
+
+    await waitFor(() => {
+      const lastQuery = listQueries(mock).at(-1);
+      expect(lastQuery?.get('offset')).toBe('0');
+      expect(lastQuery?.get('categoryCode')).toBe('GENERAL');
+    });
+  });
+
+  it('explains a page that no longer exists instead of claiming there are no documents', async () => {
+    // O conjunto encolheu em outra aba: ha documentos, mas nao NESTA pagina. Dizer "nenhum
+    // documento corresponde aos filtros" aqui seria falso.
+    const { mock, documents } = createPageFetchMock({}, (input, init) => {
+      const { pathname, searchParams } = parseRequestPath(input);
+      if (pathname === '/api/v1/documents' && (init?.method ?? 'GET') === 'GET') {
+        const offset = Number(searchParams.get('offset') ?? '0');
+        if (offset > 0) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ items: [], limit: 20, offset, total: 5 }),
+          } as Response);
+        }
+      }
+      return null;
+    });
+    for (let index = 0; index < 25; index += 1) {
+      seed(documents, index + 1, `Documento ${String(index + 1).padStart(2, '0')}`, DOCUMENT_CATEGORIES.General);
+    }
+    const total = 25 + BASE_DOCUMENTS;
+    vi.stubGlobal('fetch', mock);
+    const user = userEvent.setup();
+
+    renderPage();
+    await screen.findByText(new RegExp(`1–20 de ${total}`));
+    await user.click(screen.getByRole('button', { name: /próxima/i }));
+
+    expect(await screen.findByText(/esta página não existe mais/i)).toBeInTheDocument();
+    expect(screen.queryByText(/nenhum documento corresponde aos filtros/i)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /ir para a primeira página/i }));
+    await waitFor(() => {
+      expect(listQueries(mock).at(-1)?.get('offset')).toBe('0');
+    });
   });
 
   it('truncates a long title visually without losing the full value', async () => {

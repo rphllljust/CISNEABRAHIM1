@@ -127,6 +127,23 @@ export class DocumentsRepository {
     return result.rows;
   }
 
+  /**
+   * Total do MESMO conjunto que `listDocuments` devolve.
+   *
+   * Recebe a mesma clausula e os mesmos parametros da consulta de dados, para que pagina e total nao
+   * possam divergir: o total e do conjunto escopado e filtrado, nunca o tamanho da pagina. E UMA
+   * consulta de contagem por requisicao — nenhuma contagem por linha (N+1).
+   */
+  async countDocuments(whereClause: string, params: unknown[]): Promise<number> {
+    const result = await this.pool().query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total
+       FROM doc.documents
+       WHERE ${whereClause}`,
+      params,
+    );
+    return Number(result.rows[0]?.total ?? '0');
+  }
+
   async listVersions(documentId: string): Promise<DocumentVersionRow[]> {
     const result = await this.pool().query<DocumentVersionRow>(
       `SELECT

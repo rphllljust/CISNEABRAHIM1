@@ -227,7 +227,7 @@ export class DocumentsAccessService {
   async list(
     actor: IdentityAuthzContext,
     query: ListDocumentsQuery,
-  ): Promise<{ items: DocumentResponse[]; limit: number; offset: number }> {
+  ): Promise<{ items: DocumentResponse[]; limit: number; offset: number; total: number }> {
     const grants = await this.authz.findListGrants(actor);
     const scopeFilter = this.scopeEnforcement.buildDocumentListFilter(grants);
     if (scopeFilter.clause === 'FALSE') {
@@ -252,17 +252,23 @@ export class DocumentsAccessService {
       clauses.push(`title ILIKE $${params.length} ESCAPE '\\'`);
     }
 
+    const whereClause = clauses.join(' AND ');
     const items = await this.documentsRepository.listDocuments(
-      clauses.join(' AND '),
+      whereClause,
       params,
       query.limit,
       query.offset,
     );
+    // Mesmo predicado da pagina: escopo autorizado + filtros. O total e do CONJUNTO, entao uma
+    // pagina cheia nao vira "existe proxima" por heuristica nem pagina fantasma quando o total e
+    // multiplo exato do tamanho da pagina. Sequencial de proposito: uma conexao por requisicao.
+    const total = await this.documentsRepository.countDocuments(whereClause, params);
 
     const response = {
       items: items.map(toDocumentResponse),
       limit: query.limit,
       offset: query.offset,
+      total,
     };
     assertNoStorageKeyLeak(response);
     return response;

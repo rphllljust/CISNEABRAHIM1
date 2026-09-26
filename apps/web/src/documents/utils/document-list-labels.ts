@@ -63,3 +63,23 @@ export function buildDocumentContextLabel(
 export function formatDocumentVersion(currentVersionNumber: number | null): string {
   return currentVersionNumber ? `v${currentVersionNumber}` : '—';
 }
+
+const NUMBER_FORMAT = new Intl.NumberFormat('pt-BR');
+
+export function formatDocumentCount(total: number): string {
+  return NUMBER_FORMAT.format(total);
+}
+
+/**
+ * Faixa visivel da pagina, para o rodape de paginacao (ex.: "21–40 de 137").
+ *
+ * Mesmo formato da listagem de Clientes, para que a plataforma fale uma lingua so.
+ */
+export function formatDocumentRangeLabel(offset: number, visible: number, total: number): string {
+  if (total === 0) {
+    return 'Nenhum documento';
+  }
+  const first = offset + 1;
+  const last = offset + visible;
+  return `${NUMBER_FORMAT.format(first)}–${NUMBER_FORMAT.format(last)} de ${NUMBER_FORMAT.format(total)}`;
+}

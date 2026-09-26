@@ -14099,3 +14099,82 @@ nao o de gestao documental completa, que nao e o escopo do CISNE aqui).
    de download, entao a mudanca visual compartilhada do `DocumentDownloadAction` nao invalida PNG
    existente — verificado por varredura dos specs visuais.
 
+## Documentos — paginacao real da listagem (2026-09-26)
+
+Origem: fechar a pendencia 3 da frente anterior ("sem paginacao real: o contrato nao devolve
+`total`"). Escopo estritamente de paginacao; nada mais foi tocado.
+
+### GitHub
+
+Referencia unica consultada: **paperless-ngx** (documentacao da REST API). Padrao confirmado: a
+resposta de listagem carrega `count` do conjunto **ja filtrado e escopado** — nao o tamanho da pagina
+— e e esse numero que decide se existe proxima pagina. Extraido apenas o invariante. O formato
+(`next`/`previous` como URL) NAO foi copiado: o CISNE ja publica `limit`/`offset` e a UI de Clientes
+ja usa `total`, entao a adaptacao foi acrescentar `total` ao contrato existente.
+
+### Alteracao
+
+- **Repository**: `countDocuments(whereClause, params)` — `SELECT COUNT(*)` com a MESMA clausula e os
+  MESMOS parametros da consulta de dados. Uma consulta de contagem por requisicao; nenhuma contagem
+  por linha (sem N+1). Sequencial de proposito, para nao consumir duas conexoes do pool por request.
+- **Service**: `list()` passa a devolver `total` (campo aditivo). O predicado e montado UMA vez e
+  usado nas duas consultas, entao pagina e total nao podem divergir. Escopo autorizado preservado: o
+  `clause === 'FALSE'` continua negando antes de qualquer consulta.
+- **Web**: `listDocuments` devolve o envelope `DocumentListResponse` (`items`/`limit`/`offset`/
+  `total`); `DOCUMENT_LIST_PAGE_SIZE` passa de 100 para 20 (mesmo valor de Clientes e Ordens de
+  servico). A pagina ganhou `offset` e `total` em estado, rodape com `ModulePagination` (componente
+  existente), faixa visivel e numero de pagina. `nextDisabled` vem do TOTAL
+  (`offset + items.length >= total`), nunca de "a pagina veio cheia".
+- **Estados**: com `total` real eles deixam de ser deduzidos do tamanho da pagina — acervo vazio e
+  `total === 0` sem filtros, sem resultado e `total === 0` com filtros, e pagina inexistente e
+  `items.length === 0 && total > 0` (antes esse caso era exibido como "sem resultado", o que era
+  falso: existem documentos, so nao nesta pagina). O aviso paliativo de truncamento da rodada
+  anterior foi REMOVIDO — com navegacao real ele passaria a mentir.
+- **Busca e filtros**: continuam resolvidos no servidor e agora resetam o offset para 0 ao mudar a
+  consulta (manter o offset mostraria uma pagina que nao existe para o novo conjunto). Resultados
+  anteriores seguem preservados durante a recarga (`isRefreshing` + `aria-busy`), com as guardas de
+  cancelamento/resposta superada ja existentes.
+
+### Prova
+
+- **API com PostgreSQL 18 real** (`documents.integration.spec.ts`): 11/11. Prova nova: `limit=1`
+  sobre 4 documentos devolve 1 item e **total 4** (se o total viesse da pagina, seria 1); pagina 2
+  com `limit=3&offset=3` devolve 1 item e total 4; `offset=12` (alem do fim) devolve 0 itens e total
+  4; busca e tipo mudam o total (2 e 1); e o leitor de outra unidade recebe **0 itens e total 0** —
+  o count nao vaza o que a lista esconde. O teste de escopo cruzado existente tambem passou a
+  afirmar `total = 0`.
+- **Web** (`DocumentsPage.test.tsx`): 14/14; `src/documents` completo 33/33 (inclui o painel das
+  entidades, que consome o mock alterado). Provas novas: faixa "1–20 de N" com o total do conjunto;
+  navegacao real enviando `offset=20`; ultima pagina sem proxima e com anterior; **20 de 20 sem
+  pagina fantasma**; volta para a primeira pagina ao mudar a consulta; e pagina inexistente
+  explicada com saida (sem afirmar "nenhum documento corresponde aos filtros").
+- **Causa e efeito** (reversao temporaria isolada, restaurada e reconfirmada verde):
+  - backend com `total = items.length` → a prova de API FALHA com `expected 1 to be 4`;
+  - `nextDisabled` com a heuristica antiga (`items.length < PAGE_SIZE`) → o teste "20 de 20" FALHA
+    com o botao "Proxima" habilitado — exatamente o defeito historico da pagina fantasma.
+- **Mock de teste corrigido para paginar de verdade** (fatiar por `offset`/`limit` e devolver o total
+  do conjunto filtrado). Sem isso, os testes de paginacao passariam com um mock que devolve tudo
+  sempre. Duas asserções minhas tambem estavam erradas e foram corrigidas: o mock da plataforma ja
+  semeia 1 documento ('Anexo demo'), entao o total esperado e `semeados + 1`, agora escrito de forma
+  explicita no teste.
+- `typecheck` de `@cisne/api` e `@cisne/web` limpos; `eslint` de `src/documents` e do mock sem erro.
+  Unit de documentos da API 19/19.
+
+### Preservado
+
+- **Banco**: nenhuma migration e nenhum indice. O `COUNT(*)` usa exatamente o predicado que a
+  listagem ja usa, portanto os mesmos indices; nao ha defeito de performance comprovado que
+  justificasse migration nesta rodada.
+- **Autorizacao**: nenhum grant, nenhuma capability. O count usa o mesmo `buildDocumentListFilter`.
+- **Contrato**: rota, campos existentes e `limit`/`offset` intactos; `total` e campo NOVO e aditivo,
+  entao consumidores antigos (que ignoram campos extras) nao mudam de comportamento.
+- **Storage, download e busca por titulo**: intactos.
+
+### Pendencia que permanece
+
+- O filtro por situacao (`ACTIVE`/`ARCHIVED`) continua fora: a listagem nao suporta esse filtro e
+  criar um controle que nao filtra seria pior (Fase 2, inalterado por esta rodada).
+- Deep offset continua O(offset) no banco, como em Clientes; com 20 itens por pagina e acervo de
+  documentos de baixa cardinalidade, nao ha evidencia de problema real.
+
+

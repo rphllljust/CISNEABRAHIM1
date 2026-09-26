@@ -6,6 +6,7 @@ import {
   type CreateDocumentPayload,
   type DocumentCapabilities,
   type DocumentDetail,
+  type DocumentListResponse,
   type DocumentUploadResult,
   type DocumentVersion,
 } from '../types/document.types';
@@ -134,13 +135,11 @@ async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
 }
 
 /**
- * Tetos da primeira pagina da listagem.
+ * Tamanho da pagina da listagem.
  *
- * Mesmo valor usado antes desta frente (`limit=100&offset=0`), agora explicito e reaproveitado pela
- * tela para dizer com honestidade quando a pagina veio cheia — o backend nao devolve `total`, entao
- * "veio cheio" e a unica evidencia disponivel de que existem mais documentos.
+ * Mesmo valor das outras listagens da plataforma (Clientes, Ordens de servico): 20 itens por pagina.
  */
-export const DOCUMENT_LIST_PAGE_SIZE = 100;
+export const DOCUMENT_LIST_PAGE_SIZE = 20;
 
 export type ListDocumentsParams = {
   q?: string;
@@ -150,13 +149,13 @@ export type ListDocumentsParams = {
 };
 
 /**
- * Lista documentos. Parametros sao aditivos: sem eles a requisicao e exatamente a anterior
- * (`limit=100&offset=0`), de modo que os consumidores existentes nao mudam de comportamento.
+ * Lista documentos. Parametros sao aditivos: sem eles a requisicao continua sendo a primeira pagina
+ * do escopo (`limit=20&offset=0`), agora com o `total` do conjunto para a UI paginar de verdade.
  */
 export async function listDocuments(
   signal?: AbortSignal,
   params: ListDocumentsParams = {},
-): Promise<DocumentDetail[]> {
+): Promise<DocumentListResponse> {
   const search = new URLSearchParams();
   search.set('limit', String(params.limit ?? DOCUMENT_LIST_PAGE_SIZE));
   search.set('offset', String(params.offset ?? 0));
@@ -166,12 +165,11 @@ export async function listDocuments(
   if (params.categoryCode) {
     search.set('categoryCode', params.categoryCode);
   }
-  const body = await requestJson<{ items: DocumentDetail[] }>(`/api/v1/documents?${search}`, {
+  return requestJson<DocumentListResponse>(`/api/v1/documents?${search}`, {
     method: 'GET',
     headers: authHeaders(),
     signal,
   });
-  return body.items;
 }
 
 export async function getDocument(documentId: string, signal?: AbortSignal): Promise<DocumentDetail> {

@@ -152,10 +152,15 @@ export function createDocumentsFetchHandler(options: DocumentsFetchMockOptions =
           }
           return true;
         });
+        // Paginacao real, como o servidor: fatia pelo offset/limit e devolve o TOTAL do conjunto
+        // filtrado. Sem isso o teste de paginacao passaria com um mock que devolve tudo sempre.
+        const limit = Number(searchParams?.get('limit') ?? String(listed.length || 1));
+        const offset = Number(searchParams?.get('offset') ?? '0');
         return jsonResponse({
-          items: listed,
-          limit: 20,
-          offset: 0,
+          items: listed.slice(offset, offset + limit),
+          limit,
+          offset,
+          total: listed.length,
         });
       }
 
