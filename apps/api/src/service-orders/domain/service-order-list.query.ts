@@ -10,6 +10,17 @@ import { TERMINAL_SERVICE_ORDER_STATUSES } from './service-order.state-machine';
 export const SERVICE_ORDER_LIST_FILTERS = {
   Overdue: 'overdue',
   ApproachingDue: 'approaching-due',
+  /**
+   * Segmentos de despacho. Adaptados do padrao operacional de listagem de
+   * ordens de servico de campo (minhas / nao atribuidas / nao agendadas /
+   * hoje), apoiados apenas em dados que o CISNE ja possui: alocacoes ACTIVE
+   * e recursos planejados PLANNED com janela operacional - as mesmas fontes
+   * usadas pelo kernel de prazo so.deadline_for.
+   */
+  Mine: 'mine',
+  Unassigned: 'unassigned',
+  Unscheduled: 'unscheduled',
+  ScheduledToday: 'scheduled-today',
 } as const;
 
 export type ServiceOrderListFilter =
@@ -56,6 +67,56 @@ const TERMINAL_SERVICE_ORDER_SQL = Array.from(TERMINAL_SERVICE_ORDER_STATUSES)
 
 const DEADLINE_LATERAL_JOIN = `
 INNER JOIN LATERAL (SELECT so.deadline_for(so.id) AS deadline) deadlines ON TRUE`;
+
+const NON_TERMINAL_SERVICE_ORDER_SQL = `so.status NOT IN (${TERMINAL_SERVICE_ORDER_SQL})`;
+
+/**
+ * OS atribuida: existe alocacao ACTIVE de um membro de mao de obra ACTIVE
+ * com identidade vinculada. Mesma semantica do assigned_identity_id projetado
+ * em so.service_orders pelo repositorio.
+ */
+function buildAssignedIdentityExists(identityParam: string | null): string {
+  return `EXISTS (
+    SELECT 1
+    FROM res.resource_allocations ra
+    INNER JOIN wrk.workforce_members wm ON wm.id = ra.workforce_member_id
+    WHERE ra.service_order_id = so.id
+      AND ra.status = 'ACTIVE'::res.resource_allocation_status
+      AND wm.status = 'ACTIVE'::wrk.workforce_member_status
+      AND wm.identity_id IS NOT NULL
+      ${identityParam ? `AND wm.identity_id = ${identityParam}::uuid` : ''}
+  )`;
+}
+
+/**
+ * OS agendada: existe janela operacional ativa, em recurso planejado PLANNED
+ * ou em alocacao ACTIVE. As alocacoes tem janela obrigatoria por constraint
+ * de banco; os recursos planejados podem ter janela nula.
+ */
+function buildOperationalWindowExists(overlapsCurrentDayOnly: boolean): string {
+  const dayOverlap = `
+      AND pr.operational_start < date_trunc('day', NOW()) + INTERVAL '1 day'
+      AND pr.operational_end > date_trunc('day', NOW())`;
+  const allocationDayOverlap = `
+      AND ra.operational_start < date_trunc('day', NOW()) + INTERVAL '1 day'
+      AND ra.operational_end > date_trunc('day', NOW())`;
+  return `(
+    EXISTS (
+      SELECT 1
+      FROM so.planned_resources pr
+      WHERE pr.service_order_id = so.id
+        AND pr.status = 'PLANNED'::so.planned_resource_status
+        AND pr.operational_start IS NOT NULL
+        AND pr.operational_end IS NOT NULL${overlapsCurrentDayOnly ? dayOverlap : ''}
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM res.resource_allocations ra
+      WHERE ra.service_order_id = so.id
+        AND ra.status = 'ACTIVE'::res.resource_allocation_status${overlapsCurrentDayOnly ? allocationDayOverlap : ''}
+    )
+  )`;
+}
 
 export class ServiceOrderListQueryError extends Error {
   constructor(readonly field: string) {
@@ -128,10 +189,16 @@ export function parseListServiceOrdersQuery(query: Record<string, unknown>): Lis
   };
 }
 
+export type ServiceOrderListContext = {
+  /** Identidade do ator, necessaria para o segmento de despacho `mine`. */
+  actorIdentityId?: string;
+};
+
 export function buildServiceOrderListSqlParts(
   query: ListServiceOrdersQuery,
   scopeClause: string,
   scopeParams: unknown[],
+  context: ServiceOrderListContext = {},
 ): ServiceOrderListSqlParts {
   const clauses = [`(${scopeClause.replace(/\bunit_id\b/g, 'so.unit_id').replace(/\bclient_id\b/g, 'so.client_id')})`];
   const params = [...scopeParams];
@@ -186,6 +253,21 @@ export function buildServiceOrderListSqlParts(
     clauses.push(`so.status NOT IN (${TERMINAL_SERVICE_ORDER_SQL})`);
     clauses.push('deadlines.deadline > NOW()');
     clauses.push(`deadlines.deadline <= NOW() + (${thresholdParam}::int * INTERVAL '1 day')`);
+  } else if (query.filter === SERVICE_ORDER_LIST_FILTERS.Mine) {
+    if (!context.actorIdentityId) {
+      throw new ServiceOrderListQueryError('filter');
+    }
+    params.push(context.actorIdentityId);
+    clauses.push(buildAssignedIdentityExists(`$${params.length}`));
+  } else if (query.filter === SERVICE_ORDER_LIST_FILTERS.Unassigned) {
+    clauses.push(NON_TERMINAL_SERVICE_ORDER_SQL);
+    clauses.push(`NOT ${buildAssignedIdentityExists(null)}`);
+  } else if (query.filter === SERVICE_ORDER_LIST_FILTERS.Unscheduled) {
+    clauses.push(NON_TERMINAL_SERVICE_ORDER_SQL);
+    clauses.push(`NOT ${buildOperationalWindowExists(false)}`);
+  } else if (query.filter === SERVICE_ORDER_LIST_FILTERS.ScheduledToday) {
+    clauses.push(NON_TERMINAL_SERVICE_ORDER_SQL);
+    clauses.push(buildOperationalWindowExists(true));
   }
 
   return {

@@ -16,6 +16,7 @@ import {
   removeAllocation,
 } from '../api/service-order-planning-api';
 import { RequirementCoverageTable } from '../components/RequirementCoverageTable';
+import { ServiceOrderTimeline } from '../components/ServiceOrderTimeline';
 import { useServiceOrderPlanningCapabilities } from '../hooks/useServiceOrderPlanningCapabilities';
 import { PLANNED_RESOURCE_KINDS, type PlannedResource, type ResourceAllocation } from '../types/resource-planning.types';
 import { SERVICE_ORDER_STATUSES, type ServiceOrderDetail } from '../types/service-order.types';
@@ -646,6 +647,15 @@ export function ServiceOrderPlanningPage() {
             </table>
           </div>
         )}
+      </section>
+
+      <section className="planning-section" aria-labelledby="planning-timeline-heading">
+        <h2 id="planning-timeline-heading">Linha do tempo</h2>
+        <p className="planning-hint">
+          Histórico do ciclo de vida da OS, incluindo planejamento, despacho e execução. Somente
+          leitura.
+        </p>
+        <ServiceOrderTimeline events={order.historyEvents} />
       </section>
 
       {feedback ? (

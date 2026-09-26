@@ -33,6 +33,17 @@ export const SERVICE_ORDER_HISTORY_EVENTS = {
   Resumed: 'RESUMED',
   Completed: 'COMPLETED',
   Reopened: 'REOPENED',
+  /**
+   * Planejamento e despacho pertencem à mesma linha do tempo da OS.
+   * Sem estes eventos a fase de programação (planejado → alocado) fica
+   * invisível na rastreabilidade do agregado.
+   */
+  PlannedResourceAdded: 'PLANNED_RESOURCE_ADDED',
+  PlannedResourceUpdated: 'PLANNED_RESOURCE_UPDATED',
+  PlannedResourceRemoved: 'PLANNED_RESOURCE_REMOVED',
+  ResourceAllocated: 'RESOURCE_ALLOCATED',
+  ResourceReallocated: 'RESOURCE_REALLOCATED',
+  AllocationRemoved: 'ALLOCATION_REMOVED',
 } as const;
 
 export type ServiceOrderHistoryEventType =

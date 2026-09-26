@@ -12,10 +12,14 @@ import {
   assertAllocationsWithinPlannedWindow,
   assertPlannedOperationalWindow,
   buildAllocationHistoryPayload,
+  buildPlannedResourceHistoryPayload,
+  collectChangedPlannedResourceFields,
   PLANNED_RESOURCE_STATUSES,
   resolvePlannedOperationalWindow,
   RESOURCE_ALLOCATION_STATUSES,
+  type PlannedResourceHistorySnapshot,
 } from '../domain/resource-planning';
+import { SERVICE_ORDER_HISTORY_EVENTS } from '../domain/service-order';
 import type {
   AllocateResourcePersistenceInput,
   AllocateResourcePersistenceResult,
@@ -36,6 +40,7 @@ import {
   insertResourceAllocationHistory,
   isAllocationExclusionViolation,
 } from './resource-planning-allocation-rows';
+import { insertServiceOrderHistoryEvent } from './service-orders-history-rows';
 
 const PLANNED_SELECT = `
   SELECT
@@ -116,35 +121,53 @@ export class ResourcePlanningRepository {
   }
 
   async createPlannedResource(input: CreatePlannedResourcePersistenceInput): Promise<PlannedResourceRow> {
-    const result = await this.pool().query<PlannedResourceRow>(
-      `INSERT INTO so.planned_resources (
-         service_order_id, requirement_kind, resource_type_code, labor_type_code,
-         planned_quantity, operational_start, operational_end, notes,
-         created_by_identity_id, updated_by_identity_id
-       )
-       VALUES ($1, $2::so.planned_resource_kind, $3, $4, $5, $6, $7, $8, $9, $9)
-       RETURNING
-         id, service_order_id, requirement_kind::text AS requirement_kind,
-         resource_type_code, labor_type_code, planned_quantity::text AS planned_quantity,
-         operational_start, operational_end, notes, status::text AS status,
-         row_version, created_at, updated_at, created_by_identity_id, updated_by_identity_id`,
-      [
-        input.serviceOrderId,
-        input.requirementKind,
-        input.resourceTypeCode ?? null,
-        input.laborTypeCode ?? null,
-        input.plannedQuantity,
-        input.operationalStart ?? null,
-        input.operationalEnd ?? null,
-        input.notes ?? null,
-        input.actorIdentityId,
-      ],
-    );
-    const row = result.rows[0];
-    if (!row) {
-      throw new Error('PLANNED_RESOURCE_INSERT_FAILED');
+    const client = await this.pool().connect();
+    try {
+      await client.query('BEGIN');
+      const result = await client.query<PlannedResourceRow>(
+        `INSERT INTO so.planned_resources (
+           service_order_id, requirement_kind, resource_type_code, labor_type_code,
+           planned_quantity, operational_start, operational_end, notes,
+           created_by_identity_id, updated_by_identity_id
+         )
+         VALUES ($1, $2::so.planned_resource_kind, $3, $4, $5, $6, $7, $8, $9, $9)
+         RETURNING
+           id, service_order_id, requirement_kind::text AS requirement_kind,
+           resource_type_code, labor_type_code, planned_quantity::text AS planned_quantity,
+           operational_start, operational_end, notes, status::text AS status,
+           row_version, created_at, updated_at, created_by_identity_id, updated_by_identity_id`,
+        [
+          input.serviceOrderId,
+          input.requirementKind,
+          input.resourceTypeCode ?? null,
+          input.laborTypeCode ?? null,
+          input.plannedQuantity,
+          input.operationalStart ?? null,
+          input.operationalEnd ?? null,
+          input.notes ?? null,
+          input.actorIdentityId,
+        ],
+      );
+      const row = result.rows[0];
+      if (!row) {
+        throw new Error('PLANNED_RESOURCE_INSERT_FAILED');
+      }
+      await insertServiceOrderHistoryEvent(client, {
+        serviceOrderId: row.service_order_id,
+        eventType: SERVICE_ORDER_HISTORY_EVENTS.PlannedResourceAdded,
+        payload: buildPlannedResourceHistoryPayload(toPlannedResourceHistorySnapshot(row), {
+          plannedResourceId: row.id,
+        }),
+        actorIdentityId: input.actorIdentityId,
+      });
+      await client.query('COMMIT');
+      return row;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
-    return row;
   }
 
   async updatePlannedResource(
@@ -235,6 +258,18 @@ export class ResourcePlanningRepository {
         await client.query('ROLLBACK');
         return 'VERSION_CONFLICT';
       }
+      const changedFields = collectChangedPlannedResourceFields(current, input);
+      if (changedFields.length > 0) {
+        await insertServiceOrderHistoryEvent(client, {
+          serviceOrderId: updated.service_order_id,
+          eventType: SERVICE_ORDER_HISTORY_EVENTS.PlannedResourceUpdated,
+          payload: buildPlannedResourceHistoryPayload(toPlannedResourceHistorySnapshot(updated), {
+            plannedResourceId: updated.id,
+            changedFields,
+          }),
+          actorIdentityId: input.actorIdentityId,
+        });
+      }
       await client.query('COMMIT');
       return updated;
     } catch (error) {
@@ -301,6 +336,15 @@ export class ResourcePlanningRepository {
         await client.query('ROLLBACK');
         return 'VERSION_CONFLICT';
       }
+      await insertServiceOrderHistoryEvent(client, {
+        serviceOrderId: updated.service_order_id,
+        eventType: SERVICE_ORDER_HISTORY_EVENTS.PlannedResourceRemoved,
+        payload: buildPlannedResourceHistoryPayload(toPlannedResourceHistorySnapshot(updated), {
+          plannedResourceId: updated.id,
+          status: updated.status,
+        }),
+        actorIdentityId: input.actorIdentityId,
+      });
       await client.query('COMMIT');
       return updated;
     } catch (error) {
@@ -383,6 +427,7 @@ export class ResourcePlanningRepository {
         operationalEnd: input.operationalEnd,
         actorIdentityId: input.actorIdentityId,
         historyEventType: ALLOCATION_HISTORY_EVENTS.AllocateResource,
+        serviceOrderHistoryEventType: SERVICE_ORDER_HISTORY_EVENTS.ResourceAllocated,
         historyPayload: buildAllocationHistoryPayload({
           serviceOrderId: input.serviceOrderId,
           plannedResourceId: input.plannedResourceId,
@@ -496,6 +541,7 @@ export class ResourcePlanningRepository {
           operationalEnd: input.operationalEnd,
           actorIdentityId: input.actorIdentityId,
           historyEventType: ALLOCATION_HISTORY_EVENTS.ReallocateResource,
+          serviceOrderHistoryEventType: SERVICE_ORDER_HISTORY_EVENTS.ResourceReallocated,
           historyPayload: buildAllocationHistoryPayload(
             {
               serviceOrderId: input.serviceOrderId,
@@ -564,6 +610,7 @@ export class ResourcePlanningRepository {
         operationalEnd: input.operationalEnd,
         actorIdentityId: input.actorIdentityId,
         historyEventType: ALLOCATION_HISTORY_EVENTS.ReallocateResource,
+        serviceOrderHistoryEventType: SERVICE_ORDER_HISTORY_EVENTS.ResourceReallocated,
         historyPayload: buildAllocationHistoryPayload(
           {
             serviceOrderId: input.serviceOrderId,
@@ -705,6 +752,21 @@ export class ResourcePlanningRepository {
         actorIdentityId: input.actorIdentityId,
       });
 
+      await insertServiceOrderHistoryEvent(client, {
+        serviceOrderId: updated.service_order_id,
+        eventType: SERVICE_ORDER_HISTORY_EVENTS.AllocationRemoved,
+        payload: buildAllocationHistoryPayload({
+          serviceOrderId: updated.service_order_id,
+          plannedResourceId: updated.planned_resource_id,
+          physicalAssetId: updated.physical_asset_id,
+          workforceMemberId: updated.workforce_member_id,
+          resourceTypeCode: updated.resource_type_code,
+          operationalStart: updated.operational_start,
+          operationalEnd: updated.operational_end,
+        }, { allocationId: updated.id }),
+        actorIdentityId: input.actorIdentityId,
+      });
+
       await client.query('COMMIT');
       return updated;
     } catch (error) {
@@ -774,6 +836,7 @@ export class ResourcePlanningRepository {
       operationalEnd: string;
       actorIdentityId: string;
       historyEventType: string;
+      serviceOrderHistoryEventType: string;
       historyPayload: Record<string, unknown>;
     },
   ): Promise<ResourceAllocationRow | null> {
@@ -806,6 +869,12 @@ export class ResourcePlanningRepository {
         payload: input.historyPayload,
         actorIdentityId: input.actorIdentityId,
       });
+      await insertServiceOrderHistoryEvent(client, {
+        serviceOrderId: row.service_order_id,
+        eventType: input.serviceOrderHistoryEventType,
+        payload: { ...input.historyPayload, allocationId: row.id },
+        actorIdentityId: input.actorIdentityId,
+      });
       return row;
     } catch (error) {
       if (isAllocationExclusionViolation(error)) {
@@ -814,5 +883,16 @@ export class ResourcePlanningRepository {
       throw error;
     }
   }
+}
 
+function toPlannedResourceHistorySnapshot(row: PlannedResourceRow): PlannedResourceHistorySnapshot {
+  return {
+    serviceOrderId: row.service_order_id,
+    requirementKind: row.requirement_kind,
+    resourceTypeCode: row.resource_type_code,
+    laborTypeCode: row.labor_type_code,
+    plannedQuantity: row.planned_quantity,
+    operationalStart: row.operational_start,
+    operationalEnd: row.operational_end,
+  };
 }

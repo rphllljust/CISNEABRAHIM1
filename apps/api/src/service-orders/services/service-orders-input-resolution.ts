@@ -10,6 +10,7 @@ import {
   buildServiceOrderListSqlParts,
   ServiceOrderListQueryError,
   type ListServiceOrdersQuery,
+  type ServiceOrderListContext,
 } from '../domain/service-order-list.query';
 import {
   ServiceOrderValidationError,
@@ -112,9 +113,10 @@ export function resolveServiceOrderListQuery(
   query: ListServiceOrdersQuery,
   scopeClause: string,
   scopeParams: unknown[],
+  context: ServiceOrderListContext = {},
 ) {
   try {
-    return buildServiceOrderListSqlParts(query, scopeClause, scopeParams);
+    return buildServiceOrderListSqlParts(query, scopeClause, scopeParams, context);
   } catch (error) {
     if (error instanceof ServiceOrderListQueryError || error instanceof CatalogValidationError) {
       throw serviceOrdersValidationFailed();

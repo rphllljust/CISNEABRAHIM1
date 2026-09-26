@@ -7,6 +7,7 @@ import {
   MOCK_SERVICE_ORDER_ID,
 } from '../../test/service-orders-fetch-mock';
 import { renderWithProviders } from '../../test/render-with-providers';
+import { requestUrl } from '../../test/request-url';
 import { resetTokenStoreForTests, tokenStore } from '../../auth/storage/token-store';
 import { SERVICE_ORDER_STATUSES } from '../types/service-order.types';
 
@@ -179,6 +180,51 @@ describe('ServiceOrdersListPage', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/foram alterados por outra operação/i);
+    });
+  });
+
+  it('exposes the dispatch segments as the filter query parameter', async () => {
+    const user = userEvent.setup();
+    const fetchMock = createServiceOrdersFetchMock();
+    vi.stubGlobal('fetch', fetchMock);
+    renderWithProviders(<ServiceOrdersListPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'OS-2026-DEMO01' })).toBeInTheDocument();
+    });
+
+    const filterSelect = screen.getByLabelText('Filtro operacional');
+    expect(within(filterSelect).getByRole('option', { name: 'Minhas OS' })).toBeInTheDocument();
+    expect(within(filterSelect).getByRole('option', { name: 'Não atribuídas' })).toBeInTheDocument();
+    expect(within(filterSelect).getByRole('option', { name: 'Não agendadas' })).toBeInTheDocument();
+    expect(within(filterSelect).getByRole('option', { name: 'Hoje' })).toBeInTheDocument();
+
+    await user.selectOptions(filterSelect, 'mine');
+
+    await waitFor(() => {
+      const requestedUrls = fetchMock.mock.calls.map((call) => requestUrl(call[0]));
+      expect(requestedUrls.some((url) => url.includes('filter=mine'))).toBe(true);
+    });
+    expect(screen.getByText(/Minhas ordens: atribuídas a você/i)).toBeInTheDocument();
+  });
+
+  it('explains each non-deadline dispatch segment without inventing data', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', createServiceOrdersFetchMock());
+    renderWithProviders(<ServiceOrdersListPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'OS-2026-DEMO01' })).toBeInTheDocument();
+    });
+
+    await user.selectOptions(screen.getByLabelText('Filtro operacional'), 'unscheduled');
+    await waitFor(() => {
+      expect(screen.getByText(/sem janela operacional ativa/i)).toBeInTheDocument();
+    });
+
+    await user.selectOptions(screen.getByLabelText('Filtro operacional'), 'unassigned');
+    await waitFor(() => {
+      expect(screen.getByText(/sem empregado atribuído por alocação ativa/i)).toBeInTheDocument();
     });
   });
 });

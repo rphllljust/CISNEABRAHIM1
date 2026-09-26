@@ -60,6 +60,84 @@ export function buildAllocationHistoryPayload(
   };
 }
 
+export type PlannedResourceHistorySnapshot = {
+  serviceOrderId: string;
+  requirementKind: string;
+  resourceTypeCode?: string | null;
+  laborTypeCode?: string | null;
+  plannedQuantity: string;
+  operationalStart?: string | null;
+  operationalEnd?: string | null;
+};
+
+/**
+ * Payload de rastreabilidade do planejamento. Mantém o separador
+ * PLANEJADO x REALIZADO: registra o que foi planejado, nunca o realizado.
+ */
+export function buildPlannedResourceHistoryPayload(
+  snapshot: PlannedResourceHistorySnapshot,
+  change: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    serviceOrderId: snapshot.serviceOrderId,
+    requirementKind: snapshot.requirementKind,
+    ...(snapshot.resourceTypeCode ? { resourceTypeCode: snapshot.resourceTypeCode } : {}),
+    ...(snapshot.laborTypeCode ? { laborTypeCode: snapshot.laborTypeCode } : {}),
+    plannedQuantity: snapshot.plannedQuantity,
+    ...(snapshot.operationalStart ? { operationalStart: snapshot.operationalStart } : {}),
+    ...(snapshot.operationalEnd ? { operationalEnd: snapshot.operationalEnd } : {}),
+    ...change,
+  };
+}
+
+function quantitiesDiffer(current: string, next: string): boolean {
+  const currentValue = Number(current);
+  const nextValue = Number(next);
+  if (Number.isFinite(currentValue) && Number.isFinite(nextValue)) {
+    return currentValue !== nextValue;
+  }
+  return current !== next;
+}
+
+/**
+ * Campos realmente alterados em uma atualizacao de recurso planejado.
+ * Um evento sem campos alterados nao deve ser registrado.
+ * `plannedQuantity` vem do banco como numeric(12,4) textual ('1.0000'): a
+ * comparacao e numerica para nao registrar alteracao inexistente.
+ */
+export function collectChangedPlannedResourceFields(
+  current: {
+    planned_quantity: string;
+    operational_start: string | null;
+    operational_end: string | null;
+    notes: string | null;
+  },
+  update: {
+    plannedQuantity?: string;
+    operationalStart?: string | null;
+    operationalEnd?: string | null;
+    notes?: string | null;
+  },
+): string[] {
+  const changed: string[] = [];
+  if (
+    update.plannedQuantity !== undefined &&
+    quantitiesDiffer(current.planned_quantity, update.plannedQuantity)
+  ) {
+    changed.push('plannedQuantity');
+  }
+  if (update.operationalStart !== undefined && update.operationalStart !== current.operational_start) {
+    changed.push('operationalStart');
+  }
+  if (update.operationalEnd !== undefined && update.operationalEnd !== current.operational_end) {
+    changed.push('operationalEnd');
+  }
+  if (update.notes !== undefined && update.notes !== current.notes) {
+    changed.push('notes');
+  }
+  return changed;
+}
+
 export const SERVICE_ORDER_PLANNING_ALLOWED_STATUSES = new Set([
   'RELEASED',
   'IN_EXECUTION',

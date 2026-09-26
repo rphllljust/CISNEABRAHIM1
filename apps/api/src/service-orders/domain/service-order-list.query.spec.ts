@@ -3,6 +3,7 @@ import { SERVICE_ORDER_STATUSES } from './service-order';
 import {
   SERVICE_ORDER_LIST_EVENTS,
   SERVICE_ORDER_LIST_FILTERS,
+  ServiceOrderListQueryError,
   buildServiceOrderListSqlParts,
   parseListServiceOrdersQuery,
 } from './service-order-list.query';
@@ -52,5 +53,64 @@ describe('service-order-list.query', () => {
 
     expect(parts.whereClause).toContain('so.completed_at >=');
     expect(parts.whereClause).toContain("so.status = $1::so.service_order_status");
+  });
+});
+
+describe('service-order-list.query dispatch segments', () => {
+  it('resolves mine against the acting identity without widening scope', () => {
+    const query = parseListServiceOrdersQuery({ filter: SERVICE_ORDER_LIST_FILTERS.Mine });
+    const parts = buildServiceOrderListSqlParts(query, 'unit_id = $1', ['unit-a'], {
+      actorIdentityId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    });
+
+    expect(parts.whereClause).toContain('wm.identity_id = $2::uuid');
+    expect(parts.whereClause).toContain("ra.status = 'ACTIVE'::res.resource_allocation_status");
+    expect(parts.params).toEqual(['unit-a', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa']);
+  });
+
+  it('rejects mine without an acting identity', () => {
+    const query = parseListServiceOrdersQuery({ filter: SERVICE_ORDER_LIST_FILTERS.Mine });
+    expect(() => buildServiceOrderListSqlParts(query, 'TRUE', [])).toThrow(
+      ServiceOrderListQueryError,
+    );
+  });
+
+  it('builds unassigned from active allocations only, excluding terminal orders', () => {
+    const query = parseListServiceOrdersQuery({ filter: SERVICE_ORDER_LIST_FILTERS.Unassigned });
+    const parts = buildServiceOrderListSqlParts(query, 'TRUE', []);
+
+    expect(parts.whereClause).toContain('so.status NOT IN');
+    expect(parts.whereClause).toContain('NOT EXISTS');
+    expect(parts.whereClause).toContain('wm.identity_id IS NOT NULL');
+    expect(parts.whereClause).not.toContain('wm.identity_id =');
+  });
+
+  it('builds unscheduled from the absence of any active operational window', () => {
+    const query = parseListServiceOrdersQuery({ filter: SERVICE_ORDER_LIST_FILTERS.Unscheduled });
+    const parts = buildServiceOrderListSqlParts(query, 'TRUE', []);
+
+    expect(parts.whereClause).toContain('so.status NOT IN');
+    expect(parts.whereClause).toContain('so.planned_resources pr');
+    expect(parts.whereClause).toContain('res.resource_allocations ra');
+    expect(parts.whereClause).toContain('NOT (');
+    expect(parts.whereClause).not.toContain("date_trunc('day', NOW())");
+  });
+
+  it('builds scheduled-today as a window overlapping the current day', () => {
+    const query = parseListServiceOrdersQuery({ filter: SERVICE_ORDER_LIST_FILTERS.ScheduledToday });
+    const parts = buildServiceOrderListSqlParts(query, 'TRUE', []);
+
+    expect(parts.whereClause).toContain('so.status NOT IN');
+    expect(parts.whereClause).toContain("pr.operational_start < date_trunc('day', NOW()) + INTERVAL '1 day'");
+    expect(parts.whereClause).toContain("ra.operational_end > date_trunc('day', NOW())");
+    expect(parts.whereClause).not.toContain('NOT (');
+  });
+
+  it('keeps dispatch segments exclusive and does not change ordering', () => {
+    const query = parseListServiceOrdersQuery({ filter: SERVICE_ORDER_LIST_FILTERS.Unassigned });
+    const parts = buildServiceOrderListSqlParts(query, 'TRUE', []);
+
+    expect(parts.orderBy).toBe('so.created_at DESC, so.id DESC');
+    expect(parts.fromClause).toBe('so.service_orders so');
   });
 });

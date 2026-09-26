@@ -42,6 +42,81 @@ describe('ServiceOrderPlanningPage', () => {
     expect(screen.getAllByLabelText('Status: Pendente').length).toBeGreaterThan(0);
   });
 
+  it('renders requirement coverage and operational summary', async () => {
+    vi.stubGlobal('fetch', createServiceOrdersFetchMock());
+    renderServiceOrderRoutes(`/app/service-orders/${MOCK_SERVICE_ORDER_ID}/planning`);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /OS-2026-DEMO01/i })).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole('heading', { name: /requisitos do serviço/i })).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: 'TRUCK' })).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: 'OPERATOR' })).toBeInTheDocument();
+    expect(screen.getAllByLabelText('Status: Pendente').length).toBeGreaterThan(0);
+  });
+
+  it('shows the lifecycle timeline including the programming phase', async () => {
+    vi.stubGlobal(
+      'fetch',
+      createServiceOrdersFetchMock({
+        orderHistoryEvents: [
+          {
+            id: 'ev-1',
+            eventType: 'CREATED',
+            payload: { origin: 'AUTHORIZED_DIRECT' },
+            actorIdentityId: 'identity-1',
+            occurredAt: '2026-01-01T07:00:00.000Z',
+          },
+          {
+            id: 'ev-2',
+            eventType: 'RELEASED',
+            payload: { fromStatus: 'PREPARED', toStatus: 'RELEASED' },
+            actorIdentityId: 'identity-1',
+            occurredAt: '2026-01-01T09:00:00.000Z',
+          },
+          {
+            id: 'ev-3',
+            eventType: 'PLANNED_RESOURCE_ADDED',
+            payload: {
+              plannedResourceId: 'planned-1',
+              requirementKind: 'PHYSICAL_RESOURCE',
+              resourceTypeCode: 'TRUCK',
+              plannedQuantity: '2',
+              operationalStart: '2026-01-02T08:00:00.000Z',
+              operationalEnd: '2026-01-02T12:00:00.000Z',
+            },
+            actorIdentityId: 'identity-1',
+            occurredAt: '2026-01-01T10:00:00.000Z',
+          },
+          {
+            id: 'ev-4',
+            eventType: 'RESOURCE_ALLOCATED',
+            payload: {
+              allocationId: 'alloc-1',
+              resourceTypeCode: 'TRUCK',
+              operationalStart: '2026-01-02T08:00:00.000Z',
+              operationalEnd: '2026-01-02T10:00:00.000Z',
+            },
+            actorIdentityId: 'identity-1',
+            occurredAt: '2026-01-01T11:00:00.000Z',
+          },
+        ],
+      }),
+    );
+    renderServiceOrderRoutes(`/app/service-orders/${MOCK_SERVICE_ORDER_ID}/planning`);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /linha do tempo/i })).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('OS criada')).toBeInTheDocument();
+    expect(screen.getByText('OS liberada')).toBeInTheDocument();
+    expect(screen.getByText('Recurso planejado')).toBeInTheDocument();
+    expect(screen.getByText('Recurso alocado')).toBeInTheDocument();
+    expect(screen.getByText(/TRUCK · qtd\. 2/)).toBeInTheDocument();
+  });
+
   it('plans a physical resource and allocates with backend confirmation', async () => {
     vi.stubGlobal('fetch', createServiceOrdersFetchMock());
     const user = userEvent.setup();

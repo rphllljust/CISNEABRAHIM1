@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../App';
@@ -200,5 +200,65 @@ describe('service order execution flow e2e (frontend)', () => {
     await waitFor(() => {
       expect(startButton).toHaveAttribute('aria-busy', 'true');
     });
+  }, 20000);
+
+  it('represents planned versus realized without overwriting the plan', async () => {
+    vi.stubGlobal(
+      'fetch',
+      createServiceOrdersFetchMock({
+        executionComparison: {
+          quantities: [{ unitCode: 'SERVICE', plannedQuantity: '2', actualQuantity: '3' }],
+          resources: [
+            {
+              requirementKind: 'PHYSICAL_RESOURCE',
+              code: 'TRUCK',
+              plannedQuantity: '2',
+              allocatedActiveCount: 1,
+            },
+          ],
+          periods: [
+            {
+              source: 'PLANNED_RESOURCE',
+              label: 'TRUCK (planejado)',
+              startAt: '2026-01-02T08:00:00.000Z',
+              endAt: '2026-01-02T12:00:00.000Z',
+            },
+            {
+              source: 'EXECUTION_LIFECYCLE',
+              label: 'Execucao',
+              startAt: '2026-01-02T09:00:00.000Z',
+              endAt: null,
+            },
+          ],
+          occurrenceCount: 0,
+          entryCount: 0,
+        },
+      }),
+    );
+    window.history.pushState({}, '', `/app/service-orders/${MOCK_SERVICE_ORDER_ID}/execution`);
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /planejado × realizado/i })).toBeInTheDocument();
+    });
+
+    // Planejado e realizado aparecem lado a lado, sem sobrescrever o plano.
+    const quantitiesTable = screen.getByRole('table', {
+      name: /quantidades planejadas e realizadas/i,
+    });
+    expect(within(quantitiesTable).getByText('2')).toBeInTheDocument();
+    expect(within(quantitiesTable).getByText('3')).toBeInTheDocument();
+    expect(within(quantitiesTable).getByText('Divergente')).toBeInTheDocument();
+
+    const resourcesTable = screen.getByRole('table', {
+      name: /recursos planejados e alocações ativas/i,
+    });
+    expect(within(resourcesTable).getByText('TRUCK')).toBeInTheDocument();
+    expect(within(resourcesTable).getByText('Recurso físico')).toBeInTheDocument();
+
+    expect(screen.getByText(/TRUCK \(planejado\)/)).toBeInTheDocument();
+    const realizedPeriod = screen.getByText(/Execucao/).closest('li');
+    expect(realizedPeriod).not.toBeNull();
+    expect(within(realizedPeriod as HTMLElement).getByText('Realizado')).toBeInTheDocument();
   }, 20000);
 });

@@ -38,8 +38,13 @@ import { ClientAccessService } from '../clients/services/client-access.service';
 import { ResourcesModule } from '../resources/resources.module';
 import { PhysicalAssetsAccessService } from '../resources/services/physical-assets-access.service';
 import { PhysicalResourceTypesAccessService } from '../resources/services/physical-resource-types-access.service';
-import { SERVICE_ORDER_ORIGINS, SERVICE_ORDER_STATUSES } from './domain/service-order';
+import {
+  SERVICE_ORDER_HISTORY_EVENTS,
+  SERVICE_ORDER_ORIGINS,
+  SERVICE_ORDER_STATUSES,
+} from './domain/service-order';
 import { PLANNED_RESOURCE_KINDS } from './domain/resource-planning';
+import { SERVICE_ORDER_LIST_FILTERS } from './domain/service-order-list.query';
 import { SERVICE_ORDERS_ERROR_CODES } from './errors/service-orders-error-codes';
 import { ServiceOrdersModule } from './service-orders.module';
 import { ServiceOrderExecutionAccessService } from './services/service-order-execution-access.service';
@@ -1073,5 +1078,246 @@ describe('Service order planning and allocation PostgreSQL integration', () => {
       [asset.id],
     );
     expect(active.rows[0]?.count).toBe('1');
+  });
+
+  async function grantServiceOrderListAccess(identityId: string, grantedBy: string): Promise<void> {
+    await insertGrant(pool, {
+      identityId,
+      action: AUTHZ_ACTIONS.ServiceOrdersServiceOrderList,
+      resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+      scopeType: AUTHZ_SCOPES.Global,
+      grantedByIdentityId: grantedBy,
+    });
+  }
+
+  async function listTimelineEvents(serviceOrderId: string) {
+    const result = await pool.query<{ event_type: string; payload: Record<string, unknown> }>(
+      `SELECT event_type, payload
+       FROM so.service_order_history_events
+       WHERE service_order_id = $1
+       ORDER BY occurred_at ASC, id ASC`,
+      [serviceOrderId],
+    );
+    return result.rows;
+  }
+
+  it('records the programming phase in the service order timeline', async () => {
+    const { actor } = await seedActor();
+    const { released } = await seedReleasedOrder(actor);
+    const asset = await createWaterTruck(actor, `WT-${crypto.randomUUID().slice(0, 6)}`);
+
+    const planned = await planningAccess.planResource(actor, released.id, {
+      requirementKind: PLANNED_RESOURCE_KINDS.PhysicalResource,
+      resourceTypeCode: 'WATER_TRUCK',
+      plannedQuantity: '2',
+      operationalStart: '2026-06-01T08:00:00.000Z',
+      operationalEnd: '2026-06-01T12:00:00.000Z',
+    });
+    const allocation = await planningAccess.allocateResource(actor, released.id, {
+      plannedResourceId: planned.id,
+      physicalAssetId: asset.id,
+      operationalStart: '2026-06-01T08:00:00.000Z',
+      operationalEnd: '2026-06-01T10:00:00.000Z',
+    });
+
+    const afterPlanning = await listTimelineEvents(released.id);
+    const plannedAdded = afterPlanning.find(
+      (event) => event.event_type === SERVICE_ORDER_HISTORY_EVENTS.PlannedResourceAdded,
+    );
+    expect(plannedAdded).toBeDefined();
+    expect(plannedAdded?.payload).toMatchObject({
+      plannedResourceId: planned.id,
+      requirementKind: 'PHYSICAL_RESOURCE',
+      resourceTypeCode: 'WATER_TRUCK',
+      plannedQuantity: '2.0000',
+      operationalStart: '2026-06-01T08:00:00.000Z',
+      operationalEnd: '2026-06-01T12:00:00.000Z',
+    });
+
+    const allocated = afterPlanning.find(
+      (event) => event.event_type === SERVICE_ORDER_HISTORY_EVENTS.ResourceAllocated,
+    );
+    expect(allocated).toBeDefined();
+    expect(allocated?.payload).toMatchObject({
+      allocationId: allocation.id,
+      physicalAssetId: asset.id,
+      plannedResourceId: planned.id,
+      resourceTypeCode: 'WATER_TRUCK',
+    });
+
+    await planningAccess.removeAllocation(actor, released.id, allocation.id, {
+      rowVersion: allocation.rowVersion,
+    });
+
+    const afterRemoval = await listTimelineEvents(released.id);
+    const removed = afterRemoval.find(
+      (event) => event.event_type === SERVICE_ORDER_HISTORY_EVENTS.AllocationRemoved,
+    );
+    expect(removed).toBeDefined();
+    expect(removed?.payload).toMatchObject({ allocationId: allocation.id });
+
+    const lifecycleEvents = afterRemoval.map((event) => event.event_type);
+    expect(lifecycleEvents).toContain('CREATED');
+    expect(lifecycleEvents).toContain('PREPARED');
+    expect(lifecycleEvents).toContain('RELEASED');
+    expect(lifecycleEvents.indexOf('PLANNED_RESOURCE_ADDED')).toBeGreaterThan(
+      lifecycleEvents.indexOf('RELEASED'),
+    );
+  });
+
+  it('records only the changed fields when replanning', async () => {
+    const { actor } = await seedActor();
+    const { released } = await seedReleasedOrder(actor);
+
+    const planned = await planningAccess.planResource(actor, released.id, {
+      requirementKind: PLANNED_RESOURCE_KINDS.Labor,
+      laborTypeCode: 'DRIVER',
+      plannedQuantity: '1',
+      operationalStart: '2026-06-01T08:00:00.000Z',
+      operationalEnd: '2026-06-01T10:00:00.000Z',
+    });
+
+    await planningAccess.updatePlannedResource(actor, released.id, planned.id, {
+      rowVersion: planned.rowVersion,
+      plannedQuantity: '3',
+    });
+
+    const events = await listTimelineEvents(released.id);
+    const updated = events.filter(
+      (event) => event.event_type === SERVICE_ORDER_HISTORY_EVENTS.PlannedResourceUpdated,
+    );
+    expect(updated).toHaveLength(1);
+    expect(updated[0]?.payload).toMatchObject({
+      plannedResourceId: planned.id,
+      plannedQuantity: '3.0000',
+      changedFields: ['plannedQuantity'],
+    });
+  });
+
+  it('does not write a timeline event for a no-op replan', async () => {
+    const { actor } = await seedActor();
+    const { released } = await seedReleasedOrder(actor);
+
+    const planned = await planningAccess.planResource(actor, released.id, {
+      requirementKind: PLANNED_RESOURCE_KINDS.Labor,
+      laborTypeCode: 'DRIVER',
+      plannedQuantity: '1',
+    });
+
+    const current = await planningAccess.listPlannedResources(actor, released.id);
+    const row = current.find((item) => item.id === planned.id);
+    await planningAccess.updatePlannedResource(actor, released.id, planned.id, {
+      rowVersion: row!.rowVersion,
+      plannedQuantity: '1',
+    });
+
+    const events = await listTimelineEvents(released.id);
+    expect(
+      events.filter(
+        (event) => event.event_type === SERVICE_ORDER_HISTORY_EVENTS.PlannedResourceUpdated,
+      ),
+    ).toHaveLength(0);
+  });
+
+  it('removes the planned resource from the timeline when unplanned', async () => {
+    const { actor } = await seedActor();
+    const { released } = await seedReleasedOrder(actor);
+
+    const planned = await planningAccess.planResource(actor, released.id, {
+      requirementKind: PLANNED_RESOURCE_KINDS.PhysicalResource,
+      resourceTypeCode: 'WATER_TRUCK',
+      plannedQuantity: '1',
+    });
+    await planningAccess.removePlannedResource(actor, released.id, planned.id, {
+      rowVersion: planned.rowVersion,
+    });
+
+    const events = await listTimelineEvents(released.id);
+    const removedEvent = events.find(
+      (event) => event.event_type === SERVICE_ORDER_HISTORY_EVENTS.PlannedResourceRemoved,
+    );
+    expect(removedEvent).toBeDefined();
+    expect(removedEvent?.payload).toMatchObject({
+      plannedResourceId: planned.id,
+      status: 'REMOVED',
+    });
+  });
+
+  it('segments the operational list by assignment and scheduling', async () => {
+    const { actor, identityId } = await seedActor();
+    await grantServiceOrderListAccess(identityId, identityId);
+    const { released: plainOrder } = await seedReleasedOrder(actor, TEST_CNPJ);
+    const { released: assignedOrder } = await seedReleasedOrder(actor, TEST_CNPJ_ALT);
+    const employee = await createEmployee(`EMP-${crypto.randomUUID().slice(0, 6)}`);
+    await grantEmployeeAssignedAccess(employee.identityId, identityId);
+
+    const plannedLabor = await planningAccess.planResource(actor, assignedOrder.id, {
+      requirementKind: PLANNED_RESOURCE_KINDS.Labor,
+      laborTypeCode: 'DRIVER',
+      plannedQuantity: '1',
+    });
+    const now = Date.now();
+    await planningAccess.allocateResource(actor, assignedOrder.id, {
+      plannedResourceId: plannedLabor.id,
+      workforceMemberId: employee.workforceMemberId,
+      operationalStart: new Date(now - 60 * 60 * 1000).toISOString(),
+      operationalEnd: new Date(now + 60 * 60 * 1000).toISOString(),
+    });
+
+    const unassigned = await serviceOrdersAccess.list(actor, {
+      filter: SERVICE_ORDER_LIST_FILTERS.Unassigned,
+      limit: 50,
+      offset: 0,
+    });
+    const unassignedIds = unassigned.items.map((item) => item.id);
+    expect(unassignedIds).toContain(plainOrder.id);
+    expect(unassignedIds).not.toContain(assignedOrder.id);
+
+    const mine = await serviceOrdersAccess.list(employee.actor, {
+      filter: SERVICE_ORDER_LIST_FILTERS.Mine,
+      limit: 50,
+      offset: 0,
+    });
+    const mineIds = mine.items.map((item) => item.id);
+    expect(mineIds).toContain(assignedOrder.id);
+    expect(mineIds).not.toContain(plainOrder.id);
+
+    const unscheduled = await serviceOrdersAccess.list(actor, {
+      filter: SERVICE_ORDER_LIST_FILTERS.Unscheduled,
+      limit: 50,
+      offset: 0,
+    });
+    const unscheduledIds = unscheduled.items.map((item) => item.id);
+    expect(unscheduledIds).toContain(plainOrder.id);
+    expect(unscheduledIds).not.toContain(assignedOrder.id);
+
+    const today = await serviceOrdersAccess.list(actor, {
+      filter: SERVICE_ORDER_LIST_FILTERS.ScheduledToday,
+      limit: 50,
+      offset: 0,
+    });
+    const todayIds = today.items.map((item) => item.id);
+    expect(todayIds).toContain(assignedOrder.id);
+    expect(todayIds).not.toContain(plainOrder.id);
+  });
+
+  it('keeps terminal orders out of the open dispatch segments', async () => {
+    const { actor, identityId } = await seedActor();
+    await grantServiceOrderListAccess(identityId, identityId);
+    const { released } = await seedReleasedOrder(actor);
+
+    await serviceOrdersAccess.cancel(actor, released.id, {
+      rowVersion: released.rowVersion,
+      cancellationReason: 'encerrado para teste de despacho',
+    });
+
+    for (const filter of [
+      SERVICE_ORDER_LIST_FILTERS.Unassigned,
+      SERVICE_ORDER_LIST_FILTERS.Unscheduled,
+      SERVICE_ORDER_LIST_FILTERS.ScheduledToday,
+    ]) {
+      const listed = await serviceOrdersAccess.list(actor, { filter, limit: 50, offset: 0 });
+      expect(listed.items.map((item) => item.id)).not.toContain(released.id);
+    }
   });
 });

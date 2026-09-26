@@ -1,5 +1,6 @@
 import { getApiBaseUrl, isNetworkError } from '../../auth/api/auth-api';
 import { tokenStore } from '../../auth/storage/token-store';
+import type { ServiceOrderListFilter } from '../types/service-order-list.types';
 import {
   SERVICE_ORDERS_ERROR_CODES,
   type ServiceOrderDetail,
@@ -126,7 +127,7 @@ export async function listServiceOrders(
     offset?: number;
     status?: ServiceOrderStatus | 'active';
     archetype?: string;
-    filter?: 'overdue' | 'approaching-due';
+    filter?: ServiceOrderListFilter;
     unitId?: string;
     clientId?: string;
     q?: string;

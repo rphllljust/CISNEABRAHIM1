@@ -1,6 +1,10 @@
 export const SERVICE_ORDER_LIST_FILTERS = {
   Overdue: 'overdue',
   ApproachingDue: 'approaching-due',
+  Mine: 'mine',
+  Unassigned: 'unassigned',
+  Unscheduled: 'unscheduled',
+  ScheduledToday: 'scheduled-today',
 } as const;
 
 export type ServiceOrderListFilter =

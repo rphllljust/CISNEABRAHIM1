@@ -25,6 +25,7 @@ import { ExecutionTimeline } from '../components/ExecutionTimeline';
 import { EvidenceUploader, type EvidenceUploadHandler } from '../components/EvidenceUploader';
 import { OccurrenceForm } from '../components/OccurrenceForm';
 import { OperationalActionBar } from '../components/OperationalActionBar';
+import { PlannedVsActualPanel } from '../components/PlannedVsActualPanel';
 import { RequirementChecklist } from '../components/RequirementChecklist';
 import type { ResourceAllocation } from '../types/resource-planning.types';
 import {
@@ -503,6 +504,8 @@ export function ServiceOrderExecutionPage() {
           onUpload={handleEvidenceUpload}
         />
       ) : null}
+
+      <PlannedVsActualPanel comparison={bundle.comparison} />
 
       <ExecutionTimeline
         entries={bundle.entries}

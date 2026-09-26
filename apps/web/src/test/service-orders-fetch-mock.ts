@@ -63,6 +63,10 @@ export type ServiceOrdersFetchMockOptions = {
   seedBilling?: BillingSeedKind;
   purchaseOrderPaymentTerms?: string;
   preparedPaymentTerms?: string;
+  /** Eventos de historico devolvidos pelo detalhe da OS (linha do tempo). */
+  orderHistoryEvents?: Array<Record<string, unknown>>;
+  /** Comparacao planejado x realizado devolvida pelo bundle de execucao. */
+  executionComparison?: Record<string, unknown>;
 };
 
 function orderError(code: string, status: number): Response {
@@ -312,7 +316,7 @@ export function createServiceOrdersFetchMock(options: ServiceOrdersFetchMockOpti
       cancelledAt: null,
       statusBeforeCancel: null,
       updatedAt: '2026-01-01T10:00:00.000Z',
-      historyEvents: [],
+      historyEvents: options.orderHistoryEvents ?? [],
     };
   }
 
@@ -341,7 +345,7 @@ export function createServiceOrdersFetchMock(options: ServiceOrdersFetchMockOpti
       entries: bundleEntries,
       evidence: evidence.get(orderId) ?? [],
       occurrences: bundleOccurrences,
-      comparison: {
+      comparison: options.executionComparison ?? {
         quantities: [],
         resources: [],
         periods: [],

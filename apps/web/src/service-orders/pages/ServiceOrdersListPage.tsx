@@ -77,6 +77,18 @@ function resolveFilterDescription(params: ServiceOrderListParams): string | null
   if (params.filter === SERVICE_ORDER_LIST_FILTERS.ApproachingDue) {
     return 'Mostrando ordens com prazo operacional nos próximos 7 dias.';
   }
+  if (params.filter === SERVICE_ORDER_LIST_FILTERS.Mine) {
+    return 'Minhas ordens: atribuídas a você por alocação ativa de mão de obra.';
+  }
+  if (params.filter === SERVICE_ORDER_LIST_FILTERS.Unassigned) {
+    return 'Ordens em aberto sem empregado atribuído por alocação ativa.';
+  }
+  if (params.filter === SERVICE_ORDER_LIST_FILTERS.Unscheduled) {
+    return 'Ordens em aberto sem janela operacional ativa (nem planejada, nem alocada).';
+  }
+  if (params.filter === SERVICE_ORDER_LIST_FILTERS.ScheduledToday) {
+    return 'Ordens com janela operacional ativa que cobre o dia corrente.';
+  }
   if (params.from || params.to) {
     const from = params.from || '…';
     const to = params.to || '…';
@@ -320,7 +332,7 @@ export function ServiceOrdersListPage() {
           </div>
           <div>
             <label className={filterLabelClass} htmlFor="service-order-filter">
-              Alerta operacional
+              Filtro operacional
             </label>
             <select
               id="service-order-filter"
@@ -333,6 +345,10 @@ export function ServiceOrdersListPage() {
               <option value="">Nenhum</option>
               <option value={SERVICE_ORDER_LIST_FILTERS.Overdue}>Vencidas</option>
               <option value={SERVICE_ORDER_LIST_FILTERS.ApproachingDue}>Vencendo em breve</option>
+              <option value={SERVICE_ORDER_LIST_FILTERS.Mine}>Minhas OS</option>
+              <option value={SERVICE_ORDER_LIST_FILTERS.Unassigned}>Não atribuídas</option>
+              <option value={SERVICE_ORDER_LIST_FILTERS.Unscheduled}>Não agendadas</option>
+              <option value={SERVICE_ORDER_LIST_FILTERS.ScheduledToday}>Hoje</option>
             </select>
           </div>
           <div>

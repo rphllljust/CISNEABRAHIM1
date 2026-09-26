@@ -110,7 +110,7 @@ function isServiceOrderStatusParam(value: string): value is ServiceOrderStatus {
 }
 
 function isServiceOrderListFilter(value: string): value is ServiceOrderListFilter {
-  return value === SERVICE_ORDER_LIST_FILTERS.Overdue || value === SERVICE_ORDER_LIST_FILTERS.ApproachingDue;
+  return (Object.values(SERVICE_ORDER_LIST_FILTERS) as string[]).includes(value);
 }
 
 function isServiceOrderListEvent(value: string): value is ServiceOrderListEvent {

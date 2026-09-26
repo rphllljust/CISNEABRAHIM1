@@ -4,6 +4,8 @@ import {
   assertIntervalWithinParent,
   assertPlannedOperationalWindow,
   buildAllocationHistoryPayload,
+  buildPlannedResourceHistoryPayload,
+  collectChangedPlannedResourceFields,
   intervalsOverlapHalfOpen,
   isHalfOpenIntervalValid,
   resolvePlannedOperationalWindow,
@@ -112,5 +114,84 @@ describe('allocation history payload', () => {
       operationalEnd: '2026-06-01T10:00:00.000Z',
       fromAllocationId: 'alloc-old',
     });
+  });
+});
+
+describe('planned resource traceability payload', () => {
+  it('describes the planned side without carrying realized facts', () => {
+    const payload = buildPlannedResourceHistoryPayload(
+      {
+        serviceOrderId: 'so-1',
+        requirementKind: 'PHYSICAL_RESOURCE',
+        resourceTypeCode: 'WATER_TRUCK',
+        laborTypeCode: null,
+        plannedQuantity: '2',
+        operationalStart: '2026-06-01T08:00:00.000Z',
+        operationalEnd: '2026-06-01T10:00:00.000Z',
+      },
+      { plannedResourceId: 'planned-1' },
+    );
+
+    expect(payload).toEqual({
+      serviceOrderId: 'so-1',
+      requirementKind: 'PHYSICAL_RESOURCE',
+      resourceTypeCode: 'WATER_TRUCK',
+      plannedQuantity: '2',
+      operationalStart: '2026-06-01T08:00:00.000Z',
+      operationalEnd: '2026-06-01T10:00:00.000Z',
+      plannedResourceId: 'planned-1',
+    });
+    expect(payload).not.toHaveProperty('actualQuantity');
+  });
+
+  it('omits absent nullable fields instead of inventing them', () => {
+    const payload = buildPlannedResourceHistoryPayload({
+      serviceOrderId: 'so-1',
+      requirementKind: 'LABOR',
+      laborTypeCode: 'DRIVER',
+      plannedQuantity: '1',
+    });
+
+    expect(payload).toEqual({
+      serviceOrderId: 'so-1',
+      requirementKind: 'LABOR',
+      laborTypeCode: 'DRIVER',
+      plannedQuantity: '1',
+    });
+  });
+
+  it('detects only the fields actually changed on update', () => {
+    const current = {
+      planned_quantity: '2',
+      operational_start: '2026-06-01T08:00:00.000Z',
+      operational_end: '2026-06-01T10:00:00.000Z',
+      notes: null,
+    };
+
+    expect(collectChangedPlannedResourceFields(current, { plannedQuantity: '3' })).toEqual([
+      'plannedQuantity',
+    ]);
+    expect(
+      collectChangedPlannedResourceFields(current, {
+        operationalEnd: '2026-06-01T12:00:00.000Z',
+        notes: 'replanejado',
+      }),
+    ).toEqual(['operationalEnd', 'notes']);
+    expect(collectChangedPlannedResourceFields(current, { plannedQuantity: '2' })).toEqual([]);
+    expect(collectChangedPlannedResourceFields(current, {})).toEqual([]);
+  });
+
+  it('treats numeric formatting from the database as the same quantity', () => {
+    const current = {
+      planned_quantity: '1.0000',
+      operational_start: null,
+      operational_end: null,
+      notes: null,
+    };
+
+    expect(collectChangedPlannedResourceFields(current, { plannedQuantity: '1' })).toEqual([]);
+    expect(collectChangedPlannedResourceFields(current, { plannedQuantity: '1.0001' })).toEqual([
+      'plannedQuantity',
+    ]);
   });
 });

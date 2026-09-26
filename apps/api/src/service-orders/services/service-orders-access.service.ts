@@ -243,7 +243,9 @@ export class ServiceOrdersAccessService {
   ): Promise<{ items: ReturnType<typeof toServiceOrderResponse>[]; limit: number; offset: number }> {
     await this.authz.assertListAction(actor);
     const scopeFilter = await this.authz.getListScopeFilter(actor);
-    const parts = resolveServiceOrderListQuery(query, scopeFilter.clause, scopeFilter.params);
+    const parts = resolveServiceOrderListQuery(query, scopeFilter.clause, scopeFilter.params, {
+      actorIdentityId: actor.identityId,
+    });
     const rows = await this.repository.listServiceOrders(parts, query.limit, query.offset);
 
     return {

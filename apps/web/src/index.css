@@ -971,6 +971,33 @@ main:not(.login-page):not(.dashboard-page):not(.shell-page):not(.reports-page):n
   margin: 0.35rem 0.5rem 0.35rem 0;
 }
 
+.planning-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.planning-timeline__item {
+  padding: 0.5rem 0 0.5rem 0.75rem;
+  border-left: 2px solid #e5e5e5;
+}
+
+.planning-timeline__time {
+  display: block;
+  color: #525252;
+  font-size: 0.8125rem;
+}
+
+.planning-timeline__label {
+  margin: 0.15rem 0 0;
+  font-weight: 600;
+}
+
+.planning-timeline__detail {
+  margin: 0.15rem 0 0;
+  color: #525252;
+}
+
 .planning-table-wrap {
   overflow-x: auto;
 }
