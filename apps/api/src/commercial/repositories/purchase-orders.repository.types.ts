@@ -143,3 +143,21 @@ export type RegisterPurchaseOrderPersistenceInput = {
   }>;
   actorIdentityId: string;
 };
+
+/**
+ * Linha da cadeia relacionada do pedido de compra.
+ *
+ * Projecao comum de `rpt.read_service_requests`, `rpt.read_service_orders`,
+ * `rpt.read_measurements`, `rpt.read_billing_records` e `rpt.read_billing_documents`.
+ * `kind` discrimina a origem; `parent_id` liga medicao/faturamento a sua OS.
+ */
+export type PurchaseOrderLinkedRow = {
+  kind: string;
+  id: string;
+  label: string;
+  status: string;
+  amount: string | null;
+  currency_code: string | null;
+  occurred_at: string;
+  parent_id: string | null;
+};

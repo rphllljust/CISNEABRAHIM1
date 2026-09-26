@@ -16,6 +16,7 @@ import type {
   PurchaseOrderBillingRuleRow,
   PurchaseOrderDocumentLinkRow,
   PurchaseOrderItemRow,
+  PurchaseOrderLinkedRow,
   PurchaseOrderRow,
   RegisterPurchaseOrderPersistenceInput,
   ServiceSnapshotSource,
@@ -462,6 +463,49 @@ export class PurchaseOrdersRepository {
     } finally {
       client.release();
     }
+  }
+
+  /**
+   * Cadeia relacionada do pedido de compra, em UMA consulta.
+   *
+   * As relacoes JA existem no dominio: `rpt.read_service_requests.purchase_order_id`,
+   * `rpt.read_service_orders.purchase_order_id` e, por intermedio da OS,
+   * `rpt.read_measurements` / `rpt.read_billing_records` / `rpt.read_billing_documents`.
+   * Isto e leitura pura: nenhuma tabela, coluna, regra ou transicao nova. Serve para explicar
+   * de onde vem o valor consumido do pedido.
+   */
+  async findLinkedChain(purchaseOrderId: string): Promise<PurchaseOrderLinkedRow[]> {
+    const result = await this.pool().query<PurchaseOrderLinkedRow>(
+      `SELECT 'REQUEST' AS kind, id::text AS id, request_code AS label, status::text AS status,
+              NULL::text AS amount, NULL::text AS currency_code,
+              created_at::text AS occurred_at, NULL::text AS parent_id
+         FROM rpt.read_service_requests
+        WHERE purchase_order_id = $1
+        UNION ALL
+       SELECT 'SERVICE_ORDER', id::text, order_number, status::text,
+              NULL::text, NULL::text, created_at::text, NULL::text
+         FROM rpt.read_service_orders
+        WHERE purchase_order_id = $1
+        UNION ALL
+       SELECT 'MEASUREMENT', m.id::text, so.order_number, m.status::text,
+              NULL::text, NULL::text, m.created_at::text, m.service_order_id::text
+         FROM rpt.read_measurements m
+         INNER JOIN rpt.read_service_orders so ON so.id = m.service_order_id
+        WHERE so.purchase_order_id = $1
+        UNION ALL
+       SELECT 'BILLING_RECORD', id::text, 'Registro de faturamento', status::text,
+              total_amount::text, currency_code, created_at::text, service_order_id::text
+         FROM rpt.read_billing_records
+        WHERE purchase_order_id = $1
+        UNION ALL
+       SELECT 'BILLING_DOCUMENT', id::text, COALESCE(document_number::text, 'Documento de faturamento'),
+              status::text, total_amount::text, currency_code, created_at::text, service_order_id::text
+         FROM rpt.read_billing_documents
+        WHERE purchase_order_id = $1
+        ORDER BY occurred_at ASC`,
+      [purchaseOrderId],
+    );
+    return result.rows;
   }
 
   async hasBlockingReferences(purchaseOrderId: string): Promise<boolean> {

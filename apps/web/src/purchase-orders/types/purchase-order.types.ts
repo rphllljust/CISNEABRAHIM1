@@ -130,11 +130,24 @@ export type PurchaseOrderDocumentLink = {
   createdAt: string;
 };
 
+export type PurchaseOrderLinkedRecord = {
+  kind: string;
+  id: string;
+  label: string;
+  status: string;
+  amount: string | null;
+  currencyCode: string | null;
+  occurredAt: string;
+  parentId: string | null;
+};
+
 export type PurchaseOrderDetail = {
   purchaseOrder: PurchaseOrder;
   items: PurchaseOrderItem[];
   billingRules: PurchaseOrderBillingRule[];
   documentLinks: PurchaseOrderDocumentLink[];
+  /** Cadeia relacionada: solicitacao, OS, medicao e faturamento ligados a este pedido. */
+  linked?: PurchaseOrderLinkedRecord[];
 };
 
 export type PurchaseOrderListResponse = {

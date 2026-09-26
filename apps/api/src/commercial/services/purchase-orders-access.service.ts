@@ -429,7 +429,16 @@ export class PurchaseOrdersAccessService {
     const items = await this.purchaseOrdersRepository.listItems(purchaseOrderId);
     const billingRules = await this.purchaseOrdersRepository.listBillingRules(purchaseOrderId);
     const documentLinks = await this.purchaseOrdersRepository.listDocumentLinks(purchaseOrderId);
-    return toPurchaseOrderDetailResponse(purchaseOrder, items, billingRules, documentLinks);
+    // Cadeia relacionada: explica de onde vem o valor consumido do pedido. Uma consulta a mais
+    // no detalhe; a autorizacao acima permanece identica.
+    const linked = await this.purchaseOrdersRepository.findLinkedChain(purchaseOrderId);
+    return toPurchaseOrderDetailResponse(
+      purchaseOrder,
+      items,
+      billingRules,
+      documentLinks,
+      linked,
+    );
   }
 
   async list(

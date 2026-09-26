@@ -15,6 +15,7 @@ import {
 import type {
   PurchaseOrderBillingRuleRow,
   PurchaseOrderDocumentLinkRow,
+  PurchaseOrderLinkedRow,
   PurchaseOrderItemRow,
   PurchaseOrderRow,
 } from '../repositories/purchase-orders.repository.types';
@@ -81,13 +82,39 @@ export type PurchaseOrderBalanceResponse = {
   availableBalance: string;
 };
 
+export type PurchaseOrderLinkedResponse = {
+  kind: string;
+  id: string;
+  label: string;
+  status: string;
+  amount: string | null;
+  currencyCode: string | null;
+  occurredAt: string;
+  parentId: string | null;
+};
+
 export type PurchaseOrderDetailResponse = {
   purchaseOrder: PurchaseOrderResponse;
   items: PurchaseOrderItemResponse[];
   billingRules: PurchaseOrderBillingRuleResponse[];
   documentLinks: PurchaseOrderDocumentLinkResponse[];
   balance: PurchaseOrderBalanceResponse;
+  /** Cadeia relacionada: solicitacoes, OS, medicoes e faturamento ligados a este pedido. */
+  linked: PurchaseOrderLinkedResponse[];
 };
+
+function toLinkedResponse(row: PurchaseOrderLinkedRow): PurchaseOrderLinkedResponse {
+  return {
+    kind: row.kind,
+    id: row.id,
+    label: row.label,
+    status: row.status,
+    amount: formatMoneyAmountForApi(row.amount),
+    currencyCode: row.currency_code,
+    occurredAt: row.occurred_at,
+    parentId: row.parent_id,
+  };
+}
 
 /**
  * Item da LISTAGEM: pedido + saldo do ledger.
@@ -235,6 +262,7 @@ export function toPurchaseOrderDetailResponse(
   items: PurchaseOrderItemRow[],
   billingRules: PurchaseOrderBillingRuleRow[],
   documentLinks: PurchaseOrderDocumentLinkRow[],
+  linked: PurchaseOrderLinkedRow[] = [],
 ): PurchaseOrderDetailResponse {
   return {
     purchaseOrder: toPurchaseOrderResponse(purchaseOrder),
@@ -242,5 +270,6 @@ export function toPurchaseOrderDetailResponse(
     billingRules: billingRules.map(toRuleResponse),
     documentLinks: documentLinks.map(toDocumentLinkResponse),
     balance: toBalanceResponse(purchaseOrder, items),
+    linked: linked.map(toLinkedResponse),
   };
 }
