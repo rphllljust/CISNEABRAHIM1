@@ -30,7 +30,10 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
+    "seed:dev": "tsc -p tsconfig.json && node scripts/seed-dev.mjs",
+    "seed:profiles": "tsc -p tsconfig.json && node scripts/seed-profiles.mjs",
     "migrate:release": "node dist/cli/run-migrate-cli.js",
+    "bootstrap:production": "node dist/cli/run-bootstrap-cli.js",
     "gate:ci-database": "node scripts/ci-database-gate.mjs",
     "test:migration-torture": "vitest run --config vitest.integration.config.ts src/migration-torture.integration.spec.ts"
   },
