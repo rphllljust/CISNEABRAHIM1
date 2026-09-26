@@ -143,6 +143,10 @@ export function createCommercialFetchMock(options: CommercialFetchMockOptions = 
       rowVersion: 1,
       createdAt: '2026-01-01T12:00:00.000Z',
       updatedAt: '2026-01-01T12:00:00.000Z',
+      currentVersionStatus: PROPOSAL_VERSION_STATUSES.Draft,
+      currencyCode: 'BRL',
+      saleTotal: '96000',
+      validUntil: '2026-12-31T00:00:00.000Z',
     },
   ];
 
@@ -182,6 +186,14 @@ export function createCommercialFetchMock(options: CommercialFetchMockOptions = 
       rowVersion: 1,
       createdAt: '2026-01-05T12:00:00.000Z',
       updatedAt: '2026-01-05T12:00:00.000Z',
+      consumedAmount: '2500',
+      authorizedOverrunAmount: '0',
+      balance: {
+        authorizedAmount: '15000',
+        consumedAmount: '2500',
+        authorizedOverrunAmount: '0',
+        availableBalance: '12500',
+      },
     },
   ];
 
@@ -254,6 +266,10 @@ export function createCommercialFetchMock(options: CommercialFetchMockOptions = 
           rowVersion: 1,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
+          currentVersionStatus: PROPOSAL_VERSION_STATUSES.Draft,
+          currencyCode: 'BRL',
+          saleTotal: null,
+          validUntil: null,
         };
         const version = buildProposalVersion(
           id,
@@ -405,6 +421,14 @@ export function createCommercialFetchMock(options: CommercialFetchMockOptions = 
           rowVersion: 1,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
+          consumedAmount: '0',
+          authorizedOverrunAmount: '0',
+          balance: {
+            authorizedAmount: readString(body, 'totalAmount', '0'),
+            consumedAmount: '0',
+            authorizedOverrunAmount: '0',
+            availableBalance: readString(body, 'totalAmount', '0'),
+          },
         };
         purchaseOrders.unshift(po);
         return jsonResponse(toPoDetail(po), 201);

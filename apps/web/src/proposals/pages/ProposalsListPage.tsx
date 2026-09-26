@@ -3,7 +3,13 @@ import { listProposals, ProposalsApiError } from '../api/proposals-api';
 import { mapProposalErrorToMessage } from '../api/proposal-error-messages';
 import { useProposalCapabilities } from '../hooks/useProposalCapabilities';
 import type { Proposal } from '../types/proposal.types';
-import { formatDateTime } from '../utils/proposal-labels';
+import { ProposalStatusBadge } from '../components/ProposalStatusBadge';
+import {
+  PROPOSAL_NO_VERSION_LABEL,
+  formatProposalValidity,
+  proposalNextAction,
+} from '../utils/proposal-list-presentation';
+import { formatMoneyBrl } from '../../ui/format/money';
 import { Button } from '../../ui/Button';
 import {
   FilterCard,
@@ -198,10 +204,16 @@ export function ProposalsListPage() {
                   Situação
                 </th>
                 <th scope="col" className={moduleTableHeaderCellClass}>
-                  Próxima ação
+                  Revisão
                 </th>
                 <th scope="col" className={moduleTableHeaderCellClass}>
-                  Atualizada em
+                  Valor
+                </th>
+                <th scope="col" className={moduleTableHeaderCellClass}>
+                  Validade
+                </th>
+                <th scope="col" className={moduleTableHeaderCellClass}>
+                  Próxima ação
                 </th>
               </tr>
             </thead>
@@ -215,23 +227,29 @@ export function ProposalsListPage() {
                   </td>
                   <td className={moduleTableCellClass}>{item.title}</td>
                   <td className={moduleTableCellClass}>
-                    {/* A listagem nao recebe o status da versao corrente do backend:
-                        declarar "emitida" aqui seria invencao. Ver BACKEND GAP. */}
-                    {item.currentVersionNumber === null ? (
-                      <span className="text-sm text-gray-600">Sem versão emitida</span>
+                    {/* Status REAL da versao corrente, vindo do backend. Sem versao nao ha
+                        estado: a ausencia e declarada, nunca suposta. */}
+                    {item.currentVersionStatus ? (
+                      <ProposalStatusBadge status={item.currentVersionStatus} />
                     ) : (
-                      <span className="text-sm font-medium text-gray-900">
-                        Revisão {item.currentVersionNumber}
-                      </span>
+                      <span className="text-sm text-gray-600">{PROPOSAL_NO_VERSION_LABEL}</span>
                     )}
                   </td>
                   <td className={moduleTableCellClass}>
-                    <ModuleTableLink to={`/app/proposals/${item.id}`}>
-                      {item.currentVersionNumber === null ? 'Preparar versão' : 'Abrir proposta'}
-                    </ModuleTableLink>
+                    {item.currentVersionNumber === null ? '—' : item.currentVersionNumber}
                   </td>
-                  <td className={`${moduleTableCellClass} text-gray-500`}>
-                    {formatDateTime(item.updatedAt)}
+                  <td className={`${moduleTableCellClass} tabular-nums`}>
+                    {item.saleTotal
+                      ? formatMoneyBrl(item.saleTotal, item.currencyCode ?? 'BRL')
+                      : '—'}
+                  </td>
+                  <td className={moduleTableCellClass}>
+                    {formatProposalValidity(item.validUntil)}
+                  </td>
+                  <td className={moduleTableCellClass}>
+                    <ModuleTableLink to={`/app/proposals/${item.id}`}>
+                      {proposalNextAction(item.currentVersionStatus)}
+                    </ModuleTableLink>
                   </td>
                 </tr>
               ))}

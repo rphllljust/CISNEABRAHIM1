@@ -16,6 +16,7 @@ import type {
   CreateProposalPersistenceInput,
   ProposalDocumentLinkRow,
   ProposalItemRow,
+  ProposalListVersionRow,
   ProposalRow,
   ProposalVersionRow,
   ServiceSnapshotSource,
@@ -164,6 +165,37 @@ export class ProposalsRepository {
        LIMIT $${params.length + 1}
        OFFSET $${params.length + 2}`,
       [...params, limit, offset],
+    );
+    return result.rows;
+  }
+
+  /**
+   * Versao corrente de VARIAS propostas em UMA consulta.
+   *
+   * Enriquecimento de leitura da listagem: `current_version_number` e os campos da versao
+   * (status, valid_until, totais, moeda) ja existem em `com.proposal_versions`. A busca e feita
+   * por pagina — `WHERE proposal_id = ANY(...)` — e nao uma consulta por linha (sem N+1).
+   * Nao altera `listProposals` nem qualquer query ja em uso.
+   */
+  async findCurrentVersionsForProposals(proposalIds: string[]): Promise<ProposalListVersionRow[]> {
+    if (proposalIds.length === 0) {
+      return [];
+    }
+    const result = await this.pool().query<ProposalListVersionRow>(
+      `SELECT
+         v.proposal_id,
+         v.status::text AS status,
+         v.currency_code,
+         v.pricing_structure::text AS pricing_structure,
+         v.global_sale_price_amount::text AS global_sale_price_amount,
+         v.items_sale_total_amount::text AS items_sale_total_amount,
+         v.valid_until
+       FROM com.proposal_versions v
+       INNER JOIN com.proposals p
+         ON p.id = v.proposal_id
+        AND p.current_version_number = v.version_number
+       WHERE v.proposal_id = ANY($1::uuid[])`,
+      [proposalIds],
     );
     return result.rows;
   }

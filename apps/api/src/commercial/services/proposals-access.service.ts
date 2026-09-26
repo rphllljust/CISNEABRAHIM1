@@ -29,9 +29,11 @@ import { ProposalsRepository } from '../repositories/proposals.repository';
 import type { ProposalRow } from '../repositories/proposals.repository.types';
 import {
   buildProposalDetail,
+  toProposalListItemResponse,
   toProposalResponse,
   toProposalVersionResponse,
   type ProposalDetailResponse,
+  type ProposalListItemResponse,
   type ProposalResponse,
   type ProposalVersionResponse,
 } from '../serializers/proposals-response.serializer';
@@ -537,7 +539,7 @@ export class ProposalsAccessService {
   async list(
     actor: IdentityAuthzContext,
     query: { clientId?: string; unitId?: string; limit: number; offset: number },
-  ): Promise<{ items: ProposalResponse[]; limit: number; offset: number }> {
+  ): Promise<{ items: ProposalListItemResponse[]; limit: number; offset: number }> {
     const scopeFilter = await this.authz.buildListScopeFilter(actor);
 
     const clauses = [scopeFilter.clause === 'TRUE' ? 'TRUE' : scopeFilter.clause];
@@ -557,8 +559,24 @@ export class ProposalsAccessService {
       query.limit,
       query.offset,
     );
+
+    // Enriquecimento ADITIVO da listagem: uma unica consulta extra por pagina para trazer a
+    // versao corrente de todas as propostas retornadas (nunca uma consulta por proposta).
+    // A autorizacao e a consulta de listagem permanecem exatamente como estavam.
+    const currentVersions =
+      items.length === 0
+        ? []
+        : await this.proposalsRepository.findCurrentVersionsForProposals(
+            items.map((item) => item.id),
+          );
+    const versionByProposalId = new Map(
+      currentVersions.map((version) => [version.proposal_id, version]),
+    );
+
     return {
-      items: items.map(toProposalResponse),
+      items: items.map((item) =>
+        toProposalListItemResponse(item, versionByProposalId.get(item.id) ?? null),
+      ),
       limit: query.limit,
       offset: query.offset,
     };

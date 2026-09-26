@@ -75,6 +75,17 @@ export type Proposal = {
   rowVersion: number;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Projecao da versao CORRENTE, exposta pela listagem.
+   *
+   * Todos os campos vem do backend. `null` significa "a proposta ainda nao tem versao" — a
+   * interface declara a ausencia e nunca presume estado comercial.
+   */
+  currentVersionStatus: string | null;
+  currencyCode: string | null;
+  /** Valor de venda da versao corrente, conforme a regra de precificacao do dominio. */
+  saleTotal: string | null;
+  validUntil: string | null;
 };
 
 export type ProposalItem = {

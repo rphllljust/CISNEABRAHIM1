@@ -1,5 +1,6 @@
 import { formatMoneyAmountForApi } from '../domain/money';
 import { resolveCommercialItemFields } from '../domain/proposal-commercial-snapshot';
+import { PROPOSAL_PRICING_STRUCTURES } from '../domain/proposal';
 import {
   toDocumentLinkResponse,
   type DocumentLinkResponse,
@@ -7,6 +8,7 @@ import {
 import type {
   ProposalDocumentLinkRow,
   ProposalItemRow,
+  ProposalListVersionRow,
   ProposalRow,
   ProposalVersionRow,
 } from '../repositories/proposals.repository.types';
@@ -90,6 +92,49 @@ export function toProposalResponse(row: ProposalRow): ProposalResponse {
     rowVersion: row.row_version,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+/**
+ * Item da LISTAGEM: a proposta acrescida da projecao da versao corrente.
+ *
+ * Nenhum campo e derivado de suposicao. Quando a proposta ainda nao tem versao
+ * (`currentVersionNumber === null` nao encontra linha em `com.proposal_versions`), todos os
+ * campos de versao vem `null` e a interface declara a ausencia.
+ */
+export type ProposalListItemResponse = ProposalResponse & {
+  currentVersionStatus: string | null;
+  currencyCode: string | null;
+  validUntil: string | null;
+  /** Valor de venda da versao corrente, conforme a regra de precificacao ja existente. */
+  saleTotal: string | null;
+};
+
+/**
+ * Valor de venda da versao corrente.
+ *
+ * Reusa a mesma regra que o dominio ja aplica em `assertIssueReady` e na emissao:
+ * `GLOBAL_PRICE` -> `global_sale_price_amount`; `ITEMIZED` -> `items_sale_total_amount`
+ * (soma das linhas, persistida na emissao). Nao recalcula nada e nao cria regra nova.
+ */
+function resolveProposalSaleTotal(version: ProposalListVersionRow): string | null {
+  const amount =
+    version.pricing_structure === PROPOSAL_PRICING_STRUCTURES.GlobalPrice
+      ? version.global_sale_price_amount
+      : version.items_sale_total_amount;
+  return formatMoneyAmountForApi(amount);
+}
+
+export function toProposalListItemResponse(
+  row: ProposalRow,
+  currentVersion: ProposalListVersionRow | null,
+): ProposalListItemResponse {
+  return {
+    ...toProposalResponse(row),
+    currentVersionStatus: currentVersion?.status ?? null,
+    currencyCode: currentVersion?.currency_code ?? null,
+    validUntil: currentVersion?.valid_until ?? null,
+    saleTotal: currentVersion ? resolveProposalSaleTotal(currentVersion) : null,
   };
 }
 

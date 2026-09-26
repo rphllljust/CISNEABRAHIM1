@@ -15,6 +15,22 @@ export type ProposalRow = {
   updated_at: string;
 };
 
+/**
+ * Versao CORRENTE de uma proposta, projetada para a listagem.
+ *
+ * Todos os campos ja existem em `com.proposal_versions`. A relacao com "corrente" usa
+ * `com.proposals.current_version_number`, que tambem ja existe. Nenhuma coluna ou tabela nova.
+ */
+export type ProposalListVersionRow = {
+  proposal_id: string;
+  status: string;
+  currency_code: string;
+  pricing_structure: string;
+  global_sale_price_amount: string | null;
+  items_sale_total_amount: string | null;
+  valid_until: string | null;
+};
+
 export type ProposalVersionRow = {
   id: string;
   proposal_id: string;

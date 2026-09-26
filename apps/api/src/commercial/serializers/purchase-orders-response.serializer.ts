@@ -89,6 +89,63 @@ export type PurchaseOrderDetailResponse = {
   balance: PurchaseOrderBalanceResponse;
 };
 
+/**
+ * Item da LISTAGEM: pedido + saldo do ledger.
+ *
+ * `consumed_amount`, `authorized_overrun_amount` e `items_line_total_amount` JA sao selecionados
+ * por `PO_SELECT` — a listagem nao ganha consulta nova nem consulta por linha (sem N+1).
+ *
+ * O saldo reusa a regra de dominio existente (`resolvePurchaseOrderAuthorizedAmount` /
+ * `computePurchaseOrderAvailableBalance`). Na detalhe, `lineTotals` vem das linhas; aqui vem do
+ * total de linhas PERSISTIDO na emissao (`items_line_total_amount`), que e a soma das mesmas
+ * linhas — mesmo insumo, mesma matematica, sem carregar itens para listar.
+ */
+export type PurchaseOrderListItemResponse = PurchaseOrderResponse & {
+  consumedAmount: string;
+  authorizedOverrunAmount: string;
+  /**
+   * `null` quando a propria regra de dominio recusa apurar (valor autorizado indisponivel ou
+   * consumo acima do autorizado). A interface declara "nao apuravel" em vez de exibir numero
+   * inventado; `consumedAmount` continua disponivel.
+   */
+  balance: PurchaseOrderBalanceResponse | null;
+};
+
+function toListBalanceResponse(
+  purchaseOrder: PurchaseOrderRow,
+): PurchaseOrderBalanceResponse | null {
+  const source = {
+    pricingStructure:
+      purchaseOrder.pricing_structure as PurchaseOrderBalanceSource['pricingStructure'],
+    totalAmount: purchaseOrder.total_amount,
+    lineTotals: [purchaseOrder.items_line_total_amount],
+    consumedAmount: purchaseOrder.consumed_amount,
+    authorizedOverrunAmount: purchaseOrder.authorized_overrun_amount ?? '0',
+  };
+  try {
+    return {
+      authorizedAmount: formatMoneyAmountForApi(resolvePurchaseOrderAuthorizedAmount(source))!,
+      consumedAmount: formatMoneyAmountForApi(purchaseOrder.consumed_amount)!,
+      authorizedOverrunAmount: formatMoneyAmountForApi(source.authorizedOverrunAmount)!,
+      availableBalance: formatMoneyAmountForApi(computePurchaseOrderAvailableBalance(source))!,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function toPurchaseOrderListItemResponse(
+  row: PurchaseOrderRow,
+): PurchaseOrderListItemResponse {
+  const balance = toListBalanceResponse(row);
+  return {
+    ...toPurchaseOrderResponse(row),
+    consumedAmount: formatMoneyAmountForApi(row.consumed_amount) ?? '0',
+    authorizedOverrunAmount: formatMoneyAmountForApi(row.authorized_overrun_amount ?? '0') ?? '0',
+    balance,
+  };
+}
+
 function toItemResponse(row: PurchaseOrderItemRow): PurchaseOrderItemResponse {
   const commercial = resolvePurchaseOrderItemFields(row);
   return {

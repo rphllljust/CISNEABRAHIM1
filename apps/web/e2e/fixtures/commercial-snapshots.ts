@@ -71,6 +71,10 @@ const VISUAL_PROPOSAL: Proposal = {
   rowVersion: 4,
   createdAt: '2026-08-20T13:00:00.000Z',
   updatedAt: '2026-08-26T15:30:00.000Z',
+  currentVersionStatus: PROPOSAL_VERSION_STATUSES.Issued,
+  currencyCode: 'BRL',
+  saleTotal: '48250',
+  validUntil: '2026-09-30T00:00:00.000Z',
 };
 
 const VISUAL_PROPOSAL_VERSION_1: ProposalVersion = {
@@ -201,6 +205,10 @@ export const COMMERCIAL_PROPOSALS_LIST_SNAPSHOT: ProposalListResponse = {
       rowVersion: 1,
       createdAt: '2026-08-18T12:00:00.000Z',
       updatedAt: '2026-08-24T14:15:00.000Z',
+      currentVersionStatus: PROPOSAL_VERSION_STATUSES.Draft,
+      currencyCode: 'BRL',
+      saleTotal: '12500',
+      validUntil: null,
     },
   ],
   limit: 20,
@@ -247,6 +255,14 @@ const VISUAL_PURCHASE_ORDER: PurchaseOrder = {
   rowVersion: 3,
   createdAt: '2026-08-21T12:00:00.000Z',
   updatedAt: '2026-08-22T13:45:00.000Z',
+  consumedAmount: '12000',
+  authorizedOverrunAmount: '0',
+  balance: {
+    authorizedAmount: '48250',
+    consumedAmount: '12000',
+    authorizedOverrunAmount: '0',
+    availableBalance: '36250',
+  },
 };
 
 export const COMMERCIAL_PURCHASE_ORDER_DETAIL_SNAPSHOT: PurchaseOrderDetail = {
@@ -331,6 +347,14 @@ export const COMMERCIAL_PURCHASE_ORDERS_LIST_SNAPSHOT: PurchaseOrderListResponse
       rowVersion: 1,
       createdAt: '2026-08-19T12:00:00.000Z',
       updatedAt: '2026-08-20T11:20:00.000Z',
+      consumedAmount: '0',
+      authorizedOverrunAmount: '0',
+      balance: {
+        authorizedAmount: '18750',
+        consumedAmount: '0',
+        authorizedOverrunAmount: '0',
+        availableBalance: '18750',
+      },
     },
   ],
   limit: 20,

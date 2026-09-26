@@ -28,8 +28,10 @@ import { PurchaseOrdersRepository } from '../repositories/purchase-orders.reposi
 import type { PurchaseOrderRow } from '../repositories/purchase-orders.repository.types';
 import {
   toPurchaseOrderDetailResponse,
+  toPurchaseOrderListItemResponse,
   toPurchaseOrderResponse,
   type PurchaseOrderDetailResponse,
+  type PurchaseOrderListItemResponse,
 } from '../serializers/purchase-orders-response.serializer';
 import { PurchaseOrdersAccessAuthz } from './purchase-orders-access.authz';
 import {
@@ -433,7 +435,7 @@ export class PurchaseOrdersAccessService {
   async list(
     actor: IdentityAuthzContext,
     query: { clientId?: string; unitId?: string; limit: number; offset: number },
-  ): Promise<{ items: ReturnType<typeof toPurchaseOrderResponse>[]; limit: number; offset: number }> {
+  ): Promise<{ items: PurchaseOrderListItemResponse[]; limit: number; offset: number }> {
     const scopeFilter = await this.authz.buildListScopeFilter(actor);
 
     const clauses = [scopeFilter.clause];
@@ -454,8 +456,10 @@ export class PurchaseOrdersAccessService {
       query.offset,
     );
 
+    // Aditivo: a listagem passa a expor consumo e saldo. Nenhuma consulta nova — os campos ja
+    // vinham em PO_SELECT — e a autorizacao permanece exatamente como estava.
     return {
-      items: rows.map(toPurchaseOrderResponse),
+      items: rows.map(toPurchaseOrderListItemResponse),
       limit: query.limit,
       offset: query.offset,
     };

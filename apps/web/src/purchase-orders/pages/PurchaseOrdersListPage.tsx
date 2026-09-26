@@ -4,7 +4,7 @@ import { mapPurchaseOrderErrorToMessage } from '../api/purchase-order-error-mess
 import { PurchaseOrderStatusBadge } from '../components/PurchaseOrderStatusBadge';
 import { usePurchaseOrderCapabilities } from '../hooks/usePurchaseOrderCapabilities';
 import type { PurchaseOrder } from '../types/purchase-order.types';
-import { formatDate, formatDateTime, formatMoney } from '../utils/purchase-order-labels';
+import { formatDate, formatMoney } from '../utils/purchase-order-labels';
 import {
   purchaseOrderNextAction,
   purchaseOrderNotice,
@@ -203,13 +203,16 @@ export function PurchaseOrdersListPage() {
                   Valor
                 </th>
                 <th scope="col" className={moduleTableHeaderCellClass}>
+                  Consumido
+                </th>
+                <th scope="col" className={moduleTableHeaderCellClass}>
+                  Saldo
+                </th>
+                <th scope="col" className={moduleTableHeaderCellClass}>
                   Emissão
                 </th>
                 <th scope="col" className={moduleTableHeaderCellClass}>
                   Próxima ação
-                </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
-                  Atualizado em
                 </th>
               </tr>
             </thead>
@@ -237,6 +240,18 @@ export function PurchaseOrdersListPage() {
                   <td className={`${moduleTableCellClass} tabular-nums`}>
                     {formatMoney(item.totalAmount, item.currencyCode)}
                   </td>
+                  <td className={`${moduleTableCellClass} tabular-nums`}>
+                    {formatMoney(item.consumedAmount, item.currencyCode)}
+                  </td>
+                  <td className={`${moduleTableCellClass} tabular-nums`}>
+                    {/* Saldo vem da regra de dominio. Quando ela recusa apurar, a celula
+                        declara a indisponibilidade em vez de mostrar zero. */}
+                    {item.balance ? (
+                      formatMoney(item.balance.availableBalance, item.currencyCode)
+                    ) : (
+                      <span className="text-xs text-gray-500">Não apurável</span>
+                    )}
+                  </td>
                   <td className={moduleTableCellClass}>
                     {item.issueDate ? formatDate(item.issueDate) : '—'}
                   </td>
@@ -244,9 +259,6 @@ export function PurchaseOrdersListPage() {
                     <ModuleTableLink to={`/app/purchase-orders/${item.id}`}>
                       {purchaseOrderNextAction(item.status)}
                     </ModuleTableLink>
-                  </td>
-                  <td className={`${moduleTableCellClass} text-gray-500`}>
-                    {formatDateTime(item.updatedAt)}
                   </td>
                 </tr>
               ))}
