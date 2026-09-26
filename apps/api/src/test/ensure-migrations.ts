@@ -15,11 +15,34 @@ function migrationFileHash(fileName: string): string {
   return createHash('sha256').update(content).digest('hex');
 }
 
+/**
+ * Reconcile `drizzle.__drizzle_migrations` with the migrations folder.
+ *
+ * ORDERING INVARIANT: this must only ever run AFTER the per-migration coverage
+ * checks below. Recording a hash claims "this migration's effect is present", and
+ * the only things that can justify that claim are those checks. Running it first is
+ * how a database once ended up with the full journal and a schema missing the last
+ * migrations: the hash was written for tags this file has no coverage for, the
+ * drizzle migrator then treated them as applied and never ran them.
+ *
+ * A missing journal table is not an error: a database that has never been migrated
+ * has nothing to reconcile, and the coverage checks build the schema instead. Same
+ * stance as `countAppliedMigrations` in `packages/database/src/migrate.ts`.
+ */
 async function syncDrizzleJournal(pool: pg.Pool): Promise<void> {
   const journal = JSON.parse(readFileSync(journalPath, 'utf8')) as {
     entries: Array<{ tag: string; when: number }>;
   };
-  const applied = await pool.query<{ hash: string }>('SELECT hash FROM drizzle.__drizzle_migrations');
+  let applied: pg.QueryResult<{ hash: string }>;
+  try {
+    applied = await pool.query<{ hash: string }>('SELECT hash FROM drizzle.__drizzle_migrations');
+  } catch (error) {
+    // 42P01 = undefined_table: the migrator has never run here.
+    if ((error as { code?: string }).code === '42P01') {
+      return;
+    }
+    throw error;
+  }
   const appliedHashes = new Set(applied.rows.map((row) => row.hash));
 
   const hasScopedRecords = await tableExists(pool, '"authorization".scoped_records');
@@ -118,8 +141,6 @@ export default async function ensureMigrations(): Promise<void> {
 
   const pool = new pg.Pool({ connectionString: testDatabaseUrl });
   try {
-    await syncDrizzleJournal(pool);
-
     const hasInfrastructureBaseline = await tableExists(pool, 'infrastructure.schema_baseline');
     if (!hasInfrastructureBaseline) {
       await applySqlFile(pool, '0000_early_thaddeus_ross.sql');
@@ -656,6 +677,16 @@ $$;`);
       await applySqlFile(pool, '0071_operational_authority_gates.sql');
     }
 
+    const hasLegalEntities = await tableExists(pool, 'pty.legal_entities');
+    if (!hasLegalEntities) {
+      await applySqlFile(pool, '0072_legal_establishment_master.sql');
+    }
+
+    const hasRecurringBillingSchedules = await tableExists(pool, 'bil.recurring_billing_schedules');
+    if (!hasRecurringBillingSchedules) {
+      await applySqlFile(pool, '0073_recurring_billing_schedule.sql');
+    }
+
     const hasOnePublishedIndex = await pool.query<{ exists: boolean }>(
       `SELECT EXISTS (
          SELECT 1
@@ -681,6 +712,34 @@ $$;`);
     const hasJournalEntryNumber = await columnExists(pool, 'acc', 'journal_entries', 'entry_number');
     if (!hasJournalEntryNumber) {
       await applySqlFile(pool, '0075_accounting_entry_number.sql');
+    }
+
+    const hasDeadlineKernel = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM pg_proc p
+         INNER JOIN pg_namespace n ON n.oid = p.pronamespace
+         WHERE n.nspname = 'so'
+           AND p.proname = 'deadline_for'
+       ) AS exists`,
+    );
+    if (!hasDeadlineKernel.rows[0]?.exists) {
+      await applySqlFile(pool, '0076_deadline_kernel.sql');
+    }
+
+    const hasWorkforceIdentity = await columnExists(pool, 'wrk', 'workforce_members', 'identity_id');
+    if (!hasWorkforceIdentity) {
+      await applySqlFile(pool, '0077_workforce_member_identity.sql');
+    }
+
+    const hasAllocationWorkforceMember = await columnExists(
+      pool,
+      'res',
+      'resource_allocations',
+      'workforce_member_id',
+    );
+    if (!hasAllocationWorkforceMember) {
+      await applySqlFile(pool, '0078_workforce_member_allocation.sql');
     }
 
     await syncDrizzleJournal(pool);

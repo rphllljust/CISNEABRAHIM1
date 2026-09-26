@@ -31,6 +31,20 @@ export function readDrizzleJournal() {
  * Presence checks for domain migrations. `null` means "legacy journal entry":
  * hash may be recorded without a dedicated artefact probe (0000–0018).
  * Domain tags MUST have a probe so an incomplete DB is not marked applied.
+ *
+ * Classification rule (why every tag above 0018 has an entry here): a probe is
+ * only registered when the migration produces a DETERMINISTIC, REPRESENTATIVE
+ * structural effect that is cheap to verify — a relation, a column, an enum
+ * label, an index or a function. Tags whose only effect is a data rewrite or an
+ * incidental comment have no stable artefact and stay out of this table on
+ * purpose; that is why this is a curated registry and not a generated one.
+ *
+ * Every effect below was read from the migration SQL itself, not guessed:
+ * - 0043/0048 only create/replace `rpt.*` views (no table), hence `view`;
+ * - 0040/0041/0075 only ADD COLUMN, hence `column`;
+ * - 0055/0057 only ADD VALUE to an existing enum, hence `enumLabel`.
+ * `scripts/check-scripts.mjs` asserts that every journal tag above the legacy
+ * boundary appears here, so a new migration cannot be recorded without a probe.
  */
 const MIGRATION_EFFECT_CHECKS = {
   '0019_service_orders_baseline': { table: 'so.service_orders' },
@@ -54,6 +68,46 @@ const MIGRATION_EFFECT_CHECKS = {
   '0035_service_orders_list_perf_index': { index: 'service_orders_unit_status_created_idx' },
   '0036_workforce_members_baseline': { table: 'wrk.workforce_members' },
   '0037_purchase_order_balance': { table: 'com.purchase_order_consumption_entries' },
+  '0038_commercial_contracts_baseline': { table: 'com.contracts' },
+  '0039_service_request_history_events': { table: 'sr.service_request_history_events' },
+  '0040_proposal_commercial_snapshots': {
+    column: ['com', 'proposal_versions', 'items_sale_total_amount'],
+  },
+  '0041_purchase_order_commercial_snapshots': {
+    column: ['com', 'purchase_orders', 'items_line_total_amount'],
+  },
+  '0042_operational_costs_baseline': { table: 'so.operational_cost_entries' },
+  '0043_cross_context_read_contracts': { view: 'rpt.read_service_orders' },
+  '0044_finance_receivables': { table: 'fin.receivables' },
+  '0045_finance_payables': { table: 'fin.payables' },
+  '0046_finance_treasury': { table: 'fin.financial_accounts' },
+  '0047_accounting_ledger': { table: 'acc.charts_of_accounts' },
+  '0048_accounting_reporting': { view: 'acc.posted_journal_lines' },
+  '0049_fiscal_core': { table: 'fis.fiscal_documents' },
+  '0050_tax_engine': { table: 'fis.tax_rules' },
+  '0051_inventory_core': { table: 'inv.inventory_items' },
+  '0052_payroll_foundation': { table: 'pay.employment_contracts' },
+  '0053_bank_reconciliation': { table: 'fin.bank_statements' },
+  '0054_accounting_posting': { table: 'acc.accounting_posting_rules' },
+  '0055_fiscal_accounting_events': {
+    enumLabel: ['acc', 'posting_event_kind', 'TAX_CALCULATION_CONFIRMED'],
+  },
+  '0056_inventory_costing': { table: 'inv.costing_rules' },
+  '0057_payroll_accounting_events': {
+    enumLabel: ['acc', 'posting_event_kind', 'PAYROLL_REOPENED'],
+  },
+  '0058_bank_statement_import': { table: 'fin.bank_statement_imports' },
+  '0059_period_close_controls': { table: 'acc.period_close_policies' },
+  '0060_tax_assessment_obligation': { table: 'fis.tax_assessments' },
+  '0061_fiscal_period_close': { table: 'fis.fiscal_periods' },
+  '0062_fixed_asset_accounting': { table: 'acc.fixed_asset_registers' },
+  '0063_budget_management': { table: 'fin.budgets' },
+  '0064_supplier_master': { table: 'pty.suppliers' },
+  '0065_procurement_core': { table: 'prc.purchase_requests' },
+  '0066_supplier_invoice': { table: 'prc.supplier_invoices' },
+  '0067_three_way_match': { table: 'prc.three_way_matches' },
+  '0068_financial_approval_matrix': { table: '"authorization".approval_matrices' },
+  '0069_expense_management': { table: 'fin.expenses' },
   '0070_receivable_collections': { table: 'fin.receivable_collections' },
   '0071_operational_authority_gates': {
     column: ['pty', 'clients', 'purchase_order_requirement'],
@@ -61,6 +115,7 @@ const MIGRATION_EFFECT_CHECKS = {
   '0072_legal_establishment_master': { table: 'pty.legal_entities' },
   '0073_recurring_billing_schedule': { table: 'bil.recurring_billing_schedules' },
   '0074_access_administration': { table: '"authorization".access_roles' },
+  '0075_accounting_entry_number': { column: ['acc', 'journal_entries', 'entry_number'] },
   '0076_deadline_kernel': { fn: ['so', 'deadline_for'] },
   '0077_workforce_member_identity': { column: ['wrk', 'workforce_members', 'identity_id'] },
   '0078_workforce_member_allocation': {
@@ -73,8 +128,41 @@ const MIGRATION_EFFECT_CHECKS = {
  * probe is legitimate for them. Any tag above this boundary without a probe is a gap
  * in MIGRATION_EFFECT_CHECKS, not a legacy entry: it must stay unrecorded so the
  * migrator actually runs it instead of silently marking an unmigrated database complete.
+ *
+ * The boundary is a 4-digit migration NUMBER, not a string prefix: comparing full tags
+ * lexicographically puts `0018_service_requests_baseline` "above" `0018`, which would
+ * wrongly treat the last legacy tag as a domain tag.
  */
-const LEGACY_UNPROBED_MAX_TAG = '0018';
+export const LEGACY_UNPROBED_MAX_TAG = '0018';
+
+const LEGACY_UNPROBED_MAX_NUMBER = Number(LEGACY_UNPROBED_MAX_TAG);
+
+function migrationNumberOf(tag) {
+  return Number.parseInt(tag.slice(0, 4), 10);
+}
+
+/** True when `tag` may legitimately lack an artefact probe. */
+export function isLegacyUnprobedTag(tag) {
+  const number = migrationNumberOf(tag);
+  return Number.isNaN(number) || number <= LEGACY_UNPROBED_MAX_NUMBER;
+}
+
+/** Read-only view of the probe registry, for the completeness gate. */
+export const MIGRATION_PROBE_TAGS = Object.freeze(Object.keys(MIGRATION_EFFECT_CHECKS));
+
+/**
+ * Validate the probe registry against the journal on disk. Cheap and hermetic: no
+ * database, no network. Exposed so `scripts/check-scripts.mjs` can fail CI when a
+ * migration ships without a probe — the exact gap that once let 0077/0078 be
+ * recorded as applied without running.
+ */
+export function findUnprobedJournalTags() {
+  const journal = readDrizzleJournal();
+  return journal.entries
+    .filter((entry) => !isLegacyUnprobedTag(entry.tag))
+    .filter((entry) => MIGRATION_EFFECT_CHECKS[entry.tag] === undefined)
+    .map((entry) => entry.tag);
+}
 
 async function migrationEffectsPresent(pool, tag) {
   const check = MIGRATION_EFFECT_CHECKS[tag];
@@ -83,6 +171,11 @@ async function migrationEffectsPresent(pool, tag) {
   }
   if (check.table) {
     return tableExists(pool, check.table);
+  }
+  if (check.view) {
+    // `to_regclass` resolves any relation, views included; a view probe is kept as a
+    // distinct kind so the registry states what the migration actually creates.
+    return tableExists(pool, check.view);
   }
   if (check.column) {
     const [schema, table, column] = check.column;
@@ -179,12 +272,20 @@ export async function syncDrizzleJournal(pool) {
     }
 
     if (effects === null) {
-      // No artefact probe. Legitimate for legacy tags; for any later tag this is a gap
-      // in MIGRATION_EFFECT_CHECKS and the hash is about to be recorded WITHOUT the
-      // migration having been proven to run. That is how 0077/0078 were once marked
-      // applied on an unmigrated database, so make the gap loud instead of silent.
-      if (entry.tag > LEGACY_UNPROBED_MAX_TAG) {
+      // No artefact probe. Legitimate for legacy tags, whose effects predate this
+      // registry. For ANY later tag this is a gap in MIGRATION_EFFECT_CHECKS, and the
+      // hash cannot be justified: recording it would claim an effect that was never
+      // verified — exactly how 0077/0078 were once marked applied on a database where
+      // they had not run, after which the migrator skipped them forever.
+      //
+      // Recording a migration as applied is a distinct operation from reconciling a
+      // known-good journal (Flyway keeps `repair`/`validate` separate; Prisma requires
+      // an explicit `migrate resolve --applied`). So an unprobed domain tag is left
+      // UNRECORDED here and reported instead: the migrator then actually runs it, which
+      // is the only outcome that cannot silently produce a schema behind its journal.
+      if (!isLegacyUnprobedTag(entry.tag)) {
         unprobed.push(entry.tag);
+        continue;
       }
       await pool.query('INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ($1, $2)', [
         hash,
@@ -198,8 +299,9 @@ export async function syncDrizzleJournal(pool) {
   if (unprobed.length > 0) {
     console.warn(
       `[sync-drizzle-journal] ${unprobed.length} tag(s) above ${LEGACY_UNPROBED_MAX_TAG} have no ` +
-        `artefact probe in MIGRATION_EFFECT_CHECKS and were recorded from hash alone: ` +
-        `${unprobed.join(', ')}. Add a probe so an unmigrated database is never marked applied.`,
+        `artefact probe in MIGRATION_EFFECT_CHECKS and were deliberately NOT recorded: ` +
+        `${unprobed.join(', ')}. Add a probe (scripts/check-scripts.mjs enforces this) so the ` +
+        `migration is executed or proven instead of being marked applied blind.`,
     );
   }
 
@@ -208,7 +310,11 @@ export async function syncDrizzleJournal(pool) {
     removed,
     unprobed,
     reason:
-      inserted > 0 || removed > 0 ? 'journal reconciled' : 'journal already aligned',
+      inserted > 0 || removed > 0
+        ? 'journal reconciled'
+        : unprobed.length > 0
+          ? 'journal aligned except for unprobed tags'
+          : 'journal already aligned',
   };
 }
 
