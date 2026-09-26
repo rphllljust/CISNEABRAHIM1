@@ -15,6 +15,7 @@ import {
   SERVICE_ORDER_ACTIVE_STATUS,
   SERVICE_ORDER_LIST_EVENTS,
   SERVICE_ORDER_LIST_FILTERS,
+  SERVICE_ORDER_LIST_ORDERS,
 } from '../types/service-order-list.types';
 import { SERVICE_ORDER_STATUSES, type ServiceOrderStatus } from '../types/service-order.types';
 import {
@@ -138,6 +139,7 @@ export function ServiceOrdersListPage() {
             q: activeFilters.q.trim() || undefined,
             status: activeFilters.status === '' ? undefined : activeFilters.status,
             filter: activeFilters.filter || undefined,
+            order: activeFilters.order || undefined,
             unitId: activeFilters.unitId.trim() || undefined,
             clientId: activeFilters.clientId.trim() || undefined,
             from: activeFilters.from.trim() || undefined,
@@ -241,6 +243,7 @@ export function ServiceOrdersListPage() {
       filters.q.trim() ||
         filters.status ||
         filters.filter ||
+        filters.order ||
         filters.unitId.trim() ||
         filters.clientId.trim() ||
         filters.from.trim() ||
@@ -351,6 +354,22 @@ export function ServiceOrdersListPage() {
               <option value={SERVICE_ORDER_LIST_FILTERS.Unassigned}>Não atribuídas</option>
               <option value={SERVICE_ORDER_LIST_FILTERS.Unscheduled}>Não agendadas</option>
               <option value={SERVICE_ORDER_LIST_FILTERS.ScheduledToday}>Hoje</option>
+            </select>
+          </div>
+          <div>
+            <label className={filterLabelClass} htmlFor="service-order-order">
+              Ordenar por
+            </label>
+            <select
+              id="service-order-order"
+              className={filterControlClass}
+              value={filters.order}
+              onChange={(event) =>
+                updateFilters({ order: event.target.value as ServiceOrderListParams['order'] })
+              }
+            >
+              <option value="">Mais recentes</option>
+              <option value={SERVICE_ORDER_LIST_ORDERS.Schedule}>Programação (prazo)</option>
             </select>
           </div>
           <div>

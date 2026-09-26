@@ -36,12 +36,30 @@ export type ServiceOrderListEvent =
 
 export const SERVICE_ORDER_ACTIVE_STATUS = 'active';
 
+/**
+ * Ordenacao operacional da listagem. `schedule` usa o prazo derivado pelo
+ * kernel so.deadline_for, ja projetado em cada linha: e a leitura primaria do
+ * despacho (o que atende primeiro), com as OS sem janela ao final. O padrao
+ * permanece `recent` para nao alterar consumidores existentes.
+ */
+export const SERVICE_ORDER_LIST_ORDERS = {
+  Recent: 'recent',
+  Schedule: 'schedule',
+} as const;
+
+export type ServiceOrderListOrder =
+  (typeof SERVICE_ORDER_LIST_ORDERS)[keyof typeof SERVICE_ORDER_LIST_ORDERS];
+
+export const SERVICE_ORDER_LIST_DEFAULT_ORDER: ServiceOrderListOrder =
+  SERVICE_ORDER_LIST_ORDERS.Recent;
+
 export type ListServiceOrdersQuery = {
   clientId?: string;
   unitId?: string;
   status?: string;
   archetype?: string;
   filter?: ServiceOrderListFilter;
+  order?: ServiceOrderListOrder;
   q?: string;
   from?: Date;
   toExclusive?: Date;
@@ -60,6 +78,10 @@ export type ServiceOrderListSqlParts = {
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 const FILTER_SET = new Set<string>(Object.values(SERVICE_ORDER_LIST_FILTERS));
 const EVENT_SET = new Set<string>(Object.values(SERVICE_ORDER_LIST_EVENTS));
+const ORDER_SET = new Set<string>(Object.values(SERVICE_ORDER_LIST_ORDERS));
+
+const ORDER_BY_RECENT = 'so.created_at DESC, so.id DESC';
+const ORDER_BY_SCHEDULE = 'deadline_at ASC NULLS LAST, so.created_at DESC, so.id DESC';
 
 const TERMINAL_SERVICE_ORDER_SQL = Array.from(TERMINAL_SERVICE_ORDER_STATUSES)
   .map((status) => `'${status}'`)
@@ -135,6 +157,7 @@ export function parseListServiceOrdersQuery(query: Record<string, unknown>): Lis
   const status = typeof query['status'] === 'string' ? query['status'].trim() : undefined;
   const archetype = typeof query['archetype'] === 'string' ? query['archetype'].trim() : undefined;
   const filterRaw = typeof query['filter'] === 'string' ? query['filter'].trim() : undefined;
+  const orderRaw = typeof query['order'] === 'string' ? query['order'].trim() : undefined;
   const q = typeof query['q'] === 'string' ? query['q'].trim() : undefined;
   const fromRaw = typeof query['from'] === 'string' ? query['from'].trim() : undefined;
   const toRaw = typeof query['to'] === 'string' ? query['to'].trim() : undefined;
@@ -154,6 +177,9 @@ export function parseListServiceOrdersQuery(query: Record<string, unknown>): Lis
   }
   if (filterRaw && !FILTER_SET.has(filterRaw)) {
     throw new ServiceOrderListQueryError('filter');
+  }
+  if (orderRaw && !ORDER_SET.has(orderRaw)) {
+    throw new ServiceOrderListQueryError('order');
   }
   if (eventRaw && !EVENT_SET.has(eventRaw)) {
     throw new ServiceOrderListQueryError('event');
@@ -180,6 +206,7 @@ export function parseListServiceOrdersQuery(query: Record<string, unknown>): Lis
     status: status || undefined,
     archetype: archetype || undefined,
     filter: filterRaw as ServiceOrderListFilter | undefined,
+    order: orderRaw as ServiceOrderListOrder | undefined,
     q: q || undefined,
     from,
     toExclusive,
@@ -274,7 +301,8 @@ export function buildServiceOrderListSqlParts(
     fromClause,
     whereClause: clauses.join(' AND '),
     params,
-    orderBy: 'so.created_at DESC, so.id DESC',
+    orderBy:
+      query.order === SERVICE_ORDER_LIST_ORDERS.Schedule ? ORDER_BY_SCHEDULE : ORDER_BY_RECENT,
   };
 }
 

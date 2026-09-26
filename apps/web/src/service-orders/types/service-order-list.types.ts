@@ -19,3 +19,11 @@ export type ServiceOrderListEvent =
   (typeof SERVICE_ORDER_LIST_EVENTS)[keyof typeof SERVICE_ORDER_LIST_EVENTS];
 
 export const SERVICE_ORDER_ACTIVE_STATUS = 'active';
+
+export const SERVICE_ORDER_LIST_ORDERS = {
+  Recent: 'recent',
+  Schedule: 'schedule',
+} as const;
+
+export type ServiceOrderListOrder =
+  (typeof SERVICE_ORDER_LIST_ORDERS)[keyof typeof SERVICE_ORDER_LIST_ORDERS];

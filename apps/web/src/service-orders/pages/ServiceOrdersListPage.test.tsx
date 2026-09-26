@@ -228,8 +228,33 @@ describe('ServiceOrdersListPage', () => {
     });
   });
 
-  it('shows the dispatch projection columns without inventing assignment', async () => {
+  it('orders the queue by the operational schedule on request', async () => {
+    const user = userEvent.setup();
     const fetchMock = createServiceOrdersFetchMock();
+    vi.stubGlobal('fetch', fetchMock);
+    renderWithProviders(<ServiceOrdersListPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'OS-2026-DEMO01' })).toBeInTheDocument();
+    });
+
+    // Sem escolha explicita a listagem nao envia ordenacao (padrao do backend).
+    expect(
+      fetchMock.mock.calls.map((call) => requestUrl(call[0])).some((url) => url.includes('order=')),
+    ).toBe(false);
+
+    await user.selectOptions(screen.getByLabelText('Ordenar por'), 'schedule');
+
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls
+          .map((call) => requestUrl(call[0]))
+          .some((url) => url.includes('order=schedule')),
+      ).toBe(true);
+    });
+  });
+
+  it('shows the dispatch projection columns without inventing assignment', async () => {    const fetchMock = createServiceOrdersFetchMock();
     vi.stubGlobal('fetch', fetchMock);
     renderWithProviders(<ServiceOrdersListPage />);
 

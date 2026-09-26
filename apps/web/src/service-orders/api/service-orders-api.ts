@@ -1,6 +1,6 @@
 import { getApiBaseUrl, isNetworkError } from '../../auth/api/auth-api';
 import { tokenStore } from '../../auth/storage/token-store';
-import type { ServiceOrderListFilter } from '../types/service-order-list.types';
+import type { ServiceOrderListFilter, ServiceOrderListOrder } from '../types/service-order-list.types';
 import {
   SERVICE_ORDERS_ERROR_CODES,
   type ServiceOrderDetail,
@@ -138,6 +138,7 @@ export async function listServiceOrders(
     status?: ServiceOrderStatus | 'active';
     archetype?: string;
     filter?: ServiceOrderListFilter;
+    order?: ServiceOrderListOrder;
     unitId?: string;
     clientId?: string;
     q?: string;
@@ -158,6 +159,9 @@ export async function listServiceOrders(
   }
   if (query.filter) {
     params.set('filter', query.filter);
+  }
+  if (query.order) {
+    params.set('order', query.order);
   }
   if (query.unitId) {
     params.set('unitId', query.unitId);

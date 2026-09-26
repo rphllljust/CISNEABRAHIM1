@@ -44,7 +44,7 @@ import {
   SERVICE_ORDER_STATUSES,
 } from './domain/service-order';
 import { PLANNED_RESOURCE_KINDS } from './domain/resource-planning';
-import { SERVICE_ORDER_LIST_FILTERS } from './domain/service-order-list.query';
+import { SERVICE_ORDER_LIST_FILTERS, SERVICE_ORDER_LIST_ORDERS } from './domain/service-order-list.query';
 import { SERVICE_ORDERS_ERROR_CODES } from './errors/service-orders-error-codes';
 import { ServiceOrdersModule } from './service-orders.module';
 import { ServiceOrderExecutionAccessService } from './services/service-order-execution-access.service';
@@ -1417,6 +1417,18 @@ describe('Service order planning and allocation PostgreSQL integration', () => {
     // Sem alocacao ativa nao ha responsavel nem prazo: a lista nao inventa dado.
     expect(plainRow?.assignedWorkforceMember).toBeNull();
     expect(plainRow?.deadlineAt).toBeNull();
+
+    // Ordenacao operacional pelo kernel de prazo: a OS programada vem antes
+    // da OS sem janela operacional (NULLS LAST).
+    const scheduledFirst = await serviceOrdersAccess.list(actor, {
+      order: SERVICE_ORDER_LIST_ORDERS.Schedule,
+      limit: 50,
+      offset: 0,
+    });
+    const orderedIds = scheduledFirst.items.map((item) => item.id);
+    expect(orderedIds).toContain(assignedOrder.id);
+    expect(orderedIds).toContain(plainOrder.id);
+    expect(orderedIds.indexOf(assignedOrder.id)).toBeLessThan(orderedIds.indexOf(plainOrder.id));
   });
 
   it('segments the operational list by assignment and scheduling', async () => {

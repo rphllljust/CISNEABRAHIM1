@@ -3,6 +3,7 @@ import { SERVICE_ORDER_STATUSES } from './service-order';
 import {
   SERVICE_ORDER_LIST_EVENTS,
   SERVICE_ORDER_LIST_FILTERS,
+  SERVICE_ORDER_LIST_ORDERS,
   ServiceOrderListQueryError,
   buildServiceOrderListSqlParts,
   parseListServiceOrdersQuery,
@@ -112,5 +113,34 @@ describe('service-order-list.query dispatch segments', () => {
 
     expect(parts.orderBy).toBe('so.created_at DESC, so.id DESC');
     expect(parts.fromClause).toBe('so.service_orders so');
+  });
+});
+
+describe('service-order-list.query operational ordering', () => {
+  it('defaults to the most recent orders', () => {
+    const parts = buildServiceOrderListSqlParts(parseListServiceOrdersQuery({}), 'TRUE', []);
+
+    expect(parts.orderBy).toBe('so.created_at DESC, so.id DESC');
+  });
+
+  it('orders by the schedule kernel, keeping orders without a window last', () => {
+    const query = parseListServiceOrdersQuery({ order: SERVICE_ORDER_LIST_ORDERS.Schedule });
+    const parts = buildServiceOrderListSqlParts(query, 'TRUE', []);
+
+    expect(query.order).toBe(SERVICE_ORDER_LIST_ORDERS.Schedule);
+    expect(parts.orderBy).toBe('deadline_at ASC NULLS LAST, so.created_at DESC, so.id DESC');
+  });
+
+  it('accepts an explicit recent ordering identical to the default', () => {
+    const query = parseListServiceOrdersQuery({ order: SERVICE_ORDER_LIST_ORDERS.Recent });
+    const parts = buildServiceOrderListSqlParts(query, 'TRUE', []);
+
+    expect(parts.orderBy).toBe('so.created_at DESC, so.id DESC');
+  });
+
+  it('rejects an unknown ordering instead of ordering silently', () => {
+    expect(() => parseListServiceOrdersQuery({ order: 'deadline_asc; DROP TABLE' })).toThrow(
+      ServiceOrderListQueryError,
+    );
   });
 });
