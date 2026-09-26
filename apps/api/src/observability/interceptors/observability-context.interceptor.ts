@@ -26,10 +26,31 @@ export class ObservabilityContextInterceptor implements NestInterceptor {
     const operation = `${request.method} ${request.routeOptions?.url ?? request.url}`;
     const contextState: ObservabilityContextState = { requestId, correlationId, operation };
 
+    // Cabeçalhos precisam existir antes do envio da resposta, em todos os caminhos.
+    void response.header(CORRELATION_ID_HEADER, correlationId);
+    void response.header('x-request-id', requestId);
+
     return new Observable((observer) => {
       let failed = false;
       let errorCode: string | undefined;
       let subscription: Subscription | undefined;
+
+      const writeLog = (statusCode: number, durationMs: number): void => {
+        const isError = failed || statusCode >= 500;
+        this.logger.operation({
+          level: isError ? 'error' : 'info',
+          message: 'http_request_completed',
+          operation,
+          durationMs,
+          result: isError ? 'failure' : 'success',
+          errorCode,
+          metadata: {
+            statusCode,
+            method: request.method,
+            path: request.routeOptions?.url ?? request.url,
+          },
+        });
+      };
 
       runWithObservabilityContext(contextState, () => {
         subscription = next.handle().subscribe({
@@ -49,24 +70,28 @@ export class ObservabilityContextInterceptor implements NestInterceptor {
       return () => {
         subscription?.unsubscribe();
         const durationMs = Date.now() - startedAt;
-        const statusCode = response.statusCode ?? (failed ? 500 : 200);
-        const isError = failed || statusCode >= 500;
-        this.metrics.recordHttpRequest(durationMs, isError);
-        void response.header(CORRELATION_ID_HEADER, correlationId);
-        void response.header('x-request-id', requestId);
-        this.logger.operation({
-          level: isError ? 'error' : 'info',
-          message: 'http_request_completed',
-          operation,
-          durationMs,
-          result: isError ? 'failure' : 'success',
-          errorCode,
-          metadata: {
-            statusCode,
-            method: request.method,
-            path: request.routeOptions?.url ?? request.url,
-          },
-        });
+
+        // A metrica fica SINCRONA de proposito: a classificacao de erro nao depende do
+        // status final (`failed` ja a determina no caminho de erro, e no caminho de
+        // sucesso a resposta foi enviada e o status e final). Adiar a contagem faria o
+        // alerta de erro HTTP depender do timing do filtro de excecao.
+        this.metrics.recordHttpRequest(durationMs, failed || response.statusCode >= 500);
+
+        // Defeito comprovado: `response.statusCode` no teardown NAO e o status final.
+        // O filtro de excecao (`ApiExceptionFilter`) escreve o status real DEPOIS deste
+        // teardown, entao ler aqui reportava o status padrao da rota — num POST, 201 —
+        // para uma resposta que saiu 4xx. O log ficava autocontraditorio
+        // (`result: "failure"` com `statusCode: 201`) e consultas por statusCode mentiam:
+        // falha de validacao aparecia como criacao. O fallback anterior
+        // (`response.statusCode ?? (failed ? 500 : 200)`) era inalcancavel, porque
+        // `FastifyReply.statusCode` e sempre um numero.
+        //
+        // Adia-se portanto apenas a LEITURA do status, nunca a contagem.
+        if (failed) {
+          setImmediate(() => writeLog(response.statusCode, durationMs));
+          return;
+        }
+        writeLog(response.statusCode, durationMs);
       };
     });
   }
