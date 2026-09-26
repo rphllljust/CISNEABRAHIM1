@@ -290,6 +290,11 @@ export async function triggerAuthorizedDownload(
   URL.revokeObjectURL(url);
 }
 
+/**
+ * Sonda de MUTACAO: o desfecho esperado de uma mutacao sem payload e a recusa de ENTRADA
+ * (400/404), portanto qualquer resposta que nao seja uma negativa explicita indica que a
+ * capability existe. Nao serve para conceder permissao — ver `probeDownload`.
+ */
 async function probeMutation(path: string, method: string, body?: unknown): Promise<boolean> {
   try {
     await requestJson(path, {
@@ -309,15 +314,40 @@ async function probeMutation(path: string, method: string, body?: unknown): Prom
   }
 }
 
+/**
+ * Sonda de DOWNLOAD: exige evidencia POSITIVA.
+ *
+ * O probe antigo perguntava por um documento-sonda inexistente; o 404 resultante nao e negativa
+ * nem permissao e era lido como permissao, mostrando "Baixar" para quem o backend recusa. Aqui o
+ * unico desfecho que concede a capability e o 200 do endpoint real de download-url sobre um
+ * documento REAL do escopo; 403, 404, 5xx, rede e cancelamento negam (deny-by-default).
+ */
+async function probeDownload(
+  documentId: string,
+  versionNumber: number,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  try {
+    await requestJson(`/api/v1/documents/${documentId}/versions/${versionNumber}/download-url`, {
+      method: 'POST',
+      headers: authHeaders(),
+      signal,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function probeDocumentCapabilities(signal?: AbortSignal): Promise<DocumentCapabilities> {
-  const [canCreate, canUploadVersion, canDownload] = await Promise.all([
+  const [canCreate, canUploadVersion] = await Promise.all([
     probeMutation('/api/v1/documents', 'POST'),
     probeMutation(`/api/v1/documents/${PROBE_DOCUMENT_ID}/versions`, 'POST'),
-    probeMutation(`/api/v1/documents/${PROBE_DOCUMENT_ID}/versions/1/download-url`, 'POST'),
   ]);
 
   let canRead = true;
   let canList = true;
+  let firstDocument: DocumentDetail | null = null;
   try {
     await requestJson(`/api/v1/documents/${PROBE_DOCUMENT_ID}`, {
       method: 'GET',
@@ -331,16 +361,23 @@ export async function probeDocumentCapabilities(signal?: AbortSignal): Promise<D
   }
 
   try {
-    await requestJson('/api/v1/documents?limit=1', {
+    const listed = await requestJson<DocumentListResponse>('/api/v1/documents?limit=1', {
       method: 'GET',
       headers: authHeaders(),
       signal,
     });
+    firstDocument = listed.items[0] ?? null;
   } catch (error) {
     if (error instanceof DocumentsApiError && error.kind === 'denied') {
       canList = false;
     }
   }
+
+  // Sem documento com versao no escopo nao existe download a oferecer e nao existe prova positiva.
+  const canDownload =
+    firstDocument && firstDocument.currentVersionNumber !== null
+      ? await probeDownload(firstDocument.id, firstDocument.currentVersionNumber, signal)
+      : false;
 
   return { canCreate, canRead, canList, canUploadVersion, canDownload };
 }
