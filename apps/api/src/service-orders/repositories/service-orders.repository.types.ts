@@ -47,6 +47,15 @@ export type ServiceOrderRow = {
   created_by_identity_id: string;
   updated_by_identity_id: string;
   assigned_identity_id?: string | null;
+  /**
+   * Projecao de despacho da listagem: membro de mao de obra atribuido
+   * (alocacao ACTIVE) e prazo operacional derivado pelo kernel
+   * so.deadline_for. Ausente nas leituras de escrita.
+   */
+  assigned_workforce_member_id?: string | null;
+  assigned_workforce_member_code?: string | null;
+  assigned_workforce_member_name?: string | null;
+  deadline_at?: string | null;
 };
 
 export type ServiceOrderHistoryEventRow = {

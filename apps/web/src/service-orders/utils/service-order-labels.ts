@@ -144,3 +144,20 @@ export function formatClientLabel(
   }
   return clientId ?? '—';
 }
+
+/**
+ * Rotulo do responsavel pelo despacho. Nunca inventa nome: quando nao ha
+ * alocacao ativa de mao de obra, a OS esta sem responsavel.
+ */
+export function formatAssigneeLabel(
+  member: { memberCode: string; displayName: string } | null,
+): string {
+  if (!member) {
+    return 'Sem responsável';
+  }
+  return `${member.displayName} (${member.memberCode})`;
+}
+
+export function formatDeadlineLabel(deadlineAt: string | null): string {
+  return deadlineAt ? formatDateTime(deadlineAt) : 'Sem prazo';
+}

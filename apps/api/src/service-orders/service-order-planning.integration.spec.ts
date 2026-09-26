@@ -1243,6 +1243,42 @@ describe('Service order planning and allocation PostgreSQL integration', () => {
     });
   });
 
+  it('projects the assigned member and the deadline in the dispatch list', async () => {
+    const { actor, identityId } = await seedActor();
+    await grantServiceOrderListAccess(identityId, identityId);
+    const { released: plainOrder } = await seedReleasedOrder(actor, TEST_CNPJ);
+    const { released: assignedOrder } = await seedReleasedOrder(actor, TEST_CNPJ_ALT);
+    const employee = await createEmployee(`EMP-${crypto.randomUUID().slice(0, 6)}`);
+
+    const plannedLabor = await planningAccess.planResource(actor, assignedOrder.id, {
+      requirementKind: PLANNED_RESOURCE_KINDS.Labor,
+      laborTypeCode: 'DRIVER',
+      plannedQuantity: '1',
+    });
+    const operationalEnd = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    await planningAccess.allocateResource(actor, assignedOrder.id, {
+      plannedResourceId: plannedLabor.id,
+      workforceMemberId: employee.workforceMemberId,
+      operationalStart: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+      operationalEnd,
+    });
+
+    const listed = await serviceOrdersAccess.list(actor, { limit: 50, offset: 0 });
+    const assignedRow = listed.items.find((item) => item.id === assignedOrder.id);
+    const plainRow = listed.items.find((item) => item.id === plainOrder.id);
+
+    expect(assignedRow?.assignedWorkforceMember).toMatchObject({
+      id: employee.workforceMemberId,
+    });
+    expect(assignedRow?.assignedWorkforceMember?.memberCode).toContain('EMP-');
+    // O prazo vem do kernel so.deadline_for: mesmo instante da janela alocada.
+    expect(assignedRow?.deadlineAt).toEqual(new Date(operationalEnd));
+
+    // Sem alocacao ativa nao ha responsavel nem prazo: a lista nao inventa dado.
+    expect(plainRow?.assignedWorkforceMember).toBeNull();
+    expect(plainRow?.deadlineAt).toBeNull();
+  });
+
   it('segments the operational list by assignment and scheduling', async () => {
     const { actor, identityId } = await seedActor();
     await grantServiceOrderListAccess(identityId, identityId);

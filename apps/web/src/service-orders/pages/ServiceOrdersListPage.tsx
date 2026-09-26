@@ -24,8 +24,10 @@ import {
   type ServiceOrderListParams,
 } from '../utils/service-order-list-params';
 import {
+  formatAssigneeLabel,
   formatClientLabel,
   formatDateTime,
+  formatDeadlineLabel,
   formatServiceOrderStatus,
 } from '../utils/service-order-labels';
 import { Button } from '../../ui/Button';
@@ -441,6 +443,8 @@ export function ServiceOrdersListPage() {
               <DataTableHeaderCell scope="col">Número</DataTableHeaderCell>
               <DataTableHeaderCell scope="col">Cliente</DataTableHeaderCell>
               <DataTableHeaderCell scope="col">Unidade</DataTableHeaderCell>
+              <DataTableHeaderCell scope="col">Responsável</DataTableHeaderCell>
+              <DataTableHeaderCell scope="col">Prazo</DataTableHeaderCell>
               <DataTableHeaderCell scope="col">Status</DataTableHeaderCell>
               <DataTableHeaderCell scope="col">Atualizada em</DataTableHeaderCell>
               <DataTableHeaderCell scope="col">Ações</DataTableHeaderCell>
@@ -456,6 +460,8 @@ export function ServiceOrdersListPage() {
                 </DataTableCell>
                 <DataTableCell>{formatClientLabel(item.clientSnapshot, item.clientId)}</DataTableCell>
                 <DataTableCell>{item.unitId}</DataTableCell>
+                <DataTableCell>{formatAssigneeLabel(item.assignedWorkforceMember)}</DataTableCell>
+                <DataTableCell>{formatDeadlineLabel(item.deadlineAt)}</DataTableCell>
                 <DataTableCell>
                   <ServiceOrderStatusBadge status={item.status} />
                 </DataTableCell>

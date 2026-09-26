@@ -48,6 +48,22 @@ export type ServiceOrderResponse = {
 
 export type ServiceOrderHistoryEventResponse = HistoryEventResponse;
 
+export type AssignedWorkforceMemberResponse = {
+  id: string;
+  memberCode: string;
+  displayName: string;
+};
+
+/**
+ * Item de listagem operacional: acrescenta a projecao de despacho
+ * (responsavel atribuido e prazo derivado pelo kernel). O detalhe permanece
+ * com o contrato anterior.
+ */
+export type ServiceOrderListResponse = ServiceOrderResponse & {
+  assignedWorkforceMember: AssignedWorkforceMemberResponse | null;
+  deadlineAt: string | null;
+};
+
 export type ServiceOrderDetailResponse = ServiceOrderResponse & {
   historyEvents: ServiceOrderHistoryEventResponse[];
 };
@@ -100,6 +116,26 @@ export function toServiceOrderHistoryEventResponse(
   row: ServiceOrderHistoryEventRow,
 ): ServiceOrderHistoryEventResponse {
   return toSharedHistoryEventResponse(row);
+}
+
+function toAssignedWorkforceMemberResponse(
+  row: ServiceOrderRow,
+): AssignedWorkforceMemberResponse | null {
+  const id = row.assigned_workforce_member_id;
+  const memberCode = row.assigned_workforce_member_code;
+  const displayName = row.assigned_workforce_member_name;
+  if (!id || !memberCode || !displayName) {
+    return null;
+  }
+  return { id, memberCode, displayName };
+}
+
+export function toServiceOrderListResponse(row: ServiceOrderRow): ServiceOrderListResponse {
+  return {
+    ...toServiceOrderResponse(row),
+    assignedWorkforceMember: toAssignedWorkforceMemberResponse(row),
+    deadlineAt: row.deadline_at ?? null,
+  };
 }
 
 export function toServiceOrderDetailResponse(

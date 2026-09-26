@@ -20,6 +20,7 @@ import { MeasurementComparisonCards } from '../components/MeasurementComparisonC
 import { MeasurementComparisonTable } from '../components/MeasurementComparisonTable';
 import { MeasurementStatusBadge } from '../components/MeasurementStatusBadge';
 import { MeasurementSummaryPanel } from '../components/MeasurementSummaryPanel';
+import { MeasurementTimeline } from '../components/MeasurementTimeline';
 import { MeasurementVersionConflictBanner } from '../components/MeasurementVersionConflictBanner';
 import { useMeasurementCapabilities } from '../hooks/useMeasurementCapabilities';
 import {
@@ -265,6 +266,7 @@ export function ServiceOrderMeasurementPage() {
         <nav className="measurement-page__links" aria-label="Atalhos da ordem de serviço">
           <Link to={`/app/service-orders/${serviceOrderId}/planning`}>Planejamento</Link>
           <Link to={`/app/service-orders/${serviceOrderId}/execution`}>Execução</Link>
+          <Link to={`/app/service-orders/${serviceOrderId}/billing`}>Faturamento</Link>
         </nav>
       </header>
 
@@ -401,8 +403,28 @@ export function ServiceOrderMeasurementPage() {
               ) : null}
             </div>
           </section>
+
+          <section className="measurement-section" aria-labelledby="measurement-timeline-title">
+            <h2 id="measurement-timeline-title">Trilha da medição</h2>
+            <p className="measurement-hint">
+              Registro das decisões da medição: geração, submissão, análise, aprovação, rejeição e
+              ajustes autorizados. Somente leitura.
+            </p>
+            <MeasurementTimeline events={measurement.historyEvents} />
+          </section>
         </>
       )}
+
+      {measurement && measurement.status === MEASUREMENT_STATUSES.Approved ? (
+        <section className="measurement-section" aria-labelledby="measurement-billing-next">
+          <h2 id="measurement-billing-next">Preparação de faturamento</h2>
+          <p className="measurement-hint">
+            A medição foi aprovada. A preparação do faturamento usa esta medição como referência
+            comercial.
+          </p>
+          <Link to={`/app/service-orders/${serviceOrderId}/billing`}>Abrir faturamento</Link>
+        </section>
+      ) : null}
 
       {measurement ? (
         <MeasurementApprovalDialog

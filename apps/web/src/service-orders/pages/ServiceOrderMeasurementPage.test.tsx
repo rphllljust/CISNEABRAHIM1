@@ -52,6 +52,68 @@ describe('ServiceOrderMeasurementPage', () => {
     });
   });
 
+  it('shows the measurement decision trail from the registered history', async () => {
+    vi.stubGlobal(
+      'fetch',
+      createServiceOrdersFetchMock({
+        orderCompleted: true,
+        seedMeasurement: 'rejected',
+      }),
+    );
+    renderServiceOrderRoutes(measurementPath);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /trilha da medição/i })).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Medição gerada')).toBeInTheDocument();
+    expect(screen.getByText('Medição rejeitada')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Motivo: Divergência de quantidade não justificada/i),
+    ).toBeInTheDocument();
+  });
+
+  it('navigates forward to billing only after approval', async () => {
+    vi.stubGlobal(
+      'fetch',
+      createServiceOrdersFetchMock({
+        orderCompleted: true,
+        seedMeasurement: 'draft-aligned',
+      }),
+    );
+    renderServiceOrderRoutes(measurementPath);
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'Faturamento' })).toHaveAttribute(
+        'href',
+        `/app/service-orders/${MOCK_SERVICE_ORDER_ID}/billing`,
+      );
+    });
+    // Antes da aprovacao nao ha atalho de preparacao de faturamento.
+    expect(screen.queryByRole('heading', { name: /preparação de faturamento/i })).not.toBeInTheDocument();
+  });
+
+  it('exposes the billing preparation step once the measurement is approved', async () => {
+    vi.stubGlobal(
+      'fetch',
+      createServiceOrdersFetchMock({
+        orderCompleted: true,
+        seedMeasurement: 'approved',
+      }),
+    );
+    renderServiceOrderRoutes(measurementPath);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { name: /preparação de faturamento/i }),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByRole('link', { name: /abrir faturamento/i })).toHaveAttribute(
+      'href',
+      `/app/service-orders/${MOCK_SERVICE_ORDER_ID}/billing`,
+    );
+  });
+
   it('submits a draft measurement', async () => {
     const user = userEvent.setup();
     vi.stubGlobal(

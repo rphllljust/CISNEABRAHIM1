@@ -108,6 +108,12 @@ async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
   }
 }
 
+export type AssignedWorkforceMember = {
+  id: string;
+  memberCode: string;
+  displayName: string;
+};
+
 export type ServiceOrderSummary = {
   id: string;
   orderNumber: string;
@@ -119,6 +125,10 @@ export type ServiceOrderSummary = {
   location?: Record<string, unknown>;
   rowVersion: number;
   updatedAt: string;
+  /** Projecao de despacho: responsavel atribuido por alocacao ativa. */
+  assignedWorkforceMember: AssignedWorkforceMember | null;
+  /** Prazo operacional derivado pelo backend (kernel de prazo). */
+  deadlineAt: string | null;
 };
 
 export async function listServiceOrders(

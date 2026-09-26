@@ -227,4 +227,20 @@ describe('ServiceOrdersListPage', () => {
       expect(screen.getByText(/sem empregado atribuído por alocação ativa/i)).toBeInTheDocument();
     });
   });
+
+  it('shows the dispatch projection columns without inventing assignment', async () => {
+    const fetchMock = createServiceOrdersFetchMock();
+    vi.stubGlobal('fetch', fetchMock);
+    renderWithProviders(<ServiceOrdersListPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'OS-2026-DEMO01' })).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole('columnheader', { name: 'Responsável' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Prazo' })).toBeInTheDocument();
+    // Sem alocacao ativa a listagem declara a ausencia em vez de fabricar responsavel.
+    expect(screen.getByText('Sem responsável')).toBeInTheDocument();
+    expect(screen.getByText('Sem prazo')).toBeInTheDocument();
+  });
 });

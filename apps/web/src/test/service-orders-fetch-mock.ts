@@ -361,6 +361,12 @@ export function createServiceOrdersFetchMock(options: ServiceOrdersFetchMockOpti
 
   function serviceOrderSummary(id: string) {
     const order = getOrder(id);
+    const activeAllocation = allocations.find(
+      (item) => item.serviceOrderId === id && item.status === 'ACTIVE',
+    );
+    const member = activeAllocation?.workforceMemberId
+      ? people.find((item) => item.id === activeAllocation.workforceMemberId)
+      : undefined;
     return {
       id: order.id,
       orderNumber: order.orderNumber,
@@ -371,6 +377,14 @@ export function createServiceOrdersFetchMock(options: ServiceOrdersFetchMockOpti
       description: order.description,
       rowVersion: order.rowVersion,
       updatedAt: order.updatedAt,
+      assignedWorkforceMember: member
+        ? {
+            id: member.id,
+            memberCode: member.memberCode,
+            displayName: member.preferredName || member.legalName,
+          }
+        : null,
+      deadlineAt: activeAllocation?.operationalEnd ?? null,
     };
   }
 
@@ -712,7 +726,41 @@ export function createServiceOrdersFetchMock(options: ServiceOrdersFetchMockOpti
       updatedAt: now,
       items: buildMeasurementItems(orderId, divergent),
       adjustments: [],
-      historyEvents: [],
+      historyEvents: [
+        {
+          id: 'measurement-event-created',
+          eventType: 'CREATED',
+          payload: { itemCount: 1 },
+          actorIdentityId: 'actor-demo',
+          occurredAt: '2026-01-02T08:00:00.000Z',
+        },
+        ...(status === 'REJECTED'
+          ? [
+              {
+                id: 'measurement-event-rejected',
+                eventType: 'REJECTED',
+                payload: {
+                  fromStatus: 'UNDER_REVIEW',
+                  toStatus: 'REJECTED',
+                  rejectionReason: 'Divergência de quantidade não justificada na revisão.',
+                },
+                actorIdentityId: 'actor-demo',
+                occurredAt: '2026-01-02T10:00:00.000Z',
+              },
+            ]
+          : []),
+        ...(status === 'APPROVED'
+          ? [
+              {
+                id: 'measurement-event-approved',
+                eventType: 'APPROVED',
+                payload: { fromStatus: 'UNDER_REVIEW', toStatus: 'APPROVED', rejectionReason: null },
+                actorIdentityId: 'actor-demo',
+                occurredAt: '2026-01-02T10:00:00.000Z',
+              },
+            ]
+          : []),
+      ],
     };
   }
 

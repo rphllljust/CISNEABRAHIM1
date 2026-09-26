@@ -52,7 +52,7 @@ import { ServiceOrdersRepository } from '../repositories/service-orders.reposito
 import type { ServiceOrderRow } from '../repositories/service-orders.repository.types';
 import {
   toServiceOrderDetailResponse,
-  toServiceOrderResponse,
+  toServiceOrderListResponse,
   type ServiceOrderDetailResponse,
 } from '../serializers/service-orders-response.serializer';
 import { ServiceOrdersAccessAuthz } from './service-orders-access.authz';
@@ -240,7 +240,11 @@ export class ServiceOrdersAccessService {
   async list(
     actor: IdentityAuthzContext,
     query: ListServiceOrdersQuery,
-  ): Promise<{ items: ReturnType<typeof toServiceOrderResponse>[]; limit: number; offset: number }> {
+  ): Promise<{
+    items: ReturnType<typeof toServiceOrderListResponse>[];
+    limit: number;
+    offset: number;
+  }> {
     await this.authz.assertListAction(actor);
     const scopeFilter = await this.authz.getListScopeFilter(actor);
     const parts = resolveServiceOrderListQuery(query, scopeFilter.clause, scopeFilter.params, {
@@ -249,7 +253,7 @@ export class ServiceOrdersAccessService {
     const rows = await this.repository.listServiceOrders(parts, query.limit, query.offset);
 
     return {
-      items: rows.map(toServiceOrderResponse),
+      items: rows.map(toServiceOrderListResponse),
       limit: query.limit,
       offset: query.offset,
     };

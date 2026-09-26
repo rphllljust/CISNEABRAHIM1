@@ -130,8 +130,23 @@ export class ServiceOrdersRepository {
              AND wm.identity_id IS NOT NULL
            ORDER BY ra.allocated_at ASC, ra.id ASC
            LIMIT 1
-         ) AS assigned_identity_id
+         ) AS assigned_identity_id,
+         assigned.workforce_member_id AS assigned_workforce_member_id,
+         assigned.member_code AS assigned_workforce_member_code,
+         assigned.display_name AS assigned_workforce_member_name,
+         so.deadline_for(so.id) AS deadline_at
        FROM ${parts.fromClause}
+       LEFT JOIN LATERAL (
+         SELECT wm.id AS workforce_member_id, wm.member_code,
+                COALESCE(wm.preferred_name, wm.legal_name) AS display_name
+         FROM res.resource_allocations ra
+         INNER JOIN wrk.workforce_members wm ON wm.id = ra.workforce_member_id
+         WHERE ra.service_order_id = so.id
+           AND ra.status = 'ACTIVE'::res.resource_allocation_status
+           AND wm.status = 'ACTIVE'::wrk.workforce_member_status
+         ORDER BY ra.allocated_at ASC, ra.id ASC
+         LIMIT 1
+       ) assigned ON TRUE
        WHERE ${parts.whereClause}
        ORDER BY ${parts.orderBy}
        LIMIT $${params.length - 1}
