@@ -36,6 +36,17 @@ export {
 export { withSyntheticSeedLock } from './synthetic-seed-lock';
 export { runDevelopmentSeed, type DevelopmentSeedOptions } from './development-seed';
 export {
+  ABRAHIM_OWNER_LOGIN,
+  CONTROLE_LOGIN,
+  CONTROLE_FINANCEIRO_LOGIN,
+  EMPREGADO_LOGIN,
+  MONICA_OWNER_LOGIN,
+  RAFAEL_DEVELOPER_LOGIN,
+  runOperationalProfilesSeed,
+  type OperationalProfilesInput,
+  type OperationalProfilesResult,
+} from './operational-profiles';
+export {
   assertDevelopmentOnly,
   assertNotProductionSeed,
   assertProductionBootstrapAllowed,

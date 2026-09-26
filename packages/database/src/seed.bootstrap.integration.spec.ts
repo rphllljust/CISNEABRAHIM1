@@ -2,6 +2,11 @@ import { Pool } from 'pg';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { DEVELOPMENT_SEED_LOGIN } from './seed/constants';
 import { runDevelopmentSeed } from './seed/development-seed';
+import {
+  CONTROLE_FINANCEIRO_LOGIN,
+  EMPREGADO_LOGIN,
+  runOperationalProfilesSeed,
+} from './seed/operational-profiles';
 import { runProductionBootstrap } from './seed/production-bootstrap';
 import type { SafeSeedResult } from './seed/types';
 import { IdentityTestBuilders, truncateIdentityTables } from './test-builders/identity-builders';
@@ -70,6 +75,83 @@ describe('seed and bootstrap (PostgreSQL integration)', () => {
       password: 'Dev-Only-1!Synthetic',
     });
     assertNoCredentialLeak(result);
+  });
+
+  it('seeds static owners and developer with least privilege for the operational employee', async () => {
+    const result = await runOperationalProfilesSeed(pool, {
+      controlePassword: 'Dev-Only-1!Synthetic',
+      controleFinanceiroPassword: 'Dev-Only-1!Synthetic',
+      empregadoPassword: 'Dev-Only-1!Synthetic',
+    });
+
+    expect(result.empregadoLogin).toBe(EMPREGADO_LOGIN);
+    expect(result.controleFinanceiroLogin).toBe(CONTROLE_FINANCEIRO_LOGIN);
+
+    /**
+     * EMPREGADO: somente ASSIGNED (perfil autoritativo `executor`). Nenhum grant
+     * financeiro/contabil/fiscal e nenhum GLOBAL sobre OS. A versao anterior deste teste
+     * afirmava "broad development access" e por isso passava apenas enquanto o bug de
+     * sobre-privilegio existia; a correcao de 2026-09-25 (prompt-execution-log,
+     * "CORRECAO DE PERMISSOES — EMPREGADO SOBRE-PRIVILEGIADO") tornou a afirmacao antiga
+     * falsa. Aqui ela passa a verificar a regra registrada, nao o comportamento antigo.
+     */
+    const empregadoSensitive = await pool.query<{ count: string }>(
+      `SELECT count(*)::text AS count
+       FROM "authorization".grants
+       WHERE identity_id = $1
+         AND revoked_at IS NULL
+         AND (
+           action LIKE 'finance:%'
+           OR action LIKE 'accounting:%'
+           OR action LIKE 'fiscal:%'
+         )`,
+      [result.empregadoIdentityId],
+    );
+    expect(Number(empregadoSensitive.rows[0]?.count)).toBe(0);
+
+    const empregadoGlobalOrders = await pool.query<{ count: string }>(
+      `SELECT count(*)::text AS count
+       FROM "authorization".grants
+       WHERE identity_id = $1
+         AND revoked_at IS NULL
+         AND scope_type = 'GLOBAL'
+         AND resource_type = 'service-orders:service-order'`,
+      [result.empregadoIdentityId],
+    );
+    expect(Number(empregadoGlobalOrders.rows[0]?.count)).toBe(0);
+
+    const empregadoAssignedOrders = await pool.query<{ count: string }>(
+      `SELECT count(*)::text AS count
+       FROM "authorization".grants
+       WHERE identity_id = $1
+         AND revoked_at IS NULL
+         AND scope_type = 'ASSIGNED'
+         AND resource_type = 'service-orders:service-order'`,
+      [result.empregadoIdentityId],
+    );
+    expect(Number(empregadoAssignedOrders.rows[0]?.count)).toBeGreaterThan(0);
+
+    // O dono continua com o conjunto GLOBAL amplo de desenvolvimento (conveniencia dev).
+    const ownerBroad = await pool.query<{ count: string }>(
+      `SELECT count(*)::text AS count
+       FROM "authorization".grants
+       WHERE identity_id = $1
+         AND revoked_at IS NULL
+         AND scope_type = 'GLOBAL'
+         AND resource_type = 'service-orders:service-order'`,
+      [result.controleIdentityId],
+    );
+    expect(Number(ownerBroad.rows[0]?.count)).toBeGreaterThan(0);
+
+    const financeChecker = await pool.query<{ count: string }>(
+      `SELECT count(*)::text AS count
+       FROM "authorization".approval_role_assignments
+       WHERE identity_id = $1
+         AND role_code = 'FINANCIAL_CONTROLLER'
+         AND scope_type = 'UNIT'`,
+      [result.controleFinanceiroIdentityId],
+    );
+    expect(Number(financeChecker.rows[0]?.count)).toBe(1);
   });
 
   it('blocks DEVELOPMENT_SEED when NODE_ENV=production', async () => {

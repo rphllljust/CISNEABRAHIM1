@@ -11,9 +11,52 @@ const { Pool } = requireFromApi('pg');
 const { AUTHZ_ACTIONS } = requireFromApi('./dist/authorization/types/authz-actions.js');
 const { AUTHZ_RESOURCE_TYPES } = requireFromApi('./dist/authorization/types/authz-resources.js');
 const { AUTHZ_SCOPES } = requireFromApi('./dist/authorization/types/authz-scopes.js');
+const {
+  ABRAHIM_OWNER_LOGIN,
+  MONICA_OWNER_LOGIN,
+  RAFAEL_DEVELOPER_LOGIN,
+  runOperationalProfilesSeed,
+} = requireFromApi('@cisne/database/seed');
 
-const DEFAULT_LOGIN = 'dev-operator@cisne-rondonia.invalid';
-const DEFAULT_PASSWORD = 'Dev-Only-1!Synthetic';
+/**
+ * Logins estaticos de desenvolvimento.
+ *
+ * O identificador de cada perfil vem do modulo canonico (`@cisne/database/seed`) para que a
+ * lista nao exista em dois lugares; a senha e estatica aqui e em
+ * `packages/database/scripts/seed-profiles.mjs`.
+ *
+ * `globalDevGrants` controla quem recebe o conjunto GLOBAL completo (todas as 263 actions).
+ * Somente os donos. O empregado operacional NAO entra nesse conjunto: a regra registrada e
+ * "EMPREGADO: somente ASSIGNED" (prompt-execution-log, "CORRECAO DE PERMISSOES — EMPREGADO
+ * SOBRE-PRIVILEGIADO — 2026-09-25"). O conjunto minimo dele vem do seed canonico, aplicado
+ * ao final de cada banco por `applyCanonicalProfiles`.
+ */
+const STATIC_DEV_PROFILES = [
+  {
+    login: ABRAHIM_OWNER_LOGIN,
+    password: 'Cisne-Abrahim-2026!',
+    roleCode: 'OWNER',
+    roleLabel: 'Dono',
+    roleDescription: 'Dono estático do CISNE com acesso global de desenvolvimento.',
+    globalDevGrants: true,
+  },
+  {
+    login: MONICA_OWNER_LOGIN,
+    password: 'Cisne-Monica-2026!',
+    roleCode: 'OWNER',
+    roleLabel: 'Dono',
+    roleDescription: 'Dono estático do CISNE com acesso global de desenvolvimento.',
+    globalDevGrants: true,
+  },
+  {
+    login: RAFAEL_DEVELOPER_LOGIN,
+    password: 'Cisne-Rafael-Dev-2026!',
+    roleCode: 'DEVELOPER',
+    roleLabel: 'Desenvolvedor',
+    roleDescription: 'Desenvolvedor estático do CISNE com acesso global de desenvolvimento.',
+    globalDevGrants: false,
+  },
+];
 const TARGET_DATABASES = ['cisne_local_dev', 'cisne_runtime'];
 
 function normalizeLogin(login) {
@@ -32,9 +75,10 @@ async function hashPassword(plain) {
   return `scrypt$${salt.toString('hex')}$${derived.toString('hex')}`;
 }
 
-async function repairCredential(connectionString, login, password) {
+async function repairCredential(connectionString, profile) {
+  const login = normalizeLogin(profile.login);
   const pool = new Pool({ connectionString });
-  const passwordHash = await hashPassword(password);
+  const passwordHash = await hashPassword(profile.password);
 
   try {
     await pool.query('BEGIN');
@@ -65,28 +109,90 @@ async function repairCredential(connectionString, login, password) {
          WHERE id = $1`,
         [row.identity_id],
       );
-      const grantsAdded = await ensureDevelopmentGlobalGrants(pool, row.identity_id);
+      const grantsAdded = await ensureGlobalDevGrantsForProfile(pool, row.identity_id, profile);
+      await ensureStaticRoleAssignment(pool, row.identity_id, row.identity_id, profile);
       await pool.query('COMMIT');
-      return { outcome: 'updated', grantsAdded };
+      return { outcome: 'updated', identityId: row.identity_id, grantsAdded };
     }
 
     const identityId = randomUUID();
     const credentialId = randomUUID();
 
-    await pool.query(`INSERT INTO identity.identities (id, status) VALUES ($1, 'active')`, [identityId]);
+    await pool.query(`INSERT INTO identity.identities (id, status) VALUES ($1, 'active')`, [
+      identityId,
+    ]);
     await pool.query(
       `INSERT INTO identity.credentials (id, identity_id, login_identifier_normalized, password_hash)
        VALUES ($1, $2, $3, $4)`,
       [credentialId, identityId, login, passwordHash],
     );
-    const grantsAdded = await ensureDevelopmentGlobalGrants(pool, identityId);
+    const grantsAdded = await ensureGlobalDevGrantsForProfile(pool, identityId, profile);
+    await ensureStaticRoleAssignment(pool, identityId, identityId, profile);
     await pool.query('COMMIT');
-    return { outcome: 'created', grantsAdded };
+    return { outcome: 'created', identityId, grantsAdded };
   } catch (error) {
     await pool.query('ROLLBACK').catch(() => undefined);
     throw error;
   } finally {
     await pool.end();
+  }
+}
+
+/**
+ * Conjunto GLOBAL completo (todas as 263 actions) e conveniencia de dono, nao regra de negocio.
+ * O perfil marcado com `globalDevGrants: false` (empregado operacional) e ignorado aqui de
+ * proposito: sem essa guarda, `auth:repair:dev-login` reinstalava os 72 grants
+ * financeiro/contabil/fiscal no login do empregado e desfazia a correcao registrada em
+ * prompt-execution-log (2026-09-25).
+ */
+async function ensureGlobalDevGrantsForProfile(pool, identityId, profile) {
+  if (!profile.globalDevGrants) {
+    return 0;
+  }
+  return ensureDevelopmentGlobalGrants(pool, identityId);
+}
+
+async function ensureStaticRoleAssignment(pool, identityId, assignedBy, profile) {
+  const roleId = await ensureStaticRole(pool, profile, assignedBy);
+  await pool.query(
+    `INSERT INTO "authorization".access_role_assignments
+       (id, role_id, identity_id, scope_type, assigned_by_identity_id)
+     VALUES ($1, $2, $3, 'GLOBAL', $4)
+     ON CONFLICT DO NOTHING`,
+    [randomUUID(), roleId, identityId, assignedBy],
+  );
+}
+
+async function ensureStaticRole(pool, profile, createdBy) {
+  const existing = await pool.query(`SELECT id FROM "authorization".access_roles WHERE code = $1`, [
+    profile.roleCode,
+  ]);
+  const found = existing.rows[0]?.id;
+  if (found) {
+    await ensureRoleCapabilities(pool, found, createdBy);
+    return found;
+  }
+
+  const roleId = randomUUID();
+  await pool.query(
+    `INSERT INTO "authorization".access_roles
+       (id, code, label, description, status, created_by_identity_id)
+     VALUES ($1, $2, $3, $4, 'ACTIVE', $5)`,
+    [roleId, profile.roleCode, profile.roleLabel, profile.roleDescription, createdBy],
+  );
+  await ensureRoleCapabilities(pool, roleId, createdBy);
+  return roleId;
+}
+
+async function ensureRoleCapabilities(pool, roleId, addedBy) {
+  for (const capability of Object.values(AUTHZ_ACTIONS)) {
+    await pool.query(
+      `INSERT INTO "authorization".access_role_capabilities
+         (id, role_id, capability, added_by_identity_id)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (role_id, capability) DO NOTHING`,
+      [randomUUID(), roleId, capability, addedBy],
+    );
   }
 }
 
@@ -102,22 +208,26 @@ function resolveResourceType(action) {
   if (action.startsWith('procurement:')) return AUTHZ_RESOURCE_TYPES.Procurement;
   if (action.startsWith('catalog:service:')) return AUTHZ_RESOURCE_TYPES.CatalogService;
   if (action.startsWith('catalog:unit:')) return AUTHZ_RESOURCE_TYPES.CatalogUnit;
-  if (action.startsWith('resources:resource-type:')) return AUTHZ_RESOURCE_TYPES.ResourcesResourceType;
+  if (action.startsWith('resources:resource-type:'))
+    return AUTHZ_RESOURCE_TYPES.ResourcesResourceType;
   if (action.startsWith('resources:labor-type:')) return AUTHZ_RESOURCE_TYPES.ResourcesLaborType;
   if (action.startsWith('resources:asset:')) return AUTHZ_RESOURCE_TYPES.ResourcesAsset;
   if (action.startsWith('documents:document:')) return AUTHZ_RESOURCE_TYPES.DocumentsDocument;
   if (action.startsWith('commercial:policy:')) return AUTHZ_RESOURCE_TYPES.CommercialPolicy;
   if (action.startsWith('commercial:proposal:')) return AUTHZ_RESOURCE_TYPES.CommercialProposal;
-  if (action.startsWith('commercial:purchase-order:')) return AUTHZ_RESOURCE_TYPES.CommercialPurchaseOrder;
+  if (action.startsWith('commercial:purchase-order:'))
+    return AUTHZ_RESOURCE_TYPES.CommercialPurchaseOrder;
   if (action.startsWith('commercial:contract:')) return AUTHZ_RESOURCE_TYPES.CommercialContract;
-  if (action.startsWith('requests:service-request:')) return AUTHZ_RESOURCE_TYPES.RequestsServiceRequest;
+  if (action.startsWith('requests:service-request:'))
+    return AUTHZ_RESOURCE_TYPES.RequestsServiceRequest;
   if (action.startsWith('service-orders:')) return AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder;
   if (action.startsWith('measurements:')) return AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder;
   if (action.startsWith('billing:')) return AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder;
   if (action.startsWith('people:')) return AUTHZ_RESOURCE_TYPES.PeoplePerson;
   if (action.startsWith('issuer:legal-entity:')) return AUTHZ_RESOURCE_TYPES.IssuerLegalEntity;
   if (action.startsWith('issuer:establishment:')) return AUTHZ_RESOURCE_TYPES.IssuerEstablishment;
-  if (action.startsWith('issuer:tax-registration:')) return AUTHZ_RESOURCE_TYPES.IssuerTaxRegistration;
+  if (action.startsWith('issuer:tax-registration:'))
+    return AUTHZ_RESOURCE_TYPES.IssuerTaxRegistration;
   if (action.startsWith('issuer:certificate:')) return AUTHZ_RESOURCE_TYPES.IssuerCertificate;
   if (action.startsWith('finance:receivable:')) return AUTHZ_RESOURCE_TYPES.FinanceReceivable;
   if (action.startsWith('finance:payable:')) return AUTHZ_RESOURCE_TYPES.FinancePayable;
@@ -185,31 +295,84 @@ async function main() {
     throw new Error('DATABASE_URL is required in .env');
   }
 
-  const login = normalizeLogin(process.env['DEV_OPERATOR_LOGIN'] ?? DEFAULT_LOGIN);
-  const password = process.env['DEV_SEED_PASSWORD'] ?? DEFAULT_PASSWORD;
-  const passwordSource = process.env['DEV_SEED_PASSWORD']
-    ? 'DEV_SEED_PASSWORD'
-    : 'fallback-default-dev-password';
-
   const results = [];
   for (const dbName of TARGET_DATABASES) {
     const targetUrl = withDatabase(databaseUrl, dbName);
+    for (const profile of STATIC_DEV_PROFILES) {
+      const login = normalizeLogin(profile.login);
+      try {
+        const result = await repairCredential(targetUrl, profile);
+        results.push({
+          database: dbName,
+          login,
+          roleCode: profile.roleCode,
+          outcome: result.outcome,
+          identityId: result.identityId,
+          grantsAdded: result.grantsAdded,
+        });
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : 'unknown error';
+        results.push({
+          database: dbName,
+          login,
+          roleCode: profile.roleCode,
+          outcome: 'skipped',
+          reason,
+        });
+      }
+    }
+
+    // O seed canonico e quem garante papel e conjunto minimo de grants de cada perfil
+    // (incluindo os 11 do empregado operacional). E aditivo e idempotente: nunca revoga.
     try {
-      const result = await repairCredential(targetUrl, login, password);
-      results.push({ database: dbName, outcome: result.outcome, grantsAdded: result.grantsAdded });
+      const canonical = await applyCanonicalProfiles(targetUrl);
+      results.push({
+        database: dbName,
+        login: '*',
+        outcome: 'canonical-profiles-applied',
+        ...canonical,
+      });
     } catch (error) {
       const reason = error instanceof Error ? error.message : 'unknown error';
-      results.push({ database: dbName, outcome: 'skipped', reason });
+      results.push({ database: dbName, login: '*', outcome: 'canonical-profiles-skipped', reason });
     }
   }
 
   process.stdout.write(
     `${JSON.stringify({
-      login,
-      passwordSource,
+      logins: STATIC_DEV_PROFILES.map((profile) => normalizeLogin(profile.login)),
+      passwordSource: 'static-development-profiles',
       results,
     })}\n`,
   );
+}
+
+function passwordForLogin(login) {
+  const profile = STATIC_DEV_PROFILES.find(
+    (candidate) => normalizeLogin(candidate.login) === normalizeLogin(login),
+  );
+  if (!profile) {
+    throw new Error(`MISSING_STATIC_PROFILE_FOR_${normalizeLogin(login)}`);
+  }
+  return profile.password;
+}
+
+async function applyCanonicalProfiles(connectionString) {
+  const pool = new Pool({ connectionString });
+  try {
+    const result = await runOperationalProfilesSeed(pool, {
+      controlePassword: passwordForLogin(ABRAHIM_OWNER_LOGIN),
+      controleFinanceiroPassword: passwordForLogin(MONICA_OWNER_LOGIN),
+      empregadoPassword: passwordForLogin(RAFAEL_DEVELOPER_LOGIN),
+    });
+    return {
+      controleGrantsAdded: result.controleGrants,
+      controleFinanceiroGrantsAdded: result.controleFinanceiroGrants,
+      empregadoGrantsAdded: result.empregadoGrants,
+    };
+  } finally {
+    await pool.end();
+  }
 }
 
 function loadEnvFile(filePath) {
