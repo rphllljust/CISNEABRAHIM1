@@ -1160,6 +1160,34 @@ async function assertPreDeltaState(connectionString, deltaFile) {
       return;
     }
 
+    if (deltaFile === '0078_workforce_member_allocation.sql') {
+      const identity = await client.query(
+        `SELECT 1
+         FROM information_schema.columns
+         WHERE table_schema = 'wrk'
+           AND table_name = 'workforce_members'
+           AND column_name = 'identity_id'
+         LIMIT 1`,
+      );
+      if ((identity.rowCount ?? 0) === 0) {
+        throw new Error('Expected wrk.workforce_members.identity_id before 0078 delta');
+      }
+      const allocation = await client.query(
+        `SELECT 1
+         FROM information_schema.columns
+         WHERE table_schema = 'res'
+           AND table_name = 'resource_allocations'
+           AND column_name = 'workforce_member_id'
+         LIMIT 1`,
+      );
+      if ((allocation.rowCount ?? 0) > 0) {
+        throw new Error(
+          'Incremental baseline incorrectly contains res.resource_allocations.workforce_member_id before 0078',
+        );
+      }
+      return;
+    }
+
     throw new Error(`Unsupported incremental delta migration: ${deltaFile}`);
   } finally {
     await client.end();
