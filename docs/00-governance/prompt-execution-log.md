@@ -13629,3 +13629,171 @@ harness/editor.
    `cisne_clean_verify`, `cisne_gate_fresh`, `cisne_gate_incremental`, `cisne_migration_torture_*`,
    `cisne_prod_rehearsal`, `cisne_test_iso_verify`, `cisne_local_test2`.
 
+```text
+PROMPT: n/a (frente técnica de elevação para 9,0 — rubric de 8 dimensões, régua fixa)
+TITLE: Migration sem prova de efeito, gate de scripts, disciplina transacional, status HTTP em log e convergência da árvore
+STARTED_AT: 2026-09-25T22:40:00-04:00
+FINISHED_AT: 2026-09-26T03:30:00-04:00
+STATUS: PASS (quatro defeitos comprovados e corrigidos, cada um com teste negativo) / árvore convergida / pendências reais registradas
+BASE_SHA: 4b9ba4b222a9ada17e36f545fc32b559db582524
+HEAD_SHA: 000ff9b6b409dad548dd997d3d6c596a33b4b8bd (23 commits nesta frente)
+```
+
+### P0 comprovado e corrigido — migration de domínio marcada aplicada sem prova do efeito
+
+`apps/api/src/test/ensure-migrations.ts` é o `globalSetup` dos suites de integração, e2e e perf. Ele
+reconciliava o journal ANTES das verificações de schema e gravava o hash de TODA entrada — inclusive de
+`0072_legal_establishment_master` e `0073_recurring_billing_schedule`, para as quais não existia bloco de
+cobertura no arquivo.
+
+Prova em PostgreSQL 18 real, banco isolado, caminho INCREMENTAL (`tmp/migration-effect-probe.proof.mjs`):
+banco em `0071` (journal 72/79) → `globalSetup` real → journal 79/79 com `pty.legal_entities` e
+`bil.recurring_billing_schedules` AUSENTES e nenhuma migration pendente para o drizzle-kit. O schema ficava
+permanentemente atrás do próprio journal. Mesma classe do defeito já corrigido em 0077/0078, reincidente em um
+segundo runner. Após a correção: 12/12 PASS.
+
+Correções: blocos de cobertura para 0072/0073; `syncDrizzleJournal` só depois das verificações de cobertura;
+tabela de journal ausente (42P01) deixa de ser erro. A reconciliação passou a **não** gravar hash de tag de
+domínio sem probe — registrar migration como aplicada é operação distinta de reconciliar journal conhecido-bom
+(é assim que Flyway mantém `repair`/`validate` como comandos próprios e que Prisma exige
+`migrate resolve --applied` explícito).
+
+Também corrigido um defeito próprio: a fronteira de legado comparava a **tag inteira** com `'0018'`, então
+`0018_service_requests_baseline` era classificada como tag de domínio por ordem lexicográfica. Agora a
+comparação é pelo número de 4 dígitos.
+
+Meta da frente cumprida: probes deterministas para todas as tags de domínio que não tinham nenhuma
+(`0038`–`0069`, `0075`; o efeito de cada uma lido do SQL — `0043`/`0048` só criam views, `0040`/`0041`/`0075`
+só fazem ADD COLUMN, `0055`/`0057` só ADD VALUE em enum). Zero tag de domínio sem probe, verificado por gate.
+
+Anti-reincidência: `apps/api/src/test/ensure-migrations-journal-coverage.spec.ts` (unitário, sem banco) falha se
+qualquer tag do journal não tiver bloco de cobertura, se a reconciliação voltar a rodar antes das verificações
+ou se o tratamento de 42P01 for removido. Teste negativo executado: sem o bloco de `0073`, o spec falha
+nomeando a tag.
+
+Prova adicional do caminho FRESH (`tmp/proof-fresh-global-setup.mjs`, 4/4 PASS): banco nunca migrado →
+`globalSetup` constrói o schema completo pelas próprias verificações, não lança, e **não cria tabela de journal**
+— nada é afirmado aplicado sem prova.
+
+### Gate barato para `scripts/` (pendência 3 da rodada anterior, fechada)
+
+`scripts/` não é pacote do workspace, então `turbo run lint|typecheck|build` nunca o alcançou — foi o que
+permitiu o import de `dotenv` não resolvível e o `tsx` não declarado conviverem com gate verde.
+
+`scripts/check-scripts.mjs` (≈1,6 s) faz quatro verificações: sintaxe (`node --check`), resolução de todo
+especificador de import a partir da própria localização do script, binário de script npm fornecido pelo install
+(`node_modules/.bin`, não o nome da dependência — era exatamente esse o defeito), e cobertura de probes de
+migration. Ligado ao `pnpm lint` raiz, ou seja, ao job "Lint / Typecheck / Audit" do CI, sem tocar o workflow.
+
+O self-test de 13 casos roda em **toda** invocação e já pagou: provou que o detector não enxergava
+`import 'dotenv/config'` (import só por efeito colateral, a forma real do defeito) e que acusava falso positivo
+em literal de string. Ambos corrigidos.
+
+Prova do gate no repositório real: injetados `scripts/__gate-negative-probe.mjs` com `import 'dotenv';` e
+`"__gate_negative_probe": "tsx scripts/nope.ts"` no `package.json` raiz → `[B] bare import "dotenv" does not
+resolve from scripts` e `[C] runs "tsx" but it is neither declared nor provided by node_modules/.bin`; ambos
+removidos depois, `git diff --stat package.json` vazio.
+
+### Disciplina transacional — triagem, não codemod
+
+Triagem automática em `apps/api/src` + `packages/database/src`: 43 arquivos com bloco transacional.
+Classe C (`pool.query('BEGIN')`): **0 casos reais** (as 3 ocorrências são comentário/documento citando o
+antipadrão). Classe A: o restante. Classe B (frágil): a forma `catch { await client.query('ROLLBACK'); throw }`
+com `release()` sem argumento aparece **89 vezes em 38 arquivos**.
+
+Corrigido o pior caso, `establishment-registry.repository.ts` (7 blocos), com três defeitos distintos: o erro do
+ROLLBACK substituía a causa primária (um 23505 chegava como 08006, e em `createTaxRegistration` o
+`mapDuplicateViolation` nunca rodava); `release()` sem argumento devolvia ao pool sessão com encerramento não
+confirmado; e `setStatus` emitia dois ROLLBACKs. Correção pelo padrão já provado em
+`packages/database/src/transaction.ts`. Spec de contrato 5/5 PASS; teste negativo: revertendo a correção, 3 dos
+5 casos falham nomeando exatamente os defeitos.
+
+Os 89 sites restantes **não** foram reescritos em massa (mudança transversal sem prova por arquivo). Passaram a
+ser dívida medida e congelada: detector estrutural + baseline + gate que falha se a contagem crescer, se as
+chamadas de descarte diminuírem, ou para qualquer arquivo novo que introduza o padrão. Reduzir exige comando
+explícito (`--update-transaction-baseline`). Teste negativo executado: arquivo novo frágil → gate falha
+("masked-error sites grew from 89 to 90"). A medição ampliada encontrou 3 variantes que o detector estreito não
+via, incluindo `throw <expressão transformada>`.
+
+### Log HTTP contradizia o status final (defeito novo, mesma classe "erro mascarado")
+
+Log real do suite adversarial, `POST /api/v1/clients`:
+
+```text
+{"level":"error","message":"http_request_completed","result":"failure",
+ "errorCode":"CLIENT_VALIDATION_FAILED","metadata":{"statusCode":201,...}}
+```
+
+O log dizia fracasso e reportava 201: falha de validação aparecia como criação. Causa raiz: o interceptor lia
+`response.statusCode` no próprio teardown, e o filtro de exceção escreve o status real DEPOIS desse teardown — o
+valor lido era o status padrão da rota. Agravante: o fallback
+`response.statusCode ?? (failed ? 500 : 200)` era inalcançável, porque `FastifyReply.statusCode` é sempre um
+número; a intenção do autor estava silenciosamente desarmada.
+
+Correção: a métrica fica síncrona de propósito (a classificação não depende do status final, e adiar a contagem
+faria o alerta de erro HTTP depender do timing do filtro); do log, apenas a leitura do status é adiada. Nenhuma
+semântica de classificação mudou (4xx lançado continua `failure`, 4xx devolvido sem lançar continua `success`).
+
+Prova: spec de contrato 5/5 PASS reproduzindo a ordem real de produção; teste negativo com o defeito de produção
+literal — "expected 201 to be 400" e "expected 201 to be 500". Ponta a ponta no suite adversarial real: após a
+correção os POSTs que retornam 403 registram `result: "failure"` com `statusCode: 403`, e o 404 registra 404.
+
+### Convergência da árvore de trabalho
+
+Estado inicial: 233 arquivos modificados, 27 não rastreados, 2 deletados. Convergido por frente, em 18 commits
+escopados (database/test-harness, seed, finance-analytics com rename atômico de módulo entre contextos, fiscal,
+service-order planning, accounting, observability, authz/security, platform, ops/health, people/assets,
+commercial/documents, shell/navigation, módulos web, baselines visuais, infra/deploy, docs), mais 4 commits de
+correção técnica e 1 de governança. `git status` final: **0 pendências**.
+
+Os commits de convergência consolidam trabalho em andamento de rodadas anteriores, não auditado arquivo por
+arquivo; a verificação é a do **estado final**, que é idêntico ao estado commitado (árvore limpa).
+
+### Evidência no estado commitado (HEAD 000ff9b)
+
+- `pnpm lint` 4/4 (inclui o gate de scripts e o ratchet transacional);
+- `pnpm typecheck` 3/3 (api, web, database);
+- `pnpm test` 4/4 — 219 arquivos, 961 testes;
+- `@cisne/api test:adversarial-security` 12/12 e2e + 22/22 unitários de segurança;
+- `@cisne/api` observability-metrics e2e 4/4 (401 fail-closed, 403 negado, 500 em falha de coleta sem publicar
+  contadores zerados fabricados, recuperação sem estado pegajoso);
+- `@cisne/web` regressão visual 28/28 (2 skips deliberados de composição desktop em viewport não-desktop),
+  cobrindo estado vazio, formulário, lista, detalhe e dashboard em desktop/tablet/mobile;
+- provas em PostgreSQL 18 real, banco isolado por execução: migration-effect-probe 12/12, fresh-global-setup 4/4;
+- `node scripts/check-scripts.mjs` 0 falhas, self-test 13/13.
+
+### Higiene
+
+Removida `apps/Users/rphll/AppData/Local/Temp/api-deploy/node_modules/.bin` — 7 diretórios **vazios**, zero
+arquivos, artefato de caminho absoluto do Windows concatenado a diretório relativo, dentro da raiz de glob do
+workspace (`apps/*`). Violava o `AGENTS.md` ("não gravar trabalho do CISNE em `%TEMP%`/perfil do usuário").
+Confirmado que nada dependia dela: gate de scripts, `tsc` da api e `git status` seguem limpos.
+
+### PARKING LOT TÉCNICO
+
+Formato: [severidade] [área] problema / evidência / por que não foi tratado agora.
+
+1. [P2] [banco] 89 sites de `catch { ROLLBACK; throw }` com `release()` sem argumento em 38 arquivos; baseline em
+   `scripts/transaction-fragility.baseline.json`; congelado por gate porque reescrever 38 arquivos de uma vez é
+   mudança transversal sem prova por arquivo. Caminho de saída único e documentado no detector.
+2. [P2] [arquitetura] `apps/api/src/test/ensure-migrations.ts` duplica o grafo de migrations em ~40 if-blocks e
+   duplica o registro de probes de `scripts/lib/database-test-env.mjs` — duas fontes de verdade para o mesmo
+   journal. O gate de cobertura impede reincidência; unificar (delegar ao runner canônico de `@cisne/database`)
+   exigiria remover os `else` que recriam funções de gatilho em bancos legados, o que não tem prova de
+   equivalência. Não é bloqueante: a divergência agora falha no unit suite antes de tocar banco.
+3. [P2] [tooling] `scripts/_write-summary-domain.mjs` estava em UTF-16LE e não passava `node --check`
+   (re-codificado para UTF-8 nesta rodada; arquivo é ignorado pelo git). A mesma classe aparece em
+   `ensure-migrations.ts`, que tem um leitor tolerante a UTF-16 — sinal de que fontes UTF-16 seguem sendo geradas.
+   Não corrigido na origem porque o gerador não foi identificado.
+4. [P3] [testes] Baselines de regressão visual são sensíveis a plataforma. Verificados 28/28 nesta máquina; a
+   comparação autoritativa é o job de CI. Nenhuma ação agora.
+5. [P3] [docs] `docs/inputs/_write_src003.py` (script Python de geração de insumo) foi consolidado em `docs/`
+   como estava, sem auditoria. Não é código de aplicação nem é executado por nenhum task.
+6. [P3] [processo] Os 18 commits de convergência não foram construídos individualmente (só o estado final foi
+   verificado). Bisseção por commit é parcial — consequência inevitável de consolidar um fluxo de trabalho
+   contínuo de uma só vez.
+7. [P2] [entrega] A pipeline real de CI não foi executada (sem remote nesta sessão). O gate está ligado ao
+   `pnpm lint` que o job de CI roda, mas a execução do workflow não foi observada.
+8. [P3] [tooling] `tsx` está declarado em `@cisne/api` mas o `node_modules` local não foi reinstalado após a
+   mudança de `package.json`; `apps/api/node_modules/.bin/tsx` existe mas o pacote não está linkado. Afeta apenas
+   o ambiente local.
