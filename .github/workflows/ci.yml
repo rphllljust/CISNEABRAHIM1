@@ -5,6 +5,11 @@ on:
     branches:
       - master
       - main
+      # Branch de trabalho autorizada. Sem este gatilho as correcoes ficam sem
+      # validacao: o push em main so acontece no merge, e o PR esbarra no conflito
+      # de docs/00-governance/prompt-execution-log.md, de modo que nenhuma execucao
+      # jamais mediria o SHA que recebe as correcoes.
+      - 'rc/**'
   pull_request:
 
 concurrency:
