@@ -13898,3 +13898,89 @@ casaria.
 6. `_journal.json`, `ensure-migrations.ts` e o registro de probes de migration foram atualizados
    porque o repositório os exige para qualquer migration nova; sem isso o gate de cobertura de probes
    falha.
+
+## Clientes — ciclo de vida da requisicao da listagem: contrato de busca, cancelamento e resposta superada (2026-09-26)
+
+Origem: ordem de elevacao do modulo atual (Clientes) com GitHub como referencia de maturidade,
+banco preservado e patch pequeno. Tres defeitos reais, todos no MESMO fluxo (recarga da listagem),
+corrigidos em 2 arquivos de codigo. Backend, banco, autorizacao e storage NAO foram tocados.
+
+### Defeito 1 (P0, contrato quebrado) — a tela pedia uma busca que o backend recusa
+
+`GET /api/v1/clients?q=a` responde 400 por contrato publicado (`CLIENT_SEARCH_MIN_LENGTH = 2` em
+`apps/api/src/clients/domain/client-list.query.ts`, com teste proprio no `clients.e2e.spec.ts`).
+O web enviava `q` a partir do primeiro caractere digitado: o debounce aplicava `q=a` na URL, o
+backend respondia 400 e a pagina trocava a listagem inteira pela tela de erro — sem barra de busca
+e sem retry (`validation` nao e retryable) enquanto o usuario digitava. Link antigo ou historico com
+`?q=a` reproduziam o mesmo beco sem saida.
+
+Padrao extraido (GitHub): Algolia InstantSearch — busca disparada somente a partir de um minimo de
+caracteres. Invariante: "termo abaixo do minimo nao e uma busca recusada; e uma busca que ainda nao
+comecou". Reforco local: a plataforma ja fazia exatamente isso em `GlobalSearchBar`/`useGlobalSearch`
+(`length < 2`), e a listagem de Clientes era a excecao.
+
+Adaptacao minima: `CLIENT_SEARCH_MIN_LENGTH` + `isApplicableClientSearchTerm` no utilitario de
+parametros; o termo abaixo do piso nao entra na URL nem na requisicao (parse, build e debounce), e a
+barra mostra "Digite pelo menos 2 caracteres para buscar." O backend permanece intacto: nenhum
+contrato de API foi alterado, apenas respeitado.
+
+### Defeito 2 (P1, erro funcional) — o cancelamento do proprio efeito virava tela de erro
+
+`loadPage` nao tinha guarda de cancelamento. `isNetworkError` retorna `false` para `AbortError`, entao
+o abort do cleanup do efeito chegava ao `catch` como erro `unknown` e escrevia `phase: 'error'`. Cada
+busca, filtro, ordenacao ou troca de pagina abortava a requisicao anterior e, com latencia real,
+a tela de falha ficava visivel durante toda a nova requisicao.
+
+Padrao extraido (GitHub): TanStack Query — cancelamento de query; invariante: "resposta de requisicao
+cancelada/superada nunca escreve no estado". Padrao ja existente no CISNE:
+`dashboard/hooks/useExecutiveDashboard.ts` (`signal?.aborted` + sequencia de requisicao) e o mesmo
+`signal.aborted` em contratos, propostas, solicitacoes e documentos.
+
+Adaptacao minima: guarda `signal?.aborted` no caminho de sucesso e no `catch`; `finally` que so
+encerra o indicador quando a requisicao ainda e a corrente; retry passou a percorrer o MESMO efeito
+(token de recarga), tornando a requisicao do retry cancelavel.
+
+### Defeito 3 (P1, UX de carregamento) — a recarga apagava a pagina e o campo de busca
+
+Toda recarga fazia `setListState({ phase: 'loading' })`, que desmonta a pagina inteira — inclusive a
+barra de busca, no meio da digitacao. Consequencia: perda de foco e das teclas seguintes (pausa de
+mais de 300 ms durante a digitacao e uma busca em curso bastam) alem de a lista sumir a cada filtro.
+O padrao ja existente no CISNE (`useExecutiveDashboard` mantem o snapshot anterior e usa
+`isRefreshing`) sustenta a correcao: recarga preserva o resultado anterior, com indicador
+"Atualizando..." e `aria-busy` na tabela; somente a primeira carga usa o estado de carregamento.
+
+### Evidencia (focada, sem gate global)
+
+- `client-list-params.test.ts` + `ClientsListPage.test.tsx`: 41/41.
+- Escopo do modulo (web `src/clients` + `src/contracts`): 80/80 (eram 72/72 antes dos 8 testes novos).
+- `typecheck` de `@cisne/web` limpo; `eslint` dos 4 arquivos alterados sem erro.
+- **Prova de causa e efeito**: as 3 provas novas foram executadas contra o codigo SEM cada correcao —
+  cada uma falha exatamente no ponto que afirma defender (guarda de cancelamento: a tela de erro
+  aparece e o campo de busca desmonta; guarda de resposta superada: o Cliente filtrado volta a
+  aparecer sob o filtro "Inativos"; piso de busca: a requisicao carrega `q=B`). Os arquivos foram
+  restaurados apos o experimento e o conjunto verde foi reconfirmado.
+- Uma primeira versao da prova do piso de busca passava por LER O DOM ANTES do debounce vencer
+  (falso PASS); a espera do debounce e um `act` explicito foram acrescentados para que a assercao
+  observe o estado realmente aplicado.
+- Prettier: a base NAO esta formatada por prettier e o CI nao tem esse gate (`ci.yml` roda lint,
+  typecheck, testes, audit). A reformatacao colateral de linhas preexistentes foi revertida para que
+  o diff contenha somente o necessario (330 insercoes / 10 remocoes, todas intencionais).
+
+### Nao alterado por decisao
+
+- **Backend**: nenhuma rota, campo, contrato, capability ou spec de API tocados. O 400 para `q` curto
+  continua sendo o contrato; quem passou a respeita-lo foi o cliente.
+- **Banco**: preservado. Nenhuma migration.
+- **Autorizacao**: preservada. Nenhum grant novo, nenhuma capability ampliada; o escopo continua
+  injetado no `WHERE` pelo backend.
+- **Storage**: nao tocado.
+
+### Parking lot (nao tocado nesta rodada)
+
+1. As telas de erro de listagem (Clientes e Ordem de Servico) nao exibem a barra de filtros: nao ha
+   saida em UI para limpar filtros ou voltar de pagina a partir da falha. E o padrao da casa nos
+   modulos irmaos; mudar isso e decisao de design system, nao defeito pontual.
+2. Offset profundo custa O(offset) (178 ms na pagina 1000) — ja registrado na frente anterior.
+3. Baselines visuais de Clientes: a mudanca nao altera o DOM em repouso (o indicador "Atualizando..."
+   e o aviso de piso minimo so existem durante a recarga e com rascunho curto), entao os 4 PNGs
+   permanecem validos; a conferencia humana das imagens continua recomendada.

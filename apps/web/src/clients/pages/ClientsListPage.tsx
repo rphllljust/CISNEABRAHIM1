@@ -15,8 +15,10 @@ import {
 import { formatCnpjDisplay } from '../utils/format-cnpj';
 import {
   buildClientListSearchParams,
+  CLIENT_SEARCH_MIN_LENGTH,
   EMPTY_CLIENT_LIST_PARAMS,
   hasActiveClientListFilters,
+  isApplicableClientSearchTerm,
   parseClientListParams,
   toggleClientListSort,
   type ClientListParams,
@@ -96,13 +98,23 @@ export function ClientsListPage() {
   }, [searchParams]);
 
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  // Recarga pedida pelo usuário (retry) percorre o MESMO ciclo de vida do efeito de carga: assim a
+  // requisição do retry também é cancelável por uma mudança de filtro seguinte.
+  const [reloadToken, setReloadToken] = useState(0);
   const [searchInput, setSearchInput] = useState(filters.q);
   const [showMoreFilters, setShowMoreFilters] = useState(
     () => filters.purchaseOrderRequirement !== '',
   );
   const searchInputId = useId();
+  const searchHintId = useId();
   const statusFilterId = useId();
   const requirementFilterId = useId();
+
+  // Rascunho abaixo do piso publicado: ainda não é busca, então não vira requisição — a barra
+  // explica o motivo em vez de a lista responder com uma tela de erro.
+  const searchDraftTooShort =
+    searchInput.trim().length > 0 && !isApplicableClientSearchTerm(searchInput);
 
   // O campo de busca é local para responder à digitação; a URL é atualizada depois do debounce.
   // Sincroniza quando a URL muda por fora (voltar/avançar, link colado).
@@ -124,6 +136,11 @@ export function ClientsListPage() {
     if (searchInput === filters.q) {
       return;
     }
+    // Abaixo do piso o termo ainda não é busca: não entra na URL nem na requisição. A URL continua
+    // descrevendo apenas o que o backend aceita (ver CLIENT_SEARCH_MIN_LENGTH).
+    if (!isApplicableClientSearchTerm(searchInput)) {
+      return;
+    }
     const timer = setTimeout(() => {
       applyFilters({ q: searchInput });
     }, SEARCH_DEBOUNCE_MS);
@@ -132,7 +149,11 @@ export function ClientsListPage() {
 
   const loadPage = useCallback(
     async (activeFilters: ClientListParams, pageOffset: number, signal?: AbortSignal) => {
-      setListState({ phase: 'loading' });
+      // Uma recarga preserva o resultado anterior: trocar a página inteira por "Carregando…"
+      // desmontaria a própria barra de busca durante a digitação, perdendo o foco e as teclas
+      // seguintes. Só a primeira carga não tem resultado anterior para preservar.
+      setListState((previous) => (previous.phase === 'ready' ? previous : { phase: 'loading' }));
+      setIsRefreshing(true);
       try {
         const response = await listClients(
           {
@@ -146,8 +167,18 @@ export function ClientsListPage() {
           },
           signal,
         );
+        // Requisição superada (outro filtro/página já assumiu) não escreve no estado: uma resposta
+        // lenta sobrescreveria o resultado mais novo com o anterior.
+        if (signal?.aborted) {
+          return;
+        }
         setListState({ phase: 'ready', response });
       } catch (error) {
+        // O cancelamento do próprio efeito não é falha de carga. Sem esta guarda, cada busca
+        // digitada trocava a lista por uma tela de erro enquanto a nova requisição não respondia.
+        if (signal?.aborted) {
+          return;
+        }
         if (error instanceof ClientsApiError) {
           if (error.kind === 'denied') {
             setListState({ phase: 'denied' });
@@ -165,6 +196,10 @@ export function ClientsListPage() {
           message: 'Não foi possível carregar os Clientes.',
           retryable: true,
         });
+      } finally {
+        if (!signal?.aborted) {
+          setIsRefreshing(false);
+        }
       }
     },
     [],
@@ -174,7 +209,7 @@ export function ClientsListPage() {
     const controller = new AbortController();
     void loadPage(filters, offset, controller.signal);
     return () => controller.abort();
-  }, [filters, loadPage, offset]);
+  }, [filters, loadPage, offset, reloadToken]);
 
   if (listState.phase === 'loading') {
     return (
@@ -202,7 +237,7 @@ export function ClientsListPage() {
           title="Clientes"
           message={listState.message}
           retryable={listState.retryable}
-          onRetry={() => void loadPage(filters, offset)}
+          onRetry={() => setReloadToken((current) => current + 1)}
         />
       </ModulePage>
     );
@@ -257,7 +292,13 @@ export function ClientsListPage() {
             onChange={(event) => setSearchInput(event.target.value)}
             placeholder="Razão social, nome fantasia ou CNPJ"
             autoComplete="off"
+            aria-describedby={searchDraftTooShort ? searchHintId : undefined}
           />
+          {searchDraftTooShort ? (
+            <p id={searchHintId} className="mt-1 text-xs text-gray-500">
+              Digite pelo menos {CLIENT_SEARCH_MIN_LENGTH} caracteres para buscar.
+            </p>
+          ) : null}
         </div>
 
         <div className="w-44">
@@ -287,7 +328,7 @@ export function ClientsListPage() {
           {showMoreFilters ? 'Menos filtros' : 'Mais filtros'}
         </Button>
 
-        {hasFilters ? (
+        {hasFilters || searchInput.trim() !== '' ? (
           <Button
             type="button"
             variant="secondary"
@@ -300,6 +341,12 @@ export function ClientsListPage() {
           >
             Limpar
           </Button>
+        ) : null}
+
+        {isRefreshing ? (
+          <p role="status" className="text-xs text-gray-500">
+            Atualizando…
+          </p>
         ) : null}
       </div>
 
@@ -400,7 +447,10 @@ export function ClientsListPage() {
       ) : null}
 
       {items.length > 0 ? (
-        <div className="mb-6 overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-gray-900/5">
+        <div
+          className="mb-6 overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-gray-900/5"
+          aria-busy={isRefreshing}
+        >
           <DataTable aria-label="Lista de Clientes">
             <DataTableHead>
               <DataTableRow>

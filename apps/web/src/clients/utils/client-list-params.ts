@@ -17,6 +17,23 @@ import {
  * e o link é compartilhável. Valores não reconhecidos caem para o padrão em vez de quebrar a tela —
  * um link antigo ou adulterado abre a listagem, não um erro.
  */
+
+/**
+ * Piso de busca do cadastro de Clientes, idêntico ao publicado pelo backend.
+ *
+ * `apps/api/src/clients/domain/client-list.query.ts` responde 400 para `q` com menos de
+ * `CLIENT_SEARCH_MIN_LENGTH` caracteres. Um termo abaixo do piso não é uma busca recusada: é uma
+ * busca que ainda não começou — a mesma política de `GlobalSearchBar`/`useGlobalSearch`, que só
+ * consultam a partir de 2 caracteres. Enviá-lo trocaria a listagem por uma tela de erro no meio da
+ * digitação, que é justamente o caminho normal de quem procura um Cliente.
+ */
+export const CLIENT_SEARCH_MIN_LENGTH = 2;
+
+/** O termo já pode viajar como busca? Vazio (sem busca) ou a partir do piso publicado. */
+export function isApplicableClientSearchTerm(term: string): boolean {
+  const trimmed = term.trim();
+  return trimmed.length === 0 || trimmed.length >= CLIENT_SEARCH_MIN_LENGTH;
+}
 export type ClientListParams = {
   q: string;
   status: '' | ClientStatus;
@@ -54,9 +71,13 @@ export function parseClientListParams(searchParams: URLSearchParams): ClientList
   const requirement = searchParams.get('purchaseOrderRequirement') ?? '';
   const sort = searchParams.get('sort') ?? '';
   const direction = searchParams.get('direction') ?? '';
+  const q = searchParams.get('q') ?? '';
 
   return {
-    q: searchParams.get('q') ?? '',
+    // Termo abaixo do piso é descartado como qualquer outro valor inválido desta URL: mantê-lo
+    // faria a tela pedir ao backend uma busca que ele recusa com 400 — inclusive ao abrir um link
+    // antigo ou voltar pelo histórico.
+    q: isApplicableClientSearchTerm(q) ? q : '',
     status: isClientStatus(status) ? status : '',
     purchaseOrderRequirement: isPurchaseOrderRequirement(requirement) ? requirement : '',
     sort: isClientListSort(sort) ? sort : EMPTY_CLIENT_LIST_PARAMS.sort,
@@ -69,8 +90,9 @@ export function buildClientListSearchParams(
   offset = 0,
 ): URLSearchParams {
   const search = new URLSearchParams();
-  if (params.q.trim()) {
-    search.set('q', params.q.trim());
+  const term = params.q.trim();
+  if (term && isApplicableClientSearchTerm(term)) {
+    search.set('q', term);
   }
   if (params.status) {
     search.set('status', params.status);
