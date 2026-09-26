@@ -30,20 +30,18 @@
  *   node scripts/check-scripts.mjs --self-test  # prove the detectors catch known-bad input
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import {
-  binariesInScript,
-  staticSpecifiers,
-  undeclaredBinaries,
-} from './lib/script-gate.mjs';
+import { binariesInScript, staticSpecifiers, undeclaredBinaries } from './lib/script-gate.mjs';
+import { measureSource } from './lib/transaction-discipline.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const scriptsDir = join(repoRoot, 'scripts');
 const jsonOutput = process.argv.includes('--json');
 const selfTestOnly = process.argv.includes('--self-test');
+const updateTransactionBaseline = process.argv.includes('--update-transaction-baseline');
 
 /**
  * Detectors that are never shown to fail are not evidence. The self-test runs on
@@ -115,6 +113,34 @@ function runSelfTest({ verbose }) {
     JSON.stringify(binariesInScript('NODE_ENV=test vitest run')),
   );
 
+  // E — the fragile transaction skeleton, in both variants that shipped.
+  const fragilePlain = measureSource(
+    "    } catch (error) {\n      await client.query('ROLLBACK');\n      throw error;\n    } finally {\n      client.release();\n    }\n",
+  );
+  check(
+    'detector E flags catch { ROLLBACK; throw error } with a bare release',
+    fragilePlain.maskedErrorSites === 1 && fragilePlain.bareReleaseCalls === 1,
+    JSON.stringify(fragilePlain),
+  );
+  const fragileTransformed = measureSource(
+    "    } catch (error) {\n      await client.query('ROLLBACK');\n      throw this.mapDuplicateViolation(error);\n    } finally {\n      client.release();\n    }\n",
+  );
+  check(
+    'detector E flags the transformed-throw variant that a throw-identifier regex missed',
+    fragileTransformed.maskedErrorSites === 1,
+    JSON.stringify(fragileTransformed),
+  );
+  const hardened = measureSource(
+    "    } catch (error) {\n      evictWith = await this.rollbackKeepingPrimaryCause(client);\n      throw error;\n    } finally {\n      client.release(evictWith);\n    }\n",
+  );
+  check(
+    'detector E accepts the hardened form (no masked site, evicting release)',
+    hardened.maskedErrorSites === 0 &&
+      hardened.bareReleaseCalls === 0 &&
+      hardened.evictingReleaseCalls === 1,
+    JSON.stringify(hardened),
+  );
+
   const failed = cases.filter((c) => !c.ok);
   if (verbose) {
     for (const c of cases) {
@@ -132,6 +158,7 @@ if (selfTestOnly) {
 }
 
 const failures = [];
+let transactionRatchet = null;
 function fail(check, file, detail) {
   failures.push({ check, file, detail });
 }
@@ -283,6 +310,72 @@ for (const tag of findUnprobedJournalTags()) {
   );
 }
 
+// --------------------------------------------------------------------------------- E
+// Transaction fragility ratchet: the class that was hand-fixed in
+// establishment-registry.repository.ts is currently 86 sites across 37 files, so it is
+// frozen and forbidden from growing rather than rewritten blind in one pass.
+const { compareToBaseline } = await import('./lib/transaction-discipline.mjs');
+const baselinePath = join(scriptsDir, 'transaction-fragility.baseline.json');
+const trackedForTransactions = (() => {
+  const listed = spawnSync('git', ['ls-files', 'apps/api/src', 'packages/database/src'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  });
+  return listed.status === 0 ? listed.stdout.split('\n').map((l) => l.trim()).filter(Boolean) : [];
+})();
+
+if (trackedForTransactions.length === 0) {
+  fail('E', 'apps/api/src', 'git ls-files returned nothing — the ratchet cannot measure anything');
+} else {
+  const baseline = JSON.parse(readFileSync(baselinePath, 'utf8'));
+  const { measureFile, transactionalFiles } = await import('./lib/transaction-discipline.mjs');
+  const transactional = transactionalFiles(trackedForTransactions, repoRoot);
+  const comparison = compareToBaseline(transactional, repoRoot, baseline);
+
+  if (updateTransactionBaseline) {
+    // Explicit, separate operation: refreshing the ratchet is never a side effect of
+    // running the gate, and it can only ever lower what the gate tolerates.
+    const measuredFiles = transactional
+      .map((rel) => ({ rel, ...measureFile(repoRoot, rel) }))
+      .filter((m) => m.maskedErrorSites > 0)
+      .map((m) => m.rel)
+      .sort();
+    const next = {
+      ...baseline,
+      measuredAt: new Date().toISOString().slice(0, 10),
+      maskedErrorSites: comparison.measured.totalMasked,
+      filesWithMaskedErrorSites: measuredFiles.length,
+      bareReleaseCalls: comparison.measured.totalBare,
+      evictingReleaseCalls: comparison.measured.totalEvicting,
+      allowlist: measuredFiles,
+    };
+    writeFileSync(baselinePath, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
+    console.log(
+      `transaction ratchet baseline updated: ${next.maskedErrorSites} masked-error sites in ` +
+        `${next.filesWithMaskedErrorSites} files`,
+    );
+    process.exit(0);
+  }
+
+  for (const problem of comparison.problems) {
+    fail('E', problem.file, problem.detail);
+  }
+  transactionRatchet = {
+    maskedErrorSites: comparison.measured.totalMasked,
+    baselineMaskedErrorSites: baseline.maskedErrorSites,
+    bareReleaseCalls: comparison.measured.totalBare,
+    evictingReleaseCalls: comparison.measured.totalEvicting,
+    improved: comparison.improved,
+  };
+  if (comparison.improved) {
+    console.log(
+      `transaction ratchet: improved (masked-error sites ${comparison.measured.totalMasked} < ` +
+        `${baseline.maskedErrorSites}). Refresh with ` +
+        '`node scripts/check-scripts.mjs --update-transaction-baseline`.',
+    );
+  }
+}
+
 // ------------------------------------------------------------------------------ report
 if (jsonOutput) {
   process.stdout.write(
@@ -290,11 +383,13 @@ if (jsonOutput) {
       {
         scanned: { mjs: mjsFiles.length, ps1: ps1Files.length },
         selfTest: { total: selfTest.total, failed: selfTest.failed.length },
+        transactionRatchet,
         checks: {
           A: 'syntax (node --check)',
           B: 'module resolution from the script location',
           C: 'npm script binaries provided by the install',
           D: 'migration artefact probes cover every domain journal tag',
+          E: 'transaction fragility ratchet (masked primary error / non-evicting release)',
         },
         failures,
       },

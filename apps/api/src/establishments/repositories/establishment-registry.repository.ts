@@ -56,12 +56,44 @@ export class EstablishmentRegistryRepository {
     return connection.pool;
   }
 
+  /**
+   * ROLLBACK no caminho de erro sem mascarar a causa primaria.
+   *
+   * Mesmo contrato do helper provado em `packages/database/src/transaction.ts` e do
+   * idioma documentado por node-postgres (`pool.connect()` + ROLLBACK no erro +
+   * `release()` incondicional no `finally`):
+   *
+   * - a falha da OPERACAO continua sendo a causa propagada, com `code` e demais campos
+   *   preservados para o mapeamento de erro do chamador;
+   * - devolve `undefined` quando o ROLLBACK foi confirmado, e a conexao pode voltar ao
+   *   pool; devolve o erro do ROLLBACK quando ele tambem falhou, para que a conexao seja
+   *   DESCARTADA em vez de reutilizada.
+   *
+   * Sem isso, `await client.query('ROLLBACK')` dentro do `catch` substitui o erro de
+   * negocio pelo erro do ROLLBACK (um 23505 vira um erro de conexao generico), e
+   * `client.release` sem argumento devolve ao pool uma sessao possivelmente em
+   * `idle in transaction`, segurando locks para o proximo consumidor; `release(err)`
+   * remove a conexao do pool
+   * (`pg-pool` `_release`: "include an error to remove it from the pool").
+   */
+  private async rollbackKeepingPrimaryCause(client: PoolClient): Promise<Error | undefined> {
+    try {
+      await client.query('ROLLBACK');
+      return undefined;
+    } catch (rollbackFailure) {
+      return rollbackFailure instanceof Error
+        ? rollbackFailure
+        : new Error(String(rollbackFailure));
+    }
+  }
+
   // ---------- Legal entities ----------
 
   async createLegalEntity(
     input: CreateLegalEntityPersistenceInput,
   ): Promise<LegalEntityRow> {
     const client = await this.pool().connect();
+    let evictWith: Error | undefined;
     try {
       await client.query('BEGIN');
       const inserted = await client.query<LegalEntityRow>(
@@ -77,10 +109,10 @@ export class EstablishmentRegistryRepository {
       await client.query('COMMIT');
       return row;
     } catch (error) {
-      await client.query('ROLLBACK');
+      evictWith = await this.rollbackKeepingPrimaryCause(client);
       throw error;
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 
@@ -88,6 +120,7 @@ export class EstablishmentRegistryRepository {
     input: UpdateLegalEntityPersistenceInput,
   ): Promise<MutateOutcome<LegalEntityRow>> {
     const client = await this.pool().connect();
+    let evictWith: Error | undefined;
     try {
       await client.query('BEGIN');
       const sets = ['version = version + 1', 'updated_at = NOW()'];
@@ -126,10 +159,10 @@ export class EstablishmentRegistryRepository {
       await client.query('COMMIT');
       return row;
     } catch (error) {
-      await client.query('ROLLBACK');
+      evictWith = await this.rollbackKeepingPrimaryCause(client);
       throw error;
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 
@@ -177,6 +210,7 @@ export class EstablishmentRegistryRepository {
     input: CreateEstablishmentPersistenceInput,
   ): Promise<EstablishmentRow> {
     const client = await this.pool().connect();
+    let evictWith: Error | undefined;
     try {
       await client.query('BEGIN');
       if (input.isDefaultIssuer) {
@@ -215,10 +249,10 @@ export class EstablishmentRegistryRepository {
       await client.query('COMMIT');
       return row;
     } catch (error) {
-      await client.query('ROLLBACK');
+      evictWith = await this.rollbackKeepingPrimaryCause(client);
       throw error;
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 
@@ -226,6 +260,7 @@ export class EstablishmentRegistryRepository {
     input: UpdateEstablishmentPersistenceInput,
   ): Promise<MutateOutcome<EstablishmentRow>> {
     const client = await this.pool().connect();
+    let evictWith: Error | undefined;
     try {
       await client.query('BEGIN');
       const current = await this.lockEstablishment(client, input.establishmentId);
@@ -294,10 +329,10 @@ export class EstablishmentRegistryRepository {
       await client.query('COMMIT');
       return row;
     } catch (error) {
-      await client.query('ROLLBACK');
+      evictWith = await this.rollbackKeepingPrimaryCause(client);
       throw error;
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 
@@ -355,6 +390,7 @@ export class EstablishmentRegistryRepository {
     input: CreateTaxRegistrationPersistenceInput,
   ): Promise<TaxRegistrationRow> {
     const client = await this.pool().connect();
+    let evictWith: Error | undefined;
     try {
       await client.query('BEGIN');
       const inserted = await client.query<TaxRegistrationRow>(
@@ -384,10 +420,10 @@ export class EstablishmentRegistryRepository {
       await client.query('COMMIT');
       return row;
     } catch (error) {
-      await client.query('ROLLBACK');
+      evictWith = await this.rollbackKeepingPrimaryCause(client);
       throw this.mapDuplicateViolation(error, input.normalizedNumber);
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 
@@ -395,6 +431,7 @@ export class EstablishmentRegistryRepository {
     input: UpdateTaxRegistrationPersistenceInput,
   ): Promise<MutateOutcome<TaxRegistrationRow>> {
     const client = await this.pool().connect();
+    let evictWith: Error | undefined;
     try {
       await client.query('BEGIN');
       const locked = await this.lockTaxRegistration(client, input.taxRegistrationId);
@@ -452,10 +489,10 @@ export class EstablishmentRegistryRepository {
       await client.query('COMMIT');
       return row;
     } catch (error) {
-      await client.query('ROLLBACK');
+      evictWith = await this.rollbackKeepingPrimaryCause(client);
       throw error;
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 
@@ -671,6 +708,7 @@ export class EstablishmentRegistryRepository {
     ) => Promise<void>;
   }): Promise<MutateOutcome<T>> {
     const client = await options.clientFactory();
+    let evictWith: Error | undefined;
     try {
       await client.query('BEGIN');
       const current = await client.query<{ status: string; version: number }>(
@@ -687,7 +725,10 @@ export class EstablishmentRegistryRepository {
         return 'VERSION_CONFLICT';
       }
       if (row.status === options.input.status) {
-        await client.query('ROLLBACK');
+        // Sem ROLLBACK aqui: o `catch` abaixo encerra a transacao exatamente uma vez.
+        // Um ROLLBACK interno seguido de `throw` produzia dois ROLLBACKs, sendo o
+        // segundo fora de transacao — sintoma do mesmo estado fragil que este metodo
+        // passou a tratar de forma explicita.
         throw new LegalEstablishmentError('LEGAL_ESTABLISHMENT_SAME_STATUS');
       }
       const target = options.input.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE';
@@ -716,10 +757,10 @@ export class EstablishmentRegistryRepository {
       await client.query('COMMIT');
       return updatedRow;
     } catch (error) {
-      await client.query('ROLLBACK');
+      evictWith = await this.rollbackKeepingPrimaryCause(client);
       throw error;
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 
