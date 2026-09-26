@@ -20,6 +20,14 @@ export class ServiceRequestsAccessService {
     private readonly query: ServiceRequestsAccessQuery,
   ) {}
 
+  listOperationalUnits(actor: IdentityAuthzContext): Promise<{ items: string[] }> {
+    return this.query.listOperationalUnits(actor);
+  }
+
+  registerOperationalUnit(actor: IdentityAuthzContext, refId: string): Promise<{ items: string[] }> {
+    return this.query.registerOperationalUnit(actor, refId);
+  }
+
   create(actor: IdentityAuthzContext, input: CreateServiceRequestInput): Promise<ServiceRequestDetailResponse> {
     return this.commands.create(actor, input);
   }

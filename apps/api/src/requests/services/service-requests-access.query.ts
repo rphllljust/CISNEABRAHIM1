@@ -91,6 +91,24 @@ export class ServiceRequestsAccessQuery {
     return row;
   }
 
+  async listOperationalUnits(actor: IdentityAuthzContext): Promise<{ items: string[] }> {
+    await this.authz.assertListAction(actor);
+    return { items: await this.persistence.listOperationalUnits() };
+  }
+
+  async registerOperationalUnit(
+    actor: IdentityAuthzContext,
+    refId: string,
+  ): Promise<{ items: string[] }> {
+    const normalized = refId.trim().toUpperCase();
+    if (!/^[A-Z0-9][A-Z0-9_-]{1,63}$/.test(normalized)) {
+      throw serviceRequestsValidationFailed();
+    }
+    await this.authz.assertListAction(actor);
+    await this.persistence.registerOperationalUnit(normalized);
+    return { items: await this.persistence.listOperationalUnits() };
+  }
+
   async getById(actor: IdentityAuthzContext, serviceRequestId: string): Promise<ServiceRequestDetailResponse> {
     assertValidServiceRequestId(serviceRequestId);
     const row = await this.requireRecord(actor, serviceRequestId, AUTHZ_ACTIONS.RequestsServiceRequestRead);

@@ -58,7 +58,7 @@ import { ServiceRequestsAccessService } from './services/service-requests-access
 const UNIT_A = 'unit-sr-a';
 const UNIT_B = 'unit-sr-b';
 const TEST_CNPJ = '11222333000181';
-const TEST_CNPJ_ALT = '11222333000181';
+const TEST_CNPJ_ALT = '19131243000197';
 
 async function grantServiceRequestAdmin(
   pool: Pool,

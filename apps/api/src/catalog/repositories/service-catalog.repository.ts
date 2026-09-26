@@ -776,6 +776,16 @@ export class ServiceCatalogRepository {
     }
   }
 
+  async listActiveCategories(): Promise<Array<{ id: string; code: string; name: string }>> {
+    const result = await this.pool().query<{ id: string; code: string; name: string }>(
+      `SELECT id, code, name
+       FROM cat.service_categories
+       WHERE status = 'ACTIVE'
+       ORDER BY name`,
+    );
+    return result.rows;
+  }
+
   async categoryExists(categoryId: string): Promise<boolean> {
     const result = await this.pool().query(
       `SELECT 1 FROM cat.service_categories WHERE id = $1 AND status = 'ACTIVE'`,

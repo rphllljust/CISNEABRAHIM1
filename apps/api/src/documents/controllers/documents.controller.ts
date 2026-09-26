@@ -11,6 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { MultipartFile, MultipartValue } from '@fastify/multipart';
 import { CurrentAuth } from '../../auth/decorators/current-auth.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import type { AccessTokenClaims } from '../../auth/services/token.service';
@@ -23,6 +24,40 @@ import { DOCUMENT_ERROR_CODES } from '../errors/document-error-codes';
 import { DocumentHttpException } from '../errors/document-http.exception';
 import { DocumentsAccessService } from '../services/documents-access.service';
 import { sanitizeUploadFilename } from '../../security/domain/safe-filename';
+
+type MultipartPart = MultipartFile | MultipartValue<unknown>;
+
+/** Codigos de erro do @fastify/multipart que representam ENTRADA invalida do cliente. */
+const MULTIPART_CLIENT_ERROR_CODES = new Set([
+  'FST_INVALID_MULTIPART_CONTENT_TYPE',
+  'FST_INVALID_MULTIPART',
+  'FST_FILES_LIMIT',
+  'FST_FIELDS_LIMIT',
+  'FST_PARTS_LIMIT',
+  'FST_REQ_FILE_TOO_LARGE',
+  'FST_PROTO_VIOLATION',
+]);
+
+/**
+ * Requisicao multipart invalida e erro de validacao (400), nao falha inesperada (500).
+ * Erros nao reconhecidos sao propagados para permanecerem visiveis como 500 e logados.
+ */
+function mapMultipartRequestError(error: unknown): unknown {
+  if (error instanceof DocumentHttpException) {
+    return error;
+  }
+  const code = (error as { code?: unknown }).code;
+  if (typeof code === 'string' && MULTIPART_CLIENT_ERROR_CODES.has(code)) {
+    return new DocumentHttpException(
+      HttpStatus.BAD_REQUEST,
+      DOCUMENT_ERROR_CODES.INVALID_INPUT,
+      code === 'FST_INVALID_MULTIPART_CONTENT_TYPE'
+        ? 'Content-Type multipart/form-data is required.'
+        : 'Malformed multipart upload.',
+    );
+  }
+  return error;
+}
 
 @Controller('documents')
 export class DocumentsController {
@@ -152,8 +187,33 @@ export class DocumentsController {
     let fileCount = 0;
     let filePayload: { buffer: Buffer; filename: string; mimetype: string } | null = null;
 
-    const parts = request.parts();
-    for await (const part of parts) {
+    let parts: AsyncIterable<MultipartPart>;
+    try {
+      parts = request.parts() as AsyncIterable<MultipartPart>;
+    } catch (error) {
+      throw mapMultipartRequestError(error);
+    }
+
+    let iterator: AsyncIterator<MultipartPart>;
+    try {
+      iterator = parts[Symbol.asyncIterator]();
+    } catch (error) {
+      throw mapMultipartRequestError(error);
+    }
+
+    while (true) {
+      let step: IteratorResult<MultipartPart>;
+      try {
+        step = await iterator.next();
+      } catch (error) {
+        // Requisicao nao-multipart (ou multipart malformado) e erro de ENTRADA do cliente,
+        // nao falha inesperada do servidor: responde 400 e nao 500.
+        throw mapMultipartRequestError(error);
+      }
+      if (step.done) {
+        break;
+      }
+      const part = step.value;
       if (part.type === 'file') {
         fileCount += 1;
         if (fileCount > 1) {

@@ -41,7 +41,7 @@ import { ServiceOrdersAccessService } from '../service-orders/services/service-o
 
 const UNIT_A = 'unit-ctr-a';
 const TEST_CNPJ = '11222333000181';
-const TEST_CNPJ_ALT = '11222333000181';
+const TEST_CNPJ_ALT = '19131243000197';
 
 async function grantContractAdmin(pool: Pool, identityId: string, grantedBy: string): Promise<void> {
   for (const action of [

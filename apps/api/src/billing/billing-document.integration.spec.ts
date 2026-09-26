@@ -25,6 +25,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { AuditModule } from '../audit/audit.module';
 import { AuthModule } from '../auth/auth.module';
 import { AUTH_TEST_PASSWORD, applyAuthTestEnv } from '../auth/test/auth-test-env';
+import { ensureTestDefaultIssuer } from '../test/ensure-test-issuer';
 import { normalizeLoginIdentifier } from '../auth/crypto/token-crypto';
 import { AuthorizationModule } from '../authorization/authorization.module';
 import { AUTHZ_ACTIONS } from '../authorization/types/authz-actions';
@@ -55,7 +56,7 @@ import { ServiceOrdersAccessService } from '../service-orders/services/service-o
 
 const UNIT_A = 'unit-bil-doc-a';
 const TEST_CNPJ = '11222333000181';
-const ALT_TEST_CNPJ = '11222333000181';
+const ALT_TEST_CNPJ = '19131243000197';
 let clientTaxIdCounter = 0;
 
 const SAMPLE_EXECUTION_REQUIREMENTS = [
@@ -185,6 +186,7 @@ describe('Billing document PostgreSQL integration', () => {
     await ensurePhysicalResourceTypesBaseline(pool);
     await ensureOperationalLaborTypesBaseline(pool);
     await insertScopeRef(pool, { scopeType: 'UNIT', refId: UNIT_A });
+    await ensureTestDefaultIssuer(pool);
   });
 
   afterAll(async () => {

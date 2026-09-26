@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { DatabaseService } from '../../infrastructure/database/database.service';
+import { ScopeContextRepository } from '../../authorization/repositories/scope-context.repository';
 import { queryIsUnitRegistered } from '../../infrastructure/database/reference-lookups';
 import { orderByCreatedAtDesc } from '../../infrastructure/database/sql';
 import { isIdempotencyKeyViolation } from '../../infrastructure/database/pg-unique-violation';
@@ -77,7 +78,16 @@ export class ServiceRequestsRepository {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly outboxWriter: OutboxDomainEventWriter,
+    private readonly scopeContextRepository: ScopeContextRepository,
   ) {}
+
+  async registerOperationalUnit(refId: string): Promise<void> {
+    await this.scopeContextRepository.ensureUnitScopeRef(refId);
+  }
+
+  async listOperationalUnits(): Promise<string[]> {
+    return this.scopeContextRepository.listUnitScopeRefs();
+  }
 
   private pool(): Pool {
     const connection = this.databaseService.getConnection();

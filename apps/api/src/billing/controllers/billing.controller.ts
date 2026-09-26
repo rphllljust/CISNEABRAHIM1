@@ -3,10 +3,6 @@ import type { FastifyRequest } from 'fastify';
 import { CurrentAuth } from '../../auth/decorators/current-auth.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import type { AccessTokenClaims } from '../../auth/services/token.service';
-import {
-  validatePrepareBillingRecordInput,
-  validateVoidBillingRecordInput,
-} from '../domain/billing.validation';
 import { BillingAccessService } from '../services/billing-access.service';
 
 @Controller('service-orders/:serviceOrderId/billing-records')
@@ -35,7 +31,7 @@ export class BillingController {
     return this.billingAccess.prepare(
       { identityId: auth.sub, sessionId: auth.sid },
       serviceOrderId,
-      validatePrepareBillingRecordInput(request.body as never),
+      request.body as never,
     );
   }
 
@@ -64,7 +60,7 @@ export class BillingController {
       { identityId: auth.sub, sessionId: auth.sid },
       serviceOrderId,
       billingRecordId,
-      validateVoidBillingRecordInput(request.body as never),
+      request.body as never,
     );
   }
 }

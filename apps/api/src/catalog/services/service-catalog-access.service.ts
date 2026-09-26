@@ -114,6 +114,13 @@ export class ServiceCatalogAccessService {
     return toServiceDefinitionResponse(definition);
   }
 
+  async listCategories(
+    actor: IdentityAuthzContext,
+  ): Promise<{ items: Array<{ id: string; code: string; name: string }> }> {
+    await this.authz.assertListAction(actor);
+    return { items: await this.repository.listActiveCategories() };
+  }
+
   async listDefinitions(
     actor: IdentityAuthzContext,
     query: { limit: number; offset: number; status?: 'ACTIVE' | 'INACTIVE' },

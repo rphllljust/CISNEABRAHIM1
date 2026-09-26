@@ -147,6 +147,37 @@ describe('Documents E2E', () => {
     expect(response.statusCode).toBe(401);
   });
 
+  it('answers 400 (validation) — never 500 — when upload is not multipart', async () => {
+    const { accessToken } = await loginWithDocumentGrants();
+
+    // Forma da sonda de capability do frontend: POST sem payload multipart.
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/api/v1/documents',
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    expect(createResponse.statusCode).toBe(400);
+    expect(parseDocumentError(createResponse.body).error.code).toBe(
+      DOCUMENT_ERROR_CODES.INVALID_INPUT,
+    );
+
+    const jsonResponse = await app.inject({
+      method: 'POST',
+      url: '/api/v1/documents',
+      headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
+      payload: {},
+    });
+    expect(jsonResponse.statusCode).toBe(400);
+
+    const versionResponse = await app.inject({
+      method: 'POST',
+      url: `/api/v1/documents/00000000-0000-4000-8000-000000000050/versions`,
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    expect(versionResponse.statusCode).toBeGreaterThanOrEqual(400);
+    expect(versionResponse.statusCode).toBeLessThan(500);
+  });
+
   it('uploads, downloads via authorized stream and signed token without leaking storage keys', async () => {
     const { accessToken } = await loginWithDocumentGrants();
     const multipart = buildMultipartBody(

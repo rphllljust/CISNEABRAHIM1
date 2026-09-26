@@ -9,6 +9,14 @@ import type {
 export class ServiceRequestsAccessPersistence {
   constructor(private readonly repository: ServiceRequestsRepository) {}
 
+  listOperationalUnits(): Promise<string[]> {
+    return this.repository.listOperationalUnits();
+  }
+
+  registerOperationalUnit(refId: string): Promise<void> {
+    return this.repository.registerOperationalUnit(refId);
+  }
+
   findById(id: string) {
     return this.repository.findById(id);
   }

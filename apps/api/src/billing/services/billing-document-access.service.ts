@@ -53,6 +53,24 @@ import {
   resolveReplaceBillingDocumentInput,
 } from './billing-document-input-resolution';
 
+function toIsoDate(value: unknown): string {
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
+  }
+  const text =
+    typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
+      ? String(value)
+      : '';
+  if (/^\d{4}-\d{2}-\d{2}/.test(text)) {
+    return text.slice(0, 10);
+  }
+  const parsed = new Date(text);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10);
+  }
+  return new Date().toISOString().slice(0, 10);
+}
+
 @Injectable()
 export class BillingDocumentAccessService {
   constructor(
@@ -377,7 +395,8 @@ export class BillingDocumentAccessService {
     if (!this.receivablePort) {
       return;
     }
-    const issuedAt = typeof document.issued_at === 'string' ? document.issued_at : String(document.issued_at);
+    const issuedAt = toIsoDate(document.issued_at);
+    const dueDate = document.due_date ? toIsoDate(document.due_date) : issuedAt;
     await this.receivablePort.openFromBilling({
       billingRecordId: document.billing_record_id,
       billingDocumentId: document.id,
@@ -387,7 +406,7 @@ export class BillingDocumentAccessService {
       clientId: document.client_id,
       principal: document.total_amount,
       currencyCode: document.currency_code,
-      dueDate: (document.due_date ?? issuedAt).slice(0, 10),
+      dueDate,
       paymentTerms: document.payment_terms,
       externalReference: document.document_number,
       actorIdentityId: actor.identityId,

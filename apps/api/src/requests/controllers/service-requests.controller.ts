@@ -54,6 +54,24 @@ export class ServiceRequestsController {
     return this.serviceRequestsAccess.list({ identityId: auth.sub, sessionId: auth.sid }, parsed);
   }
 
+  @Get('operational-units')
+  listOperationalUnits(@CurrentAuth() auth: AccessTokenClaims) {
+    return this.serviceRequestsAccess.listOperationalUnits({
+      identityId: auth.sub,
+      sessionId: auth.sid,
+    });
+  }
+
+  @Post('operational-units')
+  @HttpCode(201)
+  registerOperationalUnit(@CurrentAuth() auth: AccessTokenClaims, @Req() request: FastifyRequest) {
+    const body = request.body as { refId?: string } | null;
+    return this.serviceRequestsAccess.registerOperationalUnit(
+      { identityId: auth.sub, sessionId: auth.sid },
+      body?.refId ?? '',
+    );
+  }
+
   @Get('summary')
   summary(@CurrentAuth() auth: AccessTokenClaims, @Query() query: Record<string, unknown>) {
     const parsed = parseServiceRequestSummaryQuery(query);

@@ -42,6 +42,11 @@ export class ServiceDefinitionsController {
     return this.catalogAccess.listDefinitions({ identityId: auth.sub, sessionId: auth.sid }, parsed);
   }
 
+  @Get('categories')
+  listCategories(@CurrentAuth() auth: AccessTokenClaims) {
+    return this.catalogAccess.listCategories({ identityId: auth.sub, sessionId: auth.sid });
+  }
+
   @Get(':definitionId')
   getDefinition(@CurrentAuth() auth: AccessTokenClaims, @Param('definitionId') definitionId: string) {
     return this.catalogAccess.getDefinition({ identityId: auth.sub, sessionId: auth.sid }, definitionId);
