@@ -133,10 +133,15 @@ jobs:
       - name: Create disposable integration-test database
         env:
           PGPASSWORD: cisne_ci_disposable_password
+        # `psql -c` aceita SQL puro OU um unico meta-comando, nunca os dois: a forma
+        # anterior mandava `\gexec` para o servidor e o job morria com
+        # `ERROR: syntax error at or near "\"` antes de qualquer teste. Pelo stdin o
+        # meta-comando e interpretado pelo psql e o CREATE continua idempotente.
         run: |
-          psql -h localhost -U cisne_ci -d cisne_ci -v ON_ERROR_STOP=1 \
-            -c "SELECT format('CREATE DATABASE %I OWNER %I', 'cisne_ci_test', 'cisne_ci')
-                WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'cisne_ci_test')\gexec"
+          psql -h localhost -U cisne_ci -d cisne_ci -v ON_ERROR_STOP=1 <<'SQL'
+          SELECT format('CREATE DATABASE %I OWNER %I', 'cisne_ci_test', 'cisne_ci')
+          WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'cisne_ci_test')\gexec
+          SQL
 
       - name: Database migration gate
         run: pnpm gate:database
