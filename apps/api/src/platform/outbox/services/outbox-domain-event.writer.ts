@@ -67,7 +67,8 @@ export class OutboxDomainEventWriter {
       serviceOrderId: string;
       unitId: string;
       allocationId: string;
-      physicalAssetId: string;
+      physicalAssetId: string | null;
+      workforceMemberId?: string | null;
       resourceTypeCode: string;
       assignedAt: string;
     },

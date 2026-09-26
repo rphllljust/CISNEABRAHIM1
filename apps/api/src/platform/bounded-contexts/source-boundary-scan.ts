@@ -51,6 +51,15 @@ const SKIP_FILE_SUFFIXES = [
 const IMPORT_RE = /from ['"](\.[^'"]+)['"]/g;
 const SCHEMA_RE = /\b(?:FROM|JOIN|INTO|UPDATE)\s+(?:"?([a-z][a-z0-9_]*)"?)\./gi;
 
+/**
+ * Leituras cruzadas que o PDP precisa para aplicar escopo ASSIGNED.
+ * Não é permissão genérica entre contextos: só este arquivo e estes schemas.
+ */
+const ASSIGNED_SCOPE_SQL: Array<{ fileSuffix: string; schema: string }> = [
+  { fileSuffix: 'authorization/services/scope-enforcement.service.ts', schema: 'res' },
+  { fileSuffix: 'authorization/services/scope-enforcement.service.ts', schema: 'wrk' },
+];
+
 export type SourceFileScan = {
   relativePath: string;
   boundedContext: BoundedContext | null;
@@ -183,6 +192,9 @@ export function scanCrossContextTableAccess(): TableAccessViolation[] {
         continue;
       }
       const rel = relative(SRC_ROOT, file).split(sep).join('/');
+      if (ASSIGNED_SCOPE_SQL.some((entry) => rel.endsWith(entry.fileSuffix) && entry.schema === schema)) {
+        continue;
+      }
       const isOwnerApplicationContract =
         rel.includes('/application/') && owner === fileContext;
       if (isOwnerApplicationContract) {

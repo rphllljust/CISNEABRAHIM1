@@ -89,13 +89,24 @@ describe('module-boundary-rules', () => {
     expect('DygnusErpAdapter' in ACL_PROVIDER_CLASSIFICATION).toBe(false);
   });
 
-  it('has zero circular import violations and zero cross-context private table access', () => {
-    const result = assertEnterpriseNucleusGraph();
-    expect(result.importViolations, JSON.stringify(result.importViolations, null, 2)).toEqual([]);
-    expect(result.tableAccessViolations, JSON.stringify(result.tableAccessViolations, null, 2)).toEqual(
-      [],
-    );
-    expect(result.circularDependencies).toBe(0);
-    expect(result.crossModuleTableAccess).toBe(0);
-  });
+  /**
+   * O grafo varre todo o codigo de producao (`apps/api/src`) lendo e casando cada arquivo:
+   * custo de I/O, nao de CPU. Sob a carga paralela da suite completa o orcamento de 5s do
+   * Vitest estoura e o teste falha por timeout — sem violacao real — produzindo falso negativo
+   * de gate. Timeout explicito para que a falha volte a significar violacao de fronteira.
+   */
+  it(
+    'has zero circular import violations and zero cross-context private table access',
+    { timeout: 60_000 },
+    () => {
+      const result = assertEnterpriseNucleusGraph();
+      expect(result.importViolations, JSON.stringify(result.importViolations, null, 2)).toEqual([]);
+      expect(
+        result.tableAccessViolations,
+        JSON.stringify(result.tableAccessViolations, null, 2),
+      ).toEqual([]);
+      expect(result.circularDependencies).toBe(0);
+      expect(result.crossModuleTableAccess).toBe(0);
+    },
+  );
 });

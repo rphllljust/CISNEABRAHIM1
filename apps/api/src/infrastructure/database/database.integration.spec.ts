@@ -55,6 +55,13 @@ const ALLOWED_PTY_TABLES = new Set([
   'supplier_contacts',
   'supplier_addresses',
   'supplier_history_events',
+  'legal_entities',
+  'establishments',
+  'establishment_tax_registrations',
+  'establishment_certificates',
+  'legal_entity_history_events',
+  'establishment_history_events',
+  'establishment_tax_registration_history_events',
 ]);
 
 describe('PostgreSQL integration', () => {

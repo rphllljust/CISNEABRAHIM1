@@ -21,6 +21,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import type { Pool } from 'pg';
 import { AuditModule } from '../audit/audit.module';
 import { AuthModule } from '../auth/auth.module';
+import { ensureTestDefaultIssuer } from '../test/ensure-test-issuer';
 import { AUTH_TEST_PASSWORD, applyAuthTestEnv } from '../auth/test/auth-test-env';
 import { normalizeLoginIdentifier } from '../auth/crypto/token-crypto';
 import { AuthorizationModule } from '../authorization/authorization.module';
@@ -123,6 +124,7 @@ export async function createMasterBusinessTestContext(): Promise<MasterBusinessT
     await ensurePhysicalResourceTypesBaseline(pool);
     await ensureOperationalLaborTypesBaseline(pool);
     await insertScopeRef(pool, { scopeType: 'UNIT', refId: MASTER_BUSINESS_UNIT });
+    await ensureTestDefaultIssuer(pool);
   }
 
   async function seedAdminActor(): Promise<UatActor> {

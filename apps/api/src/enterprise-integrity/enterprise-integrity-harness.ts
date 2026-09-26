@@ -54,6 +54,11 @@ import { ReceivablesAccessService } from '../finance/services/receivables-access
 import { TreasuryAccessService } from '../finance/services/treasury-access.service';
 import { FiscalModule } from '../fiscal/fiscal.module';
 import {
+  FISCAL_CREDENTIALING_STATUSES,
+  type FiscalCredentialingSnapshot,
+} from '../fiscal/domain/fiscal-credentialing';
+import { FISCAL_CREDENTIALING_PORT, type FiscalCredentialingPort } from '../fiscal/ports/fiscal-credentialing.port';
+import {
   FISCAL_AUTHORIZATION_GATEWAY,
   type FiscalAuthorizationGateway,
   type FiscalGatewaySubmitResult,
@@ -86,6 +91,28 @@ export class ScriptedFiscalGateway implements FiscalAuthorizationGateway {
 
   async submit(): Promise<FiscalGatewaySubmitResult> {
     return this.next;
+  }
+}
+
+/**
+ * Porta de credenciamento fiscal scriptada (mesmo padrao de fiscal.integration.spec.ts).
+ * A ligacao de producao e SRC-006 NAO CREDENCIADO: sem credenciamento aprovado a
+ * transmissao fiscal e bloqueada por regra (BR-043..BR-045). Aqui a jornada empresarial
+ * integra o hop fiscal com o gateway scriptado, portanto o credenciamento tambem e
+ * scriptado. O bloqueio continua provado em fiscal-credentialing.spec.ts e
+ * fiscal.integration.spec.ts ("blocks transmission when credentialing is not approved").
+ */
+export class ScriptedFiscalCredentialing implements FiscalCredentialingPort {
+  approved = true;
+
+  snapshot(): FiscalCredentialingSnapshot {
+    return {
+      status: this.approved
+        ? FISCAL_CREDENTIALING_STATUSES.Approved
+        : FISCAL_CREDENTIALING_STATUSES.NotCredentialed,
+      approved: this.approved,
+      source: 'LAB',
+    };
   }
 }
 
@@ -168,6 +195,7 @@ export async function createEnterpriseIntegrityContext(): Promise<EnterpriseInte
   process.env['OBJECT_STORAGE_PROVIDER'] ??= 'filesystem';
 
   const fiscalGateway = new ScriptedFiscalGateway();
+  const fiscalCredentialing = new ScriptedFiscalCredentialing();
   const module: TestingModule = await Test.createTestingModule({
     imports: [
       FaultInjectionModule,
@@ -191,6 +219,8 @@ export async function createEnterpriseIntegrityContext(): Promise<EnterpriseInte
   })
     .overrideProvider(FISCAL_AUTHORIZATION_GATEWAY)
     .useValue(fiscalGateway)
+    .overrideProvider(FISCAL_CREDENTIALING_PORT)
+    .useValue(fiscalCredentialing)
     .compile();
 
   const pool = createIntegrationTestPool(testDatabaseUrl);
