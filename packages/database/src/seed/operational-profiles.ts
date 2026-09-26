@@ -188,6 +188,66 @@ const EMPREGADO_GRANTS: GrantSpec[] = [
   grant('resources:resource-type:list', 'resources:resource-type'),
 ];
 
+/**
+ * Controlador financeiro: o dominio financeiro completo (recebiveis, pagamentos, caixa/bancos,
+ * conciliacao, despesas, cobranca, orcamento e previsao de caixa) — e nada fora dele.
+ *
+ * Nao recebe catalogo, comercial (proposta/PO), fiscal, contabil, pessoas, recursos, documentos
+ * nem administracao de acesso: isso e o que separa o papel FINANCEIRO do papel CONTROLE e o que
+ * torna a segregacao de funcoes verificavel no ambiente de desenvolvimento. A autorizacao de
+ * aprovacao de pagamento continua vindo da atribuicao de papel FINANCIAL_CONTROLLER, separada
+ * dos grants.
+ */
+const CONTROLE_FINANCEIRO_GRANTS: GrantSpec[] = [
+  grant('finance:receivable:read', 'finance:receivable'),
+  grant('finance:receivable:list', 'finance:receivable'),
+  grant('finance:receivable:settle', 'finance:receivable'),
+  grant('finance:receivable:cancel', 'finance:receivable'),
+  grant('finance:payable:open', 'finance:payable'),
+  grant('finance:payable:read', 'finance:payable'),
+  grant('finance:payable:list', 'finance:payable'),
+  grant('finance:payable:pay', 'finance:payable'),
+  grant('finance:payable:cancel', 'finance:payable'),
+  grant('finance:payable:reverse', 'finance:payable'),
+  grant('finance:expense-category:create', 'finance:payable'),
+  grant('finance:expense:create', 'finance:payable'),
+  grant('finance:expense:submit', 'finance:payable'),
+  grant('finance:expense:approve', 'finance:payable'),
+  grant('finance:expense:reject', 'finance:payable'),
+  grant('finance:expense:read', 'finance:payable'),
+  grant('finance:collection:open', 'finance:receivable'),
+  grant('finance:collection:read', 'finance:receivable'),
+  grant('finance:collection:action-create', 'finance:receivable'),
+  grant('finance:collection:promise-create', 'finance:receivable'),
+  grant('finance:collection:renegotiate', 'finance:receivable'),
+  grant('finance:treasury:account-open', 'finance:treasury'),
+  grant('finance:treasury:read', 'finance:treasury'),
+  grant('finance:treasury:list', 'finance:treasury'),
+  grant('finance:treasury:post', 'finance:treasury'),
+  grant('finance:treasury:transfer', 'finance:treasury'),
+  grant('finance:treasury:reverse', 'finance:treasury'),
+  grant('finance:bank-statement:import', 'finance:treasury'),
+  grant('finance:reconciliation:match', 'finance:treasury'),
+  grant('finance:reconciliation:confirm', 'finance:treasury'),
+  grant('finance:reconciliation:unreconcile', 'finance:treasury'),
+  grant('finance:reconciliation:read', 'finance:treasury'),
+  grant('finance:budget:create', 'finance:payable'),
+  grant('finance:budget:update', 'finance:payable'),
+  grant('finance:budget:approve', 'finance:payable'),
+  grant('finance:budget:read', 'finance:payable'),
+  grant('finance:cash-forecast:read', 'finance:receivable'),
+  // Leitura de faturamento: o titulo financeiro referencia o documento que o originou.
+  grant('billing:billing-record:read', 'service-orders:service-order'),
+  grant('billing:billing-document:read', 'service-orders:service-order'),
+];
+
+/** Acoes expostas para verificacao de segregacao de funcoes (spec do proprio pacote). */
+export const OPERATIONAL_PROFILE_GRANTS = {
+  controle: CONTROLE_GRANTS,
+  controleFinanceiro: CONTROLE_FINANCEIRO_GRANTS,
+  empregado: EMPREGADO_GRANTS,
+} as const;
+
 export type OperationalProfilesInput = {
   controlePassword: string;
   controleFinanceiroPassword?: string;
@@ -526,10 +586,10 @@ export async function runOperationalProfilesSeed(
   const controleFinanceiroRole = await ensureRole(
     pool,
     CONTROLE_FINANCEIRO_ROLE_CODE,
-    'Dono',
-    'Perfil estático de dono com acesso global de desenvolvimento.',
+    'Controlador financeiro',
+    'Perfil estático do controlador financeiro: domínio financeiro completo, sem catálogo, comercial, fiscal, contábil, pessoas, recursos ou administração de acesso.',
     controle.identityId,
-    CONTROLE_GRANTS.map((grant) => grant.action),
+    CONTROLE_FINANCEIRO_GRANTS.map((grant) => grant.action),
   );
 
   await ensureAssignment(pool, controleRole, controle.identityId, controle.identityId);
@@ -551,7 +611,7 @@ export async function runOperationalProfilesSeed(
     pool,
     controleFinanceiro.identityId,
     controle.identityId,
-    CONTROLE_GRANTS,
+    CONTROLE_FINANCEIRO_GRANTS,
   );
   const empregadoGrants = await ensureGrants(
     pool,
