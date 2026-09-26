@@ -1,5 +1,5 @@
 import type { Pool } from 'pg';
-import { buildReceivablePositionsSql } from '../domain/receivable-aging-sql';
+import { buildReceivablePositionsSql } from '../analytics/domain/receivable-aging-sql';
 
 /**
  * Fixture deterministica da cadeia persistida (FIN-SEM-001):

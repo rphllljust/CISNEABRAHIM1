@@ -209,6 +209,36 @@ const LINEAGE_BY_ID: Record<string, MetricLineage> = {
     domainOwner: 'Measurements / Productivity',
     source: 'msr.measurements (REJECTED x submetidas no periodo)',
   },
+  'fiscal.documents_pending_transmission_count': {
+    readModel: 'ComplianceReadModelRepository.summarize (analytics/compliance)',
+    domainOwner: 'Fiscal',
+    source: 'rpt.read_fiscal_documents (status NOT IN AUTHORIZED/CANCELLED por issued_on)',
+  },
+  'fiscal.tax_obligations_open_count': {
+    readModel: 'ComplianceReadModelRepository.summarize (analytics/compliance)',
+    domainOwner: 'Fiscal',
+    source: 'rpt.read_tax_obligations (status OPEN por period_key)',
+  },
+  'fiscal.tax_obligations_open_amount': {
+    readModel: 'ComplianceReadModelRepository.summarize (analytics/compliance)',
+    domainOwner: 'Fiscal',
+    source: 'rpt.read_tax_obligations.amount (status OPEN por period_key)',
+  },
+  'accounting.periods_open_count': {
+    readModel: 'ComplianceReadModelRepository.summarize (analytics/compliance)',
+    domainOwner: 'Accounting',
+    source: 'rpt.read_accounting_periods (status OPEN)',
+  },
+  'accounting.journal_entries_posted_count': {
+    readModel: 'ComplianceReadModelRepository.summarize (analytics/compliance)',
+    domainOwner: 'Accounting',
+    source: 'rpt.read_journal_entries (status POSTED por occurred_on)',
+  },
+  'accounting.journal_entries_draft_count': {
+    readModel: 'ComplianceReadModelRepository.summarize (analytics/compliance)',
+    domainOwner: 'Accounting',
+    source: 'rpt.read_journal_entries (status DRAFT por occurred_on)',
+  },
 };
 
 export function lineageFor(definition: MetricDefinition): MetricLineage | undefined {

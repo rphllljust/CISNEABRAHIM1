@@ -59,6 +59,10 @@ export function CollectionPanel({
     () => void reload(),
   );
 
+  if (state.phase === 'denied') {
+    return null;
+  }
+
   if (state.phase === 'error' && state.kind === 'not_found') {
     // 404 do GET = não há caso de cobrança aberto PARA ESTE TÍTULO. O backend
     // (domain/collection.ts assertCanOpenCollection) só abre caso em título

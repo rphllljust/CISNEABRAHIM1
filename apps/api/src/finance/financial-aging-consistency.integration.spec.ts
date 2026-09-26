@@ -12,8 +12,8 @@ import { compareMoneyAmounts } from '../platform/kernel/money-math';
 import {
   buildAwaitingReceivableAggregateSql,
   buildOverdueReceivableAggregateSql,
-} from './domain/receivable-aging-sql';
-import { bindFinancialChain, type BoundFinancialChain } from './testing/financial-chain.fixture';
+} from '../analytics/domain/receivable-aging-sql';
+import { bindFinancialChain, type BoundFinancialChain } from '../test/financial-chain.fixture';
 
 /**
  * FINANCIAL AGING CONSISTENCY — fechamento.

@@ -27,6 +27,12 @@ const EXPECTED: Record<string, { requiredCapability: string; scopePolicy: 'GLOBA
   'productivity.on_time_rate': { requiredCapability: 'service-orders:service-order:list', scopePolicy: 'UNIT_SCOPED' },
   'productivity.avg_cycle_hours': { requiredCapability: 'service-orders:service-order:list', scopePolicy: 'UNIT_SCOPED' },
   'productivity.rework_rate': { requiredCapability: 'measurements:measurement:read', scopePolicy: 'UNIT_SCOPED' },
+  'fiscal.documents_pending_transmission_count': { requiredCapability: 'fiscal:document:read', scopePolicy: 'UNIT_SCOPED' },
+  'fiscal.tax_obligations_open_count': { requiredCapability: 'fiscal:document:read', scopePolicy: 'UNIT_SCOPED' },
+  'fiscal.tax_obligations_open_amount': { requiredCapability: 'fiscal:document:read', scopePolicy: 'UNIT_SCOPED' },
+  'accounting.periods_open_count': { requiredCapability: 'accounting:journal:read', scopePolicy: 'UNIT_SCOPED' },
+  'accounting.journal_entries_posted_count': { requiredCapability: 'accounting:journal:read', scopePolicy: 'UNIT_SCOPED' },
+  'accounting.journal_entries_draft_count': { requiredCapability: 'accounting:journal:read', scopePolicy: 'UNIT_SCOPED' },
 };
 
 function driftFor(metric: MetricDefinition): string | null {
@@ -45,8 +51,8 @@ describe('BI GATE — drift catalogo (SMC-001) x autorizacao real das APIs', () 
     const confirmed = SEMANTIC_METRIC_CATALOG.filter((metric) => metric.status === 'CONFIRMED');
     const drifts = confirmed.map(driftFor).filter((value): value is string => value !== null);
     expect(drifts).toEqual([]);
-    expect(confirmed.length).toBe(15);
-    expect(Object.keys(EXPECTED).length).toBe(15);
+    expect(confirmed.length).toBe(21);
+    expect(Object.keys(EXPECTED).length).toBe(21);
   });
 
   it('BLOCKED nao participa (nao e metrica utilizavel/exposta)', () => {

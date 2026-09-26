@@ -20,9 +20,9 @@ function clone(metric: MetricDefinition, overrides: Partial<MetricDefinition> = 
 }
 
 describe('METRIC VERSIONING + LINEAGE (MVL-001)', () => {
-  it('regressao: 15 metricas CONFIRMED atuais + 1 BLOCKED (nao current)', () => {
-    expect(countCurrentConfirmedMetrics()).toBe(15);
-    expect(currentConfirmedIds()).toHaveLength(15);
+  it('regressao: 21 metricas CONFIRMED atuais + 1 BLOCKED (nao current)', () => {
+    expect(countCurrentConfirmedMetrics()).toBe(21);
+    expect(currentConfirmedIds()).toHaveLength(21);
     const blocked = SEMANTIC_METRIC_CATALOG.find((metric) => metric.status === 'BLOCKED');
     expect(blocked).toBeDefined();
     expect(resolveCurrentMetric(SEMANTIC_METRIC_CATALOG, blocked!.id)).toBeUndefined();

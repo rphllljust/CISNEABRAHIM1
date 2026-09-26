@@ -3,7 +3,7 @@ import type { Pool } from 'pg';
 import { sumMoneyAmounts } from '../../platform/kernel/money-math';
 import type { ScopeSqlPredicate } from '../../authorization/services/scope-enforcement.service';
 import { DatabaseService } from '../../infrastructure/database/database.service';
-import { buildAwaitingReceivableAggregateSql, buildOverdueReceivableAggregateSql } from '../../finance/domain/receivable-aging-sql';
+import { buildAwaitingReceivableAggregateSql, buildOverdueReceivableAggregateSql } from '../domain/receivable-aging-sql';
 import { TERMINAL_SERVICE_ORDER_STATUSES } from '../../service-orders/domain/service-order.state-machine';
 import type { AgingVisibility } from '../domain/aging-snapshot';
 import { prefixScopeAlias, remapScope, type AgingScopeFilters } from './aging-scope';

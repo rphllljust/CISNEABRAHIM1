@@ -6,6 +6,7 @@ import { BACKOFFICE_TABLE_PAGE_SIZE, sliceTablePage } from './table-slice';
 describe('financial UI helpers', () => {
   it('classifies version conflict and closed period without treating them as success', () => {
     expect(classifyBackofficeError(409, 'FINANCE_VERSION_CONFLICT')).toBe('version_conflict');
+    expect(classifyBackofficeError(409, 'FINANCE_RECEIVABLE_OVERPAYMENT')).toBe('validation');
     expect(classifyBackofficeError(409, 'ACCOUNTING_PERIOD_CLOSED')).toBe('closed_period');
     expect(classifyBackofficeError(403, 'FINANCE_DENIED')).toBe('denied');
     expect(classifyBackofficeError(403, 'PROCUREMENT_DENIED')).toBe('denied');

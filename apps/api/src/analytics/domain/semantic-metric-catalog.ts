@@ -30,6 +30,8 @@ export const CATALOG_CAPABILITIES = [
   'billing:billing-record:read',
   'measurements:measurement:read',
   'resources:asset:list',
+  'fiscal:document:read',
+  'accounting:journal:read',
 ] as const;
 export type CatalogCapability = (typeof CATALOG_CAPABILITIES)[number];
 
@@ -42,7 +44,14 @@ export const NULL_POLICIES = [
 ] as const;
 export type NullPolicy = (typeof NULL_POLICIES)[number];
 
-export type MetricDomain = 'service-orders' | 'measurements' | 'billing' | 'finance-receivables' | 'productivity';
+export type MetricDomain =
+  | 'service-orders'
+  | 'measurements'
+  | 'billing'
+  | 'finance-receivables'
+  | 'productivity'
+  | 'fiscal'
+  | 'accounting';
 
 export type MetricValueType = 'integer' | 'decimal(18,4)' | 'rate' | 'hours';
 
@@ -444,6 +453,130 @@ export const SEMANTIC_METRIC_CATALOG: readonly MetricDefinition[] = [
     status: 'CONFIRMED',
   },
 
+  // ---------- fiscal (conformidade fiscal) ----------
+  {
+    id: 'fiscal.documents_pending_transmission_count',
+    version: '1.0.0',
+    concept: 'Documentos fiscais emitidos no periodo ainda sem autorizacao (nem cancelados)',
+    domain: 'fiscal',
+    grain: 'fiscal document',
+    unit: 'count',
+    valueType: 'integer',
+    source: 'rpt.read_fiscal_documents (status NOT IN AUTHORIZED/CANCELLED por issued_on)',
+    engine: 'ComplianceReadModelRepository.summarize (analytics/compliance)',
+    dimensions: ['unit', 'time'],
+    allowedFilters: ['unitId', 'period', 'from', 'to'],
+    timezonePolicy: 'businessTimezone (resolucao de periodo); issued_on e data civil',
+    nullPolicy: 'ZERO_REAL',
+    availabilityPolicy: 'AVAILABLE_WITH_FISCAL_DOCUMENT_GRANT',
+    freshnessPolicy: 'request_time',
+    requiredCapability: 'fiscal:document:read',
+    scopePolicy: 'UNIT_SCOPED',
+    status: 'CONFIRMED',
+  },
+  {
+    id: 'fiscal.tax_obligations_open_count',
+    version: '1.0.0',
+    concept: 'Obrigacoes tributarias abertas com competencia dentro do periodo',
+    domain: 'fiscal',
+    grain: 'tax obligation',
+    unit: 'count',
+    valueType: 'integer',
+    source: 'rpt.read_tax_obligations (status OPEN por period_key)',
+    engine: 'ComplianceReadModelRepository.summarize (analytics/compliance)',
+    dimensions: ['unit', 'time', 'taxComponent'],
+    allowedFilters: ['unitId', 'period', 'from', 'to'],
+    timezonePolicy: 'competencia e chave civil AAAA-MM (sem conversao de instante)',
+    nullPolicy: 'ZERO_REAL',
+    availabilityPolicy: 'AVAILABLE_WITH_FISCAL_DOCUMENT_GRANT',
+    freshnessPolicy: 'request_time',
+    requiredCapability: 'fiscal:document:read',
+    scopePolicy: 'UNIT_SCOPED',
+    status: 'CONFIRMED',
+  },
+  {
+    id: 'fiscal.tax_obligations_open_amount',
+    version: '1.0.0',
+    concept: 'Valor total das obrigacoes tributarias abertas no periodo',
+    domain: 'fiscal',
+    grain: 'tax obligation',
+    unit: 'BRL',
+    valueType: 'decimal(18,4)',
+    source: 'rpt.read_tax_obligations.amount (status OPEN por period_key)',
+    engine: 'ComplianceReadModelRepository.summarize (analytics/compliance)',
+    dimensions: ['unit', 'time', 'taxComponent'],
+    allowedFilters: ['unitId', 'period', 'from', 'to'],
+    timezonePolicy: 'competencia e chave civil AAAA-MM',
+    nullPolicy: 'NO_DATA_NULL',
+    availabilityPolicy: 'AVAILABLE_WITH_FISCAL_DOCUMENT_GRANT',
+    freshnessPolicy: 'request_time',
+    requiredCapability: 'fiscal:document:read',
+    scopePolicy: 'UNIT_SCOPED',
+    status: 'CONFIRMED',
+  },
+
+  // ---------- accounting (conformidade contabil) ----------
+  {
+    id: 'accounting.periods_open_count',
+    version: '1.0.0',
+    concept: 'Periodos contabeis abertos na unidade',
+    domain: 'accounting',
+    grain: 'accounting period',
+    unit: 'count',
+    valueType: 'integer',
+    source: 'rpt.read_accounting_periods (status OPEN)',
+    engine: 'ComplianceReadModelRepository.summarize (analytics/compliance)',
+    dimensions: ['unit'],
+    allowedFilters: ['unitId', 'period', 'from', 'to'],
+    timezonePolicy: 'n/a (contagem por estado persistido)',
+    nullPolicy: 'ZERO_REAL',
+    availabilityPolicy: 'AVAILABLE_WITH_ACCOUNTING_JOURNAL_GRANT',
+    freshnessPolicy: 'request_time',
+    requiredCapability: 'accounting:journal:read',
+    scopePolicy: 'UNIT_SCOPED',
+    status: 'CONFIRMED',
+  },
+  {
+    id: 'accounting.journal_entries_posted_count',
+    version: '1.0.0',
+    concept: 'Lancamentos contabeis efetivados (POSTED) no periodo',
+    domain: 'accounting',
+    grain: 'journal entry',
+    unit: 'count',
+    valueType: 'integer',
+    source: 'rpt.read_journal_entries (status POSTED por occurred_on)',
+    engine: 'ComplianceReadModelRepository.summarize (analytics/compliance)',
+    dimensions: ['unit', 'time'],
+    allowedFilters: ['unitId', 'period', 'from', 'to'],
+    timezonePolicy: 'businessTimezone (resolucao de periodo); occurred_on e data civil',
+    nullPolicy: 'ZERO_REAL',
+    availabilityPolicy: 'AVAILABLE_WITH_ACCOUNTING_JOURNAL_GRANT',
+    freshnessPolicy: 'request_time',
+    requiredCapability: 'accounting:journal:read',
+    scopePolicy: 'UNIT_SCOPED',
+    status: 'CONFIRMED',
+  },
+
+  {
+    id: 'accounting.journal_entries_draft_count',
+    version: '1.0.0',
+    concept: 'Lancamentos contabeis ainda em rascunho no periodo (nao efetivados)',
+    domain: 'accounting',
+    grain: 'journal entry',
+    unit: 'count',
+    valueType: 'integer',
+    source: 'rpt.read_journal_entries (status DRAFT por occurred_on)',
+    engine: 'ComplianceReadModelRepository.summarize (analytics/compliance)',
+    dimensions: ['unit', 'time'],
+    allowedFilters: ['unitId', 'period', 'from', 'to'],
+    timezonePolicy: 'businessTimezone (resolucao de periodo); occurred_on e data civil',
+    nullPolicy: 'ZERO_REAL',
+    availabilityPolicy: 'AVAILABLE_WITH_ACCOUNTING_JOURNAL_GRANT',
+    freshnessPolicy: 'request_time',
+    requiredCapability: 'accounting:journal:read',
+    scopePolicy: 'UNIT_SCOPED',
+    status: 'CONFIRMED',
+  },
   // ---------- legada/bloqueada ----------
   {
     id: 'receivables.overdue_count_by_finalized_billing_documents',

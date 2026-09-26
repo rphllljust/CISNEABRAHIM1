@@ -64,6 +64,14 @@ export function classifyBackofficeError(
   if (code && DENIED_CODES.has(code) || status === 403 || status === 401) {
     return 'denied';
   }
+  if (
+    code === 'FINANCE_RECEIVABLE_OVERPAYMENT' ||
+    code === 'FINANCE_PAYABLE_OVERPAYMENT' ||
+    code === 'FINANCE_INVALID_SETTLEMENT_AMOUNT' ||
+    code === 'FINANCE_INVALID_PAYMENT_AMOUNT'
+  ) {
+    return 'validation';
+  }
   if (code && VERSION_CONFLICT_CODES.has(code) || status === 409) {
     return code && CLOSED_PERIOD_CODES.has(code) ? 'closed_period' : 'version_conflict';
   }

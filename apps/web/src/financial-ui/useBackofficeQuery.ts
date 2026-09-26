@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { BackofficeApiError } from './enterprise-api';
 
 export type QueryState<T> =
@@ -21,37 +21,38 @@ export function useBackofficeQuery<T>(options: {
 } {
   const { enabled = true, loader, mapError, autoLoad = true } = options;
   const [state, setState] = useState<QueryState<T>>(enabled && autoLoad ? { phase: 'loading' } : { phase: 'idle' });
+  const loaderRef = useRef(loader);
+  const mapErrorRef = useRef(mapError);
+  loaderRef.current = loader;
+  mapErrorRef.current = mapError;
 
-  const reload = useCallback(
-    async (signal?: AbortSignal) => {
-      setState({ phase: 'loading' });
-      try {
-        const data = await loader(signal);
-        setState({ phase: 'ready', data });
-      } catch (error) {
-        if (error instanceof BackofficeApiError) {
-          if (error.kind === 'denied') {
-            setState({ phase: 'denied' });
-            return;
-          }
-          setState({
-            phase: 'error',
-            message: mapError(error.code, error.status),
-            retryable: error.kind === 'network' || error.kind === 'unknown',
-            kind: error.kind,
-          });
+  const reload = useCallback(async (signal?: AbortSignal) => {
+    setState({ phase: 'loading' });
+    try {
+      const data = await loaderRef.current(signal);
+      setState({ phase: 'ready', data });
+    } catch (error) {
+      if (error instanceof BackofficeApiError) {
+        if (error.kind === 'denied') {
+          setState({ phase: 'denied' });
           return;
         }
         setState({
           phase: 'error',
-          message: mapError(undefined, 0),
-          retryable: true,
-          kind: 'unknown',
+          message: mapErrorRef.current(error.code, error.status),
+          retryable: error.kind === 'network' || error.kind === 'unknown',
+          kind: error.kind,
         });
+        return;
       }
-    },
-    [loader, mapError],
-  );
+      setState({
+        phase: 'error',
+        message: mapErrorRef.current(undefined, 0),
+        retryable: true,
+        kind: 'unknown',
+      });
+    }
+  }, []);
 
   const reset = useCallback(() => setState({ phase: 'idle' }), []);
   const setReady = useCallback((data: T) => setState({ phase: 'ready', data }), []);

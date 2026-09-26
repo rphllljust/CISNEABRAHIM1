@@ -4,7 +4,7 @@ import { sumMoneyAmounts } from '../../platform/kernel/money-math';
 import type { ScopeSqlPredicate } from '../../authorization/services/scope-enforcement.service';
 import { DatabaseService } from '../../infrastructure/database/database.service';
 import { parseAgingBucketPolicyFromEnv } from '../../analytics/domain/aging-bucket.policy';
-import { buildOverdueReceivableBucketsSql } from '../../finance/domain/receivable-aging-sql';
+import { buildOverdueReceivableBucketsSql } from '../../analytics/domain/receivable-aging-sql';
 import type { ExecutiveChartRawData, ExecutiveFinancialAgingBucket } from '../domain/executive-dashboard';
 import { prefixScopeAlias, remapScope } from '../../analytics/repositories/aging-scope';
 

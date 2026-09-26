@@ -48,7 +48,7 @@ describe('SEMANTIC METRIC CATALOG (SMC-001)', () => {
       expect(metric.engine.trim().length).toBeGreaterThan(0);
       expect(CATALOG_CAPABILITIES).toContain(metric.requiredCapability);
     }
-    expect(CONFIRMED_METRIC_COUNT).toBe(15);
+    expect(CONFIRMED_METRIC_COUNT).toBe(21);
     expect(CANDIDATE_METRIC_COUNT).toBe(0);
     expect(BLOCKED_METRIC_COUNT).toBe(1);
   });

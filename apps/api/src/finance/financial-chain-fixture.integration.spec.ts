@@ -8,7 +8,7 @@ import {
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { applyAuthTestEnv } from '../auth/test/auth-test-env';
-import { bindFinancialChain, FINANCIAL_REF, type BoundFinancialChain } from './testing/financial-chain.fixture';
+import { bindFinancialChain, FINANCIAL_REF, type BoundFinancialChain } from '../test/financial-chain.fixture';
 
 /**
  * STEP 3 — fixture deterministica da cadeia persistida:

@@ -8,8 +8,8 @@ import {
 } from './semantic-dashboard';
 
 describe('COMPOSITE DASHBOARDS — camada semantica (SMC-001/FDC-001)', () => {
-  it('espelho SMC-001: 15 CONFIRMED, versoes unicas 1.0.0 (sem BLOCKED/CANDIDATE)', () => {
-    expect(SMC001_CONFIRMED_FRONT).toHaveLength(15);
+  it('espelho SMC-001: 21 CONFIRMED, versoes unicas 1.0.0 (sem BLOCKED/CANDIDATE)', () => {
+    expect(SMC001_CONFIRMED_FRONT).toHaveLength(21);
     const versions = SMC001_CONFIRMED_FRONT.map((metric) => `${metric.id}@${metric.version}`);
     expect(new Set(versions).size).toBe(versions.length);
     for (const metric of SMC001_CONFIRMED_FRONT) {

@@ -84,6 +84,7 @@ export function MoneyActionForm({
         setError(mapError(caught.code, caught.status));
         // Keep the confirm spent until cancel/reload so a second click cannot POST again.
       } else if (caught instanceof BackofficeApiError) {
+        setOpen(false);
         setError(mapError(caught.code, caught.status));
         releaseInflight();
       } else {

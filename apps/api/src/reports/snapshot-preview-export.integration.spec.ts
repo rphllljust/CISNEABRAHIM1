@@ -24,7 +24,7 @@ import { AUTHZ_SCOPES } from '../authorization/types/authz-scopes';
 import { DocumentsModule } from '../documents/documents.module';
 import { DatabaseModule } from '../infrastructure/database/database.module';
 import { BackgroundJobsModule } from '../platform/background-jobs/background-jobs.module';
-import { bindFinancialChain, type BoundFinancialChain } from '../finance/testing/financial-chain.fixture';
+import { bindFinancialChain, type BoundFinancialChain } from '../test/financial-chain.fixture';
 import { REPORT_TYPES } from './domain/report-type';
 import { ReportsModule } from './reports.module';
 import { ReportExportAccessService } from './services/report-export-access.service';

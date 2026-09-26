@@ -102,6 +102,7 @@ export class ReceivablesAccessService implements FinanceReceivablePort {
   }
 
   async list(actor: IdentityAuthzContext): Promise<ReceivableDetailResponse[]> {
+    await this.authz.assertReceivableList(actor);
     const rows = await this.repository.listAll();
     const details: ReceivableDetailResponse[] = [];
     for (const row of rows) {

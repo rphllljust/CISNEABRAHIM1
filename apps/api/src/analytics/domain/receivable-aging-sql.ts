@@ -1,8 +1,8 @@
 /**
  * RECEIVABLE AGING (fonte financeira) — único SQL de aging de recebíveis.
  *
- * Posição = fin.receivables (lifecycle ACTIVE) com saldo
- *   remaining = principal − SUM(fin.settlements POSTED)
+ * Posição = rpt.read_receivables (lifecycle ACTIVE) com saldo
+ *   remaining = principal − SUM(rpt.read_settlements POSTED)
  * Status derivado igual a finance/domain/receivable.deriveReceivableStatus:
  *   - paid          : remaining <= 0
  *   - overdue       : remaining > 0 AND due_date < asOfDate
@@ -10,7 +10,7 @@
  *   - open          : remaining > 0 AND due_date >= asOfDate AND settled = 0
  * Nunca conta billing_documents sem baixa; nunca inventa valores.
  * `scopeClause` refere-se ao alias `bd` (colunas unit_id/client_id) — mesmo padrão
- * dos escopos de billing; fin.receivables expõe unit_id/client_id.
+ * dos escopos de billing; rpt.read_receivables expõe unit_id/client_id.
  */
 
 export type ReceivableAgingSqlOptions = {
@@ -31,12 +31,12 @@ const POSITIONS = (opts: ReceivableAgingSqlOptions): string => {
             (bd.principal
              - COALESCE(
                  (SELECT SUM(s.amount)
-                  FROM fin.settlements s
+                  FROM rpt.read_settlements s
                   WHERE s.receivable_id = bd.id AND s.status = 'POSTED'),
                  0
                )
             ) AS remaining
-          FROM fin.receivables bd
+          FROM rpt.read_receivables bd
           WHERE ${opts.scopeClause}${extra}
             AND bd.lifecycle = 'ACTIVE'`;
 };
@@ -93,14 +93,14 @@ export function buildReceivablePositionsSql(opts: ReceivableAgingSqlOptions): st
             bd.principal,
             COALESCE(
               (SELECT SUM(s.amount)
-               FROM fin.settlements s
+               FROM rpt.read_settlements s
                WHERE s.receivable_id = bd.id AND s.status = 'POSTED'),
               0
             ) AS settled,
             (bd.principal
              - COALESCE(
                  (SELECT SUM(s.amount)
-                  FROM fin.settlements s
+                  FROM rpt.read_settlements s
                   WHERE s.receivable_id = bd.id AND s.status = 'POSTED'),
                  0
                )
@@ -110,20 +110,20 @@ export function buildReceivablePositionsSql(opts: ReceivableAgingSqlOptions): st
               WHEN (bd.principal
                     - COALESCE(
                         (SELECT SUM(s.amount)
-                         FROM fin.settlements s
+                         FROM rpt.read_settlements s
                          WHERE s.receivable_id = bd.id AND s.status = 'POSTED'),
                         0
                       )) <= 0 THEN 'PAID'
               WHEN bd.due_date < ${asOfDateExpr} THEN 'OVERDUE'
               WHEN COALESCE(
                      (SELECT SUM(s.amount)
-                      FROM fin.settlements s
+                      FROM rpt.read_settlements s
                       WHERE s.receivable_id = bd.id AND s.status = 'POSTED'),
                      0
                    ) > 0 THEN 'PARTIALLY_PAID'
               ELSE 'OPEN'
             END AS status
-          FROM fin.receivables bd
+          FROM rpt.read_receivables bd
           WHERE ${opts.scopeClause}${extra}
             AND bd.lifecycle IN ('ACTIVE', 'CANCELLED')`;
 }

@@ -29,8 +29,8 @@ import { AgingReadModelRepository } from '../analytics/repositories/aging-read-m
 import {
   buildAwaitingReceivableAggregateSql,
   buildOverdueReceivableAggregateSql,
-} from './domain/receivable-aging-sql';
-import { bindFinancialChain, type BoundFinancialChain } from './testing/financial-chain.fixture';
+} from '../analytics/domain/receivable-aging-sql';
+import { bindFinancialChain, type BoundFinancialChain } from '../test/financial-chain.fixture';
 
 /**
  * STEP 4 — reconciliacao Finance = Analytics = Executive no MESMO dataset persistido

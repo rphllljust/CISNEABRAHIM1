@@ -134,6 +134,32 @@ describe('Finance receivables PostgreSQL integration', () => {
     expect(paid.settlements).toHaveLength(1);
   });
 
+  it('blocks originator self-settlement and allows a different authorized finance checker to pay in full', async () => {
+    const { originator: actor, checker } = await seedSettlePair();
+    const opened = await openReceivable(actor);
+
+    await expect(
+      receivablesAccess.settle(actor, opened.id, {
+        amount: '100.0000',
+        rowVersion: opened.rowVersion,
+        idempotencyKey: `self-${crypto.randomUUID()}`,
+      }),
+    ).rejects.toMatchObject({ code: 'APPROVAL_MATRIX_SELF_APPROVAL' });
+
+    const afterSelfAttempt = await receivablesAccess.getById(actor, opened.id);
+    expect(afterSelfAttempt.status).toBe(RECEIVABLE_STATUSES.Open);
+    expect(afterSelfAttempt.settlements).toHaveLength(0);
+
+    const paid = await receivablesAccess.settle(checker, opened.id, {
+      amount: '100.0000',
+      rowVersion: afterSelfAttempt.rowVersion,
+      idempotencyKey: `checker-${crypto.randomUUID()}`,
+    });
+    expect(paid.status).toBe(RECEIVABLE_STATUSES.Paid);
+    expect(paid.remainingBalance).toBe('0');
+    expect(paid.settlements).toHaveLength(1);
+  });
+
   it('posts a partial payment and derives PARTIALLY_PAID', async () => {
     const { originator: actor, checker } = await seedSettlePair();
     const opened = await openReceivable(actor);

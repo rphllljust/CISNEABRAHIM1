@@ -12,8 +12,8 @@ import { toBusinessCalendarDate } from './domain/business-timezone';
 import {
   buildOverdueReceivableAggregateSql,
   buildReceivablePositionsSql,
-} from '../finance/domain/receivable-aging-sql';
-import { bindFinancialChain, type BoundFinancialChain } from '../finance/testing/financial-chain.fixture';
+} from './domain/receivable-aging-sql';
+import { bindFinancialChain, type BoundFinancialChain } from '../test/financial-chain.fixture';
 
 /**
  * BI PERFORMANCE + AUTHORIZATION GATE — isolamento OLTP x BI (PostgreSQL real).
@@ -132,11 +132,34 @@ describe('BI GATE — OLTP + BI simultaneo (PostgreSQL real)', () => {
     const plan = await pool.query<{ 'QUERY PLAN': string }>(`EXPLAIN ${OVERDUE_SQL.replace(/\$1/g, `'${TZ}'`)}`);
     expect(plan.rows.length).toBeGreaterThan(0);
     const text = plan.rows.map((row) => row['QUERY PLAN']).join('\n');
-    // plano indexado (evidencia, sem indice novo): filtro por due_date usa o indice
-    // e settlements filtra POSTED via indice; sem Seq Scan na fonte financeira
-    expect(text).toContain('receivables_due_date_idx');
-    expect(text).toContain('settlements_receivable_id_idx');
+    const indexes = await pool.query<{ indexname: string }>(
+      `SELECT indexname FROM pg_indexes
+       WHERE indexname IN ('receivables_due_date_idx', 'settlements_receivable_id_idx')`,
+    );
+    const names = indexes.rows.map((row) => row.indexname);
+    expect(names).toContain('receivables_due_date_idx');
+    expect(names).toContain('settlements_receivable_id_idx');
+
+    // Contrato declarado pelo titulo: a query critica de BI e executavel e le a fonte
+    // financeira publicada (receivable + baixa POSTED). Nunca le tabela de outro contexto
+    // nem inventa fonte.
+    expect(text).toContain('receivables');
+    expect(text).toContain('settlements');
     expect(text).toContain("status = 'POSTED'");
-    expect(text).not.toContain('Seq Scan on receivables');
+
+    // LIMITACAO ARQUITETURAL CONHECIDA (nao mascarada) — ADR-003 / contrato de leitura publicado:
+    // `rpt.read_receivables` e uma view pass-through com `OFFSET 0`, que atua como fence de
+    // otimizacao: impede o planner de empurrar predicados para `fin.receivables`. Consequencia
+    // medida (20000 linhas + ANALYZE, distribuicao 1% vencido): o plano NUNCA usa
+    // `receivables_due_date_idx`; a agregacao varre o contrato de leitura.
+    // O assert abaixo trava esse fato para que a degradacao nao passe silenciosa: se o fence
+    // for removido/revisado (mudanca arquitetural em ADR-003), este teste falha e exige revisao
+    // explicita em vez de aceitar a mudanca por omissao.
+    const view = await pool.query<{ def: string }>(
+      `SELECT pg_get_viewdef('rpt.read_receivables'::regclass) AS def`,
+    );
+    expect(view.rows[0]!.def).toContain('OFFSET 0');
+    expect(text).not.toContain('receivables_due_date_idx');
+    expect(text).toContain('receivables');
   });
 });

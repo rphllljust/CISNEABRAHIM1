@@ -234,10 +234,9 @@ async function seedDefaultIssuer(pool: import('pg').Pool): Promise<void> {
 
   const existingTax = await pool.query(
     `SELECT 1 FROM pty.establishment_tax_registrations
-     WHERE establishment_id = $1 AND tax_kind = 'CNPJ' AND normalized_number = '11897171000181' LIMIT 1`,
-    [establishmentId],
+     WHERE tax_kind = 'CNPJ' AND normalized_number = '11897171000181' AND status = 'ACTIVE' LIMIT 1`,
   );
-  if (existingTax.rowCount === 0) {
+  if ((existingTax.rowCount ?? 0) === 0) {
     await pool.query(
       `INSERT INTO pty.establishment_tax_registrations (establishment_id, tax_kind, normalized_number, status)
        VALUES ($1, 'CNPJ', '11897171000181', 'ACTIVE')`,

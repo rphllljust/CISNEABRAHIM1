@@ -21,6 +21,7 @@ export function mapFinanceErrorToMessage(code: string | undefined, status: numbe
       return 'O estorno não pode superar o valor do pagamento original.';
     case 'FINANCE_RECEIVABLE_OVERPAYMENT':
     case 'FINANCE_PAYABLE_OVERPAYMENT':
+      return 'O valor supera o saldo do título.';
     case 'FINANCE_INVALID_SETTLEMENT_AMOUNT':
     case 'FINANCE_INVALID_PAYMENT_AMOUNT':
       return 'O valor informado foi recusado pelo servidor.';

@@ -31,6 +31,12 @@ export const SMC001_CONFIRMED_FRONT: ReadonlyArray<{ id: string; version: string
   { id: 'productivity.on_time_rate', version: '1.0.0' },
   { id: 'productivity.avg_cycle_hours', version: '1.0.0' },
   { id: 'productivity.rework_rate', version: '1.0.0' },
+  { id: 'fiscal.documents_pending_transmission_count', version: '1.0.0' },
+  { id: 'fiscal.tax_obligations_open_count', version: '1.0.0' },
+  { id: 'fiscal.tax_obligations_open_amount', version: '1.0.0' },
+  { id: 'accounting.periods_open_count', version: '1.0.0' },
+  { id: 'accounting.journal_entries_posted_count', version: '1.0.0' },
+  { id: 'accounting.journal_entries_draft_count', version: '1.0.0' },
 ];
 
 export type CompositeVisualization = 'Kpi' | 'Bar' | 'Line' | 'Stack' | 'Table' | 'Attention';
