@@ -72,6 +72,9 @@ export function createDocumentsFetchHandler(options: DocumentsFetchMockOptions =
     unitId: string,
     title: string,
     filename = 'demo.pdf',
+    // Opcional e aditivo: os testes de listagem precisam semear categoria/classificacao diferentes
+    // para exercitar filtro e linha secundaria; quem ja chamava sem isso nao muda.
+    overrides: Partial<MockDocument> = {},
   ): MockDocument {
     const now = new Date().toISOString();
     const document: MockDocument = {
@@ -84,6 +87,7 @@ export function createDocumentsFetchHandler(options: DocumentsFetchMockOptions =
       currentVersionNumber: 1,
       createdAt: now,
       updatedAt: now,
+      ...overrides,
     };
     const version: MockVersion = {
       id: MOCK_DOCUMENT_VERSION_ID,
@@ -108,7 +112,13 @@ export function createDocumentsFetchHandler(options: DocumentsFetchMockOptions =
 
   return {
     seedDocument,
-    handle(pathname: string, method: string, _init?: RequestInit): Response | null {
+    handle(
+      pathname: string,
+      method: string,
+      _init?: RequestInit,
+      // Opcional e aditivo: quem ja chamava sem os parametros continua com a listagem completa.
+      searchParams?: URLSearchParams,
+    ): Response | null {
       if (pathname === '/api/v1/documents/download' && method === 'GET') {
         if (!documentsDownloadAllowed) {
           return documentError('DOCUMENT_ACCESS_DENIED', 403);
@@ -128,8 +138,22 @@ export function createDocumentsFetchHandler(options: DocumentsFetchMockOptions =
         if (!documentsReadAllowed) {
           return documentError('DOCUMENT_ACCESS_DENIED', 403);
         }
+        // Mesma semantica da listagem real: busca por titulo e filtro por categoria resolvidos no
+        // SERVIDOR. Sem parametros a resposta e identica a de antes desta frente (todos os
+        // documentos do escopo).
+        const term = searchParams?.get('q')?.trim().toLowerCase() ?? '';
+        const category = searchParams?.get('categoryCode')?.trim() ?? '';
+        const listed = [...documents.values()].filter((document) => {
+          if (category && document.categoryCode !== category) {
+            return false;
+          }
+          if (term && !document.title.toLowerCase().includes(term)) {
+            return false;
+          }
+          return true;
+        });
         return jsonResponse({
-          items: [...documents.values()],
+          items: listed,
           limit: 20,
           offset: 0,
         });
@@ -260,8 +284,8 @@ export function wrapFetchWithDocumentsMock(
 ) {
   const documents = createDocumentsFetchHandler(options);
   return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const { pathname } = parseRequestPath(input);
-    const response = documents.handle(pathname, init?.method ?? 'GET', init);
+    const { pathname, searchParams } = parseRequestPath(input);
+    const response = documents.handle(pathname, init?.method ?? 'GET', init, searchParams);
     if (response) {
       return response;
     }

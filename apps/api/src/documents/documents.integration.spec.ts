@@ -21,7 +21,7 @@ import { AUTHZ_ACTIONS } from '../authorization/types/authz-actions';
 import { AUTHZ_RESOURCE_TYPES } from '../authorization/types/authz-resources';
 import type { IdentityAuthzContext } from '../authorization/types/authz-decision';
 import { SECURITY_AUDIT_ACTIONS } from '../audit/types/security-audit.types';
-import { DOCUMENT_CATEGORIES } from './domain/document-categories';
+import { DOCUMENT_CATEGORIES, type DocumentCategory } from './domain/document-categories';
 import { minimalPdfBuffer } from './domain/file-validation';
 import { DocumentsModule } from './documents.module';
 import { DOCUMENT_ERROR_CODES } from './errors/document-error-codes';
@@ -230,6 +230,54 @@ describe('Documents PostgreSQL integration', () => {
 
     const listed = await documentsAccess.list(unitBReader, { limit: 20, offset: 0 });
     expect(listed.items).toHaveLength(0);
+  });
+
+  it('filters by title and category without breaking the authorized scope', async () => {
+    const actor = await seedActor();
+    const pdf = minimalPdfBuffer();
+    const seed = (title: string, categoryCode: DocumentCategory) =>
+      documentsAccess.createWithUpload(
+        actor,
+        { title, categoryCode, classificationCode: 'INTERNAL', unitId: UNIT_A },
+        { buffer: pdf, filename: 'evidence.pdf', mimetype: 'application/pdf' },
+      );
+
+    // Mesmo titulo em execucoes distintas do runner UAT: sao DOCUMENTOS distintos, entao a busca
+    // precisa devolver os dois, e nao deduplicar.
+    await seed('Evidência UAT — Locação de equipamento', DOCUMENT_CATEGORIES.Evidence);
+    await seed('Evidência UAT — Locação de equipamento', DOCUMENT_CATEGORIES.Evidence);
+    await seed('Evidência UAT — Transporte de carga municipal', DOCUMENT_CATEGORIES.Evidence);
+    await seed('Contrato assinado', DOCUMENT_CATEGORIES.General);
+
+    const all = await documentsAccess.list(actor, { limit: 20, offset: 0 });
+    expect(all.items).toHaveLength(4);
+
+    const byTitle = await documentsAccess.list(actor, {
+      limit: 20,
+      offset: 0,
+      q: 'Locação de equipamento',
+    });
+    expect(byTitle.items).toHaveLength(2);
+    expect(byTitle.items.every((item) => item.title.includes('Locação de equipamento'))).toBe(true);
+
+    const byFragment = await documentsAccess.list(actor, { limit: 20, offset: 0, q: 'carga' });
+    expect(byFragment.items).toHaveLength(1);
+
+    const noMatch = await documentsAccess.list(actor, { limit: 20, offset: 0, q: 'Zinco inexistente' });
+    expect(noMatch.items).toHaveLength(0);
+
+    // O filtro de tipo ja publicado continua compondo com a busca.
+    const byCategory = await documentsAccess.list(actor, {
+      limit: 20,
+      offset: 0,
+      categoryCode: DOCUMENT_CATEGORIES.General,
+      q: 'Evidência',
+    });
+    expect(byCategory.items).toHaveLength(0);
+
+    // Curinga digitado e TEXTO, nao padrao: '%' nao pode devolver a lista inteira.
+    const wildcard = await documentsAccess.list(actor, { limit: 20, offset: 0, q: '%' });
+    expect(wildcard.items).toHaveLength(0);
   });
 
   it('streams authorized content and issues signed download URLs', async () => {

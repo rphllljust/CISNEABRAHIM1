@@ -13984,3 +13984,118 @@ O padrao ja existente no CISNE (`useExecutiveDashboard` mantem o snapshot anteri
 3. Baselines visuais de Clientes: a mudanca nao altera o DOM em repouso (o indicador "Atualizando..."
    e o aviso de piso minimo so existem durante a recarga e com rascunho curto), entao os 4 PNGs
    permanecem validos; a conferencia humana das imagens continua recomendada.
+
+## Documentos — tela de listagem: hierarquia, metadados reais, acao de download e busca/filtro (2026-09-26)
+
+Origem: ordem de elevacao da tela e do fluxo de Documentos. GitHub como referencia de maturidade
+(OCA/dms e paperless-ngx foram considerados; o padrao aproveitado foi o de INDICE de documentos —
+busca/filtro server-side, linha principal com metadados secundarios, acao explicita por linha — e
+nao o de gestao documental completa, que nao e o escopo do CISNE aqui).
+
+### Diagnostico: o que era de fato (nao presumido)
+
+1. **A pagina estava FORA do design system.** `DocumentsPage.tsx` renderizava `<table>` HTML crua,
+   sem nenhuma classe — nem as classes `doc-*` do proprio modulo de Documentos (`index.css`), nem os
+   componentes de `ui/module-layout`. As colunas ficavam coladas por ausencia de padding/borda, e
+   nao havia contencao de largura nem tratamento de viewport estreito. Isto e a causa raiz do
+   sintoma "tabela sem hierarquia".
+2. **"Baixar" parecia link cru por um motivo concreto:** `DocumentDownloadAction` usava
+   `doc-button--ghost`, que e texto azul sem borda nem fundo. Numa tabela sem estilo, a acao ficava
+   indistinguivel de um link de texto.
+3. **`unit-synthetic-homolog` e identificador TECNICO de seed.** Rastreado ate
+   `packages/database/src/seed/synthetic-seed-constants.ts`
+   (`SYNTHETIC_SEED_UNIT_ID`). **Nao existe nome humano de unidade em nenhum contrato**: o proprio
+   `useOperationalUnits` devolve `string[]` de codigos. Por decisao explicita da ordem, NENHUM nome
+   foi inventado: o codigo continua exibido (como codigo) e o label humano fica na Fase 2.
+4. **Os titulos repetidos NAO sao duplicacao.** `apps/api/src/uat/uat-vertical-runner.ts:276` cria
+   um documento NOVO por execucao de cenario (`Evidência UAT — <cenario>`), com vinculo proprio
+   (`linkPurpose: EVIDENCE`). Sao documentos distintos; nada foi deduplicado e nada foi reprocessado.
+   O que faltava era contexto visual para distingui-los.
+5. **Nao havia busca nem filtro, e a lista era truncada em silencio.** `listDocuments` fixava
+   `limit=100&offset=0` sem informar o truncamento; `parseListDocumentsQuery` aceitava apenas
+   `unitId`, `categoryCode`, `limit`, `offset` (sem busca, sem `total`).
+
+### Correcoes
+
+- **Apresentacao reconstruida com o design system existente** (`ModulePage`, `ModulePageHeader`,
+  `DataTable*`, `Button`, `ModuleCodeCell`, estados `ModuleLoading/Denied/Error`), no mesmo desenho
+  ja revisado da listagem de Clientes: documento como coluna PRINCIPAL (titulo semibold truncado com
+  o valor completo em `title`) e metadado secundario discreto na mesma celula. A linha secundaria
+  usa somente o que a LISTAGEM devolve — `Categoria · Classificação`. Mimetype e tamanho vivem na
+  versao, que esta rota nao carrega: exibir "PDF · 24 KB" aqui seria inventar dado.
+- **Acao de download virou botao do design system** (`Button` `secondary` + glifo, nome acessivel
+  preservado com o titulo do documento — em listas com titulos repetidos, "Baixar" sozinho nao diz
+  QUAL arquivo sera baixado). A rota, o servico e o storage de download NAO foram tocados; o
+  `DocumentDownloadAction` ganhou `variant` opcional cujo padrao preserva os paineis das entidades.
+- **Busca por titulo e filtro por tipo resolvidos no SERVIDOR.** O filtro por tipo usa o parametro
+  `categoryCode` JA publicado (nenhuma mudanca de contrato). A busca exigiu uma adicao pequena e
+  aditiva no backend: `q` em `parseListDocumentsQuery` + uma clausula `title ILIKE` no
+  `documents-access.service`, com `escapeLikeWildcards` (o que o operador digita e texto, nao
+  padrao). Sem `q`, a resposta e byte a byte a anterior.
+- **Estados distintos e honestos**: acervo vazio, sem resultado para os filtros, erro com retry
+  (retry agora percorre o mesmo efeito de carga, portanto e cancelavel), negacao, e aviso de
+  truncamento quando a pagina vem cheia ("Exibindo os 100 documentos mais recentes") — o backend nao
+  devolve `total`, entao "veio cheio" e a unica evidencia honesta disponivel.
+- **Recarga preserva o resultado anterior** (indicador "Atualizando…" + `aria-busy`), com as mesmas
+  guardas de cancelamento/resposta superada aplicadas na frente de Clientes: trocar a tela inteira
+  por "Carregando…" desmontava o campo de busca no meio da digitacao.
+- **Precisao de segundo no compromisso de tempo desta tela**: duas execucoes do runner UAT criam
+  documentos com o mesmo titulo em segundos de diferenca; com minuto apenas, duas linhas
+  legitimamente distintas ficariam indistinguiveis. `formatDateTimePtBr` ganhou `withSeconds`
+  OPCIONAL (padrao inalterado para o resto do modulo).
+
+### Evidencia
+
+- **API com PostgreSQL 18 real**: `documents.integration.spec.ts` 10/10, incluindo a prova nova —
+  dois documentos com titulo identico devolvem 2 resultados (nao deduplica), fragmento casa, sem
+  correspondencia devolve 0, composicao com `categoryCode` funciona, e `q=%` (curinga) devolve 0
+  (prova de escape). Unit de documentos da API 19/19; `documents.characterization` incluso.
+- **Web**: `DocumentsPage.test.tsx` + `document-list-labels.test.ts` 10/10 + 5/5; escopo do modulo
+  (`src/documents` + `src/requests`, este ultimo consome o mock alterado) 47/47.
+- **Prova de causa e efeito**: com `listDocuments` deixando de enviar `q`/`categoryCode` e com a
+  recarga voltando a `loading`, as provas "resolve busca/tipo no servidor" e "mantem os documentos
+  visiveis durante a recarga" FALHAM; restaurado o codigo, voltam a passar.
+- **Duas provas minhas passaram por motivo errado antes de valer** e foram corrigidas: o mock de
+  teste fixava `categoryCode: 'GENERAL'` (o filtro nao filtrava nada de verdade) e o mock da
+  plataforma JA semeia um documento por padrao (a contagem "acervo vazio" nao existia). Ambas foram
+  ajustadas para que a assercao observe o comportamento real.
+- **Responsividade PROVADA em browser real** (chromium, via Playwright):
+  `e2e/visual/documents.visual.spec.ts` 6/6 em `--project=desktop` (1280x720) e `--project=mobile`
+  (390x844), com invariantes de geometria: `scrollWidth <= clientWidth + 1` na pagina e o contêiner
+  da tabela com `overflow-x: auto` (a tabela rola DENTRO do cartao). Cobre tambem hierarquia
+  (titulo semibold + metadado secundario), download como BOTAO e ausencia de link "Baixar", os dois
+  documentos de titulo identico distinguiveis pelos segundos, estado sem resultado com saida, e o
+  filtro de tipo resolvido no servidor. Sem baselines PNG novas (as assercoes sao de DOM/geometria,
+  nao dependem de plataforma).
+- `typecheck` de `@cisne/api` e `@cisne/web` limpos; `eslint` de `src/documents`, dos mocks de teste,
+  das fixtures e2e e de `api-routes.ts` sem erro.
+
+### Nao alterado por decisao
+
+- **Banco**: preservado. Nenhuma migration, nenhum indice novo (a busca por titulo nao tem indice
+  dedicado — ver limitacoes).
+- **Autorizacao**: preservada. Nenhum grant novo, nenhuma capability ampliada; o escopo continua
+  decidido no servidor (o teste com banco real confirma que a busca nao atravessa unidade).
+- **Storage e download**: preservados (rota, servico de token e providers intactos).
+- **`DocumentList`/`DocumentManagementPanel`/`DocumentUpload`** (paineis das entidades): nao foram
+  redesenhados; `doc-button--ghost` e `doc-button--primary` continuam onde estavam.
+
+### Limitacoes e parking lot
+
+1. **Sem nome humano de unidade (Fase 2).** Exigiria campo novo no contrato ou fonte de unidades com
+   nome; nenhum existe hoje. Inventar rotulo foi explicitamente descartado.
+2. **Busca por titulo sem indice dedicado.** `ILIKE '%termo%'` percorre a tabela. O acervo de
+   documentos e de baixa cardinalidade e a consulta ja e escopada por unidade, mas a criacao de um
+   indice GIN trigram seria migration — nao autorizada nesta rodada, registrada como Fase 2 com
+   medicao previa.
+3. **Sem paginacao real.** O contrato nao devolve `total`; a tela mostra os 100 mais recentes com
+   aviso honesto. Paginacao de verdade exige `total`/cursor no backend (Fase 2).
+4. **Filtro por situacao (`ACTIVE`/`ARCHIVED`) nao implementado**: a listagem nao suporta esse
+   filtro hoje e a ordem proibia abrir backend grande; ficou fora para nao criar um controle que
+   nao filtra nada.
+5. **Estado dos filtros nao vive na URL** nesta tela (ao contrario de Clientes/Ordens), mantendo o
+   diff pequeno. Links filtrados compartilhaveis ficam como melhoria registrada.
+6. Baselines visuais: nao foram criadas para Documentos. Nenhuma baseline commitada contem o botao
+   de download, entao a mudanca visual compartilhada do `DocumentDownloadAction` nao invalida PNG
+   existente — verificado por varredura dos specs visuais.
+

@@ -19,6 +19,11 @@ export type CreateDocumentUploadInput = {
 export type ListDocumentsQuery = {
   unitId?: string;
   categoryCode?: string;
+  /**
+   * Busca por titulo. Opcional e aditiva: ausente, a listagem devolve exatamente o que devolvia
+   * antes desta frente (mesmos filtros, mesma ordem, mesma paginacao).
+   */
+  q?: string;
   limit: number;
   offset: number;
 };
@@ -53,13 +58,25 @@ export function parseCreateDocumentUploadFields(
   return { title, categoryCode, classificationCode, unitId };
 }
 
+/**
+ * Tetos da busca por titulo.
+ *
+ * O termo e aparado e limitado em comprimento — nunca interpolado: o `WHERE` recebe o valor como
+ * parametro, e `escapeLikeWildcards` neutraliza `%` e `_` para que o que o operador digita seja
+ * texto, e nao padrao de busca.
+ */
+export const DOCUMENT_SEARCH_MAX_LENGTH = 120;
+
 export function parseListDocumentsQuery(query: Record<string, unknown>): ListDocumentsQuery {
   const { limit, offset } = parseClampedOffsetLimit(query);
   const unitId = typeof query['unitId'] === 'string' ? query['unitId'].trim() : undefined;
   const categoryCode =
     typeof query['categoryCode'] === 'string' ? query['categoryCode'].trim() : undefined;
+  const rawSearch = typeof query['q'] === 'string' ? query['q'].trim() : '';
+  const q =
+    rawSearch.length > 0 ? rawSearch.slice(0, DOCUMENT_SEARCH_MAX_LENGTH) : undefined;
 
-  return { unitId, categoryCode, limit, offset };
+  return { unitId, categoryCode, q, limit, offset };
 }
 
 export function parseVersionNumberParam(value: string): number {

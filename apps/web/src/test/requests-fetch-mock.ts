@@ -140,7 +140,7 @@ export function createRequestsFetchMock(options: RequestsFetchMockOptions = {}) 
     const { pathname, searchParams } = parseRequestPath(input);
     const method = init?.method ?? 'GET';
 
-    const documentsResponse = documentsMock.handle(pathname, method, init);
+    const documentsResponse = documentsMock.handle(pathname, method, init, searchParams);
     if (documentsResponse) {
       return documentsResponse;
     }

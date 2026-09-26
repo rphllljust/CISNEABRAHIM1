@@ -7,6 +7,7 @@ import {
 } from '../../audit/types/security-audit.types';
 import { SecurityAuditService } from '../../audit/services/security-audit.service';
 import { ScopeEnforcementService } from '../../authorization/services/scope-enforcement.service';
+import { escapeLikeWildcards } from '../../search/domain/search-query-normalizer';
 import { AUTHZ_ACTIONS } from '../../authorization/types/authz-actions';
 import type { IdentityAuthzContext } from '../../authorization/types/authz-decision';
 import {
@@ -243,6 +244,12 @@ export class DocumentsAccessService {
     if (query.categoryCode) {
       params.push(query.categoryCode);
       clauses.push(`category_code = $${params.length}`);
+    }
+    if (query.q) {
+      // Busca por titulo em qualquer posicao, com os curingas do operador neutralizados: o termo
+      // viaja como parametro e `%`/`_` digitados sao texto literal.
+      params.push(`%${escapeLikeWildcards(query.q)}%`);
+      clauses.push(`title ILIKE $${params.length} ESCAPE '\\'`);
     }
 
     const items = await this.documentsRepository.listDocuments(

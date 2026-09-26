@@ -133,8 +133,40 @@ async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
   }
 }
 
-export async function listDocuments(signal?: AbortSignal): Promise<DocumentDetail[]> {
-  const body = await requestJson<{ items: DocumentDetail[] }>('/api/v1/documents?limit=100&offset=0', {
+/**
+ * Tetos da primeira pagina da listagem.
+ *
+ * Mesmo valor usado antes desta frente (`limit=100&offset=0`), agora explicito e reaproveitado pela
+ * tela para dizer com honestidade quando a pagina veio cheia — o backend nao devolve `total`, entao
+ * "veio cheio" e a unica evidencia disponivel de que existem mais documentos.
+ */
+export const DOCUMENT_LIST_PAGE_SIZE = 100;
+
+export type ListDocumentsParams = {
+  q?: string;
+  categoryCode?: string;
+  limit?: number;
+  offset?: number;
+};
+
+/**
+ * Lista documentos. Parametros sao aditivos: sem eles a requisicao e exatamente a anterior
+ * (`limit=100&offset=0`), de modo que os consumidores existentes nao mudam de comportamento.
+ */
+export async function listDocuments(
+  signal?: AbortSignal,
+  params: ListDocumentsParams = {},
+): Promise<DocumentDetail[]> {
+  const search = new URLSearchParams();
+  search.set('limit', String(params.limit ?? DOCUMENT_LIST_PAGE_SIZE));
+  search.set('offset', String(params.offset ?? 0));
+  if (params.q?.trim()) {
+    search.set('q', params.q.trim());
+  }
+  if (params.categoryCode) {
+    search.set('categoryCode', params.categoryCode);
+  }
+  const body = await requestJson<{ items: DocumentDetail[] }>(`/api/v1/documents?${search}`, {
     method: 'GET',
     headers: authHeaders(),
     signal,

@@ -24,7 +24,18 @@ export function formatMimeLabel(mimeType: string): string {
   }
 }
 
-export function formatDateTimePtBr(value: string | null | undefined): string {
+/**
+ * Data e hora no formato pt-BR usado pelo modulo.
+ *
+ * `withSeconds` existe por um caso real da listagem: o runner de UAT cria um documento NOVO por
+ * execucao (`Evidência UAT — <cenario>`), entao varios documentos tem o MESMO titulo e sao criados
+ * com segundos de diferenca. Sem os segundos, duas linhas legitimamente distintas ficariam
+ * indistinguiveis na tela. O padrao permanece sem segundos para nao mexer no restante do modulo.
+ */
+export function formatDateTimePtBr(
+  value: string | null | undefined,
+  options: { withSeconds?: boolean } = {},
+): string {
   if (!value) {
     return '—';
   }
@@ -34,7 +45,7 @@ export function formatDateTimePtBr(value: string | null | undefined): string {
   }
   return new Intl.DateTimeFormat('pt-BR', {
     dateStyle: 'short',
-    timeStyle: 'short',
+    timeStyle: options.withSeconds ? 'medium' : 'short',
   }).format(date);
 }
 
