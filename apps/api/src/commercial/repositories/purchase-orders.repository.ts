@@ -1,3 +1,7 @@
+import {
+  activeServiceOrderPredicate,
+  activeServiceRequestPredicate,
+} from '../domain/purchase-order-reference-semantics';
 import { Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { DatabaseService } from '../../infrastructure/database/database.service';
@@ -476,32 +480,46 @@ export class PurchaseOrdersRepository {
    */
   async findLinkedChain(purchaseOrderId: string): Promise<PurchaseOrderLinkedRow[]> {
     const result = await this.pool().query<PurchaseOrderLinkedRow>(
-      `SELECT 'REQUEST' AS kind, id::text AS id, request_code AS label, status::text AS status,
-              NULL::text AS amount, NULL::text AS currency_code,
-              created_at::text AS occurred_at, NULL::text AS parent_id
-         FROM rpt.read_service_requests
-        WHERE purchase_order_id = $1
+      `WITH ledger AS (
+         SELECT billing_record_id,
+                SUM(CASE WHEN entry_type = 'BILLING_PREPARE' THEN amount ELSE -amount END) AS net_amount
+           FROM com.purchase_order_consumption_entries
+          WHERE purchase_order_id = $1
+          GROUP BY billing_record_id
+       )
+       SELECT 'REQUEST' AS kind, sr.id::text AS id, sr.request_code AS label, sr.status::text AS status,
+              NULL::text AS amount, NULL::text AS currency_code, sr.created_at::text AS occurred_at,
+              NULL::text AS parent_id, sr.unit_id, sr.client_id
+         FROM rpt.read_service_requests sr
+        WHERE sr.purchase_order_id = $1 AND ${activeServiceRequestPredicate('sr.status')}
         UNION ALL
-       SELECT 'SERVICE_ORDER', id::text, order_number, status::text,
-              NULL::text, NULL::text, created_at::text, NULL::text
-         FROM rpt.read_service_orders
-        WHERE purchase_order_id = $1
+       SELECT 'SERVICE_ORDER', so.id::text, so.order_number, so.status::text,
+              NULL::text, NULL::text, so.created_at::text, NULL::text, so.unit_id, so.client_id
+         FROM rpt.read_service_orders so
+        WHERE so.purchase_order_id = $1 AND ${activeServiceOrderPredicate('so.status')}
         UNION ALL
        SELECT 'MEASUREMENT', m.id::text, so.order_number, m.status::text,
-              NULL::text, NULL::text, m.created_at::text, m.service_order_id::text
+              NULL::text, NULL::text, m.created_at::text, so.id::text, so.unit_id, so.client_id
          FROM rpt.read_measurements m
          INNER JOIN rpt.read_service_orders so ON so.id = m.service_order_id
-        WHERE so.purchase_order_id = $1
+        WHERE so.purchase_order_id = $1 AND ${activeServiceOrderPredicate('so.status')}
         UNION ALL
-       SELECT 'BILLING_RECORD', id::text, 'Registro de faturamento', status::text,
-              total_amount::text, currency_code, created_at::text, service_order_id::text
-         FROM rpt.read_billing_records
-        WHERE purchase_order_id = $1
+       -- Impacto financeiro vem do LEDGER, nao do status do documento: um registro estornado
+       -- tem impacto liquido ZERO e nao pode ser apresentado como consumo vigente.
+       SELECT 'BILLING_RECORD', br.id::text, 'Registro de faturamento', br.status::text,
+              l.net_amount::text, br.currency_code, br.created_at::text, so.id::text, so.unit_id, so.client_id
+         FROM rpt.read_billing_records br
+         INNER JOIN ledger l ON l.billing_record_id = br.id
+         INNER JOIN rpt.read_service_orders so ON so.id = br.service_order_id
+        WHERE br.purchase_order_id = $1 AND l.net_amount <> 0
         UNION ALL
-       SELECT 'BILLING_DOCUMENT', id::text, COALESCE(document_number::text, 'Documento de faturamento'),
-              status::text, total_amount::text, currency_code, created_at::text, service_order_id::text
-         FROM rpt.read_billing_documents
-        WHERE purchase_order_id = $1
+       SELECT 'BILLING_DOCUMENT', bd.id::text, COALESCE(bd.document_number::text, 'Documento de faturamento'),
+              bd.status::text, l.net_amount::text, bd.currency_code, bd.created_at::text, so.id::text,
+              so.unit_id, so.client_id
+         FROM rpt.read_billing_documents bd
+         INNER JOIN ledger l ON l.billing_record_id = bd.billing_record_id
+         INNER JOIN rpt.read_service_orders so ON so.id = bd.service_order_id
+        WHERE bd.purchase_order_id = $1 AND l.net_amount <> 0
         ORDER BY occurred_at ASC`,
       [purchaseOrderId],
     );
@@ -515,13 +533,13 @@ export class PurchaseOrdersRepository {
            SELECT 1
            FROM rpt.read_service_requests
            WHERE purchase_order_id = $1
-             AND status NOT IN ('CANCELLED', 'REJECTED')
+             AND ${activeServiceRequestPredicate()}
          )
          OR EXISTS (
            SELECT 1
            FROM rpt.read_service_orders
            WHERE purchase_order_id = $1
-             AND status <> 'CANCELLED'
+             AND ${activeServiceOrderPredicate()}
          )
          OR EXISTS (
            SELECT 1

@@ -11,16 +11,22 @@ export type DomainGrantAuthzDeps = {
   policyDecisionPoint: PolicyDecisionPointService;
 };
 
-export async function assertPolicyAndGrantScope(
+/**
+ * Avaliacao NAO lancante da mesma decisao usada por `assertPolicyAndGrantScope`.
+ *
+ * Existe para quem precisa FILTRAR uma lista (por exemplo, os elos da cadeia relacionada de um
+ * pedido de compra) em vez de negar a operacao inteira. E o mesmo caminho autoritativo —
+ * decisao do PDP + grants ativos casados contra o contexto do recurso — sem uma segunda regra.
+ */
+export async function hasPolicyAndGrantScope(
   deps: DomainGrantAuthzDeps,
   input: {
     actor: IdentityAuthzContext;
     action: AuthzAction;
     resourceType: AuthzResourceType;
     context?: AuthzResourceContext;
-    onDenied: () => Error;
   },
-): Promise<void> {
+): Promise<boolean> {
   const decision = await deps.policyDecisionPoint.decide(
     input.actor,
     {
@@ -31,7 +37,7 @@ export async function assertPolicyAndGrantScope(
     { audit: true },
   );
   if (decision.result === 'DENY') {
-    throw input.onDenied();
+    return false;
   }
 
   const grants = await deps.authorizationRepository.findActiveGrants(
@@ -39,14 +45,26 @@ export async function assertPolicyAndGrantScope(
     input.action,
     input.resourceType,
   );
-  const hasAccess = grants.some((grant) =>
+  return grants.some((grant) =>
     grantMatchesResourceContext({
       grant,
       identityId: input.actor.identityId,
       context: input.context,
     }),
   );
-  if (!hasAccess) {
+}
+
+export async function assertPolicyAndGrantScope(
+  deps: DomainGrantAuthzDeps,
+  input: {
+    actor: IdentityAuthzContext;
+    action: AuthzAction;
+    resourceType: AuthzResourceType;
+    context?: AuthzResourceContext;
+    onDenied: () => Error;
+  },
+): Promise<void> {
+  if (!(await hasPolicyAndGrantScope(deps, input))) {
     throw input.onDenied();
   }
 }

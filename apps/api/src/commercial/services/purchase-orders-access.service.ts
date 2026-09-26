@@ -29,7 +29,6 @@ import type { PurchaseOrderRow } from '../repositories/purchase-orders.repositor
 import {
   toPurchaseOrderDetailResponse,
   toPurchaseOrderListItemResponse,
-  toPurchaseOrderResponse,
   type PurchaseOrderDetailResponse,
   type PurchaseOrderListItemResponse,
 } from '../serializers/purchase-orders-response.serializer';
@@ -431,7 +430,10 @@ export class PurchaseOrdersAccessService {
     const documentLinks = await this.purchaseOrdersRepository.listDocumentLinks(purchaseOrderId);
     // Cadeia relacionada: explica de onde vem o valor consumido do pedido. Uma consulta a mais
     // no detalhe; a autorizacao acima permanece identica.
-    const linked = await this.purchaseOrdersRepository.findLinkedChain(purchaseOrderId);
+    const chain = await this.purchaseOrdersRepository.findLinkedChain(purchaseOrderId);
+    // Cada elo so e devolvido se o ator puder ler AQUELE tipo de documento.
+    const allowed = await this.authz.filterAuthorizedLinkedChain(actor, chain);
+    const linked = chain.filter((row) => allowed.has(`${row.kind}:${row.id}`));
     return toPurchaseOrderDetailResponse(
       purchaseOrder,
       items,

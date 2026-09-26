@@ -160,4 +160,6 @@ export type PurchaseOrderLinkedRow = {
   currency_code: string | null;
   occurred_at: string;
   parent_id: string | null;
+  unit_id: string;
+  client_id: string | null;
 };
