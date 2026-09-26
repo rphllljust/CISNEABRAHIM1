@@ -9,6 +9,7 @@ export type ShellNavAccessCheck =
   | 'proposal-list'
   | 'purchase-order-list'
   | 'billing-list'
+  | 'document-list'
   | 'service-order-list'
   | 'people-list'
   | 'finance-overview'

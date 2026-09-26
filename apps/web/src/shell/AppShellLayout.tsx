@@ -19,6 +19,7 @@ import './module-layout.css';
 export function AppShellLayout() {
   const location = useLocation();
   const hideBreadcrumbs = location.pathname === '/app';
+  const isDashboard = location.pathname === '/app';
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const isDesktop = useMediaQuery('(min-width: 64rem)');
   const alertsEnabled = isReleaseModuleEnabled('alerts');
@@ -47,7 +48,7 @@ export function AppShellLayout() {
       </a>
 
       <aside
-        className="shell__sidebar fixed inset-y-0 z-30 hidden w-72 flex-col border-r border-white/5 bg-gray-950 lg:flex"
+        className="shell__sidebar fixed inset-y-0 z-30 hidden w-64 flex-col border-r border-white/5 bg-gray-950 lg:flex"
         aria-label="Barra lateral"
       >
         <div className="flex h-16 shrink-0 items-center gap-3 border-b border-white/5 px-6">
@@ -75,10 +76,16 @@ export function AppShellLayout() {
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col lg:pl-72">
+      <div className="flex min-w-0 flex-1 flex-col lg:pl-64">
         <ShellTopBar onMenuToggle={toggleMobileNav} menuExpanded={mobileNavOpen && !isDesktop} />
         <div className="flex-1 px-4 py-8 sm:px-6 lg:px-8">
-          <div className="shell-page-frame mx-auto w-full max-w-6xl min-w-0">
+          <div
+            className={
+              isDashboard
+                ? 'shell-page-frame dashboard-shell-frame mx-auto w-full min-w-0'
+                : 'shell-page-frame mx-auto w-full max-w-6xl min-w-0'
+            }
+          >
             {!hideBreadcrumbs ? <ShellBreadcrumbs /> : null}
             <ReleaseScopeGate>
               <ShellErrorBoundary>

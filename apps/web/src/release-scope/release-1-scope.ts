@@ -54,6 +54,7 @@ export const GATED_WEB_PATH_PREFIXES: ReadonlyArray<{ prefix: string; moduleId: 
   { prefix: '/app/transport', moduleId: 'transport' },
   { prefix: '/app/alerts', moduleId: 'alerts' },
   { prefix: '/app/reports', moduleId: 'reports' },
+  { prefix: '/app/operational-profitability', moduleId: 'operational-profitability' },
 ];
 
 export function matchGatedWebPath(pathname: string): GatedModuleId | null {

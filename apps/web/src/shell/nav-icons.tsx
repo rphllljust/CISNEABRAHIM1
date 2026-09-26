@@ -59,6 +59,7 @@ export const SHELL_NAV_ICONS: Record<string, LucideIcon> = {
   inventory: Boxes,
   payroll: Users,
   reports: BarChart3,
+  'operational-profitability': BarChart3,
   platform: Settings,
 };
 

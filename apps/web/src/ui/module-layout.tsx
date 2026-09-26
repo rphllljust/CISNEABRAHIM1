@@ -102,14 +102,23 @@ export function ModulePageHeader({
   return <PageHeader title={title} description={description} actions={action} className="mb-8" />;
 }
 
+/**
+ * Blocos de estado do modulo.
+ *
+ * Eles renderizam CONTEUDO, nunca a moldura da pagina: quem chama ja esta dentro de um
+ * `ModulePage` (via `renderQueryGate`) ou envolve o retorno em `ModulePage` (listas que fazem
+ * retorno antecipado). Antes cada um deles abria o proprio `<main id="main-content">`, o que
+ * produzia HTML invalido (id duplicado) e landmarks `<main>` aninhados em toda pagina que
+ * exibia estado de carregamento, negacao ou erro.
+ */
 export function ModuleLoadingState({ title, message }: { title: string; message: string }) {
   return (
-    <ModulePage>
+    <>
       <ModulePageHeader title={title} />
       <p aria-busy="true" aria-live="polite" className="text-sm text-gray-500">
         {message}
       </p>
-    </ModulePage>
+    </>
   );
 }
 
@@ -121,7 +130,7 @@ export function ModuleDeniedState({
   message: string;
 }) {
   return (
-    <ModulePage>
+    <>
       <ModulePageHeader title={title} />
       <p className="text-sm text-red-700" role="alert">
         {message}
@@ -134,7 +143,7 @@ export function ModuleDeniedState({
           Voltar ao início
         </Link>
       </p>
-    </ModulePage>
+    </>
   );
 }
 
@@ -150,7 +159,7 @@ export function ModuleErrorState({
   onRetry?: () => void;
 }) {
   return (
-    <ModulePage>
+    <>
       <ModulePageHeader title={title} />
       <p
         className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-500/20 ring-inset"
@@ -165,7 +174,7 @@ export function ModuleErrorState({
           </Button>
         </div>
       ) : null}
-    </ModulePage>
+    </>
   );
 }
 

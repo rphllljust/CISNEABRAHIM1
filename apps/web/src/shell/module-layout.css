@@ -1,6 +1,10 @@
 /* Legacy module pages inside the modern shell — visual parity with dashboard mockup */
 
 @layer components {
+  .dashboard-shell-frame {
+    max-width: 90rem;
+  }
+
   .cisne-app .shell-page > h1,
   .cisne-app .alerts-page > h1,
   .cisne-app .reports-page > h1,

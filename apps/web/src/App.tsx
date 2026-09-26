@@ -22,6 +22,7 @@ import { ServiceDefinitionVersionCreatePage } from './catalog/pages/ServiceDefin
 import { ServiceDefinitionVersionDetailPage } from './catalog/pages/ServiceDefinitionVersionDetailPage';
 import { ServiceDefinitionsListPage } from './catalog/pages/ServiceDefinitionsListPage';
 import { BillingRoute } from './billing/BillingRoute';
+import { DocumentsPage } from './documents/pages/DocumentsPage';
 import { BillingDashboardPage } from './billing/pages/BillingDashboardPage';
 import { ServiceOrderBillingDocumentPage } from './billing/pages/ServiceOrderBillingDocumentPage';
 import { ServiceOrderBillingPage } from './billing/pages/ServiceOrderBillingPage';
@@ -63,6 +64,8 @@ import { OperationalDashboardPage } from './dashboard/pages/OperationalDashboard
 import { AlertCenterPage } from './alerts/pages/AlertCenterPage';
 import { SearchResultsPage } from './search/pages/SearchResultsPage';
 import { ReportsPage } from './reports/pages/ReportsPage';
+import { OperationalProfitabilityPage } from './analytics/pages/OperationalProfitabilityPage';
+import { ComplianceBiPage } from './analytics/pages/ComplianceBiPage';
 import { ModulesRegistryPage } from './modules-registry/ModulesRegistryPage';
 import { LoginPage } from './pages/LoginPage';
 import { PlatformDiagnosticsPage } from './pages/PlatformDiagnosticsPage';
@@ -81,6 +84,8 @@ import { TreasuryAccountDetailPage } from './finance/pages/TreasuryAccountDetail
 import { BankReconciliationPage } from './finance/pages/BankReconciliationPage';
 import { FiscalRoute } from './fiscal/FiscalRoute';
 import { FiscalDocumentsPage } from './fiscal/pages/FiscalDocumentsPage';
+import { FiscalPeriodsPage } from './fiscal/pages/FiscalPeriodsPage';
+import { TaxAssessmentsPage } from './fiscal/pages/TaxAssessmentsPage';
 import { FiscalApuracaoPage } from './fiscal/pages/FiscalApuracaoPage';
 import { FiscalTributosPage } from './fiscal/pages/FiscalTributosPage';
 import { AccountingRoute } from './accounting/AccountingRoute';
@@ -94,6 +99,8 @@ import {
   TrialBalancePage,
 } from './accounting/pages/PeriodReportPages';
 import { PeriodClosePage } from './accounting/pages/PeriodClosePage';
+import { AccountingPostingOriginsPage } from './accounting/pages/AccountingPostingOriginsPage';
+import { FixedAssetsPage } from './accounting/pages/FixedAssetsPage';
 import {
   ProcurementRoute,
   ProcurementHubPage,
@@ -132,6 +139,8 @@ export function App() {
               <Route path="/app/alerts" element={<AlertCenterPage />} />
               <Route path="/app/search" element={<SearchResultsPage />} />
               <Route path="/app/reports" element={<ReportsPage />} />
+              <Route path="/app/operational-profitability" element={<OperationalProfitabilityPage />} />
+              <Route path="/app/reports/compliance" element={<ComplianceBiPage />} />
               <Route path="/app/modules" element={<ModulesRegistryPage />} />
               <Route
                 path="/app/access-admin"
@@ -469,6 +478,7 @@ export function App() {
                   </ServiceOrdersRoute>
                 }
               />
+              <Route path="/app/documents" element={<DocumentsPage />} />
               <Route
                 path="/app/billing"
                 element={
@@ -558,6 +568,38 @@ export function App() {
                 }
               />
               <Route
+                path="/app/fiscal/periods"
+                element={
+                  <FiscalRoute access="period">
+                    <FiscalPeriodsPage />
+                  </FiscalRoute>
+                }
+              />
+              <Route
+                path="/app/fiscal/periods/:periodId"
+                element={
+                  <FiscalRoute access="period">
+                    <FiscalPeriodsPage />
+                  </FiscalRoute>
+                }
+              />
+              <Route
+                path="/app/fiscal/assessments"
+                element={
+                  <FiscalRoute access="tax">
+                    <TaxAssessmentsPage />
+                  </FiscalRoute>
+                }
+              />
+              <Route
+                path="/app/fiscal/assessments/:assessmentId"
+                element={
+                  <FiscalRoute access="tax">
+                    <TaxAssessmentsPage />
+                  </FiscalRoute>
+                }
+              />
+              <Route
                 path="/app/fiscal/apuracao"
                 element={
                   <FiscalRoute access="tax">
@@ -567,6 +609,14 @@ export function App() {
               />
               <Route
                 path="/app/fiscal/tributos"
+                element={
+                  <FiscalRoute access="tax">
+                    <FiscalTributosPage />
+                  </FiscalRoute>
+                }
+              />
+              <Route
+                path="/app/fiscal/tributos/:taxRuleId"
                 element={
                   <FiscalRoute access="tax">
                     <FiscalTributosPage />
@@ -642,6 +692,30 @@ export function App() {
                 element={
                   <AccountingRoute>
                     <PeriodClosePage />
+                  </AccountingRoute>
+                }
+              />
+              <Route
+                path="/app/accounting/origens"
+                element={
+                  <AccountingRoute>
+                    <AccountingPostingOriginsPage />
+                  </AccountingRoute>
+                }
+              />
+              <Route
+                path="/app/accounting/fixed-assets"
+                element={
+                  <AccountingRoute access="fixed-assets">
+                    <FixedAssetsPage />
+                  </AccountingRoute>
+                }
+              />
+              <Route
+                path="/app/accounting/fixed-assets/:registerId"
+                element={
+                  <AccountingRoute access="fixed-assets">
+                    <FixedAssetsPage />
                   </AccountingRoute>
                 }
               />

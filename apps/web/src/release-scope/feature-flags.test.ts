@@ -21,6 +21,8 @@ describe('web release feature flags', () => {
     expect(matchGatedWebPath('/app/payroll/periods/1')).toBe('payroll');
     expect(matchGatedWebPath('/app/procurement/invoices')).toBe('procurement');
     expect(matchGatedWebPath('/app/suppliers')).toBe('suppliers');
+    expect(matchGatedWebPath('/app/reports')).toBe('reports');
+    expect(matchGatedWebPath('/app/operational-profitability')).toBe('operational-profitability');
     expect(matchGatedWebPath('/app/clients')).toBeNull();
     expect(matchGatedWebPath('/app/billing')).toBeNull();
     expect(matchGatedWebPath('/app/service-orders/1/planning')).toBeNull();
@@ -32,7 +34,7 @@ describe('web release feature flags', () => {
   });
 
   it('hides gated navigation while the flag is off', () => {
-    expect(isNavItemVisible('finance-receivables', { 'finance-receivables': true }, false)).toBe(
+    expect(isNavItemVisible('accounting-journals', { 'accounting-journals': true }, false)).toBe(
       false,
     );
     expect(isNavItemVisible('inventory', { inventory: true }, false)).toBe(false);

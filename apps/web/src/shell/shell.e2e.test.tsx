@@ -41,13 +41,16 @@ describe('protected application shell', () => {
     expect(screen.queryByRole('link', { name: /^locações$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /^transporte$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /^alertas$/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /^relatórios$/i })).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: /^relatórios$/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /^rentabilidade operacional$/i })).toBeInTheDocument();
+    });
   });
 
   it('blocks deep links to modules outside Release 1', async () => {
     vi.stubGlobal('fetch', createShellFetchMock());
     tokenStore.setTokens('access-token', 'refresh-token');
-    window.history.pushState({}, '', '/app/finance');
+    window.history.pushState({}, '', '/app/accounting');
     render(<App />);
 
     await waitFor(() => {
