@@ -11,24 +11,33 @@ import {
 } from '../utils/proposal-list-presentation';
 import { formatMoneyBrl } from '../../ui/format/money';
 import { Button } from '../../ui/Button';
+import { Link } from 'react-router-dom';
 import {
-  FilterCard,
+  EnterpriseField,
+  EnterpriseListHeader,
+  EnterpriseMetric,
+  EnterpriseToolbar,
+  PrimaryRecordCell,
+  RecordStatusCell,
+  RowActionMenu,
+  enterpriseCellClass,
+  enterpriseControlClass,
+  enterpriseNumericCellClass,
+  enterpriseNumericHeadCellClass,
+  enterpriseRowClass,
+  enterpriseTableCardClass,
+  enterpriseTableClass,
+  enterpriseHeadCellClass,
+  rowPrimaryActionClass,
+  rowSecondaryActionClass,
+} from '../../ui/enterprise-list';
+import {
   ModuleDeniedState,
   ModuleErrorState,
   ModuleLoadingState,
   ModulePage,
-  ModulePageHeader,
   ModulePagination,
   ModulePrimaryLink,
-  ModuleTableCard,
-  ModuleTableLink,
-  filterControlClass,
-  filterLabelClass,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
 } from '../../ui/module-layout';
 
 const PAGE_SIZE = 20;
@@ -128,11 +137,29 @@ export function ProposalsListPage() {
   const { items, offset, hasMore } = listState;
   const pageNumber = Math.floor(offset / PAGE_SIZE) + 1;
   const hasActiveFilters = Boolean(clientFilter.trim() || unitFilter.trim());
+  // Contagens derivadas das linhas JA carregadas nesta pagina — rotuladas como tal para nao
+  // sugerir um total global que a listagem nao recebe do backend.
+  const openCount = items.filter(
+    (item) => item.currentVersionStatus === 'ISSUED' || item.currentVersionStatus === 'DRAFT',
+  ).length;
+  const expiredCount = items.filter((item) => item.currentVersionStatus === 'EXPIRED').length;
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      <EnterpriseListHeader
         title="Propostas comerciais"
+        description="Pipeline comercial no seu escopo autorizado."
+        metrics={
+          <>
+            <EnterpriseMetric value={items.length} label="nesta página" />
+            <EnterpriseMetric value={openCount} label="em aberto" tone="info" />
+            <EnterpriseMetric
+              value={expiredCount}
+              label="expiradas"
+              tone={expiredCount > 0 ? 'critical' : 'neutral'}
+            />
+          </>
+        }
         action={
           capabilities.canCreate ? (
             <ModulePrimaryLink to="/app/proposals/new">Nova proposta</ModulePrimaryLink>
@@ -140,123 +167,153 @@ export function ProposalsListPage() {
         }
       />
 
-      <FilterCard>
-        <div className="grid gap-5 sm:grid-cols-2">
-          <div>
-            <label className={filterLabelClass} htmlFor="proposal-client-filter">
-              Cliente (ID)
-            </label>
+      <div className={enterpriseTableCardClass}>
+        <EnterpriseToolbar>
+          <EnterpriseField label="Cliente" htmlFor="proposal-client-filter" className="w-56">
             <input
               id="proposal-client-filter"
               type="search"
-              className={filterControlClass}
+              className={enterpriseControlClass}
               value={clientFilter}
               onChange={(event) => setClientFilter(event.target.value)}
               placeholder="UUID do cliente"
             />
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="proposal-unit-filter">
-              Unidade
-            </label>
+          </EnterpriseField>
+          <EnterpriseField label="Unidade" htmlFor="proposal-unit-filter" className="w-44">
             <input
               id="proposal-unit-filter"
               type="search"
-              className={filterControlClass}
+              className={enterpriseControlClass}
               value={unitFilter}
               onChange={(event) => setUnitFilter(event.target.value)}
               placeholder="Filtrar por unidade"
             />
-          </div>
-        </div>
-        {hasActiveFilters ? (
-          <div className="mt-4">
+          </EnterpriseField>
+          {hasActiveFilters ? (
             <Button
               type="button"
               variant="secondary"
+              className="px-2.5 py-1.5 text-xs"
               onClick={() => {
                 setClientFilter('');
                 setUnitFilter('');
               }}
             >
-              Limpar filtros
+              Limpar
             </Button>
-          </div>
-        ) : null}
-      </FilterCard>
+          ) : null}
+        </EnterpriseToolbar>
 
-      {items.length === 0 ? (
-        <p className="text-sm text-gray-500" role="status">
-          Nenhuma proposta encontrada.
-        </p>
-      ) : (
-        <ModuleTableCard>
-          <table className={moduleTableClass} aria-label="Lista de propostas comerciais">
-            <thead className={moduleTableHeadClass}>
+        {items.length === 0 ? (
+          <p className="px-3 py-6 text-sm text-gray-500" role="status">
+            Nenhuma proposta encontrada.
+          </p>
+        ) : (
+          <table className={enterpriseTableClass} aria-label="Lista de propostas comerciais">
+            <thead>
               <tr>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={enterpriseHeadCellClass}>
                   Proposta
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
-                  Título
-                </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={enterpriseHeadCellClass}>
                   Situação
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
-                  Revisão
-                </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={enterpriseNumericHeadCellClass}>
                   Valor
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
-                  Validade
-                </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={enterpriseNumericHeadCellClass}>
                   Próxima ação
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody>
               {items.map((item) => (
-                <tr key={item.id} className={moduleTableRowClass}>
-                  <td className={moduleTableCellClass}>
-                    <ModuleTableLink to={`/app/proposals/${item.id}`}>
-                      {item.proposalCode}
-                    </ModuleTableLink>
+                <tr key={item.id} className={enterpriseRowClass}>
+                  <td className={enterpriseCellClass}>
+                    <PrimaryRecordCell
+                      href={`/app/proposals/${item.id}`}
+                      identifier={item.proposalCode}
+                      context={item.title}
+                      meta={
+                        item.currentVersionNumber === null
+                          ? null
+                          : `Revisão ${item.currentVersionNumber}`
+                      }
+                    />
                   </td>
-                  <td className={moduleTableCellClass}>{item.title}</td>
-                  <td className={moduleTableCellClass}>
+                  <td className={enterpriseCellClass}>
                     {/* Status REAL da versao corrente, vindo do backend. Sem versao nao ha
                         estado: a ausencia e declarada, nunca suposta. */}
-                    {item.currentVersionStatus ? (
-                      <ProposalStatusBadge status={item.currentVersionStatus} />
-                    ) : (
-                      <span className="text-sm text-gray-600">{PROPOSAL_NO_VERSION_LABEL}</span>
-                    )}
+                    <RecordStatusCell
+                      accent={
+                        item.currentVersionStatus === 'EXPIRED'
+                          ? 'critical'
+                          : item.currentVersionStatus === 'DRAFT'
+                            ? 'warning'
+                            : 'none'
+                      }
+                      badge={
+                        item.currentVersionStatus ? (
+                          <ProposalStatusBadge status={item.currentVersionStatus} />
+                        ) : (
+                          <span className="text-[13px] text-gray-600">
+                            {PROPOSAL_NO_VERSION_LABEL}
+                          </span>
+                        )
+                      }
+                      context={
+                        item.validUntil
+                          ? `Válida até ${formatProposalValidity(item.validUntil)}`
+                          : 'Sem validade definida'
+                      }
+                    />
                   </td>
-                  <td className={moduleTableCellClass}>
-                    {item.currentVersionNumber === null ? '—' : item.currentVersionNumber}
+                  <td className={enterpriseNumericCellClass}>
+                    {/* Valor com hierarquia: numero forte, contexto em linha secundaria. */}
+                    <span className="cisne-type-money text-sm font-semibold text-gray-900">
+                      {item.saleTotal
+                        ? formatMoneyBrl(item.saleTotal, item.currencyCode ?? 'BRL')
+                        : '—'}
+                    </span>
+                    <span className="mt-0.5 block text-[11px] text-gray-500">
+                      {item.currentVersionStatus === 'ACCEPTED' ? 'Aceita' : 'Venda prevista'}
+                    </span>
                   </td>
-                  <td className={`${moduleTableCellClass} tabular-nums`}>
-                    {item.saleTotal
-                      ? formatMoneyBrl(item.saleTotal, item.currencyCode ?? 'BRL')
-                      : '—'}
-                  </td>
-                  <td className={moduleTableCellClass}>
-                    {formatProposalValidity(item.validUntil)}
-                  </td>
-                  <td className={moduleTableCellClass}>
-                    <ModuleTableLink to={`/app/proposals/${item.id}`}>
-                      {proposalNextAction(item.currentVersionStatus)}
-                    </ModuleTableLink>
+                  <td className={enterpriseNumericCellClass}>
+                    <RowActionMenu
+                      label={item.proposalCode}
+                      primary={
+                        <Link
+                          to={`/app/proposals/${item.id}`}
+                          className={rowPrimaryActionClass}
+                        >
+                          {proposalNextAction(item.currentVersionStatus)}
+                        </Link>
+                      }
+                      secondary={
+                        <>
+                          <Link
+                            to={`/app/proposals/${item.id}`}
+                            className={rowSecondaryActionClass}
+                          >
+                            Abrir proposta
+                          </Link>
+                          <Link
+                            to={`/app/proposals/${item.id}`}
+                            className={rowSecondaryActionClass}
+                          >
+                            Ver versões
+                          </Link>
+                        </>
+                      }
+                    />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </ModuleTableCard>
-      )}
+        )}
+      </div>
 
       <ModulePagination
         pageNumber={pageNumber}

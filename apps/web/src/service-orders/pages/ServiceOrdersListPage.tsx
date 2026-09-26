@@ -38,24 +38,31 @@ import {
 } from '../utils/service-order-next-action';
 import { Button } from '../../ui/Button';
 import { ConfirmAction } from '../../ui/ConfirmAction';
+import { Link } from 'react-router-dom';
 import {
-  DataTable,
-  DataTableBody,
-  DataTableCell,
-  DataTableHead,
-  DataTableHeaderCell,
-  DataTableRow,
-} from '../../ui/DataTable';
+  EnterpriseListHeader,
+  EnterpriseMetric,
+  EnterpriseToolbar,
+  PrimaryRecordCell,
+  RecordStatusCell,
+  RowActionMenu,
+  enterpriseCellClass,
+  enterpriseControlClass,
+  enterpriseHeadCellClass,
+  enterpriseNumericCellClass,
+  enterpriseNumericHeadCellClass,
+  enterpriseRowClass,
+  enterpriseTableCardClass,
+  enterpriseTableClass,
+  rowPrimaryActionClass,
+  rowSecondaryActionClass,
+} from '../../ui/enterprise-list';
 import {
-  FilterCard,
   ModuleDeniedState,
   ModuleErrorState,
   ModuleLoadingState,
   ModulePage,
-  ModulePageHeader,
   ModulePagination,
-  ModuleTableLink,
-  filterControlClass,
   filterLabelClass,
 } from '../../ui/module-layout';
 
@@ -292,20 +299,38 @@ export function ServiceOrdersListPage() {
   }
 
   const { items, hasMore } = listState;
+  // Contagens derivadas das linhas JA carregadas nesta pagina — rotuladas como tal para nao
+  // sugerir um total global que a listagem nao recebe do backend.
+  const attentionCount = items.filter((item) => resolveServiceOrderAttention(item) !== null).length;
+  const unassignedCount = items.filter((item) => !item.assignedWorkforceMember).length;
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      <EnterpriseListHeader
         title="Ordens de serviço"
-        description="Consulta operacional das OS no seu escopo autorizado."
+        description={
+          filterDescription ?? 'Consulta operacional das OS no seu escopo autorizado.'
+        }
+        metrics={
+          <>
+            <EnterpriseMetric value={items.length} label="nesta página" />
+            <EnterpriseMetric
+              value={attentionCount}
+              label="com exceção"
+              tone={attentionCount > 0 ? 'critical' : 'neutral'}
+            />
+            <EnterpriseMetric
+              value={unassignedCount}
+              label="sem responsável"
+              tone={unassignedCount > 0 ? 'warning' : 'neutral'}
+            />
+          </>
+        }
       />
 
-      {filterDescription ? (
-        <p className="mb-6 text-sm text-gray-500">{filterDescription}</p>
-      ) : null}
-
-      <FilterCard>
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <div className={enterpriseTableCardClass}>
+        <EnterpriseToolbar>
+        <div className="grid w-full gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <div className="sm:col-span-2">
             <label className={filterLabelClass} htmlFor="service-order-search">
               Busca
@@ -313,7 +338,7 @@ export function ServiceOrdersListPage() {
             <input
               id="service-order-search"
               type="search"
-              className={filterControlClass}
+              className={enterpriseControlClass}
               value={filters.q}
               onChange={(event) => updateFilters({ q: event.target.value })}
               placeholder="Número, código interno ou descrição"
@@ -325,7 +350,7 @@ export function ServiceOrdersListPage() {
             </label>
             <select
               id="service-order-status-filter"
-              className={filterControlClass}
+              className={enterpriseControlClass}
               value={filters.status}
               onChange={(event) =>
                 updateFilters({ status: event.target.value as ServiceOrderListParams['status'] })
@@ -346,7 +371,7 @@ export function ServiceOrdersListPage() {
             </label>
             <select
               id="service-order-filter"
-              className={filterControlClass}
+              className={enterpriseControlClass}
               value={filters.filter}
               onChange={(event) =>
                 updateFilters({ filter: event.target.value as ServiceOrderListParams['filter'] })
@@ -367,7 +392,7 @@ export function ServiceOrdersListPage() {
             </label>
             <select
               id="service-order-order"
-              className={filterControlClass}
+              className={enterpriseControlClass}
               value={filters.order}
               onChange={(event) =>
                 updateFilters({ order: event.target.value as ServiceOrderListParams['order'] })
@@ -384,7 +409,7 @@ export function ServiceOrdersListPage() {
             <input
               id="service-order-unit-filter"
               type="search"
-              className={filterControlClass}
+              className={enterpriseControlClass}
               value={filters.unitId}
               onChange={(event) => updateFilters({ unitId: event.target.value })}
               placeholder="Filtrar por unidade"
@@ -397,7 +422,7 @@ export function ServiceOrdersListPage() {
             <input
               id="service-order-client-filter"
               type="search"
-              className={filterControlClass}
+              className={enterpriseControlClass}
               value={filters.clientId}
               onChange={(event) => updateFilters({ clientId: event.target.value })}
               placeholder="UUID do cliente"
@@ -410,7 +435,7 @@ export function ServiceOrdersListPage() {
             <input
               id="service-order-from-filter"
               type="date"
-              className={filterControlClass}
+              className={enterpriseControlClass}
               value={filters.from}
               onChange={(event) => updateFilters({ from: event.target.value })}
             />
@@ -422,34 +447,33 @@ export function ServiceOrdersListPage() {
             <input
               id="service-order-to-filter"
               type="date"
-              className={filterControlClass}
+              className={enterpriseControlClass}
               value={filters.to}
               onChange={(event) => updateFilters({ to: event.target.value })}
             />
           </div>
         </div>
         {hasActiveFilters ? (
-          <div className="mt-4">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() =>
-                setSearchParams(buildServiceOrderListSearchParams(EMPTY_SERVICE_ORDER_LIST_PARAMS))
-              }
-            >
-              Limpar filtros
-            </Button>
-          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            className="px-2.5 py-1.5 text-xs"
+            onClick={() =>
+              setSearchParams(buildServiceOrderListSearchParams(EMPTY_SERVICE_ORDER_LIST_PARAMS))
+            }
+          >
+            Limpar
+          </Button>
         ) : null}
-      </FilterCard>
+        </EnterpriseToolbar>
 
       {rowFeedback ? (
         <p
           role={rowFeedback.tone === 'error' ? 'alert' : 'status'}
           className={
             rowFeedback.tone === 'error'
-              ? 'mb-6 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-500/20 ring-inset'
-              : 'mb-6 rounded-md bg-green-50 px-4 py-3 text-sm text-green-700 ring-1 ring-green-500/20 ring-inset'
+              ? 'mx-3 mt-3 rounded-md bg-red-50 px-3 py-2 text-[13px] text-red-700 ring-1 ring-red-500/20 ring-inset'
+              : 'mx-3 mt-3 rounded-md bg-green-50 px-3 py-2 text-[13px] text-green-700 ring-1 ring-green-500/20 ring-inset'
           }
         >
           {rowFeedback.message}
@@ -457,144 +481,159 @@ export function ServiceOrdersListPage() {
       ) : null}
 
       {items.length === 0 ? (
-        <p className="text-sm text-gray-500" role="status">
+        <p className="px-3 py-6 text-sm text-gray-500" role="status">
           Nenhuma ordem de serviço encontrada para os filtros selecionados.
         </p>
       ) : (
-        <DataTable aria-label="Lista de ordens de serviço">
-          <DataTableHead>
-            <DataTableRow>
-              <DataTableHeaderCell scope="col">OS</DataTableHeaderCell>
-              <DataTableHeaderCell scope="col">Cliente</DataTableHeaderCell>
-              <DataTableHeaderCell scope="col">Situação</DataTableHeaderCell>
-              <DataTableHeaderCell scope="col">Responsável</DataTableHeaderCell>
-              <DataTableHeaderCell scope="col">Prazo</DataTableHeaderCell>
-              <DataTableHeaderCell scope="col">Próxima ação</DataTableHeaderCell>
-            </DataTableRow>
-          </DataTableHead>
-          <DataTableBody>
+        <table className={enterpriseTableClass} aria-label="Lista de ordens de serviço">
+          <thead>
+            <tr>
+              <th scope="col" className={enterpriseHeadCellClass}>
+                OS
+              </th>
+              <th scope="col" className={enterpriseHeadCellClass}>
+                Situação
+              </th>
+              <th scope="col" className={enterpriseHeadCellClass}>
+                Responsável
+              </th>
+              <th scope="col" className={enterpriseHeadCellClass}>
+                Prazo
+              </th>
+              <th scope="col" className={enterpriseNumericHeadCellClass}>
+                Próxima ação
+              </th>
+            </tr>
+          </thead>
+          <tbody>
             {items.map((item) => {
               const nextAction = resolveServiceOrderNextAction(item.status);
               const attention = resolveServiceOrderAttention(item);
               const lifecyclePending = pendingOrderId === item.id;
               const openPath = `/app/service-orders/${item.id}/planning`;
               return (
-                <DataTableRow key={item.id}>
-                  <DataTableCell>
-                    <ModuleTableLink to={openPath}>{item.orderNumber}</ModuleTableLink>
-                  </DataTableCell>
-                  <DataTableCell>{formatClientLabel(item.clientSnapshot, item.clientId)}</DataTableCell>
-                  <DataTableCell>
-                    <div className="flex flex-col items-start gap-1">
-                      <ServiceOrderStatusBadge status={item.status} />
-                      {attention ? (
-                        <span
-                          className={`text-xs font-medium ${serviceOrderAttentionClass(attention.tone)}`}
-                        >
-                          {attention.label}
-                        </span>
-                      ) : null}
-                    </div>
-                  </DataTableCell>
-                  <DataTableCell>{formatAssigneeLabel(item.assignedWorkforceMember)}</DataTableCell>
-                  <DataTableCell>{formatDeadlineLabel(item.deadlineAt)}</DataTableCell>
-                  <DataTableCell>
-                    <div className="flex flex-col items-start gap-1.5">
-                      {/* Uma unica acao primaria: a etapa que a maquina de estados libera agora. */}
-                      {nextAction.kind === 'lifecycle' && nextAction.intent === 'prepare' ? (
-                        <Button
-                          type="button"
-                          variant="primary"
-                          className="min-h-8 px-3 py-1.5 text-xs"
-                          disabled={lifecyclePending}
-                          onClick={() =>
-                            void runLifecycleAction(
-                              item,
-                              () => prepareServiceOrder(item.id, item.rowVersion),
-                              `Ordem de serviço ${item.orderNumber} preparada.`,
-                            )
-                          }
-                        >
-                          Preparar OS
-                        </Button>
-                      ) : null}
-                      {nextAction.kind === 'lifecycle' && nextAction.intent === 'release' ? (
-                        <Button
-                          type="button"
-                          variant="primary"
-                          className="min-h-8 px-3 py-1.5 text-xs"
-                          disabled={lifecyclePending}
-                          onClick={() =>
-                            void runLifecycleAction(
-                              item,
-                              () => releaseServiceOrder(item.id, item.rowVersion),
-                              `Ordem de serviço ${item.orderNumber} liberada.`,
-                            )
-                          }
-                        >
-                          Liberar OS
-                        </Button>
-                      ) : null}
-                      {nextAction.kind === 'lifecycle' && nextAction.intent === 'reopen' ? (
-                        <Button
-                          type="button"
-                          variant="primary"
-                          className="min-h-8 px-3 py-1.5 text-xs"
-                          disabled={lifecyclePending}
-                          onClick={() => openConfirmDialog('reopen', item)}
-                        >
-                          Reabrir OS
-                        </Button>
-                      ) : null}
-                      {nextAction.kind === 'stage' ? (
-                        <ModuleTableLink to={serviceOrderStagePath(item.id, nextAction.stage)}>
-                          {nextAction.label}
-                        </ModuleTableLink>
-                      ) : null}
-                      {nextAction.kind === 'none' ? (
-                        <span className="text-xs text-gray-500">Encerrada</span>
-                      ) : null}
-
-                      {/* Acoes de excecao ficam subordinadas: nao competem com a etapa corrente. */}
-                      <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
-                        {nextAction.kind === 'lifecycle' ? (
-                          <ModuleTableLink to={openPath}>Abrir OS</ModuleTableLink>
-                        ) : null}
-                        {CANCELLABLE_SERVICE_ORDER_STATUSES.has(item.status) ? (
-                          <button
-                            type="button"
-                            className="text-xs font-medium text-gray-500 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-                            disabled={lifecyclePending}
-                            onClick={() => openConfirmDialog('cancel', item)}
-                          >
-                            Cancelar
-                          </button>
-                        ) : null}
-                        {REOPENABLE_SERVICE_ORDER_STATUSES.has(item.status) &&
-                        !(nextAction.kind === 'lifecycle' && nextAction.intent === 'reopen') ? (
-                          <button
-                            type="button"
-                            className="text-xs font-medium text-gray-500 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-60"
-                            disabled={lifecyclePending}
-                            onClick={() => openConfirmDialog('reopen', item)}
-                          >
-                            Reabrir
-                          </button>
-                        ) : null}
-                        {lifecyclePending ? (
-                          <span className="text-xs text-gray-500" role="status">
-                            Processando…
+                <tr key={item.id} className={enterpriseRowClass}>
+                  <td className={enterpriseCellClass}>
+                    {/* Linha 1: identificador forte. Linha 2: cliente + servico. */}
+                    <PrimaryRecordCell
+                      href={openPath}
+                      identifier={item.orderNumber}
+                      context={[formatClientLabel(item.clientSnapshot, item.clientId), item.description]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    />
+                  </td>
+                  <td className={enterpriseCellClass}>
+                    <RecordStatusCell
+                      accent={
+                        attention?.tone === 'critical'
+                          ? 'critical'
+                          : attention?.tone === 'warning'
+                            ? 'warning'
+                            : 'none'
+                      }
+                      badge={<ServiceOrderStatusBadge status={item.status} />}
+                      context={
+                        attention ? (
+                          <span className={serviceOrderAttentionClass(attention.tone)}>
+                            {attention.label}
                           </span>
-                        ) : null}
+                        ) : null
+                      }
+                    />
+                  </td>
+                  <td className={enterpriseCellClass}>
+                    {formatAssigneeLabel(item.assignedWorkforceMember)}
+                  </td>
+                  <td className={enterpriseCellClass}>
+                    <span className="tabular-nums">{formatDeadlineLabel(item.deadlineAt)}</span>
+                  </td>
+                  <td className={enterpriseNumericCellClass}>
+                    {/* UMA acao primaria; o resto fica no menu "•••" para nao competir. */}
+                    <RowActionMenu
+                      label={item.orderNumber}
+                      primary={
+                        nextAction.kind === 'lifecycle' ? (
+                          <Button
+                            type="button"
+                            variant="primary"
+                            className="px-2.5 py-1 text-xs"
+                            disabled={lifecyclePending}
+                            onClick={() => {
+                              if (nextAction.intent === 'prepare') {
+                                void runLifecycleAction(
+                                  item,
+                                  () => prepareServiceOrder(item.id, item.rowVersion),
+                                  `Ordem de serviço ${item.orderNumber} preparada.`,
+                                );
+                                return;
+                              }
+                              if (nextAction.intent === 'release') {
+                                void runLifecycleAction(
+                                  item,
+                                  () => releaseServiceOrder(item.id, item.rowVersion),
+                                  `Ordem de serviço ${item.orderNumber} liberada.`,
+                                );
+                                return;
+                              }
+                              openConfirmDialog('reopen', item);
+                            }}
+                          >
+                            {nextAction.label}
+                          </Button>
+                        ) : nextAction.kind === 'stage' ? (
+                          <Link
+                            to={serviceOrderStagePath(item.id, nextAction.stage)}
+                            className={rowPrimaryActionClass}
+                          >
+                            {nextAction.label}
+                          </Link>
+                        ) : (
+                          <span className="text-xs text-gray-500">Encerrada</span>
+                        )
+                      }
+                      secondary={
+                        <>
+                          <Link to={openPath} className={rowSecondaryActionClass}>
+                            Abrir OS
+                          </Link>
+                          {CANCELLABLE_SERVICE_ORDER_STATUSES.has(item.status) ? (
+                            <button
+                              type="button"
+                              className={`${rowSecondaryActionClass} text-left disabled:cursor-not-allowed disabled:opacity-60`}
+                              disabled={lifecyclePending}
+                              onClick={() => openConfirmDialog('cancel', item)}
+                            >
+                              Cancelar
+                            </button>
+                          ) : null}
+                          {REOPENABLE_SERVICE_ORDER_STATUSES.has(item.status) &&
+                          !(nextAction.kind === 'lifecycle' && nextAction.intent === 'reopen') ? (
+                            <button
+                              type="button"
+                              className={`${rowSecondaryActionClass} text-left disabled:cursor-not-allowed disabled:opacity-60`}
+                              disabled={lifecyclePending}
+                              onClick={() => openConfirmDialog('reopen', item)}
+                            >
+                              Reabrir
+                            </button>
+                          ) : null}
+                        </>
+                      }
+                    />
+                    {lifecyclePending ? (
+                      <span className="mt-1 text-[11px] text-gray-500" role="status">
+                        Processando…
                       </span>
-                    </div>
-                  </DataTableCell>
-                </DataTableRow>
+                    ) : null}
+                  </td>
+                </tr>
               );
             })}
-          </DataTableBody>
-        </DataTable>
+          </tbody>
+        </table>
       )}
+      </div>
 
       <ModulePagination
         pageNumber={pageNumber}
@@ -638,7 +677,7 @@ export function ServiceOrdersListPage() {
           </label>
           <textarea
             id={confirmReasonId}
-            className={`${filterControlClass} mt-1`}
+            className={`${enterpriseControlClass} mt-1`}
             rows={3}
             value={dialogReason}
             onChange={(event) => setDialogReason(event.target.value)}
