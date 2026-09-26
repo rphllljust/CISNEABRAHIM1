@@ -79,7 +79,7 @@ export class BusinessMetricsCollectorService {
         pool,
         `SELECT COUNT(*)::text AS count
          FROM rpt.read_billing_records br
-         WHERE br.status IN ('PREPARED', 'AWAITING_PAYMENT')
+         WHERE br.status = 'PREPARED'
            AND br.prepared_at < NOW() - interval '7 days'`,
       ),
     ]);
