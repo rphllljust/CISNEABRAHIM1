@@ -178,6 +178,75 @@ describe('Documents E2E', () => {
     expect(versionResponse.statusCode).toBeLessThan(500);
   });
 
+  it('answers 400 INVALID_INPUT — never 500 — for catalog, title and version-number input', async () => {
+    const { accessToken } = await loginWithDocumentGrants();
+
+    // Tipo de documento fora do catalogo e entrada invalida, nao filtro vazio: aceitar em silencio
+    // devolveria conjunto vazio e a tela diria "nenhum documento corresponde aos filtros".
+    const listResponse = await app.inject({
+      method: 'GET',
+      url: '/api/v1/documents?categoryCode=NOT_A_CATEGORY',
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    expect(listResponse.statusCode).toBe(400);
+    expect(parseDocumentError(listResponse.body).error.code).toBe(
+      DOCUMENT_ERROR_CODES.INVALID_INPUT,
+    );
+
+    for (const versionParam of ['abc', '0', '-1']) {
+      const invalidVersion = await app.inject({
+        method: 'GET',
+        url: `/api/v1/documents/00000000-0000-4000-8000-000000000050/versions/${versionParam}`,
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+      expect(invalidVersion.statusCode).toBe(400);
+      expect(parseDocumentError(invalidVersion.body).error.code).toBe(
+        DOCUMENT_ERROR_CODES.INVALID_INPUT,
+      );
+    }
+
+    const invalidCategory = buildMultipartBody(
+      {
+        title: 'Invalid category',
+        categoryCode: 'NOT_A_CATEGORY',
+        classificationCode: 'INTERNAL',
+        unitId: UNIT_A,
+      },
+      { name: 'invalid-category.pdf', mime: 'application/pdf', buffer: minimalPdfBuffer() },
+    );
+    const invalidCategoryResponse = await app.inject({
+      method: 'POST',
+      url: '/api/v1/documents',
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        'content-type': invalidCategory.contentType,
+      },
+      payload: invalidCategory.body,
+    });
+    expect(invalidCategoryResponse.statusCode).toBe(400);
+    expect(parseDocumentError(invalidCategoryResponse.body).error.code).toBe(
+      DOCUMENT_ERROR_CODES.INVALID_INPUT,
+    );
+
+    const missingTitle = buildMultipartBody(
+      { title: '   ', categoryCode: 'GENERAL', classificationCode: 'INTERNAL', unitId: UNIT_A },
+      { name: 'missing-title.pdf', mime: 'application/pdf', buffer: minimalPdfBuffer() },
+    );
+    const missingTitleResponse = await app.inject({
+      method: 'POST',
+      url: '/api/v1/documents',
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        'content-type': missingTitle.contentType,
+      },
+      payload: missingTitle.body,
+    });
+    expect(missingTitleResponse.statusCode).toBe(400);
+    expect(parseDocumentError(missingTitleResponse.body).error.code).toBe(
+      DOCUMENT_ERROR_CODES.INVALID_INPUT,
+    );
+  });
+
   it('uploads, downloads via authorized stream and signed token without leaking storage keys', async () => {
     const { accessToken } = await loginWithDocumentGrants();
     const multipart = buildMultipartBody(

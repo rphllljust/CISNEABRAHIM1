@@ -1,13 +1,32 @@
+import { HttpStatus } from '@nestjs/common';
 import {
   parseClampedOffsetLimit,
   parsePositiveVersionNumberParam,
 } from '../../infrastructure/http/contracts';
+import { DOCUMENT_ERROR_CODES } from '../errors/document-error-codes';
+import { DocumentHttpException } from '../errors/document-http.exception';
 import {
   isDocumentCategory,
   isDocumentClassification,
   MAX_FILE_SIZE_BYTES,
   MAX_VERSIONS_PER_DOCUMENT,
 } from '../domain/document-categories';
+
+/**
+ * Entrada invalida do cliente e 400, nunca 500.
+ *
+ * O contrato HTTP da plataforma so mapeia `HttpException` (e `InvalidUuidError`); um `Error` cru
+ * atravessa o filtro catch-all e vira 500, escondendo do operador a causa real ("campo invalido")
+ * atras de "erro inesperado" — que a UI ainda oferece como regravavel. Por isso o DTO rejeita no
+ * mesmo canal de erro do modulo, com o codigo que o cliente ja sabe interpretar.
+ */
+function invalidDocumentInput(message: string): DocumentHttpException {
+  return new DocumentHttpException(
+    HttpStatus.BAD_REQUEST,
+    DOCUMENT_ERROR_CODES.INVALID_INPUT,
+    message,
+  );
+}
 
 export type CreateDocumentUploadInput = {
   title: string;
@@ -43,16 +62,16 @@ export function parseCreateDocumentUploadFields(
   const unitId = fields['unitId']?.trim() ?? '';
 
   if (!title) {
-    throw new Error('title is required');
+    throw invalidDocumentInput('title is required');
   }
   if (!isDocumentCategory(categoryCode)) {
-    throw new Error('categoryCode is invalid');
+    throw invalidDocumentInput('categoryCode is invalid');
   }
   if (!isDocumentClassification(classificationCode)) {
-    throw new Error('classificationCode is invalid');
+    throw invalidDocumentInput('classificationCode is invalid');
   }
   if (!unitId) {
-    throw new Error('unitId is required');
+    throw invalidDocumentInput('unitId is required');
   }
 
   return { title, categoryCode, classificationCode, unitId };
@@ -72,6 +91,12 @@ export function parseListDocumentsQuery(query: Record<string, unknown>): ListDoc
   const unitId = typeof query['unitId'] === 'string' ? query['unitId'].trim() : undefined;
   const categoryCode =
     typeof query['categoryCode'] === 'string' ? query['categoryCode'].trim() : undefined;
+  // Tipo de documento fora do catalogo e ENTRADA invalida, e nao um filtro vazio: aceitar em
+  // silencio devolveria conjunto vazio e a tela afirmaria "nenhum documento corresponde aos
+  // filtros" para um valor que nunca existiu. Mesma regra do upload, que ja valida o catalogo.
+  if (categoryCode && !isDocumentCategory(categoryCode)) {
+    throw invalidDocumentInput('categoryCode is invalid');
+  }
   const rawSearch = typeof query['q'] === 'string' ? query['q'].trim() : '';
   const q =
     rawSearch.length > 0 ? rawSearch.slice(0, DOCUMENT_SEARCH_MAX_LENGTH) : undefined;
@@ -83,7 +108,7 @@ export function parseVersionNumberParam(value: string): number {
   try {
     return parsePositiveVersionNumberParam(value);
   } catch {
-    throw new Error('versionNumber is invalid');
+    throw invalidDocumentInput('versionNumber is invalid');
   }
 }
 
