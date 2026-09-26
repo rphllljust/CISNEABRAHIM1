@@ -1,7 +1,14 @@
-# CISNE Web — static artifact from the same monorepo build
+# CISNE Web — production static artifact for Railway.
+# VITE_API_BASE_URL is a required build argument pointing at the public API domain.
 FROM node:24-alpine AS builder
-ARG VITE_API_BASE_URL=http://localhost:3100
+ARG VITE_API_BASE_URL
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+# Release 1 surface — `docs/01-foundation/release-1-closed-scope.md` (R1-SCOPE-001, ACCEPTED)
+# IN_RELEASE_1: clientes, solicitacoes, propostas/PO de cliente, catalogo, ativos/frota,
+# OS, planejamento, execucao, medicao, faturamento interno.
+# Excecao explicita do responsavel neste deploy: PESSOAS e FINANCEIRO (recebiveis/pagamento)
+# expostos porque constam das paginas basicas e do fluxo exigidos. Todo o restante da lista
+# OUT_OF_RELEASE_1 permanece fail-closed (oculto pelo mecanismo de flags existente).
 ARG VITE_FEATURE_MODULE_FINANCE=true
 ARG VITE_FEATURE_MODULE_FISCAL=false
 ARG VITE_FEATURE_MODULE_ACCOUNTING=false
@@ -39,6 +46,6 @@ RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @cisne/web build
 
 FROM nginx:1.27-alpine AS runner
-COPY docker/hml/nginx.conf /etc/nginx/conf.d/default.conf
+COPY docker/railway/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
 EXPOSE 80
