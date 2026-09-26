@@ -96,7 +96,14 @@ describe('Documents E2E', () => {
     await rm(storageRoot, { recursive: true, force: true });
   });
 
-  async function loginWithDocumentGrants(): Promise<{ accessToken: string; identityId: string }> {
+  /**
+   * `userAgent` opcional: o rate limit de login e chaveado por `ip:user-agent` e todas as
+   * requisicoes `app.inject` compartilham o mesmo IP. Um teste adicional que precise de login
+   * proprio usa um agente proprio para nao consumir a cota dos testes de contrato do arquivo.
+   */
+  async function loginWithDocumentGrants(
+    userAgent?: string,
+  ): Promise<{ accessToken: string; identityId: string }> {
     const loginId = normalizeLoginIdentifier(`docs-e2e-${crypto.randomUUID()}@cisne.invalid`);
     const passwordHash = await hashPassword(AUTH_TEST_PASSWORD);
     const { identityId } = await insertIdentity(pool, loginId, passwordHash);
@@ -120,10 +127,19 @@ describe('Documents E2E', () => {
     const loginResponse = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
+      ...(userAgent ? { headers: { 'user-agent': userAgent } } : {}),
       payload: { login: loginId, password: AUTH_TEST_PASSWORD },
     });
     const tokens = parseAuthTokenResponse(loginResponse.body);
     return { accessToken: tokens.accessToken, identityId };
+  }
+
+  async function countVersions(documentId: string): Promise<number> {
+    const result = await pool.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM doc.document_versions WHERE document_id = $1`,
+      [documentId],
+    );
+    return Number(result.rows[0]?.count ?? '0');
   }
 
   it('denies anonymous document upload', async () => {
@@ -346,5 +362,89 @@ describe('Documents E2E', () => {
     });
     expect(denied.statusCode).toBe(403);
     expect(parseDocumentError(denied.body).error.code).toBe(DOCUMENT_ERROR_CODES.DENIED);
+  });
+
+  it('never exceeds the version cap when uploads arrive concurrently', async () => {
+    const { accessToken, identityId } = await loginWithDocumentGrants('cisne-doc-cap-e2e');
+    // Arquivo grande de proposito: alarga a janela entre a leitura do teto e o commit da versao,
+    // que e exatamente onde a corrida vive (hash + escrita no storage + transacao).
+    const bigPdf = Buffer.concat([
+      minimalPdfBuffer(),
+      Buffer.alloc(6 * 1024 * 1024, 0x41),
+    ]);
+    const multipart = buildMultipartBody(
+      {
+        title: 'Concurrent cap',
+        categoryCode: 'GENERAL',
+        classificationCode: 'INTERNAL',
+        unitId: UNIT_A,
+      },
+      { name: 'cap.pdf', mime: 'application/pdf', buffer: bigPdf },
+    );
+
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/api/v1/documents',
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        'content-type': multipart.contentType,
+      },
+      payload: multipart.body,
+    });
+    expect(createResponse.statusCode).toBe(201);
+    const documentId = (JSON.parse(createResponse.body) as { document: { id: string } }).document
+      .id;
+
+    const maxVersions = DOCUMENT_UPLOAD_LIMITS.maxVersionsPerDocument;
+    // O alvo e a CORRIDA entre requisicoes, nao o custo de subir 49 arquivos: o teto e completado
+    // por fixture direta e as ultimas vagas sao disputadas pelo caminho HTTP real.
+    const seeded = maxVersions - 2;
+    await pool.query(
+      `INSERT INTO doc.stored_objects (id, storage_key, sha256_hash, mime_type, byte_size, original_filename)
+       SELECT gen_random_uuid(), 'seed-cap-' || $1 || '-' || g, repeat('a', 64), 'application/pdf', 10, 'seed.pdf'
+       FROM generate_series(1, $2::int) g`,
+      [documentId, seeded],
+    );
+    await pool.query(
+      `INSERT INTO doc.document_versions (document_id, version_number, stored_object_id, uploaded_by_identity_id, superseded_at)
+       SELECT $1::uuid,
+              row_number() OVER (ORDER BY storage_key)::int + 1,
+              id,
+              $2,
+              CASE WHEN row_number() OVER (ORDER BY storage_key) < $3::int THEN NOW() ELSE NULL END
+       FROM doc.stored_objects
+       WHERE storage_key LIKE 'seed-cap-' || $1::text || '-%'`,
+      [documentId, identityId, seeded],
+    );
+    await pool.query(`UPDATE doc.documents SET current_version_number = $2 WHERE id = $1`, [
+      documentId,
+      maxVersions - 1,
+    ]);
+
+    expect(await countVersions(documentId)).toBe(maxVersions - 1);
+
+    const responses = await Promise.all(
+      Array.from({ length: 4 }, () =>
+        app.inject({
+          method: 'POST',
+          url: `/api/v1/documents/${documentId}/versions`,
+          headers: {
+            authorization: `Bearer ${accessToken}`,
+            'content-type': multipart.contentType,
+          },
+          payload: multipart.body,
+        }),
+      ),
+    );
+
+    const after = await countVersions(documentId);
+    expect(after).toBeLessThanOrEqual(maxVersions);
+    expect(responses.filter((response) => response.statusCode === 201)).toHaveLength(1);
+    for (const rejected of responses.filter((response) => response.statusCode !== 201)) {
+      expect(rejected.statusCode).toBe(409);
+      expect(parseDocumentError(rejected.body).error.code).toBe(
+        DOCUMENT_ERROR_CODES.MAX_VERSIONS_REACHED,
+      );
+    }
   });
 });

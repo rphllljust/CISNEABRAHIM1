@@ -152,6 +152,9 @@ export class DocumentsAccessService {
     await this.authz.assertRecordAction(actor, AUTHZ_ACTIONS.DocumentsDocumentUploadVersion, document);
     this.assertSingleFile(file);
 
+    // Caminho rapido: recusa antes de gravar no storage quando o teto ja esta visivelmente cheio.
+    // A GARANTIA do teto e a checagem dentro da transacao (ver `persistVersion`): sozinha, esta
+    // leitura e check-then-act e duas requisicoes concorrentes conseguiam ultrapassar o limite.
     const versionCount = await this.documentsRepository.countVersions(documentId);
     if (versionCount >= MAX_VERSIONS_PER_DOCUMENT) {
       throw documentsMaxVersionsReached();
@@ -170,22 +173,32 @@ export class DocumentsAccessService {
       throw documentsFileValidationError(validation.reason);
     }
 
-    const persisted = await createPersistWithCompensation(
-      this.objectStorage,
-      this.downloadTokens,
-      this.documentsRepository,
-      {
-        documentId,
-        categoryCode: document.category_code,
-        classificationCode: document.classification_code,
-        unitId: document.unit_id,
-        actorIdentityId: actor.identityId,
-        sha256: validation.sha256,
-        mimeType: validation.mime,
-        originalFilename: file.filename,
-        buffer: file.buffer,
-      },
-    );
+    let persisted: { documentId: string; versionNumber: number };
+    try {
+      persisted = await createPersistWithCompensation(
+        this.objectStorage,
+        this.downloadTokens,
+        this.documentsRepository,
+        {
+          documentId,
+          categoryCode: document.category_code,
+          classificationCode: document.classification_code,
+          unitId: document.unit_id,
+          actorIdentityId: actor.identityId,
+          sha256: validation.sha256,
+          mimeType: validation.mime,
+          originalFilename: file.filename,
+          buffer: file.buffer,
+        },
+      );
+    } catch (error) {
+      // Teto decidido na transacao sob concorrencia: o cliente recebe o codigo do contrato do
+      // modulo (409 MAX_VERSIONS_REACHED), e a compensacao ja removeu o objeto gravado.
+      if (error instanceof Error && error.message === 'DOCUMENT_MAX_VERSIONS_REACHED') {
+        throw documentsMaxVersionsReached();
+      }
+      throw error;
+    }
 
     const version = await this.documentsRepository.findVersion(
       persisted.documentId,

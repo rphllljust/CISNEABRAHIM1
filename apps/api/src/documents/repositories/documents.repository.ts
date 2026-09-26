@@ -5,6 +5,7 @@ import { DatabaseService } from '../../infrastructure/database/database.service'
 import { queryIsUnitRegistered } from '../../infrastructure/database/reference-lookups';
 import type { DocumentStatus } from '../domain/document-categories';
 import type { AllowedMimeType } from '../domain/document-categories';
+import { MAX_VERSIONS_PER_DOCUMENT } from '../domain/document-categories';
 
 export type DocumentRow = {
   id: string;
@@ -266,6 +267,27 @@ export class DocumentsRepository {
         );
         const current = existing.rows[0]?.current_version_number ?? 0;
         versionNumber = current + 1;
+
+        // Teto de versoes decidido DENTRO da transacao, DEPOIS do lock da linha do documento.
+        //
+        // Antes desta checagem a decisao vivia so fora da transacao (check-then-act): duas
+        // requisicoes concorrentes liam o mesmo total e ambas entravam, criando a versao 51 de um
+        // teto de 50 (provado em e2e concorrente com PostgreSQL real).
+        //
+        // `FOR UPDATE` serializa os escritores deste documento: a segunda transacao so passa quando
+        // a primeira commita, e este COUNT (comando novo, snapshot novo em READ COMMITTED) ja ve a
+        // versao recem-commitada. A leitura no servico continua valendo como caminho rapido — nao
+        // como garantia.
+        const versionCount = await client.query<{ count: string }>(
+          `SELECT COUNT(*)::text AS count
+           FROM doc.document_versions
+           WHERE document_id = $1`,
+          [documentId],
+        );
+        if (Number(versionCount.rows[0]?.count ?? '0') >= MAX_VERSIONS_PER_DOCUMENT) {
+          throw new Error('DOCUMENT_MAX_VERSIONS_REACHED');
+        }
+
         await client.query(
           `UPDATE doc.document_versions
            SET superseded_at = NOW()
