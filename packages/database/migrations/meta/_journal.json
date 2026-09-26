@@ -554,6 +554,13 @@
                         "when":  1788568200000,
                         "tag":  "0078_workforce_member_allocation",
                         "breakpoints":  true
+                    },
+                    {
+                        "idx":  79,
+                        "version":  "7",
+                        "when":  1788654600000,
+                        "tag":  "0079_clients_list_indexes",
+                        "breakpoints":  true
                     }
                 ]
 }

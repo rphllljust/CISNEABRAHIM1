@@ -13797,3 +13797,104 @@ Formato: [severidade] [área] problema / evidência / por que não foi tratado a
 8. [P3] [tooling] `tsx` está declarado em `@cisne/api` mas o `node_modules` local não foi reinstalado após a
    mudança de `package.json`; `apps/api/node_modules/.bin/tsx` existe mas o pacote não está linkado. Afeta apenas
    o ambiente local.
+
+---
+
+## Vertical Clientes — listagem como master data central (2026-09-26)
+
+**Classificação:** Interpretação de engenharia sobre regras confirmadas (SRC-002 / BR-027, BR-029, Q06, Q14).
+
+### Problema corrigido
+
+`GET /api/v1/clients` não tinha busca, ordenação nem total — gap já registrado em
+`docs/implementation/30-clients-frontend.md`. O frontend inferia "existe próxima página" de
+`items.length === limit`, o que oferecia página fantasma quando o total era múltiplo exato do
+tamanho da página. A ordenação padrão (`created_at ASC`) empurrava todo Cliente recém-cadastrado
+para a última página. A listagem carregava contatos e endereços completos de cada linha (3 consultas
+e dois arrays aninhados por linha) para exibir 3 colunas.
+
+### Banco — índices autorizados por EXPLAIN, com índice rejeitado por medida
+
+`packages/database/migrations/0079_clients_list_indexes.sql`. Medido em PostgreSQL 18 real, 50.000
+Clientes + 56.666 endereços, banco descartável isolado (`EXPLAIN (ANALYZE, BUFFERS)`):
+
+| Sonda | Antes | Depois |
+| --- | --- | --- |
+| listagem padrão (razão social asc) | 712,6 ms | 0,59 ms |
+| status = ACTIVE + razão social asc | 509,9 ms | 0,60 ms |
+| ordenação por última atualização | 446,5 ms | 0,43 ms |
+| prefixo de CNPJ (12 dígitos) | 9,1 ms | 0,17 ms |
+
+`(status, legal_name, id)` foi **medido e rejeitado**: 1,36 ms, pior que `(legal_name, id)` sozinho
+(0,31 ms), porque ACTIVE é ~89% da base e a varredura ordenada encerra após 20 linhas. Não criado, e
+há teste que falha se for adicionado. `text_pattern_ops` é necessário porque a colação é
+`en_US.utf8`, não `C` — o único btree existente não serve `LIKE 'prefixo%'`.
+
+Invariantes existentes preservados sem alteração: `normalized_tax_id` NOT NULL + CHECK 14 dígitos +
+UNIQUE, `legal_name` não vazio, `version >= 1`, FKs `restrict`.
+
+### Semântica NÃO inventada
+
+- **CPF/PF não adicionado**: BR-028 / SRC-002 Q02 fixam Release 1 como PJ-only e CPF é
+  `NOT_IN_RELEASE_1`.
+- **Localidade removida da listagem**: SRC-002 Q14 confirma apenas as FINALIDADES de endereço
+  (`operational`/`billing`/`correspondence`); **não há regra confirmada** que eleja um endereço como
+  representante do Cliente quando há mais de um. Uma primeira versão desta frente escolhia "endereço
+  operacional, senão o mais antigo" — semântica inventada, removida antes do commit por decisão do
+  responsável. Endereços permanecem no detalhe.
+- **`createdAt` não oferecido como ordenação**: 328 ms medidos sem índice; oferecer um controle
+  sabidamente lento, ou um quarto índice para uso exclusivo dele, são ambos piores.
+
+### Contrato e compatibilidade
+
+Busca server-side por razão social, nome fantasia, CNPJ completo e **prefixo de CNPJ**, reusando o
+normalizador canônico (`normalizeSearchQuery`) com dois tratamentos próprios: prefixo de documento, e
+**nunca devolver "sem cláusula"** (isso faria a busca ser silenciosamente ignorada). Filtro inválido
+→ 400, jamais ignorado. `limit`/`offset` preservados; `total`/`totalPages` acrescentados.
+
+Varredura completa de consumidores de `GET /api/v1/clients` (não apenas o web): 9 usos nas páginas
+web, mocks de teste web, fixtures Playwright, `adversarial-security.e2e.spec.ts`,
+`performance-scenarios.ts`, `hml-smoke.ts`, `pilot-observation.ts`, `run-install-gate.mjs` e os
+leitores de `rpt.read_clients`. **Nenhum depende de `contacts`, `addresses` ou de qualquer campo
+removido** — a listagem apenas deixou de sobrecarregar; os consumidores de status/tempo não leem o
+corpo e os de `rpt.read_clients` leem a view, não o HTTP.
+
+### Defeito real encontrado pela prova
+
+O normalizador canônico classifica **qualquer termo de 7 caracteres alfanuméricos como `plate` e o
+converte para maiúsculas**. "Madeira" e "Vilhena" são palavras comuns de razão social. A busca por
+nome passou a usar o termo como digitado; `ILIKE` e trigrama são insensíveis a caixa, então o efeito
+era pesquisar um termo que o usuário não digitou.
+
+### Autorização
+
+Nenhum grant novo. Escopo continua injetado no `WHERE`, com o total escopado junto (4 Clientes
+existem, 1 visível → `total = 1`). A busca não serve de oráculo: sem grant, 403 mesmo com termo que
+casaria.
+
+### Evidência
+
+- `client-list.query.spec.ts` 35/35; `clients.integration.spec.ts` 19/19 (PostgreSQL real);
+  `clients.e2e.spec.ts` 6/6 (HTTP);
+- web `src/clients` + `src/contracts` 72/72; suíte web completa 527/527 executada antes da remoção
+  da localidade;
+- validação visual focada de Clientes (`clients.visual.spec.ts`) desktop + mobile: 4/4, baselines
+  conferidos SEM `--update-snapshots` (determinismo), incluindo invariante de ausência de estouro
+  horizontal de página em viewport estreito e tabela rolável no próprio contêiner;
+- `typecheck` 3/3 e `lint` de `@cisne/api` e `@cisne/web` sem erros.
+
+### Limitações registradas
+
+1. O agente **não consegue inspecionar as imagens** dos baselines visuais; a verificação foi por
+   asserções de DOM/geometria e por comparação de snapshot. A conferência estética humana dos 4 PNGs
+   de `clients.visual.spec.ts-snapshots/` permanece recomendada.
+2. Baselines visuais são sensíveis a plataforma (mesma dívida P3 já registrada); a comparação
+   autoritativa é o job de CI.
+3. Busca por nome planeja varredura (1,9–2,7 ms a 50k) — aceito e medido; termo de 2 caracteres não
+   gera trigrama e degrada.
+4. Offset profundo custa O(offset): 178 ms na página 1000. É a razão de não se introduzir cursor.
+5. Achado fora do escopo desta frente, **não investigado**: `release-scope.http.spec.ts` estourou
+   timeout de 5000 ms na suíte unit da API. Não há evidência de que seja preexistente.
+6. `_journal.json`, `ensure-migrations.ts` e o registro de probes de migration foram atualizados
+   porque o repositório os exige para qualquer migration nova; sem isso o gate de cobertura de probes
+   falha.

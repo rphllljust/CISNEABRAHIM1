@@ -742,6 +742,13 @@ $$;`);
       await applySqlFile(pool, '0078_workforce_member_allocation.sql');
     }
 
+    const hasClientsListIndex = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'clients_legal_name_id_idx') AS exists`,
+    );
+    if (!hasClientsListIndex.rows[0]?.exists) {
+      await applySqlFile(pool, '0079_clients_list_indexes.sql');
+    }
+
     await syncDrizzleJournal(pool);
   } finally {
     await pool.end();

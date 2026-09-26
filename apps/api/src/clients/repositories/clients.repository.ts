@@ -5,13 +5,14 @@ import { FAULT_HOOKS } from '../../platform/fault-injection/fault-hook.ids';
 import { FAULT_INJECTION_PORT, type FaultInjectionPort } from '../../platform/fault-injection/fault-injection.port';
 import { maybeInjectFault } from '../../platform/fault-injection/fault-injection.util';
 import type { AddressPurpose, ContactPurpose, PurchaseOrderRequirement } from '../domain/client-status';
+import type { ClientListSqlParts } from '../domain/client-list.query';
 import type {
   ClientAddressRow,
   ClientContactRow,
   ClientDetail,
   ClientRow,
+  ClientSummaryRow,
 } from '../serializers/client-response.serializer';
-import { groupRowsByKey } from '../../infrastructure/database/sql';
 
 export type CreateClientPersistenceInput = {
   legalName: string;
@@ -62,6 +63,22 @@ const CLIENT_COLUMNS = `id,
               deactivation_reason,
               COALESCE(purchase_order_requirement::text, 'NOT_REQUIRED') AS purchase_order_requirement`;
 
+/**
+ * Projeção de listagem: apenas a tabela de Clientes.
+ *
+ * Sem junção de endereços. `pty.client_addresses` permite várias linhas por Cliente com finalidades
+ * distintas (`operational`/`billing`/`correspondence`) e não existe regra empresarial confirmada
+ * que eleja um endereço como "a" localidade do Cliente — eleger um seria inventar semântica de
+ * negócio. Contatos e endereços permanecem disponíveis no detalhe (`GET /api/v1/clients/:id`).
+ */
+const CLIENT_SUMMARY_COLUMNS = `c.id,
+              c.legal_name,
+              c.trade_name,
+              c.normalized_tax_id,
+              c.status,
+              c.created_at,
+              c.updated_at`;
+
 @Injectable()
 export class ClientsRepository {
   constructor(
@@ -111,61 +128,35 @@ export class ClientsRepository {
     return this.loadChildren(row);
   }
 
-  async list(
-    whereClause: string,
-    params: unknown[],
+  async listSummaries(
+    sqlParts: ClientListSqlParts,
     limit: number,
     offset: number,
-  ): Promise<ClientRow[]> {
-    const result = await this.pool().query<ClientRow>(
-      `SELECT ${CLIENT_COLUMNS}
-       FROM pty.clients
-       WHERE ${whereClause}
-       ORDER BY created_at ASC, id ASC
-       LIMIT $${params.length + 1}
-       OFFSET $${params.length + 2}`,
-      [...params, limit, offset],
+  ): Promise<ClientSummaryRow[]> {
+    const result = await this.pool().query<ClientSummaryRow>(
+      `SELECT ${CLIENT_SUMMARY_COLUMNS}
+       FROM pty.clients c
+       WHERE ${sqlParts.whereClause}
+       ORDER BY ${sqlParts.orderBy}
+       LIMIT $${sqlParts.params.length + 1}
+       OFFSET $${sqlParts.params.length + 2}`,
+      [...sqlParts.params, limit, offset],
     );
     return result.rows;
   }
 
-  async listWithDetails(
-    whereClause: string,
-    params: unknown[],
-    limit: number,
-    offset: number,
-  ): Promise<ClientDetail[]> {
-    const rows = await this.list(whereClause, params, limit, offset);
-    if (rows.length === 0) {
-      return [];
-    }
-
-    const clientIds = rows.map((row) => row.id);
-    const [contactsResult, addressesResult] = await Promise.all([
-      this.pool().query<ClientContactRow & { client_id: string }>(
-        `SELECT client_id, id, name, purpose, email, phone
-         FROM pty.client_contacts
-         WHERE client_id = ANY($1::uuid[])
-         ORDER BY client_id, created_at ASC, id ASC`,
-        [clientIds],
-      ),
-      this.pool().query<ClientAddressRow & { client_id: string }>(
-        `SELECT client_id, id, purpose, street, number, complement, district, city, state, postal_code, country
-         FROM pty.client_addresses
-         WHERE client_id = ANY($1::uuid[])
-         ORDER BY client_id, created_at ASC, id ASC`,
-        [clientIds],
-      ),
-    ]);
-
-    const contactsByClient = groupRowsByKey(contactsResult.rows, 'client_id');
-    const addressesByClient = groupRowsByKey(addressesResult.rows, 'client_id');
-
-    return rows.map((row) => ({
-      ...row,
-      contacts: (contactsByClient.get(row.id) ?? []).map(({ client_id: _clientId, ...contact }) => contact),
-      addresses: (addressesByClient.get(row.id) ?? []).map(({ client_id: _clientId, ...address }) => address),
-    }));
+  /**
+   * Total de Clientes sob o MESMO predicado da página — nunca uma contagem aproximada nem uma
+   * consulta com junções.
+   */
+  async countClientList(whereClause: string, params: unknown[]): Promise<number> {
+    const result = await this.pool().query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total
+       FROM pty.clients c
+       WHERE ${whereClause}`,
+      params,
+    );
+    return Number(result.rows[0]?.total ?? '0');
   }
 
   async create(

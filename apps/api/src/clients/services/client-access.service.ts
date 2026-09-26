@@ -30,7 +30,17 @@ import { ClientHttpException } from '../errors/client-http.exception';
 import { mapValidationCodeToStatus } from '../errors/client-validation-status';
 import { ClientsRepository } from '../repositories/clients.repository';
 import { CLIENT_STATUSES } from '../domain/client-status';
-import { toClientResponse, type ClientResponse } from '../serializers/client-response.serializer';
+import {
+  buildClientListSqlParts,
+  resolveClientListQuery,
+  type ClientListRequest,
+} from '../domain/client-list.query';
+import {
+  toClientResponse,
+  toClientSummaryResponse,
+  type ClientListResponse,
+  type ClientResponse,
+} from '../serializers/client-response.serializer';
 import type {
   CommercialClientPort,
   CommercialClientView,
@@ -119,10 +129,7 @@ export class ClientAccessService implements CommercialClientPort {
     return toClientResponse(client);
   }
 
-  async list(
-    actor: IdentityAuthzContext,
-    query: { limit: number; offset: number; status?: 'ACTIVE' | 'INACTIVE' },
-  ): Promise<{ items: ClientResponse[]; limit: number; offset: number }> {
+  async list(actor: IdentityAuthzContext, request: ClientListRequest): Promise<ClientListResponse> {
     const grants = await this.authorizationRepository.findActiveGrants(
       actor.identityId,
       AUTHZ_ACTIONS.ClientList,
@@ -137,24 +144,27 @@ export class ClientAccessService implements CommercialClientPort {
       throw this.denied();
     }
 
-    const clauses = [scopeFilter.clause];
-    const params = [...scopeFilter.params];
-    if (query.status) {
-      clauses.push(`status = $${params.length + 1}`);
-      params.push(query.status);
-    }
+    const query = resolveClientListQuery(request);
+    const sqlParts = buildClientListSqlParts(query, scopeFilter);
 
-    const items = await this.clientsRepository.listWithDetails(
-      clauses.join(' AND '),
-      params,
-      query.limit,
-      query.offset,
-    );
+    const items = await this.clientsRepository.listSummaries(sqlParts, query.limit, query.offset);
+
+    /**
+     * Primeira página incompleta prova que o conjunto acabou: não há linha alguma depois dela, logo
+     * o total é exatamente o que foi devolvido. Evita o COUNT quando ele seria redundante, sem
+     * nunca devolver um total aproximado quando a página está cheia.
+     */
+    const total =
+      query.offset === 0 && items.length < query.limit
+        ? items.length
+        : await this.clientsRepository.countClientList(sqlParts.whereClause, sqlParts.params);
 
     return {
-      items: items.map(toClientResponse),
+      items: items.map(toClientSummaryResponse),
       limit: query.limit,
       offset: query.offset,
+      total,
+      totalPages: Math.ceil(total / query.limit),
     };
   }
 

@@ -121,6 +121,7 @@ const MIGRATION_EFFECT_CHECKS = {
   '0078_workforce_member_allocation': {
     column: ['res', 'resource_allocations', 'workforce_member_id'],
   },
+  '0079_clients_list_indexes': { index: 'clients_legal_name_id_idx' },
 };
 
 /**

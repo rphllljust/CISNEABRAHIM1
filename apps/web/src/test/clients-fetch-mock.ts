@@ -1,10 +1,14 @@
 import { vi } from 'vitest';
 import { parseRequestPath } from './request-url';
 import {
+  CLIENT_LIST_DIRECTIONS,
+  CLIENT_LIST_SORTS,
   CLIENT_STATUSES,
   CONTACT_PURPOSES,
   PURCHASE_ORDER_REQUIREMENTS,
   type Client,
+  type ClientListResponse,
+  type ClientSummary,
 } from '../clients/types/client.types';
 import { createShellFetchMock, MOCK_IDENTITY_ID, MOCK_SESSION_ID } from './shell-fetch-mock';
 
@@ -15,6 +19,12 @@ export type ClientsFetchMockOptions = {
   clientUpdateAllowed?: boolean;
   clientDeactivateAllowed?: boolean;
   clientActivateAllowed?: boolean;
+  /**
+   * Catálogo usado pelo mock. Quando omitido, vale o Cliente de demonstração. Testes de busca,
+   * filtro e ordenação fornecem o próprio catálogo — o mock NÃO inventa dados diferentes dos que o
+   * teste declarou.
+   */
+  clients?: Client[];
 };
 
 function clientError(code: string, status: number): Response {
@@ -33,6 +43,86 @@ function jsonResponse(body: unknown, status = 200): Response {
   } as Response;
 }
 
+/** Projeção de listagem equivalente à do backend: sem contatos, sem endereços, sem localidade. */
+function toSummary(client: Client): ClientSummary {
+  return {
+    id: client.id,
+    legalName: client.legalName,
+    tradeName: client.tradeName,
+    taxId: client.taxId,
+    status: client.status,
+    createdAt: client.createdAt,
+    updatedAt: client.updatedAt,
+  };
+}
+
+/**
+ * Replica a semântica de `GET /api/v1/clients` para que os testes de UI exercitem o mesmo contrato
+ * que o backend publica: busca server-side por nome/CNPJ (inclusive prefixo de documento), filtros,
+ * ordenação com desempate por `id` e paginação com `total`/`totalPages`.
+ */
+export function applyClientListQuery(
+  store: Client[],
+  searchParams: URLSearchParams,
+): ClientListResponse {
+  const limit = Number(searchParams.get('limit') ?? '20');
+  const offset = Number(searchParams.get('offset') ?? '0');
+  const status = searchParams.get('status');
+  const requirement = searchParams.get('purchaseOrderRequirement');
+  const q = searchParams.get('q')?.trim() ?? '';
+  const sort = searchParams.get('sort') ?? CLIENT_LIST_SORTS.LegalName;
+  const direction = searchParams.get('direction') ?? CLIENT_LIST_DIRECTIONS.Asc;
+
+  let items = [...store];
+
+  if (status === CLIENT_STATUSES.Active || status === CLIENT_STATUSES.Inactive) {
+    items = items.filter((client) => client.status === status);
+  }
+  if (requirement && (Object.values(PURCHASE_ORDER_REQUIREMENTS) as string[]).includes(requirement)) {
+    items = items.filter((client) => client.purchaseOrderRequirement === requirement);
+  }
+  if (q.length > 0) {
+    const digits = q.replace(/\D/g, '');
+    const isDocumentOnly = /^[\d.\-/\s]+$/.test(q);
+    const lowered = q.toLowerCase();
+
+    items = items.filter((client) => {
+      if (isDocumentOnly && digits.length >= 2 && digits.length < 14) {
+        return client.taxId.startsWith(digits);
+      }
+      if (digits.length === 14) {
+        return client.taxId === digits;
+      }
+      if (client.id === lowered) {
+        return true;
+      }
+      return (
+        client.legalName.toLowerCase().includes(lowered) ||
+        (client.tradeName ?? '').toLowerCase().includes(lowered)
+      );
+    });
+  }
+
+  const factor = direction === CLIENT_LIST_DIRECTIONS.Desc ? -1 : 1;
+  items.sort((left, right) => {
+    const column = sort === CLIENT_LIST_SORTS.UpdatedAt ? 'updatedAt' : 'legalName';
+    const byColumn = left[column].localeCompare(right[column]) * factor;
+    if (byColumn !== 0) {
+      return byColumn;
+    }
+    return left.id.localeCompare(right.id) * factor;
+  });
+
+  const total = items.length;
+  return {
+    items: items.slice(offset, offset + limit).map(toSummary),
+    limit,
+    offset,
+    total,
+    totalPages: limit > 0 ? Math.ceil(total / limit) : 0,
+  };
+}
+
 export function createClientsFetchMock(options: ClientsFetchMockOptions = {}) {
   const shellMock = createShellFetchMock({ probeAllowed: options.probeAllowed });
   const listAllowed = options.clientListAllowed ?? true;
@@ -41,7 +131,7 @@ export function createClientsFetchMock(options: ClientsFetchMockOptions = {}) {
   const deactivateAllowed = options.clientDeactivateAllowed ?? true;
   const activateAllowed = options.clientActivateAllowed ?? true;
 
-  const store: Client[] = [
+  const store: Client[] = options.clients ? [...options.clients] : [
     {
       id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       legalName: 'Cliente Demo LTDA',
@@ -85,18 +175,7 @@ export function createClientsFetchMock(options: ClientsFetchMockOptions = {}) {
       if (!listAllowed) {
         return clientError('CLIENT_DENIED', 403);
       }
-      const limit = Number(searchParams.get('limit') ?? '20');
-      const offset = Number(searchParams.get('offset') ?? '0');
-      const status = searchParams.get('status');
-      let items = [...store];
-      if (status === CLIENT_STATUSES.Active || status === CLIENT_STATUSES.Inactive) {
-        items = items.filter((client) => client.status === status);
-      }
-      return jsonResponse({
-        items: items.slice(offset, offset + limit),
-        limit,
-        offset,
-      });
+      return jsonResponse(applyClientListQuery(store, searchParams));
     }
 
     if (pathname === '/api/v1/clients' && method === 'POST') {

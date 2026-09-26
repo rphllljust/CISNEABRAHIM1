@@ -7,8 +7,9 @@ import {
   PROBE_SERVICE_ORDER_ID,
 } from './constants';
 import { handleCommercialApiRoute } from './commercial-api-routes';
+import { handleClientsApiRoute } from './clients-api-routes';
 
-export type ApiMockProfile = 'shell' | 'dashboard' | 'billing-empty' | 'commercial';
+export type ApiMockProfile = 'shell' | 'dashboard' | 'billing-empty' | 'commercial' | 'clients';
 
 type RouteContext = {
   profile: ApiMockProfile;
@@ -92,6 +93,10 @@ async function handleApiRoute(route: Route, context: RouteContext): Promise<void
   }
 
   if (context.profile === 'commercial' && (await handleCommercialApiRoute(route))) {
+    return;
+  }
+
+  if (context.profile === 'clients' && (await handleClientsApiRoute(route))) {
     return;
   }
 

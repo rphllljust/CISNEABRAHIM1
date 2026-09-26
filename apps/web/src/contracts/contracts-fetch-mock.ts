@@ -138,6 +138,9 @@ export function createContractsFetchMock(options: ContractsFetchMockOptions = {}
           ],
           limit: 100,
           offset: 0,
+          // `total`/`totalPages` fazem parte do contrato publicado da listagem de Clientes.
+          total: 1,
+          totalPages: 1,
         });
       }
 

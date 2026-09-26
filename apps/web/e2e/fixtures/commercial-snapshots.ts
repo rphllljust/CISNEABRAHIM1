@@ -44,9 +44,21 @@ const VISUAL_CLIENT: Client = {
 };
 
 export const COMMERCIAL_CLIENTS_SNAPSHOT: ClientListResponse = {
-  items: [VISUAL_CLIENT],
+  items: [
+    {
+      id: VISUAL_CLIENT.id,
+      legalName: VISUAL_CLIENT.legalName,
+      tradeName: VISUAL_CLIENT.tradeName,
+      taxId: VISUAL_CLIENT.taxId,
+      status: VISUAL_CLIENT.status,
+      createdAt: VISUAL_CLIENT.createdAt,
+      updatedAt: VISUAL_CLIENT.updatedAt,
+    },
+  ],
   limit: 100,
   offset: 0,
+  total: 1,
+  totalPages: 1,
 };
 
 const VISUAL_PROPOSAL: Proposal = {

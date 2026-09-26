@@ -1,12 +1,42 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ClientsApiError, listClients } from '../api/clients-api';
 import { mapClientErrorToMessage } from '../api/client-error-messages';
 import { ClientStatusBadge } from '../components/ClientStatusBadge';
 import { useClientCapabilities } from '../hooks/useClientCapabilities';
-import { CLIENT_STATUSES, type Client, type ClientStatus } from '../types/client.types';
+import {
+  CLIENT_LIST_SORTS,
+  CLIENT_STATUSES,
+  PURCHASE_ORDER_REQUIREMENTS,
+  type ClientListResponse,
+  type ClientListSort,
+  type ClientSummary,
+} from '../types/client.types';
 import { formatCnpjDisplay } from '../utils/format-cnpj';
 import {
-  FilterCard,
+  buildClientListSearchParams,
+  EMPTY_CLIENT_LIST_PARAMS,
+  hasActiveClientListFilters,
+  parseClientListParams,
+  toggleClientListSort,
+  type ClientListParams,
+} from '../utils/client-list-params';
+import {
+  formatClientCount,
+  formatClientListDateTime,
+  formatClientRangeLabel,
+  formatPurchaseOrderRequirement,
+} from '../utils/client-list-labels';
+import { Button } from '../../ui/Button';
+import {
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeaderCell,
+  DataTableRow,
+} from '../../ui/DataTable';
+import {
   ModuleDeniedState,
   ModuleErrorState,
   ModuleLoadingState,
@@ -14,48 +44,109 @@ import {
   ModulePageHeader,
   ModulePagination,
   ModulePrimaryLink,
-  ModuleTableCard,
   ModuleTableLink,
   filterControlClass,
   filterLabelClass,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
 } from '../../ui/module-layout';
 
 const PAGE_SIZE = 20;
+
+/**
+ * Atraso da busca digitada. Sem ele, cada tecla dispararia uma requisição server-side; com ele, a
+ * lista continua parecendo instantânea sem transformar a digitação em carga de rede.
+ */
+const SEARCH_DEBOUNCE_MS = 300;
 
 type ListState =
   | { phase: 'loading' }
   | { phase: 'denied' }
   | { phase: 'error'; message: string; retryable: boolean }
-  | { phase: 'ready'; items: Client[]; offset: number; hasMore: boolean };
+  | { phase: 'ready'; response: ClientListResponse };
+
+type SortColumn = ClientListSort;
+
+function ariaSortFor(
+  filters: ClientListParams,
+  column: SortColumn,
+): 'ascending' | 'descending' | 'none' {
+  if (filters.sort !== column) {
+    return 'none';
+  }
+  return filters.direction === 'asc' ? 'ascending' : 'descending';
+}
+
+function sortIndicator(filters: ClientListParams, column: SortColumn): string {
+  if (filters.sort !== column) {
+    return '';
+  }
+  return filters.direction === 'asc' ? '↑' : '↓';
+}
 
 export function ClientsListPage() {
   const { capabilities } = useClientCapabilities();
-  const [statusFilter, setStatusFilter] = useState<'' | ClientStatus>('');
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Busca, filtros, ordenação e página vivem na URL: recarregar não perde contexto, o botão
+  // voltar funciona e o endereço é compartilhável.
+  const filters = useMemo(() => parseClientListParams(searchParams), [searchParams]);
+  const offset = useMemo(() => {
+    const raw = Number(searchParams.get('offset') ?? '0');
+    return Number.isInteger(raw) && raw > 0 ? raw : 0;
+  }, [searchParams]);
+
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
+  const [searchInput, setSearchInput] = useState(filters.q);
+  const [showMoreFilters, setShowMoreFilters] = useState(
+    () => filters.purchaseOrderRequirement !== '',
+  );
+  const searchInputId = useId();
+  const statusFilterId = useId();
+  const requirementFilterId = useId();
+
+  // O campo de busca é local para responder à digitação; a URL é atualizada depois do debounce.
+  // Sincroniza quando a URL muda por fora (voltar/avançar, link colado).
+  useEffect(() => {
+    setSearchInput(filters.q);
+  }, [filters.q]);
+
+  const applyFilters = useCallback(
+    (next: Partial<ClientListParams>) => {
+      const merged = { ...filters, ...next };
+      // Toda mudança de filtro/ordenação volta para a primeira página, e substitui a entrada de
+      // histórico para que ajustar filtros não encha o botão voltar.
+      setSearchParams(buildClientListSearchParams(merged, 0), { replace: true });
+    },
+    [filters, setSearchParams],
+  );
+
+  useEffect(() => {
+    if (searchInput === filters.q) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      applyFilters({ q: searchInput });
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [applyFilters, filters.q, searchInput]);
 
   const loadPage = useCallback(
-    async (offset: number, signal?: AbortSignal) => {
+    async (activeFilters: ClientListParams, pageOffset: number, signal?: AbortSignal) => {
       setListState({ phase: 'loading' });
       try {
         const response = await listClients(
           {
             limit: PAGE_SIZE,
-            offset,
-            status: statusFilter || undefined,
+            offset: pageOffset,
+            q: activeFilters.q.trim() || undefined,
+            status: activeFilters.status || undefined,
+            purchaseOrderRequirement: activeFilters.purchaseOrderRequirement || undefined,
+            sort: activeFilters.sort,
+            direction: activeFilters.direction,
           },
           signal,
         );
-        setListState({
-          phase: 'ready',
-          items: response.items,
-          offset: response.offset,
-          hasMore: response.items.length === response.limit,
-        });
+        setListState({ phase: 'ready', response });
       } catch (error) {
         if (error instanceof ClientsApiError) {
           if (error.kind === 'denied') {
@@ -76,14 +167,14 @@ export function ClientsListPage() {
         });
       }
     },
-    [statusFilter],
+    [],
   );
 
   useEffect(() => {
     const controller = new AbortController();
-    void loadPage(0, controller.signal);
+    void loadPage(filters, offset, controller.signal);
     return () => controller.abort();
-  }, [loadPage]);
+  }, [filters, loadPage, offset]);
 
   if (listState.phase === 'loading') {
     return (
@@ -97,9 +188,9 @@ export function ClientsListPage() {
     return (
       <ModulePage>
         <ModuleDeniedState
-        title="Clientes"
-        message="Você não tem permissão para listar Clientes."
-      />
+          title="Clientes"
+          message="Você não tem permissão para listar Clientes."
+        />
       </ModulePage>
     );
   }
@@ -108,22 +199,38 @@ export function ClientsListPage() {
     return (
       <ModulePage>
         <ModuleErrorState
-        title="Clientes"
-        message={listState.message}
-        retryable={listState.retryable}
-        onRetry={() => void loadPage(0)}
-      />
+          title="Clientes"
+          message={listState.message}
+          retryable={listState.retryable}
+          onRetry={() => void loadPage(filters, offset)}
+        />
       </ModulePage>
     );
   }
 
-  const { items, offset, hasMore } = listState;
+  const { items, total, totalPages } = listState.response;
+  const hasFilters = hasActiveClientListFilters(filters);
+  const hasCatalog = total > 0;
+  // Página além do fim: o cadastro tem Clientes, mas a página pedida não existe mais (filtro
+  // aplicado em outra aba, link antigo). Não é "nenhum resultado" — é página inexistente.
+  const isOutOfRange = items.length === 0 && total > 0;
   const pageNumber = Math.floor(offset / PAGE_SIZE) + 1;
+  const isEmptyCatalogue = items.length === 0 && total === 0 && !hasFilters;
+  const isNoResults = items.length === 0 && total === 0 && hasFilters;
+
+  const navigateToClient = capabilities.canRead
+    ? (client: ClientSummary) => `/app/clients/${client.id}`
+    : null;
 
   return (
     <ModulePage>
       <ModulePageHeader
         title="Clientes"
+        description={
+          hasCatalog
+            ? `${formatClientCount(total)} ${total === 1 ? 'Cliente' : 'Clientes'} no seu escopo autorizado${hasFilters ? ' para os filtros aplicados' : ''}.`
+            : 'Cadastro de Clientes do CISNE.'
+        }
         action={
           capabilities.canCreate ? (
             <ModulePrimaryLink to="/app/clients/new">Novo Cliente</ModulePrimaryLink>
@@ -131,70 +238,279 @@ export function ClientsListPage() {
         }
       />
 
-      <FilterCard>
-        <label className={filterLabelClass} htmlFor="client-status-filter">
-          Status
-        </label>
-        <select
-          id="client-status-filter"
-          className={`${filterControlClass} max-w-xs`}
-          value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value as '' | ClientStatus)}
+      {/* Barra de filtros compacta: a busca fica junto da lista, e não dentro de um card largo
+          ocupado apenas por um seletor de status. */}
+      <div
+        role="search"
+        aria-label="Busca e filtros de Clientes"
+        className="mb-4 flex flex-wrap items-end gap-3"
+      >
+        <div className="min-w-64 flex-1">
+          <label className={filterLabelClass} htmlFor={searchInputId}>
+            Buscar
+          </label>
+          <input
+            id={searchInputId}
+            type="search"
+            className={filterControlClass}
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            placeholder="Razão social, nome fantasia ou CNPJ"
+            autoComplete="off"
+          />
+        </div>
+
+        <div className="w-44">
+          <label className={filterLabelClass} htmlFor={statusFilterId}>
+            Status
+          </label>
+          <select
+            id={statusFilterId}
+            className={filterControlClass}
+            value={filters.status}
+            onChange={(event) =>
+              applyFilters({ status: event.target.value as ClientListParams['status'] })
+            }
+          >
+            <option value="">Todos</option>
+            <option value={CLIENT_STATUSES.Active}>Ativos</option>
+            <option value={CLIENT_STATUSES.Inactive}>Inativos</option>
+          </select>
+        </div>
+
+        <Button
+          type="button"
+          variant="secondary"
+          aria-expanded={showMoreFilters}
+          onClick={() => setShowMoreFilters((current) => !current)}
         >
-          <option value="">Todos</option>
-          <option value={CLIENT_STATUSES.Active}>Ativos</option>
-          <option value={CLIENT_STATUSES.Inactive}>Inativos</option>
-        </select>
-      </FilterCard>
+          {showMoreFilters ? 'Menos filtros' : 'Mais filtros'}
+        </Button>
 
-      {items.length === 0 ? (
-        <p className="text-sm text-gray-500" role="status">
-          Nenhum Cliente encontrado para os filtros selecionados.
-        </p>
-      ) : (
-        <ModuleTableCard>
-          <table className={moduleTableClass} aria-label="Lista de Clientes">
-            <thead className={moduleTableHeadClass}>
-              <tr>
-                <th scope="col" className={moduleTableHeaderCellClass}>
-                  Razão social
-                </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
-                  CNPJ
-                </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
-                  Status
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {items.map((client) => (
-                <tr key={client.id} className={moduleTableRowClass}>
-                  <td className={moduleTableCellClass}>
-                    <ModuleTableLink to={`/app/clients/${client.id}`}>
-                      {client.legalName}
-                    </ModuleTableLink>
-                  </td>
-                  <td className={`${moduleTableCellClass} font-mono tabular-nums text-gray-600`}>
-                    {formatCnpjDisplay(client.taxId)}
-                  </td>
-                  <td className={moduleTableCellClass}>
-                    <ClientStatusBadge status={client.status} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </ModuleTableCard>
-      )}
+        {hasFilters ? (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              setSearchInput('');
+              setSearchParams(buildClientListSearchParams(EMPTY_CLIENT_LIST_PARAMS), {
+                replace: true,
+              });
+            }}
+          >
+            Limpar
+          </Button>
+        ) : null}
+      </div>
 
-      <ModulePagination
-        pageNumber={pageNumber}
-        previousDisabled={offset === 0}
-        nextDisabled={!hasMore}
-        onPrevious={() => void loadPage(Math.max(0, offset - PAGE_SIZE))}
-        onNext={() => void loadPage(offset + PAGE_SIZE)}
-      />
+      {showMoreFilters ? (
+        <div className="mb-4 w-full max-w-md">
+          <label className={filterLabelClass} htmlFor={requirementFilterId}>
+            Exigência de pedido de compra
+          </label>
+          <select
+            id={requirementFilterId}
+            className={filterControlClass}
+            value={filters.purchaseOrderRequirement}
+            onChange={(event) =>
+              applyFilters({
+                purchaseOrderRequirement: event.target
+                  .value as ClientListParams['purchaseOrderRequirement'],
+              })
+            }
+          >
+            <option value="">Todas</option>
+            {Object.values(PURCHASE_ORDER_REQUIREMENTS).map((requirement) => (
+              <option key={requirement} value={requirement}>
+                {formatPurchaseOrderRequirement(requirement)}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+
+      {isEmptyCatalogue ? (
+        <div
+          className="rounded-xl bg-white p-6 text-sm text-gray-600 shadow-sm ring-1 ring-gray-900/5"
+          role="status"
+        >
+          <p className="font-semibold text-gray-900">Nenhum Cliente cadastrado ainda.</p>
+          <p className="mt-2">
+            Os Clientes são a contraparte comercial usada por solicitações, propostas, pedidos de
+            compra, ordens de serviço e faturamento. Cadastre o primeiro para começar.
+          </p>
+          {capabilities.canCreate ? (
+            <p className="mt-4">
+              <ModulePrimaryLink to="/app/clients/new">Cadastrar Cliente</ModulePrimaryLink>
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {isNoResults ? (
+        <div
+          className="rounded-xl bg-white p-6 text-sm text-gray-600 shadow-sm ring-1 ring-gray-900/5"
+          role="status"
+        >
+          <p className="font-semibold text-gray-900">
+            Nenhum Cliente corresponde aos filtros aplicados.
+          </p>
+          <p className="mt-2">
+            Ajuste o termo de busca ou limpe os filtros para ver o cadastro completo.
+          </p>
+          <p className="mt-4">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setSearchInput('');
+                setSearchParams(buildClientListSearchParams(EMPTY_CLIENT_LIST_PARAMS), {
+                  replace: true,
+                });
+              }}
+            >
+              Limpar filtros
+            </Button>
+          </p>
+        </div>
+      ) : null}
+
+      {isOutOfRange ? (
+        <div
+          className="rounded-xl bg-white p-6 text-sm text-gray-600 shadow-sm ring-1 ring-gray-900/5"
+          role="status"
+        >
+          <p className="font-semibold text-gray-900">
+            Esta página não existe mais para os filtros aplicados.
+          </p>
+          <p className="mt-2">
+            Existem {formatClientCount(total)} {total === 1 ? 'Cliente' : 'Clientes'} no total, em{' '}
+            {formatClientCount(totalPages)} {totalPages === 1 ? 'página' : 'páginas'}.
+          </p>
+          <p className="mt-4">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setSearchParams(buildClientListSearchParams(filters, 0))}
+            >
+              Ir para a primeira página
+            </Button>
+          </p>
+        </div>
+      ) : null}
+
+      {items.length > 0 ? (
+        <div className="mb-6 overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-gray-900/5">
+          <DataTable aria-label="Lista de Clientes">
+            <DataTableHead>
+              <DataTableRow>
+                <DataTableHeaderCell
+                  scope="col"
+                  aria-sort={ariaSortFor(filters, CLIENT_LIST_SORTS.LegalName)}
+                >
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 font-semibold uppercase hover:text-gray-700"
+                    onClick={() =>
+                      applyFilters(toggleClientListSort(filters, CLIENT_LIST_SORTS.LegalName))
+                    }
+                  >
+                    Cliente
+                    <span aria-hidden="true">
+                      {sortIndicator(filters, CLIENT_LIST_SORTS.LegalName)}
+                    </span>
+                  </button>
+                </DataTableHeaderCell>
+                <DataTableHeaderCell scope="col">Documento</DataTableHeaderCell>
+                <DataTableHeaderCell scope="col">Status</DataTableHeaderCell>
+                <DataTableHeaderCell
+                  scope="col"
+                  aria-sort={ariaSortFor(filters, CLIENT_LIST_SORTS.UpdatedAt)}
+                >
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 font-semibold uppercase hover:text-gray-700"
+                    onClick={() =>
+                      applyFilters(toggleClientListSort(filters, CLIENT_LIST_SORTS.UpdatedAt))
+                    }
+                  >
+                    Última atualização
+                    <span aria-hidden="true">
+                      {sortIndicator(filters, CLIENT_LIST_SORTS.UpdatedAt)}
+                    </span>
+                  </button>
+                </DataTableHeaderCell>
+              </DataTableRow>
+            </DataTableHead>
+            <DataTableBody>
+              {items.map((client) => {
+                const href = navigateToClient ? navigateToClient(client) : null;
+                return (
+                  <DataTableRow
+                    key={client.id}
+                    className={href ? 'cursor-pointer' : undefined}
+                    onClick={
+                      href
+                        ? (event) => {
+                            // Cliques em elementos interativos internos seguem seu próprio
+                            // comportamento; o resto da linha abre o Cliente. O link do nome
+                            // permanece como caminho de teclado e de tecnologia assistiva.
+                            if ((event.target as HTMLElement).closest('a, button, select, input')) {
+                              return;
+                            }
+                            void navigate(href);
+                          }
+                        : undefined
+                    }
+                  >
+                    <DataTableCell>
+                      <div className="flex flex-col">
+                        {href ? (
+                          <ModuleTableLink to={href}>{client.legalName}</ModuleTableLink>
+                        ) : (
+                          <span className="text-sm font-semibold text-gray-900">
+                            {client.legalName}
+                          </span>
+                        )}
+                        {client.tradeName ? (
+                          <span className="text-xs text-gray-500">{client.tradeName}</span>
+                        ) : null}
+                      </div>
+                    </DataTableCell>
+                    <DataTableCell className="font-mono tabular-nums text-gray-600">
+                      {formatCnpjDisplay(client.taxId)}
+                    </DataTableCell>
+                    <DataTableCell>
+                      <ClientStatusBadge status={client.status} />
+                    </DataTableCell>
+                    <DataTableCell className="whitespace-nowrap text-gray-600">
+                      {formatClientListDateTime(client.updatedAt)}
+                    </DataTableCell>
+                  </DataTableRow>
+                );
+              })}
+            </DataTableBody>
+          </DataTable>
+        </div>
+      ) : null}
+
+      {hasCatalog || offset > 0 ? (
+        <ModulePagination
+          pageNumber={pageNumber}
+          rangeLabel={`Clientes ${formatClientRangeLabel(offset, items.length, total)}`}
+          previousDisabled={offset === 0}
+          // "Existe próxima página" vem do total informado pelo backend, e não da heurística
+          // "a página veio cheia" — que oferecia uma página fantasma quando o total era múltiplo
+          // exato do tamanho da página.
+          nextDisabled={offset + items.length >= total}
+          onPrevious={() =>
+            setSearchParams(
+              buildClientListSearchParams(filters, Math.max(0, offset - PAGE_SIZE)),
+            )
+          }
+          onNext={() => setSearchParams(buildClientListSearchParams(filters, offset + PAGE_SIZE))}
+        />
+      ) : null}
     </ModulePage>
   );
 }

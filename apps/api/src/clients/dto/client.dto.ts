@@ -8,6 +8,11 @@ import {
   type PurchaseOrderRequirement,
 } from '../domain/client-status';
 import { ClientValidationError, assertCreateClientInput, type CreateClientInput } from '../domain/client.validation';
+import {
+  ClientListQueryError,
+  parseListClientsQuery as parseClientListQueryDomain,
+  type ClientListRequest,
+} from '../domain/client-list.query';
 import { ClientHttpException } from '../errors/client-http.exception';
 import { CLIENT_ERROR_CODES } from '../errors/client-error-codes';
 import { mapValidationCodeToStatus } from '../errors/client-validation-status';
@@ -242,58 +247,22 @@ function parsePurchaseOrderRequirement(value: unknown): PurchaseOrderRequirement
   return value;
 }
 
-function parsePositiveInt(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isInteger(value)) {
-    return value;
-  }
-  if (typeof value === 'string' && /^\d+$/.test(value)) {
-    return Number.parseInt(value, 10);
-  }
-  return null;
-}
-
-export function parseListClientsQuery(query: Record<string, unknown>) {
-  const limitRaw = query['limit'];
-  const offsetRaw = query['offset'];
-  const statusRaw = query['status'];
-
-  let limit = 20;
-  if (limitRaw !== undefined) {
-    const parsed = parsePositiveInt(limitRaw);
-    if (parsed === null || parsed < 1 || parsed > 100) {
+/**
+ * Contrato HTTP da listagem. A interpretação (allow-lists, limites, semântica da busca) vive em
+ * `domain/client-list.query.ts`; aqui só se traduz o erro de campo para o 400 já publicado deste
+ * módulo, preservando a assinatura consumida pelo controller e pelos testes.
+ */
+export function parseListClientsQuery(query: Record<string, unknown>): ClientListRequest {
+  try {
+    return parseClientListQueryDomain(query);
+  } catch (error) {
+    if (error instanceof ClientListQueryError) {
       throw new ClientHttpException(
         HttpStatus.BAD_REQUEST,
         CLIENT_ERROR_CODES.VALIDATION_FAILED,
         'Invalid query parameters.',
       );
     }
-    limit = parsed;
+    throw error;
   }
-
-  let offset = 0;
-  if (offsetRaw !== undefined) {
-    const parsed = parsePositiveInt(offsetRaw);
-    if (parsed === null || parsed < 0) {
-      throw new ClientHttpException(
-        HttpStatus.BAD_REQUEST,
-        CLIENT_ERROR_CODES.VALIDATION_FAILED,
-        'Invalid query parameters.',
-      );
-    }
-    offset = parsed;
-  }
-
-  let status: 'ACTIVE' | 'INACTIVE' | undefined;
-  if (statusRaw !== undefined) {
-    if (statusRaw !== 'ACTIVE' && statusRaw !== 'INACTIVE') {
-      throw new ClientHttpException(
-        HttpStatus.BAD_REQUEST,
-        CLIENT_ERROR_CODES.VALIDATION_FAILED,
-        'Invalid query parameters.',
-      );
-    }
-    status = statusRaw;
-  }
-
-  return { limit, offset, status };
 }

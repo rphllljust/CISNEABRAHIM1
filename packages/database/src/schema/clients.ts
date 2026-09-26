@@ -72,6 +72,19 @@ export const clients = ptySchema.table(
     check('clients_version_positive_chk', sql`${table.version} >= 1`),
     uniqueIndex('clients_normalized_tax_id_uidx').on(table.normalizedTaxId),
     index('clients_status_created_at_idx').on(table.status, table.createdAt),
+    // Índices de listagem do master data (migration 0079). A ordem padrão da listagem é razão
+    // social ascendente; sem estes índices a listagem padrão fazia varredura completa + ordenação
+    // de toda a tabela. Cada um foi autorizado por EXPLAIN contra 50 mil Clientes reais em banco
+    // descartável — o índice `(status, legal_name, id)` foi medido e REJEITADO por ser mais lento
+    // que `(legal_name, id)` sozinho.
+    index('clients_legal_name_id_idx').on(table.legalName, table.id),
+    index('clients_updated_at_id_idx').on(table.updatedAt, table.id),
+    // `text_pattern_ops` porque a colação do banco é `en_US.utf8`: sob colação linguística o btree
+    // padrão não serve `LIKE 'prefixo%'`, que é como se busca CNPJ parcial.
+    index('clients_normalized_tax_id_pattern_idx').using(
+      'btree',
+      table.normalizedTaxId.op('text_pattern_ops'),
+    ),
   ],
 );
 

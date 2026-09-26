@@ -68,10 +68,46 @@ export type Client = {
   addresses: ClientAddress[];
 };
 
+/**
+ * Projeção de listagem devolvida por `GET /api/v1/clients`.
+ *
+ * Deliberadamente menor que `Client`: a lista serve para identificar e localizar, não para exibir
+ * o cadastro completo. Contatos e endereços pertencem ao detalhe (`GET /api/v1/clients/:id`).
+ * Não há campo de localidade: nenhuma regra confirmada define qual endereço representaria o
+ * Cliente quando ele tem mais de um.
+ */
+export type ClientSummary = {
+  id: string;
+  legalName: string;
+  tradeName: string | null;
+  taxId: string;
+  status: ClientStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export const CLIENT_LIST_SORTS = {
+  LegalName: 'legalName',
+  UpdatedAt: 'updatedAt',
+} as const;
+
+export type ClientListSort = (typeof CLIENT_LIST_SORTS)[keyof typeof CLIENT_LIST_SORTS];
+
+export const CLIENT_LIST_DIRECTIONS = {
+  Asc: 'asc',
+  Desc: 'desc',
+} as const;
+
+export type ClientListDirection =
+  (typeof CLIENT_LIST_DIRECTIONS)[keyof typeof CLIENT_LIST_DIRECTIONS];
+
 export type ClientListResponse = {
-  items: Client[];
+  items: ClientSummary[];
   limit: number;
   offset: number;
+  /** Total sob os mesmos filtros da página: vem na mesma resposta, sem consulta adicional. */
+  total: number;
+  totalPages: number;
 };
 
 export type CreateClientPayload = {

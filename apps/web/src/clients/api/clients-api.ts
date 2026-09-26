@@ -4,9 +4,12 @@ import {
   CLIENT_ERROR_CODES,
   type Client,
   type ClientErrorCode,
+  type ClientListDirection,
   type ClientListResponse,
+  type ClientListSort,
   type ClientStatus,
   type CreateClientPayload,
+  type PurchaseOrderRequirement,
   type UpdateClientPayload,
 } from '../types/client.types';
 
@@ -113,15 +116,36 @@ async function requestJson<T>(
 export type ListClientsParams = {
   limit: number;
   offset: number;
+  q?: string;
   status?: ClientStatus;
+  purchaseOrderRequirement?: PurchaseOrderRequirement;
+  sort?: ClientListSort;
+  direction?: ClientListDirection;
 };
 
+/**
+ * Monta a query da listagem. Parâmetros vazios/indefinidos não são enviados: a ausência de `q` é o
+ * que permite ao backend distinguir "sem busca" de "busca vazia", e o backend rejeita valores
+ * inválidos em vez de ignorá-los.
+ */
 export function buildListClientsQuery(params: ListClientsParams): string {
   const search = new URLSearchParams();
   search.set('limit', String(params.limit));
   search.set('offset', String(params.offset));
+  if (params.q?.trim()) {
+    search.set('q', params.q.trim());
+  }
   if (params.status) {
     search.set('status', params.status);
+  }
+  if (params.purchaseOrderRequirement) {
+    search.set('purchaseOrderRequirement', params.purchaseOrderRequirement);
+  }
+  if (params.sort) {
+    search.set('sort', params.sort);
+  }
+  if (params.direction) {
+    search.set('direction', params.direction);
   }
   return search.toString();
 }
