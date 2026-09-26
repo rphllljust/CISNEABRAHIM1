@@ -17,6 +17,7 @@ import {
   PLANNED_RESOURCE_STATUSES,
   resolvePlannedOperationalWindow,
   RESOURCE_ALLOCATION_STATUSES,
+  SERVICE_ORDER_PLANNING_ALLOWED_STATUSES,
   type PlannedResourceHistorySnapshot,
 } from '../domain/resource-planning';
 import { SERVICE_ORDER_HISTORY_EVENTS } from '../domain/service-order';
@@ -362,6 +363,12 @@ export class ResourcePlanningRepository {
     try {
       await client.query('BEGIN');
 
+      const orderState = await this.lockPlanningOrderState(client, input.serviceOrderId);
+      if (!orderState) {
+        await client.query('ROLLBACK');
+        return { outcome: 'invalid_state' };
+      }
+
       const planned = await client.query<PlannedResourceRow>(
         `${PLANNED_SELECT} WHERE id = $1 AND service_order_id = $2 FOR UPDATE`,
         [input.plannedResourceId, input.serviceOrderId],
@@ -477,6 +484,12 @@ export class ResourcePlanningRepository {
     const client = await this.pool().connect();
     try {
       await client.query('BEGIN');
+
+      const orderState = await this.lockPlanningOrderState(client, input.serviceOrderId);
+      if (!orderState) {
+        await client.query('ROLLBACK');
+        return { outcome: 'invalid_state' };
+      }
 
       const currentAllocation = await client.query<ResourceAllocationRow>(
         `${ALLOCATION_SELECT} WHERE id = $1 AND service_order_id = $2 FOR UPDATE`,
@@ -808,6 +821,30 @@ export class ResourcePlanningRepository {
     assetId: string,
   ): Promise<PhysicalAssetAllocationContext | null> {
     return lockPhysicalAssetForAllocation(client, assetId);
+  }
+
+  /**
+   * Trava a linha da OS e rele o estado dentro da transacao. A checagem da
+   * camada de servico ocorre fora da transacao: sem esta releitura, um
+   * cancelamento concorrente poderia efetivar depois dela e a alocacao
+   * nasceria ativa sobre uma OS cancelada.
+   */
+  private async lockPlanningOrderState(
+    client: PoolClient,
+    serviceOrderId: string,
+  ): Promise<string | null> {
+    const result = await client.query<{ status: string }>(
+      `SELECT status::text AS status
+       FROM so.service_orders
+       WHERE id = $1
+       FOR SHARE`,
+      [serviceOrderId],
+    );
+    const status = result.rows[0]?.status;
+    if (!status || !SERVICE_ORDER_PLANNING_ALLOWED_STATUSES.has(status)) {
+      return null;
+    }
+    return status;
   }
 
   private async lockWorkforceMember(

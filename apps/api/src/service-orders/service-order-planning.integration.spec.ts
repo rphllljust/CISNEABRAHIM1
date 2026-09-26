@@ -922,6 +922,53 @@ describe('Service order planning and allocation PostgreSQL integration', () => {
     });
   });
 
+  it('never leaves an active allocation on an order cancelled in the same instant', async () => {
+    const { actor } = await seedActor();
+    const { released } = await seedReleasedOrder(actor);
+    const asset = await createWaterTruck(actor, `WT-${crypto.randomUUID().slice(0, 6)}`);
+    const planned = await planningAccess.planResource(actor, released.id, {
+      requirementKind: PLANNED_RESOURCE_KINDS.PhysicalResource,
+      resourceTypeCode: 'WATER_TRUCK',
+      plannedQuantity: '1',
+    });
+
+    const now = Date.now();
+    const window = {
+      operationalStart: new Date(now + 2 * 60 * 60 * 1000).toISOString(),
+      operationalEnd: new Date(now + 4 * 60 * 60 * 1000).toISOString(),
+    };
+
+    // Corrida real entre despachar e cancelar a mesma OS. A camada de servico
+    // valida o estado fora da transacao; o invariante abaixo so se sustenta se
+    // a alocacao reler o estado da OS dentro da propria transacao.
+    await Promise.allSettled([
+      planningAccess.allocateResource(actor, released.id, {
+        plannedResourceId: planned.id,
+        physicalAssetId: asset.id,
+        ...window,
+      }),
+      serviceOrdersAccess.cancel(actor, released.id, {
+        rowVersion: released.rowVersion,
+        cancellationReason: 'Cancelada durante o despacho',
+      }),
+    ]);
+
+    const order = await serviceOrdersAccess.getById(actor, released.id);
+    const active = await pool.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count
+       FROM res.resource_allocations
+       WHERE service_order_id = $1 AND status = 'ACTIVE'::res.resource_allocation_status`,
+      [released.id],
+    );
+
+    if (order.status === SERVICE_ORDER_STATUSES.Cancelled) {
+      expect(active.rows[0]?.count).toBe('0');
+    } else {
+      // O despacho venceu a corrida: a OS segue liberada e a alocacao e legitima.
+      expect(order.status).toBe(SERVICE_ORDER_STATUSES.Released);
+    }
+  });
+
   it('blocks removing planned resource with active allocations', async () => {
     const { actor } = await seedActor();
     const { released } = await seedReleasedOrder(actor);
