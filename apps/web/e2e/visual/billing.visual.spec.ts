@@ -9,7 +9,7 @@ test.describe('billing dashboard visual regression', () => {
   test.beforeEach(async ({ page }) => {
     await prepareAuthenticatedSession(page, 'billing-empty');
     await page.goto('/app/billing');
-    await expect(page.getByRole('heading', { name: /^faturamento$/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^faturamento interno$/i })).toBeVisible();
     await expect(page.locator(BILLING_READY_SELECTOR)).toBeVisible();
     await stabilizePage(page);
   });

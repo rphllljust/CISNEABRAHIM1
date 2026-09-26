@@ -7,7 +7,10 @@ import {
 
 async function openCommercialPage(page: Page, path: string): Promise<void> {
   await page.goto(path);
-  await expect(page.locator('#main-content.requests-page')).toBeVisible();
+  // As listas comerciais usam o contêiner compartilhado `ModulePage`
+  // (`<main id="main-content">`), que não expõe mais a classe legada `requests-page` das
+  // páginas de detalhe/formulário. O landmark assertado é o mesmo elemento.
+  await expect(page.locator('#main-content')).toBeVisible();
 }
 
 test.describe('proposals visual regression', () => {
@@ -23,7 +26,7 @@ test.describe('proposals visual regression', () => {
     await expect(page.getByRole('link', { name: 'PROP-2026-0042' })).toBeVisible();
     await stabilizePage(page);
 
-    await expect(page.locator('#main-content.requests-page')).toHaveScreenshot(
+    await expect(page.locator('#main-content')).toHaveScreenshot(
       'proposals-list-populated.png',
     );
   });
@@ -38,7 +41,7 @@ test.describe('proposals visual regression', () => {
     await expect(page.getByRole('table', { name: 'Itens da proposta' })).toBeVisible();
     await stabilizePage(page);
 
-    await expect(page.locator('#main-content.requests-page')).toHaveScreenshot(
+    await expect(page.locator('#main-content')).toHaveScreenshot(
       'proposal-detail-issued.png',
     );
   });
@@ -54,7 +57,7 @@ test.describe('proposals visual regression', () => {
     ).toBeVisible();
     await stabilizePage(page);
 
-    await expect(page.locator('#main-content.requests-page')).toHaveScreenshot(
+    await expect(page.locator('#main-content')).toHaveScreenshot(
       'proposal-create-form.png',
     );
   });

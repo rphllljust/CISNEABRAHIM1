@@ -10,7 +10,10 @@ import {
 
 async function openCommercialPage(page: Page, path: string): Promise<void> {
   await page.goto(path);
-  await expect(page.locator('#main-content.requests-page')).toBeVisible();
+  // As listas comerciais usam o contêiner compartilhado `ModulePage`
+  // (`<main id="main-content">`), que não expõe mais a classe legada `requests-page` das
+  // páginas de detalhe/formulário. O landmark assertado é o mesmo elemento.
+  await expect(page.locator('#main-content')).toBeVisible();
 }
 
 test.describe('purchase orders visual regression', () => {
@@ -28,7 +31,7 @@ test.describe('purchase orders visual regression', () => {
     ).toBeVisible();
     await stabilizePage(page);
 
-    await expect(page.locator('#main-content.requests-page')).toHaveScreenshot(
+    await expect(page.locator('#main-content')).toHaveScreenshot(
       'purchase-orders-list-populated.png',
     );
   });
@@ -47,7 +50,7 @@ test.describe('purchase orders visual regression', () => {
     await expect(page.getByText('21/08/2026')).toBeVisible();
     await stabilizePage(page);
 
-    await expect(page.locator('#main-content.requests-page')).toHaveScreenshot(
+    await expect(page.locator('#main-content')).toHaveScreenshot(
       'purchase-order-detail-registered.png',
     );
   });
@@ -65,7 +68,7 @@ test.describe('purchase orders visual regression', () => {
     ).toBeVisible();
     await stabilizePage(page);
 
-    await expect(page.locator('#main-content.requests-page')).toHaveScreenshot(
+    await expect(page.locator('#main-content')).toHaveScreenshot(
       'purchase-order-create-form.png',
     );
   });
