@@ -540,6 +540,20 @@
                         "when":  1788479999000,
                         "tag":  "0076_deadline_kernel",
                         "breakpoints":  true
+                    },
+                    {
+                        "idx":  77,
+                        "version":  "7",
+                        "when":  1788566400000,
+                        "tag":  "0077_workforce_member_identity",
+                        "breakpoints":  true
+                    },
+                    {
+                        "idx":  78,
+                        "version":  "7",
+                        "when":  1788568200000,
+                        "tag":  "0078_workforce_member_allocation",
+                        "breakpoints":  true
                     }
                 ]
 }

@@ -13,6 +13,7 @@ import {
 import { physicalAssets } from './physical-assets';
 import { identities } from './identity';
 import { serviceOrders, soSchema } from './service-orders';
+import { workforceMembers } from './workforce';
 
 export const resSchema = pgSchema('res');
 
@@ -74,9 +75,12 @@ export const resourceAllocations = resSchema.table(
     plannedResourceId: uuid('planned_resource_id').references(() => plannedResources.id, {
       onDelete: 'restrict',
     }),
-    physicalAssetId: uuid('physical_asset_id')
-      .notNull()
-      .references(() => physicalAssets.id, { onDelete: 'restrict' }),
+    physicalAssetId: uuid('physical_asset_id').references(() => physicalAssets.id, {
+      onDelete: 'restrict',
+    }),
+    workforceMemberId: uuid('workforce_member_id').references(() => workforceMembers.id, {
+      onDelete: 'restrict',
+    }),
     resourceTypeCode: text('resource_type_code').notNull(),
     operationalStart: timestamp('operational_start', { withTimezone: true, mode: 'string' }).notNull(),
     operationalEnd: timestamp('operational_end', { withTimezone: true, mode: 'string' }).notNull(),
@@ -97,6 +101,11 @@ export const resourceAllocations = resSchema.table(
   (table) => [
     index('resource_allocations_service_order_id_idx').on(table.serviceOrderId),
     index('resource_allocations_physical_asset_id_idx').on(table.physicalAssetId),
+    index('resource_allocations_workforce_member_id_idx').on(table.workforceMemberId),
+    check(
+      'resource_allocations_exactly_one_resource_chk',
+      sql`((${table.physicalAssetId} IS NOT NULL)::int + (${table.workforceMemberId} IS NOT NULL)::int) = 1`,
+    ),
     check(
       'resource_allocations_operational_window_chk',
       sql`${table.operationalStart} < ${table.operationalEnd}`,

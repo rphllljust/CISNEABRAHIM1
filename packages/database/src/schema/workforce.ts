@@ -36,6 +36,10 @@ export const workforceMembers = wrkSchema.table(
       { onDelete: 'restrict', onUpdate: 'cascade' },
     ),
     externalErpId: text('external_erp_id'),
+    identityId: uuid('identity_id').references(() => identities.id, {
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    }),
     status: workforceMemberStatusEnum('status').notNull().default('ACTIVE'),
     version: integer('version').notNull().default(1),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
@@ -62,6 +66,9 @@ export const workforceMembers = wrkSchema.table(
     uniqueIndex('workforce_members_external_erp_id_uidx')
       .on(table.externalErpId)
       .where(sql`${table.externalErpId} IS NOT NULL`),
+    uniqueIndex('workforce_members_identity_id_uidx')
+      .on(table.identityId)
+      .where(sql`${table.identityId} IS NOT NULL`),
     index('workforce_members_status_created_at_idx').on(table.status, table.createdAt),
     index('workforce_members_default_labor_type_code_idx').on(table.defaultLaborTypeCode),
   ],

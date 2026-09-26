@@ -62,7 +62,19 @@ const MIGRATION_EFFECT_CHECKS = {
   '0073_recurring_billing_schedule': { table: 'bil.recurring_billing_schedules' },
   '0074_access_administration': { table: '"authorization".access_roles' },
   '0076_deadline_kernel': { fn: ['so', 'deadline_for'] },
+  '0077_workforce_member_identity': { column: ['wrk', 'workforce_members', 'identity_id'] },
+  '0078_workforce_member_allocation': {
+    column: ['res', 'resource_allocations', 'workforce_member_id'],
+  },
 };
+
+/**
+ * Tags 0000–0018 predate per-migration artefact probes, so a recorded hash without a
+ * probe is legitimate for them. Any tag above this boundary without a probe is a gap
+ * in MIGRATION_EFFECT_CHECKS, not a legacy entry: it must stay unrecorded so the
+ * migrator actually runs it instead of silently marking an unmigrated database complete.
+ */
+const LEGACY_UNPROBED_MAX_TAG = '0018';
 
 async function migrationEffectsPresent(pool, tag) {
   const check = MIGRATION_EFFECT_CHECKS[tag];
@@ -128,7 +140,7 @@ export async function syncDrizzleJournal(pool) {
   // bail out early instead of failing on `drizzle.__drizzle_migrations`.
   const hasMigrationsTable = await tableExists(pool, 'drizzle.__drizzle_migrations');
   if (!hasMigrationsTable) {
-    return { inserted: 0, removed: 0, reason: 'migration journal table not created yet' };
+    return { inserted: 0, removed: 0, unprobed: [], reason: 'migration journal table not created yet' };
   }
 
   const applied = await pool.query('SELECT hash FROM drizzle.__drizzle_migrations');
@@ -136,11 +148,12 @@ export async function syncDrizzleJournal(pool) {
 
   const hasScopedRecords = await tableExists(pool, '"authorization".scoped_records');
   if (!hasScopedRecords) {
-    return { inserted: 0, removed: 0, reason: 'baseline schema not detected' };
+    return { inserted: 0, removed: 0, unprobed: [], reason: 'baseline schema not detected' };
   }
 
   let inserted = 0;
   let removed = 0;
+  const unprobed = [];
   for (const entry of journal.entries) {
     const fileName = `${entry.tag}.sql`;
     const hash = migrationFileHash(fileName);
@@ -166,6 +179,13 @@ export async function syncDrizzleJournal(pool) {
     }
 
     if (effects === null) {
+      // No artefact probe. Legitimate for legacy tags; for any later tag this is a gap
+      // in MIGRATION_EFFECT_CHECKS and the hash is about to be recorded WITHOUT the
+      // migration having been proven to run. That is how 0077/0078 were once marked
+      // applied on an unmigrated database, so make the gap loud instead of silent.
+      if (entry.tag > LEGACY_UNPROBED_MAX_TAG) {
+        unprobed.push(entry.tag);
+      }
       await pool.query('INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ($1, $2)', [
         hash,
         entry.when,
@@ -175,9 +195,18 @@ export async function syncDrizzleJournal(pool) {
     }
   }
 
+  if (unprobed.length > 0) {
+    console.warn(
+      `[sync-drizzle-journal] ${unprobed.length} tag(s) above ${LEGACY_UNPROBED_MAX_TAG} have no ` +
+        `artefact probe in MIGRATION_EFFECT_CHECKS and were recorded from hash alone: ` +
+        `${unprobed.join(', ')}. Add a probe so an unmigrated database is never marked applied.`,
+    );
+  }
+
   return {
     inserted,
     removed,
+    unprobed,
     reason:
       inserted > 0 || removed > 0 ? 'journal reconciled' : 'journal already aligned',
   };
