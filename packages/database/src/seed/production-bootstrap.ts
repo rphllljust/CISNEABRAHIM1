@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
+import { withTransaction } from '../transaction';
 import { assertProductionBootstrapAllowed } from './environment';
 import { hashPassword, validatePasswordStrength } from './password-policy';
 import type { ProductionBootstrapInput, ProductionBootstrapResult } from './types';
@@ -91,25 +92,23 @@ export async function runProductionBootstrap(
   const identityId = randomUUID();
   const credentialId = randomUUID();
 
-  await pool.query('BEGIN');
-  try {
-    await pool.query(
+  // Transacao real numa conexao dedicada: `pool.query('BEGIN')` nao abria transacao alguma
+  // (cada `Pool.query` usa a propria conexao), de modo que a PRIMEIRA identidade do banco podia
+  // ficar gravada sem credencial se o segundo INSERT falhasse — deixando a base "inicializada"
+  // para o bootstrap e sem login utilizavel.
+  await withTransaction(pool, async (client) => {
+    await client.query(
       `INSERT INTO identity.identities (id, status)
        VALUES ($1, 'active')`,
       [identityId],
     );
 
-    await pool.query(
+    await client.query(
       `INSERT INTO identity.credentials (id, identity_id, login_identifier_normalized, password_hash)
        VALUES ($1, $2, $3, $4)`,
       [credentialId, identityId, normalized, passwordHash],
     );
-
-    await pool.query('COMMIT');
-  } catch (error) {
-    await pool.query('ROLLBACK');
-    throw error;
-  }
+  });
 
   return {
     outcome: 'created',

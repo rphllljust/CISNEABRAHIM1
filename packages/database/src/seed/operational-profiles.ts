@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
 import { ensureOperationalLaborTypesBaseline } from '../catalog/operational-labor-types-baseline';
+import { withTransaction } from '../transaction';
 import { assertDevelopmentOnly } from './environment';
 import { hashPassword } from './password-policy';
 
@@ -344,7 +345,7 @@ async function ensureGrants(
 }
 
 async function ensureDevPaymentMatrix(pool: Pool, actorIdentityId: string): Promise<void> {
-  const existing = await pool.query(
+  const publishedRule = await pool.query(
     `SELECT 1
        FROM "authorization".approval_matrix_rules rule
        JOIN "authorization".approval_matrix_versions version ON version.id = rule.version_id
@@ -353,41 +354,106 @@ async function ensureDevPaymentMatrix(pool: Pool, actorIdentityId: string): Prom
         AND rule.capability = 'payment.approve'
       LIMIT 1`,
   );
-  if (existing.rowCount) {
+  if (publishedRule.rowCount) {
     return;
   }
-  const matrix = await pool.query<{ id: string }>(
-    `INSERT INTO "authorization".approval_matrices (code, currency_code)
-       VALUES ('DEV-PAYMENT-MATRIX', 'BRL')
+
+  // Idempotencia ancorada nas constraints do banco (nao numa leitura previa): a matriz e
+  // obtida pelo natural key `code`, a versao por `(matrix_id, version)` e a regra por
+  // `(version_id, line_number)`.
+  //
+  // Defeito real corrigido: a guarda acima olha a REGRA publicada, mas a unicidade da matriz e
+  // do `code`. Uma matriz orfa — versoes e regras removidas em cascata por um truncate de
+  // `identity.identities` (FK created_by/published_by), que nao alcanca
+  // `authorization.approval_matrices` por ela nao ter FK para identidades — fazia a guarda passar
+  // e o INSERT estourar "duplicate key value violates unique constraint
+  // approval_matrices_code_uidx". O seed deixa de convergir e o gate de integracao fica vermelho.
+  //
+  // Atomicidade: matriz -> versao -> regra -> atualizacao da matriz e UMA operacao logica
+  // (matriz publicada com a regra de aprovacao de pagamento). Sem transacao, uma falha no meio
+  // deixava estado parcial commitado — versao PUBLISHED sem regra nenhuma e `published_version`
+  // ainda NULL —, ou seja, uma matriz exibida como publicada no console de aprovacoes que nao
+  // aprova nada, porque o PDP resolve regras por `approval_matrix_rules` publicadas.
+  const MATRIX_CODE = 'DEV-PAYMENT-MATRIX';
+  await withTransaction(pool, async (client) => {
+    const insertedMatrix = await client.query<{ id: string }>(
+      `INSERT INTO "authorization".approval_matrices (code, currency_code)
+         VALUES ($1, 'BRL')
+       ON CONFLICT (code) DO NOTHING
        RETURNING id`,
-  );
-  const matrixId = matrix.rows[0]?.id;
-  if (!matrixId) {
-    throw new Error('DEV_PAYMENT_MATRIX_INSERT_FAILED');
-  }
-  const version = await pool.query<{ id: string }>(
-    `INSERT INTO "authorization".approval_matrix_versions
-         (matrix_id, version, status, created_by_identity_id, published_by_identity_id, published_at)
-       VALUES ($1, 1, 'PUBLISHED', $2, $2, NOW())
-       RETURNING id`,
-    [matrixId, actorIdentityId],
-  );
-  const versionId = version.rows[0]?.id;
-  if (!versionId) {
-    throw new Error('DEV_PAYMENT_MATRIX_VERSION_FAILED');
-  }
-  await pool.query(
-    `INSERT INTO "authorization".approval_matrix_rules
-         (version_id, operation, role_code, capability, scope_type, scope_anchor, amount_limit, line_number)
-       VALUES ($1, 'PAYMENT'::"authorization".approval_operation, 'FINANCIAL_CONTROLLER', 'payment.approve', 'GLOBAL'::"authorization".authz_scope_type, NULL, '999999999.0000', 1)`,
-    [versionId],
-  );
-  await pool.query(
-    `UPDATE "authorization".approval_matrices
-         SET published_version = 1, draft_version = 1
-       WHERE id = $1`,
-    [matrixId],
-  );
+      [MATRIX_CODE],
+    );
+    let matrixId = insertedMatrix.rows[0]?.id;
+    if (!matrixId) {
+      const found = await client.query<{ id: string }>(
+        `SELECT id FROM "authorization".approval_matrices WHERE code = $1`,
+        [MATRIX_CODE],
+      );
+      matrixId = found.rows[0]?.id;
+    }
+    if (!matrixId) {
+      throw new Error('DEV_PAYMENT_MATRIX_INSERT_FAILED');
+    }
+
+    // Versao publicada: reutiliza a existente quando houver. Nunca publica uma segunda versao da
+    // mesma matriz (approval_matrix_versions_one_published_uidx).
+    const publishedVersion = await client.query<{ id: string }>(
+      `SELECT id
+         FROM "authorization".approval_matrix_versions
+        WHERE matrix_id = $1 AND status = 'PUBLISHED'
+        ORDER BY version
+        LIMIT 1`,
+      [matrixId],
+    );
+    let versionId = publishedVersion.rows[0]?.id;
+    if (!versionId) {
+      const anyVersion = await client.query<{ id: string }>(
+        `SELECT id
+           FROM "authorization".approval_matrix_versions
+          WHERE matrix_id = $1
+          ORDER BY version
+          LIMIT 1`,
+        [matrixId],
+      );
+      versionId = anyVersion.rows[0]?.id;
+      if (versionId) {
+        await client.query(
+          `UPDATE "authorization".approval_matrix_versions
+              SET status = 'PUBLISHED'::"authorization".approval_matrix_status,
+                  published_at = COALESCE(published_at, NOW()),
+                  published_by_identity_id = COALESCE(published_by_identity_id, $2)
+            WHERE id = $1`,
+          [versionId, actorIdentityId],
+        );
+      } else {
+        const version = await client.query<{ id: string }>(
+          `INSERT INTO "authorization".approval_matrix_versions
+               (matrix_id, version, status, created_by_identity_id, published_by_identity_id, published_at)
+             VALUES ($1, 1, 'PUBLISHED', $2, $2, NOW())
+             RETURNING id`,
+          [matrixId, actorIdentityId],
+        );
+        versionId = version.rows[0]?.id;
+      }
+    }
+    if (!versionId) {
+      throw new Error('DEV_PAYMENT_MATRIX_VERSION_FAILED');
+    }
+
+    await client.query(
+      `INSERT INTO "authorization".approval_matrix_rules
+           (version_id, operation, role_code, capability, scope_type, scope_anchor, amount_limit, line_number)
+         VALUES ($1, 'PAYMENT'::"authorization".approval_operation, 'FINANCIAL_CONTROLLER', 'payment.approve', 'GLOBAL'::"authorization".authz_scope_type, NULL, '999999999.0000', 1)
+       ON CONFLICT (version_id, line_number) DO NOTHING`,
+      [versionId],
+    );
+    await client.query(
+      `UPDATE "authorization".approval_matrices
+           SET published_version = 1, draft_version = 1, updated_at = NOW()
+         WHERE id = $1`,
+      [matrixId],
+    );
+  });
 }
 
 async function ensureWorkforceMember(pool: Pool, identityId: string): Promise<string> {

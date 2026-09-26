@@ -174,6 +174,19 @@ export async function insertSession(
   return sessionId;
 }
 
+/**
+ * Reset do grafo de identidades para testes de integracao.
+ *
+ * As tabelas de autorizacao entram na lista de proposito (simetria setup/cleanup): o CASCADE de
+ * `identity.identities` alcanca `approval_matrix_versions` e `approval_matrix_rules` (FK para
+ * identidade), mas NAO alcanca `authorization.approval_matrices`, que por desenho nao tem FK
+ * para identidade — a matriz vincula papel, capability, escopo e limite, nunca pessoa. Sem
+ * `approval_matrices` na lista, cada truncate deixava uma matriz orfa, com zero versoes: estado
+ * que nao ocorre por DELETE normal (a FK de versoes para identidades e NO ACTION) e que fazia o
+ * proximo seed falhar em `approval_matrices_code_uidx` por a guarda olhar a regra publicada, nao
+ * o `code`. Mesmo conjunto ja usado por `truncateAuthorizationTables` e
+ * `truncateIdentityAndAuthorizationTables`.
+ */
 export async function truncateIdentityTables(client: DbClient): Promise<void> {
   await client.query(`
     TRUNCATE TABLE
@@ -181,7 +194,10 @@ export async function truncateIdentityTables(client: DbClient): Promise<void> {
       identity.refresh_token_families,
       identity.sessions,
       identity.credentials,
-      identity.identities
+      identity.identities,
+      "authorization".approval_matrix_rules,
+      "authorization".approval_matrix_versions,
+      "authorization".approval_matrices
     RESTART IDENTITY CASCADE
   `);
 }

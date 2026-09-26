@@ -5,6 +5,7 @@ import { assertDevelopmentOnly } from './environment';
 import { generateSecurePassword, hashPassword } from './password-policy';
 import type { SafeSeedResult } from './types';
 import { ensureCisneServicePortfolioBaseline } from '../catalog/cisne-service-portfolio-baseline';
+import { withTransaction } from '../transaction';
 
 function normalizeLogin(login: string): string {
   return login.trim().toLowerCase();
@@ -71,25 +72,22 @@ export async function runDevelopmentSeed(
   const identityId = randomUUID();
   const credentialId = randomUUID();
 
-  await pool.query('BEGIN');
-  try {
-    await pool.query(
+  // Transacao real numa conexao dedicada: `pool.query('BEGIN')` nao abria transacao alguma
+  // (cada `Pool.query` usa a propria conexao), deixando a identidade gravada sem credencial
+  // quando o segundo INSERT falhava — e uma conexao presa em `idle in transaction` no pool.
+  await withTransaction(pool, async (client) => {
+    await client.query(
       `INSERT INTO identity.identities (id, status)
        VALUES ($1, 'active')`,
       [identityId],
     );
 
-    await pool.query(
+    await client.query(
       `INSERT INTO identity.credentials (id, identity_id, login_identifier_normalized, password_hash)
        VALUES ($1, $2, $3, $4)`,
       [credentialId, identityId, normalized, passwordHash],
     );
-
-    await pool.query('COMMIT');
-  } catch (error) {
-    await pool.query('ROLLBACK');
-    throw error;
-  }
+  });
 
   const portfolio = await ensureCisneServicePortfolioBaseline(pool);
 
