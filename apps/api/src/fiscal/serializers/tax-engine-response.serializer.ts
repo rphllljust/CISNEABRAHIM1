@@ -2,6 +2,7 @@ import { formatMoneyAmountForApi } from '../../platform/kernel/money-math';
 import type { TaxComputation } from '../domain/tax-engine';
 import type {
   TaxCalculationAggregate,
+  TaxRuleListRow,
   TaxRuleRow,
   TaxRuleVersionRow,
 } from '../repositories/tax-engine.repository.types';
@@ -13,6 +14,75 @@ export type TaxRuleResponse = {
   name: string;
   status: string;
 };
+
+/** Item de listagem de regras: identifica a versao publicada vigente sem consulta extra. */
+export type TaxRuleListItemResponse = {
+  id: string;
+  unitId: string;
+  code: string;
+  name: string;
+  status: string;
+  versionCount: number;
+  publishedVersion: {
+    id: string;
+    versionNumber: number;
+    status: string;
+    calculationMethod: string;
+    rate: string | null;
+    fixedAmount: string | null;
+    sourceReference: string;
+    effectiveFrom: string;
+    effectiveTo: string | null;
+    publishedAt: string | null;
+  } | null;
+};
+
+export type TaxRulePageResponse = {
+  page: number;
+  pageSize: number;
+  total: number;
+  items: TaxRuleListItemResponse[];
+};
+
+export function toTaxRuleListItemResponse(row: TaxRuleListRow): TaxRuleListItemResponse {
+  return {
+    id: row.id,
+    unitId: row.unit_id,
+    code: row.code,
+    name: row.name,
+    status: row.status,
+    versionCount: row.version_count ?? 0,
+    publishedVersion:
+      row.published_version_id && row.published_version_number !== null
+        ? {
+            id: row.published_version_id,
+            versionNumber: row.published_version_number,
+            status: row.published_version_status ?? 'PUBLISHED',
+            calculationMethod: row.published_calculation_method ?? '',
+            rate: formatMoneyAmountForApi(row.published_rate),
+            fixedAmount: formatMoneyAmountForApi(row.published_fixed_amount),
+            sourceReference: row.published_source_reference ?? '',
+            effectiveFrom: (row.published_effective_from ?? '').slice(0, 10),
+            effectiveTo: row.published_effective_to ? row.published_effective_to.slice(0, 10) : null,
+            publishedAt: row.published_at ? row.published_at.toISOString() : null,
+          }
+        : null,
+  };
+}
+
+export function toTaxRulePageResponse(input: {
+  page: number;
+  pageSize: number;
+  total: number;
+  items: TaxRuleListRow[];
+}): TaxRulePageResponse {
+  return {
+    page: input.page,
+    pageSize: input.pageSize,
+    total: input.total,
+    items: input.items.map(toTaxRuleListItemResponse),
+  };
+}
 
 export type TaxRuleVersionResponse = {
   id: string;

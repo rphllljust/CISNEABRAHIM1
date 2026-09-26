@@ -90,6 +90,12 @@ export type FiscalAggregate = {
   authorizations: FiscalAuthorizationRow[];
 };
 
+/** Linha de listagem: documento + ultima tentativa de autorizacao (LATERAL, sem N+1). */
+export type FiscalDocumentListRow = FiscalDocumentRow & {
+  last_protocol_code: string | null;
+  last_authorization_outcome: string | null;
+};
+
 export type CreateFiscalPersistenceInput = {
   unitId: string;
   sourceKind: string;

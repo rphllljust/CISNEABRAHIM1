@@ -37,6 +37,7 @@ import {
   validateCancelTaxAssessmentInput,
   validateCreateTaxAssessmentInput,
   validateFinalizePayableInput,
+  validateTaxAssessmentListQuery,
   type AdjustTaxAssessmentInput,
   type CancelTaxAssessmentInput,
   type CreateTaxAssessmentInput,
@@ -50,7 +51,9 @@ import { TaxEngineRepository } from '../repositories/tax-engine.repository';
 import type { TaxCalculationAggregate } from '../repositories/tax-engine.repository.types';
 import {
   toTaxAssessmentDetailResponse,
+  toTaxAssessmentPageResponse,
   type TaxAssessmentDetailResponse,
+  type TaxAssessmentPageResponse,
 } from '../serializers/tax-assessment-response.serializer';
 import { FiscalPeriodAccessService } from './fiscal-period-access.service';
 import { TaxEngineAccessAuthz } from './tax-engine-access.authz';
@@ -317,6 +320,39 @@ export class TaxAssessmentAccessService {
         status: aggregate.assessment.status,
       });
       return this.toDetail(aggregate, payable);
+    } catch (error) {
+      throw mapTaxAssessmentDomainError(error);
+    }
+  }
+
+  /**
+   * Lista paginada de apuracoes da unidade com a obrigacao tributaria vinculada.
+   * Substitui a consulta por identificador manual na superficie de apuracao.
+   */
+  async list(
+    actor: IdentityAuthzContext,
+    query: { unitId: string } & Record<string, unknown>,
+  ): Promise<TaxAssessmentPageResponse> {
+    try {
+      const validated = validateTaxAssessmentListQuery(query);
+      await this.authz.assertTaxEngineAction(actor, AUTHZ_ACTIONS.FiscalTaxAssessmentRead, {
+        id: validated.unitId,
+        unitId: validated.unitId,
+      });
+      const result = await this.assessments.listAssessmentPage({
+        unitId: validated.unitId,
+        status: validated.status,
+        periodKey: validated.periodKey,
+        taxComponent: validated.taxComponent,
+        page: validated.page,
+        pageSize: validated.pageSize,
+      });
+      return toTaxAssessmentPageResponse({
+        page: validated.page,
+        pageSize: validated.pageSize,
+        total: result.total,
+        items: result.items,
+      });
     } catch (error) {
       throw mapTaxAssessmentDomainError(error);
     }

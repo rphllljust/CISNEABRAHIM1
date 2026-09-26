@@ -4,7 +4,7 @@ import {
   fiscalOfficialPresentation,
   type FiscalCredentialingSnapshot,
 } from '../domain/fiscal-credentialing';
-import type { FiscalAggregate } from '../repositories/fiscal.repository.types';
+import type { FiscalAggregate, FiscalDocumentListRow } from '../repositories/fiscal.repository.types';
 
 export type FiscalDocumentResponse = {
   id: string;
@@ -45,6 +45,9 @@ export type FiscalDocumentResponse = {
     gatewayId: string;
     outcome: string;
     protocolCode: string | null;
+    message: string | null;
+    submittedAt: string;
+    completedAt: string | null;
   }>;
   validityLegend: string;
   officialDanfe: 'BLOCKED' | 'ALLOWED';
@@ -103,8 +106,80 @@ export function toFiscalDocumentResponse(
       gatewayId: authorization.gateway_id,
       outcome: authorization.outcome,
       protocolCode: authorization.protocol_code,
+      message: authorization.message,
+      submittedAt: authorization.submitted_at,
+      completedAt: authorization.completed_at,
     })),
     validityLegend: presentation.validityLegend,
     officialDanfe: presentation.officialDanfe,
+  };
+}
+
+export type FiscalDocumentListItemResponse = {
+  id: string;
+  unitId: string;
+  status: string;
+  sourceKind: string;
+  sourceId: string | null;
+  billingDocumentId: string | null;
+  establishmentId: string | null;
+  description: string;
+  currencyCode: string;
+  issuedOn: string;
+  rowVersion: number;
+  submittedAt: string | null;
+  authorizedAt: string | null;
+  rejectedAt: string | null;
+  cancelledAt: string | null;
+  cancelReason: string | null;
+  lastProtocolCode: string | null;
+  lastAuthorizationOutcome: string | null;
+  createdAt: string;
+};
+
+export type FiscalDocumentPageResponse = {
+  page: number;
+  pageSize: number;
+  total: number;
+  items: FiscalDocumentListItemResponse[];
+};
+
+export function toFiscalDocumentListItemResponse(
+  row: FiscalDocumentListRow,
+): FiscalDocumentListItemResponse {
+  return {
+    id: row.id,
+    unitId: row.unit_id,
+    status: row.status,
+    sourceKind: row.source_kind,
+    sourceId: row.source_id,
+    billingDocumentId: row.billing_document_id,
+    establishmentId: row.establishment_id,
+    description: row.description,
+    currencyCode: row.currency_code,
+    issuedOn: row.issued_on.slice(0, 10),
+    rowVersion: row.row_version,
+    submittedAt: row.submitted_at,
+    authorizedAt: row.authorized_at,
+    rejectedAt: row.rejected_at,
+    cancelledAt: row.cancelled_at,
+    cancelReason: row.cancel_reason,
+    lastProtocolCode: row.last_protocol_code,
+    lastAuthorizationOutcome: row.last_authorization_outcome,
+    createdAt: row.created_at,
+  };
+}
+
+export function toFiscalDocumentPageResponse(input: {
+  page: number;
+  pageSize: number;
+  total: number;
+  items: FiscalDocumentListRow[];
+}): FiscalDocumentPageResponse {
+  return {
+    page: input.page,
+    pageSize: input.pageSize,
+    total: input.total,
+    items: input.items.map(toFiscalDocumentListItemResponse),
   };
 }

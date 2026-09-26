@@ -1,8 +1,14 @@
 import { assertCurrencyCode, isPositiveMoneyAmount, normalizeMoneyAmount } from '../../platform/kernel/money-math';
 import { assertUuid } from '../../platform/kernel/uuid';
 import {
+  optionalFiscalWhitelist,
+  requireFiscalPage,
+  requireFiscalPageSize,
+} from './fiscal-document.validation';
+import {
   TAX_CALCULATION_METHODS,
   TAX_ROUNDING_MODES,
+  TAX_RULE_STATUSES,
   TaxEngineError,
   assertNotOfficialTaxLabel,
 } from './tax-engine';
@@ -13,6 +19,31 @@ export class TaxEngineValidationError extends Error {
   constructor(readonly code: string) {
     super(code);
   }
+}
+
+const TAX_RULE_STATUS_FILTERS = new Set<string>(Object.values(TAX_RULE_STATUSES));
+
+export type TaxRuleListQuery = {
+  unitId: string;
+  status?: string;
+  page: number;
+  pageSize: number;
+};
+
+/** Filtros da lista de regras tributarias; `unitId` obrigatorio (escopo de unidade). */
+export function validateTaxRuleListQuery(
+  input: Omit<TaxRuleListQuery, 'page' | 'pageSize'> & { page?: unknown; pageSize?: unknown },
+): TaxRuleListQuery {
+  const unitId = input.unitId?.trim() ?? '';
+  if (unitId === '') {
+    throw new TaxEngineValidationError('unitId');
+  }
+  return {
+    unitId,
+    status: optionalFiscalWhitelist(input.status, TAX_RULE_STATUS_FILTERS, 'status'),
+    page: requireFiscalPage(input.page, 'page'),
+    pageSize: requireFiscalPageSize(input.pageSize, 'pageSize'),
+  };
 }
 
 export type CreateTaxRuleInput = {

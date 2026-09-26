@@ -1,10 +1,17 @@
-import { useCallback, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import { DateTime, EmptyState, Money } from '../../ui';
 import {
+  FilterCard,
+  ModuleErrorState,
+  ModuleLoadingState,
   ModulePage,
   ModulePageHeader,
+  ModulePagination,
   ModuleTableCard,
+  ModuleTableLink,
+  filterControlClass,
+  filterLabelClass,
   moduleTableCellClass,
   moduleTableClass,
   moduleTableHeadClass,
@@ -14,38 +21,89 @@ import {
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { MoneyActionForm } from '../../financial-ui/MoneyActionForm';
 import { FISCAL_STATUS_LABELS } from '../../financial-ui/labels';
-import { RecordLookupCard } from '../../financial-ui/RecordLookupCard';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
-import { cancelFiscalDocument, getFiscalDocument, submitFiscalDocument } from '../api/fiscal-api';
+import {
+  cancelFiscalDocument,
+  getFiscalDocument,
+  listFiscalDocuments,
+  submitFiscalDocument,
+} from '../api/fiscal-api';
 import { mapFiscalErrorToMessage } from '../api/fiscal-error-messages';
+import { useFiscalUnits } from '../hooks/useFiscalUnits';
 import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge';
-import type { FiscalDocument } from '../types/fiscal.types';
+import type { FiscalDocument, FiscalDocumentListItem } from '../types/fiscal.types';
+
+const PAGE_SIZE = 20;
+const STATUS_FILTERS = ['', 'DRAFT', 'READY', 'SUBMITTED', 'AUTHORIZED', 'REJECTED', 'CANCELLED'] as const;
+
+type ListState =
+  | { phase: 'loading' }
+  | { phase: 'error'; message: string; retryable: boolean }
+  | { phase: 'ready'; items: FiscalDocumentListItem[]; total: number; page: number };
+
+function FISCAL_STATUS_LABEL(status: string): string {
+  return FISCAL_STATUS_LABELS[status] ?? status;
+}
 
 export function FiscalDocumentsPage() {
   const { fiscalDocumentId } = useParams();
-  const navigate = useNavigate();
-  const [lookupId, setLookupId] = useState(fiscalDocumentId ?? '');
-  const loader = useCallback(
-    (signal?: AbortSignal) => getFiscalDocument(fiscalDocumentId ?? '', signal),
-    [fiscalDocumentId],
+  return fiscalDocumentId ? (
+    <FiscalDocumentDetail fiscalDocumentId={fiscalDocumentId} />
+  ) : (
+    <FiscalDocumentsList />
   );
-  const { state, reload, setReady } = useBackofficeQuery<FiscalDocument>({
-    loader,
-    mapError: mapFiscalErrorToMessage,
-    enabled: Boolean(fiscalDocumentId),
-    autoLoad: Boolean(fiscalDocumentId),
-  });
+}
 
-  const gate = fiscalDocumentId
-    ? renderQueryGate(
-        'Documentos fiscais',
-        'Carregando documento fiscal…',
-        'Você não tem permissão para ver documentos fiscais.',
-        state,
-        () => void reload(),
-      )
-    : null;
+/** Superficie de consulta: lista paginada por unidade com filtro de situacao. */
+function FiscalDocumentsList() {
+  const { units, unitId, setUnitId } = useFiscalUnits();
+  const [status, setStatus] = useState('');
+  const [page, setPage] = useState(0);
+  const [state, setState] = useState<ListState>({ phase: 'loading' });
+
+  const load = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!unitId) {
+        setState({ phase: 'ready', items: [], total: 0, page: 0 });
+        return;
+      }
+      setState({ phase: 'loading' });
+      try {
+        const response = await listFiscalDocuments(
+          {
+            unitId,
+            status: status || undefined,
+            page,
+            pageSize: PAGE_SIZE,
+          },
+          signal,
+        );
+        setState({ phase: 'ready', items: response.items, total: response.total, page: response.page });
+      } catch (error) {
+        setState({
+          phase: 'error',
+          message:
+            error instanceof Error
+              ? mapFiscalErrorToMessage(
+                  (error as { code?: string }).code,
+                  (error as { status?: number }).status ?? 0,
+                )
+              : 'Não foi possível carregar os documentos fiscais.',
+          retryable: true,
+        });
+      }
+    },
+    [page, status, unitId],
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
+  }, [load]);
+
+  const hasMore = state.phase === 'ready' && (state.page + 1) * PAGE_SIZE < state.total;
 
   return (
     <ModulePage>
@@ -53,25 +111,166 @@ export function FiscalDocumentsPage() {
         title="Documentos fiscais"
         description="Consulta e transições usam o documento oficial do servidor. Tributos da tela vêm do snapshot persistido."
       />
-      <RecordLookupCard
-        fieldId="fiscal-document-id"
-        label="Identificador do documento"
-        value={lookupId}
-        onChange={setLookupId}
-        onSubmit={() => {
-          void navigate(`/app/fiscal/documents/${lookupId.trim()}`);
-        }}
-        submitLabel="Consultar"
-        loading={state.phase === 'loading'}
-      />
-      {gate}
-      {!fiscalDocumentId && state.phase === 'idle' ? (
-        <EmptyState
-          title="Nenhum documento carregado"
-          description="A API fiscal atual não lista documentos. Consulte pelo identificador devolvido pelo servidor."
+
+      <FilterCard>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div>
+            <label className={filterLabelClass} htmlFor="fiscal-unit-filter">
+              Unidade
+            </label>
+            <select
+              id="fiscal-unit-filter"
+              className={filterControlClass}
+              value={unitId}
+              onChange={(event) => {
+                setUnitId(event.target.value);
+                setPage(0);
+              }}
+            >
+              {units.length === 0 ? <option value="">Nenhuma unidade disponível</option> : null}
+              {units.map((unit) => (
+                <option key={unit} value={unit}>
+                  {unit}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={filterLabelClass} htmlFor="fiscal-status-filter">
+              Situação
+            </label>
+            <select
+              id="fiscal-status-filter"
+              className={filterControlClass}
+              value={status}
+              onChange={(event) => {
+                setStatus(event.target.value);
+                setPage(0);
+              }}
+            >
+              {STATUS_FILTERS.map((value) => (
+                <option key={value || 'all'} value={value}>
+                  {value === '' ? 'Todas' : FISCAL_STATUS_LABEL(value)}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </FilterCard>
+
+      {state.phase === 'loading' ? <ModuleLoadingState title="Documentos fiscais" message="Carregando documentos…" /> : null}
+
+      {state.phase === 'error' ? (
+        <ModuleErrorState
+          title="Documentos fiscais"
+          message={state.message}
+          retryable={state.retryable}
+          onRetry={() => void load()}
         />
       ) : null}
-      {state.phase === 'ready' ? <FiscalDocumentView document={state.data} onReload={reload} onReady={setReady} /> : null}
+
+      {state.phase === 'ready' && state.items.length === 0 ? (
+        <EmptyState
+          title="Nenhum documento fiscal"
+          description="Não há documentos fiscais para a unidade e a situação selecionadas."
+        />
+      ) : null}
+
+      {state.phase === 'ready' && state.items.length > 0 ? (
+        <>
+          <ModuleTableCard>
+            <table className={moduleTableClass} aria-label="Lista de documentos fiscais">
+              <thead className={moduleTableHeadClass}>
+                <tr>
+                  <th scope="col" className={moduleTableHeaderCellClass}>
+                    Emissão
+                  </th>
+                  <th scope="col" className={moduleTableHeaderCellClass}>
+                    Situação
+                  </th>
+                  <th scope="col" className={moduleTableHeaderCellClass}>
+                    Origem
+                  </th>
+                  <th scope="col" className={moduleTableHeaderCellClass}>
+                    Descrição
+                  </th>
+                  <th scope="col" className={moduleTableHeaderCellClass}>
+                    Protocolo
+                  </th>
+                  <th scope="col" className={moduleTableHeaderCellClass}>
+                    Unidade
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {state.items.map((item) => (
+                  <tr key={item.id} className={moduleTableRowClass}>
+                    <td className={moduleTableCellClass}>
+                      <ModuleTableLink to={`/app/fiscal/documents/${item.id}`}>
+                        <DateTime value={item.issuedOn} mode="date" />
+                      </ModuleTableLink>
+                    </td>
+                    <td className={moduleTableCellClass}>
+                      <FinanceStatusBadge status={item.status} labels={FISCAL_STATUS_LABELS} />
+                    </td>
+                    <td className={moduleTableCellClass}>{item.sourceKind}</td>
+                    <td className={`${moduleTableCellClass} whitespace-normal`}>{item.description}</td>
+                    <td className={moduleTableCellClass}>{item.lastProtocolCode ?? '—'}</td>
+                    <td className={moduleTableCellClass}>{item.unitId}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ModuleTableCard>
+
+          <ModulePagination
+            pageNumber={state.page + 1}
+            previousDisabled={state.page === 0}
+            nextDisabled={!hasMore}
+            onPrevious={() => setPage((current) => Math.max(0, current - 1))}
+            onNext={() => setPage((current) => current + 1)}
+          />
+        </>
+      ) : null}
+    </ModulePage>
+  );
+}
+
+function FiscalDocumentDetail({ fiscalDocumentId }: { fiscalDocumentId: string }) {
+  const loader = useCallback(
+    (signal?: AbortSignal) => getFiscalDocument(fiscalDocumentId, signal),
+    [fiscalDocumentId],
+  );
+  const { state, reload, setReady } = useBackofficeQuery<FiscalDocument>({
+    loader,
+    mapError: mapFiscalErrorToMessage,
+    enabled: true,
+    autoLoad: true,
+  });
+
+  const gate = renderQueryGate(
+    'Documento fiscal',
+    'Carregando documento fiscal…',
+    'Você não tem permissão para ver documentos fiscais.',
+    state,
+    () => void reload(),
+  );
+
+  return (
+    <ModulePage>
+      <ModulePageHeader
+        title="Documento fiscal"
+        description="Consulta e transições usam o documento oficial do servidor."
+      />
+      <p className="mb-6">
+        <Link to="/app/fiscal/documents" className="text-sm font-medium text-brand-600 no-underline">
+          ← Voltar para a lista
+        </Link>
+      </p>
+      {gate}
+      {state.phase === 'ready' ? (
+        <FiscalDocumentView document={state.data} onReload={reload} onReady={setReady} />
+      ) : null}
     </ModulePage>
   );
 }
@@ -163,6 +362,84 @@ function FiscalDocumentView({
                 </td>
               </tr>
             ))}
+          </tbody>
+        </table>
+      </ModuleTableCard>
+
+      <ModuleTableCard>
+        <table className={moduleTableClass} aria-label="Eventos do documento fiscal">
+          <thead className={moduleTableHeadClass}>
+            <tr>
+              <th scope="col" className={moduleTableHeaderCellClass}>
+                Evento
+              </th>
+              <th scope="col" className={moduleTableHeaderCellClass}>
+                Quando
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {document.events.length === 0 ? (
+              <tr className={moduleTableRowClass}>
+                <td className={moduleTableCellClass} colSpan={2}>
+                  Nenhum evento registrado.
+                </td>
+              </tr>
+            ) : (
+              document.events.map((event, index) => (
+                <tr key={`${event.eventType}-${event.occurredAt}-${index}`} className={moduleTableRowClass}>
+                  <td className={moduleTableCellClass}>{event.eventType}</td>
+                  <td className={moduleTableCellClass}>
+                    <DateTime value={event.occurredAt} />
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </ModuleTableCard>
+
+      <ModuleTableCard>
+        <table className={moduleTableClass} aria-label="Tentativas de autorização do documento fiscal">
+          <thead className={moduleTableHeadClass}>
+            <tr>
+              <th scope="col" className={moduleTableHeaderCellClass}>
+                Tentativa
+              </th>
+              <th scope="col" className={moduleTableHeaderCellClass}>
+                Provedor
+              </th>
+              <th scope="col" className={moduleTableHeaderCellClass}>
+                Resultado
+              </th>
+              <th scope="col" className={moduleTableHeaderCellClass}>
+                Protocolo
+              </th>
+              <th scope="col" className={moduleTableHeaderCellClass}>
+                Mensagem
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {document.authorizations.length === 0 ? (
+              <tr className={moduleTableRowClass}>
+                <td className={moduleTableCellClass} colSpan={5}>
+                  Nenhuma tentativa de autorização registrada.
+                </td>
+              </tr>
+            ) : (
+              document.authorizations.map((authorization) => (
+                <tr key={authorization.attemptNumber} className={moduleTableRowClass}>
+                  <td className={moduleTableCellClass}>{authorization.attemptNumber}</td>
+                  <td className={moduleTableCellClass}>{authorization.gatewayId}</td>
+                  <td className={moduleTableCellClass}>{authorization.outcome}</td>
+                  <td className={moduleTableCellClass}>{authorization.protocolCode ?? '—'}</td>
+                  <td className={`${moduleTableCellClass} whitespace-normal`}>
+                    {authorization.message ?? '—'}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </ModuleTableCard>

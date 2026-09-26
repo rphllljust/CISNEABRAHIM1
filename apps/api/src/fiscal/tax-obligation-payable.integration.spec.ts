@@ -367,4 +367,63 @@ describe('Tax obligation to payable PostgreSQL integration', () => {
     expect(read.reconciliation.obligationAmount).toBe(read.reconciliation.payablePrincipal);
     expect(read.obligation?.originCalculationId).toBe(calculation.id);
   });
+
+  describe('assessment list surface', () => {
+    // O controller injeta page/pageSize por padrao; aqui repetimos o contrato real do servico.
+    const listQuery = (overrides: Record<string, unknown> = {}) => ({
+      unitId: UNIT,
+      page: 0,
+      pageSize: 20,
+      ...overrides,
+    });
+
+    it('lists assessments by unit, competence and tax component with the obligation reference', async () => {
+      const { originator: actor, checker } = await seedSodPair();
+      const { calculation } = await publishAndCalculate(actor, '100.0000');
+      const draft = await assessments.create(actor, {
+        taxCalculationId: calculation.id,
+        idempotencyKey: `asm-${crypto.randomUUID()}`,
+      });
+      const finalized = await assessments.finalize(checker, draft.id, await payableFields(actor));
+
+      const all = await assessments.list(actor, listQuery());
+      expect(all.total).toBe(1);
+      const row = all.items[0]!;
+      expect(row.id).toBe(finalized.id);
+      expect(row.periodKey).toBe('2026-03');
+      expect(row.status).toBe('FINALIZED');
+      expect(row.assessedAmount).toBe('5');
+      expect(row.finalizedAt).toBeTruthy();
+      expect(row.obligation?.id).toBe(finalized.obligation?.id);
+      expect(row.obligation?.status).toBe('OPEN');
+      expect(row.obligation?.amount).toBe('5');
+      expect(row.obligation?.payableId).toBe(finalized.obligation?.payableId);
+
+      const byComponent = await assessments.list(
+        actor,
+        listQuery({ periodKey: '2026-03', taxComponent: row.taxComponent }),
+      );
+      expect(byComponent.total).toBe(1);
+
+      const otherPeriod = await assessments.list(actor, listQuery({ periodKey: '2026-04' }));
+      expect(otherPeriod.total).toBe(0);
+      expect(otherPeriod.items).toEqual([]);
+
+      const otherUnit = await assessments.list(actor, listQuery({ unitId: 'unit-tax-other' }));
+      expect(otherUnit.total).toBe(0);
+    });
+
+    it('denies the assessment list without tax assessment read authorization', async () => {
+      const admin = await seedActor();
+      const ops = await seedActor(false);
+      const { calculation } = await publishAndCalculate(admin, '100.0000');
+      await assessments.create(admin, {
+        taxCalculationId: calculation.id,
+        idempotencyKey: `asm-${crypto.randomUUID()}`,
+      });
+      await expect(assessments.list(ops, listQuery())).rejects.toMatchObject({
+        code: FISCAL_ERROR_CODES.DENIED,
+      });
+    });
+  });
 });

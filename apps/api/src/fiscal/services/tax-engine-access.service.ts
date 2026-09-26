@@ -21,6 +21,7 @@ import {
   validateCalculateTaxInput,
   validateCreateTaxRuleInput,
   validateCreateTaxRuleVersionInput,
+  validateTaxRuleListQuery,
   type CalculateTaxInput,
   type CreateTaxRuleInput,
   type CreateTaxRuleVersionInput,
@@ -30,10 +31,12 @@ import type { TaxRuleVersionRow } from '../repositories/tax-engine.repository.ty
 import {
   toTaxCalculationResponse,
   toTaxReproductionResponse,
+  toTaxRulePageResponse,
   toTaxRuleResponse,
   toTaxRuleVersionResponse,
   type TaxCalculationResponse,
   type TaxReproductionResponse,
+  type TaxRulePageResponse,
   type TaxRuleResponse,
   type TaxRuleVersionResponse,
 } from '../serializers/tax-engine-response.serializer';
@@ -133,6 +136,37 @@ export class TaxEngineAccessService {
         unitId: rule.unit_id,
       });
       return toTaxRuleResponse(rule);
+    } catch (error) {
+      throw mapTaxEngineDomainError(error);
+    }
+  }
+
+  /**
+   * Lista paginada de regras tributarias da unidade com a versao publicada vigente.
+   * Substitui a consulta por identificador manual na superficie de tributos.
+   */
+  async listRules(
+    actor: IdentityAuthzContext,
+    query: { unitId: string } & Record<string, unknown>,
+  ): Promise<TaxRulePageResponse> {
+    try {
+      const validated = validateTaxRuleListQuery(query);
+      await this.authz.assertTaxEngineAction(actor, AUTHZ_ACTIONS.FiscalTaxRead, {
+        id: validated.unitId,
+        unitId: validated.unitId,
+      });
+      const result = await this.repository.listRulePage({
+        unitId: validated.unitId,
+        status: validated.status,
+        page: validated.page,
+        pageSize: validated.pageSize,
+      });
+      return toTaxRulePageResponse({
+        page: validated.page,
+        pageSize: validated.pageSize,
+        total: result.total,
+        items: result.items,
+      });
     } catch (error) {
       throw mapTaxEngineDomainError(error);
     }

@@ -249,4 +249,56 @@ describe('Fiscal period close PostgreSQL integration', () => {
     );
     expect(docs.rows[0]!.count).toBe('0');
   });
+
+  describe('list surface', () => {
+    // O controller injeta page/pageSize por padrao; aqui repetimos o contrato real do servico.
+    const listQuery = (overrides: Record<string, unknown> = {}) => ({
+      unitId: UNIT,
+      page: 0,
+      pageSize: 20,
+      ...overrides,
+    });
+
+    it('lists periods for the unit with key range and status filters', async () => {
+      const actor = await seedActor();
+      const march = await periods.open(actor, { unitId: UNIT, periodKey: '2026-03' });
+      const april = await periods.open(actor, { unitId: UNIT, periodKey: '2026-04' });
+      await periods.close(actor, april.id);
+
+      const all = await periods.listPeriods(actor, listQuery());
+      expect(all.total).toBe(2);
+      expect(all.items.map((item) => item.id).sort()).toEqual([march.id, april.id].sort());
+
+      const closed = await periods.listPeriods(actor, listQuery({ status: 'CLOSED' }));
+      expect(closed.total).toBe(1);
+      expect(closed.items[0]?.id).toBe(april.id);
+      expect(closed.items[0]?.closedAt).toBeTruthy();
+
+      const ranged = await periods.listPeriods(
+        actor,
+        listQuery({ periodKeyFrom: '2026-04', periodKeyTo: '2026-04' }),
+      );
+      expect(ranged.items.map((item) => item.id)).toEqual([april.id]);
+
+      const otherUnit = await periods.listPeriods(actor, listQuery({ unitId: 'unit-fis-other' }));
+      expect(otherUnit.total).toBe(0);
+      expect(otherUnit.items).toEqual([]);
+    });
+
+    it('denies the period list without fiscal period read authorization', async () => {
+      const admin = await seedActor();
+      const ops = await seedActor(false);
+      await periods.open(admin, { unitId: UNIT, periodKey: PERIOD_KEY });
+      await expect(periods.listPeriods(ops, listQuery())).rejects.toMatchObject({
+        code: FISCAL_ERROR_CODES.DENIED,
+      });
+    });
+
+    it('rejects a malformed period key filter instead of ignoring it', async () => {
+      const actor = await seedActor();
+      await expect(
+        periods.listPeriods(actor, listQuery({ periodKeyFrom: '2026/03' })),
+      ).rejects.toMatchObject({ code: FISCAL_ERROR_CODES.VALIDATION_FAILED });
+    });
+  });
 });

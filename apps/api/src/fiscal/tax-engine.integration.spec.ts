@@ -286,4 +286,48 @@ describe('Tax engine PostgreSQL integration', () => {
       ]),
     );
   });
+
+  describe('rule list surface', () => {
+    // O controller injeta page/pageSize por padrao; aqui repetimos o contrato real do servico.
+    const listQuery = (overrides: Record<string, unknown> = {}) => ({
+      unitId: UNIT,
+      page: 0,
+      pageSize: 20,
+      ...overrides,
+    });
+
+    it('lists rules for the unit with the published version and version count', async () => {
+      const actor = await seedActor();
+      const { rule, published } = await publishFixture(actor);
+      await tax.createVersion(actor, rule.id, {
+        calculationMethod: TAX_CALCULATION_METHODS.PercentOfBase,
+        rate: '7.0000',
+        sourceReference: TEST_FIXTURE_SOURCE_REFERENCE,
+        effectiveFrom: '2026-07-01',
+        effectiveTo: null,
+      });
+
+      const page = await tax.listRules(actor, listQuery());
+      expect(page.total).toBe(1);
+      const row = page.items[0]!;
+      expect(row.id).toBe(rule.id);
+      expect(row.code).toBe(TEST_FIXTURE_RULE_CODE);
+      expect(row.versionCount).toBe(2);
+      expect(row.publishedVersion?.versionNumber).toBe(published.versionNumber);
+      expect(row.publishedVersion?.status).toBe('PUBLISHED');
+      expect(row.publishedVersion?.rate).toBe(published.rate);
+      expect(row.publishedVersion?.effectiveFrom).toBe(published.effectiveFrom);
+
+      const otherUnit = await tax.listRules(actor, listQuery({ unitId: 'unit-tax-other' }));
+      expect(otherUnit.total).toBe(0);
+      expect(otherUnit.items).toEqual([]);
+    });
+
+    it('denies the rule list without tax read authorization', async () => {
+      const admin = await seedActor();
+      const stranger = await seedActor(false);
+      await publishFixture(admin);
+      await expect(tax.listRules(stranger, listQuery())).rejects.toBeInstanceOf(FiscalHttpException);
+    });
+  });
 });

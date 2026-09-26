@@ -300,4 +300,75 @@ describe('Fiscal core PostgreSQL integration', () => {
     const stored = await repository.findById(ready.id);
     expect(stored?.document.status).toBe(FISCAL_STATUSES.Submitted);
   });
+
+  describe('list surface', () => {
+    // O controller injeta page/pageSize por padrao; aqui repetimos o contrato real do servico.
+    const listQuery = (overrides: Record<string, unknown> = {}) => ({
+      unitId: UNIT,
+      page: 0,
+      pageSize: 20,
+      ...overrides,
+    });
+
+    it('paginates by unit and filters by situational status without manual identifier lookup', async () => {
+      const actor = await seedActor();
+      const draft = await fiscal.createDraft(actor, draftInput());
+      const ready = await fiscal.createDraft(actor, draftInput());
+      const marked = await fiscal.markReady(actor, ready.id, { rowVersion: ready.rowVersion });
+
+      const all = await fiscal.listDocuments(actor, listQuery());
+      expect(all.total).toBe(2);
+      expect(all.page).toBe(0);
+      expect(all.pageSize).toBeGreaterThan(0);
+      expect(all.items.map((item) => item.id).sort()).toEqual([draft.id, marked.id].sort());
+
+      const readyOnly = await fiscal.listDocuments(actor, listQuery({ status: 'READY' }));
+      expect(readyOnly.total).toBe(1);
+      expect(readyOnly.items[0]?.id).toBe(marked.id);
+      expect(readyOnly.items[0]?.status).toBe(FISCAL_STATUSES.Ready);
+
+      const draftOnly = await fiscal.listDocuments(actor, listQuery({ status: 'DRAFT' }));
+      expect(draftOnly.items.map((item) => item.id)).toEqual([draft.id]);
+
+      const otherUnit = await fiscal.listDocuments(actor, listQuery({ unitId: 'unit-fis-other' }));
+      expect(otherUnit.total).toBe(0);
+      expect(otherUnit.items).toEqual([]);
+    });
+
+    it('exposes the latest authorization protocol and outcome in the list row', async () => {
+      const { originator: actor, checker } = await seedFiscalPair();
+      const ready = await readyDocument(actor);
+      const authorized = await fiscal.submit(checker, ready.id, { rowVersion: ready.rowVersion });
+
+      const page = await fiscal.listDocuments(actor, listQuery());
+      const row = page.items.find((item) => item.id === authorized.id);
+      expect(row?.lastProtocolCode).toBe('PROT-1');
+      expect(row?.lastAuthorizationOutcome).toBe('AUTHORIZED');
+    });
+
+    it('denies the list to an actor without the list action', async () => {
+      const stranger = await seedActor(false);
+      const actor = await seedActor();
+      await fiscal.createDraft(actor, draftInput());
+      await expect(fiscal.listDocuments(stranger, listQuery())).rejects.toBeInstanceOf(
+        FiscalHttpException,
+      );
+    });
+
+    it('rejects an invalid list query instead of silently ignoring it', async () => {
+      const actor = await seedActor();
+      await expect(
+        fiscal.listDocuments(actor, listQuery({ status: 'NOPE' })),
+      ).rejects.toBeInstanceOf(FiscalHttpException);
+      await expect(
+        fiscal.listDocuments(
+          actor,
+          listQuery({ issuedFrom: '2026-09-10', issuedTo: '2026-09-01' }),
+        ),
+      ).rejects.toBeInstanceOf(FiscalHttpException);
+      await expect(
+        fiscal.listDocuments(actor, listQuery({ pageSize: '9999' })),
+      ).rejects.toBeInstanceOf(FiscalHttpException);
+    });
+  });
 });

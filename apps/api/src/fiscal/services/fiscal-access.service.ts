@@ -23,6 +23,7 @@ import {
 import {
   validateCancelInput,
   validateCreateFiscalDocumentInput,
+  validateFiscalDocumentListQuery,
   type CreateFiscalDocumentInput,
 } from '../domain/fiscal-document.validation';
 import {
@@ -40,7 +41,12 @@ import {
 } from '../ports/fiscal-credentialing.port';
 import { FiscalRepository } from '../repositories/fiscal.repository';
 import type { FiscalAggregate } from '../repositories/fiscal.repository.types';
-import { toFiscalDocumentResponse, type FiscalDocumentResponse } from '../serializers/fiscal-response.serializer';
+import {
+  toFiscalDocumentPageResponse,
+  toFiscalDocumentResponse,
+  type FiscalDocumentPageResponse,
+  type FiscalDocumentResponse,
+} from '../serializers/fiscal-response.serializer';
 import { FiscalAccessAuthz } from './fiscal-access.authz';
 import { FiscalAccountingIntegrationService } from './fiscal-accounting-integration.service';
 import { FiscalPeriodAccessService } from './fiscal-period-access.service';
@@ -305,6 +311,42 @@ export class FiscalAccessService implements FiscalDocumentPort {
         unitId: aggregate.document.unit_id,
       });
       return this.toResponse(aggregate);
+    } catch (error) {
+      throw mapFiscalDomainError(error);
+    }
+  }
+
+  /**
+   * Lista paginada de documentos fiscais da unidade. Consulta pura (sem escrita) para a
+   * superficie de situacao/consulta: substitui a exigencia de digitar identificador manual.
+   * Autorizacao resolvida por escopo de unidade (`fiscal:document:list`).
+   */
+  async listDocuments(
+    actor: IdentityAuthzContext,
+    query: { unitId: string } & Record<string, unknown>,
+  ): Promise<FiscalDocumentPageResponse> {
+    try {
+      const validated = validateFiscalDocumentListQuery(query);
+      await this.authz.assertFiscalAction(actor, AUTHZ_ACTIONS.FiscalDocumentList, {
+        id: validated.unitId,
+        unitId: validated.unitId,
+      });
+      const result = await this.repository.listDocumentPage({
+        unitId: validated.unitId,
+        status: validated.status,
+        sourceKind: validated.sourceKind,
+        billingDocumentId: validated.billingDocumentId,
+        issuedFrom: validated.issuedFrom,
+        issuedTo: validated.issuedTo,
+        page: validated.page,
+        pageSize: validated.pageSize,
+      });
+      return toFiscalDocumentPageResponse({
+        page: validated.page,
+        pageSize: validated.pageSize,
+        total: result.total,
+        items: result.items,
+      });
     } catch (error) {
       throw mapFiscalDomainError(error);
     }

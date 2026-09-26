@@ -37,6 +37,14 @@ export type TaxObligationRow = {
   created_at: Date;
 };
 
+/** Linha de listagem: avaliacao + obrigacao vinculada (LEFT JOIN, sem N+1). */
+export type TaxAssessmentListRow = TaxAssessmentRow & {
+  obligation_id: string | null;
+  obligation_status: string | null;
+  obligation_amount: string | null;
+  obligation_payable_id: string | null;
+};
+
 export type TaxAssessmentEventRow = {
   id: string;
   tax_assessment_id: string;

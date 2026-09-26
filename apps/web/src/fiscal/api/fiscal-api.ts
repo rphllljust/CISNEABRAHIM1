@@ -6,9 +6,119 @@ import {
   probeReadAccess,
   requestJson,
 } from '../../financial-ui/enterprise-api';
-import type { FiscalDocument, TaxCalculation, TaxReproduction, TaxRule, FiscalPeriod, TaxAssessment } from '../types/fiscal.types';
+import type {
+  FiscalDocument,
+  FiscalDocumentPage,
+  FiscalPeriodPage,
+  TaxAssessment,
+  TaxAssessmentPage,
+  TaxCalculation,
+  TaxReproduction,
+  TaxRule,
+  TaxRulePage,
+  FiscalPeriod,
+} from '../types/fiscal.types';
 
 export { BackofficeApiError };
+
+export type FiscalDocumentListParams = {
+  unitId: string;
+  status?: string;
+  sourceKind?: string;
+  issuedFrom?: string;
+  issuedTo?: string;
+  page: number;
+  pageSize: number;
+};
+
+/** Lista paginada de documentos fiscais da unidade (superficie de consulta). */
+export async function listFiscalDocuments(
+  params: FiscalDocumentListParams,
+  signal?: AbortSignal,
+): Promise<FiscalDocumentPage> {
+  const search = new URLSearchParams({
+    unitId: params.unitId,
+    page: String(params.page),
+    pageSize: String(params.pageSize),
+  });
+  if (params.status) {
+    search.set('status', params.status);
+  }
+  if (params.sourceKind) {
+    search.set('sourceKind', params.sourceKind);
+  }
+  if (params.issuedFrom) {
+    search.set('issuedFrom', params.issuedFrom);
+  }
+  if (params.issuedTo) {
+    search.set('issuedTo', params.issuedTo);
+  }
+  return requestJson<FiscalDocumentPage>(`/api/v1/fiscal/documents?${search.toString()}`, {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+}
+
+export async function listFiscalPeriods(
+  params: { unitId: string; status?: string; page: number; pageSize: number },
+  signal?: AbortSignal,
+): Promise<FiscalPeriodPage> {
+  const search = new URLSearchParams({
+    unitId: params.unitId,
+    page: String(params.page),
+    pageSize: String(params.pageSize),
+  });
+  if (params.status) {
+    search.set('status', params.status);
+  }
+  return requestJson<FiscalPeriodPage>(`/api/v1/fiscal/periods?${search.toString()}`, {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+}
+
+export async function listTaxAssessments(
+  params: { unitId: string; status?: string; periodKey?: string; page: number; pageSize: number },
+  signal?: AbortSignal,
+): Promise<TaxAssessmentPage> {
+  const search = new URLSearchParams({
+    unitId: params.unitId,
+    page: String(params.page),
+    pageSize: String(params.pageSize),
+  });
+  if (params.status) {
+    search.set('status', params.status);
+  }
+  if (params.periodKey) {
+    search.set('periodKey', params.periodKey);
+  }
+  return requestJson<TaxAssessmentPage>(`/api/v1/fiscal/tax/assessments?${search.toString()}`, {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+}
+
+export async function listTaxRules(
+  params: { unitId: string; status?: string; page: number; pageSize: number },
+  signal?: AbortSignal,
+): Promise<TaxRulePage> {
+  const search = new URLSearchParams({
+    unitId: params.unitId,
+    page: String(params.page),
+    pageSize: String(params.pageSize),
+  });
+  if (params.status) {
+    search.set('status', params.status);
+  }
+  return requestJson<TaxRulePage>(`/api/v1/fiscal/tax/rules?${search.toString()}`, {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+}
 
 export async function getFiscalDocument(fiscalDocumentId: string, signal?: AbortSignal): Promise<FiscalDocument> {
   return requestJson<FiscalDocument>(`/api/v1/fiscal/documents/${fiscalDocumentId}`, {

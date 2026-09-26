@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { CurrentAuth } from '../../auth/decorators/current-auth.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import type { AccessTokenClaims } from '../../auth/services/token.service';
@@ -14,6 +14,15 @@ import { TaxAssessmentAccessService } from '../services/tax-assessment-access.se
 @UseGuards(JwtAuthGuard)
 export class TaxAssessmentController {
   constructor(private readonly assessments: TaxAssessmentAccessService) {}
+
+  /** Lista paginada por unidade; declarada antes de `:assessmentId` para nao ser capturada. */
+  @Get()
+  list(@CurrentAuth() auth: AccessTokenClaims, @Query() query: Record<string, unknown>) {
+    return this.assessments.list(
+      { identityId: auth.sub, sessionId: auth.sid },
+      query as { unitId: string } & Record<string, unknown>,
+    );
+  }
 
   @Post()
   @HttpCode(200)

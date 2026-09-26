@@ -1,4 +1,10 @@
 import { assertUuid } from '../../platform/kernel/uuid';
+import {
+  optionalFiscalWhitelist,
+  requireFiscalPage,
+  requireFiscalPageSize,
+} from './fiscal-document.validation';
+import { TAX_ASSESSMENT_STATUSES } from './tax-assessment';
 
 export class TaxAssessmentValidationError extends Error {
   constructor(readonly field: string) {
@@ -95,4 +101,34 @@ export function validateCancelTaxAssessmentInput(input: CancelTaxAssessmentInput
     throw new TaxAssessmentValidationError('reason');
   }
   return { reason };
+}
+
+const TAX_ASSESSMENT_STATUS_FILTERS = new Set<string>(Object.values(TAX_ASSESSMENT_STATUSES));
+
+export type TaxAssessmentListQuery = {
+  unitId: string;
+  status?: string;
+  periodKey?: string;
+  taxComponent?: string;
+  page: number;
+  pageSize: number;
+};
+
+/** Filtros da lista de apuracoes; `unitId` obrigatorio (escopo de unidade). */
+export function validateTaxAssessmentListQuery(
+  input: Omit<TaxAssessmentListQuery, 'page' | 'pageSize'> & { page?: unknown; pageSize?: unknown },
+): TaxAssessmentListQuery {
+  const periodKey = input.periodKey?.trim() ?? '';
+  if (periodKey !== '' && !/^\d{4}-\d{2}$/.test(periodKey)) {
+    throw new TaxAssessmentValidationError('periodKey');
+  }
+  const taxComponent = input.taxComponent?.trim() ?? '';
+  return {
+    unitId: requireNonEmpty(input.unitId, 'unitId'),
+    status: optionalFiscalWhitelist(input.status, TAX_ASSESSMENT_STATUS_FILTERS, 'status'),
+    periodKey: periodKey === '' ? undefined : periodKey,
+    taxComponent: taxComponent === '' ? undefined : taxComponent,
+    page: requireFiscalPage(input.page, 'page'),
+    pageSize: requireFiscalPageSize(input.pageSize, 'pageSize'),
+  };
 }

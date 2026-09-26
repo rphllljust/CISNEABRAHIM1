@@ -37,9 +37,117 @@ export type FiscalDocument = {
     gatewayId: string;
     outcome: string;
     protocolCode: string | null;
+    message: string | null;
+    submittedAt: string;
+    completedAt: string | null;
   }>;
   validityLegend: string;
   officialDanfe: 'BLOCKED' | 'ALLOWED';
+};
+
+/** Item de listagem de documentos fiscais (mesmos campos da superficie de consulta). */
+export type FiscalDocumentListItem = {
+  id: string;
+  unitId: string;
+  status: string;
+  sourceKind: string;
+  sourceId: string | null;
+  billingDocumentId: string | null;
+  establishmentId: string | null;
+  description: string;
+  currencyCode: string;
+  issuedOn: string;
+  rowVersion: number;
+  submittedAt: string | null;
+  authorizedAt: string | null;
+  rejectedAt: string | null;
+  cancelledAt: string | null;
+  cancelReason: string | null;
+  lastProtocolCode: string | null;
+  lastAuthorizationOutcome: string | null;
+  createdAt: string;
+};
+
+export type FiscalDocumentPage = {
+  page: number;
+  pageSize: number;
+  total: number;
+  items: FiscalDocumentListItem[];
+};
+
+export type FiscalPeriodListItem = {
+  id: string;
+  unitId: string;
+  periodKey: string;
+  status: string;
+  rowVersion: number;
+  closedAt: string | null;
+  reopenedAt: string | null;
+  reopenReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FiscalPeriodPage = {
+  page: number;
+  pageSize: number;
+  total: number;
+  items: FiscalPeriodListItem[];
+};
+
+export type TaxAssessmentListItem = {
+  id: string;
+  unitId: string;
+  taxCalculationId: string;
+  taxRuleId: string;
+  taxRuleVersionId: string;
+  taxComponent: string;
+  periodKey: string;
+  currencyCode: string;
+  assessedAmount: string;
+  status: string;
+  supersedesAssessmentId: string | null;
+  rowVersion: number;
+  finalizedAt: string | null;
+  cancelledAt: string | null;
+  cancelReason: string | null;
+  createdAt: string;
+  obligation: { id: string; status: string; amount: string; payableId: string | null } | null;
+};
+
+export type TaxAssessmentPage = {
+  page: number;
+  pageSize: number;
+  total: number;
+  items: TaxAssessmentListItem[];
+};
+
+export type TaxRuleListItem = {
+  id: string;
+  unitId: string;
+  code: string;
+  name: string;
+  status: string;
+  versionCount: number;
+  publishedVersion: {
+    id: string;
+    versionNumber: number;
+    status: string;
+    calculationMethod: string;
+    rate: string | null;
+    fixedAmount: string | null;
+    sourceReference: string;
+    effectiveFrom: string;
+    effectiveTo: string | null;
+    publishedAt: string | null;
+  } | null;
+};
+
+export type TaxRulePage = {
+  page: number;
+  pageSize: number;
+  total: number;
+  items: TaxRuleListItem[];
 };
 
 export type TaxRule = {

@@ -1,11 +1,26 @@
-import { useCallback, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { EmptyState, Field, Input, Money } from '../../ui';
-import { ModulePage, ModulePageHeader } from '../../ui/module-layout';
+import {
+  FilterCard,
+  ModuleErrorState,
+  ModuleLoadingState,
+  ModulePage,
+  ModulePageHeader,
+  ModulePagination,
+  ModuleTableCard,
+  ModuleTableLink,
+  filterControlClass,
+  filterLabelClass,
+  moduleTableCellClass,
+  moduleTableClass,
+  moduleTableHeadClass,
+  moduleTableHeaderCellClass,
+  moduleTableRowClass,
+} from '../../ui/module-layout';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { CreateRecordForm, VersionedActionForm } from '../../financial-ui/VersionedActionForm';
 import { TAX_ASSESSMENT_STATUS_LABELS } from '../../financial-ui/labels';
-import { RecordLookupCard } from '../../financial-ui/RecordLookupCard';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import {
@@ -14,15 +29,231 @@ import {
   createTaxAssessment,
   finalizeTaxAssessment,
   getTaxAssessment,
+  listTaxAssessments,
 } from '../api/fiscal-api';
 import { mapFiscalErrorToMessage } from '../api/fiscal-error-messages';
+import { useFiscalUnits } from '../hooks/useFiscalUnits';
 import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge';
-import type { TaxAssessment } from '../types/fiscal.types';
+import type { TaxAssessment, TaxAssessmentListItem } from '../types/fiscal.types';
+
+const PAGE_SIZE = 20;
+
+type ListState =
+  | { phase: 'loading' }
+  | { phase: 'error'; message: string; retryable: boolean }
+  | { phase: 'ready'; items: TaxAssessmentListItem[]; total: number; page: number };
 
 export function TaxAssessmentsPage() {
   const { assessmentId } = useParams();
+  return assessmentId ? (
+    <TaxAssessmentDetail assessmentId={assessmentId} />
+  ) : (
+    <TaxAssessmentsList />
+  );
+}
+
+/** Superficie de apuracao: lista paginada por unidade, competencia e situacao. */
+function TaxAssessmentsList() {
+  const { units, unitId, setUnitId } = useFiscalUnits();
+  const [status, setStatus] = useState('');
+  const [periodKey, setPeriodKey] = useState('');
+  const [page, setPage] = useState(0);
+  const [state, setState] = useState<ListState>({ phase: 'loading' });
+
+  const load = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!unitId) {
+        setState({ phase: 'ready', items: [], total: 0, page: 0 });
+        return;
+      }
+      setState({ phase: 'loading' });
+      try {
+        const response = await listTaxAssessments(
+          {
+            unitId,
+            status: status || undefined,
+            periodKey: periodKey || undefined,
+            page,
+            pageSize: PAGE_SIZE,
+          },
+          signal,
+        );
+        setState({ phase: 'ready', items: response.items, total: response.total, page: response.page });
+      } catch (error) {
+        setState({
+          phase: 'error',
+          message: mapFiscalErrorToMessage(
+            (error as { code?: string }).code,
+            (error as { status?: number }).status ?? 0,
+          ),
+          retryable: true,
+        });
+      }
+    },
+    [page, periodKey, status, unitId],
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
+  }, [load]);
+
+  const hasMore = state.phase === 'ready' && (state.page + 1) * PAGE_SIZE < state.total;
+
+  return (
+    <ModulePage>
+      <ModulePageHeader
+        title="Obrigações tributárias"
+        description="O valor apurado vem da apuração persistida. Esta tela não calcula imposto."
+      />
+
+      <FilterCard>
+        <div className="grid gap-5 sm:grid-cols-3">
+          <div>
+            <label className={filterLabelClass} htmlFor="assessment-unit-filter">
+              Unidade
+            </label>
+            <select
+              id="assessment-unit-filter"
+              className={filterControlClass}
+              value={unitId}
+              onChange={(event) => {
+                setUnitId(event.target.value);
+                setPage(0);
+              }}
+            >
+              {units.length === 0 ? <option value="">Nenhuma unidade disponível</option> : null}
+              {units.map((unit) => (
+                <option key={unit} value={unit}>
+                  {unit}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={filterLabelClass} htmlFor="assessment-period-filter">
+              Competência
+            </label>
+            <input
+              id="assessment-period-filter"
+              type="search"
+              placeholder="AAAA-MM"
+              className={filterControlClass}
+              value={periodKey}
+              onChange={(event) => {
+                setPeriodKey(event.target.value.trim());
+                setPage(0);
+              }}
+            />
+          </div>
+          <div>
+            <label className={filterLabelClass} htmlFor="assessment-status-filter">
+              Situação
+            </label>
+            <select
+              id="assessment-status-filter"
+              className={filterControlClass}
+              value={status}
+              onChange={(event) => {
+                setStatus(event.target.value);
+                setPage(0);
+              }}
+            >
+              <option value="">Todas</option>
+              <option value="DRAFT">Rascunho</option>
+              <option value="FINALIZED">Finalizada</option>
+              <option value="ADJUSTED">Ajustada</option>
+              <option value="CANCELLED">Cancelada</option>
+            </select>
+          </div>
+        </div>
+      </FilterCard>
+
+      {state.phase === 'loading' ? (
+        <ModuleLoadingState title="Obrigações tributárias" message="Carregando apurações…" />
+      ) : null}
+
+      {state.phase === 'error' ? (
+        <ModuleErrorState
+          title="Obrigações tributárias"
+          message={state.message}
+          retryable={state.retryable}
+          onRetry={() => void load()}
+        />
+      ) : null}
+
+      {state.phase === 'ready' && state.items.length === 0 ? (
+        <EmptyState
+          title="Nenhuma apuração"
+          description="Não há apurações para a unidade, competência e situação selecionadas."
+        />
+      ) : null}
+
+      {state.phase === 'ready' && state.items.length > 0 ? (
+        <>
+          <ModuleTableCard>
+            <table className={moduleTableClass} aria-label="Lista de obrigações tributárias">
+              <thead className={moduleTableHeadClass}>
+                <tr>
+                  <th scope="col" className={moduleTableHeaderCellClass}>
+                    Competência
+                  </th>
+                  <th scope="col" className={moduleTableHeaderCellClass}>
+                    Componente
+                  </th>
+                  <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+                    Valor apurado
+                  </th>
+                  <th scope="col" className={moduleTableHeaderCellClass}>
+                    Situação
+                  </th>
+                  <th scope="col" className={moduleTableHeaderCellClass}>
+                    Obrigação
+                  </th>
+                  <th scope="col" className={moduleTableHeaderCellClass}>
+                    Unidade
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {state.items.map((item) => (
+                  <tr key={item.id} className={moduleTableRowClass}>
+                    <td className={moduleTableCellClass}>
+                      <ModuleTableLink to={`/app/fiscal/assessments/${item.id}`}>{item.periodKey}</ModuleTableLink>
+                    </td>
+                    <td className={moduleTableCellClass}>{item.taxComponent}</td>
+                    <td className={`${moduleTableCellClass} text-right`}>
+                      <Money value={item.assessedAmount} currencyCode={item.currencyCode} />
+                    </td>
+                    <td className={moduleTableCellClass}>
+                      <FinanceStatusBadge status={item.status} labels={TAX_ASSESSMENT_STATUS_LABELS} />
+                    </td>
+                    <td className={moduleTableCellClass}>
+                      {item.obligation ? `${item.obligation.status} · ${item.obligation.amount}` : '—'}
+                    </td>
+                    <td className={moduleTableCellClass}>{item.unitId}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ModuleTableCard>
+
+          <ModulePagination
+            pageNumber={state.page + 1}
+            previousDisabled={state.page === 0}
+            nextDisabled={!hasMore}
+            onPrevious={() => setPage((current) => Math.max(0, current - 1))}
+            onNext={() => setPage((current) => current + 1)}
+          />
+        </>
+      ) : null}
+    </ModulePage>
+  );
+}
+
+function TaxAssessmentDetail({ assessmentId }: { assessmentId: string }) {
   const navigate = useNavigate();
-  const [lookupId, setLookupId] = useState(assessmentId ?? '');
   const [taxCalculationId, setTaxCalculationId] = useState('');
   const [counterpartyId, setCounterpartyId] = useState('');
   const [expenseCategoryId, setExpenseCategoryId] = useState('');
@@ -31,43 +262,38 @@ export function TaxAssessmentsPage() {
   const [dueDate, setDueDate] = useState('');
   const [paymentTerms, setPaymentTerms] = useState('');
   const loader = useCallback(
-    (signal?: AbortSignal) => getTaxAssessment(assessmentId ?? '', signal),
+    (signal?: AbortSignal) => getTaxAssessment(assessmentId, signal),
     [assessmentId],
   );
   const { state, reload, setReady } = useBackofficeQuery<TaxAssessment>({
     loader,
     mapError: mapFiscalErrorToMessage,
-    enabled: Boolean(assessmentId),
-    autoLoad: Boolean(assessmentId),
+    enabled: true,
+    autoLoad: true,
   });
-  const gate = assessmentId
-    ? renderQueryGate(
-        'Obrigações tributárias',
-        'Carregando obrigação…',
-        'Você não tem permissão para ver obrigações tributárias.',
-        state,
-        () => void reload(),
-      )
-    : null;
+  const gate = renderQueryGate(
+    'Obrigação tributária',
+    'Carregando obrigação…',
+    'Você não tem permissão para ver obrigações tributárias.',
+    state,
+    () => void reload(),
+  );
 
   return (
     <ModulePage>
       <ModulePageHeader
-        title="Obrigações tributárias"
+        title="Obrigação tributária"
         description="O valor apurado vem da apuração persistida. Esta tela não calcula imposto."
       />
-      <RecordLookupCard
-        fieldId="tax-assessment-id"
-        label="Identificador da obrigação"
-        value={lookupId}
-        onChange={setLookupId}
-        onSubmit={() => void navigate(`/app/fiscal/assessments/${lookupId.trim()}`)}
-        submitLabel="Consultar"
-        loading={state.phase === 'loading'}
-      />
+      <p className="mb-6">
+        <Link to="/app/fiscal/assessments" className="text-sm font-medium text-brand-600 no-underline">
+          ← Voltar para a lista
+        </Link>
+      </p>
+
       <CreateRecordForm
         title="Criar obrigação a partir da apuração"
-        description="Informe o identificador da apuração já persistida."
+        description="A obrigação nasce de uma apuração já persistida no servidor."
         submitLabel="Criar obrigação"
         mapError={mapFiscalErrorToMessage}
         onSubmit={async (idempotencyKey) => {
@@ -87,10 +313,8 @@ export function TaxAssessmentsPage() {
           />
         </Field>
       </CreateRecordForm>
+
       {gate}
-      {!assessmentId ? (
-        <EmptyState title="Nenhuma obrigação carregada" description="Consulte pelo identificador do servidor." />
-      ) : null}
       {state.phase === 'ready' ? (
         <>
           <div className="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5">

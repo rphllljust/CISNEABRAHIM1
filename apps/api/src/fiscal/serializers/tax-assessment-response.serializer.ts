@@ -3,6 +3,7 @@ import type { TaxObligationPayableView } from '../../platform/bounded-contexts/e
 import type {
   TaxAssessmentAggregate,
   TaxAssessmentEventRow,
+  TaxAssessmentListRow,
   TaxObligationRow,
 } from '../repositories/tax-assessment.repository.types';
 
@@ -57,6 +58,84 @@ export type TaxAssessmentDetailResponse = {
 
 function money(value: string): string {
   return formatMoneyAmountForApi(value) ?? value;
+}
+
+/** Item de listagem de apuracoes: inclui a obrigacao tributaria vinculada quando existir. */
+export type TaxAssessmentListItemResponse = {
+  id: string;
+  unitId: string;
+  taxCalculationId: string;
+  taxRuleId: string;
+  taxRuleVersionId: string;
+  taxComponent: string;
+  periodKey: string;
+  currencyCode: string;
+  assessedAmount: string;
+  status: string;
+  supersedesAssessmentId: string | null;
+  rowVersion: number;
+  finalizedAt: string | null;
+  cancelledAt: string | null;
+  cancelReason: string | null;
+  createdAt: string;
+  obligation: {
+    id: string;
+    status: string;
+    amount: string;
+    payableId: string | null;
+  } | null;
+};
+
+export type TaxAssessmentPageResponse = {
+  page: number;
+  pageSize: number;
+  total: number;
+  items: TaxAssessmentListItemResponse[];
+};
+
+export function toTaxAssessmentListItemResponse(
+  row: TaxAssessmentListRow,
+): TaxAssessmentListItemResponse {
+  return {
+    id: row.id,
+    unitId: row.unit_id,
+    taxCalculationId: row.tax_calculation_id,
+    taxRuleId: row.tax_rule_id,
+    taxRuleVersionId: row.tax_rule_version_id,
+    taxComponent: row.tax_component,
+    periodKey: row.period_key,
+    currencyCode: row.currency_code,
+    assessedAmount: money(row.assessed_amount),
+    status: row.status,
+    supersedesAssessmentId: row.supersedes_assessment_id,
+    rowVersion: row.row_version,
+    finalizedAt: row.finalized_at ? new Date(row.finalized_at).toISOString() : null,
+    cancelledAt: row.cancelled_at ? new Date(row.cancelled_at).toISOString() : null,
+    cancelReason: row.cancel_reason,
+    createdAt: new Date(row.created_at).toISOString(),
+    obligation: row.obligation_id
+      ? {
+          id: row.obligation_id,
+          status: row.obligation_status ?? '',
+          amount: money(row.obligation_amount ?? '0'),
+          payableId: row.obligation_payable_id,
+        }
+      : null,
+  };
+}
+
+export function toTaxAssessmentPageResponse(input: {
+  page: number;
+  pageSize: number;
+  total: number;
+  items: TaxAssessmentListRow[];
+}): TaxAssessmentPageResponse {
+  return {
+    page: input.page,
+    pageSize: input.pageSize,
+    total: input.total,
+    items: input.items.map(toTaxAssessmentListItemResponse),
+  };
 }
 
 export function toTaxObligationResponse(row: TaxObligationRow): TaxObligationResponse {

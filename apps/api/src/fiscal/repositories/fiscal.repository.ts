@@ -13,6 +13,7 @@ import type {
   CreateFiscalPersistenceInput,
   FiscalAggregate,
   FiscalAuthorizationRow,
+  FiscalDocumentListRow,
   FiscalDocumentRow,
   FiscalEventRow,
   FiscalItemRow,
@@ -71,6 +72,102 @@ export class FiscalRepository {
       return null;
     }
     return this.hydrate(result.rows[0]);
+  }
+
+  /**
+   * Lista paginada de documentos fiscais da unidade. Leitura pura (sem escrita) para a
+   * superficie de consulta: situacao, periodo de emissao e origem. O ultimo protocolo e a
+   * ultima tentativa de autorizacao vem por LATERAL (uma consulta, sem N+1).
+   */
+  async listDocumentPage(input: {
+    unitId: string;
+    status?: string | string[];
+    sourceKind?: string;
+    billingDocumentId?: string;
+    issuedFrom?: string;
+    issuedTo?: string;
+    page: number;
+    pageSize: number;
+  }): Promise<{ total: number; items: FiscalDocumentListRow[] }> {
+    const conditions: string[] = ['d.unit_id = $1'];
+    const params: unknown[] = [input.unitId];
+    const push = (sql: string, value: unknown): void => {
+      params.push(value);
+      conditions.push(sql.replace('?', `$${params.length}`));
+    };
+
+    if (input.status) {
+      const statuses = Array.isArray(input.status) ? input.status : [input.status];
+      push('d.status = ANY(?::fis.fiscal_document_status[])', statuses);
+    }
+    if (input.sourceKind) {
+      push('d.source_kind = ?::fis.fiscal_source_kind', input.sourceKind);
+    }
+    if (input.billingDocumentId) {
+      push('d.billing_document_id = ?', input.billingDocumentId);
+    }
+    if (input.issuedFrom) {
+      push('d.issued_on >= ?::date', input.issuedFrom);
+    }
+    if (input.issuedTo) {
+      push('d.issued_on <= ?::date', input.issuedTo);
+    }
+
+    const where = `WHERE ${conditions.join(' AND ')}`;
+    const totalResult = await this.pool().query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM fis.fiscal_documents d ${where}`,
+      params,
+    );
+    const total = Number(totalResult.rows[0]?.count ?? '0');
+
+    const pageParams = [...params, input.pageSize, input.page * input.pageSize];
+    const rows = await this.pool().query<FiscalDocumentListRow>(
+      `SELECT
+         d.id, d.unit_id, d.status::text AS status, d.source_kind::text AS source_kind,
+         d.source_id, d.billing_document_id, d.establishment_id, d.description,
+         d.currency_code, d.issued_on::text AS issued_on, d.certificate_ref, d.idempotency_key,
+         d.row_version, d.submitted_at, d.authorized_at, d.rejected_at, d.cancelled_at,
+         d.cancel_reason, d.created_at, d.updated_at, d.created_by_identity_id,
+         d.updated_by_identity_id,
+         latest.protocol_code AS last_protocol_code,
+         latest.outcome::text AS last_authorization_outcome
+       FROM fis.fiscal_documents d
+       LEFT JOIN LATERAL (
+         SELECT a.protocol_code, a.outcome
+         FROM fis.fiscal_authorizations a
+         WHERE a.fiscal_document_id = d.id
+         ORDER BY a.attempt_number DESC
+         LIMIT 1
+       ) latest ON TRUE
+       ${where}
+       ORDER BY d.issued_on DESC, d.created_at DESC, d.id DESC
+       LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length}`,
+      pageParams,
+    );
+
+    return { total, items: rows.rows };
+  }
+
+  async listEvents(fiscalDocumentId: string): Promise<FiscalEventRow[]> {
+    const result = await this.pool().query<FiscalEventRow>(
+      `SELECT id, fiscal_document_id, event_type, payload, occurred_at, actor_identity_id
+       FROM fis.fiscal_events
+       WHERE fiscal_document_id = $1
+       ORDER BY occurred_at ASC, id ASC`,
+      [fiscalDocumentId],
+    );
+    return result.rows;
+  }
+
+  async countDocumentsByStatus(unitId: string): Promise<Array<{ status: string; count: number }>> {
+    const result = await this.pool().query<{ status: string; count: string }>(
+      `SELECT status::text AS status, COUNT(*)::text AS count
+       FROM fis.fiscal_documents
+       WHERE unit_id = $1
+       GROUP BY status`,
+      [unitId],
+    );
+    return result.rows.map((row) => ({ status: row.status, count: Number(row.count) }));
   }
 
   async createDraft(input: CreateFiscalPersistenceInput): Promise<FiscalAggregate> {

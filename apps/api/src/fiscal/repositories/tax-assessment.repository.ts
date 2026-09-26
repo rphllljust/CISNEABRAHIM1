@@ -15,6 +15,7 @@ import type {
   FinalizeTaxAssessmentPersistenceInput,
   TaxAssessmentAggregate,
   TaxAssessmentEventRow,
+  TaxAssessmentListRow,
   TaxAssessmentRow,
   TaxObligationRow,
 } from './tax-assessment.repository.types';
@@ -34,6 +35,18 @@ const OBLIGATION_RETURNING = `
 
 const EVENT_RETURNING = `
   id, tax_assessment_id, event_type::text AS event_type, payload, occurred_at, actor_identity_id
+`;
+
+/** Listagem: avaliacao + obrigacao vinculada (LEFT JOIN, sem N+1). */
+const ASSESSMENT_LIST_SELECT = `
+  a.id, a.unit_id, a.tax_calculation_id, a.tax_rule_id, a.tax_rule_version_id, a.tax_component,
+  a.period_key, a.currency_code, a.assessed_amount::text AS assessed_amount,
+  a.status::text AS status, a.supersedes_assessment_id, a.idempotency_key, a.row_version,
+  a.finalized_at, a.cancelled_at, a.cancel_reason, a.created_at, a.updated_at,
+  o.id AS obligation_id,
+  o.status::text AS obligation_status,
+  o.amount::text AS obligation_amount,
+  o.payable_id AS obligation_payable_id
 `;
 
 @Injectable()
@@ -79,6 +92,52 @@ export class TaxAssessmentRepository {
       return null;
     }
     return this.findById(assessment.rows[0].id);
+  }
+
+  /**
+   * Lista paginada de apuracoes da unidade, com a obrigacao tributaria vinculada.
+   * Consulta pura para a superficie de apuracao (situacao, competencia e componente).
+   */
+  async listAssessmentPage(input: {
+    unitId: string;
+    status?: string[] | string;
+    periodKey?: string;
+    taxComponent?: string;
+    page: number;
+    pageSize: number;
+  }): Promise<{ total: number; items: TaxAssessmentListRow[] }> {
+    const conditions: string[] = ['a.unit_id = $1'];
+    const params: unknown[] = [input.unitId];
+    const push = (sql: string, value: unknown): void => {
+      params.push(value);
+      conditions.push(sql.replace('?', `$${params.length}`));
+    };
+    if (input.status) {
+      const statuses = Array.isArray(input.status) ? input.status : [input.status];
+      push('a.status = ANY(?::fis.tax_assessment_status[])', statuses);
+    }
+    if (input.periodKey) {
+      push('a.period_key = ?', input.periodKey);
+    }
+    if (input.taxComponent) {
+      push('a.tax_component = ?', input.taxComponent);
+    }
+    const where = `WHERE ${conditions.join(' AND ')}`;
+    const count = await this.pool().query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM fis.tax_assessments a ${where}`,
+      params,
+    );
+    const pageParams = [...params, input.pageSize, input.page * input.pageSize];
+    const rows = await this.pool().query<TaxAssessmentListRow>(
+      `SELECT ${ASSESSMENT_LIST_SELECT}
+       FROM fis.tax_assessments a
+       LEFT JOIN fis.tax_obligations o ON o.tax_assessment_id = a.id
+       ${where}
+       ORDER BY a.period_key DESC, a.created_at DESC, a.id DESC
+       LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length}`,
+      pageParams,
+    );
+    return { total: Number(count.rows[0]?.count ?? '0'), items: rows.rows };
   }
 
   async findActiveByTaxPeriod(

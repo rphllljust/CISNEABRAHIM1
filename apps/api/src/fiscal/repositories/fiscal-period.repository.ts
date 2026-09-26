@@ -62,6 +62,47 @@ export class FiscalPeriodRepository {
     return result.rows[0] ?? null;
   }
 
+  /** Lista paginada de periodos fiscais da unidade (consulta pura, sem escrita). */
+  async listPeriodPage(input: {
+    unitId: string;
+    status?: string;
+    periodKeyFrom?: string;
+    periodKeyTo?: string;
+    page: number;
+    pageSize: number;
+  }): Promise<{ total: number; items: FiscalPeriodRow[] }> {
+    const conditions: string[] = ['unit_id = $1'];
+    const params: unknown[] = [input.unitId];
+    const push = (sql: string, value: unknown): void => {
+      params.push(value);
+      conditions.push(sql.replace('?', `$${params.length}`));
+    };
+    if (input.status) {
+      push('status = ?::fis.fiscal_period_status', input.status);
+    }
+    if (input.periodKeyFrom) {
+      push('period_key >= ?', input.periodKeyFrom);
+    }
+    if (input.periodKeyTo) {
+      push('period_key <= ?', input.periodKeyTo);
+    }
+    const where = `WHERE ${conditions.join(' AND ')}`;
+    const count = await this.pool().query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM fis.fiscal_periods ${where}`,
+      params,
+    );
+    const pageParams = [...params, input.pageSize, input.page * input.pageSize];
+    const rows = await this.pool().query<FiscalPeriodRow>(
+      `SELECT ${PERIOD_RETURNING}
+       FROM fis.fiscal_periods
+       ${where}
+       ORDER BY period_key DESC, created_at DESC, id DESC
+       LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length}`,
+      pageParams,
+    );
+    return { total: Number(count.rows[0]?.count ?? '0'), items: rows.rows };
+  }
+
   async open(input: {
     unitId: string;
     periodKey: string;

@@ -8,6 +8,7 @@ import type {
   TaxCalculationLineRow,
   TaxCalculationRow,
   TaxContextRow,
+  TaxRuleListRow,
   TaxRuleRow,
   TaxRuleVersionRow,
 } from './tax-engine.repository.types';
@@ -56,6 +57,64 @@ export class TaxEngineRepository {
       [unitId, code],
     );
     return result.rows[0] ?? null;
+  }
+
+  /**
+   * Lista paginada de regras tributarias da unidade com a versao publicada vigente
+   * (LATERAL, uma consulta). Somente leitura: nenhuma aliquota e inventada aqui.
+   */
+  async listRulePage(input: {
+    unitId: string;
+    status?: string;
+    page: number;
+    pageSize: number;
+  }): Promise<{ total: number; items: TaxRuleListRow[] }> {
+    const conditions: string[] = ['r.unit_id = $1'];
+    const params: unknown[] = [input.unitId];
+    if (input.status) {
+      params.push(input.status);
+      conditions.push(`r.status = $${params.length}::fis.tax_rule_status`);
+    }
+    const where = `WHERE ${conditions.join(' AND ')}`;
+    const count = await this.pool().query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM fis.tax_rules r ${where}`,
+      params,
+    );
+    const pageParams = [...params, input.pageSize, input.page * input.pageSize];
+    const rows = await this.pool().query<TaxRuleListRow>(
+      `SELECT
+         r.id, r.unit_id, r.code, r.name, r.status::text AS status, r.created_at, r.updated_at,
+         published.id AS published_version_id,
+         published.version_number AS published_version_number,
+         published.status::text AS published_version_status,
+         published.calculation_method::text AS published_calculation_method,
+         published.rate::text AS published_rate,
+         published.fixed_amount::text AS published_fixed_amount,
+         published.source_reference AS published_source_reference,
+         published.effective_from::text AS published_effective_from,
+         published.effective_to::text AS published_effective_to,
+         published.published_at AS published_at,
+         versions.version_count AS version_count
+       FROM fis.tax_rules r
+       LEFT JOIN LATERAL (
+         SELECT v.id, v.version_number, v.status, v.calculation_method, v.rate, v.fixed_amount,
+                v.source_reference, v.effective_from, v.effective_to, v.published_at
+         FROM fis.tax_rule_versions v
+         WHERE v.tax_rule_id = r.id AND v.status = 'PUBLISHED'
+         ORDER BY v.version_number DESC
+         LIMIT 1
+       ) published ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*)::int AS version_count
+         FROM fis.tax_rule_versions v
+         WHERE v.tax_rule_id = r.id
+       ) versions ON TRUE
+       ${where}
+       ORDER BY r.code ASC, r.created_at DESC
+       LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length}`,
+      pageParams,
+    );
+    return { total: Number(count.rows[0]?.count ?? '0'), items: rows.rows };
   }
 
   async findVersionById(id: string): Promise<TaxRuleVersionRow | null> {

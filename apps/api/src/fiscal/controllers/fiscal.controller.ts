@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { CurrentAuth } from '../../auth/decorators/current-auth.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import type { AccessTokenClaims } from '../../auth/services/token.service';
@@ -9,6 +9,18 @@ import { FiscalAccessService } from '../services/fiscal-access.service';
 @UseGuards(JwtAuthGuard)
 export class FiscalController {
   constructor(private readonly fiscalAccess: FiscalAccessService) {}
+
+  /**
+   * Lista paginada por unidade com filtros de situacao/periodo/origem. Rota declarada antes
+   * de `:fiscalDocumentId` para nao ser capturada pelo parametro.
+   */
+  @Get()
+  list(@CurrentAuth() auth: AccessTokenClaims, @Query() query: Record<string, unknown>) {
+    return this.fiscalAccess.listDocuments(
+      { identityId: auth.sub, sessionId: auth.sid },
+      query as { unitId: string } & Record<string, unknown>,
+    );
+  }
 
   @Post()
   @HttpCode(200)

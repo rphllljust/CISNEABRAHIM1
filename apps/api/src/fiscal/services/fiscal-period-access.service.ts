@@ -24,6 +24,7 @@ import {
   fiscalPeriodKeyFromDate,
 } from '../domain/fiscal-period';
 import {
+  validateFiscalPeriodListQuery,
   validateOpenFiscalPeriodInput,
   validateReopenFiscalPeriodInput,
   type OpenFiscalPeriodInput,
@@ -31,7 +32,9 @@ import {
 } from '../domain/fiscal-period.validation';
 import { FiscalPeriodRepository } from '../repositories/fiscal-period.repository';
 import {
+  toFiscalPeriodPageResponse,
   toFiscalPeriodResponse,
+  type FiscalPeriodPageResponse,
   type FiscalPeriodResponse,
 } from '../serializers/fiscal-period-response.serializer';
 import { fiscalAccessDenied } from './fiscal-access.errors';
@@ -149,6 +152,39 @@ export class FiscalPeriodAccessService {
       : fiscalPeriodKeyFromDate(issuedOnOrPeriodKey);
     const period = await this.repository.findByUnitPeriod(unitId, periodKey);
     assertFiscalPeriodAcceptsOrdinaryChange(period?.status);
+  }
+
+  /**
+   * Lista paginada de periodos fiscais da unidade. Superficie de consulta do fechamento
+   * fiscal (antes era necessario informar o identificador do periodo manualmente).
+   */
+  async listPeriods(
+    actor: IdentityAuthzContext,
+    query: { unitId: string } & Record<string, unknown>,
+  ): Promise<FiscalPeriodPageResponse> {
+    try {
+      const validated = validateFiscalPeriodListQuery(query);
+      await this.assertPeriodAction(actor, AUTHZ_ACTIONS.FiscalPeriodRead, {
+        id: validated.unitId,
+        unitId: validated.unitId,
+      });
+      const result = await this.repository.listPeriodPage({
+        unitId: validated.unitId,
+        status: validated.status,
+        periodKeyFrom: validated.periodKeyFrom,
+        periodKeyTo: validated.periodKeyTo,
+        page: validated.page,
+        pageSize: validated.pageSize,
+      });
+      return toFiscalPeriodPageResponse({
+        page: validated.page,
+        pageSize: validated.pageSize,
+        total: result.total,
+        items: result.items,
+      });
+    } catch (error) {
+      throw mapFiscalPeriodDomainError(error);
+    }
   }
 
   private async requirePeriod(periodId: string) {

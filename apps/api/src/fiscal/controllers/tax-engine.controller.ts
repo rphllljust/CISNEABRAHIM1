@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { CurrentAuth } from '../../auth/decorators/current-auth.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import type { AccessTokenClaims } from '../../auth/services/token.service';
@@ -13,6 +13,15 @@ import { TaxEngineAccessService } from '../services/tax-engine-access.service';
 @UseGuards(JwtAuthGuard)
 export class TaxEngineController {
   constructor(private readonly taxEngine: TaxEngineAccessService) {}
+
+  /** Lista paginada de regras com a versao publicada vigente (unidade obrigatoria). */
+  @Get('rules')
+  listRules(@CurrentAuth() auth: AccessTokenClaims, @Query() query: Record<string, unknown>) {
+    return this.taxEngine.listRules(
+      { identityId: auth.sub, sessionId: auth.sid },
+      query as { unitId: string } & Record<string, unknown>,
+    );
+  }
 
   @Post('rules')
   @HttpCode(200)
