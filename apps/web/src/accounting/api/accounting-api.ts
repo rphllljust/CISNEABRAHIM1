@@ -23,6 +23,7 @@ import type {
   JournalListPage,
   LedgerReconstruction,
   PeriodsList,
+  PostingRequestPage,
   TrialBalance,
 } from '../types/accounting.types';
 
@@ -283,6 +284,37 @@ export async function listJournals(
   if (query.sourceKind) params.set('sourceKind', query.sourceKind);
   if (query.accountId) params.set('accountId', query.accountId);
   return requestJson<JournalListPage>(`/api/v1/accounting/charts/${chartId}/journals?${params.toString()}`, {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+}
+
+export type PostingRequestListQuery = {
+  unitId: string;
+  status?: string;
+  originKind?: string;
+  eventKind?: string;
+  occurredFrom?: string;
+  occurredTo?: string;
+  page: number;
+  pageSize: number;
+};
+
+export async function listPostingRequests(
+  query: PostingRequestListQuery,
+  signal?: AbortSignal,
+): Promise<PostingRequestPage> {
+  const params = new URLSearchParams();
+  params.set('unitId', query.unitId);
+  params.set('page', String(query.page));
+  params.set('pageSize', String(query.pageSize));
+  if (query.status) params.set('status', query.status);
+  if (query.originKind) params.set('originKind', query.originKind);
+  if (query.eventKind) params.set('eventKind', query.eventKind);
+  if (query.occurredFrom) params.set('occurredFrom', query.occurredFrom);
+  if (query.occurredTo) params.set('occurredTo', query.occurredTo);
+  return requestJson<PostingRequestPage>(`/api/v1/accounting/posting-requests?${params.toString()}`, {
     method: 'GET',
     headers: authHeaders(),
     signal,

@@ -6,6 +6,7 @@ import type {
   ChartOfAccountsRow,
   JournalAggregate,
   JournalEntryLineRow,
+  JournalEntryRow,
 } from '../repositories/accounting.repository.types';
 
 export type ChartResponse = {
@@ -79,8 +80,15 @@ export type JournalResponse = {
   sourceReference: string;
   idempotencyKey: string;
   reversesEntryId: string | null;
+  /**
+   * Lancamento de estorno que anulou este, quando existir. Ausente na lista (consulta em
+   * lote nao carrega o vinculo reverso) e presente no detalhe.
+   */
+  reversedByEntryId: string | null;
+  reversedByEntryNumber: number | null;
   entryNumber: number | null;
   postedAt: string | null;
+  postedBy: string | null;
   rowVersion: number;
   debitTotal: string;
   creditTotal: string;
@@ -140,7 +148,14 @@ export function toPeriodResponse(
   };
 }
 
-export function toJournalResponse(aggregate: JournalAggregate): JournalResponse {
+/**
+ * `reversal` e opcional: a lista de lancamentos nao carrega o vinculo reverso para nao
+ * introduzir consulta por linha. O detalhe do lancamento carrega e informa.
+ */
+export function toJournalResponse(
+  aggregate: JournalAggregate,
+  reversal: JournalEntryRow | null = null,
+): JournalResponse {
   const reconstruction = reconstructLedger(
     aggregate.lines.map((line) => ({
       accountId: line.account_id,
@@ -163,8 +178,11 @@ export function toJournalResponse(aggregate: JournalAggregate): JournalResponse 
     sourceReference: aggregate.entry.source_reference,
     idempotencyKey: aggregate.entry.idempotency_key,
     reversesEntryId: aggregate.entry.reverses_entry_id,
+    reversedByEntryId: reversal?.id ?? null,
+    reversedByEntryNumber: reversal?.entry_number ?? null,
     entryNumber: aggregate.entry.entry_number,
     postedAt: aggregate.entry.posted_at,
+    postedBy: aggregate.entry.posted_by_identity_id,
     rowVersion: aggregate.entry.row_version,
     debitTotal: formatMoneyAmountForApi(reconstruction.totalDebits) ?? reconstruction.totalDebits,
     creditTotal: formatMoneyAmountForApi(reconstruction.totalCredits) ?? reconstruction.totalCredits,

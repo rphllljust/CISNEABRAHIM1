@@ -57,6 +57,24 @@ export type PersistPostingRuleInput = {
   actorIdentityId: string;
 };
 
+/** Linha de rastreabilidade: pedido de lancamento + numero do lancamento gerado (LEFT JOIN). */
+export type PostingRequestListRow = PostingRequestRow & {
+  journal_entry_number: string | null;
+  journal_entry_status: string | null;
+  journal_entry_posted_at: Date | null;
+};
+
+export type PostingRequestListFilter = {
+  unitId: string;
+  status?: string;
+  originKind?: string;
+  eventKind?: string;
+  occurredFrom?: string;
+  occurredTo?: string;
+  page: number;
+  pageSize: number;
+};
+
 export type PersistPostingRuleVersionInput = {
   postingRuleId: string;
   debitAccountId: string;

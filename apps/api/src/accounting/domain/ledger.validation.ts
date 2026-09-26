@@ -1,5 +1,6 @@
 import { assertUuid } from '../../platform/kernel/uuid';
 import { assertCurrencyCode } from '../../platform/kernel/money-math';
+import { POSTING_EVENTS, POSTING_ORIGINS, POSTING_REQUEST_STATUSES } from './posting';
 import {
   AccountingError,
   JOURNAL_SOURCE_KINDS,
@@ -282,6 +283,61 @@ export function validateJournalListQuery(
     occurredTo: optionalDateFilter(input.occurredTo, 'occurredTo'),
     sourceKind: optionalSourceKind(input.sourceKind),
     accountId: input.accountId,
+    page: requirePage(input.page, 'page'),
+    pageSize: requirePageSize(input.pageSize, 'pageSize'),
+  };
+}
+
+const POSTING_REQUEST_STATUS_FILTERS = new Set(Object.values(POSTING_REQUEST_STATUSES));
+const POSTING_ORIGIN_FILTERS = new Set(Object.values(POSTING_ORIGINS));
+const POSTING_EVENT_FILTERS = new Set(Object.values(POSTING_EVENTS));
+
+function optionalPostingWhitelist(
+  value: string | undefined | null,
+  allowed: ReadonlySet<string>,
+  field: string,
+): string | undefined {
+  const trimmed = value?.trim() ?? '';
+  if (trimmed === '') {
+    return undefined;
+  }
+  const normalized = trimmed.toUpperCase();
+  if (!allowed.has(normalized)) {
+    throw new AccountingValidationError(field);
+  }
+  return normalized;
+}
+
+export type PostingRequestListQuery = {
+  unitId: string;
+  status?: string;
+  originKind?: string;
+  eventKind?: string;
+  occurredFrom?: string;
+  occurredTo?: string;
+  page: number;
+  pageSize: number;
+};
+
+/**
+ * Filtros da rastreabilidade evento -> lancamento. `unitId` e obrigatorio: a autorizacao de
+ * listagem e resolvida por escopo de unidade, portanto a consulta nunca varre outra unidade.
+ */
+export function validatePostingRequestListQuery(
+  input: Omit<PostingRequestListQuery, 'page' | 'pageSize'> & { page?: unknown; pageSize?: unknown },
+): PostingRequestListQuery {
+  const occurredFrom = optionalDateFilter(input.occurredFrom, 'occurredFrom');
+  const occurredTo = optionalDateFilter(input.occurredTo, 'occurredTo');
+  if (occurredFrom && occurredTo && occurredFrom > occurredTo) {
+    throw new AccountingValidationError('period');
+  }
+  return {
+    unitId: requireNonEmpty(input.unitId, 'unitId'),
+    status: optionalPostingWhitelist(input.status, POSTING_REQUEST_STATUS_FILTERS, 'status'),
+    originKind: optionalPostingWhitelist(input.originKind, POSTING_ORIGIN_FILTERS, 'originKind'),
+    eventKind: optionalPostingWhitelist(input.eventKind, POSTING_EVENT_FILTERS, 'eventKind'),
+    occurredFrom,
+    occurredTo,
     page: requirePage(input.page, 'page'),
     pageSize: requirePageSize(input.pageSize, 'pageSize'),
   };

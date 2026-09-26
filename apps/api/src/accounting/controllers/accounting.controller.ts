@@ -277,6 +277,24 @@ export class AccountingController {
     );
   }
 
+  @Get('posting-requests')
+  listPostingRequests(
+    @CurrentAuth() auth: AccessTokenClaims,
+    @Query('unitId') unitId: string,
+    @Query('status') status?: string,
+    @Query('originKind') originKind?: string,
+    @Query('eventKind') eventKind?: string,
+    @Query('occurredFrom') occurredFrom?: string,
+    @Query('occurredTo') occurredTo?: string,
+    @Query('page') page = '0',
+    @Query('pageSize') pageSize = '30',
+  ) {
+    return this.accountingAccess.listPostingRequests(
+      { identityId: auth.sub, sessionId: auth.sid },
+      { unitId, status, originKind, eventKind, occurredFrom, occurredTo, page, pageSize },
+    );
+  }
+
   @Get('ledger')
   reconstruct(@CurrentAuth() auth: AccessTokenClaims, @Query('chartId') chartId: string) {
     return this.accountingAccess.reconstructLedger(

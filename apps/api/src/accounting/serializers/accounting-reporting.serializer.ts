@@ -104,7 +104,7 @@ export function toJournalBookResponse(
   periodId: string,
   aggregates: JournalAggregate[],
 ): JournalBookResponse {
-  const entries = aggregates.map(toJournalResponse);
+  const entries = aggregates.map((aggregate) => toJournalResponse(aggregate));
   const totalDebits = sumMoneyAmounts(entries.map((entry) => entry.debitTotal));
   const totalCredits = sumMoneyAmounts(entries.map((entry) => entry.creditTotal));
   const balanced = moneyAmountsEqual(totalDebits, totalCredits);

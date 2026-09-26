@@ -2,17 +2,43 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/context/AuthProvider';
 import { BackofficeApiError } from '../financial-ui/enterprise-api';
-import { probeAccountingReadAccess } from './api/accounting-api';
+import { probeAccountingReadAccess, probeFixedAssetReadAccess } from './api/accounting-api';
 
-export function AccountingRoute({ children }: { children: ReactNode }) {
+type AccountingRouteAccess = 'journals' | 'fixed-assets';
+
+const ACCOUNTING_ACCESS: Record<
+  AccountingRouteAccess,
+  {
+    capabilityId: string;
+    probe: (signal?: AbortSignal) => Promise<boolean>;
+  }
+> = {
+  journals: {
+    capabilityId: 'accounting:journal:read',
+    probe: probeAccountingReadAccess,
+  },
+  'fixed-assets': {
+    capabilityId: 'accounting:fixed-asset:read',
+    probe: probeFixedAssetReadAccess,
+  },
+};
+
+export function AccountingRoute({
+  children,
+  access = 'journals',
+}: {
+  children: ReactNode;
+  access?: AccountingRouteAccess;
+}) {
   const location = useLocation();
   const { expireSession } = useAuth();
   const [state, setState] = useState<'loading' | 'allowed' | 'denied' | 'session_expired'>('loading');
+  const accessPolicy = ACCOUNTING_ACCESS[access];
 
   useEffect(() => {
     const controller = new AbortController();
     let cancelled = false;
-    void probeAccountingReadAccess(controller.signal)
+    void accessPolicy.probe(controller.signal)
       .then((allowed) => {
         if (!cancelled) {
           setState(allowed ? 'allowed' : 'denied');
@@ -33,7 +59,7 @@ export function AccountingRoute({ children }: { children: ReactNode }) {
       cancelled = true;
       controller.abort();
     };
-  }, [expireSession, location.pathname]);
+  }, [accessPolicy, expireSession, location.pathname]);
 
   if (state === 'loading') {
     return (
@@ -50,7 +76,7 @@ export function AccountingRoute({ children }: { children: ReactNode }) {
       <Navigate
         to="/app/no-access"
         replace
-        state={{ from: location.pathname, capabilityId: 'accounting:journal:read' }}
+        state={{ from: location.pathname, capabilityId: accessPolicy.capabilityId }}
       />
     );
   }

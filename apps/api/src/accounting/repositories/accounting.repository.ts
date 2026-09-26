@@ -611,6 +611,18 @@ export class AccountingRepository {
     }
   }
 
+  /**
+   * Lancamento que estornou o informado, quando existir. Somente leitura: usado para ligar a
+   * auditoria na direcao "foi estornado por", que a resposta de detalhe nao expunha.
+   */
+  async findReversalOf(journalEntryId: string): Promise<JournalEntryRow | null> {
+    const result = await this.pool().query<JournalEntryRow>(
+      `SELECT ${ENTRY_RETURNING} FROM acc.journal_entries WHERE reverses_entry_id = $1`,
+      [journalEntryId],
+    );
+    return result.rows[0] ?? null;
+  }
+
   async reverse(input: ReverseJournalPersistenceInput): Promise<JournalAggregate> {
     const client = await this.pool().connect();
     try {

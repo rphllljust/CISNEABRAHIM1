@@ -80,13 +80,49 @@ export type JournalEntry = {
   sourceReference: string;
   idempotencyKey: string;
   reversesEntryId: string | null;
+  /** Lancamento de estorno que anulou este. Presente no detalhe; nulo na lista. */
+  reversedByEntryId: string | null;
+  reversedByEntryNumber: number | null;
   entryNumber: number | null;
   postedAt: string | null;
+  postedBy: string | null;
   rowVersion: number;
   debitTotal: string;
   creditTotal: string;
   balanced: boolean;
   lines: JournalLine[];
+};
+
+/** Rastreabilidade evento de negocio -> lancamento contabil (acc.accounting_posting_requests). */
+export type PostingRequestListItem = {
+  id: string;
+  unitId: string;
+  originKind: string;
+  eventKind: string;
+  sourceId: string;
+  sourceReference: string;
+  amount: string;
+  currencyCode: string;
+  occurredOn: string;
+  status: string;
+  postingRuleId: string;
+  postingRuleVersionId: string;
+  actorIdentityId: string;
+  createdAt: string;
+  journalEntryId: string | null;
+  journalEntryNumber: string | null;
+  journalEntryStatus: string | null;
+  journalEntryPostedAt: string | null;
+};
+
+export type PostingRequestPage = {
+  unitId: string;
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  statusCounts: Record<string, number>;
+  items: PostingRequestListItem[];
 };
 
 export type LedgerReconstruction = {

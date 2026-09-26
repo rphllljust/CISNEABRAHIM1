@@ -240,6 +240,7 @@ export function PeriodClosePage() {
                   rowVersion: period.rowVersion,
                   reason: reason ?? '',
                 });
+                await reloadPeriodsAndRuns();
               }}
             />
             <MoneyActionForm
@@ -257,6 +258,7 @@ export function PeriodClosePage() {
                   rowVersion: period.rowVersion,
                   reason: reason ?? '',
                 });
+                await reloadPeriodsAndRuns();
               }}
             />
           </div>

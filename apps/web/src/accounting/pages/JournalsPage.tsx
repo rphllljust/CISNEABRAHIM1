@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { Alert, Button, EmptyState, Field, Input, Money, Select } from '../../ui';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Alert, Button, DateTime, EmptyState, Field, Input, Money, Select } from '../../ui';
 import {
   FilterCard,
   ModulePage,
@@ -373,6 +373,36 @@ function JournalView({
               value: <Money value={journal.creditTotal} currencyCode={journal.currencyCode} />,
             },
             { label: 'Origem', value: journal.sourceReference },
+            {
+              label: 'Lançado em',
+              value: journal.postedAt ? <DateTime value={journal.postedAt} /> : '— (rascunho)',
+            },
+            {
+              label: 'Lançado por',
+              value: journal.postedBy ?? '—',
+            },
+            {
+              label: 'Estorna o lançamento',
+              value: journal.reversesEntryId ? (
+                <Link to={`/app/accounting/journals/${journal.reversesEntryId}`}>
+                  {journal.reversesEntryId}
+                </Link>
+              ) : (
+                '—'
+              ),
+            },
+            {
+              label: 'Estornado por',
+              value: journal.reversedByEntryId ? (
+                <Link to={`/app/accounting/journals/${journal.reversedByEntryId}`}>
+                  {journal.reversedByEntryNumber !== null
+                    ? `#${journal.reversedByEntryNumber}`
+                    : journal.reversedByEntryId}
+                </Link>
+              ) : (
+                '—'
+              ),
+            },
             { label: 'Versão', value: String(journal.rowVersion) },
           ]}
         />

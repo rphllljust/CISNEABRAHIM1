@@ -59,6 +59,7 @@ import {
   requirePageSize,
   validateClosePeriodInput,
   validateJournalListQuery,
+  validatePostingRequestListQuery,
   validateReopenPeriodInput,
   validateCreateAccountInput,
   validateCreateChartInput,
@@ -70,6 +71,7 @@ import {
   type CreatePeriodInput,
   type DraftJournalInput,
   type JournalListQuery,
+  type PostingRequestListQuery,
   type ReverseJournalInput,
 } from '../domain/ledger.validation';
 import { AccountingRepository } from '../repositories/accounting.repository';
@@ -93,6 +95,10 @@ import {
   type PostingRuleResponse,
   type PostingRuleVersionResponse,
 } from '../serializers/accounting-posting-response.serializer';
+import {
+  toPostingRequestPageResponse,
+  type PostingRequestPageResponse,
+} from '../serializers/accounting-posting-read.serializer';
 import {
   toAccountLedgerResponse,
   toAccountsListResponse,
@@ -338,7 +344,8 @@ export class AccountingAccessService implements AccountingLedgerPort {
         id: aggregate.entry.id,
         unitId: aggregate.entry.unit_id,
       });
-      return toJournalResponse(aggregate);
+      const reversal = await this.repository.findReversalOf(aggregate.entry.id);
+      return toJournalResponse(aggregate, reversal);
     } catch (error) {
       throw mapAccountingDomainError(error);
     }
@@ -874,6 +881,49 @@ export class AccountingAccessService implements AccountingLedgerPort {
         page: validated.page,
         pageSize: validated.pageSize,
         total: result.total,
+        items: result.items,
+      });
+    } catch (error) {
+      throw mapAccountingDomainError(error);
+    }
+  }
+
+  /**
+   * Rastreabilidade evento -> lancamento ("origem dos lancamentos"). Consulta pura sobre
+   * acc.accounting_posting_requests: mostra qual evento de negocio gerou qual lancamento
+   * contabil, com o numero do lancamento. Autorizacao por escopo de unidade
+   * (accounting:journal:list), o mesmo criterio da lista de lancamentos.
+   */
+  async listPostingRequests(
+    actor: IdentityAuthzContext,
+    query: Omit<PostingRequestListQuery, 'page' | 'pageSize'> & {
+      page?: unknown;
+      pageSize?: unknown;
+    },
+  ): Promise<PostingRequestPageResponse> {
+    try {
+      const validated = validatePostingRequestListQuery(query);
+      await this.authz.assertAccountingAction(actor, AUTHZ_ACTIONS.AccountingJournalList, {
+        id: validated.unitId,
+        unitId: validated.unitId,
+      });
+      const result = await this.postingRepository.listRequestPage({
+        unitId: validated.unitId,
+        status: validated.status,
+        originKind: validated.originKind,
+        eventKind: validated.eventKind,
+        occurredFrom: validated.occurredFrom,
+        occurredTo: validated.occurredTo,
+        page: validated.page,
+        pageSize: validated.pageSize,
+      });
+      const statusCounts = await this.postingRepository.countRequestStatuses(validated.unitId);
+      return toPostingRequestPageResponse({
+        unitId: validated.unitId,
+        page: validated.page,
+        pageSize: validated.pageSize,
+        total: result.total,
+        statusCounts,
         items: result.items,
       });
     } catch (error) {

@@ -15,6 +15,8 @@ import type {
   PersistPostingRequestInput,
   PersistPostingRuleInput,
   PersistPostingRuleVersionInput,
+  PostingRequestListFilter,
+  PostingRequestListRow,
   PostingRequestRow,
   PostingRuleRow,
   PostingRuleVersionRow,
@@ -347,6 +349,77 @@ export class AccountingPostingRepository {
       }
       throw error;
     }
+  }
+
+  /**
+   * Rastreabilidade evento -> lancamento: pagina os pedidos de lancamento da unidade com o
+   * numero do lancamento contabil gerado. Consulta pura, sem escrita; serve a superficie
+   * "origem dos lancamentos" e a auditoria do fechamento.
+   */
+  async listRequestPage(
+    filter: PostingRequestListFilter,
+  ): Promise<{ total: number; items: PostingRequestListRow[] }> {
+    const conditions: string[] = ['r.unit_id = $1'];
+    const values: unknown[] = [filter.unitId];
+    const push = (fragment: string, value: unknown): void => {
+      values.push(value);
+      conditions.push(fragment.replace('?', `$${values.length}`));
+    };
+    if (filter.status) {
+      push('r.status = ?::acc.posting_request_status', filter.status);
+    }
+    if (filter.originKind) {
+      push('r.origin_kind = ?::acc.posting_origin_kind', filter.originKind);
+    }
+    if (filter.eventKind) {
+      push('r.event_kind = ?::acc.posting_event_kind', filter.eventKind);
+    }
+    if (filter.occurredFrom) {
+      push('r.occurred_on >= ?::date', filter.occurredFrom);
+    }
+    if (filter.occurredTo) {
+      push('r.occurred_on <= ?::date', filter.occurredTo);
+    }
+    const where = conditions.join(' AND ');
+    const total = await this.pool().query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM acc.accounting_posting_requests r WHERE ${where}`,
+      values,
+    );
+    const pageValues = [...values, filter.pageSize, filter.page * filter.pageSize];
+    const rows = await this.pool().query<PostingRequestListRow>(
+      `SELECT
+         r.id, r.unit_id, r.origin_kind::text AS origin_kind, r.event_kind::text AS event_kind,
+         r.source_id, r.source_reference, r.idempotency_key, r.posting_rule_id,
+         r.posting_rule_version_id, r.journal_entry_id, r.status::text AS status,
+         r.amount::text AS amount, r.currency_code, r.occurred_on::text AS occurred_on,
+         r.context, r.actor_identity_id, r.created_at, r.updated_at,
+         e.entry_number::text AS journal_entry_number,
+         e.status::text AS journal_entry_status,
+         e.posted_at AS journal_entry_posted_at
+       FROM acc.accounting_posting_requests r
+       LEFT JOIN acc.journal_entries e ON e.id = r.journal_entry_id
+       WHERE ${where}
+       ORDER BY r.occurred_on DESC, r.created_at DESC
+       LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
+      pageValues,
+    );
+    return { total: Number(total.rows[0]?.count ?? '0'), items: rows.rows };
+  }
+
+  /** Contagem por situacao para os cartoes da superficie de rastreabilidade. */
+  async countRequestStatuses(unitId: string): Promise<Record<string, number>> {
+    const result = await this.pool().query<{ status: string; count: string }>(
+      `SELECT status::text AS status, COUNT(*)::text AS count
+       FROM acc.accounting_posting_requests
+       WHERE unit_id = $1
+       GROUP BY status`,
+      [unitId],
+    );
+    const counts: Record<string, number> = {};
+    for (const row of result.rows) {
+      counts[row.status] = Number(row.count);
+    }
+    return counts;
   }
 }
 
