@@ -13203,3 +13203,429 @@ Decisao do responsavel: `rafael@` = desenvolvedor com acesso global (intencional
 - **Sessao travada da suite de integracao**: a primeira execucao do gate ficou 180s no `beforeAll` esperando o advisory lock do banco de teste. Causa: uma sessao orfa de `cisne_local_test` (pid 62179, `idle`, ultima query `INSERT INTO pty.establishment_tax_registrations`, 6min parada) segurava o lock; havia ainda uma sessao `active` presa em `TRUNCATE`. As duas foram encerradas com `pg_terminate_backend` e o gate passou. E residuo de execucao anterior, nao um defeito do codigo deste prompt — mas o sintoma (timeout de hook em vez de erro claro) e uma lacuna de diagnostico.
 
 | Resultado | `PASS` — `rafael@` amplo por decisao, `empregado@` com login proprio e perfil minimo efetivo, escalada por capability de papel fechada nos dois caminhos de autorizacao |
+
+---
+
+## PERMISSOES — CONTROLADOR FINANCEIRO SEPARADO DO DONO + REGRESSAO DE SoD — 2026-09-25
+
+| Campo | Valor |
+| ----- | ----- |
+| Status | `PASS` (corrigido + regressao) |
+| Classificacao | Bug real / autorizacao / segregacao de funcoes |
+| Producao | `NO-GO` mantido (blocker externo de piloto) |
+
+### Achado
+
+`CONTROLE_FINANCEIRO` recebia `CONTROLE_GRANTS` no seed de desenvolvimento: o controlador financeiro tinha acesso GLOBAL a catalogo, comercial (proposta/PO), fiscal, contabil, pessoas, recursos, documentos e administracao de acesso — o mesmo conjunto do dono. No banco dev, `monica@` e `abrahim@` tinham **263 grants identicos**, o que anula a segregacao de funcoes no ambiente de desenvolvimento e contradiz a regra "FINANCEIRO: recebiveis/pagamentos".
+
+### Correcao
+
+1. `CONTROLE_FINANCEIRO_GRANTS` criado com o dominio financeiro (recebiveis, pagamentos, caixa/bancos, conciliacao, despesas, cobranca, orcamento, previsao de caixa) + leitura de faturamento — **nada** de catalogo, comercial, fiscal, contabil, pessoas, recursos, documentos ou acesso-admin.
+2. Papel `OWNER` do controlador passou a descrever o perfil real ("Controlador financeiro").
+3. Banco dev remediado: 263 grants revogados; re-seed aplicou **39** grants corretos.
+4. `operational-profiles.spec.ts` (novo, 4 casos) trava a regressao: empregado so com acoes `ASSIGNED` de OS e **zero** dominio financeiro/contabil/fiscal/comercial; controlador financeiro com dominio financeiro e **zero** catalogo/comercial/contabil/fiscal; conjuntos nao coincidem; nenhuma acao sensivel (settle/post/reverse/approve/pay/finalize/cancel) compartilhada entre empregado e dono.
+5. `OPERATIONAL_PROFILE_GRANTS` exportado para viabilizar a verificacao no proprio pacote.
+
+### Verificacao (banco dev)
+
+| Login | Perfil | grants | ASSIGNED | finance | fora do escopo |
+| ----- | ------ | ------ | -------- | ------- | -------------- |
+| abrahim@ | CONTROLE (dono) | 263 | 0 | 37 | 78 (por desenho) |
+| monica@ | CONTROLADOR FINANCEIRO | **39** | 0 | 37 | **0** |
+| empregado@ | EMPREGADO operacional | **17** | 10 | **0** | **0** |
+| rafael@ | Desenvolvedor estatico (decisao registrada) | 270 | 7 | 37 | 78 (por desenho) |
+
+Testes: database **27/27** (23 anteriores + 4 de SoD); lint/typecheck database PASS.
+
+| Resultado | `PASS` — controlador financeiro restrito ao dominio financeiro; segregacao de funcoes verificavel e com regressao automatizada |
+
+---
+
+## GATE DE INTEGRACAO DE `@cisne/database` VERMELHO — 2 CAUSAS RAIZ CORRIGIDAS — 2026-09-25
+
+| Campo | Valor |
+| ----- | ----- |
+| Status | `PASS` |
+| Classificacao | Defeito real de gate / idempotencia de seed / assercao obsoleta |
+| Producao | `NO-GO` mantido (blocker externo de piloto inalterado) |
+
+### Defeito 1 — assercao impossivel em `clients.persistence.integration.spec.ts`
+
+`applies clients baseline migration on empty-compatible database` afirmava que o schema `pty` continha **exatamente** `['client_addresses','client_contacts','clients']`, mas o teste roda contra o banco **totalmente migrado**: o 0064 (supplier master) e o 0072 (legal establishment master) acrescentam legitimamente 11 tabelas a `pty` (`suppliers*`, `legal_entities*`, `establishments*`, `establishment_*`). A assercao era falsa por construcao — falhava deterministicamente (`expected ['client_addresses', …(13)] to deeply equal ['client_addresses', …(2)]`), reproduzido isoladamente. O spec irmao `service-catalog.persistence.integration.spec.ts` passa porque mantem a lista **completa e atual** do schema `cat`.
+
+Correcao (menor diff, mesmo padrao do irmao): lista de `pty` atualizada para as 14 tabelas reais, **mantendo a igualdade exata** (nenhuma assercao afrouxada); tabela nova em `pty` continua exigindo manutencao explicita da lista.
+
+### Defeito 2 — seed do matrix de aprovacao nao convergente (`operational-profiles.ts`)
+
+`runs DEVELOPMENT_SEED idempotently` e `seeds static owners and developer with least privilege` falhavam com `duplicate key value violates unique constraint "approval_matrices_code_uidx"` e `expected 'already_exists' to be 'created'`.
+
+Causa raiz comprovada com estado real do banco: `authorization.approval_matrices` continha 1 linha orfa (`code='DEV-PAYMENT-MATRIX'`, `versions=0`, `published_versions=0`, `payment_rules=0`) enquanto `identity.identities=0`. Mecanismo: o truncate de `identity.identities` (CASCADE) remove `approval_matrix_versions`/`approval_matrix_rules`, que tem FK para identidades (`created_by_identity_id`, `published_by_identity_id`), mas **nao** alcanca `approval_matrices`, que nao tem FK para identidades e sobrevive orfa. A guarda de `ensureDevPaymentMatrix` testava a existencia de **regra publicada**, enquanto a unicidade do INSERT e do **`code`** — guarda e constraint nao eram equivalentes, entao o seed estourava erro cru de banco em vez de convergir. Referencia de padrao: upsert/get-or-create ancorado na constraint do banco (`INSERT ... ON CONFLICT` + reuso por chave natural) — o mesmo idioma ja usado no proprio pacote (`ensureCatalogBaselineActor` usa `ON CONFLICT (id) DO UPDATE`; `ensureWorkforceMember` usa SELECT-por-chave-natural + UPDATE/INSERT).
+
+Correcao: matriz obtida por `ON CONFLICT (code) DO NOTHING` + SELECT de fallback; versao por get-or-create (reusa a publicada, publica a existente, ou cria v1) sem violar `approval_matrix_versions_one_published_uidx` nem `(matrix_id, version)`; regra por `ON CONFLICT (version_id, line_number) DO NOTHING`. Convergente a partir do estado orfo observado.
+
+### PROVA
+
+| Gate | Resultado |
+| ---- | --------- |
+| `@cisne/database` lint / typecheck / build | PASS |
+| `src/clients.persistence.integration.spec.ts` | **2/2 PASS** (antes 1 failed) |
+| `src/seed.bootstrap.integration.spec.ts` | **10/10 PASS** (antes 2 failed) |
+| `@cisne/database test:integration` (gate completo) | **12 arquivos / 57 testes PASS**, 24,65 s (antes 4 arquivos / 10 testes falhando) |
+| `@cisne/api` build | PASS |
+
+### Limitacoes e achados registrados (nao mascarados)
+
+- `ensureDevPaymentMatrix` executa varios statements **sem transacao**: um erro no meio deixa estado parcial (agravado pelo estado orfo). O seed agora converge a partir desses estados, mas a atomicidade do seed permanece pendencia.
+- `truncateIdentityTables` remove por CASCADE versoes/regras de aprovacao e deixa `approval_matrices` orfa: inconsistencia de isolamento nos builders de teste. Correcao nao aplicada (blast radius em infra compartilhada); registrada.
+- Infra: Docker Desktop parou durante a sessao (todos os containers caidos), derrubando uma reexecucao de `seed.bootstrap` com `ECONNREFUSED 127.0.0.1:5432`. Container restaurado por `pnpm db:up`; a falha nao era de codigo.
+
+| Resultado | `PASS` — gate de integracao de `@cisne/database` verde com 2 causas raiz corrigidas e nenhuma assercao afrouxada |
+
+---
+
+## OBSERVABILIDADE — FALSE ZERO EM METRICAS DE PLATAFORMA DESARMAVA ALERTAS TECNICOS — 2026-09-25
+
+| Campo | Valor |
+| ----- | ----- |
+| Status | `PASS` (unidade + integracao PG real + HTTP) |
+| Classificacao | Defeito real de observabilidade / invariante |
+| Producao | `NO-GO` mantido |
+
+### Problema e causa raiz
+
+`PlatformMetricsCollectorService.count()` engolia qualquer falha de query (`catch { return 0; }`), publicando `0` legitimo para as 7 contagens de backlog quando elas **nao foram medidas**. `TechnicalAlertService` decide `OUTBOX_BACKLOG`, `ERP_FAILURES (>=1)`, `TRACKING_FAILURES (>=1)`, `NOTIFICATION_FAILURES (>=5)` e `WORKER_STALLED` exatamente a partir desses valores: com `0` fabricado o alerta nao dispara e `TechnicalAlertStateTracker` ainda marca as condicoes como **RESOLVED** — cegueira silenciosa durante a falha de medicao. Mesma classe do defeito que derrubou `GET /observability/metrics` em HML (500 por literal de enum invalido).
+
+### Correcao e prova
+
+Convergencia ao contrato ja canonico no repositorio (`BusinessMetricsCollectorService`): `PlatformMetricsCollectionError` com `metric`, `recordFailure` (log estruturado + `lastCollectionError`), `getLastCollectionError()`, `DATABASE_NOT_CONFIGURED` como erro, propagacao ate o filtro global (500, nunca 200 mascarado). `collectDiskUsage`/`collectBackupStatus` mantidos (`null`/`unknown` ja sao honestos).
+
+- Guard executado ANTES da correcao: **5 de 6 casos vermelhos** (falha -> backlog zerado em vez de erro).
+- Depois: unidade **6/6**; integracao PG real **3/3** (vocabulario de enum do SQL existe no tipo publicado; contagens == ground truth; base vazia = zero real); HTTP **4/4** (401/403 fail-closed, 200 com contadores reais, falha = **500** sem nenhum contador no corpo, recuperacao para 200).
+- `pnpm lint` / `pnpm typecheck` PASS; `@cisne/api` unit 947/947; `@cisne/api` integracao 99 arquivos/729 testes PASS; e2e completo 27 arquivos/82 testes PASS (banco isolado).
+
+### Limitacoes
+
+- `Number.parseInt(rows[0]?.count ?? '0')` mantido identico ao coletor irmao (anomalia de driver em `COUNT(*)` ainda daria 0) — sem evidencia de ocorrencia.
+- `/health/live` e `/health/ready` **nao** foram alterados de proposito: falha de telemetria nao pode remover a instancia de rotacao.
+
+| Resultado | `PASS` — falha de medicao nunca mais vira `0`; alertas e gate passam a enxergar o erro |
+
+---
+
+## ISOLAMENTO DE BANCO DE TESTE — FILA POR ADVISORY LOCK ENTRE AGENTES — 2026-09-25
+
+| Campo | Valor |
+| ----- | ----- |
+| Status | `PASS` (protecao secundaria + mecanismo de isolamento) |
+| Classificacao | Defeito de isolamento de teste / performance de gate |
+
+### Problema
+
+`packages/database/vitest.integration.config.ts` nao aplicava serializacao entre processos, embora o proprio pacote exporte o advisory lock (`INTEGRATION_TEST_DB_LOCK_KEY`, documentado como "Serializes integration-test DB reset/seed across Vitest workers and CLI processes") e o `@cisne/api` ja o aplique via `setupFiles`. Consequencia medida: conteudo identico de suite produziu `deadlock detected` e violacoes de FK **nao deterministicas** (4 arquivos/10 testes falhando) ao colidir com outro runner no mesmo `TEST_DATABASE_URL`.
+
+### Correcao
+
+Aplicado o mesmo advisory lock ao pacote que o exporta (`integration-test-db-serializer.ts` + `setupFiles`), como **protecao secundaria**. Controle **primario** passa a ser banco isolado por agente: `scripts/test-db-isolate.mjs` cria e migra um banco proprio (`--name=`, `--drop`, `--json`) pelo caminho canonico de migracao.
+
+### Evidencia de isolamento (medida)
+
+| Execucao | Ambiente | Duracao |
+| -------- | -------- | ------- |
+| Mesmo spec (4 testes) | `TEST_DATABASE_URL` compartilhado | 116,5 s |
+| Mesmo spec (4 testes) | banco isolado (`cisne_test_iso_*`) | **37,6 s** |
+| Suite e2e completa sob contencao | compartilhado | > 30 min, com fila de lock |
+| Suite e2e completa | banco isolado | 27 arquivos / 82 testes PASS |
+
+`ci.yml` define `TEST_DATABASE_URL` no nivel do job e roda `pnpm test:integration`; o novo setupFile nao introduz dependencia nova de ambiente (`gate:ci-database` usa script Node proprio e nao foi afetado).
+
+### Nota operacional
+
+`job_kill` do harness **nao recolhe** os processos filhos: uma execucao de e2e cancelada continuou rodando como orfa (turbo/pnpm/vitest), segurando o advisory lock e bloqueando outros runners. Paternidade comprovada por horario de criacao + linha de comando antes de encerrar; processos de outro agente preservados.
+
+| Resultado | `PASS` — classe de deadlock eliminada e isolamento por banco disponivel e medido |
+
+---
+
+## INTEGRIDADE TRANSACIONAL DO SEED E SIMETRIA DO BUILDER — PENDENCIAS FECHADAS — 2026-09-25
+
+| Campo | Valor |
+| ----- | ----- |
+| Status | `PASS` (regressao comprovadamente vermelha antes da correcao, verde depois, PostgreSQL real) |
+| Classificacao | Defeito real de persistencia (nao transacional) + defeito de isolamento de teste |
+| Producao | `NO-GO` mantido |
+
+Fecha as duas pendencias registradas na entrada `GATE DE INTEGRACAO DE @cisne/database VERMELHO — 2 CAUSAS RAIZ CORRIGIDAS — 2026-09-25`, secao "Limitacoes e achados registrados". O texto historico daquela entrada permanece integralmente no registro; esta entrada apenas o resolve.
+
+### Problema real (evidencia, antes da correcao)
+
+1. **`truncateIdentityTables` deixa matriz orfa.** Sonda em transacao revertida contra o `TEST_DATABASE_URL`, com o grafo de aprovacao completo: `BEFORE truncate: {matrices:1, versions:1, rules:1}` -> `AFTER truncate: {matrices:1, versions:0, rules:0}`. A regressao permanente (`operational-profiles.integrity.integration.spec.ts`) ficou vermelha com `approval_matrices sobreviveu ao truncate: matriz orfa sem versoes nem regras: expected 1 to be +0`.
+2. **`ensureDevPaymentMatrix` nao e atomico.** Falha injetada pelo banco (gatilho `BEFORE INSERT` em `authorization.approval_matrix_rules`), sem mock: o seed rejeita corretamente, mas o estado ja commitado era `{matrices:1, versions:1, rules:0}` — matriz com versao `PUBLISHED` e **nenhuma regra**, exatamente o que `listMatricesOverview` exibe como matriz publicada e o que o PDP nao resolve, porque regras sao lidas de `approval_matrix_rules` publicadas.
+3. **Mesma classe, achado adicional comprovado:** `runDevelopmentSeed` e `runProductionBootstrap` usavam `pool.query('BEGIN')` + `pool.query('COMMIT')`, que **nao** abre transacao. Sonda medida: o `BEGIN` ficou na conexao 2126, a consulta seguinte foi servida pela 2127 e 1 conexao permaneceu em `idle in transaction` no pool; o INSERT executado "dentro" do BEGIN nunca ficou visivel fora dele e foi perdido ao encerrar a sessao.
+
+### Causa raiz
+
+- `authorization.approval_matrices` **nao tem FK para `identity.identities`** (migration 0068: a matriz vincula papel, capability, escopo e limite — nunca pessoa). O CASCADE de `TRUNCATE identity.identities` alcanca `approval_matrix_versions` (FK `created_by_identity_id`/`published_by_identity_id`) e, por ela, `approval_matrix_rules`, mas nao alcanca a matriz: ela sobrevive orfa. O estado nao ocorre por `DELETE` normal — a FK de versoes para identidades e NO ACTION — portanto e artefato do reset de teste, nao do dominio. A guarda do seed, por sua vez, olhava a regra publicada enquanto a unicidade e do `code`.
+- A sequencia matriz -> versao -> regra -> atualizacao da matriz rodava em autocommit: `Pool.query` empresta e devolve uma conexao por statement, de modo que `BEGIN`/`COMMIT` via pool nunca delimitaram nada.
+
+### Referencia (padrao extraido, nao copiado)
+
+- **node-postgres, secao Transactions** ([node-postgres.com/features/transactions](https://node-postgres.com/features/transactions)): transacao exige `pool.connect()` e a mesma conexao para `BEGIN`/`COMMIT`/`ROLLBACK`. A classe e reconhecida a ponto de existir regra de lint dedicada ([`no-transaction-on-pool`](https://raw.githubusercontent.com/ofri-peretz/eslint/refs/heads/main/packages/eslint-plugin-pg/docs/rules/no-transaction-on-pool.md#1)). Padrao adotado = o mesmo ja existente no repositorio em `bank-reconciliation.repository.ts::withTransaction`.
+- **Django `flush` / `DatabaseCleaner`**: o conjunto a limpar e derivado do schema, nao de lista manual ([ticket 29494](https://code.djangoproject.com/ticket/29494)) — e isso que impede lista assimetrica. Adaptacao minima ao CISNE: alinhar a lista explicita ao conjunto ja canonico do proprio pacote (`truncateAuthorizationTables`, `truncateIdentityAndAuthorizationTables`), sem introduzir introspeccao de schema.
+
+### Correcao (menor diff)
+
+- `packages/database/src/transaction.ts` (novo): `withTransaction(pool, run)` — conexao dedicada, `BEGIN`/`COMMIT`/`ROLLBACK`, `release()` no `finally`. Mesmo idioma da casa; **nao** exportado no `index.ts` (sem mudanca de superficie publica).
+- `packages/database/src/seed/operational-profiles.ts`: os 4 statements de `ensureDevPaymentMatrix` passam a rodar dentro de `withTransaction` (mesma logica, mesma ancoragem em `ON CONFLICT`/chave natural). A guarda de leitura continua antes do `BEGIN`.
+- `packages/database/src/seed/development-seed.ts` e `production-bootstrap.ts`: `pool.query('BEGIN'/'COMMIT'/'ROLLBACK')` substituidos pela mesma transacao real (a intencao ja estava escrita no codigo, agora efetiva).
+- `packages/database/src/test-builders/identity-builders.ts`: `truncateIdentityTables` inclui `approval_matrix_rules`, `approval_matrix_versions` e `approval_matrices` — simetria entre setup e cleanup.
+- Specs novos: `src/transaction.integration.spec.ts` (contrato do primitivo: commit, conexao dedicada, rollback, ausencia de conexao presa) e `src/seed/operational-profiles.integrity.integration.spec.ts` (matriz unica publicada, idempotencia, convergencia de matriz orfa, simetria do truncate, tudo-ou-nada sob falha injetada).
+
+### Prova
+
+| Verificacao | Resultado |
+| ----------- | --------- |
+| `operational-profiles.integrity.integration.spec.ts` antes da correcao | **2 de 5 VERMELHOS** nas assercoes dos dois defeitos (matriz orfa `1 != 0`; estado parcial `{matrices:1, versions:1, rules:0}`) — a terceira falha da rodada inicial era erro de autoria do proprio spec (ordem de DELETE respeitando FK), corrigida antes da rodada valida |
+| `operational-profiles.integrity.integration.spec.ts` depois | **5/5 PASS**, 6,7 s |
+| `transaction.integration.spec.ts` | **4/4 PASS** (dados nao commitados invisiveis ao pool durante a transacao; rollback total na falha; 0 conexoes `idle in transaction`) |
+| `seed.bootstrap.integration.spec.ts` + `identity.persistence.integration.spec.ts` | **10/10** e **11/11 PASS** |
+| `@cisne/database test:integration` (gate do pacote) | **14 arquivos / 66 testes PASS**, 45,08 s |
+| `@cisne/database test` / `lint` / `typecheck` / `build` | unit 27/27 PASS; lint PASS; typecheck PASS; build PASS (`dist/transaction.js` emitido) |
+| Estado do banco de desenvolvimento | `approval_matrices`: 1 linha `DEV-PAYMENT-MATRIX` com `published_version=1`, 1 versao, 1 versao publicada, 1 regra — convergido, sem residuo orfo |
+
+### Performance
+
+`seed.bootstrap.integration.spec.ts` media 8,53 s no baseline desta sessao (10 testes) e 5,38 s na rodada conjunta pos-correcao; o gate de integracao do pacote passou de 12 arquivos/57 testes (24,65 s, entrada anterior) para 14 arquivos/66 testes em 45,08 s — o custo e dos 9 testes novos, nao de regressao no tempo de seed. A transacao acrescenta um `BEGIN`/`COMMIT` por operacao logica (round-trip desprezivel frente ao `hashPassword` do mesmo fluxo).
+
+### Limitacoes e pendencias reais
+
+- Nenhum gate de `apps/api` foi reexecutado **de proposito**: `runOperationalProfilesSeed`, `runDevelopmentSeed` e `runProductionBootstrap` nao sao importados por `apps/api` (grep sem ocorrencia), `transaction.ts` nao entra na superficie publica do pacote e `truncateIdentityTables` nao e consumido por `apps/api` (que usa `truncateIdentityAndAuthorizationTables`). A evidencia de `apps/api` nao foi invalidada por esta mudanca.
+- A varredura de residuo de truncate cobriu o grafo de aprovacao (o caso comprovado); nao houve varredura exaustiva de toda tabela sem FK para `identity.identities`.
+- Regra de lint `no-transaction-on-pool` **nao** foi adicionada (dependencia nova); a classe ficou coberta por teste de contrato do primitivo.
+- `withTransaction` faz `ROLLBACK` sem protecao propria de falha (identico ao idioma ja existente em `bank-reconciliation.repository.ts`); `release()` esta no `finally`, portanto a conexao nao vaza.
+
+| Resultado | `PASS` — as duas pendencias registradas estao fechadas com prova vermelho->verde em PostgreSQL real, e a classe inteira (`BEGIN` via pool) deixou de existir nos seeds |
+
+---
+
+## HARDENING FINAL DO HELPER TRANSACIONAL — ERRO PRIMARIO PRESERVADO E CONEXAO DESCARTADA — 2026-09-25
+
+| Campo | Valor |
+| ----- | ----- |
+| Status | `PASS` (PostgreSQL real, banco isolado, prova executada no proprio commit) |
+| Classificacao | Revisao de robustez da solucao transacional; nenhuma regra de negocio nova |
+| Producao | `NO-GO` mantido |
+| Commit | `075381d296d50ed143827b0e1c620763d3038172` |
+
+Fecha a frente aberta pela entrada anterior (`INTEGRIDADE TRANSACIONAL DO SEED E SIMETRIA DO BUILDER — PENDENCIAS FECHADAS`), cuja ultima limitacao registrada — "`withTransaction` faz `ROLLBACK` sem protecao propria de falha" — era um defeito real, nao apenas uma nota.
+
+### 1. Cliente transacional real (verificado, sem alteracao)
+
+`withTransaction(pool, run)` entrega `PoolClient` explicitamente e nenhum statement da unidade logica escapa para `Pool.query`: varredura `pool.query` x `client.query` nos tres consumidores mostra `client.query` em todos os statements dentro do `BEGIN` (as leituras de guarda/pre-checagem dos seeds ficam fora da transacao, por decisao registrada). Prova adicional no proprio PostgreSQL: teste de contrato com `CREATE TEMP TABLE ... ON COMMIT DROP` — se qualquer statement escapasse para o pool, a tabela nao existiria na transacao e o proprio banco reprovaria — somado a `pg_backend_pid()` e `pg_current_xact_id()` identicos entre statements.
+
+### 2. Erro original nao pode ser mascarado (defeito real, corrigido)
+
+**Evidencia:** `catch (error) { await client.query('ROLLBACK'); throw error; }` — se o `ROLLBACK` tambem falhasse, o erro secundario de limpeza **substituia** a causa primaria da operacao, e a conexao voltava ao pool por `client.release()` mesmo com a transacao sem desfecho confirmado.
+
+**Correcao:** a falha primaria continua sendo a propagada, com a propria identidade (classe/`code` preservados para o mapeamento de erro do chamador); a falha do `ROLLBACK` fica anexada em `rollbackFailure`; a conexao e **descartada** em vez de voltar ao reuso (`client.release(err)` remove a conexao — `_release` do `pg-pool`); `release()` segue no `finally`, uma unica vez (`throwOnDoubleRelease` do pool impede release duplo).
+
+**Prova do descarte:** falha injetada por perda real de conexao antes do desfecho (`client.end()`), com assercoes sobre o evento `release` do pool (sinal de descarte entregue com erro), `totalCount === 0`, ausencia de residuo persistido e pool ainda utilizavel. Erro secundario observado, igual ao da referencia: `Client was closed and is not queryable`.
+
+### 3. Duplicacao de infraestrutura (decisao: helper local mantido)
+
+Inventario medido: `apps/api` tem ~250 ocorrencias inline de `BEGIN`/`COMMIT`/`ROLLBACK` em repositorios/servicos de dominio (amostra lida: `approval-matrix.repository.create`, que repete o padrao e a mesma fragilidade de mascara); `bank-reconciliation.repository.ts` tem `withTransaction` como **metodo de classe** sobre o pool do dominio; `synthetic-seed-compensation.ts` opera com **client emprestado** (nao possui a conexao, nao faz release). Consolidar exigiria mudar contratos de posse de conexao e semantica de erro de ~250 pontos: blast radius inaceitavel nesta rodada. Mantido `withTransaction` local em `packages/database`, sem export no `index.ts` (superficie publica inalterada).
+
+### 4. Referencias
+
+**Master GitHub (codigo/projetos reais estudados)**
+- [brianc/node-postgres#154 — "Clients with aborted transactions taint the pool"](https://github.com/brianc/node-postgres/issues/154): conexao cujo desfecho de transacao nao pode ser confirmado nao deve voltar ao pool.
+- [stablyai/orca commit `1fd2c1b` — "fix(database): evict/destroy connections when COMMIT or ROLLBACK fails"](https://github.com/stablyai/orca/commit/1fd2c1b28d433f483de4a855ea353e26aa26e213): mesmo padrao (descartar conexao quando COMMIT ou ROLLBACK falha).
+- [brianc/node-postgres#2512](https://github.com/brianc/node-postgres/issues/2512): erro `Client was closed and is not queryable` — o secundario efetivamente observado na prova.
+
+**Documentacao autoritativa**
+- [node-postgres, Transactions](https://node-postgres.com/features/transactions): `pool.connect()` + `BEGIN`/`COMMIT`/`ROLLBACK` na mesma conexao.
+- `pg-pool` (brianc/node-postgres), fonte instalada `index.js::_release`: "release a client back to the pool, include an error to remove it from the pool".
+- Discussao da classe (referencia de projeto, nao codigo executado): [gajus/slonik#50 "Errors lose information"](https://github.com/gajus/slonik/issues/50).
+
+### Prova (banco isolado `cisne_test_iso_txharden`, sem compartilhar `TEST_DATABASE_URL`)
+
+| Verificacao | Resultado |
+| ----------- | --------- |
+| `transaction.integration.spec.ts` (contrato do primitivo, PostgreSQL real) | **6/6 PASS** — commit; conexao dedicada; mesma sessao **e mesma transacao** (`ON COMMIT DROP` + pid + xid); rollback total; 0 `idle in transaction`; **falha primaria preservada com descarte da conexao** |
+| `operational-profiles.integrity.integration.spec.ts` | **5/5 PASS** |
+| `seed.bootstrap.integration.spec.ts` | **10/10 PASS** |
+| `@cisne/database test:integration` (gate do pacote) | **14 arquivos / 68 testes PASS**, 39,57 s |
+| `lint` / `typecheck` / `build` / `test` (unit) | PASS / PASS / PASS / 27/27 PASS |
+| Prova associada ao COMMIT (worktree isolada em `075381d`) | **21/21 PASS** nos 3 specs focados, 29,09 s — a arvore commitada, nao o working tree |
+
+### Performance
+
+Banco isolado, sem fila de lock: gate do pacote 39,57 s (antes 45,08 s no banco compartilhado, ja com os 2 testes novos). Spec de contrato do helper: 113 ms para 6 testes.
+
+### Limitacoes (reais, nao mascaradas)
+
+- A fragilidade de mascara de erro existe em ~250 pontos inline de `apps/api` (amostra verificada, nao auditoria completa) e em `synthetic-seed-compensation.ts`; **nao corrigidos** por decisao de blast radius nesta rodada.
+- Sem varredura exaustiva para a classe `pool.query('BEGIN')` em todo o repositorio: a busca cobriu os seeds e o pacote `database`; `apps/api` foi varrido apenas por literal `'BEGIN'` (que mostrou o padrao correto, com client dedicado, nos arquivos amostrados e no `grep` de 250 ocorrencias).
+- `runOperationalProfilesSeed` continua **convergente, nao transacional como um todo**: cada etapa e ancorada em chave natural/constraint e a reexecucao converge. Considerado de proposito manter o limite da transacao na unidade logica (matriz completa), evitando lock longo sobre o seed inteiro.
+- Regra de lint `no-transaction-on-pool` nao adicionada (dependencia nova).
+- Registros de governanca desta rodada ficam no working tree (nao commitados) junto das entradas de frentes anteriores que dividem os mesmos dois arquivos, para nao misturar frentes em um commit.
+
+| Resultado | `PASS` — helper validado nos 4 pontos, causa primaria preservada, conexao ruim descartada e nao devolvida ao pool; frente fechada no commit `075381d` |
+
+---
+
+```text
+PROMPT: n/a (correção técnica fora da sequência — reprodutibilidade de scripts)
+TITLE: Scripts operacionais raiz não executavam em instalação limpa
+STARTED_AT: 2026-09-25T22:20:00-04:00
+FINISHED_AT: 2026-09-25T23:10:00-04:00
+STATUS: PASS (corrigido e provado por execução) / 1 pendência real registrada
+COMMIT: 806b447
+```
+
+### Defeito 1 — `dotenv` não resolvível da raiz
+
+`dotenv` é declarado apenas por `@cisne/api` e `@cisne/database`. A raiz do monorepo não é pacote
+do workspace, portanto `scripts/*.mjs` lançava `ERR_MODULE_NOT_FOUND: Cannot find package 'dotenv'`.
+Reproduzido: `pnpm pilot:status` falhava antes de executar qualquer coisa. O repositório já proibia
+esse import (`assertRootReadinessGateScriptDoesNotImportDotenv`, `apps/api/src/ops/readiness/readiness-gate.ts`).
+
+Correção: `scripts/lib/env.mjs` passa a ser o loader único dos scripts raiz, sobre a primitiva do
+runtime `process.loadEnvFile` com guarda `existsSync`, substituindo um sexto parser artesanal
+(existiam seis cópias). Semântica preservada: arquivo ausente é no-op, `process.env` nunca é
+sobrescrito, primeiro arquivo vence. `scripts/lib/database-test-env.mjs` passa a delegar.
+
+Prova de paridade (dotenv v16 vs loader embarcado), 8 arquivos reais de env:
+`.env` 2 chaves, `.env.example` 6, `.env.hml` 43, `.env.hml.example` 24, `.env.pilot.example` 13,
+`.env.prod.example` 39, `.env.readiness.example` 0, `.env.release.example` 7 — todos PARITY.
+Precedência `[.env.pilot.example, .env]` PARITY. `process.env` não sobrescrito PARITY.
+Arquivo ausente: `dotenv=ENOENT` / nativo sem guarda `ENOENT` → guarda obrigatória confirmada.
+
+### Defeito 2 — `npx tsx` não resolvível da raiz
+
+`tsx` não aparece em nenhum `package.json` do workspace e não está linkado na raiz; existe apenas
+como dependência transitiva do vitest, linkado em `apps/api/node_modules/.bin/tsx`.
+
+Correção: `scripts/lib/run-package-script.mjs` delega via `pnpm --filter @cisne/api run <script>`
+(padrão já provado em `scripts/readiness/gate.mjs`). O caminho do CLI passa a existir só em
+`apps/api/package.json`. Flags repassadas após `--` para o pnpm não consumir `--production`.
+
+### Prova por execução
+
+| Comando | Resultado |
+| ------- | --------- |
+| `pnpm prod:validate` | CLI executou e emitiu relatório JSON (`status: FAIL`, estágio `environment`: `CISNE_ENV must be "production"`) — precondição de domínio |
+| `pnpm pilot:status` | CLI executou; falha apenas na assertiva de domínio `CISNE_ENV must be "pilot"` (`pilot-scope.ts:37`) |
+| `node --check` nos 9 arquivos | OK |
+| `pnpm lint` / `pnpm typecheck` | exit 0 (não cobrem `scripts/` — nenhuma task do turbo cobre essa pasta) |
+
+### Limitação de ambiente (não é defeito do produto)
+
+`pnpm --filter @cisne/api test` (vitest) e qualquer caminho que use esbuild/tsx falham neste sandbox
+com `spawn EPERM` (named pipes bloqueados). `docker` indisponível (`permission denied` no npipe),
+portanto PostgreSQL real não foi exercitado. Uso declarado: **NÃO EXECUTADO — LIMITAÇÃO DO AMBIENTE**.
+
+### Pendência real registrada
+
+`packages/database/migrations/meta/_journal.json` (rastreado, modificado) já contém `0077_workforce_member_identity`
+e `0078_workforce_member_allocation`, mas os dois `.sql` estão **não rastreados**. Commit parcial
+(journal sem os SQL) deixaria o migrator apontando para arquivo inexistente. Os três artefatos devem
+ser commitados **atomicamente**, e a validação exige banco fresh + incremental em PostgreSQL real,
+indisponível nesta execução. Não commitado por essa razão.
+
+### Pendência secundária
+
+`tsx` não é declarado em nenhum `package.json` e ~20 scripts de `apps/api` dependem de `npx tsx`,
+o que também emite `npm warn Unknown env config "recursive"` em cada invocação. Corrigir exige
+declarar `tsx` como devDependency e trocar `npx tsx` por `tsx` — alteração de manifesto/lockfile,
+fora do escopo autorizado nesta execução.
+
+---
+
+```text
+PROMPT: n/a (frente técnica de finalização — migrations 0077/0078 + toolchain tsx)
+TITLE: Migrations marcadas como aplicadas sem execução + tsx não declarado
+STARTED_AT: 2026-09-25T22:20:00-04:00
+FINISHED_AT: 2026-09-25T23:05:00-04:00
+STATUS: PASS (duas frentes corrigidas e provadas) / 3 pendências reais registradas
+COMMITS: 5b54312 (migrations + causa raiz), 4b9ba4a (tsx)
+```
+
+### Defeito P0 — migrations 0077/0078 eram marcadas como aplicadas sem serem executadas
+
+Reproduzido em PostgreSQL 18 real, caminho INCREMENTAL (estado 0076 -> runner canônico):
+
+```text
+Repaired drizzle journal on test database (2 entries).
+Drizzle migrations applied successfully.
+journal = 79/79
+MAS o schema ficou intacto: identity_id ausente, physical_asset_id ainda NOT NULL,
+FK/CHECK/índices ausentes, EXCLUDE antigo ainda presente.
+```
+
+Causa raiz: `syncDrizzleJournal` resolve o efeito de cada tag por `MIGRATION_EFFECT_CHECKS`.
+0077 e 0078 não tinham probe, `migrationEffectsPresent` devolvia `null`, e o branch `effects === null`
+gravava o hash em `drizzle.__drizzle_migrations` mesmo assim. O migrator passava a considerá-las
+aplicadas e nunca as executava — banco com journal 79/79 e schema incompleto. É exatamente o invariante
+que o próprio arquivo declara: *"Domain tags MUST have a probe so an incomplete DB is not marked applied"*.
+
+Correção (`scripts/lib/database-test-env.mjs`): probes para 0077 (`wrk.workforce_members.identity_id`) e
+0078 (`res.resource_allocations.workforce_member_id`); o mesmo branch agora acumula `unprobed` e emite
+warning para qualquer tag acima de `0018` sem probe. O reparo de journal permanece inalterado de propósito,
+para não quebrar `pnpm db:repair:test-journal`.
+
+Unidade atômica entregue: migrations + `_journal.json` + schema Drizzle declarado
+(`schema/workforce.ts`, `schema/resource-planning.ts`), que estavam fora do Git.
+
+Prova (`tmp/migration-proof.mjs`, bancos isolados criados e removidos na mesma execução):
+
+| Verificação | Resultado |
+| ----------- | --------- |
+| FRESH (vazio -> runner canônico) | 79/79 aplicadas, 13 asserções PASS |
+| INCREMENTAL (0076 -> runner canônico) | 0077+0078 efetivamente aplicadas, 13 asserções PASS |
+| Comportamento | UNIQUE parcial `identity_id` bloqueia 2º vínculo (23505); FK bloqueia identity inexistente (23503); CHECK exatamente-um-recurso rejeita 0 e 2 recursos (23514) e aceita 1; EXCLUDE antigo removido e dois parciais novos presentes |
+| Idempotência | re-run exit 0, journal 79 -> 79, sem duplicação |
+| `@cisne/database test:integration` (banco isolado) | **14 arquivos / 68 testes PASS**, 41,28 s |
+| Specs focados da API (`service-order-planning`, `physical-assets`, `people`) | **3 arquivos / 43 testes PASS**, 49,94 s |
+
+Antes da correção o caminho INCREMENTAL terminava com journal completo e schema **não** migrado:
+42 asserções vermelhas. Depois: 100% verde.
+
+### Defeito P1 — `tsx` executado mas não declarado
+
+`tsx` não estava em nenhum `package.json` do workspace. 20 scripts de `apps/api` o invocavam por
+`npx tsx`, que resolvia só porque o vitest o traz como transitiva de `vite`/`vite-node` e o pnpm o linka
+em `apps/api/node_modules/.bin/tsx`. Efeito observado: `npm warn Unknown env config "recursive"` em cada
+invocação.
+
+Correção: `tsx: ^4.23.12` em `apps/api/devDependencies` (menor escopo correto — quem consome é `@cisne/api`)
+e 20 scripts passam a `tsx` direto, com argumentos preservados. Lockfile: apenas o importer de apps/api (+3 linhas).
+
+Prova: `exec tsx --version` -> tsx v4.23.12; `pnpm prod:validate` executa e emite o relatório JSON sem o warn;
+`pnpm pilot:status` alcança a precondição de domínio sem `ERR_MODULE_NOT_FOUND` e sem o warn; execução a partir
+de `apps/` alcança o domínio (scripts raiz são cwd-independentes); `pnpm install --frozen-lockfile --lockfile-only
+--offline` exit 0 com 0 downloads; gate estático database e api lint/typecheck/build = 0.
+
+O `node_modules` local **não** foi reinstalado: o pnpm pediria purge do diretório inteiro por divergência de
+estado pré-existente (`hoistPattern: ['*']` sem `.npmrc` no repo), sem relação com esta mudança. Critério acordado
+atendido por lockfile + resolução declarada + scripts executando.
+
+### Limitação de ambiente (não é defeito do produto)
+
+`docker` CLI negado (npipe) e `CIM`/`wmic` negados para atribuição de processos. PostgreSQL 18 foi alcançado
+diretamente em `127.0.0.1:5432` via `pg`, sem docker. Não foi possível atribuir os processos `node`/`esbuild`
+residuais (daemons do turbo/esbuild); deliberadamente **não** houve kill em massa de `node` para não derrubar o
+harness/editor.
+
+### Pendências reais registradas (não bloqueiam as frentes entregues)
+
+1. `apps/Users/rphll/AppData/Local/Temp/api-deploy/node_modules/.bin` — árvore de lixo não rastreada dentro de
+   `apps/`, criada por caminho absoluto do Windows concatenado a diretório relativo. Viola o `AGENTS.md`
+   ("não gravar trabalho do CISNE em `%TEMP%`/perfil do usuário"). 7 itens, nenhum arquivo real.
+2. Tags de domínio sem probe em `MIGRATION_EFFECT_CHECKS`: `0038`–`0069` e `0075`. O warning novo as denuncia
+   em execução; adicionar probes é melhoria incremental, não causa raiz das frentes acima.
+3. `scripts/` não é coberto por lint/typecheck/build em nenhuma task do turbo — foi o que permitiu os defeitos
+   de resolução conviverem com gate verde.
+4. Bancos pré-existentes de outras rodadas seguem no servidor e **não** são meus:
+   `cisne_clean_verify`, `cisne_gate_fresh`, `cisne_gate_incremental`, `cisne_migration_torture_*`,
+   `cisne_prod_rehearsal`, `cisne_test_iso_verify`, `cisne_local_test2`.
+
