@@ -137,6 +137,7 @@ describe('controlled pilot (Prompt 90)', () => {
       env: pilotEnv(),
       metrics: healthyMetrics(),
       pilotStartedAt: '2026-08-29T00:00:00.000Z',
+      now: new Date('2026-08-30T00:00:00.000Z'),
     });
     expect(active.phase).toBe('ACTIVE');
     expect(active.exitCriteriaFailed).toContain('min_observation_days');

@@ -19,6 +19,7 @@ export function runPilotStatusCheck(input: {
   metrics: PilotMetricsInput;
   feedbackPath?: string;
   pilotStartedAt?: string;
+  now?: Date;
 }): PilotStatusReport {
   const env = input.env ?? process.env;
   assertPilotEnvironment(env);
@@ -36,7 +37,10 @@ export function runPilotStatusCheck(input: {
   const exitCriteriaMet = [...threshold.met];
   const exitCriteriaFailed = [...threshold.failed];
 
-  if (input.pilotStartedAt && hasMetMinObservationDays(input.pilotStartedAt, exitCriteria.minObservationDays)) {
+  if (
+    input.pilotStartedAt &&
+    hasMetMinObservationDays(input.pilotStartedAt, exitCriteria.minObservationDays, input.now)
+  ) {
     exitCriteriaMet.push('min_observation_days');
   } else {
     exitCriteriaFailed.push('min_observation_days');

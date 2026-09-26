@@ -9,6 +9,11 @@ afterEach(() => {
   process.env = { ...ORIGINAL_ENV };
 });
 
+/** Reply do adaptador (Fastify) observada: o probe depende do codigo HTTP. */
+function makeReply() {
+  return { status: vi.fn() };
+}
+
 describe('HealthController', () => {
   it('returns liveness without dependency checks', async () => {
     const databaseService = {
@@ -39,10 +44,12 @@ describe('HealthController', () => {
     }).compile();
 
     const controller = module.get(HealthController);
-    const result = await controller.getReadiness();
+    const reply = makeReply();
+    const result = await controller.getReadiness(reply as never);
 
     expect(result.status).toBe('ready');
     expect(result.checks.database).toEqual({ status: 'up', latencyMs: 2 });
+    expect(reply.status).not.toHaveBeenCalled();
   });
 
   it('returns readiness not_ready when database is down', async () => {
@@ -60,10 +67,13 @@ describe('HealthController', () => {
     }).compile();
 
     const controller = module.get(HealthController);
-    const result = await controller.getReadiness();
+    const reply = makeReply();
+    const result = await controller.getReadiness(reply as never);
 
     expect(result.status).toBe('not_ready');
     expect(result.checks.database.status).toBe('down');
+    // Banco indisponivel: o probe de readiness DEVE responder 503, nao 200.
+    expect(reply.status).toHaveBeenCalledWith(503);
   });
 
   it('returns readiness ready when database is not configured in development', async () => {
@@ -78,10 +88,12 @@ describe('HealthController', () => {
     }).compile();
 
     const controller = module.get(HealthController);
-    const result = await controller.getReadiness();
+    const reply = makeReply();
+    const result = await controller.getReadiness(reply as never);
 
     expect(result.status).toBe('ready');
     expect(result.checks.database.status).toBe('not_configured');
+    expect(reply.status).not.toHaveBeenCalled();
   });
 
   it('returns readiness not_ready when database is not configured in production', async () => {
@@ -96,10 +108,12 @@ describe('HealthController', () => {
     }).compile();
 
     const controller = module.get(HealthController);
-    const result = await controller.getReadiness();
+    const reply = makeReply();
+    const result = await controller.getReadiness(reply as never);
 
     expect(result.status).toBe('not_ready');
     expect(result.checks.database.status).toBe('not_configured');
+    expect(reply.status).toHaveBeenCalledWith(503);
   });
 
   it('returns technical health payload with database status', async () => {

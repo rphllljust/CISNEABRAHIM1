@@ -1,4 +1,5 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, HttpStatus, Res } from '@nestjs/common';
+import type { FastifyReply } from 'fastify';
 import { DatabaseService } from '../infrastructure/database/database.service';
 
 export type DatabaseHealthPayload =
@@ -59,10 +60,20 @@ export class HealthController {
     };
   }
 
+  /**
+   * Readiness de trafego. O orquestrador/balanceador decide pelo CODIGO HTTP, portanto
+   * `not_ready` responde 503 (mesmo payload) e nao 200 com corpo informativo.
+   * Liveness permanece 200: o processo esta vivo, apenas nao pronto para receber trafego.
+   */
   @Get('ready')
-  async getReadiness(): Promise<ReadinessResponse> {
+  async getReadiness(
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<ReadinessResponse> {
     const database = await this.databaseService.getHealth();
     const ready = isDatabaseReadyForTraffic(database);
+    if (!ready) {
+      reply.status(HttpStatus.SERVICE_UNAVAILABLE);
+    }
     return {
       status: ready ? 'ready' : 'not_ready',
       service: 'api',
