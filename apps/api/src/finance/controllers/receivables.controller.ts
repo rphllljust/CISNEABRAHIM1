@@ -5,6 +5,7 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import type { AccessTokenClaims } from '../../auth/services/token.service';
 import {
   validateCancelReceivableInput,
+  validateReverseSettlementInput,
   validateSettleReceivableInput,
 } from '../domain/receivable.validation';
 import { ReceivablesAccessService } from '../services/receivables-access.service';
@@ -35,6 +36,22 @@ export class ReceivablesController {
       { identityId: auth.sub, sessionId: auth.sid },
       receivableId,
       validateSettleReceivableInput(request.body as never),
+    );
+  }
+
+  @Post(':receivableId/settlements/:settlementId/reverse')
+  @HttpCode(200)
+  reverseSettlement(
+    @CurrentAuth() auth: AccessTokenClaims,
+    @Param('receivableId') receivableId: string,
+    @Param('settlementId') settlementId: string,
+    @Req() request: FastifyRequest,
+  ) {
+    return this.receivablesAccess.reverseSettlement(
+      { identityId: auth.sub, sessionId: auth.sid },
+      receivableId,
+      settlementId,
+      validateReverseSettlementInput(request.body as never),
     );
   }
 

@@ -90,6 +90,13 @@ export const SOD_DUTIES = {
     approvalOperation: APPROVAL_OPERATIONS.Payment,
     capability: SOD_CAPABILITIES.WriteOffApprove,
   },
+  ReceivableReverse: {
+    id: 'SOD-RECEIVABLE-REVERSE',
+    domain: 'write-off',
+    conflictKind: SOD_CONFLICT_KINDS.PostApprove,
+    approvalOperation: APPROVAL_OPERATIONS.Adjustment,
+    capability: SOD_CAPABILITIES.AdjustmentApprove,
+  },
   ReconciliationConfirm: {
     id: 'SOD-RECON-CONFIRM',
     domain: 'reconciliation',

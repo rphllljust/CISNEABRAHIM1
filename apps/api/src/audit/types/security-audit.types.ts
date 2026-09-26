@@ -116,6 +116,7 @@ export const SECURITY_AUDIT_ACTIONS = {
   BillingBillingDocumentDownload: 'security:billing:billing-document:download',
   FinanceReceivableOpen: 'security:finance:receivable:open',
   FinanceReceivableSettle: 'security:finance:receivable:settle',
+  FinanceReceivableSettlementReverse: 'security:finance:receivable:settlement:reverse',
   FinanceReceivableCancel: 'security:finance:receivable:cancel',
   FinanceReceivableRead: 'security:finance:receivable:read',
   FinancePayableOpen: 'security:finance:payable:open',

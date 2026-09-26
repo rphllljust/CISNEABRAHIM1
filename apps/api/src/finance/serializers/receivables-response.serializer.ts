@@ -27,6 +27,9 @@ export type SettlementResponse = {
   settledAt: string;
   idempotencyKey: string;
   externalReference: string | null;
+  /** Reversao registrada sobre o recebimento original (nunca o substitui). */
+  reversedAt: string | null;
+  reversalReason: string | null;
 };
 
 export type ReceivableDetailResponse = {
@@ -106,15 +109,17 @@ export function toReceivableDetailResponse(
       principal: formatMoneyAmountForApi(item.principal) ?? item.principal,
       dueDate: item.due_date,
     })),
-    settlements: settlements.map((item) => ({
-      id: item.id,
-      installmentId: item.installment_id,
-      amount: formatMoneyAmountForApi(item.amount) ?? item.amount,
-      currencyCode: item.currency_code,
-      status: item.status,
-      settledAt: item.settled_at,
-      idempotencyKey: item.idempotency_key,
-      externalReference: item.external_reference,
-    })),
+      settlements: settlements.map((item) => ({
+        id: item.id,
+        installmentId: item.installment_id,
+        amount: formatMoneyAmountForApi(item.amount) ?? item.amount,
+        currencyCode: item.currency_code,
+        status: item.status,
+        settledAt: item.settled_at,
+        idempotencyKey: item.idempotency_key,
+        externalReference: item.external_reference,
+        reversedAt: item.reversed_at,
+        reversalReason: item.reversal_reason,
+      })),
   };
 }

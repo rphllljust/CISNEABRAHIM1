@@ -561,6 +561,20 @@
                         "when":  1788654600000,
                         "tag":  "0079_clients_list_indexes",
                         "breakpoints":  true
+                    },
+                    {
+                        "idx":  80,
+                        "version":  "7",
+                        "when":  1790411092289,
+                        "tag":  "0080_receivable_settlement_reversal",
+                        "breakpoints":  true
+                    },
+                    {
+                        "idx":  81,
+                        "version":  "7",
+                        "when":  1790411513461,
+                        "tag":  "0081_receivable_settlement_reversal_columns",
+                        "breakpoints":  true
                     }
                 ]
 }

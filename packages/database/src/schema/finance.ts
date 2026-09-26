@@ -7,7 +7,7 @@ export const receivableLifecycleEnum = finSchema.enum('receivable_lifecycle', ['
 
 export const receivableOriginKindEnum = finSchema.enum('receivable_origin_kind', ['BILLING_DOCUMENT']);
 
-export const settlementStatusEnum = finSchema.enum('settlement_status', ['POSTED']);
+export const settlementStatusEnum = finSchema.enum('settlement_status', ['POSTED', 'REVERSED']);
 
 export const receivables = finSchema.table('receivables', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -65,6 +65,10 @@ export const settlements = finSchema.table('settlements', {
     .notNull()
     .references(() => identities.id),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  reversedAt: timestamp('reversed_at', { withTimezone: true }),
+  reversedByIdentityId: uuid('reversed_by_identity_id').references(() => identities.id),
+  reversalReason: text('reversal_reason'),
+  reversalIdempotencyKey: text('reversal_idempotency_key'),
 });
 
 export const payableLifecycleEnum = finSchema.enum('payable_lifecycle', ['ACTIVE', 'CANCELLED']);

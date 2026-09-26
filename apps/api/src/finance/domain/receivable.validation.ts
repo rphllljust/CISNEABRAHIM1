@@ -1,6 +1,11 @@
 import { assertUuid } from '../../platform/kernel/uuid';
 import { assertCurrencyCode, normalizeMoneyAmount } from '../../platform/kernel/money-math';
-import { assertInstallmentSchedule, assertSettlementAmount, defaultInstallment } from './receivable';
+import {
+  assertInstallmentSchedule,
+  assertSettlementAmount,
+  assertSettlementReversalReason,
+  defaultInstallment,
+} from './receivable';
 
 export class ReceivableValidationError extends Error {
   constructor(readonly field: string) {
@@ -21,6 +26,11 @@ export type CancelReceivableInput = {
   rowVersion: number;
   cancelReason: string;
   idempotencyKey?: string;
+};
+
+export type ReverseSettlementInput = {
+  reason: string;
+  idempotencyKey: string;
 };
 
 function requireDueDate(value: string | undefined | null, field: string): string {
@@ -83,6 +93,22 @@ export function validateCancelReceivableInput(input: CancelReceivableInput): Can
     cancelReason,
     idempotencyKey: input.idempotencyKey?.trim() || undefined,
   };
+}
+
+export function validateReverseSettlementInput(
+  input: ReverseSettlementInput,
+): ReverseSettlementInput {
+  let reason: string;
+  try {
+    reason = assertSettlementReversalReason(input.reason);
+  } catch {
+    throw new ReceivableValidationError('reason');
+  }
+  const idempotencyKey = input.idempotencyKey?.trim();
+  if (!idempotencyKey) {
+    throw new ReceivableValidationError('idempotencyKey');
+  }
+  return { reason, idempotencyKey };
 }
 
 export function normalizeOpenReceivableMoney(principal: string, currencyCode: string): {

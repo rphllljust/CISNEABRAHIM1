@@ -80,6 +80,37 @@ export function mapReceivableDomainError(error: unknown): FinanceHttpException {
         FINANCE_ERROR_CODES.INVALID_SETTLEMENT_AMOUNT,
         'Settlement amount is invalid.',
       );
+    case 'RECEIVABLE_SETTLEMENT_NOT_FOUND':
+      // Nao vaza existencia de settlement de outro recebivel.
+      return new FinanceHttpException(
+        HttpStatus.NOT_FOUND,
+        FINANCE_ERROR_CODES.SETTLEMENT_NOT_FOUND,
+        'Settlement not found.',
+      );
+    case 'RECEIVABLE_SETTLEMENT_ALREADY_REVERSED':
+      return new FinanceHttpException(
+        HttpStatus.CONFLICT,
+        FINANCE_ERROR_CODES.SETTLEMENT_ALREADY_REVERSED,
+        'Settlement is already reversed.',
+      );
+    case 'RECEIVABLE_SETTLEMENT_NOT_REVERSIBLE':
+      return new FinanceHttpException(
+        HttpStatus.CONFLICT,
+        FINANCE_ERROR_CODES.SETTLEMENT_NOT_REVERSIBLE,
+        'Only posted settlements can be reversed.',
+      );
+    case 'RECEIVABLE_SETTLEMENT_RECONCILED':
+      return new FinanceHttpException(
+        HttpStatus.CONFLICT,
+        FINANCE_ERROR_CODES.SETTLEMENT_RECONCILED,
+        'Confirmed reconciliation cannot be changed silently. Use authorized unreconcile first.',
+      );
+    case 'RECEIVABLE_REVERSAL_REASON_REQUIRED':
+      return new FinanceHttpException(
+        HttpStatus.BAD_REQUEST,
+        FINANCE_ERROR_CODES.REVERSAL_REASON_REQUIRED,
+        'Reversal reason is required.',
+      );
     default:
       return new FinanceHttpException(
         HttpStatus.CONFLICT,

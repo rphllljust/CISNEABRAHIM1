@@ -31,7 +31,25 @@ async function grantFinanceAdmin(pool: Pool, identityId: string, grantedBy: stri
     AUTHZ_ACTIONS.FinanceReceivableRead,
     AUTHZ_ACTIONS.FinanceReceivableList,
     AUTHZ_ACTIONS.FinanceReceivableSettle,
+    AUTHZ_ACTIONS.FinanceReceivableReverse,
     AUTHZ_ACTIONS.FinanceReceivableCancel,
+  ];
+  for (const action of actions) {
+    await insertGrant(pool, {
+      identityId,
+      action,
+      resourceType: AUTHZ_RESOURCE_TYPES.FinanceReceivable,
+      scopeType: AUTHZ_SCOPES.Global,
+      grantedByIdentityId: grantedBy,
+    });
+  }
+}
+
+async function grantSettleOnly(pool: Pool, identityId: string, grantedBy: string): Promise<void> {
+  const actions = [
+    AUTHZ_ACTIONS.FinanceReceivableRead,
+    AUTHZ_ACTIONS.FinanceReceivableList,
+    AUTHZ_ACTIONS.FinanceReceivableSettle,
   ];
   for (const action of actions) {
     await insertGrant(pool, {
@@ -79,6 +97,14 @@ describe('Finance receivables PostgreSQL integration', () => {
     if (withGrant) {
       await grantFinanceAdmin(pool, identityId, identityId);
     }
+    return { identityId, sessionId: 'test-session' };
+  }
+
+  async function seedActorWithoutReverse(): Promise<{ identityId: string; sessionId: string }> {
+    const login = normalizeLoginIdentifier(`finance-norev-${crypto.randomUUID()}@cisne.invalid`);
+    const passwordHash = await hashPassword(AUTH_TEST_PASSWORD);
+    const { identityId } = await insertIdentity(pool, login, passwordHash);
+    await grantSettleOnly(pool, identityId, identityId);
     return { identityId, sessionId: 'test-session' };
   }
 
@@ -381,5 +407,118 @@ describe('Finance receivables PostgreSQL integration', () => {
     expect(second.remainingBalance).toBe('0');
     expect(second.status).toBe(RECEIVABLE_STATUSES.Paid);
     expect(second.settledAmount).toBe('250');
+  });
+
+  it('reverses a posted settlement and restores the outstanding balance', async () => {
+    const { originator, checker } = await seedSettlePair();
+    const opened = await openReceivable(originator);
+    const settled = await receivablesAccess.settle(checker, opened.id, {
+      amount: '40.0000',
+      rowVersion: opened.rowVersion,
+      idempotencyKey: `settle-${crypto.randomUUID()}`,
+    });
+    expect(settled.remainingBalance).toBe('60');
+
+    const reversed = await receivablesAccess.reverseSettlement(
+      checker,
+      opened.id,
+      settled.settlements[0]!.id,
+      { reason: 'Recebimento lançado em conta incorreta.', idempotencyKey: `rev-${crypto.randomUUID()}` },
+    );
+
+    expect(reversed.status).toBe(RECEIVABLE_STATUSES.Open);
+    expect(reversed.remainingBalance).toBe('100');
+    expect(reversed.settledAmount).toBe('0');
+    expect(reversed.settlements[0]?.status).toBe('REVERSED');
+    expect(reversed.settlements[0]?.reversedAt).not.toBeNull();
+    expect(reversed.settlements[0]?.reversalReason).toContain('conta incorreta');
+  });
+
+  it('preserves the original settlement facts across reversal', async () => {
+    const { originator, checker } = await seedSettlePair();
+    const opened = await openReceivable(originator);
+    const settled = await receivablesAccess.settle(checker, opened.id, {
+      amount: '40.0000',
+      rowVersion: opened.rowVersion,
+      idempotencyKey: `settle-${crypto.randomUUID()}`,
+    });
+    const original = settled.settlements[0]!;
+    await receivablesAccess.reverseSettlement(checker, opened.id, original.id, {
+      reason: 'Correção autorizada.',
+      idempotencyKey: `rev-${crypto.randomUUID()}`,
+    });
+
+    const row = await pool.query<{
+      amount: string; idempotency_key: string; actor_identity_id: string;
+      status: string; settled_at: string | null; reversed_at: string | null;
+    }>(
+      `SELECT amount::text AS amount, idempotency_key, actor_identity_id,
+              status::text AS status, settled_at, reversed_at
+       FROM fin.settlements WHERE id = $1`,
+      [original.id],
+    );
+
+    expect(row.rows[0]).toMatchObject({
+      amount: '40.0000',
+      idempotency_key: original.idempotencyKey,
+      actor_identity_id: checker.identityId,
+      status: 'REVERSED',
+    });
+    expect(row.rows[0]?.settled_at).not.toBeNull();
+    expect(row.rows[0]?.reversed_at).not.toBeNull();
+  });
+
+  it('denies reversal without the receivable reverse capability', async () => {
+    const { originator, checker } = await seedSettlePair();
+    const opened = await openReceivable(originator);
+    const settled = await receivablesAccess.settle(checker, opened.id, {
+      amount: '40.0000',
+      rowVersion: opened.rowVersion,
+      idempotencyKey: `settle-${crypto.randomUUID()}`,
+    });
+    const settleOnly = await seedActorWithoutReverse();
+
+    await expect(
+      receivablesAccess.reverseSettlement(
+        settleOnly,
+        opened.id,
+        settled.settlements[0]!.id,
+        { reason: 'Tentativa sem permissão.', idempotencyKey: `rev-${crypto.randomUUID()}` },
+      ),
+    ).rejects.toMatchObject({ code: FINANCE_ERROR_CODES.DENIED });
+  });
+
+  it('replays the same reversal idempotently and rejects another key', async () => {
+    const { originator, checker } = await seedSettlePair();
+    const opened = await openReceivable(originator);
+    const settled = await receivablesAccess.settle(checker, opened.id, {
+      amount: '40.0000',
+      rowVersion: opened.rowVersion,
+      idempotencyKey: `settle-${crypto.randomUUID()}`,
+    });
+    const key = `rev-${crypto.randomUUID()}`;
+
+    const first = await receivablesAccess.reverseSettlement(checker, opened.id, settled.settlements[0]!.id, {
+      reason: 'Correção autorizada.', idempotencyKey: key,
+    });
+    const replay = await receivablesAccess.reverseSettlement(checker, opened.id, settled.settlements[0]!.id, {
+      reason: 'Correção autorizada.', idempotencyKey: key,
+    });
+
+    expect(replay.settlements).toHaveLength(1);
+    expect(replay.remainingBalance).toBe('100');
+    expect(first.settlements[0]?.reversedAt).toBe(replay.settlements[0]?.reversedAt);
+
+    await expect(
+      receivablesAccess.reverseSettlement(checker, opened.id, settled.settlements[0]!.id, {
+        reason: 'Nova tentativa.', idempotencyKey: `rev-2-${crypto.randomUUID()}`,
+      }),
+    ).rejects.toMatchObject({ code: FINANCE_ERROR_CODES.SETTLEMENT_ALREADY_REVERSED });
+
+    const count = await pool.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM fin.settlements WHERE receivable_id = $1 AND status = 'REVERSED'`,
+      [opened.id],
+    );
+    expect(count.rows[0]?.count).toBe('1');
   });
 });

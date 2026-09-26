@@ -122,6 +122,12 @@ const MIGRATION_EFFECT_CHECKS = {
     column: ['res', 'resource_allocations', 'workforce_member_id'],
   },
   '0079_clients_list_indexes': { index: 'clients_legal_name_id_idx' },
+  '0080_receivable_settlement_reversal': {
+    enumLabel: ['fin', 'settlement_status', 'REVERSED'],
+  },
+  '0081_receivable_settlement_reversal_columns': {
+    column: ['fin', 'settlements', 'reversal_idempotency_key'],
+  },
 };
 
 /**

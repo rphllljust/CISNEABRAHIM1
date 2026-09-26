@@ -28,6 +28,7 @@ export type ReceivableLifecycle = (typeof RECEIVABLE_LIFECYCLES)[keyof typeof RE
 
 export const SETTLEMENT_STATUSES = {
   Posted: 'POSTED',
+  Reversed: 'REVERSED',
 } as const;
 
 export type SettlementStatus = (typeof SETTLEMENT_STATUSES)[keyof typeof SETTLEMENT_STATUSES];
@@ -39,6 +40,7 @@ export const RECEIVABLE_ORIGIN_KINDS = {
 export const RECEIVABLE_COMMANDS = {
   Open: 'OPEN',
   Settle: 'SETTLE',
+  ReverseSettlement: 'REVERSE_SETTLEMENT',
   Cancel: 'CANCEL',
 } as const;
 
@@ -157,6 +159,35 @@ export function postedSettlementAmounts(settlements: PostedSettlement[]): string
   return settlements
     .filter((item) => item.status === SETTLEMENT_STATUSES.Posted)
     .map((item) => item.amount);
+}
+
+/**
+ * Motivo da reversao de recebimento. Obrigatorio e nao trivial: a reversao
+ * precisa permanecer auditavel ("quem reverteu e por que").
+ */
+export function assertSettlementReversalReason(reason: string): string {
+  const trimmed = reason?.trim() ?? '';
+  if (trimmed.length < 3) {
+    throw new ReceivableError('RECEIVABLE_REVERSAL_REASON_REQUIRED');
+  }
+  return trimmed;
+}
+
+/** Somente recebimento POSTED pode ser revertido, e uma unica vez. */
+export function assertSettlementReversible(status: string): void {
+  if (status === SETTLEMENT_STATUSES.Reversed) {
+    throw new ReceivableError('RECEIVABLE_SETTLEMENT_ALREADY_REVERSED');
+  }
+  if (status !== SETTLEMENT_STATUSES.Posted) {
+    throw new ReceivableError('RECEIVABLE_SETTLEMENT_NOT_REVERSIBLE');
+  }
+}
+
+/** Conciliação confirmada nao pode ser alterada em silencio (regra vigente). */
+export function assertSettlementNotReconciled(confirmedReconciliationCount: number): void {
+  if (confirmedReconciliationCount > 0) {
+    throw new ReceivableError('RECEIVABLE_SETTLEMENT_RECONCILED');
+  }
 }
 
 export function reconcileReceivable(input: {

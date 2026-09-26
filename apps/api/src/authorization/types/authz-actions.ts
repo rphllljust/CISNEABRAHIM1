@@ -181,6 +181,7 @@ export const AUTHZ_ACTIONS = {
   FinanceReceivableRead: 'finance:receivable:read',
   FinanceReceivableList: 'finance:receivable:list',
   FinanceReceivableSettle: 'finance:receivable:settle',
+  FinanceReceivableReverse: 'finance:receivable:reverse',
   FinanceReceivableCancel: 'finance:receivable:cancel',
   FinancePayableOpen: 'finance:payable:open',
   FinancePayableRead: 'finance:payable:read',

@@ -12,15 +12,23 @@ import {
   assertReceivableActive,
   assertSettlementAmount,
   assertSettlementCurrency,
+  assertSettlementNotReconciled,
+  assertSettlementReversible,
   postedSettlementAmounts,
   remainingBalance,
 } from '../domain/receivable';
+import {
+  RECONCILIATION_STATUSES,
+  RECONCILIATION_TARGET_KINDS,
+} from '../domain/bank-reconciliation';
 import { CollectionsRepository } from './collections.repository';
 import type {
   CancelReceivablePersistenceInput,
   OpenReceivablePersistenceInput,
   ReceivableInstallmentRow,
   ReceivableRow,
+  ReverseSettlementPersistenceInput,
+  ReverseSettlementPersistenceResult,
   SettleReceivablePersistenceInput,
   SettlementRow,
 } from './receivables.repository.types';
@@ -39,7 +47,8 @@ const INSTALLMENT_RETURNING = `
 
 const SETTLEMENT_RETURNING = `
   id, receivable_id, installment_id, amount::text AS amount, currency_code, status::text AS status,
-  settled_at, idempotency_key, external_reference, actor_identity_id, created_at
+  settled_at, idempotency_key, external_reference, actor_identity_id, created_at,
+  reversed_at, reversed_by_identity_id, reversal_reason, reversal_idempotency_key
 `;
 
 @Injectable()
@@ -290,6 +299,116 @@ export class ReceivablesRepository {
         const receivable = await this.findById(input.receivableId);
         if (cached.rows[0] && receivable) {
           return { receivable, settlement: cached.rows[0], idempotent: true };
+        }
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Reversao de recebimento: o fato original permanece intacto (valor, data,
+   * autor e idempotency key da criacao) e a reversao acrescenta quem reverteu,
+   * quando, por que e sob qual comando. O saldo devedor volta a considerar o
+   * valor porque o calculo existente soma apenas settlements POSTED.
+   */
+  async reverseSettlement(
+    input: ReverseSettlementPersistenceInput,
+  ): Promise<ReverseSettlementPersistenceResult> {
+    const client = await this.pool().connect();
+    try {
+      await client.query('BEGIN');
+      // Ordem de lock do financeiro: receivable -> settlement.
+      const locked = await client.query<ReceivableRow>(
+        `SELECT ${RECEIVABLE_RETURNING} FROM fin.receivables WHERE id = $1 FOR UPDATE`,
+        [input.receivableId],
+      );
+      const receivable = locked.rows[0];
+      if (!receivable) {
+        throw new ReceivableError('RECEIVABLE_NOT_FOUND');
+      }
+
+      const settlementResult = await client.query<SettlementRow>(
+        `SELECT ${SETTLEMENT_RETURNING}
+         FROM fin.settlements
+         WHERE id = $1 AND receivable_id = $2
+         FOR UPDATE`,
+        [input.settlementId, receivable.id],
+      );
+      const settlement = settlementResult.rows[0];
+      if (!settlement) {
+        throw new ReceivableError('RECEIVABLE_SETTLEMENT_NOT_FOUND');
+      }
+
+      // Replay do mesmo comando de reversao: mesmo resultado logico.
+      if (settlement.reversal_idempotency_key === input.idempotencyKey) {
+        await client.query('COMMIT');
+        return { receivable, settlement, idempotent: true };
+      }
+      assertSettlementReversible(settlement.status);
+
+      const confirmed = await client.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count
+         FROM fin.reconciliation_matches m
+         INNER JOIN fin.reconciliations r ON r.id = m.reconciliation_id
+         WHERE m.target_kind = $1::fin.reconciliation_target_kind
+           AND m.target_id = $2
+           AND r.status = $3::fin.reconciliation_status`,
+        [
+          RECONCILIATION_TARGET_KINDS.ReceivableSettlement,
+          settlement.id,
+          RECONCILIATION_STATUSES.Confirmed,
+        ],
+      );
+      assertSettlementNotReconciled(Number(confirmed.rows[0]?.count ?? '0'));
+
+      const reversed = await client.query<SettlementRow>(
+        `UPDATE fin.settlements
+         SET status = $3,
+             reversed_at = NOW(),
+             reversed_by_identity_id = $4,
+             reversal_reason = $5,
+             reversal_idempotency_key = $6
+         WHERE id = $1 AND receivable_id = $2
+         RETURNING ${SETTLEMENT_RETURNING}`,
+        [
+          settlement.id,
+          receivable.id,
+          SETTLEMENT_STATUSES.Reversed,
+          input.actorIdentityId,
+          input.reason,
+          input.idempotencyKey,
+        ],
+      );
+
+      const updated = await client.query<ReceivableRow>(
+        `UPDATE fin.receivables
+         SET row_version = row_version + 1, updated_at = NOW(), updated_by_identity_id = $2
+         WHERE id = $1
+         RETURNING ${RECEIVABLE_RETURNING}`,
+        [receivable.id, input.actorIdentityId],
+      );
+
+      await client.query('COMMIT');
+      return {
+        receivable: updated.rows[0]!,
+        settlement: reversed.rows[0]!,
+        idempotent: false,
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      if (isUniqueViolation(error)) {
+        // Reversao concorrente com a mesma chave: devolve o fato ja efetivado.
+        const existing = await this.pool().query<SettlementRow>(
+          `SELECT ${SETTLEMENT_RETURNING}
+           FROM fin.settlements
+           WHERE receivable_id = $1 AND reversal_idempotency_key = $2`,
+          [input.receivableId, input.idempotencyKey],
+        );
+        const receivable = await this.findById(input.receivableId);
+        if (existing.rows[0] && receivable) {
+          return { receivable, settlement: existing.rows[0], idempotent: true };
         }
       }
       throw error;

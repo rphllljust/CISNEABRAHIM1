@@ -202,6 +202,7 @@ const CONTROLE_FINANCEIRO_GRANTS: GrantSpec[] = [
   grant('finance:receivable:read', 'finance:receivable'),
   grant('finance:receivable:list', 'finance:receivable'),
   grant('finance:receivable:settle', 'finance:receivable'),
+  grant('finance:receivable:reverse', 'finance:receivable'),
   grant('finance:receivable:cancel', 'finance:receivable'),
   grant('finance:payable:open', 'finance:payable'),
   grant('finance:payable:read', 'finance:payable'),

@@ -20,8 +20,10 @@ import {
   normalizeOpenReceivableMoney,
   resolveOpenInstallments,
   validateCancelReceivableInput,
+  validateReverseSettlementInput,
   validateSettleReceivableInput,
   type CancelReceivableInput,
+  type ReverseSettlementInput,
   type SettleReceivableInput,
 } from '../domain/receivable.validation';
 import { ReceivablesRepository } from '../repositories/receivables.repository';
@@ -197,6 +199,62 @@ export class ReceivablesAccessService implements FinanceReceivablePort {
         metadata: { amount: validated.amount, idempotencyKey: validated.idempotencyKey },
       });
       return this.toDetail(settled.receivable);
+    } catch (error) {
+      throw mapReceivableDomainError(error);
+    }
+  }
+
+  async reverseSettlement(
+    actor: IdentityAuthzContext,
+    receivableId: string,
+    settlementId: string,
+    input: ReverseSettlementInput,
+  ): Promise<ReceivableDetailResponse> {
+    assertUuid(receivableId, 'receivableId');
+    assertUuid(settlementId, 'settlementId');
+    const row = await this.repository.findById(receivableId);
+    if (!row) {
+      throw financeNotFound();
+    }
+    await this.authz.assertReceivableAction(actor, AUTHZ_ACTIONS.FinanceReceivableReverse, {
+      id: row.id,
+      unitId: row.unit_id,
+      clientId: row.client_id,
+    });
+    try {
+      const validated = validateReverseSettlementInput(input);
+      const scope = resolveSodScope(row.unit_id);
+      await this.sod.enforce(actor, {
+        duty: SOD_DUTIES.ReceivableReverse,
+        originatorIdentityId: row.created_by_identity_id,
+        amount: '0',
+        ...scope,
+      });
+      const reversed = await this.repository.reverseSettlement({
+        receivableId,
+        settlementId,
+        reason: validated.reason,
+        idempotencyKey: validated.idempotencyKey,
+        actorIdentityId: actor.identityId,
+      });
+      if (!reversed.idempotent) {
+        await this.securityAudit.record({
+          actorIdentityId: actor.identityId,
+          actorSessionId: actor.sessionId,
+          action: SECURITY_AUDIT_ACTIONS.FinanceReceivableSettlementReverse,
+          resourceType: SECURITY_AUDIT_RESOURCE_TYPES.FinanceReceivable,
+          resourceId: receivableId,
+          outcome: SECURITY_AUDIT_OUTCOMES.Success,
+          classification: SECURITY_AUDIT_CLASSIFICATIONS.Critical,
+          metadata: {
+            settlementId: reversed.settlement.id,
+            amount: reversed.settlement.amount,
+            reason: validated.reason,
+            reversedAt: reversed.settlement.reversed_at,
+          },
+        });
+      }
+      return this.toDetail(reversed.receivable);
     } catch (error) {
       throw mapReceivableDomainError(error);
     }

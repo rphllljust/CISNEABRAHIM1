@@ -44,6 +44,10 @@ export type SettlementRow = {
   external_reference: string | null;
   actor_identity_id: string;
   created_at: string;
+  reversed_at: string | null;
+  reversed_by_identity_id: string | null;
+  reversal_reason: string | null;
+  reversal_idempotency_key: string | null;
 };
 
 export type OpenReceivablePersistenceInput = {
@@ -81,4 +85,18 @@ export type CancelReceivablePersistenceInput = {
   cancelReason: string;
   actorIdentityId: string;
   idempotencyKey?: string;
+};
+
+export type ReverseSettlementPersistenceInput = {
+  receivableId: string;
+  settlementId: string;
+  reason: string;
+  idempotencyKey: string;
+  actorIdentityId: string;
+};
+
+export type ReverseSettlementPersistenceResult = {
+  receivable: ReceivableRow;
+  settlement: SettlementRow;
+  idempotent: boolean;
 };

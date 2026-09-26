@@ -5,6 +5,8 @@ import {
   assertInstallmentSchedule,
   assertNoOverpayment,
   assertReceivableActive,
+  assertSettlementNotReconciled,
+  assertSettlementReversible,
   deriveReceivableStatus,
   remainingBalance,
   reconcileReceivable,
@@ -94,5 +96,22 @@ describe('receivable domain', () => {
     expect(result.remaining).toBe('0');
     expect(result.settled).toBe('250');
     expect(result.negativeBalance).toBe(false);
+  });
+
+  it('only reverses a posted settlement once', () => {
+    expect(() => assertSettlementReversible('POSTED')).not.toThrow();
+    expect(() => assertSettlementReversible('REVERSED')).toThrowError(
+      'RECEIVABLE_SETTLEMENT_ALREADY_REVERSED',
+    );
+    expect(() => assertSettlementReversible('DRAFT')).toThrowError(
+      'RECEIVABLE_SETTLEMENT_NOT_REVERSIBLE',
+    );
+  });
+
+  it('blocks reversal while a confirmed reconciliation references the settlement', () => {
+    expect(() => assertSettlementNotReconciled(0)).not.toThrow();
+    expect(() => assertSettlementNotReconciled(1)).toThrowError(
+      'RECEIVABLE_SETTLEMENT_RECONCILED',
+    );
   });
 });
