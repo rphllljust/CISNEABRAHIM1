@@ -104,6 +104,7 @@ async function grantPlanningAdmin(pool: Pool, identityId: string, grantedBy: str
     AUTHZ_ACTIONS.ServiceOrdersExecutionPause,
     AUTHZ_ACTIONS.ServiceOrdersExecutionRecord,
     AUTHZ_ACTIONS.ServiceOrdersExecutionComplete,
+    AUTHZ_ACTIONS.ServiceOrdersServiceOrderReopen,
   ];
 
   for (const action of actions) {
@@ -827,6 +828,38 @@ describe('Service order planning and allocation PostgreSQL integration', () => {
     const execution = await executionAccess.getExecution(actor, afterRecord.id);
     expect(execution.entries).toHaveLength(1);
     expect(execution.entries[0]?.entryType).toBe('OBSERVATION');
+  });
+
+  it('clears the materialized completion fact when a completed order is reopened', async () => {
+    const { actor } = await seedActor();
+    const { released } = await seedReleasedOrderWithPlanning(actor);
+    const started = await executionAccess.start(actor, released.id, {
+      rowVersion: released.rowVersion,
+    });
+    const recorded = await executionAccess.recordObservation(actor, released.id, {
+      rowVersion: started.rowVersion,
+      text: 'Servico conferido no local antes da conclusao.',
+    });
+    await executionAccess.complete(actor, released.id, {
+      rowVersion: recorded.rowVersion as number,
+    });
+
+    const completed = await serviceOrdersAccess.getById(actor, released.id);
+    expect(completed.status).toBe(SERVICE_ORDER_STATUSES.Completed);
+    expect(completed.completedAt).not.toBeNull();
+
+    const reopened = await serviceOrdersAccess.reopen(actor, released.id, {
+      rowVersion: completed.rowVersion,
+      reopenReason: 'Retrabalho solicitado pelo cliente.',
+    });
+
+    expect(reopened.status).toBe(SERVICE_ORDER_STATUSES.InExecution);
+    // A OS voltou a executar: nao pode continuar carregando o fato de conclusao,
+    // sob pena de dashboard/produtividade contarem conclusao inexistente.
+    expect(reopened.completedAt).toBeNull();
+    expect(reopened.historyEvents.map((event) => event.eventType)).toEqual(
+      expect.arrayContaining(['COMPLETED', 'REOPENED']),
+    );
   });
 
   it('blocks removing planned resource with active allocations', async () => {

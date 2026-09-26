@@ -103,7 +103,10 @@ export function buildServiceOrderTransitionFields(input: TransitionServiceOrderP
       };
     case 'reopen':
       return {
-        sql: 'status_before_reopen = $5::so.service_order_status, reopened_at = NOW(), reopened_by_identity_id = $4, reopen_reason = $6',
+        // Reabrir devolve a OS a um estado ativo: o fato materializado de
+        // conclusao precisa ser limpo, como start/resume fazem com paused_at.
+        // O instante original permanece no historico (evento COMPLETED).
+        sql: 'status_before_reopen = $5::so.service_order_status, reopened_at = NOW(), reopened_by_identity_id = $4, reopen_reason = $6, completed_at = NULL, completed_by_identity_id = NULL',
         params: [input.reopenReason ?? null],
       };
     default:
