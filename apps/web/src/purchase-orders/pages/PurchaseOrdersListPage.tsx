@@ -238,7 +238,13 @@ export function PurchaseOrdersListPage() {
                     </div>
                   </td>
                   <td className={`${moduleTableCellClass} tabular-nums`}>
-                    {formatMoney(item.totalAmount, item.currencyCode)}
+                    {/* Valor do pedido = valor AUTORIZADO, que o dominio calcula. Em pedidos
+                        com precificacao por itens (`LINE_ITEMS`) o `totalAmount` do cabecalho e
+                        legitimamente nulo: o valor do pedido e a soma das linhas. Exibir o campo
+                        cru deixaria a coluna vazia ao lado de um saldo preenchido. */}
+                    {item.balance
+                      ? formatMoney(item.balance.authorizedAmount, item.currencyCode)
+                      : formatMoney(item.totalAmount, item.currencyCode)}
                   </td>
                   <td className={`${moduleTableCellClass} tabular-nums`}>
                     {formatMoney(item.consumedAmount, item.currencyCode)}
