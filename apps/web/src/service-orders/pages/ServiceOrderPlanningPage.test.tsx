@@ -8,6 +8,7 @@ import {
   MOCK_ASSET_A_ID,
   MOCK_ASSET_B_ID,
   MOCK_SERVICE_ORDER_ID,
+  MOCK_WORKFORCE_MEMBER_ID,
 } from '../../test/service-orders-fetch-mock';
 import { requestUrl } from '../../test/request-url';
 
@@ -67,6 +68,49 @@ describe('ServiceOrderPlanningPage', () => {
       expect(screen.getByText(/alocação confirmada pelo servidor/i)).toBeInTheDocument();
     });
     expect(screen.getByRole('heading', { name: /alocações confirmadas/i })).toBeInTheDocument();
+    // Identificacao legivel: a alocacao e exibida por nome + codigo do ativo, nunca por UUID.
+    expect(await screen.findByRole('cell', { name: /Caminhão demo \(TRK-DEMO\)/i })).toBeInTheDocument();
+    expect(screen.queryByText(/Ativo aaaaaaaa/i)).not.toBeInTheDocument();
+  });
+
+  it('plans labor and assigns a compatible employee through the existing allocation flow', async () => {
+    const fetchMock = vi.fn(createServiceOrdersFetchMock());
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+    renderServiceOrderRoutes(`/app/service-orders/${MOCK_SERVICE_ORDER_ID}/planning`);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /planejar 1× OPERATOR/i })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /planejar 1× OPERATOR/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/mão de obra planejada com sucesso/i)).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /atribuir empregado/i }));
+
+    const dialog = await screen.findByRole('dialog');
+    fillAllocationWindow(dialog);
+    await user.click(within(dialog).getByLabelText(/Dev Um \(EMP-DEV-001\)/i));
+    await user.click(within(dialog).getByRole('button', { name: /confirmar alocação/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/alocação confirmada pelo servidor/i)).toBeInTheDocument();
+    });
+    expect(screen.getByRole('cell', { name: /Dev Um \(EMP-DEV-001\)/i })).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some((call) => {
+        const init = call[1];
+        if (init?.method !== 'POST' || !requestUrl(call[0]).includes('/allocations')) {
+          return false;
+        }
+        const bodyText = typeof init.body === 'string' ? init.body : '{}';
+        const body = JSON.parse(bodyText) as { workforceMemberId?: string };
+        return body.workforceMemberId === MOCK_WORKFORCE_MEMBER_ID;
+      }),
+    ).toBe(true);
   });
 
   it('surfaces allocation conflict without closing the dialog and allows substitute asset', async () => {

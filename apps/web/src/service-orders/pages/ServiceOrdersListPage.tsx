@@ -236,30 +236,36 @@ export function ServiceOrdersListPage() {
 
   if (listState.phase === 'loading') {
     return (
-      <ModuleLoadingState
+      <ModulePage>
+        <ModuleLoadingState
         title="Ordens de serviço"
         message="Carregando ordens de serviço…"
       />
+      </ModulePage>
     );
   }
 
   if (listState.phase === 'denied') {
     return (
-      <ModuleDeniedState
+      <ModulePage>
+        <ModuleDeniedState
         title="Ordens de serviço"
         message="Você não tem permissão para listar ordens de serviço."
       />
+      </ModulePage>
     );
   }
 
   if (listState.phase === 'error') {
     return (
-      <ModuleErrorState
+      <ModulePage>
+        <ModuleErrorState
         title="Ordens de serviço"
         message={listState.message}
         retryable={listState.retryable}
         onRetry={() => void loadPage(offset, filters)}
       />
+      </ModulePage>
     );
   }
 

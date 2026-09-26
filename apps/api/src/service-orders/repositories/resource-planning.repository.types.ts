@@ -20,7 +20,8 @@ export type ResourceAllocationRow = {
   id: string;
   service_order_id: string;
   planned_resource_id: string | null;
-  physical_asset_id: string;
+  physical_asset_id: string | null;
+  workforce_member_id: string | null;
   resource_type_code: string;
   operational_start: string;
   operational_end: string;
@@ -52,6 +53,14 @@ export type PhysicalAssetAllocationContext = {
   unit_id: string;
 };
 
+export type WorkforceMemberAllocationContext = {
+  id: string;
+  member_code: string;
+  default_labor_type_code: string | null;
+  identity_id: string | null;
+  status: string;
+};
+
 export type CreatePlannedResourcePersistenceInput = {
   serviceOrderId: string;
   requirementKind: string;
@@ -78,7 +87,8 @@ export type UpdatePlannedResourcePersistenceInput = {
 export type AllocateResourcePersistenceInput = {
   serviceOrderId: string;
   plannedResourceId: string;
-  physicalAssetId: string;
+  physicalAssetId?: string | null;
+  workforceMemberId?: string | null;
   resourceTypeCode: string;
   operationalStart: string;
   operationalEnd: string;

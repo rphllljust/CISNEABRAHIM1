@@ -23,6 +23,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { AuditModule } from '../audit/audit.module';
 import { SECURITY_AUDIT_ACTIONS } from '../audit/types/security-audit.types';
 import { AuthModule } from '../auth/auth.module';
+import { AuthService } from '../auth/services/auth.service';
 import { AUTH_TEST_PASSWORD, applyAuthTestEnv } from '../auth/test/auth-test-env';
 import { normalizeLoginIdentifier } from '../auth/crypto/token-crypto';
 import { AuthorizationModule } from '../authorization/authorization.module';
@@ -47,7 +48,7 @@ import { ServiceOrderPlanningAccessService } from './services/service-order-plan
 
 const UNIT_A = 'unit-plan-a';
 const TEST_CNPJ = '11222333000181';
-const TEST_CNPJ_ALT = '11222333000181';
+const TEST_CNPJ_ALT = '11222333000182';
 
 const SAMPLE_RESOURCE_REQUIREMENTS = [
   {
@@ -128,6 +129,7 @@ describe('Service order planning and allocation PostgreSQL integration', () => {
   let serviceOrdersAccess: ServiceOrdersAccessService;
   let planningAccess: ServiceOrderPlanningAccessService;
   let executionAccess: ServiceOrderExecutionAccessService;
+  let authService: AuthService;
   let clientAccess: ClientAccessService;
   let catalogAccess: ServiceCatalogAccessService;
   let assetsAccess: PhysicalAssetsAccessService;
@@ -158,6 +160,7 @@ describe('Service order planning and allocation PostgreSQL integration', () => {
     serviceOrdersAccess = module.get(ServiceOrdersAccessService);
     planningAccess = module.get(ServiceOrderPlanningAccessService);
     executionAccess = module.get(ServiceOrderExecutionAccessService);
+    authService = module.get(AuthService);
     clientAccess = module.get(ClientAccessService);
     catalogAccess = module.get(ServiceCatalogAccessService);
     assetsAccess = module.get(PhysicalAssetsAccessService);
@@ -294,6 +297,45 @@ describe('Service order planning and allocation PostgreSQL integration', () => {
         plateDisplay: `ABC-${code.slice(-4)}`,
       },
     });
+  }
+
+  async function createEmployee(memberCode: string, laborTypeCode = 'DRIVER') {
+    const login = normalizeLoginIdentifier(`${memberCode.toLowerCase()}-${crypto.randomUUID()}@cisne.invalid`);
+    const passwordHash = await hashPassword(AUTH_TEST_PASSWORD);
+    const { identityId } = await insertIdentity(pool, login, passwordHash);
+    const member = await pool.query<{ id: string }>(
+      `INSERT INTO wrk.workforce_members (
+         member_code, legal_name, preferred_name, default_labor_type_code, identity_id
+       )
+       VALUES ($1, $2, $2, $3, $4)
+       RETURNING id`,
+      [memberCode, `Empregado ${memberCode}`, laborTypeCode, identityId],
+    );
+    return {
+      identityId,
+      login,
+      actor: { identityId, sessionId: `sid-${memberCode}` },
+      workforceMemberId: member.rows[0]!.id,
+    };
+  }
+
+  async function grantEmployeeAssignedAccess(identityId: string, grantedBy: string): Promise<void> {
+    for (const action of [
+      AUTHZ_ACTIONS.ServiceOrdersServiceOrderList,
+      AUTHZ_ACTIONS.ServiceOrdersServiceOrderRead,
+      AUTHZ_ACTIONS.ServiceOrdersExecutionRead,
+      AUTHZ_ACTIONS.ServiceOrdersExecutionStart,
+      AUTHZ_ACTIONS.ServiceOrdersExecutionRecord,
+      AUTHZ_ACTIONS.ServiceOrdersExecutionComplete,
+    ]) {
+      await insertGrant(pool, {
+        identityId,
+        action,
+        resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+        scopeType: AUTHZ_SCOPES.Assigned,
+        grantedByIdentityId: grantedBy,
+      });
+    }
   }
 
   it('plans physical resources and labor types without concrete assets', async () => {
@@ -868,24 +910,71 @@ describe('Service order planning and allocation PostgreSQL integration', () => {
     expect(allocatedList.items.some((item) => item.id === asset.id)).toBe(true);
   });
 
-  it('rejects workforce (labor) allocation until dedicated support exists', async () => {
-    const { actor } = await seedActor();
-    const { released } = await seedReleasedOrder(actor);
-    const asset = await createWaterTruck(actor, `WT-${crypto.randomUUID().slice(0, 6)}`);
-    const labor = await planningAccess.planResource(actor, released.id, {
+  it('assigns workforce member through LABOR allocation and resolves employee ASSIGNED access', async () => {
+    const { actor: controlActor, identityId: controlIdentityId } = await seedActor();
+    const employee = await createEmployee('EMP-DEV-001');
+    const otherEmployee = await createEmployee('EMP-DEV-002');
+    await grantEmployeeAssignedAccess(employee.identityId, controlIdentityId);
+    await grantEmployeeAssignedAccess(otherEmployee.identityId, controlIdentityId);
+    const employeeLogin = await authService.login(
+      { login: employee.login, password: AUTH_TEST_PASSWORD },
+      { clientKey: `employee-${employee.identityId}`, clientIp: '127.0.0.1' },
+    );
+    expect(employeeLogin.accessToken).toBeTruthy();
+    const { released } = await seedReleasedOrder(controlActor);
+    const { released: unassigned } = await seedReleasedOrder(controlActor, '99888777000166');
+    const asset = await createWaterTruck(controlActor, `WT-${crypto.randomUUID().slice(0, 6)}`);
+    const physical = await planningAccess.planResource(controlActor, released.id, {
+      requirementKind: PLANNED_RESOURCE_KINDS.PhysicalResource,
+      resourceTypeCode: 'WATER_TRUCK',
+      plannedQuantity: '2',
+    });
+    const labor = await planningAccess.planResource(controlActor, released.id, {
       requirementKind: PLANNED_RESOURCE_KINDS.Labor,
       laborTypeCode: 'DRIVER',
-      plannedQuantity: '1',
+      plannedQuantity: '2',
     });
 
+    const physicalAllocation = await planningAccess.allocateResource(controlActor, released.id, {
+      plannedResourceId: physical.id,
+      physicalAssetId: asset.id,
+      operationalStart: '2026-06-01T08:00:00.000Z',
+      operationalEnd: '2026-06-01T10:00:00.000Z',
+    });
+    expect(physicalAllocation.physicalAssetId).toBe(asset.id);
+
+    const laborAllocation = await planningAccess.allocateResource(controlActor, released.id, {
+      plannedResourceId: labor.id,
+      workforceMemberId: employee.workforceMemberId,
+      operationalStart: '2026-06-01T08:00:00.000Z',
+      operationalEnd: '2026-06-01T10:00:00.000Z',
+    });
+    expect(laborAllocation.workforceMemberId).toBe(employee.workforceMemberId);
+    expect(laborAllocation.physicalAssetId).toBeNull();
+
+    const assignedList = await serviceOrdersAccess.list(employee.actor, { limit: 20, offset: 0 });
+    expect(assignedList.items.map((item) => item.id)).toContain(released.id);
+    expect(assignedList.items.map((item) => item.id)).not.toContain(unassigned.id);
+
+    const assignedDetail = await serviceOrdersAccess.getById(employee.actor, released.id);
+    expect(assignedDetail.id).toBe(released.id);
+    const started = await executionAccess.start(employee.actor, released.id, {
+      rowVersion: assignedDetail.rowVersion,
+    });
+    expect(started.status).toBe(SERVICE_ORDER_STATUSES.InExecution);
+
+    await expect(serviceOrdersAccess.getById(employee.actor, unassigned.id)).rejects.toMatchObject({
+      code: SERVICE_ORDERS_ERROR_CODES.DENIED,
+    });
+    await expect(serviceOrdersAccess.getById(otherEmployee.actor, released.id)).rejects.toMatchObject({
+      code: SERVICE_ORDERS_ERROR_CODES.DENIED,
+    });
     await expect(
-      planningAccess.allocateResource(actor, released.id, {
-        plannedResourceId: labor.id,
-        physicalAssetId: asset.id,
-        operationalStart: '2026-06-01T08:00:00.000Z',
-        operationalEnd: '2026-06-01T10:00:00.000Z',
+      serviceOrdersAccess.cancel(employee.actor, released.id, {
+        rowVersion: started.rowVersion,
+        cancellationReason: 'Tentativa administrativa indevida',
       }),
-    ).rejects.toMatchObject({ code: SERVICE_ORDERS_ERROR_CODES.LABOR_ALLOCATION_NOT_SUPPORTED });
+    ).rejects.toMatchObject({ code: SERVICE_ORDERS_ERROR_CODES.DENIED });
   });
 
   it('records allocation history with resource, service order, period and actor', async () => {

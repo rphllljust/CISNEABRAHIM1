@@ -25,7 +25,8 @@ export type UpdatePlannedResourceInput = {
 
 export type AllocateResourceInput = {
   plannedResourceId: string;
-  physicalAssetId: string;
+  physicalAssetId?: string;
+  workforceMemberId?: string;
   operationalStart: string;
   operationalEnd: string;
 };
@@ -98,14 +99,26 @@ export function parseAllocateResourceInput(body: unknown): AllocateResourceInput
   const record = body as Record<string, unknown>;
   const plannedResourceId = parseOptionalString(record, 'plannedResourceId');
   const physicalAssetId = parseOptionalString(record, 'physicalAssetId');
+  const workforceMemberId = parseOptionalString(record, 'workforceMemberId');
   const operationalStart = parseOptionalString(record, 'operationalStart');
   const operationalEnd = parseOptionalString(record, 'operationalEnd');
-  if (!plannedResourceId || !physicalAssetId || !operationalStart || !operationalEnd) {
+  if (
+    !plannedResourceId ||
+    (!physicalAssetId && !workforceMemberId) ||
+    (physicalAssetId && workforceMemberId) ||
+    !operationalStart ||
+    !operationalEnd
+  ) {
     throw new Error('INVALID_BODY');
   }
   assertUuid(plannedResourceId, 'plannedResourceId');
-  assertUuid(physicalAssetId, 'physicalAssetId');
-  return { plannedResourceId, physicalAssetId, operationalStart, operationalEnd };
+  if (physicalAssetId) {
+    assertUuid(physicalAssetId, 'physicalAssetId');
+  }
+  if (workforceMemberId) {
+    assertUuid(workforceMemberId, 'workforceMemberId');
+  }
+  return { plannedResourceId, physicalAssetId, workforceMemberId, operationalStart, operationalEnd };
 }
 
 export function parseReallocateResourceInput(body: unknown): ReallocateResourceInput {

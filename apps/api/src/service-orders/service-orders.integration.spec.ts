@@ -51,7 +51,7 @@ import { ServiceOrdersAccessService } from './services/service-orders-access.ser
 
 const UNIT_A = 'unit-so-a';
 const TEST_CNPJ = '11222333000181';
-const TEST_CNPJ_ALT = '11222333000181';
+const TEST_CNPJ_ALT = '19131243000197';
 
 async function grantServiceOrderAdmin(pool: Pool, identityId: string, grantedBy: string): Promise<void> {
   const actions = [

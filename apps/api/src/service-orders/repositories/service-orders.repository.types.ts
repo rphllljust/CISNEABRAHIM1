@@ -46,6 +46,7 @@ export type ServiceOrderRow = {
   updated_at: string;
   created_by_identity_id: string;
   updated_by_identity_id: string;
+  assigned_identity_id?: string | null;
 };
 
 export type ServiceOrderHistoryEventRow = {

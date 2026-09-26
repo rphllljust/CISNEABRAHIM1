@@ -38,7 +38,7 @@ export class ServiceOrdersAccessAuthz {
       AUTHZ_ACTIONS.ServiceOrdersServiceOrderList,
       AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
     );
-    return this.scopeEnforcement.buildServiceOrderListFilter(grants);
+    return this.scopeEnforcement.buildServiceOrderListFilter(grants, actor.identityId);
   }
 
   async assertListAction(actor: IdentityAuthzContext): Promise<void> {
@@ -51,7 +51,14 @@ export class ServiceOrdersAccessAuthz {
       { audit: true },
     );
     if (decision.result === 'DENY') {
-      throw serviceOrdersAccessDenied();
+      const grants = await this.authorizationRepository.findActiveGrants(
+        actor.identityId,
+        AUTHZ_ACTIONS.ServiceOrdersServiceOrderList,
+        AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+      );
+      if (!grants.some((grant) => grant.scope_type === AUTHZ_SCOPES.Assigned)) {
+        throw serviceOrdersAccessDenied();
+      }
     }
   }
 
@@ -130,6 +137,9 @@ export class ServiceOrdersAccessAuthz {
         grant.resource_id === row.client_id
       ) {
         return true;
+      }
+      if (grant.scope_type === AUTHZ_SCOPES.Assigned && row.assigned_identity_id === actor.identityId) {
+        return !grant.resource_id || grant.resource_id === row.id;
       }
       return false;
     });

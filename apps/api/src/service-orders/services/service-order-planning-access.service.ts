@@ -274,14 +274,24 @@ export class ServiceOrderPlanningAccessService {
     if (!planned) {
       throw serviceOrdersPlannedResourceNotFound();
     }
-    if (planned.requirement_kind === PLANNED_RESOURCE_KINDS.Labor) {
-      throw serviceOrdersLaborAllocationNotSupported();
-    }
-    if (planned.requirement_kind !== PLANNED_RESOURCE_KINDS.PhysicalResource) {
+    if (
+      planned.requirement_kind !== PLANNED_RESOURCE_KINDS.PhysicalResource &&
+      planned.requirement_kind !== PLANNED_RESOURCE_KINDS.Labor
+    ) {
       throw serviceOrdersPlannedResourceNotFound();
     }
-    if (!planned.resource_type_code) {
+    const allocationResourceCode =
+      planned.requirement_kind === PLANNED_RESOURCE_KINDS.PhysicalResource
+        ? planned.resource_type_code
+        : planned.labor_type_code;
+    if (!allocationResourceCode) {
       throw serviceOrdersInvalidState('Operation is not allowed in the current state.');
+    }
+    if (planned.requirement_kind === PLANNED_RESOURCE_KINDS.PhysicalResource && !input.physicalAssetId) {
+      throw serviceOrdersValidationFailed();
+    }
+    if (planned.requirement_kind === PLANNED_RESOURCE_KINDS.Labor && !input.workforceMemberId) {
+      throw serviceOrdersValidationFailed();
     }
 
     if (isRentalServiceOrder(readServiceOrderArchetypeSnapshot(order.service_snapshot))) {
@@ -328,11 +338,15 @@ export class ServiceOrderPlanningAccessService {
         planned.operational_start ? new Date(planned.operational_start) : null,
         planned.operational_end ? new Date(planned.operational_end) : null,
       );
-      assertResourceTypeMatchesRequirement(
-        order.service_snapshot,
-        planned.resource_type_code,
-        planned.resource_type_code,
-      );
+      if (planned.requirement_kind === PLANNED_RESOURCE_KINDS.Labor) {
+        assertLaborTypeInServiceRequirements(order.service_snapshot, allocationResourceCode);
+      } else {
+        assertResourceTypeMatchesRequirement(
+          order.service_snapshot,
+          allocationResourceCode,
+          allocationResourceCode,
+        );
+      }
     } catch (error) {
       if (error instanceof ResourceCompatibilityError) {
         throw mapResourceCompatibilityError(error);
@@ -346,8 +360,9 @@ export class ServiceOrderPlanningAccessService {
     const result = await this.planningRepository.allocateResource({
       serviceOrderId,
       plannedResourceId: input.plannedResourceId,
-      physicalAssetId: input.physicalAssetId,
-      resourceTypeCode: planned.resource_type_code,
+      physicalAssetId: input.physicalAssetId ?? null,
+      workforceMemberId: input.workforceMemberId ?? null,
+      resourceTypeCode: allocationResourceCode,
       operationalStart: input.operationalStart,
       operationalEnd: input.operationalEnd,
       actorIdentityId: actor.identityId,
@@ -370,6 +385,9 @@ export class ServiceOrderPlanningAccessService {
     const current = await this.planningRepository.findAllocationById(allocationId, serviceOrderId);
     if (!current) {
       throw serviceOrdersAllocationNotFound();
+    }
+    if (current.workforce_member_id) {
+      throw serviceOrdersLaborAllocationNotSupported();
     }
 
     const start = new Date(input.operationalStart);

@@ -47,7 +47,7 @@ import { ServiceOrdersAccessService } from './services/service-orders-access.ser
 
 const UNIT_A = 'unit-transport-a';
 const TEST_CNPJ = '11222333000181';
-const TEST_CNPJ_ALT = '11222333000181';
+const TEST_CNPJ_ALT = '19131243000197';
 const TRIP_START = '2026-08-01T06:00:00.000Z';
 const TRIP_END = '2026-08-01T14:00:00.000Z';
 const ALLOC_START = '2026-08-01T06:00:00.000Z';

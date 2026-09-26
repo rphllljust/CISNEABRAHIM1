@@ -36,7 +36,8 @@ export const ALLOCATION_HISTORY_EVENTS = {
 
 export type AllocationHistorySnapshot = {
   serviceOrderId: string;
-  physicalAssetId: string;
+  physicalAssetId?: string | null;
+  workforceMemberId?: string | null;
   resourceTypeCode: string;
   operationalStart: string;
   operationalEnd: string;
@@ -49,7 +50,8 @@ export function buildAllocationHistoryPayload(
 ): Record<string, unknown> {
   return {
     serviceOrderId: snapshot.serviceOrderId,
-    physicalAssetId: snapshot.physicalAssetId,
+    ...(snapshot.physicalAssetId ? { physicalAssetId: snapshot.physicalAssetId } : {}),
+    ...(snapshot.workforceMemberId ? { workforceMemberId: snapshot.workforceMemberId } : {}),
     resourceTypeCode: snapshot.resourceTypeCode,
     operationalStart: snapshot.operationalStart,
     operationalEnd: snapshot.operationalEnd,

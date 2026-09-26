@@ -128,6 +128,7 @@ export async function createMeasurement(serviceOrderId: string): Promise<Measure
   return requestJson<MeasurementDetail>(measurementPath(serviceOrderId), {
     method: 'POST',
     headers: jsonHeaders(),
+    body: JSON.stringify({}),
   });
 }
 

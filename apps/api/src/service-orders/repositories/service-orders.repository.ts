@@ -119,7 +119,18 @@ export class ServiceOrdersRepository {
          so.completed_at, so.completed_by_identity_id,
          so.status_before_cancel, so.reopened_at, so.reopened_by_identity_id, so.reopen_reason,
          so.status_before_reopen,
-         so.row_version, so.created_at, so.updated_at, so.created_by_identity_id, so.updated_by_identity_id
+         so.row_version, so.created_at, so.updated_at, so.created_by_identity_id, so.updated_by_identity_id,
+         (
+           SELECT wm.identity_id
+           FROM res.resource_allocations ra
+           INNER JOIN wrk.workforce_members wm ON wm.id = ra.workforce_member_id
+           WHERE ra.service_order_id = so.id
+             AND ra.status = 'ACTIVE'::res.resource_allocation_status
+             AND wm.status = 'ACTIVE'::wrk.workforce_member_status
+             AND wm.identity_id IS NOT NULL
+           ORDER BY ra.allocated_at ASC, ra.id ASC
+           LIMIT 1
+         ) AS assigned_identity_id
        FROM ${parts.fromClause}
        WHERE ${parts.whereClause}
        ORDER BY ${parts.orderBy}
@@ -677,11 +688,12 @@ export class ServiceOrdersRepository {
       }
 
       const transitionFields = buildServiceOrderTransitionFields(input);
+      const transitionSql = transitionFields.sql.length > 0 ? `${transitionFields.sql},` : '';
       const result = await client.query<ServiceOrderRow>(
         `UPDATE so.service_orders
          SET
            status = $3::so.service_order_status,
-           ${transitionFields.sql},
+           ${transitionSql}
            updated_by_identity_id = $4,
            updated_at = NOW(),
            row_version = row_version + 1

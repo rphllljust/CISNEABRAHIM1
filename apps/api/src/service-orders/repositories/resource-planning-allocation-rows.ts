@@ -1,7 +1,7 @@
 import type { PoolClient } from 'pg';
 
 export const ALLOCATION_RETURNING = `
-  id, service_order_id, planned_resource_id, physical_asset_id, resource_type_code,
+  id, service_order_id, planned_resource_id, physical_asset_id, workforce_member_id, resource_type_code,
   operational_start, operational_end, status::text AS status, row_version,
   allocated_at, allocated_by_identity_id, removed_at, removed_by_identity_id,
   reallocated_to_allocation_id, created_at, updated_at
@@ -36,6 +36,9 @@ export function isAllocationExclusionViolation(error: unknown): boolean {
   }
   const pgError = error as { code?: string; constraint?: string };
   return (
-    pgError.code === '23P01' || pgError.constraint === 'resource_allocations_no_overlap_active_excl'
+    pgError.code === '23P01' ||
+    pgError.constraint === 'resource_allocations_no_overlap_active_excl' ||
+    pgError.constraint === 'resource_allocations_physical_no_overlap_active_excl' ||
+    pgError.constraint === 'resource_allocations_workforce_no_overlap_active_excl'
   );
 }

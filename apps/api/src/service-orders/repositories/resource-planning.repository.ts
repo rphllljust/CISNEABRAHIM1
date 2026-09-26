@@ -28,6 +28,7 @@ import type {
   ResourceAllocationHistoryEventRow,
   ResourceAllocationRow,
   UpdatePlannedResourcePersistenceInput,
+  WorkforceMemberAllocationContext,
 } from './resource-planning.repository.types';
 import {
   ALLOCATION_RETURNING,
@@ -326,29 +327,57 @@ export class ResourcePlanningRepository {
         await client.query('ROLLBACK');
         return { outcome: 'planned_not_found' };
       }
-      if (plannedRow.requirement_kind !== 'PHYSICAL_RESOURCE') {
+      if (
+        plannedRow.requirement_kind !== 'PHYSICAL_RESOURCE' &&
+        plannedRow.requirement_kind !== 'LABOR'
+      ) {
         await client.query('ROLLBACK');
         return { outcome: 'invalid_state' };
       }
 
-      const asset = await this.lockPhysicalAsset(client, input.physicalAssetId);
-      if (!asset) {
-        await client.query('ROLLBACK');
-        return { outcome: 'asset_not_found' };
-      }
-      if (asset.lifecycle_status !== ASSET_LIFECYCLE_STATUSES.Active) {
-        await client.query('ROLLBACK');
-        return { outcome: 'asset_inactive' };
-      }
-      if (asset.resource_type_code !== input.resourceTypeCode) {
-        await client.query('ROLLBACK');
-        return { outcome: 'invalid_state' };
+      if (plannedRow.requirement_kind === 'PHYSICAL_RESOURCE') {
+        if (!input.physicalAssetId || input.workforceMemberId) {
+          await client.query('ROLLBACK');
+          return { outcome: 'invalid_state' };
+        }
+        const asset = await this.lockPhysicalAsset(client, input.physicalAssetId);
+        if (!asset) {
+          await client.query('ROLLBACK');
+          return { outcome: 'asset_not_found' };
+        }
+        if (asset.lifecycle_status !== ASSET_LIFECYCLE_STATUSES.Active) {
+          await client.query('ROLLBACK');
+          return { outcome: 'asset_inactive' };
+        }
+        if (asset.resource_type_code !== input.resourceTypeCode) {
+          await client.query('ROLLBACK');
+          return { outcome: 'invalid_state' };
+        }
+      } else {
+        if (!input.workforceMemberId || input.physicalAssetId) {
+          await client.query('ROLLBACK');
+          return { outcome: 'invalid_state' };
+        }
+        const workforceMember = await this.lockWorkforceMember(client, input.workforceMemberId);
+        if (!workforceMember) {
+          await client.query('ROLLBACK');
+          return { outcome: 'asset_not_found' };
+        }
+        if (workforceMember.status !== 'ACTIVE') {
+          await client.query('ROLLBACK');
+          return { outcome: 'asset_inactive' };
+        }
+        if (workforceMember.default_labor_type_code !== input.resourceTypeCode) {
+          await client.query('ROLLBACK');
+          return { outcome: 'invalid_state' };
+        }
       }
 
       const inserted = await this.insertAllocation(client, {
         serviceOrderId: input.serviceOrderId,
         plannedResourceId: input.plannedResourceId,
-        physicalAssetId: input.physicalAssetId,
+        physicalAssetId: input.physicalAssetId ?? null,
+        workforceMemberId: input.workforceMemberId ?? null,
         resourceTypeCode: input.resourceTypeCode,
         operationalStart: input.operationalStart,
         operationalEnd: input.operationalEnd,
@@ -357,7 +386,8 @@ export class ResourcePlanningRepository {
         historyPayload: buildAllocationHistoryPayload({
           serviceOrderId: input.serviceOrderId,
           plannedResourceId: input.plannedResourceId,
-          physicalAssetId: input.physicalAssetId,
+          physicalAssetId: input.physicalAssetId ?? null,
+          workforceMemberId: input.workforceMemberId ?? null,
           resourceTypeCode: input.resourceTypeCode,
           operationalStart: input.operationalStart,
           operationalEnd: input.operationalEnd,
@@ -378,6 +408,7 @@ export class ResourcePlanningRepository {
         unitId: order.rows[0]?.unit_id ?? '',
         allocationId: inserted.id,
         physicalAssetId: inserted.physical_asset_id,
+        workforceMemberId: inserted.workforce_member_id,
         resourceTypeCode: inserted.resource_type_code,
         assignedAt: inserted.created_at,
       });
@@ -459,6 +490,7 @@ export class ResourcePlanningRepository {
           serviceOrderId: input.serviceOrderId,
           plannedResourceId: current.planned_resource_id,
           physicalAssetId: input.newPhysicalAssetId,
+          workforceMemberId: null,
           resourceTypeCode: input.resourceTypeCode,
           operationalStart: input.operationalStart,
           operationalEnd: input.operationalEnd,
@@ -526,6 +558,7 @@ export class ResourcePlanningRepository {
         serviceOrderId: input.serviceOrderId,
         plannedResourceId: current.planned_resource_id,
         physicalAssetId: input.newPhysicalAssetId,
+        workforceMemberId: null,
         resourceTypeCode: input.resourceTypeCode,
         operationalStart: input.operationalStart,
         operationalEnd: input.operationalEnd,
@@ -715,12 +748,27 @@ export class ResourcePlanningRepository {
     return lockPhysicalAssetForAllocation(client, assetId);
   }
 
+  private async lockWorkforceMember(
+    client: PoolClient,
+    workforceMemberId: string,
+  ): Promise<WorkforceMemberAllocationContext | null> {
+    const result = await client.query<WorkforceMemberAllocationContext>(
+      `SELECT id, member_code, default_labor_type_code, identity_id, status::text AS status
+       FROM wrk.workforce_members
+       WHERE id = $1
+       FOR UPDATE`,
+      [workforceMemberId],
+    );
+    return result.rows[0] ?? null;
+  }
+
   private async insertAllocation(
     client: PoolClient,
     input: {
       serviceOrderId: string;
       plannedResourceId: string | null;
-      physicalAssetId: string;
+      physicalAssetId: string | null;
+      workforceMemberId: string | null;
       resourceTypeCode: string;
       operationalStart: string;
       operationalEnd: string;
@@ -732,15 +780,16 @@ export class ResourcePlanningRepository {
     try {
       const result = await client.query<ResourceAllocationRow>(
         `INSERT INTO res.resource_allocations (
-           service_order_id, planned_resource_id, physical_asset_id, resource_type_code,
+           service_order_id, planned_resource_id, physical_asset_id, workforce_member_id, resource_type_code,
            operational_start, operational_end, allocated_by_identity_id
          )
-         VALUES ($1, $2, $3, $4, $5::timestamptz, $6::timestamptz, $7)
+         VALUES ($1, $2, $3, $4, $5, $6::timestamptz, $7::timestamptz, $8)
          RETURNING ${ALLOCATION_RETURNING}`,
         [
           input.serviceOrderId,
           input.plannedResourceId,
           input.physicalAssetId,
+          input.workforceMemberId,
           input.resourceTypeCode,
           input.operationalStart,
           input.operationalEnd,

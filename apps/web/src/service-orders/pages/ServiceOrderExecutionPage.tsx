@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ConfirmDialog } from '../../clients/components/ConfirmDialog';
-import { useAuth } from '../../auth/context/AuthProvider';
-import { formatIdentityLabel } from '../../shell/format-identity';
 import { listAllocations } from '../api/service-order-planning-api';
 import {
   completeExecution,
@@ -84,11 +82,17 @@ function readScheduleLabel(allocations: ResourceAllocation[]): string | null {
 }
 
 function readEquipmentLabel(allocations: ResourceAllocation[]): string | null {
-  const active = allocations.filter((item) => item.status === 'ACTIVE');
-  if (active.length === 0) {
-    return null;
-  }
-  return active.map((item) => item.resourceTypeCode).join(', ');
+  const codes = allocations
+    .filter((item) => item.status === 'ACTIVE' && item.physicalAssetId)
+    .map((item) => item.resourceTypeCode);
+  return codes.length > 0 ? [...new Set(codes)].join(', ') : null;
+}
+
+function readRoleLabel(allocations: ResourceAllocation[]): string | null {
+  const codes = allocations
+    .filter((item) => item.status === 'ACTIVE' && item.workforceMemberId)
+    .map((item) => item.resourceTypeCode);
+  return codes.length > 0 ? [...new Set(codes)].join(', ') : null;
 }
 
 async function readFileAsBase64(file: File, onProgress: (progress: number) => void): Promise<string> {
@@ -113,7 +117,6 @@ async function readFileAsBase64(file: File, onProgress: (progress: number) => vo
 
 export function ServiceOrderExecutionPage() {
   const { serviceOrderId = '' } = useParams();
-  const { identityId } = useAuth();
   const feedbackId = useId();
   const requestSeq = useRef(0);
   const [state, setState] = useState<PageState>({ phase: 'loading' });
@@ -466,7 +469,7 @@ export function ServiceOrderExecutionPage() {
         locationLabel={order.description}
         scheduleLabel={readScheduleLabel(allocations)}
         equipmentLabel={readEquipmentLabel(allocations)}
-        operatorLabel={formatIdentityLabel(identityId)}
+        operatorLabel={readRoleLabel(allocations) ?? '—'}
       />
 
       {feedback ? (

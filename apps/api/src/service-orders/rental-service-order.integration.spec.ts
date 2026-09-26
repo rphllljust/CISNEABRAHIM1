@@ -50,7 +50,7 @@ import { ServiceOrdersAccessService } from './services/service-orders-access.ser
 
 const UNIT_A = 'unit-rental-a';
 const TEST_CNPJ = '11222333000181';
-const TEST_CNPJ_ALT = '11222333000181';
+const TEST_CNPJ_ALT = '19131243000197';
 const CONTRACT_START = '2026-07-01T08:00:00.000Z';
 const CONTRACT_END = '2026-07-04T18:00:00.000Z';
 const ALLOC_START = '2026-07-01T08:00:00.000Z';

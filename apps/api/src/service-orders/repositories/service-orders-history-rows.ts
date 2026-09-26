@@ -12,7 +12,8 @@ export const SERVICE_ORDER_RETURNING = `
   started_at, started_by_identity_id, paused_at, paused_by_identity_id,
   completed_at, completed_by_identity_id,
   status_before_cancel, reopened_at, reopened_by_identity_id, reopen_reason, status_before_reopen,
-  row_version, created_at, updated_at, created_by_identity_id, updated_by_identity_id
+  row_version, created_at, updated_at, created_by_identity_id, updated_by_identity_id,
+  NULL::uuid AS assigned_identity_id
 `;
 
 export const SERVICE_ORDER_SELECT = `
@@ -27,7 +28,18 @@ export const SERVICE_ORDER_SELECT = `
     started_at, started_by_identity_id, paused_at, paused_by_identity_id,
     completed_at, completed_by_identity_id,
     status_before_cancel, reopened_at, reopened_by_identity_id, reopen_reason, status_before_reopen,
-    row_version, created_at, updated_at, created_by_identity_id, updated_by_identity_id
+    row_version, created_at, updated_at, created_by_identity_id, updated_by_identity_id,
+    (
+      SELECT wm.identity_id
+      FROM res.resource_allocations ra
+      INNER JOIN wrk.workforce_members wm ON wm.id = ra.workforce_member_id
+      WHERE ra.service_order_id = so.service_orders.id
+        AND ra.status = 'ACTIVE'::res.resource_allocation_status
+        AND wm.status = 'ACTIVE'::wrk.workforce_member_status
+        AND wm.identity_id IS NOT NULL
+      ORDER BY ra.allocated_at ASC, ra.id ASC
+      LIMIT 1
+    ) AS assigned_identity_id
   FROM so.service_orders
 `;
 
@@ -89,6 +101,11 @@ export function buildServiceOrderTransitionFields(input: TransitionServiceOrderP
         sql: 'completed_at = NOW(), completed_by_identity_id = $4',
         params: [],
       };
+    case 'reopen':
+      return {
+        sql: 'status_before_reopen = $5::so.service_order_status, reopened_at = NOW(), reopened_by_identity_id = $4, reopen_reason = $6',
+        params: [input.reopenReason ?? null],
+      };
     default:
       return { sql: '', params: [] };
   }
@@ -112,6 +129,8 @@ export function historyEventForServiceOrderTransition(
       return 'RESUMED';
     case 'complete':
       return 'COMPLETED';
+    case 'reopen':
+      return 'REOPENED';
     default:
       return transition;
   }

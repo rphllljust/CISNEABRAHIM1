@@ -1,7 +1,9 @@
 import { Link, useParams } from 'react-router-dom';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { listPhysicalAssets } from '../../assets/api/physical-assets-api';
+import { getPhysicalAsset, listPhysicalAssets } from '../../assets/api/physical-assets-api';
 import type { PhysicalAsset } from '../../assets/types/physical-asset.types';
+import { listPeople } from '../../people/api/people-api';
+import type { Person } from '../../people/types/person.types';
 import { ConfirmDialog } from '../../clients/components/ConfirmDialog';
 import { getServiceOrder } from '../api/service-orders-api';
 import { ServiceOrdersApiError } from '../api/service-orders-api';
@@ -31,6 +33,27 @@ type PageState =
       allocations: ResourceAllocation[];
     };
 
+function formatPersonLabel(person: Person): string {
+  const name = person.preferredName || person.legalName;
+  return `${name} (${person.memberCode})`;
+}
+
+function formatAllocatedResource(
+  allocation: ResourceAllocation,
+  peopleById: Record<string, Person>,
+  assetsById: Record<string, PhysicalAsset>,
+): string {
+  if (allocation.workforceMemberId) {
+    const person = peopleById[allocation.workforceMemberId];
+    return person ? formatPersonLabel(person) : `Empregado ${allocation.workforceMemberId.slice(0, 8)}...`;
+  }
+  if (allocation.physicalAssetId) {
+    const asset = assetsById[allocation.physicalAssetId];
+    return asset ? `${asset.name} (${asset.assetCode})` : `Ativo ${allocation.physicalAssetId.slice(0, 8)}...`;
+  }
+  return '-';
+}
+
 export function ServiceOrderPlanningPage() {
   const { serviceOrderId = '' } = useParams();
   const { capabilities } = useServiceOrderPlanningCapabilities();
@@ -42,8 +65,14 @@ export function ServiceOrderPlanningPage() {
   const [selectedPlannedId, setSelectedPlannedId] = useState('');
   const [operationalStart, setOperationalStart] = useState('');
   const [operationalEnd, setOperationalEnd] = useState('');
+  const [allocateKind, setAllocateKind] = useState<'PHYSICAL_RESOURCE' | 'LABOR'>('PHYSICAL_RESOURCE');
   const [selectedAssetId, setSelectedAssetId] = useState('');
+  const [selectedPersonId, setSelectedPersonId] = useState('');
   const [assets, setAssets] = useState<PhysicalAsset[]>([]);
+  const [people, setPeople] = useState<Person[]>([]);
+  const [knownPeople, setKnownPeople] = useState<Record<string, Person>>({});
+  const [knownAssets, setKnownAssets] = useState<Record<string, PhysicalAsset>>({});
+  const attemptedAssetLabels = useRef<Set<string>>(new Set());
   const [assetsLoading, setAssetsLoading] = useState(false);
   const [allocationConflictAssetId, setAllocationConflictAssetId] = useState<string | null>(null);
   const requestSeq = useRef(0);
@@ -112,14 +141,125 @@ export function ServiceOrderPlanningPage() {
   );
 
   useEffect(() => {
+    if (state.phase !== 'ready') {
+      return;
+    }
+    const codes = [
+      ...new Set(
+        state.planned
+          .map((item) => item.laborTypeCode)
+          .filter((code): code is string => Boolean(code)),
+      ),
+    ];
+    if (codes.length === 0) {
+      return;
+    }
+    const controller = new AbortController();
+    void Promise.all(
+      codes.map((code) =>
+        listPeople(
+          { limit: 100, offset: 0, status: 'ACTIVE', defaultLaborTypeCode: code },
+          controller.signal,
+        ),
+      ),
+    )
+      .then((pages) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+        const items = pages.flatMap((page) => page.items);
+        setKnownPeople((current) => ({
+          ...current,
+          ...Object.fromEntries(items.map((person) => [person.id, person])),
+        }));
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [state]);
+
+  /**
+   * Rotulos legiveis das alocacoes confirmadas: a alocacao referencia o ativo por id,
+   * portanto o nome/codigo precisa ser resolvido no cadastro. Nunca exibir UUID como
+   * identificacao principal; se a leitura do ativo for negada, mantem-se o fallback.
+   */
+  useEffect(() => {
+    if (state.phase !== 'ready') {
+      return;
+    }
+    const missing = [
+      ...new Set(
+        state.allocations
+          .map((item) => item.physicalAssetId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ].filter((id) => !attemptedAssetLabels.current.has(id));
+    if (missing.length === 0) {
+      return;
+    }
+    for (const id of missing) {
+      attemptedAssetLabels.current.add(id);
+    }
+    const controller = new AbortController();
+    void Promise.all(
+      missing.map((id) =>
+        getPhysicalAsset(id, controller.signal)
+          .then((asset) => [id, asset] as const)
+          .catch(() => null),
+      ),
+    ).then((results) => {
+      if (controller.signal.aborted) {
+        return;
+      }
+      const entries = results.filter(
+        (entry): entry is readonly [string, PhysicalAsset] => entry !== null,
+      );
+      if (entries.length === 0) {
+        return;
+      }
+      setKnownAssets((current) => ({ ...current, ...Object.fromEntries(entries) }));
+    });
+    return () => controller.abort();
+  }, [state]);
+
+  useEffect(() => {
     if (!allocateOpen || state.phase !== 'ready' || !selectedPlannedId) {
       return;
     }
     const planned = state.planned.find((item) => item.id === selectedPlannedId);
-    if (!planned?.resourceTypeCode) {
+    if (!planned) {
       return;
     }
     const controller = new AbortController();
+    if (planned.requirementKind === PLANNED_RESOURCE_KINDS.Labor && planned.laborTypeCode) {
+      setAssetsLoading(true);
+      void listPeople(
+        { limit: 100, offset: 0, status: 'ACTIVE', defaultLaborTypeCode: planned.laborTypeCode },
+        controller.signal,
+      )
+        .then((response) => {
+          if (!controller.signal.aborted) {
+            setPeople(response.items);
+            setKnownPeople((current) => ({
+              ...current,
+              ...Object.fromEntries(response.items.map((person) => [person.id, person])),
+            }));
+          }
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) {
+            setPeople([]);
+          }
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) {
+            setAssetsLoading(false);
+          }
+        });
+      return () => controller.abort();
+    }
+    if (!planned.resourceTypeCode) {
+      return;
+    }
     void loadAssets(planned.resourceTypeCode, controller.signal);
     return () => controller.abort();
   }, [allocateOpen, loadAssets, selectedPlannedId, state]);
@@ -151,8 +291,36 @@ export function ServiceOrderPlanningPage() {
     }
   }
 
+  async function handlePlanLabor(laborTypeCode: string, quantity: string) {
+    if (state.phase !== 'ready' || submitting) {
+      return;
+    }
+    setSubmitting(true);
+    setFeedback(null);
+    try {
+      await planResource(serviceOrderId, {
+        requirementKind: PLANNED_RESOURCE_KINDS.Labor,
+        laborTypeCode,
+        plannedQuantity: quantity,
+      });
+      setFeedback({ tone: 'success', message: 'Mão de obra planejada com sucesso.' });
+      await reload();
+    } catch (error) {
+      setFeedback({
+        tone: 'error',
+        message:
+          error instanceof ServiceOrdersApiError
+            ? mapServiceOrdersErrorToMessage(error.code, error.status)
+            : 'Não foi possível planejar a mão de obra.',
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function handleAllocate() {
-    if (state.phase !== 'ready' || submitting || !selectedPlannedId || !selectedAssetId) {
+    const targetId = allocateKind === 'LABOR' ? selectedPersonId : selectedAssetId;
+    if (state.phase !== 'ready' || submitting || !selectedPlannedId || !targetId) {
       return;
     }
     setSubmitting(true);
@@ -161,7 +329,9 @@ export function ServiceOrderPlanningPage() {
     try {
       await allocateResource(serviceOrderId, {
         plannedResourceId: selectedPlannedId,
-        physicalAssetId: selectedAssetId,
+        ...(allocateKind === 'LABOR'
+          ? { workforceMemberId: selectedPersonId }
+          : { physicalAssetId: selectedAssetId }),
         operationalStart: new Date(operationalStart).toISOString(),
         operationalEnd: new Date(operationalEnd).toISOString(),
       });
@@ -279,7 +449,7 @@ export function ServiceOrderPlanningPage() {
       <section className="planning-section" aria-labelledby="planned-heading">
         <h2 id="planned-heading">Planejamento</h2>
         <p className="planning-hint">
-          <span className="planning-legend planning-legend--planned">Planned</span> — tipos e quantidades planejadas, sem ativo concreto obrigatório.
+          <span className="planning-legend planning-legend--planned">Planned</span> — tipos e quantidades planejadas, sem recurso concreto obrigatório.
         </p>
         {!planningAllowed && (
           <p role="status" className="planning-notice">
@@ -300,6 +470,7 @@ export function ServiceOrderPlanningPage() {
                     type="button"
                     className="button-link"
                     onClick={() => {
+                      setAllocateKind('PHYSICAL_RESOURCE');
                       setSelectedPlannedId(item.id);
                       setSelectedAssetId('');
                       setOperationalStart('');
@@ -316,6 +487,24 @@ export function ServiceOrderPlanningPage() {
             {laborPlanned.map((item) => (
               <li key={item.id}>
                 <strong>{item.laborTypeCode}</strong> — qtd. {item.plannedQuantity}
+                {capabilities.canAllocate && planningAllowed ? (
+                  <button
+                    type="button"
+                    className="button-link"
+                    onClick={() => {
+                      setAllocateKind('LABOR');
+                      setSelectedPlannedId(item.id);
+                      setSelectedPersonId('');
+                      setSelectedAssetId('');
+                      setOperationalStart('');
+                      setOperationalEnd('');
+                      setPeople([]);
+                      setAllocateOpen(true);
+                    }}
+                  >
+                    Atribuir empregado
+                  </button>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -335,15 +524,25 @@ export function ServiceOrderPlanningPage() {
                 </button>
               ))
           : null}
-        {laborPlanned.length > 0 ? (
-          <p className="planning-notice" role="status">
-            Alocação de pessoas (Employee) não está disponível — módulo de RH ainda não implementado. O planejamento por tipo de mão de obra permanece registrado.
-          </p>
-        ) : null}
+        {capabilities.canPlan && planningAllowed
+          ? coverage
+              .filter((row) => row.kind === 'LABOR' && row.planned < row.required)
+              .map((row) => (
+                <button
+                  key={row.key}
+                  type="button"
+                  className="button-secondary planning-plan-action"
+                  disabled={submitting}
+                  onClick={() => void handlePlanLabor(row.label, '1')}
+                >
+                  Planejar 1× {row.label}
+                </button>
+              ))
+          : null}
       </section>
 
       <section className="planning-section" aria-labelledby="availability-heading">
-        <h2 id="availability-heading">Disponibilidade de ativos</h2>
+        <h2 id="availability-heading">Disponibilidade de ativos físicos</h2>
         <p className="planning-hint">
           <span className="planning-legend planning-legend--available">Available</span> /{' '}
           <span className="planning-legend planning-legend--unavailable">Unavailable</span> — elegibilidade informada pelo cadastro; conflito de intervalo é confirmado pelo servidor ao alocar.
@@ -352,7 +551,7 @@ export function ServiceOrderPlanningPage() {
           <p aria-busy="true">Consultando ativos…</p>
         ) : assets.length === 0 ? (
           <p className="planning-empty" role="status">
-            Selecione um item planejado para consultar ativos compatíveis.
+            Selecione um recurso físico planejado para consultar ativos compatíveis.
           </p>
         ) : (
           <ul className="planning-asset-list">
@@ -395,7 +594,7 @@ export function ServiceOrderPlanningPage() {
               <thead>
                 <tr>
                   <th scope="col">Tipo</th>
-                  <th scope="col">Ativo</th>
+                  <th scope="col">Recurso alocado</th>
                   <th scope="col">Início</th>
                   <th scope="col">Fim</th>
                   <th scope="col">Ações</th>
@@ -405,7 +604,9 @@ export function ServiceOrderPlanningPage() {
                 {activeAllocations.map((allocation) => (
                   <tr key={allocation.id}>
                     <td>{allocation.resourceTypeCode}</td>
-                    <td>{allocation.physicalAssetId.slice(0, 8)}…</td>
+                    <td>
+                      {formatAllocatedResource(allocation, knownPeople, knownAssets)}
+                    </td>
                     <td>{new Date(allocation.operationalStart).toLocaleString()}</td>
                     <td>{new Date(allocation.operationalEnd).toLocaleString()}</td>
                     <td>
@@ -460,11 +661,20 @@ export function ServiceOrderPlanningPage() {
 
       <ConfirmDialog
         open={allocateOpen}
-        title="Alocar recurso físico"
-        description="Selecione o intervalo e o ativo. A disponibilidade no período será confirmada pelo servidor."
+        title={allocateKind === 'LABOR' ? 'Atribuir empregado' : 'Alocar recurso físico'}
+        description={
+          allocateKind === 'LABOR'
+            ? 'Selecione o intervalo e o empregado ativo com a função planejada. A atribuição será confirmada pelo servidor.'
+            : 'Selecione o intervalo e o ativo. A disponibilidade no período será confirmada pelo servidor.'
+        }
         confirmLabel={submitting ? 'Alocando…' : 'Confirmar alocação'}
         cancelLabel="Cancelar"
-        confirmDisabled={submitting || !selectedAssetId || !operationalStart || !operationalEnd}
+        confirmDisabled={
+          submitting ||
+          !operationalStart ||
+          !operationalEnd ||
+          (allocateKind === 'LABOR' ? !selectedPersonId : !selectedAssetId)
+        }
         onCancel={() => setAllocateOpen(false)}
         onConfirm={() => void handleAllocate()}
       >
@@ -487,6 +697,27 @@ export function ServiceOrderPlanningPage() {
               required
             />
           </label>
+          {allocateKind === 'LABOR' ? (
+            <fieldset>
+              <legend>Empregado compatível</legend>
+              {people.length === 0 ? (
+                <p>Nenhum empregado ativo com esta função.</p>
+              ) : (
+                people.map((person) => (
+                  <label key={person.id} className="planning-asset-option">
+                    <input
+                      type="radio"
+                      name="workforceMember"
+                      value={person.id}
+                      checked={selectedPersonId === person.id}
+                      onChange={() => setSelectedPersonId(person.id)}
+                    />
+                    {formatPersonLabel(person)}
+                  </label>
+                ))
+              )}
+            </fieldset>
+          ) : (
           <fieldset>
             <legend>Ativo compatível</legend>
             {assets.map((asset) => (
@@ -504,6 +735,7 @@ export function ServiceOrderPlanningPage() {
               </label>
             ))}
           </fieldset>
+          )}
         </div>
       </ConfirmDialog>
     </main>

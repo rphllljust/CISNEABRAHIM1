@@ -28,7 +28,8 @@ export type ResourceAllocationResponse = {
   id: string;
   serviceOrderId: string;
   plannedResourceId: string | null;
-  physicalAssetId: string;
+  physicalAssetId: string | null;
+  workforceMemberId: string | null;
   resourceTypeCode: string;
   operationalStart: string;
   operationalEnd: string;
@@ -69,6 +70,7 @@ export function toResourceAllocationResponse(row: ResourceAllocationRow): Resour
     serviceOrderId: row.service_order_id,
     plannedResourceId: row.planned_resource_id,
     physicalAssetId: row.physical_asset_id,
+    workforceMemberId: row.workforce_member_id,
     resourceTypeCode: row.resource_type_code,
     operationalStart: row.operational_start,
     operationalEnd: row.operational_end,

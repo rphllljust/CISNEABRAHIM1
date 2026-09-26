@@ -24,7 +24,8 @@ export type ResourceAllocation = {
   id: string;
   serviceOrderId: string;
   plannedResourceId: string | null;
-  physicalAssetId: string;
+  physicalAssetId: string | null;
+  workforceMemberId: string | null;
   resourceTypeCode: string;
   operationalStart: string;
   operationalEnd: string;
@@ -58,7 +59,8 @@ export type PlanResourcePayload = {
 
 export type AllocateResourcePayload = {
   plannedResourceId: string;
-  physicalAssetId: string;
+  physicalAssetId?: string;
+  workforceMemberId?: string;
   operationalStart: string;
   operationalEnd: string;
 };
