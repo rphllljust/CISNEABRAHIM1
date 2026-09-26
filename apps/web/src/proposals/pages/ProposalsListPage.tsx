@@ -189,16 +189,16 @@ export function ProposalsListPage() {
             <thead className={moduleTableHeadClass}>
               <tr>
                 <th scope="col" className={moduleTableHeaderCellClass}>
-                  Código
+                  Proposta
                 </th>
                 <th scope="col" className={moduleTableHeaderCellClass}>
                   Título
                 </th>
                 <th scope="col" className={moduleTableHeaderCellClass}>
-                  Versão
+                  Situação
                 </th>
                 <th scope="col" className={moduleTableHeaderCellClass}>
-                  Unidade
+                  Próxima ação
                 </th>
                 <th scope="col" className={moduleTableHeaderCellClass}>
                   Atualizada em
@@ -214,9 +214,25 @@ export function ProposalsListPage() {
                     </ModuleTableLink>
                   </td>
                   <td className={moduleTableCellClass}>{item.title}</td>
-                  <td className={moduleTableCellClass}>{item.currentVersionNumber ?? '—'}</td>
-                  <td className={moduleTableCellClass}>{item.unitId}</td>
-                  <td className={moduleTableCellClass}>{formatDateTime(item.updatedAt)}</td>
+                  <td className={moduleTableCellClass}>
+                    {/* A listagem nao recebe o status da versao corrente do backend:
+                        declarar "emitida" aqui seria invencao. Ver BACKEND GAP. */}
+                    {item.currentVersionNumber === null ? (
+                      <span className="text-sm text-gray-600">Sem versão emitida</span>
+                    ) : (
+                      <span className="text-sm font-medium text-gray-900">
+                        Revisão {item.currentVersionNumber}
+                      </span>
+                    )}
+                  </td>
+                  <td className={moduleTableCellClass}>
+                    <ModuleTableLink to={`/app/proposals/${item.id}`}>
+                      {item.currentVersionNumber === null ? 'Preparar versão' : 'Abrir proposta'}
+                    </ModuleTableLink>
+                  </td>
+                  <td className={`${moduleTableCellClass} text-gray-500`}>
+                    {formatDateTime(item.updatedAt)}
+                  </td>
                 </tr>
               ))}
             </tbody>

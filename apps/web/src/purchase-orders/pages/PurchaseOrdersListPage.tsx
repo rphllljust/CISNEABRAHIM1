@@ -4,7 +4,11 @@ import { mapPurchaseOrderErrorToMessage } from '../api/purchase-order-error-mess
 import { PurchaseOrderStatusBadge } from '../components/PurchaseOrderStatusBadge';
 import { usePurchaseOrderCapabilities } from '../hooks/usePurchaseOrderCapabilities';
 import type { PurchaseOrder } from '../types/purchase-order.types';
-import { formatDateTime, formatMoney } from '../utils/purchase-order-labels';
+import { formatDate, formatDateTime, formatMoney } from '../utils/purchase-order-labels';
+import {
+  purchaseOrderNextAction,
+  purchaseOrderNotice,
+} from '../utils/purchase-order-list-presentation';
 import { Button } from '../../ui/Button';
 import {
   FilterCard,
@@ -190,19 +194,19 @@ export function PurchaseOrdersListPage() {
             <thead className={moduleTableHeadClass}>
               <tr>
                 <th scope="col" className={moduleTableHeaderCellClass}>
-                  Nº PO
+                  Pedido
                 </th>
                 <th scope="col" className={moduleTableHeaderCellClass}>
-                  Código interno
-                </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
-                  Status
+                  Situação
                 </th>
                 <th scope="col" className={moduleTableHeaderCellClass}>
                   Valor
                 </th>
                 <th scope="col" className={moduleTableHeaderCellClass}>
-                  Unidade
+                  Emissão
+                </th>
+                <th scope="col" className={moduleTableHeaderCellClass}>
+                  Próxima ação
                 </th>
                 <th scope="col" className={moduleTableHeaderCellClass}>
                   Atualizado em
@@ -216,16 +220,34 @@ export function PurchaseOrdersListPage() {
                     <ModuleTableLink to={`/app/purchase-orders/${item.id}`}>
                       {item.poNumber}
                     </ModuleTableLink>
+                    <span className="mt-1 block font-mono text-xs text-gray-500">
+                      {item.internalCode}
+                    </span>
                   </td>
-                  <td className={moduleTableCellClass}>{item.internalCode}</td>
                   <td className={moduleTableCellClass}>
-                    <PurchaseOrderStatusBadge status={item.status} />
+                    <div className="flex flex-col items-start gap-1">
+                      <PurchaseOrderStatusBadge status={item.status} />
+                      {purchaseOrderNotice(item) ? (
+                        <span className="text-xs font-medium text-amber-700">
+                          {purchaseOrderNotice(item)}
+                        </span>
+                      ) : null}
+                    </div>
                   </td>
                   <td className={`${moduleTableCellClass} tabular-nums`}>
                     {formatMoney(item.totalAmount, item.currencyCode)}
                   </td>
-                  <td className={moduleTableCellClass}>{item.unitId}</td>
-                  <td className={moduleTableCellClass}>{formatDateTime(item.updatedAt)}</td>
+                  <td className={moduleTableCellClass}>
+                    {item.issueDate ? formatDate(item.issueDate) : '—'}
+                  </td>
+                  <td className={moduleTableCellClass}>
+                    <ModuleTableLink to={`/app/purchase-orders/${item.id}`}>
+                      {purchaseOrderNextAction(item.status)}
+                    </ModuleTableLink>
+                  </td>
+                  <td className={`${moduleTableCellClass} text-gray-500`}>
+                    {formatDateTime(item.updatedAt)}
+                  </td>
                 </tr>
               ))}
             </tbody>

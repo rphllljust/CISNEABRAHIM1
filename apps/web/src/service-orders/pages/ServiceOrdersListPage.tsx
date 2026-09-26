@@ -27,10 +27,15 @@ import {
 import {
   formatAssigneeLabel,
   formatClientLabel,
-  formatDateTime,
   formatDeadlineLabel,
   formatServiceOrderStatus,
 } from '../utils/service-order-labels';
+import {
+  resolveServiceOrderAttention,
+  resolveServiceOrderNextAction,
+  serviceOrderAttentionClass,
+  serviceOrderStagePath,
+} from '../utils/service-order-next-action';
 import { Button } from '../../ui/Button';
 import { ConfirmAction } from '../../ui/ConfirmAction';
 import {
@@ -459,104 +464,134 @@ export function ServiceOrdersListPage() {
         <DataTable aria-label="Lista de ordens de serviço">
           <DataTableHead>
             <DataTableRow>
-              <DataTableHeaderCell scope="col">Número</DataTableHeaderCell>
+              <DataTableHeaderCell scope="col">OS</DataTableHeaderCell>
               <DataTableHeaderCell scope="col">Cliente</DataTableHeaderCell>
-              <DataTableHeaderCell scope="col">Unidade</DataTableHeaderCell>
+              <DataTableHeaderCell scope="col">Situação</DataTableHeaderCell>
               <DataTableHeaderCell scope="col">Responsável</DataTableHeaderCell>
               <DataTableHeaderCell scope="col">Prazo</DataTableHeaderCell>
-              <DataTableHeaderCell scope="col">Status</DataTableHeaderCell>
-              <DataTableHeaderCell scope="col">Atualizada em</DataTableHeaderCell>
-              <DataTableHeaderCell scope="col">Ações</DataTableHeaderCell>
+              <DataTableHeaderCell scope="col">Próxima ação</DataTableHeaderCell>
             </DataTableRow>
           </DataTableHead>
           <DataTableBody>
-            {items.map((item) => (
-              <DataTableRow key={item.id}>
-                <DataTableCell>
-                  <ModuleTableLink to={`/app/service-orders/${item.id}/planning`}>
-                    {item.orderNumber}
-                  </ModuleTableLink>
-                </DataTableCell>
-                <DataTableCell>{formatClientLabel(item.clientSnapshot, item.clientId)}</DataTableCell>
-                <DataTableCell>{item.unitId}</DataTableCell>
-                <DataTableCell>{formatAssigneeLabel(item.assignedWorkforceMember)}</DataTableCell>
-                <DataTableCell>{formatDeadlineLabel(item.deadlineAt)}</DataTableCell>
-                <DataTableCell>
-                  <ServiceOrderStatusBadge status={item.status} />
-                </DataTableCell>
-                <DataTableCell>{formatDateTime(item.updatedAt)}</DataTableCell>
-                <DataTableCell>
-                  <nav aria-label={`Ações da OS ${item.orderNumber}`} className="flex flex-wrap gap-3">
-                    <ModuleTableLink to={`/app/service-orders/${item.id}/planning`}>
-                      Planejamento
-                    </ModuleTableLink>
-                    <ModuleTableLink to={`/app/service-orders/${item.id}/execution`}>
-                      Execução
-                    </ModuleTableLink>
-                    <ModuleTableLink to={`/app/service-orders/${item.id}/measurement`}>
-                      Medição
-                    </ModuleTableLink>
-                    {item.status === SERVICE_ORDER_STATUSES.Draft ? (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        disabled={pendingOrderId === item.id}
-                        onClick={() =>
-                          void runLifecycleAction(
-                            item,
-                            () => prepareServiceOrder(item.id, item.rowVersion),
-                            `Ordem de serviço ${item.orderNumber} preparada.`,
-                          )
-                        }
-                      >
-                        Preparar
-                      </Button>
-                    ) : null}
-                    {item.status === SERVICE_ORDER_STATUSES.Prepared ? (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        disabled={pendingOrderId === item.id}
-                        onClick={() =>
-                          void runLifecycleAction(
-                            item,
-                            () => releaseServiceOrder(item.id, item.rowVersion),
-                            `Ordem de serviço ${item.orderNumber} liberada.`,
-                          )
-                        }
-                      >
-                        Liberar
-                      </Button>
-                    ) : null}
-                    {CANCELLABLE_SERVICE_ORDER_STATUSES.has(item.status) ? (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        disabled={pendingOrderId === item.id}
-                        onClick={() => openConfirmDialog('cancel', item)}
-                      >
-                        Cancelar
-                      </Button>
-                    ) : null}
-                    {REOPENABLE_SERVICE_ORDER_STATUSES.has(item.status) ? (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        disabled={pendingOrderId === item.id}
-                        onClick={() => openConfirmDialog('reopen', item)}
-                      >
-                        Reabrir
-                      </Button>
-                    ) : null}
-                    {pendingOrderId === item.id ? (
-                      <span className="text-sm text-gray-500" role="status">
-                        Processando…
+            {items.map((item) => {
+              const nextAction = resolveServiceOrderNextAction(item.status);
+              const attention = resolveServiceOrderAttention(item);
+              const lifecyclePending = pendingOrderId === item.id;
+              const openPath = `/app/service-orders/${item.id}/planning`;
+              return (
+                <DataTableRow key={item.id}>
+                  <DataTableCell>
+                    <ModuleTableLink to={openPath}>{item.orderNumber}</ModuleTableLink>
+                  </DataTableCell>
+                  <DataTableCell>{formatClientLabel(item.clientSnapshot, item.clientId)}</DataTableCell>
+                  <DataTableCell>
+                    <div className="flex flex-col items-start gap-1">
+                      <ServiceOrderStatusBadge status={item.status} />
+                      {attention ? (
+                        <span
+                          className={`text-xs font-medium ${serviceOrderAttentionClass(attention.tone)}`}
+                        >
+                          {attention.label}
+                        </span>
+                      ) : null}
+                    </div>
+                  </DataTableCell>
+                  <DataTableCell>{formatAssigneeLabel(item.assignedWorkforceMember)}</DataTableCell>
+                  <DataTableCell>{formatDeadlineLabel(item.deadlineAt)}</DataTableCell>
+                  <DataTableCell>
+                    <div className="flex flex-col items-start gap-1.5">
+                      {/* Uma unica acao primaria: a etapa que a maquina de estados libera agora. */}
+                      {nextAction.kind === 'lifecycle' && nextAction.intent === 'prepare' ? (
+                        <Button
+                          type="button"
+                          variant="primary"
+                          className="min-h-8 px-3 py-1.5 text-xs"
+                          disabled={lifecyclePending}
+                          onClick={() =>
+                            void runLifecycleAction(
+                              item,
+                              () => prepareServiceOrder(item.id, item.rowVersion),
+                              `Ordem de serviço ${item.orderNumber} preparada.`,
+                            )
+                          }
+                        >
+                          Preparar OS
+                        </Button>
+                      ) : null}
+                      {nextAction.kind === 'lifecycle' && nextAction.intent === 'release' ? (
+                        <Button
+                          type="button"
+                          variant="primary"
+                          className="min-h-8 px-3 py-1.5 text-xs"
+                          disabled={lifecyclePending}
+                          onClick={() =>
+                            void runLifecycleAction(
+                              item,
+                              () => releaseServiceOrder(item.id, item.rowVersion),
+                              `Ordem de serviço ${item.orderNumber} liberada.`,
+                            )
+                          }
+                        >
+                          Liberar OS
+                        </Button>
+                      ) : null}
+                      {nextAction.kind === 'lifecycle' && nextAction.intent === 'reopen' ? (
+                        <Button
+                          type="button"
+                          variant="primary"
+                          className="min-h-8 px-3 py-1.5 text-xs"
+                          disabled={lifecyclePending}
+                          onClick={() => openConfirmDialog('reopen', item)}
+                        >
+                          Reabrir OS
+                        </Button>
+                      ) : null}
+                      {nextAction.kind === 'stage' ? (
+                        <ModuleTableLink to={serviceOrderStagePath(item.id, nextAction.stage)}>
+                          {nextAction.label}
+                        </ModuleTableLink>
+                      ) : null}
+                      {nextAction.kind === 'none' ? (
+                        <span className="text-xs text-gray-500">Encerrada</span>
+                      ) : null}
+
+                      {/* Acoes de excecao ficam subordinadas: nao competem com a etapa corrente. */}
+                      <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+                        {nextAction.kind === 'lifecycle' ? (
+                          <ModuleTableLink to={openPath}>Abrir OS</ModuleTableLink>
+                        ) : null}
+                        {CANCELLABLE_SERVICE_ORDER_STATUSES.has(item.status) ? (
+                          <button
+                            type="button"
+                            className="text-xs font-medium text-gray-500 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled={lifecyclePending}
+                            onClick={() => openConfirmDialog('cancel', item)}
+                          >
+                            Cancelar
+                          </button>
+                        ) : null}
+                        {REOPENABLE_SERVICE_ORDER_STATUSES.has(item.status) &&
+                        !(nextAction.kind === 'lifecycle' && nextAction.intent === 'reopen') ? (
+                          <button
+                            type="button"
+                            className="text-xs font-medium text-gray-500 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled={lifecyclePending}
+                            onClick={() => openConfirmDialog('reopen', item)}
+                          >
+                            Reabrir
+                          </button>
+                        ) : null}
+                        {lifecyclePending ? (
+                          <span className="text-xs text-gray-500" role="status">
+                            Processando…
+                          </span>
+                        ) : null}
                       </span>
-                    ) : null}
-                  </nav>
-                </DataTableCell>
-              </DataTableRow>
-            ))}
+                    </div>
+                  </DataTableCell>
+                </DataTableRow>
+              );
+            })}
           </DataTableBody>
         </DataTable>
       )}

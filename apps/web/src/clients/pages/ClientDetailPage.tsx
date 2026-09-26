@@ -12,6 +12,7 @@ import {
   VERSION_CONFLICT_MESSAGE,
 } from '../api/client-error-messages';
 import { ClientStatusBadge } from '../components/ClientStatusBadge';
+import { ClientRelatedRecords } from '../components/ClientRelatedRecords';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useClientCapabilities } from '../hooks/useClientCapabilities';
 import { CLIENT_STATUSES, type Client } from '../types/client.types';
@@ -235,6 +236,9 @@ export function ClientDetailPage() {
           </button>
         </div>
       ) : null}
+
+      {/* Contexto antes do cadastro: o Cliente e a contraparte da cadeia comercial inteira. */}
+      <ClientRelatedRecords clientId={client.id} />
 
       <section className="client-section" aria-labelledby="client-identification-heading">
         <h2 id="client-identification-heading">Identificação jurídica</h2>
