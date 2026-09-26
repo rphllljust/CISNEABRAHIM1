@@ -12094,7 +12094,7 @@ NEXT: STOP
 ```
 
 ```text
-PROMPT: STOP_AND_FIX (FINANCIAL) � passo 1
+PROMPT: STOP_AND_FIX (FINANCIAL) � passo 1
 STATUS: IN_PROGRESS (commit 1/6)
 SCOPE: builder canonico de posicao de recebivel (FIN-SEM-001) com asOf explicito e status (OPEN/PARTIALLY_PAID/PAID/OVERDUE/CANCELLED); unit 1/1 + lint + typecheck PASS.
 NEXT: awaitingPayment -> posicao financeira; fixture cadeia 10 cenarios; reconciliacao Finance=Analytics=Exec; rerun BI CORRECTION GATE. NAO certificado ainda.
@@ -12102,7 +12102,7 @@ NOTES: Prompt 93 nao executado; sem push; WIP preservado; producao NO-GO.
 ```
 
 ```text
-PROMPT: STOP_AND_FIX (FINANCIAL) � passo 2
+PROMPT: STOP_AND_FIX (FINANCIAL) � passo 2
 STATUS: IN_PROGRESS
 SCOPE: awaitingPayment agora usa posicao financeira (FIN-SEM-001) OPEN/PARTIALLY_PAID por saldo residual; overdueReceivables ja financeiro; prepared permanece operacional. Gates: lint/typecheck PASS; integracao finance NO_DATA 1 + aging 3 PASS.
 NEXT: fixture cadeia 10 cenarios + reconciliacao + rerun gate. NAO certificado.
@@ -12459,3 +12459,676 @@ CORRECOES: 14 erros @cisne/api + 31 erros @cisne/web = 45, distribuidos em: auth
 GATES: eslint api 0 erros | eslint web 0 erros | tsc api PASS | tsc web PASS; regressao web (modulos afetados) 24/24 PASS (payable-reverse, treasury-forms, payable-actions, ServiceRequestDetailPage).
 NOTES: WIP pre-existente (accounting-backoffice.ui.test.tsx) e docs/inputs/_write_src003.py preservados (nao commitados). Nenhuma regra de lint alterada; nenhum eslint-disable/ts-ignore/any novo introduzido (os 'any' existentes foram tipados).
 ```
+
+---
+
+## WORKFORCE ASSIGNMENT TO SERVICE ORDER — 2026-09-25
+
+| Campo | Valor |
+| ----- | ----- |
+| Status | `PASS` |
+| Classificacao | Interpretacao de engenharia / autorizacao operacional |
+| Escopo | Finalizar atribuicao de empregado a OS usando `wrk.workforce_members`, `identity_id`, planejamento/alocacao existente e contexto `ASSIGNED` |
+| Alteracoes | Alocacao `LABOR` persistida em `res.resource_allocations.workforce_member_id`; `ASSIGNED` resolvido a partir de alocacao ativa de workforce member vinculado a identidade; listagem/leitura/execucao de OS respeitam grant `ASSIGNED`; ativo fisico permanece em `physical_asset_id` |
+| Fora de escopo | Sem sistema paralelo de responsavel; sem nova autenticacao/RBAC/workflow; sem alteracao de medicao, faturamento, financeiro, documentos ou estados alem do acesso/atribuicao |
+| Validacao | `corepack pnpm --filter @cisne/api typecheck`; `corepack pnpm --filter @cisne/database typecheck`; `corepack pnpm --filter @cisne/api exec vitest run --config vitest.integration.config.ts src/service-orders/service-order-planning.integration.spec.ts`; `corepack pnpm --filter @cisne/api exec vitest run src/authorization/scope/scope-matcher.spec.ts src/authorization/services/policy-decision-point.service.spec.ts` |
+| Resultado | PASS |
+
+---
+
+## INTEGRATION MIGRATION HARNESS ALIGNMENT — 2026-09-25
+
+| Campo | Valor |
+| ----- | ----- |
+| Status | `PASS_WITH_RESTRICTIONS` |
+| Classificacao | Interpretacao de engenharia / infraestrutura de teste |
+| Escopo | Alinhar `apps/api/src/test/ensure-migrations.ts` com migrations registradas `0076_deadline_kernel`, `0077_workforce_member_identity` e `0078_workforce_member_allocation` para permitir validacao reprodutivel do WIP de atribuicao de empregado |
+| Diagnostico | A suite `service-order-planning.integration.spec.ts` travava por concorrencia com processos Vitest antigos e o harness de teste nao tinha probes das migrations 0076..0078; processos de teste orfaos foram encerrados e o harness passou a aplicar as migrations ausentes de forma idempotente |
+| Alteracoes | Probes idempotentes para funcao `so.deadline_for`, coluna `wrk.workforce_members.identity_id` e coluna `res.resource_allocations.workforce_member_id` antes de aplicar as migrations correspondentes |
+| Fora de escopo | Sem nova regra empresarial; sem reset destrutivo; sem declaracao de fechamento geral do CISNE; producao permanece NO-GO |
+| Validacao | `corepack pnpm --filter @cisne/api typecheck`; `corepack pnpm --filter @cisne/api exec vitest run --config vitest.integration.config.ts src/service-orders/service-order-planning.integration.spec.ts --reporter=verbose` (22/22); `corepack pnpm db:migrate:test`; gates adicionais ja executados nesta rodada: lint database/api/web PASS, typecheck database/api/web PASS, unit database 23/23, PDP/scope 7/7, web planning 9/9 |
+| Resultado | PASS para harness de integracao; `CISNE AINDA POSSUI BLOCKERS` para entrega total solicitada |
+
+---
+
+## FINALIZATION CYCLE — CAUSAS RAIZ, DEFEITO DE PRODUCAO E SUITES COMPLETAS — 2026-09-25
+
+| Campo | Valor |
+| ----- | ----- |
+| Status | `PASS_WITH_RESTRICTIONS` |
+| Classificacao | Interpretacao de engenharia / fechamento tecnico |
+| Ciclo | INSPECIONAR -> REPRODUZIR -> CAUSA RAIZ -> CORRIGIR -> TESTAR -> RETESTAR |
+| Escopo | Reproduzir e corrigir todas as falhas das suites obrigatorias (lint, typecheck, unit, integracao, E2E, build, migrations em banco limpo) sem recriar projeto, sem trocar stack e sem alterar arquitetura |
+
+### Lacunas, causas raiz e correcoes
+
+**1. `packages/database/dist` defasado — causa raiz dominante (9 de 10 falhas de integracao)**
+
+- Sintoma: `ISSUER_DEFAULT_NOT_FOUND` ("Issuing establishment has no active CNPJ registered") em `idempotency-retry` (2), `vertical/first-vertical-quality-gate` (1), `uat/uat-business` (3 cenarios + veredito) e `enterprise-integrity` (2).
+- Diagnostico: `dist/test-builders/authz-builders.js` compilado as 01:48 e fonte alterado as 03:21; o `dist` nao continha `ensureIntegrationDefaultIssuer`. `truncateIdentityAndAuthorizationTables` apaga `identity.identities` CASCADE e, por FK, o emissor; apenas o fonte recriava o emissor. Evidencia: `pty.legal_entities` = 0 linhas e `fin.receivables` = 0 apos a rodada; a falha foi reproduzida tambem com o arquivo rodado isolado (nao era contaminacao entre suites).
+- Correcao: `corepack pnpm --filter @cisne/database build` (sem alteracao de codigo). `dist/` e gitignored e nao rastreado, logo o CI (que constroi via `^build` do turbo) nao era afetado; era defeito de ambiente local.
+- Reteste: `uat-business` 5/5; `enterprise-integrity` 3/3; suite de integracao completa PASS.
+
+**2. Assertiva de EXPLAIN insatisfazivel por arquitetura (`analytics/oltp-bi-isolation.integration.spec.ts`)**
+
+- Sintoma: `not.toContain('Seq Scan on receivables')` falhava com `Seq Scan on receivables (rows=280)`.
+- Diagnostico (medido, nao inferido): `rpt.read_receivables` e `SELECT ... FROM fin.receivables OFFSET 0`. `OFFSET 0` e fence de otimizacao — o planner nao empurra predicados para a tabela base, portanto nenhum indice de `fin.receivables` e utilizavel atraves do contrato de leitura. Medicao com 0/50/200/500/2000/5000/20000 linhas + `ANALYZE`, em duas distribuicoes (90% vencido e 1% vencido): o plano NUNCA usa `receivables_due_date_idx`; empurrar o predicado para dentro da subconsulta tambem nao habilitou o indice. Logo a assertiva commitada (`toContain('receivables_due_date_idx')`) e a do WIP (`not.toContain('Seq Scan ...')`) sao igualmente insatisfaziveis. `rpt.read_*` com `OFFSET 0` e decisao arquitetural publicada em ADR-003 (contrato de leitura entre contextos; migrations 0043..0073) — NAO foi alterada.
+- Correcao: assertiva substituida por contrato alcancavel e verdadeiro (plano executavel; referencia a fonte financeira publicada `receivables`/`settlements` com filtro `status = 'POSTED'`; indices de suporte presentes em `pg_indexes`; fence `OFFSET 0` presente em `pg_get_viewdef`; ausencia de uso do indice travada explicitamente com a causa). A limitacao permanece VISIVEL no teste, nao mascarada: se o fence for revisado, o teste falha e exige revisao explicita.
+- Reteste: 2/2 PASS.
+
+**3. Credenciamento fiscal nao scriptado no harness de integridade empresarial**
+
+- Sintoma: `FISCAL_TRANSMISSION_BLOCKED` (403) no hop fiscal da jornada e `concurrentSubmit` com 0 fulfill.
+- Diagnostico: `FiscalModule` liga `FISCAL_CREDENTIALING_PORT` a `Src006FiscalCredentialing` (`approved: false`; regra BR-043..BR-045 — transmissao bloqueada sem credenciamento). O harness ja scriptava `FISCAL_AUTHORIZATION_GATEWAY`, mas nao a porta de credenciamento: lacuna de fixture, nao regra de negocio. O bloqueio permanece provado em `fiscal-credentialing.spec.ts` e em `fiscal.integration.spec.ts` ("blocks transmission when credentialing is not approved").
+- Correcao: `ScriptedFiscalCredentialing` (mesmo padrao ja usado em `fiscal.integration.spec.ts`) + `overrideProvider(FISCAL_CREDENTIALING_PORT)`.
+- Reteste: 3/3 PASS.
+
+**4. UUID como identificacao principal no planejamento (frontend)**
+
+- Sintoma: alocacao fisica exibida como `Ativo 3f2a1b9c...` em `/app/service-orders/:serviceOrderId/planning` (viola "nomes legiveis" / "sem UUID como informacao principal").
+- Correcao: resolucao de rotulo legivel do ativo alocado (`nome (assetCode)`), uma leitura por ativo unico, tentativas registradas para nao repetir requisicao e fallback preservado quando a leitura e negada; mock de teste passou a servir `GET /api/v1/resources/physical-assets/:id`; regressao adicionada (nome+codigo presentes e UUID ausente).
+- Reteste: `ServiceOrderPlanningPage.test.tsx` 6/6; suite web completa 469/469 PASS.
+
+**5. `insertGrant` duplicava concessao ja fornecida pelo perfil (E2E adversarial)**
+
+- Sintoma: `duplicate key value violates unique constraint "grants_active_scope_unique_idx"`.
+- Diagnostico: o ator recebe o perfil `control_admin`, cujo conjunto de grants ja inclui `service-orders:service-order:list`; o teste reinseria a MESMA concessao ativa. A unicidade parcial existe desde a migration `0004`.
+- Correcao: novo `ensureGrant` idempotente em `@cisne/database` (retorna a concessao ativa existente e tolera corrida `23505`); o teste passou a usa-lo em vez de `insertGrant`.
+- Reteste: `adversarial-security.e2e.spec.ts` 12/12 PASS.
+
+**6. Detector de vazamento acusava o proprio payload ecoado (E2E adversarial)**
+
+- Sintoma: `Sensitive data leak detected in response body` em resposta 200 do endpoint de busca com payload de injecao.
+- Diagnostico: `containsSensitiveErrorLeak` inclui `/\bselect\b.+\bfrom\b/i` e o endpoint de busca devolve o termo pesquisado em `query.raw`; o padrao casava com a entrada do proprio chamador. Nao havia vazamento de interno do servidor (sem erro SQL, caminho, credencial ou stack).
+- Correcao: `assertNoSensitiveLeak` aceita `reflectedInput` e remove APENAS o eco da entrada do chamador antes de varrer o corpo. O detector de producao (`security/domain/safe-error-message.ts`) NAO foi afrouxado.
+- Reteste: 12/12 PASS.
+
+**7. Comando documentado `bootstrap:first-identity` inexistente**
+
+- Sintoma: `packages/database` nao possuia o script `bootstrap:production`; o comando documentado em `docs/implementation/19-seeding.md` e citado em `docs/19-operations/release-hermetic-audit.md` falhava.
+- Correcao: `packages/database/src/cli/run-bootstrap-cli.ts` (CLI guardada: `DATABASE_URL`, `BOOTSTRAP_ADMIN_LOGIN`, `BOOTSTRAP_ADMIN_PASSWORD`, `BOOTSTRAP_CONFIRM=I_UNDERSTAND`; sem papel empresarial; sem senha em codigo) + script `bootstrap:production`.
+- Reteste em banco limpo: `created` (exit 0) / `already_exists` idempotente (exit 0) / token errado -> `rejected` (exit 1) / senha fraca -> `rejected` (exit 1); apenas 1 identidade persistida.
+
+**8. DEFEITO DE PRODUCAO — readiness respondia HTTP 200 com `not_ready`**
+
+- Sintoma reproduzido ao vivo: `GET /api/v1/health/ready` com banco indisponivel respondia `200 {"status":"not_ready",...}`.
+- Risco real: probes de orquestrador/balanceador decidem pelo codigo HTTP; 200 mantinha trafego em instancia sem banco. O requisito explicito de producao ("banco indisponivel -> ready 503") nao era atendido.
+- Correcao: `ready` responde 503 quando nao pronto (`@Res({ passthrough: true })`, preservando o payload JSON); `live` permanece 200 (processo vivo, sem trafego).
+- Reteste ao vivo: `ready` -> 503 com payload completo (`database.status=down`, erro de conexao); `live` -> 200. Unit `health.controller.spec.ts` 8/8 com 2 assertivas novas de 503.
+
+### Gates reexecutados nesta rodada
+
+| Gate | Comando | Resultado |
+| ---- | ------- | --------- |
+| Lint database/api/web | `corepack pnpm --filter @cisne/<pkg> lint` | PASS (0 erros) |
+| Typecheck database/api/web | `corepack pnpm --filter @cisne/<pkg> typecheck` | PASS |
+| Unit database | `corepack pnpm --filter @cisne/database test` | PASS 23/23 |
+| Unit API | `corepack pnpm --filter @cisne/api test` | PASS 941/941 (215 arquivos) |
+| Integracao API | `corepack pnpm --filter @cisne/api test:integration` | PASS 705/705 (96 arquivos) |
+| E2E API | `corepack pnpm --filter @cisne/api test:e2e` | PASS 77/77 (26 arquivos) |
+| Web | `corepack pnpm --filter @cisne/web test` | PASS 469/469 (107 arquivos) |
+| Build database/api/web | `corepack pnpm --filter @cisne/<pkg> build` | PASS |
+| Migrations em banco limpo | banco `cisne_clean_verify` vazio -> `node scripts/run-drizzle-migrate.mjs` | PASS: 0 objetos -> 79 migrations aplicadas -> 185 tabelas base, 116 views, 29 schemas |
+| Bootstrap minimo | `node packages/database/dist/cli/run-bootstrap-cli.js` | PASS (created + idempotente + guardas) |
+| Start API em banco limpo | `node apps/api/dist/main.js` (PORT=3210) | PASS: `live` 200, `ready` 200 (`database up`), login 200 com token |
+| Separacao live/ready | `node apps/api/dist/main.js` com `DATABASE_URL` inalcancavel | PASS: `live` 200, `ready` 503 com payload |
+| Readiness engenharia | `corepack pnpm --filter @cisne/api readiness:engineering` | `engineeringReadiness=READY`, `engineeringBlockers=[]` |
+| Readiness producao | `corepack pnpm --filter @cisne/api readiness:gate` | `NO-GO` (blocker de piloto, nao tecnico) |
+| Higiene de release | `git status`, `git diff --stat`, `git diff --check` | `git diff --check` sem erros; 123 arquivos modificados (2181 insercoes, 357 remocoes) + untracked |
+
+### Blocker de producao — estado atual (nao tecnico, nao resolvivel por codigo)
+
+- Janela de observacao do piloto JA satisfeita por tempo (`observationEndsAt=2026-09-13`; avaliacao em 2026-09-25). O blocker avancou de `PILOT_OBSERVATION_WINDOW_NOT_COMPLETED` para `PILOT_THRESHOLDS_NOT_MET: http_error_rate=0.2391304347826087`.
+- Origem do valor: snapshot operacional de `2026-09-03T19:07:16Z` (46 requisicoes), rotulado na propria evidencia como amostra de processo ("process uptime sample; not a 14-day series"). O contador e cumulativo por processo e inclui 500 reais servidos pela instancia HML enquanto a migration `0076` estava ausente (defeito ja corrigido). O metricador em processo conta apenas 5xx (`observability-context.interceptor.ts`: `isError = failed || statusCode >= 500`), portanto 403/404 de negacao nao entram no erro.
+- Decisao: NAO foi registrado novo snapshot e NAO foi autorizada saida de piloto. Ambos sao atos de operacao/governanca com dados reais da instancia de piloto; registrar snapshot a partir do ambiente local seria falsificacao de readiness. Acao requerida do responsavel: reimplantar HML com o codigo atual, registrar snapshot/telemetria validos e autorizar a saida (`exitAuthorizedBy`/`exitAuthorizedAt`) para o gate avancar.
+- `mobile: CONDITIONAL` permanece (`DDP-025 OPEN`: app nativo/PWA obrigatorio UNKNOWN), nao bloqueante.
+
+### Antecipacao nao executada
+
+- Prompt 93/94 nao executados; nenhum push; nenhum `git reset --hard`; WIP pre-existente preservado (incluindo `docs/inputs/_write_src003.py` e `apps/web/src/analytics/`).
+- Producao permanece `NO-GO`. Nao foi declarado go-live nem "pronto para operacao real".
+
+| Resultado | `PASS` para engenharia (todos os gates obrigatorios verdes, incluindo 1 defeito de producao corrigido); producao `NO-GO` por blocker de piloto (governanca/telemetria real), nao por blocker tecnico |
+
+---
+
+## VISUAL REGRESSION GATE — SELETORES OBSOLETOS E BASELINE REGENERADO — 2026-09-25
+
+| Campo | Valor |
+| ----- | ----- |
+| Status | `PASS` |
+| Classificacao | Interpretacao de engenharia / infraestrutura de teste (visual) |
+| Escopo | Gate `test:visual` (Playwright/Chromium real) estava VERMELHO de forma pre-existente (28 falhas em 30 testes, 2 skipped). Reproduzir, separar causa raiz estrutural de drift de pixel, corrigir e revalidar |
+
+### Causas raiz (todas pre-existentes e nao causadas por este ciclo)
+
+**A. Seletor de titulo obsoleto (billing)** — o spec assertava `getByRole('heading', { name: /^faturamento$/i })`; o commit `7e6caf6` ("feat(billing): keep internal billing distinct from fiscal issuance") renomeou o `h1` para `Faturamento interno` (confirmado em `HEAD:apps/web/src/billing/pages/BillingDashboardPage.tsx`) sem atualizar o spec. 3 falhas (mobile/tablet/desktop).
+
+**B. Classe de container obsoleta (propostas e pedidos de compra)** — o spec assertava `#main-content.requests-page`, mas as listas passaram a usar o container compartilhado `ModulePage`, que renderiza `<main id="main-content" className="w-full ...">` sem a classe legada `requests-page` (confirmado em `apps/web/src/ui/module-layout.tsx`). O elemento assertado e o MESMO landmark; apenas a classe mudou. 6 falhas (2 telas x 3 viewports).
+
+**C. Baseline de snapshot congelado em `5be4230` (2026-08-30)** — mudancas COMMITADAS de UI posteriores alteraram layout: shell/navegacao em `8dc8cd6` (2026-09-02), refino de branding do login em `3726d8d`, alem do WIP atual (nav/dashboard/shell). 19 falhas de `toHaveScreenshot` com diferenca de altura/posicao e nenhuma perda de conteudo.
+
+### Correcoes
+
+1. `billing.visual.spec.ts`: titulo assertado passa a `^faturamento interno$` (contrato atual do `h1`).
+2. `proposals.visual.spec.ts` e `purchase-orders.visual.spec.ts`: `openCommercialPage` passa a assertar o landmark `#main-content` (mesmo elemento, classe legada removida) e o locator de screenshot acompanha.
+3. `login.visual.spec.ts`: ADICIONADAS assertivas estruturais que antes nao existiam (campos `usuário`/`senha` e botao `Entrar` visiveis) — o teste deixa de ser puramente pixel.
+4. Baseline regenerado com `playwright test --update-snapshots` (28 PNG em `e2e/visual/*-snapshots/`).
+
+### Evidencia de que o drift era visual e nao perda de conteudo
+
+- Apos as correcoes A e B e ANTES de regenerar qualquer pixel, todas as assertivas estruturais dos 5 specs passaram: billing (titulo + `.billing-board`), propostas (tabela `Lista de propostas comerciais` + link `PROP-2026-0042`; detalhe com titulo, status `Emitida`, botao `Aceitar` e tabela de itens; formulario com titulo, opcao de cliente e botao), pedidos de compra (tabela + link; detalhe com titulo, status `Registrado`, botao, tabela e data; formulario), dashboard (titulo `visão geral` + bloco `atenção necessária`), login (campos + botao). Sobraram APENAS falhas de `toHaveScreenshot`.
+- Prova adicional em navegador real: `GET /login` renderiza layout institucional completo (marca, `Acessar conta`, `USUÁRIO`, `SENHA`) com `mainHeight` 792.97 em 1280x720 e ZERO erros de console/pagina.
+- Revalidacao final: `test:visual` 28 passed / 2 skipped (exit 0).
+
+### Ressalva honesta (nao mascarada)
+
+- A revisao do novo baseline foi ESTRUTURAL (conteudo, landmark, sem erros de console) e nao pixel-a-pixel por revisor humano. Recomenda-se revisao visual humana dos 28 PNG antes do release; o baseline anterior tinha mais de 3 semanas e ja nao correspondia a UI commitada, portanto mante-lo nao protegia nada e bloqueava o gate.
+
+### Gates reexecutados
+
+| Gate | Comando | Resultado |
+| ---- | ------- | --------- |
+| Visual (Playwright/Chromium real) | `corepack pnpm --filter @cisne/web test:visual` | PASS 28/28 (2 skipped por serem desktop-only) |
+| Lint web (inclui `e2e/**/*.ts`) | `corepack pnpm --filter @cisne/web lint` | PASS |
+| Typecheck web | `corepack pnpm --filter @cisne/web typecheck` | PASS |
+
+| Resultado | `PASS` — gate visual verde com contrato estrutural reforcado; 4 specs + 28 baselines atualizados; producao NO-GO mantido (blocker de piloto) |
+
+---
+
+## CORRECAO DE REGISTRO — COMPOSICAO DO METRICADOR `http_error_rate` — 2026-09-25
+
+| Campo | Valor |
+| ----- | ----- |
+| Status | `PASS` (correcao de registro; nenhum codigo de produto alterado nesta entrada) |
+| Classificacao | Interpretacao de engenharia / correcao de afirmacao anterior |
+| Motivo | A entrada "FINALIZATION CYCLE" afirmou que "o metricador em processo conta apenas 5xx (`isError = failed || statusCode >= 500`), portanto 403/404 de negacao nao entram no erro". **Essa afirmacao esta INCORRETA** e e corrigida aqui. O registro anterior permanece (append-only) por exigencia de governanca |
+
+### Comportamento real (reproduzido)
+
+- `apps/api/src/observability/interceptors/observability-context.interceptor.ts`: `error:` do observable marca `failed = true` para TODA `HttpException` lancada pelo handler — e no NestJS e assim que 400/401/403/404/409 chegam ao filtro de excecao. A linha seguinte define `isError = failed || statusCode >= 500`. Portanto **4xx de negacao TAMBEM contam como erro**; o `statusCode` registrado aparece como 200 no metadata porque o filtro ainda nao ajustou o codigo no momento da leitura.
+- Evidencia direta (stdout da execucao E2E desta rodada, `corepack pnpm --filter @cisne/api test:e2e`): requisicoes que os testes assertam como negacao 4xx aparecem como `result:"failure"` com `errorCode` de negacao — `COMMERCIAL_DENIED`, `BILLING_DENIED`, `AUTHZ_DENIED`, `CLIENT_NOT_FOUND`, `CATALOG_NOT_FOUND`.
+- Cadeia completa do indicador: interceptor -> `MetricsRegistryService.recordHttpRequest(isError)` (`httpErrors`) -> `getHttpSnapshot()` -> `TechnicalAlertService` (`httpErrorRate = errors / total`) e `GET /api/v1/observability/metrics` -> snapshot operacional do piloto (`ops/pilot/pilot-observation.ts`) -> `ops/pilot/pilot-exit.ts` (`http_error_rate <= maxHttpErrorRate`).
+
+### Consequencia e interpretacoes
+
+- Consequencia operacional: negacoes legitimas (403/404) e validacoes (400/409) inflam a taxa. O gatilho de rollback documentado (`release-rollback-strategy.md`: `RELEASE_MAX_HTTP_ERROR_RATE`, "HTTP error rate > 5%") e os criterios de saida do piloto ficam sensiveis a trafego normal de negacao — e a instancia HML, conforme registrado na propria evidencia do piloto, gerava 403 em sondagens de modulos sem capability ("ruido pre-existente fora da rota BI").
+- Interpretacao A (defeito de calculo): a taxa deveria excluir 4xx de cliente e medir apenas 5xx/timeouts, conforme pratica usual de SLO. Corrigir reduziria a taxa medida.
+- Interpretacao B (definicao intencional): a taxa inclui 4xx para sinalizar sondagens indevidas/UI pedindo endpoints sem capability — o 403 de modulo seria um sinal real de desperdicio, nao apenas ruido.
+- **Nao houve alteracao do metricador nem dos thresholds nesta rodada.** A definicao do numerador e decisao operacional/de negocio que afeta diretamente um gate de readiness em `NO-GO`; altera-la unilateralmente se aproximaria de manipular a metrica em vez de corrigir o sistema. Fica registrada como decisao pendente do responsavel (definir se `http_error_rate` e 5xx-only, 5xx+timeout, ou todos os nao-2xx), com o achado e a evidencia acima.
+- A classificacao do blocker de producao NAO muda por causa desta correcao: o snapshot de `2026-09-03` continua sendo uma amostra cumulativa de processo, rotulada como nao-serie de 14 dias, e a saida do piloto continua exigindo telemetria real e autorizacao humana.
+
+| Resultado | `PASS` — registro corrigido; achado de metrica documentado e escalado ao responsavel; nenhum threshold, codigo de produto ou evidencia de readiness alterado nesta entrada |
+
+---
+
+## PRODUCT PASS REAL (browser + API + PostgreSQL) — 2 DEFEITOS CORRIGIDOS — 2026-09-25
+
+| Campo | Valor |
+| ----- | ----- |
+| Status | `PASS_WITH_RESTRICTIONS` (restricao = autenticacao Railway pendente) |
+| Classificacao | Interpretacao de engenharia / validacao de produto em ambiente real |
+| Escopo | Regra 4 (passagem de produto real), Regra 9 (seguranca) e Regra 13 (release real): subir API real (`node apps/api/dist/main.js`), Web real (`vite preview` sobre `dist` com `VITE_API_BASE_URL`), banco real (`cisne_local_dev` com 79 migrations + seed sintetico + perfis CONTROLE/EMPREGADO/CONTROLE_B) e percorrer as paginas basicas com Playwright/Chromium real |
+
+### Ambiente real montado
+
+- Banco `cisne_local_dev`: migrations aplicadas; `seed:profiles` (CONTROLE / EMPREGADO / CONTROLE_FINANCEIRO, dev-only) e `seed:synthetic` (15 clientes, 7 servicos, 17 solicitacoes, 17 OS em 7 estados, 14 alocacoes, 19 execucoes, 8 medicoes, 6 faturamentos, 7 documentos).
+- API `:3000` (NODE_ENV=development, CORS para `127.0.0.1:4173`); Web `:4173` (build com `VITE_API_BASE_URL=http://127.0.0.1:3000`).
+
+### Resultado da passagem (23 sweeps + 3 fluxos de navegacao)
+
+- **CONTROLE**: 11 paginas basicas + planejamento/execucao/medicao/faturamento de OS reais — todas `200`, `h1` correto, dados reais (clientes 20, solicitacoes 17, OS 17, documentos 14, recebiveis 3), **zero UUID como identificacao em tabela**, nenhum estado de erro/negacao.
+- **EMPREGADO**: ve exatamente as **6 OS atribuidas** (de 17 existentes), cada uma com alocacao ativa de `EMP-DEV-001` vinculada a identidade; `GET /finance/receivables` → `403 FINANCE_DENIED`; `authz/access-admin/catalog` → `403 AUTHZ_DENIED`.
+- **CONTROLE B**: `GET /finance/receivables` → `200` com principal/saldo/vencimento/baixas (OPEN e PAID com settlement POSTED); catalog/OS/clientes → `403`.
+- Navegacao profunda sem UUID manual (clients/requests/service-orders) ainda pendente de ajuste de seletor no probe (linhas usam botao, nao ancora); nao e defeito de produto.
+
+### Defeitos reais encontrados e corrigidos (ciclo reproduzir -> causa raiz -> patch -> reteste)
+
+**P1 (producao): upload de documento sem multipart respondia HTTP 500.**
+
+- Causa raiz: `@fastify/multipart` lanca `FST_INVALID_MULTIPART_CONTENT_TYPE` e o erro escapava do `parseMultipart`, virando `500 INTERNAL_ERROR`. Ocorria a **cada carga de pagina** (a sonda de capability do frontend faz `POST /api/v1/documents` sem multipart) — inflando o log e o contador 5xx.
+- Correcao (patch local): `apps/api/src/documents/controllers/documents.controller.ts` passa a mapear os codigos de ENTRADA do cliente do multipart (`FST_INVALID_MULTIPART_CONTENT_TYPE`, `FST_FILES_LIMIT`, `FST_REQ_FILE_TOO_LARGE`, etc.) para `400 DOCUMENT_INVALID_INPUT`; erros nao reconhecidos continuam propagando (500 visivel).
+- Reteste: `documents.e2e.spec.ts` 4/4 (novo caso "answers 400 — never 500"); ao vivo `POST /api/v1/documents` sem multipart → `400`.
+
+**P2 (producao): rate limit de refresh destruia a sessao do usuario.**
+
+- Causa raiz: o access token e somente-memoria (por design), entao **cada reload completo** consome 1 `POST /auth/refresh`; o limite default `SECURITY_RATE_REFRESH` e 20/min **por IP+user-agent**. Ao estourar, `AuthProvider.bootstrap` tratava o 429 como falha de autenticacao e chamava `clearSession()` → o usuario caia na tela de login.
+- Correcao (patch local, reaproveitando o estado `unavailable` ja existente): `apps/web/src/auth/context/AuthProvider.tsx` passa a tratar `AuthApiError.status === 429` como indisponibilidade transitoria (preserva o refresh token; `ProtectedRoute` ja roteia `unavailable` → `/unavailable` com retentativa), em vez de destruir a sessao.
+- Reteste: `auth-flow.e2e.test.tsx` 5/5 (novo caso "keeps the session when the bootstrap refresh is rate limited"); ao vivo: 30 cargas → 429 na carga 17 → `/unavailable` com `refreshTokenKept=true`; apos janela (65s) a retentativa recupera a sessao para `/app/service-orders` com dados reais.
+- Recomendacao operacional registrada (nao e bug de codigo): `SECURITY_RATE_REFRESH_MAX=60` no deploy de producao (limite e por IP+UA, e cada reload custa 1 unidade).
+
+### Passagem de produto apos correcoes
+
+- Zero `5xx` em todos os sweeps; CONTROLE/EMPREGADO/CONTROLE_B sem estado de erro; refresh preserva sessao (verificado).
+
+### Ensaio de release (producao, sem Docker de app)
+
+- Banco `cisne_prod_rehearsal` vazio → `node packages/database/dist/cli/run-migrate-cli.js` (pre-deploy): `applied=79 total=79`.
+- Bootstrap de producao: `created`; token errado → `rejected` (exit 1, guarda de producao).
+- `node apps/api/dist/main.js` com `NODE_ENV=production`: `live` 200, `ready` 200 (`database up`), login 200 com `accessToken`.
+- Artefatos de deploy Railway adicionados: `docker/railway/Dockerfile.web`, `docker/railway/nginx.conf` (healthcheck `/health`), `docs/19-operations/railway-deploy.md` (pre-deploy = migrations; healthcheck = `/api/v1/health/ready`; env contract; bootstrap oficial; smoke publico).
+
+### Gates reexecutados (autoritativos) nesta rodada
+
+| Gate | Resultado |
+| ---- | --------- |
+| lint database/api/web | PASS |
+| typecheck database/api/web | PASS |
+| database unit | PASS |
+| API unit | PASS |
+| API integration | PASS |
+| API E2E | PASS |
+| web (unit+e2e jsdom) | PASS |
+| web visual (Chromium real) | PASS |
+| build database/api/web | PASS |
+| migrations banco limpo | PASS (79/79) |
+| ensaio producao (start/live/ready/login) | PASS |
+
+| Resultado | `PASS` para engenharia e produto (2 defeitos de producao corrigidos e verificados em browser real); `RESTRICTION` unica = autenticacao Railway pendente para o deploy publico (nao e defeito de codigo) |
+
+---
+
+## DEPLOY PUBLICO — CISNE ACESSIVEL NA INTERNET — 2026-09-25
+
+| Campo | Valor |
+| ----- | ----- |
+| Status | `PASS_WITH_RESTRICTIONS` |
+| Classificacao | Interpretacao de engenharia / release e operacao |
+| Escopo | Regras 13, 14, 15 e 17: preparar o release de hoje, expor o sistema publicamente e executar smoke test publico real |
+
+### Railway — blocker externo real (billing)
+
+- Conta autenticada (`rphllljust@gmail.com`) via CLI oficial `@railway/cli` 5.62.1 instalada localmente em `tmp/`.
+- `railway list` → workspace `rphllljust's Projects` com **zero projetos**; `railway init` / `railway add` recusam com
+  **"Your trial has expired. Please select a plan to continue using Railway."**
+- Isso e bloqueio EXTERNO de billing: exige que o titular selecione um plano e informe meio de pagamento no painel Railway. Nenhum comando, codigo ou configuracao deste repositorio contorna essa restricao (e tentar contornar seria improprio).
+- **Tudo o que antecede o deploy esta pronto e versionado**: `docker/railway/Dockerfile.web`, `docker/railway/nginx.conf`, `docker/hml/Dockerfile.api` (API hermtica, ja existente) e o runbook `docs/19-operations/railway-deploy.md` com pre-deploy de migrations, healthcheck em `/api/v1/health/ready`, contrato de variaveis e bootstrap oficial. Assim que o plano for liberado, o deploy e executavel sem alteracao de codigo.
+
+### Exposicao publica efetiva (sem conta) — sistema acessivel hoje
+
+Para nao deixar o sistema inacessivel enquanto o billing do Railway e resolvido, a aplicacao foi exposta por tunel HTTPS
+(Cloudflare `cloudflared` 2026.9.3, binario baixado em `tmp/`, modo quick tunnel sem conta), servindo os MESMOS artefatos de release:
+
+| Servico | URL publica | Origem local |
+| ------- | ----------- | ------------ |
+| Web (SPA Release 1) | `https://badge-subsidiary-reef-marking.trycloudflare.com` | `apps/web/dist` servido por SPA server estatico (4173) |
+| API | `https://recruiting-broadcast-cap-exists.trycloudflare.com` | `node apps/api/dist/main.js` (3000) |
+
+- A Web foi construida com `VITE_API_BASE_URL` apontando para a URL publica da API (**zero localhost no bundle**).
+- `CORS_ORIGIN` da API = origem publica da Web; preflight `OPTIONS` devolve `204` com `Access-Control-Allow-Origin` correto.
+- O `vite preview` foi substituido por um SPA server estatico porque o preview aplica allowlist de `Host` (respondia 403 ao host do tunel) — decisao de ambiente, sem alteracao de codigo de produto.
+
+### Smoke test publico (Chromium real contra as URLs publicas)
+
+**CONTROLE** — 11 paginas basicas, todas abrindo com dados reais:
+
+| Pagina | h1 | Linhas | Erro/negacao |
+| ------ | -- | ------ | ------------ |
+| `/app` | Visão geral | 12 | nao |
+| `/app/clients` | Clientes | 20 | nao |
+| `/app/requests` | Solicitações de serviço | 17 | nao |
+| `/app/service-orders` | Ordens de serviço | 17 | nao |
+| `/app/documents` | Documentos | 14 | nao |
+| `/app/billing` | Faturamento interno | 0 (fila vazia) | nao |
+| `/app/finance/receivables` | Contas a receber | 3 | nao |
+| `/app/catalog` | Catálogo de serviços | 20 | nao |
+| `/app/people` | Pessoas | 1 | nao |
+| `/app/proposals` | Propostas comerciais | 14 | nao |
+| `/app/purchase-orders` | Pedidos de compra | 10 | nao |
+
+- `NAV` publico = 13 itens; **CHAMADAS A localhost/127.0.0.1 = 0**; **ERROS 5xx = 0**; erros de pagina (JS) = 0; hosts de API = somente o tunel publico.
+- **EMPREGADO**: ve exatamente **6 OS** (somente atribuidas); `/app/finance/receivables` → `/app/no-access` (negado).
+- **CONTROLE B**: `/app/finance/receivables` com **3 recebiveis**; `/app/catalog` → `/app/no-access` (negado).
+
+### Superficie de modulos exposta (R1-SCOPE-001)
+
+- Build de producao usa flags fail-closed: expostos apenas IN_RELEASE_1 + `people` e `finance` (excecao explicita do responsavel neste deploy, exigida pelo fluxo recebivel/pagamento).
+- Verificado em browser: fiscal/accounting/payroll/inventory/reports **nao aparecem na navegacao** e o acesso direto por URL e recusado pelo gate existente com a mensagem "não faz parte da Release 1 e está desligado (fail-closed)".
+- Corrigido no seed de perfis de desenvolvimento: faltavam os grants comerciais (propostas e PO de cliente, IN_RELEASE_1) — sem eles "Propostas" e "Pedidos de compra" ficavam invisiveis na navegacao. Verificado: ambos presentes com 14 e 10 registros.
+
+### Observacoes nao bloqueantes registradas
+
+- A resolucao de acesso da navegacao (`useNavAccess`) executa ~25 sondagens **sequencialmente**, portanto o menu de modulos se completa em ~4-6 s apos o login. Nao viola criterio de aceite (ha estado de carregamento), mas e candidato a paralelizacao futura; **nao refatorado nesta rodada** para nao reabrir codigo saudavel.
+- A pagina `/app/billing` apresenta fila de trabalho vazia (os faturamentos do dataset sintetico ja estao emitidos); nao e erro.
+
+| Resultado | `PASS` — CISNE acessivel e utilizavel por URL publica com dados reais e autorizacao correta; `RESTRICTION` = deploy Railway bloqueado por trial/billing expirado da conta (acao do titular) |
+
+---
+
+## PROCESSO EMPRESARIAL REAL EXECUTADO NA URL PUBLICA — 2026-09-25
+
+| Campo | Valor |
+| ----- | ----- |
+| Status | `PASS` |
+| Classificacao | Interpretacao de engenharia / validacao de ponta a ponta em ambiente publico |
+| Escopo | Regra 16: executar um processo real no ambiente publico **somente pela UI** (sem SQL, sem Postman, sem endpoint manual) |
+
+### Cadeia executada — recebivel aberto -> pagamento -> RECEBIDO/PAID
+
+Ator: **CONTROLE B** (`controle-financeiro@cisne-rondonia.invalid`), autenticado pela UI publica. Titulo `5aef87a8-ca34-4259-82a7-e4e1b7bf6533` (unidade `UN-DEV-001`, `NF-2026-000003`).
+
+| Etapa | Evidencia |
+| ----- | --------- |
+| Estado inicial (API publica) | `status=OPEN`, `principal=2500`, `remainingBalance=2500`, `settlements=0` |
+| UI: chip de status antes | "Em aberto" |
+| UI: preenchimento do valor | formulario "Registrar recebimento" com `2500` |
+| UI: confirmacao | dialogo nativo "Confirmar recebimento" -> botao `Receber` |
+| Chamada de rede | `POST /api/v1/finance/receivables/5aef87a8-.../settlements` -> **200** |
+| UI: chip de status depois | **"Recebido"** |
+| Estado final (API publica) | **`status=PAID`**, `remainingBalance=0`, `settledAmount=2500`, `settlements=1` |
+
+Resultado: **PAYMENT FLOW PASS** — a baixa foi persistida pelo backend, o status derivou para recebido e o saldo zerou, sem qualquer manipulacao direta de banco.
+
+### Achado relevante (autorizacao correta, nao defeito)
+
+Na primeira tentativa o mesmo fluxo recebeu **403** em `POST .../settlements`. Causa raiz apurada: o titulo alvo pertencia a unidade `UN-GATE-1083`, enquanto o papel de aprovacao financeira do ambiente (`FINANCIAL_CONTROLLER`) esta atribuido com escopo `UNIT` = `UN-DEV-001`. A negacao e, portanto, **autorizacao por escopo de unidade funcionando como projetado** (segregacao/approval matrix), e nao bug. Repetido contra titulo da unidade coberta pela atribuicao, o pagamento passou. Nenhuma concessao GLOBAL foi criada para "fazer a UI funcionar".
+
+### Defeito de isolamento de ambiente observado (nao bloqueante para o produto)
+
+- Apos a rodada completa de testes, a base **de desenvolvimento** (`cisne_local_dev`) passou a conter artefatos de teste: 18 identidades criadas nas ultimas 3 horas (padroes `cat-actor-*@test.local` e `uat-reviewer-*@cisne.invalid`, gerados por `packages/database/src/test-builders/catalog-builders.ts` e por `uat-vertical-runner.ts`).
+- Efeito observado: o login de desenvolvimento (`controle@cisne-rondonia.invalid`) passou a responder `401 AUTH_INVALID_CREDENTIALS` durante a sessao; restaurado de forma deterministica reexecutando `seed:profiles` (idempotente).
+- Classificacao: defeito de **isolamento de teste/ambiente de desenvolvimento**, nao de produto (as suites usam `TEST_DATABASE_URL`; a contaminacao vem de specs/harnesses que constroem pool a partir de `DATABASE_URL`, que `load-vitest-env.ts` carrega do `.env` de desenvolvimento). Nao afeta a release nem a URL publica.
+- Remediacao recomendada (nao aplicada nesta rodada para nao alterar harness amplamente sem revalidacao completa): guarda fail-closed nos harnesses/specs que rejeite `DATABASE_URL` igual a base de desenvolvimento quando `VITEST` estiver ativo.
+
+| Resultado | `PASS` — fluxo financeiro real executado ponta a ponta pela UI publica com persistencia e autorizacao corretas |
+
+---
+
+## CONCLUSAO REAL DOS MODULOS FISCAL, CONTABILIDADE E BI/ANALYTICS — 2026-09-25
+
+| Campo | Valor |
+| ----- | ----- |
+| Status | `PASS` (implementacao + testes dos tres modulos) |
+| Classificacao | Interpretacao de engenharia; nenhuma regra empresarial nova `CONFIRMED`; nenhum enum de banco alterado; nenhum modulo externo transplantado |
+| Escopo | Completar de forma real Contabilidade, Fiscal e BI/Analytics. Regra regente: **criar apenas o que nao existe** |
+| Producao | `NO-GO` mantido (blocker externo de piloto inalterado) |
+
+### Fase 0 — auditoria (CAPACIDADE -> JA EXISTE COMPLETA / EXISTE PARCIAL / NAO EXISTE)
+
+| Capacidade | Situacao encontrada | Decisao |
+| ---------- | ------------------- | ------- |
+| Fiscal: modelos de dominio (documento, evento, autorizacao, credenciamento, periodo, regra tributaria, apuracao, obrigacao) | COMPLETA | Preservado, nao reescrito |
+| Fiscal: transicoes oficiais (draft/ready/submit/recover/revise/cancel) e bloqueio por credenciamento | COMPLETA | Preservado |
+| Fiscal: superficie de consulta (lista por unidade/situacao/competencia) | NAO EXISTIA | Criada (4 listas reais) |
+| Fiscal: rotas/navegacao das paginas de periodo e apuracao | **PARCIAL — paginas orfas, sem rota** | Corrigido |
+| Contabilidade: ledger, partidas dobradas, periodos, fechamento/reabertura, regras de lancamento, imobilizado | COMPLETA | Preservado |
+| Contabilidade: rastreabilidade evento -> lancamento | NAO EXISTIA | Criada (`GET /accounting/posting-requests` + tela) |
+| Contabilidade: trilha de auditoria do lancamento (quem lancou, estorno nos dois sentidos) | **PARCIAL — apenas `reversesEntryId`** | Estendida (`reversedByEntryId`, `reversedByEntryNumber`, `postedBy`) |
+| BI: catalogo semantico SMC-001 (15 CONFIRMED, 5 dominios) | **PARCIAL — sem fiscal, sem contabil** | Estendido para 22 CONFIRMED / 7 dominios |
+| BI: painel de conformidade fiscal/contabil | NAO EXISTIA | Criado (read model + endpoint + tela) |
+| BI: `acc.accounting_posting_requests` com status `PENDING`/`REJECTED` | **NAO EXISTE ESCRITOR** — o fluxo atual grava apenas `POSTED` ou reverte atomicamente | Superficie de "pendentes" NAO foi inventada; a tela mostra a contagem real (hoje zero) em vez de simular pendencia |
+
+### Fase 1 — benchmark (padroes apenas; nenhum codigo, schema ou migration transplantado)
+
+- `frappe/erpnext` e `OCA/account-financial-reporting`: lista filtravel como superficie primaria de documento fiscal/contabil, com total e filtro de periodo — padrao adotado nas listas novas.
+- `OCA/l10n-brazil`: chave/protocolo/eventos do documento fiscal como identificacao oficial (MOC 7.0) — CISNE ja possuia `last_protocol_code`/eventos; apenas passaram a ser exibidos na lista.
+- `metabase/metabase` e `apache/superset`: metrica com definicao nomeada, dimensoes e permissao propria — padrao ja existente no SMC-001; aplicado aos 7 indicadores novos (com fontes canonicas reais).
+- Nenhuma dependencia AGPL/GPL introduzida; nenhum Odoo/Frappe dentro do CISNE.
+
+### Fase 2 — implementacao (o que foi criado)
+
+| Modulo | Entrega | Arquivos centrais |
+| ------ | ------- | ---------------- |
+| Fiscal | Lista paginada de documentos com protocolo/resultado da ultima autorizacao | `fiscal/repositories/fiscal.repository.ts`, `fiscal/services/fiscal-access.service.ts`, `fiscal/controllers/fiscal.controller.ts`, `fiscal/serializers/fiscal-response.serializer.ts` |
+| Fiscal | Lista de periodos fiscais (competencia/situacao) e de apuracoes (competencia/componente) | `fiscal/repositories/fiscal-period.repository.ts`, `fiscal/repositories/tax-assessment.repository.ts` + servicos/controladores/serializadores |
+| Fiscal | Lista de regras tributarias com versao publicada vigente | `fiscal/repositories/tax-engine.repository.ts` + servico/controlador/serializador |
+| Fiscal | Roteamento e navegacao das 4 superficies (incluindo as 2 paginas antes inacessiveis) | `apps/web/src/App.tsx`, `apps/web/src/shell/nav-config.ts` |
+| Contabilidade | Rastreabilidade evento de negocio -> lancamento (`GET /api/v1/accounting/posting-requests`) | `accounting/repositories/accounting-posting.repository.ts`, `accounting/serializers/accounting-posting-read.serializer.ts`, `accounting/services/accounting-access.service.ts`, `accounting/controllers/accounting.controller.ts` |
+| Contabilidade | Trilha de auditoria do lancamento no detalhe | `accounting/repositories/accounting.repository.ts` (`findReversalOf`), `accounting/serializers/accounting-response.serializer.ts` |
+| BI | Read model de conformidade (fiscal + contabil) | `analytics/repositories/compliance-read-model.repository.ts` |
+| BI | Endpoint `GET /api/v1/analytics/compliance` com visibilidade por bloco | `analytics/services/compliance-access.service.ts`, `analytics/controllers/compliance.controller.ts`, `analytics/serializers/compliance-response.serializer.ts`, `analytics/analytics.module.ts` |
+| BI | 7 metricas novas no SMC-001 + lineage + espelho frontend | `analytics/domain/semantic-metric-catalog.ts`, `analytics/domain/metric-versioning.ts`, `apps/web/src/dashboard/semantic-dashboard.ts` |
+| Web | Telas novas: Origem dos lancamentos, Conformidade fiscal e contabil | `apps/web/src/accounting/pages/AccountingPostingOriginsPage.tsx`, `apps/web/src/analytics/pages/ComplianceBiPage.tsx` |
+
+### Achados de qualidade de gate corrigidos (defeitos reais, nao cosmeticos)
+
+1. **O gate `web:typecheck` podia mentir.** `apps/web` usava `tsc -b` (incremental). Com `.tsbuildinfo` desatualizado, `tsc -b` e as regras type-aware do ESLint reportavam sucesso sobre um estado de tipos invalido. Reproduzido com `tsc -b --force`, que expos 3 erros reais e depois 2 erros de lint. Corrigido: script passou a `tsc -b --force` e os defeitos reais foram sanados.
+2. **`AuthContextValue` era um tipo insatisfativel.** O contexto declarava `login` como identificador (string) **e** como acao (`login(login, password)`), produzindo `string & funcao`. O identificador passou a ser exposto como `accountLogin` (estado `AuthState.accountLogin`), preservando a acao `login`. Consumidores `ShellTopBar` e `AppShellLayout` atualizados.
+3. **Acesso inseguro a indice** em `formatAvatarInitials` (`words[0][0]`) sob `noUncheckedIndexedAccess` — corrigido com desestruturacao defensiva.
+4. **Assinatura redundante** `string | null | unknown` em `formatUserMenuLabel`/`formatAvatarInitials` — reduzida a `unknown` (mesmo tipo, sem redundancia).
+
+### Testes adicionados/atualizados
+
+| Suite | Casos | Cobertura |
+| ----- | ----- | --------- |
+| `fiscal/fiscal.integration.spec.ts` | 4 novos (10 no total) | paginacao por unidade, filtro de situacao, protocolo/resultado da ultima autorizacao, negacao sem concessao, consulta invalida (`status`, janela invertida, `pageSize`) |
+| `fiscal/fiscal-period-close.integration.spec.ts` | 3 novos (11) | filtro por competencia/situacao, isolamento de unidade, negacao sem concessao, competencia malformada |
+| `fiscal/tax-engine.integration.spec.ts` | 2 novos (8) | versao publicada vigente + contagem de versoes, isolamento de unidade, negacao |
+| `fiscal/tax-obligation-payable.integration.spec.ts` | 2 novos (9) | lista de apuracoes com obrigacao vinculada, filtro por competencia/componente, negacao |
+| `analytics/compliance.integration.spec.ts` | 7 novos | agregacao real fiscal+contabil, isolamento de unidade, janela de periodo, `NO_DATA != 0`, visibilidade por bloco, negacao sem concessao, `unitId` obrigatorio, unidade sem concessao |
+| `analytics/domain/*.spec.ts` | atualizados | `CONFIRMED` 15 -> 22, drift catalogo x API, lineage completo para as 22, paridade com o espelho frontend |
+| `analytics/compliance-bi.ui.test.tsx` | 4 novos | indicadores do servidor sem recalculo, `NO_DATA != 0` na tela, bloco indisponivel em vez de zerado, negacao do servidor |
+| `fiscal/fiscal-backoffice.ui.test.tsx` | reescrito (5) | lista filtravel como superficie primaria, estado vazio, valores persistidos, negacao na lista e no detalhe |
+
+### Fronteira de honestidade registrada
+
+- `acc.accounting_posting_requests` possui os estados `PENDING` e `REJECTED`, mas **nenhum caminho de codigo os grava hoje**: o lancamento ou e efetivado (`POSTED`) ou a transacao inteira e revertida. Uma superficie de "pendencias" seria teatro. A tela mostra a contagem real por situacao (hoje `PENDING = 0`), e a asercao de teste garante que a contagem de eventos lancados nunca excede os lancamentos existentes.
+- O painel de conformidade exige `unitId`; nao existe agregacao de tenant inteiro por omissao, e unidade sem concessao e negada em vez de devolvida zerada.
+- O painel fica sob o prefixo `/app/reports` (gate `reports`, fora da Release 1, fail-closed por `R1-SCOPE-001`). Nenhum identificador de gate novo foi criado e `docs/01-foundation/release-1-closed-scope.md` nao foi alterado.
+
+| Resultado | `PASS` — Contabilidade, Fiscal e BI/Analytics implementados e integrados ao CISNE; producao permanece `NO-GO` por blocker externo de piloto |
+
+---
+
+## GATE COMPLETO DA CONSOLIDACAO + CORRECOES DE CAUSA RAIZ — 2026-09-25 (rodada 2)
+
+| Campo | Valor |
+| ----- | ----- |
+| Status | `PASS` (gates verdes) |
+| Classificacao | Interpretacao de engenharia / infraestrutura de teste / qualidade de gate |
+| Producao | `NO-GO` mantido (blocker externo de piloto inalterado) |
+
+### Resultados autoritativos (artefato de producao)
+
+| Gate | Resultado |
+| ---- | --------- |
+| lint database / api / web | PASS |
+| typecheck database / api / web (web com `tsc -b --force`) | PASS |
+| database unit 23/23 + build | PASS |
+| api unit 941/941 | PASS |
+| api integration (suíte completa, ~25 min) | PASS |
+| api E2E | PASS |
+| web 480/480 (108 arquivos) | PASS |
+| web visual (Playwright) 28 passed / 2 skipped | PASS |
+| build api + web | PASS |
+| banco vazio: fresh migration + incremental N-1->N (`ci-database-gate.mjs`) | PASS |
+| bootstrap guards (`already_exists` rejeita banco nao vazio) | PASS |
+
+### Correcoes de causa raiz (defeitos reais, nao cosmeticos)
+
+1. **`web:typecheck` podia mentir.** `apps/web` usava `tsc -b` (incremental). Com `.tsbuildinfo` desatualizado, `tsc -b` e as regras type-aware do ESLint reportavam sucesso sobre estado de tipos invalido. `tsc -b --force` expôs 3 erros de tipo + 2 de lint. Script passou a `tsc -b --force`; defeitos reais sanados (`AuthContextValue` com chave `login` duplicada -> `accountLogin`; acesso inseguro a indice em `formatAvatarInitials`; uniao redundante `string | null | unknown`).
+2. **Dois specs de varredura de repositorio estouravam o timeout padrao de 5 s.** `secret-scan.spec.ts` e `module-boundary-rules.spec.ts` leem todo o codigo-fonte (custo de I/O); sob carga da suite completa falhavam por timeout sem violacao real (falso negativo de gate). Orcamento explicito e justificado (`timeout: 60_000` em cada um); nenhuma assercao afrouxada.
+3. **Testes de UI de app inteiro eram sensiveis a carga.** `billing-document.e2e.test.tsx` e afins renderizam `<App />` e esperam cadeia longa de efeitos; sob suite completa o `waitFor` padrao de 1000 ms falhava isoladamente verde. Corrigido sistemicamente em `apps/web/src/test/setup.ts` (`configure({ asyncUtilTimeout: 5000 })`) — uma unica configuracao, nenhuma assercao afrouxada.
+4. **HTML invalido e landmarks aninhados.** `ModuleLoadingState`/`ModuleDeniedState`/`ModuleErrorState` abriam o proprio `<main id="main-content">` dentro de paginas que ja possuiam a moldura `ModulePage` (id duplicado + `<main>` aninhado em ~35 paginas). Estados passaram a renderizar conteudo; as 12 listas que faziam retorno antecipado passaram a envolver em `ModulePage` (36 pontos).
+5. **Gate de banco vazio nao conhecia a migration nova 0078.** `ci-database-gate.mjs` lancava "Unsupported incremental delta migration" para `0078_workforce_member_allocation.sql`. Adicionada assercao pre-delta (coluna `res.resource_allocations.workforce_member_id` ausente antes do delta; `wrk.workforce_members.identity_id` presente).
+
+### Achado nao bloqueante (fora do escopo desta rodada)
+
+- `format:check` (prettier) reporta centenas de arquivos fora do padrao — todo o repositorio nunca foi formatado com o config atual. Nao faz parte do conjunto de gates documentado e uma formatacao em massa colidiria com trabalho concorrente; registrado, nao aplicado.
+
+| Resultado | `PASS` — todos os gates documentados verdes com artefato de producao; 5 causas raiz de gate corrigidas |
+
+---
+
+## GATE FUNCIONAL + GATE NEGATIVO (processo empresarial completo) — 2026-09-25
+
+| Campo | Valor |
+| ----- | ----- |
+| Status | `PASS` |
+| Classificacao | Interpretacao de engenharia / validacao de ponta a ponta em banco real de teste |
+| Producao | `NO-GO` mantido (blocker externo de piloto) |
+
+### Evidencia (suites canonitas reexecutadas agora, banco real)
+
+- `test:uat` (`uat-business.integration.spec.ts`) — **5/5**: locacao de equipamento, transporte de carga municipal, obra/servico composto, perfil e segregacao de funcoes, veredito `APPROVED`.
+- `test:master-business` (`master-business.integration.spec.ts`) — **9/9**: 3 happy paths, invariantes de dominio na jornada completa, snapshots historicos preservados, **jornadas negativas sem estado parcial**, reconciliacao OS -> execucao -> medicao -> faturamento -> nota fatura, timeline auditavel sem eventos fabricados, repeticoes independentes sem contaminacao.
+
+O gate negativo esta coberto por: `adversarial-security.e2e.spec.ts` (12/12, BOLA/IDOR/BFLA) dentro do api:e2e; casos `denied` sem concessao nas suites novas de fiscal/contabilidade/BI; e "executes negative journeys without partial state" do master-business.
+
+| Resultado | `PASS` — fluxo principal e fluxos negativos verificados de ponta a ponta com persistencia, autorizacao, reconciliacao e ausencia de estado parcial |
+
+---
+
+## DEFEITO DE PRODUCAO CORRIGIDO — observability/metrics 500 (enum invalido) — 2026-09-25
+
+| Campo | Valor |
+| ----- | ----- |
+| Status | `PASS` (corrigido + regressao) |
+| Classificacao | Bug real / causa raiz / observabilidade |
+| Producao | `NO-GO` mantido (blocker externo de piloto) |
+
+### Reproducao (HML real, smoke `run-hml-smoke`)
+
+- `GET /api/v1/observability/metrics` respondia **500 INTERNAL_ERROR** para `hml-admin` (todas as outras 10 checagens do smoke = 200).
+- Log: `business_metric_collection_failed metric=billingAging error=invalid input value for enum bil.billing_record_status: "AWAITING_PAYMENT"`.
+
+### Causa raiz
+
+`BusinessMetricsCollectorService.collect()` (`apps/api/src/observability/services/business-metrics-collector.service.ts`) montava `WHERE br.status IN ('PREPARED', 'AWAITING_PAYMENT')`. `AWAITING_PAYMENT` e um bucket de aging de **recebiveis** (FIN-SEM-001), nao um status de billing record; o enum `bil.billing_record_status` so possui `PREPARED` e `VOIDED`. A unidade (pool mockado) nao detectava porque nunca executava o SQL — so o smoke de HML expunha.
+
+### Correcao
+
+`WHERE br.status = 'PREPARED'` (a semantica correta: billing record preparado e nao finalizado, envelhecido > 7 dias). Adicionado `business-metrics-collector.integration.spec.ts` (3/3) que semeia a cadeia real (client -> service order -> billing record) e prova que o SQL casa com o enum publicado; verificado tambem contra o banco HML real (a query corrigida retorna 3 registros sem erro).
+
+| Resultado | `PASS` — defecto de observabilidade corrigido na causa raiz com regressao de integracao; HML volta a 200 no proximo deploy |
+
+---
+
+## VERIFICACAO AO VIVO HML (redeploy + smoke) — 2026-09-25
+
+| Campo | Valor |
+| ----- | ----- |
+| Status | `PASS` (smoke 11/11) |
+| Classificacao | Deploy + verificacao em ambiente homologacao real |
+| Producao | `NO-GO` mantido (blocker externo de piloto) |
+
+### Cadeia executada
+
+1. Rebuild da imagem `hml-api` (Dockerfile hermetico, `pnpm --filter @cisne/database build && pnpm --filter @cisne/api build`).
+2. Recriacao do container `cisne_hml_api`.
+3. `run-hml-smoke` contra `http://127.0.0.1:3100` (login real `hml-admin`).
+
+### Resultado
+
+| Check | Antes | Depois |
+| ----- | ----- | ------ |
+| observability_metrics | 500 (enum invalido) | **200** |
+| service_orders / execution / measurements / billing | 200 (imagem antiga) | **200** apos migracao |
+| demais (health/login/clients/requests/documents) | 200 | 200 |
+| **Smoke global** | FAIL | **PASS (11/11)** |
+
+### Segundo achado corrigido no caminho (drift de schema HML)
+
+O redeploy expôs que o banco HML nao tinha as migrations `0077_workforce_member_identity` e `0078_workforce_member_allocation` (colunas `wrk.workforce_members.identity_id` e `res.resource_allocations.workforce_member_id`), enquanto a imagem nova ja esperava essas colunas — 4 endpoints passaram a 500. Aplicado `run-migrate-cli` dentro do container (applied=2) e o smoke voltou a 11/11.
+
+| Resultado | `PASS` — defeito de observabilidade corrigido e comprovado ao vivo; drift de schema do HML migrado; smoke 11/11 |
+
+---
+
+## CORRECAO DE PERMISSOES — EMPREGADO SOBRE-PRIVILEGIADO — 2026-09-25
+
+| Campo | Valor |
+| ----- | ----- |
+| Status | `PASS` (corrigido + verificado) |
+| Classificacao | Bug real / autorizacao / seed de desenvolvimento |
+| Producao | `NO-GO` mantido (blocker externo de piloto) |
+
+### Achado
+
+`packages/database/src/seed/operational-profiles.ts` (WIP nao versionado) definia `const EMPREGADO_GRANTS = CONTROLE_GRANTS`, dando ao **empregado operacional** o mesmo conjunto GLOBAL do dono. Materializado no banco dev: `rafael@cisne-rondonia.invalid` com **263 grants GLOBAL**, dos quais **72 financeiro/contabil/fiscal** — identico a CONTROLE e FINANCEIRO. Contradiz o perfil autoritativo `executor` (8 acoes) e a regra "EMPREGADO: somente ASSIGNED".
+
+### Segundo achado (vinculo de identidade orfao)
+
+O membro operacional `EMP-DEV-001` apontava para a identidade antiga `empregado@cisne-rondonia.invalid` (`a8a931ad-...`), porque `ensureWorkforceMember` so relinkava quando `identity_id IS NULL OR identity_id = $2` — um relink de login anterior deixava o vinculo orfao e a resolucao `ASSIGNED` retornava 0 ordens.
+
+### Correcao
+
+1. `EMPREGADO_GRANTS` passou a lista minima alinhada ao `executor` (7 acoes `ASSIGNED` de OS/execucao + 4 `GLOBAL` de documento/ativo/insumo), **zero** financeiro/contabil/fiscal/comercial.
+2. `ensureWorkforceMember` passou a relinkar SEMPRE o membro a identidade atual do login (idempotente).
+3. Banco dev remediado: 263 grants revogados; re-seed aplicou os 11 corretos; membro relinkado.
+
+### Verificacao
+
+| Item | Resultado |
+| ---- | --------- |
+| grants do empregado | 11 (7 ASSIGNED + 4 GLOBAL), **0 sensiveis** |
+| ordens atribuidas resolvidas (`ASSIGNED` via alocacao ativa) | **6** |
+| database unit | 23/23 PASS |
+| database lint/typecheck | PASS |
+
+| Resultado | `PASS` — empregado restaurado a "somente ASSIGNED", sem perda do fluxo (6 OS atribuidas), sem concessao GLOBAL indevida |
+
+---
+
+## GATE FUNCIONAL + GATE NEGATIVO LITERAL NO NAVEGADOR (HML vivo) — 2026-09-25
+
+| Campo | Valor |
+| ----- | ----- |
+| Status | `PASS` (6/6) |
+| Classificacao | Interpretacao de engenharia / validacao de ponta a ponta em navegador real |
+| Producao | `NO-GO` mantido (blocker externo de piloto) |
+
+### Evidencia (browser Chromium real -> frontend HML 5174 -> API HML 3100 -> PostgreSQL HML)
+
+| Check | Resultado |
+| ----- | --------- |
+| login real (`hml-admin`) -> dashboard `/app` | PASS |
+| `/app/clients` exibe "TESTE — Cliente Logística Norte…" (dado real do banco) | PASS |
+| `/app/service-orders` exibe `OS-2026-*` (numero da ordem, dado real) | PASS |
+| `/app/documents` superficie autorizada (`main` visivel) | PASS |
+| zero erros de pagina (JS) durante o fluxo | PASS |
+| gate negativo: contexto sem sessao em `/app/clients` -> redirecionado a `/login` | PASS |
+
+Nenhum mock, nenhum SQL/curl/Postman para o fluxo: o navegador autenticou, navegou e leu dados persistidos do servidor HML (15 clientes, 9 OS, 9 solicitacoes, 3 billing records). Script descartavel mantido em `tmp/functional-gate.mjs` (fora do repo).
+
+| Resultado | `PASS` — fluxo principal e fluxo negativo executados literalmente pela UI sobre ambiente homologado vivo |
+
+---
+
+## LOGINS ESTATICOS DE DESENVOLVIMENTO — 2026-09-25
+
+| Campo | Valor |
+| ----- | ----- |
+| Status | `PASS` (aplicado + verificado) |
+| Classificacao | Requisito do responsavel / seed de desenvolvimento |
+| Requisito | "eu quero esses logins estaticos" — `abrahim@`, `monica@`, `rafael@cisne-rondonia.invalid` sempre com as senhas informadas |
+| Producao | `NO-GO` mantido (blocker externo de piloto) |
+
+### Achado 1 (estado antes da correcao)
+
+Os tres identificadores existiam em `cisne_local_dev` e estavam `active`, mas **nenhuma** das senhas informadas verificava contra o `password_hash` persistido (`scrypt`): a verificacao independente rodada em `tmp/` retornou `passwordMatches: false` para os tres, com auto-teste do harness passando nos dois sentidos (hash proprio verifica `true`; senha errada `false`). Ou seja, o requisito "login estatico" nao estava materializado — o login respondia `401 AUTH_INVALID_CREDENTIALS`. `scripts/repair-dev-login.mjs` nao era reexecutado desde antes da troca de identificadores (`controle@`/`empregado@` -> `abrahim@`/`rafael@`).
+
+### Achado 2 (regressao latente de privilegio)
+
+`scripts/repair-dev-login.mjs` concedia o conjunto GLOBAL completo (`Object.values(AUTHZ_ACTIONS)`, **263** actions — confirmado: `AUTHZ_ACTIONS` tem exatamente 263 — incluindo **72** financeiro/contabil/fiscal) a **todos** os perfis, inclusive ao empregado operacional. Como `abrahim`/`monica` estao materializados com exatamente **263** grants GLOBAL e `rafael` com **11** (4 GLOBAL + 7 ASSIGNED, 0 sensiveis), reexecutar `auth:repair:dev-login` reinstalaria em `rafael` o sobre-privilegio removido pela correcao de 2026-09-25 ("CORRECAO DE PERMISSOES — EMPREGADO SOBRE-PRIVILEGIADO").
+
+### Achado 3 (teste de integracao obsoleto, suite vermelha)
+
+`packages/database/src/seed.bootstrap.integration.spec.ts` ainda afirmava o comportamento **anterior** a correcao: o caso `seeds static owners and developer with broad development access` exigia `count(grants GLOBAL | finance:receivable OU service-orders:service-order) > 0` para o empregado. Com a correcao, o valor e `0`. Rodada confirmada: **1 falha / 10** (`expected 0 to be greater than 0`, linha 102). A falha nao estava registrada em nenhum log anterior.
+
+### Correcao
+
+1. Perfis estaticos aplicados nos dois caminhos canonicos: `pnpm --filter @cisne/database seed:profiles` e `pnpm auth:repair:dev-login`.
+2. `packages/database/scripts/seed-profiles.mjs`: senhas literais **sem** override por `CISNE_*_PASSWORD` — um `CISNE_ABRAHIM_PASSWORD` exportado no shell mudaria o login silenciosamente e quebraria o requisito; identificadores lidos do modulo canonico, com verificacao de drift (`STATIC_LOGIN_DRIFT_*`) contra o resultado do seed.
+3. `scripts/repair-dev-login.mjs`: identificadores vindos de `@cisne/database/seed` (uma unica fonte, sem segunda lista), flag `globalDevGrants` por perfil e `applyCanonicalProfiles` por banco aplicando o seed canonico (aditivo, nunca revoga). `rafael` deixou de receber o conjunto GLOBAL completo.
+4. `seed.bootstrap.integration.spec.ts`: afirmacao substituida pela regra registrada (empregado com 0 grants financeiro/contabil/fiscal, 0 GLOBAL sobre OS, >0 ASSIGNED sobre OS; dono preservado com GLOBAL). O texto antigo permanece como comentario historico no proprio caso de teste — nada foi apagado.
+5. `docs/implementation/19-seeding.md`: secao `STATIC_DEV_PROFILES` e excecao registrada ao "Sem senha em codigo" — senhas literais apenas dos perfis sinteticos `.invalid` de desenvolvimento; `PRODUCTION_BOOTSTRAP` e HML inalterados.
+
+### Verificacao
+
+| Item | Resultado |
+| ---- | --------- |
+| `password_hash` verifica a senha informada (3/3) | PASS |
+| `POST /api/v1/auth/login` (API real `127.0.0.1:3000`, `cisne_local_dev`) | PASS — `abrahim` 200, `monica` 200, `rafael` 200, todos com `accessToken` |
+| Gate negativo (senha errada) | PASS — 401, sem token |
+| Grants do empregado apos `auth:repair:dev-login` | 11 (4 GLOBAL + 7 ASSIGNED), **0** financeiro/contabil/fiscal |
+| Grants dos donos | 263 GLOBAL cada (preservado) |
+| `seed.bootstrap.integration.spec.ts` | 10/10 PASS (antes: 1 falha) |
+| `@cisne/database` lint + typecheck | PASS |
+| Prettier nos arquivos alterados | PASS |
+| Idempotencia | reexecucao com `grantsAdded: 0` em ambos os scripts |
+
+Escopo nao coberto: HML (`cisne_hml`) **nao** recebeu estes logins — la permanece `hml-admin@cisne.invalid`. `cisne_runtime` nao existe no PostgreSQL local; os dois scripts reportam esse banco como `skipped` com a razao, sem ocultar a falha.
+
+| Resultado | `PASS` — os tres logins estaticos autenticam com as senhas exatas informadas, com o empregado mantido em menor privilegio e sem regressao de gate |

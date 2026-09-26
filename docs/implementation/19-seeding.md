@@ -28,6 +28,43 @@ $env:DEV_SEED_PASSWORD='Dev-Only-1!Synthetic'  # opcional
 pnpm db:seed:dev
 ```
 
+## STATIC_DEV_PROFILES (logins estáticos de desenvolvimento) — 2026-09-25
+
+Requisito do responsável: os três logins de desenvolvimento abaixo são **estáticos** — precisam
+funcionar sempre com exatamente estas credenciais, sem geração em runtime e sem override por
+variável de ambiente.
+
+| Perfil | Login | Senha estática | Papel | Escopo |
+| ------ | ----- | -------------- | ----- | ------ |
+| Dono | `abrahim@cisne-rondonia.invalid` | `Cisne-Abrahim-2026!` | `OWNER` | GLOBAL |
+| Dono | `monica@cisne-rondonia.invalid` | `Cisne-Monica-2026!` | `OWNER` | GLOBAL |
+| Empregado operacional | `rafael@cisne-rondonia.invalid` | `Cisne-Rafael-Dev-2026!` | `DEVELOPER` | ASSIGNED + mínimo global |
+
+Definição canônica: `packages/database/src/seed/operational-profiles.ts` (identificadores, papéis,
+grants). Aplicação: `packages/database/scripts/seed-profiles.mjs` (`pnpm --filter @cisne/database
+seed:profiles`) e `scripts/repair-dev-login.mjs` (`pnpm auth:repair:dev-login`, que repara
+credencial, reativa identidade desabilitada e aplica o seed canônico aditivo).
+
+| Garantia | Como |
+| -------- | ---- |
+| Senha estática | Literal no script de seed — **sem** override por `CISNE_*_PASSWORD` |
+| Idempotente | Reexecução não altera contagem de grants nem cria duplicata |
+| Empregado com menor privilégio | `rafael` **não** recebe o conjunto GLOBAL completo (0 grants financeiro/contábil/fiscal; 7 ASSIGNED + 4 GLOBAL de documento/ativo/insumo) |
+| Donos com acesso amplo de dev | `abrahim`/`monica` recebem todas as 263 actions em escopo GLOBAL |
+| Proibido em produção | `runOperationalProfilesSeed` chama `assertDevelopmentOnly` |
+
+```powershell
+pnpm --filter @cisne/database seed:profiles   # aplica/restaura os três logins estáticos
+pnpm auth:repair:dev-login                    # repara credencial em cisne_local_dev e cisne_runtime
+```
+
+**Exceção registrada (conflito com a regra histórica "Sem senha em código").** A regra da seção
+*Segurança* permanece válida para todo o resto: senhas reais, de produção e de homologação nunca
+entram no código, e `PRODUCTION_BOOTSTRAP` continua exigindo variáveis de ambiente e confirmação
+explícita. A exceção é estritamente: identidades **sintéticas de desenvolvimento**, em domínio
+reservado RFC 2606 (`cisne-rondonia.invalid`), que nunca existem em HML nem em produção, e que o
+responsável exige como valor fixo. Não reutilizar esses valores fora de desenvolvimento.
+
 ## SYNTHETIC_BUSINESS_SEED (development / homologation)
 
 Massa sintética determinística para telas, filtros e fluxo vertical. **Proibido em produção.**
@@ -99,7 +136,7 @@ Ver `.env.example` — nomes apenas, sem valores secretos.
 
 | Regra | Implementação |
 | ----- | ------------- |
-| Sem senha em código | Hash via `scrypt` em runtime |
+| Sem senha em código | Hash via `scrypt` em runtime. **Exceção registrada 2026-09-25:** senhas literais apenas dos `STATIC_DEV_PROFILES` (sintéticos, `.invalid`, dev-only) — ver seção acima |
 | Sem hash em resposta | `SafeSeedResult` tipado |
 | Seed proibido em produção | `assertDevelopmentOnly` |
 | Bootstrap manual | CLI `bootstrap:first-identity` |
