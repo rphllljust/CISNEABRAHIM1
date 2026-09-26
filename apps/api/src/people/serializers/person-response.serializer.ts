@@ -42,7 +42,7 @@ export type PersonResponse = {
   updatedAt: string;
   deactivatedAt: string | null;
   deactivationReason: string | null;
-  serviceOrderAllocationSupported: false;
+  serviceOrderAllocationSupported: boolean;
 };
 
 export type PersonHistoryEventResponse = HistoryEventResponse;
@@ -62,7 +62,7 @@ export function toPersonResponse(row: PersonRow): PersonResponse {
     updatedAt: row.updated_at,
     deactivatedAt: row.deactivated_at,
     deactivationReason: row.deactivation_reason,
-    serviceOrderAllocationSupported: false,
+    serviceOrderAllocationSupported: true,
   };
 }
 

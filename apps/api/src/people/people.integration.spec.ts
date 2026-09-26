@@ -98,7 +98,7 @@ describe('People PostgreSQL integration', () => {
     expect(created.status).toBe('ACTIVE');
     expect(created.memberCode).toMatch(/^PSN-/);
     expect(created.defaultLaborTypeCode).toBe('DRIVER');
-    expect(created.serviceOrderAllocationSupported).toBe(false);
+    expect(created.serviceOrderAllocationSupported).toBe(true);
 
     const fetched = await personAccess.getById(actor, created.id);
     expect(fetched.legalName).toBe('Executor Operacional Sintetico');
@@ -190,7 +190,7 @@ describe('People PostgreSQL integration', () => {
     expect(page.items).toHaveLength(2);
   });
 
-  it('documents that service order allocations still reference physical assets only', async () => {
+  it('documents that service order allocations reference a physical asset or a workforce member', async () => {
     const columns = await pool.query<{ column_name: string }>(
       `SELECT column_name
        FROM information_schema.columns
@@ -199,7 +199,7 @@ describe('People PostgreSQL integration', () => {
     );
     const names = columns.rows.map((row) => row.column_name);
     expect(names).toContain('physical_asset_id');
-    expect(names).not.toContain('workforce_member_id');
+    expect(names).toContain('workforce_member_id');
   });
 
   it('rejects invalid labor type on create', async () => {
