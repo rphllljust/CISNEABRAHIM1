@@ -32,6 +32,7 @@ import {
 import { mapFiscalErrorToMessage } from '../api/fiscal-error-messages';
 import { useFiscalUnits } from '../hooks/useFiscalUnits';
 import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge';
+import { ActivityTimeline } from '../../operator';
 import type { FiscalDocument, FiscalDocumentListItem } from '../types/fiscal.types';
 
 const PAGE_SIZE = 20;
@@ -450,36 +451,21 @@ function FiscalDocumentView({
       </ModuleTableCard>
 
       <ModuleTableCard>
-        <table className={moduleTableClass} aria-label="Eventos do documento fiscal">
-          <thead className={moduleTableHeadClass}>
-            <tr>
-              <th scope="col" className={moduleTableHeaderCellClass}>
-                Evento
-              </th>
-              <th scope="col" className={moduleTableHeaderCellClass}>
-                Quando
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {document.events.length === 0 ? (
-              <tr className={moduleTableRowClass}>
-                <td className={moduleTableCellClass} colSpan={2}>
-                  Nenhum evento registrado.
-                </td>
-              </tr>
-            ) : (
-              document.events.map((event, index) => (
-                <tr key={`${event.eventType}-${event.occurredAt}-${index}`} className={moduleTableRowClass}>
-                  <td className={moduleTableCellClass}>{event.eventType}</td>
-                  <td className={moduleTableCellClass}>
-                    <DateTime value={event.occurredAt} />
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+        {/*
+          ADOCAO DE MECANISMO: os eventos do documento fiscal sao fatos persistidos
+          (eventType + occurredAt). Antes eram uma tabela ad-hoc so desta tela; agora
+          usam o ActivityTimeline compartilhado, com ordenacao decrescente e estado
+          vazio padronizado. Nenhum ator e fabricado: o payload nao traz autor, entao
+          `actor` fica ausente em vez de ser inventado.
+        */}
+        <ActivityTimeline
+          title="Eventos do documento fiscal"
+          emptyMessage="Nenhum evento registrado para este documento."
+          facts={document.events.map((event) => ({
+            at: event.occurredAt,
+            event: event.eventType,
+          }))}
+        />
       </ModuleTableCard>
 
       <ModuleTableCard>
