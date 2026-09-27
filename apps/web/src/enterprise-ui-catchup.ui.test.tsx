@@ -243,11 +243,11 @@ describe('Enterprise UI catch-up', () => {
 
   it('shows empty states for suppliers, purchases and inventory', async () => {
     vi.stubGlobal('fetch', createCatchUpFetchMock());
+    // Sem nenhum criterio aplicado o estado vazio passou a ser contextual ("ainda nao
+    // cadastrado"), distinto do caso filtrado. A assercao segue estrita no texto exato.
     const { unmount: unmountSuppliers } = renderWithProviders(<SuppliersListPage />);
     await waitFor(() => {
-      expect(
-        screen.getByText('Nenhum fornecedor encontrado para os filtros selecionados.'),
-      ).toBeInTheDocument();
+      expect(screen.getByText('Nenhum fornecedor cadastrado ainda.')).toBeInTheDocument();
     });
     unmountSuppliers();
     const { unmount: unmountProcurement } = renderWithProviders(<ProcurementHubPage />);
