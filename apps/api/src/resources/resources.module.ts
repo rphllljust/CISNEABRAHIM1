@@ -11,6 +11,7 @@ import { PhysicalAssetsRepository } from './repositories/physical-assets.reposit
 import { PhysicalResourceTypesRepository } from './repositories/physical-resource-types.repository';
 import { OperationalLaborTypesAccessService } from './services/operational-labor-types-access.service';
 import { PhysicalAssetsAccessService } from './services/physical-assets-access.service';
+import { AssetOperationalAuthz } from './services/asset-operational.authz';
 import { PhysicalResourceTypesAccessService } from './services/physical-resource-types-access.service';
 
 @Module({
@@ -27,6 +28,7 @@ import { PhysicalResourceTypesAccessService } from './services/physical-resource
     OperationalLaborTypesAccessService,
     PhysicalAssetsRepository,
     PhysicalAssetsAccessService,
+    AssetOperationalAuthz,
   ],
   exports: [
     PhysicalResourceTypesRepository,
@@ -35,6 +37,7 @@ import { PhysicalResourceTypesAccessService } from './services/physical-resource
     OperationalLaborTypesAccessService,
     PhysicalAssetsRepository,
     PhysicalAssetsAccessService,
+    AssetOperationalAuthz,
   ],
 })
 export class ResourcesModule {}
