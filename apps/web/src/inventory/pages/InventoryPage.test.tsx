@@ -65,6 +65,26 @@ describe('InventoryPage', () => {
     });
   });
 
+  it('opens the stock center straight into the movement type carried in the URL', async () => {
+    const fetchMock = createInventoryFetchMock();
+    vi.stubGlobal('fetch', fetchMock);
+
+    // Os comandos do Ctrl+K abrem /app/inventory?movementType=IN e ?movementType=OUT: o
+    // recorte precisa chegar ao servidor na consulta de movimentos, sem o operador refazer
+    // o filtro na mao.
+    renderWithProviders(<InventoryPage />, {
+      router: { initialEntries: ['/app/inventory?movementType=IN'] },
+    });
+
+    await waitFor(() => {
+      const urls = fetchMock.mock.calls.map((call) => (typeof call[0] === 'string' ? call[0] : ''));
+      expect(
+        urls.some((url) => url.includes('/inventory/movements') && url.includes('movementType=IN')),
+      ).toBe(true);
+    });
+    expect(screen.getByLabelText('Tipo de movimento')).toHaveValue('IN');
+  });
+
   it('states the refusal per list when the server denies the list grant', async () => {
     vi.stubGlobal('fetch', createInventoryFetchMock({ denied: true }));
     renderWithProviders(<InventoryPage />);

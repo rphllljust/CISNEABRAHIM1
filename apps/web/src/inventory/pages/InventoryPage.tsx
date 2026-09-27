@@ -22,6 +22,7 @@ import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import { BackofficeCapabilityRoute } from '../../financial-ui/BackofficeCapabilityRoute';
 import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge';
 import { INVENTORY_ITEM_STATUS_LABELS, WAREHOUSE_STATUS_LABELS } from '../../financial-ui/labels';
+import { SavedViewsBar, useSmartList } from '../../operator';
 import {
   createInventoryItem,
   createWarehouse,
@@ -118,6 +119,36 @@ function ListMessageRow({ colSpan, children }: { colSpan: number; children: Reac
 }
 
 /**
+ * Escopo estavel de persistencia das visoes salvas desta tela.
+ */
+const SCOPE = 'inventory.center';
+
+/** Allow-list: somente os tipos de movimento que o backend ja aceita. */
+const INVENTORY_ALLOWED_FILTERS = {
+  filters: { movementType: ['IN', 'OUT', 'TRANSFER', 'ADJUSTMENT'] },
+} as const;
+
+/**
+ * Visoes embutidas derivadas da operacao real do estoque: entrada e saida sao as duas
+ * leituras cotidianas da central. Sao exatamente os recortes que os comandos do Ctrl+K
+ * abrem — nenhum filtro novo e inventado aqui.
+ */
+const INVENTORY_BUILT_IN_VIEWS = [
+  {
+    id: 'builtin.inventory.in',
+    name: 'Entradas',
+    description: 'Movimentos de entrada de estoque.',
+    config: { filters: { movementType: 'IN' }, sortKey: null, sortDirection: 'asc' as const, groupKey: null },
+  },
+  {
+    id: 'builtin.inventory.out',
+    name: 'Saídas',
+    description: 'Movimentos de saída de estoque.',
+    config: { filters: { movementType: 'OUT' }, sortKey: null, sortDirection: 'asc' as const, groupKey: null },
+  },
+];
+
+/**
  * Central operacional do estoque: depósitos, itens, movimentos e reservas são LISTAS com busca e
  * navegação. Nenhuma operação cotidiana exige identificador digitado — depósito e item vêm das
  * listas, e a unidade é derivada do depósito escolhido pelo servidor.
@@ -125,7 +156,16 @@ function ListMessageRow({ colSpan, children }: { colSpan: number; children: Reac
 export function InventoryPage() {
   const [term, setTerm] = useState('');
   const [appliedTerm, setAppliedTerm] = useState('');
-  const [movementType, setMovementType] = useState<'' | StockMovementType>('');
+  // ADOCAO DE MECANISMO: o tipo de movimento passa a viver na URL, o mesmo mecanismo das
+  // outras listas da plataforma. E o que permite o Ctrl+K abrir a central de estoque ja
+  // recortada (entradas ou saidas) e o endereco ser compartilhado.
+  const smartList = useSmartList({
+    scope: SCOPE,
+    builtInViews: INVENTORY_BUILT_IN_VIEWS,
+    allowedFilters: INVENTORY_ALLOWED_FILTERS,
+    urlSync: true,
+  });
+  const movementType = smartList.filters.movementType ?? '';
   const [warehouses, setWarehouses] = useState<ListPhase<Warehouse>>({ phase: 'loading' });
   const [items, setItems] = useState<ListPhase<InventoryItem>>({ phase: 'loading' });
   const [movements, setMovements] = useState<ListPhase<StockMovementSummary>>({ phase: 'loading' });
@@ -279,7 +319,7 @@ export function InventoryPage() {
           id="movement-type-filter"
           className={`${filterControlClass} max-w-xs`}
           value={movementType}
-          onChange={(event) => setMovementType(event.target.value as '' | StockMovementType)}
+          onChange={(event) => smartList.setFilter('movementType', event.target.value)}
         >
           <option value="">Todos</option>
           <option value="IN">Entrada</option>
@@ -288,6 +328,21 @@ export function InventoryPage() {
           <option value="ADJUSTMENT">Ajuste</option>
         </select>
       </FilterCard>
+
+      <SavedViewsBar
+        views={smartList.savedViews.views}
+        builtInViews={smartList.savedViews.builtInViews}
+        activeViewId={smartList.activeViewId}
+        onApply={(view) => smartList.applyView(view)}
+        onSave={smartList.savedViews.saveView}
+        onRename={smartList.savedViews.renameView}
+        onRemove={smartList.savedViews.removeView}
+        currentConfig={smartList.currentConfig}
+        canSave={movementType !== ''}
+        allLabel="Todos"
+        className="mb-4"
+      />
+
       <ModuleTableCard>
         <table className={moduleTableClass} aria-label="Movimentos de estoque">
           <thead className={moduleTableHeadClass}>
@@ -302,7 +357,11 @@ export function InventoryPage() {
           </thead>
           <tbody className="divide-y divide-gray-100">
             {movements.phase === 'ready' && movements.items.length === 0 ? (
-              <ListMessageRow colSpan={6}>Nenhum movimento encontrado.</ListMessageRow>
+              <ListMessageRow colSpan={6}>
+                {movementType
+                  ? 'Nenhum movimento para o tipo selecionado. Limpe o filtro para ver todos.'
+                  : 'Nenhum movimento encontrado.'}
+              </ListMessageRow>
             ) : null}
             {movements.phase === 'denied' ? (
               <ListMessageRow colSpan={6}>Você não tem permissão para listar movimentos.</ListMessageRow>

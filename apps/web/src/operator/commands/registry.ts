@@ -112,6 +112,24 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
     keywords: ['orcamento', 'rascunho', 'budget', 'draft'],
     hint: 'Orçamentos ainda não aprovados',
   },
+  {
+    id: 'view.inventory.movements.in',
+    kind: 'view',
+    group: COMMAND_GROUPS.view,
+    label: 'Entradas de estoque',
+    to: '/app/inventory?movementType=IN',
+    keywords: ['estoque', 'entrada', 'recebimento', 'inventario', 'movimento'],
+    hint: 'Movimentos de entrada na central de estoque',
+  },
+  {
+    id: 'view.inventory.movements.out',
+    kind: 'view',
+    group: COMMAND_GROUPS.view,
+    label: 'Saídas de estoque',
+    to: '/app/inventory?movementType=OUT',
+    keywords: ['estoque', 'saida', 'consumo', 'movimento'],
+    hint: 'Movimentos de saída na central de estoque',
+  },
   // PARK (SILENT_FILTER_GAP): os comandos "Não conciliados" e "Em revisão"
   // apontavam para `/app/finance/reconciliation?matchStatus=...`, mas a tela é uma
   // bancada de consulta por identificador de extrato e NÃO lê search params — o
