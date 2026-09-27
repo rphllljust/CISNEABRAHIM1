@@ -46,6 +46,29 @@ function FISCAL_STATUS_LABEL(status: string): string {
   return FISCAL_STATUS_LABELS[status] ?? status;
 }
 
+/**
+ * Próxima ação derivada da situação do documento — sem interpretar regra tributária.
+ * A transição em si permanece no backend (enviar/cancelar no detalhe).
+ */
+function NEXT_ACTION_FOR(status: string): string {
+  switch (status) {
+    case 'DRAFT':
+      return 'Conferir e enviar';
+    case 'READY':
+      return 'Enviar para autorização';
+    case 'SUBMITTED':
+      return 'Aguardar autorização';
+    case 'AUTHORIZED':
+      return 'Nenhuma — documento vigente';
+    case 'REJECTED':
+      return 'Corrigir e reenviar';
+    case 'CANCELLED':
+      return 'Nenhuma — cancelado';
+    default:
+      return '—';
+  }
+}
+
 export function FiscalDocumentsPage() {
   const { fiscalDocumentId } = useParams();
   return fiscalDocumentId ? (
@@ -198,6 +221,9 @@ function FiscalDocumentsList() {
                     Protocolo
                   </th>
                   <th scope="col" className={moduleTableHeaderCellClass}>
+                    Próxima ação
+                  </th>
+                  <th scope="col" className={moduleTableHeaderCellClass}>
                     Unidade
                   </th>
                 </tr>
@@ -216,6 +242,7 @@ function FiscalDocumentsList() {
                     <td className={moduleTableCellClass}>{item.sourceKind}</td>
                     <td className={`${moduleTableCellClass} whitespace-normal`}>{item.description}</td>
                     <td className={moduleTableCellClass}>{item.lastProtocolCode ?? '—'}</td>
+                    <td className={moduleTableCellClass}>{NEXT_ACTION_FOR(item.status)}</td>
                     <td className={moduleTableCellClass}>{item.unitId}</td>
                   </tr>
                 ))}
