@@ -6,10 +6,11 @@ import { formatProposalLinkedKind, linkedRecordPath } from '../utils/proposal-wo
 type ProposalCommercialChainProps = {
   chain: ProposalLinked[];
   originRequests: Array<{ id: string; requestCode: string; status: string }>;
+  client: { id: string; name: string } | null;
 };
 
 /**
- * Cadeia comercial: solicitacao -> proposta -> pedido de compra / ordem de servico.
+ * Cadeia comercial: cliente -> solicitacao -> proposta -> pedido de compra / ordem de servico.
  *
  * O backend so devolve os elos que o ator pode ler no modulo dono; elo negado e OMITIDO em
  * silencio, sem declarar existencia. A UI nao acrescenta nada sobre vinculos que nao recebeu e
@@ -18,6 +19,7 @@ type ProposalCommercialChainProps = {
 export function ProposalCommercialChain({
   chain,
   originRequests,
+  client,
 }: ProposalCommercialChainProps) {
   return (
     <div className="space-y-4">
@@ -25,6 +27,23 @@ export function ProposalCommercialChain({
         <p className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
           De onde veio
         </p>
+        {client ? (
+          <div className="mt-1 flex flex-wrap items-baseline gap-2">
+            <span className="text-[10px] font-semibold tracking-wide text-gray-400 uppercase">
+              Cliente
+            </span>
+            <Link
+              to={`/app/clients/${client.id}`}
+              className="text-sm font-semibold text-brand-700 no-underline hover:text-brand-800"
+            >
+              {client.name}
+            </Link>
+          </div>
+        ) : (
+          <p className="mt-1 text-sm text-gray-500">
+            Cliente não autorizado para exibição no seu escopo.
+          </p>
+        )}
         {originRequests.length > 0 ? (
           <ul className="mt-1 space-y-1">
             {originRequests.map((request) => (
