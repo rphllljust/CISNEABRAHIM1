@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { DateTime, EmptyState, Money } from '../../ui';
 import {
   FilterCard,
@@ -81,9 +81,48 @@ export function FiscalDocumentsPage() {
 /** Superficie de consulta: lista paginada por unidade com filtro de situacao. */
 function FiscalDocumentsList() {
   const { units, unitId, setUnitId } = useFiscalUnits();
-  const [status, setStatus] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(0);
+
+  /**
+   * A situação é semeada pelo URL e permanece refletida nele.
+   *
+   * É o transporte que faz o Ctrl+K e o drill-down funcionarem nesta tela sem
+   * mecanismo novo: `?status=REJECTED` abre a fila já recortada. Somente valores
+   * enumerados entram — nenhum identificador de registro vai para a URL.
+   */
+  const statusFromUrl = useMemo(() => {
+    const raw = searchParams.get('status') ?? '';
+    return (STATUS_FILTERS as readonly string[]).includes(raw) ? raw : '';
+  }, [searchParams]);
+  const [status, setStatus] = useState(statusFromUrl);
+
+  useEffect(() => {
+    setStatus(statusFromUrl);
+    setPage(0);
+  }, [statusFromUrl]);
+
   const [state, setState] = useState<ListState>({ phase: 'loading' });
+
+  const applyStatus = useCallback(
+    (next: string) => {
+      setStatus(next);
+      setPage(0);
+      setSearchParams(
+        (current) => {
+          const params = new URLSearchParams(current);
+          if (next) {
+            params.set('status', next);
+          } else {
+            params.delete('status');
+          }
+          return params;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
@@ -167,8 +206,7 @@ function FiscalDocumentsList() {
               className={filterControlClass}
               value={status}
               onChange={(event) => {
-                setStatus(event.target.value);
-                setPage(0);
+                applyStatus(event.target.value);
               }}
             >
               {STATUS_FILTERS.map((value) => (
@@ -194,13 +232,31 @@ function FiscalDocumentsList() {
 
       {state.phase === 'ready' && state.items.length === 0 ? (
         <EmptyState
-          title="Nenhum documento fiscal"
-          description="Não há documentos fiscais para a unidade e a situação selecionadas."
+          title={
+            status
+              ? `Nenhum documento com situação ${FISCAL_STATUS_LABEL(status)}`
+              : 'Nenhum documento fiscal'
+          }
+          description={
+            units.length === 0
+              ? 'Não há unidade operacional disponível para o seu acesso.'
+              : status
+                ? 'A unidade selecionada não tem documento fiscal nessa situação. Ajuste a situação para ver a fila completa.'
+                : 'Não há documentos fiscais para a unidade selecionada.'
+          }
         />
       ) : null}
 
       {state.phase === 'ready' && state.items.length > 0 ? (
         <>
+          {/*
+            Contador real: `total` vem do servidor. A tela não estima nem
+            recalcula a quantidade da fila.
+          */}
+          <p className="mb-2 text-xs text-gray-500" aria-live="polite">
+            {state.total} {state.total === 1 ? 'documento' : 'documentos'} na fila
+            {status ? ` · situação: ${FISCAL_STATUS_LABEL(status)}` : ''}
+          </p>
           <ModuleTableCard>
             <table className={moduleTableClass} aria-label="Lista de documentos fiscais">
               <thead className={moduleTableHeadClass}>
