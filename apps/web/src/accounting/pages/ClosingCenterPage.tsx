@@ -115,6 +115,26 @@ export function ClosingCenterPage() {
   const periods = periodsQuery.state.phase === 'ready' ? periodsQuery.state.data.items : [];
   const readiness = readinessQuery.state.phase === 'ready' ? readinessQuery.state.data : null;
 
+  /**
+   * PRÉ-SELEÇÃO SOMENTE PARA LEITURA.
+   *
+   * A central abria sem competência escolhida, obrigando o operador a descobrir sozinho por
+   * onde começar. Quando o servidor já devolve competências para a unidade atual, a mais
+   * recente passa a vir selecionada — sem executar nenhuma ação, sem fechar nada e sem
+   * esconder o seletor: o operador continua podendo trocar.
+   */
+  useEffect(() => {
+    if (periodId !== '' || periods.length === 0) {
+      return;
+    }
+    const mostRecent = [...periods].sort((left, right) =>
+      String(right.code).localeCompare(String(left.code)),
+    )[0];
+    if (mostRecent) {
+      setPeriodId(mostRecent.id);
+    }
+  }, [periods, periodId]);
+
   const reload = useCallback(async () => {
     await periodsQuery.reload();
     await readinessQuery.reload();
@@ -191,23 +211,52 @@ export function ClosingCenterPage() {
             <label className={filterLabelClass} htmlFor="closing-period">
               Competência
             </label>
-            <select
-              id="closing-period"
-              className={filterControlClass}
-              value={periodId}
-              onChange={(event) => setPeriodId(event.target.value)}
-              disabled={periods.length === 0}
-            >
-              <option value="">
-                {periods.length === 0 ? 'Nenhum período nesta unidade' : 'Selecione a competência…'}
-              </option>
-              {periods.map((period) => (
-                <option key={period.id} value={period.id}>
-                  {periodLabel(period)}
+            {periodsQuery.state.phase === 'ready' && periods.length === 0 ? (
+              /**
+               * ZERO COMPETÊNCIAS: um select vazio não informa nada e ainda faz o operador
+               * clicar para descobrir que não há o que escolher. Aqui o estado é explicado e
+               * a única ação oferecida é real: ampliar o recorte de situação para conferir se
+               * existe competência fora do filtro atual.
+               */
+              <div className="rounded-md bg-gray-50 px-3 py-2 ring-1 ring-gray-900/5 ring-inset">
+                <p className="m-0 text-xs text-gray-700">
+                  {statusFilter === ''
+                    ? `Nenhuma competência cadastrada para ${unitId}.`
+                    : `Nenhuma competência ${statusFilter === 'OPEN' ? 'aberta' : 'fechada'} em ${unitId}.`}
+                </p>
+                {statusFilter === '' ? (
+                  <p className="m-0 mt-1 text-[11px] text-gray-500">
+                    O fechamento age sobre uma competência existente; nada é criado aqui.
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    className="mt-1 text-xs font-semibold text-brand-700 hover:text-brand-800"
+                    onClick={() => setStatusFilter('')}
+                  >
+                    Ver todas as competências
+                  </button>
+                )}
+              </div>
+            ) : (
+              <select
+                id="closing-period"
+                className={filterControlClass}
+                value={periodId}
+                onChange={(event) => setPeriodId(event.target.value)}
+              >
+                <option value="">
+                  {periodsQuery.state.phase === 'loading'
+                    ? 'Carregando competências…'
+                    : 'Selecione a competência…'}
                 </option>
-              ))}
-            </select>
-          </div>
+                {periods.map((period) => (
+                  <option key={period.id} value={period.id}>
+                    {periodLabel(period)}
+                  </option>
+                ))}
+              </select>
+            )}
         </div>
       </FilterCard>
 
