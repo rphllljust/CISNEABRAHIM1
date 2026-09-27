@@ -70,8 +70,13 @@ export async function handleDocumentsApiRoute(route: Route): Promise<boolean> {
     const limit = Number(searchParams.get('limit') ?? '100');
     const offset = Number(searchParams.get('offset') ?? '0');
     const items = filterDocuments(DOCUMENTS_LIST_VISUAL_SNAPSHOT, searchParams);
-    // Sem `total`, exatamente como o contrato publicado: a tela nao pode inventar um numero.
-    await fulfillJson(route, { items: items.slice(offset, offset + limit), limit, offset });
+    const total = items.length;
+    await fulfillJson(route, {
+      items: items.slice(offset, offset + limit),
+      limit,
+      offset,
+      total,
+    });
     return true;
   }
 
