@@ -23,6 +23,13 @@ import {
   toggleClientListSort,
   type ClientListParams,
 } from '../utils/client-list-params';
+import { useSavedViews, SavedViewsBar } from '../../operator';
+import {
+  CLIENTS_ALLOWED_FILTERS,
+  clientViewConfig,
+  clientViewToParams,
+  hasSavableViewConfig,
+} from '../utils/client-view-config';
 import {
   formatClientCount,
   formatClientListDateTime,
@@ -88,6 +95,14 @@ export function ClientsListPage() {
   const { capabilities } = useClientCapabilities();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  /**
+   * Visões salvas do Comercial. Guardam apenas status, coluna de ordenação e
+   * direção — nunca o termo de busca, que é texto livre do operador e poderia
+   * conter razão social ou CNPJ (ver `client-view-config`).
+   */
+  const savedViews = useSavedViews('commercial.clients', [], CLIENTS_ALLOWED_FILTERS);
+  const [activeViewId, setActiveViewId] = useState<string | null>(null);
 
   // Busca, filtros, ordenação e página vivem na URL: recarregar não perde contexto, o botão
   // voltar funciona e o endereço é compartilhável.
@@ -349,6 +364,23 @@ export function ClientsListPage() {
           </p>
         ) : null}
       </div>
+
+      <SavedViewsBar
+        views={savedViews.views}
+        builtInViews={[]}
+        activeViewId={activeViewId}
+        onApply={(view) => {
+          setActiveViewId(view.id === '__all__' ? null : view.id);
+          applyFilters(clientViewToParams(view.config));
+        }}
+        onSave={savedViews.saveView}
+        onRename={savedViews.renameView}
+        onRemove={savedViews.removeView}
+        currentConfig={clientViewConfig(filters)}
+        canSave={hasSavableViewConfig(filters)}
+        allLabel="Todos"
+        className="mb-4"
+      />
 
       {showMoreFilters ? (
         <div className="mb-4 w-full max-w-md">

@@ -298,6 +298,30 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
     keywords: ['os', 'ordem', 'servico', 'pausada', 'parada', 'bloqueada'],
     hint: 'OS com status Pausada',
   },
+  /*
+   * COMERCIAL — a lista de Clientes já é dirigida por URL
+   * (`parseClientListParams` + `buildClientListSearchParams`), então estes
+   * comandos reutilizam o transporte existente. Valores reais de CLIENT_STATUSES.
+   * O termo de busca nunca entra aqui: é texto livre do operador.
+   */
+  {
+    id: 'view.clients.active',
+    kind: 'view',
+    group: COMMAND_GROUPS.view,
+    label: 'Clientes ativos',
+    to: '/app/clients?status=ACTIVE',
+    keywords: ['cliente', 'ativos', 'cadastro', 'comercial', 'carteira'],
+    hint: 'Clientes com status Ativo',
+  },
+  {
+    id: 'view.clients.inactive',
+    kind: 'view',
+    group: COMMAND_GROUPS.view,
+    label: 'Clientes inativos',
+    to: '/app/clients?status=INACTIVE',
+    keywords: ['cliente', 'inativos', 'cadastro', 'comercial'],
+    hint: 'Clientes com status Inativo',
+  },
 ];
 
 /** Rotas de criação reais. Nenhuma tela nova é criada por este registro. */
