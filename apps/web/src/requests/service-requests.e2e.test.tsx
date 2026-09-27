@@ -42,13 +42,13 @@ describe('service requests administrative flow e2e (frontend)', () => {
     await user.click(screen.getByRole('button', { name: /registrar solicita/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /origem da solicita/i })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /próximo passo/i })).toBeInTheDocument();
     }, { timeout: 10000 });
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /^enviar$/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /enviar para análise/i })).toBeInTheDocument();
     });
-    await user.click(screen.getByRole('button', { name: /^enviar$/i }));
+    await user.click(screen.getByRole('button', { name: /enviar para análise/i }));
     await user.click(screen.getByRole('button', { name: /iniciar an/i }));
     await user.click(screen.getByRole('button', { name: /^aprovar$/i }));
     await user.click(screen.getByRole('button', { name: /confirmar aprova/i }));

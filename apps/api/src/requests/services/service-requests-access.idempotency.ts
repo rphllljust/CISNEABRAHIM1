@@ -27,6 +27,6 @@ export class ServiceRequestsAccessIdempotency {
       return null;
     }
     await this.authz.assertRecordAction(actor, AUTHZ_ACTIONS.RequestsServiceRequestRead, existing);
-    return this.query.toDetail(existing);
+    return this.query.toDetail(actor, existing);
   }
 }

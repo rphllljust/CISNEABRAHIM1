@@ -52,7 +52,6 @@ export type ServiceRequestDocumentLinkRow = {
   link_purpose: string;
   created_at: string;
 };
-
 export type ServiceRequestHistoryEventRow = {
   id: string;
   service_request_id: string;
@@ -118,4 +117,28 @@ export type TransitionServiceRequestPersistenceInput = {
     | 'cancel'
     | 'convert';
   currentStatus: string;
+};
+
+/** Rotulo humano de cliente resolvido em lote (nunca um lookup por linha). */
+export type ServiceRequestClientLabelRow = {
+  id: string;
+  legal_name: string;
+  trade_name: string | null;
+};
+
+/**
+ * Elo da cadeia empresarial da solicitacao.
+ *
+ * Projecao comum de `rpt.read_proposals`, `rpt.read_purchase_orders` e `rpt.read_service_orders`.
+ * `kind` discrimina o modulo dono; `unit_id`/`client_id` existem para que a autorizacao do modulo
+ * dono possa ser avaliada com o MESMO contexto que aquele modulo usa.
+ */
+export type ServiceRequestLinkedRow = {
+  kind: string;
+  id: string;
+  label: string;
+  status: string | null;
+  occurred_at: string;
+  unit_id: string;
+  client_id: string | null;
 };

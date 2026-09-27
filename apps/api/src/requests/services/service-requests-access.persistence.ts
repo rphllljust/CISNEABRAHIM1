@@ -66,8 +66,28 @@ export class ServiceRequestsAccessPersistence {
     return this.repository.listHistoryEvents(serviceRequestId);
   }
 
-  listServiceRequests(whereClause: string, params: unknown[], limit: number, offset: number) {
-    return this.repository.listServiceRequests(whereClause, params, limit, offset);
+  listServiceRequests(
+    whereClause: string,
+    params: unknown[],
+    limit: number,
+    offset: number,
+    orderClause?: string,
+  ) {
+    return this.repository.listServiceRequests(whereClause, params, limit, offset, orderClause);
+  }
+
+  listClientLabels(clientIds: string[]) {
+    return this.repository.listClientLabels(clientIds);
+  }
+
+  listServiceLabels(
+    items: Array<{ serviceDefinitionId: string; serviceDefinitionVersionId: string | null }>,
+  ) {
+    return this.repository.listServiceLabels(items);
+  }
+
+  findLinkedChain(serviceRequestId: string) {
+    return this.repository.findLinkedChain(serviceRequestId);
   }
 
   countListSummary(whereClause: string, params: unknown[]) {

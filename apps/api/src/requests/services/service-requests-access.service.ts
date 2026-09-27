@@ -8,10 +8,17 @@ import type {
   RejectServiceRequestInput,
   UpdateServiceRequestDraftInput,
 } from '../domain/service-request.validation';
-import type { ServiceRequestDetailResponse } from '../serializers/service-requests-response.serializer';
-import { toServiceRequestResponse } from '../serializers/service-requests-response.serializer';
-import { ServiceRequestsAccessCommands } from './service-requests-access.commands';
-import { ServiceRequestsAccessQuery } from './service-requests-access.query';
+import type {
+  ServiceRequestDetailResponse,
+  ServiceRequestListItemResponse,
+} from '../serializers/service-requests-response.serializer';
+import {
+  ServiceRequestsAccessCommands,
+} from './service-requests-access.commands';
+import {
+  ServiceRequestsAccessQuery,
+  type ServiceRequestListQuery,
+} from './service-requests-access.query';
 
 @Injectable()
 export class ServiceRequestsAccessService {
@@ -102,8 +109,8 @@ export class ServiceRequestsAccessService {
 
   list(
     actor: IdentityAuthzContext,
-    query: { clientId?: string; unitId?: string; status?: string; limit: number; offset: number },
-  ): Promise<{ items: ReturnType<typeof toServiceRequestResponse>[]; limit: number; offset: number }> {
+    query: ServiceRequestListQuery,
+  ): Promise<{ items: ServiceRequestListItemResponse[]; limit: number; offset: number }> {
     return this.query.list(actor, query);
   }
 

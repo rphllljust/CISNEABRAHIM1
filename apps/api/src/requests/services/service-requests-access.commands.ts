@@ -89,7 +89,7 @@ export class ServiceRequestsAccessCommands {
       });
 
       await this.audit.recordCreate(actor, created);
-      return this.query.toDetail(created);
+      return this.query.toDetail(actor, created);
     } catch (error) {
       if (this.persistence.isIdempotencyViolation(error)) {
         throw serviceRequestsDuplicateIdempotency();
@@ -141,7 +141,7 @@ export class ServiceRequestsAccessCommands {
       throw serviceRequestsInvalidState();
     }
 
-    return this.query.toDetail(updated);
+    return this.query.toDetail(actor, updated);
   }
 
   async submit(
@@ -271,7 +271,7 @@ export class ServiceRequestsAccessCommands {
       throw serviceRequestsAccessNotFound();
     }
 
-    return this.query.toDetail(converted);
+    return this.query.toDetail(actor, converted);
   }
 
   async linkDocument(
@@ -350,6 +350,6 @@ export class ServiceRequestsAccessCommands {
     }
 
     await this.audit.recordTransition(actor, serviceRequestId, transition);
-    return this.query.toDetail(updated);
+    return this.query.toDetail(actor, updated);
   }
 }

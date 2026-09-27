@@ -119,17 +119,80 @@ export type ServiceRequestHistoryEvent = {
   occurredAt: string;
 };
 
+/** Passo do ciclo derivado do estado real (nenhuma regra nova: espelha a maquina de estados). */
+export type ServiceRequestNextStepCode =
+  | 'SUBMIT_REQUEST'
+  | 'START_REVIEW'
+  | 'DECIDE'
+  | 'CONVERT_TO_SERVICE_ORDER'
+  | 'OPEN_SERVICE_ORDER'
+  | 'CLOSED';
+
+export type ServiceRequestTransition =
+  | 'submit'
+  | 'startReview'
+  | 'approve'
+  | 'reject'
+  | 'cancel'
+  | 'convert';
+
+export type ServiceRequestReadiness = {
+  nextStep: ServiceRequestNextStepCode;
+  nextStepTransition: ServiceRequestTransition | null;
+  availableTransitions: ServiceRequestTransition[];
+  blockers: string[];
+};
+
+export type ServiceRequestLinkedKind = 'PROPOSAL' | 'PURCHASE_ORDER' | 'SERVICE_ORDER';
+
+export type ServiceRequestLinked = {
+  kind: ServiceRequestLinkedKind;
+  id: string;
+  label: string;
+  status: string | null;
+  occurredAt: string;
+};
+
+export type ServiceRequestRelated = {
+  client: { id: string; name: string } | null;
+  service: { id: string; label: string } | null;
+};
+
 export type ServiceRequestDetail = {
   serviceRequest: ServiceRequest;
   documentLinks: ServiceRequestDocumentLink[];
   historyEvents: ServiceRequestHistoryEvent[];
+  related: ServiceRequestRelated;
+  linkedChain: ServiceRequestLinked[];
+  readiness: ServiceRequestReadiness;
+};
+
+/**
+ * Item da fila operacional. `clientName`/`serviceLabel` vem nulos quando o ator nao tem leitura do
+ * modulo dono — a UI omite o dado em vez de exibir UUID tecnico.
+ */
+export type ServiceRequestListItem = ServiceRequest & {
+  clientName: string | null;
+  serviceLabel: string | null;
 };
 
 export type ServiceRequestListResponse = {
-  items: ServiceRequest[];
+  items: ServiceRequestListItem[];
   limit: number;
   offset: number;
 };
+
+export const SERVICE_REQUEST_LIST_SORTS = {
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  priority: 'priority',
+  desiredStartAt: 'desiredStartAt',
+} as const;
+
+export type ServiceRequestListSort =
+  (typeof SERVICE_REQUEST_LIST_SORTS)[keyof typeof SERVICE_REQUEST_LIST_SORTS];
+
+export type ServiceRequestListDirection = 'asc' | 'desc';
 
 export type ServiceRequestListSummary = {
   total: number;

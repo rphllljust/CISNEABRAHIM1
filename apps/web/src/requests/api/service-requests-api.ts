@@ -5,8 +5,11 @@ import {
   type CreateServiceRequestPayload,
   type RequestErrorCode,
   type ServiceRequestDetail,
+  type ServiceRequestListDirection,
   type ServiceRequestListResponse,
+  type ServiceRequestListSort,
   type ServiceRequestListSummary,
+  type ServiceRequestOrigin,
   type ServiceRequestPriority,
   type ServiceRequestStatus,
   type UpdateServiceRequestDraftPayload,
@@ -109,6 +112,13 @@ export type ListServiceRequestsParams = {
   status?: ServiceRequestStatus;
   clientId?: string;
   unitId?: string;
+  priority?: ServiceRequestPriority;
+  originSource?: ServiceRequestOrigin;
+  desiredFrom?: string;
+  desiredTo?: string;
+  search?: string;
+  sort?: ServiceRequestListSort;
+  direction?: ServiceRequestListDirection;
 };
 
 export type ServiceRequestSummaryParams = {
@@ -139,6 +149,28 @@ export function buildListServiceRequestsQuery(params: ListServiceRequestsParams)
   }
   if (params.unitId) {
     search.set('unitId', params.unitId);
+  }
+  if (params.priority) {
+    search.set('priority', params.priority);
+  }
+  if (params.originSource) {
+    search.set('originSource', params.originSource);
+  }
+  if (params.desiredFrom) {
+    search.set('desiredFrom', params.desiredFrom);
+  }
+  if (params.desiredTo) {
+    search.set('desiredTo', params.desiredTo);
+  }
+  const searchTerm = params.search?.trim();
+  if (searchTerm) {
+    search.set('q', searchTerm);
+  }
+  if (params.sort) {
+    search.set('sort', params.sort);
+  }
+  if (params.direction) {
+    search.set('direction', params.direction);
   }
   return search.toString();
 }

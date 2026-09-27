@@ -1,4 +1,9 @@
 import { isServiceRequestOrigin, isServiceRequestPriority } from '../domain/service-request';
+import {
+  isServiceRequestListDirection,
+  isServiceRequestListSort,
+} from '../repositories/service-request-list-sql';
+import type { ServiceRequestListQuery } from '../services/service-requests-access.query';
 import type {
   ApproveServiceRequestInput,
   CancelServiceRequestInput,
@@ -161,18 +166,27 @@ export function parseLinkServiceRequestDocumentInput(
   return parseLinkDocumentInput(body);
 }
 
-export function parseListServiceRequestsQuery(query: Record<string, unknown>): {
-  clientId?: string;
-  unitId?: string;
-  status?: string;
-  limit: number;
-  offset: number;
-} {
+export function parseListServiceRequestsQuery(query: Record<string, unknown>): ServiceRequestListQuery {
   const { limit, offset } = parseClampedOffsetLimit(query);
+  const sort = typeof query['sort'] === 'string' ? query['sort'] : undefined;
+  const direction = typeof query['direction'] === 'string' ? query['direction'] : undefined;
+  if (sort !== undefined && !isServiceRequestListSort(sort)) {
+    throw new Error('sort invalid');
+  }
+  if (direction !== undefined && !isServiceRequestListDirection(direction)) {
+    throw new Error('direction invalid');
+  }
   return {
     clientId: typeof query['clientId'] === 'string' ? query['clientId'] : undefined,
     unitId: typeof query['unitId'] === 'string' ? query['unitId'] : undefined,
     status: typeof query['status'] === 'string' ? query['status'] : undefined,
+    priority: typeof query['priority'] === 'string' ? query['priority'] : undefined,
+    originSource: typeof query['originSource'] === 'string' ? query['originSource'] : undefined,
+    desiredFrom: typeof query['desiredFrom'] === 'string' ? query['desiredFrom'] : undefined,
+    desiredTo: typeof query['desiredTo'] === 'string' ? query['desiredTo'] : undefined,
+    search: typeof query['q'] === 'string' ? query['q'] : undefined,
+    sort: sort && isServiceRequestListSort(sort) ? sort : undefined,
+    direction: direction && isServiceRequestListDirection(direction) ? direction : undefined,
     limit,
     offset,
   };
