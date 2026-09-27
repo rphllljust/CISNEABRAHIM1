@@ -44,7 +44,8 @@ export function formatRegisteredBy(
   if (currentIdentityId && createdByIdentityId === currentIdentityId) {
     return 'Você (usuário interno)';
   }
-  return `Usuário interno (${createdByIdentityId.slice(0, 8)}…)`;
+  // O id tecnico do ator nao entra no rotulo: nenhum uuid visivel na interface.
+  return 'Usuário interno';
 }
 
 export function formatDateTime(value: string | null): string {

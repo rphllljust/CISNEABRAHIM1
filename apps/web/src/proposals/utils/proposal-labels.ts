@@ -89,7 +89,10 @@ export function formatClientSnapshot(snapshot: Record<string, unknown> | null): 
  *
  * O dominio NAO guarda nome de pessoa (`identity.identities` so tem id/status). A interface usa o
  * mesmo rotulo neutro ja adotado no modulo de solicitacoes: "Voce" quando o ator e o usuario
- * atual e "Usuario interno (id curto)" caso contrario — nunca um nome inventado.
+ * atual e "Usuario interno" caso contrario — nunca um nome inventado.
+ *
+ * O id tecnico do ator NAO entra no rotulo: identificador de identidade e dado de banco, e a
+ * interface representa o negocio (contrato de interacao enterprise — nenhum uuid visivel).
  */
 export function formatRegisteredBy(
   actorIdentityId: string,
@@ -98,5 +101,5 @@ export function formatRegisteredBy(
   if (currentIdentityId && actorIdentityId === currentIdentityId) {
     return 'Você (usuário interno)';
   }
-  return `Usuário interno (${actorIdentityId.slice(0, 8)}…)`;
+  return 'Usuário interno';
 }

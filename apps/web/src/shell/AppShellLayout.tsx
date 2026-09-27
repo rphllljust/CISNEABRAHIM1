@@ -11,7 +11,7 @@ import { ShellErrorBoundary } from './ShellErrorBoundary';
 import { ShellMobileDrawer } from './ShellMobileDrawer';
 import { ShellNavList } from './ShellNavList';
 import { ShellTopBar } from './ShellTopBar';
-import { formatIdentityLabel } from './format-identity';
+import { formatIdentityLabel, isTechnicalIdentity } from './format-identity';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { useRouteFocus } from './hooks/useRouteFocus';
 import { useNavAccess } from './useNavAccess';
@@ -51,7 +51,10 @@ export function AppShellLayout() {
     setMobileNavOpen(false);
   }
 
-  const identityHint = formatIdentityLabel(identityId);
+  // Identidade tecnica (uuid) nao e identidade do operador: nesse caso a linha e OMITIDA
+  // em vez de exibir um identificador truncado. `formatUserMenuLabel` ja segue a mesma regra
+  // no menu do usuario; aqui o rotulo so aparece quando existe login humano de verdade.
+  const identityHint = isTechnicalIdentity(identityId) ? null : formatIdentityLabel(identityId);
 
   return (
     <div className="cisne-app flex min-h-dvh bg-gray-50 font-sans text-gray-900 antialiased">
@@ -85,7 +88,9 @@ export function AppShellLayout() {
             </div>
             <div className="min-w-0 leading-tight">
               <p className="text-xs font-medium text-white">Conta ativa</p>
-              <p className="truncate text-[11px] text-gray-500">{identityHint}</p>
+              {identityHint ? (
+                <p className="truncate text-[11px] text-gray-500">{identityHint}</p>
+              ) : null}
             </div>
           </div>
         </div>
