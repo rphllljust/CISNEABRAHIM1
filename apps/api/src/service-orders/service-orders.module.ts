@@ -18,6 +18,7 @@ import { ServiceOrdersAccessAuthz } from './services/service-orders-access.authz
 import { ServiceOrderExecutionAccessService } from './services/service-order-execution-access.service';
 import { OperationalCostAccessService } from './services/operational-cost-access.service';
 import { ServiceOrdersAccessService } from './services/service-orders-access.service';
+import { ServiceOrderControlCenterAuthz } from './services/service-order-control-center.authz';
 import { ServiceOrderPlanningAccessService } from './services/service-order-planning-access.service';
 import { ServiceOrdersReferenceValidationService } from './services/service-orders-reference-validation.service';
 import { ServiceRequestConversionService } from './services/service-request-conversion.service';
@@ -33,6 +34,7 @@ import { ServiceRequestConversionService } from './services/service-request-conv
     ServiceOrdersAccessAuthz,
     ServiceOrdersReferenceValidationService,
     ServiceOrdersAccessService,
+    ServiceOrderControlCenterAuthz,
     ServiceOrderPlanningAccessService,
     ServiceOrderExecutionAccessService,
     OperationalCostAccessService,
@@ -46,6 +48,7 @@ import { ServiceRequestConversionService } from './services/service-request-conv
     SERVICE_REQUEST_CONVERSION_PORT,
     ServiceOrdersRepository,
     ServiceOrdersAccessService,
+    ServiceOrderControlCenterAuthz,
     ResourcePlanningRepository,
     ServiceOrderPlanningAccessService,
     ServiceOrderExecutionAccessService,

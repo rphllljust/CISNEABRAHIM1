@@ -3,6 +3,7 @@ import {
   type HistoryEventResponse,
 } from '../../infrastructure/http/contracts';
 import type { ServiceOrderHistoryEventRow, ServiceOrderRow } from '../repositories/service-orders.repository.types';
+import type { ControlCenterControl } from '../domain/operations-control-center';
 
 export type ServiceOrderResponse = {
   id: string;
@@ -66,6 +67,12 @@ export type ServiceOrderListResponse = ServiceOrderResponse & {
 
 export type ServiceOrderDetailResponse = ServiceOrderResponse & {
   historyEvents: ServiceOrderHistoryEventResponse[];
+  /**
+   * Operations Control Center: progressao derivada, planejado x realizado, downstream
+   * (medicao/faturamento) e proximo passo. Blocos de modulos donos so aparecem quando o ator
+   * tem autorizacao naquele modulo — elo ou bloco negado e OMITIDO.
+   */
+  controlCenter?: ControlCenterControl;
 };
 
 export function toServiceOrderResponse(row: ServiceOrderRow): ServiceOrderResponse {
@@ -141,9 +148,11 @@ export function toServiceOrderListResponse(row: ServiceOrderRow): ServiceOrderLi
 export function toServiceOrderDetailResponse(
   row: ServiceOrderRow,
   historyEvents: ServiceOrderHistoryEventRow[],
+  controlCenter?: ControlCenterControl,
 ): ServiceOrderDetailResponse {
   return {
     ...toServiceOrderResponse(row),
     historyEvents: historyEvents.map(toServiceOrderHistoryEventResponse),
+    ...(controlCenter ? { controlCenter } : {}),
   };
 }
