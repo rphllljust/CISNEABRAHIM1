@@ -61,8 +61,23 @@ describe('proposals administrative flow e2e (frontend)', () => {
       expect(screen.getByText('Proposta E2E')).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('button', { name: /emitir proposta/i }));
-    await user.click(screen.getByRole('button', { name: /registrar aceite/i }));
+    // A acao primaria vive no header da object page: emitir a revisao vigente. O depoimento
+    // do título da proposta confirma que o detalhe carregou na gramática canônica.
+    await waitFor(() => {
+      expect(screen.getAllByText('Proposta E2E').length).toBeGreaterThan(0);
+    });
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: /emitir proposta/i }).length).toBeGreaterThan(0);
+    });
+    await user.click(screen.getAllByRole('button', { name: /emitir proposta/i })[0]!);
+
+    // Emitida: "Registrar aceite" passa a ser a acao mais provavel do estado.
+    await waitFor(() => {
+      expect(
+        screen.getAllByRole('button', { name: /registrar aceite/i }).length,
+      ).toBeGreaterThan(0);
+    });
+    await user.click(screen.getAllByRole('button', { name: /registrar aceite/i })[0]!);
     await user.click(screen.getByRole('button', { name: /confirmar aceitação/i }));
 
     await waitFor(() => {
