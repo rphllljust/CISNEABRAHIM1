@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { RELATION_SCOPE_KEYS, useRelationScope } from '../../enterprise-object';
 import { isPersistableValue } from '../../operator';
 import {
   getServiceRequestSummary,
@@ -170,6 +171,8 @@ function useQueueUrlSync(
 export function ServiceRequestsListPage() {
   const { capabilities } = useServiceRequestCapabilities();
   const [filters, setFilters] = useState<QueueFilters>(EMPTY_FILTERS);
+  // Escopo de relacao (recorte que vem da URL e NAO e editavel no formulario da fila).
+  const relationScope = useRelationScope(RELATION_SCOPE_KEYS);
   const [searchInput, setSearchInput] = useState('');
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
   const [summary, setSummary] = useState<ServiceRequestListSummary | null>(null);
@@ -187,6 +190,10 @@ export function ServiceRequestsListPage() {
       try {
         const scopedFilters = {
           unitId: activeFilters.unitId.trim() || undefined,
+          // RELATION CONTRACT: o recorte vindo da URL (ex.: clique em "Solicitações N" na
+          // object page do cliente) e enviado ao servidor. Sem isto o numero da relacao
+          // apontaria para uma lista NAO filtrada, afirmando um recorte inexistente.
+          ...(relationScope.clientId ? { clientId: relationScope.clientId } : {}),
         };
         const [response, summaryResponse] = await Promise.all([
           listServiceRequests(
@@ -238,7 +245,7 @@ export function ServiceRequestsListPage() {
         });
       }
     },
-    [],
+    [relationScope.clientId],
   );
 
   useEffect(() => {

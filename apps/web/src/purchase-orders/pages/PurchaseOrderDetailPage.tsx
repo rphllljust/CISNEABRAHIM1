@@ -1,6 +1,20 @@
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useCallback, useEffect, useId, useState } from 'react';
 import { ConfirmDialog } from '../../clients/components/ConfirmDialog';
+import {
+  EnterpriseObjectHeader,
+  EnterpriseObjectPage,
+  ObjectContextBlock,
+  ObjectPanel,
+  ObjectStateFlow,
+  type ObjectAction,
+  type ObjectContextField,
+  type ObjectMetadataField,
+  type ObjectPagePhase,
+  type ObjectStateStep,
+} from '../../enterprise-object';
+import { ActivityTimeline, type ActivityFact } from '../../operator';
+import type { StatusBadgeTone } from '../../ui/StatusBadge';
 import {
   cancelPurchaseOrder,
   getPurchaseOrder,
@@ -8,12 +22,13 @@ import {
   registerPurchaseOrder,
 } from '../api/purchase-orders-api';
 import { mapPurchaseOrderErrorToMessage } from '../api/purchase-order-error-messages';
-import { PurchaseOrderStatusBadge } from '../components/PurchaseOrderStatusBadge';
 import { VersionConflictNotice } from '../components/VersionConflictNotice';
 import { usePurchaseOrderCapabilities } from '../hooks/usePurchaseOrderCapabilities';
 import {
   PURCHASE_ORDER_STATUSES,
+  type PurchaseOrder,
   type PurchaseOrderDetail,
+  type PurchaseOrderStatus,
 } from '../types/purchase-order.types';
 import {
   formatBillingRuleType,
@@ -41,6 +56,12 @@ const PURCHASE_ORDER_LINKED_KIND_LABELS: Record<string, string> = {
   BILLING_DOCUMENT: 'Documento fiscal',
 };
 
+const STATUS_TONES: Record<PurchaseOrderStatus, StatusBadgeTone> = {
+  [PURCHASE_ORDER_STATUSES.Draft]: 'neutral',
+  [PURCHASE_ORDER_STATUSES.Registered]: 'success',
+  [PURCHASE_ORDER_STATUSES.Cancelled]: 'error',
+};
+
 function linkedRecordPath(record: { kind: string; id: string }): string {
   if (record.kind === 'SERVICE_ORDER') {
     return `/app/service-orders/${record.id}/planning`;
@@ -48,10 +69,67 @@ function linkedRecordPath(record: { kind: string; id: string }): string {
   if (record.kind === 'REQUEST') {
     return `/app/requests/${record.id}`;
   }
-  return `/app/purchase-orders`;
+  return '/app/purchase-orders';
 }
+
+/**
+ * Etapas REALMENTE persistidas do pedido de compra.
+ *
+ * `DRAFT`, `REGISTERED` e `CANCELLED` sao os estados do dominio, e cada passo
+ * recebido aqui so aparece com a marca temporal que o backend gravou. Quando o
+ * pedido foi cancelado ANTES do registro (`registeredAt` ausente), a etapa de
+ * registro nao e representada: ela nunca ocorreu.
+ */
+export function purchaseOrderStateSteps(po: PurchaseOrder): ObjectStateStep[] {
+  const draft: ObjectStateStep = {
+    id: PURCHASE_ORDER_STATUSES.Draft,
+    label: formatPurchaseOrderStatus(PURCHASE_ORDER_STATUSES.Draft),
+    hint: `Criado em ${formatDateTime(po.createdAt)}`,
+  };
+  const registered: ObjectStateStep = {
+    id: PURCHASE_ORDER_STATUSES.Registered,
+    label: formatPurchaseOrderStatus(PURCHASE_ORDER_STATUSES.Registered),
+    hint: po.registeredAt ? `Registrado em ${formatDateTime(po.registeredAt)}` : undefined,
+  };
+  const cancelled: ObjectStateStep = {
+    id: PURCHASE_ORDER_STATUSES.Cancelled,
+    label: formatPurchaseOrderStatus(PURCHASE_ORDER_STATUSES.Cancelled),
+    terminal: true,
+    hint: po.cancelledAt ? `Cancelado em ${formatDateTime(po.cancelledAt)}` : undefined,
+  };
+
+  if (po.status === PURCHASE_ORDER_STATUSES.Cancelled && !po.registeredAt) {
+    return [draft, cancelled];
+  }
+  return [draft, registered, cancelled];
+}
+
+/** Fatos de historico: somente timestamps e marcos persistidos pelo backend. */
+export function purchaseOrderActivityFacts(po: PurchaseOrder): ActivityFact[] {
+  const facts: ActivityFact[] = [
+    { at: po.createdAt, event: 'Pedido criado' },
+    { at: po.updatedAt, event: 'Pedido atualizado' },
+  ];
+  if (po.registeredAt) {
+    facts.push({ at: po.registeredAt, event: 'Pedido registrado' });
+  }
+  if (po.cancelledAt) {
+    facts.push({ at: po.cancelledAt, event: 'Pedido cancelado' });
+  }
+  return facts;
+}
+
+/** `—` e ausencia de dado, nunca conteudo de tela. */
+function orNull(value: string | null | undefined): string | null {
+  if (!value || value === '—') {
+    return null;
+  }
+  return value;
+}
+
 export function PurchaseOrderDetailPage() {
   const { purchaseOrderId = '' } = useParams();
+  const navigate = useNavigate();
   const reasonId = useId();
   const { capabilities } = usePurchaseOrderCapabilities();
   const [state, setState] = useState<DetailState>({ phase: 'loading' });
@@ -116,46 +194,40 @@ export function PurchaseOrderDetailPage() {
     }
   }
 
-  if (state.phase === 'loading') {
+  // Estados de pagina: loading, negacao, ausencia e falha resolvidos pela moldura
+  // unica do contrato — nenhuma tela inventa o proprio estado.
+  if (state.phase !== 'ready') {
+    let phase: ObjectPagePhase = 'error';
+    let phaseMessage = 'Não foi possível carregar o pedido.';
+    let phaseTitle = 'Pedido de compra';
+    let onRetry: (() => void) | undefined;
+    if (state.phase === 'loading') {
+      phase = 'loading';
+      phaseMessage = 'Carregando pedido…';
+    } else if (state.phase === 'denied') {
+      phase = 'denied';
+      phaseMessage = 'Você não tem permissão para consultar este pedido.';
+    } else if (state.phase === 'not_found') {
+      phase = 'empty';
+      phaseTitle = 'Pedido de compra não encontrado';
+      phaseMessage = 'O servidor não encontrou este pedido.';
+    } else {
+      phaseMessage = state.message;
+      onRetry = () => void reload();
+    }
     return (
       <main id="main-content" className="shell-page">
-        <p aria-busy="true" aria-live="polite">
-          Carregando pedido…
-        </p>
-      </main>
-    );
-  }
-
-  if (state.phase === 'denied') {
-    return (
-      <main id="main-content" className="shell-page">
-        <h1>Pedido de compra</h1>
-        <p role="alert">Você não tem permissão para consultar este pedido.</p>
-        <Link to="/app/purchase-orders">Voltar à lista</Link>
-      </main>
-    );
-  }
-
-  if (state.phase === 'not_found') {
-    return (
-      <main id="main-content" className="shell-page">
-        <h1>Pedido de compra</h1>
-        <p role="alert">Pedido não encontrado.</p>
-        <Link to="/app/purchase-orders">Voltar à lista</Link>
-      </main>
-    );
-  }
-
-  if (state.phase === 'error') {
-    return (
-      <main id="main-content" className="shell-page">
-        <h1>Pedido de compra</h1>
-        <p className="form-error" role="alert">
-          {state.message}
-        </p>
-        <button type="button" onClick={() => void reload()}>
-          Tentar novamente
-        </button>
+        <EnterpriseObjectPage
+          breadcrumb={[
+            { label: 'Pedidos de compra', href: '/app/purchase-orders' },
+            { label: 'Pedido de compra' },
+          ]}
+          phase={phase}
+          phaseTitle={phaseTitle}
+          phaseMessage={phaseMessage}
+          onRetry={phase === 'error' ? onRetry : undefined}
+          header={null}
+        />
       </main>
     );
   }
@@ -163,10 +235,8 @@ export function PurchaseOrderDetailPage() {
   const { detail } = state;
   const { purchaseOrder: po, items, billingRules, linked = [] } = detail;
 
-  const canEdit =
-    capabilities.canUpdate && po.status === PURCHASE_ORDER_STATUSES.Draft;
-  const canRegister =
-    capabilities.canRegister && po.status === PURCHASE_ORDER_STATUSES.Draft;
+  const canEdit = capabilities.canUpdate && po.status === PURCHASE_ORDER_STATUSES.Draft;
+  const canRegister = capabilities.canRegister && po.status === PURCHASE_ORDER_STATUSES.Draft;
   const canCancel =
     capabilities.canCancel &&
     (po.status === PURCHASE_ORDER_STATUSES.Draft ||
@@ -183,206 +253,216 @@ export function PurchaseOrderDetailPage() {
           .toFixed(4)
       : null);
 
+  const editPath = `/app/purchase-orders/${po.id}/edit`;
+  const clientName = orNull(formatClientSnapshot(po.clientSnapshot));
+
+  // Acao primaria: a mais provavel AGORA, decidida por estado + capability real.
+  const primaryAction: ObjectAction | null = canRegister
+    ? {
+        id: 'register',
+        label: 'Registrar pedido',
+        loading: actionSubmitting,
+        onSelect: () =>
+          void runAction(async () => {
+            await registerPurchaseOrder(po.id, po.rowVersion);
+          }),
+      }
+    : canEdit
+      ? {
+          id: 'edit',
+          label: 'Editar rascunho',
+          onSelect: () => {
+            void navigate(editPath);
+          },
+        }
+      : null;
+
+  const secondaryActions: ObjectAction[] =
+    canRegister && canEdit
+      ? [
+          {
+            id: 'edit',
+            label: 'Editar rascunho',
+            onSelect: () => {
+              void navigate(editPath);
+            },
+          },
+        ]
+      : [];
+
+  const destructiveActions: ObjectAction[] = canCancel
+    ? [{ id: 'cancel', label: 'Cancelar pedido', onSelect: () => setCancelOpen(true) }]
+    : [];
+
+  const metadata: ObjectMetadataField[] = [
+    { label: 'Emissão', value: po.issueDate ? formatDate(po.issueDate) : null },
+    { label: 'Registrado em', value: po.registeredAt ? formatDateTime(po.registeredAt) : null },
+    {
+      label: 'Valor autorizado',
+      value: authorizedAmount ? formatMoney(authorizedAmount, po.currencyCode) : null,
+      emphasis: true,
+    },
+    { label: 'Itens', value: items.length > 0 ? String(items.length) : null },
+    {
+      label: 'Regras de faturamento',
+      value: billingRules.length > 0 ? String(billingRules.length) : null,
+    },
+  ];
+
+  const contextFields: ObjectContextField[] = [
+    { label: 'Cliente', value: clientName, to: `/app/clients/${po.clientId}` },
+    { label: 'Código interno', value: po.internalCode },
+    { label: 'Unidade', value: po.unitId },
+    { label: 'Nº RC', value: po.rcNumber },
+    {
+      label: 'Estrutura de preço',
+      value: formatPurchaseOrderPricingStructure(po.pricingStructure),
+    },
+    { label: 'Condições de pagamento', value: po.paymentTerms },
+    { label: 'Forma de pagamento', value: po.paymentMethod },
+    { label: 'Gestor de serviço', value: po.serviceManager },
+    { label: 'Contato do comprador', value: orNull(formatBuyerContact(po.buyerContact)) },
+    { label: 'Atualizado em', value: formatDateTime(po.updatedAt) },
+  ];
+
   return (
-    <main id="main-content" className="shell-page requests-page">
-      <header className="requests-page__header">
-        <div>
-          <h1>{po.poNumber}</h1>
-          <p className="form-hint">{po.internalCode}</p>
-          <PurchaseOrderStatusBadge status={po.status} />
-        </div>
-        <div className="button-row">
-          {canEdit ? (
-            <Link
-              to={`/app/purchase-orders/${po.id}/edit`}
-              className="button-link button-secondary"
-            >
-              Editar rascunho
-            </Link>
-          ) : null}
-          {canRegister ? (
-            <button
-              type="button"
-              disabled={actionSubmitting}
-              onClick={() =>
-                void runAction(async () => {
-                  await registerPurchaseOrder(po.id, po.rowVersion);
-                })
-              }
-            >
-              Registrar
-            </button>
-          ) : null}
-          {canCancel ? (
-            <button
-              type="button"
-              className="button-secondary"
-              disabled={actionSubmitting}
-              onClick={() => setCancelOpen(true)}
-            >
-              Cancelar
-            </button>
-          ) : null}
-        </div>
-      </header>
+    <main id="main-content" className="shell-page">
+      <EnterpriseObjectPage
+        breadcrumb={[
+          { label: 'Pedidos de compra', href: '/app/purchase-orders' },
+          { label: po.poNumber },
+        ]}
+        header={
+          <EnterpriseObjectHeader
+            reference={po.poNumber}
+            title="Pedido de compra"
+            subtitle={clientName}
+            status={{
+              label: formatPurchaseOrderStatus(po.status),
+              tone: STATUS_TONES[po.status] ?? 'neutral',
+              description:
+                po.status === PURCHASE_ORDER_STATUSES.Cancelled && po.cancelledAt
+                  ? `Cancelado em ${formatDateTime(po.cancelledAt)}`
+                  : undefined,
+            }}
+            metadata={metadata}
+            primaryAction={primaryAction}
+            secondaryActions={secondaryActions}
+            destructiveActions={destructiveActions}
+          />
+        }
+        stateFlow={
+          <ObjectStateFlow
+            steps={purchaseOrderStateSteps(po)}
+            currentId={po.status}
+            title="Fluxo do pedido de compra"
+          />
+        }
+        aside={
+          <ObjectPanel title="Histórico">
+            <ActivityTimeline
+              facts={purchaseOrderActivityFacts(po)}
+              title="Histórico do pedido"
+              emptyMessage="Este pedido não expõe histórico persistido além dos marcos abaixo."
+            />
+          </ObjectPanel>
+        }
+      >
+        {/* O contexto entra no corpo: a moldura do contrato nesta revisao nao renderiza o
+            slot `context` (so breadcrumb, header, fluxo, proxima acao, relacoes e corpo). */}
+        <ObjectContextBlock fields={contextFields} columns={3} />
 
-      {versionConflict ? <VersionConflictNotice onReload={() => void reload()} /> : null}
-      {actionError ? (
-        <p className="form-error" role="alert">
-          {actionError}
-        </p>
-      ) : null}
-
-      <section className="requests-section" aria-labelledby="po-summary-heading">
-        <h2 id="po-summary-heading">Resumo</h2>
-        <dl className="requests-details">
-          <div>
-            <dt>Cliente</dt>
-            <dd>
-              <Link to={`/app/clients/${po.clientId}`}>Ver cliente</Link>
-              {po.clientSnapshot ? (
-                <span className="form-hint"> ({formatClientSnapshot(po.clientSnapshot)})</span>
-              ) : null}
-            </dd>
-          </div>
-          <div>
-            <dt>Unidade</dt>
-            <dd>{po.unitId}</dd>
-          </div>
-          <div>
-            <dt>Número RC</dt>
-            <dd>{po.rcNumber ?? '—'}</dd>
-          </div>
-          <div>
-            <dt>Data de emissão</dt>
-            <dd>{formatDate(po.issueDate)}</dd>
-          </div>
-          <div>
-            <dt>Registrado em</dt>
-            <dd>{formatDateTime(po.registeredAt)}</dd>
-          </div>
-          <div>
-            <dt>Estrutura de preço</dt>
-            <dd>{formatPurchaseOrderPricingStructure(po.pricingStructure)}</dd>
-          </div>
-          <div>
-            <dt>Valor autorizado</dt>
-            <dd className="numeric">{formatMoney(authorizedAmount, po.currencyCode)}</dd>
-          </div>
-          <div>
-            <dt>Condições de pagamento</dt>
-            <dd>{po.paymentTerms ?? '—'}</dd>
-          </div>
-          <div>
-            <dt>Forma de pagamento</dt>
-            <dd>{po.paymentMethod ?? '—'}</dd>
-          </div>
-          <div>
-            <dt>Gestor de serviço</dt>
-            <dd>{po.serviceManager ?? '—'}</dd>
-          </div>
-          <div>
-            <dt>Contato do comprador</dt>
-            <dd>{formatBuyerContact(po.buyerContact)}</dd>
-          </div>
-          <div>
-            <dt>Atualizado em</dt>
-            <dd>{formatDateTime(po.updatedAt)}</dd>
-          </div>
-        </dl>
-      </section>
-
-      {items.length > 0 ? (
-        <section className="requests-section" aria-labelledby="po-items-heading">
-          <h2 id="po-items-heading">Itens</h2>
-          <table className="requests-table" aria-label="Itens do pedido">
-            <thead>
-              <tr>
-                <th scope="col">Linha</th>
-                <th scope="col">Descrição</th>
-                <th scope="col">Qtd.</th>
-                <th scope="col">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item) => (
-                <tr key={item.id}>
-                  <td>{item.lineNumber}</td>
-                  <td>{item.description}</td>
-                  <td>{item.quantity ?? '—'}</td>
-                  <td className="numeric">{formatMoney(item.lineTotal, po.currencyCode)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      ) : null}
-
-      {billingRules.length > 0 ? (
-        <section className="requests-section" aria-labelledby="po-rules-heading">
-          <h2 id="po-rules-heading">Regras de faturamento</h2>
-          <ul>
-            {billingRules.map((rule) => (
-              <li key={rule.id}>{formatBillingRuleType(rule.ruleType)}</li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      {/* Cadeia relacionada: responde "de onde vem o valor consumido deste pedido".
-          Relacoes que o dominio ja possui — nenhuma regra nova, so leitura. */}
-      {linked.length > 0 ? (
-        <section className="requests-section" aria-labelledby="po-linked-heading">
-          <h2 id="po-linked-heading">Cadeia relacionada</h2>
-          <p className="form-hint">
-            Documentos ligados a este pedido, do pedido do cliente ao faturamento.
+        {versionConflict ? <VersionConflictNotice onReload={() => void reload()} /> : null}
+        {actionError ? (
+          <p className="form-error" role="alert">
+            {actionError}
           </p>
-          <ol className="mt-3 border-l border-gray-200 pl-4">
-            {linked.map((record) => (
-              <li key={`${record.kind}-${record.id}`} className="relative pb-3 last:pb-0">
-                <span
-                  aria-hidden="true"
-                  className="absolute top-1.5 -left-[21px] h-2 w-2 rounded-full bg-brand-500"
-                />
-                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                  <span className="text-[10px] font-semibold tracking-wide text-gray-400 uppercase">
-                    {PURCHASE_ORDER_LINKED_KIND_LABELS[record.kind] ?? record.kind}
-                  </span>
-                  <Link
-                    to={linkedRecordPath(record)}
-                    className="text-sm font-semibold text-brand-700 no-underline hover:text-brand-800"
-                  >
-                    {record.label}
-                  </Link>
-                  <span className="text-xs text-gray-500">
-                    {formatPurchaseOrderStatus(record.status)}
-                  </span>
-                </div>
-                <div className="mt-0.5 flex flex-wrap items-baseline gap-x-3 text-xs text-gray-500">
-                  <span className="tabular-nums">{formatDateTime(record.occurredAt)}</span>
-                  {record.amount ? (
-                    <span className="cisne-type-money font-semibold text-gray-800">
-                      {formatMoney(record.amount, record.currencyCode ?? po.currencyCode)}
+        ) : null}
+
+        {items.length > 0 ? (
+          <ObjectPanel title="Itens">
+            <table className="requests-table" aria-label="Itens do pedido">
+              <thead>
+                <tr>
+                  <th scope="col">Linha</th>
+                  <th scope="col">Descrição</th>
+                  <th scope="col">Qtd.</th>
+                  <th scope="col">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <tr key={item.id}>
+                    <td>{item.lineNumber}</td>
+                    <td>{item.description}</td>
+                    <td>{item.quantity ?? '—'}</td>
+                    <td className="numeric">{formatMoney(item.lineTotal, po.currencyCode)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ObjectPanel>
+        ) : null}
+
+        {billingRules.length > 0 ? (
+          <ObjectPanel title="Regras de faturamento">
+            <ul>
+              {billingRules.map((rule) => (
+                <li key={rule.id}>{formatBillingRuleType(rule.ruleType)}</li>
+              ))}
+            </ul>
+          </ObjectPanel>
+        ) : null}
+
+        {/* Cadeia relacionada: responde "de onde vem o valor consumido deste pedido".
+            Relacoes que o dominio ja possui — nenhuma regra nova, so leitura. */}
+        {linked.length > 0 ? (
+          <ObjectPanel title="Cadeia relacionada">
+            <p className="form-hint">
+              Documentos ligados a este pedido, do pedido do cliente ao faturamento.
+            </p>
+            <ol className="mt-3 border-l border-gray-200 pl-4">
+              {linked.map((record) => (
+                <li key={`${record.kind}-${record.id}`} className="relative pb-3 last:pb-0">
+                  <span
+                    aria-hidden="true"
+                    className="absolute top-1.5 -left-[21px] h-2 w-2 rounded-full bg-brand-500"
+                  />
+                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                    <span className="text-[10px] font-semibold tracking-wide text-gray-400 uppercase">
+                      {PURCHASE_ORDER_LINKED_KIND_LABELS[record.kind] ?? record.kind}
                     </span>
-                  ) : null}
-                </div>
-              </li>
-            ))}
-          </ol>
-        </section>
-      ) : null}
+                    <Link
+                      to={linkedRecordPath(record)}
+                      className="text-sm font-semibold text-brand-700 no-underline hover:text-brand-800"
+                    >
+                      {record.label}
+                    </Link>
+                    <span className="text-xs text-gray-500">
+                      {formatPurchaseOrderStatus(record.status)}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 flex flex-wrap items-baseline gap-x-3 text-xs text-gray-500">
+                    <span className="tabular-nums">{formatDateTime(record.occurredAt)}</span>
+                    {record.amount ? (
+                      <span className="cisne-type-money font-semibold text-gray-800">
+                        {formatMoney(record.amount, record.currencyCode ?? po.currencyCode)}
+                      </span>
+                    ) : null}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </ObjectPanel>
+        ) : null}
 
-      {po.cancellationReason ? (
-        <section className="requests-section">
-          <h2>Cancelamento</h2>
-          <p>{po.cancellationReason}</p>
-          <p className="form-hint">Cancelado em {formatDateTime(po.cancelledAt)}</p>
-        </section>
-      ) : null}
-
-      <p>
-        <Link to="/app/purchase-orders">Voltar à lista</Link>
-      </p>
+        {po.cancellationReason ? (
+          <ObjectPanel title="Cancelamento">
+            <p>{po.cancellationReason}</p>
+            <p className="form-hint">Cancelado em {formatDateTime(po.cancelledAt)}</p>
+          </ObjectPanel>
+        ) : null}
+      </EnterpriseObjectPage>
 
       <ConfirmDialog
         open={cancelOpen}

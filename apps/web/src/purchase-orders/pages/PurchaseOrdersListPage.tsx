@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { RELATION_SCOPE_KEYS, useRelationScope } from '../../enterprise-object';
 import { listPurchaseOrders, PurchaseOrdersApiError } from '../api/purchase-orders-api';
 import { mapPurchaseOrderErrorToMessage } from '../api/purchase-order-error-messages';
 import { PurchaseOrderStatusBadge } from '../components/PurchaseOrderStatusBadge';
@@ -42,7 +43,11 @@ type ListState =
 
 export function PurchaseOrdersListPage() {
   const { capabilities } = usePurchaseOrderCapabilities();
-  const [clientFilter, setClientFilter] = useState('');
+  // RELATION CONTRACT: o recorte vindo da URL (clique em "Pedidos de compra N" na object page
+  // do cliente) precisa chegar a consulta autorizada. Sem isto o numero da relacao abriria a
+  // lista completa, afirmando um recorte que nao existe.
+  const relationScope = useRelationScope(RELATION_SCOPE_KEYS);
+  const [clientFilter, setClientFilter] = useState(relationScope.clientId ?? '');
   const [unitFilter, setUnitFilter] = useState('');
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
 
@@ -87,6 +92,14 @@ export function PurchaseOrdersListPage() {
     },
     [clientFilter, unitFilter],
   );
+
+  // Navegar de uma relacao para outra (mesma rota, outro cliente) precisa refiltrar sem
+  // remontar a pagina.
+  useEffect(() => {
+    if (relationScope.clientId) {
+      setClientFilter(relationScope.clientId);
+    }
+  }, [relationScope.clientId]);
 
   useEffect(() => {
     const controller = new AbortController();

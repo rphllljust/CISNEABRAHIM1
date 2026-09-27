@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { RELATION_SCOPE_KEYS, useRelationScope } from '../../enterprise-object';
 import { listProposals, ProposalsApiError } from '../api/proposals-api';
 import { mapProposalErrorToMessage } from '../api/proposal-error-messages';
 import { useProposalCapabilities } from '../hooks/useProposalCapabilities';
@@ -92,6 +93,10 @@ type ListState =
 export function ProposalsListPage() {
   const { capabilities } = useProposalCapabilities();
   const [filters, setFilters] = useState<QueueFilters>(EMPTY_FILTERS);
+  // RELATION CONTRACT: o recorte que vem da URL (clique em "Propostas N" na object page do
+  // cliente, por exemplo) precisa chegar ao servidor — um numero que abre lista sem filtro
+  // afirma um recorte que nao existe.
+  const relationScope = useRelationScope(RELATION_SCOPE_KEYS);
   const [searchInput, setSearchInput] = useState('');
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
 
@@ -114,6 +119,7 @@ export function ProposalsListPage() {
             search: active.search.trim() || undefined,
             sort: active.sort,
             direction: active.direction,
+            clientId: relationScope.clientId,
           },
           signal,
         );
@@ -143,7 +149,7 @@ export function ProposalsListPage() {
         });
       }
     },
-    [],
+    [relationScope.clientId],
   );
 
   useEffect(() => {

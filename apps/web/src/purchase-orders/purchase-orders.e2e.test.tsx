@@ -60,10 +60,12 @@ describe('purchase orders administrative flow e2e (frontend)', () => {
     await user.click(screen.getByRole('button', { name: /registrar pedido/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'PO-E2E-001' })).toBeInTheDocument();
+      // Contrato enterprise: o numero do pedido e a referencia humana; o titulo e o objeto.
+      expect(screen.getByRole('heading', { name: 'Pedido de compra' })).toBeInTheDocument();
     });
+    expect((await screen.findAllByText('PO-E2E-001')).length).toBeGreaterThan(0);
 
-    await user.click(screen.getByRole('button', { name: /^registrar$/i }));
+    await user.click(await screen.findByRole('button', { name: 'Registrar pedido' }));
 
     await waitFor(() => {
       expect(screen.getByLabelText('Status: Registrado')).toBeInTheDocument();
@@ -89,7 +91,9 @@ describe('purchase orders administrative flow e2e (frontend)', () => {
     await loginAndReachApp(user);
     await user.click(await screen.findByRole('link', { name: /pedidos de compra/i }));
     await user.click(await screen.findByRole('link', { name: 'PO-CLIENTE-001' }));
-    await user.click(await screen.findByRole('link', { name: /editar rascunho/i }));
+    // A edicao e acao secundaria no contrato: vive no menu de acoes do cabecalho.
+    await user.click(await screen.findByRole('button', { name: 'Mais ações' }));
+    await user.click(await screen.findByRole('menuitem', { name: /editar rascunho/i }));
     await user.click(screen.getByRole('button', { name: /salvar alterações/i }));
     await waitFor(() => {
       expect(screen.getAllByText(/alterado por outro usuário/i).length).toBeGreaterThan(0);

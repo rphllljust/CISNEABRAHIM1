@@ -41,11 +41,19 @@ test.describe('purchase orders visual regression', () => {
       page,
       `/app/purchase-orders/${VISUAL_PURCHASE_ORDER_ID}`,
     );
-    await expect(
-      page.getByRole('heading', { name: 'PO-CLIENTE-41926266' }),
-    ).toBeVisible();
+    // CONTRATO DE OBJECT PAGE — prova semantica do objeto:
+    // 1) referencia humana exata do pedido;
+    await expect(page.getByText('PO-CLIENTE-41926266', { exact: true })).toBeVisible();
+    // 2) `h1` e o titulo de NEGOCIO, nunca o codigo;
+    const objectTitle = page.getByRole('heading', { level: 1 });
+    await expect(objectTitle).toBeVisible();
+    await expect(objectTitle).not.toHaveText('PO-CLIENTE-41926266');
+    // 3) estado real do processo;
     await expect(page.getByLabel('Status: Registrado')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Cancelar' })).toBeVisible();
+    // 4) acao primaria permitida (registrar e o proximo passo do estado RASCUNHO; aqui o
+    //    pedido esta REGISTRADO, entao a prova e a acao destrutiva separada no menu);
+    await expect(page.getByRole('button', { name: 'Mais ações' })).toBeVisible();
+    // 5) conteudo principal e continuidade: itens + cadeia relacionada do pedido.
     await expect(page.getByRole('table', { name: 'Itens do pedido' })).toBeVisible();
     await expect(page.getByText('21/08/2026')).toBeVisible();
     await stabilizePage(page);
