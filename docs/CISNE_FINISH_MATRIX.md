@@ -80,6 +80,8 @@ Registrados aqui; **não** substituir por input livre nem por carga massiva no n
 
 ## Ordem de ataque (ajustada por impacto operacional)
 
+Itens 1–4 executados nesta rodada (commits `f0e83bb`, `b684741`, `a224824`, `b1c241b` + correções `c9df38e`, `d4c082a`).
+
 1. `suppliers` — entidade sem lista; consulta por identificador (operação cotidiana exige UUID).
 2. `procurement` — 4 lookups por identificador + centro de custo (id); fluxo de compras sem navegação.
 3. `inventory` — bancada de UUIDs (depósito, item, reserva, custeio) sem listagem.
@@ -90,6 +92,24 @@ Registrados aqui; **não** substituir por input livre nem por carga massiva no n
 8. `payroll` — período por identificador.
 9. `accounting` — ativo fixo e lançamentos por identificador.
 10. Acabamento visual — somente depois.
+
+---
+
+## GATE FINAL (rodada encerrada)
+
+| Gate | Resultado | Evidência |
+| --- | --- | --- |
+| API typecheck (`tsc -p apps/api`) | PASS | 0 erros após a correção de fronteira |
+| WEB typecheck real (`tsc -b apps/web/tsconfig.json` — app + node + e2e) | PASS | `tsc -b --force` = 0 erros (atenção: `apps/web/tsconfig.json` é solução com `files: []`; `tsc -p` nele não verifica nada) |
+| ESLint (API e web, arquivos tocados) | PASS | 0 problemas |
+| API unit | PASS | 1014/1014 em 220 arquivos |
+| API integração focada | PASS | 33/33: suppliers 9, procurement core 10, notas 8, conferência 6; inventory 7 |
+| WEB suite completa | PASS | 618/618 em 125 arquivos |
+| Browser real (Playwright/chromium) | PASS | suppliers 4/4, procurement 4/4, inventory 4/4 em desktop 1280x720 e mobile 390x844 |
+| WEB build | PASS | `vite build` ok |
+| `git diff --check` | PASS | sem whitespace/erro de patch |
+
+Observação de gate: o teste `service-orders-list.e2e` e o `assets.e2e` falhavam **antes** desta rodada (asserções obsoletas). Ambos foram corrigidos com asserção estrita, sem afrouxar verificação e sem alterar regra de negócio.
 
 ---
 
