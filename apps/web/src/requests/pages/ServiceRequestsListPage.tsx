@@ -142,7 +142,7 @@ function useQueueUrlSync(
       }
     }
     if (Object.keys(incoming).length > 0) {
-      setFilters((current) => ({ ...current, ...incoming }) as QueueFilters);
+      setFilters((current) => ({ ...current, ...incoming }));
     }
     // Semeado apenas na primeira montagem: depois disso o estado da tela e a fonte.
   }, [searchParams, setFilters]);

@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ServiceRequestsListPage } from './ServiceRequestsListPage';
 import { createRequestsFetchMock } from '../../test/requests-fetch-mock';
+import { parseRequestPath } from '../../test/request-url';
 import { renderWithProviders } from '../../test/render-with-providers';
 import { tokenStore, resetTokenStoreForTests } from '../../auth/storage/token-store';
 import { SERVICE_REQUEST_STATUSES } from '../types/service-request.types';
@@ -43,8 +44,10 @@ describe('ServiceRequestsListPage', () => {
     });
 
     await waitFor(() => {
-      const urls = fetchMock.mock.calls.map((call) => String(call[0]));
-      expect(urls.some((url) => url.includes('status=UNDER_REVIEW'))).toBe(true);
+      const requestedStatuses = fetchMock.mock.calls.map(
+        (call) => parseRequestPath(call[0]).searchParams.get('status'),
+      );
+      expect(requestedStatuses).toContain('UNDER_REVIEW');
     });
   });
 
