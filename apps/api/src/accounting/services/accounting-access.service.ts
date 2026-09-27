@@ -55,6 +55,7 @@ import {
   AccountingValidationError,
   requireNonEmptyText,
   optionalPeriodStatus,
+  optionalPeriodYear,
   requirePage,
   requirePageSize,
   validateClosePeriodInput,
@@ -111,6 +112,7 @@ import {
   type ChartsListResponse,
   type CloseRunsResponse,
   type JournalPageResponse,
+  type PeriodsByUnitListResponse,
   type PeriodsListResponse,
 } from '../serializers/accounting-read.serializer';
 import { AccountingAccessAuthz } from './accounting-access.authz';
@@ -846,12 +848,49 @@ export class AccountingAccessService implements AccountingLedgerPort {
     }
   }
 
+  /**
+   * Descoberta de periodos contabeis pela UNIDADE.
+   *
+   * Antes desta capacidade o periodo so era alcancavel por `charts/:chartId/periods`: o operador
+   * precisava de um identificador tecnico de plano de contas antes mesmo de escolher a competencia.
+   * A unidade ja e fato persistido no proprio periodo. Autorizacao continua na mesma acao de leitura
+   * do ledger (`accounting:journal:list`) e no escopo de unidade do ator.
+   */
+  async listPeriodsByUnit(
+    actor: IdentityAuthzContext,
+    query: { unitId?: unknown; status?: unknown; year?: unknown },
+  ): Promise<PeriodsByUnitListResponse> {
+    try {
+      const unitId = requireNonEmptyText(
+        typeof query.unitId === 'string' ? query.unitId : undefined,
+        'unitId',
+      );
+      await this.authz.assertAccountingAction(actor, AUTHZ_ACTIONS.AccountingJournalList, {
+        id: unitId,
+        unitId,
+      });
+      const status = optionalPeriodStatus(
+        typeof query.status === 'string' ? query.status : undefined,
+      );
+      const year = optionalPeriodYear(
+        typeof query.year === 'string' || typeof query.year === 'number' ? query.year : undefined,
+      );
+      return {
+        unitId,
+        items: (await this.repository.listPeriodsByUnit({ unitId, status, year })).map((row) =>
+          toPeriodResponse(row),
+        ),
+      };
+    } catch (error) {
+      throw mapAccountingDomainError(error);
+    }
+  }
+
   async listJournals(
     actor: IdentityAuthzContext,
     chartId: string,
     query: Omit<JournalListQuery, 'page' | 'pageSize'> & { page?: unknown; pageSize?: unknown },
-  ): Promise<JournalPageResponse> {
-    assertUuid(chartId, 'chartId');
+  ): Promise<JournalPageResponse> {    assertUuid(chartId, 'chartId');
     try {
       const validated = validateJournalListQuery(query);
       if (validated.periodId !== undefined) {

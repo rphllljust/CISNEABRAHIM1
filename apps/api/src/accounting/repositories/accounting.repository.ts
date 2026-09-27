@@ -15,6 +15,7 @@ import {
   reversalLines,
 } from '../domain/ledger';
 import {
+  DEFAULT_PERIOD_CLOSE_POLICY,
   assertPeriodCloseAllowed,
   evaluatePeriodCloseChecks,
   periodCloseRunStatus,
@@ -186,7 +187,7 @@ export class AccountingRepository {
     return result.rows;
   }
 
-  async countDraftsInPeriod(periodId: string, client?: PoolClient): Promise<number> {
+  async countDraftsInPeriod(periodId: string, client?: Pool | PoolClient): Promise<number> {
     const db = client ?? this.pool();
     const result = await db.query<{ count: string }>(
       `SELECT COUNT(*)::text AS count
@@ -918,7 +919,7 @@ export class AccountingRepository {
   }
 
   private async gatherCloseObservations(
-    client: PoolClient,
+    client: Pool | PoolClient,
     period: AccountingPeriodRow,
   ): Promise<PeriodCloseObservations> {
     const startsOn = period.starts_on.slice(0, 10);
@@ -1192,6 +1193,121 @@ export class AccountingRepository {
       status ? [chartId, status] : [chartId],
     );
     return result.rows;
+  }
+
+  /**
+   * Descoberta de periodo contabil DIRETO pela unidade, sem passar pelo plano de contas.
+   *
+   * A unidade ja e fato persistido em `acc.accounting_periods`; exigir o plano antes do periodo
+   * obrigava o operador a um passo intermediario que nao existe no negocio. Filtros sao somente os
+   * que ja sao coluna: unidade, status e ano de competencia (derivado de `starts_on`).
+   */
+  async listPeriodsByUnit(input: {
+    unitId: string;
+    status?: string;
+    year?: number;
+  }): Promise<AccountingPeriodRow[]> {
+    const params: unknown[] = [input.unitId];
+    const filters: string[] = [];
+    if (input.status) {
+      filters.push(`status = $${params.length + 1}::acc.period_status`);
+      params.push(input.status);
+    }
+    if (input.year !== undefined) {
+      filters.push(`EXTRACT(YEAR FROM starts_on)::int = $${params.length + 1}::int`);
+      params.push(input.year);
+    }
+    const result = await this.pool().query<AccountingPeriodRow>(
+      `SELECT ${PERIOD_RETURNING}
+       FROM acc.accounting_periods
+       WHERE unit_id = $1 ${filters.length > 0 ? `AND ${filters.join(' AND ')}` : ''}
+       ORDER BY starts_on DESC, code`,
+      params,
+    );
+    return result.rows;
+  }
+
+  /**
+   * Previa READ-ONLY dos bloqueadores de fechamento.
+   *
+   * Reusa exatamente a mesma autoridade do fechamento real: a politica persistida em
+   * `acc.period_close_policies` (ou `DEFAULT_PERIOD_CLOSE_POLICY` quando a unidade/plano ainda nao
+   * tem politica) e `evaluatePeriodCloseChecks` sobre as observacoes coletadas pela MESMA funcao
+   * privada usada por `closePeriod`. Nenhuma regra nova: o read model apenas agrega estado
+   * persistido. Nada e gravado.
+   */
+  async previewPeriodClose(period: AccountingPeriodRow): Promise<{
+    policy: PeriodClosePolicy;
+    checks: PeriodCloseCheck[];
+  }> {
+    const policyRow = await this.pool().query<PeriodClosePolicyRow>(
+      `SELECT id, unit_id, chart_id,
+              require_trial_balance_balanced, require_no_draft_journals,
+              require_no_critical_pending_postings, require_no_duplicate_economic_events,
+              require_origin_consistency, require_bank_reconciliation_integrity,
+              require_receivables_settled, require_payables_settled,
+              require_all_bank_lines_matched, require_fiscal_documents_authorized
+       FROM acc.period_close_policies
+       WHERE unit_id = $1 AND chart_id = $2`,
+      [period.unit_id, period.chart_id],
+    );
+    const policy: PeriodClosePolicy = policyRow.rows[0]
+      ? toClosePolicy(policyRow.rows[0])
+      : DEFAULT_PERIOD_CLOSE_POLICY;
+    const observations = await this.gatherCloseObservations(this.pool(), period);
+    return { policy, checks: evaluatePeriodCloseChecks(policy, observations) };
+  }
+
+  /**
+   * Observacoes do fechamento que dependem de DOCUMENTO FISCAL.
+   *
+   * Existe separada porque o fechamento cruza bounded contexts: quem nao pode ler documento fiscal
+   * nao recebe a contagem. A consulta nao filtra por autorizacao — a decisao fica na camada de
+   * servico, que nem chega a chamar isto sem concessao.
+   */
+  async countFiscalDocumentsInWindow(input: {
+    unitId: string;
+    startsOn: string;
+    endsOn: string;
+  }): Promise<{ unauthorized: number; rejected: number; pendingAuthorization: number; draft: number }> {
+    const result = await this.pool().query<{
+      unauthorized: string;
+      rejected: string;
+      pending_authorization: string;
+      draft: string;
+    }>(
+      `SELECT
+         COUNT(*) FILTER (WHERE status NOT IN ('AUTHORIZED', 'CANCELLED'))::text AS unauthorized,
+         COUNT(*) FILTER (WHERE status = 'REJECTED')::text AS rejected,
+         COUNT(*) FILTER (WHERE status IN ('READY', 'SUBMITTED'))::text AS pending_authorization,
+         COUNT(*) FILTER (WHERE status = 'DRAFT')::text AS draft
+       FROM fis.fiscal_documents
+       WHERE unit_id = $1 AND issued_on BETWEEN $2::date AND $3::date`,
+      [input.unitId, input.startsOn, input.endsOn],
+    );
+    const row = result.rows[0];
+    return {
+      unauthorized: Number(row?.unauthorized ?? '0'),
+      rejected: Number(row?.rejected ?? '0'),
+      pendingAuthorization: Number(row?.pending_authorization ?? '0'),
+      draft: Number(row?.draft ?? '0'),
+    };
+  }
+
+  /** Contagem de lancamentos nao postados do periodo, com o recorte humano que a lista usa. */
+  async countJournalsByPeriodStatus(periodId: string): Promise<Record<string, number>> {
+    const result = await this.pool().query<{ status: string; count: string }>(
+      `SELECT status::text AS status, COUNT(*)::text AS count
+       FROM acc.journal_entries
+       WHERE period_id = $1
+       GROUP BY status`,
+      [periodId],
+    );
+    const counts: Record<string, number> = {};
+    for (const row of result.rows) {
+      counts[row.status] = Number(row.count);
+    }
+    return counts;
   }
 
   async findAccountPostability(accountId: string): Promise<AccountPostability> {
