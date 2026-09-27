@@ -27,6 +27,18 @@ const UNIT_A = 'unit-stmt-a';
 const UNIT_B = 'unit-stmt-b';
 const DAY = '2026-09-15';
 
+/** Alfabeto de escopo persistido em `authorization.authz_scope_type` usado pelas concessões do teste. */
+type GrantScopeType =
+  | 'GLOBAL'
+  | 'OWN'
+  | 'ASSIGNED'
+  | 'UNIT'
+  | 'CLIENT'
+  | 'CONTRACT'
+  | 'DOCUMENT'
+  | 'FINANCIAL'
+  | 'PLATFORM';
+
 function cisneFile(
   sourceReference: string,
   lines: Array<{ sourceLineKey: string; amount: string; direction?: string }>,
@@ -50,7 +62,7 @@ function cisneFile(
   });
 }
 
-async function grantRecon(pool: Pool, identityId: string, scope: string, unitId?: string) {
+async function grantRecon(pool: Pool, identityId: string, scope: GrantScopeType, unitId?: string) {
   for (const action of [
     AUTHZ_ACTIONS.FinanceTreasuryAccountOpen,
     AUTHZ_ACTIONS.FinanceTreasuryRead,
@@ -98,7 +110,10 @@ describe('Bank statement discovery PostgreSQL integration', () => {
     await pool.end();
   });
 
-  async function seedActor(scope: string = AUTHZ_SCOPES.Global, unitId?: string) {
+  async function seedActor(
+    scope: GrantScopeType = AUTHZ_SCOPES.Global,
+    unitId?: string,
+  ) {
     const login = normalizeLoginIdentifier(`bs-${crypto.randomUUID()}@cisne.invalid`);
     const passwordHash = await hashPassword(AUTH_TEST_PASSWORD);
     const { identityId } = await insertIdentity(pool, login, passwordHash);
