@@ -13175,7 +13175,7 @@ Um login nao pode ser as duas coisas. Conflito registrado e levado ao responsave
 Decisao do responsavel: `rafael@` = desenvolvedor com acesso global (intencional). O empregado operacional recebeu login proprio — `empregado@cisne-rondonia.invalid`, identidade que **ja existia** no banco dev com o papel `EMPREGADO` (nao foi inventado um login novo).
 
 1. `operational-profiles.ts`: `EMPREGADO_LOGIN = 'empregado@cisne-rondonia.invalid'` (separado de `RAFAEL_DEVELOPER_LOGIN`); `EMPREGADO_ROLE_CODE = 'EMPREGADO'` (era `'DEVELOPER'`, o que emprestava ao empregado o papel amplo do desenvolvedor); rotulo/descricao do papel corrigidos.
-2. `seed-profiles.mjs`: senha estatica propria do empregado (`Cisne-Empregado-2026!`); a checagem de drift passou a comparar `empregado` em vez de `rafael`.
+2. `seed-profiles.mjs`: senha estatica propria do empregado (`DEV_PROFILE_EMPLOYEE_PASSWORD`, redigida em 2026-09-27 — o valor saiu do repositorio); a checagem de drift passou a comparar `empregado` em vez de `rafael`.
 3. `repair-dev-login.mjs`: `globalDevGrants` renomeado para `broadDevAccess` e a guarda movida para `applyBroadDevAccess`, que agora cobre **os dois** caminhos (papel + grants). Para `broadDevAccess: false` o script nao cria papel, nao adiciona capability e nao insere grant. `rafael@` voltou a `broadDevAccess: true`, conforme a decisao; `empregado@` entrou na lista com `false` e `roleCode: null`.
 4. `applyCanonicalProfiles` passou a semear o empregado com a credencial do **proprio** empregado (antes usava a do `rafael@`).
 5. Membro operacional `EMP-DEV-001`: relinkado de `rafael@` para `empregado@` (`ensureWorkforceMember` faz o relink a cada execucao).

@@ -39,21 +39,38 @@ if (!process.env['NODE_ENV']) {
 }
 
 /**
- * Logins estaticos de desenvolvimento.
+ * Senhas dos logins estaticos de desenvolvimento.
  *
- * As senhas sao estaticas por requisito do responsavel: estes logins precisam funcionar
- * sempre com exatamente estes valores. Nao ha override por variavel de ambiente — um
- * `CISNE_*_PASSWORD` exportado no shell mudaria o login silenciosamente e quebraria o
- * requisito. Os identificadores vem do modulo canonico
- * (`./dist/seed/operational-profiles.js`).
+ * O requisito permanece: estes logins precisam funcionar sempre com exatamente estes
+ * valores. O que muda e ONDE o valor vive — uma credencial de homologacao em texto plano
+ * no repositorio vaza em qualquer clone, entao o valor passa a vir do ambiente local
+ * (`.env`, gitignored; ver `.env.example`).
+ *
+ * NAO existe default silencioso: sem a variavel o script falha alto e explica o que
+ * falta. Assim um login diferente do esperado nunca e semeado em silencio — que era a
+ * preocupacao registrada na decisao anterior.
+ *
+ * Os identificadores vem do modulo canonico (`./dist/seed/operational-profiles.js`).
  *
  * `rafael@` NAO esta nesta lista: ele e o desenvolvedor com acesso GLOBAL (decisao de
  * 2026-09-25) e e semeado por `scripts/repair-dev-login.mjs`, que enxerga o catalogo de
  * actions da API. O empregado operacional tem login proprio (`empregado@`).
  */
-const controlePassword = 'Cisne-Abrahim-2026!';
-const controleFinanceiroPassword = 'Cisne-Monica-2026!';
-const empregadoPassword = 'Cisne-Empregado-2026!';
+function requireDevPassword(variableName) {
+  const value = process.env[variableName]?.trim();
+  if (!value) {
+    console.error(
+      `CONFIGURATION_ERROR: ${variableName} is required to seed the static development ` +
+        'profiles. Set it in the local .env (gitignored); see .env.example.',
+    );
+    process.exit(1);
+  }
+  return value;
+}
+
+const controlePassword = requireDevPassword('DEV_PROFILE_OWNER_PASSWORD');
+const controleFinanceiroPassword = requireDevPassword('DEV_PROFILE_FINANCE_PASSWORD');
+const empregadoPassword = requireDevPassword('DEV_PROFILE_EMPLOYEE_PASSWORD');
 
 const requireFromDatabase = createRequire(resolve(packageRoot, 'package.json'));
 const { Pool } = requireFromDatabase('pg');
