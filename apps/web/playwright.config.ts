@@ -9,11 +9,7 @@ export default defineConfig({
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
   workers: 1,
-  reporter: [
-    ['list'],
-    ['html', { open: 'never' }],
-    ['./e2e/visual-baseline-capture-reporter.ts'],
-  ],
+  reporter: [['list'], ['html', { open: 'never' }]],
   expect: {
     toHaveScreenshot: {
       maxDiffPixelRatio: 0.01,
