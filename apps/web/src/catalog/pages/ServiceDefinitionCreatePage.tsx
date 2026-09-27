@@ -2,9 +2,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useId, useState } from 'react';
 import { CatalogApiError, createServiceDefinition } from '../api/service-catalog-api';
 import { mapCatalogErrorToMessage } from '../api/catalog-error-messages';
-import { ServiceDefinitionForm } from '../components/ServiceDefinitionForm';
+import { ServiceDefinitionForm, listFormBlockers } from '../components/ServiceDefinitionForm';
 import { useCatalogCapabilities } from '../hooks/useCatalogCapabilities';
 import { useCatalogReferenceData } from '../hooks/useCatalogReferenceData';
+import { Alert, Button, PageHeader, StickyActionBar } from '../../ui';
+import { ModulePage } from '../../ui/module-layout';
 import {
   createEmptyFormState,
   toCreatePayload,
@@ -12,6 +14,13 @@ import {
   type ServiceDefinitionFormState,
 } from '../utils/catalog-form-state';
 
+/**
+ * BUILDER — nova definição de serviço.
+ *
+ * Cabeçalho com o que está sendo configurado, resumo da edição atual dentro do formulário,
+ * seções com ação própria e barra de ação fixa. Nenhuma regra mudou: a validação, o payload e a
+ * criação continuam sendo os mesmos de `catalog-form-state.ts` e da API do catálogo.
+ */
 export function ServiceDefinitionCreatePage() {
   const navigate = useNavigate();
   const formId = useId();
@@ -23,23 +32,35 @@ export function ServiceDefinitionCreatePage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Mesma validação autoritativa, traduzida para o rodapé da barra: a ação principal nunca fica
+  // desabilitada sem dizer o que falta.
+  const blockers = listFormBlockers(formState, { includeCode: true });
+
   if (capabilitiesLoading || referenceLoading) {
     return (
-      <main id="main-content" className="shell-page">
-        <p aria-busy="true" aria-live="polite">
+      <ModulePage>
+        <PageHeader title="Nova definição de serviço" />
+        <p aria-busy="true" aria-live="polite" className="text-sm text-gray-500">
           Carregando formulário…
         </p>
-      </main>
+      </ModulePage>
     );
   }
 
   if (!capabilities.canCreate) {
     return (
-      <main id="main-content" className="shell-page">
-        <h1>Nova definição de serviço</h1>
-        <p role="alert">Você não tem permissão para criar definições.</p>
-        <Link to="/app/catalog">Voltar à lista</Link>
-      </main>
+      <ModulePage>
+        <PageHeader title="Nova definição de serviço" />
+        <Alert tone="error">Você não tem permissão para criar definições.</Alert>
+        <p className="mt-3">
+          <Link
+            to="/app/catalog"
+            className="text-sm font-medium text-brand-600 no-underline hover:text-brand-700"
+          >
+            Voltar à lista
+          </Link>
+        </p>
+      </ModulePage>
     );
   }
 
@@ -71,16 +92,19 @@ export function ServiceDefinitionCreatePage() {
   }
 
   return (
-    <main id="main-content" className="shell-page catalog-page">
-      <h1>Nova definição de serviço</h1>
-      <p className="form-hint">
-        A publicação e validação de regras são executadas exclusivamente pelo backend.
-      </p>
+    <ModulePage>
+      <PageHeader
+        title="Nova definição de serviço"
+        description="Configure preço, recursos, mão de obra e evidências exigidas."
+        className="mb-4"
+      />
 
       {submitError ? (
-        <p id={errorId} className="form-error" role="alert">
-          {submitError}
-        </p>
+        <div className="mb-3">
+          <Alert tone="error" id={errorId}>
+            {submitError}
+          </Alert>
+        </div>
       ) : null}
 
       <ServiceDefinitionForm
@@ -89,17 +113,30 @@ export function ServiceDefinitionCreatePage() {
         errors={fieldErrors}
         referenceData={referenceData}
         includeCode
+        showInternalCost={capabilities.canCreate}
         onChange={setFormState}
       />
 
-      <div className="button-row">
-        <button type="button" disabled={submitting} onClick={() => void handleSubmit()}>
-          {submitting ? 'Salvando…' : 'Criar rascunho'}
-        </button>
+      <StickyActionBar
+        note={
+          blockers.length > 0
+            ? `Faltam: ${blockers.join(', ')}.`
+            : 'A publicação e a validação de regras são executadas exclusivamente pelo backend.'
+        }
+      >
         <Link to="/app/catalog" className="button-link button-secondary">
           Cancelar
         </Link>
-      </div>
-    </main>
+        <Button
+          type="button"
+          disabled={submitting || blockers.length > 0}
+          loading={submitting}
+          loadingText="Salvando…"
+          onClick={() => void handleSubmit()}
+        >
+          Criar rascunho
+        </Button>
+      </StickyActionBar>
+    </ModulePage>
   );
 }

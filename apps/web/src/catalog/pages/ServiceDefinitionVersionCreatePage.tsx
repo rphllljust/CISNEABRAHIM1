@@ -7,9 +7,11 @@ import {
   getServiceDefinitionVersion,
 } from '../api/service-catalog-api';
 import { mapCatalogErrorToMessage } from '../api/catalog-error-messages';
-import { ServiceDefinitionForm } from '../components/ServiceDefinitionForm';
+import { ServiceDefinitionForm, listFormBlockers } from '../components/ServiceDefinitionForm';
 import { useCatalogCapabilities } from '../hooks/useCatalogCapabilities';
 import { useCatalogReferenceData } from '../hooks/useCatalogReferenceData';
+import { Alert, Button, PageHeader, StickyActionBar } from '../../ui';
+import { ModulePage } from '../../ui/module-layout';
 import {
   createEmptyFormState,
   formStateFromVersion,
@@ -24,6 +26,12 @@ type PageState =
   | { phase: 'error'; message: string }
   | { phase: 'ready'; formState: ServiceDefinitionFormState; sourceVersion: number | null };
 
+/**
+ * BUILDER — nova versão do serviço.
+ *
+ * A base copiada da versão publicada é dita no cabeçalho (contexto real da edição) e o builder
+ * edita a mesma estrutura das outras telas do catálogo.
+ */
 export function ServiceDefinitionVersionCreatePage() {
   const { definitionId = '' } = useParams();
   const navigate = useNavigate();
@@ -75,33 +83,53 @@ export function ServiceDefinitionVersionCreatePage() {
     void load();
   }, [load]);
 
+  const blockers =
+    state.phase === 'ready' ? listFormBlockers(state.formState, { includeCode: false }) : [];
+
   if (state.phase === 'loading' || referenceLoading) {
     return (
-      <main id="main-content" className="shell-page">
-        <p aria-busy="true" aria-live="polite">
+      <ModulePage>
+        <PageHeader title="Criar nova versão" />
+        <p aria-busy="true" aria-live="polite" className="text-sm text-gray-500">
           Preparando nova versão…
         </p>
-      </main>
+      </ModulePage>
     );
   }
 
   if (!capabilities.canUpdate) {
     return (
-      <main id="main-content" className="shell-page">
-        <h1>Nova versão</h1>
-        <p role="alert">Você não tem permissão para criar versões.</p>
-        <Link to={`/app/catalog/${definitionId}`}>Voltar</Link>
-      </main>
+      <ModulePage>
+        <PageHeader title="Criar nova versão" />
+        <Alert tone="error">Você não tem permissão para criar versões.</Alert>
+        <p className="mt-3">
+          <Link
+            to={`/app/catalog/${definitionId}`}
+            className="text-sm font-medium text-brand-600 no-underline hover:text-brand-700"
+          >
+            Voltar à definição
+          </Link>
+        </p>
+      </ModulePage>
     );
   }
 
   if (state.phase === 'blocked' || state.phase === 'error') {
     return (
-      <main id="main-content" className="shell-page">
-        <h1>Nova versão</h1>
-        <p role="alert">{state.phase === 'blocked' ? state.reason : state.message}</p>
-        <Link to={`/app/catalog/${definitionId}`}>Voltar</Link>
-      </main>
+      <ModulePage>
+        <PageHeader title="Criar nova versão" />
+        <Alert tone={state.phase === 'blocked' ? 'warning' : 'error'}>
+          {state.phase === 'blocked' ? state.reason : state.message}
+        </Alert>
+        <p className="mt-3">
+          <Link
+            to={`/app/catalog/${definitionId}`}
+            className="text-sm font-medium text-brand-600 no-underline hover:text-brand-700"
+          >
+            Voltar à definição
+          </Link>
+        </p>
+      </ModulePage>
     );
   }
 
@@ -140,18 +168,32 @@ export function ServiceDefinitionVersionCreatePage() {
   }
 
   return (
-    <main id="main-content" className="shell-page catalog-page">
-      <h1>Criar nova versão</h1>
-      {state.sourceVersion ? (
-        <p className="form-hint" role="note">
-          Base inicial copiada da versão publicada v{state.sourceVersion}. Ajuste os campos antes de salvar o rascunho.
-        </p>
-      ) : null}
+    <ModulePage>
+      <PageHeader
+        title="Criar nova versão"
+        description="Configure preço, recursos, mão de obra e evidências exigidas."
+        meta={
+          state.sourceVersion ? (
+            <span role="note">
+              Base inicial copiada da versão publicada v{state.sourceVersion}. Ajuste os campos antes
+              de salvar o rascunho.
+            </span>
+          ) : (
+            <span role="note">
+              Sem versão publicada anterior: a nova versão começa vazia, exceto pelos padrões do
+              catálogo.
+            </span>
+          )
+        }
+        className="mb-4"
+      />
 
       {submitError ? (
-        <p id={errorId} className="form-error" role="alert">
-          {submitError}
-        </p>
+        <div className="mb-3">
+          <Alert tone="error" id={errorId}>
+            {submitError}
+          </Alert>
+        </div>
       ) : null}
 
       <ServiceDefinitionForm
@@ -160,17 +202,30 @@ export function ServiceDefinitionVersionCreatePage() {
         errors={fieldErrors}
         referenceData={referenceData}
         includeCode={false}
+        showInternalCost={capabilities.canUpdate}
         onChange={(formState) => setState({ ...state, formState })}
       />
 
-      <div className="button-row">
-        <button type="button" disabled={submitting} onClick={() => void handleSubmit()}>
-          {submitting ? 'Criando…' : 'Criar rascunho da nova versão'}
-        </button>
+      <StickyActionBar
+        note={
+          blockers.length > 0
+            ? `Faltam: ${blockers.join(', ')}.`
+            : 'O rascunho da nova versão é validado e criado pelo servidor.'
+        }
+      >
         <Link to={`/app/catalog/${definitionId}`} className="button-link button-secondary">
           Cancelar
         </Link>
-      </div>
-    </main>
+        <Button
+          type="button"
+          disabled={submitting || blockers.length > 0}
+          loading={submitting}
+          loadingText="Criando…"
+          onClick={() => void handleSubmit()}
+        >
+          Criar rascunho da nova versão
+        </Button>
+      </StickyActionBar>
+    </ModulePage>
   );
 }
