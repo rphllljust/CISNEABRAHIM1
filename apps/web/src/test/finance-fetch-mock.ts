@@ -250,6 +250,37 @@ export function createFinanceFetchMock(options: FinanceFetchMockOptions = {}) {
       ]);
     }
 
+    if (pathname === '/api/v1/finance/bank-statements' && method === 'GET') {
+      if (options.reconciliationAllowed === false) {
+        return denied('FINANCE_DENIED');
+      }
+      return jsonResponse({
+        items: [
+          {
+            id: MOCK_STATEMENT_ID,
+            unitId: 'unit-1',
+            financialAccountId: MOCK_ACCOUNT_ID,
+            financialAccount: { code: 'BAN-1', name: 'Conta principal', label: 'BAN-1 — Conta principal' },
+            sourceKind: 'CISNE_STATEMENT_V1',
+            sourceReference: 'STMT-1',
+            periodStartsOn: '2026-08-01',
+            periodEndsOn: '2026-08-31',
+            currencyCode: 'BRL',
+            status: 'OPEN',
+            lineCount: 60,
+            matchedLineCount: 0,
+            unreconciledLineCount: 60,
+            debitTotal: '0',
+            creditTotal: '600',
+          },
+        ],
+        limit: 20,
+        offset: 0,
+        total: 1,
+        totalPages: 1,
+      });
+    }
+
     if (pathname.startsWith('/api/v1/finance/bank-reconciliation/statements/') && method === 'GET') {
       if (options.reconciliationAllowed === false) {
         return denied('FINANCE_DENIED');

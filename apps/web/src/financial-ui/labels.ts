@@ -89,7 +89,10 @@ export const MOVEMENT_DIRECTION_LABELS: Record<string, string> = {
   OUT: 'Saída',
 };
 
+/** Status persistidos de `fin.bank_statement_status`. */
 export const STATEMENT_STATUS_LABELS: Record<string, string> = {
+  OPEN: 'Aberto',
+  CLOSED: 'Fechado',
   IMPORTED: 'Importado',
   MATCHING: 'Em conciliação',
   RECONCILED: 'Conciliado',

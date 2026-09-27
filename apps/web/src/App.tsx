@@ -614,6 +614,15 @@ export function App() {
                   </FinanceRoute>
                 }
               />
+              {/* Seleção do extrato vive na URL: o operador abre a mesa já no extrato escolhido. */}
+              <Route
+                path="/app/finance/reconciliation/:statementId"
+                element={
+                  <FinanceRoute access="reconciliation">
+                    <BankReconciliationPage />
+                  </FinanceRoute>
+                }
+              />
               <Route
                 path="/app/fiscal/documents"
                 element={

@@ -13,6 +13,14 @@ import { ReceivablesListPage } from './pages/ReceivablesListPage';
 
 const VIEWPORTS = [320, 390, 768, 1024, 1440] as const;
 
+/** URL efetivamente pedida ao servidor, sem stringificar objeto de requisição. */
+function requestedUrl(input: RequestInfo | URL): string {
+  if (typeof input === 'string') {
+    return input;
+  }
+  return input instanceof URL ? input.toString() : input.url;
+}
+
 function applyViewport(width: number): void {
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: width, writable: true });
   window.dispatchEvent(new Event('resize'));
@@ -113,17 +121,46 @@ describe('Finance backoffice UI', () => {
     expect(screen.queryByText(/recebido com sucesso/i)).not.toBeInTheDocument();
   });
 
-  it('supports keyboard lookup and large extract tables', async () => {
+  it('opens the workbench from the statement list without typing a technical identifier', async () => {
     const user = userEvent.setup();
-    vi.stubGlobal('fetch', createFinanceFetchMock());
-    renderWithProviders(<BankReconciliationPage />);
-    const field = screen.getByLabelText(/identificador do extrato/i);
-    await user.type(field, MOCK_STATEMENT_ID);
-    await user.click(screen.getByRole('button', { name: 'Consultar' }));
+    const fetchMock = createFinanceFetchMock();
+    vi.stubGlobal('fetch', fetchMock);
+    renderWithProviders(
+      <Routes>
+        <Route path="/app/finance/reconciliation" element={<BankReconciliationPage />} />
+        <Route path="/app/finance/reconciliation/:statementId" element={<BankReconciliationPage />} />
+      </Routes>,
+      { router: { initialEntries: ['/app/finance/reconciliation'] } },
+    );
+
+    // A mesa abre pela lista real: nenhum campo de identificador técnico existe.
     await waitFor(() => {
-      expect(screen.getByRole('table', { name: /linhas do extrato bancário/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'STMT-1' })).toBeInTheDocument();
     });
-    expect(screen.getAllByRole('row')).toHaveLength(51);
+    expect(screen.queryByLabelText(/identificador do extrato/i)).not.toBeInTheDocument();
+    expect(screen.getByText('BAN-1 — Conta principal')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('link', { name: 'STMT-1' }));
+    // A lista continua na tela: a contagem de linhas é a da tabela do extrato aberto.
+    const linesTable = await screen.findByRole('table', { name: /linhas do extrato bancário/i });
+    expect(within(linesTable).getAllByRole('row')).toHaveLength(51);
+    expect(fetchMock.mock.calls.some(([input]) => requestedUrl(input).includes(MOCK_STATEMENT_ID))).toBe(true);
+  });
+
+  it('sends the statement status filter that arrived through the URL to the API', async () => {
+    const fetchMock = createFinanceFetchMock();
+    vi.stubGlobal('fetch', fetchMock);
+    renderWithProviders(
+      <Routes>
+        <Route path="/app/finance/reconciliation" element={<BankReconciliationPage />} />
+      </Routes>,
+      { router: { initialEntries: ['/app/finance/reconciliation?status=CLOSED'] } },
+    );
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([input]) => requestedUrl(input).includes('status=CLOSED')),
+      ).toBe(true);
+    });
   });
 
   it('keeps primary finance surfaces usable across required viewports', async () => {
