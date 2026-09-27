@@ -62,6 +62,7 @@ import {
   type ProposalReadinessResponse,
   type ProposalRelatedResponse,
   type ProposalVersionResponse,
+  type ProposalCostVisibility,
 } from '../serializers/proposals-response.serializer';
 import { groupRowsByKey } from '../../infrastructure/database/sql';
 import { ProposalsAccessAuthz } from './proposals-access.authz';
@@ -158,7 +159,9 @@ export class ProposalsAccessService {
       metadata: { proposalCode: created.proposal.proposal_code },
     });
 
-    return buildProposalDetail(created.proposal, created.version, created.items, []);
+    return buildProposalDetail(created.proposal, created.version, created.items, [], {}, {
+      includeInternalCost: await this.authz.canReadInternalCost(actor, created.proposal),
+    });
   }
 
   async updateDraft(
@@ -190,7 +193,9 @@ export class ProposalsAccessService {
     }
 
     const documents = await this.proposalsRepository.listDocumentLinks(updated.version.id);
-    return buildProposalDetail(updated.proposal, updated.version, updated.items, documents);
+    return buildProposalDetail(updated.proposal, updated.version, updated.items, documents, {}, {
+      includeInternalCost: await this.authz.canReadInternalCost(actor, updated.proposal),
+    });
   }
 
   async createRevision(
@@ -227,7 +232,9 @@ export class ProposalsAccessService {
       metadata: { versionNumber: result.version.version_number },
     });
 
-    return buildProposalDetail(result.proposal, result.version, result.items, []);
+    return buildProposalDetail(result.proposal, result.version, result.items, [], {}, {
+      includeInternalCost: await this.authz.canReadInternalCost(actor, result.proposal),
+    });
   }
 
   async issue(
@@ -323,7 +330,12 @@ export class ProposalsAccessService {
 
     const documents = await this.proposalsRepository.listDocumentLinks(issued.id);
     const issuedItems = await this.proposalsRepository.listItems(issued.id);
-    return toProposalVersionResponse(issued, issuedItems, documents);
+    return toProposalVersionResponse(
+      issued,
+      issuedItems,
+      documents,
+      await this.visibilityFor(actor, proposal),
+    );
   }
 
   async accept(
@@ -333,7 +345,11 @@ export class ProposalsAccessService {
     input: AcceptProposalInput,
   ): Promise<ProposalVersionResponse> {
     assertValidProposalId(proposalId);
-    await this.requireProposal(actor, proposalId, AUTHZ_ACTIONS.CommercialProposalAccept);
+    const proposal = await this.requireProposal(
+      actor,
+      proposalId,
+      AUTHZ_ACTIONS.CommercialProposalAccept,
+    );
 
     const validated = resolveAcceptProposalInput(input);
 
@@ -378,7 +394,12 @@ export class ProposalsAccessService {
 
     const documents = await this.proposalsRepository.listDocumentLinks(accepted.id);
     const items = await this.proposalsRepository.listItems(accepted.id);
-    return toProposalVersionResponse(accepted, items, documents);
+    return toProposalVersionResponse(
+      accepted,
+      items,
+      documents,
+      await this.visibilityFor(actor, proposal),
+    );
   }
 
   async reject(
@@ -388,7 +409,11 @@ export class ProposalsAccessService {
     input: RejectProposalInput,
   ): Promise<ProposalVersionResponse> {
     assertValidProposalId(proposalId);
-    await this.requireProposal(actor, proposalId, AUTHZ_ACTIONS.CommercialProposalReject);
+    const proposal = await this.requireProposal(
+      actor,
+      proposalId,
+      AUTHZ_ACTIONS.CommercialProposalReject,
+    );
 
     const validated = resolveRejectProposalInput(input);
 
@@ -425,7 +450,12 @@ export class ProposalsAccessService {
 
     const documents = await this.proposalsRepository.listDocumentLinks(rejected.id);
     const items = await this.proposalsRepository.listItems(rejected.id);
-    return toProposalVersionResponse(rejected, items, documents);
+    return toProposalVersionResponse(
+      rejected,
+      items,
+      documents,
+      await this.visibilityFor(actor, proposal),
+    );
   }
 
   async expire(
@@ -435,7 +465,11 @@ export class ProposalsAccessService {
     rowVersion: number,
   ): Promise<ProposalVersionResponse> {
     assertValidProposalId(proposalId);
-    await this.requireProposal(actor, proposalId, AUTHZ_ACTIONS.CommercialProposalExpire);
+    const proposal = await this.requireProposal(
+      actor,
+      proposalId,
+      AUTHZ_ACTIONS.CommercialProposalExpire,
+    );
 
     const expired = await this.proposalsRepository.transitionVersion(
       proposalId,
@@ -466,7 +500,12 @@ export class ProposalsAccessService {
 
     const documents = await this.proposalsRepository.listDocumentLinks(expired.id);
     const items = await this.proposalsRepository.listItems(expired.id);
-    return toProposalVersionResponse(expired, items, documents);
+    return toProposalVersionResponse(
+      expired,
+      items,
+      documents,
+      await this.visibilityFor(actor, proposal),
+    );
   }
 
   async cancel(
@@ -476,7 +515,11 @@ export class ProposalsAccessService {
     input: CancelProposalInput,
   ): Promise<ProposalVersionResponse> {
     assertValidProposalId(proposalId);
-    await this.requireProposal(actor, proposalId, AUTHZ_ACTIONS.CommercialProposalCancel);
+    const proposal = await this.requireProposal(
+      actor,
+      proposalId,
+      AUTHZ_ACTIONS.CommercialProposalCancel,
+    );
 
     const validated = resolveCancelProposalInput(input);
 
@@ -508,7 +551,12 @@ export class ProposalsAccessService {
 
     const documents = await this.proposalsRepository.listDocumentLinks(cancelled.id);
     const items = await this.proposalsRepository.listItems(cancelled.id);
-    return toProposalVersionResponse(cancelled, items, documents);
+    return toProposalVersionResponse(
+      cancelled,
+      items,
+      documents,
+      await this.visibilityFor(actor, proposal),
+    );
   }
 
   async linkDocument(
@@ -534,7 +582,14 @@ export class ProposalsAccessService {
 
     const items = await this.proposalsRepository.listItems(version.id);
     const documents = await this.proposalsRepository.listDocumentLinks(version.id);
-    return buildProposalDetail(proposal, version, items, documents);
+    return buildProposalDetail(
+      proposal,
+      version,
+      items,
+      documents,
+      {},
+      await this.visibilityFor(actor, proposal),
+    );
   }
 
   async getById(actor: IdentityAuthzContext, proposalId: string): Promise<ProposalDetailResponse> {
@@ -552,12 +607,18 @@ export class ProposalsAccessService {
         }),
         this.buildClientEnrichment(actor, proposal.client_id),
       ]);
-      return buildProposalDetail(proposal, null, [], [], {
-        related: enrichment,
-        linkedChain: chain.linked,
-        hiddenLinkedRecords: chain.hidden,
-        readiness,
-      });
+      return buildProposalDetail(
+        proposal,
+        null,
+        [],
+        [],
+        {
+          related: enrichment,
+          linkedChain: chain,
+          readiness,
+        },
+        await this.visibilityFor(actor, proposal),
+      );
     }
 
     const version = await this.requireVersion(proposalId, versionNumber);
@@ -568,10 +629,11 @@ export class ProposalsAccessService {
       this.authorizedChain(actor, proposalId),
     ]);
 
-    const [enrichment, readiness, revisionComparison] = await Promise.all([
+    const [enrichment, readiness, revisionComparison, costVisibility] = await Promise.all([
       this.buildClientEnrichment(actor, proposal.client_id),
       this.buildReadiness(actor, proposal, version, items),
       this.buildRevisionComparison(proposalId, versions),
+      this.visibilityFor(actor, proposal),
     ]);
 
     const previousVersionNumber =
@@ -595,14 +657,20 @@ export class ProposalsAccessService {
       itemCount: revisionItems.get(revision.versionNumber) ?? 0,
     }));
 
-    return buildProposalDetail(proposal, version, items, documents, {
-      related: enrichment,
-      revisions: revisionsWithCounts,
-      revisionComparison,
-      linkedChain: chain.linked,
-      hiddenLinkedRecords: chain.hidden,
-      readiness,
-    });
+    return buildProposalDetail(
+      proposal,
+      version,
+      items,
+      documents,
+      {
+        related: enrichment,
+        revisions: revisionsWithCounts,
+        revisionComparison,
+        linkedChain: chain,
+        readiness,
+      },
+      costVisibility,
+    );
   }
 
   /**
@@ -698,14 +766,25 @@ export class ProposalsAccessService {
     return counts;
   }
 
+  /**
+   * Elos autorizados. Elo negado e removido e a resposta NAO declara sua existencia — mesmo padrao
+   * ja consolidado no pedido de compra e nas solicitacoes de servico (omissao silenciosa).
+   */
   private async authorizedChain(
     actor: IdentityAuthzContext,
     proposalId: string,
-  ): Promise<{ linked: ProposalLinkedRow[]; hidden: boolean }> {
+  ): Promise<ProposalLinkedRow[]> {
     const chain = await this.proposalsRepository.findLinkedChain(proposalId);
     const allowed = await this.authz.filterAuthorizedLinkedChain(actor, chain);
-    const linked = chain.filter((row) => allowed.has(`${row.kind}:${row.id}`));
-    return { linked, hidden: chain.length > linked.length };
+    return chain.filter((row) => allowed.has(`${row.kind}:${row.id}`));
+  }
+
+  /** Visibilidade de custo interno resolvida pela trilha autoritativa, uma vez por requisicao. */
+  private async visibilityFor(
+    actor: IdentityAuthzContext,
+    proposal: ProposalRow,
+  ): Promise<ProposalCostVisibility> {
+    return { includeInternalCost: await this.authz.canReadInternalCost(actor, proposal) };
   }
 
   /** Nome do cliente em UMA consulta, somente quando o modulo CLIENTES autoriza este ator. */
@@ -826,11 +905,20 @@ export class ProposalsAccessService {
     versionNumber: number,
   ): Promise<ProposalVersionResponse> {
     assertValidProposalId(proposalId);
-    await this.requireProposal(actor, proposalId, AUTHZ_ACTIONS.CommercialProposalRead);
+    const proposal = await this.requireProposal(
+      actor,
+      proposalId,
+      AUTHZ_ACTIONS.CommercialProposalRead,
+    );
     const version = await this.requireVersion(proposalId, versionNumber);
     const items = await this.proposalsRepository.listItems(version.id);
     const documents = await this.proposalsRepository.listDocumentLinks(version.id);
-    return toProposalVersionResponse(version, items, documents);
+    return toProposalVersionResponse(
+      version,
+      items,
+      documents,
+      await this.visibilityFor(actor, proposal),
+    );
   }
 
   async listVersions(
@@ -838,7 +926,11 @@ export class ProposalsAccessService {
     proposalId: string,
   ): Promise<ProposalVersionResponse[]> {
     assertValidProposalId(proposalId);
-    await this.requireProposal(actor, proposalId, AUTHZ_ACTIONS.CommercialProposalRead);
+    const proposal = await this.requireProposal(
+      actor,
+      proposalId,
+      AUTHZ_ACTIONS.CommercialProposalRead,
+    );
     const versions = await this.proposalsRepository.listVersions(proposalId);
     if (versions.length === 0) {
       return [];
@@ -850,11 +942,13 @@ export class ProposalsAccessService {
     ]);
     const itemsByVersion = groupRowsByKey(allItems, 'proposal_version_id');
     const documentsByVersion = groupRowsByKey(allDocuments, 'proposal_version_id');
+    const visibility = await this.visibilityFor(actor, proposal);
     return versions.map((version) =>
       toProposalVersionResponse(
         version,
         itemsByVersion.get(version.id) ?? [],
         documentsByVersion.get(version.id) ?? [],
+        visibility,
       ),
     );
   }

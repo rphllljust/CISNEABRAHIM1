@@ -6,23 +6,19 @@ import { formatProposalLinkedKind, linkedRecordPath } from '../utils/proposal-wo
 type ProposalCommercialChainProps = {
   chain: ProposalLinked[];
   originRequests: Array<{ id: string; requestCode: string; status: string }>;
-  hasUnreadableLinks: boolean;
 };
 
 /**
  * Cadeia comercial: solicitacao -> proposta -> pedido de compra / ordem de servico.
  *
- * O backend so devolve os elos que o ator pode ler no modulo dono. Quando existe vinculo gravado
- * que o ator nao pode ler, a UI declara a existencia sem expor numero, status, valor ou link —
+ * O backend so devolve os elos que o ator pode ler no modulo dono; elo negado e OMITIDO em
+ * silencio, sem declarar existencia. A UI nao acrescenta nada sobre vinculos que nao recebeu e
  * nunca cai para o identificador tecnico.
  */
 export function ProposalCommercialChain({
   chain,
   originRequests,
-  hasUnreadableLinks,
 }: ProposalCommercialChainProps) {
-  const isEmpty = chain.length === 0 && originRequests.length === 0;
-
   return (
     <div className="space-y-4">
       <div>
@@ -94,17 +90,6 @@ export function ProposalCommercialChain({
           </p>
         )}
       </div>
-
-      {isEmpty && hasUnreadableLinks ? (
-        <p className="text-xs text-gray-500">
-          Há vínculo registrado nesta proposta que você não tem permissão para consultar.
-        </p>
-      ) : null}
-      {!isEmpty && hasUnreadableLinks ? (
-        <p className="text-xs text-gray-500">
-          Existem outros vínculos que você não tem permissão para consultar.
-        </p>
-      ) : null}
     </div>
   );
 }

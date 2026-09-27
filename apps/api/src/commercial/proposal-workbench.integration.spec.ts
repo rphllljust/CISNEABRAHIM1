@@ -567,15 +567,17 @@ describe('Proposal commercial workbench — fila, revisoes, cadeia e prontidao',
     expect(kinds).toContain('SERVICE_ORDER');
     const originLink = adminDetail.linkedChain.find((link) => link.kind === 'REQUEST');
     expect(originLink?.label).toBe(request.serviceRequest.requestCode);
-    expect(adminDetail.hiddenLinkedRecords).toBe(false);
     expect(adminDetail.readiness.nextStep).toBe('AWAIT_CLIENT_DECISION');
 
-    // Mesmo vinculo, ator sem leitura de solicitacao nem de OS: nada de numero/status vaza.
+    // Mesmo vinculo, ator sem leitura de solicitacao nem de OS: OMISSAO SILENCIOSA. A resposta nao
+    // traz o elo, nao traz numero/status do elo negado e tambem NAO declara que existe vinculo oculto
+    // (mesmo padrao do pedido de compra e das solicitacoes de servico).
     const restricted = await seedActor(PROPOSAL_READ, []);
     const restrictedDetail = await proposalsAccess.getById(restricted, proposal.proposal.id);
     expect(restrictedDetail.linkedChain).toEqual([]);
-    expect(restrictedDetail.hiddenLinkedRecords).toBe(true);
     expect(JSON.stringify(restrictedDetail)).not.toContain(request.serviceRequest.requestCode);
+    expect(JSON.stringify(restrictedDetail)).not.toContain('hiddenLinkedRecords');
+    expect(JSON.stringify(restrictedDetail)).not.toContain('"hidden"');
   });
 
   it('preserva o conflito de versao nas acoes comerciais', async () => {

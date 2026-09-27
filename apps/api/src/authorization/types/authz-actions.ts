@@ -86,6 +86,15 @@ export const AUTHZ_ACTIONS = {
   CommercialProposalReject: 'commercial:proposal:reject',
   CommercialProposalExpire: 'commercial:proposal:expire',
   CommercialProposalCancel: 'commercial:proposal:cancel',
+  /**
+   * Autoriza SOMENTE a projecao dos custos internos comerciais da proposta
+   * (`globalInternalCost`, `itemsInternalCostTotal`, `unitInternalCost`, `lineInternalCost`).
+   *
+   * `commercial:proposal:read` NAO autoriza custo: leitura comercial e leitura de custo sao
+   * decisoes distintas. Nao reutiliza `service-orders:operational-cost:read`, que governa o custo
+   * operacional da OS em outro dominio.
+   */
+  CommercialProposalReadCost: 'commercial:proposal:read-cost',
   CommercialPurchaseOrderCreate: 'commercial:purchase-order:create',
   CommercialPurchaseOrderRead: 'commercial:purchase-order:read',
   CommercialPurchaseOrderList: 'commercial:purchase-order:list',

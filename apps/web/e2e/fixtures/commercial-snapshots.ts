@@ -250,7 +250,6 @@ export const COMMERCIAL_PROPOSAL_DETAIL_SNAPSHOT: ProposalDetail = {
       viaLabel: null,
     },
   ],
-  hiddenLinkedRecords: false,
   readiness: {
     nextStep: 'AWAIT_CLIENT_DECISION',
     nextStepTransition: 'accept',

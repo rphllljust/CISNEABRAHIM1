@@ -557,11 +557,7 @@ export function ProposalDetailPage() {
             De onde a proposta veio e para onde ela foi. Cada elo aparece apenas se você puder
             consultá-lo no módulo responsável.
           </p>
-          <ProposalCommercialChain
-            chain={destinationChain}
-            originRequests={originRequests}
-            hasUnreadableLinks={detail.hiddenLinkedRecords}
-          />
+          <ProposalCommercialChain chain={destinationChain} originRequests={originRequests} />
         </section>
 
         <section className="requests-section" aria-labelledby="proposal-timeline-heading">

@@ -101,6 +101,51 @@ export type ProposalReadinessResponse = {
   blockers: string[];
 };
 
+/**
+ * Visibilidade da projecao comercial.
+ *
+ * `includeInternalCost` e resolvido UMA vez por requisicao a partir de
+ * `commercial:proposal:read-cost` (PDP + grants + contexto da proposta) e atravessa a serializacao:
+ * o custo interno so sai daqui quando a resposta foi construida com essa visibilidade ligada.
+ * Nenhum caminho de resposta tem default permissivo.
+ */
+export type ProposalCostVisibility = {
+  includeInternalCost: boolean;
+};
+
+export const PROPOSAL_COST_HIDDEN: ProposalCostVisibility = { includeInternalCost: false };
+
+/**
+ * Mascara canonica de custo do CISNE (mesma semantica de `analytics/operational-profitability`):
+ * o campo permanece na forma da resposta com `null` quando o ator nao tem visibilidade de custo.
+ * O dado sensivel nunca e montado no JSON — nao existe "manda e esconde no React".
+ */
+function maskInternalCost(
+  value: string | null,
+  visibility: ProposalCostVisibility,
+): string | null {
+  return visibility.includeInternalCost ? value : null;
+}
+
+/**
+ * O snapshot comercial do item e um objeto aninhado que tambem carrega custo interno
+ * (`unitInternalCost` / `lineInternalCost`). Sem mascara-lo, a protecao dos campos planos seria
+ * contornada por um alias equivalente dentro do snapshot.
+ */
+function maskCommercialSnapshot(
+  snapshot: Record<string, unknown> | null,
+  visibility: ProposalCostVisibility,
+): Record<string, unknown> | null {
+  if (!snapshot || visibility.includeInternalCost) {
+    return snapshot;
+  }
+  return {
+    ...snapshot,
+    unitInternalCost: null,
+    lineInternalCost: null,
+  };
+}
+
 export type ProposalRelatedResponse = {
   client: { id: string; name: string } | null;
 };
@@ -130,12 +175,11 @@ export type ProposalDetailResponse = {
   related: ProposalRelatedResponse;
   revisions: ProposalRevisionSummaryResponse[];
   revisionComparison: ProposalRevisionDiff | null;
-  linkedChain: ProposalLinkedResponse[];
   /**
-   * Verdadeiro quando existe vinculo gravado que o ator NAO pode ler. Declara existencia, nunca
-   * conteudo: nenhum id, numero, status ou valor do elo proibido e devolvido.
+   * Apenas os elos que o ator pode ler no modulo dono. Elo negado e OMITIDO em silencio — a resposta
+   * nao declara existencia de vinculo oculto (mesmo padrao do pedido de compra e das solicitacoes).
    */
-  hiddenLinkedRecords: boolean;
+  linkedChain: ProposalLinkedResponse[];
   readiness: ProposalReadinessResponse;
 };
 
@@ -296,7 +340,10 @@ export function toProposalRevisionSummaryResponse(
   };
 }
 
-export function toProposalItemResponse(row: ProposalItemRow): ProposalItemResponse {
+export function toProposalItemResponse(
+  row: ProposalItemRow,
+  visibility: ProposalCostVisibility = PROPOSAL_COST_HIDDEN,
+): ProposalItemResponse {
   const commercial = resolveCommercialItemFields(row);
   return {
     id: row.id,
@@ -306,13 +353,13 @@ export function toProposalItemResponse(row: ProposalItemRow): ProposalItemRespon
     serviceDefinitionId: row.service_definition_id,
     serviceDefinitionVersionId: row.service_definition_version_id,
     serviceSnapshot: row.service_snapshot,
-    commercialSnapshot: row.commercial_snapshot,
+    commercialSnapshot: maskCommercialSnapshot(row.commercial_snapshot, visibility),
     quantity: commercial.quantity,
     unitCode: commercial.unitCode,
     unitSalePrice: commercial.unitSalePrice,
-    unitInternalCost: commercial.unitInternalCost,
+    unitInternalCost: maskInternalCost(commercial.unitInternalCost, visibility),
     lineSaleAmount: commercial.lineSaleAmount,
-    lineInternalCost: commercial.lineInternalCost,
+    lineInternalCost: maskInternalCost(commercial.lineInternalCost, visibility),
   };
 }
 
@@ -326,6 +373,7 @@ export function toProposalVersionResponse(
   version: ProposalVersionRow,
   items: ProposalItemRow[],
   documents: ProposalDocumentLinkRow[],
+  visibility: ProposalCostVisibility = PROPOSAL_COST_HIDDEN,
 ): ProposalVersionResponse {
   return {
     id: version.id,
@@ -335,9 +383,15 @@ export function toProposalVersionResponse(
     pricingStructure: version.pricing_structure,
     currencyCode: version.currency_code,
     globalSalePrice: formatMoneyAmountForApi(version.global_sale_price_amount),
-    globalInternalCost: formatMoneyAmountForApi(version.global_internal_cost_amount),
+    globalInternalCost: maskInternalCost(
+      formatMoneyAmountForApi(version.global_internal_cost_amount),
+      visibility,
+    ),
     itemsSaleTotal: formatMoneyAmountForApi(version.items_sale_total_amount),
-    itemsInternalCostTotal: formatMoneyAmountForApi(version.items_internal_cost_total_amount),
+    itemsInternalCostTotal: maskInternalCost(
+      formatMoneyAmountForApi(version.items_internal_cost_total_amount),
+      visibility,
+    ),
     commercialTerms: version.commercial_terms ?? {},
     clientSnapshot: version.client_snapshot,
     validUntil: version.valid_until,
@@ -355,7 +409,7 @@ export function toProposalVersionResponse(
     cancelledAt: version.cancelled_at,
     cancellationReason: version.cancellation_reason,
     rowVersion: version.row_version,
-    items: items.map(toProposalItemResponse),
+    items: items.map((item) => toProposalItemResponse(item, visibility)),
     documents: documents.map(toProposalDocumentLinkResponse),
   };
 }
@@ -370,20 +424,19 @@ export function buildProposalDetail(
     revisions?: ProposalRevisionSummaryResponse[];
     revisionComparison?: ProposalRevisionDiff | null;
     linkedChain?: ProposalLinkedRow[];
-    hiddenLinkedRecords?: boolean;
     readiness?: ProposalReadinessResponse;
   } = {},
+  visibility: ProposalCostVisibility = PROPOSAL_COST_HIDDEN,
 ): ProposalDetailResponse {
   return {
     proposal: toProposalResponse(proposal),
     currentVersion: version
-      ? toProposalVersionResponse(version, items, documents)
+      ? toProposalVersionResponse(version, items, documents, visibility)
       : null,
     related: extras.related ?? { client: null },
     revisions: extras.revisions ?? [],
     revisionComparison: extras.revisionComparison ?? null,
     linkedChain: (extras.linkedChain ?? []).map(toProposalLinkedResponse),
-    hiddenLinkedRecords: extras.hiddenLinkedRecords ?? false,
     readiness:
       extras.readiness ?? {
         nextStep: 'CLOSED',

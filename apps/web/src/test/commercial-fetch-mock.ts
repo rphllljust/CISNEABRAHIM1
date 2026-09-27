@@ -179,7 +179,6 @@ function toProposalDetail(
   version: ProposalVersion,
   permissions: ProposalMockPermissions,
   linkedChain: ProposalDetail['linkedChain'] = [],
-  hiddenLinkedRecords = false,
 ): ProposalDetail {
   return {
     proposal,
@@ -206,7 +205,6 @@ function toProposalDetail(
     ],
     revisionComparison: null,
     linkedChain,
-    hiddenLinkedRecords,
     readiness: buildProposalReadiness(version.status, permissions),
   };
 }

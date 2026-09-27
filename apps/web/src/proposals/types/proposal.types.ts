@@ -248,8 +248,6 @@ export type ProposalDetail = {
   revisions: ProposalRevisionSummary[];
   revisionComparison: ProposalRevisionDiff | null;
   linkedChain: ProposalLinked[];
-  /** Existe vínculo gravado que o ator não pode ler (existência, nunca conteúdo). */
-  hiddenLinkedRecords: boolean;
   readiness: ProposalReadiness;
 };
 

@@ -82,6 +82,25 @@ export class ProposalsAccessAuthz {
   }
 
   /**
+   * Visibilidade de custo interno da proposta.
+   *
+   * `commercial:proposal:read` NAO autoriza custo: esta decisao e avaliada pela MESMA trilha
+   * autoritativa das demais acoes (PDP + grants ativos casados contra o contexto da proposta —
+   * recurso, unidade e cliente), com a acao propria `commercial:proposal:read-cost`.
+   *
+   * Nao ha bypass de capability, nao ha usuario/perfil hardcoded e nao se reutiliza
+   * `service-orders:operational-cost:read`, que governa custo operacional da OS em outro dominio.
+   */
+  async canReadInternalCost(actor: IdentityAuthzContext, proposal: ProposalRow): Promise<boolean> {
+    return hasPolicyAndGrantScope(this.deps, {
+      actor,
+      action: AUTHZ_ACTIONS.CommercialProposalReadCost,
+      resourceType: AUTHZ_RESOURCE_TYPES.CommercialProposal,
+      context: toResourceContextFromProposal(proposal),
+    });
+  }
+
+  /**
    * Avalia uma acao de registro SEM lancar — usada para montar a prontidao do workbench (quais
    * transicoes ESTE ator pode executar) sem negar a leitura da proposta.
    */
