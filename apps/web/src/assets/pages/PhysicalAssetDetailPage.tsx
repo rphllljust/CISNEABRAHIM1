@@ -12,6 +12,7 @@ import {
   VERSION_CONFLICT_MESSAGE,
 } from '../api/asset-error-messages';
 import { AssetLifecycleStatusBadge } from '../components/AssetLifecycleStatusBadge';
+import { AssetOperationalLifecyclePanel } from '../components/AssetOperationalLifecycle';
 import { AssetOperationalStatusCell } from '../components/AssetOperationalStatusCell';
 import { AssetVersionConflictNotice } from '../components/AssetVersionConflictNotice';
 import { ConfirmDialog } from '../../clients/components/ConfirmDialog';
@@ -207,6 +208,12 @@ export function PhysicalAssetDetailPage() {
         <p className="form-error" role="alert">
           {actionError}
         </p>
+      ) : null}
+
+      {asset.operationalLifecycle ? (
+        <section className="assets-section" aria-label="Vida operacional do recurso">
+          <AssetOperationalLifecyclePanel lifecycle={asset.operationalLifecycle} />
+        </section>
       ) : null}
 
       <section className="assets-section" aria-labelledby="asset-status-heading">

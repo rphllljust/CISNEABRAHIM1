@@ -69,6 +69,8 @@ export type PhysicalAsset = {
   deactivatedAt: string | null;
   vehicle: VehicleProfile | null;
   currentAllocation: PhysicalAssetCurrentAllocation | null;
+  /** Vida operacional derivada pelo backend (uso atual, próxima utilização, histórico, ocorrências). */
+  operationalLifecycle?: PhysicalAssetOperationalLifecycle;
 };
 
 export type PhysicalAssetListResponse = {
@@ -77,6 +79,9 @@ export type PhysicalAssetListResponse = {
   offset: number;
   total: number;
 };
+
+export type PhysicalAssetOperationalLifecycle =
+  import('./asset-operational-lifecycle.types').AssetOperationalLifecycle;
 
 export type PhysicalAssetListSummary = {
   total: number;
