@@ -47,10 +47,12 @@ Resolução aplicada nesta fila, sem inventar regra:
 | **procurement** | Y | Y | Y | Y | - | Y | Y | Y | Y | Y | Y | Y | Y | **DONE** | editar requisição pendente; centro de custo/categoria (PARK: HUMAN_LOOKUP_API_GAP) |
 | **inventory** | Y | Y | Y | Y | - | Y | Y | Y | Y | Y | Y | Y | Y | **DONE** | centro de custo/categoria (PARK); edição de depósito/item inexistente no backend |
 | people | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
-| finance (AR/AP/treasury/recon) | Y | Y | Y | Y | Y | Y | Y | UUID | Y | Y | Y | Y | Y | BASIC_GAP | despesa/orçamento/conciliação/tesouraria: UUID → lookup |
+| finance (AR/AP/treasury/recon) | Y | Y | Y | Y | Y | Y | Y | parcial | Y | Y | Y | Y | Y | BASIC_GAP | conciliação bancária e tesouraria: `PARK HUMAN_LOOKUP_API_GAP` (sem listagem de extrato/movimento) |
+| finance/expenses | Y | Y | Y | Y | - | Y | Y | Y | Y | Y | Y | Y | parcial | DONE | `PARK HUMAN_LOOKUP_API_GAP`: centro de custo e categoria de despesa sem listagem |
+| finance/budgets | Y | Y | Y | Y | - | Y | Y | Y | Y | Y | Y | Y | parcial | DONE | período (id) sem listagem — `PARK HUMAN_LOOKUP_API_GAP` |
 | accounting | Y | Y | Y | Y | Y | Y | Y | UUID | Y | Y | Y | Y | Y | BASIC_GAP | ativo fixo/lançamento: UUID → lookup |
 | fiscal | Y | Y | Y | Y | - | Y | Y | UUID | Y | Y | Y | Y | Y | BASIC_GAP | apuração/centro de custo: UUID → lookup |
-| payroll | Y | Y | Y | Y | - | Y | Y | UUID | Y | Y | Y | Y | Y | BASIC_GAP | período: UUID → lookup |
+| payroll | Y | Y | Y | Y | - | Y | Y | UUID | Y | Y | Y | Y | Y | BASIC_GAP | período: `PARK HUMAN_LOOKUP_API_GAP` (sem `GET payroll/periods`) |
 | fleet | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
 | resources | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
 | alerts | Y | Y | Y | N/A | N/A | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
@@ -123,3 +125,18 @@ Observação de gate: o teste `service-orders-list.e2e` e o `assets.e2e` falhava
 | 2026-09-26 | (este) | inventory | `GET inventory/warehouses|items|movements|reservations` (busca/status/tipo/paginação, depósito e item resolvidos por código/nome/SKU + concessões `*:list`); web: hub com quatro listas, detalhe de item (saldo, movimentos, movimentar/reservar/estornar por escolha) e detalhe de depósito; `unitId` derivado do depósito escolhido. Backend 7/7; web 3/3; shell 17/17; catch-up 9/9; browser real 4/4 (desktop+mobile) |
 | 2026-09-26 | (este) | filtros de cliente | `HumanLookupField` + `searchClientOptions` substituem o campo "UUID do cliente" em OS, pedidos de compra e contratos (frontend apenas; a listagem de Clientes já existia). Também corrigido teste obsoleto do shell de OS que exigia links de etapa substituídos pela próxima ação. Testes afetados: OS list 3/3, PO 4/4, contratos 2/2 |
 | 2026-09-26 | (este) | fronteira de contexto + testes obsoletos | As listas de Compras resolviam o fornecedor por junção direta com `pty.suppliers`, violando `module-boundary-rules` (PROCUREMENT lendo tabela privada do contexto Comercial). Corrigido pelo caminho correto: port `CommercialSupplier` ganhou `findReferencesByIds` e `searchIdsByTerm`, implementados no contexto dono; a referência humana e o filtro por nome/CNPJ passam a atravessar a fronteira pelo port. Também corrigidos dois testes obsoletos: `service-requests-access.characterization` (mocks sem os colaboradores atuais) e `assets.e2e` (esperava "disponível" para ativo com alocação vigente). API unit 1014/1014 (220 arquivos); integração focada 33/33; web 618/618 |
+| 2026-09-26 | `?` (fast closure) | finance/expenses | Sem **rota** alguma: `/app/finance/expenses` não existia e a despesa só era alcançável por identificador. `GET finance/expenses` (busca, status, paginação) + concessão `finance:expense:list`; rotas lista/cadastro/detalhe, item de navegação, volta para a lista no detalhe. Web focado 3/3 |
+| 2026-09-26 | `?` (fast closure) | finance/budgets | Mesmo defeito: `/app/finance/budgets` sem rota. `GET finance/budgets` (busca, status, paginação) + concessão `finance:budget:list`; rotas lista/cadastro/detalhe + navegação |
+
+### PARK — HUMAN_LOOKUP_API_GAP (sem listagem no backend; não inventar)
+
+| Entidade | Consumidor | Situação |
+| --- | --- | --- |
+| Extrato bancário | finance/bank-reconciliation | só `GET statements/:id` — sem lista |
+| Movimento financeiro / transação | finance/bank-reconciliation, treasury | sem listagem |
+| Documento de origem (UUID) | finance/treasury | sem listagem |
+| Centro de custo (id) | procurement, fiscal, finance/expenses | sem endpoint |
+| Categoria de despesa (id) | procurement, finance/expenses | só `POST`; sem listagem |
+| Período de folha | payroll | sem `GET payroll/periods` |
+| Cálculo tributário (apuração) | fiscal/apuração | só `POST`/`GET :id`; sem listagem |
+| Registro de ativo imobilizado | accounting/fixed-assets | `GET` é consulta por ativo operacional; sem lista |
