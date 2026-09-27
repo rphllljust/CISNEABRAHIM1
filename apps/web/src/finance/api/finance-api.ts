@@ -25,6 +25,38 @@ import type {
 
 export { BackofficeApiError };
 
+/** Linha de lista de despesa: descrição, centro de custo, valor, vencimento e estado. */
+export type ExpenseSummary = {
+  id: string;
+  unitId: string;
+  description: string;
+  costCenterCode: string;
+  totalAmount: string;
+  currencyCode: string;
+  dueDate: string;
+  status: string;
+  version: number;
+  createdAt: string;
+};
+
+export async function listExpenses(
+  params: { limit: number; offset: number; status?: string; q?: string },
+  signal?: AbortSignal,
+): Promise<{ items: ExpenseSummary[]; limit: number; offset: number; total: number; totalPages: number }> {
+  const search = new URLSearchParams({ limit: String(params.limit), offset: String(params.offset) });
+  if (params.status) {
+    search.set('status', params.status);
+  }
+  if (params.q && params.q.trim().length > 0) {
+    search.set('q', params.q.trim());
+  }
+  return requestJson(`/api/v1/finance/expenses?${search.toString()}`, {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+}
+
 export async function listReceivables(signal?: AbortSignal): Promise<ReceivableDetail[]> {
   return requestJson<ReceivableDetail[]>('/api/v1/finance/receivables', {
     method: 'GET',

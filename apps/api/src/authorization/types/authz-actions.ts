@@ -208,6 +208,7 @@ export const AUTHZ_ACTIONS = {
   FinanceExpenseApprove: 'finance:expense:approve',
   FinanceExpenseReject: 'finance:expense:reject',
   FinanceExpenseRead: 'finance:expense:read',
+  FinanceExpenseList: 'finance:expense:list',
   FinanceCollectionOpen: 'finance:collection:open',
   FinanceCollectionRead: 'finance:collection:read',
   FinanceCollectionActionCreate: 'finance:collection:action-create',

@@ -82,6 +82,8 @@ import { PayableDetailPage } from './finance/pages/PayableDetailPage';
 import { TreasuryListPage } from './finance/pages/TreasuryListPage';
 import { TreasuryAccountDetailPage } from './finance/pages/TreasuryAccountDetailPage';
 import { BankReconciliationPage } from './finance/pages/BankReconciliationPage';
+import { ExpensesListPage } from './finance/pages/ExpensesListPage';
+import { ExpensesPage } from './finance/pages/ExpensesPage';
 import { FiscalRoute } from './fiscal/FiscalRoute';
 import { FiscalDocumentsPage } from './fiscal/pages/FiscalDocumentsPage';
 import { FiscalPeriodsPage } from './fiscal/pages/FiscalPeriodsPage';
@@ -501,6 +503,30 @@ export function App() {
                 element={
                   <FinanceRoute access="overview">
                     <FinanceOverviewPage />
+                  </FinanceRoute>
+                }
+              />
+              <Route
+                path="/app/finance/expenses"
+                element={
+                  <FinanceRoute access="expenses">
+                    <ExpensesListPage />
+                  </FinanceRoute>
+                }
+              />
+              <Route
+                path="/app/finance/expenses/new"
+                element={
+                  <FinanceRoute access="expenses">
+                    <ExpensesPage />
+                  </FinanceRoute>
+                }
+              />
+              <Route
+                path="/app/finance/expenses/:expenseId"
+                element={
+                  <FinanceRoute access="expenses">
+                    <ExpensesPage />
                   </FinanceRoute>
                 }
               />

@@ -1,4 +1,5 @@
 import type { ExpenseAggregate } from '../repositories/expense.repository';
+import type { ExpenseRow } from '../repositories/expense.repository.types';
 
 export type ExpenseResponse = {
   id: string;
@@ -31,6 +32,43 @@ export type ExpenseResponse = {
     currencyCode: string;
   } | null;
 };
+
+export type ExpenseSummaryResponse = {
+  id: string;
+  unitId: string;
+  description: string;
+  costCenterCode: string;
+  totalAmount: string;
+  currencyCode: string;
+  dueDate: string;
+  status: string;
+  version: number;
+  createdAt: string;
+};
+
+export type ExpenseListResponse = {
+  items: ExpenseSummaryResponse[];
+  limit: number;
+  offset: number;
+  total: number;
+  totalPages: number;
+};
+
+/** Linha de lista: a despesa é identificada pela descrição, centro de custo, valor e estado. */
+export function toExpenseSummaryResponse(row: ExpenseRow): ExpenseSummaryResponse {
+  return {
+    id: row.id,
+    unitId: row.unit_id,
+    description: row.description,
+    costCenterCode: row.cost_center_code,
+    totalAmount: row.total_amount,
+    currencyCode: row.currency_code,
+    dueDate: String(row.due_date).slice(0, 10),
+    status: row.status,
+    version: row.version,
+    createdAt: String(row.created_at),
+  };
+}
 
 export function toExpenseResponse(aggregate: ExpenseAggregate): ExpenseResponse {
   return {

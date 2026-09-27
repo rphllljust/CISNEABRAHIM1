@@ -181,6 +181,14 @@ export const SHELL_NAV_GROUPS: ShellNavGroup[] = [
         accessCheck: 'finance-reconciliation-read',
         featureFlag: 'finance',
       },
+      {
+        id: 'finance-expenses',
+        label: 'Despesas',
+        path: '/app/finance/expenses',
+        capabilityId: 'finance:expense:list',
+        accessCheck: 'finance-expense-read',
+        featureFlag: 'finance',
+      },
     ],
   },
   {
@@ -450,6 +458,7 @@ const STATIC_ROUTE_LABELS: Record<string, string> = {
   '/app/finance/treasury': 'Caixa e Bancos',
   '/app/finance/reconciliation': 'Conciliação',
   '/app/finance/expenses': 'Despesas',
+  '/app/finance/expenses/new': 'Nova despesa',
   '/app/finance/budgets': 'Orçamentos',
   '/app/finance/forecast': 'Previsão de caixa',
   '/app/fiscal/documents': 'Documentos Fiscais',
