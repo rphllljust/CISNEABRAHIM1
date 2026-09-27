@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Money } from '../../ui';
+import { SavedViewsBar, useSmartList } from '../../operator';
 import {
   FilterCard,
   ModuleDeniedState,
@@ -26,6 +27,35 @@ import { BackofficeApiError, listExpenses, type ExpenseSummary } from '../api/fi
 
 const PAGE_SIZE = 20;
 
+/** Escopo estavel de persistencia das visoes salvas desta lista. */
+const SCOPE = 'finance.expenses';
+
+/** Valores de status aceitos como visao/URL — os mesmos que a tela oferece. */
+const EXPENSES_ALLOWED_FILTERS = {
+  filters: { status: ['DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED'] },
+} as const;
+
+/**
+ * Visoes embutidas derivadas do dominio real da tela: sao exatamente os recortes que o
+ * Ctrl+K ja promete (`view.expenses.submitted`, `view.expenses.rejected`). Antes desta
+ * adocao o comando navegava para `?status=...` e a tela IGNORAVA a query string — o
+ * filtro era prometido no comando e descartado em silencio na chegada.
+ */
+const EXPENSES_BUILT_IN_VIEWS = [
+  {
+    id: 'builtin.expenses.submitted',
+    name: 'Aguardando aprovação',
+    description: 'Despesas enviadas e ainda não decididas.',
+    config: { filters: { status: 'SUBMITTED' }, sortKey: null, sortDirection: 'asc' as const, groupKey: null },
+  },
+  {
+    id: 'builtin.expenses.rejected',
+    name: 'Rejeitadas',
+    description: 'Despesas recusadas que voltaram para correção.',
+    config: { filters: { status: 'REJECTED' }, sortKey: null, sortDirection: 'asc' as const, groupKey: null },
+  },
+];
+
 type ListState =
   | { phase: 'loading' }
   | { phase: 'denied' }
@@ -40,8 +70,17 @@ type ListState =
 export function ExpensesListPage() {
   const [term, setTerm] = useState('');
   const [appliedTerm, setAppliedTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'' | 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED'>('');
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
+
+  // O status vive na URL e em visao salva: o Ctrl+K abre a lista JÁ recortada e o
+  // endereço é compartilhável. Somente valores enumerados entram (allow-list abaixo).
+  const smartList = useSmartList({
+    scope: SCOPE,
+    builtInViews: EXPENSES_BUILT_IN_VIEWS,
+    allowedFilters: EXPENSES_ALLOWED_FILTERS,
+    urlSync: true,
+  });
+  const statusFilter = smartList.filters.status ?? '';
 
   const loadPage = useCallback(
     async (offset: number, signal?: AbortSignal) => {
@@ -149,9 +188,7 @@ export function ExpensesListPage() {
               id="expense-status-filter"
               className={`${filterControlClass} max-w-xs`}
               value={statusFilter}
-              onChange={(event) =>
-                setStatusFilter(event.target.value as '' | 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED')
-              }
+              onChange={(event) => smartList.setFilter('status', event.target.value)}
             >
               <option value="">Todos</option>
               <option value="DRAFT">Rascunho</option>
@@ -169,10 +206,49 @@ export function ExpensesListPage() {
         </form>
       </FilterCard>
 
+      <SavedViewsBar
+        views={smartList.savedViews.views}
+        builtInViews={smartList.savedViews.builtInViews}
+        activeViewId={smartList.activeViewId}
+        onApply={(view) => {
+          setAppliedTerm(term.trim());
+          smartList.applyView(view);
+        }}
+        onSave={smartList.savedViews.saveView}
+        onRename={smartList.savedViews.renameView}
+        onRemove={smartList.savedViews.removeView}
+        currentConfig={smartList.currentConfig}
+        canSave={Object.keys(smartList.filters).length > 0}
+        allLabel="Todas"
+        className="mb-4"
+      />
+
       {items.length === 0 ? (
-        <p className="text-sm text-gray-500" role="status">
-          Nenhuma despesa encontrada para os filtros selecionados.
-        </p>
+        <div className="rounded-md bg-white p-4 ring-1 ring-gray-900/5 ring-inset" role="status">
+          <p className="text-sm font-medium text-gray-700">
+            {smartList.isFiltered || appliedTerm
+              ? 'Nenhuma despesa encontrada para os filtros selecionados.'
+              : 'Nenhuma despesa registrada ainda.'}
+          </p>
+          <p className="mt-1 text-xs text-gray-500">
+            {smartList.isFiltered || appliedTerm
+              ? 'Ajuste ou limpe os filtros para ver o conjunto completo.'
+              : 'Comece registrando a primeira despesa para acompanhar vencimento e aprovação.'}
+          </p>
+          {smartList.isFiltered ? (
+            <button
+              type="button"
+              className="mt-2 text-xs font-semibold text-brand-600 hover:text-brand-700"
+              onClick={() => {
+                smartList.clearFilters();
+                setTerm('');
+                setAppliedTerm('');
+              }}
+            >
+              Limpar filtros
+            </button>
+          ) : null}
+        </div>
       ) : (
         <ModuleTableCard>
           <table className={moduleTableClass} aria-label="Lista de Despesas">

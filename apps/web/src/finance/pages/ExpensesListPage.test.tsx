@@ -56,6 +56,24 @@ describe('ExpensesListPage', () => {
     });
   });
 
+  it('honors the status filter carried in the URL so the Ctrl+K command lands filtered', async () => {
+    const fetchMock = createExpensesFetchMock();
+    vi.stubGlobal('fetch', fetchMock);
+
+    // `view.expenses.submitted` navega para /app/finance/expenses?status=SUBMITTED.
+    // Antes desta adocao a tela ignorava a query string e mostrava a lista inteira.
+    renderWithProviders(<ExpensesListPage />, {
+      router: { initialEntries: ['/app/finance/expenses?status=SUBMITTED'] },
+    });
+
+    await waitFor(() => {
+      const urls = fetchMock.mock.calls.map((call) => (typeof call[0] === 'string' ? call[0] : ''));
+      expect(urls.some((url) => url.includes('/finance/expenses') && url.includes('status=SUBMITTED'))).toBe(true);
+    });
+
+    expect(screen.getByLabelText('Status')).toHaveValue('SUBMITTED');
+  });
+
   it('shows the denied state when the server refuses the list grant', async () => {
     vi.stubGlobal('fetch', createExpensesFetchMock({ denied: true }));
     renderWithProviders(<ExpensesListPage />);
