@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/context/AuthProvider';
 import { useAlertBadge } from '../alerts/hooks/useAlerts';
+import { CommandPalette, useCommandPaletteShortcut } from '../operator/commands/CommandPalette';
 import { isReleaseModuleEnabled } from '../release-scope/feature-flags';
 import { ReleaseScopeGate } from '../release-scope/ReleaseScopeGate';
 import { ShellBreadcrumbs } from './ShellBreadcrumbs';
@@ -13,6 +14,7 @@ import { ShellTopBar } from './ShellTopBar';
 import { formatIdentityLabel } from './format-identity';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { useRouteFocus } from './hooks/useRouteFocus';
+import { useNavAccess } from './useNavAccess';
 import './shell.css';
 import './module-layout.css';
 
@@ -25,6 +27,19 @@ export function AppShellLayout() {
   const alertsEnabled = isReleaseModuleEnabled('alerts');
   const { activeCount, loading: alertsLoading } = useAlertBadge(alertsEnabled);
   const { identityId } = useAuth();
+
+  /**
+   * Command Center (Ctrl+K). Único dono do atalho — a barra de busca do topo
+   * deixou de capturar Ctrl+K para não haver dois comportamentos no mesmo gesto.
+   */
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [paletteMounted, setPaletteMounted] = useState(false);
+  useCommandPaletteShortcut(paletteOpen, (next) => {
+    if (next) {
+      setPaletteMounted(true);
+    }
+    setPaletteOpen(next);
+  });
 
   useRouteFocus();
 
@@ -77,7 +92,14 @@ export function AppShellLayout() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col lg:pl-64">
-        <ShellTopBar onMenuToggle={toggleMobileNav} menuExpanded={mobileNavOpen && !isDesktop} />
+        <ShellTopBar
+          onMenuToggle={toggleMobileNav}
+          menuExpanded={mobileNavOpen && !isDesktop}
+          onOpenCommandPalette={() => {
+            setPaletteMounted(true);
+            setPaletteOpen(true);
+          }}
+        />
         <div className="flex-1 px-4 py-8 sm:px-6 lg:px-8">
           <div
             className={
@@ -106,6 +128,24 @@ export function AppShellLayout() {
           />
         </div>
       ) : null}
+
+      {/*
+        A paleta só monta depois do primeiro Ctrl+K: assim os probes de acesso que
+        ela usa para filtrar a navegação não custam nada a quem nunca a abre.
+      */}
+      {paletteMounted ? (
+        <CommandPaletteHost open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      ) : null}
     </div>
   );
+}
+
+/**
+ * Host da paleta: resolve o acesso real já apurado para a navegação e o repassa.
+ * A paleta não decide acesso — ela respeita `isNavItemVisible`, a mesma regra do
+ * menu lateral. Nenhum comando aqui amplia permissão.
+ */
+function CommandPaletteHost({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { access, loading } = useNavAccess();
+  return <CommandPalette open={open} onClose={onClose} access={access} accessLoading={loading} />;
 }

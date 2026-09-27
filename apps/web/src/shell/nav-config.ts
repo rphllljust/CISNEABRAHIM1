@@ -15,6 +15,17 @@ export const SHELL_NAV_GROUPS: ShellNavGroup[] = [
         path: '/app',
         capabilityId: null,
       },
+      {
+        // Superfície "Minhas pendências": porta de entrada do dia. A autorização
+        // real continua sendo a da lista de alertas, que é a origem da fila —
+        // o accessCheck abaixo apenas evita exibir um link que levaria a negado.
+        id: 'work-inbox',
+        label: 'Minhas pendências',
+        path: '/app/work-inbox',
+        capabilityId: 'service-orders:service-order:list',
+        accessCheck: 'request-list',
+        featureFlag: 'alerts',
+      },
     ],
   },
   {

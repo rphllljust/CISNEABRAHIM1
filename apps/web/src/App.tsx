@@ -62,6 +62,7 @@ import { ContractsCreatePage } from './contracts/pages/ContractsCreatePage';
 import { ContractsDetailPage } from './contracts/pages/ContractsDetailPage';
 import { OperationalDashboardPage } from './dashboard/pages/OperationalDashboardPage';
 import { AlertCenterPage } from './alerts/pages/AlertCenterPage';
+import { WorkInboxPage } from './operator/work-inbox/WorkInboxPage';
 import { SearchResultsPage } from './search/pages/SearchResultsPage';
 import { ReportsPage } from './reports/pages/ReportsPage';
 import { OperationalProfitabilityPage } from './analytics/pages/OperationalProfitabilityPage';
@@ -150,6 +151,7 @@ export function App() {
             <Route element={<AppShellLayout />}>
               <Route path="/app" element={<OperationalDashboardPage />} />
               <Route path="/app/alerts" element={<AlertCenterPage />} />
+              <Route path="/app/work-inbox" element={<WorkInboxPage />} />
               <Route path="/app/search" element={<SearchResultsPage />} />
               <Route path="/app/reports" element={<ReportsPage />} />
               <Route path="/app/operational-profitability" element={<OperationalProfitabilityPage />} />
