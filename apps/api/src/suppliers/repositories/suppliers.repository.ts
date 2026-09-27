@@ -33,6 +33,37 @@ export class SuppliersRepository {
     return result.rows[0] ?? null;
   }
 
+  /**
+   * Página de fornecedores sob o MESMO predicado da contagem. A consulta de lista não junta
+   * contatos/endereços: a linha de lista é um resumo, e o detalhe continua sendo a fonte
+   * completa.
+   */
+  async listPage(input: {
+    whereClause: string;
+    params: unknown[];
+    limit: number;
+    offset: number;
+  }): Promise<SupplierRow[]> {
+    const result = await this.pool().query<SupplierRow>(
+      `SELECT ${SUPPLIER_RETURNING}
+       FROM pty.suppliers
+       WHERE ${input.whereClause}
+       ORDER BY legal_name ASC, id ASC
+       LIMIT $${input.params.length + 1}
+       OFFSET $${input.params.length + 2}`,
+      [...input.params, input.limit, input.offset],
+    );
+    return result.rows;
+  }
+
+  async countList(whereClause: string, params: unknown[]): Promise<number> {
+    const result = await this.pool().query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total FROM pty.suppliers WHERE ${whereClause}`,
+      params,
+    );
+    return Number(result.rows[0]?.total ?? '0');
+  }
+
   async findPublishedById(supplierId: string): Promise<SupplierRow | null> {
     const result = await this.pool().query<SupplierRow>(
       `SELECT ${SUPPLIER_RETURNING} FROM rpt.read_suppliers WHERE id = $1`,

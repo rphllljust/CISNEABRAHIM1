@@ -7,7 +7,9 @@ import {
 } from '../../audit/types/security-audit.types';
 import { SecurityAuditService } from '../../audit/services/security-audit.service';
 import { AUTHZ_ACTIONS } from '../../authorization/types/authz-actions';
+import { AUTHZ_RESOURCE_TYPES } from '../../authorization/types/authz-resources';
 import type { IdentityAuthzContext } from '../../authorization/types/authz-decision';
+import { AuthorizationRepository } from '../../authorization/repositories/authorization.repository';
 import { SodEnforcementService } from '../../authorization/services/sod-enforcement.service';
 import { SOD_DUTIES, resolveSodScope } from '../../authorization/domain/segregation-of-duties';
 import type { CommercialSupplierPort, CommercialSupplierView } from '../../platform/bounded-contexts/enterprise-core-ports';
@@ -23,17 +25,21 @@ import {
 import { SuppliersRepository } from '../repositories/suppliers.repository';
 import {
   toSupplierResponse,
+  toSupplierSummaryResponse,
   type SupplierHistoryResponse,
+  type SupplierListResponse,
   type SupplierResponse,
 } from '../serializers/supplier-response.serializer';
 import { SupplierAccessAuthz } from './supplier-access.authz';
-import { mapSupplierDomainError } from './supplier-access.errors';
+import { mapSupplierDomainError, supplierAccessDenied } from './supplier-access.errors';
+import type { SupplierListQuery } from '../dto/supplier-list.dto';
 
 @Injectable()
 export class SupplierAccessService implements CommercialSupplierPort {
   constructor(
     private readonly repository: SuppliersRepository,
     private readonly authz: SupplierAccessAuthz,
+    private readonly authorizationRepository: AuthorizationRepository,
     private readonly securityAudit: SecurityAuditService,
     private readonly sod: SodEnforcementService,
   ) {}
@@ -63,6 +69,63 @@ export class SupplierAccessService implements CommercialSupplierPort {
       }
       throw mapSupplierDomainError(error);
     }
+  }
+
+  /**
+   * Listagem operacional de fornecedores. A autorização é a mesma classe usada nas demais ações
+   * do recurso: exige concessão ativa de `supplier:supplier:list` no tipo de recurso Supplier.
+   * Sem concessão a listagem é negada — a tela nunca lista o que o ator não pode ler.
+   */
+  async list(actor: IdentityAuthzContext, query: SupplierListQuery): Promise<SupplierListResponse> {
+    const grants = await this.authorizationRepository.findActiveGrants(
+      actor.identityId,
+      AUTHZ_ACTIONS.SupplierList,
+      AUTHZ_RESOURCE_TYPES.Supplier,
+    );
+    if (grants.length === 0) {
+      throw mapSupplierDomainError(supplierAccessDenied());
+    }
+
+    const whereParts: string[] = [];
+    const params: unknown[] = [];
+
+    if (query.status) {
+      whereParts.push(`status = $${params.length + 1}::pty.supplier_status`);
+      params.push(query.status);
+    }
+    if (query.q) {
+      whereParts.push(
+        `(legal_name ILIKE $${params.length + 1} OR trade_name ILIKE $${params.length + 1} OR normalized_tax_id ILIKE $${params.length + 1})`,
+      );
+      params.push(`%${query.q}%`);
+    }
+
+    const whereClause = whereParts.length > 0 ? whereParts.join(' AND ') : 'TRUE';
+
+    const rows = await this.repository.listPage({
+      whereClause,
+      params,
+      limit: query.limit,
+      offset: query.offset,
+    });
+
+    /**
+     * Página inicial incompleta prova que o conjunto acabou: não há linha depois dela, logo o
+     * total é exatamente o devolvido. Evita COUNT redundante sem devolver total aproximado
+     * quando a página está cheia.
+     */
+    const total =
+      query.offset === 0 && rows.length < query.limit
+        ? rows.length
+        : await this.repository.countList(whereClause, params);
+
+    return {
+      items: rows.map(toSupplierSummaryResponse),
+      limit: query.limit,
+      offset: query.offset,
+      total,
+      totalPages: Math.ceil(total / query.limit),
+    };
   }
 
   async getById(actor: IdentityAuthzContext, supplierId: string): Promise<SupplierResponse> {

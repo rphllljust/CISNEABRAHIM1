@@ -42,6 +42,30 @@ export type SupplierResponse = {
   addresses: SupplierAddressResponse[];
 };
 
+/**
+ * Resumo de listagem: identifica o fornecedor por referência humana (razão social, nome
+ * fantasia, CNPJ) sem exigir que o operador conheça o identificador técnico.
+ */
+export type SupplierSummaryResponse = {
+  id: string;
+  legalName: string;
+  tradeName: string | null;
+  taxId: string;
+  paymentTerms: string | null;
+  currencyCode: string;
+  status: string;
+  version: number;
+  updatedAt: string;
+};
+
+export type SupplierListResponse = {
+  items: SupplierSummaryResponse[];
+  limit: number;
+  offset: number;
+  total: number;
+  totalPages: number;
+};
+
 export type SupplierRow = {
   id: string;
   legal_name: string;
@@ -79,8 +103,7 @@ export type SupplierAddressRow = {
   country: string | null;
 };
 
-export function toSupplierResponse(
-  row: SupplierRow,
+export function toSupplierResponse(  row: SupplierRow,
   contacts: SupplierContactRow[],
   addresses: SupplierAddressRow[],
 ): SupplierResponse {
@@ -115,5 +138,19 @@ export function toSupplierResponse(
       postalCode: item.postal_code,
       country: item.country,
     })),
+  };
+}
+
+export function toSupplierSummaryResponse(row: SupplierRow): SupplierSummaryResponse {
+  return {
+    id: row.id,
+    legalName: row.legal_name,
+    tradeName: row.trade_name,
+    taxId: row.normalized_tax_id,
+    paymentTerms: row.payment_terms,
+    currencyCode: row.currency_code,
+    status: row.status,
+    version: row.version,
+    updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
   };
 }

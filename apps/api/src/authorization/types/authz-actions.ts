@@ -22,6 +22,7 @@ export const AUTHZ_ACTIONS = {
   ClientActivate: 'client:client:activate',
   SupplierCreate: 'supplier:supplier:create',
   SupplierRead: 'supplier:supplier:read',
+  SupplierList: 'supplier:supplier:list',
   SupplierUpdate: 'supplier:supplier:update',
   SupplierDeactivate: 'supplier:supplier:deactivate',
   SupplierActivate: 'supplier:supplier:activate',

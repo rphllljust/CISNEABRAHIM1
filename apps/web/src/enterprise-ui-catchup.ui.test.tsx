@@ -7,6 +7,7 @@ import { ExpensesPage } from './finance/pages/ExpensesPage';
 import { InventoryPage } from './inventory/pages/InventoryPage';
 import { ProcurementHubPage } from './procurement/pages/ProcurementPages';
 import { SuppliersPage } from './suppliers/pages/SuppliersPage';
+import { SuppliersListPage } from './suppliers/pages/SuppliersListPage';
 import { parseRequestPath } from './test/request-url';
 import { renderWithProviders } from './test/render-with-providers';
 
@@ -100,6 +101,10 @@ function createCatchUpFetchMock(options: CatchUpMockOptions = {}) {
       return jsonResponse({ error: { code: 'SUPPLIER_VERSION_CONFLICT' } }, 409);
     }
 
+    if (pathname.endsWith('/suppliers') && method === 'GET') {
+      return jsonResponse({ items: [], limit: 20, offset: 0, total: 0, totalPages: 0 });
+    }
+
     if (pathname.includes('/suppliers/') && method === 'GET') {
       return jsonResponse({
         id: SUPPLIER_ID,
@@ -107,6 +112,7 @@ function createCatchUpFetchMock(options: CatchUpMockOptions = {}) {
         taxId: '11222333000181',
         status: 'INACTIVE',
         version: 1,
+        contacts: [],
       });
     }
 
@@ -214,10 +220,14 @@ describe('Enterprise UI catch-up', () => {
     });
   });
 
-  it('shows empty states for suppliers, purchases and inventory', () => {
+  it('shows empty states for suppliers, purchases and inventory', async () => {
     vi.stubGlobal('fetch', createCatchUpFetchMock());
-    const { unmount: unmountSuppliers } = renderWithProviders(<SuppliersPage />);
-    expect(screen.getByRole('heading', { name: 'Nenhum fornecedor carregado' })).toBeInTheDocument();
+    const { unmount: unmountSuppliers } = renderWithProviders(<SuppliersListPage />);
+    await waitFor(() => {
+      expect(
+        screen.getByText('Nenhum fornecedor encontrado para os filtros selecionados.'),
+      ).toBeInTheDocument();
+    });
     unmountSuppliers();
     const { unmount: unmountProcurement } = renderWithProviders(<ProcurementHubPage />);
     expect(screen.getByRole('heading', { name: 'Sem listagem nesta API' })).toBeInTheDocument();

@@ -111,6 +111,9 @@ import {
 } from './procurement/pages/ProcurementPages';
 import { InventoryRoute, InventoryPage } from './inventory/pages/InventoryPage';
 import { PayrollRoute, PayrollPage } from './payroll/pages/PayrollPage';
+import { SupplierCreatePage } from './suppliers/pages/SupplierCreatePage';
+import { SuppliersListPage } from './suppliers/pages/SuppliersListPage';
+import { SuppliersPage, SuppliersRoute } from './suppliers/pages/SuppliersPage';
 import { AccessAdminRoute } from './access-admin/AccessAdminRoute';
 import { AccessAdminPage } from './access-admin/pages/AccessAdminPage';
 
@@ -773,6 +776,30 @@ export function App() {
                   <InventoryRoute>
                     <InventoryPage />
                   </InventoryRoute>
+                }
+              />
+              <Route
+                path="/app/suppliers/new"
+                element={
+                  <SuppliersRoute>
+                    <SupplierCreatePage />
+                  </SuppliersRoute>
+                }
+              />
+              <Route
+                path="/app/suppliers/:supplierId"
+                element={
+                  <SuppliersRoute>
+                    <SuppliersPage />
+                  </SuppliersRoute>
+                }
+              />
+              <Route
+                path="/app/suppliers"
+                element={
+                  <SuppliersRoute>
+                    <SuppliersListPage />
+                  </SuppliersRoute>
                 }
               />
               <Route

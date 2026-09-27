@@ -33,6 +33,8 @@ export type SeededPerformanceDataset = {
 
 const PERF_RESOURCE_TYPE_BY_PREFIX: Array<{ prefix: string; resourceType: string }> = [
   { prefix: 'client:', resourceType: AUTHZ_RESOURCE_TYPES.Client },
+  { prefix: 'supplier:', resourceType: AUTHZ_RESOURCE_TYPES.Supplier },
+  { prefix: 'procurement:', resourceType: AUTHZ_RESOURCE_TYPES.Procurement },
   { prefix: 'catalog:', resourceType: AUTHZ_RESOURCE_TYPES.CatalogService },
   { prefix: 'resources:', resourceType: AUTHZ_RESOURCE_TYPES.ResourcesAsset },
   { prefix: 'documents:', resourceType: AUTHZ_RESOURCE_TYPES.DocumentsDocument },
