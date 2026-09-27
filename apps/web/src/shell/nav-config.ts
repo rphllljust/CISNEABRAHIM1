@@ -317,6 +317,14 @@ export const SHELL_NAV_GROUPS: ShellNavGroup[] = [
         featureFlag: 'accounting',
       },
       {
+        id: 'accounting-closing',
+        label: 'Central de fechamento',
+        path: '/app/closing',
+        capabilityId: 'accounting:journal:list',
+        accessCheck: 'accounting-journal-read',
+        featureFlag: 'accounting',
+      },
+      {
         id: 'accounting-fechamentos',
         label: 'Fechamentos',
         path: '/app/accounting/fechamentos',

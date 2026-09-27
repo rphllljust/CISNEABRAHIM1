@@ -104,6 +104,7 @@ import {
   TrialBalancePage,
 } from './accounting/pages/PeriodReportPages';
 import { PeriodClosePage } from './accounting/pages/PeriodClosePage';
+import { ClosingCenterPage } from './accounting/pages/ClosingCenterPage';
 import { AccountingPostingOriginsPage } from './accounting/pages/AccountingPostingOriginsPage';
 import { FixedAssetsPage } from './accounting/pages/FixedAssetsPage';
 import {
@@ -772,6 +773,23 @@ export function App() {
                 element={
                   <AccountingRoute>
                     <PeriodClosePage />
+                  </AccountingRoute>
+                }
+              />
+              {/* Superfície única de fechamento: unidade + período, sem identificador técnico. */}
+              <Route
+                path="/app/closing"
+                element={
+                  <AccountingRoute>
+                    <ClosingCenterPage />
+                  </AccountingRoute>
+                }
+              />
+              <Route
+                path="/app/accounting/closing"
+                element={
+                  <AccountingRoute>
+                    <ClosingCenterPage />
                   </AccountingRoute>
                 }
               />

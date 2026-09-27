@@ -14,6 +14,7 @@ import type {
   BalanceSheet,
   ChartOfAccounts,
   ChartsList,
+  ClosingReadiness,
   CloseRuns,
   FixedAssetRegister,
   GeneralLedger,
@@ -22,6 +23,7 @@ import type {
   JournalEntry,
   JournalListPage,
   LedgerReconstruction,
+  PeriodsByUnitList,
   PeriodsList,
   PostingRequestPage,
   TrialBalance,
@@ -256,11 +258,52 @@ export async function listPeriods(
   );
 }
 
+/**
+ * Descoberta de períodos contábeis pela UNIDADE.
+ *
+ * A unidade já é fato persistido no próprio período: exigir o plano de contas antes da competência
+ * obrigava o operador a um passo que não existe no negócio.
+ */
+export async function listPeriodsByUnit(
+  params: { unitId: string; status?: 'OPEN' | 'CLOSED'; year?: number },
+  signal?: AbortSignal,
+): Promise<PeriodsByUnitList> {
+  const search = new URLSearchParams({ unitId: params.unitId });
+  if (params.status) {
+    search.set('status', params.status);
+  }
+  if (params.year !== undefined) {
+    search.set('year', String(params.year));
+  }
+  return requestJson<PeriodsByUnitList>(`/api/v1/accounting/periods?${search.toString()}`, {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+}
+
+/**
+ * Leitura agregada do fechamento (Closing Center).
+ *
+ * Uma requisição traz período, estado contábil, estado fiscal, bloqueadores, pendências e próximas
+ * ações — a tela não monta o centro com uma dúzia de chamadas serializadas.
+ */
+export async function getClosingReadiness(
+  params: { unitId: string; periodId: string },
+  signal?: AbortSignal,
+): Promise<ClosingReadiness> {
+  const search = new URLSearchParams({ unitId: params.unitId, periodId: params.periodId });
+  return requestJson<ClosingReadiness>(`/api/v1/closing/readiness?${search.toString()}`, {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+}
+
 export type JournalListQuery = {
   periodId?: string;
   status?: 'DRAFT' | 'POSTED';
-  kind?: 'ENTRY' | 'REVERSAL';
-  occurredFrom?: string;
+  kind?: 'ENTRY' | 'REVERSAL';  occurredFrom?: string;
   occurredTo?: string;
   sourceKind?: string;
   accountId?: string;
