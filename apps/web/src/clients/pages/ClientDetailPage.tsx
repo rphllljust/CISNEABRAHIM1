@@ -1,4 +1,4 @@
-import { Link, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useCallback, useEffect, useId, useState } from 'react';
 import {
   activateClient,
@@ -11,12 +11,50 @@ import {
   mapClientErrorToMessage,
   VERSION_CONFLICT_MESSAGE,
 } from '../api/client-error-messages';
-import { ClientStatusBadge } from '../components/ClientStatusBadge';
 import { ClientRelatedRecords } from '../components/ClientRelatedRecords';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useClientCapabilities } from '../hooks/useClientCapabilities';
+import { useClientRelatedRecords } from '../hooks/useClientRelatedRecords';
 import { CLIENT_STATUSES, type Client } from '../types/client.types';
-import { formatCnpjDisplay } from '../utils/format-cnpj';
+import { buildClientRelationSpecs } from '../utils/client-relations';
+import {
+  buildClientContextFields,
+  buildClientHistoryFacts,
+  buildClientMetadata,
+  buildClientNextAction,
+  buildClientStateFlow,
+  clientReference,
+  clientStatusBadge,
+  clientStatusDescription,
+} from '../utils/client-object-presentation';
+import {
+  buildAuthorizedRelations,
+  EnterpriseObjectHeader,
+  EnterpriseObjectPage,
+  NextActionPanel,
+  ObjectContextBlock,
+  ObjectPanel,
+  ObjectStateFlow,
+  SmartRelationBar,
+  type ObjectAction,
+  type ObjectPagePhase,
+} from '../../enterprise-object';
+import { ActivityTimeline } from '../../operator';
+
+/**
+ * OBJECT PAGE DO CLIENTE — leitura canônica do contrato `enterprise-object`.
+ *
+ *   breadcrumb (Clientes -> Cliente)
+ *     EnterpriseObjectHeader   referência, título, estado, fatos e ações
+ *     ObjectStateFlow          os dois estados reais do Cliente
+ *     NextActionPanel          o que normalmente acontece agora (estado + capability + dado real)
+ *     SmartRelationBar         cadeia comercial real e autorizada
+ *     ObjectContextBlock       fatos que qualificam o Cliente
+ *     corpo + coluna lateral   relacionados, contatos, endereços, histórico e administração
+ *
+ * Nenhuma capability é inventada, nenhum estado é inventado e nenhum número órfão é exibido:
+ * a autorização continua sendo decidida no servidor.
+ */
 
 type DetailState =
   | { phase: 'loading' }
@@ -47,8 +85,14 @@ function formatDateTime(value: string | null): string {
   return new Date(value).toLocaleString('pt-BR');
 }
 
+const CLIENT_BREADCRUMB = [
+  { label: 'Clientes', href: '/app/clients' },
+  { label: 'Cliente' },
+];
+
 export function ClientDetailPage() {
   const { clientId = '' } = useParams();
+  const navigate = useNavigate();
   const reasonId = useId();
   const { capabilities } = useClientCapabilities();
   const [state, setState] = useState<DetailState>({ phase: 'loading' });
@@ -89,6 +133,9 @@ export function ClientDetailPage() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  // Leitura única da cadeia comercial: alimenta a barra de relações e os painéis "Relacionados".
+  const related = useClientRelatedRecords(state.phase === 'ready' ? state.client.id : null);
 
   async function handleDeactivate() {
     if (state.phase !== 'ready') {
@@ -150,194 +197,208 @@ export function ClientDetailPage() {
     }
   }
 
-  if (state.phase === 'loading') {
-    return (
-      <main id="main-content" className="shell-page">
-        <p aria-busy="true" aria-live="polite">
-          Carregando Cliente…
-        </p>
-      </main>
-    );
-  }
+  if (state.phase !== 'ready') {
+    // Estados de página resolvidos UMA vez, pela moldura do contrato: negacao nao se confunde
+    // com registro vazio, e falha de rede oferece nova tentativa.
+    let phase: ObjectPagePhase = 'error';
+    let phaseMessage = 'Não foi possível carregar o Cliente.';
+    let onRetry: (() => void) | undefined;
+    if (state.phase === 'loading') {
+      phase = 'loading';
+      phaseMessage = 'Carregando Cliente…';
+    } else if (state.phase === 'denied') {
+      phase = 'denied';
+      phaseMessage = 'Você não tem permissão para consultar este Cliente.';
+    } else if (state.phase === 'not_found') {
+      phase = 'empty';
+      phaseMessage = 'Cliente não encontrado.';
+    } else {
+      phaseMessage = state.message;
+      onRetry = () => void reload();
+    }
 
-  if (state.phase === 'denied') {
     return (
-      <main id="main-content" className="shell-page">
-        <h1>Cliente</h1>
-        <p role="alert">Você não tem permissão para consultar este Cliente.</p>
-        <Link to="/app/clients">Voltar à lista</Link>
-      </main>
-    );
-  }
-
-  if (state.phase === 'not_found') {
-    return (
-      <main id="main-content" className="shell-page">
-        <h1>Cliente</h1>
-        <p role="alert">Cliente não encontrado.</p>
-        <Link to="/app/clients">Voltar à lista</Link>
-      </main>
-    );
-  }
-
-  if (state.phase === 'error') {
-    return (
-      <main id="main-content" className="shell-page">
-        <h1>Cliente</h1>
-        <p className="form-error" role="alert">
-          {state.message}
-        </p>
-        <button type="button" onClick={() => void reload()}>
-          Tentar novamente
-        </button>
+      <main id="main-content" className="shell-page clients-page">
+        <EnterpriseObjectPage
+          breadcrumb={CLIENT_BREADCRUMB}
+          header={null}
+          phase={phase}
+          phaseTitle="Cliente"
+          phaseMessage={phaseMessage}
+          onRetry={phase === 'error' ? onRetry : undefined}
+        />
       </main>
     );
   }
 
   const { client } = state;
 
+  const statusBadge = clientStatusBadge(client.status);
+  const stateFlow = buildClientStateFlow(client.status);
+
+  // Ações reais: cada uma existe apenas quando a capability correspondente diz que pode.
+  const primaryAction: ObjectAction | null = capabilities.canUpdate
+    ? {
+        id: 'edit',
+        label: 'Editar',
+        onSelect: () => {
+          void navigate(`/app/clients/${client.id}/edit`);
+        },
+      }
+    : null;
+
+  const destructiveActions: ObjectAction[] =
+    capabilities.canDeactivate && client.status === CLIENT_STATUSES.Active
+      ? [
+          {
+            id: 'deactivate',
+            label: 'Desativar',
+            onSelect: () => setDeactivateOpen(true),
+          },
+        ]
+      : [];
+
+  const relations = buildAuthorizedRelations(buildClientRelationSpecs(related, client.id));
+  const nextAction = buildClientNextAction(client, capabilities, {
+    onReactivate: () => setActivateOpen(true),
+  });
+
   return (
     <main id="main-content" className="shell-page clients-page">
-      <header className="clients-page__header">
-        <div>
-          <h1>{client.legalName}</h1>
-          <ClientStatusBadge status={client.status} />
-        </div>
-        <div className="button-row">
-          {capabilities.canUpdate ? (
-            <Link to={`/app/clients/${client.id}/edit`} className="button-link button-secondary">
-              Editar
-            </Link>
-          ) : null}
-          {capabilities.canDeactivate && client.status === CLIENT_STATUSES.Active ? (
-            <button type="button" className="button-secondary" onClick={() => setDeactivateOpen(true)}>
-              Desativar
-            </button>
-          ) : null}
-          {capabilities.canActivate && client.status === CLIENT_STATUSES.Inactive ? (
-            <button type="button" onClick={() => setActivateOpen(true)}>
-              Reativar
-            </button>
-          ) : null}
-        </div>
-      </header>
+      <EnterpriseObjectPage
+        breadcrumb={[
+          { label: 'Clientes', href: '/app/clients' },
+          { label: client.legalName },
+        ]}
+        header={
+          <EnterpriseObjectHeader
+            reference={clientReference(client)}
+            title={client.legalName}
+            subtitle={client.tradeName}
+            status={{
+              label: statusBadge.label,
+              tone: statusBadge.tone,
+              description: clientStatusDescription(client) ?? undefined,
+            }}
+            metadata={buildClientMetadata(client)}
+            primaryAction={primaryAction}
+            destructiveActions={destructiveActions}
+          />
+        }
+        stateFlow={
+          stateFlow ? (
+            <ObjectStateFlow
+              steps={stateFlow.steps}
+              currentId={stateFlow.currentId}
+              title="Ciclo de vida"
+            />
+          ) : null
+        }
+        nextAction={<NextActionPanel action={nextAction} />}
+        relations={<SmartRelationBar relations={relations} />}
+        aside={
+          <>
+            <ObjectPanel>
+              <ActivityTimeline facts={buildClientHistoryFacts(client)} title="Histórico" />
+            </ObjectPanel>
 
-      {actionError ? (
-        <p className="form-error" role="alert">
-          {actionError}
-        </p>
-      ) : null}
-
-      {versionConflict ? (
-        <div className="form-notice" role="status">
-          <p>{VERSION_CONFLICT_MESSAGE}</p>
-          <button type="button" onClick={() => void reload()}>
-            Recarregar dados atuais
-          </button>
-        </div>
-      ) : null}
-
-      {/* Contexto antes do cadastro: o Cliente e a contraparte da cadeia comercial inteira. */}
-      <ClientRelatedRecords clientId={client.id} />
-
-      <section className="client-section" aria-labelledby="client-identification-heading">
-        <h2 id="client-identification-heading">Identificação jurídica</h2>
-        <dl className="client-details">
-          <div>
-            <dt>Razão social</dt>
-            <dd>{client.legalName}</dd>
-          </div>
-          <div>
-            <dt>Nome fantasia</dt>
-            <dd>{client.tradeName ?? '—'}</dd>
-          </div>
-          <div>
-            <dt>CNPJ</dt>
-            <dd>{formatCnpjDisplay(client.taxId)}</dd>
-          </div>
-          <div>
-            <dt>Referência externa</dt>
-            <dd>{client.externalErpId ?? '—'}</dd>
-          </div>
-        </dl>
-      </section>
-
-      <section className="client-section" aria-labelledby="client-contacts-heading">
-        <h2 id="client-contacts-heading">Contatos</h2>
-        {client.contacts.length === 0 ? (
-          <p>Nenhum contato cadastrado.</p>
-        ) : (
-          <ul className="client-card-list">
-            {client.contacts.map((contact) => (
-              <li key={contact.id ?? `${contact.name}-${contact.purpose}`}>
-                <strong>{contact.name}</strong> — {formatPurposeLabel(contact.purpose)}
+            <ObjectPanel title="Administrativo">
+              <dl className="client-details m-0">
                 <div>
-                  {contact.email ? <span>E-mail: {contact.email}</span> : null}
-                  {contact.email && contact.phone ? <span> · </span> : null}
-                  {contact.phone ? <span>Telefone: {contact.phone}</span> : null}
+                  <dt>Criado em</dt>
+                  <dd>{formatDateTime(client.createdAt)}</dd>
                 </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="client-section" aria-labelledby="client-addresses-heading">
-        <h2 id="client-addresses-heading">Endereços</h2>
-        {client.addresses.length === 0 ? (
-          <p>Nenhum endereço cadastrado.</p>
-        ) : (
-          <ul className="client-card-list">
-            {client.addresses.map((address) => (
-              <li key={address.id ?? address.purpose}>
-                <strong>{formatPurposeLabel(address.purpose)}</strong>
                 <div>
-                  {[address.street, address.number, address.complement, address.district, address.city, address.state]
-                    .filter(Boolean)
-                    .join(', ') || '—'}
+                  <dt>Atualizado em</dt>
+                  <dd>{formatDateTime(client.updatedAt)}</dd>
                 </div>
-                {address.postalCode ? <div>CEP: {address.postalCode}</div> : null}
-                {address.country ? <div>País: {address.country}</div> : null}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+                {client.deactivatedAt ? (
+                  <div>
+                    <dt>Desativado em</dt>
+                    <dd>{formatDateTime(client.deactivatedAt)}</dd>
+                  </div>
+                ) : null}
+                {client.deactivationReason ? (
+                  <div>
+                    <dt>Motivo da desativação</dt>
+                    <dd>{client.deactivationReason}</dd>
+                  </div>
+                ) : null}
+              </dl>
+              {client.deactivatedAt && client.status === CLIENT_STATUSES.Active ? (
+                <p className="form-notice mt-2" role="note">
+                  A reativação preserva o histórico de desativação anterior.
+                </p>
+              ) : null}
+            </ObjectPanel>
+          </>
+        }
+      >
+        {/*
+          CONTEXTO: a moldura declara um slot `context`, mas o primitivo não o renderiza hoje
+          (`EnterpriseObjectPage` o recebe e não o compõe). Como este trabalho não altera o contrato
+          compartilhado, o bloco entra como PRIMEIRO conteúdo do corpo — logo depois de estado,
+          próxima ação e relações, que é a ordem canônica de leitura do contrato.
+        */}
+        <ObjectContextBlock fields={buildClientContextFields(client)} />
 
-      <section className="client-section" aria-labelledby="client-admin-heading">
-        <h2 id="client-admin-heading">Informações administrativas</h2>
-        <dl className="client-details">
-          <div>
-            <dt>Criado em</dt>
-            <dd>{formatDateTime(client.createdAt)}</dd>
-          </div>
-          <div>
-            <dt>Atualizado em</dt>
-            <dd>{formatDateTime(client.updatedAt)}</dd>
-          </div>
-          {client.deactivatedAt ? (
-            <div>
-              <dt>Desativado em</dt>
-              <dd>{formatDateTime(client.deactivatedAt)}</dd>
-            </div>
-          ) : null}
-          {client.deactivationReason ? (
-            <div>
-              <dt>Motivo da desativação</dt>
-              <dd>{client.deactivationReason}</dd>
-            </div>
-          ) : null}
-        </dl>
-        {client.deactivatedAt && client.status === CLIENT_STATUSES.Active ? (
-          <p className="form-notice" role="note">
-            A reativação preserva o histórico de desativação anterior.
+        {actionError ? (
+          <p className="form-error" role="alert">
+            {actionError}
           </p>
         ) : null}
-      </section>
 
-      <p>
-        <Link to="/app/clients">Voltar à lista</Link>
-      </p>
+        {versionConflict ? (
+          <div className="form-notice" role="status">
+            <p>{VERSION_CONFLICT_MESSAGE}</p>
+            <button type="button" onClick={() => void reload()}>
+              Recarregar dados atuais
+            </button>
+          </div>
+        ) : null}
+
+        <ClientRelatedRecords modules={related} />
+
+        <ObjectPanel title="Contatos">
+          {client.contacts.length === 0 ? (
+            <p className="m-0 text-sm text-gray-500">Nenhum contato cadastrado.</p>
+          ) : (
+            <ul className="m-0 flex list-none flex-col gap-2 p-0">
+              {client.contacts.map((contact) => (
+                <li key={contact.id ?? `${contact.name}-${contact.purpose}`}>
+                  <strong>{contact.name}</strong> — {formatPurposeLabel(contact.purpose)}
+                  <div className="text-xs text-gray-600">
+                    {contact.email ? <span>E-mail: {contact.email}</span> : null}
+                    {contact.email && contact.phone ? <span> · </span> : null}
+                    {contact.phone ? <span>Telefone: {contact.phone}</span> : null}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </ObjectPanel>
+
+        <ObjectPanel title="Endereços">
+          {client.addresses.length === 0 ? (
+            <p className="m-0 text-sm text-gray-500">Nenhum endereço cadastrado.</p>
+          ) : (
+            <ul className="m-0 flex list-none flex-col gap-2 p-0">
+              {client.addresses.map((address) => (
+                <li key={address.id ?? address.purpose}>
+                  <strong>{formatPurposeLabel(address.purpose)}</strong>
+                  <div className="text-xs text-gray-600">
+                    {[address.street, address.number, address.complement, address.district, address.city, address.state]
+                      .filter(Boolean)
+                      .join(', ') || '—'}
+                  </div>
+                  {address.postalCode ? <div className="text-xs text-gray-600">CEP: {address.postalCode}</div> : null}
+                  {address.country ? <div className="text-xs text-gray-600">País: {address.country}</div> : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </ObjectPanel>
+      </EnterpriseObjectPage>
 
       <ConfirmDialog
         open={deactivateOpen}

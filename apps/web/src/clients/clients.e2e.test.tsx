@@ -48,7 +48,10 @@ describe('clients administrative flow e2e (frontend)', () => {
       expect(screen.getByRole('heading', { name: /fluxo e2e ltda/i })).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('link', { name: /editar/i }));
+    // A object page canônica oferece as operações do objeto como AÇÕES do cabeçalho: editar é a
+    // ação primária e a operação destrutiva vive no menu "Mais ações". Os fatos verificados (abrir
+    // o formulário, desativar, reativar e ver o estado mudar) são os mesmos.
+    await user.click(screen.getByRole('button', { name: 'Editar' }));
     await user.clear(screen.getByLabelText(/raz.o social/i));
     await user.type(screen.getByLabelText(/raz.o social/i), 'Fluxo E2E Atualizado LTDA');
     await user.click(screen.getByRole('button', { name: /salvar altera/i }));
@@ -57,7 +60,8 @@ describe('clients administrative flow e2e (frontend)', () => {
       expect(screen.getByRole('heading', { name: /fluxo e2e atualizado ltda/i })).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('button', { name: /desativar/i }));
+    await user.click(screen.getByRole('button', { name: /mais ações/i }));
+    await user.click(screen.getByRole('menuitem', { name: /desativar/i }));
     await user.type(screen.getByLabelText(/motivo da desativa/i), 'Encerramento contratual');
     await user.click(screen.getByRole('button', { name: /confirmar desativa/i }));
 
@@ -65,6 +69,7 @@ describe('clients administrative flow e2e (frontend)', () => {
       expect(screen.getByLabelText('Status: Inativo')).toBeInTheDocument();
     });
 
+    // Inativo: a próxima ação do processo é a reativação.
     await user.click(screen.getByRole('button', { name: /reativar/i }));
     await user.click(screen.getByRole('button', { name: /confirmar reativa/i }));
 
