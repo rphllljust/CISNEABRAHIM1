@@ -51,7 +51,7 @@ Resolução aplicada nesta fila, sem inventar regra:
 | finance/expenses | Y | Y | Y | Y | - | Y | Y | Y | Y | Y | Y | Y | parcial | DONE | `PARK HUMAN_LOOKUP_API_GAP`: centro de custo e categoria de despesa sem listagem |
 | finance/budgets | Y | Y | Y | Y | - | Y | Y | Y | Y | Y | Y | Y | parcial | DONE | período (id) sem listagem — `PARK HUMAN_LOOKUP_API_GAP` |
 | accounting | Y | Y | Y | Y | Y | Y | Y | UUID | Y | Y | Y | Y | Y | BASIC_GAP | ativo imobilizado: `PARK HUMAN_LOOKUP_API_GAP` (`GET` é lookup por unidade+ativo, sem lista de registros) |
-| fiscal | Y | Y | Y | Y | - | Y | Y | parcial | Y | Y | Y | Y | Y | BASIC_GAP | apuração: `PARK HUMAN_LOOKUP_API_GAP` (só `POST calculations` + `GET :id`, sem listagem) |
+| fiscal | Y | Y | Y | Y | - | Y | Y | Y | Y | Y | Y | Y | Y | BASIC_DONE_WITH_PARKED_GAP | apuração agora tem lista (`GET fiscal/tax/calculations`); centro de custo (id) permanece `PARK HUMAN_LOOKUP_API_GAP` |
 | payroll | Y | Y | Y | Y | - | Y | Y | UUID | Y | Y | Y | Y | Y | BASIC_GAP | período: `PARK HUMAN_LOOKUP_API_GAP` (sem `GET payroll/periods`) |
 | accounting | Y | Y | Y | Y | Y | Y | Y | UUID | Y | Y | Y | Y | Y | BASIC_GAP | ativo imobilizado: `PARK HUMAN_LOOKUP_API_GAP` (`GET` é lookup por unidade+ativo, sem lista de registros) |
 | fleet | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |

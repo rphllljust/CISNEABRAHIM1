@@ -661,6 +661,14 @@ export function App() {
                 }
               />
               <Route
+                path="/app/fiscal/apuracao/:calculationId"
+                element={
+                  <FiscalRoute access="tax">
+                    <FiscalApuracaoPage />
+                  </FiscalRoute>
+                }
+              />
+              <Route
                 path="/app/fiscal/apuracao"
                 element={
                   <FiscalRoute access="tax">

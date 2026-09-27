@@ -30,11 +30,13 @@ import { TaxEngineRepository } from '../repositories/tax-engine.repository';
 import type { TaxRuleVersionRow } from '../repositories/tax-engine.repository.types';
 import {
   toTaxCalculationResponse,
+  toTaxCalculationSummaryResponse,
   toTaxReproductionResponse,
   toTaxRulePageResponse,
   toTaxRuleResponse,
   toTaxRuleVersionResponse,
   type TaxCalculationResponse,
+  type TaxCalculationListResponse,
   type TaxReproductionResponse,
   type TaxRulePageResponse,
   type TaxRuleResponse,
@@ -170,6 +172,56 @@ export class TaxEngineAccessService {
     } catch (error) {
       throw mapTaxEngineDomainError(error);
     }
+  }
+
+  /**
+   * Listagem operacional de apurações (cálculos tributários) da unidade. Mesma autorização das
+   * regras (`FiscalTaxRead`) e mesmo predicado de unidade: o cálculo deixa de ser alcançável por
+   * identificador digitado.
+   */
+  async listCalculations(
+    actor: IdentityAuthzContext,
+    query: { unitId: string; limit?: unknown; offset?: unknown; q?: string },
+  ): Promise<TaxCalculationListResponse> {
+    try {
+      const unitId = typeof query.unitId === 'string' ? query.unitId.trim() : '';
+      if (unitId.length === 0) {
+        throw new TaxEngineError('FISCAL_UNIT_REQUIRED');
+      }
+      await this.authz.assertTaxEngineAction(actor, AUTHZ_ACTIONS.FiscalTaxRead, {
+        id: unitId,
+        unitId,
+      });
+      const limit = this.normalizeLimit(query.limit);
+      const offset = this.normalizeOffset(query.offset);
+      const page = await this.repository.listCalculationPage({ unitId, q: query.q, limit, offset });
+      const total =
+        offset === 0 && page.length < limit
+          ? page.length
+          : await this.repository.countCalculationList({ unitId, q: query.q });
+      return {
+        items: page.map(toTaxCalculationSummaryResponse),
+        limit,
+        offset,
+        total,
+        totalPages: Math.ceil(total / limit),
+      };
+    } catch (error) {
+      throw mapTaxEngineDomainError(error);
+    }
+  }
+
+  private normalizeLimit(value: unknown): number {
+    const n = typeof value === 'string' || typeof value === 'number' ? Number(value) : 20;
+    if (!Number.isInteger(n) || n < 1) {
+      return 20;
+    }
+    return Math.min(n, 100);
+  }
+
+  private normalizeOffset(value: unknown): number {
+    const n = typeof value === 'string' || typeof value === 'number' ? Number(value) : 0;
+    return Number.isInteger(n) && n >= 0 ? n : 0;
   }
 
   async calculate(actor: IdentityAuthzContext, input: CalculateTaxInput): Promise<TaxCalculationResponse> {

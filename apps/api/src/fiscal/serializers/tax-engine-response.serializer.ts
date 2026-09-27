@@ -2,6 +2,7 @@ import { formatMoneyAmountForApi } from '../../platform/kernel/money-math';
 import type { TaxComputation } from '../domain/tax-engine';
 import type {
   TaxCalculationAggregate,
+  TaxCalculationListRow,
   TaxRuleListRow,
   TaxRuleRow,
   TaxRuleVersionRow,
@@ -130,6 +131,45 @@ export type TaxReproductionResponse = {
   };
   matches: boolean;
 };
+
+export type TaxCalculationSummaryResponse = {
+  id: string;
+  unitId: string;
+  ruleCode: string;
+  ruleName: string;
+  versionNumber: number;
+  baseAmount: string;
+  rate: string | null;
+  resultAmount: string;
+  calculatedAt: string;
+  sourceKind: string | null;
+};
+
+export type TaxCalculationListResponse = {
+  items: TaxCalculationSummaryResponse[];
+  limit: number;
+  offset: number;
+  total: number;
+  totalPages: number;
+};
+
+/** Linha de lista de cálculo: identifica o resultado pela regra, versão e valor persistidos. */
+export function toTaxCalculationSummaryResponse(
+  row: TaxCalculationListRow,
+): TaxCalculationSummaryResponse {
+  return {
+    id: row.id,
+    unitId: row.unit_id,
+    ruleCode: row.rule_code,
+    ruleName: row.rule_name,
+    versionNumber: row.version_number,
+    baseAmount: formatMoneyAmountForApi(row.base_amount) ?? row.base_amount,
+    rate: row.rate === null ? null : (formatMoneyAmountForApi(row.rate) ?? row.rate),
+    resultAmount: formatMoneyAmountForApi(row.result_amount) ?? row.result_amount,
+    calculatedAt: row.calculated_at.toISOString(),
+    sourceKind: row.source_kind,
+  };
+}
 
 export function toTaxRuleResponse(row: TaxRuleRow): TaxRuleResponse {
   return {

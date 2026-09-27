@@ -21,6 +21,41 @@ import type {
 
 export { BackofficeApiError };
 
+/** Linha de lista de apuração (cálculo tributário). */
+export type TaxCalculationSummary = {
+  id: string;
+  unitId: string;
+  ruleCode: string;
+  ruleName: string;
+  versionNumber: number;
+  baseAmount: string;
+  rate: string | null;
+  resultAmount: string;
+  calculatedAt: string;
+  sourceKind: string | null;
+};
+
+export async function listTaxCalculations(
+  params: { unitId: string; limit?: number; offset?: number; q?: string },
+  signal?: AbortSignal,
+): Promise<{ items: TaxCalculationSummary[]; limit: number; offset: number; total: number; totalPages: number }> {
+  const search = new URLSearchParams({ unitId: params.unitId });
+  if (params.limit !== undefined) {
+    search.set('limit', String(params.limit));
+  }
+  if (params.offset !== undefined) {
+    search.set('offset', String(params.offset));
+  }
+  if (params.q && params.q.trim().length > 0) {
+    search.set('q', params.q.trim());
+  }
+  return requestJson(`/api/v1/fiscal/tax/calculations?${search.toString()}`, {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+}
+
 export type FiscalDocumentListParams = {
   unitId: string;
   status?: string;

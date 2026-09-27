@@ -66,6 +66,23 @@ export type TaxCalculationRow = {
   source_id: string | null;
 };
 
+/** Linha de lista de cálculo: resultado persistido com a referência humana da regra. */
+export type TaxCalculationListRow = {
+  id: string;
+  unit_id: string;
+  tax_rule_id: string;
+  tax_rule_version_id: string;
+  base_amount: string;
+  rate: string | null;
+  result_amount: string;
+  calculated_at: Date;
+  source_kind: string | null;
+  source_id: string | null;
+  rule_code: string;
+  rule_name: string;
+  version_number: number;
+};
+
 export type TaxCalculationLineRow = {
   id: string;
   tax_calculation_id: string;
