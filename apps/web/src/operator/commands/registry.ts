@@ -228,6 +228,76 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
     keywords: ['alerta', 'critico', 'urgente', 'risco'],
     hint: 'Alertas ativos com severidade crítica',
   },
+  /*
+   * OPERAÇÕES — a lista de OS JÁ deriva seus filtros do URL
+   * (`parseServiceOrderListParams` + `updateFilters` em ServiceOrdersListPage),
+   * então estes comandos apenas reutilizam o transporte existente. Os valores são
+   * os reais de `SERVICE_ORDER_LIST_FILTERS` e `SERVICE_ORDER_STATUSES`.
+   * Nenhuma regra de OS, transição ou permissão é criada aqui.
+   */
+  {
+    id: 'view.serviceOrders.overdue',
+    kind: 'view',
+    group: COMMAND_GROUPS.view,
+    label: 'Ordens de serviço vencidas',
+    to: '/app/service-orders?filter=overdue',
+    keywords: ['os', 'ordem', 'servico', 'vencida', 'atrasada', 'overdue', 'operacoes'],
+    hint: 'Fila de OS com prazo vencido',
+  },
+  {
+    id: 'view.serviceOrders.approaching',
+    kind: 'view',
+    group: COMMAND_GROUPS.view,
+    label: 'Ordens de serviço vencendo',
+    to: '/app/service-orders?filter=approaching-due',
+    keywords: ['os', 'ordem', 'servico', 'vencendo', 'prazo', 'aproximando'],
+    hint: 'OS com prazo próximo do fim',
+  },
+  {
+    id: 'view.serviceOrders.mine',
+    kind: 'view',
+    group: COMMAND_GROUPS.view,
+    label: 'Minhas ordens de serviço',
+    to: '/app/service-orders?filter=mine',
+    keywords: ['os', 'minhas', 'ordem', 'servico', 'responsavel', 'minha fila'],
+    hint: 'OS atribuídas a mim',
+  },
+  {
+    id: 'view.serviceOrders.unassigned',
+    kind: 'view',
+    group: COMMAND_GROUPS.view,
+    label: 'Ordens de serviço sem responsável',
+    to: '/app/service-orders?filter=unassigned',
+    keywords: ['os', 'ordem', 'servico', 'sem responsavel', 'nao atribuida', 'alocacao'],
+    hint: 'OS em aberto sem empregado atribuído',
+  },
+  {
+    id: 'view.serviceOrders.unscheduled',
+    kind: 'view',
+    group: COMMAND_GROUPS.view,
+    label: 'Ordens de serviço sem agendamento',
+    to: '/app/service-orders?filter=unscheduled',
+    keywords: ['os', 'ordem', 'servico', 'sem agendamento', 'janela', 'nao planejada'],
+    hint: 'OS em aberto sem janela operacional',
+  },
+  {
+    id: 'view.serviceOrders.inExecution',
+    kind: 'view',
+    group: COMMAND_GROUPS.view,
+    label: 'Ordens de serviço em execução',
+    to: '/app/service-orders?status=IN_EXECUTION',
+    keywords: ['os', 'ordem', 'servico', 'execucao', 'andamento', 'operacoes'],
+    hint: 'OS com status Em execução',
+  },
+  {
+    id: 'view.serviceOrders.paused',
+    kind: 'view',
+    group: COMMAND_GROUPS.view,
+    label: 'Ordens de serviço pausadas',
+    to: '/app/service-orders?status=PAUSED',
+    keywords: ['os', 'ordem', 'servico', 'pausada', 'parada', 'bloqueada'],
+    hint: 'OS com status Pausada',
+  },
 ];
 
 /** Rotas de criação reais. Nenhuma tela nova é criada por este registro. */

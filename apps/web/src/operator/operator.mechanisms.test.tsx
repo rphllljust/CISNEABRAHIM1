@@ -16,6 +16,7 @@ import { useSelection } from './bulk/useSelection';
 import { exportSelectionToCsv } from './bulk/BulkActionBar';
 import {
   buildSearchCommand,
+  OPERATIONAL_VIEW_COMMANDS,
   rankCommands,
   scoreCommand,
   type OperatorCommand,
@@ -403,6 +404,65 @@ describe('command center — casamento determinístico', () => {
     expect(buildSearchCommand('a')).toBeNull();
     const search = buildSearchCommand('amaggi');
     expect(search?.to).toBe('/app/search?q=amaggi');
+  });
+
+  it('os comandos de OS usam os filtros e status REAIS do domínio de operações', () => {
+    // Conjuntos reais: SERVICE_ORDER_LIST_FILTERS e SERVICE_ORDER_STATUSES.
+    const realFilters = [
+      'overdue',
+      'approaching-due',
+      'mine',
+      'unassigned',
+      'unscheduled',
+      'scheduled-today',
+    ];
+    const realStatuses = [
+      'DRAFT',
+      'PREPARED',
+      'RELEASED',
+      'IN_EXECUTION',
+      'PAUSED',
+      'COMPLETED',
+      'CANCELLED',
+    ];
+
+    const osCommands = OPERATIONAL_VIEW_COMMANDS.filter((command) =>
+      command.id.startsWith('view.serviceOrders.'),
+    );
+    expect(osCommands.length).toBeGreaterThan(0);
+
+    for (const command of osCommands) {
+      expect(command.to.startsWith('/app/service-orders?')).toBe(true);
+      const query = new URLSearchParams(command.to.split('?')[1]);
+      const filter = query.get('filter');
+      const status = query.get('status');
+      // Nenhum comando inventa filtro ou status: só valores que o domínio aceita.
+      if (filter) {
+        expect(realFilters).toContain(filter);
+      }
+      if (status) {
+        expect(realStatuses).toContain(status);
+      }
+      expect(filter ?? status).not.toBeNull();
+    }
+  });
+
+  it('o Command Center leva às filas operacionais que respondem "o que precisa de mim"', () => {
+    expect(
+      rankCommands({ query: 'os vencidas', navigationCommands: [] }).some(
+        (command) => command.to === '/app/service-orders?filter=overdue',
+      ),
+    ).toBe(true);
+    expect(
+      rankCommands({ query: 'minhas os', navigationCommands: [] }).some(
+        (command) => command.to === '/app/service-orders?filter=mine',
+      ),
+    ).toBe(true);
+    expect(
+      rankCommands({ query: 'minhas pendencias', navigationCommands: [] }).some(
+        (command) => command.to === '/app/work-inbox',
+      ),
+    ).toBe(true);
   });
 });
 
