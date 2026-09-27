@@ -40,7 +40,7 @@ describe('BudgetsListPage', () => {
 
     await waitFor(() => {
       const urls = fetchMock.mock.calls.map((call) => {
-        const input = call[0] as RequestInfo | URL;
+        const input = call[0];
         return typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
       });
       expect(urls.some((url) => url.includes('/finance/budgets') && url.includes('status=DRAFT'))).toBe(true);
