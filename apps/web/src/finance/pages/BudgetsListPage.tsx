@@ -22,8 +22,31 @@ import { BUDGET_STATUS_LABELS } from '../../financial-ui/labels';
 import { FinanceStatusBadge } from '../components/FinanceStatusBadge';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import { BackofficeApiError, listBudgets, type BudgetSummary } from '../api/finance-api';
+import { SavedViewsBar, useSmartList } from '../../operator';
 
 const PAGE_SIZE = 20;
+
+/** Escopo estavel de persistencia das visoes salvas desta lista. */
+const SCOPE = 'finance.budgets';
+
+/** Valores de status aceitos como visao/URL — os mesmos que a tela oferece. */
+const BUDGETS_ALLOWED_FILTERS = {
+  filters: { status: ['DRAFT', 'APPROVED', 'SUPERSEDED'] },
+} as const;
+
+/**
+ * Visao embutida derivada do dominio real da tela: e o recorte que o Ctrl+K ja promete
+ * (`view.budgets.draft`). Antes desta adocao o comando navegava para `?status=DRAFT`
+ * e a tela ignorava a query string — o filtro nunca chegava ao servidor.
+ */
+const BUDGETS_BUILT_IN_VIEWS = [
+  {
+    id: 'builtin.budgets.draft',
+    name: 'Em rascunho',
+    description: 'Orçamentos ainda não aprovados.',
+    config: { filters: { status: 'DRAFT' }, sortKey: null, sortDirection: 'asc' as const, groupKey: null },
+  },
+];
 
 type ListState =
   | { phase: 'loading' }
@@ -40,12 +63,22 @@ export function BudgetsListPage() {
   const [appliedTerm, setAppliedTerm] = useState('');
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
 
+  // O status vive na URL e em visao salva: o Ctrl+K abre a lista JÁ recortada no
+  // servidor e o endereço é compartilhável. Somente valores enumerados entram.
+  const smartList = useSmartList({
+    scope: SCOPE,
+    builtInViews: BUDGETS_BUILT_IN_VIEWS,
+    allowedFilters: BUDGETS_ALLOWED_FILTERS,
+    urlSync: true,
+  });
+  const statusFilter = smartList.filters.status ?? '';
+
   const loadPage = useCallback(
     async (offset: number, signal?: AbortSignal) => {
       setListState({ phase: 'loading' });
       try {
         const response = await listBudgets(
-          { limit: PAGE_SIZE, offset, q: appliedTerm || undefined },
+          { limit: PAGE_SIZE, offset, status: statusFilter || undefined, q: appliedTerm || undefined },
           signal,
         );
         setListState({ phase: 'ready', items: response.items, offset: response.offset, total: response.total });
@@ -63,7 +96,7 @@ export function BudgetsListPage() {
         });
       }
     },
-    [appliedTerm],
+    [appliedTerm, statusFilter],
   );
 
   useEffect(() => {
@@ -138,6 +171,22 @@ export function BudgetsListPage() {
               placeholder="Código ou nome"
             />
           </div>
+          <div>
+            <label className={filterLabelClass} htmlFor="budget-status-filter">
+              Status
+            </label>
+            <select
+              id="budget-status-filter"
+              className={`${filterControlClass} max-w-xs`}
+              value={statusFilter}
+              onChange={(event) => smartList.setFilter('status', event.target.value)}
+            >
+              <option value="">Todos</option>
+              <option value="DRAFT">Rascunho</option>
+              <option value="APPROVED">Aprovado</option>
+              <option value="SUPERSEDED">Substituído</option>
+            </select>
+          </div>
           <button
             type="submit"
             className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800"
@@ -147,10 +196,49 @@ export function BudgetsListPage() {
         </form>
       </FilterCard>
 
+      <SavedViewsBar
+        views={smartList.savedViews.views}
+        builtInViews={smartList.savedViews.builtInViews}
+        activeViewId={smartList.activeViewId}
+        onApply={(view) => {
+          setAppliedTerm(term.trim());
+          smartList.applyView(view);
+        }}
+        onSave={smartList.savedViews.saveView}
+        onRename={smartList.savedViews.renameView}
+        onRemove={smartList.savedViews.removeView}
+        currentConfig={smartList.currentConfig}
+        canSave={Object.keys(smartList.filters).length > 0}
+        allLabel="Todos"
+        className="mb-4"
+      />
+
       {items.length === 0 ? (
-        <p className="text-sm text-gray-500" role="status">
-          Nenhum orçamento encontrado para os filtros selecionados.
-        </p>
+        <div className="rounded-md bg-white p-4 ring-1 ring-gray-900/5 ring-inset" role="status">
+          <p className="text-sm font-medium text-gray-700">
+            {smartList.isFiltered || appliedTerm
+              ? 'Nenhum orçamento encontrado para os filtros selecionados.'
+              : 'Nenhum orçamento registrado ainda.'}
+          </p>
+          <p className="mt-1 text-xs text-gray-500">
+            {smartList.isFiltered || appliedTerm
+              ? 'Ajuste ou limpe os filtros para ver o conjunto completo.'
+              : 'Comece criando o primeiro orçamento para comparar previsto e realizado.'}
+          </p>
+          {smartList.isFiltered ? (
+            <button
+              type="button"
+              className="mt-2 text-xs font-semibold text-brand-600 hover:text-brand-700"
+              onClick={() => {
+                smartList.clearFilters();
+                setTerm('');
+                setAppliedTerm('');
+              }}
+            >
+              Limpar filtros
+            </button>
+          ) : null}
+        </div>
       ) : (
         <ModuleTableCard>
           <table className={moduleTableClass} aria-label="Lista de Orçamentos">
