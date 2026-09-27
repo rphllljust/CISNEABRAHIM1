@@ -165,10 +165,14 @@ export class ProcurementAccessService {
         params.push(query.supplierId);
       }
       if (query.q) {
-        whereParts.push(
-          `(s.legal_name ILIKE $${params.length + 1} OR s.trade_name ILIKE $${params.length + 1} OR s.normalized_tax_id ILIKE $${params.length + 1})`,
-        );
-        params.push(`%${query.q}%`);
+        // O termo de fornecedor é resolvido no contexto Comercial (port): Compras não lê as
+        // tabelas privadas de Fornecedores.
+        const supplierIds = await this.suppliers.searchIdsByTerm(query.q, 100);
+        if (supplierIds.length === 0) {
+          return { items: [], limit: query.limit, offset: query.offset, total: 0, totalPages: 0 };
+        }
+        whereParts.push(`o.supplier_id = ANY($${params.length + 1}::uuid[])`);
+        params.push(supplierIds);
       }
       const whereClause = whereParts.length > 0 ? whereParts.join(' AND ') : 'TRUE';
 
@@ -183,8 +187,10 @@ export class ProcurementAccessService {
           ? rows.length
           : await this.repository.countOrderList(whereClause, params);
 
+      const references = await this.supplierReferences(rows.map((row) => row.supplier_id));
+
       return {
-        items: rows.map(toSupplierPurchaseOrderSummaryResponse),
+        items: rows.map((row) => toSupplierPurchaseOrderSummaryResponse(row, references.get(row.supplier_id) ?? null)),
         limit: query.limit,
         offset: query.offset,
         total,
@@ -507,12 +513,38 @@ export class ProcurementAccessService {
     if (!row) {
       throw new ProcurementError('PROCUREMENT_NOT_FOUND');
     }
-    const [lines, receipts, supplier] = await Promise.all([
+    const [lines, receipts, references] = await Promise.all([
       this.repository.listOrderLines(orderId),
       this.repository.listReceipts(orderId),
-      this.repository.findSupplierReference(row.supplier_id),
+      this.supplierReferences([row.supplier_id]),
     ]);
-    return toSupplierPurchaseOrderResponse(row, lines, receipts, supplier);
+    const supplier = references.get(row.supplier_id) ?? null;
+    return toSupplierPurchaseOrderResponse(
+      row,
+      lines,
+      receipts,
+      supplier ? { legal_name: supplier.legalName, trade_name: supplier.tradeName, normalized_tax_id: supplier.taxId } : null,
+    );
+  }
+
+  /**
+   * Referências humanas do fornecedor pelo port do contexto Comercial — uma leitura por página,
+   * nunca uma por linha, e nunca uma junção com as tabelas privadas de Fornecedores.
+   */
+  private async supplierReferences(
+    supplierIds: string[],
+  ): Promise<Map<string, { legalName: string; tradeName: string | null; taxId: string }>> {
+    const unique = [...new Set(supplierIds.filter((id) => id.length > 0))];
+    if (unique.length === 0) {
+      return new Map();
+    }
+    const references = await this.suppliers.findReferencesByIds(unique);
+    return new Map(
+      references.map((reference) => [
+        reference.id,
+        { legalName: reference.legalName, tradeName: reference.tradeName, taxId: reference.taxId },
+      ]),
+    );
   }
 
   private async audit(

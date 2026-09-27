@@ -32,9 +32,6 @@ export type SupplierInvoiceListRow = {
   version: number;
   payable_id: string | null;
   supplier_purchase_order_id: string | null;
-  supplier_legal_name: string | null;
-  supplier_trade_name: string | null;
-  supplier_tax_id: string | null;
   created_at: Date | string;
 };
 
@@ -69,15 +66,14 @@ export type SupplierInvoiceListResponse = {
 
 export function toSupplierInvoiceSummaryResponse(
   row: SupplierInvoiceListRow,
+  supplier: { legalName: string; tradeName: string | null; taxId: string } | null,
 ): SupplierInvoiceSummaryResponse {
   return {
     id: row.id,
     unitId: row.unit_id,
     supplierId: row.supplier_id,
-    supplierName: row.supplier_legal_name
-      ? (row.supplier_trade_name ?? row.supplier_legal_name)
-      : null,
-    supplierTaxId: row.supplier_tax_id,
+    supplierName: supplier ? (supplier.tradeName ?? supplier.legalName) : null,
+    supplierTaxId: supplier?.taxId ?? null,
     invoiceNumber: row.invoice_number,
     issuedOn: String(row.issued_on).slice(0, 10),
     dueDate: String(row.due_date).slice(0, 10),

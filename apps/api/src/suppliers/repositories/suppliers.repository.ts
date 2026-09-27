@@ -56,6 +56,41 @@ export class SuppliersRepository {
     return result.rows;
   }
 
+  /**
+   * Referências humanas para o port Comercial (leitura por outro contexto). Uma única consulta
+   * para o conjunto de ids pedido — nunca uma por linha.
+   */
+  async listReferencesByIds(
+    supplierIds: string[],
+  ): Promise<Array<{ id: string; legal_name: string; trade_name: string | null; normalized_tax_id: string }>> {
+    if (supplierIds.length === 0) {
+      return [];
+    }
+    const result = await this.pool().query<{
+      id: string;
+      legal_name: string;
+      trade_name: string | null;
+      normalized_tax_id: string;
+    }>(
+      `SELECT id, legal_name, trade_name, normalized_tax_id
+       FROM pty.suppliers WHERE id = ANY($1::uuid[])`,
+      [supplierIds],
+    );
+    return result.rows;
+  }
+
+  /** Ids que casam com o termo livre, para o consumidor filtrar o próprio dado. */
+  async searchIdsByTerm(term: string, limit: number): Promise<string[]> {
+    const result = await this.pool().query<{ id: string }>(
+      `SELECT id FROM pty.suppliers
+       WHERE legal_name ILIKE $1 OR trade_name ILIKE $1 OR normalized_tax_id ILIKE $1
+       ORDER BY legal_name ASC, id ASC
+       LIMIT $2`,
+      [`%${term}%`, limit],
+    );
+    return result.rows.map((row) => row.id);
+  }
+
   async countList(whereClause: string, params: unknown[]): Promise<number> {
     const result = await this.pool().query<{ total: string }>(
       `SELECT COUNT(*)::text AS total FROM pty.suppliers WHERE ${whereClause}`,

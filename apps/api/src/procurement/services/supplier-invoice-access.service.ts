@@ -100,10 +100,18 @@ export class SupplierInvoiceAccessService {
         params.push(query.supplierId);
       }
       if (query.q) {
-        whereParts.push(
-          `(i.invoice_number ILIKE $${params.length + 1} OR s.legal_name ILIKE $${params.length + 1} OR s.trade_name ILIKE $${params.length + 1} OR s.normalized_tax_id ILIKE $${params.length + 1})`,
-        );
-        params.push(`%${query.q}%`);
+        // Número da nota é dado de Compras; o nome/CNPJ do fornecedor é resolvido no contexto
+        // Comercial pelo port e entra como filtro de ids — sem junção com `pty.suppliers`.
+        const supplierIds = await this.suppliers.searchIdsByTerm(query.q, 100);
+        if (supplierIds.length === 0) {
+          whereParts.push(`i.invoice_number ILIKE $${params.length + 1}`);
+          params.push(`%${query.q}%`);
+        } else {
+          whereParts.push(
+            `(i.invoice_number ILIKE $${params.length + 1} OR i.supplier_id = ANY($${params.length + 2}::uuid[]))`,
+          );
+          params.push(`%${query.q}%`, supplierIds);
+        }
       }
       const whereClause = whereParts.length > 0 ? whereParts.join(' AND ') : 'TRUE';
 
@@ -118,8 +126,21 @@ export class SupplierInvoiceAccessService {
           ? rows.length
           : await this.repository.countList(whereClause, params);
 
+      const uniqueSupplierIds = [...new Set(rows.map((row) => row.supplier_id))];
+      const references = new Map(
+        (uniqueSupplierIds.length > 0
+          ? await this.suppliers.findReferencesByIds(uniqueSupplierIds)
+          : []
+        ).map((reference) => [
+          reference.id,
+          { legalName: reference.legalName, tradeName: reference.tradeName, taxId: reference.taxId },
+        ]),
+      );
+
       return {
-        items: rows.map(toSupplierInvoiceSummaryResponse),
+        items: rows.map((row) =>
+          toSupplierInvoiceSummaryResponse(row, references.get(row.supplier_id) ?? null),
+        ),
         limit: query.limit,
         offset: query.offset,
         total,

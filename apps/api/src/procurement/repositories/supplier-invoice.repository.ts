@@ -63,9 +63,9 @@ export class SupplierInvoiceRepository {
   }
 
   /**
-   * Página de notas do fornecedor sob o MESMO predicado da contagem, com a referência humana do
-   * fornecedor resolvida pelo servidor. A busca textual casa número da nota e nome/CNPJ do
-   * fornecedor — nunca exige um identificador técnico.
+   * Página de notas sob o MESMO predicado da contagem. A consulta NÃO junta `pty.suppliers`: a
+   * referência humana do fornecedor é composta pelo serviço, via port, depois da leitura. O filtro
+   * por termo de fornecedor chega aqui já resolvido em ids (`supplierIds`).
    */
   async listPage(input: {
     whereClause: string;
@@ -77,11 +77,8 @@ export class SupplierInvoiceRepository {
       `SELECT i.id, i.unit_id, i.supplier_id, i.invoice_number, i.issued_on::text AS issued_on,
               i.due_date::text AS due_date, i.currency_code, i.total_amount::text AS total_amount,
               i.status::text AS status, i.version, i.payable_id, i.supplier_purchase_order_id,
-              i.created_at,
-              s.legal_name AS supplier_legal_name, s.trade_name AS supplier_trade_name,
-              s.normalized_tax_id AS supplier_tax_id
+              i.created_at
        FROM prc.supplier_invoices i
-       LEFT JOIN pty.suppliers s ON s.id = i.supplier_id
        WHERE ${input.whereClause}
        ORDER BY i.created_at DESC, i.id DESC
        LIMIT $${input.params.length + 1}
@@ -93,10 +90,7 @@ export class SupplierInvoiceRepository {
 
   async countList(whereClause: string, params: unknown[]): Promise<number> {
     const result = await this.pool().query<{ total: string }>(
-      `SELECT COUNT(*)::text AS total
-       FROM prc.supplier_invoices i
-       LEFT JOIN pty.suppliers s ON s.id = i.supplier_id
-       WHERE ${whereClause}`,
+      `SELECT COUNT(*)::text AS total FROM prc.supplier_invoices i WHERE ${whereClause}`,
       params,
     );
     return Number(result.rows[0]?.total ?? '0');

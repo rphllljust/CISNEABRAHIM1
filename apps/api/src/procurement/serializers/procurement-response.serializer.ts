@@ -22,9 +22,6 @@ export type SupplierPurchaseOrderListRow = {
   version: number;
   issued_at: Date | string;
   updated_at: Date | string;
-  supplier_legal_name: string | null;
-  supplier_trade_name: string | null;
-  supplier_tax_id: string | null;
   line_count: string;
   total_amount: string;
   received_quantity: string;
@@ -272,15 +269,14 @@ export function toPurchaseRequestSummaryResponse(
 
 export function toSupplierPurchaseOrderSummaryResponse(
   row: SupplierPurchaseOrderListRow,
+  supplier: { legalName: string; tradeName: string | null; taxId: string } | null,
 ): SupplierPurchaseOrderSummaryResponse {
   return {
     id: row.id,
     requestId: row.request_id,
     supplierId: row.supplier_id,
-    supplierName: row.supplier_legal_name
-      ? (row.supplier_trade_name ?? row.supplier_legal_name)
-      : null,
-    supplierTaxId: row.supplier_tax_id,
+    supplierName: supplier ? (supplier.tradeName ?? supplier.legalName) : null,
+    supplierTaxId: supplier?.taxId ?? null,
     unitId: row.unit_id,
     currencyCode: row.currency_code,
     paymentTerms: row.payment_terms,

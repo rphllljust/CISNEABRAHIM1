@@ -99,9 +99,9 @@ export class ProcurementRepository {
   }
 
   /**
-   * Página de pedidos ao fornecedor com a REFERÊNCIA HUMANA do fornecedor resolvida pelo servidor
-   * (`pty.suppliers`). É o que permite a linha de lista e o detalhe identificarem o fornecedor sem
-   * exigir que o operador conheça o identificador técnico.
+   * Página de pedidos ao fornecedor. A consulta NÃO junta `pty.suppliers`: a fronteira do contexto
+   * Comercial é atravessada pelo port, e o serviço compõe a referência humana do fornecedor depois.
+   * O filtro por termo de fornecedor chega aqui já resolvido em ids (`supplierIds`).
    */
   async listOrderPage(input: {
     whereClause: string;
@@ -112,16 +112,13 @@ export class ProcurementRepository {
     const result = await this.pool().query<SupplierPurchaseOrderListRow>(
       `SELECT o.id, o.request_id, o.supplier_id, o.unit_id, o.currency_code, o.payment_terms,
               o.status::text AS status, o.version, o.issued_at, o.updated_at,
-              s.legal_name AS supplier_legal_name, s.trade_name AS supplier_trade_name,
-              s.normalized_tax_id AS supplier_tax_id,
               COALESCE(COUNT(l.id), 0)::text AS line_count,
               COALESCE(SUM(l.line_amount), 0)::text AS total_amount,
               COALESCE(SUM(l.received_quantity), 0)::text AS received_quantity
        FROM prc.supplier_purchase_orders o
-       LEFT JOIN pty.suppliers s ON s.id = o.supplier_id
        LEFT JOIN prc.supplier_purchase_order_lines l ON l.supplier_purchase_order_id = o.id
        WHERE ${input.whereClause}
-       GROUP BY o.id, s.legal_name, s.trade_name, s.normalized_tax_id
+       GROUP BY o.id
        ORDER BY o.issued_at DESC, o.id DESC
        LIMIT $${input.params.length + 1}
        OFFSET $${input.params.length + 2}`,
@@ -132,28 +129,10 @@ export class ProcurementRepository {
 
   async countOrderList(whereClause: string, params: unknown[]): Promise<number> {
     const result = await this.pool().query<{ total: string }>(
-      `SELECT COUNT(*)::text AS total
-       FROM prc.supplier_purchase_orders o
-       LEFT JOIN pty.suppliers s ON s.id = o.supplier_id
-       WHERE ${whereClause}`,
+      `SELECT COUNT(*)::text AS total FROM prc.supplier_purchase_orders o WHERE ${whereClause}`,
       params,
     );
     return Number(result.rows[0]?.total ?? '0');
-  }
-
-  /** Referência humana do fornecedor para o detalhe e para as linhas de recebimento. */
-  async findSupplierReference(
-    supplierId: string,
-  ): Promise<{ legal_name: string; trade_name: string | null; normalized_tax_id: string } | null> {
-    const result = await this.pool().query<{
-      legal_name: string;
-      trade_name: string | null;
-      normalized_tax_id: string;
-    }>(
-      `SELECT legal_name, trade_name, normalized_tax_id FROM pty.suppliers WHERE id = $1`,
-      [supplierId],
-    );
-    return result.rows[0] ?? null;
   }
 
   async findOrderById(orderId: string): Promise<SupplierPurchaseOrderRow | null> {

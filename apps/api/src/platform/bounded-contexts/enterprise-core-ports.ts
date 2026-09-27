@@ -22,10 +22,31 @@ export type CommercialSupplierView = {
   paymentTerms: string | null;
 };
 
+/**
+ * Referência humana do Fornecedor para leitura por outro contexto.
+ *
+ * Existe para que um contexto consumidor (Compras, Financeiro) identifique o fornecedor por
+ * nome/CNPJ SEM ler as tabelas privadas do contexto Comercial: o dado atravessa a fronteira pelo
+ * port, nunca por junção SQL (`module-boundary-rules`).
+ */
+export type CommercialSupplierReference = {
+  id: string;
+  legalName: string;
+  tradeName: string | null;
+  taxId: string;
+};
+
 export type CommercialSupplierPort = {
   findPublishedById(supplierId: string): Promise<CommercialSupplierView | null>;
   requireActive(supplierId: string): Promise<CommercialSupplierView>;
   assertNotInactive(supplierId: string): Promise<void>;
+  /** Referências humanas dos fornecedores pedidos (no máximo uma leitura por página). */
+  findReferencesByIds(supplierIds: string[]): Promise<CommercialSupplierReference[]>;
+  /**
+   * Identificadores de fornecedores que casam com o termo informado (nome, nome fantasia ou
+   * CNPJ). O consumidor usa a lista para filtrar o próprio dado sem tocar em `pty.suppliers`.
+   */
+  searchIdsByTerm(term: string, limit: number): Promise<string[]>;
 };
 
 export type CommercialClientView = {
