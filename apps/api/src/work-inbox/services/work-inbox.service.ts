@@ -3,7 +3,6 @@ import {
   WORK_DOMAINS,
   type WorkDomain,
   type WorkItem,
-  type WorkKind,
   WORK_KINDS,
   compareWorkItems,
   deduplicateWorkItems,
