@@ -7,8 +7,36 @@ import { SUPPLIER_STATUS_LABELS } from '../../financial-ui/labels';
 import { mapSupplierErrorToMessage } from '../api/supplier-error-messages';
 import { listSuppliers } from '../api/suppliers-api';
 import type { SupplierSummary } from '../types/supplier.types';
+import { SavedViewsBar, useSmartList } from '../../operator';
 
 const PAGE_SIZE = 20;
+
+/** Escopo estavel de persistencia das visoes salvas desta lista. */
+const SCOPE = 'suppliers.list';
+
+/** Valores enumerados aceitos em visao/URL — os mesmos que a tela oferece. */
+const SUPPLIERS_ALLOWED_FILTERS = {
+  filters: { status: ['ACTIVE', 'INACTIVE'] },
+} as const;
+
+/**
+ * Visoes embutidas derivadas do dominio real: ativos sao a base cotidiana de compra e
+ * inativos sao a fila de manutencao cadastral. Nada aqui inventa estado.
+ */
+const SUPPLIERS_BUILT_IN_VIEWS = [
+  {
+    id: 'builtin.suppliers.active',
+    name: 'Ativos',
+    description: 'Fornecedores aptos a receber pedido.',
+    config: { filters: { status: 'ACTIVE' }, sortKey: null, sortDirection: 'asc' as const, groupKey: null },
+  },
+  {
+    id: 'builtin.suppliers.inactive',
+    name: 'Inativos',
+    description: 'Cadastros fora de operação.',
+    config: { filters: { status: 'INACTIVE' }, sortKey: null, sortDirection: 'asc' as const, groupKey: null },
+  },
+];
 
 type ListState =
   | { phase: 'loading' }
@@ -19,8 +47,18 @@ type ListState =
 export function SuppliersListPage() {
   const [query, setQuery] = useState('');
   const [appliedQuery, setAppliedQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'' | 'ACTIVE' | 'INACTIVE'>('');
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
+
+  // ADOCAO DE SAVED VIEWS: o status sai do estado local e passa a viver na URL e na
+  // visao salva, com o mesmo mecanismo ja usado em Clientes, Despesas, Orcamentos,
+  // Recebiveis e Contas a pagar. Somente valores enumerados entram (allow-list).
+  const smartList = useSmartList({
+    scope: SCOPE,
+    builtInViews: SUPPLIERS_BUILT_IN_VIEWS,
+    allowedFilters: SUPPLIERS_ALLOWED_FILTERS,
+    urlSync: true,
+  });
+  const statusFilter = smartList.filters.status ?? '';
 
   const loadPage = useCallback(
     async (offset: number, signal?: AbortSignal) => {
@@ -143,7 +181,7 @@ export function SuppliersListPage() {
               id="supplier-status-filter"
               className={`${filterControlClass} max-w-xs`}
               value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value as '' | 'ACTIVE' | 'INACTIVE')}
+              onChange={(event) => smartList.setFilter('status', event.target.value)}
             >
               <option value="">Todos</option>
               <option value="ACTIVE">Ativos</option>
@@ -159,10 +197,49 @@ export function SuppliersListPage() {
         </form>
       </FilterCard>
 
+      <SavedViewsBar
+        views={smartList.savedViews.views}
+        builtInViews={smartList.savedViews.builtInViews}
+        activeViewId={smartList.activeViewId}
+        onApply={(view) => {
+          setAppliedQuery(query.trim());
+          smartList.applyView(view);
+        }}
+        onSave={smartList.savedViews.saveView}
+        onRename={smartList.savedViews.renameView}
+        onRemove={smartList.savedViews.removeView}
+        currentConfig={smartList.currentConfig}
+        canSave={Object.keys(smartList.filters).length > 0}
+        allLabel="Todos"
+        className="mb-4"
+      />
+
       {items.length === 0 ? (
-        <p className="text-sm text-gray-500" role="status">
-          Nenhum fornecedor encontrado para os filtros selecionados.
-        </p>
+        <div className="rounded-md bg-white p-4 ring-1 ring-gray-900/5 ring-inset" role="status">
+          <p className="text-sm font-medium text-gray-700">
+            {smartList.isFiltered || appliedQuery
+              ? 'Nenhum fornecedor encontrado para os filtros selecionados.'
+              : 'Nenhum fornecedor cadastrado ainda.'}
+          </p>
+          <p className="mt-1 text-xs text-gray-500">
+            {smartList.isFiltered || appliedQuery
+              ? 'Ajuste ou limpe os filtros para ver o conjunto completo.'
+              : 'Cadastre o primeiro fornecedor para poder emitir pedidos de compra.'}
+          </p>
+          {smartList.isFiltered ? (
+            <button
+              type="button"
+              className="mt-2 text-xs font-semibold text-brand-600 hover:text-brand-700"
+              onClick={() => {
+                smartList.clearFilters();
+                setQuery('');
+                setAppliedQuery('');
+              }}
+            >
+              Limpar filtros
+            </button>
+          ) : null}
+        </div>
       ) : (
         <ModuleTableCard>
           <table className={moduleTableClass} aria-label="Lista de Fornecedores">

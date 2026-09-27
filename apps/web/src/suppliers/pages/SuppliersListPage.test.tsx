@@ -43,7 +43,7 @@ function calledUrls(fetchMock: ReturnType<typeof vi.fn>): string[] {
   return fetchMock.mock.calls.map((call) => String(call[0]));
 }
 
-function createSuppliersFetchMock(options?: { denied?: boolean }) {
+function createSuppliersFetchMock(options?: { denied?: boolean; empty?: boolean }) {
   // A sessão é servida pelo mock de shell: sem ela o AuthProvider expira a sessão e nenhuma
   // consulta seguinte chega ao servidor — um falso "sem dados".
   const shellMock = createShellFetchMock();
@@ -57,7 +57,7 @@ function createSuppliersFetchMock(options?: { denied?: boolean }) {
       }
       const status = searchParams.get('status');
       const q = searchParams.get('q');
-      let items = [ACTIVE_SUPPLIER, INACTIVE_SUPPLIER];
+      let items = options?.empty ? [] : [ACTIVE_SUPPLIER, INACTIVE_SUPPLIER];
       if (status) {
         items = items.filter((item) => item.status === status);
       }
@@ -141,6 +141,36 @@ describe('SuppliersListPage', () => {
     await waitFor(() => {
       expect(calledUrls(fetchMock).some((url) => url.includes('status=INACTIVE'))).toBe(true);
     });
+  });
+
+  it('honors the status carried in the URL and exposes it as a saved view', async () => {
+    const fetchMock = createSuppliersFetchMock();
+    vi.stubGlobal('fetch', fetchMock);
+
+    // A visao embutida "Ativos" fixa ?status=ACTIVE: o recorte precisa chegar ao servidor
+    // e o seletor precisa refletir a visao aplicada, nao um estado orfao.
+    renderWithProviders(<SuppliersListPage />, {
+      router: { initialEntries: ['/app/suppliers?status=ACTIVE'] },
+    });
+
+    await waitFor(() => {
+      expect(calledUrls(fetchMock).some((url) => url.includes('status=ACTIVE'))).toBe(true);
+    });
+    expect(screen.getByLabelText('Status')).toHaveValue('ACTIVE');
+    expect(screen.queryByText('Fornecedor Beta LTDA')).not.toBeInTheDocument();
+  });
+
+  it('shows a contextual empty state with a way out when a filter is applied', async () => {
+    vi.stubGlobal('fetch', createSuppliersFetchMock({ empty: true }));
+
+    renderWithProviders(<SuppliersListPage />, {
+      router: { initialEntries: ['/app/suppliers?status=ACTIVE'] },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/nenhum fornecedor encontrado para os filtros/i)).toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: /limpar filtros/i })).toBeInTheDocument();
   });
 
   it('shows the denied state when the server refuses the list', async () => {
