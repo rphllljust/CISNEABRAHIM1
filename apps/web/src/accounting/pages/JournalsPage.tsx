@@ -40,6 +40,21 @@ import type {
   PeriodsList,
 } from '../types/accounting.types';
 
+/**
+ * Próxima ação derivada do estado do lançamento — postar/estornar continuam no backend.
+ * Nenhuma regra contábil é criada no navegador.
+ */
+function NEXT_ACTION_FOR(status: JournalStatus): string {
+  switch (status) {
+    case 'DRAFT':
+      return 'Postar';
+    case 'POSTED':
+      return 'Documentado';
+    default:
+      return '—';
+  }
+}
+
 export function JournalsPage() {
   const { journalId } = useParams();
   const navigate = useNavigate();
@@ -222,6 +237,9 @@ function JournalListRoute() {
                   <th scope="col" className={moduleTableHeaderCellClass}>
                     Estado
                   </th>
+                  <th scope="col" className={moduleTableHeaderCellClass}>
+                    Próxima ação
+                  </th>
                   <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
                     Débito
                   </th>
@@ -243,6 +261,7 @@ function JournalListRoute() {
                     <td className={moduleTableCellClass}>
                       <FinanceStatusBadge status={entry.status} labels={JOURNAL_STATUS_LABELS} />
                     </td>
+                    <td className={moduleTableCellClass}>{NEXT_ACTION_FOR(entry.status)}</td>
                     <td className={`${moduleTableCellClass} text-right`}>
                       <Money value={entry.debitTotal} currencyCode={entry.currencyCode} />
                     </td>
