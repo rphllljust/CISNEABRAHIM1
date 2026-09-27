@@ -419,6 +419,36 @@ export async function rejectExpense(
   });
 }
 
+/** Linha de lista de orçamento: código, nome, moeda e estado. */
+export type BudgetSummary = {
+  id: string;
+  unitId: string;
+  code: string;
+  name: string;
+  currencyCode: string;
+  status: string;
+  rowVersion: number;
+  updatedAt: string;
+};
+
+export async function listBudgets(
+  params: { limit: number; offset: number; status?: string; q?: string },
+  signal?: AbortSignal,
+): Promise<{ items: BudgetSummary[]; limit: number; offset: number; total: number; totalPages: number }> {
+  const search = new URLSearchParams({ limit: String(params.limit), offset: String(params.offset) });
+  if (params.status) {
+    search.set('status', params.status);
+  }
+  if (params.q && params.q.trim().length > 0) {
+    search.set('q', params.q.trim());
+  }
+  return requestJson(`/api/v1/finance/budgets?${search.toString()}`, {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+}
+
 export async function getBudget(budgetId: string, signal?: AbortSignal): Promise<BudgetDetail> {
   return requestJson<BudgetDetail>(`/api/v1/finance/budgets/${budgetId}`, {
     method: 'GET',

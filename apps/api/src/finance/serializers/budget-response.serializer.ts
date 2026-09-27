@@ -6,6 +6,39 @@ import type {
   BudgetVersionRow,
 } from '../repositories/budget.repository.types';
 
+export type BudgetSummaryResponse = {
+  id: string;
+  unitId: string;
+  code: string;
+  name: string;
+  currencyCode: string;
+  status: string;
+  rowVersion: number;
+  updatedAt: string;
+};
+
+export type BudgetListResponse = {
+  items: BudgetSummaryResponse[];
+  limit: number;
+  offset: number;
+  total: number;
+  totalPages: number;
+};
+
+/** Linha de lista: o orçamento é identificado por código e nome. */
+export function toBudgetSummaryResponse(row: BudgetRow): BudgetSummaryResponse {
+  return {
+    id: row.id,
+    unitId: row.unit_id,
+    code: row.code,
+    name: row.name,
+    currencyCode: row.currency_code,
+    status: row.status,
+    rowVersion: row.row_version,
+    updatedAt: String(row.updated_at),
+  };
+}
+
 export type BudgetLineResponse = {
   id: string;
   periodId: string;

@@ -7,6 +7,8 @@ import {
 } from '../../audit/types/security-audit.types';
 import { SecurityAuditService } from '../../audit/services/security-audit.service';
 import { AUTHZ_ACTIONS } from '../../authorization/types/authz-actions';
+import { AUTHZ_RESOURCE_TYPES } from '../../authorization/types/authz-resources';
+import { AuthorizationRepository } from '../../authorization/repositories/authorization.repository';
 import type { IdentityAuthzContext } from '../../authorization/types/authz-decision';
 import { SodEnforcementService } from '../../authorization/services/sod-enforcement.service';
 import { SOD_DUTIES, resolveSodScope } from '../../authorization/domain/segregation-of-duties';
@@ -32,20 +34,79 @@ import {
 import { BudgetRepository } from '../repositories/budget.repository';
 import {
   toBudgetResponse,
+  toBudgetSummaryResponse,
   type BudgetComparisonResponse,
+  type BudgetListResponse,
   type BudgetResponse,
 } from '../serializers/budget-response.serializer';
 import { BudgetAccessAuthz } from './budget-access.authz';
-import { mapBudgetDomainError } from './budget-access.errors';
+import { budgetAccessDenied, mapBudgetDomainError } from './budget-access.errors';
 
 @Injectable()
 export class BudgetAccessService {
   constructor(
     private readonly repository: BudgetRepository,
     private readonly authz: BudgetAccessAuthz,
+    private readonly authorizationRepository: AuthorizationRepository,
     private readonly securityAudit: SecurityAuditService,
     private readonly sod: SodEnforcementService,
   ) {}
+
+  /**
+   * Listagem operacional de orçamentos. Exige concessão ativa de `finance:budget:list` no recurso
+   * FinanceBudget: sem ela nada é listado, e a tela não depende de identificador digitado.
+   */
+  async list(
+    actor: IdentityAuthzContext,
+    query: { limit: number; offset: number; status?: string; unitId?: string; q?: string },
+  ): Promise<BudgetListResponse> {
+    const grants = await this.authorizationRepository.findActiveGrants(
+      actor.identityId,
+      AUTHZ_ACTIONS.FinanceBudgetList,
+      AUTHZ_RESOURCE_TYPES.FinanceBudget,
+    );
+    if (grants.length === 0) {
+      throw mapBudgetDomainError(budgetAccessDenied());
+    }
+    try {
+      const whereParts: string[] = [];
+      const params: unknown[] = [];
+      if (query.status) {
+        whereParts.push(`status = $${params.length + 1}::fin.budget_status`);
+        params.push(query.status);
+      }
+      if (query.unitId) {
+        whereParts.push(`unit_id = $${params.length + 1}`);
+        params.push(query.unitId);
+      }
+      if (query.q) {
+        whereParts.push(`(code ILIKE $${params.length + 1} OR name ILIKE $${params.length + 1})`);
+        params.push(`%${query.q}%`);
+      }
+      const whereClause = whereParts.length > 0 ? whereParts.join(' AND ') : 'TRUE';
+
+      const rows = await this.repository.listBudgetPage({
+        whereClause,
+        params,
+        limit: query.limit,
+        offset: query.offset,
+      });
+      const total =
+        query.offset === 0 && rows.length < query.limit
+          ? rows.length
+          : await this.repository.countBudgetList(whereClause, params);
+
+      return {
+        items: rows.map(toBudgetSummaryResponse),
+        limit: query.limit,
+        offset: query.offset,
+        total,
+        totalPages: Math.ceil(total / query.limit),
+      };
+    } catch (error) {
+      throw mapBudgetDomainError(error);
+    }
+  }
 
   async create(actor: IdentityAuthzContext, input: CreateBudgetInput): Promise<BudgetResponse> {
     try {

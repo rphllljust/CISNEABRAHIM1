@@ -39,8 +39,37 @@ export class BudgetRepository {
     return connection.pool;
   }
 
-  async findBudgetById(budgetId: string): Promise<BudgetRow | null> {
+  /**
+   * Página de orçamentos sob o MESMO predicado da contagem. A linha é o próprio registro
+   * (código, nome, moeda, estado) — sem junção com versões, períodos ou linhas.
+   */
+  async listBudgetPage(input: {
+    whereClause: string;
+    params: unknown[];
+    limit: number;
+    offset: number;
+  }): Promise<BudgetRow[]> {
     const result = await this.pool().query<BudgetRow>(
+      `SELECT ${BUDGET_RETURNING}
+       FROM fin.budgets
+       WHERE ${input.whereClause}
+       ORDER BY code ASC, id ASC
+       LIMIT $${input.params.length + 1}
+       OFFSET $${input.params.length + 2}`,
+      [...input.params, input.limit, input.offset],
+    );
+    return result.rows;
+  }
+
+  async countBudgetList(whereClause: string, params: unknown[]): Promise<number> {
+    const result = await this.pool().query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total FROM fin.budgets WHERE ${whereClause}`,
+      params,
+    );
+    return Number(result.rows[0]?.total ?? '0');
+  }
+
+  async findBudgetById(budgetId: string): Promise<BudgetRow | null> {    const result = await this.pool().query<BudgetRow>(
       `SELECT ${BUDGET_RETURNING} FROM fin.budgets WHERE id = $1`,
       [budgetId],
     );

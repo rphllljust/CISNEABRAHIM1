@@ -189,6 +189,14 @@ export const SHELL_NAV_GROUPS: ShellNavGroup[] = [
         accessCheck: 'finance-expense-read',
         featureFlag: 'finance',
       },
+      {
+        id: 'finance-budgets',
+        label: 'Orçamentos',
+        path: '/app/finance/budgets',
+        capabilityId: 'finance:budget:list',
+        accessCheck: 'finance-budget-read',
+        featureFlag: 'finance',
+      },
     ],
   },
   {

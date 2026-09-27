@@ -229,6 +229,7 @@ export const AUTHZ_ACTIONS = {
   FinanceBudgetUpdate: 'finance:budget:update',
   FinanceBudgetApprove: 'finance:budget:approve',
   FinanceBudgetRead: 'finance:budget:read',
+  FinanceBudgetList: 'finance:budget:list',
   FinanceCashForecastRead: 'finance:cash-forecast:read',
   AccountingChartManage: 'accounting:chart:manage',
   AccountingPeriodOpen: 'accounting:period:open',
