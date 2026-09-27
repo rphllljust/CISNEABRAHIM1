@@ -7,7 +7,10 @@ import {
 } from '../../audit/types/security-audit.types';
 import { SecurityAuditService } from '../../audit/services/security-audit.service';
 import { AUTHZ_ACTIONS } from '../../authorization/types/authz-actions';
+import { AUTHZ_RESOURCE_TYPES } from '../../authorization/types/authz-resources';
 import type { IdentityAuthzContext } from '../../authorization/types/authz-decision';
+import { AuthorizationRepository } from '../../authorization/repositories/authorization.repository';
+import { ScopeEnforcementService } from '../../authorization/services/scope-enforcement.service';
 import { SodEnforcementService } from '../../authorization/services/sod-enforcement.service';
 import { SOD_DUTIES, resolveSodScope } from '../../authorization/domain/segregation-of-duties';
 import { assertUuid } from '../../platform/kernel/uuid';
@@ -47,6 +50,14 @@ import {
   type ManualMatchInput,
 } from '../domain/bank-reconciliation.validation';
 import { FINANCIAL_ACCOUNT_KINDS } from '../domain/treasury';
+import {
+  assertBankStatementStatus,
+  type BankStatementListQuery,
+} from '../dto/bank-statement-list.dto';
+import {
+  toBankStatementSummaryResponse,
+  type BankStatementListResponse,
+} from '../serializers/bank-statement-list-response.serializer';
 import { toBankImportResponse, type BankImportResponse } from '../serializers/bank-import-response.serializer';
 import { BankReconciliationRepository } from '../repositories/bank-reconciliation.repository';
 import type {
@@ -60,7 +71,7 @@ import {
   type BankStatementResponse,
   type ReconciliationResponse,
 } from '../serializers/bank-reconciliation-response.serializer';
-import { mapBankReconciliationError } from './bank-reconciliation-access.errors';
+import { bankReconAccessDenied, mapBankReconciliationError } from './bank-reconciliation-access.errors';
 import { TreasuryAccessAuthz } from './treasury-access.authz';
 
 @Injectable()
@@ -71,6 +82,8 @@ export class BankReconciliationAccessService {
     private readonly authz: TreasuryAccessAuthz,
     private readonly securityAudit: SecurityAuditService,
     private readonly sod: SodEnforcementService,
+    private readonly authorizationRepository: AuthorizationRepository,
+    private readonly scopeEnforcement: ScopeEnforcementService,
   ) {}
 
   async importStatement(
@@ -564,11 +577,69 @@ export class BankReconciliationAccessService {
     }
   }
 
+  /**
+   * Descoberta de extratos bancários. Antes desta capacidade a conciliação só existia mediante um
+   * identificador digitado: não havia listagem alguma.
+   *
+   * Autorização é fronteira do backend: sem concessão ativa de `finance:reconciliation:read` no
+   * recurso FinanceTreasury a resposta é negada, e o predicado de escopo por unidade é aplicado na
+   * própria consulta — quem não enxerga a unidade não enxerga a linha, nem a contagem dela.
+   */
+  async listStatements(
+    actor: IdentityAuthzContext,
+    query: BankStatementListQuery,
+  ): Promise<BankStatementListResponse> {
+    try {
+      const grants = await this.authorizationRepository.findActiveGrants(
+        actor.identityId,
+        AUTHZ_ACTIONS.FinanceReconciliationRead,
+        AUTHZ_RESOURCE_TYPES.FinanceTreasury,
+      );
+      if (grants.length === 0) {
+        throw bankReconAccessDenied();
+      }
+
+      const scope = this.scopeEnforcement.buildBankStatementListFilter(grants);
+      if (scope.clause === 'FALSE') {
+        throw bankReconAccessDenied();
+      }
+
+      const status = query.status ? assertBankStatementStatus(query.status) : undefined;
+      const filters = {
+        scopeClause: scope.clause,
+        scopeParams: scope.params,
+        financialAccountId: query.financialAccountId,
+        status,
+        dateFrom: query.dateFrom,
+        dateTo: query.dateTo,
+      };
+
+      const rows = await this.repository.listStatementsPage({
+        ...filters,
+        limit: query.limit,
+        offset: query.offset,
+      });
+      const total =
+        query.offset === 0 && rows.length < query.limit
+          ? rows.length
+          : await this.repository.countStatements(filters);
+
+      return {
+        items: rows.map(toBankStatementSummaryResponse),
+        limit: query.limit,
+        offset: query.offset,
+        total,
+        totalPages: Math.ceil(total / query.limit),
+      };
+    } catch (error) {
+      throw mapBankReconciliationError(error);
+    }
+  }
+
   async getStatement(
     actor: IdentityAuthzContext,
     statementId: string,
-  ): Promise<BankStatementResponse> {
-    try {
+  ): Promise<BankStatementResponse> {    try {
       const statement = await this.requireStatement(actor, statementId, AUTHZ_ACTIONS.FinanceReconciliationRead);
       const lines = await this.repository.listLines(statement.id);
       return toStatementResponse(statement, lines, false);

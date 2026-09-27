@@ -5,6 +5,7 @@ import { BankReconciliationError } from '../domain/bank-reconciliation';
 import type {
   BankStatementImportRow,
   BankStatementLineRow,
+  BankStatementListRow,
   BankStatementRow,
   EligibleMovementRow,
   ReconciliationMatchRow,
@@ -364,8 +365,118 @@ export class BankReconciliationRepository {
     }
   }
 
-  async listEligibleMovements(accountId: string): Promise<EligibleMovementRow[]> {
-    const result = await this.pool().query<EligibleMovementRow>(
+  /**
+   * Página de descoberta de extratos. Uma única consulta para a página (com a conta já junta) e
+   * uma única consulta agregada para os totais das linhas daquela página — nunca uma consulta por
+   * extrato.
+   *
+   * `scopeClause` é montado pela autorização a partir das concessões do ator: quem não enxerga a
+   * unidade não enxerga a linha, então a existência de extrato não vaza por metadado.
+   */
+  async listStatementsPage(input: {
+    scopeClause: string;
+    scopeParams: unknown[];
+    financialAccountId?: string;
+    status?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    limit: number;
+    offset: number;
+  }): Promise<BankStatementListRow[]> {
+    const params: unknown[] = [...input.scopeParams];
+    const filters: string[] = [];
+
+    if (input.financialAccountId) {
+      filters.push(`s.financial_account_id = $${params.length + 1}::uuid`);
+      params.push(input.financialAccountId);
+    }
+    if (input.status) {
+      filters.push(`s.status = $${params.length + 1}::fin.bank_statement_status`);
+      params.push(input.status);
+    }
+    if (input.dateFrom) {
+      filters.push(`s.period_ends_on >= $${params.length + 1}::date`);
+      params.push(input.dateFrom);
+    }
+    if (input.dateTo) {
+      filters.push(`s.period_starts_on <= $${params.length + 1}::date`);
+      params.push(input.dateTo);
+    }
+
+    const where = [input.scopeClause, ...filters].join(' AND ');
+    const limitParam = params.length + 1;
+    const offsetParam = params.length + 2;
+
+    const result = await this.pool().query<BankStatementListRow>(
+      `SELECT s.id, s.unit_id, s.financial_account_id,
+              a.code AS account_code, a.name AS account_name,
+              s.source_kind::text AS source_kind, s.source_reference,
+              s.period_starts_on::text AS period_starts_on,
+              s.period_ends_on::text AS period_ends_on,
+              s.currency_code, s.status::text AS status,
+              COALESCE(lines.line_count, 0)::int AS line_count,
+              COALESCE(lines.matched_line_count, 0)::int AS matched_line_count,
+              COALESCE(lines.unreconciled_line_count, 0)::int AS unreconciled_line_count,
+              COALESCE(lines.debit_total, '0')::text AS debit_total,
+              COALESCE(lines.credit_total, '0')::text AS credit_total
+       FROM fin.bank_statements s
+       INNER JOIN fin.financial_accounts a ON a.id = s.financial_account_id
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*) AS line_count,
+                COUNT(*) FILTER (WHERE l.match_status = 'MATCHED') AS matched_line_count,
+                COUNT(*) FILTER (WHERE l.match_status <> 'MATCHED') AS unreconciled_line_count,
+                SUM(l.amount) FILTER (WHERE l.direction = 'DEBIT') AS debit_total,
+                SUM(l.amount) FILTER (WHERE l.direction = 'CREDIT') AS credit_total
+         FROM fin.bank_statement_lines l
+         WHERE l.bank_statement_id = s.id
+       ) lines ON TRUE
+       WHERE ${where}
+       ORDER BY s.period_ends_on DESC, s.created_at DESC, s.id DESC
+       LIMIT $${limitParam} OFFSET $${offsetParam}`,
+      [...params, input.limit, input.offset],
+    );
+    return result.rows;
+  }
+
+  async countStatements(input: {
+    scopeClause: string;
+    scopeParams: unknown[];
+    financialAccountId?: string;
+    status?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  }): Promise<number> {
+    const params: unknown[] = [...input.scopeParams];
+    const filters: string[] = [];
+
+    if (input.financialAccountId) {
+      filters.push(`s.financial_account_id = $${params.length + 1}::uuid`);
+      params.push(input.financialAccountId);
+    }
+    if (input.status) {
+      filters.push(`s.status = $${params.length + 1}::fin.bank_statement_status`);
+      params.push(input.status);
+    }
+    if (input.dateFrom) {
+      filters.push(`s.period_ends_on >= $${params.length + 1}::date`);
+      params.push(input.dateFrom);
+    }
+    if (input.dateTo) {
+      filters.push(`s.period_starts_on <= $${params.length + 1}::date`);
+      params.push(input.dateTo);
+    }
+
+    const where = [input.scopeClause, ...filters].join(' AND ');
+    const result = await this.pool().query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total
+       FROM fin.bank_statements s
+       WHERE ${where}`,
+      params,
+    );
+    return Number(result.rows[0]?.total ?? '0');
+  }
+
+  async listEligibleMovements(accountId: string): Promise<EligibleMovementRow[]> {    const result = await this.pool().query<EligibleMovementRow>(
       `SELECT t.id, t.account_id, t.direction::text AS direction, t.amount::text AS amount,
               (t.occurred_at AT TIME ZONE 'UTC')::date::text AS occurred_on,
               t.origin_kind::text AS origin_kind, t.origin_id, t.transfer_id

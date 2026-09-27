@@ -146,6 +146,36 @@ export class ScopeEnforcementService {
     };
   }
 
+  /**
+   * Filtro obrigatório da listagem de extratos bancários (`fin.bank_statements`).
+   *
+   * O extrato é endereçado pela unidade: concessão GLOBAL sem âncora enxerga tudo; concessão UNIT
+   * enxerga apenas as unidades concedidas. Sem concessão utilizável o predicado é `FALSE`, e a
+   * listagem nega por omissão — a existência do extrato não vaza por metadado (contagem, total ou
+   * flag de existência).
+   */
+  buildBankStatementListFilter(grants: GrantRow[]): ScopeSqlPredicate {
+    const hasGlobal = grants.some(
+      (grant) => grant.scope_type === AUTHZ_SCOPES.Global && grant.resource_id === null,
+    );
+    if (hasGlobal) {
+      return { clause: 'TRUE', params: [] };
+    }
+
+    const unitIds = grants
+      .filter((grant) => grant.scope_type === AUTHZ_SCOPES.Unit && grant.resource_id !== null)
+      .map((grant) => grant.resource_id as string);
+
+    if (unitIds.length === 0) {
+      return { clause: 'FALSE', params: [] };
+    }
+
+    return {
+      clause: 's.unit_id = ANY($1::text[])',
+      params: [unitIds],
+    };
+  }
+
   buildDocumentListFilter(grants: GrantRow[]): ScopeSqlPredicate {
     const hasGlobal = grants.some(
       (grant) => grant.scope_type === AUTHZ_SCOPES.Global && grant.resource_id === null,

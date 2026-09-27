@@ -11,6 +11,7 @@ import { PayablesController } from './controllers/payables.controller';
 import { ReceivablesController } from './controllers/receivables.controller';
 import { TreasuryController } from './controllers/treasury.controller';
 import { BankReconciliationController } from './controllers/bank-reconciliation.controller';
+import { BankStatementsController } from './controllers/bank-statements.controller';
 import { BudgetController } from './controllers/budget.controller';
 import { CashFlowForecastController } from './controllers/cash-flow-forecast.controller';
 import { BankReconciliationRepository } from './repositories/bank-reconciliation.repository';
@@ -48,6 +49,7 @@ import { TreasuryAccessService } from './services/treasury-access.service';
     ExpensesController,
     TreasuryController,
     BankReconciliationController,
+    BankStatementsController,
     BudgetController,
     CashFlowForecastController,
   ],
