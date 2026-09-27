@@ -9,6 +9,7 @@ import {
 import { handleCommercialApiRoute } from './commercial-api-routes';
 import { handleClientsApiRoute } from './clients-api-routes';
 import { handleDocumentsApiRoute } from './documents-api-routes';
+import { handleProcurementApiRoute } from './procurement-api-routes';
 import { handleSuppliersApiRoute } from './suppliers-api-routes';
 
 export type ApiMockProfile =
@@ -18,7 +19,8 @@ export type ApiMockProfile =
   | 'commercial'
   | 'clients'
   | 'documents'
-  | 'suppliers';
+  | 'suppliers'
+  | 'procurement';
 
 type RouteContext = {
   profile: ApiMockProfile;
@@ -114,6 +116,10 @@ async function handleApiRoute(route: Route, context: RouteContext): Promise<void
   }
 
   if (context.profile === 'suppliers' && (await handleSuppliersApiRoute(route))) {
+    return;
+  }
+
+  if (context.profile === 'procurement' && (await handleProcurementApiRoute(route))) {
     return;
   }
 

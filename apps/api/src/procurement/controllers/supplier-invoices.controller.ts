@@ -1,7 +1,8 @@
-import { Body, Controller, Get, HttpCode, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { CurrentAuth } from '../../auth/decorators/current-auth.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import type { AccessTokenClaims } from '../../auth/services/token.service';
+import { parseListSupplierInvoicesQuery } from '../dto/procurement-list.dto';
 import type {
   CreateSupplierInvoiceInput,
   ValidateSupplierInvoiceInput,
@@ -17,6 +18,12 @@ export class SupplierInvoicesController {
   @HttpCode(201)
   create(@CurrentAuth() auth: AccessTokenClaims, @Body() body: CreateSupplierInvoiceInput) {
     return this.invoices.create({ identityId: auth.sub, sessionId: auth.sid }, body);
+  }
+
+  @Get()
+  list(@CurrentAuth() auth: AccessTokenClaims, @Query() query: Record<string, unknown>) {
+    const parsed = parseListSupplierInvoicesQuery(query);
+    return this.invoices.list({ identityId: auth.sub, sessionId: auth.sid }, parsed);
   }
 
   @Get(':invoiceId')

@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { EmptyState, Field, Input, Money } from '../../ui';
 import {
+  FilterCard,
   ModulePage,
   ModulePageHeader,
   ModulePrimaryLink,
   ModuleTableCard,
+  ModuleTableLink,
+  filterControlClass,
+  filterLabelClass,
   moduleTableCellClass,
   moduleTableClass,
   moduleTableHeadClass,
@@ -15,11 +19,12 @@ import {
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { CreateRecordForm, VersionedActionForm } from '../../financial-ui/VersionedActionForm';
 import { PROCUREMENT_REQUEST_STATUS_LABELS, SUPPLIER_INVOICE_STATUS_LABELS, SUPPLIER_PO_STATUS_LABELS } from '../../financial-ui/labels';
-import { RecordLookupCard } from '../../financial-ui/RecordLookupCard';
+import { HumanLookupField } from '../../financial-ui/HumanLookupField';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import { BackofficeCapabilityRoute } from '../../financial-ui/BackofficeCapabilityRoute';
 import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge';
+import { formatCnpjDisplay } from '../../clients/utils/format-cnpj';
 import {
   approvePurchaseRequest,
   cancelPurchaseOrder,
@@ -32,14 +37,21 @@ import {
   getSupplierInvoice,
   getThreeWayMatch,
   issuePurchaseOrder,
+  listPurchaseRequests,
+  listSupplierInvoices,
+  listSupplierPurchaseOrders,
   probeProcurementReadAccess,
   receivePurchaseOrder,
   rejectPurchaseRequest,
+  searchSupplierOptions,
   submitPurchaseRequest,
   validateSupplierInvoice,
   type PurchaseRequest,
+  type PurchaseRequestSummary,
   type SupplierInvoice,
+  type SupplierInvoiceSummary,
   type SupplierPurchaseOrder,
+  type SupplierPurchaseOrderSummary,
   type ThreeWayMatch,
 } from '../api/procurement-api';
 import { mapProcurementErrorToMessage } from '../api/procurement-error-messages';
@@ -58,11 +70,267 @@ export function ProcurementRoute({ children }: { children: ReactNode }) {
 }
 
 export function ProcurementHubPage() {
+  return (
+    <ModulePage>
+      <ModulePageHeader
+        title="Compras"
+        description="Solicitações, pedidos ao fornecedor e notas. Distinto do pedido de compra do cliente."
+        action={
+          <div className="flex flex-wrap items-center gap-4">
+            <Link className="text-sm font-semibold text-gray-700 hover:text-gray-900" to="/app/suppliers">
+              Fornecedores
+            </Link>
+            <ModulePrimaryLink to="/app/procurement/requests/new">Nova solicitação</ModulePrimaryLink>
+          </div>
+        }
+      />
+      <ProcurementLists />
+    </ModulePage>
+  );
+}
+
+const LIST_PAGE_SIZE = 20;
+
+type ListsState = {
+  requests: { phase: 'loading' } | { phase: 'ready'; items: PurchaseRequestSummary[]; total: number } | { phase: 'denied' } | { phase: 'error' };
+  orders: { phase: 'loading' } | { phase: 'ready'; items: SupplierPurchaseOrderSummary[]; total: number } | { phase: 'denied' } | { phase: 'error' };
+  invoices: { phase: 'loading' } | { phase: 'ready'; items: SupplierInvoiceSummary[]; total: number } | { phase: 'denied' } | { phase: 'error' };
+};
+
+/**
+ * Listas operacionais do módulo. Cada lista é uma entidade do fluxo de compras que antes só era
+ * alcançável por identificador digitado: requisição → pedido ao fornecedor → nota.
+ */
+function ProcurementLists() {
+  const [state, setState] = useState<ListsState>({
+    requests: { phase: 'loading' },
+    orders: { phase: 'loading' },
+    invoices: { phase: 'loading' },
+  });
+  const [term, setTerm] = useState('');
+  const [appliedTerm, setAppliedTerm] = useState('');
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setState({
+      requests: { phase: 'loading' },
+      orders: { phase: 'loading' },
+      invoices: { phase: 'loading' },
+    });
+    const query = { limit: LIST_PAGE_SIZE, offset: 0, q: appliedTerm || undefined };
+
+    void listPurchaseRequests(query, controller.signal).then(
+      (response) => setState((current) => ({ ...current, requests: { phase: 'ready', items: response.items, total: response.total } })),
+      () => setState((current) => ({ ...current, requests: { phase: 'denied' } })),
+    );
+    void listSupplierPurchaseOrders(query, controller.signal).then(
+      (response) => setState((current) => ({ ...current, orders: { phase: 'ready', items: response.items, total: response.total } })),
+      () => setState((current) => ({ ...current, orders: { phase: 'denied' } })),
+    );
+    void listSupplierInvoices(query, controller.signal).then(
+      (response) => setState((current) => ({ ...current, invoices: { phase: 'ready', items: response.items, total: response.total } })),
+      () => setState((current) => ({ ...current, invoices: { phase: 'denied' } })),
+    );
+
+    return () => controller.abort();
+  }, [appliedTerm]);
+
+  return (
+    <>
+      <FilterCard>
+        <form
+          className="flex flex-wrap items-end gap-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setAppliedTerm(term.trim());
+          }}
+        >
+          <div>
+            <label className={filterLabelClass} htmlFor="procurement-search">
+              Buscar
+            </label>
+            <input
+              id="procurement-search"
+              type="search"
+              className={`${filterControlClass} w-72`}
+              value={term}
+              onChange={(event) => setTerm(event.target.value)}
+              placeholder="Justificativa, fornecedor ou número da nota"
+            />
+          </div>
+          <button
+            type="submit"
+            className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800"
+          >
+            Buscar
+          </button>
+        </form>
+      </FilterCard>
+
+      <ModuleTableCard>
+        <table className={moduleTableClass} aria-label="Solicitações de compra">
+          <thead className={moduleTableHeadClass}>
+            <tr>
+              <th scope="col" className={moduleTableHeaderCellClass}>Solicitação</th>
+              <th scope="col" className={moduleTableHeaderCellClass}>Itens</th>
+              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Valor</th>
+              <th scope="col" className={moduleTableHeaderCellClass}>Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {state.requests.phase === 'ready' && state.requests.items.length === 0 ? (
+              <tr className={moduleTableRowClass}>
+                <td className={moduleTableCellClass} colSpan={4}>
+                  Nenhuma solicitação de compra encontrada.
+                </td>
+              </tr>
+            ) : null}
+            {state.requests.phase === 'denied' ? (
+              <tr className={moduleTableRowClass}>
+                <td className={moduleTableCellClass} colSpan={4}>
+                  Você não tem permissão para listar solicitações de compra.
+                </td>
+              </tr>
+            ) : null}
+            {state.requests.phase === 'ready'
+              ? state.requests.items.map((request) => (
+                  <tr key={request.id} className={moduleTableRowClass}>
+                    <td className={moduleTableCellClass}>
+                      <ModuleTableLink to={`/app/procurement/requests/${request.id}`}>
+                        {request.justification}
+                      </ModuleTableLink>
+                    </td>
+                    <td className={moduleTableCellClass}>{request.lineCount}</td>
+                    <td className={`${moduleTableCellClass} text-right`}>
+                      <Money value={request.totalAmount} currencyCode={request.currencyCode} />
+                    </td>
+                    <td className={moduleTableCellClass}>
+                      <FinanceStatusBadge status={request.status} labels={PROCUREMENT_REQUEST_STATUS_LABELS} />
+                    </td>
+                  </tr>
+                ))
+              : null}
+          </tbody>
+        </table>
+      </ModuleTableCard>
+      <p className="mb-6 mt-2 text-xs text-gray-500" role="status">
+        {state.requests.phase === 'ready' ? `${state.requests.total} solicitação(ões) no total.` : 'Carregando solicitações…'}
+      </p>
+
+      <ModuleTableCard>
+        <table className={moduleTableClass} aria-label="Pedidos ao fornecedor">
+          <thead className={moduleTableHeadClass}>
+            <tr>
+              <th scope="col" className={moduleTableHeaderCellClass}>Fornecedor</th>
+              <th scope="col" className={moduleTableHeaderCellClass}>Condição</th>
+              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Valor</th>
+              <th scope="col" className={moduleTableHeaderCellClass}>Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {state.orders.phase === 'ready' && state.orders.items.length === 0 ? (
+              <tr className={moduleTableRowClass}>
+                <td className={moduleTableCellClass} colSpan={4}>
+                  Nenhum pedido ao fornecedor encontrado.
+                </td>
+              </tr>
+            ) : null}
+            {state.orders.phase === 'denied' ? (
+              <tr className={moduleTableRowClass}>
+                <td className={moduleTableCellClass} colSpan={4}>
+                  Você não tem permissão para listar pedidos ao fornecedor.
+                </td>
+              </tr>
+            ) : null}
+            {state.orders.phase === 'ready'
+              ? state.orders.items.map((order) => (
+                  <tr key={order.id} className={moduleTableRowClass}>
+                    <td className={moduleTableCellClass}>
+                      <ModuleTableLink to={`/app/procurement/orders/${order.id}`}>
+                        {order.supplierName ?? 'Fornecedor não identificado'}
+                      </ModuleTableLink>
+                      {order.supplierTaxId ? (
+                        <span className="block text-xs text-gray-500">
+                          {formatCnpjDisplay(order.supplierTaxId)}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className={moduleTableCellClass}>{order.paymentTerms}</td>
+                    <td className={`${moduleTableCellClass} text-right`}>
+                      <Money value={order.totalAmount} currencyCode={order.currencyCode} />
+                    </td>
+                    <td className={moduleTableCellClass}>
+                      <FinanceStatusBadge status={order.status} labels={SUPPLIER_PO_STATUS_LABELS} />
+                    </td>
+                  </tr>
+                ))
+              : null}
+          </tbody>
+        </table>
+      </ModuleTableCard>
+      <p className="mb-6 mt-2 text-xs text-gray-500" role="status">
+        {state.orders.phase === 'ready' ? `${state.orders.total} pedido(s) no total.` : 'Carregando pedidos…'}
+      </p>
+
+      <ModuleTableCard>
+        <table className={moduleTableClass} aria-label="Notas de fornecedor">
+          <thead className={moduleTableHeadClass}>
+            <tr>
+              <th scope="col" className={moduleTableHeaderCellClass}>Nota</th>
+              <th scope="col" className={moduleTableHeaderCellClass}>Fornecedor</th>
+              <th scope="col" className={moduleTableHeaderCellClass}>Vencimento</th>
+              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Total</th>
+              <th scope="col" className={moduleTableHeaderCellClass}>Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {state.invoices.phase === 'ready' && state.invoices.items.length === 0 ? (
+              <tr className={moduleTableRowClass}>
+                <td className={moduleTableCellClass} colSpan={5}>
+                  Nenhuma nota de fornecedor encontrada.
+                </td>
+              </tr>
+            ) : null}
+            {state.invoices.phase === 'denied' ? (
+              <tr className={moduleTableRowClass}>
+                <td className={moduleTableCellClass} colSpan={5}>
+                  Você não tem permissão para listar notas de fornecedor.
+                </td>
+              </tr>
+            ) : null}
+            {state.invoices.phase === 'ready'
+              ? state.invoices.items.map((invoice) => (
+                  <tr key={invoice.id} className={moduleTableRowClass}>
+                    <td className={moduleTableCellClass}>
+                      <ModuleTableLink to={`/app/procurement/invoices/${invoice.id}`}>
+                        {invoice.invoiceNumber}
+                      </ModuleTableLink>
+                    </td>
+                    <td className={moduleTableCellClass}>
+                      {invoice.supplierName ?? 'Fornecedor não identificado'}
+                    </td>
+                    <td className={moduleTableCellClass}>{invoice.dueDate}</td>
+                    <td className={`${moduleTableCellClass} text-right`}>
+                      <Money value={invoice.totalAmount} currencyCode={invoice.currencyCode} />
+                    </td>
+                    <td className={moduleTableCellClass}>
+                      <FinanceStatusBadge status={invoice.status} labels={SUPPLIER_INVOICE_STATUS_LABELS} />
+                    </td>
+                  </tr>
+                ))
+              : null}
+          </tbody>
+        </table>
+      </ModuleTableCard>
+      <p className="mb-6 mt-2 text-xs text-gray-500" role="status">
+        {state.invoices.phase === 'ready' ? `${state.invoices.total} nota(s) no total.` : 'Carregando notas…'}
+      </p>
+    </>
+  );
+}
+
+export function PurchaseRequestCreatePage() {
   const navigate = useNavigate();
-  const [requestLookup, setRequestLookup] = useState('');
-  const [orderLookup, setOrderLookup] = useState('');
-  const [invoiceLookup, setInvoiceLookup] = useState('');
-  const [matchLookup, setMatchLookup] = useState('');
   const [unitId, setUnitId] = useState('');
   const [justification, setJustification] = useState('');
   const [lineDescription, setLineDescription] = useState('');
@@ -72,59 +340,25 @@ export function ProcurementHubPage() {
   return (
     <ModulePage>
       <ModulePageHeader
-        title="Compras"
-        description="Solicitações e pedidos de fornecedor. Distinto do pedido de compra do cliente."
-      />
-      <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <RecordLookupCard
-          title="Solicitação"
-          fieldId="pr-id"
-          label="Identificador da solicitação"
-          value={requestLookup}
-          onChange={setRequestLookup}
-          onSubmit={() => void navigate(`/app/procurement/requests/${requestLookup.trim()}`)}
-          submitLabel="Consultar"
-        />
-        <RecordLookupCard
-          title="Pedido ao fornecedor"
-          fieldId="spo-id"
-          label="Identificador do pedido"
-          value={orderLookup}
-          onChange={setOrderLookup}
-          onSubmit={() => void navigate(`/app/procurement/orders/${orderLookup.trim()}`)}
-          submitLabel="Consultar"
-        />
-      </div>
-      <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <RecordLookupCard
-          title="Nota do fornecedor"
-          fieldId="si-id"
-          label="Identificador da nota"
-          value={invoiceLookup}
-          onChange={setInvoiceLookup}
-          onSubmit={() => void navigate(`/app/procurement/invoices/${invoiceLookup.trim()}`)}
-          submitLabel="Consultar"
-        />
-        <RecordLookupCard
-          title="Conferência tripla"
-          fieldId="twm-id"
-          label="Identificador da conferência"
-          value={matchLookup}
-          onChange={setMatchLookup}
-          onSubmit={() => void navigate(`/app/procurement/matches/${matchLookup.trim()}`)}
-          submitLabel="Consultar"
-        />
-      </div>
-      <CreateRecordForm
         title="Nova solicitação de compra"
         description="Quantidade × valor unitário é calculado pelo servidor."
+      />
+      <CreateRecordForm
+        title="Solicitação"
+        description="A solicitação nasce em rascunho e segue o fluxo de aprovação."
         submitLabel="Criar solicitação"
         mapError={mapProcurementErrorToMessage}
         onSubmit={async () => {
           const created = await createPurchaseRequest({
             unitId: unitId.trim(),
             justification: justification.trim(),
-            lines: [{ description: lineDescription.trim(), quantity: quantity.trim(), unitAmount: unitAmount.trim() }],
+            lines: [
+              {
+                description: lineDescription.trim(),
+                quantity: quantity.trim(),
+                unitAmount: unitAmount.trim(),
+              },
+            ],
           });
           void navigate(`/app/procurement/requests/${created.id}`);
         }}
@@ -133,23 +367,45 @@ export function ProcurementHubPage() {
           <Input id="pr-unit" value={unitId} onChange={(event) => setUnitId(event.target.value)} required />
         </Field>
         <Field label="Justificativa" htmlFor="pr-justification" required>
-          <Input id="pr-justification" value={justification} onChange={(event) => setJustification(event.target.value)} required />
+          <Input
+            id="pr-justification"
+            value={justification}
+            onChange={(event) => setJustification(event.target.value)}
+            required
+          />
         </Field>
         <Field label="Item" htmlFor="pr-item" required>
-          <Input id="pr-item" value={lineDescription} onChange={(event) => setLineDescription(event.target.value)} required />
+          <Input
+            id="pr-item"
+            value={lineDescription}
+            onChange={(event) => setLineDescription(event.target.value)}
+            required
+          />
         </Field>
         <Field label="Quantidade" htmlFor="pr-qty" required>
-          <Input id="pr-qty" inputMode="decimal" value={quantity} onChange={(event) => setQuantity(event.target.value)} required />
+          <Input
+            id="pr-qty"
+            inputMode="decimal"
+            value={quantity}
+            onChange={(event) => setQuantity(event.target.value)}
+            required
+          />
         </Field>
         <Field label="Valor unitário" htmlFor="pr-amount" required>
-          <Input id="pr-amount" inputMode="decimal" value={unitAmount} onChange={(event) => setUnitAmount(event.target.value)} required />
+          <Input
+            id="pr-amount"
+            inputMode="decimal"
+            value={unitAmount}
+            onChange={(event) => setUnitAmount(event.target.value)}
+            required
+          />
         </Field>
       </CreateRecordForm>
-      <EmptyState
-        title="Sem listagem nesta API"
-        description="Consulte solicitação ou pedido pelo identificador, ou cadastre uma nova solicitação."
-        action={<ModulePrimaryLink to="/app/suppliers">Fornecedores</ModulePrimaryLink>}
-      />
+      <p className="mt-4 text-sm text-gray-500">
+        <Link className="font-semibold text-gray-700 hover:text-gray-900" to="/app/procurement">
+          Voltar para as compras
+        </Link>
+      </p>
     </ModulePage>
   );
 }
@@ -275,21 +531,28 @@ export function PurchaseRequestPage() {
         />
         <CreateRecordForm
           title="Emitir pedido"
-          description="Informe o fornecedor. O pedido é criado pelo servidor."
+          description="Escolha o fornecedor pelo nome ou CNPJ. O pedido é criado pelo servidor."
           submitLabel="Emitir pedido"
           disabled={item.status !== 'APPROVED'}
           mapError={mapProcurementErrorToMessage}
           onSubmit={async () => {
             const order = await issuePurchaseOrder(item.id, {
               version: item.version,
-              supplierId: supplierId.trim(),
+              supplierId,
             });
             void navigate(`/app/procurement/orders/${order.id}`);
           }}
         >
-          <Field label="Fornecedor" htmlFor="issue-supplier" required className="md:col-span-2">
-            <Input id="issue-supplier" value={supplierId} onChange={(event) => setSupplierId(event.target.value)} required />
-          </Field>
+          <HumanLookupField
+            className="md:col-span-2"
+            label="Fornecedor"
+            htmlFor="issue-supplier-search"
+            required
+            search={searchSupplierOptions}
+            value={supplierId}
+            onChange={setSupplierId}
+            emptyMessage="Nenhum fornecedor encontrado para a busca."
+          />
         </CreateRecordForm>
       </div>
     </ModulePage>
@@ -347,7 +610,24 @@ export function PurchaseOrderPage() {
               label: 'Status',
               value: <FinanceStatusBadge status={order.status} labels={SUPPLIER_PO_STATUS_LABELS} />,
             },
-            { label: 'Fornecedor', value: order.supplierId },
+            {
+              label: 'Fornecedor',
+              value: order.supplierName ? (
+                <>
+                  <Link
+                    className="font-semibold text-gray-700 hover:text-gray-900"
+                    to={`/app/suppliers/${order.supplierId}`}
+                  >
+                    {order.supplierName}
+                  </Link>
+                  {order.supplierTaxId ? (
+                    <span className="ml-2 text-gray-500">{formatCnpjDisplay(order.supplierTaxId)}</span>
+                  ) : null}
+                </>
+              ) : (
+                'Fornecedor não identificado no cadastro'
+              ),
+            },
             { label: 'Versão', value: String(order.version) },
           ]}
         />
@@ -516,7 +796,6 @@ export function PurchaseOrderPage() {
 export function SupplierInvoicePage() {
   const { invoiceId = '' } = useParams();
   const navigate = useNavigate();
-  const [lookupId, setLookupId] = useState(invoiceId);
   const [unitId, setUnitId] = useState('');
   const [supplierId, setSupplierId] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
@@ -550,15 +829,11 @@ export function SupplierInvoicePage() {
       <ModulePageHeader
         title="Nota do fornecedor"
         description="Validação e conferência são do servidor. Totais não são recalculados no navegador."
-      />
-      <RecordLookupCard
-        fieldId="invoice-lookup"
-        label="Identificador da nota"
-        value={lookupId}
-        onChange={setLookupId}
-        onSubmit={() => void navigate(`/app/procurement/invoices/${lookupId.trim()}`)}
-        submitLabel="Consultar"
-        loading={state.phase === 'loading'}
+        action={
+          <Link className="text-sm font-semibold text-gray-700 hover:text-gray-900" to="/app/procurement">
+            Voltar para as compras
+          </Link>
+        }
       />
       <CreateRecordForm
         title="Registrar nota"
@@ -568,7 +843,7 @@ export function SupplierInvoicePage() {
         onSubmit={async (idempotencyKey) => {
           const created = await createSupplierInvoice({
             unitId: unitId.trim(),
-            supplierId: supplierId.trim(),
+            supplierId,
             invoiceNumber: invoiceNumber.trim(),
             issuedOn: issuedOn.trim(),
             dueDate: dueDate.trim(),
@@ -583,9 +858,15 @@ export function SupplierInvoicePage() {
         <Field label="Unidade" htmlFor="si-unit" required>
           <Input id="si-unit" value={unitId} onChange={(event) => setUnitId(event.target.value)} required />
         </Field>
-        <Field label="Fornecedor" htmlFor="si-supplier" required>
-          <Input id="si-supplier" value={supplierId} onChange={(event) => setSupplierId(event.target.value)} required />
-        </Field>
+        <HumanLookupField
+          label="Fornecedor"
+          htmlFor="si-supplier-search"
+          required
+          search={searchSupplierOptions}
+          value={supplierId}
+          onChange={setSupplierId}
+          emptyMessage="Nenhum fornecedor encontrado para a busca."
+        />
         <Field label="Número" htmlFor="si-number" required>
           <Input id="si-number" value={invoiceNumber} onChange={(event) => setInvoiceNumber(event.target.value)} required />
         </Field>

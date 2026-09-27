@@ -16,8 +16,10 @@ import {
 import type {
   GoodsReceiptRow,
   PurchaseRequestLineRow,
+  PurchaseRequestListRow,
   PurchaseRequestRow,
   SupplierPurchaseOrderLineRow,
+  SupplierPurchaseOrderListRow,
   SupplierPurchaseOrderRow,
 } from '../serializers/procurement-response.serializer';
 
@@ -59,6 +61,99 @@ export class ProcurementRepository {
       [requestId],
     );
     return result.rows;
+  }
+
+  /**
+   * Página de solicitações sob o MESMO predicado da contagem. O valor da solicitação vem do
+   * próprio servidor (soma das linhas persistidas), nunca de um total informado pelo navegador.
+   */
+  async listRequestPage(input: {
+    whereClause: string;
+    params: unknown[];
+    limit: number;
+    offset: number;
+  }): Promise<PurchaseRequestListRow[]> {
+    const result = await this.pool().query<PurchaseRequestListRow>(
+      `SELECT r.id, r.unit_id, r.justification, r.currency_code, r.status::text AS status,
+              r.version, r.created_at, r.updated_at,
+              COALESCE(COUNT(l.id), 0)::text AS line_count,
+              COALESCE(SUM(l.line_amount), 0)::text AS total_amount
+       FROM prc.purchase_requests r
+       LEFT JOIN prc.purchase_request_lines l ON l.request_id = r.id
+       WHERE ${input.whereClause}
+       GROUP BY r.id
+       ORDER BY r.created_at DESC, r.id DESC
+       LIMIT $${input.params.length + 1}
+       OFFSET $${input.params.length + 2}`,
+      [...input.params, input.limit, input.offset],
+    );
+    return result.rows;
+  }
+
+  async countRequestList(whereClause: string, params: unknown[]): Promise<number> {
+    const result = await this.pool().query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total FROM prc.purchase_requests r WHERE ${whereClause}`,
+      params,
+    );
+    return Number(result.rows[0]?.total ?? '0');
+  }
+
+  /**
+   * Página de pedidos ao fornecedor com a REFERÊNCIA HUMANA do fornecedor resolvida pelo servidor
+   * (`pty.suppliers`). É o que permite a linha de lista e o detalhe identificarem o fornecedor sem
+   * exigir que o operador conheça o identificador técnico.
+   */
+  async listOrderPage(input: {
+    whereClause: string;
+    params: unknown[];
+    limit: number;
+    offset: number;
+  }): Promise<SupplierPurchaseOrderListRow[]> {
+    const result = await this.pool().query<SupplierPurchaseOrderListRow>(
+      `SELECT o.id, o.request_id, o.supplier_id, o.unit_id, o.currency_code, o.payment_terms,
+              o.status::text AS status, o.version, o.issued_at, o.updated_at,
+              s.legal_name AS supplier_legal_name, s.trade_name AS supplier_trade_name,
+              s.normalized_tax_id AS supplier_tax_id,
+              COALESCE(COUNT(l.id), 0)::text AS line_count,
+              COALESCE(SUM(l.line_amount), 0)::text AS total_amount,
+              COALESCE(SUM(l.received_quantity), 0)::text AS received_quantity
+       FROM prc.supplier_purchase_orders o
+       LEFT JOIN pty.suppliers s ON s.id = o.supplier_id
+       LEFT JOIN prc.supplier_purchase_order_lines l ON l.supplier_purchase_order_id = o.id
+       WHERE ${input.whereClause}
+       GROUP BY o.id, s.legal_name, s.trade_name, s.normalized_tax_id
+       ORDER BY o.issued_at DESC, o.id DESC
+       LIMIT $${input.params.length + 1}
+       OFFSET $${input.params.length + 2}`,
+      [...input.params, input.limit, input.offset],
+    );
+    return result.rows;
+  }
+
+  async countOrderList(whereClause: string, params: unknown[]): Promise<number> {
+    const result = await this.pool().query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total
+       FROM prc.supplier_purchase_orders o
+       LEFT JOIN pty.suppliers s ON s.id = o.supplier_id
+       WHERE ${whereClause}`,
+      params,
+    );
+    return Number(result.rows[0]?.total ?? '0');
+  }
+
+  /** Referência humana do fornecedor para o detalhe e para as linhas de recebimento. */
+  async findSupplierReference(
+    supplierId: string,
+  ): Promise<{ legal_name: string; trade_name: string | null; normalized_tax_id: string } | null> {
+    const result = await this.pool().query<{
+      legal_name: string;
+      trade_name: string | null;
+      normalized_tax_id: string;
+    }>(
+      `SELECT legal_name, trade_name, normalized_tax_id FROM pty.suppliers WHERE id = $1`,
+      [supplierId],
+    );
+    return result.rows[0] ?? null;
   }
 
   async findOrderById(orderId: string): Promise<SupplierPurchaseOrderRow | null> {

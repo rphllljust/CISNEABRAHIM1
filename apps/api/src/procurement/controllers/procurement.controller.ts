@@ -1,7 +1,11 @@
-import { Body, Controller, Get, HttpCode, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { CurrentAuth } from '../../auth/decorators/current-auth.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import type { AccessTokenClaims } from '../../auth/services/token.service';
+import {
+  parseListPurchaseRequestsQuery,
+  parseListSupplierPurchaseOrdersQuery,
+} from '../dto/procurement-list.dto';
 import type {
   CreatePurchaseRequestInput,
   IssueSupplierPurchaseOrderInput,
@@ -19,6 +23,18 @@ export class ProcurementController {
   @HttpCode(201)
   createRequest(@CurrentAuth() auth: AccessTokenClaims, @Body() body: CreatePurchaseRequestInput) {
     return this.procurement.createRequest({ identityId: auth.sub, sessionId: auth.sid }, body);
+  }
+
+  @Get('requests')
+  listRequests(@CurrentAuth() auth: AccessTokenClaims, @Query() query: Record<string, unknown>) {
+    const parsed = parseListPurchaseRequestsQuery(query);
+    return this.procurement.listRequests({ identityId: auth.sub, sessionId: auth.sid }, parsed);
+  }
+
+  @Get('orders')
+  listOrders(@CurrentAuth() auth: AccessTokenClaims, @Query() query: Record<string, unknown>) {
+    const parsed = parseListSupplierPurchaseOrdersQuery(query);
+    return this.procurement.listOrders({ identityId: auth.sub, sessionId: auth.sid }, parsed);
   }
 
   @Get('requests/:requestId')

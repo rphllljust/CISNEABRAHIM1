@@ -470,6 +470,8 @@ const STATIC_ROUTE_LABELS: Record<string, string> = {
   '/app/suppliers': 'Fornecedores',
   '/app/suppliers/new': 'Novo fornecedor',
   '/app/procurement': 'Compras',
+  '/app/procurement/requests': 'Solicitações de compra',
+  '/app/procurement/requests/new': 'Nova solicitação',
   '/app/procurement/invoices': 'Notas de fornecedor',
   '/app/inventory': 'Estoque',
   '/app/payroll': 'Folha',

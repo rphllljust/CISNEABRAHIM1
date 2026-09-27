@@ -104,6 +104,7 @@ import { FixedAssetsPage } from './accounting/pages/FixedAssetsPage';
 import {
   ProcurementRoute,
   ProcurementHubPage,
+  PurchaseRequestCreatePage,
   PurchaseRequestPage,
   PurchaseOrderPage,
   SupplierInvoicePage,
@@ -743,6 +744,14 @@ export function App() {
                 element={
                   <ProcurementRoute>
                     <ThreeWayMatchPage />
+                  </ProcurementRoute>
+                }
+              />
+              <Route
+                path="/app/procurement/requests/new"
+                element={
+                  <ProcurementRoute>
+                    <PurchaseRequestCreatePage />
                   </ProcurementRoute>
                 }
               />

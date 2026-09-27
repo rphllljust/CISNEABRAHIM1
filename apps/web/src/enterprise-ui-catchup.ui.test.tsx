@@ -105,6 +105,18 @@ function createCatchUpFetchMock(options: CatchUpMockOptions = {}) {
       return jsonResponse({ items: [], limit: 20, offset: 0, total: 0, totalPages: 0 });
     }
 
+    if (pathname.endsWith('/procurement/requests') && method === 'GET') {
+      return jsonResponse({ items: [], limit: 20, offset: 0, total: 0, totalPages: 0 });
+    }
+
+    if (pathname.endsWith('/procurement/orders') && method === 'GET') {
+      return jsonResponse({ items: [], limit: 20, offset: 0, total: 0, totalPages: 0 });
+    }
+
+    if (pathname.endsWith('/supplier-invoices') && method === 'GET') {
+      return jsonResponse({ items: [], limit: 20, offset: 0, total: 0, totalPages: 0 });
+    }
+
     if (pathname.includes('/suppliers/') && method === 'GET') {
       return jsonResponse({
         id: SUPPLIER_ID,
@@ -230,7 +242,14 @@ describe('Enterprise UI catch-up', () => {
     });
     unmountSuppliers();
     const { unmount: unmountProcurement } = renderWithProviders(<ProcurementHubPage />);
-    expect(screen.getByRole('heading', { name: 'Sem listagem nesta API' })).toBeInTheDocument();
+    // As três entidades do fluxo de compras têm lista real; nada exige identificador digitado.
+    await waitFor(() => {
+      expect(screen.getByRole('table', { name: 'Solicitações de compra' })).toBeInTheDocument();
+    });
+    expect(screen.getByRole('table', { name: 'Pedidos ao fornecedor' })).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'Notas de fornecedor' })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/identificador da solicitação/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/identificador do pedido/i)).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Fornecedores' })).toHaveAttribute('href', '/app/suppliers');
     unmountProcurement();
     renderWithProviders(<InventoryPage />);

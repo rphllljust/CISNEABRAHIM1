@@ -44,7 +44,7 @@ Resolução aplicada nesta fila, sem inventar regra:
 | billing | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
 | documents | Y | Y | Y | Y | N/A | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
 | **suppliers** | Y | Y | Y | Y | Y | Y | Y | Y | Y | parcial | Y | Y | Y | **DONE** | relações (pedido/nota/payable) — não bloqueia o básico |
-| **procurement** | Y | **-** | Y | Y | - | - | - | UUID | Y | Y | Y | parcial | parcial | **BASIC_GAP** | lista requisições/pedidos/notas + lookup de cliente/CC |
+| **procurement** | Y | Y | Y | Y | - | Y | Y | Y | Y | Y | Y | Y | Y | **DONE** | editar requisição pendente; centro de custo/categoria (PARK: HUMAN_LOOKUP_API_GAP) |
 | **inventory** | Y | **-** | UUID | Y | - | - | - | UUID | Y | - | Y | parcial | parcial | **BASIC_GAP** | depósitos, itens, movimentos, reservas com referência humana |
 | people | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
 | finance (AR/AP/treasury/recon) | Y | Y | Y | Y | Y | Y | Y | UUID | Y | Y | Y | Y | Y | BASIC_GAP | despesa/orçamento/conciliação/tesouraria: UUID → lookup |
@@ -72,6 +72,7 @@ Registrados aqui; **não** substituir por input livre nem por carga massiva no n
 | Item | Consumidor | Motivo | Status |
 | --- | --- | --- | --- |
 | Centro de custo (id) | procurement receive, supplier-invoice, fiscal tax-assessment, finance expenses | Sem endpoint de listagem de centro de custo no backend local | ABERTO |
+| Categoria de despesa (id) | procurement receive, supplier-invoice validate | Existe `POST finance/expense-categories`, mas **não** existe listagem | ABERTO |
 | Documento de origem (UUID) | finance treasury | Identificador da autorização de origem; sem endpoint de listagem | ABERTO |
 | Período (id) | finance budgets, fiscal apuração | Período contábil/fiscal sem endpoint de listagem por contexto | ABERTO |
 
@@ -98,3 +99,4 @@ Registrados aqui; **não** substituir por input livre nem por carga massiva no n
 | --- | --- | --- | --- |
 | 2026-09-25 | — | inventário | matriz criada; fila definida |
 | 2026-09-26 | (este) | suppliers | `GET /api/v1/suppliers` (busca/status/paginação) + concessão `supplier:supplier:list`; web: lista + criação + detalhe sem identificador digitado; rota `/app/suppliers` que **não existia** (deep link caía em página não encontrada). Backend 9/9; web 4/4; shell 17/17; browser real 4/4 (desktop+mobile) |
+| 2026-09-26 | (este) | procurement | `GET procurement/requests`, `GET procurement/orders`, `GET supplier-invoices` (busca/status/paginação + concessões `*:list`); fornecedor e CNPJ resolvidos pelo servidor no pedido e na nota; web: hub com três listas reais, criação de solicitação em rota própria, campo de identificador do fornecedor substituído por `HumanLookupField`. Backend 10/10; web 7/7 (hub + lookup); shell 17/17; browser real 4/4 (desktop+mobile) |

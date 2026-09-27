@@ -7,6 +7,8 @@ import {
 } from '../../audit/types/security-audit.types';
 import { SecurityAuditService } from '../../audit/services/security-audit.service';
 import { AUTHZ_ACTIONS } from '../../authorization/types/authz-actions';
+import { AUTHZ_RESOURCE_TYPES } from '../../authorization/types/authz-resources';
+import { AuthorizationRepository } from '../../authorization/repositories/authorization.repository';
 import type { IdentityAuthzContext } from '../../authorization/types/authz-decision';
 import { SodEnforcementService } from '../../authorization/services/sod-enforcement.service';
 import { SOD_DUTIES, resolveSodScope } from '../../authorization/domain/segregation-of-duties';
@@ -43,18 +45,27 @@ import {
 import { ProcurementRepository } from '../repositories/procurement.repository';
 import {
   toPurchaseRequestResponse,
+  toPurchaseRequestSummaryResponse,
   toSupplierPurchaseOrderResponse,
+  toSupplierPurchaseOrderSummaryResponse,
+  type PurchaseRequestListResponse,
   type PurchaseRequestResponse,
+  type SupplierPurchaseOrderListResponse,
   type SupplierPurchaseOrderResponse,
 } from '../serializers/procurement-response.serializer';
+import type {
+  PurchaseRequestListQuery,
+  SupplierPurchaseOrderListQuery,
+} from '../dto/procurement-list.dto';
 import { ProcurementAccessAuthz } from './procurement-access.authz';
-import { mapProcurementDomainError } from './procurement-access.errors';
+import { mapProcurementDomainError, procurementAccessDenied } from './procurement-access.errors';
 
 @Injectable()
 export class ProcurementAccessService {
   constructor(
     private readonly repository: ProcurementRepository,
     private readonly authz: ProcurementAccessAuthz,
+    private readonly authorizationRepository: AuthorizationRepository,
     private readonly securityAudit: SecurityAuditService,
     private readonly sod: SodEnforcementService,
     private readonly failures: ProcurementFailureInjection,
@@ -82,6 +93,119 @@ export class ProcurementAccessService {
       return this.assembleRequest(created.id);
     } catch (error) {
       throw mapProcurementDomainError(error);
+    }
+  }
+
+  /**
+   * Listagem operacional de solicitações de compra. Exige concessão ativa de
+   * `procurement:request:list`: sem ela, nada é listado (a listagem nunca mostra o que o ator
+   * não pode ler). A tela deixa de depender de um identificador digitado para encontrar a
+   * solicitação.
+   */
+  async listRequests(
+    actor: IdentityAuthzContext,
+    query: PurchaseRequestListQuery,
+  ): Promise<PurchaseRequestListResponse> {
+    await this.assertList(actor, AUTHZ_ACTIONS.ProcurementRequestList);
+    try {
+      const whereParts: string[] = [];
+      const params: unknown[] = [];
+      if (query.status) {
+        whereParts.push(`r.status = $${params.length + 1}::prc.purchase_request_status`);
+        params.push(query.status);
+      }
+      if (query.q) {
+        whereParts.push(`r.justification ILIKE $${params.length + 1}`);
+        params.push(`%${query.q}%`);
+      }
+      const whereClause = whereParts.length > 0 ? whereParts.join(' AND ') : 'TRUE';
+
+      const rows = await this.repository.listRequestPage({
+        whereClause,
+        params,
+        limit: query.limit,
+        offset: query.offset,
+      });
+      const total =
+        query.offset === 0 && rows.length < query.limit
+          ? rows.length
+          : await this.repository.countRequestList(whereClause, params);
+
+      return {
+        items: rows.map(toPurchaseRequestSummaryResponse),
+        limit: query.limit,
+        offset: query.offset,
+        total,
+        totalPages: Math.ceil(total / query.limit),
+      };
+    } catch (error) {
+      throw mapProcurementDomainError(error);
+    }
+  }
+
+  /**
+   * Listagem operacional de pedidos ao fornecedor. A referência do fornecedor vem resolvida pelo
+   * servidor, então a linha identifica o fornecedor por nome/CNPJ em vez de exigir o
+   * identificador técnico.
+   */
+  async listOrders(
+    actor: IdentityAuthzContext,
+    query: SupplierPurchaseOrderListQuery,
+  ): Promise<SupplierPurchaseOrderListResponse> {
+    await this.assertList(actor, AUTHZ_ACTIONS.ProcurementOrderList);
+    try {
+      const whereParts: string[] = [];
+      const params: unknown[] = [];
+      if (query.status) {
+        whereParts.push(`o.status = $${params.length + 1}::prc.supplier_purchase_order_status`);
+        params.push(query.status);
+      }
+      if (query.supplierId) {
+        whereParts.push(`o.supplier_id = $${params.length + 1}::uuid`);
+        params.push(query.supplierId);
+      }
+      if (query.q) {
+        whereParts.push(
+          `(s.legal_name ILIKE $${params.length + 1} OR s.trade_name ILIKE $${params.length + 1} OR s.normalized_tax_id ILIKE $${params.length + 1})`,
+        );
+        params.push(`%${query.q}%`);
+      }
+      const whereClause = whereParts.length > 0 ? whereParts.join(' AND ') : 'TRUE';
+
+      const rows = await this.repository.listOrderPage({
+        whereClause,
+        params,
+        limit: query.limit,
+        offset: query.offset,
+      });
+      const total =
+        query.offset === 0 && rows.length < query.limit
+          ? rows.length
+          : await this.repository.countOrderList(whereClause, params);
+
+      return {
+        items: rows.map(toSupplierPurchaseOrderSummaryResponse),
+        limit: query.limit,
+        offset: query.offset,
+        total,
+        totalPages: Math.ceil(total / query.limit),
+      };
+    } catch (error) {
+      throw mapProcurementDomainError(error);
+    }
+  }
+
+  private async assertList(
+    actor: IdentityAuthzContext,
+    action: (typeof AUTHZ_ACTIONS)[keyof typeof AUTHZ_ACTIONS],
+  ): Promise<void> {
+    const grants = await this.authorizationRepository.findActiveGrants(
+      actor.identityId,
+      action,
+      AUTHZ_RESOURCE_TYPES.Procurement,
+    );
+    if (grants.length === 0) {
+      throw mapProcurementDomainError(procurementAccessDenied());
     }
   }
 
@@ -383,11 +507,12 @@ export class ProcurementAccessService {
     if (!row) {
       throw new ProcurementError('PROCUREMENT_NOT_FOUND');
     }
-    const [lines, receipts] = await Promise.all([
+    const [lines, receipts, supplier] = await Promise.all([
       this.repository.listOrderLines(orderId),
       this.repository.listReceipts(orderId),
+      this.repository.findSupplierReference(row.supplier_id),
     ]);
-    return toSupplierPurchaseOrderResponse(row, lines, receipts);
+    return toSupplierPurchaseOrderResponse(row, lines, receipts, supplier);
   }
 
   private async audit(
