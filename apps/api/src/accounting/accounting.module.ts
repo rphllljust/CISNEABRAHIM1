@@ -50,6 +50,7 @@ import { FixedAssetAccountingAccessService } from './services/fixed-asset-accoun
   exports: [
     AccountingAccessService,
     AccountingReportingService,
+    ClosingReadinessService,
     FixedAssetAccountingAccessService,
     PostingFailureInjection,
     POSTING_FAILURE_INJECTION,
