@@ -110,7 +110,12 @@ import {
   SupplierInvoicePage,
   ThreeWayMatchPage,
 } from './procurement/pages/ProcurementPages';
-import { InventoryRoute, InventoryPage } from './inventory/pages/InventoryPage';
+import {
+  InventoryItemDetailPage,
+  InventoryPage,
+  InventoryRoute,
+  InventoryWarehouseDetailPage,
+} from './inventory/pages/InventoryPage';
 import { PayrollRoute, PayrollPage } from './payroll/pages/PayrollPage';
 import { SupplierCreatePage } from './suppliers/pages/SupplierCreatePage';
 import { SuppliersListPage } from './suppliers/pages/SuppliersListPage';
@@ -777,6 +782,22 @@ export function App() {
                   <ProcurementRoute>
                     <ProcurementHubPage />
                   </ProcurementRoute>
+                }
+              />
+              <Route
+                path="/app/inventory/items/:itemId"
+                element={
+                  <InventoryRoute>
+                    <InventoryItemDetailPage />
+                  </InventoryRoute>
+                }
+              />
+              <Route
+                path="/app/inventory/warehouses/:warehouseId"
+                element={
+                  <InventoryRoute>
+                    <InventoryWarehouseDetailPage />
+                  </InventoryRoute>
                 }
               />
               <Route

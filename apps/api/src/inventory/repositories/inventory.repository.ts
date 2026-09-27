@@ -9,7 +9,9 @@ import type {
   InventoryItemRow,
   PersistMovementInput,
   StockBalanceRow,
+  StockMovementListRow,
   StockMovementRow,
+  StockReservationListRow,
   StockReservationRow,
   WarehouseRow,
 } from './inventory.repository.types';
@@ -37,6 +39,20 @@ const COSTING_VERSION_RETURNING = `
 const RESERVATION_RETURNING = `
   id, unit_id, warehouse_id, inventory_item_id, quantity::text AS quantity,
   status::text AS status, idempotency_key
+`;
+
+/**
+ * Mesmas colunas de `MOVEMENT_RETURNING`, qualificadas por alias: necessária nas consultas de lista
+ * que juntam depósito e item para trazer a referência humana sem ambiguidade de coluna.
+ */
+const MOVEMENT_RETURNING_ALIASED = `
+  m.id, m.unit_id, m.warehouse_id, m.inventory_item_id, m.movement_type::text AS movement_type,
+  m.status::text AS status, m.quantity::text AS quantity, m.signed_quantity::text AS signed_quantity,
+  m.counterpart_warehouse_id, m.transfer_group_id, m.transfer_leg::text AS transfer_leg,
+  m.adjustment_effect::text AS adjustment_effect, m.reservation_id, m.reversal_of_movement_id,
+  m.command_idempotency_key, m.idempotency_key, m.occurred_on::text AS occurred_on, m.description,
+  m.unit_cost::text AS unit_cost, m.total_cost::text AS total_cost,
+  m.costing_rule_version_id, m.origin_kind::text AS origin_kind
 `;
 
 @Injectable()
@@ -139,6 +155,135 @@ export class InventoryRepository {
       [warehouseId, inventoryItemId],
     );
     return result.rows;
+  }
+
+  /**
+   * Página de depósitos sob o MESMO predicado da contagem. Nada de junção: o depósito é
+   * identificado pelo próprio código e nome.
+   */
+  async listWarehousePage(input: {
+    whereClause: string;
+    params: unknown[];
+    limit: number;
+    offset: number;
+  }): Promise<WarehouseRow[]> {
+    const result = await this.pool().query<WarehouseRow>(
+      `SELECT ${WAREHOUSE_RETURNING}
+       FROM inv.warehouses
+       WHERE ${input.whereClause}
+       ORDER BY code ASC, id ASC
+       LIMIT $${input.params.length + 1}
+       OFFSET $${input.params.length + 2}`,
+      [...input.params, input.limit, input.offset],
+    );
+    return result.rows;
+  }
+
+  async countWarehouseList(whereClause: string, params: unknown[]): Promise<number> {
+    const result = await this.pool().query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total FROM inv.warehouses WHERE ${whereClause}`,
+      params,
+    );
+    return Number(result.rows[0]?.total ?? '0');
+  }
+
+  async listItemPage(input: {
+    whereClause: string;
+    params: unknown[];
+    limit: number;
+    offset: number;
+  }): Promise<InventoryItemRow[]> {
+    const result = await this.pool().query<InventoryItemRow>(
+      `SELECT ${ITEM_RETURNING}
+       FROM inv.inventory_items
+       WHERE ${input.whereClause}
+       ORDER BY sku ASC, id ASC
+       LIMIT $${input.params.length + 1}
+       OFFSET $${input.params.length + 2}`,
+      [...input.params, input.limit, input.offset],
+    );
+    return result.rows;
+  }
+
+  async countItemList(whereClause: string, params: unknown[]): Promise<number> {
+    const result = await this.pool().query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total FROM inv.inventory_items WHERE ${whereClause}`,
+      params,
+    );
+    return Number(result.rows[0]?.total ?? '0');
+  }
+
+  /**
+   * Página de movimentos com depósito e item resolvidos como referência humana (código, nome,
+   * SKU). É o que permite ler o histórico sem conhecer identificadores técnicos.
+   */
+  async listMovementPage(input: {
+    whereClause: string;
+    params: unknown[];
+    limit: number;
+    offset: number;
+  }): Promise<StockMovementListRow[]> {
+    const result = await this.pool().query<StockMovementListRow>(
+      `SELECT ${MOVEMENT_RETURNING_ALIASED},
+              w.code AS warehouse_code, w.name AS warehouse_name,
+              i.sku AS item_sku, i.name AS item_name
+       FROM inv.stock_movements m
+       LEFT JOIN inv.warehouses w ON w.id = m.warehouse_id
+       LEFT JOIN inv.inventory_items i ON i.id = m.inventory_item_id
+       WHERE ${input.whereClause}
+       ORDER BY m.created_at DESC, m.id DESC
+       LIMIT $${input.params.length + 1}
+       OFFSET $${input.params.length + 2}`,
+      [...input.params, input.limit, input.offset],
+    );
+    return result.rows;
+  }
+
+  async countMovementList(whereClause: string, params: unknown[]): Promise<number> {
+    const result = await this.pool().query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total
+       FROM inv.stock_movements m
+       LEFT JOIN inv.warehouses w ON w.id = m.warehouse_id
+       LEFT JOIN inv.inventory_items i ON i.id = m.inventory_item_id
+       WHERE ${whereClause}`,
+      params,
+    );
+    return Number(result.rows[0]?.total ?? '0');
+  }
+
+  async listReservationPage(input: {
+    whereClause: string;
+    params: unknown[];
+    limit: number;
+    offset: number;
+  }): Promise<StockReservationListRow[]> {
+    const result = await this.pool().query<StockReservationListRow>(
+      `SELECT r.id, r.unit_id, r.warehouse_id, r.inventory_item_id, r.quantity::text AS quantity,
+              r.status::text AS status, r.idempotency_key,
+              w.code AS warehouse_code, w.name AS warehouse_name,
+              i.sku AS item_sku, i.name AS item_name
+       FROM inv.stock_reservations r
+       LEFT JOIN inv.warehouses w ON w.id = r.warehouse_id
+       LEFT JOIN inv.inventory_items i ON i.id = r.inventory_item_id
+       WHERE ${input.whereClause}
+       ORDER BY r.created_at DESC, r.id DESC
+       LIMIT $${input.params.length + 1}
+       OFFSET $${input.params.length + 2}`,
+      [...input.params, input.limit, input.offset],
+    );
+    return result.rows;
+  }
+
+  async countReservationList(whereClause: string, params: unknown[]): Promise<number> {
+    const result = await this.pool().query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total
+       FROM inv.stock_reservations r
+       LEFT JOIN inv.warehouses w ON w.id = r.warehouse_id
+       LEFT JOIN inv.inventory_items i ON i.id = r.inventory_item_id
+       WHERE ${whereClause}`,
+      params,
+    );
+    return Number(result.rows[0]?.total ?? '0');
   }
 
   async findCostingRuleById(id: string): Promise<CostingRuleRow | null> {

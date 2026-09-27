@@ -45,7 +45,7 @@ Resolução aplicada nesta fila, sem inventar regra:
 | documents | Y | Y | Y | Y | N/A | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
 | **suppliers** | Y | Y | Y | Y | Y | Y | Y | Y | Y | parcial | Y | Y | Y | **DONE** | relações (pedido/nota/payable) — não bloqueia o básico |
 | **procurement** | Y | Y | Y | Y | - | Y | Y | Y | Y | Y | Y | Y | Y | **DONE** | editar requisição pendente; centro de custo/categoria (PARK: HUMAN_LOOKUP_API_GAP) |
-| **inventory** | Y | **-** | UUID | Y | - | - | - | UUID | Y | - | Y | parcial | parcial | **BASIC_GAP** | depósitos, itens, movimentos, reservas com referência humana |
+| **inventory** | Y | Y | Y | Y | - | Y | Y | Y | Y | Y | Y | Y | Y | **DONE** | centro de custo/categoria (PARK); edição de depósito/item inexistente no backend |
 | people | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
 | finance (AR/AP/treasury/recon) | Y | Y | Y | Y | Y | Y | Y | UUID | Y | Y | Y | Y | Y | BASIC_GAP | despesa/orçamento/conciliação/tesouraria: UUID → lookup |
 | accounting | Y | Y | Y | Y | Y | Y | Y | UUID | Y | Y | Y | Y | Y | BASIC_GAP | ativo fixo/lançamento: UUID → lookup |
@@ -100,3 +100,4 @@ Registrados aqui; **não** substituir por input livre nem por carga massiva no n
 | 2026-09-25 | — | inventário | matriz criada; fila definida |
 | 2026-09-26 | (este) | suppliers | `GET /api/v1/suppliers` (busca/status/paginação) + concessão `supplier:supplier:list`; web: lista + criação + detalhe sem identificador digitado; rota `/app/suppliers` que **não existia** (deep link caía em página não encontrada). Backend 9/9; web 4/4; shell 17/17; browser real 4/4 (desktop+mobile) |
 | 2026-09-26 | (este) | procurement | `GET procurement/requests`, `GET procurement/orders`, `GET supplier-invoices` (busca/status/paginação + concessões `*:list`); fornecedor e CNPJ resolvidos pelo servidor no pedido e na nota; web: hub com três listas reais, criação de solicitação em rota própria, campo de identificador do fornecedor substituído por `HumanLookupField`. Backend 10/10; web 7/7 (hub + lookup); shell 17/17; browser real 4/4 (desktop+mobile) |
+| 2026-09-26 | (este) | inventory | `GET inventory/warehouses|items|movements|reservations` (busca/status/tipo/paginação, depósito e item resolvidos por código/nome/SKU + concessões `*:list`); web: hub com quatro listas, detalhe de item (saldo, movimentos, movimentar/reservar/estornar por escolha) e detalhe de depósito; `unitId` derivado do depósito escolhido. Backend 7/7; web 3/3; shell 17/17; catch-up 9/9; browser real 4/4 (desktop+mobile) |

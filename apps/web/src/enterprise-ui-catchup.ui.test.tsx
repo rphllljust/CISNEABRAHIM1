@@ -117,6 +117,15 @@ function createCatchUpFetchMock(options: CatchUpMockOptions = {}) {
       return jsonResponse({ items: [], limit: 20, offset: 0, total: 0, totalPages: 0 });
     }
 
+    if (
+      method === 'GET' &&
+      ['/inventory/warehouses', '/inventory/items', '/inventory/movements', '/inventory/reservations'].some(
+        (suffix) => pathname.endsWith(suffix),
+      )
+    ) {
+      return jsonResponse({ items: [], limit: 20, offset: 0, total: 0, totalPages: 0 });
+    }
+
     if (pathname.includes('/suppliers/') && method === 'GET') {
       return jsonResponse({
         id: SUPPLIER_ID,
@@ -253,8 +262,14 @@ describe('Enterprise UI catch-up', () => {
     expect(screen.getByRole('link', { name: 'Fornecedores' })).toHaveAttribute('href', '/app/suppliers');
     unmountProcurement();
     renderWithProviders(<InventoryPage />);
-    expect(screen.getByRole('heading', { name: 'Nenhum saldo carregado' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Liberar' })).toBeInTheDocument();
+    // Estoque passou a ser lista navegável: nada de saldo por identificador digitado.
+    await waitFor(() => {
+      expect(screen.getByRole('table', { name: 'Depósitos' })).toBeInTheDocument();
+    });
+    expect(screen.getByRole('table', { name: 'Itens de estoque' })).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'Movimentos de estoque' })).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'Reservas de estoque' })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/depósito de destino \(id\)/i)).not.toBeInTheDocument();
   });
 
   it('surfaces supplier version conflict on activate', async () => {

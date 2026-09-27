@@ -1,20 +1,36 @@
-import { useCallback, useState, type ReactNode } from 'react';
-import { EmptyState, Field, Input, Select } from '../../ui';
-import { ModulePage, ModulePageHeader } from '../../ui/module-layout';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { EmptyState, Field, Input, Money, Select } from '../../ui';
+import {
+  FilterCard,
+  ModulePage,
+  ModulePageHeader,
+  ModuleTableCard,
+  ModuleTableLink,
+  filterControlClass,
+  filterLabelClass,
+  moduleTableCellClass,
+  moduleTableClass,
+  moduleTableHeadClass,
+  moduleTableHeaderCellClass,
+  moduleTableRowClass,
+} from '../../ui/module-layout';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { CreateRecordForm } from '../../financial-ui/VersionedActionForm';
-import { RecordLookupCard } from '../../financial-ui/RecordLookupCard';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import { BackofficeCapabilityRoute } from '../../financial-ui/BackofficeCapabilityRoute';
+import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge';
+import { INVENTORY_ITEM_STATUS_LABELS, WAREHOUSE_STATUS_LABELS } from '../../financial-ui/labels';
 import {
   createInventoryItem,
   createWarehouse,
   createCostingRule,
-  createCostingRuleVersion,
-  getCostingRule,
-  publishCostingRuleVersion,
   getStockBalance,
+  listInventoryItems,
+  listStockMovements,
+  listStockReservations,
+  listWarehouses,
   mapInventoryErrorToMessage,
   postStockMovement,
   probeInventoryReadAccess,
@@ -23,10 +39,14 @@ import {
   reconcileStockQuantity,
   reserveStock,
   reverseStockMovement,
-  type CostingRule,
-  type StockBalance,
+  type InventoryItem,
+  type StockMovementSummary,
+  type StockReservationSummary,
+  type Warehouse,
 } from '../api/inventory-api';
 import { buildStockMovementPayload, type StockMovementType } from '../utils/movement-payload';
+
+const PAGE_SIZE = 20;
 
 export function InventoryRoute({ children }: { children: ReactNode }) {
   return (
@@ -36,441 +56,1093 @@ export function InventoryRoute({ children }: { children: ReactNode }) {
   );
 }
 
-export function InventoryPage() {
-  const [warehouseId, setWarehouseId] = useState('');
-  const [itemId, setItemId] = useState('');
-  const [activeWarehouseId, setActiveWarehouseId] = useState('');
-  const [activeItemId, setActiveItemId] = useState('');
-  const [unitId, setUnitId] = useState('');
-  const [code, setCode] = useState('');
-  const [name, setName] = useState('');
-  const [sku, setSku] = useState('');
-  const [movementType, setMovementType] = useState<StockMovementType>('IN');
-  const [destinationWarehouseId, setDestinationWarehouseId] = useState('');
-  const [adjustmentEffect, setAdjustmentEffect] = useState('INCREASE');
-  const [quantity, setQuantity] = useState('');
-  const [occurredOn, setOccurredOn] = useState('');
-  const [description, setDescription] = useState('');
-  const [createdIds, setCreatedIds] = useState<string | null>(null);
-  const [movementNote, setMovementNote] = useState<string | null>(null);
-  const [reservationNote, setReservationNote] = useState<string | null>(null);
-  const [reservationId, setReservationId] = useState('');
-  const [commandKey, setCommandKey] = useState('');
-  const [reversalKey, setReversalKey] = useState('');
-  const [costingRuleId, setCostingRuleId] = useState('');
-  const [costingCode, setCostingCode] = useState('');
-  const [costingName, setCostingName] = useState('');
-  const [effectiveFrom, setEffectiveFrom] = useState('');
-  const [sourceReference, setSourceReference] = useState('');
-  const [costingNote, setCostingNote] = useState<string | null>(null);
-  const [costingVersionId, setCostingVersionId] = useState('');
-  const [costingRowVersion, setCostingRowVersion] = useState('');
+type ListPhase<T> =
+  | { phase: 'loading' }
+  | { phase: 'denied' }
+  | { phase: 'error' }
+  | { phase: 'ready'; items: T[]; total: number };
 
-  const loader = useCallback(
-    (signal?: AbortSignal) => getStockBalance(activeWarehouseId, activeItemId, signal),
-    [activeItemId, activeWarehouseId],
+/** Busca + paginação comuns às listas do estoque. */
+function InventoryListToolbar({
+  id,
+  term,
+  onTermChange,
+  onSearch,
+}: {
+  id: string;
+  term: string;
+  onTermChange: (value: string) => void;
+  onSearch: () => void;
+}) {
+  return (
+    <FilterCard>
+      <form
+        className="flex flex-wrap items-end gap-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSearch();
+        }}
+      >
+        <div>
+          <label className={filterLabelClass} htmlFor={id}>
+            Buscar
+          </label>
+          <input
+            id={id}
+            type="search"
+            className={`${filterControlClass} w-72`}
+            value={term}
+            onChange={(event) => onTermChange(event.target.value)}
+            placeholder="Código, nome, SKU ou descrição"
+          />
+        </div>
+        <button
+          type="submit"
+          className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800"
+        >
+          Buscar
+        </button>
+      </form>
+    </FilterCard>
   );
-  const { state, reload } = useBackofficeQuery<StockBalance>({
-    loader,
-    mapError: mapInventoryErrorToMessage,
-    enabled: Boolean(activeWarehouseId && activeItemId),
-    autoLoad: Boolean(activeWarehouseId && activeItemId),
-  });
-  const costingLoader = useCallback(
-    (signal?: AbortSignal) => getCostingRule(costingRuleId, signal),
-    [costingRuleId],
+}
+
+function ListMessageRow({ colSpan, children }: { colSpan: number; children: ReactNode }) {
+  return (
+    <tr className={moduleTableRowClass}>
+      <td className={moduleTableCellClass} colSpan={colSpan}>
+        {children}
+      </td>
+    </tr>
   );
-  const costing = useBackofficeQuery<CostingRule>({
-    loader: costingLoader,
-    mapError: mapInventoryErrorToMessage,
-    enabled: Boolean(costingRuleId),
-    autoLoad: Boolean(costingRuleId),
+}
+
+/**
+ * Central operacional do estoque: depósitos, itens, movimentos e reservas são LISTAS com busca e
+ * navegação. Nenhuma operação cotidiana exige identificador digitado — depósito e item vêm das
+ * listas, e a unidade é derivada do depósito escolhido pelo servidor.
+ */
+export function InventoryPage() {
+  const [term, setTerm] = useState('');
+  const [appliedTerm, setAppliedTerm] = useState('');
+  const [movementType, setMovementType] = useState<'' | StockMovementType>('');
+  const [warehouses, setWarehouses] = useState<ListPhase<Warehouse>>({ phase: 'loading' });
+  const [items, setItems] = useState<ListPhase<InventoryItem>>({ phase: 'loading' });
+  const [movements, setMovements] = useState<ListPhase<StockMovementSummary>>({ phase: 'loading' });
+  const [reservations, setReservations] = useState<ListPhase<StockReservationSummary>>({
+    phase: 'loading',
   });
-  const stockReconcileLoader = useCallback(
-    (signal?: AbortSignal) => reconcileStockQuantity(activeWarehouseId, activeItemId, signal),
-    [activeItemId, activeWarehouseId],
+
+  const loadAll = useCallback(
+    async (signal?: AbortSignal) => {
+      const q = appliedTerm || undefined;
+      setWarehouses({ phase: 'loading' });
+      setItems({ phase: 'loading' });
+      setMovements({ phase: 'loading' });
+      setReservations({ phase: 'loading' });
+
+      const settle = <T,>(
+        promise: Promise<{ items: T[]; total: number }>,
+        apply: (value: ListPhase<T>) => void,
+      ) => {
+        void promise.then(
+          (response) => apply({ phase: 'ready', items: response.items, total: response.total }),
+          () => apply({ phase: 'denied' }),
+        );
+      };
+
+      settle(
+        listWarehouses({ limit: PAGE_SIZE, offset: 0, q }, signal),
+        setWarehouses,
+      );
+      settle(listInventoryItems({ limit: PAGE_SIZE, offset: 0, q }, signal), setItems);
+      settle(
+        listStockMovements(
+          { limit: PAGE_SIZE, offset: 0, q, movementType: movementType || undefined },
+          signal,
+        ),
+        setMovements,
+      );
+      settle(listStockReservations({ limit: PAGE_SIZE, offset: 0, q }, signal), setReservations);
+    },
+    [appliedTerm, movementType],
   );
-  const stockReconcile = useBackofficeQuery<{ matches: boolean; onHand: string; derivedOnHand: string }>({
-    loader: stockReconcileLoader,
-    mapError: mapInventoryErrorToMessage,
-    enabled: Boolean(activeWarehouseId && activeItemId),
-    autoLoad: Boolean(activeWarehouseId && activeItemId),
-  });
-  const reconcileLoader = useCallback(
-    (signal?: AbortSignal) => reconcileInventoryCost(activeWarehouseId, activeItemId, signal),
-    [activeItemId, activeWarehouseId],
-  );
-  const reconcile = useBackofficeQuery<{ matches: boolean; movementCount: number }>({
-    loader: reconcileLoader,
-    mapError: mapInventoryErrorToMessage,
-    enabled: Boolean(activeWarehouseId && activeItemId),
-    autoLoad: Boolean(activeWarehouseId && activeItemId),
-  });
-  const gate =
-    activeWarehouseId && activeItemId
-      ? renderQueryGate(
-          'Estoque',
-          'Carregando saldo…',
-          'Você não tem permissão para consultar estoque.',
-          state,
-          () => void reload(),
-        )
-      : null;
-  const movementQuantity = Number(quantity);
-  const movementQuantityValid = quantity.trim() !== '' && Number.isFinite(movementQuantity) && movementQuantity > 0;
-  const movementFieldsComplete =
-    Boolean(unitId.trim() && warehouseId.trim() && itemId.trim() && occurredOn.trim() && description.trim()) &&
-    (movementType !== 'TRANSFER' || Boolean(destinationWarehouseId.trim())) &&
-    (movementType !== 'ADJUSTMENT' || adjustmentEffect === 'INCREASE' || adjustmentEffect === 'DECREASE');
-  const movementDisabled = !movementQuantityValid || !movementFieldsComplete;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadAll(controller.signal);
+    return () => controller.abort();
+  }, [loadAll]);
 
   return (
     <ModulePage>
       <ModulePageHeader
         title="Estoque"
-        description="Saldos e movimentos são os persistidos pelo servidor. Custo médio/FIFO permanece indeciso."
+        description="Depósitos, itens, movimentos e reservas. Saldos e custos são os persistidos pelo servidor; FIFO/média permanecem indecisos."
       />
-      <RecordLookupCard
-        fieldId="inventory-warehouse"
-        label="Depósito"
-        value={warehouseId}
-        onChange={setWarehouseId}
-        onSubmit={() => {
-          setActiveWarehouseId(warehouseId.trim());
-          setActiveItemId(itemId.trim());
-        }}
-        submitLabel="Consultar saldo"
-      >
-        <Field label="Item" htmlFor="inventory-item">
-          <Input id="inventory-item" value={itemId} onChange={(event) => setItemId(event.target.value)} />
-        </Field>
-      </RecordLookupCard>
-      <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <CreateRecordForm
-          title="Criar depósito"
-          description="Código e nome são validados pela API."
-          submitLabel="Criar depósito"
-          mapError={mapInventoryErrorToMessage}
-          onSubmit={async () => {
-            const created = await createWarehouse({ unitId: unitId.trim(), code: code.trim(), name: name.trim() });
-            setCreatedIds(`Depósito ${created.id}`);
-            setWarehouseId(created.id);
-          }}
+      <InventoryListToolbar
+        id="inventory-search"
+        term={term}
+        onTermChange={setTerm}
+        onSearch={() => setAppliedTerm(term.trim())}
+      />
+
+      <ModuleTableCard>
+        <table className={moduleTableClass} aria-label="Depósitos">
+          <thead className={moduleTableHeadClass}>
+            <tr>
+              <th scope="col" className={moduleTableHeaderCellClass}>Depósito</th>
+              <th scope="col" className={moduleTableHeaderCellClass}>Código</th>
+              <th scope="col" className={moduleTableHeaderCellClass}>Unidade</th>
+              <th scope="col" className={moduleTableHeaderCellClass}>Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {warehouses.phase === 'ready' && warehouses.items.length === 0 ? (
+              <ListMessageRow colSpan={4}>Nenhum depósito encontrado.</ListMessageRow>
+            ) : null}
+            {warehouses.phase === 'denied' ? (
+              <ListMessageRow colSpan={4}>
+                Você não tem permissão para listar depósitos.
+              </ListMessageRow>
+            ) : null}
+            {warehouses.phase === 'ready'
+              ? warehouses.items.map((warehouse) => (
+                  <tr key={warehouse.id} className={moduleTableRowClass}>
+                    <td className={moduleTableCellClass}>
+                      <ModuleTableLink to={`/app/inventory/warehouses/${warehouse.id}`}>
+                        {warehouse.name}
+                      </ModuleTableLink>
+                    </td>
+                    <td className={`${moduleTableCellClass} font-mono tabular-nums text-gray-600`}>
+                      {warehouse.code}
+                    </td>
+                    <td className={moduleTableCellClass}>{warehouse.unitId}</td>
+                    <td className={moduleTableCellClass}>
+                      <FinanceStatusBadge status={warehouse.status} labels={WAREHOUSE_STATUS_LABELS} />
+                    </td>
+                  </tr>
+                ))
+              : null}
+          </tbody>
+        </table>
+      </ModuleTableCard>
+      <p className="mb-6 mt-2 text-xs text-gray-500" role="status">
+        {warehouses.phase === 'ready' ? `${warehouses.total} depósito(s) no total.` : 'Carregando depósitos…'}
+      </p>
+
+      <ModuleTableCard>
+        <table className={moduleTableClass} aria-label="Itens de estoque">
+          <thead className={moduleTableHeadClass}>
+            <tr>
+              <th scope="col" className={moduleTableHeaderCellClass}>Item</th>
+              <th scope="col" className={moduleTableHeaderCellClass}>SKU</th>
+              <th scope="col" className={moduleTableHeaderCellClass}>Unidade</th>
+              <th scope="col" className={moduleTableHeaderCellClass}>Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {items.phase === 'ready' && items.items.length === 0 ? (
+              <ListMessageRow colSpan={4}>Nenhum item de estoque encontrado.</ListMessageRow>
+            ) : null}
+            {items.phase === 'denied' ? (
+              <ListMessageRow colSpan={4}>Você não tem permissão para listar itens.</ListMessageRow>
+            ) : null}
+            {items.phase === 'ready'
+              ? items.items.map((item) => (
+                  <tr key={item.id} className={moduleTableRowClass}>
+                    <td className={moduleTableCellClass}>
+                      <ModuleTableLink to={`/app/inventory/items/${item.id}`}>{item.name}</ModuleTableLink>
+                    </td>
+                    <td className={`${moduleTableCellClass} font-mono tabular-nums text-gray-600`}>
+                      {item.sku}
+                    </td>
+                    <td className={moduleTableCellClass}>{item.unitId}</td>
+                    <td className={moduleTableCellClass}>
+                      <FinanceStatusBadge status={item.status} labels={INVENTORY_ITEM_STATUS_LABELS} />
+                    </td>
+                  </tr>
+                ))
+              : null}
+          </tbody>
+        </table>
+      </ModuleTableCard>
+      <p className="mb-6 mt-2 text-xs text-gray-500" role="status">
+        {items.phase === 'ready' ? `${items.total} item(ns) no total.` : 'Carregando itens…'}
+      </p>
+
+      <FilterCard>
+        <label className={filterLabelClass} htmlFor="movement-type-filter">
+          Tipo de movimento
+        </label>
+        <select
+          id="movement-type-filter"
+          className={`${filterControlClass} max-w-xs`}
+          value={movementType}
+          onChange={(event) => setMovementType(event.target.value as '' | StockMovementType)}
         >
-          <Field label="Unidade" htmlFor="wh-unit" required>
-            <Input id="wh-unit" value={unitId} onChange={(event) => setUnitId(event.target.value)} required />
-          </Field>
-          <Field label="Código" htmlFor="wh-code" required>
-            <Input id="wh-code" value={code} onChange={(event) => setCode(event.target.value)} required />
-          </Field>
-          <Field label="Nome" htmlFor="wh-name" required>
-            <Input id="wh-name" value={name} onChange={(event) => setName(event.target.value)} required />
-          </Field>
-        </CreateRecordForm>
-        <CreateRecordForm
-          title="Criar item"
-          description="SKU e nome são persistidos pelo servidor."
-          submitLabel="Criar item"
-          mapError={mapInventoryErrorToMessage}
-          onSubmit={async () => {
-            const created = await createInventoryItem({
-              unitId: unitId.trim(),
-              sku: sku.trim(),
-              name: name.trim(),
-            });
-            setCreatedIds(`Item ${created.id}`);
-            setItemId(created.id);
-          }}
-        >
-          <Field label="SKU" htmlFor="item-sku" required>
-            <Input id="item-sku" value={sku} onChange={(event) => setSku(event.target.value)} required />
-          </Field>
-          <Field label="Nome do item" htmlFor="item-name" required>
-            <Input id="item-name" value={name} onChange={(event) => setName(event.target.value)} required />
-          </Field>
-        </CreateRecordForm>
-      </div>
+          <option value="">Todos</option>
+          <option value="IN">Entrada</option>
+          <option value="OUT">Saída</option>
+          <option value="TRANSFER">Transferência</option>
+          <option value="ADJUSTMENT">Ajuste</option>
+        </select>
+      </FilterCard>
+      <ModuleTableCard>
+        <table className={moduleTableClass} aria-label="Movimentos de estoque">
+          <thead className={moduleTableHeadClass}>
+            <tr>
+              <th scope="col" className={moduleTableHeaderCellClass}>Data</th>
+              <th scope="col" className={moduleTableHeaderCellClass}>Item</th>
+              <th scope="col" className={moduleTableHeaderCellClass}>Depósito</th>
+              <th scope="col" className={moduleTableHeaderCellClass}>Tipo</th>
+              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Quantidade</th>
+              <th scope="col" className={moduleTableHeaderCellClass}>Descrição</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {movements.phase === 'ready' && movements.items.length === 0 ? (
+              <ListMessageRow colSpan={6}>Nenhum movimento encontrado.</ListMessageRow>
+            ) : null}
+            {movements.phase === 'denied' ? (
+              <ListMessageRow colSpan={6}>Você não tem permissão para listar movimentos.</ListMessageRow>
+            ) : null}
+            {movements.phase === 'ready'
+              ? movements.items.map((movement) => (
+                  <tr key={movement.id} className={moduleTableRowClass}>
+                    <td className={moduleTableCellClass}>{movement.occurredOn}</td>
+                    <td className={moduleTableCellClass}>
+                      {movement.itemName ?? 'Item não identificado'}
+                      {movement.itemSku ? (
+                        <span className="block text-xs text-gray-500">{movement.itemSku}</span>
+                      ) : null}
+                    </td>
+                    <td className={moduleTableCellClass}>
+                      {movement.warehouseName ?? 'Depósito não identificado'}
+                      {movement.warehouseCode ? (
+                        <span className="block text-xs text-gray-500">{movement.warehouseCode}</span>
+                      ) : null}
+                    </td>
+                    <td className={moduleTableCellClass}>{movement.movementType}</td>
+                    <td className={`${moduleTableCellClass} text-right`}>{movement.signedQuantity}</td>
+                    <td className={moduleTableCellClass}>{movement.description}</td>
+                  </tr>
+                ))
+              : null}
+          </tbody>
+        </table>
+      </ModuleTableCard>
+      <p className="mb-6 mt-2 text-xs text-gray-500" role="status">
+        {movements.phase === 'ready'
+          ? `${movements.total} movimento(s) no total.`
+          : 'Carregando movimentos…'}
+      </p>
+
+      <ModuleTableCard>
+        <table className={moduleTableClass} aria-label="Reservas de estoque">
+          <thead className={moduleTableHeadClass}>
+            <tr>
+              <th scope="col" className={moduleTableHeaderCellClass}>Item</th>
+              <th scope="col" className={moduleTableHeaderCellClass}>Depósito</th>
+              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Quantidade</th>
+              <th scope="col" className={moduleTableHeaderCellClass}>Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {reservations.phase === 'ready' && reservations.items.length === 0 ? (
+              <ListMessageRow colSpan={4}>Nenhuma reserva encontrada.</ListMessageRow>
+            ) : null}
+            {reservations.phase === 'denied' ? (
+              <ListMessageRow colSpan={4}>Você não tem permissão para listar reservas.</ListMessageRow>
+            ) : null}
+            {reservations.phase === 'ready'
+              ? reservations.items.map((reservation) => (
+                  <tr key={reservation.id} className={moduleTableRowClass}>
+                    <td className={moduleTableCellClass}>
+                      {reservation.itemName ?? 'Item não identificado'}
+                      {reservation.itemSku ? (
+                        <span className="block text-xs text-gray-500">{reservation.itemSku}</span>
+                      ) : null}
+                    </td>
+                    <td className={moduleTableCellClass}>
+                      {reservation.warehouseName ?? 'Depósito não identificado'}
+                      {reservation.warehouseCode ? (
+                        <span className="block text-xs text-gray-500">{reservation.warehouseCode}</span>
+                      ) : null}
+                    </td>
+                    <td className={`${moduleTableCellClass} text-right`}>{reservation.quantity}</td>
+                    <td className={moduleTableCellClass}>{reservation.status}</td>
+                  </tr>
+                ))
+              : null}
+          </tbody>
+        </table>
+      </ModuleTableCard>
+      <p className="mb-8 mt-2 text-xs text-gray-500" role="status">
+        {reservations.phase === 'ready'
+          ? `${reservations.total} reserva(s) no total.`
+          : 'Carregando reservas…'}
+      </p>
+
+      <CatalogForms />
+      <CostingRuleForm />
+
+      <p className="mt-6 text-sm text-gray-500">
+        Movimentar, reservar e estornar ficam no detalhe do item, onde depósito e item são
+        escolhidos nas listas — não digitados.
+      </p>
+    </ModulePage>
+  );
+}
+
+/** Cadastro de depósito e item: a unidade é a âncora de escopo informada uma vez, no cadastro. */
+function CatalogForms() {
+  const [unitId, setUnitId] = useState('');
+  const [code, setCode] = useState('');
+  const [name, setName] = useState('');
+  const [sku, setSku] = useState('');
+  const [itemName, setItemName] = useState('');
+  const [created, setCreated] = useState<string | null>(null);
+
+  return (
+    <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
       <CreateRecordForm
-        title="Movimentar estoque"
-        description="Entrada, saída, transferência e ajuste são validados pelo servidor."
-        submitLabel="Lançar movimento"
-        disabled={movementDisabled}
-        mapError={mapInventoryErrorToMessage}
-        onSubmit={async (idempotencyKey) => {
-          const result = await postStockMovement(
-            buildStockMovementPayload({
-              unitId: unitId.trim(),
-              warehouseId: warehouseId.trim(),
-              inventoryItemId: itemId.trim(),
-              movementType,
-              quantity: quantity.trim(),
-              occurredOn: occurredOn.trim(),
-              description: description.trim(),
-              idempotencyKey,
-              destinationWarehouseId: destinationWarehouseId.trim() || null,
-              adjustmentEffect,
-            }),
-          );
-          setMovementNote(
-            `Movimento lançado (${result.movements.map((movement) => movement.id).join(', ')}).`,
-          );
-          const movedWarehouseId = warehouseId.trim();
-          const movedItemId = itemId.trim();
-          if (activeWarehouseId === movedWarehouseId && activeItemId === movedItemId) {
-            await reload();
-          } else {
-            setActiveWarehouseId(movedWarehouseId);
-            setActiveItemId(movedItemId);
-          }
-        }}
-      >
-        <Field label="Tipo" htmlFor="move-type" required>
-          <Select
-            id="move-type"
-            value={movementType}
-            onChange={(event) => setMovementType(event.target.value as StockMovementType)}
-          >
-            <option value="IN">Entrada</option>
-            <option value="OUT">Saída</option>
-            <option value="TRANSFER">Transferência</option>
-            <option value="ADJUSTMENT">Ajuste</option>
-          </Select>
-        </Field>
-        {movementType === 'TRANSFER' ? (
-          <Field label="Depósito de destino (id)" htmlFor="move-dest" required className="md:col-span-2">
-            <Input
-              id="move-dest"
-              value={destinationWarehouseId}
-              onChange={(event) => setDestinationWarehouseId(event.target.value)}
-              required
-            />
-          </Field>
-        ) : null}
-        {movementType === 'ADJUSTMENT' ? (
-          <Field label="Efeito do ajuste" htmlFor="move-effect" required className="md:col-span-2">
-            <Select
-              id="move-effect"
-              value={adjustmentEffect}
-              onChange={(event) => setAdjustmentEffect(event.target.value)}
-            >
-              <option value="INCREASE">Aumentar</option>
-              <option value="DECREASE">Diminuir</option>
-            </Select>
-          </Field>
-        ) : null}
-        <Field label="Quantidade" htmlFor="move-qty" required>
-          <Input id="move-qty" inputMode="decimal" value={quantity} onChange={(event) => setQuantity(event.target.value)} required />
-        </Field>
-        <Field label="Data" htmlFor="move-on" required>
-          <Input id="move-on" type="date" value={occurredOn} onChange={(event) => setOccurredOn(event.target.value)} required />
-        </Field>
-        <Field label="Descrição" htmlFor="move-desc" required>
-          <Input id="move-desc" value={description} onChange={(event) => setDescription(event.target.value)} required />
-        </Field>
-        {movementType === 'TRANSFER' && !destinationWarehouseId.trim() ? (
-          <p className="text-sm text-red-700 md:col-span-2" role="alert">
-            Informe o depósito de destino para lançar a transferência.
-          </p>
-        ) : null}
-        {!movementQuantityValid ? (
-          <p className="text-sm text-red-700 md:col-span-2" role="alert">
-            Informe uma quantidade maior que zero.
-          </p>
-        ) : null}
-        {movementType === 'ADJUSTMENT' ? (
-          <p className="text-sm text-gray-600 md:col-span-2">
-            Ajuste sempre usa quantidade positiva; o efeito (aumentar/diminuir) é enviado ao servidor.
-          </p>
-        ) : null}
-      </CreateRecordForm>
-      {movementNote ? <p className="mb-4 text-sm text-gray-600">{movementNote}</p> : null}
-      <CreateRecordForm
-        title="Reservar"
-        description="A reserva reduz disponibilidade no servidor."
-        submitLabel="Reservar"
-        mapError={mapInventoryErrorToMessage}
-        onSubmit={async (idempotencyKey) => {
-          const reservation = await reserveStock({
-            unitId: unitId.trim(),
-            warehouseId: warehouseId.trim(),
-            inventoryItemId: itemId.trim(),
-            quantity: quantity.trim(),
-            idempotencyKey,
-          });
-          setReservationId(reservation.id);
-          setReservationNote(`Reserva ${reservation.id} criada (quantidade ${reservation.quantity}).`);
-          const reservedWarehouseId = warehouseId.trim();
-          const reservedItemId = itemId.trim();
-          if (activeWarehouseId === reservedWarehouseId && activeItemId === reservedItemId) {
-            await reload();
-          } else {
-            setActiveWarehouseId(reservedWarehouseId);
-            setActiveItemId(reservedItemId);
-          }
-        }}
-      >
-        <Field label="Quantidade a reservar" htmlFor="reserve-qty" required className="md:col-span-2">
-          <Input id="reserve-qty" inputMode="decimal" value={quantity} onChange={(event) => setQuantity(event.target.value)} required />
-        </Field>
-      </CreateRecordForm>
-      {reservationNote ? <p className="mb-4 text-sm text-gray-600">{reservationNote}</p> : null}
-      <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <CreateRecordForm
-          title="Liberar reserva"
-          description="A liberação devolve disponibilidade no servidor."
-          submitLabel="Liberar"
-          mapError={mapInventoryErrorToMessage}
-          onSubmit={async () => {
-            await releaseReservation(reservationId.trim());
-          }}
-        >
-          <Field label="Reserva" htmlFor="reserve-id" required className="md:col-span-2">
-            <Input
-              id="reserve-id"
-              value={reservationId}
-              onChange={(event) => setReservationId(event.target.value)}
-              required
-            />
-          </Field>
-        </CreateRecordForm>
-        <CreateRecordForm
-          title="Estornar movimento"
-          description="O estorno usa a chave de idempotência original no servidor."
-          submitLabel="Estornar"
-          mapError={mapInventoryErrorToMessage}
-          onSubmit={async () => {
-            await reverseStockMovement({
-              unitId: unitId.trim(),
-              commandIdempotencyKey: commandKey.trim(),
-              reversalKey: reversalKey.trim(),
-            });
-          }}
-        >
-          <Field label="Chave original" htmlFor="rev-cmd" required>
-            <Input id="rev-cmd" value={commandKey} onChange={(event) => setCommandKey(event.target.value)} required />
-          </Field>
-          <Field label="Chave de estorno" htmlFor="rev-key" required>
-            <Input id="rev-key" value={reversalKey} onChange={(event) => setReversalKey(event.target.value)} required />
-          </Field>
-        </CreateRecordForm>
-      </div>
-      <CreateRecordForm
-        title="Regra de custeio"
-        description="FIFO/média permanecem indecisos. O servidor só aceita método UNDECIDED."
-        submitLabel="Criar regra"
-        mapError={mapInventoryErrorToMessage}
-        onSubmit={async () => {
-          const created = await createCostingRule({
-            unitId: unitId.trim(),
-            code: costingCode.trim(),
-            name: costingName.trim(),
-          });
-          setCostingRuleId(created.id);
-          if (effectiveFrom.trim() && sourceReference.trim()) {
-            const version = await createCostingRuleVersion(created.id, {
-              effectiveFrom: effectiveFrom.trim(),
-              sourceReference: sourceReference.trim(),
-            });
-            setCostingVersionId(version.id);
-            setCostingRowVersion(String(version.rowVersion));
-            setCostingNote(`Regra ${created.id}. Método informado pelo servidor: ${version.method}`);
-          } else {
-            setCostingNote(`Regra ${created.id}`);
-          }
-        }}
-      >
-        <Field label="Código" htmlFor="cost-code" required>
-          <Input id="cost-code" value={costingCode} onChange={(event) => setCostingCode(event.target.value)} required />
-        </Field>
-        <Field label="Nome" htmlFor="cost-name" required>
-          <Input id="cost-name" value={costingName} onChange={(event) => setCostingName(event.target.value)} required />
-        </Field>
-        <Field label="Vigência (consulta/versão)" htmlFor="cost-from">
-          <Input
-            id="cost-from"
-            type="date"
-            value={effectiveFrom}
-            onChange={(event) => setEffectiveFrom(event.target.value)}
-          />
-        </Field>
-        <Field label="Referência da fonte" htmlFor="cost-src">
-          <Input
-            id="cost-src"
-            value={sourceReference}
-            onChange={(event) => setSourceReference(event.target.value)}
-          />
-        </Field>
-      </CreateRecordForm>
-      {costingNote ? <p className="mb-4 text-sm text-gray-600">{costingNote}</p> : null}
-      <CreateRecordForm
-        title="Publicar versão de custeio"
-        description="A publicação não escolhe FIFO ou média. O método permanece o persistido pelo servidor."
-        submitLabel="Publicar versão"
+        title="Criar depósito"
+        description="A unidade é a âncora de escopo do depósito; código e nome são validados pela API."
+        submitLabel="Criar depósito"
         mapError={mapInventoryErrorToMessage}
         onSubmit={async () => {
-          await publishCostingRuleVersion(costingVersionId.trim(), {
-            rowVersion: Number(costingRowVersion),
+          const warehouse = await createWarehouse({
+            unitId: unitId.trim(),
+            code: code.trim(),
+            name: name.trim(),
           });
+          setCreated(`Depósito ${warehouse.code} criado.`);
         }}
       >
-        <Field label="Versão" htmlFor="cost-ver" required>
-          <Input
-            id="cost-ver"
-            value={costingVersionId}
-            onChange={(event) => setCostingVersionId(event.target.value)}
-            required
-          />
+        <Field label="Unidade" htmlFor="wh-unit" required>
+          <Input id="wh-unit" value={unitId} onChange={(event) => setUnitId(event.target.value)} required />
         </Field>
-        <Field label="Row version" htmlFor="cost-rv" required>
-          <Input
-            id="cost-rv"
-            inputMode="numeric"
-            value={costingRowVersion}
-            onChange={(event) => setCostingRowVersion(event.target.value)}
-            required
-          />
+        <Field label="Código" htmlFor="wh-code" required>
+          <Input id="wh-code" value={code} onChange={(event) => setCode(event.target.value)} required />
+        </Field>
+        <Field label="Nome" htmlFor="wh-name" required className="md:col-span-2">
+          <Input id="wh-name" value={name} onChange={(event) => setName(event.target.value)} required />
         </Field>
       </CreateRecordForm>
-      {costing.state.phase === 'ready' ? (
+      <CreateRecordForm
+        title="Criar item"
+        description="SKU e nome são validados pela API. O método de custeio permanece indeciso."
+        submitLabel="Criar item"
+        mapError={mapInventoryErrorToMessage}
+        onSubmit={async () => {
+          const item = await createInventoryItem({
+            unitId: unitId.trim(),
+            sku: sku.trim(),
+            name: itemName.trim(),
+          });
+          setCreated(`Item ${item.sku} criado.`);
+        }}
+      >
+        <Field label="SKU" htmlFor="item-sku" required>
+          <Input id="item-sku" value={sku} onChange={(event) => setSku(event.target.value)} required />
+        </Field>
+        <Field label="Nome do item" htmlFor="item-name" required className="md:col-span-2">
+          <Input id="item-name" value={itemName} onChange={(event) => setItemName(event.target.value)} required />
+        </Field>
+      </CreateRecordForm>
+      {created ? (
+        <p className="text-sm text-gray-600 md:col-span-2" role="status">
+          {created}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function CostingRuleForm() {
+  const [unitId, setUnitId] = useState('');
+  const [code, setCode] = useState('');
+  const [name, setName] = useState('');
+  const [note, setNote] = useState<string | null>(null);
+
+  return (
+    <CreateRecordForm
+      title="Regra de custeio"
+      description="FIFO/média permanecem indecisos. O servidor só aceita método UNDECIDED."
+      submitLabel="Criar regra"
+      mapError={mapInventoryErrorToMessage}
+      onSubmit={async () => {
+        const rule = await createCostingRule({
+          unitId: unitId.trim(),
+          code: code.trim(),
+          name: name.trim(),
+        });
+        setNote(`Regra ${rule.code} criada.`);
+      }}
+    >
+      <Field label="Unidade" htmlFor="cost-unit" required>
+        <Input id="cost-unit" value={unitId} onChange={(event) => setUnitId(event.target.value)} required />
+      </Field>
+      <Field label="Código" htmlFor="cost-code" required>
+        <Input id="cost-code" value={code} onChange={(event) => setCode(event.target.value)} required />
+      </Field>
+      <Field label="Nome" htmlFor="cost-name" required className="md:col-span-2">
+        <Input id="cost-name" value={name} onChange={(event) => setName(event.target.value)} required />
+      </Field>
+      {note ? (
+        <p className="text-sm text-gray-600 md:col-span-2" role="status">
+          {note}
+        </p>
+      ) : null}
+    </CreateRecordForm>
+  );
+}
+
+/** Depósito escolhido a partir da lista: o valor é o identificador, nunca o texto digitado. */
+function WarehouseSelect({
+  warehouses,
+  value,
+  onChange,
+  label,
+  htmlFor,
+  required,
+}: {
+  warehouses: Warehouse[];
+  value: string;
+  onChange: (value: string) => void;
+  label: string;
+  htmlFor: string;
+  required?: boolean;
+}) {
+  return (
+    <Field label={label} htmlFor={htmlFor} required={required}>
+      <Select id={htmlFor} value={value} onChange={(event) => onChange(event.target.value)} required={required}>
+        <option value="">Selecione o depósito</option>
+        {warehouses.map((warehouse) => (
+          <option key={warehouse.id} value={warehouse.id}>
+            {warehouse.name} — {warehouse.code}
+          </option>
+        ))}
+      </Select>
+    </Field>
+  );
+}
+
+export function InventoryItemDetailPage() {
+  const { itemId = '' } = useParams();
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [warehouseId, setWarehouseId] = useState('');
+  const [destinationWarehouseId, setDestinationWarehouseId] = useState('');
+  const [movementType, setMovementType] = useState<StockMovementType>('IN');
+  const [adjustmentEffect, setAdjustmentEffect] = useState('INCREASE');
+  const [quantity, setQuantity] = useState('');
+  const [occurredOn, setOccurredOn] = useState('');
+  const [description, setDescription] = useState('');
+  const [movements, setMovements] = useState<ListPhase<StockMovementSummary>>({ phase: 'loading' });
+  const [notes, setNotes] = useState<string[]>([]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void listWarehouses({ limit: 100, offset: 0 }, controller.signal).then(
+      (response) => setWarehouses(response.items),
+      () => setWarehouses([]),
+    );
+    return () => controller.abort();
+  }, []);
+
+  const loadMovements = useCallback(
+    async (signal?: AbortSignal) => {
+      setMovements({ phase: 'loading' });
+      try {
+        const response = await listStockMovements(
+          { limit: PAGE_SIZE, offset: 0, inventoryItemId: itemId },
+          signal,
+        );
+        setMovements({ phase: 'ready', items: response.items, total: response.total });
+      } catch {
+        setMovements({ phase: 'denied' });
+      }
+    },
+    [itemId],
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadMovements(controller.signal);
+    return () => controller.abort();
+  }, [loadMovements]);
+
+  const selectedWarehouse = useMemo(
+    () => warehouses.find((warehouse) => warehouse.id === warehouseId) ?? null,
+    [warehouses, warehouseId],
+  );
+
+  const balanceLoader = useCallback(
+    (signal?: AbortSignal) => getStockBalance(warehouseId, itemId, signal),
+    [itemId, warehouseId],
+  );
+  const balance = useBackofficeQuery({
+    loader: balanceLoader,
+    mapError: mapInventoryErrorToMessage,
+    enabled: Boolean(warehouseId && itemId),
+    autoLoad: Boolean(warehouseId && itemId),
+  });
+  const reconcileQuantity = useBackofficeQuery({
+    loader: useCallback(
+      (signal?: AbortSignal) => reconcileStockQuantity(warehouseId, itemId, signal),
+      [itemId, warehouseId],
+    ),
+    mapError: mapInventoryErrorToMessage,
+    enabled: Boolean(warehouseId && itemId),
+    autoLoad: Boolean(warehouseId && itemId),
+  });
+  const reconcileCost = useBackofficeQuery({
+    loader: useCallback(
+      (signal?: AbortSignal) => reconcileInventoryCost(warehouseId, itemId, signal),
+      [itemId, warehouseId],
+    ),
+    mapError: mapInventoryErrorToMessage,
+    enabled: Boolean(warehouseId && itemId),
+    autoLoad: Boolean(warehouseId && itemId),
+  });
+
+  const movementQuantity = Number(quantity);
+  const quantityValid = quantity.trim() !== '' && Number.isFinite(movementQuantity) && movementQuantity > 0;
+  const destinationRequired = movementType === 'TRANSFER';
+  const movementReady =
+    quantityValid &&
+    Boolean(warehouseId && occurredOn.trim() && description.trim()) &&
+    (!destinationRequired || Boolean(destinationWarehouseId && destinationWarehouseId !== warehouseId));
+
+  return (
+    <ModulePage>
+      <ModulePageHeader
+        title="Item de estoque"
+        description="Saldo, movimentos e reservas do item. O identificador técnico permanece interno."
+        action={
+          <Link className="text-sm font-semibold text-gray-700 hover:text-gray-900" to="/app/inventory">
+            Voltar para o estoque
+          </Link>
+        }
+      />
+
+      <FilterCard>
+        <WarehouseSelect
+          warehouses={warehouses}
+          value={warehouseId}
+          onChange={setWarehouseId}
+          label="Depósito"
+          htmlFor="item-warehouse"
+        />
+      </FilterCard>
+
+      {warehouseId ? (
         <div className="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5">
           <DefinitionList
             items={[
-              { label: 'Regra', value: costing.state.data.code },
-              { label: 'Nome', value: costing.state.data.name },
-              { label: 'Status', value: costing.state.data.status },
+              {
+                label: 'Depósito',
+                value: selectedWarehouse
+                  ? `${selectedWarehouse.name} — ${selectedWarehouse.code}`
+                  : 'Depósito selecionado',
+              },
+              { label: 'Em mãos', value: balance.state.phase === 'ready' ? balance.state.data.onHand : '—' },
+              { label: 'Reservado', value: balance.state.phase === 'ready' ? balance.state.data.reserved : '—' },
+              { label: 'Disponível', value: balance.state.phase === 'ready' ? balance.state.data.available : '—' },
             ]}
           />
-        </div>
-      ) : null}
-      {createdIds ? <p className="mb-4 text-sm text-gray-600">{createdIds}</p> : null}
-      {gate}
-      {!activeWarehouseId ? (
-        <EmptyState title="Nenhum saldo carregado" description="Informe depósito e item para consultar o servidor." />
-      ) : null}
-      {state.phase === 'ready' ? (
-        <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5">
-          <DefinitionList
-            items={[
-              { label: 'Em mãos', value: state.data.onHand },
-              { label: 'Reservado', value: state.data.reserved },
-              { label: 'Disponível', value: state.data.available },
-            ]}
-          />
-          {stockReconcile.state.phase === 'ready' ? (
+          {balance.state.phase === 'ready' && reconcileQuantity.state.phase === 'ready' ? (
             <p className="mt-4 text-sm text-gray-600">
               Conciliação de quantidade informada pelo servidor:{' '}
-              {stockReconcile.state.data.matches ? 'coincide' : 'não coincide'} (em mãos{' '}
-              {stockReconcile.state.data.onHand}, derivado {stockReconcile.state.data.derivedOnHand}).
+              {reconcileQuantity.state.data.matches ? 'coincide' : 'não coincide'} (em mãos{' '}
+              {reconcileQuantity.state.data.onHand}, derivado {reconcileQuantity.state.data.derivedOnHand}).
             </p>
           ) : null}
-          {reconcile.state.phase === 'ready' ? (
-            <p className="mt-4 text-sm text-gray-600">
-              Conciliação de custo informada pelo servidor: {reconcile.state.data.matches ? 'coincide' : 'não coincide'} (
-              {reconcile.state.data.movementCount} movimentos).
+          {balance.state.phase === 'ready' && reconcileCost.state.phase === 'ready' ? (
+            <p className="mt-2 text-sm text-gray-600">
+              Conciliação de custo informada pelo servidor:{' '}
+              {reconcileCost.state.data.matches ? 'coincide' : 'não coincide'} (
+              {reconcileCost.state.data.movementCount} movimentos).
             </p>
           ) : null}
         </div>
       ) : null}
+
+      <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <CreateRecordForm
+          title="Movimentar estoque"
+          description="Entrada, saída, transferência e ajuste são validados pelo servidor."
+          submitLabel="Lançar movimento"
+          disabled={!movementReady}
+          mapError={mapInventoryErrorToMessage}
+          onSubmit={async (idempotencyKey) => {
+            const result = await postStockMovement(
+              buildStockMovementPayload({
+                unitId: selectedWarehouse?.unitId ?? '',
+                warehouseId,
+                inventoryItemId: itemId,
+                movementType,
+                quantity: quantity.trim(),
+                occurredOn: occurredOn.trim(),
+                description: description.trim(),
+                idempotencyKey,
+                destinationWarehouseId: destinationWarehouseId || null,
+                adjustmentEffect,
+              }),
+            );
+            setNotes((current) => [
+              `Movimento lançado (${result.movements.map((movement) => movement.id).join(', ')}).`,
+              ...current,
+            ]);
+            await loadMovements();
+          }}
+        >
+          <Field label="Tipo" htmlFor="move-type" required>
+            <Select
+              id="move-type"
+              value={movementType}
+              onChange={(event) => setMovementType(event.target.value as StockMovementType)}
+            >
+              <option value="IN">Entrada</option>
+              <option value="OUT">Saída</option>
+              <option value="TRANSFER">Transferência</option>
+              <option value="ADJUSTMENT">Ajuste</option>
+            </Select>
+          </Field>
+          {destinationRequired ? (
+            <WarehouseSelect
+              warehouses={warehouses}
+              value={destinationWarehouseId}
+              onChange={setDestinationWarehouseId}
+              label="Depósito de destino"
+              htmlFor="move-destination"
+              required
+            />
+          ) : null}
+          {movementType === 'ADJUSTMENT' ? (
+            <Field label="Efeito do ajuste" htmlFor="move-effect" required>
+              <Select
+                id="move-effect"
+                value={adjustmentEffect}
+                onChange={(event) => setAdjustmentEffect(event.target.value)}
+              >
+                <option value="INCREASE">Aumentar</option>
+                <option value="DECREASE">Diminuir</option>
+              </Select>
+            </Field>
+          ) : null}
+          <Field label="Quantidade" htmlFor="move-qty" required>
+            <Input
+              id="move-qty"
+              inputMode="decimal"
+              value={quantity}
+              onChange={(event) => setQuantity(event.target.value)}
+              required
+            />
+          </Field>
+          <Field label="Data" htmlFor="move-on" required>
+            <Input
+              id="move-on"
+              type="date"
+              value={occurredOn}
+              onChange={(event) => setOccurredOn(event.target.value)}
+              required
+            />
+          </Field>
+          <Field label="Descrição" htmlFor="move-desc" required className="md:col-span-2">
+            <Input
+              id="move-desc"
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              required
+            />
+          </Field>
+          {!warehouseId ? (
+            <p className="text-sm text-gray-600 md:col-span-2" role="status">
+              Selecione o depósito para movimentar este item.
+            </p>
+          ) : null}
+          {destinationRequired && destinationWarehouseId === warehouseId && warehouseId !== '' ? (
+            <p className="text-sm text-red-700 md:col-span-2" role="alert">
+              O depósito de destino deve ser distinto do depósito de origem.
+            </p>
+          ) : null}
+        </CreateRecordForm>
+
+        <CreateRecordForm
+          title="Reservar"
+          description="A reserva reduz disponibilidade no servidor."
+          submitLabel="Reservar"
+          disabled={!warehouseId || !quantityValid}
+          mapError={mapInventoryErrorToMessage}
+          onSubmit={async (idempotencyKey) => {
+            const reservation = await reserveStock({
+              unitId: selectedWarehouse?.unitId ?? '',
+              warehouseId,
+              inventoryItemId: itemId,
+              quantity: quantity.trim(),
+              idempotencyKey,
+            });
+            setNotes((current) => [
+              `Reserva ${reservation.id} criada (quantidade ${reservation.quantity}).`,
+              ...current,
+            ]);
+          }}
+        >
+          <p className="text-sm text-gray-600 md:col-span-2">
+            Usa a quantidade informada no formulário de movimentação e o depósito selecionado.
+          </p>
+        </CreateRecordForm>
+      </div>
+
+      {notes.map((note) => (
+        <p key={note} className="mb-2 text-sm text-gray-600" role="status">
+          {note}
+        </p>
+      ))}
+
+      <ModuleTableCard>
+        <table className={moduleTableClass} aria-label="Movimentos do item">
+          <thead className={moduleTableHeadClass}>
+            <tr>
+              <th scope="col" className={moduleTableHeaderCellClass}>Data</th>
+              <th scope="col" className={moduleTableHeaderCellClass}>Depósito</th>
+              <th scope="col" className={moduleTableHeaderCellClass}>Tipo</th>
+              <th scope="col" className={moduleTableHeaderCellClass}>Status</th>
+              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Quantidade</th>
+              <th scope="col" className={moduleTableHeaderCellClass}>Custo</th>
+              <th scope="col" className={moduleTableHeaderCellClass}>Descrição</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {movements.phase === 'ready' && movements.items.length === 0 ? (
+              <ListMessageRow colSpan={7}>Nenhum movimento para este item.</ListMessageRow>
+            ) : null}
+            {movements.phase === 'denied' ? (
+              <ListMessageRow colSpan={7}>
+                Você não tem permissão para ver os movimentos deste item.
+              </ListMessageRow>
+            ) : null}
+            {movements.phase === 'ready'
+              ? movements.items.map((movement) => (
+                  <tr key={movement.id} className={moduleTableRowClass}>
+                    <td className={moduleTableCellClass}>{movement.occurredOn}</td>
+                    <td className={moduleTableCellClass}>
+                      {movement.warehouseName ?? 'Depósito não identificado'}
+                      {movement.warehouseCode ? (
+                        <span className="block text-xs text-gray-500">{movement.warehouseCode}</span>
+                      ) : null}
+                    </td>
+                    <td className={moduleTableCellClass}>{movement.movementType}</td>
+                    <td className={moduleTableCellClass}>{movement.status}</td>
+                    <td className={`${moduleTableCellClass} text-right`}>{movement.signedQuantity}</td>
+                    <td className={moduleTableCellClass}>
+                      {movement.totalCost ? <Money value={movement.totalCost} /> : '—'}
+                    </td>
+                    <td className={moduleTableCellClass}>{movement.description}</td>
+                  </tr>
+                ))
+              : null}
+          </tbody>
+        </table>
+      </ModuleTableCard>
+
+      <ReverseMovementForm
+        movements={movements.phase === 'ready' ? movements.items : []}
+        unitId={selectedWarehouse?.unitId ?? ''}
+        onReversed={() => void loadMovements()}
+      />
     </ModulePage>
+  );
+}
+
+/**
+ * Estorno a partir do próprio movimento: a chave do comando original vem da linha, não de um campo
+ * digitado. A chave de estorno é derivada no cliente (idempotência do comando, não regra de negócio).
+ */
+function ReverseMovementForm({
+  movements,
+  unitId,
+  onReversed,
+}: {
+  movements: StockMovementSummary[];
+  unitId: string;
+  onReversed: () => void;
+}) {
+  const [commandKey, setCommandKey] = useState('');
+  const [reversalKey, setReversalKey] = useState('');
+  const [note, setNote] = useState<string | null>(null);
+
+  return (
+    <CreateRecordForm
+      title="Estornar movimento"
+      description="A chave do comando original é preenchida pelo movimento escolhido na lista acima."
+      submitLabel="Estornar"
+      disabled={!commandKey || !reversalKey}
+      mapError={mapInventoryErrorToMessage}
+      onSubmit={async () => {
+        await reverseStockMovement({
+          unitId,
+          commandIdempotencyKey: commandKey.trim(),
+          reversalKey: reversalKey.trim(),
+        });
+        setNote('Estorno solicitado ao servidor.');
+        setCommandKey('');
+        setReversalKey('');
+        onReversed();
+      }}
+    >
+      <Field label="Movimento a estornar" htmlFor="reverse-movement" required className="md:col-span-2">
+        <Select
+          id="reverse-movement"
+          value={commandKey}
+          onChange={(event) => {
+            setCommandKey(event.target.value);
+            setReversalKey(event.target.value ? `REV-${event.target.value}` : '');
+          }}
+          required
+        >
+          <option value="">Selecione o movimento</option>
+          {movements.map((movement) => (
+            <option key={movement.id} value={movement.commandIdempotencyKey}>
+              {movement.occurredOn} — {movement.movementType} {movement.signedQuantity} (
+              {movement.description})
+            </option>
+          ))}
+        </Select>
+      </Field>
+      {note ? (
+        <p className="text-sm text-gray-600 md:col-span-2" role="status">
+          {note}
+        </p>
+      ) : null}
+    </CreateRecordForm>
+  );
+}
+
+export function InventoryWarehouseDetailPage() {
+  const { warehouseId = '' } = useParams();
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [itemId, setItemId] = useState('');
+  const [movements, setMovements] = useState<ListPhase<StockMovementSummary>>({ phase: 'loading' });
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void listWarehouses({ limit: 100, offset: 0 }, controller.signal).then(
+      (response) => setWarehouses(response.items),
+      () => setWarehouses([]),
+    );
+    void listInventoryItems({ limit: 100, offset: 0 }, controller.signal).then(
+      (response) => setItems(response.items),
+      () => setItems([]),
+    );
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setMovements({ phase: 'loading' });
+    void listStockMovements({ limit: PAGE_SIZE, offset: 0, warehouseId }, controller.signal).then(
+      (response) => setMovements({ phase: 'ready', items: response.items, total: response.total }),
+      () => setMovements({ phase: 'denied' }),
+    );
+    return () => controller.abort();
+  }, [warehouseId]);
+
+  const warehouse = warehouses.find((candidate) => candidate.id === warehouseId) ?? null;
+  const balance = useBackofficeQuery({
+    loader: useCallback(
+      (signal?: AbortSignal) => getStockBalance(warehouseId, itemId, signal),
+      [itemId, warehouseId],
+    ),
+    mapError: mapInventoryErrorToMessage,
+    enabled: Boolean(warehouseId && itemId),
+    autoLoad: Boolean(warehouseId && itemId),
+  });
+  const gate = itemId
+    ? renderQueryGate(
+        'Saldo',
+        'Carregando saldo…',
+        'Você não tem permissão para consultar o saldo deste item.',
+        balance.state,
+        () => void balance.reload(),
+      )
+    : null;
+
+  return (
+    <ModulePage>
+      <ModulePageHeader
+        title={warehouse ? `${warehouse.name}` : 'Depósito'}
+        description="Saldo por item e histórico de movimentos do depósito."
+        action={
+          <Link className="text-sm font-semibold text-gray-700 hover:text-gray-900" to="/app/inventory">
+            Voltar para o estoque
+          </Link>
+        }
+      />
+
+      {warehouse ? (
+        <div className="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5">
+          <DefinitionList
+            items={[
+              { label: 'Código', value: warehouse.code },
+              { label: 'Unidade', value: warehouse.unitId },
+              {
+                label: 'Status',
+                value: <FinanceStatusBadge status={warehouse.status} labels={WAREHOUSE_STATUS_LABELS} />,
+              },
+            ]}
+          />
+        </div>
+      ) : null}
+
+      <CreateRecordForm
+        title="Consultar saldo"
+        description="Escolha o item no cadastro; o saldo é o persistido pelo servidor."
+        submitLabel="Registrar consulta"
+        mapError={mapInventoryErrorToMessage}
+        onSubmit={async () => {
+          await balance.reload();
+        }}
+      >
+        <Field label="Item" htmlFor="warehouse-item" required className="md:col-span-2">
+          <Select
+            id="warehouse-item"
+            value={itemId}
+            onChange={(event) => setItemId(event.target.value)}
+            required
+          >
+            <option value="">Selecione o item</option>
+            {items.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name} — {item.sku}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </CreateRecordForm>
+      {gate}
+      {balance.state.phase === 'ready' ? (
+        <div className="mb-6 mt-4 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5">
+          <DefinitionList
+            items={[
+              { label: 'Em mãos', value: balance.state.data.onHand },
+              { label: 'Reservado', value: balance.state.data.reserved },
+              { label: 'Disponível', value: balance.state.data.available },
+            ]}
+          />
+        </div>
+      ) : null}
+
+      <ModuleTableCard>
+        <table className={moduleTableClass} aria-label="Movimentos do depósito">
+          <thead className={moduleTableHeadClass}>
+            <tr>
+              <th scope="col" className={moduleTableHeaderCellClass}>Data</th>
+              <th scope="col" className={moduleTableHeaderCellClass}>Item</th>
+              <th scope="col" className={moduleTableHeaderCellClass}>Tipo</th>
+              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Quantidade</th>
+              <th scope="col" className={moduleTableHeaderCellClass}>Descrição</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {movements.phase === 'ready' && movements.items.length === 0 ? (
+              <ListMessageRow colSpan={5}>Nenhum movimento neste depósito.</ListMessageRow>
+            ) : null}
+            {movements.phase === 'denied' ? (
+              <ListMessageRow colSpan={5}>
+                Você não tem permissão para ver os movimentos deste depósito.
+              </ListMessageRow>
+            ) : null}
+            {movements.phase === 'ready'
+              ? movements.items.map((movement) => (
+                  <tr key={movement.id} className={moduleTableRowClass}>
+                    <td className={moduleTableCellClass}>{movement.occurredOn}</td>
+                    <td className={moduleTableCellClass}>
+                      {movement.itemName ?? 'Item não identificado'}
+                      {movement.itemSku ? (
+                        <span className="block text-xs text-gray-500">{movement.itemSku}</span>
+                      ) : null}
+                    </td>
+                    <td className={moduleTableCellClass}>{movement.movementType}</td>
+                    <td className={`${moduleTableCellClass} text-right`}>{movement.signedQuantity}</td>
+                    <td className={moduleTableCellClass}>{movement.description}</td>
+                  </tr>
+                ))
+              : null}
+          </tbody>
+        </table>
+      </ModuleTableCard>
+      <p className="mb-6 mt-2 text-xs text-gray-500" role="status">
+        {movements.phase === 'ready'
+          ? `${movements.total} movimento(s) no total.`
+          : 'Carregando movimentos…'}
+      </p>
+
+      <ReleaseReservationForm onReleased={() => undefined} />
+
+      {!warehouse ? (
+        <EmptyState
+          title="Depósito não encontrado na lista"
+          description="Volte para a lista de depósitos e escolha um depósito carregado pelo servidor."
+        />
+      ) : null}
+    </ModulePage>
+  );
+}
+
+/** Liberação de reserva a partir da própria reserva do item, sem digitar identificador. */
+function ReleaseReservationForm({ onReleased }: { onReleased: () => void }) {
+  const [reservations, setReservations] = useState<StockReservationSummary[]>([]);
+  const [reservationId, setReservationId] = useState('');
+  const [note, setNote] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void listStockReservations({ limit: 100, offset: 0, status: 'ACTIVE' }, controller.signal).then(
+      (response) => setReservations(response.items),
+      () => setReservations([]),
+    );
+    return () => controller.abort();
+  }, []);
+
+  return (
+    <CreateRecordForm
+      title="Liberar reserva"
+      description="A reserva é escolhida entre as ativas do servidor."
+      submitLabel="Liberar"
+      disabled={!reservationId}
+      mapError={mapInventoryErrorToMessage}
+      onSubmit={async () => {
+        await releaseReservation(reservationId);
+        setNote('Reserva liberada.');
+        setReservationId('');
+        onReleased();
+      }}
+    >
+      <Field label="Reserva" htmlFor="release-reservation" required className="md:col-span-2">
+        <Select
+          id="release-reservation"
+          value={reservationId}
+          onChange={(event) => setReservationId(event.target.value)}
+          required
+        >
+          <option value="">Selecione a reserva</option>
+          {reservations.map((reservation) => (
+            <option key={reservation.id} value={reservation.id}>
+              {reservation.itemName ?? 'Item'} — {reservation.quantity} em{' '}
+              {reservation.warehouseName ?? 'depósito'}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      {note ? (
+        <p className="text-sm text-gray-600 md:col-span-2" role="status">
+          {note}
+        </p>
+      ) : null}
+    </CreateRecordForm>
   );
 }

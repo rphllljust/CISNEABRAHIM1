@@ -83,6 +83,22 @@ export type StockBalanceRow = {
   available: string;
 };
 
+/** Linha de lista de movimento com as referências humanas resolvidas pelo servidor. */
+export type StockMovementListRow = StockMovementRow & {
+  warehouse_code: string | null;
+  warehouse_name: string | null;
+  item_sku: string | null;
+  item_name: string | null;
+};
+
+/** Linha de lista de reserva com as referências humanas resolvidas pelo servidor. */
+export type StockReservationListRow = StockReservationRow & {
+  warehouse_code: string | null;
+  warehouse_name: string | null;
+  item_sku: string | null;
+  item_name: string | null;
+};
+
 export type PersistMovementInput = {
   unitId: string;
   warehouseId: string;

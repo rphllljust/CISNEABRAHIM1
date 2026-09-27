@@ -7,6 +7,8 @@ import {
 } from '../../audit/types/security-audit.types';
 import { SecurityAuditService } from '../../audit/services/security-audit.service';
 import { AUTHZ_ACTIONS } from '../../authorization/types/authz-actions';
+import { AUTHZ_RESOURCE_TYPES } from '../../authorization/types/authz-resources';
+import { AuthorizationRepository } from '../../authorization/repositories/authorization.repository';
 import type { IdentityAuthzContext } from '../../authorization/types/authz-decision';
 import type { InventoryStockPort } from '../../platform/bounded-contexts/enterprise-core-ports';
 import { assertUuid } from '../../platform/kernel/uuid';
@@ -58,17 +60,24 @@ import {
   toInventoryItemResponse,
   toReservationResponse,
   toStockMovementResponse,
+  toStockMovementSummaryResponse,
+  toStockReservationSummaryResponse,
   toWarehouseResponse,
   type CostingRuleResponse,
   type CostingRuleVersionResponse,
+  type InventoryItemListResponse,
   type InventoryItemResponse,
   type PostMovementResponse,
   type StockBalanceResponse,
+  type StockMovementListResponse,
+  type StockReservationListResponse,
   type StockReservationResponse,
+  type WarehouseListResponse,
   type WarehouseResponse,
 } from '../serializers/inventory-response.serializer';
+import type { InventoryListQuery } from '../dto/inventory-list.dto';
 import { InventoryAccessAuthz } from './inventory-access.authz';
-import { mapInventoryDomainError } from './inventory-access.errors';
+import { inventoryAccessDenied, mapInventoryDomainError } from './inventory-access.errors';
 import { InventoryAccountingIntegrationService } from './inventory-accounting-integration.service';
 
 @Injectable()
@@ -76,9 +85,213 @@ export class InventoryAccessService implements InventoryStockPort {
   constructor(
     private readonly repository: InventoryRepository,
     private readonly authz: InventoryAccessAuthz,
+    private readonly authorizationRepository: AuthorizationRepository,
     private readonly securityAudit: SecurityAuditService,
     private readonly accountingIntegration: InventoryAccountingIntegrationService,
   ) {}
+
+  /**
+   * Listagens operacionais do estoque. A autorização é a mesma classe das demais ações do recurso
+   * `InventoryStock`, com concessão de lista própria: sem ela nada é listado, e a tela deixa de
+   * exigir que o operador digite identificadores de depósito, item, movimento ou reserva.
+   */
+  async listWarehouses(
+    actor: IdentityAuthzContext,
+    query: InventoryListQuery,
+  ): Promise<WarehouseListResponse> {
+    await this.assertInventoryList(actor, AUTHZ_ACTIONS.InventoryWarehouseList, query.unitId);
+    const whereParts: string[] = [];
+    const params: unknown[] = [];
+    if (query.status) {
+      whereParts.push(`status = $${params.length + 1}::inv.warehouse_status`);
+      params.push(query.status);
+    }
+    if (query.unitId) {
+      whereParts.push(`unit_id = $${params.length + 1}`);
+      params.push(query.unitId);
+    }
+    if (query.q) {
+      whereParts.push(`(code ILIKE $${params.length + 1} OR name ILIKE $${params.length + 1})`);
+      params.push(`%${query.q}%`);
+    }
+    const whereClause = whereParts.length > 0 ? whereParts.join(' AND ') : 'TRUE';
+
+    const rows = await this.repository.listWarehousePage({
+      whereClause,
+      params,
+      limit: query.limit,
+      offset: query.offset,
+    });
+    const total =
+      query.offset === 0 && rows.length < query.limit
+        ? rows.length
+        : await this.repository.countWarehouseList(whereClause, params);
+
+    return {
+      items: rows.map(toWarehouseResponse),
+      limit: query.limit,
+      offset: query.offset,
+      total,
+      totalPages: Math.ceil(total / query.limit),
+    };
+  }
+
+  async listItems(
+    actor: IdentityAuthzContext,
+    query: InventoryListQuery,
+  ): Promise<InventoryItemListResponse> {
+    await this.assertInventoryList(actor, AUTHZ_ACTIONS.InventoryItemList, query.unitId);
+    const whereParts: string[] = [];
+    const params: unknown[] = [];
+    if (query.status) {
+      whereParts.push(`status = $${params.length + 1}::inv.inventory_item_status`);
+      params.push(query.status);
+    }
+    if (query.unitId) {
+      whereParts.push(`unit_id = $${params.length + 1}`);
+      params.push(query.unitId);
+    }
+    if (query.q) {
+      whereParts.push(`(sku ILIKE $${params.length + 1} OR name ILIKE $${params.length + 1})`);
+      params.push(`%${query.q}%`);
+    }
+    const whereClause = whereParts.length > 0 ? whereParts.join(' AND ') : 'TRUE';
+
+    const rows = await this.repository.listItemPage({
+      whereClause,
+      params,
+      limit: query.limit,
+      offset: query.offset,
+    });
+    const total =
+      query.offset === 0 && rows.length < query.limit
+        ? rows.length
+        : await this.repository.countItemList(whereClause, params);
+
+    return {
+      items: rows.map(toInventoryItemResponse),
+      limit: query.limit,
+      offset: query.offset,
+      total,
+      totalPages: Math.ceil(total / query.limit),
+    };
+  }
+
+  async listMovements(
+    actor: IdentityAuthzContext,
+    query: InventoryListQuery,
+  ): Promise<StockMovementListResponse> {
+    await this.assertInventoryList(actor, AUTHZ_ACTIONS.InventoryMovementList, undefined);
+    const whereParts: string[] = [];
+    const params: unknown[] = [];
+    if (query.warehouseId) {
+      whereParts.push(`m.warehouse_id = $${params.length + 1}::uuid`);
+      params.push(query.warehouseId);
+    }
+    if (query.inventoryItemId) {
+      whereParts.push(`m.inventory_item_id = $${params.length + 1}::uuid`);
+      params.push(query.inventoryItemId);
+    }
+    if (query.movementType) {
+      whereParts.push(`m.movement_type = $${params.length + 1}::inv.stock_movement_type`);
+      params.push(query.movementType);
+    }
+    if (query.q) {
+      whereParts.push(
+        `(m.description ILIKE $${params.length + 1} OR w.code ILIKE $${params.length + 1} OR w.name ILIKE $${params.length + 1} OR i.sku ILIKE $${params.length + 1} OR i.name ILIKE $${params.length + 1})`,
+      );
+      params.push(`%${query.q}%`);
+    }
+    const whereClause = whereParts.length > 0 ? whereParts.join(' AND ') : 'TRUE';
+
+    const rows = await this.repository.listMovementPage({
+      whereClause,
+      params,
+      limit: query.limit,
+      offset: query.offset,
+    });
+    const total =
+      query.offset === 0 && rows.length < query.limit
+        ? rows.length
+        : await this.repository.countMovementList(whereClause, params);
+
+    return {
+      items: rows.map(toStockMovementSummaryResponse),
+      limit: query.limit,
+      offset: query.offset,
+      total,
+      totalPages: Math.ceil(total / query.limit),
+    };
+  }
+
+  async listReservations(
+    actor: IdentityAuthzContext,
+    query: InventoryListQuery,
+  ): Promise<StockReservationListResponse> {
+    await this.assertInventoryList(actor, AUTHZ_ACTIONS.InventoryReservationList, undefined);
+    const whereParts: string[] = [];
+    const params: unknown[] = [];
+    if (query.status) {
+      whereParts.push(`r.status = $${params.length + 1}::inv.reservation_status`);
+      params.push(query.status);
+    }
+    if (query.warehouseId) {
+      whereParts.push(`r.warehouse_id = $${params.length + 1}::uuid`);
+      params.push(query.warehouseId);
+    }
+    if (query.inventoryItemId) {
+      whereParts.push(`r.inventory_item_id = $${params.length + 1}::uuid`);
+      params.push(query.inventoryItemId);
+    }
+    if (query.q) {
+      whereParts.push(
+        `(w.code ILIKE $${params.length + 1} OR w.name ILIKE $${params.length + 1} OR i.sku ILIKE $${params.length + 1} OR i.name ILIKE $${params.length + 1})`,
+      );
+      params.push(`%${query.q}%`);
+    }
+    const whereClause = whereParts.length > 0 ? whereParts.join(' AND ') : 'TRUE';
+
+    const rows = await this.repository.listReservationPage({
+      whereClause,
+      params,
+      limit: query.limit,
+      offset: query.offset,
+    });
+    const total =
+      query.offset === 0 && rows.length < query.limit
+        ? rows.length
+        : await this.repository.countReservationList(whereClause, params);
+
+    return {
+      items: rows.map(toStockReservationSummaryResponse),
+      limit: query.limit,
+      offset: query.offset,
+      total,
+      totalPages: Math.ceil(total / query.limit),
+    };
+  }
+
+  /**
+   * Concessão de lista do estoque. A âncora de unidade é opcional: a listagem global do módulo não
+   * inventa unidade, e o filtro de escopo continua sendo aplicado pelo PDP nas ações de escrita.
+   */
+  private async assertInventoryList(
+    actor: IdentityAuthzContext,
+    action: (typeof AUTHZ_ACTIONS)[keyof typeof AUTHZ_ACTIONS],
+    unitId: string | undefined,
+  ): Promise<void> {
+    const grants = await this.authorizationRepository.findActiveGrants(
+      actor.identityId,
+      action,
+      AUTHZ_RESOURCE_TYPES.InventoryStock,
+    );
+    if (grants.length === 0) {
+      throw mapInventoryDomainError(inventoryAccessDenied());
+    }
+    if (unitId) {
+      await this.authz.assertInventoryAction(actor, action, { id: actor.identityId, unitId });
+    }
+  }
 
   async createWarehouse(
     actor: IdentityAuthzContext,

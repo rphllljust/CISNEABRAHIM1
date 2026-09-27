@@ -14,11 +14,44 @@ import {
   validateReserveStockInput,
 } from '../domain/inventory.validation';
 import { InventoryAccessService } from '../services/inventory-access.service';
+import { parseInventoryListQuery } from '../dto/inventory-list.dto';
 
 @Controller('inventory')
 @UseGuards(JwtAuthGuard)
 export class InventoryController {
   constructor(private readonly inventory: InventoryAccessService) {}
+
+  @Get('warehouses')
+  listWarehouses(@CurrentAuth() auth: AccessTokenClaims, @Query() query: Record<string, unknown>) {
+    return this.inventory.listWarehouses(
+      { identityId: auth.sub, sessionId: auth.sid },
+      parseInventoryListQuery(query),
+    );
+  }
+
+  @Get('items')
+  listItems(@CurrentAuth() auth: AccessTokenClaims, @Query() query: Record<string, unknown>) {
+    return this.inventory.listItems(
+      { identityId: auth.sub, sessionId: auth.sid },
+      parseInventoryListQuery(query),
+    );
+  }
+
+  @Get('movements')
+  listMovements(@CurrentAuth() auth: AccessTokenClaims, @Query() query: Record<string, unknown>) {
+    return this.inventory.listMovements(
+      { identityId: auth.sub, sessionId: auth.sid },
+      parseInventoryListQuery(query),
+    );
+  }
+
+  @Get('reservations')
+  listReservations(@CurrentAuth() auth: AccessTokenClaims, @Query() query: Record<string, unknown>) {
+    return this.inventory.listReservations(
+      { identityId: auth.sub, sessionId: auth.sid },
+      parseInventoryListQuery(query),
+    );
+  }
 
   @Post('warehouses')
   @HttpCode(200)

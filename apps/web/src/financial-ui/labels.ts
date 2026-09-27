@@ -189,3 +189,13 @@ export const TAX_ASSESSMENT_STATUS_LABELS: Record<string, string> = {
   ADJUSTED: 'Ajustado',
   CANCELLED: 'Cancelado',
 };
+
+export const WAREHOUSE_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: 'Ativo',
+  INACTIVE: 'Inativo',
+};
+
+export const INVENTORY_ITEM_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: 'Ativo',
+  INACTIVE: 'Inativo',
+};
