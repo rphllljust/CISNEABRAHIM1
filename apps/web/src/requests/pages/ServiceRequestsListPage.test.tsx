@@ -28,6 +28,26 @@ describe('ServiceRequestsListPage', () => {
     ).toBeInTheDocument();
   });
 
+  it('opens straight into the recorte carried in the URL, so the queue is shareable', async () => {
+    const fetchMock = createRequestsFetchMock();
+    vi.stubGlobal('fetch', fetchMock);
+
+    // O recorte enumerado vive na URL: abrir o link precisa cair na fila ja recortada,
+    // sem o operador refazer o filtro na mao.
+    renderWithProviders(<ServiceRequestsListPage />, {
+      router: {
+        initialEntries: [
+          `/app/requests?status=${SERVICE_REQUEST_STATUSES.UnderReview}&priority=HIGH`,
+        ],
+      },
+    });
+
+    await waitFor(() => {
+      const urls = fetchMock.mock.calls.map((call) => String(call[0]));
+      expect(urls.some((url) => url.includes('status=UNDER_REVIEW'))).toBe(true);
+    });
+  });
+
   it('shows client name, next action and attention facts instead of the raw uuid', async () => {
     vi.stubGlobal(
       'fetch',

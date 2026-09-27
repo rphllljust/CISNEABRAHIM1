@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { isPersistableValue } from '../../operator';
 import {
   getServiceRequestSummary,
   listServiceRequests,
@@ -112,12 +114,72 @@ function hasActiveFilters(filters: QueueFilters): boolean {
   return Object.values(rest).some((value) => value !== '');
 }
 
+/** Chaves enumeradas da fila que podem trafegar na URL. Nunca texto livre. */
+const QUEUE_URL_KEYS = ['status', 'priority', 'originSource'] as const;
+
+/**
+ * Fila enderecavel: semeia os recortes enumerados a partir da URL uma unica vez e reflete
+ * de volta o recorte atual. Nenhuma autorizacao e decidida aqui — a consulta continua sendo
+ * autorizada no servidor; isto apenas transporta o recorte.
+ */
+function useQueueUrlSync(
+  filters: QueueFilters,
+  setFilters: Dispatch<SetStateAction<QueueFilters>>,
+): void {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const seeded = useRef(false);
+
+  useEffect(() => {
+    if (seeded.current) {
+      return;
+    }
+    seeded.current = true;
+    const incoming: Record<string, string> = {};
+    for (const key of QUEUE_URL_KEYS) {
+      const value = searchParams.get(key);
+      if (value && isPersistableValue(value)) {
+        incoming[key] = value;
+      }
+    }
+    if (Object.keys(incoming).length > 0) {
+      setFilters((current) => ({ ...current, ...incoming }) as QueueFilters);
+    }
+    // Semeado apenas na primeira montagem: depois disso o estado da tela e a fonte.
+  }, [searchParams, setFilters]);
+
+  useEffect(() => {
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        for (const key of QUEUE_URL_KEYS) {
+          const value = filters[key];
+          if (value) {
+            next.set(key, value);
+          } else {
+            next.delete(key);
+          }
+        }
+        return next;
+      },
+      { replace: true },
+    );
+    // Apenas os recortes enumerados entram na URL.
+  }, [filters.status, filters.priority, filters.originSource, setSearchParams]);
+}
+
 export function ServiceRequestsListPage() {
   const { capabilities } = useServiceRequestCapabilities();
   const [filters, setFilters] = useState<QueueFilters>(EMPTY_FILTERS);
   const [searchInput, setSearchInput] = useState('');
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
   const [summary, setSummary] = useState<ServiceRequestListSummary | null>(null);
+
+  // FILA ENDERECAVEL: os recortes enumerados de estado, prioridade e origem passam a viver
+  // na URL. Antes viviam so em memoria: recarregar perdia o recorte, o botao voltar nao
+  // funcionava e a fila nao podia ser compartilhada nem aberta por link. Somente valores
+  // enumerados entram pela URL (o mesmo alfabeto restrito das visoes salvas); texto livre
+  // de busca permanece em memoria, por nao ser persistivel.
+  useQueueUrlSync(filters, setFilters);
 
   const loadPage = useCallback(
     async (offset: number, activeFilters: QueueFilters, signal?: AbortSignal) => {
