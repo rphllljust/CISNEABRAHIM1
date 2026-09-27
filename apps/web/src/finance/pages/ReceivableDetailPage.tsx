@@ -16,11 +16,47 @@ import { MoneyActionForm } from '../../financial-ui/MoneyActionForm';
 import { RECEIVABLE_STATUS_LABELS } from '../../financial-ui/labels';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
+import { ActivityTimeline, type ActivityFact } from '../../operator';
 import { cancelReceivable, getReceivable, settleReceivable } from '../api/finance-api';
 import { CollectionPanel } from '../components/CollectionPanel';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import { FinanceStatusBadge } from '../components/FinanceStatusBadge';
 import type { ReceivableDetail } from '../types/finance.types';
+
+/**
+ * Histórico do título a partir de FATOS PERSISTIDOS apenas.
+ *
+ * O payload de recebíveis não guarda trilha de eventos nem ator: guarda
+ * `createdAt`, `updatedAt`, `cancelledAt` e as liquidações com `settledAt`.
+ * Então é exatamente isso que o histórico mostra — nada de evento inventado,
+ * nada de "Sistema" preenchendo autor desconhecido, nada de estado anterior que
+ * não foi gravado.
+ */
+export function receivableActivityFacts(item: ReceivableDetail): ActivityFact[] {
+  const facts: ActivityFact[] = [
+    { at: item.createdAt, event: 'Título criado' },
+    { at: item.updatedAt, event: 'Título atualizado' },
+  ];
+
+  if (item.cancelledAt) {
+    facts.push({
+      at: item.cancelledAt,
+      event: 'Título cancelado',
+      reference: item.cancelReason ?? null,
+    });
+  }
+
+  for (const settlement of item.settlements) {
+    facts.push({
+      at: settlement.settledAt,
+      event: 'Recebimento registrado',
+      reference: `${settlement.amount} ${settlement.currencyCode} · ${settlement.status}`,
+    });
+  }
+
+  return facts;
+}
+
 
 export function ReceivableDetailPage() {
   const { receivableId = '' } = useParams();
@@ -78,6 +114,13 @@ export function ReceivableDetailPage() {
             { label: 'Versão', value: String(item.rowVersion) },
             { label: 'Cliente', value: item.clientId },
           ]}
+        />
+      </div>
+
+      <div className="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5">
+        <ActivityTimeline
+          facts={receivableActivityFacts(item)}
+          emptyMessage="Este título não expõe histórico persistido além dos timestamps abaixo."
         />
       </div>
 
