@@ -62,7 +62,7 @@ import { ContractsCreatePage } from './contracts/pages/ContractsCreatePage';
 import { ContractsDetailPage } from './contracts/pages/ContractsDetailPage';
 import { OperationalDashboardPage } from './dashboard/pages/OperationalDashboardPage';
 import { AlertCenterPage } from './alerts/pages/AlertCenterPage';
-import { WorkInboxPage } from './operator/work-inbox/WorkInboxPage';
+import { WorkInboxPage } from './work-inbox/pages/WorkInboxPage';
 import { SearchResultsPage } from './search/pages/SearchResultsPage';
 import { ReportsPage } from './reports/pages/ReportsPage';
 import { OperationalProfitabilityPage } from './analytics/pages/OperationalProfitabilityPage';
