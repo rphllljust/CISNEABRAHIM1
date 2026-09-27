@@ -69,8 +69,17 @@ export type ServiceOrderDetail = {
   serviceSnapshot: ServiceOrderServiceSnapshot;
   description: string | null;
   rowVersion: number;
+  /**
+   * Instantes PERSISTIDOS do ciclo de vida. O detalhe da OS ja devolve esses campos
+   * (`toServiceOrderResponse`); eles entram aqui para que a interface possa datar cada passo
+   * real do fluxo sem derivar nada. Ausente = o passo ainda nao aconteceu.
+   */
+  createdAt?: string | null;
   preparedAt: string | null;
   releasedAt: string | null;
+  startedAt?: string | null;
+  pausedAt?: string | null;
+  completedAt?: string | null;
   cancelledAt: string | null;
   historyEvents: ServiceOrderHistoryEvent[];
   /**

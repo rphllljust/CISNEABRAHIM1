@@ -1,10 +1,23 @@
-import { Link, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { getPhysicalAsset, listPhysicalAssets } from '../../assets/api/physical-assets-api';
 import type { PhysicalAsset } from '../../assets/types/physical-asset.types';
 import { listPeople } from '../../people/api/people-api';
 import type { Person } from '../../people/types/person.types';
 import { ConfirmDialog } from '../../clients/components/ConfirmDialog';
+import {
+  buildAuthorizedRelations,
+  EnterpriseObjectHeader,
+  EnterpriseObjectPage,
+  NextActionPanel,
+  ObjectContextBlock,
+  ObjectPanel,
+  ObjectStateFlow,
+  SmartRelationBar,
+  type ObjectAction,
+} from '../../enterprise-object';
+import { ActivityTimeline } from '../../operator';
+import type { BreadcrumbItem } from '../../ui/Breadcrumb';
 import { getServiceOrder } from '../api/service-orders-api';
 import { ServiceOrdersApiError } from '../api/service-orders-api';
 import { mapServiceOrdersErrorToMessage } from '../api/service-orders-error-messages';
@@ -17,11 +30,23 @@ import {
 } from '../api/service-order-planning-api';
 import { RequirementCoverageTable } from '../components/RequirementCoverageTable';
 import { OperationsControlCenter } from '../components/OperationsControlCenter';
-import { ServiceOrderTimeline } from '../components/ServiceOrderTimeline';
+import { SERVICE_ORDER_STATUS_TONES } from '../components/ServiceOrderStatusBadge';
 import { useServiceOrderPlanningCapabilities } from '../hooks/useServiceOrderPlanningCapabilities';
 import { PLANNED_RESOURCE_KINDS, type PlannedResource, type ResourceAllocation } from '../types/resource-planning.types';
 import { SERVICE_ORDER_STATUSES, type ServiceOrderDetail } from '../types/service-order.types';
 import { buildRequirementCoverage } from '../utils/planning-aggregates';
+import { buildServiceOrdersListHref } from '../utils/service-order-list-params';
+import { resolveServiceOrderNextAction } from '../utils/service-order-next-action';
+import { formatServiceOrderStatus } from '../utils/service-order-labels';
+import {
+  buildServiceOrderContextFields,
+  buildServiceOrderHistoryFacts,
+  buildServiceOrderMetadata,
+  buildServiceOrderNextAction,
+  buildServiceOrderRelationSpecs,
+  buildServiceOrderStateFlow,
+  serviceOrderClientName,
+} from '../utils/service-order-object-view';
 
 type PageState =
   | { phase: 'loading' }
@@ -58,6 +83,7 @@ function formatAllocatedResource(
 
 export function ServiceOrderPlanningPage() {
   const { serviceOrderId = '' } = useParams();
+  const navigate = useNavigate();
   const { capabilities } = useServiceOrderPlanningCapabilities();
   const feedbackId = useId();
   const [state, setState] = useState<PageState>({ phase: 'loading' });
@@ -266,6 +292,28 @@ export function ServiceOrderPlanningPage() {
     return () => controller.abort();
   }, [allocateOpen, loadAssets, selectedPlannedId, state]);
 
+  /**
+   * Abre a alocacao do item planejado no MESMO fluxo existente (mesmo dialogo, mesma
+   * confirmacao pelo servidor). Extraido para que a acao primaria do cabecalho e o botao do
+   * corpo usem exatamente a mesma transicao, sem duplicar regra.
+   */
+  function openAllocationFor(item: PlannedResource) {
+    setSelectedPlannedId(item.id);
+    setOperationalStart('');
+    setOperationalEnd('');
+    if (item.requirementKind === PLANNED_RESOURCE_KINDS.Labor) {
+      setAllocateKind('LABOR');
+      setSelectedPersonId('');
+      setSelectedAssetId('');
+      setPeople([]);
+    } else {
+      setAllocateKind('PHYSICAL_RESOURCE');
+      setSelectedAssetId('');
+      setAllocationConflictAssetId(null);
+    }
+    setAllocateOpen(true);
+  }
+
   async function handlePlanPhysical(resourceTypeCode: string, quantity: string) {
     if (state.phase !== 'ready' || submitting) {
       return;
@@ -362,12 +410,19 @@ export function ServiceOrderPlanningPage() {
     }
   }
 
+  /**
+   * ESTADOS DE PAGINA — resolvidos pelo primitivo da object page, nao por markup proprio:
+   * negacao nao e ausencia de dado e erro oferece nova tentativa real.
+   */
   if (state.phase === 'loading') {
     return (
       <main id="main-content" className="shell-page">
-        <p aria-busy="true" aria-live="polite">
-          Carregando planejamento…
-        </p>
+        <EnterpriseObjectPage
+          header={null}
+          phase="loading"
+          phaseTitle="Ordem de serviço"
+          phaseMessage="Carregando o registro da ordem de serviço…"
+        />
       </main>
     );
   }
@@ -375,7 +430,12 @@ export function ServiceOrderPlanningPage() {
   if (state.phase === 'denied') {
     return (
       <main id="main-content" className="shell-page">
-        <p role="alert">Você não tem permissão para acessar esta ordem de serviço.</p>
+        <EnterpriseObjectPage
+          header={null}
+          phase="denied"
+          phaseTitle="Ordem de serviço"
+          phaseMessage="Você não tem permissão para acessar esta ordem de serviço."
+        />
       </main>
     );
   }
@@ -383,7 +443,12 @@ export function ServiceOrderPlanningPage() {
   if (state.phase === 'not_found') {
     return (
       <main id="main-content" className="shell-page">
-        <p role="alert">Ordem de serviço não encontrada.</p>
+        <EnterpriseObjectPage
+          header={null}
+          phase="empty"
+          phaseTitle="Ordem de serviço"
+          phaseMessage="Ordem de serviço não encontrada."
+        />
       </main>
     );
   }
@@ -391,10 +456,13 @@ export function ServiceOrderPlanningPage() {
   if (state.phase === 'error') {
     return (
       <main id="main-content" className="shell-page">
-        <p role="alert">{state.message}</p>
-        <button type="button" onClick={() => void reload()}>
-          Tentar novamente
-        </button>
+        <EnterpriseObjectPage
+          header={null}
+          phase="error"
+          phaseTitle="Ordem de serviço"
+          phaseMessage={state.message}
+          onRetry={() => void reload()}
+        />
       </main>
     );
   }
@@ -407,277 +475,363 @@ export function ServiceOrderPlanningPage() {
   const planningAllowed =
     order.status === SERVICE_ORDER_STATUSES.Released || order.status === SERVICE_ORDER_STATUSES.InExecution;
 
+  const controlCenter = order.controlCenter;
+  const availableTransitions = controlCenter?.nextAction.availableTransitions ?? [];
+  const clientName = serviceOrderClientName(order);
+  const stateFlow = buildServiceOrderStateFlow(order);
+
+  const nextAction = buildServiceOrderNextAction({
+    serviceOrderId: order.id,
+    orderNumber: order.orderNumber,
+    status: order.status,
+    availableTransitions,
+    canReadServiceOrder: capabilities.canRead,
+  });
+
+  const relations = buildAuthorizedRelations(
+    buildServiceOrderRelationSpecs({
+      serviceOrderId: order.id,
+      canReadServiceOrder: capabilities.canRead,
+      controlCenter,
+    }),
+  );
+
+  const historyFacts = buildServiceOrderHistoryFacts(order);
+
+  /**
+   * ACAO PRIMARIA — a mais provavel AGORA, derivada do status real (`resolveServiceOrderNextAction`)
+   * somada a autorizacao real e ao dado real:
+   * 1. proxima etapa aponta para OUTRA superficie (execucao/medicao) ou para a transicao de ciclo
+   *    de vida ja autorizada pelo backend (`availableTransitions`);
+   * 2. na etapa de planejamento (que e ESTA pagina) a acao real daqui e alocar um recurso
+   *    planejado que ainda nao tem alocacao ativa, e so com `canAllocate` real.
+   */
+  const awaitingAllocation = planned.find(
+    (item) => !activeAllocations.some((allocation) => allocation.plannedResourceId === item.id),
+  );
+  const primaryAction: ObjectAction | null = (() => {
+    if (nextAction?.to) {
+      const destination = nextAction.to;
+      return {
+        id: 'next-action',
+        label: nextAction.label,
+        onSelect: () => {
+          void navigate(destination);
+        },
+      };
+    }
+    if (
+      capabilities.canAllocate &&
+      planningAllowed &&
+      awaitingAllocation &&
+      resolveServiceOrderNextAction(order.status).kind === 'stage'
+    ) {
+      return {
+        id: 'allocate',
+        label: nextAction?.label ?? 'Alocar recurso',
+        onSelect: () => openAllocationFor(awaitingAllocation),
+      };
+    }
+    return null;
+  })();
+
+  /**
+   * ACAO DESTRUTIVA — cancelar existe como comando e o backend avaliza, por OS, quais transicoes
+   * este ator pode executar (`availableTransitions`). Ate o cancelamento o comando e sua
+   * justificativa vivem na lista de ordens de servico, entao o destino e a lista filtrada pelo
+   * numero real da OS.
+   */
+  const destructiveActions: ObjectAction[] = availableTransitions.includes('cancel')
+    ? [
+        {
+          id: 'cancel',
+          label: 'Cancelar OS',
+          onSelect: () => {
+            void navigate(buildServiceOrdersListHref({ q: order.orderNumber }));
+          },
+        },
+      ]
+    : [];
+
+  const breadcrumb: BreadcrumbItem[] = [
+    { label: 'Ordens de serviço', href: '/app/service-orders' },
+    // Cliente entra pelo NOME do snapshot; sem leitura do cadastro de clientes nao ha vinculo.
+    ...(clientName ? [{ label: clientName }] : []),
+    { label: order.orderNumber },
+  ];
+
   return (
     <main id="main-content" className="shell-page planning-page">
-      <header className="planning-page__header">
-        <div>
-          <p className="planning-page__eyebrow">Ordem de serviço</p>
-          <h1>{order.orderNumber}</h1>
-          <p className="planning-page__meta">
-            {order.serviceSnapshot.serviceName} · Status: {order.status}
-          </p>
-        </div>
-        <Link to="/app/requests" className="button-secondary">
-          Voltar
-        </Link>
-      </header>
-
-      {order.controlCenter ? (
-        <section className="planning-section" aria-label="Centro de controle operacional">
-          <OperationsControlCenter
+      <EnterpriseObjectPage
+        breadcrumb={breadcrumb}
+        header={
+          <EnterpriseObjectHeader
+            reference={order.orderNumber}
+            title={order.serviceSnapshot.serviceName}
+            subtitle={clientName}
+            status={{
+              label: formatServiceOrderStatus(order.status),
+              tone: SERVICE_ORDER_STATUS_TONES[order.status],
+            }}
+            metadata={buildServiceOrderMetadata(order)}
+            primaryAction={primaryAction}
+            destructiveActions={destructiveActions}
+          />
+        }
+        stateFlow={<ObjectStateFlow steps={stateFlow.steps} currentId={stateFlow.currentId} />}
+        nextAction={<NextActionPanel action={nextAction} />}
+        relations={<SmartRelationBar relations={relations} />}
+        context={
+          <ObjectContextBlock
+            title="Contexto da ordem"
+            fields={buildServiceOrderContextFields({
+              ...order,
+              serviceName: order.serviceSnapshot.serviceName,
+              serviceCode: order.serviceSnapshot.serviceCode,
+            })}
+          />
+        }
+        aside={
+          <ObjectPanel>
+            <ActivityTimeline
+              facts={historyFacts}
+              title="Histórico"
+              emptyMessage="Nenhum evento registrado para esta ordem."
+            />
+          </ObjectPanel>
+        }
+      >
+        {order.controlCenter ? (
+          <section className="planning-section" aria-label="Centro de controle operacional">
+            <OperationsControlCenter
             controlCenter={order.controlCenter}
             measurementHref={'/app/service-orders/' + order.id + '/measurement'}
-          />
+            />
+          </section>
+        ) : null}
+
+        <section className="planning-section" aria-labelledby="planning-summary-heading">
+          <h2 id="planning-summary-heading">Resumo operacional</h2>
+          <dl className="planning-summary">
+            <div>
+              <dt>Requisitos</dt>
+              <dd>{coverage.length}</dd>
+            </div>
+            <div>
+              <dt>Itens planejados</dt>
+              <dd>{planned.length}</dd>
+            </div>
+            <div>
+              <dt>Alocações ativas</dt>
+              <dd>{activeAllocations.length}</dd>
+            </div>
+          </dl>
         </section>
-      ) : null}
 
-      <section className="planning-section" aria-labelledby="planning-summary-heading">
-        <h2 id="planning-summary-heading">Resumo operacional</h2>
-        <dl className="planning-summary">
-          <div>
-            <dt>Requisitos</dt>
-            <dd>{coverage.length}</dd>
-          </div>
-          <div>
-            <dt>Itens planejados</dt>
-            <dd>{planned.length}</dd>
-          </div>
-          <div>
-            <dt>Alocações ativas</dt>
-            <dd>{activeAllocations.length}</dd>
-          </div>
-        </dl>
-      </section>
-
-      <section className="planning-section" aria-labelledby="requirements-heading">
-        <h2 id="requirements-heading">Requisitos do serviço</h2>
-        <p className="planning-hint">
-          <span className="planning-legend planning-legend--requirement">Requirement</span> — exigência do snapshot do serviço (somente leitura).
-        </p>
-        <RequirementCoverageTable rows={coverage} />
-      </section>
-
-      <section className="planning-section" aria-labelledby="planned-heading">
-        <h2 id="planned-heading">Planejamento</h2>
-        <p className="planning-hint">
-          <span className="planning-legend planning-legend--planned">Planned</span> — tipos e quantidades planejadas, sem recurso concreto obrigatório.
-        </p>
-        {!planningAllowed && (
-          <p role="status" className="planning-notice">
-            Planejamento disponível apenas para ordens liberadas ou em execução.
+        <section className="planning-section" aria-labelledby="requirements-heading">
+          <h2 id="requirements-heading">Requisitos do serviço</h2>
+          <p className="planning-hint">
+            <span className="planning-legend planning-legend--requirement">Requirement</span> — exigência do snapshot do serviço (somente leitura).
           </p>
-        )}
-        {physicalPlanned.length === 0 && laborPlanned.length === 0 ? (
-          <p className="planning-empty" role="status">
-            Nenhum item planejado ainda.
-          </p>
-        ) : (
-          <ul className="planning-list">
-            {physicalPlanned.map((item) => (
-              <li key={item.id}>
-                <strong>{item.resourceTypeCode}</strong> — qtd. {item.plannedQuantity}
-                {capabilities.canAllocate && planningAllowed ? (
-                  <button
-                    type="button"
-                    className="button-link"
-                    onClick={() => {
-                      setAllocateKind('PHYSICAL_RESOURCE');
-                      setSelectedPlannedId(item.id);
-                      setSelectedAssetId('');
-                      setOperationalStart('');
-                      setOperationalEnd('');
-                      setAllocationConflictAssetId(null);
-                      setAllocateOpen(true);
-                    }}
-                  >
-                    Alocar ativo
-                  </button>
-                ) : null}
-              </li>
-            ))}
-            {laborPlanned.map((item) => (
-              <li key={item.id}>
-                <strong>{item.laborTypeCode}</strong> — qtd. {item.plannedQuantity}
-                {capabilities.canAllocate && planningAllowed ? (
-                  <button
-                    type="button"
-                    className="button-link"
-                    onClick={() => {
-                      setAllocateKind('LABOR');
-                      setSelectedPlannedId(item.id);
-                      setSelectedPersonId('');
-                      setSelectedAssetId('');
-                      setOperationalStart('');
-                      setOperationalEnd('');
-                      setPeople([]);
-                      setAllocateOpen(true);
-                    }}
-                  >
-                    Atribuir empregado
-                  </button>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        )}
-        {capabilities.canPlan && planningAllowed
-          ? coverage
-              .filter((row) => row.kind === 'PHYSICAL_RESOURCE' && row.planned < row.required)
-              .map((row) => (
-                <button
-                  key={row.key}
-                  type="button"
-                  className="button-secondary planning-plan-action"
-                  disabled={submitting}
-                  onClick={() => void handlePlanPhysical(row.label, '1')}
-                >
-                  Planejar 1× {row.label}
-                </button>
-              ))
-          : null}
-        {capabilities.canPlan && planningAllowed
-          ? coverage
-              .filter((row) => row.kind === 'LABOR' && row.planned < row.required)
-              .map((row) => (
-                <button
-                  key={row.key}
-                  type="button"
-                  className="button-secondary planning-plan-action"
-                  disabled={submitting}
-                  onClick={() => void handlePlanLabor(row.label, '1')}
-                >
-                  Planejar 1× {row.label}
-                </button>
-              ))
-          : null}
-      </section>
+          <RequirementCoverageTable rows={coverage} />
+        </section>
 
-      <section className="planning-section" aria-labelledby="availability-heading">
-        <h2 id="availability-heading">Disponibilidade de ativos físicos</h2>
-        <p className="planning-hint">
-          <span className="planning-legend planning-legend--available">Available</span> /{' '}
-          <span className="planning-legend planning-legend--unavailable">Unavailable</span> — elegibilidade informada pelo cadastro; conflito de intervalo é confirmado pelo servidor ao alocar.
-        </p>
-        {assetsLoading ? (
-          <p aria-busy="true">Consultando ativos…</p>
-        ) : assets.length === 0 ? (
-          <p className="planning-empty" role="status">
-            Selecione um recurso físico planejado para consultar ativos compatíveis.
+        <section className="planning-section" aria-labelledby="planned-heading">
+          <h2 id="planned-heading">Planejamento</h2>
+          <p className="planning-hint">
+            <span className="planning-legend planning-legend--planned">Planned</span> — tipos e quantidades planejadas, sem recurso concreto obrigatório.
           </p>
-        ) : (
-          <ul className="planning-asset-list">
-            {assets.map((asset) => {
-              const unavailable = asset.lifecycleStatus !== 'ACTIVE';
-              const conflicted = allocationConflictAssetId === asset.id;
-              return (
-                <li
-                  key={asset.id}
-                  className={
-                    unavailable || conflicted
-                      ? 'planning-asset planning-asset--unavailable'
-                      : 'planning-asset planning-asset--available'
-                  }
-                >
-                  <span className="planning-asset__name">{asset.name}</span>
-                  <span className="planning-asset__code">{asset.assetCode}</span>
-                  <span className="planning-asset__status">
-                    {unavailable ? 'Indisponível (inativo)' : conflicted ? 'Indisponível (conflito)' : 'Elegível para alocação'}
-                  </span>
+          {!planningAllowed && (
+            <p role="status" className="planning-notice">
+              Planejamento disponível apenas para ordens liberadas ou em execução.
+            </p>
+          )}
+          {physicalPlanned.length === 0 && laborPlanned.length === 0 ? (
+            <p className="planning-empty" role="status">
+              Nenhum item planejado ainda.
+            </p>
+          ) : (
+            <ul className="planning-list">
+              {physicalPlanned.map((item) => (
+                <li key={item.id}>
+                  <strong>{item.resourceTypeCode}</strong> — qtd. {item.plannedQuantity}
+                  {capabilities.canAllocate && planningAllowed ? (
+                    <button
+                      type="button"
+                      className="button-link"
+                      onClick={() => openAllocationFor(item)}
+                    >
+                      Alocar ativo
+                    </button>
+                  ) : null}
                 </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+              ))}
+              {laborPlanned.map((item) => (
+                <li key={item.id}>
+                  <strong>{item.laborTypeCode}</strong> — qtd. {item.plannedQuantity}
+                  {capabilities.canAllocate && planningAllowed ? (
+                    <button
+                      type="button"
+                      className="button-link"
+                      onClick={() => openAllocationFor(item)}
+                    >
+                      Atribuir empregado
+                    </button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+          {capabilities.canPlan && planningAllowed
+            ? coverage
+                .filter((row) => row.kind === 'PHYSICAL_RESOURCE' && row.planned < row.required)
+                .map((row) => (
+                  <button
+                    key={row.key}
+                    type="button"
+                    className="button-secondary planning-plan-action"
+                    disabled={submitting}
+                    onClick={() => void handlePlanPhysical(row.label, '1')}
+                  >
+                    Planejar 1× {row.label}
+                  </button>
+                ))
+            : null}
+          {capabilities.canPlan && planningAllowed
+            ? coverage
+                .filter((row) => row.kind === 'LABOR' && row.planned < row.required)
+                .map((row) => (
+                  <button
+                    key={row.key}
+                    type="button"
+                    className="button-secondary planning-plan-action"
+                    disabled={submitting}
+                    onClick={() => void handlePlanLabor(row.label, '1')}
+                  >
+                    Planejar 1× {row.label}
+                  </button>
+                ))
+            : null}
+        </section>
 
-      <section className="planning-section" aria-labelledby="allocations-heading">
-        <h2 id="allocations-heading">Alocações confirmadas</h2>
-        <p className="planning-hint">
-          <span className="planning-legend planning-legend--allocated">Allocated</span> — vínculo confirmado pelo backend com intervalo operacional.
-        </p>
-        {activeAllocations.length === 0 ? (
-          <p className="planning-empty" role="status">
-            Nenhuma alocação ativa.
+        <section className="planning-section" aria-labelledby="availability-heading">
+          <h2 id="availability-heading">Disponibilidade de ativos físicos</h2>
+          <p className="planning-hint">
+            <span className="planning-legend planning-legend--available">Available</span> /{' '}
+            <span className="planning-legend planning-legend--unavailable">Unavailable</span> — elegibilidade informada pelo cadastro; conflito de intervalo é confirmado pelo servidor ao alocar.
           </p>
-        ) : (
-          <div className="planning-table-wrap">
-            <table className="planning-table">
-              <thead>
-                <tr>
-                  <th scope="col">Tipo</th>
-                  <th scope="col">Recurso alocado</th>
-                  <th scope="col">Início</th>
-                  <th scope="col">Fim</th>
-                  <th scope="col">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {activeAllocations.map((allocation) => (
-                  <tr key={allocation.id}>
-                    <td>{allocation.resourceTypeCode}</td>
-                    <td>
-                      {formatAllocatedResource(allocation, knownPeople, knownAssets)}
-                    </td>
-                    <td>{new Date(allocation.operationalStart).toLocaleString()}</td>
-                    <td>{new Date(allocation.operationalEnd).toLocaleString()}</td>
-                    <td>
-                      {capabilities.canRemoveAllocation ? (
-                        <button
-                          type="button"
-                          className="button-link"
-                          disabled={submitting}
-                          onClick={() =>
-                            void (async () => {
-                              setSubmitting(true);
-                              try {
-                                await removeAllocation(serviceOrderId, allocation.id, allocation.rowVersion);
-                                setFeedback({ tone: 'success', message: 'Alocação removida.' });
-                                await reload();
-                              } catch (error) {
-                                setFeedback({
-                                  tone: 'error',
-                                  message:
-                                    error instanceof ServiceOrdersApiError
-                                      ? mapServiceOrdersErrorToMessage(error.code, error.status)
-                                      : 'Falha ao remover alocação.',
-                                });
-                              } finally {
-                                setSubmitting(false);
-                              }
-                            })()
-                          }
-                        >
-                          Remover
-                        </button>
-                      ) : null}
-                    </td>
+          {assetsLoading ? (
+            <p aria-busy="true">Consultando ativos…</p>
+          ) : assets.length === 0 ? (
+            <p className="planning-empty" role="status">
+              Selecione um recurso físico planejado para consultar ativos compatíveis.
+            </p>
+          ) : (
+            <ul className="planning-asset-list">
+              {assets.map((asset) => {
+                const unavailable = asset.lifecycleStatus !== 'ACTIVE';
+                const conflicted = allocationConflictAssetId === asset.id;
+                return (
+                  <li
+                    key={asset.id}
+                    className={
+                      unavailable || conflicted
+                        ? 'planning-asset planning-asset--unavailable'
+                        : 'planning-asset planning-asset--available'
+                    }
+                  >
+                    <span className="planning-asset__name">{asset.name}</span>
+                    <span className="planning-asset__code">{asset.assetCode}</span>
+                    <span className="planning-asset__status">
+                      {unavailable ? 'Indisponível (inativo)' : conflicted ? 'Indisponível (conflito)' : 'Elegível para alocação'}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+
+        <section className="planning-section" aria-labelledby="allocations-heading">
+          <h2 id="allocations-heading">Alocações confirmadas</h2>
+          <p className="planning-hint">
+            <span className="planning-legend planning-legend--allocated">Allocated</span> — vínculo confirmado pelo backend com intervalo operacional.
+          </p>
+          {activeAllocations.length === 0 ? (
+            <p className="planning-empty" role="status">
+              Nenhuma alocação ativa.
+            </p>
+          ) : (
+            <div className="planning-table-wrap">
+              <table className="planning-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Tipo</th>
+                    <th scope="col">Recurso alocado</th>
+                    <th scope="col">Início</th>
+                    <th scope="col">Fim</th>
+                    <th scope="col">Ações</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {activeAllocations.map((allocation) => (
+                    <tr key={allocation.id}>
+                      <td>{allocation.resourceTypeCode}</td>
+                      <td>
+                        {formatAllocatedResource(allocation, knownPeople, knownAssets)}
+                      </td>
+                      <td>{new Date(allocation.operationalStart).toLocaleString()}</td>
+                      <td>{new Date(allocation.operationalEnd).toLocaleString()}</td>
+                      <td>
+                        {capabilities.canRemoveAllocation ? (
+                          <button
+                            type="button"
+                            className="button-link"
+                            disabled={submitting}
+                            onClick={() =>
+                              void (async () => {
+                                setSubmitting(true);
+                                try {
+                                  await removeAllocation(serviceOrderId, allocation.id, allocation.rowVersion);
+                                  setFeedback({ tone: 'success', message: 'Alocação removida.' });
+                                  await reload();
+                                } catch (error) {
+                                  setFeedback({
+                                    tone: 'error',
+                                    message:
+                                      error instanceof ServiceOrdersApiError
+                                        ? mapServiceOrdersErrorToMessage(error.code, error.status)
+                                        : 'Falha ao remover alocação.',
+                                  });
+                                } finally {
+                                  setSubmitting(false);
+                                }
+                              })()
+                            }
+                          >
+                            Remover
+                          </button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        {feedback ? (
+          <div
+            id={feedbackId}
+            role={feedback.tone === 'error' ? 'alert' : 'status'}
+            aria-live="polite"
+            className={`planning-feedback planning-feedback--${feedback.tone}`}
+          >
+            {feedback.message}
           </div>
-        )}
-      </section>
-
-      <section className="planning-section" aria-labelledby="planning-timeline-heading">
-        <h2 id="planning-timeline-heading">Linha do tempo</h2>
-        <p className="planning-hint">
-          Histórico do ciclo de vida da OS, incluindo planejamento, despacho e execução. Somente
-          leitura.
-        </p>
-        <ServiceOrderTimeline events={order.historyEvents} />
-      </section>
-
-      {feedback ? (
-        <div
-          id={feedbackId}
-          role={feedback.tone === 'error' ? 'alert' : 'status'}
-          aria-live="polite"
-          className={`planning-feedback planning-feedback--${feedback.tone}`}
-        >
-          {feedback.message}
-        </div>
-      ) : null}
+        ) : null}
+      </EnterpriseObjectPage>
 
       <ConfirmDialog
         open={allocateOpen}

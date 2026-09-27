@@ -6,7 +6,11 @@ type ServiceOrderStatusBadgeProps = {
   status: ServiceOrderStatus;
 };
 
-const STATUS_TONE: Record<ServiceOrderStatus, BadgeTone> = {
+/**
+ * Tom visual por status real da OS. Exportado para que outras superficies do mesmo objeto
+ * (cabecalho da object page) representem o MESMO status com o MESMO tom, sem mapa paralelo.
+ */
+export const SERVICE_ORDER_STATUS_TONES: Record<ServiceOrderStatus, BadgeTone> = {
   DRAFT: 'neutral',
   PREPARED: 'info',
   RELEASED: 'info',
@@ -19,7 +23,7 @@ const STATUS_TONE: Record<ServiceOrderStatus, BadgeTone> = {
 export function ServiceOrderStatusBadge({ status }: ServiceOrderStatusBadgeProps) {
   const label = formatServiceOrderStatus(status);
   return (
-    <Badge tone={STATUS_TONE[status]} aria-label={`Status: ${label}`}>
+    <Badge tone={SERVICE_ORDER_STATUS_TONES[status]} aria-label={`Status: ${label}`}>
       {label}
     </Badge>
   );

@@ -32,9 +32,12 @@ describe('ServiceOrderPlanningPage', () => {
     vi.stubGlobal('fetch', createServiceOrdersFetchMock());
     renderServiceOrderRoutes(`/app/service-orders/${MOCK_SERVICE_ORDER_ID}/planning`);
 
+    // A object page identifica o objeto pelo numero humano da OS (referencia) e pelo servico
+    // (titulo); a assercao antiga exigia o numero como <h1>, que deixou de ser a gramatica.
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /OS-2026-DEMO01/i })).toBeInTheDocument();
+      expect(screen.getAllByText('OS-2026-DEMO01').length).toBeGreaterThan(0);
     });
+    expect(screen.getByRole('heading', { name: /serviço demo/i })).toBeInTheDocument();
 
     expect(screen.getByRole('heading', { name: /requisitos do serviço/i })).toBeInTheDocument();
     expect(screen.getByRole('cell', { name: 'TRUCK' })).toBeInTheDocument();
@@ -47,8 +50,9 @@ describe('ServiceOrderPlanningPage', () => {
     renderServiceOrderRoutes(`/app/service-orders/${MOCK_SERVICE_ORDER_ID}/planning`);
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /OS-2026-DEMO01/i })).toBeInTheDocument();
+      expect(screen.getAllByText('OS-2026-DEMO01').length).toBeGreaterThan(0);
     });
+    expect(screen.getByRole('heading', { name: /serviço demo/i })).toBeInTheDocument();
 
     expect(screen.getByRole('heading', { name: /requisitos do serviço/i })).toBeInTheDocument();
     expect(screen.getByRole('cell', { name: 'TRUCK' })).toBeInTheDocument();
@@ -106,8 +110,10 @@ describe('ServiceOrderPlanningPage', () => {
     );
     renderServiceOrderRoutes(`/app/service-orders/${MOCK_SERVICE_ORDER_ID}/planning`);
 
+    // O historico da OS passou a ser o ActivityTimeline persistido (fatos reais da trilha);
+    // os MESMOS fatos de negocio continuam exigidos, apenas sob o titulo "Histórico".
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /linha do tempo/i })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /histórico/i })).toBeInTheDocument();
     });
 
     expect(screen.getByText('OS criada')).toBeInTheDocument();
