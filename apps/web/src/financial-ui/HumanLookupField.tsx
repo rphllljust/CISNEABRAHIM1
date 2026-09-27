@@ -29,6 +29,7 @@ export function HumanLookupField({
   value,
   onChange,
   emptyMessage = 'Nenhum registro encontrado para a busca.',
+  emptyOptionLabel,
   className,
   initialLabel,
 }: {
@@ -41,6 +42,8 @@ export function HumanLookupField({
   value: string;
   onChange: (id: string) => void;
   emptyMessage?: string;
+  /** Rótulo da opção vazia. Em filtro, "Todos" é mais honesto que "Selecione". */
+  emptyOptionLabel?: string;
   className?: string;
   /** Rótulo já conhecido (ex.: vindo do próprio registro) para exibir sem nova busca. */
   initialLabel?: string;
@@ -95,7 +98,9 @@ export function HumanLookupField({
           className="mt-2"
         >
           <option value="">
-            {phase === 'loading' ? 'Buscando…' : `Selecione ${label.toLowerCase()}`}
+            {phase === 'loading'
+              ? 'Buscando…'
+              : (emptyOptionLabel ?? `Selecione ${label.toLowerCase()}`)}
           </option>
           {value !== '' && !selectedOption ? (
             <option value={value}>{initialLabel ?? 'Selecionado'}</option>

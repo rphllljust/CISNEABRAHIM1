@@ -36,10 +36,10 @@ Resolução aplicada nesta fila, sem inventar regra:
 | catalog | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
 | requests | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
 | proposals | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
-| purchase-orders (cliente) | Y | Y | Y | Y | Y | UUID | Y | Y | Y | Y | Y | Y | Y | BASIC_GAP | filtro de cliente por lookup humano |
-| contracts | Y | Y | Y | Y | - | UUID | Y | Y | Y | Y | Y | Y | Y | BASIC_GAP | filtro de cliente por lookup humano |
+| purchase-orders (cliente) | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
+| contracts | Y | Y | Y | Y | - | Y | Y | Y | Y | Y | Y | Y | Y | BASIC_GAP | edição de contrato não existe no backend |
 | assets | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — (0a55810, 9d2ce38) |
-| service-orders | Y | Y | Y | Y | Y | UUID | Y | Y | Y | Y | Y | Y | Y | BASIC_GAP | filtro de cliente por lookup humano |
+| service-orders | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
 | measurements | Y | Y | Y | Y | Y | N/A | N/A | Y | Y | Y | Y | Y | Y | DONE | — (superfície via OS) |
 | billing | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
 | documents | Y | Y | Y | Y | N/A | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
@@ -101,3 +101,4 @@ Registrados aqui; **não** substituir por input livre nem por carga massiva no n
 | 2026-09-26 | (este) | suppliers | `GET /api/v1/suppliers` (busca/status/paginação) + concessão `supplier:supplier:list`; web: lista + criação + detalhe sem identificador digitado; rota `/app/suppliers` que **não existia** (deep link caía em página não encontrada). Backend 9/9; web 4/4; shell 17/17; browser real 4/4 (desktop+mobile) |
 | 2026-09-26 | (este) | procurement | `GET procurement/requests`, `GET procurement/orders`, `GET supplier-invoices` (busca/status/paginação + concessões `*:list`); fornecedor e CNPJ resolvidos pelo servidor no pedido e na nota; web: hub com três listas reais, criação de solicitação em rota própria, campo de identificador do fornecedor substituído por `HumanLookupField`. Backend 10/10; web 7/7 (hub + lookup); shell 17/17; browser real 4/4 (desktop+mobile) |
 | 2026-09-26 | (este) | inventory | `GET inventory/warehouses|items|movements|reservations` (busca/status/tipo/paginação, depósito e item resolvidos por código/nome/SKU + concessões `*:list`); web: hub com quatro listas, detalhe de item (saldo, movimentos, movimentar/reservar/estornar por escolha) e detalhe de depósito; `unitId` derivado do depósito escolhido. Backend 7/7; web 3/3; shell 17/17; catch-up 9/9; browser real 4/4 (desktop+mobile) |
+| 2026-09-26 | (este) | filtros de cliente | `HumanLookupField` + `searchClientOptions` substituem o campo "UUID do cliente" em OS, pedidos de compra e contratos (frontend apenas; a listagem de Clientes já existia). Também corrigido teste obsoleto do shell de OS que exigia links de etapa substituídos pela próxima ação. Testes afetados: OS list 3/3, PO 4/4, contratos 2/2 |

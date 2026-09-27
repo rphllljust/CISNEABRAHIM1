@@ -10,6 +10,8 @@ import {
   purchaseOrderNotice,
 } from '../utils/purchase-order-list-presentation';
 import { Button } from '../../ui/Button';
+import { HumanLookupField } from '../../financial-ui/HumanLookupField';
+import { searchClientOptions } from '../../financial-ui/client-lookup';
 import {
   FilterCard,
   ModuleDeniedState,
@@ -141,17 +143,15 @@ export function PurchaseOrdersListPage() {
 
       <FilterCard>
         <div className="grid gap-5 sm:grid-cols-2">
-          <div>
-            <label className={filterLabelClass} htmlFor="po-client-filter">
-              Cliente (ID)
-            </label>
-            <input
-              id="po-client-filter"
-              type="search"
-              className={filterControlClass}
+          <div className="min-w-0">
+            <HumanLookupField
+              label="Cliente"
+              htmlFor="po-client-search"
+              search={searchClientOptions}
               value={clientFilter}
-              onChange={(event) => setClientFilter(event.target.value)}
-              placeholder="UUID do cliente"
+              onChange={setClientFilter}
+              emptyOptionLabel="Todos os clientes"
+              emptyMessage="Nenhum cliente encontrado para a busca."
             />
           </div>
           <div>

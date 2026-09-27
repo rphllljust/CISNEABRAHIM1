@@ -16,7 +16,13 @@ describe('service orders list e2e (frontend)', () => {
     vi.stubGlobal('fetch', createServiceOrdersFetchMock());
   });
 
-  it('loads global list with operational action links', async () => {
+  /**
+   * A lista passou a expor UMA próxima ação por linha (leitura da máquina de estados já
+   * liberada pelo backend) no lugar de três links fixos de etapa. A asserção foi atualizada
+   * para o contrato vigente: a linha da OS `RELEASED` do mock oferece a etapa de planejamento,
+   * e a ação continua alcançável a partir da lista.
+   */
+  it('loads global list with the next operational action reachable', async () => {
     window.history.pushState({}, '', '/app/service-orders');
     render(<App />);
 
@@ -32,13 +38,10 @@ describe('service orders list e2e (frontend)', () => {
       'href',
       `/app/service-orders/${MOCK_SERVICE_ORDER_ID}/planning`,
     );
-    expect(screen.getByRole('link', { name: 'Execução' })).toHaveAttribute(
+    // OS liberada (mock): a próxima ação operacional é alocar recursos, e o alvo é o planejamento.
+    expect(screen.getByRole('link', { name: 'Alocar recursos' })).toHaveAttribute(
       'href',
-      `/app/service-orders/${MOCK_SERVICE_ORDER_ID}/execution`,
-    );
-    expect(screen.getByRole('link', { name: 'Medição' })).toHaveAttribute(
-      'href',
-      `/app/service-orders/${MOCK_SERVICE_ORDER_ID}/measurement`,
+      `/app/service-orders/${MOCK_SERVICE_ORDER_ID}/planning`,
     );
   }, 20000);
 

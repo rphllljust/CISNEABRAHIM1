@@ -38,6 +38,8 @@ import {
 } from '../utils/service-order-next-action';
 import { Button } from '../../ui/Button';
 import { ConfirmAction } from '../../ui/ConfirmAction';
+import { HumanLookupField } from '../../financial-ui/HumanLookupField';
+import { searchClientOptions } from '../../financial-ui/client-lookup';
 import { Link } from 'react-router-dom';
 import {
   EnterpriseListHeader,
@@ -415,17 +417,15 @@ export function ServiceOrdersListPage() {
               placeholder="Filtrar por unidade"
             />
           </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="service-order-client-filter">
-              Cliente (ID)
-            </label>
-            <input
-              id="service-order-client-filter"
-              type="search"
-              className={enterpriseControlClass}
+          <div className="min-w-0">
+            <HumanLookupField
+              label="Cliente"
+              htmlFor="service-order-client-search"
+              search={searchClientOptions}
               value={filters.clientId}
-              onChange={(event) => updateFilters({ clientId: event.target.value })}
-              placeholder="UUID do cliente"
+              onChange={(clientId) => updateFilters({ clientId })}
+              emptyOptionLabel="Todos os clientes"
+              emptyMessage="Nenhum cliente encontrado para a busca."
             />
           </div>
           <div>
