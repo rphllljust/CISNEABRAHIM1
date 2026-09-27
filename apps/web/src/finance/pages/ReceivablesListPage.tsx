@@ -22,6 +22,7 @@ import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import { listReceivables } from '../api/finance-api';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import { FinanceStatusBadge } from '../components/FinanceStatusBadge';
+import { ReceivablesDecisionStrip } from '../components/ReceivablesDecisionStrip';
 import type { ReceivableDetail } from '../types/finance.types';
 
 export function ReceivablesListPage() {
@@ -57,6 +58,7 @@ export function ReceivablesListPage() {
         title="Contas a receber"
         description="Saldos e status são os informados pelo servidor. Esta tela não recalcula títulos."
       />
+      <ReceivablesDecisionStrip items={state.data} />
       <FilterCard>
         <label className={filterLabelClass} htmlFor="receivable-status-filter">
           Status
