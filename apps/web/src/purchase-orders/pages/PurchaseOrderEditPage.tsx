@@ -13,6 +13,7 @@ import { usePurchaseOrderCapabilities } from '../hooks/usePurchaseOrderCapabilit
 import { PURCHASE_ORDER_STATUSES } from '../types/purchase-order.types';
 import {
   buildUpdatePurchaseOrderPayload,
+  createPurchaseOrderItemRow,
   EMPTY_PURCHASE_ORDER_FORM,
   validatePurchaseOrderForm,
   type PurchaseOrderFormFieldErrors,
@@ -49,7 +50,6 @@ export function PurchaseOrderEditPage() {
       }
       setCanEdit(true);
       setRowVersion(po.rowVersion);
-      const firstItem = detail.items[0];
       setValues({
         clientId: po.clientId,
         unitId: po.unitId,
@@ -62,8 +62,9 @@ export function PurchaseOrderEditPage() {
         totalAmount: po.totalAmount ?? '',
         paymentTerms: po.paymentTerms ?? '',
         paymentMethod: po.paymentMethod ?? '',
-        itemDescription: firstItem?.description ?? '',
-        itemLineTotal: firstItem?.lineTotal ?? '',
+        items: detail.items.map((item) =>
+          createPurchaseOrderItemRow(item.description, item.lineTotal ?? ''),
+        ),
       });
     } catch (error) {
       setLoadError(

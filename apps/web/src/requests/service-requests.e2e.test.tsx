@@ -35,8 +35,14 @@ describe('service requests administrative flow e2e (frontend)', () => {
     });
 
     await user.click(screen.getByRole('link', { name: /nova solicita/i }));
-    await user.selectOptions(screen.getByLabelText('Origem'), SERVICE_REQUEST_ORIGINS.Phone);
-    await user.type(screen.getByLabelText('Unidade operacional'), 'unit-demo');
+    await user.selectOptions(
+      screen.getByLabelText(/^origem/i, { selector: 'select' }),
+      SERVICE_REQUEST_ORIGINS.Phone,
+    );
+    await user.type(
+      screen.getByLabelText(/^unidade operacional/i, { selector: 'input' }),
+      'unit-demo',
+    );
     await user.type(screen.getByLabelText('Telefone do contato'), '69988887777');
     await user.type(screen.getByLabelText(/descri/i), 'Fluxo E2E de solicitacao');
     await user.click(screen.getByRole('button', { name: /registrar solicita/i }));

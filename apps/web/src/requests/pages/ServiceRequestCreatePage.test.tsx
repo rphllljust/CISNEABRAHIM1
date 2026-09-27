@@ -22,10 +22,19 @@ describe('ServiceRequestCreatePage', () => {
       expect(screen.getByRole('heading', { name: /nova solicitação/i })).toBeInTheDocument();
     });
 
-    await user.selectOptions(screen.getByLabelText('Origem'), SERVICE_REQUEST_ORIGINS.Email);
-    await user.type(screen.getByLabelText('Unidade operacional'), 'unit-demo');
+    await user.selectOptions(
+      screen.getByLabelText(/^origem/i, { selector: 'select' }),
+      SERVICE_REQUEST_ORIGINS.Email,
+    );
+    await user.type(
+      screen.getByLabelText(/^unidade operacional/i, { selector: 'input' }),
+      'unit-demo',
+    );
     await user.type(screen.getByLabelText('Nome do contato externo'), 'Maria');
-    await user.type(screen.getByLabelText('Descrição'), 'Nova demanda de serviço');
+    await user.type(
+      screen.getByLabelText(/^descrição/i, { selector: 'textarea' }),
+      'Nova demanda de serviço',
+    );
     await user.click(screen.getByRole('button', { name: /registrar solicitação/i }));
 
     await waitFor(() => {

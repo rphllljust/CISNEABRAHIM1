@@ -11,6 +11,7 @@ import {
 } from '../types/proposal.types';
 import {
   buildUpdateProposalPayload,
+  createProposalItemRow,
   EMPTY_PROPOSAL_FORM,
   validateProposalForm,
   type ProposalFormFieldErrors,
@@ -49,7 +50,6 @@ export function ProposalEditPage() {
       setCanEdit(true);
       setRowVersion(version.rowVersion);
       setVersionNumber(version.versionNumber);
-      const firstItem = version.items[0];
       setValues({
         clientId: detail.proposal.clientId,
         unitId: detail.proposal.unitId,
@@ -59,8 +59,9 @@ export function ProposalEditPage() {
         globalSalePrice: version.globalSalePrice ?? '',
         validUntil: version.validUntil ?? '',
         notes: version.notes ?? '',
-        itemDescription: firstItem?.description ?? '',
-        itemLineSaleAmount: firstItem?.lineSaleAmount ?? '',
+        items: version.items.map((item) =>
+          createProposalItemRow(item.description, item.lineSaleAmount ?? ''),
+        ),
       });
     } catch (error) {
       setLoadError(
