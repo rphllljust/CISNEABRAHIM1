@@ -24,11 +24,26 @@ describe('REPORT AUTHZ HTTP NEGATIVE', () => {
   const testDatabaseUrl = process.env['TEST_DATABASE_URL'];
   const REPORT = '/api/v1/reports';
 
+  /**
+   * Este suite testa o CONTRATO DE AUTORIZACAO dos relatorios (401 sem token, 403 sem
+   * grant, 400 de filtro antes do SQL, 200/escopo para quem tem grant). O gate de
+   * release roda antes de qualquer controller: com FEATURE_MODULE_REPORTS ausente, o
+   * ReleaseScopeGuard global responde 403 FEATURE_DISABLED em toda rota /reports e
+   * nenhuma dessas assercoes fica observavel — foi exatamente a falha do CI (403 em
+   * lugar de 401/200/400). O gate em si continua coberto por release-scope.guard.spec.ts
+   * e release-scope.http.spec.ts; aqui a flag e habilitada para o modulo sob teste, como
+   * .env ja faz, no mesmo idioma de sod-hardening.e2e.spec.ts.
+   */
+  const REPORTS_FEATURE_FLAG = 'FEATURE_MODULE_REPORTS';
+  const previousFlags: Record<string, string | undefined> = {};
+
   beforeAll(async () => {
     if (!testDatabaseUrl) {
       throw new Error('TEST_DATABASE_URL is required.');
     }
     applyAuthTestEnv(testDatabaseUrl);
+    previousFlags[REPORTS_FEATURE_FLAG] = process.env[REPORTS_FEATURE_FLAG];
+    process.env[REPORTS_FEATURE_FLAG] = 'true';
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -47,6 +62,12 @@ describe('REPORT AUTHZ HTTP NEGATIVE', () => {
   });
 
   afterAll(async () => {
+    const previous = previousFlags[REPORTS_FEATURE_FLAG];
+    if (previous === undefined) {
+      delete process.env[REPORTS_FEATURE_FLAG];
+    } else {
+      process.env[REPORTS_FEATURE_FLAG] = previous;
+    }
     await pool?.end();
     await app.close();
   });
