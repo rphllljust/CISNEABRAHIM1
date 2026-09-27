@@ -140,6 +140,15 @@ function createAccountingFetchMock(options: { accountingAllowed?: boolean } = {}
       });
     }
 
+    // Unidades operacionais do shell (Requests). Independentes da permissao contabil: a tela
+    // escolhe a unidade humana e so a consulta de planos/contas e autorizada pelo servidor.
+    if (
+      method === 'GET' &&
+      url.pathname === '/api/v1/requests/service-requests/operational-units'
+    ) {
+      return jsonResponse({ items: ['unit-a'] });
+    }
+
     const denied = (): Response => (allowed ? jsonResponse({ error: { code: 'ACCOUNTING_NOT_FOUND' } }, 404) : deniedResponse());
 
     if (segments[2] !== 'accounting') {
@@ -370,8 +379,12 @@ describe('Accounting backoffice UI (server-driven scope)', () => {
     const user = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
     vi.stubGlobal('fetch', createAccountingFetchMock());
     renderWithProviders(<ChartOfAccountsPage />);
-    await user.type(screen.getByLabelText(/unidade operacional/i), 'unit-a');
-    await user.click(screen.getByRole('button', { name: /carregar planos/i }));
+    // A unidade vem da lista do shell (nenhum identificador digitado); selecionada a unidade,
+    // os planos dela sao carregados pelo servidor.
+    await waitFor(() => {
+      expect(screen.getByLabelText(/unidade operacional/i)).not.toBeDisabled();
+    });
+    expect(screen.getByLabelText(/unidade operacional/i).tagName).toBe('SELECT');
     await waitFor(() => {
       expect(screen.getByLabelText(/plano de contas/i)).not.toBeDisabled();
     });
@@ -494,9 +507,7 @@ describe('Accounting backoffice UI (server-driven scope)', () => {
   it('shows access denied when the backend denies accounting lists', async () => {
     vi.stubGlobal('fetch', createAccountingFetchMock({ accountingAllowed: false }));
     renderWithProviders(<ChartOfAccountsPage />);
-    const user = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
-    await user.type(screen.getByLabelText(/unidade operacional/i), 'unit-a');
-    await user.click(screen.getByRole('button', { name: /carregar planos/i }));
+    // A unidade autorizada entra pelo contexto do shell; a negacao vem da consulta contabil.
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/não tem permissão/i);
     });

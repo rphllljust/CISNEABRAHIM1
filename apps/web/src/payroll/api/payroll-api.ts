@@ -5,6 +5,10 @@ import {
   probeReadAccess,
   requestJson,
 } from '../../financial-ui/enterprise-api';
+import {
+  rememberEmploymentContract,
+  rememberPayrollPeriod,
+} from '../utils/payroll-directory';
 
 export type PayrollPeriod = {
   id: string;
@@ -24,6 +28,29 @@ export type PayrollResult = {
   deductionTotal: string;
   employerChargeTotal: string;
   netTotal: string;
+};
+
+/**
+ * Contrato de trabalho como o servidor devolve (EmploymentContractResponse em
+ * apps/api/src/payroll/serializers/payroll-response.serializer.ts). `code` e `displayName` são os
+ * campos legíveis usados na busca humana do operador.
+ */
+export type EmploymentContract = {
+  id: string;
+  unitId: string;
+  code: string;
+  displayName: string;
+  status: string;
+  personRef: string | null;
+  startsOn: string;
+  endsOn: string | null;
+};
+
+/** Resposta de POST /payroll/periods/:periodId/calculate. */
+export type PayrollCalculation = {
+  period: PayrollPeriod;
+  results: PayrollResult[];
+  idempotent: boolean;
 };
 
 /**
@@ -93,15 +120,23 @@ export function mapPayrollErrorToMessage(code: string | undefined, status: numbe
   }
 }
 
+/**
+ * Cliente da folha. A API endereça período e contrato por identificador (UUID), então cada resposta
+ * que devolve essas entidades alimenta o diretório humano (`../utils/payroll-directory`) na própria
+ * fronteira do cliente: é o único ponto por onde passa dado do servidor, e assim nenhuma opção
+ * inventada consegue entrar na busca do operador.
+ */
 export async function getPayrollPeriod(
   periodId: string,
   unitId: string,
   signal?: AbortSignal,
 ): Promise<PayrollPeriod> {
-  return requestJson<PayrollPeriod>(
+  const period = await requestJson<PayrollPeriod>(
     `/api/v1/payroll/periods/${periodId}?unitId=${encodeURIComponent(unitId)}`,
     { method: 'GET', headers: authHeaders(), signal },
   );
+  rememberPayrollPeriod(period);
+  return period;
 }
 
 export async function listPayrollResults(
@@ -115,20 +150,26 @@ export async function listPayrollResults(
   );
 }
 
-export async function createEmploymentContract(payload: Record<string, unknown>): Promise<unknown> {
-  return requestJson('/api/v1/payroll/contracts', {
+export async function createEmploymentContract(
+  payload: Record<string, unknown>,
+): Promise<EmploymentContract> {
+  const contract = await requestJson<EmploymentContract>('/api/v1/payroll/contracts', {
     method: 'POST',
     headers: jsonHeaders(),
     body: JSON.stringify(payload),
   });
+  rememberEmploymentContract(contract);
+  return contract;
 }
 
 export async function openPayrollPeriod(payload: Record<string, unknown>): Promise<PayrollPeriod> {
-  return requestJson<PayrollPeriod>('/api/v1/payroll/periods', {
+  const period = await requestJson<PayrollPeriod>('/api/v1/payroll/periods', {
     method: 'POST',
     headers: jsonHeaders(),
     body: JSON.stringify(payload),
   });
+  rememberPayrollPeriod(period);
+  return period;
 }
 
 export async function recordPayrollEvent(payload: Record<string, unknown>): Promise<PayrollEventResponse> {
@@ -139,28 +180,40 @@ export async function recordPayrollEvent(payload: Record<string, unknown>): Prom
   });
 }
 
-export async function calculatePayrollPeriod(periodId: string, unitId: string): Promise<unknown> {
-  return requestJson(`/api/v1/payroll/periods/${periodId}/calculate`, {
-    method: 'POST',
-    headers: jsonHeaders(),
-    body: JSON.stringify({ unitId }),
-  });
+export async function calculatePayrollPeriod(
+  periodId: string,
+  unitId: string,
+): Promise<PayrollCalculation> {
+  const calculation = await requestJson<PayrollCalculation>(
+    `/api/v1/payroll/periods/${periodId}/calculate`,
+    {
+      method: 'POST',
+      headers: jsonHeaders(),
+      body: JSON.stringify({ unitId }),
+    },
+  );
+  rememberPayrollPeriod(calculation.period);
+  return calculation;
 }
 
 export async function closePayrollPeriod(periodId: string, unitId: string): Promise<PayrollPeriod> {
-  return requestJson<PayrollPeriod>(`/api/v1/payroll/periods/${periodId}/close`, {
+  const period = await requestJson<PayrollPeriod>(`/api/v1/payroll/periods/${periodId}/close`, {
     method: 'POST',
     headers: jsonHeaders(),
     body: JSON.stringify({ unitId }),
   });
+  rememberPayrollPeriod(period);
+  return period;
 }
 
 export async function reopenPayrollPeriod(periodId: string, unitId: string): Promise<PayrollPeriod> {
-  return requestJson<PayrollPeriod>(`/api/v1/payroll/periods/${periodId}/reopen`, {
+  const period = await requestJson<PayrollPeriod>(`/api/v1/payroll/periods/${periodId}/reopen`, {
     method: 'POST',
     headers: jsonHeaders(),
     body: JSON.stringify({ unitId }),
   });
+  rememberPayrollPeriod(period);
+  return period;
 }
 
 export async function probePayrollReadAccess(signal?: AbortSignal): Promise<boolean> {

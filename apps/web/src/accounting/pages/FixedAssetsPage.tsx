@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { DateTime, EmptyState, Field, Input, Money } from '../../ui';
+import { DateTime, EmptyState, Field, Input, Money, Select } from '../../ui';
 import {
   ModulePage,
   ModulePageHeader,
@@ -12,10 +12,13 @@ import {
   moduleTableRowClass,
 } from '../../ui/module-layout';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
+import { HumanLookupField } from '../../financial-ui/HumanLookupField';
 import { CreateRecordForm, VersionedActionForm } from '../../financial-ui/VersionedActionForm';
 import { RecordLookupCard } from '../../financial-ui/RecordLookupCard';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
+import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
+import { searchPhysicalAssetOptions } from '../api/physical-asset-lookup';
 import {
   acquireFixedAsset,
   depreciateFixedAsset,
@@ -33,13 +36,18 @@ export function FixedAssetsPage() {
   const { registerId } = useParams();
   const navigate = useNavigate();
   const [lookupId, setLookupId] = useState(registerId ?? '');
-  const [unitId, setUnitId] = useState('');
+  // ADOCAO DE MECANISMO: a unidade sai do campo de texto livre e passa a vir do hook
+  // compartilhado do shell (unidades visiveis para o ator). O ativo operacional sai do campo de
+  // identificador e passa a vir da busca humana do cadastro de Recursos (`HumanLookupField`).
+  // Uma instancia por formulario mantem a independencia entre consultar e registrar. Nenhuma
+  // regra de autorizacao muda: a API continua decidindo o que o ator pode ver.
+  const registerUnit = useOperationalUnits();
+  const lookupUnit = useOperationalUnits();
   const [operationalAssetId, setOperationalAssetId] = useState('');
   const [usefulLifeMonths, setUsefulLifeMonths] = useState('');
   const [amount, setAmount] = useState('');
   const [occurredOn, setOccurredOn] = useState('');
   const [toCostCenterCode, setToCostCenterCode] = useState('');
-  const [lookupUnitId, setLookupUnitId] = useState('');
   const [lookupOperationalId, setLookupOperationalId] = useState('');
   const loader = useCallback(
     (signal?: AbortSignal) => getFixedAsset(registerId ?? '', signal),
@@ -83,23 +91,37 @@ export function FixedAssetsPage() {
         mapError={mapAccountingErrorToMessage}
         onSubmit={async () => {
           const found = await lookupFixedAsset({
-            unitId: lookupUnitId.trim(),
+            unitId: lookupUnit.unitId.trim(),
             operationalAssetId: lookupOperationalId.trim(),
           });
           void navigate(`/app/accounting/fixed-assets/${found.id}`);
         }}
       >
         <Field label="Unidade" htmlFor="fa-lookup-unit" required>
-          <Input id="fa-lookup-unit" value={lookupUnitId} onChange={(event) => setLookupUnitId(event.target.value)} required />
-        </Field>
-        <Field label="Ativo operacional" htmlFor="fa-lookup-op" required>
-          <Input
-            id="fa-lookup-op"
-            value={lookupOperationalId}
-            onChange={(event) => setLookupOperationalId(event.target.value)}
+          <Select
+            id="fa-lookup-unit"
+            value={lookupUnit.unitId}
+            onChange={(event) => lookupUnit.setUnitId(event.target.value)}
             required
-          />
+          >
+            {lookupUnit.units.length === 0 ? <option value="">Nenhuma unidade disponível</option> : null}
+            {lookupUnit.units.map((unit) => (
+              <option key={unit} value={unit}>
+                {unit}
+              </option>
+            ))}
+          </Select>
         </Field>
+        <HumanLookupField
+          label="Ativo operacional"
+          htmlFor="fa-lookup-op"
+          required
+          placeholder="Buscar por nome ou código do ativo"
+          search={searchPhysicalAssetOptions}
+          value={lookupOperationalId}
+          onChange={setLookupOperationalId}
+          emptyMessage="Nenhum ativo físico encontrado para a busca."
+        />
       </CreateRecordForm>
       <CreateRecordForm
         title="Registrar ativo operacional"
@@ -108,7 +130,7 @@ export function FixedAssetsPage() {
         mapError={mapAccountingErrorToMessage}
         onSubmit={async () => {
           const created = await registerFixedAsset({
-            unitId: unitId.trim(),
+            unitId: registerUnit.unitId.trim(),
             operationalAssetId: operationalAssetId.trim(),
             currencyCode: 'BRL',
             usefulLifeMonths: Number(usefulLifeMonths),
@@ -117,16 +139,30 @@ export function FixedAssetsPage() {
         }}
       >
         <Field label="Unidade" htmlFor="fa-unit" required>
-          <Input id="fa-unit" value={unitId} onChange={(event) => setUnitId(event.target.value)} required />
-        </Field>
-        <Field label="Ativo operacional" htmlFor="fa-asset" required>
-          <Input
-            id="fa-asset"
-            value={operationalAssetId}
-            onChange={(event) => setOperationalAssetId(event.target.value)}
+          <Select
+            id="fa-unit"
+            value={registerUnit.unitId}
+            onChange={(event) => registerUnit.setUnitId(event.target.value)}
             required
-          />
+          >
+            {registerUnit.units.length === 0 ? <option value="">Nenhuma unidade disponível</option> : null}
+            {registerUnit.units.map((unit) => (
+              <option key={unit} value={unit}>
+                {unit}
+              </option>
+            ))}
+          </Select>
         </Field>
+        <HumanLookupField
+          label="Ativo operacional"
+          htmlFor="fa-asset"
+          required
+          placeholder="Buscar por nome ou código do ativo"
+          search={searchPhysicalAssetOptions}
+          value={operationalAssetId}
+          onChange={setOperationalAssetId}
+          emptyMessage="Nenhum ativo físico encontrado para a busca."
+        />
         <Field label="Vida útil (meses)" htmlFor="fa-life" required>
           <Input
             id="fa-life"
