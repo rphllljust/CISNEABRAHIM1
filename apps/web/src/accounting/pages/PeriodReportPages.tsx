@@ -1,5 +1,5 @@
-import { useMemo, useState, type ReactNode } from 'react';
-import { Alert, Button, EmptyState, Field, Input, Money, Select } from '../../ui';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Alert, Button, EmptyState, Field, Money, Select } from '../../ui';
 import {
   FilterCard,
   ModulePage,
@@ -14,6 +14,7 @@ import {
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
+import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
 import {
   getAccountLedger,
   getBalanceSheet,
@@ -86,28 +87,31 @@ const REPORT_META: Record<ReportKind, { title: string; description: string }> = 
 };
 
 function PeriodReportShell({ kind }: { kind: ReportKind }) {
-  const [unitId, setUnitId] = useState('');
-  const [submittedUnit, setSubmittedUnit] = useState('');
+  // A unidade operacional vem do contexto do shell (mesma fonte única dos outros módulos de
+  // backoffice): o operador escolhe na lista de unidades autorizadas e nunca digita
+  // identificador. Unidade -> plano -> período; o relatório continua sendo calculado e
+  // autorizado no servidor.
+  const { units, unitId, setUnitId } = useOperationalUnits();
   const [chartId, setChartId] = useState('');
   const [periodId, setPeriodId] = useState('');
   const [accountId, setAccountId] = useState('');
   const [journalPage, setJournalPage] = useState(0);
 
   const chartsQuery = useBackofficeQuery<ChartsList>({
-    enabled: submittedUnit.trim() !== '',
-    autoLoad: submittedUnit.trim() !== '',
-    loader: (signal) => listCharts(submittedUnit.trim(), signal),
+    enabled: unitId !== '',
+    autoLoad: false,
+    loader: (signal) => listCharts(unitId, signal),
     mapError: mapAccountingErrorToMessage,
   });
   const periodsQuery = useBackofficeQuery<PeriodsList>({
     enabled: Boolean(chartId),
-    autoLoad: Boolean(chartId),
+    autoLoad: false,
     loader: (signal) => listPeriods(chartId, undefined, signal),
     mapError: mapAccountingErrorToMessage,
   });
   const accountsQuery = useBackofficeQuery<AccountsList>({
     enabled: Boolean(chartId),
-    autoLoad: Boolean(chartId),
+    autoLoad: false,
     loader: (signal) => listAccounts(chartId, signal),
     mapError: mapAccountingErrorToMessage,
   });
@@ -116,39 +120,122 @@ function PeriodReportShell({ kind }: { kind: ReportKind }) {
   const periods = periodsQuery.state.phase === 'ready' ? periodsQuery.state.data.items : [];
   const accounts = accountsQuery.state.phase === 'ready' ? accountsQuery.state.data.items : [];
   const activePeriod = periods.find((candidate) => candidate.id === periodId) ?? null;
+  // Só o período realmente devolvido pelo servidor para o plano atual é consultável: assim
+  // nenhuma consulta sai com plano novo + período de outro plano enquanto a troca acontece.
+  const selectedPeriodId = activePeriod?.id ?? '';
 
   const journalQuery = useBackofficeQuery<JournalListPage>({
-    enabled: kind === 'journal' && Boolean(periodId),
-    autoLoad: kind === 'journal' && Boolean(periodId),
+    enabled: kind === 'journal' && Boolean(chartId && selectedPeriodId),
+    autoLoad: false,
     loader: (signal) =>
-      listJournals(chartId, { periodId, status: 'POSTED', page: journalPage, pageSize: 50 }, signal),
+      listJournals(
+        chartId,
+        { periodId: selectedPeriodId, status: 'POSTED', page: journalPage, pageSize: 50 },
+        signal,
+      ),
     mapError: mapAccountingErrorToMessage,
   });
   const ledgerQuery = useBackofficeQuery<Awaited<ReturnType<typeof getAccountLedger>>>({
-    enabled: kind === 'ledger' && Boolean(periodId) && Boolean(accountId),
-    autoLoad: kind === 'ledger' && Boolean(periodId) && Boolean(accountId),
-    loader: (signal) =>
-      getAccountLedger(periodId, accountId, journalPage, 30, signal),
+    enabled: kind === 'ledger' && Boolean(selectedPeriodId) && Boolean(accountId),
+    autoLoad: false,
+    loader: (signal) => getAccountLedger(selectedPeriodId, accountId, journalPage, 30, signal),
     mapError: mapAccountingErrorToMessage,
   });
   const trialQuery = useBackofficeQuery<TrialBalance>({
-    enabled: kind === 'trial' && Boolean(periodId),
-    autoLoad: kind === 'trial' && Boolean(periodId),
-    loader: (signal) => getTrialBalance(periodId, signal),
+    enabled: kind === 'trial' && Boolean(selectedPeriodId),
+    autoLoad: false,
+    loader: (signal) => getTrialBalance(selectedPeriodId, signal),
     mapError: mapAccountingErrorToMessage,
   });
   const incomeQuery = useBackofficeQuery<IncomeStatement>({
-    enabled: kind === 'income' && Boolean(periodId),
-    autoLoad: kind === 'income' && Boolean(periodId),
-    loader: (signal) => getIncomeStatement(periodId, signal),
+    enabled: kind === 'income' && Boolean(selectedPeriodId),
+    autoLoad: false,
+    loader: (signal) => getIncomeStatement(selectedPeriodId, signal),
     mapError: mapAccountingErrorToMessage,
   });
   const balanceQuery = useBackofficeQuery<BalanceSheet>({
-    enabled: kind === 'balance' && Boolean(periodId),
-    autoLoad: kind === 'balance' && Boolean(periodId),
-    loader: (signal) => getBalanceSheet(periodId, signal),
+    enabled: kind === 'balance' && Boolean(selectedPeriodId),
+    autoLoad: false,
+    loader: (signal) => getBalanceSheet(selectedPeriodId, signal),
     mapError: mapAccountingErrorToMessage,
   });
+
+  const { reload: reloadCharts, reset: resetCharts } = chartsQuery;
+  const { reload: reloadPeriods, reset: resetPeriods } = periodsQuery;
+  const { reload: reloadAccounts, reset: resetAccounts } = accountsQuery;
+  const { reload: reloadJournals, reset: resetJournals } = journalQuery;
+  const { reload: reloadLedger, reset: resetLedger } = ledgerQuery;
+  const { reload: reloadTrial, reset: resetTrial } = trialQuery;
+  const { reload: reloadIncome, reset: resetIncome } = incomeQuery;
+  const { reload: reloadBalance, reset: resetBalance } = balanceQuery;
+
+  // Trocar a unidade limpa plano, período e conta (evita uuid órfão de outra unidade) e carrega
+  // os planos da unidade escolhida; o conteúdo anterior é descartado antes da nova consulta.
+  useEffect(() => {
+    setChartId('');
+    resetCharts();
+    if (unitId === '') {
+      return;
+    }
+    void reloadCharts();
+  }, [reloadCharts, resetCharts, unitId]);
+
+  // Trocar o plano limpa período e conta e recarrega os períodos do plano escolhido.
+  useEffect(() => {
+    setPeriodId('');
+    setAccountId('');
+    setJournalPage(0);
+    resetPeriods();
+    resetAccounts();
+    if (!chartId) {
+      return;
+    }
+    void reloadPeriods();
+    void reloadAccounts();
+  }, [chartId, reloadAccounts, reloadPeriods, resetAccounts, resetPeriods]);
+
+  // Consulta o relatório do recorte escolhido. O conteúdo anterior é descartado antes da nova
+  // consulta (nada de relatório de outro período na tela) e a página corrente do diário/razão
+  // entra como dependência para que paginar realmente consulte o servidor.
+  useEffect(() => {
+    resetJournals();
+    resetLedger();
+    resetTrial();
+    resetIncome();
+    resetBalance();
+    if (selectedPeriodId === '' || !chartId) {
+      return;
+    }
+    if (kind === 'journal') {
+      void reloadJournals();
+    } else if (kind === 'ledger') {
+      if (accountId !== '') {
+        void reloadLedger();
+      }
+    } else if (kind === 'trial') {
+      void reloadTrial();
+    } else if (kind === 'income') {
+      void reloadIncome();
+    } else {
+      void reloadBalance();
+    }
+  }, [
+    accountId,
+    chartId,
+    journalPage,
+    kind,
+    reloadBalance,
+    reloadIncome,
+    reloadJournals,
+    reloadLedger,
+    reloadTrial,
+    resetBalance,
+    resetIncome,
+    resetJournals,
+    resetLedger,
+    resetTrial,
+    selectedPeriodId,
+  ]);
 
   const meta = REPORT_META[kind];
   const readyScope = Boolean(chartId && periodId && (kind !== 'ledger' || accountId));
@@ -186,37 +273,27 @@ function PeriodReportShell({ kind }: { kind: ReportKind }) {
     <ModulePage>
       <ModulePageHeader title={meta.title} description={meta.description} />
       <FilterCard>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-6">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           <Field label="Unidade operacional" htmlFor={`${kind}-unit`}>
-            <Input
+            <Select
               id={`${kind}-unit`}
               value={unitId}
-              placeholder="ex.: unit-a"
               onChange={(event) => setUnitId(event.target.value)}
-            />
-          </Field>
-          <div className="flex items-end">
-            <Button
-              onClick={() => {
-                setChartId('');
-                setPeriodId('');
-                setAccountId('');
-                setSubmittedUnit(unitId.trim());
-              }}
-              disabled={unitId.trim() === ''}
+              disabled={units.length === 0}
             >
-              Carregar
-            </Button>
-          </div>
+              {units.length === 0 ? <option value="">Nenhuma unidade disponível</option> : null}
+              {units.map((unit) => (
+                <option key={unit} value={unit}>
+                  {unit}
+                </option>
+              ))}
+            </Select>
+          </Field>
           <Field label="Plano de contas" htmlFor={`${kind}-chart`}>
             <Select
               id={`${kind}-chart`}
               value={chartId}
-              onChange={(event) => {
-                setChartId(event.target.value);
-                setPeriodId('');
-                setAccountId('');
-              }}
+              onChange={(event) => setChartId(event.target.value)}
               disabled={charts.length === 0}
             >
               <option value="">Selecione…</option>
@@ -240,7 +317,8 @@ function PeriodReportShell({ kind }: { kind: ReportKind }) {
               <option value="">Selecione…</option>
               {periods.map((period) => (
                 <option key={period.id} value={period.id}>
-                  {period.code} ({PERIOD_STATUS_LABELS[period.status] ?? period.status})
+                  {period.code} — {period.startsOn} a {period.endsOn} (
+                  {PERIOD_STATUS_LABELS[period.status] ?? period.status})
                 </option>
               ))}
             </Select>
@@ -274,10 +352,16 @@ function PeriodReportShell({ kind }: { kind: ReportKind }) {
           {PERIOD_STATUS_LABELS[activePeriod.status] ?? activePeriod.status}
         </div>
       ) : null}
-      {!readyScope ? (
+      {units.length === 0 ? (
+        <EmptyState
+          title="Nenhuma unidade operacional disponível"
+          description="Sua sessão não tem unidade operacional autorizada, então não há relatório para consultar. A unidade é escolhida em lista; esta tela não aceita identificador digitado."
+        />
+      ) : null}
+      {units.length > 0 && !readyScope ? (
         <EmptyState
           title="Selecione o escopo do relatório"
-          description="O relatório é consultado no servidor após selecionar unidade, plano e período contábil."
+          description="O relatório é consultado no servidor após escolher o plano de contas da unidade e o período contábil."
         />
       ) : null}
       {gate}

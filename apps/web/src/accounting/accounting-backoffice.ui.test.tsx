@@ -363,8 +363,12 @@ describe('Accounting backoffice UI (server-driven scope)', () => {
   });
 
   async function selectScope(user: ReturnType<typeof userEvent.setup>) {
-    await user.type(screen.getByLabelText(/unidade operacional/i), 'unit-a');
-    await user.click(screen.getByRole('button', { name: /carregar/i }));
+    // A unidade operacional vem da lista do shell (nenhum identificador digitado): escolhida a
+    // unidade, os planos dela sao carregados pelo servidor e o periodo vem por plano.
+    await waitFor(() => {
+      expect(screen.getByLabelText(/unidade operacional/i)).not.toBeDisabled();
+    });
+    await user.selectOptions(screen.getByLabelText(/unidade operacional/i), 'unit-a');
     await waitFor(() => {
       expect(screen.getByLabelText(/plano de contas/i)).not.toBeDisabled();
     });
@@ -406,8 +410,8 @@ describe('Accounting backoffice UI (server-driven scope)', () => {
       </Routes>,
       { router: { initialEntries: ['/app/accounting/journals'] } },
     );
-    await user.type(screen.getByLabelText(/unidade operacional/i), 'unit-a');
-    await user.click(screen.getByRole('button', { name: /carregar/i }));
+    await waitFor(() => expect(screen.getByLabelText(/unidade operacional/i)).not.toBeDisabled());
+    await user.selectOptions(screen.getByLabelText(/unidade operacional/i), 'unit-a');
     await waitFor(() => expect(screen.getByLabelText(/plano de contas/i)).not.toBeDisabled());
     await user.selectOptions(screen.getByLabelText(/plano de contas/i), CHART_ID);
     await waitFor(() => expect(screen.getByLabelText(/período contábil/i)).not.toBeDisabled());
@@ -427,8 +431,8 @@ describe('Accounting backoffice UI (server-driven scope)', () => {
     const user = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
     vi.stubGlobal('fetch', createAccountingFetchMock());
     renderWithProviders(<JournalBookPage />);
-    await user.type(screen.getByLabelText(/unidade operacional/i), 'unit-a');
-    await user.click(screen.getByRole('button', { name: /carregar/i }));
+    await waitFor(() => expect(screen.getByLabelText(/unidade operacional/i)).not.toBeDisabled());
+    await user.selectOptions(screen.getByLabelText(/unidade operacional/i), 'unit-a');
     await waitFor(() => expect(screen.getByLabelText(/plano de contas/i)).not.toBeDisabled());
     await user.selectOptions(screen.getByLabelText(/plano de contas/i), CHART_ID);
     await waitFor(() => expect(screen.getByLabelText(/período contábil/i)).not.toBeDisabled());

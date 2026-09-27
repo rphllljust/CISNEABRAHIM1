@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
-import { Alert, Button, EmptyState, Field, Input, Select } from '../../ui';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Alert, EmptyState, Field, Select } from '../../ui';
 import {
   FilterCard,
   ModulePage,
@@ -17,6 +17,7 @@ import { PERIOD_STATUS_LABELS } from '../../financial-ui/labels';
 import { MoneyActionForm } from '../../financial-ui/MoneyActionForm';
 import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
+import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
 import {
   closePeriod,
   getPeriodCloseRuns,
@@ -33,27 +34,30 @@ const RUN_STATUS_LABELS: Record<string, string> = {
 };
 
 export function PeriodClosePage() {
-  const [unitId, setUnitId] = useState('');
-  const [submittedUnit, setSubmittedUnit] = useState('');
+  // A unidade operacional vem do contexto do shell (mesma fonte única dos outros módulos de
+  // backoffice): o operador escolhe na lista de unidades autorizadas e nunca digita
+  // identificador. Escolhida a unidade, os planos dela são carregados e o período vem por
+  // plano. Fechar/reabrir continua enviando versão e justificativa ao servidor, sem mudança.
+  const { units, unitId, setUnitId } = useOperationalUnits();
   const [chartId, setChartId] = useState('');
   const [periodId, setPeriodId] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
 
   const chartsQuery = useBackofficeQuery<ChartsList>({
-    enabled: submittedUnit.trim() !== '',
-    autoLoad: submittedUnit.trim() !== '',
-    loader: (signal) => listCharts(submittedUnit.trim(), signal),
+    enabled: unitId !== '',
+    autoLoad: false,
+    loader: (signal) => listCharts(unitId, signal),
     mapError: mapAccountingErrorToMessage,
   });
   const periodsQuery = useBackofficeQuery<PeriodsList>({
     enabled: Boolean(chartId),
-    autoLoad: Boolean(chartId),
+    autoLoad: false,
     loader: (signal) => listPeriods(chartId, undefined, signal),
     mapError: mapAccountingErrorToMessage,
   });
   const runsQuery = useBackofficeQuery<CloseRuns>({
     enabled: Boolean(periodId),
-    autoLoad: Boolean(periodId),
+    autoLoad: false,
     loader: (signal) => getPeriodCloseRuns(periodId, signal),
     mapError: mapAccountingErrorToMessage,
   });
@@ -65,6 +69,40 @@ export function PeriodClosePage() {
     [periods, periodId],
   );
   const runs = runsQuery.state.phase === 'ready' ? runsQuery.state.data.runs : [];
+
+  const { reload: reloadCharts, reset: resetCharts } = chartsQuery;
+  const { reload: reloadPeriods, reset: resetPeriods } = periodsQuery;
+  const { reload: reloadRuns, reset: resetRuns } = runsQuery;
+
+  // Trocar a unidade limpa plano e período (evita uuid órfão de outra unidade) e carrega os
+  // planos da unidade escolhida; o conteúdo anterior é descartado antes da nova consulta.
+  useEffect(() => {
+    setChartId('');
+    resetCharts();
+    if (unitId === '') {
+      return;
+    }
+    void reloadCharts();
+  }, [reloadCharts, resetCharts, unitId]);
+
+  // Trocar o plano limpa o período e recarrega os períodos do plano escolhido.
+  useEffect(() => {
+    setPeriodId('');
+    resetPeriods();
+    if (!chartId) {
+      return;
+    }
+    void reloadPeriods();
+  }, [chartId, reloadPeriods, resetPeriods]);
+
+  // Trocar o período recarrega o histórico de fechamentos dele.
+  useEffect(() => {
+    resetRuns();
+    if (periodId === '') {
+      return;
+    }
+    void reloadRuns();
+  }, [periodId, reloadRuns, resetRuns]);
 
   const reloadPeriodsAndRuns = useCallback(async () => {
     await periodsQuery.reload();
@@ -81,34 +119,27 @@ export function PeriodClosePage() {
         description="Períodos e fechamentos são lidos do servidor. Fechar ou reabrir envia a versão atual e a justificativa; o navegador não decide o close."
       />
       <FilterCard>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           <Field label="Unidade operacional" htmlFor="close-unit">
-            <Input
+            <Select
               id="close-unit"
               value={unitId}
-              placeholder="ex.: unit-a"
               onChange={(event) => setUnitId(event.target.value)}
-            />
-          </Field>
-          <div className="flex items-end">
-            <Button
-              onClick={() => {
-                setPeriodId('');
-                setSubmittedUnit(unitId.trim());
-              }}
-              disabled={unitId.trim() === ''}
+              disabled={units.length === 0}
             >
-              Carregar
-            </Button>
-          </div>
+              {units.length === 0 ? <option value="">Nenhuma unidade disponível</option> : null}
+              {units.map((unit) => (
+                <option key={unit} value={unit}>
+                  {unit}
+                </option>
+              ))}
+            </Select>
+          </Field>
           <Field label="Plano de contas" htmlFor="close-chart">
             <Select
               id="close-chart"
               value={chartId}
-              onChange={(event) => {
-                setChartId(event.target.value);
-                setPeriodId('');
-              }}
+              onChange={(event) => setChartId(event.target.value)}
               disabled={charts.length === 0}
             >
               <option value="">Selecione…</option>
@@ -143,12 +174,19 @@ export function PeriodClosePage() {
           <Alert tone="error">Sem permissão para consultar períodos contábeis desta unidade.</Alert>
         </div>
       ) : null}
-      {!period ? (
+      {units.length === 0 ? (
+        <EmptyState
+          title="Nenhuma unidade operacional disponível"
+          description="Sua sessão não tem unidade operacional autorizada, então não há período contábil para fechar ou reabrir. A unidade é escolhida em lista; esta tela não aceita identificador digitado."
+        />
+      ) : null}
+      {units.length > 0 && !period ? (
         <EmptyState
           title="Nenhum período selecionado"
-          description="Carregue a unidade e selecione o plano e o período contábil; versão e histórico vêm da API."
+          description="Escolha o plano de contas da unidade e o período contábil; versão e histórico vêm da API."
         />
-      ) : (
+      ) : null}
+      {period ? (
         <>
           {period.status === 'CLOSED' ? (
             <div className="mb-4">
@@ -263,7 +301,7 @@ export function PeriodClosePage() {
             />
           </div>
         </>
-      )}
+      ) : null}
     </ModulePage>
   );
 }

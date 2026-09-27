@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Alert, Button, DateTime, EmptyState, Field, Input, Money, Select } from '../../ui';
 import {
@@ -19,6 +19,7 @@ import { MoneyActionForm } from '../../financial-ui/MoneyActionForm';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge';
+import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
 import {
   createJournal,
   getJournal,
@@ -55,6 +56,37 @@ function NEXT_ACTION_FOR(status: JournalStatus): string {
   }
 }
 
+/**
+ * Rótulos do vocabulário fechado acc.journal_source_kind — a origem realmente persistida em
+ * acc.journal_entries.source_kind. A lista de lançamentos devolve `sourceKind` e
+ * `sourceReference` do próprio registro, então a coluna "Origem" lê o dado gravado; nada é
+ * inferido a partir do histórico do lançamento. Valor sem rótulo conhecido aparece cru.
+ */
+const SOURCE_KIND_LABELS: Record<string, string> = {
+  MANUAL: 'Manual',
+  BILLING: 'Faturamento',
+  SETTLEMENT: 'Liquidação',
+  PAYMENT: 'Pagamento',
+  INVENTORY: 'Estoque',
+  PAYROLL: 'Folha',
+  TAX: 'Tributos',
+};
+
+/**
+ * Rótulo do período contábil: sempre código humano + intervalo de datas. Nunca o uuid — o
+ * identificador técnico fica apenas no `value` da opção, para a consulta autorizada.
+ */
+function periodLabel(period: {
+  code: string;
+  startsOn: string;
+  endsOn: string;
+  status: string;
+}): string {
+  return `${period.code} — ${period.startsOn} a ${period.endsOn} (${
+    PERIOD_STATUS_LABELS[period.status] ?? period.status
+  })`;
+}
+
 export function JournalsPage() {
   const { journalId } = useParams();
   const navigate = useNavigate();
@@ -71,8 +103,11 @@ export function JournalsPage() {
 }
 
 function JournalListRoute() {
-  const [unitId, setUnitId] = useState('');
-  const [submittedUnit, setSubmittedUnit] = useState('');
+  // A unidade operacional vem do contexto do shell (mesma fonte única usada pelos outros
+  // módulos de backoffice). O operador escolhe na lista de unidades autorizadas e nunca digita
+  // identificador: escolhida a unidade, os planos dela são carregados do servidor, e o período
+  // vem por plano. Cada consulta continua autorizada no servidor.
+  const { units, unitId, setUnitId } = useOperationalUnits();
   const [chartId, setChartId] = useState('');
   const [periodId, setPeriodId] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | JournalStatus>('ALL');
@@ -80,26 +115,26 @@ function JournalListRoute() {
   const navigate = useNavigate();
 
   const chartsQuery = useBackofficeQuery<ChartsList>({
-    enabled: submittedUnit.trim() !== '',
-    autoLoad: submittedUnit.trim() !== '',
-    loader: (signal) => listCharts(submittedUnit.trim(), signal),
+    enabled: unitId !== '',
+    autoLoad: false,
+    loader: (signal) => listCharts(unitId, signal),
     mapError: mapAccountingErrorToMessage,
   });
   const periodsQuery = useBackofficeQuery<PeriodsList>({
     enabled: Boolean(chartId),
-    autoLoad: Boolean(chartId),
+    autoLoad: false,
     loader: (signal) => listPeriods(chartId, undefined, signal),
     mapError: mapAccountingErrorToMessage,
   });
   const accountsQuery = useBackofficeQuery<AccountsList>({
     enabled: Boolean(chartId),
-    autoLoad: Boolean(chartId),
+    autoLoad: false,
     loader: (signal) => listAccounts(chartId, signal),
     mapError: mapAccountingErrorToMessage,
   });
   const journalsQuery = useBackofficeQuery<JournalListPage>({
-    enabled: Boolean(periodId),
-    autoLoad: Boolean(periodId),
+    enabled: Boolean(chartId && periodId),
+    autoLoad: false,
     loader: (signal) =>
       listJournals(
         chartId,
@@ -119,6 +154,44 @@ function JournalListRoute() {
   const accounts = accountsQuery.state.phase === 'ready' ? accountsQuery.state.data.items : [];
   const page = journalsQuery.state.phase === 'ready' ? journalsQuery.state.data : null;
 
+  const { reload: reloadCharts, reset: resetCharts } = chartsQuery;
+  const { reload: reloadPeriods, reset: resetPeriods } = periodsQuery;
+  const { reload: reloadAccounts, reset: resetAccounts } = accountsQuery;
+  const { reload: reloadJournals, reset: resetJournals } = journalsQuery;
+
+  // Trocar a unidade limpa plano e período (evita uuid órfão de outra unidade) e carrega os
+  // planos da unidade escolhida; o conteúdo anterior é descartado antes da nova consulta.
+  useEffect(() => {
+    setChartId('');
+    resetCharts();
+    if (unitId === '') {
+      return;
+    }
+    void reloadCharts();
+  }, [reloadCharts, resetCharts, unitId]);
+
+  // Trocar o plano limpa o período e recarrega os períodos do plano escolhido.
+  useEffect(() => {
+    setPeriodId('');
+    setPageNumber(0);
+    resetPeriods();
+    resetAccounts();
+    if (!chartId) {
+      return;
+    }
+    void reloadPeriods();
+    void reloadAccounts();
+  }, [chartId, reloadAccounts, reloadPeriods, resetAccounts, resetPeriods]);
+
+  // Trocar de período (ou de filtro/página) recarrega os lançamentos do recorte escolhido.
+  useEffect(() => {
+    resetJournals();
+    if (!chartId || periodId === '') {
+      return;
+    }
+    void reloadJournals();
+  }, [chartId, pageNumber, periodId, reloadJournals, resetJournals, statusFilter]);
+
   const gate = renderQueryGate(
     'Lançamentos',
     'Carregando lançamentos…',
@@ -134,35 +207,27 @@ function JournalListRoute() {
         description="Rascunhos e postados são lidos do ledger. O navegador não rebalanceia lançamentos."
       />
       <FilterCard>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-6">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Field label="Unidade operacional" htmlFor="journal-unit">
-            <Input
+            <Select
               id="journal-unit"
               value={unitId}
-              placeholder="ex.: unit-a"
               onChange={(event) => setUnitId(event.target.value)}
-            />
-          </Field>
-          <div className="flex items-end">
-            <Button
-              onClick={() => {
-                setChartId('');
-                setPeriodId('');
-                setSubmittedUnit(unitId.trim());
-              }}
-              disabled={unitId.trim() === ''}
+              disabled={units.length === 0}
             >
-              Carregar
-            </Button>
-          </div>
+              {units.length === 0 ? <option value="">Nenhuma unidade disponível</option> : null}
+              {units.map((unit) => (
+                <option key={unit} value={unit}>
+                  {unit}
+                </option>
+              ))}
+            </Select>
+          </Field>
           <Field label="Plano de contas" htmlFor="journal-chart">
             <Select
               id="journal-chart"
               value={chartId}
-              onChange={(event) => {
-                setChartId(event.target.value);
-                setPeriodId('');
-              }}
+              onChange={(event) => setChartId(event.target.value)}
               disabled={charts.length === 0}
             >
               <option value="">Selecione…</option>
@@ -186,7 +251,7 @@ function JournalListRoute() {
               <option value="">Selecione…</option>
               {periods.map((period) => (
                 <option key={period.id} value={period.id}>
-                  {period.code} ({PERIOD_STATUS_LABELS[period.status] ?? period.status})
+                  {periodLabel(period)}
                 </option>
               ))}
             </Select>
@@ -208,7 +273,19 @@ function JournalListRoute() {
         </div>
       </FilterCard>
 
-      {!periodId ? (
+      {units.length === 0 ? (
+        <EmptyState
+          title="Nenhuma unidade operacional disponível"
+          description="Sua sessão não tem unidade operacional autorizada, então não há lançamento para consultar. A unidade é escolhida em lista; esta tela não aceita identificador digitado."
+        />
+      ) : null}
+      {units.length > 0 && !chartId ? (
+        <EmptyState
+          title="Nenhum plano de contas selecionado"
+          description="Escolha o plano de contas da unidade para carregar os períodos contábeis e os lançamentos."
+        />
+      ) : null}
+      {chartId && !periodId ? (
         <EmptyState
           title="Nenhum período selecionado"
           description="Selecione o período para listar lançamentos; cada linha abre o detalhe com postar/estornar."
@@ -257,7 +334,19 @@ function JournalListRoute() {
                     <td className={moduleTableCellClass}>{entry.entryNumber ?? '—'}</td>
                     <td className={moduleTableCellClass}>{entry.occurredOn}</td>
                     <td className={`${moduleTableCellClass} whitespace-normal`}>{entry.description}</td>
-                    <td className={moduleTableCellClass}>{entry.sourceReference}</td>
+                    {/*
+                      Origem persistida: `sourceKind` + `sourceReference` vêm do próprio registro
+                      em acc.journal_entries (acc.journal_source_kind), devolvidos na listagem
+                      pelo serializador do servidor. Não há derivação pelo histórico e não há
+                      link de drill-down: a lista não pode afirmar a existência de um registro
+                      de origem fora do escopo autorizado do operador.
+                    */}
+                    <td className={`${moduleTableCellClass} whitespace-normal`}>
+                      <span className="block">
+                        {SOURCE_KIND_LABELS[entry.sourceKind] ?? entry.sourceKind}
+                      </span>
+                      <span className="block text-xs text-gray-500">{entry.sourceReference}</span>
+                    </td>
                     <td className={moduleTableCellClass}>
                       <FinanceStatusBadge status={entry.status} labels={JOURNAL_STATUS_LABELS} />
                     </td>
