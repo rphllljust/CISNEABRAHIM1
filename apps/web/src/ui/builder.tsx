@@ -96,8 +96,13 @@ export type CollectionEditorProps<T> = {
   renderItem: (item: T, index: number) => ReactNode;
   onChange: (index: number, item: T) => void;
   onRemove: (index: number) => void;
-  onAdd: () => void;
-  addLabel: string;
+  /**
+   * Acao de adicionar DENTRO do repetidor. Opcional de proposito: quando a secao ja oferece
+   * "+ Adicionar …" no cabecalho, o botao de rodape duplicaria a mesma acao e criaria dois
+   * controles diferentes para o mesmo efeito.
+   */
+  onAdd?: () => void;
+  addLabel?: string;
   removeLabel: string;
   emptyMessage: string;
   /** Rotulo do botao de remover por item (accessible name explicito). */
@@ -207,16 +212,18 @@ export function CollectionEditor<T>({
         );
       })}
 
-      <div>
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={onAdd}
-          className="inline-flex items-center gap-1 rounded-md border border-dashed border-gray-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {addLabel}
-        </button>
-      </div>
+      {onAdd && addLabel ? (
+        <div>
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={onAdd}
+            className="inline-flex items-center gap-1 rounded-md border border-dashed border-gray-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {addLabel}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
