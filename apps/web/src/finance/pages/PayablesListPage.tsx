@@ -22,6 +22,7 @@ import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import { listPayables } from '../api/finance-api';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import { FinanceStatusBadge } from '../components/FinanceStatusBadge';
+import { PayablesDecisionStrip } from '../components/PayablesDecisionStrip';
 import type { PayableDetail } from '../types/finance.types';
 
 export function PayablesListPage() {
@@ -57,6 +58,7 @@ export function PayablesListPage() {
         title="Contas a pagar"
         description="Aging e saldo restante são os informados pelo servidor."
       />
+      <PayablesDecisionStrip items={state.data} />
       <FilterCard>
         <label className={filterLabelClass} htmlFor="payable-status-filter">
           Status
