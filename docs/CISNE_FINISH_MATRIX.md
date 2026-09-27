@@ -47,13 +47,13 @@ Resolução aplicada nesta fila, sem inventar regra:
 | **procurement** | Y | Y | Y | Y | - | Y | Y | Y | Y | Y | Y | Y | Y | **DONE** | editar requisição pendente; centro de custo/categoria (PARK: HUMAN_LOOKUP_API_GAP) |
 | **inventory** | Y | Y | Y | Y | - | Y | Y | Y | Y | Y | Y | Y | Y | **DONE** | centro de custo/categoria (PARK); edição de depósito/item inexistente no backend |
 | people | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
-| finance (AR/AP/treasury/recon) | Y | Y | Y | Y | Y | Y | Y | parcial | Y | Y | Y | Y | Y | BASIC_GAP | conciliação bancária e tesouraria: `PARK HUMAN_LOOKUP_API_GAP` (sem listagem de extrato/movimento) |
+| finance (AR/AP/treasury/recon) | Y | Y | Y | Y | Y | Y | Y | parcial | Y | Y | Y | Y | Y | BASIC_GAP | extrato bancário agora tem listagem autorizada e mesa de trabalho (status/conta/período server-side, seleção por URL); `PARK HUMAN_LOOKUP_API_GAP` para movimento financeiro (vínculo manual por id) e movimento de tesouraria |
 | finance/expenses | Y | Y | Y | Y | - | Y | Y | Y | Y | Y | Y | Y | parcial | DONE | `PARK HUMAN_LOOKUP_API_GAP`: centro de custo e categoria de despesa sem listagem |
 | finance/budgets | Y | Y | Y | Y | - | Y | Y | Y | Y | Y | Y | Y | parcial | DONE | período (id) sem listagem — `PARK HUMAN_LOOKUP_API_GAP` |
-| accounting | Y | Y | Y | Y | Y | Y | Y | UUID | Y | Y | Y | Y | Y | BASIC_GAP | ativo imobilizado: `PARK HUMAN_LOOKUP_API_GAP` (`GET` é lookup por unidade+ativo, sem lista de registros) |
+| accounting | Y | Y | Y | Y | Y | Y | Y | parcial | Y | Y | Y | Y | Y | BASIC_GAP | unidade vem do contexto do shell, plano selecionado e drill-down conta → lançamentos; `PARK HUMAN_LOOKUP_API_GAP` para registro de imobilizado e para a unidade digitada em JournalsPage/PeriodReportPages/PeriodClosePage |
 | fiscal | Y | Y | Y | Y | - | Y | Y | Y | Y | Y | Y | Y | Y | BASIC_DONE_WITH_PARKED_GAP | apuração agora tem lista (`GET fiscal/tax/calculations`); centro de custo (id) permanece `PARK HUMAN_LOOKUP_API_GAP` |
-| payroll | Y | Y | Y | Y | - | Y | Y | UUID | Y | Y | Y | Y | Y | BASIC_GAP | período: `PARK HUMAN_LOOKUP_API_GAP` (sem `GET payroll/periods`) |
-| accounting | Y | Y | Y | Y | Y | Y | Y | UUID | Y | Y | Y | Y | Y | BASIC_GAP | ativo imobilizado: `PARK HUMAN_LOOKUP_API_GAP` (`GET` é lookup por unidade+ativo, sem lista de registros) |
+| payroll | Y | Y | Y | Y | - | Y | Y | parcial | Y | Y | Y | Y | Y | BASIC_GAP | período e contrato por competência/status/código-nome; `PARK HUMAN_LOOKUP_API_GAP` (`GET payroll/periods` e `GET payroll/contracts` não existem) |
+| accounting | Y | Y | Y | Y | Y | Y | Y | parcial | Y | Y | Y | Y | Y | BASIC_GAP | unidade vem do contexto do shell, plano selecionado e drill-down conta → lançamentos; `PARK HUMAN_LOOKUP_API_GAP` para registro de imobilizado e para a unidade digitada em JournalsPage/PeriodReportPages/PeriodClosePage |
 | fleet | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
 | resources | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
 | alerts | Y | Y | Y | N/A | N/A | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
