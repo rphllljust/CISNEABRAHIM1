@@ -50,16 +50,17 @@ Resolução aplicada nesta fila, sem inventar regra:
 | finance (AR/AP/treasury/recon) | Y | Y | Y | Y | Y | Y | Y | parcial | Y | Y | Y | Y | Y | BASIC_GAP | conciliação bancária e tesouraria: `PARK HUMAN_LOOKUP_API_GAP` (sem listagem de extrato/movimento) |
 | finance/expenses | Y | Y | Y | Y | - | Y | Y | Y | Y | Y | Y | Y | parcial | DONE | `PARK HUMAN_LOOKUP_API_GAP`: centro de custo e categoria de despesa sem listagem |
 | finance/budgets | Y | Y | Y | Y | - | Y | Y | Y | Y | Y | Y | Y | parcial | DONE | período (id) sem listagem — `PARK HUMAN_LOOKUP_API_GAP` |
-| accounting | Y | Y | Y | Y | Y | Y | Y | UUID | Y | Y | Y | Y | Y | BASIC_GAP | ativo fixo/lançamento: UUID → lookup |
-| fiscal | Y | Y | Y | Y | - | Y | Y | UUID | Y | Y | Y | Y | Y | BASIC_GAP | apuração/centro de custo: UUID → lookup |
+| accounting | Y | Y | Y | Y | Y | Y | Y | UUID | Y | Y | Y | Y | Y | BASIC_GAP | ativo imobilizado: `PARK HUMAN_LOOKUP_API_GAP` (`GET` é lookup por unidade+ativo, sem lista de registros) |
+| fiscal | Y | Y | Y | Y | - | Y | Y | parcial | Y | Y | Y | Y | Y | BASIC_GAP | apuração: `PARK HUMAN_LOOKUP_API_GAP` (só `POST calculations` + `GET :id`, sem listagem) |
 | payroll | Y | Y | Y | Y | - | Y | Y | UUID | Y | Y | Y | Y | Y | BASIC_GAP | período: `PARK HUMAN_LOOKUP_API_GAP` (sem `GET payroll/periods`) |
+| accounting | Y | Y | Y | Y | Y | Y | Y | UUID | Y | Y | Y | Y | Y | BASIC_GAP | ativo imobilizado: `PARK HUMAN_LOOKUP_API_GAP` (`GET` é lookup por unidade+ativo, sem lista de registros) |
 | fleet | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
 | resources | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
 | alerts | Y | Y | Y | N/A | N/A | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
 | reports | Y | Y | Y | N/A | N/A | Y | Y | Y | N/A | Y | Y | Y | Y | DONE | — |
 | search | Y | Y | N/A | N/A | N/A | Y | Y | Y | N/A | Y | Y | Y | Y | DONE | — |
 | access-admin | Y | Y | Y | Y | Y | Y | Y | parical | Y | Y | Y | Y | Y | DONE | âncoras de escopo são técnicas por natureza |
-| issuer/establishments | Y | **-** | Y | Y | Y | - | - | - | Y | - | Y | Y | **-** | **BASIC_GAP** | backend completo sem superfície web (entidade sem lista/detalhe) |
+| issuer/establishments | Y | **-** | Y | Y | Y | - | - | - | Y | - | Y | Y | **-** | **PARK** | backend completo mas **sem feature flag** no `release-1-scope.ts` e sem cliente web: exige decisão de gating + superfície completa (> 8 min). Não tem paralelo em release scope auditado |
 | rentals | Y (lista) | Y | - | - | - | - | - | Y | N/A | - | Y | Y | Y | PARK | OUT_OF_RELEASE_1 — coberto por Catálogo+OS+Recursos+Execução |
 | transport | Y (lista) | Y | - | - | - | - | - | Y | N/A | - | Y | Y | Y | PARK | OUT_OF_RELEASE_1 — coberto por Catálogo+OS+Recursos+Execução |
 | maintenance | - | - | - | - | - | - | - | - | - | - | - | spec | - | PARK | sem modelo local — BACKEND_ABSENT |
@@ -140,3 +141,4 @@ Observação de gate: o teste `service-orders-list.e2e` e o `assets.e2e` falhava
 | Período de folha | payroll | sem `GET payroll/periods` |
 | Cálculo tributário (apuração) | fiscal/apuração | só `POST`/`GET :id`; sem listagem |
 | Registro de ativo imobilizado | accounting/fixed-assets | `GET` é consulta por ativo operacional; sem lista |
+| Pessoa jurídica / estabelecimento | issuer/establishments | backend completo, mas sem feature flag e sem cliente web — decisão de gating pendente |
