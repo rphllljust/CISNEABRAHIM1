@@ -18,16 +18,32 @@ export function useBackofficeQuery<T>(options: {
   reload: (signal?: AbortSignal) => Promise<void>;
   reset: () => void;
   setReady: (data: T) => void;
+  /** Refresh em andamento com conteúdo antigo ainda na tela. */
+  refreshing: boolean;
 } {
   const { enabled = true, loader, mapError, autoLoad = true } = options;
   const [state, setState] = useState<QueryState<T>>(enabled && autoLoad ? { phase: 'loading' } : { phase: 'idle' });
+  const [refreshing, setRefreshing] = useState(false);
   const loaderRef = useRef(loader);
   const mapErrorRef = useRef(mapError);
   loaderRef.current = loader;
   mapErrorRef.current = mapError;
 
+  // Fluidez: quando já existe conteúdo, o refresh NÃO volta para `loading`.
+  // Voltar para loading trocaria a tabela por um spinner de página inteira,
+  // fazendo o layout pular e o filtro parecer resetado.
+  const hasContentRef = useRef(false);
+  hasContentRef.current = state.phase === 'ready';
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
   const reload = useCallback(async (signal?: AbortSignal) => {
-    setState({ phase: 'loading' });
+    const keepContent = stateRef.current.phase === 'ready';
+    if (keepContent) {
+      setRefreshing(true);
+    } else {
+      setState({ phase: 'loading' });
+    }
     try {
       const data = await loaderRef.current(signal);
       setState({ phase: 'ready', data });
@@ -51,6 +67,8 @@ export function useBackofficeQuery<T>(options: {
         retryable: true,
         kind: 'unknown',
       });
+    } finally {
+      setRefreshing(false);
     }
   }, []);
 
@@ -66,5 +84,5 @@ export function useBackofficeQuery<T>(options: {
     return () => controller.abort();
   }, [autoLoad, enabled, reload]);
 
-  return { state, reload, reset, setReady };
+  return { state, reload, reset, setReady, refreshing };
 }
