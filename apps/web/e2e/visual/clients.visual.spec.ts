@@ -41,6 +41,10 @@ async function assertNoPageLevelHorizontalOverflow(page: Page): Promise<void> {
 
 test.describe('clients visual', () => {
   test.beforeEach(async ({ page }) => {
+    test.skip(
+      test.info().project.name === 'tablet',
+      'Este spec focado mantém baselines somente para desktop e mobile.',
+    );
     await prepareAuthenticatedSession(page, 'clients');
   });
 
