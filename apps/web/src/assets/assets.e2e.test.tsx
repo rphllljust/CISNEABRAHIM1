@@ -34,7 +34,13 @@ describe('physical assets administrative flow e2e (frontend)', () => {
     });
     expect(screen.getByRole('link', { name: 'TRK-DEMO' })).toBeInTheDocument();
     expect(screen.getByLabelText(/status de cadastro: ativo/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/disponibilidade operacional: dispon/i)).toBeInTheDocument();
+    /**
+     * O ativo do mock tem alocação vigente (`currentAllocation`), e o cadastro continua ativo:
+     * a disponibilidade operacional correta é ALOCADO. A asserção anterior esperava
+     * "disponível", contradizendo o próprio fixture e os testes de componente/lista, que já
+     * esperavam "alocado" para o mesmo dado.
+     */
+    expect(screen.getByLabelText(/disponibilidade operacional: alocado/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole('link', { name: 'TRK-DEMO' }));
     await waitFor(() => {
