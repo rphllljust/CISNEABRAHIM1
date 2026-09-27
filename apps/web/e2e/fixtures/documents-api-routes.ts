@@ -75,8 +75,25 @@ export async function handleDocumentsApiRoute(route: Route): Promise<boolean> {
     return true;
   }
 
-  // Sondas de capability do modulo: 404 (e nao 403) e o que faz o probe concluir que a capability
-  // existe, mantendo visivel a acao de download.
+  const downloadUrlMatch = pathname.match(
+    /^\/api\/v1\/documents\/([^/]+)\/versions\/(\d+)\/download-url$/,
+  );
+  if (downloadUrlMatch && method === 'POST') {
+    const documentId = downloadUrlMatch[1];
+    const versionNumber = Number(downloadUrlMatch[2]);
+    const document = DOCUMENTS_LIST_VISUAL_SNAPSHOT.find((item) => item.id === documentId);
+
+    if (document?.currentVersionNumber === versionNumber) {
+      await fulfillJson(route, {
+        downloadUrl: `/api/v1/documents/${documentId}/versions/${versionNumber}/content`,
+        expiresAt: '2026-08-29T12:05:00.000Z',
+      });
+      return true;
+    }
+  }
+
+  // As demais sondas continuam fail-closed. Download e a excecao: o cliente atual so concede
+  // canDownload com evidencia positiva (200) sobre um documento real do escopo.
   await fulfillJson(route, { error: { code: 'DOCUMENT_NOT_FOUND', message: 'Not found.' } }, 404);
   return true;
 }
