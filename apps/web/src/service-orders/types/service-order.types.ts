@@ -73,6 +73,54 @@ export type ServiceOrderDetail = {
   releasedAt: string | null;
   cancelledAt: string | null;
   historyEvents: ServiceOrderHistoryEvent[];
+  /**
+   * Operations Control Center: projeção DERIVADA pelo backend (progressão, planejado x realizado,
+   * downstream e próximo passo). O frontend renderiza apenas o que veio autorizado — blocos de
+   * medição/faturamento chegam zerados/nulos quando o ator não tem autorização no módulo dono.
+   */
+  controlCenter?: ServiceOrderControlCenter;
+};
+
+export type ControlCenterStepCode =
+  | 'DEMAND'
+  | 'PLANNING'
+  | 'RELEASE'
+  | 'EXECUTION'
+  | 'COMPLETION'
+  | 'MEASUREMENT'
+  | 'BILLING';
+
+export type ServiceOrderControlCenter = {
+  progression: Array<{
+    code: ControlCenterStepCode;
+    state: 'DONE' | 'CURRENT' | 'PENDING' | 'ATTENTION';
+    at: string | null;
+    detail: string | null;
+    ownerStatus: string | null;
+  }>;
+  plannedVsActual: {
+    plannedResources: number;
+    activeAllocations: number;
+    executionEntries: number;
+    executedQuantityTotal: string | null;
+    divergences: string[];
+  };
+  downstream: {
+    measurement: { count: number; status: string | null; createdAt: string | null };
+    billing: {
+      count: number;
+      status: string | null;
+      createdAt: string | null;
+      totalAmount: string | null;
+      currencyCode: string | null;
+    };
+  };
+  nextAction: {
+    step: string;
+    transition: string | null;
+    availableTransitions: string[];
+    blockers: string[];
+  };
 };
 
 export const SERVICE_ORDERS_ERROR_CODES = {

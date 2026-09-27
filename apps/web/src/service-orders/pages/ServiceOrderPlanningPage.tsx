@@ -16,6 +16,7 @@ import {
   removeAllocation,
 } from '../api/service-order-planning-api';
 import { RequirementCoverageTable } from '../components/RequirementCoverageTable';
+import { OperationsControlCenter } from '../components/OperationsControlCenter';
 import { ServiceOrderTimeline } from '../components/ServiceOrderTimeline';
 import { useServiceOrderPlanningCapabilities } from '../hooks/useServiceOrderPlanningCapabilities';
 import { PLANNED_RESOURCE_KINDS, type PlannedResource, type ResourceAllocation } from '../types/resource-planning.types';
@@ -420,6 +421,15 @@ export function ServiceOrderPlanningPage() {
           Voltar
         </Link>
       </header>
+
+      {order.controlCenter ? (
+        <section className="planning-section" aria-label="Centro de controle operacional">
+          <OperationsControlCenter
+            controlCenter={order.controlCenter}
+            measurementHref={'/app/service-orders/' + order.id + '/measurement'}
+          />
+        </section>
+      ) : null}
 
       <section className="planning-section" aria-labelledby="planning-summary-heading">
         <h2 id="planning-summary-heading">Resumo operacional</h2>
