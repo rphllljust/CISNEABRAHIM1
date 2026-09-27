@@ -83,3 +83,20 @@ export function formatClientSnapshot(snapshot: Record<string, unknown> | null): 
   }
   return '—';
 }
+
+/**
+ * Identificacao do ator.
+ *
+ * O dominio NAO guarda nome de pessoa (`identity.identities` so tem id/status). A interface usa o
+ * mesmo rotulo neutro ja adotado no modulo de solicitacoes: "Voce" quando o ator e o usuario
+ * atual e "Usuario interno (id curto)" caso contrario — nunca um nome inventado.
+ */
+export function formatRegisteredBy(
+  actorIdentityId: string,
+  currentIdentityId: string | null | undefined,
+): string {
+  if (currentIdentityId && actorIdentityId === currentIdentityId) {
+    return 'Você (usuário interno)';
+  }
+  return `Usuário interno (${actorIdentityId.slice(0, 8)}…)`;
+}

@@ -9,8 +9,28 @@ import { SecurityAuditService } from '../../audit/services/security-audit.servic
 import { AUTHZ_ACTIONS } from '../../authorization/types/authz-actions';
 import type { AuthzAction } from '../../authorization/types/authz-actions';
 import type { IdentityAuthzContext } from '../../authorization/types/authz-decision';
-import { PROPOSAL_VERSION_STATUSES } from '../domain/proposal';
+import {
+  PROPOSAL_VERSION_STATUSES,
+  type ProposalVersionStatus,
+} from '../domain/proposal';
+import {
+  buildProposalListOrderClause,
+  buildProposalListWhere,
+  ProposalListQueryError,
+  type ProposalListDirection,
+  type ProposalListSort,
+} from '../repositories/proposal-list-sql';
 import { buildCommercialItemSnapshot } from '../domain/proposal-commercial-snapshot';
+import {
+  allowedTransitionsFrom,
+  nextStepForStatus,
+  readinessBlockers,
+} from '../domain/proposal-readiness';
+import type { ProposalTransition } from '../domain/proposal-readiness';
+import {
+  compareProposalRevisions,
+  type ProposalRevisionDiff,
+} from '../domain/proposal-revision-diff';
 import {
   sumProposalItemInternalCostAmounts,
   sumProposalItemSaleAmounts,
@@ -26,15 +46,21 @@ import type {
 import { COMMERCIAL_ERROR_CODES } from '../errors/commercial-error-codes';
 import { CommercialHttpException } from '../errors/commercial-http.exception';
 import { ProposalsRepository } from '../repositories/proposals.repository';
-import type { ProposalRow } from '../repositories/proposals.repository.types';
+import type {
+  ProposalItemRow,
+  ProposalLinkedRow,
+  ProposalRow,
+  ProposalVersionRow,
+} from '../repositories/proposals.repository.types';
 import {
   buildProposalDetail,
-  toProposalListItemResponse,
-  toProposalResponse,
+  toProposalRevisionSummaryResponse,
   toProposalVersionResponse,
+  toProposalWorkbenchItemResponse,
   type ProposalDetailResponse,
   type ProposalListItemResponse,
-  type ProposalResponse,
+  type ProposalReadinessResponse,
+  type ProposalRelatedResponse,
   type ProposalVersionResponse,
 } from '../serializers/proposals-response.serializer';
 import { groupRowsByKey } from '../../infrastructure/database/sql';
@@ -57,6 +83,33 @@ import {
   resolveUpdateProposalDraftInput,
 } from './proposals-input-resolution';
 import { ProposalsReferenceValidationService } from './proposals-reference-validation.service';
+
+/** Consulta da fila comercial: filtros e ordenacao ja validados pelo DTO. */
+export type ProposalListQuery = {
+  clientId?: string;
+  unitId?: string;
+  status?: string;
+  currencyCode?: string;
+  validFrom?: string;
+  validTo?: string;
+  createdFrom?: string;
+  createdTo?: string;
+  search?: string;
+  sort?: ProposalListSort;
+  direction?: ProposalListDirection;
+  limit: number;
+  offset: number;
+};
+
+/** Acao de autorizacao que o modulo dono exige para cada transicao real do dominio. */
+const TRANSITION_ACTIONS: Record<ProposalTransition, AuthzAction> = {
+  issue: AUTHZ_ACTIONS.CommercialProposalIssue,
+  accept: AUTHZ_ACTIONS.CommercialProposalAccept,
+  reject: AUTHZ_ACTIONS.CommercialProposalReject,
+  expire: AUTHZ_ACTIONS.CommercialProposalExpire,
+  cancel: AUTHZ_ACTIONS.CommercialProposalCancel,
+  revise: AUTHZ_ACTIONS.CommercialProposalUpdate,
+};
 
 @Injectable()
 export class ProposalsAccessService {
@@ -489,12 +542,282 @@ export class ProposalsAccessService {
     const proposal = await this.requireProposal(actor, proposalId, AUTHZ_ACTIONS.CommercialProposalRead);
     const versionNumber = proposal.current_version_number;
     if (!versionNumber) {
-      return buildProposalDetail(proposal, null, [], []);
+      const [chain, readiness, enrichment] = await Promise.all([
+        this.authorizedChain(actor, proposalId),
+        Promise.resolve<ProposalReadinessResponse>({
+          nextStep: 'COMPLETE_AND_ISSUE',
+          nextStepTransition: null,
+          availableTransitions: [],
+          blockers: [],
+        }),
+        this.buildClientEnrichment(actor, proposal.client_id),
+      ]);
+      return buildProposalDetail(proposal, null, [], [], {
+        related: enrichment,
+        linkedChain: chain.linked,
+        hiddenLinkedRecords: chain.hidden,
+        readiness,
+      });
     }
+
     const version = await this.requireVersion(proposalId, versionNumber);
-    const items = await this.proposalsRepository.listItems(version.id);
-    const documents = await this.proposalsRepository.listDocumentLinks(version.id);
-    return buildProposalDetail(proposal, version, items, documents);
+    const [items, documents, versions, chain] = await Promise.all([
+      this.proposalsRepository.listItems(version.id),
+      this.proposalsRepository.listDocumentLinks(version.id),
+      this.proposalsRepository.listVersions(proposalId),
+      this.authorizedChain(actor, proposalId),
+    ]);
+
+    const [enrichment, readiness, revisionComparison] = await Promise.all([
+      this.buildClientEnrichment(actor, proposal.client_id),
+      this.buildReadiness(actor, proposal, version, items),
+      this.buildRevisionComparison(proposalId, versions),
+    ]);
+
+    const previousVersionNumber =
+      versions
+        .map((entry) => entry.version_number)
+        .filter((number) => number < version.version_number)
+        .sort((left, right) => right - left)[0] ?? null;
+
+    const revisions = versions.map((entry) =>
+      toProposalRevisionSummaryResponse(
+        entry,
+        proposal.current_version_number,
+        entry.id === version.id ? items.length : 0,
+        entry.version_number === version.version_number ? previousVersionNumber : null,
+      ),
+    );
+
+    const revisionItems = await this.countItemsByVersionNumber(proposalId, versions);
+    const revisionsWithCounts = revisions.map((revision) => ({
+      ...revision,
+      itemCount: revisionItems.get(revision.versionNumber) ?? 0,
+    }));
+
+    return buildProposalDetail(proposal, version, items, documents, {
+      related: enrichment,
+      revisions: revisionsWithCounts,
+      revisionComparison,
+      linkedChain: chain.linked,
+      hiddenLinkedRecords: chain.hidden,
+      readiness,
+    });
+  }
+
+  /**
+   * Prontidao derivada das regras reais: transicoes permitidas pelo estado (mesma tabela do
+   * dominio) e autorizadas para ESTE ator, bloqueios impostos pelo backend e o proximo passo.
+   */
+  private async buildReadiness(
+    actor: IdentityAuthzContext,
+    proposal: ProposalRow,
+    version: ProposalVersionRow,
+    items: ProposalItemRow[],
+  ): Promise<ProposalReadinessResponse> {
+    const status = version.status as ProposalVersionStatus;
+    const allowed = allowedTransitionsFrom(status);
+    const granted = await Promise.all(
+      allowed.map(async (transition) => ({
+        transition,
+        allowed: await this.authz.canPerformRecordAction(
+          actor,
+          TRANSITION_ACTIONS[transition],
+          proposal,
+        ),
+      })),
+    );
+    const availableTransitions = granted
+      .filter((entry) => entry.allowed)
+      .map((entry) => entry.transition);
+    const nextStep = nextStepForStatus(status);
+
+    return {
+      nextStep: nextStep.step,
+      nextStepTransition:
+        nextStep.transition && availableTransitions.includes(nextStep.transition)
+          ? nextStep.transition
+          : null,
+      availableTransitions,
+      blockers: readinessBlockers({
+        status,
+        pricingStructure: version.pricing_structure,
+        globalSalePriceAmount: version.global_sale_price_amount,
+        itemCount: items.length,
+        itemsMissingLineAmount: items.filter((item) => !item.line_sale_amount).length,
+      }),
+    };
+  }
+
+  /**
+   * Comparacao entre as duas revisoes mais recentes, calculada a partir dos dados persistidos
+   * (validade, valor, condicoes, observacoes e itens). Nunca persistida.
+   */
+  private async buildRevisionComparison(
+    proposalId: string,
+    versions: ProposalVersionRow[],
+  ): Promise<ProposalRevisionDiff | null> {
+    if (versions.length < 2) {
+      return null;
+    }
+    const ordered = [...versions].sort((left, right) => left.version_number - right.version_number);
+    const previous = ordered[ordered.length - 2]!;
+    const current = ordered[ordered.length - 1]!;
+    if (previous.version_number === current.version_number) {
+      return null;
+    }
+
+    const items = await this.proposalsRepository.listItemsForVersionNumbers(proposalId, [
+      previous.version_number,
+      current.version_number,
+    ]);
+
+    return compareProposalRevisions({
+      from: previous,
+      to: current,
+      fromItems: items.filter((item) => item.version_number === previous.version_number),
+      toItems: items.filter((item) => item.version_number === current.version_number),
+    });
+  }
+
+  private async countItemsByVersionNumber(
+    proposalId: string,
+    versions: ProposalVersionRow[],
+  ): Promise<Map<number, number>> {
+    if (versions.length === 0) {
+      return new Map();
+    }
+    const items = await this.proposalsRepository.listItemsForVersionNumbers(
+      proposalId,
+      versions.map((version) => version.version_number),
+    );
+    const counts = new Map<number, number>();
+    for (const item of items) {
+      counts.set(item.version_number, (counts.get(item.version_number) ?? 0) + 1);
+    }
+    return counts;
+  }
+
+  private async authorizedChain(
+    actor: IdentityAuthzContext,
+    proposalId: string,
+  ): Promise<{ linked: ProposalLinkedRow[]; hidden: boolean }> {
+    const chain = await this.proposalsRepository.findLinkedChain(proposalId);
+    const allowed = await this.authz.filterAuthorizedLinkedChain(actor, chain);
+    const linked = chain.filter((row) => allowed.has(`${row.kind}:${row.id}`));
+    return { linked, hidden: chain.length > linked.length };
+  }
+
+  /** Nome do cliente em UMA consulta, somente quando o modulo CLIENTES autoriza este ator. */
+  private async buildClientEnrichment(
+    actor: IdentityAuthzContext,
+    clientId: string,
+  ): Promise<ProposalRelatedResponse> {
+    const labels = await this.buildClientLabels(actor, [clientId]);
+    const label = labels.get(clientId) ?? null;
+    return { client: label ? { id: clientId, name: label } : null };
+  }
+
+  private async buildClientLabels(
+    actor: IdentityAuthzContext,
+    clientIds: string[],
+  ): Promise<Map<string, string>> {
+    const distinct = [...new Set(clientIds)];
+    const allowed = await this.authz.filterAuthorizedClientIds(actor, distinct);
+    if (allowed.size === 0) {
+      return new Map();
+    }
+    const rows = await this.proposalsRepository.listClientLabels([...allowed]);
+    return new Map(
+      rows.map((row) => [
+        row.id,
+        row.trade_name?.trim() ? row.trade_name : row.legal_name,
+      ]),
+    );
+  }
+
+  async list(
+    actor: IdentityAuthzContext,
+    query: ProposalListQuery,
+  ): Promise<{ items: ProposalListItemResponse[]; limit: number; offset: number }> {
+    const scopeFilter = await this.authz.buildListScopeFilter(actor);
+
+    let whereClause: { clause: string; params: unknown[] };
+    let orderClause: string;
+    try {
+      whereClause = buildProposalListWhere(
+        { clause: scopeFilter.clause === 'TRUE' ? 'TRUE' : scopeFilter.clause, params: scopeFilter.params },
+        query,
+      );
+      orderClause = buildProposalListOrderClause(query.sort, query.direction);
+    } catch (error) {
+      if (error instanceof ProposalListQueryError) {
+        throw new CommercialHttpException(
+          HttpStatus.BAD_REQUEST,
+          COMMERCIAL_ERROR_CODES.VALIDATION_FAILED,
+          'Invalid query parameters.',
+        );
+      }
+      throw error;
+    }
+
+    const rows = await this.proposalsRepository.listProposalsForWorkbench(
+      whereClause.clause,
+      whereClause.params,
+      query.limit,
+      query.offset,
+      orderClause,
+    );
+
+    const clientLabels = await this.buildClientLabels(
+      actor,
+      rows.map((row) => row.client_id),
+    );
+    const originsByProposal = await this.authorizedOriginRequests(
+      actor,
+      rows.map((row) => row.id),
+    );
+
+    return {
+      items: rows.map((row) =>
+        toProposalWorkbenchItemResponse(row, {
+          clientName: clientLabels.get(row.client_id) ?? null,
+          originRequests: originsByProposal.get(row.id) ?? [],
+        }),
+      ),
+      limit: query.limit,
+      offset: query.offset,
+    };
+  }
+
+  /**
+   * Solicitacoes de origem que ESTE ator pode ler. UMA consulta para a pagina inteira e uma
+   * decisao de autorizacao por solicitacao distinta (memorizada) — nunca uma consulta por linha.
+   */
+  private async authorizedOriginRequests(
+    actor: IdentityAuthzContext,
+    proposalIds: string[],
+  ): Promise<Map<string, Array<{ id: string; requestCode: string; status: string }>>> {
+    const result = new Map<string, Array<{ id: string; requestCode: string; status: string }>>();
+    if (proposalIds.length === 0) {
+      return result;
+    }
+    const rows = await this.proposalsRepository.listOriginRequests(proposalIds);
+    if (rows.length === 0) {
+      return result;
+    }
+    const allowed = await this.authz.filterAuthorizedLinkedChain(actor, rows);
+    for (const row of rows) {
+      // O agrupamento por proposta vem do proprio vinculo (`sr.service_requests.proposal_id`).
+      const proposalId = row.proposal_id;
+      if (!proposalId || !allowed.has(`${row.kind}:${row.id}`)) {
+        continue;
+      }
+      const bucket = result.get(proposalId) ?? [];
+      bucket.push({ id: row.id, requestCode: row.label, status: row.status ?? '' });
+      result.set(proposalId, bucket);
+    }
+    return result;
   }
 
   async getVersion(
@@ -534,52 +857,6 @@ export class ProposalsAccessService {
         documentsByVersion.get(version.id) ?? [],
       ),
     );
-  }
-
-  async list(
-    actor: IdentityAuthzContext,
-    query: { clientId?: string; unitId?: string; limit: number; offset: number },
-  ): Promise<{ items: ProposalListItemResponse[]; limit: number; offset: number }> {
-    const scopeFilter = await this.authz.buildListScopeFilter(actor);
-
-    const clauses = [scopeFilter.clause === 'TRUE' ? 'TRUE' : scopeFilter.clause];
-    const params = [...scopeFilter.params];
-    if (query.clientId) {
-      params.push(query.clientId);
-      clauses.push(`client_id = $${params.length}::uuid`);
-    }
-    if (query.unitId) {
-      params.push(query.unitId);
-      clauses.push(`unit_id = $${params.length}`);
-    }
-
-    const items = await this.proposalsRepository.listProposals(
-      clauses.join(' AND '),
-      params,
-      query.limit,
-      query.offset,
-    );
-
-    // Enriquecimento ADITIVO da listagem: uma unica consulta extra por pagina para trazer a
-    // versao corrente de todas as propostas retornadas (nunca uma consulta por proposta).
-    // A autorizacao e a consulta de listagem permanecem exatamente como estavam.
-    const currentVersions =
-      items.length === 0
-        ? []
-        : await this.proposalsRepository.findCurrentVersionsForProposals(
-            items.map((item) => item.id),
-          );
-    const versionByProposalId = new Map(
-      currentVersions.map((version) => [version.proposal_id, version]),
-    );
-
-    return {
-      items: items.map((item) =>
-        toProposalListItemResponse(item, versionByProposalId.get(item.id) ?? null),
-      ),
-      limit: query.limit,
-      offset: query.offset,
-    };
   }
 
   private async requireProposal(

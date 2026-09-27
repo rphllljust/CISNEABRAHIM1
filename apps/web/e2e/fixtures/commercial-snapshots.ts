@@ -185,6 +185,78 @@ export const VISUAL_PROPOSAL_CURRENT_VERSION: ProposalVersion = {
 export const COMMERCIAL_PROPOSAL_DETAIL_SNAPSHOT: ProposalDetail = {
   proposal: VISUAL_PROPOSAL,
   currentVersion: VISUAL_PROPOSAL_CURRENT_VERSION,
+  related: { client: { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', name: 'Cliente Visual' } },
+  revisions: [
+    {
+      versionNumber: 2,
+      status: 'ISSUED',
+      saleTotal: '48250.0000',
+      currencyCode: 'BRL',
+      validUntil: '2026-12-31T23:59:59.000Z',
+      createdAt: '2026-01-02T10:00:00.000Z',
+      issuedAt: '2026-01-02T10:00:00.000Z',
+      acceptedAt: null,
+      rejectedAt: null,
+      expiredAt: null,
+      cancelledAt: null,
+      supersededAt: null,
+      isCurrent: true,
+      supersedesVersionNumber: 1,
+      itemCount: 2,
+    },
+    {
+      versionNumber: 1,
+      status: 'CANCELLED',
+      saleTotal: '45000.0000',
+      currencyCode: 'BRL',
+      validUntil: '2026-11-30T23:59:59.000Z',
+      createdAt: '2026-01-01T10:00:00.000Z',
+      issuedAt: '2026-01-01T10:00:00.000Z',
+      acceptedAt: null,
+      rejectedAt: null,
+      expiredAt: null,
+      cancelledAt: '2026-01-02T09:00:00.000Z',
+      supersededAt: '2026-01-02T10:00:00.000Z',
+      isCurrent: false,
+      supersedesVersionNumber: null,
+      itemCount: 1,
+    },
+  ],
+  revisionComparison: {
+    fromRevisionNumber: 1,
+    toRevisionNumber: 2,
+    fields: [
+      { field: 'saleTotal', label: 'Valor comercial', before: '45000.0000', after: '48250.0000' },
+    ],
+    lines: [
+      {
+        change: 'ADDED',
+        key: 'line:2',
+        description: 'Mobilização e desmobilização do equipamento',
+        fields: [
+          { field: 'lineSaleAmount', label: 'Valor da linha', before: null, after: '10250.0000' },
+        ],
+      },
+    ],
+    totals: { linesAdded: 1, linesRemoved: 0, linesChanged: 0 },
+  },
+  linkedChain: [
+    {
+      kind: 'REQUEST',
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      label: 'SR-2026-VISUAL',
+      status: 'APPROVED',
+      occurredAt: '2026-01-01T09:00:00.000Z',
+      viaLabel: null,
+    },
+  ],
+  hiddenLinkedRecords: false,
+  readiness: {
+    nextStep: 'AWAIT_CLIENT_DECISION',
+    nextStepTransition: 'accept',
+    availableTransitions: ['accept', 'reject', 'expire', 'cancel'],
+    blockers: [],
+  },
 };
 
 export const COMMERCIAL_PROPOSAL_VERSIONS_SNAPSHOT: ProposalVersion[] = [

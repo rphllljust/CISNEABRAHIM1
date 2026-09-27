@@ -8,10 +8,17 @@ import {
 import type {
   ProposalDocumentLinkRow,
   ProposalItemRow,
+  ProposalLinkedRow,
   ProposalListVersionRow,
   ProposalRow,
   ProposalVersionRow,
+  ProposalWorkbenchRow,
 } from '../repositories/proposals.repository.types';
+import type {
+  ProposalNextStepCode,
+  ProposalTransition,
+} from '../domain/proposal-readiness';
+import type { ProposalRevisionDiff } from '../domain/proposal-revision-diff';
 
 export type ProposalResponse = {
   id: string;
@@ -76,9 +83,60 @@ export type ProposalItemResponse = {
 
 export type ProposalDocumentLinkResponse = DocumentLinkResponse;
 
+/** Elo da cadeia comercial (origem ou destino), ja autorizado pelo modulo dono. */
+export type ProposalLinkedResponse = {
+  kind: string;
+  id: string;
+  label: string;
+  status: string | null;
+  occurredAt: string;
+  /** Quando a relacao chega por intermedio de outro objeto (ex.: pedido de compra via OS). */
+  viaLabel: string | null;
+};
+
+export type ProposalReadinessResponse = {
+  nextStep: ProposalNextStepCode;
+  nextStepTransition: ProposalTransition | null;
+  availableTransitions: ProposalTransition[];
+  blockers: string[];
+};
+
+export type ProposalRelatedResponse = {
+  client: { id: string; name: string } | null;
+};
+
+/** Revisao comercial: uma linha de `com.proposal_versions`, com o que ela substituiu. */
+export type ProposalRevisionSummaryResponse = {
+  versionNumber: number;
+  status: string;
+  saleTotal: string | null;
+  currencyCode: string;
+  validUntil: string | null;
+  createdAt: string;
+  issuedAt: string | null;
+  acceptedAt: string | null;
+  rejectedAt: string | null;
+  expiredAt: string | null;
+  cancelledAt: string | null;
+  supersededAt: string | null;
+  isCurrent: boolean;
+  supersedesVersionNumber: number | null;
+  itemCount: number;
+};
+
 export type ProposalDetailResponse = {
   proposal: ProposalResponse;
   currentVersion: ProposalVersionResponse | null;
+  related: ProposalRelatedResponse;
+  revisions: ProposalRevisionSummaryResponse[];
+  revisionComparison: ProposalRevisionDiff | null;
+  linkedChain: ProposalLinkedResponse[];
+  /**
+   * Verdadeiro quando existe vinculo gravado que o ator NAO pode ler. Declara existencia, nunca
+   * conteudo: nenhum id, numero, status ou valor do elo proibido e devolvido.
+   */
+  hiddenLinkedRecords: boolean;
+  readiness: ProposalReadinessResponse;
 };
 
 export function toProposalResponse(row: ProposalRow): ProposalResponse {
@@ -96,7 +154,8 @@ export function toProposalResponse(row: ProposalRow): ProposalResponse {
 }
 
 /**
- * Item da LISTAGEM: a proposta acrescida da projecao da versao corrente.
+ * Item da LISTAGEM: a proposta acrescida da projecao da versao corrente e do contexto comercial
+ * ja autorizado (nome do cliente e solicitacao de origem).
  *
  * Nenhum campo e derivado de suposicao. Quando a proposta ainda nao tem versao
  * (`currentVersionNumber === null` nao encontra linha em `com.proposal_versions`), todos os
@@ -108,6 +167,19 @@ export type ProposalListItemResponse = ProposalResponse & {
   validUntil: string | null;
   /** Valor de venda da versao corrente, conforme a regra de precificacao ja existente. */
   saleTotal: string | null;
+  /** Nome do cliente quando o modulo CLIENTES autoriza; `null` quando nao autoriza. */
+  clientName: string | null;
+  revisionNumber: number | null;
+  revisionCount: number;
+  /** Solicitacoes de origem que o ator PODE ler; quando nenhuma e legivel, vem vazio. */
+  originRequests: Array<{ id: string; requestCode: string; status: string }>;
+  issuedAt: string | null;
+  acceptedAt: string | null;
+};
+
+export type ProposalListEnrichment = {
+  clientName: string | null;
+  originRequests: Array<{ id: string; requestCode: string; status: string }>;
 };
 
 /**
@@ -128,6 +200,7 @@ function resolveProposalSaleTotal(version: ProposalListVersionRow): string | nul
 export function toProposalListItemResponse(
   row: ProposalRow,
   currentVersion: ProposalListVersionRow | null,
+  enrichment: ProposalListEnrichment = { clientName: null, originRequests: [] },
 ): ProposalListItemResponse {
   return {
     ...toProposalResponse(row),
@@ -135,6 +208,91 @@ export function toProposalListItemResponse(
     currencyCode: currentVersion?.currency_code ?? null,
     validUntil: currentVersion?.valid_until ?? null,
     saleTotal: currentVersion ? resolveProposalSaleTotal(currentVersion) : null,
+    clientName: enrichment.clientName,
+    revisionNumber: row.current_version_number,
+    revisionCount: 0,
+    originRequests: enrichment.originRequests,
+    issuedAt: null,
+    acceptedAt: null,
+  };
+}
+
+/**
+ * Item da fila comercial a partir da projecao de trabalho (proposta + versao corrente + contagem
+ * de revisoes calculada no banco).
+ */
+export function toProposalWorkbenchItemResponse(
+  row: ProposalWorkbenchRow,
+  enrichment: ProposalListEnrichment,
+): ProposalListItemResponse {
+  const saleTotal = row.pricing_structure
+    ? resolveProposalSaleTotal({
+        proposal_id: row.id,
+        status: row.current_version_status ?? '',
+        currency_code: row.currency_code ?? '',
+        pricing_structure: row.pricing_structure,
+        global_sale_price_amount: row.global_sale_price_amount,
+        items_sale_total_amount: row.items_sale_total_amount,
+        valid_until: row.valid_until,
+      })
+    : null;
+
+  return {
+    ...toProposalResponse(row),
+    currentVersionStatus: row.current_version_status,
+    currencyCode: row.currency_code,
+    validUntil: row.valid_until,
+    saleTotal,
+    clientName: enrichment.clientName,
+    revisionNumber: row.revision_number,
+    revisionCount: row.revision_count,
+    originRequests: enrichment.originRequests,
+    issuedAt: row.issued_at,
+    acceptedAt: row.accepted_at,
+  };
+}
+
+export function toProposalLinkedResponse(row: ProposalLinkedRow): ProposalLinkedResponse {
+  return {
+    kind: row.kind,
+    id: row.id,
+    label: row.label,
+    status: row.status,
+    occurredAt: row.occurred_at,
+    viaLabel: row.via_label,
+  };
+}
+
+export function toProposalRevisionSummaryResponse(
+  version: ProposalVersionRow,
+  currentVersionNumber: number | null,
+  itemCount: number,
+  previousVersionNumber: number | null,
+): ProposalRevisionSummaryResponse {
+  return {
+    versionNumber: version.version_number,
+    status: version.status,
+    saleTotal: resolveProposalSaleTotal({
+      proposal_id: version.proposal_id,
+      status: version.status,
+      currency_code: version.currency_code,
+      pricing_structure: version.pricing_structure,
+      global_sale_price_amount: version.global_sale_price_amount,
+      items_sale_total_amount: version.items_sale_total_amount,
+      valid_until: version.valid_until,
+    }),
+    currencyCode: version.currency_code,
+    validUntil: version.valid_until,
+    createdAt: version.created_at,
+    issuedAt: version.issued_at,
+    acceptedAt: version.accepted_at,
+    rejectedAt: version.rejected_at,
+    expiredAt: version.expired_at,
+    cancelledAt: version.cancelled_at,
+    supersededAt: version.superseded_at,
+    isCurrent: currentVersionNumber === version.version_number,
+    supersedesVersionNumber: previousVersionNumber,
+    itemCount,
   };
 }
 
@@ -207,11 +365,31 @@ export function buildProposalDetail(
   version: ProposalVersionRow | null,
   items: ProposalItemRow[],
   documents: ProposalDocumentLinkRow[],
+  extras: {
+    related?: ProposalRelatedResponse;
+    revisions?: ProposalRevisionSummaryResponse[];
+    revisionComparison?: ProposalRevisionDiff | null;
+    linkedChain?: ProposalLinkedRow[];
+    hiddenLinkedRecords?: boolean;
+    readiness?: ProposalReadinessResponse;
+  } = {},
 ): ProposalDetailResponse {
   return {
     proposal: toProposalResponse(proposal),
     currentVersion: version
       ? toProposalVersionResponse(version, items, documents)
       : null,
+    related: extras.related ?? { client: null },
+    revisions: extras.revisions ?? [],
+    revisionComparison: extras.revisionComparison ?? null,
+    linkedChain: (extras.linkedChain ?? []).map(toProposalLinkedResponse),
+    hiddenLinkedRecords: extras.hiddenLinkedRecords ?? false,
+    readiness:
+      extras.readiness ?? {
+        nextStep: 'CLOSED',
+        nextStepTransition: null,
+        availableTransitions: [],
+        blockers: [],
+      },
   };
 }

@@ -1,7 +1,13 @@
 import {
   isProposalItemKind,
   isProposalPricingStructure,
+  isProposalVersionStatus,
 } from '../domain/proposal';
+import {
+  isProposalListDirection,
+  isProposalListSort,
+} from '../repositories/proposal-list-sql';
+import type { ProposalListQuery } from '../services/proposals-access.service';
 import type {
   AcceptProposalInput,
   CancelProposalInput,
@@ -178,8 +184,32 @@ export function parseLinkProposalDocumentInput(body: unknown): LinkProposalDocum
   return parseLinkDocumentInput(body);
 }
 
-export function parseListProposalsQuery(query: Record<string, unknown>) {
-  return parseCommercialEntityListQuery(query);
+export function parseListProposalsQuery(query: Record<string, unknown>): ProposalListQuery {
+  const base = parseCommercialEntityListQuery(query);
+  const status = typeof query['status'] === 'string' ? query['status'] : undefined;
+  if (status && !isProposalVersionStatus(status)) {
+    throw new Error('status invalid');
+  }
+  const sort = typeof query['sort'] === 'string' ? query['sort'] : undefined;
+  const direction = typeof query['direction'] === 'string' ? query['direction'] : undefined;
+  if (sort !== undefined && !isProposalListSort(sort)) {
+    throw new Error('sort invalid');
+  }
+  if (direction !== undefined && !isProposalListDirection(direction)) {
+    throw new Error('direction invalid');
+  }
+  return {
+    ...base,
+    status,
+    currencyCode: typeof query['currencyCode'] === 'string' ? query['currencyCode'] : undefined,
+    validFrom: typeof query['validFrom'] === 'string' ? query['validFrom'] : undefined,
+    validTo: typeof query['validTo'] === 'string' ? query['validTo'] : undefined,
+    createdFrom: typeof query['createdFrom'] === 'string' ? query['createdFrom'] : undefined,
+    createdTo: typeof query['createdTo'] === 'string' ? query['createdTo'] : undefined,
+    search: typeof query['q'] === 'string' ? query['q'] : undefined,
+    sort: sort && isProposalListSort(sort) ? sort : undefined,
+    direction: direction && isProposalListDirection(direction) ? direction : undefined,
+  };
 }
 
 export function parseVersionNumberParam(value: string): number {

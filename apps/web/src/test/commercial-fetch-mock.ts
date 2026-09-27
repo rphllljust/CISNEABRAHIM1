@@ -26,6 +26,8 @@ export type CommercialFetchMockOptions = {
   proposalExpireAllowed?: boolean;
   proposalCancelAllowed?: boolean;
   proposalVersionConflict?: boolean;
+  /** Cadeia comercial simulada (elos ja autorizados pelo modulo dono). */
+  proposalLinkedChain?: ProposalDetail['linkedChain'];
   purchaseOrderListAllowed?: boolean;
   purchaseOrderCreateAllowed?: boolean;
   purchaseOrderUpdateAllowed?: boolean;
@@ -108,8 +110,105 @@ function buildProposalVersion(
   };
 }
 
-function toProposalDetail(proposal: Proposal, version: ProposalVersion): ProposalDetail {
-  return { proposal, currentVersion: version };
+const PROPOSAL_TRANSITIONS: Record<string, ProposalDetail['readiness']['availableTransitions']> = {
+  DRAFT: ['issue', 'cancel'],
+  ISSUED: ['accept', 'reject', 'expire', 'cancel'],
+  ACCEPTED: ['revise'],
+  REJECTED: ['revise'],
+  EXPIRED: ['revise'],
+  CANCELLED: ['revise'],
+};
+
+const PROPOSAL_NEXT_STEP: Record<
+  string,
+  {
+    step: ProposalDetail['readiness']['nextStep'];
+    transition: ProposalDetail['readiness']['nextStepTransition'];
+  }
+> = {
+  DRAFT: { step: 'COMPLETE_AND_ISSUE', transition: 'issue' },
+  ISSUED: { step: 'AWAIT_CLIENT_DECISION', transition: 'accept' },
+  ACCEPTED: { step: 'FOLLOW_COMMERCIAL_FLOW', transition: null },
+  REJECTED: { step: 'CREATE_NEW_REVISION', transition: 'revise' },
+  EXPIRED: { step: 'CREATE_NEW_REVISION', transition: 'revise' },
+  CANCELLED: { step: 'CREATE_NEW_REVISION', transition: 'revise' },
+};
+
+/** Concessoes simuladas pelo dublê — a prontidão só oferece o que o ator pode executar. */
+export type ProposalMockPermissions = {
+  issue: boolean;
+  accept: boolean;
+  reject: boolean;
+  expire: boolean;
+  cancel: boolean;
+  revise: boolean;
+};
+
+/** Espelho da derivacao do backend: transicoes reais do estado ∩ permissões do ator. */
+function buildProposalReadiness(
+  status: string,
+  permissions: ProposalMockPermissions,
+): ProposalDetail['readiness'] {
+  const permitted: Record<string, boolean> = {
+    issue: permissions.issue,
+    accept: permissions.accept,
+    reject: permissions.reject,
+    expire: permissions.expire,
+    cancel: permissions.cancel,
+    revise: permissions.revise,
+  };
+  const availableTransitions = (PROPOSAL_TRANSITIONS[status] ?? []).filter(
+    (transition) => permitted[transition] ?? false,
+  );
+  const next = PROPOSAL_NEXT_STEP[status] ?? { step: 'CLOSED' as const, transition: null };
+  return {
+    nextStep: next.step,
+    nextStepTransition:
+      next.transition && availableTransitions.includes(next.transition) ? next.transition : null,
+    availableTransitions,
+    blockers: [],
+  };
+}
+
+/**
+ * Detalhe do dublê com a MESMA composição do backend: cliente autorizado, revisões, comparação,
+ * cadeia e prontidão derivada dos estados reais da máquina de estados.
+ */
+function toProposalDetail(
+  proposal: Proposal,
+  version: ProposalVersion,
+  permissions: ProposalMockPermissions,
+  linkedChain: ProposalDetail['linkedChain'] = [],
+  hiddenLinkedRecords = false,
+): ProposalDetail {
+  return {
+    proposal,
+    currentVersion: version,
+    related: { client: { id: proposal.clientId, name: 'Cliente Demo' } },
+    revisions: [
+      {
+        versionNumber: version.versionNumber,
+        status: version.status,
+        saleTotal: version.globalSalePrice,
+        currencyCode: version.currencyCode,
+        validUntil: version.validUntil,
+        createdAt: '2026-01-01T12:00:00.000Z',
+        issuedAt: version.issuedAt,
+        acceptedAt: version.acceptedAt,
+        rejectedAt: version.rejectedAt,
+        expiredAt: version.expiredAt,
+        cancelledAt: version.cancelledAt,
+        supersededAt: version.supersededAt,
+        isCurrent: true,
+        supersedesVersionNumber: version.versionNumber > 1 ? version.versionNumber - 1 : null,
+        itemCount: version.items.length,
+      },
+    ],
+    revisionComparison: null,
+    linkedChain,
+    hiddenLinkedRecords,
+    readiness: buildProposalReadiness(version.status, permissions),
+  };
 }
 
 export function createCommercialFetchMock(options: CommercialFetchMockOptions = {}) {
@@ -126,6 +225,17 @@ export function createCommercialFetchMock(options: CommercialFetchMockOptions = 
   const proposalRejectAllowed = options.proposalRejectAllowed ?? true;
   const proposalExpireAllowed = options.proposalExpireAllowed ?? true;
   const proposalCancelAllowed = options.proposalCancelAllowed ?? true;
+  const proposalPermissions: ProposalMockPermissions = {
+    issue: proposalIssueAllowed,
+    accept: proposalAcceptAllowed,
+    reject: proposalRejectAllowed,
+    expire: proposalExpireAllowed,
+    cancel: proposalCancelAllowed,
+    revise: proposalUpdateAllowed,
+  };
+  const detail = (proposal: Proposal, version: ProposalVersion) =>
+    toProposalDetail(proposal, version, proposalPermissions, options.proposalLinkedChain ?? []);
+
   const poListAllowed = options.purchaseOrderListAllowed ?? true;
   const poCreateAllowed = options.purchaseOrderCreateAllowed ?? true;
   const poUpdateAllowed = options.purchaseOrderUpdateAllowed ?? true;
@@ -282,7 +392,7 @@ export function createCommercialFetchMock(options: CommercialFetchMockOptions = 
         }
         proposals.unshift(proposal);
         proposalVersions.set(id, [version]);
-        return jsonResponse(toProposalDetail(proposal, version), 201);
+        return jsonResponse(detail(proposal, version), 201);
       }
 
       const proposalMatch = pathname.match(/^\/api\/v1\/commercial\/proposals\/([^/]+)$/);
@@ -292,7 +402,7 @@ export function createCommercialFetchMock(options: CommercialFetchMockOptions = 
           return requestError('COMMERCIAL_PROPOSAL_NOT_FOUND', 404);
         }
         const version = currentVersion(proposal.id);
-        return jsonResponse(toProposalDetail(proposal, version!));
+        return jsonResponse(detail(proposal, version!));
       }
 
       const versionsMatch = pathname.match(
@@ -353,7 +463,7 @@ export function createCommercialFetchMock(options: CommercialFetchMockOptions = 
         }
         version.rowVersion += 1;
         proposal.updatedAt = new Date().toISOString();
-        return jsonResponse(toProposalDetail(proposal, version));
+        return jsonResponse(detail(proposal, version));
       }
 
       if (!proposalListAllowed && method !== 'GET') {

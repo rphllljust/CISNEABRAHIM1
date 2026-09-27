@@ -61,8 +61,8 @@ describe('proposals administrative flow e2e (frontend)', () => {
       expect(screen.getByText('Proposta E2E')).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('button', { name: /^emitir$/i }));
-    await user.click(screen.getByRole('button', { name: /^aceitar$/i }));
+    await user.click(screen.getByRole('button', { name: /emitir proposta/i }));
+    await user.click(screen.getByRole('button', { name: /registrar aceite/i }));
     await user.click(screen.getByRole('button', { name: /confirmar aceitação/i }));
 
     await waitFor(() => {
