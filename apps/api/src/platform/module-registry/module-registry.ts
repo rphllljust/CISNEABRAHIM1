@@ -93,6 +93,16 @@ export const MODULE_REGISTRY_DEFINITIONS: ModuleRegistryDefinition[] = [
   { moduleCode: 'people', name: 'Pessoas', description: 'Cadastro de pessoas vinculadas à operação.', domain: 'Recursos', authzDomains: ['people'], gatedModuleId: 'people', routes: ['/api/v1/people'] },
   { moduleCode: 'finance', name: 'Financeiro', description: 'Contas a receber, a pagar, tesouraria, despesas e orçamento.', domain: 'Financeiro', authzDomains: ['finance'], gatedModuleId: 'finance', routes: ['/api/v1/finance'] },
   { moduleCode: 'accounting', name: 'Contabilidade', description: 'Plano de contas, lançamentos, relatórios contábeis e fechamento de período.', domain: 'Contábil', authzDomains: ['accounting'], gatedModuleId: 'accounting', routes: ['/api/v1/accounting'] },
+  /**
+   * SUPERFÍCIE TRANSVERSAL DECLARADA (decisão registrada em 2026-09-27).
+   *
+   * A Central de fechamento reúne a prontidão de uma unidade+competência atravessando
+   * contas a receber, contas a pagar, tesouraria, conciliação, fiscal e contábil — não é
+   * um módulo de um único domínio. Por isso ela NÃO carrega `gatedModuleId` do contábil:
+   * o comportamento anterior era acidental (menu escondia, rota respondia). A autorização
+   * continua sendo decidida por capability no backend (`accounting:journal:read`).
+   */
+  { moduleCode: 'closing', name: 'Central de fechamento', description: 'Superfície transversal de fechamento: prontidão contábil, fiscal e financeira de uma unidade e competência.', domain: 'Contábil', authzDomains: ['accounting', 'fiscal', 'finance'], routes: ['/api/v1/closing'] },
   { moduleCode: 'fiscal', name: 'Fiscal', description: 'Documentos fiscais, motor de tributos e obrigações tributárias.', domain: 'Fiscal', authzDomains: ['fiscal'], gatedModuleId: 'fiscal', routes: ['/api/v1/fiscal'] },
   { moduleCode: 'inventory', name: 'Estoque', description: 'Itens, saldos, movimentações e custeio de estoque.', domain: 'Suprimentos', authzDomains: ['inventory'], gatedModuleId: 'inventory', routes: ['/api/v1/inventory'] },
   { moduleCode: 'payroll', name: 'Folha de pagamento', description: 'Contratos, períodos e regras versionadas de folha.', domain: 'Recursos', authzDomains: ['payroll'], gatedModuleId: 'payroll', routes: ['/api/v1/payroll'] },
@@ -101,6 +111,15 @@ export const MODULE_REGISTRY_DEFINITIONS: ModuleRegistryDefinition[] = [
   { moduleCode: 'contracts', name: 'Contratos comerciais', description: 'Vigência, versionamento imutável e expiração de contratos.', domain: 'Comercial', authzDomains: ['commercial'], gatedModuleId: 'contracts', routes: ['/api/v1/commercial/contracts'] },
   { moduleCode: 'issuer', name: 'Cadastro e emissão', description: 'Cadastro da própria empresa (legal entity, estabelecimento e CNPJ emissor).', domain: 'Fiscal', authzDomains: ['issuer'], routes: ['/api/v1/establishments', '/api/v1/issuer/establishments'] },
   { moduleCode: 'alerts', name: 'Alertas', description: 'Alertas operacionais e de negócio.', domain: 'Sistema', authzDomains: [], gatedModuleId: 'alerts', routes: ['/api/v1/alerts'] },
+  /**
+   * FRONTEIRA COM O ALERT CENTER (decisão registrada em 2026-09-27).
+   *
+   * Alert Center = notificação/evento (o que aconteceu, política de avaliação e transição).
+   * Central de trabalho = trabalho acionável (o que exige ação agora, com motivo e rota de
+   * resolução). A fila LÊ alertas como uma das fontes, mas não é uma segunda caixa de
+   * notificações: ela não cria evento, não avalia política e não persiste estado próprio.
+   */
+  { moduleCode: 'work-inbox', name: 'Central de trabalho', description: 'Fila única de trabalho autorizado de todos os domínios, somente leitura e sem estado próprio.', domain: 'Sistema', authzDomains: [], routes: ['/api/v1/work-inbox'] },
   { moduleCode: 'reports', name: 'Relatórios', description: 'Relatórios e exportações operacionais.', domain: 'Sistema', authzDomains: [], gatedModuleId: 'reports', routes: ['/api/v1/reports'] },
   { moduleCode: 'approval-matrix', name: 'Matrizes de aprovação', description: 'Regras de aprovação financeira por matriz.', domain: 'Financeiro', authzDomains: ['authz'], gatedModuleId: 'approval-matrix', routes: ['/api/v1/authz/approval-matrices'] },
   { moduleCode: 'operational-profitability', name: 'Rentabilidade operacional', description: 'Análise de rentabilidade por ordem de serviço.', domain: 'Contábil', authzDomains: [], gatedModuleId: 'operational-profitability', routes: ['/api/v1/analytics/operational-profitability'] },
