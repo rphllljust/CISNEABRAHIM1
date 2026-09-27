@@ -112,24 +112,14 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
     keywords: ['orcamento', 'rascunho', 'budget', 'draft'],
     hint: 'Orçamentos ainda não aprovados',
   },
-  {
-    id: 'view.reconciliation.unmatched',
-    kind: 'view',
-    group: COMMAND_GROUPS.view,
-    label: 'Não conciliados',
-    to: '/app/finance/reconciliation?matchStatus=UNMATCHED',
-    keywords: ['conciliacao', 'nao conciliado', 'banco', 'divergencia', 'unmatched'],
-    hint: 'Itens de extrato sem vínculo com o sistema',
-  },
-  {
-    id: 'view.reconciliation.review',
-    kind: 'view',
-    group: COMMAND_GROUPS.view,
-    label: 'Conciliação exigindo revisão',
-    to: '/app/finance/reconciliation?matchStatus=REVIEW_REQUIRED',
-    keywords: ['conciliacao', 'revisao', 'divergencia', 'review'],
-    hint: 'Itens de conciliação marcados para revisão',
-  },
+  // PARK (SILENT_FILTER_GAP): os comandos "Não conciliados" e "Em revisão"
+  // apontavam para `/app/finance/reconciliation?matchStatus=...`, mas a tela é uma
+  // bancada de consulta por identificador de extrato e NÃO lê search params — o
+  // filtro era prometido no comando e silenciosamente descartado na chegada.
+  // Um filtro real exige listagem de extratos no backend (`GET statements`), que
+  // não existe no clone local: registrado como `PARK: HUMAN_LOOKUP_API_GAP` na
+  // matriz. Enquanto isso, a navegação continua coberta pelo comando de nav
+  // `nav:/app/finance/reconciliation`. Não reintroduzir comando sem filtro real.
   {
     id: 'view.journals.draft',
     kind: 'view',
