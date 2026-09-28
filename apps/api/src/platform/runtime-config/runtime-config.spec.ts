@@ -68,17 +68,34 @@ describe('runtime config validation', () => {
     expect(missing.some((e) => e.startsWith('JWT_SECRET:'))).toBe(true);
   });
 
-  it('requires S3 endpoint and credentials when provider=s3', () => {
+  it('requires static S3 credentials when IAM role is not configured', () => {
     const env = withEnv({
       ...PROD_API_OK,
       OBJECT_STORAGE_ENDPOINT: '',
       OBJECT_STORAGE_S3_ACCESS_KEY_ID: '',
       OBJECT_STORAGE_S3_SECRET_ACCESS_KEY: '',
+      OBJECT_STORAGE_IAM_ROLE: 'false',
     });
     const errors = collectRuntimeConfigErrors('api', env);
-    expect(errors.some((e) => e.startsWith('OBJECT_STORAGE_ENDPOINT:'))).toBe(true);
     expect(errors.some((e) => e.includes('S3_ACCESS_KEY_ID'))).toBe(true);
     expect(errors.some((e) => e.includes('S3_SECRET_ACCESS_KEY'))).toBe(true);
+    expect(errors.some((e) => e.startsWith('OBJECT_STORAGE_ENDPOINT:'))).toBe(false);
+  });
+
+  it('accepts native S3 with IAM role and no static credentials or custom endpoint', () => {
+    const env = withEnv({
+      NODE_ENV: 'production',
+      CISNE_ENV: 'production',
+      DATABASE_URL: 'postgresql://u:p@host/db',
+      JWT_SECRET: 'c'.repeat(40),
+      OBJECT_STORAGE_PROVIDER: 's3',
+      OBJECT_STORAGE_BUCKET: 'cisne-prod-documents',
+      OBJECT_STORAGE_IAM_ROLE: 'true',
+      OBJECT_STORAGE_ENDPOINT: '',
+      OBJECT_STORAGE_S3_ACCESS_KEY_ID: '',
+      OBJECT_STORAGE_S3_SECRET_ACCESS_KEY: '',
+    });
+    expect(collectRuntimeConfigErrors('api', env)).toEqual([]);
   });
 
   it('accepts S3 aliases used by infra env files (S3_ACCESS_KEY_ID / OBJECT_STORAGE_ENDPOINT)', () => {
