@@ -17,6 +17,10 @@ export const MOCK_OBLIGATION_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa12';
 export type FinanceFetchMockOptions = {
   receivableListAllowed?: boolean;
   payableListAllowed?: boolean;
+  /** Título a pagar já quitado: encerra o fluxo e remove a próxima ação. */
+  payableSettled?: boolean;
+  /** Título a pagar com um pagamento PERSISTIDO, para o histórico real. */
+  payablePaid?: boolean;
   treasuryListAllowed?: boolean;
   reconciliationAllowed?: boolean;
   fiscalAllowed?: boolean;
@@ -192,6 +196,57 @@ export function createFinanceFetchMock(options: FinanceFetchMockOptions = {}) {
         updatedAt: '2026-08-01T12:00:00.000Z',
         installments: [],
         settlements: [],
+      });
+    }
+
+    if (pathname === `/api/v1/finance/payables/${MOCK_PAYABLE_ID}` && method === 'GET') {
+      if (options.payableListAllowed === false) {
+        return denied('FINANCE_DENIED');
+      }
+      const paid = options.payablePaid === true || options.payableSettled === true;
+      return jsonResponse({
+        id: MOCK_PAYABLE_ID,
+        unitId: 'unit-1',
+        counterpartyId: 'vendor-1',
+        origin: { kind: 'MANUAL', id: 'origin-1', reference: 'AP-001' },
+        expenseCategoryId: 'cat-1',
+        costCenter: { id: 'cc-1', code: 'ADM' },
+        principal: '800.0000',
+        currencyCode: 'BRL',
+        dueDate: '2026-09-05',
+        paymentTerms: 'À vista',
+        externalReference: 'AP-001',
+        status: paid ? 'PAID' : 'OPEN',
+        agingBucket: paid ? 'SETTLED' : 'CURRENT',
+        remainingBalance: paid ? '0.0000' : '800.0000',
+        paidAmount: paid ? '800.0000' : '0.0000',
+        lifecycle: 'ACTIVE',
+        cancelledAt: null,
+        cancelReason: null,
+        rowVersion: paid ? 2 : 1,
+        createdAt: '2026-08-01T12:00:00.000Z',
+        updatedAt: paid ? '2026-09-06T12:00:00.000Z' : '2026-08-01T12:00:00.000Z',
+        installments: [],
+        payments: paid
+          ? [
+              {
+                id: 'pay-1',
+                installmentId: 'inst-1',
+                kind: 'PAYMENT',
+                amount: '800.0000',
+                currencyCode: 'BRL',
+                paidAt: '2026-09-06T12:00:00.000Z',
+                idempotencyKey: 'idem-pay-1',
+                paymentReference: 'PAG-001',
+                originKind: 'TREASURY_ACCOUNT',
+                originId: 'acct-1',
+                originReference: 'BAN-1 — Conta principal',
+                reversesPaymentId: null,
+                actorIdentityId: 'identity-1',
+                createdAt: '2026-09-06T12:00:00.000Z',
+              },
+            ]
+          : [],
       });
     }
 
