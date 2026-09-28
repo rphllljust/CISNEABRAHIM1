@@ -15,6 +15,7 @@ export type CdPipelineDeps = {
   runMigrations?: () => Promise<{ ok: boolean; detail: string }>;
   checkHealth?: (baseUrl: string) => Promise<{ ok: boolean; detail: string }>;
   runSmoke?: (baseUrl: string) => Promise<{ ok: boolean; detail: string }>;
+  deployProduction?: (manifest: DeployManifest) => Promise<{ ok: boolean; detail: string }>;
   history?: DeployHistory;
   /** Test hook — defaults to production readiness guard */
   assertProductionReadiness?: (env: NodeJS.ProcessEnv) => void;
@@ -129,14 +130,47 @@ export async function runCdPromotion(input: {
     return fail(ciManifest, stages, detail, history);
   }
 
-  if (input.sourceManifest) {
-    try {
-      assertSameArtifactPromotion(input.sourceManifest, ciManifest);
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      stages.push(stage('production_deploy', 'Promote same artifact to PRD', false, detail));
-      return fail(ciManifest, stages, detail, history);
-    }
+  if (!input.sourceManifest) {
+    const detail = 'Production promotion requires a source CI manifest; build-once provenance is mandatory';
+    stages.push(stage('production_deploy', 'Promote same artifact to PRD', false, detail));
+    return fail(ciManifest, stages, detail, history);
+  }
+
+  try {
+    assertSameArtifactPromotion(input.sourceManifest, ciManifest);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    stages.push(stage('production_deploy', 'Promote same artifact to PRD', false, detail));
+    return fail(ciManifest, stages, detail, history);
+  }
+
+  const prdManifest = withEnvironment(ciManifest, 'production');
+  if (!deps.deployProduction) {
+    const detail =
+      'Production deploy adapter is not configured; refusing to report PASS without an external deployment';
+    stages.push(stage('production_deploy', 'Promote same artifact to PRD', false, detail));
+    return fail(ciManifest, stages, detail, history);
+  }
+
+  const deployed = await deps.deployProduction(prdManifest);
+  if (!deployed.ok) {
+    stages.push(stage('production_deploy', 'Promote same artifact to PRD', false, deployed.detail));
+    return fail(ciManifest, stages, deployed.detail, history);
+  }
+
+  const productionBaseUrl = env['PROD_PUBLIC_API_URL']?.trim();
+  if (!productionBaseUrl || !deps.checkHealth) {
+    const detail =
+      'Production health verification requires PROD_PUBLIC_API_URL and an active health-check runner';
+    stages.push(stage('production_deploy', 'Promote same artifact to PRD', false, detail));
+    return fail(ciManifest, stages, detail, history);
+  }
+
+  const health = await deps.checkHealth(productionBaseUrl);
+  if (!health.ok) {
+    const detail = `production deploy completed but readiness check failed: ${health.detail}`;
+    stages.push(stage('production_deploy', 'Promote same artifact to PRD', false, detail));
+    return fail(ciManifest, stages, detail, history);
   }
 
   stages.push(
@@ -144,10 +178,9 @@ export async function runCdPromotion(input: {
       'production_deploy',
       'Promote same artifact to PRD',
       true,
-      'no rebuild; application-only rollback available',
+      `${deployed.detail}; readiness=${health.detail}; no rebuild`,
     ),
   );
-  const prdManifest = withEnvironment(ciManifest, 'production');
   const updated = appendDeployHistory(history, prdManifest);
   const rollback = buildRollbackPlan(updated, 'production');
   return {
