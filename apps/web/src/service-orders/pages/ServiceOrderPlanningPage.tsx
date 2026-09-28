@@ -17,6 +17,7 @@ import {
   type ObjectAction,
 } from '../../enterprise-object';
 import { ActivityTimeline } from '../../operator';
+import { BusinessChain, useBusinessChain } from '../../business-chain';
 import type { BreadcrumbItem } from '../../ui/Breadcrumb';
 import { getServiceOrder } from '../api/service-orders-api';
 import { ServiceOrdersApiError } from '../api/service-orders-api';
@@ -85,6 +86,9 @@ export function ServiceOrderPlanningPage() {
   const { serviceOrderId = '' } = useParams();
   const navigate = useNavigate();
   const { capabilities } = useServiceOrderPlanningCapabilities();
+  // Cadeia empresarial desta OS: origem comercial (solicitação, proposta, pedido) e resultado
+  // operacional (medição, faturamento) em UMA requisição, já autorizados pelo servidor.
+  const businessChain = useBusinessChain('SERVICE_ORDER', serviceOrderId);
   const feedbackId = useId();
   const [state, setState] = useState<PageState>({ phase: 'loading' });
   const [feedback, setFeedback] = useState<{ tone: 'error' | 'success' | 'info'; message: string } | null>(null);
@@ -609,6 +613,17 @@ export function ServiceOrderPlanningPage() {
             />
           </section>
         ) : null}
+
+        {/* De onde veio / o que foi gerado: a linhagem comercial e operacional desta OS. */}
+        <section className="planning-section" aria-label="Cadeia de negócio">
+          <BusinessChain
+            chain={businessChain.chain}
+            phase={businessChain.phase}
+            message={businessChain.message}
+            onRetry={businessChain.retry}
+            title="Cadeia de negócio da ordem"
+          />
+        </section>
 
         <section className="planning-section" aria-labelledby="planning-summary-heading">
           <h2 id="planning-summary-heading">Resumo operacional</h2>

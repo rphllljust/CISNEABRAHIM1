@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { AlertsModule } from './alerts/alerts.module';
 import { WorkInboxModule } from './work-inbox/work-inbox.module';
+import { BusinessChainModule } from './business-chain/business-chain.module';
 import { IntegrationsAclModule } from './integrations/acl/integrations-acl.module';
 import { IntegrationsInboxModule } from './integrations/inbox/integrations-inbox.module';
 import { BackgroundJobsModule } from './platform/background-jobs/background-jobs.module';
@@ -41,7 +42,7 @@ import { ReleaseScopeGuard } from './platform/release-scope/release-scope.guard'
 import { ModuleRegistryModule } from './platform/module-registry/module-registry.module';
 
 @Module({
-  imports: [ModuleRegistryModule, FaultInjectionModule, SecurityModule, ObservabilityModule, HealthModule, AuditModule, AuthModule, AuthorizationModule, ClientsModule, SuppliersModule, PeopleModule, IssuerRegistryModule, CatalogModule, CommercialModule, ProcurementModule, RequestsModule, ServiceOrdersModule, MeasurementsModule, BillingModule, FinanceModule, AccountingModule, FiscalModule, InventoryModule, PayrollModule, ResourcesModule, DocumentsModule, EventsModule, NotificationsModule, DashboardModule, AnalyticsModule, AlertsModule, WorkInboxModule, SearchModule, ReportsModule, BackgroundJobsModule, OutboxModule, IntegrationsAclModule, IntegrationsInboxModule],
+  imports: [ModuleRegistryModule, FaultInjectionModule, SecurityModule, ObservabilityModule, HealthModule, AuditModule, AuthModule, AuthorizationModule, ClientsModule, SuppliersModule, PeopleModule, IssuerRegistryModule, CatalogModule, CommercialModule, ProcurementModule, RequestsModule, ServiceOrdersModule, MeasurementsModule, BillingModule, FinanceModule, AccountingModule, FiscalModule, InventoryModule, PayrollModule, ResourcesModule, DocumentsModule, EventsModule, NotificationsModule, DashboardModule, AnalyticsModule, AlertsModule, WorkInboxModule, BusinessChainModule, SearchModule, ReportsModule, BackgroundJobsModule, OutboxModule, IntegrationsAclModule, IntegrationsInboxModule],
   providers: [{ provide: APP_GUARD, useClass: ReleaseScopeGuard }],
 })
 export class AppModule {}

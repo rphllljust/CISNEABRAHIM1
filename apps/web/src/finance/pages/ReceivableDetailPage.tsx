@@ -31,6 +31,7 @@ import {
   type ObjectStateStep,
 } from '../../enterprise-object';
 import { ActivityTimeline, type ActivityFact } from '../../operator';
+import { BusinessChain, useBusinessChain } from '../../business-chain';
 import { cancelReceivable, getReceivable, settleReceivable } from '../api/finance-api';
 import { CollectionPanel } from '../components/CollectionPanel';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
@@ -209,6 +210,9 @@ export function ReceivableDetailPage() {
 
   const clientName = useClientName(state.phase === 'ready' ? state.data.clientId : '');
   const canReadServiceOrders = useServiceOrderReadAccess();
+  // Cadeia empresarial do titulo: origem (faturamento, medicao, OS) e resultados (liquidacoes)
+  // em UMA requisicao. O servidor ja omitiu todo no nao autorizado.
+  const businessChain = useBusinessChain('RECEIVABLE', state.phase === 'ready' ? state.data.id : '');
 
   // Estados de pagina resolvidos pela moldura do contrato: negacao, ausencia e falha
   // nao se confundem entre si.
@@ -372,6 +376,15 @@ export function ReceivableDetailPage() {
         {/* O contexto entra no corpo: a moldura do contrato nesta revisao nao renderiza o
             slot `context` (so breadcrumb, header, fluxo, proxima acao, relacoes e corpo). */}
         <ObjectContextBlock fields={contextFields} columns={3} />
+
+        {/* De onde veio / o que foi gerado: a linhagem completa do titulo, por clique. */}
+        <BusinessChain
+          chain={businessChain.chain}
+          phase={businessChain.phase}
+          message={businessChain.message}
+          onRetry={businessChain.retry}
+          title="Cadeia de negócio do título"
+        />
 
         {item.installments.length > 0 ? (
           <ObjectPanel title="Parcelas do título">
