@@ -124,18 +124,43 @@ describe('CD pipeline (Prompt 87)', () => {
     expect(blockedByReadiness.status).toBe('FAIL');
     expect(blockedByReadiness.error).toMatch(/Production operations blocked/);
 
+    const noDeployAdapter = await runCdPromotion({
+      manifestInput: manifestInput(),
+      targetEnvironment: 'production',
+      sourceManifest: ci,
+      env: {
+        PRD_PROMOTION_APPROVED: 'I_UNDERSTAND',
+        PROD_PUBLIC_API_URL: 'https://api.cisne.example',
+      },
+      deps: {
+        assessMigrations: safeMigrations,
+        assertProductionReadiness: () => undefined,
+        checkHealth: async () => ({ ok: true, detail: 'ready' }),
+      },
+    });
+    expect(noDeployAdapter.status).toBe('FAIL');
+    expect(noDeployAdapter.error).toMatch(/deploy adapter/i);
+
     const approved = await runCdPromotion({
       manifestInput: manifestInput(),
       targetEnvironment: 'production',
       sourceManifest: ci,
-      env: { PRD_PROMOTION_APPROVED: 'I_UNDERSTAND' },
+      env: {
+        PRD_PROMOTION_APPROVED: 'I_UNDERSTAND',
+        PROD_PUBLIC_API_URL: 'https://api.cisne.example',
+      },
       deps: {
         assessMigrations: safeMigrations,
         assertProductionReadiness: () => undefined,
+        deployProduction: async () => ({ ok: true, detail: 'external deploy complete' }),
+        checkHealth: async () => ({ ok: true, detail: 'status=200' }),
       },
     });
     expect(approved.status).toBe('PASS');
     expect(approved.manifest.artifactDigest).toBe(ci.artifactDigest);
+    expect(approved.stages.find((stage) => stage.id === 'production_deploy')?.detail).toContain(
+      'status=200',
+    );
   });
 
   it('supports application rollback without assuming DB rollback', async () => {
