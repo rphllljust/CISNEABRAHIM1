@@ -1,3 +1,4 @@
+import { GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { randomBytes } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -76,6 +77,70 @@ describe('backup integration (Prompt 84)', () => {
     const statusRaw = await readFile(statusFile, 'utf8');
     expect(statusRaw).toContain('"durationMs"');
     expect(statusRaw).toContain('"sha256"');
+
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it('backs up S3 object storage instead of silently skipping it', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'cisne-backup-s3-'));
+    const statusFile = join(root, 'status', 'latest.json');
+    const sent: unknown[] = [];
+
+    const result = await runMonitoredBackup(
+      {
+        BACKUP_DEST_DIR: join(root, 'artifacts'),
+        BACKUP_STATUS_FILE: statusFile,
+        BACKUP_ENABLE_POSTGRES: 'false',
+        BACKUP_ENABLE_OBJECT_STORAGE: 'true',
+        OBJECT_STORAGE_PROVIDER: 's3',
+        OBJECT_STORAGE_BUCKET: 'cisne-prod-documents',
+      },
+      {
+        s3Client: {
+          send: async (command) => {
+            sent.push(command);
+            if (command instanceof ListObjectsV2Command) {
+              return {
+                Contents: [{ Key: 'objects/a.pdf' }, { Key: 'nested/evidence/photo.jpg' }],
+                IsTruncated: false,
+              };
+            }
+            if (command instanceof GetObjectCommand) {
+              return {
+                Body: {
+                  transformToByteArray: async () => new Uint8Array(Buffer.from('s3-object')),
+                },
+              };
+            }
+            throw new Error('unexpected S3 command');
+          },
+        },
+      },
+    );
+
+    expect(result.status).toBe('ok');
+    expect(result.artifacts).toHaveLength(1);
+    expect(result.artifacts[0]?.kind).toBe('object_storage');
+    expect(sent.filter((command) => command instanceof ListObjectsV2Command)).toHaveLength(1);
+    expect(sent.filter((command) => command instanceof GetObjectCommand)).toHaveLength(2);
+
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it('fails closed when object-storage backup is enabled but its source is not configured', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'cisne-backup-storage-missing-'));
+    const statusFile = join(root, 'status', 'latest.json');
+
+    const result = await runMonitoredBackup({
+      BACKUP_DEST_DIR: join(root, 'artifacts'),
+      BACKUP_STATUS_FILE: statusFile,
+      BACKUP_ENABLE_POSTGRES: 'false',
+      BACKUP_ENABLE_OBJECT_STORAGE: 'true',
+      OBJECT_STORAGE_PROVIDER: 's3',
+    });
+
+    expect(result.status).toBe('failed');
+    expect(result.error).toContain('OBJECT_STORAGE_BUCKET');
 
     await rm(root, { recursive: true, force: true });
   });
