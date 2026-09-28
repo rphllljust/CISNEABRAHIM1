@@ -1,3 +1,8 @@
+import {
+  readFirstSecretValue,
+  readSecretValue,
+} from '../../platform/runtime-config/secret-value';
+
 export type PostgresBackupMode = 'pg_dump' | 'docker';
 export type ObjectStorageBackupProvider = 'filesystem' | 's3';
 
@@ -61,7 +66,7 @@ export function loadBackupConfig(env: NodeJS.ProcessEnv = process.env): BackupCo
   return {
     destinationDir: env['BACKUP_DEST_DIR']?.trim() || '.backup/artifacts',
     offsiteDir: env['BACKUP_OFFSITE_DIR']?.trim() || null,
-    encryptionKeyBase64: env['BACKUP_ENCRYPTION_KEY']?.trim() || null,
+    encryptionKeyBase64: readSecretValue(env, 'BACKUP_ENCRYPTION_KEY') ?? null,
     statusFilePath: env['BACKUP_STATUS_FILE']?.trim() || '.backup/status/latest.json',
     objectStorageProvider,
     objectStorageRoot: env['OBJECT_STORAGE_ROOT']?.trim() || null,
@@ -70,14 +75,20 @@ export function loadBackupConfig(env: NodeJS.ProcessEnv = process.env): BackupCo
     objectStorageS3Region:
       readTrimmed(env, 'OBJECT_STORAGE_S3_REGION', 'OBJECT_STORAGE_REGION') ?? 'us-east-1',
     objectStorageS3AccessKeyId:
-      readTrimmed(env, 'OBJECT_STORAGE_S3_ACCESS_KEY_ID', 'S3_ACCESS_KEY_ID'),
+      readFirstSecretValue(env, [
+        { key: 'OBJECT_STORAGE_S3_ACCESS_KEY_ID' },
+        { key: 'S3_ACCESS_KEY_ID' },
+      ]) ?? null,
     objectStorageS3SecretAccessKey:
-      readTrimmed(env, 'OBJECT_STORAGE_S3_SECRET_ACCESS_KEY', 'S3_SECRET_ACCESS_KEY'),
+      readFirstSecretValue(env, [
+        { key: 'OBJECT_STORAGE_S3_SECRET_ACCESS_KEY' },
+        { key: 'S3_SECRET_ACCESS_KEY' },
+      ]) ?? null,
     objectStorageS3ForcePathStyle:
       forcePathStyleRaw === 'true' ||
       forcePathStyleRaw === '1' ||
       (!forcePathStyleRaw && Boolean(s3Endpoint)),
-    databaseUrl: env['DATABASE_URL']?.trim() || null,
+    databaseUrl: readSecretValue(env, 'DATABASE_URL') ?? null,
     postgresBackupMode,
     dockerContainer: env['BACKUP_POSTGRES_DOCKER_CONTAINER']?.trim() || 'cisne_local_postgres',
     retentionDaily: readInt(env, 'BACKUP_RETENTION_DAILY', 7),
@@ -91,7 +102,7 @@ export function assertBackupEncryptionKeyForProduction(env: NodeJS.ProcessEnv = 
   if (env['NODE_ENV'] !== 'production') {
     return;
   }
-  const key = env['BACKUP_ENCRYPTION_KEY']?.trim();
+  const key = readSecretValue(env, 'BACKUP_ENCRYPTION_KEY');
   if (!key) {
     throw new Error('BACKUP_ENCRYPTION_KEY is required in production');
   }
