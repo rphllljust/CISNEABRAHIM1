@@ -74,6 +74,8 @@ import { ServiceUnavailablePage } from './pages/ServiceUnavailablePage';
 import { ShellAccessDeniedPage } from './pages/ShellAccessDeniedPage';
 import { ShellNotFoundPage } from './pages/ShellNotFoundPage';
 import { SessionExpiredPage } from './pages/SessionExpiredPage';
+import { DomainWorkspacePage } from './workspaces/pages/DomainWorkspacePage';
+import { WorkspacesIndexPage } from './workspaces/pages/WorkspacesIndexPage';
 import { FinanceRoute } from './finance/FinanceRoute';
 import { FinanceOverviewPage } from './finance/pages/FinanceOverviewPage';
 import { ReceivablesListPage } from './finance/pages/ReceivablesListPage';
@@ -153,9 +155,43 @@ export function App() {
               <Route path="/app" element={<OperationalDashboardPage />} />
               <Route path="/app/alerts" element={<AlertCenterPage />} />
               <Route path="/app/work-inbox" element={<WorkInboxPage />} />
+              {/*
+                WORKSPACES DE DOMINIO — uma superficie de decisao por dominio, sobre a MESMA
+                fila de trabalho. O financeiro e o unico que vive fora de `/app/workspaces`
+                porque a conversao aconteceu em `/app/finance`: a rota abaixo redireciona para
+                la, e nao para uma segunda superficie financeira divergente.
+              */}
+              <Route path="/app/workspaces" element={<WorkspacesIndexPage />} />
+              <Route
+                path="/app/workspaces/comercial"
+                element={<DomainWorkspacePage domain="COMERCIAL" />}
+              />
+              <Route
+                path="/app/workspaces/operacoes"
+                element={<DomainWorkspacePage domain="OPERACOES" />}
+              />
+              <Route
+                path="/app/workspaces/financeiro"
+                element={<Navigate to="/app/finance" replace />}
+              />
+              <Route
+                path="/app/workspaces/fiscal"
+                element={<DomainWorkspacePage domain="FISCAL" />}
+              />
+              <Route
+                path="/app/workspaces/contabilidade"
+                element={<DomainWorkspacePage domain="CONTABILIDADE" />}
+              />
+              <Route
+                path="/app/workspaces/suprimentos"
+                element={<DomainWorkspacePage domain="SUPRIMENTOS" />}
+              />
               <Route path="/app/search" element={<SearchResultsPage />} />
               <Route path="/app/reports" element={<ReportsPage />} />
-              <Route path="/app/operational-profitability" element={<OperationalProfitabilityPage />} />
+              <Route
+                path="/app/operational-profitability"
+                element={<OperationalProfitabilityPage />}
+              />
               <Route path="/app/reports/compliance" element={<ComplianceBiPage />} />
               <Route path="/app/modules" element={<ModulesRegistryPage />} />
               <Route

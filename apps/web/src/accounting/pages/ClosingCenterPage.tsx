@@ -257,6 +257,7 @@ export function ClosingCenterPage() {
                 ))}
               </select>
             )}
+          </div>
         </div>
       </FilterCard>
 

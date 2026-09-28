@@ -26,6 +26,17 @@ export const SHELL_NAV_GROUPS: ShellNavGroup[] = [
         accessCheck: 'request-list',
         featureFlag: 'alerts',
       },
+      {
+        // TRABALHO POR DOMINIO — porta de entrada dos workspaces de dominio. A visibilidade usa
+        // a MESMA sonda da fila (`request-list`): quem le a fila pode abrir o recorte por
+        // dominio. Sem `featureFlag` de proposito — a fila e o proprio read model agregado, e
+        // esconder esta entrada atras de uma flag de modulo deixaria a area sem porta nenhuma.
+        id: 'work-workspaces',
+        label: 'Trabalho por domínio',
+        path: '/app/workspaces',
+        capabilityId: 'service-orders:service-order:list',
+        accessCheck: 'request-list',
+      },
     ],
   },
   {
@@ -153,8 +164,10 @@ export const SHELL_NAV_GROUPS: ShellNavGroup[] = [
     label: 'Financeiro',
     items: [
       {
+        // `/app/finance` deixou de ser um painel de KPI e passou a ser o WORKSPACE do dominio
+        // financeiro (trabalho primeiro, posicao financeira depois). O rotulo acompanha a tela.
         id: 'finance-overview',
-        label: 'Visão Geral',
+        label: 'Financeiro',
         path: '/app/finance',
         capabilityId: 'finance:receivable:list',
         accessCheck: 'finance-overview',
@@ -479,7 +492,14 @@ const STATIC_ROUTE_LABELS: Record<string, string> = {
   '/app/contracts/new': 'Novo contrato',
   '/app/documents': 'Documentos',
   '/app/billing': 'Faturamento interno',
-  '/app/finance': 'Visão Geral',
+  '/app/workspaces': 'Trabalho por domínio',
+  '/app/workspaces/comercial': 'Comercial',
+  '/app/workspaces/operacoes': 'Operações',
+  '/app/workspaces/financeiro': 'Financeiro',
+  '/app/workspaces/fiscal': 'Fiscal',
+  '/app/workspaces/contabilidade': 'Contabilidade',
+  '/app/workspaces/suprimentos': 'Suprimentos',
+  '/app/finance': 'Financeiro',
   '/app/finance/receivables': 'Contas a Receber',
   '/app/finance/payables': 'Contas a Pagar',
   '/app/finance/treasury': 'Caixa e Bancos',
@@ -528,9 +548,7 @@ export function findNavItemByPath(pathname: string): ShellNavItem | undefined {
 }
 
 export function resolveShellBreadcrumbs(pathname: string): Array<{ label: string; href?: string }> {
-  const crumbs: Array<{ label: string; href?: string }> = [
-    { label: 'Início', href: '/app' },
-  ];
+  const crumbs: Array<{ label: string; href?: string }> = [{ label: 'Início', href: '/app' }];
 
   if (pathname === '/app') {
     crumbs.push({ label: 'Painel operacional' });
@@ -548,7 +566,10 @@ export function resolveShellBreadcrumbs(pathname: string): Array<{ label: string
     return crumbs;
   }
 
-  const segments = pathname.replace(/^\/app\/?/, '').split('/').filter(Boolean);
+  const segments = pathname
+    .replace(/^\/app\/?/, '')
+    .split('/')
+    .filter(Boolean);
   if (segments.length === 0) {
     crumbs.push({ label: 'Painel operacional' });
     return crumbs;
