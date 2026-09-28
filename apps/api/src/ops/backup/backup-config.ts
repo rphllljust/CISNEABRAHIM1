@@ -1,11 +1,19 @@
 export type PostgresBackupMode = 'pg_dump' | 'docker';
+export type ObjectStorageBackupProvider = 'filesystem' | 's3';
 
 export type BackupConfig = {
   destinationDir: string;
   offsiteDir: string | null;
   encryptionKeyBase64: string | null;
   statusFilePath: string;
+  objectStorageProvider: ObjectStorageBackupProvider;
   objectStorageRoot: string | null;
+  objectStorageBucket: string | null;
+  objectStorageS3Endpoint: string | null;
+  objectStorageS3Region: string;
+  objectStorageS3AccessKeyId: string | null;
+  objectStorageS3SecretAccessKey: string | null;
+  objectStorageS3ForcePathStyle: boolean;
   databaseUrl: string | null;
   postgresBackupMode: PostgresBackupMode;
   dockerContainer: string;
@@ -32,16 +40,43 @@ function readBool(env: NodeJS.ProcessEnv, key: string, fallback: boolean): boole
   return raw === '1' || raw === 'true' || raw === 'yes';
 }
 
+function readTrimmed(env: NodeJS.ProcessEnv, ...keys: string[]): string | null {
+  for (const key of keys) {
+    const value = env[key]?.trim();
+    if (value) {
+      return value;
+    }
+  }
+  return null;
+}
+
 export function loadBackupConfig(env: NodeJS.ProcessEnv = process.env): BackupConfig {
   const postgresModeRaw = env['BACKUP_POSTGRES_MODE']?.trim().toLowerCase();
   const postgresBackupMode: PostgresBackupMode = postgresModeRaw === 'docker' ? 'docker' : 'pg_dump';
+  const objectStorageProvider: ObjectStorageBackupProvider =
+    env['OBJECT_STORAGE_PROVIDER']?.trim().toLowerCase() === 's3' ? 's3' : 'filesystem';
+  const s3Endpoint = readTrimmed(env, 'OBJECT_STORAGE_S3_ENDPOINT', 'OBJECT_STORAGE_ENDPOINT');
+  const forcePathStyleRaw = env['OBJECT_STORAGE_S3_FORCE_PATH_STYLE']?.trim().toLowerCase();
 
   return {
     destinationDir: env['BACKUP_DEST_DIR']?.trim() || '.backup/artifacts',
     offsiteDir: env['BACKUP_OFFSITE_DIR']?.trim() || null,
     encryptionKeyBase64: env['BACKUP_ENCRYPTION_KEY']?.trim() || null,
     statusFilePath: env['BACKUP_STATUS_FILE']?.trim() || '.backup/status/latest.json',
+    objectStorageProvider,
     objectStorageRoot: env['OBJECT_STORAGE_ROOT']?.trim() || null,
+    objectStorageBucket: env['OBJECT_STORAGE_BUCKET']?.trim() || null,
+    objectStorageS3Endpoint: s3Endpoint,
+    objectStorageS3Region:
+      readTrimmed(env, 'OBJECT_STORAGE_S3_REGION', 'OBJECT_STORAGE_REGION') ?? 'us-east-1',
+    objectStorageS3AccessKeyId:
+      readTrimmed(env, 'OBJECT_STORAGE_S3_ACCESS_KEY_ID', 'S3_ACCESS_KEY_ID'),
+    objectStorageS3SecretAccessKey:
+      readTrimmed(env, 'OBJECT_STORAGE_S3_SECRET_ACCESS_KEY', 'S3_SECRET_ACCESS_KEY'),
+    objectStorageS3ForcePathStyle:
+      forcePathStyleRaw === 'true' ||
+      forcePathStyleRaw === '1' ||
+      (!forcePathStyleRaw && Boolean(s3Endpoint)),
     databaseUrl: env['DATABASE_URL']?.trim() || null,
     postgresBackupMode,
     dockerContainer: env['BACKUP_POSTGRES_DOCKER_CONTAINER']?.trim() || 'cisne_local_postgres',
