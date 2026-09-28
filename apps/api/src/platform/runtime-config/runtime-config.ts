@@ -1,3 +1,8 @@
+import {
+  readFirstSecretValue,
+  readSecretValue,
+} from './secret-value';
+
 /**
  * Centralized, fail-fast runtime configuration validation for the API and
  * worker processes.
@@ -52,25 +57,8 @@ function parseDatabaseUrl(raw: string): { ok: boolean; reason?: string } {
   }
 }
 
-function readObjectStorageCredentials(env: NodeJS.ProcessEnv): {
-  accessKey?: string;
-  secretKey?: string;
-  endpoint?: string;
-} {
-  return {
-    accessKey:
-      env['OBJECT_STORAGE_S3_ACCESS_KEY_ID']?.trim() ||
-      env['S3_ACCESS_KEY_ID']?.trim() ||
-      undefined,
-    secretKey:
-      env['OBJECT_STORAGE_S3_SECRET_ACCESS_KEY']?.trim() ||
-      env['S3_SECRET_ACCESS_KEY']?.trim() ||
-      undefined,
-    endpoint:
-      env['OBJECT_STORAGE_S3_ENDPOINT']?.trim() ||
-      env['OBJECT_STORAGE_ENDPOINT']?.trim() ||
-      undefined,
-  };
+function errorDetail(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 /** Returns a list of human-readable configuration errors (empty = valid). */
@@ -85,8 +73,14 @@ export function collectRuntimeConfigErrors(
     errors.push(`${key}: ${message}`);
   };
 
-  // DATABASE_URL — required by both roles on real starts.
-  const databaseUrl = env['DATABASE_URL']?.trim();
+  // DATABASE_URL — direct env or mounted DATABASE_URL_FILE.
+  let databaseUrl: string | undefined;
+  try {
+    databaseUrl = readSecretValue(env, 'DATABASE_URL');
+  } catch (error) {
+    push('DATABASE_URL_FILE', errorDetail(error));
+  }
+
   if (!isPresent(databaseUrl)) {
     if (hard) {
       push('DATABASE_URL', 'is required (missing or empty)');
@@ -100,16 +94,18 @@ export function collectRuntimeConfigErrors(
     }
   }
 
-  // JWT_SECRET — must be present and long enough to sign access tokens. Both
-  // entrypoints load an auth-capable context (the worker app also initializes
-  // the auth factory through observability), so this applies to both roles.
-  const jwtSecret = env['JWT_SECRET']?.trim();
+  // JWT_SECRET — direct env or mounted JWT_SECRET_FILE.
+  let jwtSecret: string | undefined;
+  try {
+    jwtSecret = readSecretValue(env, 'JWT_SECRET');
+  } catch (error) {
+    push('JWT_SECRET_FILE', errorDetail(error));
+  }
   if (!isPresent(jwtSecret) || (jwtSecret?.length ?? 0) < 32) {
     push('JWT_SECRET', 'is required and must be at least 32 characters');
   }
 
   if (role === 'api') {
-    // Object storage provider sanity (S3 requires endpoint + credentials).
     const provider = env['OBJECT_STORAGE_PROVIDER']?.trim() || 'filesystem';
     if (provider !== 'filesystem' && provider !== 's3') {
       push(
@@ -117,21 +113,39 @@ export function collectRuntimeConfigErrors(
         `unsupported value "${provider}" (expected filesystem or s3)`,
       );
     } else if (provider === 's3') {
-      const { accessKey, secretKey, endpoint } = readObjectStorageCredentials(env);
-      if (!endpoint) {
-        push('OBJECT_STORAGE_ENDPOINT', 'is required when OBJECT_STORAGE_PROVIDER=s3');
+      const bucket = env['OBJECT_STORAGE_BUCKET']?.trim();
+      if (!bucket) {
+        push('OBJECT_STORAGE_BUCKET', 'is required when OBJECT_STORAGE_PROVIDER=s3');
       }
-      if (!accessKey) {
-        push(
-          'OBJECT_STORAGE_S3_ACCESS_KEY_ID/S3_ACCESS_KEY_ID',
-          'is required when OBJECT_STORAGE_PROVIDER=s3',
-        );
-      }
-      if (!secretKey) {
-        push(
-          'OBJECT_STORAGE_S3_SECRET_ACCESS_KEY/S3_SECRET_ACCESS_KEY',
-          'is required when OBJECT_STORAGE_PROVIDER=s3',
-        );
+
+      const iamRole = env['OBJECT_STORAGE_IAM_ROLE'] === 'true';
+      if (!iamRole) {
+        let accessKey: string | undefined;
+        let secretKey: string | undefined;
+        try {
+          accessKey = readFirstSecretValue(env, [
+            { key: 'OBJECT_STORAGE_S3_ACCESS_KEY_ID' },
+            { key: 'S3_ACCESS_KEY_ID' },
+          ]);
+          secretKey = readFirstSecretValue(env, [
+            { key: 'OBJECT_STORAGE_S3_SECRET_ACCESS_KEY' },
+            { key: 'S3_SECRET_ACCESS_KEY' },
+          ]);
+        } catch (error) {
+          push('OBJECT_STORAGE_S3_CREDENTIALS_FILE', errorDetail(error));
+        }
+        if (!accessKey) {
+          push(
+            'OBJECT_STORAGE_S3_ACCESS_KEY_ID/S3_ACCESS_KEY_ID',
+            'is required when OBJECT_STORAGE_PROVIDER=s3 and OBJECT_STORAGE_IAM_ROLE is not true',
+          );
+        }
+        if (!secretKey) {
+          push(
+            'OBJECT_STORAGE_S3_SECRET_ACCESS_KEY/S3_SECRET_ACCESS_KEY',
+            'is required when OBJECT_STORAGE_PROVIDER=s3 and OBJECT_STORAGE_IAM_ROLE is not true',
+          );
+        }
       }
     }
 
