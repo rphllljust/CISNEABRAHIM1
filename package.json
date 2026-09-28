@@ -15,7 +15,7 @@
   },
   "scripts": {
     "install:deps": "pnpm install",
-    "lint": "node scripts/check-scripts.mjs && turbo run lint",
+    "lint": "node scripts/check-scripts.mjs && node scripts/check-source-size-budget.mjs && turbo run lint",
     "gate:scripts": "node scripts/check-scripts.mjs",
     "gate:scripts:self-test": "node scripts/check-scripts.mjs --self-test",
     "format": "prettier --write \"apps/**\" \"packages/**\" \"docs/17-bootstrap/**\" \"docs/18-database-foundation/**\" \"*.{json,mjs,md}\"",
