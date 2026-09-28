@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolveArtifactPaths } from './cd-paths';
+import { assertNoInlineSecrets } from '../../platform/runtime-config/secret-value';
 
 const SECRET_PATTERNS = [
   /JWT_SECRET\s*=\s*['"][^'"]{8,}['"]/i,
@@ -51,9 +52,29 @@ export function assertNoSecretsInArtifact(artifactPaths: string[]): void {
 }
 
 export function assertSecretsFromStoreOnly(env: NodeJS.ProcessEnv = process.env): void {
-  const forbiddenInline = ['JWT_SECRET_FILE', 'DATABASE_URL_FILE'];
-  const hasFileBackedSecret = forbiddenInline.some((key) => Boolean(env[key]?.trim()));
-  if (env['CD_REQUIRE_SECRET_STORE'] === 'true' && !hasFileBackedSecret) {
-    throw new Error('CD_REQUIRE_SECRET_STORE=true requires secrets mounted from store (e.g. *_FILE paths)');
+  if (env['CD_REQUIRE_SECRET_STORE'] !== 'true') {
+    return;
   }
+
+  if (env['PROD_REQUIRE_SECRET_STORE'] !== 'true') {
+    throw new Error(
+      'Production promotion requires PROD_REQUIRE_SECRET_STORE=true when CD_REQUIRE_SECRET_STORE=true',
+    );
+  }
+
+  if (env['CD_SECRET_STORE_CONFIGURED'] !== 'true') {
+    throw new Error(
+      'Production promotion requires CD_SECRET_STORE_CONFIGURED=true from the protected production environment',
+    );
+  }
+
+  assertNoInlineSecrets(env, [
+    'JWT_SECRET',
+    'DOCUMENT_DOWNLOAD_TOKEN_SECRET',
+    'DATABASE_URL',
+    'BACKUP_ENCRYPTION_KEY',
+    'OBJECT_STORAGE_S3_SECRET_ACCESS_KEY',
+    'S3_SECRET_ACCESS_KEY',
+    'PROD_POSTGRES_PASSWORD',
+  ]);
 }
