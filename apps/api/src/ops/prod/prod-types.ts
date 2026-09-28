@@ -1,6 +1,7 @@
 export type ProdValidationStageId =
   | 'environment'
   | 'compute_sizing'
+  | 'supply_chain'
   | 'network'
   | 'postgres'
   | 'object_storage'
