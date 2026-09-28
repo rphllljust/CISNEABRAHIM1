@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DateTime, EmptyState, Money, Select } from '../../ui';
 import {
   FilterCard,
@@ -17,7 +17,7 @@ import {
 } from '../../ui/module-layout';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { AGING_BUCKET_LABELS, PAYABLE_STATUS_LABELS } from '../../financial-ui/labels';
-import { sliceTablePage, tablePageCount } from '../../financial-ui/table-slice';
+import { BACKOFFICE_TABLE_PAGE_SIZE } from '../../financial-ui/table-slice';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import {
   BulkActionBar,
@@ -30,7 +30,7 @@ import {
   useSmartList,
   type ContextPreviewBody,
 } from '../../operator';
-import { listPayables } from '../api/finance-api';
+import { listPayables, type FinanceTitlePage } from '../api/finance-api';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import { FinanceStatusBadge } from '../components/FinanceStatusBadge';
 import { PAYABLES_ALLOWED_FILTERS, PAYABLES_BUILT_IN_VIEWS } from './finance-smart-list';
@@ -51,8 +51,28 @@ const SCOPE = 'finance.payables';
 export function PayablesListPage() {
   const [pageNumber, setPageNumber] = useState(1);
   const [previewId, setPreviewId] = useState<string | null>(null);
-  const loader = useCallback((signal?: AbortSignal) => listPayables(signal), []);
-  const { state, reload, refreshing } = useBackofficeQuery<PayableDetail[]>({
+  /*
+   * PAGINACAO SERVER-SIDE, SIMETRICA A RECEBIVEIS: uma pagina por requisicao, com
+   * `limit`/`offset`/`status` na consulta e `total`/`totalPages` contados no servidor sob o
+   * mesmo escopo e filtro. O filtro do smart list vai ao servidor, nao mascara a pagina.
+   */
+  const offset = (pageNumber - 1) * BACKOFFICE_TABLE_PAGE_SIZE;
+  const [statusForQuery, setStatusForQuery] = useState('');
+  const loader = useCallback(
+    (signal?: AbortSignal) =>
+      listPayables(
+        {
+          limit: BACKOFFICE_TABLE_PAGE_SIZE,
+          offset,
+          status: statusForQuery || undefined,
+          sortBy: 'due_date',
+          sortDir: 'asc',
+        },
+        signal,
+      ),
+    [offset, statusForQuery],
+  );
+  const { state, reload, refreshing } = useBackofficeQuery<FinanceTitlePage<PayableDetail>>({
     loader,
     mapError: mapFinanceErrorToMessage,
   });
@@ -80,6 +100,17 @@ export function PayablesListPage() {
 
   const selection = useSelection<PayableDetail>({ getId: (row) => row.id });
 
+  /*
+   * Status vai ao SERVIDOR (mesmo recorte dos dois lados do razao); aging segue local, porque
+   * `agingBucket` e derivado do titulo e nao existe como filtro de lista na API.
+   * O efeito fica ANTES dos retornos antecipados: hooks nao sao condicionais.
+   */
+  const statusFilter = smartList.filters.status ?? '';
+  useEffect(() => {
+    setPageNumber(1);
+    setStatusForQuery(statusFilter);
+  }, [statusFilter]);
+
   const gate = renderQueryGate(
     'Contas a pagar',
     'Carregando contas a pagar…',
@@ -94,22 +125,18 @@ export function PayablesListPage() {
     return null;
   }
 
-  const all = state.data;
-  const statusFilter = smartList.filters.status ?? '';
+  const page = state.data;
+  const pageItems = page.items;
   const agingFilter = smartList.filters.agingBucket ?? '';
-  const filtered = smartList.sortRows(
-    all.filter(
-      (item) =>
-        (statusFilter ? item.status === statusFilter : true) &&
-        (agingFilter ? item.agingBucket === agingFilter : true),
-    ),
-  );
-  const pageCount = tablePageCount(filtered.length);
+  const pageCount = Math.max(1, page.totalPages);
   const safePageNumber = Math.min(pageNumber, pageCount);
-  const pageItems = sliceTablePage(filtered, safePageNumber);
+
+  const filtered = agingFilter
+    ? pageItems.filter((item) => item.agingBucket === agingFilter)
+    : pageItems;
 
   // Contadores reais derivados do payload carregado.
-  const inFlight = all.filter((item) => !['PAID', 'CANCELLED'].includes(item.status));
+  const inFlight = pageItems.filter((item) => !['PAID', 'CANCELLED'].includes(item.status));
   const overdue = inFlight.filter((item) => item.status === 'OVERDUE');
   const notOverdue = inFlight.filter((item) => item.status !== 'OVERDUE');
   const aging90 = inFlight.filter((item) => item.agingBucket === '90_PLUS');
@@ -117,7 +144,7 @@ export function PayablesListPage() {
   const openTotal = notOverdue.reduce((sum, item) => sum + Number(item.remainingBalance), 0);
 
   const selectedRows = selection.selectedRows(filtered);
-  const previewRow = all.find((item) => item.id === previewId) ?? null;
+  const previewRow = pageItems.find((item) => item.id === previewId) ?? null;
 
   return (
     <ModulePage>

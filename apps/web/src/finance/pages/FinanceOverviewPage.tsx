@@ -24,6 +24,7 @@ import {
   listReceivables,
   listTreasuryAccounts,
 } from '../api/finance-api';
+import type { FinanceTitlePage } from '../api/finance-api';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import type {
   PayableAgingResponse,
@@ -55,8 +56,8 @@ type OverviewSlice<T> = {
 };
 
 type OverviewData = {
-  receivables: OverviewSlice<ReceivableDetail[]>;
-  payables: OverviewSlice<PayableDetail[]>;
+  receivables: OverviewSlice<FinanceTitlePage<ReceivableDetail>>;
+  payables: OverviewSlice<FinanceTitlePage<PayableDetail>>;
   accounts: OverviewSlice<FinancialAccount[]>;
   aging: OverviewSlice<PayableAgingResponse>;
 };

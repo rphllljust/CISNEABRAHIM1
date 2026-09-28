@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DateTime, EmptyState, Money, Select } from '../../ui';
 import {
   FilterCard,
@@ -54,26 +54,29 @@ const SCOPE = 'finance.receivables';
 export function ReceivablesListPage() {
   const [pageNumber, setPageNumber] = useState(1);
   const [previewId, setPreviewId] = useState<string | null>(null);
-  const statusFilter = useMemo(() => readStatusFromUrl(), []);
   /*
-   * PAGINACAO SERVER-SIDE. A tela pede a pagina ao servidor em vez de carregar a carteira
-   * inteira e fatiar no navegador: `limit`/`offset` vao na consulta, e `total`/`totalPages`
-   * voltam do servidor contados sob o MESMO escopo e filtro da pagina.
+   * PAGINACAO SERVER-SIDE. A tela pede UMA pagina ao servidor; `limit`/`offset` vao na
+   * consulta e `total`/`totalPages` voltam contados sob o MESMO escopo e filtro. Antes a
+   * carteira inteira era carregada e fatiada no navegador.
+   *
+   * O filtro de status continua dirigido pela URL pelo smart list, mas passa a ser enviado
+   * ao servidor — o recorte e do servidor, nao uma mascara sobre a pagina recebida.
    */
-  const offset = (pageNumber - 1) * TITLE_PAGE_SIZE;
+  const offset = (pageNumber - 1) * BACKOFFICE_TABLE_PAGE_SIZE;
+  const [statusForQuery, setStatusForQuery] = useState('');
   const loader = useCallback(
     (signal?: AbortSignal) =>
       listReceivables(
         {
-          limit: TITLE_PAGE_SIZE,
+          limit: BACKOFFICE_TABLE_PAGE_SIZE,
           offset,
-          status: statusFilter ?? undefined,
+          status: statusForQuery || undefined,
           sortBy: 'due_date',
           sortDir: 'asc',
         },
         signal,
       ),
-    [offset, statusFilter],
+    [offset, statusForQuery],
   );
   const { state, reload, refreshing } = useBackofficeQuery<FinanceTitlePage<ReceivableDetail>>({
     loader,
@@ -102,6 +105,17 @@ export function ReceivablesListPage() {
 
   const selection = useSelection<ReceivableDetail>({ getId: (row) => row.id });
 
+  /*
+   * O recorte de status vai ao SERVIDOR: mudar o filtro reinicia a paginacao e recarrega.
+   * Este efeito fica ANTES de qualquer retorno antecipado — hooks nao podem ser chamados
+   * condicionalmente, e o gate de carregamento/negacao retorna cedo.
+   */
+  const statusFilter = smartList.filters.status ?? '';
+  useEffect(() => {
+    setPageNumber(1);
+    setStatusForQuery(statusFilter);
+  }, [statusFilter]);
+
   const gate = renderQueryGate(
     'Contas a receber',
     'Carregando contas a receber…',
@@ -116,24 +130,20 @@ export function ReceivablesListPage() {
     return null;
   }
 
-  const all = state.data;
-  const statusFilter = smartList.filters.status ?? '';
-  const filtered = smartList.sortRows(
-    all.filter((item) => (statusFilter ? item.status === statusFilter : true)),
-  );
-  const pageCount = tablePageCount(filtered.length);
+  const page = state.data;
+  const pageItems = page.items;
+  const pageCount = Math.max(1, page.totalPages);
   const safePageNumber = Math.min(pageNumber, pageCount);
-  const pageItems = sliceTablePage(filtered, safePageNumber);
 
   // Contadores reais — derivados do payload carregado, nunca estimados.
-  const inFlight = all.filter((item) => !['PAID', 'CANCELLED'].includes(item.status));
+  const inFlight = pageItems.filter((item) => !['PAID', 'CANCELLED'].includes(item.status));
   const overdue = inFlight.filter((item) => item.status === 'OVERDUE');
   const notOverdue = inFlight.filter((item) => item.status !== 'OVERDUE');
   const overdueTotal = overdue.reduce((sum, item) => sum + Number(item.remainingBalance), 0);
   const openTotal = notOverdue.reduce((sum, item) => sum + Number(item.remainingBalance), 0);
 
-  const selectedRows = selection.selectedRows(filtered);
-  const previewRow = all.find((item) => item.id === previewId) ?? null;
+  const selectedRows = selection.selectedRows(pageItems);
+  const previewRow = pageItems.find((item) => item.id === previewId) ?? null;
 
   return (
     <ModulePage>
@@ -163,7 +173,7 @@ export function ReceivablesListPage() {
         />
         <DrilldownMetric
           label="Recebidos"
-          value={all.filter((item) => item.status === 'PAID').length}
+          value={page.total}
           hint="ver lista filtrada"
           to="/app/finance/receivables?status=PAID"
         />
@@ -227,9 +237,9 @@ export function ReceivablesListPage() {
 
       <BulkActionBar
         count={selection.count}
-        visibleCount={filtered.length}
+        visibleCount={pageItems.length}
         onClear={selection.clear}
-        onSelectAllVisible={() => selection.selectAll(filtered)}
+        onSelectAllVisible={() => selection.selectAll(pageItems)}
         parkedNote="Liquidação, baixa e cancelamento em lote continuam PARK: exigem prova de segregação de funções e idempotência por título. A ação em lote daqui apenas organiza o trabalho."
         actions={[
           {
@@ -264,7 +274,7 @@ export function ReceivablesListPage() {
         ]}
       />
 
-      {filtered.length === 0 ? (
+      {pageItems.length === 0 ? (
         <EmptyState
           title={smartList.isFiltered ? 'Nenhum título nesta visão' : 'Nenhum título a receber'}
           description={
@@ -276,7 +286,7 @@ export function ReceivablesListPage() {
       ) : (
         <>
           <p className="mb-2 text-xs text-gray-500" aria-live="polite">
-            {filtered.length} {filtered.length === 1 ? 'título' : 'títulos'} no recorte atual
+            {page.total} {page.total === 1 ? 'título' : 'títulos'} no recorte atual
             {statusFilter
               ? ` · filtro: ${RECEIVABLE_STATUS_LABELS[statusFilter] ?? statusFilter}`
               : ''}
@@ -383,7 +393,7 @@ export function ReceivablesListPage() {
           </ModuleTableCard>
           <ModulePagination
             pageNumber={safePageNumber}
-            rangeLabel={`Página ${safePageNumber} de ${pageCount} · ${filtered.length} títulos`}
+            rangeLabel={`Página ${safePageNumber} de ${pageCount} · ${page.total} títulos`}
             onPrevious={() => setPageNumber((current) => Math.max(1, current - 1))}
             onNext={() => setPageNumber((current) => Math.min(pageCount, current + 1))}
             previousDisabled={safePageNumber <= 1}

@@ -52,7 +52,7 @@ export function createFinanceFetchMock(options: FinanceFetchMockOptions = {}) {
       throw new TypeError('Failed to fetch');
     }
 
-    const { pathname } = parseRequestPath(input);
+    const { pathname, searchParams } = parseRequestPath(input);
     const method = init?.method ?? 'GET';
 
     if (pathname === '/api/v1/auth/session' && method === 'GET') {
@@ -74,38 +74,47 @@ export function createFinanceFetchMock(options: FinanceFetchMockOptions = {}) {
       if (options.receivableListAllowed === false) {
         return denied('FINANCE_DENIED');
       }
-      return jsonResponse(
-        Array.from({ length: receivableCount }, (_, index) => ({
-          id: index === 0 ? MOCK_RECEIVABLE_ID : `bbbbbbbb-bbbb-4bbb-8bbb-${String(index).padStart(12, '0')}`,
-          unitId: 'unit-1',
-          clientId: 'client-1',
-          origin: {
-            kind: 'BILLING_DOCUMENT',
-            billingDocumentId: 'doc-1',
-            billingRecordId: 'rec-1',
-            serviceOrderId: 'so-1',
-            measurementId: 'm-1',
-          },
-          principal: '1500.0000',
-          currencyCode: 'BRL',
-          dueDate: '2026-09-10',
-          paymentTerms: '30 DDL',
-          externalReference: `AR-${String(index + 1).padStart(3, '0')}`,
-          status: 'OPEN',
-          remainingBalance: '1500.0000',
-          settledAmount: '0.0000',
-          lifecycle: 'ACTIVE',
-          cancelledAt: null,
-          cancelReason: null,
-          rowVersion: 3,
-          createdAt: '2026-08-01T12:00:00.000Z',
-          updatedAt: '2026-08-01T12:00:00.000Z',
-          installments: [
-            { id: `inst-${index}`, installmentNumber: 1, principal: '1500.0000', dueDate: '2026-09-10' },
-          ],
-          settlements: [],
-        })),
-      );
+      // O servidor pagina: a resposta e o envelope canonico e honra limit/offset, como a API
+      // real. Um mock que devolvesse tudo mascararia justamente o comportamento sob teste.
+      const all = Array.from({ length: receivableCount }, (_, index) => ({
+        id: index === 0 ? MOCK_RECEIVABLE_ID : `bbbbbbbb-bbbb-4bbb-8bbb-${String(index).padStart(12, '0')}`,
+        unitId: 'unit-1',
+        clientId: 'client-1',
+        origin: {
+          kind: 'BILLING_DOCUMENT',
+          billingDocumentId: 'doc-1',
+          billingRecordId: 'rec-1',
+          serviceOrderId: 'so-1',
+          measurementId: 'm-1',
+        },
+        principal: '1500.0000',
+        currencyCode: 'BRL',
+        dueDate: '2026-09-10',
+        paymentTerms: '30 DDL',
+        externalReference: `AR-${String(index + 1).padStart(3, '0')}`,
+        status: 'OPEN',
+        remainingBalance: '1500.0000',
+        settledAmount: '0.0000',
+        lifecycle: 'ACTIVE',
+        cancelledAt: null,
+        cancelReason: null,
+        rowVersion: 3,
+        createdAt: '2026-08-01T12:00:00.000Z',
+        updatedAt: '2026-08-01T12:00:00.000Z',
+        installments: [
+          { id: `inst-${index}`, installmentNumber: 1, principal: '1500.0000', dueDate: '2026-09-10' },
+        ],
+        settlements: [],
+      }));
+      const limit = Number(searchParams.get('limit') ?? '20');
+      const offset = Number(searchParams.get('offset') ?? '0');
+      return jsonResponse({
+        items: all.slice(offset, offset + limit),
+        limit,
+        offset,
+        total: all.length,
+        totalPages: limit > 0 ? Math.ceil(all.length / limit) : 0,
+      });
     }
 
     if (pathname === `/api/v1/finance/receivables/${MOCK_RECEIVABLE_ID}` && method === 'GET') {
@@ -184,33 +193,39 @@ export function createFinanceFetchMock(options: FinanceFetchMockOptions = {}) {
       if (options.payableListAllowed === false) {
         return denied('FINANCE_DENIED');
       }
-      return jsonResponse([
-        {
-          id: MOCK_PAYABLE_ID,
-          unitId: 'unit-1',
-          counterpartyId: 'vendor-1',
-          origin: { kind: 'MANUAL', id: 'origin-1', reference: 'AP-001' },
-          expenseCategoryId: 'cat-1',
-          costCenter: { id: 'cc-1', code: 'ADM' },
-          principal: '800.0000',
-          currencyCode: 'BRL',
-          dueDate: '2026-09-05',
-          paymentTerms: 'À vista',
-          externalReference: 'AP-001',
-          status: 'OPEN',
-          agingBucket: 'CURRENT',
-          remainingBalance: '800.0000',
-          paidAmount: '0.0000',
-          lifecycle: 'ACTIVE',
-          cancelledAt: null,
-          cancelReason: null,
-          rowVersion: 1,
-          createdAt: '2026-08-01T12:00:00.000Z',
-          updatedAt: '2026-08-01T12:00:00.000Z',
-          installments: [],
-          payments: [],
-        },
-      ]);
+      return jsonResponse({
+        items: [
+          {
+            id: MOCK_PAYABLE_ID,
+            unitId: 'unit-1',
+            counterpartyId: 'vendor-1',
+            origin: { kind: 'MANUAL', id: 'origin-1', reference: 'AP-001' },
+            expenseCategoryId: 'cat-1',
+            costCenter: { id: 'cc-1', code: 'ADM' },
+            principal: '800.0000',
+            currencyCode: 'BRL',
+            dueDate: '2026-09-05',
+            paymentTerms: 'À vista',
+            externalReference: 'AP-001',
+            status: 'OPEN',
+            agingBucket: 'CURRENT',
+            remainingBalance: '800.0000',
+            paidAmount: '0.0000',
+            lifecycle: 'ACTIVE',
+            cancelledAt: null,
+            cancelReason: null,
+            rowVersion: 1,
+            createdAt: '2026-08-01T12:00:00.000Z',
+            updatedAt: '2026-08-01T12:00:00.000Z',
+            installments: [],
+            payments: [],
+          },
+        ],
+        limit: 20,
+        offset: 0,
+        total: 1,
+        totalPages: 1,
+      });
     }
 
     if (pathname === '/api/v1/finance/payables/aging' && method === 'GET') {
