@@ -113,6 +113,86 @@ export class PayablesRepository {
     return result.rows[0] ?? null;
   }
 
+  /**
+   * Pagina de contas a pagar, com ESCOPO, FILTRO e PAGINACAO resolvidos em SQL.
+   *
+   * Espelha `ReceivablesRepository.listPage`: substitui `listAll()` (tabela inteira sem
+   * `WHERE`/`LIMIT`, autorizacao e paginacao em memoria) por uma pagina real cujo `total`
+   * conta sob o MESMO escopo e filtro da pagina.
+   *
+   * NOTA DE ESQUEMA (verificada em `fin.payables`): nao existe coluna `status`. O status e
+   * DERIVADO por `derivePayableStatus` de `lifecycle` + pagamentos liquidados + `due_date`;
+   * o filtro de status e traduzido para esses predicados reais.
+   */
+  async listPage(input: {
+    scopeClause: string;
+    scopeParams: unknown[];
+    status?: string;
+    dueFrom?: string;
+    dueTo?: string;
+    search?: string;
+    limit: number;
+    offset: number;
+    sortBy: 'due_date' | 'created_at';
+    sortDir: 'asc' | 'desc';
+  }): Promise<{ rows: PayableRow[]; total: number }> {
+    const params: unknown[] = [...input.scopeParams];
+    const where: string[] = [input.scopeClause];
+
+    // Espelha `remainingBalance`: estornos (`reverses_payment_id IS NOT NULL`) subtraem.
+    const paidExpr = `COALESCE((
+        SELECT sum(CASE WHEN p.reverses_payment_id IS NULL THEN p.amount ELSE -p.amount END)
+        FROM fin.payments p WHERE p.payable_id = r.id), 0)`;
+    const remainingExpr = `(r.principal - ${paidExpr})`;
+
+    const statusPredicates: Record<string, string> = {
+      CANCELLED: `r.lifecycle = 'CANCELLED'`,
+      PAID: `r.lifecycle <> 'CANCELLED' AND ${remainingExpr} <= 0`,
+      OVERDUE: `r.lifecycle <> 'CANCELLED' AND ${remainingExpr} > 0 AND r.due_date < CURRENT_DATE`,
+      OPEN: `r.lifecycle <> 'CANCELLED' AND ${remainingExpr} > 0 AND r.due_date >= CURRENT_DATE AND ${paidExpr} = 0`,
+      PARTIALLY_PAID: `r.lifecycle <> 'CANCELLED' AND ${remainingExpr} > 0 AND ${paidExpr} > 0`,
+    };
+
+    if (input.status) {
+      where.push(statusPredicates[input.status] ?? 'FALSE');
+    }
+    if (input.dueFrom) {
+      params.push(input.dueFrom);
+      where.push(`r.due_date >= $${params.length}::date`);
+    }
+    if (input.dueTo) {
+      params.push(input.dueTo);
+      where.push(`r.due_date <= $${params.length}::date`);
+    }
+    if (input.search) {
+      // Curinga escapado: o termo e do operador, nunca vira padrao livre no servidor.
+      params.push(`%${input.search.replace(/[%_\\]/g, '\\$&')}%`);
+      where.push(`r.external_reference ILIKE $${params.length}`);
+    }
+
+    const whereSql = `WHERE ${where.join(' AND ')}`;
+    // Ordenacao por allow-list; `due_date` + `id` garante ordem TOTAL (sem empate entre paginas).
+    const sortColumn = input.sortBy === 'due_date' ? 'r.due_date' : 'r.created_at';
+    const sortDir = input.sortDir === 'asc' ? 'ASC' : 'DESC';
+
+    const countResult = await this.pool().query<{ total: string }>(
+      `SELECT count(*)::text AS total FROM fin.payables r ${whereSql}`,
+      params,
+    );
+
+    params.push(input.limit, input.offset);
+    const rows = await this.pool().query<PayableRow>(
+      `SELECT ${PAYABLE_RETURNING}
+       FROM fin.payables r
+       ${whereSql}
+       ORDER BY ${sortColumn} ${sortDir}, r.id ASC
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params,
+    );
+
+    return { rows: rows.rows, total: Number(countResult.rows[0]?.total ?? '0') };
+  }
+
   async listAll(): Promise<PayableRow[]> {
     const result = await this.pool().query<PayableRow>(
       `SELECT ${PAYABLE_RETURNING} FROM fin.payables ORDER BY created_at DESC`,

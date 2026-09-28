@@ -3,6 +3,7 @@ import type { FastifyRequest } from 'fastify';
 import { CurrentAuth } from '../../auth/decorators/current-auth.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import type { AccessTokenClaims } from '../../auth/services/token.service';
+import { parseFinanceListQuery } from '../dto/finance-list.dto';
 import {
   validateCancelPayableInput,
   validateCreateExpenseCategoryInput,
@@ -34,8 +35,11 @@ export class PayablesController {
   }
 
   @Get('payables')
-  list(@CurrentAuth() auth: AccessTokenClaims) {
-    return this.payablesAccess.list({ identityId: auth.sub, sessionId: auth.sid });
+  list(@CurrentAuth() auth: AccessTokenClaims, @Query() query: Record<string, unknown>) {
+    return this.payablesAccess.list(
+      { identityId: auth.sub, sessionId: auth.sid },
+      parseFinanceListQuery(query),
+    );
   }
 
   @Post('payables')

@@ -106,6 +106,51 @@ export class ScopeEnforcementService {
     };
   }
 
+  /**
+   * Escopo de leitura da carteira de TITULOS (a receber / a pagar).
+   *
+   * Um titulo financeiro e ancorado por UNIDADE e, quando existe, por CLIENTE. A concessao
+   * pode vir por qualquer um dos dois (ou GLOBAL sem ancora, que le tudo). Comparado aos
+   * builders de unidade unica, aqui a semantica e OR entre os tipos de ancora, espelhando a
+   * decisao por linha que o dominio ja aplicava em memoria (`toResourceContextFromReceivable`).
+   *
+   * Usado para empurrar o escopo para o SQL: nada e lido do banco antes de a autorizacao
+   * estar aplicada. Sem concessao utilizavel => `FALSE` (fail-closed, nao le nada).
+   */
+  buildFinancialTitleListFilter(grants: GrantRow[], tableAlias?: string): ScopeSqlPredicate {
+    const hasGlobal = grants.some(
+      (grant) => grant.scope_type === AUTHZ_SCOPES.Global && grant.resource_id === null,
+    );
+    if (hasGlobal) {
+      return { clause: 'TRUE', params: [] };
+    }
+
+    const unitIds = grants
+      .filter((grant) => grant.scope_type === AUTHZ_SCOPES.Unit && grant.resource_id !== null)
+      .map((grant) => grant.resource_id as string);
+    const clientIds = grants
+      .filter((grant) => grant.scope_type === AUTHZ_SCOPES.Client && grant.resource_id !== null)
+      .map((grant) => grant.resource_id as string);
+
+    if (unitIds.length === 0 && clientIds.length === 0) {
+      return { clause: 'FALSE', params: [] };
+    }
+
+    const alias = tableAlias ? `${tableAlias}.` : '';
+    const clauses: string[] = [];
+    const params: unknown[] = [];
+    if (unitIds.length > 0) {
+      params.push(unitIds);
+      clauses.push(`${alias}unit_id = ANY($${params.length}::text[])`);
+    }
+    if (clientIds.length > 0) {
+      params.push(clientIds);
+      clauses.push(`${alias}client_id = ANY($${params.length}::uuid[])`);
+    }
+
+    return { clause: `(${clauses.join(' OR ')})`, params };
+  }
+
   buildPersonListFilter(grants: GrantRow[]): ScopeSqlPredicate {
     const hasGlobalListGrant = grants.some(
       (grant) => grant.scope_type === AUTHZ_SCOPES.Global && grant.resource_id === null,

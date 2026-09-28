@@ -1,8 +1,9 @@
-import { Controller, Get, HttpCode, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, HttpCode, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import { CurrentAuth } from '../../auth/decorators/current-auth.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import type { AccessTokenClaims } from '../../auth/services/token.service';
+import { parseFinanceListQuery } from '../dto/finance-list.dto';
 import {
   validateCancelReceivableInput,
   validateReverseSettlementInput,
@@ -16,8 +17,11 @@ export class ReceivablesController {
   constructor(private readonly receivablesAccess: ReceivablesAccessService) {}
 
   @Get()
-  list(@CurrentAuth() auth: AccessTokenClaims) {
-    return this.receivablesAccess.list({ identityId: auth.sub, sessionId: auth.sid });
+  list(@CurrentAuth() auth: AccessTokenClaims, @Query() query: Record<string, unknown>) {
+    return this.receivablesAccess.list(
+      { identityId: auth.sub, sessionId: auth.sid },
+      parseFinanceListQuery(query),
+    );
   }
 
   @Get(':receivableId')

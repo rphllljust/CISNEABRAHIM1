@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { toResourceContextFromReceivable } from '../../authorization/scope/scope-matcher';
-import { assertPolicyAndGrantScope, hasPolicyAndGrantScopeBatch } from '../../authorization/services/domain-grant-authz.helper';
+import { assertListAccess, assertPolicyAndGrantScope, hasPolicyAndGrantScopeBatch } from '../../authorization/services/domain-grant-authz.helper';
 import { PolicyDecisionPointService } from '../../authorization/services/policy-decision-point.service';
 import { AuthorizationRepository } from '../../authorization/repositories/authorization.repository';
 import { AUTHZ_ACTIONS, type AuthzAction } from '../../authorization/types/authz-actions';
@@ -15,8 +15,17 @@ export class ReceivablesAccessAuthz {
     private readonly policyDecisionPoint: PolicyDecisionPointService,
   ) {}
 
+  /**
+   * Gate de LISTAGEM: capability valida + ao menos um grant aplicavel, sem exigir contexto.
+   *
+   * NAO usa `assertPolicyAndGrantScope` de proposito. A listagem e avaliada antes de existir
+   * qualquer linha, logo nao ha `context.unitId`; com o gate de detail, um grant de escopo `UNIT`
+   * era sempre negado e o escopo por unidade do `ScopeEnforcementService` ficava inalcancavel.
+   * Quem recorta as linhas e o predicado SQL derivado dos mesmos grants. O gate de DETAIL
+   * (`assertReceivableAction`) permanece com contexto, sem enfraquecimento.
+   */
   async assertReceivableList(actor: IdentityAuthzContext): Promise<void> {
-    await assertPolicyAndGrantScope(
+    await assertListAccess(
       {
         authorizationRepository: this.authorizationRepository,
         policyDecisionPoint: this.policyDecisionPoint,

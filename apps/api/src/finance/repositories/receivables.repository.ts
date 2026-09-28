@@ -90,11 +90,96 @@ export class ReceivablesRepository {
     return result.rows;
   }
 
-  async listAll(): Promise<ReceivableRow[]> {
-    const result = await this.pool().query<ReceivableRow>(
-      `SELECT ${RECEIVABLE_RETURNING} FROM fin.receivables ORDER BY created_at DESC`,
+  /**
+   * Pagina de titulos a receber, com ESCOPO, FILTRO e PAGINACAO resolvidos em SQL.
+   *
+   * Substitui `listAll()`: antes a tabela inteira era carregada, a autorizacao era decidida
+   * linha a linha em memoria e a paginacao acontecia no navegador. `scopeClause` e o predicado
+   * de escopo derivado das concessoes do ator (nunca de parametro de consulta), de modo que
+   * nada nao autorizado chega a sair do banco.
+   *
+   * A contagem usa o MESMO WHERE da pagina: nenhum total pode contar fora do escopo.
+   *
+   * NOTA DE ESQUEMA (verificada em `fin.receivables`): o titulo NAO tem coluna `status`.
+   * O status e DERIVADO pelo dominio (`deriveReceivableStatus`) de `lifecycle` + soma dos
+   * lancamentos liquidados + `due_date`. Por isso o filtro de status NAO pode ser um
+   * `status = $n`: aqui ele e traduzido para os predicados reais que produzem cada status.
+   * Zero titulo liquido/cancelado entra na fila de vencidos, exatamente como no dominio.
+   */
+  async listPage(input: {
+    scopeClause: string;
+    scopeParams: unknown[];
+    status?: string;
+    dueFrom?: string;
+    dueTo?: string;
+    search?: string;
+    limit: number;
+    offset: number;
+    sortBy: 'due_date' | 'created_at';
+    sortDir: 'asc' | 'desc';
+  }): Promise<{ rows: ReceivableRow[]; total: number }> {
+    const params: unknown[] = [...input.scopeParams];
+    const where: string[] = [input.scopeClause];
+
+    // Soma dos lancamentos liquidados por titulo, usada para derivar "liquidado" e "parcial"
+    // em SQL. Colunas conferidas em `fin.settlements` (tabela real; nao existe
+    // `fin.receivable_settlements`). `reversed_at IS NULL` = estorno excluido da soma,
+    // exatamente como `remainingBalance` faz no dominio.
+    const settledExpr = `COALESCE((SELECT sum(s.amount) FROM fin.settlements s
+        WHERE s.receivable_id = r.id AND s.reversed_at IS NULL), 0)`;
+    const remainingExpr = `(r.principal - ${settledExpr})`;
+
+    // Cada status do dominio vira seus predicados reais. Status desconhecido NAO e ignorado
+    // em silencio: nao casa nada (o servico ja validou contra a lista fechada).
+    const statusPredicates: Record<string, string> = {
+      CANCELLED: `r.lifecycle = 'CANCELLED'`,
+      PAID: `r.lifecycle <> 'CANCELLED' AND ${remainingExpr} <= 0`,
+      OVERDUE: `r.lifecycle <> 'CANCELLED' AND ${remainingExpr} > 0 AND r.due_date < CURRENT_DATE`,
+      OPEN: `r.lifecycle <> 'CANCELLED' AND ${remainingExpr} > 0 AND r.due_date >= CURRENT_DATE AND ${settledExpr} = 0`,
+      PARTIALLY_PAID: `r.lifecycle <> 'CANCELLED' AND ${remainingExpr} > 0 AND ${settledExpr} > 0`,
+    };
+
+    if (input.status) {
+      where.push(statusPredicates[input.status] ?? 'FALSE');
+    }
+    if (input.dueFrom) {
+      params.push(input.dueFrom);
+      where.push(`due_date >= $${params.length}::date`);
+    }
+    if (input.dueTo) {
+      params.push(input.dueTo);
+      where.push(`r.due_date <= $${params.length}::date`);
+    }
+    if (input.search) {
+      // Busca por referencia HUMANA. `ILIKE` com curinga escapado: o termo e do operador,
+      // mas nunca vira padrao livre no servidor.
+      params.push(`%${input.search.replace(/[%_\\]/g, '\\$&')}%`);
+      where.push(`(r.external_reference ILIKE $${params.length})`);
+    }
+
+    const whereSql = `WHERE ${where.join(' AND ')}`;
+    // Ordenacao por allow-list: nenhum identificador de coluna vem do cliente.
+    // `due_date` + `id` garante ordem TOTAL: sem empate, nenhuma linha se repete entre
+    // paginas e nenhuma linha e pulada.
+    const sortColumn = input.sortBy === 'due_date' ? 'r.due_date' : 'r.created_at';
+    const sortDir = input.sortDir === 'asc' ? 'ASC' : 'DESC';
+
+    const countResult = await this.pool().query<{ total: string }>(
+      `SELECT count(*)::text AS total FROM fin.receivables r ${whereSql}`,
+      params,
     );
-    return result.rows;
+
+    params.push(input.limit, input.offset);
+    const rows = await this.pool().query<ReceivableRow>(
+      `SELECT ${RECEIVABLE_RETURNING}
+       FROM fin.receivables r
+       ${whereSql}
+       ORDER BY ${sortColumn} ${sortDir}, r.id ASC
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params,
+    );
+
+    return { rows: rows.rows, total: Number(countResult.rows[0]?.total ?? '0') };
   }
 
   async listInstallments(receivableId: string): Promise<ReceivableInstallmentRow[]> {

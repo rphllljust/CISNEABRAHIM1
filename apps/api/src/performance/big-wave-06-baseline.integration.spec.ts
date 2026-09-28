@@ -251,13 +251,13 @@ describe('BIG WAVE 06 — baseline de performance (receivables / payables)', () 
     // ---- medicao: receivables ----------------------------------------------
     const receivablesCounter = newCounter();
     const restoreReceivables = instrument(pool, receivablesCounter);
-    const receivablesRun = await measure(() => receivablesAccess.list(actor), 5);
+    const receivablesRun = await measure(() => receivablesAccess.list(actor, { limit: 100, offset: 0 }), 5);
     restoreReceivables();
 
     // ---- medicao: payables --------------------------------------------------
     const payablesCounter = newCounter();
     const restorePayables = instrument(pool, payablesCounter);
-    const payablesRun = await measure(() => payablesAccess.list(actor), 5);
+    const payablesRun = await measure(() => payablesAccess.list(actor, { limit: 100, offset: 0 }), 5);
     restorePayables();
 
     const report = {
@@ -268,7 +268,7 @@ describe('BIG WAVE 06 — baseline de performance (receivables / payables)', () 
         maxMs: Number(receivablesRun.max.toFixed(2)),
         queriesPerRequest: receivablesCounter.total,
         byBucket: receivablesCounter.byBucket,
-        rowsReturned: receivablesRun.value.length,
+        rowsReturned: receivablesRun.value.items.length,
         payloadBytes: Buffer.byteLength(JSON.stringify(receivablesRun.value), 'utf8'),
         topSql: [...receivablesCounter.texts.entries()]
           .sort((a, b) => b[1] - a[1])
@@ -281,7 +281,7 @@ describe('BIG WAVE 06 — baseline de performance (receivables / payables)', () 
         maxMs: Number(payablesRun.max.toFixed(2)),
         queriesPerRequest: payablesCounter.total,
         byBucket: payablesCounter.byBucket,
-        rowsReturned: payablesRun.value.length,
+        rowsReturned: payablesRun.value.items.length,
         payloadBytes: Buffer.byteLength(JSON.stringify(payablesRun.value), 'utf8'),
         topSql: [...payablesCounter.texts.entries()]
           .sort((a, b) => b[1] - a[1])
@@ -322,8 +322,8 @@ describe('BIG WAVE 06 — baseline de performance (receivables / payables)', () 
     const restoreLoad = instrument(pool, loadCounter);
     const loadStarted = Date.now();
     const load = [
-      await loadOf('receivables.list', () => receivablesAccess.list(actor), 30),
-      await loadOf('payables.list', () => payablesAccess.list(actor), 30),
+      await loadOf('receivables.list', () => receivablesAccess.list(actor, { limit: 100, offset: 0 }), 30),
+      await loadOf('payables.list', () => payablesAccess.list(actor, { limit: 100, offset: 0 }), 30),
     ];
     restoreLoad();
 

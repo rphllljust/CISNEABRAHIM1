@@ -58,12 +58,51 @@ export async function listExpenses(
   });
 }
 
-export async function listReceivables(signal?: AbortSignal): Promise<ReceivableDetail[]> {
-  return requestJson<ReceivableDetail[]>('/api/v1/finance/receivables', {
-    method: 'GET',
-    headers: authHeaders(),
-    signal,
-  });
+/**
+ * Pagina de titulos, no contrato canonico do modulo: `{ items, limit, offset, total, totalPages }`.
+ * Identico ao de orcamentos e ao de contas a pagar.
+ */
+export type FinanceTitlePage<T> = {
+  items: T[];
+  limit: number;
+  offset: number;
+  total: number;
+  totalPages: number;
+};
+
+export type FinanceTitleListQuery = {
+  limit?: number;
+  offset?: number;
+  status?: string;
+  q?: string;
+  dueFrom?: string;
+  dueTo?: string;
+  sortBy?: string;
+  sortDir?: string;
+};
+
+export function buildFinanceTitleQuery(query: FinanceTitleListQuery): string {
+  const params = new URLSearchParams();
+  if (typeof query.limit === 'number') params.set('limit', String(query.limit));
+  if (typeof query.offset === 'number') params.set('offset', String(query.offset));
+  if (query.status) params.set('status', query.status);
+  if (query.q) params.set('q', query.q);
+  if (query.dueFrom) params.set('dueFrom', query.dueFrom);
+  if (query.dueTo) params.set('dueTo', query.dueTo);
+  if (query.sortBy) params.set('sortBy', query.sortBy);
+  if (query.sortDir) params.set('sortDir', query.sortDir);
+  const serialized = params.toString();
+  return serialized ? `?${serialized}` : '';
+}
+
+export async function listReceivables(
+  query: FinanceTitleListQuery = {},
+  signal?: AbortSignal,
+): Promise<FinanceTitlePage<ReceivableDetail>> {
+  return requestJson<FinanceTitlePage<ReceivableDetail>>(
+    `/api/v1/finance/receivables${buildFinanceTitleQuery(query)}`,
+    { method: 'GET', headers: authHeaders(), signal },
+  );
 }
 
 export async function getReceivable(receivableId: string, signal?: AbortSignal): Promise<ReceivableDetail> {
@@ -96,12 +135,14 @@ export async function cancelReceivable(
   });
 }
 
-export async function listPayables(signal?: AbortSignal): Promise<PayableDetail[]> {
-  return requestJson<PayableDetail[]>('/api/v1/finance/payables', {
-    method: 'GET',
-    headers: authHeaders(),
-    signal,
-  });
+export async function listPayables(
+  query: FinanceTitleListQuery = {},
+  signal?: AbortSignal,
+): Promise<FinanceTitlePage<PayableDetail>> {
+  return requestJson<FinanceTitlePage<PayableDetail>>(
+    `/api/v1/finance/payables${buildFinanceTitleQuery(query)}`,
+    { method: 'GET', headers: authHeaders(), signal },
+  );
 }
 
 export async function getPayablesAging(signal?: AbortSignal): Promise<PayableAgingResponse> {
@@ -529,11 +570,21 @@ export async function addBudgetLine(budgetId: string, payload: Record<string, un
   });
 }
 
-export async function approveBudget(budgetId: string): Promise<BudgetDetail> {
+/**
+ * Aprova a versao em rascunho do orcamento.
+ *
+ * `version` e o `version_number` da versao que o aprovador tem na tela — o servidor faz
+ * compare-and-set e responde 409 `FINANCE_BUDGET_VERSION_CONFLICT` se o rascunho mudou.
+ * Mesmo contrato ja usado por `approveExpense`.
+ */
+export async function approveBudget(
+  budgetId: string,
+  payload: { version: number },
+): Promise<BudgetDetail> {
   return requestJson<BudgetDetail>(`/api/v1/finance/budgets/${budgetId}/approve`, {
     method: 'POST',
     headers: jsonHeaders(),
-    body: JSON.stringify({}),
+    body: JSON.stringify(payload),
   });
 }
 

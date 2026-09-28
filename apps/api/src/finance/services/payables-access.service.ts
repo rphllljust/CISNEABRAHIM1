@@ -7,7 +7,10 @@ import {
 } from '../../audit/types/security-audit.types';
 import { SecurityAuditService } from '../../audit/services/security-audit.service';
 import { AUTHZ_ACTIONS } from '../../authorization/types/authz-actions';
+import { AUTHZ_RESOURCE_TYPES } from '../../authorization/types/authz-resources';
 import type { IdentityAuthzContext } from '../../authorization/types/authz-decision';
+import { AuthorizationRepository } from '../../authorization/repositories/authorization.repository';
+import { ScopeEnforcementService } from '../../authorization/services/scope-enforcement.service';
 import { SodEnforcementService } from '../../authorization/services/sod-enforcement.service';
 import { SOD_DUTIES, resolveSodScope } from '../../authorization/domain/segregation-of-duties';
 import type {
@@ -44,6 +47,44 @@ import {
 import { PayablesAccessAuthz } from './payables-access.authz';
 import { mapPayableDomainError, payableNotFound } from './payables-access.errors';
 
+/**
+ * Pagina de contas a pagar.
+ *
+ * CONTRATO IDENTICO ao de recebiveis e ao `BudgetListResponse` canonico do modulo:
+ * `{ items, limit, offset, total, totalPages }`. Simetria deliberada entre os dois lados
+ * do razao — mesma paginacao, mesmos filtros, mesmo shape, mesmos erros.
+ */
+export type PayableListResponse = {
+  items: PayableDetailResponse[];
+  limit: number;
+  offset: number;
+  total: number;
+  totalPages: number;
+};
+
+function buildPayablePage(
+  items: PayableDetailResponse[],
+  limit: number,
+  offset: number,
+  total: number,
+): PayableListResponse {
+  return { items, limit, offset, total, totalPages: limit > 0 ? Math.ceil(total / limit) : 0 };
+}
+
+/** Maior lote aceito por `parseFinanceListQuery` — usado por agregacoes sobre a carteira. */
+const AGING_SCAN_LIMIT = 100;
+
+/**
+ * Ordenacao por allow-list: nenhum nome de coluna vem do cliente.
+ *
+ * Apenas colunas REAIS de `fin.payables`. `remaining_balance` NAO existe como coluna —
+ * o saldo e derivado de `principal` menos pagamentos —, entao ordenar por ele exigiria
+ * expressao em SQL; nao foi pedido e nao foi inventado aqui.
+ */
+function normalizePayableSortBy(value: string | undefined): 'due_date' | 'created_at' {
+  return value === 'due_date' ? 'due_date' : 'created_at';
+}
+
 @Injectable()
 export class PayablesAccessService implements FinancePayablePort {
   constructor(
@@ -53,6 +94,8 @@ export class PayablesAccessService implements FinancePayablePort {
     private readonly sod: SodEnforcementService,
     @Inject(ENTERPRISE_CORE_PORT.CommercialSupplier)
     private readonly suppliers: CommercialSupplierPort,
+    private readonly authorizationRepository: AuthorizationRepository,
+    private readonly scopeEnforcement: ScopeEnforcementService,
   ) {}
 
   async createExpenseCategory(
@@ -142,17 +185,57 @@ export class PayablesAccessService implements FinancePayablePort {
     }
   }
 
-  async list(actor: IdentityAuthzContext): Promise<PayableDetailResponse[]> {
-    const rows = await this.repository.listAll();
+  /**
+   * Lista paginada de contas a pagar.
+   *
+   * ANTES: `listAll()` carregava a tabela inteira e decidia autorizacao em memoria.
+   * AGORA: escopo derivado das concessoes do ator vai para o SQL, junto com filtro e
+   * paginacao; `total` conta sob o mesmo `WHERE`. A confirmacao por linha permanece como
+   * segunda barreira, restrita a pagina.
+   */
+  async list(
+    actor: IdentityAuthzContext,
+    query: { limit: number; offset: number; status?: string; q?: string; dueFrom?: string; dueTo?: string; sortBy?: string; sortDir?: string },
+  ): Promise<PayableListResponse> {
+    // Gate de LISTA (capability + grant aplicavel). Sem ele a negacao virava lista vazia.
+    await this.authz.assertPayableList(actor);
 
-    // Autorizacao EM LOTE: mesma decisao por linha, com as leituras de grants hoisted.
+    const grants = await this.authorizationRepository.findActiveGrants(
+      actor.identityId,
+      AUTHZ_ACTIONS.FinancePayableList,
+      AUTHZ_RESOURCE_TYPES.FinancePayable,
+    );
+
+    const scope = this.scopeEnforcement.buildFinancialTitleListFilter(grants);
+    if (scope.clause === 'FALSE') {
+      return buildPayablePage([], query.limit, query.offset, 0);
+    }
+
+    const page = await this.repository.listPage({
+      scopeClause: scope.clause,
+      scopeParams: scope.params,
+      status: query.status,
+      dueFrom: query.dueFrom,
+      dueTo: query.dueTo,
+      search: query.q,
+      limit: query.limit,
+      offset: query.offset,
+      sortBy: normalizePayableSortBy(query.sortBy),
+      sortDir: query.sortDir === 'asc' ? 'asc' : 'desc',
+    });
+
+    if (page.rows.length === 0) {
+      return buildPayablePage([], query.limit, query.offset, page.total);
+    }
+
+    // Segunda barreira: mesma decisao por linha, agora apenas sobre a PAGINA.
     const allowed = await this.authz.filterPayableList(
       actor,
-      rows.map((row) => ({ id: row.id, unitId: row.unit_id })),
+      page.rows.map((row) => ({ id: row.id, unitId: row.unit_id })),
     );
-    const visible = rows.filter((_, index) => allowed[index] === true);
+    const visible = page.rows.filter((_, index) => allowed[index] === true);
 
-    // Filhos em DUAS queries para a pagina inteira (antes: duas por linha).
+    // Filhos em DUAS queries para a pagina inteira (nunca por linha).
     const ids = visible.map((row) => row.id);
     const [installments, payments] = await Promise.all([
       this.repository.listInstallmentsByPayableIds(ids),
@@ -172,17 +255,24 @@ export class PayablesAccessService implements FinancePayablePort {
       paymentsByPayable.set(row.payable_id, bucket);
     }
 
-    return visible.map((row) =>
-      toPayableDetailResponse(
-        row,
-        installmentsByPayable.get(row.id) ?? [],
-        paymentsByPayable.get(row.id) ?? [],
+    return buildPayablePage(
+      visible.map((row) =>
+        toPayableDetailResponse(
+          row,
+          installmentsByPayable.get(row.id) ?? [],
+          paymentsByPayable.get(row.id) ?? [],
+        ),
       ),
+      query.limit,
+      query.offset,
+      page.total,
     );
   }
 
   async aging(actor: IdentityAuthzContext, asOf?: Date) {
-    const details = await this.list(actor);
+    // Aging agrega sobre a carteira inteira do ator, nao sobre uma pagina: usa o maior
+    // lote permitido, com o mesmo escopo e filtro aplicados no SQL.
+    const details = (await this.list(actor, { limit: AGING_SCAN_LIMIT, offset: 0 })).items;
     const items = details.map((item) => ({
       lifecycle: item.lifecycle,
       principal: item.principal,

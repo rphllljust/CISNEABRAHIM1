@@ -91,8 +91,8 @@ function isPositionEmpty(data: OverviewData): boolean {
   }
   const agingIsZero = Object.values(aging.data.buckets).every((bucket) => bucket.count === 0);
   return (
-    receivables.data.length === 0 &&
-    payables.data.length === 0 &&
+    receivables.data.total === 0 &&
+    payables.data.total === 0 &&
     accounts.data.length === 0 &&
     agingIsZero
   );
@@ -101,8 +101,9 @@ function isPositionEmpty(data: OverviewData): boolean {
 export function FinanceOverviewPage() {
   const loader = useCallback(async (signal?: AbortSignal): Promise<OverviewData> => {
     const [receivables, payables, accounts, aging] = await Promise.allSettled([
-      listReceivables(signal),
-      listPayables(signal),
+      // A visao geral mostra POSICAO, nao pagina: pede o maior lote aceito e usa `total`.
+      listReceivables({ limit: 100, offset: 0 }, signal),
+      listPayables({ limit: 100, offset: 0 }, signal),
       listTreasuryAccounts(signal),
       getPayablesAging(signal),
     ]);
@@ -174,7 +175,7 @@ export function FinanceOverviewPage() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <KpiCard
                 label="Contas a receber"
-                value={receivables.data ? String(receivables.data.length) : '—'}
+                value={receivables.data ? String(receivables.data.total) : '—'}
                 ariaLabel="Quantidade de títulos a receber"
                 href={receivables.data ? '/app/finance/receivables' : null}
                 context={
@@ -186,7 +187,7 @@ export function FinanceOverviewPage() {
               />
               <KpiCard
                 label="Contas a pagar"
-                value={payables.data ? String(payables.data.length) : '—'}
+                value={payables.data ? String(payables.data.total) : '—'}
                 ariaLabel="Quantidade de títulos a pagar"
                 href={payables.data ? '/app/finance/payables' : null}
                 context={

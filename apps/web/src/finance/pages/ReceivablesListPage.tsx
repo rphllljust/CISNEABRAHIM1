@@ -17,7 +17,7 @@ import {
 } from '../../ui/module-layout';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { RECEIVABLE_STATUS_LABELS } from '../../financial-ui/labels';
-import { sliceTablePage, tablePageCount } from '../../financial-ui/table-slice';
+import { BACKOFFICE_TABLE_PAGE_SIZE } from '../../financial-ui/table-slice';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import {
   BulkActionBar,
@@ -32,7 +32,7 @@ import {
   type ChainLink,
   type ContextPreviewBody,
 } from '../../operator';
-import { listReceivables } from '../api/finance-api';
+import { listReceivables, type FinanceTitlePage } from '../api/finance-api';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import { FinanceStatusBadge } from '../components/FinanceStatusBadge';
 import { RECEIVABLES_ALLOWED_FILTERS, RECEIVABLES_BUILT_IN_VIEWS } from './finance-smart-list';
@@ -54,8 +54,28 @@ const SCOPE = 'finance.receivables';
 export function ReceivablesListPage() {
   const [pageNumber, setPageNumber] = useState(1);
   const [previewId, setPreviewId] = useState<string | null>(null);
-  const loader = useCallback((signal?: AbortSignal) => listReceivables(signal), []);
-  const { state, reload, refreshing } = useBackofficeQuery<ReceivableDetail[]>({
+  const statusFilter = useMemo(() => readStatusFromUrl(), []);
+  /*
+   * PAGINACAO SERVER-SIDE. A tela pede a pagina ao servidor em vez de carregar a carteira
+   * inteira e fatiar no navegador: `limit`/`offset` vao na consulta, e `total`/`totalPages`
+   * voltam do servidor contados sob o MESMO escopo e filtro da pagina.
+   */
+  const offset = (pageNumber - 1) * TITLE_PAGE_SIZE;
+  const loader = useCallback(
+    (signal?: AbortSignal) =>
+      listReceivables(
+        {
+          limit: TITLE_PAGE_SIZE,
+          offset,
+          status: statusFilter ?? undefined,
+          sortBy: 'due_date',
+          sortDir: 'asc',
+        },
+        signal,
+      ),
+    [offset, statusFilter],
+  );
+  const { state, reload, refreshing } = useBackofficeQuery<FinanceTitlePage<ReceivableDetail>>({
     loader,
     mapError: mapFinanceErrorToMessage,
   });

@@ -117,3 +117,52 @@ export async function assertPolicyAndGrantScope(
     throw input.onDenied();
   }
 }
+
+/**
+ * GATE DE LISTAGEM — capability valida + grants aplicaveis, SEM exigir recurso concreto.
+ *
+ * POR QUE ESTE PRIMITIVO EXISTE
+ *
+ * `assertPolicyAndGrantScope` e o gate correto para DETAIL/ACTION: ali existe UM recurso e o
+ * `resourceContext` permite decidir linha a linha. Reutiliza-lo para LISTAGEM e um erro: a lista e
+ * avaliada ANTES de existir qualquer linha, logo nao ha `context.unitId` para casar. Como o PDP e
+ * `grantMatchesResourceContext` exigem `context.unitId` para grant de escopo `UNIT`, o efeito
+ * pratico era: **grant UNIT nunca autorizava listagem** — era negado (403) antes de o
+ * `ScopeEnforcementService` montar o predicado SQL por unidade. O escopo por unidade existia no SQL
+ * e era inalcancavel pela porta da listagem.
+ *
+ * CONTRATO (correto para lista, e deliberadamente distinto do de detail):
+ *   1. a LISTA so e oferecida a quem tem pelo menos um grant ATIVO aplicavel a (action,
+ *      resourceType) — sem grant, `onDenied` (403), nunca lista vazia;
+ *   2. o escopo NAO e decidido aqui: e derivado desses mesmos grants por
+ *      `ScopeEnforcementService.build*ListFilter`, que e fail-closed — GLOBAL sem ancora le tudo,
+ *      UNIT le apenas as unidades concedidas, CLIENT apenas os clientes concedidos, e nenhum
+ *      ancora utilizavel produz `FALSE`;
+ *   3. a decisao por linha continua existindo DEPOIS, em `hasPolicyAndGrantScopeBatch`, agora com
+ *      contexto real de cada linha — defesa em profundidade preservada.
+ *
+ * NAO altera o PDP, NAO altera `grantMatchesResourceContext` e NAO toca em DETAIL/ACTION: a
+ * semantica de autorizacao por recurso permanece exatamente a mesma.
+ */
+export async function assertListAccess(
+  deps: DomainGrantAuthzDeps,
+  input: {
+    actor: IdentityAuthzContext;
+    action: AuthzAction;
+    resourceType: AuthzResourceType;
+    onDenied: () => Error;
+  },
+): Promise<void> {
+  if (!input.actor?.identityId) {
+    throw input.onDenied();
+  }
+
+  const grants = await deps.authorizationRepository.findActiveGrants(
+    input.actor.identityId,
+    input.action,
+    input.resourceType,
+  );
+  if (grants.length === 0) {
+    throw input.onDenied();
+  }
+}

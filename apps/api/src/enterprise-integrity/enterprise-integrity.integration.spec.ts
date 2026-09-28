@@ -359,8 +359,10 @@ describe('Enterprise financial integrity gate', () => {
       artifacts.billingRecordId,
       artifacts.billingDocumentId,
     );
-    const listed = await ctx.services.receivablesAccess.list(actor);
-    const receivable = listed.find((item) => item.origin.billingDocumentId === artifacts.billingDocumentId);
+    const listed = await ctx.services.receivablesAccess.list(actor, { limit: 100, offset: 0 });
+    const receivable = listed.items.find(
+      (item) => item.origin.billingDocumentId === artifacts.billingDocumentId,
+    );
     expect(receivable).toBeDefined();
 
     const concurrentSettle = await Promise.allSettled([

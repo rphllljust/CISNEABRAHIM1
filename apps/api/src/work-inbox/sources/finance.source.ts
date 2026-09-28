@@ -9,6 +9,15 @@ import type { WorkItem } from '../contracts/work-item.contract';
 import type { WorkItemActor, WorkItemSource } from './work-item-source';
 
 /**
+ * Teto de titulos por fonte.
+ *
+ * A fila pagina depois de agregar (`WORK_INBOX_MAX_LIMIT`), entao uma fonte nao precisa
+ * carregar a carteira inteira. O valor e deliberadamente igual ao teto da fila: pedir mais
+ * do que a fila consegue exibir seria trabalho descartado no servidor.
+ */
+const WORK_SOURCE_PAGE_LIMIT = 100;
+
+/**
  * FONTE FINANCEIRA — titulos REAIS vencidos.
  *
  * Autorizacao: `ReceivablesAccessService.list` e `PayablesAccessService.list` sao as autoridades do
@@ -28,7 +37,6 @@ import type { WorkItemActor, WorkItemSource } from './work-item-source';
 @Injectable()
 export class FinanceWorkSource implements WorkItemSource {
   readonly domain = 'FINANCEIRO';
-
   constructor(
     private readonly receivables: ReceivablesAccessService,
     private readonly payables: PayablesAccessService,
@@ -45,7 +53,14 @@ export class FinanceWorkSource implements WorkItemSource {
   private async collectOverdueReceivables(actor: WorkItemActor): Promise<WorkItem[]> {
     let rows: ReceivableDetailResponse[];
     try {
-      rows = await this.receivables.list(actor);
+      // A fonte so quer VENCIDOS: o filtro vai para o SQL em vez de carregar a carteira
+      // inteira para descartar em memoria. O teto e explicito porque a fila pagina depois.
+      const page = await this.receivables.list(actor, {
+        limit: WORK_SOURCE_PAGE_LIMIT,
+        offset: 0,
+        status: RECEIVABLE_STATUSES.Overdue,
+      });
+      rows = page.items;
     } catch (error) {
       if (isAccessDenied(error)) {
         return [];
@@ -58,7 +73,12 @@ export class FinanceWorkSource implements WorkItemSource {
   private async collectOverduePayables(actor: WorkItemActor): Promise<WorkItem[]> {
     let rows: PayableDetailResponse[];
     try {
-      rows = await this.payables.list(actor);
+      const page = await this.payables.list(actor, {
+        limit: WORK_SOURCE_PAGE_LIMIT,
+        offset: 0,
+        status: PAYABLE_STATUSES.Overdue,
+      });
+      rows = page.items;
     } catch (error) {
       if (isAccessDenied(error)) {
         return [];
