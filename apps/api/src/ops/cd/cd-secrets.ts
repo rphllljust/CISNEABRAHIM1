@@ -52,13 +52,9 @@ export function assertNoSecretsInArtifact(artifactPaths: string[]): void {
 }
 
 export function assertSecretsFromStoreOnly(env: NodeJS.ProcessEnv = process.env): void {
-  if (env['CD_REQUIRE_SECRET_STORE'] !== 'true') {
-    return;
-  }
-
   if (env['PROD_REQUIRE_SECRET_STORE'] !== 'true') {
     throw new Error(
-      'Production promotion requires PROD_REQUIRE_SECRET_STORE=true when CD_REQUIRE_SECRET_STORE=true',
+      'Production promotion requires PROD_REQUIRE_SECRET_STORE=true; inline-secret mode is not allowed',
     );
   }
 
