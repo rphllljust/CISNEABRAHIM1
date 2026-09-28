@@ -4,6 +4,18 @@ import {
   type PurchaseOrderPricingStructure,
 } from '../types/purchase-order.types';
 
+/**
+ * Linha de item do pedido de compra.
+ *
+ * `rowId` e a chave LOCAL do repetidor (nunca vai para a tela nem para o payload);
+ * `lineTotal` e o valor NORMALIZADO do `CurrencyField` (ex.: "1500.50") ou string vazia.
+ */
+export type PurchaseOrderItemFormValues = {
+  rowId: string;
+  description: string;
+  lineTotal: string;
+};
+
 export type PurchaseOrderFormValues = {
   clientId: string;
   unitId: string;
@@ -16,11 +28,46 @@ export type PurchaseOrderFormValues = {
   totalAmount: string;
   paymentTerms: string;
   paymentMethod: string;
-  itemDescription: string;
-  itemLineTotal: string;
+  /** Itens do pedido, na ordem das linhas enviadas ao servidor. */
+  items: PurchaseOrderItemFormValues[];
 };
 
-export type PurchaseOrderFormFieldErrors = Partial<Record<keyof PurchaseOrderFormValues, string>>;
+export type PurchaseOrderItemFieldErrors = {
+  description?: string;
+  lineTotal?: string;
+};
+
+export type PurchaseOrderFormFieldErrors = Partial<
+  Record<
+    | 'clientId'
+    | 'unitId'
+    | 'poNumber'
+    | 'rcNumber'
+    | 'issueDate'
+    | 'serviceManager'
+    | 'currencyCode'
+    | 'totalAmount'
+    | 'paymentTerms'
+    | 'paymentMethod',
+    string
+  >
+> & {
+  /** Erro por linha de item, na MESMA ordem das linhas. */
+  items?: PurchaseOrderItemFieldErrors[];
+  /** Erro do bloco de itens quando nao existe linha alguma para apontar. */
+  itemsRequired?: string;
+};
+
+let rowSequence = 0;
+
+/** Cria uma linha de item vazia com chave local estavel. */
+export function createPurchaseOrderItemRow(
+  description = '',
+  lineTotal = '',
+): PurchaseOrderItemFormValues {
+  rowSequence += 1;
+  return { rowId: `purchase-order-line-${rowSequence}`, description, lineTotal };
+}
 
 export const EMPTY_PURCHASE_ORDER_FORM: PurchaseOrderFormValues = {
   clientId: '',
@@ -34,10 +81,13 @@ export const EMPTY_PURCHASE_ORDER_FORM: PurchaseOrderFormValues = {
   totalAmount: '',
   paymentTerms: '',
   paymentMethod: '',
-  itemDescription: '',
-  itemLineTotal: '',
+  items: [],
 };
 
+/**
+ * Regras da tela: identificacao obrigatoria, valor total autorizado quando a estrutura e de
+ * total no cabecalho e, na estrutura por itens, ao menos uma linha com descricao e total.
+ */
 export function validatePurchaseOrderForm(
   values: PurchaseOrderFormValues,
 ): PurchaseOrderFormFieldErrors {
@@ -60,11 +110,22 @@ export function validatePurchaseOrderForm(
   }
 
   if (values.pricingStructure === PURCHASE_ORDER_PRICING_STRUCTURES.LineItems) {
-    if (!values.itemDescription.trim()) {
-      errors.itemDescription = 'Informe a descrição do item.';
-    }
-    if (!values.itemLineTotal.trim()) {
-      errors.itemLineTotal = 'Informe o total da linha.';
+    if (values.items.length === 0) {
+      errors.itemsRequired = 'Inclua ao menos um item no pedido.';
+    } else {
+      const itemErrors = values.items.map<PurchaseOrderItemFieldErrors>((item) => {
+        const row: PurchaseOrderItemFieldErrors = {};
+        if (!item.description.trim()) {
+          row.description = 'Informe a descrição do item.';
+        }
+        if (!item.lineTotal.trim()) {
+          row.lineTotal = 'Informe o total da linha.';
+        }
+        return row;
+      });
+      if (itemErrors.some((row) => Object.keys(row).length > 0)) {
+        errors.items = itemErrors;
+      }
     }
   }
 
@@ -92,13 +153,11 @@ export function buildCreatePurchaseOrderPayload(
   }
 
   if (values.pricingStructure === PURCHASE_ORDER_PRICING_STRUCTURES.LineItems) {
-    payload.items = [
-      {
-        lineNumber: 1,
-        description: values.itemDescription.trim(),
-        lineTotal: values.itemLineTotal.trim(),
-      },
-    ];
+    payload.items = values.items.map((item, index) => ({
+      lineNumber: index + 1,
+      description: item.description.trim(),
+      lineTotal: item.lineTotal.trim(),
+    }));
   }
 
   return payload;
@@ -124,13 +183,11 @@ export function buildUpdatePurchaseOrderPayload(
     paymentMethod: values.paymentMethod.trim() || null,
     items:
       values.pricingStructure === PURCHASE_ORDER_PRICING_STRUCTURES.LineItems
-        ? [
-            {
-              lineNumber: 1,
-              description: values.itemDescription.trim(),
-              lineTotal: values.itemLineTotal.trim(),
-            },
-          ]
+        ? values.items.map((item, index) => ({
+            lineNumber: index + 1,
+            description: item.description.trim(),
+            lineTotal: item.lineTotal.trim(),
+          }))
         : undefined,
   };
 }

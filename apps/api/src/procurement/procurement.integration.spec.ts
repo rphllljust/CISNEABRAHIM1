@@ -39,12 +39,14 @@ async function grantProcurementAdmin(pool: Pool, identityId: string): Promise<vo
   for (const action of [
     AUTHZ_ACTIONS.ProcurementRequestCreate,
     AUTHZ_ACTIONS.ProcurementRequestRead,
+    AUTHZ_ACTIONS.ProcurementRequestList,
     AUTHZ_ACTIONS.ProcurementRequestSubmit,
     AUTHZ_ACTIONS.ProcurementRequestApprove,
     AUTHZ_ACTIONS.ProcurementRequestReject,
     AUTHZ_ACTIONS.ProcurementRequestCancel,
     AUTHZ_ACTIONS.ProcurementOrderIssue,
     AUTHZ_ACTIONS.ProcurementOrderRead,
+    AUTHZ_ACTIONS.ProcurementOrderList,
     AUTHZ_ACTIONS.ProcurementOrderReceive,
     AUTHZ_ACTIONS.ProcurementOrderCancel,
     AUTHZ_ACTIONS.SupplierCreate,
@@ -135,8 +137,105 @@ describe('Procurement core PostgreSQL integration', () => {
     return procurement.approveRequest(checker, created.id, { version: submitted.version });
   }
 
-  it('requires approval before issuing a supplier purchase order', async () => {
+  it('lists purchase requests with search, status filter and pagination', async () => {
     const actor = await seedActor();
+    const alfa = await procurement.createRequest(actor, {
+      unitId: UNIT,
+      justification: 'Alfa reposicao',
+      lines: [{ description: 'Item A', quantity: '10', unitAmount: '2' }],
+    });
+    await procurement.createRequest(actor, {
+      unitId: UNIT,
+      justification: 'Beta reposicao',
+      lines: [{ description: 'Item B', quantity: '5', unitAmount: '4' }],
+    });
+
+    const first = await procurement.listRequests(actor, { limit: 1, offset: 0 });
+    expect(first.total).toBe(2);
+    expect(first.totalPages).toBe(2);
+    expect(first.items).toHaveLength(1);
+    // A linha traz valor e contagem persistidos pelo servidor, não um total informado.
+    expect(first.items[0]).toMatchObject({ lineCount: 1 });
+    expect(Number(first.items[0]?.totalAmount)).toBeGreaterThan(0);
+
+    const searched = await procurement.listRequests(actor, { limit: 20, offset: 0, q: 'Beta' });
+    expect(searched.total).toBe(1);
+    expect(searched.items[0]?.id).not.toBe(alfa.id);
+
+    await procurement.submitRequest(actor, alfa.id, { version: alfa.version });
+    const drafts = await procurement.listRequests(actor, { limit: 20, offset: 0, status: 'DRAFT' });
+    expect(drafts.items.map((item) => item.id)).not.toContain(alfa.id);
+    const pending = await procurement.listRequests(actor, {
+      limit: 20,
+      offset: 0,
+      status: 'PENDING_APPROVAL',
+    });
+    expect(pending.items.map((item) => item.id)).toEqual([alfa.id]);
+  });
+
+  it('lists supplier orders with the supplier resolved as a human reference', async () => {
+    const actor = await seedActor();
+    const supplier = await seedSupplier(actor);
+    const request = await approvedRequest(actor);
+    const order = await procurement.issueOrder(actor, request.id, {
+      version: request.version,
+      supplierId: supplier.id,
+    });
+
+    const page = await procurement.listOrders(actor, { limit: 20, offset: 0 });
+    expect(page.total).toBe(1);
+    const row = page.items[0];
+    expect(row?.id).toBe(order.id);
+    // Referência humana: o operador identifica o fornecedor por nome/CNPJ, não por identificador.
+    expect(row?.supplierName).toBe('Fornecedor Compras LTDA');
+    expect(row?.supplierTaxId).toBe(SUPPLIER_CNPJ);
+    expect(row?.lineCount).toBe(1);
+
+    const byName = await procurement.listOrders(actor, { limit: 20, offset: 0, q: 'Compras' });
+    expect(byName.total).toBe(1);
+    const byTaxId = await procurement.listOrders(actor, { limit: 20, offset: 0, q: '33444555' });
+    expect(byTaxId.total).toBe(1);
+    const wrongName = await procurement.listOrders(actor, { limit: 20, offset: 0, q: 'Inexistente' });
+    expect(wrongName.total).toBe(0);
+
+    // O detalhe também devolve a referência humana, em vez de expor apenas o identificador.
+    const detail = await procurement.getOrder(actor, order.id);
+    expect(detail.supplierName).toBe('Fornecedor Compras LTDA');
+    expect(detail.supplierTaxId).toBe(SUPPLIER_CNPJ);
+  });
+
+  it('denies the procurement lists without the list grants', async () => {
+    const actor = await seedActor();
+    await procurement.listRequests(actor, { limit: 20, offset: 0 });
+
+    const outsider = await seedActor(false);
+    await expect(procurement.listRequests(outsider, { limit: 20, offset: 0 })).rejects.toMatchObject({
+      code: PROCUREMENT_ERROR_CODES.DENIED,
+    });
+    await expect(procurement.listOrders(outsider, { limit: 20, offset: 0 })).rejects.toMatchObject({
+      code: PROCUREMENT_ERROR_CODES.DENIED,
+    });
+
+    // Somente `read` não autoriza listar.
+    const reader = await seedActor(false);
+    for (const action of [AUTHZ_ACTIONS.ProcurementRequestRead, AUTHZ_ACTIONS.ProcurementOrderRead]) {
+      await insertGrant(pool, {
+        identityId: reader.identityId,
+        action,
+        resourceType: AUTHZ_RESOURCE_TYPES.Procurement,
+        scopeType: AUTHZ_SCOPES.Global,
+        grantedByIdentityId: reader.identityId,
+      });
+    }
+    await expect(procurement.listRequests(reader, { limit: 20, offset: 0 })).rejects.toMatchObject({
+      code: PROCUREMENT_ERROR_CODES.DENIED,
+    });
+    await expect(procurement.listOrders(reader, { limit: 20, offset: 0 })).rejects.toMatchObject({
+      code: PROCUREMENT_ERROR_CODES.DENIED,
+    });
+  });
+
+  it('requires approval before issuing a supplier purchase order', async () => {    const actor = await seedActor();
     const supplier = await seedSupplier(actor);
     const draft = await procurement.createRequest(actor, {
       unitId: UNIT,

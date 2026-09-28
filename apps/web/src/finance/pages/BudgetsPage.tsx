@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { EmptyState, Field, Input, Money } from '../../ui';
 import {
   ModulePage,
@@ -14,9 +14,7 @@ import {
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { CreateRecordForm, VersionedActionForm } from '../../financial-ui/VersionedActionForm';
 import { BUDGET_STATUS_LABELS } from '../../financial-ui/labels';
-import { RecordLookupCard } from '../../financial-ui/RecordLookupCard';
-import { renderQueryGate } from '../../financial-ui/BackofficeStates';
-import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
+import { renderQueryGate } from '../../financial-ui/BackofficeStates';import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import {
   addBudgetLine,
   addBudgetPeriod,
@@ -33,7 +31,6 @@ import type { BudgetComparison, BudgetDetail } from '../types/finance.types';
 export function BudgetsPage() {
   const { budgetId } = useParams();
   const navigate = useNavigate();
-  const [lookupId, setLookupId] = useState(budgetId ?? '');
   const [unitId, setUnitId] = useState('');
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
@@ -63,15 +60,11 @@ export function BudgetsPage() {
         title="Orçamentos"
         description="Versões, linhas e aprovação são persistidas pelo servidor. Variância não é calculada no navegador."
       />
-      <RecordLookupCard
-        fieldId="budget-id"
-        label="Identificador do orçamento"
-        value={lookupId}
-        onChange={setLookupId}
-        onSubmit={() => void navigate(`/app/finance/budgets/${lookupId.trim()}`)}
-        submitLabel="Consultar"
-        loading={state.phase === 'loading'}
-      />
+      <p className="mb-4 text-sm text-gray-500">
+        <Link className="font-semibold text-gray-700 hover:text-gray-900" to="/app/finance/budgets">
+          Voltar para a lista de orçamentos
+        </Link>
+      </p>
       <CreateRecordForm
         title="Criar orçamento"
         description="O código e a moeda são validados pela API."

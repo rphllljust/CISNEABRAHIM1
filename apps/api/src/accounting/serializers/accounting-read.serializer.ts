@@ -39,6 +39,17 @@ export type PeriodsListResponse = {
   items: PeriodResponse[];
 };
 
+/**
+ * Descoberta de periodo pela UNIDADE, sem exigir o plano de contas.
+ *
+ * A referencia humana e o proprio `code` do periodo mais o intervalo de datas — o identificador
+ * tecnico existe apenas para endereçar as acoes ja autorizadas.
+ */
+export type PeriodsByUnitListResponse = {
+  unitId: string;
+  items: PeriodResponse[];
+};
+
 export type JournalPageResponse = {
   page: number;
   pageSize: number;

@@ -7,12 +7,14 @@ import {
   updateServiceDefinitionDraft,
 } from '../api/service-catalog-api';
 import { mapCatalogErrorToMessage } from '../api/catalog-error-messages';
-import { ServiceDefinitionForm } from '../components/ServiceDefinitionForm';
+import { ServiceDefinitionForm, listFormBlockers } from '../components/ServiceDefinitionForm';
 import { VersionConflictNotice } from '../components/VersionConflictNotice';
 import { VersionStatusBadge } from '../components/VersionStatusBadge';
 import { useCatalogCapabilities } from '../hooks/useCatalogCapabilities';
 import { useCatalogReferenceData } from '../hooks/useCatalogReferenceData';
 import { VERSION_STATUSES } from '../types/service-catalog.types';
+import { Alert, Button, PageHeader, StickyActionBar } from '../../ui';
+import { ModulePage } from '../../ui/module-layout';
 import {
   formStateFromVersion,
   toUpdateDraftPayload,
@@ -27,6 +29,12 @@ type EditState =
   | { phase: 'error'; message: string }
   | { phase: 'ready'; formState: ServiceDefinitionFormState; lineageVersion: number; version: number };
 
+/**
+ * BUILDER — edição do rascunho.
+ *
+ * O status de versão é do domínio e continua no cabeçalho; o restante da tela é o mesmo builder
+ * do catálogo (resumo da edição, seções com ação própria, barra de ação sempre visível).
+ */
 export function ServiceDefinitionDraftEditPage() {
   const { definitionId = '', versionNumber = '' } = useParams();
   const parsedVersion = Number(versionNumber);
@@ -78,45 +86,73 @@ export function ServiceDefinitionDraftEditPage() {
     void reload();
   }, [reload]);
 
+  const blockers =
+    state.phase === 'ready' ? listFormBlockers(state.formState, { includeCode: false }) : [];
+
   if (state.phase === 'loading' || referenceLoading) {
     return (
-      <main id="main-content" className="shell-page">
-        <p aria-busy="true" aria-live="polite">
+      <ModulePage>
+        <PageHeader title="Editar rascunho" />
+        <p aria-busy="true" aria-live="polite" className="text-sm text-gray-500">
           Carregando rascunho…
         </p>
-      </main>
+      </ModulePage>
     );
   }
 
   if (!capabilities.canUpdate) {
     return (
-      <main id="main-content" className="shell-page">
-        <h1>Editar rascunho</h1>
-        <p role="alert">Você não tem permissão para editar rascunhos.</p>
-        <Link to={`/app/catalog/${definitionId}`}>Voltar</Link>
-      </main>
+      <ModulePage>
+        <PageHeader title="Editar rascunho" />
+        <Alert tone="error">Você não tem permissão para editar rascunhos.</Alert>
+        <p className="mt-3">
+          <Link
+            to={`/app/catalog/${definitionId}`}
+            className="text-sm font-medium text-brand-600 no-underline hover:text-brand-700"
+          >
+            Voltar à definição
+          </Link>
+        </p>
+      </ModulePage>
     );
   }
 
   if (state.phase === 'not_editable') {
     return (
-      <main id="main-content" className="shell-page">
-        <h1>Editar rascunho</h1>
-        <p role="alert">
-          Apenas versões em rascunho podem ser editadas. Versões publicadas exigem criação de nova versão.
+      <ModulePage>
+        <PageHeader title="Editar rascunho" />
+        <Alert tone="warning">
+          Apenas versões em rascunho podem ser editadas. Versões publicadas exigem criação de nova
+          versão.
+        </Alert>
+        <p className="mt-3">
+          <Link
+            to={`/app/catalog/${definitionId}/versions/${parsedVersion}`}
+            className="text-sm font-medium text-brand-600 no-underline hover:text-brand-700"
+          >
+            Ver versão
+          </Link>
         </p>
-        <Link to={`/app/catalog/${definitionId}/versions/${parsedVersion}`}>Ver versão</Link>
-      </main>
+      </ModulePage>
     );
   }
 
   if (state.phase === 'denied' || state.phase === 'error') {
     return (
-      <main id="main-content" className="shell-page">
-        <h1>Editar rascunho</h1>
-        <p role="alert">{state.phase === 'denied' ? 'Acesso negado.' : state.message}</p>
-        <Link to={`/app/catalog/${definitionId}`}>Voltar</Link>
-      </main>
+      <ModulePage>
+        <PageHeader title="Editar rascunho" />
+        <Alert tone="error">
+          {state.phase === 'denied' ? 'Acesso negado.' : state.message}
+        </Alert>
+        <p className="mt-3">
+          <Link
+            to={`/app/catalog/${definitionId}`}
+            className="text-sm font-medium text-brand-600 no-underline hover:text-brand-700"
+          >
+            Voltar à definição
+          </Link>
+        </p>
+      </ModulePage>
     );
   }
 
@@ -158,21 +194,25 @@ export function ServiceDefinitionDraftEditPage() {
   }
 
   return (
-    <main id="main-content" className="shell-page catalog-page">
-      <header className="catalog-page__header">
-        <div>
-          <h1>
-            Editar rascunho v{state.version}
-          </h1>
-          <VersionStatusBadge status={VERSION_STATUSES.Draft} />
-        </div>
-      </header>
+    <ModulePage>
+      <PageHeader
+        title={`Editar rascunho v${state.version}`}
+        description="Configure preço, recursos, mão de obra e evidências exigidas."
+        meta={<VersionStatusBadge status={VERSION_STATUSES.Draft} />}
+        className="mb-4"
+      />
 
-      {versionConflict ? <VersionConflictNotice onReload={() => void reload()} /> : null}
+      {versionConflict ? (
+        <div className="mb-3">
+          <VersionConflictNotice onReload={() => void reload()} />
+        </div>
+      ) : null}
       {submitError ? (
-        <p id={errorId} className="form-error" role="alert">
-          {submitError}
-        </p>
+        <div className="mb-3">
+          <Alert tone="error" id={errorId}>
+            {submitError}
+          </Alert>
+        </div>
       ) : null}
 
       <ServiceDefinitionForm
@@ -181,17 +221,33 @@ export function ServiceDefinitionDraftEditPage() {
         errors={fieldErrors}
         referenceData={referenceData}
         includeCode={false}
+        showInternalCost={capabilities.canUpdate}
         onChange={(formState) => setState({ ...state, formState })}
       />
 
-      <div className="button-row">
-        <button type="button" disabled={submitting} onClick={() => void handleSubmit()}>
-          {submitting ? 'Salvando…' : 'Salvar rascunho'}
-        </button>
-        <Link to={`/app/catalog/${definitionId}/versions/${state.version}`} className="button-link button-secondary">
+      <StickyActionBar
+        note={
+          blockers.length > 0
+            ? `Faltam: ${blockers.join(', ')}.`
+            : 'Salvar mantém a versão em rascunho; a publicação é feita na tela da versão.'
+        }
+      >
+        <Link
+          to={`/app/catalog/${definitionId}/versions/${state.version}`}
+          className="button-link button-secondary"
+        >
           Cancelar
         </Link>
-      </div>
-    </main>
+        <Button
+          type="button"
+          disabled={submitting || blockers.length > 0}
+          loading={submitting}
+          loadingText="Salvando…"
+          onClick={() => void handleSubmit()}
+        >
+          Salvar rascunho
+        </Button>
+      </StickyActionBar>
+    </ModulePage>
   );
 }

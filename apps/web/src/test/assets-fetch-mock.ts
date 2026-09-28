@@ -9,6 +9,8 @@ import {
   type PhysicalAsset,
 } from '../assets/types/physical-asset.types';
 
+const DEMO_SERVICE_ORDER_ID = '44444444-4444-4444-8444-444444444444';
+
 export type AssetsFetchMockOptions = {
   assetListAllowed?: boolean;
   assetCreateAllowed?: boolean;
@@ -17,6 +19,10 @@ export type AssetsFetchMockOptions = {
   assetActivateAllowed?: boolean;
   versionConflictOnUpdate?: boolean;
   catalogListAllowed?: boolean;
+  /** Simula o bloco de vida operacional ausente (elo negado ou sem dado). */
+  omitOperationalLifecycle?: boolean;
+  /** Simula ausencia de alocacao vigente no detalhe do ativo. */
+  currentAllocation?: { serviceOrderId: string; orderNumber: string } | null;
 };
 
 function assetError(code: string, status: number): Response {
@@ -62,9 +68,62 @@ export function createAssetsFetchMock(options: AssetsFetchMockOptions = {}) {
       updatedAt: '2026-01-01T00:00:00.000Z',
       deactivatedAt: null,
       vehicle: { plate: 'DEM-0A12', chassis: 'CH-001', model: 'Volvo' },
-      currentAllocation: null,
+      currentAllocation: {
+        serviceOrderId: DEMO_SERVICE_ORDER_ID,
+        orderNumber: 'OS-2026-DEMO01',
+      },
+      operationalLifecycle: {
+        currentUse: {
+          allocationId: 'alloc-1',
+          serviceOrderId: DEMO_SERVICE_ORDER_ID,
+          orderNumber: 'OS-2026-DEMO01',
+          orderStatus: 'IN_EXECUTION',
+          operationalStart: '2026-01-01T08:00:00.000Z',
+          operationalEnd: '2026-01-01T18:00:00.000Z',
+          allocationStatus: 'ACTIVE',
+          timing: 'CURRENT',
+        },
+        nextUse: {
+          allocationId: 'alloc-2',
+          serviceOrderId: DEMO_SERVICE_ORDER_ID,
+          orderNumber: 'OS-2026-DEMO02',
+          orderStatus: 'RELEASED',
+          operationalStart: '2026-02-10T08:00:00.000Z',
+          operationalEnd: '2026-02-10T18:00:00.000Z',
+          allocationStatus: 'ACTIVE',
+          timing: 'FUTURE',
+        },
+        history: [
+          {
+            allocationId: 'alloc-0',
+            serviceOrderId: DEMO_SERVICE_ORDER_ID,
+            orderNumber: 'OS-2025-DEMO99',
+            orderStatus: 'COMPLETED',
+            operationalStart: '2025-12-01T08:00:00.000Z',
+            operationalEnd: '2025-12-01T17:00:00.000Z',
+            allocationStatus: 'ACTIVE',
+            timing: 'PAST',
+          },
+        ],
+        occurrences: [
+          {
+            id: 'occ-1',
+            serviceOrderId: DEMO_SERVICE_ORDER_ID,
+            orderNumber: 'OS-2025-DEMO99',
+            occurrenceCode: 'TRAFFIC_DELAY',
+            description: 'Atraso por trânsito na chegada ao local',
+            recordedAt: '2025-12-01T09:30:00.000Z',
+          },
+        ],
+      },
     },
   ];
+  if (options.omitOperationalLifecycle) {
+    store[0]!.operationalLifecycle = undefined;
+  }
+  if (options.currentAllocation !== undefined) {
+    store[0]!.currentAllocation = options.currentAllocation;
+  }
 
   function filterAssets(searchParams: URLSearchParams): PhysicalAsset[] {
     let items = [...store];

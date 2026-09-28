@@ -16,7 +16,7 @@ export function ProductivityPanel({ productivity }: ProductivityPanelProps) {
           Produtividade
         </h2>
         <p className="mt-0.5 text-sm text-gray-500">
-          Métricas separadas — sem índice composto 0–100 até fórmula formal aprovada.
+          Desempenho operacional no período.
         </p>
       </header>
       <div className="grid grid-cols-1 gap-5 min-[480px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5" role="list">

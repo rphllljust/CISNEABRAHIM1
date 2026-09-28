@@ -7,8 +7,11 @@ import {
 } from '../../audit/types/security-audit.types';
 import { SecurityAuditService } from '../../audit/services/security-audit.service';
 import { SodEnforcementService } from '../../authorization/services/sod-enforcement.service';
+import { ScopeEnforcementService } from '../../authorization/services/scope-enforcement.service';
 import { SOD_DUTIES, resolveSodScope } from '../../authorization/domain/segregation-of-duties';
 import { AUTHZ_ACTIONS } from '../../authorization/types/authz-actions';
+import { AUTHZ_RESOURCE_TYPES } from '../../authorization/types/authz-resources';
+import { AuthorizationRepository } from '../../authorization/repositories/authorization.repository';
 import type { IdentityAuthzContext } from '../../authorization/types/authz-decision';
 import { assertUuid } from '../../platform/kernel/uuid';
 import { ExpenseError, assertExpenseNotSelfApproval } from '../domain/expense';
@@ -22,15 +25,17 @@ import {
   type RejectExpenseInput,
 } from '../domain/expense.validation';
 import { ExpenseRepository } from '../repositories/expense.repository';
-import { toExpenseResponse, type ExpenseResponse } from '../serializers/expense-response.serializer';
+import { toExpenseResponse, toExpenseSummaryResponse, type ExpenseListResponse, type ExpenseResponse } from '../serializers/expense-response.serializer';
 import { ExpenseAccessAuthz } from './expense-access.authz';
-import { mapExpenseError } from './expense-access.errors';
+import { expenseAccessDenied, mapExpenseError } from './expense-access.errors';
 
 @Injectable()
 export class ExpenseAccessService {
   constructor(
     private readonly repository: ExpenseRepository,
     private readonly authz: ExpenseAccessAuthz,
+    private readonly authorizationRepository: AuthorizationRepository,
+    private readonly scopeEnforcement: ScopeEnforcementService,
     private readonly securityAudit: SecurityAuditService,
     private readonly sod: SodEnforcementService,
     private readonly failures: ExpenseFailureInjection,
@@ -67,6 +72,72 @@ export class ExpenseAccessService {
       });
       await this.audit(actor, SECURITY_AUDIT_ACTIONS.FinanceExpenseCreate, created.expense.id);
       return toExpenseResponse(created);
+    } catch (error) {
+      throw mapExpenseError(error);
+    }
+  }
+
+  /**
+   * Listagem operacional de despesas. Exige concessão ativa de `finance:expense:list` no recurso
+   * FinanceExpense: sem ela nada é listado. A tela deixa de depender de um identificador digitado.
+   */
+  async list(
+    actor: IdentityAuthzContext,
+    query: { limit: number; offset: number; status?: string; unitId?: string; q?: string },
+  ): Promise<ExpenseListResponse> {
+    const grants = await this.authorizationRepository.findActiveGrants(
+      actor.identityId,
+      AUTHZ_ACTIONS.FinanceExpenseList,
+      AUTHZ_RESOURCE_TYPES.FinanceExpense,
+    );
+    if (grants.length === 0) {
+      throw mapExpenseError(expenseAccessDenied());
+    }
+    try {
+      // ESCOPO DE UNIDADE DO ATOR (correção no domínio dono): antes, o único recorte de
+      // unidade vinha de `query.unitId` — parâmetro do cliente. Sem ele, uma concessão da
+      // unidade A lia despesas da unidade B. Agora o recorte é derivado das concessões e a
+      // leitura é negada quando nenhuma unidade está coberta.
+      const scope = this.scopeEnforcement.buildExpenseListFilter(grants);
+      if (scope.clause === 'FALSE') {
+        throw mapExpenseError(expenseAccessDenied());
+      }
+      const whereParts: string[] = [scope.clause];
+      const params: unknown[] = [...scope.params];
+      if (query.status) {
+        whereParts.push(`status = $${params.length + 1}::fin.expense_status`);
+        params.push(query.status);
+      }
+      if (query.unitId) {
+        whereParts.push(`unit_id = $${params.length + 1}`);
+        params.push(query.unitId);
+      }
+      if (query.q) {
+        whereParts.push(
+          `(description ILIKE $${params.length + 1} OR cost_center_code ILIKE $${params.length + 1})`,
+        );
+        params.push(`%${query.q}%`);
+      }
+      const whereClause = whereParts.length > 0 ? whereParts.join(' AND ') : 'TRUE';
+
+      const rows = await this.repository.listPage({
+        whereClause,
+        params,
+        limit: query.limit,
+        offset: query.offset,
+      });
+      const total =
+        query.offset === 0 && rows.length < query.limit
+          ? rows.length
+          : await this.repository.countList(whereClause, params);
+
+      return {
+        items: rows.map(toExpenseSummaryResponse),
+        limit: query.limit,
+        offset: query.offset,
+        total,
+        totalPages: Math.ceil(total / query.limit),
+      };
     } catch (error) {
       throw mapExpenseError(error);
     }

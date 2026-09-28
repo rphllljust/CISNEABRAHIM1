@@ -37,6 +37,18 @@ import type { FiscalPeriod, FiscalPeriodListItem } from '../types/fiscal.types';
 
 const PAGE_SIZE = 20;
 
+/** Próxima ação derivada do status do período — fechamento/reabertura permanecem no backend. */
+function NEXT_ACTION_FOR(status: string): string {
+  switch (status) {
+    case 'OPEN':
+      return 'Fechar período';
+    case 'CLOSED':
+      return 'Reabrir período';
+    default:
+      return '—';
+  }
+}
+
 type ListState =
   | { phase: 'loading' }
   | { phase: 'error'; message: string; retryable: boolean }
@@ -199,6 +211,9 @@ function FiscalPeriodsList() {
                     Situação
                   </th>
                   <th scope="col" className={moduleTableHeaderCellClass}>
+                    Próxima ação
+                  </th>
+                  <th scope="col" className={moduleTableHeaderCellClass}>
                     Fechado em
                   </th>
                   <th scope="col" className={moduleTableHeaderCellClass}>
@@ -218,6 +233,7 @@ function FiscalPeriodsList() {
                     <td className={moduleTableCellClass}>
                       <FinanceStatusBadge status={item.status} labels={PERIOD_STATUS_LABELS} />
                     </td>
+                    <td className={moduleTableCellClass}>{NEXT_ACTION_FOR(item.status)}</td>
                     <td className={moduleTableCellClass}>{item.closedAt ? item.closedAt.slice(0, 10) : '—'}</td>
                     <td className={moduleTableCellClass}>{item.reopenedAt ? item.reopenedAt.slice(0, 10) : '—'}</td>
                     <td className={moduleTableCellClass}>{item.unitId}</td>

@@ -75,6 +75,114 @@ export type Proposal = {
   rowVersion: number;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Projecao da versao CORRENTE, exposta pela listagem.
+   *
+   * Todos os campos vem do backend. `null` significa "a proposta ainda nao tem versao" — a
+   * interface declara a ausencia e nunca presume estado comercial.
+   */
+  currentVersionStatus: string | null;
+  currencyCode: string | null;
+  /** Valor de venda da versao corrente, conforme a regra de precificacao do dominio. */
+  saleTotal: string | null;
+  validUntil: string | null;
+  /** Nome do cliente quando o modulo CLIENTES autoriza; `null` quando nao autoriza. */
+  clientName?: string | null;
+  revisionNumber?: number | null;
+  revisionCount?: number;
+  /** Solicitacoes de origem que o ator PODE ler (vazio quando nenhuma e legivel). */
+  originRequests?: Array<{ id: string; requestCode: string; status: string }>;
+  issuedAt?: string | null;
+  acceptedAt?: string | null;
+};
+
+export const PROPOSAL_LIST_SORTS = {
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  validUntil: 'validUntil',
+  value: 'value',
+  revision: 'revision',
+} as const;
+
+export type ProposalListSort = (typeof PROPOSAL_LIST_SORTS)[keyof typeof PROPOSAL_LIST_SORTS];
+export type ProposalListDirection = 'asc' | 'desc';
+
+export type ProposalTransition =
+  | 'issue'
+  | 'accept'
+  | 'reject'
+  | 'expire'
+  | 'cancel'
+  | 'revise';
+
+export type ProposalNextStepCode =
+  | 'COMPLETE_AND_ISSUE'
+  | 'AWAIT_CLIENT_DECISION'
+  | 'FOLLOW_COMMERCIAL_FLOW'
+  | 'CREATE_NEW_REVISION'
+  | 'CLOSED';
+
+export type ProposalReadiness = {
+  nextStep: ProposalNextStepCode;
+  nextStepTransition: ProposalTransition | null;
+  availableTransitions: ProposalTransition[];
+  blockers: string[];
+};
+
+export type ProposalLinkedKind = 'REQUEST' | 'SERVICE_ORDER' | 'PURCHASE_ORDER';
+
+export type ProposalLinked = {
+  kind: ProposalLinkedKind;
+  id: string;
+  label: string;
+  status: string | null;
+  occurredAt: string;
+  /** Preenchido quando a relacao chega por intermedio de outro objeto (pedido via OS). */
+  viaLabel: string | null;
+};
+
+export type ProposalRelated = {
+  client: { id: string; name: string } | null;
+};
+
+export type ProposalRevisionSummary = {
+  versionNumber: number;
+  status: ProposalVersionStatus;
+  saleTotal: string | null;
+  currencyCode: string;
+  validUntil: string | null;
+  createdAt: string;
+  issuedAt: string | null;
+  acceptedAt: string | null;
+  rejectedAt: string | null;
+  expiredAt: string | null;
+  cancelledAt: string | null;
+  supersededAt: string | null;
+  isCurrent: boolean;
+  supersedesVersionNumber: number | null;
+  itemCount: number;
+};
+
+export type ProposalRevisionDiffField = {
+  field: string;
+  label: string;
+  before: string | null;
+  after: string | null;
+};
+
+export type ProposalRevisionDiffLine = {
+  change: 'ADDED' | 'REMOVED' | 'CHANGED';
+  key: string;
+  description: string;
+  fields: ProposalRevisionDiffField[];
+};
+
+export type ProposalRevisionDiff = {
+  fromRevisionNumber: number;
+  toRevisionNumber: number;
+  fields: ProposalRevisionDiffField[];
+  lines: ProposalRevisionDiffLine[];
+  totals: { linesAdded: number; linesRemoved: number; linesChanged: number };
 };
 
 export type ProposalItem = {
@@ -136,6 +244,11 @@ export type ProposalVersion = {
 export type ProposalDetail = {
   proposal: Proposal;
   currentVersion: ProposalVersion | null;
+  related: ProposalRelated;
+  revisions: ProposalRevisionSummary[];
+  revisionComparison: ProposalRevisionDiff | null;
+  linkedChain: ProposalLinked[];
+  readiness: ProposalReadiness;
 };
 
 export type ProposalListResponse = {

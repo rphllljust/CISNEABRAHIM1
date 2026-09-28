@@ -9,6 +9,8 @@ import {
   type ProposalDetail,
   type ProposalErrorCode,
   type ProposalListResponse,
+  type ProposalListDirection,
+  type ProposalListSort,
   type ProposalVersion,
   type RejectProposalPayload,
   type UpdateProposalDraftPayload,
@@ -115,6 +117,15 @@ export type ListProposalsParams = {
   offset: number;
   clientId?: string;
   unitId?: string;
+  status?: string;
+  currencyCode?: string;
+  validFrom?: string;
+  validTo?: string;
+  createdFrom?: string;
+  createdTo?: string;
+  search?: string;
+  sort?: ProposalListSort;
+  direction?: ProposalListDirection;
 };
 
 export function buildListProposalsQuery(params: ListProposalsParams): string {
@@ -126,6 +137,34 @@ export function buildListProposalsQuery(params: ListProposalsParams): string {
   }
   if (params.unitId) {
     search.set('unitId', params.unitId);
+  }
+  if (params.status) {
+    search.set('status', params.status);
+  }
+  if (params.currencyCode) {
+    search.set('currencyCode', params.currencyCode);
+  }
+  if (params.validFrom) {
+    search.set('validFrom', params.validFrom);
+  }
+  if (params.validTo) {
+    search.set('validTo', params.validTo);
+  }
+  if (params.createdFrom) {
+    search.set('createdFrom', params.createdFrom);
+  }
+  if (params.createdTo) {
+    search.set('createdTo', params.createdTo);
+  }
+  const term = params.search?.trim();
+  if (term) {
+    search.set('q', term);
+  }
+  if (params.sort) {
+    search.set('sort', params.sort);
+  }
+  if (params.direction) {
+    search.set('direction', params.direction);
   }
   return search.toString();
 }

@@ -50,8 +50,16 @@ export class ProposalsController {
 
   @Get()
   list(@CurrentAuth() auth: AccessTokenClaims, @Query() query: Record<string, unknown>) {
-    const parsed = parseListProposalsQuery(query);
-    return this.proposalsAccess.list({ identityId: auth.sub, sessionId: auth.sid }, parsed);
+    try {
+      const parsed = parseListProposalsQuery(query);
+      return this.proposalsAccess.list({ identityId: auth.sub, sessionId: auth.sid }, parsed);
+    } catch {
+      throw new CommercialHttpException(
+        400,
+        COMMERCIAL_ERROR_CODES.VALIDATION_FAILED,
+        'Invalid query parameters.',
+      );
+    }
   }
 
   @Get(':proposalId')

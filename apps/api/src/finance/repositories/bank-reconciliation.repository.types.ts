@@ -65,6 +65,29 @@ export type ReconciliationMatchRow = {
   is_active: boolean;
 };
 
+/**
+ * Linha de descoberta de extrato. Traz apenas o que a lista precisa: identidade do extrato,
+ * referência humana da conta, período, status e os totais agregados das linhas persistidas.
+ */
+export type BankStatementListRow = {
+  id: string;
+  unit_id: string;
+  financial_account_id: string;
+  account_code: string;
+  account_name: string;
+  source_kind: string;
+  source_reference: string;
+  period_starts_on: string;
+  period_ends_on: string;
+  currency_code: string;
+  status: string;
+  line_count: number;
+  matched_line_count: number;
+  unreconciled_line_count: number;
+  debit_total: string;
+  credit_total: string;
+};
+
 export type EligibleMovementRow = {
   id: string;
   account_id: string;

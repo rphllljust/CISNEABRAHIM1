@@ -21,6 +21,21 @@ export { ErrorState, type ErrorStateKind, type ErrorStateProps } from './ErrorSt
 export { Field, type FieldProps } from './Field';
 export { FieldError, type FieldErrorProps } from './FieldError';
 export { FormSection, type FormSectionProps } from './FormSection';
+export {
+  BuilderSection,
+  BuilderSummary,
+  CollectionEditor,
+  StickyActionBar,
+  type BuilderSectionProps,
+  type BuilderSummaryProps,
+  type CollectionEditorProps,
+  type StickyActionBarProps,
+} from './builder';
+export {
+  CurrencyField,
+  normalizeCurrencyInput,
+  type CurrencyFieldProps,
+} from './CurrencyField';
 export { IconButton, type IconButtonProps } from './IconButton';
 export { Input, type InputProps } from './Input';
 export { KpiCard, type KpiCardProps, type KpiCardTone } from './KpiCard';

@@ -62,6 +62,7 @@ import { ContractsCreatePage } from './contracts/pages/ContractsCreatePage';
 import { ContractsDetailPage } from './contracts/pages/ContractsDetailPage';
 import { OperationalDashboardPage } from './dashboard/pages/OperationalDashboardPage';
 import { AlertCenterPage } from './alerts/pages/AlertCenterPage';
+import { WorkInboxPage } from './work-inbox/pages/WorkInboxPage';
 import { SearchResultsPage } from './search/pages/SearchResultsPage';
 import { ReportsPage } from './reports/pages/ReportsPage';
 import { OperationalProfitabilityPage } from './analytics/pages/OperationalProfitabilityPage';
@@ -73,6 +74,8 @@ import { ServiceUnavailablePage } from './pages/ServiceUnavailablePage';
 import { ShellAccessDeniedPage } from './pages/ShellAccessDeniedPage';
 import { ShellNotFoundPage } from './pages/ShellNotFoundPage';
 import { SessionExpiredPage } from './pages/SessionExpiredPage';
+import { DomainWorkspacePage } from './workspaces/pages/DomainWorkspacePage';
+import { WorkspacesIndexPage } from './workspaces/pages/WorkspacesIndexPage';
 import { FinanceRoute } from './finance/FinanceRoute';
 import { FinanceOverviewPage } from './finance/pages/FinanceOverviewPage';
 import { ReceivablesListPage } from './finance/pages/ReceivablesListPage';
@@ -82,6 +85,10 @@ import { PayableDetailPage } from './finance/pages/PayableDetailPage';
 import { TreasuryListPage } from './finance/pages/TreasuryListPage';
 import { TreasuryAccountDetailPage } from './finance/pages/TreasuryAccountDetailPage';
 import { BankReconciliationPage } from './finance/pages/BankReconciliationPage';
+import { ExpensesListPage } from './finance/pages/ExpensesListPage';
+import { ExpensesPage } from './finance/pages/ExpensesPage';
+import { BudgetsListPage } from './finance/pages/BudgetsListPage';
+import { BudgetsPage } from './finance/pages/BudgetsPage';
 import { FiscalRoute } from './fiscal/FiscalRoute';
 import { FiscalDocumentsPage } from './fiscal/pages/FiscalDocumentsPage';
 import { FiscalPeriodsPage } from './fiscal/pages/FiscalPeriodsPage';
@@ -99,18 +106,28 @@ import {
   TrialBalancePage,
 } from './accounting/pages/PeriodReportPages';
 import { PeriodClosePage } from './accounting/pages/PeriodClosePage';
+import { ClosingCenterPage } from './accounting/pages/ClosingCenterPage';
 import { AccountingPostingOriginsPage } from './accounting/pages/AccountingPostingOriginsPage';
 import { FixedAssetsPage } from './accounting/pages/FixedAssetsPage';
 import {
   ProcurementRoute,
   ProcurementHubPage,
+  PurchaseRequestCreatePage,
   PurchaseRequestPage,
   PurchaseOrderPage,
   SupplierInvoicePage,
   ThreeWayMatchPage,
 } from './procurement/pages/ProcurementPages';
-import { InventoryRoute, InventoryPage } from './inventory/pages/InventoryPage';
+import {
+  InventoryItemDetailPage,
+  InventoryPage,
+  InventoryRoute,
+  InventoryWarehouseDetailPage,
+} from './inventory/pages/InventoryPage';
 import { PayrollRoute, PayrollPage } from './payroll/pages/PayrollPage';
+import { SupplierCreatePage } from './suppliers/pages/SupplierCreatePage';
+import { SuppliersListPage } from './suppliers/pages/SuppliersListPage';
+import { SuppliersPage, SuppliersRoute } from './suppliers/pages/SuppliersPage';
 import { AccessAdminRoute } from './access-admin/AccessAdminRoute';
 import { AccessAdminPage } from './access-admin/pages/AccessAdminPage';
 
@@ -137,9 +154,44 @@ export function App() {
             <Route element={<AppShellLayout />}>
               <Route path="/app" element={<OperationalDashboardPage />} />
               <Route path="/app/alerts" element={<AlertCenterPage />} />
+              <Route path="/app/work-inbox" element={<WorkInboxPage />} />
+              {/*
+                WORKSPACES DE DOMINIO — uma superficie de decisao por dominio, sobre a MESMA
+                fila de trabalho. O financeiro e o unico que vive fora de `/app/workspaces`
+                porque a conversao aconteceu em `/app/finance`: a rota abaixo redireciona para
+                la, e nao para uma segunda superficie financeira divergente.
+              */}
+              <Route path="/app/workspaces" element={<WorkspacesIndexPage />} />
+              <Route
+                path="/app/workspaces/comercial"
+                element={<DomainWorkspacePage domain="COMERCIAL" />}
+              />
+              <Route
+                path="/app/workspaces/operacoes"
+                element={<DomainWorkspacePage domain="OPERACOES" />}
+              />
+              <Route
+                path="/app/workspaces/financeiro"
+                element={<Navigate to="/app/finance" replace />}
+              />
+              <Route
+                path="/app/workspaces/fiscal"
+                element={<DomainWorkspacePage domain="FISCAL" />}
+              />
+              <Route
+                path="/app/workspaces/contabilidade"
+                element={<DomainWorkspacePage domain="CONTABILIDADE" />}
+              />
+              <Route
+                path="/app/workspaces/suprimentos"
+                element={<DomainWorkspacePage domain="SUPRIMENTOS" />}
+              />
               <Route path="/app/search" element={<SearchResultsPage />} />
               <Route path="/app/reports" element={<ReportsPage />} />
-              <Route path="/app/operational-profitability" element={<OperationalProfitabilityPage />} />
+              <Route
+                path="/app/operational-profitability"
+                element={<OperationalProfitabilityPage />}
+              />
               <Route path="/app/reports/compliance" element={<ComplianceBiPage />} />
               <Route path="/app/modules" element={<ModulesRegistryPage />} />
               <Route
@@ -496,6 +548,54 @@ export function App() {
                 }
               />
               <Route
+                path="/app/finance/budgets"
+                element={
+                  <FinanceRoute access="budgets">
+                    <BudgetsListPage />
+                  </FinanceRoute>
+                }
+              />
+              <Route
+                path="/app/finance/budgets/new"
+                element={
+                  <FinanceRoute access="budgets">
+                    <BudgetsPage />
+                  </FinanceRoute>
+                }
+              />
+              <Route
+                path="/app/finance/budgets/:budgetId"
+                element={
+                  <FinanceRoute access="budgets">
+                    <BudgetsPage />
+                  </FinanceRoute>
+                }
+              />
+              <Route
+                path="/app/finance/expenses"
+                element={
+                  <FinanceRoute access="expenses">
+                    <ExpensesListPage />
+                  </FinanceRoute>
+                }
+              />
+              <Route
+                path="/app/finance/expenses/new"
+                element={
+                  <FinanceRoute access="expenses">
+                    <ExpensesPage />
+                  </FinanceRoute>
+                }
+              />
+              <Route
+                path="/app/finance/expenses/:expenseId"
+                element={
+                  <FinanceRoute access="expenses">
+                    <ExpensesPage />
+                  </FinanceRoute>
+                }
+              />
+              <Route
                 path="/app/finance/receivables"
                 element={
                   <FinanceRoute access="receivables">
@@ -551,6 +651,15 @@ export function App() {
                   </FinanceRoute>
                 }
               />
+              {/* Seleção do extrato vive na URL: o operador abre a mesa já no extrato escolhido. */}
+              <Route
+                path="/app/finance/reconciliation/:statementId"
+                element={
+                  <FinanceRoute access="reconciliation">
+                    <BankReconciliationPage />
+                  </FinanceRoute>
+                }
+              />
               <Route
                 path="/app/fiscal/documents"
                 element={
@@ -596,6 +705,14 @@ export function App() {
                 element={
                   <FiscalRoute access="tax">
                     <TaxAssessmentsPage />
+                  </FiscalRoute>
+                }
+              />
+              <Route
+                path="/app/fiscal/apuracao/:calculationId"
+                element={
+                  <FiscalRoute access="tax">
+                    <FiscalApuracaoPage />
                   </FiscalRoute>
                 }
               />
@@ -695,6 +812,23 @@ export function App() {
                   </AccountingRoute>
                 }
               />
+              {/* Superfície única de fechamento: unidade + período, sem identificador técnico. */}
+              <Route
+                path="/app/closing"
+                element={
+                  <AccountingRoute>
+                    <ClosingCenterPage />
+                  </AccountingRoute>
+                }
+              />
+              <Route
+                path="/app/accounting/closing"
+                element={
+                  <AccountingRoute>
+                    <ClosingCenterPage />
+                  </AccountingRoute>
+                }
+              />
               <Route
                 path="/app/accounting/origens"
                 element={
@@ -744,6 +878,14 @@ export function App() {
                 }
               />
               <Route
+                path="/app/procurement/requests/new"
+                element={
+                  <ProcurementRoute>
+                    <PurchaseRequestCreatePage />
+                  </ProcurementRoute>
+                }
+              />
+              <Route
                 path="/app/procurement/requests/:requestId"
                 element={
                   <ProcurementRoute>
@@ -768,11 +910,51 @@ export function App() {
                 }
               />
               <Route
+                path="/app/inventory/items/:itemId"
+                element={
+                  <InventoryRoute>
+                    <InventoryItemDetailPage />
+                  </InventoryRoute>
+                }
+              />
+              <Route
+                path="/app/inventory/warehouses/:warehouseId"
+                element={
+                  <InventoryRoute>
+                    <InventoryWarehouseDetailPage />
+                  </InventoryRoute>
+                }
+              />
+              <Route
                 path="/app/inventory"
                 element={
                   <InventoryRoute>
                     <InventoryPage />
                   </InventoryRoute>
+                }
+              />
+              <Route
+                path="/app/suppliers/new"
+                element={
+                  <SuppliersRoute>
+                    <SupplierCreatePage />
+                  </SuppliersRoute>
+                }
+              />
+              <Route
+                path="/app/suppliers/:supplierId"
+                element={
+                  <SuppliersRoute>
+                    <SuppliersPage />
+                  </SuppliersRoute>
+                }
+              />
+              <Route
+                path="/app/suppliers"
+                element={
+                  <SuppliersRoute>
+                    <SuppliersListPage />
+                  </SuppliersRoute>
                 }
               />
               <Route

@@ -1,7 +1,8 @@
-import { Body, Controller, Get, HttpCode, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { CurrentAuth } from '../../auth/decorators/current-auth.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import type { AccessTokenClaims } from '../../auth/services/token.service';
+import { parseFinanceListQuery } from '../dto/finance-list.dto';
 import {
   validateCreateBudgetInput,
   validateCreateBudgetLineInput,
@@ -18,6 +19,14 @@ export class BudgetController {
   @HttpCode(200)
   create(@CurrentAuth() auth: AccessTokenClaims, @Body() body: never) {
     return this.budgets.create({ identityId: auth.sub, sessionId: auth.sid }, validateCreateBudgetInput(body));
+  }
+
+  @Get()
+  list(@CurrentAuth() auth: AccessTokenClaims, @Query() query: Record<string, unknown>) {
+    return this.budgets.list(
+      { identityId: auth.sub, sessionId: auth.sid },
+      parseFinanceListQuery(query),
+    );
   }
 
   @Get(':budgetId/comparison')

@@ -33,6 +33,72 @@ export class SuppliersRepository {
     return result.rows[0] ?? null;
   }
 
+  /**
+   * Página de fornecedores sob o MESMO predicado da contagem. A consulta de lista não junta
+   * contatos/endereços: a linha de lista é um resumo, e o detalhe continua sendo a fonte
+   * completa.
+   */
+  async listPage(input: {
+    whereClause: string;
+    params: unknown[];
+    limit: number;
+    offset: number;
+  }): Promise<SupplierRow[]> {
+    const result = await this.pool().query<SupplierRow>(
+      `SELECT ${SUPPLIER_RETURNING}
+       FROM pty.suppliers
+       WHERE ${input.whereClause}
+       ORDER BY legal_name ASC, id ASC
+       LIMIT $${input.params.length + 1}
+       OFFSET $${input.params.length + 2}`,
+      [...input.params, input.limit, input.offset],
+    );
+    return result.rows;
+  }
+
+  /**
+   * Referências humanas para o port Comercial (leitura por outro contexto). Uma única consulta
+   * para o conjunto de ids pedido — nunca uma por linha.
+   */
+  async listReferencesByIds(
+    supplierIds: string[],
+  ): Promise<Array<{ id: string; legal_name: string; trade_name: string | null; normalized_tax_id: string }>> {
+    if (supplierIds.length === 0) {
+      return [];
+    }
+    const result = await this.pool().query<{
+      id: string;
+      legal_name: string;
+      trade_name: string | null;
+      normalized_tax_id: string;
+    }>(
+      `SELECT id, legal_name, trade_name, normalized_tax_id
+       FROM pty.suppliers WHERE id = ANY($1::uuid[])`,
+      [supplierIds],
+    );
+    return result.rows;
+  }
+
+  /** Ids que casam com o termo livre, para o consumidor filtrar o próprio dado. */
+  async searchIdsByTerm(term: string, limit: number): Promise<string[]> {
+    const result = await this.pool().query<{ id: string }>(
+      `SELECT id FROM pty.suppliers
+       WHERE legal_name ILIKE $1 OR trade_name ILIKE $1 OR normalized_tax_id ILIKE $1
+       ORDER BY legal_name ASC, id ASC
+       LIMIT $2`,
+      [`%${term}%`, limit],
+    );
+    return result.rows.map((row) => row.id);
+  }
+
+  async countList(whereClause: string, params: unknown[]): Promise<number> {
+    const result = await this.pool().query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total FROM pty.suppliers WHERE ${whereClause}`,
+      params,
+    );
+    return Number(result.rows[0]?.total ?? '0');
+  }
+
   async findPublishedById(supplierId: string): Promise<SupplierRow | null> {
     const result = await this.pool().query<SupplierRow>(
       `SELECT ${SUPPLIER_RETURNING} FROM rpt.read_suppliers WHERE id = $1`,

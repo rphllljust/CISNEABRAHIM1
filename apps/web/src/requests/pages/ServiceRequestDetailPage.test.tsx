@@ -23,15 +23,63 @@ describe('ServiceRequestDetailPage', () => {
     vi.unstubAllGlobals();
   });
 
-  it('separates origin from registered-by sections', async () => {
+  it('renders the workbench: operational summary, next step and lifecycle history', async () => {
     vi.stubGlobal('fetch', createRequestsFetchMock());
     renderRequestRoutes(`/app/requests/${REQUEST_ID}`);
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /origem da solicitação/i })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /resumo operacional/i })).toBeInTheDocument();
     });
-    expect(screen.getByRole('heading', { name: /registrado por/i })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /converter/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /próximo passo/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /histórico do ciclo/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /cadeia relacionada/i })).toBeInTheDocument();
+    // Nome humano do cliente (módulo CLIENTES autorizado) — nunca o UUID.
+    expect(screen.getAllByText('Cliente Demo Ltda').length).toBeGreaterThan(0);
+    expect(
+      screen.queryByText('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
+    ).not.toBeInTheDocument();
+    // Próximo passo derivado do estado e fato temporal derivável.
+    expect(screen.getByText(/completar e enviar para análise/i)).toBeInTheDocument();
+    expect(screen.getByText(/período desejado não informado/i)).toBeInTheDocument();
+    expect(screen.getByText(/solicitação registrada/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /converter em os/i })).not.toBeInTheDocument();
+  });
+
+  it('shows the authorized business chain and hides the links the actor cannot read', async () => {
+    vi.stubGlobal(
+      'fetch',
+      createRequestsFetchMock({
+        requestStatus: SERVICE_REQUEST_STATUSES.Converted,
+        linkedChain: [
+          {
+            kind: 'SERVICE_ORDER',
+            id: CONVERTED_SERVICE_ORDER_ID,
+            label: 'OS-2026-0007',
+            status: 'PREPARED',
+            occurredAt: '2026-01-02T12:00:00.000Z',
+          },
+        ],
+      }),
+    );
+    renderRequestRoutes(`/app/requests/${REQUEST_ID}`);
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'OS-2026-0007' })).toBeInTheDocument();
+    });
+    expect(screen.getByText('Ordem de serviço')).toBeInTheDocument();
+    expect(screen.queryByText('Proposta comercial')).not.toBeInTheDocument();
+    expect(screen.queryByText('Pedido de compra')).not.toBeInTheDocument();
+  });
+
+  it('does not offer a transition the actor is not authorized to perform', async () => {
+    vi.stubGlobal('fetch', createRequestsFetchMock({ requestSubmitAllowed: false }));
+    renderRequestRoutes(`/app/requests/${REQUEST_ID}`);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /próximo passo/i })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('button', { name: /enviar para análise/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/nenhuma ação disponível para o seu perfil/i)).toBeInTheDocument();
   });
 
   it('submits, reviews, approves and cancels workflow', async () => {
@@ -40,10 +88,10 @@ describe('ServiceRequestDetailPage', () => {
     renderRequestRoutes(`/app/requests/${REQUEST_ID}`);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /^enviar$/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /enviar para análise/i })).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('button', { name: /^enviar$/i }));
+    await user.click(screen.getByRole('button', { name: /enviar para análise/i }));
     await waitFor(() => {
       expect(screen.getByLabelText('Status: Enviada')).toBeInTheDocument();
     });
@@ -74,9 +122,9 @@ describe('ServiceRequestDetailPage', () => {
     renderRequestRoutes(`/app/requests/${REQUEST_ID}`);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /^enviar$/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /enviar para análise/i })).toBeInTheDocument();
     });
-    await user.click(screen.getByRole('button', { name: /^enviar$/i }));
+    await user.click(screen.getByRole('button', { name: /enviar para análise/i }));
     await user.click(screen.getByRole('button', { name: /iniciar análise/i }));
 
     await waitFor(() => {

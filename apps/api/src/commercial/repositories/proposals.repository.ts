@@ -14,13 +14,18 @@ import {
 import type {
   ClientSnapshotSource,
   CreateProposalPersistenceInput,
+  ProposalClientLabelRow,
   ProposalDocumentLinkRow,
   ProposalItemRow,
+  ProposalLinkedRow,
+  ProposalListVersionRow,
   ProposalRow,
   ProposalVersionRow,
+  ProposalWorkbenchRow,
   ServiceSnapshotSource,
   UpdateProposalDraftPersistenceInput,
 } from './proposals.repository.types';
+import { PROPOSAL_WORKBENCH_SELECT } from './proposal-list-sql';
 import {
   copyProposalItemsFromVersion,
   replaceProposalItems,
@@ -168,12 +173,206 @@ export class ProposalsRepository {
     return result.rows;
   }
 
+  /**
+   * Versao corrente de VARIAS propostas em UMA consulta.
+   *
+   * Enriquecimento de leitura da listagem: `current_version_number` e os campos da versao
+   * (status, valid_until, totais, moeda) ja existem em `com.proposal_versions`. A busca e feita
+   * por pagina — `WHERE proposal_id = ANY(...)` — e nao uma consulta por linha (sem N+1).
+   * Nao altera `listProposals` nem qualquer query ja em uso.
+   */
+  async findCurrentVersionsForProposals(proposalIds: string[]): Promise<ProposalListVersionRow[]> {
+    if (proposalIds.length === 0) {
+      return [];
+    }
+    const result = await this.pool().query<ProposalListVersionRow>(
+      `SELECT
+         v.proposal_id,
+         v.status::text AS status,
+         v.currency_code,
+         v.pricing_structure::text AS pricing_structure,
+         v.global_sale_price_amount::text AS global_sale_price_amount,
+         v.items_sale_total_amount::text AS items_sale_total_amount,
+         v.valid_until
+       FROM com.proposal_versions v
+       INNER JOIN com.proposals p
+         ON p.id = v.proposal_id
+        AND p.current_version_number = v.version_number
+       WHERE v.proposal_id = ANY($1::uuid[])`,
+      [proposalIds],
+    );
+    return result.rows;
+  }
+
   async listVersions(proposalId: string): Promise<ProposalVersionRow[]> {
     const result = await this.pool().query<ProposalVersionRow>(
       `${VERSION_SELECT}
        WHERE proposal_id = $1
        ORDER BY version_number DESC`,
       [proposalId],
+    );
+    return result.rows;
+  }
+
+  /**
+   * Fila comercial: proposta + versao corrente + contagem de revisoes em UMA consulta.
+   *
+   * Substitui a listagem simples apenas para a superficie de trabalho; `listProposals` continua
+   * existindo e intacta para quem ja a usa. A ordenacao vem por allowlist (ver `proposal-list-sql`).
+   */
+  async listProposalsForWorkbench(
+    whereClause: string,
+    params: unknown[],
+    limit: number,
+    offset: number,
+    orderClause: string,
+  ): Promise<ProposalWorkbenchRow[]> {
+    const result = await this.pool().query<ProposalWorkbenchRow>(
+      `${PROPOSAL_WORKBENCH_SELECT}
+       WHERE ${whereClause}
+       ORDER BY ${orderClause}
+       LIMIT $${params.length + 1}
+       OFFSET $${params.length + 2}`,
+      [...params, limit, offset],
+    );
+    return result.rows;
+  }
+
+  /** Nomes de cliente da pagina em UMA consulta, apenas para os ids ja autorizados. */
+  async listClientLabels(clientIds: string[]): Promise<ProposalClientLabelRow[]> {
+    if (clientIds.length === 0) {
+      return [];
+    }
+    const result = await this.pool().query<ProposalClientLabelRow>(
+      `SELECT id, legal_name, trade_name
+       FROM rpt.read_clients
+       WHERE id = ANY($1::uuid[])`,
+      [clientIds],
+    );
+    return result.rows;
+  }
+
+  /** Rotulos de servico da pagina em UMA consulta (nome da versao + codigo da definicao). */
+  async listServiceLabels(
+    items: Array<{ serviceDefinitionId: string; serviceDefinitionVersionId: string | null }>,
+  ): Promise<Map<string, string>> {
+    const definitionIds = [...new Set(items.map((item) => item.serviceDefinitionId))];
+    const versionIds = [
+      ...new Set(
+        items
+          .map((item) => item.serviceDefinitionVersionId)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    ];
+    const labels = new Map<string, string>();
+    if (definitionIds.length === 0) {
+      return labels;
+    }
+    const [versions, definitions] = await Promise.all([
+      versionIds.length === 0
+        ? Promise.resolve({ rows: [] as Array<{ id: string; name: string }> })
+        : this.pool().query<{ id: string; name: string }>(
+            `SELECT id, name FROM rpt.read_service_definition_versions WHERE id = ANY($1::uuid[])`,
+            [versionIds],
+          ),
+      this.pool().query<{ id: string; code: string }>(
+        `SELECT id, code FROM rpt.read_service_definitions WHERE id = ANY($1::uuid[])`,
+        [definitionIds],
+      ),
+    ]);
+    const nameByVersion = new Map(versions.rows.map((row) => [row.id, row.name]));
+    const codeById = new Map(definitions.rows.map((row) => [row.id, row.code]));
+    for (const item of items) {
+      const label =
+        (item.serviceDefinitionVersionId
+          ? nameByVersion.get(item.serviceDefinitionVersionId)
+          : undefined) ?? codeById.get(item.serviceDefinitionId);
+      if (label) {
+        labels.set(item.serviceDefinitionId, label);
+      }
+    }
+    return labels;
+  }
+
+  /** Solicitacoes que referenciam a proposta (origem comercial real). */
+  async listOriginRequests(proposalIds: string[]): Promise<ProposalLinkedRow[]> {
+    if (proposalIds.length === 0) {
+      return [];
+    }
+    const result = await this.pool().query<ProposalLinkedRow>(
+      `SELECT 'REQUEST'::text AS kind, sr.id, sr.request_code::text AS label,
+              sr.status::text AS status, sr.created_at AS occurred_at,
+              sr.unit_id, sr.client_id, NULL::text AS via_label, sr.proposal_id
+       FROM rpt.read_service_requests sr
+       WHERE sr.proposal_id = ANY($1::uuid[])
+       ORDER BY sr.created_at ASC, sr.id ASC`,
+      [proposalIds],
+    );
+    return result.rows;
+  }
+
+  /**
+   * Destinos comerciais da proposta. UMA consulta.
+   *
+   * Ordem de servico referencia a proposta direto (`so.proposal_id`). Pedido de compra NAO tem
+   * vinculo com proposta no modelo: ele aparece quando a OS gerada o referencia
+   * (`so.purchase_order_id`) e por isso carrega `via_label` com o numero da OS — a relacao e
+   * declarada como indireta, nunca apresentada como vinculo direto inexistente.
+   */
+  async findLinkedChain(proposalId: string): Promise<ProposalLinkedRow[]> {
+    const result = await this.pool().query<ProposalLinkedRow>(
+      `SELECT kind, id, label, status, occurred_at, unit_id, client_id, via_label, proposal_id
+       FROM (
+         SELECT 'REQUEST'::text AS kind, sr.id, sr.request_code::text AS label,
+                sr.status::text AS status, sr.created_at AS occurred_at,
+                sr.unit_id, sr.client_id, NULL::text AS via_label, sr.proposal_id
+         FROM rpt.read_service_requests sr
+         WHERE sr.proposal_id = $1::uuid
+         UNION ALL
+         SELECT 'SERVICE_ORDER'::text AS kind, so.id, so.order_number::text AS label,
+                so.status::text AS status, so.created_at AS occurred_at,
+                so.unit_id, so.client_id, NULL::text AS via_label, NULL::uuid AS proposal_id
+         FROM rpt.read_service_orders so
+         WHERE so.proposal_id = $1::uuid
+         UNION ALL
+         SELECT 'PURCHASE_ORDER'::text, po.id, po.internal_code::text,
+                po.status::text, po.created_at, po.unit_id, po.client_id,
+                so.order_number::text AS via_label, NULL::uuid AS proposal_id
+         FROM rpt.read_service_orders so
+         INNER JOIN rpt.read_purchase_orders po ON po.id = so.purchase_order_id
+         WHERE so.proposal_id = $1::uuid
+       ) chain
+       ORDER BY occurred_at ASC, id ASC`,
+      [proposalId],
+    );
+    return result.rows;
+  }
+
+  /**
+   * Itens de VARIAS versoes da mesma proposta em UMA consulta — insumo do diff entre revisoes.
+   */
+  async listItemsForVersionNumbers(
+    proposalId: string,
+    versionNumbers: number[],
+  ): Promise<Array<ProposalItemRow & { version_number: number }>> {
+    if (versionNumbers.length === 0) {
+      return [];
+    }
+    const result = await this.pool().query<ProposalItemRow & { version_number: number }>(
+      `SELECT i.id, i.proposal_version_id, i.line_number, i.item_kind::text AS item_kind,
+              i.description, i.service_definition_id, i.service_definition_version_id,
+              i.service_snapshot, i.commercial_snapshot,
+              i.quantity::text AS quantity, i.unit_code,
+              i.unit_sale_price_amount::text AS unit_sale_price_amount,
+              i.unit_internal_cost_amount::text AS unit_internal_cost_amount,
+              i.line_sale_amount::text AS line_sale_amount,
+              i.line_internal_cost_amount::text AS line_internal_cost_amount,
+              v.version_number
+       FROM com.proposal_items i
+       INNER JOIN com.proposal_versions v ON v.id = i.proposal_version_id
+       WHERE v.proposal_id = $1 AND v.version_number = ANY($2::int[])
+       ORDER BY v.version_number ASC, i.line_number ASC`,
+      [proposalId, versionNumbers],
     );
     return result.rows;
   }

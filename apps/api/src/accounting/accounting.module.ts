@@ -9,6 +9,7 @@ import {
   PostingFailureInjection,
 } from '../platform/kernel/posting-failure-injection';
 import { AccountingController } from './controllers/accounting.controller';
+import { ClosingController } from './controllers/closing.controller';
 import { FixedAssetAccountingController } from './controllers/fixed-asset-accounting.controller';
 import { AccountingPostingRepository } from './repositories/accounting-posting.repository';
 import { AccountingRepository } from './repositories/accounting.repository';
@@ -16,6 +17,7 @@ import { FixedAssetAccountingRepository } from './repositories/fixed-asset-accou
 import { AccountingAccessAuthz } from './services/accounting-access.authz';
 import { AccountingAccessService } from './services/accounting-access.service';
 import { AccountingReportingService } from './services/accounting-reporting.service';
+import { ClosingReadinessService } from './services/closing-readiness.service';
 import { FixedAssetAccountingAccessService } from './services/fixed-asset-accounting-access.service';
 
 /**
@@ -25,7 +27,7 @@ import { FixedAssetAccountingAccessService } from './services/fixed-asset-accoun
 @Global()
 @Module({
   imports: [DatabaseModule, AuthModule, AuthorizationModule, AuditModule],
-  controllers: [AccountingController, FixedAssetAccountingController],
+  controllers: [AccountingController, ClosingController, FixedAssetAccountingController],
   providers: [
     AccountingRepository,
     AccountingPostingRepository,
@@ -33,6 +35,7 @@ import { FixedAssetAccountingAccessService } from './services/fixed-asset-accoun
     AccountingAccessAuthz,
     AccountingReportingService,
     AccountingAccessService,
+    ClosingReadinessService,
     FixedAssetAccountingAccessService,
     PostingFailureInjection,
     {
@@ -47,6 +50,7 @@ import { FixedAssetAccountingAccessService } from './services/fixed-asset-accoun
   exports: [
     AccountingAccessService,
     AccountingReportingService,
+    ClosingReadinessService,
     FixedAssetAccountingAccessService,
     PostingFailureInjection,
     POSTING_FAILURE_INJECTION,

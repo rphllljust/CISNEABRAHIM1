@@ -81,6 +81,23 @@ export type PurchaseOrder = {
   rowVersion: number;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Ledger do pedido, exposto pela listagem com a regra de saldo do proprio dominio.
+   *
+   * `consumedAmount` e `authorizedOverrunAmount` sao valores persistidos. `balance` e `null`
+   * quando a regra de dominio recusa apurar (valor autorizado indisponivel ou consumo acima do
+   * autorizado) — a interface declara "não apurável" em vez de exibir número inventado.
+   */
+  consumedAmount: string;
+  authorizedOverrunAmount: string;
+  balance: PurchaseOrderBalance | null;
+};
+
+export type PurchaseOrderBalance = {
+  authorizedAmount: string;
+  consumedAmount: string;
+  authorizedOverrunAmount: string;
+  availableBalance: string;
 };
 
 export type PurchaseOrderItem = {
@@ -113,11 +130,24 @@ export type PurchaseOrderDocumentLink = {
   createdAt: string;
 };
 
+export type PurchaseOrderLinkedRecord = {
+  kind: string;
+  id: string;
+  label: string;
+  status: string;
+  amount: string | null;
+  currencyCode: string | null;
+  occurredAt: string;
+  parentId: string | null;
+};
+
 export type PurchaseOrderDetail = {
   purchaseOrder: PurchaseOrder;
   items: PurchaseOrderItem[];
   billingRules: PurchaseOrderBillingRule[];
   documentLinks: PurchaseOrderDocumentLink[];
+  /** Cadeia relacionada: solicitacao, OS, medicao e faturamento ligados a este pedido. */
+  linked?: PurchaseOrderLinkedRecord[];
 };
 
 export type PurchaseOrderListResponse = {

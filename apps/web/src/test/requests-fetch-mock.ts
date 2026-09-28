@@ -7,6 +7,12 @@ import {
   SERVICE_REQUEST_ORIGINS,
   SERVICE_REQUEST_STATUSES,
   type ServiceRequest,
+  type ServiceRequestDetail,
+  type ServiceRequestLinked,
+  type ServiceRequestNextStepCode,
+  type ServiceRequestReadiness,
+  type ServiceRequestStatus,
+  type ServiceRequestTransition,
 } from '../requests/types/service-request.types';
 
 export type RequestsFetchMockOptions = {
@@ -22,6 +28,7 @@ export type RequestsFetchMockOptions = {
   versionConflictOnUpdate?: boolean;
   clientListAllowed?: boolean;
   documents?: DocumentsFetchMockOptions;
+  linkedChain?: ServiceRequestLinked[];
 };
 
 function requestError(code: string, status: number): Response {
@@ -40,16 +47,93 @@ function jsonResponse(body: unknown, status = 200): Response {
   } as Response;
 }
 
+/**
+ * Espelho da leitura do backend para o dublê de teste: transições permitidas pelo estado
+ * (mesma tabela da máquina de estados) e o próximo passo derivado do estado.
+ */
+const STATUS_TRANSITIONS: Record<ServiceRequestStatus, ServiceRequestTransition[]> = {
+  DRAFT: ['submit', 'cancel'],
+  SUBMITTED: ['startReview', 'cancel'],
+  UNDER_REVIEW: ['approve', 'reject', 'cancel'],
+  APPROVED: ['convert', 'cancel'],
+  CONVERTED: [],
+  REJECTED: [],
+  CANCELLED: [],
+};
+
+const NEXT_STEP: Record<ServiceRequestStatus, { step: ServiceRequestNextStepCode; transition: ServiceRequestTransition | null }> = {
+  DRAFT: { step: 'SUBMIT_REQUEST', transition: 'submit' },
+  SUBMITTED: { step: 'START_REVIEW', transition: 'startReview' },
+  UNDER_REVIEW: { step: 'DECIDE', transition: 'approve' },
+  APPROVED: { step: 'CONVERT_TO_SERVICE_ORDER', transition: 'convert' },
+  CONVERTED: { step: 'OPEN_SERVICE_ORDER', transition: null },
+  REJECTED: { step: 'CLOSED', transition: null },
+  CANCELLED: { step: 'CLOSED', transition: null },
+};
+
+export type RequestsFetchMockOptionsResolved = {
+  submitAllowed: boolean;
+  reviewAllowed: boolean;
+  approveAllowed: boolean;
+  rejectAllowed: boolean;
+  cancelAllowed: boolean;
+};
+
+function buildReadiness(
+  request: ServiceRequest,
+  allowed: RequestsFetchMockOptionsResolved,
+): ServiceRequestReadiness {
+  const permitted: Record<ServiceRequestTransition, boolean> = {
+    submit: allowed.submitAllowed,
+    startReview: allowed.reviewAllowed,
+    approve: allowed.approveAllowed,
+    reject: allowed.rejectAllowed,
+    cancel: allowed.cancelAllowed,
+    convert: true,
+  };
+  const availableTransitions = STATUS_TRANSITIONS[request.status].filter(
+    (transition) => permitted[transition],
+  );
+  const nextStep = NEXT_STEP[request.status];
+  return {
+    nextStep: nextStep.step,
+    nextStepTransition:
+      nextStep.transition && availableTransitions.includes(nextStep.transition)
+        ? nextStep.transition
+        : null,
+    availableTransitions,
+    blockers:
+      request.status === SERVICE_REQUEST_STATUSES.Draft &&
+      !request.description?.trim() &&
+      !request.serviceDefinitionId
+        ? ['DESCRIPTION_OR_SERVICE_REQUIRED']
+        : [],
+  };
+}
+
 function toDetail(
   request: ServiceRequest,
+  allowed: RequestsFetchMockOptionsResolved,
   documentLinks: Array<{
     id: string;
     documentId: string;
     linkPurpose: string;
     createdAt: string;
   }> = [],
-) {
-  return { serviceRequest: request, documentLinks, historyEvents: [] };
+  linkedChain: ServiceRequestLinked[] = [],
+  historyEvents: ServiceRequestDetail['historyEvents'] = [],
+): ServiceRequestDetail {
+  return {
+    serviceRequest: request,
+    documentLinks,
+    historyEvents,
+    related: {
+      client: request.clientId ? { id: request.clientId, name: 'Cliente Demo Ltda' } : null,
+      service: null,
+    },
+    linkedChain,
+    readiness: buildReadiness(request, allowed),
+  };
 }
 
 export function createRequestsFetchMock(options: RequestsFetchMockOptions = {}) {
@@ -136,6 +220,101 @@ export function createRequestsFetchMock(options: RequestsFetchMockOptions = {}) 
     return documentLinksByRequest.get(requestId) ?? [];
   }
 
+  const allowed: RequestsFetchMockOptionsResolved = {
+    submitAllowed,
+    reviewAllowed,
+    approveAllowed,
+    rejectAllowed,
+    cancelAllowed,
+  };
+
+  const linkedChain = options.linkedChain ?? [];
+
+  /** Historico coerente com o estado atual — o dublê registra os mesmos eventos do domínio. */
+  function historyFor(request: ServiceRequest): ServiceRequestDetail['historyEvents'] {
+    const events: ServiceRequestDetail['historyEvents'] = [
+      {
+        id: `${request.id}-created`,
+        eventType: 'CREATED',
+        payload: { status: SERVICE_REQUEST_STATUSES.Draft },
+        actorIdentityId: MOCK_IDENTITY_ID,
+        occurredAt: request.createdAt,
+      },
+    ];
+    if (request.submittedAt) {
+      events.push({
+        id: `${request.id}-submitted`,
+        eventType: 'SUBMITTED',
+        payload: {
+          fromStatus: SERVICE_REQUEST_STATUSES.Draft,
+          toStatus: SERVICE_REQUEST_STATUSES.Submitted,
+        },
+        actorIdentityId: MOCK_IDENTITY_ID,
+        occurredAt: request.submittedAt,
+      });
+    }
+    if (request.reviewStartedAt) {
+      events.push({
+        id: `${request.id}-review`,
+        eventType: 'REVIEW_STARTED',
+        payload: {
+          fromStatus: SERVICE_REQUEST_STATUSES.Submitted,
+          toStatus: SERVICE_REQUEST_STATUSES.UnderReview,
+        },
+        actorIdentityId: MOCK_IDENTITY_ID,
+        occurredAt: request.reviewStartedAt,
+      });
+    }
+    if (request.rejectedAt) {
+      events.push({
+        id: `${request.id}-rejected`,
+        eventType: 'REJECTED',
+        payload: { rejectionReason: request.rejectionReason },
+        actorIdentityId: MOCK_IDENTITY_ID,
+        occurredAt: request.rejectedAt,
+      });
+    }
+    if (request.approvedAt) {
+      events.push({
+        id: `${request.id}-approved`,
+        eventType: 'APPROVED',
+        payload: {
+          fromStatus: SERVICE_REQUEST_STATUSES.UnderReview,
+          toStatus: SERVICE_REQUEST_STATUSES.Approved,
+          priority: request.priority,
+        },
+        actorIdentityId: MOCK_IDENTITY_ID,
+        occurredAt: request.approvedAt,
+      });
+    }
+    if (request.cancelledAt) {
+      events.push({
+        id: `${request.id}-cancelled`,
+        eventType: 'CANCELLED',
+        payload: { cancellationReason: request.cancellationReason },
+        actorIdentityId: MOCK_IDENTITY_ID,
+        occurredAt: request.cancelledAt,
+      });
+    }
+    if (request.convertedAt) {
+      events.push({
+        id: `${request.id}-converted`,
+        eventType: 'CONVERTED',
+        payload: { serviceOrderId: request.convertedServiceOrderId },
+        actorIdentityId: MOCK_IDENTITY_ID,
+        occurredAt: request.convertedAt,
+      });
+    }
+    return events;
+  }
+
+  function detail(
+    request: ServiceRequest,
+    links: Array<{ id: string; documentId: string; linkPurpose: string; createdAt: string }> = [],
+  ): ServiceRequestDetail {
+    return toDetail(request, allowed, links, linkedChain, historyFor(request));
+  }
+
   return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const { pathname, searchParams } = parseRequestPath(input);
     const method = init?.method ?? 'GET';
@@ -188,7 +367,13 @@ export function createRequestsFetchMock(options: RequestsFetchMockOptions = {}) 
         items = items.filter((item) => item.unitId === unitId);
       }
       return jsonResponse({
-        items: items.slice(offset, offset + limit),
+        items: items.slice(offset, offset + limit).map((item) => ({
+          ...item,
+          // O nome do cliente só vem quando o módulo CLIENTES autoriza — igual ao backend.
+          clientName:
+            item.clientId && options.clientListAllowed !== false ? 'Cliente Demo Ltda' : null,
+          serviceLabel: null,
+        })),
         limit,
         offset,
       });
@@ -248,7 +433,7 @@ export function createRequestsFetchMock(options: RequestsFetchMockOptions = {}) 
         updatedAt: new Date().toISOString(),
       };
       store.push(created);
-      return jsonResponse(toDetail(created), 201);
+      return jsonResponse(detail(created), 201);
     }
 
     const match = pathname.match(/^\/api\/v1\/requests\/service-requests\/([^/]+)(?:\/(.+))?$/);
@@ -264,7 +449,7 @@ export function createRequestsFetchMock(options: RequestsFetchMockOptions = {}) 
       if (!current) {
         return requestError('REQUESTS_SERVICE_REQUEST_NOT_FOUND', 404);
       }
-      return jsonResponse(toDetail(current, linksFor(requestId)));
+      return jsonResponse(detail(current, linksFor(requestId)));
     }
 
     if (action === 'documents' && method === 'POST') {
@@ -286,7 +471,7 @@ export function createRequestsFetchMock(options: RequestsFetchMockOptions = {}) 
         createdAt: new Date().toISOString(),
       });
       documentLinksByRequest.set(requestId, links);
-      return jsonResponse(toDetail(current, links), 201);
+      return jsonResponse(detail(current, links), 201);
     }
 
     if (action === undefined && method === 'PATCH') {
@@ -312,7 +497,7 @@ export function createRequestsFetchMock(options: RequestsFetchMockOptions = {}) 
       const updated = bump(current, {
         description: body.description ?? current.description,
       });
-      return jsonResponse(toDetail(updated));
+      return jsonResponse(detail(updated));
     }
 
     const body = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as {
@@ -341,7 +526,7 @@ export function createRequestsFetchMock(options: RequestsFetchMockOptions = {}) 
         return requestError('REQUESTS_SERVICE_REQUEST_INVALID_STATE', 409);
       }
       return jsonResponse(
-        toDetail(
+        detail(
           bump(current, {
             status: SERVICE_REQUEST_STATUSES.Submitted,
             submittedAt: new Date().toISOString(),
@@ -358,7 +543,7 @@ export function createRequestsFetchMock(options: RequestsFetchMockOptions = {}) 
         return requestError('REQUESTS_SERVICE_REQUEST_INVALID_STATE', 409);
       }
       return jsonResponse(
-        toDetail(
+        detail(
           bump(current, {
             status: SERVICE_REQUEST_STATUSES.UnderReview,
             reviewStartedAt: new Date().toISOString(),
@@ -375,7 +560,7 @@ export function createRequestsFetchMock(options: RequestsFetchMockOptions = {}) 
         return requestError('REQUESTS_SERVICE_REQUEST_INVALID_STATE', 409);
       }
       return jsonResponse(
-        toDetail(
+        detail(
           bump(current, {
             status: SERVICE_REQUEST_STATUSES.Approved,
             approvedAt: new Date().toISOString(),
@@ -396,7 +581,7 @@ export function createRequestsFetchMock(options: RequestsFetchMockOptions = {}) 
         return requestError('REQUESTS_SERVICE_REQUEST_INVALID_STATE', 409);
       }
       return jsonResponse(
-        toDetail(
+        detail(
           bump(current, {
             status: SERVICE_REQUEST_STATUSES.Rejected,
             rejectedAt: new Date().toISOString(),
@@ -414,7 +599,7 @@ export function createRequestsFetchMock(options: RequestsFetchMockOptions = {}) 
         return requestError('REQUESTS_VALIDATION_FAILED', 400);
       }
       return jsonResponse(
-        toDetail(
+        detail(
           bump(current, {
             status: SERVICE_REQUEST_STATUSES.Cancelled,
             cancelledAt: new Date().toISOString(),
@@ -429,7 +614,7 @@ export function createRequestsFetchMock(options: RequestsFetchMockOptions = {}) 
         return requestError('REQUESTS_SERVICE_REQUEST_INVALID_STATE', 409);
       }
       return jsonResponse(
-        toDetail(
+        detail(
           bump(current, {
             status: SERVICE_REQUEST_STATUSES.Converted,
             convertedAt: new Date().toISOString(),

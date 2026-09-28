@@ -34,17 +34,32 @@ describe('physical assets administrative flow e2e (frontend)', () => {
     });
     expect(screen.getByRole('link', { name: 'TRK-DEMO' })).toBeInTheDocument();
     expect(screen.getByLabelText(/status de cadastro: ativo/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/disponibilidade operacional: dispon/i)).toBeInTheDocument();
+    /**
+     * O ativo do mock tem alocação vigente (`currentAllocation`), e o cadastro continua ativo:
+     * a disponibilidade operacional correta é ALOCADO. A asserção anterior esperava
+     * "disponível", contradizendo o próprio fixture e os testes de componente/lista, que já
+     * esperavam "alocado" para o mesmo dado.
+     */
+    expect(screen.getByLabelText(/disponibilidade operacional: alocado/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole('link', { name: 'TRK-DEMO' }));
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'TRK-DEMO' })).toBeInTheDocument();
+      // Contrato enterprise: o titulo do objeto e o NOME humano; o codigo vira referencia.
+      expect(screen.getByRole('heading', { name: 'Caminhão demo' })).toBeInTheDocument();
     });
+    expect(screen.getAllByText('TRK-DEMO').length).toBeGreaterThan(0);
     expect(
       screen.getByText(/cadastro \(ativo\/inativo\) e disponibilidade operacional são independentes/i),
     ).toBeInTheDocument();
+    // Relacao real e autorizada: a OS que detem o recurso, com destino navegavel.
+    const relationLink = await screen.findByRole('link', { name: /Ordem de serviço alocada/ });
+    expect(relationLink.getAttribute('href')).toMatch(/^\/app\/service-orders\/.+\/planning$/);
+    // Proxima acao derivada da alocacao vigente (espera de terceiro, sem botao).
+    expect(await screen.findByRole('region', { name: 'Próxima ação' })).toHaveTextContent(
+      /Aguardar a liberação da alocação/,
+    );
 
-    await user.click(screen.getByRole('link', { name: /^editar$/i }));
+    await user.click(await screen.findByRole('button', { name: 'Editar cadastro' }));
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /editar TRK-DEMO/i })).toBeInTheDocument();
     });

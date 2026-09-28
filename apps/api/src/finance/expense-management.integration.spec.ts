@@ -37,6 +37,7 @@ async function grantExpense(pool: Pool, identityId: string): Promise<void> {
     AUTHZ_ACTIONS.FinanceExpenseApprove,
     AUTHZ_ACTIONS.FinanceExpenseReject,
     AUTHZ_ACTIONS.FinanceExpenseRead,
+    AUTHZ_ACTIONS.FinanceExpenseList,
     AUTHZ_ACTIONS.FinanceExpenseCategoryCreate,
     AUTHZ_ACTIONS.FinancePayableRead,
   ];
@@ -170,6 +171,43 @@ describe('Expense management PostgreSQL integration', () => {
     const submitted = await expenses.submit(requester, created.id, { version: created.version });
     return { requester, approver, submitted };
   }
+
+  it('lists expenses with search and status filter', async () => {
+    const { requester, submitted } = await seedReadyExpense();
+
+    const page = await expenses.list(requester, { limit: 20, offset: 0 });
+    expect(page.total).toBe(1);
+    expect(page.items[0]).toMatchObject({
+      id: submitted.id,
+      costCenterCode: 'CC-OPS',
+      description: 'Alimentacao',
+      status: EXPENSE_STATUSES.Submitted,
+    });
+
+    const byDescription = await expenses.list(requester, { limit: 20, offset: 0, q: 'Alimentacao' });
+    expect(byDescription.total).toBe(1);
+    const byStatus = await expenses.list(requester, { limit: 20, offset: 0, status: 'SUBMITTED' });
+    expect(byStatus.total).toBe(1);
+    const wrongStatus = await expenses.list(requester, { limit: 20, offset: 0, status: 'APPROVED' });
+    expect(wrongStatus.total).toBe(0);
+  });
+
+  it('denies the expenses list without the list grant', async () => {
+    const { submitted } = await seedReadyExpense();
+    const outsider = await seedIdentity(false);
+    // Somente `read` não autoriza listar.
+    await insertGrant(pool, {
+      identityId: outsider.identityId,
+      action: AUTHZ_ACTIONS.FinanceExpenseRead,
+      resourceType: AUTHZ_RESOURCE_TYPES.FinanceExpense,
+      scopeType: AUTHZ_SCOPES.Global,
+      grantedByIdentityId: outsider.identityId,
+    });
+    await expect(expenses.list(outsider, { limit: 20, offset: 0 })).rejects.toMatchObject({
+      code: FINANCE_ERROR_CODES.DENIED,
+    });
+    expect(submitted.id).toBeTruthy();
+  });
 
   it('approves a reimbursable expense into a single operational payable', async () => {
     const { requester, approver, submitted } = await seedReadyExpense();

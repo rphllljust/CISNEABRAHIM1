@@ -248,6 +248,23 @@ export function optionalPeriodStatus(value: string | undefined | null): string |
   return optionalWhitelist(value, PERIOD_STATUS_FILTERS, 'status');
 }
 
+/**
+ * Ano de competencia da descoberta de periodo.
+ *
+ * Faixa deliberadamente larga (1900..2999): o objetivo e recusar lixo de query string, nao impor
+ * janela de negocio que nao existe.
+ */
+export function optionalPeriodYear(value: string | number | undefined | null): number | undefined {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+  const parsed = typeof value === 'number' ? value : Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1900 || parsed > 2999) {
+    throw new AccountingValidationError('year');
+  }
+  return parsed;
+}
+
 export function optionalJournalStatus(value: string | undefined | null): string | undefined {
   return optionalWhitelist(value, JOURNAL_STATUS_FILTERS, 'status');
 }

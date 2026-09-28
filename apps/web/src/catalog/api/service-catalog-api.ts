@@ -119,6 +119,8 @@ export type ListServiceDefinitionsParams = {
   limit: number;
   offset: number;
   status?: CatalogLineageStatus;
+  /** Busca no SERVIDOR por nome do servico ou code operacional. */
+  search?: string;
 };
 
 export function buildListServiceDefinitionsQuery(params: ListServiceDefinitionsParams): string {
@@ -127,6 +129,10 @@ export function buildListServiceDefinitionsQuery(params: ListServiceDefinitionsP
   search.set('offset', String(params.offset));
   if (params.status) {
     search.set('status', params.status);
+  }
+  const term = params.search?.trim();
+  if (term) {
+    search.set('q', term);
   }
   return search.toString();
 }

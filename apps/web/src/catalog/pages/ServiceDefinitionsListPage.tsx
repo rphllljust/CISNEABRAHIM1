@@ -43,7 +43,15 @@ export function ServiceDefinitionsListPage() {
   const [statusFilter, setStatusFilter] = useState<'' | CatalogLineageStatus>('');
   const [versionFilter, setVersionFilter] = useState<VersionFilter>('');
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
+
+  // A busca e resolvida no SERVIDOR (nome ou code): sem isso, filtrar so a pagina atual diria
+  // "nenhum resultado" para um servico que existe na pagina seguinte.
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   const loadPage = useCallback(
     async (offset: number, signal?: AbortSignal) => {
@@ -54,6 +62,7 @@ export function ServiceDefinitionsListPage() {
             limit: PAGE_SIZE,
             offset,
             status: statusFilter || undefined,
+            search: debouncedSearch || undefined,
           },
           signal,
         );
@@ -83,7 +92,7 @@ export function ServiceDefinitionsListPage() {
         });
       }
     },
-    [statusFilter],
+    [statusFilter, debouncedSearch],
   );
 
   useEffect(() => {
@@ -96,11 +105,7 @@ export function ServiceDefinitionsListPage() {
     if (listState.phase !== 'ready') {
       return [];
     }
-    const term = search.trim().toLowerCase();
     return listState.items.filter((item) => {
-      if (term && !item.code.toLowerCase().includes(term)) {
-        return false;
-      }
       if (versionFilter === 'HAS_DRAFT' && item.currentDraftVersion === null) {
         return false;
       }
@@ -112,7 +117,7 @@ export function ServiceDefinitionsListPage() {
       }
       return true;
     });
-  }, [listState, search, versionFilter]);
+  }, [listState, versionFilter]);
 
   if (listState.phase === 'loading') {
     return (
@@ -164,7 +169,7 @@ export function ServiceDefinitionsListPage() {
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <div className="sm:col-span-2 lg:col-span-1">
             <label className={filterLabelClass} htmlFor="catalog-search">
-              Buscar por código
+              Buscar serviços
             </label>
             <input
               id="catalog-search"
@@ -172,10 +177,10 @@ export function ServiceDefinitionsListPage() {
               className={filterControlClass}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Ex.: CNAE-7711000"
+              placeholder="Nome ou código"
             />
             <p className="mt-2 text-xs text-gray-400">
-              A busca aplica-se à página atual retornada pelo servidor.
+              A busca é resolvida no servidor, por nome do serviço ou código operacional.
             </p>
           </div>
           <div>
@@ -222,7 +227,10 @@ export function ServiceDefinitionsListPage() {
             <thead className={moduleTableHeadClass}>
               <tr>
                 <th scope="col" className={moduleTableHeaderCellClass}>
-                  Código
+                  Serviço
+                </th>
+                <th scope="col" className={moduleTableHeaderCellClass}>
+                  Categoria
                 </th>
                 <th scope="col" className={moduleTableHeaderCellClass}>
                   Status
@@ -240,8 +248,15 @@ export function ServiceDefinitionsListPage() {
                 <tr key={definition.id} className={moduleTableRowClass}>
                   <td className={moduleTableCellClass}>
                     <ModuleTableLink to={`/app/catalog/${definition.id}`}>
-                      {definition.code}
+                      {/* Identidade PRINCIPAL e o nome humano; o code fica como contexto. */}
+                      {definition.name ?? definition.code}
                     </ModuleTableLink>
+                    {definition.name ? (
+                      <span className="mt-1 block text-xs text-gray-500">{definition.code}</span>
+                    ) : null}
+                  </td>
+                  <td className={moduleTableCellClass}>
+                    {definition.categoryName ?? '—'}
                   </td>
                   <td className={moduleTableCellClass}>
                     <ServiceDefinitionStatusBadge status={definition.status} />

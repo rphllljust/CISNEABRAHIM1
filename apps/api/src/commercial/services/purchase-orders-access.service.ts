@@ -28,8 +28,9 @@ import { PurchaseOrdersRepository } from '../repositories/purchase-orders.reposi
 import type { PurchaseOrderRow } from '../repositories/purchase-orders.repository.types';
 import {
   toPurchaseOrderDetailResponse,
-  toPurchaseOrderResponse,
+  toPurchaseOrderListItemResponse,
   type PurchaseOrderDetailResponse,
+  type PurchaseOrderListItemResponse,
 } from '../serializers/purchase-orders-response.serializer';
 import { PurchaseOrdersAccessAuthz } from './purchase-orders-access.authz';
 import {
@@ -427,13 +428,25 @@ export class PurchaseOrdersAccessService {
     const items = await this.purchaseOrdersRepository.listItems(purchaseOrderId);
     const billingRules = await this.purchaseOrdersRepository.listBillingRules(purchaseOrderId);
     const documentLinks = await this.purchaseOrdersRepository.listDocumentLinks(purchaseOrderId);
-    return toPurchaseOrderDetailResponse(purchaseOrder, items, billingRules, documentLinks);
+    // Cadeia relacionada: explica de onde vem o valor consumido do pedido. Uma consulta a mais
+    // no detalhe; a autorizacao acima permanece identica.
+    const chain = await this.purchaseOrdersRepository.findLinkedChain(purchaseOrderId);
+    // Cada elo so e devolvido se o ator puder ler AQUELE tipo de documento.
+    const allowed = await this.authz.filterAuthorizedLinkedChain(actor, chain);
+    const linked = chain.filter((row) => allowed.has(`${row.kind}:${row.id}`));
+    return toPurchaseOrderDetailResponse(
+      purchaseOrder,
+      items,
+      billingRules,
+      documentLinks,
+      linked,
+    );
   }
 
   async list(
     actor: IdentityAuthzContext,
     query: { clientId?: string; unitId?: string; limit: number; offset: number },
-  ): Promise<{ items: ReturnType<typeof toPurchaseOrderResponse>[]; limit: number; offset: number }> {
+  ): Promise<{ items: PurchaseOrderListItemResponse[]; limit: number; offset: number }> {
     const scopeFilter = await this.authz.buildListScopeFilter(actor);
 
     const clauses = [scopeFilter.clause];
@@ -454,8 +467,10 @@ export class PurchaseOrdersAccessService {
       query.offset,
     );
 
+    // Aditivo: a listagem passa a expor consumo e saldo. Nenhuma consulta nova — os campos ja
+    // vinham em PO_SELECT — e a autorizacao permanece exatamente como estava.
     return {
-      items: rows.map(toPurchaseOrderResponse),
+      items: rows.map(toPurchaseOrderListItemResponse),
       limit: query.limit,
       offset: query.offset,
     };

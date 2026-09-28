@@ -16,8 +16,10 @@ import {
 import type {
   GoodsReceiptRow,
   PurchaseRequestLineRow,
+  PurchaseRequestListRow,
   PurchaseRequestRow,
   SupplierPurchaseOrderLineRow,
+  SupplierPurchaseOrderListRow,
   SupplierPurchaseOrderRow,
 } from '../serializers/procurement-response.serializer';
 
@@ -59,6 +61,78 @@ export class ProcurementRepository {
       [requestId],
     );
     return result.rows;
+  }
+
+  /**
+   * Página de solicitações sob o MESMO predicado da contagem. O valor da solicitação vem do
+   * próprio servidor (soma das linhas persistidas), nunca de um total informado pelo navegador.
+   */
+  async listRequestPage(input: {
+    whereClause: string;
+    params: unknown[];
+    limit: number;
+    offset: number;
+  }): Promise<PurchaseRequestListRow[]> {
+    const result = await this.pool().query<PurchaseRequestListRow>(
+      `SELECT r.id, r.unit_id, r.justification, r.currency_code, r.status::text AS status,
+              r.version, r.created_at, r.updated_at,
+              COALESCE(COUNT(l.id), 0)::text AS line_count,
+              COALESCE(SUM(l.line_amount), 0)::text AS total_amount
+       FROM prc.purchase_requests r
+       LEFT JOIN prc.purchase_request_lines l ON l.request_id = r.id
+       WHERE ${input.whereClause}
+       GROUP BY r.id
+       ORDER BY r.created_at DESC, r.id DESC
+       LIMIT $${input.params.length + 1}
+       OFFSET $${input.params.length + 2}`,
+      [...input.params, input.limit, input.offset],
+    );
+    return result.rows;
+  }
+
+  async countRequestList(whereClause: string, params: unknown[]): Promise<number> {
+    const result = await this.pool().query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total FROM prc.purchase_requests r WHERE ${whereClause}`,
+      params,
+    );
+    return Number(result.rows[0]?.total ?? '0');
+  }
+
+  /**
+   * Página de pedidos ao fornecedor. A consulta NÃO junta `pty.suppliers`: a fronteira do contexto
+   * Comercial é atravessada pelo port, e o serviço compõe a referência humana do fornecedor depois.
+   * O filtro por termo de fornecedor chega aqui já resolvido em ids (`supplierIds`).
+   */
+  async listOrderPage(input: {
+    whereClause: string;
+    params: unknown[];
+    limit: number;
+    offset: number;
+  }): Promise<SupplierPurchaseOrderListRow[]> {
+    const result = await this.pool().query<SupplierPurchaseOrderListRow>(
+      `SELECT o.id, o.request_id, o.supplier_id, o.unit_id, o.currency_code, o.payment_terms,
+              o.status::text AS status, o.version, o.issued_at, o.updated_at,
+              COALESCE(COUNT(l.id), 0)::text AS line_count,
+              COALESCE(SUM(l.line_amount), 0)::text AS total_amount,
+              COALESCE(SUM(l.received_quantity), 0)::text AS received_quantity
+       FROM prc.supplier_purchase_orders o
+       LEFT JOIN prc.supplier_purchase_order_lines l ON l.supplier_purchase_order_id = o.id
+       WHERE ${input.whereClause}
+       GROUP BY o.id
+       ORDER BY o.issued_at DESC, o.id DESC
+       LIMIT $${input.params.length + 1}
+       OFFSET $${input.params.length + 2}`,
+      [...input.params, input.limit, input.offset],
+    );
+    return result.rows;
+  }
+
+  async countOrderList(whereClause: string, params: unknown[]): Promise<number> {
+    const result = await this.pool().query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total FROM prc.supplier_purchase_orders o WHERE ${whereClause}`,
+      params,
+    );
+    return Number(result.rows[0]?.total ?? '0');
   }
 
   async findOrderById(orderId: string): Promise<SupplierPurchaseOrderRow | null> {

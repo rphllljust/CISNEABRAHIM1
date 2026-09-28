@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -74,7 +74,12 @@ describe('Fiscal backoffice UI', () => {
     expect(screen.getByRole('table', { name: /tributos persistidos/i })).toBeInTheDocument();
     expect(screen.getByText('SEM VALIDADE FISCAL')).toBeInTheDocument();
     expect(screen.getByText('Bloqueada')).toBeInTheDocument();
-    expect(screen.getByRole('table', { name: /eventos do documento fiscal/i })).toBeInTheDocument();
+    // Os eventos passaram a usar o ActivityTimeline compartilhado: a verificacao deixa de
+    // exigir uma tabela propria da tela e passa a exigir o mecanismo. O dossie deste
+    // documento nao possui evento persistido, entao o mecanismo deve exibir o estado
+    // vazio padronizado — nunca uma tabela vazia com cabecalho.
+    const events = screen.getByRole('region', { name: /eventos do documento fiscal/i });
+    expect(within(events).getByText(/nenhum evento registrado para este documento/i)).toBeInTheDocument();
     expect(
       screen.getByRole('table', { name: /tentativas de autorização do documento fiscal/i }),
     ).toBeInTheDocument();

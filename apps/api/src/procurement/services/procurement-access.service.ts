@@ -7,8 +7,14 @@ import {
 } from '../../audit/types/security-audit.types';
 import { SecurityAuditService } from '../../audit/services/security-audit.service';
 import { AUTHZ_ACTIONS } from '../../authorization/types/authz-actions';
+import { AUTHZ_RESOURCE_TYPES } from '../../authorization/types/authz-resources';
+import { AuthorizationRepository } from '../../authorization/repositories/authorization.repository';
 import type { IdentityAuthzContext } from '../../authorization/types/authz-decision';
 import { SodEnforcementService } from '../../authorization/services/sod-enforcement.service';
+import {
+  ScopeEnforcementService,
+  type ScopeSqlPredicate,
+} from '../../authorization/services/scope-enforcement.service';
 import { SOD_DUTIES, resolveSodScope } from '../../authorization/domain/segregation-of-duties';
 import {
   ENTERPRISE_CORE_PORT,
@@ -43,18 +49,28 @@ import {
 import { ProcurementRepository } from '../repositories/procurement.repository';
 import {
   toPurchaseRequestResponse,
+  toPurchaseRequestSummaryResponse,
   toSupplierPurchaseOrderResponse,
+  toSupplierPurchaseOrderSummaryResponse,
+  type PurchaseRequestListResponse,
   type PurchaseRequestResponse,
+  type SupplierPurchaseOrderListResponse,
   type SupplierPurchaseOrderResponse,
 } from '../serializers/procurement-response.serializer';
+import type {
+  PurchaseRequestListQuery,
+  SupplierPurchaseOrderListQuery,
+} from '../dto/procurement-list.dto';
 import { ProcurementAccessAuthz } from './procurement-access.authz';
-import { mapProcurementDomainError } from './procurement-access.errors';
+import { mapProcurementDomainError, procurementAccessDenied } from './procurement-access.errors';
 
 @Injectable()
 export class ProcurementAccessService {
   constructor(
     private readonly repository: ProcurementRepository,
     private readonly authz: ProcurementAccessAuthz,
+    private readonly authorizationRepository: AuthorizationRepository,
+    private readonly scopeEnforcement: ScopeEnforcementService,
     private readonly securityAudit: SecurityAuditService,
     private readonly sod: SodEnforcementService,
     private readonly failures: ProcurementFailureInjection,
@@ -83,6 +99,153 @@ export class ProcurementAccessService {
     } catch (error) {
       throw mapProcurementDomainError(error);
     }
+  }
+
+  /**
+   * Listagem operacional de solicitações de compra. Exige concessão ativa de
+   * `procurement:request:list`: sem ela, nada é listado (a listagem nunca mostra o que o ator
+   * não pode ler). A tela deixa de depender de um identificador digitado para encontrar a
+   * solicitação.
+   */
+  async listRequests(
+    actor: IdentityAuthzContext,
+    query: PurchaseRequestListQuery,
+  ): Promise<PurchaseRequestListResponse> {
+    try {
+      const scope = await this.resolveListScope(actor, AUTHZ_ACTIONS.ProcurementRequestList, 'r');
+      const whereParts: string[] = [scope.clause];
+      const params: unknown[] = [...scope.params];
+      if (query.status) {
+        whereParts.push(`r.status = $${params.length + 1}::prc.purchase_request_status`);
+        params.push(query.status);
+      }
+      if (query.q) {
+        whereParts.push(`r.justification ILIKE $${params.length + 1}`);
+        params.push(`%${query.q}%`);
+      }
+      const whereClause = whereParts.length > 0 ? whereParts.join(' AND ') : 'TRUE';
+
+      const rows = await this.repository.listRequestPage({
+        whereClause,
+        params,
+        limit: query.limit,
+        offset: query.offset,
+      });
+      const total =
+        query.offset === 0 && rows.length < query.limit
+          ? rows.length
+          : await this.repository.countRequestList(whereClause, params);
+
+      return {
+        items: rows.map(toPurchaseRequestSummaryResponse),
+        limit: query.limit,
+        offset: query.offset,
+        total,
+        totalPages: Math.ceil(total / query.limit),
+      };
+    } catch (error) {
+      throw mapProcurementDomainError(error);
+    }
+  }
+
+  /**
+   * Listagem operacional de pedidos ao fornecedor. A referência do fornecedor vem resolvida pelo
+   * servidor, então a linha identifica o fornecedor por nome/CNPJ em vez de exigir o
+   * identificador técnico.
+   */
+  async listOrders(
+    actor: IdentityAuthzContext,
+    query: SupplierPurchaseOrderListQuery,
+  ): Promise<SupplierPurchaseOrderListResponse> {
+    try {
+      const scope = await this.resolveListScope(actor, AUTHZ_ACTIONS.ProcurementOrderList, 'o');
+      const whereParts: string[] = [scope.clause];
+      const params: unknown[] = [...scope.params];
+      if (query.status) {
+        whereParts.push(`o.status = $${params.length + 1}::prc.supplier_purchase_order_status`);
+        params.push(query.status);
+      }
+      if (query.supplierId) {
+        whereParts.push(`o.supplier_id = $${params.length + 1}::uuid`);
+        params.push(query.supplierId);
+      }
+      if (query.q) {
+        // O termo de fornecedor é resolvido no contexto Comercial (port): Compras não lê as
+        // tabelas privadas de Fornecedores.
+        const supplierIds = await this.suppliers.searchIdsByTerm(query.q, 100);
+        if (supplierIds.length === 0) {
+          return { items: [], limit: query.limit, offset: query.offset, total: 0, totalPages: 0 };
+        }
+        whereParts.push(`o.supplier_id = ANY($${params.length + 1}::uuid[])`);
+        params.push(supplierIds);
+      }
+      const whereClause = whereParts.length > 0 ? whereParts.join(' AND ') : 'TRUE';
+
+      const rows = await this.repository.listOrderPage({
+        whereClause,
+        params,
+        limit: query.limit,
+        offset: query.offset,
+      });
+      const total =
+        query.offset === 0 && rows.length < query.limit
+          ? rows.length
+          : await this.repository.countOrderList(whereClause, params);
+
+      const references = await this.supplierReferences(rows.map((row) => row.supplier_id));
+
+      return {
+        items: rows.map((row) => toSupplierPurchaseOrderSummaryResponse(row, references.get(row.supplier_id) ?? null)),
+        limit: query.limit,
+        offset: query.offset,
+        total,
+        totalPages: Math.ceil(total / query.limit),
+      };
+    } catch (error) {
+      throw mapProcurementDomainError(error);
+    }
+  }
+
+  private async assertList(
+    actor: IdentityAuthzContext,
+    action: (typeof AUTHZ_ACTIONS)[keyof typeof AUTHZ_ACTIONS],
+  ): Promise<void> {
+    const grants = await this.authorizationRepository.findActiveGrants(
+      actor.identityId,
+      action,
+      AUTHZ_RESOURCE_TYPES.Procurement,
+    );
+    if (grants.length === 0) {
+      throw mapProcurementDomainError(procurementAccessDenied());
+    }
+  }
+
+  /**
+   * ESCOPO DE LEITURA DAS LISTAS DE SUPRIMENTOS (correção no domínio dono).
+   *
+   * O gate anterior verificava apenas a PRESENÇA de concessão: uma concessão ancorada na
+   * unidade A devolvia linhas da unidade B. Aqui o predicado de unidade é resolvido e
+   * devolvido para compor a consulta, de modo que QUALQUER consumidor destas listas —
+   * inclusive a fila de trabalho — receba apenas o que o ator pode ler.
+   *
+   * Fail-closed: sem concessão, ou com concessão que não cubra nenhuma unidade, a leitura é
+   * negada na origem (não se devolve lista vazia por acidente: a negação é explícita).
+   */
+  private async resolveListScope(
+    actor: IdentityAuthzContext,
+    action: (typeof AUTHZ_ACTIONS)[keyof typeof AUTHZ_ACTIONS],
+    tableAlias: string,
+  ): Promise<ScopeSqlPredicate> {
+    const grants = await this.authorizationRepository.findActiveGrants(
+      actor.identityId,
+      action,
+      AUTHZ_RESOURCE_TYPES.Procurement,
+    );
+    const scope = this.scopeEnforcement.buildProcurementListFilter(grants, tableAlias);
+    if (scope.clause === 'FALSE') {
+      throw mapProcurementDomainError(procurementAccessDenied());
+    }
+    return scope;
   }
 
   async getRequest(actor: IdentityAuthzContext, requestId: string): Promise<PurchaseRequestResponse> {
@@ -383,11 +546,38 @@ export class ProcurementAccessService {
     if (!row) {
       throw new ProcurementError('PROCUREMENT_NOT_FOUND');
     }
-    const [lines, receipts] = await Promise.all([
+    const [lines, receipts, references] = await Promise.all([
       this.repository.listOrderLines(orderId),
       this.repository.listReceipts(orderId),
+      this.supplierReferences([row.supplier_id]),
     ]);
-    return toSupplierPurchaseOrderResponse(row, lines, receipts);
+    const supplier = references.get(row.supplier_id) ?? null;
+    return toSupplierPurchaseOrderResponse(
+      row,
+      lines,
+      receipts,
+      supplier ? { legal_name: supplier.legalName, trade_name: supplier.tradeName, normalized_tax_id: supplier.taxId } : null,
+    );
+  }
+
+  /**
+   * Referências humanas do fornecedor pelo port do contexto Comercial — uma leitura por página,
+   * nunca uma por linha, e nunca uma junção com as tabelas privadas de Fornecedores.
+   */
+  private async supplierReferences(
+    supplierIds: string[],
+  ): Promise<Map<string, { legalName: string; tradeName: string | null; taxId: string }>> {
+    const unique = [...new Set(supplierIds.filter((id) => id.length > 0))];
+    if (unique.length === 0) {
+      return new Map();
+    }
+    const references = await this.suppliers.findReferencesByIds(unique);
+    return new Map(
+      references.map((reference) => [
+        reference.id,
+        { legalName: reference.legalName, tradeName: reference.tradeName, taxId: reference.taxId },
+      ]),
+    );
   }
 
   private async audit(

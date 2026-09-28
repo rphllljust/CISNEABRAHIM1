@@ -11,8 +11,10 @@ import { historyEventTypeForTransition } from '../domain/service-request.state-m
 import { insertServiceRequestHistoryEvent } from './service-request-history-rows';
 import type {
   CreateServiceRequestPersistenceInput,
+  ServiceRequestClientLabelRow,
   ServiceRequestDocumentLinkRow,
   ServiceRequestHistoryEventRow,
+  ServiceRequestLinkedRow,
   ServiceRequestRow,
   TransitionServiceRequestPersistenceInput,
   UpdateServiceRequestDraftPersistenceInput,
@@ -181,14 +183,118 @@ export class ServiceRequestsRepository {
     params: unknown[],
     limit: number,
     offset: number,
+    orderClause: string = orderByCreatedAtDesc(),
   ): Promise<ServiceRequestRow[]> {
     const result = await this.pool().query<ServiceRequestRow>(
       `${SR_SELECT}
        WHERE ${whereClause}
-       ORDER BY ${orderByCreatedAtDesc()}
+       ORDER BY ${orderClause}
        LIMIT $${params.length + 1}
        OFFSET $${params.length + 2}`,
       [...params, limit, offset],
+    );
+    return result.rows;
+  }
+
+  /**
+   * Resolve o nome humano dos clientes da pagina em UMA consulta.
+   *
+   * A lista entrega ate 20 linhas; resolver cliente por linha seria N+1. O conjunto de ids e
+   * sempre o subconjunto ja autorizado pelo modulo dono (ver `filterAuthorizedClientIds`).
+   */
+  async listClientLabels(clientIds: string[]): Promise<ServiceRequestClientLabelRow[]> {
+    if (clientIds.length === 0) {
+      return [];
+    }
+    const result = await this.pool().query<ServiceRequestClientLabelRow>(
+      `SELECT id, legal_name, trade_name
+       FROM rpt.read_clients
+       WHERE id = ANY($1::uuid[])`,
+      [clientIds],
+    );
+    return result.rows;
+  }
+
+  /**
+   * Resolve o rotulo do servico da pagina em ate DUAS consultas (nome da versao + codigo da
+   * definicao como fallback) — nunca uma por linha. Ausencia de rotulo nao vira texto inventado.
+   */
+  async listServiceLabels(
+    items: Array<{ serviceDefinitionId: string; serviceDefinitionVersionId: string | null }>,
+  ): Promise<Map<string, string>> {
+    const versionIds = items
+      .map((item) => item.serviceDefinitionVersionId)
+      .filter((value): value is string => Boolean(value));
+    const definitionIds = items.map((item) => item.serviceDefinitionId);
+
+    const labels = new Map<string, string>();
+    if (definitionIds.length === 0) {
+      return labels;
+    }
+
+    const [versions, definitions] = await Promise.all([
+      versionIds.length === 0
+        ? Promise.resolve({ rows: [] as Array<{ id: string; service_definition_id: string; name: string }> })
+        : this.pool().query<{ id: string; service_definition_id: string; name: string }>(
+            `SELECT id, service_definition_id, name
+             FROM rpt.read_service_definition_versions
+             WHERE id = ANY($1::uuid[])`,
+            [versionIds],
+          ),
+      this.pool().query<{ id: string; code: string }>(
+        `SELECT id, code
+         FROM rpt.read_service_definitions
+         WHERE id = ANY($1::uuid[])`,
+        [definitionIds],
+      ),
+    ]);
+
+    const versionById = new Map(versions.rows.map((row) => [row.id, row]));
+    const codeById = new Map(definitions.rows.map((row) => [row.id, row.code]));
+
+    for (const item of items) {
+      const versionName = item.serviceDefinitionVersionId
+        ? versionById.get(item.serviceDefinitionVersionId)?.name
+        : undefined;
+      const label = versionName ?? codeById.get(item.serviceDefinitionId);
+      if (label) {
+        labels.set(item.serviceDefinitionId, label);
+      }
+    }
+    return labels;
+  }
+
+  /**
+   * Cadeia empresarial da solicitacao: proposta comercial, pedido de compra e as ordens de servico
+   * geradas por ela. Uma consulta, nao uma por elo.
+   *
+   * A OS e encontrada por `service_request_id`, o que inclui conversoes adicionais
+   * (`ADDITIONAL_CONVERTED`), e tambem pelo vinculo ja gravado na propria solicitacao.
+   */
+  async findLinkedChain(serviceRequestId: string): Promise<ServiceRequestLinkedRow[]> {
+    const result = await this.pool().query<ServiceRequestLinkedRow>(
+      `SELECT kind, id, label, status, occurred_at, unit_id, client_id
+       FROM (
+         SELECT 'PROPOSAL'::text AS kind, p.id, p.proposal_code::text AS label,
+                NULL::text AS status, p.created_at AS occurred_at, p.unit_id, p.client_id
+         FROM rpt.read_proposals p
+         INNER JOIN sr.service_requests sr ON sr.proposal_id = p.id
+         WHERE sr.id = $1::uuid
+         UNION ALL
+         SELECT 'PURCHASE_ORDER'::text, po.id, po.internal_code::text,
+                po.status::text, po.created_at, po.unit_id, po.client_id
+         FROM rpt.read_purchase_orders po
+         INNER JOIN sr.service_requests sr ON sr.purchase_order_id = po.id
+         WHERE sr.id = $1::uuid
+         UNION ALL
+         SELECT 'SERVICE_ORDER'::text, so.id, so.order_number::text,
+                so.status::text, so.created_at, so.unit_id, so.client_id
+         FROM rpt.read_service_orders so
+         LEFT JOIN sr.service_requests sr ON sr.id = $1::uuid
+         WHERE so.service_request_id = $1::uuid OR so.id = sr.converted_service_order_id
+       ) chain
+       ORDER BY occurred_at ASC, id ASC`,
+      [serviceRequestId],
     );
     return result.rows;
   }

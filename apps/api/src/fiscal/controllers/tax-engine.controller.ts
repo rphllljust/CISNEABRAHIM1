@@ -66,6 +66,14 @@ export class TaxEngineController {
     );
   }
 
+  @Get('calculations')
+  listCalculations(@CurrentAuth() auth: AccessTokenClaims, @Query() query: Record<string, unknown>) {
+    return this.taxEngine.listCalculations(
+      { identityId: auth.sub, sessionId: auth.sid },
+      query as { unitId: string; limit?: unknown; offset?: unknown; q?: string },
+    );
+  }
+
   @Get('calculations/:calculationId')
   getCalculation(
     @CurrentAuth() auth: AccessTokenClaims,

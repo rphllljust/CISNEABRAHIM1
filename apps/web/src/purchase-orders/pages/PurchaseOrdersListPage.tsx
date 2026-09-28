@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useState } from 'react';
+import { RELATION_SCOPE_KEYS, useRelationScope } from '../../enterprise-object';
 import { listPurchaseOrders, PurchaseOrdersApiError } from '../api/purchase-orders-api';
 import { mapPurchaseOrderErrorToMessage } from '../api/purchase-order-error-messages';
 import { PurchaseOrderStatusBadge } from '../components/PurchaseOrderStatusBadge';
 import { usePurchaseOrderCapabilities } from '../hooks/usePurchaseOrderCapabilities';
 import type { PurchaseOrder } from '../types/purchase-order.types';
-import { formatDateTime, formatMoney } from '../utils/purchase-order-labels';
+import { formatDate, formatMoney } from '../utils/purchase-order-labels';
+import {
+  purchaseOrderNextAction,
+  purchaseOrderNotice,
+} from '../utils/purchase-order-list-presentation';
 import { Button } from '../../ui/Button';
+import { HumanLookupField } from '../../financial-ui/HumanLookupField';
+import { searchClientOptions } from '../../financial-ui/client-lookup';
 import {
   FilterCard,
   ModuleDeniedState,
@@ -36,7 +43,11 @@ type ListState =
 
 export function PurchaseOrdersListPage() {
   const { capabilities } = usePurchaseOrderCapabilities();
-  const [clientFilter, setClientFilter] = useState('');
+  // RELATION CONTRACT: o recorte vindo da URL (clique em "Pedidos de compra N" na object page
+  // do cliente) precisa chegar a consulta autorizada. Sem isto o numero da relacao abriria a
+  // lista completa, afirmando um recorte que nao existe.
+  const relationScope = useRelationScope(RELATION_SCOPE_KEYS);
+  const [clientFilter, setClientFilter] = useState(relationScope.clientId ?? '');
   const [unitFilter, setUnitFilter] = useState('');
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
 
@@ -81,6 +92,14 @@ export function PurchaseOrdersListPage() {
     },
     [clientFilter, unitFilter],
   );
+
+  // Navegar de uma relacao para outra (mesma rota, outro cliente) precisa refiltrar sem
+  // remontar a pagina.
+  useEffect(() => {
+    if (relationScope.clientId) {
+      setClientFilter(relationScope.clientId);
+    }
+  }, [relationScope.clientId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -137,17 +156,15 @@ export function PurchaseOrdersListPage() {
 
       <FilterCard>
         <div className="grid gap-5 sm:grid-cols-2">
-          <div>
-            <label className={filterLabelClass} htmlFor="po-client-filter">
-              Cliente (ID)
-            </label>
-            <input
-              id="po-client-filter"
-              type="search"
-              className={filterControlClass}
+          <div className="min-w-0">
+            <HumanLookupField
+              label="Cliente"
+              htmlFor="po-client-search"
+              search={searchClientOptions}
               value={clientFilter}
-              onChange={(event) => setClientFilter(event.target.value)}
-              placeholder="UUID do cliente"
+              onChange={setClientFilter}
+              emptyOptionLabel="Todos os clientes"
+              emptyMessage="Nenhum cliente encontrado para a busca."
             />
           </div>
           <div>
@@ -190,22 +207,25 @@ export function PurchaseOrdersListPage() {
             <thead className={moduleTableHeadClass}>
               <tr>
                 <th scope="col" className={moduleTableHeaderCellClass}>
-                  Nº PO
+                  Pedido
                 </th>
                 <th scope="col" className={moduleTableHeaderCellClass}>
-                  Código interno
-                </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
-                  Status
+                  Situação
                 </th>
                 <th scope="col" className={moduleTableHeaderCellClass}>
                   Valor
                 </th>
                 <th scope="col" className={moduleTableHeaderCellClass}>
-                  Unidade
+                  Consumido
                 </th>
                 <th scope="col" className={moduleTableHeaderCellClass}>
-                  Atualizado em
+                  Saldo
+                </th>
+                <th scope="col" className={moduleTableHeaderCellClass}>
+                  Emissão
+                </th>
+                <th scope="col" className={moduleTableHeaderCellClass}>
+                  Próxima ação
                 </th>
               </tr>
             </thead>
@@ -216,16 +236,49 @@ export function PurchaseOrdersListPage() {
                     <ModuleTableLink to={`/app/purchase-orders/${item.id}`}>
                       {item.poNumber}
                     </ModuleTableLink>
+                    <span className="mt-1 block font-mono text-xs text-gray-500">
+                      {item.internalCode}
+                    </span>
                   </td>
-                  <td className={moduleTableCellClass}>{item.internalCode}</td>
                   <td className={moduleTableCellClass}>
-                    <PurchaseOrderStatusBadge status={item.status} />
+                    <div className="flex flex-col items-start gap-1">
+                      <PurchaseOrderStatusBadge status={item.status} />
+                      {purchaseOrderNotice(item) ? (
+                        <span className="text-xs font-medium text-amber-700">
+                          {purchaseOrderNotice(item)}
+                        </span>
+                      ) : null}
+                    </div>
                   </td>
                   <td className={`${moduleTableCellClass} tabular-nums`}>
-                    {formatMoney(item.totalAmount, item.currencyCode)}
+                    {/* Valor do pedido = valor AUTORIZADO, que o dominio calcula. Em pedidos
+                        com precificacao por itens (`LINE_ITEMS`) o `totalAmount` do cabecalho e
+                        legitimamente nulo: o valor do pedido e a soma das linhas. Exibir o campo
+                        cru deixaria a coluna vazia ao lado de um saldo preenchido. */}
+                    {item.balance
+                      ? formatMoney(item.balance.authorizedAmount, item.currencyCode)
+                      : formatMoney(item.totalAmount, item.currencyCode)}
                   </td>
-                  <td className={moduleTableCellClass}>{item.unitId}</td>
-                  <td className={moduleTableCellClass}>{formatDateTime(item.updatedAt)}</td>
+                  <td className={`${moduleTableCellClass} tabular-nums`}>
+                    {formatMoney(item.consumedAmount, item.currencyCode)}
+                  </td>
+                  <td className={`${moduleTableCellClass} tabular-nums`}>
+                    {/* Saldo vem da regra de dominio. Quando ela recusa apurar, a celula
+                        declara a indisponibilidade em vez de mostrar zero. */}
+                    {item.balance ? (
+                      formatMoney(item.balance.availableBalance, item.currencyCode)
+                    ) : (
+                      <span className="text-xs text-gray-500">Não apurável</span>
+                    )}
+                  </td>
+                  <td className={moduleTableCellClass}>
+                    {item.issueDate ? formatDate(item.issueDate) : '—'}
+                  </td>
+                  <td className={moduleTableCellClass}>
+                    <ModuleTableLink to={`/app/purchase-orders/${item.id}`}>
+                      {purchaseOrderNextAction(item.status)}
+                    </ModuleTableLink>
+                  </td>
                 </tr>
               ))}
             </tbody>

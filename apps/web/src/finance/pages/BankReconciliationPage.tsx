@@ -1,23 +1,30 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Button, DateTime, EmptyState, Field, Input, Money, Select, Textarea, VersionConflictBanner } from '../../ui';
 import {
   FilterCard,
+  ModuleDeniedState,
+  ModuleErrorState,
+  ModuleLoadingState,
   ModulePage,
   ModulePageHeader,
   ModulePagination,
   ModuleTableCard,
+  ModuleTableLink,
   filterControlClass,
+  filterLabelClass,
   moduleTableCellClass,
   moduleTableClass,
   moduleTableHeadClass,
   moduleTableHeaderCellClass,
   moduleTableRowClass,
 } from '../../ui/module-layout';
+import { HumanLookupField, type HumanLookupOption } from '../../financial-ui/HumanLookupField';
+import { SavedViewsBar, useSmartList } from '../../operator';
 import { BackofficeApiError } from '../../financial-ui/enterprise-api';
 import { createIdempotencyKey } from '../../financial-ui/idempotency';
 import { MATCH_STATUS_LABELS, MOVEMENT_DIRECTION_LABELS, STATEMENT_STATUS_LABELS } from '../../financial-ui/labels';
 import { ProcessingBanner } from '../../financial-ui/ProcessingBanner';
-import { RecordLookupCard } from '../../financial-ui/RecordLookupCard';
 import { VersionedActionForm } from '../../financial-ui/VersionedActionForm';
 import { sliceTablePage, tablePageCount } from '../../financial-ui/table-slice';
 import {
@@ -25,12 +32,19 @@ import {
   confirmReconciliation,
   getBankStatement,
   importBankFile,
+  listBankStatements,
+  listTreasuryAccounts,
   matchBankStatementLine,
   unreconcileReconciliation,
 } from '../api/finance-api';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import { FinanceStatusBadge } from '../components/FinanceStatusBadge';
-import type { AutoMatchResult, BankStatement, ReconciliationMatch } from '../types/finance.types';
+import type {
+  AutoMatchResult,
+  BankStatement,
+  BankStatementSummary,
+  ReconciliationMatch,
+} from '../types/finance.types';
 
 type PageState =
   | { phase: 'idle' }
@@ -39,11 +53,91 @@ type PageState =
   | { phase: 'error'; message: string; retryable: boolean; conflict: boolean }
   | { phase: 'ready'; statement: BankStatement; autoMatch?: AutoMatchResult };
 
+type ListState =
+  | { phase: 'loading' }
+  | { phase: 'denied' }
+  | { phase: 'error'; message: string; retryable: boolean }
+  | { phase: 'ready'; items: BankStatementSummary[]; offset: number; total: number };
+
+const PAGE_SIZE = 20;
+
+/** Escopo estavel de persistencia das visoes salvas desta mesa de trabalho. */
+const SCOPE = 'finance.bank-statements';
+
+/**
+ * Valores de status aceitos como visao/URL — os mesmos enumerados persistidos em
+ * `fin.bank_statement_status`. A lista de extratos abre JÁ recortada quando o endereço traz o
+ * filtro, e a API recebe o mesmo valor.
+ */
+const STATEMENTS_ALLOWED_FILTERS = {
+  filters: { status: ['OPEN', 'CLOSED'] },
+} as const;
+
+const STATEMENTS_BUILT_IN_VIEWS = [
+  {
+    id: 'builtin.bank-statements.open',
+    name: 'Extratos abertos',
+    description: 'Extratos ainda em conciliação.',
+    config: { filters: { status: 'OPEN' }, sortKey: null, sortDirection: 'asc' as const, groupKey: null },
+  },
+  {
+    id: 'builtin.bank-statements.closed',
+    name: 'Extratos fechados',
+    description: 'Extratos já encerrados.',
+    config: { filters: { status: 'CLOSED' }, sortKey: null, sortDirection: 'asc' as const, groupKey: null },
+  },
+];
+
 const RECONCILIATION_STATUS_LABELS: Record<string, string> = {
   DRAFT: 'Rascunho',
   CONFIRMED: 'Confirmada',
   UNRECONCILED: 'Desfeita',
 };
+
+/**
+ * Situação de conciliação do extrato, derivada APENAS das contagens persistidas que o servidor
+ * devolve. Não existe score de IA, nem correspondência inventada nesta tela.
+ */
+function reconciliationSituation(statement: BankStatementSummary): string {
+  if (statement.lineCount === 0) {
+    return 'Sem linhas';
+  }
+  if (statement.unreconciledLineCount === 0) {
+    return 'Todas conciliadas';
+  }
+  if (statement.matchedLineCount > 0) {
+    return `${statement.matchedLineCount} conciliada(s) de ${statement.lineCount}`;
+  }
+  return `${statement.lineCount} linha(s) pendente(s)`;
+}
+
+/**
+ * Busca de contas bancárias para escolha humana no filtro.
+ *
+ * Usa a listagem de tesouraria — a mesma autoridade que valida o vínculo — em vez de exigir que o
+ * operador cole um identificador técnico. Se o ator não puder listar contas, a busca devolve vazio
+ * e a tela continua funcionando pelo status e pelo período.
+ */
+async function searchBankAccountOptions(
+  term: string,
+  signal?: AbortSignal,
+): Promise<HumanLookupOption[]> {
+  const accounts = await listTreasuryAccounts(signal);
+  const needle = term.trim().toLowerCase();
+  return accounts
+    .filter((account) => account.kind === 'BANK' || account.kind === 'CASH')
+    .filter((account) =>
+      needle.length === 0
+        ? true
+        : `${account.code} ${account.name}`.toLowerCase().includes(needle),
+    )
+    .slice(0, 20)
+    .map((account) => ({
+      id: account.id,
+      label: `${account.code} — ${account.name}`,
+      support: account.unitId,
+    }));
+}
 
 function errorInfo(error: unknown): { message: string; retryable: boolean; conflict: boolean } {
   if (error instanceof BackofficeApiError) {
@@ -56,11 +150,31 @@ function errorInfo(error: unknown): { message: string; retryable: boolean; confl
   return { message: mapFinanceErrorToMessage(undefined, 0), retryable: true, conflict: false };
 }
 
+/**
+ * MESA DE CONCILIAÇÃO BANCÁRIA.
+ *
+ * A tela abre pela LISTA REAL de extratos (`GET /finance/bank-statements`), com filtros
+ * server-side de status, conta e período. O operador escolhe um extrato pelo rótulo humano e a
+ * seleção vive na URL (`/app/finance/reconciliation/:statementId`), então o endereço é
+ * compartilhável. Nenhum identificador técnico precisa ser digitado.
+ *
+ * Escolhido o extrato, o MESMO workbench de antes é aberto inline: auto-match, vínculo manual,
+ * confirmar, desfazer, conflito de versão, idempotência e erros inline continuam sendo do motor do
+ * servidor — o backend segue sendo a fonte de verdade.
+ */
 export function BankReconciliationPage() {
-  const [statementId, setStatementId] = useState('');
+  const { statementId: routeStatementId } = useParams();
+  const navigate = useNavigate();
+  const statementId = routeStatementId ?? '';
+  const [listState, setListState] = useState<ListState>({ phase: 'loading' });
   const [state, setState] = useState<PageState>({ phase: 'idle' });
   const [pageNumber, setPageNumber] = useState(1);
   const [actionError, setActionError] = useState<{ message: string; conflict: boolean } | null>(null);
+  const [accountFilter, setAccountFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [appliedWindow, setAppliedWindow] = useState({ dateFrom: '', dateTo: '' });
+  const [importOpen, setImportOpen] = useState(false);
   const [importFields, setImportFields] = useState({
     unitId: '',
     financialAccountId: '',
@@ -74,7 +188,49 @@ export function BankReconciliationPage() {
   const inflight = useRef(false);
   const idempotencyKey = useRef(createIdempotencyKey());
 
+  // O status vive na URL e em visão salva: o endereço é compartilhável e o mesmo valor chega à API.
+  const smartList = useSmartList({
+    scope: SCOPE,
+    builtInViews: STATEMENTS_BUILT_IN_VIEWS,
+    allowedFilters: STATEMENTS_ALLOWED_FILTERS,
+    urlSync: true,
+  });
+  const statusFilter = smartList.filters.status ?? '';
+
   const clearActionError = useCallback(() => setActionError(null), []);
+
+  const loadList = useCallback(
+    async (offset: number, signal?: AbortSignal) => {
+      setListState({ phase: 'loading' });
+      try {
+        const response = await listBankStatements(
+          {
+            limit: PAGE_SIZE,
+            offset,
+            status: statusFilter || undefined,
+            financialAccountId: accountFilter || undefined,
+            dateFrom: appliedWindow.dateFrom || undefined,
+            dateTo: appliedWindow.dateTo || undefined,
+          },
+          signal,
+        );
+        setListState({ phase: 'ready', items: response.items, offset: response.offset, total: response.total });
+      } catch (error) {
+        if (error instanceof BackofficeApiError && (error.status === 403 || error.status === 401)) {
+          setListState({ phase: 'denied' });
+          return;
+        }
+        const status = error instanceof BackofficeApiError ? error.status : 0;
+        const code = error instanceof BackofficeApiError ? error.code : undefined;
+        setListState({
+          phase: 'error',
+          message: mapFinanceErrorToMessage(code, status),
+          retryable: status === 0,
+        });
+      }
+    },
+    [accountFilter, appliedWindow.dateFrom, appliedWindow.dateTo, statusFilter],
+  );
 
   const loadStatement = useCallback(
     async (id: string, signal?: AbortSignal) => {
@@ -97,6 +253,26 @@ export function BankReconciliationPage() {
     [],
   );
 
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadList(0, controller.signal);
+    return () => controller.abort();
+  }, [loadList]);
+
+  useEffect(() => {
+    if (!statementId) {
+      setState({ phase: 'idle' });
+      return;
+    }
+    const controller = new AbortController();
+    void loadStatement(statementId, controller.signal);
+    return () => controller.abort();
+  }, [loadStatement, statementId]);
+
+  function openStatement(id: string) {
+    void navigate(`/app/finance/reconciliation/${id}`);
+  }
+
   async function handleImport() {
     if (inflight.current) {
       return;
@@ -110,11 +286,13 @@ export function BankReconciliationPage() {
         idempotencyKey: idempotencyKey.current,
       });
       idempotencyKey.current = createIdempotencyKey();
-      setStatementId(statement.id);
+      setImportOpen(false);
       setTrackedReconciliations([]);
       setSelectedReconciliationId('');
-      setPageNumber(1);
-      setState({ phase: 'ready', statement });
+      await loadList(
+        listState.phase === 'ready' ? listState.offset : 0,
+      );
+      openStatement(statement.id);
     } catch (error) {
       const failure = errorInfo(error);
       // A falha da importação nunca apaga um extrato já carregado.
@@ -219,21 +397,49 @@ export function BankReconciliationPage() {
     }
   }
 
-  if (state.phase === 'denied') {
+  if (listState.phase === 'loading' && !statementId) {
     return (
       <ModulePage>
-        <ModulePageHeader title="Conciliação" />
-        <p className="text-sm text-red-700" role="alert">
-          Você não tem permissão para acessar conciliação bancária.
-        </p>
+        <ModuleLoadingState title="Conciliação" message="Carregando extratos bancários…" />
       </ModulePage>
     );
   }
+
+  if (listState.phase === 'denied') {
+    return (
+      <ModulePage>
+        <ModuleDeniedState
+          title="Conciliação"
+          message="Você não tem permissão para acessar conciliação bancária."
+        />
+      </ModulePage>
+    );
+  }
+
+  if (listState.phase === 'error') {
+    return (
+      <ModulePage>
+        <ModuleErrorState
+          title="Conciliação"
+          message={listState.message}
+          retryable={listState.retryable}
+          onRetry={() => void loadList(0)}
+        />
+      </ModulePage>
+    );
+  }
+
+  const statements = listState.phase === 'ready' ? listState.items : [];
+  const offset = listState.phase === 'ready' ? listState.offset : 0;
+  const total = listState.phase === 'ready' ? listState.total : 0;
+  const listPageNumber = Math.floor(offset / PAGE_SIZE) + 1;
+  const hasMore = offset + statements.length < total;
 
   const statement = state.phase === 'ready' ? state.statement : null;
   const lines = statement?.lines ?? [];
   const pageCount = tablePageCount(lines.length);
   const pageItems = sliceTablePage(lines, Math.min(pageNumber, pageCount));
+  const unmatchedLines = lines.filter((line) => line.matchStatus !== 'MATCHED');
   const selectedReconciliation = trackedReconciliations.find(
     (item) => item.id === selectedReconciliationId,
   );
@@ -241,153 +447,208 @@ export function BankReconciliationPage() {
   return (
     <ModulePage>
       <ModulePageHeader
-        title="Conciliação"
-        description="Importação e vínculos usam o motor do servidor. OFX/CNAB não documentados são recusados pelo backend."
-      />
-
-      <RecordLookupCard
-        title="Consultar extrato"
-        fieldId="statement-id"
-        label="Identificador do extrato"
-        value={statementId}
-        onChange={setStatementId}
-        onSubmit={() => void loadStatement(statementId.trim())}
-        submitLabel="Consultar"
-        loading={state.phase === 'loading'}
+        title="Conciliação bancária"
+        description="Mesa de trabalho dos extratos importados. Filtros, paginação e conciliação são resolvidos pelo servidor."
       />
 
       <FilterCard>
-        <h2 className="mb-3 text-sm font-semibold text-gray-900">Importar arquivo autorizado</h2>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Field label="Unidade" htmlFor="import-unit">
-            <Input
-              id="import-unit"
-              className={filterControlClass}
-              value={importFields.unitId}
-              onChange={(event) => setImportFields((current) => ({ ...current, unitId: event.target.value }))}
+        <h2 className="mb-3 text-sm font-semibold text-gray-900">Extratos</h2>
+        <form
+          className="flex flex-wrap items-end gap-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setAppliedWindow({ dateFrom, dateTo });
+          }}
+        >
+          <div>
+            <label className={filterLabelClass} htmlFor="statement-status-filter">
+              Status
+            </label>
+            <select
+              id="statement-status-filter"
+              className={`${filterControlClass} max-w-xs`}
+              value={statusFilter}
+              onChange={(event) => smartList.setFilter('status', event.target.value)}
+            >
+              <option value="">Todos</option>
+              <option value="OPEN">Aberto</option>
+              <option value="CLOSED">Fechado</option>
+            </select>
+          </div>
+          <div>
+            <label className={filterLabelClass} htmlFor="statement-date-from">
+              Período de
+            </label>
+            <input
+              id="statement-date-from"
+              type="date"
+              className={`${filterControlClass} max-w-xs`}
+              value={dateFrom}
+              onChange={(event) => setDateFrom(event.target.value)}
             />
-          </Field>
-          <Field label="Conta financeira" htmlFor="import-account">
-            <Input
-              id="import-account"
-              className={filterControlClass}
-              value={importFields.financialAccountId}
-              onChange={(event) =>
-                setImportFields((current) => ({ ...current, financialAccountId: event.target.value }))
-              }
+          </div>
+          <div>
+            <label className={filterLabelClass} htmlFor="statement-date-to">
+              Período até
+            </label>
+            <input
+              id="statement-date-to"
+              type="date"
+              className={`${filterControlClass} max-w-xs`}
+              value={dateTo}
+              onChange={(event) => setDateTo(event.target.value)}
             />
-          </Field>
-        </div>
-        <Field label="Conteúdo" htmlFor="import-content" className="mt-4">
-          <Textarea
-            id="import-content"
-            value={importFields.content}
-            onChange={(event) => setImportFields((current) => ({ ...current, content: event.target.value }))}
+          </div>
+          <HumanLookupField
+            label="Conta financeira"
+            htmlFor="statement-account"
+            placeholder="Buscar por código ou nome da conta"
+            search={searchBankAccountOptions}
+            value={accountFilter}
+            onChange={setAccountFilter}
+            emptyOptionLabel="Todas"
+            emptyMessage="Nenhuma conta encontrada para a busca."
+            className="min-w-0 max-w-md flex-1"
           />
-        </Field>
-        <div className="mt-4">
-          <Button type="button" onClick={() => void handleImport()} loading={processing} disabled={processing}>
-            Enviar ao servidor
-          </Button>
-        </div>
+          <button
+            type="submit"
+            className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800"
+          >
+            Aplicar período
+          </button>
+        </form>
       </FilterCard>
 
-      {statement ? (
-        <FilterCard>
-          <h2 className="mb-3 text-sm font-semibold text-gray-900">Vínculo manual</h2>
-          <p className="mb-4 text-sm text-gray-500">
-            O servidor exige correspondência exata (conta, valor, direção e data) entre a linha e o movimento.
-          </p>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Field label="Linha do extrato" htmlFor="match-line" required>
-              <Select
-                id="match-line"
-                className={filterControlClass}
-                value={manualMatch.lineId}
-                onChange={(event) => setManualMatch((current) => ({ ...current, lineId: event.target.value }))}
-                disabled={lines.length === 0}
-                required
-              >
-                <option value="">Selecione…</option>
-                {lines
-                  .filter((line) => line.matchStatus !== 'MATCHED')
-                  .map((line) => (
-                    <option key={line.id} value={line.id}>
-                      Linha {line.lineNumber} · {line.description}
-                    </option>
-                  ))}
-              </Select>
-            </Field>
-            <Field label="Identificador do movimento financeiro" htmlFor="match-transaction" required>
-              <Input
-                id="match-transaction"
-                className={filterControlClass}
-                value={manualMatch.transactionId}
-                onChange={(event) =>
-                  setManualMatch((current) => ({ ...current, transactionId: event.target.value }))
-                }
-                required
-              />
-            </Field>
-          </div>
-          <div className="mt-4">
-            <Button type="button" onClick={() => void handleManualMatch()} loading={processing} disabled={processing}>
-              Vincular manualmente
-            </Button>
-          </div>
-        </FilterCard>
-      ) : null}
+      <SavedViewsBar
+        views={smartList.savedViews.views}
+        builtInViews={smartList.savedViews.builtInViews}
+        activeViewId={smartList.activeViewId}
+        onApply={(view) => smartList.applyView(view)}
+        onSave={smartList.savedViews.saveView}
+        onRename={smartList.savedViews.renameView}
+        onRemove={smartList.savedViews.removeView}
+        currentConfig={smartList.currentConfig}
+        canSave={Object.keys(smartList.filters).length > 0}
+        allLabel="Todos"
+        className="mb-4"
+      />
 
-      {processing ? (
-        <div className="mb-4">
-          <ProcessingBanner />
+      {statements.length === 0 ? (
+        <div className="rounded-md bg-white p-4 ring-1 ring-gray-900/5 ring-inset" role="status">
+          <p className="text-sm font-medium text-gray-700">
+            {smartList.isFiltered || accountFilter || appliedWindow.dateFrom || appliedWindow.dateTo
+              ? 'Nenhum extrato encontrado para os filtros selecionados.'
+              : 'Nenhum extrato importado ainda.'}
+          </p>
+          <p className="mt-1 text-xs text-gray-500">
+            {smartList.isFiltered || accountFilter || appliedWindow.dateFrom || appliedWindow.dateTo
+              ? 'Ajuste ou limpe os filtros para ver o conjunto completo.'
+              : 'Importe um arquivo no formato autorizado para começar a conciliar.'}
+          </p>
+          {smartList.isFiltered ? (
+            <button
+              type="button"
+              className="mt-2 text-xs font-semibold text-brand-600 hover:text-brand-700"
+              onClick={() => {
+                smartList.clearFilters();
+                setAccountFilter('');
+                setDateFrom('');
+                setDateTo('');
+                setAppliedWindow({ dateFrom: '', dateTo: '' });
+              }}
+            >
+              Limpar filtros
+            </button>
+          ) : null}
         </div>
-      ) : null}
+      ) : (
+        <ModuleTableCard>
+          <table className={moduleTableClass} aria-label="Extratos bancários">
+            <thead className={moduleTableHeadClass}>
+              <tr>
+                <th scope="col" className={moduleTableHeaderCellClass}>Extrato</th>
+                <th scope="col" className={moduleTableHeaderCellClass}>Conta</th>
+                <th scope="col" className={moduleTableHeaderCellClass}>Período</th>
+                <th scope="col" className={moduleTableHeaderCellClass}>Status</th>
+                <th scope="col" className={moduleTableHeaderCellClass}>Conciliação</th>
+                <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Créditos</th>
+                <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Débitos</th>
+                <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Linhas</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {statements.map((item) => (
+                <tr key={item.id} className={moduleTableRowClass}>
+                  <td className={moduleTableCellClass}>
+                    <ModuleTableLink to={`/app/finance/reconciliation/${item.id}`}>
+                      {item.sourceReference}
+                    </ModuleTableLink>
+                    <span className="ml-2 text-xs text-gray-500">{item.unitId}</span>
+                  </td>
+                  <td className={`${moduleTableCellClass} max-w-xs whitespace-normal`}>
+                    {item.financialAccount.label}
+                  </td>
+                  <td className={moduleTableCellClass}>
+                    <DateTime value={item.periodStartsOn} mode="date" /> —{' '}
+                    <DateTime value={item.periodEndsOn} mode="date" />
+                  </td>
+                  <td className={moduleTableCellClass}>
+                    <FinanceStatusBadge status={item.status} labels={STATEMENT_STATUS_LABELS} />
+                  </td>
+                  <td className={moduleTableCellClass}>{reconciliationSituation(item)}</td>
+                  <td className={`${moduleTableCellClass} text-right`}>
+                    <Money value={item.creditTotal} currencyCode={item.currencyCode} />
+                  </td>
+                  <td className={`${moduleTableCellClass} text-right`}>
+                    <Money value={item.debitTotal} currencyCode={item.currencyCode} />
+                  </td>
+                  <td className={`${moduleTableCellClass} text-right`}>{item.lineCount}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </ModuleTableCard>
+      )}
 
-      {actionError ? (
-        actionError.conflict ? (
-          <div className="mb-4">
-            <VersionConflictBanner
-              message={actionError.message}
-              onReload={() => (statement ? void loadStatement(statement.id) : undefined)}
-            />
-          </div>
-        ) : (
-          <p className="mb-4 text-sm text-red-700" role="alert">
-            {actionError.message}
-          </p>
-        )
-      ) : null}
+      <ModulePagination
+        pageNumber={listPageNumber}
+        previousDisabled={offset === 0}
+        nextDisabled={!hasMore}
+        onPrevious={() => void loadList(Math.max(0, offset - PAGE_SIZE))}
+        onNext={() => void loadList(offset + PAGE_SIZE)}
+      />
+      <p className="mt-2 text-xs text-gray-500" role="status">
+        {total} extrato(s) no total.
+      </p>
 
-      {state.phase === 'error' ? (
-        state.conflict ? (
-          <div className="mb-4">
-            <VersionConflictBanner message={state.message} onReload={clearActionError} reloadLabel="Entendido" />
-          </div>
-        ) : (
-          <p className="mb-4 text-sm text-red-700" role="alert">
-            {state.message}
-          </p>
-        )
-      ) : null}
-
-      {state.phase === 'idle' && !statement ? (
+      {!statementId ? (
         <EmptyState
-          title="Nenhum extrato carregado"
-          description="Consulte um extrato existente ou envie um arquivo no formato autorizado."
+          title="Nenhum extrato selecionado"
+          description="Escolha um extrato na lista acima para abrir a mesa de conciliação."
         />
       ) : null}
 
       {statement ? (
         <>
           <div className="mb-4 flex flex-wrap items-center gap-3">
+            <h2 className="text-sm font-semibold text-gray-900">
+              {statement.sourceReference}
+            </h2>
             <FinanceStatusBadge status={statement.status} labels={STATEMENT_STATUS_LABELS} />
             <span className="text-sm text-gray-500">
-              {statement.periodStartsOn} — {statement.periodEndsOn}
+              <DateTime value={statement.periodStartsOn} mode="date" /> —{' '}
+              <DateTime value={statement.periodEndsOn} mode="date" />
             </span>
             <Button type="button" variant="secondary" onClick={() => void handleAutoMatch()} disabled={processing}>
               Sugerir vínculos
             </Button>
+            <button
+              type="button"
+              className="text-sm font-semibold text-gray-700 hover:text-gray-900"
+              onClick={() => void navigate('/app/finance/reconciliation')}
+            >
+              Fechar extrato
+            </button>
           </div>
           {state.phase === 'ready' && state.autoMatch ? (
             <p className="mb-4 text-sm text-gray-600" role="status">
@@ -397,57 +658,123 @@ export function BankReconciliationPage() {
           ) : null}
 
           <FilterCard>
-            <h2 className="mb-3 text-sm font-semibold text-gray-900">Confirmar ou desfazer conciliação</h2>
+            <h2 className="mb-3 text-sm font-semibold text-gray-900">Exceções do extrato</h2>
+            <p className="text-sm text-gray-500">
+              {unmatchedLines.length} de {lines.length} linha(s) ainda sem vínculo. As sugestões abaixo são as que o
+              servidor devolveu no auto-match; nada é correspondido no navegador.
+            </p>
             {trackedReconciliations.length === 0 ? (
-              <p className="text-sm text-gray-500">
+              <p className="mt-3 text-sm text-gray-500">
                 Nenhuma conciliação rastreada nesta sessão. Rode “Sugerir vínculos” ou faça um vínculo manual para
                 confirmar.
               </p>
             ) : (
-              <>
-                <Field label="Conciliação" htmlFor="reconciliation-select">
-                  <Select
-                    id="reconciliation-select"
-                    className={`${filterControlClass} max-w-xl`}
-                    value={selectedReconciliationId}
-                    onChange={(event) => setSelectedReconciliationId(event.target.value)}
-                  >
-                    <option value="">Selecione…</option>
-                    {trackedReconciliations.map((reconciliation) => (
-                      <option key={reconciliation.id} value={reconciliation.id}>
-                        {reconciliation.id} · {RECONCILIATION_STATUS_LABELS[reconciliation.status] ?? reconciliation.status}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-2">
-                  <VersionedActionForm
-                    title="Confirmar conciliação"
-                    description="Confirmação imutável: depois de confirmada só é revertida por desfazer autorizado."
-                    confirmTitle="Confirmar conciliação"
-                    confirmDescription="O backend valida que a conciliação ainda é rascunho."
-                    confirmLabel="Confirmar"
-                    disabled={!selectedReconciliation || selectedReconciliation.status !== 'DRAFT'}
-                    mapError={mapFinanceErrorToMessage}
-                    onReload={() => (statement ? void loadStatement(statement.id) : undefined)}
-                    onSubmit={handleConfirm}
-                  />
-                  <VersionedActionForm
-                    title="Desfazer conciliação"
-                    description="Reverte uma conciliação confirmada para o estado anterior."
-                    confirmTitle="Desfazer conciliação"
-                    confirmDescription="Somente conciliações confirmadas podem ser desfeitas."
-                    confirmLabel="Desfazer conciliação"
-                    variant="danger"
-                    disabled={!selectedReconciliation || selectedReconciliation.status !== 'CONFIRMED'}
-                    mapError={mapFinanceErrorToMessage}
-                    onReload={() => (statement ? void loadStatement(statement.id) : undefined)}
-                    onSubmit={handleUnreconcile}
-                  />
-                </div>
-              </>
+              <ul className="mt-3 space-y-2">
+                {trackedReconciliations.map((reconciliation) => (
+                  <li key={reconciliation.id} className="text-sm text-gray-700">
+                    Linha {lines.find((line) => line.id === reconciliation.bankStatementLineId)?.lineNumber ?? '—'} ·{' '}
+                    {reconciliation.status === 'DRAFT'
+                      ? 'Sugerido pelo servidor'
+                      : (RECONCILIATION_STATUS_LABELS[reconciliation.status] ?? reconciliation.status)}
+                    {reconciliation.match
+                      ? ` · ${reconciliation.match.targetKind} ${reconciliation.match.targetId}`
+                      : ''}
+                  </li>
+                ))}
+              </ul>
             )}
           </FilterCard>
+
+          <FilterCard>
+            <h2 className="mb-3 text-sm font-semibold text-gray-900">Vínculo manual</h2>
+            <p className="mb-4 text-sm text-gray-500">
+              O servidor exige correspondência exata (conta, valor, direção e data) entre a linha e o movimento.
+              Somente linhas ainda sem conciliação aparecem aqui.
+            </p>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <Field label="Linha do extrato" htmlFor="match-line" required>
+                <Select
+                  id="match-line"
+                  className={filterControlClass}
+                  value={manualMatch.lineId}
+                  onChange={(event) => setManualMatch((current) => ({ ...current, lineId: event.target.value }))}
+                  disabled={unmatchedLines.length === 0}
+                  required
+                >
+                  <option value="">Selecione…</option>
+                  {unmatchedLines.map((line) => (
+                    <option key={line.id} value={line.id}>
+                      Linha {line.lineNumber} · {line.description}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Identificador do movimento financeiro" htmlFor="match-transaction" required>
+                <Input
+                  id="match-transaction"
+                  className={filterControlClass}
+                  value={manualMatch.transactionId}
+                  onChange={(event) =>
+                    setManualMatch((current) => ({ ...current, transactionId: event.target.value }))
+                  }
+                  required
+                />
+              </Field>
+            </div>
+            <div className="mt-4">
+              <Button type="button" onClick={() => void handleManualMatch()} loading={processing} disabled={processing}>
+                Vincular manualmente
+              </Button>
+            </div>
+          </FilterCard>
+
+          {trackedReconciliations.length > 0 ? (
+            <FilterCard>
+              <h2 className="mb-3 text-sm font-semibold text-gray-900">Confirmar ou desfazer conciliação</h2>
+              <Field label="Conciliação" htmlFor="reconciliation-select">
+                <Select
+                  id="reconciliation-select"
+                  className={`${filterControlClass} max-w-xl`}
+                  value={selectedReconciliationId}
+                  onChange={(event) => setSelectedReconciliationId(event.target.value)}
+                >
+                  <option value="">Selecione…</option>
+                  {trackedReconciliations.map((reconciliation) => (
+                    <option key={reconciliation.id} value={reconciliation.id}>
+                      Linha{' '}
+                      {lines.find((line) => line.id === reconciliation.bankStatementLineId)?.lineNumber ?? '—'} ·{' '}
+                      {RECONCILIATION_STATUS_LABELS[reconciliation.status] ?? reconciliation.status}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <VersionedActionForm
+                  title="Confirmar conciliação"
+                  description="Confirmação imutável: depois de confirmada só é revertida por desfazer autorizado."
+                  confirmTitle="Confirmar conciliação"
+                  confirmDescription="O backend valida que a conciliação ainda é rascunho."
+                  confirmLabel="Confirmar"
+                  disabled={!selectedReconciliation || selectedReconciliation.status !== 'DRAFT'}
+                  mapError={mapFinanceErrorToMessage}
+                  onReload={() => (statement ? void loadStatement(statement.id) : undefined)}
+                  onSubmit={handleConfirm}
+                />
+                <VersionedActionForm
+                  title="Desfazer conciliação"
+                  description="Reverte uma conciliação confirmada para o estado anterior."
+                  confirmTitle="Desfazer conciliação"
+                  confirmDescription="Somente conciliações confirmadas podem ser desfeitas."
+                  confirmLabel="Desfazer conciliação"
+                  variant="danger"
+                  disabled={!selectedReconciliation || selectedReconciliation.status !== 'CONFIRMED'}
+                  mapError={mapFinanceErrorToMessage}
+                  onReload={() => (statement ? void loadStatement(statement.id) : undefined)}
+                  onSubmit={handleUnreconcile}
+                />
+              </div>
+            </FilterCard>
+          ) : null}
 
           {lines.length === 0 ? (
             <EmptyState title="Extrato sem linhas" />
@@ -510,6 +837,86 @@ export function BankReconciliationPage() {
           )}
         </>
       ) : null}
+
+      {processing ? (
+        <div className="mb-4">
+          <ProcessingBanner />
+        </div>
+      ) : null}
+
+      {actionError ? (
+        actionError.conflict ? (
+          <div className="mb-4">
+            <VersionConflictBanner
+              message={actionError.message}
+              onReload={() => (statement ? void loadStatement(statement.id) : undefined)}
+            />
+          </div>
+        ) : (
+          <p className="mb-4 text-sm text-red-700" role="alert">
+            {actionError.message}
+          </p>
+        )
+      ) : null}
+
+      {state.phase === 'error' ? (
+        state.conflict ? (
+          <div className="mb-4">
+            <VersionConflictBanner message={state.message} onReload={clearActionError} reloadLabel="Entendido" />
+          </div>
+        ) : (
+          <p className="mb-4 text-sm text-red-700" role="alert">
+            {state.message}
+          </p>
+        )
+      ) : null}
+
+      <FilterCard>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-gray-900">Importar arquivo autorizado</h2>
+          <Button type="button" variant="secondary" onClick={() => setImportOpen((current) => !current)}>
+            {importOpen ? 'Ocultar importação' : 'Importar extrato'}
+          </Button>
+        </div>
+        {importOpen ? (
+          <div className="mt-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <Field label="Unidade" htmlFor="import-unit" required>
+                <Input
+                  id="import-unit"
+                  className={filterControlClass}
+                  value={importFields.unitId}
+                  onChange={(event) => setImportFields((current) => ({ ...current, unitId: event.target.value }))}
+                  required
+                />
+              </Field>
+              <Field label="Conta financeira" htmlFor="import-account" required>
+                <Input
+                  id="import-account"
+                  className={filterControlClass}
+                  value={importFields.financialAccountId}
+                  onChange={(event) =>
+                    setImportFields((current) => ({ ...current, financialAccountId: event.target.value }))
+                  }
+                  required
+                />
+              </Field>
+            </div>
+            <Field label="Conteúdo" htmlFor="import-content" className="mt-4">
+              <Textarea
+                id="import-content"
+                value={importFields.content}
+                onChange={(event) => setImportFields((current) => ({ ...current, content: event.target.value }))}
+              />
+            </Field>
+            <div className="mt-4">
+              <Button type="button" onClick={() => void handleImport()} loading={processing} disabled={processing}>
+                Enviar ao servidor
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </FilterCard>
     </ModulePage>
   );
 }

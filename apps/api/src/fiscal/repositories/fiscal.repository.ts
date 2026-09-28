@@ -170,6 +170,41 @@ export class FiscalRepository {
     return result.rows.map((row) => ({ status: row.status, count: Number(row.count) }));
   }
 
+  /**
+   * Fatos fiscais da competencia, agrupados pelo que interessa ao FECHAMENTO CONTABIL.
+   *
+   * Uma consulta agregada na unidade+janela — sem N+1 e sem trazer documento para a memoria.
+   * Vive aqui porque `fis` e schema deste contexto; quem precisa do numero consome o port.
+   */
+  async countDocumentsInWindow(input: {
+    unitId: string;
+    startsOn: string;
+    endsOn: string;
+  }): Promise<{ unauthorized: number; rejected: number; pendingAuthorization: number; draft: number }> {
+    const result = await this.pool().query<{
+      unauthorized: string;
+      rejected: string;
+      pending_authorization: string;
+      draft: string;
+    }>(
+      `SELECT
+         COUNT(*) FILTER (WHERE status NOT IN ('AUTHORIZED', 'CANCELLED'))::text AS unauthorized,
+         COUNT(*) FILTER (WHERE status = 'REJECTED')::text AS rejected,
+         COUNT(*) FILTER (WHERE status IN ('READY', 'SUBMITTED'))::text AS pending_authorization,
+         COUNT(*) FILTER (WHERE status = 'DRAFT')::text AS draft
+       FROM fis.fiscal_documents
+       WHERE unit_id = $1 AND issued_on BETWEEN $2::date AND $3::date`,
+      [input.unitId, input.startsOn, input.endsOn],
+    );
+    const row = result.rows[0];
+    return {
+      unauthorized: Number(row?.unauthorized ?? '0'),
+      rejected: Number(row?.rejected ?? '0'),
+      pendingAuthorization: Number(row?.pending_authorization ?? '0'),
+      draft: Number(row?.draft ?? '0'),
+    };
+  }
+
   async createDraft(input: CreateFiscalPersistenceInput): Promise<FiscalAggregate> {
     const existing = await this.findByIdempotency(input);
     if (existing) {

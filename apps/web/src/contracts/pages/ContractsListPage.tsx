@@ -6,6 +6,8 @@ import { useContractCapabilities } from '../hooks/useContractCapabilities';
 import type { Contract } from '../types';
 import { formatClientSnapshot, formatDate, formatDateTime } from '../utils/contract-status-labels';
 import { Button } from '../../ui/Button';
+import { HumanLookupField } from '../../financial-ui/HumanLookupField';
+import { searchClientOptions } from '../../financial-ui/client-lookup';
 import {
   FilterCard,
   ModuleDeniedState,
@@ -137,17 +139,15 @@ export function ContractsListPage() {
 
       <FilterCard>
         <div className="grid gap-5 sm:grid-cols-2">
-          <div>
-            <label className={filterLabelClass} htmlFor="contract-client-filter">
-              Cliente (ID)
-            </label>
-            <input
-              id="contract-client-filter"
-              type="search"
-              className={filterControlClass}
+          <div className="min-w-0">
+            <HumanLookupField
+              label="Cliente"
+              htmlFor="contract-client-search"
+              search={searchClientOptions}
               value={clientFilter}
-              onChange={(event) => setClientFilter(event.target.value)}
-              placeholder="UUID do cliente"
+              onChange={setClientFilter}
+              emptyOptionLabel="Todos os clientes"
+              emptyMessage="Nenhum cliente encontrado para a busca."
             />
           </div>
           <div>

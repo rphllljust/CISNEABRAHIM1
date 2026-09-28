@@ -1,3 +1,87 @@
+export type PurchaseRequestListRow = {
+  id: string;
+  unit_id: string;
+  justification: string;
+  currency_code: string;
+  status: string;
+  version: number;
+  created_at: Date | string;
+  updated_at: Date | string;
+  line_count: string;
+  total_amount: string;
+};
+
+export type SupplierPurchaseOrderListRow = {
+  id: string;
+  request_id: string;
+  supplier_id: string;
+  unit_id: string;
+  currency_code: string;
+  payment_terms: string;
+  status: string;
+  version: number;
+  issued_at: Date | string;
+  updated_at: Date | string;
+  line_count: string;
+  total_amount: string;
+  received_quantity: string;
+};
+
+/**
+ * Linha de lista de solicitação: referencia-se pela justificativa, unidade, estado e valor
+ * persistido — não pelo identificador técnico.
+ */
+export type PurchaseRequestSummaryResponse = {
+  id: string;
+  unitId: string;
+  justification: string;
+  currencyCode: string;
+  status: string;
+  version: number;
+  lineCount: number;
+  totalAmount: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/**
+ * Linha de lista de pedido ao fornecedor: a referência do fornecedor vem resolvida pelo servidor
+ * (razão social, nome fantasia, CNPJ), e o progresso de recebimento acompanha a linha.
+ */
+export type SupplierPurchaseOrderSummaryResponse = {
+  id: string;
+  requestId: string;
+  supplierId: string;
+  supplierName: string | null;
+  supplierTaxId: string | null;
+  unitId: string;
+  currencyCode: string;
+  paymentTerms: string;
+  status: string;
+  version: number;
+  lineCount: number;
+  totalAmount: string;
+  receivedQuantity: string;
+  issuedAt: string;
+  updatedAt: string;
+};
+
+export type PurchaseRequestListResponse = {
+  items: PurchaseRequestSummaryResponse[];
+  limit: number;
+  offset: number;
+  total: number;
+  totalPages: number;
+};
+
+export type SupplierPurchaseOrderListResponse = {
+  items: SupplierPurchaseOrderSummaryResponse[];
+  limit: number;
+  offset: number;
+  total: number;
+  totalPages: number;
+};
+
 export type PurchaseRequestLineRow = {
   id: string;
   line_number: number;
@@ -81,6 +165,10 @@ export type SupplierPurchaseOrderResponse = {
   id: string;
   requestId: string;
   supplierId: string;
+  /** Referência humana do fornecedor resolvida pelo servidor; `null` se o cadastro não existir. */
+  supplierName: string | null;
+  supplierLegalName: string | null;
+  supplierTaxId: string | null;
   unitId: string;
   currencyCode: string;
   paymentTerms: string;
@@ -130,11 +218,15 @@ export function toSupplierPurchaseOrderResponse(
   row: SupplierPurchaseOrderRow,
   lines: SupplierPurchaseOrderLineRow[],
   receipts: GoodsReceiptRow[],
+  supplier?: { legal_name: string; trade_name: string | null; normalized_tax_id: string } | null,
 ): SupplierPurchaseOrderResponse {
   return {
     id: row.id,
     requestId: row.request_id,
     supplierId: row.supplier_id,
+    supplierName: supplier ? (supplier.trade_name ?? supplier.legal_name) : null,
+    supplierLegalName: supplier?.legal_name ?? null,
+    supplierTaxId: supplier?.normalized_tax_id ?? null,
     unitId: row.unit_id,
     currencyCode: row.currency_code,
     paymentTerms: row.payment_terms,
@@ -155,5 +247,45 @@ export function toSupplierPurchaseOrderResponse(
       idempotencyKey: item.idempotency_key,
       status: item.status,
     })),
+  };
+}
+
+export function toPurchaseRequestSummaryResponse(
+  row: PurchaseRequestListRow,
+): PurchaseRequestSummaryResponse {
+  return {
+    id: row.id,
+    unitId: row.unit_id,
+    justification: row.justification,
+    currencyCode: row.currency_code,
+    status: row.status,
+    version: row.version,
+    lineCount: Number(row.line_count),
+    totalAmount: row.total_amount,
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+    updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
+  };
+}
+
+export function toSupplierPurchaseOrderSummaryResponse(
+  row: SupplierPurchaseOrderListRow,
+  supplier: { legalName: string; tradeName: string | null; taxId: string } | null,
+): SupplierPurchaseOrderSummaryResponse {
+  return {
+    id: row.id,
+    requestId: row.request_id,
+    supplierId: row.supplier_id,
+    supplierName: supplier ? (supplier.tradeName ?? supplier.legalName) : null,
+    supplierTaxId: supplier?.taxId ?? null,
+    unitId: row.unit_id,
+    currencyCode: row.currency_code,
+    paymentTerms: row.payment_terms,
+    status: row.status,
+    version: row.version,
+    lineCount: Number(row.line_count),
+    totalAmount: row.total_amount,
+    receivedQuantity: row.received_quantity,
+    issuedAt: row.issued_at instanceof Date ? row.issued_at.toISOString() : String(row.issued_at),
+    updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
   };
 }

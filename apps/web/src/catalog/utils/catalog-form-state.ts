@@ -151,7 +151,7 @@ export function validateServiceDefinitionForm(
     errors.name = 'Nome é obrigatório.';
   }
   if (!state.categoryId.trim()) {
-    errors.categoryId = 'ID da categoria é obrigatório.';
+    errors.categoryId = 'Categoria é obrigatória.';
   }
   if (state.allowedUnits.length === 0) {
     errors.allowedUnits = 'Informe ao menos uma unidade permitida.';

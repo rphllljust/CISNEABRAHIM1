@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { readRecentSearches } from '../hooks/useGlobalSearch';
@@ -17,16 +17,10 @@ export function GlobalSearchBar({ compact = false }: GlobalSearchBarProps) {
   const [activeIndex, setActiveIndex] = useState(-1);
   const recentSearches = readRecentSearches();
 
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault();
-        inputRef.current?.focus();
-      }
-    }
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  // Ctrl+K passou a ser propriedade exclusiva do Command Center
+  // (`operator/commands/CommandPalette`). Dois donos no mesmo gesto fariam o
+  // atalho focar o campo E abrir a paleta — por isso este listener foi removido.
+  // A busca direta continua disponível clicando no campo ou enviando o formulário.
 
   function submitSearch(nextValue = value) {
     const trimmed = nextValue.trim();

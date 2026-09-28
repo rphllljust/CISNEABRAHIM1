@@ -1,5 +1,5 @@
 import { useCallback, useState, type ReactNode } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { DateTime, EmptyState, Field, Input } from '../../ui';
 import {
   ModulePage,
@@ -14,26 +14,29 @@ import {
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { CreateRecordForm, VersionedActionForm } from '../../financial-ui/VersionedActionForm';
 import { SUPPLIER_STATUS_LABELS } from '../../financial-ui/labels';
-import { RecordLookupCard } from '../../financial-ui/RecordLookupCard';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import { BackofficeCapabilityRoute } from '../../financial-ui/BackofficeCapabilityRoute';
 import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge';
 import {
   activateSupplier,
-  createSupplier,
   deactivateSupplier,
   getSupplier,
   getSupplierHistory,
-  probeSupplierReadAccess,
+  probeSupplierListAccess,
   updateSupplier,
 } from '../api/suppliers-api';
 import { mapSupplierErrorToMessage } from '../api/supplier-error-messages';
 import type { SupplierDetail, SupplierHistoryItem } from '../types/supplier.types';
 
+/**
+ * O gate do módulo é a concessão de LISTA: sem ela o ator não entra em nenhuma rota de
+ * fornecedor, e a navegação por lista continua sendo o caminho de entrada — não um
+ * identificador digitado.
+ */
 export function SuppliersRoute({ children }: { children: ReactNode }) {
   return (
-    <BackofficeCapabilityRoute probe={probeSupplierReadAccess} capabilityId="suppliers:supplier:read">
+    <BackofficeCapabilityRoute probe={probeSupplierListAccess} capabilityId="suppliers:supplier:list">
       {children}
     </BackofficeCapabilityRoute>
   );
@@ -41,10 +44,7 @@ export function SuppliersRoute({ children }: { children: ReactNode }) {
 
 export function SuppliersPage() {
   const { supplierId } = useParams();
-  const navigate = useNavigate();
-  const [lookupId, setLookupId] = useState(supplierId ?? '');
   const [legalName, setLegalName] = useState('');
-  const [taxId, setTaxId] = useState('');
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const loader = useCallback((signal?: AbortSignal) => getSupplier(supplierId ?? '', signal), [supplierId]);
@@ -77,49 +77,15 @@ export function SuppliersPage() {
   return (
     <ModulePage>
       <ModulePageHeader
-        title="Fornecedores"
-        description="A API atual consulta por identificador. Ativação segue SOD no backend."
+        title={state.phase === 'ready' ? state.data.legalName : 'Fornecedor'}
+        description="Ativação segue segregação de funções no backend."
+        action={
+          <Link className="text-sm font-semibold text-gray-700 hover:text-gray-900" to="/app/suppliers">
+            Voltar para a lista
+          </Link>
+        }
       />
-      <RecordLookupCard
-        fieldId="supplier-id"
-        label="Identificador do fornecedor"
-        value={lookupId}
-        onChange={setLookupId}
-        onSubmit={() => void navigate(`/app/suppliers/${lookupId.trim()}`)}
-        submitLabel="Consultar"
-        loading={state.phase === 'loading'}
-      />
-      <CreateRecordForm
-        title="Cadastrar fornecedor"
-        description="CNPJ e contato operacional são validados pelo servidor."
-        submitLabel="Cadastrar"
-        mapError={mapSupplierErrorToMessage}
-        onSubmit={async () => {
-          const created = await createSupplier({
-            legalName: legalName.trim(),
-            taxId: taxId.trim(),
-            contacts: [{ name: contactName.trim(), purpose: 'operational', email: contactEmail.trim() }],
-          });
-          void navigate(`/app/suppliers/${created.id}`);
-        }}
-      >
-        <Field label="Razão social" htmlFor="supplier-legal" required>
-          <Input id="supplier-legal" value={legalName} onChange={(event) => setLegalName(event.target.value)} required />
-        </Field>
-        <Field label="CNPJ" htmlFor="supplier-tax" required>
-          <Input id="supplier-tax" value={taxId} onChange={(event) => setTaxId(event.target.value)} required />
-        </Field>
-        <Field label="Contato operacional" htmlFor="supplier-contact" required>
-          <Input id="supplier-contact" value={contactName} onChange={(event) => setContactName(event.target.value)} required />
-        </Field>
-        <Field label="E-mail" htmlFor="supplier-email" required>
-          <Input id="supplier-email" type="email" value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} required />
-        </Field>
-      </CreateRecordForm>
       {gate}
-      {!supplierId ? (
-        <EmptyState title="Nenhum fornecedor carregado" description="A listagem não existe nesta API. Consulte pelo identificador." />
-      ) : null}
       {state.phase === 'ready' ? (
         <>
           <div className="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5">
@@ -130,10 +96,27 @@ export function SuppliersPage() {
                   value: <FinanceStatusBadge status={state.data.status} labels={SUPPLIER_STATUS_LABELS} />,
                 },
                 { label: 'Razão social', value: state.data.legalName },
+                { label: 'Nome fantasia', value: state.data.tradeName ?? '—' },
                 { label: 'CNPJ', value: state.data.taxId },
+                { label: 'Condição de pagamento', value: state.data.paymentTerms ?? '—' },
+                { label: 'Moeda', value: state.data.currencyCode },
                 { label: 'Versão', value: String(state.data.version) },
               ]}
             />
+            {state.data.contacts.length > 0 ? (
+              <div className="mt-6">
+                <h3 className="mb-2 text-sm font-semibold text-gray-700">Contatos</h3>
+                <ul className="space-y-1 text-sm text-gray-600">
+                  {state.data.contacts.map((contact) => (
+                    <li key={contact.id}>
+                      {contact.name}
+                      {contact.email ? ` — ${contact.email}` : ''}
+                      {contact.phone ? ` — ${contact.phone}` : ''}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </div>
           <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
             <VersionedActionForm
@@ -172,19 +155,22 @@ export function SuppliersPage() {
               setReady(
                 await updateSupplier(state.data.id, {
                   version: state.data.version,
-                  legalName: legalName.trim() || state.data.legalName,
-                  contacts: [
-                    {
-                      name: contactName.trim() || state.data.contacts[0]?.name,
-                      purpose: 'operational',
-                      email: contactEmail.trim() || state.data.contacts[0]?.email,
-                    },
-                  ],
+                  legalName: legalName.trim() || undefined,
+                  contacts: contactName.trim()
+                    ? [
+                        {
+                          name: contactName.trim(),
+                          purpose: 'operational',
+                          email: contactEmail.trim() || state.data.contacts[0]?.email || undefined,
+                          phone: state.data.contacts[0]?.phone || undefined,
+                        },
+                      ]
+                    : undefined,
                 }),
               );
             }}
           >
-            <Field label="Razão social" htmlFor="supplier-update-legal" required className="md:col-span-2">
+            <Field label="Razão social" htmlFor="supplier-update-legal" className="md:col-span-2">
               <Input
                 id="supplier-update-legal"
                 value={legalName}
@@ -192,6 +178,26 @@ export function SuppliersPage() {
                 placeholder={state.data.legalName}
               />
             </Field>
+            <Field label="Contato operacional" htmlFor="supplier-update-contact">
+              <Input
+                id="supplier-update-contact"
+                value={contactName}
+                onChange={(event) => setContactName(event.target.value)}
+                placeholder={state.data.contacts[0]?.name}
+              />
+            </Field>
+            <Field label="E-mail do contato" htmlFor="supplier-update-email">
+              <Input
+                id="supplier-update-email"
+                type="email"
+                value={contactEmail}
+                onChange={(event) => setContactEmail(event.target.value)}
+                placeholder={state.data.contacts[0]?.email ?? ''}
+              />
+            </Field>
+            <p className="text-sm text-gray-500 md:col-span-2">
+              Deixe os campos de contato vazios para preservar o contato atual.
+            </p>
           </CreateRecordForm>
           {history.state.phase === 'ready' && history.state.data.length > 0 ? (
             <ModuleTableCard>
@@ -216,6 +222,9 @@ export function SuppliersPage() {
             </ModuleTableCard>
           ) : null}
         </>
+      ) : null}
+      {!supplierId ? (
+        <EmptyState title="Fornecedor não informado" description="Volte para a lista e selecione um fornecedor." />
       ) : null}
     </ModulePage>
   );

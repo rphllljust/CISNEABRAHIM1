@@ -50,8 +50,16 @@ export class ServiceRequestsController {
 
   @Get()
   list(@CurrentAuth() auth: AccessTokenClaims, @Query() query: Record<string, unknown>) {
-    const parsed = parseListServiceRequestsQuery(query);
-    return this.serviceRequestsAccess.list({ identityId: auth.sub, sessionId: auth.sid }, parsed);
+    try {
+      const parsed = parseListServiceRequestsQuery(query);
+      return this.serviceRequestsAccess.list({ identityId: auth.sub, sessionId: auth.sid }, parsed);
+    } catch {
+      throw new RequestsHttpException(
+        400,
+        REQUESTS_ERROR_CODES.VALIDATION_FAILED,
+        'Invalid query parameters.',
+      );
+    }
   }
 
   @Get('operational-units')

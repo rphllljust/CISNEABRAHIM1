@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { DatabaseService } from '../../infrastructure/database/database.service';
+import {
+  queryAssetAllocationUsage,
+  queryAssetOccurrences,
+} from './physical-asset-operational-lifecycle.persistence';
 import { queryIsUnitRegistered } from '../../infrastructure/database/reference-lookups';
 import {
   escapeLikeWildcards,
@@ -157,6 +161,16 @@ export class PhysicalAssetsRepository {
 
   async isUnitRegistered(unitId: string): Promise<boolean> {
     return queryIsUnitRegistered(this.pool(), unitId);
+  }
+
+  /** Utilizacoes do ativo (janela limitada), mais recentes primeiro. */
+  async listAllocationUsage(physicalAssetId: string, limit: number) {
+    return queryAssetAllocationUsage(this.pool(), physicalAssetId, limit);
+  }
+
+  /** Ocorrencias de execucao das OS em que o ativo foi alocado (janela limitada). */
+  async listOccurrences(physicalAssetId: string, limit: number) {
+    return queryAssetOccurrences(this.pool(), physicalAssetId, limit);
   }
 
   async findById(assetId: string): Promise<PhysicalAssetDetail | null> {

@@ -10,6 +10,15 @@ import { SecurityAuditService } from '../../audit/services/security-audit.servic
 import type { AuthzAction } from '../../authorization/types/authz-actions';
 import { AUTHZ_ACTIONS } from '../../authorization/types/authz-actions';
 import type { IdentityAuthzContext } from '../../authorization/types/authz-decision';
+import {
+  buildControlCenter,
+  CONTROL_CENTER_TRANSITION_ORDER,
+  type ControlCenterControl,
+} from '../domain/operations-control-center';
+import { maskedFacts, ServiceOrderControlCenterAuthz } from './service-order-control-center.authz';
+import type { ServiceOrderControlCenterFacts } from '../repositories/service-order-control-center.persistence';
+
+import { canTransition } from '../domain/service-order.state-machine';
 import { FAULT_HOOKS } from '../../platform/fault-injection/fault-hook.ids';
 import { FAULT_INJECTION_PORT, type FaultInjectionPort } from '../../platform/fault-injection/fault-injection.port';
 import { maybeInjectFault } from '../../platform/fault-injection/fault-injection.util';
@@ -85,6 +94,7 @@ export class ServiceOrdersAccessService {
     private readonly referenceValidation: ServiceOrdersReferenceValidationService,
     private readonly contractOperationalValidation: ContractsOperationalValidationService,
     private readonly securityAudit: SecurityAuditService,
+    private readonly controlCenterAuthz: ServiceOrderControlCenterAuthz,
     @Optional() @Inject(FAULT_INJECTION_PORT) private readonly faultInjection?: FaultInjectionPort,
   ) {}
 
@@ -233,8 +243,58 @@ export class ServiceOrdersAccessService {
   ): Promise<ServiceOrderDetailResponse> {
     assertValidServiceOrderId(serviceOrderId);
     const row = await this.requireServiceOrder(actor, serviceOrderId, AUTHZ_ACTIONS.ServiceOrdersServiceOrderRead);
-    const history = await this.repository.listHistoryEvents(serviceOrderId);
-    return toServiceOrderDetailResponse(row, history);
+    const [history, facts] = await Promise.all([
+      this.repository.listHistoryEvents(serviceOrderId),
+      this.repository.findControlCenterFacts(serviceOrderId),
+    ]);
+    const controlCenter = await this.buildControlCenter(actor, row, facts);
+    return toServiceOrderDetailResponse(row, history, controlCenter);
+  }
+
+  /**
+   * Operations Control Center: composicao dos dominios existentes.
+   *
+   * Progressao, planejado x realizado e proximo passo vem do que ja esta persistido; os blocos de
+   * medicao e faturamento so entram quando o ator tem autorizacao no MODULO DONO. Bloco negado e
+   * omitido em silencio (sem contagem, status, valor ou metadata).
+   */
+  private async buildControlCenter(
+    actor: IdentityAuthzContext,
+    row: ServiceOrderRow,
+    facts: ServiceOrderControlCenterFacts,
+  ): Promise<ControlCenterControl> {
+    const status = row.status as ServiceOrderStatus;
+    const candidates = CONTROL_CENTER_TRANSITION_ORDER.filter((transition) =>
+      canTransition(status, transition),
+    );
+    const [availableTransitions, measurement, billing] = await Promise.all([
+      this.controlCenterAuthz.availableTransitions(actor, row, candidates),
+      this.controlCenterAuthz.canReadMeasurement(actor, row),
+      this.controlCenterAuthz.canReadBilling(actor, row),
+    ]);
+
+    const visible = maskedFacts(facts, {
+      client: false,
+      request: false,
+      proposal: false,
+      purchaseOrder: false,
+      measurement,
+      billing,
+    });
+
+    return buildControlCenter({
+      status,
+      createdAt: row.created_at,
+      preparedAt: row.prepared_at,
+      releasedAt: row.released_at,
+      startedAt: row.started_at,
+      pausedAt: row.paused_at,
+      completedAt: row.completed_at,
+      reopenedAt: row.reopened_at,
+      serviceRequestId: row.service_request_id,
+      facts: visible,
+      availableTransitions,
+    });
   }
 
   async list(

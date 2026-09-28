@@ -15,6 +15,22 @@ export type ProposalRow = {
   updated_at: string;
 };
 
+/**
+ * Versao CORRENTE de uma proposta, projetada para a listagem.
+ *
+ * Todos os campos ja existem em `com.proposal_versions`. A relacao com "corrente" usa
+ * `com.proposals.current_version_number`, que tambem ja existe. Nenhuma coluna ou tabela nova.
+ */
+export type ProposalListVersionRow = {
+  proposal_id: string;
+  status: string;
+  currency_code: string;
+  pricing_structure: string;
+  global_sale_price_amount: string | null;
+  items_sale_total_amount: string | null;
+  valid_until: string | null;
+};
+
 export type ProposalVersionRow = {
   id: string;
   proposal_id: string;
@@ -112,4 +128,47 @@ export type UpdateProposalDraftPersistenceInput = UpdateProposalDraftInput & {
   proposalId: string;
   versionNumber: number;
   actorIdentityId: string;
+};
+
+/**
+ * Linha da FILA COMERCIAL: a proposta com a projecao da versao corrente e a contagem de revisoes.
+ *
+ * Tudo ja existe em `com.proposals` / `com.proposal_versions`. As contagens sao subconsultas
+ * escalares agregadas — nenhuma consulta por linha.
+ */
+export type ProposalWorkbenchRow = ProposalRow & {
+  current_version_status: string | null;
+  pricing_structure: string | null;
+  currency_code: string | null;
+  global_sale_price_amount: string | null;
+  items_sale_total_amount: string | null;
+  valid_until: string | null;
+  revision_number: number | null;
+  issued_at: string | null;
+  accepted_at: string | null;
+  superseded_at: string | null;
+  revision_count: number;
+  prior_revision_count: number;
+};
+
+/** Rotulo humano de cliente resolvido em lote (nunca um lookup por linha). */
+export type ProposalClientLabelRow = {
+  id: string;
+  legal_name: string;
+  trade_name: string | null;
+};
+
+/** Solicitacao de servico ligada a proposta, projetada para a origem comercial. */
+export type ProposalLinkedRow = {
+  kind: string;
+  id: string;
+  label: string;
+  status: string | null;
+  occurred_at: string;
+  unit_id: string;
+  client_id: string | null;
+  /** Preenchido quando a relacao chega por intermedio de outro objeto (pedido via OS). */
+  via_label: string | null;
+  /** Preenchido apenas no agrupamento de origem: a proposta que a solicitacao referencia. */
+  proposal_id: string | null;
 };

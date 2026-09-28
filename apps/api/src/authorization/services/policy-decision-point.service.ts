@@ -14,6 +14,9 @@ import type {
   AuthzEvaluationRequest,
   IdentityAuthzContext,
 } from '../types/authz-decision';
+import type { AuthzAction } from '../types/authz-actions';
+import type { AuthzResourceType } from '../types/authz-resources';
+import type { AuthzResourceContext } from '../types/authz-scopes';
 import { isOperationalAuthorityAction } from '../domain/operational-authority';
 
 @Injectable()
@@ -88,6 +91,100 @@ export class PolicyDecisionPointService {
       const decision = this.deny(request, AUTHZ_DENY_REASONS.FAIL_CLOSED);
       await this.maybeAudit(identity.identityId, request, decision, options);
       return decision;
+    }
+  }
+
+  /**
+   * AVALIACAO EM LOTE — mesmo veredito de `decide`, com as leituras de grants hoisted.
+   *
+   * Existe para FILTRAR listagens: `decide` por linha custava 2 leituras + 1 insert de auditoria
+   * POR LINHA (medido: 1.525 queries para 50 recebiveis). Aqui as mesmas fontes sao lidas UMA vez
+   * e cada contexto e avaliado com os MESMOS helpers (`grantMatchesResourceContext`), portanto o
+   * veredito por linha e identico ao de `decide` — nenhuma regra de escopo nova e inventada.
+   *
+   * AUDITORIA: a avaliacao em lote e um unico acesso. A auditoria da decisao passa a ser UMA por
+   * lote (`options.audit !== false`) em vez de uma por linha; quem ja audita a leitura no nivel da
+   * lista (ex.: `assertReceivableList`) passa `audit: false` para nao duplicar o mesmo evento.
+   */
+  async decideBatch(
+    identity: IdentityAuthzContext | null,
+    request: { action: AuthzAction; resourceType: AuthzResourceType },
+    contexts: Array<AuthzResourceContext | undefined>,
+    options?: { correlationId?: string; audit?: boolean },
+  ): Promise<AuthzDecision[]> {
+    if (contexts.length === 0) {
+      return [];
+    }
+
+    const batchRequest: AuthzEvaluationRequest = {
+      action: request.action,
+      resourceType: request.resourceType,
+      context: contexts[0],
+    };
+
+    if (!identity?.identityId) {
+      await this.maybeAudit(null, batchRequest, this.deny(batchRequest, AUTHZ_DENY_REASONS.NO_IDENTITY), options);
+      return contexts.map(() => this.deny(batchRequest, AUTHZ_DENY_REASONS.NO_IDENTITY));
+    }
+
+    try {
+      const grants = await this.repository.findActiveGrants(
+        identity.identityId,
+        request.action,
+        request.resourceType,
+      );
+      const roleDerived = await this.repository.findRoleDerivedActionRows(
+        identity.identityId,
+        request.action,
+      );
+
+      const decideContext = (context: AuthzResourceContext | undefined): AuthzDecision => {
+        const evaluated: AuthzEvaluationRequest = {
+          action: request.action,
+          resourceType: request.resourceType,
+          context,
+        };
+        const matchedDerived = roleDerived.some((row) =>
+          grantMatchesResourceContext({
+            grant: {
+              scope_type: row.scope_type,
+              resource_id: row.scope_anchor,
+              resource_type: request.resourceType,
+            },
+            identityId: identity.identityId,
+            context,
+          }),
+        );
+        if (grants.length === 0 && !matchedDerived) {
+          return this.deny(evaluated, AUTHZ_DENY_REASONS.NO_ACTIVE_GRANT);
+        }
+        const matchedDirect = grants.some((grant) =>
+          grantMatchesResourceContext({ grant, identityId: identity.identityId, context }),
+        );
+        if (!matchedDirect && !matchedDerived) {
+          return this.deny(evaluated, AUTHZ_DENY_REASONS.SCOPE_MISMATCH);
+        }
+        return this.allow(evaluated);
+      };
+
+      const decisions = contexts.map(decideContext);
+      const denied = decisions.find((decision) => decision.result === 'DENY');
+      if (options?.audit !== false) {
+        await this.repository.insertDecisionAudit({
+          identityId: identity.identityId,
+          action: request.action,
+          resourceType: request.resourceType,
+          resourceId: batchRequest.context?.resourceId,
+          decision: denied ? 'DENY' : 'ALLOW',
+          reasonCode: denied?.reasonCode ?? 'ALLOW',
+          correlationId: options?.correlationId,
+        });
+      }
+      return decisions;
+    } catch {
+      const decision = this.deny(batchRequest, AUTHZ_DENY_REASONS.FAIL_CLOSED);
+      await this.maybeAudit(identity.identityId, batchRequest, decision, options);
+      return contexts.map(() => decision);
     }
   }
 

@@ -27,7 +27,9 @@ import {
 import { mapDocumentErrorToMessage } from '../api/document-error-messages';
 import { DocumentDownloadAction } from '../components/DocumentDownloadAction';
 import { useDocumentCapabilities } from '../hooks/useDocumentCapabilities';
-import type { DocumentCategory, DocumentDetail } from '../types/document.types';
+import type { DocumentDetail } from '../types/document.types';
+import { DOCUMENT_CATEGORIES } from '../types/document.types';
+import { SavedViewsBar, useSmartList } from '../../operator';
 import { formatDateTimePtBr } from '../utils/document-format';
 import {
   buildDocumentContextLabel,
@@ -43,6 +45,43 @@ import {
  * parecendo instantanea sem transformar digitacao em carga de rede.
  */
 const SEARCH_DEBOUNCE_MS = 300;
+
+/** Escopo estavel de persistencia das visoes salvas desta lista. */
+const SCOPE = 'documents.list';
+
+/** Allow-list: somente os valores enumerados que a propria tela oferece. */
+const DOCUMENTS_ALLOWED_FILTERS = {
+  filters: { categoryCode: Object.values(DOCUMENT_CATEGORIES) },
+} as const;
+
+/**
+ * Visoes embutidas derivadas do dominio real do acervo: evidencia tecnica e documento de
+ * faturamento. Nenhuma categoria e inventada — sao as tres que o proprio tipo declara.
+ */
+const DOCUMENTS_BUILT_IN_VIEWS = [
+  {
+    id: 'builtin.documents.evidence',
+    name: 'Evidências',
+    description: 'Evidência técnica vinculada à operação.',
+    config: {
+      filters: { categoryCode: DOCUMENT_CATEGORIES.Evidence },
+      sortKey: null,
+      sortDirection: 'asc' as const,
+      groupKey: null,
+    },
+  },
+  {
+    id: 'builtin.documents.billing',
+    name: 'Faturamento',
+    description: 'Documento vinculado a faturamento.',
+    config: {
+      filters: { categoryCode: DOCUMENT_CATEGORIES.BillingDocument },
+      sortKey: null,
+      sortDirection: 'asc' as const,
+      groupKey: null,
+    },
+  },
+];
 
 type ListPhase = 'loading' | 'ready' | 'error' | 'denied';
 
@@ -61,8 +100,17 @@ export function DocumentsPage() {
   // mostraria um recorte como se fosse o cadastro inteiro.
   const [searchInput, setSearchInput] = useState('');
   const [appliedSearch, setAppliedSearch] = useState('');
-  const [categoryCode, setCategoryCode] = useState<'' | DocumentCategory>('');
   const [offset, setOffset] = useState(0);
+  // ADOCAO DE MECANISMO: o tipo do documento passa a viver na URL e em visao salva, com o
+  // mesmo mecanismo das outras listas da plataforma. Antes ficava so em memoria: o acervo
+  // nao podia ser aberto por link nem compartilhado com o recorte aplicado.
+  const smartList = useSmartList({
+    scope: SCOPE,
+    builtInViews: DOCUMENTS_BUILT_IN_VIEWS,
+    allowedFilters: DOCUMENTS_ALLOWED_FILTERS,
+    urlSync: true,
+  });
+  const categoryCode = smartList.filters.categoryCode ?? '';
   // Recarga pedida pelo usuario percorre o mesmo ciclo de vida do efeito: assim tambem e cancelavel.
   const [reloadToken, setReloadToken] = useState(0);
   const searchInputId = useId();
@@ -82,7 +130,7 @@ export function DocumentsPage() {
   }, [appliedSearch, searchInput]);
 
   const load = useCallback(
-    async (search: string, category: '' | DocumentCategory, pageOffset: number, signal: AbortSignal) => {
+    async (search: string, category: string, pageOffset: number, signal: AbortSignal) => {
       // Uma recarga preserva o resultado anterior: trocar a tela inteira por "Carregando…" faria a
       // tabela sumir a cada ajuste de filtro. So a primeira carga nao tem o que preservar.
       setPhase((current) => (current === 'ready' ? current : 'loading'));
@@ -212,7 +260,7 @@ export function DocumentsPage() {
             className={filterControlClass}
             value={categoryCode}
             onChange={(event) => {
-              setCategoryCode(event.target.value as '' | DocumentCategory);
+              smartList.setFilter('categoryCode', event.target.value);
               // Mudar o filtro volta para a primeira pagina, pelo mesmo motivo da busca.
               setOffset(0);
             }}
@@ -233,7 +281,7 @@ export function DocumentsPage() {
             onClick={() => {
               setSearchInput('');
               setAppliedSearch('');
-              setCategoryCode('');
+              smartList.clearFilters();
               setOffset(0);
             }}
           >
@@ -247,6 +295,23 @@ export function DocumentsPage() {
           </p>
         ) : null}
       </div>
+
+      <SavedViewsBar
+        views={smartList.savedViews.views}
+        builtInViews={smartList.savedViews.builtInViews}
+        activeViewId={smartList.activeViewId}
+        onApply={(view) => {
+          smartList.applyView(view);
+          setOffset(0);
+        }}
+        onSave={smartList.savedViews.saveView}
+        onRename={smartList.savedViews.renameView}
+        onRemove={smartList.savedViews.removeView}
+        currentConfig={smartList.currentConfig}
+        canSave={categoryCode !== ''}
+        allLabel="Todos"
+        className="mb-4"
+      />
 
       {isOutOfRange ? (
         <div
@@ -297,7 +362,7 @@ export function DocumentsPage() {
               onClick={() => {
                 setSearchInput('');
                 setAppliedSearch('');
-                setCategoryCode('');
+                smartList.clearFilters();
                 setOffset(0);
               }}
             >

@@ -106,24 +106,41 @@ export class ReceivablesAccessService implements FinanceReceivablePort {
   async list(actor: IdentityAuthzContext): Promise<ReceivableDetailResponse[]> {
     await this.authz.assertReceivableList(actor);
     const rows = await this.repository.listAll();
-    const details: ReceivableDetailResponse[] = [];
-    for (const row of rows) {
-      try {
-        await this.authz.assertReceivableAction(actor, AUTHZ_ACTIONS.FinanceReceivableList, {
-          id: row.id,
-          unitId: row.unit_id,
-          clientId: row.client_id,
-        });
-      } catch {
-        continue;
-      }
-      const [installments, settlements] = await Promise.all([
-        this.repository.listInstallments(row.id),
-        this.repository.listSettlements(row.id),
-      ]);
-      details.push(toReceivableDetailResponse(row, installments, settlements));
+
+    // Autorizacao EM LOTE: a decisao por linha e a mesma, com as leituras de grants hoisted.
+    const allowed = await this.authz.filterReceivableList(
+      actor,
+      rows.map((row) => ({ id: row.id, unitId: row.unit_id, clientId: row.client_id })),
+    );
+    const visible = rows.filter((_, index) => allowed[index] === true);
+
+    // Filhos em DUAS queries para a pagina inteira (antes: duas por linha).
+    const ids = visible.map((row) => row.id);
+    const [installments, settlements] = await Promise.all([
+      this.repository.listInstallmentsByReceivableIds(ids),
+      this.repository.listSettlementsByReceivableIds(ids),
+    ]);
+
+    const installmentsByReceivable = new Map<string, typeof installments>();
+    for (const row of installments) {
+      const bucket = installmentsByReceivable.get(row.receivable_id) ?? [];
+      bucket.push(row);
+      installmentsByReceivable.set(row.receivable_id, bucket);
     }
-    return details;
+    const settlementsByReceivable = new Map<string, typeof settlements>();
+    for (const row of settlements) {
+      const bucket = settlementsByReceivable.get(row.receivable_id) ?? [];
+      bucket.push(row);
+      settlementsByReceivable.set(row.receivable_id, bucket);
+    }
+
+    return visible.map((row) =>
+      toReceivableDetailResponse(
+        row,
+        installmentsByReceivable.get(row.id) ?? [],
+        settlementsByReceivable.get(row.id) ?? [],
+      ),
+    );
   }
 
   async getById(actor: IdentityAuthzContext, receivableId: string): Promise<ReceivableDetailResponse> {

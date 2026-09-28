@@ -101,6 +101,24 @@ export class AccountingController {
     );
   }
 
+  /**
+   * Descoberta de periodo pela unidade.
+   *
+   * Declarada antes de `periods/:periodId/...` apenas por clareza: os caminhos nao colidem.
+   */
+  @Get('periods')
+  listPeriodsByUnit(
+    @CurrentAuth() auth: AccessTokenClaims,
+    @Query('unitId') unitId?: string,
+    @Query('status') status?: string,
+    @Query('year') year?: string,
+  ) {
+    return this.accountingAccess.listPeriodsByUnit(
+      { identityId: auth.sub, sessionId: auth.sid },
+      { unitId, status, year },
+    );
+  }
+
   @Get('periods/:periodId/ledger')
   accountLedger(
     @CurrentAuth() auth: AccessTokenClaims,

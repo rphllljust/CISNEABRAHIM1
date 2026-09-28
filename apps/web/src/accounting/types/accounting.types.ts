@@ -212,6 +212,44 @@ export type BalanceSheet = {
 
 // Contratos das consultas criadas para a UI (listagens server-side)
 export type ChartsList = { unitId: string; items: ChartOfAccounts[] };
+
+/** Períodos descobertos pela UNIDADE, sem exigir o plano de contas como passo intermediário. */
+export type PeriodsByUnitList = { unitId: string; items: AccountingPeriod[] };
+
+/** Pendência/exception do fechamento, com o recorte autorizado que a resolve. */
+export type ClosingException = {
+  kind: string;
+  severity: 'BLOCKING' | 'INFORMATIONAL';
+  observedCount: number;
+  detail: string;
+  area: string;
+  drilldown: { path: string; label: string } | null;
+};
+
+/** Leitura agregada do fechamento: período, contabilidade, fiscal, pendências e ações. */
+export type ClosingReadiness = {
+  unitId: string;
+  period: AccountingPeriod;
+  /** `true` só quando TODAS as verificações foram avaliadas e nenhuma bloqueia. */
+  closeReady: boolean | null;
+  accounting: {
+    evaluated: boolean;
+    periodStatus: PeriodStatus;
+    journalCounts: Record<string, number>;
+  };
+  /** `null` quando o ator não pode ler documento fiscal: a seção é omitida por inteiro. */
+  fiscal: {
+    evaluated: boolean;
+    unauthorized: number;
+    rejected: number;
+    pendingAuthorization: number;
+    draft: number;
+  } | null;
+  blockers: ClosingException[];
+  pending: ClosingException[];
+  nextActions: Array<{ label: string; kind: string; enabled: boolean; reason: string | null }>;
+  withheld: Array<{ area: string; reason: string }>;
+};
 export type AccountsList = { chartId: string; items: Account[] };
 export type PeriodsList = { chartId: string; items: AccountingPeriod[] };
 

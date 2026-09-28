@@ -9,6 +9,7 @@ import {
 import type {
   AutoMatchResult,
   BankStatement,
+  BankStatementListResponse,
   FinancialAccount,
   PayableAgingResponse,
   PayableDetail,
@@ -24,6 +25,38 @@ import type {
 } from '../types/finance.types';
 
 export { BackofficeApiError };
+
+/** Linha de lista de despesa: descrição, centro de custo, valor, vencimento e estado. */
+export type ExpenseSummary = {
+  id: string;
+  unitId: string;
+  description: string;
+  costCenterCode: string;
+  totalAmount: string;
+  currencyCode: string;
+  dueDate: string;
+  status: string;
+  version: number;
+  createdAt: string;
+};
+
+export async function listExpenses(
+  params: { limit: number; offset: number; status?: string; q?: string },
+  signal?: AbortSignal,
+): Promise<{ items: ExpenseSummary[]; limit: number; offset: number; total: number; totalPages: number }> {
+  const search = new URLSearchParams({ limit: String(params.limit), offset: String(params.offset) });
+  if (params.status) {
+    search.set('status', params.status);
+  }
+  if (params.q && params.q.trim().length > 0) {
+    search.set('q', params.q.trim());
+  }
+  return requestJson(`/api/v1/finance/expenses?${search.toString()}`, {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+}
 
 export async function listReceivables(signal?: AbortSignal): Promise<ReceivableDetail[]> {
   return requestJson<ReceivableDetail[]>('/api/v1/finance/receivables', {
@@ -325,6 +358,43 @@ export async function matchBankStatementLine(payload: {
   });
 }
 
+/**
+ * Descoberta de extratos bancários (GET /finance/bank-statements).
+ *
+ * Filtros e paginação são resolvidos pelo servidor; a tela nunca pede a lista inteira para
+ * filtrar no navegador.
+ */
+export async function listBankStatements(
+  params: {
+    limit: number;
+    offset: number;
+    status?: string;
+    financialAccountId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  },
+  signal?: AbortSignal,
+): Promise<BankStatementListResponse> {
+  const search = new URLSearchParams({ limit: String(params.limit), offset: String(params.offset) });
+  if (params.status) {
+    search.set('status', params.status);
+  }
+  if (params.financialAccountId) {
+    search.set('financialAccountId', params.financialAccountId);
+  }
+  if (params.dateFrom) {
+    search.set('dateFrom', params.dateFrom);
+  }
+  if (params.dateTo) {
+    search.set('dateTo', params.dateTo);
+  }
+  return requestJson(`/api/v1/finance/bank-statements?${search.toString()}`, {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+}
+
 export async function probeReceivableListAccess(signal?: AbortSignal): Promise<boolean> {
   return probeList('/api/v1/finance/receivables', signal);
 }
@@ -337,11 +407,13 @@ export async function probeTreasuryListAccess(signal?: AbortSignal): Promise<boo
   return probeList('/api/v1/finance/treasury/accounts', signal);
 }
 
+/**
+ * Sonda a capacidade de leitura de conciliação pela DESCOBERTA de extratos — a mesma autoridade
+ * que a mesa de trabalho usa. Antes sondava um extrato inexistente por identificador; a listagem é
+ * a porta de entrada real da tela e responde à mesma concessão.
+ */
 export async function probeReconciliationReadAccess(signal?: AbortSignal): Promise<boolean> {
-  return probeReadAccess(
-    `/api/v1/finance/bank-reconciliation/statements/${BACKOFFICE_PROBE_ID}`,
-    signal,
-  );
+  return probeList('/api/v1/finance/bank-statements?limit=1&offset=0', signal);
 }
 
 export async function getExpense(expenseId: string, signal?: AbortSignal): Promise<ExpenseDetail> {
@@ -384,6 +456,36 @@ export async function rejectExpense(
     method: 'POST',
     headers: jsonHeaders(),
     body: JSON.stringify(payload),
+  });
+}
+
+/** Linha de lista de orçamento: código, nome, moeda e estado. */
+export type BudgetSummary = {
+  id: string;
+  unitId: string;
+  code: string;
+  name: string;
+  currencyCode: string;
+  status: string;
+  rowVersion: number;
+  updatedAt: string;
+};
+
+export async function listBudgets(
+  params: { limit: number; offset: number; status?: string; q?: string },
+  signal?: AbortSignal,
+): Promise<{ items: BudgetSummary[]; limit: number; offset: number; total: number; totalPages: number }> {
+  const search = new URLSearchParams({ limit: String(params.limit), offset: String(params.offset) });
+  if (params.status) {
+    search.set('status', params.status);
+  }
+  if (params.q && params.q.trim().length > 0) {
+    search.set('q', params.q.trim());
+  }
+  return requestJson(`/api/v1/finance/budgets?${search.toString()}`, {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
   });
 }
 

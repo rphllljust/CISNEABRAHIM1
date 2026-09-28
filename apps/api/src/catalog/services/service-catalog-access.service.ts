@@ -14,6 +14,7 @@ import type {
   CreateServiceDefinitionVersionInput,
   UpdateDraftServiceDefinitionInput,
 } from '../dto/service-catalog.dto';
+import { escapeLikeWildcards } from '../dto/service-catalog.dto';
 import { CATALOG_ERROR_CODES } from '../errors/catalog-error-codes';
 import { CatalogHttpException } from '../errors/catalog-http.exception';
 import { ServiceCatalogRepository } from '../repositories/service-catalog.repository';
@@ -123,7 +124,7 @@ export class ServiceCatalogAccessService {
 
   async listDefinitions(
     actor: IdentityAuthzContext,
-    query: { limit: number; offset: number; status?: 'ACTIVE' | 'INACTIVE' },
+    query: { limit: number; offset: number; status?: 'ACTIVE' | 'INACTIVE'; search?: string },
   ): Promise<{ items: ServiceDefinitionResponse[]; limit: number; offset: number }> {
     await this.authz.assertListAction(actor);
 
@@ -132,6 +133,22 @@ export class ServiceCatalogAccessService {
     if (query.status) {
       clauses.push(`d.status = $${params.length + 1}`);
       params.push(query.status);
+    }
+    if (query.search) {
+      // Nome (versao vigente ACTIVE; senao DRAFT) OU code operacional. O EXISTS resolve o nome no
+      // proprio predicado, sem depender de a projecao ter encontrado uma versao vigente.
+      const term = `%${escapeLikeWildcards(query.search)}%`;
+      params.push(term);
+      clauses.push(`(
+        d.code ILIKE $${params.length} ESCAPE '\\'
+        OR EXISTS (
+          SELECT 1
+          FROM cat.service_definition_versions v
+          WHERE v.service_definition_id = d.id
+            AND v.status IN ('ACTIVE', 'DRAFT')
+            AND v.name ILIKE $${params.length} ESCAPE '\\'
+        )
+      )`);
     }
 
     const rows = await this.repository.listDefinitions(clauses.join(' AND '), params, query.limit, query.offset);

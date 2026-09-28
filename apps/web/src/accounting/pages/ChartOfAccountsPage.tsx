@@ -2,12 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Button,
+  EmptyState,
   Field,
   Input,
   Money,
   Select,
   StatusBadge,
-  EmptyState,
 } from '../../ui';
 import {
   FilterCard,
@@ -22,11 +22,15 @@ import {
 } from '../../ui/module-layout';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
+import { JOURNAL_STATUS_LABELS } from '../../financial-ui/labels';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
+import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge';
+import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
 import {
   createAccount,
   listAccounts,
   listCharts,
+  listJournals,
   reconstructLedger,
   updateAccount,
 } from '../api/accounting-api';
@@ -37,6 +41,7 @@ import type {
   AccountsList,
   ChartOfAccounts,
   ChartsList,
+  JournalListPage,
   LedgerReconstruction,
 } from '../types/accounting.types';
 
@@ -48,30 +53,51 @@ const CLASS_LABELS: Record<AccountClass, string> = {
   EXPENSE: 'Despesa',
 };
 
+/** Tamanho de página do detalhamento por conta: mesmo número da lista de lançamentos. */
+const DRILL_PAGE_SIZE = 25;
+
 export function ChartOfAccountsPage() {
-  const [unitId, setUnitId] = useState('');
-  const [submittedUnit, setSubmittedUnit] = useState('');
+  // A unidade operacional vem do contexto do shell (fonte unica ja usada pelos modulos de
+  // backoffice). O operador escolhe na lista de unidades autorizadas e nunca digita
+  // identificador: selecionada a unidade, os planos dela sao carregados do servidor e o
+  // operador escolhe o plano pelo codigo/nome.
+  const { units, unitId, setUnitId } = useOperationalUnits();
   const [chartId, setChartId] = useState('');
   const [chartActionError, setChartActionError] = useState<string | null>(null);
+  const [drillAccountId, setDrillAccountId] = useState('');
+  const [drillPage, setDrillPage] = useState(0);
 
   const chartsQuery = useBackofficeQuery<ChartsList>({
-    enabled: submittedUnit.trim() !== '',
-    autoLoad: submittedUnit.trim() !== '',
-    loader: (signal) => listCharts(submittedUnit.trim(), signal),
+    enabled: unitId !== '',
+    autoLoad: false,
+    loader: (signal) => listCharts(unitId, signal),
     mapError: mapAccountingErrorToMessage,
   });
 
   const activeChartId = chartId || undefined;
   const accountsQuery = useBackofficeQuery<AccountsList>({
     enabled: Boolean(activeChartId),
-    autoLoad: Boolean(activeChartId),
+    autoLoad: false,
     loader: (signal) => listAccounts(activeChartId as string, signal),
     mapError: mapAccountingErrorToMessage,
   });
   const ledgerQuery = useBackofficeQuery<LedgerReconstruction>({
     enabled: Boolean(activeChartId),
-    autoLoad: Boolean(activeChartId),
+    autoLoad: false,
     loader: (signal) => reconstructLedger(activeChartId as string, signal),
+    mapError: mapAccountingErrorToMessage,
+  });
+  // Detalhamento conta -> lancamentos: usa a listagem de lancamentos que ja existe no servidor,
+  // filtrada por conta (accountId). Nada e somado nem reclassificado no navegador.
+  const journalQuery = useBackofficeQuery<JournalListPage>({
+    enabled: Boolean(activeChartId && drillAccountId),
+    autoLoad: false,
+    loader: (signal) =>
+      listJournals(
+        activeChartId as string,
+        { accountId: drillAccountId, page: drillPage, pageSize: DRILL_PAGE_SIZE },
+        signal,
+      ),
     mapError: mapAccountingErrorToMessage,
   });
 
@@ -80,11 +106,46 @@ export function ChartOfAccountsPage() {
   const accountRows = accountsQuery.state.phase === 'ready' ? accountsQuery.state.data.items : [];
   const ledgerRows = ledgerQuery.state.phase === 'ready' ? ledgerQuery.state.data.accounts : [];
   const ledger = ledgerQuery.state.phase === 'ready' ? ledgerQuery.state.data : null;
+  const drillAccount = accountRows.find((account) => account.id === drillAccountId);
 
-  // Ao trocar a unidade, resetamos o plano selecionado (evita UUID órfão de outro plano).
+  const { reload: reloadCharts, reset: resetCharts } = chartsQuery;
+  const { reload: reloadAccounts, reset: resetAccounts } = accountsQuery;
+  const { reload: reloadLedger, reset: resetLedger } = ledgerQuery;
+  const { reload: reloadJournals, reset: resetJournals } = journalQuery;
+
+  // Trocar a unidade limpa o plano selecionado (evita UUID orfao de outro plano) e carrega os
+  // planos da unidade escolhida. O conteudo anterior e descartado antes da nova consulta para
+  // que nenhum plano de outra unidade fique visivel enquanto a resposta chega.
   useEffect(() => {
     setChartId('');
-  }, [submittedUnit]);
+    resetCharts();
+    if (unitId === '') {
+      return;
+    }
+    void reloadCharts();
+  }, [reloadCharts, resetCharts, unitId]);
+
+  // Trocar o plano recarrega contas e saldos do plano escolhido pelo mesmo mecanismo.
+  useEffect(() => {
+    setDrillAccountId('');
+    setDrillPage(0);
+    resetAccounts();
+    resetLedger();
+    if (!activeChartId) {
+      return;
+    }
+    void reloadAccounts();
+    void reloadLedger();
+  }, [activeChartId, reloadAccounts, reloadLedger, resetAccounts, resetLedger]);
+
+  // Trocar de conta (ou de pagina) recarrega os lancamentos da conta escolhida.
+  useEffect(() => {
+    resetJournals();
+    if (!activeChartId || drillAccountId === '') {
+      return;
+    }
+    void reloadJournals();
+  }, [activeChartId, drillAccountId, drillPage, reloadJournals, resetJournals]);
 
   const tree = useMemo(() => buildTree(accountRows), [accountRows]);
 
@@ -112,6 +173,21 @@ export function ChartOfAccountsPage() {
       )
     : null;
 
+  const drillGate =
+    activeChartId && drillAccountId
+      ? renderQueryGate(
+          'Lançamentos da conta',
+          'Carregando lançamentos…',
+          'Você não tem permissão para consultar lançamentos desta conta.',
+          journalQuery.state,
+          () => void journalQuery.reload(),
+        )
+      : null;
+
+  const drillSynthetic = drillAccount
+    ? accountRows.some((account) => account.parentId === drillAccount.id)
+    : false;
+
   return (
     <ModulePage>
       <ModulePageHeader
@@ -119,25 +195,22 @@ export function ChartOfAccountsPage() {
         description="A árvore e os saldos são a leitura oficial do servidor; o navegador não soma nem reclassifica contas."
       />
       <FilterCard>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field label="Unidade operacional" htmlFor="coa-unit">
-            <Input
+            <Select
               id="coa-unit"
               value={unitId}
-              placeholder="ex.: unit-a"
               onChange={(event) => setUnitId(event.target.value)}
-            />
-          </Field>
-          <div className="flex items-end">
-            <Button
-              onClick={() => {
-                setSubmittedUnit(unitId.trim());
-              }}
-              disabled={unitId.trim() === ''}
+              disabled={units.length === 0}
             >
-              Carregar planos
-            </Button>
-          </div>
+              {units.length === 0 ? <option value="">Nenhuma unidade disponível</option> : null}
+              {units.map((unit) => (
+                <option key={unit} value={unit}>
+                  {unit}
+                </option>
+              ))}
+            </Select>
+          </Field>
           <Field label="Plano de contas" htmlFor="coa-chart">
             <Select
               id="coa-chart"
@@ -156,13 +229,27 @@ export function ChartOfAccountsPage() {
         </div>
       </FilterCard>
 
+      {units.length === 0 ? (
+        <EmptyState
+          title="Nenhuma unidade operacional disponível"
+          description="Sua sessão não tem unidade operacional autorizada, então não há plano de contas para consultar. O plano é escolhido a partir da unidade; esta tela não aceita identificador digitado."
+        />
+      ) : null}
       {chartsQuery.state.phase === 'denied' ? (
         <Alert tone="error">Você não tem permissão para listar planos de contas desta unidade.</Alert>
       ) : null}
-      {!activeChartId ? (
+      {units.length > 0 && !activeChartId ? (
         <EmptyState
-          title="Nenhum plano selecionado"
-          description="Carregue os planos da unidade e selecione um plano; as contas são consultadas automaticamente."
+          title={
+            charts.length === 0 && chartsQuery.state.phase === 'ready'
+              ? 'Nenhum plano de contas nesta unidade'
+              : 'Nenhum plano selecionado'
+          }
+          description={
+            charts.length === 0 && chartsQuery.state.phase === 'ready'
+              ? 'A unidade selecionada não tem plano de contas publicado. Escolha outra unidade operacional.'
+              : 'Selecione o plano de contas da unidade; as contas e os saldos são consultados automaticamente.'
+          }
         />
       ) : null}
       {createGate}
@@ -247,29 +334,41 @@ export function ChartOfAccountsPage() {
                         <Money value={balances?.credits ?? '0'} />
                       </td>
                       <td className={moduleTableCellClass}>
-                        {row.status === 'ACTIVE' ? (
+                        <div className="flex flex-wrap gap-2">
                           <Button
                             variant="secondary"
-                            onClick={() =>
-                              void runChartAction(() =>
-                                updateAccount(activeChartId, row.id, { status: 'INACTIVE' }),
-                              )
-                            }
+                            aria-label={`Lançamentos da conta ${row.code}`}
+                            onClick={() => {
+                              setDrillAccountId(row.id);
+                              setDrillPage(0);
+                            }}
                           >
-                            Inativar
+                            Lançamentos
                           </Button>
-                        ) : (
-                          <Button
-                            variant="secondary"
-                            onClick={() =>
-                              void runChartAction(() =>
-                                updateAccount(activeChartId, row.id, { status: 'ACTIVE' }),
-                              )
-                            }
-                          >
-                            Reativar
-                          </Button>
-                        )}
+                          {row.status === 'ACTIVE' ? (
+                            <Button
+                              variant="secondary"
+                              onClick={() =>
+                                void runChartAction(() =>
+                                  updateAccount(activeChartId, row.id, { status: 'INACTIVE' }),
+                                )
+                              }
+                            >
+                              Inativar
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="secondary"
+                              onClick={() =>
+                                void runChartAction(() =>
+                                  updateAccount(activeChartId, row.id, { status: 'ACTIVE' }),
+                                )
+                              }
+                            >
+                              Reativar
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -277,6 +376,118 @@ export function ChartOfAccountsPage() {
               </tbody>
             </table>
           </ModuleTableCard>
+
+          {drillGate}
+
+          {drillAccountId && journalQuery.state.phase === 'ready' ? (
+            <ModuleTableCard>
+              <div className="border-b border-gray-200 px-4 py-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-base font-semibold text-gray-900">
+                      {drillAccount
+                        ? `Lançamentos da conta ${drillAccount.code} — ${drillAccount.name}`
+                        : 'Lançamentos da conta'}
+                    </h2>
+                    <p className="mt-1 text-sm text-gray-600">
+                      Lista do servidor filtrada por esta conta. O navegador não soma nem
+                      reclassifica valores.
+                    </p>
+                  </div>
+                  <Button variant="secondary" onClick={() => setDrillAccountId('')}>
+                    Fechar
+                  </Button>
+                </div>
+              </div>
+              {journalQuery.state.data.items.length === 0 ? (
+                <p className="px-4 py-6 text-sm text-gray-600">
+                  {drillSynthetic
+                    ? 'Conta sintética: agrega subcontas e não recebe lançamento direto.'
+                    : 'Nenhum lançamento registrado nesta conta.'}
+                </p>
+              ) : (
+                <>
+                  <table className={moduleTableClass} aria-label="Lançamentos da conta">
+                    <thead className={moduleTableHeadClass}>
+                      <tr>
+                        <th scope="col" className={moduleTableHeaderCellClass}>
+                          Nº
+                        </th>
+                        <th scope="col" className={moduleTableHeaderCellClass}>
+                          Data
+                        </th>
+                        <th scope="col" className={moduleTableHeaderCellClass}>
+                          Histórico
+                        </th>
+                        <th scope="col" className={moduleTableHeaderCellClass}>
+                          Tipo
+                        </th>
+                        <th scope="col" className={moduleTableHeaderCellClass}>
+                          Estado
+                        </th>
+                        <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+                          Débito
+                        </th>
+                        <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+                          Crédito
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {journalQuery.state.data.items.map((entry) => (
+                        <tr key={entry.id} className={moduleTableRowClass}>
+                          <td className={moduleTableCellClass}>{entry.entryNumber ?? '—'}</td>
+                          <td className={moduleTableCellClass}>{entry.occurredOn}</td>
+                          <td className={`${moduleTableCellClass} whitespace-normal`}>
+                            {entry.description}
+                          </td>
+                          <td className={moduleTableCellClass}>
+                            {entry.kind === 'REVERSAL' ? 'Estorno' : 'Lançamento'}
+                          </td>
+                          <td className={moduleTableCellClass}>
+                            <FinanceStatusBadge
+                              status={entry.status}
+                              labels={JOURNAL_STATUS_LABELS}
+                            />
+                          </td>
+                          <td className={`${moduleTableCellClass} text-right`}>
+                            <Money value={entry.debitTotal} currencyCode={entry.currencyCode} />
+                          </td>
+                          <td className={`${moduleTableCellClass} text-right`}>
+                            <Money value={entry.creditTotal} currencyCode={entry.currencyCode} />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3">
+                    <Button
+                      variant="secondary"
+                      disabled={journalQuery.state.data.page <= 0}
+                      onClick={() => setDrillPage((current) => Math.max(0, current - 1))}
+                    >
+                      Página anterior
+                    </Button>
+                    <span className="text-sm text-gray-600">
+                      Página {journalQuery.state.data.page + 1} de{' '}
+                      {Math.max(journalQuery.state.data.totalPages, 1)} —{' '}
+                      {journalQuery.state.data.total} lançamentos
+                    </span>
+                    <Button
+                      variant="secondary"
+                      disabled={
+                        journalQuery.state.data.page + 1 >= journalQuery.state.data.totalPages
+                      }
+                      onClick={() => setDrillPage((current) => current + 1)}
+                    >
+                      Próxima página
+                    </Button>
+                  </div>
+                </>
+              )}
+            </ModuleTableCard>
+          ) : null}
+
           <CreateAccountPanel
             chartId={activeChartId}
             accounts={accountRows}

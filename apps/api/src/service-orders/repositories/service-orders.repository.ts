@@ -2,6 +2,10 @@ import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
 import { DatabaseService } from '../../infrastructure/database/database.service';
 import { queryIsUnitRegistered } from '../../infrastructure/database/reference-lookups';
+import {
+  queryServiceOrderControlCenterFacts,
+  type ServiceOrderControlCenterFacts,
+} from './service-order-control-center.persistence';
 import { FAULT_HOOKS } from '../../platform/fault-injection/fault-hook.ids';
 import { FAULT_INJECTION_PORT, type FaultInjectionPort } from '../../platform/fault-injection/fault-injection.port';
 import { maybeInjectFault } from '../../platform/fault-injection/fault-injection.util';
@@ -155,6 +159,17 @@ export class ServiceOrdersRepository {
       params,
     );
     return result.rows;
+  }
+
+  /** Fatos do Operations Control Center em UMA consulta (ver persistence dedicado). */
+  async findControlCenterFacts(
+    serviceOrderId: string,
+  ): Promise<ServiceOrderControlCenterFacts> {
+    const facts = await queryServiceOrderControlCenterFacts(this.pool(), serviceOrderId);
+    if (!facts) {
+      throw new Error('SERVICE_ORDER_CONTROL_CENTER_FACTS_FAILED');
+    }
+    return facts;
   }
 
   async listHistoryEvents(serviceOrderId: string): Promise<ServiceOrderHistoryEventRow[]> {

@@ -22,10 +22,31 @@ export type CommercialSupplierView = {
   paymentTerms: string | null;
 };
 
+/**
+ * Referência humana do Fornecedor para leitura por outro contexto.
+ *
+ * Existe para que um contexto consumidor (Compras, Financeiro) identifique o fornecedor por
+ * nome/CNPJ SEM ler as tabelas privadas do contexto Comercial: o dado atravessa a fronteira pelo
+ * port, nunca por junção SQL (`module-boundary-rules`).
+ */
+export type CommercialSupplierReference = {
+  id: string;
+  legalName: string;
+  tradeName: string | null;
+  taxId: string;
+};
+
 export type CommercialSupplierPort = {
   findPublishedById(supplierId: string): Promise<CommercialSupplierView | null>;
   requireActive(supplierId: string): Promise<CommercialSupplierView>;
   assertNotInactive(supplierId: string): Promise<void>;
+  /** Referências humanas dos fornecedores pedidos (no máximo uma leitura por página). */
+  findReferencesByIds(supplierIds: string[]): Promise<CommercialSupplierReference[]>;
+  /**
+   * Identificadores de fornecedores que casam com o termo informado (nome, nome fantasia ou
+   * CNPJ). O consumidor usa a lista para filtrar o próprio dado sem tocar em `pty.suppliers`.
+   */
+  searchIdsByTerm(term: string, limit: number): Promise<string[]>;
 };
 
 export type CommercialClientView = {
@@ -177,6 +198,26 @@ export type FiscalDocumentPort = {
     }>;
     billingDocumentId?: string;
   }): Promise<{ fiscalDocumentId: string; idempotent: boolean }>;
+  /**
+   * READ CONTRACT publicado pelo contexto FISCAL — `fis` e schema privado dele.
+   *
+   * Existe para o FECHAMENTO CONTABIL: a competencia so pode ser fechada olhando o que foi
+   * emitido no periodo, e a contagem e um FATO fiscal. O contexto contabil nao le a tabela
+   * privada de outro contexto; ele consome este contrato, cujo dono e quem escreve a tabela.
+   *
+   * Quem consome NAO filtra por autorizacao aqui: a decisao de acesso fica na camada de servico
+   * do consumidor, que nem chega a chamar isto sem concessao de leitura de documento fiscal.
+   */
+  countDocumentsInWindow(input: {
+    unitId: string;
+    startsOn: string;
+    endsOn: string;
+  }): Promise<{
+    unauthorized: number;
+    rejected: number;
+    pendingAuthorization: number;
+    draft: number;
+  }>;
 };
 
 export type AccountingPostFromSourceInput = {

@@ -31,6 +31,7 @@ export type PhysicalAssetCurrentAllocation = {
   order_number: string;
 };
 
+import type { AssetOperationalLifecycle } from '../domain/asset-operational-lifecycle';
 export type PhysicalAssetDetail = PhysicalAssetRow & {
   vehicle: VehicleProfileRow | null;
   current_allocation?: PhysicalAssetCurrentAllocation | null;
@@ -66,6 +67,11 @@ export type PhysicalAssetResponse = {
     serviceOrderId: string;
     orderNumber: string;
   } | null;
+  /**
+   * Vida operacional derivada das alocacoes reais (quem usa, quando, em qual OS) + ocorrencias.
+   * Elos negados pelo modulo dono sao omitidos antes de chegar aqui.
+   */
+  operationalLifecycle?: AssetOperationalLifecycle;
 };
 
 export type PhysicalAssetListResponse = {
@@ -82,7 +88,10 @@ export type PhysicalAssetListSummaryResponse = {
   unavailable: number;
 };
 
-export function toPhysicalAssetResponse(detail: PhysicalAssetDetail): PhysicalAssetResponse {
+export function toPhysicalAssetResponse(
+  detail: PhysicalAssetDetail,
+  operationalLifecycle?: AssetOperationalLifecycle,
+): PhysicalAssetResponse {
   return {
     id: detail.id,
     assetCode: detail.asset_code,
@@ -110,6 +119,7 @@ export function toPhysicalAssetResponse(detail: PhysicalAssetDetail): PhysicalAs
           orderNumber: detail.current_allocation.order_number,
         }
       : null,
+    ...(operationalLifecycle ? { operationalLifecycle } : {}),
   };
 }
 

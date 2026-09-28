@@ -34,6 +34,10 @@ export type SupplierPurchaseOrder = {
   id: string;
   requestId: string;
   supplierId: string;
+  /** Referência humana do fornecedor resolvida pelo servidor; `null` sem cadastro. */
+  supplierName: string | null;
+  supplierLegalName: string | null;
+  supplierTaxId: string | null;
   unitId: string;
   currencyCode: string;
   paymentTerms: string;
@@ -84,6 +88,145 @@ export type ThreeWayMatch = {
   receiptCount: number;
   invoiceCount: number;
 };
+
+/** Linha de lista: identifica a solicitação por justificativa, estado e valor persistido. */
+export type PurchaseRequestSummary = {
+  id: string;
+  unitId: string;
+  justification: string;
+  currencyCode: string;
+  status: string;
+  version: number;
+  lineCount: number;
+  totalAmount: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** Linha de lista: fornecedor por nome/CNPJ e progresso de recebimento do pedido. */
+export type SupplierPurchaseOrderSummary = {
+  id: string;
+  requestId: string;
+  supplierId: string;
+  supplierName: string | null;
+  supplierTaxId: string | null;
+  unitId: string;
+  currencyCode: string;
+  paymentTerms: string;
+  status: string;
+  version: number;
+  lineCount: number;
+  totalAmount: string;
+  receivedQuantity: string;
+  issuedAt: string;
+  updatedAt: string;
+};
+
+export type PurchaseRequestListResponse = {
+  items: PurchaseRequestSummary[];
+  limit: number;
+  offset: number;
+  total: number;
+  totalPages: number;
+};
+
+export type SupplierPurchaseOrderListResponse = {
+  items: SupplierPurchaseOrderSummary[];
+  limit: number;
+  offset: number;
+  total: number;
+  totalPages: number;
+};
+
+export type SupplierInvoiceListResponse = {
+  items: SupplierInvoiceSummary[];
+  limit: number;
+  offset: number;
+  total: number;
+  totalPages: number;
+};
+
+/** Linha de lista de nota: número, fornecedor por referência humana, valor e estado. */
+export type SupplierInvoiceSummary = {
+  id: string;
+  unitId: string;
+  supplierId: string;
+  supplierName: string | null;
+  supplierTaxId: string | null;
+  invoiceNumber: string;
+  issuedOn: string;
+  dueDate: string;
+  currencyCode: string;
+  totalAmount: string;
+  status: string;
+  version: number;
+  payableId: string | null;
+  supplierPurchaseOrderId: string | null;
+};
+
+export async function listSupplierInvoices(
+  params: { limit: number; offset: number; status?: string; q?: string },
+  signal?: AbortSignal,
+): Promise<SupplierInvoiceListResponse> {
+  return requestJson<SupplierInvoiceListResponse>(
+    `/api/v1/supplier-invoices?${buildListQuery(params)}`,
+    { method: 'GET', headers: authHeaders(), signal },
+  );
+}
+
+export async function listPurchaseRequests(
+  params: { limit: number; offset: number; status?: string; q?: string },
+  signal?: AbortSignal,
+): Promise<PurchaseRequestListResponse> {
+  return requestJson<PurchaseRequestListResponse>(
+    `/api/v1/procurement/requests?${buildListQuery(params)}`,
+    { method: 'GET', headers: authHeaders(), signal },
+  );
+}
+
+export async function listSupplierPurchaseOrders(
+  params: { limit: number; offset: number; status?: string; supplierId?: string; q?: string },
+  signal?: AbortSignal,
+): Promise<SupplierPurchaseOrderListResponse> {
+  return requestJson<SupplierPurchaseOrderListResponse>(
+    `/api/v1/procurement/orders?${buildListQuery(params)}`,
+    { method: 'GET', headers: authHeaders(), signal },
+  );
+}
+
+function buildListQuery(params: Record<string, string | number | undefined>): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === '') {
+      continue;
+    }
+    search.set(key, String(value).trim());
+  }
+  return search.toString();
+}
+
+/**
+ * Referências de fornecedor para seleção humana. Usa a listagem do cadastro de fornecedores —
+ * a mesma autoridade que valida a criação do pedido — em vez de exigir que o operador cole um
+ * identificador técnico.
+ */
+export async function searchSupplierOptions(
+  term: string,
+  signal?: AbortSignal,
+): Promise<Array<{ id: string; label: string; taxId: string }>> {
+  const search = new URLSearchParams({ limit: '20', offset: '0' });
+  if (term.trim().length > 0) {
+    search.set('q', term.trim());
+  }
+  const response = await requestJson<{
+    items: Array<{ id: string; legalName: string; tradeName: string | null; taxId: string }>;
+  }>(`/api/v1/suppliers?${search.toString()}`, { method: 'GET', headers: authHeaders(), signal });
+  return response.items.map((item) => ({
+    id: item.id,
+    label: item.tradeName ?? item.legalName,
+    taxId: item.taxId,
+  }));
+}
 
 export async function getPurchaseRequest(requestId: string, signal?: AbortSignal): Promise<PurchaseRequest> {
   return requestJson<PurchaseRequest>(`/api/v1/procurement/requests/${requestId}`, {

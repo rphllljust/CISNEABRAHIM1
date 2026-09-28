@@ -4,7 +4,9 @@ import type {
   CostingRuleVersionRow,
   InventoryItemRow,
   StockBalanceRow,
+  StockMovementListRow,
   StockMovementRow,
+  StockReservationListRow,
   StockReservationRow,
   WarehouseRow,
 } from '../repositories/inventory.repository.types';
@@ -89,6 +91,56 @@ export type PostMovementResponse = {
   idempotent: boolean;
 };
 
+export type WarehouseListResponse = {
+  items: WarehouseResponse[];
+  limit: number;
+  offset: number;
+  total: number;
+  totalPages: number;
+};
+
+export type InventoryItemListResponse = {
+  items: InventoryItemResponse[];
+  limit: number;
+  offset: number;
+  total: number;
+  totalPages: number;
+};
+
+/** Linha de movimento para leitura humana: depósito por código/nome e item por SKU/nome. */
+export type StockMovementSummaryResponse = StockMovementResponse & {
+  warehouseCode: string | null;
+  warehouseName: string | null;
+  itemSku: string | null;
+  itemName: string | null;
+  status: string;
+  description: string;
+};
+
+export type StockMovementListResponse = {
+  items: StockMovementSummaryResponse[];
+  limit: number;
+  offset: number;
+  total: number;
+  totalPages: number;
+};
+
+export type StockReservationSummaryResponse = StockReservationResponse & {
+  unitId: string;
+  warehouseCode: string | null;
+  warehouseName: string | null;
+  itemSku: string | null;
+  itemName: string | null;
+};
+
+export type StockReservationListResponse = {
+  items: StockReservationSummaryResponse[];
+  limit: number;
+  offset: number;
+  total: number;
+  totalPages: number;
+};
+
 function qty(value: string): string {
   return formatMoneyAmountForApi(value.startsWith('-') ? value.slice(1) : value)
     ? `${value.startsWith('-') ? '-' : ''}${formatMoneyAmountForApi(value.startsWith('-') ? value.slice(1) : value)}`
@@ -132,8 +184,39 @@ export function toStockMovementResponse(row: StockMovementRow): StockMovementRes
   };
 }
 
-export function toCostingRuleResponse(row: CostingRuleRow): CostingRuleResponse {
+export function toStockMovementSummaryResponse(
+  row: StockMovementListRow,
+): StockMovementSummaryResponse {
   return {
+    ...toStockMovementResponse(row),
+    status: row.status,
+    description: row.description,
+    warehouseCode: row.warehouse_code,
+    warehouseName: row.warehouse_name,
+    itemSku: row.item_sku,
+    itemName: row.item_name,
+  };
+}
+
+export function toStockReservationSummaryResponse(
+  row: StockReservationListRow,
+): StockReservationSummaryResponse {
+  return {
+    id: row.id,
+    unitId: row.unit_id,
+    warehouseId: row.warehouse_id,
+    inventoryItemId: row.inventory_item_id,
+    quantity: formatMoneyAmountForApi(row.quantity) ?? row.quantity,
+    status: row.status,
+    idempotencyKey: row.idempotency_key,
+    warehouseCode: row.warehouse_code,
+    warehouseName: row.warehouse_name,
+    itemSku: row.item_sku,
+    itemName: row.item_name,
+  };
+}
+
+export function toCostingRuleResponse(row: CostingRuleRow): CostingRuleResponse {  return {
     id: row.id,
     unitId: row.unit_id,
     code: row.code,

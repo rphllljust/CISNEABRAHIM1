@@ -28,9 +28,13 @@ const UNIT = 'unit-inv-a';
 async function grantInventoryAdmin(pool: Pool, identityId: string): Promise<void> {
   for (const action of [
     AUTHZ_ACTIONS.InventoryItemManage,
+    AUTHZ_ACTIONS.InventoryItemList,
     AUTHZ_ACTIONS.InventoryWarehouseManage,
+    AUTHZ_ACTIONS.InventoryWarehouseList,
     AUTHZ_ACTIONS.InventoryMove,
+    AUTHZ_ACTIONS.InventoryMovementList,
     AUTHZ_ACTIONS.InventoryReserve,
+    AUTHZ_ACTIONS.InventoryReservationList,
     AUTHZ_ACTIONS.InventoryRead,
   ]) {
     await insertGrant(pool, {
@@ -99,6 +103,109 @@ describe('Inventory core PostgreSQL integration', () => {
     });
     return { origin, destination, item };
   }
+
+  it('lists warehouses, items, movements and reservations with human references', async () => {
+    const actor = await seedActor();
+    const { origin, destination, item } = await seedStock(actor);
+    await inventory.postStock(actor, {
+      unitId: UNIT,
+      warehouseId: origin.id,
+      inventoryItemId: item.id,
+      movementType: STOCK_MOVEMENT_TYPES.In,
+      quantity: '25.0000',
+      occurredOn: '2026-09-02',
+      description: 'Recebimento inicial',
+      idempotencyKey: `in-${crypto.randomUUID()}`,
+    });
+    await inventory.reserve(actor, {
+      unitId: UNIT,
+      warehouseId: origin.id,
+      inventoryItemId: item.id,
+      quantity: '5.0000',
+      idempotencyKey: `res-${crypto.randomUUID()}`,
+    });
+
+    const warehousePage = await inventory.listWarehouses(actor, { limit: 1, offset: 0 });
+    expect(warehousePage.total).toBe(2);
+    expect(warehousePage.totalPages).toBe(2);
+    expect(warehousePage.items[0]).toMatchObject({ code: 'WH-DEST' });
+
+    const searchedWarehouse = await inventory.listWarehouses(actor, {
+      limit: 20,
+      offset: 0,
+      q: 'Origin',
+    });
+    expect(searchedWarehouse.items.map((row) => row.id)).toEqual([origin.id]);
+
+    const itemPage = await inventory.listItems(actor, { limit: 20, offset: 0, q: 'SKU-QTY-1' });
+    expect(itemPage.total).toBe(1);
+    expect(itemPage.items[0]?.id).toBe(item.id);
+
+    const movements = await inventory.listMovements(actor, { limit: 20, offset: 0 });
+    expect(movements.total).toBe(1);
+    // A linha identifica depósito e item por código/nome/SKU, nunca por identificador técnico.
+    expect(movements.items[0]).toMatchObject({
+      warehouseCode: 'WH-ORIGIN',
+      warehouseName: 'Origin warehouse',
+      itemSku: 'SKU-QTY-1',
+      description: 'Recebimento inicial',
+      status: 'POSTED',
+    });
+
+    const byWarehouse = await inventory.listMovements(actor, {
+      limit: 20,
+      offset: 0,
+      warehouseId: destination.id,
+    });
+    expect(byWarehouse.total).toBe(0);
+    const byItem = await inventory.listMovements(actor, {
+      limit: 20,
+      offset: 0,
+      inventoryItemId: item.id,
+    });
+    expect(byItem.total).toBe(1);
+    const byType = await inventory.listMovements(actor, { limit: 20, offset: 0, movementType: 'OUT' });
+    expect(byType.total).toBe(0);
+    const bySearch = await inventory.listMovements(actor, { limit: 20, offset: 0, q: 'WH-ORIGIN' });
+    expect(bySearch.total).toBe(1);
+
+    const reservations = await inventory.listReservations(actor, { limit: 20, offset: 0, status: 'ACTIVE' });
+    expect(reservations.total).toBe(1);
+    expect(reservations.items[0]).toMatchObject({
+      warehouseCode: 'WH-ORIGIN',
+      itemSku: 'SKU-QTY-1',
+      status: 'ACTIVE',
+    });
+  });
+
+  it('denies the inventory lists without the list grants', async () => {
+    const actor = await seedActor();
+    await seedStock(actor);
+    await inventory.listWarehouses(actor, { limit: 20, offset: 0 });
+
+    const outsider = await seedActor(false);
+    for (const call of [
+      () => inventory.listWarehouses(outsider, { limit: 20, offset: 0 }),
+      () => inventory.listItems(outsider, { limit: 20, offset: 0 }),
+      () => inventory.listMovements(outsider, { limit: 20, offset: 0 }),
+      () => inventory.listReservations(outsider, { limit: 20, offset: 0 }),
+    ]) {
+      await expect(call()).rejects.toMatchObject({ code: INVENTORY_ERROR_CODES.DENIED });
+    }
+
+    // Somente `read` não autoriza listar.
+    const reader = await seedActor(false);
+    await insertGrant(pool, {
+      identityId: reader.identityId,
+      action: AUTHZ_ACTIONS.InventoryRead,
+      resourceType: AUTHZ_RESOURCE_TYPES.InventoryStock,
+      scopeType: AUTHZ_SCOPES.Global,
+      grantedByIdentityId: reader.identityId,
+    });
+    await expect(inventory.listItems(reader, { limit: 20, offset: 0 })).rejects.toMatchObject({
+      code: INVENTORY_ERROR_CODES.DENIED,
+    });
+  });
 
   it('posts entry and exit without writing a physical asset or allowing a default negative balance', async () => {
     const actor = await seedActor();

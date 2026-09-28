@@ -5,8 +5,12 @@ type DashboardKpiStripProps = {
   kpis: DashboardKpi[];
 };
 
-function isHighlightedKpi(kpi: DashboardKpi, index: number, total: number) {
-  return kpi.id === 'on-time-rate' || (kpi.id !== 'active-service-orders' && index === total - 1 && total > 1);
+/**
+ * Destaque vem do SIGNIFICADO do KPI (variante semântica), nunca da posição visual.
+ * Exceções (critical/warning) são elevadas; o restante permanece em segundo plano.
+ */
+function isHighlightedKpi(kpi: DashboardKpi): boolean {
+  return kpi.variant === 'critical' || kpi.variant === 'warning' || kpi.variant === 'primary';
 }
 
 export function DashboardKpiStrip({ kpis }: DashboardKpiStripProps) {
@@ -27,13 +31,13 @@ export function DashboardKpiStrip({ kpis }: DashboardKpiStripProps) {
         className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
         role="list"
       >
-        {kpis.map((kpi, index) => (
+        {kpis.map((kpi) => (
           <div
             key={kpi.id}
             className="overflow-hidden rounded-md bg-white shadow-sm ring-1 ring-gray-900/5"
             role="listitem"
           >
-            <Kpi kpi={kpi} highlighted={isHighlightedKpi(kpi, index, kpis.length)} />
+            <Kpi kpi={kpi} highlighted={isHighlightedKpi(kpi)} />
           </div>
         ))}
       </div>

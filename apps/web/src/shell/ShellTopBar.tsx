@@ -10,6 +10,8 @@ import { Dropdown } from '../ui/Dropdown';
 type ShellTopBarProps = {
   onMenuToggle: () => void;
   menuExpanded: boolean;
+  /** Abre o Command Center. O atalho Ctrl+K é capturado pelo shell. */
+  onOpenCommandPalette?: () => void;
 };
 
 function resolveEnvironmentLabel(): string | null {
@@ -20,7 +22,11 @@ function resolveEnvironmentLabel(): string | null {
   return mode.charAt(0).toUpperCase() + mode.slice(1);
 }
 
-export function ShellTopBar({ onMenuToggle, menuExpanded }: ShellTopBarProps) {
+export function ShellTopBar({
+  onMenuToggle,
+  menuExpanded,
+  onOpenCommandPalette,
+}: ShellTopBarProps) {
   const menuButtonId = useId();
   const { identityId, logout } = useAuth();
   const environmentLabel = resolveEnvironmentLabel();
@@ -58,6 +64,20 @@ export function ShellTopBar({ onMenuToggle, menuExpanded }: ShellTopBarProps) {
         ) : null}
 
         {isReleaseModuleEnabled('alerts') ? <AlertBadgeLink /> : null}
+
+        {onOpenCommandPalette ? (
+          <button
+            type="button"
+            className="hidden items-center gap-2 rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 sm:inline-flex"
+            onClick={onOpenCommandPalette}
+            aria-label="Abrir central de comandos (Ctrl+K)"
+          >
+            <span>Navegar, ver, criar…</span>
+            <kbd className="rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 font-mono text-[10px] text-gray-500">
+              Ctrl K
+            </kbd>
+          </button>
+        ) : null}
 
         <div className="hidden h-6 w-px bg-gray-200 sm:block" aria-hidden />
 

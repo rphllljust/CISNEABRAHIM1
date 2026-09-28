@@ -1,4 +1,9 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
+import { buildAssetOperationalLifecycle } from '../domain/asset-operational-lifecycle';
+import { AssetOperationalAuthz } from './asset-operational.authz';
+
+/** Historico operacional limitado: o detalhe nunca carrega vida infinita do recurso. */
+const ASSET_HISTORY_LIMIT = 10;
 import {
   SECURITY_AUDIT_ACTIONS,
   SECURITY_AUDIT_CLASSIFICATIONS,
@@ -48,6 +53,7 @@ export class PhysicalAssetsAccessService {
     private readonly policyDecisionPoint: PolicyDecisionPointService,
     private readonly scopeEnforcement: ScopeEnforcementService,
     private readonly securityAudit: SecurityAuditService,
+    private readonly assetOperationalAuthz: AssetOperationalAuthz,
   ) {}
 
   async create(
@@ -143,7 +149,24 @@ export class PhysicalAssetsAccessService {
     }
 
     await this.assertRecordAction(actor, AUTHZ_ACTIONS.ResourcesAssetRead, asset);
-    return toPhysicalAssetResponse(asset);
+
+    // Vida operacional: duas consultas pequenas em paralelo, historico limitado.
+    const [allocations, occurrences] = await Promise.all([
+      this.assetsRepository.listAllocationUsage(assetId, ASSET_HISTORY_LIMIT),
+      this.assetsRepository.listOccurrences(assetId, ASSET_HISTORY_LIMIT),
+    ]);
+    const [authorizedAllocations, authorizedOccurrences] = await Promise.all([
+      this.assetOperationalAuthz.filterAuthorizedUsage(actor, asset as never, allocations),
+      this.assetOperationalAuthz.filterAuthorizedOccurrences(actor, asset as never, occurrences),
+    ]);
+
+    return toPhysicalAssetResponse(
+      asset,
+      buildAssetOperationalLifecycle({
+        allocations: authorizedAllocations,
+        occurrences: authorizedOccurrences,
+      }),
+    );
   }
 
   async list(
@@ -167,7 +190,7 @@ export class PhysicalAssetsAccessService {
     ]);
 
     return {
-      items: rows.map(toPhysicalAssetResponse),
+      items: rows.map((detail) => toPhysicalAssetResponse(detail)),
       limit: query.limit,
       offset: query.offset,
       total,

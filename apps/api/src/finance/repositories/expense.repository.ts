@@ -79,6 +79,37 @@ export class ExpenseRepository {
     return this.loadAggregate(expenseId);
   }
 
+  /**
+   * Página de despesas sob o MESMO predicado da contagem. A linha é um resumo do próprio registro
+   * (descrição, centro de custo, valor, vencimento e estado) — sem junções e sem dado de outro
+   * contexto.
+   */
+  async listPage(input: {
+    whereClause: string;
+    params: unknown[];
+    limit: number;
+    offset: number;
+  }): Promise<ExpenseRow[]> {
+    const result = await this.pool().query<ExpenseRow>(
+      `SELECT ${EXPENSE_RETURNING}
+       FROM fin.expenses
+       WHERE ${input.whereClause}
+       ORDER BY created_at DESC, id DESC
+       LIMIT $${input.params.length + 1}
+       OFFSET $${input.params.length + 2}`,
+      [...input.params, input.limit, input.offset],
+    );
+    return result.rows;
+  }
+
+  async countList(whereClause: string, params: unknown[]): Promise<number> {
+    const result = await this.pool().query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total FROM fin.expenses WHERE ${whereClause}`,
+      params,
+    );
+    return Number(result.rows[0]?.total ?? '0');
+  }
+
   async documentExists(documentId: string): Promise<boolean> {
     const result = await this.pool().query<{ id: string }>(
       `SELECT id FROM rpt.read_documents WHERE id = $1`,

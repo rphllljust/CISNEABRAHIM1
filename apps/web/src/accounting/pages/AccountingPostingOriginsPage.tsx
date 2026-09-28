@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { DateTime, EmptyState, Money } from '../../ui';
+import { Button, DateTime, EmptyState, Money } from '../../ui';
 import {
   FilterCard,
   ModuleErrorState,
@@ -21,6 +21,7 @@ import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge'
 import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
 import { listPostingRequests } from '../api/accounting-api';
 import { mapAccountingErrorToMessage } from '../api/accounting-error-messages';
+import { SavedViewsBar, useSmartList } from '../../operator';
 import type { PostingRequestListItem, PostingRequestPage } from '../types/accounting.types';
 
 const PAGE_SIZE = 25;
@@ -78,6 +79,37 @@ const ORIGIN_LABELS: Record<string, string> = {
   FIXED_ASSET: 'Imobilizado',
 };
 
+/** Escopo estavel de persistencia das visoes salvas desta tela. */
+const SCOPE = 'accounting.posting-origins';
+
+/** Allow-list: somente valores enumerados que a propria tela oferece. */
+const POSTING_ORIGINS_ALLOWED_FILTERS = {
+  filters: {
+    status: ['POSTED', 'PENDING', 'REJECTED'],
+    eventKind: EVENT_KINDS.filter((value) => value !== ''),
+  },
+} as const;
+
+/**
+ * Visoes embutidas derivadas do trabalho real da tela: evento confirmado que ainda nao
+ * virou lancamento (pendente) e evento recusado pela regra publicada. Nenhuma regra
+ * contabil e criada aqui — apenas recorte sobre o que o servidor ja devolveu.
+ */
+const POSTING_ORIGINS_BUILT_IN_VIEWS = [
+  {
+    id: 'builtin.posting.pending',
+    name: 'Pendentes de lançamento',
+    description: 'Evento de negócio confirmado que ainda não gerou lançamento contábil.',
+    config: { filters: { status: 'PENDING' }, sortKey: null, sortDirection: 'asc' as const, groupKey: null },
+  },
+  {
+    id: 'builtin.posting.rejected',
+    name: 'Recusados pela regra',
+    description: 'Evento confirmado que a regra publicada recusou.',
+    config: { filters: { status: 'REJECTED' }, sortKey: null, sortDirection: 'asc' as const, groupKey: null },
+  },
+];
+
 type ListState =
   | { phase: 'loading' }
   | { phase: 'error'; message: string; retryable: boolean }
@@ -85,12 +117,28 @@ type ListState =
 
 export function AccountingPostingOriginsPage() {
   const { units, unitId, setUnitId } = useOperationalUnits();
-  const [status, setStatus] = useState('');
-  const [eventKind, setEventKind] = useState('');
   const [occurredFrom, setOccurredFrom] = useState('');
   const [occurredTo, setOccurredTo] = useState('');
   const [page, setPage] = useState(0);
   const [state, setState] = useState<ListState>({ phase: 'loading' });
+
+  // ADOCAO DE MECANISMO: situacao e evento de origem passam a viver na URL e em visao
+  // salva. A fila "Pendente" e trabalho real — evento de negocio confirmado que ainda
+  // NAO gerou lancamento — e agora e um recorte compartilhavel, nao um clique manual.
+  // A unidade continua no hook compartilhado de unidades operacionais.
+  const smartList = useSmartList({
+    scope: SCOPE,
+    builtInViews: POSTING_ORIGINS_BUILT_IN_VIEWS,
+    allowedFilters: POSTING_ORIGINS_ALLOWED_FILTERS,
+    urlSync: true,
+  });
+  const status = smartList.filters.status ?? '';
+  const eventKind = smartList.filters.eventKind ?? '';
+
+  const clearPagingOnFilter = useCallback((key: string, value: string) => {
+    smartList.setFilter(key, value);
+    setPage(0);
+  }, [smartList]);
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
@@ -188,10 +236,7 @@ export function AccountingPostingOriginsPage() {
               id="posting-status-filter"
               className={filterControlClass}
               value={status}
-              onChange={(event) => {
-                setStatus(event.target.value);
-                setPage(0);
-              }}
+              onChange={(event) => clearPagingOnFilter('status', event.target.value)}
             >
               <option value="">Todas</option>
               <option value="POSTED">Lançado</option>
@@ -207,10 +252,7 @@ export function AccountingPostingOriginsPage() {
               id="posting-event-filter"
               className={filterControlClass}
               value={eventKind}
-              onChange={(event) => {
-                setEventKind(event.target.value);
-                setPage(0);
-              }}
+              onChange={(event) => clearPagingOnFilter('eventKind', event.target.value)}
             >
               {EVENT_KINDS.map((value) => (
                 <option key={value || 'all'} value={value}>
@@ -252,6 +294,23 @@ export function AccountingPostingOriginsPage() {
         </div>
       </FilterCard>
 
+      <SavedViewsBar
+        views={smartList.savedViews.views}
+        builtInViews={smartList.savedViews.builtInViews}
+        activeViewId={smartList.activeViewId}
+        onApply={(view) => {
+          smartList.applyView(view);
+          setPage(0);
+        }}
+        onSave={smartList.savedViews.saveView}
+        onRename={smartList.savedViews.renameView}
+        onRemove={smartList.savedViews.removeView}
+        currentConfig={smartList.currentConfig}
+        canSave={Object.keys(smartList.filters).length > 0}
+        allLabel="Todas"
+        className="mb-4"
+      />
+
       {data ? (
         <p className="mb-6 text-sm text-text-secondary">
           Lançados: <strong>{posted}</strong> · Pendentes: <strong>{pending}</strong> · Rejeitados:{' '}
@@ -273,10 +332,29 @@ export function AccountingPostingOriginsPage() {
       ) : null}
 
       {data && data.items.length === 0 ? (
-        <EmptyState
-          title="Nenhum evento lançado"
-          description="Não há eventos de negócio lançados para a unidade e os filtros selecionados."
-        />
+        <>
+          <EmptyState
+            title={smartList.isFiltered ? 'Nenhum evento para o recorte atual' : 'Nenhum evento lançado'}
+            description={
+              smartList.isFiltered
+                ? 'Os filtros aplicados não retornam evento de negócio nesta unidade. Limpe o recorte para ver a rastreabilidade completa.'
+                : 'Não há eventos de negócio lançados para a unidade selecionada.'
+            }
+          />
+          {smartList.isFiltered ? (
+            <div className="mt-3">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  smartList.clearFilters();
+                  setPage(0);
+                }}
+              >
+                Limpar filtros
+              </Button>
+            </div>
+          ) : null}
+        </>
       ) : null}
 
       {data && data.items.length > 0 ? (

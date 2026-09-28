@@ -7,6 +7,7 @@ import { ExpensesPage } from './finance/pages/ExpensesPage';
 import { InventoryPage } from './inventory/pages/InventoryPage';
 import { ProcurementHubPage } from './procurement/pages/ProcurementPages';
 import { SuppliersPage } from './suppliers/pages/SuppliersPage';
+import { SuppliersListPage } from './suppliers/pages/SuppliersListPage';
 import { parseRequestPath } from './test/request-url';
 import { renderWithProviders } from './test/render-with-providers';
 
@@ -100,6 +101,31 @@ function createCatchUpFetchMock(options: CatchUpMockOptions = {}) {
       return jsonResponse({ error: { code: 'SUPPLIER_VERSION_CONFLICT' } }, 409);
     }
 
+    if (pathname.endsWith('/suppliers') && method === 'GET') {
+      return jsonResponse({ items: [], limit: 20, offset: 0, total: 0, totalPages: 0 });
+    }
+
+    if (pathname.endsWith('/procurement/requests') && method === 'GET') {
+      return jsonResponse({ items: [], limit: 20, offset: 0, total: 0, totalPages: 0 });
+    }
+
+    if (pathname.endsWith('/procurement/orders') && method === 'GET') {
+      return jsonResponse({ items: [], limit: 20, offset: 0, total: 0, totalPages: 0 });
+    }
+
+    if (pathname.endsWith('/supplier-invoices') && method === 'GET') {
+      return jsonResponse({ items: [], limit: 20, offset: 0, total: 0, totalPages: 0 });
+    }
+
+    if (
+      method === 'GET' &&
+      ['/inventory/warehouses', '/inventory/items', '/inventory/movements', '/inventory/reservations'].some(
+        (suffix) => pathname.endsWith(suffix),
+      )
+    ) {
+      return jsonResponse({ items: [], limit: 20, offset: 0, total: 0, totalPages: 0 });
+    }
+
     if (pathname.includes('/suppliers/') && method === 'GET') {
       return jsonResponse({
         id: SUPPLIER_ID,
@@ -107,6 +133,7 @@ function createCatchUpFetchMock(options: CatchUpMockOptions = {}) {
         taxId: '11222333000181',
         status: 'INACTIVE',
         version: 1,
+        contacts: [],
       });
     }
 
@@ -214,18 +241,35 @@ describe('Enterprise UI catch-up', () => {
     });
   });
 
-  it('shows empty states for suppliers, purchases and inventory', () => {
+  it('shows empty states for suppliers, purchases and inventory', async () => {
     vi.stubGlobal('fetch', createCatchUpFetchMock());
-    const { unmount: unmountSuppliers } = renderWithProviders(<SuppliersPage />);
-    expect(screen.getByRole('heading', { name: 'Nenhum fornecedor carregado' })).toBeInTheDocument();
+    // Sem nenhum criterio aplicado o estado vazio passou a ser contextual ("ainda nao
+    // cadastrado"), distinto do caso filtrado. A assercao segue estrita no texto exato.
+    const { unmount: unmountSuppliers } = renderWithProviders(<SuppliersListPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Nenhum fornecedor cadastrado ainda.')).toBeInTheDocument();
+    });
     unmountSuppliers();
     const { unmount: unmountProcurement } = renderWithProviders(<ProcurementHubPage />);
-    expect(screen.getByRole('heading', { name: 'Sem listagem nesta API' })).toBeInTheDocument();
+    // As três entidades do fluxo de compras têm lista real; nada exige identificador digitado.
+    await waitFor(() => {
+      expect(screen.getByRole('table', { name: 'Solicitações de compra' })).toBeInTheDocument();
+    });
+    expect(screen.getByRole('table', { name: 'Pedidos ao fornecedor' })).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'Notas de fornecedor' })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/identificador da solicitação/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/identificador do pedido/i)).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Fornecedores' })).toHaveAttribute('href', '/app/suppliers');
     unmountProcurement();
     renderWithProviders(<InventoryPage />);
-    expect(screen.getByRole('heading', { name: 'Nenhum saldo carregado' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Liberar' })).toBeInTheDocument();
+    // Estoque passou a ser lista navegável: nada de saldo por identificador digitado.
+    await waitFor(() => {
+      expect(screen.getByRole('table', { name: 'Depósitos' })).toBeInTheDocument();
+    });
+    expect(screen.getByRole('table', { name: 'Itens de estoque' })).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'Movimentos de estoque' })).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'Reservas de estoque' })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/depósito de destino \(id\)/i)).not.toBeInTheDocument();
   });
 
   it('surfaces supplier version conflict on activate', async () => {

@@ -69,10 +69,67 @@ export type ServiceOrderDetail = {
   serviceSnapshot: ServiceOrderServiceSnapshot;
   description: string | null;
   rowVersion: number;
+  /**
+   * Instantes PERSISTIDOS do ciclo de vida. O detalhe da OS ja devolve esses campos
+   * (`toServiceOrderResponse`); eles entram aqui para que a interface possa datar cada passo
+   * real do fluxo sem derivar nada. Ausente = o passo ainda nao aconteceu.
+   */
+  createdAt?: string | null;
   preparedAt: string | null;
   releasedAt: string | null;
+  startedAt?: string | null;
+  pausedAt?: string | null;
+  completedAt?: string | null;
   cancelledAt: string | null;
   historyEvents: ServiceOrderHistoryEvent[];
+  /**
+   * Operations Control Center: projeção DERIVADA pelo backend (progressão, planejado x realizado,
+   * downstream e próximo passo). O frontend renderiza apenas o que veio autorizado — blocos de
+   * medição/faturamento chegam zerados/nulos quando o ator não tem autorização no módulo dono.
+   */
+  controlCenter?: ServiceOrderControlCenter;
+};
+
+export type ControlCenterStepCode =
+  | 'DEMAND'
+  | 'PLANNING'
+  | 'RELEASE'
+  | 'EXECUTION'
+  | 'COMPLETION'
+  | 'MEASUREMENT'
+  | 'BILLING';
+
+export type ServiceOrderControlCenter = {
+  progression: Array<{
+    code: ControlCenterStepCode;
+    state: 'DONE' | 'CURRENT' | 'PENDING' | 'ATTENTION';
+    at: string | null;
+    detail: string | null;
+    ownerStatus: string | null;
+  }>;
+  plannedVsActual: {
+    plannedResources: number;
+    activeAllocations: number;
+    executionEntries: number;
+    executedQuantityTotal: string | null;
+    divergences: string[];
+  };
+  downstream: {
+    measurement: { count: number; status: string | null; createdAt: string | null };
+    billing: {
+      count: number;
+      status: string | null;
+      createdAt: string | null;
+      totalAmount: string | null;
+      currencyCode: string | null;
+    };
+  };
+  nextAction: {
+    step: string;
+    transition: string | null;
+    availableTransitions: string[];
+    blockers: string[];
+  };
 };
 
 export const SERVICE_ORDERS_ERROR_CODES = {

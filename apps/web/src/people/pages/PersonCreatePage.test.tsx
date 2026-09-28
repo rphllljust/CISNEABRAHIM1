@@ -26,6 +26,17 @@ function postPeopleCalls(fetchMock: ReturnType<typeof createPeopleFetchMock>) {
   });
 }
 
+/**
+ * O título da página agora aparece também durante a sonda de permissão (a moldura é a mesma em
+ * todos os estados). O formulário só existe depois da sonda: os testes esperam o controle real
+ * da ação principal em vez do título — as asserções de negócio seguem idênticas.
+ */
+async function waitForCreateForm() {
+  await waitFor(() => {
+    expect(screen.getByRole('button', { name: /cadastrar/i })).toBeInTheDocument();
+  });
+}
+
 describe('PersonCreatePage', () => {
   beforeEach(() => {
     resetTokenStoreForTests();
@@ -39,9 +50,7 @@ describe('PersonCreatePage', () => {
 
     renderWithProviders(<PersonCreatePage />);
 
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /nova pessoa/i })).toBeInTheDocument();
-    });
+    await waitForCreateForm();
 
     await user.click(screen.getByRole('button', { name: /cadastrar/i }));
 
@@ -59,9 +68,7 @@ describe('PersonCreatePage', () => {
 
     renderWithProviders(<PersonCreatePage />);
 
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /nova pessoa/i })).toBeInTheDocument();
-    });
+    await waitForCreateForm();
 
     await user.type(screen.getByLabelText(/nome legal/i), 'Rafael Souza');
     await user.type(screen.getByLabelText(/nome de uso/i), 'Rafael');
@@ -97,9 +104,7 @@ describe('PersonCreatePage', () => {
 
     renderWithProviders(<PersonCreatePage />);
 
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /nova pessoa/i })).toBeInTheDocument();
-    });
+    await waitForCreateForm();
 
     await user.type(screen.getByLabelText(/nome legal/i), 'Monica Lima');
     await user.type(screen.getByLabelText(/nome de uso/i), 'Monica');
@@ -126,9 +131,7 @@ describe('PersonCreatePage', () => {
       { router: { initialEntries: ['/app/people/new'] } },
     );
 
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /nova pessoa/i })).toBeInTheDocument();
-    });
+    await waitForCreateForm();
 
     await user.click(screen.getByRole('link', { name: /cancelar/i }));
 

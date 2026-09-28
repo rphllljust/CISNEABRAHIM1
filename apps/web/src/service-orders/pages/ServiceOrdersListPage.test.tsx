@@ -18,7 +18,7 @@ describe('ServiceOrdersListPage', () => {
     vi.unstubAllGlobals();
   });
 
-  it('loads service orders and exposes operational links', async () => {
+  it('shows one next action per order instead of parallel stage links', async () => {
     vi.stubGlobal('fetch', createServiceOrdersFetchMock());
     renderWithProviders(<ServiceOrdersListPage />);
 
@@ -30,15 +30,31 @@ describe('ServiceOrdersListPage', () => {
       'href',
       `/app/service-orders/${MOCK_SERVICE_ORDER_ID}/planning`,
     );
-    expect(screen.getByRole('link', { name: 'Planejamento' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Execução' })).toHaveAttribute(
+    // RELEASED: a maquina de estados libera a alocacao de recursos, e so ela.
+    expect(screen.getByRole('link', { name: 'Alocar recursos' })).toHaveAttribute(
       'href',
-      `/app/service-orders/${MOCK_SERVICE_ORDER_ID}/execution`,
+      `/app/service-orders/${MOCK_SERVICE_ORDER_ID}/planning`,
     );
-    expect(screen.getByRole('link', { name: 'Medição' })).toHaveAttribute(
-      'href',
-      `/app/service-orders/${MOCK_SERVICE_ORDER_ID}/measurement`,
-    );
+    // As etapas que nao sao a proxima acao nao competem mais lado a lado na linha.
+    expect(screen.queryByRole('link', { name: 'Execução' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Medição' })).not.toBeInTheDocument();
+  });
+
+  it('replaces the noble "updated at" column with operational situation and next action', async () => {
+    vi.stubGlobal('fetch', createServiceOrdersFetchMock());
+    renderWithProviders(<ServiceOrdersListPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'OS-2026-DEMO01' })).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole('columnheader', { name: 'Situação' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Próxima ação' })).toBeInTheDocument();
+    // O identificador tecnico da unidade nao e mais coluna de interface.
+    expect(screen.queryByRole('columnheader', { name: 'Unidade' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Atualizada em' })).not.toBeInTheDocument();
+    // Sem alocacao ativa a linha declara a excecao em vez de esconder o problema.
+    expect(screen.getByText('Sem responsável alocado')).toBeInTheDocument();
   });
 
   it('shows denied state when list access is forbidden', async () => {
@@ -59,14 +75,14 @@ describe('ServiceOrdersListPage', () => {
     renderWithProviders(<ServiceOrdersListPage />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Preparar' })).toBeEnabled();
+      expect(screen.getByRole('button', { name: 'Preparar OS' })).toBeEnabled();
     });
-    await user.click(screen.getByRole('button', { name: 'Preparar' }));
+    await user.click(screen.getByRole('button', { name: 'Preparar OS' }));
 
     await waitFor(() => {
       expect(screen.getByLabelText('Status: Preparada')).toBeInTheDocument();
     });
-    expect(screen.getByRole('button', { name: 'Liberar' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Liberar OS' })).toBeEnabled();
   });
 
   it('releases a prepared order (Liberar on PREPARED moves to RELEASED)', async () => {
@@ -78,9 +94,9 @@ describe('ServiceOrdersListPage', () => {
     renderWithProviders(<ServiceOrdersListPage />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Liberar' })).toBeEnabled();
+      expect(screen.getByRole('button', { name: 'Liberar OS' })).toBeEnabled();
     });
-    await user.click(screen.getByRole('button', { name: 'Liberar' }));
+    await user.click(screen.getByRole('button', { name: 'Liberar OS' }));
 
     await waitFor(() => {
       expect(screen.getByLabelText('Status: Liberada')).toBeInTheDocument();
@@ -125,9 +141,9 @@ describe('ServiceOrdersListPage', () => {
     renderWithProviders(<ServiceOrdersListPage />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Reabrir' })).toBeEnabled();
+      expect(screen.getByRole('button', { name: 'Reabrir OS' })).toBeEnabled();
     });
-    await user.click(screen.getByRole('button', { name: 'Reabrir' }));
+    await user.click(screen.getByRole('button', { name: 'Reabrir OS' }));
 
     const dialog = await screen.findByRole('dialog');
     const confirmButton = within(dialog).getByRole('button', { name: 'Confirmar reabertura' });
@@ -148,9 +164,11 @@ describe('ServiceOrdersListPage', () => {
     );
     renderWithProviders(<ServiceOrdersListPage />);
 
+    // Concluida: a proxima acao e medir; reabrir continua disponivel como excecao subordinada.
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Reabrir' })).toBeEnabled();
+      expect(screen.getByRole('link', { name: 'Registrar medição' })).toBeInTheDocument();
     });
+    expect(screen.getByRole('button', { name: 'Reabrir' })).toBeEnabled();
     await user.click(screen.getByRole('button', { name: 'Reabrir' }));
 
     const dialog = await screen.findByRole('dialog');
@@ -174,9 +192,9 @@ describe('ServiceOrdersListPage', () => {
     renderWithProviders(<ServiceOrdersListPage />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Preparar' })).toBeEnabled();
+      expect(screen.getByRole('button', { name: 'Preparar OS' })).toBeEnabled();
     });
-    await user.click(screen.getByRole('button', { name: 'Preparar' }));
+    await user.click(screen.getByRole('button', { name: 'Preparar OS' }));
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/foram alterados por outra operação/i);

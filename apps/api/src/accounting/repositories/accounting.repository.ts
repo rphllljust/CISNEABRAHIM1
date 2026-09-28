@@ -15,6 +15,7 @@ import {
   reversalLines,
 } from '../domain/ledger';
 import {
+  DEFAULT_PERIOD_CLOSE_POLICY,
   assertPeriodCloseAllowed,
   evaluatePeriodCloseChecks,
   periodCloseRunStatus,
@@ -186,7 +187,7 @@ export class AccountingRepository {
     return result.rows;
   }
 
-  async countDraftsInPeriod(periodId: string, client?: PoolClient): Promise<number> {
+  async countDraftsInPeriod(periodId: string, client?: Pool | PoolClient): Promise<number> {
     const db = client ?? this.pool();
     const result = await db.query<{ count: string }>(
       `SELECT COUNT(*)::text AS count
@@ -918,7 +919,7 @@ export class AccountingRepository {
   }
 
   private async gatherCloseObservations(
-    client: PoolClient,
+    client: Pool | PoolClient,
     period: AccountingPeriodRow,
   ): Promise<PeriodCloseObservations> {
     const startsOn = period.starts_on.slice(0, 10);
@@ -1192,6 +1193,86 @@ export class AccountingRepository {
       status ? [chartId, status] : [chartId],
     );
     return result.rows;
+  }
+
+  /**
+   * Descoberta de periodo contabil DIRETO pela unidade, sem passar pelo plano de contas.
+   *
+   * A unidade ja e fato persistido em `acc.accounting_periods`; exigir o plano antes do periodo
+   * obrigava o operador a um passo intermediario que nao existe no negocio. Filtros sao somente os
+   * que ja sao coluna: unidade, status e ano de competencia (derivado de `starts_on`).
+   */
+  async listPeriodsByUnit(input: {
+    unitId: string;
+    status?: string;
+    year?: number;
+  }): Promise<AccountingPeriodRow[]> {
+    const params: unknown[] = [input.unitId];
+    const filters: string[] = [];
+    if (input.status) {
+      filters.push(`status = $${params.length + 1}::acc.period_status`);
+      params.push(input.status);
+    }
+    if (input.year !== undefined) {
+      filters.push(`EXTRACT(YEAR FROM starts_on)::int = $${params.length + 1}::int`);
+      params.push(input.year);
+    }
+    const result = await this.pool().query<AccountingPeriodRow>(
+      `SELECT ${PERIOD_RETURNING}
+       FROM acc.accounting_periods
+       WHERE unit_id = $1 ${filters.length > 0 ? `AND ${filters.join(' AND ')}` : ''}
+       ORDER BY starts_on DESC, code`,
+      params,
+    );
+    return result.rows;
+  }
+
+  /**
+   * Previa READ-ONLY dos bloqueadores de fechamento.
+   *
+   * Reusa exatamente a mesma autoridade do fechamento real: a politica persistida em
+   * `acc.period_close_policies` (ou `DEFAULT_PERIOD_CLOSE_POLICY` quando a unidade/plano ainda nao
+   * tem politica) e `evaluatePeriodCloseChecks` sobre as observacoes coletadas pela MESMA funcao
+   * privada usada por `closePeriod`. Nenhuma regra nova: o read model apenas agrega estado
+   * persistido. Nada e gravado.
+   */
+  async previewPeriodClose(period: AccountingPeriodRow): Promise<{
+    policy: PeriodClosePolicy;
+    checks: PeriodCloseCheck[];
+  }> {
+    const policyRow = await this.pool().query<PeriodClosePolicyRow>(
+      `SELECT id, unit_id, chart_id,
+              require_trial_balance_balanced, require_no_draft_journals,
+              require_no_critical_pending_postings, require_no_duplicate_economic_events,
+              require_origin_consistency, require_bank_reconciliation_integrity,
+              require_receivables_settled, require_payables_settled,
+              require_all_bank_lines_matched, require_fiscal_documents_authorized
+       FROM acc.period_close_policies
+       WHERE unit_id = $1 AND chart_id = $2`,
+      [period.unit_id, period.chart_id],
+    );
+    const policy: PeriodClosePolicy = policyRow.rows[0]
+      ? toClosePolicy(policyRow.rows[0])
+      : DEFAULT_PERIOD_CLOSE_POLICY;
+    const observations = await this.gatherCloseObservations(this.pool(), period);
+    return { policy, checks: evaluatePeriodCloseChecks(policy, observations) };
+  }
+
+  /**
+   * Contagem de lancamentos nao postados do periodo, com o recorte humano que a lista usa. */
+  async countJournalsByPeriodStatus(periodId: string): Promise<Record<string, number>> {
+    const result = await this.pool().query<{ status: string; count: string }>(
+      `SELECT status::text AS status, COUNT(*)::text AS count
+       FROM acc.journal_entries
+       WHERE period_id = $1
+       GROUP BY status`,
+      [periodId],
+    );
+    const counts: Record<string, number> = {};
+    for (const row of result.rows) {
+      counts[row.status] = Number(row.count);
+    }
+    return counts;
   }
 
   async findAccountPostability(accountId: string): Promise<AccountPostability> {

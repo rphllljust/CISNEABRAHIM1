@@ -20,12 +20,11 @@ describe('ServiceRequestEditPage', () => {
     const user = userEvent.setup();
     renderRequestRoutes('/app/requests/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/edit');
 
-    await waitFor(() => {
-      expect(screen.getByLabelText('Descrição')).toBeInTheDocument();
-    });
+    const description = await screen.findByLabelText(/^descrição/i, { selector: 'textarea' });
+    expect(description).toBeInTheDocument();
 
-    await user.clear(screen.getByLabelText('Descrição'));
-    await user.type(screen.getByLabelText('Descrição'), 'Descrição atualizada');
+    await user.clear(description);
+    await user.type(description, 'Descrição atualizada');
     await user.click(screen.getByRole('button', { name: /salvar rascunho/i }));
 
     await waitFor(() => {

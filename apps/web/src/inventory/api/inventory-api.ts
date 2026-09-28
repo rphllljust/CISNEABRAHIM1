@@ -51,6 +51,102 @@ export type StockReservation = {
 export type Warehouse = { id: string; unitId: string; code: string; name: string; status: string };
 export type InventoryItem = { id: string; unitId: string; sku: string; name: string; status: string };
 
+/** Linha de movimento com as referências humanas resolvidas pelo servidor. */
+export type StockMovementSummary = StockMovement & {
+  status: string;
+  description: string;
+  warehouseCode: string | null;
+  warehouseName: string | null;
+  itemSku: string | null;
+  itemName: string | null;
+};
+
+export type StockReservationSummary = StockReservation & {
+  unitId: string;
+  warehouseCode: string | null;
+  warehouseName: string | null;
+  itemSku: string | null;
+  itemName: string | null;
+};
+
+export type InventoryListParams = {
+  limit: number;
+  offset: number;
+  status?: string;
+  unitId?: string;
+  warehouseId?: string;
+  inventoryItemId?: string;
+  movementType?: string;
+  q?: string;
+};
+
+function listQuery(params: InventoryListParams): string {
+  const search = new URLSearchParams({ limit: String(params.limit), offset: String(params.offset) });
+  for (const key of ['status', 'unitId', 'warehouseId', 'inventoryItemId', 'movementType', 'q'] as const) {
+    const value = params[key];
+    if (value !== undefined && value.trim().length > 0) {
+      search.set(key, value.trim());
+    }
+  }
+  return search.toString();
+}
+
+export async function listWarehouses(
+  params: InventoryListParams,
+  signal?: AbortSignal,
+): Promise<{ items: Warehouse[]; limit: number; offset: number; total: number; totalPages: number }> {
+  return requestJson(`/api/v1/inventory/warehouses?${listQuery(params)}`, {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+}
+
+export async function listInventoryItems(
+  params: InventoryListParams,
+  signal?: AbortSignal,
+): Promise<{ items: InventoryItem[]; limit: number; offset: number; total: number; totalPages: number }> {
+  return requestJson(`/api/v1/inventory/items?${listQuery(params)}`, {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+}
+
+export async function listStockMovements(
+  params: InventoryListParams,
+  signal?: AbortSignal,
+): Promise<{
+  items: StockMovementSummary[];
+  limit: number;
+  offset: number;
+  total: number;
+  totalPages: number;
+}> {
+  return requestJson(`/api/v1/inventory/movements?${listQuery(params)}`, {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+}
+
+export async function listStockReservations(
+  params: InventoryListParams,
+  signal?: AbortSignal,
+): Promise<{
+  items: StockReservationSummary[];
+  limit: number;
+  offset: number;
+  total: number;
+  totalPages: number;
+}> {
+  return requestJson(`/api/v1/inventory/reservations?${listQuery(params)}`, {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+}
+
 export function mapInventoryErrorToMessage(code: string | undefined, status: number): string {
   switch (code) {
     case 'INVENTORY_DENIED':

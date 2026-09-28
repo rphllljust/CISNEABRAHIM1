@@ -15,7 +15,7 @@ import {
   assertInvoiceMatchesRelatedUnit,
 } from '../domain/supplier-invoice';
 import type { GoodsReceiptRow, SupplierPurchaseOrderRow } from '../serializers/procurement-response.serializer';
-import type { SupplierInvoiceRow } from '../serializers/supplier-invoice-response.serializer';
+import type { SupplierInvoiceRow, SupplierInvoiceListRow } from '../serializers/supplier-invoice-response.serializer';
 
 const INVOICE_RETURNING = `
   id, unit_id, supplier_id, invoice_number, issued_on::text AS issued_on, due_date::text AS due_date,
@@ -60,6 +60,40 @@ export class SupplierInvoiceRepository {
       [idempotencyKey],
     );
     return result.rows[0] ?? null;
+  }
+
+  /**
+   * Página de notas sob o MESMO predicado da contagem. A consulta NÃO junta `pty.suppliers`: a
+   * referência humana do fornecedor é composta pelo serviço, via port, depois da leitura. O filtro
+   * por termo de fornecedor chega aqui já resolvido em ids (`supplierIds`).
+   */
+  async listPage(input: {
+    whereClause: string;
+    params: unknown[];
+    limit: number;
+    offset: number;
+  }): Promise<SupplierInvoiceListRow[]> {
+    const result = await this.pool().query<SupplierInvoiceListRow>(
+      `SELECT i.id, i.unit_id, i.supplier_id, i.invoice_number, i.issued_on::text AS issued_on,
+              i.due_date::text AS due_date, i.currency_code, i.total_amount::text AS total_amount,
+              i.status::text AS status, i.version, i.payable_id, i.supplier_purchase_order_id,
+              i.created_at
+       FROM prc.supplier_invoices i
+       WHERE ${input.whereClause}
+       ORDER BY i.created_at DESC, i.id DESC
+       LIMIT $${input.params.length + 1}
+       OFFSET $${input.params.length + 2}`,
+      [...input.params, input.limit, input.offset],
+    );
+    return result.rows;
+  }
+
+  async countList(whereClause: string, params: unknown[]): Promise<number> {
+    const result = await this.pool().query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total FROM prc.supplier_invoices i WHERE ${whereClause}`,
+      params,
+    );
+    return Number(result.rows[0]?.total ?? '0');
   }
 
   async findOrderById(orderId: string): Promise<SupplierPurchaseOrderRow | null> {

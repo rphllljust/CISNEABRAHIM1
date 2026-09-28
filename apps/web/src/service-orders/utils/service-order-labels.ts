@@ -35,6 +35,26 @@ const HISTORY_EVENT_LABELS: Record<string, string> = {
   RECORDED: 'Registro de execução',
 };
 
+/**
+ * Origens reais da OS, espelhando `SERVICE_ORDER_ORIGINS` do backend
+ * (`apps/api/src/service-orders/domain/service-order.ts`). Nenhuma origem e inventada aqui,
+ * e origem desconhecida nao recebe rotulo.
+ */
+const ORIGIN_LABELS: Record<string, string> = {
+  SERVICE_REQUEST: 'Solicitação de serviço',
+  PROPOSAL: 'Proposta',
+  PURCHASE_ORDER: 'Pedido de compra',
+  AUTHORIZED_DIRECT: 'Autorizada diretamente',
+};
+
+/** Rotulo humano da origem; `null` quando a origem nao tem traducao conhecida. */
+export function formatServiceOrderOrigin(origin: string | null | undefined): string | null {
+  if (typeof origin !== 'string') {
+    return null;
+  }
+  return ORIGIN_LABELS[origin] ?? null;
+}
+
 const CHANGED_FIELD_LABELS: Record<string, string> = {
   plannedQuantity: 'quantidade planejada',
   operationalStart: 'início operacional',

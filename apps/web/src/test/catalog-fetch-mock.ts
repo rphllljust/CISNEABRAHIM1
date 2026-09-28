@@ -81,6 +81,12 @@ export function createCatalogFetchMock(options: CatalogFetchMockOptions = {}) {
   const definition: ServiceDefinition = {
     id: definitionId,
     code: 'LOCACAO-DEMO',
+    name: 'Locação de automóveis sem condutor',
+    nameVersion: 1,
+    nameVersionStatus: VERSION_STATUSES.Published,
+    categoryId: MOCK_CATEGORY_ID,
+    categoryCode: 'LOCACAO',
+    categoryName: 'Locação',
     status: CATALOG_LINEAGE_STATUSES.Active,
     version: lineageVersion,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -151,8 +157,15 @@ export function createCatalogFetchMock(options: CatalogFetchMockOptions = {}) {
         if (!listAllowed) {
           return catalogError('CATALOG_DENIED', 403);
         }
+        // O mock resolve a busca no SERVIDOR (nome ou code), como o backend real: filtrar so a
+        // pagina atual faria o teste passar mesmo se o termo nunca fosse enviado.
+        const term = (searchParams.get('q') ?? '').trim().toLowerCase();
+        const matches =
+          term.length === 0 ||
+          definition.code.toLowerCase().includes(term) ||
+          (definition.name ?? '').toLowerCase().includes(term);
         return jsonResponse({
-          items: [definition],
+          items: matches ? [definition] : [],
           limit: Number(searchParams.get('limit') ?? '20'),
           offset: Number(searchParams.get('offset') ?? '0'),
         });

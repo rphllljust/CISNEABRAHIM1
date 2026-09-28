@@ -1,7 +1,7 @@
 import { isValidCnpjFormat, normalizeCnpj } from '../../clients/domain/cnpj';
 import { ADDRESS_PURPOSES, CONTACT_PURPOSES } from '../../clients/domain/client-status';
 import { assertCurrencyCode } from '../../platform/kernel/money-math';
-import { SupplierError } from './supplier';
+import { SupplierError, SUPPLIER_STATUSES, type SupplierStatus } from './supplier';
 
 export type SupplierContactInput = {
   name: string;
@@ -105,6 +105,10 @@ export function assertDeactivationReason(reason: string | undefined): void {
   if (!isNonEmptyString(reason)) {
     throw new SupplierError('SUPPLIER_INVALID');
   }
+}
+
+export function isSupplierStatus(value: string): value is SupplierStatus {
+  return value === SUPPLIER_STATUSES.Active || value === SUPPLIER_STATUSES.Inactive;
 }
 
 export { ADDRESS_PURPOSES, CONTACT_PURPOSES };

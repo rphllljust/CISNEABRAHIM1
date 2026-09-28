@@ -63,7 +63,7 @@ export function ServiceRequestCreatePage() {
             if (!current) {
               return null;
             }
-            return { id: item.id, versionId: current.id, label: `${current.code} v${current.version}` };
+            return { id: item.id, versionId: current.id, label: current.name };
           }),
         );
         if (!controller.signal.aborted) {
@@ -80,8 +80,8 @@ export function ServiceRequestCreatePage() {
 
   if (capabilitiesLoading) {
     return (
-      <main id="main-content" className="shell-page">
-        <p aria-busy="true" aria-live="polite">
+      <main id="main-content" className="shell-page requests-page">
+        <p className="text-sm text-gray-500" aria-busy="true" aria-live="polite">
           Verificando permissões…
         </p>
       </main>
@@ -90,10 +90,14 @@ export function ServiceRequestCreatePage() {
 
   if (!capabilities.canCreate) {
     return (
-      <main id="main-content" className="shell-page">
-        <h1>Nova solicitação</h1>
-        <p role="alert">Você não tem permissão para registrar solicitações.</p>
-        <Link to="/app/requests">Voltar à lista</Link>
+      <main id="main-content" className="shell-page requests-page">
+        <h1 className="m-0 text-2xl font-semibold tracking-tight text-gray-900">Nova solicitação</h1>
+        <p className="text-sm text-red-700" role="alert">
+          Você não tem permissão para registrar solicitações.
+        </p>
+        <Link className="button-link button-secondary" to="/app/requests">
+          Voltar à lista
+        </Link>
       </main>
     );
   }
@@ -134,7 +138,15 @@ export function ServiceRequestCreatePage() {
   return (
     <main id="main-content" className="shell-page requests-page">
       <header className="requests-page__header">
-        <h1>Nova solicitação</h1>
+        <div className="min-w-0">
+          <h1 className="m-0 text-2xl font-semibold tracking-tight text-gray-900">
+            Nova solicitação
+          </h1>
+          <p className="mt-1 max-w-3xl text-sm text-gray-500">
+            Registra a demanda recebida com a origem, o Cliente ou contato externo e o serviço que
+            deve atendê-la.
+          </p>
+        </div>
       </header>
       <ServiceRequestForm
         mode="create"

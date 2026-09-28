@@ -142,6 +142,38 @@ export class PayablesRepository {
     return result.rows;
   }
 
+  /**
+   * Leitura EM LOTE dos filhos de uma listagem — mesmo desenho do equivalente de recebiveis:
+   * uma query por colecao em vez de uma por linha, preservando a ordenacao por linha.
+   */
+  async listInstallmentsByPayableIds(payableIds: string[]): Promise<PayableInstallmentRow[]> {
+    if (payableIds.length === 0) {
+      return [];
+    }
+    const result = await this.pool().query<PayableInstallmentRow>(
+      `SELECT ${INSTALLMENT_RETURNING}
+       FROM fin.payable_installments
+       WHERE payable_id = ANY($1::uuid[])
+       ORDER BY payable_id, installment_number`,
+      [payableIds],
+    );
+    return result.rows;
+  }
+
+  async listPaymentsByPayableIds(payableIds: string[]): Promise<PaymentRow[]> {
+    if (payableIds.length === 0) {
+      return [];
+    }
+    const result = await this.pool().query<PaymentRow>(
+      `SELECT ${PAYMENT_RETURNING}
+       FROM fin.payments
+       WHERE payable_id = ANY($1::uuid[])
+       ORDER BY payable_id, paid_at, created_at`,
+      [payableIds],
+    );
+    return result.rows;
+  }
+
   async openOnClient(
     client: PoolClient,
     input: OpenPayablePersistenceInput,

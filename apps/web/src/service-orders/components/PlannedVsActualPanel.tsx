@@ -1,3 +1,4 @@
+import { StatusBadge } from '../../ui/StatusBadge';
 import type { ExecutionFactsComparison, ExecutionPeriodFactRow } from '../types/service-order-execution.types';
 import { formatDateTime } from '../utils/service-order-labels';
 
@@ -82,7 +83,12 @@ export function PlannedVsActualPanel({ comparison }: PlannedVsActualPanelProps) 
                     <td>{row.unitCode}</td>
                     <td>{formatQuantity(row.plannedQuantity)}</td>
                     <td>{row.actualQuantity}</td>
-                    <td>{divergent ? 'Divergente' : 'Alinhado'}</td>
+                    <td>
+                      <StatusBadge
+                        label={divergent ? 'Divergente' : 'Alinhado'}
+                        tone={divergent ? 'warning' : 'success'}
+                      />
+                    </td>
                   </tr>
                 );
               })

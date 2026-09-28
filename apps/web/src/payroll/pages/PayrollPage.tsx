@@ -1,7 +1,8 @@
-import { useCallback, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Alert, EmptyState, ErrorState, Field, Input, Money, Select } from '../../ui';
 import {
+  FilterCard,
   ModulePage,
   ModulePageHeader,
   ModuleTableCard,
@@ -13,14 +14,22 @@ import {
 } from '../../ui/module-layout';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { CreateRecordForm, VersionedActionForm } from '../../financial-ui/VersionedActionForm';
+import { HumanLookupField } from '../../financial-ui/HumanLookupField';
 import { PAYROLL_PERIOD_STATUS_LABELS } from '../../financial-ui/labels';
-import { RecordLookupCard } from '../../financial-ui/RecordLookupCard';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import { BackofficeCapabilityRoute } from '../../financial-ui/BackofficeCapabilityRoute';
 import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge';
+import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
 import { isIdempotentAck } from '../utils/is-idempotent-ack';
 import { periodActionsForStatus } from '../utils/period-action-state';
+import {
+  formatPayrollCompetence,
+  knownEmploymentContractLabel,
+  searchEmploymentContractOptions,
+  searchPayrollPeriodOptions,
+  usePayrollDirectoryVersion,
+} from '../utils/payroll-directory';
 import {
   calculatePayrollPeriod,
   closePayrollPeriod,
@@ -41,6 +50,16 @@ const CALCULATE_DESCRIPTION =
 const CLOSE_DESCRIPTION = 'Fechamento exige checker distinto.';
 const REOPEN_DESCRIPTION = 'Reabertura segue SOD no backend.';
 
+/**
+ * DIRETÓRIO DA API (fato registrado, não decisão de engenharia): a API de folha deste release só
+ * endereça período por `GET /api/v1/payroll/periods/:periodId` (UUID) e cria contrato por
+ * `POST /api/v1/payroll/contracts`. Não existe `GET /payroll/periods?unitId=` nem
+ * `GET /payroll/contracts`, e nenhum endpoint de folha devolve código/nome do contrato dentro do
+ * resultado calculado. Por isso a descoberta humana oferecida aqui é a que a API permite hoje:
+ * unidade escolhida de uma lista real e período/contrato buscados entre os que já foram devolvidos
+ * pelo servidor nesta sessão — nunca por identificador digitado.
+ */
+
 export function PayrollRoute({ children }: { children: ReactNode }) {
   return (
     <BackofficeCapabilityRoute probe={probePayrollReadAccess} capabilityId="payroll:period:read">
@@ -54,7 +73,10 @@ export function PayrollPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const unitFromQuery = searchParams.get('unitId') ?? '';
-  const [lookupId, setLookupId] = useState(periodId ?? '');
+  // A unidade é escolha humana: a mesma lista de unidades operacionais do usuário usada por
+  // fiscal e contabilidade, em vez de um campo livre com identificador.
+  const { units, unitId: defaultUnitId } = useOperationalUnits();
+  const directoryVersion = usePayrollDirectoryVersion();
   const [unitId, setUnitId] = useState(unitFromQuery);
   const [code, setCode] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -69,6 +91,14 @@ export function PayrollPage() {
   const [description, setDescription] = useState('');
   const [contractNotice, setContractNotice] = useState<string | null>(null);
   const [eventIdempotentNotice, setEventIdempotentNotice] = useState(false);
+
+  // Link profundo sem unidade não obriga o operador a digitar nada: a primeira unidade visível
+  // para ele é selecionada, como já acontece nas listas de fiscal e contabilidade.
+  useEffect(() => {
+    if (!unitId && defaultUnitId) {
+      setUnitId(defaultUnitId);
+    }
+  }, [defaultUnitId, unitId]);
 
   const loader = useCallback(
     (signal?: AbortSignal) => getPayrollPeriod(periodId ?? '', unitId, signal),
@@ -90,6 +120,33 @@ export function PayrollPage() {
     enabled: Boolean(periodId && unitId && state.phase === 'ready'),
     autoLoad: Boolean(periodId && unitId && state.phase === 'ready'),
   });
+  /*
+   * Escolher outro período na busca humana (ou trocar a unidade) muda a chave do que está na tela
+   * SEM remontar a página. O hook compartilhado carrega uma vez por `enabled`, então sem este
+   * efeito o operador veria dados do período/unidade anterior até recarregar a página. Aqui a troca
+   * de chave recarrega o período e, em seguida, os resultados.
+   */
+  const loadKey = periodId && unitId ? `${unitId}::${periodId}` : '';
+  const loadedKeyRef = useRef('');
+  const resultsReloadRef = useRef<() => Promise<void>>(async () => undefined);
+  resultsReloadRef.current = () => results.reload();
+
+  useEffect(() => {
+    if (!loadKey) {
+      loadedKeyRef.current = '';
+      return;
+    }
+    if (loadedKeyRef.current === loadKey) {
+      return;
+    }
+    const isFirstLoad = loadedKeyRef.current === '';
+    loadedKeyRef.current = loadKey;
+    if (isFirstLoad) {
+      // A primeira carga é do carregamento automático do hook, que já enxerga `enabled`.
+      return;
+    }
+    void reload().then(() => resultsReloadRef.current());
+  }, [loadKey, reload]);
   const gate =
     periodId && unitId
       ? renderQueryGate(
@@ -104,6 +161,16 @@ export function PayrollPage() {
     state.phase === 'ready' ? state.data.status : '',
     { hasUnitId: unitId.trim() !== '' },
   );
+  const loadedPeriodLabel =
+    state.phase === 'ready' ? formatPayrollCompetence(state.data) : undefined;
+
+  function openPeriod(nextPeriodId: string): void {
+    if (!nextPeriodId) {
+      return;
+    }
+    const query = unitId ? `?unitId=${encodeURIComponent(unitId)}` : '';
+    void navigate(`/app/payroll/periods/${nextPeriodId}${query}`);
+  }
 
   return (
     <ModulePage>
@@ -111,21 +178,48 @@ export function PayrollPage() {
         title="Folha"
         description="Cálculo e fechamento são do servidor. Fórmulas oficiais permanecem indecisas."
       />
-      <RecordLookupCard
-        fieldId="payroll-period-id"
-        label="Identificador do período"
-        value={lookupId}
-        onChange={setLookupId}
-        onSubmit={() =>
-          void navigate(`/app/payroll/periods/${lookupId.trim()}?unitId=${encodeURIComponent(unitId.trim())}`)
-        }
-        submitLabel="Consultar"
-        loading={state.phase === 'loading'}
-      >
-        <Field label="Unidade" htmlFor="payroll-unit">
-          <Input id="payroll-unit" value={unitId} onChange={(event) => setUnitId(event.target.value)} />
-        </Field>
-      </RecordLookupCard>
+      <FilterCard>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <Field
+            label="Unidade"
+            htmlFor="payroll-unit"
+            required
+            hint="Unidades operacionais visíveis para o seu usuário."
+          >
+            <Select
+              id="payroll-unit"
+              value={unitId}
+              onChange={(event) => setUnitId(event.target.value)}
+            >
+              <option value="">Selecione a unidade</option>
+              {units.map((unit) => (
+                <option key={unit} value={unit}>
+                  {unit}
+                </option>
+              ))}
+              {unitId && !units.includes(unitId) ? <option value={unitId}>{unitId}</option> : null}
+            </Select>
+          </Field>
+          <HumanLookupField
+            key={`payroll-period-lookup-${directoryVersion}`}
+            label="Período de folha"
+            htmlFor="payroll-period-lookup"
+            hint="Busque por competência (MM/AAAA), status, unidade ou vigência."
+            placeholder="Competência, status ou unidade"
+            search={(term) => Promise.resolve(searchPayrollPeriodOptions(term))}
+            value={periodId ?? ''}
+            initialLabel={loadedPeriodLabel}
+            onChange={openPeriod}
+            emptyOptionLabel="Selecione o período"
+            emptyMessage="Nenhum período alcançado nesta sessão. Abra um período abaixo — a API ainda não lista períodos por unidade."
+          />
+        </div>
+        <p className="mt-3 text-xs text-gray-500">
+          A API de folha ainda não expõe lista de períodos por unidade nem de contratos. Esta busca
+          oferece o que o servidor já devolveu nesta sessão: períodos abertos ou consultados e
+          contratos cadastrados aqui. Nenhum identificador técnico é digitado.
+        </p>
+      </FilterCard>
       <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div>
           <CreateRecordForm
@@ -146,7 +240,9 @@ export function PayrollPage() {
               setDisplayName('');
               setStartsOn('');
               setEndsOn('');
-              setContractNotice('Contrato cadastrado com sucesso. O servidor devolveu o novo contrato.');
+              setContractNotice(
+                'Contrato cadastrado com sucesso. O servidor devolveu o novo contrato e ele já aparece na busca de contratos ao lançar um evento.',
+              );
             }}
           >
             <Field label="Código" htmlFor="contract-code" required>
@@ -181,7 +277,10 @@ export function PayrollPage() {
               startsOn: startsOn.trim(),
               endsOn: endsOn.trim(),
             });
-            void navigate(`/app/payroll/periods/${created.id}?unitId=${encodeURIComponent(unitId.trim())}`);
+            setYear('');
+            setMonth('');
+            const query = unitId ? `?unitId=${encodeURIComponent(unitId)}` : '';
+            void navigate(`/app/payroll/periods/${created.id}${query}`);
           }}
         >
           <Field label="Ano" htmlFor="pay-year" required>
@@ -192,53 +291,70 @@ export function PayrollPage() {
           </Field>
         </CreateRecordForm>
       </div>
-      <CreateRecordForm
-        title="Lançar evento"
-        description="Tipos aceitos: EARNING, DEDUCTION, EMPLOYER_CHARGE. A fórmula oficial não é inventada."
-        submitLabel="Registrar evento"
-        mapError={mapPayrollErrorToMessage}
-        onConflictReload={() => {
-          if (periodId && unitId.trim()) {
-            void reload();
-          }
-        }}
-        onSubmit={async (idempotencyKey) => {
-          setEventIdempotentNotice(false);
-          const recorded = await recordPayrollEvent({
-            unitId: unitId.trim(),
-            payrollPeriodId: (periodId ?? lookupId).trim(),
-            employmentContractId: contractId.trim(),
-            eventKind,
-            amount: amount.trim(),
-            componentLabel: componentLabel.trim(),
-            description: description.trim(),
-            idempotencyKey,
-          });
-          if (isIdempotentAck(recorded)) {
-            setEventIdempotentNotice(true);
-          }
-        }}
-      >
-        <Field label="Contrato" htmlFor="event-contract" required>
-          <Input id="event-contract" value={contractId} onChange={(event) => setContractId(event.target.value)} required />
-        </Field>
-        <Field label="Tipo" htmlFor="event-kind" required>
-          <Select id="event-kind" value={eventKind} onChange={(event) => setEventKind(event.target.value)}>
-            <option value="EARNING">Provento</option>
-            <option value="DEDUCTION">Desconto</option>
-            <option value="EMPLOYER_CHARGE">Encargo</option>
-          </Select>
-        </Field>
-        <Field label="Valor" htmlFor="event-amount" required>
-          <Input id="event-amount" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} required />
-        </Field>
-        <Field label="Componente" htmlFor="event-label" required>
-          <Input id="event-label" value={componentLabel} onChange={(event) => setComponentLabel(event.target.value)} required />
-        </Field>
-        <Field label="Descrição" htmlFor="event-desc" required className="md:col-span-2">
-          <Input id="event-desc" value={description} onChange={(event) => setDescription(event.target.value)} required />
-        </Field>
-      </CreateRecordForm>
+      {periodId ? (
+        <CreateRecordForm
+          title="Lançar evento"
+          description="Tipos aceitos: EARNING, DEDUCTION, EMPLOYER_CHARGE. A fórmula oficial não é inventada."
+          submitLabel="Registrar evento"
+          mapError={mapPayrollErrorToMessage}
+          onConflictReload={() => {
+            if (periodId && unitId.trim()) {
+              void reload();
+            }
+          }}
+          onSubmit={async (idempotencyKey) => {
+            setEventIdempotentNotice(false);
+            const recorded = await recordPayrollEvent({
+              unitId: unitId.trim(),
+              payrollPeriodId: (periodId ?? '').trim(),
+              employmentContractId: contractId.trim(),
+              eventKind,
+              amount: amount.trim(),
+              componentLabel: componentLabel.trim(),
+              description: description.trim(),
+              idempotencyKey,
+            });
+            if (isIdempotentAck(recorded)) {
+              setEventIdempotentNotice(true);
+            }
+          }}
+        >
+          <HumanLookupField
+            key={`payroll-contract-lookup-${directoryVersion}`}
+            label="Contrato de trabalho"
+            htmlFor="event-contract"
+            required
+            hint="Busque por código ou nome do contrato."
+            placeholder="Código ou nome do contrato"
+            search={(term) => Promise.resolve(searchEmploymentContractOptions(term))}
+            value={contractId}
+            onChange={setContractId}
+            emptyOptionLabel="Selecione o contrato"
+            emptyMessage="Nenhum contrato alcançado nesta sessão. Cadastre um contrato acima — a API ainda não lista contratos."
+          />
+          <Field label="Tipo" htmlFor="event-kind" required>
+            <Select id="event-kind" value={eventKind} onChange={(event) => setEventKind(event.target.value)}>
+              <option value="EARNING">Provento</option>
+              <option value="DEDUCTION">Desconto</option>
+              <option value="EMPLOYER_CHARGE">Encargo</option>
+            </Select>
+          </Field>
+          <Field label="Valor" htmlFor="event-amount" required>
+            <Input id="event-amount" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} required />
+          </Field>
+          <Field label="Componente" htmlFor="event-label" required>
+            <Input id="event-label" value={componentLabel} onChange={(event) => setComponentLabel(event.target.value)} required />
+          </Field>
+          <Field label="Descrição" htmlFor="event-desc" required className="md:col-span-2">
+            <Input id="event-desc" value={description} onChange={(event) => setDescription(event.target.value)} required />
+          </Field>
+        </CreateRecordForm>
+      ) : (
+        <p className="mb-6 text-sm text-gray-500">
+          Escolha um período de folha na busca acima ou abra um novo período para lançar eventos. O
+          vínculo do evento exige um período carregado do servidor.
+        </p>
+      )}
       {eventIdempotentNotice ? (
         <Alert tone="info" role="status" title="Evento já registrado anteriormente" className="mb-6">
           Este evento já havia sido registrado (resposta idempotente do servidor). Nenhuma duplicata foi criada.
@@ -246,7 +362,10 @@ export function PayrollPage() {
       ) : null}
       {gate}
       {!periodId ? (
-        <EmptyState title="Nenhum período carregado" description="Abra um período ou consulte pelo identificador e unidade." />
+        <EmptyState
+          title="Nenhum período carregado"
+          description="Escolha um período já alcançado na busca por competência ou abra um novo período para começar."
+        />
       ) : null}
       {state.phase === 'ready' ? (
         <>
@@ -257,7 +376,7 @@ export function PayrollPage() {
                   label: 'Status',
                   value: <FinanceStatusBadge status={state.data.status} labels={PAYROLL_PERIOD_STATUS_LABELS} />,
                 },
-                { label: 'Competência', value: `${state.data.competenceMonth}/${state.data.competenceYear}` },
+                { label: 'Competência', value: formatPayrollCompetence(state.data) },
                 { label: 'Versão', value: String(state.data.rowVersion) },
               ]}
             />
@@ -316,7 +435,16 @@ export function PayrollPage() {
                   <tbody>
                     {results.state.data.map((row) => (
                       <tr key={row.id} className={moduleTableRowClass}>
-                        <td className={moduleTableCellClass}>{row.employmentContractId}</td>
+                        {/*
+                          O resultado calculado devolve apenas o identificador do contrato. Quando o
+                          contrato já foi alcançado nesta sessão, mostramos código e nome; quando não,
+                          o identificador continua visível porque é o único dado que a API devolveu —
+                          não inventamos um rótulo para ele.
+                        */}
+                        <td className={moduleTableCellClass}>
+                          {knownEmploymentContractLabel(row.employmentContractId) ??
+                            row.employmentContractId}
+                        </td>
                         <td className={`${moduleTableCellClass} text-right`}>
                           <Money value={row.earningTotal} />
                         </td>

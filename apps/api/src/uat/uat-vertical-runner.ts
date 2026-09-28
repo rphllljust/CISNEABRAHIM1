@@ -64,6 +64,7 @@ export type UatVerticalServices = {
 export function resolveResourceType(action: string): string {
   if (action.startsWith('platform:')) return AUTHZ_RESOURCE_TYPES.Platform;
   if (action.startsWith('client:')) return AUTHZ_RESOURCE_TYPES.Client;
+  if (action.startsWith('supplier:')) return AUTHZ_RESOURCE_TYPES.Supplier;
   if (action.startsWith('people:')) return AUTHZ_RESOURCE_TYPES.PeoplePerson;
   if (action.startsWith('catalog:')) return AUTHZ_RESOURCE_TYPES.CatalogService;
   if (action.startsWith('commercial:proposal')) return AUTHZ_RESOURCE_TYPES.CommercialProposal;

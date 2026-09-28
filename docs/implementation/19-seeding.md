@@ -34,12 +34,20 @@ Requisito do responsável: os logins de desenvolvimento abaixo são **estáticos
 funcionar sempre com exatamente estas credenciais, sem geração em runtime e sem override por
 variável de ambiente.
 
-| Perfil | Login | Senha estática | Papel | Escopo | Acesso |
+| Perfil | Login | Senha (origem) | Papel | Escopo | Acesso |
 | ------ | ----- | -------------- | ----- | ------ | ------ |
-| Dono | `abrahim@cisne-rondonia.invalid` | `Cisne-Abrahim-2026!` | `OWNER` | GLOBAL | Amplo (263 capabilities) |
-| Dono | `monica@cisne-rondonia.invalid` | `Cisne-Monica-2026!` | `OWNER` | GLOBAL | Amplo (263 capabilities) |
-| Desenvolvedor | `rafael@cisne-rondonia.invalid` | `Cisne-Rafael-Dev-2026!` | `DEVELOPER` | GLOBAL | Amplo (263 capabilities) |
-| Empregado operacional | `empregado@cisne-rondonia.invalid` | `Cisne-Empregado-2026!` | `EMPREGADO` | GLOBAL + ASSIGNED | Mínimo (0 financeiro/contábil/fiscal) |
+| Dono | `abrahim@cisne-rondonia.invalid` | `DEV_PROFILE_OWNER_PASSWORD` | `OWNER` | GLOBAL | Amplo (263 capabilities) |
+| Dono | `monica@cisne-rondonia.invalid` | `DEV_PROFILE_MONICA_PASSWORD` | `OWNER` | GLOBAL | Amplo (263 capabilities) |
+| Desenvolvedor | `rafael@cisne-rondonia.invalid` | `DEV_PROFILE_DEVELOPER_PASSWORD` | `DEVELOPER` | GLOBAL | Amplo (263 capabilities) |
+| Empregado operacional | `empregado@cisne-rondonia.invalid` | `DEV_PROFILE_EMPLOYEE_PASSWORD` | `EMPREGADO` | GLOBAL + ASSIGNED | Mínimo (0 financeiro/contábil/fiscal) |
+
+**Redação de segredo (2026-09-27).** O valor literal destas senhas foi **removido do
+repositório**: credencial de homologação em texto plano vaza em qualquer clone. O requisito
+original permanece — estes logins precisam funcionar sempre com exatamente estes valores —,
+por isso a origem passa a ser o ambiente local (`.env`, gitignored; ver `.env.example`) e
+**não** existe default silencioso: sem a variável, `seed-profiles.mjs` e
+`repair-dev-login.mjs` falham alto em vez de semear um login diferente do esperado. A
+limpeza do histórico Git **não** faz parte desta redação.
 
 **Decisão registrada (2026-09-25).** `rafael@` é o **desenvolvedor com acesso global**, não o
 empregado operacional. Antes desta decisão o mesmo login era definido como "Desenvolvedor com

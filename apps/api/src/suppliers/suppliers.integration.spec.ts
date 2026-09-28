@@ -37,6 +37,7 @@ async function grantSupplierAdmin(pool: Pool, identityId: string, grantedBy: str
   const actions = [
     AUTHZ_ACTIONS.SupplierCreate,
     AUTHZ_ACTIONS.SupplierRead,
+    AUTHZ_ACTIONS.SupplierList,
     AUTHZ_ACTIONS.SupplierUpdate,
     AUTHZ_ACTIONS.SupplierDeactivate,
     AUTHZ_ACTIONS.SupplierActivate,
@@ -221,6 +222,63 @@ describe('Supplier master PostgreSQL integration', () => {
     const created = await supplierAccess.create(admin, supplierPayload());
     const stranger = await seedActor({ supplier: false });
     await expect(supplierAccess.getById(stranger, created.id)).rejects.toMatchObject({
+      code: SUPPLIER_ERROR_CODES.DENIED,
+    });
+  });
+
+  it('lists suppliers with human references, search, status filter and pagination', async () => {
+    const actor = await seedActor();
+    const alfa = await supplierAccess.create(
+      actor,
+      supplierPayload({ legalName: 'Alfa Servicos LTDA', taxId: '11222333000181' }),
+    );
+    await supplierAccess.create(
+      actor,
+      supplierPayload({ legalName: 'Beta Locacoes LTDA', taxId: '33444555000103' }),
+    );
+
+    const page = await supplierAccess.list(actor, { limit: 1, offset: 0 });
+    expect(page.total).toBe(2);
+    expect(page.totalPages).toBe(2);
+    expect(page.items).toHaveLength(1);
+    // A linha de lista identifica o fornecedor por referência humana, nunca por identificador.
+    expect(page.items[0]).toMatchObject({ legalName: 'Alfa Servicos LTDA', taxId: '11222333000181' });
+    expect(Object.keys(page.items[0] ?? {}).sort()).toEqual(
+      ['currencyCode', 'id', 'legalName', 'paymentTerms', 'status', 'taxId', 'tradeName', 'updatedAt', 'version'].sort(),
+    );
+
+    const secondPage = await supplierAccess.list(actor, { limit: 1, offset: 1 });
+    expect(secondPage.items[0]?.legalName).toBe('Beta Locacoes LTDA');
+
+    const searched = await supplierAccess.list(actor, { limit: 20, offset: 0, q: 'beta' });
+    expect(searched.total).toBe(1);
+    expect(searched.items[0]?.id).not.toBe(alfa.id);
+
+    const searchedByTaxId = await supplierAccess.list(actor, { limit: 20, offset: 0, q: '11222333' });
+    expect(searchedByTaxId.total).toBe(1);
+    expect(searchedByTaxId.items[0]?.id).toBe(alfa.id);
+
+    await supplierAccess.deactivate(actor, alfa.id, alfa.version, 'Encerramento');
+    const active = await supplierAccess.list(actor, { limit: 20, offset: 0, status: 'ACTIVE' });
+    expect(active.total).toBe(1);
+    expect(active.items[0]?.legalName).toBe('Beta Locacoes LTDA');
+    const inactive = await supplierAccess.list(actor, { limit: 20, offset: 0, status: 'INACTIVE' });
+    expect(inactive.items.map((item) => item.id)).toEqual([alfa.id]);
+  });
+
+  it('denies the list without the list grant', async () => {
+    const admin = await seedActor();
+    await supplierAccess.create(admin, supplierPayload());
+    const stranger = await seedActor({ supplier: false });
+    await insertGrant(pool, {
+      identityId: stranger.identityId,
+      action: AUTHZ_ACTIONS.SupplierRead,
+      resourceType: AUTHZ_RESOURCE_TYPES.Supplier,
+      scopeType: AUTHZ_SCOPES.Global,
+      grantedByIdentityId: stranger.identityId,
+    });
+    // Somente `read` não autoriza listar: a listagem exige a concessão de lista.
+    await expect(supplierAccess.list(stranger, { limit: 20, offset: 0 })).rejects.toMatchObject({
       code: SUPPLIER_ERROR_CODES.DENIED,
     });
   });

@@ -20,8 +20,9 @@ describe('service order planning flow e2e (frontend)', () => {
     window.history.pushState({}, '', `/app/service-orders/${MOCK_SERVICE_ORDER_ID}/planning`);
     render(<App />);
 
+    // Object page canonica: numero humano da OS como referencia visivel.
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /OS-2026-DEMO01/i })).toBeInTheDocument();
+      expect(screen.getAllByText('OS-2026-DEMO01').length).toBeGreaterThan(0);
     });
 
     expect(screen.getByRole('heading', { name: /resumo operacional/i })).toBeInTheDocument();

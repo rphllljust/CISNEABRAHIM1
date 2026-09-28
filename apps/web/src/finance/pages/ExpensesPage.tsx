@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { DateTime, EmptyState, Field, Input, Money } from '../../ui';
 import {
   ModulePage,
@@ -14,7 +14,6 @@ import {
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { CreateRecordForm, VersionedActionForm } from '../../financial-ui/VersionedActionForm';
 import { EXPENSE_STATUS_LABELS } from '../../financial-ui/labels';
-import { RecordLookupCard } from '../../financial-ui/RecordLookupCard';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import {
@@ -31,7 +30,6 @@ import type { ExpenseDetail } from '../types/finance.types';
 export function ExpensesPage() {
   const { expenseId } = useParams();
   const navigate = useNavigate();
-  const [lookupId, setLookupId] = useState(expenseId ?? '');
   const [unitId, setUnitId] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [costCenterId, setCostCenterId] = useState('');
@@ -69,16 +67,11 @@ export function ExpensesPage() {
         title="Despesas"
         description="Cadastro, envio e aprovação são decididos pelo backend. Totais não são recalculados no navegador."
       />
-      <RecordLookupCard
-        fieldId="expense-id"
-        label="Identificador da despesa"
-        value={lookupId}
-        onChange={setLookupId}
-        onSubmit={() => void navigate(`/app/finance/expenses/${lookupId.trim()}`)}
-        submitLabel="Consultar"
-        loading={state.phase === 'loading'}
-      />
-      <CreateRecordForm
+      <p className="mb-4 text-sm text-gray-500">
+        <Link className="font-semibold text-gray-700 hover:text-gray-900" to="/app/finance/expenses">
+          Voltar para a lista de despesas
+        </Link>
+      </p>      <CreateRecordForm
         title="Registrar despesa"
         description="Os campos são enviados ao servidor. O total é calculado pela API."
         submitLabel="Criar despesa"

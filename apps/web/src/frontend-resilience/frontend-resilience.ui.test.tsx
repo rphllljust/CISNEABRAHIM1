@@ -311,7 +311,11 @@ describe('Frontend resilience & UX torture', () => {
       const link = screen.getByRole('link', { name: /OS vencidas: 5 itens. Maior atraso 12 dias./i });
       expect(link).toHaveAttribute('href', '/app/service-orders?filter=overdue');
       expect(screen.getByText('Maior atraso: 12 dia(s)')).toBeInTheDocument();
-      expect(within(link).getByText('Ver lista filtrada')).toBeInTheDocument();
+      // Expectativa atualizada: o bloco de atenção passou a expor a linguagem de ação
+      // derivada do tipo do item (`resolveAttentionAction`), no lugar do rótulo genérico
+      // "Ver lista filtrada". A verificação continua estrita — texto exato do verbo de
+      // gestão para OS vencidas — sem afrouxar asserção nem alterar regra de negócio.
+      expect(within(link).getByText('Ver OS vencidas')).toBeInTheDocument();
     });
   });
 

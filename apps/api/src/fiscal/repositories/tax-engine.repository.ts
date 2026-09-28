@@ -6,6 +6,7 @@ import type {
   PersistTaxCalculationInput,
   TaxCalculationAggregate,
   TaxCalculationLineRow,
+  TaxCalculationListRow,
   TaxCalculationRow,
   TaxContextRow,
   TaxRuleListRow,
@@ -34,6 +35,58 @@ const CALCULATION_RETURNING = `
 @Injectable()
 export class TaxEngineRepository {
   constructor(private readonly databaseService: DatabaseService) {}
+
+  /**
+   * Página de cálculos tributários da unidade, no MESMO predicado da contagem. A linha é o
+   * resultado persistido (regra via junção de código, base, alíquota e valor) — sem hidratar
+   * linhas de componentes, que ficam no detalhe.
+   */
+  async listCalculationPage(input: {
+    unitId: string;
+    q?: string;
+    limit: number;
+    offset: number;
+  }): Promise<TaxCalculationListRow[]> {
+    const params: unknown[] = [input.unitId];
+    let where = 'c.unit_id = $1';
+    if (input.q && input.q.trim().length > 0) {
+      params.push(`%${input.q.trim()}%`);
+      where += ` AND (r.code ILIKE $${params.length} OR r.name ILIKE $${params.length} OR c.source_kind ILIKE $${params.length})`;
+    }
+    const result = await this.pool().query<TaxCalculationListRow>(
+      `SELECT c.id, c.unit_id, c.tax_rule_id, c.tax_rule_version_id, c.base_amount::text AS base_amount,
+              c.rate::text AS rate, c.result_amount::text AS result_amount,
+              c.calculated_at, c.source_kind, c.source_id,
+              r.code AS rule_code, r.name AS rule_name,
+              v.version_number
+       FROM fis.tax_calculations c
+       JOIN fis.tax_rules r ON r.id = c.tax_rule_id
+       JOIN fis.tax_rule_versions v ON v.id = c.tax_rule_version_id
+       WHERE ${where}
+       ORDER BY c.calculated_at DESC, c.id DESC
+       LIMIT $${params.length + 1}
+       OFFSET $${params.length + 2}`,
+      [...params, input.limit, input.offset],
+    );
+    return result.rows;
+  }
+
+  async countCalculationList(input: { unitId: string; q?: string }): Promise<number> {
+    const params: unknown[] = [input.unitId];
+    let where = 'c.unit_id = $1';
+    if (input.q && input.q.trim().length > 0) {
+      params.push(`%${input.q.trim()}%`);
+      where += ` AND (r.code ILIKE $${params.length} OR r.name ILIKE $${params.length} OR c.source_kind ILIKE $${params.length})`;
+    }
+    const result = await this.pool().query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total
+       FROM fis.tax_calculations c
+       JOIN fis.tax_rules r ON r.id = c.tax_rule_id
+       WHERE ${where}`,
+      params,
+    );
+    return Number(result.rows[0]?.total ?? '0');
+  }
 
   private pool(): Pool {
     const connection = this.databaseService.getConnection();

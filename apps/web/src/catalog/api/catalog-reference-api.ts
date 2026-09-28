@@ -22,9 +22,26 @@ export type LaborTypeOption = {
   status: string;
 };
 
+/**
+ * Opção de política comercial devolvida pelo servidor.
+ *
+ * `code` é o vocabulário canônico usado no payload. Os demais campos variam por endpoint e por
+ * política: preços devolvem `persistedCode`/`requiredUnitCode`/`impliedUnitCode` (e o código
+ * comercial já É a unidade exigida, ex.: `DAILY` → `DAY`); medição devolve a base e os modos
+ * compatíveis. Por isso tudo além de `code` é opcional — a UI mostra o contexto quando ele existe.
+ */
 export type PolicyOption = {
   code: string;
-  label: string;
+  /** Rótulo humano, quando o servidor informar; sem ele o `code` é o rótulo. */
+  label?: string;
+  persistedCode?: string;
+  requiredUnitCode?: string | null;
+  impliedUnitCode?: string | null;
+  description?: string | null;
+  basis?: string;
+  defaultMeasurementMode?: string;
+  compatibleMeasurementModes?: string[];
+  suggestedUnitCodes?: string[];
 };
 
 async function requestJson<T>(path: string, signal?: AbortSignal): Promise<T | null> {

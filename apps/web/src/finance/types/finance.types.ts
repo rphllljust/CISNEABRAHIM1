@@ -190,6 +190,38 @@ export type BankStatement = {
   lines: BankStatementLine[];
 };
 
+/**
+ * Resumo de extrato para a mesa de conciliação.
+ *
+ * Tudo aqui vem persistido pelo servidor: identidade, referência humana da conta, período, status
+ * e os totais agregados das linhas. O navegador não soma nem infere situação de conciliação.
+ */
+export type BankStatementSummary = {
+  id: string;
+  unitId: string;
+  financialAccountId: string;
+  financialAccount: { code: string; name: string; label: string };
+  sourceKind: string;
+  sourceReference: string;
+  periodStartsOn: string;
+  periodEndsOn: string;
+  currencyCode: string;
+  status: string;
+  lineCount: number;
+  matchedLineCount: number;
+  unreconciledLineCount: number;
+  debitTotal: string;
+  creditTotal: string;
+};
+
+export type BankStatementListResponse = {
+  items: BankStatementSummary[];
+  limit: number;
+  offset: number;
+  total: number;
+  totalPages: number;
+};
+
 export type ReconciliationMatch = {
   id: string;
   bankStatementId: string;

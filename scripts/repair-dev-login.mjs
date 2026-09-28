@@ -42,10 +42,27 @@ const {
  * atribuia as 263 actions ao papel do empregado, o sobre-privilegio continuava efetivo: em
  * 2026-09-25 o login do empregado respondia 200 em `/api/v1/authz/access-admin/*`.
  */
+/**
+ * O VALOR das senhas nao vive no codigo: credencial de homologacao em texto plano vaza em
+ * qualquer clone. O requisito de os logins funcionarem sempre com exatamente estes valores
+ * permanece — por isso nao ha default silencioso, e sem a variavel o script falha alto.
+ */
+function requireDevPassword(variableName) {
+  const value = process.env[variableName]?.trim();
+  if (!value) {
+    console.error(
+      `CONFIGURATION_ERROR: ${variableName} is required to repair the static development ` +
+        'logins. Set it in the local .env (gitignored); see .env.example.',
+    );
+    process.exit(1);
+  }
+  return value;
+}
+
 const STATIC_DEV_PROFILES = [
   {
     login: ABRAHIM_OWNER_LOGIN,
-    password: 'Cisne-Abrahim-2026!',
+    password: requireDevPassword('DEV_PROFILE_OWNER_PASSWORD'),
     roleCode: 'OWNER',
     roleLabel: 'Dono',
     roleDescription: 'Dono estático do CISNE com acesso global de desenvolvimento.',
@@ -53,7 +70,7 @@ const STATIC_DEV_PROFILES = [
   },
   {
     login: MONICA_OWNER_LOGIN,
-    password: 'Cisne-Monica-2026!',
+    password: requireDevPassword('DEV_PROFILE_MONICA_PASSWORD'),
     roleCode: 'OWNER',
     roleLabel: 'Dono',
     roleDescription: 'Dono estático do CISNE com acesso global de desenvolvimento.',
@@ -61,7 +78,7 @@ const STATIC_DEV_PROFILES = [
   },
   {
     login: RAFAEL_DEVELOPER_LOGIN,
-    password: 'Cisne-Rafael-Dev-2026!',
+    password: requireDevPassword('DEV_PROFILE_DEVELOPER_PASSWORD'),
     roleCode: 'DEVELOPER',
     roleLabel: 'Desenvolvedor',
     roleDescription: 'Desenvolvedor estático do CISNE com acesso global de desenvolvimento.',
@@ -69,7 +86,7 @@ const STATIC_DEV_PROFILES = [
   },
   {
     login: EMPREGADO_LOGIN,
-    password: 'Cisne-Empregado-2026!',
+    password: requireDevPassword('DEV_PROFILE_EMPLOYEE_PASSWORD'),
     roleCode: null,
     roleLabel: null,
     roleDescription: null,

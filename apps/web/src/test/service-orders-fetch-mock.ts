@@ -65,6 +65,8 @@ export type ServiceOrdersFetchMockOptions = {
   preparedPaymentTerms?: string;
   /** Eventos de historico devolvidos pelo detalhe da OS (linha do tempo). */
   orderHistoryEvents?: Array<Record<string, unknown>>;
+  /** Operations Control Center devolvido pelo detalhe da OS (projecao do backend). */
+  controlCenter?: import('../service-orders/types/service-order.types').ServiceOrderControlCenter;
   /** Comparacao planejado x realizado devolvida pelo bundle de execucao. */
   executionComparison?: Record<string, unknown>;
 };
@@ -209,6 +211,8 @@ export function createServiceOrdersFetchMock(options: ServiceOrdersFetchMockOpti
     releasedAt: string | null;
     cancelledAt: string | null;
     updatedAt: string;
+    /** Operations Control Center devolvido pelo detalhe da OS (projecao do backend). */
+    controlCenter?: import('../service-orders/types/service-order.types').ServiceOrderControlCenter;
     purchaseOrderSnapshot?: Record<string, unknown> | null;
     proposalSnapshot?: Record<string, unknown> | null;
     contractSnapshot?: Record<string, unknown> | null;
@@ -317,6 +321,34 @@ export function createServiceOrdersFetchMock(options: ServiceOrdersFetchMockOpti
       statusBeforeCancel: null,
       updatedAt: '2026-01-01T10:00:00.000Z',
       historyEvents: options.orderHistoryEvents ?? [],
+      controlCenter: options.controlCenter ?? {
+        progression: [
+          { code: 'DEMAND', state: 'DONE', at: '2026-01-01T07:00:00.000Z', detail: 'Ordem criada diretamente', ownerStatus: 'RELEASED' },
+          { code: 'PLANNING', state: 'DONE', at: '2026-01-01T08:00:00.000Z', detail: '1 recurso(s) planejado(s)', ownerStatus: 'RELEASED' },
+          { code: 'RELEASE', state: 'DONE', at: '2026-01-01T09:00:00.000Z', detail: null, ownerStatus: 'RELEASED' },
+          { code: 'EXECUTION', state: 'CURRENT', at: null, detail: 'Nenhum apontamento registrado', ownerStatus: 'RELEASED' },
+          { code: 'COMPLETION', state: 'PENDING', at: null, detail: null, ownerStatus: 'RELEASED' },
+          { code: 'MEASUREMENT', state: 'PENDING', at: null, detail: null, ownerStatus: null },
+          { code: 'BILLING', state: 'PENDING', at: null, detail: null, ownerStatus: null },
+        ],
+        plannedVsActual: {
+          plannedResources: 1,
+          activeAllocations: 1,
+          executionEntries: 0,
+          executedQuantityTotal: null,
+          divergences: [],
+        },
+        downstream: {
+          measurement: { count: 0, status: null, createdAt: null },
+          billing: { count: 0, status: null, createdAt: null, totalAmount: null, currencyCode: null },
+        },
+        nextAction: {
+          step: 'START_EXECUTION',
+          transition: 'start',
+          availableTransitions: ['start', 'cancel'],
+          blockers: [],
+        },
+      },
     };
   }
 

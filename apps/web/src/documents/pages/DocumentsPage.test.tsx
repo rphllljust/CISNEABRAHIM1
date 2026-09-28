@@ -168,6 +168,27 @@ describe('DocumentsPage', () => {
     expect(screen.queryByText('Contrato assinado')).not.toBeInTheDocument();
   });
 
+  it('opens the archive straight into the type carried in the URL, so the recorte is shareable', async () => {
+    const { mock, documents } = createPageFetchMock();
+    seed(documents, 1, UAT_TITLE, DOCUMENT_CATEGORIES.Evidence);
+    seed(documents, 2, 'Contrato assinado', DOCUMENT_CATEGORIES.General);
+    vi.stubGlobal('fetch', mock);
+
+    // A visao embutida "Evidencias" fixa ?categoryCode=EVIDENCE: abrir o link precisa cair
+    // no acervo ja recortado, sem o operador refazer o filtro na mao.
+    renderWithProviders(
+      <Routes>
+        <Route path="/app/documents" element={<DocumentsPage />} />
+      </Routes>,
+      { router: { initialEntries: [`/app/documents?categoryCode=${DOCUMENT_CATEGORIES.Evidence}`] } },
+    );
+
+    await waitFor(() => {
+      expect(listQueries(mock).some((params) => params.get('categoryCode') === 'EVIDENCE')).toBe(true);
+    });
+    expect(screen.getByRole('combobox', { name: 'Tipo' })).toHaveValue('EVIDENCE');
+  });
+
   it('distinguishes an empty catalogue from a search without results, and offers a way back', async () => {
     // Escopo sem NENHUM documento. O mock da plataforma semeia um documento por padrao, entao a
     // listagem vazia e declarada explicitamente em vez de presumida.

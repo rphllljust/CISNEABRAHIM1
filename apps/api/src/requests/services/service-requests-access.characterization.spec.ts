@@ -69,17 +69,27 @@ describe('ServiceRequestsAccessService characterization (orchestration)', () => 
     findByIdempotencyKey: vi.fn(),
     listDocumentLinks: vi.fn(),
     listHistoryEvents: vi.fn(),
+    findLinkedChain: vi.fn(),
+    listClientLabels: vi.fn(),
+    listServiceLabels: vi.fn(),
+    listOperationalUnits: vi.fn(),
     isUnitRegistered: vi.fn(),
     create: vi.fn(),
     isIdempotencyViolation: vi.fn(),
     findById: vi.fn(),
     transition: vi.fn(),
     listServiceRequests: vi.fn(),
+    countListSummary: vi.fn(),
   };
   const authz = {
     assertRecordAction: vi.fn(),
     assertCreateAction: vi.fn(),
+    assertListAction: vi.fn(),
+    canPerformRecordAction: vi.fn(),
     findListGrants: vi.fn(),
+    filterAuthorizedClientIds: vi.fn(),
+    filterAuthorizedLinkedChain: vi.fn(),
+    canReadCatalogService: vi.fn(),
   };
   const referenceValidation = {
     assertActiveClient: vi.fn(),
@@ -98,6 +108,21 @@ describe('ServiceRequestsAccessService characterization (orchestration)', () => 
   beforeEach(() => {
     vi.clearAllMocks();
     repository.listHistoryEvents.mockResolvedValue([]);
+    /**
+     * Colaboradores que a especificação de caracterização precisa repor para casar com a
+     * orquestração vigente: a cadeia vinculada e o filtro de clientes autorizados foram
+     * introduzidos depois desta especificação. Os valores padrão são neutros (sem elo, sem
+     * cliente autorizado, sem catálogo legível) — nenhuma asserção é afrouxada por isso.
+     */
+    repository.findLinkedChain.mockResolvedValue([]);
+    repository.listClientLabels.mockResolvedValue([]);
+    repository.listServiceLabels.mockResolvedValue(new Map());
+    repository.listOperationalUnits.mockResolvedValue([]);
+    repository.countListSummary.mockResolvedValue(0);
+    authz.filterAuthorizedClientIds.mockResolvedValue(new Set<string>());
+    authz.filterAuthorizedLinkedChain.mockResolvedValue(new Set<string>());
+    authz.canReadCatalogService.mockResolvedValue(false);
+    authz.canPerformRecordAction.mockResolvedValue(true);
     const persistence = new ServiceRequestsAccessPersistence(repository as never);
     const validation = new ServiceRequestsAccessValidation(referenceValidation as never);
     const query = new ServiceRequestsAccessQuery(persistence, authz as never, scopeEnforcement as never);
@@ -214,6 +239,11 @@ describe('ServiceRequestsAccessService characterization (orchestration)', () => 
       unitId: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
     });
 
+    /**
+     * O contrato vigente da listagem inclui o predicado de escopo, os parâmetros do escopo e da
+     * unidade informada, limite, deslocamento e a ordenação — esta última foi acrescentada depois
+     * desta especificação.
+     */
     expect(repository.listServiceRequests).toHaveBeenCalledWith(
       expect.stringContaining('unit_id = $'),
       expect.arrayContaining([
@@ -222,6 +252,7 @@ describe('ServiceRequestsAccessService characterization (orchestration)', () => 
       ]),
       20,
       0,
+      expect.stringContaining('created_at DESC'),
     );
   });
 });
