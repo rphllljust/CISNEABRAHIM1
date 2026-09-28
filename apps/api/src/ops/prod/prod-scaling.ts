@@ -2,16 +2,19 @@ export type ScalingCompatibilityReport = {
   sharedDatabaseSessions: boolean;
   outboxWorkerLocking: boolean;
   sharedObjectStorage: boolean;
+  sharedRateLimit: boolean;
   statelessApi: boolean;
 };
 
 export function evaluateScalingCompatibility(env: NodeJS.ProcessEnv = process.env): ScalingCompatibilityReport {
   const provider = env['OBJECT_STORAGE_PROVIDER']?.trim() ?? 'filesystem';
+  const rateLimitBackend = env['SECURITY_RATE_LIMIT_BACKEND']?.trim() ?? 'memory';
 
   return {
     sharedDatabaseSessions: true,
     outboxWorkerLocking: true,
     sharedObjectStorage: provider === 's3',
+    sharedRateLimit: rateLimitBackend === 'external',
     statelessApi: true,
   };
 }
@@ -38,5 +41,10 @@ export function assertScalingCompatibility(
   const replicas = Number.parseInt(env['PROD_API_REPLICAS'] ?? '1', 10);
   if (replicas > 1 && env['OBJECT_STORAGE_PROVIDER'] !== 's3') {
     throw new Error('PROD_API_REPLICAS > 1 requires OBJECT_STORAGE_PROVIDER=s3');
+  }
+  if (replicas > 1 && !report.sharedRateLimit) {
+    throw new Error(
+      'PROD_API_REPLICAS > 1 requires SECURITY_RATE_LIMIT_BACKEND=external; in-memory rate limits are per process',
+    );
   }
 }
