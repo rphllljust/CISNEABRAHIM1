@@ -7,7 +7,7 @@
  * Percorre a jornada operacional por CLIQUE e reprova em: 5xx, 401/403 inesperado,
  * erro de console, rota quebrada e UUID visivel como rotulo.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -125,7 +125,6 @@ test.describe('BIG WAVE 07 — smoke do build de producao', () => {
     expect(authErrors, `401/403 inesperados:\n${authErrors.join('\n')}`).toEqual([]);
 
     // Diagnostico explicito dos 404/400 antes de julgar o console.
-    // eslint-disable-next-line no-console
     console.log(`\n=== W07 SMOKE: respostas 400/404 ===\n${clientErrors.join('\n') || '(nenhuma)'}\n=== END ===\n`);
 
     const unexpectedConsole = consoleErrors.filter(
