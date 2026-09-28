@@ -11,6 +11,10 @@ import { AUTHZ_RESOURCE_TYPES } from '../../authorization/types/authz-resources'
 import { AuthorizationRepository } from '../../authorization/repositories/authorization.repository';
 import type { IdentityAuthzContext } from '../../authorization/types/authz-decision';
 import { SodEnforcementService } from '../../authorization/services/sod-enforcement.service';
+import {
+  ScopeEnforcementService,
+  type ScopeSqlPredicate,
+} from '../../authorization/services/scope-enforcement.service';
 import { SOD_DUTIES, resolveSodScope } from '../../authorization/domain/segregation-of-duties';
 import {
   ENTERPRISE_CORE_PORT,
@@ -66,6 +70,7 @@ export class ProcurementAccessService {
     private readonly repository: ProcurementRepository,
     private readonly authz: ProcurementAccessAuthz,
     private readonly authorizationRepository: AuthorizationRepository,
+    private readonly scopeEnforcement: ScopeEnforcementService,
     private readonly securityAudit: SecurityAuditService,
     private readonly sod: SodEnforcementService,
     private readonly failures: ProcurementFailureInjection,
@@ -106,10 +111,10 @@ export class ProcurementAccessService {
     actor: IdentityAuthzContext,
     query: PurchaseRequestListQuery,
   ): Promise<PurchaseRequestListResponse> {
-    await this.assertList(actor, AUTHZ_ACTIONS.ProcurementRequestList);
     try {
-      const whereParts: string[] = [];
-      const params: unknown[] = [];
+      const scope = await this.resolveListScope(actor, AUTHZ_ACTIONS.ProcurementRequestList, 'r');
+      const whereParts: string[] = [scope.clause];
+      const params: unknown[] = [...scope.params];
       if (query.status) {
         whereParts.push(`r.status = $${params.length + 1}::prc.purchase_request_status`);
         params.push(query.status);
@@ -152,10 +157,10 @@ export class ProcurementAccessService {
     actor: IdentityAuthzContext,
     query: SupplierPurchaseOrderListQuery,
   ): Promise<SupplierPurchaseOrderListResponse> {
-    await this.assertList(actor, AUTHZ_ACTIONS.ProcurementOrderList);
     try {
-      const whereParts: string[] = [];
-      const params: unknown[] = [];
+      const scope = await this.resolveListScope(actor, AUTHZ_ACTIONS.ProcurementOrderList, 'o');
+      const whereParts: string[] = [scope.clause];
+      const params: unknown[] = [...scope.params];
       if (query.status) {
         whereParts.push(`o.status = $${params.length + 1}::prc.supplier_purchase_order_status`);
         params.push(query.status);
@@ -213,6 +218,34 @@ export class ProcurementAccessService {
     if (grants.length === 0) {
       throw mapProcurementDomainError(procurementAccessDenied());
     }
+  }
+
+  /**
+   * ESCOPO DE LEITURA DAS LISTAS DE SUPRIMENTOS (correção no domínio dono).
+   *
+   * O gate anterior verificava apenas a PRESENÇA de concessão: uma concessão ancorada na
+   * unidade A devolvia linhas da unidade B. Aqui o predicado de unidade é resolvido e
+   * devolvido para compor a consulta, de modo que QUALQUER consumidor destas listas —
+   * inclusive a fila de trabalho — receba apenas o que o ator pode ler.
+   *
+   * Fail-closed: sem concessão, ou com concessão que não cubra nenhuma unidade, a leitura é
+   * negada na origem (não se devolve lista vazia por acidente: a negação é explícita).
+   */
+  private async resolveListScope(
+    actor: IdentityAuthzContext,
+    action: (typeof AUTHZ_ACTIONS)[keyof typeof AUTHZ_ACTIONS],
+    tableAlias: string,
+  ): Promise<ScopeSqlPredicate> {
+    const grants = await this.authorizationRepository.findActiveGrants(
+      actor.identityId,
+      action,
+      AUTHZ_RESOURCE_TYPES.Procurement,
+    );
+    const scope = this.scopeEnforcement.buildProcurementListFilter(grants, tableAlias);
+    if (scope.clause === 'FALSE') {
+      throw mapProcurementDomainError(procurementAccessDenied());
+    }
+    return scope;
   }
 
   async getRequest(actor: IdentityAuthzContext, requestId: string): Promise<PurchaseRequestResponse> {

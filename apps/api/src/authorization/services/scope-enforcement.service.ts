@@ -241,6 +241,74 @@ export class ScopeEnforcementService {
     });
   }
 
+  /**
+   * Escopo de leitura das listas de SUPRIMENTOS (requisições e pedidos ao fornecedor).
+   *
+   * O gate dessas listas verificava apenas a PRESENÇA de concessão, sem predicado de unidade:
+   * uma concessão ancorada na unidade A devolvia linhas da unidade B. O predicado fecha isso
+   * no DOMÍNIO DONO, para valer também para qualquer outro consumidor da lista — não só para
+   * a fila de trabalho.
+   *
+   * Regras (as mesmas dos demais builders):
+   * - concessão GLOBAL sem âncora => sem restrição (o contrato prevê leitura ampla);
+   * - concessões UNIT => apenas as unidades concedidas;
+   * - nenhuma das duas => `FALSE` (fail-closed: nada é lido).
+   */
+  buildProcurementListFilter(grants: GrantRow[], tableAlias?: string): ScopeSqlPredicate {
+    const hasGlobal = grants.some(
+      (grant) => grant.scope_type === AUTHZ_SCOPES.Global && grant.resource_id === null,
+    );
+    if (hasGlobal) {
+      return { clause: 'TRUE', params: [] };
+    }
+
+    const unitIds = grants
+      .filter(
+        (grant) => grant.scope_type === AUTHZ_SCOPES.Unit && grant.resource_id !== null,
+      )
+      .map((grant) => grant.resource_id as string);
+
+    if (unitIds.length === 0) {
+      return { clause: 'FALSE', params: [] };
+    }
+
+    const alias = tableAlias ? `${tableAlias}.` : '';
+    return { clause: `${alias}unit_id = ANY($1::text[])`, params: [unitIds] };
+  }
+
+  /**
+   * Escopo de leitura da lista de DESPESAS.
+   *
+   * Mesmo achado de suprimentos: o gate era presença de concessão e o único predicado de
+   * unidade vinha do PARÂMETRO DA CONSULTA (`query.unitId`). Um ator com concessão ancorada
+   * na unidade A lia despesas da unidade B simplesmente não informando `unitId`. O escopo
+   * passa a ser derivado das concessões do ator, como nos demais builders.
+   *
+   * Mesma semântica: GLOBAL sem âncora lê tudo; UNIT lê apenas as unidades concedidas;
+   * nada disso => `FALSE` (fail-closed).
+   */
+  buildExpenseListFilter(grants: GrantRow[], tableAlias?: string): ScopeSqlPredicate {
+    const hasGlobal = grants.some(
+      (grant) => grant.scope_type === AUTHZ_SCOPES.Global && grant.resource_id === null,
+    );
+    if (hasGlobal) {
+      return { clause: 'TRUE', params: [] };
+    }
+
+    const unitIds = grants
+      .filter(
+        (grant) => grant.scope_type === AUTHZ_SCOPES.Unit && grant.resource_id !== null,
+      )
+      .map((grant) => grant.resource_id as string);
+
+    if (unitIds.length === 0) {
+      return { clause: 'FALSE', params: [] };
+    }
+
+    const alias = tableAlias ? `${tableAlias}.` : '';
+    return { clause: `${alias}unit_id = ANY($1::text[])`, params: [unitIds] };
+  }
+
   private buildCommercialRecordListFilter(
     grants: GrantRow[],
     options?: { assignedIdentityId?: string; tableAlias?: string },

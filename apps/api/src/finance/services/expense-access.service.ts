@@ -7,6 +7,7 @@ import {
 } from '../../audit/types/security-audit.types';
 import { SecurityAuditService } from '../../audit/services/security-audit.service';
 import { SodEnforcementService } from '../../authorization/services/sod-enforcement.service';
+import { ScopeEnforcementService } from '../../authorization/services/scope-enforcement.service';
 import { SOD_DUTIES, resolveSodScope } from '../../authorization/domain/segregation-of-duties';
 import { AUTHZ_ACTIONS } from '../../authorization/types/authz-actions';
 import { AUTHZ_RESOURCE_TYPES } from '../../authorization/types/authz-resources';
@@ -34,6 +35,7 @@ export class ExpenseAccessService {
     private readonly repository: ExpenseRepository,
     private readonly authz: ExpenseAccessAuthz,
     private readonly authorizationRepository: AuthorizationRepository,
+    private readonly scopeEnforcement: ScopeEnforcementService,
     private readonly securityAudit: SecurityAuditService,
     private readonly sod: SodEnforcementService,
     private readonly failures: ExpenseFailureInjection,
@@ -92,8 +94,16 @@ export class ExpenseAccessService {
       throw mapExpenseError(expenseAccessDenied());
     }
     try {
-      const whereParts: string[] = [];
-      const params: unknown[] = [];
+      // ESCOPO DE UNIDADE DO ATOR (correção no domínio dono): antes, o único recorte de
+      // unidade vinha de `query.unitId` — parâmetro do cliente. Sem ele, uma concessão da
+      // unidade A lia despesas da unidade B. Agora o recorte é derivado das concessões e a
+      // leitura é negada quando nenhuma unidade está coberta.
+      const scope = this.scopeEnforcement.buildExpenseListFilter(grants);
+      if (scope.clause === 'FALSE') {
+        throw mapExpenseError(expenseAccessDenied());
+      }
+      const whereParts: string[] = [scope.clause];
+      const params: unknown[] = [...scope.params];
       if (query.status) {
         whereParts.push(`status = $${params.length + 1}::fin.expense_status`);
         params.push(query.status);
