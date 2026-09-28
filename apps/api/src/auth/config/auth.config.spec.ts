@@ -35,4 +35,18 @@ describe('auth.config', () => {
       ]),
     );
   });
+
+  it('does not add localhost origins automatically in production', () => {
+    process.env['NODE_ENV'] = 'production';
+    process.env['CISNE_ENV'] = 'production';
+    process.env['JWT_SECRET'] = 'unit-test-jwt-secret-with-32-characters';
+    process.env['CORS_ORIGIN'] = 'https://app.cisne.example';
+
+    const config = loadAuthConfig();
+
+    expect(config.corsOrigins).toEqual(['https://app.cisne.example']);
+    expect(config.corsOrigins).not.toContain('http://localhost:5173');
+    expect(config.corsOrigins).not.toContain('http://127.0.0.1:5174');
+  });
+
 });
