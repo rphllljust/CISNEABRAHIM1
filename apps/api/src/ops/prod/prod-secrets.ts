@@ -1,3 +1,8 @@
+import {
+  assertNoInlineSecrets,
+  readFirstSecretValue,
+  readSecretValue,
+} from '../../platform/runtime-config/secret-value';
 import type { SecretRotationPlan } from './prod-types';
 
 const INLINE_SECRET_KEYS = [
@@ -5,13 +10,9 @@ const INLINE_SECRET_KEYS = [
   'DOCUMENT_DOWNLOAD_TOKEN_SECRET',
   'DATABASE_URL',
   'BACKUP_ENCRYPTION_KEY',
-] as const;
-
-const FILE_BACKED_SECRET_KEYS = [
-  'JWT_SECRET_FILE',
-  'DOCUMENT_DOWNLOAD_TOKEN_SECRET_FILE',
-  'DATABASE_URL_FILE',
-  'BACKUP_ENCRYPTION_KEY_FILE',
+  'OBJECT_STORAGE_S3_SECRET_ACCESS_KEY',
+  'S3_SECRET_ACCESS_KEY',
+  'PROD_POSTGRES_PASSWORD',
 ] as const;
 
 export function defaultSecretRotationPlan(): SecretRotationPlan {
@@ -34,31 +35,63 @@ export function assertTlsUrls(config: { publicApiUrl: string | null; publicWebUr
   }
 }
 
-export function assertProductionSecrets(env: NodeJS.ProcessEnv = process.env): void {
-  const requireStore = env['PROD_REQUIRE_SECRET_STORE'] === 'true';
-
-  if (requireStore) {
-    const hasFileBacked = FILE_BACKED_SECRET_KEYS.some((key) => Boolean(env[key]?.trim()));
-    if (!hasFileBacked) {
-      throw new Error(
-        'PROD_REQUIRE_SECRET_STORE=true requires secrets mounted from secret manager (*_FILE paths)',
-      );
-    }
-    for (const key of INLINE_SECRET_KEYS) {
-      if (env[key]?.trim()) {
-        throw new Error(`Inline secret ${key} forbidden when PROD_REQUIRE_SECRET_STORE=true`);
-      }
-    }
-    return;
-  }
-
-  const jwt = env['JWT_SECRET']?.trim() ?? env['JWT_SECRET_FILE']?.trim();
+function assertJwtSigningMaterial(env: NodeJS.ProcessEnv): void {
+  const jwt = readSecretValue(env, 'JWT_SECRET');
   if (!jwt) {
-    throw new Error('JWT signing material required (JWT_SECRET or JWT_SECRET_FILE)');
+    throw new Error('JWT signing material required (JWT_SECRET_FILE in hardened production)');
   }
   if (jwt.length < 32) {
     throw new Error('JWT signing material must be at least 32 characters');
   }
+}
+
+function assertRequiredStoreBackedSecrets(env: NodeJS.ProcessEnv): void {
+  const databaseUrl = readSecretValue(env, 'DATABASE_URL');
+  if (!databaseUrl) {
+    throw new Error('DATABASE_URL_FILE is required when production secret store is enabled');
+  }
+
+  assertJwtSigningMaterial(env);
+
+  const backupEnabled =
+    env['BACKUP_ENABLE_POSTGRES'] !== 'false' ||
+    env['BACKUP_ENABLE_OBJECT_STORAGE'] !== 'false';
+  if (backupEnabled && !readSecretValue(env, 'BACKUP_ENCRYPTION_KEY')) {
+    throw new Error(
+      'BACKUP_ENCRYPTION_KEY_FILE is required when production backups are enabled',
+    );
+  }
+
+  if (
+    env['OBJECT_STORAGE_PROVIDER'] === 's3' &&
+    env['OBJECT_STORAGE_IAM_ROLE'] !== 'true'
+  ) {
+    const accessKey = readFirstSecretValue(env, [
+      { key: 'OBJECT_STORAGE_S3_ACCESS_KEY_ID' },
+      { key: 'S3_ACCESS_KEY_ID' },
+    ]);
+    const secretKey = readFirstSecretValue(env, [
+      { key: 'OBJECT_STORAGE_S3_SECRET_ACCESS_KEY' },
+      { key: 'S3_SECRET_ACCESS_KEY' },
+    ]);
+    if (!accessKey || !secretKey) {
+      throw new Error(
+        'S3 static credentials must be mounted from secret files when IAM role is unavailable',
+      );
+    }
+  }
+}
+
+export function assertProductionSecrets(env: NodeJS.ProcessEnv = process.env): void {
+  const requireStore = env['PROD_REQUIRE_SECRET_STORE'] === 'true';
+
+  if (requireStore) {
+    assertNoInlineSecrets(env, INLINE_SECRET_KEYS);
+    assertRequiredStoreBackedSecrets(env);
+    return;
+  }
+
+  assertJwtSigningMaterial(env);
 }
 
 export function assertSecretRotationPlan(plan: SecretRotationPlan): void {
