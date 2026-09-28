@@ -15,10 +15,18 @@ async function main(): Promise<void> {
 
   const result = await runCdPromotion({
     manifestInput: {
-      version: process.env['npm_package_version'] ?? '0.0.0',
-      commitSha: process.env['GITHUB_SHA'] ?? process.env['CD_COMMIT_SHA'] ?? 'local',
-      buildRunId: process.env['GITHUB_RUN_ID'] ?? process.env['CD_BUILD_RUN_ID'] ?? 'local',
-      timestamp: new Date().toISOString(),
+      version: sourceManifest?.version ?? process.env['npm_package_version'] ?? '0.0.0',
+      commitSha:
+        sourceManifest?.commitSha ??
+        process.env['CD_COMMIT_SHA'] ??
+        process.env['GITHUB_SHA'] ??
+        'local',
+      buildRunId:
+        sourceManifest?.buildRunId ??
+        process.env['CD_BUILD_RUN_ID'] ??
+        process.env['GITHUB_RUN_ID'] ??
+        'local',
+      timestamp: sourceManifest?.timestamp ?? new Date().toISOString(),
       artifactPaths: ['apps/api/dist', 'apps/web/dist', 'packages/database/dist'],
     },
     targetEnvironment: target,
