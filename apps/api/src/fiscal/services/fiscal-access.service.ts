@@ -352,6 +352,22 @@ export class FiscalAccessService implements FiscalDocumentPort {
     }
   }
 
+  /**
+   * READ CONTRACT do port (ver `FiscalDocumentPort`): fatos fiscais da competencia para o
+   * fechamento contabil. A tabela `fis.fiscal_documents` pertence a ESTE contexto, entao a
+   * leitura mora aqui — o consumidor nao toca o schema privado.
+   *
+   * Nao avalia autorizacao: quem consome decide antes de chamar (o fechamento so monta a secao
+   * fiscal quando o ator tem concessao de leitura de documento fiscal).
+   */
+  async countDocumentsInWindow(input: {
+    unitId: string;
+    startsOn: string;
+    endsOn: string;
+  }): Promise<{ unauthorized: number; rejected: number; pendingAuthorization: number; draft: number }> {
+    return this.repository.countDocumentsInWindow(input);
+  }
+
   async createFromSource(input: {
     sourceKind: string;
     sourceId: string;

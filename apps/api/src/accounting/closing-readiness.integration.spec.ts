@@ -18,6 +18,7 @@ import { enableCriticalSodFor } from '../authorization/test/critical-sod-harness
 import { AUTHZ_ACTIONS } from '../authorization/types/authz-actions';
 import { AUTHZ_RESOURCE_TYPES } from '../authorization/types/authz-resources';
 import { AUTHZ_SCOPES } from '../authorization/types/authz-scopes';
+import { FiscalModule } from '../fiscal/fiscal.module';
 import { ACCOUNT_CLASSES, JOURNAL_DIRECTIONS, JOURNAL_SOURCE_KINDS } from './domain/ledger';
 import { AccountingHttpException } from './errors/accounting-http.exception';
 import { AccountingModule } from './accounting.module';
@@ -72,7 +73,10 @@ describe('Closing center and accounting period discovery (PostgreSQL)', () => {
     }
     applyAuthTestEnv(testDatabaseUrl);
     const module: TestingModule = await Test.createTestingModule({
-      imports: [AuthModule, AuditModule, AuthorizationModule, AccountingModule],
+      // FiscalModule entra porque o fechamento consome o contrato PUBLICADO do contexto fiscal
+      // (port), exatamente como a aplicacao real compoe os dois modulos. Sem ele a secao fiscal
+      // do fechamento nao teria provedor.
+      imports: [AuthModule, AuditModule, AuthorizationModule, AccountingModule, FiscalModule],
     }).compile();
     accounting = module.get(AccountingAccessService);
     closing = module.get(ClosingReadinessService);

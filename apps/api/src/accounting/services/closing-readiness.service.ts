@@ -1,10 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { hasPolicyAndGrantScope } from '../../authorization/services/domain-grant-authz.helper';
 import { AuthorizationRepository } from '../../authorization/repositories/authorization.repository';
 import { PolicyDecisionPointService } from '../../authorization/services/policy-decision-point.service';
 import { AUTHZ_ACTIONS } from '../../authorization/types/authz-actions';
 import { AUTHZ_RESOURCE_TYPES } from '../../authorization/types/authz-resources';
 import type { IdentityAuthzContext } from '../../authorization/types/authz-decision';
+import {
+  ENTERPRISE_CORE_PORT,
+  type FiscalDocumentPort,
+} from '../../platform/bounded-contexts/enterprise-core-ports';
 import { assertUuid } from '../../platform/kernel/uuid';
 import {
   PERIOD_CLOSE_CHECK_KINDS,
@@ -130,6 +134,18 @@ export class ClosingReadinessService {
     private readonly authz: AccountingAccessAuthz,
     private readonly authorizationRepository: AuthorizationRepository,
     private readonly policyDecisionPoint: PolicyDecisionPointService,
+    /**
+     * Contrato PUBLICADO pelo contexto FISCAL. A contagem de documento fiscal da competencia e
+     * fato do contexto fiscal; a contabilidade consome o contrato em vez de ler `fis` direto.
+     *
+     * `@Optional()` pela mesma razao do lado fiscal (`fiscal-accounting-integration`): os dois
+     * contextos se consomem por contrato e o wiring nao pode depender de ordem de modulo. Sem o
+     * provedor ligado, o fechamento degrada como "secao fiscal indisponivel" em vez de derrubar
+     * a leitura — nunca inventa contagem.
+     */
+    @Optional()
+    @Inject(ENTERPRISE_CORE_PORT.FiscalDocument)
+    private readonly fiscalDocuments?: FiscalDocumentPort,
   ) {}
 
   async readiness(
@@ -177,7 +193,7 @@ export class ClosingReadinessService {
       const journalCounts = await this.repository.countJournalsByPeriodStatus(period.id);
 
       const fiscal = canReadFiscal
-        ? await this.repository.countFiscalDocumentsInWindow({
+        ? await this.requireFiscalDocuments().countDocumentsInWindow({
             unitId,
             startsOn: period.starts_on.slice(0, 10),
             endsOn: period.ends_on.slice(0, 10),
@@ -279,6 +295,17 @@ export class ClosingReadinessService {
     } catch (error) {
       throw mapAccountingDomainError(error);
     }
+  }
+
+  /**
+   * Sem o contrato fiscal ligado nao existe numero a mostrar — e mostrar zero seria afirmar que
+   * nenhum documento foi emitido, o que e falso. Falha explicita em vez de contagem inventada.
+   */
+  private requireFiscalDocuments(): FiscalDocumentPort {
+    if (!this.fiscalDocuments) {
+      throw accountingNotFound();
+    }
+    return this.fiscalDocuments;
   }
 }
 

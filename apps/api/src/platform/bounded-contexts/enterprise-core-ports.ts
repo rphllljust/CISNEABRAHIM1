@@ -198,6 +198,26 @@ export type FiscalDocumentPort = {
     }>;
     billingDocumentId?: string;
   }): Promise<{ fiscalDocumentId: string; idempotent: boolean }>;
+  /**
+   * READ CONTRACT publicado pelo contexto FISCAL — `fis` e schema privado dele.
+   *
+   * Existe para o FECHAMENTO CONTABIL: a competencia so pode ser fechada olhando o que foi
+   * emitido no periodo, e a contagem e um FATO fiscal. O contexto contabil nao le a tabela
+   * privada de outro contexto; ele consome este contrato, cujo dono e quem escreve a tabela.
+   *
+   * Quem consome NAO filtra por autorizacao aqui: a decisao de acesso fica na camada de servico
+   * do consumidor, que nem chega a chamar isto sem concessao de leitura de documento fiscal.
+   */
+  countDocumentsInWindow(input: {
+    unitId: string;
+    startsOn: string;
+    endsOn: string;
+  }): Promise<{
+    unauthorized: number;
+    rejected: number;
+    pendingAuthorization: number;
+    draft: number;
+  }>;
 };
 
 export type AccountingPostFromSourceInput = {
