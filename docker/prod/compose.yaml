@@ -1,6 +1,7 @@
 # CISNE Rondônia — Produção endurecida (referência)
 # DB e object storage em rede interna; somente Caddy expõe 80/443.
-# Uso: cp .env.prod.example .env.prod && docker compose -f docker/prod/compose.yaml --env-file .env.prod up -d --build
+# Secrets são montados em /run/secrets e nunca devem entrar no .env.prod.
+# Consulte docker/prod/SECRETS.md antes de subir o stack.
 
 services:
   postgres:
@@ -14,12 +15,11 @@ services:
       - max_connections=50
     environment:
       POSTGRES_USER: ${PROD_POSTGRES_USER}
-      POSTGRES_PASSWORD: ${PROD_POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
       POSTGRES_DB: ${PROD_POSTGRES_DB}
+    secrets:
+      - postgres_password
     volumes:
-      # PG18 PGDATA lives under /var/lib/postgresql/18/docker — the volume must
-      # mount /var/lib/postgresql (as dev/HML do) or data is written to the
-      # container layer and lost on recreate.
       - cisne_prod_pg_data:/var/lib/postgresql
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
@@ -35,8 +35,11 @@ services:
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID}
-      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY}
+      MINIO_ROOT_USER_FILE: /run/secrets/s3_access_key_id
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/s3_secret_access_key
+    secrets:
+      - s3_access_key_id
+      - s3_secret_access_key
     volumes:
       - cisne_prod_object_storage:/data
     healthcheck:
@@ -55,6 +58,8 @@ services:
         condition: service_healthy
     entrypoint: >
       /bin/sh -c "
+      S3_ACCESS_KEY_ID=$$(cat /run/secrets/s3_access_key_id) &&
+      S3_SECRET_ACCESS_KEY=$$(cat /run/secrets/s3_secret_access_key) &&
       mc alias set local http://minio:9000 $$S3_ACCESS_KEY_ID $$S3_SECRET_ACCESS_KEY &&
       mc mb --ignore-existing local/$$OBJECT_STORAGE_BUCKET &&
       mc anonymous set none local/$$OBJECT_STORAGE_BUCKET &&
@@ -62,9 +67,10 @@ services:
       mc ilm rule add --expire-days 365 local/$$OBJECT_STORAGE_BUCKET || true
       "
     environment:
-      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
-      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
       OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET}
+    secrets:
+      - s3_access_key_id
+      - s3_secret_access_key
     networks: [cisne_prod_internal]
 
   api:
@@ -77,9 +83,14 @@ services:
     env_file:
       - ../../.env.prod
     environment:
-      # DATABASE_URL / OBJECT_STORAGE_* come solely from .env.prod (env_file):
-      # no duplicate overrides that could silently flip sslmode or endpoints.
       NODE_ENV: production
+    secrets:
+      - database_url
+      - jwt_secret
+      - document_download_token_secret
+      - backup_encryption_key
+      - s3_access_key_id
+      - s3_secret_access_key
     depends_on:
       postgres:
         condition: service_healthy
@@ -106,6 +117,12 @@ services:
     environment:
       NODE_ENV: production
       OUTBOX_PUBLISHER_ENABLED: 'true'
+    secrets:
+      - database_url
+      - jwt_secret
+      - backup_encryption_key
+      - s3_access_key_id
+      - s3_secret_access_key
     healthcheck:
       test: ['CMD-SHELL', 'pgrep -f "dist/worker/main.js" >/dev/null || exit 1']
       interval: 15s
@@ -170,3 +187,19 @@ volumes:
     name: cisne_prod_caddy_data
   cisne_prod_caddy_config:
     name: cisne_prod_caddy_config
+
+secrets:
+  postgres_password:
+    file: ${PROD_POSTGRES_PASSWORD_SECRET_FILE:-../../secrets/prod/postgres_password}
+  database_url:
+    file: ${PROD_DATABASE_URL_SECRET_FILE:-../../secrets/prod/database_url}
+  jwt_secret:
+    file: ${PROD_JWT_SECRET_FILE:-../../secrets/prod/jwt_secret}
+  document_download_token_secret:
+    file: ${PROD_DOCUMENT_TOKEN_SECRET_FILE:-../../secrets/prod/document_download_token_secret}
+  backup_encryption_key:
+    file: ${PROD_BACKUP_ENCRYPTION_KEY_FILE:-../../secrets/prod/backup_encryption_key}
+  s3_access_key_id:
+    file: ${PROD_S3_ACCESS_KEY_ID_FILE:-../../secrets/prod/s3_access_key_id}
+  s3_secret_access_key:
+    file: ${PROD_S3_SECRET_ACCESS_KEY_FILE:-../../secrets/prod/s3_secret_access_key}
