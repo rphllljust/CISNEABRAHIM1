@@ -1,6 +1,6 @@
 import { GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { randomBytes } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { selectBackupsForPruning } from './backup-retention';
@@ -73,6 +73,13 @@ describe('backup integration (Prompt 84)', () => {
 
     expect(await verifyPostgresArtifactReadable(postgresArtifact!, encryptionKey)).toBe(true);
     expect(await verifyObjectStorageArtifactAccessible(objectArtifact!.path)).toBe(true);
+
+    const objectArtifactDir = join(objectArtifact!.path, '..');
+    await expect(access(join(objectArtifactDir, 'snapshot'))).rejects.toThrow();
+    await expect(
+      access(objectArtifact!.path.replace(/\.enc$/, '')),
+    ).rejects.toThrow();
+    await expect(access(join(offsiteDir, 'object_storage', 'manifest.json'))).resolves.toBeUndefined();
 
     const statusRaw = await readFile(statusFile, 'utf8');
     expect(statusRaw).toContain('"durationMs"');
