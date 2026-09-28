@@ -1,3 +1,4 @@
+import { readSecretValue } from '../../platform/runtime-config/secret-value';
 import type { ProdNetworkPolicy } from './prod-types';
 
 const ALLOWED_EDGE_PORTS = new Set([80, 443]);
@@ -57,7 +58,7 @@ export function assertNetworkPolicy(policy: ProdNetworkPolicy): void {
 
 export function assertNotHmlInfrastructure(env: NodeJS.ProcessEnv = process.env): void {
   const markers = [
-    env['DATABASE_URL']?.toLowerCase() ?? '',
+    readSecretValue(env, 'DATABASE_URL')?.toLowerCase() ?? '',
     env['OBJECT_STORAGE_BUCKET']?.toLowerCase() ?? '',
     env['OBJECT_STORAGE_ROOT']?.toLowerCase() ?? '',
   ];
