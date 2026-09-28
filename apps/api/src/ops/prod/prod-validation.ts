@@ -15,6 +15,10 @@ import {
   scanConfigForEmbeddedSecrets,
 } from './prod-secrets';
 import { assertScalingCompatibility, evaluateScalingCompatibility } from './prod-scaling';
+import {
+  assertProductionImagesPinned,
+  loadProductionImageInventory,
+} from './prod-supply-chain';
 import type { ProdValidationResult, ProdValidationStage } from './prod-types';
 
 function stage(
@@ -58,6 +62,23 @@ export function runProdInfrastructureValidation(
       `${sizing.apiMinReplicas}-${sizing.apiMaxReplicas} API replicas; ${sizing.apiCpuCores} vCPU; ${sizing.apiMemoryMb}MB`,
     ),
   );
+
+  try {
+    const images = loadProductionImageInventory(env);
+    assertProductionImagesPinned(images);
+    stages.push(
+      stage(
+        'supply_chain',
+        'Immutable production container images',
+        true,
+        'all runtime images pinned by sha256 digest',
+      ),
+    );
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    stages.push(stage('supply_chain', 'Immutable production container images', false, detail));
+    return fail(stages, sizing, detail);
+  }
 
   let config;
   try {
