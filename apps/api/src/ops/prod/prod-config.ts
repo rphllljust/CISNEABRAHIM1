@@ -1,3 +1,5 @@
+import { readSecretValue } from '../../platform/runtime-config/secret-value';
+
 export type ProdConfig = {
   cisneEnv: string;
   nodeEnv: string;
@@ -20,7 +22,7 @@ function readPositiveInt(raw: string | undefined, fallback: number): number {
 }
 
 export function loadProdConfig(env: NodeJS.ProcessEnv = process.env): ProdConfig {
-  const databaseUrl = env['DATABASE_URL']?.trim();
+  const databaseUrl = readSecretValue(env, 'DATABASE_URL');
   if (!databaseUrl) {
     throw new Error('DATABASE_URL is required for production configuration');
   }
