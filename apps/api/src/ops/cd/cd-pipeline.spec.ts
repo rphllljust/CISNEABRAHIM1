@@ -124,12 +124,37 @@ describe('CD pipeline (Prompt 87)', () => {
     expect(blockedByReadiness.status).toBe('FAIL');
     expect(blockedByReadiness.error).toMatch(/Production operations blocked/);
 
+    const missingExternalApproval = await runCdPromotion({
+      manifestInput: manifestInput(),
+      targetEnvironment: 'production',
+      sourceManifest: ci,
+      env: {
+        PRD_PROMOTION_APPROVED: 'I_UNDERSTAND',
+        PROD_REQUIRE_SECRET_STORE: 'true',
+        CD_SECRET_STORE_CONFIGURED: 'true',
+        PROD_PUBLIC_API_URL: 'https://api.cisne.example',
+      },
+      deps: {
+        assessMigrations: safeMigrations,
+        assertProductionReadiness: () => undefined,
+        deployProduction: async () => ({ ok: true, detail: 'should not run' }),
+        checkHealth: async () => ({ ok: true, detail: 'status=200' }),
+      },
+    });
+    expect(missingExternalApproval.status).toBe('FAIL');
+    expect(missingExternalApproval.error).toMatch(/APPROVED_BY|approval/i);
+
     const noDeployAdapter = await runCdPromotion({
       manifestInput: manifestInput(),
       targetEnvironment: 'production',
       sourceManifest: ci,
       env: {
         PRD_PROMOTION_APPROVED: 'I_UNDERSTAND',
+        PRD_PROMOTION_APPROVED_BY: 'release-approver',
+        PRD_PROMOTION_APPROVAL_SOURCE: 'github-environment',
+        PROD_REQUIRE_SECRET_STORE: 'true',
+        CD_SECRET_STORE_CONFIGURED: 'true',
+        CD_REQUIRE_SECRET_STORE: 'false',
         PROD_PUBLIC_API_URL: 'https://api.cisne.example',
       },
       deps: {
@@ -147,6 +172,11 @@ describe('CD pipeline (Prompt 87)', () => {
       sourceManifest: ci,
       env: {
         PRD_PROMOTION_APPROVED: 'I_UNDERSTAND',
+        PRD_PROMOTION_APPROVED_BY: 'release-approver',
+        PRD_PROMOTION_APPROVAL_SOURCE: 'github-environment',
+        PROD_REQUIRE_SECRET_STORE: 'true',
+        CD_SECRET_STORE_CONFIGURED: 'true',
+        CD_REQUIRE_SECRET_STORE: 'false',
         PROD_PUBLIC_API_URL: 'https://api.cisne.example',
       },
       deps: {
