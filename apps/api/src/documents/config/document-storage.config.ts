@@ -1,6 +1,10 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import {
+  readFirstSecretValue,
+  readSecretValue,
+} from '../../platform/runtime-config/secret-value';
 
 export type DocumentStorageConfig = {
   provider: 'filesystem' | 's3';
@@ -97,19 +101,23 @@ function readS3ForcePathStyle(s3Endpoint: string | undefined): boolean {
 
 export function loadDocumentStorageConfig(): DocumentStorageConfig {
   const provider = process.env['OBJECT_STORAGE_PROVIDER'] === 's3' ? 's3' : 'filesystem';
-  const jwtSecret = readTrimmed('JWT_SECRET');
+  const jwtSecret = readSecretValue(process.env, 'JWT_SECRET');
   const downloadTokenSecret = resolveDownloadTokenSecret(
-    readTrimmed('DOCUMENT_DOWNLOAD_TOKEN_SECRET'),
+    readSecretValue(process.env, 'DOCUMENT_DOWNLOAD_TOKEN_SECRET'),
     jwtSecret,
   );
   const s3Endpoint =
     readTrimmed('OBJECT_STORAGE_S3_ENDPOINT') ?? readTrimmed('OBJECT_STORAGE_ENDPOINT');
   const s3Region =
     readTrimmed('OBJECT_STORAGE_S3_REGION') ?? readTrimmed('OBJECT_STORAGE_REGION') ?? 'us-east-1';
-  const s3AccessKeyId =
-    readTrimmed('OBJECT_STORAGE_S3_ACCESS_KEY_ID') ?? readTrimmed('S3_ACCESS_KEY_ID');
-  const s3SecretAccessKey =
-    readTrimmed('OBJECT_STORAGE_S3_SECRET_ACCESS_KEY') ?? readTrimmed('S3_SECRET_ACCESS_KEY');
+  const s3AccessKeyId = readFirstSecretValue(process.env, [
+    { key: 'OBJECT_STORAGE_S3_ACCESS_KEY_ID' },
+    { key: 'S3_ACCESS_KEY_ID' },
+  ]);
+  const s3SecretAccessKey = readFirstSecretValue(process.env, [
+    { key: 'OBJECT_STORAGE_S3_SECRET_ACCESS_KEY' },
+    { key: 'S3_SECRET_ACCESS_KEY' },
+  ]);
 
   return {
     provider,
