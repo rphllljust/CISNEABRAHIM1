@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { DeployManifest } from '../cd-types';
 import { runCdPromotion } from '../cd-pipeline';
+import { runProductionDeployAdapter } from '../production-deploy-adapter';
 
 async function main(): Promise<void> {
   const target = process.argv.includes('--production') ? 'production' : 'hml';
@@ -54,6 +55,7 @@ async function main(): Promise<void> {
           detail: smoke.stderr?.trim() || smoke.stdout?.trim() || `exit ${smoke.status}`,
         };
       },
+      deployProduction: async (manifest) => runProductionDeployAdapter(process.env, manifest),
     },
   });
 
