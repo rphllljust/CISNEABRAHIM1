@@ -1,0 +1,16 @@
+# CISNE ownership baseline.
+# Enforcement requires GitHub branch/ruleset protection with code-owner reviews enabled.
+
+* @rphllljust
+
+# Production-sensitive surfaces
+/.github/workflows/ @rphllljust
+/docker/prod/ @rphllljust
+/.env.prod.example @rphllljust
+/apps/api/src/ops/ @rphllljust
+/apps/api/src/auth/ @rphllljust
+/apps/api/src/authorization/ @rphllljust
+/apps/api/src/finance/ @rphllljust
+/apps/api/src/fiscal/ @rphllljust
+/apps/api/src/accounting/ @rphllljust
+/packages/database/ @rphllljust
