@@ -68,6 +68,13 @@ export type ExecutionRequirementInput = {
 export type ServiceDefinition = {
   id: string;
   code: string;
+  /** Nome humano da versao vigente. `null` quando nao ha versao ACTIVE nem DRAFT. */
+  name: string | null;
+  nameVersion: number | null;
+  nameVersionStatus: VersionStatus | null;
+  categoryId: string | null;
+  categoryCode: string | null;
+  categoryName: string | null;
   status: CatalogLineageStatus;
   version: number;
   createdAt: string;

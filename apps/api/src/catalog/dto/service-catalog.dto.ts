@@ -543,10 +543,12 @@ export function parseListServiceDefinitionsQuery(query: Record<string, unknown>)
   limit: number;
   offset: number;
   status?: LineageStatus;
+  search?: string;
 } {
   const limitRaw = query['limit'];
   const offsetRaw = query['offset'];
   const statusRaw = query['status'];
+  const searchRaw = query['q'];
 
   let limit = 20;
   if (limitRaw !== undefined) {
@@ -586,7 +588,34 @@ export function parseListServiceDefinitionsQuery(query: Record<string, unknown>)
     status = statusRaw;
   }
 
-  return { limit, offset, status };
+  return { limit, offset, status, search: parseCatalogSearchQuery(searchRaw) };
+}
+
+/**
+ * Busca do catalogo: NOME do servico ou CODE operacional.
+ *
+ * O `q` e TEXTO do operador, nunca padrao: `%`, `_` e `\` sao escapados antes de virar `ILIKE`.
+ * CNAE nao entra aqui — o catalogo nao projeta CNAE em coluna propria e inventar essa busca
+ * exigiria uma consulta nova so para isso.
+ */
+function parseCatalogSearchQuery(raw: unknown): string | undefined {
+  if (raw === undefined) {
+    return undefined;
+  }
+  if (typeof raw !== 'string') {
+    throw new CatalogHttpException(
+      HttpStatus.BAD_REQUEST,
+      CATALOG_ERROR_CODES.VALIDATION_FAILED,
+      'Invalid query parameters.',
+    );
+  }
+  const trimmed = raw.trim();
+  return trimmed.length === 0 ? undefined : trimmed;
+}
+
+/** Escapa curingas de LIKE — o que o operador digita e texto, nao padrao. */
+export function escapeLikeWildcards(value: string): string {
+  return value.replace(/[\\%_]/g, (match) => `\\${match}`);
 }
 
 export function parseVersionNumberParam(value: string): number {

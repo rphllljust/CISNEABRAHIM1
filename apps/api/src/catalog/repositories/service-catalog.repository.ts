@@ -68,14 +68,45 @@ export class ServiceCatalogRepository {
                 FROM cat.service_definition_versions v
                 WHERE v.service_definition_id = d.id
                   AND v.status = 'DRAFT'
-              ) AS current_draft_version
+              ) AS current_draft_version,
+              version.name         AS name,
+              version.status::text AS name_version_status,
+              version.version      AS name_version,
+              category.id          AS category_id,
+              category.code        AS category_code,
+              category.name        AS category_name
        FROM cat.service_definitions d
+       LEFT JOIN LATERAL (
+         SELECT v.id, v.name, v.status, v.version, v.category_id
+         FROM cat.service_definition_versions v
+         WHERE v.service_definition_id = d.id
+           AND v.status IN ('ACTIVE', 'DRAFT')
+         ORDER BY (v.status = 'ACTIVE') DESC, v.version DESC
+         LIMIT 1
+       ) AS version ON TRUE
+       LEFT JOIN cat.service_categories category ON category.id = version.category_id
        WHERE d.id = $1`,
       [definitionId],
     );
     return result.rows[0] ?? null;
   }
 
+  /**
+   * LISTA DE DEFINICOES — projecao com o nome humano da versao vigente.
+   *
+   * `name`/`category` sao atributos da VERSAO, nao da definicao. A regra da versao vigente e a
+   * mesma que a listagem ja usa para decidir o que esta publicado:
+   *
+   * 1. entre as versoes ACTIVE (publicadas), a de MAIOR numero;
+   * 2. se nao houver ACTIVE (nunca publicada ou apenas retirada) e existir DRAFT, o DRAFT de MAIOR
+   *    numero — e o unico texto humano que existe naquele momento;
+   * 3. sem ACTIVE e sem DRAFT nao ha nome: `name` e `null`, e a lista cai no `code`. Um nome de
+   *    versao RETIRED seria texto de uma versao que ja nao vigora — pior que a ausencia.
+   *
+   * Uma CTE com `LEFT JOIN LATERAL` resolve a versao vigente para a PAGINA INTEIRA (uma consulta,
+   * sem N+1). `MAX(v.version)` no subselect existente foi mantido: ele alimenta
+   * `latest_published_version`/`current_draft_version` e ambos continuam com o mesmo significado.
+   */
   async listDefinitions(
     whereClause: string,
     params: unknown[],
@@ -83,31 +114,51 @@ export class ServiceCatalogRepository {
     offset: number,
   ): Promise<ServiceDefinitionSummary[]> {
     const result = await this.pool().query<ServiceDefinitionSummary>(
-      `SELECT d.id,
-              d.code,
-              d.status,
-              d.version,
-              d.created_at,
-              d.updated_at,
-              d.deactivated_at,
-              d.deactivation_reason,
-              (
-                SELECT MAX(v.version)
-                FROM cat.service_definition_versions v
-                WHERE v.service_definition_id = d.id
-                  AND v.status = 'ACTIVE'
-              ) AS latest_published_version,
-              (
-                SELECT MAX(v.version)
-                FROM cat.service_definition_versions v
-                WHERE v.service_definition_id = d.id
-                  AND v.status = 'DRAFT'
-              ) AS current_draft_version
-       FROM cat.service_definitions d
-       WHERE ${whereClause}
-       ORDER BY d.created_at ASC, d.id ASC
-       LIMIT $${params.length + 1}
-       OFFSET $${params.length + 2}`,
+      `WITH page AS (
+        SELECT d.id,
+               d.code,
+               d.status,
+               d.version,
+               d.created_at,
+               d.updated_at,
+               d.deactivated_at,
+               d.deactivation_reason,
+               (
+                 SELECT MAX(v.version)
+                 FROM cat.service_definition_versions v
+                 WHERE v.service_definition_id = d.id
+                   AND v.status = 'ACTIVE'
+               ) AS latest_published_version,
+               (
+                 SELECT MAX(v.version)
+                 FROM cat.service_definition_versions v
+                 WHERE v.service_definition_id = d.id
+                   AND v.status = 'DRAFT'
+               ) AS current_draft_version
+        FROM cat.service_definitions d
+        WHERE ${whereClause}
+        ORDER BY d.created_at ASC, d.id ASC
+        LIMIT $${params.length + 1}
+        OFFSET $${params.length + 2}
+      )
+      SELECT page.*,
+             version.name           AS name,
+             version.status::text   AS name_version_status,
+             version.version        AS name_version,
+             category.id            AS category_id,
+             category.code          AS category_code,
+             category.name          AS category_name
+      FROM page
+      LEFT JOIN LATERAL (
+        SELECT v.id, v.name, v.status, v.version, v.category_id
+        FROM cat.service_definition_versions v
+        WHERE v.service_definition_id = page.id
+          AND v.status IN ('ACTIVE', 'DRAFT')
+        ORDER BY (v.status = 'ACTIVE') DESC, v.version DESC
+        LIMIT 1
+      ) AS version ON TRUE
+      LEFT JOIN cat.service_categories category ON category.id = version.category_id
+      ORDER BY page.created_at ASC, page.id ASC`,
       [...params, limit, offset],
     );
     return result.rows;

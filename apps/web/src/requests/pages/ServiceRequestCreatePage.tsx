@@ -63,7 +63,7 @@ export function ServiceRequestCreatePage() {
             if (!current) {
               return null;
             }
-            return { id: item.id, versionId: current.id, label: `${current.code} v${current.version}` };
+            return { id: item.id, versionId: current.id, label: current.name };
           }),
         );
         if (!controller.signal.aborted) {

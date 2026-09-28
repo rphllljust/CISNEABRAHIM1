@@ -13,20 +13,61 @@ describe('ServiceDefinitionsListPage integration', () => {
     tokenStore.setTokens('access-token', 'refresh-token');
   });
 
-  it('loads catalog definitions and filters by code on the current page', async () => {
+  it('shows the service NAME as the primary identity and the code as secondary context', async () => {
     vi.stubGlobal('fetch', createCatalogFetchMock());
     renderWithProviders(<ServiceDefinitionsListPage />);
 
     await waitFor(() => {
-      expect(screen.getByRole('link', { name: 'LOCACAO-DEMO' })).toBeInTheDocument();
+      expect(
+        screen.getByRole('link', { name: 'Locação de automóveis sem condutor' }),
+      ).toBeInTheDocument();
+    });
+
+    // O code continua visivel, mas como contexto — nunca como identidade principal.
+    expect(screen.getByText('LOCACAO-DEMO')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'LOCACAO-DEMO' })).not.toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Serviço' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Categoria' })).toBeInTheDocument();
+  });
+
+  it('resolves the search on the SERVER, not on the loaded page', async () => {
+    vi.stubGlobal('fetch', createCatalogFetchMock());
+    renderWithProviders(<ServiceDefinitionsListPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'Locação de automóveis sem condutor' })).toBeInTheDocument();
     });
 
     const user = userEvent.setup();
-    const search = screen.getByLabelText(/buscar por código/i);
-    await user.type(search, 'UNKNOWN');
+    // Termo que casa com o NOME e nao existe no CODE ('LOCACAO-DEMO'): so o servidor pode achar.
+    await user.type(screen.getByLabelText(/buscar serviços/i), 'automóveis');
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'Locação de automóveis sem condutor' })).toBeInTheDocument();
+    });
+
+    // Termo inexistente: o servidor devolve vazio e a tela diz isso.
+    await user.clear(screen.getByLabelText(/buscar serviços/i));
+    await user.type(screen.getByLabelText(/buscar serviços/i), 'zzz-nao-existe');
 
     await waitFor(() => {
       expect(screen.getByRole('status')).toHaveTextContent(/nenhuma definição encontrada/i);
+    });
+  });
+
+  it('keeps showing the service when the search matches the name on the server', async () => {
+    vi.stubGlobal('fetch', createCatalogFetchMock());
+    renderWithProviders(<ServiceDefinitionsListPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'Locação de automóveis sem condutor' })).toBeInTheDocument();
+    });
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/buscar serviços/i), 'locação');
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'Locação de automóveis sem condutor' })).toBeInTheDocument();
     });
   });
 });

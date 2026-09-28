@@ -83,6 +83,16 @@ export type ExecutionRequirementRow = {
 export type ServiceDefinitionSummary = ServiceDefinitionRow & {
   latest_published_version: number | null;
   current_draft_version: number | null;
+  /**
+   * Nome humano da versao vigente. `null` quando a definicao nao tem versao ACTIVE nem DRAFT —
+   * nesse caso a UI cai no `code`, que e a unica identidade que existe de fato.
+   */
+  name: string | null;
+  name_version_status: VersionDbStatus | null;
+  name_version: number | null;
+  category_id: string | null;
+  category_code: string | null;
+  category_name: string | null;
 };
 
 export type ServiceDefinitionVersionDetail = ServiceDefinitionVersionRow & {
@@ -97,6 +107,14 @@ export type ServiceDefinitionVersionDetail = ServiceDefinitionVersionRow & {
 export type ServiceDefinitionResponse = {
   id: string;
   code: string;
+  /** Nome humano da versao vigente (ACTIVE; senao DRAFT). Campo ADITIVO. */
+  name: string | null;
+  /** Versao de onde o `name` veio, para a UI poder dizer qual versao ela esta lendo. */
+  nameVersion: number | null;
+  nameVersionStatus: VersionApiStatus | null;
+  categoryId: string | null;
+  categoryCode: string | null;
+  categoryName: string | null;
   status: LineageStatus;
   version: number;
   createdAt: string;
@@ -158,6 +176,12 @@ export function toServiceDefinitionResponse(row: ServiceDefinitionSummary): Serv
   return {
     id: row.id,
     code: row.code,
+    name: row.name,
+    nameVersion: row.name_version,
+    nameVersionStatus: row.name_version_status ? toVersionApiStatus(row.name_version_status) : null,
+    categoryId: row.category_id,
+    categoryCode: row.category_code,
+    categoryName: row.category_name,
     status: row.status,
     version: row.version,
     createdAt: row.created_at,

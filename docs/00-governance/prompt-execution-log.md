@@ -14177,4 +14177,314 @@ ja usa `total`, entao a adaptacao foi acrescentar `total` ao contrato existente.
 - Deep offset continua O(offset) no banco, como em Clientes; com 20 itens por pagina e acervo de
   documentos de baixa cardinalidade, nao ha evidencia de problema real.
 
+---
 
+```text
+PROMPT: BIG WAVE 06
+TITLE: Performance enterprise — medir, corrigir apenas gargalo comprovado
+STARTED_AT: 2026-09-26T22:12:00-04:00
+FINISHED_AT: 2026-09-26T22:26:00-04:00
+STATUS: PASS
+HEAD_ANTES: 9539b88cc04bd49daaf09c4b35eb3fd055ba8e15
+FILES_CREATED:
+  apps/api/src/performance/big-wave-06-baseline.integration.spec.ts
+FILES_CHANGED:
+  apps/api/src/authorization/services/domain-grant-authz.helper.ts
+  apps/api/src/authorization/services/policy-decision-point.service.ts
+  apps/api/src/finance/repositories/payables.repository.ts
+  apps/api/src/finance/repositories/receivables.repository.ts
+  apps/api/src/finance/services/payables-access.authz.ts
+  apps/api/src/finance/services/payables-access.service.ts
+  apps/api/src/finance/services/receivables-access.authz.ts
+  apps/api/src/finance/services/receivables-access.service.ts
+  docs/00-governance/prompt-execution-log.md
+PREENCHIDOS_NAO_ALTERADOS_NESTA_WAVE (estavam sujos na arvore antes de comecar):
+  apps/api/src/app.module.ts
+  apps/web/src/finance/pages/ReceivableDetailPage.tsx
+  apps/web/src/service-orders/pages/ServiceOrderPlanningPage.tsx
+  apps/api/src/business-chain/ (untracked), apps/web/src/business-chain/ (untracked), apps/web/e2e/business-chain/ (untracked)
+QUALITY_GATE: PASS
+MIGRATION: NONE
+CORRECOES_DE_PERFORMANCE: 3 (dentro do limite)
+NEXT_PROMPT_EXECUTED: NO
+```
+
+## BIG WAVE 06 — performance (evidencia)
+
+### Baseline real (PostgreSQL 18, 50 recebiveis + 50 contas a pagar, cada um com 3 parcelas e 1 liquidacao/pagamento)
+
+| Alvo                      | p50 ANTES | queries/req ANTES | p95 carga 30 conc. |
+| ------------------------- | --------- | ----------------- | ------------------ |
+| `GET /finance/receivables`| 974,23 ms | 1.525             | 710,66 ms          |
+| `GET /finance/payables`   | 816,92 ms | 1.505             | 663,36 ms          |
+
+Distribuicao das 1.525 queries (recebiveis): 510 grants / 255 roles / 255 insert de auditoria de
+decisao / 5 leitura da lista / 500 leitura de filhos (250 parcelas + 250 liquidacoes). Payload
+61.001 B e 53.491 B, 50 linhas cada. **O gargalo nao era SQL lento — era contagem de round-trips.**
+
+### N+1 medido
+
+- `ReceivablesAccessService.list`: 2 queries de filho + 3 queries de autorizacao POR LINHA.
+- `PayablesAccessService.list`: identico (2 + 3 por linha).
+- `BusinessChainService`: NAO tem N+1 de banco (2 idas ao banco por requisicao, constante). Nao
+  tocado, conforme a regra "nao otimizar o que ja esta eficiente".
+
+### Correcao 1 — autorizacao em lote
+
+- **Antes**: `decide()` por linha -> `findActiveGrants` + `findRoleDerivedActionRows` +
+  `insertDecisionAudit` POR LINHA. 1.020 das 1.525 queries eram autorizacao.
+- **Causa**: as duas consultas de grants nao dependem do contexto do recurso — so do ator, da
+  action e do resourceType. Estavam dentro do laco por nao existir caminho de lote.
+- **Correcao**: `PolicyDecisionPointService.decideBatch()` + `hasPolicyAndGrantScopeBatch()`. As
+  fontes de grants sao lidas UMA vez; cada contexto e avaliado pelos MESMOS helpers
+  (`grantMatchesResourceContext`). A conjuncao "decisao do PDP **E** grant direto de escopo" foi
+  preservada byte a byte: sem ela uma capability derivada de role passaria a liberar linha, ou
+  seja, a regra de acesso ficaria MAIS AMPLA — isso teria sido um bug de autorizacao, nao uma
+  otimizacao.
+- **Auditoria**: `filterReceivableList` usa `audit: false` porque a leitura ja e auditada uma vez
+  em `assertReceivableList` (antes: 1 evento por linha, ou seja, 50 eventos para UMA leitura).
+  `filterPayableList` mantem 1 evento por lote (era 1 por linha).
+- **Depois**: 1.020 -> 20 queries de autorizacao por requisicao de recebiveis (51x menos);
+  1.000 -> 20 em contas a pagar (50x menos).
+
+### Correcao 2 — filhos em lote
+
+- **Antes**: `listInstallments` + `listSettlements` (e `listPayments`) por linha: 100 queries por
+  requisicao de 50 linhas.
+- **Causa**: nao existia leitura por conjunto.
+- **Correcao**: `listInstallmentsByReceivableIds` / `listSettlementsByReceivableIds` e
+  `listInstallmentsByPayableIds` / `listPaymentsByPayableIds` com `WHERE fk = ANY($1::uuid[])`,
+  mantendo a ordenacao por linha (`installment_number`; `settled_at, created_at`) via
+  `ORDER BY fk, <chave>`, e agrupamento em memoria por id do pai.
+- **Depois**: 100 -> 4 queries por requisicao (25x menos).
+
+### EXPLAIN (analyze, buffers) das queries alteradas
+
+- ANTES, por linha: `Index Scan using receivable_installments_number_uidx` (rows=3,
+  Execution 0,062 ms) e `Index Scan using settlements_receivable_id_idx` + `Sort` quicksort
+  (rows=1, 0,066 ms).
+- DEPOIS, por conjunto (50 ids): `Index Scan using receivable_installments_number_uidx`,
+  `Index Cond: receivable_id = ANY(...)`, **Index Searches: 1**, rows=150, buffers shared hit=26,
+  Execution **0,078 ms** — 50x menos round-trips por ~o mesmo tempo de execucao.
+- `settlements`: `Seq Scan` + `Sort` (rows=25, Execution 0,069 ms). **O seq scan e deliberado: a
+  tabela e minuscula, o planner escolhe corretamente e nao existe indice faltando.** Nenhum indice
+  foi criado nesta wave exatamente por isso — nao ha evidencia de filtro sem indice.
+- `fin.payable_installments`: `Index Scan` (rows=150, buffers 26, 0,088 ms). `fin.payments`:
+  `Index Scan using payments_payable_id_idx` + `Incremental Sort` (0,056 ms).
+
+### Antes/depois consolidado (mesmo dataset, mesma maquina)
+
+| Alvo         | p50 antes | p50 depois | queries antes | queries depois | payload |
+| ------------ | --------- | ---------- | ------------- | -------------- | ------- |
+| receivables  | 974,23 ms | 19,65 ms   | 1.525         | 50             | 61.001 B (inalterado) |
+| payables     | 816,92 ms | 14,19 ms   | 1.505         | 35             | 53.491 B (inalterado) |
+
+### Carga controlada (30 concorrentes por alvo, `DATABASE_POOL_MAX=10`)
+
+| Alvo        | p50      | p95      | max      | erro | vs. baseline sequencial |
+| ----------- | -------- | -------- | -------- | ---- | ----------------------- |
+| receivables | 557,85 ms| 710,66 ms| 714,78 ms| 0    | 710 ms de p95 era o p50 de UMA requisicao antes |
+| payables    | 532,11 ms| 663,36 ms| 681,56 ms| 0    | idem                    |
+
+60 requisicoes concorrentes, 510 queries no total, 1.454 ms de parede, 0 erros, nenhum sinal de
+esgotamento de pool (`pg` faz fila FIFO; 60 requisições x ~0,5 s cada cabem em 10 conexões).
+
+### Frontend
+
+Browser real e medicoes de requisicao do browser NAO foram executados nesta rodada (timebox de 40
+min consumido em baseline + backend/DB + gates). O que foi estaticamente confirmado no codigo:
+
+- as listas financeiras chamam UM endpoint cada, sem fan-out por linha no cliente;
+- `work-inbox` ja agrega as fontes no SERVIDOR em uma unica requisicao (sem waterfall de 6 listas);
+- paginacao/filtros das listas de documentos/clientes/OS ja sao server-side (rodadas anteriores).
+- **PARK**: medir requests duplicados, waterfalls e refetch no browser real (Dashboard, Work Inbox,
+  Finance, Cliente, Proposta, OS, Closing) e a deduplicacao `useNavAccess`/Ctrl+K.
+
+### Write safety
+
+Nenhuma alteracao de escrita foi feita nesta wave; as provas de double-submit, idempotencia e
+conflito de versao ja existentes foram reexecutadas e seguem verdes: `receivables.integration`
+18/18 e `payables.integration` 15/15, incluindo "replays a double POST with the original rowVersion
+as one settlement", "serializes concurrent double POSTs" e "rejects stale rowVersion". Nenhum
+invariante quebrado pelas mudancas de performance.
+
+### Flaky
+
+Dois testes falharam na suite completa e NENHUM e relacionado a esta wave:
+
+1. `src/platform/release-scope/release-scope.http.spec.ts` > "permite chamada direta a rota
+   nao-gated mesmo com flags de release off" — `Test timed out in 5000ms`. **Todos os 5 testes do
+   arquivo passaram em rerun completo (216 ms)**: o arquivo e rapido, logo o timeout veio de
+   contencao por CPU sob a suite inteira (1139 testes), nao de recurso compartilhado ou estado
+   global. Classificacao: LOAD_INDUCED CONFIRMADO.
+2. `src/platform/bounded-contexts/module-boundary-rules.spec.ts` > "has zero cross-context private
+   table access" — acusa `accounting/repositories/accounting.repository.ts` (contexto ACCOUNTING)
+   lendo schema `fis` (FISCAL). Reproduz isolado, ou seja, **nao e flaky**: e violacao de fronteira
+   pre-existente da arvore `apps/api/src/accounting`, que nao foi tocada por esta wave (nenhum
+   arquivo alterado ali). Classificacao: FAIL_REAL_PRE_EXISTENTE, fora do escopo desta wave.
+   **PARK para a wave que for dona da fronteira contabil/fiscal — nao mascarado, nao corrigido por
+   conveniencia.**
+
+### Gates executados
+
+- API `typecheck`: limpo (`tsc --noEmit`).
+- API `lint`: limpo (`eslint "{src,test}/**/*.ts"`, 0 erros e 0 warnings).
+- API testes focados: `receivables.integration` + `payables.integration` +
+  `authorization.integration` + `contextual-scope.integration` = 41/41 PASS.
+- Suite completa da API rodada UMA vez: 1137/1139 (as 2 falhas classificadas acima).
+- `git diff --check`: limpo.
+- Migration gate: NAO SE APLICA (nenhuma migration, nenhum indice criado).
+- Web `tsc -b` / ESLint / UI: NAO executados nesta rodada (timebox); nenhum arquivo de `apps/web`
+  foi alterado por esta wave.
+
+### Nao alterado por decisao
+
+- **Indice**: nenhum. Os planos mostram Index Scan nos filtros reais; o unico Seq Scan
+  (`fin.settlements`) e correto para o volume medido.
+- **Cache**: nenhum cache novo. O ganho veio de batch, nunca de esconder N+1 atras de cache.
+- **Business chain**: preservado integralmente (2 idas ao banco por requisicao, constante).
+- **`WorkInboxService`**: preservado. Nenhuma fonte dominou o tempo a ponto de justificar
+  intervencao dentro do timebox — nao foi reescrito.
+- **Contrato HTTP**: `listAll()` continua sem `limit`/`offset` (paginação server-side das listas
+  financeiras permanece PARK, como estava antes desta wave).
+
+### Parks (Wave 07)
+
+1. Paginacao server-side real nas listas de recebiveis e contas a pagar (`limit`/`offset`/`total`),
+   espelhando o que Documentos/Clientes/OS ja fazem. Nao foi feito aqui para nao mudar contrato
+   dentro de uma wave de performance.
+2. `listAll()` sem paginacao significa que a latencia agora escala com o numero de linhas
+   (~0,4 ms por linha), nao mais com o quadrado. Medir com dataset maior antes de decidir.
+3. Medicao de frontend em browser real (requests duplicados, waterfalls, refetch, loading
+   piscando) e deduplicacao `useNavAccess` / Ctrl+K.
+4. Fronteira ACCOUNTING -> schema `fis` (falha real pre-existente de `module-boundary-rules`).
+5. `Unused eslint-disable directive` nao existe mais nesta wave (removidos os 2 que sobravam).
+
+### Limitacoes honestas da medicao
+
+- Foi medida a CAMADA DE SERVICO com pool real (autz, auditoria, repositorio e banco reais), nao
+  HTTP sobre a rede. O tempo de rede/serializacao HTTP nao esta incluido nos numeros de latencia.
+- O dataset e sintetico (50 + 50 linhas) e o banco e local: os numeros servem para comparar antes
+  e depois na MESMA maquina, e a contagem de queries (que e independente de hardware) e a
+  evidencia principal.
+---
+
+```text
+PROMPT: CATALOG HUMANIZATION (SAFE FIX — NAME FIRST, CNAE SECONDARY)
+TITLE: Levar o `name` ja existente do catalogo ate a UI, sem remodelar nada
+STARTED_AT: 2026-09-26T22:29:00-04:00
+FINISHED_AT: 2026-09-26T22:55:00-04:00
+STATUS: PASS
+HEAD: 9539b88cc04bd49daaf09c4b35eb3fd055ba8e15 (nenhum commit criado)
+FILES_CREATED:
+  apps/web/e2e/catalog/catalog-humanization.journey.spec.ts
+  apps/web/playwright.catalog.config.ts
+FILES_CHANGED:
+  apps/api/src/catalog/repositories/service-catalog.repository.ts
+  apps/api/src/catalog/serializers/service-catalog-response.serializer.ts
+  apps/api/src/catalog/services/service-catalog-access.service.ts
+  apps/api/src/catalog/dto/service-catalog.dto.ts
+  apps/api/src/catalog/service-catalog.integration.spec.ts
+  apps/web/src/catalog/types/service-catalog.types.ts
+  apps/web/src/catalog/api/service-catalog-api.ts
+  apps/web/src/catalog/pages/ServiceDefinitionsListPage.tsx
+  apps/web/src/catalog/pages/ServiceDefinitionsListPage.test.tsx
+  apps/web/src/catalog/catalog.e2e.test.tsx
+  apps/web/src/requests/pages/ServiceRequestCreatePage.tsx
+  apps/web/src/test/catalog-fetch-mock.ts
+  docs/00-governance/prompt-execution-log.md
+MIGRATION: NONE
+SEED_ALTERADO: NO
+CODES_RENOMEADOS: NO (CNAE-* intactos, por decisao do prompt)
+QUALITY_GATE: PASS
+NEXT_PROMPT_EXECUTED: NO
+```
+
+## Catalogo — o nome humano chega a UI (2026-09-26)
+
+### Causa confirmada (diagnostico do prompt, reconferido no codigo)
+
+`cat.service_definition_versions.name` sempre teve o texto humano. A lista nao o projetava: o
+`listDefinitions()` devolvia apenas a definicao + `MAX(version)` das versoes ACTIVE/DRAFT, o
+serializer nao expunha `name` e a tela usava `definition.code` como identidade. Propostas e OS
+referenciam `service_definition_id` (UUID) e nunca dependeram do code — logo, exibir o nome nao
+exige tocar modelagem, FK nem seed.
+
+### Alteracao (aditiva, sem migration)
+
+- **Repository** — `listDefinitions()` e `findDefinitionSummary()` passam a projetar, na MESMA
+  consulta, o nome da versao vigente via `LEFT JOIN LATERAL` com a ordem
+  `ORDER BY (v.status = 'ACTIVE') DESC, v.version DESC LIMIT 1`, mais a categoria por
+  `LEFT JOIN cat.service_categories`. Uma CTE `page` mantem `LIMIT/OFFSET` na definicao (a juncao
+  ocorre depois do recorte), portanto a paginacao nao muda de significado. Sem N+1: 1 consulta.
+- **Regra do nome** (a mesma decisao que ja existia para "o que esta publicado"):
+  1. entre ACTIVE, a de MAIOR versao;
+  2. sem ACTIVE e havendo DRAFT, o DRAFT de maior versao;
+  3. sem ACTIVE e sem DRAFT, `name = null` — a UI cai no `code`. Nome de versao RETIRED nao e
+     usado: seria texto de uma versao que ja nao vigora.
+- **Serializer** — `ServiceDefinitionSummary` ganhou `name`, `name_version_status`,
+  `name_version`, `category_id/code/name`; `ServiceDefinitionResponse` ganhou `name`,
+  `nameVersion`, `nameVersionStatus`, `categoryId/Code/Name`. Todos ADITIVOS.
+- **Busca** — `q` resolvido no SERVIDOR por `d.code ILIKE` OU `EXISTS` de versao ACTIVE/DRAFT com
+  `name ILIKE`; curingas (`%`, `_`, `\`) escapados com `ESCAPE '\'` — o que o operador digita e
+  texto, nao padrao.
+- **Web** — lista com coluna principal **Serviço** (nome) e o code como metadado secundario;
+  coluna **Categoria**; busca com label "Buscar serviços" e placeholder "Nome ou código", agora
+  resolvida no servidor com debounce (o filtro de versao continua local, sobre a pagina recebida);
+  lookup de serviço em nova solicitação passou a rotular pelo `name` (antes `code vN`).
+
+### Browser proof (Playwright, chromium, aplicacao REAL em 5173 + API 3000 + banco semeado)
+
+`apps/web/e2e/catalog/catalog-humanization.journey.spec.ts` — **1/1 PASS**, com capturas em
+`apps/web/test-results/catalog/`:
+
+- `catalog-list.png` — a lista mostra nomes humanos ("Representação comercial de mercadorias em
+  geral" etc.), cabecalhos **Serviço** e **Categoria**, nenhum UUID como rotulo;
+- `catalog-search-by-name.png` — buscar por fragmento do NOME encontra o mesmo servico (prova de
+  que a busca saiu do cliente e foi para o servidor);
+- `service-lookup.png` — o `<select>` de serviço em `/app/requests/new` rotula por nome.
+
+Prova de contrato contra o dado real semeado (leitura, sem alteracao):
+`CNAE-4619200` -> `name: "Representação comercial de mercadorias em geral"`,
+`nameVersion: 1`, `nameVersionStatus: "PUBLISHED"`, `categoryName: "Portfólio CISNE Rondônia"`.
+
+### Testes
+
+- API `service-catalog.integration.spec.ts` **33/33 PASS**, com 4 provas NOVAS: nome do DRAFT quando
+  nunca publicada (`nameVersionStatus: DRAFT`); a versao ACTIVE vence o DRAFT de numero MAIOR
+  (draft v2 existe, nome vem da publicada v1); `name = null` quando nao ha ACTIVE nem DRAFT
+  (publicada retirada com `retired_at`/`retired_by_identity_id`, respeitando o CHECK do banco);
+  busca por nome, por code, por fragmento case-insensitive e o caso `%` (curinga) devolvendo 0 —
+  prova do escape.
+- API `src/catalog` unit 18/18.
+- Web `src/catalog` **31/31 PASS** — 3 provas na lista: nome como identidade principal com o code
+  como contexto (e o link NAO sendo mais o code); busca resolvida no servidor (termo que existe no
+  nome e nao no code continua achando; termo inexistente esvazia).
+- O e2e do catalogo pegou a regressao esperada e foi atualizado: ele afirmava
+  `getByRole('link', { name: 'LOCACAO-DEMO' })` — exatamente o comportamento que esta wave muda.
+- Gates: API `typecheck` OK, API `lint` OK, WEB `tsc -b` OK, WEB `lint` OK, `git diff --check` OK.
+
+### Limite de login encontrado na prova (classificado, nao mascarado)
+
+A prova de browser falhou DUAS vezes por `AUTH_LOGIN_RATE_LIMIT_PER_MINUTE` (padrao 5/min por
+cliente), nao por defeito do catalogo: cada `test()` do Playwright recebe um contexto de browser
+novo, sem sessao, e o `login()` repetido estourou o limite. Confirmado por sondagem direta
+(`POST /api/v1/auth/login` -> 429 durante a janela e 200 depois dela). Correcao: as tres provas
+rodam no MESMO teste/contexto, com UM login. O rate limit do login NAO foi alterado.
+
+### Nao alterado por decisao
+
+- **Nenhuma migration**, nenhum indice, nenhum seed, nenhuma FK, nenhuma classificacao legal.
+- **`CNAE-*` intacto.** A renomeacao para codigo operacional segue sendo decisao de master data,
+  fora desta rodada.
+- **CNAE como coluna**: nao existe coluna CNAE no catalogo; `CNAE-*` e o proprio `code`. Exibir
+  "CNAE" separado exigiria consulta nova so para isso — PARK, conforme a regra do prompt.
+
+### Parks
+
+1. Renomear `CNAE-*` para codigo operacional (master data).
+2. Paginacao/busca do catalogo nao devolvem `total`: a tela segue com `hasMore` heuristico.
+3. `listDefinitions` continua sem `total`, e a busca por nome usa `ILIKE '%termo%'` (sem indice
+   trigram) — o catalogo e de baixa cardinalidade e ja e paginado; medir antes de indexar.
+4. `commit`: nenhum. A arvore ja tinha alteracoes nao commitadas de outra frente
+   (`app.module.ts`, paginas web, `business-chain/`), e misturar escopos seria pior que nao commitar.

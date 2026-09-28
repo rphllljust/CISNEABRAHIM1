@@ -32,9 +32,11 @@ describe('catalog administrative flow e2e (frontend)', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /cat.logo de servi/i })).toBeInTheDocument();
     });
-    expect(screen.getByRole('link', { name: 'LOCACAO-DEMO' })).toBeInTheDocument();
+    // A LISTA identifica o servico pelo NOME humano; o code fica como contexto secundario.
+    const listingLink = screen.getByRole('link', { name: 'Locação de automóveis sem condutor' });
+    expect(listingLink).toBeInTheDocument();
 
-    await user.click(screen.getByRole('link', { name: 'LOCACAO-DEMO' }));
+    await user.click(listingLink);
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'LOCACAO-DEMO' })).toBeInTheDocument();
     });

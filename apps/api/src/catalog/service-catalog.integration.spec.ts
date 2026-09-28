@@ -363,6 +363,91 @@ describe('Service catalog PostgreSQL integration', () => {
     expect(all.items.map((item) => item.code)).toEqual(['SERVICE_ALPHA', 'SERVICE_BETA']);
   });
 
+  it('projects the human NAME of the current version into the list, with category', async () => {
+    const { identityId, categoryId } = await seedActor();
+    const actor = { identityId, sessionId: 'sid' };
+
+    // Nunca publicada: o nome vigente e o do DRAFT.
+    const draftOnly = await catalogAccess.create(actor, createPayload(categoryId, 'SERVICE_DRAFT_ONLY'));
+    const beforePublish = await catalogAccess.listDefinitions(actor, { limit: 20, offset: 0 });
+    const draftRow = beforePublish.items.find((item) => item.code === 'SERVICE_DRAFT_ONLY');
+    expect(draftRow?.name).toBe('Locação Caminhão Pipa');
+    expect(draftRow?.nameVersion).toBe(1);
+    expect(draftRow?.nameVersionStatus).toBe('DRAFT');
+    expect(draftRow?.categoryCode).not.toBeNull();
+
+    // Publicada: o nome passa a vir da versao ACTIVE — e a ACTIVE VENCE o DRAFT mais novo.
+    const definition = await catalogAccess.getDefinition(actor, draftOnly.serviceDefinitionId);
+    await catalogAccess.publishVersion(actor, draftOnly.serviceDefinitionId, 1, definition.version);
+    await catalogAccess.createVersion(actor, draftOnly.serviceDefinitionId, versionCreateBase(categoryId));
+
+    const afterPublish = await catalogAccess.listDefinitions(actor, { limit: 20, offset: 0 });
+    const publishedRow = afterPublish.items.find((item) => item.code === 'SERVICE_DRAFT_ONLY');
+    // O draft v2 (nome "... v2") existe e e MAIS NOVO, mas a versao vigente e a publicada v1.
+    expect(publishedRow?.currentDraftVersion).toBe(2);
+    expect(publishedRow?.latestPublishedVersion).toBe(1);
+    expect(publishedRow?.name).toBe('Locação Caminhão Pipa');
+    expect(publishedRow?.nameVersion).toBe(1);
+    expect(publishedRow?.nameVersionStatus).toBe('PUBLISHED');
+  });
+
+  it('leaves name null when the definition has no ACTIVE and no DRAFT version', async () => {
+    const { identityId, categoryId } = await seedActor();
+    const actor = { identityId, sessionId: 'sid' };
+
+    const created = await catalogAccess.create(actor, createPayload(categoryId, 'SERVICE_NO_VERSION'));
+    const definition = await catalogAccess.getDefinition(actor, created.serviceDefinitionId);
+    await catalogAccess.publishVersion(actor, created.serviceDefinitionId, 1, definition.version);
+    // Sem ACTIVE (a publicada foi retirada) e sem DRAFT nao existe texto humano vigente.
+    // A consistencia de RETIRED exige retired_at + retired_by_identity_id (CHECK do banco).
+    await pool.query(
+      `UPDATE cat.service_definition_versions
+          SET status = 'RETIRED', retired_at = now(), retired_by_identity_id = $2
+        WHERE id = $1`,
+      [created.id, identityId],
+    );
+
+    const page = await catalogAccess.listDefinitions(actor, { limit: 20, offset: 0 });
+    const row = page.items.find((item) => item.code === 'SERVICE_NO_VERSION');
+    expect(row?.name).toBeNull();
+    // A lista continua identificavel pelo code — a UI cai nele.
+    expect(row?.code).toBe('SERVICE_NO_VERSION');
+  });
+
+  it('searches by NAME and by CODE, and does not list unlimited rows', async () => {
+    const { identityId, categoryId } = await seedActor();
+    const actor = { identityId, sessionId: 'sid' };
+
+    await catalogAccess.create(actor, { ...createPayload(categoryId, 'CNAE-7711000'), name: 'Locação de automóveis sem condutor' });
+    await catalogAccess.create(actor, { ...createPayload(categoryId, 'SERVICE_TERRAPLENAGEM'), name: 'Terraplenagem' });
+
+    const byName = await catalogAccess.listDefinitions(actor, { limit: 20, offset: 0, search: 'terraplenagem' });
+    expect(byName.items.map((item) => item.code)).toEqual(['SERVICE_TERRAPLENAGEM']);
+    expect(byName.items[0]?.name).toBe('Terraplenagem');
+
+    const byCode = await catalogAccess.listDefinitions(actor, { limit: 20, offset: 0, search: 'CNAE-7711' });
+    expect(byCode.items.map((item) => item.code)).toEqual(['CNAE-7711000']);
+
+    // Busca parcial e case-insensitive por nome.
+    const partial = await catalogAccess.listDefinitions(actor, { limit: 20, offset: 0, search: 'AUTOMÓVEIS' });
+    expect(partial.items.map((item) => item.code)).toEqual(['CNAE-7711000']);
+
+    // Sem termo, a pagina continua limitada pelo servidor.
+    const all = await catalogAccess.listDefinitions(actor, { limit: 1, offset: 0 });
+    expect(all.items).toHaveLength(1);
+  });
+
+  it('treats the search term as text, not as a LIKE pattern', async () => {
+    const { identityId, categoryId } = await seedActor();
+    const actor = { identityId, sessionId: 'sid' };
+
+    await catalogAccess.create(actor, createPayload(categoryId, 'SERVICE_WILDCARD'));
+
+    // '%' nao pode virar curinga: sem escape isto devolveria a lista inteira.
+    const wildcard = await catalogAccess.listDefinitions(actor, { limit: 20, offset: 0, search: '%' });
+    expect(wildcard.items).toHaveLength(0);
+  });
+
   it('rejects unknown unit codes on service definition create', async () => {
     const { identityId, categoryId } = await seedActor();
     const actor = { identityId, sessionId: 'sid' };
