@@ -4,7 +4,7 @@ import {
   S3Client,
   type S3ClientConfig,
 } from '@aws-sdk/client-s3';
-import { copyFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { join, relative, resolve, sep } from 'node:path';
 import type { BackupConfig } from './backup-config';
 import type { BackupArtifact } from './backup-types';
@@ -221,6 +221,7 @@ export async function runObjectStorageBackup(
 
   const archivePath = join(outputDir, `object-storage-${timestamp}.tar`);
   await createTarArchive(snapshotDir, archivePath);
+  await rm(snapshotDir, { recursive: true, force: true });
 
   let finalPath = archivePath;
   let encrypted = false;
@@ -231,18 +232,20 @@ export async function runObjectStorageBackup(
     const encryptedBuffer = encryptBuffer(plain, config.encryptionKeyBase64);
     finalPath = `${archivePath}.enc`;
     await writeFile(finalPath, encryptedBuffer);
+    await rm(archivePath, { force: true });
     encrypted = true;
   }
 
   const fileStats = await stat(finalPath);
   if (config.offsiteDir) {
-    await mkdir(join(config.offsiteDir, 'object_storage'), { recursive: true });
+    const offsiteDir = join(config.offsiteDir, 'object_storage');
+    await mkdir(offsiteDir, { recursive: true });
     const offsitePath = join(
-      config.offsiteDir,
-      'object_storage',
+      offsiteDir,
       finalPath.split(/[/\\]/).pop() ?? 'artifact',
     );
     await copyFile(finalPath, offsitePath);
+    await copyFile(manifestPath, join(offsiteDir, 'manifest.json'));
   }
 
   return {
