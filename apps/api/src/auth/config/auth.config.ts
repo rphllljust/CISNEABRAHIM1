@@ -1,3 +1,5 @@
+import { readSecretValue } from '../../platform/runtime-config/secret-value';
+
 export type AuthConfig = {
   jwtSecret: string;
   jwtIssuer: string;
@@ -38,18 +40,27 @@ function normalizeOrigin(origin: string): string | null {
   }
 }
 
-function parseCorsOrigins(raw: string | undefined): string[] {
+function isProductionLike(env: NodeJS.ProcessEnv): boolean {
+  return env['NODE_ENV'] === 'production' || env['CISNE_ENV'] === 'production';
+}
+
+function parseCorsOrigins(
+  raw: string | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): string[] {
   const configured = (raw ?? '')
     .split(',')
     .map((origin) => normalizeOrigin(origin))
     .filter((origin): origin is string => Boolean(origin));
 
-  const merged = [...configured, ...DEFAULT_CORS_ORIGINS];
+  const merged = isProductionLike(env)
+    ? configured
+    : [...configured, ...DEFAULT_CORS_ORIGINS];
   return [...new Set(merged)];
 }
 
 export function loadAuthConfig(): AuthConfig {
-  const jwtSecret = process.env['JWT_SECRET'];
+  const jwtSecret = readSecretValue(process.env, 'JWT_SECRET');
   if (!jwtSecret || jwtSecret.length < 32) {
     throw new Error('JWT_SECRET must be set and at least 32 characters.');
   }
