@@ -1,20 +1,20 @@
 {
   "schemaVersion": 2,
   "releaseCandidate": {
-    "commitSha": "ef30b56",
+    "commitSha": "2c8fdfcabb034ebf44054e0001053ce1ece75a97",
     "artifactDigest": null,
-    "version": "0.0.0-rc.1"
+    "version": "0.0.0-rc.2"
   },
   "businessSignOff": {
-    "decision": "APPROVED",
-    "approvedBy": "Abrahim Jabour Junior (Administrador)",
-    "approvedAt": "2026-08-30T22:28:40.514Z",
+    "decision": "PENDING",
+    "approvedBy": null,
+    "approvedAt": null,
     "scope": "operational-validation-authorization",
     "environment": "pilot-or-preproduction",
     "releaseCandidate": {
-      "commitSha": "5be4230",
+      "commitSha": "2c8fdfcabb034ebf44054e0001053ce1ece75a97",
       "artifactDigest": null,
-      "version": "0.0.0-rc.1"
+      "version": "0.0.0-rc.2"
     },
     "evidenceReference": "docs/16-testing/uat-business-scenarios.md",
     "decisionStatement": "Esta versão e este escopo representam corretamente o processo empresarial acordado e estão autorizados a seguir para a etapa de validação operacional/pré-produção.",
@@ -25,7 +25,7 @@
       "apps/api/src/uat/uat-profiles.ts",
       "apps/api/src/uat/uat-business.integration.spec.ts"
     ],
-    "notes": "Aceite empresarial registrado com base no UAT automatizado (Prompt 89)."
+    "notes": "RC2 rebinding: business sign-off from RC1 is retained only in history and is not inherited by this release candidate."
   },
   "rpoRto": {
     "decision": "APPROVED",
@@ -53,89 +53,23 @@
     "notes": "Tier conservative aprovado (24h RPO / 4h RTO)."
   },
   "pilot": {
-    "phase": "OBSERVATION",
-    "engineeringReadiness": "PILOT_STARTED",
-    "startedAt": "2026-08-30T22:28:40.517Z",
-    "observationEndsAt": "2026-09-13T22:28:40.517Z",
+    "phase": "NOT_STARTED",
+    "engineeringReadiness": "NOT_READY",
+    "startedAt": null,
+    "observationEndsAt": null,
     "minObservationDays": 14,
     "exitAuthorizedAt": null,
     "exitAuthorizedBy": null,
-    "responsible": "release-engineer",
-    "environment": "pilot-hml",
+    "responsible": null,
+    "environment": null,
     "releaseCandidate": {
-      "commitSha": "5be4230",
+      "commitSha": "2c8fdfcabb034ebf44054e0001053ce1ece75a97",
       "artifactDigest": null,
-      "version": "0.0.0-rc.1"
+      "version": "0.0.0-rc.2"
     },
     "incidents": [],
     "criticalErrors": [],
-    "operationalResults": [
-      {
-        "recordedAt": "2026-09-03T08:48:54.530Z",
-        "httpErrorRate": null,
-        "httpLatencyP95Ms": null,
-        "httpRequests": null,
-        "outboxFailed": 0,
-        "allocationConflictSignals": 0,
-        "billingAgingRecords": 0,
-        "openBlockers": 0,
-        "workerPending": 51,
-        "source": "database+live HTTP telemetry absent (PILOT_LIVE_HTTP_ERROR_RATE / PILOT_LIVE_HTTP_LATENCY_P95_MS unset); Prompt 82 lab smoke was not copied as exit evidence",
-        "notes": "allocation_conflicts=0; billing_aging_7d=0; outbox_failed=0; worker_pending=51; worker_failed_or_dead=0; posted_unbalanced_journals=0; duplicate_postings=0; incident_blockers=0; http_error_rate=missing; http_p95_ms=missing; phase_unchanged"
-      },
-      {
-        "recordedAt": "2026-09-03T15:47:50.565Z",
-        "httpErrorRate": 0.5714285714285714,
-        "httpLatencyP95Ms": 345,
-        "httpRequests": 14,
-        "outboxFailed": 0,
-        "allocationConflictSignals": 0,
-        "billingAgingRecords": 0,
-        "openBlockers": 0,
-        "workerPending": 0,
-        "source": "database+live HML GET /api/v1/observability/metrics (process uptime sample; not a 14-day series)",
-        "notes": "allocation_conflicts=0; billing_aging_7d=0; outbox_failed=0; worker_pending=0; worker_failed_or_dead=0; posted_unbalanced_journals=0; duplicate_postings=0; incident_blockers=0; http_error_rate=0.5714285714285714; http_p95_ms=345; phase_unchanged"
-      },
-      {
-        "recordedAt": "2026-09-03T15:55:15.243Z",
-        "httpErrorRate": 0.47058823529411764,
-        "httpLatencyP95Ms": 345,
-        "httpRequests": 17,
-        "outboxFailed": 0,
-        "allocationConflictSignals": 0,
-        "billingAgingRecords": 0,
-        "openBlockers": 0,
-        "workerPending": 0,
-        "source": "database+live HML GET /api/v1/observability/metrics (process uptime sample; not a 14-day series)",
-        "notes": "allocation_conflicts=0; billing_aging_7d=0; outbox_failed=0; worker_pending=0; worker_failed_or_dead=0; posted_unbalanced_journals=0; duplicate_postings=0; incident_blockers=0; http_error_rate=0.47058823529411764; http_p95_ms=345; phase_unchanged"
-      },
-      {
-        "recordedAt": "2026-09-03T16:46:03.644Z",
-        "httpErrorRate": 0.3548387096774194,
-        "httpLatencyP95Ms": 251,
-        "httpRequests": 31,
-        "outboxFailed": 0,
-        "allocationConflictSignals": 0,
-        "billingAgingRecords": 0,
-        "openBlockers": 0,
-        "workerPending": 0,
-        "source": "database+live HML GET /api/v1/observability/metrics (process uptime sample; not a 14-day series)",
-        "notes": "allocation_conflicts=0; billing_aging_7d=0; outbox_failed=0; worker_pending=0; worker_failed_or_dead=0; posted_unbalanced_journals=0; duplicate_postings=0; incident_blockers=0; http_error_rate=0.3548387096774194; http_p95_ms=251; phase_unchanged"
-      },
-      {
-        "recordedAt": "2026-09-03T19:07:16.475Z",
-        "httpErrorRate": 0.2391304347826087,
-        "httpLatencyP95Ms": 191,
-        "httpRequests": 46,
-        "outboxFailed": 0,
-        "allocationConflictSignals": 0,
-        "billingAgingRecords": 0,
-        "openBlockers": 0,
-        "workerPending": 47,
-        "source": "database+live HML GET /api/v1/observability/metrics (process uptime sample; not a 14-day series)",
-        "notes": "allocation_conflicts=0; billing_aging_7d=0; outbox_failed=0; worker_pending=47; worker_failed_or_dead=0; posted_unbalanced_journals=0; duplicate_postings=0; incident_blockers=0; http_error_rate=0.2391304347826087; http_p95_ms=191; phase_unchanged"
-      }
-    ],
+    "operationalResults": [],
     "evidenceReference": "docs/19-operations/pilot-program.md",
     "criteriaReferences": [
       "docs/19-operations/pilot-program.md",
@@ -154,41 +88,37 @@
         "releaseCandidate",
         "authorizedBy"
       ],
-      "authorizedBy": "Abrahim Jabour Junior (Administrador)",
-      "environment": "pilot-hml"
+      "authorizedBy": null,
+      "environment": null
     },
-    "notes": "Critérios definidos. Piloto não iniciado — aguarda evento real de início.",
+    "notes": "RC2 requires a new real pilot start event and observation evidence; RC1 pilot evidence is not inherited.",
     "observationWaiver": null
   },
   "manualUatUx": {
-    "status": "PASSED",
-    "engineeringReadiness": "UAT_COMPLETED",
-    "sessionId": "UAT-UX-F132B3A9",
-    "performedBy": "Monica Perez Badra Jabour (Administrador 2)",
-    "performedAt": "2026-08-31T01:08:42.997Z",
-    "environment": "pilot-hml",
+    "status": "NOT_STARTED",
+    "engineeringReadiness": "NOT_READY",
+    "sessionId": null,
+    "performedBy": null,
+    "performedAt": null,
+    "environment": null,
     "releaseCandidate": {
-      "commitSha": "ef30b56",
+      "commitSha": "2c8fdfcabb034ebf44054e0001053ce1ece75a97",
       "artifactDigest": null,
-      "version": "0.0.0-rc.1"
+      "version": "0.0.0-rc.2"
     },
-    "scenarios": [
-      "locacao",
-      "transporte",
-      "obra_composto"
-    ],
+    "scenarios": [],
     "scenarioCatalogReference": "docs/16-testing/uat-ux-scenarios.json",
     "sessionChecklistReference": "docs/16-testing/uat-ux-session-checklist.json",
     "automatedBaselineReferences": [
       "apps/web/src/vertical/vertical-quality-gate.e2e.test.tsx",
       "docs/16-testing/uat-ux-checklist.md"
     ],
-    "result": "PASSED",
+    "result": null,
     "issuesFound": [],
     "blockingIssues": [],
-    "approval": "Monica Perez Badra Jabour (Administrador 2)",
+    "approval": null,
     "evidenceReference": "docs/16-testing/uat-ux-checklist.md",
-    "notes": "Administrador 1: UAT-UX-8CFE4AB9 — Abrahim Jabour Junior (docs/inputs/UAT-UX-001-human-operator-session-signoff.md; checklist docs/16-testing/uat-ux-session-checklist-UAT-UX-8CFE4AB9.json). Administrador 2: UAT-UX-F132B3A9 — Monica Perez Badra Jabour (docs/inputs/UAT-UX-002-human-operator-session-signoff.md; checklist docs/16-testing/uat-ux-session-checklist-UAT-UX-F132B3A9.json)."
+    "notes": "RC2 requires a new manual operator UAT/sign-off; previous RC1 sessions remain historical evidence only."
   },
   "history": [
     {
