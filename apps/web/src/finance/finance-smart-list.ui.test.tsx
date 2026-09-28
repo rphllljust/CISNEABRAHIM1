@@ -42,7 +42,10 @@ describe('Financeiro — smart lists e mecanismos de operação', () => {
     });
 
     // O mock devolve títulos OPEN: a visão Vencidos precisa ficar vazia de verdade.
-    await user.click(screen.getByRole('button', { name: 'Vencidos' }));
+    // A visão vive na barra "Visões": o escopo evita colidir com o indicador de mesmo
+    // nome no drill-down, que é um LINK para a lista filtrada e não aplica visão.
+    const viewsBar = screen.getByRole('group', { name: 'Visões salvas desta lista' });
+    await user.click(within(viewsBar).getByRole('button', { name: 'Vencidos' }));
 
     await waitFor(() => {
       expect(screen.getByText(/nenhum título nesta visão/i)).toBeInTheDocument();

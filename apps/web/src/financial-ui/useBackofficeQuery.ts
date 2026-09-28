@@ -75,6 +75,20 @@ export function useBackofficeQuery<T>(options: {
   const reset = useCallback(() => setState({ phase: 'idle' }), []);
   const setReady = useCallback((data: T) => setState({ phase: 'ready', data }), []);
 
+  /*
+   * RECARGA QUANDO A CONSULTA MUDA.
+   *
+   * `loader` é a identidade da consulta: quando a tela passa a pedir outro recorte
+   * (filtro de status enviado ao servidor, paginação, escopo), o loader recebe uma
+   * identidade nova. `reload` sozinho tem identidade ESTÁVEL de propósito, então
+   * observá-lo não detecta nada — e o efeito abaixo nunca dispararia de novo: a tela
+   * continuaria exibindo a página anterior com o filtro novo aplicado, mostrando
+   * linhas que o servidor não devolveria para aquele recorte.
+   *
+   * Por isso o loader entra como dependência. Ele é `useCallback` nas telas; quem não
+   * o memoizar provoca recarga a cada render, o mesmo comportamento que este hook já
+   * tinha antes desta correção.
+   */
   useEffect(() => {
     if (!enabled || !autoLoad) {
       return;
@@ -82,7 +96,7 @@ export function useBackofficeQuery<T>(options: {
     const controller = new AbortController();
     void reload(controller.signal);
     return () => controller.abort();
-  }, [autoLoad, enabled, reload]);
+  }, [autoLoad, enabled, loader, reload]);
 
   return { state, reload, reset, setReady, refreshing };
 }

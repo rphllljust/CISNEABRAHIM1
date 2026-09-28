@@ -108,12 +108,18 @@ export function createFinanceFetchMock(options: FinanceFetchMockOptions = {}) {
       }));
       const limit = Number(searchParams.get('limit') ?? '20');
       const offset = Number(searchParams.get('offset') ?? '0');
+      // O servidor REAL filtra por `status` em SQL (ver
+      // `apps/api/src/finance/repositories/receivables.repository.ts`, `statusPredicates`):
+      // o recorte é do servidor, não uma máscara sobre a página recebida. Um mock que
+      // devolvesse tudo faria a UI exibir linhas que o servidor nunca entregaria.
+      const status = searchParams.get('status');
+      const filtered = status ? all.filter((row) => row.status === status) : all;
       return jsonResponse({
-        items: all.slice(offset, offset + limit),
+        items: filtered.slice(offset, offset + limit),
         limit,
         offset,
-        total: all.length,
-        totalPages: limit > 0 ? Math.ceil(all.length / limit) : 0,
+        total: filtered.length,
+        totalPages: limit > 0 ? Math.ceil(filtered.length / limit) : 0,
       });
     }
 
@@ -193,37 +199,47 @@ export function createFinanceFetchMock(options: FinanceFetchMockOptions = {}) {
       if (options.payableListAllowed === false) {
         return denied('FINANCE_DENIED');
       }
+      const allPayables = [
+        {
+          id: MOCK_PAYABLE_ID,
+          unitId: 'unit-1',
+          counterpartyId: 'vendor-1',
+          origin: { kind: 'MANUAL', id: 'origin-1', reference: 'AP-001' },
+          expenseCategoryId: 'cat-1',
+          costCenter: { id: 'cc-1', code: 'ADM' },
+          principal: '800.0000',
+          currencyCode: 'BRL',
+          dueDate: '2026-09-05',
+          paymentTerms: 'À vista',
+          externalReference: 'AP-001',
+          status: 'OPEN',
+          agingBucket: 'CURRENT',
+          remainingBalance: '800.0000',
+          paidAmount: '0.0000',
+          lifecycle: 'ACTIVE',
+          cancelledAt: null,
+          cancelReason: null,
+          rowVersion: 1,
+          createdAt: '2026-08-01T12:00:00.000Z',
+          updatedAt: '2026-08-01T12:00:00.000Z',
+          installments: [],
+          payments: [],
+        },
+      ];
+      // Mesmo contrato do servidor real: `status` e `agingBucket` recortam no servidor.
+      // Sem isso a visão "Aging 90+" pareceria conter títulos que o banco não devolveria.
+      const payableStatus = searchParams.get('status');
+      const agingBucket = searchParams.get('agingBucket');
+      const items = allPayables.filter(
+        (row) =>
+          (!payableStatus || row.status === payableStatus) &&
+          (!agingBucket || row.agingBucket === agingBucket),
+      );
       return jsonResponse({
-        items: [
-          {
-            id: MOCK_PAYABLE_ID,
-            unitId: 'unit-1',
-            counterpartyId: 'vendor-1',
-            origin: { kind: 'MANUAL', id: 'origin-1', reference: 'AP-001' },
-            expenseCategoryId: 'cat-1',
-            costCenter: { id: 'cc-1', code: 'ADM' },
-            principal: '800.0000',
-            currencyCode: 'BRL',
-            dueDate: '2026-09-05',
-            paymentTerms: 'À vista',
-            externalReference: 'AP-001',
-            status: 'OPEN',
-            agingBucket: 'CURRENT',
-            remainingBalance: '800.0000',
-            paidAmount: '0.0000',
-            lifecycle: 'ACTIVE',
-            cancelledAt: null,
-            cancelReason: null,
-            rowVersion: 1,
-            createdAt: '2026-08-01T12:00:00.000Z',
-            updatedAt: '2026-08-01T12:00:00.000Z',
-            installments: [],
-            payments: [],
-          },
-        ],
+        items,
         limit: 20,
         offset: 0,
-        total: 1,
+        total: items.length,
         totalPages: 1,
       });
     }
