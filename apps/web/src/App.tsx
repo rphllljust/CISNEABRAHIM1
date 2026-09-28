@@ -89,6 +89,7 @@ import { ExpensesListPage } from './finance/pages/ExpensesListPage';
 import { ExpensesPage } from './finance/pages/ExpensesPage';
 import { BudgetsListPage } from './finance/pages/BudgetsListPage';
 import { BudgetsPage } from './finance/pages/BudgetsPage';
+import { CashForecastPage } from './finance/pages/CashForecastPage';
 import { FiscalRoute } from './fiscal/FiscalRoute';
 import { FiscalDocumentsPage } from './fiscal/pages/FiscalDocumentsPage';
 import { FiscalPeriodsPage } from './fiscal/pages/FiscalPeriodsPage';
@@ -571,6 +572,15 @@ export function App() {
                   </FinanceRoute>
                 }
               />
+              {/* Previsão de caixa: tela e controller ja existiam; faltava a rota. */}
+              <Route
+                path="/app/finance/forecast"
+                element={
+                  <FinanceRoute access="forecast">
+                    <CashForecastPage />
+                  </FinanceRoute>
+                }
+              />
               <Route
                 path="/app/finance/expenses"
                 element={
@@ -823,11 +833,7 @@ export function App() {
               />
               <Route
                 path="/app/accounting/closing"
-                element={
-                  <AccountingRoute>
-                    <ClosingCenterPage />
-                  </AccountingRoute>
-                }
+                element={<Navigate to="/app/closing" replace />}
               />
               <Route
                 path="/app/accounting/origens"

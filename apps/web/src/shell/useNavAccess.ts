@@ -5,6 +5,8 @@ import { probeCatalogListAccess } from '../catalog/api/service-catalog-api';
 import { probeAssetListAccess } from '../assets/api/physical-assets-api';
 import { probeServiceRequestListAccess } from '../requests/api/service-requests-api';
 import { probeProposalListAccess } from '../proposals/api/proposals-api';
+import { probeContractCapabilities } from '../contracts/api/contracts-api';
+import { probeSupplierListAccess } from '../suppliers/api/suppliers-api';
 import { probePurchaseOrderListAccess } from '../purchase-orders/api/purchase-orders-api';
 import { probeBillingCapabilities } from '../billing/api/billing-api';
 import { probeDocumentCapabilities } from '../documents/api/documents-api';
@@ -391,9 +393,29 @@ export function useNavAccess(): NavAccessState {
         }
 
         if (item.accessCheck === 'supplier-read') {
-          // Removido do RC: módulo Fornecedores (suppliers) é WIP não aprovado;
-          // a rota/nav não existe neste artefato. Bloco conservado vazio para
-          // não referenciar API inexistente no HEAD limpo.
+          // Fornecedores deixaram de ser WIP: a rota existe e o backend responde com
+          // capacidade real (`supplier:supplier:list`). A sonda decide a visibilidade; sem
+          // concessao o item nao aparece e a rota continua negando no servidor.
+          try {
+            nextAccess[item.id] = await probeSupplierListAccess(controller.signal);
+          } catch {
+            if (!cancelled) {
+              nextAccess[item.id] = false;
+            }
+          }
+          continue;
+        }
+
+        if (item.accessCheck === 'contract-list') {
+          try {
+            const capabilities = await probeContractCapabilities(controller.signal);
+            nextAccess[item.id] = capabilities.canList;
+          } catch {
+            if (!cancelled) {
+              nextAccess[item.id] = false;
+            }
+          }
+          continue;
         }
 
         if (item.accessCheck === 'access-admin') {

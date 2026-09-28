@@ -31,7 +31,17 @@ export type OperatorCommand = {
   keywords: string[];
   /** Explicacao curta do que a lista mostra. */
   hint?: string;
-  /** Id do item de menu, quando o comando e uma rota de navegacao. */
+  /**
+   * Id do item de menu cujo ACESSO governa este comando.
+   *
+   * Obrigatorio para todo comando estatico (`view`, `create`) e para os de prioridade:
+   * a paleta so pode oferecer um destino que o shell ja autorizou. Sem isto, "Novo cliente"
+   * e "Contas a pagar vencidas" apareciam a quem nao tem grant — o menu escondia e o Ctrl+K
+   * entregava. A paleta continua NAO decidindo acesso: ela pergunta ao mesmo contrato do
+   * menu (`isNavItemVisible`), e o backend segue sendo o boundary real.
+   *
+   * Comandos derivados do menu (`nav:*`) nao precisam declarar: ja sao o proprio item.
+   */
   navItemId?: string;
 };
 
@@ -51,6 +61,7 @@ export const COMMAND_GROUPS = {
 export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
   {
     id: 'view.receivables.overdue',
+    navItemId: 'finance-receivables',
     kind: 'view',
     group: COMMAND_GROUPS.view,
     label: 'Contas a receber vencidas',
@@ -60,6 +71,7 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'view.receivables.open',
+    navItemId: 'finance-receivables',
     kind: 'view',
     group: COMMAND_GROUPS.view,
     label: 'Contas a receber em aberto',
@@ -69,6 +81,7 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'view.payables.overdue',
+    navItemId: 'finance-payables',
     kind: 'view',
     group: COMMAND_GROUPS.view,
     label: 'Contas a pagar vencidas',
@@ -78,6 +91,7 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'view.payables.approval',
+    navItemId: 'finance-payables',
     kind: 'view',
     group: COMMAND_GROUPS.view,
     label: 'Contas a pagar aguardando aprovação',
@@ -87,6 +101,7 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'view.expenses.submitted',
+    navItemId: 'finance-expenses',
     kind: 'view',
     group: COMMAND_GROUPS.view,
     label: 'Despesas aguardando aprovação',
@@ -96,6 +111,7 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'view.expenses.rejected',
+    navItemId: 'finance-expenses',
     kind: 'view',
     group: COMMAND_GROUPS.view,
     label: 'Despesas rejeitadas',
@@ -105,6 +121,7 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'view.budgets.draft',
+    navItemId: 'finance-budgets',
     kind: 'view',
     group: COMMAND_GROUPS.view,
     label: 'Orçamentos em rascunho',
@@ -114,6 +131,7 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'view.inventory.movements.in',
+    navItemId: 'inventory',
     kind: 'view',
     group: COMMAND_GROUPS.view,
     label: 'Entradas de estoque',
@@ -123,6 +141,7 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'view.inventory.movements.out',
+    navItemId: 'inventory',
     kind: 'view',
     group: COMMAND_GROUPS.view,
     label: 'Saídas de estoque',
@@ -140,6 +159,7 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
   // `nav:/app/finance/reconciliation`. Não reintroduzir comando sem filtro real.
   {
     id: 'view.journals.draft',
+    navItemId: 'accounting-journals',
     kind: 'view',
     group: COMMAND_GROUPS.view,
     label: 'Rascunhos contábeis',
@@ -149,6 +169,7 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'view.journals.posted',
+    navItemId: 'accounting-journals',
     kind: 'view',
     group: COMMAND_GROUPS.view,
     label: 'Lançamentos contábeis lançados',
@@ -158,6 +179,7 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'view.periods.open',
+    navItemId: 'accounting-fechamentos',
     kind: 'view',
     group: COMMAND_GROUPS.view,
     label: 'Períodos contábeis abertos',
@@ -167,6 +189,7 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'view.periods.closed',
+    navItemId: 'accounting-fechamentos',
     kind: 'view',
     group: COMMAND_GROUPS.view,
     label: 'Períodos contábeis fechados',
@@ -176,6 +199,7 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'view.fiscal.rejected',
+    navItemId: 'fiscal-documents',
     kind: 'view',
     group: COMMAND_GROUPS.view,
     label: 'Documentos fiscais rejeitados',
@@ -185,6 +209,7 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'view.fiscal.failed',
+    navItemId: 'fiscal-documents',
     kind: 'view',
     group: COMMAND_GROUPS.view,
     label: 'Documentos fiscais com falha',
@@ -194,6 +219,7 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'view.fiscal.draft',
+    navItemId: 'fiscal-documents',
     kind: 'view',
     group: COMMAND_GROUPS.view,
     label: 'Documentos fiscais em rascunho',
@@ -203,6 +229,7 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'view.fiscal.periods.open',
+    navItemId: 'fiscal-periods',
     kind: 'view',
     group: COMMAND_GROUPS.view,
     label: 'Períodos fiscais abertos',
@@ -212,6 +239,7 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'view.fiscal.assessments.draft',
+    navItemId: 'fiscal-assessments',
     kind: 'view',
     group: COMMAND_GROUPS.view,
     label: 'Obrigações tributárias em rascunho',
@@ -221,6 +249,7 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'view.documents',
+    navItemId: 'documents',
     kind: 'view',
     group: COMMAND_GROUPS.view,
     label: 'Documentos',
@@ -229,6 +258,7 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'view.alerts.critical',
+    navItemId: 'alerts',
     kind: 'view',
     group: COMMAND_GROUPS.view,
     label: 'Alertas críticos',
@@ -245,6 +275,7 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
    */
   {
     id: 'view.serviceOrders.overdue',
+    navItemId: 'service-orders',
     kind: 'view',
     group: COMMAND_GROUPS.view,
     label: 'Ordens de serviço vencidas',
@@ -254,6 +285,7 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'view.serviceOrders.approaching',
+    navItemId: 'service-orders',
     kind: 'view',
     group: COMMAND_GROUPS.view,
     label: 'Ordens de serviço vencendo',
@@ -263,6 +295,7 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'view.serviceOrders.mine',
+    navItemId: 'service-orders',
     kind: 'view',
     group: COMMAND_GROUPS.view,
     label: 'Minhas ordens de serviço',
@@ -272,6 +305,7 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'view.serviceOrders.unassigned',
+    navItemId: 'service-orders',
     kind: 'view',
     group: COMMAND_GROUPS.view,
     label: 'Ordens de serviço sem responsável',
@@ -281,6 +315,7 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'view.serviceOrders.unscheduled',
+    navItemId: 'service-orders',
     kind: 'view',
     group: COMMAND_GROUPS.view,
     label: 'Ordens de serviço sem agendamento',
@@ -290,6 +325,7 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'view.serviceOrders.inExecution',
+    navItemId: 'service-orders',
     kind: 'view',
     group: COMMAND_GROUPS.view,
     label: 'Ordens de serviço em execução',
@@ -299,6 +335,7 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'view.serviceOrders.paused',
+    navItemId: 'service-orders',
     kind: 'view',
     group: COMMAND_GROUPS.view,
     label: 'Ordens de serviço pausadas',
@@ -314,6 +351,7 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
    */
   {
     id: 'view.clients.active',
+    navItemId: 'clients',
     kind: 'view',
     group: COMMAND_GROUPS.view,
     label: 'Clientes ativos',
@@ -323,6 +361,7 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'view.clients.inactive',
+    navItemId: 'clients',
     kind: 'view',
     group: COMMAND_GROUPS.view,
     label: 'Clientes inativos',
@@ -336,6 +375,7 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
 export const CREATE_COMMANDS: OperatorCommand[] = [
   {
     id: 'create.expense',
+    navItemId: 'finance-expenses',
     kind: 'create',
     group: COMMAND_GROUPS.create,
     label: 'Nova despesa',
@@ -344,6 +384,7 @@ export const CREATE_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'create.request',
+    navItemId: 'requests',
     kind: 'create',
     group: COMMAND_GROUPS.create,
     label: 'Nova solicitação',
@@ -352,6 +393,7 @@ export const CREATE_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'create.proposal',
+    navItemId: 'proposals',
     kind: 'create',
     group: COMMAND_GROUPS.create,
     label: 'Nova proposta',
@@ -360,6 +402,7 @@ export const CREATE_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'create.purchaseOrder',
+    navItemId: 'purchase-orders',
     kind: 'create',
     group: COMMAND_GROUPS.create,
     label: 'Novo pedido de compra',
@@ -368,6 +411,7 @@ export const CREATE_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'create.client',
+    navItemId: 'clients',
     kind: 'create',
     group: COMMAND_GROUPS.create,
     label: 'Novo cliente',
@@ -376,6 +420,7 @@ export const CREATE_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'create.budget',
+    navItemId: 'finance-budgets',
     kind: 'create',
     group: COMMAND_GROUPS.create,
     label: 'Novo orçamento',
@@ -384,6 +429,7 @@ export const CREATE_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'create.person',
+    navItemId: 'people',
     kind: 'create',
     group: COMMAND_GROUPS.create,
     label: 'Nova pessoa',
@@ -392,6 +438,7 @@ export const CREATE_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'create.asset',
+    navItemId: 'assets',
     kind: 'create',
     group: COMMAND_GROUPS.create,
     label: 'Novo ativo físico',
@@ -400,6 +447,7 @@ export const CREATE_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'create.supplier',
+    navItemId: 'suppliers',
     kind: 'create',
     group: COMMAND_GROUPS.create,
     label: 'Novo fornecedor',
@@ -412,6 +460,7 @@ export const CREATE_COMMANDS: OperatorCommand[] = [
 export const PRIORITY_COMMANDS: OperatorCommand[] = [
   {
     id: 'priority.work-inbox',
+    navItemId: 'work-inbox',
     kind: 'navigate',
     group: COMMAND_GROUPS.navigate,
     label: 'Minhas pendências',
@@ -421,6 +470,7 @@ export const PRIORITY_COMMANDS: OperatorCommand[] = [
   },
   {
     id: 'priority.overview',
+    navItemId: 'home',
     kind: 'navigate',
     group: COMMAND_GROUPS.navigate,
     label: 'Painel operacional',
@@ -490,12 +540,21 @@ export type RankCommandsOptions = {
   navigationCommands: OperatorCommand[];
   /** Limite de resultados. */
   limit?: number;
+  /**
+   * Predicado de acesso aplicado a TODO comando estatico antes do ranking.
+   *
+   * Obrigatorio de fato: a paleta passa `isNavItemVisible` sobre o `navItemId` do comando,
+   * de modo que menu e Ctrl+K respondem ao MESMO contrato. A paleta continua nao decidindo
+   * acesso — ela pergunta ao shell, e o backend segue sendo a fronteira real.
+   */
+  isCommandAllowed?: (command: OperatorCommand) => boolean;
 };
 
 export function rankCommands({
   query,
   navigationCommands,
   limit = 12,
+  isCommandAllowed,
 }: RankCommandsOptions): OperatorCommand[] {
   const all = [
     ...PRIORITY_COMMANDS,
@@ -512,6 +571,9 @@ export function rankCommands({
   }
 
   const ranked = [...unique.values()]
+    // AUTORIZACAO ANTES DA RELEVANCIA: comando que o ator nao pode alcancar nunca entra
+    // no ranking. Sem este filtro o menu escondia o modulo e o Ctrl+K o entregava.
+    .filter((command) => (isCommandAllowed ? isCommandAllowed(command) : true))
     .map((command) => ({ command, score: scoreCommand(command, query) }))
     .filter((entry) => entry.score > 0)
     .sort((left, right) => {

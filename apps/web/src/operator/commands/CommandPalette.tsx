@@ -65,11 +65,37 @@ export function CommandPalette({ open, onClose, access, accessLoading }: Command
     }));
   }, [access, accessLoading]);
 
+  /**
+   * Contrato de acesso dos comandos estaticos.
+   *
+   * O menu lateral e a fonte de verdade da navegacao, e o Ctrl+K responde ao MESMO contrato:
+   * um comando so aparece se o item de menu que o governa estiver visivel. Antes, apenas os
+   * comandos `nav:*` eram filtrados — "Novo cliente" e "Contas a pagar vencidas" chegavam a
+   * quem nao tinha grant, e a negacao so aparecia depois, no destino.
+   *
+   * A paleta continua NAO decidindo acesso: ela pergunta ao shell, e o backend segue sendo
+   * a fronteira real (o filtro aqui e reducao de superficie, nao controle de acesso).
+   */
+  const isCommandAllowed = useCallback(
+    (command: OperatorCommand) => {
+      if (command.kind === 'search') {
+        return true;
+      }
+      if (!command.navItemId) {
+        // Comando sem contrato declarado nao e oferecido: falha fechada, como o guard do
+        // backend. Um comando novo que esqueca `navItemId` fica invisivel ate declarar dono.
+        return false;
+      }
+      return isNavItemVisible(command.navItemId, access, accessLoading);
+    },
+    [access, accessLoading],
+  );
+
   const results = useMemo(() => {
-    const ranked = rankCommands({ query, navigationCommands, limit: 12 });
+    const ranked = rankCommands({ query, navigationCommands, limit: 12, isCommandAllowed });
     const search = buildSearchCommand(query);
     return search ? [...ranked, search] : ranked;
-  }, [query, navigationCommands]);
+  }, [query, navigationCommands, isCommandAllowed]);
 
   useEffect(() => {
     if (open) {

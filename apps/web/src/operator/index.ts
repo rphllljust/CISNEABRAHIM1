@@ -106,7 +106,7 @@ export {
   type OperatorCommandKind,
 } from './commands/registry';
 
-export { WorkInboxPage } from './work-inbox/WorkInboxPage';
+export { WorkInboxPage } from '../work-inbox/pages/WorkInboxPage';
 export {
   buildWorkInbox,
   countByArea,

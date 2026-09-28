@@ -71,6 +71,17 @@ export const SHELL_NAV_GROUPS: ShellNavGroup[] = [
         capabilityId: 'commercial:purchase-order:list',
         accessCheck: 'purchase-order-list',
       },
+      {
+        // Contratos eram rota ativa sem porta de entrada: existiam em /app/contracts e no
+        // breadcrumb, mas nao na navegacao. A visibilidade usa a capability real do dominio
+        // (commercial:contract:list); sem concessao o item nao aparece e a rota nega no backend.
+        id: 'contracts',
+        label: 'Contratos',
+        path: '/app/contracts',
+        capabilityId: 'commercial:contract:list',
+        accessCheck: 'contract-list',
+        featureFlag: 'contracts',
+      },
     ],
   },
   {
@@ -221,6 +232,17 @@ export const SHELL_NAV_GROUPS: ShellNavGroup[] = [
         accessCheck: 'finance-budget-read',
         featureFlag: 'finance',
       },
+      {
+        // Previsao de caixa: tela e backend ja existiam (CashForecastPage + controller
+        // finance/cash-flow-forecast) e o label constava do breadcrumb, mas nao havia rota
+        // em App.tsx nem porta na navegacao. A capacidade ja existia no dominio.
+        id: 'finance-forecast',
+        label: 'Previsão de caixa',
+        path: '/app/finance/forecast',
+        capabilityId: 'finance:cash-forecast:read',
+        accessCheck: 'finance-forecast-read',
+        featureFlag: 'finance',
+      },
     ],
   },
   {
@@ -367,6 +389,14 @@ export const SHELL_NAV_GROUPS: ShellNavGroup[] = [
     id: 'supply',
     label: 'Suprimentos',
     items: [
+      {
+        id: 'suppliers',
+        label: 'Fornecedores',
+        path: '/app/suppliers',
+        capabilityId: 'supplier:supplier:list',
+        accessCheck: 'supplier-read',
+        featureFlag: 'suppliers',
+      },
       {
         id: 'procurement',
         label: 'Compras',
