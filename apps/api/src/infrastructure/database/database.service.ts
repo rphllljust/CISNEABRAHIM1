@@ -5,13 +5,14 @@ import {
   type DatabaseConnection,
   type DatabaseHealth,
 } from '@cisne/database';
+import { readSecretValue } from '../../platform/runtime-config/secret-value';
 
 @Injectable()
 export class DatabaseService implements OnModuleDestroy {
   private readonly connection: DatabaseConnection | null;
 
   constructor() {
-    const databaseUrl = process.env['DATABASE_URL'];
+    const databaseUrl = readSecretValue(process.env, 'DATABASE_URL');
     this.connection = databaseUrl ? createDatabase(databaseUrl) : null;
   }
 
