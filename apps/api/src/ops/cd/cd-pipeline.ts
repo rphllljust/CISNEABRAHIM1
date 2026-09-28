@@ -31,6 +31,16 @@ export function assertProductionPromotionGate(env: NodeJS.ProcessEnv = process.e
       'Production promotion requires explicit PRD_PROMOTION_APPROVED=I_UNDERSTAND — no automatic irreversible deploy',
     );
   }
+  if (!env['PRD_PROMOTION_APPROVED_BY']?.trim()) {
+    throw new Error(
+      'Production promotion requires PRD_PROMOTION_APPROVED_BY from an external approval gate',
+    );
+  }
+  if (env['PRD_PROMOTION_APPROVAL_SOURCE'] !== 'github-environment') {
+    throw new Error(
+      'Production promotion requires PRD_PROMOTION_APPROVAL_SOURCE=github-environment',
+    );
+  }
 }
 
 export async function runCdPromotion(input: {
