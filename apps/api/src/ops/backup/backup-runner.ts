@@ -2,7 +2,7 @@ import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { assertBackupEncryptionKeyForProduction, loadBackupConfig, type BackupConfig } from './backup-config';
 import { pruneBackups } from './backup-retention';
-import { runObjectStorageBackup } from './object-storage-backup';
+import { runObjectStorageBackup, type S3BackupClient } from './object-storage-backup';
 import { defaultCommandRunner, runPostgresBackup } from './postgres-backup';
 import { writeBackupStatus } from './backup-status';
 import type { BackupArtifact, BackupJobResult } from './backup-types';
@@ -10,6 +10,7 @@ import type { BackupArtifact, BackupJobResult } from './backup-types';
 export type BackupRunnerDeps = {
   now?: () => Date;
   runCommand?: typeof defaultCommandRunner;
+  s3Client?: S3BackupClient;
 };
 
 function formatTimestamp(date: Date): string {
@@ -37,9 +38,17 @@ export async function runMonitoredBackup(
       await pruneBackups(join(config.destinationDir, 'postgres'), config.retentionDaily);
     }
 
-    if (config.enableObjectStorage && config.objectStorageRoot) {
-      artifacts.push(await runObjectStorageBackup(config, timestamp));
+    if (config.enableObjectStorage) {
+      artifacts.push(await runObjectStorageBackup(config, timestamp, deps.s3Client));
       await pruneBackups(join(config.destinationDir, 'object-storage'), config.retentionDaily);
+    }
+
+    const expectedArtifacts =
+      Number(config.enablePostgres) + Number(config.enableObjectStorage);
+    if (artifacts.length !== expectedArtifacts) {
+      throw new Error(
+        `Backup incomplete: expected ${expectedArtifacts} artifact(s), created ${artifacts.length}`,
+      );
     }
 
     const finishedAtDate = deps.now?.() ?? new Date();
@@ -74,6 +83,8 @@ export function summarizeBackupConfig(config: BackupConfig): Record<string, unkn
     encryptionConfigured: Boolean(config.encryptionKeyBase64),
     postgresEnabled: config.enablePostgres,
     objectStorageEnabled: config.enableObjectStorage,
+    objectStorageProvider: config.objectStorageProvider,
+    objectStorageBucket: config.objectStorageBucket,
     postgresMode: config.postgresBackupMode,
     retentionDaily: config.retentionDaily,
     retentionWeekly: config.retentionWeekly,
