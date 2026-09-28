@@ -16,10 +16,17 @@ function parseArgs(raw: string | undefined): string[] {
   } catch {
     throw new Error('PROD_DEPLOY_ARGS_JSON must be valid JSON');
   }
-  if (!Array.isArray(parsed) || parsed.some((entry) => typeof entry !== 'string')) {
+  if (!Array.isArray(parsed)) {
     throw new Error('PROD_DEPLOY_ARGS_JSON must be a JSON array of strings');
   }
-  return parsed;
+  const args: string[] = [];
+  for (const entry of parsed as unknown[]) {
+    if (typeof entry !== 'string') {
+      throw new Error('PROD_DEPLOY_ARGS_JSON must be a JSON array of strings');
+    }
+    args.push(entry);
+  }
+  return args;
 }
 
 export function runProductionDeployAdapter(
