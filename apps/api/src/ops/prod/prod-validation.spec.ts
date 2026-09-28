@@ -8,6 +8,8 @@ import { assertScalingCompatibility, evaluateScalingCompatibility } from './prod
 import { scanConfigForEmbeddedSecrets } from './prod-secrets';
 import { runProdInfrastructureValidation } from './prod-validation';
 
+const TEST_DIGEST = 'a'.repeat(64);
+
 function productionEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return {
     CISNE_ENV: 'production',
@@ -33,6 +35,12 @@ function productionEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     PROD_COST_ALERTS_ENABLED: 'true',
     PROD_MONTHLY_BUDGET_USD: '500',
     PROD_EXPOSED_PORTS: '80,443',
+    PROD_POSTGRES_IMAGE: `postgres:18-alpine@sha256:${TEST_DIGEST}`,
+    PROD_MINIO_IMAGE: `minio/minio@sha256:${TEST_DIGEST}`,
+    PROD_MINIO_MC_IMAGE: `minio/mc@sha256:${TEST_DIGEST}`,
+    PROD_CADDY_IMAGE: `caddy:2.9-alpine@sha256:${TEST_DIGEST}`,
+    CISNE_API_IMAGE: `cisne-api@sha256:${TEST_DIGEST}`,
+    CISNE_WEB_IMAGE: `cisne-web@sha256:${TEST_DIGEST}`,
     PROD_SKIP_BACKUP_STATUS_CHECK: 'I_UNDERSTAND',
     PROD_SKIP_OBSERVABILITY_CHECK: 'I_UNDERSTAND',
     ...overrides,
@@ -53,6 +61,14 @@ describe('production infrastructure (Prompt 88)', () => {
     const result = runProdInfrastructureValidation(productionEnv());
     expect(result.status).toBe('PASS');
     expect(result.stages.every((entry) => entry.passed)).toBe(true);
+  });
+
+  it('blocks mutable production image tags', () => {
+    const result = runProdInfrastructureValidation(
+      productionEnv({ CISNE_API_IMAGE: 'cisne-api:latest' }),
+    );
+    expect(result.status).toBe('FAIL');
+    expect(result.stages.find((stage) => stage.id === 'supply_chain')?.passed).toBe(false);
   });
 
   it('blocks public database exposure', () => {
