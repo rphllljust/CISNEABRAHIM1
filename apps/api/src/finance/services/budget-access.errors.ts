@@ -41,6 +41,14 @@ export function mapBudgetDomainError(error: unknown): FinanceHttpException {
         FINANCE_ERROR_CODES.BUDGET_NOT_DRAFT,
         'Only a draft budget version can be approved.',
       );
+    case 'BUDGET_VERSION_CONFLICT':
+      // 409 com codigo proprio: a tela precisa distinguir "estado mudou sob voce" de
+      // "ja nao e rascunho". Espelha o contrato ja usado por Expenses.
+      return new FinanceHttpException(
+        HttpStatus.CONFLICT,
+        FINANCE_ERROR_CODES.BUDGET_VERSION_CONFLICT,
+        'This budget version changed since it was loaded. Reload before approving.',
+      );
     case 'BUDGET_INCOMPLETE':
       return new FinanceHttpException(
         HttpStatus.CONFLICT,
@@ -72,6 +80,12 @@ export function mapBudgetDomainError(error: unknown): FinanceHttpException {
         HttpStatus.CONFLICT,
         FINANCE_ERROR_CODES.BUDGET_NOT_APPROVED,
         'A new version can only be created from an approved budget.',
+      );
+    case 'BUDGET_VERSION_REQUIRED':
+      return new FinanceHttpException(
+        HttpStatus.BAD_REQUEST,
+        FINANCE_ERROR_CODES.BUDGET_VERSION_REQUIRED,
+        'A budget approval requires the version number that was loaded.',
       );
     case 'BUDGET_LINE_DIMENSION_REQUIRED':
       return new FinanceHttpException(

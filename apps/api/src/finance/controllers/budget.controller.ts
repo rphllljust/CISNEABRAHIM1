@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import type { AccessTokenClaims } from '../../auth/services/token.service';
 import { parseFinanceListQuery } from '../dto/finance-list.dto';
 import {
+  validateApproveBudgetInput,
   validateCreateBudgetInput,
   validateCreateBudgetLineInput,
   validateCreateBudgetPeriodInput,
@@ -69,8 +70,15 @@ export class BudgetController {
 
   @Post(':budgetId/approve')
   @HttpCode(200)
-  approve(@CurrentAuth() auth: AccessTokenClaims, @Param('budgetId') budgetId: string) {
-    return this.budgets.approve({ identityId: auth.sub, sessionId: auth.sid }, budgetId);
+  approve(
+    @CurrentAuth() auth: AccessTokenClaims,
+    @Param('budgetId') budgetId: string,
+    @Body() body: never,
+  ) {
+    // A versao carregada pelo aprovador e OBRIGATORIA: sem ela o servidor recusaria a
+    // requisicao em vez de aprovar sobre um estado que pode ter mudado.
+    const { version } = validateApproveBudgetInput(body);
+    return this.budgets.approve({ identityId: auth.sub, sessionId: auth.sid }, budgetId, version);
   }
 
   @Post(':budgetId/versions')

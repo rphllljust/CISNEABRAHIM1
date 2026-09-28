@@ -325,23 +325,48 @@ export class BudgetRepository {
     }
   }
 
+  /**
+   * Aprova a versao em rascunho, com PRECONDICAO DE VERSAO (compare-and-set).
+   *
+   * O `AND version_number = $3` e o que impede a aprovacao de estado velho: se outra sessao
+   * aprovou, abriu nova versao, ou o rascunho mudou depois que o aprovador carregou a tela,
+   * o UPDATE nao casa nenhuma linha e o servico devolve conflito em vez de aprovar.
+   *
+   * Sem isto o fluxo era "ultima escrita vence" — dois aprovadores concorrentes podiam
+   * aprovar sobre um estado que ja nao era o que estava na tela.
+   */
   async approveVersion(input: {
     versionId: string;
     actorIdentityId: string;
+    expectedVersionNumber: number;
   }): Promise<BudgetVersionRow> {
     const result = await this.pool().query<BudgetVersionRow>(
       `UPDATE fin.budget_versions
        SET status = 'APPROVED',
            approved_at = NOW(),
            approved_by_identity_id = $2
-       WHERE id = $1 AND status = 'DRAFT'
+       WHERE id = $1 AND status = 'DRAFT' AND version_number = $3
        RETURNING ${VERSION_RETURNING}`,
-      [input.versionId, input.actorIdentityId],
+      [input.versionId, input.actorIdentityId, input.expectedVersionNumber],
     );
-    if (!result.rows[0]) {
+    if (result.rows[0]) {
+      return result.rows[0];
+    }
+
+    // Distingue "ja nao e rascunho" de "rascunho mudou sob os pes": a tela precisa dizer
+    // coisas diferentes para cada caso. A leitura abaixo e apenas diagnostico do motivo.
+    const current = await this.pool().query<BudgetVersionRow>(
+      `SELECT ${VERSION_RETURNING} FROM fin.budget_versions WHERE id = $1`,
+      [input.versionId],
+    );
+    const row = current.rows[0];
+    if (!row) {
+      throw new BudgetError('BUDGET_NOT_FOUND');
+    }
+    if (row.status !== 'DRAFT') {
       throw new BudgetError('BUDGET_NOT_DRAFT');
     }
-    return result.rows[0];
+    throw new BudgetError('BUDGET_VERSION_CONFLICT');
   }
 
   async countPostedJournals(): Promise<number> {

@@ -200,7 +200,19 @@ export class BudgetAccessService {
     }
   }
 
-  async approve(actor: IdentityAuthzContext, budgetId: string): Promise<BudgetResponse> {
+  /**
+   * Aprova o rascunho corrente com PRECONDICAO DE VERSAO.
+   *
+   * `expectedVersionNumber` e o `version_number` da versao que o aprovador tinha na tela.
+   * O repositorio faz compare-and-set: se o rascunho mudou (nova versao aberta, ou outra
+   * sessao ja decidiu), a aprovacao nao casa e vira `BUDGET_VERSION_CONFLICT` — o mesmo
+   * contrato ja usado por Expenses. Aprovacao de estado velho deixa de ser possivel.
+   */
+  async approve(
+    actor: IdentityAuthzContext,
+    budgetId: string,
+    expectedVersionNumber: number,
+  ): Promise<BudgetResponse> {
     assertUuid(budgetId, 'budgetId');
     try {
       const budget = await this.requireBudget(budgetId);
@@ -210,6 +222,9 @@ export class BudgetAccessService {
       });
       const draft = await this.requireDraft(budget.id);
       assertBudgetVersionCanApprove(draft.status);
+      if (draft.version_number !== expectedVersionNumber) {
+        throw new BudgetError('BUDGET_VERSION_CONFLICT');
+      }
       const periods = await this.repository.listPeriods(draft.id);
       const lines = [];
       for (const period of periods) {
@@ -225,6 +240,7 @@ export class BudgetAccessService {
       await this.repository.approveVersion({
         versionId: draft.id,
         actorIdentityId: actor.identityId,
+        expectedVersionNumber,
       });
       await this.audit(actor, SECURITY_AUDIT_ACTIONS.FinanceBudgetApprove, budget.id, {
         versionId: draft.id,

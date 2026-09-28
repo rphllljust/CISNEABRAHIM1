@@ -217,14 +217,16 @@ function BudgetView({
       <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <VersionedActionForm
           title="Aprovar"
-          description="Aprovação exige checker distinto no backend."
+          description="Aprovação exige checker distinto no backend e a versão carregada aqui."
           confirmTitle="Aprovar orçamento"
-          confirmDescription="O servidor recusa rascunho incompleto e autoaprovação."
+          confirmDescription="O servidor recusa rascunho incompleto, autoaprovação e versão desatualizada."
           confirmLabel="Aprovar"
           mapError={mapFinanceErrorToMessage}
           onReload={() => void onReload()}
           onSubmit={async () => {
-            onReady(await approveBudget(budget.id));
+            // A versao vai no corpo: aprovacao sem versao e recusada pelo servidor, e uma
+            // versao desatualizada vira conflito em vez de aprovar estado velho.
+            onReady(await approveBudget(budget.id, { version: draft?.versionNumber ?? 0 }));
           }}
         />
         <VersionedActionForm

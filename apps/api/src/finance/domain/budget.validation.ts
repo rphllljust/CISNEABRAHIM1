@@ -22,6 +22,26 @@ export type CreateBudgetLineInput = {
   accountId?: string | null;
 };
 
+export type ApproveBudgetInput = {
+  version: number;
+};
+
+/**
+ * Precondicao de versao da aprovacao.
+ *
+ * O aprovador devolve o `version_number` da versao que tinha na tela. Ausente ou invalido
+ * e RECUSADO — nao existe aprovacao "sem versao": aceitar a ausencia reintroduziria
+ * exatamente o defeito que esta correcao fecha (aprovar estado velho).
+ */
+export function validateApproveBudgetInput(input: unknown): ApproveBudgetInput {
+  const raw = (input ?? {}) as { version?: unknown };
+  const version = raw.version;
+  if (typeof version !== 'number' || !Number.isInteger(version) || version < 1) {
+    throw new BudgetError('BUDGET_VERSION_REQUIRED');
+  }
+  return { version };
+}
+
 function requireNonEmpty(value: string | undefined | null, code: string): string {
   const trimmed = value?.trim() ?? '';
   if (!trimmed) {

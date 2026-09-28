@@ -177,7 +177,7 @@ describe('Finance budget PostgreSQL integration', () => {
       name: 'Incomplete',
       currencyCode: 'BRL',
     });
-    await expect(budgets.approve(actor, created.id)).rejects.toMatchObject({
+    await expect(budgets.approve(actor, created.id, 1)).rejects.toMatchObject({
       code: FINANCE_ERROR_CODES.BUDGET_INCOMPLETE,
     });
     await budgets.addPeriod(actor, created.id, {
@@ -214,7 +214,7 @@ describe('Finance budget PostgreSQL integration', () => {
       costCenterCode: 'CC-OPS',
     });
     expect(withLine.versions[0]!.status).toBe('DRAFT');
-    const approved = await budgets.approve(checker, created.id);
+    const approved = await budgets.approve(checker, created.id, 1);
     expect(approved.versions[0]!.status).toBe('APPROVED');
     await expect(
       budgets.addLine(actor, created.id, {
@@ -258,7 +258,7 @@ describe('Finance budget PostgreSQL integration', () => {
       amount: '800.0000',
       costCenterCode: 'CC-OPS',
     });
-    await budgets.approve(checker, created.id);
+    await budgets.approve(checker, created.id, 1);
     await budgets.createVersion(actor, created.id);
     const after = await countJournals();
     expect(after).toBe(before);
@@ -327,7 +327,7 @@ describe('Finance budget PostgreSQL integration', () => {
       amount: '100.0000',
       costCenterCode: 'CC-OPS',
     });
-    const approved = await budgets.approve(checker, created.id);
+    const approved = await budgets.approve(checker, created.id, 1);
     const comparison = await budgets.compare(actor, created.id);
     expect(comparison.budgeted).toBe('1300.0000');
     expect(comparison.actual).toBe('750.0000');
@@ -345,5 +345,67 @@ describe('Finance budget PostgreSQL integration', () => {
     expect(unmapped.every((line) => line.actual === '0.0000')).toBe(true);
     expect(approved.versions[0]!.status).toBe('APPROVED');
     expect(await countJournals()).toBe(journalsAfterPost);
+  });
+
+  /*
+   * PRECONDICAO DE VERSAO — a aprovacao nao pode acontecer sobre estado velho.
+   *
+   * Estes casos cobrem a correcao da Wave 0: antes, `approve` nao recebia versao alguma e
+   * duas aprovacoes concorrentes (ou uma aprovacao sobre um rascunho que mudou) eram ambas
+   * aceitas — "ultima escrita vence".
+   */
+  it('recusa aprovacao cuja versao carregada nao e mais a versao corrente', async () => {
+    const { originator: actor, checker } = await seedBudgetChecker();
+    const created = await budgets.create(actor, {
+      unitId: UNIT,
+      code: `BUD-${crypto.randomUUID().slice(0, 8)}`,
+      name: 'Stale',
+      currencyCode: 'BRL',
+    });
+    const period = await budgets.addPeriod(actor, created.id, {
+      periodKey: '2026-09',
+      startsOn: '2026-09-01',
+      endsOn: '2026-09-30',
+    });
+    await budgets.addLine(actor, created.id, {
+      periodId: period.versions[0]!.periods[0]!.id,
+      amount: '100.0000',
+      costCenterCode: 'CC-OPS',
+    });
+
+    // O aprovador carregou a versao 1, mas a versao corrente ja e outra (2).
+    await expect(budgets.approve(checker, created.id, 2)).rejects.toMatchObject({
+      code: FINANCE_ERROR_CODES.BUDGET_VERSION_CONFLICT,
+    });
+
+    // A versao correta continua aprovando: o bloqueio e da versao, nao do fluxo.
+    const approved = await budgets.approve(checker, created.id, 1);
+    expect(approved.versions[0]!.status).toBe('APPROVED');
+  });
+
+  it('recusa aprovar duas vezes a mesma versao (conflito, nao replay silencioso)', async () => {
+    const { originator: actor, checker } = await seedBudgetChecker();
+    const created = await budgets.create(actor, {
+      unitId: UNIT,
+      code: `BUD-${crypto.randomUUID().slice(0, 8)}`,
+      name: 'Double',
+      currencyCode: 'BRL',
+    });
+    const period = await budgets.addPeriod(actor, created.id, {
+      periodKey: '2026-09',
+      startsOn: '2026-09-01',
+      endsOn: '2026-09-30',
+    });
+    await budgets.addLine(actor, created.id, {
+      periodId: period.versions[0]!.periods[0]!.id,
+      amount: '100.0000',
+      costCenterCode: 'CC-OPS',
+    });
+
+    await budgets.approve(checker, created.id, 1);
+    // Segunda tentativa com a MESMA versao: a versao ja nao e DRAFT.
+    await expect(budgets.approve(checker, created.id, 1)).rejects.toMatchObject({
+      code: FINANCE_ERROR_CODES.BUDGET_NOT_DRAFT,
+    });
   });
 });
