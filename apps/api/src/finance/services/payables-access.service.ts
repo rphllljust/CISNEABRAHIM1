@@ -144,19 +144,41 @@ export class PayablesAccessService implements FinancePayablePort {
 
   async list(actor: IdentityAuthzContext): Promise<PayableDetailResponse[]> {
     const rows = await this.repository.listAll();
-    const details: PayableDetailResponse[] = [];
-    for (const row of rows) {
-      try {
-        await this.authz.assertPayableAction(actor, AUTHZ_ACTIONS.FinancePayableList, {
-          id: row.id,
-          unitId: row.unit_id,
-        });
-      } catch {
-        continue;
-      }
-      details.push(await this.toDetail(row));
+
+    // Autorizacao EM LOTE: mesma decisao por linha, com as leituras de grants hoisted.
+    const allowed = await this.authz.filterPayableList(
+      actor,
+      rows.map((row) => ({ id: row.id, unitId: row.unit_id })),
+    );
+    const visible = rows.filter((_, index) => allowed[index] === true);
+
+    // Filhos em DUAS queries para a pagina inteira (antes: duas por linha).
+    const ids = visible.map((row) => row.id);
+    const [installments, payments] = await Promise.all([
+      this.repository.listInstallmentsByPayableIds(ids),
+      this.repository.listPaymentsByPayableIds(ids),
+    ]);
+
+    const installmentsByPayable = new Map<string, typeof installments>();
+    for (const row of installments) {
+      const bucket = installmentsByPayable.get(row.payable_id) ?? [];
+      bucket.push(row);
+      installmentsByPayable.set(row.payable_id, bucket);
     }
-    return details;
+    const paymentsByPayable = new Map<string, typeof payments>();
+    for (const row of payments) {
+      const bucket = paymentsByPayable.get(row.payable_id) ?? [];
+      bucket.push(row);
+      paymentsByPayable.set(row.payable_id, bucket);
+    }
+
+    return visible.map((row) =>
+      toPayableDetailResponse(
+        row,
+        installmentsByPayable.get(row.id) ?? [],
+        paymentsByPayable.get(row.id) ?? [],
+      ),
+    );
   }
 
   async aging(actor: IdentityAuthzContext, asOf?: Date) {

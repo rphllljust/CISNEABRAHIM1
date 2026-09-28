@@ -119,6 +119,43 @@ export class ReceivablesRepository {
     return result.rows;
   }
 
+  /**
+   * Leitura EM LOTE dos filhos de uma listagem.
+   *
+   * Substitui o par `listInstallments`/`listSettlements` por linha: com 50 recebiveis eram 100
+   * queries de filho por requisicao. A ordenacao preserva exatamente a ordenacao por linha
+   * (`installment_number` e `settled_at, created_at`), com o id do pai apenas como agrupador.
+   */
+  async listInstallmentsByReceivableIds(
+    receivableIds: string[],
+  ): Promise<ReceivableInstallmentRow[]> {
+    if (receivableIds.length === 0) {
+      return [];
+    }
+    const result = await this.pool().query<ReceivableInstallmentRow>(
+      `SELECT ${INSTALLMENT_RETURNING}
+       FROM fin.receivable_installments
+       WHERE receivable_id = ANY($1::uuid[])
+       ORDER BY receivable_id, installment_number`,
+      [receivableIds],
+    );
+    return result.rows;
+  }
+
+  async listSettlementsByReceivableIds(receivableIds: string[]): Promise<SettlementRow[]> {
+    if (receivableIds.length === 0) {
+      return [];
+    }
+    const result = await this.pool().query<SettlementRow>(
+      `SELECT ${SETTLEMENT_RETURNING}
+       FROM fin.settlements
+       WHERE receivable_id = ANY($1::uuid[])
+       ORDER BY receivable_id, settled_at, created_at`,
+      [receivableIds],
+    );
+    return result.rows;
+  }
+
   async openFromBilling(
     input: OpenReceivablePersistenceInput,
   ): Promise<{ receivable: ReceivableRow; installments: ReceivableInstallmentRow[]; idempotent: boolean }> {
