@@ -1,3 +1,4 @@
+import { readSecretValue } from '../../platform/runtime-config/secret-value';
 import { deriveComputeSizing } from './prod-sizing';
 
 export type PostgresProductionRequirements = {
@@ -37,7 +38,9 @@ export function assertPostgresProductionRequirements(
   }
 
   if (requirements.tlsRequired) {
-    const sslMode = env['PGSSLMODE']?.trim() ?? readSslModeFromDatabaseUrl(env['DATABASE_URL']);
+    const sslMode =
+      env['PGSSLMODE']?.trim() ??
+      readSslModeFromDatabaseUrl(readSecretValue(env, 'DATABASE_URL'));
     if (!sslMode || !['require', 'verify-ca', 'verify-full'].includes(sslMode)) {
       throw new Error('PostgreSQL TLS required — set PGSSLMODE=require (or verify-*) or sslmode in DATABASE_URL');
     }
