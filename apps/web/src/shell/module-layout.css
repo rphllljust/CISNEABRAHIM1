@@ -32,10 +32,26 @@
     max-width: 72rem;
   }
 
+  /*
+    LEGADO EM RETIRADA (wave de convergencia enterprise).
+
+    Os seletores abaixo existiam para dar aparencia as ILHAS: paginas que traziam o proprio
+    `<main class="*-page">`, o proprio `<h1>` e o proprio cabecalho. Depois que essas superficies
+    passaram a usar `ModulePage` / `WorklistHeader` / `ReportWorkbenchHeader`, os seletores
+    ficaram SEM DONO e foram removidos:
+
+    - `.alerts-page`, `.alerts-page__header` -> agora `ModulePageHeader` + workbench de excecoes;
+    - `.assets-page__header`, `.requests-page__header`, `.clients-page__header` -> agora os
+      cabecalhos compartilhados de worklist/objeto;
+    - `.reports-page`, `.reports-page__header`, `.search-page` -> agora `ReportWorkbenchHeader` e
+      a grade densa compartilhada.
+
+    `.shell-page` e `.catalog-page__header` PERMANECEM enquanto houver pagina que ainda os usa
+    (paginas tecnicas do shell e o catalogo em migracao). Regra desta wave: nenhum CSS local
+    controla page shell, header, layout de filtro, grade generica ou barra de acao — e nenhum
+    seletor orfao fica para tras.
+  */
   .cisne-app .shell-page > h1,
-  .cisne-app .alerts-page > h1,
-  .cisne-app .reports-page > h1,
-  .cisne-app .search-page > h1,
   .cisne-app [class*='-page__header'] h1 {
     margin: 0;
     font-size: 1.5rem;
@@ -45,13 +61,7 @@
   }
 
   .cisne-app [class*='-page__header'],
-  .cisne-app .clients-page__header,
-  .cisne-app .catalog-page__header,
-  .cisne-app .assets-page__header,
-  .cisne-app .requests-page__header,
-  .cisne-app .billing-page__header,
-  .cisne-app .alerts-page__header,
-  .cisne-app .reports-page__header {
+  .cisne-app .catalog-page__header {
     display: flex;
     flex-wrap: wrap;
     align-items: flex-start;
@@ -307,9 +317,7 @@
   .cisne-app .catalog-pagination button,
   .cisne-app .assets-pagination button,
   .cisne-app .requests-pagination button,
-  .cisne-app .shell-page > button,
-  .cisne-app .alerts-page button,
-  .cisne-app .reports-page button {
+  .cisne-app .shell-page > button {
     display: inline-flex;
     min-height: 2.25rem;
     align-items: center;
@@ -404,15 +412,13 @@
     box-shadow: inset 0 0 0 1px rgb(99 102 241 / 20%);
   }
 
-  .cisne-app .shell-page > a,
-  .cisne-app .alerts-page > a {
+  .cisne-app .shell-page > a {
     color: #166860;
     font-weight: 500;
     text-decoration: none;
   }
 
-  .cisne-app .shell-page > a:hover,
-  .cisne-app .alerts-page > a:hover {
+  .cisne-app .shell-page > a:hover {
     color: #13544e;
     text-decoration: underline;
   }

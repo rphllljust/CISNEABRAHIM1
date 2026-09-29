@@ -22,6 +22,7 @@ import { Input } from '../ui/Input';
 import { KpiCard } from '../ui/KpiCard';
 import { LoadingState } from '../ui/LoadingState';
 import { PageHeader } from '../ui/PageHeader';
+import { ModulePage } from '../ui/module-layout';
 import { Select } from '../ui/Select';
 import { Skeleton } from '../ui/Skeleton';
 import { StatusBadge } from '../ui/StatusBadge';
@@ -553,7 +554,7 @@ export function ModulesRegistryPage() {
   const loading = phase === 'loading';
 
   return (
-    <main id="main-content" className="w-full">
+    <ModulePage className="w-full">
       <PageHeader
         eyebrow="Sistema"
         title="Módulos do sistema"
@@ -642,6 +643,6 @@ export function ModulesRegistryPage() {
           />
         </Drawer>
       ) : null}
-    </main>
+    </ModulePage>
   );
 }
