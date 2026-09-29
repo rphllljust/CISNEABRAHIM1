@@ -35,10 +35,25 @@ export function AccountingRoute({
   const [state, setState] = useState<'loading' | 'allowed' | 'denied' | 'session_expired'>('loading');
   const accessPolicy = ACCOUNTING_ACCESS[access];
 
+  /*
+   * LOOP DE PROBE (P0) — a sonda de acesso disparava a cada render.
+   *
+   * `accessPolicy` e um elemento de `ACCOUNTING_ACCESS`, mas o objeto em si e recriado a cada
+   * render do modulo. Como ele estava na lista de dependencias, cada `setState` produzia uma
+   * referencia nova, o efeito rodava de novo e a tela ficava chamando
+   * `/accounting/charts/<id>` em ciclo — sem nunca estabilizar. O 404 e a resposta CORRETA do
+   * probe (recurso inexistente com leitura autorizada), mas repetido dezenas de vezes por
+   * segundo polui o console e martela a API.
+   *
+   * Depender dos VALORES usados dentro do efeito (`access`, `expireSession`, rota) mantem a
+   * semantica — revalidar ao trocar de rota e ao expirar sessao — sem o ciclo.
+   */
+  const { probe, capabilityId } = accessPolicy;
+
   useEffect(() => {
     const controller = new AbortController();
     let cancelled = false;
-    void accessPolicy.probe(controller.signal)
+    void probe(controller.signal)
       .then((allowed) => {
         if (!cancelled) {
           setState(allowed ? 'allowed' : 'denied');
@@ -59,7 +74,7 @@ export function AccountingRoute({
       cancelled = true;
       controller.abort();
     };
-  }, [accessPolicy, expireSession, location.pathname]);
+  }, [probe, expireSession, location.pathname]);
 
   if (state === 'loading') {
     return (
@@ -76,7 +91,7 @@ export function AccountingRoute({
       <Navigate
         to="/app/no-access"
         replace
-        state={{ from: location.pathname, capabilityId: accessPolicy.capabilityId }}
+        state={{ from: location.pathname, capabilityId }}
       />
     );
   }

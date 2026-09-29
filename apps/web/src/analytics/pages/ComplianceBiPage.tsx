@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { EmptyState, Field, Money, Select } from '../../ui';
 import {
   FilterCard,
@@ -83,10 +83,15 @@ export function ComplianceBiPage() {
               onChange={(event) => setUnitId(event.target.value)}
             >
               {units.length === 0 ? <option value="">Nenhuma unidade disponível</option> : null}
-              {units.map((unit) => (
+
+              {units.map((unit, index) => (
+
                 <option key={unit} value={unit}>
-                  {unit}
+
+                  Unidade {index + 1}
+
                 </option>
+
               ))}
             </Select>
           </div>

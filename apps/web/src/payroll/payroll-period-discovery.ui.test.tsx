@@ -160,7 +160,13 @@ describe('Folha — descoberta humana de período e contrato', () => {
     await waitFor(() => {
       expect(unitSelect).toHaveValue(UNIT);
     });
-    expect(within(unitSelect).getByRole('option', { name: OTHER_UNIT })).toBeInTheDocument();
+    /*
+     * A unidade e escolha humana: o `<option>` mantem o identificador REAL no `value` (o recorte
+     * enviado a API nao muda) e o TEXTO lido pelo operador e a posicao no escopo autorizado —
+     * nunca o slug interno. Antes este teste exigia o identificador como nome acessivel.
+     */
+    const otherOption = within(unitSelect).getByRole('option', { name: 'Unidade 2' });
+    expect(otherOption).toHaveValue(OTHER_UNIT);
 
     // A lista de unidades vem do endpoint real de unidades operacionais.
     expect(

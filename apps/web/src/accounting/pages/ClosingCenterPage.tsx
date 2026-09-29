@@ -185,9 +185,14 @@ export function ClosingCenterPage() {
               value={unitId}
               onChange={(event) => setUnitId(event.target.value)}
             >
-              {units.map((unit) => (
+              {/*
+                ESCOPO, NAO SLUG: `unitId` e identificador interno
+                (`unit-synthetic-homolog`) e nao vai para a superficie. O `value` continua
+                carregando o recorte REAL enviado a API; muda so o texto lido pelo operador.
+              */}
+              {units.map((unit, index) => (
                 <option key={unit} value={unit}>
-                  {unit}
+                  Unidade {index + 1}
                 </option>
               ))}
             </select>

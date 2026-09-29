@@ -38,8 +38,18 @@ describe('clients administrative flow e2e (frontend)', () => {
 
     await user.click(screen.getByRole('link', { name: /novo cliente/i }));
 
+    /*
+     * Espera pelo CAMPO, nao pelo heading: enquanto as capabilities resolvem a tela mostra
+     * "Verificando permissões…" sob o mesmo `<h1>Novo Cliente</h1>`, e o formulario ainda nao
+     * existe. `/^cnpj\b/i` cobre o marcador de obrigatorio que o `Field` compartilhado anexa ao
+     * nome acessivel ("CNPJ * (obrigatório)").
+     */
+    await waitFor(() => {
+      expect(screen.getByLabelText(/raz.o social/i)).toBeInTheDocument();
+    });
+
     await user.type(screen.getByLabelText(/raz.o social/i), 'Fluxo E2E LTDA');
-    await user.type(screen.getByLabelText(/^cnpj$/i), '33.444.555/0001-66');
+    await user.type(screen.getByLabelText(/^cnpj\b/i), '33.444.555/0001-66');
     await user.type(screen.getByLabelText(/nome do contato/i), 'Operacoes');
     await user.type(screen.getByLabelText(/^e-mail$/i), 'ops@e2e.invalid');
     await user.click(screen.getByRole('button', { name: /cadastrar cliente/i }));

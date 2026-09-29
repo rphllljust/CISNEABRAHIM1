@@ -192,12 +192,20 @@ export function PayrollPage() {
               onChange={(event) => setUnitId(event.target.value)}
             >
               <option value="">Selecione a unidade</option>
-              {units.map((unit) => (
+              {/*
+                ESCOPO, NAO SLUG: `unitId` e identificador interno e nao vai para a superficie.
+                O `value` continua sendo o recorte REAL enviado a API.
+              */}
+              {units.map((unit, index) => (
                 <option key={unit} value={unit}>
-                  {unit}
+                  Unidade {index + 1}
                 </option>
               ))}
-              {unitId && !units.includes(unitId) ? <option value={unitId}>{unitId}</option> : null}
+              {/* Unidade vinda de link que nao esta na lista visivel: sem esta opcao o recorte
+                  chegaria a API sem o operador ver qual unidade e. */}
+              {unitId && !units.includes(unitId) ? (
+                <option value={unitId}>Unidade selecionada</option>
+              ) : null}
             </Select>
           </Field>
           <HumanLookupField

@@ -19,8 +19,14 @@ describe('ClientCreatePage', () => {
 
     renderWithProviders(<ClientCreatePage />);
 
+    /*
+     * A pagina tem DOIS estados com o mesmo titulo: enquanto `useClientCapabilities` resolve, ela
+     * mostra "Verificando permissões…" sob o MESMO `<h1>Novo Cliente</h1>`. Esperar apenas pelo
+     * heading passava no estado de CARGA e o formulario ainda nao existia — por isso a espera e
+     * pelo CAMPO do formulario, que so aparece quando a tela esta de fato utilizavel.
+     */
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /novo cliente/i })).toBeInTheDocument();
+      expect(screen.getByLabelText(/razão social/i)).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole('button', { name: /cadastrar cliente/i }));
@@ -37,11 +43,11 @@ describe('ClientCreatePage', () => {
     renderWithProviders(<ClientCreatePage />);
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /novo cliente/i })).toBeInTheDocument();
+      expect(screen.getByLabelText(/razão social/i)).toBeInTheDocument();
     });
 
     await user.type(screen.getByLabelText(/razão social/i), 'Outra LTDA');
-    await user.type(screen.getByLabelText(/^cnpj$/i), '11.222.333/0001-81');
+    await user.type(screen.getByLabelText(/^cnpj\b/i), '11.222.333/0001-81');
     await user.type(screen.getByLabelText(/nome do contato/i), 'Ops');
     await user.type(screen.getByLabelText(/^e-mail$/i), 'ops@demo.invalid');
     await user.click(screen.getByRole('button', { name: /cadastrar cliente/i }));

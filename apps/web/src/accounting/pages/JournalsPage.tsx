@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Alert, Button, DateTime, EmptyState, Field, Input, Money, Select } from '../../ui';
 import {
@@ -216,10 +216,15 @@ function JournalListRoute() {
               disabled={units.length === 0}
             >
               {units.length === 0 ? <option value="">Nenhuma unidade disponível</option> : null}
-              {units.map((unit) => (
+
+              {units.map((unit, index) => (
+
                 <option key={unit} value={unit}>
-                  {unit}
+
+                  Unidade {index + 1}
+
                 </option>
+
               ))}
             </Select>
           </Field>

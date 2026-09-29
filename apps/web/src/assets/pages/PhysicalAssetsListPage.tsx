@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+﻿import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { mapAssetErrorToMessage } from '../api/asset-error-messages';
 import {
@@ -26,6 +26,7 @@ import {
   ModuleErrorState,
   ModuleLoadingState,
   ModulePage,
+  ModuleStatePage,
   ModulePageHeader,
   ModulePagination,
   ModulePrimaryLink,
@@ -150,33 +151,28 @@ export function PhysicalAssetsListPage() {
 
   if (listState.phase === 'loading' && summary === null) {
     return (
-      <ModulePage>
-        <ModuleLoadingState title="Ativos físicos" message="Carregando ativos…" />
-      </ModulePage>
+      <ModuleStatePage title="Ativos físicos">`r`n        <ModuleLoadingState message="Carregando ativos…" />
+      </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'denied') {
     return (
-      <ModulePage>
-        <ModuleDeniedState
-        title="Ativos físicos"
+      <ModuleStatePage title="Ativos físicos">`r`n        <ModuleDeniedState
         message="Você não tem permissão para listar ativos físicos."
       />
-      </ModulePage>
+      </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'error') {
     return (
-      <ModulePage>
-        <ModuleErrorState
-        title="Ativos físicos"
+      <ModuleStatePage title="Ativos físicos">`r`n        <ModuleErrorState
         message={listState.message}
         retryable={listState.retryable}
         onRetry={() => void loadPage(0)}
       />
-      </ModulePage>
+      </ModuleStatePage>
     );
   }
 

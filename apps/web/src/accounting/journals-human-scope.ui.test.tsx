@@ -248,12 +248,18 @@ describe('Lançamentos — escopo humano vindo do shell (unidade -> plano -> per
 
     await waitFor(() => expect(unitField()).not.toBeDisabled());
     expect(unitField().tagName).toBe('SELECT');
-    // Os valores possiveis do controle sao exatamente as unidades autorizadas do shell.
-    expect(
-      within(unitField())
-        .getAllByRole('option')
-        .map((option) => option.textContent),
-    ).toEqual(['unit-a', 'unit-b']);
+    /*
+     * ESCOPO HUMANO, NAO SLUG. O `<option>` carrega o identificador REAL no `value` — o recorte
+     * enviado a API continua sendo a unidade autorizada — mas o TEXTO lido pelo operador nunca e
+     * o identificador interno: a superficie declara a posicao no escopo. Antes este teste
+     * afirmava `['unit-a', 'unit-b']` como texto visivel, fixando o vazamento como esperado.
+     */
+    const unitOptions = within(unitField()).getAllByRole('option');
+    expect(unitOptions.map((option) => option.textContent)).toEqual(['Unidade 1', 'Unidade 2']);
+    expect(unitOptions.map((option) => (option as HTMLOptionElement).value)).toEqual([
+      'unit-a',
+      'unit-b',
+    ]);
     // Nenhum campo de texto livre para identificador tecnico nesta tela.
     expect(screen.queryByPlaceholderText('ex.: unit-a')).toBeNull();
     // O botao que submetia a unidade digitada deixou de existir.

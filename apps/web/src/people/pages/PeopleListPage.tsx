@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { PeopleApiError, listPeople } from '../api/people-api';
 import { mapPersonErrorToMessage } from '../api/person-error-messages';
@@ -28,6 +28,7 @@ import {
   ModuleErrorState,
   ModuleLoadingState,
   ModulePage,
+  ModuleStatePage,
   ModulePagination,
   ModulePrimaryLink,
 } from '../../ui/module-layout';
@@ -199,33 +200,28 @@ export function PeopleListPage() {
 
   if (listState.phase === 'loading') {
     return (
-      <ModulePage>
-        <ModuleLoadingState title="Pessoas" message="Carregando Pessoas…" />
-      </ModulePage>
+      <ModuleStatePage title="Pessoas">`r`n        <ModuleLoadingState message="Carregando Pessoas…" />
+      </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'denied') {
     return (
-      <ModulePage>
-        <ModuleDeniedState
-          title="Pessoas"
+      <ModuleStatePage title="Pessoas">`r`n        <ModuleDeniedState
           message="Você não tem permissão para listar Pessoas."
         />
-      </ModulePage>
+      </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'error') {
     return (
-      <ModulePage>
-        <ModuleErrorState
-          title="Pessoas"
+      <ModuleStatePage title="Pessoas">`r`n        <ModuleErrorState
           message={listState.message}
           retryable={listState.retryable}
           onRetry={() => void loadPage(offset)}
         />
-      </ModulePage>
+      </ModuleStatePage>
     );
   }
 

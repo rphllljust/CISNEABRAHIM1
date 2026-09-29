@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button, DateTime, EmptyState, Field, Input, Money, Select, Textarea, VersionConflictBanner } from '../../ui';
 import {
@@ -7,6 +7,7 @@ import {
   ModuleErrorState,
   ModuleLoadingState,
   ModulePage,
+  ModuleStatePage,
   ModulePageHeader,
   ModulePagination,
   ModuleTableCard,
@@ -399,33 +400,28 @@ export function BankReconciliationPage() {
 
   if (listState.phase === 'loading' && !statementId) {
     return (
-      <ModulePage>
-        <ModuleLoadingState title="Conciliação" message="Carregando extratos bancários…" />
-      </ModulePage>
+      <ModuleStatePage title="Conciliação">`r`n        <ModuleLoadingState message="Carregando extratos bancários…" />
+      </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'denied') {
     return (
-      <ModulePage>
-        <ModuleDeniedState
-          title="Conciliação"
+      <ModuleStatePage title="Conciliação">`r`n        <ModuleDeniedState
           message="Você não tem permissão para acessar conciliação bancária."
         />
-      </ModulePage>
+      </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'error') {
     return (
-      <ModulePage>
-        <ModuleErrorState
-          title="Conciliação"
+      <ModuleStatePage title="Conciliação">`r`n        <ModuleErrorState
           message={listState.message}
           retryable={listState.retryable}
           onRetry={() => void loadList(0)}
         />
-      </ModulePage>
+      </ModuleStatePage>
     );
   }
 

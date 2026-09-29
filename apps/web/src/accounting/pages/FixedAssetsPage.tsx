@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+﻿import { useCallback, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { DateTime, EmptyState, Field, Input, Money, Select } from '../../ui';
 import {
@@ -105,10 +105,15 @@ export function FixedAssetsPage() {
             required
           >
             {lookupUnit.units.length === 0 ? <option value="">Nenhuma unidade disponível</option> : null}
-            {lookupUnit.units.map((unit) => (
+
+            {lookupUnit.units.map((unit, index) => (
+
               <option key={unit} value={unit}>
-                {unit}
+
+                Unidade {index + 1}
+
               </option>
+
             ))}
           </Select>
         </Field>
@@ -146,10 +151,15 @@ export function FixedAssetsPage() {
             required
           >
             {registerUnit.units.length === 0 ? <option value="">Nenhuma unidade disponível</option> : null}
-            {registerUnit.units.map((unit) => (
+
+            {registerUnit.units.map((unit, index) => (
+
               <option key={unit} value={unit}>
-                {unit}
+
+                Unidade {index + 1}
+
               </option>
+
             ))}
           </Select>
         </Field>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { FilterCard, ModuleDeniedState, ModuleErrorState, ModuleLoadingState, ModulePage, ModulePageHeader, ModulePagination, ModulePrimaryLink, ModuleTableCard, ModuleTableLink, filterControlClass, filterLabelClass, moduleTableCellClass, moduleTableClass, moduleTableHeadClass, moduleTableHeaderCellClass, moduleTableRowClass } from '../../ui/module-layout';
+import { FilterCard, ModuleDeniedState, ModuleErrorState, ModuleLoadingState, ModulePage, ModulePageHeader, ModulePagination, ModulePrimaryLink, ModuleStatePage, ModuleTableCard, ModuleTableLink, filterControlClass, filterLabelClass, moduleTableCellClass, moduleTableClass, moduleTableHeadClass, moduleTableHeaderCellClass, moduleTableRowClass } from '../../ui/module-layout';
 import { BackofficeApiError } from '../../financial-ui/enterprise-api';
 import { formatCnpjDisplay } from '../../clients/utils/format-cnpj';
 import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge';
@@ -111,33 +111,28 @@ export function SuppliersListPage() {
 
   if (listState.phase === 'loading') {
     return (
-      <ModulePage>
-        <ModuleLoadingState title="Fornecedores" message="Carregando Fornecedores…" />
-      </ModulePage>
+      <ModuleStatePage title="Fornecedores">`r`n        <ModuleLoadingState message="Carregando Fornecedores…" />
+      </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'denied') {
     return (
-      <ModulePage>
-        <ModuleDeniedState
-          title="Fornecedores"
+      <ModuleStatePage title="Fornecedores">`r`n        <ModuleDeniedState
           message="Você não tem permissão para listar Fornecedores."
         />
-      </ModulePage>
+      </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'error') {
     return (
-      <ModulePage>
-        <ModuleErrorState
-          title="Fornecedores"
+      <ModuleStatePage title="Fornecedores">`r`n        <ModuleErrorState
           message={listState.message}
           retryable={listState.retryable}
           onRetry={() => void loadPage(0)}
         />
-      </ModulePage>
+      </ModuleStatePage>
     );
   }
 

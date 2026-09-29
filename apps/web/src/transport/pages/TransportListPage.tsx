@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+﻿import { useCallback, useEffect, useState } from 'react';
 import { listTransportServiceOrders } from '../api/transport-api';
 import { ServiceOrdersApiError } from '../../service-orders/api/service-orders-api';
 import { mapServiceOrdersErrorToMessage } from '../../service-orders/api/service-orders-error-messages';
@@ -9,6 +9,7 @@ import {
   ModuleErrorState,
   ModuleLoadingState,
   ModulePage,
+  ModuleStatePage,
   ModulePageHeader,
   ModulePagination,
   ModuleTableCard,
@@ -76,28 +77,24 @@ export function TransportListPage() {
 
   if (listState.phase === 'loading') {
     return (
-      <ModulePage>
-        <ModuleLoadingState title="Transporte" message="Carregando ordens de transporte..." />
-      </ModulePage>
+      <ModuleStatePage title="Transporte">`r`n        <ModuleLoadingState message="Carregando ordens de transporte..." />
+      </ModuleStatePage>
     );
   }
   if (listState.phase === 'denied') {
     return (
-      <ModulePage>
-        <ModuleDeniedState title="Transporte" message="Você não tem permissão para listar transportes." />
-      </ModulePage>
+      <ModuleStatePage title="Transporte">`r`n        <ModuleDeniedState message="Você não tem permissão para listar transportes." />
+      </ModuleStatePage>
     );
   }
   if (listState.phase === 'error') {
     return (
-      <ModulePage>
-        <ModuleErrorState
-        title="Transporte"
+      <ModuleStatePage title="Transporte">`r`n        <ModuleErrorState
         message={listState.message}
         retryable={listState.retryable}
         onRetry={() => void loadPage(offset)}
       />
-      </ModulePage>
+      </ModuleStatePage>
     );
   }
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+﻿import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   FilterCard,
@@ -6,6 +6,7 @@ import {
   ModuleErrorState,
   ModuleLoadingState,
   ModulePage,
+  ModuleStatePage,
   ModulePageHeader,
   ModulePagination,
   ModuleTableCard,
@@ -107,30 +108,26 @@ export function BudgetsListPage() {
 
   if (listState.phase === 'loading') {
     return (
-      <ModulePage>
-        <ModuleLoadingState title="Orçamentos" message="Carregando Orçamentos…" />
-      </ModulePage>
+      <ModuleStatePage title="Orçamentos">`r`n        <ModuleLoadingState message="Carregando Orçamentos…" />
+      </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'denied') {
     return (
-      <ModulePage>
-        <ModuleDeniedState title="Orçamentos" message="Você não tem permissão para listar Orçamentos." />
-      </ModulePage>
+      <ModuleStatePage title="Orçamentos">`r`n        <ModuleDeniedState message="Você não tem permissão para listar Orçamentos." />
+      </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'error') {
     return (
-      <ModulePage>
-        <ModuleErrorState
-          title="Orçamentos"
+      <ModuleStatePage title="Orçamentos">`r`n        <ModuleErrorState
           message={listState.message}
           retryable={listState.retryable}
           onRetry={() => void loadPage(0)}
         />
-      </ModulePage>
+      </ModuleStatePage>
     );
   }
 

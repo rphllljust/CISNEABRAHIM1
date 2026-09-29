@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+﻿import { useCallback, useEffect, useState } from 'react';
 import { mapAssetErrorToMessage } from '../../assets/api/asset-error-messages';
 import { AssetsApiError } from '../../assets/api/physical-assets-api';
 import { AssetLifecycleStatusBadge } from '../../assets/components/AssetLifecycleStatusBadge';
@@ -39,6 +39,7 @@ import {
   ModuleErrorState,
   ModuleLoadingState,
   ModulePage,
+  ModuleStatePage,
   ModulePagination,
   ModulePrimaryLink,
 } from '../../ui/module-layout';
@@ -147,33 +148,28 @@ export function FleetListPage() {
 
   if (listState.phase === 'loading' && summary === null) {
     return (
-      <ModulePage>
-        <ModuleLoadingState title="Frota" message="Carregando veículos…" />
-      </ModulePage>
+      <ModuleStatePage title="Frota">`r`n        <ModuleLoadingState message="Carregando veículos…" />
+      </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'denied') {
     return (
-      <ModulePage>
-        <ModuleDeniedState
-        title="Frota"
+      <ModuleStatePage title="Frota">`r`n        <ModuleDeniedState
         message="Você não tem permissão para listar veículos da frota."
       />
-      </ModulePage>
+      </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'error') {
     return (
-      <ModulePage>
-        <ModuleErrorState
-        title="Frota"
+      <ModuleStatePage title="Frota">`r`n        <ModuleErrorState
         message={listState.message}
         retryable={listState.retryable}
         onRetry={() => void loadPage(0)}
       />
-      </ModulePage>
+      </ModuleStatePage>
     );
   }
 

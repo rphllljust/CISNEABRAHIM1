@@ -121,6 +121,29 @@ export function ModulePageHeader({
 }
 
 /**
+ * PAGINA DE ESTADO — lista que faz RETORNO ANTECIPADO ainda precisa dizer onde o operador esta.
+ *
+ * Uma lista que carrega, nega ou falha antes de montar a grade nao tem cabecalho proprio: ela
+ * troca a pagina inteira pelo bloco de estado. Sem esta moldura a superficie ficava sem `<h1>`
+ * — o operador via "Carregando…" sem saber de que tela. Aqui o titulo da pagina e o bloco de
+ * estado convivem, na MESMA hierarquia das telas que ja carregaram.
+ */
+export function ModuleStatePage({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <ModulePage>
+      <ModulePageHeader title={title} />
+      {children}
+    </ModulePage>
+  );
+}
+
+/**
  * Blocos de estado do modulo.
  *
  * Eles renderizam CONTEUDO, nunca a moldura da pagina: quem chama ja esta dentro de um
@@ -128,32 +151,34 @@ export function ModulePageHeader({
  * retorno antecipado). Antes cada um deles abria o proprio `<main id="main-content">`, o que
  * produzia HTML invalido (id duplicado) e landmarks `<main>` aninhados em toda pagina que
  * exibia estado de carregamento, negacao ou erro.
+ *
+ * HIERARQUIA (corrigido): eles tambem NAO abrem mais um `ModulePageHeader`. A pagina de
+ * backoffice ja renderiza o proprio cabecalho antes de consultar a lista; o gate devolvia um
+ * segundo `<h1>` com o mesmo titulo, e a superficie abria com "Central de fechamento /
+ * Central de fechamento". Um estado de carga/erro/negacao e um bloco DENTRO da pagina — nao
+ * uma pagina paralela. `title` permanece como rotulo ACESSIVEL do bloco (o `<h1>` da pagina
+ * segue sendo a identidade), entao nada se perde em semantica nem em leitor de tela.
  */
-export function ModuleLoadingState({ title, message }: { title: string; message: string }) {
+export function ModuleLoadingState({ title, message }: { title?: string; message: string }) {
   return (
-    <>
-      <ModulePageHeader title={title} />
-      <p aria-busy="true" aria-live="polite" className="text-sm text-gray-500">
-        {message}
-      </p>
-    </>
+    <p
+      aria-busy="true"
+      aria-live="polite"
+      aria-label={title}
+      className="text-sm text-gray-500"
+    >
+      {message}
+    </p>
   );
 }
 
-export function ModuleDeniedState({
-  title,
-  message,
-}: {
-  title: string;
-  message: string;
-}) {
+export function ModuleDeniedState({ title, message }: { title?: string; message: string }) {
   return (
-    <>
-      <ModulePageHeader title={title} />
-      <p className="text-sm text-red-700" role="alert">
+    <div aria-label={title} className="flex flex-col gap-2">
+      <p className="m-0 text-sm text-red-700" role="alert">
         {message}
       </p>
-      <p className="mt-3">
+      <p className="m-0">
         <Link
           to="/app"
           className="text-sm font-medium text-brand-600 no-underline hover:text-brand-700"
@@ -161,7 +186,7 @@ export function ModuleDeniedState({
           Voltar ao início
         </Link>
       </p>
-    </>
+    </div>
   );
 }
 
@@ -171,28 +196,27 @@ export function ModuleErrorState({
   retryable,
   onRetry,
 }: {
-  title: string;
+  title?: string;
   message: string;
   retryable: boolean;
   onRetry?: () => void;
 }) {
   return (
-    <>
-      <ModulePageHeader title={title} />
+    <div aria-label={title} className="flex flex-col gap-3">
       <p
-        className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-500/20 ring-inset"
+        className="m-0 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-500/20 ring-inset"
         role="alert"
       >
         {message}
       </p>
       {retryable && onRetry ? (
-        <div className="mt-4">
+        <div>
           <Button type="button" variant="secondary" onClick={onRetry}>
             Tentar novamente
           </Button>
         </div>
       ) : null}
-    </>
+    </div>
   );
 }
 

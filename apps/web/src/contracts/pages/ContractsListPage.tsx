@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+﻿import { useCallback, useEffect, useState } from 'react';
 import { ContractsApiError, listContracts } from '../api/contracts-api';
 import { mapContractErrorToMessage } from '../api/contracts-error-messages';
 import { ContractStatusBadge } from '../components/ContractStatusBadge';
@@ -14,6 +14,7 @@ import {
   ModuleErrorState,
   ModuleLoadingState,
   ModulePage,
+  ModuleStatePage,
   ModulePageHeader,
   ModulePagination,
   ModulePrimaryLink,
@@ -92,33 +93,28 @@ export function ContractsListPage() {
 
   if (listState.phase === 'loading') {
     return (
-      <ModulePage>
-        <ModuleLoadingState title="Contratos" message="Carregando contratos…" />
-      </ModulePage>
+      <ModuleStatePage title="Contratos">`r`n        <ModuleLoadingState message="Carregando contratos…" />
+      </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'denied') {
     return (
-      <ModulePage>
-        <ModuleDeniedState
-        title="Contratos"
+      <ModuleStatePage title="Contratos">`r`n        <ModuleDeniedState
         message="Você não tem permissão para listar contratos comerciais."
       />
-      </ModulePage>
+      </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'error') {
     return (
-      <ModulePage>
-        <ModuleErrorState
-        title="Contratos"
+      <ModuleStatePage title="Contratos">`r`n        <ModuleErrorState
         message={listState.message}
         retryable={listState.retryable}
         onRetry={() => void loadPage(0)}
       />
-      </ModulePage>
+      </ModuleStatePage>
     );
   }
 

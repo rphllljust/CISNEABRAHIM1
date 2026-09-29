@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, EmptyState, Field, Select } from '../../ui';
 import {
   FilterCard,
@@ -128,10 +128,15 @@ export function PeriodClosePage() {
               disabled={units.length === 0}
             >
               {units.length === 0 ? <option value="">Nenhuma unidade disponível</option> : null}
-              {units.map((unit) => (
+
+              {units.map((unit, index) => (
+
                 <option key={unit} value={unit}>
-                  {unit}
+
+                  Unidade {index + 1}
+
                 </option>
+
               ))}
             </Select>
           </Field>

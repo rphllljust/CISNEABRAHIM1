@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+﻿import { useCallback, useEffect, useState } from 'react';
 import { Button, DateTime, EmptyState, Money } from '../../ui';
 import {
   FilterCard,
@@ -221,10 +221,15 @@ export function AccountingPostingOriginsPage() {
               }}
             >
               {units.length === 0 ? <option value="">Nenhuma unidade disponível</option> : null}
-              {units.map((unit) => (
+
+              {units.map((unit, index) => (
+
                 <option key={unit} value={unit}>
-                  {unit}
+
+                  Unidade {index + 1}
+
                 </option>
+
               ))}
             </select>
           </div>

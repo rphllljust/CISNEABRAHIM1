@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+﻿import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Money } from '../../ui';
 import { SavedViewsBar, useSmartList } from '../../operator';
@@ -8,6 +8,7 @@ import {
   ModuleErrorState,
   ModuleLoadingState,
   ModulePage,
+  ModuleStatePage,
   ModulePageHeader,
   ModulePagination,
   ModuleTableCard,
@@ -116,30 +117,26 @@ export function ExpensesListPage() {
 
   if (listState.phase === 'loading') {
     return (
-      <ModulePage>
-        <ModuleLoadingState title="Despesas" message="Carregando Despesas…" />
-      </ModulePage>
+      <ModuleStatePage title="Despesas">`r`n        <ModuleLoadingState message="Carregando Despesas…" />
+      </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'denied') {
     return (
-      <ModulePage>
-        <ModuleDeniedState title="Despesas" message="Você não tem permissão para listar Despesas." />
-      </ModulePage>
+      <ModuleStatePage title="Despesas">`r`n        <ModuleDeniedState message="Você não tem permissão para listar Despesas." />
+      </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'error') {
     return (
-      <ModulePage>
-        <ModuleErrorState
-          title="Despesas"
+      <ModuleStatePage title="Despesas">`r`n        <ModuleErrorState
           message={listState.message}
           retryable={listState.retryable}
           onRetry={() => void loadPage(0)}
         />
-      </ModulePage>
+      </ModuleStatePage>
     );
   }
 

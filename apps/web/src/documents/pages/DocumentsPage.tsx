@@ -13,6 +13,7 @@ import {
   ModuleErrorState,
   ModuleLoadingState,
   ModulePage,
+  ModuleStatePage,
   ModulePageHeader,
   ModulePagination,
   filterControlClass,
@@ -184,33 +185,28 @@ export function DocumentsPage() {
 
   if (phase === 'loading' || capabilitiesLoading) {
     return (
-      <ModulePage>
-        <ModuleLoadingState title="Documentos" message="Carregando documentos…" />
-      </ModulePage>
+      <ModuleStatePage title="Documentos">`r`n        <ModuleLoadingState message="Carregando documentos…" />
+      </ModuleStatePage>
     );
   }
 
   if (phase === 'denied' || !capabilities.canList) {
     return (
-      <ModulePage>
-        <ModuleDeniedState
-          title="Documentos"
+      <ModuleStatePage title="Documentos">`r`n        <ModuleDeniedState
           message="Você não tem permissão para listar documentos."
         />
-      </ModulePage>
+      </ModuleStatePage>
     );
   }
 
   if (phase === 'error') {
     return (
-      <ModulePage>
-        <ModuleErrorState
-          title="Documentos"
+      <ModuleStatePage title="Documentos">`r`n        <ModuleErrorState
           message={message ?? 'Não foi possível carregar os documentos.'}
           retryable={retryable}
           onRetry={() => setReloadToken((current) => current + 1)}
         />
-      </ModulePage>
+      </ModuleStatePage>
     );
   }
 

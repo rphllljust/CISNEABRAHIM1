@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { listRentalServiceOrders } from '../api/rentals-api';
 import { ServiceOrdersApiError } from '../../service-orders/api/service-orders-api';
 import { mapServiceOrdersErrorToMessage } from '../../service-orders/api/service-orders-error-messages';
@@ -27,6 +27,7 @@ import {
   ModuleErrorState,
   ModuleLoadingState,
   ModulePage,
+  ModuleStatePage,
   ModulePagination,
 } from '../../ui/module-layout';
 
@@ -165,28 +166,24 @@ export function RentalsListPage() {
 
   if (listState.phase === 'loading') {
     return (
-      <ModulePage>
-        <ModuleLoadingState title="Locações" message="Carregando ordens de locação…" />
-      </ModulePage>
+      <ModuleStatePage title="Locações">`r`n        <ModuleLoadingState message="Carregando ordens de locação…" />
+      </ModuleStatePage>
     );
   }
   if (listState.phase === 'denied') {
     return (
-      <ModulePage>
-        <ModuleDeniedState title="Locações" message="Você não tem permissão para listar locações." />
-      </ModulePage>
+      <ModuleStatePage title="Locações">`r`n        <ModuleDeniedState message="Você não tem permissão para listar locações." />
+      </ModuleStatePage>
     );
   }
   if (listState.phase === 'error') {
     return (
-      <ModulePage>
-        <ModuleErrorState
-        title="Locações"
+      <ModuleStatePage title="Locações">`r`n        <ModuleErrorState
         message={listState.message}
         retryable={listState.retryable}
         onRetry={() => void loadPage(offset)}
       />
-      </ModulePage>
+      </ModuleStatePage>
     );
   }
 

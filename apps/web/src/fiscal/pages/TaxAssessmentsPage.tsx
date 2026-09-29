@@ -125,10 +125,15 @@ function TaxAssessmentsList() {
               }}
             >
               {units.length === 0 ? <option value="">Nenhuma unidade disponível</option> : null}
-              {units.map((unit) => (
+
+              {units.map((unit, index) => (
+
                 <option key={unit} value={unit}>
-                  {unit}
+
+                  Unidade {index + 1}
+
                 </option>
+
               ))}
             </select>
           </div>

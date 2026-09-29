@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+﻿import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Alert, Button, EmptyState, Field, Money, Select } from '../../ui';
 import {
   FilterCard,
@@ -282,10 +282,15 @@ function PeriodReportShell({ kind }: { kind: ReportKind }) {
               disabled={units.length === 0}
             >
               {units.length === 0 ? <option value="">Nenhuma unidade disponível</option> : null}
-              {units.map((unit) => (
+
+              {units.map((unit, index) => (
+
                 <option key={unit} value={unit}>
-                  {unit}
+
+                  Unidade {index + 1}
+
                 </option>
+
               ))}
             </Select>
           </Field>
