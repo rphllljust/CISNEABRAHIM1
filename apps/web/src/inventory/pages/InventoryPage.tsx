@@ -1,20 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { EmptyState, Field, Input, Money, Select } from '../../ui';
-import {
-  FilterCard,
-  ModulePage,
-  ModulePageHeader,
-  ModuleTableCard,
-  ModuleTableLink,
-  filterControlClass,
-  filterLabelClass,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui/module-layout';
+import { EmptyState, Field, Input, Money, Select, worklistTableCardClass } from '../../ui';
+import { FilterCard, ModulePage, ModulePageHeader, ModuleTableLink, filterControlClass, filterLabelClass } from '../../ui/module-layout';
+import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { CreateRecordForm } from '../../financial-ui/VersionedActionForm';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
@@ -110,8 +98,8 @@ function InventoryListToolbar({
 
 function ListMessageRow({ colSpan, children }: { colSpan: number; children: ReactNode }) {
   return (
-    <tr className={moduleTableRowClass}>
-      <td className={moduleTableCellClass} colSpan={colSpan}>
+    <tr className={worklistRowClass}>
+      <td className={worklistCellClass} colSpan={colSpan}>
         {children}
       </td>
     </tr>
@@ -227,14 +215,14 @@ export function InventoryPage() {
         onSearch={() => setAppliedTerm(term.trim())}
       />
 
-      <ModuleTableCard>
-        <table className={moduleTableClass} aria-label="Depósitos">
-          <thead className={moduleTableHeadClass}>
+      <div className={worklistTableCardClass}>
+        <table className={worklistTableClass} aria-label="Depósitos">
+          <thead className={worklistHeadCellClass}>
             <tr>
-              <th scope="col" className={moduleTableHeaderCellClass}>Depósito</th>
-              <th scope="col" className={moduleTableHeaderCellClass}>Código</th>
-              <th scope="col" className={moduleTableHeaderCellClass}>Unidade</th>
-              <th scope="col" className={moduleTableHeaderCellClass}>Status</th>
+              <th scope="col" className={worklistHeadCellClass}>Depósito</th>
+              <th scope="col" className={worklistHeadCellClass}>Código</th>
+              <th scope="col" className={worklistHeadCellClass}>Unidade</th>
+              <th scope="col" className={worklistHeadCellClass}>Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -248,17 +236,17 @@ export function InventoryPage() {
             ) : null}
             {warehouses.phase === 'ready'
               ? warehouses.items.map((warehouse) => (
-                  <tr key={warehouse.id} className={moduleTableRowClass}>
-                    <td className={moduleTableCellClass}>
+                  <tr key={warehouse.id} className={worklistRowClass}>
+                    <td className={worklistCellClass}>
                       <ModuleTableLink to={`/app/inventory/warehouses/${warehouse.id}`}>
                         {warehouse.name}
                       </ModuleTableLink>
                     </td>
-                    <td className={`${moduleTableCellClass} font-mono tabular-nums text-gray-600`}>
+                    <td className={`${worklistCellClass} font-mono tabular-nums text-gray-600`}>
                       {warehouse.code}
                     </td>
-                    <td className={moduleTableCellClass}>{warehouse.unitId}</td>
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellClass}>{warehouse.unitId}</td>
+                    <td className={worklistCellClass}>
                       <FinanceStatusBadge status={warehouse.status} labels={WAREHOUSE_STATUS_LABELS} />
                     </td>
                   </tr>
@@ -266,19 +254,19 @@ export function InventoryPage() {
               : null}
           </tbody>
         </table>
-      </ModuleTableCard>
+      </div>
       <p className="mb-6 mt-2 text-xs text-gray-500" role="status">
         {warehouses.phase === 'ready' ? `${warehouses.total} depósito(s) no total.` : 'Carregando depósitos…'}
       </p>
 
-      <ModuleTableCard>
-        <table className={moduleTableClass} aria-label="Itens de estoque">
-          <thead className={moduleTableHeadClass}>
+      <div className={worklistTableCardClass}>
+        <table className={worklistTableClass} aria-label="Itens de estoque">
+          <thead className={worklistHeadCellClass}>
             <tr>
-              <th scope="col" className={moduleTableHeaderCellClass}>Item</th>
-              <th scope="col" className={moduleTableHeaderCellClass}>SKU</th>
-              <th scope="col" className={moduleTableHeaderCellClass}>Unidade</th>
-              <th scope="col" className={moduleTableHeaderCellClass}>Status</th>
+              <th scope="col" className={worklistHeadCellClass}>Item</th>
+              <th scope="col" className={worklistHeadCellClass}>SKU</th>
+              <th scope="col" className={worklistHeadCellClass}>Unidade</th>
+              <th scope="col" className={worklistHeadCellClass}>Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -290,15 +278,15 @@ export function InventoryPage() {
             ) : null}
             {items.phase === 'ready'
               ? items.items.map((item) => (
-                  <tr key={item.id} className={moduleTableRowClass}>
-                    <td className={moduleTableCellClass}>
+                  <tr key={item.id} className={worklistRowClass}>
+                    <td className={worklistCellClass}>
                       <ModuleTableLink to={`/app/inventory/items/${item.id}`}>{item.name}</ModuleTableLink>
                     </td>
-                    <td className={`${moduleTableCellClass} font-mono tabular-nums text-gray-600`}>
+                    <td className={`${worklistCellClass} font-mono tabular-nums text-gray-600`}>
                       {item.sku}
                     </td>
-                    <td className={moduleTableCellClass}>{item.unitId}</td>
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellClass}>{item.unitId}</td>
+                    <td className={worklistCellClass}>
                       <FinanceStatusBadge status={item.status} labels={INVENTORY_ITEM_STATUS_LABELS} />
                     </td>
                   </tr>
@@ -306,7 +294,7 @@ export function InventoryPage() {
               : null}
           </tbody>
         </table>
-      </ModuleTableCard>
+      </div>
       <p className="mb-6 mt-2 text-xs text-gray-500" role="status">
         {items.phase === 'ready' ? `${items.total} item(ns) no total.` : 'Carregando itens…'}
       </p>
@@ -343,16 +331,16 @@ export function InventoryPage() {
         className="mb-4"
       />
 
-      <ModuleTableCard>
-        <table className={moduleTableClass} aria-label="Movimentos de estoque">
-          <thead className={moduleTableHeadClass}>
+      <div className={worklistTableCardClass}>
+        <table className={worklistTableClass} aria-label="Movimentos de estoque">
+          <thead className={worklistHeadCellClass}>
             <tr>
-              <th scope="col" className={moduleTableHeaderCellClass}>Data</th>
-              <th scope="col" className={moduleTableHeaderCellClass}>Item</th>
-              <th scope="col" className={moduleTableHeaderCellClass}>Depósito</th>
-              <th scope="col" className={moduleTableHeaderCellClass}>Tipo</th>
-              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Quantidade</th>
-              <th scope="col" className={moduleTableHeaderCellClass}>Descrição</th>
+              <th scope="col" className={worklistHeadCellClass}>Data</th>
+              <th scope="col" className={worklistHeadCellClass}>Item</th>
+              <th scope="col" className={worklistHeadCellClass}>Depósito</th>
+              <th scope="col" className={worklistHeadCellClass}>Tipo</th>
+              <th scope="col" className={`${worklistHeadCellClass} text-right`}>Quantidade</th>
+              <th scope="col" className={worklistHeadCellClass}>Descrição</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -368,43 +356,43 @@ export function InventoryPage() {
             ) : null}
             {movements.phase === 'ready'
               ? movements.items.map((movement) => (
-                  <tr key={movement.id} className={moduleTableRowClass}>
-                    <td className={moduleTableCellClass}>{movement.occurredOn}</td>
-                    <td className={moduleTableCellClass}>
+                  <tr key={movement.id} className={worklistRowClass}>
+                    <td className={worklistCellClass}>{movement.occurredOn}</td>
+                    <td className={worklistCellClass}>
                       {movement.itemName ?? 'Item não identificado'}
                       {movement.itemSku ? (
                         <span className="block text-xs text-gray-500">{movement.itemSku}</span>
                       ) : null}
                     </td>
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellClass}>
                       {movement.warehouseName ?? 'Depósito não identificado'}
                       {movement.warehouseCode ? (
                         <span className="block text-xs text-gray-500">{movement.warehouseCode}</span>
                       ) : null}
                     </td>
-                    <td className={moduleTableCellClass}>{movement.movementType}</td>
-                    <td className={`${moduleTableCellClass} text-right`}>{movement.signedQuantity}</td>
-                    <td className={moduleTableCellClass}>{movement.description}</td>
+                    <td className={worklistCellClass}>{movement.movementType}</td>
+                    <td className={`${worklistCellClass} text-right`}>{movement.signedQuantity}</td>
+                    <td className={worklistCellClass}>{movement.description}</td>
                   </tr>
                 ))
               : null}
           </tbody>
         </table>
-      </ModuleTableCard>
+      </div>
       <p className="mb-6 mt-2 text-xs text-gray-500" role="status">
         {movements.phase === 'ready'
           ? `${movements.total} movimento(s) no total.`
           : 'Carregando movimentos…'}
       </p>
 
-      <ModuleTableCard>
-        <table className={moduleTableClass} aria-label="Reservas de estoque">
-          <thead className={moduleTableHeadClass}>
+      <div className={worklistTableCardClass}>
+        <table className={worklistTableClass} aria-label="Reservas de estoque">
+          <thead className={worklistHeadCellClass}>
             <tr>
-              <th scope="col" className={moduleTableHeaderCellClass}>Item</th>
-              <th scope="col" className={moduleTableHeaderCellClass}>Depósito</th>
-              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Quantidade</th>
-              <th scope="col" className={moduleTableHeaderCellClass}>Status</th>
+              <th scope="col" className={worklistHeadCellClass}>Item</th>
+              <th scope="col" className={worklistHeadCellClass}>Depósito</th>
+              <th scope="col" className={`${worklistHeadCellClass} text-right`}>Quantidade</th>
+              <th scope="col" className={worklistHeadCellClass}>Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -416,27 +404,27 @@ export function InventoryPage() {
             ) : null}
             {reservations.phase === 'ready'
               ? reservations.items.map((reservation) => (
-                  <tr key={reservation.id} className={moduleTableRowClass}>
-                    <td className={moduleTableCellClass}>
+                  <tr key={reservation.id} className={worklistRowClass}>
+                    <td className={worklistCellClass}>
                       {reservation.itemName ?? 'Item não identificado'}
                       {reservation.itemSku ? (
                         <span className="block text-xs text-gray-500">{reservation.itemSku}</span>
                       ) : null}
                     </td>
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellClass}>
                       {reservation.warehouseName ?? 'Depósito não identificado'}
                       {reservation.warehouseCode ? (
                         <span className="block text-xs text-gray-500">{reservation.warehouseCode}</span>
                       ) : null}
                     </td>
-                    <td className={`${moduleTableCellClass} text-right`}>{reservation.quantity}</td>
-                    <td className={moduleTableCellClass}>{reservation.status}</td>
+                    <td className={`${worklistCellClass} text-right`}>{reservation.quantity}</td>
+                    <td className={worklistCellClass}>{reservation.status}</td>
                   </tr>
                 ))
               : null}
           </tbody>
         </table>
-      </ModuleTableCard>
+      </div>
       <p className="mb-8 mt-2 text-xs text-gray-500" role="status">
         {reservations.phase === 'ready'
           ? `${reservations.total} reserva(s) no total.`
@@ -861,17 +849,17 @@ export function InventoryItemDetailPage() {
         </p>
       ))}
 
-      <ModuleTableCard>
-        <table className={moduleTableClass} aria-label="Movimentos do item">
-          <thead className={moduleTableHeadClass}>
+      <div className={worklistTableCardClass}>
+        <table className={worklistTableClass} aria-label="Movimentos do item">
+          <thead className={worklistHeadCellClass}>
             <tr>
-              <th scope="col" className={moduleTableHeaderCellClass}>Data</th>
-              <th scope="col" className={moduleTableHeaderCellClass}>Depósito</th>
-              <th scope="col" className={moduleTableHeaderCellClass}>Tipo</th>
-              <th scope="col" className={moduleTableHeaderCellClass}>Status</th>
-              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Quantidade</th>
-              <th scope="col" className={moduleTableHeaderCellClass}>Custo</th>
-              <th scope="col" className={moduleTableHeaderCellClass}>Descrição</th>
+              <th scope="col" className={worklistHeadCellClass}>Data</th>
+              <th scope="col" className={worklistHeadCellClass}>Depósito</th>
+              <th scope="col" className={worklistHeadCellClass}>Tipo</th>
+              <th scope="col" className={worklistHeadCellClass}>Status</th>
+              <th scope="col" className={`${worklistHeadCellClass} text-right`}>Quantidade</th>
+              <th scope="col" className={worklistHeadCellClass}>Custo</th>
+              <th scope="col" className={worklistHeadCellClass}>Descrição</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -885,27 +873,27 @@ export function InventoryItemDetailPage() {
             ) : null}
             {movements.phase === 'ready'
               ? movements.items.map((movement) => (
-                  <tr key={movement.id} className={moduleTableRowClass}>
-                    <td className={moduleTableCellClass}>{movement.occurredOn}</td>
-                    <td className={moduleTableCellClass}>
+                  <tr key={movement.id} className={worklistRowClass}>
+                    <td className={worklistCellClass}>{movement.occurredOn}</td>
+                    <td className={worklistCellClass}>
                       {movement.warehouseName ?? 'Depósito não identificado'}
                       {movement.warehouseCode ? (
                         <span className="block text-xs text-gray-500">{movement.warehouseCode}</span>
                       ) : null}
                     </td>
-                    <td className={moduleTableCellClass}>{movement.movementType}</td>
-                    <td className={moduleTableCellClass}>{movement.status}</td>
-                    <td className={`${moduleTableCellClass} text-right`}>{movement.signedQuantity}</td>
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellClass}>{movement.movementType}</td>
+                    <td className={worklistCellClass}>{movement.status}</td>
+                    <td className={`${worklistCellClass} text-right`}>{movement.signedQuantity}</td>
+                    <td className={worklistCellClass}>
                       {movement.totalCost ? <Money value={movement.totalCost} /> : '—'}
                     </td>
-                    <td className={moduleTableCellClass}>{movement.description}</td>
+                    <td className={worklistCellClass}>{movement.description}</td>
                   </tr>
                 ))
               : null}
           </tbody>
         </table>
-      </ModuleTableCard>
+      </div>
 
       <ReverseMovementForm
         movements={movements.phase === 'ready' ? movements.items : []}
@@ -1095,15 +1083,15 @@ export function InventoryWarehouseDetailPage() {
         </div>
       ) : null}
 
-      <ModuleTableCard>
-        <table className={moduleTableClass} aria-label="Movimentos do depósito">
-          <thead className={moduleTableHeadClass}>
+      <div className={worklistTableCardClass}>
+        <table className={worklistTableClass} aria-label="Movimentos do depósito">
+          <thead className={worklistHeadCellClass}>
             <tr>
-              <th scope="col" className={moduleTableHeaderCellClass}>Data</th>
-              <th scope="col" className={moduleTableHeaderCellClass}>Item</th>
-              <th scope="col" className={moduleTableHeaderCellClass}>Tipo</th>
-              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Quantidade</th>
-              <th scope="col" className={moduleTableHeaderCellClass}>Descrição</th>
+              <th scope="col" className={worklistHeadCellClass}>Data</th>
+              <th scope="col" className={worklistHeadCellClass}>Item</th>
+              <th scope="col" className={worklistHeadCellClass}>Tipo</th>
+              <th scope="col" className={`${worklistHeadCellClass} text-right`}>Quantidade</th>
+              <th scope="col" className={worklistHeadCellClass}>Descrição</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -1117,23 +1105,23 @@ export function InventoryWarehouseDetailPage() {
             ) : null}
             {movements.phase === 'ready'
               ? movements.items.map((movement) => (
-                  <tr key={movement.id} className={moduleTableRowClass}>
-                    <td className={moduleTableCellClass}>{movement.occurredOn}</td>
-                    <td className={moduleTableCellClass}>
+                  <tr key={movement.id} className={worklistRowClass}>
+                    <td className={worklistCellClass}>{movement.occurredOn}</td>
+                    <td className={worklistCellClass}>
                       {movement.itemName ?? 'Item não identificado'}
                       {movement.itemSku ? (
                         <span className="block text-xs text-gray-500">{movement.itemSku}</span>
                       ) : null}
                     </td>
-                    <td className={moduleTableCellClass}>{movement.movementType}</td>
-                    <td className={`${moduleTableCellClass} text-right`}>{movement.signedQuantity}</td>
-                    <td className={moduleTableCellClass}>{movement.description}</td>
+                    <td className={worklistCellClass}>{movement.movementType}</td>
+                    <td className={`${worklistCellClass} text-right`}>{movement.signedQuantity}</td>
+                    <td className={worklistCellClass}>{movement.description}</td>
                   </tr>
                 ))
               : null}
           </tbody>
         </table>
-      </ModuleTableCard>
+      </div>
       <p className="mb-6 mt-2 text-xs text-gray-500" role="status">
         {movements.phase === 'ready'
           ? `${movements.total} movimento(s) no total.`

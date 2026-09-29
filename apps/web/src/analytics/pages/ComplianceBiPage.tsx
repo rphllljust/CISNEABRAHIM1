@@ -1,16 +1,7 @@
-﻿import { useEffect, useState } from 'react';
-import { EmptyState, Field, Money, Select } from '../../ui';
-import {
-  FilterCard,
-  ModulePage,
-  ModulePageHeader,
-  ModuleTableCard,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui/module-layout';
+import { useEffect, useState } from 'react';
+import { EmptyState, Field, Money, Select, worklistTableCardClass } from '../../ui';
+import { FilterCard, ModulePage, ModulePageHeader } from '../../ui/module-layout';
+import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
@@ -151,36 +142,36 @@ function ComplianceBlockTable({
     );
   }
   return (
-    <ModuleTableCard>
+    <div className={worklistTableCardClass}>
       <div className="border-b border-border-default px-4 py-3">
         <h2 className="cisne-type-section-title">{title}</h2>
         <p className="cisne-type-subtitle mt-1">{description}</p>
       </div>
-      <table className={moduleTableClass} aria-label={`Indicadores de conformidade — ${title}`}>
-        <thead className={moduleTableHeadClass}>
+      <table className={worklistTableClass} aria-label={`Indicadores de conformidade — ${title}`}>
+        <thead className={worklistHeadCellClass}>
           <tr>
-            <th scope="col" className={moduleTableHeaderCellClass}>
+            <th scope="col" className={worklistHeadCellClass}>
               Indicador
             </th>
-            <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+            <th scope="col" className={`${worklistHeadCellClass} text-right`}>
               Valor
             </th>
           </tr>
         </thead>
         <tbody>
           {block.metrics.map((metric) => (
-            <tr key={metric.metricId} className={moduleTableRowClass}>
-              <td className={`${moduleTableCellClass} whitespace-normal`}>
+            <tr key={metric.metricId} className={worklistRowClass}>
+              <td className={`${worklistCellClass} whitespace-normal`}>
                 {METRIC_LABELS[metric.metricId] ?? metric.metricId}
               </td>
-              <td className={`${moduleTableCellClass} text-right`}>
+              <td className={`${worklistCellClass} text-right`}>
                 <ComplianceMetricValueCell metric={metric} />
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-    </ModuleTableCard>
+    </div>
   );
 }
 

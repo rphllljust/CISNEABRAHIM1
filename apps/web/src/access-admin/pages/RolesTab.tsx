@@ -11,26 +11,7 @@ import {
 import { mapAccessAdminErrorToMessage } from '../api/access-admin-error-messages';
 import { useAsyncResource } from '../hooks/useAccessAdminData';
 import { AccessAdminErrorCodes, type AccessRole } from '../types';
-import {
-  Alert,
-  Badge,
-  Button,
-  EmptyState,
-  ErrorState,
-  Field,
-  Input,
-  LoadingState,
-  Modal,
-  ModuleTableCard,
-  Select,
-  Textarea,
-  VersionConflictBanner,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui';
+import { Alert, Badge, Button, EmptyState, ErrorState, Field, Input, LoadingState, Modal, Select, Textarea, VersionConflictBanner, worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass, worklistTableCardClass } from '../../ui';
 
 export function RolesTab() {
   const { state, refresh } = useAsyncResource<AccessRole[]>(() => listRoles());
@@ -78,54 +59,54 @@ export function RolesTab() {
           description="Crie a primeira role de acesso para começar."
         />
       ) : (
-        <ModuleTableCard>
-          <table className={moduleTableClass} aria-label="Roles de acesso">
-            <thead className={moduleTableHeadClass}>
+        <div className={worklistTableCardClass}>
+          <table className={worklistTableClass} aria-label="Roles de acesso">
+            <thead className={worklistHeadCellClass}>
               <tr>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Código
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Label
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Status
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Versão
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Capacidades
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Ações
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {roles.map((role) => (
-                <tr key={role.id} className={moduleTableRowClass}>
-                  <td className={moduleTableCellClass}>
+                <tr key={role.id} className={worklistRowClass}>
+                  <td className={worklistCellClass}>
                     <span className="font-mono text-gray-600">{role.code}</span>
                   </td>
-                  <td className={moduleTableCellClass}>{role.label}</td>
-                  <td className={moduleTableCellClass}>
+                  <td className={worklistCellClass}>{role.label}</td>
+                  <td className={worklistCellClass}>
                     <Badge tone={role.status === 'ACTIVE' ? 'success' : 'neutral'}>
                       {role.status === 'ACTIVE' ? 'Ativa' : 'Inativa'}
                     </Badge>
                   </td>
-                  <td className={moduleTableCellClass} data-testid={`role-version-${role.code}`}>
+                  <td className={worklistCellClass} data-testid={`role-version-${role.code}`}>
                     {role.version}
                   </td>
                   <td
-                    className={moduleTableCellClass}
+                    className={worklistCellClass}
                     title={role.capabilities.join(', ') || undefined}
                   >
                     {role.capabilities.length === 0
                       ? '—'
                       : `${role.capabilities.length} capacidade(s)`}
                   </td>
-                  <td className={moduleTableCellClass}>
+                  <td className={worklistCellClass}>
                     <Button
                       type="button"
                       variant="secondary"
@@ -138,7 +119,7 @@ export function RolesTab() {
               ))}
             </tbody>
           </table>
-        </ModuleTableCard>
+        </div>
       )}
 
       {modal ? (

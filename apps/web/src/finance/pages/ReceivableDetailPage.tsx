@@ -1,13 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { DateTime, Money, ModulePage, ModulePageHeader } from '../../ui';
-import {
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui/module-layout';
+import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
 import { MoneyActionForm } from '../../financial-ui/MoneyActionForm';
 import { RECEIVABLE_STATUS_LABELS, toneForStatus } from '../../financial-ui/labels';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
@@ -390,28 +384,28 @@ export function ReceivableDetailPage() {
         {item.installments.length > 0 ? (
           <ObjectPanel title="Parcelas do título">
             <div className="overflow-x-auto">
-            <table className={moduleTableClass} aria-label="Parcelas do título">
-              <thead className={moduleTableHeadClass}>
+            <table className={worklistTableClass} aria-label="Parcelas do título">
+              <thead className={worklistHeadCellClass}>
                 <tr>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Parcela
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Vencimento
                   </th>
-                  <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+                  <th scope="col" className={`${worklistHeadCellClass} text-right`}>
                     Principal
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {item.installments.map((installment) => (
-                  <tr key={installment.id} className={moduleTableRowClass}>
-                    <td className={moduleTableCellClass}>{installment.installmentNumber}</td>
-                    <td className={moduleTableCellClass}>
+                  <tr key={installment.id} className={worklistRowClass}>
+                    <td className={worklistCellClass}>{installment.installmentNumber}</td>
+                    <td className={worklistCellClass}>
                       <DateTime value={installment.dueDate} mode="date" />
                     </td>
-                    <td className={`${moduleTableCellClass} text-right`}>
+                    <td className={`${worklistCellClass} text-right`}>
                       <Money value={installment.principal} currencyCode={item.currencyCode} />
                     </td>
                   </tr>

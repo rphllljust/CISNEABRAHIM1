@@ -54,7 +54,7 @@ export { Textarea, type TextareaProps } from './Textarea';
 export { Toast, type ToastProps, type ToastTone } from './Toast';
 export { Tooltip, type TooltipProps } from './Tooltip';
 export { VersionConflictBanner, type VersionConflictBannerProps } from './VersionConflictBanner';
-export { ModulePage, FilterCard, ModuleTableCard, ModulePrimaryLink, ModuleTableLink, ModuleCodeCell, ModulePageHeader, ModuleLoadingState, ModuleDeniedState, ModuleErrorState, ModulePagination, UnitScopeLabel, filterControlClass, filterLabelClass, moduleTableClass, moduleTableHeadClass, moduleTableHeaderCellClass, moduleTableRowClass, moduleTableCellClass } from './module-layout';
+export { ModulePage, ModuleStatePage, FilterCard, ModuleTableCard, ModulePrimaryLink, ModuleTableLink, ModuleCodeCell, ModulePageHeader, ModuleLoadingState, ModuleDeniedState, ModuleErrorState, ModulePagination, UnitScopeLabel, filterControlClass, filterLabelClass, moduleTableClass, moduleTableHeadClass, moduleTableHeaderCellClass, moduleTableRowClass, moduleTableCellClass } from './module-layout';
 export {
   EnterpriseListHeader,
   EnterpriseMetric,

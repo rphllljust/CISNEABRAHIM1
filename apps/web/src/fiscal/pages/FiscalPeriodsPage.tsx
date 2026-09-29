@@ -1,24 +1,8 @@
-﻿import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { EmptyState, Field, Input } from '../../ui';
-import {
-  FilterCard,
-  ModuleErrorState,
-  ModuleLoadingState,
-  ModulePage,
-  ModulePageHeader,
-  ModulePagination,
-  ModuleTableCard,
-  ModuleTableLink,
-  UnitScopeLabel,
-  filterControlClass,
-  filterLabelClass,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui/module-layout';
+import { EmptyState, Field, Input, worklistTableCardClass } from '../../ui';
+import { FilterCard, ModuleErrorState, ModuleLoadingState, ModulePage, ModulePageHeader, ModulePagination, ModuleTableLink, UnitScopeLabel, filterControlClass, filterLabelClass } from '../../ui/module-layout';
+import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { CreateRecordForm, VersionedActionForm } from '../../financial-ui/VersionedActionForm';
 import { PERIOD_STATUS_LABELS } from '../../financial-ui/labels';
@@ -206,48 +190,48 @@ function FiscalPeriodsList() {
 
       {state.phase === 'ready' && state.items.length > 0 ? (
         <>
-          <ModuleTableCard>
-            <table className={moduleTableClass} aria-label="Lista de períodos fiscais">
-              <thead className={moduleTableHeadClass}>
+          <div className={worklistTableCardClass}>
+            <table className={worklistTableClass} aria-label="Lista de períodos fiscais">
+              <thead className={worklistHeadCellClass}>
                 <tr>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Competência
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Situação
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Próxima ação
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Fechado em
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Reaberto em
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Unidade
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {state.items.map((item) => (
-                  <tr key={item.id} className={moduleTableRowClass}>
-                    <td className={moduleTableCellClass}>
+                  <tr key={item.id} className={worklistRowClass}>
+                    <td className={worklistCellClass}>
                       <ModuleTableLink to={`/app/fiscal/periods/${item.id}`}>{item.periodKey}</ModuleTableLink>
                     </td>
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellClass}>
                       <FinanceStatusBadge status={item.status} labels={PERIOD_STATUS_LABELS} />
                     </td>
-                    <td className={moduleTableCellClass}>{NEXT_ACTION_FOR(item.status)}</td>
-                    <td className={moduleTableCellClass}>{item.closedAt ? item.closedAt.slice(0, 10) : '—'}</td>
-                    <td className={moduleTableCellClass}>{item.reopenedAt ? item.reopenedAt.slice(0, 10) : '—'}</td>
-                    <td className={moduleTableCellClass}><UnitScopeLabel unitId={item.unitId} /></td>
+                    <td className={worklistCellClass}>{NEXT_ACTION_FOR(item.status)}</td>
+                    <td className={worklistCellClass}>{item.closedAt ? item.closedAt.slice(0, 10) : '—'}</td>
+                    <td className={worklistCellClass}>{item.reopenedAt ? item.reopenedAt.slice(0, 10) : '—'}</td>
+                    <td className={worklistCellClass}><UnitScopeLabel unitId={item.unitId} /></td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </ModuleTableCard>
+          </div>
 
           <ModulePagination
             pageNumber={state.page + 1}

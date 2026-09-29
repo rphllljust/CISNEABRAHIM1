@@ -1,17 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Alert, EmptyState, ErrorState, Field, Input, Money, Select } from '../../ui';
-import {
-  FilterCard,
-  ModulePage,
-  ModulePageHeader,
-  ModuleTableCard,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui/module-layout';
+import { Alert, EmptyState, ErrorState, Field, Input, Money, Select, worklistTableCardClass } from '../../ui';
+import { FilterCard, ModulePage, ModulePageHeader } from '../../ui/module-layout';
+import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { CreateRecordForm, VersionedActionForm } from '../../financial-ui/VersionedActionForm';
 import { HumanLookupField } from '../../financial-ui/HumanLookupField';
@@ -430,43 +421,43 @@ export function PayrollPage() {
           </div>
           {results.state.phase === 'ready' ? (
             results.state.data.length > 0 ? (
-              <ModuleTableCard>
-                <table className={moduleTableClass} aria-label="Resultados da folha">
-                  <thead className={moduleTableHeadClass}>
+              <div className={worklistTableCardClass}>
+                <table className={worklistTableClass} aria-label="Resultados da folha">
+                  <thead className={worklistHeadCellClass}>
                     <tr>
-                      <th scope="col" className={moduleTableHeaderCellClass}>Contrato</th>
-                      <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Proventos</th>
-                      <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Descontos</th>
-                      <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Líquido</th>
+                      <th scope="col" className={worklistHeadCellClass}>Contrato</th>
+                      <th scope="col" className={`${worklistHeadCellClass} text-right`}>Proventos</th>
+                      <th scope="col" className={`${worklistHeadCellClass} text-right`}>Descontos</th>
+                      <th scope="col" className={`${worklistHeadCellClass} text-right`}>Líquido</th>
                     </tr>
                   </thead>
                   <tbody>
                     {results.state.data.map((row) => (
-                      <tr key={row.id} className={moduleTableRowClass}>
+                      <tr key={row.id} className={worklistRowClass}>
                         {/*
                           O resultado calculado devolve apenas o identificador do contrato. Quando o
                           contrato já foi alcançado nesta sessão, mostramos código e nome; quando não,
                           o identificador continua visível porque é o único dado que a API devolveu —
                           não inventamos um rótulo para ele.
                         */}
-                        <td className={moduleTableCellClass}>
+                        <td className={worklistCellClass}>
                           {knownEmploymentContractLabel(row.employmentContractId) ??
                             row.employmentContractId}
                         </td>
-                        <td className={`${moduleTableCellClass} text-right`}>
+                        <td className={`${worklistCellClass} text-right`}>
                           <Money value={row.earningTotal} />
                         </td>
-                        <td className={`${moduleTableCellClass} text-right`}>
+                        <td className={`${worklistCellClass} text-right`}>
                           <Money value={row.deductionTotal} />
                         </td>
-                        <td className={`${moduleTableCellClass} text-right`}>
+                        <td className={`${worklistCellClass} text-right`}>
                           <Money value={row.netTotal} emphasis />
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </ModuleTableCard>
+              </div>
             ) : (
               <EmptyState
                 title="Sem resultados calculados"

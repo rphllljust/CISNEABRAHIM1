@@ -1,16 +1,8 @@
-﻿import { useCallback, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { DateTime, EmptyState, Field, Input, Money, Select } from '../../ui';
-import {
-  ModulePage,
-  ModulePageHeader,
-  ModuleTableCard,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui/module-layout';
+import { DateTime, EmptyState, Field, Input, Money, Select, worklistTableCardClass } from '../../ui';
+import { ModulePage, ModulePageHeader } from '../../ui/module-layout';
+import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { HumanLookupField } from '../../financial-ui/HumanLookupField';
 import { CreateRecordForm, VersionedActionForm } from '../../financial-ui/VersionedActionForm';
@@ -207,30 +199,30 @@ export function FixedAssetsPage() {
           {state.data.movements.length === 0 ? (
             <EmptyState title="Sem movimentos" />
           ) : (
-            <ModuleTableCard>
-              <table className={moduleTableClass} aria-label="Movimentos do imobilizado">
-                <thead className={moduleTableHeadClass}>
+            <div className={worklistTableCardClass}>
+              <table className={worklistTableClass} aria-label="Movimentos do imobilizado">
+                <thead className={worklistHeadCellClass}>
                   <tr>
-                    <th scope="col" className={moduleTableHeaderCellClass}>Tipo</th>
-                    <th scope="col" className={moduleTableHeaderCellClass}>Data</th>
-                    <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Valor</th>
+                    <th scope="col" className={worklistHeadCellClass}>Tipo</th>
+                    <th scope="col" className={worklistHeadCellClass}>Data</th>
+                    <th scope="col" className={`${worklistHeadCellClass} text-right`}>Valor</th>
                   </tr>
                 </thead>
                 <tbody>
                   {state.data.movements.map((item) => (
-                    <tr key={item.id} className={moduleTableRowClass}>
-                      <td className={moduleTableCellClass}>{item.kind}</td>
-                      <td className={moduleTableCellClass}>
+                    <tr key={item.id} className={worklistRowClass}>
+                      <td className={worklistCellClass}>{item.kind}</td>
+                      <td className={worklistCellClass}>
                         <DateTime value={item.occurredOn} mode="date" />
                       </td>
-                      <td className={`${moduleTableCellClass} text-right`}>
+                      <td className={`${worklistCellClass} text-right`}>
                         <Money value={item.amount} currencyCode={state.data.currencyCode} />
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </ModuleTableCard>
+            </div>
           )}
           <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
             <CreateRecordForm

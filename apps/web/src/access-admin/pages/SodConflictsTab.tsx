@@ -2,18 +2,7 @@ import { AccessAdminApiError, listSodConflicts } from '../api/access-admin-api';
 import { mapAccessAdminErrorToMessage } from '../api/access-admin-error-messages';
 import { useAsyncResource } from '../hooks/useAccessAdminData';
 import type { SodConflict } from '../types';
-import {
-  Badge,
-  EmptyState,
-  ErrorState,
-  LoadingState,
-  ModuleTableCard,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui';
+import { Badge, EmptyState, ErrorState, LoadingState, worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass, worklistTableCardClass } from '../../ui';
 
 export function SodConflictsTab() {
   const { state, refresh } = useAsyncResource<SodConflict[]>(() => listSodConflicts());
@@ -46,54 +35,54 @@ export function SodConflictsTab() {
           description="O servidor não reportou conflitos de segregação de funções no momento."
         />
       ) : (
-        <ModuleTableCard>
-          <table className={moduleTableClass} aria-label="Conflitos SoD">
-            <thead className={moduleTableHeadClass}>
+        <div className={worklistTableCardClass}>
+          <table className={worklistTableClass} aria-label="Conflitos SoD">
+            <thead className={worklistHeadCellClass}>
               <tr>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Identidade
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Roles
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Regra
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Capacidades conflitantes
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Status
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {conflicts.map((conflict) => (
-                <tr key={conflict.identityId} className={moduleTableRowClass}>
-                  <td className={moduleTableCellClass}>
+                <tr key={conflict.identityId} className={worklistRowClass}>
+                  <td className={worklistCellClass}>
                     {conflict.identityLogin ?? conflict.identityId}
                   </td>
-                  <td className={moduleTableCellClass}>
+                  <td className={worklistCellClass}>
                     <span className="font-mono text-xs text-gray-600">
                       {conflict.roleCodes.join(', ') || '—'}
                     </span>
                   </td>
-                  <td className={moduleTableCellClass}>
+                  <td className={worklistCellClass}>
                     <span className="font-mono text-xs text-gray-600">{conflict.rule}</span>
                   </td>
-                  <td className={moduleTableCellClass}>
+                  <td className={worklistCellClass}>
                     <span className="font-mono text-xs text-gray-600">
                       {conflict.capabilityA} × {conflict.capabilityB}
                     </span>
                   </td>
-                  <td className={moduleTableCellClass}>
+                  <td className={worklistCellClass}>
                     <Badge tone="error">{conflict.status}</Badge>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </ModuleTableCard>
+        </div>
       )}
     </div>
   );

@@ -1,17 +1,8 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Alert, Button, DateTime, EmptyState, Field, Input, Money, Select } from '../../ui';
-import {
-  FilterCard,
-  ModulePage,
-  ModulePageHeader,
-  ModuleTableCard,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui/module-layout';
+import { Alert, Button, DateTime, EmptyState, Field, Input, Money, Select, worklistTableCardClass } from '../../ui';
+import { FilterCard, ModulePage, ModulePageHeader } from '../../ui/module-layout';
+import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
 import { ClosedPeriodBanner } from '../../financial-ui/ClosedPeriodBanner';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { JOURNAL_STATUS_LABELS, MOVEMENT_DIRECTION_LABELS, PERIOD_STATUS_LABELS } from '../../financial-ui/labels';
@@ -300,45 +291,45 @@ function JournalListRoute() {
 
       {page ? (
         <>
-          <ModuleTableCard>
-            <table className={moduleTableClass} aria-label="Lançamentos do período">
-              <thead className={moduleTableHeadClass}>
+          <div className={worklistTableCardClass}>
+            <table className={worklistTableClass} aria-label="Lançamentos do período">
+              <thead className={worklistHeadCellClass}>
                 <tr>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Nº
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Data
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Histórico
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Origem
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Estado
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Próxima ação
                   </th>
-                  <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+                  <th scope="col" className={`${worklistHeadCellClass} text-right`}>
                     Débito
                   </th>
-                  <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+                  <th scope="col" className={`${worklistHeadCellClass} text-right`}>
                     Crédito
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Ação
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {page.items.map((entry) => (
-                  <tr key={entry.id} className={moduleTableRowClass}>
-                    <td className={moduleTableCellClass}>{entry.entryNumber ?? '—'}</td>
-                    <td className={moduleTableCellClass}>{entry.occurredOn}</td>
-                    <td className={`${moduleTableCellClass} whitespace-normal`}>{entry.description}</td>
+                  <tr key={entry.id} className={worklistRowClass}>
+                    <td className={worklistCellClass}>{entry.entryNumber ?? '—'}</td>
+                    <td className={worklistCellClass}>{entry.occurredOn}</td>
+                    <td className={`${worklistCellClass} whitespace-normal`}>{entry.description}</td>
                     {/*
                       Origem persistida: `sourceKind` + `sourceReference` vêm do próprio registro
                       em acc.journal_entries (acc.journal_source_kind), devolvidos na listagem
@@ -346,23 +337,23 @@ function JournalListRoute() {
                       link de drill-down: a lista não pode afirmar a existência de um registro
                       de origem fora do escopo autorizado do operador.
                     */}
-                    <td className={`${moduleTableCellClass} whitespace-normal`}>
+                    <td className={`${worklistCellClass} whitespace-normal`}>
                       <span className="block">
                         {SOURCE_KIND_LABELS[entry.sourceKind] ?? entry.sourceKind}
                       </span>
                       <span className="block text-xs text-gray-500">{entry.sourceReference}</span>
                     </td>
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellClass}>
                       <FinanceStatusBadge status={entry.status} labels={JOURNAL_STATUS_LABELS} />
                     </td>
-                    <td className={moduleTableCellClass}>{NEXT_ACTION_FOR(entry.status)}</td>
-                    <td className={`${moduleTableCellClass} text-right`}>
+                    <td className={worklistCellClass}>{NEXT_ACTION_FOR(entry.status)}</td>
+                    <td className={`${worklistCellClass} text-right`}>
                       <Money value={entry.debitTotal} currencyCode={entry.currencyCode} />
                     </td>
-                    <td className={`${moduleTableCellClass} text-right`}>
+                    <td className={`${worklistCellClass} text-right`}>
                       <Money value={entry.creditTotal} currencyCode={entry.currencyCode} />
                     </td>
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellClass}>
                       <Button variant="secondary" onClick={() => void navigate(`/app/accounting/journals/${entry.id}`)}>
                         Abrir
                       </Button>
@@ -371,7 +362,7 @@ function JournalListRoute() {
                 ))}
               </tbody>
             </table>
-          </ModuleTableCard>
+          </div>
           <div className="flex items-center justify-between gap-4">
             <Button
               variant="secondary"
@@ -520,43 +511,43 @@ function JournalView({
           ]}
         />
       </div>
-      <ModuleTableCard>
-        <table className={moduleTableClass} aria-label="Linhas do lançamento">
-          <thead className={moduleTableHeadClass}>
+      <div className={worklistTableCardClass}>
+        <table className={worklistTableClass} aria-label="Linhas do lançamento">
+          <thead className={worklistHeadCellClass}>
             <tr>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Linha
               </th>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Conta
               </th>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Direção
               </th>
-              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+              <th scope="col" className={`${worklistHeadCellClass} text-right`}>
                 Valor
               </th>
             </tr>
           </thead>
           <tbody>
             {journal.lines.map((line) => (
-              <tr key={line.id} className={moduleTableRowClass}>
-                <td className={moduleTableCellClass}>{line.lineNumber}</td>
-                <td className={`${moduleTableCellClass} font-mono`}>
+              <tr key={line.id} className={worklistRowClass}>
+                <td className={worklistCellClass}>{line.lineNumber}</td>
+                <td className={`${worklistCellClass} font-mono`}>
                   {line.accountCode ?? line.accountId}
                   {line.accountName ? ` — ${line.accountName}` : ''}
                 </td>
-                <td className={moduleTableCellClass}>
+                <td className={worklistCellClass}>
                   {MOVEMENT_DIRECTION_LABELS[line.direction] ?? line.direction}
                 </td>
-                <td className={`${moduleTableCellClass} text-right`}>
+                <td className={`${worklistCellClass} text-right`}>
                   <Money value={line.amount} currencyCode={journal.currencyCode} />
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-      </ModuleTableCard>
+      </div>
       <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <MoneyActionForm
           title="Postar lançamento"

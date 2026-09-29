@@ -1,21 +1,8 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { EmptyState, Field, Input, Money } from '../../ui';
-import {
-  FilterCard,
-  ModulePage,
-  ModulePageHeader,
-  ModulePrimaryLink,
-  ModuleTableCard,
-  ModuleTableLink,
-  filterControlClass,
-  filterLabelClass,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui/module-layout';
+import { EmptyState, Field, Input, Money, worklistTableCardClass } from '../../ui';
+import { FilterCard, ModulePage, ModulePageHeader, ModulePrimaryLink, ModuleTableLink, filterControlClass, filterLabelClass } from '../../ui/module-layout';
+import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { CreateRecordForm, VersionedActionForm } from '../../financial-ui/VersionedActionForm';
 import { PROCUREMENT_REQUEST_STATUS_LABELS, SUPPLIER_INVOICE_STATUS_LABELS, SUPPLIER_PO_STATUS_LABELS } from '../../financial-ui/labels';
@@ -167,44 +154,44 @@ function ProcurementLists() {
         </form>
       </FilterCard>
 
-      <ModuleTableCard>
-        <table className={moduleTableClass} aria-label="Solicitações de compra">
-          <thead className={moduleTableHeadClass}>
+      <div className={worklistTableCardClass}>
+        <table className={worklistTableClass} aria-label="Solicitações de compra">
+          <thead className={worklistHeadCellClass}>
             <tr>
-              <th scope="col" className={moduleTableHeaderCellClass}>Solicitação</th>
-              <th scope="col" className={moduleTableHeaderCellClass}>Itens</th>
-              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Valor</th>
-              <th scope="col" className={moduleTableHeaderCellClass}>Status</th>
+              <th scope="col" className={worklistHeadCellClass}>Solicitação</th>
+              <th scope="col" className={worklistHeadCellClass}>Itens</th>
+              <th scope="col" className={`${worklistHeadCellClass} text-right`}>Valor</th>
+              <th scope="col" className={worklistHeadCellClass}>Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {state.requests.phase === 'ready' && state.requests.items.length === 0 ? (
-              <tr className={moduleTableRowClass}>
-                <td className={moduleTableCellClass} colSpan={4}>
+              <tr className={worklistRowClass}>
+                <td className={worklistCellClass} colSpan={4}>
                   Nenhuma solicitação de compra encontrada.
                 </td>
               </tr>
             ) : null}
             {state.requests.phase === 'denied' ? (
-              <tr className={moduleTableRowClass}>
-                <td className={moduleTableCellClass} colSpan={4}>
+              <tr className={worklistRowClass}>
+                <td className={worklistCellClass} colSpan={4}>
                   Você não tem permissão para listar solicitações de compra.
                 </td>
               </tr>
             ) : null}
             {state.requests.phase === 'ready'
               ? state.requests.items.map((request) => (
-                  <tr key={request.id} className={moduleTableRowClass}>
-                    <td className={moduleTableCellClass}>
+                  <tr key={request.id} className={worklistRowClass}>
+                    <td className={worklistCellClass}>
                       <ModuleTableLink to={`/app/procurement/requests/${request.id}`}>
                         {request.justification}
                       </ModuleTableLink>
                     </td>
-                    <td className={moduleTableCellClass}>{request.lineCount}</td>
-                    <td className={`${moduleTableCellClass} text-right`}>
+                    <td className={worklistCellClass}>{request.lineCount}</td>
+                    <td className={`${worklistCellClass} text-right`}>
                       <Money value={request.totalAmount} currencyCode={request.currencyCode} />
                     </td>
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellClass}>
                       <FinanceStatusBadge status={request.status} labels={PROCUREMENT_REQUEST_STATUS_LABELS} />
                     </td>
                   </tr>
@@ -212,40 +199,40 @@ function ProcurementLists() {
               : null}
           </tbody>
         </table>
-      </ModuleTableCard>
+      </div>
       <p className="mb-6 mt-2 text-xs text-gray-500" role="status">
         {state.requests.phase === 'ready' ? `${state.requests.total} solicitação(ões) no total.` : 'Carregando solicitações…'}
       </p>
 
-      <ModuleTableCard>
-        <table className={moduleTableClass} aria-label="Pedidos ao fornecedor">
-          <thead className={moduleTableHeadClass}>
+      <div className={worklistTableCardClass}>
+        <table className={worklistTableClass} aria-label="Pedidos ao fornecedor">
+          <thead className={worklistHeadCellClass}>
             <tr>
-              <th scope="col" className={moduleTableHeaderCellClass}>Fornecedor</th>
-              <th scope="col" className={moduleTableHeaderCellClass}>Condição</th>
-              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Valor</th>
-              <th scope="col" className={moduleTableHeaderCellClass}>Status</th>
+              <th scope="col" className={worklistHeadCellClass}>Fornecedor</th>
+              <th scope="col" className={worklistHeadCellClass}>Condição</th>
+              <th scope="col" className={`${worklistHeadCellClass} text-right`}>Valor</th>
+              <th scope="col" className={worklistHeadCellClass}>Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {state.orders.phase === 'ready' && state.orders.items.length === 0 ? (
-              <tr className={moduleTableRowClass}>
-                <td className={moduleTableCellClass} colSpan={4}>
+              <tr className={worklistRowClass}>
+                <td className={worklistCellClass} colSpan={4}>
                   Nenhum pedido ao fornecedor encontrado.
                 </td>
               </tr>
             ) : null}
             {state.orders.phase === 'denied' ? (
-              <tr className={moduleTableRowClass}>
-                <td className={moduleTableCellClass} colSpan={4}>
+              <tr className={worklistRowClass}>
+                <td className={worklistCellClass} colSpan={4}>
                   Você não tem permissão para listar pedidos ao fornecedor.
                 </td>
               </tr>
             ) : null}
             {state.orders.phase === 'ready'
               ? state.orders.items.map((order) => (
-                  <tr key={order.id} className={moduleTableRowClass}>
-                    <td className={moduleTableCellClass}>
+                  <tr key={order.id} className={worklistRowClass}>
+                    <td className={worklistCellClass}>
                       <ModuleTableLink to={`/app/procurement/orders/${order.id}`}>
                         {order.supplierName ?? 'Fornecedor não identificado'}
                       </ModuleTableLink>
@@ -255,11 +242,11 @@ function ProcurementLists() {
                         </span>
                       ) : null}
                     </td>
-                    <td className={moduleTableCellClass}>{order.paymentTerms}</td>
-                    <td className={`${moduleTableCellClass} text-right`}>
+                    <td className={worklistCellClass}>{order.paymentTerms}</td>
+                    <td className={`${worklistCellClass} text-right`}>
                       <Money value={order.totalAmount} currencyCode={order.currencyCode} />
                     </td>
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellClass}>
                       <FinanceStatusBadge status={order.status} labels={SUPPLIER_PO_STATUS_LABELS} />
                     </td>
                   </tr>
@@ -267,53 +254,53 @@ function ProcurementLists() {
               : null}
           </tbody>
         </table>
-      </ModuleTableCard>
+      </div>
       <p className="mb-6 mt-2 text-xs text-gray-500" role="status">
         {state.orders.phase === 'ready' ? `${state.orders.total} pedido(s) no total.` : 'Carregando pedidos…'}
       </p>
 
-      <ModuleTableCard>
-        <table className={moduleTableClass} aria-label="Notas de fornecedor">
-          <thead className={moduleTableHeadClass}>
+      <div className={worklistTableCardClass}>
+        <table className={worklistTableClass} aria-label="Notas de fornecedor">
+          <thead className={worklistHeadCellClass}>
             <tr>
-              <th scope="col" className={moduleTableHeaderCellClass}>Nota</th>
-              <th scope="col" className={moduleTableHeaderCellClass}>Fornecedor</th>
-              <th scope="col" className={moduleTableHeaderCellClass}>Vencimento</th>
-              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Total</th>
-              <th scope="col" className={moduleTableHeaderCellClass}>Status</th>
+              <th scope="col" className={worklistHeadCellClass}>Nota</th>
+              <th scope="col" className={worklistHeadCellClass}>Fornecedor</th>
+              <th scope="col" className={worklistHeadCellClass}>Vencimento</th>
+              <th scope="col" className={`${worklistHeadCellClass} text-right`}>Total</th>
+              <th scope="col" className={worklistHeadCellClass}>Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {state.invoices.phase === 'ready' && state.invoices.items.length === 0 ? (
-              <tr className={moduleTableRowClass}>
-                <td className={moduleTableCellClass} colSpan={5}>
+              <tr className={worklistRowClass}>
+                <td className={worklistCellClass} colSpan={5}>
                   Nenhuma nota de fornecedor encontrada.
                 </td>
               </tr>
             ) : null}
             {state.invoices.phase === 'denied' ? (
-              <tr className={moduleTableRowClass}>
-                <td className={moduleTableCellClass} colSpan={5}>
+              <tr className={worklistRowClass}>
+                <td className={worklistCellClass} colSpan={5}>
                   Você não tem permissão para listar notas de fornecedor.
                 </td>
               </tr>
             ) : null}
             {state.invoices.phase === 'ready'
               ? state.invoices.items.map((invoice) => (
-                  <tr key={invoice.id} className={moduleTableRowClass}>
-                    <td className={moduleTableCellClass}>
+                  <tr key={invoice.id} className={worklistRowClass}>
+                    <td className={worklistCellClass}>
                       <ModuleTableLink to={`/app/procurement/invoices/${invoice.id}`}>
                         {invoice.invoiceNumber}
                       </ModuleTableLink>
                     </td>
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellClass}>
                       {invoice.supplierName ?? 'Fornecedor não identificado'}
                     </td>
-                    <td className={moduleTableCellClass}>{invoice.dueDate}</td>
-                    <td className={`${moduleTableCellClass} text-right`}>
+                    <td className={worklistCellClass}>{invoice.dueDate}</td>
+                    <td className={`${worklistCellClass} text-right`}>
                       <Money value={invoice.totalAmount} currencyCode={invoice.currencyCode} />
                     </td>
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellClass}>
                       <FinanceStatusBadge status={invoice.status} labels={SUPPLIER_INVOICE_STATUS_LABELS} />
                     </td>
                   </tr>
@@ -321,7 +308,7 @@ function ProcurementLists() {
               : null}
           </tbody>
         </table>
-      </ModuleTableCard>
+      </div>
       <p className="mb-6 mt-2 text-xs text-gray-500" role="status">
         {state.invoices.phase === 'ready' ? `${state.invoices.total} nota(s) no total.` : 'Carregando notas…'}
       </p>
@@ -454,28 +441,28 @@ export function PurchaseRequestPage() {
           ]}
         />
       </div>
-      <ModuleTableCard>
-        <table className={moduleTableClass} aria-label="Linhas da solicitação">
-          <thead className={moduleTableHeadClass}>
+      <div className={worklistTableCardClass}>
+        <table className={worklistTableClass} aria-label="Linhas da solicitação">
+          <thead className={worklistHeadCellClass}>
             <tr>
-              <th scope="col" className={moduleTableHeaderCellClass}>Item</th>
-              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Qtd</th>
-              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Total informado</th>
+              <th scope="col" className={worklistHeadCellClass}>Item</th>
+              <th scope="col" className={`${worklistHeadCellClass} text-right`}>Qtd</th>
+              <th scope="col" className={`${worklistHeadCellClass} text-right`}>Total informado</th>
             </tr>
           </thead>
           <tbody>
             {item.lines.map((line) => (
-              <tr key={line.id} className={moduleTableRowClass}>
-                <td className={moduleTableCellClass}>{line.description}</td>
-                <td className={`${moduleTableCellClass} text-right`}>{line.quantity}</td>
-                <td className={`${moduleTableCellClass} text-right`}>
+              <tr key={line.id} className={worklistRowClass}>
+                <td className={worklistCellClass}>{line.description}</td>
+                <td className={`${worklistCellClass} text-right`}>{line.quantity}</td>
+                <td className={`${worklistCellClass} text-right`}>
                   <Money value={line.lineAmount} currencyCode={item.currencyCode} />
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-      </ModuleTableCard>
+      </div>
       <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <VersionedActionForm
           title="Enviar"
@@ -632,47 +619,47 @@ export function PurchaseOrderPage() {
           ]}
         />
       </div>
-      <ModuleTableCard>
-        <table className={moduleTableClass} aria-label="Linhas do pedido">
-          <thead className={moduleTableHeadClass}>
+      <div className={worklistTableCardClass}>
+        <table className={worklistTableClass} aria-label="Linhas do pedido">
+          <thead className={worklistHeadCellClass}>
             <tr>
-              <th scope="col" className={moduleTableHeaderCellClass}>Item</th>
-              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Pedido</th>
-              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Recebido</th>
+              <th scope="col" className={worklistHeadCellClass}>Item</th>
+              <th scope="col" className={`${worklistHeadCellClass} text-right`}>Pedido</th>
+              <th scope="col" className={`${worklistHeadCellClass} text-right`}>Recebido</th>
             </tr>
           </thead>
           <tbody>
             {order.lines.map((line) => (
-              <tr key={line.id} className={moduleTableRowClass}>
-                <td className={moduleTableCellClass}>{line.description}</td>
-                <td className={`${moduleTableCellClass} text-right`}>{line.orderedQuantity}</td>
-                <td className={`${moduleTableCellClass} text-right`}>{line.receivedQuantity}</td>
+              <tr key={line.id} className={worklistRowClass}>
+                <td className={worklistCellClass}>{line.description}</td>
+                <td className={`${worklistCellClass} text-right`}>{line.orderedQuantity}</td>
+                <td className={`${worklistCellClass} text-right`}>{line.receivedQuantity}</td>
               </tr>
             ))}
           </tbody>
         </table>
-      </ModuleTableCard>
+      </div>
       {order.receipts.length > 0 ? (
-        <ModuleTableCard>
-          <table className={moduleTableClass} aria-label="Recebimentos do pedido">
-            <thead className={moduleTableHeadClass}>
+        <div className={worklistTableCardClass}>
+          <table className={worklistTableClass} aria-label="Recebimentos do pedido">
+            <thead className={worklistHeadCellClass}>
               <tr>
-                <th scope="col" className={moduleTableHeaderCellClass}>Recebimento</th>
-                <th scope="col" className={moduleTableHeaderCellClass}>Status</th>
-                <th scope="col" className={moduleTableHeaderCellClass}>Título a pagar</th>
+                <th scope="col" className={worklistHeadCellClass}>Recebimento</th>
+                <th scope="col" className={worklistHeadCellClass}>Status</th>
+                <th scope="col" className={worklistHeadCellClass}>Título a pagar</th>
               </tr>
             </thead>
             <tbody>
               {order.receipts.map((receipt) => (
-                <tr key={receipt.id} className={moduleTableRowClass}>
-                  <td className={moduleTableCellClass}>{receipt.id}</td>
-                  <td className={moduleTableCellClass}>{receipt.status}</td>
-                  <td className={moduleTableCellClass}>{receipt.payableId ?? '—'}</td>
+                <tr key={receipt.id} className={worklistRowClass}>
+                  <td className={worklistCellClass}>{receipt.id}</td>
+                  <td className={worklistCellClass}>{receipt.status}</td>
+                  <td className={worklistCellClass}>{receipt.payableId ?? '—'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </ModuleTableCard>
+        </div>
       ) : null}
       <CreateRecordForm
         title="Receber"

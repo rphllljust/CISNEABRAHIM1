@@ -1,24 +1,8 @@
-﻿import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { EmptyState, Field, Input, Money } from '../../ui';
-import {
-  FilterCard,
-  ModuleErrorState,
-  ModuleLoadingState,
-  ModulePage,
-  ModulePageHeader,
-  ModulePagination,
-  ModuleTableCard,
-  ModuleTableLink,
-  UnitScopeLabel,
-  filterControlClass,
-  filterLabelClass,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui/module-layout';
+import { EmptyState, Field, Input, Money, worklistTableCardClass } from '../../ui';
+import { FilterCard, ModuleErrorState, ModuleLoadingState, ModulePage, ModulePageHeader, ModulePagination, ModuleTableLink, UnitScopeLabel, filterControlClass, filterLabelClass } from '../../ui/module-layout';
+import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { CreateRecordForm, VersionedActionForm } from '../../financial-ui/VersionedActionForm';
 import { TAX_ASSESSMENT_STATUS_LABELS } from '../../financial-ui/labels';
@@ -198,52 +182,52 @@ function TaxAssessmentsList() {
 
       {state.phase === 'ready' && state.items.length > 0 ? (
         <>
-          <ModuleTableCard>
-            <table className={moduleTableClass} aria-label="Lista de obrigações tributárias">
-              <thead className={moduleTableHeadClass}>
+          <div className={worklistTableCardClass}>
+            <table className={worklistTableClass} aria-label="Lista de obrigações tributárias">
+              <thead className={worklistHeadCellClass}>
                 <tr>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Competência
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Componente
                   </th>
-                  <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+                  <th scope="col" className={`${worklistHeadCellClass} text-right`}>
                     Valor apurado
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Situação
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Obrigação
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Unidade
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {state.items.map((item) => (
-                  <tr key={item.id} className={moduleTableRowClass}>
-                    <td className={moduleTableCellClass}>
+                  <tr key={item.id} className={worklistRowClass}>
+                    <td className={worklistCellClass}>
                       <ModuleTableLink to={`/app/fiscal/assessments/${item.id}`}>{item.periodKey}</ModuleTableLink>
                     </td>
-                    <td className={moduleTableCellClass}>{item.taxComponent}</td>
-                    <td className={`${moduleTableCellClass} text-right`}>
+                    <td className={worklistCellClass}>{item.taxComponent}</td>
+                    <td className={`${worklistCellClass} text-right`}>
                       <Money value={item.assessedAmount} currencyCode={item.currencyCode} />
                     </td>
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellClass}>
                       <FinanceStatusBadge status={item.status} labels={TAX_ASSESSMENT_STATUS_LABELS} />
                     </td>
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellClass}>
                       {item.obligation ? `${item.obligation.status} · ${item.obligation.amount}` : '—'}
                     </td>
-                    <td className={moduleTableCellClass}><UnitScopeLabel unitId={item.unitId} /></td>
+                    <td className={worklistCellClass}><UnitScopeLabel unitId={item.unitId} /></td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </ModuleTableCard>
+          </div>
 
           <ModulePagination
             pageNumber={state.page + 1}

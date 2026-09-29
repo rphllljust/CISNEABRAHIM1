@@ -17,23 +17,7 @@ import type {
   ApprovalRoleAssignment,
   IdentityInfo,
 } from '../types';
-import {
-  Button,
-  EmptyState,
-  ErrorState,
-  Field,
-  Input,
-  LoadingState,
-  ModuleTableCard,
-  Select,
-  filterControlClass,
-  filterLabelClass,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui';
+import { Button, EmptyState, ErrorState, Field, Input, LoadingState, Select, filterControlClass, filterLabelClass, worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass, worklistTableCardClass } from '../../ui';
 
 export function MatricesTab() {
   const matricesResource = useAsyncResource<ApprovalMatrixInfo[]>(() => listApprovalMatrices());
@@ -122,26 +106,26 @@ export function MatricesTab() {
           description="O servidor não retornou matrizes de aprovação."
         />
       ) : (
-        <ModuleTableCard>
-          <table className={moduleTableClass} aria-label="Matrizes de aprovação">
-            <thead className={moduleTableHeadClass}>
+        <div className={worklistTableCardClass}>
+          <table className={worklistTableClass} aria-label="Matrizes de aprovação">
+            <thead className={worklistHeadCellClass}>
               <tr>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Código
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Moeda
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Versão publicada
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Rascunho
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Versões publicadas
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Rascunhos
                 </th>
               </tr>
@@ -164,22 +148,22 @@ export function MatricesTab() {
                     }
                     data-testid={`matrix-row-${matrix.code}`}
                   >
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellClass}>
                       <span className="font-mono text-sm text-gray-600">{matrix.code}</span>
                     </td>
-                    <td className={moduleTableCellClass}>{matrix.currencyCode}</td>
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellClass}>{matrix.currencyCode}</td>
+                    <td className={worklistCellClass}>
                       {matrix.publishedVersion ?? '—'}
                     </td>
-                    <td className={moduleTableCellClass}>{matrix.draftVersion}</td>
-                    <td className={moduleTableCellClass}>{matrix.publishedVersions}</td>
-                    <td className={moduleTableCellClass}>{matrix.draftVersions}</td>
+                    <td className={worklistCellClass}>{matrix.draftVersion}</td>
+                    <td className={worklistCellClass}>{matrix.publishedVersions}</td>
+                    <td className={worklistCellClass}>{matrix.draftVersions}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-        </ModuleTableCard>
+        </div>
       )}
 
       {selectedMatrix ? (
@@ -205,52 +189,52 @@ export function MatricesTab() {
               Nenhuma atribuição de role de aprovação registrada.
             </p>
           ) : (
-            <ModuleTableCard>
-              <table className={moduleTableClass} aria-label="Atribuições de role de aprovação">
-                <thead className={moduleTableHeadClass}>
+            <div className={worklistTableCardClass}>
+              <table className={worklistTableClass} aria-label="Atribuições de role de aprovação">
+                <thead className={worklistHeadCellClass}>
                   <tr>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
+                    <th scope="col" className={worklistHeadCellClass}>
                       Identidade
                     </th>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
+                    <th scope="col" className={worklistHeadCellClass}>
                       Role
                     </th>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
+                    <th scope="col" className={worklistHeadCellClass}>
                       Escopo
                     </th>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
+                    <th scope="col" className={worklistHeadCellClass}>
                       Âncora
                     </th>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
+                    <th scope="col" className={worklistHeadCellClass}>
                       Versão
                     </th>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
+                    <th scope="col" className={worklistHeadCellClass}>
                       Criada em
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {approvalsResource.state.data.map((assignment) => (
-                    <tr key={assignment.id} className={moduleTableRowClass}>
-                      <td className={moduleTableCellClass}>
+                    <tr key={assignment.id} className={worklistRowClass}>
+                      <td className={worklistCellClass}>
                         {assignment.identityLogin ?? assignment.identityId}
                       </td>
-                      <td className={moduleTableCellClass}>
+                      <td className={worklistCellClass}>
                         <span className="font-mono text-xs text-gray-600">
                           {assignment.roleCode}
                         </span>
                       </td>
-                      <td className={moduleTableCellClass}>{assignment.scopeType}</td>
-                      <td className={moduleTableCellClass}>{assignment.scopeAnchor ?? '—'}</td>
-                      <td className={moduleTableCellClass}>{assignment.version}</td>
-                      <td className={moduleTableCellClass}>
+                      <td className={worklistCellClass}>{assignment.scopeType}</td>
+                      <td className={worklistCellClass}>{assignment.scopeAnchor ?? '—'}</td>
+                      <td className={worklistCellClass}>{assignment.version}</td>
+                      <td className={worklistCellClass}>
                         {assignment.createdAt.slice(0, 10)}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </ModuleTableCard>
+            </div>
           )}
         </div>
       </section>
@@ -453,56 +437,56 @@ function MatrixRulesSection({ matrix }: { matrix: ApprovalMatrixInfo }) {
             Nenhuma regra nesta versão ({versionStatus === 'PUBLISHED' ? 'publicada' : 'rascunho'}).
           </p>
         ) : (
-          <ModuleTableCard>
-            <table className={moduleTableClass} aria-label={`Regras da matriz ${matrix.code}`}>
-              <thead className={moduleTableHeadClass}>
+          <div className={worklistTableCardClass}>
+            <table className={worklistTableClass} aria-label={`Regras da matriz ${matrix.code}`}>
+              <thead className={worklistHeadCellClass}>
                 <tr>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Linha
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Operação
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Role
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Capacidade
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Escopo
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Âncora
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Limite
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {rulesResource.state.data.map((rule) => (
-                  <tr key={rule.id} className={moduleTableRowClass}>
-                    <td className={moduleTableCellClass}>{rule.lineNumber}</td>
-                    <td className={moduleTableCellClass}>
+                  <tr key={rule.id} className={worklistRowClass}>
+                    <td className={worklistCellClass}>{rule.lineNumber}</td>
+                    <td className={worklistCellClass}>
                       <span className="font-mono text-xs text-gray-600">{rule.operation}</span>
                     </td>
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellClass}>
                       <span className="font-mono text-xs text-gray-600">{rule.roleCode}</span>
                     </td>
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellClass}>
                       <span className="font-mono text-xs text-gray-600">{rule.capability}</span>
                     </td>
-                    <td className={moduleTableCellClass}>{rule.scopeType}</td>
-                    <td className={moduleTableCellClass}>{rule.scopeAnchor ?? '—'}</td>
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellClass}>{rule.scopeType}</td>
+                    <td className={worklistCellClass}>{rule.scopeAnchor ?? '—'}</td>
+                    <td className={worklistCellClass}>
                       <span className="tabular-nums">{rule.amountLimit}</span>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </ModuleTableCard>
+          </div>
         )}
       </div>
     </section>

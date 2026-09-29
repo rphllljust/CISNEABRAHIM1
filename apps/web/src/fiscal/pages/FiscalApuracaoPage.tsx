@@ -1,21 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Button, Input, Money } from '../../ui';
-import {
-  FilterCard,
-  ModuleLoadingState,
-  ModulePage,
-  ModulePageHeader,
-  ModuleTableCard,
-  ModuleTableLink,
-  filterControlClass,
-  filterLabelClass,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui/module-layout';
+import { Button, Input, Money, worklistTableCardClass } from '../../ui';
+import { FilterCard, ModuleLoadingState, ModulePage, ModulePageHeader, ModuleTableLink, filterControlClass, filterLabelClass } from '../../ui/module-layout';
+import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { ProcessingBanner } from '../../financial-ui/ProcessingBanner';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
@@ -165,21 +152,21 @@ export function FiscalApuracaoPage() {
       ) : null}
 
       {listPhase === 'ready' && items.length > 0 ? (
-        <ModuleTableCard>
-          <table className={moduleTableClass} aria-label="Lista de Apurações">
-            <thead className={moduleTableHeadClass}>
+        <div className={worklistTableCardClass}>
+          <table className={worklistTableClass} aria-label="Lista de Apurações">
+            <thead className={worklistHeadCellClass}>
               <tr>
-                <th scope="col" className={moduleTableHeaderCellClass}>Regra</th>
-                <th scope="col" className={moduleTableHeaderCellClass}>Versão</th>
-                <th scope="col" className={moduleTableHeaderCellClass}>Origem</th>
-                <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Base</th>
-                <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Resultado</th>
+                <th scope="col" className={worklistHeadCellClass}>Regra</th>
+                <th scope="col" className={worklistHeadCellClass}>Versão</th>
+                <th scope="col" className={worklistHeadCellClass}>Origem</th>
+                <th scope="col" className={`${worklistHeadCellClass} text-right`}>Base</th>
+                <th scope="col" className={`${worklistHeadCellClass} text-right`}>Resultado</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {items.map((calculation) => (
-                <tr key={calculation.id} className={moduleTableRowClass}>
-                  <td className={moduleTableCellClass}>
+                <tr key={calculation.id} className={worklistRowClass}>
+                  <td className={worklistCellClass}>
                     <ModuleTableLink
                       to={`/app/fiscal/apuracao/${calculation.id}`}
                       onClick={() => {
@@ -191,19 +178,19 @@ export function FiscalApuracaoPage() {
                     </ModuleTableLink>
                     <span className="block text-xs text-gray-500">{calculation.ruleCode}</span>
                   </td>
-                  <td className={moduleTableCellClass}>{calculation.versionNumber}</td>
-                  <td className={moduleTableCellClass}>{calculation.sourceKind ?? '—'}</td>
-                  <td className={`${moduleTableCellClass} text-right`}>
+                  <td className={worklistCellClass}>{calculation.versionNumber}</td>
+                  <td className={worklistCellClass}>{calculation.sourceKind ?? '—'}</td>
+                  <td className={`${worklistCellClass} text-right`}>
                     <Money value={calculation.baseAmount} />
                   </td>
-                  <td className={`${moduleTableCellClass} text-right`}>
+                  <td className={`${worklistCellClass} text-right`}>
                     <Money value={calculation.resultAmount} />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </ModuleTableCard>
+        </div>
       ) : null}
 
       {listPhase === 'ready' ? (
@@ -238,30 +225,30 @@ export function FiscalApuracaoPage() {
               <Money value={reproduction.recomputed.resultAmount} />
             </p>
           ) : null}
-          <ModuleTableCard>
-            <table className={moduleTableClass} aria-label="Linhas da apuração">
-              <thead className={moduleTableHeadClass}>
+          <div className={worklistTableCardClass}>
+            <table className={worklistTableClass} aria-label="Linhas da apuração">
+              <thead className={worklistHeadCellClass}>
                 <tr>
-                  <th scope="col" className={moduleTableHeaderCellClass}>Componente</th>
-                  <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Base</th>
-                  <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Resultado</th>
+                  <th scope="col" className={worklistHeadCellClass}>Componente</th>
+                  <th scope="col" className={`${worklistHeadCellClass} text-right`}>Base</th>
+                  <th scope="col" className={`${worklistHeadCellClass} text-right`}>Resultado</th>
                 </tr>
               </thead>
               <tbody>
                 {state.data.lines.map((line) => (
-                  <tr key={line.lineNumber} className={moduleTableRowClass}>
-                    <td className={moduleTableCellClass}>{line.componentLabel}</td>
-                    <td className={`${moduleTableCellClass} text-right`}>
+                  <tr key={line.lineNumber} className={worklistRowClass}>
+                    <td className={worklistCellClass}>{line.componentLabel}</td>
+                    <td className={`${worklistCellClass} text-right`}>
                       <Money value={line.baseAmount} />
                     </td>
-                    <td className={`${moduleTableCellClass} text-right`}>
+                    <td className={`${worklistCellClass} text-right`}>
                       <Money value={line.resultAmount} />
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </ModuleTableCard>
+          </div>
         </>
       ) : null}
     </ModulePage>

@@ -11,23 +11,7 @@ import {
 import { mapAccessAdminErrorToMessage } from '../api/access-admin-error-messages';
 import { useAsyncResource } from '../hooks/useAccessAdminData';
 import type { AccessRole, RoleAssignment } from '../types';
-import {
-  Alert,
-  Button,
-  ConfirmAction,
-  EmptyState,
-  ErrorState,
-  Field,
-  Input,
-  LoadingState,
-  ModuleTableCard,
-  Select,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui';
+import { Alert, Button, ConfirmAction, EmptyState, ErrorState, Field, Input, LoadingState, Select, worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass, worklistTableCardClass } from '../../ui';
 
 export function AssignmentsTab() {
   const assignmentsResource = useAsyncResource<RoleAssignment[]>(() => listAssignments());
@@ -120,51 +104,51 @@ export function AssignmentsTab() {
     }
 
     return (
-      <ModuleTableCard>
-        <table className={moduleTableClass} aria-label="Atribuições de role">
-          <thead className={moduleTableHeadClass}>
+      <div className={worklistTableCardClass}>
+        <table className={worklistTableClass} aria-label="Atribuições de role">
+          <thead className={worklistHeadCellClass}>
             <tr>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Identidade
               </th>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Role
               </th>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Escopo
               </th>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Âncora
               </th>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Versão
               </th>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Atribuída em
               </th>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Ações
               </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {assignments.map((assignment) => (
-              <tr key={assignment.id} className={moduleTableRowClass}>
-                <td className={moduleTableCellClass}>
+              <tr key={assignment.id} className={worklistRowClass}>
+                <td className={worklistCellClass}>
                   {assignment.identityLogin ?? assignment.identityId}
                 </td>
-                <td className={moduleTableCellClass}>
+                <td className={worklistCellClass}>
                   <span className="font-mono text-xs text-gray-600">{assignment.roleCode}</span>
                 </td>
-                <td className={moduleTableCellClass}>
+                <td className={worklistCellClass}>
                   <span className="font-mono text-xs text-gray-600">{assignment.scopeType}</span>
                 </td>
-                <td className={moduleTableCellClass}>
+                <td className={worklistCellClass}>
                   {assignment.scopeAnchor ?? '—'}
                 </td>
-                <td className={moduleTableCellClass}>{assignment.version}</td>
-                <td className={moduleTableCellClass}>{assignment.assignedAt.slice(0, 10)}</td>
-                <td className={moduleTableCellClass}>
+                <td className={worklistCellClass}>{assignment.version}</td>
+                <td className={worklistCellClass}>{assignment.assignedAt.slice(0, 10)}</td>
+                <td className={worklistCellClass}>
                   <Button
                     type="button"
                     variant="secondary"
@@ -181,7 +165,7 @@ export function AssignmentsTab() {
             ))}
           </tbody>
         </table>
-      </ModuleTableCard>
+      </div>
     );
   }
 

@@ -1,15 +1,7 @@
 import { useCallback, useState } from 'react';
-import { DateTime, EmptyState, Field, Input, Money } from '../../ui';
-import {
-  ModulePage,
-  ModulePageHeader,
-  ModuleTableCard,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui/module-layout';
+import { DateTime, EmptyState, Field, Input, Money, worklistTableCardClass } from '../../ui';
+import { ModulePage, ModulePageHeader } from '../../ui/module-layout';
+import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
 import { CreateRecordForm } from '../../financial-ui/VersionedActionForm';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
@@ -286,30 +278,30 @@ export function CashForecastPage() {
               description="O servidor não devolveu movimentos para o horizonte informado."
             />
           ) : (
-            <ModuleTableCard>
-              <table className={moduleTableClass} aria-label="Linhas da previsão de caixa">
-                <thead className={moduleTableHeadClass}>
+            <div className={worklistTableCardClass}>
+              <table className={worklistTableClass} aria-label="Linhas da previsão de caixa">
+                <thead className={worklistHeadCellClass}>
                   <tr>
-                    <th scope="col" className={moduleTableHeaderCellClass}>Tipo</th>
-                    <th scope="col" className={moduleTableHeaderCellClass}>Natureza</th>
-                    <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Valor informado</th>
+                    <th scope="col" className={worklistHeadCellClass}>Tipo</th>
+                    <th scope="col" className={worklistHeadCellClass}>Natureza</th>
+                    <th scope="col" className={`${worklistHeadCellClass} text-right`}>Valor informado</th>
                   </tr>
                 </thead>
                 <tbody>
                   {state.data.lines.map((line, index) => (
-                    <tr key={`${line.kind}-${index}`} className={moduleTableRowClass}>
-                      <td className={moduleTableCellClass}>{cashForecastLineLabel(line.kind)}</td>
-                      <td className={moduleTableCellClass}>
+                    <tr key={`${line.kind}-${index}`} className={worklistRowClass}>
+                      <td className={worklistCellClass}>{cashForecastLineLabel(line.kind)}</td>
+                      <td className={worklistCellClass}>
                         {line.sourceKind ? cashForecastLineLabel(line.sourceKind) : '—'}
                       </td>
-                      <td className={`${moduleTableCellClass} text-right`}>
+                      <td className={`${worklistCellClass} text-right`}>
                         <Money value={line.amount} currencyCode={state.data.currencyCode} />
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </ModuleTableCard>
+            </div>
           )}
         </>
       ) : null}

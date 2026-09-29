@@ -1,17 +1,8 @@
 import { useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Button, DateTime, EmptyState, KpiCard, Money } from '../../ui';
-import {
-  FilterCard,
-  ModulePage,
-  ModulePageHeader,
-  ModuleTableCard,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui/module-layout';
+import { Button, DateTime, EmptyState, KpiCard, Money, worklistTableCardClass , cn } from '../../ui';
+import { FilterCard, ModulePage, ModulePageHeader } from '../../ui/module-layout';
+import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { BackofficeApiError } from '../../financial-ui/enterprise-api';
 import { AGING_BUCKET_LABELS, labelOrRaw } from '../../financial-ui/labels';
@@ -240,36 +231,36 @@ export function FinanceOverviewPage() {
                     ) : null}
                   </div>
                 ) : aging.data && agingEntries.length > 0 ? (
-                  <ModuleTableCard className="mb-0">
-                    <table className={moduleTableClass} aria-label="Aging de contas a pagar">
-                      <thead className={moduleTableHeadClass}>
+                  <div className={cn(worklistTableCardClass, 'mb-0')}>
+                    <table className={worklistTableClass} aria-label="Aging de contas a pagar">
+                      <thead className={worklistHeadCellClass}>
                         <tr>
-                          <th scope="col" className={moduleTableHeaderCellClass}>
+                          <th scope="col" className={worklistHeadCellClass}>
                             Faixa
                           </th>
-                          <th scope="col" className={moduleTableHeaderCellClass}>
+                          <th scope="col" className={worklistHeadCellClass}>
                             Quantidade
                           </th>
-                          <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+                          <th scope="col" className={`${worklistHeadCellClass} text-right`}>
                             Saldo informado
                           </th>
                         </tr>
                       </thead>
                       <tbody>
                         {agingEntries.map(([bucket, item]) => (
-                          <tr key={bucket} className={moduleTableRowClass}>
-                            <td className={moduleTableCellClass}>
+                          <tr key={bucket} className={worklistRowClass}>
+                            <td className={worklistCellClass}>
                               {labelOrRaw(bucket, AGING_BUCKET_LABELS)}
                             </td>
-                            <td className={moduleTableCellClass}>{item.count}</td>
-                            <td className={`${moduleTableCellClass} text-right`}>
+                            <td className={worklistCellClass}>{item.count}</td>
+                            <td className={`${worklistCellClass} text-right`}>
                               <Money value={item.remaining} />
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
-                  </ModuleTableCard>
+                  </div>
                 ) : (
                   <p className="text-sm text-gray-500">Aging indisponível para o seu acesso.</p>
                 )}
@@ -300,22 +291,22 @@ export function FinanceOverviewPage() {
               </div>
             ) : accounts.data && accounts.data.length > 0 ? (
               <div className="mt-3">
-                <ModuleTableCard className="mb-0">
-                  <table className={moduleTableClass} aria-label="Contas de caixa e bancos">
-                    <thead className={moduleTableHeadClass}>
+                <div className={cn(worklistTableCardClass, 'mb-0')}>
+                  <table className={worklistTableClass} aria-label="Contas de caixa e bancos">
+                    <thead className={worklistHeadCellClass}>
                       <tr>
-                        <th scope="col" className={moduleTableHeaderCellClass}>
+                        <th scope="col" className={worklistHeadCellClass}>
                           Conta
                         </th>
-                        <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+                        <th scope="col" className={`${worklistHeadCellClass} text-right`}>
                           Saldo do servidor
                         </th>
                       </tr>
                     </thead>
                     <tbody>
                       {accounts.data.map((account) => (
-                        <tr key={account.id} className={moduleTableRowClass}>
-                          <td className={moduleTableCellClass}>
+                        <tr key={account.id} className={worklistRowClass}>
+                          <td className={worklistCellClass}>
                             <Link
                               to={`/app/finance/treasury/${account.id}`}
                               className="font-semibold text-brand-700 no-underline"
@@ -326,14 +317,14 @@ export function FinanceOverviewPage() {
                               {account.code}
                             </span>
                           </td>
-                          <td className={`${moduleTableCellClass} text-right`}>
+                          <td className={`${worklistCellClass} text-right`}>
                             <Money value={account.balance} currencyCode={account.currencyCode} />
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                </ModuleTableCard>
+                </div>
               </div>
             ) : (
               <div className="mt-3">

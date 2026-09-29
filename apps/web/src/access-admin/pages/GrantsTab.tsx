@@ -11,28 +11,7 @@ import {
 import { mapAccessAdminErrorToMessage } from '../api/access-admin-error-messages';
 import { useAsyncResource } from '../hooks/useAccessAdminData';
 import type { GrantInfo, IdentityInfo, ScopeEntry } from '../types';
-import {
-  Badge,
-  Button,
-  ConfirmAction,
-  EmptyState,
-  ErrorState,
-  Field,
-  FilterCard,
-  Input,
-  LoadingState,
-  Modal,
-  ModuleTableCard,
-  Select,
-  Switch,
-  filterControlClass,
-  filterLabelClass,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui';
+import { Badge, Button, ConfirmAction, EmptyState, ErrorState, Field, FilterCard, Input, LoadingState, Modal, Select, Switch, filterControlClass, filterLabelClass, worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass, worklistTableCardClass } from '../../ui';
 
 /**
  * Opções de escopo de concessão oferecidas pelo console: GLOBAL (não ancorado)
@@ -145,35 +124,35 @@ export function GrantsTab() {
     }
 
     return (
-      <ModuleTableCard>
-        <table className={moduleTableClass} aria-label="Concessões diretas">
-          <thead className={moduleTableHeadClass}>
+      <div className={worklistTableCardClass}>
+        <table className={worklistTableClass} aria-label="Concessões diretas">
+          <thead className={worklistHeadCellClass}>
             <tr>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Identidade
               </th>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Ação
               </th>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Recurso
               </th>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Escopo
               </th>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Âncora
               </th>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Versão
               </th>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Válida até
               </th>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Status
               </th>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Ações
               </th>
             </tr>
@@ -182,30 +161,30 @@ export function GrantsTab() {
             {grants.map((grant) => {
               const revoked = grant.revokedAt !== null;
               return (
-                <tr key={grant.id} className={moduleTableRowClass}>
-                  <td className={moduleTableCellClass}>
+                <tr key={grant.id} className={worklistRowClass}>
+                  <td className={worklistCellClass}>
                     <span className="font-mono text-xs text-gray-600">{grant.identityId}</span>
                   </td>
-                  <td className={moduleTableCellClass}>
+                  <td className={worklistCellClass}>
                     <span className="font-mono text-xs text-gray-600">{grant.action}</span>
                   </td>
-                  <td className={moduleTableCellClass}>
+                  <td className={worklistCellClass}>
                     <span className="font-mono text-xs text-gray-600">{grant.resourceType}</span>
                   </td>
-                  <td className={moduleTableCellClass}>
+                  <td className={worklistCellClass}>
                     <span className="font-mono text-xs text-gray-600">{grant.scopeType}</span>
                   </td>
-                  <td className={moduleTableCellClass} title={grant.resourceId ?? undefined}>
+                  <td className={worklistCellClass} title={grant.resourceId ?? undefined}>
                     {grant.resourceId ?? '—'}
                   </td>
-                  <td className={moduleTableCellClass}>{grant.version}</td>
-                  <td className={moduleTableCellClass}>
+                  <td className={worklistCellClass}>{grant.version}</td>
+                  <td className={worklistCellClass}>
                     {grant.validUntil ? grant.validUntil.slice(0, 10) : '—'}
                   </td>
-                  <td className={moduleTableCellClass}>
+                  <td className={worklistCellClass}>
                     {revoked ? <Badge tone="neutral">Revogada</Badge> : <Badge tone="success">Ativa</Badge>}
                   </td>
-                  <td className={moduleTableCellClass}>
+                  <td className={worklistCellClass}>
                     <Button
                       type="button"
                       variant="secondary"
@@ -223,7 +202,7 @@ export function GrantsTab() {
             })}
           </tbody>
         </table>
-      </ModuleTableCard>
+      </div>
     );
   }
 

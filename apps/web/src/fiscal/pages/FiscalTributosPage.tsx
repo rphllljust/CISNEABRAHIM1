@@ -1,23 +1,8 @@
-﻿import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { EmptyState, Money } from '../../ui';
-import {
-  FilterCard,
-  ModuleErrorState,
-  ModuleLoadingState,
-  ModulePage,
-  ModulePageHeader,
-  ModulePagination,
-  ModuleTableCard,
-  ModuleTableLink,
-  filterControlClass,
-  filterLabelClass,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui/module-layout';
+import { EmptyState, Money, worklistTableCardClass } from '../../ui';
+import { FilterCard, ModuleErrorState, ModuleLoadingState, ModulePage, ModulePageHeader, ModulePagination, ModuleTableLink, filterControlClass, filterLabelClass } from '../../ui/module-layout';
+import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
@@ -157,68 +142,68 @@ function TaxRulesList() {
 
       {state.phase === 'ready' && state.items.length > 0 ? (
         <>
-          <ModuleTableCard>
-            <table className={moduleTableClass} aria-label="Lista de regras tributárias">
-              <thead className={moduleTableHeadClass}>
+          <div className={worklistTableCardClass}>
+            <table className={worklistTableClass} aria-label="Lista de regras tributárias">
+              <thead className={worklistHeadCellClass}>
                 <tr>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Código
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Nome
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Situação
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Versão publicada
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Vigência
                   </th>
-                  <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+                  <th scope="col" className={`${worklistHeadCellClass} text-right`}>
                     Alíquota / valor
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Fonte
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {state.items.map((item) => (
-                  <tr key={item.id} className={moduleTableRowClass}>
-                    <td className={moduleTableCellClass}>
+                  <tr key={item.id} className={worklistRowClass}>
+                    <td className={worklistCellClass}>
                       <ModuleTableLink to={`/app/fiscal/tributos/${item.id}`}>{item.code}</ModuleTableLink>
                     </td>
-                    <td className={`${moduleTableCellClass} whitespace-normal`}>{item.name}</td>
-                    <td className={moduleTableCellClass}>
+                    <td className={`${worklistCellClass} whitespace-normal`}>{item.name}</td>
+                    <td className={worklistCellClass}>
                       <FinanceStatusBadge status={item.status} labels={{ ACTIVE: 'Ativa', INACTIVE: 'Inativa' }} />
                     </td>
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellClass}>
                       {item.publishedVersion
                         ? `v${item.publishedVersion.versionNumber} · ${item.publishedVersion.calculationMethod}`
                         : `— (${item.versionCount} versões)`}
                     </td>
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellClass}>
                       {item.publishedVersion
                         ? `${item.publishedVersion.effectiveFrom} → ${item.publishedVersion.effectiveTo ?? 'aberta'}`
                         : '—'}
                     </td>
-                    <td className={`${moduleTableCellClass} text-right`}>
+                    <td className={`${worklistCellClass} text-right`}>
                       {item.publishedVersion?.rate ? (
                         <Money value={item.publishedVersion.rate} currencyCode="BRL" />
                       ) : (
                         (item.publishedVersion?.fixedAmount ?? '—')
                       )}
                     </td>
-                    <td className={`${moduleTableCellClass} whitespace-normal`}>
+                    <td className={`${worklistCellClass} whitespace-normal`}>
                       {item.publishedVersion?.sourceReference ?? '—'}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </ModuleTableCard>
+          </div>
 
           <ModulePagination
             pageNumber={state.page + 1}

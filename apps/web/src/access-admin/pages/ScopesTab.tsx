@@ -1,18 +1,7 @@
 import { AccessAdminApiError, getCatalog, type AccessAdminCatalog } from '../api/access-admin-api';
 import { mapAccessAdminErrorToMessage } from '../api/access-admin-error-messages';
 import { useAsyncResource } from '../hooks/useAccessAdminData';
-import {
-  Badge,
-  EmptyState,
-  ErrorState,
-  LoadingState,
-  ModuleTableCard,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui';
+import { Badge, EmptyState, ErrorState, LoadingState, worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass, worklistTableCardClass } from '../../ui';
 
 export function ScopesTab() {
   const { state, refresh } = useAsyncResource<AccessAdminCatalog>(() => getCatalog());
@@ -44,25 +33,25 @@ export function ScopesTab() {
           description="O catálogo de escopos retornado pelo servidor está vazio."
         />
       ) : (
-        <ModuleTableCard>
-          <table className={moduleTableClass} aria-label="Catálogo de escopos">
-            <thead className={moduleTableHeadClass}>
+        <div className={worklistTableCardClass}>
+          <table className={worklistTableClass} aria-label="Catálogo de escopos">
+            <thead className={worklistHeadCellClass}>
               <tr>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Código
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Ancorado
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {scopes.map((scope) => (
-                <tr key={scope.code} className={moduleTableRowClass}>
-                  <td className={moduleTableCellClass}>
+                <tr key={scope.code} className={worklistRowClass}>
+                  <td className={worklistCellClass}>
                     <span className="font-mono text-gray-600">{scope.code}</span>
                   </td>
-                  <td className={moduleTableCellClass}>
+                  <td className={worklistCellClass}>
                     {scope.anchored ? (
                       <Badge tone="warning">Ancorado</Badge>
                     ) : (
@@ -73,7 +62,7 @@ export function ScopesTab() {
               ))}
             </tbody>
           </table>
-        </ModuleTableCard>
+        </div>
       )}
     </div>
   );

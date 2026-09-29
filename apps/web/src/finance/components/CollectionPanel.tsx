@@ -1,13 +1,6 @@
 import { useCallback, useState } from 'react';
-import { DateTime, EmptyState, Field, Input, Money, Select } from '../../ui';
-import {
-  ModuleTableCard,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui/module-layout';
+import { DateTime, EmptyState, Field, Input, Money, Select, worklistTableCardClass } from '../../ui';
+import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { CreateRecordForm, VersionedActionForm } from '../../financial-ui/VersionedActionForm';
 import { COLLECTION_STATUS_LABELS } from '../../financial-ui/labels';
@@ -207,54 +200,54 @@ export function CollectionPanel({
       {collection.actions.length === 0 ? (
         <EmptyState title="Sem ações registradas" />
       ) : (
-        <ModuleTableCard>
-          <table className={moduleTableClass} aria-label="Ações de cobrança">
-            <thead className={moduleTableHeadClass}>
+        <div className={worklistTableCardClass}>
+          <table className={worklistTableClass} aria-label="Ações de cobrança">
+            <thead className={worklistHeadCellClass}>
               <tr>
-                <th scope="col" className={moduleTableHeaderCellClass}>Tipo</th>
-                <th scope="col" className={moduleTableHeaderCellClass}>Quando</th>
-                <th scope="col" className={moduleTableHeaderCellClass}>Notas</th>
+                <th scope="col" className={worklistHeadCellClass}>Tipo</th>
+                <th scope="col" className={worklistHeadCellClass}>Quando</th>
+                <th scope="col" className={worklistHeadCellClass}>Notas</th>
               </tr>
             </thead>
             <tbody>
               {collection.actions.map((action) => (
-                <tr key={action.id} className={moduleTableRowClass}>
-                  <td className={moduleTableCellClass}>{action.kind}</td>
-                  <td className={moduleTableCellClass}>
+                <tr key={action.id} className={worklistRowClass}>
+                  <td className={worklistCellClass}>{action.kind}</td>
+                  <td className={worklistCellClass}>
                     <DateTime value={action.occurredAt} />
                   </td>
-                  <td className={moduleTableCellClass}>{action.notes ?? '—'}</td>
+                  <td className={worklistCellClass}>{action.notes ?? '—'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </ModuleTableCard>
+        </div>
       )}
       {collection.promises.length > 0 ? (
-        <ModuleTableCard>
-          <table className={moduleTableClass} aria-label="Promessas de pagamento">
-            <thead className={moduleTableHeadClass}>
+        <div className={worklistTableCardClass}>
+          <table className={worklistTableClass} aria-label="Promessas de pagamento">
+            <thead className={worklistHeadCellClass}>
               <tr>
-                <th scope="col" className={moduleTableHeaderCellClass}>Data</th>
-                <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Valor</th>
-                <th scope="col" className={moduleTableHeaderCellClass}>Status</th>
+                <th scope="col" className={worklistHeadCellClass}>Data</th>
+                <th scope="col" className={`${worklistHeadCellClass} text-right`}>Valor</th>
+                <th scope="col" className={worklistHeadCellClass}>Status</th>
               </tr>
             </thead>
             <tbody>
               {collection.promises.map((item) => (
-                <tr key={item.id} className={moduleTableRowClass}>
-                  <td className={moduleTableCellClass}>
+                <tr key={item.id} className={worklistRowClass}>
+                  <td className={worklistCellClass}>
                     <DateTime value={item.promisedOn} mode="date" />
                   </td>
-                  <td className={`${moduleTableCellClass} text-right`}>
+                  <td className={`${worklistCellClass} text-right`}>
                     <Money value={item.promisedAmount} />
                   </td>
-                  <td className={moduleTableCellClass}>{item.status}</td>
+                  <td className={worklistCellClass}>{item.status}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </ModuleTableCard>
+        </div>
       ) : null}
     </section>
   );

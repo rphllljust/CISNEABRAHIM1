@@ -1,22 +1,7 @@
-﻿import { useCallback, useEffect, useState } from 'react';
-import { Button, DateTime, EmptyState, Money } from '../../ui';
-import {
-  FilterCard,
-  ModuleErrorState,
-  ModuleLoadingState,
-  ModulePage,
-  ModulePageHeader,
-  ModulePagination,
-  ModuleTableCard,
-  ModuleTableLink,
-  filterControlClass,
-  filterLabelClass,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui/module-layout';
+import { useCallback, useEffect, useState } from 'react';
+import { Button, DateTime, EmptyState, Money, worklistTableCardClass } from '../../ui';
+import { FilterCard, ModuleErrorState, ModuleLoadingState, ModulePage, ModulePageHeader, ModulePagination, ModuleTableLink, filterControlClass, filterLabelClass } from '../../ui/module-layout';
+import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
 import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge';
 import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
 import { listPostingRequests } from '../api/accounting-api';
@@ -364,55 +349,55 @@ export function AccountingPostingOriginsPage() {
 
       {data && data.items.length > 0 ? (
         <>
-          <ModuleTableCard>
-            <table className={moduleTableClass} aria-label="Origem dos lançamentos contábeis">
-              <thead className={moduleTableHeadClass}>
+          <div className={worklistTableCardClass}>
+            <table className={worklistTableClass} aria-label="Origem dos lançamentos contábeis">
+              <thead className={worklistHeadCellClass}>
                 <tr>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Ocorrido em
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Origem
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Evento
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Referência
                   </th>
-                  <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+                  <th scope="col" className={`${worklistHeadCellClass} text-right`}>
                     Valor
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Situação
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Lançamento
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {data.items.map((item: PostingRequestListItem) => (
-                  <tr key={item.id} className={moduleTableRowClass}>
-                    <td className={moduleTableCellClass}>
+                  <tr key={item.id} className={worklistRowClass}>
+                    <td className={worklistCellClass}>
                       <DateTime value={item.occurredOn} mode="date" />
                     </td>
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellClass}>
                       {ORIGIN_LABELS[item.originKind] ?? item.originKind}
                     </td>
-                    <td className={`${moduleTableCellClass} whitespace-normal`}>
+                    <td className={`${worklistCellClass} whitespace-normal`}>
                       {EVENT_LABELS[item.eventKind] ?? item.eventKind}
                     </td>
-                    <td className={`${moduleTableCellClass} whitespace-normal`}>
+                    <td className={`${worklistCellClass} whitespace-normal`}>
                       {item.sourceReference}
                     </td>
-                    <td className={`${moduleTableCellClass} text-right`}>
+                    <td className={`${worklistCellClass} text-right`}>
                       <Money value={item.amount} currencyCode={item.currencyCode} />
                     </td>
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellClass}>
                       <FinanceStatusBadge status={item.status} labels={STATUS_LABELS} />
                     </td>
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellClass}>
                       {item.journalEntryId ? (
                         <ModuleTableLink to={`/app/accounting/journals/${item.journalEntryId}`}>
                           {item.journalEntryNumber ? `#${item.journalEntryNumber}` : 'Ver lançamento'}
@@ -425,7 +410,7 @@ export function AccountingPostingOriginsPage() {
                 ))}
               </tbody>
             </table>
-          </ModuleTableCard>
+          </div>
 
           <ModulePagination
             pageNumber={data.page + 1}

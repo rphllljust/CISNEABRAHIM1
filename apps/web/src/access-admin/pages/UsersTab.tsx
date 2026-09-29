@@ -9,21 +9,7 @@ import {
 import { mapAccessAdminErrorToMessage } from '../api/access-admin-error-messages';
 import { useAsyncResource } from '../hooks/useAccessAdminData';
 import type { ApprovalRoleAssignment, GrantInfo, IdentityInfo, RoleAssignment } from '../types';
-import {
-  Badge,
-  Button,
-  EmptyState,
-  ErrorState,
-  LoadingState,
-  ModuleTableCard,
-  filterControlClass,
-  filterLabelClass,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui';
+import { Badge, Button, EmptyState, ErrorState, LoadingState, filterControlClass, filterLabelClass, worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass, worklistTableCardClass } from '../../ui';
 
 function identityStatusTone(status: string): 'success' | 'warning' | 'error' | 'neutral' {
   switch (status) {
@@ -140,23 +126,23 @@ export function UsersTab() {
           description="Nenhuma identidade corresponde aos filtros informados."
         />
       ) : (
-        <ModuleTableCard>
-          <table className={moduleTableClass} aria-label="Usuários (identidades)">
-            <thead className={moduleTableHeadClass}>
+        <div className={worklistTableCardClass}>
+          <table className={worklistTableClass} aria-label="Usuários (identidades)">
+            <thead className={worklistHeadCellClass}>
               <tr>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Login
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Status
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Desativada em
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Criada em
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Identidade (id)
                 </th>
               </tr>
@@ -175,19 +161,19 @@ export function UsersTab() {
                     onClick={() => setSelected(identity)}
                     data-testid={`user-row-${identity.id}`}
                   >
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellClass}>
                       <span className="font-medium text-gray-900">{identity.login ?? '—'}</span>
                     </td>
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellClass}>
                       <Badge tone={identityStatusTone(identity.status)}>
                         {identityStatusLabel(identity.status)}
                       </Badge>
                     </td>
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellClass}>
                       {identity.disabledAt ? identity.disabledAt.slice(0, 10) : '—'}
                     </td>
-                    <td className={moduleTableCellClass}>{identity.createdAt.slice(0, 10)}</td>
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellClass}>{identity.createdAt.slice(0, 10)}</td>
+                    <td className={worklistCellClass}>
                       <span className="font-mono text-xs text-gray-600">{identity.id}</span>
                     </td>
                   </tr>
@@ -195,7 +181,7 @@ export function UsersTab() {
               })}
             </tbody>
           </table>
-        </ModuleTableCard>
+        </div>
       )}
 
       {selected ? (
@@ -246,48 +232,48 @@ function UserDetailPanel({
           emptyText="Nenhuma concessão ativa para esta identidade."
           state={grantsResource.state}
           renderTable={(grants) => (
-            <ModuleTableCard>
-              <table className={moduleTableClass} aria-label="Concessões ativas do usuário">
-                <thead className={moduleTableHeadClass}>
+            <div className={worklistTableCardClass}>
+              <table className={worklistTableClass} aria-label="Concessões ativas do usuário">
+                <thead className={worklistHeadCellClass}>
                   <tr>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
+                    <th scope="col" className={worklistHeadCellClass}>
                       Ação
                     </th>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
+                    <th scope="col" className={worklistHeadCellClass}>
                       Recurso
                     </th>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
+                    <th scope="col" className={worklistHeadCellClass}>
                       Escopo
                     </th>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
+                    <th scope="col" className={worklistHeadCellClass}>
                       Âncora
                     </th>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
+                    <th scope="col" className={worklistHeadCellClass}>
                       Válida até
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {grants.map((grant) => (
-                    <tr key={grant.id} className={moduleTableRowClass}>
-                      <td className={moduleTableCellClass}>
+                    <tr key={grant.id} className={worklistRowClass}>
+                      <td className={worklistCellClass}>
                         <span className="font-mono text-xs text-gray-600">{grant.action}</span>
                       </td>
-                      <td className={moduleTableCellClass}>
+                      <td className={worklistCellClass}>
                         <span className="font-mono text-xs text-gray-600">
                           {grant.resourceType}
                         </span>
                       </td>
-                      <td className={moduleTableCellClass}>{grant.scopeType}</td>
-                      <td className={moduleTableCellClass}>{grant.resourceId ?? '—'}</td>
-                      <td className={moduleTableCellClass}>
+                      <td className={worklistCellClass}>{grant.scopeType}</td>
+                      <td className={worklistCellClass}>{grant.resourceId ?? '—'}</td>
+                      <td className={worklistCellClass}>
                         {grant.validUntil ? grant.validUntil.slice(0, 10) : '—'}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </ModuleTableCard>
+            </div>
           )}
         />
 
@@ -296,46 +282,46 @@ function UserDetailPanel({
           emptyText="Nenhuma atribuição de role de acesso para esta identidade."
           state={accessAssignmentsResource.state}
           renderTable={(assignments) => (
-            <ModuleTableCard>
-              <table className={moduleTableClass} aria-label="Atribuições de role de acesso do usuário">
-                <thead className={moduleTableHeadClass}>
+            <div className={worklistTableCardClass}>
+              <table className={worklistTableClass} aria-label="Atribuições de role de acesso do usuário">
+                <thead className={worklistHeadCellClass}>
                   <tr>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
+                    <th scope="col" className={worklistHeadCellClass}>
                       Role
                     </th>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
+                    <th scope="col" className={worklistHeadCellClass}>
                       Escopo
                     </th>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
+                    <th scope="col" className={worklistHeadCellClass}>
                       Âncora
                     </th>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
+                    <th scope="col" className={worklistHeadCellClass}>
                       Versão
                     </th>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
+                    <th scope="col" className={worklistHeadCellClass}>
                       Atribuída em
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {assignments.map((assignment) => (
-                    <tr key={assignment.id} className={moduleTableRowClass}>
-                      <td className={moduleTableCellClass}>
+                    <tr key={assignment.id} className={worklistRowClass}>
+                      <td className={worklistCellClass}>
                         <span className="font-mono text-xs text-gray-600">
                           {assignment.roleCode}
                         </span>
                       </td>
-                      <td className={moduleTableCellClass}>{assignment.scopeType}</td>
-                      <td className={moduleTableCellClass}>{assignment.scopeAnchor ?? '—'}</td>
-                      <td className={moduleTableCellClass}>{assignment.version}</td>
-                      <td className={moduleTableCellClass}>
+                      <td className={worklistCellClass}>{assignment.scopeType}</td>
+                      <td className={worklistCellClass}>{assignment.scopeAnchor ?? '—'}</td>
+                      <td className={worklistCellClass}>{assignment.version}</td>
+                      <td className={worklistCellClass}>
                         {assignment.assignedAt.slice(0, 10)}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </ModuleTableCard>
+            </div>
           )}
         />
 
@@ -344,46 +330,46 @@ function UserDetailPanel({
           emptyText="Nenhuma atribuição de role de aprovação para esta identidade."
           state={approvalAssignmentsResource.state}
           renderTable={(assignments) => (
-            <ModuleTableCard>
-              <table className={moduleTableClass} aria-label="Atribuições de role de aprovação do usuário">
-                <thead className={moduleTableHeadClass}>
+            <div className={worklistTableCardClass}>
+              <table className={worklistTableClass} aria-label="Atribuições de role de aprovação do usuário">
+                <thead className={worklistHeadCellClass}>
                   <tr>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
+                    <th scope="col" className={worklistHeadCellClass}>
                       Role
                     </th>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
+                    <th scope="col" className={worklistHeadCellClass}>
                       Escopo
                     </th>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
+                    <th scope="col" className={worklistHeadCellClass}>
                       Âncora
                     </th>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
+                    <th scope="col" className={worklistHeadCellClass}>
                       Versão
                     </th>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
+                    <th scope="col" className={worklistHeadCellClass}>
                       Criada em
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {assignments.map((assignment) => (
-                    <tr key={assignment.id} className={moduleTableRowClass}>
-                      <td className={moduleTableCellClass}>
+                    <tr key={assignment.id} className={worklistRowClass}>
+                      <td className={worklistCellClass}>
                         <span className="font-mono text-xs text-gray-600">
                           {assignment.roleCode}
                         </span>
                       </td>
-                      <td className={moduleTableCellClass}>{assignment.scopeType}</td>
-                      <td className={moduleTableCellClass}>{assignment.scopeAnchor ?? '—'}</td>
-                      <td className={moduleTableCellClass}>{assignment.version}</td>
-                      <td className={moduleTableCellClass}>
+                      <td className={worklistCellClass}>{assignment.scopeType}</td>
+                      <td className={worklistCellClass}>{assignment.scopeAnchor ?? '—'}</td>
+                      <td className={worklistCellClass}>{assignment.version}</td>
+                      <td className={worklistCellClass}>
                         {assignment.createdAt.slice(0, 10)}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </ModuleTableCard>
+            </div>
           )}
         />
       </div>

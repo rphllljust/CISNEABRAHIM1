@@ -1,25 +1,7 @@
-﻿import { useEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  Button,
-  EmptyState,
-  Field,
-  Input,
-  Money,
-  Select,
-  StatusBadge,
-} from '../../ui';
-import {
-  FilterCard,
-  ModulePage,
-  ModulePageHeader,
-  ModuleTableCard,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui/module-layout';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, Button, EmptyState, Field, Input, Money, Select, StatusBadge, worklistTableCardClass } from '../../ui';
+import { FilterCard, ModulePage, ModulePageHeader } from '../../ui/module-layout';
+import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { JOURNAL_STATUS_LABELS } from '../../financial-ui/labels';
@@ -287,29 +269,29 @@ export function ChartOfAccountsPage() {
 
       {activeChartId && accountRows.length > 0 ? (
         <>
-          <ModuleTableCard>
-            <table className={moduleTableClass} aria-label="Árvore de contas do plano">
-              <thead className={moduleTableHeadClass}>
+          <div className={worklistTableCardClass}>
+            <table className={worklistTableClass} aria-label="Árvore de contas do plano">
+              <thead className={worklistHeadCellClass}>
                 <tr>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Código
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Nome
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Classe
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Situação
                   </th>
-                  <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+                  <th scope="col" className={`${worklistHeadCellClass} text-right`}>
                     Débitos
                   </th>
-                  <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+                  <th scope="col" className={`${worklistHeadCellClass} text-right`}>
                     Créditos
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Ação
                   </th>
                 </tr>
@@ -319,26 +301,26 @@ export function ChartOfAccountsPage() {
                   const balances = balancesByAccount.get(row.id);
                   const synthetic = accountRows.some((account) => account.parentId === row.id);
                   return (
-                    <tr key={row.id} className={moduleTableRowClass}>
-                      <td className={`${moduleTableCellClass} font-mono`}>{row.code}</td>
-                      <td className={moduleTableCellClass}>
+                    <tr key={row.id} className={worklistRowClass}>
+                      <td className={`${worklistCellClass} font-mono`}>{row.code}</td>
+                      <td className={worklistCellClass}>
                         <span style={{ paddingLeft: `${row.depth * 1.25}rem` }}>{row.name}</span>
                       </td>
-                      <td className={moduleTableCellClass}>{CLASS_LABELS[row.class] ?? row.class}</td>
-                      <td className={moduleTableCellClass}>
+                      <td className={worklistCellClass}>{CLASS_LABELS[row.class] ?? row.class}</td>
+                      <td className={worklistCellClass}>
                         <StatusBadge
                           tone={row.status === 'ACTIVE' ? 'success' : 'neutral'}
                           label={row.status === 'ACTIVE' ? 'Ativa' : 'Inativa'}
                         />
                         {synthetic ? <StatusBadge tone="info" label="Sintética" /> : null}
                       </td>
-                      <td className={`${moduleTableCellClass} text-right`}>
+                      <td className={`${worklistCellClass} text-right`}>
                         <Money value={balances?.debits ?? '0'} />
                       </td>
-                      <td className={`${moduleTableCellClass} text-right`}>
+                      <td className={`${worklistCellClass} text-right`}>
                         <Money value={balances?.credits ?? '0'} />
                       </td>
-                      <td className={moduleTableCellClass}>
+                      <td className={worklistCellClass}>
                         <div className="flex flex-wrap gap-2">
                           <Button
                             variant="secondary"
@@ -380,12 +362,12 @@ export function ChartOfAccountsPage() {
                 })}
               </tbody>
             </table>
-          </ModuleTableCard>
+          </div>
 
           {drillGate}
 
           {drillAccountId && journalQuery.state.phase === 'ready' ? (
-            <ModuleTableCard>
+            <div className={worklistTableCardClass}>
               <div className="border-b border-gray-200 px-4 py-3">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -412,53 +394,53 @@ export function ChartOfAccountsPage() {
                 </p>
               ) : (
                 <>
-                  <table className={moduleTableClass} aria-label="Lançamentos da conta">
-                    <thead className={moduleTableHeadClass}>
+                  <table className={worklistTableClass} aria-label="Lançamentos da conta">
+                    <thead className={worklistHeadCellClass}>
                       <tr>
-                        <th scope="col" className={moduleTableHeaderCellClass}>
+                        <th scope="col" className={worklistHeadCellClass}>
                           Nº
                         </th>
-                        <th scope="col" className={moduleTableHeaderCellClass}>
+                        <th scope="col" className={worklistHeadCellClass}>
                           Data
                         </th>
-                        <th scope="col" className={moduleTableHeaderCellClass}>
+                        <th scope="col" className={worklistHeadCellClass}>
                           Histórico
                         </th>
-                        <th scope="col" className={moduleTableHeaderCellClass}>
+                        <th scope="col" className={worklistHeadCellClass}>
                           Tipo
                         </th>
-                        <th scope="col" className={moduleTableHeaderCellClass}>
+                        <th scope="col" className={worklistHeadCellClass}>
                           Estado
                         </th>
-                        <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+                        <th scope="col" className={`${worklistHeadCellClass} text-right`}>
                           Débito
                         </th>
-                        <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+                        <th scope="col" className={`${worklistHeadCellClass} text-right`}>
                           Crédito
                         </th>
                       </tr>
                     </thead>
                     <tbody>
                       {journalQuery.state.data.items.map((entry) => (
-                        <tr key={entry.id} className={moduleTableRowClass}>
-                          <td className={moduleTableCellClass}>{entry.entryNumber ?? '—'}</td>
-                          <td className={moduleTableCellClass}>{entry.occurredOn}</td>
-                          <td className={`${moduleTableCellClass} whitespace-normal`}>
+                        <tr key={entry.id} className={worklistRowClass}>
+                          <td className={worklistCellClass}>{entry.entryNumber ?? '—'}</td>
+                          <td className={worklistCellClass}>{entry.occurredOn}</td>
+                          <td className={`${worklistCellClass} whitespace-normal`}>
                             {entry.description}
                           </td>
-                          <td className={moduleTableCellClass}>
+                          <td className={worklistCellClass}>
                             {entry.kind === 'REVERSAL' ? 'Estorno' : 'Lançamento'}
                           </td>
-                          <td className={moduleTableCellClass}>
+                          <td className={worklistCellClass}>
                             <FinanceStatusBadge
                               status={entry.status}
                               labels={JOURNAL_STATUS_LABELS}
                             />
                           </td>
-                          <td className={`${moduleTableCellClass} text-right`}>
+                          <td className={`${worklistCellClass} text-right`}>
                             <Money value={entry.debitTotal} currencyCode={entry.currencyCode} />
                           </td>
-                          <td className={`${moduleTableCellClass} text-right`}>
+                          <td className={`${worklistCellClass} text-right`}>
                             <Money value={entry.creditTotal} currencyCode={entry.currencyCode} />
                           </td>
                         </tr>
@@ -490,7 +472,7 @@ export function ChartOfAccountsPage() {
                   </div>
                 </>
               )}
-            </ModuleTableCard>
+            </div>
           ) : null}
 
           <CreateAccountPanel

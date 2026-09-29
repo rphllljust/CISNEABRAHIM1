@@ -1,22 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Alert, DateTime, EmptyState, StatusBadge } from '../../ui';
+import { Alert, DateTime, EmptyState, StatusBadge, worklistTableCardClass } from '../../ui';
+import { ModuleDeniedState, ModuleErrorState, ModuleLoadingState, ModulePage, ModulePageHeader, filterLabelClass } from '../../ui/module-layout';
+import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
+import { WorklistException, WorklistField, WorklistFilterBar, worklistSelectClass } from '../../ui/enterprise-list';
 import {
-  FilterCard,
-  ModuleDeniedState,
-  ModuleErrorState,
-  ModuleLoadingState,
-  ModulePage,
-  ModulePageHeader,
-  ModuleTableCard,
-  filterControlClass,
-  filterLabelClass,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui/module-layout';
+  WorkbenchMetric,
+  WorkbenchQueue,
+  WorkbenchQueueItem,
+  WorkbenchSummaryStrip,
+  workbenchPrimaryActionClass,
+} from '../../ui/workbench';
 import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { VersionedActionForm } from '../../financial-ui/VersionedActionForm';
@@ -41,35 +35,46 @@ function periodLabel(period: AccountingPeriod): string {
 }
 
 /**
- * Ordem visual do fechamento: bloqueadores → pendências → próximas ações → situação → detalhes.
+ * EXCECAO DO FECHAMENTO — a mesma anatomia de item de fila das demais mesas de trabalho:
+ * SEVERIDADE (o fato persistido que bloqueia) -> MOTIVO (o que o servidor observou) -> QUANTIDADE
+ * REAL observada -> RECORTE de area/verificacao -> DRILL-DOWN para onde se resolve.
  *
- * Nenhum percentual e nenhum "score": só o que o backend consegue provar.
+ * Nenhum percentual e nenhum "score": so o que o backend consegue provar.
  */
-function ExceptionRow({ item }: { item: ClosingException }) {
+function ExceptionItem({ item }: { item: ClosingException }) {
+  const blocking = item.severity === 'BLOCKING';
   return (
-    <li
-      className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 py-3 last:border-b-0"
-      data-severity={item.severity}
-    >
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-gray-900">
-          {item.observedCount} · {item.detail}
-        </p>
-        <p className="text-xs text-gray-500">
-          {item.area} · {item.kind}
-        </p>
-      </div>
-      {item.drilldown ? (
-        <Link
-          className="text-sm font-semibold text-brand-600 hover:text-brand-700"
-          to={item.drilldown.path}
-          aria-label={`${item.drilldown.label}: ${item.detail}`}
-        >
-          {item.drilldown.label}
-        </Link>
-      ) : (
-        <span className="text-xs text-gray-400">Sem recorte navegável para esta verificação.</span>
-      )}
+    <li className="list-none" data-severity={item.severity}>
+      <WorkbenchQueueItem
+        severity={
+          <WorklistException tone={blocking ? 'critical' : 'warning'}>
+            {blocking ? 'Bloqueia o fechamento' : 'Informativa'}
+          </WorklistException>
+        }
+        severityTone={blocking ? 'critical' : 'warning'}
+        title={item.detail}
+        reason={`${item.observedCount} observado(s) nesta verificação`}
+        context={
+          <>
+            {item.area} · {item.kind}
+          </>
+        }
+        action={
+          item.drilldown ? (
+            <Link
+              className={workbenchPrimaryActionClass}
+              to={item.drilldown.path}
+              aria-label={`${item.drilldown.label}: ${item.detail}`}
+            >
+              {item.drilldown.label}
+            </Link>
+          ) : (
+            <span className="text-xs text-gray-400">
+              Sem recorte navegável para esta verificação.
+            </span>
+          )
+        }
+      />
     </li>
   );
 }
@@ -81,6 +86,11 @@ function ExceptionRow({ item }: { item: ClosingException }) {
  * (`GET /closing/readiness`): bloqueadores, pendências, próximas ações e situação do período.
  * As ações de fechar/reabrir são as que o backend já expõe, com a mesma autorização, SoD,
  * concorrência otimista e idempotência — o front não inventa regra de fechamento.
+ *
+ * A tela deixou de ser um cartão de filtro seguido de espaço: abre por uma FAIXA DE RESUMO com as
+ * contagens reais da prontidão e por uma FILA de passos pendentes (bloqueadores e pendências),
+ * ordenada pela severidade persistida. Os filtros continuam sendo os mesmos selects, agora numa
+ * barra compacta — nenhum recorte, permissão ou chamada mudou.
  */
 export function ClosingCenterPage() {
   const { units, unitId, setUnitId } = useOperationalUnits();
@@ -166,6 +176,10 @@ export function ClosingCenterPage() {
     );
   }
 
+  const blockerCount = readiness ? readiness.blockers.length : 0;
+  const pendingCount = readiness ? readiness.pending.length : 0;
+  const draftJournals = readiness ? readiness.accounting.journalCounts.DRAFT : undefined;
+
   return (
     <ModulePage>
       <ModulePageHeader
@@ -173,98 +187,90 @@ export function ClosingCenterPage() {
         description="Período, pendências e bloqueadores do fechamento contábil e fiscal, lidos do servidor."
       />
 
-      <FilterCard>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div>
-            <label className={filterLabelClass} htmlFor="closing-unit">
-              Unidade
-            </label>
+      {/* BARRA COMPACTA: os mesmos três recortes humanos, com o mesmo valor enviado ao servidor. */}
+      <WorklistFilterBar>
+        <WorklistField label="Unidade" htmlFor="closing-unit">
+          <select
+            id="closing-unit"
+            className={worklistSelectClass}
+            value={unitId}
+            onChange={(event) => setUnitId(event.target.value)}
+          >
+            {/*
+              ESCOPO, NAO SLUG: `unitId` e identificador interno
+              (`unit-synthetic-homolog`) e nao vai para a superficie. O `value` continua
+              carregando o recorte REAL enviado a API; muda so o texto lido pelo operador.
+            */}
+            {units.map((unit, index) => (
+              <option key={unit} value={unit}>
+                Unidade {index + 1}
+              </option>
+            ))}
+          </select>
+        </WorklistField>
+
+        <WorklistField label="Situação do período" htmlFor="closing-period-status">
+          <select
+            id="closing-period-status"
+            className={worklistSelectClass}
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value as '' | 'OPEN' | 'CLOSED')}
+          >
+            <option value="OPEN">Abertos</option>
+            <option value="CLOSED">Fechados</option>
+            <option value="">Todos</option>
+          </select>
+        </WorklistField>
+
+        <WorklistField label="Competência" htmlFor="closing-period" grow>
+          {periodsQuery.state.phase === 'ready' && periods.length === 0 ? (
+            /**
+             * ZERO COMPETÊNCIAS: um select vazio não informa nada e ainda faz o operador
+             * clicar para descobrir que não há o que escolher. Aqui o estado é explicado e
+             * a única ação oferecida é real: ampliar o recorte de situação para conferir se
+             * existe competência fora do filtro atual.
+             */
+            <span className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-gray-700">
+                {statusFilter === ''
+                  ? 'Nenhuma competência cadastrada para esta unidade.'
+                  : `Nenhuma competência ${statusFilter === 'OPEN' ? 'aberta' : 'fechada'} nesta unidade.`}
+              </span>
+              {statusFilter === '' ? (
+                <span className="text-[11px] text-gray-500">
+                  O fechamento age sobre uma competência existente; nada é criado aqui.
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  className="text-xs font-semibold text-brand-700 hover:text-brand-800"
+                  onClick={() => setStatusFilter('')}
+                >
+                  Ver todas as competências
+                </button>
+              )}
+            </span>
+          ) : (
             <select
-              id="closing-unit"
-              className={filterControlClass}
-              value={unitId}
-              onChange={(event) => setUnitId(event.target.value)}
+              id="closing-period"
+              className={worklistSelectClass}
+              value={periodId}
+              onChange={(event) => setPeriodId(event.target.value)}
             >
-              {/*
-                ESCOPO, NAO SLUG: `unitId` e identificador interno
-                (`unit-synthetic-homolog`) e nao vai para a superficie. O `value` continua
-                carregando o recorte REAL enviado a API; muda so o texto lido pelo operador.
-              */}
-              {units.map((unit, index) => (
-                <option key={unit} value={unit}>
-                  Unidade {index + 1}
+              <option value="">
+                {periodsQuery.state.phase === 'loading'
+                  ? 'Carregando competências…'
+                  : 'Selecione a competência…'}
+              </option>
+              {periods.map((period) => (
+                <option key={period.id} value={period.id}>
+                  {periodLabel(period)}
                 </option>
               ))}
             </select>
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="closing-period-status">
-              Situação do período
-            </label>
-            <select
-              id="closing-period-status"
-              className={filterControlClass}
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value as '' | 'OPEN' | 'CLOSED')}
-            >
-              <option value="OPEN">Abertos</option>
-              <option value="CLOSED">Fechados</option>
-              <option value="">Todos</option>
-            </select>
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="closing-period">
-              Competência
-            </label>
-            {periodsQuery.state.phase === 'ready' && periods.length === 0 ? (
-              /**
-               * ZERO COMPETÊNCIAS: um select vazio não informa nada e ainda faz o operador
-               * clicar para descobrir que não há o que escolher. Aqui o estado é explicado e
-               * a única ação oferecida é real: ampliar o recorte de situação para conferir se
-               * existe competência fora do filtro atual.
-               */
-              <div className="rounded-md bg-gray-50 px-3 py-2 ring-1 ring-gray-900/5 ring-inset">
-                <p className="m-0 text-xs text-gray-700">
-                  {statusFilter === ''
-                    ? `Nenhuma competência cadastrada para ${unitId}.`
-                    : `Nenhuma competência ${statusFilter === 'OPEN' ? 'aberta' : 'fechada'} em ${unitId}.`}
-                </p>
-                {statusFilter === '' ? (
-                  <p className="m-0 mt-1 text-[11px] text-gray-500">
-                    O fechamento age sobre uma competência existente; nada é criado aqui.
-                  </p>
-                ) : (
-                  <button
-                    type="button"
-                    className="mt-1 text-xs font-semibold text-brand-700 hover:text-brand-800"
-                    onClick={() => setStatusFilter('')}
-                  >
-                    Ver todas as competências
-                  </button>
-                )}
-              </div>
-            ) : (
-              <select
-                id="closing-period"
-                className={filterControlClass}
-                value={periodId}
-                onChange={(event) => setPeriodId(event.target.value)}
-              >
-                <option value="">
-                  {periodsQuery.state.phase === 'loading'
-                    ? 'Carregando competências…'
-                    : 'Selecione a competência…'}
-                </option>
-                {periods.map((period) => (
-                  <option key={period.id} value={period.id}>
-                    {periodLabel(period)}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-        </div>
-      </FilterCard>
+          )}
+        </WorklistField>
+      </WorklistFilterBar>
 
       {renderQueryGate(
         'Central de fechamento',
@@ -309,49 +315,85 @@ export function ClosingCenterPage() {
 
       {readiness ? (
         <>
-          {/* 1. BLOQUEADORES */}
-          <FilterCard>
-            <h2 className="mb-1 text-sm font-semibold text-gray-900">
-              {readiness.blockers.length > 0
-                ? `Fechamento bloqueado: ${readiness.blockers.length} verificação(ões) com pendência`
+          {/*
+            RESUMO DO FECHAMENTO — contagens reais da leitura de prontidão. Métrica sem lastro é
+            omitida: sem seção fiscal autorizada, nenhum número fiscal é afirmado.
+          */}
+          <WorkbenchSummaryStrip>
+            <WorkbenchMetric
+              value={blockerCount}
+              label="bloqueadores"
+              tone={blockerCount > 0 ? 'critical' : 'success'}
+            />
+            <WorkbenchMetric
+              value={pendingCount}
+              label="pendências"
+              tone={pendingCount > 0 ? 'warning' : 'neutral'}
+            />
+            {typeof draftJournals === 'number' ? (
+              <WorkbenchMetric
+                value={draftJournals}
+                label="lançamentos não postados"
+                tone={draftJournals > 0 ? 'warning' : 'success'}
+              />
+            ) : null}
+            {readiness.fiscal ? (
+              <WorkbenchMetric
+                value={readiness.fiscal.rejected}
+                label="documentos fiscais rejeitados"
+                tone={readiness.fiscal.rejected > 0 ? 'critical' : 'neutral'}
+              />
+            ) : null}
+          </WorkbenchSummaryStrip>
+
+          {/* 1. BLOQUEADORES — a fila que trava o fechamento, ordenada pela severidade persistida. */}
+          <WorkbenchQueue
+            title="Bloqueadores do fechamento"
+            count={blockerCount}
+            description={
+              blockerCount > 0
+                ? `Fechamento bloqueado: ${blockerCount} verificação(ões) com pendência. As verificações são as mesmas que o fechamento executa no servidor.`
                 : readiness.closeReady === true
-                  ? 'Nenhum bloqueador: período pronto para fechar'
-                  : 'Bloqueadores não avaliados por completo'}
-            </h2>
-            <p className="mb-3 text-sm text-gray-500">
-              Verificações são as mesmas que o fechamento executa no servidor.
-            </p>
-            {readiness.blockers.length === 0 ? (
-              <p className="text-sm text-gray-600" role="status">
-                {readiness.closeReady === true
-                  ? 'O servidor não encontrou bloqueio persistido para este período.'
-                  : 'Não é possível afirmar que o período está pronto: há verificação sem avaliação por autorização.'}
-              </p>
-            ) : (
-              <ul aria-label="Bloqueadores do fechamento">
-                {readiness.blockers.map((item) => (
-                  <ExceptionRow key={`${item.kind}-${item.area}`} item={item} />
-                ))}
-              </ul>
-            )}
-          </FilterCard>
+                  ? 'Nenhum bloqueador: período pronto para fechar. As verificações são as mesmas que o fechamento executa no servidor.'
+                  : 'Bloqueadores não avaliados por completo. As verificações são as mesmas que o fechamento executa no servidor.'
+            }
+            emptyTitle={
+              readiness.closeReady === true
+                ? 'Nenhum bloqueador persistido'
+                : 'Prontidão não afirmada'
+            }
+            emptyDescription={
+              readiness.closeReady === true
+                ? 'O servidor não encontrou bloqueio persistido para este período.'
+                : 'Não é possível afirmar que o período está pronto: há verificação sem avaliação por autorização.'
+            }
+          >
+            <ul aria-label="Bloqueadores do fechamento">
+              {readiness.blockers.map((item) => (
+                <ExceptionItem key={`${item.kind}-${item.area}`} item={item} />
+              ))}
+            </ul>
+          </WorkbenchQueue>
 
           {/* 2. PENDÊNCIAS (informativas: não bloqueiam pela política vigente) */}
-          {readiness.pending.length > 0 ? (
-            <FilterCard>
-              <h2 className="mb-3 text-sm font-semibold text-gray-900">Pendências observadas</h2>
+          {pendingCount > 0 ? (
+            <WorkbenchQueue
+              title="Pendências observadas"
+              count={pendingCount}
+              description="Verificações que não bloqueiam o fechamento pela política vigente."
+            >
               <ul aria-label="Pendências do fechamento">
                 {readiness.pending.map((item) => (
-                  <ExceptionRow key={`${item.kind}-${item.area}`} item={item} />
+                  <ExceptionItem key={`${item.kind}-${item.area}`} item={item} />
                 ))}
               </ul>
-            </FilterCard>
+            </WorkbenchQueue>
           ) : null}
 
           {/* 3. PRÓXIMAS AÇÕES */}
-          <FilterCard>
-            <h2 className="mb-3 text-sm font-semibold text-gray-900">Próximas ações</h2>
-            <ul className="mb-4 space-y-1" aria-label="Próximas ações do fechamento">
+          <section className="mb-3 rounded-md border border-gray-200 bg-white px-3 py-2">
+            <h2 className="mb-2 text-sm font-semibold text-gray-900">Próximas ações</h2>
+            <ul className="mb-3 space-y-1" aria-label="Próximas ações do fechamento">
               {readiness.nextActions.map((action) => (
                 <li key={action.kind} className="text-sm text-gray-700">
                   {action.label}
@@ -400,11 +442,11 @@ export function ClosingCenterPage() {
                 }
               />
             </div>
-          </FilterCard>
+          </section>
 
           {/* 4. SITUAÇÃO DO PERÍODO */}
-          <FilterCard>
-            <h2 className="mb-3 text-sm font-semibold text-gray-900">Situação do período</h2>
+          <section className="mb-3 rounded-md border border-gray-200 bg-white px-3 py-2">
+            <h2 className="mb-2 text-sm font-semibold text-gray-900">Situação do período</h2>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
               <div>
                 <p className={filterLabelClass}>Competência</p>
@@ -437,7 +479,7 @@ export function ClosingCenterPage() {
               </div>
             </div>
             {readiness.withheld.length > 0 ? (
-              <ul className="mt-4" aria-label="Seções omitidas por autorização">
+              <ul className="mt-3" aria-label="Seções omitidas por autorização">
                 {readiness.withheld.map((entry) => (
                   <li key={entry.area} className="text-sm text-gray-500">
                     {entry.reason}
@@ -445,33 +487,33 @@ export function ClosingCenterPage() {
                 ))}
               </ul>
             ) : null}
-          </FilterCard>
+          </section>
 
           {/* 5. DETALHES */}
-          <ModuleTableCard>
-            <table className={moduleTableClass} aria-label="Lançamentos por situação no período">
-              <thead className={moduleTableHeadClass}>
+          <div className={worklistTableCardClass}>
+            <table className={worklistTableClass} aria-label="Lançamentos por situação no período">
+              <thead className={worklistHeadCellClass}>
                 <tr>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Lançamentos
                   </th>
-                  <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+                  <th scope="col" className={`${worklistHeadCellClass} text-right`}>
                     Quantidade
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {Object.entries(readiness.accounting.journalCounts).map(([status, count]) => (
-                  <tr key={status} className={moduleTableRowClass}>
-                    <td className={moduleTableCellClass}>
+                  <tr key={status} className={worklistRowClass}>
+                    <td className={worklistCellClass}>
                       {JOURNAL_COUNT_LABELS[status] ?? status}
                     </td>
-                    <td className={`${moduleTableCellClass} text-right`}>{count}</td>
+                    <td className={`${worklistCellClass} text-right`}>{count}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </ModuleTableCard>
+          </div>
         </>
       ) : null}
     </ModulePage>

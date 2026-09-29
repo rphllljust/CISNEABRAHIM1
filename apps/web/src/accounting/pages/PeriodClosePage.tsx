@@ -1,16 +1,7 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, EmptyState, Field, Select } from '../../ui';
-import {
-  FilterCard,
-  ModulePage,
-  ModulePageHeader,
-  ModuleTableCard,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui/module-layout';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Alert, EmptyState, Field, Select, worklistTableCardClass } from '../../ui';
+import { FilterCard, ModulePage, ModulePageHeader } from '../../ui/module-layout';
+import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
 import { ClosedPeriodBanner } from '../../financial-ui/ClosedPeriodBanner';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { PERIOD_STATUS_LABELS } from '../../financial-ui/labels';
@@ -224,31 +215,31 @@ export function PeriodClosePage() {
           {runs.length > 0 ? (
             <>
               <h2 className="mb-3 text-base font-semibold text-gray-900">Histórico de fechamentos</h2>
-              <ModuleTableCard>
-                <table className={moduleTableClass} aria-label="Execuções de fechamento do período">
-                  <thead className={moduleTableHeadClass}>
+              <div className={worklistTableCardClass}>
+                <table className={worklistTableClass} aria-label="Execuções de fechamento do período">
+                  <thead className={worklistHeadCellClass}>
                     <tr>
-                      <th scope="col" className={moduleTableHeaderCellClass}>
+                      <th scope="col" className={worklistHeadCellClass}>
                         Status
                       </th>
-                      <th scope="col" className={moduleTableHeaderCellClass}>
+                      <th scope="col" className={worklistHeadCellClass}>
                         Quando
                       </th>
-                      <th scope="col" className={moduleTableHeaderCellClass}>
+                      <th scope="col" className={worklistHeadCellClass}>
                         Checagens
                       </th>
                     </tr>
                   </thead>
                   <tbody>
                     {runs.map((run) => (
-                      <tr key={run.id} className={moduleTableRowClass}>
-                        <td className={moduleTableCellClass}>
+                      <tr key={run.id} className={worklistRowClass}>
+                        <td className={worklistCellClass}>
                           {RUN_STATUS_LABELS[run.status] ?? run.status}
                         </td>
-                        <td className={moduleTableCellClass}>
+                        <td className={worklistCellClass}>
                           {new Date(run.createdAt).toLocaleString('pt-BR')}
                         </td>
-                        <td className={moduleTableCellClass}>
+                        <td className={worklistCellClass}>
                           <ul className="list-none space-y-1">
                             {run.checks.map((check) => (
                               <li key={`${run.id}-${check.kind}`}>
@@ -263,7 +254,7 @@ export function PeriodClosePage() {
                     ))}
                   </tbody>
                 </table>
-              </ModuleTableCard>
+              </div>
             </>
           ) : null}
 

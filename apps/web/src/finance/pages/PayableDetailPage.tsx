@@ -1,13 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { DateTime, Money, ModulePage, ModulePageHeader, Select } from '../../ui';
-import {
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui/module-layout';
+import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
 import { Field } from '../../ui';
 import { MoneyActionForm } from '../../financial-ui/MoneyActionForm';
 import { AGING_BUCKET_LABELS, PAYABLE_STATUS_LABELS, toneForStatus } from '../../financial-ui/labels';
@@ -311,28 +305,28 @@ export function PayableDetailPage() {
         {item.installments.length > 0 ? (
           <ObjectPanel title="Parcelas do título">
             <div className="overflow-x-auto">
-              <table className={moduleTableClass} aria-label="Parcelas do título">
-                <thead className={moduleTableHeadClass}>
+              <table className={worklistTableClass} aria-label="Parcelas do título">
+                <thead className={worklistHeadCellClass}>
                   <tr>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
+                    <th scope="col" className={worklistHeadCellClass}>
                       Parcela
                     </th>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
+                    <th scope="col" className={worklistHeadCellClass}>
                       Vencimento
                     </th>
-                    <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+                    <th scope="col" className={`${worklistHeadCellClass} text-right`}>
                       Principal
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {item.installments.map((installment) => (
-                    <tr key={installment.id} className={moduleTableRowClass}>
-                      <td className={moduleTableCellClass}>{installment.installmentNumber}</td>
-                      <td className={moduleTableCellClass}>
+                    <tr key={installment.id} className={worklistRowClass}>
+                      <td className={worklistCellClass}>{installment.installmentNumber}</td>
+                      <td className={worklistCellClass}>
                         <DateTime value={installment.dueDate} mode="date" />
                       </td>
-                      <td className={`${moduleTableCellClass} text-right`}>
+                      <td className={`${worklistCellClass} text-right`}>
                         <Money value={installment.principal} currencyCode={item.currencyCode} />
                       </td>
                     </tr>
@@ -346,53 +340,53 @@ export function PayableDetailPage() {
         {item.payments.length > 0 ? (
           <ObjectPanel title="Pagamentos do título">
             <div className="overflow-x-auto">
-              <table className={moduleTableClass} aria-label="Pagamentos do título">
-                <thead className={moduleTableHeadClass}>
+              <table className={worklistTableClass} aria-label="Pagamentos do título">
+                <thead className={worklistHeadCellClass}>
                   <tr>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
+                    <th scope="col" className={worklistHeadCellClass}>
                       Tipo
                     </th>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
+                    <th scope="col" className={worklistHeadCellClass}>
                       Quando
                     </th>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
+                    <th scope="col" className={worklistHeadCellClass}>
                       Referência
                     </th>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
+                    <th scope="col" className={worklistHeadCellClass}>
                       Origem
                     </th>
-                    <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+                    <th scope="col" className={`${worklistHeadCellClass} text-right`}>
                       Valor
                     </th>
-                    <th scope="col" className={moduleTableHeaderCellClass}>
+                    <th scope="col" className={worklistHeadCellClass}>
                       Estorna
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {item.payments.map((payment) => (
-                    <tr key={payment.id} className={moduleTableRowClass}>
-                      <td className={moduleTableCellClass}>
+                    <tr key={payment.id} className={worklistRowClass}>
+                      <td className={worklistCellClass}>
                         <FinanceStatusBadge status={payment.kind} labels={PAYMENT_KIND_LABELS} />
                       </td>
-                      <td className={moduleTableCellClass}>
+                      <td className={worklistCellClass}>
                         <DateTime value={payment.paidAt} />
                       </td>
-                      <td className={moduleTableCellClass}>{payment.paymentReference}</td>
+                      <td className={worklistCellClass}>{payment.paymentReference}</td>
                       {/*
                        * A origem do pagamento vem com rotulo HUMANO do backend
                        * (`originReference`). Quando so existe o identificador tecnico,
                        * a celula mostra o rotulo do tipo — nunca o UUID.
                        */}
-                      <td className={moduleTableCellClass}>
+                      <td className={worklistCellClass}>
                         {payment.originReference ||
                           toHumanText(payment.originKind) ||
                           '—'}
                       </td>
-                      <td className={`${moduleTableCellClass} text-right`}>
+                      <td className={`${worklistCellClass} text-right`}>
                         <Money value={payment.amount} currencyCode={payment.currencyCode} />
                       </td>
-                      <td className={moduleTableCellClass}>
+                      <td className={worklistCellClass}>
                         {payment.reversesPaymentId ? 'Pagamento estornado' : '—'}
                       </td>
                     </tr>

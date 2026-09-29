@@ -1,16 +1,7 @@
-﻿import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Alert, Button, EmptyState, Field, Money, Select } from '../../ui';
-import {
-  FilterCard,
-  ModulePage,
-  ModulePageHeader,
-  ModuleTableCard,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui/module-layout';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Alert, Button, EmptyState, Field, Money, Select, worklistTableCardClass } from '../../ui';
+import { FilterCard, ModulePage, ModulePageHeader } from '../../ui/module-layout';
+import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
@@ -429,56 +420,56 @@ function JournalTable({ data }: { data: JournalListPage }) {
   const creditTotal = sumFlattened(flattened, 'CREDIT');
   return (
     <>
-      <ModuleTableCard>
-        <table className={moduleTableClass} aria-label="Livro diário (postados)">
-          <thead className={moduleTableHeadClass}>
+      <div className={worklistTableCardClass}>
+        <table className={worklistTableClass} aria-label="Livro diário (postados)">
+          <thead className={worklistHeadCellClass}>
             <tr>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Data
               </th>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Nº
               </th>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Histórico
               </th>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Conta
               </th>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Origem
               </th>
-              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+              <th scope="col" className={`${worklistHeadCellClass} text-right`}>
                 Débito
               </th>
-              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+              <th scope="col" className={`${worklistHeadCellClass} text-right`}>
                 Crédito
               </th>
             </tr>
           </thead>
           <tbody>
             {flattened.map(({ entry, line }) => (
-              <tr key={`${entry.id}-${line.id}`} className={moduleTableRowClass}>
-                <td className={moduleTableCellClass}>{entry.occurredOn}</td>
-                <td className={moduleTableCellClass}>{entry.entryNumber ?? '—'}</td>
-                <td className={`${moduleTableCellClass} whitespace-normal`}>{entry.description}</td>
-                <td className={`${moduleTableCellClass} font-mono`}>
+              <tr key={`${entry.id}-${line.id}`} className={worklistRowClass}>
+                <td className={worklistCellClass}>{entry.occurredOn}</td>
+                <td className={worklistCellClass}>{entry.entryNumber ?? '—'}</td>
+                <td className={`${worklistCellClass} whitespace-normal`}>{entry.description}</td>
+                <td className={`${worklistCellClass} font-mono`}>
                   {line.accountCode ?? line.accountId}
                   {line.accountName ? ` — ${line.accountName}` : ''}
                 </td>
-                <td className={moduleTableCellClass}>{entry.sourceReference}</td>
-                <td className={`${moduleTableCellClass} text-right`}>
+                <td className={worklistCellClass}>{entry.sourceReference}</td>
+                <td className={`${worklistCellClass} text-right`}>
                   {line.direction === 'DEBIT' ? <Money value={line.amount} /> : null}
                 </td>
-                <td className={`${moduleTableCellClass} text-right`}>
+                <td className={`${worklistCellClass} text-right`}>
                   {line.direction === 'CREDIT' ? <Money value={line.amount} /> : null}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-      </ModuleTableCard>
-      <ModuleTableCard>
+      </div>
+      <div className={worklistTableCardClass}>
         <div className="flex flex-wrap justify-between gap-4 px-6 py-4 text-sm text-gray-700">
           <span>
             Débitos da página: <Money value={debitTotal} /> — Créditos da página: <Money value={creditTotal} />
@@ -488,7 +479,7 @@ function JournalTable({ data }: { data: JournalListPage }) {
             {Math.max(data.totalPages, 1)}
           </span>
         </div>
-      </ModuleTableCard>
+      </div>
     </>
   );
 }
@@ -527,43 +518,43 @@ function LedgerTable({ data }: { data: Awaited<ReturnType<typeof getAccountLedge
           />
         </div>
       ) : null}
-      <ModuleTableCard>
-        <table className={moduleTableClass} aria-label="Razão da conta no período">
-          <thead className={moduleTableHeadClass}>
+      <div className={worklistTableCardClass}>
+        <table className={worklistTableClass} aria-label="Razão da conta no período">
+          <thead className={worklistHeadCellClass}>
             <tr>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Data
               </th>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Lançamento
               </th>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Histórico
               </th>
-              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+              <th scope="col" className={`${worklistHeadCellClass} text-right`}>
                 Débito
               </th>
-              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+              <th scope="col" className={`${worklistHeadCellClass} text-right`}>
                 Crédito
               </th>
-              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+              <th scope="col" className={`${worklistHeadCellClass} text-right`}>
                 Saldo
               </th>
             </tr>
           </thead>
           <tbody>
             {data.movements.map((movement) => (
-              <tr key={`${movement.journalEntryId}-${movement.direction}-${movement.amount}`} className={moduleTableRowClass}>
-                <td className={moduleTableCellClass}>{movement.occurredOn}</td>
-                <td className={moduleTableCellClass}>{movement.journalEntryId.slice(0, 8)}</td>
-                <td className={`${moduleTableCellClass} whitespace-normal`}>{movement.description}</td>
-                <td className={`${moduleTableCellClass} text-right`}>
+              <tr key={`${movement.journalEntryId}-${movement.direction}-${movement.amount}`} className={worklistRowClass}>
+                <td className={worklistCellClass}>{movement.occurredOn}</td>
+                <td className={worklistCellClass}>{movement.journalEntryId.slice(0, 8)}</td>
+                <td className={`${worklistCellClass} whitespace-normal`}>{movement.description}</td>
+                <td className={`${worklistCellClass} text-right`}>
                   {movement.direction === 'DEBIT' ? <Money value={movement.amount} /> : null}
                 </td>
-                <td className={`${moduleTableCellClass} text-right`}>
+                <td className={`${worklistCellClass} text-right`}>
                   {movement.direction === 'CREDIT' ? <Money value={movement.amount} /> : null}
                 </td>
-                <td className={`${moduleTableCellClass} text-right`}>
+                <td className={`${worklistCellClass} text-right`}>
                   {movement.runningBalance.side === 'DEBIT' ? 'D ' : 'C '}
                   <Money value={movement.runningBalance.amount} />
                 </td>
@@ -571,7 +562,7 @@ function LedgerTable({ data }: { data: Awaited<ReturnType<typeof getAccountLedge
             ))}
           </tbody>
         </table>
-      </ModuleTableCard>
+      </div>
     </>
   );
 }
@@ -587,50 +578,50 @@ function TrialTable({ data }: { data: TrialBalance }) {
           </Alert>
         </div>
       )}
-      <ModuleTableCard>
-        <table className={moduleTableClass} aria-label="Balancete do período">
-          <thead className={moduleTableHeadClass}>
+      <div className={worklistTableCardClass}>
+        <table className={worklistTableClass} aria-label="Balancete do período">
+          <thead className={worklistHeadCellClass}>
             <tr>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Conta
               </th>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Classe
               </th>
-              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+              <th scope="col" className={`${worklistHeadCellClass} text-right`}>
                 Débito
               </th>
-              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+              <th scope="col" className={`${worklistHeadCellClass} text-right`}>
                 Crédito
               </th>
             </tr>
           </thead>
           <tbody>
             {data.accounts.map((account) => (
-              <tr key={account.accountId} className={moduleTableRowClass}>
-                <td className={`${moduleTableCellClass} font-mono`}>
+              <tr key={account.accountId} className={worklistRowClass}>
+                <td className={`${worklistCellClass} font-mono`}>
                   {account.code} — {account.name}
                 </td>
-                <td className={moduleTableCellClass}>{ACCOUNT_CLASS_LABELS[account.class] ?? account.class}</td>
-                <td className={`${moduleTableCellClass} text-right`}>
+                <td className={worklistCellClass}>{ACCOUNT_CLASS_LABELS[account.class] ?? account.class}</td>
+                <td className={`${worklistCellClass} text-right`}>
                   {Number(account.debit) !== 0 ? <Money value={account.debit} /> : null}
                 </td>
-                <td className={`${moduleTableCellClass} text-right`}>
+                <td className={`${worklistCellClass} text-right`}>
                   {Number(account.credit) !== 0 ? <Money value={account.credit} /> : null}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-      </ModuleTableCard>
-      <ModuleTableCard>
+      </div>
+      <div className={worklistTableCardClass}>
         <div className="flex flex-wrap justify-between gap-4 px-6 py-4 text-sm text-gray-700">
           <span>
             Total débito: <Money value={data.totalDebits} /> — Total crédito: <Money value={data.totalCredits} />
           </span>
           <span>Diferença: {formatMoney(data.difference)}</span>
         </div>
-      </ModuleTableCard>
+      </div>
     </>
   );
 }

@@ -1,17 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Field, Select } from '../../ui';
+import { Field, Select, worklistTableCardClass } from '../../ui';
 import { Money } from '../../ui/Money';
-import {
-  FilterCard,
-  ModulePage,
-  ModulePageHeader,
-  ModuleTableCard,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui/module-layout';
+import { FilterCard, ModulePage, ModulePageHeader } from '../../ui/module-layout';
+import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import { getOperationalProfitability } from '../api/operational-profitability-api';
 
@@ -113,54 +104,54 @@ export function OperationalProfitabilityPage() {
               </dd>
             </div>
           </dl>
-          <ModuleTableCard>
-            <table className={moduleTableClass} aria-label="Linhas de rentabilidade por OS">
-              <thead className={moduleTableHeadClass}>
+          <div className={worklistTableCardClass}>
+            <table className={worklistTableClass} aria-label="Linhas de rentabilidade por OS">
+              <thead className={worklistHeadCellClass}>
                 <tr>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     OS
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Tipo
                   </th>
-                  <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+                  <th scope="col" className={`${worklistHeadCellClass} text-right`}>
                     Receita
                   </th>
-                  <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+                  <th scope="col" className={`${worklistHeadCellClass} text-right`}>
                     Custo
                   </th>
-                  <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+                  <th scope="col" className={`${worklistHeadCellClass} text-right`}>
                     Margem
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {query.state.data.lines.length === 0 ? (
-                  <tr className={moduleTableRowClass}>
-                    <td className={moduleTableCellClass} colSpan={5}>
+                  <tr className={worklistRowClass}>
+                    <td className={worklistCellClass} colSpan={5}>
                       Nenhuma OS no período com dados de rentabilidade no seu escopo.
                     </td>
                   </tr>
                 ) : (
                   query.state.data.lines.map((line) => (
-                    <tr key={line.serviceOrderId} className={moduleTableRowClass}>
-                      <td className={moduleTableCellClass}>
+                    <tr key={line.serviceOrderId} className={worklistRowClass}>
+                      <td className={worklistCellClass}>
                         {line.serviceOrderCode ?? line.serviceOrderId}
                       </td>
-                      <td className={moduleTableCellClass}>{line.serviceType ?? '—'}</td>
-                      <td className={`${moduleTableCellClass} text-right`}>
+                      <td className={worklistCellClass}>{line.serviceType ?? '—'}</td>
+                      <td className={`${worklistCellClass} text-right`}>
                         <Money
                           value={line.summary.operationalRevenue}
                           currencyCode={line.summary.currencyCode}
                         />
                       </td>
-                      <td className={`${moduleTableCellClass} text-right`}>
+                      <td className={`${worklistCellClass} text-right`}>
                         <Money
                           value={line.summary.realizedCost}
                           currencyCode={line.summary.currencyCode}
                         />
                       </td>
-                      <td className={`${moduleTableCellClass} text-right`}>
+                      <td className={`${worklistCellClass} text-right`}>
                         <Money
                           value={line.summary.operationalMargin}
                           currencyCode={line.summary.currencyCode}
@@ -171,7 +162,7 @@ export function OperationalProfitabilityPage() {
                 )}
               </tbody>
             </table>
-          </ModuleTableCard>
+          </div>
         </>
       ) : null}
     </ModulePage>
