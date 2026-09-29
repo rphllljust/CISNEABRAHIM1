@@ -40,6 +40,7 @@ import {
   type ObjectPagePhase,
 } from '../../enterprise-object';
 import { ActivityTimeline } from '../../operator';
+import { BusinessChain, useBusinessChain } from '../../business-chain';
 
 /**
  * OBJECT PAGE DO CLIENTE — leitura canônica do contrato `enterprise-object`.
@@ -136,6 +137,19 @@ export function ClientDetailPage() {
 
   // Leitura única da cadeia comercial: alimenta a barra de relações e os painéis "Relacionados".
   const related = useClientRelatedRecords(state.phase === 'ready' ? state.client.id : null);
+
+  /*
+   * CADEIA DE NEGOCIO DO CLIENTE.
+   *
+   * `CLIENT` e a RAIZ do read model (posicao 0): a cadeia devolve tudo o que
+   * DESCEU deste cadastro — solicitacao, proposta, pedido, OS, medicao, faturamento,
+   * recebivel — ja autorizado e ordenado pelo servidor. E diferente dos paineis
+   * "Relacionados", que mostram listas por modulo: aqui o operador ve a LIGACAO
+   * entre os objetos, navegavel por clique.
+   *
+   * Fica ANTES dos retornos antecipados de fase: hooks nao podem ser condicionais.
+   */
+  const businessChain = useBusinessChain('CLIENT', clientId);
 
   async function handleDeactivate() {
     if (state.phase !== 'ready') {
@@ -356,6 +370,15 @@ export function ClientDetailPage() {
             </button>
           </div>
         ) : null}
+
+        {/* Linhagem autorizada: o que nasceu deste Cliente, do pedido ao dinheiro. */}
+        <BusinessChain
+          chain={businessChain.chain}
+          phase={businessChain.phase}
+          message={businessChain.message}
+          onRetry={businessChain.retry}
+          title="Cadeia de negócio do cliente"
+        />
 
         <ClientRelatedRecords modules={related} />
 
