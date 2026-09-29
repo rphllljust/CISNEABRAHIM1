@@ -1,133 +1,32 @@
-.reports-page {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-  max-width: 1100px;
-}
+/*
+  RELATORIOS — CSS RESTRINGIDO AO DOMINIO.
 
-.reports-page__header h1 {
-  margin: 0 0 0.35rem;
-}
+  REGRA (wave de convergencia enterprise): CSS local pode existir para visualizacao especifica do
+  dominio, mas NAO pode mais ser responsavel por page shell, header, filter layout, form grid,
+  empty/error state, generic table ou generic action bar. Isso vem dos primitivos enterprise.
 
-.reports-page__lead {
-  margin: 0;
-  color: var(--shell-muted, #5c6570);
-}
+  O que existia aqui ANTES controlava a arquitetura da PAGINA INTEIRA e foi removido:
 
-.reports-layout {
-  display: grid;
-  grid-template-columns: minmax(240px, 280px) 1fr;
-  gap: 1rem;
-}
+  - `.reports-page`   -> `max-width: 1100px` + flex column. Fazia a tela de relatorio ocupar MENOS
+                         largura que qualquer worklist do produto, enquanto o mundo real do ERP e
+                         1440px+. O page shell agora e `ModulePage`.
+  - `.reports-page__header` / `.reports-page__lead` -> cabecalho manual com `h1`. Agora e
+                         `ReportWorkbenchHeader`.
+  - `.reports-layout` -> `grid-template-columns: minmax(240px,280px) 1fr`. O ERRO ARQUITETURAL
+                         CENTRAL: uma coluna de 240-280px para tres `<select>` empilhados, com a
+                         previa — unico conteudo real — espremida ao lado. Agora a toolbar e uma
+                         linha horizontal (`ReportToolbar`) e a previa ocupa a largura principal
+                         (`ReportPreview`).
+  - `.reports-panel`  -> cartao com borda e padding de 1rem em volta de cada metade da tela.
+  - `.reports-filters` -> grade vertical de rotulos empilhados (`display:grid; gap:.75rem`).
+  - `.reports-actions` / `.reports-actions button` -> barra de botoes local. Agora `Button` /
+                         classes compartilhadas de acao.
+  - `.reports-preview-meta`, `.reports-status`, `.reports-progress`, `.reports-sensitive` ->
+                         apresentacao de estado local. Agora `ReportJobStatus` (tone-aware) e
+                         `EmptyState` compartilhado.
+  - `.reports-table` / `.reports-table-wrap` -> tabela generica local. Agora a grade densa
+                         compartilhada (`worklistTableClass` e celulas `worklistCellClass`).
 
-@media (max-width: 800px) {
-  .reports-layout {
-    grid-template-columns: 1fr;
-  }
-}
-
-.reports-panel {
-  border: 1px solid var(--shell-border, #d8dee6);
-  border-radius: 8px;
-  padding: 1rem;
-  background: var(--shell-surface, #fff);
-}
-
-.reports-filters {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.reports-filters label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.9rem;
-}
-
-.reports-filters select,
-.reports-filters input {
-  padding: 0.45rem 0.55rem;
-  border: 1px solid var(--shell-border, #d8dee6);
-  border-radius: 6px;
-}
-
-.reports-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-}
-
-.reports-actions button {
-  padding: 0.45rem 0.85rem;
-  border-radius: 6px;
-  border: 1px solid var(--shell-border, #d8dee6);
-  background: var(--shell-surface, #fff);
-  cursor: pointer;
-}
-
-.reports-actions button.primary {
-  background: var(--shell-accent, #1f4f82);
-  border-color: var(--shell-accent, #1f4f82);
-  color: #fff;
-}
-
-.reports-preview-meta {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
-  font-size: 0.9rem;
-  color: var(--shell-muted, #5c6570);
-}
-
-.reports-table-wrap {
-  overflow: auto;
-  max-height: 420px;
-  border: 1px solid var(--shell-border, #d8dee6);
-  border-radius: 6px;
-}
-
-.reports-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.9rem;
-}
-
-.reports-table th,
-.reports-table td {
-  padding: 0.45rem 0.6rem;
-  border-bottom: 1px solid var(--shell-border, #d8dee6);
-  text-align: left;
-  white-space: nowrap;
-}
-
-.reports-table th {
-  position: sticky;
-  top: 0;
-  background: var(--shell-surface-muted, #f4f6f8);
-}
-
-.reports-status {
-  padding: 0.65rem 0.75rem;
-  border-radius: 6px;
-  background: var(--shell-surface-muted, #f4f6f8);
-  font-size: 0.9rem;
-}
-
-.reports-status[role='alert'] {
-  background: #fdecea;
-  color: #8a1f11;
-}
-
-.reports-progress {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.reports-sensitive {
-  font-size: 0.85rem;
-  color: #8a5a00;
-}
+  Nao sobrou nenhuma classe: a superficie inteira e composta por primitivos compartilhados, o que e
+  exatamente o objetivo da wave — Relatorios deve parecer parte do MESMO produto que as worklists.
+*/

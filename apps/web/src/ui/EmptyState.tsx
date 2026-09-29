@@ -3,7 +3,7 @@ import { cn } from './utils/cn';
 
 export type EmptyStateProps = {
   title: string;
-  description?: string;
+  description?: ReactNode;
   action?: ReactNode;
   className?: string;
 };

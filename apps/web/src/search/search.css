@@ -1,3 +1,30 @@
+/*
+  BUSCA — CSS RESTRINGIDO AO DOMINIO.
+
+  REGRA (wave de convergencia enterprise): CSS local pode existir para visualizacao especifica do
+  dominio, mas NAO pode mais ser responsavel por page shell, header, filter layout, form grid,
+  empty/error state, generic table ou generic action bar. Isso vem dos primitivos enterprise.
+
+  REMOVIDO nesta wave — a Busca era uma ILHA:
+
+  - `.search-page` / `.search-page__lead` -> page shell proprio (`<main class="search-page">`) com
+    `<h1>` manual. Agora `ModulePage` + cabecalho compartilhado.
+  - `.search-filters` -> barra de filtro local. Agora `WorklistField` / `worklistControlClass`.
+  - `.search-group h2` -> tipografia de secao local. Agora a escala compartilhada das worklists.
+  - `.search-results` / `.search-card` -> lista de CARTES, um por resultado. Agora a grade densa
+    compartilhada (`worklistTableCardClass` / `worklistTableClass` / `worklistCellClass`).
+  - `.search-card__subtitle` / `.search-card__meta` -> apresentacao local de contexto e status.
+  - `.search-page__more` -> botao de paginacao local.
+
+  Efeito: a Busca passa a parecer parte do MESMO produto que as worklists, em vez de uma tela com
+  gramatica propria.
+
+  O que PERMANECE e visualizacao legitima do dominio:
+  - `.global-search*` — o controle de busca do topo do shell (componente proprio do shell).
+  - `.search-highlight` — o destaque do termo buscado dentro do resultado: marca por que o
+    resultado casou. Especifico da busca, sem equivalente no design system.
+*/
+
 .global-search {
   position: relative;
   width: 100%;
@@ -105,58 +132,9 @@
   background: var(--color-surface-muted);
 }
 
-.search-page {
-  display: grid;
-  gap: 1.5rem;
-}
-
-.search-page__lead {
-  color: var(--color-text-muted);
-}
-
-.search-filters {
-  display: grid;
-  gap: 0.5rem;
-  max-width: 32rem;
-}
-
-.search-group h2 {
-  font-size: 1rem;
-  margin-bottom: 0.75rem;
-}
-
-.search-results {
-  display: grid;
-  gap: 0.75rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.search-card {
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-lg);
-  padding: 1rem;
-}
-
-.search-card__subtitle,
-.search-card__meta {
-  color: var(--color-text-muted);
-}
-
-.search-card__meta {
-  display: flex;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
 .search-highlight {
   background: #fff8c5;
   padding: 0 0.125rem;
-}
-
-.search-page__more {
-  justify-self: start;
 }
 
 @media (max-width: 640px) {

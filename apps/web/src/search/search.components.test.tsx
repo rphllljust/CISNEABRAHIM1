@@ -106,7 +106,12 @@ describe('SearchResultsPage', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /clientes/i })).toBeInTheDocument();
     });
-    expect(screen.getByRole('link', { name: /abrir registro/i })).toHaveAttribute(
+    /*
+      GRAMATICA ENTERPRISE: o resultado e uma LINHA de grade densa e o REGISTRO INTEIRO e o alvo de
+      navegacao — o cartao com link "Abrir registro" saiu. O `<a>` continua sendo real, entao o
+      destino e as propriedades de acessibilidade permanecem verificaveis.
+    */
+    expect(screen.getByRole('link', { name: /alfa serviços/i })).toHaveAttribute(
       'href',
       '/app/clients/client-1',
     );

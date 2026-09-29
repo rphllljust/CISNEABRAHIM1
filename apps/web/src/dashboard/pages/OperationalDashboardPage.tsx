@@ -8,9 +8,11 @@ import { OperationPanel } from '../components/OperationPanel';
 import { OperationalDashboardSkeleton } from '../components/OperationalDashboardSkeleton';
 import { ProductivityPanel } from '../components/ProductivityPanel';
 import { useExecutiveDashboard } from '../hooks/useExecutiveDashboard';
+import { useOperationalUnits, operationalUnitLabel } from '../../shell/hooks/useOperationalUnits';
 import { buildDashboardKpis, buildPeriodVolume } from '../utils/build-dashboard-kpis';
 import { buildBusinessFlow } from '../utils/dashboard-semantics';
 import { semanticSectionAttrs } from '../semantic-dashboard';
+import { ModuleDeniedState, ModulePage } from '../../ui';
 import '../dashboard.css';
 
 function formatGeneratedAt(value: string): string {
@@ -24,15 +26,26 @@ function formatPeriodLabel(from: string, to: string): string {
   return `${from} — ${to}`;
 }
 
-function buildActiveFilterLabels(filters: {
-  period: string;
-  unitId?: string;
-  from?: string;
-  to?: string;
-}): string[] {
+/**
+ * RECORTE ATIVO — nunca o identificador interno.
+ *
+ * `filters.unitId` e o valor real enviado a API (`unit-synthetic-homolog` em HML: slug de ambiente
+ * somado a codigo tecnico). Ele era concatenado direto no rotulo — `Unidade: unit-synthetic-homolog`
+ * no PAINEL, a primeira tela do produto. O `operationalUnitLabel` resolve o rotulo pelo mesmo
+ * dicionario que o filtro usa; o valor cru permanece apenas na consulta autorizada.
+ */
+function buildActiveFilterLabels(
+  filters: {
+    period: string;
+    unitId?: string;
+    from?: string;
+    to?: string;
+  },
+  unitLabels: { value: string; label: string }[],
+): string[] {
   const labels: string[] = [];
   if (filters.unitId) {
-    labels.push(`Unidade: ${filters.unitId}`);
+    labels.push(`Unidade: ${operationalUnitLabel(unitLabels, filters.unitId)}`);
   }
   if (filters.from) {
     labels.push(`De: ${filters.from}`);
@@ -55,6 +68,7 @@ function buildActiveFilterLabels(filters: {
  */
 export function OperationalDashboardPage() {
   const { state, reload, filters, setFilters, periodOptions, isRefreshing } = useExecutiveDashboard();
+  const { options: unitOptions } = useOperationalUnits();
 
   const headerProps = {
     title: 'Visão geral',
@@ -65,41 +79,42 @@ export function OperationalDashboardPage() {
     onRefresh: () => void reload(),
   };
 
+  // Rótulo humano da unidade no cabeçalho; o valor cru nunca chega à superfície.
+  const unitLabel = filters.unitId ? operationalUnitLabel(unitOptions, filters.unitId) : null;
+
   if (state.phase === 'loading') {
     return (
-      <main id="main-content" className="dashboard-page w-full max-w-7xl">
+      <ModulePage className="max-w-7xl">
         <DashboardPageHeader
           {...headerProps}
-          unitLabel={filters.unitId ?? null}
+          unitLabel={unitLabel}
           periodLabel={null}
           activeFilters={[]}
           generatedAt={null}
           generatedAtFormatted={null}
         />
         <OperationalDashboardSkeleton />
-      </main>
+      </ModulePage>
     );
   }
 
   if (state.phase === 'denied') {
     return (
-      <main id="main-content" className="dashboard-page w-full max-w-7xl">
+      <ModulePage className="max-w-7xl">
         <DashboardPageHeader
           {...headerProps}
-          unitLabel={filters.unitId ?? null}
+          unitLabel={unitLabel}
           periodLabel={null}
           activeFilters={[]}
           generatedAt={null}
           generatedAtFormatted={null}
           isRefreshing={false}
         />
-        <div className="dashboard-denied" role="alert">
-          <p>Você não tem permissão para visualizar o painel operacional.</p>
-          <Link className="dashboard-denied__link" to="/app/requests">
-            Ir para solicitações
-          </Link>
-        </div>
-      </main>
+        <ModuleDeniedState
+          title="Painel operacional"
+          message="Você não tem permissão para visualizar o painel operacional."
+        />
+      </ModulePage>
     );
   }
 
@@ -107,14 +122,14 @@ export function OperationalDashboardPage() {
   const kpis = snapshot ? buildDashboardKpis(snapshot) : [];
   const volume = snapshot ? buildPeriodVolume(snapshot) : null;
   const flow = snapshot ? buildBusinessFlow(snapshot) : [];
-  const activeFilters = buildActiveFilterLabels(filters);
+  const activeFilters = buildActiveFilterLabels(filters, unitOptions);
   const periodLabel = snapshot ? formatPeriodLabel(snapshot.period.from, snapshot.period.to) : null;
 
   return (
-    <main id="main-content" className="dashboard-page w-full max-w-7xl">
+    <ModulePage className="max-w-7xl">
       <DashboardPageHeader
         {...headerProps}
-        unitLabel={filters.unitId ?? null}
+        unitLabel={unitLabel}
         periodLabel={periodLabel}
         activeFilters={activeFilters}
         onClearFilters={
@@ -190,6 +205,6 @@ export function OperationalDashboardPage() {
           ) : null}
         </>
       ) : null}
-    </main>
+    </ModulePage>
   );
 }
