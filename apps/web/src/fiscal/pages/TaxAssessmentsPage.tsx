@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+﻿import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { EmptyState, Field, Input, Money } from '../../ui';
 import {
@@ -10,6 +10,7 @@ import {
   ModulePagination,
   ModuleTableCard,
   ModuleTableLink,
+  UnitScopeLabel,
   filterControlClass,
   filterLabelClass,
   moduleTableCellClass,
@@ -232,7 +233,7 @@ function TaxAssessmentsList() {
                     <td className={moduleTableCellClass}>
                       {item.obligation ? `${item.obligation.status} · ${item.obligation.amount}` : '—'}
                     </td>
-                    <td className={moduleTableCellClass}>{item.unitId}</td>
+                    <td className={moduleTableCellClass}><UnitScopeLabel unitId={item.unitId} /></td>
                   </tr>
                 ))}
               </tbody>

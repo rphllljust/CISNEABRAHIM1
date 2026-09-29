@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+﻿import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { EmptyState, Field, Input } from '../../ui';
 import {
@@ -10,6 +10,7 @@ import {
   ModulePagination,
   ModuleTableCard,
   ModuleTableLink,
+  UnitScopeLabel,
   filterControlClass,
   filterLabelClass,
   moduleTableCellClass,
@@ -236,7 +237,7 @@ function FiscalPeriodsList() {
                     <td className={moduleTableCellClass}>{NEXT_ACTION_FOR(item.status)}</td>
                     <td className={moduleTableCellClass}>{item.closedAt ? item.closedAt.slice(0, 10) : '—'}</td>
                     <td className={moduleTableCellClass}>{item.reopenedAt ? item.reopenedAt.slice(0, 10) : '—'}</td>
-                    <td className={moduleTableCellClass}>{item.unitId}</td>
+                    <td className={moduleTableCellClass}><UnitScopeLabel unitId={item.unitId} /></td>
                   </tr>
                 ))}
               </tbody>

@@ -60,7 +60,14 @@ describe('Fiscal — bancada de documentos', () => {
     // Unidade: select alimentado pelo contexto de unidades operacionais do shell.
     const unitControl = screen.getByLabelText(/unidade/i);
     expect(unitControl.tagName).toBe('SELECT');
-    expect(within(unitControl).getByRole('option', { name: 'unit-1' })).toBeTruthy();
+    /*
+     * PROVA NEGATIVA: o identificador interno da unidade NAO aparece como texto da
+     * opcao. O `value` continua sendo o valor real — o recorte enviado a API e
+     * verificado logo abaixo e segue igual; o que o operador LE passa a ser o escopo,
+     * nao o slug interno.
+     */
+    expect(screen.queryByText('unit-1')).toBeNull();
+    expect(within(unitControl).getByRole('option', { name: 'Unidade 1' })).toBeTruthy();
 
     // Competência: select alimentado pela lista REAL de períodos fiscais (`periodKey`),
     // exibida como MM/AAAA — o `id` do período não é a referência primária.

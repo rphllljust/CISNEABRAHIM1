@@ -329,9 +329,14 @@ export function ServiceRequestForm({
                 invalid={Boolean(fieldErrors.unitId)}
               >
                 <option value="">Selecione</option>
-                {units.map((unitId) => (
+                {/*
+                  ESCOPO, NAO SLUG: a opcao mantem o valor REAL no `value` (o payload
+                  enviado ao servidor nao muda); o texto lido pelo operador deixa de ser
+                  o identificador interno da unidade.
+                */}
+                {units.map((unitId, index) => (
                   <option key={unitId} value={unitId}>
-                    {unitId}
+                    Unidade {index + 1}
                   </option>
                 ))}
               </Select>

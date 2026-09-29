@@ -90,6 +90,24 @@ export function ModuleCodeCell({ children }: { children: ReactNode }) {
   return <span className="font-mono text-sm text-gray-600 tabular-nums">{children}</span>;
 }
 
+/**
+ * ESCOPO DE UNIDADE — nunca o identificador tecnico.
+ *
+ * Nenhum contrato do CISNE publica hoje o NOME HUMANO da unidade operacional: o que
+ * chega as telas e `unitId`, identificador interno (em HML, um slug sintetico como
+ * `unit-synthetic-homolog`). Renderizado cru ele nao diz nada ao operador e vaza a
+ * forma interna do dado — encontrado em Solicitacoes, Documentos e Fiscal.
+ *
+ * Enquanto o backend nao publicar o rotulo humano, a superficie declara o ESCOPO. Um
+ * unico primitivo evita que cada tela resolva isso do seu jeito — ou nao resolva.
+ *
+ * PARK registrado: nome humano da unidade nas telas operacionais.
+ */
+export function UnitScopeLabel({ unitId }: { unitId: string | null | undefined }) {
+  const hasScope = typeof unitId === 'string' && unitId.trim().length > 0;
+  return <>{hasScope ? 'No seu escopo' : 'Sem unidade'}</>;
+}
+
 export function ModulePageHeader({
   title,
   description,

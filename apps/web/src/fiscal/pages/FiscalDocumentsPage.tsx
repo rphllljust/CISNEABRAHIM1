@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { DateTime, EmptyState, Money } from '../../ui';
 import {
@@ -10,6 +10,7 @@ import {
   ModulePagination,
   ModuleTableCard,
   ModuleTableLink,
+  UnitScopeLabel,
   filterControlClass,
   filterLabelClass,
   moduleTableCellClass,
@@ -370,16 +371,21 @@ function FiscalDocumentsList() {
               }}
             >
               {units.length === 0 ? <option value="">Nenhuma unidade disponível</option> : null}
-              {units.map((unit) => (
+              {/*
+                ESCOPO, NAO SLUG: `unitId` e identificador interno e nao vai para a
+                superficie. A opcao continua carregando o valor REAL no `value` (o
+                recorte enviado a API nao muda); o que muda e o texto lido pelo operador.
+              */}
+              {units.map((unit, index) => (
                 <option key={unit} value={unit}>
-                  {unit}
+                  Unidade {index + 1}
                 </option>
               ))}
               {/* Unidade vinda de link (Mesa de Fechamento) que não está na lista visível:
                   sem esta opção o recorte chegaria à API sem o operador ver qual unidade é. */}
               {unitId && !units.includes(unitId) ? (
                 <option key={`query-${unitId}`} value={unitId}>
-                  {unitId}
+                  Unidade do link
                 </option>
               ) : null}
             </select>
@@ -504,7 +510,7 @@ function FiscalDocumentsList() {
         ) : hasFilters ? (
           <EmptyState
             title="Nenhum documento para os filtros selecionados"
-            description={`A unidade ${unitId} não tem documento fiscal com o recorte aplicado. Ajuste ou limpe os filtros para ver a fila completa desta unidade.`}
+            description={`A unidade selecionada não tem documento fiscal com o recorte aplicado. Ajuste ou limpe os filtros para ver a fila completa desta unidade.`}
             action={
               <button
                 type="button"
@@ -518,7 +524,7 @@ function FiscalDocumentsList() {
         ) : (
           <EmptyState
             title="Nenhum documento fiscal registrado para esta unidade ainda"
-            description={`A unidade ${unitId} ainda não possui documento fiscal registrado. A fila aparece assim que um documento for criado pela origem autorizada.`}
+            description={`A unidade selecionada ainda não possui documento fiscal registrado. A fila aparece assim que um documento for criado pela origem autorizada.`}
           />
         )
       ) : null}
@@ -567,7 +573,7 @@ function FiscalDocumentsList() {
                     <td className={`${moduleTableCellClass} whitespace-normal`}>{item.description}</td>
                     <td className={moduleTableCellClass}>{item.lastProtocolCode ?? '—'}</td>
                     <td className={moduleTableCellClass}>{NEXT_ACTION_FOR(item.status)}</td>
-                    <td className={moduleTableCellClass}>{item.unitId}</td>
+                    <td className={moduleTableCellClass}><UnitScopeLabel unitId={item.unitId} /></td>
                   </tr>
                 ))}
               </tbody>
