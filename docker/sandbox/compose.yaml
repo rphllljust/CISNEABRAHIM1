@@ -78,8 +78,12 @@ services:
       FEATURE_MODULE_SUPPLIERS: 'true'
       FEATURE_MODULE_CONTRACTS: 'true'
       FEATURE_MODULE_PEOPLE: 'true'
-      FEATURE_MODULE_RENTALS: 'true'
-      FEATURE_MODULE_TRANSPORT: 'true'
+      # rentals/transport são STUB comprovado (10 linhas, apenas filtro de archetype
+      # sobre a lista de OS) e pertencem a STUB_MODULES em
+      # apps/web/src/release-scope/feature-flags.ts, cuja política manda mantê-los
+      # DESLIGADOS em TODOS os ambientes até virarem produto. Estavam 'true' aqui.
+      FEATURE_MODULE_RENTALS: 'false'
+      FEATURE_MODULE_TRANSPORT: 'false'
       FEATURE_MODULE_ALERTS: 'true'
       FEATURE_MODULE_REPORTS: 'true'
       FEATURE_MODULE_APPROVAL_MATRIX: 'true'
