@@ -4,6 +4,7 @@ import { ConfirmDialog } from '../../clients/components/ConfirmDialog';
 import {
   EnterpriseObjectHeader,
   EnterpriseObjectPage,
+  NextActionPanel,
   ObjectContextBlock,
   ObjectPanel,
   ObjectStateFlow,
@@ -340,7 +341,11 @@ export function PurchaseOrderDetailPage() {
                   : undefined,
             }}
             metadata={metadata}
-            primaryAction={primaryAction}
+            /*
+             * A acao dominante vive no NextActionPanel (abaixo do fluxo), com o rotulo
+             * do que acontece AGORA. No cabecalho ela NAO se repete: a mesma acao duas
+             * vezes na primeira dobra e ruido, nao clareza.
+             */
             secondaryActions={secondaryActions}
             destructiveActions={destructiveActions}
           />
@@ -350,6 +355,39 @@ export function PurchaseOrderDetailPage() {
             steps={purchaseOrderStateSteps(po)}
             currentId={po.status}
             title="Fluxo do pedido de compra"
+          />
+        }
+        nextAction={
+          /*
+           * PROXIMA ACAO derivada do estado REAL + capability REAL, reusando a MESMA
+           * `primaryAction` do cabecalho: uma unica fonte de verdade para "o que fazer
+           * agora". Pedido cancelado ou ja registrado nao declara proximo passo — a
+           * secao desaparece em vez de inventar workflow.
+           */
+          <NextActionPanel
+            action={
+              po.status === PURCHASE_ORDER_STATUSES.Cancelled
+                ? null
+                : primaryAction
+                  ? {
+                      kind: 'act',
+                      label: primaryAction.label,
+                      description:
+                        primaryAction.id === 'register'
+                          ? 'O registro é decidido pelo servidor e libera o pedido para a execução.'
+                          : 'Complete os dados do pedido; o registro é validado pelo backend.',
+                      to: primaryAction.to,
+                      onSelect: primaryAction.onSelect,
+                    }
+                  : po.status === PURCHASE_ORDER_STATUSES.Registered
+                    ? {
+                        kind: 'waiting',
+                        label: 'Aguardar execução e faturamento',
+                        description:
+                          'O pedido está registrado; o andamento segue na cadeia de negócio.',
+                      }
+                    : null
+            }
           />
         }
         aside={
