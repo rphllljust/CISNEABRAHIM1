@@ -34,6 +34,14 @@ const ROUTES: Route[] = [
   { path: '/app/suppliers', profile: 'suppliers', label: 'Suprimentos · Fornecedores' },
   { path: '/app/inventory', profile: 'inventory', label: 'Estoque' },
   { path: '/app/proposals', profile: 'commercial', label: 'Comercial · Propostas' },
+  { path: '/app/work-inbox', profile: 'dashboard', label: 'WORKBENCH · Central de trabalho' },
+  { path: '/app/closing', profile: 'dashboard', label: 'WORKBENCH · Central de fechamento' },
+  /*
+    PARK_FIXTURE_GAP: Conciliacao exige `finance:reconciliation`, que o perfil `finance` do harness
+    NAO mocka — a tela responde "Acesso negado", que e o comportamento CORRETO do backend
+    (autorizacao fail-closed). Nao entra no aceite visual sob este perfil; a superficie continua
+    coberta pelos testes de unidade do modulo (`src/finance`).
+  */
 ];
 
 /**
@@ -49,7 +57,10 @@ async function measure(page: Page) {
       document.querySelector('[aria-label="Filtros da lista"]') ??
       document.querySelector('[aria-label="Filtros do relatório"]') ??
       document.querySelector('[aria-label="Filtros de alertas"]') ??
-      document.querySelector('[aria-label="Filtros de busca"]');
+      document.querySelector('[aria-label="Filtros de busca"]') ??
+      // Mesas de trabalho declaram o proprio rotulo de contexto de fila.
+      document.querySelector('[aria-label="Contexto da fila"]') ??
+      document.querySelector('[aria-label="Filtros da fila"]');
 
     const rowHeights = rows
       .map((r) => r.getBoundingClientRect().height)

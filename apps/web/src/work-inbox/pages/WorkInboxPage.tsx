@@ -2,7 +2,19 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ContextDrawer } from '../../operator';
 import { Button } from '../../ui/Button';
-import { ModulePage } from '../../ui/module-layout';
+import { ModulePage, ModulePageHeader } from '../../ui/module-layout';
+import { WorklistException } from '../../ui/enterprise-list';
+import {
+  OperationalUnitOptions,
+  useOperationalUnits,
+} from '../../shell/hooks/useOperationalUnits';
+import {
+  WorkbenchMetric,
+  WorkbenchQueue,
+  WorkbenchQueueItem,
+  WorkbenchSummaryStrip,
+  workbenchPrimaryActionClass,
+} from '../../ui/workbench';
 import { cn } from '../../ui/utils/cn';
 import {
   WORK_DOMAIN_LABELS,
@@ -20,8 +32,14 @@ import {
 /**
  * UNIFIED WORK INBOX — fila de trabalho real de todo o ERP.
  *
- * Nao e dashboard: e fila. Cada linha responde o que aconteceu, por que exige atencao,
- * qual e o objeto, quando, qual a acao e para onde ir.
+ * Nao e dashboard: e fila. A caixa abre por uma FAIXA DE RESUMO com os numeros reais publicados
+ * pelo servidor (total da fila, itens desta pagina e vencidos do recorte) e por uma FILA em que
+ * cada item responde, na mesma ordem de elementos de todas as filas do produto: severidade ->
+ * motivo (titulo) -> objeto (referencia humana) -> vencimento real -> proxima acao.
+ *
+ * Antes disso a fila era uma grade: a excecao operacional (atraso derivado do vencimento
+ * PERSISTIDO) ficava escondida dentro de uma coluna de tabela. Agora ela e o primeiro elemento
+ * lido na linha — sem score inventado e sem tarefa sintetica.
  *
  * - FILTROS SÃO URL-DRIVEN: o recorte vive na URL, entao recarregar, voltar e compartilhar
  *   o link preservam a fila. O contador por dominio e o proprio filtro: clicar em
@@ -75,6 +93,8 @@ export function daysOverdue(dueAt: string | null, now: Date = new Date()): numbe
 export function WorkInboxPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  /** Unidades autorizadas — alimenta o filtro de escopo em linguagem humana. */
+  const { options: unitOptions } = useOperationalUnits();
 
   const domain = parseDomain(searchParams.get('domain'));
   const kind = parseKind(searchParams.get('kind'));
@@ -162,29 +182,27 @@ export function WorkInboxPage() {
 
   return (
     <ModulePage>
-      <header className="mb-3 flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <h1 className="m-0 text-lg font-semibold text-gray-900">Central de trabalho</h1>
-          <p className="m-0 text-xs text-gray-500">
-            O que exige atenção agora, de todos os domínios — somente trabalho real.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {overdueItems.length > 0 ? (
-            <button
-              type="button"
-              onClick={() => updateParam('overdue', overdue ? null : 'true')}
-              aria-pressed={overdue}
-              className="rounded-md bg-red-50 px-2 py-1 text-xs font-semibold text-red-700 ring-1 ring-red-500/20 ring-inset hover:bg-red-100"
-            >
-              {overdueItems.length} vencido{overdueItems.length === 1 ? '' : 's'} neste recorte
-            </button>
-          ) : null}
-          <Button type="button" variant="secondary" onClick={() => void load()}>
-            Atualizar
-          </Button>
-        </div>
-      </header>
+      <ModulePageHeader
+        title="Central de trabalho"
+        description="O que exige atenção agora, de todos os domínios — somente trabalho real."
+        action={
+          <>
+            {overdueItems.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => updateParam('overdue', overdue ? null : 'true')}
+                aria-pressed={overdue}
+                className="rounded-md bg-red-50 px-2 py-1 text-xs font-semibold text-red-700 ring-1 ring-red-500/20 ring-inset hover:bg-red-100"
+              >
+                {overdueItems.length} vencido{overdueItems.length === 1 ? '' : 's'} neste recorte
+              </button>
+            ) : null}
+            <Button type="button" variant="secondary" onClick={() => void load()}>
+              Atualizar
+            </Button>
+          </>
+        }
+      />
 
       {page && page.unavailableDomains.length > 0 ? (
         <p
@@ -194,6 +212,23 @@ export function WorkInboxPage() {
           Fila incompleta: {page.unavailableDomains.join(', ')} não respondeu nesta leitura. Os
           demais domínios estão completos.
         </p>
+      ) : null}
+
+      {/*
+        RESUMO — so o que o servidor publicou: `total` do recorte, o tamanho desta pagina e os
+        vencidos do conjunto exibido. Nenhum numero e estimado e nenhuma faixa aparece antes de
+        existir resposta (durante a carga, zero seria invencao).
+      */}
+      {phase === 'ready' && page ? (
+        <WorkbenchSummaryStrip>
+          <WorkbenchMetric value={page.total} label="trabalhos na fila" />
+          <WorkbenchMetric value={items.length} label="nesta página" />
+          <WorkbenchMetric
+            value={overdueItems.length}
+            label="vencidos neste recorte"
+            tone={overdueItems.length > 0 ? 'critical' : 'neutral'}
+          />
+        </WorkbenchSummaryStrip>
       ) : null}
 
       {/* AGORA — contagem real por dominio, do MESMO conjunto que a fila exibe. Clicar aplica
@@ -237,14 +272,14 @@ export function WorkInboxPage() {
         })}
       </div>
 
-      <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+      <div className="mb-2 flex flex-wrap items-center gap-2 text-xs rounded-md border border-gray-200 bg-white px-2 py-1.5">
         <label className="flex items-center gap-1.5">
           <span className="text-gray-500">Natureza</span>
           <select
             aria-label="Natureza"
             value={kind ?? ''}
             onChange={(event) => updateParam('kind', event.target.value || null)}
-            className="rounded-md border-0 bg-white py-1 px-2 text-xs ring-1 ring-gray-300 ring-inset"
+            className="rounded border border-gray-300 bg-white py-1 px-2 text-xs outline-none focus:border-brand-500"
           >
             <option value="">Todas</option>
             {WORK_KINDS.map((candidate) => (
@@ -266,13 +301,28 @@ export function WorkInboxPage() {
 
         <label className="flex items-center gap-1.5">
           <span className="text-gray-500">Unidade</span>
-          <input
+          {/*
+            ESCOPO HUMANO — nunca "digite o código da unidade".
+
+            Este filtro era um `<input>` de texto com `placeholder="código da unidade"`: exigia que
+            o operador SOUBESSE o identificador interno de cor (em HML, um slug de ambiente como
+            `unit-synthetic-homolog`). Nenhuma superficie do CISNE pode pedir isso.
+
+            O `value` enviado a consulta continua sendo o identificador REAL, porque e o que a API
+            autoriza; o que sai e a digitacao dele. Mesmo primitivo de todas as outras telas
+            (`useOperationalUnits`), para o operador escolher pelo rotulo.
+          */}
+          <select
             aria-label="Unidade"
             value={unitId ?? ''}
             onChange={(event) => updateParam('unitId', event.target.value || null)}
-            placeholder="código da unidade"
-            className="w-40 rounded-md border-0 bg-white py-1 px-2 text-xs ring-1 ring-gray-300 ring-inset"
-          />
+            className="w-44 rounded border border-gray-300 bg-white py-1 px-2 text-xs outline-none focus:border-brand-500"
+          >
+            <OperationalUnitOptions
+              options={unitOptions}
+              includeAllLabel="Todas as unidades"
+            />
+          </select>
         </label>
       </div>
 
@@ -288,79 +338,62 @@ export function WorkInboxPage() {
         </p>
       ) : null}
 
-      {phase === 'ready' && items.length === 0 ? (
-        <p className="rounded-md bg-white px-4 py-6 text-sm text-gray-600 ring-1 ring-gray-900/5">
-          Nenhum trabalho real neste recorte. A fila não inventa pendência para parecer cheia.
-        </p>
-      ) : null}
-
-      {items.length > 0 ? (
-        <div className="overflow-x-auto rounded-lg bg-white shadow-sm ring-1 ring-gray-900/5">
-          <table className="w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50/60">
-              <tr>
-                <th className="px-3 py-2 text-left text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
-                  Objeto
-                </th>
-                <th className="px-3 py-2 text-left text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
-                  Motivo
-                </th>
-                <th className="px-3 py-2 text-left text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
-                  Vencimento
-                </th>
-                <th className="px-3 py-2 text-left text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
-                  Ação
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {items.map((item) => {
-                const late = daysOverdue(item.dueAt);
-                return (
-                <tr key={item.id} className="hover:bg-gray-50">
-                  <td className="px-3 py-2 align-top">
+      {/*
+        A FILA. `count` e o tamanho REAL do conjunto exibido; com zero itens o proprio componente
+        publica o estado vazio compacto — nada de paragrafo solto no meio da pagina.
+      */}
+      {phase === 'ready' ? (
+        <WorkbenchQueue
+          title="Fila de trabalho"
+          count={items.length}
+          description="Ordenada pelo servidor por domínio. O atraso é derivado do vencimento persistido, não de score."
+          emptyTitle="Nenhum trabalho real neste recorte."
+          emptyDescription="A fila não inventa pendência para parecer cheia."
+        >
+          {items.map((item) => {
+            const late = daysOverdue(item.dueAt);
+            return (
+              <WorkbenchQueueItem
+                key={item.id}
+                severity={
+                  late !== null ? (
+                    <WorklistException tone="critical">
+                      {late} dia{late === 1 ? '' : 's'} em atraso
+                    </WorklistException>
+                  ) : (
+                    <WorklistException tone="info">{item.status}</WorklistException>
+                  )
+                }
+                severityTone={late !== null ? 'critical' : 'info'}
+                title={item.title}
+                reason={item.reason}
+                context={
+                  <>
                     <button
                       type="button"
                       onClick={() => setSelected(item)}
-                      className="text-left text-sm font-semibold text-brand-700 hover:text-brand-800"
+                      className="text-xs font-semibold text-brand-700 hover:text-brand-800"
                     >
                       {item.businessReference}
                     </button>
-                    <p className="m-0 text-[11px] text-gray-500">
+                    <span className="ml-3">
                       {WORK_DOMAIN_LABELS[item.domain]} · {WORK_KIND_LABELS[item.kind]}
-                    </p>
-                  </td>
-                  <td className="px-3 py-2 align-top">
-                    <p className="m-0 text-[13px] text-gray-800">{item.title}</p>
-                    <p className="m-0 text-[11px] text-gray-500">{item.reason}</p>
+                    </span>
                     {item.contextLabel ? (
-                      <p className="m-0 text-[11px] text-gray-500">{item.contextLabel}</p>
+                      <span className="ml-3">{item.contextLabel}</span>
                     ) : null}
-                  </td>
-                  <td className="px-3 py-2 align-top text-[12px] text-gray-700 tabular-nums">
-                    {/* A excecao fica VISIVEL na fila, nao escondida dentro da tabela. */}
-                    {late !== null ? (
-                      <span className="inline-flex items-center rounded bg-red-50 px-1.5 py-0.5 text-[11px] font-semibold text-red-700 ring-1 ring-red-500/20 ring-inset">
-                        {late} dia{late === 1 ? '' : 's'} em atraso
-                      </span>
-                    ) : (
-                      formatMoment(item.dueAt)
-                    )}
-                  </td>
-                  <td className="px-3 py-2 align-top">
-                    <Link
-                      to={item.targetRoute}
-                      className="text-xs font-semibold text-brand-700 no-underline hover:text-brand-800"
-                    >
-                      {item.actionLabel}
-                    </Link>
-                  </td>
-                </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                  </>
+                }
+                age={<>Vencimento {formatMoment(item.dueAt)}</>}
+                action={
+                  <Link className={workbenchPrimaryActionClass} to={item.targetRoute}>
+                    {item.actionLabel}
+                  </Link>
+                }
+              />
+            );
+          })}
+        </WorkbenchQueue>
       ) : null}
 
       {page && page.totalPages > 1 ? (
