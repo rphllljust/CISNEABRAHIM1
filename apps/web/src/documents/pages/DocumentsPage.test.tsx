@@ -100,7 +100,12 @@ describe('DocumentsPage', () => {
     expect(cells.getByText('Evidência · Interno')).toBeInTheDocument();
     expect(cells.getByText('Ativo')).toBeInTheDocument();
     expect(cells.getByText('v1')).toBeInTheDocument();
-    expect(cells.getByText('unit-synthetic-homolog')).toBeInTheDocument();
+    // PROVA NEGATIVA OBRIGATORIA: o identificador tecnico da unidade NAO aparece.
+    // O payload so devolve `unitId`; a superficie operacional mostra o recorte, nao o
+    // slug interno. Ver PARK registrado: nome humano da unidade no documento.
+    expect(cells.queryByText('unit-synthetic-homolog')).not.toBeInTheDocument();
+    expect(screen.queryByText('unit-synthetic-homolog')).not.toBeInTheDocument();
+    expect(cells.getByText('No seu escopo autorizado')).toBeInTheDocument();
     for (const header of ['Documento', 'Situação', 'Versão', 'Unidade', 'Atualizado', 'Arquivo']) {
       expect(within(table).getByRole('columnheader', { name: header })).toBeInTheDocument();
     }

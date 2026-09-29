@@ -9,7 +9,6 @@ import {
   DataTableRow,
 } from '../../ui/DataTable';
 import {
-  ModuleCodeCell,
   ModuleDeniedState,
   ModuleErrorState,
   ModuleLoadingState,
@@ -416,11 +415,17 @@ export function DocumentsPage() {
                     {formatDocumentVersion(item.currentVersionNumber)}
                   </DataTableCell>
                   <DataTableCell>
-                    {/* Identificador tecnico da unidade: exibido como codigo (e nao como nome) porque
-                        nenhum nome humano existe no contrato. Ver registro de execucao — Fase 2. */}
-                    <ModuleCodeCell>
-                      <span title={item.unitId}>{item.unitId}</span>
-                    </ModuleCodeCell>
+                    {/*
+                      UNIDADE — nenhum identificador tecnico vai para a superficie
+                      operacional. O payload de documentos expoe apenas `unitId`, e nao
+                      existe lookup autorizado de nome de unidade publicado hoje; a
+                      leitura do recorte aparece como ESCOPO, nao como codigo interno.
+                      Quando o backend publicar o rotulo humano, e so trocar aqui.
+                      PARK registrado: nome humano da unidade no documento.
+                    */}
+                    <span className="text-xs text-gray-600">
+                      {item.unitId ? 'No seu escopo autorizado' : 'Sem unidade informada'}
+                    </span>
                   </DataTableCell>
                   <DataTableCell
                     className="whitespace-nowrap text-gray-600 tabular-nums"

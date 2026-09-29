@@ -30,6 +30,26 @@ import {
 
 const PAGE_SIZE = 20;
 
+/**
+ * PROXIMA ACAO derivada do estado REAL da definicao.
+ *
+ * Nao ha transicao nova aqui: a leitura usa apenas o que a listagem ja devolve
+ * (versao publicada e rascunho corrente). Sem fato que sustente um proximo passo, a
+ * celula fica vazia — nao se inventa tarefa para preencher coluna.
+ */
+export function resolveCatalogNextAction(definition: {
+  latestPublishedVersion: number | null;
+  currentDraftVersion: number | null;
+}): string {
+  if (definition.currentDraftVersion !== null) {
+    return 'Concluir e publicar o rascunho';
+  }
+  if (definition.latestPublishedVersion === null) {
+    return 'Criar a primeira versão';
+  }
+  return 'Revisar ou inativar';
+}
+
 type VersionFilter = '' | 'HAS_DRAFT' | 'HAS_PUBLISHED' | 'NO_PUBLISHED';
 
 type ListState =
@@ -217,9 +237,27 @@ export function ServiceDefinitionsListPage() {
         </div>
       </FilterCard>
 
+      {/*
+        RECORTE DE VERSAO E LOCAL, NAO DO SERVIDOR.
+        O contrato de `/catalog/service-definitions` publica apenas `status` e `q`
+        (ver `ListServiceDefinitionsParams`). Nao existe filtro de versao publicado, e
+        recortar no navegador uma lista paginada no servidor mentiria: um servico com
+        rascunho na proxima pagina apareceria como inexistente.
+        A tela declara o escopo em vez de esconder a limitacao — PARK registrado:
+        filtro de versao no servidor.
+      */}
+      {listState.phase === 'ready' && listState.items.length > 0 ? (
+        <p className="mb-2 text-xs text-gray-500" role="status">
+          {filteredItems.length} de {listState.items.length} nesta página
+          {versionFilter ? ' · o recorte de versão vale apenas para esta página' : ''}
+        </p>
+      ) : null}
+
       {filteredItems.length === 0 ? (
         <p className="text-sm text-gray-500" role="status">
-          Nenhuma definição encontrada para os filtros selecionados.
+          {versionFilter
+            ? 'Nenhuma definição nesta página corresponde ao recorte de versão. O recorte de versão ainda não é resolvido pelo servidor — avance a página ou limpe o filtro.'
+            : 'Nenhuma definição encontrada para os filtros selecionados.'}
         </p>
       ) : (
         <ModuleTableCard>
@@ -240,6 +278,9 @@ export function ServiceDefinitionsListPage() {
                 </th>
                 <th scope="col" className={moduleTableHeaderCellClass}>
                   Rascunho
+                </th>
+                <th scope="col" className={moduleTableHeaderCellClass}>
+                  Próxima ação
                 </th>
               </tr>
             </thead>
@@ -262,10 +303,39 @@ export function ServiceDefinitionsListPage() {
                     <ServiceDefinitionStatusBadge status={definition.status} />
                   </td>
                   <td className={moduleTableCellClass}>
-                    {definition.latestPublishedVersion ?? '—'}
+                    {/*
+                      Versao com CONTEXTO, nao um numero solto: "v3" e a versao vigente
+                      publicada; ausencia e declarada como "Sem publicação", que e um
+                      fato do ciclo de vida — nao um traco mudo repetido na coluna.
+                    */}
+                    {definition.latestPublishedVersion !== null ? (
+                      <span className="text-sm text-gray-800">
+                        v{definition.latestPublishedVersion}
+                        <span className="ml-1 text-xs text-gray-500">vigente</span>
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-500">Sem publicação</span>
+                    )}
                   </td>
                   <td className={moduleTableCellClass}>
-                    {definition.currentDraftVersion ?? '—'}
+                    {definition.currentDraftVersion !== null ? (
+                      <span className="text-sm text-amber-800">
+                        v{definition.currentDraftVersion}
+                        <span className="ml-1 text-xs text-amber-700">em edição</span>
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className={moduleTableCellClass}>
+                    {/*
+                      Proxima acao derivada do ESTADO REAL da definicao: sem versao
+                      publicada o trabalho e publicar; com rascunho aberto o trabalho e
+                      concluir a edicao; publicado e estavel nao declara acao.
+                    */}
+                    <span className="text-xs text-gray-600">
+                      {resolveCatalogNextAction(definition)}
+                    </span>
                   </td>
                 </tr>
               ))}

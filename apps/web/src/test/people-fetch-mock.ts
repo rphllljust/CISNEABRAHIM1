@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 import { parseRequestPath } from './request-url';
-import { PERSON_STATUSES, type Person } from '../people/types/person.types';
+import { PERSON_STATUSES, type Person, type PersonStatus } from '../people/types/person.types';
 import { createShellFetchMock } from './shell-fetch-mock';
 
 export type PeopleFetchMockOptions = {
@@ -12,6 +12,19 @@ export type PeopleFetchMockOptions = {
   personActivateAllowed?: boolean;
   personCreateError?: { code: string; status: number };
   laborTypes?: Array<{ code: string; name: string }>;
+  /**
+   * Linhas devolvidas pela listagem. Quando informado, SUBSTITUI a pessoa de exemplo:
+   * a busca e o recorte por funcao precisam de conjunto proprio para provar que o
+   * filtro e do servidor e nao uma mascara sobre uma linha unica.
+   */
+  seed?: Array<{
+    legalName: string;
+    memberCode: string;
+    preferredName?: string | null;
+    defaultLaborTypeCode?: string | null;
+    status?: PersonStatus;
+    serviceOrderAllocationSupported?: boolean;
+  }>;
 };
 
 function personError(code: string, status: number): Response {
@@ -39,24 +52,42 @@ export function createPeopleFetchMock(options: PeopleFetchMockOptions = {}) {
   const activateAllowed = options.personActivateAllowed ?? true;
   const laborTypes = options.laborTypes ?? [{ code: 'OPERATOR', name: 'Operador' }];
 
-  const store: Person[] = [
-    {
-      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-      memberCode: 'PSN-000001',
-      legalName: 'Pessoa Demo Sintética',
-      preferredName: 'Demo',
-      defaultLaborTypeCode: 'OPERATOR',
-      defaultLaborTypeName: 'Operador',
-      externalErpId: null,
-      status: PERSON_STATUSES.Active,
-      version: 1,
-      createdAt: '2026-01-01T12:00:00.000Z',
-      updatedAt: '2026-01-01T12:00:00.000Z',
-      deactivatedAt: null,
-      deactivationReason: null,
-      serviceOrderAllocationSupported: false,
-    },
-  ];
+  const store: Person[] = options.seed
+    ? options.seed.map((entry, index) => ({
+        id: `cccccccc-cccc-4ccc-8ccc-${String(index).padStart(12, '0')}`,
+        memberCode: entry.memberCode,
+        legalName: entry.legalName,
+        preferredName: entry.preferredName ?? null,
+        defaultLaborTypeCode: entry.defaultLaborTypeCode ?? null,
+        defaultLaborTypeName:
+          laborTypes.find((type) => type.code === entry.defaultLaborTypeCode)?.name ?? null,
+        externalErpId: null,
+        status: entry.status ?? PERSON_STATUSES.Active,
+        version: 1,
+        createdAt: '2026-01-01T12:00:00.000Z',
+        updatedAt: '2026-01-01T12:00:00.000Z',
+        deactivatedAt: null,
+        deactivationReason: null,
+        serviceOrderAllocationSupported: entry.serviceOrderAllocationSupported ?? false,
+      }))
+    : [
+        {
+          id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+          memberCode: 'PSN-000001',
+          legalName: 'Pessoa Demo Sintética',
+          preferredName: 'Demo',
+          defaultLaborTypeCode: 'OPERATOR',
+          defaultLaborTypeName: 'Operador',
+          externalErpId: null,
+          status: PERSON_STATUSES.Active,
+          version: 1,
+          createdAt: '2026-01-01T12:00:00.000Z',
+          updatedAt: '2026-01-01T12:00:00.000Z',
+          deactivatedAt: null,
+          deactivationReason: null,
+          serviceOrderAllocationSupported: false,
+        },
+      ];
 
   return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const { pathname, searchParams } = parseRequestPath(input);
@@ -79,8 +110,32 @@ export function createPeopleFetchMock(options: PeopleFetchMockOptions = {}) {
         return personError('PERSON_DENIED', 403);
       }
       const status = searchParams.get('status');
-      const items = status ? store.filter((person) => person.status === status) : store;
-      return jsonResponse({ items, limit: 20, offset: 0 });
+      const q = searchParams.get('q');
+      const laborType = searchParams.get('defaultLaborTypeCode');
+      const offset = Number(searchParams.get('offset') ?? '0') || 0;
+      const limit = Number(searchParams.get('limit') ?? '20') || 20;
+      /*
+       * RECORTE NO SERVIDOR, como a API real faz. Um mock que ignorasse `q` e
+       * `defaultLaborTypeCode` faria a tela passar com filtro que o servidor nunca
+       * aplicou — mascarando exatamente o comportamento sob teste.
+       */
+      let items = store;
+      if (status) {
+        items = items.filter((person) => person.status === status);
+      }
+      if (laborType) {
+        items = items.filter((person) => person.defaultLaborTypeCode === laborType);
+      }
+      if (q) {
+        const needle = q.toLowerCase();
+        items = items.filter(
+          (person) =>
+            person.legalName.toLowerCase().includes(needle) ||
+            (person.preferredName ?? '').toLowerCase().includes(needle) ||
+            person.memberCode.toLowerCase().includes(needle),
+        );
+      }
+      return jsonResponse({ items: items.slice(offset, offset + limit), limit, offset });
     }
 
     if (pathname === '/api/v1/people' && method === 'POST') {

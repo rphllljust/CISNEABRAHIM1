@@ -193,11 +193,37 @@ export function readDocumentLabels(snapshot: Record<string, unknown> | null | un
     .filter((value): value is string => Boolean(value?.trim()));
 }
 
+/**
+ * ETAPAS DO PROCESSO — o que EXISTE e o que ainda nao existe.
+ *
+ * CORRECAO DE VERDADE DE PRODUTO: "Contas a receber" estava listado aqui como
+ * INDISPONIVEL. Isso era falso — o backend cria o recebivel a partir do documento
+ * de faturamento e a cadeia de negocio ja o devolve como no a jusante
+ * (`BILLING_DOCUMENT` -> `RECEIVABLE`), com tela propria em
+ * `/app/finance/receivables`. Declarar indisponivel o que existe e a contradicao
+ * que a auditoria apontou.
+ *
+ * O que continua fora: emissao fiscal OFICIAL (NF-e/NFS-e) e liquidacao/
+ * conciliacao por este fluxo. Isso permanece explicitamente separado.
+ */
 export const BILLING_FUTURE_PROCESS_STEPS = [
   { id: 'official_fiscal', label: 'Emissão fiscal oficial (NF-e/NFS-e)', available: false },
-  { id: 'receivable', label: 'Contas a receber', available: false },
-  { id: 'settlement', label: 'Liquidação financeira', available: false },
+  { id: 'settlement', label: 'Liquidação e conciliação por este fluxo', available: false },
 ] as const;
+
+/**
+ * ETAPAS REAIS DO PROCESSO — a cadeia que o produto de fato executa hoje.
+ * Medição aprovada -> Preparação -> Documento interno -> Recebível.
+ */
+export const BILLING_PROCESS_STEPS = [
+  { id: 'measurement', label: 'Medição aprovada' },
+  { id: 'preparation', label: 'Preparação da cobrança' },
+  { id: 'document', label: 'Nota Fatura (documento interno)' },
+  { id: 'receivable', label: 'Recebível' },
+] as const;
+
+/** O recebivel existe como etapa real do processo, com destino proprio. */
+export const BILLING_RECEIVABLE_HREF = '/app/finance/receivables';
 
 export function groupWorkQueueByBucket(
   items: BillingWorkQueueItem[],

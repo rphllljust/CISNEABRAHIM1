@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { mapBillingErrorToMessage } from '../api/billing-error-messages';
 import { useBillingCapabilities } from '../hooks/useBillingCapabilities';
 import { BillingProcessBoard } from '../components/BillingProcessBoard';
-import { BILLING_FUTURE_PROCESS_STEPS } from '../utils/billing-process';
+import { BILLING_FUTURE_PROCESS_STEPS, BILLING_PROCESS_STEPS, BILLING_RECEIVABLE_HREF } from '../utils/billing-process';
 import { loadBillingWorkQueue } from '../utils/billing-work-queue';
 import type { BillingWorkQueueItem } from '../types/billing.types';
 import { ServiceOrdersApiError } from '../../service-orders/api/service-orders-api';
@@ -98,8 +98,36 @@ export function BillingDashboardPage() {
         </p>
       </header>
 
-      <section className="billing-future-steps" aria-label="Etapas futuras do processo">
-        <h2 className="billing-future-steps__title">Etapas ainda não disponíveis</h2>
+      {/*
+        CADEIA REAL DO PROCESSO — o que o produto EXECUTA hoje. Cada etapa leva ao
+        objeto que a representa. Antes esta area declarava "Contas a receber" como
+        indisponivel, o que era falso: o recebivel e criado a partir do documento
+        interno e tem tela propria.
+      */}
+      <nav className="billing-process-chain" aria-label="Etapas do processo de faturamento">
+        <ol className="billing-process-chain__list">
+          {BILLING_PROCESS_STEPS.map((step, index) => (
+            <li key={step.id} className="billing-process-chain__item">
+              <span className="billing-process-chain__index" aria-hidden>
+                {index + 1}
+              </span>
+              {step.id === 'receivable' ? (
+                <Link to={BILLING_RECEIVABLE_HREF}>{step.label}</Link>
+              ) : (
+                <span>{step.label}</span>
+              )}
+              {index < BILLING_PROCESS_STEPS.length - 1 ? (
+                <span className="billing-process-chain__arrow" aria-hidden>
+                  →
+                </span>
+              ) : null}
+            </li>
+          ))}
+        </ol>
+      </nav>
+
+      <section className="billing-future-steps" aria-label="Etapas fora deste fluxo">
+        <h2 className="billing-future-steps__title">Fora deste fluxo</h2>
         <ul className="billing-future-steps__list">
           {BILLING_FUTURE_PROCESS_STEPS.map((step) => (
             <li key={step.id} className="billing-future-steps__item" aria-disabled="true">
