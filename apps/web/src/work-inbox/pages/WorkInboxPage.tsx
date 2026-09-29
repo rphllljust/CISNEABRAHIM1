@@ -51,6 +51,27 @@ function formatMoment(value: string | null): string {
   return date.toLocaleDateString('pt-BR');
 }
 
+/**
+ * Dias de atraso a partir do `dueAt` PERSISTIDO.
+ *
+ * Nao ha score, prioridade nem criticidade inventada: a unica excecao afirmada aqui
+ * e a que o proprio dado sustenta — o item tem vencimento e ele ja passou. Sem
+ * `dueAt`, nao ha atraso a declarar.
+ */
+export function daysOverdue(dueAt: string | null, now: Date = new Date()): number | null {
+  if (!dueAt) {
+    return null;
+  }
+  const due = new Date(dueAt);
+  if (Number.isNaN(due.getTime())) {
+    return null;
+  }
+  const startOfDay = (value: Date) =>
+    Date.UTC(value.getFullYear(), value.getMonth(), value.getDate());
+  const diffDays = Math.floor((startOfDay(now) - startOfDay(due)) / 86_400_000);
+  return diffDays > 0 ? diffDays : null;
+}
+
 export function WorkInboxPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -133,6 +154,11 @@ export function WorkInboxPage() {
   }
 
   const items = page?.items ?? [];
+  /*
+   * EXCECOES DO RECORTE ATUAL — contadas do MESMO conjunto exibido, a partir do
+   * vencimento persistido. Nao ha priorizacao inventada: "vencido" e um fato do dado.
+   */
+  const overdueItems = items.filter((item) => daysOverdue(item.dueAt) !== null);
 
   return (
     <ModulePage>
@@ -144,6 +170,16 @@ export function WorkInboxPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {overdueItems.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => updateParam('overdue', overdue ? null : 'true')}
+              aria-pressed={overdue}
+              className="rounded-md bg-red-50 px-2 py-1 text-xs font-semibold text-red-700 ring-1 ring-red-500/20 ring-inset hover:bg-red-100"
+            >
+              {overdueItems.length} vencido{overdueItems.length === 1 ? '' : 's'} neste recorte
+            </button>
+          ) : null}
           <Button type="button" variant="secondary" onClick={() => void load()}>
             Atualizar
           </Button>
@@ -278,7 +314,9 @@ export function WorkInboxPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {items.map((item) => (
+              {items.map((item) => {
+                const late = daysOverdue(item.dueAt);
+                return (
                 <tr key={item.id} className="hover:bg-gray-50">
                   <td className="px-3 py-2 align-top">
                     <button
@@ -300,7 +338,14 @@ export function WorkInboxPage() {
                     ) : null}
                   </td>
                   <td className="px-3 py-2 align-top text-[12px] text-gray-700 tabular-nums">
-                    {formatMoment(item.dueAt)}
+                    {/* A excecao fica VISIVEL na fila, nao escondida dentro da tabela. */}
+                    {late !== null ? (
+                      <span className="inline-flex items-center rounded bg-red-50 px-1.5 py-0.5 text-[11px] font-semibold text-red-700 ring-1 ring-red-500/20 ring-inset">
+                        {late} dia{late === 1 ? '' : 's'} em atraso
+                      </span>
+                    ) : (
+                      formatMoment(item.dueAt)
+                    )}
                   </td>
                   <td className="px-3 py-2 align-top">
                     <Link
@@ -311,7 +356,8 @@ export function WorkInboxPage() {
                     </Link>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -359,6 +405,13 @@ export function WorkInboxPage() {
                   { label: 'Motivo', value: selected.reason },
                   { label: 'Contexto', value: selected.contextLabel || '—' },
                   { label: 'Vencimento', value: formatMoment(selected.dueAt) },
+                  {
+                    label: 'Exceção',
+                    value:
+                      daysOverdue(selected.dueAt) !== null
+                        ? `${daysOverdue(selected.dueAt)} dia(s) em atraso`
+                        : null,
+                  },
                   { label: 'Unidade', value: selected.unitId ?? '—' },
                 ],
                 nextAction: {

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { tokenStore } from '../auth/storage/token-store';
 import { renderWithProviders } from '../test/render-with-providers';
 import type { WorkInboxPage as WorkInboxPageData } from './api/work-inbox-api';
-import { WorkInboxPage } from './pages/WorkInboxPage';
+import { WorkInboxPage, daysOverdue } from './pages/WorkInboxPage';
 
 /**
  * WORK INBOX — comportamento da superficie.
@@ -172,5 +172,46 @@ describe('central de trabalho', () => {
       expect(screen.getByRole('alert')).toHaveTextContent(/Não foi possível carregar a fila/);
     });
     expect(screen.queryByText(/Nenhum trabalho real neste recorte/)).not.toBeInTheDocument();
+  });
+
+  /*
+   * EXCECAO OPERACIONAL — o atraso e derivado do vencimento PERSISTIDO, nao de um
+   * score ou prioridade inventada. Sem `dueAt`, nao ha atraso a declarar.
+   */
+  it('marca o atraso a partir do vencimento persistido, sem inventar prioridade', async () => {
+    mockFetch(jsonResponse(pageData()));
+    renderWithProviders(<WorkInboxPage />, { router: { initialEntries: ['/app/work-inbox'] } });
+
+    await waitFor(() => {
+      expect(screen.getByText(/em atraso/)).toBeInTheDocument();
+    });
+    // O atraso aparece na LINHA da fila, nao escondido dentro de uma tabela.
+    const row = screen.getByRole('row', { name: /NF-2026-000005/ });
+    expect(within(row).getByText(/em atraso/)).toBeInTheDocument();
+  });
+
+  it('nao declara atraso quando o item nao tem vencimento persistido', async () => {
+    const base = pageData();
+    mockFetch(
+      jsonResponse({
+        ...base,
+        items: [{ ...base.items[0]!, dueAt: null }],
+      }),
+    );
+    renderWithProviders(<WorkInboxPage />, { router: { initialEntries: ['/app/work-inbox'] } });
+
+    await waitFor(() => {
+      expect(screen.getByText('NF-2026-000005')).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/em atraso/)).not.toBeInTheDocument();
+  });
+
+  it('daysOverdue so afirma atraso com vencimento real no passado', () => {
+    const now = new Date('2026-10-01T12:00:00.000Z');
+    expect(daysOverdue(null, now)).toBeNull();
+    expect(daysOverdue('nao-e-data', now)).toBeNull();
+    // Vencimento no futuro e hoje NAO sao atraso.
+    expect(daysOverdue('2026-10-10T10:00:00.000Z', now)).toBeNull();
+    expect(daysOverdue('2026-10-01T08:00:00.000Z', now)).toBeNull();
   });
 });
