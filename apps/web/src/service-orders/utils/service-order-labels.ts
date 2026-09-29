@@ -141,6 +141,17 @@ export function formatServiceOrderStatus(status: ServiceOrderStatus): string {
   return STATUS_LABELS[status] ?? status;
 }
 
+/**
+ * Rotulo HUMANO de um estado do ciclo da ORDEM.
+ *
+ * O status da medicao e do faturamento chega do Operations Control Center como texto
+ * do dominio dono: um valor que esta tabela nao conhece e devolvido COMO VEIO, nunca
+ * traduzido por adivinhacao nem escondido atras de um placeholder.
+ */
+export function toHumanStatusLabel(status: string): string {
+  return STATUS_LABELS[status as ServiceOrderStatus] ?? status;
+}
+
 export function formatDateTime(value: string): string {
   return new Intl.DateTimeFormat('pt-BR', {
     dateStyle: 'short',

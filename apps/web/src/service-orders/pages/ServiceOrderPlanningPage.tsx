@@ -34,11 +34,11 @@ import { OperationsControlCenter } from '../components/OperationsControlCenter';
 import { SERVICE_ORDER_STATUS_TONES } from '../components/ServiceOrderStatusBadge';
 import { useServiceOrderPlanningCapabilities } from '../hooks/useServiceOrderPlanningCapabilities';
 import { PLANNED_RESOURCE_KINDS, type PlannedResource, type ResourceAllocation } from '../types/resource-planning.types';
-import { SERVICE_ORDER_STATUSES, type ServiceOrderDetail } from '../types/service-order.types';
+import { SERVICE_ORDER_STATUSES, type ServiceOrderDetail, type ServiceOrderStatus } from '../types/service-order.types';
 import { buildRequirementCoverage } from '../utils/planning-aggregates';
 import { buildServiceOrdersListHref } from '../utils/service-order-list-params';
 import { resolveServiceOrderNextAction } from '../utils/service-order-next-action';
-import { formatServiceOrderStatus } from '../utils/service-order-labels';
+import { formatServiceOrderStatus, toHumanStatusLabel } from '../utils/service-order-labels';
 import {
   buildServiceOrderContextFields,
   buildServiceOrderHistoryFacts,
@@ -60,6 +60,68 @@ type PageState =
       planned: PlannedResource[];
       allocations: ResourceAllocation[];
     };
+
+/**
+ * EXCECAO DA ORDEM, no topo e SO quando existe FATO.
+ *
+ * Nenhum score, nenhuma prioridade artificial. Cada linha e um estado verificavel do
+ * payload autorizado:
+ *  - requisito planejado sem alocacao ativa (o trabalho nao tem recurso);
+ *  - execucao iniciada sem alocacao registrada;
+ *  - medicao pendente com execucao em curso;
+ *  - medicao registrada e faturamento ainda nao preparado.
+ *
+ * Sem excecao real o componente NAO RENDERIZA: nao se reserva area para dizer
+ * "esta tudo bem".
+ */
+export function ServiceOrderAttentionStrip({
+  status,
+  awaitingAllocation,
+  plannedCount,
+  activeAllocationCount,
+  measurementCount,
+  billingCount,
+}: {
+  status: ServiceOrderStatus;
+  awaitingAllocation: PlannedResource | null;
+  plannedCount: number;
+  activeAllocationCount: number;
+  measurementCount: number | null;
+  billingCount: number | null;
+}) {
+  const exceptions: string[] = [];
+
+  if (status === SERVICE_ORDER_STATUSES.InExecution && activeAllocationCount === 0) {
+    exceptions.push('Execução iniciada sem nenhuma alocação ativa registrada.');
+  } else if (awaitingAllocation && activeAllocationCount < plannedCount) {
+    exceptions.push(
+      `${plannedCount - activeAllocationCount} requisito(s) planejado(s) ainda sem alocação ativa.`,
+    );
+  }
+
+  if (status === SERVICE_ORDER_STATUSES.InExecution && measurementCount === 0) {
+    exceptions.push('Em execução sem nenhuma medição registrada.');
+  }
+
+  if (measurementCount !== null && measurementCount > 0 && billingCount === 0) {
+    exceptions.push('Há medição registrada e nenhum faturamento preparado.');
+  }
+
+  if (exceptions.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="so-attention" role="alert" aria-label="Exceções da ordem de serviço">
+      <span className="so-attention__title">Atenção</span>
+      <ul className="so-attention__list">
+        {exceptions.map((exception) => (
+          <li key={exception}>{exception}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 function formatPersonLabel(person: Person): string {
   const name = person.preferredName || person.legalName;
@@ -564,6 +626,22 @@ export function ServiceOrderPlanningPage() {
     { label: order.orderNumber },
   ];
 
+  /*
+   * FAIXA OPERACIONAL DA PRIMEIRA DOBRA.
+   *
+   * O gestor precisa responder OS/cliente/servico/status/responsavel/agenda/proxima
+   * acao/processo/planejado x realizado/medicao/faturamento SEM ROLAR. Antes, o
+   * Planejado x Realizado e o Medicao/Faturamento viviam ~2.5 mil pixels abaixo do
+   * topo: a informacao existia e nao chegava a primeira leitura.
+   *
+   * Tudo aqui vem do MESMO payload ja autorizado (Operations Control Center). Nada e
+   * recalculado no front e nada e inventado: quando o bloco nao autorizado chega
+   * zerado, o fato e OMITIDO em vez de exibir 0, exatamente como o dominio faz.
+   */
+  const downstream = controlCenter?.downstream;
+  const plannedVsActual = controlCenter?.plannedVsActual;
+  const executionLabel = nextAction?.label ?? 'Sem próximo passo declarado';
+
   return (
     <main id="main-content" className="shell-page planning-page">
       <EnterpriseObjectPage
@@ -605,6 +683,68 @@ export function ServiceOrderPlanningPage() {
           </ObjectPanel>
         }
       >
+        {/*
+          EXCECAO PRIMEIRO: so aparece quando existe FATO. Sem excecao real, a faixa
+          inteira desaparece — nao se reserva area para dizer "esta tudo bem".
+        */}
+        <ServiceOrderAttentionStrip
+          status={order.status}
+          awaitingAllocation={awaitingAllocation ?? null}
+          plannedCount={planned.length}
+          activeAllocationCount={activeAllocations.length}
+          measurementCount={downstream?.measurement.count ?? null}
+          billingCount={downstream?.billing.count ?? null}
+        />
+
+        {/*
+          PLANEJADO x REALIZADO E ESTAGIOS A JUSANTE, na primeira dobra. Leitura direta
+          do payload autorizado: nenhum numero e somado ou derivado no navegador.
+        */}
+        <section className="so-strip" aria-label="Situação operacional da ordem">
+          <div className="so-strip__metrics">
+            <div className="so-strip__metric">
+              <span className="so-strip__label">Planejado</span>
+              <span className="so-strip__value">{planned.length}</span>
+              <span className="so-strip__hint">itens planejados</span>
+            </div>
+            <div className="so-strip__metric">
+              <span className="so-strip__label">Alocado</span>
+              <span className="so-strip__value">{activeAllocations.length}</span>
+              <span className="so-strip__hint">alocações ativas</span>
+            </div>
+            <div className="so-strip__metric">
+              <span className="so-strip__label">Execuções</span>
+              <span className="so-strip__value">{plannedVsActual?.executionEntries ?? 0}</span>
+              <span className="so-strip__hint">apontamentos registrados</span>
+            </div>
+            {downstream && downstream.measurement.count !== null ? (
+              <div className="so-strip__metric">
+                <span className="so-strip__label">Medições</span>
+                <span className="so-strip__value">{downstream.measurement.count}</span>
+                <span className="so-strip__hint">
+                  {downstream.measurement.status
+                    ? toHumanStatusLabel(downstream.measurement.status)
+                    : 'sem status informado'}
+                </span>
+              </div>
+            ) : null}
+            {downstream && downstream.billing.count !== null ? (
+              <div className="so-strip__metric">
+                <span className="so-strip__label">Faturamento</span>
+                <span className="so-strip__value">{downstream.billing.count}</span>
+                <span className="so-strip__hint">
+                  {downstream.billing.status
+                    ? toHumanStatusLabel(downstream.billing.status)
+                    : 'sem status informado'}
+                </span>
+              </div>
+            ) : null}
+          </div>
+          <p className="so-strip__next">
+            <span className="so-strip__next-label">Próxima ação</span>
+            <strong>{executionLabel}</strong>
+          </p>
+        </section>
         {order.controlCenter ? (
           <section className="planning-section" aria-label="Centro de controle operacional">
             <OperationsControlCenter
