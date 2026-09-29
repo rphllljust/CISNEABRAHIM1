@@ -3,7 +3,7 @@
 | Campo        | Valor                                           |
 | ------------ | ----------------------------------------------- |
 | Document ID  | SRC-REG-001                                     |
-| Last updated | 2026-09-03 (SRC-008: autoridade operacional OS/medição/PO/faturamento) |
+| Last updated | 2026-09-29 (SRC-009: minuta de aceite operacional RC1 / amarra RC2, PENDING_SIGNATURE) |
 
 ## Como preencher
 
