@@ -16,6 +16,7 @@ import { BillingItemsTable } from '../components/BillingItemsTable';
 import { BillingStatusBadge } from '../components/BillingStatusBadge';
 import { BillingSummaryPanel } from '../components/BillingSummaryPanel';
 import { useBillingCapabilities } from '../hooks/useBillingCapabilities';
+import { BusinessChain, useBusinessChain } from '../../business-chain';
 import {
   BILLING_ERROR_CODES,
   BILLING_RECORD_STATUSES,
@@ -119,6 +120,10 @@ export function ServiceOrderBillingDocumentPage() {
   const billing = state.phase === 'ready' ? state.billing : null;
   const order = state.phase === 'ready' ? state.order : null;
   const documents = state.phase === 'ready' ? state.documents : [];
+
+  // Cadeia empresarial ancorada no REGISTRO de faturamento: mostra de onde veio
+  // (medição/OS) e o que ele gerou (recebível), sem o front remontar linhagem.
+  const businessChain = useBusinessChain('BILLING_DOCUMENT', billing?.id ?? '');
 
   const commercialReferenceLabel = useMemo(
     () => readCommercialReferenceLabel(billing?.commercialReferenceSnapshot ?? null),
@@ -341,6 +346,20 @@ export function ServiceOrderBillingDocumentPage() {
         <a href="#doc-divergence">Divergências</a>
         <a href="#doc-preview">Pré-visualização</a>
       </nav>
+
+      {/*
+        LINHAGEM DO FATURAMENTO — a cadeia real do negócio ancorada no documento, vinda
+        do read model do backend em UMA requisição: medição (o que foi executado),
+        faturamento (esta preparação), recebível (o que o faturamento gerou) e o que
+        vier depois dele. O servidor já omitiu todo nó não autorizado.
+      */}
+      <BusinessChain
+        chain={businessChain.chain}
+        phase={businessChain.phase}
+        message={businessChain.message}
+        onRetry={businessChain.retry}
+        title="Cadeia de negócio do faturamento"
+      />
 
       <div className="billing-doc-workflow">
         <section id="doc-summary" className="billing-section billing-doc-workflow__section">

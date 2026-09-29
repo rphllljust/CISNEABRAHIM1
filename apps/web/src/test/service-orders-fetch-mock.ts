@@ -87,6 +87,27 @@ function jsonResponse(body: unknown, status = 200): Response {
   } as Response;
 }
 
+/** No da cadeia de negocio no formato REAL do read model (`BusinessChainNode`). */
+function chainNode(
+  kind: string,
+  id: string,
+  reference: string,
+  isAnchor: boolean,
+): Record<string, unknown> {
+  return {
+    id,
+    kind,
+    businessReference: reference,
+    status: 'ACTIVE',
+    occurredAt: '2026-02-02T12:00:00.000Z',
+    route: `/app/chain/${kind.toLowerCase()}/${id}`,
+    relation: isAnchor ? 'ROOT' : kind === 'CLIENT' ? 'ORIGIN' : 'RESULT',
+    summary: reference,
+    unitId: null,
+    clientId: 'client-1',
+  };
+}
+
 function parseInterval(start: string, end: string): { startMs: number; endMs: number } {
   return { startMs: Date.parse(start), endMs: Date.parse(end) };
 }
@@ -1500,7 +1521,8 @@ export function createServiceOrdersFetchMock(options: ServiceOrdersFetchMockOpti
       return jsonResponse(asset);
     }
 
-    if (pathname === '/api/v1/people' && method === 'GET') {      const auth = init?.headers ? new Headers(init.headers).get('authorization') : null;
+    if (pathname === '/api/v1/people' && method === 'GET') {
+      const auth = init?.headers ? new Headers(init.headers).get('authorization') : null;
       if (!auth?.startsWith('Bearer ')) {
         return orderError('AUTH_UNAUTHORIZED', 401);
       }
@@ -1519,6 +1541,35 @@ export function createServiceOrdersFetchMock(options: ServiceOrdersFetchMockOpti
         items: items.slice(offset, offset + limit),
         limit,
         offset,
+      });
+    }
+
+    /*
+     * CADEIA EMPRESARIAL — o read model real devolve a linhagem ja autorizada e
+     * ordenada. Precisa vir ANTES do desvio para `upstream`, que captura tudo o que
+     * nao esta sob `/api/v1/service-orders` (o repositorio da cadeia nao esta).
+     */
+    const chainMatch = pathname.match(/^\/api\/v1\/business-chain\/([^/]+)\/([^/]+)$/);
+    if (chainMatch && method === 'GET') {
+      const anchorKind = chainMatch[1]!;
+      const anchorId = chainMatch[2]!;
+      const auth = init?.headers ? new Headers(init.headers).get('authorization') : null;
+      if (!auth?.startsWith('Bearer ')) {
+        return orderError('AUTH_UNAUTHORIZED', 401);
+      }
+      if (!readAllowed) {
+        return orderError('SERVICE_ORDERS_DENIED', 403);
+      }
+      return jsonResponse({
+        anchor: { kind: anchorKind, id: anchorId },
+        nodes: [
+          chainNode('CLIENT', 'client-1', 'Cliente HML', anchorKind === 'CLIENT'),
+          chainNode('SERVICE_ORDER', MOCK_SERVICE_ORDER_ID, 'OS-2026-DEMO01', anchorKind === 'SERVICE_ORDER'),
+          chainNode('MEASUREMENT', 'measurement-1', 'MED-2026-0001', anchorKind === 'MEASUREMENT'),
+          chainNode('BILLING_DOCUMENT', 'billing-1', 'FAT-2026-0001', anchorKind === 'BILLING_DOCUMENT'),
+          chainNode('RECEIVABLE', 'receivable-1', 'AR-0001', anchorKind === 'RECEIVABLE'),
+        ],
+        milestones: [],
       });
     }
 

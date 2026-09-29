@@ -44,6 +44,32 @@ describe('ServiceOrderBillingDocumentPage', () => {
     expect(screen.getByText(/PDF persistido é gerado exclusivamente pelo backend/i)).toBeInTheDocument();
   });
 
+  it('shows the business chain so billing connects to what it generated', async () => {
+    vi.stubGlobal(
+      'fetch',
+      createServiceOrdersFetchMock({
+        orderCompleted: true,
+        seedMeasurement: 'approved',
+        seedBilling: 'prepared',
+        purchaseOrderPaymentTerms: '30 DDL',
+      }),
+    );
+    renderBillingRoutes(documentPath);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /OS-2026-DEMO01/i })).toBeInTheDocument();
+    });
+
+    const chain = await screen.findByRole('heading', { name: /cadeia de negócio do faturamento/i });
+    const section = chain.closest('section');
+    expect(section).not.toBeNull();
+    // Continuidade real: o que foi executado e o que o faturamento gerou.
+    expect(within(section!).getAllByText(/MED-2026-0001/).length).toBeGreaterThan(0);
+    expect(within(section!).getAllByText(/AR-0001/).length).toBeGreaterThan(0);
+    // Elos navegaveis por clique.
+    expect(within(section!).getAllByRole('link').length).toBeGreaterThan(0);
+  });
+
   it('blocks issuance when commercial terms mismatch is unresolved', async () => {
     vi.stubGlobal(
       'fetch',
