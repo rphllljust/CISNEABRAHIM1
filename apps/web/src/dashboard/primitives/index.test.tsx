@@ -14,6 +14,7 @@ function sampleKpi(overrides: Partial<DashboardKpi> = {}): DashboardKpi {
     href: null,
     ariaLabel: 'OS ativas: 3 ordens',
     variant: 'primary',
+    actionLabel: null,
     ...overrides,
   };
 }
