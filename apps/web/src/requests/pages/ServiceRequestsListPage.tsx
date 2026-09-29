@@ -528,7 +528,13 @@ export function ServiceRequestsListPage() {
                       {summarizeServiceRequestDescription(item.description)}
                     </p>
                     <p className="mt-1 text-xs text-gray-400">
-                      Unidade {item.unitId} · atualizada {formatRelativePast(item.updatedAt, now)}
+                      {/*
+                        ESCOPO, NAO SLUG: `unitId` e identificador interno (em HML, o
+                        slug `unit-synthetic-homolog`) e nao vai para a superficie
+                        operacional. Nenhum contrato publica o nome humano da unidade —
+                        PARK registrado; ate la a linha declara o escopo.
+                      */}
+                      No seu escopo · atualizada {formatRelativePast(item.updatedAt, now)}
                     </p>
                   </div>
 
