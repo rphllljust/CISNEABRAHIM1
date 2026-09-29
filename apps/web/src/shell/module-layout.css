@@ -5,6 +5,33 @@
     max-width: 90rem;
   }
 
+  /*
+    LARGURA DA SUPERFICIE — o teto passa a ser da PAGINA, nao do shell.
+
+    O shell aplicava `max-w-6xl` (1152px) a TODA rota que nao fosse o painel. Em monitor de
+    1440px+ isso estrangulava as worklists densas, os relatorios e o fiscal, deixando sobras
+    laterais e poucas colunas visiveis — a leitura de "sistema antigo". A moldura agora e fluida
+    (`AppShellLayout`) e cada arquetipo declara o proprio teto aqui:
+
+    - worklist / relatorio / mesa de trabalho: faixa larga, para a grade densa caber;
+    - cadastro (formulario): teto estreito, porque campo de formulario longo e ilegivel;
+    - detalhe de objeto: intermediario, entre a grade e o formulario.
+  */
+  .shell-page-frame {
+    max-width: 90rem;
+  }
+
+  /* Cadastro: formulario nao deve esticar por 1800px. */
+  .shell-page-frame:has(> .shell-page:not(.clients-page):not(.requests-page):not(.catalog-page)) {
+    max-width: 60rem;
+  }
+
+  /* Detalhe de objeto: leitura de fatos + secoes compactas. */
+  .shell-page-frame:has(> .clients-page),
+  .shell-page-frame:has(> .catalog-page) {
+    max-width: 72rem;
+  }
+
   .cisne-app .shell-page > h1,
   .cisne-app .alerts-page > h1,
   .cisne-app .reports-page > h1,

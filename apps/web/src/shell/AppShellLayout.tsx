@@ -22,6 +22,18 @@ export function AppShellLayout() {
   const location = useLocation();
   const hideBreadcrumbs = location.pathname === '/app';
   const isDashboard = location.pathname === '/app';
+  /**
+   * LARGURA DA SUPERFICIE DE TRABALHO.
+   *
+   * Antes, SO o painel (`/app`) escapava do `max-w-6xl`: toda outra rota — worklists densas de
+   * ERP, relatorios, fiscal, contabil, fechamento — era espremida em 1152px mesmo em monitor de
+   * 1440px+. O efeito era o operador ver poucas colunas, poucas linhas na primeira dobra e muito
+   * vazio nas laterais: a leitura de "sistema antigo" que esta wave existe para eliminar.
+   *
+   * Aqui a moldura passa a ser FLUIDA e o `max-width` vira responsabilidade da propria superficie
+   * (o dashboard mantem o proprio teto; formularios de cadastro podem declarar o seu). Sem isso,
+   * nenhuma migracao de primitivo seria VISIVEL: a grade continuaria estrangulada pelo shell.
+   */
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const isDesktop = useMediaQuery('(min-width: 64rem)');
   const alertsEnabled = isReleaseModuleEnabled('alerts');
@@ -110,7 +122,7 @@ export function AppShellLayout() {
             className={
               isDashboard
                 ? 'shell-page-frame dashboard-shell-frame mx-auto w-full min-w-0'
-                : 'shell-page-frame mx-auto w-full max-w-6xl min-w-0'
+                : 'shell-page-frame mx-auto w-full min-w-0'
             }
           >
             {!hideBreadcrumbs ? <ShellBreadcrumbs /> : null}
