@@ -34,6 +34,7 @@ import {
   type ObjectStateStep,
 } from '../../enterprise-object';
 import { ActivityTimeline, type ActivityFact } from '../../operator';
+import { ModulePage, ModulePageHeader } from '../../ui';
 import type { StatusBadgeTone } from '../../ui/StatusBadge';
 import {
   ASSET_LIFECYCLE_STATUSES,
@@ -255,7 +256,8 @@ export function PhysicalAssetDetailPage() {
       onRetry = () => void reload();
     }
     return (
-      <main id="main-content" className="shell-page">
+      <ModulePage>
+        <ModulePageHeader title="Ativo físico" />
         <EnterpriseObjectPage
           breadcrumb={[{ label: 'Ativos físicos', href: '/app/assets' }, { label: 'Ativo' }]}
           phase={phase}
@@ -264,7 +266,7 @@ export function PhysicalAssetDetailPage() {
           onRetry={phase === 'error' ? onRetry : undefined}
           header={null}
         />
-      </main>
+      </ModulePage>
     );
   }
 
@@ -355,7 +357,7 @@ export function PhysicalAssetDetailPage() {
   ];
 
   return (
-    <main id="main-content" className="shell-page">
+    <ModulePage>
       <EnterpriseObjectPage
         breadcrumb={[{ label: 'Ativos físicos', href: '/app/assets' }, { label: asset.assetCode }]}
         header={
@@ -448,6 +450,6 @@ export function PhysicalAssetDetailPage() {
         onCancel={() => setActivateOpen(false)}
         onConfirm={() => void handleActivate()}
       />
-    </main>
+    </ModulePage>
   );
 }

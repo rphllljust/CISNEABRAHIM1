@@ -10,7 +10,6 @@ import {
   updateContractDraft,
 } from '../api/contracts-api';
 import { CONTRACT_VERSION_CONFLICT_MESSAGE, mapContractErrorToMessage } from '../api/contracts-error-messages';
-import { ContractStatusBadge } from '../components/ContractStatusBadge';
 import { ContractFormFields, type ClientOption } from '../components/ContractFormFields';
 import { useContractCapabilities } from '../hooks/useContractCapabilities';
 import { CONTRACT_STATUSES, type ContractDetail } from '../types';
@@ -22,11 +21,50 @@ import {
 import {
   formatClientSnapshot,
   formatContractDocumentLinkPurpose,
+  formatContractStatus,
+  contractStatusTone,
   formatDate,
   formatDateTime,
   formatMoney,
 } from '../utils/contract-status-labels';
-import { Button, ConfirmAction, Modal, VersionConflictBanner } from '../../ui';
+import {
+  EnterpriseObjectHeader,
+  EnterpriseObjectPage,
+  NextActionPanel,
+  ObjectContextBlock,
+  ObjectPanel,
+  ObjectStateFlow,
+  type NextAction,
+  type ObjectAction,
+  type ObjectContextField,
+  type ObjectMetadataField,
+  type ObjectStateStep,
+} from '../../enterprise-object';
+import { ActivityTimeline, type ActivityFact } from '../../operator';
+import {
+  Button,
+  ConfirmAction,
+  Modal,
+  ModulePage,
+  ModulePageHeader,
+  UnitScopeLabel,
+  VersionConflictBanner,
+} from '../../ui';
+
+/**
+ * OBJECT PAGE DO CONTRATO COMERCIAL — leitura canônica do contrato `enterprise-object`.
+ *
+ *   breadcrumb (Contratos -> Contrato)
+ *     EnterpriseObjectHeader   número, título, cliente, estado, fatos e ações
+ *     ObjectStateFlow          os estados REAIS do domínio (rascunho -> ativo -> encerrado/expirado)
+ *     NextActionPanel          declarado apenas quando o próximo passo NÃO é um botão desta tela
+ *     ObjectContextBlock       fatos que qualificam o contrato, em grade compacta
+ *     corpo + coluna lateral   itens, documentos vinculados e histórico persistido
+ *
+ * Nenhuma capability é inventada, nenhuma transição é inventada e nenhum identificador técnico
+ * vai para a tela: a autorização continua sendo decidida no servidor e as mesmas chamadas de API
+ * seguem sendo as únicas mutações disponíveis.
+ */
 
 type DetailState =
   | { phase: 'loading' }
@@ -36,6 +74,32 @@ type DetailState =
   | { phase: 'ready'; detail: ContractDetail };
 
 type ActionKind = 'update' | 'activate' | 'close' | 'expire';
+
+/**
+ * FLUXO REAL DE ESTADO.
+ *
+ * Os quatro estados do domínio e os três comandos que os produzem (`activate`, `close`,
+ * `expire`) já existem no módulo. O fluxo apenas os REPRESENTA — sem transição calculada no
+ * front. `expire` é alternativo a `close`: um contrato expira pela vigência ou é encerrado por
+ * decisão, nunca passa por um para chegar ao outro.
+ */
+export function contractStateSteps(status: string): ObjectStateStep[] {
+  return [
+    { id: CONTRACT_STATUSES.Draft, label: formatContractStatus(CONTRACT_STATUSES.Draft) },
+    { id: CONTRACT_STATUSES.Active, label: formatContractStatus(CONTRACT_STATUSES.Active) },
+    status === CONTRACT_STATUSES.Expired
+      ? {
+          id: CONTRACT_STATUSES.Expired,
+          label: formatContractStatus(CONTRACT_STATUSES.Expired),
+          terminal: true,
+        }
+      : {
+          id: CONTRACT_STATUSES.Closed,
+          label: formatContractStatus(CONTRACT_STATUSES.Closed),
+          terminal: true,
+        },
+  ];
+}
 
 export function ContractsDetailPage() {
   const { contractId = '' } = useParams();
@@ -157,47 +221,37 @@ export function ContractsDetailPage() {
     });
   }
 
-  if (state.phase === 'loading') {
-    return (
-      <main id="main-content" className="shell-page">
-        <p aria-busy="true" aria-live="polite">
-          Carregando contrato…
-        </p>
-      </main>
-    );
-  }
+  if (state.phase !== 'ready') {
+    /*
+     * ESTADOS DE PAGINA — resolvidos uma única vez, DENTRO da moldura compartilhada.
+     * A página mantém o próprio cabeçalho enquanto carrega, nega ou falha: o operador
+     * nunca perde a referência de onde está, e negação não se confunde com registro vazio.
+     */
+    const denied = state.phase === 'denied';
+    const notFound = state.phase === 'not_found';
+    const message =
+      state.phase === 'error'
+        ? state.message
+        : denied
+          ? 'Você não tem permissão para consultar este contrato.'
+          : notFound
+            ? 'Contrato não encontrado.'
+            : null;
 
-  if (state.phase === 'denied') {
     return (
-      <main id="main-content" className="shell-page">
-        <h1>Contrato</h1>
-        <p role="alert">Você não tem permissão para consultar este contrato.</p>
-        <Link to="/app/contracts">Voltar à lista</Link>
-      </main>
-    );
-  }
-
-  if (state.phase === 'not_found') {
-    return (
-      <main id="main-content" className="shell-page">
-        <h1>Contrato</h1>
-        <p role="alert">Contrato não encontrado.</p>
-        <Link to="/app/contracts">Voltar à lista</Link>
-      </main>
-    );
-  }
-
-  if (state.phase === 'error') {
-    return (
-      <main id="main-content" className="shell-page">
-        <h1>Contrato</h1>
-        <p className="form-error" role="alert">
-          {state.message}
-        </p>
-        <button type="button" onClick={() => void reload()}>
-          Tentar novamente
-        </button>
-      </main>
+      <ModulePage>
+        <ModulePageHeader title="Contrato" />
+        <EnterpriseObjectPage
+          breadcrumb={[{ label: 'Contratos', href: '/app/contracts' }, { label: 'Contrato' }]}
+          phase={denied ? 'denied' : notFound ? 'empty' : state.phase === 'loading' ? 'loading' : 'error'}
+          phaseTitle="Contrato"
+          phaseMessage={message ?? 'Carregando contrato…'}
+          onRetry={
+            state.phase === 'error' || state.phase === 'loading' ? () => void reload() : undefined
+          }
+          header={null}
+        />
+      </ModulePage>
     );
   }
 
@@ -210,165 +264,225 @@ export function ContractsDetailPage() {
   const canClose = capabilities.canClose && isActive;
   const canExpire = capabilities.canExpire && isActive;
 
+  /*
+   * AÇÕES REAIS — cada uma existe somente quando a capability correspondente permite E o
+   * estado a aceita. A ação primária é a que AVANÇA o ciclo de vida; edição de rascunho entra
+   * como alternativa secundária, e nunca disputa a primeira leitura.
+   */
+  const availableActions: ObjectAction[] = [];
+  if (canEdit) {
+    availableActions.push({ id: 'edit', label: 'Editar dados', onSelect: openEditDialog });
+  }
+  if (canActivate) {
+    availableActions.push({
+      id: 'activate',
+      label: 'Ativar contrato',
+      onSelect: () => setOpenDialog('activate'),
+    });
+  }
+  if (canClose) {
+    availableActions.push({
+      id: 'close',
+      label: 'Encerrar contrato',
+      onSelect: () => {
+        setCloseReason('');
+        setOpenDialog('close');
+      },
+    });
+  }
+  if (canExpire) {
+    availableActions.push({
+      id: 'expire',
+      label: 'Expirar contrato',
+      onSelect: () => setOpenDialog('expire'),
+    });
+  }
+
+  const primaryAction: ObjectAction | null =
+    availableActions.find((action) => action.id === 'activate') ??
+    availableActions.find((action) => action.id === 'close') ??
+    availableActions.find((action) => action.id === 'expire') ??
+    availableActions.find((action) => action.id === 'edit') ??
+    null;
+  const secondaryActions = availableActions.filter((action) => action.id !== primaryAction?.id);
+
+  /**
+   * PRÓXIMA AÇÃO — declarada SOMENTE quando o próximo passo não é um botão desta tela.
+   * Rascunho que este operador não pode ativar: o passo pertence a quem tem a capability, e a
+   * tela declara a espera em vez de oferecer o que o servidor recusaria.
+   */
+  const nextAction: NextAction | null =
+    isDraft && !canActivate
+      ? {
+          kind: 'waiting',
+          label: 'Aguardar a ativação do contrato',
+          description: 'O contrato só produz efeito depois da ativação registrada pelo servidor.',
+          waitingOn: 'Perfil autorizado a ativar contratos',
+        }
+      : null;
+
+  const clientName = formatClientSnapshot(contract.clientSnapshot);
+
+  const metadata: ObjectMetadataField[] = [
+    {
+      label: 'Vigência',
+      value: contract.validTo
+        ? `${formatDate(contract.validFrom)} → ${formatDate(contract.validTo)}`
+        : `Desde ${formatDate(contract.validFrom)}`,
+    },
+    { label: 'Moeda', value: contract.currencyCode },
+    { label: 'Itens', value: items.length > 0 ? String(items.length) : null },
+    { label: 'Documentos vinculados', value: documentLinks.length > 0 ? String(documentLinks.length) : null },
+    { label: 'Atualizado em', value: formatDateTime(contract.updatedAt) },
+  ];
+
+  const contextFields: ObjectContextField[] = [
+    ...(clientName === '—' ? [] : [{ label: 'Cliente', value: clientName }]),
+    { label: 'Código interno', value: contract.internalCode },
+    // O `unitId` é dado interno (em HML, um slug sintético): a tela declara o ESCOPO.
+    { label: 'Unidade operacional', value: <UnitScopeLabel unitId={contract.unitId} /> },
+    { label: 'Escopo', value: contract.scopeDescription },
+    { label: 'Condições de pagamento', value: contract.paymentTerms },
+    { label: 'Forma de pagamento', value: contract.paymentMethod },
+    { label: 'Ativado em', value: contract.activatedAt ? formatDateTime(contract.activatedAt) : null },
+    { label: 'Encerrado em', value: contract.closedAt ? formatDateTime(contract.closedAt) : null },
+    { label: 'Motivo do encerramento', value: contract.closureReason },
+    { label: 'Criado em', value: formatDateTime(contract.createdAt) },
+  ];
+
+  /*
+   * HISTÓRICO — somente marcos PERSISTIDOS. O payload não guarda trilha de eventos nem ator:
+   * o que existe são timestamps, e é exatamente isso que a linha do tempo mostra.
+   */
+  const historyFacts: ActivityFact[] = [
+    { at: contract.createdAt, event: 'Contrato criado' },
+    ...(contract.activatedAt ? [{ at: contract.activatedAt, event: 'Contrato ativado' }] : []),
+    ...(contract.closedAt ? [{ at: contract.closedAt, event: 'Contrato encerrado' }] : []),
+    { at: contract.updatedAt, event: 'Cadastro atualizado' },
+  ];
+
   return (
-    <main id="main-content" className="shell-page">
-      <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium text-gray-500">{contract.internalCode}</p>
-          <h1 className="mt-1 text-2xl font-semibold text-gray-900">{contract.contractNumber}</h1>
-          <p className="mt-1 text-sm text-gray-600">{contract.title}</p>
-          <div className="mt-2">
-            <ContractStatusBadge status={contract.status} />
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {canEdit ? (
-            <Button type="button" variant="secondary" onClick={openEditDialog}>
-              Editar dados
-            </Button>
-          ) : null}
-          {canActivate ? (
-            <Button type="button" onClick={() => setOpenDialog('activate')}>
-              Ativar contrato
-            </Button>
-          ) : null}
-          {canClose ? (
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                setCloseReason('');
-                setOpenDialog('close');
-              }}
-            >
-              Encerrar contrato
-            </Button>
-          ) : null}
-          {canExpire ? (
-            <Button type="button" variant="secondary" onClick={() => setOpenDialog('expire')}>
-              Expirar contrato
-            </Button>
-          ) : null}
-        </div>
-      </header>
-
-      {versionConflict ? (
-        <div className="mb-6">
-          <VersionConflictBanner message={CONTRACT_VERSION_CONFLICT_MESSAGE} onReload={() => void reload()} />
-        </div>
-      ) : null}
-      {actionError ? (
-        <p className="form-error" role="alert">
-          {actionError}
-        </p>
-      ) : null}
-
-      <section
-        className="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5"
-        aria-labelledby="contract-summary-heading"
-      >
-        <h2 id="contract-summary-heading" className="mb-4 text-base font-semibold text-gray-900">
-          Resumo
-        </h2>
-        <dl className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
-          <DetailRow label="Cliente" value={formatClientSnapshot(contract.clientSnapshot)} />
-          <DetailRow label="Unidade" value={contract.unitId} />
-          <DetailRow label="Escopo" value={contract.scopeDescription} />
-          <DetailRow label="Moeda" value={contract.currencyCode} />
-          <DetailRow
-            label="Vigência"
-            value={`${formatDate(contract.validFrom)} → ${formatDate(contract.validTo)}`}
+    <ModulePage>
+      <EnterpriseObjectPage
+        breadcrumb={[{ label: 'Contratos', href: '/app/contracts' }, { label: contract.contractNumber }]}
+        header={
+          <EnterpriseObjectHeader
+            reference={contract.internalCode}
+            title={contract.contractNumber}
+            subtitle={contract.title}
+            status={{
+              label: formatContractStatus(contract.status),
+              tone: contractStatusTone(contract.status),
+            }}
+            metadata={metadata}
+            primaryAction={primaryAction}
+            secondaryActions={secondaryActions}
           />
-          <DetailRow label="Condições de pagamento" value={contract.paymentTerms} />
-          <DetailRow label="Forma de pagamento" value={contract.paymentMethod} />
-          <DetailRow label="Ativado em" value={formatDateTime(contract.activatedAt)} />
-          <DetailRow label="Encerrado em" value={formatDateTime(contract.closedAt)} />
-          <DetailRow label="Motivo do encerramento" value={contract.closureReason} />
-          <DetailRow label="Criado em" value={formatDateTime(contract.createdAt)} />
-          <DetailRow label="Atualizado em" value={formatDateTime(contract.updatedAt)} />
-          <DetailRow label="Versão" value={String(contract.rowVersion)} />
-        </dl>
-      </section>
+        }
+        stateFlow={
+          <ObjectStateFlow
+            steps={contractStateSteps(contract.status)}
+            currentId={contract.status}
+            title="Ciclo de vida do contrato"
+          />
+        }
+        nextAction={<NextActionPanel action={nextAction} />}
+        aside={
+          <ObjectPanel title="Histórico">
+            <ActivityTimeline
+              facts={historyFacts}
+              title="Histórico do contrato"
+              emptyMessage="Este contrato não expõe marcos persistidos."
+            />
+          </ObjectPanel>
+        }
+      >
+        {versionConflict ? (
+          <VersionConflictBanner
+            message={CONTRACT_VERSION_CONFLICT_MESSAGE}
+            onReload={() => void reload()}
+          />
+        ) : null}
+        {actionError ? (
+          <p className="form-error" role="alert">
+            {actionError}
+          </p>
+        ) : null}
 
-      {items.length > 0 ? (
-        <section
-          className="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5"
-          aria-labelledby="contract-items-heading"
-        >
-          <h2 id="contract-items-heading" className="mb-4 text-base font-semibold text-gray-900">
-            Itens
-          </h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm" aria-label="Itens do contrato">
-              <thead className="text-xs text-gray-500 uppercase">
-                <tr>
-                  <th scope="col" className="py-2 pr-4 font-semibold">
-                    Linha
-                  </th>
-                  <th scope="col" className="py-2 pr-4 font-semibold">
-                    Descrição
-                  </th>
-                  <th scope="col" className="py-2 pr-4 font-semibold">
-                    Qtd.
-                  </th>
-                  <th scope="col" className="py-2 pr-4 font-semibold">
-                    Preço unit.
-                  </th>
-                  <th scope="col" className="py-2 pr-4 text-right font-semibold">
-                    Total
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {items.map((item) => (
-                  <tr key={item.id}>
-                    <td className="py-2 pr-4 text-gray-700 tabular-nums">{item.lineNumber}</td>
-                    <td className="py-2 pr-4 text-gray-700">{item.description}</td>
-                    <td className="py-2 pr-4 text-gray-700 tabular-nums">{item.quantity ?? '—'}</td>
-                    <td className="py-2 pr-4 text-gray-700 tabular-nums">
-                      {formatMoney(item.unitPrice, contract.currencyCode)}
-                    </td>
-                    <td className="py-2 pr-4 text-right text-gray-700 tabular-nums">
-                      {formatMoney(item.lineTotal, contract.currencyCode)}
-                    </td>
+        <ObjectContextBlock title="Contexto do contrato" fields={contextFields} columns={3} />
+
+        <ObjectPanel title="Itens">
+          {items.length === 0 ? (
+            <p className="m-0 text-sm text-gray-500">Nenhum item registrado no contrato.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm" aria-label="Itens do contrato">
+                <thead className="text-xs text-gray-500 uppercase">
+                  <tr>
+                    <th scope="col" className="py-2 pr-4 font-semibold">
+                      Linha
+                    </th>
+                    <th scope="col" className="py-2 pr-4 font-semibold">
+                      Descrição
+                    </th>
+                    <th scope="col" className="py-2 pr-4 font-semibold">
+                      Qtd.
+                    </th>
+                    <th scope="col" className="py-2 pr-4 font-semibold">
+                      Preço unit.
+                    </th>
+                    <th scope="col" className="py-2 pr-4 text-right font-semibold">
+                      Total
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      ) : null}
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {items.map((item) => (
+                    <tr key={item.id}>
+                      <td className="py-2 pr-4 text-gray-700 tabular-nums">{item.lineNumber}</td>
+                      <td className="py-2 pr-4 text-gray-700">{item.description}</td>
+                      <td className="py-2 pr-4 text-gray-700 tabular-nums">{item.quantity ?? '—'}</td>
+                      <td className="py-2 pr-4 text-gray-700 tabular-nums">
+                        {formatMoney(item.unitPrice, contract.currencyCode)}
+                      </td>
+                      <td className="py-2 pr-4 text-right text-gray-700 tabular-nums">
+                        {formatMoney(item.lineTotal, contract.currencyCode)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </ObjectPanel>
 
-      {documentLinks.length > 0 ? (
-        <section
-          className="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5"
-          aria-labelledby="contract-documents-heading"
-        >
-          <h2 id="contract-documents-heading" className="mb-4 text-base font-semibold text-gray-900">
-            Documentos vinculados
-          </h2>
-          <ul className="space-y-2 text-sm text-gray-700">
-            {documentLinks.map((link) => (
-              <li key={link.id} className="flex flex-wrap items-center gap-3">
-                <Link
-                  to={`/app/documents/${link.documentId}`}
-                  className="text-brand-700 no-underline hover:text-brand-800"
-                >
-                  {link.documentId}
-                </Link>
-                <span className="text-gray-400">·</span>
-                <span>{formatContractDocumentLinkPurpose(link.linkPurpose)}</span>
-                <span className="text-gray-400">·</span>
-                <span className="text-gray-500">{formatDateTime(link.createdAt)}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+        <ObjectPanel title="Documentos vinculados">
+          {documentLinks.length === 0 ? (
+            <p className="m-0 text-sm text-gray-500">Nenhum documento vinculado ao contrato.</p>
+          ) : (
+            <ul className="m-0 list-none space-y-2 p-0 text-sm text-gray-700">
+              {documentLinks.map((link) => (
+                <li key={link.id} className="flex flex-wrap items-center gap-3">
+                  <Link
+                    to={`/app/documents/${link.documentId}`}
+                    className="text-brand-700 no-underline hover:text-brand-800"
+                  >
+                    Documento vinculado
+                  </Link>
+                  <span className="text-gray-400">·</span>
+                  <span>{formatContractDocumentLinkPurpose(link.linkPurpose)}</span>
+                  <span className="text-gray-400">·</span>
+                  <span className="text-gray-500">{formatDateTime(link.createdAt)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </ObjectPanel>
 
-      <p>
-        <Link to="/app/contracts">Voltar à lista</Link>
-      </p>
+        <p>
+          <Link to="/app/contracts">Voltar à lista</Link>
+        </p>
+      </EnterpriseObjectPage>
 
       <Modal
         open={openDialog === 'update'}
@@ -472,15 +586,6 @@ export function ContractsDetailPage() {
         }}
         onCancel={closeDialog}
       />
-    </main>
-  );
-}
-
-function DetailRow({ label, value }: { label: string; value: string | null }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">{label}</dt>
-      <dd className="text-sm text-gray-900">{value ?? '—'}</dd>
-    </div>
+    </ModulePage>
   );
 }

@@ -16,6 +16,7 @@ import {
 } from '../../enterprise-object';
 import { ActivityTimeline, type ActivityFact } from '../../operator';
 import { BusinessChain, useBusinessChain } from '../../business-chain';
+import { ModulePage, ModulePageHeader } from '../../ui';
 import type { StatusBadgeTone } from '../../ui/StatusBadge';
 import {
   cancelPurchaseOrder,
@@ -211,7 +212,8 @@ export function PurchaseOrderDetailPage() {
       onRetry = () => void reload();
     }
     return (
-      <main id="main-content" className="shell-page">
+      <ModulePage>
+        <ModulePageHeader title="Pedido de compra" />
         <EnterpriseObjectPage
           breadcrumb={[
             { label: 'Pedidos de compra', href: '/app/purchase-orders' },
@@ -223,7 +225,7 @@ export function PurchaseOrderDetailPage() {
           onRetry={phase === 'error' ? onRetry : undefined}
           header={null}
         />
-      </main>
+      </ModulePage>
     );
   }
 
@@ -321,7 +323,7 @@ export function PurchaseOrderDetailPage() {
   ];
 
   return (
-    <main id="main-content" className="shell-page">
+    <ModulePage>
       <EnterpriseObjectPage
         breadcrumb={[
           { label: 'Pedidos de compra', href: '/app/purchase-orders' },
@@ -503,6 +505,6 @@ export function PurchaseOrderDetailPage() {
           />
         </div>
       </ConfirmDialog>
-    </main>
+    </ModulePage>
   );
 }

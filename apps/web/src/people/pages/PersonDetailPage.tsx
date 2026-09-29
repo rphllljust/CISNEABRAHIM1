@@ -16,6 +16,7 @@ import {
   type ObjectStateStep,
 } from '../../enterprise-object';
 import { ActivityTimeline, type ActivityFact } from '../../operator';
+import { ModulePage, ModulePageHeader } from '../../ui';
 import type { StatusBadgeTone } from '../../ui/StatusBadge';
 import {
   activatePerson,
@@ -234,7 +235,8 @@ export function PersonDetailPage() {
       onRetry = () => void reload();
     }
     return (
-      <main id="main-content" className="shell-page">
+      <ModulePage>
+        <ModulePageHeader title="Pessoa" />
         <EnterpriseObjectPage
           breadcrumb={[{ label: 'Pessoas', href: '/app/people' }, { label: 'Pessoa' }]}
           phase={phase}
@@ -243,7 +245,7 @@ export function PersonDetailPage() {
           onRetry={phase === 'error' ? onRetry : undefined}
           header={null}
         />
-      </main>
+      </ModulePage>
     );
   }
 
@@ -311,7 +313,7 @@ export function PersonDetailPage() {
   ];
 
   return (
-    <main id="main-content" className="shell-page">
+    <ModulePage>
       <EnterpriseObjectPage
         breadcrumb={[
           { label: 'Pessoas', href: '/app/people' },
@@ -388,6 +390,6 @@ export function PersonDetailPage() {
           <Link to="/app/people">Voltar à lista</Link>
         </p>
       </EnterpriseObjectPage>
-    </main>
+    </ModulePage>
   );
 }

@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { DateTime, Money, Select } from '../../ui';
+import { DateTime, Money, ModulePage, ModulePageHeader, Select } from '../../ui';
 import {
   moduleTableCellClass,
   moduleTableClass,
@@ -170,7 +170,8 @@ export function PayableDetailPage() {
         break;
     }
     return (
-      <main id="main-content" className="shell-page">
+      <ModulePage>
+        <ModulePageHeader title="Conta a pagar" />
         <EnterpriseObjectPage
           breadcrumb={[
             { label: 'Contas a pagar', href: '/app/finance/payables' },
@@ -182,7 +183,7 @@ export function PayableDetailPage() {
           onRetry={onRetry}
           header={null}
         />
-      </main>
+      </ModulePage>
     );
   }
 
@@ -275,7 +276,7 @@ export function PayableDetailPage() {
   ];
 
   return (
-    <main id="main-content" className="shell-page">
+    <ModulePage>
       <EnterpriseObjectPage
         breadcrumb={[
           { label: 'Contas a pagar', href: '/app/finance/payables' },
@@ -509,6 +510,6 @@ export function PayableDetailPage() {
           />
         </div>
       </EnterpriseObjectPage>
-    </main>
+    </ModulePage>
   );
 }

@@ -1,4 +1,4 @@
-﻿import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { getPhysicalAsset, listPhysicalAssets } from '../../assets/api/physical-assets-api';
 import type { PhysicalAsset } from '../../assets/types/physical-asset.types';
@@ -18,6 +18,7 @@ import {
 } from '../../enterprise-object';
 import { ActivityTimeline } from '../../operator';
 import { BusinessChain, useBusinessChain } from '../../business-chain';
+import { ModulePage, ModulePageHeader } from '../../ui';
 import type { BreadcrumbItem } from '../../ui/Breadcrumb';
 import { getServiceOrder } from '../api/service-orders-api';
 import { ServiceOrdersApiError } from '../api/service-orders-api';
@@ -482,46 +483,50 @@ export function ServiceOrderPlanningPage() {
    */
   if (state.phase === 'loading') {
     return (
-      <main id="main-content" className="shell-page">
+      <ModulePage className="planning-page">
+        <ModulePageHeader title="Ordem de serviço" />
         <EnterpriseObjectPage
           header={null}
           phase="loading"
           phaseTitle="Ordem de serviço"
           phaseMessage="Carregando o registro da ordem de serviço…"
         />
-      </main>
+      </ModulePage>
     );
   }
 
   if (state.phase === 'denied') {
     return (
-      <main id="main-content" className="shell-page">
+      <ModulePage className="planning-page">
+        <ModulePageHeader title="Ordem de serviço" />
         <EnterpriseObjectPage
           header={null}
           phase="denied"
           phaseTitle="Ordem de serviço"
           phaseMessage="Você não tem permissão para acessar esta ordem de serviço."
         />
-      </main>
+      </ModulePage>
     );
   }
 
   if (state.phase === 'not_found') {
     return (
-      <main id="main-content" className="shell-page">
+      <ModulePage className="planning-page">
+        <ModulePageHeader title="Ordem de serviço" />
         <EnterpriseObjectPage
           header={null}
           phase="empty"
           phaseTitle="Ordem de serviço"
           phaseMessage="Ordem de serviço não encontrada."
         />
-      </main>
+      </ModulePage>
     );
   }
 
   if (state.phase === 'error') {
     return (
-      <main id="main-content" className="shell-page">
+      <ModulePage className="planning-page">
+        <ModulePageHeader title="Ordem de serviço" />
         <EnterpriseObjectPage
           header={null}
           phase="error"
@@ -529,7 +534,7 @@ export function ServiceOrderPlanningPage() {
           phaseMessage={state.message}
           onRetry={() => void reload()}
         />
-      </main>
+      </ModulePage>
     );
   }
 
@@ -643,7 +648,7 @@ export function ServiceOrderPlanningPage() {
   const executionLabel = nextAction?.label ?? 'Sem próximo passo declarado';
 
   return (
-    <main id="main-content" className="shell-page planning-page">
+    <ModulePage className="planning-page">
       <EnterpriseObjectPage
         breadcrumb={breadcrumb}
         header={
@@ -1068,6 +1073,6 @@ export function ServiceOrderPlanningPage() {
           )}
         </div>
       </ConfirmDialog>
-    </main>
+    </ModulePage>
   );
 }

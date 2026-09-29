@@ -15,16 +15,17 @@ import {
 import { mapRequestErrorToMessage } from '../api/request-error-messages';
 import { ServiceRequestPriorityBadge } from '../components/ServiceRequestPriorityBadge';
 import { ServiceRequestRelatedChain } from '../components/ServiceRequestRelatedChain';
-import { ServiceRequestStatusBadge } from '../components/ServiceRequestStatusBadge';
 import { ServiceRequestTimeline } from '../components/ServiceRequestTimeline';
 import { VersionConflictNotice } from '../components/VersionConflictNotice';
 import { useServiceRequestCapabilities } from '../hooks/useServiceRequestCapabilities';
 import { useAuth } from '../../auth/context/AuthProvider';
 import {
   SERVICE_REQUEST_PRIORITIES,
+  SERVICE_REQUEST_STATUSES,
   type ServiceRequestDetail,
   type ServiceRequestReadiness,
   type ServiceRequestRelated,
+  type ServiceRequestStatus,
   type ServiceRequestTransition,
 } from '../types/service-request.types';
 import {
@@ -34,7 +35,7 @@ import {
   formatServiceRequestBlocker,
   formatServiceRequestNextStep,
   formatServiceRequestOrigin,
-  formatServiceRequestPriority,
+  formatServiceRequestStatus,
   formatServiceRequestTransition,
 } from '../utils/service-request-labels';
 import {
@@ -44,7 +45,33 @@ import {
   formatRelativePast,
   summarizeServiceRequestDescription,
 } from '../utils/service-request-workbench';
+import {
+  EnterpriseObjectHeader,
+  EnterpriseObjectPage,
+  NextActionPanel,
+  ObjectPanel,
+  type NextAction,
+  type ObjectAction,
+  type ObjectMetadataField,
+} from '../../enterprise-object';
+import type { StatusBadgeTone } from '../../ui/StatusBadge';
+import { DefinitionList } from '../../financial-ui/DefinitionList';
+import { ModulePage, ModulePageHeader, UnitScopeLabel } from '../../ui';
 import { cn } from '../../ui/utils/cn';
+
+/**
+ * OBJECT PAGE DA SOLICITAÇÃO DE SERVIÇO — leitura canônica do contrato `enterprise-object`.
+ *
+ *   breadcrumb (Solicitações -> Solicitação)
+ *     EnterpriseObjectHeader   código, cliente, estado, prioridade e ações do ciclo
+ *     NextActionPanel          declarado SOMENTE quando o próximo passo não é um botão desta tela
+ *     corpo + coluna lateral   resumo compacto, cadeia, histórico e decisões pendentes
+ *
+ * A MÁQUINA DE ESTADOS NÃO É RECONSTRUÍDA AQUI. Quais transições existem em cada situação e
+ * qual é o próximo passo chegam prontos do servidor (`readiness.availableTransitions` e
+ * `readiness.nextStep`): a tela apenas nomeia e oferece o que o backend autorizou. Nenhuma
+ * etapa é inventada no front e nenhuma chamada de API muda.
+ */
 
 type DetailState =
   | { phase: 'loading' }
@@ -57,6 +84,16 @@ const ATTENTION_TONE_CLASS: Record<string, string> = {
   critical: 'bg-red-50 text-red-700 ring-red-600/20',
   warning: 'bg-amber-50 text-amber-800 ring-amber-600/20',
   info: 'bg-gray-100 text-gray-600 ring-gray-400/20',
+};
+
+const STATUS_TONES: Record<ServiceRequestStatus, StatusBadgeTone> = {
+  [SERVICE_REQUEST_STATUSES.Draft]: 'neutral',
+  [SERVICE_REQUEST_STATUSES.Submitted]: 'info',
+  [SERVICE_REQUEST_STATUSES.UnderReview]: 'info',
+  [SERVICE_REQUEST_STATUSES.Approved]: 'success',
+  [SERVICE_REQUEST_STATUSES.Rejected]: 'error',
+  [SERVICE_REQUEST_STATUSES.Cancelled]: 'neutral',
+  [SERVICE_REQUEST_STATUSES.Converted]: 'operational',
 };
 
 export function ServiceRequestDetailPage() {
@@ -164,47 +201,41 @@ export function ServiceRequestDetailPage() {
     }
   }
 
-  if (state.phase === 'loading') {
-    return (
-      <main id="main-content" className="shell-page">
-        <p aria-busy="true" aria-live="polite">
-          Carregando solicitação…
-        </p>
-      </main>
-    );
-  }
+  if (state.phase !== 'ready') {
+    /*
+     * ESTADOS DE PAGINA — a solicitação é identificada pelo CÓDIGO, que já está na rota mesmo
+     * quando o payload não chegou: carregando, negado ou com falha, o operador continua sabendo
+     * de que tela se trata. Negação não se confunde com registro vazio e a falha oferece nova
+     * tentativa real.
+     */
+    const denied = state.phase === 'denied';
+    const notFound = state.phase === 'not_found';
 
-  if (state.phase === 'denied') {
     return (
-      <main id="main-content" className="shell-page">
-        <h1>Solicitação de serviço</h1>
-        <p role="alert">Você não tem permissão para consultar esta solicitação.</p>
-        <Link to="/app/requests">Voltar à lista</Link>
-      </main>
-    );
-  }
-
-  if (state.phase === 'not_found') {
-    return (
-      <main id="main-content" className="shell-page">
-        <h1>Solicitação de serviço</h1>
-        <p role="alert">Solicitação não encontrada.</p>
-        <Link to="/app/requests">Voltar à lista</Link>
-      </main>
-    );
-  }
-
-  if (state.phase === 'error') {
-    return (
-      <main id="main-content" className="shell-page">
-        <h1>Solicitação de serviço</h1>
-        <p className="form-error" role="alert">
-          {state.message}
-        </p>
-        <button type="button" onClick={() => void reload()}>
-          Tentar novamente
-        </button>
-      </main>
+      <ModulePage>
+        <ModulePageHeader title="Solicitação de serviço" />
+        <EnterpriseObjectPage
+          breadcrumb={[
+            { label: 'Solicitações', href: '/app/requests' },
+            { label: 'Solicitação' },
+          ]}
+          phase={
+            denied ? 'denied' : notFound ? 'empty' : state.phase === 'loading' ? 'loading' : 'error'
+          }
+          phaseTitle="Solicitação de serviço"
+          phaseMessage={
+            state.phase === 'error'
+              ? state.message
+              : denied
+                ? 'Você não tem permissão para consultar esta solicitação.'
+                : notFound
+                  ? 'Solicitação não encontrada.'
+                  : 'Carregando solicitação…'
+          }
+          onRetry={state.phase === 'error' ? () => void reload() : undefined}
+          header={null}
+        />
+      </ModulePage>
     );
   }
 
@@ -263,259 +294,253 @@ export function ServiceRequestDetailPage() {
     ? `/app/service-orders/${serviceRequest.convertedServiceOrderId}/planning`
     : null;
 
+  const blocked = readiness.blockers.length > 0;
+
+  /*
+   * AÇÃO PRIMÁRIA — o próximo passo REAL do ciclo, autorizado pelo servidor. Quando a
+   * solicitação já virou ordem de serviço, a ação primária é abrir a ordem.
+   */
+  const primaryAction: ObjectAction | null = primaryTransition
+    ? {
+        id: primaryTransition,
+        label: formatServiceRequestTransition(primaryTransition),
+        disabled: actionSubmitting || blocked,
+        disabledReason: blocked ? formatServiceRequestBlocker(readiness.blockers[0]!) : undefined,
+        onSelect: () => runTransition(primaryTransition),
+      }
+    : serviceOrderLink
+      ? {
+          id: 'open-service-order',
+          label: 'Abrir ordem de serviço',
+          to: serviceOrderLink,
+        }
+      : null;
+
+  const secondaryActions: ObjectAction[] = [
+    ...(canEdit
+      ? [
+          {
+            id: 'edit',
+            label: 'Editar rascunho',
+            onSelect: () => {
+              void navigate(`/app/requests/${serviceRequest.id}/edit`);
+            },
+          },
+        ]
+      : []),
+    ...availableSecondary.map((transition) => ({
+      id: transition,
+      label: formatServiceRequestTransition(transition),
+      disabled: actionSubmitting,
+      onSelect: () => runTransition(transition),
+    })),
+  ];
+
+  /**
+   * PRÓXIMA AÇÃO — declarada SOMENTE quando não existe comando autorizado nesta tela.
+   * Um bloqueio do domínio e uma ausência de permissão são fatos diferentes e são declarados
+   * como fatos, nunca como botão que o servidor recusaria.
+   */
+  const nextAction: NextAction | null =
+    primaryAction !== null
+      ? null
+      : blocked
+        ? {
+            kind: 'waiting',
+            label: 'Avanço bloqueado',
+            description: formatServiceRequestBlocker(readiness.blockers[0]!),
+          }
+        : {
+            kind: 'waiting',
+            label: 'Nenhuma ação disponível para o seu perfil',
+            description:
+              'Nenhuma transição do ciclo está autorizada para o seu perfil no estado atual da solicitação.',
+          };
+
+  const metadata: ObjectMetadataField[] = [
+    {
+      label: 'Prioridade',
+      value: <ServiceRequestPriorityBadge priority={serviceRequest.priority} />,
+    },
+    { label: 'Origem', value: formatServiceRequestOrigin(serviceRequest.originSource) },
+    {
+      label: 'Janela desejada',
+      value: formatDesiredWindow(serviceRequest.desiredStartAt, serviceRequest.desiredEndAt),
+    },
+    { label: 'Criada em', value: formatDateTime(serviceRequest.createdAt) },
+    { label: 'Registrada por', value: formatRegisteredBy(serviceRequest.createdByIdentityId, identityId) },
+  ];
+
   return (
-    <main id="main-content" className="shell-page">
-      <header className="border-b border-gray-200 pb-4">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <h1 className="cisne-type-page-title">{serviceRequest.requestCode}</h1>
-              <ServiceRequestStatusBadge status={serviceRequest.status} />
-              <ServiceRequestPriorityBadge priority={serviceRequest.priority} />
-            </div>
-            <p className="mt-1 text-sm font-medium text-gray-900">
-              {related.client?.name ?? (
-                <span className="text-gray-400">Cliente não identificado</span>
-              )}
-            </p>
-            <p className="mt-0.5 text-xs text-gray-500">
-              {related.service?.label ?? summarizeServiceRequestDescription(serviceRequest.description, 90)}
-              {' · '}
-              {formatServiceRequestOrigin(serviceRequest.originSource)}
-              {' · '}
-              {formatDesiredWindow(serviceRequest.desiredStartAt, serviceRequest.desiredEndAt)}
-              {timing ? ` (${timing.text})` : ''}
-            </p>
-          </div>
+    <ModulePage>
+      <EnterpriseObjectPage
+        breadcrumb={[
+          { label: 'Solicitações', href: '/app/requests' },
+          { label: serviceRequest.requestCode },
+        ]}
+        header={
+          <EnterpriseObjectHeader
+            // A IDENTIDADE do operador é o código da solicitação; cliente e serviço qualificam.
+            title={serviceRequest.requestCode}
+            subtitle={[
+              related.client?.name,
+              related.service?.label ??
+                summarizeServiceRequestDescription(serviceRequest.description, 90),
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+            status={{
+              label: formatServiceRequestStatus(serviceRequest.status),
+              tone: STATUS_TONES[serviceRequest.status],
+            }}
+            metadata={metadata}
+            primaryAction={primaryAction}
+            secondaryActions={secondaryActions}
+          />
+        }
+        nextAction={<NextActionPanel action={nextAction} />}
+        aside={
+          <>
+            <ObjectPanel title="Próximo passo">
+              <p className="m-0 text-sm font-semibold text-gray-900">
+                {formatServiceRequestNextStep(readiness.nextStep)}
+              </p>
+              <p className="mt-1 text-xs text-gray-500">
+                Derivado do estado atual da solicitação e das suas permissões.
+              </p>
 
-          <div className="flex flex-col items-end gap-2">
-            {primaryTransition ? (
-              <button
-                type="button"
-                disabled={actionSubmitting || readiness.blockers.length > 0}
-                aria-describedby={
-                  readiness.blockers.length > 0 ? 'request-readiness-blockers' : undefined
-                }
-                title={
-                  readiness.blockers.length > 0
-                    ? formatServiceRequestBlocker(readiness.blockers[0]!)
-                    : undefined
-                }
-                onClick={() => runTransition(primaryTransition)}
-              >
-                {formatServiceRequestTransition(primaryTransition)}
-              </button>
-            ) : serviceOrderLink ? (
-              <Link to={serviceOrderLink} className="button-link">
-                Abrir ordem de serviço
-              </Link>
-            ) : (
-              <span className="text-sm text-gray-500">
-                {readiness.blockers.length > 0
-                  ? 'Avanço bloqueado'
-                  : 'Nenhuma ação disponível para o seu perfil'}
-              </span>
-            )}
-
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              {canEdit ? (
-                <Link
-                  to={`/app/requests/${serviceRequest.id}/edit`}
-                  className="button-link button-secondary"
+              {blocked ? (
+                <ul
+                  id="request-readiness-blockers"
+                  className="mt-3 space-y-1"
+                  aria-label="Bloqueios para avançar"
                 >
-                  Editar rascunho
-                </Link>
+                  {readiness.blockers.map((blocker) => (
+                    <li
+                      key={blocker}
+                      className="rounded bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800 ring-1 ring-amber-600/20 ring-inset"
+                    >
+                      {formatServiceRequestBlocker(blocker)}
+                    </li>
+                  ))}
+                </ul>
               ) : null}
-              {availableSecondary.map((transition) => (
-                <button
-                  key={transition}
-                  type="button"
-                  className="button-secondary"
-                  disabled={actionSubmitting}
-                  onClick={() => runTransition(transition)}
-                >
-                  {formatServiceRequestTransition(transition)}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </header>
 
-      {actionError ? (
-        <p className="form-error" role="alert">
-          {actionError}
-        </p>
-      ) : null}
-      {actionSuccess ? (
-        <p className="form-notice" role="status">
-          {actionSuccess}
-        </p>
-      ) : null}
-      {versionConflict ? <VersionConflictNotice onReload={() => void reload()} /> : null}
+              <p className="mt-3 text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
+                Sinais de atenção
+              </p>
+              {attention.length > 0 ? (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {attention.map((fact) => (
+                    <span
+                      key={fact.code}
+                      className={cn(
+                        'inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset',
+                        ATTENTION_TONE_CLASS[fact.tone],
+                      )}
+                    >
+                      {fact.text}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-1 text-xs text-gray-500">Nenhum sinal derivável no momento.</p>
+              )}
 
-      <div className="mt-5 grid gap-5 lg:grid-cols-3">
-        <section className="requests-section lg:col-span-2" aria-labelledby="request-context-heading">
-          <h2 id="request-context-heading" className="cisne-type-section-title">
-            Resumo operacional
-          </h2>
-          <dl className="requests-details sm:grid-cols-2">
-            <div>
-              <dt>Cliente</dt>
-              <dd>
-                {related.client ? (
+              {serviceRequest.rejectionReason ? (
+                <div className="mt-3">
+                  <p className="m-0 text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
+                    Motivo da rejeição
+                  </p>
+                  <p className="text-sm text-gray-800">{serviceRequest.rejectionReason}</p>
+                </div>
+              ) : null}
+              {serviceRequest.cancellationReason ? (
+                <div className="mt-3">
+                  <p className="m-0 text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
+                    Motivo do cancelamento
+                  </p>
+                  <p className="text-sm text-gray-800">{serviceRequest.cancellationReason}</p>
+                </div>
+              ) : null}
+            </ObjectPanel>
+          </>
+        }
+      >
+        {actionError ? (
+          <p className="form-error" role="alert">
+            {actionError}
+          </p>
+        ) : null}
+        {actionSuccess ? (
+          <p className="form-notice" role="status">
+            {actionSuccess}
+          </p>
+        ) : null}
+        {versionConflict ? <VersionConflictNotice onReload={() => void reload()} /> : null}
+
+        <ObjectPanel title="Resumo operacional">
+          <DefinitionList
+            items={[
+              {
+                label: 'Cliente',
+                value: related.client ? (
                   <Link to={`/app/clients/${related.client.id}`}>{related.client.name}</Link>
                 ) : (
                   <span className="text-gray-500">Não autorizado / não identificado</span>
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt>Serviço</dt>
-              <dd>{related.service?.label ?? 'Não informado'}</dd>
-            </div>
-            <div>
-              <dt>Unidade</dt>
-              <dd>{serviceRequest.unitId}</dd>
-            </div>
-            <div>
-              <dt>Local</dt>
-              <dd>
-                {[
-                  serviceRequest.location?.label,
-                  serviceRequest.location?.city,
-                  serviceRequest.location?.state,
-                ]
-                  .filter(Boolean)
-                  .join(' · ') || 'Não informado'}
-              </dd>
-            </div>
-            <div>
-              <dt>Janela desejada</dt>
-              <dd>
-                {formatDesiredWindow(serviceRequest.desiredStartAt, serviceRequest.desiredEndAt)}
-                {timing ? <span className="block text-xs text-gray-500">{timing.text}</span> : null}
-              </dd>
-            </div>
-            <div>
-              <dt>Origem</dt>
-              <dd>
-                {formatServiceRequestOrigin(serviceRequest.originSource)}
-                {serviceRequest.externalOriginReference ? (
-                  <span className="block text-xs text-gray-500">
-                    Ref. externa {serviceRequest.externalOriginReference}
-                  </span>
-                ) : null}
-              </dd>
-            </div>
-            <div>
-              <dt>Contato externo</dt>
-              <dd>{formatExternalContact(serviceRequest.externalContact)}</dd>
-            </div>
-            <div>
-              <dt>Prioridade</dt>
-              <dd>{formatServiceRequestPriority(serviceRequest.priority)}</dd>
-            </div>
-            <div className="sm:col-span-2">
-              <dt>Demanda</dt>
-              <dd>{serviceRequest.description ?? 'Sem descrição registrada'}</dd>
-            </div>
-            {serviceRequest.operationalNotes ? (
-              <div className="sm:col-span-2">
-                <dt>Observações operacionais</dt>
-                <dd>{serviceRequest.operationalNotes}</dd>
-              </div>
-            ) : null}
-            <div>
-              <dt>Registrada por</dt>
-              <dd>{formatRegisteredBy(serviceRequest.createdByIdentityId, identityId)}</dd>
-            </div>
-            <div>
-              <dt>Criada em</dt>
-              <dd>
-                {formatDateTime(serviceRequest.createdAt)}
-                <span className="block text-xs text-gray-500">
-                  {formatRelativePast(serviceRequest.createdAt, now)}
-                </span>
-              </dd>
-            </div>
-          </dl>
-        </section>
+                ),
+              },
+              { label: 'Serviço', value: related.service?.label ?? 'Não informado' },
+              // O `unitId` é dado interno (em HML, um slug sintético): declara-se o ESCOPO.
+              { label: 'Unidade', value: <UnitScopeLabel unitId={serviceRequest.unitId} /> },
+              { label: 'Local', value: formatServiceRequestLocation(serviceRequest) },
+              {
+                label: 'Janela desejada',
+                value: (
+                  <>
+                    {formatDesiredWindow(serviceRequest.desiredStartAt, serviceRequest.desiredEndAt)}
+                    {timing ? <span className="block text-xs text-gray-500">{timing.text}</span> : null}
+                  </>
+                ),
+              },
+              {
+                label: 'Origem',
+                value: (
+                  <>
+                    {formatServiceRequestOrigin(serviceRequest.originSource)}
+                    {serviceRequest.externalOriginReference ? (
+                      <span className="block text-xs text-gray-500">
+                        Ref. externa {serviceRequest.externalOriginReference}
+                      </span>
+                    ) : null}
+                  </>
+                ),
+              },
+              { label: 'Contato externo', value: formatExternalContact(serviceRequest.externalContact) },
+              {
+                label: 'Criada em',
+                value: (
+                  <>
+                    {formatDateTime(serviceRequest.createdAt)}
+                    <span className="block text-xs text-gray-500">
+                      {formatRelativePast(serviceRequest.createdAt, now)}
+                    </span>
+                  </>
+                ),
+              },
+              {
+                label: 'Demanda',
+                value: serviceRequest.description ?? 'Sem descrição registrada',
+              },
+              ...(serviceRequest.operationalNotes
+                ? [{ label: 'Observações operacionais', value: serviceRequest.operationalNotes }]
+                : []),
+            ]}
+          />
+        </ObjectPanel>
 
-        <section className="requests-section" aria-labelledby="request-readiness-heading">
-          <h2 id="request-readiness-heading" className="cisne-type-section-title">
-            Próximo passo
-          </h2>
-          <p className="text-sm font-semibold text-gray-900">
-            {formatServiceRequestNextStep(readiness.nextStep)}
-          </p>
-          <p className="mt-1 text-xs text-gray-500">
-            Derivado do estado atual da solicitação e das suas permissões.
-          </p>
-
-          {readiness.blockers.length > 0 ? (
-            <ul
-              id="request-readiness-blockers"
-              className="mt-3 space-y-1"
-              aria-label="Bloqueios para avançar"
-            >
-              {readiness.blockers.map((blocker) => (
-                <li
-                  key={blocker}
-                  className="rounded bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800 ring-1 ring-amber-600/20 ring-inset"
-                >
-                  {formatServiceRequestBlocker(blocker)}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-
-          <p className="mt-4 text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
-            Sinais de atenção
-          </p>
-          {attention.length > 0 ? (
-            <div className="mt-1 flex flex-wrap gap-1">
-              {attention.map((fact) => (
-                <span
-                  key={fact.code}
-                  className={cn(
-                    'inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset',
-                    ATTENTION_TONE_CLASS[fact.tone],
-                  )}
-                >
-                  {fact.text}
-                </span>
-              ))}
-            </div>
-          ) : (
-            <p className="mt-1 text-xs text-gray-500">Nenhum sinal derivável no momento.</p>
-          )}
-
-          {serviceRequest.rejectionReason ? (
-            <div className="mt-4">
-              <p className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
-                Motivo da rejeição
-              </p>
-              <p className="text-sm text-gray-800">{serviceRequest.rejectionReason}</p>
-            </div>
-          ) : null}
-          {serviceRequest.cancellationReason ? (
-            <div className="mt-4">
-              <p className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
-                Motivo do cancelamento
-              </p>
-              <p className="text-sm text-gray-800">{serviceRequest.cancellationReason}</p>
-            </div>
-          ) : null}
-        </section>
-      </div>
-
-      <div className="mt-5 grid gap-5 lg:grid-cols-2">
-        <section className="requests-section" aria-labelledby="request-chain-heading">
-          <h2 id="request-chain-heading" className="cisne-type-section-title">
-            Cadeia relacionada
-          </h2>
-          <p className="mb-3 text-xs text-gray-500">
+        <ObjectPanel title="Cadeia relacionada">
+          <p className="m-0 mb-3 text-xs text-gray-500">
             Proposta, pedido de compra e ordens de serviço realmente vinculados. Cada elo aparece
             apenas se você puder consultá-lo no módulo responsável.
           </p>
@@ -528,54 +553,51 @@ export function ServiceRequestDetailPage() {
               linkedChain.length === 0
             }
           />
-        </section>
+        </ObjectPanel>
 
-        <section className="requests-section" aria-labelledby="request-lifecycle-heading">
-          <h2 id="request-lifecycle-heading" className="cisne-type-section-title">
-            Histórico do ciclo
-          </h2>
-          <p className="mb-3 text-xs text-gray-500">
+        <ObjectPanel title="Histórico do ciclo">
+          <p className="m-0 mb-3 text-xs text-gray-500">
             Eventos registrados pelo domínio, do mais recente para o mais antigo.
           </p>
           <ServiceRequestTimeline
             events={detail.historyEvents}
             currentIdentityId={identityId ?? null}
           />
-        </section>
-      </div>
+        </ObjectPanel>
 
-      <DocumentManagementPanel
-        scope={{
-          kind: 'SERVICE_REQUEST',
-          unitId: serviceRequest.unitId,
-          entityId: serviceRequest.id,
-          entityLabel: serviceRequest.requestCode,
-        }}
-        links={detail.documentLinks.map((link) => ({
-          id: link.id,
-          documentId: link.documentId,
-          linkPurpose: link.linkPurpose,
-          createdAt: link.createdAt,
-        }))}
-        onLinksChange={(links) =>
-          setState({
-            phase: 'ready',
-            detail: {
-              ...detail,
-              documentLinks: links.map((link) => ({
-                id: link.id ?? link.documentId,
-                documentId: link.documentId,
-                linkPurpose: link.linkPurpose ?? 'EVIDENCE',
-                createdAt: link.createdAt ?? new Date().toISOString(),
-              })),
-            },
-          })
-        }
-      />
+        <DocumentManagementPanel
+          scope={{
+            kind: 'SERVICE_REQUEST',
+            unitId: serviceRequest.unitId,
+            entityId: serviceRequest.id,
+            entityLabel: serviceRequest.requestCode,
+          }}
+          links={detail.documentLinks.map((link) => ({
+            id: link.id,
+            documentId: link.documentId,
+            linkPurpose: link.linkPurpose,
+            createdAt: link.createdAt,
+          }))}
+          onLinksChange={(links) =>
+            setState({
+              phase: 'ready',
+              detail: {
+                ...detail,
+                documentLinks: links.map((link) => ({
+                  id: link.id ?? link.documentId,
+                  documentId: link.documentId,
+                  linkPurpose: link.linkPurpose ?? 'EVIDENCE',
+                  createdAt: link.createdAt ?? new Date().toISOString(),
+                })),
+              },
+            })
+          }
+        />
 
-      <p className="mt-4">
-        <Link to="/app/requests">Voltar à lista</Link>
-      </p>
+        <p>
+          <Link to="/app/requests">Voltar à lista</Link>
+        </p>
+      </EnterpriseObjectPage>
 
       <ConfirmDialog
         open={rejectOpen}
@@ -678,6 +700,21 @@ export function ServiceRequestDetailPage() {
           </select>
         </div>
       </ConfirmDialog>
-    </main>
+    </ModulePage>
   );
+}
+
+/**
+ * LOCAL — o vínculo é exibido pelo rótulo humano (`location.label`/cidade/estado) que o
+ * payload carrega. Nada de derivar local a partir de identificador técnico.
+ */
+function formatServiceRequestLocation(
+  serviceRequest: ServiceRequestDetail['serviceRequest'],
+): string {
+  const parts = [
+    serviceRequest.location?.label,
+    serviceRequest.location?.city,
+    serviceRequest.location?.state,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(' · ') : 'Não informado';
 }

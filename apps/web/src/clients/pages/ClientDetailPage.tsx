@@ -41,6 +41,7 @@ import {
 } from '../../enterprise-object';
 import { ActivityTimeline } from '../../operator';
 import { BusinessChain, useBusinessChain } from '../../business-chain';
+import { ModulePage, ModulePageHeader } from '../../ui';
 
 /**
  * OBJECT PAGE DO CLIENTE — leitura canônica do contrato `enterprise-object`.
@@ -232,7 +233,8 @@ export function ClientDetailPage() {
     }
 
     return (
-      <main id="main-content" className="shell-page clients-page">
+      <ModulePage className="clients-page">
+        <ModulePageHeader title="Cliente" />
         <EnterpriseObjectPage
           breadcrumb={CLIENT_BREADCRUMB}
           header={null}
@@ -241,7 +243,7 @@ export function ClientDetailPage() {
           phaseMessage={phaseMessage}
           onRetry={phase === 'error' ? onRetry : undefined}
         />
-      </main>
+      </ModulePage>
     );
   }
 
@@ -278,7 +280,7 @@ export function ClientDetailPage() {
   });
 
   return (
-    <main id="main-content" className="shell-page clients-page">
+    <ModulePage className="clients-page">
       <EnterpriseObjectPage
         breadcrumb={[
           { label: 'Clientes', href: '/app/clients' },
@@ -463,6 +465,6 @@ export function ClientDetailPage() {
         }}
         onConfirm={() => void handleActivate()}
       />
-    </main>
+    </ModulePage>
   );
 }

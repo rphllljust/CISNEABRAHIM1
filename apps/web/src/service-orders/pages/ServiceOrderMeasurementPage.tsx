@@ -33,6 +33,13 @@ import { SERVICE_ORDER_STATUSES, type ServiceOrderDetail } from '../types/servic
 import { buildMeasurementComparisonRows } from '../utils/measurement-comparison';
 import { sumMoneyLines } from '../utils/measurement-format';
 import { buildRequirementCoverage, collectSatisfiedEvidenceKinds, parseExecutionRequirements } from '../utils/execution-requirements';
+import {
+  ModuleDeniedState,
+  ModuleErrorState,
+  ModuleLoadingState,
+  ModulePage,
+  ModulePageHeader,
+} from '../../ui';
 
 type PageState =
   | { phase: 'loading' }
@@ -189,38 +196,45 @@ export function ServiceOrderMeasurementPage() {
 
   if (state.phase === 'loading') {
     return (
-      <main id="main-content" className="shell-page measurement-page">
-        <p aria-busy="true" aria-live="polite">
-          Carregando medição…
-        </p>
-      </main>
+      <ModulePage className="measurement-page">
+        <ModulePageHeader title="Conferência de medição" />
+        <ModuleLoadingState title="Conferência de medição" message="Carregando medição…" />
+      </ModulePage>
     );
   }
 
   if (state.phase === 'denied') {
     return (
-      <main id="main-content" className="shell-page measurement-page">
-        <p role="alert">Você não tem permissão para conferir medições desta ordem de serviço.</p>
-      </main>
+      <ModulePage className="measurement-page">
+        <ModulePageHeader title="Conferência de medição" />
+        <ModuleDeniedState
+          title="Conferência de medição"
+          message="Você não tem permissão para conferir medições desta ordem de serviço."
+        />
+      </ModulePage>
     );
   }
 
   if (state.phase === 'not_found') {
     return (
-      <main id="main-content" className="shell-page measurement-page">
+      <ModulePage className="measurement-page">
+        <ModulePageHeader title="Conferência de medição" />
         <p role="alert">Ordem de serviço não encontrada.</p>
-      </main>
+      </ModulePage>
     );
   }
 
   if (state.phase === 'error') {
     return (
-      <main id="main-content" className="shell-page measurement-page">
-        <p role="alert">{state.message}</p>
-        <button type="button" onClick={() => void reload()}>
-          Tentar novamente
-        </button>
-      </main>
+      <ModulePage className="measurement-page">
+        <ModulePageHeader title="Conferência de medição" />
+        <ModuleErrorState
+          title="Conferência de medição"
+          message={state.message}
+          retryable
+          onRetry={() => void reload()}
+        />
+      </ModulePage>
     );
   }
 
@@ -253,7 +267,7 @@ export function ServiceOrderMeasurementPage() {
     capabilities.canUpdate && measurement?.status === MEASUREMENT_STATUSES.Rejected;
 
   return (
-    <main id="main-content" className="shell-page measurement-page">
+    <ModulePage className="measurement-page">
       <header className="measurement-page__header">
         <p className="measurement-page__eyebrow">Conferência de medição</p>
         <div className="measurement-page__title-row">
@@ -479,6 +493,6 @@ export function ServiceOrderMeasurementPage() {
           />
         </label>
       </ConfirmDialog>
-    </main>
+    </ModulePage>
   );
 }
