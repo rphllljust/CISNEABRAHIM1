@@ -18,11 +18,20 @@ export function ModulePage({ children, className }: { children: ReactNode; class
   );
 }
 
+/**
+ * BARRA DE FILTROS COMPACTA — a mesma gramatica das worklists, para as 28 superficies de
+ * backoffice que ainda usavam o cartao.
+ *
+ * O `FilterCard` era `mb-6 rounded-xl ... p-6`: um cartao de respiro largo com sombra, que em
+ * 1440px empurrava a grade para baixo e fazia o filtro dominar a primeira dobra — exatamente o
+ * "nao usar card gigante para filtros". Os controles e o comportamento nao mudam; o que muda e
+ * a moldura, que passa a ter a densidade de uma linha de operacao.
+ */
 export function FilterCard({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div
       className={cn(
-        'mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5',
+        'mb-2 flex flex-wrap items-end gap-2 rounded-md border border-gray-200 bg-white px-2.5 py-2',
         className,
       )}
     >

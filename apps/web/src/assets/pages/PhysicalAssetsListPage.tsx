@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { mapAssetErrorToMessage } from '../api/asset-error-messages';
 import {
@@ -74,6 +74,8 @@ export function PhysicalAssetsListPage() {
   const navigate = useNavigate();
   const { capabilities } = useAssetCapabilities();
   const { resourceTypes } = useAssetResourceTypes();
+  /** De-para slug tecnico -> rotulo humano, do proprio catalogo autorizado de tipos. */
+  const typeNameByCode = new Map(resourceTypes.map((type) => [type.code, type.name]));
   const [lifecycleFilter, setLifecycleFilter] = useState<'' | AssetLifecycleStatus>('');
   const [availabilityFilter, setAvailabilityFilter] = useState<'' | AssetOperationalAvailability>(
     '',
@@ -350,7 +352,17 @@ export function PhysicalAssetsListPage() {
                     </ModuleTableLink>
                   </td>
                   <td className={moduleTableCellClass}>{asset.name}</td>
-                  <td className={moduleTableCellClass}>{asset.resourceTypeCode}</td>
+                  {/*
+                    LABEL HUMANO DO TIPO, nao o slug. `resourceTypeCode` e tecnico
+                    (`EXCAVATOR`, `WATER_TRUCK`) e era o que a grade mostrava, enquanto o
+                    filtro da MESMA tela ja oferecia o nome publicado pelo catalogo
+                    ("Escavadeira", "Caminhão pipa"). O de-para vem do catalogo autorizado que
+                    a pagina ja carrega; sem rotulo publicado, o codigo permanece como ultimo
+                    recurso — nunca um texto fabricado.
+                  */}
+                  <td className={moduleTableCellClass}>
+                    {typeNameByCode.get(asset.resourceTypeCode) ?? asset.resourceTypeCode}
+                  </td>
                   <td className={moduleTableCellClass}>
                     <AssetLifecycleStatusBadge status={asset.lifecycleStatus} />
                   </td>
