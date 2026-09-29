@@ -55,6 +55,8 @@ type MockOptions = {
   linkedChain?: ProposalLinked[];
   clientName?: string | null;
   revisionsCount?: number;
+  /** Leitura da cadeia de negocio negada pelo servidor. */
+  chainDenied?: boolean;
 };
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -66,6 +68,27 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 function denied(): Response {
   return jsonResponse({ error: { code: 'COMMERCIAL_DENIED', message: 'Denied.' } }, 403);
+}
+
+/** No da cadeia no formato REAL do read model (`BusinessChainNode`). */
+function chainNode(
+  kind: 'CLIENT' | 'PROPOSAL' | 'SERVICE_ORDER' | 'RECEIVABLE',
+  id: string,
+  reference: string,
+  relation: 'ROOT' | 'ORIGIN' | 'RESULT',
+) {
+  return {
+    id,
+    kind,
+    businessReference: reference,
+    status: 'ACTIVE',
+    occurredAt: '2026-02-02T12:00:00.000Z',
+    route: `/app/${kind.toLowerCase()}/${id}`,
+    relation,
+    summary: reference,
+    unitId: null,
+    clientId: CLIENT_ID,
+  };
 }
 
 const STATUS_TIMESTAMPS: Record<ProposalVersionStatus, string | null> = {
@@ -240,6 +263,27 @@ function createProposalFetchMock(options: MockOptions) {
       return jsonResponse({
         identityId: MOCK_IDENTITY_ID,
         session: { id: 'sid', expiresAt: '2026-12-31T00:00:00.000Z', status: 'ACTIVE' },
+      });
+    }
+
+    /*
+     * CADEIA EMPRESARIAL da proposta (read model do backend). O servidor devolve a
+     * linhagem ja autorizada e ordenada; `chainDenied` prova que a negacao nao vira
+     * cadeia vazia silenciosa.
+     */
+    if (pathname.startsWith('/api/v1/business-chain/') && method === 'GET') {
+      if (options.chainDenied) {
+        return denied();
+      }
+      return jsonResponse({
+        anchor: { kind: 'PROPOSAL', id: PROPOSAL_ID },
+        nodes: [
+          chainNode('CLIENT', CLIENT_ID, CLIENT_NAME, 'ORIGIN'),
+          chainNode('PROPOSAL', PROPOSAL_ID, PROPOSAL_CODE, 'ROOT'),
+          chainNode('SERVICE_ORDER', 'so-1', 'OS-2026-0007', 'RESULT'),
+          chainNode('RECEIVABLE', 'ar-1', 'AR-0001', 'RESULT'),
+        ],
+        milestones: [],
       });
     }
 
@@ -505,5 +549,57 @@ describe('Proposta — object page canonica', () => {
     expect(within(history).queryByText(/cancelad/i)).not.toBeInTheDocument();
     expect(within(history).queryByText(/expirad/i)).not.toBeInTheDocument();
     expect(within(history).queryByText(/aceit/i)).not.toBeInTheDocument();
+  });
+
+  /*
+   * CADEIA EMPRESARIAL (read model). A proposta deixa de ser uma ilha: o operador ve
+   * de onde veio e o que ela gerou, por clique, sem remontar linhagem no front.
+   */
+  it('mostra a cadeia de negócio navegável a partir da proposta', { timeout: 20000 }, async () => {
+    vi.stubGlobal(
+      'fetch',
+      createProposalFetchMock({ status: PROPOSAL_VERSION_STATUSES.Accepted }),
+    );
+    renderPage();
+    await waitForObjectPage();
+
+    const chain = await screen
+      .findByRole('region', { name: /cadeia de negócio da proposta/i })
+      .catch(() => {
+        const heading = screen.getByRole('heading', { name: /cadeia de negócio da proposta/i });
+        const section = heading.closest('section');
+        if (!section) {
+          throw new Error('a cadeia de negócio não foi renderizada como painel');
+        }
+        return section;
+      });
+    // Elo de origem (cliente) e elos gerados (OS, recebível) com rotulo de negocio.
+    expect(within(chain).getAllByText(new RegExp(CLIENT_NAME.slice(0, 12))).length).toBeGreaterThan(0);
+    expect(within(chain).getAllByText(/OS-2026-0007/).length).toBeGreaterThan(0);
+    expect(within(chain).getAllByText(/AR-0001/).length).toBeGreaterThan(0);
+    // A ligacao e nomeada em linguagem de negocio, nao por chave tecnica.
+    expect(within(chain).getAllByText('Veio de').length).toBeGreaterThan(0);
+    expect(within(chain).getAllByText('Gerou').length).toBeGreaterThan(0);
+    // Navegavel por clique, e nao um id solto.
+    expect(within(chain).getByRole('link', { name: /AR-0001/ })).toHaveAttribute(
+      'href',
+      '/app/receivable/ar-1',
+    );
+  });
+
+  it('nega a cadeia sem exibir elo, contagem ou a palavra oculto', async () => {
+    vi.stubGlobal(
+      'fetch',
+      createProposalFetchMock({
+        status: PROPOSAL_VERSION_STATUSES.Accepted,
+        chainDenied: true,
+      }),
+    );
+    renderPage();
+    await waitForObjectPage();
+
+    expect(screen.queryByText('OS-2026-0007')).not.toBeInTheDocument();
+    expect(screen.queryByText('AR-0001')).not.toBeInTheDocument();
+    expect(screen.queryByText(/ocult/i)).not.toBeInTheDocument();
   });
 });

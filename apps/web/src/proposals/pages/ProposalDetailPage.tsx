@@ -63,6 +63,7 @@ import {
   type SmartRelationSpec,
 } from '../../enterprise-object';
 import { ActivityTimeline, type ActivityFact } from '../../operator';
+import { BusinessChain, useBusinessChain } from '../../business-chain';
 import { ModulePage } from '../../ui/module-layout';
 import type { StatusBadgeTone } from '../../ui/StatusBadge';
 import { cn } from '../../ui/utils/cn';
@@ -157,6 +158,15 @@ export function ProposalDetailPage() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  /*
+   * CADEIA EMPRESARIAL — a linhagem do negocio por clique, em UMA requisicao ao read
+   * model existente (`PROPOSAL` e ancora suportada pelo backend). O servidor devolve
+   * a cadeia ja autorizada e ja ordenada; o front nao remonta a linhagem, nao filtra
+   * e nao infere elo. Cliente -> Solicitacao -> Proposta -> PO -> OS -> Medicao ->
+   * Faturamento -> Recebivel deixa de exigir que o operador cace telas.
+   */
+  const businessChain = useBusinessChain('PROPOSAL', proposalId);
 
   async function runAction(action: () => Promise<void>, successMessage?: string): Promise<void> {
     if (state.phase !== 'ready') {
@@ -600,6 +610,18 @@ export function ProposalDetailPage() {
             client={related.client}
           />
         </ObjectPanel>
+
+        {/*
+          Linhagem EMPRESARIAL completa (read model do backend), distinta do painel acima:
+          aqui a proposta aparece no meio da cadeia do negocio, navegavel por clique.
+        */}
+        <BusinessChain
+          chain={businessChain.chain}
+          phase={businessChain.phase}
+          message={businessChain.message}
+          onRetry={businessChain.retry}
+          title="Cadeia de negócio da proposta"
+        />
 
         {attention.length > 0 || readiness.blockers.length > 0 ? (
           <ObjectPanel title="Situação comercial">
