@@ -1,16 +1,16 @@
 import { Link } from 'react-router-dom';
 import { AttentionBlock } from '../components/AttentionBlock';
-import { DashboardAgingChart } from '../components/charts/DashboardAgingChart';
-import { DashboardBarChart } from '../components/charts/DashboardBarChart';
-import { DashboardLineChart } from '../components/charts/DashboardLineChart';
-import { DashboardSlaChart } from '../components/charts/DashboardSlaChart';
-import { DashboardKpiStrip } from '../components/DashboardKpiStrip';
+import { BusinessFlowStrip, DashboardKpiStrip, PeriodVolumeFootnote } from '../components/DashboardKpiStrip';
 import { DashboardPageHeader } from '../components/DashboardPageHeader';
+import { FinancePanel } from '../components/FinancePanel';
+import { FiscalPanel } from '../components/FiscalPanel';
+import { OperationPanel } from '../components/OperationPanel';
 import { OperationalDashboardSkeleton } from '../components/OperationalDashboardSkeleton';
 import { ProductivityPanel } from '../components/ProductivityPanel';
 import { useExecutiveDashboard } from '../hooks/useExecutiveDashboard';
-import { buildDashboardKpis } from '../utils/build-dashboard-kpis';
-import { semanticMetricAttrs, semanticSectionAttrs } from '../semantic-dashboard';
+import { buildDashboardKpis, buildPeriodVolume } from '../utils/build-dashboard-kpis';
+import { buildBusinessFlow } from '../utils/dashboard-semantics';
+import { semanticSectionAttrs } from '../semantic-dashboard';
 import '../dashboard.css';
 
 function formatGeneratedAt(value: string): string {
@@ -43,6 +43,16 @@ function buildActiveFilterLabels(filters: {
   return labels;
 }
 
+/**
+ * EXECUTIVE CONTROL TOWER — composicao do painel principal.
+ *
+ * Ordem de leitura (5 segundos): saúde da empresa -> o que exige decisão agora ->
+ * onde está o dinheiro e o atraso -> operação -> fluxo -> produtividade -> fiscal.
+ *
+ * Todas as fontes continuam sendo o SNAPSHOT COMPOSTO UNICO
+ * (`GET /dashboard/executive` via useExecutiveDashboard): um request, sem N+1,
+ * sem polling novo, sem cálculo de regra empresarial no navegador.
+ */
 export function OperationalDashboardPage() {
   const { state, reload, filters, setFilters, periodOptions, isRefreshing } = useExecutiveDashboard();
 
@@ -60,6 +70,7 @@ export function OperationalDashboardPage() {
       <main id="main-content" className="dashboard-page w-full max-w-7xl">
         <DashboardPageHeader
           {...headerProps}
+          unitLabel={filters.unitId ?? null}
           periodLabel={null}
           activeFilters={[]}
           generatedAt={null}
@@ -75,6 +86,7 @@ export function OperationalDashboardPage() {
       <main id="main-content" className="dashboard-page w-full max-w-7xl">
         <DashboardPageHeader
           {...headerProps}
+          unitLabel={filters.unitId ?? null}
           periodLabel={null}
           activeFilters={[]}
           generatedAt={null}
@@ -93,6 +105,8 @@ export function OperationalDashboardPage() {
 
   const snapshot = state.phase === 'ready' ? state.snapshot : state.partial;
   const kpis = snapshot ? buildDashboardKpis(snapshot) : [];
+  const volume = snapshot ? buildPeriodVolume(snapshot) : null;
+  const flow = snapshot ? buildBusinessFlow(snapshot) : [];
   const activeFilters = buildActiveFilterLabels(filters);
   const periodLabel = snapshot ? formatPeriodLabel(snapshot.period.from, snapshot.period.to) : null;
 
@@ -100,6 +114,7 @@ export function OperationalDashboardPage() {
     <main id="main-content" className="dashboard-page w-full max-w-7xl">
       <DashboardPageHeader
         {...headerProps}
+        unitLabel={filters.unitId ?? null}
         periodLabel={periodLabel}
         activeFilters={activeFilters}
         onClearFilters={
@@ -120,50 +135,17 @@ export function OperationalDashboardPage() {
 
       {snapshot ? (
         <>
-          <div className="mb-8 grid gap-5 xl:grid-cols-[minmax(18rem,0.72fr)_minmax(38rem,1.6fr)] xl:items-start">
+          <div className="dashboard-fold">
             <AttentionBlock items={snapshot.attention} />
-            <DashboardKpiStrip kpis={kpis} />
+            <div className="dashboard-fold__kpis">
+              <DashboardKpiStrip kpis={kpis} />
+              {volume ? <PeriodVolumeFootnote volume={volume} /> : null}
+            </div>
           </div>
 
-          {snapshot.visibility.serviceOrders ? (
-            <section aria-labelledby="operational-heading">
-              <header className="mb-4">
-                <h2 id="operational-heading" className="m-0 text-base font-semibold text-gray-900">
-                  Visão operacional
-                </h2>
-                <p className="mt-0.5 text-sm text-gray-500">
-                  Distribuição, evolução e cumprimento de prazos no período selecionado.
-                </p>
-              </header>
-              <div className="dashboard-analytics grid grid-cols-1 gap-5 lg:grid-cols-3">
-                <DashboardBarChart
-                  chartId="service-orders-by-status"
-                  title={snapshot.charts.serviceOrdersByStatus.title}
-                  description={snapshot.charts.serviceOrdersByStatus.description}
-                  summary={snapshot.charts.serviceOrdersByStatus.summary}
-                  items={snapshot.charts.serviceOrdersByStatus.items.map((item) => ({
-                    key: item.status,
-                    label: item.label,
-                    value: item.count,
-                  }))}
-                />
-                <DashboardLineChart
-                  chartId="throughput-trend"
-                  title={snapshot.charts.throughputTrend.title}
-                  description={snapshot.charts.throughputTrend.description}
-                  summary={snapshot.charts.throughputTrend.summary}
-                  points={snapshot.charts.throughputTrend.points}
-                />
-                <DashboardSlaChart
-                  chartId="sla-chart"
-                  title={snapshot.charts.sla.title}
-                  description={snapshot.charts.sla.description}
-                  summary={snapshot.charts.sla.summary}
-                  points={snapshot.charts.sla.points}
-                />
-              </div>
-            </section>
-          ) : null}
+          {flow.length > 0 ? <BusinessFlowStrip stages={flow} /> : null}
+
+          {snapshot.visibility.serviceOrders ? <OperationPanel snapshot={snapshot} /> : null}
 
           {snapshot.visibility.productivity && snapshot.productivity ? (
             <div
@@ -178,51 +160,33 @@ export function OperationalDashboardPage() {
             </div>
           ) : null}
 
-          {snapshot.visibility.financialAging && snapshot.charts.financialAging.available ? (
-            <section
-              {...semanticSectionAttrs(['receivables.overdue_count', 'receivables.overdue_amount'])}
-              aria-labelledby="finance-heading"
-            >
-              <header className="mb-4">
-                <h2 id="finance-heading" className="m-0 text-base font-semibold text-gray-900">
-                  Visão financeira
-                </h2>
-                <p className="mt-0.5 text-sm text-gray-500">
-                  Recebíveis vencidos por faixa de aging configurada.
-                </p>
-              </header>
-              <div {...semanticMetricAttrs('receivables.overdue_count')}>
-                <DashboardAgingChart
-                  chartId="financial-aging"
-                  title={snapshot.charts.financialAging.title}
-                  description={snapshot.charts.financialAging.description}
-                  summary={snapshot.charts.financialAging.summary}
-                  buckets={snapshot.charts.financialAging.buckets}
-                />
-              </div>
-            </section>
-          ) : null}
+          {/*
+            ANCORA SEMANTICA DO FINANCEIRO — a secao renderiza `receivables.overdue_count`
+            (contagem vencida) e `receivables.overdue_amount` (exposicao publicada pelo
+            serializer no mesmo payload). O atributo liga a secao ao catalogo SMC-001
+            sem mover regra para o navegador.
+          */}
+          <div
+            {...semanticSectionAttrs(['receivables.overdue_count', 'receivables.overdue_amount'])}
+          >
+            <FinancePanel snapshot={snapshot} />
+          </div>
+
+          <FiscalPanel snapshot={snapshot} />
 
           {snapshot.shortcuts.length > 0 ? (
-            <section aria-labelledby="shortcuts-heading">
-              <header className="mb-4">
-                <h2 id="shortcuts-heading" className="m-0 text-base font-semibold text-gray-900">
-                  Acesso rápido
-                </h2>
-              </header>
-              <nav className="flex flex-wrap gap-2.5" aria-label="Atalhos operacionais">
-                {snapshot.shortcuts.map((shortcut) => (
-                  <Link
-                    key={shortcut.id}
-                    className="inline-flex min-h-9 items-center rounded-md border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 shadow-sm no-underline transition hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
-                    to={shortcut.href}
-                    aria-label={shortcut.ariaLabel}
-                  >
-                    {shortcut.label}
-                  </Link>
-                ))}
-              </nav>
-            </section>
+            <nav className="dashboard-shortcuts" aria-label="Atalhos operacionais">
+              {snapshot.shortcuts.map((shortcut) => (
+                <Link
+                  key={shortcut.id}
+                  className="dashboard-shortcuts__link"
+                  to={shortcut.href}
+                  aria-label={shortcut.ariaLabel}
+                >
+                  {shortcut.label}
+                </Link>
+              ))}
+            </nav>
           ) : null}
         </>
       ) : null}

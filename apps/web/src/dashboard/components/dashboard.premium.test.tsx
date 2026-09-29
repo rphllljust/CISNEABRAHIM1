@@ -13,10 +13,11 @@ const PERIOD_OPTIONS = [
 ] as const;
 
 describe('DashboardPageHeader', () => {
-  it('renders integrated breadcrumb, period and refresh control', () => {
+  it('renders a compact command header with scope, period and refresh control', () => {
     render(
       <DashboardPageHeader
         title="Visão geral"
+        unitLabel="Todas as unidades autorizadas"
         periodLabel="2026-08-23 — 2026-08-29"
         period="week"
         periodOptions={PERIOD_OPTIONS}
@@ -31,6 +32,7 @@ describe('DashboardPageHeader', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: 'Visão geral' })).toBeInTheDocument();
     expect(screen.getByText('2026-08-23 — 2026-08-29')).toBeInTheDocument();
+    expect(screen.getByText('Todas as unidades autorizadas')).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Período' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Atualizar' })).toBeInTheDocument();
     expect(screen.queryByText(/período analisado/i)).not.toBeInTheDocument();
@@ -38,7 +40,7 @@ describe('DashboardPageHeader', () => {
 });
 
 describe('DashboardKpiStrip', () => {
-  it('derives KPIs from executive snapshot without fabricated values', () => {
+  it('derives prioritised KPIs from the executive snapshot without fabricated values', () => {
     const kpis = buildDashboardKpis(EXECUTIVE_DASHBOARD_SNAPSHOT);
     render(
       <MemoryRouter>
@@ -46,7 +48,14 @@ describe('DashboardKpiStrip', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('heading', { name: /indicadores principais/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /saúde da empresa/i })).toBeInTheDocument();
+    // Existe KPI de dinheiro na faixa e ele vem antes do volume de OS.
+    const receivablesIndex = kpis.findIndex((kpi) => kpi.id === 'overdue-receivables');
+    const activeIndex = kpis.findIndex((kpi) => kpi.id === 'active-service-orders');
+    expect(receivablesIndex).toBeGreaterThanOrEqual(0);
+    expect(receivablesIndex).toBeLessThan(activeIndex);
+    // Nenhum KPI inventa valor: todo valor e nao-vazio e vem do snapshot.
+    expect(kpis.every((kpi) => kpi.value.length > 0 && kpi.value !== '0')).toBe(true);
     expect(screen.getByLabelText(/OS ativas: 6 ordens no escopo/i)).toHaveAttribute(
       'href',
       '/app/service-orders?status=active',
@@ -55,6 +64,13 @@ describe('DashboardKpiStrip', () => {
       'href',
       '/app/service-orders?status=COMPLETED&from=2026-08-23&to=2026-08-29&event=completed',
     );
+    // KPI sem lista filtrada real nao promete drill.
+    expect(screen.getByLabelText(/Taxa no prazo: 80,00%/i)).toBeInTheDocument();
+    expect(screen.getAllByText('sem lista filtrada').length).toBe(1);
+  });
+
+  it('never exceeds 7 executive KPIs', () => {
+    expect(buildDashboardKpis(EXECUTIVE_DASHBOARD_SNAPSHOT).length).toBeLessThanOrEqual(7);
   });
 
   it('returns null when no KPIs are available', () => {

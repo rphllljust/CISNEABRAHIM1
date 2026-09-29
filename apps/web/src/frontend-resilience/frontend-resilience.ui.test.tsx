@@ -310,12 +310,13 @@ describe('Frontend resilience & UX torture', () => {
 
       const link = screen.getByRole('link', { name: /OS vencidas: 5 itens. Maior atraso 12 dias./i });
       expect(link).toHaveAttribute('href', '/app/service-orders?filter=overdue');
+      // EXPECTATIVA ATUALIZADA (Executive Control Tower): a excecao virou LINHA compacta.
+      // O motivo continua textual e o detalhe real (maior atraso) permanece visivel na
+      // propria linha; a acao continua explicita. A severidade segue exposta por TEXTO
+      // ("Crítico"), nunca apenas por cor.
       expect(screen.getByText('Maior atraso: 12 dia(s)')).toBeInTheDocument();
-      // Expectativa atualizada: o bloco de atenção passou a expor a linguagem de ação
-      // derivada do tipo do item (`resolveAttentionAction`), no lugar do rótulo genérico
-      // "Ver lista filtrada". A verificação continua estrita — texto exato do verbo de
-      // gestão para OS vencidas — sem afrouxar asserção nem alterar regra de negócio.
-      expect(within(link).getByText('Ver OS vencidas')).toBeInTheDocument();
+      expect(within(link).getByText('Crítico')).toBeInTheDocument();
+      expect(within(link).getByText(/Ver OS vencidas/)).toBeInTheDocument();
     });
   });
 
@@ -344,7 +345,10 @@ describe('Frontend resilience & UX torture', () => {
         />,
       );
 
+      // Sem amostra o painel NAO pode virar zero falso: o valor ausente e "—" e
+      // o detalhe declara a razao. A faixa densa repete "amostra insuficiente".
       expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/amostra insuficiente/i).length).toBeGreaterThan(0);
       expect(screen.queryByText('0,00%')).not.toBeInTheDocument();
     });
   });

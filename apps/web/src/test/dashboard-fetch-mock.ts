@@ -35,6 +35,15 @@ export const EXECUTIVE_DASHBOARD_SNAPSHOT: ExecutiveDashboardSnapshot = {
       ariaLabel: 'Medições paradas: 2 itens',
       maxDelayDays: null,
       detail: 'Aguardando análise ou aprovação',
+    },    {
+      id: 'overdue-receivables',
+      label: 'Faturamentos vencidos',
+      count: 2,
+      severity: 'critical',
+      href: '/app/finance/receivables?status=OVERDUE',
+      ariaLabel: 'Faturamentos vencidos: 2 itens',
+      maxDelayDays: null,
+      detail: 'Exposição: R$ 800.00',
     },
   ],
   charts: {
@@ -106,6 +115,31 @@ export const EXECUTIVE_DASHBOARD_SNAPSHOT: ExecutiveDashboardSnapshot = {
   ],
 };
 
+/**
+ * TITULOS VENCIDOS — recorte consumido pela carteira
+ * (/app/finance/receivables?status=OVERDUE), no formato de resposta do modulo.
+ */
+const OVERDUE_RECEIVABLE_TITLES = [
+  {
+    id: '33333333-3333-4333-8333-333333333331',
+    externalReference: 'NF-1042',
+    originKind: 'BILLING_DOCUMENT',
+    originId: '44444444-4444-4444-8444-444444444441',
+    unitId: 'unit-1',
+    clientId: null,
+    principal: '800.00',
+    currencyCode: 'BRL',
+    dueDate: '2026-08-10',
+    lifecycle: 'ACTIVE',
+    status: 'OVERDUE',
+    remainingBalance: '800.00',
+    rowVersion: 1,
+    createdAt: '2026-07-10T12:00:00.000Z',
+    installments: [],
+    settlements: [],
+  },
+];
+
 export function createDashboardFetchMock() {
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = requestUrl(input);
@@ -153,6 +187,26 @@ export function createDashboardFetchMock() {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });
+    }
+    // CARTEIRA DE TITULOS — o drilldown financeiro do painel aponta para
+    // /app/finance/receivables?status=OVERDUE; sem a rota o clique no KPI nao era
+    // verificavel ponta a ponta. Contrato canonico { items, limit, offset, total,
+    // totalPages }, honrando o recorte status.
+    if (url.includes('/api/v1/finance/receivables') && method === 'GET') {
+      const status = new URL(url, 'http://localhost').searchParams.get('status');
+      const matched = status
+        ? OVERDUE_RECEIVABLE_TITLES.filter((item) => item.status === status)
+        : OVERDUE_RECEIVABLE_TITLES;
+      return new Response(
+        JSON.stringify({
+          items: matched,
+          limit: matched.length,
+          offset: 0,
+          total: matched.length,
+          totalPages: matched.length > 0 ? 1 : 0,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
     }
 
     if (url.includes('/api/v1/requests/service-requests') && method === 'GET') {

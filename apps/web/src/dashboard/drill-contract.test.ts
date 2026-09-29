@@ -9,8 +9,10 @@ describe('FILTER + DRILL CONTRACT (frontend, espelho FDC-001)', () => {
     );
   });
 
-  it('recebiveis vencidos: destino de navegacao do billing (paridade de contagem nao prometida no front)', () => {
-    expect(frontendDrillHrefForMetric('receivables.overdue_count')).toBe('/app/billing?filter=overdue');
+  it('recebiveis vencidos: destino e a CARTEIRA com o recorte que ela interpreta (SPA de faturamento nao filtra)', () => {
+    expect(frontendDrillHrefForMetric('receivables.overdue_count')).toBe(
+      '/app/finance/receivables?status=OVERDUE',
+    );
   });
 
   it('metrica sem drill ou inexistente => null (front nao inventa destino)', () => {

@@ -34,10 +34,20 @@ const FRONTEND_DRILL_DESTINATIONS: readonly FrontendDrillDestination[] = [
     metricId: 'service_orders.approaching_due_count',
     route: serviceOrdersListHref('approaching-due'),
   },
+  /**
+   * A listagem de destino interpreta `status=OVERDUE` literalmente (repositorio de
+   * titulos traduz o status de dominio para os predicados reais de `lifecycle`,
+   * saldo remanescente e vencimento). O valor enumerado e o MESMO alfabeto das
+   * visoes de sistema da tela e passa pelo gate `isPersistableValue` do smart list.
+   *
+   * Ate esta wave o front mandava `/app/billing?filter=overdue`: a tela de
+   * faturamento NAO interpreta `filter`, entao o operador chegava na fila de
+   * trabalho sem recorte — um destino que prometia recorte e nao entregava.
+   */
   {
     attentionId: 'overdue-receivables',
     metricId: 'receivables.overdue_count',
-    route: '/app/billing?filter=overdue',
+    route: '/app/finance/receivables?status=OVERDUE',
   },
 ];
 
