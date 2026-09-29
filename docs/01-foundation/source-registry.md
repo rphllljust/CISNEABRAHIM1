@@ -215,6 +215,25 @@
 | Analyzed in prompt | Registro 2026-09-03 (sem análise atômica Prompt 01) |
 | Notes | Não hardcodar nomes no PDP. Não autoriza `FEATURE_MODULE_FISCAL` nem exit do piloto. |
 
+### SRC-009
+
+| Campo | Valor |
+| ----- | ----- |
+| SOURCE-ID | SRC-009 |
+| Title | Termo de aceite do processo operacional (RC1) e vínculo com o candidato atual |
+| Type | `BUSINESS_PROCESS_ACCEPTANCE` · `RELEASE_BINDING_PROPOSAL` |
+| Origin | Minuta elaborada a pedido do responsável (2026-09-29) para assinatura dos dois administradores |
+| Location | [`../inputs/SRC-009-aceite-processo-operacional-rc1-e-delta-rc2.md`](../inputs/SRC-009-aceite-processo-operacional-rc1-e-delta-rc2.md) |
+| Date received | 2026-09-29 (elaboração; assinatura pendente) |
+| Status | `PENDING_SIGNATURE` |
+| Classification | Reafirmação do UAT RC1 e proposta de amarra do RC2; não é go-live |
+| Reliability | Nula até as duas assinaturas; após assinatura, alta para o recorte marcado |
+| Integrity | Minuta em markdown; PDF assinado a anexar no mesmo SOURCE-ID |
+| Personal / sensitive data | Sim — identifica os dois administradores |
+| May prove operational business rules? | **NO** enquanto `PENDING_SIGNATURE`. **YES** após as duas assinaturas — somente cláusulas 1 e 2 conforme marcadas |
+| Substitutes primary sources? | **NO** — não substitui UAT-UX-001/002 nem SRC-008 |
+| Notes | Não atualiza `readiness-evidence.json` sozinho. Não autoriza `FEATURE_MODULE_FISCAL`, Prompt 93 nem EXIT_READY. |
+
 ## Fontes ainda não fornecidas
 
 Status uniforme: `NOT_PROVIDED`. Nenhum `SOURCE-ID` foi atribuído a estes artefatos (atribuir somente quando o original existir). **SRC-001 não preenche e não substitui** esta lista.

@@ -51,11 +51,16 @@ const fold = await page.evaluate(() => {
     const r = el.getBoundingClientRect();
     return r.height > 0 && r.top < window.innerHeight && r.bottom > 0;
   };
-  // Conteudo REALMENTE visivel na primeira dobra.
   const visibleBlocks = [];
   for (const el of document.querySelectorAll('main h1, main h2, main h3, main dt, main th')) {
     if (inFold(el)) visibleBlocks.push(text(el));
   }
+  // Onde cada bloco-chave comeca, em px a partir do topo.
+  const offsetOf = (selector) => {
+    const el = document.querySelector(selector);
+    if (!el) return null;
+    return Math.round(el.getBoundingClientRect().top);
+  };
   const main = document.querySelector('main');
   const viewportArea = window.innerWidth * window.innerHeight;
   let textArea = 0;
@@ -76,11 +81,13 @@ const fold = await page.evaluate(() => {
     blocksInFold: visibleBlocks,
     foldCoveragePct: Math.round((textArea / viewportArea) * 1000) / 10,
     mainHeight: Math.round(main?.getBoundingClientRect().height ?? 0),
-    firstSectionText: text(firstSection).slice(0, 500),
+    mainTop: offsetOf('main'),
+    offsetAttention: offsetOf('.so-attention'),
+    offsetStrip: offsetOf('.so-strip'),
+    offsetStateFlow: offsetOf('[aria-label="Fluxo"]') ?? offsetOf('main section[aria-label]'),
+    offsetNextAction: offsetOf('[aria-label*="róxim"], [aria-label*="Próxima"]'),
+    firstSectionText: text(firstSection).slice(0, 400),
     hasUuid: /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(document.body.innerText),
-    scrollNeededFor: {
-      medicao: /medi[çc][ãa]o/i.test(document.body.innerText),
-    },
   };
 });
 

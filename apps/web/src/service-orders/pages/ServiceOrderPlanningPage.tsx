@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from 'react-router-dom';
+﻿import { useNavigate, useParams } from 'react-router-dom';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { getPhysicalAsset, listPhysicalAssets } from '../../assets/api/physical-assets-api';
 import type { PhysicalAsset } from '../../assets/types/physical-asset.types';
@@ -664,14 +664,77 @@ export function ServiceOrderPlanningPage() {
         nextAction={<NextActionPanel action={nextAction} />}
         relations={<SmartRelationBar relations={relations} />}
         context={
-          <ObjectContextBlock
-            title="Contexto da ordem"
-            fields={buildServiceOrderContextFields({
-              ...order,
-              serviceName: order.serviceSnapshot.serviceName,
-              serviceCode: order.serviceSnapshot.serviceCode,
-            })}
-          />
+          /*
+           * A MOLDURA renderiza `context` ANTES do corpo. Entao e AQUI que a leitura
+           * operacional precisa viver: excecao, planejado x realizado e os estagios a
+           * jusante entram na PRIMEIRA DOBRA, com o contexto cadastral logo abaixo em
+           * uma linha compacta — em vez de campos de baixo valor ocupando o topo.
+           */
+          <div className="flex flex-col gap-2">
+            <ServiceOrderAttentionStrip
+              status={order.status}
+              awaitingAllocation={awaitingAllocation ?? null}
+              plannedCount={planned.length}
+              activeAllocationCount={activeAllocations.length}
+              measurementCount={downstream?.measurement.count ?? null}
+              billingCount={downstream?.billing.count ?? null}
+            />
+
+            <section className="so-strip" aria-label="Situação operacional da ordem">
+              <div className="so-strip__metrics">
+                <div className="so-strip__metric">
+                  <span className="so-strip__label">Planejado</span>
+                  <span className="so-strip__value">{planned.length}</span>
+                  <span className="so-strip__hint">itens planejados</span>
+                </div>
+                <div className="so-strip__metric">
+                  <span className="so-strip__label">Alocado</span>
+                  <span className="so-strip__value">{activeAllocations.length}</span>
+                  <span className="so-strip__hint">alocações ativas</span>
+                </div>
+                <div className="so-strip__metric">
+                  <span className="so-strip__label">Execuções</span>
+                  <span className="so-strip__value">{plannedVsActual?.executionEntries ?? 0}</span>
+                  <span className="so-strip__hint">apontamentos</span>
+                </div>
+                {downstream && downstream.measurement.count !== null ? (
+                  <div className="so-strip__metric">
+                    <span className="so-strip__label">Medições</span>
+                    <span className="so-strip__value">{downstream.measurement.count}</span>
+                    <span className="so-strip__hint">
+                      {downstream.measurement.status
+                        ? toHumanStatusLabel(downstream.measurement.status)
+                        : 'sem status'}
+                    </span>
+                  </div>
+                ) : null}
+                {downstream && downstream.billing.count !== null ? (
+                  <div className="so-strip__metric">
+                    <span className="so-strip__label">Faturamento</span>
+                    <span className="so-strip__value">{downstream.billing.count}</span>
+                    <span className="so-strip__hint">
+                      {downstream.billing.status
+                        ? toHumanStatusLabel(downstream.billing.status)
+                        : 'sem status'}
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+              <p className="so-strip__next">
+                <span className="so-strip__next-label">Próxima ação</span>
+                <strong>{executionLabel}</strong>
+              </p>
+            </section>
+
+            <ObjectContextBlock
+              title="Contexto da ordem"
+              fields={buildServiceOrderContextFields({
+                ...order,
+                serviceName: order.serviceSnapshot.serviceName,
+                serviceCode: order.serviceSnapshot.serviceCode,
+              })}
+            />
+          </div>
         }
         aside={
           <ObjectPanel>
@@ -683,68 +746,6 @@ export function ServiceOrderPlanningPage() {
           </ObjectPanel>
         }
       >
-        {/*
-          EXCECAO PRIMEIRO: so aparece quando existe FATO. Sem excecao real, a faixa
-          inteira desaparece — nao se reserva area para dizer "esta tudo bem".
-        */}
-        <ServiceOrderAttentionStrip
-          status={order.status}
-          awaitingAllocation={awaitingAllocation ?? null}
-          plannedCount={planned.length}
-          activeAllocationCount={activeAllocations.length}
-          measurementCount={downstream?.measurement.count ?? null}
-          billingCount={downstream?.billing.count ?? null}
-        />
-
-        {/*
-          PLANEJADO x REALIZADO E ESTAGIOS A JUSANTE, na primeira dobra. Leitura direta
-          do payload autorizado: nenhum numero e somado ou derivado no navegador.
-        */}
-        <section className="so-strip" aria-label="Situação operacional da ordem">
-          <div className="so-strip__metrics">
-            <div className="so-strip__metric">
-              <span className="so-strip__label">Planejado</span>
-              <span className="so-strip__value">{planned.length}</span>
-              <span className="so-strip__hint">itens planejados</span>
-            </div>
-            <div className="so-strip__metric">
-              <span className="so-strip__label">Alocado</span>
-              <span className="so-strip__value">{activeAllocations.length}</span>
-              <span className="so-strip__hint">alocações ativas</span>
-            </div>
-            <div className="so-strip__metric">
-              <span className="so-strip__label">Execuções</span>
-              <span className="so-strip__value">{plannedVsActual?.executionEntries ?? 0}</span>
-              <span className="so-strip__hint">apontamentos registrados</span>
-            </div>
-            {downstream && downstream.measurement.count !== null ? (
-              <div className="so-strip__metric">
-                <span className="so-strip__label">Medições</span>
-                <span className="so-strip__value">{downstream.measurement.count}</span>
-                <span className="so-strip__hint">
-                  {downstream.measurement.status
-                    ? toHumanStatusLabel(downstream.measurement.status)
-                    : 'sem status informado'}
-                </span>
-              </div>
-            ) : null}
-            {downstream && downstream.billing.count !== null ? (
-              <div className="so-strip__metric">
-                <span className="so-strip__label">Faturamento</span>
-                <span className="so-strip__value">{downstream.billing.count}</span>
-                <span className="so-strip__hint">
-                  {downstream.billing.status
-                    ? toHumanStatusLabel(downstream.billing.status)
-                    : 'sem status informado'}
-                </span>
-              </div>
-            ) : null}
-          </div>
-          <p className="so-strip__next">
-            <span className="so-strip__next-label">Próxima ação</span>
-            <strong>{executionLabel}</strong>
-          </p>
-        </section>
         {order.controlCenter ? (
           <section className="planning-section" aria-label="Centro de controle operacional">
             <OperationsControlCenter

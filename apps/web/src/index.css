@@ -890,6 +890,28 @@ main:not(.login-page):not(.dashboard-page):not(.shell-page):not(.reports-page):n
    Densa, sobria e sem cartao decorativo: a leitura que o gestor faz sem rolar.
    --------------------------------------------------------------------------- */
 
+/*
+ * DENSIDADE LOCAL DA OS (`.planning-page`), NAO DO DESIGN SYSTEM.
+ *
+ * Medido no artefato HML: `main` comeca em y=136 e a moldura gastava ~600px em
+ * breadcrumb + header + contexto antes de qualquer dado operacional. Isso e ritmo
+ * vertical, nao contrato: as outras object pages continuam identicas, e cada pagina
+ * decide a propria densidade pelo `className` que a moldura ja aceita.
+ */
+.planning-page .flex.flex-col {
+  gap: 0.55rem;
+}
+
+.planning-page header {
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+}
+
+.planning-page h1 {
+  font-size: 1.2rem;
+  line-height: 1.25;
+}
+
 .so-attention {
   display: flex;
   align-items: flex-start;
