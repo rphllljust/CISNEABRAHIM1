@@ -67,7 +67,13 @@ describe('Fiscal — bancada de documentos', () => {
      * nao o slug interno.
      */
     expect(screen.queryByText('unit-1')).toBeNull();
-    expect(within(unitControl).getByRole('option', { name: 'Unidade 1' })).toBeTruthy();
+    /*
+     * O rotulo da opcao vem do dicionario UNICO de unidade (`OperationalUnitOptions`, do
+     * shell): com uma unica unidade autorizada o texto e "Unidade autorizada". Antes a tela
+     * montava o proprio "Unidade N", o que fazia o mesmo recorte ter dois nomes diferentes
+     * conforme a superficie.
+     */
+    expect(within(unitControl).getByRole('option', { name: 'Unidade autorizada' })).toBeTruthy();
 
     // Competência: select alimentado pela lista REAL de períodos fiscais (`periodKey`),
     // exibida como MM/AAAA — o `id` do período não é a referência primária.

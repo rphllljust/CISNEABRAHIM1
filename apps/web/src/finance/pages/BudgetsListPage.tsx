@@ -1,24 +1,31 @@
-﻿import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  FilterCard,
   ModuleDeniedState,
   ModuleErrorState,
   ModuleLoadingState,
   ModulePage,
   ModuleStatePage,
-  ModulePageHeader,
   ModulePagination,
-  ModuleTableCard,
-  ModuleTableLink,
-  filterControlClass,
-  filterLabelClass,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
 } from '../../ui/module-layout';
+import {
+  RecordStatusCell,
+  WorklistClearFilters,
+  WorklistField,
+  WorklistFilterBar,
+  WorklistFooter,
+  WorklistHeader,
+  WorklistRowLink,
+  WorklistStatePanel,
+  worklistButtonClass,
+  worklistCellClass,
+  worklistCellRaisedClass,
+  worklistHeadCellClass,
+  worklistRowClass,
+  worklistSelectClass,
+  worklistTableCardClass,
+  worklistTableClass,
+} from '../../ui/enterprise-list';
 import { BUDGET_STATUS_LABELS } from '../../financial-ui/labels';
 import { FinanceStatusBadge } from '../components/FinanceStatusBadge';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
@@ -45,7 +52,12 @@ const BUDGETS_BUILT_IN_VIEWS = [
     id: 'builtin.budgets.draft',
     name: 'Em rascunho',
     description: 'Orçamentos ainda não aprovados.',
-    config: { filters: { status: 'DRAFT' }, sortKey: null, sortDirection: 'asc' as const, groupKey: null },
+    config: {
+      filters: { status: 'DRAFT' },
+      sortKey: null,
+      sortDirection: 'asc' as const,
+      groupKey: null,
+    },
   },
 ];
 
@@ -79,10 +91,20 @@ export function BudgetsListPage() {
       setListState({ phase: 'loading' });
       try {
         const response = await listBudgets(
-          { limit: PAGE_SIZE, offset, status: statusFilter || undefined, q: appliedTerm || undefined },
+          {
+            limit: PAGE_SIZE,
+            offset,
+            status: statusFilter || undefined,
+            q: appliedTerm || undefined,
+          },
           signal,
         );
-        setListState({ phase: 'ready', items: response.items, offset: response.offset, total: response.total });
+        setListState({
+          phase: 'ready',
+          items: response.items,
+          offset: response.offset,
+          total: response.total,
+        });
       } catch (error) {
         if (error instanceof BackofficeApiError && (error.status === 403 || error.status === 401)) {
           setListState({ phase: 'denied' });
@@ -108,21 +130,24 @@ export function BudgetsListPage() {
 
   if (listState.phase === 'loading') {
     return (
-      <ModuleStatePage title="Orçamentos">`r`n        <ModuleLoadingState message="Carregando Orçamentos…" />
+      <ModuleStatePage title="Orçamentos">
+        <ModuleLoadingState message="Carregando Orçamentos…" />
       </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'denied') {
     return (
-      <ModuleStatePage title="Orçamentos">`r`n        <ModuleDeniedState message="Você não tem permissão para listar Orçamentos." />
+      <ModuleStatePage title="Orçamentos">
+        <ModuleDeniedState message="Você não tem permissão para listar Orçamentos." />
       </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'error') {
     return (
-      <ModuleStatePage title="Orçamentos">`r`n        <ModuleErrorState
+      <ModuleStatePage title="Orçamentos">
+        <ModuleErrorState
           message={listState.message}
           retryable={listState.retryable}
           onRetry={() => void loadPage(0)}
@@ -134,47 +159,51 @@ export function BudgetsListPage() {
   const { items, offset, total } = listState;
   const pageNumber = Math.floor(offset / PAGE_SIZE) + 1;
   const hasMore = offset + items.length < total;
+  const isFiltered = smartList.isFiltered || appliedTerm !== '';
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      {/*
+        GRAMATICA DA WORKLIST: cabecalho, barra de filtros em uma linha, grade densa, rodape e
+        estados passam a usar os primitivos compartilhados. O recorte de status, a busca
+        server-side e as visoes salvas permanecem exatamente os mesmos.
+      */}
+      <WorklistHeader
         title="Orçamentos"
-        description="Orçamentos por código, nome e estado. Comparação e versões permanecem no detalhe."
+        count={total}
+        context="Orçamentos por código, nome e estado. Comparação e versões permanecem no detalhe."
         action={
-          <Link className="text-sm font-semibold text-gray-700 hover:text-gray-900" to="/app/finance/budgets/new">
+          <Link
+            className="text-sm font-semibold text-gray-700 hover:text-gray-900"
+            to="/app/finance/budgets/new"
+          >
             Novo orçamento
           </Link>
         }
       />
 
-      <FilterCard>
+      <WorklistFilterBar>
         <form
-          className="flex flex-wrap items-end gap-4"
+          className="flex flex-wrap items-center gap-2"
           onSubmit={(event) => {
             event.preventDefault();
             setAppliedTerm(term.trim());
           }}
         >
-          <div>
-            <label className={filterLabelClass} htmlFor="budget-search">
-              Buscar
-            </label>
+          <WorklistField label="Buscar" htmlFor="budget-search" grow>
             <input
               id="budget-search"
               type="search"
-              className={`${filterControlClass} w-72`}
+              className={worklistSelectClass}
               value={term}
               onChange={(event) => setTerm(event.target.value)}
               placeholder="Código ou nome"
             />
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="budget-status-filter">
-              Status
-            </label>
+          </WorklistField>
+          <WorklistField label="Status" htmlFor="budget-status-filter">
             <select
               id="budget-status-filter"
-              className={`${filterControlClass} max-w-xs`}
+              className={worklistSelectClass}
               value={statusFilter}
               onChange={(event) => smartList.setFilter('status', event.target.value)}
             >
@@ -183,15 +212,20 @@ export function BudgetsListPage() {
               <option value="APPROVED">Aprovado</option>
               <option value="SUPERSEDED">Substituído</option>
             </select>
-          </div>
-          <button
-            type="submit"
-            className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800"
-          >
+          </WorklistField>
+          <button type="submit" className={worklistButtonClass}>
             Buscar
           </button>
+          <WorklistClearFilters
+            visible={isFiltered}
+            onClick={() => {
+              smartList.clearFilters();
+              setTerm('');
+              setAppliedTerm('');
+            }}
+          />
         </form>
-      </FilterCard>
+      </WorklistFilterBar>
 
       <SavedViewsBar
         views={smartList.savedViews.views}
@@ -207,76 +241,94 @@ export function BudgetsListPage() {
         currentConfig={smartList.currentConfig}
         canSave={Object.keys(smartList.filters).length > 0}
         allLabel="Todos"
-        className="mb-4"
+        className="mb-2"
       />
 
       {items.length === 0 ? (
-        <div className="rounded-md bg-white p-4 ring-1 ring-gray-900/5 ring-inset" role="status">
-          <p className="text-sm font-medium text-gray-700">
-            {smartList.isFiltered || appliedTerm
+        <WorklistStatePanel
+          title={
+            isFiltered
               ? 'Nenhum orçamento encontrado para os filtros selecionados.'
-              : 'Nenhum orçamento registrado ainda.'}
-          </p>
-          <p className="mt-1 text-xs text-gray-500">
-            {smartList.isFiltered || appliedTerm
+              : 'Nenhum orçamento registrado ainda.'
+          }
+          description={
+            isFiltered
               ? 'Ajuste ou limpe os filtros para ver o conjunto completo.'
-              : 'Comece criando o primeiro orçamento para comparar previsto e realizado.'}
-          </p>
-          {smartList.isFiltered ? (
-            <button
-              type="button"
-              className="mt-2 text-xs font-semibold text-brand-600 hover:text-brand-700"
-              onClick={() => {
-                smartList.clearFilters();
-                setTerm('');
-                setAppliedTerm('');
-              }}
-            >
-              Limpar filtros
-            </button>
-          ) : null}
-        </div>
+              : 'Comece criando o primeiro orçamento para comparar previsto e realizado.'
+          }
+          action={
+            smartList.isFiltered ? (
+              <WorklistClearFilters
+                visible
+                label="Ver todos os orçamentos"
+                onClick={() => {
+                  smartList.clearFilters();
+                  setTerm('');
+                  setAppliedTerm('');
+                }}
+              />
+            ) : null
+          }
+        />
       ) : (
-        <ModuleTableCard>
-          <table className={moduleTableClass} aria-label="Lista de Orçamentos">
-            <thead className={moduleTableHeadClass}>
+        <div className={worklistTableCardClass}>
+          <table className={worklistTableClass} aria-label="Lista de Orçamentos">
+            <thead>
               <tr>
-                <th scope="col" className={moduleTableHeaderCellClass}>Orçamento</th>
-                <th scope="col" className={moduleTableHeaderCellClass}>Código</th>
-                <th scope="col" className={moduleTableHeaderCellClass}>Moeda</th>
-                <th scope="col" className={moduleTableHeaderCellClass}>Status</th>
+                <th scope="col" className={worklistHeadCellClass}>
+                  Orçamento
+                </th>
+                <th scope="col" className={worklistHeadCellClass}>
+                  Código
+                </th>
+                <th scope="col" className={worklistHeadCellClass}>
+                  Moeda
+                </th>
+                <th scope="col" className={worklistHeadCellClass}>
+                  Status
+                </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody>
               {items.map((budget) => (
-                <tr key={budget.id} className={moduleTableRowClass}>
-                  <td className={moduleTableCellClass}>
-                    <ModuleTableLink to={`/app/finance/budgets/${budget.id}`}>{budget.name}</ModuleTableLink>
+                <tr key={budget.id} className={worklistRowClass}>
+                  <td className={worklistCellClass}>
+                    <WorklistRowLink href={`/app/finance/budgets/${budget.id}`}>
+                      {budget.name}
+                    </WorklistRowLink>
                   </td>
-                  <td className={`${moduleTableCellClass} font-mono tabular-nums text-gray-600`}>
+                  <td
+                    className={`${worklistCellRaisedClass} font-mono text-[12px] text-gray-600 tabular-nums`}
+                  >
                     {budget.code}
                   </td>
-                  <td className={moduleTableCellClass}>{budget.currencyCode}</td>
-                  <td className={moduleTableCellClass}>
-                    <FinanceStatusBadge status={budget.status} labels={BUDGET_STATUS_LABELS} />
+                  <td className={worklistCellRaisedClass}>{budget.currencyCode}</td>
+                  <td className={worklistCellRaisedClass}>
+                    <RecordStatusCell
+                      badge={
+                        <FinanceStatusBadge status={budget.status} labels={BUDGET_STATUS_LABELS} />
+                      }
+                    />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </ModuleTableCard>
+        </div>
       )}
 
-      <ModulePagination
-        pageNumber={pageNumber}
-        previousDisabled={offset === 0}
-        nextDisabled={!hasMore}
-        onPrevious={() => void loadPage(Math.max(0, offset - PAGE_SIZE))}
-        onNext={() => void loadPage(offset + PAGE_SIZE)}
-      />
-      <p className="mt-2 text-xs text-gray-500" role="status">
-        {total} orçamento(s) no total.
-      </p>
+      <WorklistFooter
+        rangeLabel={`${offset + 1}–${offset + items.length} nesta página`}
+        extra={`${total} orçamento(s) no total`}
+      >
+        <ModulePagination
+          pageNumber={pageNumber}
+          previousDisabled={offset === 0}
+          nextDisabled={!hasMore}
+          onPrevious={() => void loadPage(Math.max(0, offset - PAGE_SIZE))}
+          onNext={() => void loadPage(offset + PAGE_SIZE)}
+        />
+      </WorklistFooter>
     </ModulePage>
   );
 }

@@ -13,6 +13,13 @@ import {
   mapCatalogErrorToMessage,
 } from '../api/catalog-error-messages';
 import { ConfirmDialog } from '../../clients/components/ConfirmDialog';
+import {
+  ModuleDeniedState,
+  ModuleErrorState,
+  ModuleLoadingState,
+  ModulePage,
+  ModulePageHeader,
+} from '../../ui/module-layout';
 import { ServiceDefinitionStatusBadge } from '../components/ServiceDefinitionStatusBadge';
 import { VersionConflictNotice } from '../components/VersionConflictNotice';
 import { VersionStatusBadge } from '../components/VersionStatusBadge';
@@ -113,45 +120,55 @@ export function ServiceDefinitionDetailPage() {
 
   if (state.phase === 'loading') {
     return (
-      <main id="main-content" className="shell-page">
-        <p aria-busy="true" aria-live="polite">
-          Carregando definição…
-        </p>
-      </main>
+      <ModulePage>
+        <ModulePageHeader title="Definição de serviço" />
+        <ModuleLoadingState title="Definição de serviço" message="Carregando definição…" />
+      </ModulePage>
     );
   }
 
   if (state.phase === 'denied') {
     return (
-      <main id="main-content" className="shell-page">
-        <h1>Definição de serviço</h1>
-        <p role="alert">Você não tem permissão para consultar esta definição.</p>
-        <Link to="/app/catalog">Voltar à lista</Link>
-      </main>
+      <ModulePage>
+        <ModulePageHeader title="Definição de serviço" />
+        <ModuleDeniedState
+          title="Definição de serviço"
+          message="Você não tem permissão para consultar esta definição."
+        />
+        <p className="mt-3 mb-0">
+          <Link to="/app/catalog">Voltar à lista</Link>
+        </p>
+      </ModulePage>
     );
   }
 
   if (state.phase === 'not_found') {
     return (
-      <main id="main-content" className="shell-page">
-        <h1>Definição de serviço</h1>
-        <p role="alert">Definição não encontrada.</p>
-        <Link to="/app/catalog">Voltar à lista</Link>
-      </main>
+      <ModulePage>
+        <ModulePageHeader title="Definição de serviço" />
+        <ModuleErrorState
+          title="Definição de serviço"
+          message="Definição não encontrada."
+          retryable={false}
+        />
+        <p className="mt-3 mb-0">
+          <Link to="/app/catalog">Voltar à lista</Link>
+        </p>
+      </ModulePage>
     );
   }
 
   if (state.phase === 'error') {
     return (
-      <main id="main-content" className="shell-page">
-        <h1>Definição de serviço</h1>
-        <p className="form-error" role="alert">
-          {state.message}
-        </p>
-        <button type="button" onClick={() => void reload()}>
-          Tentar novamente
-        </button>
-      </main>
+      <ModulePage>
+        <ModulePageHeader title="Definição de serviço" />
+        <ModuleErrorState
+          title="Definição de serviço"
+          message={state.message}
+          retryable
+          onRetry={() => void reload()}
+        />
+      </ModulePage>
     );
   }
 
@@ -159,33 +176,37 @@ export function ServiceDefinitionDetailPage() {
   const sortedVersions = [...versions].sort((a, b) => b.version - a.version);
 
   return (
-    <main id="main-content" className="shell-page catalog-page">
-      <header className="catalog-page__header">
-        <div>
-          <h1>{definition.code}</h1>
-          <ServiceDefinitionStatusBadge status={definition.status} />
-        </div>
-        <div className="button-row">
-          {capabilities.canUpdate && definition.currentDraftVersion === null ? (
-            <Link
-              to={`/app/catalog/${definition.id}/versions/new`}
-              className="button-link button-secondary"
-            >
-              Criar nova versão
-            </Link>
-          ) : null}
-          {capabilities.canDeactivate && definition.status === CATALOG_LINEAGE_STATUSES.Active ? (
-            <button type="button" className="button-secondary" onClick={() => setDeactivateOpen(true)}>
-              Desativar definição
-            </button>
-          ) : null}
-          {capabilities.canActivate && definition.status === CATALOG_LINEAGE_STATUSES.Inactive ? (
-            <button type="button" onClick={() => setActivateOpen(true)}>
-              Reativar definição
-            </button>
-          ) : null}
-        </div>
-      </header>
+    <ModulePage>
+      <ModulePageHeader
+        title={definition.code}
+        action={
+          <>
+            <ServiceDefinitionStatusBadge status={definition.status} />
+            {capabilities.canUpdate && definition.currentDraftVersion === null ? (
+              <Link
+                to={`/app/catalog/${definition.id}/versions/new`}
+                className="button-link button-secondary"
+              >
+                Criar nova versão
+              </Link>
+            ) : null}
+            {capabilities.canDeactivate && definition.status === CATALOG_LINEAGE_STATUSES.Active ? (
+              <button
+                type="button"
+                className="button-secondary"
+                onClick={() => setDeactivateOpen(true)}
+              >
+                Desativar definição
+              </button>
+            ) : null}
+            {capabilities.canActivate && definition.status === CATALOG_LINEAGE_STATUSES.Inactive ? (
+              <button type="button" onClick={() => setActivateOpen(true)}>
+                Reativar definição
+              </button>
+            ) : null}
+          </>
+        }
+      />
 
       {actionError ? (
         <p className="form-error" role="alert">
@@ -359,6 +380,6 @@ export function ServiceDefinitionDetailPage() {
           })
         }
       />
-    </main>
+    </ModulePage>
   );
 }

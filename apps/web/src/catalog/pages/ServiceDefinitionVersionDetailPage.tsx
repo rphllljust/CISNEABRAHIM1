@@ -6,6 +6,13 @@ import {
   getServiceDefinitionVersion,
 } from '../api/service-catalog-api';
 import { mapCatalogErrorToMessage } from '../api/catalog-error-messages';
+import {
+  ModuleDeniedState,
+  ModuleErrorState,
+  ModuleLoadingState,
+  ModulePage,
+  ModulePageHeader,
+} from '../../ui/module-layout';
 import { VersionStatusBadge } from '../components/VersionStatusBadge';
 import { ARCHETYPE_LABELS } from '../constants/catalog-vocabulary';
 import { VERSION_STATUSES, type ServiceDefinitionVersion } from '../types/service-catalog.types';
@@ -74,27 +81,55 @@ export function ServiceDefinitionVersionDetailPage() {
 
   if (state.phase === 'loading') {
     return (
-      <main id="main-content" className="shell-page">
-        <p aria-busy="true" aria-live="polite">
-          Carregando versão…
-        </p>
-      </main>
+      <ModulePage>
+        <ModulePageHeader title="Versão de serviço" />
+        <ModuleLoadingState title="Versão de serviço" message="Carregando versão…" />
+      </ModulePage>
     );
   }
 
-  if (state.phase === 'denied' || state.phase === 'not_found' || state.phase === 'error') {
+  if (state.phase === 'denied') {
     return (
-      <main id="main-content" className="shell-page">
-        <h1>Versão de serviço</h1>
-        <p role="alert">
-          {state.phase === 'denied'
-            ? 'Acesso negado.'
-            : state.phase === 'not_found'
-              ? 'Versão não encontrada.'
-              : state.message}
+      <ModulePage>
+        <ModulePageHeader title="Versão de serviço" />
+        <ModuleDeniedState title="Versão de serviço" message="Acesso negado." />
+        <p className="mt-3 mb-0">
+          <Link to={`/app/catalog/${definitionId}`}>Voltar à definição</Link>
         </p>
-        <Link to={`/app/catalog/${definitionId}`}>Voltar à definição</Link>
-      </main>
+      </ModulePage>
+    );
+  }
+
+  if (state.phase === 'not_found') {
+    return (
+      <ModulePage>
+        <ModulePageHeader title="Versão de serviço" />
+        <ModuleErrorState
+          title="Versão de serviço"
+          message="Versão não encontrada."
+          retryable={false}
+        />
+        <p className="mt-3 mb-0">
+          <Link to={`/app/catalog/${definitionId}`}>Voltar à definição</Link>
+        </p>
+      </ModulePage>
+    );
+  }
+
+  if (state.phase === 'error') {
+    return (
+      <ModulePage>
+        <ModulePageHeader title="Versão de serviço" />
+        <ModuleErrorState
+          title="Versão de serviço"
+          message={state.message}
+          retryable
+          onRetry={() => void reload()}
+        />
+        <p className="mt-3 mb-0">
+          <Link to={`/app/catalog/${definitionId}`}>Voltar à definição</Link>
+        </p>
+      </ModulePage>
     );
   }
 
@@ -102,33 +137,31 @@ export function ServiceDefinitionVersionDetailPage() {
   const isPublished = version.status === VERSION_STATUSES.Published;
 
   return (
-    <main id="main-content" className="shell-page catalog-page">
-      <header className="catalog-page__header">
-        <div>
-          <h1>
-            {version.code} — v{version.version}
-          </h1>
-          <VersionStatusBadge status={version.status} />
-        </div>
-        <div className="button-row">
-          {!isPublished && version.status === VERSION_STATUSES.Draft ? (
-            <Link
-              to={`/app/catalog/${definitionId}/versions/${version.version}/edit`}
-              className="button-link button-secondary"
-            >
-              Editar rascunho
-            </Link>
-          ) : null}
-          {isPublished ? (
-            <Link
-              to={`/app/catalog/${definitionId}/versions/new`}
-              className="button-link"
-            >
-              Criar nova versão
-            </Link>
-          ) : null}
-        </div>
-      </header>
+    <ModulePage>
+      <ModulePageHeader
+        title={`${version.code} — v${version.version}`}
+        action={
+          <>
+            <VersionStatusBadge status={version.status} />
+            {!isPublished && version.status === VERSION_STATUSES.Draft ? (
+              <Link
+                to={`/app/catalog/${definitionId}/versions/${version.version}/edit`}
+                className="button-link button-secondary"
+              >
+                Editar rascunho
+              </Link>
+            ) : null}
+            {isPublished ? (
+              <Link
+                to={`/app/catalog/${definitionId}/versions/new`}
+                className="button-link"
+              >
+                Criar nova versão
+              </Link>
+            ) : null}
+          </>
+        }
+      />
 
       {isPublished ? (
         <p className="form-notice" role="note">
@@ -231,6 +264,6 @@ export function ServiceDefinitionVersionDetailPage() {
       <p>
         <Link to={`/app/catalog/${definitionId}`}>Voltar à definição</Link>
       </p>
-    </main>
+    </ModulePage>
   );
 }

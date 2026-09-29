@@ -1,16 +1,17 @@
 import { useCallback, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { DateTime, EmptyState, Field, Input, Money } from '../../ui';
+import { ModulePage } from '../../ui/module-layout';
 import {
-  ModulePage,
-  ModulePageHeader,
-  ModuleTableCard,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui/module-layout';
+  WorklistHeader,
+  worklistCellRaisedClass,
+  worklistHeadCellClass,
+  worklistNumericCellClass,
+  worklistNumericHeadCellClass,
+  worklistRowClass,
+  worklistTableCardClass,
+  worklistTableClass,
+} from '../../ui/enterprise-list';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { CreateRecordForm, VersionedActionForm } from '../../financial-ui/VersionedActionForm';
 import { EXPENSE_STATUS_LABELS } from '../../financial-ui/labels';
@@ -63,15 +64,16 @@ export function ExpensesPage() {
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      <WorklistHeader
         title="Despesas"
-        description="Cadastro, envio e aprovação são decididos pelo backend. Totais não são recalculados no navegador."
+        context="Cadastro, envio e aprovação são decididos pelo backend. Totais não são recalculados no navegador."
       />
-      <p className="mb-4 text-sm text-gray-500">
+      <p className="mb-3 text-sm text-gray-500">
         <Link className="font-semibold text-gray-700 hover:text-gray-900" to="/app/finance/expenses">
           Voltar para a lista de despesas
         </Link>
-      </p>      <CreateRecordForm
+      </p>
+      <CreateRecordForm
         title="Registrar despesa"
         description="Os campos são enviados ao servidor. O total é calculado pela API."
         submitLabel="Criar despesa"
@@ -204,30 +206,30 @@ function ExpenseView({
           ]}
         />
       </div>
-      <ModuleTableCard>
-        <table className={moduleTableClass} aria-label="Itens da despesa">
-          <thead className={moduleTableHeadClass}>
+      <div className={worklistTableCardClass}>
+        <table className={worklistTableClass} aria-label="Itens da despesa">
+          <thead>
             <tr>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Item
               </th>
-              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+              <th scope="col" className={worklistNumericHeadCellClass}>
                 Valor
               </th>
             </tr>
           </thead>
           <tbody>
             {expense.items.map((item) => (
-              <tr key={item.id} className={moduleTableRowClass}>
-                <td className={moduleTableCellClass}>{item.description}</td>
-                <td className={`${moduleTableCellClass} text-right`}>
+              <tr key={item.id} className={worklistRowClass}>
+                <td className={worklistCellRaisedClass}>{item.description}</td>
+                <td className={worklistNumericCellClass}>
                   <Money value={item.amount} currencyCode={expense.currencyCode} />
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-      </ModuleTableCard>
+      </div>
       <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <VersionedActionForm
           title="Enviar"

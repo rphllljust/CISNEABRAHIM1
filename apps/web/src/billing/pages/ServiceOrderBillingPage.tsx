@@ -30,6 +30,13 @@ import { getServiceOrder, ServiceOrdersApiError } from '../../service-orders/api
 import { mapServiceOrdersErrorToMessage } from '../../service-orders/api/service-orders-error-messages';
 import { MEASUREMENT_STATUSES, type MeasurementDetail } from '../../service-orders/types/measurement.types';
 import type { ServiceOrderDetail } from '../../service-orders/types/service-order.types';
+import {
+  ModuleDeniedState,
+  ModuleErrorState,
+  ModuleLoadingState,
+  ModulePage,
+  ModuleStatePage,
+} from '../../ui';
 
 type PageState =
   | { phase: 'loading' }
@@ -181,45 +188,46 @@ export function ServiceOrderBillingPage() {
     }
   };
 
+  /*
+    ESTADOS PELA MOLDURA COMPARTILHADA.
+    Cada um destes blocos abria o proprio `<main id="main-content" class="shell-page billing-page">`
+    com um `<h1>` manual — o landmark era duplicado em toda pagina que exibia carga, negacao ou
+    erro, e o titulo aparecia duas vezes. `ModuleStatePage` mantem o titulo da pagina e o bloco de
+    estado na MESMA hierarquia das telas que ja carregaram.
+  */
   if (state.phase === 'loading') {
     return (
-      <main id="main-content" className="shell-page billing-page">
-        <p aria-busy="true" aria-live="polite">
-          Carregando faturamento…
-        </p>
-      </main>
+      <ModuleStatePage title="Faturamento">
+        <ModuleLoadingState message="Carregando faturamento…" />
+      </ModuleStatePage>
     );
   }
 
   if (state.phase === 'denied') {
     return (
-      <main id="main-content" className="shell-page billing-page">
-        <h1>Faturamento</h1>
-        <p role="alert">Você não tem permissão para acessar este faturamento.</p>
-        <Link to="/app/billing">Voltar ao painel</Link>
-      </main>
+      <ModuleStatePage title="Faturamento">
+        <ModuleDeniedState message="Você não tem permissão para acessar este faturamento." />
+      </ModuleStatePage>
     );
   }
 
   if (state.phase === 'not_found') {
     return (
-      <main id="main-content" className="shell-page billing-page">
-        <h1>Faturamento</h1>
-        <p role="alert">Ordem de serviço não encontrada.</p>
-        <Link to="/app/billing">Voltar ao painel</Link>
-      </main>
+      <ModuleStatePage title="Faturamento">
+        <ModuleErrorState
+          title="Faturamento"
+          message="Ordem de serviço não encontrada."
+          retryable={false}
+        />
+      </ModuleStatePage>
     );
   }
 
   if (state.phase === 'error') {
     return (
-      <main id="main-content" className="shell-page billing-page">
-        <h1>Faturamento</h1>
-        <p role="alert">{state.message}</p>
-        <button type="button" className="billing-button" onClick={() => void reload()}>
-          Tentar novamente
-        </button>
-      </main>
+      <ModuleStatePage title="Faturamento">
+        <ModuleErrorState message={state.message} retryable onRetry={() => void reload()} />
+      </ModuleStatePage>
     );
   }
 
@@ -245,7 +253,7 @@ export function ServiceOrderBillingPage() {
     capabilities.canVoid && !versionConflict && billing?.status === BILLING_RECORD_STATUSES.Prepared;
 
   return (
-    <main id="main-content" className="shell-page billing-page">
+    <ModulePage>
       <header className="billing-page__header">
         <p className="billing-page__eyebrow">Faturamento operacional</p>
         <div className="billing-page__title-row">
@@ -443,6 +451,6 @@ export function ServiceOrderBillingPage() {
         onConfirm={() => void handleVoid()}
         confirming={submitting}
       />
-    </main>
+    </ModulePage>
   );
 }

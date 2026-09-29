@@ -18,6 +18,13 @@ import { BillingSummaryPanel } from '../components/BillingSummaryPanel';
 import { useBillingCapabilities } from '../hooks/useBillingCapabilities';
 import { BusinessChain, useBusinessChain } from '../../business-chain';
 import {
+  ModuleDeniedState,
+  ModuleErrorState,
+  ModuleLoadingState,
+  ModulePage,
+  ModuleStatePage,
+} from '../../ui';
+import {
   BILLING_ERROR_CODES,
   BILLING_RECORD_STATUSES,
   type BillingDocumentDetail,
@@ -265,52 +272,50 @@ export function ServiceOrderBillingDocumentPage() {
     window.print();
   };
 
+  /*
+    ESTADOS PELA MOLDURA COMPARTILHADA — mesmos motivos de `ServiceOrderBillingPage`: cada bloco
+    abria o proprio `<main id="main-content">` com `<h1>` manual, duplicando o landmark e o titulo.
+  */
   if (state.phase === 'loading') {
     return (
-      <main id="main-content" className="shell-page billing-page billing-doc-page">
-        <p aria-busy="true" aria-live="polite">
-          Carregando emissão…
-        </p>
-      </main>
+      <ModuleStatePage title="Nota Fatura digital">
+        <ModuleLoadingState message="Carregando emissão…" />
+      </ModuleStatePage>
     );
   }
 
   if (state.phase === 'denied') {
     return (
-      <main id="main-content" className="shell-page billing-page billing-doc-page">
-        <h1>Nota Fatura digital</h1>
-        <p role="alert">Você não tem permissão para emitir documentos de faturamento.</p>
-        <Link to={`/app/service-orders/${serviceOrderId}/billing`}>Voltar ao faturamento</Link>
-      </main>
+      <ModuleStatePage title="Nota Fatura digital">
+        <ModuleDeniedState message="Você não tem permissão para emitir documentos de faturamento." />
+      </ModuleStatePage>
     );
   }
 
   if (state.phase === 'not_found' || !billing || !order || !preview) {
     return (
-      <main id="main-content" className="shell-page billing-page billing-doc-page">
-        <h1>Nota Fatura digital</h1>
-        <p role="alert">Preparação de faturamento não encontrada ou indisponível para emissão.</p>
-        <Link to={`/app/service-orders/${serviceOrderId}/billing`}>Voltar ao faturamento</Link>
-      </main>
+      <ModuleStatePage title="Nota Fatura digital">
+        <ModuleErrorState
+          title="Nota Fatura digital"
+          message="Preparação de faturamento não encontrada ou indisponível para emissão."
+          retryable={false}
+        />
+      </ModuleStatePage>
     );
   }
 
   if (state.phase === 'error') {
     return (
-      <main id="main-content" className="shell-page billing-page billing-doc-page">
-        <h1>Nota Fatura digital</h1>
-        <p role="alert">{state.message}</p>
-        <button type="button" className="billing-button" onClick={() => void reload()}>
-          Tentar novamente
-        </button>
-      </main>
+      <ModuleStatePage title="Nota Fatura digital">
+        <ModuleErrorState message={state.message} retryable onRetry={() => void reload()} />
+      </ModuleStatePage>
     );
   }
 
   const dueHint = formatPaymentDueHint(billing.paymentTerms, billing.preparedAt);
 
   return (
-    <main id="main-content" className="shell-page billing-page billing-doc-page">
+    <ModulePage>
       <header className="billing-page__header billing-doc-page__header">
         <p className="billing-page__eyebrow">Nota Fatura digital</p>
         <div className="billing-page__title-row">
@@ -513,6 +518,6 @@ export function ServiceOrderBillingDocumentPage() {
         onClose={() => setIssueOpen(false)}
         onConfirm={() => void handleIssue()}
       />
-    </main>
+    </ModulePage>
   );
 }

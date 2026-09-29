@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { mapAssetErrorToMessage } from '../api/asset-error-messages';
 import {
   AssetsApiError,
@@ -20,25 +19,31 @@ import {
   type PhysicalAssetListSummary,
 } from '../types/physical-asset.types';
 import { formatAssetPaginationRange } from '../utils/asset-operational-status';
+import { EmptyState } from '../../ui/EmptyState';
 import {
-  FilterCard,
+  RowActionCell,
+  WorklistClearFilters,
+  WorklistField,
+  WorklistFilterBar,
+  WorklistFooter,
+  WorklistHeader,
+  WorklistRowLink,
+  worklistCellClass,
+  worklistCellRaisedClass,
+  worklistHeadCellClass,
+  worklistRowClass,
+  worklistSelectClass,
+  worklistTableCardClass,
+  worklistTableClass,
+} from '../../ui/enterprise-list';
+import {
   ModuleDeniedState,
   ModuleErrorState,
   ModuleLoadingState,
   ModulePage,
   ModuleStatePage,
-  ModulePageHeader,
   ModulePagination,
   ModulePrimaryLink,
-  ModuleTableCard,
-  ModuleTableLink,
-  filterControlClass,
-  filterLabelClass,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
 } from '../../ui/module-layout';
 import { cn } from '../../ui/utils/cn';
 
@@ -71,7 +76,6 @@ function hasActiveFilters(input: {
 }
 
 export function PhysicalAssetsListPage() {
-  const navigate = useNavigate();
   const { capabilities } = useAssetCapabilities();
   const { resourceTypes } = useAssetResourceTypes();
   /** De-para slug tecnico -> rotulo humano, do proprio catalogo autorizado de tipos. */
@@ -153,35 +157,34 @@ export function PhysicalAssetsListPage() {
 
   if (listState.phase === 'loading' && summary === null) {
     return (
-      <ModuleStatePage title="Ativos físicos">`r`n        <ModuleLoadingState message="Carregando ativos…" />
+      <ModuleStatePage title="Ativos físicos">
+        <ModuleLoadingState message="Carregando ativos…" />
       </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'denied') {
     return (
-      <ModuleStatePage title="Ativos físicos">`r`n        <ModuleDeniedState
-        message="Você não tem permissão para listar ativos físicos."
-      />
+      <ModuleStatePage title="Ativos físicos">
+        <ModuleDeniedState message="Você não tem permissão para listar ativos físicos." />
       </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'error') {
     return (
-      <ModuleStatePage title="Ativos físicos">`r`n        <ModuleErrorState
-        message={listState.message}
-        retryable={listState.retryable}
-        onRetry={() => void loadPage(0)}
-      />
+      <ModuleStatePage title="Ativos físicos">
+        <ModuleErrorState
+          message={listState.message}
+          retryable={listState.retryable}
+          onRetry={() => void loadPage(0)}
+        />
       </ModuleStatePage>
     );
   }
 
   const readyState =
-    listState.phase === 'ready'
-      ? listState
-      : { items: [], offset: 0, total: 0, hasMore: false };
+    listState.phase === 'ready' ? listState : { items: [], offset: 0, total: 0, hasMore: false };
   const { items, offset, total, hasMore } = readyState;
   const filtersActive = hasActiveFilters({
     lifecycleFilter,
@@ -195,91 +198,94 @@ export function PhysicalAssetsListPage() {
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      {/*
+        MESMA GRAMATICA DA FROTA. Ativos e Frota listam o mesmo agregado por recortes
+        diferentes; enquanto esta tela usava `FilterCard` (cartao de respiro largo) + grade
+        `px-6 py-3.5`, o operador trocava de tela e mudava de produto. Os indicadores clicaveis
+        sobem para a faixa `metrics` do cabecalho, os filtros vao para UMA linha densa e a grade
+        passa a ser a worklist compacta. Nenhum filtro, rota, capability ou contrato mudou.
+      */}
+      <WorklistHeader
         title="Ativos físicos"
+        count={total}
+        context="Cadastro operacional dos ativos físicos e sua disponibilidade para alocação em ordens de serviço."
         action={
           capabilities.canCreate ? (
             <ModulePrimaryLink to="/app/assets/new">Novo ativo</ModulePrimaryLink>
           ) : null
         }
+        metrics={
+          <AssetSummaryStrip
+            summary={summary}
+            activeAvailabilityFilter={availabilityFilter}
+            onSelectAvailability={setAvailabilityFilter}
+          />
+        }
       />
 
-      <AssetSummaryStrip
-        summary={summary}
-        activeAvailabilityFilter={availabilityFilter}
-        onSelectAvailability={setAvailabilityFilter}
-      />
-
-      <FilterCard>
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="sm:col-span-2 lg:col-span-1">
-            <label className={filterLabelClass} htmlFor="asset-search">
-              Buscar
-            </label>
-            <input
-              id="asset-search"
-              type="search"
-              className={filterControlClass}
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="Código, nome ou placa"
-            />
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="asset-lifecycle-filter">
-              Status cadastral
-            </label>
-            <select
-              id="asset-lifecycle-filter"
-              className={filterControlClass}
-              value={lifecycleFilter}
-              onChange={(event) =>
-                setLifecycleFilter(event.target.value as '' | AssetLifecycleStatus)
-              }
-            >
-              <option value="">Todos</option>
-              <option value={ASSET_LIFECYCLE_STATUSES.Active}>Ativo</option>
-              <option value={ASSET_LIFECYCLE_STATUSES.Inactive}>Inativo</option>
-            </select>
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="asset-availability-filter">
-              Disponibilidade
-            </label>
-            <select
-              id="asset-availability-filter"
-              className={filterControlClass}
-              value={availabilityFilter}
-              onChange={(event) =>
-                setAvailabilityFilter(event.target.value as '' | AssetOperationalAvailability)
-              }
-            >
-              <option value="">Todas</option>
-              <option value={ASSET_OPERATIONAL_AVAILABILITIES.Available}>Disponível</option>
-              <option value={ASSET_OPERATIONAL_AVAILABILITIES.Allocated}>Alocado</option>
-              <option value={ASSET_OPERATIONAL_AVAILABILITIES.Unavailable}>Indisponível</option>
-            </select>
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="asset-type-filter">
-              Tipo de recurso
-            </label>
-            <select
-              id="asset-type-filter"
-              className={filterControlClass}
-              value={resourceTypeFilter}
-              onChange={(event) => setResourceTypeFilter(event.target.value)}
-            >
-              <option value="">Todos</option>
-              {resourceTypes.map((type) => (
-                <option key={type.id} value={type.id}>
-                  {type.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </FilterCard>
+      <WorklistFilterBar>
+        <WorklistField label="Buscar" htmlFor="asset-search" grow>
+          <input
+            id="asset-search"
+            type="search"
+            className={worklistSelectClass}
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            placeholder="Código, nome ou placa"
+          />
+        </WorklistField>
+        <WorklistField label="Cadastro" htmlFor="asset-lifecycle-filter">
+          <select
+            id="asset-lifecycle-filter"
+            className={worklistSelectClass}
+            value={lifecycleFilter}
+            onChange={(event) => setLifecycleFilter(event.target.value as '' | AssetLifecycleStatus)}
+          >
+            <option value="">Todos</option>
+            <option value={ASSET_LIFECYCLE_STATUSES.Active}>Ativo</option>
+            <option value={ASSET_LIFECYCLE_STATUSES.Inactive}>Inativo</option>
+          </select>
+        </WorklistField>
+        <WorklistField label="Disponibilidade" htmlFor="asset-availability-filter">
+          <select
+            id="asset-availability-filter"
+            className={worklistSelectClass}
+            value={availabilityFilter}
+            onChange={(event) =>
+              setAvailabilityFilter(event.target.value as '' | AssetOperationalAvailability)
+            }
+          >
+            <option value="">Todas</option>
+            <option value={ASSET_OPERATIONAL_AVAILABILITIES.Available}>Disponível</option>
+            <option value={ASSET_OPERATIONAL_AVAILABILITIES.Allocated}>Alocado</option>
+            <option value={ASSET_OPERATIONAL_AVAILABILITIES.Unavailable}>Indisponível</option>
+          </select>
+        </WorklistField>
+        <WorklistField label="Tipo" htmlFor="asset-type-filter">
+          <select
+            id="asset-type-filter"
+            className={worklistSelectClass}
+            value={resourceTypeFilter}
+            onChange={(event) => setResourceTypeFilter(event.target.value)}
+          >
+            <option value="">Todos</option>
+            {resourceTypes.map((type) => (
+              <option key={type.id} value={type.id}>
+                {type.name}
+              </option>
+            ))}
+          </select>
+        </WorklistField>
+        <WorklistClearFilters
+          visible={filtersActive}
+          onClick={() => {
+            setSearchInput('');
+            setLifecycleFilter('');
+            setAvailabilityFilter('');
+            setResourceTypeFilter('');
+          }}
+        />
+      </WorklistFilterBar>
 
       {listState.phase === 'loading' ? (
         <p className="text-sm text-gray-500" aria-busy="true" aria-live="polite">
@@ -287,71 +293,55 @@ export function PhysicalAssetsListPage() {
         </p>
       ) : null}
 
-      {isEmptyList ? (
-        <p className="text-sm text-gray-500" role="status">
-          Nenhum ativo cadastrado.
-        </p>
-      ) : null}
+      {isEmptyList ? <EmptyState title="Nenhum ativo cadastrado." /> : null}
 
       {isEmptyFiltered ? (
-        <p className="text-sm text-gray-500" role="status">
-          Nenhum ativo encontrado para os filtros selecionados.
-        </p>
+        <EmptyState title="Nenhum ativo encontrado para os filtros selecionados." />
       ) : null}
 
       {items.length > 0 ? (
-        <ModuleTableCard>
-          <table className={moduleTableClass} aria-label="Lista de ativos físicos">
-            <thead className={moduleTableHeadClass}>
+        <div className={worklistTableCardClass}>
+          <table className={worklistTableClass} aria-label="Lista de ativos físicos">
+            <thead>
               <tr>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Código
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Nome
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Tipo
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
-                  Status
+                <th scope="col" className={worklistHeadCellClass}>
+                  Cadastro
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Disponibilidade
                 </th>
-                <th scope="col" className={cn(moduleTableHeaderCellClass, 'w-16 text-right')}>
+                <th scope="col" className={cn(worklistHeadCellClass, 'w-16 text-right')}>
                   Ações
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
-              {items.map((asset) => {
-                const openDetail = () => {
-                  void navigate(`/app/assets/${asset.id}`);
-                };
-
-                return (
-                <tr
-                  key={asset.id}
-                  className={cn(moduleTableRowClass, 'cursor-pointer')}
-                  tabIndex={0}
-                  onClick={openDetail}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      openDetail();
-                    }
-                  }}
-                >
-                  <td className={moduleTableCellClass}>
-                    <ModuleTableLink
-                      to={`/app/assets/${asset.id}`}
-                      onClick={(event) => event.stopPropagation()}
-                    >
+            <tbody>
+              {items.map((asset) => (
+                <tr key={asset.id} className={worklistRowClass}>
+                  <td className={worklistCellClass}>
+                    {/*
+                      DRILLDOWN NA LINHA INTEIRA: antes o registro so abria por `onClick` no
+                      `<tr>` mais um `tabIndex`, o que nao gera link real (sem "abrir em nova
+                      aba", sem menu de contexto). Agora e um `<a>` de verdade com area
+                      esticada por toda a linha — mesma solucao da Frota.
+                    */}
+                    <WorklistRowLink href={`/app/assets/${asset.id}`}>
                       {asset.assetCode}
-                    </ModuleTableLink>
+                    </WorklistRowLink>
+                    {asset.vehicle?.plate ? (
+                      <p className="text-[11px] text-gray-500">Placa {asset.vehicle.plate}</p>
+                    ) : null}
                   </td>
-                  <td className={moduleTableCellClass}>{asset.name}</td>
+                  <td className={worklistCellRaisedClass}>{asset.name}</td>
                   {/*
                     LABEL HUMANO DO TIPO, nao o slug. `resourceTypeCode` e tecnico
                     (`EXCAVATOR`, `WATER_TRUCK`) e era o que a grade mostrava, enquanto o
@@ -360,43 +350,39 @@ export function PhysicalAssetsListPage() {
                     a pagina ja carrega; sem rotulo publicado, o codigo permanece como ultimo
                     recurso — nunca um texto fabricado.
                   */}
-                  <td className={moduleTableCellClass}>
+                  <td className={worklistCellRaisedClass}>
                     {typeNameByCode.get(asset.resourceTypeCode) ?? asset.resourceTypeCode}
                   </td>
-                  <td className={moduleTableCellClass}>
+                  <td className={worklistCellRaisedClass}>
                     <AssetLifecycleStatusBadge status={asset.lifecycleStatus} />
                   </td>
-                  <td className={moduleTableCellClass}>
+                  <td className={worklistCellRaisedClass}>
                     <AssetOperationalStatusCell asset={asset} />
                   </td>
-                  <td
-                    className={cn(moduleTableCellClass, 'text-right')}
-                    onClick={(event) => event.stopPropagation()}
-                    onKeyDown={(event) => event.stopPropagation()}
-                  >
+                  <RowActionCell className="w-16">
                     <AssetRowActions
                       asset={asset}
                       canRead={capabilities.canRead}
                       canUpdate={capabilities.canUpdate}
                     />
-                  </td>
+                  </RowActionCell>
                 </tr>
-                );
-              })}
+              ))}
             </tbody>
           </table>
-        </ModuleTableCard>
+        </div>
       ) : null}
 
       {total > 0 ? (
-        <ModulePagination
-          pageNumber={Math.floor(offset / PAGE_SIZE) + 1}
-          rangeLabel={rangeLabel}
-          previousDisabled={offset === 0 || listState.phase === 'loading'}
-          nextDisabled={!hasMore || listState.phase === 'loading'}
-          onPrevious={() => void loadPage(Math.max(0, offset - PAGE_SIZE))}
-          onNext={() => void loadPage(offset + PAGE_SIZE)}
-        />
+        <WorklistFooter rangeLabel={rangeLabel}>
+          <ModulePagination
+            pageNumber={Math.floor(offset / PAGE_SIZE) + 1}
+            previousDisabled={offset === 0 || listState.phase === 'loading'}
+            nextDisabled={!hasMore || listState.phase === 'loading'}
+            onPrevious={() => void loadPage(Math.max(0, offset - PAGE_SIZE))}
+            onNext={() => void loadPage(offset + PAGE_SIZE)}
+          />
+        </WorklistFooter>
       ) : null}
     </ModulePage>
   );

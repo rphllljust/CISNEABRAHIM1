@@ -1,16 +1,17 @@
 import { useCallback, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { EmptyState, Field, Input, Money } from '../../ui';
+import { ModulePage } from '../../ui/module-layout';
 import {
-  ModulePage,
-  ModulePageHeader,
-  ModuleTableCard,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui/module-layout';
+  WorklistHeader,
+  worklistCellRaisedClass,
+  worklistHeadCellClass,
+  worklistNumericCellClass,
+  worklistNumericHeadCellClass,
+  worklistRowClass,
+  worklistTableCardClass,
+  worklistTableClass,
+} from '../../ui/enterprise-list';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { CreateRecordForm, VersionedActionForm } from '../../financial-ui/VersionedActionForm';
 import { BUDGET_STATUS_LABELS } from '../../financial-ui/labels';
@@ -56,9 +57,9 @@ export function BudgetsPage() {
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      <WorklistHeader
         title="Orçamentos"
-        description="Versões, linhas e aprovação são persistidas pelo servidor. Variância não é calculada no navegador."
+        context="Versões, linhas e aprovação são persistidas pelo servidor. Variância não é calculada no navegador."
       />
       <p className="mb-4 text-sm text-gray-500">
         <Link className="font-semibold text-gray-700 hover:text-gray-900" to="/app/finance/budgets">
@@ -191,28 +192,36 @@ function BudgetView({
       {lines.length === 0 ? (
         <EmptyState title="Sem linhas nesta versão" description="Inclua períodos e linhas para o rascunho atual." />
       ) : (
-        <ModuleTableCard>
-          <table className={moduleTableClass} aria-label="Linhas do orçamento">
-            <thead className={moduleTableHeadClass}>
+        <div className={worklistTableCardClass}>
+          <table className={worklistTableClass} aria-label="Linhas do orçamento">
+            <thead>
               <tr>
-                <th scope="col" className={moduleTableHeaderCellClass}>Competência</th>
-                <th scope="col" className={moduleTableHeaderCellClass}>Dimensão</th>
-                <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>Valor orçado</th>
+                <th scope="col" className={worklistHeadCellClass}>
+                  Competência
+                </th>
+                <th scope="col" className={worklistHeadCellClass}>
+                  Dimensão
+                </th>
+                <th scope="col" className={worklistNumericHeadCellClass}>
+                  Valor orçado
+                </th>
               </tr>
             </thead>
             <tbody>
               {lines.map((line) => (
-                <tr key={line.id} className={moduleTableRowClass}>
-                  <td className={moduleTableCellClass}>{line.periodKey}</td>
-                  <td className={moduleTableCellClass}>{line.costCenterCode ?? line.expenseCategoryId ?? line.accountId ?? '—'}</td>
-                  <td className={`${moduleTableCellClass} text-right`}>
+                <tr key={line.id} className={worklistRowClass}>
+                  <td className={worklistCellRaisedClass}>{line.periodKey}</td>
+                  <td className={worklistCellRaisedClass}>
+                    {line.costCenterCode ?? line.expenseCategoryId ?? line.accountId ?? '—'}
+                  </td>
+                  <td className={worklistNumericCellClass}>
                     <Money value={line.amount} currencyCode={budget.currencyCode} />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </ModuleTableCard>
+        </div>
       )}
       <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <VersionedActionForm

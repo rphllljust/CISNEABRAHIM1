@@ -12,12 +12,21 @@ import { mapRequestErrorToMessage } from '../api/request-error-messages';
 import { ServiceRequestForm } from '../components/ServiceRequestForm';
 import { useServiceRequestCapabilities } from '../hooks/useServiceRequestCapabilities';
 import {
+  ModuleDeniedState,
+  ModuleLoadingState,
+  ModulePage,
+  ModulePageHeader,
+} from '../../ui/module-layout';
+import {
   buildCreatePayload,
   EMPTY_SERVICE_REQUEST_FORM,
   validateServiceRequestForm,
   type ServiceRequestFormFieldErrors,
   type ServiceRequestFormValues,
 } from '../utils/service-request-form-validation';
+
+const CREATE_DESCRIPTION =
+  'Registra a demanda recebida com a origem, o Cliente ou contato externo e o serviço que deve atendê-la.';
 
 export function ServiceRequestCreatePage() {
   const navigate = useNavigate();
@@ -80,25 +89,27 @@ export function ServiceRequestCreatePage() {
 
   if (capabilitiesLoading) {
     return (
-      <main id="main-content" className="shell-page requests-page">
-        <p className="text-sm text-gray-500" aria-busy="true" aria-live="polite">
-          Verificando permissões…
-        </p>
-      </main>
+      <ModulePage>
+        <ModulePageHeader title="Nova solicitação" description={CREATE_DESCRIPTION} />
+        <ModuleLoadingState title="Nova solicitação" message="Verificando permissões…" />
+      </ModulePage>
     );
   }
 
   if (!capabilities.canCreate) {
     return (
-      <main id="main-content" className="shell-page requests-page">
-        <h1 className="m-0 text-2xl font-semibold tracking-tight text-gray-900">Nova solicitação</h1>
-        <p className="text-sm text-red-700" role="alert">
-          Você não tem permissão para registrar solicitações.
+      <ModulePage>
+        <ModulePageHeader title="Nova solicitação" description={CREATE_DESCRIPTION} />
+        <ModuleDeniedState
+          title="Nova solicitação"
+          message="Você não tem permissão para registrar solicitações."
+        />
+        <p className="mt-3 mb-0">
+          <Link className="button-link button-secondary" to="/app/requests">
+            Voltar à lista
+          </Link>
         </p>
-        <Link className="button-link button-secondary" to="/app/requests">
-          Voltar à lista
-        </Link>
-      </main>
+      </ModulePage>
     );
   }
 
@@ -136,18 +147,8 @@ export function ServiceRequestCreatePage() {
   }
 
   return (
-    <main id="main-content" className="shell-page requests-page">
-      <header className="requests-page__header">
-        <div className="min-w-0">
-          <h1 className="m-0 text-2xl font-semibold tracking-tight text-gray-900">
-            Nova solicitação
-          </h1>
-          <p className="mt-1 max-w-3xl text-sm text-gray-500">
-            Registra a demanda recebida com a origem, o Cliente ou contato externo e o serviço que
-            deve atendê-la.
-          </p>
-        </div>
-      </header>
+    <ModulePage>
+      <ModulePageHeader title="Nova solicitação" description={CREATE_DESCRIPTION} />
       <ServiceRequestForm
         mode="create"
         values={values}
@@ -167,6 +168,6 @@ export function ServiceRequestCreatePage() {
         onSubmit={(event) => void handleSubmit(event)}
         cancelHref="/app/requests"
       />
-    </main>
+    </ModulePage>
   );
 }

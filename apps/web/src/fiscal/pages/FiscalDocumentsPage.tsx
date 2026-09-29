@@ -1,24 +1,33 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { DateTime, EmptyState, Money } from '../../ui';
+import { DateTime, Money } from '../../ui';
 import {
-  FilterCard,
   ModuleErrorState,
   ModuleLoadingState,
   ModulePage,
-  ModulePageHeader,
   ModulePagination,
-  ModuleTableCard,
-  ModuleTableLink,
   UnitScopeLabel,
-  filterControlClass,
-  filterLabelClass,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
 } from '../../ui/module-layout';
+import {
+  RecordStatusCell,
+  WorklistClearFilters,
+  WorklistField,
+  WorklistFilterBar,
+  WorklistFooter,
+  WorklistHeader,
+  WorklistRowLink,
+  WorklistStatePanel,
+  worklistCellClass,
+  worklistCellRaisedClass,
+  worklistHeadCellClass,
+  worklistNumericCellClass,
+  worklistNumericHeadCellClass,
+  worklistRowClass,
+  worklistSelectClass,
+  worklistTableCardClass,
+  worklistTableClass,
+} from '../../ui/enterprise-list';
+import { cn } from '../../ui/utils/cn';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { MoneyActionForm } from '../../financial-ui/MoneyActionForm';
 import { VersionedActionForm } from '../../financial-ui/VersionedActionForm';
@@ -34,7 +43,7 @@ import {
   submitFiscalDocument,
 } from '../api/fiscal-api';
 import { mapFiscalErrorToMessage } from '../api/fiscal-error-messages';
-import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
+import { useOperationalUnits, OperationalUnitOptions } from '../../shell/hooks/useOperationalUnits';
 import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge';
 import { ActivityTimeline, SavedViewsBar, useSmartList } from '../../operator';
 import type {
@@ -209,7 +218,7 @@ function FiscalDocumentsList() {
    * A unidade é escolha humana: a mesma lista de unidades operacionais do shell usada por
    * fiscal, contabilidade e folha. Nenhum campo livre e nenhum identificador digitado.
    */
-  const { units, unitId: defaultUnitId } = useOperationalUnits();
+  const { units, options: unitOptions, unitId: defaultUnitId } = useOperationalUnits();
   const [searchParams] = useSearchParams();
 
   /**
@@ -350,53 +359,44 @@ function FiscalDocumentsList() {
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      <WorklistHeader
         title="Documentos fiscais"
-        description="Consulta e transições usam o documento oficial do servidor. Tributos da tela vêm do snapshot persistido."
+        count={state.phase === 'ready' ? state.total : null}
+        context="Consulta e transições usam o documento oficial do servidor. Tributos da tela vêm do snapshot persistido."
       />
 
-      <FilterCard>
-        <div className="grid gap-5 sm:grid-cols-3">
-          <div>
-            <label className={filterLabelClass} htmlFor="fiscal-unit-filter">
-              Unidade
-            </label>
-            <select
-              id="fiscal-unit-filter"
-              className={filterControlClass}
-              value={unitId}
-              onChange={(event) => {
-                setUnitId(event.target.value);
-                setPage(0);
-              }}
-            >
-              {units.length === 0 ? <option value="">Nenhuma unidade disponível</option> : null}
-              {/*
-                ESCOPO, NAO SLUG: `unitId` e identificador interno e nao vai para a
-                superficie. A opcao continua carregando o valor REAL no `value` (o
-                recorte enviado a API nao muda); o que muda e o texto lido pelo operador.
-              */}
-              {units.map((unit, index) => (
-                <option key={unit} value={unit}>
-                  Unidade {index + 1}
-                </option>
-              ))}
-              {/* Unidade vinda de link (Mesa de Fechamento) que não está na lista visível:
-                  sem esta opção o recorte chegaria à API sem o operador ver qual unidade é. */}
-              {unitId && !units.includes(unitId) ? (
-                <option key={`query-${unitId}`} value={unitId}>
-                  Unidade do link
-                </option>
-              ) : null}
-            </select>
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="fiscal-competence-filter">
-              Competência
-            </label>
+      <WorklistFilterBar>
+        <WorklistField label="Unidade" htmlFor="fiscal-unit-filter">
+          <select
+            id="fiscal-unit-filter"
+            className={worklistSelectClass}
+            value={unitId}
+            onChange={(event) => {
+              setUnitId(event.target.value);
+              setPage(0);
+            }}
+          >
+            {/*
+              DICIONARIO UNICO DE UNIDADE. O rotulo da opcao vem do primitivo compartilhado
+              (`OperationalUnitOptions`) em vez de um "Unidade N" montado aqui: o `value`
+              continua sendo o identificador REAL que a consulta autorizada envia, mas o texto
+              lido pelo operador e o mesmo em todo o backoffice.
+            */}
+            <OperationalUnitOptions options={unitOptions} />
+            {/* Unidade vinda de link (Mesa de Fechamento) que não está na lista visível:
+                sem esta opção o recorte chegaria à API sem o operador ver qual unidade é. */}
+            {unitId && !units.includes(unitId) ? (
+              <option key={`query-${unitId}`} value={unitId}>
+                Unidade do link
+              </option>
+            ) : null}
+          </select>
+        </WorklistField>
+        <WorklistField label="Competência" htmlFor="fiscal-competence-filter">
+          <span className="flex min-w-0 flex-col gap-0.5">
             <select
               id="fiscal-competence-filter"
-              className={filterControlClass}
+              className={worklistSelectClass}
               value={competence}
               onChange={(event) => {
                 setCompetence(event.target.value);
@@ -413,46 +413,44 @@ function FiscalDocumentsList() {
               ))}
             </select>
             {periodsState.phase === 'error' ? (
-              <p className="mt-1 text-xs text-gray-500" aria-live="polite">
+              <span className="text-[10px] text-gray-500" aria-live="polite">
                 Não foi possível carregar as competências desta unidade.
-              </p>
+              </span>
             ) : null}
             {periodsState.phase === 'ready' && periods.length === 0 ? (
-              <p className="mt-1 text-xs text-gray-500" aria-live="polite">
+              <span className="text-[10px] text-gray-500" aria-live="polite">
                 Esta unidade ainda não tem período fiscal aberto.
-              </p>
+              </span>
             ) : null}
             {bounds ? (
               // O critério que VAI à API fica visível: a competência é recortada pela
               // emissão do documento, exatamente como o servidor deriva a competência.
-              <p className="mt-1 text-xs text-gray-500" aria-live="polite">
+              <span className="text-[10px] text-gray-500" aria-live="polite">
                 {`Emissão de ${bounds.issuedFrom} a ${bounds.issuedTo}`}
-              </p>
+              </span>
             ) : null}
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="fiscal-status-filter">
-              Situação
-            </label>
-            <select
-              id="fiscal-status-filter"
-              className={filterControlClass}
-              value={status}
-              onChange={(event) => {
-                setFilter('status', event.target.value);
-                setPage(0);
-              }}
-            >
-              <option value="">Todas</option>
-              {STATUS_FILTERS.map((value) => (
-                <option key={value} value={value}>
-                  {FISCAL_STATUS_LABEL(value)}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </FilterCard>
+          </span>
+        </WorklistField>
+        <WorklistField label="Situação" htmlFor="fiscal-status-filter">
+          <select
+            id="fiscal-status-filter"
+            className={worklistSelectClass}
+            value={status}
+            onChange={(event) => {
+              setFilter('status', event.target.value);
+              setPage(0);
+            }}
+          >
+            <option value="">Todas</option>
+            {STATUS_FILTERS.map((value) => (
+              <option key={value} value={value}>
+                {FISCAL_STATUS_LABEL(value)}
+              </option>
+            ))}
+          </select>
+        </WorklistField>
+        <WorklistClearFilters visible={hasFilters} onClick={clearFilters} />
+      </WorklistFilterBar>
 
       <SavedViewsBar
         views={smartList.savedViews.views}
@@ -471,7 +469,9 @@ function FiscalDocumentsList() {
         className="mb-4"
       />
 
-      {state.phase === 'loading' ? <ModuleLoadingState title="Documentos fiscais" message="Carregando documentos…" /> : null}
+      {state.phase === 'loading' ? (
+        <ModuleLoadingState title="Documentos fiscais" message="Carregando documentos…" />
+      ) : null}
 
       {state.phase === 'error' ? (
         <ModuleErrorState
@@ -483,18 +483,6 @@ function FiscalDocumentsList() {
       ) : null}
 
       {/*
-        Contador real: `total` vem do servidor em qualquer recorte — inclusive zero. A tela
-        não estima, não soma página e não recalcula a fila.
-      */}
-      {state.phase === 'ready' ? (
-        <p className="mb-2 text-xs text-gray-500" aria-live="polite">
-          {state.total} {state.total === 1 ? 'documento' : 'documentos'} na fila
-          {status ? ` · situação: ${FISCAL_STATUS_LABEL(status)}` : ''}
-          {competence ? ` · competência: ${formatCompetence(competence)}` : ''}
-        </p>
-      ) : null}
-
-      {/*
         Estado vazio em três situações distintas, para não confundir "não existe documento
         nenhum ainda" com "o recorte atual não devolveu nada":
         1. nenhuma unidade operacional visível para o acesso;
@@ -503,83 +491,104 @@ function FiscalDocumentsList() {
       */}
       {state.phase === 'ready' && state.items.length === 0 ? (
         !unitId ? (
-          <EmptyState
+          <WorklistStatePanel
             title="Nenhuma unidade operacional"
             description="Não há unidade operacional disponível para o seu acesso."
           />
         ) : hasFilters ? (
-          <EmptyState
+          <WorklistStatePanel
             title="Nenhum documento para os filtros selecionados"
-            description={`A unidade selecionada não tem documento fiscal com o recorte aplicado. Ajuste ou limpe os filtros para ver a fila completa desta unidade.`}
+            description="A unidade selecionada não tem documento fiscal com o recorte aplicado. Ajuste ou limpe os filtros para ver a fila completa desta unidade."
             action={
-              <button
-                type="button"
-                className="text-xs font-semibold text-brand-600 hover:text-brand-700"
+              <WorklistClearFilters
+                visible
+                label="Limpar filtros"
                 onClick={clearFilters}
-              >
-                Limpar filtros
-              </button>
+              />
             }
           />
         ) : (
-          <EmptyState
+          <WorklistStatePanel
             title="Nenhum documento fiscal registrado para esta unidade ainda"
-            description={`A unidade selecionada ainda não possui documento fiscal registrado. A fila aparece assim que um documento for criado pela origem autorizada.`}
+            description="A unidade selecionada ainda não possui documento fiscal registrado. A fila aparece assim que um documento for criado pela origem autorizada."
           />
         )
       ) : null}
 
       {state.phase === 'ready' && state.items.length > 0 ? (
-        <>
-          <ModuleTableCard>
-            <table className={moduleTableClass} aria-label="Lista de documentos fiscais">
-              <thead className={moduleTableHeadClass}>
-                <tr>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
-                    Emissão
-                  </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
-                    Situação
-                  </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
-                    Origem
-                  </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
-                    Descrição
-                  </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
-                    Protocolo
-                  </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
-                    Próxima ação
-                  </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
-                    Unidade
-                  </th>
+        <div className={worklistTableCardClass}>
+          <table className={worklistTableClass} aria-label="Lista de documentos fiscais">
+            <thead>
+              <tr>
+                <th scope="col" className={worklistHeadCellClass}>
+                  Emissão
+                </th>
+                <th scope="col" className={worklistHeadCellClass}>
+                  Situação
+                </th>
+                <th scope="col" className={worklistHeadCellClass}>
+                  Origem
+                </th>
+                <th scope="col" className={worklistHeadCellClass}>
+                  Descrição
+                </th>
+                <th scope="col" className={worklistHeadCellClass}>
+                  Protocolo
+                </th>
+                <th scope="col" className={worklistHeadCellClass}>
+                  Próxima ação
+                </th>
+                <th scope="col" className={worklistHeadCellClass}>
+                  Unidade
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {state.items.map((item) => (
+                <tr key={item.id} className={worklistRowClass}>
+                  <td className={worklistCellClass}>
+                    <WorklistRowLink href={`/app/fiscal/documents/${item.id}`}>
+                      <DateTime value={item.issuedOn} mode="date" />
+                    </WorklistRowLink>
+                  </td>
+                  <td className={worklistCellRaisedClass}>
+                    <RecordStatusCell
+                      badge={
+                        <FinanceStatusBadge status={item.status} labels={FISCAL_STATUS_LABELS} />
+                      }
+                    />
+                  </td>
+                  <td className={worklistCellRaisedClass}>{item.sourceKind}</td>
+                  <td className={cn(worklistCellRaisedClass, 'whitespace-normal')}>
+                    {item.description}
+                  </td>
+                  <td className={worklistCellRaisedClass}>{item.lastProtocolCode ?? '—'}</td>
+                  <td className={worklistCellRaisedClass}>{NEXT_ACTION_FOR(item.status)}</td>
+                  <td className={worklistCellRaisedClass}>
+                    <UnitScopeLabel unitId={item.unitId} />
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {state.items.map((item) => (
-                  <tr key={item.id} className={moduleTableRowClass}>
-                    <td className={moduleTableCellClass}>
-                      <ModuleTableLink to={`/app/fiscal/documents/${item.id}`}>
-                        <DateTime value={item.issuedOn} mode="date" />
-                      </ModuleTableLink>
-                    </td>
-                    <td className={moduleTableCellClass}>
-                      <FinanceStatusBadge status={item.status} labels={FISCAL_STATUS_LABELS} />
-                    </td>
-                    <td className={moduleTableCellClass}>{item.sourceKind}</td>
-                    <td className={`${moduleTableCellClass} whitespace-normal`}>{item.description}</td>
-                    <td className={moduleTableCellClass}>{item.lastProtocolCode ?? '—'}</td>
-                    <td className={moduleTableCellClass}>{NEXT_ACTION_FOR(item.status)}</td>
-                    <td className={moduleTableCellClass}><UnitScopeLabel unitId={item.unitId} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </ModuleTableCard>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
 
+      {/*
+        Contador real: `total` vem do servidor em qualquer recorte — inclusive zero. A tela
+        nao estima, nao soma pagina e nao recalcula a fila. Fica no rodape da worklist para
+        que o zero tambem seja declarado quando a grade nao tem linha nenhuma.
+      */}
+      {state.phase === 'ready' ? (
+        <WorklistFooter
+          rangeLabel={
+            <>
+              {state.total} {state.total === 1 ? 'documento' : 'documentos'} na fila
+              {status ? ` · situação: ${FISCAL_STATUS_LABEL(status)}` : ''}
+              {competence ? ` · competência: ${formatCompetence(competence)}` : ''}
+            </>
+          }
+        >
           <ModulePagination
             pageNumber={state.page + 1}
             previousDisabled={state.page === 0}
@@ -587,7 +596,7 @@ function FiscalDocumentsList() {
             onPrevious={() => setPage((current) => Math.max(0, current - 1))}
             onNext={() => setPage((current) => current + 1)}
           />
-        </>
+        </WorklistFooter>
       ) : null}
     </ModulePage>
   );
@@ -615,9 +624,9 @@ function FiscalDocumentDetail({ fiscalDocumentId }: { fiscalDocumentId: string }
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      <WorklistHeader
         title="Documento fiscal"
-        description="Consulta e transições usam o documento oficial do servidor."
+        context="Consulta e transições usam o documento oficial do servidor."
       />
       <p className="mb-6">
         <Link to="/app/fiscal/documents" className="text-sm font-medium text-brand-600 no-underline">
@@ -670,67 +679,72 @@ function FiscalDocumentView({
         />
       </div>
 
-      <ModuleTableCard>
-        <table className={moduleTableClass} aria-label="Itens do documento fiscal">
-          <thead className={moduleTableHeadClass}>
+      <div className={worklistTableCardClass}>
+        <table className={worklistTableClass} aria-label="Itens do documento fiscal">
+          <thead>
             <tr>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Item
               </th>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Descrição
               </th>
-              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+              <th scope="col" className={worklistNumericHeadCellClass}>
                 Quantidade
               </th>
-              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+              <th scope="col" className={worklistNumericHeadCellClass}>
                 Valor da linha
               </th>
             </tr>
           </thead>
           <tbody>
             {document.items.map((item) => (
-              <tr key={item.lineNumber} className={moduleTableRowClass}>
-                <td className={moduleTableCellClass}>{item.lineNumber}</td>
-                <td className={`${moduleTableCellClass} whitespace-normal`}>{item.description}</td>
-                <td className={`${moduleTableCellClass} text-right`}>{item.quantity}</td>
-                <td className={`${moduleTableCellClass} text-right`}>
+              <tr key={item.lineNumber} className={worklistRowClass}>
+                <td className={worklistCellRaisedClass}>{item.lineNumber}</td>
+                <td className={cn(worklistCellRaisedClass, 'whitespace-normal')}>
+                  {item.description}
+                </td>
+                <td className={worklistNumericCellClass}>{item.quantity}</td>
+                <td className={worklistNumericCellClass}>
                   <Money value={item.lineAmount} currencyCode={document.currencyCode} />
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-      </ModuleTableCard>
+      </div>
 
-      <ModuleTableCard>
-        <table className={moduleTableClass} aria-label="Tributos persistidos no documento">
-          <thead className={moduleTableHeadClass}>
+      <div className={worklistTableCardClass}>
+        <table className={worklistTableClass} aria-label="Tributos persistidos no documento">
+          <thead>
             <tr>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Componente
               </th>
-              <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+              <th scope="col" className={worklistNumericHeadCellClass}>
                 Valor
               </th>
             </tr>
           </thead>
           <tbody>
             {document.taxDetails.map((detail, index) => (
-              <tr key={`${detail.lineNumber}-${detail.componentLabel}-${index}`} className={moduleTableRowClass}>
-                <td className={moduleTableCellClass}>
+              <tr
+                key={`${detail.lineNumber}-${detail.componentLabel}-${index}`}
+                className={worklistRowClass}
+              >
+                <td className={worklistCellRaisedClass}>
                   {detail.componentLabel} · linha {detail.lineNumber}
                 </td>
-                <td className={`${moduleTableCellClass} text-right`}>
+                <td className={worklistNumericCellClass}>
                   <Money value={detail.amount} currencyCode={document.currencyCode} />
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-      </ModuleTableCard>
+      </div>
 
-      <ModuleTableCard>
+      <div className={worklistTableCardClass}>
         {/*
           ADOCAO DE MECANISMO: os eventos do documento fiscal sao fatos persistidos
           (eventType + occurredAt). Antes eram uma tabela ad-hoc so desta tela; agora
@@ -746,44 +760,44 @@ function FiscalDocumentView({
             event: event.eventType,
           }))}
         />
-      </ModuleTableCard>
+      </div>
 
-      <ModuleTableCard>
-        <table className={moduleTableClass} aria-label="Tentativas de autorização do documento fiscal">
-          <thead className={moduleTableHeadClass}>
+      <div className={worklistTableCardClass}>
+        <table className={worklistTableClass} aria-label="Tentativas de autorização do documento fiscal">
+          <thead>
             <tr>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Tentativa
               </th>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Provedor
               </th>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Resultado
               </th>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Protocolo
               </th>
-              <th scope="col" className={moduleTableHeaderCellClass}>
+              <th scope="col" className={worklistHeadCellClass}>
                 Mensagem
               </th>
             </tr>
           </thead>
           <tbody>
             {document.authorizations.length === 0 ? (
-              <tr className={moduleTableRowClass}>
-                <td className={moduleTableCellClass} colSpan={5}>
+              <tr className={worklistRowClass}>
+                <td className={worklistCellRaisedClass} colSpan={5}>
                   Nenhuma tentativa de autorização registrada.
                 </td>
               </tr>
             ) : (
               document.authorizations.map((authorization) => (
-                <tr key={authorization.attemptNumber} className={moduleTableRowClass}>
-                  <td className={moduleTableCellClass}>{authorization.attemptNumber}</td>
-                  <td className={moduleTableCellClass}>{authorization.gatewayId}</td>
-                  <td className={moduleTableCellClass}>{authorization.outcome}</td>
-                  <td className={moduleTableCellClass}>{authorization.protocolCode ?? '—'}</td>
-                  <td className={`${moduleTableCellClass} whitespace-normal`}>
+                <tr key={authorization.attemptNumber} className={worklistRowClass}>
+                  <td className={worklistCellRaisedClass}>{authorization.attemptNumber}</td>
+                  <td className={worklistCellRaisedClass}>{authorization.gatewayId}</td>
+                  <td className={worklistCellRaisedClass}>{authorization.outcome}</td>
+                  <td className={worklistCellRaisedClass}>{authorization.protocolCode ?? '—'}</td>
+                  <td className={cn(worklistCellRaisedClass, 'whitespace-normal')}>
                     {authorization.message ?? '—'}
                   </td>
                 </tr>
@@ -791,7 +805,7 @@ function FiscalDocumentView({
             )}
           </tbody>
         </table>
-      </ModuleTableCard>
+      </div>
 
       {/*
         Ações = transições que o servidor aceita nesta situação (`ALLOWED_FISCAL_TRANSITIONS`

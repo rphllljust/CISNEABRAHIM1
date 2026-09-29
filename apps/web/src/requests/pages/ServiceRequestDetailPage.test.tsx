@@ -16,6 +16,25 @@ function PlanningStub() {
   return <h1>Planejamento da OS {serviceOrderId}</h1>;
 }
 
+/**
+ * A gramática de objeto empresarial (`EnterpriseObjectHeader`) expõe a transição PRIMÁRIA do
+ * ciclo como botão e as demais em "Mais ações". As transições aceitas pelo servidor continuam
+ * exatamente as mesmas, com os mesmos rótulos e as mesmas chamadas — muda apenas onde o
+ * operador as encontra.
+ */
+async function clickTransition(
+  user: ReturnType<typeof userEvent.setup>,
+  name: string | RegExp,
+) {
+  const direct = screen.queryByRole('button', { name });
+  if (direct) {
+    await user.click(direct);
+    return;
+  }
+  await user.click(screen.getByRole('button', { name: 'Mais ações' }));
+  await user.click(await screen.findByRole('menuitem', { name }));
+}
+
 describe('ServiceRequestDetailPage', () => {
   beforeEach(() => {
     resetTokenStoreForTests();
@@ -107,7 +126,7 @@ describe('ServiceRequestDetailPage', () => {
       expect(screen.getByLabelText('Status: Aprovada')).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('button', { name: /^cancelar$/i }));
+    await clickTransition(user, /^cancelar$/i);
     await user.type(screen.getByLabelText(/motivo do cancelamento/i), 'Cliente desistiu');
     await user.click(screen.getByRole('button', { name: /confirmar cancelamento/i }));
 
@@ -127,11 +146,12 @@ describe('ServiceRequestDetailPage', () => {
     await user.click(screen.getByRole('button', { name: /enviar para análise/i }));
     await user.click(screen.getByRole('button', { name: /iniciar análise/i }));
 
+    // A transição primária de "em análise" é a decisão por aprovação; rejeitar é a alternativa.
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /^rejeitar$/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /^aprovar$/i })).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('button', { name: /^rejeitar$/i }));
+    await clickTransition(user, /^rejeitar$/i);
     await user.type(screen.getByLabelText(/motivo da rejeição/i), 'Fora do escopo');
     await user.click(screen.getByRole('button', { name: /confirmar rejeição/i }));
 

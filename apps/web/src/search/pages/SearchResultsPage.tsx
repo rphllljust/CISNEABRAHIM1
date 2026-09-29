@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom';
 import { SearchHighlight } from '../components/SearchHighlight';
 import { useGlobalSearch } from '../hooks/useGlobalSearch';
 import { ENTITY_TYPE_LABELS } from '../types/search.types';

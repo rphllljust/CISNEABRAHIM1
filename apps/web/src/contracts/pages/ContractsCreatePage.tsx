@@ -5,12 +5,31 @@ import { ContractsApiError, createContract } from '../api/contracts-api';
 import { mapContractErrorToMessage } from '../api/contracts-error-messages';
 import { ContractFormFields, type ClientOption } from '../components/ContractFormFields';
 import { useContractCapabilities } from '../hooks/useContractCapabilities';
-import { Button, FieldError, PageHeader } from '../../ui';
+import {
+  BuilderSection,
+  BuilderSummary,
+  Button,
+  FieldError,
+  StickyActionBar,
+} from '../../ui';
+import {
+  ModuleDeniedState,
+  ModuleLoadingState,
+  ModulePage,
+  ModulePageHeader,
+} from '../../ui/module-layout';
 import {
   buildCreateContractPayload,
   EMPTY_CONTRACT_FORM,
   validateContractCreateForm,
 } from '../utils/contract-form-values';
+
+const CREATE_DESCRIPTION =
+  'Cadastre o contrato comercial com o Cliente, a vigência e as condições de pagamento.';
+
+/** Link de cancelamento com a mesma linguagem do botão secundário (sem biblioteca nova). */
+const SECONDARY_LINK_CLASS =
+  'inline-flex min-h-9 items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 no-underline ring-1 ring-gray-300 ring-inset hover:bg-gray-50';
 
 export function ContractsCreatePage() {
   const navigate = useNavigate();
@@ -44,21 +63,27 @@ export function ContractsCreatePage() {
 
   if (capabilitiesLoading) {
     return (
-      <main id="main-content" className="shell-page">
-        <p aria-busy="true" aria-live="polite">
-          Verificando permissões…
-        </p>
-      </main>
+      <ModulePage>
+        <ModulePageHeader title="Novo contrato" description={CREATE_DESCRIPTION} />
+        <ModuleLoadingState title="Novo contrato" message="Verificando permissões…" />
+      </ModulePage>
     );
   }
 
   if (!capabilities.canCreate) {
     return (
-      <main id="main-content" className="shell-page">
-        <h1>Novo contrato</h1>
-        <p role="alert">Você não tem permissão para cadastrar contratos.</p>
-        <Link to="/app/contracts">Voltar à lista</Link>
-      </main>
+      <ModulePage>
+        <ModulePageHeader title="Novo contrato" description={CREATE_DESCRIPTION} />
+        <ModuleDeniedState
+          title="Novo contrato"
+          message="Você não tem permissão para cadastrar contratos."
+        />
+        <p className="mt-3 mb-0">
+          <Link to="/app/contracts" className={SECONDARY_LINK_CLASS}>
+            Voltar à lista
+          </Link>
+        </p>
+      </ModulePage>
     );
   }
 
@@ -94,47 +119,54 @@ export function ContractsCreatePage() {
   }
 
   return (
-    <main id="main-content" className="shell-page">
-      <PageHeader
-        title="Novo contrato"
-        actions={
-          <Button type="button" variant="secondary" onClick={() => void navigate('/app/contracts')}>
-            Cancelar
-          </Button>
-        }
-      />
+    <ModulePage>
+      <ModulePageHeader title="Novo contrato" description={CREATE_DESCRIPTION} />
       <form
         onSubmit={(event) => void handleSubmit(event)}
         noValidate
-        className="max-w-3xl rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5"
+        className="flex flex-col gap-3"
         aria-describedby={submitError ? 'contract-create-error' : undefined}
       >
         {submitError ? (
-          <div className="mb-4">
+          <div className="mb-1">
             <FieldError id="contract-create-error">{submitError}</FieldError>
           </div>
         ) : null}
-        <ContractFormFields
-          mode="create"
-          values={values}
-          clients={clients}
-          clientsLoading={clientsLoading}
-          disabled={submitting}
-          fieldErrors={fieldErrors}
-          onChange={setValues}
+
+        <BuilderSummary
+          items={[
+            { label: 'Número', value: values.contractNumber.trim() || null },
+            { label: 'Título', value: values.title.trim() || null },
+            { label: 'Vigência', value: values.validFrom || null },
+            { label: 'Vigência final', value: values.validTo || null },
+            { label: 'Moeda', value: values.currencyCode.trim().toUpperCase() || null },
+          ]}
         />
-        <div className="mt-6 flex flex-wrap gap-3">
+
+        <BuilderSection
+          title="Dados do contrato"
+          description="Cliente, unidade, identificação comercial e vigência desta versão."
+        >
+          <ContractFormFields
+            mode="create"
+            values={values}
+            clients={clients}
+            clientsLoading={clientsLoading}
+            disabled={submitting}
+            fieldErrors={fieldErrors}
+            onChange={setValues}
+          />
+        </BuilderSection>
+
+        <StickyActionBar note="Somente o número, o título, o cliente e a vigência inicial são obrigatórios.">
+          <Link to="/app/contracts" className={SECONDARY_LINK_CLASS}>
+            Cancelar
+          </Link>
           <Button type="submit" disabled={submitting} loading={submitting} loadingText="Cadastrando">
             Cadastrar contrato
           </Button>
-          <Link
-            to="/app/contracts"
-            className="inline-flex min-h-9 items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 no-underline ring-1 ring-gray-300 ring-inset hover:bg-gray-50"
-          >
-            Cancelar
-          </Link>
-        </div>
+        </StickyActionBar>
       </form>
-    </main>
+    </ModulePage>
   );
 }

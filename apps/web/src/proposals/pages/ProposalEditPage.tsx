@@ -7,6 +7,13 @@ import { ProposalForm } from '../components/ProposalForm';
 import { VersionConflictNotice } from '../components/VersionConflictNotice';
 import { useProposalCapabilities } from '../hooks/useProposalCapabilities';
 import {
+  ModuleDeniedState,
+  ModuleErrorState,
+  ModuleLoadingState,
+  ModulePage,
+  ModulePageHeader,
+} from '../../ui/module-layout';
+import {
   PROPOSAL_VERSION_STATUSES,
 } from '../types/proposal.types';
 import {
@@ -100,36 +107,39 @@ export function ProposalEditPage() {
 
   if (loading) {
     return (
-      <main id="main-content" className="shell-page">
-        <p aria-busy="true" aria-live="polite">
-          Carregando proposta…
-        </p>
-      </main>
+      <ModulePage>
+        <ModulePageHeader title="Editar proposta" />
+        <ModuleLoadingState title="Editar proposta" message="Carregando proposta…" />
+      </ModulePage>
     );
   }
 
   if (loadError) {
     return (
-      <main id="main-content" className="shell-page">
-        <p className="form-error" role="alert">
-          {loadError}
-        </p>
-        <button type="button" onClick={() => void load()}>
-          Tentar novamente
-        </button>
-      </main>
+      <ModulePage>
+        <ModulePageHeader title="Editar proposta" />
+        <ModuleErrorState
+          title="Editar proposta"
+          message={loadError}
+          retryable
+          onRetry={() => void load()}
+        />
+      </ModulePage>
     );
   }
 
   if (!capabilities.canUpdate || !canEdit) {
     return (
-      <main id="main-content" className="shell-page">
-        <h1>Editar proposta</h1>
-        <p role="alert">
-          Esta proposta não pode ser editada no status atual ou você não tem permissão.
+      <ModulePage>
+        <ModulePageHeader title="Editar proposta" />
+        <ModuleDeniedState
+          title="Editar proposta"
+          message="Esta proposta não pode ser editada no status atual ou você não tem permissão."
+        />
+        <p className="mt-3 mb-0">
+          <Link to={`/app/proposals/${proposalId}`}>Voltar ao detalhe</Link>
         </p>
-        <Link to={`/app/proposals/${proposalId}`}>Voltar ao detalhe</Link>
-      </main>
+      </ModulePage>
     );
   }
 
@@ -172,10 +182,11 @@ export function ProposalEditPage() {
   }
 
   return (
-    <main id="main-content" className="shell-page requests-page">
-      <header className="requests-page__header">
-        <h1>Editar proposta</h1>
-      </header>
+    <ModulePage>
+      <ModulePageHeader
+        title="Editar proposta"
+        description="Atualiza o rascunho da versão corrente; o servidor recusa alterações concorrentes."
+      />
       {versionConflict ? <VersionConflictNotice onReload={() => void load()} /> : null}
       <ProposalForm
         mode="edit"
@@ -189,6 +200,6 @@ export function ProposalEditPage() {
         onSubmit={(event) => void handleSubmit(event)}
         cancelHref={`/app/proposals/${proposalId}`}
       />
-    </main>
+    </ModulePage>
   );
 }

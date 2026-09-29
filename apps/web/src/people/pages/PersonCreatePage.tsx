@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { listLaborTypes } from '../../catalog/api/catalog-reference-api';
-import { PageHeader } from '../../ui';
+import {
+  ModuleDeniedState,
+  ModuleLoadingState,
+  ModulePage,
+  ModulePageHeader,
+} from '../../ui/module-layout';
 import { PeopleApiError, createPerson } from '../api/people-api';
 import { mapPersonErrorToMessage } from '../api/person-error-messages';
 import { PersonForm, type PersonFormValues } from '../components/PersonForm';
@@ -45,31 +50,27 @@ export function PersonCreatePage() {
 
   if (capabilitiesLoading) {
     return (
-      <main id="main-content" className="shell-page">
-        <PageHeader title="Nova pessoa" description={CREATE_DESCRIPTION} />
-        <p aria-busy="true" aria-live="polite" className="m-0 text-sm text-gray-500">
-          Verificando permissões…
-        </p>
-      </main>
+      <ModulePage>
+        <ModulePageHeader title="Nova pessoa" description={CREATE_DESCRIPTION} />
+        <ModuleLoadingState title="Nova pessoa" message="Verificando permissões…" />
+      </ModulePage>
     );
   }
 
   if (!capabilities.canCreate) {
     return (
-      <main id="main-content" className="shell-page">
-        <PageHeader title="Nova pessoa" description={CREATE_DESCRIPTION} />
-        <p
-          role="alert"
-          className="m-0 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-500/20 ring-inset"
-        >
-          Você não tem permissão para cadastrar Pessoas.
-        </p>
+      <ModulePage>
+        <ModulePageHeader title="Nova pessoa" description={CREATE_DESCRIPTION} />
+        <ModuleDeniedState
+          title="Nova pessoa"
+          message="Você não tem permissão para cadastrar Pessoas."
+        />
         <p className="mt-3 mb-0">
           <Link to="/app/people" className={BACK_LINK_CLASS}>
             Voltar à lista
           </Link>
         </p>
-      </main>
+      </ModulePage>
     );
   }
 
@@ -117,8 +118,8 @@ export function PersonCreatePage() {
   }
 
   return (
-    <main id="main-content" className="shell-page">
-      <PageHeader title="Nova pessoa" description={CREATE_DESCRIPTION} />
+    <ModulePage>
+      <ModulePageHeader title="Nova pessoa" description={CREATE_DESCRIPTION} />
       <PersonForm
         mode="create"
         values={values}
@@ -130,6 +131,6 @@ export function PersonCreatePage() {
         onSubmit={(event) => void handleSubmit(event)}
         cancelHref="/app/people"
       />
-    </main>
+    </ModulePage>
   );
 }

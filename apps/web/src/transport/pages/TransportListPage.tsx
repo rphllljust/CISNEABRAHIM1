@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { listTransportServiceOrders } from '../api/transport-api';
 import { ServiceOrdersApiError } from '../../service-orders/api/service-orders-api';
 import { mapServiceOrdersErrorToMessage } from '../../service-orders/api/service-orders-error-messages';
@@ -10,16 +10,21 @@ import {
   ModuleLoadingState,
   ModulePage,
   ModuleStatePage,
-  ModulePageHeader,
   ModulePagination,
-  ModuleTableCard,
-  ModuleTableLink,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
 } from '../../ui/module-layout';
+import {
+  RecordStatusCell,
+  WorklistFooter,
+  WorklistHeader,
+  WorklistRowLink,
+  WorklistStatePanel,
+  worklistCellClass,
+  worklistCellRaisedClass,
+  worklistHeadCellClass,
+  worklistRowClass,
+  worklistTableCardClass,
+  worklistTableClass,
+} from '../../ui/enterprise-list';
 
 const PAGE_SIZE = 20;
 
@@ -27,7 +32,12 @@ type ListState =
   | { phase: 'loading' }
   | { phase: 'denied' }
   | { phase: 'error'; message: string; retryable: boolean }
-  | { phase: 'ready'; items: Awaited<ReturnType<typeof listTransportServiceOrders>>['items']; offset: number; hasMore: boolean };
+  | {
+      phase: 'ready';
+      items: Awaited<ReturnType<typeof listTransportServiceOrders>>['items'];
+      offset: number;
+      hasMore: boolean;
+    };
 
 function readTransportRouteLabel(location: Record<string, unknown> | null | undefined): string | null {
   const origin = typeof location?.origin === 'string' ? location.origin.trim() : '';
@@ -45,7 +55,10 @@ export function TransportListPage() {
   const loadPage = useCallback(async (pageOffset: number, signal?: AbortSignal) => {
     setListState({ phase: 'loading' });
     try {
-      const response = await listTransportServiceOrders({ limit: PAGE_SIZE, offset: pageOffset }, signal);
+      const response = await listTransportServiceOrders(
+        { limit: PAGE_SIZE, offset: pageOffset },
+        signal,
+      );
       setListState({
         phase: 'ready',
         items: response.items,
@@ -65,7 +78,11 @@ export function TransportListPage() {
         });
         return;
       }
-      setListState({ phase: 'error', message: 'Não foi possível carregar os transportes.', retryable: true });
+      setListState({
+        phase: 'error',
+        message: 'Não foi possível carregar os transportes.',
+        retryable: true,
+      });
     }
   }, []);
 
@@ -77,23 +94,26 @@ export function TransportListPage() {
 
   if (listState.phase === 'loading') {
     return (
-      <ModuleStatePage title="Transporte">`r`n        <ModuleLoadingState message="Carregando ordens de transporte..." />
+      <ModuleStatePage title="Transporte">
+        <ModuleLoadingState message="Carregando ordens de transporte..." />
       </ModuleStatePage>
     );
   }
   if (listState.phase === 'denied') {
     return (
-      <ModuleStatePage title="Transporte">`r`n        <ModuleDeniedState message="Você não tem permissão para listar transportes." />
+      <ModuleStatePage title="Transporte">
+        <ModuleDeniedState message="Você não tem permissão para listar transportes." />
       </ModuleStatePage>
     );
   }
   if (listState.phase === 'error') {
     return (
-      <ModuleStatePage title="Transporte">`r`n        <ModuleErrorState
-        message={listState.message}
-        retryable={listState.retryable}
-        onRetry={() => void loadPage(offset)}
-      />
+      <ModuleStatePage title="Transporte">
+        <ModuleErrorState
+          message={listState.message}
+          retryable={listState.retryable}
+          onRetry={() => void loadPage(offset)}
+        />
       </ModuleStatePage>
     );
   }
@@ -103,53 +123,83 @@ export function TransportListPage() {
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      {/*
+        MESMA GRAMATICA DA CENTRAL DE OS. Transporte e um RECORTE da mesma fila (ordens de
+        servico com arquetipo TRANSPORT) e ainda usava a grade legada `px-6 py-3.5` dentro de um
+        cartao com sombra — parecia outro modulo. Aqui entram o cabecalho da worklist, a grade
+        densa e o drilldown por link real, sem tocar na consulta nem no escopo.
+        A tela nao tem filtro publicado pelo contrato, entao nao ha barra de filtros vazia.
+      */}
+      <WorklistHeader
         title="Transporte"
-        description="Ordens de serviço com arquétipo TRANSPORT. Origem, destino, veículo, cliente e pedido permanecem nos módulos existentes."
+        count={items.length}
+        context="Ordens de serviço com arquétipo TRANSPORT. Origem, destino, veículo, cliente e pedido permanecem nos módulos existentes."
       />
+
       {items.length === 0 ? (
-        <p className="text-sm text-gray-500">Nenhum transporte encontrado.</p>
+        <WorklistStatePanel
+          title="Nenhum transporte encontrado."
+          description="Nenhuma ordem de serviço com arquétipo TRANSPORT no seu escopo autorizado."
+        />
       ) : (
-        <ModuleTableCard>
-          <table className={moduleTableClass} aria-label="Lista de transportes">
-            <thead className={moduleTableHeadClass}>
+        <div className={worklistTableCardClass}>
+          <table className={worklistTableClass} aria-label="Lista de transportes">
+            <thead>
               <tr>
-                <th scope="col" className={moduleTableHeaderCellClass}>OS</th>
-                <th scope="col" className={moduleTableHeaderCellClass}>Cliente</th>
-                <th scope="col" className={moduleTableHeaderCellClass}>Trecho</th>
-                <th scope="col" className={moduleTableHeaderCellClass}>Status</th>
-                <th scope="col" className={moduleTableHeaderCellClass}>Atualizado</th>
+                <th scope="col" className={worklistHeadCellClass}>
+                  OS
+                </th>
+                <th scope="col" className={worklistHeadCellClass}>
+                  Cliente
+                </th>
+                <th scope="col" className={worklistHeadCellClass}>
+                  Trecho
+                </th>
+                <th scope="col" className={worklistHeadCellClass}>
+                  Status
+                </th>
+                <th scope="col" className={worklistHeadCellClass}>
+                  Atualizado
+                </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody>
               {items.map((order) => (
-                <tr key={order.id} className={moduleTableRowClass}>
-                  <td className={moduleTableCellClass}>
-                    <ModuleTableLink to={`/app/service-orders/${order.id}/planning`}>{order.orderNumber}</ModuleTableLink>
+                <tr key={order.id} className={worklistRowClass}>
+                  <td className={worklistCellClass}>
+                    <WorklistRowLink href={`/app/service-orders/${order.id}/planning`}>
+                      {order.orderNumber}
+                    </WorklistRowLink>
                   </td>
-                  <td className={moduleTableCellClass}>
+                  <td className={worklistCellRaisedClass}>
                     {formatClientLabel(order.clientSnapshot, order.clientId)}
                   </td>
-                  <td className={moduleTableCellClass}>{readTransportRouteLabel(order.location) ?? '-'}</td>
-                  <td className={moduleTableCellClass}>
-                    <ServiceOrderStatusBadge status={order.status} />
+                  <td className={worklistCellRaisedClass}>
+                    {readTransportRouteLabel(order.location) ?? '—'}
                   </td>
-                  <td className={moduleTableCellClass}>{formatDateTime(order.updatedAt)}</td>
+                  <td className={worklistCellRaisedClass}>
+                    <RecordStatusCell badge={<ServiceOrderStatusBadge status={order.status} />} />
+                  </td>
+                  <td className={worklistCellRaisedClass}>
+                    <span className="whitespace-nowrap">{formatDateTime(order.updatedAt)}</span>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </ModuleTableCard>
+        </div>
       )}
+
       {items.length > 0 ? (
-        <ModulePagination
-          pageNumber={pageNumber}
-          rangeLabel={`${offset + 1}-${offset + items.length}`}
-          previousDisabled={offset === 0}
-          nextDisabled={!hasMore}
-          onPrevious={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
-          onNext={() => setOffset(offset + PAGE_SIZE)}
-        />
+        <WorklistFooter rangeLabel={`${offset + 1}–${offset + items.length} nesta página`}>
+          <ModulePagination
+            pageNumber={pageNumber}
+            previousDisabled={offset === 0}
+            nextDisabled={!hasMore}
+            onPrevious={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
+            onNext={() => setOffset(offset + PAGE_SIZE)}
+          />
+        </WorklistFooter>
       ) : null}
     </ModulePage>
   );

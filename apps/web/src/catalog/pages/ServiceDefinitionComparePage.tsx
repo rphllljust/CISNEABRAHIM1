@@ -6,6 +6,12 @@ import {
   listServiceDefinitionVersions,
 } from '../api/service-catalog-api';
 import { mapCatalogErrorToMessage } from '../api/catalog-error-messages';
+import {
+  ModuleErrorState,
+  ModuleLoadingState,
+  ModulePage,
+  ModulePageHeader,
+} from '../../ui/module-layout';
 import { VersionComparePanel } from '../components/VersionComparePanel';
 import { compareServiceDefinitionVersions } from '../utils/version-compare';
 import type { ServiceDefinitionVersion } from '../types/service-catalog.types';
@@ -68,29 +74,38 @@ export function ServiceDefinitionComparePage() {
 
   if (state.phase === 'loading') {
     return (
-      <main id="main-content" className="shell-page">
-        <p aria-busy="true" aria-live="polite">
-          Carregando comparação…
-        </p>
-      </main>
+      <ModulePage>
+        <ModulePageHeader title="Comparar versões" />
+        <ModuleLoadingState title="Comparar versões" message="Carregando comparação…" />
+      </ModulePage>
     );
   }
 
   if (state.phase === 'error') {
     return (
-      <main id="main-content" className="shell-page">
-        <h1>Comparar versões</h1>
-        <p role="alert">{state.message}</p>
-        <Link to={`/app/catalog/${definitionId}`}>Voltar</Link>
-      </main>
+      <ModulePage>
+        <ModulePageHeader title="Comparar versões" />
+        <ModuleErrorState
+          title="Comparar versões"
+          message={state.message}
+          retryable
+          onRetry={() => void load()}
+        />
+        <p className="mt-3 mb-0">
+          <Link to={`/app/catalog/${definitionId}`}>Voltar</Link>
+        </p>
+      </ModulePage>
     );
   }
 
   const diffs = compareServiceDefinitionVersions(state.left, state.right);
 
   return (
-    <main id="main-content" className="shell-page catalog-page">
-      <h1>Comparar versões</h1>
+    <ModulePage>
+      <ModulePageHeader
+        title="Comparar versões"
+        description="A comparação usa as versões carregadas do servidor; nada é inferido no navegador."
+      />
 
       <div className="catalog-toolbar">
         <div className="form-field catalog-filter">
@@ -140,6 +155,6 @@ export function ServiceDefinitionComparePage() {
       <p>
         <Link to={`/app/catalog/${definitionId}`}>Voltar à definição</Link>
       </p>
-    </main>
+    </ModulePage>
   );
 }

@@ -55,6 +55,25 @@ async function goToContractDetail(
   );
 }
 
+/**
+ * A gramática de objeto empresarial (`EnterpriseObjectHeader`) expõe a ação PRIMÁRIA como
+ * botão e as secundárias em "Mais ações". As ações continuam exatamente as mesmas, com os
+ * mesmos nomes acessíveis e as mesmas chamadas de API — muda apenas onde o operador as
+ * encontra na primeira dobra.
+ */
+async function clickContractAction(
+  user: ReturnType<typeof userEvent.setup>,
+  name: string,
+) {
+  const direct = screen.queryByRole('button', { name });
+  if (direct) {
+    await user.click(direct);
+    return;
+  }
+  await user.click(screen.getByRole('button', { name: 'Mais ações' }));
+  await user.click(await screen.findByRole('menuitem', { name }));
+}
+
 describe('contratos comerciais — fluxo de telas (frontend)', () => {
   beforeEach(() => {
     resetTokenStoreForTests();
@@ -122,7 +141,7 @@ describe('contratos comerciais — fluxo de telas (frontend)', () => {
     });
 
     // update (versão): edição de rascunho envia rowVersion e atualiza
-    await user.click(screen.getByRole('button', { name: 'Editar dados' }));
+    await clickContractAction(user, 'Editar dados');
     await screen.findByRole('heading', { name: /editar dados do contrato/i });
     await user.clear(screen.getByLabelText(/número do contrato/i));
     await user.type(screen.getByLabelText(/número do contrato/i), 'CTR-E2E-001-R2');
@@ -139,7 +158,7 @@ describe('contratos comerciais — fluxo de telas (frontend)', () => {
 
     // 409 version conflict mostra o banner de conflito
     mock.state.versionConflictOnNext();
-    await user.click(screen.getByRole('button', { name: 'Editar dados' }));
+    await clickContractAction(user, 'Editar dados');
     await screen.findByRole('heading', { name: /editar dados do contrato/i });
     await user.clear(screen.getByLabelText(/número do contrato/i));
     await user.type(screen.getByLabelText(/número do contrato/i), 'CTR-E2E-CONFLICT');
@@ -205,7 +224,7 @@ describe('contratos comerciais — fluxo de telas (frontend)', () => {
     // expire: endpoint é chamado SEM corpo (sem rowVersion/motivo)
     await goToContractDetail(user, 'CTR-ACT-002');
     await screen.findByLabelText('Status: Ativo');
-    await user.click(screen.getByRole('button', { name: 'Expirar contrato' }));
+    await clickContractAction(user, 'Expirar contrato');
     await screen.findByRole('heading', { name: /expirar contrato/i });
     await user.click(screen.getByRole('button', { name: 'Confirmar expiração' }));
 

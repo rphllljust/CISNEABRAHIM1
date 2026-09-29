@@ -59,8 +59,31 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+const UNIT = 'unit-synthetic-homolog';
+
+/**
+ * MOCK CONSCIENTE DE URL.
+ *
+ * O mock anterior respondia o MESMO payload de fila para QUALQUER URL. Isso bastava enquanto a
+ * Central de trabalho so consultava a propria fila. Agora a tela tambem resolve o ESCOPO
+ * (`operational-units`) para oferecer a unidade em linguagem humana — e essa rota tem contrato
+ * proprio (`{ items: string[] }`). Devolver o payload da fila ali deixava o seletor de unidade sem
+ * opcoes e a renderizacao presa.
+ *
+ * O comportamento de produto testado nao mudou: o que muda e o harness responder a rota CERTA com
+ * o CONTRATO certo — que e o que o servidor real faz.
+ */
 function mockFetch(response: Response | (() => Response)) {
-  const fetchMock = vi.fn(async () => (typeof response === 'function' ? response() : response));
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    // `RequestInfo` pode ser `Request` (objeto) alem de string/URL: lemos o `url` real em vez de
+    // stringificar o objeto, que produziria "[object Object]" e nunca casaria a rota.
+    const url =
+      typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (url.includes('/requests/service-requests/operational-units')) {
+      return jsonResponse({ items: [UNIT] });
+    }
+    return typeof response === 'function' ? response() : response;
+  });
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
 }
@@ -100,10 +123,17 @@ describe('central de trabalho', () => {
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalled();
     });
-    const [url] = requestedUrls(fetchMock);
-    expect(url).toContain('domain=FINANCEIRO');
-    expect(url).toContain('overdue=true');
-    expect(url).toContain('offset=25');
+    /*
+      A consulta da FILA e a que carrega o recorte — o harness agora tambem responde
+      `operational-units` (para o seletor humano de unidade), entao procuramos a URL da fila em vez
+      de assumir que ela e a primeira chamada. O que o teste protege continua igual: o recorte da
+      URL vai INTEIRO ao servidor, sem filtro silenciosamente ignorado.
+    */
+    const queueUrl = requestedUrls(fetchMock).find((url) => url.includes('/work-inbox'));
+    expect(queueUrl, 'a consulta da fila deve ter sido feita').toBeDefined();
+    expect(queueUrl).toContain('domain=FINANCEIRO');
+    expect(queueUrl).toContain('overdue=true');
+    expect(queueUrl).toContain('offset=25');
   });
 
   it('o contador por dominio e o proprio filtro — sem filtro silenciosamente ignorado', async () => {
@@ -185,9 +215,27 @@ describe('central de trabalho', () => {
     await waitFor(() => {
       expect(screen.getByText(/em atraso/)).toBeInTheDocument();
     });
-    // O atraso aparece na LINHA da fila, nao escondido dentro de uma tabela.
-    const row = screen.getByRole('row', { name: /NF-2026-000005/ });
-    expect(within(row).getByText(/em atraso/)).toBeInTheDocument();
+    // O atraso aparece na LINHA da fila, como primeiro elemento lido — nao escondido numa coluna.
+    const item = screen.getByText('Conta a receber vencida').closest('article');
+    expect(item).not.toBeNull();
+    expect(within(item as HTMLElement).getByText(/em atraso/)).toBeInTheDocument();
+    // O objeto relacionado e o vencimento real convivem no mesmo item.
+    expect(within(item as HTMLElement).getByRole('button', { name: 'NF-2026-000005' })).toBeInTheDocument();
+    expect(within(item as HTMLElement).getByText(/Vencimento/)).toBeInTheDocument();
+  });
+
+  it('abre com a faixa de resumo usando somente os numeros publicados pelo servidor', async () => {
+    mockFetch(jsonResponse(pageData()));
+    renderWithProviders(<WorkInboxPage />, { router: { initialEntries: ['/app/work-inbox'] } });
+
+    await waitFor(() => {
+      expect(screen.getByText('NF-2026-000005')).toBeInTheDocument();
+    });
+
+    const summary = screen.getByRole('region', { name: 'Resumo da fila' });
+    // `total` do recorte: o unico numero global que o contrato publica.
+    expect(within(summary).getByText(/trabalhos na fila/i).closest('div')).toHaveTextContent('1');
+    expect(within(summary).getByText(/nesta página/i).closest('div')).toHaveTextContent('1');
   });
 
   it('nao declara atraso quando o item nao tem vencimento persistido', async () => {

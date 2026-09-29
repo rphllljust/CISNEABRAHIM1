@@ -1,32 +1,39 @@
-﻿import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ContractsApiError, listContracts } from '../api/contracts-api';
 import { mapContractErrorToMessage } from '../api/contracts-error-messages';
 import { ContractStatusBadge } from '../components/ContractStatusBadge';
 import { useContractCapabilities } from '../hooks/useContractCapabilities';
 import type { Contract } from '../types';
 import { formatClientSnapshot, formatDate, formatDateTime } from '../utils/contract-status-labels';
-import { Button } from '../../ui/Button';
 import { HumanLookupField } from '../../financial-ui/HumanLookupField';
 import { searchClientOptions } from '../../financial-ui/client-lookup';
+import { OperationalUnitOptions, useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
 import {
-  FilterCard,
+  RecordStatusCell,
+  WorklistClearFilters,
+  WorklistField,
+  WorklistFilterBar,
+  WorklistFooter,
+  WorklistHeader,
+  WorklistRowLink,
+  WorklistStatePanel,
+  worklistCellClass,
+  worklistCellRaisedClass,
+  worklistHeadCellClass,
+  worklistRowClass,
+  worklistSelectClass,
+  worklistTableCardClass,
+  worklistTableClass,
+} from '../../ui/enterprise-list';
+import {
   ModuleDeniedState,
   ModuleErrorState,
   ModuleLoadingState,
   ModulePage,
   ModuleStatePage,
-  ModulePageHeader,
   ModulePagination,
   ModulePrimaryLink,
-  ModuleTableCard,
-  ModuleTableLink,
-  filterControlClass,
-  filterLabelClass,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
+  UnitScopeLabel,
 } from '../../ui/module-layout';
 
 const PAGE_SIZE = 20;
@@ -39,6 +46,7 @@ type ListState =
 
 export function ContractsListPage() {
   const { capabilities } = useContractCapabilities();
+  const { options: unitOptions } = useOperationalUnits();
   const [clientFilter, setClientFilter] = useState('');
   const [unitFilter, setUnitFilter] = useState('');
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
@@ -93,27 +101,28 @@ export function ContractsListPage() {
 
   if (listState.phase === 'loading') {
     return (
-      <ModuleStatePage title="Contratos">`r`n        <ModuleLoadingState message="Carregando contratos…" />
+      <ModuleStatePage title="Contratos">
+        <ModuleLoadingState message="Carregando contratos…" />
       </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'denied') {
     return (
-      <ModuleStatePage title="Contratos">`r`n        <ModuleDeniedState
-        message="Você não tem permissão para listar contratos comerciais."
-      />
+      <ModuleStatePage title="Contratos">
+        <ModuleDeniedState message="Você não tem permissão para listar contratos comerciais." />
       </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'error') {
     return (
-      <ModuleStatePage title="Contratos">`r`n        <ModuleErrorState
-        message={listState.message}
-        retryable={listState.retryable}
-        onRetry={() => void loadPage(0)}
-      />
+      <ModuleStatePage title="Contratos">
+        <ModuleErrorState
+          message={listState.message}
+          retryable={listState.retryable}
+          onRetry={() => void loadPage(0)}
+        />
       </ModuleStatePage>
     );
   }
@@ -124,8 +133,17 @@ export function ContractsListPage() {
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      {/*
+        GRAMATICA UNICA. O titulo saia de um `PageHeader` de 8 unidades de margem + `FilterCard`
+        com grid de duas colunas, e a grade era a legada `px-6 py-3.5` — a superficie parecia de
+        outro produto ao lado das worklists ja convergidas. Contrato, filtros, grade, paginacao e
+        estados passam a usar as mesmas primitivas: nenhuma consulta, rota, capability ou filtro
+        mudou de semantica.
+      */}
+      <WorklistHeader
         title="Contratos"
+        count={items.length}
+        context="Contratos comerciais no seu escopo autorizado."
         action={
           capabilities.canCreate ? (
             <ModulePrimaryLink to="/app/contracts/new">Novo contrato</ModulePrimaryLink>
@@ -133,116 +151,149 @@ export function ContractsListPage() {
         }
       />
 
-      <FilterCard>
-        <div className="grid gap-5 sm:grid-cols-2">
-          <div className="min-w-0">
-            <HumanLookupField
-              label="Cliente"
-              htmlFor="contract-client-search"
-              search={searchClientOptions}
-              value={clientFilter}
-              onChange={setClientFilter}
-              emptyOptionLabel="Todos os clientes"
-              emptyMessage="Nenhum cliente encontrado para a busca."
-            />
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="contract-unit-filter">
-              Unidade
-            </label>
-            <input
-              id="contract-unit-filter"
-              type="search"
-              className={filterControlClass}
-              value={unitFilter}
-              onChange={(event) => setUnitFilter(event.target.value)}
-              placeholder="Filtrar por unidade"
-            />
-          </div>
-        </div>
-        {hasActiveFilters ? (
-          <div className="mt-4">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                setClientFilter('');
-                setUnitFilter('');
-              }}
-            >
-              Limpar filtros
-            </Button>
-          </div>
-        ) : null}
-      </FilterCard>
+      <WorklistFilterBar>
+        <WorklistField label="Cliente">
+          <HumanLookupField
+            label="Cliente"
+            htmlFor="contract-client-search"
+            variant="compact"
+            search={searchClientOptions}
+            value={clientFilter}
+            onChange={setClientFilter}
+            emptyOptionLabel="Todos os clientes"
+            emptyMessage="Nenhum cliente encontrado para a busca."
+          />
+        </WorklistField>
+        {/*
+          FILTRO DE UNIDADE HUMANO: era um campo de texto onde o operador tinha de DIGITAR o
+          identificador interno da unidade. O valor enviado a API continua sendo o identificador
+          real; o que sai e a digitacao dele — as unidades vem do escopo autorizado do usuario.
+        */}
+        <WorklistField label="Unidade" htmlFor="contract-unit-filter">
+          <select
+            id="contract-unit-filter"
+            className={worklistSelectClass}
+            value={unitFilter}
+            onChange={(event) => setUnitFilter(event.target.value)}
+          >
+            <OperationalUnitOptions options={unitOptions} includeAllLabel="Todas as unidades" />
+          </select>
+        </WorklistField>
+        <WorklistClearFilters
+          visible={hasActiveFilters}
+          onClick={() => {
+            setClientFilter('');
+            setUnitFilter('');
+          }}
+        />
+      </WorklistFilterBar>
 
       {items.length === 0 ? (
-        <p className="text-sm text-gray-500" role="status">
-          Nenhum contrato encontrado.
-        </p>
+        <WorklistStatePanel
+          title={
+            hasActiveFilters
+              ? 'Nenhum contrato corresponde aos filtros aplicados.'
+              : 'Nenhum contrato encontrado.'
+          }
+          description={
+            hasActiveFilters
+              ? 'Ajuste o cliente ou a unidade para ver outros contratos.'
+              : undefined
+          }
+          action={
+            hasActiveFilters ? (
+              <WorklistClearFilters
+                visible
+                label="Ver todos os contratos"
+                onClick={() => {
+                  setClientFilter('');
+                  setUnitFilter('');
+                }}
+              />
+            ) : null
+          }
+        />
       ) : (
-        <ModuleTableCard>
-          <table className={moduleTableClass} aria-label="Lista de contratos">
-            <thead className={moduleTableHeadClass}>
+        <div className={worklistTableCardClass}>
+          <table className={worklistTableClass} aria-label="Lista de contratos">
+            <thead>
               <tr>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Contrato
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Código interno
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Status
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Cliente
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Vigência
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Unidade
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Atualizado em
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody>
               {items.map((item) => (
-                <tr key={item.id} className={moduleTableRowClass}>
-                  <td className={moduleTableCellClass}>
-                    <ModuleTableLink to={`/app/contracts/${item.id}`}>
+                <tr key={item.id} className={worklistRowClass}>
+                  <td className={worklistCellClass}>
+                    {/* Registro inteiro e a superficie de navegacao: link real esticado na linha. */}
+                    <WorklistRowLink href={`/app/contracts/${item.id}`}>
                       {item.contractNumber}
-                    </ModuleTableLink>
+                    </WorklistRowLink>
+                    {item.title ? (
+                      <p className="max-w-[36ch] truncate text-[11px] text-gray-500" title={item.title}>
+                        {item.title}
+                      </p>
+                    ) : null}
                   </td>
-                  <td className={moduleTableCellClass}>{item.internalCode}</td>
-                  <td className={moduleTableCellClass}>
-                    <ContractStatusBadge status={item.status} />
+                  <td className={worklistCellRaisedClass}>{item.internalCode}</td>
+                  <td className={worklistCellRaisedClass}>
+                    <RecordStatusCell badge={<ContractStatusBadge status={item.status} />} />
                   </td>
-                  <td className={moduleTableCellClass}>
+                  <td className={worklistCellRaisedClass}>
                     {formatClientSnapshot(item.clientSnapshot)}
                   </td>
-                  <td className={moduleTableCellClass}>
-                    {formatDate(item.validFrom)}
-                    {item.validTo ? ` → ${formatDate(item.validTo)}` : ''}
+                  <td className={worklistCellRaisedClass}>
+                    <span className="tabular-nums whitespace-nowrap">
+                      {formatDate(item.validFrom)}
+                      {item.validTo ? ` → ${formatDate(item.validTo)}` : ''}
+                    </span>
                   </td>
-                  <td className={moduleTableCellClass}>{item.unitId}</td>
-                  <td className={moduleTableCellClass}>{formatDateTime(item.updatedAt)}</td>
+                  {/*
+                    ESCOPO, nao o identificador. `unitId` e dado interno (em HML, um slug de
+                    ambiente) e era o que a grade mostrava como se fosse o nome da unidade.
+                  */}
+                  <td className={worklistCellRaisedClass}>
+                    <UnitScopeLabel unitId={item.unitId} />
+                  </td>
+                  <td className={worklistCellRaisedClass}>
+                    <span className="whitespace-nowrap">{formatDateTime(item.updatedAt)}</span>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </ModuleTableCard>
+        </div>
       )}
 
-      <ModulePagination
-        pageNumber={pageNumber}
-        previousDisabled={offset === 0}
-        nextDisabled={!hasMore}
-        onPrevious={() => void loadPage(Math.max(0, offset - PAGE_SIZE))}
-        onNext={() => void loadPage(offset + PAGE_SIZE)}
-      />
+      <WorklistFooter rangeLabel={`${offset + 1}–${offset + items.length} nesta página`}>
+        <ModulePagination
+          pageNumber={pageNumber}
+          previousDisabled={offset === 0}
+          nextDisabled={!hasMore}
+          onPrevious={() => void loadPage(Math.max(0, offset - PAGE_SIZE))}
+          onNext={() => void loadPage(offset + PAGE_SIZE)}
+        />
+      </WorklistFooter>
     </ModulePage>
   );
 }

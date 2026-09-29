@@ -10,6 +10,13 @@ import { mapPurchaseOrderErrorToMessage } from '../api/purchase-order-error-mess
 import { PurchaseOrderForm } from '../components/PurchaseOrderForm';
 import { VersionConflictNotice } from '../components/VersionConflictNotice';
 import { usePurchaseOrderCapabilities } from '../hooks/usePurchaseOrderCapabilities';
+import {
+  ModuleDeniedState,
+  ModuleErrorState,
+  ModuleLoadingState,
+  ModulePage,
+  ModulePageHeader,
+} from '../../ui/module-layout';
 import { PURCHASE_ORDER_STATUSES } from '../types/purchase-order.types';
 import {
   buildUpdatePurchaseOrderPayload,
@@ -103,36 +110,39 @@ export function PurchaseOrderEditPage() {
 
   if (loading) {
     return (
-      <main id="main-content" className="shell-page">
-        <p aria-busy="true" aria-live="polite">
-          Carregando pedido…
-        </p>
-      </main>
+      <ModulePage>
+        <ModulePageHeader title="Editar pedido de compra" />
+        <ModuleLoadingState title="Editar pedido de compra" message="Carregando pedido…" />
+      </ModulePage>
     );
   }
 
   if (loadError) {
     return (
-      <main id="main-content" className="shell-page">
-        <p className="form-error" role="alert">
-          {loadError}
-        </p>
-        <button type="button" onClick={() => void load()}>
-          Tentar novamente
-        </button>
-      </main>
+      <ModulePage>
+        <ModulePageHeader title="Editar pedido de compra" />
+        <ModuleErrorState
+          title="Editar pedido de compra"
+          message={loadError}
+          retryable
+          onRetry={() => void load()}
+        />
+      </ModulePage>
     );
   }
 
   if (!capabilities.canUpdate || !canEdit) {
     return (
-      <main id="main-content" className="shell-page">
-        <h1>Editar pedido de compra</h1>
-        <p role="alert">
-          Este pedido não pode ser editado no status atual ou você não tem permissão.
+      <ModulePage>
+        <ModulePageHeader title="Editar pedido de compra" />
+        <ModuleDeniedState
+          title="Editar pedido de compra"
+          message="Este pedido não pode ser editado no status atual ou você não tem permissão."
+        />
+        <p className="mt-3 mb-0">
+          <Link to={`/app/purchase-orders/${purchaseOrderId}`}>Voltar ao detalhe</Link>
         </p>
-        <Link to={`/app/purchase-orders/${purchaseOrderId}`}>Voltar ao detalhe</Link>
-      </main>
+      </ModulePage>
     );
   }
 
@@ -174,10 +184,11 @@ export function PurchaseOrderEditPage() {
   }
 
   return (
-    <main id="main-content" className="shell-page requests-page">
-      <header className="requests-page__header">
-        <h1>Editar pedido de compra</h1>
-      </header>
+    <ModulePage>
+      <ModulePageHeader
+        title="Editar pedido de compra"
+        description="Atualiza o rascunho do pedido; o servidor recusa alterações concorrentes."
+      />
       {versionConflict ? <VersionConflictNotice onReload={() => void load()} /> : null}
       <PurchaseOrderForm
         mode="edit"
@@ -191,6 +202,6 @@ export function PurchaseOrderEditPage() {
         onSubmit={(event) => void handleSubmit(event)}
         cancelHref={`/app/purchase-orders/${purchaseOrderId}`}
       />
-    </main>
+    </ModulePage>
   );
 }

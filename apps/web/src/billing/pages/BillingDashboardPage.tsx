@@ -3,10 +3,24 @@ import { useCallback, useEffect, useState } from 'react';
 import { mapBillingErrorToMessage } from '../api/billing-error-messages';
 import { useBillingCapabilities } from '../hooks/useBillingCapabilities';
 import { BillingProcessBoard } from '../components/BillingProcessBoard';
-import { BILLING_FUTURE_PROCESS_STEPS, BILLING_PROCESS_STEPS, BILLING_RECEIVABLE_HREF } from '../utils/billing-process';
+import {
+  BILLING_FUTURE_PROCESS_STEPS,
+  BILLING_PROCESS_STEPS,
+  BILLING_RECEIVABLE_HREF,
+  groupWorkQueueByBucket,
+} from '../utils/billing-process';
 import { loadBillingWorkQueue } from '../utils/billing-work-queue';
-import type { BillingWorkQueueItem } from '../types/billing.types';
+import { BILLING_PROCESS_BUCKETS, type BillingWorkQueueItem } from '../types/billing.types';
 import { ServiceOrdersApiError } from '../../service-orders/api/service-orders-api';
+import {
+  ModuleDeniedState,
+  ModuleErrorState,
+  ModuleLoadingState,
+  ModulePage,
+  ModulePageHeader,
+  ModuleStatePage,
+} from '../../ui/module-layout';
+import { WorkbenchMetric, WorkbenchQueue, WorkbenchSummaryStrip } from '../../ui/workbench';
 
 type PageState =
   | { phase: 'loading' }
@@ -14,6 +28,18 @@ type PageState =
   | { phase: 'error'; message: string; retryable: boolean }
   | { phase: 'ready'; items: BillingWorkQueueItem[] };
 
+/**
+ * FATURAMENTO INTERNO — MESA DE TRABALHO, NAO PAINEL DE CONSULTA.
+ *
+ * A tela abria por um cabecalho de apresentacao e uma cadeia de processo: nada dizia, na primeira
+ * dobra, QUANTO trabalho existe nem por onde o operador comeca. Agora ela tem a mesma moldura das
+ * demais filas — faixa de resumo com as contagens REAIS dos estagios, a fila de trabalho no topo e
+ * a cadeia do processo como CONTEXTO abaixo dela.
+ *
+ * Nenhuma contagem e inventada: os numeros vem do mesmo agrupamento que a propria fila exibe
+ * (`groupWorkQueueByBucket`, derivado do estado persistido da medicao e da preparacao). Nenhuma
+ * regra, chamada, rota ou capability mudou.
+ */
 export function BillingDashboardPage() {
   const { capabilities, loading: capabilitiesLoading } = useBillingCapabilities();
   const [state, setState] = useState<PageState>({ phase: 'loading' });
@@ -54,55 +80,70 @@ export function BillingDashboardPage() {
 
   if (capabilitiesLoading || state.phase === 'loading') {
     return (
-      <main id="main-content" className="shell-page billing-page">
-        <h1>Faturamento interno</h1>
-        <p aria-busy="true" aria-live="polite">
-          Carregando painel…
-        </p>
-      </main>
+      <ModuleStatePage title="Faturamento interno">
+        <ModuleLoadingState message="Carregando painel…" />
+      </ModuleStatePage>
     );
   }
 
   if (state.phase === 'denied') {
     return (
-      <main id="main-content" className="shell-page billing-page">
-        <h1>Faturamento interno</h1>
-        <p role="alert">Você não tem permissão para acessar o faturamento interno.</p>
-        <Link to="/app">Voltar ao início</Link>
-      </main>
+      <ModuleStatePage title="Faturamento interno">
+        <ModuleDeniedState message="Você não tem permissão para acessar o faturamento interno." />
+      </ModuleStatePage>
     );
   }
 
   if (state.phase === 'error') {
     return (
-      <main id="main-content" className="shell-page billing-page">
-        <h1>Faturamento interno</h1>
-        <p role="alert">{state.message}</p>
-        {state.retryable ? (
-          <button type="button" className="billing-button" onClick={() => void reload()}>
-            Tentar novamente
-          </button>
-        ) : null}
-      </main>
+      <ModuleStatePage title="Faturamento interno">
+        <ModuleErrorState
+          message={state.message}
+          retryable={state.retryable}
+          onRetry={() => void reload()}
+        />
+      </ModuleStatePage>
     );
   }
 
+  const grouped = groupWorkQueueByBucket(state.items);
+  const divergenceCount = grouped[BILLING_PROCESS_BUCKETS.Divergence].length;
+  const readyCount = grouped[BILLING_PROCESS_BUCKETS.Ready].length;
+  const preparedCount = grouped[BILLING_PROCESS_BUCKETS.Prepared].length;
+
   return (
-    <main id="main-content" className="shell-page billing-page">
-      <header className="billing-page__header">
-        <p className="billing-page__eyebrow">Cobrança operacional interna</p>
-        <h1>Faturamento interno</h1>
-        <p className="billing-page__lead">
-          Preparação de cobrança a partir de medições aprovadas. A Nota Fatura é documento interno
-          e não constitui NF-e, NFS-e nem emissão fiscal oficial.
-        </p>
-      </header>
+    <ModulePage>
+      <ModulePageHeader
+        title="Faturamento interno"
+        description="Cobrança operacional interna: preparação a partir de medições aprovadas. A Nota Fatura é documento interno e não constitui NF-e, NFS-e nem emissão fiscal oficial."
+      />
 
       {/*
-        CADEIA REAL DO PROCESSO — o que o produto EXECUTA hoje. Cada etapa leva ao
-        objeto que a representa. Antes esta area declarava "Contas a receber" como
-        indisponivel, o que era falso: o recebivel e criado a partir do documento
-        interno e tem tela propria.
+        RESUMO DA FILA — os mesmos numeros que a fila mostra, na primeira dobra. A divergencia vem
+        primeiro porque e a excecao que exige alinhamento antes de qualquer preparacao.
+      */}
+      <WorkbenchSummaryStrip>
+        <WorkbenchMetric value={divergenceCount} label="com divergência" tone="warning" />
+        <WorkbenchMetric value={readyCount} label="prontos para faturar" />
+        <WorkbenchMetric value={preparedCount} label="em preparação" />
+        <WorkbenchMetric value={state.items.length} label="na fila" />
+      </WorkbenchSummaryStrip>
+
+      <WorkbenchQueue
+        title="Fila de trabalho do faturamento"
+        count={state.items.length}
+        description="Cada coluna é um estágio real do processo; o cartão leva a ordem de serviço e mostra a divergência quando existe."
+        emptyTitle="Nenhum trabalho de faturamento na fila"
+        emptyDescription="Não há medição aprovada aguardando preparação nem preparação pendente no seu escopo."
+      >
+        <BillingProcessBoard items={state.items} />
+      </WorkbenchQueue>
+
+      {/*
+        CADEIA REAL DO PROCESSO — CONTEXTO da fila acima. O que o produto EXECUTA hoje. Cada etapa
+        leva ao objeto que a representa. Antes esta area declarava "Contas a receber" como
+        indisponivel, o que era falso: o recebivel e criado a partir do documento interno e tem
+        tela propria.
       */}
       <nav className="billing-process-chain" aria-label="Etapas do processo de faturamento">
         <ol className="billing-process-chain__list">
@@ -136,8 +177,6 @@ export function BillingDashboardPage() {
           ))}
         </ul>
       </section>
-
-      <BillingProcessBoard items={state.items} />
-    </main>
+    </ModulePage>
   );
 }

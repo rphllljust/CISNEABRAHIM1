@@ -1,6 +1,11 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { PageHeader } from '../../ui';
+import {
+  ModuleDeniedState,
+  ModuleLoadingState,
+  ModulePage,
+  ModulePageHeader,
+} from '../../ui/module-layout';
 import { mapAssetErrorToMessage } from '../api/asset-error-messages';
 import { AssetsApiError, createPhysicalAsset } from '../api/physical-assets-api';
 import { AssetForm } from '../components/AssetForm';
@@ -49,37 +54,33 @@ export function PhysicalAssetCreatePage() {
 
   if (capabilitiesLoading) {
     return (
-      <main id="main-content" className="shell-page">
-        <PageHeader
+      <ModulePage>
+        <ModulePageHeader
           title="Novo ativo físico"
           description="Cadastre uma instância física vinculada a um tipo de recurso do catálogo."
         />
-        <p aria-busy="true" aria-live="polite" className="m-0 text-sm text-gray-500">
-          Verificando permissões…
-        </p>
-      </main>
+        <ModuleLoadingState title="Novo ativo físico" message="Verificando permissões…" />
+      </ModulePage>
     );
   }
 
   if (!capabilities.canCreate) {
     return (
-      <main id="main-content" className="shell-page">
-        <PageHeader
+      <ModulePage>
+        <ModulePageHeader
           title="Novo ativo físico"
           description="Cadastre uma instância física vinculada a um tipo de recurso do catálogo."
         />
-        <p
-          role="alert"
-          className="m-0 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-500/20 ring-inset"
-        >
-          Você não tem permissão para cadastrar ativos.
-        </p>
+        <ModuleDeniedState
+          title="Novo ativo físico"
+          message="Você não tem permissão para cadastrar ativos."
+        />
         <p className="mt-3 mb-0">
           <Link to="/app/assets" className={BACK_LINK_CLASS}>
             Voltar à lista
           </Link>
         </p>
-      </main>
+      </ModulePage>
     );
   }
 
@@ -115,8 +116,8 @@ export function PhysicalAssetCreatePage() {
   }
 
   return (
-    <main id="main-content" className="shell-page">
-      <PageHeader
+    <ModulePage>
+      <ModulePageHeader
         title="Novo ativo físico"
         description="Cadastre uma instância física vinculada a um tipo de recurso do catálogo."
       />
@@ -135,6 +136,6 @@ export function PhysicalAssetCreatePage() {
         onSubmit={(event) => void handleSubmit(event)}
         cancelHref="/app/assets"
       />
-    </main>
+    </ModulePage>
   );
 }

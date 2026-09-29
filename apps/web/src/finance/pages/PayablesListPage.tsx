@@ -1,20 +1,26 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DateTime, EmptyState, Money, Select } from '../../ui';
+import { ModulePage, ModulePagination } from '../../ui/module-layout';
 import {
-  FilterCard,
-  ModulePage,
-  ModulePageHeader,
-  ModulePagination,
-  ModuleTableCard,
-  ModuleTableLink,
-  filterControlClass,
-  filterLabelClass,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui/module-layout';
+  RecordStatusCell,
+  RowActionCell,
+  WorklistClearFilters,
+  WorklistField,
+  WorklistFilterBar,
+  WorklistFooter,
+  WorklistHeader,
+  WorklistRowLink,
+  worklistCellClass,
+  worklistCellRaisedClass,
+  worklistHeadCellClass,
+  worklistNumericCellClass,
+  worklistNumericHeadCellClass,
+  worklistRowClass,
+  worklistSelectClass,
+  worklistTableCardClass,
+  worklistTableClass,
+} from '../../ui/enterprise-list';
+import { cn } from '../../ui/utils/cn';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { AGING_BUCKET_LABELS, PAYABLE_STATUS_LABELS } from '../../financial-ui/labels';
 import { BACKOFFICE_TABLE_PAGE_SIZE } from '../../financial-ui/table-slice';
@@ -148,9 +154,10 @@ export function PayablesListPage() {
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      <WorklistHeader
         title="Contas a pagar"
-        description="Aging e saldo restante são os informados pelo servidor. Esta tela não recalcula obrigações."
+        count={page.total}
+        context="Aging e saldo restante são os informados pelo servidor. Esta tela não recalcula obrigações."
       />
 
       {/* DRILL-DOWN: todo indicador abre a lista filtrada que o originou. */}
@@ -185,60 +192,54 @@ export function PayablesListPage() {
         />
       </DrilldownRow>
 
-      <FilterCard>
-        <label className={filterLabelClass} htmlFor="payable-status-filter">
-          Status
-        </label>
-        <Select
-          id="payable-status-filter"
-          className={`${filterControlClass} max-w-xs`}
-          value={statusFilter}
-          onChange={(event) => {
-            smartList.setFilter('status', event.target.value);
-            setPageNumber(1);
-          }}
-        >
-          <option value="">Todos</option>
-          {Object.entries(PAYABLE_STATUS_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </Select>
-
-        <label className={filterLabelClass} htmlFor="payable-aging-filter">
-          Aging
-        </label>
-        <Select
-          id="payable-aging-filter"
-          className={`${filterControlClass} max-w-xs`}
-          value={agingFilter}
-          onChange={(event) => {
-            smartList.setFilter('agingBucket', event.target.value);
-            setPageNumber(1);
-          }}
-        >
-          <option value="">Todos</option>
-          {Object.entries(AGING_BUCKET_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </Select>
-
-        {smartList.isFiltered ? (
-          <button
-            type="button"
-            className="ml-2 self-end rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
-            onClick={() => {
-              smartList.clearFilters();
+      {/* FILTROS EM UMA LINHA — mesma gramatica densa dos recebiveis. */}
+      <WorklistFilterBar>
+        <WorklistField label="Status" htmlFor="payable-status-filter">
+          <Select
+            id="payable-status-filter"
+            className={cn(worklistSelectClass, 'cursor-pointer')}
+            value={statusFilter}
+            onChange={(event) => {
+              smartList.setFilter('status', event.target.value);
               setPageNumber(1);
             }}
           >
-            Limpar filtros
-          </button>
-        ) : null}
-      </FilterCard>
+            <option value="">Todos</option>
+            {Object.entries(PAYABLE_STATUS_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </Select>
+        </WorklistField>
+
+        <WorklistField label="Aging" htmlFor="payable-aging-filter">
+          <Select
+            id="payable-aging-filter"
+            className={cn(worklistSelectClass, 'cursor-pointer')}
+            value={agingFilter}
+            onChange={(event) => {
+              smartList.setFilter('agingBucket', event.target.value);
+              setPageNumber(1);
+            }}
+          >
+            <option value="">Todos</option>
+            {Object.entries(AGING_BUCKET_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </Select>
+        </WorklistField>
+
+        <WorklistClearFilters
+          visible={smartList.isFiltered}
+          onClick={() => {
+            smartList.clearFilters();
+            setPageNumber(1);
+          }}
+        />
+      </WorklistFilterBar>
 
       <SavedViewsBar
         views={smartList.savedViews.views}
@@ -307,20 +308,11 @@ export function PayablesListPage() {
         />
       ) : (
         <>
-          <p className="mb-2 text-xs text-gray-500" aria-live="polite">
-            {filtered.length} {filtered.length === 1 ? 'título' : 'títulos'} no recorte atual
-            {statusFilter
-              ? ` · status: ${PAYABLE_STATUS_LABELS[statusFilter] ?? statusFilter}`
-              : ''}
-            {agingFilter ? ` · aging: ${AGING_BUCKET_LABELS[agingFilter] ?? agingFilter}` : ''}
-            {overdue.length > 0 ? ` · ${overdue.length} vencido(s)` : ''}
-            {refreshing ? ' · atualizando…' : ''}
-          </p>
-          <ModuleTableCard>
-            <table className={moduleTableClass} aria-label="Lista de contas a pagar">
-              <thead className={moduleTableHeadClass}>
+          <div className={worklistTableCardClass}>
+            <table className={worklistTableClass} aria-label="Lista de contas a pagar">
+              <thead>
                 <tr>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={cn(worklistHeadCellClass, 'w-8')}>
                     <span className="cisne-sr-only">Selecionar</span>
                   </th>
                   <SortableHead
@@ -354,15 +346,16 @@ export function PayablesListPage() {
                     onToggle={smartList.toggleSort}
                     numeric
                   />
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={cn(worklistHeadCellClass, 'w-16 text-right')}>
                     Ação
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {pageItems.map((item) => (
-                  <tr key={item.id} className={moduleTableRowClass}>
-                    <td className={moduleTableCellClass}>
+                  <tr key={item.id} className={worklistRowClass}>
+                    {/* Celula interativa FORA do alcance do link esticado da linha. */}
+                    <td className={cn(worklistCellClass, 'z-[1] w-8')}>
                       <input
                         type="checkbox"
                         aria-label={`Selecionar ${
@@ -372,44 +365,36 @@ export function PayablesListPage() {
                         onChange={() => selection.toggle(item.id)}
                       />
                     </td>
-                    <td className={moduleTableCellClass}>
-                      <ModuleTableLink to={`/app/finance/payables/${item.id}`}>
+                    <td className={worklistCellClass}>
+                      <WorklistRowLink href={`/app/finance/payables/${item.id}`}>
                         {item.externalReference ?? item.origin.reference ?? item.id}
-                      </ModuleTableLink>
-                      <p className="mt-0.5 text-[11px] text-gray-500">
-                        Origem: {item.origin.reference}
-                      </p>
+                      </WorklistRowLink>
+                      <p className="text-[11px] text-gray-500">Origem: {item.origin.reference}</p>
                     </td>
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellRaisedClass}>
                       <DateTime value={item.dueDate} mode="date" />
                     </td>
-                    <td className={moduleTableCellClass}>
-                      <div className="flex flex-col items-start gap-1">
-                        <FinanceStatusBadge status={item.status} labels={PAYABLE_STATUS_LABELS} />
-                        {item.status === 'OVERDUE' ? (
-                          <span className="text-[11px] font-medium text-red-700">
-                            Exige decisão de pagamento
-                          </span>
-                        ) : null}
-                      </div>
-                    </td>
-                    <td className={moduleTableCellClass}>
-                      <FinanceStatusBadge
-                        status={item.agingBucket}
-                        labels={AGING_BUCKET_LABELS}
+                    <td className={worklistCellRaisedClass}>
+                      <RecordStatusCell
+                        accent={item.status === 'OVERDUE' ? 'critical' : 'none'}
+                        badge={<FinanceStatusBadge status={item.status} labels={PAYABLE_STATUS_LABELS} />}
+                        context={item.status === 'OVERDUE' ? 'Exige decisão de pagamento' : null}
                       />
                     </td>
-                    <td className={`${moduleTableCellClass} text-right`}>
+                    <td className={worklistCellRaisedClass}>
+                      <FinanceStatusBadge status={item.agingBucket} labels={AGING_BUCKET_LABELS} />
+                    </td>
+                    <td className={worklistNumericCellClass}>
                       <Money
                         value={item.remainingBalance}
                         currencyCode={item.currencyCode}
                         emphasis
                       />
                     </td>
-                    <td className={moduleTableCellClass}>
+                    <RowActionCell className="w-16">
                       <button
                         type="button"
-                        className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                        className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
                         onClick={() => setPreviewId(item.id)}
                         aria-label={`Prévia de ${
                           item.externalReference ?? item.origin.reference ?? item.id
@@ -417,20 +402,38 @@ export function PayablesListPage() {
                       >
                         Prévia
                       </button>
-                    </td>
+                    </RowActionCell>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </ModuleTableCard>
-          <ModulePagination
-            pageNumber={safePageNumber}
-            rangeLabel={`Página ${safePageNumber} de ${pageCount} · ${filtered.length} títulos`}
-            onPrevious={() => setPageNumber((current) => Math.max(1, current - 1))}
-            onNext={() => setPageNumber((current) => Math.min(pageCount, current + 1))}
-            previousDisabled={safePageNumber <= 1}
-            nextDisabled={safePageNumber >= pageCount}
-          />
+          </div>
+          <WorklistFooter
+            rangeLabel={
+              <span aria-live="polite">
+                Página {safePageNumber} de {pageCount} · {filtered.length}{' '}
+                {filtered.length === 1 ? 'título' : 'títulos'} no recorte atual
+              </span>
+            }
+            extra={
+              <>
+                {statusFilter
+                  ? `status: ${PAYABLE_STATUS_LABELS[statusFilter] ?? statusFilter}`
+                  : null}
+                {agingFilter ? ` · aging: ${AGING_BUCKET_LABELS[agingFilter] ?? agingFilter}` : ''}
+                {overdue.length > 0 ? ` · ${overdue.length} vencido(s)` : ''}
+                {refreshing ? ' · atualizando…' : ''}
+              </>
+            }
+          >
+            <ModulePagination
+              pageNumber={safePageNumber}
+              onPrevious={() => setPageNumber((current) => Math.max(1, current - 1))}
+              onNext={() => setPageNumber((current) => Math.min(pageCount, current + 1))}
+              previousDisabled={safePageNumber <= 1}
+              nextDisabled={safePageNumber >= pageCount}
+            />
+          </WorklistFooter>
         </>
       )}
 
@@ -475,7 +478,7 @@ function SortableHead({
   return (
     <th
       scope="col"
-      className={numeric ? `${moduleTableHeaderCellClass} text-right` : moduleTableHeaderCellClass}
+      className={numeric ? worklistNumericHeadCellClass : worklistHeadCellClass}
       aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
     >
       <button

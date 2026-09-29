@@ -6,12 +6,21 @@ import { mapProposalErrorToMessage } from '../api/proposal-error-messages';
 import { ProposalForm } from '../components/ProposalForm';
 import { useProposalCapabilities } from '../hooks/useProposalCapabilities';
 import {
+  ModuleDeniedState,
+  ModuleLoadingState,
+  ModulePage,
+  ModulePageHeader,
+} from '../../ui/module-layout';
+import {
   buildCreateProposalPayload,
   EMPTY_PROPOSAL_FORM,
   validateProposalForm,
   type ProposalFormFieldErrors,
   type ProposalFormValues,
 } from '../utils/proposal-form-validation';
+
+const CREATE_DESCRIPTION =
+  'Abre a proposta comercial do Cliente com o tipo de preço, a composição e a validade desta versão.';
 
 export function ProposalCreatePage() {
   const navigate = useNavigate();
@@ -45,25 +54,27 @@ export function ProposalCreatePage() {
 
   if (capabilitiesLoading) {
     return (
-      <main id="main-content" className="shell-page requests-page">
-        <p className="text-sm text-gray-500" aria-busy="true" aria-live="polite">
-          Verificando permissões…
-        </p>
-      </main>
+      <ModulePage>
+        <ModulePageHeader title="Nova proposta" description={CREATE_DESCRIPTION} />
+        <ModuleLoadingState title="Nova proposta" message="Verificando permissões…" />
+      </ModulePage>
     );
   }
 
   if (!capabilities.canCreate) {
     return (
-      <main id="main-content" className="shell-page requests-page">
-        <h1 className="m-0 text-2xl font-semibold tracking-tight text-gray-900">Nova proposta</h1>
-        <p className="text-sm text-red-700" role="alert">
-          Você não tem permissão para registrar propostas.
+      <ModulePage>
+        <ModulePageHeader title="Nova proposta" description={CREATE_DESCRIPTION} />
+        <ModuleDeniedState
+          title="Nova proposta"
+          message="Você não tem permissão para registrar propostas."
+        />
+        <p className="mt-3 mb-0">
+          <Link className="button-link button-secondary" to="/app/proposals">
+            Voltar à lista
+          </Link>
         </p>
-        <Link className="button-link button-secondary" to="/app/proposals">
-          Voltar à lista
-        </Link>
-      </main>
+      </ModulePage>
     );
   }
 
@@ -99,16 +110,8 @@ export function ProposalCreatePage() {
   }
 
   return (
-    <main id="main-content" className="shell-page requests-page">
-      <header className="requests-page__header">
-        <div className="min-w-0">
-          <h1 className="m-0 text-2xl font-semibold tracking-tight text-gray-900">Nova proposta</h1>
-          <p className="mt-1 max-w-3xl text-sm text-gray-500">
-            Abre a proposta comercial do Cliente com o tipo de preço, a composição e a validade
-            desta versão.
-          </p>
-        </div>
-      </header>
+    <ModulePage>
+      <ModulePageHeader title="Nova proposta" description={CREATE_DESCRIPTION} />
       <ProposalForm
         mode="create"
         values={values}
@@ -121,6 +124,6 @@ export function ProposalCreatePage() {
         onSubmit={(event) => void handleSubmit(event)}
         cancelHref="/app/proposals"
       />
-    </main>
+    </ModulePage>
   );
 }

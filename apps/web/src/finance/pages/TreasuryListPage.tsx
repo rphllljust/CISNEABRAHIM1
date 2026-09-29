@@ -1,18 +1,20 @@
 import { useCallback, useState } from 'react';
 import { Checkbox, EmptyState, Field, Input, Money, Select } from '../../ui';
+import { ModulePage, ModulePagination, filterControlClass } from '../../ui/module-layout';
 import {
-  ModulePage,
-  ModulePageHeader,
-  ModulePagination,
-  ModuleTableCard,
-  ModuleTableLink,
-  filterControlClass,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui/module-layout';
+  RecordStatusCell,
+  WorklistFooter,
+  WorklistHeader,
+  WorklistRowLink,
+  worklistCellClass,
+  worklistCellRaisedClass,
+  worklistHeadCellClass,
+  worklistNumericCellClass,
+  worklistNumericHeadCellClass,
+  worklistRowClass,
+  worklistTableCardClass,
+  worklistTableClass,
+} from '../../ui/enterprise-list';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { CreateRecordForm } from '../../financial-ui/VersionedActionForm';
 import { TREASURY_KIND_LABELS, TREASURY_LIFECYCLE_LABELS } from '../../financial-ui/labels';
@@ -80,9 +82,10 @@ export function TreasuryListPage() {
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      <WorklistHeader
         title="Caixa e bancos"
-        description="O saldo de cada conta é o valor reconstruído pelo servidor. Esta tela não soma nem recalcula."
+        count={state.data.length}
+        context="O saldo de cada conta é o valor reconstruído pelo servidor. Esta tela não soma nem recalcula."
       />
 
       <CreateRecordForm
@@ -223,53 +226,69 @@ export function TreasuryListPage() {
         <EmptyState title="Nenhuma conta financeira" description="O servidor não devolveu contas no seu escopo." />
       ) : (
         <>
-          <ModuleTableCard>
-            <table className={moduleTableClass} aria-label="Lista de caixa e bancos">
-              <thead className={moduleTableHeadClass}>
+          <div className={worklistTableCardClass}>
+            <table className={worklistTableClass} aria-label="Lista de caixa e bancos">
+              <thead>
                 <tr>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Conta
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Tipo
                   </th>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Situação
                   </th>
-                  <th scope="col" className={`${moduleTableHeaderCellClass} text-right`}>
+                  <th scope="col" className={worklistNumericHeadCellClass}>
                     Saldo do servidor
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {pageItems.map((account) => (
-                  <tr key={account.id} className={moduleTableRowClass}>
-                    <td className={moduleTableCellClass}>
-                      <ModuleTableLink to={`/app/finance/treasury/${account.id}`}>{account.name}</ModuleTableLink>
-                      <span className="ml-2 font-mono text-xs text-gray-500">{account.code}</span>
+                  <tr key={account.id} className={worklistRowClass}>
+                    <td className={worklistCellClass}>
+                      <WorklistRowLink href={`/app/finance/treasury/${account.id}`}>
+                        {account.name}
+                      </WorklistRowLink>
+                      <p className="font-mono text-[11px] text-gray-500">{account.code}</p>
                     </td>
-                    <td className={moduleTableCellClass}>
-                      <FinanceStatusBadge status={account.kind} labels={TREASURY_KIND_LABELS} />
+                    <td className={worklistCellRaisedClass}>
+                      <RecordStatusCell
+                        badge={
+                          <FinanceStatusBadge status={account.kind} labels={TREASURY_KIND_LABELS} />
+                        }
+                      />
                     </td>
-                    <td className={moduleTableCellClass}>
-                      <FinanceStatusBadge status={account.lifecycle} labels={TREASURY_LIFECYCLE_LABELS} />
+                    <td className={worklistCellRaisedClass}>
+                      <RecordStatusCell
+                        badge={
+                          <FinanceStatusBadge
+                            status={account.lifecycle}
+                            labels={TREASURY_LIFECYCLE_LABELS}
+                          />
+                        }
+                      />
                     </td>
-                    <td className={`${moduleTableCellClass} text-right`}>
+                    <td className={worklistNumericCellClass}>
                       <Money value={account.balance} currencyCode={account.currencyCode} emphasis />
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </ModuleTableCard>
-          <ModulePagination
-            pageNumber={Math.min(pageNumber, pageCount)}
-            rangeLabel={`Página ${Math.min(pageNumber, pageCount)} de ${pageCount}`}
-            onPrevious={() => setPageNumber((current) => Math.max(1, current - 1))}
-            onNext={() => setPageNumber((current) => Math.min(pageCount, current + 1))}
-            previousDisabled={pageNumber <= 1}
-            nextDisabled={pageNumber >= pageCount}
-          />
+          </div>
+          <WorklistFooter
+            rangeLabel={`Página ${Math.min(pageNumber, pageCount)} de ${pageCount} · ${state.data.length} contas`}
+          >
+            <ModulePagination
+              pageNumber={Math.min(pageNumber, pageCount)}
+              onPrevious={() => setPageNumber((current) => Math.max(1, current - 1))}
+              onNext={() => setPageNumber((current) => Math.min(pageCount, current + 1))}
+              previousDisabled={pageNumber <= 1}
+              nextDisabled={pageNumber >= pageCount}
+            />
+          </WorklistFooter>
         </>
       )}
     </ModulePage>

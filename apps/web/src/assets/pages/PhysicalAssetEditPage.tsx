@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { PageHeader } from '../../ui';
+import {
+  ModuleDeniedState,
+  ModuleErrorState,
+  ModuleLoadingState,
+  ModulePage,
+  ModulePageHeader,
+} from '../../ui/module-layout';
 import { mapAssetErrorToMessage } from '../api/asset-error-messages';
 import { AssetsApiError, getPhysicalAsset, updatePhysicalAsset } from '../api/physical-assets-api';
 import { AssetForm } from '../components/AssetForm';
@@ -80,92 +86,72 @@ export function PhysicalAssetEditPage() {
 
   if (state.phase === 'loading') {
     return (
-      <main id="main-content" className="shell-page">
-        <PageHeader title="Editar ativo" description={EDIT_DESCRIPTION} />
-        <p aria-busy="true" aria-live="polite" className="m-0 text-sm text-gray-500">
-          Carregando ativo…
-        </p>
-      </main>
+      <ModulePage>
+        <ModulePageHeader title="Editar ativo" description={EDIT_DESCRIPTION} />
+        <ModuleLoadingState title="Editar ativo" message="Carregando ativo…" />
+      </ModulePage>
     );
   }
 
   if (state.phase === 'denied') {
     return (
-      <main id="main-content" className="shell-page">
-        <PageHeader title="Editar ativo" description={EDIT_DESCRIPTION} />
-        <p
-          role="alert"
-          className="m-0 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-500/20 ring-inset"
-        >
-          Você não tem permissão para editar este ativo.
-        </p>
+      <ModulePage>
+        <ModulePageHeader title="Editar ativo" description={EDIT_DESCRIPTION} />
+        <ModuleDeniedState
+          title="Editar ativo"
+          message="Você não tem permissão para editar este ativo."
+        />
         <p className="mt-3 mb-0">
           <Link to="/app/assets" className={BACK_LINK_CLASS}>
             Voltar à lista
           </Link>
         </p>
-      </main>
+      </ModulePage>
     );
   }
 
   if (state.phase === 'not_found') {
     return (
-      <main id="main-content" className="shell-page">
-        <PageHeader title="Editar ativo" description={EDIT_DESCRIPTION} />
-        <p
-          role="alert"
-          className="m-0 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-500/20 ring-inset"
-        >
-          Ativo não encontrado.
-        </p>
+      <ModulePage>
+        <ModulePageHeader title="Editar ativo" description={EDIT_DESCRIPTION} />
+        <ModuleErrorState title="Editar ativo" message="Ativo não encontrado." retryable={false} />
         <p className="mt-3 mb-0">
           <Link to="/app/assets" className={BACK_LINK_CLASS}>
             Voltar à lista
           </Link>
         </p>
-      </main>
+      </ModulePage>
     );
   }
 
   if (state.phase === 'error') {
     return (
-      <main id="main-content" className="shell-page">
-        <PageHeader title="Editar ativo" description={EDIT_DESCRIPTION} />
-        <p
-          className="m-0 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-500/20 ring-inset"
-          role="alert"
-        >
-          {state.message}
-        </p>
-        <p className="mt-3 mb-0">
-          <button
-            type="button"
-            onClick={() => void reload()}
-            className="text-sm font-medium text-brand-600 underline-offset-2 hover:text-brand-700 hover:underline"
-          >
-            Tentar novamente
-          </button>
-        </p>
-      </main>
+      <ModulePage>
+        <ModulePageHeader title="Editar ativo" description={EDIT_DESCRIPTION} />
+        <ModuleErrorState
+          title="Editar ativo"
+          message={state.message}
+          retryable
+          onRetry={() => void reload()}
+        />
+      </ModulePage>
     );
   }
 
   if (!capabilities.canUpdate) {
     return (
-      <main id="main-content" className="shell-page">
-        <PageHeader title="Editar ativo" description={EDIT_DESCRIPTION} />
-        <p
-          role="alert"
-          className="m-0 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-500/20 ring-inset"
-        >
-          Você não tem permissão para editar ativos.
-        </p>
+      <ModulePage>
+        <ModulePageHeader title="Editar ativo" description={EDIT_DESCRIPTION} />
+        <ModuleDeniedState
+          title="Editar ativo"
+          message="Você não tem permissão para editar ativos."
+        />
         <p className="mt-3 mb-0">
           <Link to={`/app/assets/${assetId}`} className={BACK_LINK_CLASS}>
             Voltar ao detalhe
           </Link>
         </p>
-      </main>
+      </ModulePage>
     );
   }
 
@@ -209,8 +195,8 @@ export function PhysicalAssetEditPage() {
   }
 
   return (
-    <main id="main-content" className="shell-page">
-      <PageHeader
+    <ModulePage>
+      <ModulePageHeader
         title={`Editar ${state.asset.assetCode}`}
         description={EDIT_DESCRIPTION}
       />
@@ -228,6 +214,6 @@ export function PhysicalAssetEditPage() {
         onSubmit={(event) => void handleSubmit(event)}
         cancelHref={`/app/assets/${assetId}`}
       />
-    </main>
+    </ModulePage>
   );
 }

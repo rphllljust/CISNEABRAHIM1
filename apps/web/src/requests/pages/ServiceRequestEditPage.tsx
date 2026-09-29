@@ -10,6 +10,13 @@ import { mapRequestErrorToMessage } from '../api/request-error-messages';
 import { ServiceRequestForm } from '../components/ServiceRequestForm';
 import { VersionConflictNotice } from '../components/VersionConflictNotice';
 import { useServiceRequestCapabilities } from '../hooks/useServiceRequestCapabilities';
+import {
+  ModuleDeniedState,
+  ModuleErrorState,
+  ModuleLoadingState,
+  ModulePage,
+  ModulePageHeader,
+} from '../../ui/module-layout';
 import { SERVICE_REQUEST_STATUSES } from '../types/service-request.types';
 import {
   buildUpdatePayload,
@@ -120,55 +127,70 @@ export function ServiceRequestEditPage() {
 
   if (state.phase === 'loading') {
     return (
-      <main id="main-content" className="shell-page">
-        <p aria-busy="true" aria-live="polite">
-          Carregando solicitação…
-        </p>
-      </main>
+      <ModulePage>
+        <ModulePageHeader title="Editar solicitação" />
+        <ModuleLoadingState title="Editar solicitação" message="Carregando solicitação…" />
+      </ModulePage>
     );
   }
 
   if (state.phase === 'denied' || !capabilities.canUpdate) {
     return (
-      <main id="main-content" className="shell-page">
-        <h1>Editar solicitação</h1>
-        <p role="alert">Você não tem permissão para editar esta solicitação.</p>
-        <Link to={`/app/requests/${serviceRequestId}`}>Voltar ao detalhe</Link>
-      </main>
+      <ModulePage>
+        <ModulePageHeader title="Editar solicitação" />
+        <ModuleDeniedState
+          title="Editar solicitação"
+          message="Você não tem permissão para editar esta solicitação."
+        />
+        <p className="mt-3 mb-0">
+          <Link to={`/app/requests/${serviceRequestId}`}>Voltar ao detalhe</Link>
+        </p>
+      </ModulePage>
     );
   }
 
   if (state.phase === 'not_found') {
     return (
-      <main id="main-content" className="shell-page">
-        <h1>Editar solicitação</h1>
-        <p role="alert">Solicitação não encontrada.</p>
-        <Link to="/app/requests">Voltar à lista</Link>
-      </main>
+      <ModulePage>
+        <ModulePageHeader title="Editar solicitação" />
+        <ModuleErrorState
+          title="Editar solicitação"
+          message="Solicitação não encontrada."
+          retryable={false}
+        />
+        <p className="mt-3 mb-0">
+          <Link to="/app/requests">Voltar à lista</Link>
+        </p>
+      </ModulePage>
     );
   }
 
   if (state.phase === 'invalid_state') {
     return (
-      <main id="main-content" className="shell-page">
-        <h1>Editar solicitação</h1>
-        <p role="alert">Somente solicitações em rascunho podem ser editadas.</p>
-        <Link to={`/app/requests/${serviceRequestId}`}>Voltar ao detalhe</Link>
-      </main>
+      <ModulePage>
+        <ModulePageHeader title="Editar solicitação" />
+        <ModuleDeniedState
+          title="Editar solicitação"
+          message="Somente solicitações em rascunho podem ser editadas."
+        />
+        <p className="mt-3 mb-0">
+          <Link to={`/app/requests/${serviceRequestId}`}>Voltar ao detalhe</Link>
+        </p>
+      </ModulePage>
     );
   }
 
   if (state.phase === 'error') {
     return (
-      <main id="main-content" className="shell-page">
-        <h1>Editar solicitação</h1>
-        <p className="form-error" role="alert">
-          {state.message}
-        </p>
-        <button type="button" onClick={() => void load()}>
-          Tentar novamente
-        </button>
-      </main>
+      <ModulePage>
+        <ModulePageHeader title="Editar solicitação" />
+        <ModuleErrorState
+          title="Editar solicitação"
+          message={state.message}
+          retryable
+          onRetry={() => void load()}
+        />
+      </ModulePage>
     );
   }
 
@@ -218,10 +240,11 @@ export function ServiceRequestEditPage() {
   }
 
   return (
-    <main id="main-content" className="shell-page requests-page">
-      <header className="requests-page__header">
-        <h1>Editar rascunho</h1>
-      </header>
+    <ModulePage>
+      <ModulePageHeader
+        title="Editar rascunho"
+        description="Atualiza o rascunho da solicitação; o servidor recusa alterações concorrentes."
+      />
       {versionConflict ? <VersionConflictNotice onReload={() => void load()} /> : null}
       <ServiceRequestForm
         mode="edit"
@@ -237,6 +260,6 @@ export function ServiceRequestEditPage() {
         onSubmit={(event) => void handleSubmit(event)}
         cancelHref={`/app/requests/${serviceRequestId}`}
       />
-    </main>
+    </ModulePage>
   );
 }

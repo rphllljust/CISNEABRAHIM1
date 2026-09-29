@@ -1,5 +1,31 @@
 import { useCallback, useEffect, useState } from 'react';
-import { FilterCard, ModuleDeniedState, ModuleErrorState, ModuleLoadingState, ModulePage, ModulePageHeader, ModulePagination, ModulePrimaryLink, ModuleStatePage, ModuleTableCard, ModuleTableLink, filterControlClass, filterLabelClass, moduleTableCellClass, moduleTableClass, moduleTableHeadClass, moduleTableHeaderCellClass, moduleTableRowClass } from '../../ui/module-layout';
+import {
+  ModuleDeniedState,
+  ModuleErrorState,
+  ModuleLoadingState,
+  ModulePage,
+  ModulePagination,
+  ModulePrimaryLink,
+  ModuleStatePage,
+} from '../../ui/module-layout';
+import {
+  RecordStatusCell,
+  WorklistClearFilters,
+  WorklistField,
+  WorklistFilterBar,
+  WorklistFooter,
+  WorklistHeader,
+  WorklistRowLink,
+  WorklistStatePanel,
+  worklistButtonClass,
+  worklistCellClass,
+  worklistCellRaisedClass,
+  worklistHeadCellClass,
+  worklistRowClass,
+  worklistSelectClass,
+  worklistTableCardClass,
+  worklistTableClass,
+} from '../../ui/enterprise-list';
 import { BackofficeApiError } from '../../financial-ui/enterprise-api';
 import { formatCnpjDisplay } from '../../clients/utils/format-cnpj';
 import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge';
@@ -28,13 +54,23 @@ const SUPPLIERS_BUILT_IN_VIEWS = [
     id: 'builtin.suppliers.active',
     name: 'Ativos',
     description: 'Fornecedores aptos a receber pedido.',
-    config: { filters: { status: 'ACTIVE' }, sortKey: null, sortDirection: 'asc' as const, groupKey: null },
+    config: {
+      filters: { status: 'ACTIVE' },
+      sortKey: null,
+      sortDirection: 'asc' as const,
+      groupKey: null,
+    },
   },
   {
     id: 'builtin.suppliers.inactive',
     name: 'Inativos',
     description: 'Cadastros fora de operação.',
-    config: { filters: { status: 'INACTIVE' }, sortKey: null, sortDirection: 'asc' as const, groupKey: null },
+    config: {
+      filters: { status: 'INACTIVE' },
+      sortKey: null,
+      sortDirection: 'asc' as const,
+      groupKey: null,
+    },
   },
 ];
 
@@ -111,23 +147,24 @@ export function SuppliersListPage() {
 
   if (listState.phase === 'loading') {
     return (
-      <ModuleStatePage title="Fornecedores">`r`n        <ModuleLoadingState message="Carregando Fornecedores…" />
+      <ModuleStatePage title="Fornecedores">
+        <ModuleLoadingState message="Carregando Fornecedores…" />
       </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'denied') {
     return (
-      <ModuleStatePage title="Fornecedores">`r`n        <ModuleDeniedState
-          message="Você não tem permissão para listar Fornecedores."
-        />
+      <ModuleStatePage title="Fornecedores">
+        <ModuleDeniedState message="Você não tem permissão para listar Fornecedores." />
       </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'error') {
     return (
-      <ModuleStatePage title="Fornecedores">`r`n        <ModuleErrorState
+      <ModuleStatePage title="Fornecedores">
+        <ModuleErrorState
           message={listState.message}
           retryable={listState.retryable}
           onRetry={() => void loadPage(0)}
@@ -138,43 +175,46 @@ export function SuppliersListPage() {
 
   const { items, offset, hasMore, total } = listState;
   const pageNumber = Math.floor(offset / PAGE_SIZE) + 1;
+  const isFiltered = smartList.isFiltered || appliedQuery !== '';
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      {/*
+        GRAMATICA DA WORKLIST: o cabecalho, a barra de filtros e a grade desta lista passam a
+        ser os mesmos de Frota/Pessoas/OS. Antes o filtro era um `FilterCard` e a grade a tabela
+        legada `px-6 py-3.5`, enquanto as cinco telas ja convertidas usavam a grade densa — o
+        operador via dois produtos diferentes no mesmo backoffice. Busca, status, visoes salvas,
+        consulta ao backend e permissao seguem exatamente iguais.
+      */}
+      <WorklistHeader
         title="Fornecedores"
-        description="Lista de fornecedores por razão social, nome fantasia e CNPJ."
+        count={total}
+        context="Fornecedores por razão social, nome fantasia e CNPJ."
         action={<ModulePrimaryLink to="/app/suppliers/new">Novo fornecedor</ModulePrimaryLink>}
       />
 
-      <FilterCard>
+      <WorklistFilterBar>
         <form
-          className="flex flex-wrap items-end gap-4"
+          className="flex flex-wrap items-center gap-2"
           onSubmit={(event) => {
             event.preventDefault();
             setAppliedQuery(query.trim());
           }}
         >
-          <div>
-            <label className={filterLabelClass} htmlFor="supplier-search">
-              Buscar
-            </label>
+          <WorklistField label="Buscar" htmlFor="supplier-search" grow>
             <input
               id="supplier-search"
-              className={`${filterControlClass} w-72`}
+              className={worklistSelectClass}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Razão social, nome fantasia ou CNPJ"
               type="search"
             />
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="supplier-status-filter">
-              Status
-            </label>
+          </WorklistField>
+          <WorklistField label="Status" htmlFor="supplier-status-filter">
             <select
               id="supplier-status-filter"
-              className={`${filterControlClass} max-w-xs`}
+              className={worklistSelectClass}
               value={statusFilter}
               onChange={(event) => smartList.setFilter('status', event.target.value)}
             >
@@ -182,15 +222,20 @@ export function SuppliersListPage() {
               <option value="ACTIVE">Ativos</option>
               <option value="INACTIVE">Inativos</option>
             </select>
-          </div>
-          <button
-            type="submit"
-            className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800"
-          >
+          </WorklistField>
+          <button type="submit" className={worklistButtonClass}>
             Buscar
           </button>
+          <WorklistClearFilters
+            visible={isFiltered}
+            onClick={() => {
+              smartList.clearFilters();
+              setQuery('');
+              setAppliedQuery('');
+            }}
+          />
         </form>
-      </FilterCard>
+      </WorklistFilterBar>
 
       <SavedViewsBar
         views={smartList.savedViews.views}
@@ -206,93 +251,102 @@ export function SuppliersListPage() {
         currentConfig={smartList.currentConfig}
         canSave={Object.keys(smartList.filters).length > 0}
         allLabel="Todos"
-        className="mb-4"
+        className="mb-2"
       />
 
       {items.length === 0 ? (
-        <div className="rounded-md bg-white p-4 ring-1 ring-gray-900/5 ring-inset" role="status">
-          <p className="text-sm font-medium text-gray-700">
-            {smartList.isFiltered || appliedQuery
+        <WorklistStatePanel
+          title={
+            isFiltered
               ? 'Nenhum fornecedor encontrado para os filtros selecionados.'
-              : 'Nenhum fornecedor cadastrado ainda.'}
-          </p>
-          <p className="mt-1 text-xs text-gray-500">
-            {smartList.isFiltered || appliedQuery
+              : 'Nenhum fornecedor cadastrado ainda.'
+          }
+          description={
+            isFiltered
               ? 'Ajuste ou limpe os filtros para ver o conjunto completo.'
-              : 'Cadastre o primeiro fornecedor para poder emitir pedidos de compra.'}
-          </p>
-          {smartList.isFiltered ? (
-            <button
-              type="button"
-              className="mt-2 text-xs font-semibold text-brand-600 hover:text-brand-700"
-              onClick={() => {
-                smartList.clearFilters();
-                setQuery('');
-                setAppliedQuery('');
-              }}
-            >
-              Limpar filtros
-            </button>
-          ) : null}
-        </div>
+              : 'Cadastre o primeiro fornecedor para poder emitir pedidos de compra.'
+          }
+          action={
+            smartList.isFiltered ? (
+              <WorklistClearFilters
+                visible
+                label="Ver todos os fornecedores"
+                onClick={() => {
+                  smartList.clearFilters();
+                  setQuery('');
+                  setAppliedQuery('');
+                }}
+              />
+            ) : null
+          }
+        />
       ) : (
-        <ModuleTableCard>
-          <table className={moduleTableClass} aria-label="Lista de Fornecedores">
-            <thead className={moduleTableHeadClass}>
+        <div className={worklistTableCardClass}>
+          <table className={worklistTableClass} aria-label="Lista de Fornecedores">
+            <thead>
               <tr>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Fornecedor
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   CNPJ
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Condição de pagamento
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Moeda
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Status
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody>
               {items.map((supplier) => (
-                <tr key={supplier.id} className={moduleTableRowClass}>
-                  <td className={moduleTableCellClass}>
-                    <ModuleTableLink to={`/app/suppliers/${supplier.id}`}>
+                <tr key={supplier.id} className={worklistRowClass}>
+                  <td className={worklistCellClass}>
+                    {/* Link real esticado: a linha inteira e o drilldown do cadastro. */}
+                    <WorklistRowLink href={`/app/suppliers/${supplier.id}`}>
                       {supplier.tradeName ?? supplier.legalName}
-                    </ModuleTableLink>
+                    </WorklistRowLink>
                     {supplier.tradeName ? (
-                      <span className="block text-xs text-gray-500">{supplier.legalName}</span>
+                      <p className="text-[11px] text-gray-500">{supplier.legalName}</p>
                     ) : null}
                   </td>
-                  <td className={`${moduleTableCellClass} font-mono tabular-nums text-gray-600`}>
+                  <td
+                    className={`${worklistCellRaisedClass} font-mono text-[12px] text-gray-600 tabular-nums`}
+                  >
                     {formatCnpjDisplay(supplier.taxId)}
                   </td>
-                  <td className={moduleTableCellClass}>{supplier.paymentTerms ?? '—'}</td>
-                  <td className={moduleTableCellClass}>{supplier.currencyCode}</td>
-                  <td className={moduleTableCellClass}>
-                    <FinanceStatusBadge status={supplier.status} labels={SUPPLIER_STATUS_LABELS} />
+                  <td className={worklistCellRaisedClass}>{supplier.paymentTerms ?? '—'}</td>
+                  <td className={worklistCellRaisedClass}>{supplier.currencyCode}</td>
+                  <td className={worklistCellRaisedClass}>
+                    <RecordStatusCell
+                      badge={
+                        <FinanceStatusBadge status={supplier.status} labels={SUPPLIER_STATUS_LABELS} />
+                      }
+                    />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </ModuleTableCard>
+        </div>
       )}
 
-      <ModulePagination
-        pageNumber={pageNumber}
-        previousDisabled={offset === 0}
-        nextDisabled={!hasMore}
-        onPrevious={() => void loadPage(Math.max(0, offset - PAGE_SIZE))}
-        onNext={() => void loadPage(offset + PAGE_SIZE)}
-      />
-      <p className="mt-2 text-xs text-gray-500" role="status">
-        {total} fornecedor(es) no total.
-      </p>
+      <WorklistFooter
+        rangeLabel={`${offset + 1}–${offset + items.length} nesta página`}
+        extra={`${total} fornecedor(es) no total`}
+      >
+        <ModulePagination
+          pageNumber={pageNumber}
+          previousDisabled={offset === 0}
+          nextDisabled={!hasMore}
+          onPrevious={() => void loadPage(Math.max(0, offset - PAGE_SIZE))}
+          onNext={() => void loadPage(offset + PAGE_SIZE)}
+        />
+      </WorklistFooter>
     </ModulePage>
   );
 }

@@ -58,7 +58,9 @@ describe('service requests administrative flow e2e (frontend)', () => {
     await user.click(screen.getByRole('button', { name: /iniciar an/i }));
     await user.click(screen.getByRole('button', { name: /^aprovar$/i }));
     await user.click(screen.getByRole('button', { name: /confirmar aprova/i }));
-    await user.click(screen.getByRole('button', { name: /^cancelar$/i }));
+    // A transição primária de "aprovada" é a conversão em OS; cancelar vive em "Mais ações".
+    await user.click(screen.getByRole('button', { name: 'Mais ações' }));
+    await user.click(await screen.findByRole('menuitem', { name: /^cancelar$/i }));
     await user.type(screen.getByLabelText(/motivo do cancelamento/i), 'Encerrado no teste');
     await user.click(screen.getByRole('button', { name: /confirmar cancelamento/i }));
 

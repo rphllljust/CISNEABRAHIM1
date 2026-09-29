@@ -1,20 +1,26 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DateTime, EmptyState, Money, Select } from '../../ui';
+import { ModulePage, ModulePagination } from '../../ui/module-layout';
 import {
-  FilterCard,
-  ModulePage,
-  ModulePageHeader,
-  ModulePagination,
-  ModuleTableCard,
-  ModuleTableLink,
-  filterControlClass,
-  filterLabelClass,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui/module-layout';
+  RecordStatusCell,
+  RowActionCell,
+  WorklistClearFilters,
+  WorklistField,
+  WorklistFilterBar,
+  WorklistFooter,
+  WorklistHeader,
+  WorklistRowLink,
+  worklistCellClass,
+  worklistCellRaisedClass,
+  worklistHeadCellClass,
+  worklistNumericCellClass,
+  worklistNumericHeadCellClass,
+  worklistRowClass,
+  worklistSelectClass,
+  worklistTableCardClass,
+  worklistTableClass,
+} from '../../ui/enterprise-list';
+import { cn } from '../../ui/utils/cn';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { RECEIVABLE_STATUS_LABELS } from '../../financial-ui/labels';
 import { BACKOFFICE_TABLE_PAGE_SIZE } from '../../financial-ui/table-slice';
@@ -147,9 +153,10 @@ export function ReceivablesListPage() {
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      <WorklistHeader
         title="Contas a receber"
-        description="Saldos e status são os informados pelo servidor. Esta tela não recalcula títulos."
+        count={page.total}
+        context="Saldos e status são os informados pelo servidor. Esta tela não recalcula títulos."
       />
 
       {/*
@@ -185,39 +192,38 @@ export function ReceivablesListPage() {
         />
       </DrilldownRow>
 
-      <FilterCard>
-        <label className={filterLabelClass} htmlFor="receivable-status-filter">
-          Status
-        </label>
-        <Select
-          id="receivable-status-filter"
-          className={`${filterControlClass} max-w-xs`}
-          value={statusFilter}
-          onChange={(event) => {
-            smartList.setFilter('status', event.target.value);
-            setPageNumber(1);
-          }}
-        >
-          <option value="">Todos</option>
-          {Object.entries(RECEIVABLE_STATUS_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </Select>
-        {smartList.isFiltered ? (
-          <button
-            type="button"
-            className="ml-2 self-end rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
-            onClick={() => {
-              smartList.clearFilters();
+      {/*
+        FILTRO EM UMA LINHA. Era um `FilterCard` — cartao de respiro largo que empurrava a
+        carteira para fora da primeira dobra. O mesmo recorte, a mesma consulta e o mesmo
+        smart list, agora na gramatica densa das demais worklists.
+      */}
+      <WorklistFilterBar>
+        <WorklistField label="Status" htmlFor="receivable-status-filter">
+          <Select
+            id="receivable-status-filter"
+            className={cn(worklistSelectClass, 'cursor-pointer')}
+            value={statusFilter}
+            onChange={(event) => {
+              smartList.setFilter('status', event.target.value);
               setPageNumber(1);
             }}
           >
-            Limpar filtros
-          </button>
-        ) : null}
-      </FilterCard>
+            <option value="">Todos</option>
+            {Object.entries(RECEIVABLE_STATUS_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </Select>
+        </WorklistField>
+        <WorklistClearFilters
+          visible={smartList.isFiltered}
+          onClick={() => {
+            smartList.clearFilters();
+            setPageNumber(1);
+          }}
+        />
+      </WorklistFilterBar>
 
       <SavedViewsBar
         views={smartList.savedViews.views}
@@ -285,19 +291,11 @@ export function ReceivablesListPage() {
         />
       ) : (
         <>
-          <p className="mb-2 text-xs text-gray-500" aria-live="polite">
-            {page.total} {page.total === 1 ? 'título' : 'títulos'} no recorte atual
-            {statusFilter
-              ? ` · filtro: ${RECEIVABLE_STATUS_LABELS[statusFilter] ?? statusFilter}`
-              : ''}
-            {overdue.length > 0 ? ` · ${overdue.length} vencido(s)` : ''}
-            {refreshing ? ' · atualizando…' : ''}
-          </p>
-          <ModuleTableCard>
-            <table className={moduleTableClass} aria-label="Lista de contas a receber">
-              <thead className={moduleTableHeadClass}>
+          <div className={worklistTableCardClass}>
+            <table className={worklistTableClass} aria-label="Lista de contas a receber">
+              <thead>
                 <tr>
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={cn(worklistHeadCellClass, 'w-8')}>
                     <span className="cisne-sr-only">Selecionar</span>
                   </th>
                   <SortableHead
@@ -332,15 +330,16 @@ export function ReceivablesListPage() {
                     onToggle={smartList.toggleSort}
                     numeric
                   />
-                  <th scope="col" className={moduleTableHeaderCellClass}>
+                  <th scope="col" className={cn(worklistHeadCellClass, 'w-16 text-right')}>
                     Ação
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {pageItems.map((item) => (
-                  <tr key={item.id} className={moduleTableRowClass}>
-                    <td className={moduleTableCellClass}>
+                  <tr key={item.id} className={worklistRowClass}>
+                    {/* Celula interativa FORA do alcance do link esticado da linha. */}
+                    <td className={cn(worklistCellClass, 'z-[1] w-8')}>
                       <input
                         type="checkbox"
                         aria-label={`Selecionar ${item.externalReference ?? item.id}`}
@@ -348,57 +347,73 @@ export function ReceivablesListPage() {
                         onChange={() => selection.toggle(item.id)}
                       />
                     </td>
-                    <td className={moduleTableCellClass}>
-                      <ModuleTableLink to={`/app/finance/receivables/${item.id}`}>
+                    <td className={worklistCellClass}>
+                      <WorklistRowLink href={`/app/finance/receivables/${item.id}`}>
                         {item.externalReference ?? item.id}
-                      </ModuleTableLink>
+                      </WorklistRowLink>
                     </td>
-                    <td className={moduleTableCellClass}>
+                    <td className={worklistCellRaisedClass}>
                       <DateTime value={item.dueDate} mode="date" />
                     </td>
-                    <td className={moduleTableCellClass}>
-                      <div className="flex flex-col items-start gap-1">
-                        <FinanceStatusBadge status={item.status} labels={RECEIVABLE_STATUS_LABELS} />
-                        {item.status === 'OVERDUE' ? (
-                          <span className="text-[11px] font-medium text-red-700">
-                            Requer cobrança
-                          </span>
-                        ) : null}
-                      </div>
+                    <td className={worklistCellRaisedClass}>
+                      <RecordStatusCell
+                        accent={item.status === 'OVERDUE' ? 'critical' : 'none'}
+                        badge={
+                          <FinanceStatusBadge status={item.status} labels={RECEIVABLE_STATUS_LABELS} />
+                        }
+                        context={item.status === 'OVERDUE' ? 'Requer cobrança' : null}
+                      />
                     </td>
-                    <td className={`${moduleTableCellClass} text-right`}>
+                    <td className={worklistNumericCellClass}>
                       <Money value={item.principal} currencyCode={item.currencyCode} />
                     </td>
-                    <td className={`${moduleTableCellClass} text-right`}>
+                    <td className={worklistNumericCellClass}>
                       <Money
                         value={item.remainingBalance}
                         currencyCode={item.currencyCode}
                         emphasis
                       />
                     </td>
-                    <td className={moduleTableCellClass}>
+                    <RowActionCell className="w-16">
                       <button
                         type="button"
-                        className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                        className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
                         onClick={() => setPreviewId(item.id)}
                         aria-label={`Prévia de ${item.externalReference ?? item.id}`}
                       >
                         Prévia
                       </button>
-                    </td>
+                    </RowActionCell>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </ModuleTableCard>
-          <ModulePagination
-            pageNumber={safePageNumber}
-            rangeLabel={`Página ${safePageNumber} de ${pageCount} · ${page.total} títulos`}
-            onPrevious={() => setPageNumber((current) => Math.max(1, current - 1))}
-            onNext={() => setPageNumber((current) => Math.min(pageCount, current + 1))}
-            previousDisabled={safePageNumber <= 1}
-            nextDisabled={safePageNumber >= pageCount}
-          />
+          </div>
+          <WorklistFooter
+            rangeLabel={
+              <span aria-live="polite">
+                Página {safePageNumber} de {pageCount} · {page.total}{' '}
+                {page.total === 1 ? 'título' : 'títulos'} no recorte atual
+              </span>
+            }
+            extra={
+              <>
+                {statusFilter
+                  ? `filtro: ${RECEIVABLE_STATUS_LABELS[statusFilter] ?? statusFilter}`
+                  : null}
+                {overdue.length > 0 ? ` · ${overdue.length} vencido(s)` : ''}
+                {refreshing ? ' · atualizando…' : ''}
+              </>
+            }
+          >
+            <ModulePagination
+              pageNumber={safePageNumber}
+              onPrevious={() => setPageNumber((current) => Math.max(1, current - 1))}
+              onNext={() => setPageNumber((current) => Math.min(pageCount, current + 1))}
+              previousDisabled={safePageNumber <= 1}
+              nextDisabled={safePageNumber >= pageCount}
+            />
+          </WorklistFooter>
         </>
       )}
 
@@ -443,7 +458,7 @@ function SortableHead({
   return (
     <th
       scope="col"
-      className={numeric ? `${moduleTableHeaderCellClass} text-right` : moduleTableHeaderCellClass}
+      className={numeric ? worklistNumericHeadCellClass : worklistHeadCellClass}
       aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
     >
       <button

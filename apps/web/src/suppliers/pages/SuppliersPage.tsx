@@ -1,16 +1,16 @@
 import { useCallback, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { DateTime, EmptyState, Field, Input } from '../../ui';
+import { ModulePage } from '../../ui/module-layout';
 import {
-  ModulePage,
-  ModulePageHeader,
-  ModuleTableCard,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
-} from '../../ui/module-layout';
+  WorklistHeader,
+  worklistCellClass,
+  worklistCellRaisedClass,
+  worklistHeadCellClass,
+  worklistRowClass,
+  worklistTableCardClass,
+  worklistTableClass,
+} from '../../ui/enterprise-list';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { CreateRecordForm, VersionedActionForm } from '../../financial-ui/VersionedActionForm';
 import { SUPPLIER_STATUS_LABELS } from '../../financial-ui/labels';
@@ -76,9 +76,9 @@ export function SuppliersPage() {
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      <WorklistHeader
         title={state.phase === 'ready' ? state.data.legalName : 'Fornecedor'}
-        description="Ativação segue segregação de funções no backend."
+        context="Ativação segue segregação de funções no backend."
         action={
           <Link className="text-sm font-semibold text-gray-700 hover:text-gray-900" to="/app/suppliers">
             Voltar para a lista
@@ -200,26 +200,30 @@ export function SuppliersPage() {
             </p>
           </CreateRecordForm>
           {history.state.phase === 'ready' && history.state.data.length > 0 ? (
-            <ModuleTableCard>
-              <table className={moduleTableClass} aria-label="Histórico do fornecedor">
-                <thead className={moduleTableHeadClass}>
+            <div className={worklistTableCardClass}>
+              <table className={worklistTableClass} aria-label="Histórico do fornecedor">
+                <thead>
                   <tr>
-                    <th scope="col" className={moduleTableHeaderCellClass}>Evento</th>
-                    <th scope="col" className={moduleTableHeaderCellClass}>Quando</th>
+                    <th scope="col" className={worklistHeadCellClass}>
+                      Evento
+                    </th>
+                    <th scope="col" className={worklistHeadCellClass}>
+                      Quando
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {history.state.data.map((item) => (
-                    <tr key={item.id} className={moduleTableRowClass}>
-                      <td className={moduleTableCellClass}>{item.eventKind}</td>
-                      <td className={moduleTableCellClass}>
+                    <tr key={item.id} className={worklistRowClass}>
+                      <td className={worklistCellRaisedClass}>{item.eventKind}</td>
+                      <td className={worklistCellClass}>
                         <DateTime value={item.occurredAt} />
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </ModuleTableCard>
+            </div>
           ) : null}
         </>
       ) : null}

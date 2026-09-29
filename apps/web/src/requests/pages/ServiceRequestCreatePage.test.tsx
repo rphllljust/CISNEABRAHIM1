@@ -18,9 +18,12 @@ describe('ServiceRequestCreatePage', () => {
     const user = userEvent.setup();
     renderRequestRoutes('/app/requests/new');
 
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /nova solicitação/i })).toBeInTheDocument();
-    });
+    // A página declara o título já durante a verificação de permissões (o cabeçalho acompanha o
+    // estado de carga), então o cabeçalho sozinho não indica que o cadastro montou. Esperar o
+    // CONTROLE do formulário é o sinal honesto de que a capability respondeu e o cadastro abriu.
+    await screen.findByLabelText(/^origem/i, { selector: 'select' });
+
+    expect(screen.getByRole('heading', { name: /nova solicitação/i })).toBeInTheDocument();
 
     await user.selectOptions(
       screen.getByLabelText(/^origem/i, { selector: 'select' }),

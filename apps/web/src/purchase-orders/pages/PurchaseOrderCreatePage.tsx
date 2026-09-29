@@ -6,12 +6,21 @@ import { mapPurchaseOrderErrorToMessage } from '../api/purchase-order-error-mess
 import { PurchaseOrderForm } from '../components/PurchaseOrderForm';
 import { usePurchaseOrderCapabilities } from '../hooks/usePurchaseOrderCapabilities';
 import {
+  ModuleDeniedState,
+  ModuleLoadingState,
+  ModulePage,
+  ModulePageHeader,
+} from '../../ui/module-layout';
+import {
   buildCreatePurchaseOrderPayload,
   EMPTY_PURCHASE_ORDER_FORM,
   validatePurchaseOrderForm,
   type PurchaseOrderFormFieldErrors,
   type PurchaseOrderFormValues,
 } from '../utils/purchase-order-form-validation';
+
+const CREATE_DESCRIPTION =
+  'Registra o pedido do Cliente com as referências, o valor autorizado e os itens desta compra.';
 
 export function PurchaseOrderCreatePage() {
   const navigate = useNavigate();
@@ -45,27 +54,27 @@ export function PurchaseOrderCreatePage() {
 
   if (capabilitiesLoading) {
     return (
-      <main id="main-content" className="shell-page requests-page">
-        <p className="text-sm text-gray-500" aria-busy="true" aria-live="polite">
-          Verificando permissões…
-        </p>
-      </main>
+      <ModulePage>
+        <ModulePageHeader title="Novo pedido de compra" description={CREATE_DESCRIPTION} />
+        <ModuleLoadingState title="Novo pedido de compra" message="Verificando permissões…" />
+      </ModulePage>
     );
   }
 
   if (!capabilities.canCreate) {
     return (
-      <main id="main-content" className="shell-page requests-page">
-        <h1 className="m-0 text-2xl font-semibold tracking-tight text-gray-900">
-          Novo pedido de compra
-        </h1>
-        <p className="text-sm text-red-700" role="alert">
-          Você não tem permissão para registrar pedidos de compra.
+      <ModulePage>
+        <ModulePageHeader title="Novo pedido de compra" description={CREATE_DESCRIPTION} />
+        <ModuleDeniedState
+          title="Novo pedido de compra"
+          message="Você não tem permissão para registrar pedidos de compra."
+        />
+        <p className="mt-3 mb-0">
+          <Link className="button-link button-secondary" to="/app/purchase-orders">
+            Voltar à lista
+          </Link>
         </p>
-        <Link className="button-link button-secondary" to="/app/purchase-orders">
-          Voltar à lista
-        </Link>
-      </main>
+      </ModulePage>
     );
   }
 
@@ -101,18 +110,8 @@ export function PurchaseOrderCreatePage() {
   }
 
   return (
-    <main id="main-content" className="shell-page requests-page">
-      <header className="requests-page__header">
-        <div className="min-w-0">
-          <h1 className="m-0 text-2xl font-semibold tracking-tight text-gray-900">
-            Novo pedido de compra
-          </h1>
-          <p className="mt-1 max-w-3xl text-sm text-gray-500">
-            Registra o pedido do Cliente com as referências, o valor autorizado e os itens desta
-            compra.
-          </p>
-        </div>
-      </header>
+    <ModulePage>
+      <ModulePageHeader title="Novo pedido de compra" description={CREATE_DESCRIPTION} />
       <PurchaseOrderForm
         mode="create"
         values={values}
@@ -125,6 +124,6 @@ export function PurchaseOrderCreatePage() {
         onSubmit={(event) => void handleSubmit(event)}
         cancelHref="/app/purchase-orders"
       />
-    </main>
+    </ModulePage>
   );
 }
