@@ -1,4 +1,4 @@
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useCallback, useEffect, useId, useState } from 'react';
 import { ConfirmDialog } from '../../clients/components/ConfirmDialog';
 import {
@@ -14,6 +14,7 @@ import {
   type ObjectStateStep,
 } from '../../enterprise-object';
 import { ActivityTimeline, type ActivityFact } from '../../operator';
+import { BusinessChain, useBusinessChain } from '../../business-chain';
 import type { StatusBadgeTone } from '../../ui/StatusBadge';
 import {
   cancelPurchaseOrder,
@@ -48,29 +49,11 @@ type DetailState =
   | { phase: 'error'; message: string }
   | { phase: 'ready'; detail: PurchaseOrderDetail };
 
-const PURCHASE_ORDER_LINKED_KIND_LABELS: Record<string, string> = {
-  REQUEST: 'Solicitação',
-  SERVICE_ORDER: 'Ordem de serviço',
-  MEASUREMENT: 'Medição',
-  BILLING_RECORD: 'Faturamento',
-  BILLING_DOCUMENT: 'Documento fiscal',
-};
-
 const STATUS_TONES: Record<PurchaseOrderStatus, StatusBadgeTone> = {
   [PURCHASE_ORDER_STATUSES.Draft]: 'neutral',
   [PURCHASE_ORDER_STATUSES.Registered]: 'success',
   [PURCHASE_ORDER_STATUSES.Cancelled]: 'error',
 };
-
-function linkedRecordPath(record: { kind: string; id: string }): string {
-  if (record.kind === 'SERVICE_ORDER') {
-    return `/app/service-orders/${record.id}/planning`;
-  }
-  if (record.kind === 'REQUEST') {
-    return `/app/requests/${record.id}`;
-  }
-  return '/app/purchase-orders';
-}
 
 /**
  * Etapas REALMENTE persistidas do pedido de compra.
@@ -171,6 +154,17 @@ export function PurchaseOrderDetailPage() {
     void reload();
   }, [reload]);
 
+  /*
+   * Cadeia empresarial ancorada no PEDIDO DE COMPRA: o read model devolve a linhagem
+   * ja autorizada e ordenada, com a rota real de cada no.
+   *
+   * Este hook fica ANTES dos retornos antecipados de fase: hooks nao podem ser
+   * chamados condicionalmente, e o gate de carregamento/negacao retorna cedo. Mover
+   * esta chamada para depois do gate faz o React renderizar mais hooks que no render
+   * anterior e quebra a pagina inteira.
+   */
+  const businessChain = useBusinessChain('PURCHASE_ORDER', purchaseOrderId);
+
   async function runAction(action: () => Promise<void>): Promise<void> {
     if (state.phase !== 'ready') {
       return;
@@ -233,7 +227,7 @@ export function PurchaseOrderDetailPage() {
   }
 
   const { detail } = state;
-  const { purchaseOrder: po, items, billingRules, linked = [] } = detail;
+  const { purchaseOrder: po, items, billingRules } = detail;
 
   const canEdit = capabilities.canUpdate && po.status === PURCHASE_ORDER_STATUSES.Draft;
   const canRegister = capabilities.canRegister && po.status === PURCHASE_ORDER_STATUSES.Draft;
@@ -415,46 +409,22 @@ export function PurchaseOrderDetailPage() {
         ) : null}
 
         {/* Cadeia relacionada: responde "de onde vem o valor consumido deste pedido".
-            Relacoes que o dominio ja possui — nenhuma regra nova, so leitura. */}
-        {linked.length > 0 ? (
-          <ObjectPanel title="Cadeia relacionada">
-            <p className="form-hint">
-              Documentos ligados a este pedido, do pedido do cliente ao faturamento.
-            </p>
-            <ol className="mt-3 border-l border-gray-200 pl-4">
-              {linked.map((record) => (
-                <li key={`${record.kind}-${record.id}`} className="relative pb-3 last:pb-0">
-                  <span
-                    aria-hidden="true"
-                    className="absolute top-1.5 -left-[21px] h-2 w-2 rounded-full bg-brand-500"
-                  />
-                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                    <span className="text-[10px] font-semibold tracking-wide text-gray-400 uppercase">
-                      {PURCHASE_ORDER_LINKED_KIND_LABELS[record.kind] ?? record.kind}
-                    </span>
-                    <Link
-                      to={linkedRecordPath(record)}
-                      className="text-sm font-semibold text-brand-700 no-underline hover:text-brand-800"
-                    >
-                      {record.label}
-                    </Link>
-                    <span className="text-xs text-gray-500">
-                      {formatPurchaseOrderStatus(record.status)}
-                    </span>
-                  </div>
-                  <div className="mt-0.5 flex flex-wrap items-baseline gap-x-3 text-xs text-gray-500">
-                    <span className="tabular-nums">{formatDateTime(record.occurredAt)}</span>
-                    {record.amount ? (
-                      <span className="cisne-type-money font-semibold text-gray-800">
-                        {formatMoney(record.amount, record.currencyCode ?? po.currencyCode)}
-                      </span>
-                    ) : null}
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </ObjectPanel>
-        ) : null}
+        {/*
+          CADEIA DE NEGOCIO — linhagem AUTORIZADA do servidor, nao uma remontagem local.
+          Antes esta area era um painel proprio com um resolvedor de rota caseiro
+          (`linkedRecordPath`), que so conhecia dois tipos e caia na LISTA DE PEDIDOS
+          para qualquer outro elo — inclusive para faturamento e recebivel. O read model
+          ja devolve a cadeia ordenada, autorizada e com a rota real de cada no; o
+          cliente nao deve reconstruir linhagem. Vem DEPOIS das acoes e antes do
+          historico: e continuidade, nao decoracao.
+        */}
+        <BusinessChain
+          chain={businessChain.chain}
+          phase={businessChain.phase}
+          message={businessChain.message}
+          onRetry={businessChain.retry}
+          title="Cadeia de negócio do pedido"
+        />
 
         {po.cancellationReason ? (
           <ObjectPanel title="Cancelamento">

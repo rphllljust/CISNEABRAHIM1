@@ -12,6 +12,33 @@ import {
 } from './utils/purchase-order-form-validation';
 import { PURCHASE_ORDER_PRICING_STRUCTURES } from './types/purchase-order.types';
 
+function purchaseOrderIdFromPath(pathname: string): string {
+  const parts = pathname.split('/');
+  return parts[parts.length - 1] ?? 'po-1';
+}
+
+/** No da cadeia no formato REAL do read model (`BusinessChainNode`). */
+function chainNode(
+  kind: string,
+  id: string,
+  reference: string,
+  relation: 'ROOT' | 'ORIGIN' | 'RESULT',
+  isRoot: boolean,
+) {
+  return {
+    id,
+    kind,
+    businessReference: reference,
+    status: 'ACTIVE',
+    occurredAt: '2026-02-02T12:00:00.000Z',
+    route: `/app/${kind.toLowerCase()}/${id}`,
+    relation: isRoot ? 'ROOT' : relation,
+    summary: reference,
+    unitId: null,
+    clientId: 'client-1',
+  };
+}
+
 describe('purchase orders administrative flow e2e (frontend)', () => {
   beforeEach(() => {
     resetTokenStoreForTests();
@@ -20,8 +47,7 @@ describe('purchase orders administrative flow e2e (frontend)', () => {
     window.history.pushState({}, '', '/login');
   });
 
-  function composeFetch(commercialOptions = {}) {
-    const shellMock = createShellFetchMock();
+  function composeFetch(commercialOptions = {}) {    const shellMock = createShellFetchMock();
     const commercialMock = createCommercialFetchMock(commercialOptions);
     return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const { pathname } = parseRequestPath(input);
@@ -30,6 +56,27 @@ describe('purchase orders administrative flow e2e (frontend)', () => {
         pathname.startsWith('/api/v1/clients')
       ) {
         return commercialMock(input, init);
+      }
+      /*
+       * CADEIA DE NEGOCIO: a object page do pedido le a linhagem autorizada do servidor.
+       * Sem rota aqui a chamada cairia no shell mock, que nao conhece o endpoint — e a
+       * pagina ficaria presa no carregamento. O mock devolve a cadeia no formato REAL do
+       * read model, com o pedido como no raiz.
+       */
+      if (pathname.startsWith('/api/v1/business-chain/')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            anchor: { kind: 'PURCHASE_ORDER', id: purchaseOrderIdFromPath(pathname) },
+            nodes: [
+              chainNode('CLIENT', 'client-1', 'Cliente E2E', 'ORIGIN', false),
+              chainNode('SERVICE_REQUEST', 'req-1', 'SOL-E2E-001', 'ORIGIN', false),
+              chainNode('PURCHASE_ORDER', purchaseOrderIdFromPath(pathname), 'PO-E2E-001', 'ROOT', true),
+            ],
+            milestones: [],
+          }),
+        } as Response;
       }
       return shellMock(input, init);
     });
