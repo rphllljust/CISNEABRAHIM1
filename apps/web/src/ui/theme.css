@@ -217,4 +217,29 @@
     font-size: 0.875rem;
     word-break: break-all;
   }
+
+  /*
+   * WORKLIST — area de clique da linha inteira.
+   *
+   * O link do registro estica um pseudo-elemento sobre a linha posicionada, entao o operador
+   * acerta o registro em qualquer ponto da grade densa — nao apenas no codigo. O destino
+   * continua sendo um `<a>` real (clique do meio, nova aba, foco e leitor de tela intactos) e
+   * as colunas de acao ficam fora do alcance porque o link e filho de uma celula anterior.
+   */
+  .worklist-row-link {
+    color: var(--color-brand-800, #1e40af);
+    font-weight: 600;
+  }
+
+  .worklist-row-link::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+  }
+
+  .worklist-row-link:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+  }
 }

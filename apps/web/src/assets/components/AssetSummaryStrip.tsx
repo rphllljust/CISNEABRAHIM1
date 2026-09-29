@@ -57,33 +57,38 @@ export function AssetSummaryStrip({
   ];
 
   return (
-    <section aria-label="Indicadores de ativos" className="mb-4">
-      <div className="grid grid-cols-2 gap-2 rounded-xl bg-white px-3 py-2.5 shadow-sm ring-1 ring-gray-900/5 sm:grid-cols-4">
-        {metrics.map((metric) => {
-          const isActive = activeAvailabilityFilter === metric.filterAvailability;
-          return (
-            <button
-              key={metric.id}
-              type="button"
-              className={cn(
-                'rounded-md px-3 py-2 text-left transition',
-                'hover:bg-gray-50 focus-visible:cisne-focus-ring',
-                isActive && 'bg-brand-50 ring-1 ring-brand-200',
-              )}
-              aria-label={metric.ariaLabel}
-              aria-pressed={isActive}
-              onClick={() => onSelectAvailability(metric.filterAvailability)}
-            >
-              <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">
-                {metric.label}
-              </p>
-              <p className="mt-0.5 text-lg font-semibold tabular-nums text-gray-900">
-                {metric.value === null ? '—' : formatAssetCount(metric.value)}
-              </p>
-            </button>
-          );
-        })}
-      </div>
+    /*
+      RESUMO COMPACTO — indicadores clicaveis na MESMA faixa do cabecalho da worklist.
+      Era um cartao `rounded-xl` com sombra que empurrava a toolbar e a grade, gastando um
+      terco da largura com quatro numeros. Aqui ele nao abre faixa propria: entra no
+      `metrics` do `WorklistHeader`, entao Frota passa a ter a mesma primeira dobra das
+      outras quatro. Cada indicador continua sendo um filtro real (`aria-pressed`).
+    */
+    <section aria-label="Indicadores de frota" className="flex flex-wrap items-center gap-1.5">
+      {metrics.map((metric) => {
+        const isActive = activeAvailabilityFilter === metric.filterAvailability;
+        return (
+          <button
+            key={metric.id}
+            type="button"
+            className={cn(
+              'inline-flex items-baseline gap-1.5 rounded border px-2 py-0.5 text-xs transition',
+              'hover:bg-gray-50 focus-visible:cisne-focus-ring',
+              isActive
+                ? 'border-brand-200 bg-brand-50'
+                : 'border-gray-200 bg-white',
+            )}
+            aria-label={metric.ariaLabel}
+            aria-pressed={isActive}
+            onClick={() => onSelectAvailability(metric.filterAvailability)}
+          >
+            <strong className="text-sm font-semibold tabular-nums text-gray-900">
+              {metric.value === null ? '—' : formatAssetCount(metric.value)}
+            </strong>
+            <span className="font-medium text-gray-600">{metric.label}</span>
+          </button>
+        );
+      })}
     </section>
   );
 }
