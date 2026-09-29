@@ -5,35 +5,54 @@ import { mapPurchaseOrderErrorToMessage } from '../api/purchase-order-error-mess
 import { PurchaseOrderStatusBadge } from '../components/PurchaseOrderStatusBadge';
 import { usePurchaseOrderCapabilities } from '../hooks/usePurchaseOrderCapabilities';
 import type { PurchaseOrder } from '../types/purchase-order.types';
-import { formatDate, formatMoney } from '../utils/purchase-order-labels';
+import { PURCHASE_ORDER_STATUSES } from '../types/purchase-order.types';
+import { formatClientSnapshot, formatDate, formatMoney } from '../utils/purchase-order-labels';
 import {
   purchaseOrderNextAction,
   purchaseOrderNotice,
 } from '../utils/purchase-order-list-presentation';
-import { Button } from '../../ui/Button';
 import { HumanLookupField } from '../../financial-ui/HumanLookupField';
 import { searchClientOptions } from '../../financial-ui/client-lookup';
 import {
-  FilterCard,
+  WorklistClearFilters,
+  WorklistException,
+  WorklistField,
+  WorklistFilterBar,
+  WorklistFooter,
+  WorklistHeader,
+  WorklistRowLink,
+  WorklistStatePanel,
+  worklistCellClass,
+  worklistCellRaisedClass,
+  worklistHeadCellClass,
+  worklistNumericCellClass,
+  worklistNumericHeadCellClass,
+  worklistRowClass,
+  worklistSelectClass,
+  worklistTableCardClass,
+  worklistTableClass,
+} from '../../ui/enterprise-list';
+import {
   ModuleDeniedState,
   ModuleErrorState,
   ModuleLoadingState,
   ModulePage,
-  ModulePageHeader,
   ModulePagination,
   ModulePrimaryLink,
-  ModuleTableCard,
-  ModuleTableLink,
-  filterControlClass,
-  filterLabelClass,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
 } from '../../ui/module-layout';
 
 const PAGE_SIZE = 20;
+
+/**
+ * Cliente do pedido a partir do snapshot comercial ja entregue pela listagem.
+ *
+ * O nome comercial vem primeiro porque e assim que o operador reconhece o cliente no dia a dia;
+ * a razao social e o fallback quando o snapshot nao traz o nome fantasia. Sem snapshot, a linha
+ * declara a ausencia em vez de mostrar um identificador tecnico.
+ */
+function clientLabel(order: PurchaseOrder): string {
+  return formatClientSnapshot(order.clientSnapshot) || 'Cliente não informado';
+}
 
 type ListState =
   | { phase: 'loading' }
@@ -145,8 +164,10 @@ export function PurchaseOrdersListPage() {
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      <WorklistHeader
         title="Pedidos de compra"
+        count={items.length}
+        context="Carteira de pedidos recebidos dos clientes, com o consumo autorizado de cada um."
         action={
           capabilities.canCreate ? (
             <ModulePrimaryLink to="/app/purchase-orders/new">Novo pedido</ModulePrimaryLink>
@@ -154,103 +175,138 @@ export function PurchaseOrdersListPage() {
         }
       />
 
-      <FilterCard>
-        <div className="grid gap-5 sm:grid-cols-2">
-          <div className="min-w-0">
-            <HumanLookupField
-              label="Cliente"
-              htmlFor="po-client-search"
-              search={searchClientOptions}
-              value={clientFilter}
-              onChange={setClientFilter}
-              emptyOptionLabel="Todos os clientes"
-              emptyMessage="Nenhum cliente encontrado para a busca."
-            />
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="po-unit-filter">
-              Unidade
-            </label>
-            <input
-              id="po-unit-filter"
-              type="search"
-              className={filterControlClass}
-              value={unitFilter}
-              onChange={(event) => setUnitFilter(event.target.value)}
-              placeholder="Filtrar por unidade"
-            />
-          </div>
-        </div>
+      <WorklistFilterBar meta={`${items.length} nesta página`}>
+        <WorklistField label="Cliente" htmlFor="po-client-search" grow>
+          <HumanLookupField
+            variant="compact"
+            label="Cliente"
+            htmlFor="po-client-search"
+            search={searchClientOptions}
+            value={clientFilter}
+            onChange={setClientFilter}
+            emptyOptionLabel="Todos os clientes"
+            emptyMessage="Nenhum cliente encontrado para a busca."
+          />
+        </WorklistField>
+        <WorklistField label="Unidade" htmlFor="po-unit-filter">
+          <input
+            id="po-unit-filter"
+            type="search"
+            className={worklistSelectClass}
+            value={unitFilter}
+            onChange={(event) => setUnitFilter(event.target.value)}
+            placeholder="Filtrar por unidade"
+          />
+        </WorklistField>
         {hasActiveFilters ? (
-          <div className="mt-4">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                setClientFilter('');
-                setUnitFilter('');
-              }}
-            >
-              Limpar filtros
-            </Button>
-          </div>
+          <WorklistClearFilters
+            visible={hasActiveFilters}
+            onClick={() => {
+              setClientFilter('');
+              setUnitFilter('');
+            }}
+          />
         ) : null}
-      </FilterCard>
+      </WorklistFilterBar>
 
       {items.length === 0 ? (
-        <p className="text-sm text-gray-500" role="status">
-          Nenhum pedido de compra encontrado.
-        </p>
+        <WorklistStatePanel
+          title={
+            hasActiveFilters
+              ? 'Nenhum pedido de compra corresponde aos filtros aplicados.'
+              : 'Nenhum pedido de compra encontrado.'
+          }
+          description={
+            hasActiveFilters
+              ? 'Ajuste o cliente ou a unidade, ou limpe os filtros para ver a carteira completa.'
+              : 'Os pedidos chegam ao CISNE registrados pelos clientes; quando o primeiro for emitido ele aparece aqui.'
+          }
+          action={
+            hasActiveFilters ? (
+              <WorklistClearFilters
+                visible
+                onClick={() => {
+                  setClientFilter('');
+                  setUnitFilter('');
+                }}
+              />
+            ) : capabilities.canCreate ? (
+              <ModulePrimaryLink to="/app/purchase-orders/new">Novo pedido</ModulePrimaryLink>
+            ) : null
+          }
+        />
       ) : (
-        <ModuleTableCard>
-          <table className={moduleTableClass} aria-label="Lista de pedidos de compra">
-            <thead className={moduleTableHeadClass}>
+        <div className={worklistTableCardClass}>
+          <table className={worklistTableClass} aria-label="Lista de pedidos de compra">
+            <thead>
               <tr>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Pedido
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
+                  Cliente
+                </th>
+                <th scope="col" className={worklistHeadCellClass}>
                   Situação
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
-                  Valor
+                <th scope="col" className={worklistNumericHeadCellClass}>
+                  Valor autorizado
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistNumericHeadCellClass}>
                   Consumido
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistNumericHeadCellClass}>
                   Saldo
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Emissão
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Próxima ação
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody>
               {items.map((item) => (
-                <tr key={item.id} className={moduleTableRowClass}>
-                  <td className={moduleTableCellClass}>
-                    <ModuleTableLink to={`/app/purchase-orders/${item.id}`}>
+                <tr key={item.id} className={worklistRowClass}>
+                  {/*
+                    COLUNA PRINCIPAL = alvo de clique da linha. O `internalCode` saiu: ele e o
+                    codigo INTERNO do ERP, e o operador trabalha com o numero do cliente
+                    (`poNumber`). Dois codigos na mesma celula so criavam duvida sobre qual
+                    procurar no documento impresso.
+                  */}
+                  <td className={worklistCellClass}>
+                    <WorklistRowLink href={`/app/purchase-orders/${item.id}`}>
                       {item.poNumber}
-                    </ModuleTableLink>
-                    <span className="mt-1 block font-mono text-xs text-gray-500">
-                      {item.internalCode}
-                    </span>
+                    </WorklistRowLink>
                   </td>
-                  <td className={moduleTableCellClass}>
-                    <div className="flex flex-col items-start gap-1">
-                      <PurchaseOrderStatusBadge status={item.status} />
-                      {purchaseOrderNotice(item) ? (
-                        <span className="text-xs font-medium text-amber-700">
-                          {purchaseOrderNotice(item)}
-                        </span>
+                  <td className={worklistCellRaisedClass}>
+                    <div className="min-w-0">
+                      <p className="max-w-[32ch] truncate text-gray-800" title={clientLabel(item)}>
+                        {clientLabel(item)}
+                      </p>
+                      {item.rcNumber ? (
+                        <p className="text-[11px] text-gray-500">Requisição {item.rcNumber}</p>
                       ) : null}
                     </div>
                   </td>
-                  <td className={`${moduleTableCellClass} tabular-nums`}>
+                  <td className={worklistCellRaisedClass}>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <PurchaseOrderStatusBadge status={item.status} />
+                      {purchaseOrderNotice(item) ? (
+                        <WorklistException
+                          tone={
+                            item.status === PURCHASE_ORDER_STATUSES.Cancelled
+                              ? 'critical'
+                              : 'warning'
+                          }
+                        >
+                          {purchaseOrderNotice(item)}
+                        </WorklistException>
+                      ) : null}
+                    </div>
+                  </td>
+                  <td className={worklistNumericCellClass}>
                     {/* Valor do pedido = valor AUTORIZADO, que o dominio calcula. Em pedidos
                         com precificacao por itens (`LINE_ITEMS`) o `totalAmount` do cabecalho e
                         legitimamente nulo: o valor do pedido e a soma das linhas. Exibir o campo
@@ -259,40 +315,44 @@ export function PurchaseOrdersListPage() {
                       ? formatMoney(item.balance.authorizedAmount, item.currencyCode)
                       : formatMoney(item.totalAmount, item.currencyCode)}
                   </td>
-                  <td className={`${moduleTableCellClass} tabular-nums`}>
+                  <td className={worklistNumericCellClass}>
                     {formatMoney(item.consumedAmount, item.currencyCode)}
                   </td>
-                  <td className={`${moduleTableCellClass} tabular-nums`}>
+                  <td className={worklistNumericCellClass}>
                     {/* Saldo vem da regra de dominio. Quando ela recusa apurar, a celula
                         declara a indisponibilidade em vez de mostrar zero. */}
                     {item.balance ? (
                       formatMoney(item.balance.availableBalance, item.currencyCode)
                     ) : (
-                      <span className="text-xs text-gray-500">Não apurável</span>
+                      <span className="text-[11px] text-gray-500">Não apurável</span>
                     )}
                   </td>
-                  <td className={moduleTableCellClass}>
-                    {item.issueDate ? formatDate(item.issueDate) : '—'}
+                  <td className={worklistCellRaisedClass}>
+                    <span className="whitespace-nowrap">
+                      {item.issueDate ? formatDate(item.issueDate) : 'Sem data'}
+                    </span>
                   </td>
-                  <td className={moduleTableCellClass}>
-                    <ModuleTableLink to={`/app/purchase-orders/${item.id}`}>
+                  <td className={worklistCellRaisedClass}>
+                    <span className="text-[12px] text-gray-600">
                       {purchaseOrderNextAction(item.status)}
-                    </ModuleTableLink>
+                    </span>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </ModuleTableCard>
+        </div>
       )}
 
-      <ModulePagination
-        pageNumber={pageNumber}
-        previousDisabled={offset === 0}
-        nextDisabled={!hasMore}
-        onPrevious={() => void loadPage(Math.max(0, offset - PAGE_SIZE))}
-        onNext={() => void loadPage(offset + PAGE_SIZE)}
-      />
+      <WorklistFooter rangeLabel={`${offset + 1}–${offset + items.length} nesta página`}>
+        <ModulePagination
+          pageNumber={pageNumber}
+          previousDisabled={offset === 0}
+          nextDisabled={!hasMore}
+          onPrevious={() => void loadPage(Math.max(0, offset - PAGE_SIZE))}
+          onNext={() => void loadPage(offset + PAGE_SIZE)}
+        />
+      </WorklistFooter>
     </ModulePage>
   );
 }

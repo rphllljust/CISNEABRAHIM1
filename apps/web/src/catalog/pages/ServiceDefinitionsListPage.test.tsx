@@ -40,15 +40,15 @@ describe('ServiceDefinitionsListPage integration', () => {
 
     const user = userEvent.setup();
     // Termo que casa com o NOME e nao existe no CODE ('LOCACAO-DEMO'): so o servidor pode achar.
-    await user.type(screen.getByLabelText(/buscar serviços/i), 'automóveis');
+    await user.type(screen.getByLabelText(/^buscar$/i), 'automóveis');
 
     await waitFor(() => {
       expect(screen.getByRole('link', { name: 'Locação de automóveis sem condutor' })).toBeInTheDocument();
     });
 
     // Termo inexistente: o servidor devolve vazio e a tela diz isso.
-    await user.clear(screen.getByLabelText(/buscar serviços/i));
-    await user.type(screen.getByLabelText(/buscar serviços/i), 'zzz-nao-existe');
+    await user.clear(screen.getByLabelText(/^buscar$/i));
+    await user.type(screen.getByLabelText(/^buscar$/i), 'zzz-nao-existe');
 
     await waitFor(() => {
       expect(screen.getByRole('status')).toHaveTextContent(/nenhuma definição encontrada/i);
@@ -64,7 +64,7 @@ describe('ServiceDefinitionsListPage integration', () => {
     });
 
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText(/buscar serviços/i), 'locação');
+    await user.type(screen.getByLabelText(/^buscar$/i), 'locação');
 
     await waitFor(() => {
       expect(screen.getByRole('link', { name: 'Locação de automóveis sem condutor' })).toBeInTheDocument();

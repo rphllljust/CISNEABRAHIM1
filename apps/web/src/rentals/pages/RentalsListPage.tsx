@@ -1,26 +1,68 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { listRentalServiceOrders } from '../api/rentals-api';
 import { ServiceOrdersApiError } from '../../service-orders/api/service-orders-api';
 import { mapServiceOrdersErrorToMessage } from '../../service-orders/api/service-orders-error-messages';
 import { ServiceOrderStatusBadge } from '../../service-orders/components/ServiceOrderStatusBadge';
-import { formatClientLabel, formatDateTime } from '../../service-orders/utils/service-order-labels';
+import { formatClientLabel, formatDateTime, formatServiceOrderStatus } from '../../service-orders/utils/service-order-labels';
+import type { ServiceOrderStatus } from '../../service-orders/types/service-order.types';
+import {
+  WorklistClearFilters,
+  WorklistException,
+  WorklistField,
+  WorklistFilterBar,
+  WorklistFooter,
+  WorklistHeader,
+  WorklistRowLink,
+  WorklistStatePanel,
+  worklistCellClass,
+  worklistCellRaisedClass,
+  worklistHeadCellClass,
+  worklistRowClass,
+  worklistSelectClass,
+  worklistTableCardClass,
+  worklistTableClass,
+} from '../../ui/enterprise-list';
 import {
   ModuleDeniedState,
   ModuleErrorState,
   ModuleLoadingState,
   ModulePage,
-  ModulePageHeader,
   ModulePagination,
-  ModuleTableCard,
-  ModuleTableLink,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
 } from '../../ui/module-layout';
 
 const PAGE_SIZE = 20;
+
+/**
+ * Proxima acao REAL da locacao, derivada do status que o backend ja devolve.
+ *
+ * Nao existe transicao nova aqui: cada frase nomeia a tela que ja executa aquele passo
+ * (planejamento da OS). Status sem proximo passo operacional nao declara acao — a coluna some
+ * em vez de inventar tarefa.
+ */
+const RENTAL_NEXT_ACTION: Record<string, string> = {
+  DRAFT: 'Revisar e preparar',
+  PREPARED: 'Liberar para execução',
+  RELEASED: 'Iniciar execução',
+  IN_EXECUTION: 'Acompanhar execução',
+  PAUSED: 'Retomar execução',
+  COMPLETED: 'Conferir medição',
+};
+
+/**
+ * Excecao operacional de locacao a partir de campos que a listagem JA entrega.
+ *
+ * Sem prazo publicado no payload, o unico fato de excecao sustentavel e o estado real: uma OS
+ * parada ou cancelada é o que trava o contrato. Nada e inferido por data ou por heuristica.
+ */
+function rentalException(status: string): 'critical' | 'warning' | null {
+  if (status === 'CANCELLED') {
+    return 'critical';
+  }
+  if (status === 'PAUSED') {
+    return 'warning';
+  }
+  return null;
+}
 
 type ListState =
   | { phase: 'loading' }
@@ -30,40 +72,96 @@ type ListState =
 
 export function RentalsListPage() {
   const [offset, setOffset] = useState(0);
+  const [statusFilter, setStatusFilter] = useState<'' | ServiceOrderStatus>('');
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
 
-  const loadPage = useCallback(async (pageOffset: number, signal?: AbortSignal) => {
-    setListState({ phase: 'loading' });
-    try {
-      const response = await listRentalServiceOrders({ limit: PAGE_SIZE, offset: pageOffset }, signal);
-      setListState({
-        phase: 'ready',
-        items: response.items,
-        offset: response.offset,
-        hasMore: response.items.length === response.limit,
-      });
-    } catch (error) {
-      if (error instanceof ServiceOrdersApiError) {
-        if (error.kind === 'denied') {
-          setListState({ phase: 'denied' });
+  // Busca vai ao servidor: filtrar so a pagina atual esconderia uma OS que existe adiante.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSearch(searchInput.trim());
+      setOffset(0);
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
+
+  const loadPage = useCallback(
+    async (pageOffset: number, signal?: AbortSignal) => {
+      // Recarga preserva a lista anterior: trocar a grade por "Carregando…" a cada tecla
+      // desmontaria a propria barra de busca durante a digitacao.
+      setListState((previous) => (previous.phase === 'ready' ? previous : { phase: 'loading' }));
+      try {
+        const response = await listRentalServiceOrders(
+          {
+            limit: PAGE_SIZE,
+            offset: pageOffset,
+            status: statusFilter || undefined,
+            q: search || undefined,
+          },
+          signal,
+        );
+        if (signal?.aborted) {
+          return;
+        }
+        setListState({
+          phase: 'ready',
+          items: response.items,
+          offset: response.offset,
+          hasMore: response.items.length === response.limit,
+        });
+      } catch (error) {
+        if (signal?.aborted) {
+          return;
+        }
+        if (error instanceof ServiceOrdersApiError) {
+          if (error.kind === 'denied') {
+            setListState({ phase: 'denied' });
+            return;
+          }
+          setListState({
+            phase: 'error',
+            message: mapServiceOrdersErrorToMessage(error.code, error.status),
+            retryable: error.kind === 'network' || error.kind === 'unknown',
+          });
           return;
         }
         setListState({
           phase: 'error',
-          message: mapServiceOrdersErrorToMessage(error.code, error.status),
-          retryable: error.kind === 'network' || error.kind === 'unknown',
+          message: 'Não foi possível carregar as locações.',
+          retryable: true,
         });
-        return;
       }
-      setListState({ phase: 'error', message: 'Não foi possível carregar as locações.', retryable: true });
-    }
-  }, []);
+    },
+    [search, statusFilter],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
     void loadPage(offset, controller.signal);
     return () => controller.abort();
   }, [loadPage, offset]);
+
+  /**
+   * Opcoes do filtro de status, derivadas das linhas ja carregadas.
+   *
+   * O endpoint de ordens de servico JA publica `status` e `q`; o que faltava era a tela mandar.
+   * Os rotulos vem do dominio (`formatServiceOrderStatus`), nunca do enum cru.
+   *
+   * HOOK ANTES DOS RETORNOS ANTECIPADOS: `useMemo` depois de um `return` condicional viola a
+   * ordem de hooks do React (erro #310 na tela de carregamento/erro).
+   */
+  const statusOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    if (listState.phase === 'ready') {
+      for (const order of listState.items) {
+        if (!seen.has(order.status)) {
+          seen.set(order.status, formatServiceOrderStatus(order.status));
+        }
+      }
+    }
+    return [...seen.entries()];
+  }, [listState]);
 
   if (listState.phase === 'loading') {
     return (
@@ -94,55 +192,184 @@ export function RentalsListPage() {
 
   const { items, hasMore } = listState;
   const pageNumber = Math.floor(offset / PAGE_SIZE) + 1;
+  const activeFilters = Boolean(statusFilter || search.trim());
+  const activeStatusLabel = statusFilter ? formatServiceOrderStatus(statusFilter) : null;
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      <WorklistHeader
         title="Locações"
-        description="Ordens de serviço com arquétipo RENTAL. Cliente, contrato, pedido, ativo, alocação, execução e medição permanecem nos módulos existentes."
+        count={items.length}
+        context="Ordens de serviço com arquétipo de locação, com o estágio de execução de cada contrato."
       />
+
+      <WorklistFilterBar meta={`${items.length} nesta página`}>
+        <WorklistField label="Buscar" htmlFor="rental-search" grow>
+          <input
+            id="rental-search"
+            type="search"
+            className={worklistSelectClass}
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            placeholder="Número da OS ou cliente"
+          />
+        </WorklistField>
+        <WorklistField label="Status" htmlFor="rental-status-filter">
+          <select
+            id="rental-status-filter"
+            className={worklistSelectClass}
+            value={statusFilter}
+            onChange={(event) => {
+              setStatusFilter(event.target.value as '' | ServiceOrderStatus);
+              setOffset(0);
+            }}
+          >
+            <option value="">Todos</option>
+            {statusOptions.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </WorklistField>
+        <WorklistClearFilters
+          visible={activeFilters}
+          onClick={() => {
+            setSearchInput('');
+            setStatusFilter('');
+          }}
+        />
+      </WorklistFilterBar>
+
       {items.length === 0 ? (
-        <p className="text-sm text-gray-500">Nenhuma locação encontrada.</p>
+        <WorklistStatePanel
+          title={
+            activeFilters
+              ? 'Nenhuma locação corresponde aos filtros aplicados.'
+              : 'Nenhuma locação encontrada.'
+          }
+          description={
+            activeFilters
+              ? 'Ajuste a busca ou o status, ou limpe os filtros para ver todas as ordens do arquétipo.'
+              : 'As locações nascem das ordens de serviço com arquétipo RENTAL; quando a primeira for criada ela aparece aqui.'
+          }
+          action={
+            activeFilters ? (
+              <WorklistClearFilters
+                visible
+                onClick={() => {
+                  setSearchInput('');
+                  setStatusFilter('');
+                }}
+              />
+            ) : null
+          }
+        />
       ) : (
-        <ModuleTableCard>
-          <table className={moduleTableClass} aria-label="Lista de locações">
-            <thead className={moduleTableHeadClass}>
+        <div className={worklistTableCardClass}>
+          <table className={worklistTableClass} aria-label="Lista de locações">
+            <thead>
               <tr>
-                <th scope="col" className={moduleTableHeaderCellClass}>OS</th>
-                <th scope="col" className={moduleTableHeaderCellClass}>Cliente</th>
-                <th scope="col" className={moduleTableHeaderCellClass}>Status</th>
-                <th scope="col" className={moduleTableHeaderCellClass}>Atualizado</th>
+                <th scope="col" className={worklistHeadCellClass}>
+                  OS
+                </th>
+                <th scope="col" className={worklistHeadCellClass}>
+                  Cliente
+                </th>
+                <th scope="col" className={worklistHeadCellClass}>
+                  Execução
+                </th>
+                <th scope="col" className={worklistHeadCellClass}>
+                  Responsável
+                </th>
+                <th scope="col" className={worklistHeadCellClass}>
+                  Atualizado
+                </th>
+                <th scope="col" className={worklistHeadCellClass}>
+                  Próxima ação
+                </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
-              {items.map((order) => (
-                <tr key={order.id} className={moduleTableRowClass}>
-                  <td className={moduleTableCellClass}>
-                    <ModuleTableLink to={`/app/service-orders/${order.id}/planning`}>{order.orderNumber}</ModuleTableLink>
-                  </td>
-                  <td className={moduleTableCellClass}>
-                    {formatClientLabel(order.clientSnapshot, order.clientId)}
-                  </td>
-                  <td className={moduleTableCellClass}>
-                    <ServiceOrderStatusBadge status={order.status} />
-                  </td>
-                  <td className={moduleTableCellClass}>{formatDateTime(order.updatedAt)}</td>
-                </tr>
-              ))}
+            <tbody>
+              {items.map((order) => {
+                const exception = rentalException(order.status);
+                const nextAction = RENTAL_NEXT_ACTION[order.status];
+                return (
+                  <tr key={order.id} className={worklistRowClass}>
+                    <td className={worklistCellClass}>
+                      <WorklistRowLink href={`/app/service-orders/${order.id}/planning`}>
+                        {order.orderNumber}
+                      </WorklistRowLink>
+                      {/* Descricao da OS e contexto REAL do contrato: identifica a locacao
+                          melhor que o numero sozinho. Truncada para nao estourar a grade. */}
+                      {order.description ? (
+                        <p
+                          className="max-w-[32ch] truncate text-[11px] text-gray-500"
+                          title={order.description}
+                        >
+                          {order.description}
+                        </p>
+                      ) : null}
+                    </td>
+                    <td className={worklistCellRaisedClass}>
+                      {formatClientLabel(order.clientSnapshot, order.clientId)}
+                    </td>
+                    <td className={worklistCellRaisedClass}>
+                      <ServiceOrderStatusBadge status={order.status} />
+                      {exception ? (
+                        <div className="mt-1">
+                          <WorklistException tone={exception}>
+                            {order.status === 'CANCELLED' ? 'Contrato cancelado' : 'Execução parada'}
+                          </WorklistException>
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className={worklistCellRaisedClass}>
+                      {/*
+                        Responsavel vem da projecao de despacho (`assignedWorkforceMember`), que o
+                        backend JA publica na listagem. Sem alocacao ativa, a linha declara a
+                        ausencia — nao inventa nome nem esconde a coluna.
+                      */}
+                      {order.assignedWorkforceMember ? (
+                        <span className="text-[12px] text-gray-700">
+                          {order.assignedWorkforceMember.displayName}
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-gray-500">Sem alocação ativa</span>
+                      )}
+                    </td>
+                    <td className={worklistCellRaisedClass}>
+                      <span className="whitespace-nowrap text-[12px] text-gray-600">
+                        {formatDateTime(order.updatedAt)}
+                      </span>
+                    </td>
+                    <td className={worklistCellRaisedClass}>
+                      {nextAction ? (
+                        <span className="text-[12px] text-gray-600">{nextAction}</span>
+                      ) : (
+                        <span className="text-[11px] text-gray-500">Sem ação pendente</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
-        </ModuleTableCard>
+        </div>
       )}
-      {items.length > 0 ? (
+
+      <WorklistFooter
+        rangeLabel={`${offset + 1}–${offset + items.length} nesta página`}
+        extra={activeStatusLabel ? `status: ${activeStatusLabel}` : undefined}
+      >
         <ModulePagination
           pageNumber={pageNumber}
-          rangeLabel={`${offset + 1}–${offset + items.length}`}
           previousDisabled={offset === 0}
           nextDisabled={!hasMore}
           onPrevious={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
           onNext={() => setOffset(offset + PAGE_SIZE)}
         />
-      ) : null}
+      </WorklistFooter>
     </ModulePage>
   );
 }

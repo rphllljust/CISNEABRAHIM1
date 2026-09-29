@@ -7,22 +7,29 @@ import { usePersonCapabilities } from '../hooks/usePersonCapabilities';
 import { listLaborTypes } from '../../catalog/api/catalog-reference-api';
 import { PERSON_STATUSES, type Person, type PersonStatus } from '../types/person.types';
 import {
+  WorklistClearFilters,
+  WorklistException,
+  WorklistField,
+  WorklistFilterBar,
+  WorklistFooter,
+  WorklistHeader,
+  WorklistRowLink,
+  WorklistStatePanel,
+  worklistCellClass,
+  worklistCellRaisedClass,
+  worklistHeadCellClass,
+  worklistRowClass,
+  worklistSelectClass,
+  worklistTableCardClass,
+  worklistTableClass,
+} from '../../ui/enterprise-list';
+import {
   ModuleDeniedState,
   ModuleErrorState,
   ModuleLoadingState,
   ModulePage,
-  ModulePageHeader,
   ModulePagination,
   ModulePrimaryLink,
-  ModuleTableCard,
-  ModuleTableLink,
-  filterControlClass,
-  filterLabelClass,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
 } from '../../ui/module-layout';
 
 const PAGE_SIZE = 20;
@@ -229,9 +236,10 @@ export function PeopleListPage() {
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      <WorklistHeader
         title="Pessoas"
-        description={
+        count={items.length}
+        context={
           items.length > 0
             ? `Mão de obra no seu escopo autorizado${hasFilters ? ' para os filtros aplicados' : ''}.`
             : 'Cadastro de mão de obra do CISNE.'
@@ -244,35 +252,26 @@ export function PeopleListPage() {
       />
 
       {/*
-        TOOLBAR OPERACIONAL — busca e filtros na mesma faixa da lista, nao num cartao
-        que ocupa um terco da tela. Os indicadores sao contagens do conjunto visivel.
+        TOOLBAR COMPACTA — mesma gramatica das demais worklists: busca e filtros em UMA faixa
+        densa. Os indicadores da pagina desceram para o rodape da lista: a frase solta acima da
+        grade empurrava a primeira linha para fora da dobra sem dizer nada que o rodape nao diga.
       */}
-      <div
-        role="search"
-        aria-label="Busca e filtros de Pessoas"
-        className="mb-3 flex flex-wrap items-end gap-2"
-      >
-        <div className="min-w-56 flex-1">
-          <label className={filterLabelClass} htmlFor="person-search">
-            Buscar
-          </label>
+      <WorklistFilterBar>
+        <WorklistField label="Buscar" htmlFor="person-search" grow>
           <input
             id="person-search"
             type="search"
-            className={filterControlClass}
+            className={worklistSelectClass}
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
             placeholder="Nome ou código do membro"
             autoComplete="off"
           />
-        </div>
-        <div className="w-40">
-          <label className={filterLabelClass} htmlFor="person-status-filter">
-            Status
-          </label>
+        </WorklistField>
+        <WorklistField label="Status" htmlFor="person-status-filter">
           <select
             id="person-status-filter"
-            className={filterControlClass}
+            className={worklistSelectClass}
             value={statusFilter}
             onChange={(event) => updateParam('status', event.target.value || null)}
           >
@@ -280,15 +279,12 @@ export function PeopleListPage() {
             <option value={PERSON_STATUSES.Active}>Ativas</option>
             <option value={PERSON_STATUSES.Inactive}>Inativas</option>
           </select>
-        </div>
+        </WorklistField>
         {laborTypes.length > 0 ? (
-          <div className="w-48">
-            <label className={filterLabelClass} htmlFor="person-labor-filter">
-              Função
-            </label>
+          <WorklistField label="Função" htmlFor="person-labor-filter">
             <select
               id="person-labor-filter"
-              className={filterControlClass}
+              className={worklistSelectClass}
               value={laborType}
               onChange={(event) => updateParam('laborType', event.target.value || null)}
             >
@@ -299,117 +295,103 @@ export function PeopleListPage() {
                 </option>
               ))}
             </select>
-          </div>
+          </WorklistField>
         ) : null}
-        {hasFilters ? (
-          <button
-            type="button"
-            className="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
-            onClick={() => {
-              setSearchInput('');
-              setSearchParams(new URLSearchParams(), { replace: true });
-            }}
-          >
-            Limpar
-          </button>
-        ) : null}
-      </div>
-
-      {items.length > 0 ? (
-        <p className="mb-2 text-xs text-gray-500" aria-live="polite">
-          {items.length} {items.length === 1 ? 'pessoa' : 'pessoas'} nesta página
-          {' · '}
-          {activeCount} ativa{activeCount === 1 ? '' : 's'}
-          {' · '}
-          {allocatableCount} apta{allocatableCount === 1 ? '' : 's'} a alocação em OS
-          {statusFilter ? ` · status: ${statusFilter === PERSON_STATUSES.Active ? 'Ativas' : 'Inativas'}` : ''}
-          {laborType ? ` · função: ${activeLaborTypeLabel}` : ''}
-        </p>
-      ) : null}
+        <WorklistClearFilters
+          visible={hasFilters}
+          onClick={() => {
+            setSearchInput('');
+            setSearchParams(new URLSearchParams(), { replace: true });
+          }}
+        />
+      </WorklistFilterBar>
 
       {items.length === 0 ? (
-        <div
-          className="rounded-xl bg-white p-6 text-sm text-gray-600 shadow-sm ring-1 ring-gray-900/5"
-          role="status"
-        >
-          {hasFilters ? (
-            <>
-              <p className="font-semibold text-gray-900">
-                Nenhuma Pessoa corresponde aos filtros aplicados.
-              </p>
-              <p className="mt-2">Ajuste o termo de busca ou limpe os filtros para ver o cadastro.</p>
-            </>
-          ) : (
-            <>
-              <p className="font-semibold text-gray-900">Nenhuma Pessoa cadastrada ainda.</p>
-              <p className="mt-2">
-                As Pessoas são a mão de obra alocada nas ordens de serviço. Cadastre a primeira
-                para começar a planejar.
-              </p>
-              {capabilities.canCreate ? (
-                <p className="mt-4">
-                  <ModulePrimaryLink to="/app/people/new">Cadastrar Pessoa</ModulePrimaryLink>
-                </p>
-              ) : null}
-            </>
-          )}
-        </div>
+        <WorklistStatePanel
+          title={
+            hasFilters
+              ? 'Nenhuma Pessoa corresponde aos filtros aplicados.'
+              : 'Nenhuma Pessoa cadastrada ainda.'
+          }
+          description={
+            hasFilters
+              ? 'Ajuste o termo de busca ou limpe os filtros para ver o cadastro.'
+              : 'As Pessoas são a mão de obra alocada nas ordens de serviço. Cadastre a primeira para começar a planejar.'
+          }
+          action={
+            hasFilters ? (
+              <WorklistClearFilters
+                visible
+                onClick={() => {
+                  setSearchInput('');
+                  setSearchParams(new URLSearchParams(), { replace: true });
+                }}
+              />
+            ) : capabilities.canCreate ? (
+              <ModulePrimaryLink to="/app/people/new">Cadastrar Pessoa</ModulePrimaryLink>
+            ) : null
+          }
+        />
       ) : (
-        <ModuleTableCard>
-          <table className={moduleTableClass} aria-label="Lista de Pessoas">
-            <thead className={moduleTableHeadClass}>
+        <div className={worklistTableCardClass}>
+          <table className={worklistTableClass} aria-label="Lista de Pessoas">
+            <thead>
               <tr>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Pessoa
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Função
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Status
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Alocação em OS
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Atualizado
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody>
               {items.map((person) => (
-                <tr key={person.id} className={moduleTableRowClass}>
-                  <td className={moduleTableCellClass}>
-                    <div className="flex flex-col">
-                      <ModuleTableLink to={`/app/people/${person.id}`}>
-                        {person.preferredName ?? person.legalName}
-                      </ModuleTableLink>
-                      <span className="text-xs text-gray-500">
-                        {person.memberCode}
-                        {person.preferredName ? ` · ${person.legalName}` : ''}
+                <tr key={person.id} className={worklistRowClass}>
+                  <td className={worklistCellClass}>
+                    <WorklistRowLink href={`/app/people/${person.id}`}>
+                      {person.preferredName ?? person.legalName}
+                    </WorklistRowLink>
+                    <p className="text-[11px] text-gray-500">
+                      {person.memberCode}
+                      {person.preferredName ? ` · ${person.legalName}` : ''}
+                    </p>
+                  </td>
+                  <td className={worklistCellRaisedClass}>
+                    {person.defaultLaborTypeName ?? (
+                      <span className="text-[11px] text-gray-500">
+                        {person.defaultLaborTypeCode ? 'Função sem rótulo' : 'Função não informada'}
                       </span>
-                    </div>
-                  </td>
-                  <td className={moduleTableCellClass}>
-                    {person.defaultLaborTypeName ?? person.defaultLaborTypeCode ?? '—'}
-                  </td>
-                  <td className={moduleTableCellClass}>
-                    <PersonStatusBadge status={person.status} />
-                  </td>
-                  <td className={moduleTableCellClass}>
-                    {/*
-                      O contrato publica se a pessoa PODE ser alocada, nao a alocacao
-                      vigente. Declarar "disponivel"/"em OS" exigiria leitura de
-                      alocacao que a listagem nao devolve — PARK registrado.
-                    */}
-                    {person.serviceOrderAllocationSupported ? (
-                      <span className="text-xs text-gray-600">Apta a alocação</span>
-                    ) : (
-                      <span className="text-xs text-gray-400">Não alocável em OS</span>
                     )}
                   </td>
-                  <td className={moduleTableCellClass}>
-                    <span className="whitespace-nowrap text-xs text-gray-600">
+                  <td className={worklistCellRaisedClass}>
+                    <PersonStatusBadge status={person.status} />
+                  </td>
+                  <td className={worklistCellRaisedClass}>
+                    {/*
+                      O contrato publica se a pessoa PODE ser alocada, nao a alocacao vigente.
+                      Declarar "disponivel"/"em OS" exigiria leitura de alocacao que a listagem
+                      nao devolve — PARK registrado. A negativa e um fato que RESTRINGE a
+                      operacao, entao vem realcada: e ela que explica por que a pessoa nao pode
+                      entrar numa OS.
+                    */}
+                    {person.serviceOrderAllocationSupported ? (
+                      <span className="text-[12px] text-gray-600">Apta a alocação</span>
+                    ) : (
+                      <WorklistException tone="warning">Não alocável em OS</WorklistException>
+                    )}
+                  </td>
+                  <td className={worklistCellRaisedClass}>
+                    <span className="whitespace-nowrap text-[12px] text-gray-600">
                       {new Date(person.updatedAt).toLocaleDateString('pt-BR')}
                     </span>
                   </td>
@@ -417,16 +399,32 @@ export function PeopleListPage() {
               ))}
             </tbody>
           </table>
-        </ModuleTableCard>
+        </div>
       )}
 
-      <ModulePagination
-        pageNumber={pageNumber}
-        previousDisabled={offset === 0}
-        nextDisabled={!hasMore}
-        onPrevious={() => updateParam('offset', String(Math.max(0, offset - PAGE_SIZE)) || null)}
-        onNext={() => updateParam('offset', String(offset + PAGE_SIZE))}
-      />
+      <WorklistFooter
+        rangeLabel={`${offset + 1}–${offset + items.length} nesta página`}
+        extra={
+          items.length > 0 ? (
+            <>
+              {activeCount} ativa{activeCount === 1 ? '' : 's'} · {allocatableCount} apta
+              {allocatableCount === 1 ? '' : 's'} a alocação em OS
+              {statusFilter
+                ? ` · status: ${statusFilter === PERSON_STATUSES.Active ? 'Ativas' : 'Inativas'}`
+                : ''}
+              {laborType ? ` · função: ${activeLaborTypeLabel}` : ''}
+            </>
+          ) : undefined
+        }
+      >
+        <ModulePagination
+          pageNumber={pageNumber}
+          previousDisabled={offset === 0}
+          nextDisabled={!hasMore}
+          onPrevious={() => updateParam('offset', String(Math.max(0, offset - PAGE_SIZE)) || null)}
+          onNext={() => updateParam('offset', String(offset + PAGE_SIZE))}
+        />
+      </WorklistFooter>
     </ModulePage>
   );
 }

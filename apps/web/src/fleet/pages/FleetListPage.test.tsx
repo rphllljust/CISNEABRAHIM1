@@ -76,7 +76,10 @@ describe('FleetListPage', () => {
     );
 
     expect(await screen.findByRole('link', { name: 'TRK-001' })).toBeInTheDocument();
-    expect(screen.getByText('ABC-1234')).toBeInTheDocument();
+    // A placa acompanha o codigo do veiculo como contexto da MESMA celula: e assim que o
+    // operador identifica o veiculo na rua. Continua presente e legivel — deixou de ser uma
+    // coluna propria, que gastava largura para repetir um dado ja visivel no codigo.
+    expect(screen.getByText(/ABC-1234/)).toBeInTheDocument();
     expect(screen.getByLabelText(/disponibilidade operacional: alocado/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'OS-2026-0001' })).toHaveAttribute(
       'href',

@@ -9,23 +9,28 @@ import {
   type ServiceDefinition,
 } from '../types/service-catalog.types';
 import {
-  FilterCard,
+  WorklistClearFilters,
+  WorklistField,
+  WorklistFilterBar,
+  WorklistFooter,
+  WorklistHeader,
+  WorklistRowLink,
+  WorklistStatePanel,
+  worklistCellClass,
+  worklistCellRaisedClass,
+  worklistHeadCellClass,
+  worklistRowClass,
+  worklistSelectClass,
+  worklistTableCardClass,
+  worklistTableClass,
+} from '../../ui/enterprise-list';
+import {
   ModuleDeniedState,
   ModuleErrorState,
   ModuleLoadingState,
   ModulePage,
-  ModulePageHeader,
   ModulePagination,
   ModulePrimaryLink,
-  ModuleTableCard,
-  ModuleTableLink,
-  filterControlClass,
-  filterLabelClass,
-  moduleTableCellClass,
-  moduleTableClass,
-  moduleTableHeadClass,
-  moduleTableHeaderCellClass,
-  moduleTableRowClass,
 } from '../../ui/module-layout';
 
 const PAGE_SIZE = 20;
@@ -176,8 +181,10 @@ export function ServiceDefinitionsListPage() {
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      <WorklistHeader
         title="Catálogo de serviços"
+        count={listState.items.length}
+        context="Portfólio de serviços contratáveis, com a versão vigente e o rascunho em aberto de cada um."
         action={
           capabilities.canCreate ? (
             <ModulePrimaryLink to="/app/catalog/new">Nova definição</ModulePrimaryLink>
@@ -185,57 +192,58 @@ export function ServiceDefinitionsListPage() {
         }
       />
 
-      <FilterCard>
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="sm:col-span-2 lg:col-span-1">
-            <label className={filterLabelClass} htmlFor="catalog-search">
-              Buscar serviços
-            </label>
-            <input
-              id="catalog-search"
-              type="search"
-              className={filterControlClass}
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Nome ou código"
-            />
-            <p className="mt-2 text-xs text-gray-400">
-              A busca é resolvida no servidor, por nome do serviço ou código operacional.
-            </p>
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="catalog-status-filter">
-              Status da definição
-            </label>
-            <select
-              id="catalog-status-filter"
-              className={filterControlClass}
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value as '' | CatalogLineageStatus)}
-            >
-              <option value="">Todos</option>
-              <option value={CATALOG_LINEAGE_STATUSES.Active}>Ativos</option>
-              <option value={CATALOG_LINEAGE_STATUSES.Inactive}>Inativos</option>
-            </select>
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="catalog-version-filter">
-              Versões
-            </label>
-            <select
-              id="catalog-version-filter"
-              className={filterControlClass}
-              value={versionFilter}
-              onChange={(event) => setVersionFilter(event.target.value as VersionFilter)}
-            >
-              <option value="">Todas</option>
-              <option value="HAS_DRAFT">Com rascunho</option>
-              <option value="HAS_PUBLISHED">Com versão publicada</option>
-              <option value="NO_PUBLISHED">Sem versão publicada</option>
-            </select>
-          </div>
-        </div>
-      </FilterCard>
+      <WorklistFilterBar
+        meta={
+          <>
+            {filteredItems.length} de {listState.items.length} nesta página
+            {versionFilter ? ' · recorte de versão vale só nesta página' : ''}
+          </>
+        }
+      >
+        <WorklistField label="Buscar" htmlFor="catalog-search" grow>
+          <input
+            id="catalog-search"
+            type="search"
+            className={worklistSelectClass}
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Nome ou código"
+          />
+        </WorklistField>
+        <WorklistField label="Status" htmlFor="catalog-status-filter">
+          <select
+            id="catalog-status-filter"
+            className={worklistSelectClass}
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value as '' | CatalogLineageStatus)}
+          >
+            <option value="">Todos</option>
+            <option value={CATALOG_LINEAGE_STATUSES.Active}>Ativos</option>
+            <option value={CATALOG_LINEAGE_STATUSES.Inactive}>Inativos</option>
+          </select>
+        </WorklistField>
+        <WorklistField label="Versões" htmlFor="catalog-version-filter">
+          <select
+            id="catalog-version-filter"
+            className={worklistSelectClass}
+            value={versionFilter}
+            onChange={(event) => setVersionFilter(event.target.value as VersionFilter)}
+          >
+            <option value="">Todas</option>
+            <option value="HAS_DRAFT">Com rascunho</option>
+            <option value="HAS_PUBLISHED">Com versão publicada</option>
+            <option value="NO_PUBLISHED">Sem versão publicada</option>
+          </select>
+        </WorklistField>
+        <WorklistClearFilters
+          visible={Boolean(statusFilter || versionFilter || search.trim())}
+          onClick={() => {
+            setSearch('');
+            setStatusFilter('');
+            setVersionFilter('');
+          }}
+        />
+      </WorklistFilterBar>
 
       {/*
         RECORTE DE VERSAO E LOCAL, NAO DO SERVIDOR.
@@ -246,94 +254,106 @@ export function ServiceDefinitionsListPage() {
         A tela declara o escopo em vez de esconder a limitacao — PARK registrado:
         filtro de versao no servidor.
       */}
-      {listState.phase === 'ready' && listState.items.length > 0 ? (
-        <p className="mb-2 text-xs text-gray-500" role="status">
-          {filteredItems.length} de {listState.items.length} nesta página
-          {versionFilter ? ' · o recorte de versão vale apenas para esta página' : ''}
-        </p>
-      ) : null}
-
       {filteredItems.length === 0 ? (
-        <p className="text-sm text-gray-500" role="status">
-          {versionFilter
-            ? 'Nenhuma definição nesta página corresponde ao recorte de versão. O recorte de versão ainda não é resolvido pelo servidor — avance a página ou limpe o filtro.'
-            : 'Nenhuma definição encontrada para os filtros selecionados.'}
-        </p>
+        <WorklistStatePanel
+          title={
+            versionFilter
+              ? 'Nenhuma definição nesta página corresponde ao recorte de versão.'
+              : 'Nenhuma definição encontrada para os filtros selecionados.'
+          }
+          description={
+            versionFilter
+              ? 'O recorte de versão ainda não é resolvido pelo servidor — avance a página ou limpe o filtro.'
+              : 'Ajuste a busca ou o status, ou limpe os filtros para ver o portfólio completo.'
+          }
+          action={
+            <WorklistClearFilters
+              visible
+              onClick={() => {
+                setSearch('');
+                setStatusFilter('');
+                setVersionFilter('');
+              }}
+            />
+          }
+        />
       ) : (
-        <ModuleTableCard>
-          <table className={moduleTableClass} aria-label="Lista de definições de serviço">
-            <thead className={moduleTableHeadClass}>
+        <div className={worklistTableCardClass}>
+          <table className={worklistTableClass} aria-label="Lista de definições de serviço">
+            <thead>
               <tr>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Serviço
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Categoria
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Status
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
-                  Versão publicada
+                <th scope="col" className={worklistHeadCellClass}>
+                  Versões
                 </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
-                  Rascunho
-                </th>
-                <th scope="col" className={moduleTableHeaderCellClass}>
+                <th scope="col" className={worklistHeadCellClass}>
                   Próxima ação
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody>
               {filteredItems.map((definition) => (
-                <tr key={definition.id} className={moduleTableRowClass}>
-                  <td className={moduleTableCellClass}>
-                    <ModuleTableLink to={`/app/catalog/${definition.id}`}>
+                <tr key={definition.id} className={worklistRowClass}>
+                  <td className={worklistCellClass}>
+                    <WorklistRowLink href={`/app/catalog/${definition.id}`}>
                       {/* Identidade PRINCIPAL e o nome humano; o code fica como contexto. */}
                       {definition.name ?? definition.code}
-                    </ModuleTableLink>
+                    </WorklistRowLink>
                     {definition.name ? (
-                      <span className="mt-1 block text-xs text-gray-500">{definition.code}</span>
+                      <p className="text-[11px] text-gray-500">{definition.code}</p>
                     ) : null}
                   </td>
-                  <td className={moduleTableCellClass}>
-                    {definition.categoryName ?? '—'}
+                  <td className={worklistCellRaisedClass}>
+                    {definition.categoryName ?? (
+                      <span className="text-[11px] text-gray-500">Sem categoria</span>
+                    )}
                   </td>
-                  <td className={moduleTableCellClass}>
+                  <td className={worklistCellRaisedClass}>
                     <ServiceDefinitionStatusBadge status={definition.status} />
                   </td>
-                  <td className={moduleTableCellClass}>
-                    {/*
-                      Versao com CONTEXTO, nao um numero solto: "v3" e a versao vigente
-                      publicada; ausencia e declarada como "Sem publicação", que e um
-                      fato do ciclo de vida — nao um traco mudo repetido na coluna.
-                    */}
-                    {definition.latestPublishedVersion !== null ? (
-                      <span className="text-sm text-gray-800">
-                        v{definition.latestPublishedVersion}
-                        <span className="ml-1 text-xs text-gray-500">vigente</span>
-                      </span>
-                    ) : (
-                      <span className="text-xs text-gray-500">Sem publicação</span>
-                    )}
+                  {/*
+                    UMA COLUNA DE VERSAO, NAO DUAS.
+
+                    Antes eram "Versao vigente" e "Rascunho" lado a lado: na esmagadora maioria
+                    das linhas o rascunho nao existe e a coluna inteira virava um traco mudo,
+                    gastando largura de desktop sem entregar informacao nenhuma. Agora a celula
+                    declara o ciclo de vida em UMA leitura: a vigente sempre aparece ("v3 vigente"),
+                    e o rascunho so ocupa espaco quando existe de fato ("v4 em edição").
+                  */}
+                  <td className={worklistCellRaisedClass}>
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                      {definition.latestPublishedVersion !== null ? (
+                        <span className="whitespace-nowrap text-gray-800">
+                          v{definition.latestPublishedVersion}
+                          <span className="ml-1 text-[11px] text-gray-500">vigente</span>
+                        </span>
+                      ) : (
+                        <span className="whitespace-nowrap text-[11px] text-gray-500">
+                          Sem versão publicada
+                        </span>
+                      )}
+                      {definition.currentDraftVersion !== null ? (
+                        <span className="whitespace-nowrap text-amber-800">
+                          v{definition.currentDraftVersion}
+                          <span className="ml-1 text-[11px] text-amber-700">em edição</span>
+                        </span>
+                      ) : null}
+                    </div>
                   </td>
-                  <td className={moduleTableCellClass}>
-                    {definition.currentDraftVersion !== null ? (
-                      <span className="text-sm text-amber-800">
-                        v{definition.currentDraftVersion}
-                        <span className="ml-1 text-xs text-amber-700">em edição</span>
-                      </span>
-                    ) : (
-                      <span className="text-xs text-gray-400">—</span>
-                    )}
-                  </td>
-                  <td className={moduleTableCellClass}>
+                  <td className={worklistCellRaisedClass}>
                     {/*
-                      Proxima acao derivada do ESTADO REAL da definicao: sem versao
-                      publicada o trabalho e publicar; com rascunho aberto o trabalho e
-                      concluir a edicao; publicado e estavel nao declara acao.
+                      Proxima acao derivada do ESTADO REAL da definicao: sem versao publicada o
+                      trabalho e publicar; com rascunho aberto o trabalho e concluir a edicao.
                     */}
-                    <span className="text-xs text-gray-600">
+                    <span className="text-[12px] text-gray-600">
                       {resolveCatalogNextAction(definition)}
                     </span>
                   </td>
@@ -341,16 +361,25 @@ export function ServiceDefinitionsListPage() {
               ))}
             </tbody>
           </table>
-        </ModuleTableCard>
+        </div>
       )}
 
-      <ModulePagination
-        pageNumber={pageNumber}
-        previousDisabled={offset === 0}
-        nextDisabled={!hasMore}
-        onPrevious={() => void loadPage(Math.max(0, offset - PAGE_SIZE))}
-        onNext={() => void loadPage(offset + PAGE_SIZE)}
-      />
+      <WorklistFooter
+        rangeLabel={`${offset + 1}–${offset + listState.items.length} nesta página`}
+        extra={
+          filteredItems.length !== listState.items.length
+            ? `${filteredItems.length} após o recorte de versão`
+            : undefined
+        }
+      >
+        <ModulePagination
+          pageNumber={pageNumber}
+          previousDisabled={offset === 0}
+          nextDisabled={!hasMore}
+          onPrevious={() => void loadPage(Math.max(0, offset - PAGE_SIZE))}
+          onNext={() => void loadPage(offset + PAGE_SIZE)}
+        />
+      </WorklistFooter>
     </ModulePage>
   );
 }
