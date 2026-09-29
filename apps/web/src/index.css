@@ -25,7 +25,21 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-main:not(.login-page):not(.dashboard-page):not(.shell-page):not(.reports-page):not(.alerts-page):not(.search-page):not(#main-content) {
+/*
+  TETO DE LARGURA DE RESERVA — nao mais um choke point de 40rem.
+
+  Esta regra aplicava `max-width: 40rem` (640px) a todo `<main>` que nao estivesse na lista de
+  exclusao. Era um piso remanescente de quando as superficies de negocio traziam o proprio
+  `<main class="*-page">`: qualquer pagina que escapasse da lista nascia com 640px de largura — mais
+  estreita que um formulario, e muito mais estreita que uma grade densa de ERP.
+
+  Com as superficies de negocio migradas para `ModulePage` (que tem o proprio `id="main-content"` e
+  cuja largura e definida pela moldura do shell), esta regra passa a valer apenas para `<main>`
+  FORA do shell da aplicacao — ou seja, paginas tecnicas e de autenticacao. As paginas
+  `.reports-page` / `.alerts-page` / `.search-page` sairam da lista porque NAO EXISTEM MAIS:
+  foram substituidas por primitivos compartilhados.
+*/
+main:not(.login-page):not(.dashboard-page):not(.shell-page):not(#main-content) {
   max-width: 40rem;
   margin: 2rem auto;
   padding: 0 1rem;

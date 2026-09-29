@@ -1,115 +1,36 @@
-.alerts-page {
-  max-width: 48rem;
-  margin: 0 auto;
-  padding: 1rem;
-}
+/*
+  ALERTAS — CSS RESTRINGIDO AO DOMINIO.
 
-.alerts-page__header {
-  margin-bottom: 1rem;
-}
+  REGRA (wave de convergencia enterprise): CSS local pode existir para visualizacao especifica do
+  dominio, mas NAO pode mais ser responsavel por page shell, header, filter layout, form grid,
+  empty/error state, generic table ou generic action bar. Isso vem dos primitivos enterprise.
 
-.alerts-page__lead {
-  margin: 0.35rem 0 0;
-  color: #475569;
-}
+  REMOVIDO nesta wave — a Central de alertas era uma ILHA com gramatica propria:
 
-.alerts-page__error {
-  margin-bottom: 1rem;
-  padding: 0.75rem 1rem;
-  border: 1px solid #fecaca;
-  background: #fef2f2;
-  color: #991b1b;
-  border-radius: 0.75rem;
-}
+  - `.alerts-page`     -> `max-width: 48rem; margin: 0 auto; padding: 1rem`. A tela de alertas era
+                          uma coluna central de 768px, mais estreita que qualquer worklist do
+                          produto. O shell e agora `ModulePage` + `WorklistHeader`.
+  - `.alerts-page__header` / `.alerts-page__lead` -> cabecalho manual com `<h1>`. Agora
+                          `ModulePageHeader`.
+  - `.alerts-page__error` -> faixa de erro local. Agora `ModuleErrorState`.
+  - `.alerts-page__empty` -> frase solta de vazio. Agora `EmptyState` compartilhado, dentro da
+                          `WorkbenchQueue`.
+  - `.alerts-filters` + `label` + `select` (e o `@media` de empilhamento) -> barra de filtro
+                          local. Agora `WorklistFilterBar` / `WorklistField` /
+                          `worklistSelectClass`, que ja sao responsivos.
+  - `.alerts-list` -> `display: grid` de cartoes. Agora `WorkbenchQueue`.
+  - `.alerts-card` / `.alerts-card--critical` / `--warning` -> cartao por alerta, com a severidade
+                          desenhada por borda lateral esquerda de 6px. Agora `WorkbenchQueueItem`,
+                          que expressa severidade por FAIXA lateral + rotulo + tom, na MESMA
+                          anatomia das demais filas do produto (severidade, motivo, objeto, idade,
+                          proxima acao).
+  - `.alerts-card__header` / `__severity` / `__message` / `__meta` / `__link` -> tipografia e
+                          apresentacao locais. O status e a acao do item vem de `StatusBadge` e das
+                          classes compartilhadas de acao.
 
-.alerts-page__empty {
-  color: #64748b;
-}
-
-.alerts-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  align-items: center;
-  margin-bottom: 1.25rem;
-  padding: 0.75rem 1rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.75rem;
-  background: #f8fafc;
-}
-
-.alerts-filters label {
-  font-size: 0.875rem;
-  color: #334155;
-}
-
-.alerts-filters select {
-  border: 1px solid #cbd5e1;
-  border-radius: 0.5rem;
-  padding: 0.35rem 0.5rem;
-  background: #fff;
-}
-
-.alerts-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 0.75rem;
-}
-
-.alerts-card {
-  border: 1px solid #e2e8f0;
-  border-radius: 0.75rem;
-  padding: 1rem;
-  background: #fff;
-}
-
-.alerts-card--critical {
-  border-left: 6px solid var(--chart-critical, #dc2626);
-}
-
-.alerts-card--warning {
-  border-left: 6px solid var(--chart-warning, #d97706);
-}
-
-.alerts-card__header {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.75rem;
-  align-items: flex-start;
-}
-
-.alerts-card__header h2 {
-  margin: 0;
-  font-size: 1rem;
-}
-
-.alerts-card__severity {
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: #64748b;
-}
-
-.alerts-card__message {
-  margin: 0.5rem 0 0;
-  color: #334155;
-}
-
-.alerts-card__meta {
-  margin: 0.35rem 0 0;
-  font-size: 0.8rem;
-  color: #64748b;
-}
-
-.alerts-card__link {
-  display: inline-block;
-  margin-top: 0.75rem;
-  color: #1d4ed8;
-  text-decoration: none;
-  font-weight: 600;
-}
+  O que PERMANECE e visualizacao legítima do dominio: o badge de alertas da barra superior do shell
+  (`.alert-badge-link*`), que e um componente proprio do shell e nao uma superficie de negocio.
+*/
 
 .alert-badge-link {
   display: inline-flex;
@@ -133,11 +54,4 @@
   font-size: 0.75rem;
   font-weight: 700;
   text-align: center;
-}
-
-@media (max-width: 767px) {
-  .alerts-filters {
-    flex-direction: column;
-    align-items: stretch;
-  }
 }

@@ -116,12 +116,19 @@
     background: #f9fafb;
   }
 
+  /*
+    BARRA DE FERRAMENTAS LEGADA — sem o cartao gigante.
+
+    `.alerts-filters` e `.reports-filters` foram removidos daqui: eram o "card gigante de filtro"
+    (`padding: 1.5rem` + `box-shadow` + raio de 0.75rem) que a wave proibe. Alertas agora usa a
+    `WorklistFilterBar` compacta e Relatorios usa `ReportToolbar` — ambos de uma linha.
+    `.requests-toolbar` / `.catalog-toolbar` / `.clients-toolbar` / `.assets-toolbar` permanecem
+    porque ainda sustentam o catalogo em migracao.
+  */
   .cisne-app .requests-toolbar,
   .cisne-app .catalog-toolbar,
   .cisne-app .clients-toolbar,
-  .cisne-app .assets-toolbar,
-  .cisne-app .alerts-filters,
-  .cisne-app .reports-filters {
+  .cisne-app .assets-toolbar {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
     gap: 1.25rem;
@@ -133,9 +140,7 @@
     outline: 1px solid rgb(17 24 39 / 5%);
   }
 
-  .cisne-app .form-field label,
-  .cisne-app .alerts-filters > label,
-  .cisne-app .reports-filters label {
+  .cisne-app .form-field label {
     display: block;
     margin-bottom: 0.375rem;
     font-size: 0.75rem;
@@ -146,9 +151,6 @@
   .cisne-app .form-field input,
   .cisne-app .form-field select,
   .cisne-app .form-field textarea,
-  .cisne-app .alerts-filters select,
-  .cisne-app .reports-filters select,
-  .cisne-app .reports-filters input,
   .cisne-app .clients-filter select,
   .cisne-app .assets-filter input,
   .cisne-app .assets-filter select {
@@ -166,10 +168,7 @@
 
   .cisne-app .form-field input:focus,
   .cisne-app .form-field select:focus,
-  .cisne-app .form-field textarea:focus,
-  .cisne-app .alerts-filters select:focus,
-  .cisne-app .reports-filters select:focus,
-  .cisne-app .reports-filters input:focus {
+  .cisne-app .form-field textarea:focus {
     box-shadow: inset 0 0 0 2px #237f78;
   }
 
@@ -339,6 +338,11 @@
     cursor: not-allowed;
   }
 
+  /*
+    `.reports-panel` e `.alerts-list` REMOVIDOS: os dois desenhavam o cartao de 1.5rem de padding
+    em volta de cada secao da tela. Relatorios agora usa `ReportPreview` + grade densa, e Alertas
+    usa `WorkbenchQueue`. As demais secoes seguem em migracao.
+  */
   .cisne-app .client-section,
   .cisne-app .catalog-section,
   .cisne-app .assets-section,
@@ -347,9 +351,7 @@
   .cisne-app .planning-section,
   .cisne-app .billing-section,
   .cisne-app .billing-summary,
-  .cisne-app .reports-panel,
-  .cisne-app .doc-panel,
-  .cisne-app .alerts-list {
+  .cisne-app .doc-panel {
     margin-bottom: 1.5rem;
     border-radius: 0.75rem;
     border: 0;
