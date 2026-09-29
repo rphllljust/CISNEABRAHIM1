@@ -138,9 +138,18 @@ describe('Financeiro — smart lists e mecanismos de operação', () => {
     expect(within(dialog).getByText('Contexto do título')).toBeInTheDocument();
     expect(within(dialog).getByText('Vencimento')).toBeInTheDocument();
     expect(within(dialog).getByText('Saldo')).toBeInTheDocument();
-    // A cadeia empresarial usa os vínculos reais do payload.
-    expect(within(dialog).getByText(/Ordem de serviço/)).toBeInTheDocument();
-    expect(within(dialog).getByText('so-1')).toBeInTheDocument();
+    /*
+     * A cadeia empresarial usa os vínculos REAIS do payload, mas mostra o NOME do
+     * objeto — nunca o identificador técnico. E o vínculo leva à rota que existe:
+     * a OS é entrada pelo planejamento (object page mãe do domínio), não por uma
+     * raiz `/app/service-orders/:id` que não tem rota publicada.
+     */
+    expect(within(dialog).getByText(/Ordem de serviço:/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('link', { name: /Abrir planejamento da ordem/i })).toHaveAttribute(
+      'href',
+      '/app/service-orders/so-1/planning',
+    );
+    expect(within(dialog).queryByText('so-1')).not.toBeInTheDocument();
     expect(
       within(dialog).getByRole('link', { name: /abrir título completo/i }),
     ).toBeInTheDocument();

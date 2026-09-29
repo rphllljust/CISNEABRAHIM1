@@ -466,30 +466,32 @@ export function receivableChainLinks(row: ReceivableDetail): ChainLink[] {
   const origin = row.origin;
   const links: ChainLink[] = [];
   if (row.clientId) {
-    links.push({ step: 'CLIENTE', label: row.clientId, href: `/app/clients/${row.clientId}` });
+    links.push({ step: 'CLIENTE', label: 'Cliente', href: `/app/clients/${row.clientId}` });
   }
   if (origin.serviceOrderId) {
     links.push({
       step: 'OS',
-      label: origin.serviceOrderId,
-      href: `/app/service-orders/${origin.serviceOrderId}`,
+      label: 'Ordem de serviço',
+      // A OS nao tem rota raiz publicada: o ponto de entrada real e o planejamento,
+      // que e a object page mae do dominio. Sem o sufixo o link nao resolvia rota.
+      href: `/app/service-orders/${origin.serviceOrderId}/planning`,
     });
   }
   if (origin.measurementId) {
     links.push({
       step: 'MEDICAO',
-      label: origin.measurementId,
+      label: 'Medição',
       href: `/app/service-orders/${origin.serviceOrderId}/measurement`,
     });
   }
   if (origin.billingRecordId) {
     links.push({
       step: 'FATURAMENTO',
-      label: origin.billingRecordId,
+      label: 'Faturamento',
       href: `/app/service-orders/${origin.serviceOrderId}/billing`,
     });
   }
-  links.push({ step: 'RECEBIVEL', label: row.externalReference ?? row.id });
+  links.push({ step: 'RECEBIVEL', label: row.externalReference ?? 'Recebível' });
   return links;
 }
 
@@ -525,13 +527,21 @@ export function buildReceivablePreview(row: ReceivableDetail): ContextPreviewBod
       { label: 'Atualizado em', value: <DateTime value={row.updatedAt} mode="datetime" /> },
     ],
     relations: [
-      { label: 'Cliente', value: row.clientId, href: `/app/clients/${row.clientId}` },
+      /*
+       * Relacao sem rotulo humano NAO exibe o identificador tecnico: o vinculo existe
+       * (e navega, quando ha destino real), mas o valor mostrado e o nome do objeto.
+       * `externalReference` ja e a referencia humana do titulo.
+       */
+      { label: 'Cliente', value: 'Abrir cadastro do cliente', href: `/app/clients/${row.clientId}` },
       {
         label: 'Ordem de serviço',
-        value: origin.serviceOrderId,
-        href: `/app/service-orders/${origin.serviceOrderId}`,
+        value: 'Abrir planejamento da ordem',
+        href: `/app/service-orders/${origin.serviceOrderId}/planning`,
       },
-      { label: 'Documento de faturamento', value: origin.billingDocumentId },
+      {
+        label: 'Documento de faturamento',
+        value: origin.billingRecordId ? 'Gerado pelo faturamento' : '',
+      },
     ],
     nextAction: {
       label:
