@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { PeopleApiError, listPeople } from '../api/people-api';
 import { mapPersonErrorToMessage } from '../api/person-error-messages';
 import { PersonStatusBadge } from '../components/PersonStatusBadge';
@@ -7,6 +7,7 @@ import { usePersonCapabilities } from '../hooks/usePersonCapabilities';
 import { listLaborTypes } from '../../catalog/api/catalog-reference-api';
 import { PERSON_STATUSES, type Person, type PersonStatus } from '../types/person.types';
 import {
+  RowActionCell,
   WorklistClearFilters,
   WorklistException,
   WorklistField,
@@ -15,6 +16,7 @@ import {
   WorklistHeader,
   WorklistRowLink,
   WorklistStatePanel,
+  rowPrimaryActionClass,
   worklistCellClass,
   worklistCellRaisedClass,
   worklistHeadCellClass,
@@ -351,6 +353,9 @@ export function PeopleListPage() {
                 <th scope="col" className={worklistHeadCellClass}>
                   Atualizado
                 </th>
+                <th scope="col" className={worklistHeadCellClass}>
+                  <span className="sr-only">Ações</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -394,6 +399,21 @@ export function PeopleListPage() {
                       {new Date(person.updatedAt).toLocaleDateString('pt-BR')}
                     </span>
                   </td>
+                  {/*
+                    ACAO DA LINHA — o cadastro parava na navegacao. Abrir a ficha e a leitura que
+                    o ator ja provou ao listar; nenhuma transicao (ativar/inativar) e oferecida
+                    AQUI porque ela exige motivo e prova de versao, contrato que so o detalhe tem.
+                    Oferecer "Inativar" na grade sem isso seria uma acao que mente sobre o que
+                    acontece quando o operador clica.
+                  */}
+                  <RowActionCell className="w-16">
+                    <Link
+                      to={`/app/people/${person.id}`}
+                      className={rowPrimaryActionClass}
+                    >
+                      Abrir ficha
+                    </Link>
+                  </RowActionCell>
                 </tr>
               ))}
             </tbody>
