@@ -129,18 +129,15 @@ export function BillingDashboardPage() {
               value={divergenceCount}
               label="com divergência"
               tone={divergenceCount > 0 ? 'warning' : 'neutral'}
-              hint={divergenceCount > 0 ? 'exigem alinhamento' : 'nenhuma'}
             />
             <EnterpriseMetric
               value={readyCount}
               label="prontos para faturar"
               tone={readyCount > 0 ? 'info' : 'neutral'}
-              hint="medição aprovada"
             />
             <EnterpriseMetric
               value={preparedCount}
               label="em preparação"
-              hint="nota em curso"
             />
           </>
         }

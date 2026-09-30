@@ -323,18 +323,15 @@ export function ClientsListPage() {
               <EnterpriseMetric
                 label="No resultado"
                 value={formatClientCount(total)}
-                hint={hasFilters ? 'com os filtros aplicados' : 'carteira completa'}
               />
               <EnterpriseMetric
                 label="Ativos nesta página"
                 value={activeOnPage}
-                hint={`de ${items.length} exibidos`}
               />
               <EnterpriseMetric
                 label="Inativos nesta página"
                 value={inactiveOnPage}
                 tone={inactiveOnPage > 0 ? 'warning' : 'neutral'}
-                hint={inactiveOnPage > 0 ? 'não recebem novas OS' : 'nenhum'}
               />
             </>
           ) : null

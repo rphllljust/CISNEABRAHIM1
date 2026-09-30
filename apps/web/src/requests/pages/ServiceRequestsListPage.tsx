@@ -348,19 +348,15 @@ export function ServiceRequestsListPage() {
               label="Pendentes"
               value={summary?.pending ?? 0}
               tone={(summary?.pending ?? 0) > 0 ? 'warning' : 'neutral'}
-              hint="aguardando análise"
             />
             <EnterpriseMetric
               label="Em análise"
               value={summary?.underReview ?? 0}
-              hint="com decisão em curso"
             />
-            <EnterpriseMetric label="Convertidas" value={summary?.converted ?? 0} hint="viraram OS" />
+            <EnterpriseMetric label="Convertidas" value={summary?.converted ?? 0} />
             <EnterpriseMetric
               label="Canceladas"
               value={summary?.cancelled ?? 0}
-              muted={(summary?.cancelled ?? 0) === 0}
-              hint="fora do fluxo"
             />
           </>
         }

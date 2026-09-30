@@ -329,13 +329,11 @@ export function ServiceOrdersListPage() {
               value={attentionCount}
               label="com exceção"
               tone={attentionCount > 0 ? 'critical' : 'neutral'}
-              hint={attentionCount > 0 ? 'exigem decisão' : 'nenhuma'}
             />
             <EnterpriseMetric
               value={unassignedCount}
               label="sem responsável"
               tone={unassignedCount > 0 ? 'warning' : 'neutral'}
-              hint={unassignedCount > 0 ? 'sem dono definido' : 'todas atribuídas'}
             />
           </>
         }

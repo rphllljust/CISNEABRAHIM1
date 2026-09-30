@@ -270,14 +270,12 @@ export function ProposalsListPage() {
               value={awaitingCount}
               label="aguardando decisão"
               tone={awaitingCount > 0 ? 'info' : 'neutral'}
-              hint="emitidas sem aceite"
             />
-            <EnterpriseMetric value={decidedCount} label="decididas" hint="aceitas ou rejeitadas" />
+            <EnterpriseMetric value={decidedCount} label="decididas" />
             <EnterpriseMetric
               value={expiringCount}
               label="validade próxima/vencida"
               tone={expiringCount > 0 ? 'critical' : 'neutral'}
-              hint={expiringCount > 0 ? 'exigem ação comercial' : 'nenhuma'}
             />
           </>
         }
