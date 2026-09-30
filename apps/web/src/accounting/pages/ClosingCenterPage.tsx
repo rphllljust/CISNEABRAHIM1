@@ -11,7 +11,7 @@ import {
   WorkbenchSummaryStrip,
   workbenchPrimaryActionClass,
 } from '../../ui/workbench';
-import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
+import { OperationalUnitOptions, useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { VersionedActionForm } from '../../financial-ui/VersionedActionForm';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
@@ -93,7 +93,7 @@ function ExceptionItem({ item }: { item: ClosingException }) {
  * barra compacta — nenhum recorte, permissão ou chamada mudou.
  */
 export function ClosingCenterPage() {
-  const { units, unitId, setUnitId } = useOperationalUnits();
+  const { units, options: unitOptions, unitId, setUnitId } = useOperationalUnits();
   const [periodId, setPeriodId] = useState('');
   const [statusFilter, setStatusFilter] = useState<'' | 'OPEN' | 'CLOSED'>('OPEN');
   const [error, setError] = useState<string | null>(null);
@@ -218,15 +218,16 @@ export function ClosingCenterPage() {
             onChange={(event) => setUnitId(event.target.value)}
           >
             {/*
-              ESCOPO, NAO SLUG: `unitId` e identificador interno
-              (`unit-synthetic-homolog`) e nao vai para a superficie. O `value` continua
-              carregando o recorte REAL enviado a API; muda so o texto lido pelo operador.
+              ESCOPO DE UNIDADE pelo primitivo compartilhado — mesmo tratamento das demais
+              superficies contabeis (Lancamentos, Diario, Fechamentos, Plano de contas,
+              Imobilizado).
+
+              O ordinal `Unidade {index + 1}` nao diz QUAL unidade o operador esta fechando —
+              e num fechamento contabil escolher a unidade errada nao e um detalhe de rotulo: e
+              fechar a competencia da unidade errada. `value` continua carregando o recorte REAL
+              enviado a API; muda apenas o texto lido.
             */}
-            {units.map((unit, index) => (
-              <option key={unit} value={unit}>
-                Unidade {index + 1}
-              </option>
-            ))}
+            <OperationalUnitOptions options={unitOptions} />
           </select>
         </WorklistField>
 

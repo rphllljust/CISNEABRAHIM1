@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ContractsApiError, listContracts } from '../api/contracts-api';
 import { mapContractErrorToMessage } from '../api/contracts-error-messages';
 import { ContractStatusBadge } from '../components/ContractStatusBadge';
@@ -10,6 +11,7 @@ import { searchClientOptions } from '../../financial-ui/client-lookup';
 import { OperationalUnitOptions, useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
 import {
   RecordStatusCell,
+  RowActionCell,
   WorklistClearFilters,
   WorklistField,
   WorklistFilterBar,
@@ -17,6 +19,7 @@ import {
   WorklistHeader,
   WorklistRowLink,
   WorklistStatePanel,
+  rowPrimaryActionClass,
   worklistCellClass,
   worklistCellRaisedClass,
   worklistHeadCellClass,
@@ -239,6 +242,9 @@ export function ContractsListPage() {
                 <th scope="col" className={worklistHeadCellClass}>
                   Atualizado em
                 </th>
+                <th scope="col" className={worklistHeadCellClass}>
+                  <span className="sr-only">Ações</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -278,6 +284,19 @@ export function ContractsListPage() {
                   <td className={worklistCellRaisedClass}>
                     <span className="whitespace-nowrap">{formatDateTime(item.updatedAt)}</span>
                   </td>
+                  {/*
+                    ACAO DA LINHA — mesmo contrato de Pedidos (GOLD 1) e Pessoas (GOLD 3).
+
+                    O contrato so oferecia navegacao pelo numero. A leitura aqui e a MESMA que a
+                    listagem bem-sucedida ja provou: abrir o contrato. As transicoes de contrato
+                    (ativar/encerrar) exigem contrato proprio no detalhe — nao sao oferecidas na
+                    grade para nao prometer operacao que nao conclui ali.
+                  */}
+                  <RowActionCell className="w-16">
+                    <Link to={`/app/contracts/${item.id}`} className={rowPrimaryActionClass}>
+                      Abrir
+                    </Link>
+                  </RowActionCell>
                 </tr>
               ))}
             </tbody>

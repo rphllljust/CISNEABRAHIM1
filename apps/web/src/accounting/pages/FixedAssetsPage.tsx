@@ -9,7 +9,7 @@ import { CreateRecordForm, VersionedActionForm } from '../../financial-ui/Versio
 import { RecordLookupCard } from '../../financial-ui/RecordLookupCard';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
-import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
+import { OperationalUnitOptions, useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
 import { searchPhysicalAssetOptions } from '../api/physical-asset-lookup';
 import {
   acquireFixedAsset,
@@ -96,17 +96,7 @@ export function FixedAssetsPage() {
             onChange={(event) => lookupUnit.setUnitId(event.target.value)}
             required
           >
-            {lookupUnit.units.length === 0 ? <option value="">Nenhuma unidade disponível</option> : null}
-
-            {lookupUnit.units.map((unit, index) => (
-
-              <option key={unit} value={unit}>
-
-                Unidade {index + 1}
-
-              </option>
-
-            ))}
+            <OperationalUnitOptions options={lookupUnit.options} />
           </Select>
         </Field>
         <HumanLookupField
@@ -142,17 +132,7 @@ export function FixedAssetsPage() {
             onChange={(event) => registerUnit.setUnitId(event.target.value)}
             required
           >
-            {registerUnit.units.length === 0 ? <option value="">Nenhuma unidade disponível</option> : null}
-
-            {registerUnit.units.map((unit, index) => (
-
-              <option key={unit} value={unit}>
-
-                Unidade {index + 1}
-
-              </option>
-
-            ))}
+            <OperationalUnitOptions options={registerUnit.options} />
           </Select>
         </Field>
         <HumanLookupField
