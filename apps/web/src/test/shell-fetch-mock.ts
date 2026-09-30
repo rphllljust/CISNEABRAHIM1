@@ -4,6 +4,9 @@ import { parseRequestPath } from './request-url';
 export const MOCK_IDENTITY_ID = '11111111-1111-4111-8111-111111111111';
 export const MOCK_SESSION_ID = '22222222-2222-4222-8222-222222222222';
 
+/** Unidade autorizada do ator no mock — a mesma que a navegacao usa para sondar fiscal/contabil. */
+export const MOCK_UNIT_ID = 'UN-DEV-001';
+
 export type ShellFetchMockOptions = {
   probeAllowed?: boolean;
 };
@@ -110,6 +113,48 @@ export function createShellFetchMock(options: ShellFetchMockOptions = {}) {
 
     if (pathname === '/api/v1/requests/service-requests' && method === 'GET') {
       return jsonResponse({ items: [], limit: 1, offset: 0 });
+    }
+
+    /**
+     * ESCOPO DE UNIDADE — a lista que a navegacao resolve ANTES das sondas que exigem unidade.
+     *
+     * Sem esta rota o mock devolvia 404, `resolveAuthorizedUnit` caia em `''` e toda superficie
+     * fiscal/contabil resolvia `undetermined` — o que escondia itens por um motivo DIFERENTE do
+     * que os testes de contrato querem medir.
+     */
+    if (pathname === '/api/v1/requests/service-requests/operational-units' && method === 'GET') {
+      return jsonResponse({ items: [MOCK_UNIT_ID] });
+    }
+
+    /**
+     * FINANCEIRO — modela o DEFEITO REAL medido em HML, nao um estado inventado.
+     *
+     * O menu sondava o DETALHE com UUID sintetico e recebia 404; para aquele codigo, 404
+     * significava "a rota existe, o registro e que nao" e o item ficava VISIVEL. A pagina pedia
+     * a LISTA e recebia 403 FINANCE_DENIED. Resultado: menu mostrava Despesas e Orcamentos e a
+     * pagina negava.
+     *
+     * Os dois status sao reproduzidos fielmente — e e essa ASSIMETRIA que da poder ao teste de
+     * contrato: um mapa antigo gravado com a regra do 404 mostra o item; a resolucao nova, que
+     * pergunta pela lista, o esconde.
+     */
+    if (pathname.startsWith('/api/v1/finance/expenses/') && method === 'GET') {
+      return jsonResponse(
+        { error: { code: 'FINANCE_EXPENSE_NOT_FOUND', message: 'Not found.' } },
+        404,
+      );
+    }
+    if (pathname.startsWith('/api/v1/finance/budgets/') && method === 'GET') {
+      return jsonResponse(
+        { error: { code: 'FINANCE_BUDGET_NOT_FOUND', message: 'Not found.' } },
+        404,
+      );
+    }
+    if (pathname === '/api/v1/finance/expenses' && method === 'GET') {
+      return jsonResponse({ error: { code: 'FINANCE_DENIED', message: 'Forbidden.' } }, 403);
+    }
+    if (pathname === '/api/v1/finance/budgets' && method === 'GET') {
+      return jsonResponse({ error: { code: 'FINANCE_DENIED', message: 'Forbidden.' } }, 403);
     }
 
     if (pathname === '/api/v1/analytics/operational-profitability' && method === 'GET') {

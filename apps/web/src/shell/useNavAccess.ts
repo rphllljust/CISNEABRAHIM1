@@ -34,6 +34,7 @@ import { probeAccessAdminAccess } from '../access-admin/api/access-admin-api';
 import { useAuth } from '../auth/context/AuthProvider';
 import { isReleaseModuleEnabled } from '../release-scope/feature-flags';
 import { SHELL_NAV_ITEMS } from './nav-config';
+import { hasEntryRead, probeSurfaceAccess, resolveAuthorizedUnit, SURFACE_ACCESS_CONTRACT_VERSION } from './surface-access';
 import type { NavAccessMap } from './types';
 
 type NavAccessState = {
@@ -73,6 +74,13 @@ const INITIAL_ACCESS: NavAccessMap = Object.fromEntries(
  * (`AuthorizationGuard` + PDP). Um ator sem grant que alcance a URL recebe 403 do backend
  * com ou sem cache — e o pior caso deste cache e um item de menu a mais que leva a uma
  * negacao correta, o mesmo estado que existia antes de ele ser resolvido.
+ *
+ * A CHAVE DE VALIDADE NAO E SO A IDENTIDADE — E A REVISAO DO CONTRATO. Um mapa guardado
+ * responde "o que o ator podia abrir quando ele foi calculado", e sobrevive a reload na mesma
+ * aba. Guardar por identidade apenas fazia toda correcao de sonda chegar INVISIVEL a quem ja
+ * tinha o mapa: o codigo novo entrava, o navegador servia o veredito antigo, e o defeito
+ * aparecia de novo na tela. `SURFACE_ACCESS_CONTRACT_VERSION` (surface-access.ts) e a
+ * assinatura do contrato que produziu o mapa; revisao diferente = mapa descartado.
  */
 const NAV_ACCESS_STORAGE_KEY = 'cisne.navAccess.v1';
 
@@ -84,9 +92,21 @@ function readPersistedNavAccess(identityId: string): NavAccessState | null {
     if (!raw) {
       return null;
     }
-    const parsed = JSON.parse(raw) as { identityId?: unknown; access?: unknown };
+    const parsed = JSON.parse(raw) as {
+      identityId?: unknown;
+      contractVersion?: unknown;
+      access?: unknown;
+    };
     // Identidade diferente = cache de OUTRO ator. Descartar, nunca herdar.
     if (parsed.identityId !== identityId || typeof parsed.access !== 'object' || !parsed.access) {
+      return null;
+    }
+    /**
+     * Contrato diferente (ou ausente, como em todo mapa gravado antes desta revisao) = veredito
+     * de outra regra. Descartar e perguntar ao servidor de novo. Sem isto, uma correcao de sonda
+     * nao alcanca quem ja navegou: o menu continua mostrando a porta que a pagina nao abre.
+     */
+    if (parsed.contractVersion !== SURFACE_ACCESS_CONTRACT_VERSION) {
       return null;
     }
     return { loading: false, access: parsed.access as NavAccessMap };
@@ -99,7 +119,11 @@ function persistNavAccess(identityId: string, state: NavAccessState): void {
   try {
     window.sessionStorage.setItem(
       NAV_ACCESS_STORAGE_KEY,
-      JSON.stringify({ identityId, access: state.access }),
+      JSON.stringify({
+        identityId,
+        contractVersion: SURFACE_ACCESS_CONTRACT_VERSION,
+        access: state.access,
+      }),
     );
   } catch {
     // Fail-open apenas para o cache: sem persistencia o menu ainda resolve pela rede.
@@ -150,6 +174,15 @@ export function useNavAccess(): NavAccessState {
     async function resolveAccess() {
       const nextAccess: NavAccessMap = { ...INITIAL_ACCESS };
 
+      /**
+       * ESCOPO AUTORIZADO resolvido UMA vez para todas as sondas que exigem unidade.
+       * Sem ele, fiscal e contabilidade não têm como montar a leitura de entrada.
+       */
+      const unitId = await resolveAuthorizedUnit(ownerIdentityId, controller.signal);
+      if (cancelled) {
+        return;
+      }
+
       for (const item of SHELL_NAV_ITEMS) {
         if (item.featureFlag && !isReleaseModuleEnabled(item.featureFlag)) {
           nextAccess[item.id] = false;
@@ -159,6 +192,40 @@ export function useNavAccess(): NavAccessState {
         if (!item.accessCheck) {
           nextAccess[item.id] = true;
           continue;
+        }
+
+        /**
+         * CONTRATO ÚNICO (ver `surface-access.ts`).
+         *
+         * A visibilidade passa a depender da MESMA operação de leitura que a PÁGINA executa
+         * para entrar no módulo. Antes, o menu sondava um DETALHE com UUID sintético e lia 404
+         * como autorização, enquanto a página pedia a LISTA e recebia 403 — o menu mostrava
+         * Orçamentos e Despesas e a página negava.
+         *
+         * `undetermined` (superfície sem leitura própria, ou sem unidade autorizada) cai na
+         * sonda de capability abaixo — que nesses casos é exatamente a MESMA que a página usa,
+         * então menu e página seguem concordando.
+         */
+        if (hasEntryRead(item.accessCheck)) {
+          try {
+            const result = await probeSurfaceAccess(
+              item.accessCheck,
+              unitId,
+              controller.signal,
+            );
+            if (result.outcome === 'allowed') {
+              nextAccess[item.id] = true;
+              continue;
+            }
+            if (result.outcome === 'denied') {
+              nextAccess[item.id] = false;
+              continue;
+            }
+          } catch {
+            // Falha de rede na sonda não autoriza: fail-closed.
+            nextAccess[item.id] = false;
+            continue;
+          }
         }
 
         if (item.accessCheck === 'authz-probe') {
