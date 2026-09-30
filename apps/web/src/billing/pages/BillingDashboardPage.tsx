@@ -17,10 +17,10 @@ import {
   ModuleErrorState,
   ModuleLoadingState,
   ModulePage,
-  ModulePageHeader,
   ModuleStatePage,
 } from '../../ui/module-layout';
-import { WorkbenchMetric, WorkbenchQueue, WorkbenchSummaryStrip } from '../../ui/workbench';
+import { EnterpriseMetric, WorklistHeader } from '../../ui/enterprise-list';
+import { WorkbenchQueue } from '../../ui/workbench';
 
 type PageState =
   | { phase: 'loading' }
@@ -113,21 +113,38 @@ export function BillingDashboardPage() {
 
   return (
     <ModulePage>
-      <ModulePageHeader
-        title="Faturamento interno"
-        description="Cobrança operacional interna: preparação a partir de medições aprovadas. A Nota Fatura é documento interno e não constitui NF-e, NFS-e nem emissão fiscal oficial."
-      />
-
       {/*
-        RESUMO DA FILA — os mesmos numeros que a fila mostra, na primeira dobra. A divergencia vem
-        primeiro porque e a excecao que exige alinhamento antes de qualquer preparacao.
+        GRAMATICA DE WORKLIST — `WorklistHeader` no lugar de `ModulePageHeader`, para o operador
+        reconhecer a mesa de trabalho pelo mesmo desenho das demais listas. O resumo continua
+        vindo do MESMO agrupamento da fila (`groupWorkQueueByBucket`), agora na faixa de
+        indicadores da cabeca em vez de uma segunda faixa logo abaixo dela.
       */}
-      <WorkbenchSummaryStrip>
-        <WorkbenchMetric value={divergenceCount} label="com divergência" tone="warning" />
-        <WorkbenchMetric value={readyCount} label="prontos para faturar" />
-        <WorkbenchMetric value={preparedCount} label="em preparação" />
-        <WorkbenchMetric value={state.items.length} label="na fila" />
-      </WorkbenchSummaryStrip>
+      <WorklistHeader
+        title="Faturamento interno"
+        count={state.items.length}
+        context="Cobrança operacional interna: preparação a partir de medições aprovadas. A Nota Fatura é documento interno e não constitui NF-e, NFS-e nem emissão fiscal oficial."
+        metrics={
+          <>
+            <EnterpriseMetric
+              value={divergenceCount}
+              label="com divergência"
+              tone={divergenceCount > 0 ? 'warning' : 'neutral'}
+              hint={divergenceCount > 0 ? 'exigem alinhamento' : 'nenhuma'}
+            />
+            <EnterpriseMetric
+              value={readyCount}
+              label="prontos para faturar"
+              tone={readyCount > 0 ? 'info' : 'neutral'}
+              hint="medição aprovada"
+            />
+            <EnterpriseMetric
+              value={preparedCount}
+              label="em preparação"
+              hint="nota em curso"
+            />
+          </>
+        }
+      />
 
       <WorkbenchQueue
         title="Fila de trabalho do faturamento"

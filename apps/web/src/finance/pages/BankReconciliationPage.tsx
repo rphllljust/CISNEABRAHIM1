@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button, DateTime, EmptyState, Field, Input, Money, Select, Textarea, VersionConflictBanner, worklistTableCardClass } from '../../ui';
-import { ModuleDeniedState, ModuleErrorState, ModuleLoadingState, ModulePage, ModuleStatePage, ModulePageHeader, ModulePagination, UnitScopeLabel, filterControlClass } from '../../ui/module-layout';
-import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
+import { ModuleDeniedState, ModuleErrorState, ModuleLoadingState, ModulePage, ModuleStatePage, ModulePagination, UnitScopeLabel, filterControlClass } from '../../ui/module-layout';
+import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass, WorklistHeader } from '../../ui/enterprise-list';
 import { WorklistException, WorklistField, WorklistFilterBar, worklistSelectClass } from '../../ui/enterprise-list';
 import {
   WorkbenchMetric,
@@ -493,9 +493,15 @@ export function BankReconciliationPage() {
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      {/*
+        GRAMATICA DE WORKLIST — `WorklistHeader` no lugar de `ModulePageHeader`, a mesma cabeca
+        das demais listas. A contagem e o total AUTORIZADO pelo servidor sob o filtro vigente; os
+        indicadores sao os mesmos numeros que a faixa de resumo ja publicava, agora na cabeca.
+      */}
+      <WorklistHeader
         title="Conciliação bancária"
-        description="Mesa de trabalho dos extratos importados: a fila mostra primeiro o que ainda tem linha sem vínculo. Filtros, paginação e conciliação são resolvidos pelo servidor."
+        count={total}
+        context="Mesa de trabalho dos extratos importados: a fila mostra primeiro o que ainda tem linha sem vínculo. Filtros, paginação e conciliação são resolvidos pelo servidor."
       />
 
       {/* BARRA COMPACTA — mesmos controles e mesmos valores enviados à API. */}
