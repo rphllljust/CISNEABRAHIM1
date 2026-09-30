@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { DateTime, EmptyState, Money, Select } from '../../ui';
 import { ModulePage, ModulePagination } from '../../ui/module-layout';
 import {
@@ -10,6 +11,7 @@ import {
   WorklistFooter,
   WorklistHeader,
   WorklistRowLink,
+  WorklistStatePanel,
   worklistCellClass,
   worklistCellRaisedClass,
   worklistHeadCellClass,
@@ -151,6 +153,43 @@ export function PayablesListPage() {
 
   const selectedRows = selection.selectedRows(filtered);
   const previewRow = pageItems.find((item) => item.id === previewId) ?? null;
+
+  /**
+   * CARTEIRA VAZIA — `200 + items=[]` e EMPTY DATA, nao negacao de acesso.
+   *
+   * Mesmo defeito corrigido em Contas a receber: sem este corte a tela renderizava QUATRO
+   * indicadores de drill-down, a barra de filtros e a barra de aging sobre uma carteira sem um
+   * unico titulo — "VENCIDOS 0 / R$ 0,00", "A VENCER 0 / R$ 0,00", "AGING 90+ 0", "OBRIGACOES
+   * EM ABERTO 0 / R$ 0,00" empilhados antes de qualquer explicacao.
+   *
+   * A leitura e do SERVIDOR (`page.total`), nunca da pagina — MAS `page.total` conta o recorte
+   * ATIVO, nao a carteira inteira. Por isso o estado compacto so entra quando NAO HA RECORTE:
+   * com filtro ou visao aplicada, lista vazia significa "nada nesta visao", e esse caso ja tem
+   * o proprio estado humano, que explica o recorte em vez de fazer a carteira parecer
+   * inexistente. Confundir os dois substitui a tela inteira e o operador perde os filtros.
+   */
+  const portfolioEmpty = page.total === 0 && !smartList.isFiltered;
+
+  if (portfolioEmpty) {
+    return (
+      <ModulePage>
+        <WorklistHeader
+          title="Contas a pagar"
+          count={0}
+          context="Aging e saldo restante são os informados pelo servidor. Esta tela não recalcula obrigações."
+        />
+        <WorklistStatePanel
+          title="Nenhuma obrigação a pagar registrada."
+          description="As obrigações nascem da compra: quando uma nota de fornecedor é registrada, o título aparece aqui com vencimento, aging, saldo e situação. Nada foi somado nem estimado nesta tela."
+          action={
+            <Link to="/app/procurement" className="text-xs font-semibold text-brand-700 no-underline">
+              Ver compras
+            </Link>
+          }
+        />
+      </ModulePage>
+    );
+  }
 
   return (
     <ModulePage>
