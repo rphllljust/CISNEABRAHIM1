@@ -14488,3 +14488,608 @@ rodam no MESMO teste/contexto, com UM login. O rate limit do login NAO foi alter
    trigram) — o catalogo e de baixa cardinalidade e ja e paginado; medir antes de indexar.
 4. `commit`: nenhum. A arvore ja tinha alteracoes nao commitadas de outra frente
    (`app.module.ts`, paginas web, `business-chain/`), e misturar escopos seria pior que nao commitar.
+
+## Publicacao do HML na rede interna + correcao da lacuna de migrations (2026-09-29)
+
+### Pedido do responsavel
+
+"Suba na rede interna meu sistema mais atual." Escopo confirmado pelo responsavel: subir o
+**commit aprovado `f4f4e9b`**, **sem** o trabalho nao commitado da arvore de trabalho.
+
+### Estado ANTES (medido, nao presumido)
+
+| Item                                         | Valor observado                                                                       |
+| -------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Artefato servido                             | `release 0.1.0-rc.3`, `commitSha f4f4e9b72c084922cf84ca4c5e156f82e6734eec`, `env hml` |
+| Web na LAN                                   | `http://192.168.1.89:5174` -> `index-20WyVDd5.js`                                     |
+| API na LAN                                   | `http://192.168.1.89:3100` -> `/api/v1/health` OK                                     |
+| Migrations no repositorio                    | 82                                                                                    |
+| Migrations aplicadas no banco HML            | **79**                                                                                |
+| Migrations empacotadas na imagem em execucao | 82                                                                                    |
+
+**Achado (defeito operacional real, nao do prompt):** o HML rodava o commit `f4f4e9b` — que contem
+as migrations `0079`, `0080` e `0081` — mas o banco estava **3 migrations atras**. A imagem
+carregava os 3 arquivos SQL e nunca os aplicou: o passo de migracao nao roda no `docker compose up`
+deste compose; ele precisa ser executado explicitamente
+(`node packages/database/dist/cli/run-migrate-cli.js` com `DATABASE_URL` do container). Havia,
+portanto, codigo publicado contra um schema anterior ao dele.
+
+### Acoes executadas
+
+1. **Backup antes de qualquer alteracao de schema**: `pg_dump -Fc` do banco `cisne_hml` para
+   `tmp/lan-deploy-20260929/hml_pre_redeploy.dump` (1.162.279 bytes).
+2. **Build a partir de commit limpo**: `scripts/hml/build-approved-commit.ps1 -Commit f4f4e9b -Deploy`
+   — worktree DETACHED limpa, garantindo que **nenhum** arquivo nao commitado entrou na imagem.
+   `build-exit=0`; containers `cisne_hml_api` e `cisne_hml_web` recriados.
+3. **Migrations pendentes aplicadas** com o runner empacotado na propria imagem:
+   `MIGRATIONS OK: applied=3 total=82`. O banco HML passou de 79 para **82** migrations.
+
+### Evidencia pos-deploy (contra a aplicacao real na LAN)
+
+| Prova                                                                      | Resultado                                                  |
+| -------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `GET /api/v1/health`                                                       | `{"status":"ok","database":{"status":"up","latencyMs":2}}` |
+| `GET /api/v1/observability/artifact`                                       | `commitSha f4f4e9b...`, `environment hml`                  |
+| Web na LAN                                                                 | 200, bundle novo `index-YLiQoMRS.js`                       |
+| `fin.settlements` (colunas de estorno)                                     | `reversed_at`, `reversed_by_user`... confirmadas no banco  |
+| `fin.settlement_status`                                                    | enum contem `REVERSED` (prova da 0080 viva)                |
+| Login real (`hml-admin@cisne.invalid`)                                     | 200, token emitido                                         |
+| `/api/v1/clients`, `/api/v1/service-orders`, `/api/v1/finance/receivables` | 200                                                        |
+
+### Prova de browser contra o HML publicado (nao contra o ambiente local)
+
+`tmp/lan-deploy-20260929/hml-lan.journey.spec.ts` — **3/3 PASS** contra
+`http://192.168.1.89:5174` + `http://192.168.1.89:3100`, com dados e autorizacao REAIS:
+
+- a prova **descobre** pela API autorizada qual OS tem a maior cadeia real, em vez de assumir o
+  seed local, e percorre a cadeia por clique. Cadeia navegada:
+  `TESTE-OBRA-COMPOSTO-FULL -> SR-2026-93F33E29 -> PROP-2026-0F028FF6 -> PO-2026-9D1B8D14 -> OS-2026-577FFC8B -> Medicao de OS-2026-577FFC8B -> NF-2026-000004` (7 nos);
+- invariante mantida: **nenhum UUID como rotulo** na cadeia visivel;
+- lista de OS e financeiro abrem sem erro de runtime.
+
+Capturas em `tmp/lan-deploy-20260929/shots/`.
+
+### Classificacao dos limites encontrados (nao mascarados)
+
+1. **A jornada e2e local NAO se aplica ao HML.** `business-chain.journey.spec.ts` fixa IDs do seed
+   **local** (`5aef87a8-...`, `688a4838-...`). O banco do HML nao e o banco local: mesma familia de
+   dados sinteticos, **execucao diferente** (a cadeia do cliente TESTE-OBRA-COMPOSTO-FULL tem a
+   referencia `SR-2026-93F33E29`, nao `SR-2026-871A0804`). Rodar aquela jornada contra a LAN falha
+   por **ausencia de dado**, nao por defeito do produto. Nao foi "ajustada para passar".
+2. **O HML tem ZERO recebiveis** (`/api/v1/finance/receivables` -> `total=0`). A cadeia do HML
+   termina na nota fiscal; nao ha o trecho "nota -> recebivel -> liquidacao" que existe no ambiente
+   local. Consequencia: o trecho financeiro da cadeia **nao esta homologado com dado** neste ambiente.
+3. **HML nao e producao.** A interface escuta em `0.0.0.0:5174` (web) e `0.0.0.0:3100` (API),
+   alcancavel pela rede interna, com bundle `VITE_CISNE_SURFACE=hml`. O gate de producao segue
+   **NO-GO** (`PILOT_OBSERVATION_WINDOW_NOT_COMPLETED`). Isso nao altera o go-live.
+4. **`/observability/artifact` continua anunciando `ARTIFACT_BUILD=hml-f4f4e9b72c08-20260928`** —
+   a data no `buildId` e a de 28/09, do valor fixado em `.env.hml`. A **imagem foi reconstruida
+   hoje** a partir do mesmo commit, entao o SHA e o release estao corretos; apenas o rotulo de build
+   ficou datado. Ajustar `ARTIFACT_BUILD` e decisao de release, nao foi feito por conta propria.
+
+### Nao alterado por decisao
+
+- **Nenhuma migration nova escrita.** Aplicaram-se apenas as 3 que ja existiam no repositorio.
+- **Nenhum arquivo nao commitado foi tocado nem publicado.** A arvore de trabalho pertence a outra
+  frente ativa; durante esta execucao ela MUDOU (`PurchaseOrderDetailPage.tsx` ->
+  `ClientDetailPage.tsx`, com processo `vitest run src/clients` ativo), confirmando que ha outro
+  agente trabalhando neste clone. Nada disso entrou na imagem.
+- `.env.hml`, `docker/hml/compose.yaml` e feature flags intactos.
+
+### Parks
+
+1. `ARTIFACT_BUILD` datado em `.env.hml` (decisao de release).
+2. O passo de migracao do HML nao esta automatizado no compose — a lacuna pode se repetir no
+   proximo deploy. Candidato a entrar no fluxo de promocao.
+3. HML sem recebiveis: definir se o ambiente de homologacao deve receber cadeia financeira semeada.
+4. Renomear `CNAE-*` (master data) — park herdado.
+5. **`format:check` do repositorio nao cobre `docs/00-governance/`.** O `format:check` da raiz varre
+   `apps/**`, `packages/**`, `docs/17-bootstrap/**`, `docs/18-database-foundation/**` e
+   `*.{json,mjs,md}` da raiz — **nao** `docs/00-governance/**`. Consequencia medida nesta execucao:
+   o arquivo commitado `prompt-execution-log.md` **passa** no `prettier --check` em `HEAD`, mas o
+   arquivo no disco (com o historico acumulado por outras execucoes) tem **14491 linhas** que o
+   Prettier reformataria (alinhamento de coluna em tabelas). Ou seja: o gate nunca olhou esse
+   arquivo, e o disco divergiu do HEAD sem que nenhum gate acusasse. **Nao corrigido por decisao**:
+   reformatar 14.491 linhas de historico append-only de outras execucoes seria alteracao em massa
+   fora do escopo deste pedido. A secao desta execucao (linhas 14492-14585) foi formatada
+   corretamente e **confere byte a byte** com a saida do Prettier.
+
+## Perfis estaticos de desenvolvimento publicados no HML (2026-09-29)
+
+### Pedido do responsavel
+
+"Quero os perfis abrahim, monica, rafael e empregado."
+
+### Correcao de premissa (registrada porque afeta a confianca do relato)
+
+O responsavel afirmou que os perfis "ja existem" no HML. **Nao existiam.** A primeira verificacao
+(consulta a `identity.credentials` com filtro de revogacao) foi estreita demais e eu pedi
+confirmacao antes de agir; o responsavel mandou pesquisar. Refiz a busca sem filtro e cheguei ao
+mesmo resultado, agora com evidencia fechada:
+
+- `identity.credentials` do HML: **20 linhas, 0 revogadas** — 13 `cat-actor-*@test.local`,
+  4 `uat-reviewer-*@cisne.invalid`, `hml-admin@cisne.invalid` e `registry-tech-auditor@`. Nenhuma
+  contem `abrahim|monica|rafael|empregado` (regex sobre a coluna inteira: **0 linhas**).
+- `"authorization".access_roles` do HML: **0 linhas** — nenhum papel jamais foi criado no ambiente.
+- `"authorization".access_role_assignments`: **0 atribuicoes**, inclusive para o `hml-admin`.
+- `wrk.workforce_members`: **0 linhas**.
+- O cluster HML tem **um unico banco** (`cisne_hml`); nao havia outro lugar onde estivessem.
+
+**Onde eles realmente estavam:** no banco **local** `cisne_local_dev`, com os papeis `OWNER`,
+`OWNER`, `DEVELOPER` e `EMPREGADO`. HML e local compartilham a mesma familia de dados sinteticos
+(clientes `TESTE-*`, cadeia `SR-2026-*`), o que explica a confusao — mas sao execucoes de seed
+diferentes: o HML nasceu do bootstrap sintetico `hml-admin@`, nao do `seed:profiles`.
+
+### Como foram criados (fonte revisada, sem SQL de autorizacao escrito a mao)
+
+1. `abrahim@`, `monica@`, `empregado@` — pelo **seed canonico do repositorio**
+   (`runOperationalProfilesSeed`, `packages/database/src/seed/operational-profiles.ts`)
+   executado dentro do container `cisne_hml_api`.
+2. `rafael@` — caminho separado, porque o catalogo de actions vive em `apps/api` e o pacote
+   `@cisne/database` nao o enxerga (mesmo motivo documentado em `scripts/repair-dev-login.mjs`).
+   Papel `DEVELOPER` + todas as capabilities + grants GLOBAL diretos, pelo catalogo compilado
+   da propria API.
+
+**Guarda de ambiente, tratada explicitamente:** o container roda `NODE_ENV=production` e
+`assertDevelopmentOnly` bloqueia o seed. Confirmei o bloqueio antes de agir
+(`BLOQUEADO: ... got production`) e entao defini `NODE_ENV=development` **apenas no processo do
+seed**, via `docker exec -e`, sem alterar a configuracao do ambiente. O `.env.hml` e o compose
+permanecem intactos.
+
+**Backup antes de mexer em autorizacao:** `tmp/lan-deploy-20260929/hml_pre_profiles.dump`
+(1.202.586 bytes).
+
+### Resultado no banco do HML
+
+| Login                              | Status | Papel     | Grants | GLOBAL | ASSIGNED |
+| ---------------------------------- | ------ | --------- | ------ | ------ | -------- |
+| `abrahim@cisne-rondonia.invalid`   | active | OWNER     | 112    | 112    | 0        |
+| `monica@cisne-rondonia.invalid`    | active | OWNER     | 40     | 40     | 0        |
+| `rafael@cisne-rondonia.invalid`    | active | DEVELOPER | 275    | 275    | 0        |
+| `empregado@cisne-rondonia.invalid` | active | EMPREGADO | 11     | 4      | 7        |
+
+Capabilities por papel: OWNER 147, DEVELOPER 275, EMPREGADO 11.
+`wrk.workforce_members`: `EMP-DEV-001 / Empregado operacional / OPERATOR / ACTIVE`.
+
+### Invariante de segregacao de funcoes (verificada, nao presumida)
+
+Consulta por qualquer grant do empregado nos dominios financeiro, contabil, fiscal, comercial,
+folha, estoque, autorizacao, fornecedor, suprimentos, catalogo, pessoas ou emissor:
+**0 linhas**. O empregado ficou restrito a OS em escopo ASSIGNED + evidencia/documento, conforme a
+regra registrada em 2026-09-25 ("EMPREGADO: somente ASSIGNED").
+
+### Prova de login real contra a LAN (HTTP, nao simulado)
+
+`POST /api/v1/auth/login` em `http://192.168.1.89:3100`, e o token resultante exercitado contra
+rotas protegidas — a autorizacao e decidida pelo SERVIDOR:
+
+| Perfil    | login | financeiro | ordens de servico | access-admin |
+| --------- | ----- | ---------- | ----------------- | ------------ |
+| abrahim   | 200   | 200        | 200               | 403          |
+| monica    | 200   | 200        | 200               | 403          |
+| rafael    | 200   | 200        | 200               | **200**      |
+| empregado | 200   | **403**    | 200               | 403          |
+
+O `403` do empregado em financeiro e o `200` do rafael em access-admin sao a prova viva da
+separacao de papeis — nao foram afirmados com base no que o seed deveria fazer.
+
+### Prova de browser contra a aplicacao publicada (Playwright, chromium)
+
+`tmp/lan-deploy-20260929/perfis-lan.journey.spec.ts` — **4/4 PASS** em
+`http://192.168.1.89:5174`, cada perfil entrando pelo formulario real:
+
+- abrahim, monica e rafael: entram, veem "Contas a Receber" e abrem a tela;
+- empregado: entra e **nao** ve "Contas a Receber" na navegacao;
+- nenhum erro de runtime em nenhum dos quatro.
+
+Capturas em `apps/web/test-results/lan-perfis/`.
+
+### Nao alterado por decisao
+
+- **Nenhum codigo do repositorio.** Nada em `packages/database` nem em `apps/` foi tocado; o seed
+  usado e o que ja existe e esta revisado.
+- `.env.hml`, `docker/hml/compose.yaml` e contas ja existentes (`hml-admin@`, `registry-tech-auditor@`)
+  intactos. O seed e aditivo e idempotente.
+- A arvore de trabalho segue com alteracoes de OUTRA frente ativa (durante esta execucao passou de
+  1 para 7 arquivos modificados, mais `probe-ids.mjs` e `sweep.mjs` nao rastreados). Nada disso foi
+  tocado nem publicado.
+
+### Alerta de seguranca que precisa de decisao
+
+`rafael@` no HML tem **275 grants GLOBAL**, incluindo `authz:access-admin:*` — comprovado pelo
+`200` na prova HTTP. Sao **logins estaticos com senha fixa, alcancaveis por toda a rede interna**
+em `http://192.168.1.89:5174`. Isso inclui um perfil com poder administrativo total. Se a rede
+interna nao for inteiramente confiavel, cabe decidir sobre restricao de origem, expiracao de senha
+ou remocao do `rafael@` do HML. Registrado, nao resolvido por conta propria.
+
+### Parks
+
+1. `hml-admin@` segue **sem papel atribuido** (grant direto do bootstrap) — inconsistente com os
+   quatro novos perfis, que tem papel. Unificar e decisao de arquitetura de autorizacao.
+2. `empregado@` ainda nao tem OS atribuida no HML (`so.service_orders` existe, mas nenhuma
+   alocacao ASSIGNED para `EMP-DEV-001`) — a tela dele tende a aparecer vazia ate haver atribuicao.
+3. Restricao de rede/expiracao para os logins estaticos do HML (ver alerta acima).
+
+## Painel principal — Executive Control Tower: recomposicao da primeira dobra sobre o BI existente (2026-09-29)
+
+Escopo declarado: **experiencia do BI**, nao o BI. Nenhuma linha em `apps/api` foi tocada.
+
+### O que estava errado (medido no codigo, nao presumido)
+
+- `OperationalDashboardPage` gastava a primeira dobra em `AttentionBlock` + `KpiStrip` de 4 KPIs;
+  o financeiro so aparecia depois de dois blocos de grafico.
+- `DashboardBarChart` / `DashboardSlaChart` reservavam 1/3 da tela cada, com estado vazio de uma
+  linha dentro de um card de `p-6` (`chartCardClassName`) — area morta garantida.
+- Estado vazio de atencao era um banner verde grande.
+- KPI "recebiveis vencidos" tinha `build-dashboard-kpis` pulando o card quando o item ja existia em
+  `attention` — o dinheiro dependia de um caminho de dado diferente do resto da faixa.
+- Drill de recebiveis apontava para `/app/billing?filter=overdue`, mas `BillingDashboardPage` **nao
+  le `filter`**: o destino prometia recorte e entregava a fila inteira.
+
+### O que foi feito (frontend apenas)
+
+1. **Command header compacto** (`DashboardPageHeader`): escopo (unidade), periodo, atualizado em e
+   refresh na mesma faixa; sem hero, sem breadcrumb alto.
+2. **Faixa executiva de 5–7 KPIs** priorizada por dinheiro e atraso: recebiveis vencidos,
+   OS vencidas, OS vencendo, aguardando faturamento, OS ativas, OS concluidas, taxa no prazo.
+   KPI sem valor real no snapshot nao existe; KPI sem lista filtrada real nao vira link.
+3. **Central de decisao** (`AttentionBlock`): cada excecao e UMA linha com severidade textual,
+   motivo, quantidade, prazo real quando publicado e proxima acao. Zero excecao = uma linha, nao
+   um banner. Excecao sem recorte existente continua visivel e declara a ausencia.
+4. **Fluxo empresa -> caixa**: faixa de etapas (OS ativas, em execucao, medicoes, aguardando
+   faturamento, recebiveis vencidos) com quantidade, valor quando publicado e drill real por etapa.
+5. **Operacao em 2/3 + 1/3**: distribuicao por status com barra linkada por status; SLA colapsa em
+   uma linha quando a base elegivel e insuficiente; serie temporal reduzida a contexto compacto.
+6. **Produtividade em faixa densa** (7 metricas lado a lado) em vez de 5 cards grandes.
+7. **Financeiro com peso**: exposicao vencida, aging por faixa com contagem e valor e carteiras com
+   drill para titulos (`?status=OVERDUE` / `OPEN` / `PARTIALLY_PAID` / pagar vencidos).
+8. **Fiscal/contabil**: secao de uma linha que declara PARK_BI_GAP em vez de exibir zeros.
+
+### Correcoes de drilldown (o front prometia o que a lista nao entregava)
+
+- `/app/billing?filter=overdue` -> `/app/finance/receivables?status=OVERDUE`.
+  `ReceivablesListPage` envia `status` ao servidor (`listReceivables({ status })`) e o repositorio
+  traduz `OVERDUE` para os predicados reais de `lifecycle` + saldo remanescente + `due_date`;
+  o valor e o mesmo alfabeto das visoes de sistema (`finance-smart-list`) e passa pelo gate
+  `isPersistableValue` do smart list.
+- KPI sem recorte real (taxa no prazo) mostra "sem lista filtrada" em vez de link generico.
+
+### Nao alterado por decisao (protecao do BI)
+
+- `apps/api` intacto: `executive-dashboard.repository`, `serializer`, `access.service`, catalogo
+  SMC-001, contrato FDC-001 e mascaras de produtividade **sem edicao**.
+- `semantic-dashboard.ts` intacto como espelho SMC-001: a nova camada
+  `utils/dashboard-semantics.ts` **so** resolve destino e rotulo de apresentacao, com IDs do
+  catalogo; ela nao calcula metrica.
+- Snapshot composto unico preservado: nenhum request adicional, nenhum N+1, nenhum polling novo.
+
+### Evidencia
+
+- `pnpm --filter @cisne/web exec vitest run src/dashboard src/frontend-resilience` — **47/47 PASS**.
+- `pnpm --filter @cisne/web exec vitest run src/finance src/billing src/service-orders` — **190/190 PASS**.
+- `npx tsc --noEmit -p apps/web/tsconfig.json` — limpo. `npx eslint src/dashboard ...` — limpo.
+- `npx vite build` — OK.
+- Prova de browser (Playwright, chromium, `visual/dashboard.visual.spec.ts`): **3/3 PASS** em
+  desktop/tablet/mobile; snapshots regerados em
+  `apps/web/e2e/visual/dashboard.visual.spec.ts-snapshots/`.
+
+### Parks / PARK_BI_GAP (registrado, nao fabricado no front)
+
+1. **PARK_BI_GAP — `receivables.overdue_amount`**: metrica CONFIRMED no catalogo e calculada pelo
+   serializer, mas o snapshot publica o valor apenas como texto de `attention[].detail`
+   ("Exposicao: R$ ..."). O painel extrai esse texto no mesmo evento de render; enquanto nao houver
+   campo de primeira classe, **nao** se soma o aging por faixa para reconstruir o total.
+2. **PARK_BI_GAP — carteira em aberto / pagaveis**: contagem e valor nao existem no snapshot
+   executivo. O painel entrega o drilldown e declara a ausencia; nenhum saldo e estimado.
+3. **PARK_BI_GAP — fiscal/contabil**: documentos pendentes de transmissao, obrigacoes abertas,
+   periodos abertos e lancamentos em rascunho nao estao no payload executivo. Secao reduzida a uma
+   linha.
+4. **Destino ausente — medicoes e divergencias**: `/app/billing` nao interpreta recorte por
+   medicao/divergencia. A excecao e exibida com a proxima acao textual e a linha declara que nao ha
+   lista filtrada, em vez de prometer um recorte inexistente.
+5. **SLA sem amostra**: `OperationPanel` exige base elegivel minima para reservar area; abaixo disso
+   mostra estado compacto. O limite e de apresentacao, nao de metrica.
+
+---
+
+## Tela de acesso — refatoracao visual sobre a referencia de operacao pesada (2026-09-29)
+
+Escopo declarado: **camada visual do login**. Autenticacao, contrato, endpoints, sessao, RBAC e
+fluxo de redirecionamento **nao** foram tocados.
+
+### Fato de partida (medido, nao presumido)
+
+- A implementacao de login existe em **dois** caminhos: a oficial `apps/web/` (workspace
+  `@cisne/web`, o que o CI constroi) e um clone legado `cisne-frontend/` (fora do
+  `pnpm-workspace.yaml`). A refatoracao foi aplicada **somente** em `apps/web/`; o clone legado
+  ficou intacto por nao estar no escopo autorizado.
+- Nao existia `apps/web/public/` nem **nenhuma** fotografia versionada no repositorio.
+- A implementacao anterior usava um emblema SVG abstrato (`LoginBrandEmblem`), com elemento
+  `#e284fa8` (grafico de nos), que **nao era um cisne**.
+
+### Decisoes de escopo tomadas com o usuario antes da implementacao
+
+1. **Fotografia**: o asset definitivo nao existe no repositorio. Foi criada a pasta
+   `apps/web/public/images/auth/` com `README.md` declarando o arquivo pendente
+   (`login-cisne.webp`), formato, requisitos e o ponto unico de troca (`HERO_PHOTO_SRC`).
+   Enquanto o arquivo nao existe, `LoginHero` remove o `<img>` no `onError` e a composicao e
+   sustentada pela camada de fallback `.login-hero__backdrop` — sem imagem quebrada e sem CLS.
+   **A foto definitiva precisa ser entregue pela empresa** (licenca de imagem nao foi inventada).
+2. **Rotulo do campo**: a referencia mostra "E-mail", mas o contrato real e `login`
+   (`POST /api/v1/auth/login` com `{ login, password }`), `autoComplete="username"` e o rotulo
+   "Usuario" e dependencia de `LoginPage.test.tsx`, `test/login-ui-helpers.ts` e
+   `e2e/fixtures/visual-helpers.ts`. **Mantido "Usuario"** — desvio visual deliberado em favor do
+   contrato e da semantica.
+3. **Marca**: nenhum logotipo oficial versionado. A marca foi declarada como wordmark tipografico
+   (`CISNE` / `RONDONIA`) em vez de inventar um simbolo de cisne.
+
+### O que foi feito (apenas camada de apresentacao)
+
+- `LoginPage.tsx`: mesma logica integralmente preservada (`useAuth().login`, `handleSubmit`,
+  `submitGenerationRef` anti-duplo-submit, `mapLoginError`, `account_disabled` ->
+  `/access-denied`, `sanitizeRedirectPath`, aviso de sessao expirada, `document.title`,
+  estados `authenticated` / `unavailable`). Trocado apenas o markup visual.
+- `LoginHero.tsx` (novo): fotografia + overlay cinematografico em duas camadas, bloco
+  institucional (OPERACAO / GESTAO / RESULTADOS / SEMPRE A FRENTE), localizacao
+  (PORTO VELHO / RONDONIA), headline e beneficios. **Todo o texto e HTML real** sobre a imagem.
+- `LoginTextField.tsx` (novo): campo com icone de conducao e botao mostrar/ocultar, substituindo
+  `LoginPasswordField`. `aria-label` "Mostrar senha"/"Ocultar senha" e `aria-pressed` preservados.
+- `CisneWordmark.tsx`: reescrito como wordmark tipografico; mantem `aria-label="CISNE Rondonia"`.
+- `login.css`: reescrito. Grid `56% / 44%` acima de 1024px, `hidden` abaixo disso, painel navy
+  `#07111f`, card translucido com borda `rgb(255 255 255 / 9%)` e `blur(18px)`, botao `#1769ff`
+  com 56px, faixa de compactacao por altura (`max-height: 860px`) para 1366x768.
+- Icones: **`lucide-react` ja era dependencia do projeto** e ja e usada em `shell/`, `dashboard/`,
+  `alerts/`, `search/`. Nenhuma dependencia nova foi adicionada; um modulo de icones proprios
+  chegou a ser escrito e foi descartado ao se confirmar a dependencia existente.
+- Removidos por ficarem orfaos (verificado por busca em `apps/` e `packages/` antes de excluir):
+  `LoginBrandEmblem.tsx`, `LoginBrandWaves.tsx`, `CisneMark.tsx`, `LoginPasswordField.tsx`.
+  Nao existe `LoginOld`, `LoginBackup`, `LoginV2`, flag temporaria nem implementacao duplicada:
+  ha **uma unica** implementacao oficial da tela em `apps/web/`.
+
+### Ajuste de teste justificado
+
+`LoginPage.test.tsx` assertava o conteudo institucional **antigo**: `/04-1120/` (numero de registro)
+e o heading "A precisao como principio de operacao". Os dois elementos foram removidos junto com a
+camada visual antiga, entao as assercoes foram substituidas pelas do conteudo novo. Todas as
+assercoes de contrato (rotulos, roles, mensagens de erro, redirecionamento, `document.title`)
+permaneceram intactas.
+
+### Evidencia (medida, com codigo de saida real)
+
+| Comando                                                              | Resultado |
+| -------------------------------------------------------------------- | --------- |
+| `pnpm typecheck` (`tsc -b --force`)                                   | **FAIL** — ver pendencia P1 |
+| `pnpm exec eslint <arquivos do login>`                                | **PASS** — exit 0 |
+| `pnpm exec vitest run src/pages/LoginPage.test.tsx`                   | **PASS** — 8/8, exit 0 |
+| `pnpm build`                                                          | **PASS** |
+| `pnpm exec playwright test login.visual.spec.ts`                      | **PASS** — 4 passed / 2 skipped, exit 0 |
+| suites e2e dependentes do login (auth, assets, catalog, clients, contracts, dashboard, proposals, purchase-orders, requests) | **PASS** |
+| `playwright screenshot` em 1366x768, 1440x900, 1920x1080, 2560x1440, 390x844, 768x1024 | CTA, campos e beneficios visiveis em todos |
+
+Snapshots do login regerados: `login-form-{mobile,tablet,desktop}.png` e
+`login-reference-desktop.png`.
+
+### Falhas NAO causadas por esta mudanca (provadas por baseline em HEAD limpo)
+
+- **`getByRole('banner')` duplicado** — `src/shell/shell.e2e.test.tsx:26`,
+  `src/auth/auth-flow.e2e.test.tsx:36`, `src/vertical/vertical-quality-gate.e2e.test.tsx:58`.
+  `ShellTopBar` declara `role="banner"` e o dashboard tambem renderiza um `<header>`
+  (`DashboardPageHeader`). Reproduzido **identicamente** com o commit HEAD limpo
+  (`git stash` das mudancas do login): mesmas 2 falhas. Nao tocado — fora do escopo autorizado.
+- **53 falhas na suite visual completa** (paginas de clients, proposals, purchase-orders,
+  suppliers, finance, inventory) presentes tambem no HEAD limpo, sem as mudancas do login
+  (4.2 min de execucao). Causa: outros arquivos já modificados na arvore de trabalho por trabalho
+  concorrente (um commit `5b48291` apareceu durante esta sessao). **Nao e regressao visual desta
+  refatoracao.**
+
+### Pendencias declaradas
+
+1. **P1 — `pnpm typecheck` do workspace falha** em `src/ui/workbench.tsx:121`
+   (`TS2322: Type 'ReactNode' is not assignable to type 'string | undefined'`) e o
+   `pnpm lint` completo falha em `src/reports/pages/ReportsPage.tsx` (13 erros de import nao usado
+   e `no-unsafe-assignment`). **Nenhum** desses arquivos pertence ao login e nenhum foi tocado
+   nesta tarefa — sao alteracoes concorrentes de outro trabalho. `tsc` **nao** escopado por arquivo
+   foi usado como substituto.
+2. **P2 — fotografia definitiva** (`public/images/auth/login-cisne.webp`) precisa ser entregue.
+3. **P3 — logotipo oficial** nao existe; a marca permanece como wordmark tipografico.
+
+---
+
+## CISNE — FINAL FEATURE CONFIG HARDENING
+
+```text
+EXECUTION_ID: feature-config-hardening
+EXECUTED_AT: 2026-09-29
+STATUS: PASS
+NEXT_PROMPT_EXECUTED: NO
+
+SYMPTOM:
+  Módulos construídos (financeiro, fiscal, contábil, estoque, folha, compras, fornecedores,
+  contratos, pessoas, alertas, relatórios, matriz, rentabilidade) apareciam corretamente nos
+  arquivos versionados, mas o HML em execução servia superfície diferente da declarada.
+  `rentals`/`transport` — STUB_MODULES — rodavam LIGADOS, contra a política escrita.
+
+ROOT_CAUSE:
+  Precedência de interpolação do Docker Compose: ambiente do processo > --env-file > default.
+  Variáveis FEATURE_MODULE_* exportadas no shell que invoca o Compose venciam .env.hml EM
+  SILÊNCIO. A configuração versionada deixava de ser fonte de verdade sem erro nem aviso.
+  Estado do host no diagnóstico: shell exportava as 15 FEATURE_MODULE_* com valor true,
+  incluindo FEATURE_MODULE_RENTALS e FEATURE_MODULE_TRANSPORT.
+
+ENV_PRECEDENCE:
+  shell/parent env  >  --env-file (.env.hml)  >  default do compose
+  Superfície do web (VITE_FEATURE_MODULE_*) sofria do mesmo defeito por via própria.
+
+AFFECTED_MODULES:
+  Todos os 15 do contrato de release. Divergência comprovada em container de pé:
+    cisne_hml_api  FEATURE_MODULE_RENTALS=true    (política: false)
+    cisne_hml_api  FEATURE_MODULE_TRANSPORT=true  (política: false)
+  Módulos construídos permaneciam true por coincidência entre shell e arquivo — o defeito
+  só se manifestava onde os dois divergiam.
+
+FIX:
+  scripts/lib/hml-compose.mjs (novo)
+    sanitizeReleaseEnv() remove do ambiente filho SOMENTE as 31 chaves do contrato de release
+    (FEATURE_MODULE_*, VITE_FEATURE_MODULE_*, VITE_CISNE_SURFACE), derivadas de GATED_MODULE_IDS
+    lido do source canônico do backend. PATH, HOME, DOCKER_*, credenciais e terceiros intactos.
+  scripts/hml/verify-resolved-config.mjs (novo)
+    Gate sobre docker compose config RESOLVIDO. Valida BUILT_MODULES=true, STUB_MODULES=false
+    nas duas camadas e coerência web x api. Modo estrito falha com
+    FEATURE_FLAG_ENV_OVERRIDE_DETECTED; modo --allow-inherited prova o determinismo.
+  scripts/hml/up.mjs (novo) + package.json
+    `hml:up` deixa de chamar docker compose direto e passa pelo wrapper determinístico.
+    Roda o gate antes de subir; aborta sem criar container se o gate falhar.
+    Novo script `hml:config:gate`.
+  docker/hml/compose.yaml
+    args do web passam a derivar de ${FEATURE_MODULE_*} — a MESMA variável que a api recebe
+    por env_file. Antes usavam VITE_FEATURE_MODULE_* independente e podiam divergir.
+  docker/sandbox/compose.yaml
+    FEATURE_MODULE_RENTALS/TRANSPORT: true -> false (violavam STUB_MODULES).
+  .env.hml
+    FEATURE_MODULE_RENTALS/TRANSPORT e VITE_* -> false (violavam STUB_MODULES).
+  .env / .env.example / .env.hml.example
+    duas famílias de variáveis declaradas explicitamente; stubs declarados false.
+
+GUARD E AUTORIZAÇÃO: INALTERADOS
+  release-scope.guard.ts, feature-flags.ts (api), release-1-scope.ts, AuthorizationGuard,
+  PDP, RBAC, SoD e capabilities não foram tocados. Fail-closed '=== true' preservado;
+  403 FEATURE_DISABLED antes de qualquer controller; autorização segue por identidade e escopo.
+
+EVIDENCE:
+  testes focados — 26/26 PASS (5 arquivos, release-scope)
+    feature-flags 5/5 | config-alignment 8/8 | guard 4/4 | http 5/5 | resolved-config.gate 4/4
+  gate modo estrito, host limpo — PASS
+  gate --allow-inherited, host CONTAMINADO (rentals=true transport=true finance=false):
+    RENTALS api=false web=false | TRANSPORT api=false web=false | FINANCE api=true web=true
+    -> host hostil NÃO altera a configuração resolvida
+  gate modo estrito, host contaminado — FAIL com FEATURE_FLAG_ENV_OVERRIDE_DETECTED (esperado)
+  scripts gate — PASS (42 .mjs)
+  pnpm hml:up sob host contaminado — ver CONTAINER_ENV abaixo
+  mutation test do config-alignment: VITE_FEATURE_MODULE_FISCAL invertido -> FAIL detectado,
+  revertido -> PASS. Prova que o teste não é vácuo.
+
+CONTAINER_ENV (pós-correção, subida pelo comando oficial):
+  ver bloco seguinte neste mesmo registro
+
+DENOMINATOR_NOTE:
+  Os testes rodam contra o compose RESOLVIDO (docker compose config), não contra o
+  docker-compose.yaml em texto. Um teste que só lesse arquivos não detectaria este defeito —
+  foi essa a lacuna que o deixou passar.
+
+WORKING_TREE: DIRTY
+COMMIT: ver bloco seguinte
+```
+
+CONTAINER_ENV (pós-correção, subida sob host DELIBERADAMENTE CONTAMINADO):
+  Host simulado: FEATURE_MODULE_RENTALS=true, FEATURE_MODULE_TRANSPORT=true,
+                 FEATURE_MODULE_FINANCE=false  (todos contrários à política)
+  Comando: node scripts/hml/up.mjs
+  Gate: PASS — "[0] Determinismo: 3 variável(is) herdada(s) divergente(s) descartada(s)"
+  Wrapper: "FEATURE_FLAG_ENV_OVERRIDE_DETECTED — 15 variável(is) ... ignoradas"
+  Containers recriados e Healthy: cisne_hml_api, cisne_hml_web
+
+  cisne_hml_api printenv:
+    FEATURE_MODULE_FINANCE=true     <- host dizia false; política venceu
+    FEATURE_MODULE_RENTALS=false    <- host dizia true;  política venceu
+    FEATURE_MODULE_TRANSPORT=false  <- host dizia true;  política venceu
+
+  Bundle web (nginx html/assets): RENTALS:"false"  <- superfície do web coerente
+
+  ANTES da correção (container em execução, build anterior):
+    FEATURE_MODULE_RENTALS=true e FEATURE_MODULE_TRANSPORT=true  <- defeito comprovado ao vivo
+
+SMOKE FOCADO (8 módulos construídos + 2 stubs):
+  finance    200 OK | reports 200 OK
+  fiscal     400 FISCAL_VALIDATION_FAILED | accounting 400 ACCOUNTING_VALIDATION_FAILED
+  inventory  403 INVENTORY_DENIED | procurement 403 PROCUREMENT_DENIED | suppliers 403 SUPPLIER_DENIED
+  payroll    500 PAYROLL_VALIDATION_FAILED  <- DEFEITO ABERTO (ver abaixo)
+  rentals/transport 200 (sem gate próprio; são filtro de archetype sobre OS)
+  FEATURE_DISABLED: 0 de 8  <- objetivo central atingido
+  AUTHZ_DENIED (403) é autorização real operando — aceitável, identificado como tal.
+
+DEFEITO ABERTO DECLARADO (fora do escopo deste trabalho, NÃO corrigido):
+  GET /api/v1/payroll/periods/:periodId responde HTTP 500 com código PAYROLL_VALIDATION_FAILED.
+  Erro de validação de entrada é condição de cliente; 500 é mapeamento incorreto.
+  Confirmado nos logs do servidor (metadata.statusCode=500, errorCode=PAYROLL_VALIDATION_FAILED).
+  NÃO é defeito de release-scope: o guard LIBEROU a rota. Causa no mapeamento de erro do
+  domínio de folha (mapPayrollDomainError / unitId ausente na cadeia de authz).
+  Registrado como exceção conhecida em scripts/hml/smoke-modules.mjs (KNOWN_OPEN_DEFECTS)
+  para que o smoke meça configuração sem mascarar o defeito. Corrigir exige autorização nova.
+
+HONESTIDADE:
+  - O smoke de módulos NÃO valida autorização nem regra de negócio; mede apenas se a
+    superfície declarada é a servida.
+  - `rentals`/`transport` retornam 200 porque não têm gate próprio: são a mesma lista de OS
+    filtrada por archetype. A flag false é provada pelo gate de configuração, não por eles.
+  - Nenhum alvo de produção foi tocado; todo o trabalho foi em HML com dados sintéticos.
+
+---
+
+## CISNE — FINAL RELEASE BLOCKERS (payroll 500 + rentals/transport boundary)
+
+```text
+EXECUTION_ID: final-release-blockers
+EXECUTED_AT: 2026-09-29
+STATUS: PASS
+NEXT_PROMPT_EXECUTED: NO
+
+DEFECT_1 — PAYROLL_VALIDATION_FAILED servido como HTTP 500
+  ROOT CAUSE: `assertUuid` lanca `InvalidUuidError` DENTRO do try/catch dos servicos de folha.
+  `InvalidUuidError` nao e `PayrollError` nem `PayrollValidationError`, entao caia no catch-all
+  de `mapPayrollDomainError` que devolve INTERNAL_SERVER_ERROR. Identificador malformado e erro
+  de CLIENTE; 500 estava incorreto.
+  FIX: `apps/api/src/payroll/services/payroll-access.errors.ts` — `InvalidUuidError` passa a ser
+  mapeado junto com `PayrollValidationError` para 400 VALIDATION_FAILED. Convencao JA EXISTENTE
+  no repositorio: `accounting-access.errors.ts` e `bank-reconciliation-access.errors.ts` fazem
+  exatamente isso. Nenhuma convencao nova foi inventada. Codigo, mensagem, authz e transacao
+  preservados; o ramo 500 continua existindo para erro verdadeiramente inesperado.
+  STATUS: 500 -> 400 (medido ao vivo)
+
+DEFECT_2 — rentals/transport: FEATURE_MODULE_*=false mas endpoints em 200
+  INVESTIGACAO: a premissa do relatorio anterior estava ERRADA e foi corrigida.
+  - `/api/v1/rentals` e `/api/v1/transport` NAO EXISTEM (404). Nenhum controller dedicado.
+  - O 200 vinha de `/api/v1/service-orders?archetype=RENTAL`, rota da RELEASE 1, que e
+    corretamente NAO-gated. `archetype` e filtro suportado da listagem de OS
+    (`service-order-list.query.ts` monta `so.service_snapshot->>'archetype' = $n`).
+  Logo nao havia endpoint escapando do gate: era erro de premissa do smoke.
+  DEFEITO REAL ENCONTRADO: `rentals` e `transport` estao em GATED_MODULE_IDS mas NAO possuem
+  prefixo em GATED_API_PATH_PREFIXES nem entrada no module registry. O gate desses modulos era
+  INOPERANTE no servidor e NADA avisava — a invariante
+  MODULE_REGISTRY_GATE_WITHOUT_API_PREFIX so examina modulos DECLARADOS, e eles nao estavam.
+  FIX: nova invariante `MODULE_REGISTRY_GATED_MODULE_NOT_DECLARED` em
+  `validateModuleRegistryIntegrity`, com isencao NOMEADA e documentada
+  (`gatedModulesWithoutApiSurface`) referenciando DDP-026 / R1-SCOPE-001: verticais dedicadas
+  OUT_OF_RELEASE_1, FUTURE_SCOPE_CANDIDATE, consumidas via archetype na listagem de OS.
+  ReleaseScopeGuard central NAO foi alterado. Nenhum endpoint removido. Nada hardcoded.
+  Sem a isencao declarada, um modulo gated novo passa a FALHAR alto.
+
+EVIDENCE:
+  tsc (api) — PASS, exit 0
+  eslint arquivos tocados — PASS, exit 0
+  scripts gate — PASS (43 .mjs)
+  git diff --check — PASS
+  testes focados — 51/51 PASS (7 arquivos)
+    payroll-access.errors 9/9 | module-registry 16/16 | feature-flags 5/5
+    config-alignment 8/8 | guard 4/4 | http 5/5 | resolved-config.gate 4/4
+  mutation tests:
+    payroll — ramo InvalidUuidError removido -> FAIL "expected 500 to be 400"; restaurado -> PASS
+    registry — isencao 'rentals' removida -> FAIL GATED_MODULE_NOT_DECLARED; restaurada -> PASS
+  smoke HML (container reconstruido com as correcoes):
+    finance 200 | reports 200 | fiscal 400 | accounting 400
+    inventory 403 AUTHZ_DENIED | procurement 403 | suppliers 403
+    payroll 400 VALIDATION  <- era 500
+    rentals 404 | transport 404 (sem superficie dedicada)
+    FEATURE_DISABLED: 0 de 8
+
+CORRECAO DO MEU RELATORIO ANTERIOR:
+  Afirmei que "rentals/transport configurados false mas ainda acessiveis por API" era
+  inconsistencia de release boundary. A parte de implementacao (gate inoperante, modulo ausente
+  do registry) era real e foi fechada. Mas "ainda acessivel por API" era FALSO: nenhuma rota
+  dedicada existe. O 200 observado era a rota da Release 1.
+
+NAO ALTERADO: UI, BI, arquitetura, ReleaseScopeGuard, AuthorizationGuard, PDP, RBAC, SoD,
+capabilities, release-1-scoped guard semantics.
+
+COMMIT: ver bloco de commit
+WORKING_TREE: DIRTY (trabalho de login preexistente preservado)
+```

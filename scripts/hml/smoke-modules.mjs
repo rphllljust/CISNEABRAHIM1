@@ -12,6 +12,8 @@
  *                           este trabalho elimina (superfície declarada != superfície servida).
  *   - `AUTHZ_DENIED`      → o ator autenticado não tem a capability. ACEITÁVEL: é autorização
  *                           real funcionando, não configuração errada. Reportado como tal.
+ *   - `VALIDATION` (400)  → o guard liberou a rota e a validação de domínio assumiu. Prova que
+ *                           o módulo está publicado e funcionando.
  *   - 5xx                 → FAIL. Módulo ligado mas quebrado.
  *
  * Sem essa separação, um 403 legítimo de autorização seria confundido com o defeito de
@@ -43,10 +45,28 @@ const BUILT_MODULE_ROUTES = [
   { module: 'reports', path: '/api/v1/reports/catalog' },
 ];
 
-/** Stubs: DEVEM responder FEATURE_DISABLED, pois estão desligados por política. */
-const STUB_MODULE_ROUTES = [
-  { module: 'rentals', path: '/api/v1/service-orders?archetype=RENTAL' },
-  { module: 'transport', path: '/api/v1/service-orders?archetype=TRANSPORT' },
+/**
+ * STUBS — verificação CORRIGIDA (2026-09-29).
+ *
+ * A versão anterior sondava `/api/v1/service-orders?archetype=RENTAL|TRANSPORT` e reportava o
+ * 200 como "stub acessível". Isso era um ERRO DE PREMISSA do próprio smoke, não um defeito:
+ *
+ *   - `/api/v1/rentals` e `/api/v1/transport` NÃO EXISTEM (404). Nenhum controller dedicado
+ *     foi escrito para essas verticais.
+ *   - `archetype` é um filtro suportado da listagem de OS da RELEASE 1
+ *     (`service-order-list.query.ts` monta `so.service_snapshot->>'archetype' = $n`), e
+ *     `service-orders` é módulo R1 corretamente NÃO-gaited.
+ *
+ * Logo o 200 vinha de uma rota de Release 1 legítima, não de um stub escapando do gate.
+ *
+ * O que É verificável e agora é verificado: se um dia alguém criar superfície dedicada para
+ * essas verticais (ex.: `/api/v1/rentals`), ela precisa nascer sob gate. Enquanto não existir,
+ * a flag `FEATURE_MODULE_RENTALS=false` controla superfície de UI — e isso é declarado, não
+ * presumido.
+ */
+const STUB_DEDICATED_SURFACES = [
+  { module: 'rentals', path: '/api/v1/rentals' },
+  { module: 'transport', path: '/api/v1/transport' },
 ];
 
 async function login() {
@@ -145,19 +165,34 @@ async function main() {
     }
   }
 
-  console.log('\n[2] STUBS — esperado: superfície não publicada');
-  for (const { module, path } of STUB_MODULE_ROUTES) {
+  console.log('\n[2] VERTICAIS DEDICADAS (rentals/transport) — OUT_OF_RELEASE_1 (DDP-026)');
+  for (const { module, path } of STUB_DEDICATED_SURFACES) {
     const result = await probe(token, path);
     console.log(
       `    ${module.padEnd(14)} HTTP ${String(result.status).padEnd(4)} ${result.outcome}${
         result.code ? ` (${result.code})` : ''
       }`,
     );
-    // Stubs não têm gate próprio (são filtro sobre OS), então qualquer resposta
-    // que não seja erro de servidor é aceitável aqui — o gate de configuração é quem
-    // prova que as flags estão false.
+
     if (result.outcome === 'SERVER_ERROR') {
       failures.push(`${module}: HTTP ${result.status} — erro de servidor`);
+    } else if (result.outcome === 'FEATURE_DISABLED') {
+      // Superfície dedicada existe E está sob gate: exatamente o comportamento correto quando
+      // a flag está false. Nada a apontar.
+      console.log(`      -> superfície dedicada sob gate, recusada (correto para flag=false)`);
+    } else if (result.outcome === 'NOT_FOUND') {
+      notes.push(
+        `${module}: sem superfície dedicada (404). A vertical é consumida via archetype na ` +
+          'listagem de OS da Release 1. FEATURE_MODULE_' +
+          `${module.toUpperCase()}=false controla UI, não rota.`,
+      );
+    } else {
+      // 200/403 numa rota /api/v1/rentals significa que alguém criou superfície dedicada sem
+      // colocá-la sob gate — a inconsistência de release boundary que precisa ser notada.
+      failures.push(
+        `${module}: HTTP ${result.status} em ${path} — superfície dedicada existe mas NÃO está ` +
+          'sob gate de release. Registre o prefixo em GATED_API_PATH_PREFIXES.',
+      );
     }
   }
 

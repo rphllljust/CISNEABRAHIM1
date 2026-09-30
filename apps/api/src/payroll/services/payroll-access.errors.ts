@@ -1,5 +1,6 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 import { AuthzHttpException } from '../../authorization/errors/authz-http.exception';
+import { InvalidUuidError } from '../../platform/kernel/uuid';
 import { PayrollError } from '../domain/payroll';
 import { PayrollValidationError } from '../domain/payroll.validation';
 import { PAYROLL_ERROR_CODES } from '../errors/payroll-error-codes';
@@ -19,7 +20,12 @@ export function mapPayrollDomainError(error: unknown): PayrollHttpException {
   if (error instanceof HttpException) {
     throw error;
   }
-  if (error instanceof PayrollValidationError) {
+  // `assertUuid` lança `InvalidUuidError` dentro das transações de serviço e não é
+  // `PayrollError` nem `PayrollValidationError`. Sem este ramo o erro caía no catch-all
+  // abaixo e um identificador malformado — erro de CLIENTE — era servido como 500.
+  // Mesmo tratamento já usado por `accounting-access.errors.ts` e
+  // `bank-reconciliation-access.errors.ts`: identificador inválido é 400.
+  if (error instanceof InvalidUuidError || error instanceof PayrollValidationError) {
     return new PayrollHttpException(
       HttpStatus.BAD_REQUEST,
       PAYROLL_ERROR_CODES.VALIDATION_FAILED,

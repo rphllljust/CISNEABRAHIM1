@@ -270,6 +270,54 @@ export function validateModuleRegistryIntegrity(definitions: ModuleRegistryDefin
     visit(definition.moduleCode, []);
   }
 
+  // Cobertura do contrato de release: todo módulo com gate PRECISA estar representado.
+  //
+  // DEFEITO QUE ESTA CHECAGEM FECHA (registrado 2026-09-29):
+  //
+  // As invariantes acima só examinam módulos DECLARADOS. Um `GatedModuleId` ausente do registry
+  // — nem `moduleCode`, nem `gatedModuleId`, nem rota — não era notado por ninguém: a flag
+  // existia no .env, a política documentava o módulo, e não havia superfície nem gate.
+  // `rentals` e `transport` ficaram nesse limbo.
+  //
+  // O sintoma era confuso: `FEATURE_MODULE_RENTALS=false` e os endpoints ainda respondendo 200.
+  // A causa NÃO era o guard deixando passar — é que esses módulos não têm prefixo de API para o
+  // guard interceptar. Não são módulos de API: são variantes de `archetype` sobre a listagem da
+  // Release 1 (`GET /api/v1/service-orders?archetype=RENTAL|TRANSPORT`), que é corretamente
+  // não-gated. Declará-los no registry seria incorreto (não possuem rota própria e o registry
+  // rejeita rota compartilhada); deixá-los invisíveis foi o que produziu o defeito.
+  //
+  // A saída é nomear a exceção: módulos gated SEM superfície de API ficam declarados abaixo com
+  // justificativa e registro de decisão. Um módulo gated novo que não esteja nem no registry nem
+  // aqui FALHA, que é o comportamento desejado.
+  const gatedModulesWithoutApiSurface: Readonly<Record<string, string>> = {
+    rentals:
+      'DDP-026 / R1-SCOPE-001: vertical dedicada OUT_OF_RELEASE_1, FUTURE_SCOPE_CANDIDATE. ' +
+      'Sem controller proprio; consome o archetype RENTAL da listagem de OS (Release 1, nao-gated). ' +
+      'O gate destes modulos opera na superficie de UI, nao no servidor.',
+    transport:
+      'DDP-026 / R1-SCOPE-001: vertical dedicada OUT_OF_RELEASE_1, FUTURE_SCOPE_CANDIDATE. ' +
+      'Sem controller proprio; consome o archetype TRANSPORT da listagem de OS (Release 1, nao-gated). ' +
+      'O gate destes modulos opera na superficie de UI, nao no servidor.',
+  };
+
+  const declaredGates = new Set<string>();
+  for (const definition of definitions) {
+    declaredGates.add(definition.moduleCode);
+    if (definition.gatedModuleId !== undefined) {
+      declaredGates.add(definition.gatedModuleId);
+    }
+  }
+  for (const moduleId of GATED_MODULE_IDS) {
+    if (declaredGates.has(moduleId)) continue;
+    if (gatedModulesWithoutApiSurface[moduleId] !== undefined) continue;
+    errors.push(
+      `MODULE_REGISTRY_GATED_MODULE_NOT_DECLARED: ${moduleId} — modulo com gate de release ` +
+        'sem entrada no registry (sem moduleCode, sem gatedModuleId, sem rota) e sem isencao ' +
+        'declarada em gatedModulesWithoutApiSurface. Ou o modulo e declarado com sua ' +
+        'superficie real, ou nao pertence a GATED_MODULE_IDS.',
+    );
+  }
+
   return errors;
 }
 
