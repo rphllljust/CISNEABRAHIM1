@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { RELATION_SCOPE_KEYS, useRelationScope } from '../../enterprise-object';
 import { isPersistableValue } from '../../operator';
@@ -263,14 +263,16 @@ export function ServiceRequestsListPage() {
 
   if (listState.phase === 'loading') {
     return (
-      <ModuleStatePage title="Solicitações de serviço">`r`n        <ModuleLoadingState message="Carregando solicitações…" />
+      <ModuleStatePage title="Solicitações de serviço">
+        <ModuleLoadingState message="Carregando solicitações…" />
       </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'denied') {
     return (
-      <ModuleStatePage title="Solicitações de serviço">`r`n        <ModuleDeniedState
+      <ModuleStatePage title="Solicitações de serviço">
+        <ModuleDeniedState
           message="Você não tem permissão para listar solicitações."
         />
       </ModuleStatePage>
@@ -279,7 +281,8 @@ export function ServiceRequestsListPage() {
 
   if (listState.phase === 'error') {
     return (
-      <ModuleStatePage title="Solicitações de serviço">`r`n        <ModuleErrorState
+      <ModuleStatePage title="Solicitações de serviço">
+        <ModuleErrorState
           message={listState.message}
           retryable={listState.retryable}
           onRetry={() => void loadPage(0, filters)}

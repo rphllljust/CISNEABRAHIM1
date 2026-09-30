@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CatalogApiError, listServiceDefinitions } from '../api/service-catalog-api';
 import { mapCatalogErrorToMessage } from '../api/catalog-error-messages';
 import { ServiceDefinitionStatusBadge } from '../components/ServiceDefinitionStatusBadge';
@@ -147,14 +147,16 @@ export function ServiceDefinitionsListPage() {
 
   if (listState.phase === 'loading') {
     return (
-      <ModuleStatePage title="Catálogo de serviços">`r`n        <ModuleLoadingState message="Carregando definições…" />
+      <ModuleStatePage title="Catálogo de serviços">
+        <ModuleLoadingState message="Carregando definições…" />
       </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'denied') {
     return (
-      <ModuleStatePage title="Catálogo de serviços">`r`n        <ModuleDeniedState
+      <ModuleStatePage title="Catálogo de serviços">
+        <ModuleDeniedState
         message="Você não tem permissão para listar o catálogo."
       />
       </ModuleStatePage>
@@ -163,7 +165,8 @@ export function ServiceDefinitionsListPage() {
 
   if (listState.phase === 'error') {
     return (
-      <ModuleStatePage title="Catálogo de serviços">`r`n        <ModuleErrorState
+      <ModuleStatePage title="Catálogo de serviços">
+        <ModuleErrorState
         message={listState.message}
         retryable={listState.retryable}
         onRetry={() => void loadPage(0)}

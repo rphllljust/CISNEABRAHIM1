@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useId, useMemo, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ClientsApiError, listClients } from '../api/clients-api';
 import { mapClientErrorToMessage } from '../api/client-error-messages';
@@ -229,14 +229,16 @@ export function ClientsListPage() {
 
   if (listState.phase === 'loading') {
     return (
-      <ModuleStatePage title="Clientes">`r`n        <ModuleLoadingState message="Carregando Clientes…" />
+      <ModuleStatePage title="Clientes">
+        <ModuleLoadingState message="Carregando Clientes…" />
       </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'denied') {
     return (
-      <ModuleStatePage title="Clientes">`r`n        <ModuleDeniedState
+      <ModuleStatePage title="Clientes">
+        <ModuleDeniedState
           message="Você não tem permissão para listar Clientes."
         />
       </ModuleStatePage>
@@ -245,7 +247,8 @@ export function ClientsListPage() {
 
   if (listState.phase === 'error') {
     return (
-      <ModuleStatePage title="Clientes">`r`n        <ModuleErrorState
+      <ModuleStatePage title="Clientes">
+        <ModuleErrorState
           message={listState.message}
           retryable={listState.retryable}
           onRetry={() => setReloadToken((current) => current + 1)}

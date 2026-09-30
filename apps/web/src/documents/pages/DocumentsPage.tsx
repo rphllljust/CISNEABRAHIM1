@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useId, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { Button } from '../../ui/Button';
 import {
   DataTable,
@@ -185,14 +185,16 @@ export function DocumentsPage() {
 
   if (phase === 'loading' || capabilitiesLoading) {
     return (
-      <ModuleStatePage title="Documentos">`r`n        <ModuleLoadingState message="Carregando documentos…" />
+      <ModuleStatePage title="Documentos">
+        <ModuleLoadingState message="Carregando documentos…" />
       </ModuleStatePage>
     );
   }
 
   if (phase === 'denied' || !capabilities.canList) {
     return (
-      <ModuleStatePage title="Documentos">`r`n        <ModuleDeniedState
+      <ModuleStatePage title="Documentos">
+        <ModuleDeniedState
           message="Você não tem permissão para listar documentos."
         />
       </ModuleStatePage>
@@ -201,7 +203,8 @@ export function DocumentsPage() {
 
   if (phase === 'error') {
     return (
-      <ModuleStatePage title="Documentos">`r`n        <ModuleErrorState
+      <ModuleStatePage title="Documentos">
+        <ModuleErrorState
           message={message ?? 'Não foi possível carregar os documentos.'}
           retryable={retryable}
           onRetry={() => setReloadToken((current) => current + 1)}

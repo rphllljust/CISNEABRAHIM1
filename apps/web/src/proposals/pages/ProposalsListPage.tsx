@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { RELATION_SCOPE_KEYS, useRelationScope } from '../../enterprise-object';
 import { listProposals, ProposalsApiError } from '../api/proposals-api';
@@ -175,14 +175,16 @@ export function ProposalsListPage() {
 
   if (listState.phase === 'loading') {
     return (
-      <ModuleStatePage title="Propostas comerciais">`r`n        <ModuleLoadingState message="Carregando propostas…" />
+      <ModuleStatePage title="Propostas comerciais">
+        <ModuleLoadingState message="Carregando propostas…" />
       </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'denied') {
     return (
-      <ModuleStatePage title="Propostas comerciais">`r`n        <ModuleDeniedState
+      <ModuleStatePage title="Propostas comerciais">
+        <ModuleDeniedState
           message="Você não tem permissão para listar propostas."
         />
       </ModuleStatePage>
@@ -191,7 +193,8 @@ export function ProposalsListPage() {
 
   if (listState.phase === 'error') {
     return (
-      <ModuleStatePage title="Propostas comerciais">`r`n        <ModuleErrorState
+      <ModuleStatePage title="Propostas comerciais">
+        <ModuleErrorState
           message={listState.message}
           retryable={listState.retryable}
           onRetry={() => void loadPage(0, filters)}

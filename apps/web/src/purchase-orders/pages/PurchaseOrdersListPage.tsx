@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { RELATION_SCOPE_KEYS, useRelationScope } from '../../enterprise-object';
 import { listPurchaseOrders, PurchaseOrdersApiError } from '../api/purchase-orders-api';
 import { mapPurchaseOrderErrorToMessage } from '../api/purchase-order-error-messages';
@@ -129,27 +129,28 @@ export function PurchaseOrdersListPage() {
 
   if (listState.phase === 'loading') {
     return (
-      <ModuleStatePage title="Pedidos de compra">`r`n        <ModuleLoadingState message="Carregando pedidos…" />
+      <ModuleStatePage title="Pedidos de compra">
+        <ModuleLoadingState message="Carregando pedidos…" />
       </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'denied') {
     return (
-      <ModuleStatePage title="Pedidos de compra">`r`n        <ModuleDeniedState
-        message="Você não tem permissão para listar pedidos de compra."
-      />
+      <ModuleStatePage title="Pedidos de compra">
+        <ModuleDeniedState message="Você não tem permissão para listar pedidos de compra." />
       </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'error') {
     return (
-      <ModuleStatePage title="Pedidos de compra">`r`n        <ModuleErrorState
-        message={listState.message}
-        retryable={listState.retryable}
-        onRetry={() => void loadPage(0)}
-      />
+      <ModuleStatePage title="Pedidos de compra">
+        <ModuleErrorState
+          message={listState.message}
+          retryable={listState.retryable}
+          onRetry={() => void loadPage(0)}
+        />
       </ModuleStatePage>
     );
   }
