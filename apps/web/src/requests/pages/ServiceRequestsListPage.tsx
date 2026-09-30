@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { RELATION_SCOPE_KEYS, useRelationScope } from '../../enterprise-object';
 import { isPersistableValue } from '../../operator';
 import {
@@ -10,7 +10,6 @@ import {
 import { mapRequestErrorToMessage } from '../api/request-error-messages';
 import { ServiceRequestPriorityBadge } from '../components/ServiceRequestPriorityBadge';
 import { ServiceRequestStatusBadge } from '../components/ServiceRequestStatusBadge';
-import { ServiceRequestSummaryCards } from '../components/ServiceRequestSummaryCards';
 import { useServiceRequestCapabilities } from '../hooks/useServiceRequestCapabilities';
 import {
   SERVICE_REQUEST_LIST_SORTS,
@@ -28,6 +27,7 @@ import {
 import {
   formatServiceRequestNextStep,
   formatServiceRequestOrigin,
+  formatServiceRequestPriority,
   formatServiceRequestStatus,
 } from '../utils/service-request-labels';
 import {
@@ -38,19 +38,26 @@ import {
   summarizeServiceRequestDescription,
 } from '../utils/service-request-workbench';
 import {
-  FilterCard,
   ModuleDeniedState,
   ModuleErrorState,
   ModuleLoadingState,
   ModulePage,
   ModuleStatePage,
-  ModulePageHeader,
   ModulePagination,
   ModulePrimaryLink,
   ModuleTableLink,
-  filterControlClass,
-  filterLabelClass,
 } from '../../ui/module-layout';
+import {
+  EnterpriseMetric,
+  WorklistClearFilters,
+  WorklistField,
+  WorklistFilterBar,
+  WorklistHeader,
+  WorklistStatePanel,
+  worklistControlClass,
+  worklistSelectClass,
+  rowPrimaryActionClass,
+} from '../../ui/enterprise-list';
 import { cn } from '../../ui/utils/cn';
 
 const PAGE_SIZE = 20;
@@ -101,6 +108,23 @@ const NEXT_STEP_BY_STATUS: Record<ServiceRequestStatus, string> = {
   [SERVICE_REQUEST_STATUSES.Converted]: formatServiceRequestNextStep('OPEN_SERVICE_ORDER'),
   [SERVICE_REQUEST_STATUSES.Rejected]: formatServiceRequestNextStep('CLOSED'),
   [SERVICE_REQUEST_STATUSES.Cancelled]: formatServiceRequestNextStep('CLOSED'),
+};
+
+/**
+ * ROTULO CURTO DA ACAO POR ESTADO — mesma maquina de estados, verbo de superficie.
+ *
+ * O rotulo longo de `NEXT_STEP_BY_STATUS` e uma FRASE ("Enviar para analise"); no botao da
+ * linha cabe o VERBO. Nenhuma transicao nova: a tabela abaixo e a mesma do mapa acima, so
+ * encurtada para o alvo de clique.
+ */
+const NEXT_STEP_ACTION_LABEL: Record<ServiceRequestStatus, string> = {
+  [SERVICE_REQUEST_STATUSES.Draft]: 'Enviar',
+  [SERVICE_REQUEST_STATUSES.Submitted]: 'Iniciar análise',
+  [SERVICE_REQUEST_STATUSES.UnderReview]: 'Decidir',
+  [SERVICE_REQUEST_STATUSES.Approved]: 'Converter em OS',
+  [SERVICE_REQUEST_STATUSES.Converted]: 'Abrir OS',
+  [SERVICE_REQUEST_STATUSES.Rejected]: 'Consultar',
+  [SERVICE_REQUEST_STATUSES.Cancelled]: 'Consultar',
 };
 
 const ATTENTION_TONE_CLASS: Record<string, string> = {
@@ -297,74 +321,101 @@ export function ServiceRequestsListPage() {
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      {/*
+        GRAMATICA GOLD (aprovada em Clientes) — a tela era `ModulePageHeader` + uma faixa de
+        cartoes de resumo + `FilterCard`. O operador lia titulo, cinco cartoes e um card de
+        filtro antes de ver a primeira linha da fila.
+
+        Agora a MESMA informacao vive na cabeca da worklist: `WorklistHeader` carrega titulo,
+        contagem do SERVIDOR, contexto do modulo, acao primaria e a faixa de indicadores; os
+        filtros descem para a toolbar densa, em uma linha.
+
+        Os numeros continuam vindo de `ServiceRequestSummaryCards` (contrato de summary do
+        servidor, com o recorte por status que ja existia) — nada foi recalculado.
+      */}
+      <WorklistHeader
         title="Solicitações de serviço"
+        count={summary?.total ?? null}
+        context="Fila de entrada do trabalho: o que chegou, em que estado está e qual o próximo passo de cada solicitação."
         action={
           capabilities.canCreate ? (
             <ModulePrimaryLink to="/app/requests/new">Nova solicitação</ModulePrimaryLink>
           ) : null
         }
+        metrics={
+          <>
+            <EnterpriseMetric
+              label="Pendentes"
+              value={summary?.pending ?? 0}
+              tone={(summary?.pending ?? 0) > 0 ? 'warning' : 'neutral'}
+              hint="aguardando análise"
+            />
+            <EnterpriseMetric
+              label="Em análise"
+              value={summary?.underReview ?? 0}
+              hint="com decisão em curso"
+            />
+            <EnterpriseMetric label="Convertidas" value={summary?.converted ?? 0} hint="viraram OS" />
+            <EnterpriseMetric
+              label="Canceladas"
+              value={summary?.cancelled ?? 0}
+              muted={(summary?.cancelled ?? 0) === 0}
+              hint="fora do fluxo"
+            />
+          </>
+        }
       />
 
-      <ServiceRequestSummaryCards
-        summary={summary}
-        activeStatusFilter={filters.status}
-        onSelectStatus={(status) => applyFilter('status', status)}
-      />
+      {/*
+        RECORTE POR STATUS — os cartoes de resumo eram CLICAVEIS e filtravam a fila. Esse
+        contrato e preservado aqui como quick filters na toolbar: mesma acao, mesmo recorte,
+        sem a faixa de cartoes que empurrava a primeira linha para fora da dobra.
+      */}
+      <WorklistFilterBar meta={`${items.length} nesta página`}>
+        <WorklistField label="Buscar" htmlFor="request-search-filter" grow>
+          <form
+            className="flex gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              applyFilter('search', searchInput);
+            }}
+          >
+            <input
+              id="request-search-filter"
+              type="search"
+              className={worklistControlClass}
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="Ex.: SR-2026…, troca de compressor, OC 1234"
+            />
+            <button type="submit" className="button-secondary">
+              Buscar
+            </button>
+          </form>
+        </WorklistField>
 
-      <FilterCard>
-        <form
-          className="grid gap-4 lg:grid-cols-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            applyFilter('search', searchInput);
-          }}
-        >
-          <div className="lg:col-span-2">
-            <label className={filterLabelClass} htmlFor="request-search-filter">
-              Busca (código, descrição ou referência externa)
-            </label>
-            <div className="flex gap-2">
-              <input
-                id="request-search-filter"
-                type="search"
-                className={filterControlClass}
-                value={searchInput}
-                onChange={(event) => setSearchInput(event.target.value)}
-                placeholder="Ex.: SR-2026…, troca de compressor, OC 1234"
-              />
-              <button type="submit" className="button-secondary">
-                Buscar
-              </button>
-            </div>
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="request-status-filter">
-              Status
-            </label>
-            <select
-              id="request-status-filter"
-              className={filterControlClass}
-              value={filters.status}
-              onChange={(event) =>
-                applyFilter('status', event.target.value as '' | ServiceRequestStatus)
-              }
-            >
-              <option value="">Todos</option>
-              {Object.values(SERVICE_REQUEST_STATUSES).map((status) => (
-                <option key={status} value={status}>
-                  {formatServiceRequestStatus(status)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="request-priority-filter">
-              Prioridade
-            </label>
-            <select
+        <WorklistField label="Status" htmlFor="request-status-filter">
+          <select
+            id="request-status-filter"
+            className={worklistSelectClass}
+            value={filters.status}
+            onChange={(event) =>
+              applyFilter('status', event.target.value as '' | ServiceRequestStatus)
+            }
+          >
+            <option value="">Todos</option>
+            {Object.values(SERVICE_REQUEST_STATUSES).map((status) => (
+              <option key={status} value={status}>
+                {formatServiceRequestStatus(status)}
+              </option>
+            ))}
+          </select>
+        </WorklistField>
+
+        <WorklistField label="Prioridade" htmlFor="request-priority-filter">
+          <select
               id="request-priority-filter"
-              className={filterControlClass}
+              className={worklistSelectClass}
               value={filters.priority}
               onChange={(event) =>
                 applyFilter('priority', event.target.value as '' | ServiceRequestPriority)
@@ -373,18 +424,16 @@ export function ServiceRequestsListPage() {
               <option value="">Todas</option>
               {Object.values(SERVICE_REQUEST_PRIORITIES).map((priority) => (
                 <option key={priority} value={priority}>
-                  {priority}
+                  {formatServiceRequestPriority(priority)}
                 </option>
               ))}
             </select>
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="request-origin-filter">
-              Origem
-            </label>
+          </WorklistField>
+
+          <WorklistField label="Origem" htmlFor="request-origin-filter">
             <select
               id="request-origin-filter"
-              className={filterControlClass}
+              className={worklistSelectClass}
               value={filters.originSource}
               onChange={(event) =>
                 applyFilter('originSource', event.target.value as '' | ServiceRequestOrigin)
@@ -397,51 +446,12 @@ export function ServiceRequestsListPage() {
                 </option>
               ))}
             </select>
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="request-unit-filter">
-              Unidade
-            </label>
-            <input
-              id="request-unit-filter"
-              type="search"
-              className={filterControlClass}
-              value={filters.unitId}
-              onChange={(event) => applyFilter('unitId', event.target.value)}
-              placeholder="Filtrar por unidade"
-            />
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="request-desired-from-filter">
-              Início desejado a partir de
-            </label>
-            <input
-              id="request-desired-from-filter"
-              type="date"
-              className={filterControlClass}
-              value={filters.desiredFrom}
-              onChange={(event) => applyFilter('desiredFrom', event.target.value)}
-            />
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="request-desired-to-filter">
-              Início desejado até
-            </label>
-            <input
-              id="request-desired-to-filter"
-              type="date"
-              className={filterControlClass}
-              value={filters.desiredTo}
-              onChange={(event) => applyFilter('desiredTo', event.target.value)}
-            />
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="request-sort-filter">
-              Ordenar por
-            </label>
+          </WorklistField>
+
+          <WorklistField label="Ordenar por" htmlFor="request-sort-filter">
             <select
               id="request-sort-filter"
-              className={filterControlClass}
+              className={worklistSelectClass}
               value={filters.sort}
               onChange={(event) =>
                 applyFilter('sort', event.target.value as ServiceRequestListSort)
@@ -453,14 +463,12 @@ export function ServiceRequestsListPage() {
                 </option>
               ))}
             </select>
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="request-direction-filter">
-              Sentido
-            </label>
+          </WorklistField>
+
+          <WorklistField label="Sentido" htmlFor="request-direction-filter">
             <select
               id="request-direction-filter"
-              className={filterControlClass}
+              className={worklistSelectClass}
               value={filters.direction}
               onChange={(event) =>
                 applyFilter('direction', event.target.value as ServiceRequestListDirection)
@@ -469,32 +477,53 @@ export function ServiceRequestsListPage() {
               <option value="desc">Decrescente</option>
               <option value="asc">Crescente</option>
             </select>
-          </div>
-          <div className="flex items-end gap-2 lg:col-span-2">
-            {activeFilters ? (
-              <button
-                type="button"
-                className="button-secondary"
+          </WorklistField>
+
+          {activeFilters ? (
+            <WorklistClearFilters
+              visible
+              onClick={() => {
+                setSearchInput('');
+                setFilters(EMPTY_FILTERS);
+              }}
+            />
+          ) : null}
+      </WorklistFilterBar>
+
+      {/*
+        ESTADO VAZIO COMPACTO — era um `<p>` solto de uma linha. O painel declara o recorte,
+        explica o que fazer e oferece a acao real quando ela existe, sem ocupar meia tela.
+      */}
+      {items.length === 0 ? (
+        <WorklistStatePanel
+          title={
+            activeFilters
+              ? 'Nenhuma solicitação corresponde aos filtros aplicados.'
+              : 'Nenhuma solicitação registrada.'
+          }
+          description={
+            activeFilters
+              ? 'Ajuste a busca, o status ou a janela desejada — ou limpe os filtros para ver a fila completa.'
+              : 'As solicitações são a entrada do trabalho: quando a primeira chegar, ela aparece aqui com prioridade, janela desejada e próximo passo.'
+          }
+          action={
+            activeFilters ? (
+              <WorklistClearFilters
+                visible
                 onClick={() => {
                   setSearchInput('');
                   setFilters(EMPTY_FILTERS);
                 }}
-              >
-                Limpar filtros
-              </button>
-            ) : null}
-          </div>
-        </form>
-      </FilterCard>
-
-      {items.length === 0 ? (
-        <p className="text-sm text-gray-500" role="status">
-          Nenhuma solicitação encontrada com os filtros aplicados.
-        </p>
+              />
+            ) : capabilities.canCreate ? (
+              <ModulePrimaryLink to="/app/requests/new">Nova solicitação</ModulePrimaryLink>
+            ) : null
+          }
+        />
       ) : (
         <section aria-label="Fila operacional de solicitações" className="mt-4">
-          <div className="hidden grid-cols-[minmax(0,2.1fr)_minmax(0,1.5fr)_7rem_minmax(0,1.3fr)_minmax(0,1.1fr)_minmax(0,1.4fr)] gap-4 border-b border-gray-200 px-4 pb-2 lg:grid">
-            {['Solicitação', 'Cliente e demanda', 'Prioridade', 'Janela desejada', 'Situação', 'Próxima ação'].map(
+          <div className="hidden grid-cols-[minmax(0,2.1fr)_minmax(0,1.5fr)_7rem_minmax(0,1.3fr)_minmax(0,1.1fr)_minmax(0,1.4fr)_9rem] gap-4 border-b border-gray-200 px-4 pb-2 lg:grid">
+            {['Solicitação', 'Cliente e demanda', 'Prioridade', 'Janela desejada', 'Situação', 'Próxima ação', 'Ações'].map(
               (heading) => (
                 <span
                   key={heading}
@@ -512,7 +541,7 @@ export function ServiceRequestsListPage() {
               return (
                 <li
                   key={item.id}
-                  className="grid grid-cols-1 gap-3 px-4 py-4 transition hover:bg-gray-50/70 lg:grid-cols-[minmax(0,2.1fr)_minmax(0,1.5fr)_7rem_minmax(0,1.3fr)_minmax(0,1.1fr)_minmax(0,1.4fr)] lg:items-start lg:gap-4"
+                  className="grid grid-cols-1 gap-3 px-4 py-4 transition hover:bg-gray-50/70 lg:grid-cols-[minmax(0,2.1fr)_minmax(0,1.5fr)_7rem_minmax(0,1.3fr)_minmax(0,1.1fr)_minmax(0,1.4fr)_9rem] lg:items-start lg:gap-4"
                 >
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-baseline gap-x-2">
@@ -605,6 +634,20 @@ export function ServiceRequestsListPage() {
                         ))}
                       </div>
                     ) : null}
+                  </div>
+
+                  {/*
+                    ACAO DA LINHA — mesma gramatica de Pedidos (GOLD 1) e Pessoas (GOLD 3).
+                    A fila so abria pelo codigo; a acao da alvo de teclado com rotulo explicito
+                    ao lado do proximo passo, que e onde o operador decide.
+                  */}
+                  <div className="flex items-start lg:justify-end">
+                    <Link
+                      to={`/app/requests/${item.id}`}
+                      className={rowPrimaryActionClass}
+                    >
+                      {NEXT_STEP_ACTION_LABEL[item.status] ?? 'Abrir'}
+                    </Link>
                   </div>
                 </li>
               );

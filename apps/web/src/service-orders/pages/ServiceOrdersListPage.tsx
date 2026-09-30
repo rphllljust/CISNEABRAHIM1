@@ -42,12 +42,15 @@ import { HumanLookupField } from '../../financial-ui/HumanLookupField';
 import { searchClientOptions } from '../../financial-ui/client-lookup';
 import { Link } from 'react-router-dom';
 import {
-  EnterpriseListHeader,
   EnterpriseMetric,
-  EnterpriseToolbar,
   PrimaryRecordCell,
   RecordStatusCell,
   RowActionMenu,
+  WorklistClearFilters,
+  WorklistField,
+  WorklistFilterBar,
+  WorklistHeader,
+  WorklistStatePanel,
   enterpriseCellClass,
   enterpriseControlClass,
   enterpriseHeadCellClass,
@@ -58,6 +61,8 @@ import {
   enterpriseTableClass,
   rowPrimaryActionClass,
   rowSecondaryActionClass,
+  worklistControlClass,
+  worklistSelectClass,
 } from '../../ui/enterprise-list';
 import {
   ModuleDeniedState,
@@ -308,164 +313,152 @@ export function ServiceOrdersListPage() {
 
   return (
     <ModulePage>
-      <EnterpriseListHeader
+      {/*
+        GRAMATICA APROVADA (Clientes) — `WorklistHeader`, nao `EnterpriseListHeader`.
+        Sao pecas DIFERENTES: `EnterpriseListHeader` envolve a cabeca em card com borda;
+        `WorklistHeader` publica titulo + contagem + contexto + acao + faixa de indicadores sem
+        moldura. A mesma peca nas quatro telas da familia.
+      */}
+      <WorklistHeader
         title="Ordens de serviço"
-        description={
-          filterDescription ?? 'Consulta operacional das OS no seu escopo autorizado.'
-        }
+        count={items.length}
+        context={filterDescription ?? 'Consulta operacional das OS no seu escopo autorizado.'}
         metrics={
           <>
-            <EnterpriseMetric value={items.length} label="nesta página" />
             <EnterpriseMetric
               value={attentionCount}
               label="com exceção"
               tone={attentionCount > 0 ? 'critical' : 'neutral'}
+              hint={attentionCount > 0 ? 'exigem decisão' : 'nenhuma'}
             />
             <EnterpriseMetric
               value={unassignedCount}
               label="sem responsável"
               tone={unassignedCount > 0 ? 'warning' : 'neutral'}
+              hint={unassignedCount > 0 ? 'sem dono definido' : 'todas atribuídas'}
             />
           </>
         }
       />
 
       <div className={enterpriseTableCardClass}>
-        <EnterpriseToolbar>
-        <div className="grid w-full gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="sm:col-span-2">
-            <label className={filterLabelClass} htmlFor="service-order-search">
-              Busca
-            </label>
-            <input
-              id="service-order-search"
-              type="search"
-              className={enterpriseControlClass}
-              value={filters.q}
-              onChange={(event) => updateFilters({ q: event.target.value })}
-              placeholder="Número, código interno ou descrição"
-            />
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="service-order-status-filter">
-              Status
-            </label>
-            <select
-              id="service-order-status-filter"
-              className={enterpriseControlClass}
-              value={filters.status}
-              onChange={(event) =>
-                updateFilters({ status: event.target.value as ServiceOrderListParams['status'] })
-              }
-            >
-              <option value="">Todos</option>
-              <option value={SERVICE_ORDER_ACTIVE_STATUS}>Ativas (exceto canceladas)</option>
-              {Object.values(SERVICE_ORDER_STATUSES).map((status) => (
-                <option key={status} value={status}>
-                  {formatServiceOrderStatus(status)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="service-order-filter">
-              Filtro operacional
-            </label>
-            <select
-              id="service-order-filter"
-              className={enterpriseControlClass}
-              value={filters.filter}
-              onChange={(event) =>
-                updateFilters({ filter: event.target.value as ServiceOrderListParams['filter'] })
-              }
-            >
-              <option value="">Nenhum</option>
-              <option value={SERVICE_ORDER_LIST_FILTERS.Overdue}>Vencidas</option>
-              <option value={SERVICE_ORDER_LIST_FILTERS.ApproachingDue}>Vencendo em breve</option>
-              <option value={SERVICE_ORDER_LIST_FILTERS.Mine}>Minhas OS</option>
-              <option value={SERVICE_ORDER_LIST_FILTERS.Unassigned}>Não atribuídas</option>
-              <option value={SERVICE_ORDER_LIST_FILTERS.Unscheduled}>Não agendadas</option>
-              <option value={SERVICE_ORDER_LIST_FILTERS.ScheduledToday}>Hoje</option>
-            </select>
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="service-order-order">
-              Ordenar por
-            </label>
-            <select
-              id="service-order-order"
-              className={enterpriseControlClass}
-              value={filters.order}
-              onChange={(event) =>
-                updateFilters({ order: event.target.value as ServiceOrderListParams['order'] })
-              }
-            >
-              <option value="">Mais recentes</option>
-              <option value={SERVICE_ORDER_LIST_ORDERS.Schedule}>Programação (prazo)</option>
-            </select>
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="service-order-unit-filter">
-              Unidade
-            </label>
-            <input
-              id="service-order-unit-filter"
-              type="search"
-              className={enterpriseControlClass}
-              value={filters.unitId}
-              onChange={(event) => updateFilters({ unitId: event.target.value })}
-              placeholder="Filtrar por unidade"
-            />
-          </div>
-          <div className="min-w-0">
-            <HumanLookupField
-              label="Cliente"
-              htmlFor="service-order-client-search"
-              search={searchClientOptions}
-              value={filters.clientId}
-              onChange={(clientId) => updateFilters({ clientId })}
-              emptyOptionLabel="Todos os clientes"
-              emptyMessage="Nenhum cliente encontrado para a busca."
-            />
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="service-order-from-filter">
-              Período de
-            </label>
-            <input
-              id="service-order-from-filter"
-              type="date"
-              className={enterpriseControlClass}
-              value={filters.from}
-              onChange={(event) => updateFilters({ from: event.target.value })}
-            />
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="service-order-to-filter">
-              Período até
-            </label>
-            <input
-              id="service-order-to-filter"
-              type="date"
-              className={enterpriseControlClass}
-              value={filters.to}
-              onChange={(event) => updateFilters({ to: event.target.value })}
-            />
-          </div>
-        </div>
+      <WorklistFilterBar meta={`${items.length} nesta página`}>
+        <WorklistField label="Busca" htmlFor="service-order-search" grow>
+          <input
+            id="service-order-search"
+            type="search"
+            className={worklistControlClass}
+            value={filters.q}
+            onChange={(event) => updateFilters({ q: event.target.value })}
+            placeholder="Número, código interno ou descrição"
+          />
+        </WorklistField>
+
+        <WorklistField label="Status" htmlFor="service-order-status-filter">
+          <select
+            id="service-order-status-filter"
+            className={worklistSelectClass}
+            value={filters.status}
+            onChange={(event) =>
+              updateFilters({ status: event.target.value as ServiceOrderListParams['status'] })
+            }
+          >
+            <option value="">Todos</option>
+            <option value={SERVICE_ORDER_ACTIVE_STATUS}>Ativas (exceto canceladas)</option>
+            {Object.values(SERVICE_ORDER_STATUSES).map((status) => (
+              <option key={status} value={status}>
+                {formatServiceOrderStatus(status)}
+              </option>
+            ))}
+          </select>
+        </WorklistField>
+
+        <WorklistField label="Filtro operacional" htmlFor="service-order-filter">
+          <select
+            id="service-order-filter"
+            className={worklistSelectClass}
+            value={filters.filter}
+            onChange={(event) =>
+              updateFilters({ filter: event.target.value as ServiceOrderListParams['filter'] })
+            }
+          >
+            <option value="">Nenhum</option>
+            <option value={SERVICE_ORDER_LIST_FILTERS.Overdue}>Vencidas</option>
+            <option value={SERVICE_ORDER_LIST_FILTERS.ApproachingDue}>Vencendo em breve</option>
+            <option value={SERVICE_ORDER_LIST_FILTERS.Mine}>Minhas OS</option>
+            <option value={SERVICE_ORDER_LIST_FILTERS.Unassigned}>Não atribuídas</option>
+            <option value={SERVICE_ORDER_LIST_FILTERS.Unscheduled}>Não agendadas</option>
+            <option value={SERVICE_ORDER_LIST_FILTERS.ScheduledToday}>Hoje</option>
+          </select>
+        </WorklistField>
+
+        <WorklistField label="Ordenar por" htmlFor="service-order-order">
+          <select
+            id="service-order-order"
+            className={worklistSelectClass}
+            value={filters.order}
+            onChange={(event) =>
+              updateFilters({ order: event.target.value as ServiceOrderListParams['order'] })
+            }
+          >
+            <option value="">Mais recentes</option>
+            <option value={SERVICE_ORDER_LIST_ORDERS.Schedule}>Programação (prazo)</option>
+          </select>
+        </WorklistField>
+
+        <WorklistField label="Cliente" htmlFor="service-order-client-search">
+          <HumanLookupField
+            variant="compact"
+            label="Cliente"
+            htmlFor="service-order-client-search"
+            search={searchClientOptions}
+            value={filters.clientId}
+            onChange={(clientId) => updateFilters({ clientId })}
+            emptyOptionLabel="Todos os clientes"
+            emptyMessage="Nenhum cliente encontrado para a busca."
+          />
+        </WorklistField>
+
+        <WorklistField label="Unidade" htmlFor="service-order-unit-filter">
+          <input
+            id="service-order-unit-filter"
+            type="search"
+            className={worklistControlClass}
+            value={filters.unitId}
+            onChange={(event) => updateFilters({ unitId: event.target.value })}
+            placeholder="Filtrar por unidade"
+          />
+        </WorklistField>
+
+        <WorklistField label="Período de" htmlFor="service-order-from-filter">
+          <input
+            id="service-order-from-filter"
+            type="date"
+            className={worklistControlClass}
+            value={filters.from}
+            onChange={(event) => updateFilters({ from: event.target.value })}
+          />
+        </WorklistField>
+
+        <WorklistField label="Período até" htmlFor="service-order-to-filter">
+          <input
+            id="service-order-to-filter"
+            type="date"
+            className={worklistControlClass}
+            value={filters.to}
+            onChange={(event) => updateFilters({ to: event.target.value })}
+          />
+        </WorklistField>
+
         {hasActiveFilters ? (
-          <Button
-            type="button"
-            variant="secondary"
-            className="px-2.5 py-1.5 text-xs"
+          <WorklistClearFilters
+            visible
             onClick={() =>
               setSearchParams(buildServiceOrderListSearchParams(EMPTY_SERVICE_ORDER_LIST_PARAMS))
             }
-          >
-            Limpar
-          </Button>
+          />
         ) : null}
-        </EnterpriseToolbar>
+      </WorklistFilterBar>
 
       {rowFeedback ? (
         <p
@@ -481,9 +474,30 @@ export function ServiceOrdersListPage() {
       ) : null}
 
       {items.length === 0 ? (
-        <p className="px-3 py-6 text-sm text-gray-500" role="status">
-          Nenhuma ordem de serviço encontrada para os filtros selecionados.
-        </p>
+        <WorklistStatePanel
+          title={
+            hasActiveFilters
+              ? 'Nenhuma ordem de serviço corresponde aos filtros selecionados.'
+              : 'Nenhuma ordem de serviço no seu escopo.'
+          }
+          description={
+            hasActiveFilters
+              ? 'Ajuste a busca, o status ou o filtro operacional — ou limpe os filtros para ver a carteira completa.'
+              : 'As OS nascem das solicitações aprovadas e das propostas aceitas; quando a primeira for aberta ela aparece aqui com prazo, responsável e próximo passo.'
+          }
+          action={
+            hasActiveFilters ? (
+              <WorklistClearFilters
+                visible
+                onClick={() =>
+                  setSearchParams(
+                    buildServiceOrderListSearchParams(EMPTY_SERVICE_ORDER_LIST_PARAMS),
+                  )
+                }
+              />
+            ) : null
+          }
+        />
       ) : (
         <table className={enterpriseTableClass} aria-label="Lista de ordens de serviço">
           <thead>

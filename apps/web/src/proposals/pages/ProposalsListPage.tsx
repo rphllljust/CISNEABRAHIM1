@@ -20,12 +20,17 @@ import {
   formatRelativePast,
 } from '../utils/proposal-workbench';
 import {
-  EnterpriseListHeader,
   EnterpriseMetric,
-  EnterpriseToolbar,
-  enterpriseControlClass,
+  WorklistClearFilters,
+  WorklistField,
+  WorklistFilterBar,
+  WorklistHeader,
+  WorklistStatePanel,
   enterpriseRowClass,
   enterpriseTableCardClass,
+  rowPrimaryActionClass,
+  worklistControlClass,
+  worklistSelectClass,
 } from '../../ui/enterprise-list';
 import {
   ModuleDeniedState,
@@ -36,7 +41,6 @@ import {
   ModulePagination,
   ModulePrimaryLink,
   UnitScopeLabel,
-  filterLabelClass,
 } from '../../ui/module-layout';
 import { cn } from '../../ui/utils/cn';
 
@@ -58,6 +62,22 @@ const NEXT_STEP_BY_STATUS: Record<string, string> = {
   [PROPOSAL_VERSION_STATUSES.Rejected]: formatProposalNextStep('CREATE_NEW_REVISION'),
   [PROPOSAL_VERSION_STATUSES.Expired]: formatProposalNextStep('CREATE_NEW_REVISION'),
   [PROPOSAL_VERSION_STATUSES.Cancelled]: formatProposalNextStep('CREATE_NEW_REVISION'),
+};
+
+/**
+ * ROTULO CURTO DA ACAO POR ESTADO — mesma maquina de estados, verbo de superficie.
+ *
+ * `NEXT_STEP_BY_STATUS` entrega a FRASE ("Aguardar decisão do cliente"); no botao da linha cabe
+ * o VERBO. Nenhuma transicao nova: a tabela abaixo le a mesma maquina de estados, so encurtada
+ * para o alvo de clique.
+ */
+const PROPOSAL_ACTION_LABEL: Record<string, string> = {
+  [PROPOSAL_VERSION_STATUSES.Draft]: 'Completar',
+  [PROPOSAL_VERSION_STATUSES.Issued]: 'Acompanhar',
+  [PROPOSAL_VERSION_STATUSES.Accepted]: 'Abrir',
+  [PROPOSAL_VERSION_STATUSES.Rejected]: 'Nova revisão',
+  [PROPOSAL_VERSION_STATUSES.Expired]: 'Nova revisão',
+  [PROPOSAL_VERSION_STATUSES.Cancelled]: 'Consultar',
 };
 
 const ATTENTION_TONE_CLASS: Record<string, string> = {
@@ -227,18 +247,37 @@ export function ProposalsListPage() {
 
   return (
     <ModulePage>
-      <EnterpriseListHeader
+      {/*
+        GRAMATICA APROVADA (Clientes) — `WorklistHeader`, nao `EnterpriseListHeader`.
+        Sao componentes DIFERENTES: `EnterpriseListHeader` envolve a cabeca em um CARD com borda;
+        `WorklistHeader` publica titulo + CONTAGEM DO SERVIDOR em badge + contexto + acao + faixa
+        de indicadores, sem moldura. A familia usa a mesma peca para o operador reconhecer a tela
+        pelo mesmo desenho em todas as worklists.
+      */}
+      <WorklistHeader
         title="Propostas comerciais"
-        description="Fila comercial de decisão no seu escopo autorizado: origem, revisão, valor, validade e próximo passo."
+        /*
+         * CONTAGEM = o que o contrato desta lista REALMENTE publica. Diferente de Clientes, a
+         * listagem de propostas nao devolve `total` do servidor — so a pagina carregada e o
+         * `hasMore`. Declarar um total aqui seria inventar numero; a cabeca mostra a contagem
+         * da pagina e a paginacao continua sendo a fonte do "tem mais".
+         */
+        count={items.length}
+        context="Fila comercial de decisão no seu escopo autorizado: origem, revisão, valor, validade e próximo passo."
         metrics={
           <>
-            <EnterpriseMetric value={items.length} label="nesta página" />
-            <EnterpriseMetric value={awaitingCount} label="aguardando decisão" tone="info" />
-            <EnterpriseMetric value={decidedCount} label="decididas" />
+            <EnterpriseMetric
+              value={awaitingCount}
+              label="aguardando decisão"
+              tone={awaitingCount > 0 ? 'info' : 'neutral'}
+              hint="emitidas sem aceite"
+            />
+            <EnterpriseMetric value={decidedCount} label="decididas" hint="aceitas ou rejeitadas" />
             <EnterpriseMetric
               value={expiringCount}
               label="validade próxima/vencida"
               tone={expiringCount > 0 ? 'critical' : 'neutral'}
+              hint={expiringCount > 0 ? 'exigem ação comercial' : 'nenhuma'}
             />
           </>
         }
@@ -249,123 +288,132 @@ export function ProposalsListPage() {
         }
       />
 
-      <div className={enterpriseTableCardClass}>
-        <EnterpriseToolbar>
-          <form
-            className="flex flex-wrap items-end gap-3"
-            onSubmit={(event) => {
-              event.preventDefault();
-              applyFilter('search', searchInput);
-            }}
-          >
-            <label className="flex flex-col">
-              <span className={filterLabelClass}>Busca (código ou título)</span>
-              <input
-                type="search"
-                className={cn(enterpriseControlClass, 'w-64')}
-                value={searchInput}
-                onChange={(event) => setSearchInput(event.target.value)}
-                placeholder="PROP-2026…"
-                aria-label="Busca por código ou título"
-              />
-            </label>
-            <label className="flex flex-col">
-              <span className={filterLabelClass}>Situação</span>
-              <select
-                className={enterpriseControlClass}
-                value={filters.status}
-                onChange={(event) => applyFilter('status', event.target.value)}
-                aria-label="Situação da proposta"
-              >
-                <option value="">Todas</option>
-                {Object.values(PROPOSAL_VERSION_STATUSES).map((status) => (
-                  <option key={status} value={status}>
-                    {formatProposalStatus(status)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col">
-              <span className={filterLabelClass}>Validade a partir de</span>
-              <input
-                type="date"
-                className={enterpriseControlClass}
-                value={filters.validFrom}
-                onChange={(event) => applyFilter('validFrom', event.target.value)}
-                aria-label="Validade a partir de"
-              />
-            </label>
-            <label className="flex flex-col">
-              <span className={filterLabelClass}>Validade até</span>
-              <input
-                type="date"
-                className={enterpriseControlClass}
-                value={filters.validTo}
-                onChange={(event) => applyFilter('validTo', event.target.value)}
-                aria-label="Validade até"
-              />
-            </label>
-            <label className="flex flex-col">
-              <span className={filterLabelClass}>Criada a partir de</span>
-              <input
-                type="date"
-                className={enterpriseControlClass}
-                value={filters.createdFrom}
-                onChange={(event) => applyFilter('createdFrom', event.target.value)}
-                aria-label="Criada a partir de"
-              />
-            </label>
-            <label className="flex flex-col">
-              <span className={filterLabelClass}>Ordenar por</span>
-              <select
-                className={enterpriseControlClass}
-                value={filters.sort}
-                onChange={(event) => applyFilter('sort', event.target.value as ProposalListSort)}
-                aria-label="Ordenar por"
-              >
-                {Object.values(PROPOSAL_LIST_SORTS).map((sort) => (
-                  <option key={sort} value={sort}>
-                    {SORT_LABELS[sort]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col">
-              <span className={filterLabelClass}>Sentido</span>
-              <select
-                className={enterpriseControlClass}
-                value={filters.direction}
-                onChange={(event) =>
-                  applyFilter('direction', event.target.value as ProposalListDirection)
-                }
-                aria-label="Sentido da ordenação"
-              >
-                <option value="desc">Decrescente</option>
-                <option value="asc">Crescente</option>
-              </select>
-            </label>
-            <button type="submit" className="button-secondary">
-              Buscar
-            </button>
-            {hasActiveFilters ? (
-              <button
-                type="button"
-                className="button-secondary"
-                onClick={() => {
-                  setSearchInput('');
-                  setFilters(EMPTY_FILTERS);
-                }}
-              >
-                Limpar filtros
-              </button>
-            ) : null}
-          </form>
-        </EnterpriseToolbar>
+      {/*
+        TOOLBAR DENSA — era `EnterpriseToolbar` DENTRO de um card (`enterpriseTableCardClass`),
+        o que empurrava a primeira linha da fila para fora da dobra. Passa a `WorklistFilterBar`,
+        a mesma peca das demais worklists: uma linha, densa, com os mesmos filtros e a mesma
+        consulta. Nenhum filtro foi removido nem alterado.
+      */}
+      <WorklistFilterBar meta={`${items.length} nesta página`}>
+        <form
+          className="flex flex-wrap items-end gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            applyFilter('search', searchInput);
+          }}
+        >
+          <WorklistField label="Busca" htmlFor="proposal-search">
+            <input
+              id="proposal-search"
+              type="search"
+              className={worklistControlClass}
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="PROP-2026…"
+            />
+          </WorklistField>
+          <WorklistField label="Situação" htmlFor="proposal-status">
+            <select
+              id="proposal-status"
+              className={worklistSelectClass}
+              value={filters.status}
+              onChange={(event) => applyFilter('status', event.target.value)}
+            >
+              <option value="">Todas</option>
+              {Object.values(PROPOSAL_VERSION_STATUSES).map((status) => (
+                <option key={status} value={status}>
+                  {formatProposalStatus(status)}
+                </option>
+              ))}
+            </select>
+          </WorklistField>
+          <WorklistField label="Validade de" htmlFor="proposal-valid-from">
+            <input
+              id="proposal-valid-from"
+              type="date"
+              className={worklistControlClass}
+              value={filters.validFrom}
+              onChange={(event) => applyFilter('validFrom', event.target.value)}
+            />
+          </WorklistField>
+          <WorklistField label="até" htmlFor="proposal-valid-to">
+            <input
+              id="proposal-valid-to"
+              type="date"
+              className={worklistControlClass}
+              value={filters.validTo}
+              onChange={(event) => applyFilter('validTo', event.target.value)}
+            />
+          </WorklistField>
+          <WorklistField label="Ordenar por" htmlFor="proposal-sort">
+            <select
+              id="proposal-sort"
+              className={worklistSelectClass}
+              value={filters.sort}
+              onChange={(event) => applyFilter('sort', event.target.value as ProposalListSort)}
+            >
+              {Object.values(PROPOSAL_LIST_SORTS).map((sort) => (
+                <option key={sort} value={sort}>
+                  {SORT_LABELS[sort]}
+                </option>
+              ))}
+            </select>
+          </WorklistField>
+          <WorklistField label="Sentido" htmlFor="proposal-direction">
+            <select
+              id="proposal-direction"
+              className={worklistSelectClass}
+              value={filters.direction}
+              onChange={(event) =>
+                applyFilter('direction', event.target.value as ProposalListDirection)
+              }
+            >
+              <option value="desc">Decrescente</option>
+              <option value="asc">Crescente</option>
+            </select>
+          </WorklistField>
+          <button type="submit" className="button-secondary">
+            Buscar
+          </button>
+          {hasActiveFilters ? (
+            <WorklistClearFilters
+              visible
+              onClick={() => {
+                setSearchInput('');
+                setFilters(EMPTY_FILTERS);
+              }}
+            />
+          ) : null}
+        </form>
+      </WorklistFilterBar>
 
+      <div className={enterpriseTableCardClass}>
         {items.length === 0 ? (
-          <p className="px-3 py-6 text-sm text-gray-500" role="status">
-            Nenhuma proposta encontrada com os filtros aplicados.
-          </p>
+          <WorklistStatePanel
+            title={
+              hasActiveFilters
+                ? 'Nenhuma proposta corresponde aos filtros aplicados.'
+                : 'Nenhuma proposta registrada.'
+            }
+            description={
+              hasActiveFilters
+                ? 'Ajuste a busca, a situação ou a validade — ou limpe os filtros para ver a fila comercial completa.'
+                : 'As propostas nascem das solicitações aprovadas; quando a primeira for emitida ela aparece aqui com revisão, valor, validade e próximo passo.'
+            }
+            action={
+              hasActiveFilters ? (
+                <WorklistClearFilters
+                  visible
+                  onClick={() => {
+                    setSearchInput('');
+                    setFilters(EMPTY_FILTERS);
+                  }}
+                />
+              ) : capabilities.canCreate ? (
+                <ModulePrimaryLink to="/app/proposals/new">Nova proposta</ModulePrimaryLink>
+              ) : null
+            }
+          />
         ) : (
           <section aria-label="Fila comercial de propostas">
             <div className="hidden grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_minmax(0,1.2fr)_9rem_minmax(0,1.2fr)_minmax(0,1.5fr)] gap-4 border-b border-gray-200 px-3 pb-2 lg:grid">
@@ -403,7 +451,7 @@ export function ProposalsListPage() {
                     key={item.id}
                     className={cn(
                       enterpriseRowClass,
-                      'grid grid-cols-1 gap-3 px-3 py-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_minmax(0,1.2fr)_9rem_minmax(0,1.2fr)_minmax(0,1.5fr)] lg:items-start lg:gap-4',
+                      'grid grid-cols-1 gap-3 px-3 py-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_minmax(0,1.2fr)_9rem_minmax(0,1.2fr)_minmax(0,1.5fr)_9rem] lg:items-start lg:gap-4',
                     )}
                   >
                     <div className="min-w-0">
@@ -525,6 +573,20 @@ export function ProposalsListPage() {
                           ))}
                         </div>
                       ) : null}
+                    </div>
+
+                    {/*
+                      ACAO DA LINHA — mesma gramatica de Pedidos (GOLD 1), Clientes, Solicitacoes
+                      e Pessoas. A fila comercial so abria pelo codigo; o rotulo do botao e o
+                      PROXIMO PASSO da versao vigente, o mesmo verbo que a coluna ao lado ja
+                      declara — nenhuma transicao nova foi criada.
+                    */}
+                    <div className="flex items-start lg:justify-end">
+                      <Link to={`/app/proposals/${item.id}`} className={rowPrimaryActionClass}>
+                        {item.currentVersionStatus
+                          ? PROPOSAL_ACTION_LABEL[item.currentVersionStatus] ?? 'Abrir'
+                          : 'Completar'}
+                      </Link>
                     </div>
                   </li>
                 );

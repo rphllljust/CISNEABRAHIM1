@@ -113,8 +113,15 @@ describe('proposals administrative flow e2e (frontend)', () => {
     const user = userEvent.setup();
     await loginAndReachApp(user);
     await user.click(await screen.findByRole('link', { name: /^propostas$/i }));
+    /*
+     * O estado vazio passou de um `<p>` solto para o `WorklistStatePanel` compartilhado, e o
+     * texto agora distingue os dois casos, como nas demais worklists:
+     *   - catalogo vazio (este teste)  -> "Nenhuma proposta registrada."
+     *   - filtro sem resultado          -> "Nenhuma proposta corresponde aos filtros aplicados."
+     * O fato protegido continua o mesmo: lista vazia NAO e tabela muda.
+     */
     await waitFor(() => {
-      expect(screen.getByText(/nenhuma proposta encontrada/i)).toBeInTheDocument();
+      expect(screen.getByText(/nenhuma proposta registrada/i)).toBeInTheDocument();
     });
   });
 

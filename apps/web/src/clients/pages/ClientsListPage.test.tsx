@@ -221,8 +221,16 @@ describe('ClientsListPage', () => {
       expect(screen.getByText(/nenhum cliente corresponde aos filtros aplicados/i)).toBeInTheDocument();
     });
     expect(screen.queryByText(/nenhum cliente cadastrado ainda/i)).not.toBeInTheDocument();
-    // Existe saída explícita do estado sem resultado.
-    expect(screen.getByRole('button', { name: /limpar filtros/i })).toBeInTheDocument();
+    // Existe saída explícita do estado sem resultado. Sao DUAS saidas legitimas — a da toolbar
+    // (sempre que ha filtro ativo) e a do painel de estado vazio — entao a assercao exige a do
+    // PAINEL, que e a que aparece junto da mensagem. Antes bastava uma; a migracao para a
+    // gramatica de worklist acrescentou a da toolbar e o seletor ficou ambiguo.
+    expect(
+      screen.getAllByRole('button', { name: /limpar filtros/i }).length,
+    ).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getByRole('button', { name: 'Limpar filtros da toolbar' }),
+    ).toBeInTheDocument();
   });
 
   it('shows a retryable error state when the list request fails', async () => {

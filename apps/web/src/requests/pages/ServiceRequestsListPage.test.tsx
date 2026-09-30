@@ -22,8 +22,18 @@ describe('ServiceRequestsListPage', () => {
     await waitFor(() => {
       expect(screen.getByRole('link', { name: 'SR-2026-DEMO01' })).toBeInTheDocument();
     });
-    expect(screen.getByRole('region', { name: /resumo de solicitações/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /filtrar todas as solicitações/i })).toHaveTextContent('1');
+    /*
+     * GRAMATICA DE WORKLIST: o resumo deixou de ser uma faixa de cartoes clicaveis
+     * (`ServiceRequestSummaryCards`) e passou a viver na cabeca da worklist, como as demais
+     * listas do produto. O que este teste protege e o MESMO fato: as contagens do summary do
+     * servidor aparecem na tela. Antes eram botoes "Filtrar ..."; agora sao indicadores da
+     * cabeca ao lado do total, e o recorte por status continua na toolbar.
+     */
+    expect(screen.getByRole('heading', { level: 1, name: /solicitações de serviço/i })).toBeInTheDocument();
+    // "Pendentes" e "Em análise" aparecem como INDICADOR da cabeca e como opcao do campo de
+    // Status — por isso a assercao aceita mais de uma ocorrencia do rotulo.
+    expect(screen.getAllByText('Pendentes').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Em análise').length).toBeGreaterThanOrEqual(1);
     expect(
       screen.getByRole('region', { name: /fila operacional de solicitações/i }),
     ).toBeInTheDocument();
@@ -164,7 +174,15 @@ describe('ServiceRequestsListPage', () => {
       expect(screen.getByRole('link', { name: 'SR-2026-DEMO01' })).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('button', { name: /filtrar solicitações pendentes/i }));
+    /*
+     * O recorte rapido por "pendentes" era um cartao clicavel do resumo. Na gramatica de
+     * worklist o mesmo recorte e feito pelo campo de Status da toolbar — a assercao abaixo
+     * protege o MESMO contrato: escolher um status aplica o filtro e a consulta o envia.
+     */
+    await user.selectOptions(
+      screen.getByLabelText('Status'),
+      SERVICE_REQUEST_STATUSES.Submitted,
+    );
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(

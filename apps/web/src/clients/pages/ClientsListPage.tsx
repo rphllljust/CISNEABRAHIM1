@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ClientsApiError, listClients } from '../api/clients-api';
 import { mapClientErrorToMessage } from '../api/client-error-messages';
 import { ClientStatusBadge } from '../components/ClientStatusBadge';
@@ -51,13 +51,23 @@ import {
   ModuleLoadingState,
   ModulePage,
   ModuleStatePage,
-  ModulePageHeader,
   ModulePagination,
   ModulePrimaryLink,
   ModuleTableLink,
   filterControlClass,
   filterLabelClass,
 } from '../../ui/module-layout';
+import {
+  EnterpriseMetric,
+  WorklistClearFilters,
+  WorklistField,
+  WorklistFilterBar,
+  WorklistHeader,
+  WorklistStatePanel,
+  worklistControlClass,
+  worklistSelectClass,
+  rowPrimaryActionClass,
+} from '../../ui/enterprise-list';
 
 const PAGE_SIZE = 20;
 
@@ -125,6 +135,7 @@ export function ClientsListPage() {
   const searchInputId = useId();
   const searchHintId = useId();
   const statusFilterId = useId();
+  const moreFiltersId = useId();
   const requirementFilterId = useId();
 
   // Rascunho abaixo do piso publicado: ainda não é busca, então não vira requisição — a barra
@@ -271,13 +282,34 @@ export function ClientsListPage() {
     ? (client: ClientSummary) => `/app/clients/${client.id}`
     : null;
 
+  /**
+   * CONTEXTO DA CARTEIRA — contagens reais da PAGINA carregada, nunca estimadas.
+   *
+   * `total` e o total autorizado que o servidor informa; ativos/inativos sao contados sobre as
+   * linhas que voltaram. Nenhum numero e inventado e nenhum recorte e recalculado: o que a
+   * faixa mostra e exatamente o que a consulta autorizada devolveu.
+   */
+  const activeOnPage = items.filter((client) => client.status === CLIENT_STATUSES.Active).length;
+  const inactiveOnPage = items.length - activeOnPage;
+
   return (
     <ModulePage>
-      <ModulePageHeader
+      {/*
+        GRAMATICA GOLD — a tela era `ModulePageHeader` (titulo + descricao + botao) sobre um
+        `DataTable`. E o layout administrativo generico que o produto proibe: o operador le o
+        titulo, os filtros e a grade, sem saber quanto tem, o que esta inativo nem o que pode
+        fazer em cada linha.
+
+        O `WorklistHeader` e a mesma cabeca das demais worklists (Pedidos, Pessoas, Contratos):
+        titulo + contagem do SERVIDOR + contexto do modulo + acao primaria + faixa de
+        indicadores. Nenhum filtro, consulta, rota, capability ou paginacao foi alterado.
+      */}
+      <WorklistHeader
         title="Clientes"
-        description={
+        count={total}
+        context={
           hasCatalog
-            ? `${formatClientCount(total)} ${total === 1 ? 'Cliente' : 'Clientes'} no seu escopo autorizado${hasFilters ? ' para os filtros aplicados' : ''}.`
+            ? `Carteira de Clientes no seu escopo autorizado${hasFilters ? ' para os filtros aplicados' : ''}.`
             : 'Cadastro de Clientes do CISNE.'
         }
         action={
@@ -285,23 +317,38 @@ export function ClientsListPage() {
             <ModulePrimaryLink to="/app/clients/new">Novo Cliente</ModulePrimaryLink>
           ) : null
         }
+        metrics={
+          hasCatalog ? (
+            <>
+              <EnterpriseMetric
+                label="No resultado"
+                value={formatClientCount(total)}
+                hint={hasFilters ? 'com os filtros aplicados' : 'carteira completa'}
+              />
+              <EnterpriseMetric
+                label="Ativos nesta página"
+                value={activeOnPage}
+                hint={`de ${items.length} exibidos`}
+              />
+              <EnterpriseMetric
+                label="Inativos nesta página"
+                value={inactiveOnPage}
+                tone={inactiveOnPage > 0 ? 'warning' : 'neutral'}
+                hint={inactiveOnPage > 0 ? 'não recebem novas OS' : 'nenhum'}
+              />
+            </>
+          ) : null
+        }
       />
 
       {/* Barra de filtros compacta: a busca fica junto da lista, e não dentro de um card largo
           ocupado apenas por um seletor de status. */}
-      <div
-        role="search"
-        aria-label="Busca e filtros de Clientes"
-        className="mb-4 flex flex-wrap items-end gap-3"
-      >
-        <div className="min-w-64 flex-1">
-          <label className={filterLabelClass} htmlFor={searchInputId}>
-            Buscar
-          </label>
+      <WorklistFilterBar>
+        <WorklistField label="Buscar" htmlFor={searchInputId} grow>
           <input
             id={searchInputId}
             type="search"
-            className={filterControlClass}
+            className={worklistControlClass}
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
             placeholder="Razão social, nome fantasia ou CNPJ"
@@ -313,15 +360,12 @@ export function ClientsListPage() {
               Digite pelo menos {CLIENT_SEARCH_MIN_LENGTH} caracteres para buscar.
             </p>
           ) : null}
-        </div>
+        </WorklistField>
 
-        <div className="w-44">
-          <label className={filterLabelClass} htmlFor={statusFilterId}>
-            Status
-          </label>
+        <WorklistField label="Status" htmlFor={statusFilterId}>
           <select
             id={statusFilterId}
-            className={filterControlClass}
+            className={worklistSelectClass}
             value={filters.status}
             onChange={(event) =>
               applyFilters({ status: event.target.value as ClientListParams['status'] })
@@ -331,38 +375,44 @@ export function ClientsListPage() {
             <option value={CLIENT_STATUSES.Active}>Ativos</option>
             <option value={CLIENT_STATUSES.Inactive}>Inativos</option>
           </select>
-        </div>
+        </WorklistField>
 
-        <Button
-          type="button"
-          variant="secondary"
-          aria-expanded={showMoreFilters}
-          onClick={() => setShowMoreFilters((current) => !current)}
-        >
-          {showMoreFilters ? 'Menos filtros' : 'Mais filtros'}
-        </Button>
-
-        {hasFilters || searchInput.trim() !== '' ? (
+        {/*
+          CONTROLES QUE NAO SAO FILTRO DE CAMPO: alternar a faixa de filtros avancados, limpar o
+          recorte e declarar a atualizacao em curso. Ficam na MESMA linha da toolbar, como nas
+          demais worklists — nao em um card de respiro.
+        */}
+        <WorklistField label="&nbsp;" htmlFor={moreFiltersId}>
           <Button
+            id={moreFiltersId}
             type="button"
             variant="secondary"
+            aria-expanded={showMoreFilters}
+            onClick={() => setShowMoreFilters((current) => !current)}
+          >
+            {showMoreFilters ? 'Menos filtros' : 'Mais filtros'}
+          </Button>
+        </WorklistField>
+
+        {hasFilters || searchInput.trim() !== '' ? (
+          <WorklistClearFilters
+            visible
+            label="Limpar filtros da toolbar"
             onClick={() => {
               setSearchInput('');
               setSearchParams(buildClientListSearchParams(EMPTY_CLIENT_LIST_PARAMS), {
                 replace: true,
               });
             }}
-          >
-            Limpar
-          </Button>
+          />
         ) : null}
 
         {isRefreshing ? (
-          <p role="status" className="text-xs text-gray-500">
+          <p role="status" className="pb-1 text-xs text-gray-500">
             Atualizando…
           </p>
         ) : null}
-      </div>
+      </WorklistFilterBar>
 
       <SavedViewsBar
         views={savedViews.views}
@@ -407,50 +457,39 @@ export function ClientsListPage() {
         </div>
       ) : null}
 
+      {/*
+        ESTADO VAZIO pelo painel COMPARTILHADO — era um card artesanal (`rounded-xl p-6 shadow`)
+        escrito so nesta tela. `WorklistStatePanel` e a mesma peca das demais worklists: bloco
+        compacto, papel acessivel proprio (status/alert) e acao real.
+      */}
       {isEmptyCatalogue ? (
-        <div
-          className="rounded-xl bg-white p-6 text-sm text-gray-600 shadow-sm ring-1 ring-gray-900/5"
-          role="status"
-        >
-          <p className="font-semibold text-gray-900">Nenhum Cliente cadastrado ainda.</p>
-          <p className="mt-2">
-            Os Clientes são a contraparte comercial usada por solicitações, propostas, pedidos de
-            compra, ordens de serviço e faturamento. Cadastre o primeiro para começar.
-          </p>
-          {capabilities.canCreate ? (
-            <p className="mt-4">
+        <WorklistStatePanel
+          title="Nenhum Cliente cadastrado ainda."
+          description="Os Clientes são a contraparte comercial usada por solicitações, propostas, pedidos de compra, ordens de serviço e faturamento. Cadastre o primeiro para começar."
+          action={
+            capabilities.canCreate ? (
               <ModulePrimaryLink to="/app/clients/new">Cadastrar Cliente</ModulePrimaryLink>
-            </p>
-          ) : null}
-        </div>
+            ) : null
+          }
+        />
       ) : null}
 
       {isNoResults ? (
-        <div
-          className="rounded-xl bg-white p-6 text-sm text-gray-600 shadow-sm ring-1 ring-gray-900/5"
-          role="status"
-        >
-          <p className="font-semibold text-gray-900">
-            Nenhum Cliente corresponde aos filtros aplicados.
-          </p>
-          <p className="mt-2">
-            Ajuste o termo de busca ou limpe os filtros para ver o cadastro completo.
-          </p>
-          <p className="mt-4">
-            <Button
-              type="button"
-              variant="secondary"
+        <WorklistStatePanel
+          title="Nenhum Cliente corresponde aos filtros aplicados."
+          description="Ajuste o termo de busca ou limpe os filtros para ver o cadastro completo."
+          action={
+            <WorklistClearFilters
+              visible
               onClick={() => {
                 setSearchInput('');
                 setSearchParams(buildClientListSearchParams(EMPTY_CLIENT_LIST_PARAMS), {
                   replace: true,
                 });
               }}
-            >
-              Limpar filtros
-            </Button>
-          </p>
-        </div>
+            />
+          }
+        />
       ) : null}
 
       {isOutOfRange ? (
@@ -521,6 +560,14 @@ export function ClientsListPage() {
                     </span>
                   </button>
                 </DataTableHeaderCell>
+                {/*
+                  ACAO DA LINHA — mesma gramatica de Pedidos (GOLD 1), Pessoas (GOLD 3) e
+                  Contratos. A carteira so abria o Cliente pelo clique na linha; a acao
+                  explicita o que o clique faz e da um alvo de teclado com rotulo proprio.
+                */}
+                <DataTableHeaderCell scope="col">
+                  <span className="sr-only">Ações</span>
+                </DataTableHeaderCell>
               </DataTableRow>
             </DataTableHead>
             <DataTableBody>
@@ -566,6 +613,13 @@ export function ClientsListPage() {
                     </DataTableCell>
                     <DataTableCell className="whitespace-nowrap text-gray-600">
                       {formatClientListDateTime(client.updatedAt)}
+                    </DataTableCell>
+                    <DataTableCell className="text-right whitespace-nowrap">
+                      {href ? (
+                        <Link to={href} className={rowPrimaryActionClass}>
+                          Abrir cadastro
+                        </Link>
+                      ) : null}
                     </DataTableCell>
                   </DataTableRow>
                 );
