@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest';
 import { configure } from '@testing-library/react';
 import { afterEach, vi } from 'vitest';
+import { resetNavAccessCacheForTests } from '../shell/useNavAccess';
 
 /**
  * Orcamento de espera assincrona do suite.
@@ -16,6 +17,16 @@ configure({ asyncUtilTimeout: 5_000 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  /**
+   * ISOLAMENTO DO CACHE DE ACESSO DE NAVEGACAO.
+   *
+   * `useNavAccess` guarda o mapa de acesso resolvido (memoria + `sessionStorage`) para nao
+   * repetir a bateria de sondas a cada navegacao. Em teste, esse cache atravessa casos: um
+   * teste que concede acesso deixaria o proximo — que espera NEGACAO — enxergar o menu do
+   * anterior e falhar por contaminacao, nao por defeito. O cache e comportamento de SESSAO
+   * REAL; cada caso comeca com a sessao limpa, como um operador novo.
+   */
+  resetNavAccessCacheForTests();
 });
 
 if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {

@@ -43,6 +43,20 @@ export default defineConfig({
     env: {
       VITE_FEATURE_MODULE_REPORTS: 'true',
       VITE_FEATURE_MODULE_OPERATIONAL_PROFITABILITY: 'true',
+      /**
+       * CONTRATOS entram no gate de release como os demais modulos construidos.
+       *
+       * Ate esta correcao `/app/contracts` estava declarado como modulo na navegacao
+       * (`featureFlag: contracts`) mas AUSENTE de `GATED_WEB_PATH_PREFIXES`: com a flag
+       * desligada o item sumia do menu e a URL direta continuava abrindo o produto. Agora o
+       * web concorda com a API, que ja gateia `commercial/contracts`.
+       *
+       * Como o ambiente de teste nao declara as flags de HML, a rota de contratos passaria a
+       * redirecionar para `/app/no-access` e o fluxo inteiro de contratos viraria um falso
+       * negativo. Declarar a flag aqui mantem o modulo LIGADO no teste — que e o recorte que
+       * as suites de contratos exercitam — sem afrouxar o gate em runtime.
+       */
+      VITE_FEATURE_MODULE_CONTRACTS: 'true',
     },
   },
 });
