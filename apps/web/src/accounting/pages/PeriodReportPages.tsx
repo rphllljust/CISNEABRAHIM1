@@ -5,7 +5,7 @@ import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistR
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
-import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
+import { OperationalUnitOptions, useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
 import {
   getAccountLedger,
   getBalanceSheet,
@@ -82,7 +82,7 @@ function PeriodReportShell({ kind }: { kind: ReportKind }) {
   // backoffice): o operador escolhe na lista de unidades autorizadas e nunca digita
   // identificador. Unidade -> plano -> período; o relatório continua sendo calculado e
   // autorizado no servidor.
-  const { units, unitId, setUnitId } = useOperationalUnits();
+  const { units, options: unitOptions, unitId, setUnitId } = useOperationalUnits();
   const [chartId, setChartId] = useState('');
   const [periodId, setPeriodId] = useState('');
   const [accountId, setAccountId] = useState('');
@@ -272,17 +272,12 @@ function PeriodReportShell({ kind }: { kind: ReportKind }) {
               onChange={(event) => setUnitId(event.target.value)}
               disabled={units.length === 0}
             >
-              {units.length === 0 ? <option value="">Nenhuma unidade disponível</option> : null}
-
-              {units.map((unit, index) => (
-
-                <option key={unit} value={unit}>
-
-                  Unidade {index + 1}
-
-                </option>
-
-              ))}
+              {/*
+                ESCOPO DE UNIDADE pelo primitivo compartilhado — mesmo tratamento de Lancamentos,
+                Diario e Fechamentos. A tela montava as opcoes a mao com um ordinal
+                `Unidade {index + 1}`, que nao diz QUAL unidade esta selecionada.
+              */}
+              <OperationalUnitOptions options={unitOptions} />
             </Select>
           </Field>
           <Field label="Plano de contas" htmlFor={`${kind}-chart`}>

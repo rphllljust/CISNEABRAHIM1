@@ -10,7 +10,7 @@ import { MoneyActionForm } from '../../financial-ui/MoneyActionForm';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge';
-import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
+import { OperationalUnitOptions, useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
 import {
   createJournal,
   getJournal,
@@ -98,7 +98,7 @@ function JournalListRoute() {
   // módulos de backoffice). O operador escolhe na lista de unidades autorizadas e nunca digita
   // identificador: escolhida a unidade, os planos dela são carregados do servidor, e o período
   // vem por plano. Cada consulta continua autorizada no servidor.
-  const { units, unitId, setUnitId } = useOperationalUnits();
+  const { units, options: unitOptions, unitId, setUnitId } = useOperationalUnits();
   const [chartId, setChartId] = useState('');
   const [periodId, setPeriodId] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | JournalStatus>('ALL');
@@ -206,17 +206,20 @@ function JournalListRoute() {
               onChange={(event) => setUnitId(event.target.value)}
               disabled={units.length === 0}
             >
-              {units.length === 0 ? <option value="">Nenhuma unidade disponível</option> : null}
+              {/*
+                ESCOPO DE UNIDADE pelo primitivo compartilhado.
 
-              {units.map((unit, index) => (
+                Esta tela montava as opcoes a mao com `Unidade {index + 1}` — um ordinal que nao
+                diz QUAL unidade o operador esta consultando. Com duas unidades autorizadas o
+                seletor virava "Unidade 1 / Unidade 2", e escolher a errada so era perceptivel
+                depois, nos lancamentos ja carregados.
 
-                <option key={unit} value={unit}>
-
-                  Unidade {index + 1}
-
-                </option>
-
-              ))}
+                `OperationalUnitOptions` existe exatamente para isto desde a correcao que tirou o
+                identificador tecnico (`unit-synthetic-homolog`) das doze superficies de
+                backoffice. Ele mantem o valor real no `value` (o que a consulta autorizada
+                envia) e usa um rotulo honesto na exibicao. Aleatorio, index-based, nao serve.
+              */}
+              <OperationalUnitOptions options={unitOptions} />
             </Select>
           </Field>
           <Field label="Plano de contas" htmlFor="journal-chart">

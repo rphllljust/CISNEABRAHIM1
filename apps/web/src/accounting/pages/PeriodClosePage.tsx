@@ -8,7 +8,7 @@ import { PERIOD_STATUS_LABELS } from '../../financial-ui/labels';
 import { MoneyActionForm } from '../../financial-ui/MoneyActionForm';
 import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
-import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
+import { OperationalUnitOptions, useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
 import {
   closePeriod,
   getPeriodCloseRuns,
@@ -29,7 +29,7 @@ export function PeriodClosePage() {
   // backoffice): o operador escolhe na lista de unidades autorizadas e nunca digita
   // identificador. Escolhida a unidade, os planos dela são carregados e o período vem por
   // plano. Fechar/reabrir continua enviando versão e justificativa ao servidor, sem mudança.
-  const { units, unitId, setUnitId } = useOperationalUnits();
+  const { units, options: unitOptions, unitId, setUnitId } = useOperationalUnits();
   const [chartId, setChartId] = useState('');
   const [periodId, setPeriodId] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
@@ -118,17 +118,12 @@ export function PeriodClosePage() {
               onChange={(event) => setUnitId(event.target.value)}
               disabled={units.length === 0}
             >
-              {units.length === 0 ? <option value="">Nenhuma unidade disponível</option> : null}
-
-              {units.map((unit, index) => (
-
-                <option key={unit} value={unit}>
-
-                  Unidade {index + 1}
-
-                </option>
-
-              ))}
+              {/*
+                ESCOPO DE UNIDADE pelo primitivo compartilhado — mesmo tratamento de Lancamentos
+                e Diario. A tela montava as opcoes a mao com um ordinal `Unidade {index + 1}`, que
+                nao diz QUAL unidade esta selecionada.
+              */}
+              <OperationalUnitOptions options={unitOptions} />
             </Select>
           </Field>
           <Field label="Plano de contas" htmlFor="close-chart">

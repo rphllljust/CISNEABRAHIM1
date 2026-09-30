@@ -7,7 +7,7 @@ import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { JOURNAL_STATUS_LABELS } from '../../financial-ui/labels';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge';
-import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
+import { OperationalUnitOptions, useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
 import {
   createAccount,
   listAccounts,
@@ -43,7 +43,7 @@ export function ChartOfAccountsPage() {
   // backoffice). O operador escolhe na lista de unidades autorizadas e nunca digita
   // identificador: selecionada a unidade, os planos dela sao carregados do servidor e o
   // operador escolhe o plano pelo codigo/nome.
-  const { units, unitId, setUnitId } = useOperationalUnits();
+  const { units, options: unitOptions, unitId, setUnitId } = useOperationalUnits();
   const [chartId, setChartId] = useState('');
   const [chartActionError, setChartActionError] = useState<string | null>(null);
   const [drillAccountId, setDrillAccountId] = useState('');
@@ -185,17 +185,13 @@ export function ChartOfAccountsPage() {
               onChange={(event) => setUnitId(event.target.value)}
               disabled={units.length === 0}
             >
-              {units.length === 0 ? <option value="">Nenhuma unidade disponível</option> : null}
-
-              {units.map((unit, index) => (
-
-                <option key={unit} value={unit}>
-
-                  Unidade {index + 1}
-
-                </option>
-
-              ))}
+              {/*
+                ESCOPO DE UNIDADE pelo primitivo compartilhado — mesmo tratamento das demais
+                superficies contabeis. A tela montava as opcoes a mao com um ordinal
+                `Unidade {index + 1}`, e o teste desta tela era o unico que ainda exigia o
+                identificador tecnico (`unit-a`) como TEXTO visivel.
+              */}
+              <OperationalUnitOptions options={unitOptions} />
             </Select>
           </Field>
           <Field label="Plano de contas" htmlFor="coa-chart">

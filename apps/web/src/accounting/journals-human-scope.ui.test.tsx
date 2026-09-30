@@ -253,9 +253,17 @@ describe('Lançamentos — escopo humano vindo do shell (unidade -> plano -> per
      * enviado a API continua sendo a unidade autorizada — mas o TEXTO lido pelo operador nunca e
      * o identificador interno: a superficie declara a posicao no escopo. Antes este teste
      * afirmava `['unit-a', 'unit-b']` como texto visivel, fixando o vazamento como esperado.
+     *
+     * A tela passou a usar `OperationalUnitOptions` — o primitivo compartilhado pelas demais
+     * superficies de backoffice — entao o rotulo e `Unidade autorizada N`, e nao mais um ordinal
+     * solto `Unidade N` montado a mao aqui. O que este teste protege continua identico: valor
+     * real no `value`, rotulo humano no texto, nenhum identificador tecnico visivel.
      */
     const unitOptions = within(unitField()).getAllByRole('option');
-    expect(unitOptions.map((option) => option.textContent)).toEqual(['Unidade 1', 'Unidade 2']);
+    expect(unitOptions.map((option) => option.textContent)).toEqual([
+      'Unidade autorizada 1',
+      'Unidade autorizada 2',
+    ]);
     expect(unitOptions.map((option) => (option as HTMLOptionElement).value)).toEqual([
       'unit-a',
       'unit-b',
@@ -378,8 +386,14 @@ describe('Lançamentos — escopo humano vindo do shell (unidade -> plano -> per
       expect(screen.getByText('Nenhuma unidade operacional disponível')).toBeInTheDocument();
     });
     expect(unitField()).toBeDisabled();
+    /*
+     * Sem unidade autorizada, o `<option>` de ausencia vem do primitivo compartilhado
+     * (`OperationalUnitOptions`), cujo texto e "Nenhuma unidade autorizada". O que o teste
+     * protege nao mudou: a tela DECLARA a ausencia em vez de oferecer um campo livre, e nao
+     * consulta a contabilidade sem escopo.
+     */
     expect(
-      within(unitField()).getByRole('option', { name: /nenhuma unidade disponível/i }),
+      within(unitField()).getByRole('option', { name: /nenhuma unidade autorizada/i }),
     ).toBeInTheDocument();
     // Sem unidade autorizada nao existe alternativa digitada: nenhum campo de texto livre.
     expect(screen.queryByPlaceholderText('ex.: unit-a')).toBeNull();

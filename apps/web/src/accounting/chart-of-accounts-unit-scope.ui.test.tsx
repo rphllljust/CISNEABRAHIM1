@@ -150,8 +150,24 @@ describe('Plano de contas — unidade operacional escolhida no contexto do shell
     });
 
     expect(unitField().tagName).toBe('SELECT');
-    expect(within(unitField()).getByRole('option', { name: 'unit-a' })).toBeInTheDocument();
-    expect(within(unitField()).getByRole('option', { name: 'unit-b' })).toBeInTheDocument();
+    /*
+     * ESCOPO HUMANO. A tela passou a usar `OperationalUnitOptions`, o primitivo compartilhado
+     * pelas superficies de backoffice: o VALOR continua sendo o identificador real (e o recorte
+     * enviado a API, verificado mais abaixo), mas o TEXTO lido pelo operador nao e mais o slug.
+     *
+     * Antes esta assercao exigia `unit-a` como NOME visivel — fixando o vazamento do
+     * identificador tecnico como comportamento esperado, exatamente o que a superficie nao pode
+     * fazer quando existe rotulo humano.
+     */
+    const unitOptions = within(unitField()).getAllByRole('option');
+    expect(unitOptions.map((option) => option.textContent)).toEqual([
+      'Unidade autorizada 1',
+      'Unidade autorizada 2',
+    ]);
+    expect(unitOptions.map((option) => (option as HTMLOptionElement).value)).toEqual([
+      'unit-a',
+      'unit-b',
+    ]);
     // Nenhum campo de texto livre para identificador: a unidade so existe na lista do shell.
     expect(screen.queryByRole('textbox')).toBeNull();
     expect(screen.queryByPlaceholderText('ex.: unit-a')).toBeNull();
@@ -246,7 +262,10 @@ describe('Plano de contas — unidade operacional escolhida no contexto do shell
       expect(screen.getByText('Nenhuma unidade operacional disponível')).toBeInTheDocument();
     });
     expect(unitField()).toBeDisabled();
-    expect(within(unitField()).getByRole('option', { name: /nenhuma unidade disponível/i })).toBeInTheDocument();
+    // O `<option>` de ausencia vem do primitivo compartilhado (`OperationalUnitOptions`).
+    expect(
+      within(unitField()).getByRole('option', { name: /nenhuma unidade autorizada/i }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole('textbox')).toBeNull();
     expect(calls.some((call) => call.startsWith('/api/v1/accounting/charts'))).toBe(false);
   });
