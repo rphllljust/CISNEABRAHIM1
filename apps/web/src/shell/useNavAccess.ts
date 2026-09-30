@@ -45,21 +45,107 @@ const INITIAL_ACCESS: NavAccessMap = Object.fromEntries(
   SHELL_NAV_ITEMS.map((item) => [item.id, item.accessCheck ? false : true]),
 );
 
+/**
+ * CACHE DO MAPA DE ACESSO DA NAVEGACAO — em memoria E em `sessionStorage`.
+ *
+ * O PROBLEMA MEDIDO. Abrir qualquer rota disparava a bateria INTEIRA de sondas
+ * (11 requisicoes de autorizacao) DUAS vezes — uma pela lista lateral (`ShellNavList`) e
+ * outra pelo host da paleta de comandos (`AppShellLayout`). Medido no HML real: **22
+ * requisicoes por carga de documento**, em todas as 58 rotas, inclusive nas que o operador
+ * nao tem nada a ver. Cada sonda de leitura usa um id-sonda inexistente de proposito, entao
+ * o servidor responde 404 e classifica a tentativa como negacao em
+ * `authorization.decision_audits`. O efeito pratico: um operador navegando por URLs
+ * coladas (o caso comum de quem recebe um link) produzia ~22 auditorias de negacao por
+ * pagina, e o volume empurrava a propria sessao contra o limite de requisicoes da API.
+ *
+ * A CORRECAO, em duas partes:
+ *   1. MEMORIA — as duas superficies do shell compartilham UMA resolucao por render.
+ *   2. SESSAO — o resultado sobrevive ao proximo documento (`sessionStorage`), que e o que
+ *      elimina o custo por rota. Sem isso, melhorar a duplicacao nao mudava nada visivel.
+ *
+ * A CHAVE E A IDENTIDADE AUTENTICADA. O mapa responde "o que ESTE ator pode abrir"; guardar
+ * por sessao sem identidade faria um ator herdar o menu de outro apos a troca de login. O
+ * `sessionStorage` ja e limpo no logout (`tokenStore.clear`), e aqui a entrada e descartada
+ * quando a identidade nao confere — nunca ha reuso cruzado entre atores.
+ *
+ * O QUE ISTO NAO E: nao e fronteira de seguranca e nao amplia permissao. E cache de
+ * APRESENTACAO do menu. A decisao real continua no servidor, por requisicao
+ * (`AuthorizationGuard` + PDP). Um ator sem grant que alcance a URL recebe 403 do backend
+ * com ou sem cache — e o pior caso deste cache e um item de menu a mais que leva a uma
+ * negacao correta, o mesmo estado que existia antes de ele ser resolvido.
+ */
+const NAV_ACCESS_STORAGE_KEY = 'cisne.navAccess.v1';
+
+let navAccessCache: { identityId: string; state: NavAccessState } | null = null;
+
+function readPersistedNavAccess(identityId: string): NavAccessState | null {
+  try {
+    const raw = window.sessionStorage.getItem(NAV_ACCESS_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw) as { identityId?: unknown; access?: unknown };
+    // Identidade diferente = cache de OUTRO ator. Descartar, nunca herdar.
+    if (parsed.identityId !== identityId || typeof parsed.access !== 'object' || !parsed.access) {
+      return null;
+    }
+    return { loading: false, access: parsed.access as NavAccessMap };
+  } catch {
+    return null;
+  }
+}
+
+function persistNavAccess(identityId: string, state: NavAccessState): void {
+  try {
+    window.sessionStorage.setItem(
+      NAV_ACCESS_STORAGE_KEY,
+      JSON.stringify({ identityId, access: state.access }),
+    );
+  } catch {
+    // Fail-open apenas para o cache: sem persistencia o menu ainda resolve pela rede.
+  }
+}
+
+/** Test-only reset for isolated unit tests. */
+export function resetNavAccessCacheForTests(): void {
+  navAccessCache = null;
+  try {
+    window.sessionStorage.removeItem(NAV_ACCESS_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 export function useNavAccess(): NavAccessState {
-  const { status } = useAuth();
+  const { status, identityId } = useAuth();
   const [state, setState] = useState<NavAccessState>({
     loading: true,
     access: INITIAL_ACCESS,
   });
 
   useEffect(() => {
-    if (status !== 'authenticated') {
+    if (status !== 'authenticated' || !identityId) {
       setState({ loading: false, access: INITIAL_ACCESS });
+      return;
+    }
+
+    const inMemory = navAccessCache;
+    if (inMemory && inMemory.identityId === identityId) {
+      setState(inMemory.state);
+      return;
+    }
+
+    const persisted = readPersistedNavAccess(identityId);
+    if (persisted) {
+      navAccessCache = { identityId, state: persisted };
+      setState(persisted);
       return;
     }
 
     const controller = new AbortController();
     let cancelled = false;
+    // Capturado uma vez: o cache e indexado pela identidade que originou esta resolucao.
+    const ownerIdentityId = identityId;
 
     async function resolveAccess() {
       const nextAccess: NavAccessMap = { ...INITIAL_ACCESS };
@@ -430,7 +516,10 @@ export function useNavAccess(): NavAccessState {
       }
 
       if (!cancelled) {
-        setState({ loading: false, access: nextAccess });
+        const resolved: NavAccessState = { loading: false, access: nextAccess };
+        navAccessCache = { identityId: ownerIdentityId, state: resolved };
+        persistNavAccess(ownerIdentityId, resolved);
+        setState(resolved);
       }
     }
 
@@ -440,7 +529,7 @@ export function useNavAccess(): NavAccessState {
       cancelled = true;
       controller.abort();
     };
-  }, [status]);
+  }, [status, identityId]);
 
   return state;
 }

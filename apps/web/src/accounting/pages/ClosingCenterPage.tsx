@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Alert, DateTime, EmptyState, StatusBadge, worklistTableCardClass } from '../../ui';
 import { ModuleDeniedState, ModuleErrorState, ModuleLoadingState, ModulePage, ModulePageHeader, filterLabelClass } from '../../ui/module-layout';
@@ -98,14 +98,30 @@ export function ClosingCenterPage() {
   const [statusFilter, setStatusFilter] = useState<'' | 'OPEN' | 'CLOSED'>('OPEN');
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * LOOP DE REQUISICAO NA CENTRAL DE FECHAMENTO — corrigido aqui.
+   *
+   * Os `loader` estavam escritos em linha. `useBackofficeQuery` observa a identidade do
+   * `loader` para saber que a CONSULTA mudou (é assim que filtro e escopo disparam recarga),
+   * então um `loader` recriado a cada render faz o efeito disparar a cada render. Cada
+   * resposta chama `setState`, que re-renderiza, que recria o `loader`, que busca de novo: a
+   * pagina nunca silencia a rede.
+   *
+   * Medido no HML real: `/app/closing` nunca atingia `networkidle` e era a ÚNICA rota que
+   * falhava por loop — as demais respondiam. O `useMemo` sobre as entradas reais (unidade,
+   * filtro de status, período) devolve identidade ESTÁVEL enquanto a pergunta não muda, e
+   * identidade NOVA quando muda — que é exatamente o contrato que o hook espera.
+   */
+  const periodsLoader = useMemo(
+    () => (signal: AbortSignal | undefined) =>
+      listPeriodsByUnit({ unitId, status: statusFilter === '' ? undefined : statusFilter }, signal),
+    [unitId, statusFilter],
+  );
+
   const periodsQuery = useBackofficeQuery<{ unitId: string; items: AccountingPeriod[] }>({
     enabled: unitId !== '',
     autoLoad: unitId !== '',
-    loader: (signal) =>
-      listPeriodsByUnit(
-        { unitId, status: statusFilter === '' ? undefined : statusFilter },
-        signal,
-      ),
+    loader: periodsLoader,
     mapError: mapAccountingErrorToMessage,
   });
 
@@ -115,10 +131,15 @@ export function ClosingCenterPage() {
     setError(null);
   }, [unitId]);
 
+  const readinessLoader = useMemo(
+    () => (signal: AbortSignal | undefined) => getClosingReadiness({ unitId, periodId }, signal),
+    [unitId, periodId],
+  );
+
   const readinessQuery = useBackofficeQuery<ClosingReadiness>({
     enabled: unitId !== '' && periodId !== '',
     autoLoad: unitId !== '' && periodId !== '',
-    loader: (signal) => getClosingReadiness({ unitId, periodId }, signal),
+    loader: readinessLoader,
     mapError: mapAccountingErrorToMessage,
   });
 

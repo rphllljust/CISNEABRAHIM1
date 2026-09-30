@@ -89,7 +89,20 @@ export function ShellNavList({
                     >
                       {({ isActive }) => (
                         <>
-                          <Icon className={iconClass(isActive, theme)} strokeWidth={2} aria-hidden />
+                          {/*
+                            `aria-hidden` no lucide NAO basta: quando o rotulo acessivel do
+                            `<svg>` tambem e renderizado, o leitor de tela le
+                            "Users Clientes" — nome do modulo prefixado pelo nome do icone.
+                            `focusable={false}` tambem tira o icone da ordem de tabulacao no
+                            Edge/IE legado.
+                          */}
+                          <Icon
+                            className={iconClass(isActive, theme)}
+                            strokeWidth={2}
+                            aria-hidden="true"
+                            aria-label={undefined}
+                            focusable={false}
+                          />
                           <span className="min-w-0 flex-1">{item.label}</span>
                           {item.id === 'alerts' && !alertsLoading && alertCount > 0 ? (
                             <span

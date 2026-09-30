@@ -55,6 +55,16 @@ export const GATED_WEB_PATH_PREFIXES: ReadonlyArray<{ prefix: string; moduleId: 
   { prefix: '/app/alerts', moduleId: 'alerts' },
   { prefix: '/app/reports', moduleId: 'reports' },
   { prefix: '/app/operational-profitability', moduleId: 'operational-profitability' },
+  /*
+    CONTRATOS — o gate estava declarado na navegacao e AUSENTE aqui.
+
+    Sintoma: com `VITE_FEATURE_MODULE_CONTRACTS=false` o item sumia do menu, mas `/app/contracts`
+    continuava abrindo o produto por URL direta. A flag de superficie e reducao de UI, entao a
+    regra e: se a flag esconde o modulo, ela tambem FECHA a rota. Meia aplicacao da mesma flag
+    produz exatamente a leitura de "modulo desabilitado que continua funcionando" — pior que
+    nao ter flag, porque o operador nao sabe em qual estado o modulo esta.
+  */
+  { prefix: '/app/contracts', moduleId: 'contracts' },
 ];
 
 export function matchGatedWebPath(pathname: string): GatedModuleId | null {

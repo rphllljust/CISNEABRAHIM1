@@ -139,13 +139,32 @@ export function useReportsCenter() {
     [clearPreviewTimer, refreshPreview],
   );
 
+  /**
+   * PREVIEW DO RELATORIO — disparo por ENTRADA, nao por ESTADO.
+   *
+   * ANTES: o efeito dependia do objeto `state` inteiro. Cada `setState` do preview
+   * (`previewLoading: true`, depois `preview`) re-criava a identidade de `state`, o efeito
+   * voltava a rodar e reagendava o debounce — que buscava de novo. O ciclo nunca fechava:
+   * abrir a Central de fechamento deixava a rede permanentemente ocupada, o que torna
+   * `networkidle` inalcancavel e multiplica chamadas por qualquer tempo de permanencia.
+   *
+   * AGORA: o efeito observa SOMENTE as entradas que definem o preview (tipo do relatorio,
+   * filtros e fase). Reescrever o resultado do preview nao dispara nova busca — a busca e
+   * consequencia de mudar a pergunta, nao de mudar a resposta.
+   *
+   * `state.filters` e identidade estavel por construcao: `setFilters` sempre cria um objeto
+   * novo, mas SO quando o operador muda um filtro. Leituras de preview nao tocam em `filters`.
+   */
+  const previewFilters = state.phase === 'ready' ? state.filters : null;
+  const previewReportType = state.phase === 'ready' ? state.selectedReportType : null;
+
   useEffect(() => {
-    if (state.phase !== 'ready') {
+    if (previewReportType === null || previewFilters === null) {
       return;
     }
-    schedulePreview(state.selectedReportType, state.filters);
+    schedulePreview(previewReportType, previewFilters);
     return () => clearPreviewTimer();
-  }, [state, schedulePreview, clearPreviewTimer]);
+  }, [previewReportType, previewFilters, schedulePreview, clearPreviewTimer]);
 
   const setSelectedReportType = useCallback((reportType: string) => {
     setState((previous) =>
