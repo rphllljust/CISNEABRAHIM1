@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { RELATION_SCOPE_KEYS, useRelationScope } from '../../enterprise-object';
 import { listPurchaseOrders, PurchaseOrdersApiError } from '../api/purchase-orders-api';
 import { mapPurchaseOrderErrorToMessage } from '../api/purchase-order-error-messages';
@@ -10,10 +11,13 @@ import { formatClientSnapshot, formatDate, formatMoney } from '../utils/purchase
 import {
   purchaseOrderNextAction,
   purchaseOrderNotice,
+  purchaseOrderRowActions,
 } from '../utils/purchase-order-list-presentation';
 import { HumanLookupField } from '../../financial-ui/HumanLookupField';
 import { searchClientOptions } from '../../financial-ui/client-lookup';
 import {
+  RowActionCell,
+  RowActionMenu,
   WorklistClearFilters,
   WorklistException,
   WorklistField,
@@ -22,6 +26,8 @@ import {
   WorklistHeader,
   WorklistRowLink,
   WorklistStatePanel,
+  rowPrimaryActionClass,
+  rowSecondaryActionClass,
   worklistCellClass,
   worklistCellRaisedClass,
   worklistHeadCellClass,
@@ -261,11 +267,26 @@ export function PurchaseOrdersListPage() {
                 <th scope="col" className={worklistHeadCellClass}>
                   Próxima ação
                 </th>
+                <th scope="col" className={worklistHeadCellClass}>
+                  <span className="sr-only">Ações</span>
+                </th>
               </tr>
             </thead>
             <tbody>
-              {items.map((item) => (
-                <tr key={item.id} className={worklistRowClass}>
+              {items.map((item) => {
+                /**
+                 * Acoes reais da linha, derivadas de estado + capability. `register` e a acao
+                 * primaria quando existe (e o proximo passo do pedido); as demais vao para o
+                 * menu "•••" para nao competir com ela.
+                 */
+                const rowActions = purchaseOrderRowActions(item, capabilities);
+                const primaryAction = rowActions.find((action) => action.kind === 'primary');
+                const secondaryActions = rowActions.filter(
+                  (action) => action.id !== primaryAction?.id,
+                );
+
+                return (
+                  <tr key={item.id} className={worklistRowClass}>
                   {/*
                     COLUNA PRINCIPAL = alvo de clique da linha. O `internalCode` saiu: ele e o
                     codigo INTERNO do ERP, e o operador trabalha com o numero do cliente
@@ -334,8 +355,46 @@ export function PurchaseOrdersListPage() {
                       {purchaseOrderNextAction(item.status)}
                     </span>
                   </td>
+                  {/*
+                    ACOES DA LINHA — condicionadas ao ESTADO e a CAPABILITY, nunca fixas.
+
+                    Antes a lista so navegava: registrar ou cancelar exigia abrir o pedido, achar
+                    a acao no detalhe e voltar. As transicoes sao as MESMAS que o detalhe executa
+                    (`registerPurchaseOrder` / `cancelPurchaseOrder`) — nenhuma regra nova.
+                  */}
+                  <RowActionCell>
+                    <RowActionMenu
+                      label={item.poNumber}
+                      primary={
+                        primaryAction ? (
+                          <Link
+                            to={`/app/purchase-orders/${item.id}`}
+                            className={rowPrimaryActionClass}
+                          >
+                            {primaryAction.label}
+                          </Link>
+                        ) : null
+                      }
+                      secondary={
+                        secondaryActions.length > 0 ? (
+                          <>
+                            {secondaryActions.map((action) => (
+                              <Link
+                                key={action.id}
+                                to={`/app/purchase-orders/${item.id}`}
+                                className={rowSecondaryActionClass}
+                              >
+                                {action.label}
+                              </Link>
+                            ))}
+                          </>
+                        ) : undefined
+                      }
+                    />
+                  </RowActionCell>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
