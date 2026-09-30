@@ -156,42 +156,20 @@ export function ReceivablesListPage() {
   /**
    * CARTEIRA VAZIA — `200 + items=[]` e EMPTY DATA, nao negacao de acesso.
    *
-   * Sem este corte a tela renderizava QUATRO indicadores de drill-down e uma barra de filtros
-   * inteira sobre uma carteira sem um unico titulo: "VENCIDOS 0 / R$ 0,00", "A VENCER 0 /
-   * R$ 0,00", "RECEBIDOS 0", "CARTEIRA EM ABERTO 0" — nove zeros empilhados antes de qualquer
-   * explicacao. O operador via numeros que nao informam nada, num painel que parece quebrado.
+   * O estado vazio e um ESTADO DA WORKLIST, nunca uma segunda estrutura de pagina. Uma primeira
+   * versao desta correcao fazia RETORNO ANTECIPADO e trocava a tela inteira pelo painel: isso
+   * apagava a barra de filtros, as visoes salvas, os indicadores de drill-down, a barra de acoes
+   * em lote e a paginacao. O operador ficava sem os controles da lista justamente quando mais
+   * precisava deles para ENTENDER o recorte — e a Familia Financeira passava a ter duas
+   * gramaticas: uma com dados, outra sem.
    *
-   * A leitura e do SERVIDOR (`page.total`), nunca da pagina — MAS `page.total` conta o recorte
-   * ATIVO, nao a carteira inteira. Por isso o estado compacto so entra quando NAO HA RECORTE:
-   * com filtro ou visao aplicada, lista vazia significa "nada nesta visao", e esse caso ja tem
-   * o proprio estado humano (`nenhum titulo nesta visao`), que explica o recorte em vez de
-   * fazer a carteira parecer inexistente.
+   * Agora a pagina renderiza SEMPRE a mesma estrutura. So o CORPO da worklist decide entre a
+   * tabela e o painel de estado. Nenhum filtro, indicador, visao salva ou paginacao some.
    *
-   * Confundir os dois apagava o estado da visao filtrada: a tela inteira era substituida pelo
-   * painel de carteira vazia e o operador perdia os filtros e a saida do recorte.
+   * `page.total` conta o recorte ATIVO; por isso o painel distingue "carteira sem titulos" de
+   * "nada nesta visao" — o segundo caso ja tem o proprio estado humano dentro da tabela.
    */
   const portfolioEmpty = page.total === 0 && !smartList.isFiltered && statusForQuery === '';
-
-  if (portfolioEmpty) {
-    return (
-      <ModulePage>
-        <WorklistHeader
-          title="Contas a receber"
-          count={0}
-          context="Saldos e status são os informados pelo servidor. Esta tela não recalcula títulos."
-        />
-        <WorklistStatePanel
-          title="Nenhum título a receber registrado."
-          description="Os títulos nascem do faturamento: quando uma medição é aprovada e o documento é emitido, a cobrança aparece aqui com vencimento, saldo e situação. Nada foi somado nem estimado nesta tela."
-          action={
-            <Link to="/app/billing" className="text-xs font-semibold text-brand-700 no-underline">
-              Ver faturamento
-            </Link>
-          }
-        />
-      </ModulePage>
-    );
-  }
 
   return (
     <ModulePage>
@@ -322,15 +300,35 @@ export function ReceivablesListPage() {
         ]}
       />
 
+      {/*
+        CORPO DA WORKLIST — a tabela e o estado vazio ocupam o MESMO lugar. A pagina em volta
+        (cabecalho, indicadores, filtros, visoes salvas, acoes em lote, paginacao) e sempre a
+        mesma, com ou sem titulos.
+      */}
       {pageItems.length === 0 ? (
-        <EmptyState
-          title={smartList.isFiltered ? 'Nenhum título nesta visão' : 'Nenhum título a receber'}
-          description={
-            smartList.isFiltered
-              ? 'Nenhum título corresponde ao recorte atual. Ajuste o filtro ou limpe a visão para ver a carteira completa.'
-              : 'Não há contas a receber visíveis para o seu acesso.'
-          }
-        />
+        portfolioEmpty ? (
+          <WorklistStatePanel
+            title="Nenhum título a receber registrado."
+            description="Os títulos nascem do faturamento: quando uma medição é aprovada e o documento é emitido, a cobrança aparece aqui com vencimento, saldo e situação. Nada foi somado nem estimado nesta tela."
+            action={
+              <Link
+                to="/app/billing"
+                className="text-xs font-semibold text-brand-700 no-underline"
+              >
+                Ver faturamento
+              </Link>
+            }
+          />
+        ) : (
+          <EmptyState
+            title={smartList.isFiltered ? 'Nenhum título nesta visão' : 'Nenhum título a receber'}
+            description={
+              smartList.isFiltered
+                ? 'Nenhum título corresponde ao recorte atual. Ajuste o filtro ou limpe a visão para ver a carteira completa.'
+                : 'Não há contas a receber visíveis para o seu acesso.'
+            }
+          />
+        )
       ) : (
         <>
           <div className={worklistTableCardClass}>

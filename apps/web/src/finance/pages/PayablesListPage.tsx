@@ -157,39 +157,19 @@ export function PayablesListPage() {
   /**
    * CARTEIRA VAZIA — `200 + items=[]` e EMPTY DATA, nao negacao de acesso.
    *
-   * Mesmo defeito corrigido em Contas a receber: sem este corte a tela renderizava QUATRO
-   * indicadores de drill-down, a barra de filtros e a barra de aging sobre uma carteira sem um
-   * unico titulo — "VENCIDOS 0 / R$ 0,00", "A VENCER 0 / R$ 0,00", "AGING 90+ 0", "OBRIGACOES
-   * EM ABERTO 0 / R$ 0,00" empilhados antes de qualquer explicacao.
+   * O estado vazio e um ESTADO DA WORKLIST, nunca uma segunda estrutura de pagina. A primeira
+   * versao desta correcao fazia RETORNO ANTECIPADO e trocava a tela inteira pelo painel: isso
+   * apagava a barra de filtros, a barra de aging, as visoes salvas, os indicadores de drill-down
+   * e a paginacao — o operador perdia os controles justamente quando precisava deles para
+   * entender o recorte. Contas a pagar e Contas a receber passavam a ter DUAS gramaticas: uma
+   * com dados, outra sem.
    *
-   * A leitura e do SERVIDOR (`page.total`), nunca da pagina — MAS `page.total` conta o recorte
-   * ATIVO, nao a carteira inteira. Por isso o estado compacto so entra quando NAO HA RECORTE:
-   * com filtro ou visao aplicada, lista vazia significa "nada nesta visao", e esse caso ja tem
-   * o proprio estado humano, que explica o recorte em vez de fazer a carteira parecer
-   * inexistente. Confundir os dois substitui a tela inteira e o operador perde os filtros.
+   * Agora a pagina renderiza SEMPRE a mesma estrutura e so o CORPO decide entre tabela e painel.
+   *
+   * `page.total` conta o recorte ATIVO; por isso o painel distingue "carteira sem obrigacoes" de
+   * "nada nesta visao" — o segundo caso ja tem o proprio estado humano dentro da tabela.
    */
   const portfolioEmpty = page.total === 0 && !smartList.isFiltered;
-
-  if (portfolioEmpty) {
-    return (
-      <ModulePage>
-        <WorklistHeader
-          title="Contas a pagar"
-          count={0}
-          context="Aging e saldo restante são os informados pelo servidor. Esta tela não recalcula obrigações."
-        />
-        <WorklistStatePanel
-          title="Nenhuma obrigação a pagar registrada."
-          description="As obrigações nascem da compra: quando uma nota de fornecedor é registrada, o título aparece aqui com vencimento, aging, saldo e situação. Nada foi somado nem estimado nesta tela."
-          action={
-            <Link to="/app/procurement" className="text-xs font-semibold text-brand-700 no-underline">
-              Ver compras
-            </Link>
-          }
-        />
-      </ModulePage>
-    );
-  }
 
   return (
     <ModulePage>
@@ -336,15 +316,34 @@ export function PayablesListPage() {
         ]}
       />
 
+      {/*
+        CORPO DA WORKLIST — a tabela e o estado vazio ocupam o MESMO lugar. A pagina em volta
+        (cabecalho, indicadores, filtros, aging, visoes salvas, paginacao) e sempre a mesma.
+      */}
       {filtered.length === 0 ? (
-        <EmptyState
-          title={smartList.isFiltered ? 'Nenhum título nesta visão' : 'Nenhum título a pagar'}
-          description={
-            smartList.isFiltered
-              ? 'Nenhum título corresponde ao recorte atual. Ajuste o filtro ou limpe a visão para ver todas as obrigações.'
-              : 'Não há contas a pagar visíveis para o seu acesso.'
-          }
-        />
+        portfolioEmpty ? (
+          <WorklistStatePanel
+            title="Nenhuma obrigação a pagar registrada."
+            description="As obrigações nascem da compra: quando uma nota de fornecedor é registrada, o título aparece aqui com vencimento, aging, saldo e situação. Nada foi somado nem estimado nesta tela."
+            action={
+              <Link
+                to="/app/procurement"
+                className="text-xs font-semibold text-brand-700 no-underline"
+              >
+                Ver compras
+              </Link>
+            }
+          />
+        ) : (
+          <EmptyState
+            title={smartList.isFiltered ? 'Nenhum título nesta visão' : 'Nenhum título a pagar'}
+            description={
+              smartList.isFiltered
+                ? 'Nenhum título corresponde ao recorte atual. Ajuste o filtro ou limpe a visão para ver todas as obrigações.'
+                : 'Não há contas a pagar visíveis para o seu acesso.'
+            }
+          />
+        )
       ) : (
         <>
           <div className={worklistTableCardClass}>
