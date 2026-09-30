@@ -12,7 +12,24 @@ import { join } from 'node:path';
 const WEB_URL = process.env.CISNE_JOURNEY_WEB_URL ?? 'http://127.0.0.1:5173';
 const API_URL = process.env.CISNE_JOURNEY_API_URL ?? 'http://127.0.0.1:3000';
 const LOGIN = process.env.CISNE_JOURNEY_LOGIN ?? 'abrahim@cisne-rondonia.invalid';
-const PASSWORD = process.env.CISNE_JOURNEY_PASSWORD ?? 'Cisne-Abrahim-2026!';
+
+/**
+ * SENHA VEM DO AMBIENTE — sem default silencioso (mesma regra dos scripts de seed, commit
+ * 6d65e3e). A credencial de homologacao nao vive no repositorio: o valor entra pelo ambiente
+ * (`.env`, gitignored) e a ausencia falha alto, em vez de autenticar com senha embutida.
+ */
+function requireJourneyPassword(): string {
+  const value = process.env['CISNE_JOURNEY_PASSWORD']?.trim();
+  if (!value) {
+    throw new Error(
+      'CONFIGURATION_ERROR: CISNE_JOURNEY_PASSWORD is required to run this journey. ' +
+        'Set it in the environment (gitignored .env); see .env.example.',
+    );
+  }
+  return value;
+}
+
+const PASSWORD = requireJourneyPassword();
 
 const SHOTS = process.env.CISNE_JOURNEY_SHOTS ?? join(process.cwd(), 'test-results', 'catalog');
 const UUID_PATTERN = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;

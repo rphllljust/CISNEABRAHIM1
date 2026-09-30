@@ -25,7 +25,30 @@ import { join } from 'node:path';
 const WEB_URL = process.env.CISNE_JOURNEY_WEB_URL ?? 'http://127.0.0.1:5173';
 const API_URL = process.env.CISNE_JOURNEY_API_URL ?? 'http://127.0.0.1:3000';
 const LOGIN = process.env.CISNE_JOURNEY_LOGIN ?? 'abrahim@cisne-rondonia.invalid';
-const PASSWORD = process.env.CISNE_JOURNEY_PASSWORD ?? 'Cisne-Abrahim-2026!';
+
+/**
+ * SENHA VEM DO AMBIENTE — sem default silencioso.
+ *
+ * Estes arquivos carregavam a senha de homologacao em texto plano como fallback, o mesmo defeito
+ * que o commit 6d65e3e removeu dos scripts de seed: o valor vaza em qualquer clone e o login de
+ * teste passa a existir por acidente, em vez de por configuracao explicita.
+ *
+ * O padrao da casa ja esta definido: o valor vem do ambiente (`.env`, gitignored; os NOMES
+ * documentados em `.env.example`) e a ausencia FALHA ALTO. Um teste que nao consegue autenticar
+ * deve dizer por que, nao autenticar com uma credencial embutida no repositorio.
+ */
+function requireJourneyPassword(): string {
+  const value = process.env['CISNE_JOURNEY_PASSWORD']?.trim();
+  if (!value) {
+    throw new Error(
+      'CONFIGURATION_ERROR: CISNE_JOURNEY_PASSWORD is required to run this journey. ' +
+        'Set it in the environment (gitignored .env); see .env.example.',
+    );
+  }
+  return value;
+}
+
+const PASSWORD = requireJourneyPassword();
 
 const SHOTS = process.env.CISNE_JOURNEY_SHOTS ?? join(process.cwd(), 'test-results', 'business-chain');
 
