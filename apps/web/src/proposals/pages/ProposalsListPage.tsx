@@ -35,6 +35,7 @@ import {
   ModuleStatePage,
   ModulePagination,
   ModulePrimaryLink,
+  UnitScopeLabel,
   filterLabelClass,
 } from '../../ui/module-layout';
 import { cn } from '../../ui/utils/cn';
@@ -414,7 +415,8 @@ export function ProposalsListPage() {
                       </Link>
                       <p className="mt-1 line-clamp-2 text-sm text-gray-700">{item.title}</p>
                       <p className="mt-1 text-xs text-gray-400">
-                        Unidade {item.unitId} · criada {formatRelativePast(item.createdAt, now)}
+                        <UnitScopeLabel unitId={item.unitId} /> · criada{' '}
+                        {formatRelativePast(item.createdAt, now)}
                       </p>
                     </div>
 

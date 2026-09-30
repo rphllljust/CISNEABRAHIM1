@@ -64,7 +64,7 @@ import {
 } from '../../enterprise-object';
 import { ActivityTimeline, type ActivityFact } from '../../operator';
 import { BusinessChain, useBusinessChain } from '../../business-chain';
-import { ModulePage } from '../../ui/module-layout';
+import { ModulePage, UnitScopeLabel } from '../../ui/module-layout';
 import type { StatusBadgeTone } from '../../ui/StatusBadge';
 import { cn } from '../../ui/utils/cn';
 
@@ -326,7 +326,7 @@ export function ProposalDetailPage() {
       value: currentVersion?.validUntil ? formatDateTime(currentVersion.validUntil) : null,
       emphasis: timing?.tone === 'critical' || timing?.tone === 'warning',
     },
-    { label: 'Cliente', value: clientName ?? proposal.unitId },
+    { label: 'Cliente', value: clientName ?? 'Cliente não identificado' },
     currentVersion?.issuedByIdentityId
       ? {
           label: 'Emitida por',
@@ -491,7 +491,7 @@ export function ProposalDetailPage() {
     related.client && clientName
       ? { label: 'Cliente', value: clientName, to: `/app/clients/${related.client.id}` }
       : null,
-    { label: 'Unidade', value: proposal.unitId },
+    { label: 'Unidade', value: <UnitScopeLabel unitId={proposal.unitId} /> },
     currentVersion?.issuedByIdentityId
       ? {
           label: 'Responsável',
