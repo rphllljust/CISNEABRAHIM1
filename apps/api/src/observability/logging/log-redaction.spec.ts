@@ -44,4 +44,33 @@ describe('log redaction', () => {
     expect(containsForbiddenLogSecret('refresh_token=abc')).toBe(true);
     expect(containsForbiddenLogSecret('operation completed')).toBe(false);
   });
+
+  // B3: identificadores fiscais e chaves de API. Antes desta sessao o CNPJ so
+  // era mascarado por VALOR pontuado — `cnpj: "12345678000190"` (sem pontos)
+  // atravessava intacto, porque nao havia defesa por CHAVE.
+  it('redacts fiscal identifiers by key, including unpunctuated values', () => {
+    const metadata = redactLogMetadata({
+      cpf: '12345678901',
+      cnpj: '12345678000190',
+      tax_id: '12345678000190',
+      'x-api-key': 'sk-live-abc123',
+      operation: 'create_client',
+    });
+
+    expect(metadata).toEqual({
+      cpf: '[REDACTED]',
+      cnpj: '[REDACTED]',
+      tax_id: '[REDACTED]',
+      'x-api-key': '[REDACTED]',
+      operation: 'create_client',
+    });
+  });
+
+  it('masks punctuated CPF and api keys in free text', () => {
+    const redacted = redactLogString('cliente 123.456.789-01 chamou com x-api-key: sk-live-abc123');
+
+    expect(redacted).toContain('[REDACTED_CPF]');
+    expect(redacted).not.toContain('123.456.789-01');
+    expect(redacted).not.toContain('sk-live-abc123');
+  });
 });
