@@ -30,6 +30,7 @@ export {
   securityAuditEvents,
   securityAuditOutcomeEnum,
 } from './audit';
+export { auditActionEnum, auditLogs } from './audit-trail';
 export {
   addressPurposeEnum,
   clientAddresses,
