@@ -3,7 +3,7 @@
 | Campo        | Valor                                           |
 | ------------ | ----------------------------------------------- |
 | Document ID  | SRC-REG-001                                     |
-| Last updated | 2026-09-29 (SRC-009: minuta de aceite operacional RC1 / amarra RC2, PENDING_SIGNATURE) |
+| Last updated | 2026-09-29 (SRC-009 APPROVED: aceite operacional 1-A e vinculação RC2 2-A) |
 
 ## Como preencher
 
@@ -222,17 +222,17 @@
 | SOURCE-ID | SRC-009 |
 | Title | Termo de aceite do processo operacional (RC1) e vínculo com o candidato atual |
 | Type | `BUSINESS_PROCESS_ACCEPTANCE` · `RELEASE_BINDING_PROPOSAL` |
-| Origin | Minuta elaborada a pedido do responsável (2026-09-29) para assinatura dos dois administradores |
+| Origin | Aceite declarado pelo responsável do projeto (2026-09-29); opções 1-A e 2-A |
 | Location | [`../inputs/SRC-009-aceite-processo-operacional-rc1-e-delta-rc2.md`](../inputs/SRC-009-aceite-processo-operacional-rc1-e-delta-rc2.md) |
-| Date received | 2026-09-29 (elaboração; assinatura pendente) |
-| Status | `PENDING_SIGNATURE` |
-| Classification | Reafirmação do UAT RC1 e proposta de amarra do RC2; não é go-live |
-| Reliability | Nula até as duas assinaturas; após assinatura, alta para o recorte marcado |
-| Integrity | Minuta em markdown; PDF assinado a anexar no mesmo SOURCE-ID |
+| Date received | 2026-09-29 (elaboração e aceite) |
+| Status | `APPROVED` |
+| Classification | Reafirmação do UAT RC1 e amarra operacional do RC2 (2-A); não é go-live |
+| Reliability | Alta para o recorte 1-A / 2-A |
+| Integrity | Termo em markdown; aceite registrado em 2026-09-29 |
 | Personal / sensitive data | Sim — identifica os dois administradores |
-| May prove operational business rules? | **NO** enquanto `PENDING_SIGNATURE`. **YES** após as duas assinaturas — somente cláusulas 1 e 2 conforme marcadas |
+| May prove operational business rules? | **YES** — cláusulas 1-A e 2-A (fatia R1; núcleo extra não aceito como operação oficial) |
 | Substitutes primary sources? | **NO** — não substitui UAT-UX-001/002 nem SRC-008 |
-| Notes | Não atualiza `readiness-evidence.json` sozinho. Não autoriza `FEATURE_MODULE_FISCAL`, Prompt 93 nem EXIT_READY. |
+| Notes | `readiness-evidence.json` businessSignOff APPROVED em 2026-09-29. Não autoriza FEATURE_MODULE_FISCAL, Prompt 93 nem EXIT_READY. |
 
 ## Fontes ainda não fornecidas
 

@@ -6,9 +6,9 @@
     "version": "0.0.0-rc.2"
   },
   "businessSignOff": {
-    "decision": "PENDING",
-    "approvedBy": null,
-    "approvedAt": null,
+    "decision": "APPROVED",
+    "approvedBy": "Abrahim Jabour Junior (Administrador); Monica Perez Badra Jabour (Administrador 2)",
+    "approvedAt": "2026-09-29T14:31:00.000Z",
     "scope": "operational-validation-authorization",
     "environment": "pilot-or-preproduction",
     "releaseCandidate": {
@@ -16,16 +16,20 @@
       "artifactDigest": null,
       "version": "0.0.0-rc.2"
     },
-    "evidenceReference": "docs/16-testing/uat-business-scenarios.md",
-    "decisionStatement": "Esta versão e este escopo representam corretamente o processo empresarial acordado e estão autorizados a seguir para a etapa de validação operacional/pré-produção.",
+    "evidenceReference": "docs/inputs/SRC-009-aceite-processo-operacional-rc1-e-delta-rc2.md",
+    "decisionStatement": "A fatia operacional da Release 1 (SRC-009, opções 1-A e 2-A) permanece o processo empresarial acordado neste release candidate. O núcleo complementar atrás de FEATURE_MODULE_* não está aceito como operação oficial por este termo.",
     "derivedScopeReferences": [
+      "docs/inputs/SRC-009-aceite-processo-operacional-rc1-e-delta-rc2.md",
+      "docs/inputs/UAT-UX-001-human-operator-session-signoff.md",
+      "docs/inputs/UAT-UX-002-human-operator-session-signoff.md",
+      "docs/01-foundation/release-1-closed-scope.md",
       "docs/16-testing/uat-business-scenarios.md",
       "docs/01-foundation/business-rules-register.md",
       "apps/api/src/uat/uat-scenarios.ts",
       "apps/api/src/uat/uat-profiles.ts",
       "apps/api/src/uat/uat-business.integration.spec.ts"
     ],
-    "notes": "RC2 rebinding: business sign-off from RC1 is retained only in history and is not inherited by this release candidate."
+    "notes": "SRC-009 ACEITE-PROC-001: cláusulas 1-A e 2-A. UAT/UX do RC1 (UAT-UX-001 e UAT-UX-002) reafirmado para a fatia R1. Núcleo extra não herda UAT. Não autoriza go-live, FEATURE_MODULE_FISCAL, piloto EXIT_READY nem Prompt 93."
   },
   "rpoRto": {
     "decision": "APPROVED",
@@ -118,7 +122,7 @@
     "blockingIssues": [],
     "approval": null,
     "evidenceReference": "docs/16-testing/uat-ux-checklist.md",
-    "notes": "RC2 requires a new manual operator UAT/sign-off; previous RC1 sessions remain historical evidence only."
+    "notes": "SRC-009 opção 2-A: UAT/UX manual completo do RC1 permanece histórico e reafirmado para a fatia R1; não copiado como PASSED neste RC2. UAT de delta (financeiro, fiscal de tela, contábil, estoque, folha, compras) permanece NOT_STARTED."
   },
   "history": [
     {
@@ -372,6 +376,20 @@
         "version": "0.0.0-rc.1"
       },
       "notes": "allocation_conflicts=0; billing_aging_7d=0; outbox_failed=0; worker_pending=47; worker_failed_or_dead=0; posted_unbalanced_journals=0; duplicate_postings=0; incident_blockers=0; http_error_rate=0.2391304347826087; http_p95_ms=191; phase_unchanged"
+    },
+    {
+      "recordedAt": "2026-09-29T14:31:00.000Z",
+      "actor": "Abrahim Jabour Junior (Administrador); Monica Perez Badra Jabour (Administrador 2)",
+      "action": "BUSINESS_SIGN_OFF_APPROVED",
+      "field": "businessSignOff.decision",
+      "previousValue": "PENDING",
+      "newValue": "APPROVED",
+      "releaseCandidate": {
+        "commitSha": "2c8fdfcabb034ebf44054e0001053ce1ece75a97",
+        "artifactDigest": null,
+        "version": "0.0.0-rc.2"
+      },
+      "notes": "SRC-009 ACEITE-PROC-001 options 1-A and 2-A; operational R1 reaffirmed; complementary modules remain fail-closed; not go-live"
     }
   ]
 }
