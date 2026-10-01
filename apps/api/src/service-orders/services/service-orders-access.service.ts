@@ -101,6 +101,7 @@ export class ServiceOrdersAccessService {
   async create(
     actor: IdentityAuthzContext,
     input: CreateServiceOrderInput,
+    correlationId?: string | null,
   ): Promise<ServiceOrderDetailResponse> {
     const validated = resolveCreateServiceOrderInput(input);
 
@@ -220,6 +221,7 @@ export class ServiceOrdersAccessService {
       actorIdentityId: actor.identityId,
       historyEventType: SERVICE_ORDER_HISTORY_EVENTS.Created,
       historyPayload: { origin: validated.origin },
+      correlationId,
     });
 
     await this.securityAudit.record({
@@ -469,14 +471,24 @@ export class ServiceOrdersAccessService {
     actor: IdentityAuthzContext,
     serviceOrderId: string,
     input: { rowVersion: number },
+    correlationId?: string | null,
   ): Promise<ServiceOrderDetailResponse> {
-    return this.transition(actor, serviceOrderId, input, 'prepare', AUTHZ_ACTIONS.ServiceOrdersServiceOrderPrepare);
+    return this.transitionWithCorrelation(
+      actor,
+      serviceOrderId,
+      input,
+      'prepare',
+      AUTHZ_ACTIONS.ServiceOrdersServiceOrderPrepare,
+      undefined,
+      correlationId,
+    );
   }
 
   async release(
     actor: IdentityAuthzContext,
     serviceOrderId: string,
     input: { rowVersion: number },
+    correlationId?: string | null,
   ): Promise<ServiceOrderDetailResponse> {
     assertValidServiceOrderId(serviceOrderId);
     const current = await this.requireServiceOrder(
@@ -528,6 +540,7 @@ export class ServiceOrdersAccessService {
       nextStatus,
       transition: 'release',
       clientSnapshot,
+      correlationId,
     });
 
     if (updated === 'VERSION_CONFLICT') {
@@ -557,15 +570,17 @@ export class ServiceOrdersAccessService {
     actor: IdentityAuthzContext,
     serviceOrderId: string,
     input: CancelServiceOrderInput,
+    correlationId?: string | null,
   ): Promise<ServiceOrderDetailResponse> {
     const validated = resolveCancelServiceOrderInput(input);
-    return this.transition(
+    return this.transitionWithCorrelation(
       actor,
       serviceOrderId,
       validated,
       'cancel',
       AUTHZ_ACTIONS.ServiceOrdersServiceOrderCancel,
       validated.cancellationReason,
+      correlationId,
     );
   }
 
@@ -573,6 +588,7 @@ export class ServiceOrdersAccessService {
     actor: IdentityAuthzContext,
     serviceOrderId: string,
     input: ReopenServiceOrderInput,
+    correlationId?: string | null,
   ): Promise<ServiceOrderDetailResponse> {
     assertValidServiceOrderId(serviceOrderId);
     const current = await this.requireServiceOrder(
@@ -612,6 +628,7 @@ export class ServiceOrdersAccessService {
       nextStatus,
       transition: 'reopen',
       reopenReason,
+      correlationId,
     });
 
     if (updated === 'VERSION_CONFLICT') {
@@ -648,6 +665,30 @@ export class ServiceOrdersAccessService {
     action: AuthzAction,
     cancellationReason?: string,
   ): Promise<ServiceOrderDetailResponse> {
+    return this.transitionWithCorrelation(
+      actor,
+      serviceOrderId,
+      input,
+      transition,
+      action,
+      cancellationReason,
+    );
+  }
+
+  /**
+   * Mesma transicao, com correlacao explicita para a trilha AUDIT_TRAIL.
+   * Separado para nao alterar a assinatura publica de `transition` nem o tipo
+   * compartilhado IdentityAuthzContext (usado por todo o backend).
+   */
+  private async transitionWithCorrelation(
+    actor: IdentityAuthzContext,
+    serviceOrderId: string,
+    input: { rowVersion: number },
+    transition: ServiceOrderTransition,
+    action: AuthzAction,
+    cancellationReason?: string,
+    correlationId?: string | null,
+  ): Promise<ServiceOrderDetailResponse> {
     assertValidServiceOrderId(serviceOrderId);
     const current = await this.requireServiceOrder(actor, serviceOrderId, action);
 
@@ -675,6 +716,7 @@ export class ServiceOrdersAccessService {
       nextStatus,
       transition,
       cancellationReason,
+      correlationId,
     });
 
     if (updated === 'VERSION_CONFLICT') {

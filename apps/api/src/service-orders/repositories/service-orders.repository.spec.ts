@@ -1,13 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { AuditService } from '../../audit/audit.service';
 import { buildServiceOrderTransitionFields } from './service-orders-history-rows';
 import { ServiceOrdersRepository } from './service-orders.repository';
 
 describe('ServiceOrdersRepository.listServiceOrders', () => {
   it('uses stable ordering and passes pagination params after filter params', async () => {
     const query = vi.fn(async (_sql: string, _params: unknown[]) => ({ rows: [] }));
+    // Stub explicito: AuditService e dependencia obrigatoria do repositorio.
+    // Estes casos exercitam apenas a montagem de SQL da listagem, sem trilha.
+    const auditService = { registrar: vi.fn() } as unknown as AuditService;
     const repository = new ServiceOrdersRepository(
       { getConnection: () => ({ pool: { query } }) } as never,
       { appendServiceOrderReleased: vi.fn(), appendServiceOrderCompleted: vi.fn() } as never,
+      auditService,
     );
 
     await repository.listServiceOrders(

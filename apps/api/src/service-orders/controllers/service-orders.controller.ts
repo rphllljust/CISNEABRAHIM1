@@ -14,6 +14,7 @@ import {
 import { SERVICE_ORDERS_ERROR_CODES } from '../errors/service-orders-error-codes';
 import { ServiceOrdersHttpException } from '../errors/service-orders-http.exception';
 import { ServiceOrdersAccessService } from '../services/service-orders-access.service';
+import { resolveCorrelationId } from '../../infrastructure/http/correlation-id';
 
 @Controller('service-orders')
 @UseGuards(JwtAuthGuard)
@@ -25,7 +26,11 @@ export class ServiceOrdersController {
   create(@CurrentAuth() auth: AccessTokenClaims, @Req() request: FastifyRequest) {
     try {
       const input = parseCreateServiceOrderInput(request.body);
-      return this.serviceOrdersAccess.create({ identityId: auth.sub, sessionId: auth.sid }, input);
+      return this.serviceOrdersAccess.create(
+        { identityId: auth.sub, sessionId: auth.sid },
+        input,
+        resolveCorrelationId(request),
+      );
     } catch {
       throw new ServiceOrdersHttpException(
         400,
@@ -91,6 +96,7 @@ export class ServiceOrdersController {
       { identityId: auth.sub, sessionId: auth.sid },
       serviceOrderId,
       body,
+      resolveCorrelationId(request),
     );
   }
 
@@ -106,6 +112,7 @@ export class ServiceOrdersController {
       { identityId: auth.sub, sessionId: auth.sid },
       serviceOrderId,
       body,
+      resolveCorrelationId(request),
     );
   }
 
@@ -122,6 +129,7 @@ export class ServiceOrdersController {
         { identityId: auth.sub, sessionId: auth.sid },
         serviceOrderId,
         input,
+        resolveCorrelationId(request),
       );
     } catch {
       throw new ServiceOrdersHttpException(
@@ -145,6 +153,7 @@ export class ServiceOrdersController {
         { identityId: auth.sub, sessionId: auth.sid },
         serviceOrderId,
         input,
+        resolveCorrelationId(request),
       );
     } catch {
       throw new ServiceOrdersHttpException(

@@ -93,6 +93,11 @@ export type CreateServiceOrderPersistenceInput = {
   actorIdentityId: string;
   historyEventType: string;
   historyPayload?: Record<string, unknown>;
+  /**
+   * Correlacao da requisicao, para a trilha AUDIT_TRAIL. Ausente em chamadas
+   * internas (seed, jobs): a auditoria e simplesmente nao gravada nesses casos.
+   */
+  correlationId?: string | null;
 };
 
 export type ConvertServiceRequestPersistenceInput = {
@@ -158,4 +163,6 @@ export type TransitionServiceOrderPersistenceInput = {
   clientSnapshot?: Record<string, unknown> | null;
   cancellationReason?: string | null;
   reopenReason?: string | null;
+  /** Correlacao da requisicao, para a trilha AUDIT_TRAIL. */
+  correlationId?: string | null;
 };

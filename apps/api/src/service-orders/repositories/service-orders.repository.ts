@@ -43,12 +43,34 @@ import {
   SERVICE_ORDER_SELECT,
 } from './service-orders-history-rows';
 import { isServiceRequestUniqueViolation, isServiceOrderUniqueViolation } from './service-orders.repository.errors';
+import { AUDIT_ACTIONS } from '../../audit/audit-trail.types';
+import { AuditService } from '../../audit/audit.service';
+
+/**
+ * Campos de estado gravados na trilha AUDIT_TRAIL.
+ *
+ * Apenas status/rowVersion/timestamps: NUNCA client_snapshot, service_snapshot,
+ * contract_snapshot, tax_id ou valores financeiros (RESTRICTED/FINANCIAL em
+ * docs/13-data-model/column-semantics.md). O AuditService aplica redaction como
+ * segunda barreira.
+ */
+function auditSnapshot(row: ServiceOrderRow): Record<string, unknown> {
+  return {
+    status: row.status,
+    rowVersion: row.row_version,
+    updatedAt: row.updated_at,
+  };
+}
 
 @Injectable()
 export class ServiceOrdersRepository {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly outboxWriter: OutboxDomainEventWriter,
+    // Obrigatorio: toda escrita de OS passa por aqui e a trilha AUDIT_TRAIL depende
+    // deste servico. Sem ele o repositorio nao compila — falha explicita em vez de
+    // auditoria silenciosamente ausente.
+    private readonly auditService: AuditService,
     @Optional() @Inject(FAULT_INJECTION_PORT) private readonly faultInjection?: FaultInjectionPort,
   ) {}
 
@@ -379,6 +401,24 @@ export class ServiceOrdersRepository {
     try {
       await client.query('BEGIN');
       const inserted = await this.insertServiceOrder(client, input);
+
+      // AUDIT_TRAIL na MESMA transacao: se o COMMIT falhar, a linha de auditoria
+      // desaparece junto com a OS. correlationId ausente (chamada interna) => nao grava.
+      if (input.correlationId) {
+        await this.auditService.registrar(
+          {
+            tabela: 'service_orders',
+            registroId: inserted.id,
+            acao: AUDIT_ACTIONS.Create,
+            dadosAntigos: null,
+            dadosNovos: auditSnapshot(inserted),
+            usuarioId: input.actorIdentityId,
+            correlationId: input.correlationId,
+          },
+          client,
+        );
+      }
+
       await client.query('COMMIT');
       return inserted;
     } catch (error) {
@@ -772,6 +812,31 @@ export class ServiceOrdersRepository {
       if (input.transition === 'release') {
         await maybeInjectFault(this.faultInjection, FAULT_HOOKS.ServiceOrderReleaseAfterHistoryBeforeAudit);
       }
+
+      // AUDIT_TRAIL na MESMA transacao, apos a mutacao de status. `current` e o
+      // estado lido sob FOR UPDATE antes do UPDATE; `updated` e o posterior.
+      if (input.correlationId) {
+        await this.auditService.registrar(
+          {
+            tabela: 'service_orders',
+            registroId: updated.id,
+            acao: AUDIT_ACTIONS.Transition,
+            dadosAntigos: {
+              status: current.status,
+              rowVersion: current.row_version,
+              updatedAt: current.updated_at,
+            },
+            dadosNovos: {
+              ...auditSnapshot(updated),
+              comando: input.transition,
+            },
+            usuarioId: input.actorIdentityId,
+            correlationId: input.correlationId,
+          },
+          client,
+        );
+      }
+
       if (input.transition === 'release' && updated.released_at) {
         await maybeInjectFault(this.faultInjection, FAULT_HOOKS.ServiceOrderReleaseBeforeOutbox);
         await this.outboxWriter.appendServiceOrderReleased(client, {
