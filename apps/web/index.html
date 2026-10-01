@@ -4,6 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CISNE Rondônia</title>
+    <!--
+      Fotografia da tela de acesso: está acima da dobra no desktop e é o maior
+      recurso do primeiro paint. O preload é `media`-gated para não baixar a
+      imagem em viewports onde a área fotográfica é ocultada (abaixo de 1024px).
+    -->
+    <link
+      rel="preload"
+      as="image"
+      type="image/webp"
+      href="/images/auth/login-cisne.webp"
+      media="(min-width: 1024px)"
+      fetchpriority="high"
+    />
   </head>
   <body>
     <div id="root"></div>

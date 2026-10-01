@@ -38,6 +38,218 @@
   grid-template-columns: 1.3fr 1fr;
 }
 
+/* ================= PHOTO HERO ================= */
+
+.login-page .login-hero {
+  position: relative;
+  z-index: 0;
+  display: flex;
+  overflow: hidden;
+  min-height: 100vh;
+  min-height: 100dvh;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 36px 40px 40px;
+  color: var(--ink);
+}
+
+.login-page .login-hero__backdrop {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 90% 70% at 40% 80%, rgb(185 148 87 / 0.28), transparent 58%),
+    linear-gradient(165deg, #1c140c 0%, #3a2414 38%, #6b3d18 72%, #8a5a22 100%);
+}
+
+.login-page .login-hero__photo {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 60%;
+}
+
+.login-page .login-hero__scrim {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgb(10 10 11 / 0.28) 0%, rgb(10 10 11 / 0.12) 28%, rgb(10 10 11 / 0.2) 52%, rgb(10 10 11 / 0.78) 100%),
+    linear-gradient(90deg, rgb(10 10 11 / 0.18), transparent 42%);
+  pointer-events: none;
+}
+
+.login-page .login-hero__top,
+.login-page .login-hero__bottom {
+  position: relative;
+  z-index: 3;
+}
+
+.login-page .login-hero__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.login-page .login-hero__tags-list,
+.login-page .login-hero__place-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  color: rgb(233 229 219 / 0.88);
+  font-family: 'IBM Plex Mono', 'Cascadia Mono', Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+}
+
+.login-page .login-hero__tags-rule,
+.login-page .login-hero__place-rule {
+  display: block;
+  width: 42px;
+  height: 1px;
+  margin: 10px 0 0;
+  background: rgb(185 148 87 / 0.65);
+}
+
+.login-page .login-hero__place {
+  text-align: right;
+}
+
+.login-page .login-hero__place-rule {
+  margin: 10px 0 0 auto;
+}
+
+.login-page .login-hero__headline {
+  max-width: 14ch;
+  margin-bottom: 16px;
+  font-family: Fraunces, Georgia, 'Times New Roman', serif;
+  font-size: clamp(2.1rem, 4vw, 3.4rem);
+  font-weight: 400;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+}
+
+.login-page .login-hero__description {
+  max-width: 42ch;
+  margin-bottom: 28px;
+  color: rgb(233 229 219 / 0.82);
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+
+.login-page .login-hero__benefits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 28px;
+  list-style: none;
+}
+
+.login-page .login-hero__benefit {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.login-page .login-hero__benefit-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--gold);
+}
+
+.login-page .login-hero__benefit-text {
+  color: rgb(233 229 219 / 0.92);
+  font-family: 'IBM Plex Mono', 'Cascadia Mono', Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  line-height: 1.25;
+}
+
+.login-page .login-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 1px solid var(--hair-2);
+  background: rgb(16 16 18 / 0.88);
+}
+
+.login-page .login-field:focus-within {
+  border-color: var(--gold);
+}
+
+.login-page .login-field--invalid {
+  border-color: rgb(180 90 90 / 0.68);
+}
+
+.login-page .login-field__icon,
+.login-page .login-field__lead-icon {
+  display: flex;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: var(--ink-mute);
+}
+
+.login-page .login-field__input {
+  width: 100%;
+  min-width: 0;
+  padding: 12px 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--ink);
+  font-family: Inter, 'Segoe UI', Arial, sans-serif;
+  font-size: 14.5px;
+}
+
+.login-page .login-field__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: none;
+  background: transparent;
+  color: var(--ink-mute);
+  cursor: pointer;
+}
+
+.login-page .login-field__toggle:hover:not(:disabled) {
+  color: var(--gold);
+}
+
+.login-page .login-field__toggle-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.login-page .login-panel {
+  position: relative;
+  overflow: hidden;
+}
+
+.login-page .login-panel::after {
+  position: absolute;
+  right: -40px;
+  bottom: -48px;
+  width: 520px;
+  height: 420px;
+  pointer-events: none;
+  opacity: 0.12;
+  background: url('/images/auth/topographic-lines.svg') no-repeat bottom right;
+  background-size: contain;
+  content: '';
+}
+
+.login-page .card .seal {
+  margin-bottom: 28px;
+}
+
 /* ================= BRAND SIDE ================= */
 
 .login-page .brand-side {
@@ -522,13 +734,17 @@
   }
 }
 
-@media (max-width: 920px) {
+@media (max-width: 1023px) {
   .login-page .stage {
     grid-template-columns: 1fr;
   }
 
+  .login-page .login-hero {
+    display: none;
+  }
+
   .login-page .brand-side {
-    min-height: 52vh;
+    display: none;
   }
 }
 
@@ -565,6 +781,10 @@ main.login-page .field input {
   -webkit-appearance: none;
 }
 
+main.login-page .login-field {
+  border-radius: 0 !important;
+}
+
 main.login-page .field input:focus,
 main.login-page .field input:focus-visible {
   outline: none !important;
@@ -576,7 +796,7 @@ main.login-page .field input[aria-invalid='true'] {
 }
 
 main.login-page .field--password input {
-  padding-right: 2.75rem;
+  padding-right: 0.25rem;
 }
 
 main.login-page button.eye-btn {
@@ -613,6 +833,7 @@ main.login-page button.submit:hover:not(:disabled) {
 
 main.login-page a:focus-visible,
 main.login-page button.eye-btn:focus-visible,
+main.login-page button.login-field__toggle:focus-visible,
 main.login-page button.submit:focus-visible,
 main.login-page .field input:focus-visible {
   outline: 1px solid rgb(185 148 87 / 0.85);

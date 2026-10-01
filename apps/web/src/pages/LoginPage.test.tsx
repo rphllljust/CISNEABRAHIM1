@@ -35,9 +35,9 @@ describe('LoginPage', () => {
     expect(screen.getAllByLabelText('CISNE Rondônia').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Cisne/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Rondônia/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/04.{1,3}1120/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/identidade institucional/i)).toBeInTheDocument();
     expect(
-      screen.getByRole('heading', { name: /a precisão como princípio de operação/i }),
+      screen.getByRole('heading', { name: /sua empresa mais eficiente/i }),
     ).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /acessar conta/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/^usuário/i)).toBeInTheDocument();

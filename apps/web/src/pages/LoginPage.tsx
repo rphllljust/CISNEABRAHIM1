@@ -3,10 +3,11 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { userMessageText } from '../auth/api/auth-api';
 import { mapLoginError, useAuth } from '../auth/context/AuthProvider';
 import { sanitizeRedirectPath } from '../auth/utils/safe-redirect';
+import { Lock, User } from 'lucide-react';
 import { Alert } from '../ui/Alert';
 import { CisneWordmark } from './components/CisneWordmark';
-import { LoginBrandEmblem } from './components/LoginBrandEmblem';
-import { LoginPasswordField } from './components/LoginPasswordField';
+import { LoginHero } from './components/LoginHero';
+import { LoginTextField } from './components/LoginTextField';
 import './login.css';
 
 const PAGE_TITLE = 'CISNE Rondônia — Acessar conta';
@@ -93,43 +94,11 @@ export function LoginPage() {
   return (
     <main className="login-page">
       <div className="stage">
-        <div className="brand-side" aria-label="Identidade institucional">
-          <div className="grain" aria-hidden="true" />
+        <LoginHero />
 
-          <div className="top-row fade-up d1">
-            <CisneWordmark />
-            <div className="reg">
-              Registro <span className="k">N.º 04‑1120</span>
-              <br />
-              Emissão institucional
-            </div>
-          </div>
-
-          <div className="plate fade-up d2">
-            <LoginBrandEmblem />
-          </div>
-
-          <div className="bottom-copy fade-up d3">
-            <div className="eyebrow">Ambiente institucional</div>
-            <h1 className="headline">
-              A precisão como
-              <br />
-              <span className="accent">princípio</span> de operação.
-            </h1>
-            <p className="desc">
-              Controle, rastreabilidade e segurança reunidos em um único ambiente corporativo, para
-              processos que não admitem margem de erro.
-            </p>
-          </div>
-
-          <div className="foot-row fade-up d4">
-            <span>© 2026 Cisne Rondônia</span>
-            <span>Ambiente criptografado · TLS 1.3</span>
-          </div>
-        </div>
-
-        <div className="form-side">
+        <div className="form-side login-panel">
           <div className="card fade-up d2">
+            <CisneWordmark />
             <div className="card-eyebrow">Acesso institucional</div>
             <h2 id="login-form-title">Acessar conta</h2>
             <p className="lead">Entre com suas credenciais para continuar.</p>
@@ -150,29 +119,27 @@ export function LoginPage() {
                 <label htmlFor={loginId}>
                   Usuário <span className="req">*</span>
                 </label>
-                <div className="input-wrap">
-                  <input
-                    id={loginId}
-                    name="login"
-                    type="text"
-                    autoComplete="username"
-                    inputMode="text"
-                    placeholder="usuario.institucional"
-                    required
-                    value={loginValue}
-                    onChange={(event) => setLoginValue(event.target.value)}
-                    disabled={loading}
-                    aria-invalid={showFieldInvalid || undefined}
-                    aria-describedby={errorMessage ? formErrorId : undefined}
-                  />
-                </div>
+                <LoginTextField
+                  id={loginId}
+                  name="login"
+                  autoComplete="username"
+                  inputMode="text"
+                  placeholder="usuario.institucional"
+                  required
+                  value={loginValue}
+                  onChange={(event) => setLoginValue(event.target.value)}
+                  disabled={loading}
+                  invalid={showFieldInvalid}
+                  aria-describedby={errorMessage ? formErrorId : undefined}
+                  icon={<User className="login-field__lead-icon" aria-hidden="true" />}
+                />
               </div>
 
               <div className="field field--password">
                 <label htmlFor={passwordId}>
                   Senha <span className="req">*</span>
                 </label>
-                <LoginPasswordField
+                <LoginTextField
                   id={passwordId}
                   name="password"
                   autoComplete="current-password"
@@ -182,7 +149,9 @@ export function LoginPage() {
                   onChange={(event) => setPassword(event.target.value)}
                   invalid={showFieldInvalid}
                   disabled={loading}
+                  revealable
                   aria-describedby={errorMessage ? formErrorId : undefined}
+                  icon={<Lock className="login-field__lead-icon" aria-hidden="true" />}
                 />
               </div>
 
