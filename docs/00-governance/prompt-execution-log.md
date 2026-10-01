@@ -16287,3 +16287,298 @@ STATUS FINAL: PASS
 **Observabilidade fechada. Proximo passo: decisao sobre DDP-045 antes de B4.**
 
 B4 nao foi iniciado. Este ciclo termina quando este relatorio for entregue.
+
+---
+
+## B4 — Endpoints meta de identidade, comandos e timeline (Fase 1 + Fase 2)
+
+DATA: 2026-10-01
+SESSAO: B4
+STATUS: **PASS_WITH_RESTRICTIONS**
+
+### RESUMO EXECUTIVO
+
+O frontend nao conseguia refletir o backend porque faltavam endpoints "meta". B4 fechou esse
+gap EXPONDO o que o backend ja sabia, sem criar regra de negocio, estado, comando, permissao
+ou migration.
+
+Quatro endpoints entregues:
+
+    GET /me                                      identidade, permissoes efetivas, escopos
+    GET /service-orders/:id/available-actions    comandos validos no status atual
+    GET /service-orders/:id/audit-timeline       trilha de auditoria da OS
+    GET /service-orders/command-catalog          catalogo global de comandos
+
+### PRINCIPIO DE EXPOSICAO — COMO FOI CUMPRIDO
+
+| Fonte | Como foi consumida | Duplicacao? |
+| ----- | ------------------ | ----------- |
+| State machine | `TRANSITIONS` + `canTransition` | NAO — mapa lido, nao reimplementado |
+| RBAC | `AuthorizationRepository.listGrants` | NAO — nenhuma query de permissao escrita |
+| Escopo de OS | `ServiceOrdersAccessService.getById` | NAO — gate existente reutilizado |
+| Auditoria | `AuditTrailReadService` (contexto Platform) | NAO — leitura delegada ao dono do schema |
+| correlation-id | `resolveCorrelationId` existente | NAO |
+
+### BLOQUEIO ENCONTRADO E RESOLVIDO — VIOLACAO DE FRONTEIRA
+
+A primeira versao do repositorio de metadados consultava `audit.audit_logs` com SQL direto a
+partir de `service-orders`. Isso violou o gate arquitetural real
+`platform/bounded-contexts/module-boundary-rules.spec.ts` (regra "zero cross-context private
+table access"):
+
+    "file": "service-orders/services/service-order-metadata.repository.ts"
+    -> expected [ { …(4) }, { …(4) } ] to deeply equal []
+
+Causa: o schema `audit` pertence ao contexto PLATFORM
+(`schema-ownership.ts:21`) e `service-orders` pertence a OPERATIONS. SQL direto contra schema
+de outro contexto e proibido, independentemente de ser leitura.
+
+Correcao aplicada (arquitetural, nao contorno): a leitura foi movida para
+`apps/api/src/audit/services/audit-trail-read.service.ts`, no contexto dono, exposta via
+`AuditModule` e consumida por importacao. O gate voltou a passar e o contrato HTTP nao mudou.
+
+Registro honesto: sem essa correcao a sessao teria introduzido uma regressao arquitetural real
+que a suite unitaria detecta.
+
+### ITENS DO PROMPT NAO EXECUTADOS COMO ESCRITOS (autorizados)
+
+| Item | Decisao | Autorizacao |
+| ---- | ------- | ----------- |
+| `TRANSITIONS` nao exportada | Exportada (1 palavra) porque o prompt exige catalogo vindo exclusivamente dela e proibe tocar `domain/`. Nenhum valor/assinatura/regra alterado. | Usuario autorizou |
+| 404 para OS fora de escopo (2d) | Entregue **403**, alinhado ao padrao vigente e testado do repositorio (`documents.e2e.spec.ts:317`, `contextual-scope.e2e.spec.ts:139`). 404 exigiria segundo caminho de autorizacao. | Usuario autorizou |
+| `nome`/`email` no `/me` | Retornam `null`: `identity.identities` nao possui essas colunas. Null declarado, nao inventado (Regra 5). | Usuario autorizou |
+| `escopo_ativo` no `/me` | Retorna `null`: nao existe vinculo persistido sessao->escopo em `authorization.grants`. | Usuario autorizou |
+| `requer_justificativa` | Retorna `false`: a state machine nao expoe essa informacao. O unico fluxo com justificativa obrigatoria e o reopen, que NAO e comando de `TRANSITIONS`. | Regra 4c do proprio prompt |
+
+### COMANDO EXATO DO TESTE + SAIDA LITERAL
+
+Comando:
+
+    pnpm --filter @cisne/api exec vitest run --config vitest.integration.config.ts src/service-orders/service-order-metadata.integration.spec.ts
+
+Saida literal (exit code 0):
+
+     ✓ src/service-orders/service-order-metadata.integration.spec.ts (10 tests) 14790ms
+       ✓ Caso 1: GET /me retorna identidade e permissoes efetivas (200)  2159ms
+       ✓ Caso 2: GET /me sem token retorna 401  1539ms
+       ✓ Caso 3: available-actions em DRAFT contem prepare  1781ms
+       ✓ Caso 4: available-actions em IN_EXECUTION nao contem prepare e contem pause/complete/cancel  1718ms
+       ✓ Caso 5: available-actions para OS fora do escopo nao vaza existencia (403)  1508ms
+       ✓ Caso 6: audit-timeline retorna eventos em ordem cronologica  1406ms
+       ✓ Caso 7: audit-timeline NAO retorna campos RESTRICTED/FINANCIAL  1381ms
+       ✓ Caso 8: command-catalog retorna TODOS os comandos da state machine  1030ms
+       ✓ Caso 9: command-catalog — contagem bate exatamente com TRANSITIONS  1014ms
+       ✓ Caso 10: todos os endpoints exigem autenticacao (401 sem token)  987ms
+
+     Test Files  1 passed (1)
+          Tests  10 passed (10)
+
+### REGRESSAO OBRIGATORIA
+
+    pnpm --filter @cisne/api exec vitest run --config vitest.integration.config.ts src/service-orders src/audit
+
+    Test Files  12 passed (12)
+         Tests  128 passed (128)
+
+128 = 118 do baseline + 10 novos. **Nenhuma regressao.**
+
+Suite unitaria da API:
+
+    Test Files  3 failed | 232 passed (235)
+         Tests  4 failed | 1169 passed (1173)
+
+As 4 falhas sao **PRE-EXISTENTES** e estao registradas no **DDP-045**
+(`ensure-migrations-journal-coverage.spec.ts`, `operational-eligibility.spec.ts` (time-bomb),
+`finance.source.spec.ts` ×2). O baseline era 4 falhas; segue 4 falhas.
+
+Nota de transparencia: durante a primeira execucao a suite unitaria acusou uma **quinta** falha
+(`module-boundary-rules.spec.ts`), causada por codigo de B4. Foi corrigida antes dos commits
+(ver secao "BLOQUEIO ENCONTRADO E RESOLVIDO"). O baseline foi restaurado.
+
+### EXEMPLO REAL DE RESPOSTA DOS 4 ENDPOINTS
+
+Capturados em execucao real (AppModule + PostgreSQL real). `curl` equivalente:
+
+    curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:3000/api/v1/me
+
+**1. GET /api/v1/me — 200**
+
+    {"usuario":{"id":"74502f3b-71e1-40ae-b798-999a604e0bca","nome":null,"email":null,
+     "identity_id":"74502f3b-71e1-40ae-b798-999a604e0bca"},
+     "permissoes_efetivas":["catalog:service:create","catalog:service:publish",
+      "catalog:service:read","client:client:create","client:client:read",
+      "service-orders:service-order:create","service-orders:service-order:prepare",
+      "service-orders:service-order:read","service-orders:service-order:release"],
+     "escopo_ativo":null,
+     "escopos_disponiveis":[{"tipo":"GLOBAL","resource_id":null,"label":"Global"}]}
+
+**2. GET /api/v1/service-orders/:id/available-actions — 200**
+
+    {"service_order_id":"3266caa5-fda7-4b89-a9d3-f37f53b05c76","status_atual":"PREPARED",
+     "comandos_validos":[
+       {"comando":"release","label":"Liberar",
+        "requer_permissao":"service-orders:service-order:release","usuario_tem_permissao":true},
+       {"comando":"cancel","label":"Cancelar",
+        "requer_permissao":"service-orders:service-order:cancel","usuario_tem_permissao":false}],
+     "comandos_invalidos_para_status":["prepare","start","pause","resume","complete"]}
+
+**3. GET /api/v1/service-orders/:id/audit-timeline?limit=10&offset=0 — 200**
+
+    {"service_order_id":"3266caa5-fda7-4b89-a9d3-f37f53b05c76",
+     "eventos":[
+      {"id":"13f9c71b-55d0-4cbf-a3b0-6c35dc96b52c","data":"2026-10-01T16:18:24.191Z",
+       "usuario_id":"74502f3b-71e1-40ae-b798-999a604e0bca","usuario_nome":null,
+       "acao":"CREATE","status_anterior":null,"status_novo":"DRAFT","comando":null,
+       "correlation_id":"54f6ac6b-4e1e-4cdd-bf61-cb8c79808977"},
+      {"id":"512b9a0f-636d-47c3-b221-5803dbe157dd","data":"2026-10-01T16:18:24.276Z",
+       "usuario_id":"74502f3b-71e1-40ae-b798-999a604e0bca","usuario_nome":null,
+       "acao":"TRANSITION","status_anterior":"DRAFT","status_novo":"PREPARED",
+       "comando":"prepare","correlation_id":"5b190c67-a024-4de4-8f52-7f628553b27a"}],
+     "total":2}
+
+**4. GET /api/v1/service-orders/command-catalog — 200**
+
+    {"comandos":[
+      {"nome":"prepare","label":"Preparar","status_origem":["DRAFT"],
+       "status_destino":"PREPARED","requer_justificativa":false},
+      {"nome":"release","label":"Liberar","status_origem":["PREPARED"],
+       "status_destino":"RELEASED","requer_justificativa":false},
+      {"nome":"cancel","label":"Cancelar","status_origem":["DRAFT","PREPARED","RELEASED"],
+       "status_destino":"CANCELLED","requer_justificativa":false},
+      {"nome":"start","label":"Iniciar execução","status_origem":["RELEASED"],
+       "status_destino":"IN_EXECUTION","requer_justificativa":false},
+      {"nome":"pause","label":"Pausar","status_origem":["IN_EXECUTION"],
+       "status_destino":"PAUSED","requer_justificativa":false},
+      {"nome":"resume","label":"Retomar","status_origem":["PAUSED"],
+       "status_destino":"IN_EXECUTION","requer_justificativa":false},
+      {"nome":"complete","label":"Concluir","status_origem":["IN_EXECUTION"],
+       "status_destino":"COMPLETED","requer_justificativa":false}]}
+
+**Sem token — 401 (todos os 4 endpoints)**
+
+    {"error":{"code":"AUTH_UNAUTHORIZED","message":"Missing bearer token.",
+     "correlationId":"56459439-b774-44f1-b161-6375714030f6"}}
+
+### INVENTARIO COMPLETO DE ARQUIVOS (Tarefa 6)
+
+| Arquivo | Origem | Acao |
+| ------- | ------ | ---- |
+| `apps/api/src/audit/services/audit-trail-read.service.ts` | B4 (novo) | Commit 7a |
+| `apps/api/src/audit/audit.module.ts` | B4 | Commit 7a |
+| `apps/api/src/service-orders/domain/service-order.state-machine.ts` | B4 (1 palavra: `export`) | Commit 7b |
+| `apps/api/src/service-orders/services/service-order-metadata.repository.ts` | B4 (novo) | Commit 7b |
+| `apps/api/src/service-orders/services/service-order-metadata.service.ts` | B4 (novo) | Commit 7b |
+| `apps/api/src/service-orders/controllers/service-order-metadata.controller.ts` | B4 (novo) | Commit 7b |
+| `apps/api/src/service-orders/service-orders.module.ts` | B4 | Commit 7b |
+| `apps/api/src/service-orders/service-order-metadata.integration.spec.ts` | B4 (novo) | Commit 7c |
+| `docs/00-governance/prompt-execution-log.md` | B4 | Este bloco |
+
+**ORFAOS DE SESSOES ANTERIORES: NENHUM ENCONTRADO.** Nao houve commit corretivo (7f).
+
+**ARQUIVOS DE TERCEIROS (nao tocados, nao commitados):** `apps/web/**`,
+`apps/api/src/platform/release-scope/*.spec.ts`, `docs/inputs/**`,
+`docs/01-foundation/source-registry.md`, `docs/19-operations/readiness-evidence.json`.
+Preservados conforme `AGENTS.md` regra 10.
+
+### COMMITS CRIADOS (Tarefa 7)
+
+| Hash | Mensagem | Arquivos |
+| ---- | -------- | -------- |
+| `196cdb0` | `feat(audit): leitura do canal AUDIT_TRAIL por registro auditado` | `audit-trail-read.service.ts`, `audit.module.ts` |
+| `3c72ad4` | `feat(service-orders): endpoints meta de identidade, comandos e timeline` | `service-order.state-machine.ts`, `service-order-metadata.repository.ts`, `service-order-metadata.service.ts`, `service-order-metadata.controller.ts`, `service-orders.module.ts` |
+| `22743b4` | `test(service-orders): cobertura de integracao dos endpoints meta (10 casos)` | `service-order-metadata.integration.spec.ts` |
+| (doc) | `docs(governance): registra sessao B4` | `prompt-execution-log.md` |
+
+### CONFIRMACOES OBRIGATORIAS (Tarefa 8f)
+
+- `domain/` intocado — verificado por `git status --porcelain -- apps/api/src/service-orders/domain/`
+  (**VAZIO**). A unica alteracao no diretorio e a palavra `export` em
+  `service-order.state-machine.ts`, commitada em `3c72ad4` e **autorizada explicitamente pelo
+  usuario**; nenhum valor, assinatura ou regra foi alterado.
+- `authorization/` intocado — `git status --porcelain -- apps/api/src/authorization/` (**VAZIO**).
+- `packages/database/` intocado — `git status --porcelain -- packages/database/` (**VAZIO**).
+  Nenhuma migration criada. Nenhum schema alterado.
+- Nenhuma dependencia nova instalada.
+- Nenhum arquivo de frontend tocado. Nenhum arquivo de CI/CD tocado.
+- **Zero `console.log` nos arquivos criados em B4** — verificado por inspecao direta.
+- **Zero `any` nos arquivos criados em B4** — verificado por inspecao direta.
+- Nenhuma permissao nova criada. Nenhum estado novo. Nenhum comando novo.
+- `infrastructure/http/correlation-id.ts` nao alterado.
+
+### DECISOES DE DESIGN DECLARADAS (Tarefa 8i)
+
+1. **`AuditTrailReadService` no contexto Platform.** O schema `audit` pertence a Platform;
+   ler de Operations violaria o gate de fronteira. A leitura ficou com o dono do schema.
+2. **`TRANSITIONS` exportada, nao reimplementada.** O catalogo le o mapa canonico; exportar uma
+   `const` sem alterar valor algum e a menor intervencao possivel e preserva a fonte unica.
+3. **`getById` como gate de acesso.** Reutiliza `requireServiceOrder` + `assertRecordAction`.
+   Nenhum segundo caminho de autorizacao foi criado.
+4. **403 para OS fora de escopo, 404 para OS inexistente.** Ambos vem do repositorio
+   (`SERVICE_ORDERS_DENIED` / `SERVICE_ORDERS_NOT_FOUND`), nao de logica nova.
+5. **Redaction defensiva na leitura da timeline.** Alem de `redactAuditMetadata` na escrita, a
+   leitura descarta chaves RESTRICTED/FINANCIAL de `dados_antigos`/`dados_novos` e nunca
+   serializa os snapshots crus — somente `status` e `comando`.
+6. **Rotulos PT-BR em mapa local do servico.** Nao existe catalogo previo no repositorio; o
+   mapa nao toca o dominio.
+7. **`/me` em controller proprio no `ServiceOrdersModule`.** O recurso nao pertence a
+   `service-orders`, mas criar um modulo novo seria antecipacao; o modulo ja importa
+   `AuthorizationModule`.
+8. **`command-catalog` declarado antes de `:serviceOrderId`** para nao ser capturado como id.
+9. **Limite da timeline normalizado** (default 100, max 500, minimo 1; offset negativo → 0).
+
+### SUGESTOES REGISTRADAS (nao adicionadas ao endpoint — Regra 4)
+
+Campos que seriam uteis ao frontend mas **nao** estao no contrato fixo, portanto nao foram
+adicionados:
+
+- `usuario.nome` / `usuario.email` — exigiriam coluna nova em `identity.identities` ou uso de
+  `credentials.login_identifier_normalized` (que e identificador de login, nao e-mail).
+- `escopo_ativo` real — exigiria vinculo persistido sessao->escopo.
+- `requer_justificativa: true` para o comando de reopen — hoje o reopen nao e comando de
+  `TRANSITIONS`.
+- `comandos_validos[].motivo_bloqueio` — explicaria por que um comando esta invalido.
+- `audit-timeline[].motivo` — a justificativa do reopen nao e gravada no `dados_novos`.
+
+### REFERENCIAS CRUZADAS (Tarefa 8h)
+
+B1 · B1.5 · B2.1 · B3 · DDP-043 · DDP-044 · DDP-045
+
+### GIT STATUS LITERAL — VERIFICACAO FINAL (Tarefa 9)
+
+    9a. git status --porcelain -- apps/api/src/service-orders/domain/   -> (vazio)
+    9b. git status --porcelain -- apps/api/src/authorization/           -> (vazio)
+    9c. git status --porcelain -- packages/database/                    -> (vazio)
+    9d. git log --oneline -10:
+        22743b4 test(service-orders): cobertura de integracao dos endpoints meta (10 casos)
+        3c72ad4 feat(service-orders): endpoints meta de identidade, comandos e timeline
+        196cdb0 feat(audit): leitura do canal AUDIT_TRAIL por registro auditado
+        0c4c059 docs(governance): abre DDP-045 para as 4 falhas de teste pre-existentes
+        fd550d1 docs(governance): registra sessao B3 (observabilidade complementar)
+        252151f test(observability): cobertura de integracao do ciclo B3 (6 casos)
+        c82adc6 feat(observability): exposicao Prometheus sobre o registry existente
+        ffbcac9 feat(observability): redaction de CPF, CNPJ, tax_id e x-api-key
+        82f72c6 docs(governance): fecha ciclo documental de A1/A3/D1
+        57e3c1e fix(audit): registra probe da migration 0082
+    9e. git status --porcelain (geral) -> APENAS trabalho de terceiros.
+
+DOMAIN: INTOCADO (exceto `export` autorizado) · AUTHORIZATION: INTOCADO
+PACKAGES/DATABASE: INTOCADO · MIGRATIONS: NENHUMA · DEPENDENCIAS: NENHUMA NOVA
+STATUS FINAL: PASS_WITH_RESTRICTIONS
+
+### RESTRICOES DECLARADAS (ressalvas nomeadas)
+
+1. **`export` em `domain/service-order.state-machine.ts`.** O prompt proibia tocar `domain/` E
+   exigia catalogo vindo exclusivamente de `TRANSITIONS`, que nao era exportada — as duas
+   regras colidiam. Autorizado pelo usuario; a alteracao e a palavra `export`, sem mudanca de
+   valor, assinatura ou regra.
+2. **403 em vez de 404 para OS fora de escopo** (Tarefa 2d). Mantido o contrato vigente e
+   testado do repositorio; 404 exigiria um segundo caminho de autorizacao, violando a regra de
+   nao duplicacao. Autorizado pelo usuario.
+3. **`nome`, `email` e `escopo_ativo` retornam `null`** no `/me`. Nao existe fonte no modelo de
+   identidade. Null declarado em vez de inventado (Regra 5). Autorizado pelo usuario.
+4. **`requer_justificativa` sempre `false`** no catalogo. A state machine nao expoe a
+   informacao; o unico fluxo com justificativa (reopen) nao e comando de `TRANSITIONS`.
+5. **4 falhas unitarias pre-existentes permanecem** — rastreadas no DDP-045 (aberto pela sessao
+   B3-R), independentes de B4.
+6. **Gate de fronteira violado e corrigido dentro da sessao.** A primeira versao introduziu uma
+   falha real em `module-boundary-rules.spec.ts`; corrigida antes dos commits, sem contorno.
