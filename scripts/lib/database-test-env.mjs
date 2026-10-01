@@ -128,6 +128,7 @@ const MIGRATION_EFFECT_CHECKS = {
   '0081_receivable_settlement_reversal_columns': {
     column: ['fin', 'settlements', 'reversal_idempotency_key'],
   },
+  '0082_audit_trail_logs': { table: 'audit.audit_logs' },
 };
 
 /**
