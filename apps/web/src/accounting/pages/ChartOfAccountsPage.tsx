@@ -1,8 +1,24 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Button, EmptyState, Field, Input, Money, Select, StatusBadge, worklistTableCardClass } from '../../ui';
-import { FilterCard, ModulePage, ModulePageHeader } from '../../ui/module-layout';
-import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
-import { DefinitionList } from '../../financial-ui/DefinitionList';
+import { Alert, Button, Field, Input, Money, Select, StatusBadge } from '../../ui';
+import { ModulePage } from '../../ui/module-layout';
+import {
+  EnterpriseMetric,
+  WorklistClearFilters,
+  WorklistField,
+  WorklistFilterBar,
+  WorklistFooter,
+  WorklistHeader,
+  WorklistStatePanel,
+  worklistCellClass,
+  worklistCellRaisedClass,
+  worklistHeadCellClass,
+  worklistNumericHeadCellClass,
+  worklistNumericCellClass,
+  worklistRowClass,
+  worklistSelectClass,
+  worklistTableCardClass,
+  worklistTableClass,
+} from '../../ui/enterprise-list';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { JOURNAL_STATUS_LABELS } from '../../financial-ui/labels';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
@@ -129,11 +145,59 @@ export function ChartOfAccountsPage() {
     void reloadJournals();
   }, [activeChartId, drillAccountId, drillPage, reloadJournals, resetJournals]);
 
-  const tree = useMemo(() => buildTree(accountRows), [accountRows]);
+  const [accountSearch, setAccountSearch] = useState('');
+  const [classFilter, setClassFilter] = useState<'' | AccountClass>('');
+  const [statusFilter, setStatusFilter] = useState<'' | 'ACTIVE' | 'INACTIVE'>('');
 
   const balancesByAccount = useMemo(() => {
     return new Map(ledgerRows.map((row) => [row.accountId, row]));
   }, [ledgerRows]);
+
+  /**
+   * CONTAGENS DA ÁRVORE — derivadas APENAS dos campos que o contrato já publica
+   * (`Account.class` e `Account.status`), sobre a lista real devolvida pelo servidor.
+   *
+   * Nada aqui é saldo, total ou indicador contábil: são contagens de cadastro, o mesmo tipo de
+   * recorte que `ClientsListPage` faz sobre `status`. Os saldos continuam vindo exclusivamente
+   * de `/accounting/ledger` e nunca são somados no navegador.
+   */
+  const syntheticCount = useMemo(
+    () => accountRows.filter((account) => accountRows.some((child) => child.parentId === account.id)).length,
+    [accountRows],
+  );
+  const inactiveCount = useMemo(
+    () => accountRows.filter((account) => account.status !== 'ACTIVE').length,
+    [accountRows],
+  );
+
+  const accountFilterActive =
+    accountSearch.trim() !== '' || classFilter !== '' || statusFilter !== '';
+
+  /**
+   * RECORTE DE LEITURA — busca por código/nome, classe e situação. É filtro de APRESENTAÇÃO
+   * sobre a lista que o servidor já autorizou: nenhuma consulta nova, nenhum recorte contábil
+   * recalculado e nenhum saldo alterado. A árvore é reconstruída a partir das linhas visíveis.
+   */
+  const visibleRows = useMemo(() => {
+    const term = accountSearch.trim().toLowerCase();
+    return accountRows.filter((account) => {
+      if (classFilter !== '' && account.class !== classFilter) {
+        return false;
+      }
+      if (statusFilter !== '' && account.status !== statusFilter) {
+        return false;
+      }
+      if (term !== '') {
+        const haystack = `${account.code} ${account.name}`.toLowerCase();
+        if (!haystack.includes(term)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [accountRows, accountSearch, classFilter, statusFilter]);
+
+  const visibleTree = useMemo(() => buildTree(visibleRows), [visibleRows]);
 
   async function runChartAction(action: () => Promise<unknown>) {
     setChartActionError(null);
@@ -170,220 +234,356 @@ export function ChartOfAccountsPage() {
     ? accountRows.some((account) => account.parentId === drillAccount.id)
     : false;
 
+  /*
+   * PRÉ-REQUISITO PENDENTE — o recorte humano (unidade -> plano) é o MESMO; o que muda é onde o
+   * estado mora. Antes, "Nenhum plano de contas nesta unidade" era um `EmptyState` solto que
+   * substituía a página inteira e deixava o operador sem estrutura nenhuma. Agora o vazio é um
+   * ESTADO DA ÁREA PRINCIPAL: cabeçalho, métricas e barra de filtros permanecem montados.
+   */
+  const chartPending = units.length > 0 && !activeChartId;
+  const chartEmpty =
+    charts.length === 0 && chartsQuery.state.phase === 'ready' && units.length > 0;
+
   return (
     <ModulePage>
-      <ModulePageHeader
+      <WorklistHeader
         title="Plano de contas"
-        description="A árvore e os saldos são a leitura oficial do servidor; o navegador não soma nem reclassifica contas."
+        count={activeChartId && accountsQuery.state.phase === 'ready' ? accountRows.length : null}
+        context="Árvore, situação e saldos são a leitura oficial do servidor; o navegador não soma nem reclassifica contas."
+        metrics={
+          accountsQuery.state.phase === 'ready' && accountRows.length > 0 ? (
+            <>
+              <EnterpriseMetric label="Contas no plano" value={accountRows.length} />
+              <EnterpriseMetric label="Sintéticas" value={syntheticCount} />
+              <EnterpriseMetric
+                label="Inativas"
+                value={inactiveCount}
+                tone={inactiveCount > 0 ? 'warning' : 'neutral'}
+              />
+              {ledger ? (
+                <EnterpriseMetric
+                  label="Ledger"
+                  value={ledger.balanced ? 'Balanceado' : 'Desbalanceado'}
+                  tone={ledger.balanced ? 'neutral' : 'critical'}
+                />
+              ) : null}
+            </>
+          ) : null
+        }
       />
-      <FilterCard>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Field label="Unidade operacional" htmlFor="coa-unit">
-            <Select
-              id="coa-unit"
-              value={unitId}
-              onChange={(event) => setUnitId(event.target.value)}
-              disabled={units.length === 0}
-            >
+
+      {/* BARRA OPERACIONAL: unidade e plano são o recorte; o resto é leitura da árvore já carregada. */}
+      <WorklistFilterBar
+        meta={
+          activeChartId && accountsQuery.state.phase === 'ready'
+            ? `${visibleRows.length} de ${accountRows.length} contas`
+            : undefined
+        }
+      >
+        <WorklistField label="Unidade" htmlFor="coa-unit">
+          <select
+            id="coa-unit"
+            className={worklistSelectClass}
+            value={unitId}
+            onChange={(event) => setUnitId(event.target.value)}
+            disabled={units.length === 0}
+          >
+            {/*
+              ESCOPO DE UNIDADE pelo primitivo compartilhado — mesmo tratamento das demais
+              superficies contabeis. A tela montava as opcoes a mao com um ordinal
+              `Unidade {index + 1}`, e o teste desta tela era o unico que ainda exigia o
+              identificador tecnico (`unit-a`) como TEXTO visivel.
+            */}
+            <OperationalUnitOptions options={unitOptions} />
+          </select>
+        </WorklistField>
+
+        <WorklistField label="Plano de contas" htmlFor="coa-chart">
+          {/*
+            LARGURA LIMITADA — o rótulo do plano é longo (`COA-2026 — Plano padrão 2026 (unit-x)`),
+            e um `<select>` que cresce pelo conteúdo estoura a barra em telas estreitas. O teto
+            não altera nenhuma opção nem o valor enviado ao servidor.
+          */}
+          <select
+            id="coa-chart"
+            className={`${worklistSelectClass} w-full max-w-[20rem]`}
+            value={chartId}
+            onChange={(event) => setChartId(event.target.value)}
+            disabled={charts.length === 0}
+          >
+            <option value="">Selecione um plano…</option>
+            {charts.map((chart) => (
+              <option key={chart.id} value={chart.id}>
+                {chart.code} — {chart.name} ({chart.unitId})
+              </option>
+            ))}
+          </select>
+        </WorklistField>
+
+        {activeChartId ? (
+          <>
+            <WorklistField label="Buscar" htmlFor="coa-search" grow>
               {/*
-                ESCOPO DE UNIDADE pelo primitivo compartilhado — mesmo tratamento das demais
-                superficies contabeis. A tela montava as opcoes a mao com um ordinal
-                `Unidade {index + 1}`, e o teste desta tela era o unico que ainda exigia o
-                identificador tecnico (`unit-a`) como TEXTO visivel.
+                `min-w-0` no campo de busca: o `grow` compartilhado usa `min-w-52` (13rem), que é
+                maior que a largura útil de um celular e empurra a barra além do viewport. O
+                controle continua crescendo no desktop e passa a encolher no mobile.
               */}
-              <OperationalUnitOptions options={unitOptions} />
-            </Select>
-          </Field>
-          <Field label="Plano de contas" htmlFor="coa-chart">
-            <Select
-              id="coa-chart"
-              value={chartId}
-              onChange={(event) => setChartId(event.target.value)}
-              disabled={charts.length === 0}
-            >
-              <option value="">Selecione um plano…</option>
-              {charts.map((chart) => (
-                <option key={chart.id} value={chart.id}>
-                  {chart.code} — {chart.name} ({chart.unitId})
-                </option>
-              ))}
-            </Select>
-          </Field>
-        </div>
-      </FilterCard>
+              <input
+                id="coa-search"
+                type="search"
+                className={`${worklistSelectClass} w-full min-w-0`}
+                value={accountSearch}
+                onChange={(event) => setAccountSearch(event.target.value)}
+                placeholder="Código ou nome da conta"
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </WorklistField>
+            <WorklistField label="Classe" htmlFor="coa-class">
+              <select
+                id="coa-class"
+                className={worklistSelectClass}
+                value={classFilter}
+                onChange={(event) => setClassFilter(event.target.value as '' | AccountClass)}
+              >
+                <option value="">Todas</option>
+                {(Object.keys(CLASS_LABELS) as AccountClass[]).map((key) => (
+                  <option key={key} value={key}>
+                    {CLASS_LABELS[key]}
+                  </option>
+                ))}
+              </select>
+            </WorklistField>
+            <WorklistField label="Situação" htmlFor="coa-status">
+              <select
+                id="coa-status"
+                className={worklistSelectClass}
+                value={statusFilter}
+                onChange={(event) =>
+                  setStatusFilter(event.target.value as '' | 'ACTIVE' | 'INACTIVE')
+                }
+              >
+                <option value="">Todas</option>
+                <option value="ACTIVE">Ativa</option>
+                <option value="INACTIVE">Inativa</option>
+              </select>
+            </WorklistField>
+            <WorklistClearFilters
+              visible={accountFilterActive}
+              onClick={() => {
+                setAccountSearch('');
+                setClassFilter('');
+                setStatusFilter('');
+              }}
+            />
+          </>
+        ) : null}
+      </WorklistFilterBar>
 
       {units.length === 0 ? (
-        <EmptyState
+        <WorklistStatePanel
           title="Nenhuma unidade operacional disponível"
           description="Sua sessão não tem unidade operacional autorizada, então não há plano de contas para consultar. O plano é escolhido a partir da unidade; esta tela não aceita identificador digitado."
         />
       ) : null}
       {chartsQuery.state.phase === 'denied' ? (
-        <Alert tone="error">Você não tem permissão para listar planos de contas desta unidade.</Alert>
+        <WorklistStatePanel
+          tone="critical"
+          title="Sem permissão para listar planos de contas desta unidade"
+          description="A consulta foi recusada pelo servidor. Peça à administração a capability de leitura contábil desta unidade."
+        />
       ) : null}
-      {units.length > 0 && !activeChartId ? (
-        <EmptyState
-          title={
-            charts.length === 0 && chartsQuery.state.phase === 'ready'
-              ? 'Nenhum plano de contas nesta unidade'
-              : 'Nenhum plano selecionado'
-          }
-          description={
-            charts.length === 0 && chartsQuery.state.phase === 'ready'
-              ? 'A unidade selecionada não tem plano de contas publicado. Escolha outra unidade operacional.'
-              : 'Selecione o plano de contas da unidade; as contas e os saldos são consultados automaticamente.'
-          }
+      {units.length > 0 && !activeChartId && chartEmpty ? (
+        <WorklistStatePanel
+          title="Nenhum plano de contas nesta unidade"
+          description="A unidade selecionada não tem plano de contas publicado. Escolha outra unidade operacional na barra acima."
+        />
+      ) : null}
+      {chartPending && !chartEmpty ? (
+        <WorklistStatePanel
+          title="Nenhum plano selecionado"
+          description="Selecione o plano de contas da unidade; as contas e os saldos são consultados automaticamente."
         />
       ) : null}
       {createGate}
 
       {activeChart ? (
-        <div className="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5">
-          <DefinitionList
-            items={[
-              { label: 'Código', value: activeChart.code },
-              { label: 'Nome', value: activeChart.name },
-              { label: 'Unidade', value: activeChart.unitId },
-              { label: 'Status', value: activeChart.status },
-              ...(ledger
-                ? [
-                    { label: 'Balanceado', value: ledger.balanced ? 'Sim' : 'Não' },
-                    { label: 'Débitos', value: <Money value={ledger.totalDebits} /> },
-                    { label: 'Créditos', value: <Money value={ledger.totalCredits} /> },
-                  ]
-                : []),
-            ]}
+        /*
+         * IDENTIDADE DO PLANO — faixa densa, na MESMA estrutura da grade que ela descreve.
+         * Era um cartão `rounded-xl p-6 shadow-sm` que ocupava a primeira dobra só para repetir
+         * o que o seletor da barra já diz. Os valores continuam sendo exatamente os do servidor:
+         * o `DefinitionList` só mudou de moldura, e "Balanceado/débitos/créditos" seguem vindo da
+         * reconstrução do ledger (`/accounting/ledger`), nunca de soma no navegador.
+         */
+        <div className="mb-2 flex flex-wrap items-center gap-x-5 gap-y-1 rounded-md border border-gray-200 bg-white px-3 py-2">
+          <span className="text-[13px] font-semibold text-gray-900">
+            {activeChart.code} — {activeChart.name}
+          </span>
+          <span className="text-xs text-gray-500">Unidade {activeChart.unitId}</span>
+          <StatusBadge
+            tone={activeChart.status === 'ACTIVE' ? 'success' : 'neutral'}
+            label={activeChart.status === 'ACTIVE' ? 'Ativo' : 'Inativo'}
           />
+          {ledger ? (
+            <span className="ml-auto flex flex-wrap items-center gap-x-4 text-xs text-gray-600 tabular-nums">
+              <span>
+                Ledger {ledger.balanced ? 'balanceado' : 'desbalanceado'}
+              </span>
+              <span>
+                Débitos <Money value={ledger.totalDebits} />
+              </span>
+              <span>
+                Créditos <Money value={ledger.totalCredits} />
+              </span>
+            </span>
+          ) : null}
         </div>
       ) : null}
 
       {chartActionError ? (
-        <div className="mb-4">
+        <div className="mb-2">
           <Alert tone="error">{chartActionError}</Alert>
         </div>
       ) : null}
 
       {activeChartId && accountRows.length > 0 ? (
         <>
-          <div className={worklistTableCardClass}>
-            <table className={worklistTableClass} aria-label="Árvore de contas do plano">
-              <thead className={worklistHeadCellClass}>
-                <tr>
-                  <th scope="col" className={worklistHeadCellClass}>
-                    Código
-                  </th>
-                  <th scope="col" className={worklistHeadCellClass}>
-                    Nome
-                  </th>
-                  <th scope="col" className={worklistHeadCellClass}>
-                    Classe
-                  </th>
-                  <th scope="col" className={worklistHeadCellClass}>
-                    Situação
-                  </th>
-                  <th scope="col" className={`${worklistHeadCellClass} text-right`}>
-                    Débitos
-                  </th>
-                  <th scope="col" className={`${worklistHeadCellClass} text-right`}>
-                    Créditos
-                  </th>
-                  <th scope="col" className={worklistHeadCellClass}>
-                    Ação
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {tree.map((row) => {
-                  const balances = balancesByAccount.get(row.id);
-                  const synthetic = accountRows.some((account) => account.parentId === row.id);
-                  return (
-                    <tr key={row.id} className={worklistRowClass}>
-                      <td className={`${worklistCellClass} font-mono`}>{row.code}</td>
-                      <td className={worklistCellClass}>
-                        <span style={{ paddingLeft: `${row.depth * 1.25}rem` }}>{row.name}</span>
-                      </td>
-                      <td className={worklistCellClass}>{CLASS_LABELS[row.class] ?? row.class}</td>
-                      <td className={worklistCellClass}>
-                        <StatusBadge
-                          tone={row.status === 'ACTIVE' ? 'success' : 'neutral'}
-                          label={row.status === 'ACTIVE' ? 'Ativa' : 'Inativa'}
-                        />
-                        {synthetic ? <StatusBadge tone="info" label="Sintética" /> : null}
-                      </td>
-                      <td className={`${worklistCellClass} text-right`}>
-                        <Money value={balances?.debits ?? '0'} />
-                      </td>
-                      <td className={`${worklistCellClass} text-right`}>
-                        <Money value={balances?.credits ?? '0'} />
-                      </td>
-                      <td className={worklistCellClass}>
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            variant="secondary"
-                            aria-label={`Lançamentos da conta ${row.code}`}
-                            onClick={() => {
-                              setDrillAccountId(row.id);
-                              setDrillPage(0);
-                            }}
-                          >
-                            Lançamentos
-                          </Button>
-                          {row.status === 'ACTIVE' ? (
+          {visibleRows.length === 0 ? (
+            <WorklistStatePanel
+              title="Nenhuma conta para o recorte atual"
+              description="A busca, a classe ou a situação aplicadas não retornam conta neste plano. Limpe os filtros para ver a árvore completa."
+              action={
+                <WorklistClearFilters
+                  visible
+                  onClick={() => {
+                    setAccountSearch('');
+                    setClassFilter('');
+                    setStatusFilter('');
+                  }}
+                />
+              }
+            />
+          ) : (
+            <div className={worklistTableCardClass}>
+              <table className={worklistTableClass} aria-label="Árvore de contas do plano">
+                <thead>
+                  <tr>
+                    <th scope="col" className={worklistHeadCellClass}>
+                      Código
+                    </th>
+                    <th scope="col" className={worklistHeadCellClass}>
+                      Nome
+                    </th>
+                    <th scope="col" className={worklistHeadCellClass}>
+                      Classe
+                    </th>
+                    <th scope="col" className={worklistHeadCellClass}>
+                      Situação
+                    </th>
+                    <th scope="col" className={worklistNumericHeadCellClass}>
+                      Débitos
+                    </th>
+                    <th scope="col" className={worklistNumericHeadCellClass}>
+                      Créditos
+                    </th>
+                    <th scope="col" className={worklistHeadCellClass}>
+                      Ação
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleTree.map((row) => {
+                    const balances = balancesByAccount.get(row.id);
+                    const synthetic = accountRows.some((account) => account.parentId === row.id);
+                    return (
+                      <tr key={row.id} className={worklistRowClass}>
+                        <td className={worklistCellRaisedClass}>
+                          <span className="font-mono">{row.code}</span>
+                        </td>
+                        <td className={worklistCellRaisedClass}>
+                          <span style={{ paddingLeft: `${row.depth * 1.1}rem` }}>{row.name}</span>
+                        </td>
+                        <td className={worklistCellClass}>{CLASS_LABELS[row.class] ?? row.class}</td>
+                        <td className={worklistCellClass}>
+                          <StatusBadge
+                            tone={row.status === 'ACTIVE' ? 'success' : 'neutral'}
+                            label={row.status === 'ACTIVE' ? 'Ativa' : 'Inativa'}
+                          />
+                          {synthetic ? <StatusBadge tone="info" label="Sintética" /> : null}
+                        </td>
+                        <td className={worklistNumericCellClass}>
+                          <Money value={balances?.debits ?? '0'} />
+                        </td>
+                        <td className={worklistNumericCellClass}>
+                          <Money value={balances?.credits ?? '0'} />
+                        </td>
+                        <td className={worklistCellClass}>
+                          <div className="flex flex-wrap gap-1.5">
                             <Button
                               variant="secondary"
-                              onClick={() =>
-                                void runChartAction(() =>
-                                  updateAccount(activeChartId, row.id, { status: 'INACTIVE' }),
-                                )
-                              }
+                              aria-label={`Lançamentos da conta ${row.code}`}
+                              onClick={() => {
+                                setDrillAccountId(row.id);
+                                setDrillPage(0);
+                              }}
                             >
-                              Inativar
+                              Lançamentos
                             </Button>
-                          ) : (
-                            <Button
-                              variant="secondary"
-                              onClick={() =>
-                                void runChartAction(() =>
-                                  updateAccount(activeChartId, row.id, { status: 'ACTIVE' }),
-                                )
-                              }
-                            >
-                              Reativar
-                            </Button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                            {row.status === 'ACTIVE' ? (
+                              <Button
+                                variant="secondary"
+                                onClick={() =>
+                                  void runChartAction(() =>
+                                    updateAccount(activeChartId, row.id, { status: 'INACTIVE' }),
+                                  )
+                                }
+                              >
+                                Inativar
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="secondary"
+                                onClick={() =>
+                                  void runChartAction(() =>
+                                    updateAccount(activeChartId, row.id, { status: 'ACTIVE' }),
+                                  )
+                                }
+                              >
+                                Reativar
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {drillGate}
 
           {drillAccountId && journalQuery.state.phase === 'ready' ? (
             <div className={worklistTableCardClass}>
-              <div className="border-b border-gray-200 px-4 py-3">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h2 className="text-base font-semibold text-gray-900">
-                      {drillAccount
-                        ? `Lançamentos da conta ${drillAccount.code} — ${drillAccount.name}`
-                        : 'Lançamentos da conta'}
-                    </h2>
-                    <p className="mt-1 text-sm text-gray-600">
-                      Lista do servidor filtrada por esta conta. O navegador não soma nem
-                      reclassifica valores.
-                    </p>
-                  </div>
-                  <Button variant="secondary" onClick={() => setDrillAccountId('')}>
-                    Fechar
-                  </Button>
+              <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-200 px-3 py-2">
+                <div className="min-w-0">
+                  <h2 className="text-[13px] font-semibold text-gray-900">
+                    {drillAccount
+                      ? `Lançamentos da conta ${drillAccount.code} — ${drillAccount.name}`
+                      : 'Lançamentos da conta'}
+                  </h2>
+                  <p className="mt-0.5 text-xs text-gray-500">
+                    Lista do servidor filtrada por esta conta. O navegador não soma nem
+                    reclassifica valores.
+                  </p>
                 </div>
+                <Button variant="secondary" onClick={() => setDrillAccountId('')}>
+                  Fechar
+                </Button>
               </div>
               {journalQuery.state.data.items.length === 0 ? (
-                <p className="px-4 py-6 text-sm text-gray-600">
+                <p className="px-3 py-3 text-xs text-gray-500">
                   {drillSynthetic
                     ? 'Conta sintética: agrega subcontas e não recebe lançamento direto.'
                     : 'Nenhum lançamento registrado nesta conta.'}
@@ -391,7 +591,7 @@ export function ChartOfAccountsPage() {
               ) : (
                 <>
                   <table className={worklistTableClass} aria-label="Lançamentos da conta">
-                    <thead className={worklistHeadCellClass}>
+                    <thead>
                       <tr>
                         <th scope="col" className={worklistHeadCellClass}>
                           Nº
@@ -408,10 +608,10 @@ export function ChartOfAccountsPage() {
                         <th scope="col" className={worklistHeadCellClass}>
                           Estado
                         </th>
-                        <th scope="col" className={`${worklistHeadCellClass} text-right`}>
+                        <th scope="col" className={worklistNumericHeadCellClass}>
                           Débito
                         </th>
-                        <th scope="col" className={`${worklistHeadCellClass} text-right`}>
+                        <th scope="col" className={worklistNumericHeadCellClass}>
                           Crédito
                         </th>
                       </tr>
@@ -433,17 +633,25 @@ export function ChartOfAccountsPage() {
                               labels={JOURNAL_STATUS_LABELS}
                             />
                           </td>
-                          <td className={`${worklistCellClass} text-right`}>
+                          <td className={worklistNumericCellClass}>
                             <Money value={entry.debitTotal} currencyCode={entry.currencyCode} />
                           </td>
-                          <td className={`${worklistCellClass} text-right`}>
+                          <td className={worklistNumericCellClass}>
                             <Money value={entry.creditTotal} currencyCode={entry.currencyCode} />
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                  <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3">
+                  <WorklistFooter
+                    rangeLabel={
+                      <span aria-live="polite">
+                        Página {journalQuery.state.data.page + 1} de{' '}
+                        {Math.max(journalQuery.state.data.totalPages, 1)} ·{' '}
+                        {journalQuery.state.data.total} lançamentos
+                      </span>
+                    }
+                  >
                     <Button
                       variant="secondary"
                       disabled={journalQuery.state.data.page <= 0}
@@ -451,11 +659,6 @@ export function ChartOfAccountsPage() {
                     >
                       Página anterior
                     </Button>
-                    <span className="text-sm text-gray-600">
-                      Página {journalQuery.state.data.page + 1} de{' '}
-                      {Math.max(journalQuery.state.data.totalPages, 1)} —{' '}
-                      {journalQuery.state.data.total} lançamentos
-                    </span>
                     <Button
                       variant="secondary"
                       disabled={
@@ -465,7 +668,7 @@ export function ChartOfAccountsPage() {
                     >
                       Próxima página
                     </Button>
-                  </div>
+                  </WorklistFooter>
                 </>
               )}
             </div>
@@ -541,45 +744,79 @@ function CreateAccountPanel({
   }
 
   return (
-    <div className="mt-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5">
-      <h2 className="mb-4 text-base font-semibold text-gray-900">Nova conta</h2>
+    /*
+     * NOVA CONTA — seção densa na MESMA gramática da barra operacional, não um cartão
+     * `rounded-xl p-6 shadow-sm` legado. Campos, ordem, rótulos e a chamada `createAccount`
+     * continuam idênticos: muda só a moldura.
+     */
+    <section
+      className="mb-3 rounded-md border border-gray-200 bg-white"
+      aria-label="Nova conta"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-3 py-2">
+        <div className="min-w-0">
+          <h2 className="text-[13px] font-semibold text-gray-900">Nova conta</h2>
+          <p className="mt-0.5 text-xs text-gray-500">
+            A conta é criada no plano selecionado pelo servidor; a hierarquia é definida pela
+            conta superior.
+          </p>
+        </div>
+      </div>
       {error ? (
-        <div className="mb-4">
+        <div className="px-3 pt-2">
           <Alert tone="error">{error}</Alert>
         </div>
       ) : null}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Field label="Conta superior (opcional)" htmlFor="account-parent">
-          <Select id="account-parent" value={parentId} onChange={(event) => setParentId(event.target.value)}>
-            <option value="">(nenhuma — raiz)</option>
-            {accounts.map((account) => (
-              <option key={account.id} value={account.id}>
-                {account.code} — {account.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Código" htmlFor="account-code">
-          <Input id="account-code" value={code} onChange={(event) => setCode(event.target.value)} />
-        </Field>
-        <Field label="Nome" htmlFor="account-name">
-          <Input id="account-name" value={name} onChange={(event) => setName(event.target.value)} />
-        </Field>
-        <Field label="Classe" htmlFor="account-class">
-          <Select
-            id="account-class"
-            value={accountClass}
-            onChange={(event) => setAccountClass(event.target.value as AccountClass)}
-          >
-            {(Object.keys(CLASS_LABELS) as AccountClass[]).map((key) => (
-              <option key={key} value={key}>
-                {CLASS_LABELS[key]}
-              </option>
-            ))}
-          </Select>
-        </Field>
-      </div>
-      <div className="mt-4 flex justify-end">
+      <div className="flex flex-wrap items-end gap-2 px-3 py-2">
+        <div className="min-w-52 flex-1">
+          <Field label="Conta superior (opcional)" htmlFor="account-parent">
+            <Select
+              id="account-parent"
+              value={parentId}
+              onChange={(event) => setParentId(event.target.value)}
+            >
+              <option value="">(nenhuma — raiz)</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.code} — {account.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
+        <div className="w-32">
+          <Field label="Código" htmlFor="account-code">
+            <Input
+              id="account-code"
+              value={code}
+              onChange={(event) => setCode(event.target.value)}
+            />
+          </Field>
+        </div>
+        <div className="min-w-52 flex-1">
+          <Field label="Nome" htmlFor="account-name">
+            <Input
+              id="account-name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
+          </Field>
+        </div>
+        <div className="w-44">
+          <Field label="Classe" htmlFor="account-class">
+            <Select
+              id="account-class"
+              value={accountClass}
+              onChange={(event) => setAccountClass(event.target.value as AccountClass)}
+            >
+              {(Object.keys(CLASS_LABELS) as AccountClass[]).map((key) => (
+                <option key={key} value={key}>
+                  {CLASS_LABELS[key]}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
         <Button
           onClick={() => void submit()}
           disabled={submitting || code.trim() === '' || name.trim() === ''}
@@ -587,6 +824,6 @@ function CreateAccountPanel({
           {submitting ? 'Criando…' : 'Criar conta'}
         </Button>
       </div>
-    </div>
+    </section>
   );
 }

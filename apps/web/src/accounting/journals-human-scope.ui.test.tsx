@@ -193,7 +193,7 @@ function createFetchMock(options: { units?: string[] } = {}) {
 }
 
 function unitField(): HTMLElement {
-  return screen.getByLabelText(/unidade operacional/i);
+  return screen.getByLabelText(/^unidade$/i);
 }
 
 function chartField(): HTMLElement {
@@ -344,12 +344,17 @@ describe('Lançamentos — escopo humano vindo do shell (unidade -> plano -> per
     const table = await screen.findByRole('table', { name: /lançamentos do período/i });
     const row = within(table).getAllByRole('row')[1] as HTMLElement;
     // Rotulo do source_kind persistido (TAX) + referencia persistida.
-    expect(within(row).getByText('Tributos')).toBeInTheDocument();
-    expect(within(row).getByText('FIS-2026-0001')).toBeInTheDocument();
+    const originCell = within(row).getByText('Tributos').closest('td') as HTMLElement;
+    expect(within(originCell).getByText('FIS-2026-0001')).toBeInTheDocument();
     // O historico do lancamento nao define a origem; ele fica na coluna propria.
     expect(within(row).getByText('Apuração do período')).toBeInTheDocument();
-    // Nenhum link de drill-down inventado para o registro de origem.
-    expect(within(row).queryByRole('link')).toBeNull();
+    /*
+     * Nenhum link de drill-down inventado NA COLUNA DE ORIGEM: o registro de origem está fora do
+     * escopo autorizado do operador, então a lista não pode afirmar que ele existe clicando para
+     * lugar nenhum. O único link da linha é o da COLUNA DE AÇÃO, que abre o próprio lançamento —
+     * comportamento legítimo e verificado no teste de escopo humano.
+     */
+    expect(within(originCell).queryByRole('link')).toBeNull();
   });
 
   it('trocar a unidade limpa plano e periodo escolhidos antes (nenhum uuid orfao)', async () => {
@@ -465,9 +470,18 @@ describe('Fechamentos e relatórios de período — escopo humano vindo do shell
         `/api/v1/accounting/charts/${CHART_B}/journals?page=0&pageSize=50&periodId=${PERIOD_B}&status=POSTED`,
       );
     });
+    /*
+     * A consulta acima é o que este teste protege: o diário pede SOMENTE postados, na página 0 e
+     * com o período escolhido. O servidor simulado responde sem lançamento para este período, e
+     * a área de resultado passa a exibir o ESTADO VAZIO dentro da própria estrutura — antes a
+     * tabela era montada vazia, sem dizer nada ao operador.
+     */
     await waitFor(() => {
-      expect(screen.getByRole('table', { name: /livro diário/i })).toBeInTheDocument();
+      expect(
+        screen.getByText(/nenhum lançamento postado no período/i),
+      ).toBeInTheDocument();
     });
+    expect(screen.queryByRole('table', { name: /livro diário/i })).toBeNull();
     expect(
       within(periodField()).getByRole('option', {
         name: '2026-11 — 2026-11-01 a 2026-11-30 (Aberto)',

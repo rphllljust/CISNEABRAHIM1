@@ -1,9 +1,28 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button, DateTime, EmptyState, Money, worklistTableCardClass } from '../../ui';
-import { FilterCard, ModuleErrorState, ModuleLoadingState, ModulePage, ModulePageHeader, ModulePagination, ModuleTableLink, filterControlClass, filterLabelClass } from '../../ui/module-layout';
-import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
+import { DateTime, Money } from '../../ui';
+import {
+  ModuleErrorState,
+  ModuleLoadingState,
+  ModulePage,
+  ModulePagination,
+  ModuleTableLink,
+} from '../../ui/module-layout';
+import {
+  EnterpriseMetric,
+  WorklistClearFilters,
+  WorklistField,
+  WorklistFilterBar,
+  WorklistHeader,
+  WorklistStatePanel,
+  worklistCellClass,
+  worklistHeadCellClass,
+  worklistRowClass,
+  worklistSelectClass,
+  worklistTableCardClass,
+  worklistTableClass,
+} from '../../ui/enterprise-list';
 import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge';
-import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
+import { OperationalUnitOptions, useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
 import { listPostingRequests } from '../api/accounting-api';
 import { mapAccountingErrorToMessage } from '../api/accounting-error-messages';
 import { SavedViewsBar, useSmartList } from '../../operator';
@@ -101,7 +120,7 @@ type ListState =
   | { phase: 'ready'; page: PostingRequestPage };
 
 export function AccountingPostingOriginsPage() {
-  const { units, unitId, setUnitId } = useOperationalUnits();
+  const { options: unitOptions, unitId, setUnitId } = useOperationalUnits();
   const [occurredFrom, setOccurredFrom] = useState('');
   const [occurredTo, setOccurredTo] = useState('');
   const [page, setPage] = useState(0);
@@ -185,104 +204,126 @@ export function AccountingPostingOriginsPage() {
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      {/*
+        MESMA GRAMÁTICA DAS DEMAIS SUPERFÍCIES DA FAMÍLIA 4 — esta tela já estava próxima do
+        padrão, então a intervenção é MÍNIMA e aditiva: o cabeçalho solto passa a `WorklistHeader`
+        (título + total do servidor + contexto + faixa de indicadores reais), o card de filtros
+        passa à barra compacta e o estado vazio passa a `WorklistStatePanel`.
+
+        Preservados integralmente: os cinco filtros e seus valores persistidos, o
+        `SavedViewsBar` com as visões embutidas e o `useSmartList` com sincronização de URL, os
+        rótulos dos vocabulários fechados, o drill-down real para o lançamento e a paginação do
+        servidor. Nada de visões, eventos, estados ou contadores foi removido ou reescrito.
+      */}
+      <WorklistHeader
         title="Origem dos lançamentos"
-        description="Cada linha liga um evento de negócio já confirmado ao lançamento contábil gerado pela regra publicada. Esta tela não cria nem altera lançamentos."
+        count={data ? data.total : null}
+        context="Cada linha liga um evento de negócio já confirmado ao lançamento contábil gerado pela regra publicada. Esta tela não cria nem altera lançamentos."
+        metrics={
+          data ? (
+            <>
+              <EnterpriseMetric label="Lançados" value={posted} />
+              <EnterpriseMetric
+                label="Pendentes"
+                value={pending}
+                tone={pending > 0 ? 'warning' : 'neutral'}
+              />
+              <EnterpriseMetric
+                label="Rejeitados"
+                value={rejected}
+                tone={rejected > 0 ? 'critical' : 'neutral'}
+              />
+            </>
+          ) : null
+        }
       />
 
-      <FilterCard>
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          <div>
-            <label className={filterLabelClass} htmlFor="posting-unit-filter">
-              Unidade
-            </label>
-            <select
-              id="posting-unit-filter"
-              className={filterControlClass}
-              value={unitId}
-              onChange={(event) => {
-                setUnitId(event.target.value);
-                setPage(0);
-              }}
-            >
-              {units.length === 0 ? <option value="">Nenhuma unidade disponível</option> : null}
-
-              {units.map((unit, index) => (
-
-                <option key={unit} value={unit}>
-
-                  Unidade {index + 1}
-
-                </option>
-
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="posting-status-filter">
-              Situação
-            </label>
-            <select
-              id="posting-status-filter"
-              className={filterControlClass}
-              value={status}
-              onChange={(event) => clearPagingOnFilter('status', event.target.value)}
-            >
-              <option value="">Todas</option>
-              <option value="POSTED">Lançado</option>
-              <option value="PENDING">Pendente</option>
-              <option value="REJECTED">Rejeitado</option>
-            </select>
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="posting-event-filter">
-              Evento de origem
-            </label>
-            <select
-              id="posting-event-filter"
-              className={filterControlClass}
-              value={eventKind}
-              onChange={(event) => clearPagingOnFilter('eventKind', event.target.value)}
-            >
-              {EVENT_KINDS.map((value) => (
-                <option key={value || 'all'} value={value}>
-                  {value === '' ? 'Todos' : (EVENT_LABELS[value] ?? value)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="posting-from-filter">
-              Ocorrido de
-            </label>
-            <input
-              id="posting-from-filter"
-              type="date"
-              className={filterControlClass}
-              value={occurredFrom}
-              onChange={(event) => {
-                setOccurredFrom(event.target.value);
-                setPage(0);
-              }}
-            />
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="posting-to-filter">
-              Ocorrido até
-            </label>
-            <input
-              id="posting-to-filter"
-              type="date"
-              className={filterControlClass}
-              value={occurredTo}
-              onChange={(event) => {
-                setOccurredTo(event.target.value);
-                setPage(0);
-              }}
-            />
-          </div>
-        </div>
-      </FilterCard>
+      <WorklistFilterBar
+        meta={
+          data
+            ? `Página ${data.page + 1} de ${Math.max(data.totalPages, 1)} · ${data.total} evento(s)`
+            : undefined
+        }
+      >
+        <WorklistField label="Unidade" htmlFor="posting-unit-filter">
+          <select
+            id="posting-unit-filter"
+            className={worklistSelectClass}
+            value={unitId}
+            onChange={(event) => {
+              setUnitId(event.target.value);
+              setPage(0);
+            }}
+          >
+            {/*
+              ESCOPO DE UNIDADE pelo primitivo compartilhado — o `<option>` de ausencia e o rotulo
+              humano sao os mesmos das demais superficies contabeis. O VALOR continua sendo a
+              unidade autorizada enviada a API.
+            */}
+            <OperationalUnitOptions options={unitOptions} />
+          </select>
+        </WorklistField>
+        <WorklistField label="Situação" htmlFor="posting-status-filter">
+          <select
+            id="posting-status-filter"
+            className={worklistSelectClass}
+            value={status}
+            onChange={(event) => clearPagingOnFilter('status', event.target.value)}
+          >
+            <option value="">Todas</option>
+            <option value="POSTED">Lançado</option>
+            <option value="PENDING">Pendente</option>
+            <option value="REJECTED">Rejeitado</option>
+          </select>
+        </WorklistField>
+        <WorklistField label="Evento de origem" htmlFor="posting-event-filter">
+          <select
+            id="posting-event-filter"
+            className={`${worklistSelectClass} w-full max-w-[18rem]`}
+            value={eventKind}
+            onChange={(event) => clearPagingOnFilter('eventKind', event.target.value)}
+          >
+            {EVENT_KINDS.map((value) => (
+              <option key={value || 'all'} value={value}>
+                {value === '' ? 'Todos' : (EVENT_LABELS[value] ?? value)}
+              </option>
+            ))}
+          </select>
+        </WorklistField>
+        <WorklistField label="Ocorrido de" htmlFor="posting-from-filter">
+          <input
+            id="posting-from-filter"
+            type="date"
+            className={worklistSelectClass}
+            value={occurredFrom}
+            onChange={(event) => {
+              setOccurredFrom(event.target.value);
+              setPage(0);
+            }}
+          />
+        </WorklistField>
+        <WorklistField label="Ocorrido até" htmlFor="posting-to-filter">
+          <input
+            id="posting-to-filter"
+            type="date"
+            className={worklistSelectClass}
+            value={occurredTo}
+            onChange={(event) => {
+              setOccurredTo(event.target.value);
+              setPage(0);
+            }}
+          />
+        </WorklistField>
+        <WorklistClearFilters
+          visible={smartList.isFiltered || occurredFrom !== '' || occurredTo !== ''}
+          onClick={() => {
+            smartList.clearFilters();
+            setOccurredFrom('');
+            setOccurredTo('');
+            setPage(0);
+          }}
+        />
+      </WorklistFilterBar>
 
       <SavedViewsBar
         views={smartList.savedViews.views}
@@ -298,15 +339,8 @@ export function AccountingPostingOriginsPage() {
         currentConfig={smartList.currentConfig}
         canSave={Object.keys(smartList.filters).length > 0}
         allLabel="Todas"
-        className="mb-4"
+        className="mb-2"
       />
-
-      {data ? (
-        <p className="mb-6 text-sm text-text-secondary">
-          Lançados: <strong>{posted}</strong> · Pendentes: <strong>{pending}</strong> · Rejeitados:{' '}
-          <strong>{rejected}</strong>
-        </p>
-      ) : null}
 
       {state.phase === 'loading' ? (
         <ModuleLoadingState title="Origem dos lançamentos" message="Carregando eventos lançados…" />
@@ -322,36 +356,33 @@ export function AccountingPostingOriginsPage() {
       ) : null}
 
       {data && data.items.length === 0 ? (
-        <>
-          <EmptyState
-            title={smartList.isFiltered ? 'Nenhum evento para o recorte atual' : 'Nenhum evento lançado'}
-            description={
-              smartList.isFiltered
-                ? 'Os filtros aplicados não retornam evento de negócio nesta unidade. Limpe o recorte para ver a rastreabilidade completa.'
-                : 'Não há eventos de negócio lançados para a unidade selecionada.'
-            }
-          />
-          {smartList.isFiltered ? (
-            <div className="mt-3">
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  smartList.clearFilters();
-                  setPage(0);
-                }}
-              >
-                Limpar filtros
-              </Button>
-            </div>
-          ) : null}
-        </>
+        <WorklistStatePanel
+          title={
+            smartList.isFiltered ? 'Nenhum evento para o recorte atual' : 'Nenhum evento lançado'
+          }
+          description={
+            smartList.isFiltered
+              ? 'Os filtros aplicados não retornam evento de negócio nesta unidade. Limpe o recorte para ver a rastreabilidade completa.'
+              : 'Não há eventos de negócio lançados para a unidade selecionada.'
+          }
+          action={
+            <WorklistClearFilters
+              visible={smartList.isFiltered}
+              onClick={() => {
+                smartList.clearFilters();
+                setPage(0);
+              }}
+              label="Limpar filtros"
+            />
+          }
+        />
       ) : null}
 
       {data && data.items.length > 0 ? (
         <>
           <div className={worklistTableCardClass}>
             <table className={worklistTableClass} aria-label="Origem dos lançamentos contábeis">
-              <thead className={worklistHeadCellClass}>
+              <thead>
                 <tr>
                   <th scope="col" className={worklistHeadCellClass}>
                     Ocorrido em
@@ -365,7 +396,7 @@ export function AccountingPostingOriginsPage() {
                   <th scope="col" className={worklistHeadCellClass}>
                     Referência
                   </th>
-                  <th scope="col" className={`${worklistHeadCellClass} text-right`}>
+                  <th scope="col" className={worklistHeadCellClass}>
                     Valor
                   </th>
                   <th scope="col" className={worklistHeadCellClass}>
@@ -391,7 +422,7 @@ export function AccountingPostingOriginsPage() {
                     <td className={`${worklistCellClass} whitespace-normal`}>
                       {item.sourceReference}
                     </td>
-                    <td className={`${worklistCellClass} text-right`}>
+                    <td className={worklistCellClass}>
                       <Money value={item.amount} currencyCode={item.currencyCode} />
                     </td>
                     <td className={worklistCellClass}>

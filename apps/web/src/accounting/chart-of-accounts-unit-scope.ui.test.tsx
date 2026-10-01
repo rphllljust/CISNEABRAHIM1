@@ -124,7 +124,7 @@ function createFetchMock(options: { units?: string[] } = {}) {
 }
 
 function unitField(): HTMLElement {
-  return screen.getByLabelText(/unidade operacional/i);
+  return screen.getByLabelText(/^unidade$/i);
 }
 
 function chartField(): HTMLElement {

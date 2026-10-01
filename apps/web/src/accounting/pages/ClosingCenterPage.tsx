@@ -1,14 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Alert, DateTime, EmptyState, StatusBadge, worklistTableCardClass } from '../../ui';
-import { ModuleDeniedState, ModuleErrorState, ModuleLoadingState, ModulePage, ModulePageHeader, filterLabelClass } from '../../ui/module-layout';
+import { Alert, DateTime, StatusBadge, worklistTableCardClass } from '../../ui';
+import { ModuleDeniedState, ModuleErrorState, ModuleLoadingState, ModulePage, filterLabelClass } from '../../ui/module-layout';
 import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
-import { WorklistException, WorklistField, WorklistFilterBar, worklistSelectClass } from '../../ui/enterprise-list';
 import {
-  WorkbenchMetric,
+  EnterpriseMetric,
+  WorklistField,
+  WorklistFilterBar,
+  WorklistHeader,
+  WorklistException,
+  WorklistStatePanel,
+  worklistSelectClass,
+} from '../../ui/enterprise-list';
+import {
   WorkbenchQueue,
   WorkbenchQueueItem,
-  WorkbenchSummaryStrip,
   workbenchPrimaryActionClass,
 } from '../../ui/workbench';
 import { OperationalUnitOptions, useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
@@ -188,8 +194,8 @@ export function ClosingCenterPage() {
   if (units.length === 0) {
     return (
       <ModulePage>
-        <ModulePageHeader title="Central de fechamento" />
-        <EmptyState
+        <WorklistHeader title="Central de fechamento" />
+        <WorklistStatePanel
           title="Nenhuma unidade operacional disponível"
           description="Esta área trabalha por unidade e período; sem unidade autorizada não há fechamento a acompanhar."
         />
@@ -199,13 +205,57 @@ export function ClosingCenterPage() {
 
   const blockerCount = readiness ? readiness.blockers.length : 0;
   const pendingCount = readiness ? readiness.pending.length : 0;
-  const draftJournals = readiness ? readiness.accounting.journalCounts.DRAFT : undefined;
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      {/*
+        A central já era workbench; o que faltava era a CABEÇA na mesma gramática das demais
+        superfícies (título + situação + contexto numa faixa) e os ESTADOS DENTRO DA ESTRUTURA —
+        o vazio de pré-requisito substituía a página inteira. Nenhum contador novo, nem um: os
+        indicadores continuam sendo exatamente `readiness.*` publicado pelo servidor.
+      */}
+      <WorklistHeader
         title="Central de fechamento"
-        description="Período, pendências e bloqueadores do fechamento contábil e fiscal, lidos do servidor."
+        context="Período, pendências e bloqueadores do fechamento contábil e fiscal, lidos do servidor."
+        metrics={
+          readiness ? (
+            <>
+              <EnterpriseMetric label="Competência" value={readiness.period.code} />
+              <EnterpriseMetric
+                label="Contábil"
+                value={readiness.accounting.periodStatus === 'OPEN' ? 'Aberto' : 'Fechado'}
+                tone={readiness.accounting.periodStatus === 'OPEN' ? 'warning' : 'neutral'}
+              />
+              <EnterpriseMetric
+                label="Bloqueadores"
+                value={blockerCount}
+                tone={blockerCount > 0 ? 'critical' : 'neutral'}
+              />
+              <EnterpriseMetric
+                label="Pendências"
+                value={pendingCount}
+                tone={pendingCount > 0 ? 'warning' : 'neutral'}
+              />
+              <EnterpriseMetric
+                label="Prontidão"
+                value={
+                  readiness.closeReady === true
+                    ? 'Pronto para fechar'
+                    : readiness.closeReady === false
+                      ? 'Bloqueado'
+                      : 'Não afirmada'
+                }
+                tone={
+                  readiness.closeReady === true
+                    ? 'neutral'
+                    : readiness.closeReady === false
+                      ? 'critical'
+                      : 'warning'
+                }
+              />
+            </>
+          ) : null
+        }
       />
 
       {/* BARRA COMPACTA: os mesmos três recortes humanos, com o mesmo valor enviado ao servidor. */}
@@ -275,7 +325,7 @@ export function ClosingCenterPage() {
           ) : (
             <select
               id="closing-period"
-              className={worklistSelectClass}
+              className={`${worklistSelectClass} w-full min-w-0 max-w-[22rem]`}
               value={periodId}
               onChange={(event) => setPeriodId(event.target.value)}
             >
@@ -303,15 +353,24 @@ export function ClosingCenterPage() {
       )}
 
       {error ? (
-        <div className="mb-4">
+        <div className="mb-2">
           <Alert tone="error">{error}</Alert>
         </div>
       ) : null}
 
-      {!periodId ? (
-        <EmptyState
+      {/*
+        PRÉ-REQUISITO NA ESTRUTURA — antes este vazio substituía a área de trabalho inteira.
+        Agora ele ocupa o lugar do RESULTADO: cabeçalho, indicadores e barra de recorte seguem
+        montados, então o operador continua vendo em que unidade e competência está.
+      */}
+      {!periodId && periodsQuery.state.phase !== 'loading' ? (
+        <WorklistStatePanel
           title="Nenhum período selecionado"
-          description="Escolha a competência para ver bloqueadores, pendências e o estado real do fechamento."
+          description={
+            periods.length === 0
+              ? 'A unidade selecionada não tem competência cadastrada. O fechamento age sobre uma competência existente; nada é criado aqui.'
+              : 'Escolha a competência para ver bloqueadores, pendências e o estado real do fechamento.'
+          }
         />
       ) : null}
 
@@ -338,37 +397,11 @@ export function ClosingCenterPage() {
       {readiness ? (
         <>
           {/*
-            RESUMO DO FECHAMENTO — contagens reais da leitura de prontidão. Métrica sem lastro é
-            omitida: sem seção fiscal autorizada, nenhum número fiscal é afirmado.
+            1. BLOQUEADORES — a fila que trava o fechamento, ordenada pela severidade persistida.
+            As contagens do resumo agora vivem na cabeça da página (`WorklistHeader`), na MESMA
+            faixa vertical das demais superfícies: uma faixa de resumo em bloco próprio empurrava
+            a fila para fora da primeira dobra. Nenhum número passou a existir.
           */}
-          <WorkbenchSummaryStrip>
-            <WorkbenchMetric
-              value={blockerCount}
-              label="bloqueadores"
-              tone={blockerCount > 0 ? 'critical' : 'success'}
-            />
-            <WorkbenchMetric
-              value={pendingCount}
-              label="pendências"
-              tone={pendingCount > 0 ? 'warning' : 'neutral'}
-            />
-            {typeof draftJournals === 'number' ? (
-              <WorkbenchMetric
-                value={draftJournals}
-                label="lançamentos não postados"
-                tone={draftJournals > 0 ? 'warning' : 'success'}
-              />
-            ) : null}
-            {readiness.fiscal ? (
-              <WorkbenchMetric
-                value={readiness.fiscal.rejected}
-                label="documentos fiscais rejeitados"
-                tone={readiness.fiscal.rejected > 0 ? 'critical' : 'neutral'}
-              />
-            ) : null}
-          </WorkbenchSummaryStrip>
-
-          {/* 1. BLOQUEADORES — a fila que trava o fechamento, ordenada pela severidade persistida. */}
           <WorkbenchQueue
             title="Bloqueadores do fechamento"
             count={blockerCount}
@@ -413,7 +446,10 @@ export function ClosingCenterPage() {
           ) : null}
 
           {/* 3. PRÓXIMAS AÇÕES */}
-          <section className="mb-3 rounded-md border border-gray-200 bg-white px-3 py-2">
+          <section
+            className="mb-3 rounded-md border border-gray-200 bg-white px-3 py-2"
+            aria-label="Próximas ações do fechamento"
+          >
             <h2 className="mb-2 text-sm font-semibold text-gray-900">Próximas ações</h2>
             <ul className="mb-3 space-y-1" aria-label="Próximas ações do fechamento">
               {readiness.nextActions.map((action) => (
@@ -467,28 +503,33 @@ export function ClosingCenterPage() {
           </section>
 
           {/* 4. SITUAÇÃO DO PERÍODO */}
-          <section className="mb-3 rounded-md border border-gray-200 bg-white px-3 py-2">
+          <section
+            className="mb-3 rounded-md border border-gray-200 bg-white px-3 py-2"
+            aria-label="Situação do período"
+          >
             <h2 className="mb-2 text-sm font-semibold text-gray-900">Situação do período</h2>
+            {/* `min-w-0` nas colunas: sem ele o texto longo do recorte fiscal não encolhe e a
+                grade empurra a página além do viewport em telas estreitas. */}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-              <div>
+              <div className="min-w-0">
                 <p className={filterLabelClass}>Competência</p>
                 <p className="text-sm text-gray-900">{readiness.period.code}</p>
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className={filterLabelClass}>Intervalo</p>
                 <p className="text-sm text-gray-900">
                   <DateTime value={readiness.period.startsOn} mode="date" /> —{' '}
                   <DateTime value={readiness.period.endsOn} mode="date" />
                 </p>
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className={filterLabelClass}>Contábil</p>
                 <StatusBadge
                   tone={readiness.accounting.periodStatus === 'OPEN' ? 'warning' : 'success'}
                   label={readiness.accounting.periodStatus === 'OPEN' ? 'Aberto' : 'Fechado'}
                 />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className={filterLabelClass}>Fiscal</p>
                 {readiness.fiscal ? (
                   <p className="text-sm text-gray-900">

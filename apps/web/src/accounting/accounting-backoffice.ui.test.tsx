@@ -366,9 +366,9 @@ describe('Accounting backoffice UI (server-driven scope)', () => {
     // A unidade operacional vem da lista do shell (nenhum identificador digitado): escolhida a
     // unidade, os planos dela sao carregados pelo servidor e o periodo vem por plano.
     await waitFor(() => {
-      expect(screen.getByLabelText(/unidade operacional/i)).not.toBeDisabled();
+      expect(screen.getByLabelText(/^unidade$/i)).not.toBeDisabled();
     });
-    await user.selectOptions(screen.getByLabelText(/unidade operacional/i), 'unit-a');
+    await user.selectOptions(screen.getByLabelText(/^unidade$/i), 'unit-a');
     await waitFor(() => {
       expect(screen.getByLabelText(/plano de contas/i)).not.toBeDisabled();
     });
@@ -386,9 +386,9 @@ describe('Accounting backoffice UI (server-driven scope)', () => {
     // A unidade vem da lista do shell (nenhum identificador digitado); selecionada a unidade,
     // os planos dela sao carregados pelo servidor.
     await waitFor(() => {
-      expect(screen.getByLabelText(/unidade operacional/i)).not.toBeDisabled();
+      expect(screen.getByLabelText(/^unidade$/i)).not.toBeDisabled();
     });
-    expect(screen.getByLabelText(/unidade operacional/i).tagName).toBe('SELECT');
+    expect(screen.getByLabelText(/^unidade$/i).tagName).toBe('SELECT');
     await waitFor(() => {
       expect(screen.getByLabelText(/plano de contas/i)).not.toBeDisabled();
     });
@@ -410,8 +410,8 @@ describe('Accounting backoffice UI (server-driven scope)', () => {
       </Routes>,
       { router: { initialEntries: ['/app/accounting/journals'] } },
     );
-    await waitFor(() => expect(screen.getByLabelText(/unidade operacional/i)).not.toBeDisabled());
-    await user.selectOptions(screen.getByLabelText(/unidade operacional/i), 'unit-a');
+    await waitFor(() => expect(screen.getByLabelText(/^unidade$/i)).not.toBeDisabled());
+    await user.selectOptions(screen.getByLabelText(/^unidade$/i), 'unit-a');
     await waitFor(() => expect(screen.getByLabelText(/plano de contas/i)).not.toBeDisabled());
     await user.selectOptions(screen.getByLabelText(/plano de contas/i), CHART_ID);
     await waitFor(() => expect(screen.getByLabelText(/período contábil/i)).not.toBeDisabled());
@@ -419,7 +419,13 @@ describe('Accounting backoffice UI (server-driven scope)', () => {
     await waitFor(() => {
       expect(screen.getByText('Venda de serviços')).toBeInTheDocument();
     });
-    await user.click(screen.getByRole('button', { name: 'Abrir' }));
+    /*
+     * AÇÃO DA LINHA: "Abrir" é um `<a>` real (link do registro), não mais um `<button>` com
+     * navegação programática dentro de uma linha clicável. O comportamento protegido é o mesmo —
+     * a linha leva ao detalhe —, agora com alvo de teclado, "abrir em nova aba" e menu de
+     * contexto funcionando, e sem dois manipuladores de clique competindo no mesmo elemento.
+     */
+    await user.click(screen.getByRole('link', { name: 'Abrir' }));
     await waitFor(() => {
       expect(screen.getByRole('table', { name: /linhas do lançamento/i })).toBeInTheDocument();
     });
@@ -431,8 +437,8 @@ describe('Accounting backoffice UI (server-driven scope)', () => {
     const user = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
     vi.stubGlobal('fetch', createAccountingFetchMock());
     renderWithProviders(<JournalBookPage />);
-    await waitFor(() => expect(screen.getByLabelText(/unidade operacional/i)).not.toBeDisabled());
-    await user.selectOptions(screen.getByLabelText(/unidade operacional/i), 'unit-a');
+    await waitFor(() => expect(screen.getByLabelText(/^unidade$/i)).not.toBeDisabled());
+    await user.selectOptions(screen.getByLabelText(/^unidade$/i), 'unit-a');
     await waitFor(() => expect(screen.getByLabelText(/plano de contas/i)).not.toBeDisabled());
     await user.selectOptions(screen.getByLabelText(/plano de contas/i), CHART_ID);
     await waitFor(() => expect(screen.getByLabelText(/período contábil/i)).not.toBeDisabled());
@@ -464,9 +470,16 @@ describe('Accounting backoffice UI (server-driven scope)', () => {
     vi.stubGlobal('fetch', createAccountingFetchMock());
     renderWithProviders(<IncomeStatementPage />);
     await selectScope(user);
+    /*
+     * O rótulo "Resultado do período" agora nomeia a SEÇÃO do relatório (antes era apenas uma
+     * linha dentro do cartão), então aparece na seção e na linha de resultado. A asserção passa a
+     * exigir a presença e o valor do servidor, que é o que ela protege.
+     */
     await waitFor(() => {
-      expect(screen.getByText('Resultado do período')).toBeInTheDocument();
+      expect(screen.getAllByText('Resultado do período').length).toBeGreaterThan(0);
     });
+    expect(screen.getByText('Receita')).toBeInTheDocument();
+    expect(screen.getByText('Despesa')).toBeInTheDocument();
   });
 
   it('loads fixed asset accounting register with movements from the server', async () => {
@@ -482,10 +495,20 @@ describe('Accounting backoffice UI (server-driven scope)', () => {
     await waitFor(() => {
       expect(screen.getByRole('table', { name: /movimentos do imobilizado/i })).toBeInTheDocument();
     });
-    expect(screen.getByText('ACTIVE')).toBeInTheDocument();
-    expect(screen.getByText(/60 meses/i)).toBeInTheDocument();
-    expect(screen.getByText('ACQUISITION')).toBeInTheDocument();
-    expect(screen.getByText('DEPRECIATION')).toBeInTheDocument();
+    /*
+     * O status, a vida útil e o valor contábil aparecem DUAS vezes agora — na faixa de
+     * indicadores da cabeça (`EnterpriseMetric`, leitura do contrato) e na identidade do
+     * registro. A asserção passa a exigir a PRESENÇA, não a unicidade: o que ela protege é que o
+     * valor do servidor chegue à tela, não que exista uma única cópia dele.
+     *
+     * Os tipos de movimento passam a ser exibidos pelo RÓTULO HUMANO do vocabulário fechado
+     * (`ACQUISITION` -> "Aquisição"), consistente com as demais colunas de domínio da Família 4.
+     */
+    expect(screen.getAllByText('ACTIVE').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/60 meses/i).length).toBeGreaterThan(0);
+    // "Aquisição" nomeia a ação E o movimento persistido: mesma palavra, dois fatos legítimos.
+    expect(screen.getAllByText('Aquisição').length).toBeGreaterThan(0);
+    expect(screen.getByText('Depreciação')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /depreciar/i })).toBeInTheDocument();
   });
 
@@ -502,18 +525,26 @@ describe('Accounting backoffice UI (server-driven scope)', () => {
     await user.click(screen.getByRole('button', { name: 'Fechar' }));
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('button', { name: 'Fechar' }));
+    /*
+     * A situação do período é lida do servidor e aparece na faixa de indicadores da cabeça e no
+     * estado do período — a workbench mostra o mesmo fato nos dois lugares de propósito. O que a
+     * asserção protege continua igual: o período passou a FECHADO depois do close real.
+     */
     await waitFor(() => {
-      expect(screen.getByText('Fechado')).toBeInTheDocument();
+      expect(screen.getAllByText('Fechado').length).toBeGreaterThan(0);
     });
-    expect(screen.getByText('Concluído')).toBeInTheDocument();
+    // "Concluído" é o resultado persistido da execução de fechamento registrada no histórico.
+    expect(screen.getAllByText('Concluído').length).toBeGreaterThan(0);
   });
 
   it('shows access denied when the backend denies accounting lists', async () => {
     vi.stubGlobal('fetch', createAccountingFetchMock({ accountingAllowed: false }));
     renderWithProviders(<ChartOfAccountsPage />);
     // A unidade autorizada entra pelo contexto do shell; a negacao vem da consulta contabil.
+    // O painel de estado recusado e `role="alert"` (bloco critico), na MESMA moldura das demais
+    // superficies — o texto de permissao continua sendo o que a assercao protege.
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent(/não tem permissão/i);
+      expect(screen.getByRole('alert')).toHaveTextContent(/sem permissão para listar planos/i);
     });
   });
 });

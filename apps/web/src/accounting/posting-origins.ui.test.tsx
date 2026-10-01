@@ -120,6 +120,12 @@ describe('AccountingPostingOriginsPage', () => {
     await waitFor(() => {
       expect(screen.getByText(/nenhum evento para o recorte atual/i)).toBeInTheDocument();
     });
-    expect(screen.getByRole('button', { name: /limpar filtros/i })).toBeInTheDocument();
+    /*
+     * A saída do recorte passou a existir em DOIS lugares legítimos da MESMA estrutura: no painel
+     * de estado (que diz o que aconteceu e como voltar) e na barra de filtros compacta, onde o
+     * operador procura o controle. Nenhum dos dois é um botão solto: a asserção passa a exigir a
+     * presença do caminho de volta, que é o comportamento protegido.
+     */
+    expect(screen.getAllByRole('button', { name: /limpar filtros/i }).length).toBeGreaterThan(0);
   });
 });
