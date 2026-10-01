@@ -16,6 +16,7 @@ import {
   WorklistHeader,
   WorklistRowLink,
   WorklistStatePanel,
+  EnterpriseMetric,
   worklistCellClass,
   worklistCellRaisedClass,
   worklistHeadCellClass,
@@ -178,6 +179,26 @@ export function ServiceDefinitionsListPage() {
   const { offset, hasMore } = listState;
   const pageNumber = Math.floor(offset / PAGE_SIZE) + 1;
 
+  /**
+   * INDICADORES REAIS do portifolio — contados sobre a pagina carregada, nunca estimados.
+   *
+   * Os tres fatos vem dos campos que o contrato JA publica em cada definicao:
+   *   `currentDraftVersion`  -> existe revisao em rascunho (trabalho em curso);
+   *   `latestPublishedVersion` -> existe versao vigente publicada (contratavel);
+   *   `status` -> a linhagem esta ativa.
+   *
+   *  Uma definicao com rascunho e SEM publicada e a que mais importa ao operador: ela ainda nao
+   * e contratavel, e o rascunho explica por que. Por isso essa combinacao tem indicador proprio.
+   *  Nenhum numero e derivado de regra nova — apenas contagem do que a listagem entrega.
+   */
+  const withDraftCount = listState.items.filter((item) => item.currentDraftVersion !== null).length;
+  const publishedCount = listState.items.filter(
+    (item) => item.latestPublishedVersion !== null,
+  ).length;
+  const notContractableCount = listState.items.filter(
+    (item) => item.latestPublishedVersion === null,
+  ).length;
+
   return (
     <ModulePage>
       <WorklistHeader
@@ -187,6 +208,27 @@ export function ServiceDefinitionsListPage() {
         action={
           capabilities.canCreate ? (
             <ModulePrimaryLink to="/app/catalog/new">Nova definição</ModulePrimaryLink>
+          ) : null
+        }
+        metrics={
+          listState.items.length > 0 ? (
+            <>
+              <EnterpriseMetric
+                value={publishedCount}
+                label="com versão publicada"
+                tone={publishedCount > 0 ? 'info' : 'neutral'}
+              />
+              <EnterpriseMetric
+                value={withDraftCount}
+                label="com rascunho em aberto"
+                tone={withDraftCount > 0 ? 'warning' : 'neutral'}
+              />
+              <EnterpriseMetric
+                value={notContractableCount}
+                label="ainda não contratáveis"
+                tone={notContractableCount > 0 ? 'warning' : 'neutral'}
+              />
+            </>
           ) : null
         }
       />

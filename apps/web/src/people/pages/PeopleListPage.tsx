@@ -8,6 +8,7 @@ import { listLaborTypes } from '../../catalog/api/catalog-reference-api';
 import { PERSON_STATUSES, type Person, type PersonStatus } from '../types/person.types';
 import {
   RowActionCell,
+  EnterpriseMetric,
   WorklistClearFilters,
   WorklistException,
   WorklistField,
@@ -239,7 +240,7 @@ export function PeopleListPage() {
     <ModulePage>
       <WorklistHeader
         title="Pessoas"
-        count={items.length}
+        count={listState.total ?? items.length}
         context={
           items.length > 0
             ? `Mão de obra no seu escopo autorizado${hasFilters ? ' para os filtros aplicados' : ''}.`
@@ -248,6 +249,30 @@ export function PeopleListPage() {
         action={
           capabilities.canCreate ? (
             <ModulePrimaryLink to="/app/people/new">Nova Pessoa</ModulePrimaryLink>
+          ) : null
+        }
+        metrics={
+          items.length > 0 ? (
+            <>
+              {/*
+                INDICADORES REAIS — contados sobre a pagina carregada, nunca estimados.
+                `activeCount` e `allocatableCount` ja eram derivados no corpo da tela para o
+                rodape; sobem para a cabeca, que e onde as demais worklists publicam o resumo.
+                A alocabilidade e o fato que RESTRINGE a operacao: e ela que decide se a pessoa
+                pode entrar numa OS.
+              */}
+              <EnterpriseMetric
+                value={activeCount}
+                label="ativas nesta página"
+                tone={activeCount > 0 ? 'info' : 'neutral'}
+              />
+              <EnterpriseMetric
+                value={allocatableCount}
+                label="aptas a alocação"
+                tone={allocatableCount < items.length ? 'warning' : 'neutral'}
+              />
+              <EnterpriseMetric value={items.length - allocatableCount} label="não alocáveis" />
+            </>
           ) : null
         }
       />
