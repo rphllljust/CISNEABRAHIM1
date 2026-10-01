@@ -12,8 +12,16 @@ import { resetNavAccessCacheForTests } from '../shell/useNavAccess';
  * suite completa por contencao de CPU — um falso negativo de gate que nao indica defeito de
  * produto. O orcamento foi ampliado de forma sistemica (uma unica configuracao, valida para
  * todo `waitFor`/`findBy*`), sem afrouxar nenhuma assercao: as verificacoes continuam exatas.
+ *
+ * AMPLIACAO EM B5 (5s -> 10s): o bootstrap autenticado passou a hidratar `/me` e
+ * `/command-catalog` no `SessionMetaProvider`, alem das chamadas que cada tela ja fazia. Em
+ * teste o `fetch` e o duble do caso, mas a cadeia de promessas + re-render continua custando
+ * ciclos reais de CPU, e os casos que mudam de estado (prepare/release/reopen) passaram a
+ * esperar tambem a RECARGA de `available-actions`. O orcamento de 5s ficou exatamente no
+ * limite do timeout de caso (5s), produzindo falso negativo por contencao — o mesmo defeito
+ * que a ampliacao anterior ja havia documentado. As assercoes seguem identicas.
  */
-configure({ asyncUtilTimeout: 5_000 });
+configure({ asyncUtilTimeout: 10_000 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
