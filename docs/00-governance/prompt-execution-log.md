@@ -15860,3 +15860,190 @@ e aqui registrado. Nao houve re-execucao da verificacao nem nova leitura de codi
 WORKING_TREE: DIRTY (trabalho preexistente preservado; nada tocado nesta sessao)
 EVIDENCIA: nenhum teste executado — sessao de leitura e registro
 DOMAIN: INTOCADO · MIGRATIONS: NENHUMA NOVA · CODIGO: NENHUM ALTERADO
+
+---
+
+## B3 — Logger estruturado, correlation-id e exposicao Prometheus (Fase 1 + Fase 2)
+
+DATA: 2026-10-01
+SESSAO: B3
+STATUS: **PASS_WITH_RESTRICTIONS**
+
+### RESUMO EXECUTIVO
+
+A Fase 0 (leitura crua) provou que **a observabilidade ja existia substancialmente** no
+repositorio: logger estruturado JSON, AsyncLocalStorage com `correlationId`, interceptor HTTP
+global, registry de metricas in-memory, redaction de segredos e endpoints de health/ready.
+O prompt B3 supunha que `apps/api/src/observability/**` era "novo diretorio" — nao era
+(34 arquivos ja commitados e registrados no `AppModule`).
+
+Aplicada a restricao 10 ("se a Fase 0 revelar que observabilidade ja existe parcialmente,
+NAO reimplemente. Complemente."), a sessao foi executada em escopo **complementar**, com
+autorizacao explicita do usuario apos o relatorio da Fase 0.
+
+### O QUE FOI ENTREGUE
+
+1. **Redaction de identificadores fiscais** — `cpf`, `cnpj`, `tax_id`, `x-api-key`, `api_key`
+   passaram a ser mascarados **por chave**. Antes, o CNPJ so era mascarado por VALOR pontuado;
+   `cnpj: "12345678000190"` (sem pontuacao) atravessava intacto.
+2. **Exposicao Prometheus** — `prom-client` + `GET /observability/prometheus` em exposition
+   format, autenticado com `platform:diagnostics:read`.
+3. **`business_errors_total`** por `error_code`, instrumentado no `ApiExceptionFilter` (que
+   nao tinha contador algum — 0 ocorrencias no repo antes desta sessao).
+4. **Cobertura de integracao** — 6 casos sobre `AppModule` real + PostgreSQL real.
+
+### O QUE **NAO** FOI FEITO (e por que)
+
+| Item do prompt | Decisao | Motivo |
+| --- | --- | --- |
+| Tarefa 1 — pino | **NAO executado** | `StructuredLoggerService` (JSON) ja existe e e consumido. Trocar = reescrever o que existe (restricao 3); adicionar ao lado = duplicar logger (restricao 3 + 10). |
+| Tarefa 2b — ALS em `common/logger/context.ts` | **NAO executado** | ALS ja existe em `observability/context/observability-context.ts`, carregando `correlationId`, `requestId`, `operation`, `actorId`. Criar segundo ALS = duplicacao (restricao 3). |
+| Tarefa 3 — interceptor global de log HTTP | **NAO executado** | `ObservabilityContextInterceptor` ja esta registrado via `APP_INTERCEPTOR` e ja loga entrada/saida/erro com duracao, status e correlation-id. |
+| Tarefa 5 — `/health` e `/ready` | **NAO executado como escrito** | Ja existem como `/health/live` e `/health/ready`, com semantica correta (liveness 200 sem banco; readiness 503). Testados nos caminhos reais. |
+| `GET /metrics` anonimo | **NAO executado** | Contraria o Caso 6 do proprio prompt e o modelo fail-closed ja provado. Repo nao possui `observability:read`; cria-la exigiria tocar `authorization/` (PROIBIDO). |
+| `main.ts` — shutdown hooks | **NAO executado** | Nao e exigido pelo escopo complementar; `DatabaseService.onModuleDestroy` ja encerra o pool e e exercido em `app.close()` nos testes. |
+
+### COMANDO EXATO DO TESTE + SAIDA LITERAL
+
+Comando:
+
+    pnpm --filter @cisne/api exec vitest run --config vitest.integration.config.ts src/observability/observability-b3.integration.spec.ts
+
+Saida literal (exit code 0):
+
+     ✓ src/observability/observability-b3.integration.spec.ts (6 tests) 50383ms
+       ✓ Caso 1: GET /health/live responde 200 com corpo minimo, sem tocar o banco  10894ms
+       ✓ Caso 2: GET /health/ready responde 200 quando o PostgreSQL responde  9173ms
+       ✓ Caso 3: GET /observability/prometheus responde 200 em formato Prometheus valido  7155ms
+       ✓ Caso 4: requisicao HTTP real gera log estruturado com correlation-id e metrica por rota normalizada  6373ms
+       ✓ Caso 5: erro de dominio incrementa business_errors_total com o codigo do envelope  7444ms
+       ✓ Caso 6: /observability/prometheus exige autenticacao (401) e autorizacao (403)  6643ms
+
+     Test Files  1 passed (1)
+          Tests  6 passed (6)
+       Duration  106.15s
+
+### REGRESSAO OBRIGATORIA (service-orders + audit)
+
+Comandos:
+
+    pnpm --filter @cisne/api exec vitest run --config vitest.integration.config.ts src/service-orders
+    pnpm --filter @cisne/api exec vitest run --config vitest.integration.config.ts src/audit
+
+Saida literal (exit code 0 em ambos):
+
+    src/service-orders  ->  Test Files  9 passed (9)    Tests  105 passed (105)
+    src/audit           ->  Test Files  2 passed (2)    Tests   13 passed (13)
+
+**TOTAL: 118/118 PASS** — identico ao baseline do ciclo de auditoria fechado.
+
+Suite unitaria da API: `Test Files 232 passed / 3 failed (235)`, `Tests 1167 passed / 4 failed (1171)`.
+As 4 falhas sao **PRE-EXISTENTES**, provadas por `git stash` das alteracoes de B3 e re-execucao
+no baseline `82f72c6` — falharam de forma identica sem nenhuma alteracao desta sessao:
+
+    src/test/ensure-migrations-journal-coverage.spec.ts
+    src/service-orders/domain/operational-eligibility.spec.ts   (spec com datas fixas de 2026)
+    src/work-inbox/sources/finance.source.spec.ts               (2 falhas)
+
+### INVENTARIO COMPLETO DE ARQUIVOS (Tarefa 7)
+
+| Arquivo | Origem | Acao |
+| --- | --- | --- |
+| `apps/api/src/observability/logging/log-redaction.ts` | B3 | Incluir no commit B3 (8a) |
+| `apps/api/src/observability/logging/log-redaction.spec.ts` | B3 | Incluir no commit B3 (8a) |
+| `apps/api/package.json` | B3 | Incluir no commit B3 (8b) |
+| `pnpm-lock.yaml` | B3 | Incluir no commit B3 (8b) |
+| `apps/api/src/observability/metrics/prometheus-metrics.service.ts` | B3 (novo) | Incluir no commit B3 (8b) |
+| `apps/api/src/observability/observability.module.ts` | B3 | Incluir no commit B3 (8b) |
+| `apps/api/src/observability/interceptors/observability-context.interceptor.ts` | B3 | Incluir no commit B3 (8b) |
+| `apps/api/src/observability/interceptors/observability-context.interceptor.spec.ts` | B3 | Incluir no commit B3 (8b) |
+| `apps/api/src/infrastructure/http/api-exception.filter.ts` | B3 | Incluir no commit B3 (8b) |
+| `apps/api/src/observability/controllers/observability.controller.ts` | B3 | Incluir no commit B3 (8b) |
+| `apps/api/src/observability/observability-b3.integration.spec.ts` | B3 (novo) | Incluir no commit B3 (8d) |
+| `docs/00-governance/prompt-execution-log.md` | B3 | Este bloco |
+
+**ORFAOS DE SESSOES ANTERIORES: NENHUM ENCONTRADO.** Nao houve commit corretivo (8e), conforme
+a regra "se nenhum orfao for encontrado, NAO invente commit corretivo".
+
+**ARQUIVOS DE TERCEIROS (nao tocados, nao commitados):** `apps/web/**`,
+`apps/api/src/platform/release-scope/*.spec.ts`, `docs/inputs/**`,
+`docs/01-foundation/source-registry.md`, `docs/19-operations/readiness-evidence.json`.
+Preservados conforme `AGENTS.md` regra 10.
+
+### COMMITS CRIADOS (Tarefa 8)
+
+| Hash | Mensagem | Arquivos |
+| --- | --- | --- |
+| `ffbcac9` | `feat(observability): redaction de CPF, CNPJ, tax_id e x-api-key` | `log-redaction.ts`, `log-redaction.spec.ts` |
+| `c82adc6` | `feat(observability): exposicao Prometheus sobre o registry existente` | `package.json`, `pnpm-lock.yaml`, `prometheus-metrics.service.ts`, `observability.module.ts`, `observability-context.interceptor.ts` (+spec), `api-exception.filter.ts`, `observability.controller.ts` |
+| `252151f` | `test(observability): cobertura de integracao do ciclo B3 (6 casos)` | `observability-b3.integration.spec.ts` |
+
+### CONFIRMACOES OBRIGATORIAS (Tarefa 9f)
+
+- `domain/` intocado — verificado por `git status --porcelain -- apps/api/src/service-orders/domain/` (**VAZIO**).
+- `authorization/` intocado — verificado por `git status --porcelain -- apps/api/src/authorization/` (**VAZIO**).
+- Nenhuma migration criada — `git status --porcelain -- packages/database/migrations/` (**VAZIO**);
+  `packages/database/schema/**` nao tocado.
+- Nenhum arquivo de frontend tocado.
+- Nenhum `console.log` nos arquivos criados por B3. (`StructuredLoggerService` usa `console.log`
+  internamente por decisao preexistente de terceiros; **nao foi alterado** nesta sessao, conforme
+  restricao 4 — apenas os arquivos criados/alterados por B3 entram nessa verificacao.)
+- `infrastructure/http/correlation-id.ts` e `correlation-id.interceptor.ts` **NAO** foram alterados.
+- Nenhum segundo correlation-id, nenhum `PermissionsGuard`, nenhum segundo logger criado.
+
+### DECISOES DE DESIGN DECLARADAS (Tarefa 9h)
+
+1. **`PrometheusMetricsService` e projecao, nao segundo registry de negocio.** Os snapshots
+   in-memory entram como gauges derivados do `MetricsRegistryService`. Duplicar a contagem
+   produziria dois numeros divergentes para o mesmo fato.
+2. **Labels usam rota normalizada** (`request.routeOptions.url`), nunca `request.url` — caso
+   contrario cada id de recurso viraria serie temporal distinta (explosao de cardinalidade).
+3. **Endpoint Prometheus autenticado** com `platform:diagnostics:read`, reutilizando o RBAC
+   existente, em vez de criar permissao nova (que exigiria tocar `authorization/`).
+4. **`ApiExceptionFilter` recebe o contador via `@Optional()`** para preservar a construcao
+   manual em testes existentes. Contar e efeito colateral observavel, nunca pre-condicao para
+   responder o erro. O codigo contado e o MESMO normalizado que sai no envelope.
+5. **Gauges criados sob demanda** via `registry.getSingleMetric` — evita registrar a mesma
+   metrica duas vezes entre chamadas de `render()`.
+6. **Caminhos de health mantidos** (`/health/live`, `/health/ready`) em vez de duplicar
+   endpoints `/health` e `/ready` em producao.
+
+### REFERENCIAS CRUZADAS
+
+B1 · B1.5 · B1.6 · B2.1 · ADR-007 · DDP-043 · DDP-044
+
+### GIT STATUS LITERAL — VERIFICACAO FINAL (Tarefa 10)
+
+    10a. git status --porcelain -- apps/api/src/service-orders/domain/   -> (vazio)
+    10b. git status --porcelain -- apps/api/src/authorization/           -> (vazio)
+    10c. git status --porcelain -- packages/database/migrations/         -> (vazio)
+    10d. git log --oneline -8:
+         252151f test(observability): cobertura de integracao do ciclo B3 (6 casos)
+         c82adc6 feat(observability): exposicao Prometheus sobre o registry existente
+         ffbcac9 feat(observability): redaction de CPF, CNPJ, tax_id e x-api-key
+         82f72c6 docs(governance): fecha ciclo documental de A1/A3/D1
+         57e3c1e fix(audit): registra probe da migration 0082
+         25364c0 feat(service-orders): rastreabilidade transacional
+         d4550f5 feat(audit): infraestrutura de auditoria transacional
+         db4211c docs(governance): consolida ciclo de auditoria
+    10e. git status --porcelain (geral) -> APENAS trabalho de terceiros (apps/web/**,
+         platform/release-scope/*.spec.ts, docs/inputs/**, source-registry.md,
+         readiness-evidence.json). Nenhum arquivo de B3 remanescente.
+
+WORKING_TREE: DIRTY (somente trabalho de terceiros, preservado)
+DOMAIN: INTOCADO · AUTHORIZATION: INTOCADO · MIGRATIONS: NENHUMA NOVA
+STATUS FINAL: PASS_WITH_RESTRICTIONS
+
+### RESTRICOES DECLARADAS (ressalvas nomeadas)
+
+1. **Escopo complementar, nao o literal do prompt.** Tarefas 1, 2b, 3 e 5 nao foram executadas
+   como escritas porque os artefatos ja existiam. Executa-las literalmente violaria as
+   restricoes 3 e 10. Autorizado explicitamente pelo usuario apos a Fase 0.
+2. **Caminhos de health divergentes do prompt** (`/health/live` e `/health/ready` em vez de
+   `/health` e `/ready`). Divergencia declarada, nao adaptada em silencio.
+3. **Endpoint de metricas autenticado** em vez de anonimo. Contraria leitura literal do item 4c
+   do prompt, mas satisfaz o Caso 6 do proprio prompt e preserva o modelo fail-closed.
+4. **4 falhas de teste pre-existentes** fora do escopo de B3, provadas no baseline `82f72c6`
+   por `git stash`. Registradas, nao ocultadas (AGENTS.md regra 22).
+5. **`pino` nao instalado** e **Tarefa 1d (substituir console.log) nao executada** — decisao
+   consciente de nao duplicar/substituir o logger existente.
