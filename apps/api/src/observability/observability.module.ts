@@ -7,6 +7,7 @@ import { ObservabilityController } from './controllers/observability.controller'
 import { ObservabilityContextInterceptor } from './interceptors/observability-context.interceptor';
 import { StructuredLoggerService } from './logging/structured-logger.service';
 import { MetricsRegistryService } from './metrics/metrics-registry.service';
+import { PrometheusMetricsService } from './metrics/prometheus-metrics.service';
 import { BusinessMetricsCollectorService } from './services/business-metrics-collector.service';
 import { DatabaseInstrumentationService } from './services/database-instrumentation.service';
 import { ObservabilityMetricsService } from './services/observability-metrics.service';
@@ -19,6 +20,7 @@ import { TechnicalAlertService } from './services/technical-alert.service';
   controllers: [ObservabilityController],
   providers: [
     MetricsRegistryService,
+    PrometheusMetricsService,
     StructuredLoggerService,
     ObservabilityContextInterceptor,
     {
@@ -33,6 +35,7 @@ import { TechnicalAlertService } from './services/technical-alert.service';
   ],
   exports: [
     MetricsRegistryService,
+    PrometheusMetricsService,
     StructuredLoggerService,
     ObservabilityContextInterceptor,
     DatabaseInstrumentationService,

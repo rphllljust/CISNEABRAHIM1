@@ -69,9 +69,16 @@ function harness(options: { emit: 'value' | 'error'; initialStatusCode?: number 
     },
   };
 
+  // B3: projecao Prometheus. Stub vazio — este spec prova o contrato de status
+  // do registry in-memory, nao a exposicao Prometheus (coberta no spec de B3).
+  const prometheus = {
+    recordHttpRequest: () => undefined,
+  };
+
   const interceptor = new ObservabilityContextInterceptor(
     logger as never,
     metricsRegistry as unknown as MetricsRegistryService,
+    prometheus as never,
   );
 
   return { interceptor, executionContext, next, reply, logs, metrics, failure };

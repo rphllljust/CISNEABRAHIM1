@@ -9,12 +9,14 @@ import {
 } from '../context/observability-context';
 import { StructuredLoggerService } from '../logging/structured-logger.service';
 import { MetricsRegistryService } from '../metrics/metrics-registry.service';
+import { PrometheusMetricsService } from '../metrics/prometheus-metrics.service';
 
 @Injectable()
 export class ObservabilityContextInterceptor implements NestInterceptor {
   constructor(
     private readonly logger: StructuredLoggerService,
     private readonly metrics: MetricsRegistryService,
+    private readonly prometheus: PrometheusMetricsService,
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
@@ -37,6 +39,15 @@ export class ObservabilityContextInterceptor implements NestInterceptor {
 
       const writeLog = (statusCode: number, durationMs: number): void => {
         const isError = failed || statusCode >= 500;
+        // B3: projecao Prometheus. A rota e a NORMALIZADA do Fastify
+        // (`request.routeOptions.url`), nunca a URL concreta — caso contrario
+        // cada id de recurso viraria uma serie temporal distinta.
+        this.prometheus.recordHttpRequest(
+          request.method,
+          request.routeOptions?.url ?? request.url,
+          statusCode,
+          durationMs,
+        );
         this.logger.operation({
           level: isError ? 'error' : 'info',
           message: 'http_request_completed',
