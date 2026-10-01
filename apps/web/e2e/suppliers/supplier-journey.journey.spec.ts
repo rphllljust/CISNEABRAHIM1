@@ -42,10 +42,10 @@ function uniqueCnpj(): string {
   return `9${base}0`.slice(0, 14);
 }
 
-async function login(page: Page): Promise<void> {
+async function loginAs(page: Page, login: string, password: string): Promise<void> {
   await page.goto('/login');
-  await page.getByLabel(/^usuário/i).fill(LOGIN);
-  await page.getByLabel(/^senha/i).fill(PASSWORD);
+  await page.getByLabel(/^usuário/i).fill(login);
+  await page.getByLabel(/^senha/i).fill(password);
   await page.getByRole('button', { name: /entrar/i }).click();
   /*
    * A espera é pelo DESTINO, não pela ausência de `/login`: logo após o clique a SPA ainda
@@ -56,23 +56,35 @@ async function login(page: Page): Promise<void> {
   await expect(page).toHaveURL(/\/app(\/|$)/, { timeout: 30_000 });
 }
 
+async function login(page: Page): Promise<void> {
+  await loginAs(page, LOGIN, PASSWORD);
+}
+
 test('cria fornecedor pela UI e a timeline registra o CREATE', async ({ page }) => {
   await login(page);
   const legalName = `Fornecedor B6 ${Date.now()}`;
 
   await page.goto('/app/suppliers/new');
-  await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 30_000 });
-
-  await page.getByLabel(/razão social|razao social/i).fill(legalName);
-  await page.getByLabel(/cnpj/i).fill(uniqueCnpj());
-  // O cadastro exige contato operacional além da razão social e do CNPJ.
-  await page.getByLabel(/contato operacional/i).fill('Contato B6');
-  await expect(page.getByRole('button', { name: /cadastrar/i }).first()).toBeVisible({
+  // Título verificado no DOM real da tela: "Novo fornecedor".
+  await expect(page.getByRole('heading', { level: 1, name: 'Novo fornecedor' })).toBeVisible({
     timeout: 30_000,
   });
-  await page.getByRole('button', { name: /cadastrar/i }).first().click();
 
-  // A criação redireciona para a visão geral do fornecedor.
+  // Os três campos obrigatórios no formulário real, mais o telefone.
+  // O `id` é estável no markup (`supplier-legal`/`supplier-tax`/`supplier-contact`), então o
+  // locator por `id` não depende de acentuação nem de texto mutável.
+  await page.locator('#supplier-legal').fill(legalName);
+  await page.locator('#supplier-tax').fill(uniqueCnpj());
+  await page.locator('#supplier-contact').fill('Contato B6');
+  /*
+   * Telefone é OBRIGATÓRIO na prática: o backend recusa contato operacional sem e-mail nem
+   * telefone (`isUsableContact` em `supplier.validation.ts`). Sem este campo o POST devolve
+   * 400 e a criação não acontece — foi o que travou a primeira execução da jornada.
+   */
+  await page.locator('#supplier-phone').fill('69999990000');
+  await page.getByRole('button', { name: 'Cadastrar' }).click();
+
+  // A criação redireciona para a visão geral do fornecedor (WorklistHeader -> h1 = legalName).
   await expect(page.getByRole('heading', { level: 1, name: legalName })).toBeVisible({
     timeout: 30_000,
   });
@@ -92,10 +104,14 @@ test('inativa e reativa por CLIQUE, e a timeline cresce com as transicoes reais'
 
   // 1. CRIA — nasce ACTIVE.
   await page.goto('/app/suppliers/new');
-  await page.getByLabel(/razão social|razao social/i).fill(legalName);
-  await page.getByLabel(/cnpj/i).fill(uniqueCnpj());
-  await page.getByLabel(/contato operacional/i).fill('Contato B6 ciclo');
-  await page.getByRole('button', { name: /cadastrar/i }).first().click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Novo fornecedor' })).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.locator('#supplier-legal').fill(legalName);
+  await page.locator('#supplier-tax').fill(uniqueCnpj());
+  await page.locator('#supplier-contact').fill('Contato B6 ciclo');
+  await page.locator('#supplier-phone').fill('69999990000');
+  await page.getByRole('button', { name: 'Cadastrar' }).click();
   await expect(page.getByRole('heading', { level: 1, name: legalName })).toBeVisible({
     timeout: 30_000,
   });
@@ -166,21 +182,52 @@ test('a lista carrega as acoes de cada linha do BACKEND', async ({ page }) => {
   const metaCalls: string[] = [];
   page.on('request', (request) => {
     const url = request.url();
-    if (url.includes('available-actions') || url.includes('suppliers/command-catalog')) {
+    if (url.includes('available-actions')) {
       metaCalls.push(url);
     }
   });
 
+  // Cria um fornecedor para que a lista tenha LINHA: sem linha, `available-actions` não é
+  // chamado e o teste passaria vazio, provando nada.
+  const legalName = `Fornecedor Lista ${Date.now()}`;
+  await page.goto('/app/suppliers/new');
+  await expect(page.getByRole('heading', { level: 1, name: 'Novo fornecedor' })).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.locator('#supplier-legal').fill(legalName);
+  await page.locator('#supplier-tax').fill(uniqueCnpj());
+  await page.locator('#supplier-contact').fill('Contato Lista');
+  await page.locator('#supplier-phone').fill('69999990000');
+  await page.getByRole('button', { name: 'Cadastrar' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: legalName })).toBeVisible({
+    timeout: 30_000,
+  });
+
   await page.goto('/app/suppliers');
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('link', { name: new RegExp(legalName) }).first()).toBeVisible({
+    timeout: 30_000,
+  });
 
-  // A lista busca o catálogo de comandos e as ações de cada linha no backend.
-  await expect
-    .poll(() => metaCalls.some((url) => url.includes('command-catalog')), { timeout: 30_000 })
-    .toBe(true);
+  // A linha busca as ações no backend — a lista NÃO decide por status.
   await expect
     .poll(() => metaCalls.some((url) => url.includes('available-actions')), { timeout: 30_000 })
     .toBe(true);
+
+  // As ações renderizadas carregam `data-command` E rótulo não-vazio, ambos do backend.
+  const rowActions = page.locator('[data-testid="supplier-row-actions"] button');
+  await expect(rowActions.first()).toBeVisible({ timeout: 30_000 });
+  const rendered = await rowActions.evaluateAll((nodes) =>
+    nodes.map((node) => ({
+      command: node.getAttribute('data-command'),
+      label: node.textContent?.trim() ?? '',
+    })),
+  );
+  expect(rendered.length).toBeGreaterThan(0);
+  for (const action of rendered) {
+    expect(action.command, 'botão de linha sem data-command').toBeTruthy();
+    expect(action.label.length, `rótulo vazio para ${action.command}`).toBeGreaterThan(0);
+  }
 });
 
 test('as chamadas de API sao reais e todas respondem com sucesso', async ({ page }) => {
