@@ -3,14 +3,67 @@
 | Campo             | Valor                                                   |
 | ----------------- | ------------------------------------------------------- |
 | Document ID       | DDP-REG-001                                             |
-| Last updated      | 2026-09-03 (SRC-007 gates; alinhamento SRC-002 §§2/14/15/19/20) |
-| Status of answers | **PARTIAL** — DDP-014 (ERP), DDP-020, DDP-026 (fatia R1), DDP-028, DDP-041; DDP-043 aberta (auditoria de writes internos); demais abertas |
+| Last updated      | 2026-10-01 (DDP-045 aberta: falhas de teste pré-existentes fora do escopo B3) |
+| Status of answers | **PARTIAL** — DDP-014 (ERP), DDP-020, DDP-026 (fatia R1), DDP-028, DDP-041; DDP-043, DDP-044 e DDP-045 abertas; demais abertas |
 
 Status típicos: `OPEN`, `BLOCKING`, `ANSWERED`, `SUPERSEDED`. Todas as entradas abaixo estão `OPEN` e `BLOCKING` para implementação do tema.
 
 Não responder. Não inventar estados, cardinalidades, SLAs, RPO, RTO ou volumes.
 
 Template: [`../templates/domain-decision-template.md`](../templates/domain-decision-template.md).
+
+## DDP-045 — Correção das 4 falhas pré-existentes fora do escopo B3
+
+Como tratar as 4 falhas de teste pré-existentes à sessão B3 (observabilidade)?
+
+**Contexto:** a sessão B3 provou, por `git stash` das próprias alterações e re-execução no baseline
+`82f72c6`, que as 4 falhas existiam **antes** dela. Não são regressão de B3. As 4 falhas, com causa
+raiz verificada:
+
+| # | Spec | Falha | Causa raiz verificada | Classificação |
+| - | ---- | ----- | --------------------- | ------------- |
+| 1 | `apps/api/src/test/ensure-migrations-journal-coverage.spec.ts` | `journal tags without a coverage block in ensure-migrations.ts: 0082_audit_trail_logs` | A migration `0082_audit_trail_logs` entrou no `_journal.json` sem o bloco de cobertura correspondente em `ensure-migrations.ts`. O gate recusa sincronizar o journal nessa condição. | GATE FALHO (gate correto; migration incompleta) |
+| 2 | `apps/api/src/service-orders/domain/operational-eligibility.spec.ts` | `expected 'BLOCKED' to be 'REVIEW_REQUIRED'` | Linhas 60-63 omitem o parâmetro `asOf` (ao contrário do bloco irmão em 54-57), fazendo a avaliação usar o relógio real contra `nextDueAt: '2026-09-30'`. Em 2026-10-01 o vencimento já passou e o domínio decide `BLOCKED` — corretamente. | DATA-SENSÍVEL (time-bomb; domínio correto, teste apodreceu) |
+| 3 | `apps/api/src/work-inbox/sources/finance.source.spec.ts` (×2) | `TypeError: Cannot read properties of undefined (reading 'map')` em `finance.source.ts:70` e `:88` | O commit `fd262dc` (2026-09-28, `fix(finance): paginate titles in SQL...`) mudou `list()` para devolver envelope paginado `{ items }`, mas não atualizou o spec (criado em `caffc18`, 2026-09-27), que ainda mocka `list` devolvendo array cru. `rows = page.items` vira `undefined`. | REGRESSÃO REAL (de `fd262dc`, não de B3) |
+
+Detalhamento das 4 falhas (duas no spec 3):
+
+- `ensure-migrations-journal-coverage.spec.ts` — 1 falha de 4 testes.
+- `operational-eligibility.spec.ts` — 1 falha de 7 testes.
+- `finance.source.spec.ts` — 2 falhas de 14 testes (as 2 que atravessam `collect()`; as outras 12
+  exercitam funções puras e passam).
+
+**Bloqueio de escopo reconhecido:** a correção de (2) exige `apps/api/src/service-orders/domain/`
+e a de (3) exige `apps/api/**` — ambos fora do escopo autorizado da sessão B3-R. Nenhuma foi
+tentada.
+
+**Impacto no CI:** a suíte unitária da API fica em 1167 passed / 4 failed (1171), portanto o CI
+**não fica verde**.
+
+**Questão:** como tratar as 4 falhas pré-existentes?
+
+**Opções consideradas:**
+
+| Opção | Descrição |
+| ----- | --------- |
+| A | Corrigir em sessão dedicada, prioridade alta, antes de B4 |
+| B | Corrigir em sessão dedicada, prioridade média, depois de B4 |
+| C | Investigar origem (commits anteriores) antes de decidir |
+| D | Aceitar como dívida de longo prazo, com waiver formal |
+
+**Impacto por opção:**
+
+- **A** — bloqueia B4 por 1 sessão.
+- **B** — dívida acumula, CI não fica verde.
+- **C** — exige arqueologia de `git log` (parcialmente já feita nesta sessão para identificar as
+  causas raiz acima; restaria a origem de (1)).
+- **D** — governança aceita incerteza declarada.
+
+**Status:** `OPEN` · **Classificação:** `PENDING_BUSINESS_DECISION` · **Bloqueia implementação:**
+não para observabilidade (fechada); sim para declarar CI verde · **Data:** 2026-10-01
+
+**Residual:** decisão de priorização. **Sem recomendação de engenharia** — as 4 opções acima são
+registro, não escolha. Não implementar nenhuma opção até fonte.
 
 ## DDP-044 — Divisão entre audit_logs e security_audit_events
 
@@ -420,4 +473,4 @@ Quais campos são obrigatórios e opcionais no cadastro de Cliente PJ no Release
 
 ## Próximo ID
 
-`DDP-042`.
+`DDP-046`.

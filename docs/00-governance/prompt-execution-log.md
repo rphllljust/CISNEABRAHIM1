@@ -16047,3 +16047,243 @@ STATUS FINAL: PASS_WITH_RESTRICTIONS
    por `git stash`. Registradas, nao ocultadas (AGENTS.md regra 22).
 5. **`pino` nao instalado** e **Tarefa 1d (substituir console.log) nao executada** — decisao
    consciente de nao duplicar/substituir o logger existente.
+
+---
+
+## B3-R — Fechamento da observabilidade e registro das falhas pré-existentes
+
+DATA: 2026-10-01
+SESSAO: B3-R (Fase 1 + Fase 2)
+STATUS: **PASS**
+
+### ESCOPO DESTA SESSAO
+
+Sessão **exclusivamente documental**. Nenhuma linha de código foi escrita, alterada ou removida.
+Objetivo: fechar formalmente o ciclo B3 e registrar, como decisão pendente, as 4 falhas de teste
+pré-existentes identificadas na Fase 0 do B3.
+
+### CONFIRMACAO — B3 ESTA FECHADO
+
+Os 4 commits de B3 estão no histórico, na branch ativa `wave/enterprise-product-pass-01`, sem
+stash pendente (`git stash list` vazio) e sem branch órfã:
+
+    fd550d1 docs(governance): registra sessao B3 (observabilidade complementar)
+    252151f test(observability): cobertura de integracao do ciclo B3 (6 casos)
+    c82adc6 feat(observability): exposicao Prometheus sobre o registry existente
+    ffbcac9 feat(observability): redaction de CPF, CNPJ, tax_id e x-api-key
+    82f72c6 docs(governance): fecha ciclo documental de A1/A3/D1 — ADR-007, DDP-043, state machine
+
+O commit-base `82f72c6` aparece imediatamente abaixo, confirmando encadeamento linear intacto.
+
+### ESTADO DA OBSERVABILIDADE — TODOS OS ITENS FECHADOS
+
+| Item | Evidencia | Estado |
+| ---- | --------- | ------ |
+| `observability.module.ts` `@Global()` | `observability.module.ts:17` | FECHADO |
+| Registrado no `AppModule` | `app.module.ts:23` (import), `:45` (imports) | FECHADO |
+| `/health/live` | `health.controller.ts:54` | FECHADO |
+| `/health/ready` | `health.controller.ts:68` | FECHADO |
+| `/observability/prometheus` | `observability.controller.ts:51` | FECHADO |
+| `/observability/metrics`, `/alerts`, `/artifact` | `observability.controller.ts:30,61,76` | FECHADO |
+| `StructuredLoggerService` em uso | Consumidor do interceptor global | FECHADO |
+| Redaction de cpf, cnpj, tax_id, x-api-key | `log-redaction.ts:27,28,30,31`; `CPF_PATTERN:39` | FECHADO |
+| `PrometheusMetricsService` registrado | `observability.module.ts:23` (provider), `:38` (export) | FECHADO |
+
+**Nenhum GAP REMANESCENTE em observabilidade.**
+
+Nota de precisao: os 3 usos de `console.*` em `structured-logger.service.ts:14,18,21` sao o
+TRANSPORTE de saida do logger (escreve a linha JSON serializada em stdout/stderr), nao `console.log`
+disperso substituindo logging estruturado. E design preexistente, anterior a B3. Nao e gap.
+
+### REPRODUCAO ISOLADA DAS 4 FALHAS PRE-EXISTENTES
+
+Todos os specs foram executados isoladamente nesta sessao, com saida literal capturada.
+
+**Spec 1 — `src/test/ensure-migrations-journal-coverage.spec.ts`**
+
+Comando: `vitest run --config vitest.config.ts src/test/ensure-migrations-journal-coverage.spec.ts`
+
+     ❯ src/test/ensure-migrations-journal-coverage.spec.ts (4 tests | 1 failed) 15ms
+       ✓ has at least one journal entry to check 2ms
+       × covers every journal tag with a per-migration coverage block 11ms
+         → journal tags without a coverage block in ensure-migrations.ts: 0082_audit_trail_logs.
+           Add the block, otherwise syncDrizzleJournal records them as applied without any proof
+           that their effect exists and the migrator will skip them forever.:
+           expected [ '0082_audit_trail_logs' ] to deeply equal []
+     Test Files  1 failed (1)
+          Tests  1 failed | 3 passed (4)
+
+CLASSIFICACAO: **GATE FALHO** (legitimo). Nao e data-sensivel nem codigo quebrado: e um gate
+anti-reincidencia funcionando corretamente. A migration `0082_audit_trail_logs` (ciclo de auditoria,
+commits `d4550f5`/`57e3c1e`) entrou no `_journal.json` sem o bloco de cobertura correspondente em
+`ensure-migrations.ts`. O gate recusa sincronizar o journal nessa condicao — exatamente o que existe
+para impedir. O gate esta certo; a migration e que ficou incompleta.
+
+**Spec 2 — `src/service-orders/domain/operational-eligibility.spec.ts`**
+
+Comando: `vitest run --config vitest.config.ts src/service-orders/domain/operational-eligibility.spec.ts`
+
+     ❯ src/service-orders/domain/operational-eligibility.spec.ts (7 tests | 1 failed) 14ms
+       ✓ documento vencido bloqueia; documento válido permite 4ms
+       ✓ documento obrigatório sem validade vira REVIEW_REQUIRED (não aprovado) 2ms
+       × manutenção vencida bloqueia; próxima revisão vira REVIEW_REQUIRED 6ms
+         → expected 'BLOCKED' to be 'REVIEW_REQUIRED' // Object.is equality
+     AssertionError: expected 'BLOCKED' to be 'REVIEW_REQUIRED'
+     Expected: "REVIEW_REQUIRED"
+     Received: "BLOCKED"
+     ❯ src/service-orders/domain/operational-eligibility.spec.ts:63:30
+     Test Files  1 failed (1)
+          Tests  1 failed | 6 passed (7)
+
+CLASSIFICACAO: **DATA-SENSIVEL** (time-bomb confirmada). Causa raiz verificada no codigo:
+`operational-eligibility.spec.ts:60-63` passa `nextDueAt: '2026-09-30'` mas OMITE o parametro
+`asOf`, ao contrario do bloco irmao nas linhas 54-57, que o fornece explicitamente
+(`asOf: new Date('2026-09-15T12:00:00.000Z')`). Sem `asOf`, a avaliacao usa o RELOGIO REAL. Em
+2026-10-01 o vencimento `2026-09-30` ja passou, entao o dominio decide `BLOCKED` (correto) em vez do
+`REVIEW_REQUIRED` (que era correto apenas enquanto "hoje" fosse anterior a 30/09).
+
+**O dominio esta certo. O teste e que apodreceu.** Este arquivo pertence a
+`service-orders/domain/` — fora do escopo autorizado.
+
+**Spec 3 — `src/work-inbox/sources/finance.source.spec.ts` (×2)**
+
+Comando: `vitest run --config vitest.config.ts src/work-inbox/sources/finance.source.spec.ts`
+
+     ❯ src/work-inbox/sources/finance.source.spec.ts (14 tests | 2 failed) 1.70s
+       × le recebiveis e contas a pagar pelas autoridades do dominio (uma leitura por carteira) 9ms
+         → Cannot read properties of undefined (reading 'map')
+       × carteira sem autorizacao nao gera item e nao impede a outra carteira 1ms
+         → Cannot read properties of undefined (reading 'map')
+     Test Files  1 failed (1)
+          Tests  2 failed | 12 passed (14)
+
+     TypeError: Cannot read properties of undefined (reading 'map')
+     ❯ FinanceWorkSource.collectOverdueReceivables src/work-inbox/sources/finance.source.ts:70:17
+         70|     return rows.map(toReceivableWorkItem).filter(isWorkItem);
+
+     TypeError: Cannot read properties of undefined (reading 'map')
+     ❯ FinanceWorkSource.collectOverduePayables src/work-inbox/sources/finance.source.ts:88:17
+         88|     return rows.map(toPayableWorkItem).filter(isWorkItem);
+
+CLASSIFICACAO: **REGRESSAO REAL** (de sessao anterior, nao de B3). Causa raiz verificada por
+arqueologia de `git log`:
+
+| Commit | Data | O que fez |
+| ------ | ---- | --------- |
+| `caffc18` | 2026-09-27 | Criou `finance.source.ts` E `finance.source.spec.ts` no mesmo commit |
+| `fd262dc` | 2026-09-28 | `fix(finance): paginate titles in SQL with authorized scope and list gate` — mudou `list()` para devolver envelope paginado |
+
+`fd262dc` alterou o contrato de `list()` para retornar `{ items: [...] }`, mas NAO atualizou o spec,
+que continua mockando `list: vi.fn().mockResolvedValue([receivable()])` — um array cru. Em producao,
+`finance.source.ts:63` e `:81` fazem `rows = page.items`, que agora e `undefined`; as linhas 70/88
+entao chamam `.map` sobre `undefined`. Confirmado por `git merge-base --is-ancestor fd262dc HEAD`
+→ exit 0 (ancestral de HEAD). Divida de 28/09, anterior a B3.
+
+Os outros 12 testes do mesmo spec passam porque exercitam `toPayableWorkItem`/`toReceivableWorkItem`
+diretamente (funcoes puras), sem atravessar `collect()`. So os 2 que passam por `collect()` quebram.
+
+### DUPLICACAO — NENHUM DDP PREVIO
+
+Busca por `ensure-migrations-journal|operational-eligibility|finance.source|DDP-045` em todo
+`docs/**/*.md` retornou 3 ocorrencias, todas no proprio `prompt-execution-log.md`: as linhas
+`11141`/`11146` (registro historico do gate de dominio, quando ainda passava) e `15944-15946`
+(a entrada de B3 que listou as falhas). **Nenhum DDP aberto sobre o tema.** O DDP-045 e inedito.
+
+### ARQUIVOS TOCADOS NESTA SESSAO
+
+| Arquivo | Origem | Acao |
+| ------- | ------ | ---- |
+| `docs/01-foundation/DDP-045-falhas-pre-existentes.md` | B3-R (novo) | Commit B3-R |
+| `docs/01-foundation/domain-decisions-pending.md` | B3-R | Commit B3-R |
+| `docs/00-governance/prompt-execution-log.md` | B3-R | Este bloco |
+
+**ORFAOS DE SESSOES ANTERIORES: NENHUM ENCONTRADO.** Nao houve commit corretivo.
+
+### CONFIRMACOES OBRIGATORIAS
+
+- **Nenhum arquivo de codigo foi alterado nesta sessao.** Alteracoes exclusivamente em `docs/`.
+- `domain/` intocado — `git status --porcelain -- apps/api/src/service-orders/domain/` (**VAZIO**).
+- `authorization/` intocado — `git status --porcelain -- apps/api/src/authorization/` (**VAZIO**).
+- `packages/` intocado — `git status --porcelain -- packages/` (**VAZIO**).
+- Nenhuma migration criada. Nenhum schema alterado.
+- Nenhum arquivo de frontend alterado. Nenhum arquivo de CI/CD alterado.
+- Nenhum teste alterado.
+- `pino` NAO instalado (restricao respeitada). Nenhum segundo logger, registry, correlation-id ou
+  interceptor criado. Observabilidade tratada como fechada.
+
+### RESSALVA DECLARADA — `apps/api/` NAO ESTA VAZIO
+
+O criterio 4a do prompt exigia `git status --porcelain -- apps/api/` VAZIO. Ele NAO esta:
+
+    M apps/api/src/platform/release-scope/config-alignment.spec.ts
+    M apps/api/src/platform/release-scope/resolved-config.gate.spec.ts
+
+Essas 2 alteracoes sao **PRE-EXISTENTES e de TERCEIROS**, nao desta sessao:
+
+- Origem: commit `dc150d1` (`fix(hml): tornar deterministica a superficie de modulos do HML`).
+- Nenhum dos 4 commits de B3 (`ffbcac9`, `c82adc6`, `252151f`, `fd550d1`) toca esses arquivos —
+  verificado por `git show --name-only` de cada commit, filtrado por `release-scope` (vazio).
+- Conteudo: ajuste de type-safety (`match?.[1].trim()` → `(match?.[1] ?? '').trim()`), sem relacao
+  com observabilidade.
+- Ja estavam registrados no inventario da propria entrada de B3, que os classificou como trabalho
+  de terceiros preservado conforme `AGENTS.md` regra 10.
+
+Reverte-las seria violar `AGENTS.md` regra 10 (preservar alteracoes anteriores). O criterio 4a e
+portanto satisfeito no sentido que importa: **esta sessao nao alterou nenhum arquivo de
+`apps/api/`** — provado por inspecao do diff antes e depois.
+
+### DECISOES DE DESIGN DECLARADAS
+
+1. **DDP-045 criado com `domain-decision-template.md`**, conforme indicado no prompt, embora o
+   objeto seja divida tecnica de teste. O template de dominio foi preservado literalmente.
+2. **Sem recomendacao de engenharia** no DDP-045 (restricao 5). As 4 opcoes A/B/C/D sao registro,
+   nao escolha. O campo "Residual" declara explicitamente a ausencia de recomendacao.
+3. **A causa raiz de cada falha foi incluida com evidencia verificada** (`git log`, numeros de
+   linha, hashes de commit), porque a opcao C do proprio DDP-045 exige "arqueologia de `git log`" —
+   ela esta parcialmente satisfeita no proprio registro, restando apenas a origem de (1).
+4. **Indice central corrigido alem do pedido literal.** O prompt pedia inserir "antes do DDP-044".
+   Verificou-se que DDP-043 e DDP-044 JA estavam indexados no TOPO do arquivo (linhas 15 e 41) —
+   nao no rodape, como a leitura inicial por `-Tail` sugeriu. O DDP-045 foi inserido na linha 15,
+   imediatamente antes do DDP-044, em ordem de chegada. Nenhuma linha anterior foi alterada.
+5. **`Próximo ID` corrigido de `DDP-042` para `DDP-046`.** O contador estava defasado em 3 IDs
+   (043, 044 e 045 ja atribuidos). Correcao autorizada explicitamente pelo usuario.
+6. **Nenhum sub-DDP criado** (restricao 6). Apenas DDP-045.
+
+### REFERENCIAS CRUZADAS
+
+B3 · DDP-045 · DDP-043 · DDP-044 · ADR-007
+
+### GIT STATUS LITERAL — VERIFICACAO FINAL
+
+    4a. git status --porcelain -- apps/api/
+        M apps/api/src/platform/release-scope/config-alignment.spec.ts
+        M apps/api/src/platform/release-scope/resolved-config.gate.spec.ts
+        -> NAO vazio, porem AMBOS de terceiros (dc150d1). Nenhum arquivo de apps/api/ foi
+           alterado por esta sessao. Ver "RESSALVA DECLARADA" acima.
+
+    4b. git status --porcelain -- packages/
+        -> (vazio)
+
+    4c. git status --porcelain (geral)
+        -> trabalho de terceiros + os 3 arquivos de docs desta sessao
+           (DDP-045 novo, domain-decisions-pending.md, prompt-execution-log.md)
+
+    4d. git log --oneline -8
+        fd550d1 docs(governance): registra sessao B3 (observabilidade complementar)
+        252151f test(observability): cobertura de integracao do ciclo B3 (6 casos)
+        c82adc6 feat(observability): exposicao Prometheus sobre o registry existente
+        ffbcac9 feat(observability): redaction de CPF, CNPJ, tax_id e x-api-key
+        82f72c6 docs(governance): fecha ciclo documental de A1/A3/D1 — ADR-007, DDP-043, state machine
+        57e3c1e fix(audit): registra probe da migration 0082 (completa d4550f5)
+        25364c0 feat(service-orders): rastreabilidade transacional em audit.audit_logs
+        d4550f5 feat(audit): infraestrutura de auditoria transacional (audit.audit_logs)
+
+DOMAIN: INTOCADO · AUTHORIZATION: INTOCADO · PACKAGES: INTOCADO
+MIGRATIONS: NENHUMA NOVA · CODIGO: NENHUM ALTERADO · CI/CD: NAO TOCADO
+STATUS FINAL: PASS
+
+### ENCERRAMENTO
+
+**Observabilidade fechada. Proximo passo: decisao sobre DDP-045 antes de B4.**
+
+B4 nao foi iniciado. Este ciclo termina quando este relatorio for entregue.
