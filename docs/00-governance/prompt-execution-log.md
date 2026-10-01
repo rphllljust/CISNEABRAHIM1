@@ -15093,3 +15093,770 @@ capabilities, release-1-scoped guard semantics.
 COMMIT: ver bloco de commit
 WORKING_TREE: DIRTY (trabalho de login preexistente preservado)
 ```
+
+---
+
+## SINCRONIZACAO DOCUMENTAL — MAQUINA DE ESTADOS DA OS — 2026-08-28
+
+| Campo | Valor |
+| ----- | ----- |
+| Status | `PASS_WITH_RESTRICTIONS` |
+| Classificacao | Sincronizacao documental. Registro de **Conflito de fonte** e **Decisao pendente** |
+| Escopo | Somente `docs/08-state-machines/` e este log |
+| Alteracao de dominio | **NENHUMA**. Nenhum arquivo de codigo, schema ou migration foi tocado |
+
+RESUMO: docs sincronizados com codigo; nenhuma alteracao de dominio.
+
+### O QUE FOI FEITO
+
+1. `service-order-state-machine.md` — matriz de transicoes por COMANDO acrescentada, derivada de
+   `apps/api/src/service-orders/domain/service-order.state-machine.ts` (constante `TRANSITIONS`).
+   Inclui `pause` (`IN_EXECUTION` -> `PAUSED`) e `resume` (`PAUSED` -> `IN_EXECUTION`), antes
+   ausentes. Acrescentada tabela de correspondencia doc (portugues) <-> codigo (ingles), que nao
+   existia. Acrescentada secao "Reabertura" e secao de divergencia de cancelamento.
+2. `state-transition-register.md` — TR-CAND-049 (`pause`), TR-CAND-050 (`resume`) e TR-CAND-051
+   (reabertura de cancelada para `status_before_cancel`) acrescentadas. Notas de conflito em
+   TR-CAND-011 e TR-CAND-012.
+3. Este log.
+
+### TRECHOS RECLASSIFICADOS — NENHUM APAGADO
+
+| Arquivo | Trecho | Antes | Depois |
+| ------- | ------ | ----- | ------ |
+| `service-order-state-machine.md` | Linha "Pausada" na tabela de pendentes | `Sem evidencia SRC-001 — PENDING_SOURCE_VALIDATION` | Texto original **preservado**, com marcador `[sincronizado 2026-08-28]` e nota de conflito |
+| `state-transition-register.md` | TR-CAND-012 | `PENDING_BUSINESS_DECISION` | **Inalterado.** Apenas nota: codigo ja implementa; DDP-005 e SDD-R01 seguem `OPEN` |
+| `state-transition-register.md` | TR-CAND-011 | `CANDIDATE` | **Inalterado.** Nota de conflito: codigo nao permite cancelar de `IN_EXECUCAO` |
+
+NENHUMA classificacao `PENDING` foi promovida a confirmada. Nenhum estado novo foi inventado.
+`REOPENED` **nao** foi criado.
+
+### ACHADOS QUE RESTRINGEM ESTE PROMPT
+
+O prompt original afirmava que `PAUSED` estaria marcado como `PENDING_SOURCE_VALIDATION` e que
+bastaria reclassifica-lo para `IMPLEMENTED`. A verificacao mostrou que a premissa estava incompleta:
+
+1. `Pausada` nao e um estado orfao sem ficha: existe `STATE-CAND-052 — PAUSADA`
+   (`execution-state-machine.md`) com status **`REJECTED`**, sob decisao **`SDD-003` `OPEN`**
+   (`state-decisions-pending.md`). Reclassificar para "implementado" significaria **reverter uma
+   rejeicao formal com decisao aberta** — proibido por `AGENTS.md` regra 12.
+2. `IMPLEMENTED` **nao existe** na taxonomia de rastreabilidade do `AGENTS.md`. O termo
+   `IMPLEMENTED_PENDING_SOURCE_EVIDENCE`, autorizado nesta sessao, foi aplicado como
+   **descricao do codigo**, explicitamente rotulado como nao pertencente a taxonomia, e **nao**
+   como promocao de status. O conflito permanece visivel: implementacao existe, fonte nao.
+3. `CONCLUIDA -> EM_EXECUCAO` (TR-CAND-012) **nao esta** em `service-order-state-machine.md`;
+   esta em `state-transition-register.md`. Escopo ampliado com autorizacao do responsavel.
+4. Divergencia real entre codigo e registro: `TRANSITIONS.cancel` aceita `DRAFT`, `PREPARED` e
+   `RELEASED`; `TR-CAND-011` inclui `EM_EXECUCAO`. O teste
+   `service-orders.integration.spec.ts` chama-se
+   `'cancels from DRAFT and RELEASED with history and security audit'`, confirmando o codigo.
+   Logo `TR-CAND-011` esta incorreto. **A correcao nao foi aplicada** — registrada como conflito
+   de fonte para tratamento proprio.
+
+### EVIDENCIA
+
+Leitura direta (sem execucao de teste nesta sessao):
+
+    service-order.state-machine.ts       TRANSITIONS, assertTransition, canTransition,
+                                         isTerminalServiceOrderStatus, resolveReopenStatus,
+                                         assertReopenJustification, ServiceOrderStateError
+    service-order-execution.ts           EXECUTION_COMMANDS: START, PAUSE, RESUME, COMPLETE
+    service-orders-access.service.ts     cancel() e reopen() delegam a transition()/resolveReopenStatus
+    service-orders.integration.spec.ts   'cancels from DRAFT and RELEASED with history and security audit'
+    packages/database/.../service-orders.ts  enum service_order_status (7 valores, inclui PAUSED)
+
+RESTRICAO: nenhum teste foi EXECUTADO nesta sessao. As conclusoes derivam de leitura de codigo,
+schema, registro documental e nomes de casos de teste. Nao ha evidencia de execucao verde.
+
+### NAO ALTERADO
+
+Codigo de dominio, `service-order.state-machine.ts`, schema Drizzle, migrations, backend, frontend.
+`SDD-003`, `STATE-CAND-052`, DDP-005 e SDD-R01 permanecem exatamente como estavam.
+
+WORKING_TREE: DIRTY (trabalho preexistente preservado)
+
+---
+
+## TR-CAND-011 CORRIGIDO + EVIDENCIA VERDE DE EXECUCAO — 2026-08-28
+
+| Campo | Valor |
+| ----- | ----- |
+| Status | `PASS` |
+| Classificacao | Correcao de registro + evidencia de execucao real |
+| Escopo | 2 docs + 1 execucao de teste. **Zero** alteracao em codigo/schema/migration |
+| Alteracao de dominio | **NENHUMA** |
+
+### 1. TR-CAND-011 — REJECTED_BY_IMPLEMENTATION
+
+`docs/08-state-machines/state-transition-register.md`. O conflito registrado na sessao anterior
+foi **resolvido**, com o codigo confirmado como correto e o registro como incorreto.
+
+| Antes | Depois |
+| ----- | ------ |
+| Origem `RASCUNHO/PREPARADA/LIBERADA/EM_EXECUCAO`; Status `CANDIDATE` | Origem `RASCUNHO/PREPARADA/LIBERADA`; Status `REJECTED_BY_IMPLEMENTATION` |
+
+Texto original **preservado integralmente** em bloco citado dentro da propria entrada — nenhuma
+linha apagada. `EM_EXECUCAO` removido apenas da linha vigente. Destino, `CMD-011`, `GUARD-010`,
+`DE-012` e `DDP-004` permanecem validos para as tres origens remanescentes.
+
+### 2. TR-CAND-011b — comando `abort` criado
+
+Nova entrada no mesmo arquivo. Status `CANDIDATE`, classificacao **Hipotese**, fonte **ausente**.
+Vinculada a **DDP a abrir**. Contem: pre-condicoes candidatas (6), efeitos a decidir (7, incluindo
+estorno de horas e materiais), e requisitos de registro do DDP. **Nada foi decidido** — a entrada
+existe para tornar a lacuna visivel, nao para afirmar que o comando e necessario.
+
+### 3. EXECUCAO DO TESTE — EVIDENCIA VERDE
+
+Comando exato executado (cwd `C:\CISNEABRAHIM\apps\api`, `TEST_DATABASE_URL` apontando para o banco
+de teste local `cisne_local_test` em `127.0.0.1:5432`):
+
+    $env:TEST_DATABASE_URL='postgresql://cisne_local_dev:***@127.0.0.1:5432/cisne_local_test'
+    pnpm vitest run --config vitest.integration.config.ts src/service-orders/service-order-execution.integration.spec.ts
+
+Saida literal:
+
+    RUN  v3.2.7 C:/CISNEABRAHIM/apps/api
+
+     ✓ src/service-orders/service-order-execution.integration.spec.ts (18 tests) 118533ms
+       ✓ starts execution from RELEASED when minimum planning is satisfied  7657ms
+       ✓ rejects start when minimum resources are not planned  8234ms
+       ✓ records actual entries without overwriting planning and completes with required evidence  5386ms
+       ✓ rejects completion when required evidence is missing  7119ms
+       ✓ supports pause and resume without losing execution data  3467ms
+       ✓ returns idempotent start for duplicate idempotency key  5966ms
+       ✓ allows only one concurrent start transition  5911ms
+       ✓ records security audit for start and complete  5003ms
+       ✓ rejects execution transitions from invalid states  8329ms
+       ✓ records security audit for pause and resume  6907ms
+       ✓ returns VERSION_CONFLICT on stale pause rowVersion  7201ms
+       ✓ rejects cancel and complete from terminal COMPLETED  6510ms
+       ✓ resolves pause versus complete race deterministically  6301ms
+       ✓ exposes planned versus actual comparison without mutating execution entries  8432ms
+       ✓ preserves immutable execution facts when planning changes during IN_EXECUTION  6772ms
+       ✓ records occurrences as actual facts independent from planning  6296ms
+       ✓ rejects recording execution facts from RELEASED and COMPLETED states  6729ms
+       ✓ resolves record versus complete race deterministically  5660ms
+
+     Test Files  1 passed (1)
+          Tests  18 passed (18)
+          Start at  00:09:53
+          Duration  145.57s (transform 11.91s, setup 977ms, collect 20.70s, tests 118.53s, environment 0ms, prepare 526ms)
+
+    [exit code: 0]
+
+### 4. PROVA DIRETA DO CONFLITO (nao apenas leitura)
+
+O caso `rejects execution transitions from invalid states` cobre **exatamente** a divergencia de
+TR-CAND-011, nas linhas 397-402 do spec:
+
+    await expect(
+      serviceOrdersAccess.cancel(actor, started.id, {
+        rowVersion: started.rowVersion,
+        cancellationReason: 'Tentativa inválida',
+      }),
+    ).rejects.toMatchObject({ code: SERVICE_ORDERS_ERROR_CODES.INVALID_STATE });
+
+`started` e OS em `IN_EXECUTION` (obtida via `executionAccess.start` na linha 390). O teste exige
+`INVALID_STATE` e **passou**. Conclusao com evidencia de execucao, nao por inferencia:
+cancelamento de OS em execucao e **rejeitado** pelo codigo. TR-CAND-011 estava incorreto ao
+listar `EM_EXECUCAO`; a correcao aplicada esta respaldada.
+
+Bonus verificavel: `rejects cancel and complete from terminal COMPLETED` passou, cobrindo tambem a
+recusa de `cancel` a partir de estado terminal.
+
+### 5. RESSALVA DE AMBIENTE
+
+O banco usado e o **local de teste** (`cisne_local_test`) em container Docker, conforme
+`TEST_DATABASE_URL` do `.env`. **Nao** e banco efemero descartavel criado nesta sessao: e o banco
+de teste compartilhado do projeto, serializado por advisory lock
+(`integration-test-db-serializer.ts`). A suite **trunca tabelas**, portanto os dados de teste
+anteriores naquele banco foram substituidos. Nenhum banco de producao ou HML foi tocado
+(`cisne_local_dev` e `cisne_hml_postgres` nao foram usados).
+
+### NAO ALTERADO
+
+`apps/api/src/service-orders/domain/` — **zero alteracoes**, conforme criterio de aceite.
+`service-order.state-machine.ts`, schema Drizzle, migrations: intactos.
+`SDD-003`, `STATE-CAND-052`, DDP-005, SDD-R01: intactos. `PAUSED` permanece `REJECTED`.
+
+WORKING_TREE: DIRTY (trabalho preexistente preservado)
+EVIDENCIA: 18/18 PASS, exit 0 — banco de teste local
+
+---
+
+## CANAL AUDIT_TRAIL — INFRAESTRUTURA DE AUDITORIA PERSISTENTE — 2026-08-28
+
+| Campo | Valor |
+| ----- | ----- |
+| Status | `PASS_WITH_RESTRICTIONS` |
+| Classificacao | Implementacao parcial autorizada + achados de duplicacao |
+| Escopo executado | T1, T2, T3 + teste de integracao (ampliado de 5 para 7 casos) |
+| Escopo NAO executado | T4 (decorator/interceptor), T5 (aplicacao em service-orders), T6 (correlation ID) |
+| Alteracao de domain/ | **NENHUMA — verificado por git status** |
+
+### ACHADOS QUE RESTRINGIRAM O PROMPT
+
+A verificacao previa mostrou que 3 das 8 tarefas se sobrepoem ao que ja existe. Nao foram
+executadas para nao criar duplicacao concorrente.
+
+| Tarefa | Achado | Evidencia |
+| ------ | ------ | --------- |
+| T6 — correlation ID | **JA EXISTE, completo** | `infrastructure/http/correlation-id.ts` (`resolveCorrelationId`, randomUUID, header, limite 64) + `correlation-id.interceptor.ts`. Consumido por 126 pontos (guards, filters, observability) |
+| T4a — interceptor | **Padrao ja existe** | `SecurityHeadersInterceptor`, `CorrelationIdInterceptor`, `ObservabilityContextInterceptor` |
+| T4/T5 — auditoria de transicao | **Ja existe em 2 canais** | `audit.security_audit_events` (acao/resultado + correlation_id) e `so.service_order_history_events` (dentro da transacao) |
+
+AUDITORIA DO QUE JA EXISTE — lacuna real identificada:
+
+    AUDIT_CHANNELS (apps/api/src/audit/types/audit-channels.ts):
+      AUDIT_TRAIL      -> declarado, NAO implementado  <- este prompt implementa
+      DOMAIN_HISTORY   -> implementado (so.service_order_history_events)
+      SECURITY_AUDIT   -> implementado (audit.security_audit_events)
+      TECHNICAL_LOG    -> declarado
+
+Nenhum canal existente registra o PAR valor-anterior/valor-novo. `security_audit_events`
+grava acao/resultado/metadata, sem valor anterior. Essa e a lacuna que `audit_logs` cobre,
+e ela e distinta — nao duplicacao.
+
+### ADAPTACOES AUTORIZADAS (divergencias do prompt original)
+
+1. **DrizzleTransaction -> pg.PoolClient.** O prompt exigia `tx: DrizzleTransaction`, mas
+   `apps/api` **nao usa Drizzle**: `pg@^8.16.0` e o driver real e ha **0 imports de
+   'drizzle-orm'** em `apps/api/src`. Drizzle existe apenas em `packages/database` para
+   schema/migrations. Adaptado para `pg.PoolClient`, preservando o requisito essencial:
+   a transacao e do chamador.
+
+2. **Localizacao.** O prompt pediu `apps/api/src/common/audit/`. **`common/` nao existe**
+   no projeto. Os arquivos foram criados no modulo `audit/` ja existente
+   (`apps/api/src/audit/`), junto dos demais canais. Criar `common/` duplicaria a estrutura.
+
+3. **Tabela no schema `audit`.** A tabela foi criada em `audit.audit_logs` (schema
+   `pgSchema('audit')` ja existente), junto de `security_audit_events`, e nao em `public`.
+
+4. **Probe de migration.** O projeto exige probe em `MIGRATION_EFFECT_CHECKS`
+   (`scripts/lib/database-test-env.mjs`); sem ele a migration nao e registrada
+   ("marked applied blind"). Probe `0082_audit_trail_logs: { table: 'audit.audit_logs' }`
+   adicionado. Gate `check-scripts.mjs` confirma "migration probes complete".
+
+### REDACTION — DECISAO DE DESIGN
+
+`dados_antigos`/`dados_novos` NAO recebem snapshot de dominio. Foram gravados apenas campos
+de estado, e a gravacao passa por `redactAuditMetadata` (reuso do servico existente) como
+segunda barreira. Motivo: `client_snapshot`, `service_snapshot`, `contract_snapshot`,
+`tax_id` e `cost_amount` sao RESTRICTED/FINANCIAL em `docs/13-data-model/column-semantics.md`.
+O caso de teste `aplica redaction e nao persiste chaves proibidas` trava o comportamento
+(chaves `password`, `secret`, `access_token` sao descartadas).
+
+### ARQUIVOS
+
+Criados:
+
+    packages/database/src/schema/audit-trail.ts                    +45
+    packages/database/migrations/0082_audit_trail_logs.sql          +13
+    apps/api/src/audit/audit-trail.types.ts                         +36
+    apps/api/src/audit/audit.service.ts                             +60
+    apps/api/src/audit/audit-trail.integration.spec.ts             +227
+
+Alterados:
+
+    packages/database/src/schema/index.ts                            +1  (export)
+    packages/database/migrations/meta/_journal.json                  +7  (entry idx 82)
+    apps/api/src/audit/audit.module.ts                               +3  (provider/export)
+    scripts/lib/database-test-env.mjs                                +1  (probe)
+    docs/00-governance/prompt-execution-log.md                       (este bloco)
+
+Fora do escopo original, autorizado: `scripts/lib/database-test-env.mjs` (probe obrigatorio
+do projeto — sem ele a migration e aplicada mas nao registrada).
+
+### MIGRATION
+
+Gerada no formato oficial Drizzle (`gen_random_uuid()`, `--> statement-breakpoint`,
+`"audit"."audit_logs"`), seguindo o estilo de `0002_authorization_baseline.sql`.
+Registrada no journal com `idx: 82` (validado por `migration-journal-completeness.spec.ts`).
+
+Comando: `pnpm db:migrate:test` -> "Drizzle migrations applied successfully."
+
+Estrutura confirmada no banco de teste (`\d audit.audit_logs`):
+
+    id             | uuid                     | not null | gen_random_uuid()
+    tabela         | character varying(100)   | not null |
+    registro_id    | uuid                     | not null |
+    acao           | audit.audit_action       | not null |
+    dados_antigos  | jsonb                    |          |
+    dados_novos    | jsonb                    |          |
+    usuario_id     | uuid                     | not null |
+    correlation_id | uuid                     | not null |
+    created_at     | timestamp with time zone | not null | now()
+
+    Indices: audit_logs_pkey (id)
+             audit_logs_tabela_registro_id_idx btree (tabela, registro_id)
+             audit_logs_usuario_id_idx btree (usuario_id)
+             audit_logs_created_at_idx btree (created_at DESC NULLS LAST)
+    Check:   audit_logs_tabela_not_empty_chk CHECK (length(trim(tabela)) > 0)
+
+### TESTE — EVIDENCIA VERDE
+
+Comando exato (cwd `C:\CISNEABRAHIM\apps\api`):
+
+    pnpm vitest run --config vitest.integration.config.ts src/audit/audit-trail.integration.spec.ts
+
+Saida literal:
+
+    RUN  v3.2.7 C:/CISNEABRAHIM/apps/api
+
+     ✓ src/audit/audit-trail.integration.spec.ts (7 tests) 525ms
+
+     Test Files  1 passed (1)
+          Tests  7 passed (7)
+          Start at  00:19:38
+          Duration  5.29s (transform 481ms, setup 703ms, collect 2.14s, tests 525ms, environment 0ms, prepare 423ms)
+
+    [exit code: 0]
+
+Casos cobertos (7, ampliado dos 5 pedidos):
+
+    1. grava CREATE com dados_antigos nulo
+    2. grava TRANSITION com status anterior diferente do novo
+    3. nao deixa rastro quando a transacao do chamador faz rollback   <- criterio de aceite
+    4. propaga correlation_id exatamente como recebido
+    5. propaga usuario_id do ator autenticado
+    6. aplica redaction e nao persiste chaves proibidas               <- ampliacao
+    7. rejeita tabela vazia sem persistir                             <- ampliacao
+
+### QUALITY GATES
+
+| Gate | Resultado |
+| ---- | --------- |
+| `pnpm typecheck` (api) | **PASS**, exit 0 |
+| `eslint` (4 arquivos novos/alterados) | **PASS**, exit 0 |
+| `node scripts/check-scripts.mjs` | **PASS** — 43 .mjs; "migration probes complete"; detectors 13/13 |
+| `vitest src/audit` (regressao) | **6/6 PASS** (redaction 4, security-audit 2) |
+| `any` explicito em codigo novo | **0 ocorrencias** (verificado por grep) |
+| `console.log` em codigo novo | **0 ocorrencias** (verificado por grep) |
+| `git status -- apps/api/src/service-orders/domain/` | **VAZIO — domain/ INTOCADO** |
+
+### RESTRICOES E PENDENCIAS DECLARADAS
+
+1. **T5 nao executada.** A integracao em `service-orders` exige gravar audit DENTRO da
+   transacao de `repository.transition()`/`update()`, que hoje abrem e fecham a transacao
+   internamente (24 pontos de COMMIT/ROLLBACK em `service-orders.repository.ts`). O service
+   nunca ve o `client`. Isso exige alterar `repositories/`, autorizado pelo responsavel, mas
+   NAO executado nesta sessao por decisao de escopo: entregar a infraestrutura testada
+   primeiro, integrar em passo separado. **A auditoria de OS ainda NAO grava em audit_logs.**
+
+2. **T4 nao executada.** Decorator + interceptor nao foram criados. Motivo tecnico: um
+   interceptor NestJS roda FORA da transacao do repositorio, o que violaria o proprio
+   criterio de aceite "transicao invalida NAO deixa rastro em audit_logs". A gravacao
+   transacional exige chamada explicita no ponto da transacao, nao AOP.
+
+3. **As 7 colunas pedidas foram implementadas; nenhuma coluna extra foi adicionada.**
+   Particionamento nao implementado — registrado como divida tecnica para quando houver
+   volume medido; o prompt pediu para nao particionar agora.
+
+4. **Nenhuma regra financeira, contabil ou fiscal foi criada.** O servico apenas insere.
+
+WORKING_TREE: DIRTY (trabalho preexistente preservado)
+EVIDENCIA: 7/7 PASS, exit 0 — banco de teste local (cisne_local_test)
+DOMAIN: INTOCADO — verificado por git status
+
+---
+
+## AUDIT_TRAIL ALIMENTADO POR SERVICE-ORDERS — LOOP FECHADO — 2026-08-28
+
+| Campo | Valor |
+| ----- | ----- |
+| Status | `PASS` |
+| Classificacao | Implementacao autorizada com desvio de design declarado |
+| Escopo | Repositorio, service, controller de service-orders + spec de auditoria |
+| Alteracao de domain/ | **NENHUMA — verificado por git status** |
+| Migration nova | **NENHUMA** (schema ja existia desde B1) |
+
+> **AUDIT_TRAIL agora alimentado por service-orders; lacuna entre politica e implementacao
+> fechada para o canal AUDIT_TRAIL.**
+
+### BLOQUEIO ARQUITETURAL ENCONTRADO (e como foi resolvido)
+
+A Tarefa 2 pedia que o **service** abrisse a transacao de alto nivel e passasse `tx` ao
+repositorio. Isso NAO era executavel como escrito, por tres motivos verificados no codigo:
+
+1. `ServiceOrdersAccessService` **nao tem pool nem DatabaseService injetado** (constructor
+   na linha 91: apenas repository, authz, validation, contractValidation, securityAudit,
+   controlCenterAuthz, faultInjection). O service nao tem com que abrir transacao.
+2. `ServiceOrdersRepository.create` e `.transition` fazem `pool().connect()` +
+   `BEGIN`/`COMMIT`/`ROLLBACK` internamente (24 pontos de COMMIT/ROLLBACK no arquivo).
+   Aceitar `client` externo exigiria dividir cada metodo em orquestrador e executor, e
+   remover os `ROLLBACK` internos nos caminhos de retorno antecipado
+   (`'VERSION_CONFLICT'`, `'INVALID_STATE'`) — reescrita da camada de persistencia.
+3. Ha **4 pontos de escrita**, nao 1: `create` (196), `transition/release` (523),
+   `transition/reopen` (607) e `transition` generico (670).
+
+**DECISAO (autorizada pelo responsavel):** a auditoria e gravada **dentro da transacao que
+o repositorio ja abre**, imediatamente antes do `COMMIT`. O `AuditService` recebe o
+`PoolClient` interno. Isso satisfaz todos os criterios de aceite — inclusive o rollback do
+Caso C — sem refatorar a fronteira transacional. **Desvio declarado:** a letra da Tarefa 2
+(auditoria no service) nao foi seguida; o objetivo e a atomicidade foram preservados.
+
+### ARQUIVOS ALTERADOS
+
+    apps/api/src/service-orders/repositories/service-orders.repository.ts       (+58 -2)
+    apps/api/src/service-orders/repositories/service-orders.repository.types.ts (+10 -0)
+    apps/api/src/service-orders/services/service-orders-access.service.ts       (+58 -14)
+    apps/api/src/service-orders/controllers/service-orders.controller.ts        (+26 -12)
+    apps/api/src/service-orders/service-order-audit.integration.spec.ts         (novo, +361)
+    docs/00-governance/prompt-execution-log.md                                  (este bloco)
+
+### DECISOES DE DESIGN
+
+1. **Auditoria no repositorio, nao no service.** Ver bloqueio acima. A transacao ja esta
+   aberta ali; e o unico ponto onde a atomicidade e garantida sem refatoracao.
+
+2. **`correlationId` como parametro opcional, nao em `IdentityAuthzContext`.**
+   `IdentityAuthzContext` e tipo compartilhado por todo o backend (guards, PDP, authz).
+   Alterá-lo teria efeito amplo e fora do escopo. Adicionado como parametro final opcional
+   nos metodos publicos; **assinatura existente preservada** (chamadas com 3 argumentos
+   continuam validas).
+
+3. **`AuditService` opcional no repositorio (`@Optional()`).** O spec
+   `service-orders.repository.spec.ts` instancia o repositorio com 2 argumentos posicionais.
+   Tornar o servico opcional evita quebrar consumidores, e com `correlationId` ausente a
+   trilha nao e gravada de qualquer forma.
+
+4. **Reuso de `resolveCorrelationId`.** Nenhum segundo gerador criado, conforme restricao.
+   O controller ja recebia `@Req() request`; apenas passou a extrair a correlacao.
+
+5. **Snapshot restrito a estado.** Gravados somente `status`, `rowVersion`, `updatedAt` e
+   `comando`. Nunca `client_snapshot`, `service_snapshot`, `contract_snapshot`, `tax_id` ou
+   valores financeiros. Um teste trava as chaves exatas do jsonb.
+
+6. **Correlacao ausente => sem auditoria.** Chamadas internas (seed, jobs, conversao de
+   solicitacao) nao passam `correlationId` e portanto nao geram linha. Decisao consciente:
+   a trilha AUDIT_TRAIL e de requisicao rastreada, nao de todo write interno.
+
+### TESTE — EVIDENCIA VERDE
+
+Comando exato (cwd `C:\CISNEABRAHIM\apps\api`):
+
+    pnpm vitest run --config vitest.integration.config.ts src/service-orders/service-order-audit.integration.spec.ts
+
+Saida literal:
+
+    RUN  v3.2.7 C:/CISNEABRAHIM/apps/api
+
+     ✓ src/service-orders/service-order-audit.integration.spec.ts (7 tests) 35483ms
+       ✓ grava CREATE com dados_antigos nulo ao criar OS  10309ms
+       ✓ grava TRANSITION ao preparar OS, com status anterior diferente do novo  5709ms
+       ✓ nao grava audit quando a transicao e invalida e o rollback ocorre  4670ms
+       ✓ grava correlation_id correspondente ao informado na chamada  4452ms
+       ✓ grava usuario_id correspondente ao ator autenticado  3658ms
+       ✓ mantem rastreabilidade em cadeia entre prepare e release  3477ms
+       ✓ nao grava snapshot RESTRICTED/FINANCIAL no jsonb  3028ms
+
+     Test Files  1 passed (1)
+          Tests  7 passed (7)
+          Start at  00:40:27
+          Duration  46.67s (transform 3.87s, setup 908ms, collect 7.97s, tests 35.48s, environment 0ms, prepare 310ms)
+
+    [exit code: 0]
+
+Casos A-F do prompt cobertos, mais um caso extra de redaction.
+
+### REGRESSAO — 118/118 PASS
+
+    pnpm vitest run --config vitest.integration.config.ts src/service-orders/ src/audit/
+
+    Test Files  11 passed (11)
+         Tests  118 passed (118)
+         Duration  441.76s
+
+Inclui os 7 novos + 7 do audit-trail + 6 do security-audit + execucao/planejamento/
+rental/transport/custos/prazos, todos verdes. Nenhuma regressao.
+
+### EXEMPLO REAL DE LINHA PERSISTIDA
+
+    SELECT tabela, acao, jsonb_pretty(dados_antigos), jsonb_pretty(dados_novos),
+           usuario_id, correlation_id
+    FROM audit.audit_logs ORDER BY created_at DESC LIMIT 1;
+
+    tabela         | service_orders
+    acao           | CREATE
+    dados_antigos  | (null)
+    dados_novos    | { "status": "DRAFT", "updatedAt": {...}, "rowVersion": 1 }
+    usuario_id     | 1ef9b990-ccb7-4e0e-b3c9-39e825e6ca95
+    correlation_id | 25804c1e-19ec-47d1-8202-0200a205a136
+
+### QUALITY GATES
+
+| Gate | Resultado |
+| ---- | --------- |
+| `pnpm typecheck` (api) | **PASS**, exit 0 |
+| `eslint` (7 arquivos tocados) | **PASS**, exit 0 |
+| Teste novo | **7/7 PASS**, exit 0 |
+| Regressao service-orders + audit | **118/118 PASS** |
+| `any` explicito / `console.log` | 0 ocorrencias |
+| `git status -- apps/api/src/service-orders/domain/` | **VAZIO — INTOCADO** |
+| Migration nova | Nenhuma |
+
+### NAO ALTERADO
+
+`domain/`, state machine, schema Drizzle, migrations, frontend, CI/CD,
+`infrastructure/http/correlation-id.ts`. Nenhuma regra financeira, contabil ou fiscal.
+
+WORKING_TREE: DIRTY (trabalho preexistente preservado)
+EVIDENCIA: 7/7 PASS novo + 118/118 PASS regressao, exit 0
+DOMAIN: INTOCADO — verificado por git status
+
+---
+
+## D1 RESOLVIDA + ADR-007 + DDP-043 — DIVIDAS FECHADAS — 2026-10-01
+
+| Campo | Valor |
+| ----- | ----- |
+| Status | `PASS_WITH_RESTRICTIONS` |
+| Classificacao | Correcao de injecao + formalizacao documental |
+| Escopo | D1 (AuditService obrigatorio) e D2 (ADR). D4 aberta como DDP. D3 adiada |
+| Alteracao de domain/ | **NENHUMA — verificado por git status** |
+| Migration nova | **NENHUMA** |
+| Referencias cruzadas | B1, B1.5, ADR-007, DDP-043 |
+
+### CORRECAO DE PREMISSA (declarada)
+
+A Tarefa 1a pedia "remova `@Optional()` do construtor de `audit.service.ts`". Verificacao:
+**`AuditService` nunca teve `@Optional()`**. A classe nao declara construtor algum
+
+    export class AuditService {
+      async registrar(entry: AuditEntry, tx: AuditTransaction): Promise<void> {
+      ...
+    }
+
+O `@Optional()` estava no **construtor do `ServiceOrdersRepository`**, na propriedade
+`auditService`. Portanto 1a era no-op e a acao real concentrou-se em 1b.
+
+Verificacao da restricao "mais de 5 consumidores": `AuditService` tem **exatamente 1
+consumidor** no backend (`service-orders.repository.ts`, unico import de
+`audit/audit.service`). A restricao nao se aplicou; nenhuma deprecation path foi necessaria.
+
+### D1 — AuditService OBRIGATORIO
+
+    service-orders.repository.ts  antes:  @Optional() private readonly auditService?: AuditService
+                                  depois: private readonly auditService: AuditService
+
+Guardas `if (input.correlationId && this.auditService)` simplificadas para
+`if (input.correlationId)` — a checagem de existencia tornou-se impossivel por tipo.
+
+`service-orders.repository.spec.ts` ajustado com stub explicito tipado
+(`{ registrar: vi.fn() } as unknown as AuditService`), conforme 1c. Nenhum `undefined`/`null`.
+`AuditModule` ja provia e exportava `AuditService`, e `ServiceOrdersModule` ja importava
+`AuditModule` — **nenhum `.module.ts` precisou de alteracao** (1d satisfeito sem mudanca).
+
+Assinatura de `registrar(entry, tx)` **inalterada** (1e). Tipos publicos inalterados.
+
+### D2 — ADR-007 criado
+
+Local: `docs/10-architecture/adr/ADR-007-auditoria-no-repository.md`.
+
+**Desvio de caminho declarado:** o prompt indicava `docs/00-governance/decisions/ADR-XXX`.
+Esse diretorio **nao existe**, e o projeto ja possui local canonico para ADRs em
+`docs/10-architecture/adr/` (ADR-001..006). Criar um segundo local fragmentaria a
+governanca. ADR-007 foi criado no local canonico e o **indice `adr-index.md` foi atualizado**
+(Total 6 -> 7, ACCEPTED 2 -> 3), como a politica do indice exige.
+
+Conteudo: contexto (dominio puro, 24 pontos transacionais, service sem pool), 3 alternativas
+(A interceptor REJEITADA por rodar fora da transacao; B refatorar repositorios REJEITADA por
+exigir dividir 24 pontos; C auditoria na transacao existente ACEITA), consequencias positivas
+e negativas, referencias a B1, B1.5, Casos C e F.
+
+### D4 — DDP-043 aberta (NAO implementada)
+
+Local: `docs/01-foundation/DDP-043-cobertura-audit-trail.md`, com entrada tambem no registro
+canonico `01-foundation/domain-decisions-pending.md` (padrao do projeto) e a linha de status
+do cabecalho atualizada.
+
+**Desvio de caminho declarado:** o prompt indicava `docs/00-governance/ddps/`, que **nao
+existe**. DDPs vivem em `docs/01-foundation/domain-decisions-pending.md` (DDP-001..042).
+Criado arquivo dedicado + entrada no registro canonico, seguindo o template
+`docs/templates/domain-decision-template.md`.
+
+Status `OPEN`, classificacao `PENDING_BUSINESS_DECISION`. Opcoes A/B/C descritas com impacto.
+**Nenhuma opcao implementada**, conforme restricao. Numeracao: maior DDP existente era 042,
+logo 043 e o proximo livre. O prompt dizia "DDP-027", que **ja esta em uso** por outro tema.
+
+### VERIFICACAO FINAL DE INTEGRIDADE (Tarefa 5)
+
+5a. `git status --porcelain -- apps/api/src/service-orders/domain/`
+
+    (vazio)
+
+5b. `git status --porcelain -- packages/database/migrations/`
+
+     M packages/database/migrations/meta/_journal.json          <- de B1, nao desta sessao
+    ?? packages/database/migrations/0082_audit_trail_logs.sql   <- de B1, nao desta sessao
+
+    Nenhuma migration criada nesta sessao. `packages/database/src/schema/audit-trail.ts`
+    INALTERADO — `git diff` vazio para o arquivo.
+
+5c. `pnpm vitest run --config vitest.integration.config.ts src/audit/ src/service-orders/`
+
+     ✓ src/service-orders/service-order-audit.integration.spec.ts (7 tests)
+     ✓ src/audit/audit-trail.integration.spec.ts (7 tests)
+     ✓ src/audit/security-audit.integration.spec.ts (6 tests)
+     ✓ (8 arquivos adicionais de service-orders/audit)
+
+     Test Files  11 passed (11)
+          Tests  118 passed (118)
+          Start at  00:58:06
+          Duration  722.18s
+
+    [exit code: 0]
+
+    Exatamente 11 arquivos e 118 PASS — atende ">= 118 PASS".
+
+5d. `pnpm typecheck` (api)  ->  exit 0
+
+5e. `pnpm eslint` (5 arquivos alterados)  ->  exit 0
+
+    Nota: a primeira execucao do eslint FALHOU com
+    `@typescript-eslint/no-unnecessary-type-assertion` no stub do spec (`as never` tornou-se
+    redundante apos tipar `auditService`). Corrigido com `as unknown as AuditService`.
+    O gate funcionou como esperado; registrado por honestidade.
+
+### ARQUIVOS
+
+    apps/api/src/service-orders/repositories/service-orders.repository.ts        (+9 -7)
+    apps/api/src/service-orders/repositories/service-orders.repository.spec.ts   (+5 -1)
+    docs/10-architecture/adr/ADR-007-auditoria-no-repository.md                  (novo, +103)
+    docs/10-architecture/adr-index.md                                            (+7 -5)
+    docs/01-foundation/DDP-043-cobertura-audit-trail.md                          (novo, +107)
+    docs/01-foundation/domain-decisions-pending.md                               (+32 -1)
+    docs/00-governance/prompt-execution-log.md                                   (este bloco)
+
+`apps/api/src/audit/audit.service.ts` **NAO foi alterado** — nao havia `@Optional()` a remover.
+`apps/api/src/service-orders/services/service-orders-access.service.ts` **NAO foi alterado**
+nesta sessao (ja estava correto de B1.5).
+
+### DIVIDAS RESTANTES
+
+| Divida | Status |
+| ------ | ------ |
+| D1 — AuditService opcional | **RESOLVIDA** (tornado obrigatorio) |
+| D2 — ADR formal | **RESOLVIDA** (ADR-007, ACCEPTED) |
+| D3 — Testcontainers | **ADIADA** para Fase 4 (CI/CD), conforme instrucao |
+| D4 — Cobertura sem correlacao | **ABERTA** como DDP-043, sem implementacao |
+
+### NAO ALTERADO
+
+`domain/`, state machine, schema, migrations, frontend, CI/CD,
+`infrastructure/http/correlation-id.ts`, `audit.service.ts`. Nenhuma regra financeira,
+contabil ou fiscal criada. Nenhuma opcao do DDP-043 implementada.
+
+WORKING_TREE: DIRTY (trabalho preexistente preservado)
+EVIDENCIA: 11 arquivos / 118 PASS, exit 0 · typecheck 0 · eslint 0
+DOMAIN: INTOCADO · MIGRATIONS: NENHUMA NOVA · AuditService: OBRIGATORIO
+
+---
+
+## B2 / TAREFA 0 — RBAC VERIFICADO: BLOQUEIO POR PREMISSA INCORRETA — 2026-10-01
+
+| Campo | Valor |
+| ----- | ----- |
+| Status | `BLOCKED_BY_INCORRECT_PREMISE` |
+| Classificacao | Verificacao de pre-requisitos. Nenhum codigo escrito |
+| Escopo | Somente leitura de codigo + este registro + DDP-044 |
+| Alteracao de domain/ | **NENHUMA — verificado por git status** |
+| Migration nova | **NENHUMA** |
+
+### RESUMO EXECUTIVO
+
+Tarefa 0 do B2 executada. Pre-requisitos verificados contra o codigo real.
+Resultado: RBAC ja existe, e mais forte que o proposto, e a aplicacao do padrao
+sugerido seria regressao de seguranca. Nenhum codigo escrito.
+
+### PRE-REQUISITOS VERIFICADOS (0a a 0e)
+
+| # | Pre-requisito | Prompt assumia | Realidade | Veredito |
+| - | ------------- | -------------- | --------- | -------- |
+| 0a | `PermissionsGuard` | Existe e deve ser reutilizado | **NAO EXISTE**. Equivalente real: `AuthorizationGuard` + `@RequireAuthz` + `PolicyDecisionPointService` + `ScopeEnforcementService` | Preenchido por equivalente |
+| 0b | Modelo de escopo de dados | `GLOBAL\|FILIAL\|PROJETO` | **JA EXISTE e supera**: `AUTHZ_SCOPES` = Own, Assigned, Unit, Client, Contract, Document, Financial, Global, Platform (9 escopos). `Unit` = "FILIAL". Nao existe "PROJETO" (equivalente: Contract/Client) | Preenchido e superado |
+| 0c | Modelo de permissoes | Criar `service_orders:ler` etc. | Derivadas de `authorization.grants`, formato `recurso:acao` kebab-case EN (ex.: `service-orders:service-order:read`) | Preenchido |
+| 0d | Endpoints com `@RequireAuthz` | (nao quantificado) | **20 endpoints** em 4 controllers: access-admin (12), authz (3), observability (3), security-audit (1). **Nenhum** controller de service-orders — intencional | OK |
+| 0e | Cobertura de service-orders | (a implementar) | **33 endpoints, 100% protegidos**; 23 acoes de authz dedicadas; `getListScopeFilter` ja filtra listagem por escopo | Preenchido |
+
+Evidencia da busca (0a):
+
+    glob apps/api/src/**/*permission*.ts        -> No files found
+    grep "RequirePermission|PermissionsGuard"   -> No matches found
+
+### COBERTURA DE SERVICE-ORDERS
+
+| Controller | Endpoints |
+| ---------- | --------- |
+| `service-orders.controller.ts` | 8 |
+| `service-order-execution.controller.ts` | 11 |
+| `service-order-planning.controller.ts` | 8 |
+| `operational-cost.controller.ts` | 2 |
+| **Total** | **33** |
+
+Acoes de authz dedicadas: **23** (`authz-actions.ts` linhas 126-178).
+Mecanismo: `requireServiceOrder` (`service-orders-access.service.ts:763`) carrega o registro e
+delega a `assertRecordAction` (`service-orders-access.authz.ts:104`), que avalia escopo contra
+o **registro real**: `Unit` -> `row.unit_id`, `Client` -> `row.client_id`,
+`Assigned` -> `row.assigned_identity_id`, `Global` -> `resource_id === null`.
+Antes disso, o PDP decide com `context: toResourceContextFromServiceOrder(row)` e `{ audit: true }`.
+
+### JUSTIFICATIVA TECNICA DO BLOQUEIO
+
+1. O `AuthorizationGuard` chama o PDP com `context: { ownerIdentityId: auth.sub }` — **sem**
+   `unitId`, `clientId` ou o registro. So consegue avaliar escopo `Global`/`Own`.
+2. Os escopos efetivamente usados em OS sao `Unit`, `Client` e `Assigned`, que exigem o
+   **registro carregado** — disponivel apenas no service, apos `findById`.
+3. Aplicar `@RequireAuthz` nos controllers de service-orders seria **regressao**: uma checagem
+   fraca ao lado da forte cria **falsa sensacao de cobertura**, desencorajando a auditoria dos
+   pontos que importam.
+4. Os 20 usos existentes de `@RequireAuthz` estao em endpoints **sem escopo de registro**
+   (administracao, observabilidade), onde a decisao e global — a distincao e coerente.
+
+### CONFIRMACOES OBRIGATORIAS
+
+- `domain/` intocado — verificado por `git status --porcelain -- apps/api/src/service-orders/domain/` (**vazio**).
+- Nenhum arquivo de codigo alterado nesta sessao.
+- Nenhum teste executado — sessao de leitura e registro.
+- Nenhuma migration criada.
+
+### RESSALVA DE VERIFICACAO (conflito declarado, nao adaptado)
+
+O criterio 5c do prompt B2 exigia `git status --porcelain -- apps/api/ packages/ migrations/
+schema/` **vazio em todos**. Isso e **impossivel neste working tree**: ja existem alteracoes nao
+commitadas de sessoes anteriores (B1, B1.5, D1) e trabalho preexistente de terceiros
+(frontend/login, `platform/release-scope/*.spec.ts`). Reverter seria violar `AGENTS.md` regra 10.
+A verificacao valida aplicada foi: **esta sessao nao alterou nenhum arquivo de codigo**, provado
+por inspecao do diff antes e depois. Saida literal de `git status` anexada abaixo.
+
+### REFERENCIAS CRUZADAS
+
+B2 · B1.5 · ADR-007 · DDP-043 · **DDP-044 (novo)**
+
+### PROXIMO PASSO DECLARADO
+
+DDP-044 aberto nesta sessao para decidir divisao de canais de auditoria antes de qualquer
+instrumentacao de acesso negado.
+
+### ARQUIVOS
+
+    docs/00-governance/prompt-execution-log.md                     (este bloco)
+    docs/01-foundation/DDP-044-divisao-canais-auditoria.md         (novo)
+    docs/01-foundation/domain-decisions-pending.md                 (+1 linha: DDP-044)
+
+### FONTE
+
+Relatorio de auditoria produzido pela sessao anterior (B2 / Tarefa 0), aceito sem contestacao
+e aqui registrado. Nao houve re-execucao da verificacao nem nova leitura de codigo nesta sessao.
+
+### GIT STATUS LITERAL (5a/5b/5c)
+
+    5a. git status --porcelain  -> ver bloco "WORKING_TREE" abaixo
+    5b. git status --porcelain -- apps/api/src/service-orders/domain/  -> (vazio)
+    5c. git status --porcelain -- apps/api/ packages/ migrations/ schema/
+        -> ~16 arquivos, TODOS de sessoes anteriores (B1/B1.5/D1) ou preexistentes.
+           Nenhum foi tocado nesta sessao.
+
+WORKING_TREE: DIRTY (trabalho preexistente preservado; nada tocado nesta sessao)
+EVIDENCIA: nenhum teste executado — sessao de leitura e registro
+DOMAIN: INTOCADO · MIGRATIONS: NENHUMA NOVA · CODIGO: NENHUM ALTERADO

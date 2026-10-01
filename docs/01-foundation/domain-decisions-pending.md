@@ -4,13 +4,69 @@
 | ----------------- | ------------------------------------------------------- |
 | Document ID       | DDP-REG-001                                             |
 | Last updated      | 2026-09-03 (SRC-007 gates; alinhamento SRC-002 §§2/14/15/19/20) |
-| Status of answers | **PARTIAL** — DDP-014 (ERP), DDP-020, DDP-026 (fatia R1), DDP-028, DDP-041; demais abertas |
+| Status of answers | **PARTIAL** — DDP-014 (ERP), DDP-020, DDP-026 (fatia R1), DDP-028, DDP-041; DDP-043 aberta (auditoria de writes internos); demais abertas |
 
 Status típicos: `OPEN`, `BLOCKING`, `ANSWERED`, `SUPERSEDED`. Todas as entradas abaixo estão `OPEN` e `BLOCKING` para implementação do tema.
 
 Não responder. Não inventar estados, cardinalidades, SLAs, RPO, RTO ou volumes.
 
 Template: [`../templates/domain-decision-template.md`](../templates/domain-decision-template.md).
+
+## DDP-044 — Divisão entre audit_logs e security_audit_events
+
+Onde registrar negações de ações de domínio (tentativa de executar comando em recurso fora do
+escopo autorizado)?
+
+**Contexto:** o PDP grava decisões de autorização em `audit.security_audit_events`. `audit.audit_logs`
+(canal `AUDIT_TRAIL`) recebe apenas `CREATE` e `TRANSITION` de service-orders — negações **não**
+aparecem nele. Não existe regra explícita sobre onde registrar negações de ações de domínio.
+
+**Opções consideradas:**
+
+| Opção | Descrição                                                              |
+| ----- | ---------------------------------------------------------------------- |
+| A     | Apenas em `security_audit_events` (comportamento atual)                |
+| B     | Apenas em `audit_logs` (migrar a gravação do PDP)                      |
+| C     | Ambos os canais, com `correlation_id` comum                            |
+
+**Impacto:** A — "quem tentou cancelar a OS-42 e falhou?" não é respondível em `audit_logs`;
+B — perde a semântica de decisão de autorização; C — dupla escrita, risco de divergência entre
+canais, infla o banco.
+
+**Status:** `OPEN` · **Classificação:** `PENDING_BUSINESS_DECISION` · **Bloqueia implementação:**
+sim, para instrumentação de acesso negado · **Data:** 2026-10-01
+
+Ver [`DDP-044-divisao-canais-auditoria.md`](./DDP-044-divisao-canais-auditoria.md).
+
+## DDP-043 — Cobertura do canal AUDIT_TRAIL para writes sem correlação
+
+O canal `AUDIT_TRAIL` (`audit.audit_logs`) deve cobrir apenas ações humanas rastreáveis
+(originadas de requisição HTTP autenticada, com `correlationId`), ou também escritas
+automáticas originadas de jobs, seeds, migrações e conversões internas?
+
+**Contexto:** B1.5 vincula a gravação à presença de `correlationId`. Escritas internas **não**
+geram linha em `audit_logs`. Ver `ADR-007` (auditoria transacional no repositório), que
+registra esta limitação como consequência negativa aceita.
+
+**Opções consideradas:**
+
+| Opção | Descrição                                                                   |
+| ----- | --------------------------------------------------------------------------- |
+| A     | Manter como está — `AUDIT_TRAIL` = ação humana rastreável                    |
+| B     | Instrumentar jobs/seeds com `correlationId` sintético (ex.: `job:<uuid>`)    |
+| C     | Criar canal separado `SYSTEM_AUDIT` para escritas internas                   |
+
+**Impacto por opção:**
+
+- **A** — falta de rastreabilidade de operações em lote e jobs noturnos.
+- **B** — uniformidade, mas mistura origem humana e origem sistema na mesma trilha.
+- **C** — separação limpa, mas exige novo schema, nova política e nova migration.
+
+**Status:** `OPEN` · **Bloqueia implementação:** não (o canal atual permanece consistente) ·
+**Data:** 2026-10-01
+
+**Residual:** decisão empresarial. Recomendação de engenharia seria a opção C, por separar
+responsabilidades — mas **não** é decisão tomada. Não implementar nenhuma opção até fonte.
 
 ## DDP-001 — Tipos de OS
 
