@@ -1,9 +1,9 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetTokenStoreForTests, tokenStore } from '../../auth/storage/token-store';
 import { parseRequestPath } from '../../test/request-url';
-import { createShellFetchMock } from '../../test/shell-fetch-mock';
+import { createShellFetchMock, MOCK_UNIT_ID } from '../../test/shell-fetch-mock';
 import { renderWithProviders } from '../../test/render-with-providers';
 import { FiscalApuracaoPage } from './FiscalApuracaoPage';
 
@@ -62,7 +62,19 @@ describe('FiscalApuracaoPage', () => {
     const user = userEvent.setup();
     renderWithProviders(<FiscalApuracaoPage />);
 
-    await user.type(screen.getByLabelText('Unidade'), 'unit-1');
+    /*
+     * ESCOPO HUMANO: a unidade deixou de ser campo de texto livre (que exigia o identificador
+     * interno digitado) e passou a ser escolhida na LISTA do shell — o mesmo primitivo das demais
+     * famílias. O valor enviado à API continua sendo a unidade autorizada.
+     */
+    const unitControl = await screen.findByLabelText('Unidade');
+    expect(unitControl.tagName).toBe('SELECT');
+    await waitFor(() => {
+      expect(
+        within(unitControl).getByRole('option', { name: /unidade autorizada/i }),
+      ).toBeInTheDocument();
+    });
+    await user.selectOptions(unitControl, MOCK_UNIT_ID);
     await user.click(screen.getByRole('button', { name: 'Buscar' }));
 
     await waitFor(() => {
@@ -78,11 +90,17 @@ describe('FiscalApuracaoPage', () => {
     const user = userEvent.setup();
     renderWithProviders(<FiscalApuracaoPage />);
 
-    await user.type(screen.getByLabelText('Unidade'), 'unit-1');
+    const unitControl = await screen.findByLabelText('Unidade');
+    await waitFor(() => {
+      expect(
+        within(unitControl).getByRole('option', { name: /unidade autorizada/i }),
+      ).toBeInTheDocument();
+    });
+    await user.selectOptions(unitControl, MOCK_UNIT_ID);
     await user.click(screen.getByRole('button', { name: 'Buscar' }));
 
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent(/não tem permissão/i);
+      expect(screen.getByRole('alert')).toHaveTextContent(/sem permissão para listar apurações/i);
     });
   });
 });

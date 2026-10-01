@@ -1,12 +1,31 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Button, Input, Money, worklistTableCardClass } from '../../ui';
-import { FilterCard, ModuleLoadingState, ModulePage, ModulePageHeader, ModuleTableLink, filterControlClass, filterLabelClass } from '../../ui/module-layout';
-import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
-import { DefinitionList } from '../../financial-ui/DefinitionList';
+import { Button, Money } from '../../ui';
+import { ModuleLoadingState, ModulePage, ModulePagination } from '../../ui/module-layout';
+import { cn } from '../../ui/utils/cn';
+import {
+  EnterpriseMetric,
+  WorklistClearFilters,
+  WorklistField,
+  WorklistFilterBar,
+  WorklistFooter,
+  WorklistHeader,
+  WorklistRowLink,
+  WorklistStatePanel,
+  worklistCellClass,
+  worklistCellRaisedClass,
+  worklistHeadCellClass,
+  worklistNumericHeadCellClass,
+  worklistNumericCellClass,
+  worklistRowClass,
+  worklistSelectClass,
+  worklistTableCardClass,
+  worklistTableClass,
+} from '../../ui/enterprise-list';
 import { ProcessingBanner } from '../../financial-ui/ProcessingBanner';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
+import { OperationalUnitOptions, useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
 import {
   getTaxCalculation,
   listTaxCalculations,
@@ -26,14 +45,39 @@ export function FiscalApuracaoPage() {
   const [reproduction, setReproduction] = useState<TaxReproduction | null>(null);
   const [processing, setProcessing] = useState(false);
   const inflight = useRef(false);
-  const [unitId, setUnitId] = useState('');
+  /**
+   * ESCOPO DE UNIDADE pelo hook compartilhado do shell — o mesmo das demais famílias. Antes esta
+   * tela tinha um campo de TEXTO LIVRE para a unidade, que exigia o identificador interno
+   * digitado; agora a unidade é escolhida em lista (valor real no `value`, rótulo humano no
+   * texto) e continua sendo o recorte enviado à API.
+   */
+  const { options: unitOptions, unitId, setUnitId } = useOperationalUnits();
   const [term, setTerm] = useState('');
+  /**
+   * RECORTE APLICADO — `{ unitId, q, offset }` é o que o servidor recebeu de verdade. Guardar o
+   * offset junto do termo evita que "próxima página" e "nova busca" disputem o mesmo estado:
+   * mudar o termo reseta a paginação, mudar a página preserva o termo.
+   */
   const [applied, setApplied] = useState<{ unitId: string; q: string } | null>(null);
   const [items, setItems] = useState<TaxCalculationSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [listPhase, setListPhase] = useState<'idle' | 'loading' | 'ready' | 'denied' | 'error'>('idle');
+  const [offset, setOffset] = useState(0);
 
   const loader = useCallback((signal?: AbortSignal) => getTaxCalculation(activeId, signal), [activeId]);
+
+  const PAGE_SIZE = 20;
+
+  /**
+   * A ROTA é a fonte do detalhe aberto. `useState(calculationId)` só lê o parâmetro uma vez, então
+   * navegar de uma apuração para outra (clique na lista) precisava de um segundo manipulador de
+   * clique para sincronizar o estado. Sincronizar a partir do parâmetro da rota mantém UM único
+   * caminho: o link navega, o parâmetro muda, o detalhe acompanha.
+   */
+  useEffect(() => {
+    setActiveId(calculationId);
+    setReproduction(null);
+  }, [calculationId]);
   const { state, reload } = useBackofficeQuery<TaxCalculation>({
     loader,
     mapError: mapFiscalErrorToMessage,
@@ -48,7 +92,7 @@ export function FiscalApuracaoPage() {
     const controller = new AbortController();
     setListPhase('loading');
     void listTaxCalculations(
-      { unitId: applied.unitId, q: applied.q || undefined, limit: 20, offset: 0 },
+      { unitId: applied.unitId, q: applied.q || undefined, limit: PAGE_SIZE, offset },
       controller.signal,
     )
       .then((response) => {
@@ -62,7 +106,7 @@ export function FiscalApuracaoPage() {
         setListPhase('denied');
       });
     return () => controller.abort();
-  }, [applied]);
+  }, [applied, offset]);
 
   const gate = activeId
     ? renderQueryGate(
@@ -90,165 +134,300 @@ export function FiscalApuracaoPage() {
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      <WorklistHeader
         title="Apuração"
-        description="A apuração é encontrada por regra, versão e resultado. Reprodução vem do motor versionado; esta tela não calcula imposto."
+        count={listPhase === 'ready' ? total : null}
+        context="A apuração é encontrada por regra, versão e resultado. Reprodução vem do motor versionado; esta tela não calcula imposto."
+        metrics={
+          items.length > 0 ? (
+            <>
+              <EnterpriseMetric label="Apurações no recorte" value={total} />
+              <EnterpriseMetric label="Nesta página" value={items.length} />
+            </>
+          ) : null
+        }
       />
 
-      <FilterCard>
+      {/*
+        BARRA OPERACIONAL DE BUSCA — a unidade saiu do campo de texto livre e passou a ser
+        escolhida em LISTA (mesmo primitivo compartilhado das demais famílias): o operador nunca
+        digita o identificador interno. O recorte enviado à API é o mesmo.
+      */}
+      <WorklistFilterBar meta={listPhase === 'ready' ? `${total} apuração(ões) no recorte` : undefined}>
         <form
-          className="flex flex-wrap items-end gap-4"
+          className="flex flex-wrap items-center gap-2"
           onSubmit={(event) => {
             event.preventDefault();
             setActiveId('');
             setReproduction(null);
+            setOffset(0);
             setApplied({ unitId: unitId.trim(), q: term.trim() });
           }}
         >
-          <div>
-            <label className={filterLabelClass} htmlFor="apuracao-unit">
-              Unidade
-            </label>
-            <Input
+          <WorklistField label="Unidade" htmlFor="apuracao-unit">
+            <select
               id="apuracao-unit"
+              className={worklistSelectClass}
               value={unitId}
               onChange={(event) => setUnitId(event.target.value)}
-              required
-            />
-          </div>
-          <div>
-            <label className={filterLabelClass} htmlFor="apuracao-search">
-              Buscar
-            </label>
+            >
+              <OperationalUnitOptions options={unitOptions} />
+            </select>
+          </WorklistField>
+          <WorklistField label="Buscar" htmlFor="apuracao-search" grow>
             <input
               id="apuracao-search"
               type="search"
-              className={`${filterControlClass} w-72`}
+              className={`${worklistSelectClass} w-full min-w-0`}
               value={term}
               onChange={(event) => setTerm(event.target.value)}
               placeholder="Regra, nome ou origem"
             />
-          </div>
+          </WorklistField>
           <button
             type="submit"
-            className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800"
+            className="rounded border border-brand-600 bg-brand-600 px-2.5 py-1 text-[13px] font-semibold text-white transition-colors hover:bg-brand-700"
           >
             Buscar
           </button>
+          {listPhase === 'ready' || listPhase === 'denied' ? (
+            <WorklistClearFilters
+              visible
+              label="Limpar busca"
+              onClick={() => {
+                setTerm('');
+                setApplied(null);
+                setItems([]);
+                setTotal(0);
+                setOffset(0);
+                setListPhase('idle');
+                setActiveId('');
+                setReproduction(null);
+              }}
+            />
+          ) : null}
         </form>
-        {listPhase === 'denied' ? (
-          <p className="mt-3 text-sm text-red-700" role="alert">
-            Você não tem permissão para listar apurações desta unidade.
-          </p>
-        ) : null}
-      </FilterCard>
+      </WorklistFilterBar>
+
+      {/*
+        RESULTADO OFICIAL PRIMEIRO. Quando o operador abriu UMA apuração (drill-down da lista),
+        o número que ele veio ver não pode ficar depois da lista inteira: a área de resultado do
+        registro aberto vem antes da busca. Sem apuração aberta, o bloco simplesmente não existe.
+      */}
+      {gate}
+
+      {listPhase === 'idle' ? (
+        <WorklistStatePanel
+          title="Nenhuma apuração consultada"
+          description="Escolha a unidade na barra acima e busque por regra, nome ou origem. A lista é autorizada no servidor."
+        />
+      ) : null}
+
+      {listPhase === 'denied' ? (
+        <WorklistStatePanel
+          tone="critical"
+          title="Sem permissão para listar apurações desta unidade"
+          description="A consulta foi recusada pelo servidor. Esta unidade não está no seu escopo de leitura fiscal."
+        />
+      ) : null}
 
       {listPhase === 'loading' ? <ModuleLoadingState title="Apuração" message="Carregando apurações…" /> : null}
 
+      {/* ESTADO VAZIO DENTRO DA ESTRUTURA — cabeçalho e barra seguem montados. */}
       {listPhase === 'ready' && items.length === 0 ? (
-        <p className="text-sm text-gray-500" role="status">
-          Nenhuma apuração encontrada para esta unidade.
-        </p>
+        <WorklistStatePanel
+          title="Nenhuma apuração encontrada"
+          description="Não há apuração persistida para a unidade e o termo pesquisados. Ajuste a busca ou escolha outra unidade."
+          action={
+            <WorklistClearFilters
+              visible
+              label="Limpar busca"
+              onClick={() => {
+                setTerm('');
+                setApplied(null);
+                setListPhase('idle');
+              }}
+            />
+          }
+        />
       ) : null}
 
       {listPhase === 'ready' && items.length > 0 ? (
+        <>
         <div className={worklistTableCardClass}>
           <table className={worklistTableClass} aria-label="Lista de Apurações">
-            <thead className={worklistHeadCellClass}>
+            <thead>
               <tr>
                 <th scope="col" className={worklistHeadCellClass}>Regra</th>
                 <th scope="col" className={worklistHeadCellClass}>Versão</th>
                 <th scope="col" className={worklistHeadCellClass}>Origem</th>
-                <th scope="col" className={`${worklistHeadCellClass} text-right`}>Base</th>
-                <th scope="col" className={`${worklistHeadCellClass} text-right`}>Resultado</th>
+                <th scope="col" className={worklistHeadCellClass}>Calculada em</th>
+                <th scope="col" className={worklistNumericHeadCellClass}>Base</th>
+                <th scope="col" className={worklistNumericHeadCellClass}>Resultado</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody>
               {items.map((calculation) => (
                 <tr key={calculation.id} className={worklistRowClass}>
                   <td className={worklistCellClass}>
-                    <ModuleTableLink
-                      to={`/app/fiscal/apuracao/${calculation.id}`}
-                      onClick={() => {
-                        setActiveId(calculation.id);
-                        setReproduction(null);
-                      }}
-                    >
+                    {/*
+                      O detalhe é aberto pela ROTA (`/app/fiscal/apuracao/:calculationId`), que já é
+                      a fonte de `activeId`. Um segundo manipulador de clique aqui só criaria dois
+                      caminhos divergentes para o mesmo estado.
+                    */}
+                    <WorklistRowLink href={`/app/fiscal/apuracao/${calculation.id}`}>
                       {calculation.ruleName}
-                    </ModuleTableLink>
-                    <span className="block text-xs text-gray-500">{calculation.ruleCode}</span>
+                    </WorklistRowLink>
+                    <span className="block font-mono text-[11px] text-gray-500">
+                      {calculation.ruleCode}
+                    </span>
                   </td>
-                  <td className={worklistCellClass}>{calculation.versionNumber}</td>
-                  <td className={worklistCellClass}>{calculation.sourceKind ?? '—'}</td>
-                  <td className={`${worklistCellClass} text-right`}>
+                  {/*
+                    VERSAO DA REGRA — a versao que PRODUZIU este resultado. É o que permite
+                    responder "por que este numero mudou desde o mes passado" sem abrir o registro.
+                  */}
+                  <td className={worklistCellRaisedClass}>
+                    <span className="tabular-nums">v{calculation.versionNumber}</span>
+                  </td>
+                  <td className={worklistCellRaisedClass}>
+                    {calculation.sourceKind ?? (
+                      <span className="text-[11px] text-gray-500">Não informada</span>
+                    )}
+                  </td>
+                  <td className={cn(worklistCellRaisedClass, 'whitespace-nowrap')}>
+                    {calculation.calculatedAt ? calculation.calculatedAt.slice(0, 10) : '—'}
+                  </td>
+                  {/*
+                    BASE e RESULTADO são os valores persistidos pelo motor no servidor. Esta tela
+                    não recalcula imposto: apenas publica o que foi apurado e com que versão.
+                  */}
+                  <td className={worklistNumericCellClass}>
                     <Money value={calculation.baseAmount} />
                   </td>
-                  <td className={`${worklistCellClass} text-right`}>
-                    <Money value={calculation.resultAmount} />
+                  <td className={worklistNumericCellClass}>
+                    <Money value={calculation.resultAmount} emphasis />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+
+        <WorklistFooter
+          rangeLabel={
+            <span aria-live="polite">
+              Página {Math.floor(offset / PAGE_SIZE) + 1} · {total} apuração(ões) no recorte
+            </span>
+          }
+          extra={applied?.q ? `busca: ${applied.q}` : null}
+        >
+          <ModulePagination
+            pageNumber={Math.floor(offset / PAGE_SIZE) + 1}
+            previousDisabled={offset === 0}
+            nextDisabled={offset + items.length >= total}
+            onPrevious={() => setOffset((current) => Math.max(0, current - PAGE_SIZE))}
+            onNext={() => setOffset((current) => current + PAGE_SIZE)}
+          />
+        </WorklistFooter>
+        </>
       ) : null}
 
-      {listPhase === 'ready' ? (
-        <p className="mb-6 mt-2 text-xs text-gray-500" role="status">
-          {total} apuração(ões) no total.
-        </p>
-      ) : null}
-
-      {gate}
       {state.phase === 'ready' ? (
         <>
-          <div className="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5">
-            <DefinitionList
-              items={[
-                { label: 'Regra', value: state.data.ruleCode },
-                { label: 'Versão', value: String(state.data.versionNumber) },
-                { label: 'Base', value: <Money value={state.data.baseAmount} /> },
-                { label: 'Alíquota persistida', value: state.data.rate ?? '—' },
-                { label: 'Resultado', value: <Money value={state.data.resultAmount} emphasis /> },
-              ]}
-            />
-          </div>
-          <div className="mb-4">
-            <Button type="button" onClick={() => void handleReproduce()} loading={processing} disabled={processing}>
-              Reproduzir no servidor
-            </Button>
-          </div>
-          {processing ? <div className="mb-4"><ProcessingBanner /></div> : null}
-          {reproduction ? (
-            <p className="mb-4 text-sm" role="status">
-              Reprodução {reproduction.matches ? 'coincide' : 'diverge'} do resultado persistido. Valor recompute:{' '}
-              <Money value={reproduction.recomputed.resultAmount} />
-            </p>
-          ) : null}
-          <div className={worklistTableCardClass}>
-            <table className={worklistTableClass} aria-label="Linhas da apuração">
-              <thead className={worklistHeadCellClass}>
-                <tr>
-                  <th scope="col" className={worklistHeadCellClass}>Componente</th>
-                  <th scope="col" className={`${worklistHeadCellClass} text-right`}>Base</th>
-                  <th scope="col" className={`${worklistHeadCellClass} text-right`}>Resultado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {state.data.lines.map((line) => (
-                  <tr key={line.lineNumber} className={worklistRowClass}>
-                    <td className={worklistCellClass}>{line.componentLabel}</td>
-                    <td className={`${worklistCellClass} text-right`}>
-                      <Money value={line.baseAmount} />
-                    </td>
-                    <td className={`${worklistCellClass} text-right`}>
-                      <Money value={line.resultAmount} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {/*
+            RESULTADO OFICIAL — faixa densa com a leitura de UMA apuração, não cartão de respiro.
+            Regra, versão, base, alíquota persistida e resultado continuam sendo os valores do
+            servidor; nada é recalculado aqui.
+          */}
+          <section
+            className="mb-2 rounded-md border border-gray-200 bg-white"
+            aria-label="Resultado da apuração"
+          >
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-3 py-2">
+              <span className="text-[13px] font-semibold text-gray-900">
+                {state.data.ruleCode}
+              </span>
+              <span className="text-xs text-gray-500">versão {state.data.versionNumber}</span>
+              <span className="ml-auto flex flex-wrap items-center gap-x-4 text-xs text-gray-600 tabular-nums">
+                <span>
+                  Base <Money value={state.data.baseAmount} />
+                </span>
+                <span>
+                  Alíquota persistida <strong>{state.data.rate ?? '—'}</strong>
+                </span>
+                <span>
+                  Resultado <Money value={state.data.resultAmount} emphasis />
+                </span>
+              </span>
+            </div>
+          </section>
+
+          {/* AÇÃO DO MOTOR — reprodução é decidida no servidor. */}
+          <section
+            className="mb-2 rounded-md border border-gray-200 bg-white"
+            aria-label="Reprodução da apuração"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+              <div className="min-w-0">
+                <h2 className="text-[13px] font-semibold text-gray-900">Reprodução</h2>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  O servidor recomputa a apuração com a regra versionada e devolve se coincide com o
+                  resultado persistido.
+                </p>
+              </div>
+              <Button type="button" onClick={() => void handleReproduce()} loading={processing} disabled={processing}>
+                Reproduzir no servidor
+              </Button>
+            </div>
+            {processing ? <div className="px-3 pb-2"><ProcessingBanner /></div> : null}
+            {reproduction ? (
+              <p className="border-t border-gray-200 px-3 py-2 text-xs" role="status">
+                Reprodução {reproduction.matches ? 'coincide' : 'diverge'} do resultado persistido.
+                Valor recompute: <Money value={reproduction.recomputed.resultAmount} />
+              </p>
+            ) : null}
+          </section>
+
+          {/* LINHAS DA APURAÇÃO — área de resultado densa. */}
+          <section className="mb-3" aria-label="Linhas da apuração">
+            <div className="mb-1.5 flex flex-wrap items-baseline gap-2">
+              <h2 className="text-sm font-semibold text-gray-900">Linhas da apuração</h2>
+              <span className="rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 text-[11px] font-semibold text-gray-600 tabular-nums">
+                {state.data.lines.length}
+              </span>
+            </div>
+            {state.data.lines.length === 0 ? (
+              <WorklistStatePanel
+                title="Nenhuma linha na apuração"
+                description="O servidor não publicou componentes para esta apuração."
+              />
+            ) : (
+              <div className={worklistTableCardClass}>
+                <table className={worklistTableClass} aria-label="Linhas da apuração">
+                  <thead>
+                    <tr>
+                      <th scope="col" className={worklistHeadCellClass}>Componente</th>
+                      <th scope="col" className={worklistNumericHeadCellClass}>Base</th>
+                      <th scope="col" className={worklistNumericHeadCellClass}>Resultado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {state.data.lines.map((line) => (
+                      <tr key={line.lineNumber} className={worklistRowClass}>
+                        <td className={worklistCellClass}>{line.componentLabel}</td>
+                        <td className={worklistNumericCellClass}>
+                          <Money value={line.baseAmount} />
+                        </td>
+                        <td className={worklistNumericCellClass}>
+                          <Money value={line.resultAmount} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
         </>
       ) : null}
     </ModulePage>
