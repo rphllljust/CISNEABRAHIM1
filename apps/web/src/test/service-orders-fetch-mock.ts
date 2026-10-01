@@ -79,6 +79,112 @@ function orderError(code: string, status: number): Response {
   } as Response;
 }
 
+/**
+ * Catálogo de comandos servido pelo mock (B5).
+ *
+ * Espelha o `/command-catalog` real: são os 7 comandos da state machine, com rótulos PT-BR.
+ * O front testado NÃO mantém esta lista — ele a recebe.
+ */
+type CatalogFixtureEntry = {
+  nome: string;
+  label: string;
+  status_origem: string[];
+  status_destino: string;
+  requer_justificativa: boolean;
+};
+
+const COMMAND_CATALOG_FIXTURE: CatalogFixtureEntry[] = [
+  { nome: 'prepare', label: 'Preparar', status_origem: ['DRAFT'], status_destino: 'PREPARED', requer_justificativa: false },
+  { nome: 'release', label: 'Liberar', status_origem: ['PREPARED'], status_destino: 'RELEASED', requer_justificativa: false },
+  { nome: 'cancel', label: 'Cancelar', status_origem: ['DRAFT', 'PREPARED', 'RELEASED'], status_destino: 'CANCELLED', requer_justificativa: false },
+  { nome: 'start', label: 'Iniciar execução', status_origem: ['RELEASED'], status_destino: 'IN_EXECUTION', requer_justificativa: false },
+  { nome: 'pause', label: 'Pausar', status_origem: ['IN_EXECUTION'], status_destino: 'PAUSED', requer_justificativa: false },
+  { nome: 'resume', label: 'Retomar', status_origem: ['PAUSED'], status_destino: 'IN_EXECUTION', requer_justificativa: false },
+  { nome: 'complete', label: 'Concluir', status_origem: ['IN_EXECUTION'], status_destino: 'COMPLETED', requer_justificativa: false },
+];
+
+/** Trilha de auditoria servida pelo mock (B5), em ordem cronológica. */
+const AUDIT_TIMELINE_FIXTURE = [
+  {
+    id: '11111111-1111-4111-8111-111111111101',
+    data: '2026-01-01T08:00:00.000Z',
+    usuario_id: 'actor-demo',
+    usuario_nome: null,
+    acao: 'CREATE',
+    status_anterior: null,
+    status_novo: 'DRAFT',
+    comando: null,
+    correlation_id: '11111111-1111-4111-8111-111111111102',
+  },
+  {
+    id: '11111111-1111-4111-8111-111111111103',
+    data: '2026-01-01T09:00:00.000Z',
+    usuario_id: 'actor-demo',
+    usuario_nome: null,
+    acao: 'TRANSITION',
+    status_anterior: 'DRAFT',
+    status_novo: 'PREPARED',
+    comando: 'prepare',
+    correlation_id: '11111111-1111-4111-8111-111111111104',
+  },
+];
+
+/**
+ * Deriva `available-actions` do status, reproduzindo a state machine do BACKEND.
+ *
+ * Existe apenas no dublê de teste. O código de produção consumido por estes testes não
+ * contém nenhuma regra de transição — é justamente o que B5 removeu.
+ */
+function buildAvailableActionsResponse(serviceOrderId: string, status: string) {
+  const permissionByCommand: Record<string, string> = {
+    prepare: 'service-orders:service-order:prepare',
+    release: 'service-orders:service-order:release',
+    cancel: 'service-orders:service-order:cancel',
+    start: 'service-orders:execution:start',
+    pause: 'service-orders:execution:pause',
+    resume: 'service-orders:execution:resume',
+    complete: 'service-orders:execution:complete',
+  };
+  const entryByCommand = new Map(COMMAND_CATALOG_FIXTURE.map((entry) => [entry.nome, entry]));
+
+  const valid: string[] = [];
+  const invalid: string[] = [];
+  for (const entry of COMMAND_CATALOG_FIXTURE) {
+    // `reopen` não está no catálogo de transições: é fluxo próprio (COMPLETED/CANCELLED).
+    if ((entry.status_origem as readonly string[]).includes(status)) {
+      valid.push(entry.nome);
+    } else {
+      invalid.push(entry.nome);
+    }
+  }
+  if (status === 'COMPLETED' || status === 'CANCELLED') {
+    valid.push('reopen');
+    const reopenIndex = invalid.indexOf('reopen');
+    if (reopenIndex >= 0) {
+      invalid.splice(reopenIndex, 1);
+    }
+    entryByCommand.set('reopen', {
+      nome: 'reopen',
+      label: 'Reabrir',
+      status_origem: ['COMPLETED', 'CANCELLED'],
+      status_destino: 'IN_EXECUTION',
+      requer_justificativa: false,
+    });
+  }
+
+  return {
+    service_order_id: serviceOrderId,
+    status_atual: status,
+    comandos_validos: valid.map((comando) => ({
+      comando,
+      label: entryByCommand.get(comando)!.label,
+      requer_permissao: permissionByCommand[comando] ?? 'service-orders:service-order:read',
+      usuario_tem_permissao: true,
+    })),
+    comandos_invalidos_para_status: invalid,
+  };
+}
+
 function jsonResponse(body: unknown, status = 200): Response {
   return {
     ok: status >= 200 && status < 300,
@@ -1612,6 +1718,64 @@ export function createServiceOrdersFetchMock(options: ServiceOrdersFetchMockOpti
         items: items.slice(offset, offset + limit),
         limit,
         offset,
+      });
+    }
+
+    /*
+     * ENDPOINTS META (sessão B5) — antes só existiam no backend; agora o front consome.
+     *
+     * O mock precisa servi-los porque `ServiceOrderRowActions`, `ServiceOrderDetailPage` e
+     * o `SessionMetaProvider` chamam a API real. Sem estas rotas, o `fetch` cairia no
+     * `upstream` e devolveria algo inesperado, travando os testes por timeout.
+     *
+     * A resposta de `available-actions` é DERIVADA do status atual do pedido no mock,
+     * reproduzindo a state machine do backend. Isso é dublê de teste, não lógica de
+     * produção: o código de front exercitado por estes testes não contém essas regras.
+     */
+    if (pathname === '/api/v1/service-orders/command-catalog' && method === 'GET') {
+      return jsonResponse({ comandos: COMMAND_CATALOG_FIXTURE });
+    }
+
+    if (pathname === '/api/v1/me' && method === 'GET') {
+      return jsonResponse({
+        usuario: { id: 'actor-demo', nome: null, email: null, identity_id: 'actor-demo' },
+        permissoes_efetivas: ['service-orders:service-order:read'],
+        escopo_ativo: null,
+        escopos_disponiveis: [{ tipo: 'GLOBAL', resource_id: null, label: 'Global' }],
+      });
+    }
+
+    const availableActionsMatch = pathname.match(
+      /^\/api\/v1\/service-orders\/([^/]+)\/available-actions$/,
+    );
+    if (availableActionsMatch && method === 'GET') {
+      if (!readAllowed) {
+        return orderError('SERVICE_ORDERS_DENIED', 403);
+      }
+      const targetId = availableActionsMatch[1]!;
+      if (targetId !== MOCK_SERVICE_ORDER_ID && targetId !== PROBE_SERVICE_ORDER_ID) {
+        return orderError('SERVICE_ORDERS_NOT_FOUND', 404);
+      }
+      return jsonResponse(buildAvailableActionsResponse(targetId, getOrder(targetId).status));
+    }
+
+    const auditTimelineMatch = pathname.match(
+      /^\/api\/v1\/service-orders\/([^/]+)\/audit-timeline$/,
+    );
+    if (auditTimelineMatch && method === 'GET') {
+      if (!readAllowed) {
+        return orderError('SERVICE_ORDERS_DENIED', 403);
+      }
+      const targetId = auditTimelineMatch[1]!;
+      if (targetId !== MOCK_SERVICE_ORDER_ID && targetId !== PROBE_SERVICE_ORDER_ID) {
+        return orderError('SERVICE_ORDERS_NOT_FOUND', 404);
+      }
+      const limit = Number(searchParams.get('limit') ?? '100');
+      const offset = Number(searchParams.get('offset') ?? '0');
+      return jsonResponse({
+        service_order_id: targetId,
+        eventos: AUDIT_TIMELINE_FIXTURE.slice(offset, offset + limit),
+        total: AUDIT_TIMELINE_FIXTURE.length,
       });
     }
 

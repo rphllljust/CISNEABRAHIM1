@@ -131,11 +131,14 @@ import { SuppliersListPage } from './suppliers/pages/SuppliersListPage';
 import { SuppliersPage, SuppliersRoute } from './suppliers/pages/SuppliersPage';
 import { AccessAdminRoute } from './access-admin/AccessAdminRoute';
 import { AccessAdminPage } from './access-admin/pages/AccessAdminPage';
+import { SessionMetaBridge } from './service-orders/context/SessionMetaBridge';
+import { ServiceOrderDetailPage } from './service-orders/pages/ServiceOrderDetailPage';
 
 export function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <SessionMetaBridge />
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/access-denied" element={<AccessDeniedPage />} />
@@ -512,6 +515,14 @@ export function App() {
                 element={
                   <ServiceOrdersRoute>
                     <ServiceOrdersListPage />
+                  </ServiceOrdersRoute>
+                }
+              />
+              <Route
+                path="/app/service-orders/:serviceOrderId"
+                element={
+                  <ServiceOrdersRoute>
+                    <ServiceOrderDetailPage />
                   </ServiceOrdersRoute>
                 }
               />
