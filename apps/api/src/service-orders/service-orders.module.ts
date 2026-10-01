@@ -10,6 +10,9 @@ import { ServiceOrderExecutionController } from './controllers/service-order-exe
 import { OperationalCostController } from './controllers/operational-cost.controller';
 import { ServiceOrdersController } from './controllers/service-orders.controller';
 import { ServiceOrderPlanningController } from './controllers/service-order-planning.controller';
+import { MeController, ServiceOrderMetadataController } from './controllers/service-order-metadata.controller';
+import { ServiceOrderMetadataRepository } from './services/service-order-metadata.repository';
+import { ServiceOrderMetadataService } from './services/service-order-metadata.service';
 import { ServiceOrderExecutionRepository } from './repositories/service-order-execution.repository';
 import { OperationalCostRepository } from './repositories/operational-cost.repository';
 import { ServiceOrdersRepository } from './repositories/service-orders.repository';
@@ -25,13 +28,15 @@ import { ServiceRequestConversionService } from './services/service-request-conv
 
 @Module({
   imports: [DatabaseModule, AuthModule, AuthorizationModule, AuditModule, OutboxModule, CommercialModule],
-  controllers: [ServiceOrdersController, ServiceOrderPlanningController, ServiceOrderExecutionController, OperationalCostController],
+  controllers: [ServiceOrdersController, ServiceOrderMetadataController, MeController, ServiceOrderPlanningController, ServiceOrderExecutionController, OperationalCostController],
   providers: [
     ServiceOrdersRepository,
     ResourcePlanningRepository,
     ServiceOrderExecutionRepository,
     OperationalCostRepository,
     ServiceOrdersAccessAuthz,
+    ServiceOrderMetadataRepository,
+    ServiceOrderMetadataService,
     ServiceOrdersReferenceValidationService,
     ServiceOrdersAccessService,
     ServiceOrderControlCenterAuthz,
@@ -48,6 +53,7 @@ import { ServiceRequestConversionService } from './services/service-request-conv
     SERVICE_REQUEST_CONVERSION_PORT,
     ServiceOrdersRepository,
     ServiceOrdersAccessService,
+    ServiceOrderMetadataService,
     ServiceOrderControlCenterAuthz,
     ResourcePlanningRepository,
     ServiceOrderPlanningAccessService,

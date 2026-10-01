@@ -18,7 +18,15 @@ export class ServiceOrderStateError extends Error {
   }
 }
 
-const TRANSITIONS: Record<
+/**
+ * Mapa canônico dos comandos da OS.
+ *
+ * B4: exportado APENAS para leitura (catálogo de comandos / metadados de UI).
+ * Nenhum valor, assinatura ou regra foi alterado — a adição é a palavra `export`.
+ * A state machine continua sendo a única fonte de verdade das transições:
+ * consumidores devem LER este mapa, nunca reimplementá-lo.
+ */
+export const TRANSITIONS: Record<
   ServiceOrderTransition,
   { from: ServiceOrderStatus[]; to: ServiceOrderStatus }
 > = {
