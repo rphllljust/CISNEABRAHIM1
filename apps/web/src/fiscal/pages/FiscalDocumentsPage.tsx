@@ -9,8 +9,10 @@ import {
   UnitScopeLabel,
 } from '../../ui/module-layout';
 import {
+  EnterpriseMetric,
   RecordStatusCell,
   WorklistClearFilters,
+  WorklistException,
   WorklistField,
   WorklistFilterBar,
   WorklistFooter,
@@ -203,6 +205,39 @@ function allowedDocumentActions(status: string): { ready: boolean; submit: boole
   };
 }
 
+/**
+ * EXCEÇÃO OPERACIONAL da linha — cada frase é uma condição booleana sobre campos que a
+ * LISTAGEM já publica (`lastAuthorizationOutcome`, `rejectedAt`, `cancelledAt`,
+ * `lastProtocolCode`, `submittedAt`). Nada é inferido por score de risco, prazo ou
+ * heurística: sem fato persistido que sustente a frase, a célula não renderiza exceção.
+ */
+function documentException(item: FiscalDocumentListItem): string | null {
+  if (item.status === 'REJECTED') {
+    return item.lastAuthorizationOutcome
+      ? `Rejeitado · ${item.lastAuthorizationOutcome}`
+      : 'Rejeitado pelo autorizador';
+  }
+  if (item.status === 'SUBMITTED' && !item.lastProtocolCode) {
+    return 'Enviado sem protocolo retornado';
+  }
+  if (item.status === 'CANCELLED') {
+    return item.cancelledAt ? 'Cancelado' : 'Cancelado sem data registrada';
+  }
+  return null;
+}
+
+/**
+ * SITUAÇÃO DO RETORNO DO AUTORIZADOR — leitura do desfecho que o servidor publicou por
+ * último (`lastAuthorizationOutcome`). Quando o documento está em julgamento e o servidor
+ * ainda não publicou desfecho, a célula declara isso em vez de inventar estado.
+ */
+function authorizationOutcome(item: FiscalDocumentListItem): string {
+  if (item.lastAuthorizationOutcome) {
+    return item.lastAuthorizationOutcome;
+  }
+  return item.status === 'SUBMITTED' ? 'Em análise' : '—';
+}
+
 export function FiscalDocumentsPage() {
   const { fiscalDocumentId } = useParams();
   return fiscalDocumentId ? (
@@ -351,6 +386,20 @@ function FiscalDocumentsList() {
   const hasFilters = Boolean(status) || Boolean(competence);
   const periods = periodsState.phase === 'ready' ? periodsState.items : [];
 
+  /**
+   * LEITURA DA FILA — contagens derivadas apenas da situação e dos campos que a listagem
+   * publica. Nenhum tributo, alíquota ou total é calculado aqui: o valor fiscal continua
+   * sendo o persistido pelo servidor, lido no detalhe.
+   */
+  const items = state.phase === 'ready' ? state.items : [];
+  const waitingCount = items.filter((item) => item.status === 'SUBMITTED').length;
+  const rejectedCount = items.filter((item) => item.status === 'REJECTED').length;
+  const draftCount = items.filter(
+    (item) => item.status === 'DRAFT' || item.status === 'READY',
+  ).length;
+  const canonicalCount = items.filter((item) => item.status === 'AUTHORIZED').length;
+  const activePeriod = periods.find((period) => period.periodKey === competence) ?? null;
+
   const clearFilters = useCallback(() => {
     setFilter('status', '');
     setCompetence('');
@@ -363,9 +412,52 @@ function FiscalDocumentsList() {
         title="Documentos fiscais"
         count={state.phase === 'ready' ? state.total : null}
         context="Consulta e transições usam o documento oficial do servidor. Tributos da tela vêm do snapshot persistido."
+        metrics={
+          items.length > 0 ? (
+            <>
+              {draftCount > 0 ? (
+                <EnterpriseMetric label="A preparar" value={draftCount} tone="warning" />
+              ) : null}
+              {waitingCount > 0 ? (
+                <EnterpriseMetric label="Aguardando autorização" value={waitingCount} tone="info" />
+              ) : null}
+              {rejectedCount > 0 ? (
+                <EnterpriseMetric label="Rejeitados" value={rejectedCount} tone="critical" />
+              ) : null}
+              {canonicalCount > 0 ? (
+                <EnterpriseMetric label="Autorizados" value={canonicalCount} />
+              ) : null}
+            </>
+          ) : null
+        }
       />
 
-      <WorklistFilterBar>
+      {/*
+        BARRA OPERACIONAL — unidade, competência e situação na mesma linha densa.
+        Quando a competência escolhida tem período fiscal da unidade, o ESTADO desse período é
+        declarado junto do recorte: enviar documento de competência fechada é recusado pelo
+        servidor, e o operador precisa saber disso antes de tentar. O estado vem da consulta
+        de períodos (`listFiscalPeriods`), não é inferido pela tela.
+      */}
+      <WorklistFilterBar
+        notice={
+          activePeriod ? (
+            <>
+              <span className="text-[11px] font-semibold tracking-wide text-amber-900 uppercase">
+                Competência {formatCompetence(activePeriod.periodKey)}
+              </span>
+              <WorklistException tone={activePeriod.status === 'OPEN' ? 'warning' : 'info'}>
+                {PERIOD_STATUS_LABELS[activePeriod.status] ?? activePeriod.status}
+              </WorklistException>
+              <span className="text-[11px] text-amber-800">
+                {activePeriod.status === 'OPEN'
+                  ? 'Período aberto: o documento ainda pode ser preparado e enviado.'
+                  : 'Período fechado: o servidor recusa novas transições nesta competência.'}
+              </span>
+            </>
+          ) : null
+        }
+      >
         <WorklistField label="Unidade" htmlFor="fiscal-unit-filter">
           <select
             id="fiscal-unit-filter"
@@ -533,42 +625,84 @@ function FiscalDocumentsList() {
                   Descrição
                 </th>
                 <th scope="col" className={worklistHeadCellClass}>
+                  Retorno do autorizador
+                </th>
+                <th scope="col" className={worklistHeadCellClass}>
                   Protocolo
                 </th>
                 <th scope="col" className={worklistHeadCellClass}>
                   Próxima ação
                 </th>
-                <th scope="col" className={worklistHeadCellClass}>
-                  Unidade
-                </th>
               </tr>
             </thead>
             <tbody>
-              {state.items.map((item) => (
-                <tr key={item.id} className={worklistRowClass}>
-                  <td className={worklistCellClass}>
-                    <WorklistRowLink href={`/app/fiscal/documents/${item.id}`}>
-                      <DateTime value={item.issuedOn} mode="date" />
-                    </WorklistRowLink>
-                  </td>
-                  <td className={worklistCellRaisedClass}>
-                    <RecordStatusCell
-                      badge={
-                        <FinanceStatusBadge status={item.status} labels={FISCAL_STATUS_LABELS} />
-                      }
-                    />
-                  </td>
-                  <td className={worklistCellRaisedClass}>{item.sourceKind}</td>
-                  <td className={cn(worklistCellRaisedClass, 'whitespace-normal')}>
-                    {item.description}
-                  </td>
-                  <td className={worklistCellRaisedClass}>{item.lastProtocolCode ?? '—'}</td>
-                  <td className={worklistCellRaisedClass}>{NEXT_ACTION_FOR(item.status)}</td>
-                  <td className={worklistCellRaisedClass}>
-                    <UnitScopeLabel unitId={item.unitId} />
-                  </td>
-                </tr>
-              ))}
+              {state.items.map((item) => {
+                const exception = documentException(item);
+                return (
+                  <tr key={item.id} className={worklistRowClass}>
+                    <td className={worklistCellClass}>
+                      <WorklistRowLink href={`/app/fiscal/documents/${item.id}`}>
+                        <DateTime value={item.issuedOn} mode="date" />
+                      </WorklistRowLink>
+                    </td>
+                    {/*
+                      SITUAÇÃO = situação do ciclo + a EXCEÇÃO REAL que ela carrega. A exceção
+                      só aparece quando há fato persistido que a sustente (rejeição, envio sem
+                      protocolo, cancelamento); sem fato, a célula mostra apenas a situação.
+                    */}
+                    <td className={worklistCellRaisedClass}>
+                      <RecordStatusCell
+                        badge={
+                          <FinanceStatusBadge status={item.status} labels={FISCAL_STATUS_LABELS} />
+                        }
+                        context={
+                          exception ? (
+                            <WorklistException
+                              tone={item.status === 'REJECTED' ? 'critical' : 'warning'}
+                            >
+                              {exception}
+                            </WorklistException>
+                          ) : null
+                        }
+                      />
+                    </td>
+                    <td className={worklistCellRaisedClass}>{item.sourceKind}</td>
+                    <td className={cn(worklistCellRaisedClass, 'whitespace-normal')}>
+                      {item.description}
+                    </td>
+                    {/*
+                      RETORNO DO AUTORIZADOR — o desfecho que o servidor publicou por último.
+                      É a informação que decide se o documento volta para correção; antes ela
+                      só existia dentro do detalhe.
+                    */}
+                    <td className={cn(worklistCellRaisedClass, 'whitespace-nowrap')}>
+                      {authorizationOutcome(item)}
+                    </td>
+                    <td className={worklistCellRaisedClass}>{item.lastProtocolCode ?? '—'}</td>
+                    {/*
+                      PROXIMA ACAO ganha peso próprio: é ela que diz onde agir. Documento sem
+                      passo pendente declara isso em texto neutro, sem oferecer trabalho que
+                      não existe.
+                    */}
+                    <td className={worklistCellRaisedClass}>
+                      <span
+                        className={
+                          item.status === 'DRAFT' ||
+                          item.status === 'READY' ||
+                          item.status === 'REJECTED'
+                            ? 'text-[12px] font-medium text-gray-800'
+                            : 'text-[12px] text-gray-500'
+                        }
+                      >
+                        {NEXT_ACTION_FOR(item.status)}
+                      </span>
+                      <span className="mt-0.5 block text-[11px] text-gray-500">
+                        <UnitScopeLabel unitId={item.unitId} />
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -655,16 +789,48 @@ function FiscalDocumentView({
 
   return (
     <>
-      <div className="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5">
+      {/*
+        ESTADO FISCAL DO DOCUMENTO — faixa densa ANTES de qualquer tabela. O operador que abre
+        o documento precisa responder primeiro "ele está vigente? tem validade fiscal? o DANFE
+        está liberado? qual foi a última tentativa?". Tudo aqui vem do servidor; nada é derivado.
+      */}
+      <section
+        className="mb-2 rounded-md border border-gray-200 bg-white"
+        aria-label="Estado do documento fiscal"
+      >
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-3 py-2">
+          <FinanceStatusBadge status={document.status} labels={FISCAL_STATUS_LABELS} />
+          <span className="text-[13px] text-gray-900">{document.description}</span>
+          <span className="ml-auto flex flex-wrap items-center gap-x-4 text-xs text-gray-600">
+            <span>
+              Emissão <strong>{document.issuedOn}</strong>
+            </span>
+            <span>
+              Validade fiscal{' '}
+              <strong>{document.validityLegend || 'SEM VALIDADE FISCAL'}</strong>
+            </span>
+            <span>
+              DANFE{' '}
+              <strong>{document.officialDanfe === 'ALLOWED' ? 'Liberada' : 'Bloqueada'}</strong>
+            </span>
+            <span>
+              Versão <strong className="tabular-nums">{document.rowVersion}</strong>
+            </span>
+          </span>
+        </div>
+        <div className="border-t border-gray-100 px-3 py-1.5">
+          <span className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
+            Próxima ação
+          </span>{' '}
+          <span className="text-[12px] font-medium text-gray-800">
+            {NEXT_ACTION_FOR(document.status)}
+          </span>
+        </div>
+      </section>
+
+      <div className={worklistTableCardClass}>
         <DefinitionList
           items={[
-            {
-              label: 'Status',
-              value: <FinanceStatusBadge status={document.status} labels={FISCAL_STATUS_LABELS} />,
-            },
-            { label: 'Descrição', value: document.description },
-            { label: 'Emissão', value: <DateTime value={document.issuedOn} mode="date" /> },
-            { label: 'Versão', value: String(document.rowVersion) },
             /*
               Origem vem SOMENTE das colunas persistidas (source_kind/source_id/
               billing_document_id). A descrição do documento nunca é usada para inferir
@@ -673,8 +839,9 @@ function FiscalDocumentView({
             { label: 'Origem (tipo persistido)', value: document.sourceKind },
             { label: 'Registro de origem', value: document.sourceId ?? '—' },
             { label: 'Faturamento', value: document.billingDocumentId ?? '—' },
-            { label: 'Validade fiscal', value: document.validityLegend || 'SEM VALIDADE FISCAL' },
-            { label: 'DANFE oficial', value: document.officialDanfe === 'ALLOWED' ? 'Liberada' : 'Bloqueada' },
+            { label: 'Certificado', value: document.certificateRef ?? '—' },
+            { label: 'Partes', value: String(document.parties.length) },
+            { label: 'Tentativas de autorização', value: String(document.authorizations.length) },
           ]}
         />
       </div>
