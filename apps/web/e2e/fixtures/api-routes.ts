@@ -7,7 +7,6 @@ import {
   PROBE_SERVICE_ORDER_ID,
 } from './constants';
 import { handleCommercialApiRoute } from './commercial-api-routes';
-import { handleAccountingApiRoute } from './accounting-api-routes';
 import { handleClientsApiRoute } from './clients-api-routes';
 import { handleDocumentsApiRoute } from './documents-api-routes';
 import { handleFinanceApiRoute } from './finance-api-routes';
@@ -25,8 +24,7 @@ export type ApiMockProfile =
   | 'suppliers'
   | 'procurement'
   | 'inventory'
-  | 'finance'
-  | 'accounting';
+  | 'finance';
 
 type RouteContext = {
   profile: ApiMockProfile;
@@ -134,10 +132,6 @@ async function handleApiRoute(route: Route, context: RouteContext): Promise<void
   }
 
   if (context.profile === 'finance' && (await handleFinanceApiRoute(route))) {
-    return;
-  }
-
-  if (context.profile === 'accounting' && (await handleAccountingApiRoute(route))) {
     return;
   }
 

@@ -5,8 +5,9 @@ import {
   ACCOUNTING_FIXED_ASSET_ID,
   ACCOUNTING_JOURNAL_ID,
   ACCOUNTING_PERIOD_ID,
+  prepareAccountingSession,
+  stabilizeAccountingPage,
 } from '../fixtures/accounting-api-routes';
-import { prepareAuthenticatedSession, stabilizePage } from '../fixtures/visual-helpers';
 
 /**
  * Prova de browser da família CONTABILIDADE (Família 4) — as 11 rotas em Chromium real.
@@ -62,7 +63,7 @@ async function assertNoPageLevelHorizontalOverflow(page: Page): Promise<void> {
 
 test.describe('contabilidade (Família 4) — 11 rotas', () => {
   test.beforeEach(async ({ page }) => {
-    await prepareAuthenticatedSession(page, 'accounting');
+    await prepareAccountingSession(page);
   });
 
   test('01 plano de contas: árvore com filtros e ações reais', async ({ page }) => {
@@ -90,7 +91,7 @@ test.describe('contabilidade (Família 4) — 11 rotas', () => {
     await expect(page.getByRole('table', { name: /lançamentos da conta/i })).toBeVisible();
 
     await assertNoPageLevelHorizontalOverflow(page);
-    await stabilizePage(page);
+    await stabilizeAccountingPage(page);
     await expect(page.locator('#main-content')).toHaveScreenshot('accounting-chart.png');
     expect(errors, `erros de JS: ${errors.join(' | ')}`).toEqual([]);
   });
@@ -119,7 +120,7 @@ test.describe('contabilidade (Família 4) — 11 rotas', () => {
     await expect(page.getByRole('button', { name: 'Postar' })).toBeVisible();
 
     await assertNoPageLevelHorizontalOverflow(page);
-    await stabilizePage(page);
+    await stabilizeAccountingPage(page);
     await expect(page.locator('#main-content')).toHaveScreenshot('accounting-journals.png');
     expect(errors, `erros de JS: ${errors.join(' | ')}`).toEqual([]);
   });
@@ -139,7 +140,7 @@ test.describe('contabilidade (Família 4) — 11 rotas', () => {
     await expect(page.getByText(/débitos da página/i)).toBeVisible();
 
     await assertNoPageLevelHorizontalOverflow(page);
-    await stabilizePage(page);
+    await stabilizeAccountingPage(page);
     await expect(page.locator('#main-content')).toHaveScreenshot('accounting-diario.png');
     expect(errors, `erros de JS: ${errors.join(' | ')}`).toEqual([]);
   });
@@ -161,7 +162,7 @@ test.describe('contabilidade (Família 4) — 11 rotas', () => {
     await expect(page.getByText(/natureza/i).first()).toBeVisible();
 
     await assertNoPageLevelHorizontalOverflow(page);
-    await stabilizePage(page);
+    await stabilizeAccountingPage(page);
     await expect(page.locator('#main-content')).toHaveScreenshot('accounting-razao.png');
     expect(errors, `erros de JS: ${errors.join(' | ')}`).toEqual([]);
   });
@@ -178,7 +179,7 @@ test.describe('contabilidade (Família 4) — 11 rotas', () => {
     await expect(page.getByText('1.1.01 — Caixa')).toBeVisible();
 
     await assertNoPageLevelHorizontalOverflow(page);
-    await stabilizePage(page);
+    await stabilizeAccountingPage(page);
     await expect(page.locator('#main-content')).toHaveScreenshot('accounting-balancete.png');
     expect(errors, `erros de JS: ${errors.join(' | ')}`).toEqual([]);
   });
@@ -195,7 +196,7 @@ test.describe('contabilidade (Família 4) — 11 rotas', () => {
     await expect(page.getByText('Despesa')).toBeVisible();
 
     await assertNoPageLevelHorizontalOverflow(page);
-    await stabilizePage(page);
+    await stabilizeAccountingPage(page);
     await expect(page.locator('#main-content')).toHaveScreenshot('accounting-dre.png');
     expect(errors, `erros de JS: ${errors.join(' | ')}`).toEqual([]);
   });
@@ -213,7 +214,7 @@ test.describe('contabilidade (Família 4) — 11 rotas', () => {
     await expect(page.getByText(/conferido: a = p \+ pl/i)).toBeVisible();
 
     await assertNoPageLevelHorizontalOverflow(page);
-    await stabilizePage(page);
+    await stabilizeAccountingPage(page);
     await expect(page.locator('#main-content')).toHaveScreenshot('accounting-balanco.png');
     expect(errors, `erros de JS: ${errors.join(' | ')}`).toEqual([]);
   });
@@ -235,7 +236,7 @@ test.describe('contabilidade (Família 4) — 11 rotas', () => {
     await expect(page.getByRole('button', { name: 'Reabrir' })).toBeVisible();
 
     await assertNoPageLevelHorizontalOverflow(page);
-    await stabilizePage(page);
+    await stabilizeAccountingPage(page);
     await expect(page.locator('#main-content')).toHaveScreenshot('accounting-fechamentos.png');
     expect(errors, `erros de JS: ${errors.join(' | ')}`).toEqual([]);
   });
@@ -256,7 +257,7 @@ test.describe('contabilidade (Família 4) — 11 rotas', () => {
     );
 
     await assertNoPageLevelHorizontalOverflow(page);
-    await stabilizePage(page);
+    await stabilizeAccountingPage(page);
     await expect(page.locator('#main-content')).toHaveScreenshot('accounting-origens.png');
     expect(errors, `erros de JS: ${errors.join(' | ')}`).toEqual([]);
   });
@@ -276,7 +277,7 @@ test.describe('contabilidade (Família 4) — 11 rotas', () => {
     await expect(page.getByRole('button', { name: /depreciar/i })).toBeVisible();
 
     await assertNoPageLevelHorizontalOverflow(page);
-    await stabilizePage(page);
+    await stabilizeAccountingPage(page);
     await expect(page.locator('#main-content')).toHaveScreenshot('accounting-fixed-assets.png');
     expect(errors, `erros de JS: ${errors.join(' | ')}`).toEqual([]);
   });
@@ -302,7 +303,7 @@ test.describe('contabilidade (Família 4) — 11 rotas', () => {
     await expect(page.getByRole('button', { name: 'Fechar período' })).toBeDisabled();
 
     await assertNoPageLevelHorizontalOverflow(page);
-    await stabilizePage(page);
+    await stabilizeAccountingPage(page);
     await expect(page.locator('#main-content')).toHaveScreenshot('accounting-closing.png');
     expect(errors, `erros de JS: ${errors.join(' | ')}`).toEqual([]);
   });

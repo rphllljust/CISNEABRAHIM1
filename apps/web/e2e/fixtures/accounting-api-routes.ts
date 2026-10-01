@@ -1,14 +1,11 @@
-import type { Route } from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 
 /**
  * Tráfego determinístico da CONTABILIDADE (Família 4).
  *
- * O perfil `accounting` existe para a prova de browser das 11 rotas contábeis: as fixtures
- * precisam devolver o MESMO contrato que o servidor publica — período, plano, contas, ledger,
- * journal postado, balancete, DRE, balanço, imobilizado e prontidão de fechamento — porque as
- * telas não têm mock de runtime e leem tudo da API.
- *
- * Devolve `false` quando a rota não pertence a esta fixture, para o handler genérico seguir.
+ * A fixture é ISOLADA de propósito: ela registra as próprias rotas no Playwright e não depende
+ * de `api-routes.ts` nem de `visual-helpers.ts`. O harness visual compartilhado é mantido pelas
+ * demais famílias; a contabilidade não precisa — e não deve — alterá-lo.
  */
 
 const UNIT = 'unit-accounting';
@@ -499,3 +496,128 @@ export const ACCOUNTING_PERIOD_ID = PERIOD_ID;
 export const ACCOUNTING_ACCOUNT_ID = CASH_ID;
 export const ACCOUNTING_JOURNAL_ID = JOURNAL_ID;
 export const ACCOUNTING_FIXED_ASSET_ID = FIXED_ASSET_ID;
+
+const TEST_LOGIN = 'visual.user';
+const TEST_PASSWORD = 'Password1!';
+const MOCK_IDENTITY_ID = '11111111-1111-4111-8111-111111111111';
+const MOCK_SESSION_ID = '22222222-2222-4222-8222-222222222222';
+
+/**
+ * SESSÃO + CONTABILIDADE, sem tocar no harness visual compartilhado.
+ *
+ * `api-routes.ts` e `visual-helpers.ts` são mantidos pelas demais famílias; a contabilidade
+ * registra aqui as MESMAS rotas de shell que a sessão exige (login, sessão, refresh, alertas,
+ * busca, unidades operacionais) e delega todo o resto ao handler contábil. Assim a prova de
+ * browser desta família não altera uma linha do harness das outras.
+ */
+export async function installAccountingMocks(page: Page): Promise<void> {
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const { pathname } = url;
+    const method = request.method();
+
+    if (pathname === '/api/v1/auth/login' && method === 'POST') {
+      const body = JSON.parse(request.postData() ?? '{}') as { password?: string };
+      if (body.password === TEST_PASSWORD) {
+        await fulfillJson(route, {
+          accessToken: 'visual-access-token',
+          refreshToken: 'visual-refresh-token',
+          tokenType: 'Bearer',
+          expiresIn: 900,
+          session: { id: MOCK_SESSION_ID, expiresAt: '2026-08-29T12:00:00.000Z', status: 'active' },
+        });
+        return;
+      }
+      await fulfillJson(
+        route,
+        { error: { code: 'AUTH_INVALID_CREDENTIALS', message: 'Invalid credentials.' } },
+        401,
+      );
+      return;
+    }
+
+    if (pathname === '/api/v1/auth/session' && method === 'GET') {
+      if (hasBearerToken(route)) {
+        await fulfillJson(route, {
+          identityId: MOCK_IDENTITY_ID,
+          session: { id: MOCK_SESSION_ID, expiresAt: '2026-08-29T12:00:00.000Z', status: 'active' },
+        });
+        return;
+      }
+      await fulfillJson(
+        route,
+        { error: { code: 'AUTH_UNAUTHORIZED', message: 'Unauthorized.' } },
+        401,
+      );
+      return;
+    }
+
+    if (pathname === '/api/v1/auth/refresh' && method === 'POST') {
+      await fulfillJson(route, {
+        accessToken: 'visual-access-token-2',
+        refreshToken: 'visual-refresh-token-2',
+        tokenType: 'Bearer',
+        expiresIn: 900,
+        session: { id: MOCK_SESSION_ID, expiresAt: '2026-08-29T12:00:00.000Z', status: 'active' },
+      });
+      return;
+    }
+
+    if (pathname === '/api/v1/auth/logout' && method === 'POST') {
+      await fulfillJson(route, { success: true });
+      return;
+    }
+
+    if (pathname === '/api/v1/authz/probe' && method === 'GET') {
+      await fulfillJson(route, {
+        status: 'ok',
+        identityId: MOCK_IDENTITY_ID,
+        sessionId: MOCK_SESSION_ID,
+      });
+      return;
+    }
+
+    if (pathname === '/api/v1/alerts/summary' && method === 'GET') {
+      await fulfillJson(route, { activeCount: 0 });
+      return;
+    }
+
+    if (pathname === '/api/v1/alerts' && method === 'GET') {
+      await fulfillJson(route, []);
+      return;
+    }
+
+    if (pathname.startsWith('/api/v1/search') && method === 'GET') {
+      await fulfillJson(route, {
+        query: { raw: 'test', kind: 'text' },
+        groups: [],
+        pagination: { limit: 20, offset: 0, hasMore: false },
+        allowedTypes: ['CLIENT'],
+      });
+      return;
+    }
+
+    // Todo o restante é domínio da contabilidade (inclui a fonte única de unidades operacionais).
+    if (await handleAccountingApiRoute(route)) {
+      return;
+    }
+
+    await fulfillJson(route, { error: { code: 'UNKNOWN', message: 'Not found' } }, 404);
+  });
+}
+
+/** Sessão autenticada para a prova visual da contabilidade. */
+export async function prepareAccountingSession(page: Page): Promise<void> {
+  await installAccountingMocks(page);
+  await page.goto('/login');
+  await page.getByLabel(/^usuário/i).fill(TEST_LOGIN);
+  await page.getByLabel(/^senha/i).fill(TEST_PASSWORD);
+  await page.getByRole('button', { name: /^entrar/i }).click();
+  await expect(page.getByRole('heading', { level: 1, name: /visão geral/i })).toBeVisible();
+}
+
+export async function stabilizeAccountingPage(page: Page): Promise<void> {
+  await page.waitForLoadState('load');
+  await page.evaluate(() => document.fonts.ready);
+}
