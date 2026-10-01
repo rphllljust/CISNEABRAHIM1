@@ -232,10 +232,6 @@ export function PurchaseOrdersListPage() {
     (item) => item.status === PURCHASE_ORDER_STATUSES.Cancelled,
   ).length;
   const attentionCount = items.filter((item) => purchaseOrderNotice(item) !== null).length;
-  const usageAtLimitCount = items.filter((item) => {
-    const usage = purchaseOrderUsage(item.balance);
-    return usage !== null && usage.percent >= 100;
-  }).length;
   const authorized = summarizeAuthorized(items);
   const ledger = summarizeLedger(items);
   const currencyCode = items[0]?.currencyCode ?? 'BRL';
@@ -286,9 +282,6 @@ export function PurchaseOrdersListPage() {
             />
             {attentionCount > 0 ? (
               <EnterpriseMetric value={attentionCount} label="exigindo atenção" tone="warning" />
-            ) : null}
-            {usageAtLimitCount > 0 ? (
-              <EnterpriseMetric value={usageAtLimitCount} label="no limite" tone="critical" />
             ) : null}
           </>
         }
