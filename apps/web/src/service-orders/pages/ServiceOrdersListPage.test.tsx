@@ -26,15 +26,15 @@ describe('ServiceOrdersListPage', () => {
       expect(screen.getByRole('link', { name: 'OS-2026-DEMO01' })).toBeInTheDocument();
     });
 
+    // B5: o identificador abre a visão geral da OS, onde vivem ações e histórico.
     expect(screen.getByRole('link', { name: 'OS-2026-DEMO01' })).toHaveAttribute(
       'href',
-      `/app/service-orders/${MOCK_SERVICE_ORDER_ID}/planning`,
+      `/app/service-orders/${MOCK_SERVICE_ORDER_ID}`,
     );
-    // RELEASED: a maquina de estados libera a alocacao de recursos, e so ela.
-    expect(screen.getByRole('link', { name: 'Alocar recursos' })).toHaveAttribute(
-      'href',
-      `/app/service-orders/${MOCK_SERVICE_ORDER_ID}/planning`,
-    );
+    // RELEASED: o BACKEND libera "start" e "cancel"; o rótulo vem do catálogo dele.
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Iniciar execução' })).toBeInTheDocument();
+    });
     // As etapas que nao sao a proxima acao nao competem mais lado a lado na linha.
     expect(screen.queryByRole('link', { name: 'Execução' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Medição' })).not.toBeInTheDocument();
@@ -75,14 +75,14 @@ describe('ServiceOrdersListPage', () => {
     renderWithProviders(<ServiceOrdersListPage />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Preparar OS' })).toBeEnabled();
+      expect(screen.getByRole('button', { name: 'Preparar' })).toBeEnabled();
     });
-    await user.click(screen.getByRole('button', { name: 'Preparar OS' }));
+    await user.click(screen.getByRole('button', { name: 'Preparar' }));
 
     await waitFor(() => {
       expect(screen.getByLabelText('Status: Preparada')).toBeInTheDocument();
     });
-    expect(screen.getByRole('button', { name: 'Liberar OS' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Liberar' })).toBeEnabled();
   });
 
   it('releases a prepared order (Liberar on PREPARED moves to RELEASED)', async () => {
@@ -94,9 +94,9 @@ describe('ServiceOrdersListPage', () => {
     renderWithProviders(<ServiceOrdersListPage />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Liberar OS' })).toBeEnabled();
+      expect(screen.getByRole('button', { name: 'Liberar' })).toBeEnabled();
     });
-    await user.click(screen.getByRole('button', { name: 'Liberar OS' }));
+    await user.click(screen.getByRole('button', { name: 'Liberar' }));
 
     await waitFor(() => {
       expect(screen.getByLabelText('Status: Liberada')).toBeInTheDocument();
@@ -140,10 +140,11 @@ describe('ServiceOrdersListPage', () => {
     );
     renderWithProviders(<ServiceOrdersListPage />);
 
+    // O rótulo agora vem do backend (`command-catalog`), não do mapa local removido em B5.
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Reabrir OS' })).toBeEnabled();
+      expect(screen.getByRole('button', { name: 'Reabrir' })).toBeEnabled();
     });
-    await user.click(screen.getByRole('button', { name: 'Reabrir OS' }));
+    await user.click(screen.getByRole('button', { name: 'Reabrir' }));
 
     const dialog = await screen.findByRole('dialog');
     const confirmButton = within(dialog).getByRole('button', { name: 'Confirmar reabertura' });
@@ -164,11 +165,16 @@ describe('ServiceOrdersListPage', () => {
     );
     renderWithProviders(<ServiceOrdersListPage />);
 
-    // Concluida: a proxima acao e medir; reabrir continua disponivel como excecao subordinada.
+    /*
+     * B5: quem decide os comandos é o BACKEND. Em COMPLETED ele oferece apenas `reopen`
+     * (a state machine não expõe "registrar medição" como comando de TRANSITIONS — medir é
+     * uma superfície própria, acessível pela OS). A expectativa anterior vinha do mapa
+     * local `resolveServiceOrderNextAction`, removido nesta sessão justamente por duplicar
+     * essa decisão.
+     */
     await waitFor(() => {
-      expect(screen.getByRole('link', { name: 'Registrar medição' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Reabrir' })).toBeEnabled();
     });
-    expect(screen.getByRole('button', { name: 'Reabrir' })).toBeEnabled();
     await user.click(screen.getByRole('button', { name: 'Reabrir' }));
 
     const dialog = await screen.findByRole('dialog');
@@ -192,9 +198,9 @@ describe('ServiceOrdersListPage', () => {
     renderWithProviders(<ServiceOrdersListPage />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Preparar OS' })).toBeEnabled();
+      expect(screen.getByRole('button', { name: 'Preparar' })).toBeEnabled();
     });
-    await user.click(screen.getByRole('button', { name: 'Preparar OS' }));
+    await user.click(screen.getByRole('button', { name: 'Preparar' }));
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/foram alterados por outra operação/i);

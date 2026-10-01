@@ -38,7 +38,7 @@ import { PLANNED_RESOURCE_KINDS, type PlannedResource, type ResourceAllocation }
 import { SERVICE_ORDER_STATUSES, type ServiceOrderDetail, type ServiceOrderStatus } from '../types/service-order.types';
 import { buildRequirementCoverage } from '../utils/planning-aggregates';
 import { buildServiceOrdersListHref } from '../utils/service-order-list-params';
-import { resolveServiceOrderNextAction } from '../utils/service-order-next-action';
+import { useAvailableActions } from '../hooks/useAvailableActions';
 import { formatServiceOrderStatus, toHumanStatusLabel } from '../utils/service-order-labels';
 import {
   buildServiceOrderContextFields,
@@ -149,6 +149,18 @@ export function ServiceOrderPlanningPage() {
   const { serviceOrderId = '' } = useParams();
   const navigate = useNavigate();
   const { capabilities } = useServiceOrderPlanningCapabilities();
+  /**
+   * AÇÃO PRIMÁRIA — comandos válidos vindos do BACKEND.
+   *
+   * Chamado AQUI, no topo, e não junto do uso: os estados de página (loading/denied/
+   * not_found/error) fazem `return` antecipado antes de `order` existir, e um hook depois
+   * desses returns viola as Rules of Hooks ("Rendered more hooks than during the previous
+   * render"). O id vem da rota, então está disponível desde o primeiro render.
+   *
+   * Antes de B5 esta página derivava o próximo passo de um mapa local de status
+   * (`resolveServiceOrderNextAction`) e só depois conferia `availableTransitions`.
+   */
+  const commands = useAvailableActions(serviceOrderId, serviceOrderId.length > 0);
   // Cadeia empresarial desta OS: origem comercial (solicitação, proposta, pedido) e resultado
   // operacional (medição, faturamento) em UMA requisição, já autorizados pelo servidor.
   const businessChain = useBusinessChain('SERVICE_ORDER', serviceOrderId);
@@ -554,8 +566,7 @@ export function ServiceOrderPlanningPage() {
   const nextAction = buildServiceOrderNextAction({
     serviceOrderId: order.id,
     orderNumber: order.orderNumber,
-    status: order.status,
-    availableTransitions,
+    availableActions: commands.data?.comandos_validos ?? [],
     canReadServiceOrder: capabilities.canRead,
   });
 
@@ -595,11 +606,13 @@ export function ServiceOrderPlanningPage() {
       capabilities.canAllocate &&
       planningAllowed &&
       awaitingAllocation &&
-      resolveServiceOrderNextAction(order.status).kind === 'stage'
+      nextAction !== null &&
+      nextAction.kind === 'act' &&
+      nextAction.to === undefined
     ) {
       return {
         id: 'allocate',
-        label: nextAction?.label ?? 'Alocar recurso',
+        label: nextAction.label,
         onSelect: () => openAllocationFor(awaitingAllocation),
       };
     }

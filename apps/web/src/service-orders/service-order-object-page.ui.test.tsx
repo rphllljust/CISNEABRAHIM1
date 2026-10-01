@@ -183,6 +183,23 @@ type MockOptions = {
   planned?: PlannedResource[];
   /** Sondagem de alocacao do backend: `denied` (403) ou `allowed` (404 de recurso inexistente). */
   allocationProbe?: 'denied' | 'allowed';
+  /**
+   * Comandos válidos que o BACKEND devolveria em `available-actions` (B5).
+   *
+   * A "Próxima ação" desta página passou a ser derivada desta resposta, e não mais de um
+   * mapa local de status. O caso declara explicitamente o que o backend ofereceria.
+   */
+  availableActions?: {
+    service_order_id: string;
+    status_atual: string;
+    comandos_validos: Array<{
+      comando: string;
+      label: string;
+      requer_permissao: string;
+      usuario_tem_permissao: boolean;
+    }>;
+    comandos_invalidos_para_status: string[];
+  };
 };
 
 /**
@@ -222,6 +239,38 @@ function planningFetchMock(detail: ServiceOrderDetail, options: MockOptions = {}
     }
     if (pathname === `/api/v1/service-orders/${SERVICE_ORDER_ID}/allocations` && method === 'GET') {
       return jsonResponse([]);
+    }
+    /*
+     * ENDPOINTS META (B5) — a "Próxima ação" desta página deixou de ser derivada de um mapa
+     * local de status e passou a vir de `available-actions`. Sem estas rotas o fetch cairia
+     * no 403 genérico abaixo e a seção desapareceria.
+     */
+    if (pathname === '/api/v1/me' && method === 'GET') {
+      return jsonResponse({
+        usuario: { id: ACTOR_ID, nome: null, email: null, identity_id: ACTOR_ID },
+        permissoes_efetivas: ['service-orders:service-order:read'],
+        escopo_ativo: null,
+        escopos_disponiveis: [],
+      });
+    }
+    if (pathname === '/api/v1/service-orders/command-catalog' && method === 'GET') {
+      return jsonResponse({
+        comandos: [
+          { nome: 'prepare', label: 'Preparar', status_origem: ['DRAFT'], status_destino: 'PREPARED', requer_justificativa: false },
+          { nome: 'release', label: 'Liberar', status_origem: ['PREPARED'], status_destino: 'RELEASED', requer_justificativa: false },
+          { nome: 'cancel', label: 'Cancelar', status_origem: ['DRAFT', 'PREPARED', 'RELEASED'], status_destino: 'CANCELLED', requer_justificativa: false },
+          { nome: 'start', label: 'Iniciar execução', status_origem: ['RELEASED'], status_destino: 'IN_EXECUTION', requer_justificativa: false },
+          { nome: 'pause', label: 'Pausar', status_origem: ['IN_EXECUTION'], status_destino: 'PAUSED', requer_justificativa: false },
+          { nome: 'resume', label: 'Retomar', status_origem: ['PAUSED'], status_destino: 'IN_EXECUTION', requer_justificativa: false },
+          { nome: 'complete', label: 'Concluir', status_origem: ['IN_EXECUTION'], status_destino: 'COMPLETED', requer_justificativa: false },
+        ],
+      });
+    }
+    if (pathname === `/api/v1/service-orders/${SERVICE_ORDER_ID}/available-actions` && method === 'GET') {
+      return jsonResponse(options.availableActions ?? { service_order_id: SERVICE_ORDER_ID, status_atual: detail.status, comandos_validos: [], comandos_invalidos_para_status: [] });
+    }
+    if (pathname === `/api/v1/service-orders/${SERVICE_ORDER_ID}/audit-timeline` && method === 'GET') {
+      return jsonResponse({ service_order_id: SERVICE_ORDER_ID, eventos: [], total: 0 });
     }
     if (isProbeOrder && pathname.endsWith('/allocations') && method === 'POST') {
       return allocationProbe === 'allowed'
@@ -318,12 +367,30 @@ describe('ordem de serviço — object page canônica', () => {
     expect(within(flow).getByText('Pausada')).not.toHaveAttribute('aria-current');
   });
 
-  it('representa a próxima ação derivada do status real, com destino real', async () => {
-    renderObjectPage(orderDetail());
+  it('representa a próxima ação vinda do backend, com destino real', async () => {
+    /*
+     * B5: a próxima ação deixou de ser derivada de um mapa local de status. O caso declara
+     * o que o BACKEND oferece para a OS concluída: medir (etapa) e reabrir (ciclo de vida).
+     * A ordem da resposta é a prioridade — `complete`/etapa vem antes de `reopen`.
+     */
+    renderObjectPage(orderDetail(), {
+      availableActions: {
+        service_order_id: SERVICE_ORDER_ID,
+        status_atual: SERVICE_ORDER_STATUSES.Completed,
+        comandos_validos: [
+          {
+            comando: 'complete',
+            label: 'Registrar medição',
+            requer_permissao: 'service-orders:execution:complete',
+            usuario_tem_permissao: true,
+          },
+        ],
+        comandos_invalidos_para_status: ['prepare', 'release'],
+      },
+    });
 
     await findHeaderReference();
 
-    // OS concluida: o proximo passo real e a medicao.
     const panel = screen.getByRole('region', { name: 'Próxima ação' });
     expect(within(panel).getAllByText('Registrar medição').length).toBeGreaterThan(0);
     expect(within(panel).getByRole('link', { name: 'Registrar medição' })).toHaveAttribute(
@@ -335,7 +402,7 @@ describe('ordem de serviço — object page canônica', () => {
     expect(screen.getByRole('button', { name: 'Registrar medição' })).toBeEnabled();
   });
 
-  it('abre a alocação real (fluxo existente) quando o status está na etapa de planejamento', async () => {
+  it('abre a alocação real (fluxo existente) quando o backend oferece comando de etapa', async () => {
     const user = userEvent.setup();
     renderObjectPage(
       orderDetail({
@@ -345,14 +412,32 @@ describe('ordem de serviço — object page canônica', () => {
           availableTransitions: ['start', 'cancel'],
         }),
       }),
-      { planned: [plannedTruck()], allocationProbe: 'allowed' },
+      {
+        planned: [plannedTruck()],
+        allocationProbe: 'allowed',
+        availableActions: {
+          service_order_id: SERVICE_ORDER_ID,
+          status_atual: SERVICE_ORDER_STATUSES.Released,
+          comandos_validos: [
+            // `pause`/`resume`/`complete` são comandos de etapa: a página nomeia o passo
+            // (sem link), porque o destino é a própria superfície de execução/medição.
+            {
+              comando: 'plan',
+              label: 'Alocar recursos',
+              requer_permissao: 'service-orders:planned-resource:plan',
+              usuario_tem_permissao: true,
+            },
+          ],
+          comandos_invalidos_para_status: ['prepare', 'release'],
+        },
+      },
     );
 
     await findHeaderReference();
 
-    // OS liberada: o passo real e alocar um recurso planejado, e isso acontece nesta pagina.
+    // Comando de etapa que acontece NESTA página: o painel nomeia sem oferecer link.
     const panel = screen.getByRole('region', { name: 'Próxima ação' });
-    expect(within(panel).getByText('Alocar recursos')).toBeInTheDocument();
+    expect(within(panel).getAllByText('Alocar recursos').length).toBeGreaterThan(0);
     expect(within(panel).queryByRole('link')).not.toBeInTheDocument();
 
     const primary = screen.getByRole('button', { name: 'Alocar recursos' });
@@ -364,7 +449,7 @@ describe('ordem de serviço — object page canônica', () => {
     expect(within(dialog).getByLabelText(/início operacional/i)).toBeInTheDocument();
   });
 
-  it('não oferece transição de ciclo de vida sem confirmação real do backend', async () => {
+  it('não oferece transição de ciclo de vida quando o backend não devolve comando válido', async () => {
     renderObjectPage(
       orderDetail({
         status: SERVICE_ORDER_STATUSES.Draft,
@@ -372,15 +457,15 @@ describe('ordem de serviço — object page canônica', () => {
         releasedAt: null,
         controlCenter: controlCenter({ status: SERVICE_ORDER_STATUSES.Draft }),
       }),
+      // O backend não oferece nenhum comando neste estado (ex.: ator sem permissão).
+      // A seção "Próxima ação" simplesmente não aparece — o front não inventa um passo.
     );
 
     await findHeaderReference();
 
-    const panel = screen.getByRole('region', { name: 'Próxima ação' });
-    // O passo real e nomeado, mas SEM controle: `availableTransitions` nao confirma `prepare`.
-    expect(within(panel).getByText('Preparar OS')).toBeInTheDocument();
-    expect(within(panel).queryByRole('link')).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Próxima ação' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Preparar OS' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Preparar' })).not.toBeInTheDocument();
   });
 
   it('leva a transição de ciclo de vida confirmada para o recorte REAL da lista', async () => {
@@ -393,12 +478,28 @@ describe('ordem de serviço — object page canônica', () => {
           availableTransitions: ['release', 'cancel'],
         }),
       }),
+      {
+        // B5: o comando e o rótulo vêm do backend; o front só escolhe a superfície.
+        availableActions: {
+          service_order_id: SERVICE_ORDER_ID,
+          status_atual: SERVICE_ORDER_STATUSES.Prepared,
+          comandos_validos: [
+            {
+              comando: 'release',
+              label: 'Liberar',
+              requer_permissao: 'service-orders:service-order:release',
+              usuario_tem_permissao: true,
+            },
+          ],
+          comandos_invalidos_para_status: ['prepare', 'start'],
+        },
+      },
     );
 
     await findHeaderReference();
 
     const panel = screen.getByRole('region', { name: 'Próxima ação' });
-    expect(within(panel).getByRole('link', { name: 'Liberar OS' })).toHaveAttribute(
+    expect(within(panel).getByRole('link', { name: 'Liberar' })).toHaveAttribute(
       'href',
       `/app/service-orders?q=${ORDER_NUMBER}`,
     );

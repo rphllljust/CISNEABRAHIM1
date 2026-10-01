@@ -1,66 +1,41 @@
 import { SERVICE_ORDER_STATUSES, type ServiceOrderStatus } from '../types/service-order.types';
 
-/**
- * Leitura de produto da maquina de estados de OS.
+/*
+ * SESSÃO B5 — O MAPA status→comando FOI REMOVIDO DAQUI.
  *
- * Nao cria estado, nao cria transicao e nao decide nada: apenas nomeia, em linguagem
- * operacional, o passo que o backend JA permite a partir do status atual. As transicoes
- * abaixo espelham exatamente as que `ServiceOrdersListPage` ja executa hoje
- * (prepareServiceOrder / releaseServiceOrder / reopenServiceOrder) e as etapas ja
- * existentes de planejamento, execucao e medicao.
+ * Este arquivo mantinha `NEXT_ACTION_BY_STATUS`: um mapa completo de status para comando
+ * ("prepare", "release", "reopen"), com rótulos hardcoded. Era uma segunda implementação
+ * da state machine — a primeira sendo a do backend.
+ *
+ * O defeito não era hipotético: qualquer transição nova no backend exigia alteração nos
+ * dois lados, e o front podia oferecer um comando que o backend rejeitaria (ou esconder
+ * um que ele passou a aceitar).
+ *
+ * A fonte de verdade agora é `GET /service-orders/:id/available-actions`, consumida por
+ * `useAvailableActions` + `ServiceOrderRowActions`. O backend decide quais comandos
+ * existem, seus rótulos e se o usuário tem permissão.
+ *
+ * O que PERMANECE neste arquivo é apresentação, não regra de comando:
+ *   - `resolveServiceOrderAttention`: destaca exceção operacional (prazo, responsável).
+ *   - `serviceOrderAttentionClass`: cor da atenção.
+ * Nenhuma das duas decide qual comando é possível.
  */
-export type ServiceOrderNextAction =
-  | { kind: 'lifecycle'; intent: 'prepare' | 'release' | 'reopen'; label: string }
-  | { kind: 'stage'; stage: 'planning' | 'execution' | 'measurement'; label: string }
-  | { kind: 'none'; label: string };
-
-const NEXT_ACTION_BY_STATUS: Record<ServiceOrderStatus, ServiceOrderNextAction> = {
-  [SERVICE_ORDER_STATUSES.Draft]: {
-    kind: 'lifecycle',
-    intent: 'prepare',
-    label: 'Preparar OS',
-  },
-  [SERVICE_ORDER_STATUSES.Prepared]: {
-    kind: 'lifecycle',
-    intent: 'release',
-    label: 'Liberar OS',
-  },
-  [SERVICE_ORDER_STATUSES.Released]: {
-    kind: 'stage',
-    stage: 'planning',
-    label: 'Alocar recursos',
-  },
-  [SERVICE_ORDER_STATUSES.InExecution]: {
-    kind: 'stage',
-    stage: 'execution',
-    label: 'Registrar execução',
-  },
-  [SERVICE_ORDER_STATUSES.Paused]: {
-    kind: 'stage',
-    stage: 'execution',
-    label: 'Retomar execução',
-  },
-  [SERVICE_ORDER_STATUSES.Completed]: {
-    kind: 'stage',
-    stage: 'measurement',
-    label: 'Registrar medição',
-  },
-  [SERVICE_ORDER_STATUSES.Cancelled]: {
-    kind: 'lifecycle',
-    intent: 'reopen',
-    label: 'Reabrir OS',
-  },
-};
-
-export function resolveServiceOrderNextAction(status: ServiceOrderStatus): ServiceOrderNextAction {
-  return NEXT_ACTION_BY_STATUS[status] ?? { kind: 'none', label: 'Sem próxima ação' };
-}
-
-export function serviceOrderStagePath(serviceOrderId: string, stage: 'planning' | 'execution' | 'measurement'): string {
-  return `/app/service-orders/${serviceOrderId}/${stage}`;
-}
 
 export type ServiceOrderAttentionTone = 'critical' | 'warning' | 'neutral';
+
+/**
+ * Caminho de navegação para uma etapa da OS.
+ *
+ * NÃO é regra de comando: é roteamento. As etapas são superfícies fixas do produto
+ * (planejamento/execução/medição), não transições da state machine — por isso
+ * permanece aqui depois da remoção do mapa status→comando.
+ */
+export function serviceOrderStagePath(
+  serviceOrderId: string,
+  stage: 'planning' | 'execution' | 'measurement',
+): string {
+  return `/app/service-orders/${serviceOrderId}/${stage}`;
+}
 
 export type ServiceOrderAttention = {
   tone: ServiceOrderAttentionTone;

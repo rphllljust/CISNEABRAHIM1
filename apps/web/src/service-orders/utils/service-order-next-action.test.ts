@@ -1,45 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { SERVICE_ORDER_STATUSES } from '../types/service-order.types';
-import {
-  resolveServiceOrderAttention,
-  resolveServiceOrderNextAction,
-} from './service-order-next-action';
+import { resolveServiceOrderAttention } from './service-order-next-action';
 
 const NOW = new Date('2026-03-10T12:00:00.000Z');
 
-describe('service-order-next-action', () => {
-  it('nomeia a proxima acao liberada pela maquina de estados', () => {
-    expect(resolveServiceOrderNextAction(SERVICE_ORDER_STATUSES.Draft)).toEqual({
-      kind: 'lifecycle',
-      intent: 'prepare',
-      label: 'Preparar OS',
-    });
-    expect(resolveServiceOrderNextAction(SERVICE_ORDER_STATUSES.Prepared)).toEqual({
-      kind: 'lifecycle',
-      intent: 'release',
-      label: 'Liberar OS',
-    });
-    expect(resolveServiceOrderNextAction(SERVICE_ORDER_STATUSES.Released)).toEqual({
-      kind: 'stage',
-      stage: 'planning',
-      label: 'Alocar recursos',
-    });
-    expect(resolveServiceOrderNextAction(SERVICE_ORDER_STATUSES.InExecution)).toEqual({
-      kind: 'stage',
-      stage: 'execution',
-      label: 'Registrar execução',
-    });
-    expect(resolveServiceOrderNextAction(SERVICE_ORDER_STATUSES.Completed)).toEqual({
-      kind: 'stage',
-      stage: 'measurement',
-      label: 'Registrar medição',
-    });
-    expect(resolveServiceOrderNextAction(SERVICE_ORDER_STATUSES.Cancelled)).toEqual({
-      kind: 'lifecycle',
-      intent: 'reopen',
-      label: 'Reabrir OS',
-    });
-  });
+/*
+ * SESSÃO B5 — o caso "nomeia a proxima acao liberada pela maquina de estados" foi REMOVIDO.
+ *
+ * Ele provava `resolveServiceOrderNextAction`: um mapa status→comando mantido no frontend,
+ * que duplicava a state machine do backend. A função deixou de existir; a decisão de quais
+ * comandos são válidos agora vem de `GET /service-orders/:id/available-actions`, coberta
+ * pelo E2E de consumo contra a API real (`e2e/meta/service-order-meta.journey.spec.ts`).
+ *
+ * Testar o mapa de novo aqui reintroduziria a duplicação que B5 removeu.
+ */
+
+describe('service-order-next-action (apresentação)', () => {
 
   it('explicita prazo vencido, prazo proximo e ausencia de responsavel', () => {
     expect(

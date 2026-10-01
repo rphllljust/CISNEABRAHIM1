@@ -34,15 +34,15 @@ describe('service orders list e2e (frontend)', () => {
       expect(screen.getByRole('link', { name: 'OS-2026-DEMO01' })).toBeInTheDocument();
     });
 
+    // B5: o identificador abre a visão geral da OS, onde vivem ações e histórico.
     expect(screen.getByRole('link', { name: 'OS-2026-DEMO01' })).toHaveAttribute(
       'href',
-      `/app/service-orders/${MOCK_SERVICE_ORDER_ID}/planning`,
+      `/app/service-orders/${MOCK_SERVICE_ORDER_ID}`,
     );
-    // OS liberada (mock): a próxima ação operacional é alocar recursos, e o alvo é o planejamento.
-    expect(screen.getByRole('link', { name: 'Alocar recursos' })).toHaveAttribute(
-      'href',
-      `/app/service-orders/${MOCK_SERVICE_ORDER_ID}/planning`,
-    );
+    // OS liberada (mock): o BACKEND oferece "start" (iniciar execução) e "cancel".
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Iniciar execução' })).toBeInTheDocument();
+    });
   }, 20000);
 
   it('preserves overdue filter from dashboard attention URL', async () => {

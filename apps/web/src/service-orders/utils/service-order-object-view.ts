@@ -14,7 +14,8 @@ import {
   type ServiceOrderStatus,
 } from '../types/service-order.types';
 import { buildServiceOrdersListHref } from './service-order-list-params';
-import { resolveServiceOrderNextAction, serviceOrderStagePath } from './service-order-next-action';
+import { serviceOrderStagePath } from './service-order-next-action';
+import type { AvailableAction } from '../types/service-order-meta.types';
 import {
   formatClientLabel,
   formatDateTime,
@@ -248,31 +249,39 @@ export function buildServiceOrderRelationSpecs(input: {
 }
 
 /**
- * Proxima acao operacional, derivada de `resolveServiceOrderNextAction` (status real) somada
- * a autorizacao real e dado real.
+ * Próxima ação operacional, dirigida pelo BACKEND.
  *
- * - etapa (execucao/medicao): destino real, liberado pela leitura da OS;
- * - etapa de planejamento: acontece NESTA pagina — o painel nomeia o passo sem oferecer um
- *   link que voltaria para o mesmo lugar;
- * - transicao de ciclo de vida (preparar/liberar/reabrir): o comando existe na lista de OS
- *   filtrada pelo numero real. O controle so aparece quando `availableTransitions` (avaliado
- *   pelo backend com a acao exata de cada comando) confirma a transicao para este ator;
- * - sem derivacao honesta: `null`, e a secao desaparece.
+ * ANTES (removido em B5): derivava do mapa local `resolveServiceOrderNextAction(status)`,
+ * ou seja, o front mantinha a sua própria cópia da state machine e depois "confirmava" com
+ * `availableTransitions` — duas fontes para a mesma decisão.
+ *
+ * AGORA: a lista de comandos válidos vem de `available-actions` (backend). Esta função
+ * apenas escolhe COMO apresentar o primeiro comando que o backend ofereceu:
+ *
+ * - comando de etapa (`start`/`pause`/`resume`/`complete`): aponta para a superfície real;
+ * - comando de ciclo de vida (`prepare`/`release`/`reopen`): aponta para a lista de OS,
+ *   onde o comando é executado;
+ * - `planning`: acontece NESTA página — o painel nomeia o passo sem oferecer um link que
+ *   voltaria para o mesmo lugar;
+ * - sem comando válido: `null`, e a seção desaparece.
  */
 export function buildServiceOrderNextAction(input: {
   serviceOrderId: string;
   orderNumber: string;
-  status: ServiceOrderStatus;
-  availableTransitions: readonly string[];
+  availableActions: readonly AvailableAction[];
   canReadServiceOrder: boolean;
 }): NextAction | null {
-  const derived = resolveServiceOrderNextAction(input.status);
+  const action = input.availableActions[0];
+  if (!action) {
+    return null;
+  }
 
-  if (derived.kind === 'stage') {
-    if (derived.stage === 'planning') {
+  if (STAGE_COMMANDS[action.comando]) {
+    const stage = STAGE_COMMANDS[action.comando]!;
+    if (stage === 'planning') {
       return {
         kind: 'act',
-        label: derived.label,
+        label: action.label,
         description: 'Planejamento e alocação são feitos nesta página.',
       };
     }
@@ -281,25 +290,34 @@ export function buildServiceOrderNextAction(input: {
     }
     return {
       kind: 'act',
-      label: derived.label,
-      to: serviceOrderStagePath(input.serviceOrderId, derived.stage),
+      label: action.label,
+      to: serviceOrderStagePath(input.serviceOrderId, stage),
     };
   }
 
-  if (derived.kind === 'lifecycle') {
-    const confirmed = input.availableTransitions.includes(derived.intent);
-    return {
-      kind: 'act',
-      label: derived.label,
-      description: confirmed
-        ? 'Transição de ciclo de vida executada na lista de ordens de serviço.'
-        : undefined,
-      to: confirmed ? buildServiceOrdersListHref({ q: input.orderNumber }) : undefined,
-    };
-  }
-
-  return null;
+  // Comando de ciclo de vida: o executor vive na lista de ordens de serviço.
+  return {
+    kind: 'act',
+    label: action.label,
+    description: 'Transição de ciclo de vida executada na lista de ordens de serviço.',
+    to: buildServiceOrdersListHref({ q: input.orderNumber }),
+  };
 }
+
+/**
+ * Comandos que pertencem a uma superfície de etapa, e qual é.
+ *
+ * Não é uma cópia da state machine: não diz QUANDO o comando é válido (isso vem de
+ * `available-actions`). Diz apenas ONDE ele é executado, que é decisão de navegação do front.
+ */
+const STAGE_COMMANDS: Record<string, 'planning' | 'execution' | 'measurement' | null> = {
+  // Planejamento acontece na própria página de planejamento: sem link de saída.
+  plan: 'planning',
+  start: 'execution',
+  pause: 'execution',
+  resume: 'execution',
+  complete: 'measurement',
+};
 
 function persistedStatusLabel(value: unknown): string | null {
   if (typeof value !== 'string' || !KNOWN_STATUSES.includes(value)) {

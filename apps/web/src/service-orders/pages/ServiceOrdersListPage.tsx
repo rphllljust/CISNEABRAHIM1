@@ -17,7 +17,7 @@ import {
   SERVICE_ORDER_LIST_FILTERS,
   SERVICE_ORDER_LIST_ORDERS,
 } from '../types/service-order-list.types';
-import { SERVICE_ORDER_STATUSES, type ServiceOrderStatus } from '../types/service-order.types';
+import { SERVICE_ORDER_STATUSES } from '../types/service-order.types';
 import {
   buildServiceOrderListSearchParams,
   EMPTY_SERVICE_ORDER_LIST_PARAMS,
@@ -32,20 +32,16 @@ import {
 } from '../utils/service-order-labels';
 import {
   resolveServiceOrderAttention,
-  resolveServiceOrderNextAction,
   serviceOrderAttentionClass,
-  serviceOrderStagePath,
 } from '../utils/service-order-next-action';
-import { Button } from '../../ui/Button';
+import { ServiceOrderRowActions } from '../components/ServiceOrderRowActions';
 import { ConfirmAction } from '../../ui/ConfirmAction';
 import { HumanLookupField } from '../../financial-ui/HumanLookupField';
 import { searchClientOptions } from '../../financial-ui/client-lookup';
-import { Link } from 'react-router-dom';
 import {
   EnterpriseMetric,
   PrimaryRecordCell,
   RecordStatusCell,
-  RowActionMenu,
   WorklistClearFilters,
   WorklistField,
   WorklistFilterBar,
@@ -59,7 +55,6 @@ import {
   enterpriseRowClass,
   enterpriseTableCardClass,
   enterpriseTableClass,
-  rowPrimaryActionClass,
   rowSecondaryActionClass,
   worklistControlClass,
   worklistSelectClass,
@@ -74,17 +69,6 @@ import {
 } from '../../ui/module-layout';
 
 const PAGE_SIZE = 20;
-
-const CANCELLABLE_SERVICE_ORDER_STATUSES = new Set<ServiceOrderStatus>([
-  SERVICE_ORDER_STATUSES.Draft,
-  SERVICE_ORDER_STATUSES.Prepared,
-  SERVICE_ORDER_STATUSES.Released,
-]);
-
-const REOPENABLE_SERVICE_ORDER_STATUSES = new Set<ServiceOrderStatus>([
-  SERVICE_ORDER_STATUSES.Cancelled,
-  SERVICE_ORDER_STATUSES.Completed,
-]);
 
 type ListState =
   | { phase: 'loading' }
@@ -253,6 +237,36 @@ export function ServiceOrdersListPage() {
         ? `Ordem de serviço ${order.orderNumber} cancelada.`
         : `Ordem de serviço ${order.orderNumber} reaberta.`;
     void runLifecycleAction(order, () => action, message);
+  }
+
+  /**
+   * Executa um comando de ciclo de vida declarado válido pelo BACKEND.
+   *
+   * Antes de B5, a própria lista decidia qual comando rodar a partir do status
+   * (`nextAction.intent`). Agora ela recebe o nome do comando do backend e apenas o
+   * despacha; `cancel` e `reopen` continuam exigindo justificativa, por isso passam pelo
+   * diálogo em vez de executar direto.
+   */
+  function runBackendCommand(order: ServiceOrderSummary, command: string): void {
+    if (command === 'cancel' || command === 'reopen') {
+      openConfirmDialog(command, order);
+      return;
+    }
+    if (command === 'prepare') {
+      void runLifecycleAction(
+        order,
+        () => prepareServiceOrder(order.id, order.rowVersion),
+        `Ordem de serviço ${order.orderNumber} preparada.`,
+      );
+      return;
+    }
+    if (command === 'release') {
+      void runLifecycleAction(
+        order,
+        () => releaseServiceOrder(order.id, order.rowVersion),
+        `Ordem de serviço ${order.orderNumber} liberada.`,
+      );
+    }
   }
 
   const filterDescription = resolveFilterDescription(filters);
@@ -519,10 +533,11 @@ export function ServiceOrdersListPage() {
           </thead>
           <tbody>
             {items.map((item) => {
-              const nextAction = resolveServiceOrderNextAction(item.status);
               const attention = resolveServiceOrderAttention(item);
               const lifecyclePending = pendingOrderId === item.id;
-              const openPath = `/app/service-orders/${item.id}/planning`;
+              // A visão geral da OS (B5) concentra ações e histórico; o planejamento
+              // continua acessível a partir dela.
+              const openPath = `/app/service-orders/${item.id}`;
               return (
                 <tr key={item.id} className={enterpriseRowClass}>
                   <td className={enterpriseCellClass}>
@@ -561,77 +576,17 @@ export function ServiceOrdersListPage() {
                     <span className="tabular-nums">{formatDeadlineLabel(item.deadlineAt)}</span>
                   </td>
                   <td className={enterpriseNumericCellClass}>
-                    {/* UMA acao primaria; o resto fica no menu "•••" para nao competir. */}
-                    <RowActionMenu
-                      label={item.orderNumber}
-                      primary={
-                        nextAction.kind === 'lifecycle' ? (
-                          <Button
-                            type="button"
-                            variant="primary"
-                            className="px-2.5 py-1 text-xs"
-                            disabled={lifecyclePending}
-                            onClick={() => {
-                              if (nextAction.intent === 'prepare') {
-                                void runLifecycleAction(
-                                  item,
-                                  () => prepareServiceOrder(item.id, item.rowVersion),
-                                  `Ordem de serviço ${item.orderNumber} preparada.`,
-                                );
-                                return;
-                              }
-                              if (nextAction.intent === 'release') {
-                                void runLifecycleAction(
-                                  item,
-                                  () => releaseServiceOrder(item.id, item.rowVersion),
-                                  `Ordem de serviço ${item.orderNumber} liberada.`,
-                                );
-                                return;
-                              }
-                              openConfirmDialog('reopen', item);
-                            }}
-                          >
-                            {nextAction.label}
-                          </Button>
-                        ) : nextAction.kind === 'stage' ? (
-                          <Link
-                            to={serviceOrderStagePath(item.id, nextAction.stage)}
-                            className={rowPrimaryActionClass}
-                          >
-                            {nextAction.label}
-                          </Link>
-                        ) : (
-                          <span className="text-xs text-gray-500">Encerrada</span>
-                        )
-                      }
-                      secondary={
-                        <>
-                          <Link to={openPath} className={rowSecondaryActionClass}>
-                            Abrir OS
-                          </Link>
-                          {CANCELLABLE_SERVICE_ORDER_STATUSES.has(item.status) ? (
-                            <button
-                              type="button"
-                              className={`${rowSecondaryActionClass} text-left disabled:cursor-not-allowed disabled:opacity-60`}
-                              disabled={lifecyclePending}
-                              onClick={() => openConfirmDialog('cancel', item)}
-                            >
-                              Cancelar
-                            </button>
-                          ) : null}
-                          {REOPENABLE_SERVICE_ORDER_STATUSES.has(item.status) &&
-                          !(nextAction.kind === 'lifecycle' && nextAction.intent === 'reopen') ? (
-                            <button
-                              type="button"
-                              className={`${rowSecondaryActionClass} text-left disabled:cursor-not-allowed disabled:opacity-60`}
-                              disabled={lifecyclePending}
-                              onClick={() => openConfirmDialog('reopen', item)}
-                            >
-                              Reabrir
-                            </button>
-                          ) : null}
-                        </>
-                      }
+                    <ServiceOrderRowActions
+                      serviceOrderId={item.id}
+                      orderNumber={item.orderNumber}
+                      status={item.status}
+                      openPath={openPath}
+                      busy={lifecyclePending}
+                      onCancel={() => openConfirmDialog('cancel', item)}
+                      onReopen={() => openConfirmDialog('reopen', item)}
+                      onCommand={(command) => runBackendCommand(item, command)}
+                      primaryClassName="px-2.5 py-1 text-xs"
+                      secondaryClassName={rowSecondaryActionClass}
                     />
                     {lifecyclePending ? (
                       <span className="mt-1 text-[11px] text-gray-500" role="status">
