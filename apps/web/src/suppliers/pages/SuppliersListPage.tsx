@@ -32,6 +32,7 @@ import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge'
 import { SUPPLIER_STATUS_LABELS } from '../../financial-ui/labels';
 import { mapSupplierErrorToMessage } from '../api/supplier-error-messages';
 import { listSuppliers } from '../api/suppliers-api';
+import { SupplierRowActions } from '../components/SupplierRowActions';
 import type { SupplierSummary } from '../types/supplier.types';
 import { SavedViewsBar, useSmartList } from '../../operator';
 
@@ -84,6 +85,13 @@ export function SuppliersListPage() {
   const [query, setQuery] = useState('');
   const [appliedQuery, setAppliedQuery] = useState('');
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
+  /**
+   * Gatilho de recarga da lista após um comando de linha.
+   *
+   * Ativar/inativar/arquivar mudam o STATUS do fornecedor; a linha precisa refletir o novo
+   * estado (e os novos comandos válidos) sem exigir refresh manual da página.
+   */
+  const [actionsNonce, setActionsNonce] = useState(0);
 
   // ADOCAO DE SAVED VIEWS: o status sai do estado local e passa a viver na URL e na
   // visao salva, com o mesmo mecanismo ja usado em Clientes, Despesas, Orcamentos,
@@ -143,7 +151,9 @@ export function SuppliersListPage() {
     const controller = new AbortController();
     void loadPage(0, controller.signal);
     return () => controller.abort();
-  }, [loadPage]);
+    // `actionsNonce` entra porque um comando de linha altera o status do fornecedor: sem ele
+    // a lista continuaria exibindo o estado anterior e os comandos que já não valem.
+  }, [loadPage, actionsNonce]);
 
   if (listState.phase === 'loading') {
     return (
@@ -300,6 +310,9 @@ export function SuppliersListPage() {
                 <th scope="col" className={worklistHeadCellClass}>
                   Status
                 </th>
+                <th scope="col" className={worklistHeadCellClass}>
+                  Ações
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -326,6 +339,19 @@ export function SuppliersListPage() {
                       badge={
                         <FinanceStatusBadge status={supplier.status} labels={SUPPLIER_STATUS_LABELS} />
                       }
+                    />
+                  </td>
+                  <td className={worklistCellRaisedClass}>
+                    {/*
+                      Ações dirigidas pelo BACKEND (`/suppliers/:id/available-actions`).
+                      Substitui qualquer decisão local de "quais comandos este status permite".
+                    */}
+                    <SupplierRowActions
+                      supplierId={supplier.id}
+                      status={supplier.status}
+                      version={supplier.version}
+                      openPath={`/app/suppliers/${supplier.id}`}
+                      onChanged={() => setActionsNonce((value) => value + 1)}
                     />
                   </td>
                 </tr>

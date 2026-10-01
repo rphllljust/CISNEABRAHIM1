@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import { DatabaseService } from '../../infrastructure/database/database.service';
+import { AuditService } from '../../audit/audit.service';
+import { AUDIT_ACTIONS } from '../../audit/audit-trail.types';
 import { SUPPLIER_HISTORY_KINDS } from '../domain/supplier';
 import type {
   SupplierAddressRow,
@@ -13,9 +15,40 @@ const SUPPLIER_RETURNING = `
   status::text AS status, version, created_at, updated_at, deactivated_at, deactivation_reason
 `;
 
+/** Tabela auditada no canal AUDIT_TRAIL. Casa com o filtro de `GET /:id/audit-timeline`. */
+const SUPPLIER_AUDIT_TABLE = 'suppliers';
+
+/**
+ * Grade de estado gravada na trilha.
+ *
+ * Mesmo formato do domínio de OS (`status`/`rowVersion`/`updatedAt`), acrescido de `comando`
+ * quando a mudança vem de um comando do catálogo. É esse `comando` que a timeline devolve em
+ * `comando`, e é ele que a permite distinguir "inativação" de "arquivamento" sem ler o
+ * snapshot cru.
+ */
+function supplierAuditSnapshot(
+  row: SupplierRow,
+  comando?: string,
+): Record<string, unknown> {
+  return {
+    status: row.status,
+    rowVersion: row.version,
+    updatedAt: row.updated_at,
+    ...(comando ? { comando } : {}),
+  };
+}
+
 @Injectable()
 export class SuppliersRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    /**
+     * Canal AUDIT_TRAIL. Obrigatório: toda transição de fornecedor passa por aqui, e a
+     * `GET /:id/audit-timeline` depende desta gravação. Sem ele o repositório não compila —
+     * falha explícita em vez de trilha silenciosamente vazia.
+     */
+    private readonly auditService: AuditService,
+  ) {}
 
   private pool(): Pool {
     const connection = this.databaseService.getConnection();
@@ -164,6 +197,8 @@ export class SuppliersRepository {
       country?: string;
     }>;
     actorIdentityId: string;
+    /** Correlação da requisição. Obrigatória: `audit.audit_logs.correlation_id` é NOT NULL. */
+    correlationId: string;
   }): Promise<SupplierRow> {
     const client = await this.pool().connect();
     try {
@@ -214,6 +249,19 @@ export class SuppliersRepository {
          VALUES ($1, $2, $3)`,
         [supplier.id, SUPPLIER_HISTORY_KINDS.Created, input.actorIdentityId],
       );
+      // Trilha AUDIT_TRAIL na MESMA transação: um cadastro revertido não deixa rastro.
+      await this.auditService.registrar(
+        {
+          tabela: SUPPLIER_AUDIT_TABLE,
+          registroId: supplier.id,
+          acao: AUDIT_ACTIONS.Create,
+          dadosAntigos: null,
+          dadosNovos: supplierAuditSnapshot(supplier),
+          usuarioId: input.actorIdentityId,
+          correlationId: input.correlationId,
+        },
+        client,
+      );
       await client.query('COMMIT');
       return supplier;
     } catch (error) {
@@ -233,6 +281,7 @@ export class SuppliersRepository {
     paymentTerms?: string | null;
     currencyCode?: string;
     actorIdentityId: string;
+    correlationId: string;
   }): Promise<SupplierRow | 'VERSION_CONFLICT' | null> {
     const sets = ['updated_at = NOW()', 'version = version + 1'];
     const params: unknown[] = [input.supplierId, input.expectedVersion];
@@ -257,29 +306,64 @@ export class SuppliersRepository {
       sets.push(`currency_code = $${index++}`);
       params.push(input.currencyCode);
     }
-    const updated = await this.pool().query<SupplierRow>(
-      `UPDATE pty.suppliers SET ${sets.join(', ')}
-       WHERE id = $1 AND version = $2
-       RETURNING ${SUPPLIER_RETURNING}`,
-      params,
-    );
-    if (!updated.rows[0]) {
-      const exists = await this.findRowById(input.supplierId);
-      return exists ? 'VERSION_CONFLICT' : null;
+
+    // A leitura do estado ANTERIOR é necessária para a trilha: o canal AUDIT_TRAIL grava o
+    // PAR dado_antigo/dado_novo, e sem o anterior o evento de UPDATE não teria contra o que
+    // comparar. Fica na MESMA transação da escrita para não ler estado concorrente.
+    const client = await this.pool().connect();
+    try {
+      await client.query('BEGIN');
+      const before = await client.query<SupplierRow>(
+        `SELECT ${SUPPLIER_RETURNING} FROM pty.suppliers WHERE id = $1`,
+        [input.supplierId],
+      );
+      const updated = await client.query<SupplierRow>(
+        `UPDATE pty.suppliers SET ${sets.join(', ')}
+         WHERE id = $1 AND version = $2
+         RETURNING ${SUPPLIER_RETURNING}`,
+        params,
+      );
+      if (!updated.rows[0]) {
+        await client.query('ROLLBACK');
+        const exists = await this.findRowById(input.supplierId);
+        return exists ? 'VERSION_CONFLICT' : null;
+      }
+      const after = updated.rows[0];
+      await client.query(
+        `INSERT INTO pty.supplier_history_events (supplier_id, event_kind, actor_identity_id)
+         VALUES ($1, $2, $3)`,
+        [input.supplierId, SUPPLIER_HISTORY_KINDS.Updated, input.actorIdentityId],
+      );
+      await this.auditService.registrar(
+        {
+          tabela: SUPPLIER_AUDIT_TABLE,
+          registroId: input.supplierId,
+          acao: AUDIT_ACTIONS.Update,
+          dadosAntigos: before.rows[0] ? supplierAuditSnapshot(before.rows[0]) : null,
+          dadosNovos: supplierAuditSnapshot(after),
+          usuarioId: input.actorIdentityId,
+          correlationId: input.correlationId,
+        },
+        client,
+      );
+      await client.query('COMMIT');
+      return after;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
-    await this.pool().query(
-      `INSERT INTO pty.supplier_history_events (supplier_id, event_kind, actor_identity_id)
-       VALUES ($1, $2, $3)`,
-      [input.supplierId, SUPPLIER_HISTORY_KINDS.Updated, input.actorIdentityId],
-    );
-    return updated.rows[0];
   }
 
   async setStatus(input: {
     supplierId: string;
     expectedVersion: number;
-    status: 'ACTIVE' | 'INACTIVE';
+    status: 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
     actorIdentityId: string;
+    correlationId: string;
+    /** Comando do catálogo que originou a transição (`activate`/`deactivate`/`archive`). */
+    comando?: string;
     reason?: string;
   }): Promise<SupplierRow | 'VERSION_CONFLICT' | 'INVALID_STATE' | null> {
     const current = await this.findRowById(input.supplierId);
@@ -292,30 +376,64 @@ export class SuppliersRepository {
     if (current.status === input.status) {
       return 'INVALID_STATE';
     }
-    const updated = await this.pool().query<SupplierRow>(
-      `UPDATE pty.suppliers
-       SET status = $3::pty.supplier_status,
-           version = version + 1,
-           updated_at = NOW(),
-           deactivated_at = CASE WHEN $3::text = 'INACTIVE' THEN NOW() ELSE deactivated_at END,
-           deactivated_by_identity_id = CASE WHEN $3::text = 'INACTIVE' THEN $4::uuid ELSE deactivated_by_identity_id END,
-           deactivation_reason = CASE WHEN $3::text = 'INACTIVE' THEN $5 ELSE deactivation_reason END
-       WHERE id = $1 AND version = $2
-       RETURNING ${SUPPLIER_RETURNING}`,
-      [input.supplierId, input.expectedVersion, input.status, input.actorIdentityId, input.reason ?? null],
-    );
-    if (!updated.rows[0]) {
-      return 'VERSION_CONFLICT';
+
+    const client = await this.pool().connect();
+    try {
+      await client.query('BEGIN');
+      const updated = await client.query<SupplierRow>(
+        `UPDATE pty.suppliers
+         SET status = $3::pty.supplier_status,
+             version = version + 1,
+             updated_at = NOW(),
+             deactivated_at = CASE WHEN $3::text = 'INACTIVE' THEN NOW() ELSE deactivated_at END,
+             deactivated_by_identity_id = CASE WHEN $3::text = 'INACTIVE' THEN $4::uuid ELSE deactivated_by_identity_id END,
+             deactivation_reason = CASE WHEN $3::text = 'INACTIVE' THEN $5 ELSE deactivation_reason END,
+             archived_at = CASE WHEN $3::text = 'ARCHIVED' THEN NOW() ELSE archived_at END,
+             archived_by_identity_id = CASE WHEN $3::text = 'ARCHIVED' THEN $4::uuid ELSE archived_by_identity_id END,
+             archive_reason = CASE WHEN $3::text = 'ARCHIVED' THEN $5 ELSE archive_reason END
+         WHERE id = $1 AND version = $2
+         RETURNING ${SUPPLIER_RETURNING}`,
+        [input.supplierId, input.expectedVersion, input.status, input.actorIdentityId, input.reason ?? null],
+      );
+      if (!updated.rows[0]) {
+        await client.query('ROLLBACK');
+        return 'VERSION_CONFLICT';
+      }
+      const after = updated.rows[0];
+      await client.query(
+        `INSERT INTO pty.supplier_history_events (supplier_id, event_kind, actor_identity_id)
+         VALUES ($1, $2, $3)`,
+        [input.supplierId, historyKindFor(input.status), input.actorIdentityId],
+      );
+      await this.auditService.registrar(
+        {
+          tabela: SUPPLIER_AUDIT_TABLE,
+          registroId: input.supplierId,
+          acao: AUDIT_ACTIONS.Transition,
+          dadosAntigos: supplierAuditSnapshot(current),
+          dadosNovos: supplierAuditSnapshot(after, input.comando),
+          usuarioId: input.actorIdentityId,
+          correlationId: input.correlationId,
+        },
+        client,
+      );
+      await client.query('COMMIT');
+      return after;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
-    await this.pool().query(
-      `INSERT INTO pty.supplier_history_events (supplier_id, event_kind, actor_identity_id)
-       VALUES ($1, $2, $3)`,
-      [
-        input.supplierId,
-        input.status === 'INACTIVE' ? SUPPLIER_HISTORY_KINDS.Deactivated : SUPPLIER_HISTORY_KINDS.Activated,
-        input.actorIdentityId,
-      ],
-    );
-    return updated.rows[0];
   }
+}
+
+function historyKindFor(status: 'ACTIVE' | 'INACTIVE' | 'ARCHIVED'): string {
+  if (status === 'ACTIVE') {
+    return SUPPLIER_HISTORY_KINDS.Activated;
+  }
+  if (status === 'ARCHIVED') {
+    return SUPPLIER_HISTORY_KINDS.Archived;
+  }
+  return SUPPLIER_HISTORY_KINDS.Deactivated;
 }

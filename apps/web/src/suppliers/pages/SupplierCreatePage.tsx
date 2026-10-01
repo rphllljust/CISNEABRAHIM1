@@ -1,11 +1,17 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Field, Input } from '../../ui';
-import { ModulePage, ModulePageHeader } from '../../ui/module-layout';
+import { ModulePage } from '../../ui/module-layout';
+import { WorklistHeader } from '../../ui/enterprise-list';
 import { CreateRecordForm } from '../../financial-ui/VersionedActionForm';
 import { mapSupplierErrorToMessage } from '../api/supplier-error-messages';
 import { createSupplier } from '../api/suppliers-api';
 
+/**
+ * CADASTRO DE FORNECEDOR — mesma cabeça compacta das demais superfícies da família. O formulário
+ * continua sendo o mesmo `CreateRecordForm` com os mesmos campos e o mesmo tratamento de erro; o
+ * que muda é a moldura, que deixa de ser um cabeçalho solto seguido de formulário.
+ */
 export function SupplierCreatePage() {
   const navigate = useNavigate();
   const [legalName, setLegalName] = useState('');
@@ -18,9 +24,17 @@ export function SupplierCreatePage() {
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      <WorklistHeader
         title="Novo fornecedor"
-        description="CNPJ e contato operacional são validados pelo servidor."
+        context="CNPJ e contato operacional são validados pelo servidor. O cadastro nasce inativo e a ativação exige checker distinto."
+        action={
+          <Link
+            to="/app/suppliers"
+            className="text-[13px] font-semibold text-brand-700 no-underline hover:text-brand-800"
+          >
+            ← Voltar para fornecedores
+          </Link>
+        }
       />
       <CreateRecordForm
         title="Cadastrar fornecedor"
@@ -82,7 +96,7 @@ export function SupplierCreatePage() {
           <Input id="supplier-phone" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} />
         </Field>
       </CreateRecordForm>
-      <p className="mt-4 text-sm text-gray-500">
+      <p className="mt-2 text-xs text-gray-500">
         Informe e-mail ou telefone do contato operacional: o servidor recusa contato sem canal.
       </p>
     </ModulePage>

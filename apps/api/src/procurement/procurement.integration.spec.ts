@@ -122,7 +122,7 @@ describe('Procurement core PostgreSQL integration', () => {
       taxId: SUPPLIER_CNPJ,
       paymentTerms: '30 DDL',
       contacts: [{ name: 'Compras', purpose: CONTACT_PURPOSES.Operational, email: 'ops@sup.invalid' }],
-    });
+    }, '22222222-2222-4222-8222-222222222222');
   }
 
   async function approvedRequest(actor: { identityId: string; sessionId: string }, quantity = '100') {

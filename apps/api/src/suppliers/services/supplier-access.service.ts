@@ -48,7 +48,16 @@ export class SupplierAccessService implements CommercialSupplierPort {
     private readonly sod: SodEnforcementService,
   ) {}
 
-  async create(actor: IdentityAuthzContext, input: CreateSupplierInput): Promise<SupplierResponse> {
+  async create(
+    actor: IdentityAuthzContext,
+    input: CreateSupplierInput,
+    /**
+     * Correlação da requisição, repassada à trilha AUDIT_TRAIL.
+     * `audit.audit_logs.correlation_id` é NOT NULL, e a rastreabilidade exige ligar a
+     * mutação à requisição que a originou.
+     */
+    correlationId: string,
+  ): Promise<SupplierResponse> {
     try {
       await this.authz.assertSupplierAction(actor, AUTHZ_ACTIONS.SupplierCreate, {
         id: actor.identityId,
@@ -64,6 +73,7 @@ export class SupplierAccessService implements CommercialSupplierPort {
         contacts: input.contacts,
         addresses: input.addresses,
         actorIdentityId: actor.identityId,
+        correlationId,
       });
       await this.audit(actor, SECURITY_AUDIT_ACTIONS.SupplierCreate, created.id);
       return this.assemble(created.id);
@@ -150,6 +160,7 @@ export class SupplierAccessService implements CommercialSupplierPort {
     actor: IdentityAuthzContext,
     supplierId: string,
     input: UpdateSupplierInput,
+    correlationId: string,
   ): Promise<SupplierResponse> {
     assertUuid(supplierId, 'supplierId');
     try {
@@ -168,6 +179,7 @@ export class SupplierAccessService implements CommercialSupplierPort {
         paymentTerms: input.paymentTerms,
         currencyCode: input.currencyCode,
         actorIdentityId: actor.identityId,
+        correlationId,
       });
       if (updated === null) {
         throw new SupplierError('SUPPLIER_NOT_FOUND');
@@ -187,6 +199,7 @@ export class SupplierAccessService implements CommercialSupplierPort {
     supplierId: string,
     version: number,
     reason: string,
+    correlationId: string,
   ): Promise<SupplierResponse> {
     assertUuid(supplierId, 'supplierId');
     try {
@@ -201,6 +214,8 @@ export class SupplierAccessService implements CommercialSupplierPort {
         expectedVersion: version,
         status: 'INACTIVE',
         actorIdentityId: actor.identityId,
+        correlationId,
+        comando: 'deactivate',
         reason,
       });
       if (updated === null) {
@@ -219,7 +234,12 @@ export class SupplierAccessService implements CommercialSupplierPort {
     }
   }
 
-  async activate(actor: IdentityAuthzContext, supplierId: string, version: number): Promise<SupplierResponse> {
+  async activate(
+    actor: IdentityAuthzContext,
+    supplierId: string,
+    version: number,
+    correlationId: string,
+  ): Promise<SupplierResponse> {
     assertUuid(supplierId, 'supplierId');
     try {
       const existing = await this.repository.findRowById(supplierId);
@@ -240,6 +260,8 @@ export class SupplierAccessService implements CommercialSupplierPort {
         expectedVersion: version,
         status: 'ACTIVE',
         actorIdentityId: actor.identityId,
+        correlationId,
+        comando: 'activate',
       });
       if (updated === null) {
         throw new SupplierError('SUPPLIER_NOT_FOUND');
@@ -251,6 +273,54 @@ export class SupplierAccessService implements CommercialSupplierPort {
         throw new SupplierError('SUPPLIER_INVALID_STATE');
       }
       await this.audit(actor, SECURITY_AUDIT_ACTIONS.SupplierActivate, supplierId);
+      return this.assemble(supplierId);
+    } catch (error) {
+      throw mapSupplierDomainError(error);
+    }
+  }
+
+  /**
+   * ARQUIVAR (Fase B): estado terminal do ciclo de vida do fornecedor.
+   *
+   * Só é permitido a partir de INATIVO — arquivar um fornecedor ativo pularia a inativação,
+   * e o cadastro sairia do fluxo sem passar pela etapa que registra o motivo operacional.
+   * O retorno existe via `activate`, que aceita ARCHIVED como origem.
+   *
+   * Autorização: `supplier:supplier:archive`, ação ADICIONADA nesta sessão. Não reusa a
+   * permissão de update — arquivar é decisão própria e precisa ser concedível em separado.
+   */
+  async archive(
+    actor: IdentityAuthzContext,
+    supplierId: string,
+    version: number,
+    reason: string,
+    correlationId: string,
+  ): Promise<SupplierResponse> {
+    assertUuid(supplierId, 'supplierId');
+    try {
+      const existing = await this.repository.findRowById(supplierId);
+      if (!existing) {
+        throw new SupplierError('SUPPLIER_NOT_FOUND');
+      }
+      await this.authz.assertSupplierAction(actor, AUTHZ_ACTIONS.SupplierArchive, { id: existing.id });
+      const updated = await this.repository.setStatus({
+        supplierId,
+        expectedVersion: version,
+        status: 'ARCHIVED',
+        actorIdentityId: actor.identityId,
+        correlationId,
+        comando: 'archive',
+        reason,
+      });
+      if (updated === null) {
+        throw new SupplierError('SUPPLIER_NOT_FOUND');
+      }
+      if (updated === 'VERSION_CONFLICT') {
+        throw new SupplierError('SUPPLIER_VERSION_CONFLICT');
+      }
+      if (updated === 'INVALID_STATE') {
+        throw new SupplierError('SUPPLIER_INVALID_STATE');
+      }
       return this.assemble(supplierId);
     } catch (error) {
       throw mapSupplierDomainError(error);

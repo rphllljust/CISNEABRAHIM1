@@ -70,7 +70,7 @@ describe('ambiente host contaminado — HML permanece determinístico', () => {
     // ambiente herdado do Vitest é removido antes da invocação — do contrário o resultado
     // dependeria de como a sessão foi iniciada, que é exatamente o não-determinismo que
     // este trabalho elimina.
-    const cleanEnv = Object.fromEntries(
+    const cleanEnv: NodeJS.ProcessEnv = Object.fromEntries(
       Object.entries(process.env).filter(
         ([key]) => !/^(VITE_)?FEATURE_MODULE_/.test(key) && key !== 'VITE_CISNE_SURFACE',
       ),
@@ -80,7 +80,7 @@ describe('ambiente host contaminado — HML permanece determinístico', () => {
       cwd: REPO_ROOT,
       encoding: 'utf8',
       shell: false,
-      env: cleanEnv as NodeJS.ProcessEnv,
+      env: cleanEnv,
       maxBuffer: 64 * 1024 * 1024,
     });
 

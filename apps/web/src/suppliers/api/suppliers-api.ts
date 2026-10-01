@@ -89,6 +89,23 @@ export async function deactivateSupplier(
   });
 }
 
+/**
+ * ARQUIVAR (Fase B) — estado terminal, reversível apenas por `activate`.
+ *
+ * Adicionado nesta sessão: o backend ganhou `POST /:supplierId/archive`, e sem este cliente
+ * o comando `archive` do catálogo apareceria na UI sem executor.
+ */
+export async function archiveSupplier(
+  supplierId: string,
+  payload: { version: number; reason?: string },
+): Promise<SupplierDetail> {
+  return requestJson<SupplierDetail>(`/api/v1/suppliers/${supplierId}/archive`, {
+    method: 'POST',
+    headers: jsonHeaders(),
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function updateSupplier(
   supplierId: string,
   payload: Record<string, unknown>,

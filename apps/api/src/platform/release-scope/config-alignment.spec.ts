@@ -129,7 +129,7 @@ describe('alinhamento de configuração web × api', () => {
         // Casa a chave dentro do YAML e captura o literal atribuído.
         const match = new RegExp(`${key}:\\s*'?([^'\\n]+)'?`).exec(compose);
         expect(match, `${key} não declarada em docker/sandbox/compose.yaml`).not.toBeNull();
-        const value = match?.[1].trim();
+        const value = (match?.[1] ?? '').trim();
         expect(
           value,
           `docker/sandbox/compose.yaml liga o stub '${moduleId}' (${key}: ${value}).`,

@@ -26,6 +26,16 @@ export const AUTHZ_ACTIONS = {
   SupplierUpdate: 'supplier:supplier:update',
   SupplierDeactivate: 'supplier:supplier:deactivate',
   SupplierActivate: 'supplier:supplier:activate',
+  /**
+   * Fase B (B6) — AÇÕES NOVAS, puramente aditivas. As 6 acima permanecem intactas.
+   *
+   * `delete` governa a remoção do cadastro; `archive` governa o estado terminal ARCHIVED.
+   * São decisões distintas: excluir é irreversível, arquivar é o fim reversível do ciclo
+   * (volta por `activate`). Antes desta sessão o catálogo de fornecedor não podia expressar
+   * nenhuma das duas, o que deixava os comandos permanentemente desabilitados.
+   */
+  SupplierDelete: 'supplier:supplier:delete',
+  SupplierArchive: 'supplier:supplier:archive',
   ProcurementRequestCreate: 'procurement:request:create',
   ProcurementRequestRead: 'procurement:request:read',
   ProcurementRequestList: 'procurement:request:list',

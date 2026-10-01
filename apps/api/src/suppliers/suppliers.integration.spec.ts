@@ -111,6 +111,16 @@ describe('Supplier master PostgreSQL integration', () => {
   let payablesAccess: PayablesAccessService;
   const testDatabaseUrl = process.env['TEST_DATABASE_URL'];
 
+  /**
+   * Correlação fixa dos casos.
+   *
+   * `SupplierAccessService` exige `correlationId` desde a Fase B: a trilha AUDIT_TRAIL
+   * (`audit.audit_logs`) tem `correlation_id NOT NULL`, e cada mutação precisa ligar-se à
+   * requisição que a originou. O valor é determinístico para que as asserções de timeline
+   * possam compará-lo.
+   */
+  const CORRELATION_ID = '11111111-1111-4111-8111-111111111111';
+
   beforeAll(async () => {
     if (!testDatabaseUrl) {
       throw new Error('TEST_DATABASE_URL is required for supplier integration tests.');
@@ -158,8 +168,8 @@ describe('Supplier master PostgreSQL integration', () => {
 
   it('rejects duplicate CNPJ and keeps a single supplier row', async () => {
     const actor = await seedActor();
-    await supplierAccess.create(actor, supplierPayload());
-    await expect(supplierAccess.create(actor, supplierPayload({ legalName: 'Outro Fornecedor LTDA' }))).rejects
+    await supplierAccess.create(actor, supplierPayload(), CORRELATION_ID);
+    await expect(supplierAccess.create(actor, supplierPayload({ legalName: 'Outro Fornecedor LTDA' }), CORRELATION_ID)).rejects
       .toMatchObject({
         code: SUPPLIER_ERROR_CODES.TAX_ID_CONFLICT,
       });
@@ -173,7 +183,7 @@ describe('Supplier master PostgreSQL integration', () => {
   it('rejects CPF because PF is not in release 1', async () => {
     const actor = await seedActor();
     await expect(
-      supplierAccess.create(actor, supplierPayload({ taxId: '12345678901', legalName: 'Pessoa Fisica' })),
+      supplierAccess.create(actor, supplierPayload({ taxId: '12345678901', legalName: 'Pessoa Fisica' }), CORRELATION_ID),
     ).rejects.toMatchObject({ code: SUPPLIER_ERROR_CODES.TAX_ID_INVALID });
   });
 
@@ -190,7 +200,7 @@ describe('Supplier master PostgreSQL integration', () => {
         },
       ],
     });
-    const supplier = await supplierAccess.create(actor, supplierPayload());
+    const supplier = await supplierAccess.create(actor, supplierPayload(), CORRELATION_ID);
     expect(supplier.id).not.toBe(client.id);
     expect(supplier.taxId).toBe(client.taxId);
     const clients = await pool.query<{ count: string }>(
@@ -202,16 +212,16 @@ describe('Supplier master PostgreSQL integration', () => {
 
   it('records history and detects version conflict', async () => {
     const actor = await seedActor();
-    const created = await supplierAccess.create(actor, supplierPayload());
+    const created = await supplierAccess.create(actor, supplierPayload(), CORRELATION_ID);
     const updated = await supplierAccess.update(actor, created.id, {
       version: created.version,
       tradeName: 'Fornecedor V2',
-    });
+    }, CORRELATION_ID);
     expect(updated.tradeName).toBe('Fornecedor V2');
     await expect(
-      supplierAccess.update(actor, created.id, { version: created.version, tradeName: 'Stale' }),
+      supplierAccess.update(actor, created.id, { version: created.version, tradeName: 'Stale' }, CORRELATION_ID),
     ).rejects.toMatchObject({ code: SUPPLIER_ERROR_CODES.VERSION_CONFLICT });
-    const deactivated = await supplierAccess.deactivate(actor, created.id, updated.version, 'Encerramento');
+    const deactivated = await supplierAccess.deactivate(actor, created.id, updated.version, 'Encerramento', CORRELATION_ID);
     expect(deactivated.status).toBe('INACTIVE');
     const history = await supplierAccess.history(actor, created.id);
     expect(history.map((item) => item.eventKind)).toEqual(['CREATED', 'UPDATED', 'DEACTIVATED']);
@@ -219,7 +229,7 @@ describe('Supplier master PostgreSQL integration', () => {
 
   it('denies supplier access without grants', async () => {
     const admin = await seedActor();
-    const created = await supplierAccess.create(admin, supplierPayload());
+    const created = await supplierAccess.create(admin, supplierPayload(), CORRELATION_ID);
     const stranger = await seedActor({ supplier: false });
     await expect(supplierAccess.getById(stranger, created.id)).rejects.toMatchObject({
       code: SUPPLIER_ERROR_CODES.DENIED,
@@ -231,10 +241,12 @@ describe('Supplier master PostgreSQL integration', () => {
     const alfa = await supplierAccess.create(
       actor,
       supplierPayload({ legalName: 'Alfa Servicos LTDA', taxId: '11222333000181' }),
+      CORRELATION_ID,
     );
     await supplierAccess.create(
       actor,
       supplierPayload({ legalName: 'Beta Locacoes LTDA', taxId: '33444555000103' }),
+      CORRELATION_ID,
     );
 
     const page = await supplierAccess.list(actor, { limit: 1, offset: 0 });
@@ -258,7 +270,7 @@ describe('Supplier master PostgreSQL integration', () => {
     expect(searchedByTaxId.total).toBe(1);
     expect(searchedByTaxId.items[0]?.id).toBe(alfa.id);
 
-    await supplierAccess.deactivate(actor, alfa.id, alfa.version, 'Encerramento');
+    await supplierAccess.deactivate(actor, alfa.id, alfa.version, 'Encerramento', CORRELATION_ID);
     const active = await supplierAccess.list(actor, { limit: 20, offset: 0, status: 'ACTIVE' });
     expect(active.total).toBe(1);
     expect(active.items[0]?.legalName).toBe('Beta Locacoes LTDA');
@@ -268,7 +280,7 @@ describe('Supplier master PostgreSQL integration', () => {
 
   it('denies the list without the list grant', async () => {
     const admin = await seedActor();
-    await supplierAccess.create(admin, supplierPayload());
+    await supplierAccess.create(admin, supplierPayload(), CORRELATION_ID);
     const stranger = await seedActor({ supplier: false });
     await insertGrant(pool, {
       identityId: stranger.identityId,
@@ -285,7 +297,7 @@ describe('Supplier master PostgreSQL integration', () => {
 
   it('opens a payable from an active supplier and blocks inactive supplier reference', async () => {
     const actor = await seedActor({ finance: true });
-    const supplier = await supplierAccess.create(actor, supplierPayload());
+    const supplier = await supplierAccess.create(actor, supplierPayload(), CORRELATION_ID);
     const category = await payablesAccess.createExpenseCategory(actor, {
       code: `CAT-${crypto.randomUUID().slice(0, 8)}`,
       name: 'Servicos',
@@ -323,7 +335,7 @@ describe('Supplier master PostgreSQL integration', () => {
     });
     expect(opaque.status).toBe(PAYABLE_STATUSES.Open);
 
-    const inactivated = await supplierAccess.deactivate(actor, supplier.id, supplier.version, 'Inativacao');
+    const inactivated = await supplierAccess.deactivate(actor, supplier.id, supplier.version, 'Inativacao', CORRELATION_ID);
     await expect(
       payablesAccess.open(actor, {
         unitId: UNIT_ID,
@@ -361,7 +373,7 @@ describe('Supplier master PostgreSQL integration', () => {
 
   it('does not persist a client row when creating a supplier', async () => {
     const actor = await seedActor();
-    await supplierAccess.create(actor, supplierPayload({ taxId: CLIENT_CNPJ }));
+    await supplierAccess.create(actor, supplierPayload({ taxId: CLIENT_CNPJ }), CORRELATION_ID);
     const clients = await pool.query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM pty.clients`);
     expect(clients.rows[0]?.count).toBe('0');
   });

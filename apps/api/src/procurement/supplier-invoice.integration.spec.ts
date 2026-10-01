@@ -124,7 +124,7 @@ describe('Supplier invoice PostgreSQL integration', () => {
       taxId: SUPPLIER_CNPJ,
       paymentTerms: '30 DDL',
       contacts: [{ name: 'Fiscal', purpose: CONTACT_PURPOSES.Operational, email: 'fiscal@sup.invalid' }],
-    });
+    }, '22222222-2222-4222-8222-222222222222');
   }
 
   async function approvedOrder(actor: { identityId: string; sessionId: string }, quantity = '100') {
@@ -331,7 +331,7 @@ describe('Supplier invoice PostgreSQL integration', () => {
       paymentTerms: '30 DDL',
       idempotencyKey: `inv-${crypto.randomUUID()}`,
     });
-    await suppliers.deactivate(actor, supplier.id, supplier.version, 'Encerramento contratual');
+    await suppliers.deactivate(actor, supplier.id, supplier.version, 'Encerramento contratual', '22222222-2222-4222-8222-222222222222');
     await expect(
       invoices.validate(actor, draft.id, {
         version: draft.version,

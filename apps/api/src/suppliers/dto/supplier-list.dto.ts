@@ -2,6 +2,7 @@ import { HttpStatus } from '@nestjs/common';
 import { SupplierHttpException } from '../errors/supplier-http.exception';
 import { SUPPLIER_ERROR_CODES } from '../errors/supplier-error-codes';
 import { isSupplierStatus } from '../domain/supplier.validation';
+import type { SupplierStatus } from '../domain/supplier';
 
 const MAX_LIST_LIMIT = 100;
 const DEFAULT_LIST_LIMIT = 20;
@@ -9,7 +10,8 @@ const DEFAULT_LIST_LIMIT = 20;
 export type SupplierListQuery = {
   limit: number;
   offset: number;
-  status?: 'ACTIVE' | 'INACTIVE';
+  /** Tipado pela fonte do domínio — inclui ARCHIVED desde a Fase B. */
+  status?: SupplierStatus;
   q?: string;
 };
 
@@ -54,7 +56,9 @@ export function parseListSuppliersQuery(query: Record<string, unknown>): Supplie
   }
 
   const statusRaw = query['status'];
-  let status: 'ACTIVE' | 'INACTIVE' | undefined;
+  // Tipado pela FONTE (`SupplierStatus`), não por união literal: ao acrescentar ARCHIVED ao
+  // domínio, a união hardcoded anterior passou a rejeitar um status válido em compilação.
+  let status: SupplierStatus | undefined;
   if (statusRaw !== undefined) {
     if (typeof statusRaw !== 'string' || !isSupplierStatus(statusRaw)) {
       throw badRequest();

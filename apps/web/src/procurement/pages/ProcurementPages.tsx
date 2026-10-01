@@ -1,8 +1,21 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { EmptyState, Field, Input, Money, worklistTableCardClass } from '../../ui';
-import { FilterCard, ModulePage, ModulePageHeader, ModulePrimaryLink, ModuleTableLink, filterControlClass, filterLabelClass } from '../../ui/module-layout';
-import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
+import { ModulePage, ModulePrimaryLink, ModuleTableLink } from '../../ui/module-layout';
+import {
+  WorklistClearFilters,
+  WorklistField,
+  WorklistFilterBar,
+  WorklistHeader,
+  worklistCellClass,
+  worklistCellRaisedClass,
+  worklistHeadCellClass,
+  worklistNumericCellClass,
+  worklistNumericHeadCellClass,
+  worklistRowClass,
+  worklistSelectClass,
+  worklistTableClass,
+} from '../../ui/enterprise-list';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { CreateRecordForm, VersionedActionForm } from '../../financial-ui/VersionedActionForm';
 import { PROCUREMENT_REQUEST_STATUS_LABELS, SUPPLIER_INVOICE_STATUS_LABELS, SUPPLIER_PO_STATUS_LABELS } from '../../financial-ui/labels';
@@ -59,12 +72,15 @@ export function ProcurementRoute({ children }: { children: ReactNode }) {
 export function ProcurementHubPage() {
   return (
     <ModulePage>
-      <ModulePageHeader
+      <WorklistHeader
         title="Compras"
-        description="Solicitações, pedidos ao fornecedor e notas. Distinto do pedido de compra do cliente."
+        context="Solicitações, pedidos ao fornecedor e notas. Distinto do pedido de compra do cliente."
         action={
-          <div className="flex flex-wrap items-center gap-4">
-            <Link className="text-sm font-semibold text-gray-700 hover:text-gray-900" to="/app/suppliers">
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              className="text-[13px] font-semibold text-brand-700 no-underline hover:text-brand-800"
+              to="/app/suppliers"
+            >
               Fornecedores
             </Link>
             <ModulePrimaryLink to="/app/procurement/requests/new">Nova solicitação</ModulePrimaryLink>
@@ -124,59 +140,60 @@ function ProcurementLists() {
 
   return (
     <>
-      <FilterCard>
+      <WorklistFilterBar>
         <form
-          className="flex flex-wrap items-end gap-4"
+          className="flex flex-wrap items-center gap-2"
           onSubmit={(event) => {
             event.preventDefault();
             setAppliedTerm(term.trim());
           }}
         >
-          <div>
-            <label className={filterLabelClass} htmlFor="procurement-search">
-              Buscar
-            </label>
+          <WorklistField label="Buscar" htmlFor="procurement-search" grow>
             <input
               id="procurement-search"
               type="search"
-              className={`${filterControlClass} w-72`}
+              className={`${worklistSelectClass} w-full min-w-0`}
               value={term}
               onChange={(event) => setTerm(event.target.value)}
               placeholder="Justificativa, fornecedor ou número da nota"
             />
-          </div>
+          </WorklistField>
           <button
             type="submit"
-            className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800"
+            className="rounded border border-brand-600 bg-brand-600 px-2.5 py-1 text-[13px] font-semibold text-white transition-colors hover:bg-brand-700"
           >
             Buscar
           </button>
+          <WorklistClearFilters
+            visible={appliedTerm !== ''}
+            label="Limpar busca"
+            onClick={() => {
+              setTerm('');
+              setAppliedTerm('');
+            }}
+          />
         </form>
-      </FilterCard>
+      </WorklistFilterBar>
 
       <div className={worklistTableCardClass}>
         <table className={worklistTableClass} aria-label="Solicitações de compra">
-          <thead className={worklistHeadCellClass}>
+          <thead>
             <tr>
               <th scope="col" className={worklistHeadCellClass}>Solicitação</th>
               <th scope="col" className={worklistHeadCellClass}>Itens</th>
-              <th scope="col" className={`${worklistHeadCellClass} text-right`}>Valor</th>
+              <th scope="col" className={worklistNumericHeadCellClass}>Valor</th>
               <th scope="col" className={worklistHeadCellClass}>Status</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody>
             {state.requests.phase === 'ready' && state.requests.items.length === 0 ? (
               <tr className={worklistRowClass}>
-                <td className={worklistCellClass} colSpan={4}>
-                  Nenhuma solicitação de compra encontrada.
-                </td>
+                <td className={worklistCellClass} colSpan={4}>Nenhuma solicitação de compra encontrada.</td>
               </tr>
             ) : null}
             {state.requests.phase === 'denied' ? (
               <tr className={worklistRowClass}>
-                <td className={worklistCellClass} colSpan={4}>
-                  Você não tem permissão para listar solicitações de compra.
-                </td>
+                <td className={worklistCellClass} colSpan={4}>Você não tem permissão para listar solicitações de compra.</td>
               </tr>
             ) : null}
             {state.requests.phase === 'ready'
@@ -187,11 +204,11 @@ function ProcurementLists() {
                         {request.justification}
                       </ModuleTableLink>
                     </td>
-                    <td className={worklistCellClass}>{request.lineCount}</td>
-                    <td className={`${worklistCellClass} text-right`}>
+                    <td className={worklistCellRaisedClass}>{request.lineCount}</td>
+                    <td className={worklistNumericCellClass}>
                       <Money value={request.totalAmount} currencyCode={request.currencyCode} />
                     </td>
-                    <td className={worklistCellClass}>
+                    <td className={worklistCellRaisedClass}>
                       <FinanceStatusBadge status={request.status} labels={PROCUREMENT_REQUEST_STATUS_LABELS} />
                     </td>
                   </tr>
@@ -199,34 +216,30 @@ function ProcurementLists() {
               : null}
           </tbody>
         </table>
+        <div className="border-t border-gray-200 px-3 py-2 text-[11px] text-gray-500 tabular-nums" role="status">
+          {state.requests.phase === 'ready' ? `${state.requests.total} registro(s) no recorte` : 'Carregando solicitações…'}
+        </div>
       </div>
-      <p className="mb-6 mt-2 text-xs text-gray-500" role="status">
-        {state.requests.phase === 'ready' ? `${state.requests.total} solicitação(ões) no total.` : 'Carregando solicitações…'}
-      </p>
 
       <div className={worklistTableCardClass}>
         <table className={worklistTableClass} aria-label="Pedidos ao fornecedor">
-          <thead className={worklistHeadCellClass}>
+          <thead>
             <tr>
               <th scope="col" className={worklistHeadCellClass}>Fornecedor</th>
               <th scope="col" className={worklistHeadCellClass}>Condição</th>
-              <th scope="col" className={`${worklistHeadCellClass} text-right`}>Valor</th>
+              <th scope="col" className={worklistNumericHeadCellClass}>Valor</th>
               <th scope="col" className={worklistHeadCellClass}>Status</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody>
             {state.orders.phase === 'ready' && state.orders.items.length === 0 ? (
               <tr className={worklistRowClass}>
-                <td className={worklistCellClass} colSpan={4}>
-                  Nenhum pedido ao fornecedor encontrado.
-                </td>
+                <td className={worklistCellClass} colSpan={4}>Nenhum pedido ao fornecedor encontrado.</td>
               </tr>
             ) : null}
             {state.orders.phase === 'denied' ? (
               <tr className={worklistRowClass}>
-                <td className={worklistCellClass} colSpan={4}>
-                  Você não tem permissão para listar pedidos ao fornecedor.
-                </td>
+                <td className={worklistCellClass} colSpan={4}>Você não tem permissão para listar pedidos ao fornecedor.</td>
               </tr>
             ) : null}
             {state.orders.phase === 'ready'
@@ -237,16 +250,16 @@ function ProcurementLists() {
                         {order.supplierName ?? 'Fornecedor não identificado'}
                       </ModuleTableLink>
                       {order.supplierTaxId ? (
-                        <span className="block text-xs text-gray-500">
+                        <span className="block text-[11px] text-gray-500">
                           {formatCnpjDisplay(order.supplierTaxId)}
                         </span>
                       ) : null}
                     </td>
-                    <td className={worklistCellClass}>{order.paymentTerms}</td>
-                    <td className={`${worklistCellClass} text-right`}>
+                    <td className={worklistCellRaisedClass}>{order.paymentTerms}</td>
+                    <td className={worklistNumericCellClass}>
                       <Money value={order.totalAmount} currencyCode={order.currencyCode} />
                     </td>
-                    <td className={worklistCellClass}>
+                    <td className={worklistCellRaisedClass}>
                       <FinanceStatusBadge status={order.status} labels={SUPPLIER_PO_STATUS_LABELS} />
                     </td>
                   </tr>
@@ -254,35 +267,31 @@ function ProcurementLists() {
               : null}
           </tbody>
         </table>
+        <div className="border-t border-gray-200 px-3 py-2 text-[11px] text-gray-500 tabular-nums" role="status">
+          {state.orders.phase === 'ready' ? `${state.orders.total} registro(s) no recorte` : 'Carregando pedidos…'}
+        </div>
       </div>
-      <p className="mb-6 mt-2 text-xs text-gray-500" role="status">
-        {state.orders.phase === 'ready' ? `${state.orders.total} pedido(s) no total.` : 'Carregando pedidos…'}
-      </p>
 
       <div className={worklistTableCardClass}>
         <table className={worklistTableClass} aria-label="Notas de fornecedor">
-          <thead className={worklistHeadCellClass}>
+          <thead>
             <tr>
               <th scope="col" className={worklistHeadCellClass}>Nota</th>
               <th scope="col" className={worklistHeadCellClass}>Fornecedor</th>
               <th scope="col" className={worklistHeadCellClass}>Vencimento</th>
-              <th scope="col" className={`${worklistHeadCellClass} text-right`}>Total</th>
+              <th scope="col" className={worklistNumericHeadCellClass}>Total</th>
               <th scope="col" className={worklistHeadCellClass}>Status</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody>
             {state.invoices.phase === 'ready' && state.invoices.items.length === 0 ? (
               <tr className={worklistRowClass}>
-                <td className={worklistCellClass} colSpan={5}>
-                  Nenhuma nota de fornecedor encontrada.
-                </td>
+                <td className={worklistCellClass} colSpan={5}>Nenhuma nota de fornecedor encontrada.</td>
               </tr>
             ) : null}
             {state.invoices.phase === 'denied' ? (
               <tr className={worklistRowClass}>
-                <td className={worklistCellClass} colSpan={5}>
-                  Você não tem permissão para listar notas de fornecedor.
-                </td>
+                <td className={worklistCellClass} colSpan={5}>Você não tem permissão para listar notas de fornecedor.</td>
               </tr>
             ) : null}
             {state.invoices.phase === 'ready'
@@ -293,14 +302,14 @@ function ProcurementLists() {
                         {invoice.invoiceNumber}
                       </ModuleTableLink>
                     </td>
-                    <td className={worklistCellClass}>
+                    <td className={worklistCellRaisedClass}>
                       {invoice.supplierName ?? 'Fornecedor não identificado'}
                     </td>
-                    <td className={worklistCellClass}>{invoice.dueDate}</td>
-                    <td className={`${worklistCellClass} text-right`}>
+                    <td className={worklistCellRaisedClass}>{invoice.dueDate}</td>
+                    <td className={worklistNumericCellClass}>
                       <Money value={invoice.totalAmount} currencyCode={invoice.currencyCode} />
                     </td>
-                    <td className={worklistCellClass}>
+                    <td className={worklistCellRaisedClass}>
                       <FinanceStatusBadge status={invoice.status} labels={SUPPLIER_INVOICE_STATUS_LABELS} />
                     </td>
                   </tr>
@@ -308,10 +317,10 @@ function ProcurementLists() {
               : null}
           </tbody>
         </table>
+        <div className="border-t border-gray-200 px-3 py-2 text-[11px] text-gray-500 tabular-nums" role="status">
+          {state.invoices.phase === 'ready' ? `${state.invoices.total} registro(s) no recorte` : 'Carregando notas…'}
+        </div>
       </div>
-      <p className="mb-6 mt-2 text-xs text-gray-500" role="status">
-        {state.invoices.phase === 'ready' ? `${state.invoices.total} nota(s) no total.` : 'Carregando notas…'}
-      </p>
     </>
   );
 }
@@ -326,9 +335,9 @@ export function PurchaseRequestCreatePage() {
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      <WorklistHeader
         title="Nova solicitação de compra"
-        description="Quantidade × valor unitário é calculado pelo servidor."
+        context="Quantidade × valor unitário é calculado pelo servidor."
       />
       <CreateRecordForm
         title="Solicitação"
@@ -420,7 +429,7 @@ export function PurchaseRequestPage() {
   if (state.phase !== 'ready') {
     return (
       <ModulePage>
-        <ModulePageHeader title="Solicitação de compra" />
+        <WorklistHeader title="Solicitação de compra" />
         <EmptyState title="Informe um identificador válido" />
       </ModulePage>
     );
@@ -428,7 +437,7 @@ export function PurchaseRequestPage() {
   const item = state.data;
   return (
     <ModulePage>
-      <ModulePageHeader title="Solicitação de compra" description={item.justification} />
+      <WorklistHeader title="Solicitação de compra" context={item.justification} />
       <div className="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5">
         <DefinitionList
           items={[
@@ -579,7 +588,7 @@ export function PurchaseOrderPage() {
   if (state.phase !== 'ready') {
     return (
       <ModulePage>
-        <ModulePageHeader title="Pedido ao fornecedor" />
+        <WorklistHeader title="Pedido ao fornecedor" />
         <EmptyState title="Informe um identificador válido" />
       </ModulePage>
     );
@@ -589,7 +598,7 @@ export function PurchaseOrderPage() {
   const receiveAllowed = order.status === 'ISSUED' || order.status === 'PARTIALLY_RECEIVED';
   return (
     <ModulePage>
-      <ModulePageHeader title="Pedido ao fornecedor" />
+      <WorklistHeader title="Pedido ao fornecedor" />
       <div className="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5">
         <DefinitionList
           items={[
@@ -813,9 +822,9 @@ export function SupplierInvoicePage() {
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      <WorklistHeader
         title="Nota do fornecedor"
-        description="Validação e conferência são do servidor. Totais não são recalculados no navegador."
+        context="Validação e conferência são do servidor. Totais não são recalculados no navegador."
         action={
           <Link className="text-sm font-semibold text-gray-700 hover:text-gray-900" to="/app/procurement">
             Voltar para as compras
@@ -977,7 +986,7 @@ export function ThreeWayMatchPage() {
   if (state.phase !== 'ready') {
     return (
       <ModulePage>
-        <ModulePageHeader title="Conferência tripla" />
+        <WorklistHeader title="Conferência tripla" />
         <EmptyState title="Informe um identificador válido" />
       </ModulePage>
     );
@@ -985,9 +994,9 @@ export function ThreeWayMatchPage() {
   const match = state.data;
   return (
     <ModulePage>
-      <ModulePageHeader
+      <WorklistHeader
         title="Conferência tripla"
-        description="Classificação e quantidades são as persistidas pelo servidor."
+        context="Classificação e quantidades são as persistidas pelo servidor."
       />
       <div className="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5">
         <DefinitionList

@@ -124,7 +124,7 @@ describe('Three-way match PostgreSQL integration', () => {
       taxId: SUPPLIER_CNPJ,
       paymentTerms: '30 DDL',
       contacts: [{ name: 'Compras', purpose: CONTACT_PURPOSES.Operational, email: 'twm@sup.invalid' }],
-    });
+    }, '22222222-2222-4222-8222-222222222222');
     const created = await procurement.createRequest(actor, {
       unitId: UNIT,
       justification: 'Conferencia three-way',
