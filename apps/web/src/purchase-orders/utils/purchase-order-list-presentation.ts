@@ -1,5 +1,6 @@
 import {
   PURCHASE_ORDER_STATUSES,
+  type PurchaseOrderBalance,
   type PurchaseOrderStatus,
 } from '../types/purchase-order.types';
 
@@ -56,6 +57,61 @@ export function purchaseOrderNotice(order: {
  * Pedido cancelado continua navegavel: consultar historico e leitura que o ator ja provou ao
  * listar com sucesso.
  */
+/**
+ * LEITURA DO CONSUMO AUTORIZADO — apresentacao pura sobre o ledger que o dominio JA apurou.
+ *
+ * A lista publicava tres valores com o MESMO peso visual (`authorizedAmount`, `consumedAmount`,
+ * `availableBalance`). O operador tinha de fazer a conta de cabeca para saber se o pedido estava
+ * no inicio, no meio ou no fim do valor autorizado. Aqui a relacao `consumido / autorizado` vira
+ * um percentual — e SO isso: nenhuma regra de negocio, nenhum status novo, nenhuma persistencia.
+ *
+ * `balance === null` significa que a regra de dominio RECUSOU apurar (valor autorizado
+ * indisponivel, ou consumo acima do autorizado). Nesse caso nao existe percentual honesto a
+ * exibir e a funcao devolve `null`; a interface declara a indisponibilidade em vez de inventar
+ * numero. O mesmo vale para autorizado zero ou nao numerico: divisao indefinida nao vira "0%".
+ */
+export type PurchaseOrderUsage = {
+  /** Consumo sobre o autorizado, em pontos percentuais (0 = nada consumido, 100 = esgotado). */
+  percent: number;
+  /** Verdadeiro quando o consumo passou do autorizado — fato do ledger, nao juizo de risco. */
+  overAuthorized: boolean;
+};
+
+export function purchaseOrderUsage(
+  balance: Pick<PurchaseOrderBalance, 'authorizedAmount' | 'consumedAmount'> | null,
+): PurchaseOrderUsage | null {
+  if (!balance) {
+    return null;
+  }
+  const authorized = Number.parseFloat(balance.authorizedAmount);
+  const consumed = Number.parseFloat(balance.consumedAmount);
+  if (Number.isNaN(authorized) || Number.isNaN(consumed)) {
+    return null;
+  }
+  if (authorized <= 0) {
+    return null;
+  }
+  return {
+    percent: Math.max(0, (consumed / authorized) * 100),
+    overAuthorized: consumed > authorized,
+  };
+}
+
+/**
+ * VALOR DO PEDIDO — o autorizado quando a regra de dominio o publica.
+ *
+ * Em pedidos com precificacao por itens (`LINE_ITEMS`) o `totalAmount` do cabecalho e
+ * legitimamente nulo: o valor do pedido e a soma das linhas, que ja chega pronta em
+ * `balance.authorizedAmount`. Exibir o campo cru deixaria a coluna vazia ao lado de um saldo
+ * preenchido.
+ */
+export function purchaseOrderAuthorizedAmount(order: {
+  totalAmount: string | null;
+  balance: Pick<PurchaseOrderBalance, 'authorizedAmount'> | null;
+}): string | null {
+  return order.balance ? order.balance.authorizedAmount : order.totalAmount;
+}
+
 export type PurchaseOrderRowAction = {
   /** Identificador estavel para teste e para o `key` da lista. */
   id: 'open' | 'register' | 'cancel';

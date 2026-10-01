@@ -9,13 +9,16 @@ import type { PurchaseOrder } from '../types/purchase-order.types';
 import { PURCHASE_ORDER_STATUSES } from '../types/purchase-order.types';
 import { formatClientSnapshot, formatDate, formatMoney } from '../utils/purchase-order-labels';
 import {
+  purchaseOrderAuthorizedAmount,
   purchaseOrderNextAction,
   purchaseOrderNotice,
   purchaseOrderRowActions,
+  purchaseOrderUsage,
 } from '../utils/purchase-order-list-presentation';
 import { HumanLookupField } from '../../financial-ui/HumanLookupField';
 import { searchClientOptions } from '../../financial-ui/client-lookup';
 import {
+  EnterpriseMetric,
   RowActionCell,
   RowActionMenu,
   WorklistClearFilters,
@@ -59,6 +62,53 @@ const PAGE_SIZE = 20;
  */
 function clientLabel(order: PurchaseOrder): string {
   return formatClientSnapshot(order.clientSnapshot) || 'Cliente não informado';
+}
+
+/**
+ * SOMA DOS VALORES AUTORIZADOS DA PAGINA — leitura apenas dos valores ja publicados pela lista.
+ *
+ * Nao e uma agregacao nova do dominio: e a soma do papel que a pagina esta mostrando, para o
+ * operador dimensionar a carteira sem somar linha a linha. Pedido cujo saldo a regra de dominio
+ * recusou apurar entra por `totalAmount` e, quando nem isso existe, fica FORA da soma e e
+ * CONTADO — o resumo declara "N sem valor apuravel" em vez de diluir um zero falso no total.
+ */
+function summarizeAuthorized(items: PurchaseOrder[]) {
+  let total = 0;
+  let withoutAmount = 0;
+  for (const item of items) {
+    const amount = purchaseOrderAuthorizedAmount(item);
+    const numeric = amount === null ? Number.NaN : Number.parseFloat(amount);
+    if (Number.isNaN(numeric)) {
+      withoutAmount += 1;
+      continue;
+    }
+    total += numeric;
+  }
+  return { total, withoutAmount };
+}
+
+/**
+ * SOMA DO CONSUMIDO E DO SALDO — mesmo principio da soma autorizada: so o que o ledger publicou.
+ *
+ * O saldo NAO e recalculado: quando existe `balance`, ele vem da regra de dominio
+ * (`availableBalance`). Quando nao existe, a pagina nao estima saldo nenhum.
+ */
+function summarizeLedger(items: PurchaseOrder[]) {
+  let consumed = 0;
+  let balance = 0;
+  for (const item of items) {
+    const consumedValue = Number.parseFloat(item.consumedAmount);
+    if (!Number.isNaN(consumedValue)) {
+      consumed += consumedValue;
+    }
+    if (item.balance) {
+      const balanceValue = Number.parseFloat(item.balance.availableBalance);
+      if (!Number.isNaN(balanceValue)) {
+        balance += balanceValue;
+      }
+    }
+  }
+  return { consumed, balance };
 }
 
 type ListState =
@@ -165,6 +215,36 @@ export function PurchaseOrdersListPage() {
   const pageNumber = Math.floor(offset / PAGE_SIZE) + 1;
   const hasActiveFilters = Boolean(clientFilter.trim() || unitFilter.trim());
 
+  /**
+   * LEITURA DA CARTEIRA — derivada exclusivamente das linhas que a propria pagina recebeu.
+   *
+   * Contagem, valor autorizado, consumido e saldo sao SOMAS dos campos que o servidor ja
+   * publicou; "exigindo atenção" reusa a MESMA excecao booleana que a linha exibe. Nada aqui
+   * cria metrica de dominio, percentual de risco ou estimativa.
+   */
+  const draftCount = items.filter(
+    (item) => item.status === PURCHASE_ORDER_STATUSES.Draft,
+  ).length;
+  const registeredCount = items.filter(
+    (item) => item.status === PURCHASE_ORDER_STATUSES.Registered,
+  ).length;
+  const cancelledCount = items.filter(
+    (item) => item.status === PURCHASE_ORDER_STATUSES.Cancelled,
+  ).length;
+  const attentionCount = items.filter((item) => purchaseOrderNotice(item) !== null).length;
+  const usageAtLimitCount = items.filter((item) => {
+    const usage = purchaseOrderUsage(item.balance);
+    return usage !== null && usage.percent >= 100;
+  }).length;
+  const authorized = summarizeAuthorized(items);
+  const ledger = summarizeLedger(items);
+  const currencyCode = items[0]?.currencyCode ?? 'BRL';
+  const moneyHint = `Soma dos valores autorizados apurados nesta página.${
+    authorized.withoutAmount > 0
+      ? ` ${authorized.withoutAmount} pedido(s) sem valor apurável ficaram fora da soma.`
+      : ''
+  }`;
+
   return (
     <ModulePage>
       <WorklistHeader
@@ -175,6 +255,42 @@ export function PurchaseOrdersListPage() {
           capabilities.canCreate ? (
             <ModulePrimaryLink to="/app/purchase-orders/new">Novo pedido</ModulePrimaryLink>
           ) : null
+        }
+        /*
+          FAIXA DE INDICADORES — o operador responde "qual e o tamanho, o estado e o saldo desta
+          pagina?" antes de ler a primeira linha. Cada valor e uma soma ou uma contagem do que a
+          lista ja entregou; metricas de estado so aparecem quando existem linhas naquele estado.
+        */
+        metrics={
+          <>
+            {draftCount > 0 ? <EnterpriseMetric value={draftCount} label="rascunho(s)" /> : null}
+            {registeredCount > 0 ? (
+              <EnterpriseMetric value={registeredCount} label="registrado(s)" tone="info" />
+            ) : null}
+            {cancelledCount > 0 ? (
+              <EnterpriseMetric value={cancelledCount} label="cancelado(s)" />
+            ) : null}
+            <span title={moneyHint}>
+              <EnterpriseMetric
+                value={formatMoney(String(authorized.total), currencyCode)}
+                label="autorizado"
+              />
+            </span>
+            <EnterpriseMetric
+              value={formatMoney(String(ledger.consumed), currencyCode)}
+              label="consumido"
+            />
+            <EnterpriseMetric
+              value={formatMoney(String(ledger.balance), currencyCode)}
+              label="saldo"
+            />
+            {attentionCount > 0 ? (
+              <EnterpriseMetric value={attentionCount} label="exigindo atenção" tone="warning" />
+            ) : null}
+            {usageAtLimitCount > 0 ? (
+              <EnterpriseMetric value={usageAtLimitCount} label="no limite" tone="critical" />
+            ) : null}
+          </>
         }
       />
 
@@ -256,7 +372,7 @@ export function PurchaseOrdersListPage() {
                   Valor autorizado
                 </th>
                 <th scope="col" className={worklistNumericHeadCellClass}>
-                  Consumido
+                  Consumido / consumo
                 </th>
                 <th scope="col" className={worklistNumericHeadCellClass}>
                   Saldo
@@ -284,6 +400,15 @@ export function PurchaseOrdersListPage() {
                 const secondaryActions = rowActions.filter(
                   (action) => action.id !== primaryAction?.id,
                 );
+                const notice = purchaseOrderNotice(item);
+                // Leitura do consumo: percentual puramente apresentacional. Sem `balance` a regra
+                // de dominio recusou apurar, e a celula declara isso em vez de estimar.
+                const usage = purchaseOrderUsage(item.balance);
+                const authorizedAmount = purchaseOrderAuthorizedAmount(item);
+                const nextAction = purchaseOrderNextAction(item.status);
+                const hasPendingStep =
+                  item.status === PURCHASE_ORDER_STATUSES.Draft ||
+                  item.status === PURCHASE_ORDER_STATUSES.Registered;
 
                 return (
                   <tr key={item.id} className={worklistRowClass}>
@@ -308,10 +433,15 @@ export function PurchaseOrdersListPage() {
                       ) : null}
                     </div>
                   </td>
+                  {/*
+                    SITUACAO = status + a excecao REAL que exige acao. A excecao acompanha o
+                    status porque e ela que decide se a linha precisa do operador agora; sem fato
+                    que a sustente, a celula mostra so o status.
+                  */}
                   <td className={worklistCellRaisedClass}>
                     <div className="flex flex-wrap items-center gap-1.5">
                       <PurchaseOrderStatusBadge status={item.status} />
-                      {purchaseOrderNotice(item) ? (
+                      {notice ? (
                         <WorklistException
                           tone={
                             item.status === PURCHASE_ORDER_STATUSES.Cancelled
@@ -319,28 +449,57 @@ export function PurchaseOrdersListPage() {
                               : 'warning'
                           }
                         >
-                          {purchaseOrderNotice(item)}
+                          {notice}
                         </WorklistException>
                       ) : null}
                     </div>
                   </td>
+                  {/*
+                    VALOR AUTORIZADO — o teto do pedido, quando a regra de dominio o publica.
+                    Em pedidos com precificacao por itens o `totalAmount` do cabecalho e
+                    legitimamente nulo e o valor do pedido mora em `balance.authorizedAmount`.
+                  */}
                   <td className={worklistNumericCellClass}>
-                    {/* Valor do pedido = valor AUTORIZADO, que o dominio calcula. Em pedidos
-                        com precificacao por itens (`LINE_ITEMS`) o `totalAmount` do cabecalho e
-                        legitimamente nulo: o valor do pedido e a soma das linhas. Exibir o campo
-                        cru deixaria a coluna vazia ao lado de um saldo preenchido. */}
-                    {item.balance
-                      ? formatMoney(item.balance.authorizedAmount, item.currencyCode)
-                      : formatMoney(item.totalAmount, item.currencyCode)}
+                    {formatMoney(authorizedAmount, item.currencyCode)}
                   </td>
+                  {/*
+                    CONSUMIDO + NIVEL DE CONSUMO — o numero que responde "quanto ja foi usado" e a
+                    proporcao `consumido / autorizado` que responde "quanto isso representa". O
+                    percentual e calculo APRESENTACIONAL sobre dois valores do contrato: nao cria
+                    regra, nao cria status, nao persiste nada. Sem apuracao do dominio, o texto
+                    declara a indisponibilidade.
+                  */}
                   <td className={worklistNumericCellClass}>
-                    {formatMoney(item.consumedAmount, item.currencyCode)}
+                    <span className="block leading-tight">
+                      {formatMoney(item.consumedAmount, item.currencyCode)}
+                    </span>
+                    {usage ? (
+                      <span
+                        className="mt-0.5 block text-[11px] leading-tight text-gray-500"
+                        title={`Consumido ${usage.percent.toFixed(0)}% do valor autorizado.`}
+                      >
+                        {usage.percent.toFixed(0)}% do autorizado
+                      </span>
+                    ) : (
+                      <span className="mt-0.5 block text-[11px] leading-tight text-gray-500">
+                        Sem apuração
+                      </span>
+                    )}
                   </td>
                   <td className={worklistNumericCellClass}>
                     {/* Saldo vem da regra de dominio. Quando ela recusa apurar, a celula
                         declara a indisponibilidade em vez de mostrar zero. */}
                     {item.balance ? (
-                      formatMoney(item.balance.availableBalance, item.currencyCode)
+                      <>
+                        <span className="block leading-tight">
+                          {formatMoney(item.balance.availableBalance, item.currencyCode)}
+                        </span>
+                        {usage?.overAuthorized ? (
+                          <span className="mt-0.5 block text-[11px] leading-tight font-medium text-amber-700">
+                            Consumo acima do autorizado
+                          </span>
+                        ) : null}
+                      </>
                     ) : (
                       <span className="text-[11px] text-gray-500">Não apurável</span>
                     )}
@@ -350,9 +509,20 @@ export function PurchaseOrdersListPage() {
                       {item.issueDate ? formatDate(item.issueDate) : 'Sem data'}
                     </span>
                   </td>
+                  {/*
+                    PROXIMA ACAO — a informacao que o operador procura depois do estado. Ganha
+                    peso tipografico proprio porque e ela que diz onde agir; pedido encerrado
+                    declara a propria condicao em vez de oferecer um passo que nao existe.
+                  */}
                   <td className={worklistCellRaisedClass}>
-                    <span className="text-[12px] text-gray-600">
-                      {purchaseOrderNextAction(item.status)}
+                    <span
+                      className={
+                        hasPendingStep
+                          ? 'text-[12px] font-medium text-gray-800'
+                          : 'text-[12px] text-gray-500'
+                      }
+                    >
+                      {nextAction}
                     </span>
                   </td>
                   {/*
@@ -400,7 +570,19 @@ export function PurchaseOrdersListPage() {
         </div>
       )}
 
-      <WorklistFooter rangeLabel={`${offset + 1}–${offset + items.length} nesta página`}>
+      <WorklistFooter
+        rangeLabel={`${offset + 1}–${offset + items.length} nesta página`}
+        /*
+          O recorte dos totais e DECLARADO, nao implicito: os valores acima somam a pagina, e a
+          pagina lista um recorte filtrado. Sem isto, paginacao e indicadores poderiam se
+          contradizer na mesma linha.
+        */
+        extra={
+          hasActiveFilters
+            ? 'Totais somam os pedidos filtrados desta página'
+            : 'Totais somam os pedidos desta página'
+        }
+      >
         <ModulePagination
           pageNumber={pageNumber}
           previousDisabled={offset === 0}
