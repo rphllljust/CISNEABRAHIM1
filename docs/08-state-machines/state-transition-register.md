@@ -42,6 +42,11 @@
 
 ## SERVICE_ORDER (SM-CAND-002)
 
+> **Nota de sincronização documental — 2026-08-28.** Confrontado com
+> `apps/api/src/service-orders/domain/service-order.state-machine.ts`. Nenhum status `PENDING` foi
+> apagado ou promovido. Foram acrescentadas: as duas transições ausentes (`pause`/`resume`) como
+> TR-CAND-049 e TR-CAND-050, e uma nota de conflito em TR-CAND-011.
+
 ### TR-CAND-006
 
 | Origem | RASCUNHO | Destino | PREPARADA | CMD | CMD-004 | INV | INV-002 parcial | DE | — | Status | CANDIDATE |
@@ -64,11 +69,85 @@
 
 ### TR-CAND-011
 
-| Origem | RASCUNHO/PREPARADA/LIBERADA/EM_EXECUCAO | Destino | CANCELADA | CMD | CMD-011 | Guardas | GUARD-010 | DE | DE-012 | DDP | DDP-004 | Status | CANDIDATE |
+> **Texto original preservado (Prompt 07) — não apagado:**
+>
+> `| Origem | RASCUNHO/PREPARADA/LIBERADA/EM_EXECUCAO | Destino | CANCELADA | CMD | CMD-011 | Guardas | GUARD-010 | DE | DE-012 | DDP | DDP-004 | Status | CANDIDATE |`
+
+| Origem | RASCUNHO/PREPARADA/LIBERADA | Destino | CANCELADA | CMD | CMD-011 | Guardas | GUARD-010 | DE | DE-012 | DDP | DDP-004 | Status | REJECTED_BY_IMPLEMENTATION |
+
+> **[conflito registrado 2026-08-28]** O código implementa `cancel` apenas a partir de `DRAFT`,
+> `PREPARED` e `RELEASED` — **não** de `IN_EXECUTION`. O teste
+> `service-orders.integration.spec.ts` (`'cancels from DRAFT and RELEASED with history and security
+> audit'`) confirma o comportamento do código. Classificação: **Conflito de fonte**.
+
+> **[corrigido 2026-08-28 — sessão atual]** Reclassificado de `CANDIDATE` para
+> `REJECTED_BY_IMPLEMENTATION`. A origem `EM_EXECUCAO` foi removida da linha vigente porque a
+> implementação a rejeita: `TRANSITIONS.cancel` aceita somente `DRAFT`, `PREPARED` e `RELEASED`.
+> Código restringe cancel a DRAFT/PREPARED/RELEASED; cancelamento em execução exige comando abort
+> com DDP próprio (ver TR-CAND-011b). O texto original permanece íntegro no bloco citado acima.
+> O restante da transição (destino `CANCELADA`, `CMD-011`, `GUARD-010`, `DE-012`, `DDP-004`)
+> continua válido para as três origens remanescentes.
+
+### TR-CAND-011b — comando `abort` (cancelamento em execução)
+
+| Campo         | Valor                                                                 |
+| ------------- | --------------------------------------------------------------------- |
+| ID            | TR-CAND-011b                                                          |
+| Máquina       | SM-CAND-002 (SERVICE_ORDER)                                           |
+| Comando       | `abort`                                                               |
+| Origem        | EM_EXECUCAO                                                           |
+| Destino       | CANCELADA (candidato)                                                 |
+| Fonte         | **Ausente** — nenhuma evidência em SRC-001                            |
+| Status        | `CANDIDATE`                                                           |
+| DDP vinculado | **A abrir** — decisão bloqueante registrada nesta entrada             |
+| Classificação | **Hipótese** — proposta de engenharia, não requisito                  |
+
+> Justificativa da existência desta entrada: a implementação **rejeita** cancelamento direto de
+> `IN_EXECUCAO` (ver TR-CAND-011). Se a empresa precisar interromper OS já em execução, o caminho
+> não é reutilizar `cancel` — é um comando próprio, com decisão de negócio própria. Esta entrada
+> existe para que a lacuna fique **visível**, não para afirmar que o comando é necessário.
+
+#### Pré-condições candidatas
+
+| #  | Pré-condição                                     | Observação                                              |
+| -- | ------------------------------------------------ | ------------------------------------------------------- |
+| 1  | Estado atual `IN_EXECUTION`                      | Estado de origem único; não abrange `PAUSED` (SDD-003)   |
+| 2  | Justificativa obrigatória (texto não vazio)      | Análogo a `assertReopenJustification` / `cancellationReason` |
+| 3  | Aprovação por capability dedicada                | Padrão do repositório: capability + escopo + audit       |
+| 4  | Concorrência otimista (`version`/`row_version`)  | Padrão já aplicado às demais transições de OS            |
+| 5  | Registro em auditoria                            | `audit.security_audit_events`, como `cancel`             |
+| 6  | Liberação de alocações ativas                    | Comportamento já existente em `cancel`                   |
+
+#### Efeitos a decidir (não decididos)
+
+| Efeito                    | Questão aberta                                                      |
+| ------------------------- | ------------------------------------------------------------------- |
+| Horas trabalhadas         | Reverter, manter para apuração ou reaproveitar em nova OS?           |
+| Materiais aplicados       | Estorno, perda ou transferência?                                     |
+| Medições já submetidas    | `msr.measurement` em análise: cancelar junto ou desvincular?         |
+| Faturamento preparado     | Bloquear, estornar ou emitir proporcional?                           |
+| Documentos e evidências   | Invalidar, arquivar ou preservar para auditoria?                     |
+| Reabertura posterior      | `abort` é reversível? Se sim, por qual comando?                      |
+| Distinção de `cancel`     | Por que não usar `cancel`? Exige resposta empresarial formal          |
+
+> **Nada acima está decidido.** Os efeitos financeiros (horas/materiais) são justamente o ponto
+> sensível: em `cancel` a OS é interrompida antes de haver execução; em `abort` já pode existir
+> custo incorrido. Vincular estorno sem decisão autorizada violaria `AGENTS.md` regras 12 e 24.
+> Enquanto o DDP não for aberto e respondido, esta transição permanece **hipótese**.
+
+#### Requisitos de registro do DDP
+
+Ao abrir o DDP, devem constar: fonte empresarial, se o comando é necessário, quais efeitos
+financeiros são autorizados e quem aprova. Sem isso, `abort` **não** deve ser implementado.
 
 ### TR-CAND-012
 
 | Origem | CONCLUIDA | Destino | EM_EXECUCAO | CMD | CMD-012 | Guardas | GUARD-011 | DDP | DDP-005 | Status | PENDING_BUSINESS_DECISION |
+
+> **[sincronizado 2026-08-28 — status preservado]** `resolveReopenStatus` **já implementa** esta
+> transição (`COMPLETED` → `IN_EXECUTION`), além de `CANCELLED` → `status_before_cancel`. O status
+> `PENDING_BUSINESS_DECISION` **permanece**: DDP-005 e SDD-R01 continuam `OPEN`, e a fonte
+> empresarial segue ausente. Implementação não equivale a requisito confirmado (`AGENTS.md` regra 12).
 
 ### TR-CAND-013
 
@@ -81,6 +160,28 @@
 ### TR-CAND-015
 
 | Origem | qualquer não-terminal | Destino | PREPARADA | CMD | CMD-013 | Guardas | GUARD-012 | Histórico | DOMAIN_HISTORY | Status | CANDIDATE |
+
+### TR-CAND-049 — acrescentada na sincronização de 2026-08-28
+
+| Máquina | SM-CAND-002 | Origem | EM_EXECUCAO | Destino | PAUSADA | CMD | `pause` | Fonte código | `service-order.state-machine.ts` | Invariantes | — | Eventos | — | Status | IMPLEMENTED_PENDING_SOURCE_EVIDENCE |
+
+> Termo `IMPLEMENTED_PENDING_SOURCE_EVIDENCE` é **descritivo do código**, não classificação da
+> taxonomia de rastreabilidade do `AGENTS.md`. `STATE-CAND-052` permanece `REJECTED` e `SDD-003`
+> permanece `OPEN`. Classificação do registro: **Conflito de fonte**.
+
+### TR-CAND-050 — acrescentada na sincronização de 2026-08-28
+
+| Máquina | SM-CAND-002 | Origem | PAUSADA | Destino | EM_EXECUCAO | CMD | `resume` | Fonte código | `service-order.state-machine.ts` | Invariantes | — | Eventos | — | Status | IMPLEMENTED_PENDING_SOURCE_EVIDENCE |
+
+> Idem TR-CAND-049. Nenhuma destas transições possui lastro em SRC-001.
+
+### TR-CAND-051 — acrescentada na sincronização de 2026-08-28
+
+| Máquina | SM-CAND-002 | Origem | CANCELADA | Destino | status_before_cancel | CMD | CMD-012 | Fonte código | `resolveReopenStatus` | Guardas | GUARD-011 | DDP | DDP-005 | Status | PENDING_BUSINESS_DECISION |
+
+> Reabertura de OS cancelada. O destino **não** é um estado fixo: o código resolve para o valor
+> persistido em `status_before_cancel`, evitando criar estado `REOPENED`. DDP-005 e SDD-R01
+> permanecem `OPEN` — status mantido como pendente.
 
 ## ALLOCATION (SM-CAND-003)
 
