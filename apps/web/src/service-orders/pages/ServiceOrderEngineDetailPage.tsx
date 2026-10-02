@@ -8,7 +8,7 @@ import {
   ServiceOrdersApiError,
 } from '../api/service-orders-api';
 import { mapServiceOrdersErrorToMessage } from '../api/service-orders-error-messages';
-import { ActionBar, DynamicForm, toDisplayText, useEntitySchema } from '../../engine';
+import { ActionBar, DynamicForm, DynamicTimeline, toDisplayText, useEntitySchema } from '../../engine';
 import {
   serviceOrderEngineRow,
   type ServiceOrderEngineRow,
@@ -183,6 +183,19 @@ export function ServiceOrderEngineDetailPage() {
           Dados da ordem
         </h2>
         <DynamicForm schema={schema} values={row} readOnly />
+      </section>
+
+      {/*
+        TIMELINE — restaurada na migração para a engine. A tela artesanal que esta substituiu
+        exibia o histórico da OS; removê-lo seria PARIDADE_PERDIDA. `DynamicTimeline` consome
+        `/api/v1/service-orders/:id/audit-timeline` e resolve os rótulos de estado pelo
+        metadado, sem nenhum JSX por entidade.
+      */}
+      <section className="mt-6" aria-labelledby="engine-timeline-heading">
+        <h2 id="engine-timeline-heading" className="sr-only">
+          Histórico
+        </h2>
+        <DynamicTimeline schema={schema} recordId={row.id} />
       </section>
     </div>
   );
