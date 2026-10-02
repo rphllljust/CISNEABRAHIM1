@@ -24,6 +24,8 @@ export {
 export type { DynamicPivotProps, PivotAggregateOp } from './DynamicPivot';
 export { DynamicTree, buildTree, flattenTree, idsToDepth } from './DynamicTree';
 export type { DynamicTreeProps, TreeNode } from './DynamicTree';
+export { DynamicGraph, buildBuckets, isChartType } from './DynamicGraph';
+export type { DynamicGraphProps, GraphChartType } from './DynamicGraph';
 export {
   fieldLabel,
   findView,
