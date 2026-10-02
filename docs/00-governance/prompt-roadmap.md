@@ -56,3 +56,25 @@ Números 17–34 são **agrupamentos preliminares**. Podem ser divididos, reunid
 - Um prompt por vez.
 - Revisão antes do seguinte.
 - Prompt 01 **não** é iniciado por este arquivo.
+
+## Pacote ERP-N (2026-10-02)
+
+Sequencia adicional, **nao iniciada**. Nao substitui Prompts 00-94 nem autoriza go-live.
+
+Registro normativo e blocos copiaveis: [`prompt-pack-erp-nativo.md`](prompt-pack-erp-nativo.md).
+
+| Prompt | Titulo | Estado |
+| ------ | ------ | ------ |
+| ERP-N-00 | Inventario honesto do nucleo | `NOT_STARTED` |
+| ERP-N-01 | DDP-045 CI unitario API | `NOT_STARTED` |
+| ERP-N-02 | Politica de exposicao de flags | `NOT_STARTED` |
+| ERP-N-03 | Ingestao de fontes do nucleo | `NOT_STARTED` |
+| ERP-N-04 | Finance prova fail-closed | `NOT_STARTED` |
+| ERP-N-05 | Accounting sem inventar plano | `NOT_STARTED` |
+| ERP-N-06 | Fiscal gates SRC-007 | `NOT_STARTED` |
+| ERP-N-07 | Inventory DDP de custeio | `NOT_STARTED` |
+| ERP-N-08 | Payroll lacuna legal | `NOT_STARTED` |
+| ERP-N-09 | Catalogo UAT do delta | `NOT_STARTED` |
+| ERP-N-10 | Uma flag em HML (ordem nominada) | `NOT_STARTED` |
+
+Este apendice **nao** executa ERP-N-00.

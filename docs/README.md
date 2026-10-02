@@ -44,6 +44,7 @@ Documento de funcionalidade real e justificativa de investimento (sem valores mo
 | [quality-gates.md](00-governance/quality-gates.md)                   | Quality gates                     |
 | [prompt-roadmap.md](00-governance/prompt-roadmap.md)                 | Roadmap preliminar de prompts     |
 | [prompt-execution-log.md](00-governance/prompt-execution-log.md)     | Registro de execução              |
+| [prompt-pack-erp-nativo.md](00-governance/prompt-pack-erp-nativo.md) | Pacote ERP-N (NOT_STARTED)        |
 
 ## 01-foundation
 
