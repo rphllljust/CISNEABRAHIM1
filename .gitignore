@@ -88,6 +88,9 @@ scripts/_write-summary-domain.mjs
 # Test artifacts
 playwright-report/
 test-results/
+# Saídas das jornadas por config própria (engine, ERP, i18n): cada config declara seu
+# `outputDir` fora do testDir, e nenhuma delas estava coberta pelo `test-results/` acima.
+test-results-*/
 artifacts/ci/
 
 # Local readiness-gate scratch (source of truth is docs/19-operations/readiness-evidence.json)
