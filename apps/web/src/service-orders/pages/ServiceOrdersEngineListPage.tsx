@@ -293,6 +293,12 @@ export function ServiceOrdersEngineListPage() {
               onSelectionChange={setSelectedIds}
               ownerField="client_snapshot"
               showTotals
+              /*
+               * AGING NO EIXO REAL DA ENTIDADE: o prazo operacional (`deadline_at`), não a
+               * data de criação — que a listagem nem recebe. É a distância até o PRAZO que
+               * diz se uma OS está atrasada, e é isso que a cor comunica.
+               */
+              agingField="deadline_at"
               onRowClick={openRow}
             />
           ) : (

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { t } from '../i18n';
 import { FieldRenderer, toDisplayText } from './FieldRenderer';
 import type { MetaEntitySchema, MetaField } from './types';
@@ -18,14 +18,26 @@ import type { MetaEntitySchema, MetaField } from './types';
 export type DynamicListRow = Record<string, unknown> & { id: string };
 
 export type DynamicListProps = {
-  schema: MetaEntitySchema;
+  /**
+   * Schema da entidade.
+   *
+   * PODE SER `null` — mesma regra do `DynamicKanban`: enquanto o metadado não chega, a lista
+   * não tem coluna para desenhar e a TELA decide o que mostrar. Lançar aqui derrubaria a
+   * árvore inteira por um atraso de rede que a tela não controla.
+   */
+  schema: MetaEntitySchema | null;
   rows: DynamicListRow[];
   /** Ação por linha (ex.: botões de comando), injetada pela tela. */
   renderRowActions?: (row: DynamicListRow) => React.ReactNode;
   onRowClick?: (row: DynamicListRow) => void;
   emptyMessage?: string;
-  /** Seleção múltipla. Ausente = sem coluna de seleção. */
-  selectedIds?: string[];
+  /**
+   * Seleção múltipla. Ausente = sem coluna de seleção.
+   *
+   * `ReadonlySet` porque o hook de seleção do operador (`useSelection`) devolve um Set, e
+   * convertê-lo em array a cada render custaria uma cópia por linha. A engine só LÊ.
+   */
+  selectedIds?: ReadonlySet<string> | string[];
   onSelectionChange?: (ids: string[]) => void;
   /**
    * Campo que carrega o responsável e handler de reatribuição.
@@ -40,6 +52,17 @@ export type DynamicListProps = {
   showTotals?: boolean;
   /** Campo de data usado para aging. Ausente = deriva de `created_at` se existir. */
   agingField?: string;
+  /**
+   * Substitui a renderização de UMA coluna, pelo nome do campo.
+   *
+   * Existe para valores CALCULADOS que não são coluna da tabela (ex.: saldo de conta, que o
+   * servidor reconstrói a cada leitura). A engine não sabe somar saldo — e não deve aprender:
+   * quem entrega a célula é a tela, e a engine apenas reserva a coluna.
+   *
+   * Devolver `undefined` mantém o `FieldRenderer` padrão: o slot é um OVERRIDE, não uma
+   * obrigação de desenhar todas as células à mão.
+   */
+  renderCell?: (field: MetaField, row: DynamicListRow) => ReactNode;
 };
 
 export function DynamicList({
@@ -55,6 +78,7 @@ export function DynamicList({
   reassignOptions,
   showTotals = false,
   agingField,
+  renderCell,
 }: DynamicListProps): React.ReactElement {
   const columns = useColumns(schema);
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null);
@@ -191,7 +215,9 @@ export function DynamicList({
               ) : null}
               {columns.map((column) => (
                 <td key={column.name} className="border-b border-gray-100 px-2 py-1.5">
-                  <FieldRenderer field={column} value={row[column.name]} />
+                  {renderCell?.(column, row) ?? (
+                    <FieldRenderer field={column} value={row[column.name]} />
+                  )}
                 </td>
               ))}
               {owner ? (

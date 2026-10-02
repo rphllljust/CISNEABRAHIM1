@@ -37,7 +37,18 @@ export function serviceOrderEngineRows(items: ServiceOrderSummary[]): ServiceOrd
     description: item.description,
     priority: null,
     row_version: item.rowVersion,
-    created_at: item.updatedAt,
+    /*
+     * `created_at` FICA NULO na listagem, e isso é deliberado.
+     *
+     * `ServiceOrderSummary` NÃO devolve `createdAt` — só `updatedAt` e `deadlineAt`. Rotular
+     * `updatedAt` como `created_at` fazia a coluna "Criada em" exibir a data da última
+     * alteração, e o aging (derivado dela) mentir sobre a idade do registro. Preencher com um
+     * valor de outro campo é pior que deixar vazio: a coluna some e o aging cai para
+     * `deadlineAt`, que é o eixo temporal REAL desta entidade.
+     */
+    created_at: null,
+    deadline_at: item.deadlineAt,
+    updated_at: item.updatedAt,
     contract_reference: null,
     client_snapshot: clientSnapshotText(item.clientSnapshot),
   }));

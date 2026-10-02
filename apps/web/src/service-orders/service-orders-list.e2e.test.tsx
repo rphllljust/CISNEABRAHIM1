@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../App';
 import { resetTokenStoreForTests, tokenStore } from '../auth/storage/token-store';
@@ -47,10 +47,17 @@ describe('service orders list e2e (frontend)', () => {
     window.history.pushState({}, '', '/app/service-orders');
     render(<App />);
 
-    // A coluna `status` é `select`: o `FieldRenderer` desenha o rótulo de
-    // `meta.fields.options`, e não o valor cru do enum.
+    /*
+     * A coluna `status` é `select`: o `FieldRenderer` desenha o rótulo de
+     * `meta.fields.options`, e não o valor cru do enum.
+     *
+     * A consulta é ESCOPADA À TABELA porque o mesmo rótulo também aparece como `<option>` do
+     * `DynamicFilterBar` — os dois são legítimos e coexistem na tela. Um `getByText` global
+     * encontraria os dois e falharia por ambiguidade do teste, não por defeito da tela.
+     */
+    const table = await screen.findByTestId('dynamic-list');
     await waitFor(() => {
-      expect(screen.getByText('Liberada')).toBeInTheDocument();
+      expect(within(table).getByRole('cell', { name: 'Liberada' })).toBeInTheDocument();
     });
   }, 20000);
 
