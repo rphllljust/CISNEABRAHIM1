@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { t } from '../i18n';
+import type { DynamicListRow } from './DynamicList';
 import type { MetaEntitySchema } from './types';
 import { readBoolean, readFieldName, readLayout, readString } from './view-layout';
 
@@ -28,17 +29,17 @@ import { readBoolean, readFieldName, readLayout, readString } from './view-layou
 
 export type DynamicTreeProps = {
   schema: MetaEntitySchema;
-  rows: Record<string, unknown>[];
+  rows: DynamicListRow[];
   viewType?: string;
   defaultExpandedDepth?: number;
-  onNodeClick?: (row: Record<string, unknown>) => void;
+  onNodeClick?: (row: DynamicListRow) => void;
   emptyMessage?: string;
 };
 
 export type TreeNode = {
   id: string;
   label: string;
-  row: Record<string, unknown>;
+  row: DynamicListRow;
   depth: number;
   children: TreeNode[];
   /** `true` quando `parentField` aponta para um id que não está nesta página. */
@@ -52,7 +53,7 @@ export type TreeNode = {
  * raiz sintética obrigaria o renderizador a esconder um nível que o usuário não pediu.
  */
 export function buildTree(
-  rows: Record<string, unknown>[],
+  rows: DynamicListRow[],
   idField: string,
   parentField: string,
   labelField: string,

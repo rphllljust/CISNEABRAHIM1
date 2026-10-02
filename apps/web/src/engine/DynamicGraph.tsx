@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { t } from '../i18n';
+import type { DynamicListRow } from './DynamicList';
 import type { MetaEntitySchema } from './types';
 import { readBoolean, readFieldName, readLayout, readString } from './view-layout';
 
@@ -35,7 +36,7 @@ export function isChartType(value: unknown): value is GraphChartType {
 
 export type DynamicGraphProps = {
   schema: MetaEntitySchema;
-  rows: Record<string, unknown>[];
+  rows: DynamicListRow[];
   viewType?: string;
   /** Máximo de categorias exibidas; o excedente é declarado, não silenciado. */
   maxCategories?: number;
@@ -45,7 +46,7 @@ export type DynamicGraphProps = {
 
 type GraphBucket = {
   category: string;
-  rows: Record<string, unknown>[];
+  rows: DynamicListRow[];
   value: number | null;
 };
 
@@ -62,7 +63,7 @@ function toNumber(value: unknown): number | null {
 
 /** Reduz as linhas de uma categoria a um valor. Sem `valueField`, a contagem é a medida. */
 function reduceBucket(
-  rows: Record<string, unknown>[],
+  rows: DynamicListRow[],
   valueField: string | null,
   op: string,
 ): number | null {
@@ -89,13 +90,13 @@ function reduceBucket(
 
 /** Buckets por categoria, ordenados do maior para o menor — leitura de ranking. */
 export function buildBuckets(
-  rows: Record<string, unknown>[],
+  rows: DynamicListRow[],
   categoryField: string,
   valueField: string | null,
   op: string,
 ): GraphBucket[] {
   const order: string[] = [];
-  const groups = new Map<string, Record<string, unknown>[]>();
+  const groups = new Map<string, DynamicListRow[]>();
 
   for (const row of rows) {
     const raw = row[categoryField];

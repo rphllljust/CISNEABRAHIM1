@@ -27,6 +27,13 @@ export type { DynamicTreeProps, TreeNode } from './DynamicTree';
 export { DynamicGraph, buildBuckets, isChartType } from './DynamicGraph';
 export type { DynamicGraphProps, GraphChartType } from './DynamicGraph';
 export {
+  DynamicViewHost,
+  RENDERABLE_VIEW_TYPES,
+  UnsupportedViewNotice,
+  isRenderableViewType,
+} from './DynamicViewHost';
+export type { DynamicViewHostProps, RenderableViewType } from './DynamicViewHost';
+export {
   fieldLabel,
   findView,
   readBoolean,

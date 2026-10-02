@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { t } from '../i18n';
+import type { DynamicListRow } from './DynamicList';
 import type { MetaEntitySchema, MetaView } from './types';
 import { fieldLabel, findView, readFieldName, type ViewLayout } from './view-layout';
 
@@ -26,7 +27,7 @@ import { fieldLabel, findView, readFieldName, type ViewLayout } from './view-lay
 
 export type DynamicCalendarProps = {
   schema: MetaEntitySchema;
-  rows: Record<string, unknown>[];
+  rows: DynamicListRow[];
   /** Tipo da view no store. Default `calendar`; permite uma segunda view de calendário. */
   viewType?: string;
   /** Fuso usado para decidir o DIA de um instante. */
@@ -35,7 +36,7 @@ export type DynamicCalendarProps = {
   month?: Date;
   onNavigate?: (month: Date) => void;
   onDayClick?: (date: string) => void;
-  onCardClick?: (row: Record<string, unknown>) => void;
+  onCardClick?: (row: DynamicListRow) => void;
   emptyMessage?: string;
 };
 
@@ -132,7 +133,7 @@ function localDayKey(date: Date): string {
 }
 
 /** Mês do primeiro registro com data válida; hoje quando não há nenhum. */
-function anchorMonth(rows: Record<string, unknown>[], dateField: string | null): Date {
+function anchorMonth(rows: DynamicListRow[], dateField: string | null): Date {
   for (const row of rows) {
     const key = dateField ? dayKey(row[dateField]) : null;
     if (key) {
@@ -172,7 +173,7 @@ export function DynamicCalendar({
    * clicado nem navegado, então ali ele seria dado invisível.
    */
   const byDay = useMemo(() => {
-    const map = new Map<string, Record<string, unknown>[]>();
+    const map = new Map<string, DynamicListRow[]>();
     if (!dateField) {
       return map;
     }

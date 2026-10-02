@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { t } from '../i18n';
+import type { DynamicListRow } from './DynamicList';
 import type { MetaEntitySchema } from './types';
 import {
   readFieldList,
@@ -42,7 +43,7 @@ export function isAggregateOp(value: unknown): value is PivotAggregateOp {
 
 export type DynamicPivotProps = {
   schema: MetaEntitySchema;
-  rows: Record<string, unknown>[];
+  rows: DynamicListRow[];
   viewType?: string;
   onCellClick?: (group: Record<string, string>, column: string | null) => void;
   emptyMessage?: string;
@@ -50,11 +51,11 @@ export type DynamicPivotProps = {
 
 type PivotCell = {
   key: string;
-  rows: Record<string, unknown>[];
+  rows: DynamicListRow[];
 };
 
 /** Valor de agrupamento como texto estável. `null`/vazio viram o rótulo declarado. */
-function groupValue(row: Record<string, unknown>, field: string): string {
+function groupValue(row: DynamicListRow, field: string): string {
   const value = row[field];
   if (value === null || value === undefined || value === '') {
     return '—';
@@ -83,7 +84,7 @@ function toNumber(value: unknown): number | null {
  */
 export function applyPivotOp(
   op: PivotAggregateOp,
-  rows: Record<string, unknown>[],
+  rows: DynamicListRow[],
   aggregateField: string | null,
 ): number | null {
   if (rows.length === 0) {
@@ -189,7 +190,7 @@ export function DynamicPivot({
       return [];
     }
     const order: string[] = [];
-    const byGroup = new Map<string, Record<string, unknown>[]>();
+    const byGroup = new Map<string, DynamicListRow[]>();
 
     for (const row of rows) {
       const group = resolvedGroups.map((field) => groupValue(row, field.name));
