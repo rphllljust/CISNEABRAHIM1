@@ -35,7 +35,10 @@ test.describe('V4 — explorador de metadados e construtor de formulário', () =
         (text ?? '').replace(/\D+/g, ''),
       ),
     );
-    expect(entityCount).toBeGreaterThanOrEqual(5);
+    // O store tem 9 entidades registradas (`SELECT count(*) FROM meta.entities WHERE enabled`).
+    // A asserção é pelo número REAL: um piso frouxo (>= 5) passaria mesmo se metade das
+    // entidades deixasse de ser publicada pela API.
+    expect(entityCount).toBeGreaterThanOrEqual(9);
 
     // Abre uma entidade e confere que o schema real chegou.
     await page.locator('[data-explorer-entity="service-orders"]').click();
