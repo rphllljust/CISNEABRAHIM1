@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import { requireJourneyLogin, requireJourneyPassword } from './journey-credentials';
 
 /**
  * ENGINE DE ERP — GENERICIDADE PROVADA EM ORDEM DE SERVIÇO (sem mock, sem page.route, sem sleep).
@@ -13,18 +14,7 @@ import { expect, test, type Page } from '@playwright/test';
  * Se as três passarem sem uma linha nova na engine, a engine é genérica. O SQL NÃO é a prova:
  * a prova é o DOM RENDERIZADO mudar depois da mutação, sem deploy.
  */
-const LOGIN = process.env['CISNE_JOURNEY_LOGIN'] ?? 'abrahim@cisne-rondonia.invalid';
-
-function requireJourneyPassword(): string {
-  const value = process.env['CISNE_JOURNEY_PASSWORD']?.trim();
-  if (!value) {
-    throw new Error(
-      'CONFIGURATION_ERROR: CISNE_JOURNEY_PASSWORD is required to run this journey.',
-    );
-  }
-  return value;
-}
-
+const LOGIN = requireJourneyLogin();
 const PASSWORD = requireJourneyPassword();
 const SHOTS = process.env['CISNE_JOURNEY_SHOTS'] ?? join(process.cwd(), 'test-results', 'engine');
 mkdirSync(SHOTS, { recursive: true });

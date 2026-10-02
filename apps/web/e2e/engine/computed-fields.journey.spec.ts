@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import { requireJourneyLogin, requireJourneyPassword } from './journey-credentials';
 
 /**
  * V2 · COMPUTED FIELDS — prova no browser, sem mock e sem sleep.
@@ -14,16 +15,7 @@ import { expect, test, type Page } from '@playwright/test';
  * e esta prova falha por AUSÊNCIA DE CANAL, não por defeito da engine. O teste verifica os dois
  * lados: se a declaração CHEGAR, a coluna e o valor têm de aparecer.
  */
-const LOGIN = process.env['CISNE_JOURNEY_LOGIN'] ?? 'abrahim@cisne-rondonia.invalid';
-
-function requireJourneyPassword(): string {
-  const value = process.env['CISNE_JOURNEY_PASSWORD']?.trim();
-  if (!value) {
-    throw new Error('CONFIGURATION_ERROR: CISNE_JOURNEY_PASSWORD is required.');
-  }
-  return value;
-}
-
+const LOGIN = requireJourneyLogin();
 const PASSWORD = requireJourneyPassword();
 const SHOTS = process.env['CISNE_JOURNEY_SHOTS'] ?? join(process.cwd(), 'test-results', 'engine');
 mkdirSync(SHOTS, { recursive: true });

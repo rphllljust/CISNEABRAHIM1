@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import { requireJourneyLogin, requireJourneyPassword } from './journey-credentials';
 
 /**
  * ENGINE DE ERP — JORNADA REAL (sem mock, sem page.route, sem sleep).
@@ -12,18 +13,7 @@ import { expect, test, type Page } from '@playwright/test';
  * As mutações usam o helper `mutateMetadata`, que fala com o Postgres pelo `pg` do próprio
  * projeto. Não há atalho HTTP: o metadata store é escrito como um administrador escreveria.
  */
-const LOGIN = process.env['CISNE_JOURNEY_LOGIN'] ?? 'abrahim@cisne-rondonia.invalid';
-
-function requireJourneyPassword(): string {
-  const value = process.env['CISNE_JOURNEY_PASSWORD']?.trim();
-  if (!value) {
-    throw new Error(
-      'CONFIGURATION_ERROR: CISNE_JOURNEY_PASSWORD is required to run this journey.',
-    );
-  }
-  return value;
-}
-
+const LOGIN = requireJourneyLogin();
 const PASSWORD = requireJourneyPassword();
 const SHOTS = process.env['CISNE_JOURNEY_SHOTS'] ?? join(process.cwd(), 'test-results', 'engine');
 mkdirSync(SHOTS, { recursive: true });

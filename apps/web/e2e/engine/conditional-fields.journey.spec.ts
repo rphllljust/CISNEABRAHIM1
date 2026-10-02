@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import { requireJourneyLogin, requireJourneyPassword } from './journey-credentials';
 
 /**
  * V2 · CONDITIONAL FIELDS — prova no browser, sem mock e sem sleep.
@@ -12,16 +13,7 @@ import { expect, test, type Page } from '@playwright/test';
  * BLOQUEIO DE TRANSPORTE DECLARADO: `visible_when` existe no schema (0087) mas não está na
  * projeção de `GET /api/v1/meta/:entity`. O teste verifica store e DOM separadamente.
  */
-const LOGIN = process.env['CISNE_JOURNEY_LOGIN'] ?? 'abrahim@cisne-rondonia.invalid';
-
-function requireJourneyPassword(): string {
-  const value = process.env['CISNE_JOURNEY_PASSWORD']?.trim();
-  if (!value) {
-    throw new Error('CONFIGURATION_ERROR: CISNE_JOURNEY_PASSWORD is required.');
-  }
-  return value;
-}
-
+const LOGIN = requireJourneyLogin();
 const PASSWORD = requireJourneyPassword();
 const SHOTS = process.env['CISNE_JOURNEY_SHOTS'] ?? join(process.cwd(), 'test-results', 'engine');
 mkdirSync(SHOTS, { recursive: true });
