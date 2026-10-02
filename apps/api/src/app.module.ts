@@ -22,6 +22,7 @@ import { DocumentsModule } from './documents/documents.module';
 import { SecurityModule } from './security/security.module';
 import { ObservabilityModule } from './observability/observability.module';
 import { HealthModule } from './health/health.module';
+import { MetaModule } from './meta/meta.module';
 import { RequestsModule } from './requests/requests.module';
 import { ResourcesModule } from './resources/resources.module';
 import { MeasurementsModule } from './measurements/measurements.module';
@@ -42,7 +43,7 @@ import { ReleaseScopeGuard } from './platform/release-scope/release-scope.guard'
 import { ModuleRegistryModule } from './platform/module-registry/module-registry.module';
 
 @Module({
-  imports: [ModuleRegistryModule, FaultInjectionModule, SecurityModule, ObservabilityModule, HealthModule, AuditModule, AuthModule, AuthorizationModule, ClientsModule, SuppliersModule, PeopleModule, IssuerRegistryModule, CatalogModule, CommercialModule, ProcurementModule, RequestsModule, ServiceOrdersModule, MeasurementsModule, BillingModule, FinanceModule, AccountingModule, FiscalModule, InventoryModule, PayrollModule, ResourcesModule, DocumentsModule, EventsModule, NotificationsModule, DashboardModule, AnalyticsModule, AlertsModule, WorkInboxModule, BusinessChainModule, SearchModule, ReportsModule, BackgroundJobsModule, OutboxModule, IntegrationsAclModule, IntegrationsInboxModule],
+  imports: [MetaModule, ModuleRegistryModule, FaultInjectionModule, SecurityModule, ObservabilityModule, HealthModule, AuditModule, AuthModule, AuthorizationModule, ClientsModule, SuppliersModule, PeopleModule, IssuerRegistryModule, CatalogModule, CommercialModule, ProcurementModule, RequestsModule, ServiceOrdersModule, MeasurementsModule, BillingModule, FinanceModule, AccountingModule, FiscalModule, InventoryModule, PayrollModule, ResourcesModule, DocumentsModule, EventsModule, NotificationsModule, DashboardModule, AnalyticsModule, AlertsModule, WorkInboxModule, BusinessChainModule, SearchModule, ReportsModule, BackgroundJobsModule, OutboxModule, IntegrationsAclModule, IntegrationsInboxModule],
   providers: [{ provide: APP_GUARD, useClass: ReleaseScopeGuard }],
 })
 export class AppModule {}
