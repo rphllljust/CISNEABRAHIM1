@@ -8,7 +8,7 @@ import {
 } from '../api/suppliers-api';
 import { BackofficeApiError } from '../../financial-ui/enterprise-api';
 import { mapSupplierErrorToMessage } from '../api/supplier-error-messages';
-import { ActionBar, DynamicForm, useEntitySchema } from '../../engine';
+import { ActionBar, DynamicForm, toDisplayText, useEntitySchema } from '../../engine';
 import { supplierEngineRow, type SupplierEngineRow } from './supplier-engine-rows';
 
 /**
@@ -144,7 +144,7 @@ export function SuppliersEngineDetailPage() {
     );
   }
 
-  const currentState = String(row['status'] ?? '');
+  const currentState = toDisplayText(row['status']);
 
   return (
     <div className="p-6">
@@ -154,7 +154,7 @@ export function SuppliersEngineDetailPage() {
 
       <header className="mb-4">
         <h1 className="text-xl font-semibold">
-          {String(values['legal_name'] ?? schema.label)}
+          {toDisplayText(values['legal_name']) || schema.label}
         </h1>
         <p className="mt-1 text-xs text-gray-500">
           Estado atual: <span data-testid="engine-current-state">{currentState}</span>

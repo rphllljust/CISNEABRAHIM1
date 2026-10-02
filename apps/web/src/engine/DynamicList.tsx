@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { FieldRenderer } from './FieldRenderer';
+import { FieldRenderer, toDisplayText } from './FieldRenderer';
 import type { MetaEntitySchema, MetaField } from './types';
 
 /**
@@ -151,6 +151,6 @@ function sortRows(
     if (b === null || b === undefined) {
       return -1;
     }
-    return String(a).localeCompare(String(b), 'pt-BR') * factor;
+    return toDisplayText(a).localeCompare(toDisplayText(b), 'pt-BR') * factor;
   });
 }

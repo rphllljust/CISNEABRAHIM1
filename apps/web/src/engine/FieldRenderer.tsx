@@ -14,6 +14,31 @@ export type FieldRendererProps = {
   displayValue?: string | null;
 };
 
+/**
+ * Converte um valor desconhecido em texto para exibição.
+ *
+ * `String(value)` sobre `unknown` produz `[object Object]` para objetos e arrays — um
+ * resultado que PARECE dado e não é. Esta função prefere o vazio explícito ('—') a uma
+ * string que mente sobre o conteúdo.
+ */
+export function toDisplayText(value: unknown): string {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => toDisplayText(entry)).filter((entry) => entry.length > 0).join(', ');
+  }
+  // Objeto: não há representação textual honesta sem saber o tipo. Devolve vazio em vez de
+  // `[object Object]`, e o chamador exibe o marcador de ausência.
+  return '';
+}
+
 /** Formata para leitura (lista, detalhe). Nunca inventa valor: ausente vira `—`. */
 export function formatFieldValue(field: MetaField, value: unknown): string {
   if (value === null || value === undefined || value === '') {
@@ -30,13 +55,16 @@ export function formatFieldValue(field: MetaField, value: unknown): string {
     case 'currency':
       return formatCurrency(value);
     case 'select': {
-      const option = field.options?.options?.find((entry) => entry.value === String(value));
-      return option?.label ?? String(value);
+      const text = toDisplayText(value);
+      const option = field.options?.options?.find((entry) => entry.value === text);
+      return option?.label ?? text;
     }
     case 'integer':
-      return String(value);
-    default:
-      return String(value);
+      return toDisplayText(value);
+    default: {
+      const text = toDisplayText(value);
+      return text.length > 0 ? text : '—';
+    }
   }
 }
 
@@ -65,9 +93,10 @@ export function FieldRenderer({
 }
 
 function formatDate(value: unknown): string {
-  const parsed = new Date(String(value));
+  const text = toDisplayText(value);
+  const parsed = new Date(text);
   if (Number.isNaN(parsed.getTime())) {
-    return String(value);
+    return text;
   }
   return new Intl.DateTimeFormat('pt-BR', {
     dateStyle: 'short',
@@ -76,9 +105,10 @@ function formatDate(value: unknown): string {
 }
 
 function formatDateTime(value: unknown): string {
-  const parsed = new Date(String(value));
+  const text = toDisplayText(value);
+  const parsed = new Date(text);
   if (Number.isNaN(parsed.getTime())) {
-    return String(value);
+    return text;
   }
   return new Intl.DateTimeFormat('pt-BR', {
     dateStyle: 'short',
@@ -88,9 +118,10 @@ function formatDateTime(value: unknown): string {
 }
 
 function formatCurrency(value: unknown): string {
-  const parsed = typeof value === 'number' ? value : Number(String(value));
+  const text = toDisplayText(value);
+  const parsed = typeof value === 'number' ? value : Number(text);
   if (!Number.isFinite(parsed)) {
-    return String(value);
+    return text;
   }
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',

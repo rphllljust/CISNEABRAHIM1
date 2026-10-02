@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { FieldRenderer } from './FieldRenderer';
+import { FieldRenderer, toDisplayText } from './FieldRenderer';
 import type { MetaEntitySchema, MetaField } from './types';
 
 /**
@@ -45,7 +45,7 @@ export function DynamicKanban({
       map.set(state, []);
     }
     for (const row of rows) {
-      const key = groupBy ? String(row[groupBy] ?? '') : '';
+      const key = groupBy ? toDisplayText(row[groupBy]) : '';
       const bucket = map.get(key);
       if (bucket) {
         bucket.push(row);

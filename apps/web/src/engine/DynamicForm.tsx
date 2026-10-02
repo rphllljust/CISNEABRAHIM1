@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toDisplayText } from './FieldRenderer';
 import type { MetaEntitySchema, MetaField } from './types';
 
 /**
@@ -145,7 +146,7 @@ function FieldControl({
         disabled={disabled}
         data-field={field.name}
         data-field-type="select"
-        value={value === null || value === undefined ? '' : String(value)}
+        value={toDisplayText(value)}
         onChange={(event) => emit(event.target.value)}
       >
         <option value="">—</option>
@@ -182,7 +183,7 @@ function FieldControl({
         disabled={disabled}
         data-field={field.name}
         data-field-type="text"
-        value={value === null || value === undefined ? '' : String(value)}
+        value={toDisplayText(value)}
         onChange={(event) => emit(event.target.value)}
       />
     );
@@ -205,7 +206,7 @@ function FieldControl({
       disabled={disabled}
       data-field={field.name}
       data-field-type={field.type}
-      value={value === null || value === undefined ? '' : String(value)}
+      value={toDisplayText(value)}
       onChange={(event) => emit(event.target.value)}
     />
   );

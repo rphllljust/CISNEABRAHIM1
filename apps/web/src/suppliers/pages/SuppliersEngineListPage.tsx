@@ -78,7 +78,9 @@ export function SuppliersEngineListPage() {
           schema={schema}
           rows={rows}
           emptyMessage="Nenhum fornecedor cadastrado."
-          onRowClick={(row) => navigate(`/app/suppliers/${row.id}`)}
+          onRowClick={(row) => {
+            void navigate(`/app/suppliers/${row.id}`);
+          }}
         />
       ) : null}
     </div>

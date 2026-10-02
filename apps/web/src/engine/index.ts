@@ -3,7 +3,7 @@ export { DynamicForm, useDynamicFormState } from './DynamicForm';
 export { DynamicList } from './DynamicList';
 export { DynamicKanban } from './DynamicKanban';
 export { ActionBar, describeUnavailableTransitions } from './ActionBar';
-export { FieldRenderer, formatFieldValue } from './FieldRenderer';
+export { FieldRenderer, formatFieldValue, toDisplayText } from './FieldRenderer';
 export {
   MetaApiError,
   fetchEntityFields,
