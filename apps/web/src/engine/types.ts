@@ -41,6 +41,16 @@ export type MetaField = {
   listOrder: number;
   inFilter: boolean;
   inSearch: boolean;
+  /**
+   * V2 — agregação de coluna (`sum`/`count`/`avg`/`min`/`max`).
+   *
+   * BLOQUEADA — aggregations — API_CONTRACT_MISSING: a coluna existe em `meta.fields` mas o
+   * endpoint não a projeta. O tipo já a declara para que a engine a consuma no dia em que o
+   * canal existir, sem nenhuma outra alteração.
+   */
+  aggregation?: string | null;
+  /** V2 — condição de visibilidade `{ field, equals }`. Mesmo bloqueio de canal. */
+  visibleWhen?: Record<string, unknown> | null;
 };
 
 export type ViewSection = {
@@ -66,6 +76,8 @@ export type MetaView = {
   label: string;
   layout: FormLayout & ListLayout & KanbanLayout;
   isDefault: boolean;
+  /** V2 — regras de cor de linha. Mesmo bloqueio de canal das demais capacidades. */
+  rowAccent?: unknown;
 };
 
 export type MetaTransition = {
@@ -102,6 +114,8 @@ export type MetaEntitySchema = {
   dataTable: string;
   labelField: string;
   fields: MetaField[];
+  /** V2 — campos derivados por fórmula. Mesmo bloqueio de canal. */
+  computedFields?: unknown[];
   views: MetaView[];
   workflow: MetaWorkflow | null;
   permissions: MetaPermission[];

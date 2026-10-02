@@ -1,20 +1,24 @@
 /**
  * Capacidades V2 da engine — computed fields, aggregations, condicionalidade e accents.
  *
- * CANAL DE TRANSPORTE, DECLARADO SEM EUFEMISMO: o endpoint que a engine consome
- * (`GET /api/v1/meta/:entity`) projeta `meta.fields` COLUNA A COLUNA — `aggregation` e
- * `visible_when` não estão nessa projeção — e `meta.computed_fields` é tabela nova, sem rota.
- * Nesta sessão é PROIBIDO tocar `apps/api/`.
+ * BLOQUEADA — computed_fields, aggregations, conditional_fields, row_accents — API_CONTRACT_MISSING.
  *
- * O que a API devolve CRU é `meta.fields.options` (jsonb) e `meta.views.layout` (jsonb). São
- * esses dois canais que carregam a configuração V2:
- *   - `field.options.aggregation` e `field.options.visibleWhen` → declaração DO CAMPO;
- *   - `view.layout.rowAccents` e `view.layout.computedFields` → declaração DA VIEW.
+ * O schema EXISTE no metadata store: a migration 0087 cria `meta.computed_fields` e adiciona
+ * `aggregation`/`visible_when` em `meta.fields` e `row_accent` em `meta.views` (verificado por
+ * `information_schema`).
  *
- * Isto NÃO é contorno: `options` existe precisamente para configuração que varia por tipo de
- * campo, e `layout` para composição da view. As colunas de primeira classe em `meta.*`
- * (migration 0087) ficam prontas para quando a projeção da API incluí-las — quando isso
- * acontecer, só o leitor abaixo muda; nenhum componente da engine.
+ * O CANAL NÃO EXISTE. `GET /api/v1/meta/:entity` projeta `meta.fields` com 13 chaves fixas
+ * (`meta.service.ts:251`) e `meta.views` sem `row_accent` (`meta.service.ts:275`). São as 5
+ * únicas rotas do controller de metadados. Não há endpoint que devolva o schema cru.
+ *
+ * O QUE FALTA (proposta, NÃO implementada — `apps/api/` é somente leitura nesta sessão):
+ *   acrescentar `computedFields` ao schema, `aggregation`/`visibleWhen` a cada field, e
+ *   `rowAccent` a cada view, no `SELECT`+mapper de `listFields`/`listViews`.
+ *
+ * LEITURA DEFENSIVA: as funções abaixo leem o CANAL OFICIAL quando ele existir
+ * (`field.aggregation`, `field.visibleWhen`, `schema.computedFields`, `view.rowAccent`) e caem
+ * para `options`/`layout` apenas como COMPATIBILIDADE transitória. Enquanto o canal não existe,
+ * nenhuma das 4 capacidades aparece na tela — e é isso que os 4 E2E registram.
  */
 
 export type ComputedFormulaOp = 'diff_days';
@@ -101,11 +105,13 @@ export function isRowAccentToken(value: unknown): value is RowAccentToken {
  * sem `equals` é INVÁLIDO e o campo permanece visível. Fail-open aqui é deliberado: esconder
  * um campo por causa de uma regra malformada apagaria dado da tela sem explicação.
  */
-export function readVisibleWhen(options: Record<string, unknown> | null): VisibleWhen | null {
-  if (!options) {
-    return null;
-  }
-  const raw = options['visibleWhen'];
+export function readVisibleWhen(
+  options: Record<string, unknown> | null,
+  official?: unknown,
+): VisibleWhen | null {
+  // CANAL OFICIAL primeiro: `field.visibleWhen` da projeção da API. O fallback existe para
+  // payloads antigos, não como caminho principal.
+  const raw = official ?? options?.['visibleWhen'];
   if (typeof raw !== 'object' || raw === null) {
     return null;
   }
@@ -122,11 +128,12 @@ export function readVisibleWhen(options: Record<string, unknown> | null): Visibl
 }
 
 /** Lê `aggregation` de um campo. Valor fora do contrato é tratado como ausente. */
-export function readAggregation(options: Record<string, unknown> | null): AggregationKind | null {
-  if (!options) {
-    return null;
-  }
-  const raw = options['aggregation'];
+export function readAggregation(
+  options: Record<string, unknown> | null,
+  official?: unknown,
+): AggregationKind | null {
+  // CANAL OFICIAL primeiro: `field.aggregation`.
+  const raw = official ?? options?.['aggregation'];
   return isAggregationKind(raw) ? raw : null;
 }
 
@@ -139,8 +146,10 @@ export function readAggregation(options: Record<string, unknown> | null): Aggreg
 export function readComputedFields(
   layout: Record<string, unknown> | undefined,
   allowedPermLevels: readonly number[],
+  official?: unknown,
 ): ComputedField[] {
-  const raw = layout?.['computedFields'];
+  // CANAL OFICIAL primeiro: `schema.computedFields` da projeção da API.
+  const raw = Array.isArray(official) ? official : layout?.['computedFields'];
   if (!Array.isArray(raw)) {
     return [];
   }
@@ -219,8 +228,10 @@ function readFormula(raw: unknown): ComputedFormula | null {
  */
 export function readRowAccents(
   layout: Record<string, unknown> | undefined,
+  official?: unknown,
 ): RowAccentRule[] {
-  const raw = layout?.['rowAccents'];
+  // CANAL OFICIAL primeiro: `view.rowAccent` da projeção da API.
+  const raw = Array.isArray(official) ? official : layout?.['rowAccents'];
   if (!Array.isArray(raw)) {
     return [];
   }

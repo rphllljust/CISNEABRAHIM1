@@ -22,10 +22,14 @@ import type { MetaEntitySchema, MetaField } from './types';
  * A engine não conhece coluna alguma: `columns` do layout manda, e `field_order` é o
  * fallback.
  *
- * CAPACIDADES V2 declaradas no metadado (não no código desta tela):
- *   - CAMPOS COMPUTADOS (`layout.computedFields`): coluna derivada por fórmula fechada;
- *   - AGREGAÇÕES (`field.options.aggregation`): total de coluna no rodapé;
- *   - ACCENTS DE LINHA (`layout.rowAccents`): destaque semântico por regra de negócio.
+ * CAPACIDADES V2 — declaradas em `meta.*` e lidas do CANAL OFICIAL da projeção da API:
+ *   - CAMPOS COMPUTADOS (`schema.computedFields`): coluna derivada por fórmula fechada;
+ *   - AGREGAÇÕES (`field.aggregation`): total de coluna no rodapé;
+ *   - ACCENTS DE LINHA (`view.rowAccent`): destaque semântico por regra de negócio.
+ *
+ * BLOQUEADA — computed_fields, aggregations, row_accents — API_CONTRACT_MISSING: as colunas
+ * existem em `meta.*` (migration 0087) mas o endpoint não as projeta. Os leitores aceitam um
+ * parâmetro de compatibilidade para payloads antigos; o canal oficial tem precedência.
  */
 export type DynamicListRow = Record<string, unknown> & { id: string };
 
@@ -103,15 +107,24 @@ export function DynamicList({
   const aging = resolveAgingField(schema, agingField);
 
   /*
-   * CAMPOS COMPUTADOS e ACCENTS — ambos vêm de `view.layout`, que o servidor entrega CRU.
-   * Nenhum dos dois é coluna de banco: um é fórmula, o outro é regra de apresentação.
+   * CAMPOS COMPUTADOS e ACCENTS — lidos do CANAL OFICIAL (`schema.computedFields` e
+   * `view.rowAccent`). Nenhum dos dois é coluna de banco: um é fórmula, o outro é regra de
+   * apresentação. O segundo argumento dos leitores é compatibilidade com payload antigo.
    */
-  const listLayout = schema?.views.find((view) => view.viewType === 'list')?.layout;
+  const listView = schema?.views.find((view) => view.viewType === 'list');
   const computedFields = useMemo(
-    () => readComputedFields(listLayout, schema?.allowedPermLevels ?? []),
-    [listLayout, schema?.allowedPermLevels],
+    () =>
+      readComputedFields(
+        listView?.layout,
+        schema?.allowedPermLevels ?? [],
+        schema?.computedFields,
+      ),
+    [listView?.layout, schema?.allowedPermLevels, schema?.computedFields],
   );
-  const rowAccentRules = useMemo(() => readRowAccents(listLayout), [listLayout]);
+  const rowAccentRules = useMemo(
+    () => readRowAccents(listView?.layout, listView?.rowAccent),
+    [listView?.layout, listView?.rowAccent],
+  );
 
   const isSelected = (id: string): boolean =>
     selectedIds === undefined
@@ -491,7 +504,7 @@ function buildFooter(
   }
   const entries: Array<{ name: string; kind: AggregationKind; total: number | null }> = [];
   for (const column of columns) {
-    const kind = readAggregation(column.options ?? null);
+    const kind = readAggregation(column.options ?? null, column.aggregation);
     if (!kind) {
       continue;
     }

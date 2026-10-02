@@ -21,6 +21,7 @@ import {
   useCommandPaletteShortcut,
   useEntitySchema,
   useSavedViews,
+  toDisplayText,
   type MetaEntitySchema,
 } from '../../engine';
 import { useAuth } from '../../auth/context/AuthProvider';
@@ -119,7 +120,7 @@ export function ServiceOrdersEngineListPage() {
     }
     return rows.filter((row) =>
       active.every(([field, value]) =>
-        String(row[field] ?? '')
+        toDisplayText(row[field])
           .toLowerCase()
           .includes(value.trim().toLowerCase()),
       ),
@@ -198,9 +199,13 @@ export function ServiceOrdersEngineListPage() {
     [schema],
   );
 
+  /*
+   * As ações da palette derivam do workflow do metadado e despacham o MESMO `runCommand` da
+   * barra de lote. As dependências incluem `rows` porque `runCommand` lê `row_version` das
+   * linhas carregadas — mantê-las explícitas é mais honesto que silenciar a regra.
+   */
   const paletteActions = useMemo(
     () => paletteActionsFromSchema(schema, (command) => void runCommand(command, selectedIds)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [schema, selectedIds, rows],
   );
 

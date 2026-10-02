@@ -42,7 +42,7 @@ export function DynamicForm({
     schema.allowedPermLevels.includes(field.permLevel) &&
     // A condição é avaliada contra os valores VIVOS do formulário, não contra o registro
     // carregado: o campo aparece no instante em que o operador muda o campo do qual depende.
-    isFieldVisible(readVisibleWhen(field.options ?? null), values);
+    isFieldVisible(readVisibleWhen(field.options ?? null, field.visibleWhen), values);
 
   /*
    * ORDEM: quando a view declara seções, a ordem É a das seções — é o que permite mudar a
