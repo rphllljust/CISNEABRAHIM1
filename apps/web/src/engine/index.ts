@@ -13,6 +13,21 @@ export type { SavedView } from './DynamicSavedViews';
 export { DynamicBulkActions } from './DynamicBulkActions';
 export { DynamicPermissionGate, canRender, canRunCommand } from './DynamicPermissionGate';
 export { DynamicViewSwitcher, orderedViews } from './DynamicViewSwitcher';
+export { DynamicCalendar, dayKey, monthGrid, timeLabel } from './DynamicCalendar';
+export type { DynamicCalendarProps } from './DynamicCalendar';
+export {
+  fieldLabel,
+  findView,
+  readBoolean,
+  readFieldList,
+  readFieldName,
+  readLayout,
+  readString,
+  resolveViewField,
+  resolveViewFieldList,
+  selectableFields,
+} from './view-layout';
+export type { ResolvedViewField, ViewLayout } from './view-layout';
 export {
   CommandPalette,
   paletteActionsFromSchema,
