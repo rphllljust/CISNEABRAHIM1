@@ -209,7 +209,18 @@ test('a lista carrega as acoes de cada linha do BACKEND', async ({ page }) => {
     timeout: 30_000,
   });
 
-  // A linha busca as ações no backend — a lista NÃO decide por status.
+  /*
+   * A linha busca as ações no backend — a lista NÃO decide por status.
+   *
+   * NOTA (B6.1): a asserção de `command-catalog` foi REMOVIDA deliberadamente, não por
+   * conveniência. Nenhuma tela de fornecedor consome o catálogo: o rótulo de cada botão vem
+   * em `available-actions` (`SupplierAvailableAction.label`, renderizado por
+   * `CommandActionButton`). Asserir que o catálogo é chamado exigiria um consumidor que não
+   * existe — e `fetchSupplierCommandCatalog` foi deletado como dead code.
+   *
+   * A cobertura real — ações por linha vindas do backend, com `data-command` e rótulo
+   * não-vazio — está logo abaixo e permanece intacta.
+   */
   await expect
     .poll(() => metaCalls.some((url) => url.includes('available-actions')), { timeout: 30_000 })
     .toBe(true);

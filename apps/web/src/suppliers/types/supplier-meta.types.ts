@@ -25,17 +25,13 @@ export type SupplierAvailableActionsResponse = {
   comandos_invalidos_para_status: string[];
 };
 
-export type SupplierCommandCatalogEntry = {
-  nome: string;
-  label: string;
-  status_origem: string[];
-  status_destino: string;
-  requer_justificativa: boolean;
-};
-
-export type SupplierCommandCatalogResponse = {
-  comandos: SupplierCommandCatalogEntry[];
-};
+/*
+ * REMOVIDO em B6.1: `SupplierCommandCatalogEntry` e `SupplierCommandCatalogResponse`.
+ *
+ * Não havia consumidor. O rótulo de cada comando já chega em `available-actions`
+ * (`SupplierAvailableAction.label`), que é o que as telas renderizam — manter os dois tipos
+ * era dead code que sugeria uma segunda fonte de rótulos que não existe.
+ */
 
 export type SupplierAuditTimelineEvent = {
   id: string;

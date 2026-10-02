@@ -3,15 +3,19 @@ import { tokenStore } from '../../auth/storage/token-store';
 import type {
   SupplierAuditTimelineResponse,
   SupplierAvailableActionsResponse,
-  SupplierCommandCatalogResponse,
 } from '../types/supplier-meta.types';
 
 /**
  * Client dos endpoints "meta" de Fornecedor.
  *
  * Espelha `service-order-meta-api.ts` — mesmas rotas, mesmo tratamento de erro, mesma
- * assinatura. A simetria é o que permite que o provider global (`SessionMetaProvider`,
- * de service-orders) hidrate o catálogo de fornecedor sem duplicar lógica.
+ * assinatura.
+ *
+ * NOTA DE ESCOPO (B6.1): `fetchSupplierCommandCatalog` foi REMOVIDO. Nenhuma tela de
+ * fornecedor consome o catálogo: os rótulos dos botões vêm em cada entrada de
+ * `available-actions` (`CommandActionButton` renderiza `action.label`), então o catálogo era
+ * dead code. O `GET /suppliers/command-catalog` continua existindo no backend e continua
+ * coberto pelos testes de integração de `suppliers`.
  */
 
 export type SupplierMetaApiErrorKind = 'denied' | 'not_found' | 'network' | 'unknown';
@@ -68,13 +72,6 @@ async function requestJson<T>(path: string, signal?: AbortSignal): Promise<T> {
     }
     throw new SupplierMetaApiError(0, 'unknown');
   }
-}
-
-/** Catálogo global de comandos de fornecedor. Hidratado uma vez pelo provider. */
-export function fetchSupplierCommandCatalog(
-  signal?: AbortSignal,
-): Promise<SupplierCommandCatalogResponse> {
-  return requestJson<SupplierCommandCatalogResponse>('/api/v1/suppliers/command-catalog', signal);
 }
 
 /**
