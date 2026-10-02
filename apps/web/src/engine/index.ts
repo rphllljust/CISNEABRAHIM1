@@ -16,6 +16,13 @@ export { DynamicViewSwitcher, orderedViews } from './DynamicViewSwitcher';
 export { DynamicCalendar, dayKey, monthGrid, timeLabel } from './DynamicCalendar';
 export type { DynamicCalendarProps } from './DynamicCalendar';
 export {
+  DynamicPivot,
+  applyPivotOp,
+  formatPivotValue,
+  isAggregateOp,
+} from './DynamicPivot';
+export type { DynamicPivotProps, PivotAggregateOp } from './DynamicPivot';
+export {
   fieldLabel,
   findView,
   readBoolean,
