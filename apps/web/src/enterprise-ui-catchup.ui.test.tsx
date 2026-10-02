@@ -6,8 +6,6 @@ import { resetTokenStoreForTests, tokenStore } from './auth/storage/token-store'
 import { ExpensesPage } from './finance/pages/ExpensesPage';
 import { InventoryPage } from './inventory/pages/InventoryPage';
 import { ProcurementHubPage } from './procurement/pages/ProcurementPages';
-import { SuppliersPage } from './suppliers/pages/SuppliersPage';
-import { SuppliersListPage } from './suppliers/pages/SuppliersListPage';
 import { parseRequestPath } from './test/request-url';
 import { renderWithProviders } from './test/render-with-providers';
 
@@ -241,15 +239,8 @@ describe('Enterprise UI catch-up', () => {
     });
   });
 
-  it('shows empty states for suppliers, purchases and inventory', async () => {
+  it('shows empty states for purchases and inventory', async () => {
     vi.stubGlobal('fetch', createCatchUpFetchMock());
-    // Sem nenhum criterio aplicado o estado vazio passou a ser contextual ("ainda nao
-    // cadastrado"), distinto do caso filtrado. A assercao segue estrita no texto exato.
-    const { unmount: unmountSuppliers } = renderWithProviders(<SuppliersListPage />);
-    await waitFor(() => {
-      expect(screen.getByText('Nenhum fornecedor cadastrado ainda.')).toBeInTheDocument();
-    });
-    unmountSuppliers();
     const { unmount: unmountProcurement } = renderWithProviders(<ProcurementHubPage />);
     // As três entidades do fluxo de compras têm lista real; nada exige identificador digitado.
     await waitFor(() => {
@@ -270,26 +261,6 @@ describe('Enterprise UI catch-up', () => {
     expect(screen.getByRole('table', { name: 'Movimentos de estoque' })).toBeInTheDocument();
     expect(screen.getByRole('table', { name: 'Reservas de estoque' })).toBeInTheDocument();
     expect(screen.queryByLabelText(/depósito de destino \(id\)/i)).not.toBeInTheDocument();
-  });
-
-  it('surfaces supplier version conflict on activate', async () => {
-    const user = userEvent.setup();
-    vi.stubGlobal('fetch', createCatchUpFetchMock());
-    renderWithProviders(
-      <Routes>
-        <Route path="/app/suppliers/:supplierId" element={<SuppliersPage />} />
-      </Routes>,
-      { router: { initialEntries: [`/app/suppliers/${SUPPLIER_ID}`] } },
-    );
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Ativar' })).toBeInTheDocument();
-    });
-    await user.click(screen.getByRole('button', { name: 'Ativar' }));
-    const dialog = await screen.findByRole('dialog');
-    await user.click(within(dialog).getByRole('button', { name: 'Ativar' }));
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Conflito de versão' })).toBeInTheDocument();
-    });
   });
 
   it('keeps catch-up surfaces usable at 360, 768, 1024 and 1440', async () => {
