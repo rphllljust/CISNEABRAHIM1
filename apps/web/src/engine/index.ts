@@ -22,6 +22,8 @@ export {
   isAggregateOp,
 } from './DynamicPivot';
 export type { DynamicPivotProps, PivotAggregateOp } from './DynamicPivot';
+export { DynamicTree, buildTree, flattenTree, idsToDepth } from './DynamicTree';
+export type { DynamicTreeProps, TreeNode } from './DynamicTree';
 export {
   fieldLabel,
   findView,
