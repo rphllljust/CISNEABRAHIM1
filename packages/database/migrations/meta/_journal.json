@@ -603,6 +603,13 @@
                         "when":  1790700100000,
                         "tag":  "0085_metadata_seed_entities",
                         "breakpoints":  true
+                    },
+                    {
+                        "idx":  86,
+                        "version":  "7",
+                        "when":  179089596568637000,
+                        "tag":  "0086_metadata_seed_finance",
+                        "breakpoints":  true
                     }
                 ]
 }
