@@ -127,11 +127,13 @@ import {
 } from './inventory/pages/InventoryPage';
 import { PayrollRoute, PayrollPage } from './payroll/pages/PayrollPage';
 import { SupplierCreatePage } from './suppliers/pages/SupplierCreatePage';
-import { SuppliersListPage } from './suppliers/pages/SuppliersListPage';
-import { SuppliersPage, SuppliersRoute } from './suppliers/pages/SuppliersPage';
+import { SuppliersEngineListPage } from './suppliers/pages/SuppliersEngineListPage';
+import { SuppliersEngineDetailPage } from './suppliers/pages/SuppliersEngineDetailPage';
+import { SuppliersRoute } from './suppliers/pages/SuppliersRoute';
 import { AccessAdminRoute } from './access-admin/AccessAdminRoute';
 import { AccessAdminPage } from './access-admin/pages/AccessAdminPage';
 import { SessionMetaBridge } from './service-orders/context/SessionMetaBridge';
+import { MetadataProvider } from './engine';
 import { ServiceOrderDetailPage } from './service-orders/pages/ServiceOrderDetailPage';
 
 export function App() {
@@ -139,7 +141,14 @@ export function App() {
     <BrowserRouter>
       <AuthProvider>
         <SessionMetaBridge />
-        <Routes>
+        {/*
+          METADATA PROVIDER — a engine de ERP.
+          Envolve as rotas inteiras para que qualquer tela possa consumir metadado sem
+          montar provider próprio. O cache é por entidade, então navegar entre telas da
+          mesma entidade não refaz a chamada.
+        */}
+        <MetadataProvider>
+          <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/access-denied" element={<AccessDeniedPage />} />
           <Route path="/session-expired" element={<SessionExpiredPage />} />
@@ -962,7 +971,7 @@ export function App() {
                 path="/app/suppliers/:supplierId"
                 element={
                   <SuppliersRoute>
-                    <SuppliersPage />
+                    <SuppliersEngineDetailPage />
                   </SuppliersRoute>
                 }
               />
@@ -970,7 +979,7 @@ export function App() {
                 path="/app/suppliers"
                 element={
                   <SuppliersRoute>
-                    <SuppliersListPage />
+                    <SuppliersEngineListPage />
                   </SuppliersRoute>
                 }
               />
@@ -1013,6 +1022,7 @@ export function App() {
           <Route path="/" element={<Navigate to="/app" replace />} />
           <Route path="*" element={<ShellNotFoundPage />} />
         </Routes>
+        </MetadataProvider>
       </AuthProvider>
     </BrowserRouter>
   );
