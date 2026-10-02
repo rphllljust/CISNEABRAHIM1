@@ -117,6 +117,15 @@ CROSS JOIN (VALUES
   ('row_version',  'Versão',        'integer',  false, true,  0, NULL,        8,  false, false, 0, false, false),
   ('created_at',   'Criada em',     'datetime', false, true,  0, NULL,        9,  false, true,  6, false, false),
   ('contract_reference', 'Contrato','data',     false, false, 0, NULL,       10,  true, false, 0, false, false),
+  /*
+   * PRAZO OPERACIONAL — o EIXO TEMPORAL REAL da OS.
+   *
+   * `created_at` existe como campo, mas a LISTAGEM não o devolve (`ServiceOrderSummary` traz
+   * apenas `updatedAt` e `deadlineAt`). Sem `deadline_at` declarado, o aging da lista não tem
+   * por onde ser calculado e o indicador some. É a distância até o PRAZO que diz se uma OS
+   * está atrasada — não a data de criação.
+   */
+  ('deadline_at',  'Prazo',         'datetime', false, true,  0, NULL,       12,  true, true,  7, false, false),
   ('client_snapshot',    'Cliente', 'text',     false, true,  1, NULL,       11,  true, false, 0, false, false)
 ) AS f(name, label, type, required, read_only, perm_level, options, field_order, in_form, in_list, list_order, in_filter, in_search)
 WHERE e.name = 'service-orders'
