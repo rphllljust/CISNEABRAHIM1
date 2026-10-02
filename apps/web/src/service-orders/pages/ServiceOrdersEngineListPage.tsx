@@ -11,17 +11,25 @@ import { mapServiceOrdersErrorToMessage } from '../api/service-orders-error-mess
 import {
   CommandPalette,
   DynamicBulkActions,
+  DynamicContextDrawer,
+  DynamicCreateForm,
+  DynamicExportCsv,
   DynamicFilterBar,
   DynamicKanban,
+  DynamicKpiDrilldown,
   DynamicList,
   DynamicSavedViewsBar,
   DynamicViewSwitcher,
+  buildKpiMetrics,
   filtersToSearchParams,
+  listColumns,
   paletteActionsFromSchema,
   useCommandPaletteShortcut,
   useEntitySchema,
   useSavedViews,
   toDisplayText,
+  type CrossReference,
+  type KpiSpec,
   type MetaEntitySchema,
 } from '../../engine';
 import { useAuth } from '../../auth/context/AuthProvider';
@@ -60,6 +68,12 @@ export function ServiceOrdersEngineListPage() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkMessage, setBulkMessage] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  /** Estado do formulário de criação — a engine fornece, a TELA decide como submeter. */
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createBusy, setCreateBusy] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  /** Linha que abriu o drawer de contexto. `null` = painel fechado. */
+  const [contextRow, setContextRow] = useState<ServiceOrderEngineRow | null>(null);
 
   const activeViewType = searchParams.get('view') ?? 'list';
 
@@ -127,6 +141,24 @@ export function ServiceOrdersEngineListPage() {
     );
   }, [rows, filters]);
 
+  /**
+   * INDICADORES DE DRILL-DOWN — derivados das linhas carregadas, com recortes DECLARADOS.
+   *
+   * `buildKpiMetrics` conta por `equals` sobre o campo do metadado; a engine não conhece os
+   * estados, apenas conta o que a tela declara. O clique aplica o MESMO filtro que a barra usa,
+   * então o número do card e a lista filtrada vêm do mesmo recorte.
+   */
+  const kpiSpecs = useMemo<KpiSpec[]>(
+    () => [
+      { id: 'execution', label: 'Em execução', field: 'status', equals: 'IN_EXECUTION', tone: 'info' },
+      { id: 'paused', label: 'Pausadas', field: 'status', equals: 'PAUSED', tone: 'warning' },
+      { id: 'completed', label: 'Concluídas', field: 'status', equals: 'COMPLETED', tone: 'success' },
+      { id: 'cancelled', label: 'Canceladas', field: 'status', equals: 'CANCELLED', tone: 'critical' },
+    ],
+    [],
+  );
+  const kpiMetrics = useMemo(() => buildKpiMetrics(rows, kpiSpecs), [rows, kpiSpecs]);
+
   const updateFilter = (field: string, value: string): void => {
     const next = new URLSearchParams(searchParams);
     if (value.trim() === '') {
@@ -153,6 +185,44 @@ export function ServiceOrdersEngineListPage() {
 
   const openRow = (row: Record<string, unknown> & { id: string }): void => {
     void navigate(`/app/service-orders/${row.id}`);
+  };
+
+  /**
+   * Abre o painel de contexto para a linha clicada.
+   *
+   * Diferente de `openRow`, que NAVEGA: o drawer mantém o operador na lista e mostra as
+   * referências cruzadas do registro sem tirá-lo do recorte em que ele está trabalhando.
+   */
+  const openContext = (row: ServiceOrderEngineRow): void => {
+    setContextRow(row);
+  };
+
+  /**
+   * Referências cruzadas da linha.
+   *
+   * Montadas do que o payload JÁ traz — nenhuma chamada de rede nova. Quando um vínculo não
+   * veio, ele não é afirmado: a referência simplesmente não entra, e a lista fica vazia se
+   * nenhuma existir (o drawer declara isso em vez de quebrar).
+   */
+  const crossReferencesFor = (row: ServiceOrderEngineRow): CrossReference[] => {
+    const references: CrossReference[] = [];
+    const status = toDisplayText(row['status']);
+    if (status.trim() !== '') {
+      references.push({ label: 'Situação', detail: status });
+    }
+    const client = toDisplayText(row['client_snapshot']);
+    if (client.trim() !== '') {
+      references.push({ label: 'Cliente', detail: client });
+    }
+    const unit = toDisplayText(row['unit_id']);
+    if (unit.trim() !== '') {
+      references.push({ label: 'Unidade', detail: unit });
+    }
+    const deadline = toDisplayText(row['deadline_at']);
+    if (deadline.trim() !== '') {
+      references.push({ label: 'Prazo', detail: deadline });
+    }
+    return references;
   };
 
   async function runCommand(command: string, ids: string[]): Promise<void> {
@@ -213,11 +283,25 @@ export function ServiceOrdersEngineListPage() {
 
   return (
     <div className="p-6">
-      <header className="mb-4">
-        <h1 className="text-xl font-semibold">{schema?.label ?? 'Ordens de serviço'}</h1>
-        <p className="mt-1 text-xs text-gray-500">
-          Renderizado pela engine a partir de <code>/api/v1/meta/service-orders</code>.
-        </p>
+      <header className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">{schema?.label ?? 'Ordens de serviço'}</h1>
+          <p className="mt-1 text-xs text-gray-500">
+            Renderizado pela engine a partir de <code>/api/v1/meta/service-orders</code>.
+          </p>
+        </div>
+        {/* Criação pela engine: os campos são os que o metadado declara como criáveis. */}
+        <button
+          type="button"
+          data-testid="dynamic-create-open"
+          className="rounded bg-slate-800 px-3 py-1.5 text-sm text-white"
+          onClick={() => {
+            setCreateError(null);
+            setCreateOpen((current) => !current);
+          }}
+        >
+          Nova OS
+        </button>
       </header>
 
       {status === 'loading' || rowsStatus === 'loading' ? (
@@ -246,12 +330,50 @@ export function ServiceOrdersEngineListPage() {
 
       {schema && rowsStatus === 'ready' ? (
         <>
+          {createOpen ? (
+            <div className="mb-4" data-testid="dynamic-create-panel">
+              <DynamicCreateForm
+                schema={schema}
+                busy={createBusy}
+                errorMessage={createError}
+                onCancel={() => setCreateOpen(false)}
+                onSubmit={() => {
+                  /*
+                   * A ENGINE coleta; a TELA decide como gravar. O endpoint de criação de OS
+                   * exige vínculo com solicitação/proposta aceita — criar uma OS "solta" não é
+                   * operação do domínio. Enquanto essa tela não tiver o vínculo, o formulário
+                   * DIZ isso em vez de enviar um POST que o backend recusaria.
+                   */
+                  setCreateError(
+                    'A ordem de serviço nasce de uma solicitação aprovada ou proposta aceita. Abra a origem e converta.',
+                  );
+                  setCreateBusy(false);
+                }}
+              />
+            </div>
+          ) : null}
+
           <DynamicViewSwitcher
             schema={schema}
             activeViewType={activeViewType}
             onChange={changeView}
             supportedViewTypes={SUPPORTED_VIEW_TYPES}
           />
+
+          <DynamicKpiDrilldown
+            metrics={kpiMetrics}
+            activeFilters={filters}
+            onDrilldown={(field, value) => updateFilter(field, value)}
+          />
+
+          <div className="mb-2">
+            <DynamicExportCsv
+              schema={schema}
+              rows={visibleRows}
+              fileName="ordens-de-servico"
+              columns={listColumns(schema)}
+            />
+          </div>
 
           <DynamicFilterBar
             schema={schema}
@@ -304,7 +426,32 @@ export function ServiceOrdersEngineListPage() {
                * diz se uma OS está atrasada, e é isso que a cor comunica.
                */
               agingField="deadline_at"
+              /*
+               * A LINHA NAVEGA; o painel de contexto abre por um botão PRÓPRIO.
+               *
+               * Os dois gestos existiram na mesma linha em algum momento, e o clique ficou com
+               * o drawer — o que apagou a ida ao detalhe: a lista deixou de abrir a OS e as
+               * provas de browser (campo novo, transição nova, reordenação) passaram a falhar
+               * por não haver detalhe para inspecionar. Um clique não pode significar duas
+               * coisas: navegar é o que a linha promete desde que a lista existe, e o contexto
+               * ganhou botão explícito, que também anuncia a ação a quem usa teclado.
+               */
               onRowClick={openRow}
+              renderRowActions={(row) => (
+                <button
+                  type="button"
+                  data-testid="dynamic-open-context"
+                  data-context-row={row.id}
+                  className="rounded border border-slate-300 px-2 py-0.5 text-xs"
+                  onClick={(event) => {
+                    // Sem `stopPropagation` o botão também navegaria — o clique subiria ao `<tr>`.
+                    event.stopPropagation();
+                    openContext(row as ServiceOrderEngineRow);
+                  }}
+                >
+                  Contexto
+                </button>
+              )}
             />
           ) : (
             /*
@@ -319,6 +466,23 @@ export function ServiceOrdersEngineListPage() {
           )}
         </>
       ) : null}
+
+      <DynamicContextDrawer
+        open={contextRow !== null}
+        title={contextRow ? toDisplayText(contextRow['order_number']) : ''}
+        onClose={() => setContextRow(null)}
+        crossReferences={contextRow ? crossReferencesFor(contextRow) : []}
+      >
+        {contextRow ? (
+          <button
+            type="button"
+            className="rounded bg-slate-800 px-3 py-1.5 text-sm text-white"
+            onClick={() => void navigate(`/app/service-orders/${contextRow.id}`)}
+          >
+            Abrir ordem
+          </button>
+        ) : null}
+      </DynamicContextDrawer>
 
       <CommandPalette
         open={paletteOpen}

@@ -58,6 +58,15 @@ export type ServiceOrderDetail = {
   origin: string;
   clientId: string | null;
   clientSnapshot: Record<string, unknown> | null;
+  /**
+   * Vinculo de ORIGEM da ordem: a solicitacao que a originou.
+   *
+   * O detalhe JA devolvia este campo (`serviceRequestId` em `toServiceOrderResponse`); ele
+   * faltava apenas aqui, e sem ele a cadeia de negocio nao tinha como afirmar o primeiro
+   * degrau. Opcional porque registros antigos podem nao ter o vinculo — e ausencia de vinculo
+   * NAO vira degrau.
+   */
+  serviceRequestId?: string | null;
   proposalId?: string | null;
   proposalSnapshot?: Record<string, unknown> | null;
   purchaseOrderId?: string | null;

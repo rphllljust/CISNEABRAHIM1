@@ -8,7 +8,7 @@ import {
   ServiceOrdersApiError,
 } from '../api/service-orders-api';
 import { mapServiceOrdersErrorToMessage } from '../api/service-orders-error-messages';
-import { ActionBar, DynamicForm, DynamicTimeline, toDisplayText, useEntitySchema } from '../../engine';
+import { ActionBar, DynamicBusinessChain, DynamicForm, DynamicTimeline, toDisplayText, useEntitySchema, type ChainNode } from '../../engine';
 import {
   serviceOrderEngineRow,
   type ServiceOrderEngineRow,
@@ -146,6 +146,55 @@ export function ServiceOrderEngineDetailPage() {
 
   const currentState = toDisplayText(row['status']);
 
+  /*
+   * CADEIA DE NEGÓCIO — montada do que o PAYLOAD trouxe, sem chamada nova e sem inventar
+   * degrau. Cada nó só existe se o vínculo correspondente veio persistido: uma OS sem pedido de
+   * compra não exibe "PO", porque afirmar uma relação que não está registrada seria mentir
+   * sobre a origem do dinheiro.
+   *
+   * A ORDEM é do domínio (solicitação → proposta → PO → OS), e é a TELA que a conhece — a
+   * engine só desenha os nós na ordem em que chegam.
+   */
+  const chainNodes: ChainNode[] = [
+    ...(toDisplayText(row['service_request_id']).trim() !== ''
+      ? [{
+          kind: 'Solicitação',
+          id: toDisplayText(row['service_request_id']),
+          businessReference: toDisplayText(row['service_request_id']),
+          route: `/app/requests/${toDisplayText(row['service_request_id'])}`,
+          relation: 'ORIGIN',
+        }]
+      : []),
+    ...(toDisplayText(row['proposal_number'] ?? row['proposal_id']).trim() !== ''
+      ? [{
+          kind: 'Proposta',
+          id: toDisplayText(row['proposal_id']),
+          businessReference: toDisplayText(row['proposal_number'] ?? row['proposal_id']),
+          route: `/app/proposals/${toDisplayText(row['proposal_id'])}`,
+          status: toDisplayText(row['status']),
+          relation: 'ORIGIN',
+        }]
+      : []),
+    ...(toDisplayText(row['purchase_order_number'] ?? row['purchase_order_id']).trim() !== ''
+      ? [{
+          kind: 'Pedido de compra',
+          id: toDisplayText(row['purchase_order_id']),
+          businessReference: toDisplayText(
+            row['purchase_order_number'] ?? row['purchase_order_id'],
+          ),
+          route: `/app/purchase-orders/${toDisplayText(row['purchase_order_id'])}`,
+          relation: 'ORIGIN',
+        }]
+      : []),
+    {
+      kind: 'Ordem de serviço',
+      id: row.id,
+      businessReference: toDisplayText(row['order_number']),
+      status: currentState,
+      relation: 'ROOT',
+    },
+  ];
+
   return (
     <div className="p-6">
       <nav aria-label="Navegação" className="mb-3">
@@ -183,6 +232,14 @@ export function ServiceOrderEngineDetailPage() {
           Dados da ordem
         </h2>
         <DynamicForm schema={schema} values={row} readOnly />
+      </section>
+
+      {/* LINHAGEM: de onde esta ordem veio, do que o payload afirma e nada além. */}
+      <section className="mt-6" aria-labelledby="engine-chain-heading">
+        <h2 id="engine-chain-heading" className="sr-only">
+          Cadeia de negócio
+        </h2>
+        <DynamicBusinessChain nodes={chainNodes} title="Cadeia de negócio" />
       </section>
 
       {/*

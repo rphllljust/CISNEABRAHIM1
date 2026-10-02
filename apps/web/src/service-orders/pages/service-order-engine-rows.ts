@@ -69,5 +69,48 @@ export function serviceOrderEngineRow(item: ServiceOrderDetail): ServiceOrderEng
     created_at: item.createdAt ?? null,
     contract_reference: item.contractReference ?? null,
     client_snapshot: clientSnapshotText(item.clientSnapshot),
+    /*
+     * VÍNCULOS DE ORIGEM — os identificadores que o DETALHE devolve e a cadeia de negócio
+     * precisa para afirmar de onde esta OS veio.
+     *
+     * Só entram quando o payload os traz (`?? null`): um vínculo ausente não vira degrau, porque
+     * a cadeia não inventa relação. Os rótulos humanos saem dos SNAPSHOTS que já vieram junto —
+     * `proposalNumber`, `poNumber` — e nunca do UUID cru.
+     */
+    service_request_id: item.serviceRequestId ?? null,
+    proposal_id: item.proposalId ?? null,
+    proposal_number: proposalSnapshotText(item.proposalSnapshot, 'proposalNumber'),
+    purchase_order_id: item.purchaseOrderId ?? null,
+    purchase_order_number: purchaseOrderSnapshotText(item.purchaseOrderSnapshot),
+    prepared_at: item.preparedAt ?? null,
+    released_at: item.releasedAt ?? null,
+    started_at: item.startedAt ?? null,
+    completed_at: item.completedAt ?? null,
+    cancelled_at: item.cancelledAt ?? null,
   };
+}
+
+/** Referência humana da proposta, quando o snapshot a trouxe. */
+function proposalSnapshotText(
+  snapshot: Record<string, unknown> | null | undefined,
+  key: string,
+): string | null {
+  const value = snapshot?.[key];
+  return typeof value === 'string' && value.trim() !== '' ? value : null;
+}
+
+/** Referência humana do pedido de compra — `poNumber` com `rcNumber` como reserva. */
+function purchaseOrderSnapshotText(
+  snapshot: Record<string, unknown> | null | undefined,
+): string | null {
+  if (!snapshot) {
+    return null;
+  }
+  for (const key of ['poNumber', 'rcNumber']) {
+    const value = snapshot[key];
+    if (typeof value === 'string' && value.trim() !== '') {
+      return value;
+    }
+  }
+  return null;
 }
