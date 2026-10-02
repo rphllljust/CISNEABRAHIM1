@@ -15,7 +15,9 @@ import {
   DynamicKanban,
   DynamicList,
   DynamicSavedViewsBar,
+  DynamicViewHost,
   DynamicViewSwitcher,
+  RENDERABLE_VIEW_TYPES,
   filtersToSearchParams,
   paletteActionsFromSchema,
   useCommandPaletteShortcut,
@@ -39,7 +41,13 @@ import { serviceOrderEngineRows, type ServiceOrderEngineRow } from './service-or
  * O que permanece é o ENCANAMENTO: qual endpoint alimenta a entidade e como cada comando
  * chega ao backend — conhecimento que a engine não tem como adivinhar.
  */
-const SUPPORTED_VIEW_TYPES = ['list', 'kanban'];
+/*
+ * Tipos com renderizador na engine.
+ *
+ * A lista vem do PRÓPRIO engine (`RENDERABLE_VIEW_TYPES`), não de uma constante local: era
+ * exatamente a cópia local que obrigava a editar cada tela quando uma capacidade nova surgia.
+ */
+const SUPPORTED_VIEW_TYPES: readonly string[] = RENDERABLE_VIEW_TYPES;
 
 const DEFAULT_DESTINATIONS = [
   { id: 'nav-suppliers', label: 'Fornecedores', path: '/app/suppliers', group: 'Navegar' },
@@ -289,7 +297,7 @@ export function ServiceOrdersEngineListPage() {
               stateLabel={stateLabel}
               onCardClick={openRow}
             />
-          ) : SUPPORTED_VIEW_TYPES.includes(activeViewType) ? (
+          ) : activeViewType === 'list' ? (
             <DynamicList
               schema={schema}
               rows={visibleRows}
@@ -308,14 +316,21 @@ export function ServiceOrdersEngineListPage() {
             />
           ) : (
             /*
-             * ABA SEM RENDERIZADOR: a view EXISTE no metadata store (é por isso que a aba
-             * aparece), mas a engine ainda não desenha este tipo. Dizer isso em voz alta é
-             * melhor que uma tela vazia, que o usuário leria como "não há dado".
+             * AS DEMAIS VIEWS VÊM DO STORE, sem branch por tipo nesta tela.
+             *
+             * `calendar`, `pivot`, `tree` e `graph` já existem em `meta.views` de outras
+             * entidades e são renderizadas por `DynamicViewHost`, que escolhe o renderizador
+             * pelo `viewType` declarado. Antes, esta tela precisava conhecer cada tipo novo —
+             * o oposto de views-como-dados. Tipo sem renderizador continua sendo dito em voz
+             * alta pelo próprio host.
              */
-            <p className="text-sm text-gray-600" data-testid="dynamic-view-unsupported">
-              A visão <strong>{activeViewType}</strong> existe no metadata store, mas a engine
-              ainda não possui renderizador para ela.
-            </p>
+            <DynamicViewHost
+              schema={schema}
+              rows={visibleRows}
+              activeViewType={activeViewType}
+              onRowClick={openRow}
+              emptyMessage="Nenhuma ordem de serviço no seu escopo."
+            />
           )}
         </>
       ) : null}

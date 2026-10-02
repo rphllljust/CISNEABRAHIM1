@@ -19,7 +19,7 @@ export type DynamicViewSwitcherProps = {
   activeViewType: string;
   onChange: (viewType: string) => void;
   /** Tipos que têm renderizador disponível na tela atual. */
-  supportedViewTypes: string[];
+  supportedViewTypes: readonly string[];
 };
 
 export function DynamicViewSwitcher({

@@ -136,6 +136,7 @@ import { SessionMetaBridge } from './service-orders/context/SessionMetaBridge';
 import { MetadataProvider } from './engine';
 import { ServiceOrderEngineDetailPage } from './service-orders/pages/ServiceOrderEngineDetailPage';
 import { MetadataExplorerPage } from './admin/MetadataExplorerPage';
+import { ViewLabPage } from './admin/ViewLabPage';
 
 export function App() {
   return (
@@ -1023,6 +1024,11 @@ export function App() {
                 FORMA das telas (campos, views, layout), que é outra responsabilidade.
               */}
               <Route path="/app/admin/metadata" element={<MetadataExplorerPage />} />
+              {/*
+                BANCADA DAS VIEWS V4 — prova as capacidades que o CHECK de `meta.views` ainda
+                não permite declarar no store (pivot/tree/graph). Ver o cabeçalho do componente.
+              */}
+              <Route path="/app/admin/view-lab" element={<ViewLabPage />} />
               <Route path="*" element={<ShellNotFoundPage />} />
             </Route>
           </Route>
