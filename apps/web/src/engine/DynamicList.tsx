@@ -1,6 +1,18 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { t } from '../i18n';
 import { FieldRenderer, toDisplayText } from './FieldRenderer';
+import {
+  applyAggregation,
+  evaluateFormula,
+  evaluateRowAccent,
+  formatAggregate,
+  readAggregation,
+  readComputedFields,
+  readRowAccents,
+  type AggregationKind,
+  type ComputedField,
+  type RowAccentToken,
+} from './metadata-v2';
 import type { MetaEntitySchema, MetaField } from './types';
 
 /**
@@ -10,10 +22,10 @@ import type { MetaEntitySchema, MetaField } from './types';
  * A engine não conhece coluna alguma: `columns` do layout manda, e `field_order` é o
  * fallback.
  *
- * TRÊS CAPACIDADES DE ERP que não existem em tabela artesanal:
- *   - SELECIONAR linhas (habilita ações em lote);
- *   - RESPONSÁVEL por linha, com reatribuição inline quando a tela fornece o handler;
- *   - AGING e TOTALIZAÇÃO no rodapé, derivados das colunas que o metadado declarou.
+ * CAPACIDADES V2 declaradas no metadado (não no código desta tela):
+ *   - CAMPOS COMPUTADOS (`layout.computedFields`): coluna derivada por fórmula fechada;
+ *   - AGREGAÇÕES (`field.options.aggregation`): total de coluna no rodapé;
+ *   - ACCENTS DE LINHA (`layout.rowAccents`): destaque semântico por regra de negócio.
  */
 export type DynamicListRow = Record<string, unknown> & { id: string };
 
@@ -86,11 +98,30 @@ export function DynamicList({
   const sorted = useMemo(() => sortRows(rows, sort), [rows, sort]);
   const selectable = selectedIds !== undefined && onSelectionChange !== undefined;
   const owner = ownerField
-    ? schema.fields.find((field) => field.name === ownerField) ?? null
+    ? schema?.fields.find((field) => field.name === ownerField) ?? null
     : null;
   const aging = resolveAgingField(schema, agingField);
 
-  const allSelected = selectable && rows.length > 0 && rows.every((row) => selectedIds.includes(row.id));
+  /*
+   * CAMPOS COMPUTADOS e ACCENTS — ambos vêm de `view.layout`, que o servidor entrega CRU.
+   * Nenhum dos dois é coluna de banco: um é fórmula, o outro é regra de apresentação.
+   */
+  const listLayout = schema?.views.find((view) => view.viewType === 'list')?.layout;
+  const computedFields = useMemo(
+    () => readComputedFields(listLayout, schema?.allowedPermLevels ?? []),
+    [listLayout, schema?.allowedPermLevels],
+  );
+  const rowAccentRules = useMemo(() => readRowAccents(listLayout), [listLayout]);
+
+  const isSelected = (id: string): boolean =>
+    selectedIds === undefined
+      ? false
+      : Array.isArray(selectedIds)
+        ? selectedIds.includes(id)
+        : selectedIds.has(id);
+
+  const allSelected =
+    selectable && rows.length > 0 && rows.every((row) => isSelected(row.id));
 
   const toggleSort = (name: string): void => {
     setSort((current) =>
@@ -111,13 +142,34 @@ export function DynamicList({
     if (!selectable) {
       return;
     }
+    const current = Array.isArray(selectedIds) ? selectedIds : [...selectedIds];
     onSelectionChange(
-      selectedIds.includes(id) ? selectedIds.filter((current) => current !== id) : [...selectedIds, id],
+      isSelected(id) ? current.filter((value) => value !== id) : [...current, id],
     );
   };
 
-  const extraColumns = (owner ? 1 : 0) + (aging ? 1 : 0);
+  const extraColumns = (owner ? 1 : 0) + (aging ? 1 : 0) + computedFields.length;
   const totalColumns = columns.length + extraColumns + (renderRowActions ? 1 : 0) + (selectable ? 1 : 0);
+
+  /*
+   * AGREGAÇÕES — o rodapé é calculado a partir das DECLARAÇÕES do metadado, não de um
+   * `showTotals` que soma por tipo. Um campo sem `aggregation` não é totalizado.
+   *
+   * A soma roda sobre `sorted` (o conjunto EFETIVAMENTE exibido), não sobre a base inteira:
+   * o total tem de bater com as linhas que o operador está vendo.
+   */
+  const footer = useMemo(
+    () => buildFooter(columns, computedFields, sorted, showTotals),
+    [columns, computedFields, sorted, showTotals],
+  );
+
+  if (!schema) {
+    return (
+      <p className="text-sm text-gray-600" data-testid="dynamic-list-awaiting-schema" aria-busy="true">
+        {t('common.loading')}
+      </p>
+    );
+  }
 
   return (
     <table
@@ -172,6 +224,20 @@ export function DynamicList({
               Aging
             </th>
           ) : null}
+          {/*
+            COLUNAS COMPUTADAS — rótulo do metadado, valor derivado por fórmula. A engine não
+            sabe o que "Dias em atraso" significa: ela sabe aplicar `diff_days`.
+          */}
+          {computedFields.map((field) => (
+            <th
+              key={field.name}
+              scope="col"
+              data-computed-field={field.name}
+              className="border-b border-gray-200 px-2 py-1.5 text-left text-xs font-semibold text-gray-600"
+            >
+              {field.label}
+            </th>
+          ))}
           {renderRowActions ? (
             <th scope="col" className="border-b border-gray-200 px-2 py-1.5 text-right text-xs font-semibold text-gray-600">
               {t('common.actions')}
@@ -187,14 +253,19 @@ export function DynamicList({
             </td>
           </tr>
         ) : (
-          sorted.map((row) => (
+          sorted.map((row) => {
+            const accent = evaluateRowAccent(rowAccentRules, row);
+            return (
             <tr
               key={row.id}
               data-testid="dynamic-list-row"
               data-row-id={row.id}
+              /* O ACCENT é publicado como TOKEN semântico; o design system decide a cor. */
+              data-row-accent={accent ?? null}
               className={[
                 onRowClick ? 'cursor-pointer hover:bg-gray-50' : '',
-                selectable && selectedIds.includes(row.id) ? 'bg-slate-100' : '',
+                isSelected(row.id) ? 'bg-slate-100' : '',
+                accent ? rowAccentClass(accent) : '',
               ]
                 .filter(Boolean)
                 .join(' ')}
@@ -206,7 +277,7 @@ export function DynamicList({
                     type="checkbox"
                     data-testid="dynamic-list-select-row"
                     aria-label={t('list.selectRow')}
-                    checked={selectedIds.includes(row.id)}
+                    checked={isSelected(row.id)}
                     onChange={() => toggleRow(row.id)}
                     // Sem isto, marcar a caixa também abriria o detalhe da linha.
                     onClick={(event) => event.stopPropagation()}
@@ -223,7 +294,6 @@ export function DynamicList({
               {owner ? (
                 <td className="border-b border-gray-100 px-2 py-1.5">
                   <OwnerCell
-                    schema={schema}
                     row={row}
                     ownerField={owner}
                     onReassign={onReassign}
@@ -236,6 +306,20 @@ export function DynamicList({
                   <AgingBadge value={row[aging.name]} />
                 </td>
               ) : null}
+              {/*
+                CÉLULAS COMPUTADAS — o valor é CALCULADO aqui, a partir do DTO da linha.
+                Fórmula que não resolve (data ausente, op desconhecida) devolve `null` e a
+                célula mostra "—": um número inventado seria pior que um vazio declarado.
+              */}
+              {computedFields.map((field) => (
+                <td
+                  key={field.name}
+                  data-computed-cell={field.name}
+                  className="border-b border-gray-100 px-2 py-1.5 tabular-nums"
+                >
+                  <ComputedCell field={field} row={row} />
+                </td>
+              ))}
               {renderRowActions ? (
                 <td
                   className="border-b border-gray-100 px-2 py-1.5 text-right"
@@ -245,26 +329,30 @@ export function DynamicList({
                 </td>
               ) : null}
             </tr>
-          ))
+            );
+          })
         )}
       </tbody>
-      {showTotals && sorted.length > 0 ? (
+      {footer.length > 0 ? (
         <tfoot>
           <tr data-testid="dynamic-list-totals">
-            <td colSpan={selectable ? 1 : 0} className="px-2 py-1.5" />
+            {selectable ? <td className="border-t border-gray-300 px-2 py-1.5" /> : null}
             {columns.map((column, index) => (
               <td
                 key={column.name}
                 data-total-field={column.name}
                 className="border-t border-gray-300 px-2 py-1.5 text-xs font-semibold"
               >
-                {index === 0 ? `${sorted.length} ${t('list.count').toLowerCase()}` : null}
-                {column.type === 'currency' ? (
-                  <span className="ml-1 tabular-nums">{sumCurrency(sorted, column.name)}</span>
+                {index === 0 ? (
+                  <span data-testid="dynamic-list-total-count">
+                    {sorted.length} {t('list.count').toLowerCase()}
+                  </span>
                 ) : null}
-                {column.type === 'integer' && column.name === 'row_version' ? (
-                  <span className="ml-1 tabular-nums">{sumNumbers(sorted, column.name)}</span>
-                ) : null}
+                {/*
+                  TOTAL GERAL no header: soma dos campos que DECLARAM agregação. Antes a engine
+                  somava por tipo (`currency`); agora totaliza o que o metadado mandar.
+                */}
+                {aggregateLabel(column, sorted, footer)}
               </td>
             ))}
             {owner ? <td className="border-t border-gray-300 px-2 py-1.5" /> : null}
@@ -276,6 +364,15 @@ export function DynamicList({
                 {t('list.avgAging')}: {averageAging(sorted, aging.name)}
               </td>
             ) : null}
+            {computedFields.map((field) => (
+              <td
+                key={field.name}
+                data-total-computed-field={field.name}
+                className="border-t border-gray-300 px-2 py-1.5 text-xs font-semibold"
+              >
+                {aggregateLabel(field, sorted, footer)}
+              </td>
+            ))}
             {renderRowActions ? <td className="border-t border-gray-300" /> : null}
           </tr>
         </tfoot>
@@ -285,18 +382,143 @@ export function DynamicList({
 }
 
 /**
+ * Rótulo de total de uma coluna, a partir da AGREGAÇÃO DECLARADA no metadado.
+ *
+ * Sem `aggregation` não há total — nem "0", nem vazio ambíguo: nada. É o que permite o
+ * rodapé somar só o que faz sentido somar, sem a engine adivinhar por tipo.
+ */
+function aggregateLabel(
+  column: MetaField | ComputedField,
+  rows: DynamicListRow[],
+  footer: ReadonlyArray<{ name: string; kind: AggregationKind; total: number | null }>,
+): React.ReactNode {
+  const entry = footer.find((candidate) => candidate.name === column.name);
+  if (!entry) {
+    return null;
+  }
+  const values = rows.map((row) => resolveCellValue(column, row));
+  const text = formatAggregate(entry.kind, entry.total, column.type);
+  return (
+    <span
+      data-aggregate-kind={entry.kind}
+      className="ml-1 tabular-nums"
+      title={`${entry.kind}(${column.label}) · ${values.length}`}
+    >
+      Total: {text}
+    </span>
+  );
+}
+
+/** Valor de uma célula: computado por fórmula, ou direto do campo. */
+function resolveCellValue(
+  column: MetaField | ComputedField,
+  row: DynamicListRow,
+): unknown {
+  if (isComputedField(column)) {
+    return evaluateFormula(column.formula, row);
+  }
+  return row[column.name];
+}
+
+function isComputedField(column: MetaField | ComputedField): column is ComputedField {
+  return 'formula' in column;
+}
+
+/**
+ * Célula de campo computado.
+ *
+ * Formata conforme o TIPO declarado pelo metadado — `integer` sai como número, o resto como
+ * texto. `null` (fórmula que não resolveu) sai como "—" e é MARCADO com
+ * `data-computed-empty`, para que uma prova consiga distinguir "não calculou" de "calculou 0".
+ */
+function ComputedCell({
+  field,
+  row,
+}: {
+  field: ComputedField;
+  row: DynamicListRow;
+}): React.ReactElement {
+  const value = evaluateFormula(field.formula, row);
+  if (value === null) {
+    return (
+      <span data-computed-empty={field.name} className="text-xs text-gray-400">
+        —
+      </span>
+    );
+  }
+  return (
+    <span data-computed-value={field.name} className="text-sm">
+      {field.type === 'integer' ? String(value) : String(value)}
+    </span>
+  );
+}
+
+/**
+ * Classes de accent por TOKEN semântico.
+ *
+ * Tokens, nunca hexadecimal: trocar o tema não exige UPDATE no metadata store, e a regra de
+ * negócio ("vencido é crítico") fica separada da cor que a representa.
+ */
+function rowAccentClass(accent: RowAccentToken): string {
+  if (accent === 'critical') {
+    return 'bg-red-50 border-l-2 border-l-red-600';
+  }
+  if (accent === 'warning') {
+    return 'bg-amber-50 border-l-2 border-l-amber-500';
+  }
+  if (accent === 'info') {
+    return 'bg-blue-50 border-l-2 border-l-blue-500';
+  }
+  if (accent === 'success') {
+    return 'bg-green-50 border-l-2 border-l-green-600';
+  }
+  return '';
+}
+
+/**
+ * Monta o rodapé a partir das agregações declaradas.
+ *
+ * Devolve apenas as colunas que TÊM agregação — se nenhuma tiver, o `<tfoot>` não é renderizado.
+ */
+function buildFooter(
+  columns: MetaField[],
+  computedFields: ComputedField[],
+  rows: DynamicListRow[],
+  showTotals: boolean,
+): Array<{ name: string; kind: AggregationKind; total: number | null }> {
+  if (!showTotals) {
+    return [];
+  }
+  const entries: Array<{ name: string; kind: AggregationKind; total: number | null }> = [];
+  for (const column of columns) {
+    const kind = readAggregation(column.options ?? null);
+    if (!kind) {
+      continue;
+    }
+    const values = rows.map((row) => row[column.name]);
+    entries.push({ name: column.name, kind, total: applyAggregation(kind, values) });
+  }
+  for (const field of computedFields) {
+    if (!field.aggregation) {
+      continue;
+    }
+    const values = rows.map((row) => evaluateFormula(field.formula, row));
+    entries.push({ name: field.name, kind: field.aggregation, total: applyAggregation(field.aggregation, values) });
+  }
+  return entries;
+}
+
+/**
  * Responsável, com reatribuição inline quando a tela fornece o handler.
  *
  * Sem handler a célula é SOMENTE LEITURA — a engine não inventa um endpoint de atribuição.
  */
 function OwnerCell({
-  schema,
   row,
   ownerField,
   onReassign,
   reassignOptions,
 }: {
-  schema: MetaEntitySchema;
   row: DynamicListRow;
   ownerField: MetaField;
   onReassign?: (row: DynamicListRow, owner: string) => void;
@@ -381,8 +603,11 @@ export function AgingBadge({ value }: { value: unknown }): React.ReactElement {
  * `list_order` do metadado. Campos fora do nível do ator nunca entram — o servidor já os
  * removeu, e o filtro aqui é a segunda barreira.
  */
-function useColumns(schema: MetaEntitySchema): MetaField[] {
+function useColumns(schema: MetaEntitySchema | null): MetaField[] {
   return useMemo(() => {
+    if (!schema) {
+      return [];
+    }
     const listView = schema.views.find((view) => view.viewType === 'list');
     const declared = listView?.layout.columns ?? [];
     const byName = new Map(schema.fields.map((field) => [field.name, field]));
@@ -401,7 +626,13 @@ function useColumns(schema: MetaEntitySchema): MetaField[] {
   }, [schema]);
 }
 
-function resolveAgingField(schema: MetaEntitySchema, explicit?: string): MetaField | null {
+function resolveAgingField(
+  schema: MetaEntitySchema | null,
+  explicit?: string,
+): MetaField | null {
+  if (!schema) {
+    return null;
+  }
   if (explicit) {
     return schema.fields.find((field) => field.name === explicit) ?? null;
   }
@@ -451,22 +682,6 @@ function sortRows(
     }
     return toDisplayText(a).localeCompare(toDisplayText(b), 'pt-BR') * factor;
   });
-}
-
-function sumCurrency(rows: DynamicListRow[], field: string): string {
-  const total = rows.reduce((accumulator, row) => {
-    const parsed = Number(toDisplayText(row[field]).replace(',', '.'));
-    return Number.isFinite(parsed) ? accumulator + parsed : accumulator;
-  }, 0);
-  return total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function sumNumbers(rows: DynamicListRow[], field: string): string {
-  const total = rows.reduce((accumulator, row) => {
-    const parsed = Number(toDisplayText(row[field]));
-    return Number.isFinite(parsed) ? accumulator + parsed : accumulator;
-  }, 0);
-  return String(total);
 }
 
 function averageAging(rows: DynamicListRow[], field: string): string {

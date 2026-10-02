@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { toDisplayText } from './FieldRenderer';
+import { isFieldVisible, readVisibleWhen } from './metadata-v2';
 import type { MetaEntitySchema, MetaField } from './types';
 
 /**
@@ -11,6 +12,11 @@ import type { MetaEntitySchema, MetaField } from './types';
  *
  * CAMPOS FORA DO NÍVEL DO ATOR NÃO EXISTEM AQUI: o servidor já os removeu do schema, e
  * `renderableFields` reaplica a checagem como segunda barreira.
+ *
+ * VISIBILIDADE CONDICIONAL (V2): um campo que declara `visibleWhen` só aparece quando o campo
+ * apontado tem o valor exigido. A condição é reavaliada a cada mudança de valor, então o campo
+ * reage IMEDIATAMENTE enquanto o operador preenche — é o que substitui o JSX condicional
+ * (`{isBank ? <>…</> : …}`) que cada tela escrevia à mão.
  */
 export type DynamicFormProps = {
   schema: MetaEntitySchema;
@@ -32,7 +38,11 @@ export function DynamicForm({
 
   const byName = new Map(schema.fields.map((field) => [field.name, field]));
   const renderable = (field: MetaField): boolean =>
-    field.inForm && schema.allowedPermLevels.includes(field.permLevel);
+    field.inForm &&
+    schema.allowedPermLevels.includes(field.permLevel) &&
+    // A condição é avaliada contra os valores VIVOS do formulário, não contra o registro
+    // carregado: o campo aparece no instante em que o operador muda o campo do qual depende.
+    isFieldVisible(readVisibleWhen(field.options ?? null), values);
 
   /*
    * ORDEM: quando a view declara seções, a ordem É a das seções — é o que permite mudar a

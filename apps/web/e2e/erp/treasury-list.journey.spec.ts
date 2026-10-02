@@ -5,18 +5,20 @@ import { expect, test, type Page } from '@playwright/test';
 /**
  * CAIXA E BANCOS — JORNADA REAL (sem mock, sem page.route, sem sleep).
  *
- * Prova que a lista é renderizada pela ENGINE a partir do metadata store, que o filtro
- * funciona e que o clique navega ao detalhe. Roda contra a aplicação real.
+ * STATUS: FIXME — engine v1 não cobre Treasury — aguarda engine v2.
+ *
+ * Este arquivo é a PROVA de que `/app/finance/treasury` precisa ser migrada, e do que ela
+ * exigiria. Foi escrito quando a migração existia; a migração foi REVERTIDA porque perderia
+ * paridade — a tela artesanal tem KPIs de drill-down, drawer de contexto, cadeia de negócio,
+ * formulário com campos condicionais e accent por regra, e a engine v1 cobria apenas a TABELA.
+ *
+ * Não é teste errado nem lixo: é a especificação executável do que a engine v2 precisa
+ * entregar. Fica `fixme` para não quebrar a suíte enquanto a tela for artesanal — REMOVER O
+ * FIXME é o critério de aceite da migração.
  *
  * BLOQUEIO DE AMBIENTE DECLARADO: `fin.financial_accounts` está VAZIA na base de
  * desenvolvimento (0 linhas). Sem contas semeadas, a tela renderiza o estado vazio — que é o
- * comportamento CORRETO — e não há linha para filtrar nem para clicar. Semear dado financeiro
- * é decisão de negócio, não do teste; por isso as asserções que exigem registro são
- * condicionais e DECLARAM a condição, em vez de fingir que passaram.
- *
- * O que este arquivo prova SEM depender do seed: a ENGINE monta a tabela a partir do metadado
- * (entidade, colunas, rótulos) e o filtro existe. O que ele NÃO pode provar enquanto não
- * houver dado: filtragem e navegação por linha.
+ * comportamento CORRETO — e não há linha para filtrar nem para clicar.
  */
 const LOGIN = process.env['CISNE_JOURNEY_LOGIN'] ?? 'abrahim@cisne-rondonia.invalid';
 
@@ -42,7 +44,8 @@ async function login(page: Page): Promise<void> {
   await expect(page).toHaveURL(/\/app(\/|$)/, { timeout: 30_000 });
 }
 
-test('lista de caixa e bancos consome o metadado da entidade', async ({ page }) => {
+// engine v1 não cobre Treasury — aguarda engine v2
+test.fixme('lista de caixa e bancos consome o metadado da entidade', async ({ page }) => {
   const metaCalls: string[] = [];
   page.on('response', (response) => {
     if (response.url().includes('/api/v1/meta')) {
@@ -91,7 +94,8 @@ test('lista de caixa e bancos consome o metadado da entidade', async ({ page }) 
   await page.screenshot({ path: join(SHOTS, 'treasury-01-lista-engine.png'), fullPage: true });
 });
 
-test('filtro da lista de caixa e bancos e aplicado pela engine', async ({ page }) => {
+// engine v1 não cobre Treasury — aguarda engine v2
+test.fixme('filtro da lista de caixa e bancos e aplicado pela engine', async ({ page }) => {
   await login(page);
   await page.goto('/app/finance/treasury');
 
@@ -122,7 +126,8 @@ test('filtro da lista de caixa e bancos e aplicado pela engine', async ({ page }
   await expect(kindFilter).toHaveValue('');
 });
 
-test('clique na linha de caixa e bancos navega ao detalhe', async ({ page }) => {
+// engine v1 não cobre Treasury — aguarda engine v2
+test.fixme('clique na linha de caixa e bancos navega ao detalhe', async ({ page }) => {
   await login(page);
   await page.goto('/app/finance/treasury');
 

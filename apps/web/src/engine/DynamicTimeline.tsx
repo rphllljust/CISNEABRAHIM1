@@ -5,7 +5,6 @@ import {
   fetchAuditTimeline,
   type AuditTimelineEvent,
   type AuditTimelinePathResolver,
-  type AuditTimelineStatus,
 } from './audit-timeline-api';
 import { t } from '../i18n';
 import type { MetaEntitySchema } from './types';
