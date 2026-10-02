@@ -6,6 +6,7 @@ import { isReleaseModuleEnabled } from '../release-scope/feature-flags';
 import { GlobalSearchBar } from '../search/components/GlobalSearchBar';
 import { formatUserMenuLabel } from './format-identity';
 import { Dropdown } from '../ui/Dropdown';
+import { LanguageSwitcher } from '../i18n/LanguageSwitcher';
 
 type ShellTopBarProps = {
   onMenuToggle: () => void;
@@ -64,6 +65,13 @@ export function ShellTopBar({
         ) : null}
 
         {isReleaseModuleEnabled('alerts') ? <AlertBadgeLink /> : null}
+
+        {/*
+          SELETOR DE IDIOMA — vive no topbar porque a preferência é do OPERADOR, não da
+          tela: ela vale em qualquer rota e sobrevive à navegação. Fica antes do menu do
+          usuário por ser uma preferência de menor frequência que o logout.
+        */}
+        <LanguageSwitcher className="hidden sm:flex" />
 
         {onOpenCommandPalette ? (
           <button

@@ -25,6 +25,7 @@ import {
   type MetaEntitySchema,
 } from '../../engine';
 import { useAuth } from '../../auth/context/AuthProvider';
+import { entityLabel, useLanguage } from '../../i18n';
 import { serviceOrderEngineRows, type ServiceOrderEngineRow } from './service-order-engine-rows';
 
 /**
@@ -52,6 +53,18 @@ export function ServiceOrdersEngineListPage() {
   const { identityId } = useAuth();
   const { schema, status } = useEntitySchema('service-orders');
   const [searchParams, setSearchParams] = useSearchParams();
+
+  /*
+   * ASSINATURA DE IDIOMA.
+   *
+   * `entityLabel()` é uma função livre e NÃO re-renderiza sozinha: quem dispara o
+   * re-render é este hook. Sem esta linha, trocar o idioma no seletor atualizaria o
+   * catálogo mas o `<h1>` só mudaria no próximo render por outro motivo — que é
+   * exatamente o defeito que a prova de browser ("sem reload") existe para pegar.
+   *
+   * `language` é lido mas não usado diretamente: a dependência está no hook, não no valor.
+   */
+  useLanguage();
 
   const [rows, setRows] = useState<ServiceOrderEngineRow[]>([]);
   const [rowsStatus, setRowsStatus] = useState<'loading' | 'ready' | 'denied' | 'error'>('loading');
@@ -214,7 +227,17 @@ export function ServiceOrdersEngineListPage() {
   return (
     <div className="p-6">
       <header className="mb-4">
-        <h1 className="text-xl font-semibold">{schema?.label ?? 'Ordens de serviço'}</h1>
+        {/*
+          ENTITY TITLE — o rótulo da entidade, resolvido pelo i18n.
+
+          O metadata store devolve o rótulo em português (`Ordens de serviço`). Aqui ele
+          passa pelo catálogo: em pt-BR sai igual ao metadado, em en-US sai traduzido. O
+          `data-testid` é o gancho da prova de browser — é este nó que precisa mudar quando
+          o operador troca o idioma, SEM reload.
+        */}
+        <h1 className="text-xl font-semibold" data-testid="entity-title">
+          {entityLabel('service-orders', schema?.label ?? 'Ordens de serviço')}
+        </h1>
         <p className="mt-1 text-xs text-gray-500">
           Renderizado pela engine a partir de <code>/api/v1/meta/service-orders</code>.
         </p>

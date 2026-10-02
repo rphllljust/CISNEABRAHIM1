@@ -135,895 +135,906 @@ import { AccessAdminPage } from './access-admin/pages/AccessAdminPage';
 import { SessionMetaBridge } from './service-orders/context/SessionMetaBridge';
 import { MetadataProvider } from './engine';
 import { ServiceOrderEngineDetailPage } from './service-orders/pages/ServiceOrderEngineDetailPage';
+import { LanguageProvider } from './i18n';
 
 export function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <SessionMetaBridge />
-        {/*
-          METADATA PROVIDER — a engine de ERP.
-          Envolve as rotas inteiras para que qualquer tela possa consumir metadado sem
-          montar provider próprio. O cache é por entidade, então navegar entre telas da
-          mesma entidade não refaz a chamada.
-        */}
-        <MetadataProvider>
-          <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/access-denied" element={<AccessDeniedPage />} />
-          <Route path="/session-expired" element={<SessionExpiredPage />} />
-          <Route path="/unavailable" element={<ServiceUnavailablePage />} />
-          <Route element={<ProtectedRoute />}>
-            <Route element={<ExecutionShellLayout />}>
-              <Route
-                path="/app/service-orders/:serviceOrderId/execution"
-                element={
-                  <ServiceOrdersRoute>
-                    <ServiceOrderExecutionPage />
-                  </ServiceOrdersRoute>
-                }
-              />
+    /*
+      LANGUAGE PROVIDER — o provider MAIS EXTERNO da árvore.
+      
+      Fica fora do `BrowserRouter` e do `AuthProvider` porque o idioma não depende de rota
+      nem de sessão: a tela de login, a de acesso negado e a de sessão expirada também são
+      texto para o operador, e todas elas precisam poder traduzir. Um provider mais interno
+      deixaria justamente as telas de borda sem tradução.
+    */
+    <LanguageProvider>
+      <BrowserRouter>
+        <AuthProvider>
+          <SessionMetaBridge />
+          {/*
+            METADATA PROVIDER — a engine de ERP.
+            Envolve as rotas inteiras para que qualquer tela possa consumir metadado sem
+            montar provider próprio. O cache é por entidade, então navegar entre telas da
+            mesma entidade não refaz a chamada.
+          */}
+          <MetadataProvider>
+            <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/access-denied" element={<AccessDeniedPage />} />
+            <Route path="/session-expired" element={<SessionExpiredPage />} />
+            <Route path="/unavailable" element={<ServiceUnavailablePage />} />
+            <Route element={<ProtectedRoute />}>
+              <Route element={<ExecutionShellLayout />}>
+                <Route
+                  path="/app/service-orders/:serviceOrderId/execution"
+                  element={
+                    <ServiceOrdersRoute>
+                      <ServiceOrderExecutionPage />
+                    </ServiceOrdersRoute>
+                  }
+                />
+              </Route>
+              <Route element={<AppShellLayout />}>
+                <Route path="/app" element={<OperationalDashboardPage />} />
+                <Route path="/app/alerts" element={<AlertCenterPage />} />
+                <Route path="/app/work-inbox" element={<WorkInboxPage />} />
+                {/*
+                  WORKSPACES DE DOMINIO — uma superficie de decisao por dominio, sobre a MESMA
+                  fila de trabalho. O financeiro e o unico que vive fora de `/app/workspaces`
+                  porque a conversao aconteceu em `/app/finance`: a rota abaixo redireciona para
+                  la, e nao para uma segunda superficie financeira divergente.
+                */}
+                <Route path="/app/workspaces" element={<WorkspacesIndexPage />} />
+                <Route
+                  path="/app/workspaces/comercial"
+                  element={<DomainWorkspacePage domain="COMERCIAL" />}
+                />
+                <Route
+                  path="/app/workspaces/operacoes"
+                  element={<DomainWorkspacePage domain="OPERACOES" />}
+                />
+                <Route
+                  path="/app/workspaces/financeiro"
+                  element={<Navigate to="/app/finance" replace />}
+                />
+                <Route
+                  path="/app/workspaces/fiscal"
+                  element={<DomainWorkspacePage domain="FISCAL" />}
+                />
+                <Route
+                  path="/app/workspaces/contabilidade"
+                  element={<DomainWorkspacePage domain="CONTABILIDADE" />}
+                />
+                <Route
+                  path="/app/workspaces/suprimentos"
+                  element={<DomainWorkspacePage domain="SUPRIMENTOS" />}
+                />
+                <Route path="/app/search" element={<SearchResultsPage />} />
+                <Route path="/app/reports" element={<ReportsPage />} />
+                <Route
+                  path="/app/operational-profitability"
+                  element={<OperationalProfitabilityPage />}
+                />
+                <Route path="/app/reports/compliance" element={<ComplianceBiPage />} />
+                <Route path="/app/modules" element={<ModulesRegistryPage />} />
+                <Route
+                  path="/app/access-admin"
+                  element={
+                    <AccessAdminRoute>
+                      <AccessAdminPage />
+                    </AccessAdminRoute>
+                  }
+                />
+                <Route
+                  path="/app/platform"
+                  element={
+                    <CapabilityRoute>
+                      <PlatformDiagnosticsPage />
+                    </CapabilityRoute>
+                  }
+                />
+                <Route
+                  path="/app/clients"
+                  element={
+                    <ClientsRoute>
+                      <ClientsListPage />
+                    </ClientsRoute>
+                  }
+                />
+                <Route
+                  path="/app/clients/new"
+                  element={
+                    <ClientsRoute>
+                      <ClientCreatePage />
+                    </ClientsRoute>
+                  }
+                />
+                <Route
+                  path="/app/clients/:clientId/edit"
+                  element={
+                    <ClientsRoute>
+                      <ClientEditPage />
+                    </ClientsRoute>
+                  }
+                />
+                <Route
+                  path="/app/clients/:clientId"
+                  element={
+                    <ClientsRoute>
+                      <ClientDetailPage />
+                    </ClientsRoute>
+                  }
+                />
+                <Route
+                  path="/app/people"
+                  element={
+                    <PeopleRoute>
+                      <PeopleListPage />
+                    </PeopleRoute>
+                  }
+                />
+                <Route
+                  path="/app/people/new"
+                  element={
+                    <PeopleRoute>
+                      <PersonCreatePage />
+                    </PeopleRoute>
+                  }
+                />
+                <Route
+                  path="/app/people/:personId/edit"
+                  element={
+                    <PeopleRoute>
+                      <PersonEditPage />
+                    </PeopleRoute>
+                  }
+                />
+                <Route
+                  path="/app/people/:personId"
+                  element={
+                    <PeopleRoute>
+                      <PersonDetailPage />
+                    </PeopleRoute>
+                  }
+                />
+                <Route
+                  path="/app/catalog"
+                  element={
+                    <CatalogRoute>
+                      <ServiceDefinitionsListPage />
+                    </CatalogRoute>
+                  }
+                />
+                <Route
+                  path="/app/catalog/new"
+                  element={
+                    <CatalogRoute>
+                      <ServiceDefinitionCreatePage />
+                    </CatalogRoute>
+                  }
+                />
+                <Route
+                  path="/app/catalog/:definitionId/compare"
+                  element={
+                    <CatalogRoute>
+                      <ServiceDefinitionComparePage />
+                    </CatalogRoute>
+                  }
+                />
+                <Route
+                  path="/app/catalog/:definitionId/versions/new"
+                  element={
+                    <CatalogRoute>
+                      <ServiceDefinitionVersionCreatePage />
+                    </CatalogRoute>
+                  }
+                />
+                <Route
+                  path="/app/catalog/:definitionId/versions/:versionNumber/edit"
+                  element={
+                    <CatalogRoute>
+                      <ServiceDefinitionDraftEditPage />
+                    </CatalogRoute>
+                  }
+                />
+                <Route
+                  path="/app/catalog/:definitionId/versions/:versionNumber"
+                  element={
+                    <CatalogRoute>
+                      <ServiceDefinitionVersionDetailPage />
+                    </CatalogRoute>
+                  }
+                />
+                <Route
+                  path="/app/catalog/:definitionId"
+                  element={
+                    <CatalogRoute>
+                      <ServiceDefinitionDetailPage />
+                    </CatalogRoute>
+                  }
+                />
+                <Route
+                  path="/app/fleet"
+                  element={
+                    <AssetsRoute>
+                      <FleetListPage />
+                    </AssetsRoute>
+                  }
+                />
+                <Route
+                  path="/app/assets"
+                  element={
+                    <AssetsRoute>
+                      <PhysicalAssetsListPage />
+                    </AssetsRoute>
+                  }
+                />
+                <Route
+                  path="/app/assets/new"
+                  element={
+                    <AssetsRoute>
+                      <PhysicalAssetCreatePage />
+                    </AssetsRoute>
+                  }
+                />
+                <Route
+                  path="/app/assets/:assetId/edit"
+                  element={
+                    <AssetsRoute>
+                      <PhysicalAssetEditPage />
+                    </AssetsRoute>
+                  }
+                />
+                <Route
+                  path="/app/assets/:assetId"
+                  element={
+                    <AssetsRoute>
+                      <PhysicalAssetDetailPage />
+                    </AssetsRoute>
+                  }
+                />
+                <Route
+                  path="/app/requests"
+                  element={
+                    <RequestsRoute>
+                      <ServiceRequestsListPage />
+                    </RequestsRoute>
+                  }
+                />
+                <Route
+                  path="/app/requests/new"
+                  element={
+                    <RequestsRoute>
+                      <ServiceRequestCreatePage />
+                    </RequestsRoute>
+                  }
+                />
+                <Route
+                  path="/app/requests/:serviceRequestId/edit"
+                  element={
+                    <RequestsRoute>
+                      <ServiceRequestEditPage />
+                    </RequestsRoute>
+                  }
+                />
+                <Route
+                  path="/app/requests/:serviceRequestId"
+                  element={
+                    <RequestsRoute>
+                      <ServiceRequestDetailPage />
+                    </RequestsRoute>
+                  }
+                />
+                <Route
+                  path="/app/proposals"
+                  element={
+                    <ProposalsRoute>
+                      <ProposalsListPage />
+                    </ProposalsRoute>
+                  }
+                />
+                <Route
+                  path="/app/proposals/new"
+                  element={
+                    <ProposalsRoute>
+                      <ProposalCreatePage />
+                    </ProposalsRoute>
+                  }
+                />
+                <Route
+                  path="/app/proposals/:proposalId/edit"
+                  element={
+                    <ProposalsRoute>
+                      <ProposalEditPage />
+                    </ProposalsRoute>
+                  }
+                />
+                <Route
+                  path="/app/proposals/:proposalId"
+                  element={
+                    <ProposalsRoute>
+                      <ProposalDetailPage />
+                    </ProposalsRoute>
+                  }
+                />
+                <Route
+                  path="/app/purchase-orders"
+                  element={
+                    <PurchaseOrdersRoute>
+                      <PurchaseOrdersListPage />
+                    </PurchaseOrdersRoute>
+                  }
+                />
+                <Route
+                  path="/app/purchase-orders/new"
+                  element={
+                    <PurchaseOrdersRoute>
+                      <PurchaseOrderCreatePage />
+                    </PurchaseOrdersRoute>
+                  }
+                />
+                <Route
+                  path="/app/purchase-orders/:purchaseOrderId/edit"
+                  element={
+                    <PurchaseOrdersRoute>
+                      <PurchaseOrderEditPage />
+                    </PurchaseOrdersRoute>
+                  }
+                />
+                <Route
+                  path="/app/purchase-orders/:purchaseOrderId"
+                  element={
+                    <PurchaseOrdersRoute>
+                      <PurchaseOrderDetailPage />
+                    </PurchaseOrdersRoute>
+                  }
+                />
+                <Route
+                  path="/app/contracts"
+                  element={
+                    <ContractsRoute>
+                      <ContractsListPage />
+                    </ContractsRoute>
+                  }
+                />
+                <Route
+                  path="/app/contracts/new"
+                  element={
+                    <ContractsRoute>
+                      <ContractsCreatePage />
+                    </ContractsRoute>
+                  }
+                />
+                <Route
+                  path="/app/contracts/:contractId"
+                  element={
+                    <ContractsRoute>
+                      <ContractsDetailPage />
+                    </ContractsRoute>
+                  }
+                />
+                <Route
+                  path="/app/rentals"
+                  element={
+                    <ServiceOrdersRoute>
+                      <RentalsListPage />
+                    </ServiceOrdersRoute>
+                  }
+                />
+                <Route
+                  path="/app/transport"
+                  element={
+                    <ServiceOrdersRoute>
+                      <TransportListPage />
+                    </ServiceOrdersRoute>
+                  }
+                />
+                <Route
+                  path="/app/service-orders"
+                  element={
+                    <ServiceOrdersRoute>
+                      <ServiceOrdersEngineListPage />
+                    </ServiceOrdersRoute>
+                  }
+                />
+                <Route
+                  path="/app/service-orders/:serviceOrderId"
+                  element={
+                    <ServiceOrdersRoute>
+                      <ServiceOrderEngineDetailPage />
+                    </ServiceOrdersRoute>
+                  }
+                />
+                <Route
+                  path="/app/service-orders/:serviceOrderId/planning"
+                  element={
+                    <ServiceOrdersRoute>
+                      <ServiceOrderPlanningPage />
+                    </ServiceOrdersRoute>
+                  }
+                />
+                <Route
+                  path="/app/service-orders/:serviceOrderId/measurement"
+                  element={
+                    <ServiceOrdersRoute>
+                      <ServiceOrderMeasurementPage />
+                    </ServiceOrdersRoute>
+                  }
+                />
+                <Route path="/app/documents" element={<DocumentsPage />} />
+                <Route
+                  path="/app/billing"
+                  element={
+                    <BillingRoute>
+                      <BillingDashboardPage />
+                    </BillingRoute>
+                  }
+                />
+                <Route
+                  path="/app/finance"
+                  element={
+                    <FinanceRoute access="overview">
+                      <FinanceOverviewPage />
+                    </FinanceRoute>
+                  }
+                />
+                <Route
+                  path="/app/finance/budgets"
+                  element={
+                    <FinanceRoute access="budgets">
+                      <BudgetsListPage />
+                    </FinanceRoute>
+                  }
+                />
+                <Route
+                  path="/app/finance/budgets/new"
+                  element={
+                    <FinanceRoute access="budgets">
+                      <BudgetsPage />
+                    </FinanceRoute>
+                  }
+                />
+                <Route
+                  path="/app/finance/budgets/:budgetId"
+                  element={
+                    <FinanceRoute access="budgets">
+                      <BudgetsPage />
+                    </FinanceRoute>
+                  }
+                />
+                {/* Previsão de caixa: tela e controller ja existiam; faltava a rota. */}
+                <Route
+                  path="/app/finance/forecast"
+                  element={
+                    <FinanceRoute access="forecast">
+                      <CashForecastPage />
+                    </FinanceRoute>
+                  }
+                />
+                <Route
+                  path="/app/finance/expenses"
+                  element={
+                    <FinanceRoute access="expenses">
+                      <ExpensesListPage />
+                    </FinanceRoute>
+                  }
+                />
+                <Route
+                  path="/app/finance/expenses/new"
+                  element={
+                    <FinanceRoute access="expenses">
+                      <ExpensesPage />
+                    </FinanceRoute>
+                  }
+                />
+                <Route
+                  path="/app/finance/expenses/:expenseId"
+                  element={
+                    <FinanceRoute access="expenses">
+                      <ExpensesPage />
+                    </FinanceRoute>
+                  }
+                />
+                <Route
+                  path="/app/finance/receivables"
+                  element={
+                    <FinanceRoute access="receivables">
+                      <ReceivablesListPage />
+                    </FinanceRoute>
+                  }
+                />
+                <Route
+                  path="/app/finance/receivables/:receivableId"
+                  element={
+                    <FinanceRoute access="receivables">
+                      <ReceivableDetailPage />
+                    </FinanceRoute>
+                  }
+                />
+                <Route
+                  path="/app/finance/payables"
+                  element={
+                    <FinanceRoute access="payables">
+                      <PayablesListPage />
+                    </FinanceRoute>
+                  }
+                />
+                <Route
+                  path="/app/finance/payables/:payableId"
+                  element={
+                    <FinanceRoute access="payables">
+                      <PayableDetailPage />
+                    </FinanceRoute>
+                  }
+                />
+                <Route
+                  path="/app/finance/treasury"
+                  element={
+                    <FinanceRoute access="treasury">
+                      <TreasuryListPage />
+                    </FinanceRoute>
+                  }
+                />
+                <Route
+                  path="/app/finance/treasury/:accountId"
+                  element={
+                    <FinanceRoute access="treasury">
+                      <TreasuryAccountDetailPage />
+                    </FinanceRoute>
+                  }
+                />
+                <Route
+                  path="/app/finance/reconciliation"
+                  element={
+                    <FinanceRoute access="reconciliation">
+                      <BankReconciliationPage />
+                    </FinanceRoute>
+                  }
+                />
+                {/* Seleção do extrato vive na URL: o operador abre a mesa já no extrato escolhido. */}
+                <Route
+                  path="/app/finance/reconciliation/:statementId"
+                  element={
+                    <FinanceRoute access="reconciliation">
+                      <BankReconciliationPage />
+                    </FinanceRoute>
+                  }
+                />
+                <Route
+                  path="/app/fiscal/documents"
+                  element={
+                    <FiscalRoute access="documents">
+                      <FiscalDocumentsPage />
+                    </FiscalRoute>
+                  }
+                />
+                <Route
+                  path="/app/fiscal/documents/:fiscalDocumentId"
+                  element={
+                    <FiscalRoute access="documents">
+                      <FiscalDocumentsPage />
+                    </FiscalRoute>
+                  }
+                />
+                <Route
+                  path="/app/fiscal/periods"
+                  element={
+                    <FiscalRoute access="period">
+                      <FiscalPeriodsPage />
+                    </FiscalRoute>
+                  }
+                />
+                <Route
+                  path="/app/fiscal/periods/:periodId"
+                  element={
+                    <FiscalRoute access="period">
+                      <FiscalPeriodsPage />
+                    </FiscalRoute>
+                  }
+                />
+                <Route
+                  path="/app/fiscal/assessments"
+                  element={
+                    <FiscalRoute access="tax">
+                      <TaxAssessmentsPage />
+                    </FiscalRoute>
+                  }
+                />
+                <Route
+                  path="/app/fiscal/assessments/:assessmentId"
+                  element={
+                    <FiscalRoute access="tax">
+                      <TaxAssessmentsPage />
+                    </FiscalRoute>
+                  }
+                />
+                <Route
+                  path="/app/fiscal/apuracao/:calculationId"
+                  element={
+                    <FiscalRoute access="tax">
+                      <FiscalApuracaoPage />
+                    </FiscalRoute>
+                  }
+                />
+                <Route
+                  path="/app/fiscal/apuracao"
+                  element={
+                    <FiscalRoute access="tax">
+                      <FiscalApuracaoPage />
+                    </FiscalRoute>
+                  }
+                />
+                <Route
+                  path="/app/fiscal/tributos"
+                  element={
+                    <FiscalRoute access="tax">
+                      <FiscalTributosPage />
+                    </FiscalRoute>
+                  }
+                />
+                <Route
+                  path="/app/fiscal/tributos/:taxRuleId"
+                  element={
+                    <FiscalRoute access="tax">
+                      <FiscalTributosPage />
+                    </FiscalRoute>
+                  }
+                />
+                <Route
+                  path="/app/accounting/chart"
+                  element={
+                    <AccountingRoute>
+                      <ChartOfAccountsPage />
+                    </AccountingRoute>
+                  }
+                />
+                <Route
+                  path="/app/accounting/journals"
+                  element={
+                    <AccountingRoute>
+                      <JournalsPage />
+                    </AccountingRoute>
+                  }
+                />
+                <Route
+                  path="/app/accounting/journals/:journalId"
+                  element={
+                    <AccountingRoute>
+                      <JournalsPage />
+                    </AccountingRoute>
+                  }
+                />
+                <Route
+                  path="/app/accounting/diario"
+                  element={
+                    <AccountingRoute>
+                      <JournalBookPage />
+                    </AccountingRoute>
+                  }
+                />
+                <Route
+                  path="/app/accounting/razao"
+                  element={
+                    <AccountingRoute>
+                      <GeneralLedgerPage />
+                    </AccountingRoute>
+                  }
+                />
+                <Route
+                  path="/app/accounting/balancete"
+                  element={
+                    <AccountingRoute>
+                      <TrialBalancePage />
+                    </AccountingRoute>
+                  }
+                />
+                <Route
+                  path="/app/accounting/dre"
+                  element={
+                    <AccountingRoute>
+                      <IncomeStatementPage />
+                    </AccountingRoute>
+                  }
+                />
+                <Route
+                  path="/app/accounting/balanco"
+                  element={
+                    <AccountingRoute>
+                      <BalanceSheetPage />
+                    </AccountingRoute>
+                  }
+                />
+                <Route
+                  path="/app/accounting/fechamentos"
+                  element={
+                    <AccountingRoute>
+                      <PeriodClosePage />
+                    </AccountingRoute>
+                  }
+                />
+                {/* Superfície única de fechamento: unidade + período, sem identificador técnico. */}
+                <Route
+                  path="/app/closing"
+                  element={
+                    <AccountingRoute>
+                      <ClosingCenterPage />
+                    </AccountingRoute>
+                  }
+                />
+                <Route
+                  path="/app/accounting/closing"
+                  element={<Navigate to="/app/closing" replace />}
+                />
+                <Route
+                  path="/app/accounting/origens"
+                  element={
+                    <AccountingRoute>
+                      <AccountingPostingOriginsPage />
+                    </AccountingRoute>
+                  }
+                />
+                <Route
+                  path="/app/accounting/fixed-assets"
+                  element={
+                    <AccountingRoute access="fixed-assets">
+                      <FixedAssetsPage />
+                    </AccountingRoute>
+                  }
+                />
+                <Route
+                  path="/app/accounting/fixed-assets/:registerId"
+                  element={
+                    <AccountingRoute access="fixed-assets">
+                      <FixedAssetsPage />
+                    </AccountingRoute>
+                  }
+                />
+                <Route
+                  path="/app/procurement/invoices/:invoiceId"
+                  element={
+                    <ProcurementRoute>
+                      <SupplierInvoicePage />
+                    </ProcurementRoute>
+                  }
+                />
+                <Route
+                  path="/app/procurement/invoices"
+                  element={
+                    <ProcurementRoute>
+                      <SupplierInvoicePage />
+                    </ProcurementRoute>
+                  }
+                />
+                <Route
+                  path="/app/procurement/matches/:matchId"
+                  element={
+                    <ProcurementRoute>
+                      <ThreeWayMatchPage />
+                    </ProcurementRoute>
+                  }
+                />
+                <Route
+                  path="/app/procurement/requests/new"
+                  element={
+                    <ProcurementRoute>
+                      <PurchaseRequestCreatePage />
+                    </ProcurementRoute>
+                  }
+                />
+                <Route
+                  path="/app/procurement/requests/:requestId"
+                  element={
+                    <ProcurementRoute>
+                      <PurchaseRequestPage />
+                    </ProcurementRoute>
+                  }
+                />
+                <Route
+                  path="/app/procurement/orders/:orderId"
+                  element={
+                    <ProcurementRoute>
+                      <PurchaseOrderPage />
+                    </ProcurementRoute>
+                  }
+                />
+                <Route
+                  path="/app/procurement"
+                  element={
+                    <ProcurementRoute>
+                      <ProcurementHubPage />
+                    </ProcurementRoute>
+                  }
+                />
+                <Route
+                  path="/app/inventory/items/:itemId"
+                  element={
+                    <InventoryRoute>
+                      <InventoryItemDetailPage />
+                    </InventoryRoute>
+                  }
+                />
+                <Route
+                  path="/app/inventory/warehouses/:warehouseId"
+                  element={
+                    <InventoryRoute>
+                      <InventoryWarehouseDetailPage />
+                    </InventoryRoute>
+                  }
+                />
+                <Route
+                  path="/app/inventory"
+                  element={
+                    <InventoryRoute>
+                      <InventoryPage />
+                    </InventoryRoute>
+                  }
+                />
+                <Route
+                  path="/app/suppliers/new"
+                  element={
+                    <SuppliersRoute>
+                      <SupplierCreatePage />
+                    </SuppliersRoute>
+                  }
+                />
+                <Route
+                  path="/app/suppliers/:supplierId"
+                  element={
+                    <SuppliersRoute>
+                      <SuppliersEngineDetailPage />
+                    </SuppliersRoute>
+                  }
+                />
+                <Route
+                  path="/app/suppliers"
+                  element={
+                    <SuppliersRoute>
+                      <SuppliersEngineListPage />
+                    </SuppliersRoute>
+                  }
+                />
+                <Route
+                  path="/app/payroll/periods/:periodId"
+                  element={
+                    <PayrollRoute>
+                      <PayrollPage />
+                    </PayrollRoute>
+                  }
+                />
+                <Route
+                  path="/app/payroll"
+                  element={
+                    <PayrollRoute>
+                      <PayrollPage />
+                    </PayrollRoute>
+                  }
+                />
+                <Route
+                  path="/app/service-orders/:serviceOrderId/billing/document"
+                  element={
+                    <ServiceOrdersRoute>
+                      <ServiceOrderBillingDocumentPage />
+                    </ServiceOrdersRoute>
+                  }
+                />
+                <Route
+                  path="/app/service-orders/:serviceOrderId/billing"
+                  element={
+                    <ServiceOrdersRoute>
+                      <ServiceOrderBillingPage />
+                    </ServiceOrdersRoute>
+                  }
+                />
+                <Route path="/app/no-access" element={<ShellAccessDeniedPage />} />
+                <Route path="*" element={<ShellNotFoundPage />} />
+              </Route>
             </Route>
-            <Route element={<AppShellLayout />}>
-              <Route path="/app" element={<OperationalDashboardPage />} />
-              <Route path="/app/alerts" element={<AlertCenterPage />} />
-              <Route path="/app/work-inbox" element={<WorkInboxPage />} />
-              {/*
-                WORKSPACES DE DOMINIO — uma superficie de decisao por dominio, sobre a MESMA
-                fila de trabalho. O financeiro e o unico que vive fora de `/app/workspaces`
-                porque a conversao aconteceu em `/app/finance`: a rota abaixo redireciona para
-                la, e nao para uma segunda superficie financeira divergente.
-              */}
-              <Route path="/app/workspaces" element={<WorkspacesIndexPage />} />
-              <Route
-                path="/app/workspaces/comercial"
-                element={<DomainWorkspacePage domain="COMERCIAL" />}
-              />
-              <Route
-                path="/app/workspaces/operacoes"
-                element={<DomainWorkspacePage domain="OPERACOES" />}
-              />
-              <Route
-                path="/app/workspaces/financeiro"
-                element={<Navigate to="/app/finance" replace />}
-              />
-              <Route
-                path="/app/workspaces/fiscal"
-                element={<DomainWorkspacePage domain="FISCAL" />}
-              />
-              <Route
-                path="/app/workspaces/contabilidade"
-                element={<DomainWorkspacePage domain="CONTABILIDADE" />}
-              />
-              <Route
-                path="/app/workspaces/suprimentos"
-                element={<DomainWorkspacePage domain="SUPRIMENTOS" />}
-              />
-              <Route path="/app/search" element={<SearchResultsPage />} />
-              <Route path="/app/reports" element={<ReportsPage />} />
-              <Route
-                path="/app/operational-profitability"
-                element={<OperationalProfitabilityPage />}
-              />
-              <Route path="/app/reports/compliance" element={<ComplianceBiPage />} />
-              <Route path="/app/modules" element={<ModulesRegistryPage />} />
-              <Route
-                path="/app/access-admin"
-                element={
-                  <AccessAdminRoute>
-                    <AccessAdminPage />
-                  </AccessAdminRoute>
-                }
-              />
-              <Route
-                path="/app/platform"
-                element={
-                  <CapabilityRoute>
-                    <PlatformDiagnosticsPage />
-                  </CapabilityRoute>
-                }
-              />
-              <Route
-                path="/app/clients"
-                element={
-                  <ClientsRoute>
-                    <ClientsListPage />
-                  </ClientsRoute>
-                }
-              />
-              <Route
-                path="/app/clients/new"
-                element={
-                  <ClientsRoute>
-                    <ClientCreatePage />
-                  </ClientsRoute>
-                }
-              />
-              <Route
-                path="/app/clients/:clientId/edit"
-                element={
-                  <ClientsRoute>
-                    <ClientEditPage />
-                  </ClientsRoute>
-                }
-              />
-              <Route
-                path="/app/clients/:clientId"
-                element={
-                  <ClientsRoute>
-                    <ClientDetailPage />
-                  </ClientsRoute>
-                }
-              />
-              <Route
-                path="/app/people"
-                element={
-                  <PeopleRoute>
-                    <PeopleListPage />
-                  </PeopleRoute>
-                }
-              />
-              <Route
-                path="/app/people/new"
-                element={
-                  <PeopleRoute>
-                    <PersonCreatePage />
-                  </PeopleRoute>
-                }
-              />
-              <Route
-                path="/app/people/:personId/edit"
-                element={
-                  <PeopleRoute>
-                    <PersonEditPage />
-                  </PeopleRoute>
-                }
-              />
-              <Route
-                path="/app/people/:personId"
-                element={
-                  <PeopleRoute>
-                    <PersonDetailPage />
-                  </PeopleRoute>
-                }
-              />
-              <Route
-                path="/app/catalog"
-                element={
-                  <CatalogRoute>
-                    <ServiceDefinitionsListPage />
-                  </CatalogRoute>
-                }
-              />
-              <Route
-                path="/app/catalog/new"
-                element={
-                  <CatalogRoute>
-                    <ServiceDefinitionCreatePage />
-                  </CatalogRoute>
-                }
-              />
-              <Route
-                path="/app/catalog/:definitionId/compare"
-                element={
-                  <CatalogRoute>
-                    <ServiceDefinitionComparePage />
-                  </CatalogRoute>
-                }
-              />
-              <Route
-                path="/app/catalog/:definitionId/versions/new"
-                element={
-                  <CatalogRoute>
-                    <ServiceDefinitionVersionCreatePage />
-                  </CatalogRoute>
-                }
-              />
-              <Route
-                path="/app/catalog/:definitionId/versions/:versionNumber/edit"
-                element={
-                  <CatalogRoute>
-                    <ServiceDefinitionDraftEditPage />
-                  </CatalogRoute>
-                }
-              />
-              <Route
-                path="/app/catalog/:definitionId/versions/:versionNumber"
-                element={
-                  <CatalogRoute>
-                    <ServiceDefinitionVersionDetailPage />
-                  </CatalogRoute>
-                }
-              />
-              <Route
-                path="/app/catalog/:definitionId"
-                element={
-                  <CatalogRoute>
-                    <ServiceDefinitionDetailPage />
-                  </CatalogRoute>
-                }
-              />
-              <Route
-                path="/app/fleet"
-                element={
-                  <AssetsRoute>
-                    <FleetListPage />
-                  </AssetsRoute>
-                }
-              />
-              <Route
-                path="/app/assets"
-                element={
-                  <AssetsRoute>
-                    <PhysicalAssetsListPage />
-                  </AssetsRoute>
-                }
-              />
-              <Route
-                path="/app/assets/new"
-                element={
-                  <AssetsRoute>
-                    <PhysicalAssetCreatePage />
-                  </AssetsRoute>
-                }
-              />
-              <Route
-                path="/app/assets/:assetId/edit"
-                element={
-                  <AssetsRoute>
-                    <PhysicalAssetEditPage />
-                  </AssetsRoute>
-                }
-              />
-              <Route
-                path="/app/assets/:assetId"
-                element={
-                  <AssetsRoute>
-                    <PhysicalAssetDetailPage />
-                  </AssetsRoute>
-                }
-              />
-              <Route
-                path="/app/requests"
-                element={
-                  <RequestsRoute>
-                    <ServiceRequestsListPage />
-                  </RequestsRoute>
-                }
-              />
-              <Route
-                path="/app/requests/new"
-                element={
-                  <RequestsRoute>
-                    <ServiceRequestCreatePage />
-                  </RequestsRoute>
-                }
-              />
-              <Route
-                path="/app/requests/:serviceRequestId/edit"
-                element={
-                  <RequestsRoute>
-                    <ServiceRequestEditPage />
-                  </RequestsRoute>
-                }
-              />
-              <Route
-                path="/app/requests/:serviceRequestId"
-                element={
-                  <RequestsRoute>
-                    <ServiceRequestDetailPage />
-                  </RequestsRoute>
-                }
-              />
-              <Route
-                path="/app/proposals"
-                element={
-                  <ProposalsRoute>
-                    <ProposalsListPage />
-                  </ProposalsRoute>
-                }
-              />
-              <Route
-                path="/app/proposals/new"
-                element={
-                  <ProposalsRoute>
-                    <ProposalCreatePage />
-                  </ProposalsRoute>
-                }
-              />
-              <Route
-                path="/app/proposals/:proposalId/edit"
-                element={
-                  <ProposalsRoute>
-                    <ProposalEditPage />
-                  </ProposalsRoute>
-                }
-              />
-              <Route
-                path="/app/proposals/:proposalId"
-                element={
-                  <ProposalsRoute>
-                    <ProposalDetailPage />
-                  </ProposalsRoute>
-                }
-              />
-              <Route
-                path="/app/purchase-orders"
-                element={
-                  <PurchaseOrdersRoute>
-                    <PurchaseOrdersListPage />
-                  </PurchaseOrdersRoute>
-                }
-              />
-              <Route
-                path="/app/purchase-orders/new"
-                element={
-                  <PurchaseOrdersRoute>
-                    <PurchaseOrderCreatePage />
-                  </PurchaseOrdersRoute>
-                }
-              />
-              <Route
-                path="/app/purchase-orders/:purchaseOrderId/edit"
-                element={
-                  <PurchaseOrdersRoute>
-                    <PurchaseOrderEditPage />
-                  </PurchaseOrdersRoute>
-                }
-              />
-              <Route
-                path="/app/purchase-orders/:purchaseOrderId"
-                element={
-                  <PurchaseOrdersRoute>
-                    <PurchaseOrderDetailPage />
-                  </PurchaseOrdersRoute>
-                }
-              />
-              <Route
-                path="/app/contracts"
-                element={
-                  <ContractsRoute>
-                    <ContractsListPage />
-                  </ContractsRoute>
-                }
-              />
-              <Route
-                path="/app/contracts/new"
-                element={
-                  <ContractsRoute>
-                    <ContractsCreatePage />
-                  </ContractsRoute>
-                }
-              />
-              <Route
-                path="/app/contracts/:contractId"
-                element={
-                  <ContractsRoute>
-                    <ContractsDetailPage />
-                  </ContractsRoute>
-                }
-              />
-              <Route
-                path="/app/rentals"
-                element={
-                  <ServiceOrdersRoute>
-                    <RentalsListPage />
-                  </ServiceOrdersRoute>
-                }
-              />
-              <Route
-                path="/app/transport"
-                element={
-                  <ServiceOrdersRoute>
-                    <TransportListPage />
-                  </ServiceOrdersRoute>
-                }
-              />
-              <Route
-                path="/app/service-orders"
-                element={
-                  <ServiceOrdersRoute>
-                    <ServiceOrdersEngineListPage />
-                  </ServiceOrdersRoute>
-                }
-              />
-              <Route
-                path="/app/service-orders/:serviceOrderId"
-                element={
-                  <ServiceOrdersRoute>
-                    <ServiceOrderEngineDetailPage />
-                  </ServiceOrdersRoute>
-                }
-              />
-              <Route
-                path="/app/service-orders/:serviceOrderId/planning"
-                element={
-                  <ServiceOrdersRoute>
-                    <ServiceOrderPlanningPage />
-                  </ServiceOrdersRoute>
-                }
-              />
-              <Route
-                path="/app/service-orders/:serviceOrderId/measurement"
-                element={
-                  <ServiceOrdersRoute>
-                    <ServiceOrderMeasurementPage />
-                  </ServiceOrdersRoute>
-                }
-              />
-              <Route path="/app/documents" element={<DocumentsPage />} />
-              <Route
-                path="/app/billing"
-                element={
-                  <BillingRoute>
-                    <BillingDashboardPage />
-                  </BillingRoute>
-                }
-              />
-              <Route
-                path="/app/finance"
-                element={
-                  <FinanceRoute access="overview">
-                    <FinanceOverviewPage />
-                  </FinanceRoute>
-                }
-              />
-              <Route
-                path="/app/finance/budgets"
-                element={
-                  <FinanceRoute access="budgets">
-                    <BudgetsListPage />
-                  </FinanceRoute>
-                }
-              />
-              <Route
-                path="/app/finance/budgets/new"
-                element={
-                  <FinanceRoute access="budgets">
-                    <BudgetsPage />
-                  </FinanceRoute>
-                }
-              />
-              <Route
-                path="/app/finance/budgets/:budgetId"
-                element={
-                  <FinanceRoute access="budgets">
-                    <BudgetsPage />
-                  </FinanceRoute>
-                }
-              />
-              {/* Previsão de caixa: tela e controller ja existiam; faltava a rota. */}
-              <Route
-                path="/app/finance/forecast"
-                element={
-                  <FinanceRoute access="forecast">
-                    <CashForecastPage />
-                  </FinanceRoute>
-                }
-              />
-              <Route
-                path="/app/finance/expenses"
-                element={
-                  <FinanceRoute access="expenses">
-                    <ExpensesListPage />
-                  </FinanceRoute>
-                }
-              />
-              <Route
-                path="/app/finance/expenses/new"
-                element={
-                  <FinanceRoute access="expenses">
-                    <ExpensesPage />
-                  </FinanceRoute>
-                }
-              />
-              <Route
-                path="/app/finance/expenses/:expenseId"
-                element={
-                  <FinanceRoute access="expenses">
-                    <ExpensesPage />
-                  </FinanceRoute>
-                }
-              />
-              <Route
-                path="/app/finance/receivables"
-                element={
-                  <FinanceRoute access="receivables">
-                    <ReceivablesListPage />
-                  </FinanceRoute>
-                }
-              />
-              <Route
-                path="/app/finance/receivables/:receivableId"
-                element={
-                  <FinanceRoute access="receivables">
-                    <ReceivableDetailPage />
-                  </FinanceRoute>
-                }
-              />
-              <Route
-                path="/app/finance/payables"
-                element={
-                  <FinanceRoute access="payables">
-                    <PayablesListPage />
-                  </FinanceRoute>
-                }
-              />
-              <Route
-                path="/app/finance/payables/:payableId"
-                element={
-                  <FinanceRoute access="payables">
-                    <PayableDetailPage />
-                  </FinanceRoute>
-                }
-              />
-              <Route
-                path="/app/finance/treasury"
-                element={
-                  <FinanceRoute access="treasury">
-                    <TreasuryListPage />
-                  </FinanceRoute>
-                }
-              />
-              <Route
-                path="/app/finance/treasury/:accountId"
-                element={
-                  <FinanceRoute access="treasury">
-                    <TreasuryAccountDetailPage />
-                  </FinanceRoute>
-                }
-              />
-              <Route
-                path="/app/finance/reconciliation"
-                element={
-                  <FinanceRoute access="reconciliation">
-                    <BankReconciliationPage />
-                  </FinanceRoute>
-                }
-              />
-              {/* Seleção do extrato vive na URL: o operador abre a mesa já no extrato escolhido. */}
-              <Route
-                path="/app/finance/reconciliation/:statementId"
-                element={
-                  <FinanceRoute access="reconciliation">
-                    <BankReconciliationPage />
-                  </FinanceRoute>
-                }
-              />
-              <Route
-                path="/app/fiscal/documents"
-                element={
-                  <FiscalRoute access="documents">
-                    <FiscalDocumentsPage />
-                  </FiscalRoute>
-                }
-              />
-              <Route
-                path="/app/fiscal/documents/:fiscalDocumentId"
-                element={
-                  <FiscalRoute access="documents">
-                    <FiscalDocumentsPage />
-                  </FiscalRoute>
-                }
-              />
-              <Route
-                path="/app/fiscal/periods"
-                element={
-                  <FiscalRoute access="period">
-                    <FiscalPeriodsPage />
-                  </FiscalRoute>
-                }
-              />
-              <Route
-                path="/app/fiscal/periods/:periodId"
-                element={
-                  <FiscalRoute access="period">
-                    <FiscalPeriodsPage />
-                  </FiscalRoute>
-                }
-              />
-              <Route
-                path="/app/fiscal/assessments"
-                element={
-                  <FiscalRoute access="tax">
-                    <TaxAssessmentsPage />
-                  </FiscalRoute>
-                }
-              />
-              <Route
-                path="/app/fiscal/assessments/:assessmentId"
-                element={
-                  <FiscalRoute access="tax">
-                    <TaxAssessmentsPage />
-                  </FiscalRoute>
-                }
-              />
-              <Route
-                path="/app/fiscal/apuracao/:calculationId"
-                element={
-                  <FiscalRoute access="tax">
-                    <FiscalApuracaoPage />
-                  </FiscalRoute>
-                }
-              />
-              <Route
-                path="/app/fiscal/apuracao"
-                element={
-                  <FiscalRoute access="tax">
-                    <FiscalApuracaoPage />
-                  </FiscalRoute>
-                }
-              />
-              <Route
-                path="/app/fiscal/tributos"
-                element={
-                  <FiscalRoute access="tax">
-                    <FiscalTributosPage />
-                  </FiscalRoute>
-                }
-              />
-              <Route
-                path="/app/fiscal/tributos/:taxRuleId"
-                element={
-                  <FiscalRoute access="tax">
-                    <FiscalTributosPage />
-                  </FiscalRoute>
-                }
-              />
-              <Route
-                path="/app/accounting/chart"
-                element={
-                  <AccountingRoute>
-                    <ChartOfAccountsPage />
-                  </AccountingRoute>
-                }
-              />
-              <Route
-                path="/app/accounting/journals"
-                element={
-                  <AccountingRoute>
-                    <JournalsPage />
-                  </AccountingRoute>
-                }
-              />
-              <Route
-                path="/app/accounting/journals/:journalId"
-                element={
-                  <AccountingRoute>
-                    <JournalsPage />
-                  </AccountingRoute>
-                }
-              />
-              <Route
-                path="/app/accounting/diario"
-                element={
-                  <AccountingRoute>
-                    <JournalBookPage />
-                  </AccountingRoute>
-                }
-              />
-              <Route
-                path="/app/accounting/razao"
-                element={
-                  <AccountingRoute>
-                    <GeneralLedgerPage />
-                  </AccountingRoute>
-                }
-              />
-              <Route
-                path="/app/accounting/balancete"
-                element={
-                  <AccountingRoute>
-                    <TrialBalancePage />
-                  </AccountingRoute>
-                }
-              />
-              <Route
-                path="/app/accounting/dre"
-                element={
-                  <AccountingRoute>
-                    <IncomeStatementPage />
-                  </AccountingRoute>
-                }
-              />
-              <Route
-                path="/app/accounting/balanco"
-                element={
-                  <AccountingRoute>
-                    <BalanceSheetPage />
-                  </AccountingRoute>
-                }
-              />
-              <Route
-                path="/app/accounting/fechamentos"
-                element={
-                  <AccountingRoute>
-                    <PeriodClosePage />
-                  </AccountingRoute>
-                }
-              />
-              {/* Superfície única de fechamento: unidade + período, sem identificador técnico. */}
-              <Route
-                path="/app/closing"
-                element={
-                  <AccountingRoute>
-                    <ClosingCenterPage />
-                  </AccountingRoute>
-                }
-              />
-              <Route
-                path="/app/accounting/closing"
-                element={<Navigate to="/app/closing" replace />}
-              />
-              <Route
-                path="/app/accounting/origens"
-                element={
-                  <AccountingRoute>
-                    <AccountingPostingOriginsPage />
-                  </AccountingRoute>
-                }
-              />
-              <Route
-                path="/app/accounting/fixed-assets"
-                element={
-                  <AccountingRoute access="fixed-assets">
-                    <FixedAssetsPage />
-                  </AccountingRoute>
-                }
-              />
-              <Route
-                path="/app/accounting/fixed-assets/:registerId"
-                element={
-                  <AccountingRoute access="fixed-assets">
-                    <FixedAssetsPage />
-                  </AccountingRoute>
-                }
-              />
-              <Route
-                path="/app/procurement/invoices/:invoiceId"
-                element={
-                  <ProcurementRoute>
-                    <SupplierInvoicePage />
-                  </ProcurementRoute>
-                }
-              />
-              <Route
-                path="/app/procurement/invoices"
-                element={
-                  <ProcurementRoute>
-                    <SupplierInvoicePage />
-                  </ProcurementRoute>
-                }
-              />
-              <Route
-                path="/app/procurement/matches/:matchId"
-                element={
-                  <ProcurementRoute>
-                    <ThreeWayMatchPage />
-                  </ProcurementRoute>
-                }
-              />
-              <Route
-                path="/app/procurement/requests/new"
-                element={
-                  <ProcurementRoute>
-                    <PurchaseRequestCreatePage />
-                  </ProcurementRoute>
-                }
-              />
-              <Route
-                path="/app/procurement/requests/:requestId"
-                element={
-                  <ProcurementRoute>
-                    <PurchaseRequestPage />
-                  </ProcurementRoute>
-                }
-              />
-              <Route
-                path="/app/procurement/orders/:orderId"
-                element={
-                  <ProcurementRoute>
-                    <PurchaseOrderPage />
-                  </ProcurementRoute>
-                }
-              />
-              <Route
-                path="/app/procurement"
-                element={
-                  <ProcurementRoute>
-                    <ProcurementHubPage />
-                  </ProcurementRoute>
-                }
-              />
-              <Route
-                path="/app/inventory/items/:itemId"
-                element={
-                  <InventoryRoute>
-                    <InventoryItemDetailPage />
-                  </InventoryRoute>
-                }
-              />
-              <Route
-                path="/app/inventory/warehouses/:warehouseId"
-                element={
-                  <InventoryRoute>
-                    <InventoryWarehouseDetailPage />
-                  </InventoryRoute>
-                }
-              />
-              <Route
-                path="/app/inventory"
-                element={
-                  <InventoryRoute>
-                    <InventoryPage />
-                  </InventoryRoute>
-                }
-              />
-              <Route
-                path="/app/suppliers/new"
-                element={
-                  <SuppliersRoute>
-                    <SupplierCreatePage />
-                  </SuppliersRoute>
-                }
-              />
-              <Route
-                path="/app/suppliers/:supplierId"
-                element={
-                  <SuppliersRoute>
-                    <SuppliersEngineDetailPage />
-                  </SuppliersRoute>
-                }
-              />
-              <Route
-                path="/app/suppliers"
-                element={
-                  <SuppliersRoute>
-                    <SuppliersEngineListPage />
-                  </SuppliersRoute>
-                }
-              />
-              <Route
-                path="/app/payroll/periods/:periodId"
-                element={
-                  <PayrollRoute>
-                    <PayrollPage />
-                  </PayrollRoute>
-                }
-              />
-              <Route
-                path="/app/payroll"
-                element={
-                  <PayrollRoute>
-                    <PayrollPage />
-                  </PayrollRoute>
-                }
-              />
-              <Route
-                path="/app/service-orders/:serviceOrderId/billing/document"
-                element={
-                  <ServiceOrdersRoute>
-                    <ServiceOrderBillingDocumentPage />
-                  </ServiceOrdersRoute>
-                }
-              />
-              <Route
-                path="/app/service-orders/:serviceOrderId/billing"
-                element={
-                  <ServiceOrdersRoute>
-                    <ServiceOrderBillingPage />
-                  </ServiceOrdersRoute>
-                }
-              />
-              <Route path="/app/no-access" element={<ShellAccessDeniedPage />} />
-              <Route path="*" element={<ShellNotFoundPage />} />
-            </Route>
-          </Route>
-          <Route path="/" element={<Navigate to="/app" replace />} />
-          <Route path="*" element={<ShellNotFoundPage />} />
-        </Routes>
+            <Route path="/" element={<Navigate to="/app" replace />} />
+            <Route path="*" element={<ShellNotFoundPage />} />
+          </Routes>
         </MetadataProvider>
-      </AuthProvider>
-    </BrowserRouter>
+        </AuthProvider>
+      </BrowserRouter>
+    </LanguageProvider>
   );
 }
