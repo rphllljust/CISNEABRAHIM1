@@ -59,6 +59,7 @@ export function DynamicCreateForm({
   return (
     <form
       data-testid="dynamic-create-form"
+      data-create-form={schema.name}
       data-entity={schema.name}
       className="rounded-lg border border-gray-200 p-4"
       onSubmit={(event) => {

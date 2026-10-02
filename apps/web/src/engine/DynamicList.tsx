@@ -190,6 +190,13 @@ export function DynamicList({
       data-testid="dynamic-list"
       data-entity={schema.name}
       data-column-count={String(columns.length)}
+      /*
+       * `data-list-count` é o número de linhas RENDERIZADAS — não um total que a engine
+       * calculou. Serve à prova de que o filtro do KPI mudou o conjunto exibido: sem ele, a
+       * única forma de medir seria contar `tr` no teste, o que confundiria linha de rodapé
+       * com registro.
+       */
+      data-list-count={String(rows.length)}
     >
       <thead>
         <tr>
