@@ -148,15 +148,20 @@ export function useMetadata(): MetadataContextValue {
  * É o hook que todo componente da engine usa. Devolve `null` enquanto carrega para que o
  * chamador decida o que mostrar — a engine nunca inventa um schema vazio, porque um schema
  * vazio renderizaria uma tela em branco indistinguível de "entidade sem campos".
+ *
+ * SEM PROVIDER ACIMA: devolve `null` em vez de lançar. Um componente da engine pode ser
+ * montado fora da árvore que declara `MetadataProvider` (uma tela isolada, um teste de outra
+ * suíte), e lançar ali derruba a árvore inteira por um motivo que a tela não controla. O
+ * contrato é o mesmo do estado "carregando": sem schema, não há o que desenhar.
  */
 export function useEntitySchema(entity: string): {
   schema: MetaEntitySchema | null;
   status: 'idle' | 'loading' | 'ready' | 'error';
 } {
-  const { getSchema, getStatus } = useMetadata();
+  const context = useContext(MetadataContext);
   const request = useContext(RequestContext);
-  const schema = getSchema(entity);
-  const status = getStatus(entity);
+  const schema = context?.getSchema(entity) ?? null;
+  const status = context?.getStatus(entity) ?? 'idle';
 
   useEffect(() => {
     if (request) {
