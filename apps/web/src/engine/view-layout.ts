@@ -60,7 +60,7 @@ export function readLayout(schema: MetaEntitySchema, viewType: string): ViewLayo
   if (!view || typeof view.layout !== 'object' || view.layout === null) {
     return null;
   }
-  return view.layout as ViewLayout;
+  return view.layout;
 }
 
 /**
@@ -174,4 +174,34 @@ export function selectableFields(schema: MetaEntitySchema): MetaField[] {
 /** Rótulo de um campo resolvido, caindo no próprio nome quando o metadado não o tem. */
 export function fieldLabel(resolved: ResolvedViewField): string {
   return resolved.field?.label ?? resolved.name;
+}
+
+/**
+ * Converte um valor de célula em texto de agrupamento/eixo.
+ *
+ * NÃO usa `String(valor)` direto: um objeto viraria `[object Object]`, e todas as linhas
+ * cairiam no MESMO grupo — um agrupamento silenciosamente errado, que é pior que um rótulo
+ * feio. JSON preserva a distinção entre valores distintos, então o eixo continua correto.
+ *
+ * `null`/vazio devolvem `null` para o chamador decidir o rótulo de ausência (`—`).
+ */
+export function toAxisText(value: unknown): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === 'string') {
+    return value.trim() === '' ? null : value;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  }
+  // Objeto/array: JSON mantém valores DISTINTOS em grupos distintos.
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return null;
+  }
 }

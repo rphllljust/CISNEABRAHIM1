@@ -89,3 +89,19 @@ export type {
   SelectOption,
   ViewSection,
 } from './types';
+
+export { DynamicFormBuilder, readFormDraft, moveItem } from './DynamicFormBuilder';
+export type { DynamicFormBuilderProps, FormBuilderDraft } from './DynamicFormBuilder';
+export {
+  FIELD_WRITE_PATH,
+  VIEW_WRITE_PATH,
+  applyFieldPatch,
+  applyViewPatch,
+  patchField,
+  patchView,
+} from './meta-write-api';
+export type {
+  EditableFieldPatch,
+  EditableViewPatch,
+  MetadataWriteOutcome,
+} from './meta-write-api';

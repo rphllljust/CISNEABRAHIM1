@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { t } from '../i18n';
 import type { DynamicListRow } from './DynamicList';
 import type { MetaEntitySchema } from './types';
@@ -7,6 +7,7 @@ import {
   readFieldName,
   readLayout,
   readString,
+  toAxisText,
   type ResolvedViewField,
 } from './view-layout';
 
@@ -54,13 +55,9 @@ type PivotCell = {
   rows: DynamicListRow[];
 };
 
-/** Valor de agrupamento como texto estável. `null`/vazio viram o rótulo declarado. */
+/** Valor de agrupamento como texto estável. Ausente vira o rótulo declarado. */
 function groupValue(row: DynamicListRow, field: string): string {
-  const value = row[field];
-  if (value === null || value === undefined || value === '') {
-    return '—';
-  }
-  return String(value);
+  return toAxisText(row[field]) ?? '—';
 }
 
 /** Converte para número aceitando string monetária; `null` quando não é numérico. */

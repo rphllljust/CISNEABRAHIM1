@@ -135,6 +135,7 @@ import { AccessAdminPage } from './access-admin/pages/AccessAdminPage';
 import { SessionMetaBridge } from './service-orders/context/SessionMetaBridge';
 import { MetadataProvider } from './engine';
 import { ServiceOrderEngineDetailPage } from './service-orders/pages/ServiceOrderEngineDetailPage';
+import { MetadataExplorerPage } from './admin/MetadataExplorerPage';
 
 export function App() {
   return (
@@ -1016,6 +1017,12 @@ export function App() {
                 }
               />
               <Route path="/app/no-access" element={<ShellAccessDeniedPage />} />
+              {/*
+                EXPLORADOR DE METADADOS — a superfície read-write do metadata store.
+                Fica fora de `/app/access-admin` porque não administra ACESSO: administra a
+                FORMA das telas (campos, views, layout), que é outra responsabilidade.
+              */}
+              <Route path="/app/admin/metadata" element={<MetadataExplorerPage />} />
               <Route path="*" element={<ShellNotFoundPage />} />
             </Route>
           </Route>

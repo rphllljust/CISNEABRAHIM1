@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { t } from '../i18n';
 import type { DynamicListRow } from './DynamicList';
 import type { MetaEntitySchema } from './types';
-import { readBoolean, readFieldName, readLayout, readString } from './view-layout';
+import { readBoolean, readFieldName, readLayout, readString, toAxisText } from './view-layout';
 
 /**
  * VISÃO DE ÁRVORE dirigida por metadado.
@@ -62,20 +62,16 @@ export function buildTree(
   const parentOf = new Map<string, string | null>();
 
   for (const row of rows) {
-    const rawId = row[idField];
-    if (rawId === null || rawId === undefined || String(rawId) === '') {
+    const id = toAxisText(row[idField]);
+    if (id === null) {
       // Sem identidade não há como pendurar filhos neste nó.
       continue;
     }
-    const id = String(rawId);
-    const rawParent = row[parentField];
-    const parent = rawParent === null || rawParent === undefined || String(rawParent) === ''
-      ? null
-      : String(rawParent);
-    const label = row[labelField];
+    const parent = toAxisText(row[parentField]);
+    const label = toAxisText(row[labelField]);
     byId.set(id, {
       id,
-      label: label === null || label === undefined || String(label) === '' ? '—' : String(label),
+      label: label ?? '—',
       row,
       depth: 0,
       children: [],

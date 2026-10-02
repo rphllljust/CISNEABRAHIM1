@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { t } from '../i18n';
 import type { DynamicListRow } from './DynamicList';
 import type { MetaEntitySchema } from './types';
-import { readBoolean, readFieldName, readLayout, readString } from './view-layout';
+import { readBoolean, readFieldName, readLayout, readString, toAxisText } from './view-layout';
 
 /**
  * VISÃO DE GRÁFICO dirigida por metadado.
@@ -99,9 +99,7 @@ export function buildBuckets(
   const groups = new Map<string, DynamicListRow[]>();
 
   for (const row of rows) {
-    const raw = row[categoryField];
-    const category =
-      raw === null || raw === undefined || String(raw) === '' ? '—' : String(raw);
+    const category = toAxisText(row[categoryField]) ?? '—';
     const bucket = groups.get(category);
     if (bucket) {
       bucket.push(row);

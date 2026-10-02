@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { t } from '../i18n';
 import type { DynamicListRow } from './DynamicList';
 import type { MetaEntitySchema, MetaView } from './types';
-import { fieldLabel, findView, readFieldName, type ViewLayout } from './view-layout';
+import { findView, readFieldName, toAxisText, type ViewLayout } from './view-layout';
 
 /**
  * VISÃO DE CALENDÁRIO dirigida por metadado.
@@ -62,11 +62,8 @@ const COLOR_CLASSES: Record<ColorToken, string> = {
  * pedido, que é o formato que a chave do mapa espera.
  */
 export function dayKey(value: unknown, timeZone: string = DEFAULT_TIME_ZONE): string | null {
-  if (value === null || value === undefined) {
-    return null;
-  }
-  const date = value instanceof Date ? value : new Date(String(value));
-  if (Number.isNaN(date.getTime())) {
+  const date = toDate(value);
+  if (!date) {
     return null;
   }
   // `en-CA` é o locale cujo formato curto é ISO `YYYY-MM-DD`.
@@ -78,13 +75,35 @@ export function dayKey(value: unknown, timeZone: string = DEFAULT_TIME_ZONE): st
   }).format(date);
 }
 
+/**
+ * Converte um valor de data em `Date`, ou `null`.
+ *
+ * Aceita `Date` e string ISO. NÃO faz `String(objeto)`: um objeto viraria
+ * `"[object Object]"`, o `Date` resultante seria inválido, e a linha sumiria do calendário
+ * sem explicação — o `NaN` check abaixo é o que mantém essa falha visível como ausência.
+ */
+function toDate(value: unknown): Date | null {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  if (typeof value === 'string') {
+    if (value.trim() === '') {
+      return null;
+    }
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  if (typeof value === 'number') {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  return null;
+}
+
 /** Texto curto de hora no fuso do operador; `null` quando o valor é inválido. */
 export function timeLabel(value: unknown, timeZone: string = DEFAULT_TIME_ZONE): string | null {
-  if (value === null || value === undefined) {
-    return null;
-  }
-  const date = value instanceof Date ? value : new Date(String(value));
-  if (Number.isNaN(date.getTime())) {
+  const date = toDate(value);
+  if (!date) {
     return null;
   }
   return new Intl.DateTimeFormat('pt-BR', {
@@ -155,7 +174,7 @@ export function DynamicCalendar({
   emptyMessage,
 }: DynamicCalendarProps): React.ReactElement {
   const view: MetaView | null = useMemo(() => findView(schema, viewType), [schema, viewType]);
-  const layout: ViewLayout | null = (view?.layout as ViewLayout | undefined) ?? null;
+  const layout: ViewLayout | null = view?.layout ?? null;
 
   const dateField = readFieldName(layout, 'dateField');
   const titleField = readFieldName(layout, 'titleField') ?? schema.labelField;
@@ -316,14 +335,14 @@ export function DynamicCalendar({
                     <button
                       key={`${cell.date}-${index}`}
                       type="button"
-                      data-calendar-card={String(title ?? '')}
+                      data-calendar-card={toAxisText(title) ?? ''}
                       onClick={() => onCardClick?.(row)}
                       className={`truncate rounded border px-1 py-0.5 text-left text-[11px] ${
                         token ? COLOR_CLASSES[token] : COLOR_CLASSES.neutral
                       }`}
                     >
                       {moment ? <span className="text-slate-500">{moment} </span> : null}
-                      {String(title ?? '—')}
+                      {toAxisText(title) ?? '—'}
                     </button>
                   );
                 })}
