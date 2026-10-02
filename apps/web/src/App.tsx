@@ -38,7 +38,7 @@ import { TransportListPage } from './transport/pages/TransportListPage';
 import { RequestsRoute } from './requests/RequestsRoute';
 import { ServiceOrdersRoute } from './service-orders/ServiceOrdersRoute';
 import { ServiceOrderPlanningPage } from './service-orders/pages/ServiceOrderPlanningPage';
-import { ServiceOrdersListPage } from './service-orders/pages/ServiceOrdersListPage';
+import { ServiceOrdersEngineListPage } from './service-orders/pages/ServiceOrdersEngineListPage';
 import { ExecutionShellLayout } from './service-orders/layout/ExecutionShellLayout';
 import { ServiceOrderExecutionPage } from './service-orders/pages/ServiceOrderExecutionPage';
 import { ServiceOrderMeasurementPage } from './service-orders/pages/ServiceOrderMeasurementPage';
@@ -134,7 +134,7 @@ import { AccessAdminRoute } from './access-admin/AccessAdminRoute';
 import { AccessAdminPage } from './access-admin/pages/AccessAdminPage';
 import { SessionMetaBridge } from './service-orders/context/SessionMetaBridge';
 import { MetadataProvider } from './engine';
-import { ServiceOrderDetailPage } from './service-orders/pages/ServiceOrderDetailPage';
+import { ServiceOrderEngineDetailPage } from './service-orders/pages/ServiceOrderEngineDetailPage';
 
 export function App() {
   return (
@@ -523,7 +523,7 @@ export function App() {
                 path="/app/service-orders"
                 element={
                   <ServiceOrdersRoute>
-                    <ServiceOrdersListPage />
+                    <ServiceOrdersEngineListPage />
                   </ServiceOrdersRoute>
                 }
               />
@@ -531,7 +531,7 @@ export function App() {
                 path="/app/service-orders/:serviceOrderId"
                 element={
                   <ServiceOrdersRoute>
-                    <ServiceOrderDetailPage />
+                    <ServiceOrderEngineDetailPage />
                   </ServiceOrdersRoute>
                 }
               />
