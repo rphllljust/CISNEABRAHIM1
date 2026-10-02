@@ -225,6 +225,66 @@ function intervalsOverlap(
   return a.startMs < b.endMs && b.startMs < a.endMs;
 }
 
+/**
+ * Construtor de campo do metadata store para o mock.
+ *
+ * Existe para que o payload acima declare APENAS o que difere do padrão, em vez de repetir 13
+ * chaves por campo — o ruído é o que faz um mock divergir do contrato sem ninguém notar.
+ */
+function metaField(
+  name: string,
+  label: string,
+  type: string,
+  overrides: {
+    required?: boolean;
+    readOnly?: boolean;
+    permLevel?: number;
+    options?: { options: Array<{ value: string; label: string }> };
+    fieldOrder?: number;
+    inForm?: boolean;
+    inList?: boolean;
+    listOrder?: number;
+    inFilter?: boolean;
+    inSearch?: boolean;
+  } = {},
+): Record<string, unknown> {
+  return {
+    name,
+    label,
+    type,
+    required: overrides.required ?? false,
+    readOnly: overrides.readOnly ?? false,
+    permLevel: overrides.permLevel ?? 0,
+    options: overrides.options ?? null,
+    fieldOrder: overrides.fieldOrder ?? 0,
+    inForm: overrides.inForm ?? false,
+    inList: overrides.inList ?? false,
+    listOrder: overrides.listOrder ?? 0,
+    inFilter: overrides.inFilter ?? false,
+    inSearch: overrides.inSearch ?? false,
+  };
+}
+
+/** Transição de workflow para o mock — `allowed` é resolvido pelo ator no servidor real. */
+function metaTransition(
+  command: string,
+  label: string,
+  fromStates: string[],
+  toState: string,
+  buttonOrder: number,
+): Record<string, unknown> {
+  return {
+    command,
+    label,
+    fromStates,
+    toState,
+    permission: `service-orders:service-order:${command}`,
+    requiresReason: false,
+    buttonOrder,
+    allowed: true,
+  };
+}
+
 export function createServiceOrdersFetchMock(options: ServiceOrdersFetchMockOptions = {}) {
   const upstream = createAssetsFetchMock({ assetListAllowed: options.assetListAllowed });
   const listAllowed = options.serviceOrderListAllowed ?? true;
@@ -1587,6 +1647,138 @@ export function createServiceOrdersFetchMock(options: ServiceOrdersFetchMockOpti
   return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const { pathname, searchParams } = parseRequestPath(input);
     const method = init?.method ?? 'GET';
+
+    /*
+     * METADATA STORE — servido pelo mock porque a lista e o detalhe de OS passaram a ser
+     * RENDERIZADOS PELA ENGINE. Sem esta rota, `MetadataProvider` não monta e a tela não
+     * desenha nada: o mock deixaria de representar a aplicação real.
+     *
+     * O payload espelha o contrato de `GET /api/v1/meta/:entity` (apps/api/src/meta):
+     * campos já filtrados por `allowedPermLevels`, views com `layout` e workflow com
+     * `allowed` por transição. É uma CÓPIA do formato, não uma segunda fonte de verdade de
+     * negócio — o seed canônico continua em `packages/database/migrations/0085`.
+     */
+    if (pathname === '/api/v1/meta/service-orders' && method === 'GET') {
+      return jsonResponse({
+        name: 'service-orders',
+        label: 'Ordem de serviço',
+        description: null,
+        dataSchema: 'so',
+        dataTable: 'service_orders',
+        labelField: 'order_number',
+        fields: [
+          metaField('order_number', 'Número da OS', 'data', { inList: true, listOrder: 1 }),
+          metaField('internal_code', 'Código interno', 'data', { inList: true, listOrder: 2 }),
+          metaField('status', 'Situação', 'select', {
+            inList: true,
+            listOrder: 3,
+            inFilter: true,
+            options: {
+              options: [
+                { value: 'DRAFT', label: 'Rascunho' },
+                { value: 'PREPARED', label: 'Preparada' },
+                { value: 'RELEASED', label: 'Liberada' },
+                { value: 'IN_EXECUTION', label: 'Em execução' },
+                { value: 'PAUSED', label: 'Pausada' },
+                { value: 'COMPLETED', label: 'Concluída' },
+                { value: 'CANCELLED', label: 'Cancelada' },
+              ],
+            },
+          }),
+          metaField('unit_id', 'Unidade', 'link', { inForm: true, inList: true, listOrder: 4 }),
+          metaField('origin', 'Origem', 'select', {
+            inForm: true,
+            inList: true,
+            listOrder: 5,
+            options: {
+              options: [
+                { value: 'SERVICE_REQUEST', label: 'Solicitação' },
+                { value: 'PROPOSAL', label: 'Proposta' },
+                { value: 'PURCHASE_ORDER', label: 'Pedido de compra' },
+                { value: 'AUTHORIZED_DIRECT', label: 'Autorizada direta' },
+              ],
+            },
+          }),
+          metaField('description', 'Descrição', 'text', { inForm: true, fieldOrder: 6 }),
+          metaField('priority', 'Prioridade', 'data', { inForm: true, fieldOrder: 7 }),
+          metaField('row_version', 'Versão', 'integer', { readOnly: true, fieldOrder: 8 }),
+          metaField('created_at', 'Criada em', 'datetime', {
+            readOnly: true,
+            inList: true,
+            listOrder: 6,
+            fieldOrder: 9,
+          }),
+          metaField('contract_reference', 'Contrato', 'data', { inForm: true, fieldOrder: 10 }),
+          metaField('client_snapshot', 'Cliente', 'text', {
+            readOnly: true,
+            permLevel: 1,
+            inForm: true,
+            fieldOrder: 11,
+          }),
+        ],
+        views: [
+          {
+            viewType: 'form',
+            label: 'Formulário de ordem de serviço',
+            layout: {
+              sections: [
+                {
+                  title: 'Identificação',
+                  fields: ['order_number', 'internal_code', 'status', 'origin'],
+                },
+                {
+                  title: 'Execução',
+                  fields: ['unit_id', 'description', 'priority', 'contract_reference'],
+                },
+                { title: 'Auditoria', fields: ['row_version', 'created_at', 'client_snapshot'] },
+              ],
+            },
+            isDefault: true,
+          },
+          {
+            viewType: 'list',
+            label: 'Lista de ordens de serviço',
+            layout: {
+              columns: ['order_number', 'internal_code', 'status', 'unit_id', 'origin', 'created_at'],
+            },
+            isDefault: true,
+          },
+          {
+            viewType: 'kanban',
+            label: 'Kanban de ordens de serviço',
+            layout: { groupBy: 'status', cardFields: ['order_number', 'unit_id', 'created_at'] },
+            isDefault: true,
+          },
+        ],
+        workflow: {
+          stateField: 'status',
+          states: [
+            'DRAFT',
+            'PREPARED',
+            'RELEASED',
+            'IN_EXECUTION',
+            'PAUSED',
+            'COMPLETED',
+            'CANCELLED',
+          ],
+          transitions: [
+            metaTransition('prepare', 'Preparar', ['DRAFT'], 'PREPARED', 1),
+            metaTransition('release', 'Liberar', ['PREPARED'], 'RELEASED', 2),
+            metaTransition('cancel', 'Cancelar', ['DRAFT', 'PREPARED', 'RELEASED'], 'CANCELLED', 3),
+            metaTransition('start', 'Iniciar execução', ['RELEASED'], 'IN_EXECUTION', 4),
+            metaTransition('pause', 'Pausar', ['IN_EXECUTION'], 'PAUSED', 5),
+            metaTransition('resume', 'Retomar', ['PAUSED'], 'IN_EXECUTION', 6),
+            metaTransition('complete', 'Concluir', ['IN_EXECUTION'], 'COMPLETED', 7),
+          ],
+        },
+        permissions: [
+          { action: 'read', permLevel: 0, requiredPermission: null, allowed: true },
+        ],
+        // `client_snapshot` é permLevel 1; o ator do mock não tem a permissão de custo, então
+        // o nível 1 fica FORA — exatamente como o servidor faria (fail-closed).
+        allowedPermLevels: [0],
+      });
+    }
 
     if (pathname === '/api/v1/resources/physical-assets' && method === 'GET') {
       const auth = init?.headers ? new Headers(init.headers).get('authorization') : null;
