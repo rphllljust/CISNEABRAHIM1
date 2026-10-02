@@ -28,6 +28,26 @@ export type MetaFieldDefinition = {
   listOrder: number;
   inFilter: boolean;
   inSearch: boolean;
+  /** V2 — `sum`/`count`/`avg`/`min`/`max`, ou `null` quando a coluna não totaliza. */
+  aggregation: string | null;
+  /** V2 — condição de visibilidade `{ field, equals }`. `null` = sempre visível. */
+  visibleWhen: Record<string, unknown> | null;
+};
+
+/** Campo COMPUTADO (V2) — derivado por fórmula, sem coluna no banco. */
+export type MetaComputedFieldDefinition = {
+  name: string;
+  label: string;
+  type: string;
+  /** Fórmula em JSON: `{"op":"diff_days","args":["today","updated_at"]}`. */
+  formula: Record<string, unknown>;
+  fieldOrder: number;
+  inList: boolean;
+  listOrder: number;
+  inForm: boolean;
+  permLevel: number;
+  aggregation: string | null;
+  visibleWhen: Record<string, unknown> | null;
 };
 
 export type MetaViewDefinition = {
@@ -35,6 +55,8 @@ export type MetaViewDefinition = {
   label: string;
   layout: Record<string, unknown>;
   isDefault: boolean;
+  /** V2 — regras de cor de linha: `[{ when: { field, equals }, accent }]`. */
+  rowAccent: unknown;
 };
 
 export type MetaTransitionDefinition = {
@@ -71,6 +93,8 @@ export type MetaEntitySchema = {
   dataTable: string;
   labelField: string;
   fields: MetaFieldDefinition[];
+  /** V2 — campos derivados por fórmula, já filtrados por nível de permissão. */
+  computedFields: MetaComputedFieldDefinition[];
   views: MetaViewDefinition[];
   workflow: MetaWorkflowDefinition | null;
   permissions: MetaPermissionDefinition[];
@@ -108,6 +132,29 @@ type FieldRow = {
   list_order: number;
   in_filter: boolean;
   in_search: boolean;
+  aggregation: string | null;
+  visible_when: Record<string, unknown> | null;
+};
+
+/**
+ * Linha de `meta.computed_fields` (V2).
+ *
+ * Tabela própria e não coluna de `meta.fields`: um campo computado NÃO tem coluna no banco —
+ * é uma FÓRMULA sobre campos reais. A distinção importa porque a engine não pode tentar gravar
+ * um valor derivado, e a tela não pode tratá-lo como dado persistido.
+ */
+type ComputedFieldRow = {
+  name: string;
+  label: string;
+  type: string;
+  formula: Record<string, unknown>;
+  field_order: number;
+  in_list: boolean;
+  list_order: number;
+  in_form: boolean;
+  perm_level: number;
+  aggregation: string | null;
+  visible_when: Record<string, unknown> | null;
 };
 
 type ViewRow = {
@@ -115,6 +162,7 @@ type ViewRow = {
   label: string;
   layout: Record<string, unknown>;
   is_default: boolean;
+  row_accent: unknown;
 };
 
 type TransitionRow = {
@@ -166,8 +214,9 @@ export class MetaService {
     const grants = await this.authorizationRepository.listGrants(actor.identityId, false);
     const grantedActions = new Set<string>(grants.map((grant) => grant.action));
 
-    const [fields, views, workflow, permissions] = await Promise.all([
+    const [fields, computedFields, views, workflow, permissions] = await Promise.all([
       this.listFields(entity.id),
+      this.listComputedFields(entity.id),
       this.listViews(entity.id),
       this.loadWorkflow(entity.id, grantedActions),
       this.listPermissions(entity.id, grantedActions),
@@ -192,6 +241,13 @@ export class MetaService {
       fields: fields
         .filter((field) => allowedPermLevels.includes(field.permLevel))
         .map((field) => field),
+      /*
+       * Campos computados passam pela MESMA barreira de nível: uma fórmula pode derivar de um
+       * campo sensível, então o nível dela é conferido aqui também — fail-closed.
+       */
+      computedFields: computedFields.filter((field) =>
+        allowedPermLevels.includes(field.permLevel),
+      ),
       views,
       workflow,
       permissions,
@@ -251,7 +307,8 @@ export class MetaService {
   private async listFields(entityId: string): Promise<MetaFieldDefinition[]> {
     const result = await this.pool().query<FieldRow>(
       `SELECT name, label, type, required, read_only, perm_level, options,
-              field_order, in_form, in_list, list_order, in_filter, in_search
+              field_order, in_form, in_list, list_order, in_filter, in_search,
+              aggregation, visible_when
          FROM meta.fields WHERE entity_id = $1 ORDER BY field_order, name`,
       [entityId],
     );
@@ -269,12 +326,39 @@ export class MetaService {
       listOrder: row.list_order,
       inFilter: row.in_filter,
       inSearch: row.in_search,
+      aggregation: row.aggregation,
+      visibleWhen: row.visible_when,
+    }));
+  }
+
+  /** Campos COMPUTADOS (V2) — derivados por fórmula, sem coluna no banco. */
+  private async listComputedFields(entityId: string): Promise<MetaComputedFieldDefinition[]> {
+    const result = await this.pool().query<ComputedFieldRow>(
+      `SELECT name, label, type, formula, field_order, in_list, list_order, in_form,
+              perm_level, aggregation, visible_when
+         FROM meta.computed_fields
+        WHERE entity_id = $1 AND enabled = true
+        ORDER BY field_order, name`,
+      [entityId],
+    );
+    return result.rows.map((row) => ({
+      name: row.name,
+      label: row.label,
+      type: row.type,
+      formula: row.formula,
+      fieldOrder: row.field_order,
+      inList: row.in_list,
+      listOrder: row.list_order,
+      inForm: row.in_form,
+      permLevel: row.perm_level,
+      aggregation: row.aggregation,
+      visibleWhen: row.visible_when,
     }));
   }
 
   private async listViews(entityId: string): Promise<MetaViewDefinition[]> {
     const result = await this.pool().query<ViewRow>(
-      `SELECT view_type, label, layout, is_default FROM meta.views
+      `SELECT view_type, label, layout, is_default, row_accent FROM meta.views
         WHERE entity_id = $1 ORDER BY view_type`,
       [entityId],
     );
@@ -283,6 +367,7 @@ export class MetaService {
       label: row.label,
       layout: row.layout ?? {},
       isDefault: row.is_default,
+      rowAccent: row.row_accent,
     }));
   }
 
