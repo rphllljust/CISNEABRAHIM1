@@ -1,0 +1,359 @@
+import { Injectable } from '@nestjs/common';
+import type { Pool } from 'pg';
+import { DatabaseService } from '../infrastructure/database/database.service';
+import { AuthorizationRepository } from '../authorization/repositories/authorization.repository';
+import type { IdentityAuthzContext } from '../authorization/types/authz-decision';
+
+/**
+ * Leitura do metadata store (Camada 2 da engine).
+ *
+ * Este serviço NÃO contém definição de entidade: ele lê `meta.*`, que é a fonte de verdade.
+ * É essa separação que faz "adicionar um campo" ser um INSERT, e não um deploy.
+ *
+ * A filtragem por permissão acontece AQUI, no servidor. O frontend recebe apenas os campos
+ * que o usuário pode ver — um campo de `permLevel` acima do acesso do ator NÃO chega ao
+ * cliente, então não há como ele aparecer no DOM por engano.
+ */
+export type MetaFieldDefinition = {
+  name: string;
+  label: string;
+  type: string;
+  required: boolean;
+  readOnly: boolean;
+  permLevel: number;
+  options: Record<string, unknown> | null;
+  fieldOrder: number;
+  inForm: boolean;
+  inList: boolean;
+  listOrder: number;
+  inFilter: boolean;
+  inSearch: boolean;
+};
+
+export type MetaViewDefinition = {
+  viewType: string;
+  label: string;
+  layout: Record<string, unknown>;
+  isDefault: boolean;
+};
+
+export type MetaTransitionDefinition = {
+  command: string;
+  label: string;
+  fromStates: string[];
+  toState: string;
+  permission: string;
+  requiresReason: boolean;
+  buttonOrder: number;
+  /** `true` quando o ator possui a permissão exigida pela transição. */
+  allowed: boolean;
+};
+
+export type MetaWorkflowDefinition = {
+  stateField: string;
+  states: string[];
+  transitions: MetaTransitionDefinition[];
+};
+
+export type MetaPermissionDefinition = {
+  action: string;
+  permLevel: number;
+  requiredPermission: string | null;
+  /** `true` quando o ator possui a permissão exigida. */
+  allowed: boolean;
+};
+
+export type MetaEntitySchema = {
+  name: string;
+  label: string;
+  description: string | null;
+  dataSchema: string;
+  dataTable: string;
+  labelField: string;
+  fields: MetaFieldDefinition[];
+  views: MetaViewDefinition[];
+  workflow: MetaWorkflowDefinition | null;
+  permissions: MetaPermissionDefinition[];
+  /** Níveis de campo que o ator pode ver — calculado a partir dos grants reais. */
+  allowedPermLevels: number[];
+};
+
+export class MetaEntityNotFoundError extends Error {
+  constructor(readonly entityName: string) {
+    super(`META_ENTITY_NOT_FOUND: ${entityName}`);
+  }
+}
+
+type EntityRow = {
+  id: string;
+  name: string;
+  label: string;
+  description: string | null;
+  data_schema: string;
+  data_table: string;
+  label_field: string;
+};
+
+type FieldRow = {
+  name: string;
+  label: string;
+  type: string;
+  required: boolean;
+  read_only: boolean;
+  perm_level: number;
+  options: Record<string, unknown> | null;
+  field_order: number;
+  in_form: boolean;
+  in_list: boolean;
+  list_order: number;
+  in_filter: boolean;
+  in_search: boolean;
+};
+
+type ViewRow = {
+  view_type: string;
+  label: string;
+  layout: Record<string, unknown>;
+  is_default: boolean;
+};
+
+type TransitionRow = {
+  command: string;
+  label: string;
+  from_states: string[];
+  to_state: string;
+  permission: string;
+  requires_reason: boolean;
+  button_order: number;
+};
+
+type PermissionRow = {
+  action: string;
+  perm_level: number;
+  required_permission: string | null;
+};
+
+@Injectable()
+export class MetaService {
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly authorizationRepository: AuthorizationRepository,
+  ) {}
+
+  private pool(): Pool {
+    const connection = this.databaseService.getConnection();
+    if (!connection) {
+      throw new Error('DATABASE_URL is not configured.');
+    }
+    return connection.pool;
+  }
+
+  /**
+   * Schema completo da entidade, já filtrado pelo que o ator pode ver.
+   *
+   * Uma única query por tabela (não uma por campo): a engine chama isto no boot de cada
+   * tela, então N+1 aqui custaria em toda navegação.
+   */
+  async getEntitySchema(
+    entityName: string,
+    actor: IdentityAuthzContext,
+  ): Promise<MetaEntitySchema> {
+    const entity = await this.findEntity(entityName);
+    if (!entity) {
+      throw new MetaEntityNotFoundError(entityName);
+    }
+
+    const grants = await this.authorizationRepository.listGrants(actor.identityId, false);
+    const grantedActions = new Set<string>(grants.map((grant) => grant.action));
+
+    const [fields, views, workflow, permissions] = await Promise.all([
+      this.listFields(entity.id),
+      this.listViews(entity.id),
+      this.loadWorkflow(entity.id, grantedActions),
+      this.listPermissions(entity.id, grantedActions),
+    ]);
+
+    /*
+     * NÍVEIS PERMITIDOS — o coração da permissão por campo.
+     *
+     * `permLevel 0` é sempre visível para quem lê a entidade. Níveis acima exigem que o
+     * ator tenha a permissão declarada para aquele nível em `meta.permissions`. Sem a
+     * permissão, o nível inteiro é omitido e os campos dele nem chegam ao cliente.
+     */
+    const allowedPermLevels = this.resolveAllowedPermLevels(permissions);
+
+    return {
+      name: entity.name,
+      label: entity.label,
+      description: entity.description,
+      dataSchema: entity.data_schema,
+      dataTable: entity.data_table,
+      labelField: entity.label_field,
+      fields: fields
+        .filter((field) => allowedPermLevels.includes(field.permLevel))
+        .map((field) => field),
+      views,
+      workflow,
+      permissions,
+      allowedPermLevels,
+    };
+  }
+
+  /** Só os campos — atalho para telas que não precisam de views nem workflow. */
+  async getEntityFields(
+    entityName: string,
+    actor: IdentityAuthzContext,
+  ): Promise<MetaFieldDefinition[]> {
+    const schema = await this.getEntitySchema(entityName, actor);
+    return schema.fields;
+  }
+
+  /** View específica (`form`/`list`/`kanban`/`calendar`). */
+  async getEntityView(
+    entityName: string,
+    viewType: string,
+    actor: IdentityAuthzContext,
+  ): Promise<MetaViewDefinition | null> {
+    const schema = await this.getEntitySchema(entityName, actor);
+    return schema.views.find((view) => view.viewType === viewType) ?? null;
+  }
+
+  /** Workflow da entidade, com `allowed` calculado por transição. */
+  async getEntityWorkflow(
+    entityName: string,
+    actor: IdentityAuthzContext,
+  ): Promise<MetaWorkflowDefinition | null> {
+    const schema = await this.getEntitySchema(entityName, actor);
+    return schema.workflow;
+  }
+
+  /** Lista de entidades registradas — a engine usa para descobrir o que existe. */
+  async listEntities(): Promise<Array<{ name: string; label: string; description: string | null }>> {
+    const result = await this.pool().query<{
+      name: string;
+      label: string;
+      description: string | null;
+    }>(
+      `SELECT name, label, description FROM meta.entities WHERE enabled = true ORDER BY label`,
+    );
+    return result.rows;
+  }
+
+  private async findEntity(entityName: string): Promise<EntityRow | null> {
+    const result = await this.pool().query<EntityRow>(
+      `SELECT id, name, label, description, data_schema, data_table, label_field
+         FROM meta.entities WHERE name = $1 AND enabled = true`,
+      [entityName],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  private async listFields(entityId: string): Promise<MetaFieldDefinition[]> {
+    const result = await this.pool().query<FieldRow>(
+      `SELECT name, label, type, required, read_only, perm_level, options,
+              field_order, in_form, in_list, list_order, in_filter, in_search
+         FROM meta.fields WHERE entity_id = $1 ORDER BY field_order, name`,
+      [entityId],
+    );
+    return result.rows.map((row) => ({
+      name: row.name,
+      label: row.label,
+      type: row.type,
+      required: row.required,
+      readOnly: row.read_only,
+      permLevel: row.perm_level,
+      options: row.options,
+      fieldOrder: row.field_order,
+      inForm: row.in_form,
+      inList: row.in_list,
+      listOrder: row.list_order,
+      inFilter: row.in_filter,
+      inSearch: row.in_search,
+    }));
+  }
+
+  private async listViews(entityId: string): Promise<MetaViewDefinition[]> {
+    const result = await this.pool().query<ViewRow>(
+      `SELECT view_type, label, layout, is_default FROM meta.views
+        WHERE entity_id = $1 ORDER BY view_type`,
+      [entityId],
+    );
+    return result.rows.map((row) => ({
+      viewType: row.view_type,
+      label: row.label,
+      layout: row.layout ?? {},
+      isDefault: row.is_default,
+    }));
+  }
+
+  private async loadWorkflow(
+    entityId: string,
+    grantedActions: ReadonlySet<string>,
+  ): Promise<MetaWorkflowDefinition | null> {
+    const workflow = await this.pool().query<{
+      id: string;
+      state_field: string;
+      states: string[];
+    }>(`SELECT id, state_field, states FROM meta.workflows WHERE entity_id = $1`, [entityId]);
+
+    const row = workflow.rows[0];
+    if (!row) {
+      return null;
+    }
+
+    const transitions = await this.pool().query<TransitionRow>(
+      `SELECT command, label, from_states, to_state, permission, requires_reason, button_order
+         FROM meta.workflow_transitions WHERE workflow_id = $1 ORDER BY button_order, command`,
+      [row.id],
+    );
+
+    return {
+      stateField: row.state_field,
+      states: row.states,
+      transitions: transitions.rows.map((transition) => ({
+        command: transition.command,
+        label: transition.label,
+        fromStates: transition.from_states,
+        toState: transition.to_state,
+        permission: transition.permission,
+        requiresReason: transition.requires_reason,
+        buttonOrder: transition.button_order,
+        allowed: grantedActions.has(transition.permission),
+      })),
+    };
+  }
+
+  private async listPermissions(
+    entityId: string,
+    grantedActions: ReadonlySet<string>,
+  ): Promise<MetaPermissionDefinition[]> {
+    const result = await this.pool().query<PermissionRow>(
+      `SELECT action, perm_level, required_permission FROM meta.permissions
+        WHERE entity_id = $1 ORDER BY perm_level, action`,
+      [entityId],
+    );
+    return result.rows.map((row) => ({
+      action: row.action,
+      permLevel: row.perm_level,
+      requiredPermission: row.required_permission,
+      allowed: row.required_permission === null || grantedActions.has(row.required_permission),
+    }));
+  }
+
+  /**
+   * Níveis de campo que o ator pode ver.
+   *
+   * Nível 0 é sempre visível (é o nível base de quem lê a entidade). Cada nível acima entra
+   * na lista APENAS se todas as permissões declaradas para aquele nível estiverem
+   * concedidas — política fail-closed: permissão ausente = nível omitido.
+   */
+  private resolveAllowedPermLevels(permissions: MetaPermissionDefinition[]): number[] {
+    const levels = new Set<number>([0]);
+    for (const permission of permissions) {
+      if (permission.permLevel > 0 && permission.allowed && permission.requiredPermission) {
+        levels.add(permission.permLevel);
+      }
+    }
+    return [...levels].sort((left, right) => left - right);
+  }
+}
