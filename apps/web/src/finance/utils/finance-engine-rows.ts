@@ -1,5 +1,10 @@
 import type { MetaEntitySchema, SubformRow } from '../../engine';
-import type { BudgetDetail, ExpenseDetail } from '../types/finance.types';
+import type {
+  BudgetDetail,
+  ExpenseDetail,
+  PayableDetail,
+  ReceivableDetail,
+} from '../types/finance.types';
 
 /**
  * ADAPTADORES DE FINANCE — DTO da API ⇄ schema do metadata store.
@@ -209,5 +214,59 @@ export function expenseFormValues(expense: ExpenseDetail): Record<string, unknow
     reimbursable: expense.reimbursable,
     status: expense.status,
     version: expense.version,
+  };
+}
+
+/**
+ * Linha de TÍTULO (a pagar / a receber) no formato que a `DynamicList` consome.
+ *
+ * A view `list` de `payables` exibe:
+ *   `external_reference, counterparty_id, principal, due_date, lifecycle, created_at`
+ * e a de `receivables`, a mesma forma com `client_id` no lugar de `counterparty_id`. O adaptador
+ * preenche exatamente esses nomes — nenhum campo a mais, porque coluna que a view não declara não
+ * é desenhada e o valor ficaria invisível de qualquer forma.
+ *
+ * `remaining_balance` e `aging_bucket` NÃO estão nas colunas da view hoje, mas são o saldo e o
+ * aging que a tela precisa para os indicadores de drill-down. Vão no adaptador porque a TELA os lê
+ * diretamente — não são coluna da lista.
+ */
+export type FinanceTitleEngineRow = Record<string, unknown> & { id: string };
+
+export function payableEngineRow(item: PayableDetail): FinanceTitleEngineRow {
+  return {
+    id: item.id,
+    // A referência exibida é a do título, caindo para a origem: é a mesma regra do JSX antigo.
+    external_reference: item.externalReference ?? item.origin.reference ?? item.id,
+    counterparty_id: item.counterpartyId,
+    principal: item.principal,
+    due_date: item.dueDate,
+    lifecycle: item.status,
+    created_at: item.createdAt,
+    // Lidos pela TELA para os indicadores; não são coluna da view `list`.
+    remaining_balance: item.remainingBalance,
+    aging_bucket: item.agingBucket,
+    currency_code: item.currencyCode,
+    origin_reference: item.origin.reference,
+    cost_center_code: item.costCenter.code,
+  };
+}
+
+export function receivableEngineRow(item: ReceivableDetail): FinanceTitleEngineRow {
+  return {
+    id: item.id,
+    external_reference: item.externalReference ?? item.origin.billingDocumentId ?? item.id,
+    client_id: item.clientId,
+    principal: item.principal,
+    due_date: item.dueDate,
+    lifecycle: item.status,
+    created_at: item.createdAt,
+    remaining_balance: item.remainingBalance,
+    settled_amount: item.settledAmount,
+    currency_code: item.currencyCode,
+    /*
+     * SEM `aging_bucket`. O DTO de recebíveis NÃO o expõe — só `PayableDetail` tem `agingBucket`.
+     * Derivá-lo aqui a partir de `due_date` seria calcular aging no navegador, exatamente o que a
+     * tela declara não fazer. Fica ausente e a lista simplesmente não tem essa coluna.
+     */
   };
 }

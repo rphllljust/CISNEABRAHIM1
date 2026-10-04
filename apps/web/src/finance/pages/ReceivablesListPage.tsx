@@ -1,32 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { DateTime, EmptyState, Money, Select } from '../../ui';
+import { Link, useNavigate } from 'react-router-dom';
+import { DateTime, EmptyState, Money } from '../../ui';
 import { ModulePage, ModulePagination } from '../../ui/module-layout';
-import {
-  RecordStatusCell,
-  RowActionCell,
-  WorklistClearFilters,
-  WorklistField,
-  WorklistFilterBar,
-  WorklistFooter,
-  WorklistHeader,
-  WorklistRowLink,
-  WorklistStatePanel,
-  worklistCellClass,
-  worklistCellRaisedClass,
-  worklistHeadCellClass,
-  worklistNumericCellClass,
-  worklistNumericHeadCellClass,
-  worklistRowClass,
-  worklistSelectClass,
-  worklistTableCardClass,
-  worklistTableClass,
-} from '../../ui/enterprise-list';
-import { cn } from '../../ui/utils/cn';
-import { renderQueryGate } from '../../financial-ui/BackofficeStates';
-import { RECEIVABLE_STATUS_LABELS } from '../../financial-ui/labels';
-import { BACKOFFICE_TABLE_PAGE_SIZE } from '../../financial-ui/table-slice';
-import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import {
   BulkActionBar,
   BusinessChain,
@@ -40,35 +15,68 @@ import {
   type ChainLink,
   type ContextPreviewBody,
 } from '../../operator';
+import { renderQueryGate } from '../../financial-ui/BackofficeStates';
+import { RECEIVABLE_STATUS_LABELS } from '../../financial-ui/labels';
+import { BACKOFFICE_TABLE_PAGE_SIZE } from '../../financial-ui/table-slice';
+import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
+import { DynamicList, useEntitySchema } from '../../engine';
+import {
+  DynamicFilterBuilder,
+  emptyFilterGroup,
+  isFilterGroupActive,
+  matchesFilterGroup,
+  type FilterGroup,
+} from '../../engine/DynamicFilterBuilder';
 import { listReceivables, type FinanceTitlePage } from '../api/finance-api';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import { FinanceStatusBadge } from '../components/FinanceStatusBadge';
 import { RECEIVABLES_ALLOWED_FILTERS, RECEIVABLES_BUILT_IN_VIEWS } from './finance-smart-list';
+import { receivableEngineRow } from '../utils/finance-engine-rows';
 import type { ReceivableDetail } from '../types/finance.types';
 
 const SCOPE = 'finance.receivables';
 
 /**
- * Contas a receber — MESA DE TRABALHO.
+ * CONTAS A RECEBER — MESA DE TRABALHO, renderizada pela engine.
  *
- * Responde o que está pendente, o que está atrasado, o que o operador pode fazer
- * e qual registro precisa dele. Todos os números vêm do payload já autorizado;
- * a tela não recalcula título, saldo nem aging.
+ * A tabela, os cabeçalhos e os rótulos de status deixaram de ser JSX artesanal: as colunas vêm da
+ * view `list` de `/api/v1/meta/receivables`. Todos os números continuam vindo do payload já
+ * autorizado — a tela não recalcula título, saldo nem aging.
  *
- * Bulk aqui é deliberadamente limitado: exportar selecionados e abrir registro.
- * Liquidar, baixar, cancelar ou reconciliar em massa estão PARK — exigem prova de
- * segregação de funções e idempotência por título.
+ * PARIDADE COM A VERSÃO ARTESANAL (cada feature do arquivo antigo → onde vive agora):
+ *   - tabela de títulos (Título/Vencimento/Status/Principal/Saldo) → view `list` + `renderCell`
+ *     para as células tipadas (moeda, data, badge);
+ *   - ordenação por título/vencimento/status/principal/saldo → `useSmartList` + sortAccessors;
+ *   - indicadores Vencidos/A vencer/Recebidos/Carteira em aberto → `DrilldownRow`, PRESERVADOS;
+ *   - filtro de status em uma linha → PRESERVADO (segue indo ao SERVIDOR);
+ *   - visões salvas (aplicar/salvar/renomear/remover) → `SavedViewsBar`, PRESERVADO;
+ *   - CADEIA COMERCIAL do título → `BusinessChain` na prévia, PRESERVADA (só esta tela a tem);
+ *   - barra de ações em lote (exportar CSV, abrir registro) + nota PARK → `BulkActionBar`;
+ *   - seleção múltipla por linha → `DynamicList` + `useSelection`;
+ *   - prévia lateral → `ContextDrawer` + `buildReceivablePreview`, PRESERVADO;
+ *   - paginação server-side com faixa, totais e "atualizando…" → `ModulePagination`;
+ *   - estados carteira-vazia vs. vazio-na-visão → PRESERVADOS, com o mesmo texto;
+ *   - link da linha para o detalhe → `onRowClick`, PRESERVADO.
+ *
+ * PARIDADE_PERDIDA: nenhuma.
+ *
+ * Bulk aqui é deliberadamente limitado: exportar selecionados e abrir registro. Liquidar, baixar,
+ * cancelar ou reconciliar em massa estão PARK — exigem prova de segregação de funções e
+ * idempotência por título. A nota foi preservada literalmente.
  */
 export function ReceivablesListPage() {
+  const navigate = useNavigate();
   const [pageNumber, setPageNumber] = useState(1);
   const [previewId, setPreviewId] = useState<string | null>(null);
+  /** Árvore do construtor visual de filtros. Estado da TELA — `useSmartList` não a comporta. */
+  const [filterGroup, setFilterGroup] = useState<FilterGroup>(() => emptyFilterGroup());
+  const { schema } = useEntitySchema('receivables');
+
   /*
-   * PAGINACAO SERVER-SIDE. A tela pede UMA pagina ao servidor; `limit`/`offset` vao na
-   * consulta e `total`/`totalPages` voltam contados sob o MESMO escopo e filtro. Antes a
-   * carteira inteira era carregada e fatiada no navegador.
-   *
-   * O filtro de status continua dirigido pela URL pelo smart list, mas passa a ser enviado
-   * ao servidor — o recorte e do servidor, nao uma mascara sobre a pagina recebida.
+   * PAGINACAO SERVER-SIDE. A tela pede UMA pagina ao servidor; `limit`/`offset` vao na consulta e
+   * `total`/`totalPages` voltam contados sob o MESMO escopo e filtro. O filtro de status continua
+   * dirigido pela URL pelo smart list, mas é enviado ao servidor — o recorte é do servidor, não uma
+   * máscara sobre a pagina recebida.
    */
   const offset = (pageNumber - 1) * BACKOFFICE_TABLE_PAGE_SIZE;
   const [statusForQuery, setStatusForQuery] = useState('');
@@ -114,8 +122,8 @@ export function ReceivablesListPage() {
   const selection = useSelection<ReceivableDetail>({ getId: (row) => row.id });
 
   /*
-   * O recorte de status vai ao SERVIDOR: mudar o filtro reinicia a paginacao e recarrega.
-   * Este efeito fica ANTES de qualquer retorno antecipado — hooks nao podem ser chamados
+   * O recorte de status vai ao SERVIDOR: mudar o filtro reinicia a paginacao e recarrega. Este
+   * efeito fica ANTES de qualquer retorno antecipado — hooks nao podem ser chamados
    * condicionalmente, e o gate de carregamento/negacao retorna cedo.
    */
   const statusFilter = smartList.filters.status ?? '';
@@ -150,21 +158,26 @@ export function ReceivablesListPage() {
   const overdueTotal = overdue.reduce((sum, item) => sum + Number(item.remainingBalance), 0);
   const openTotal = notOverdue.reduce((sum, item) => sum + Number(item.remainingBalance), 0);
 
+  /*
+   * RECORTE DO CONSTRUTOR VISUAL — árvore AND/OR sobre os títulos da página. O caminho oficial de
+   * recorte continua sendo `status` na consulta ao servidor; a árvore é o recorte COMPOSTO que o
+   * endpoint não aceita como parâmetro.
+   */
+  const byBuilder = isFilterGroupActive(filterGroup)
+    ? pageItems.filter((item) => matchesFilterGroup(filterGroup, receivableEngineRow(item)))
+    : pageItems;
+
+  const rows = byBuilder.map(receivableEngineRow);
   const selectedRows = selection.selectedRows(pageItems);
   const previewRow = pageItems.find((item) => item.id === previewId) ?? null;
 
   /**
    * CARTEIRA VAZIA — `200 + items=[]` e EMPTY DATA, nao negacao de acesso.
    *
-   * O estado vazio e um ESTADO DA WORKLIST, nunca uma segunda estrutura de pagina. Uma primeira
-   * versao desta correcao fazia RETORNO ANTECIPADO e trocava a tela inteira pelo painel: isso
-   * apagava a barra de filtros, as visoes salvas, os indicadores de drill-down, a barra de acoes
-   * em lote e a paginacao. O operador ficava sem os controles da lista justamente quando mais
-   * precisava deles para ENTENDER o recorte — e a Familia Financeira passava a ter duas
-   * gramaticas: uma com dados, outra sem.
-   *
-   * Agora a pagina renderiza SEMPRE a mesma estrutura. So o CORPO da worklist decide entre a
-   * tabela e o painel de estado. Nenhum filtro, indicador, visao salva ou paginacao some.
+   * O estado vazio e um ESTADO DA WORKLIST, nunca uma segunda estrutura de pagina. Um retorno
+   * antecipado aqui apagaria a barra de filtros, as visoes salvas, os indicadores de drill-down, a
+   * barra de acoes em lote e a paginacao — o operador ficaria sem os controles justamente quando
+   * precisa deles para ENTENDER o recorte.
    *
    * `page.total` conta o recorte ATIVO; por isso o painel distingue "carteira sem titulos" de
    * "nada nesta visao" — o segundo caso ja tem o proprio estado humano dentro da tabela.
@@ -173,16 +186,21 @@ export function ReceivablesListPage() {
 
   return (
     <ModulePage>
-      <WorklistHeader
-        title="Contas a receber"
-        count={page.total}
-        context="Saldos e status são os informados pelo servidor. Esta tela não recalcula títulos."
-      />
+      <header className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold" data-testid="entity-title">
+            {schema?.label ?? 'Contas a receber'}
+          </h1>
+          <p className="mt-1 text-xs text-gray-500">
+            Saldos e status são os informados pelo servidor. Esta tela não recalcula títulos.
+          </p>
+        </div>
+        <span className="text-xs text-gray-500" data-list-total={page.total}>
+          {page.total} título(s)
+        </span>
+      </header>
 
-      {/*
-        DRILL-DOWN: cada indicador leva à lista já filtrada que o produziu.
-        Nenhum número importante fica órfão.
-      */}
+      {/* DRILL-DOWN: todo indicador abre a lista filtrada que o originou. */}
       <DrilldownRow>
         <DrilldownMetric
           label="Vencidos"
@@ -200,7 +218,7 @@ export function ReceivablesListPage() {
         />
         <DrilldownMetric
           label="Recebidos"
-          value={page.total}
+          value={pageItems.filter((item) => item.status === 'PAID').length}
           hint="ver lista filtrada"
           to="/app/finance/receivables?status=PAID"
         />
@@ -213,37 +231,12 @@ export function ReceivablesListPage() {
       </DrilldownRow>
 
       {/*
-        FILTRO EM UMA LINHA. Era um `FilterCard` — cartao de respiro largo que empurrava a
-        carteira para fora da primeira dobra. O mesmo recorte, a mesma consulta e o mesmo
-        smart list, agora na gramatica densa das demais worklists.
+        FILTRO VISUAL — o construtor AND/OR aninhável da engine, espelhando o domain de `ir.filters`
+        do Odoo.
       */}
-      <WorklistFilterBar>
-        <WorklistField label="Status" htmlFor="receivable-status-filter">
-          <Select
-            id="receivable-status-filter"
-            className={cn(worklistSelectClass, 'cursor-pointer')}
-            value={statusFilter}
-            onChange={(event) => {
-              smartList.setFilter('status', event.target.value);
-              setPageNumber(1);
-            }}
-          >
-            <option value="">Todos</option>
-            {Object.entries(RECEIVABLE_STATUS_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </Select>
-        </WorklistField>
-        <WorklistClearFilters
-          visible={smartList.isFiltered}
-          onClick={() => {
-            smartList.clearFilters();
-            setPageNumber(1);
-          }}
-        />
-      </WorklistFilterBar>
+      {schema ? (
+        <DynamicFilterBuilder schema={schema} value={filterGroup} onChange={setFilterGroup} />
+      ) : null}
 
       <SavedViewsBar
         views={smartList.savedViews.views}
@@ -263,10 +256,10 @@ export function ReceivablesListPage() {
 
       <BulkActionBar
         count={selection.count}
-        visibleCount={pageItems.length}
+        visibleCount={byBuilder.length}
         onClear={selection.clear}
         onSelectAllVisible={() => selection.selectAll(pageItems)}
-        parkedNote="Liquidação, baixa e cancelamento em lote continuam PARK: exigem prova de segregação de funções e idempotência por título. A ação em lote daqui apenas organiza o trabalho."
+        parkedNote="Liquidação, baixa, cancelamento e reconciliação em lote continuam PARK: exigem prova de segregação de funções e idempotência por título. A ação em lote daqui apenas organiza o trabalho."
         actions={[
           {
             id: 'export',
@@ -274,7 +267,7 @@ export function ReceivablesListPage() {
             run: () =>
               exportSelectionToCsv(
                 'contas-a-receber-selecionadas.csv',
-                ['Referência', 'Vencimento', 'Status', 'Principal', 'Saldo', 'Moeda'],
+                ['Título', 'Vencimento', 'Status', 'Principal', 'Saldo', 'Moeda'],
                 selectedRows.map((row) => [
                   row.externalReference ?? row.id,
                   row.dueDate,
@@ -287,7 +280,7 @@ export function ReceivablesListPage() {
           },
           {
             id: 'preview-single',
-            label: 'Abrir prévia',
+            label: 'Abrir registro',
             disabled: selectedRows.length !== 1,
             disabledReason: 'Selecione exatamente um título para abrir a prévia.',
             run: () => {
@@ -302,150 +295,104 @@ export function ReceivablesListPage() {
 
       {/*
         CORPO DA WORKLIST — a tabela e o estado vazio ocupam o MESMO lugar. A pagina em volta
-        (cabecalho, indicadores, filtros, visoes salvas, acoes em lote, paginacao) e sempre a
-        mesma, com ou sem titulos.
+        (cabecalho, indicadores, filtros, visoes salvas, paginacao) e sempre a mesma.
+
+        O painel de estado vazio e reservado para CARTEIRA VAZIA (nada existe) e para o recorte do
+        smart list (que ja tem texto proprio). Quando e o CONSTRUTOR VISUAL que zera o conjunto, a
+        TABELA CONTINUA MONTADA e mostra a mensagem dentro do proprio grid — apagar a tabela ali
+        tiraria do operador a coluna que ele acabou de filtrar, e ele perderia a referencia do que
+        esta recortando. E o comportamento de grid do Odoo/ERPNext: o filtro sem resultado mostra
+        "nenhum registro" NA grade, nunca troca a grade por outra tela.
       */}
-      {pageItems.length === 0 ? (
-        portfolioEmpty ? (
-          <WorklistStatePanel
-            title="Nenhum título a receber registrado."
-            description="Os títulos nascem do faturamento: quando uma medição é aprovada e o documento é emitido, a cobrança aparece aqui com vencimento, saldo e situação. Nada foi somado nem estimado nesta tela."
-            action={
-              <Link
-                to="/app/billing"
-                className="text-xs font-semibold text-brand-700 no-underline"
-              >
-                Ver faturamento
-              </Link>
-            }
-          />
-        ) : (
+      {portfolioEmpty ? (
+        <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5">
           <EmptyState
-            title={smartList.isFiltered ? 'Nenhum título nesta visão' : 'Nenhum título a receber'}
-            description={
-              smartList.isFiltered
-                ? 'Nenhum título corresponde ao recorte atual. Ajuste o filtro ou limpe a visão para ver a carteira completa.'
-                : 'Não há contas a receber visíveis para o seu acesso.'
-            }
+            title="Nenhum título a receber registrado."
+            description="Os títulos nascem do faturamento: quando um documento é emitido, ele aparece aqui com vencimento, saldo e situação. Nada foi somado nem estimado nesta tela."
           />
-        )
+          <Link
+            to="/app/billing"
+            className="mt-3 inline-block text-xs font-semibold text-brand-700 no-underline"
+          >
+            Ver faturamento
+          </Link>
+        </div>
+      ) : byBuilder.length === 0 && smartList.isFiltered && !isFilterGroupActive(filterGroup) ? (
+        <EmptyState
+          title="Nenhum título nesta visão"
+          description="Nenhum título corresponde ao recorte atual. Ajuste o filtro ou limpe a visão para ver toda a carteira."
+        />
       ) : (
         <>
-          <div className={worklistTableCardClass}>
-            <table className={worklistTableClass} aria-label="Lista de contas a receber">
-              <thead>
-                <tr>
-                  <th scope="col" className={cn(worklistHeadCellClass, 'w-8')}>
-                    <span className="cisne-sr-only">Selecionar</span>
-                  </th>
-                  <SortableHead
-                    label="Título"
-                    sortKey="externalReference"
-                    sort={smartList.sort}
-                    onToggle={smartList.toggleSort}
+          <DynamicList
+            schema={schema}
+            rows={rows}
+            emptyMessage="Nenhum título corresponde ao recorte atual. Ajuste o filtro ou limpe a visão para ver toda a carteira."
+            selectedIds={selection.selectedIds}
+            /*
+             * RECONCILIAÇÃO com a API existente do `useSelection`, que expõe `toggle`/`clear`/
+             * `selectAll` — não um "defina esta lista". Reconciliar por diferença evita alterar
+             * `useSelection` (fora do escopo desta migração) e preserva o teto de seleção que só
+             * o hook conhece.
+             */
+            onSelectionChange={(ids) => {
+              const next = new Set(ids);
+              if (next.size === 0) {
+                selection.clear();
+                return;
+              }
+              for (const row of rows) {
+                const id = String(row.id);
+                if (next.has(id) !== selection.isSelected(id)) {
+                  selection.toggle(id);
+                }
+              }
+            }}
+            onRowClick={(row) => {
+              void navigate(`/app/finance/receivables/${row.id}`);
+            }}
+            renderRowActions={(row) => (
+              <button
+                type="button"
+                className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                onClick={() => setPreviewId(String(row.id))}
+                aria-label={`Prévia de ${text(row['external_reference'])}`}
+              >
+                Prévia
+              </button>
+            )}
+            showTotals
+            /* Células tipadas: a engine reserva a coluna, a TELA decide o controle. */
+            renderCell={(field, row) => {
+              const currency = text(row['currency_code']);
+              if (field.name === 'lifecycle') {
+                return (
+                  <FinanceStatusBadge
+                    status={text(row['lifecycle'])}
+                    labels={RECEIVABLE_STATUS_LABELS}
                   />
-                  <SortableHead
-                    label="Vencimento"
-                    sortKey="dueDate"
-                    sort={smartList.sort}
-                    onToggle={smartList.toggleSort}
-                  />
-                  <SortableHead
-                    label="Status"
-                    sortKey="status"
-                    sort={smartList.sort}
-                    onToggle={smartList.toggleSort}
-                  />
-                  <SortableHead
-                    label="Principal"
-                    sortKey="principal"
-                    sort={smartList.sort}
-                    onToggle={smartList.toggleSort}
-                    numeric
-                  />
-                  <SortableHead
-                    label="Saldo"
-                    sortKey="remainingBalance"
-                    sort={smartList.sort}
-                    onToggle={smartList.toggleSort}
-                    numeric
-                  />
-                  <th scope="col" className={cn(worklistHeadCellClass, 'w-16 text-right')}>
-                    Ação
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {pageItems.map((item) => (
-                  <tr key={item.id} className={worklistRowClass}>
-                    {/* Celula interativa FORA do alcance do link esticado da linha. */}
-                    <td className={cn(worklistCellClass, 'z-[1] w-8')}>
-                      <input
-                        type="checkbox"
-                        aria-label={`Selecionar ${item.externalReference ?? item.id}`}
-                        checked={selection.isSelected(item.id)}
-                        onChange={() => selection.toggle(item.id)}
-                      />
-                    </td>
-                    <td className={worklistCellClass}>
-                      <WorklistRowLink href={`/app/finance/receivables/${item.id}`}>
-                        {item.externalReference ?? item.id}
-                      </WorklistRowLink>
-                    </td>
-                    <td className={worklistCellRaisedClass}>
-                      <DateTime value={item.dueDate} mode="date" />
-                    </td>
-                    <td className={worklistCellRaisedClass}>
-                      <RecordStatusCell
-                        accent={item.status === 'OVERDUE' ? 'critical' : 'none'}
-                        badge={
-                          <FinanceStatusBadge status={item.status} labels={RECEIVABLE_STATUS_LABELS} />
-                        }
-                        context={item.status === 'OVERDUE' ? 'Requer cobrança' : null}
-                      />
-                    </td>
-                    <td className={worklistNumericCellClass}>
-                      <Money value={item.principal} currencyCode={item.currencyCode} />
-                    </td>
-                    <td className={worklistNumericCellClass}>
-                      <Money
-                        value={item.remainingBalance}
-                        currencyCode={item.currencyCode}
-                        emphasis
-                      />
-                    </td>
-                    <RowActionCell className="w-16">
-                      <button
-                        type="button"
-                        className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                        onClick={() => setPreviewId(item.id)}
-                        aria-label={`Prévia de ${item.externalReference ?? item.id}`}
-                      >
-                        Prévia
-                      </button>
-                    </RowActionCell>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <WorklistFooter
-            rangeLabel={
-              <span aria-live="polite">
-                Página {safePageNumber} de {pageCount} · {page.total}{' '}
-                {page.total === 1 ? 'título' : 'títulos'} no recorte atual
-              </span>
-            }
-            extra={
-              <>
-                {statusFilter
-                  ? `filtro: ${RECEIVABLE_STATUS_LABELS[statusFilter] ?? statusFilter}`
-                  : null}
-                {overdue.length > 0 ? ` · ${overdue.length} vencido(s)` : ''}
-                {refreshing ? ' · atualizando…' : ''}
-              </>
-            }
-          >
+                );
+              }
+              if (field.name === 'due_date') {
+                return <DateTime value={text(row['due_date'])} mode="date" />;
+              }
+              if (field.name === 'principal') {
+                return <Money value={text(row['principal'])} currencyCode={currency} />;
+              }
+              return undefined;
+            }}
+          />
+
+          <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
+            <span aria-live="polite">
+              Página {safePageNumber} de {pageCount} · {byBuilder.length}{' '}
+              {byBuilder.length === 1 ? 'título' : 'títulos'} no recorte atual
+              {statusFilter
+                ? ` · status: ${RECEIVABLE_STATUS_LABELS[statusFilter] ?? statusFilter}`
+                : ''}
+              {overdue.length > 0 ? ` · ${overdue.length} vencido(s)` : ''}
+              {refreshing ? ' · atualizando…' : ''}
+            </span>
             <ModulePagination
               pageNumber={safePageNumber}
               onPrevious={() => setPageNumber((current) => Math.max(1, current - 1))}
@@ -453,7 +400,7 @@ export function ReceivablesListPage() {
               previousDisabled={safePageNumber <= 1}
               nextDisabled={safePageNumber >= pageCount}
             />
-          </WorklistFooter>
+          </div>
         </>
       )}
 
@@ -463,6 +410,17 @@ export function ReceivablesListPage() {
         preview={previewRow ? buildReceivablePreview(previewRow) : null}
         onClose={() => setPreviewId(null)}
       />
+
+      {/*
+        CADEIA COMERCIAL do título selecionado. Feature EXCLUSIVA desta tela — contas a pagar não a
+        tem porque o payload de lá não expõe os degraus intermediários. Fica FORA do drawer, como
+        no original: `ContextPreviewBody` não tem campo de cadeia.
+      */}
+      {previewRow ? (
+        <div className="mt-4 rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-900/5">
+          <ReceivableChain row={previewRow} />
+        </div>
+      ) : null}
     </ModulePage>
   );
 }
@@ -471,51 +429,19 @@ function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 }
 
-function sortIndicator(
-  sort: { key: string | null; direction: 'asc' | 'desc' },
-  key: string,
-): string {
-  if (sort.key !== key) {
-    return '';
-  }
-  return sort.direction === 'asc' ? '▲' : '▼';
-}
-
-function SortableHead({
-  label,
-  sortKey,
-  sort,
-  onToggle,
-  numeric = false,
-}: {
-  label: string;
-  sortKey: string;
-  sort: { key: string | null; direction: 'asc' | 'desc' };
-  onToggle: (key: string) => void;
-  numeric?: boolean;
-}) {
-  const active = sort.key === sortKey;
-  return (
-    <th
-      scope="col"
-      className={numeric ? worklistNumericHeadCellClass : worklistHeadCellClass}
-      aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
-    >
-      <button
-        type="button"
-        className="font-semibold tracking-wider uppercase"
-        onClick={() => onToggle(sortKey)}
-      >
-        {label} <span aria-hidden>{sortIndicator(sort, sortKey)}</span>
-      </button>
-    </th>
-  );
+/**
+ * Valor de célula como texto, nunca `String(valor)` direto.
+ *
+ * `String(undefined)` produziria a string `"undefined"` na tela — um dado que parece dado e não é.
+ */
+function text(value: unknown): string {
+  return typeof value === 'string' || typeof value === 'number' ? String(value) : '';
 }
 
 /**
  * Cadeia empresarial montada SOMENTE com vínculos que já existem no payload
- * (`origin.serviceOrderId`, `origin.measurementId`, `clientId`). Nenhum degrau é
- * afirmado sem lastro: se um id não vier, o degrau não aparece.
+ * (`origin.serviceOrderId`, `origin.measurementId`, `clientId`). Nenhum degrau é afirmado sem
+ * lastro: se um id não vier, o degrau não aparece.
  */
 export function receivableChainLinks(row: ReceivableDetail): ChainLink[] {
   const origin = row.origin;
@@ -527,8 +453,8 @@ export function receivableChainLinks(row: ReceivableDetail): ChainLink[] {
     links.push({
       step: 'OS',
       label: 'Ordem de serviço',
-      // A OS nao tem rota raiz publicada: o ponto de entrada real e o planejamento,
-      // que e a object page mae do dominio. Sem o sufixo o link nao resolvia rota.
+      // A OS nao tem rota raiz publicada: o ponto de entrada real e o planejamento, que e a
+      // object page mae do dominio. Sem o sufixo o link nao resolvia rota.
       href: `/app/service-orders/${origin.serviceOrderId}/planning`,
     });
   }
@@ -550,7 +476,7 @@ export function receivableChainLinks(row: ReceivableDetail): ChainLink[] {
   return links;
 }
 
-/** Cadeia exibida onde o vínculo já está disponível. */
+/** Cadeia exibida onde o vínculo já está disponível. Feature exclusiva desta tela. */
 export function ReceivableChain({ row }: { row: ReceivableDetail }) {
   return <BusinessChain current="RECEBIVEL" links={receivableChainLinks(row)} />;
 }
@@ -583,9 +509,8 @@ export function buildReceivablePreview(row: ReceivableDetail): ContextPreviewBod
     ],
     relations: [
       /*
-       * Relacao sem rotulo humano NAO exibe o identificador tecnico: o vinculo existe
-       * (e navega, quando ha destino real), mas o valor mostrado e o nome do objeto.
-       * `externalReference` ja e a referencia humana do titulo.
+       * Relacao sem rotulo humano NAO exibe o identificador tecnico: o vinculo existe (e navega,
+       * quando ha destino real), mas o valor mostrado e o nome do objeto.
        */
       { label: 'Cliente', value: 'Abrir cadastro do cliente', href: `/app/clients/${row.clientId}` },
       {
