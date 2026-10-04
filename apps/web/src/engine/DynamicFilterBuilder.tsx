@@ -107,6 +107,10 @@ export function defaultOperatorFor(type: MetaField['type'] | undefined): FilterO
   return operatorsForType(type)[0] ?? '=';
 }
 
+/**
+ * Rótulo do operador. SÍMBOLO quando existe um (`=`, `≠`, `∈`) — símbolo não é idioma e não
+ * precisa de catálogo. Palavra vai pelo `t()`, como `list.yes`/`list.no`, que já existem.
+ */
 const OPERATOR_LABELS: Record<FilterOperator, string> = {
   '=': '=',
   '!=': '≠',
@@ -116,8 +120,8 @@ const OPERATOR_LABELS: Record<FilterOperator, string> = {
   '<=': '≤',
   contains: '⊃',
   in: '∈',
-  is_true: '= Sim',
-  is_false: '= Não',
+  is_true: `= ${t('common.yes')}`,
+  is_false: `= ${t('common.no')}`,
 };
 
 /** Grupo vazio — o ponto de partida de todo filtro novo. */
