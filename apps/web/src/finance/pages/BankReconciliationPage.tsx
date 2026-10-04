@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button, DateTime, EmptyState, Field, Input, Money, Select, Textarea, VersionConflictBanner, worklistTableCardClass } from '../../ui';
 import { ModuleDeniedState, ModuleErrorState, ModuleLoadingState, ModulePage, ModuleStatePage, ModulePagination, UnitScopeLabel, filterControlClass } from '../../ui/module-layout';
-import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass, WorklistHeader } from '../../ui/enterprise-list';
+import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistNumericCellClass, worklistNumericHeadCellClass, worklistRowClass, WorklistHeader } from '../../ui/enterprise-list';
 import { WorklistException, WorklistField, WorklistFilterBar, worklistSelectClass } from '../../ui/enterprise-list';
 import {
   WorkbenchMetric,
@@ -35,6 +35,7 @@ import { FinanceStatusBadge } from '../components/FinanceStatusBadge';
 import type {
   AutoMatchResult,
   BankStatement,
+  BankStatementLine,
   BankStatementSummary,
   ReconciliationMatch,
 } from '../types/finance.types';
@@ -171,6 +172,23 @@ async function searchBankAccountOptions(
     }));
 }
 
+/**
+ * Conciliação rastreada para UMA linha, se houver.
+ *
+ * A lista vem do auto-match e do vínculo manual desta sessão — nunca de um casamento calculado
+ * aqui. Sem entrada, não existe lado de sistema para a linha, e a célula declara ausência.
+ */
+function reconciliationForLine(
+  lineId: string,
+  tracked: ReconciliationMatch[],
+): ReconciliationMatch | undefined {
+  return tracked.find((item) => item.bankStatementLineId === lineId);
+}
+
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+}
+
 function errorInfo(error: unknown): { message: string; retryable: boolean; conflict: boolean } {
   if (error instanceof BackofficeApiError) {
     return {
@@ -183,19 +201,50 @@ function errorInfo(error: unknown): { message: string; retryable: boolean; confl
 }
 
 /**
- * MESA DE CONCILIAÇÃO BANCÁRIA — FILA DE EXCEÇÕES.
+ * PRIORIDADE DE EXCEÇÃO — a ordem em que o operador precisa ver as linhas.
  *
- * A tela abre pela LISTA REAL de extratos (`GET /finance/bank-statements`), com filtros
- * server-side de status, conta e período. O operador escolhe um extrato pelo rótulo humano e a
- * seleção vive na URL (`/app/finance/reconciliation/:statementId`), então o endereço é
- * compartilhável. Nenhum identificador técnico precisa ser digitado.
+ * Conciliação é trabalho de exceção: o que está sem vínculo ou divergente decide o dia, e o que
+ * já bateu é conferência. A ordenação põe o problema primeiro, e `duplicate` (que o contrato
+ * publica e a tela não usava) entra como o sinal mais grave de todos: uma linha repetida no
+ * extrato contamina o saldo.
+ */
+const MATCH_PRIORITY: Record<string, number> = {
+  UNMATCHED: 0,
+  REVIEW_REQUIRED: 1,
+  SUGGESTED: 2,
+  MATCHED: 3,
+};
+
+function linePriority(line: BankStatementLine): number {
+  if (line.duplicate) {
+    return -1;
+  }
+  return MATCH_PRIORITY[line.matchStatus] ?? 0;
+}
+
+/**
+ * WORKSPACE DE CONCILIAÇÃO BANCÁRIA.
  *
- * A lista deixou de ser apenas grade: cada extrato entra na fila com a EXCEÇÃO que o coloca lá
- * (linhas sem vínculo, lida de `unreconciledLineCount`), a situação persistida, o período real e a
- * próxima ação. Aberto o extrato, a MESMA superfície de trabalho de antes — auto-match, vínculo
- * manual, confirmar, desfazer, conflito de versão, idempotência e erros inline — continua sendo do
- * motor do servidor: o backend segue sendo a fonte de verdade. Nada de regra, rota ou permissão
- * mudou; o que mudou é que as exceções agora vêm primeiro.
+ * A tela é uma MESA DE TRABALHO, não uma listagem. A área principal compara LADO A LADO o que o
+ * banco publicou e o que o CISNE tem para casar com aquilo — é a única forma de o operador
+ * decidir um vínculo sem abrir duas telas.
+ *
+ * DECISÃO DE DENSIDADE — e a correção mais importante desta reescrita.
+ * A versão anterior desenhava UM CARTÃO POR LINHA sem vínculo. Num extrato de 60 linhas isso são
+ * 60 cartões empilhados: a página vira uma parede de blocos, o operador rola por minutos e não
+ * consegue comparar dois lançamentos. Conciliação exige GRADE — muitas linhas visíveis ao mesmo
+ * tempo, valores alinhados, exceção marcada na própria linha. As linhas agora vivem numa grade
+ * densa; a fila de cartões permanece apenas na LISTA de extratos, onde a unidade de trabalho é o
+ * extrato inteiro e o volume é pequeno.
+ *
+ * EXCEÇÃO PRIMEIRO: a grade ordena por gravidade (divergente/sem vínculo → revisão → sugerido →
+ * conciliado), então o que exige decisão aparece antes do que já está resolvido.
+ *
+ * LADO BANCO × LADO SISTEMA: o valor do banco vem da própria linha do extrato; o lado do sistema
+ * vem do `match` da conciliação, que é o único lugar onde o contrato publica o valor do registro
+ * casado. Quando a linha não tem conciliação, não há lado de sistema — e nenhum valor é inventado
+ * para preencher a célula. A DIFERENÇA só é exibida quando os dois lados existem E divergem; ela
+ * é aritmética entre dois números publicados, não um recálculo de domínio.
  */
 export function BankReconciliationPage() {
   const { statementId: routeStatementId } = useParams();
@@ -485,7 +534,26 @@ export function BankReconciliationPage() {
   const statement = state.phase === 'ready' ? state.statement : null;
   const lines = statement?.lines ?? [];
   const pageCount = tablePageCount(lines.length);
-  const pageItems = sliceTablePage(lines, Math.min(pageNumber, pageCount));
+  /*
+   * ORDEM DE EXCEÇÃO. A grade é o instrumento de trabalho: o que está divergente ou sem vínculo
+   * tem de aparecer na primeira dobra, e não depois de 40 linhas já conciliadas. A ordenação é
+   * estável — linhas de mesma gravidade mantêm a ordem do extrato.
+   *
+   * CADEIA: source → order → PAGINATE → render. O extrato NÃO é paginado pelo servidor —
+   * `getBankStatement` devolve todas as linhas de uma vez —, então o recorte de página continua
+   * sendo LOCAL, como já era antes desta reescrita. Paginar DEPOIS de ordenar é o que mantém a
+   * exceção na primeira página; renderizar as 60 linhas de uma vez encheria o DOM e traria de
+   * volta a parede de rolagem que esta mudança existe para eliminar.
+   */
+  const orderedLines = lines
+    .map((line, index) => ({ line, index }))
+    .sort((left, right) => {
+      const byPriority = linePriority(left.line) - linePriority(right.line);
+      return byPriority !== 0 ? byPriority : left.index - right.index;
+    })
+    .map((entry) => entry.line);
+  const safePageNumber = Math.min(pageNumber, pageCount);
+  const pageItems = sliceTablePage(orderedLines, safePageNumber);
   const unmatchedLines = lines.filter((line) => line.matchStatus !== 'MATCHED');
   const selectedReconciliation = trackedReconciliations.find(
     (item) => item.id === selectedReconciliationId,
@@ -781,66 +849,185 @@ export function BankReconciliationPage() {
             </p>
           ) : null}
 
-          {/* A FILA DA MESA: cada linha do extrato que ainda exige vínculo. */}
-          <WorkbenchQueue
-            title="Exceções do extrato"
-            count={unmatchedLines.length}
-            description={
-              lines.length === 0
-                ? 'O extrato não tem linhas importadas.'
-                : `${unmatchedLines.length} de ${lines.length} linha(s) ainda sem vínculo. O servidor exige correspondência exata (conta, valor, direção e data) para conciliar — nada é correspondido no navegador.`
-            }
-            emptyTitle="Nenhuma linha sem vínculo"
-            emptyDescription="Todas as linhas deste extrato têm conciliação registrada."
-            action={
-              unmatchedLines.length === 0 ? null : (
-                <Button type="button" variant="secondary" onClick={() => void handleAutoMatch()} disabled={processing}>
-                  Sugerir vínculos
-                </Button>
-              )
-            }
-          >
-            {unmatchedLines.map((line) => (
-              <WorkbenchQueueItem
-                key={line.id}
-                severity={
-                  <WorklistException
-                    tone={line.matchStatus === 'REVIEW_REQUIRED' ? 'warning' : 'critical'}
+          {/*
+            ÁREA DE TRABALHO — GRADE DENSA DE COMPARAÇÃO, banco ↔ CISNE.
+
+            Uma linha por movimento do extrato, ordenada por GRAVIDADE da exceção. O operador lê
+            as duas colunas de valor lado a lado e decide na própria linha: não há cartão por
+            movimento, e por isso 60 linhas continuam cabendo na tela.
+          */}
+          <section className="mb-3">
+            <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="m-0 text-sm font-semibold text-gray-900">
+                Movimentos do extrato × registros do CISNE
+              </h2>
+              <p className="m-0 text-[11px] text-gray-500">
+                Ordenado por exceção: divergência e falta de vínculo primeiro. O servidor exige
+                correspondência exata (conta, valor, direção e data); nada é casado no navegador.
+              </p>
+            </div>
+
+            {lines.length === 0 ? (
+              <EmptyState title="Extrato sem linhas" />
+            ) : (
+              <>
+                <div className={worklistTableCardClass}>
+                  <table
+                    className={worklistTableClass}
+                    aria-label="Movimentos do extrato bancário"
                   >
-                    {MATCH_STATUS_LABELS[line.matchStatus] ?? line.matchStatus}
-                  </WorklistException>
-                }
-                severityTone={line.matchStatus === 'REVIEW_REQUIRED' ? 'warning' : 'critical'}
-                title={`Linha ${line.lineNumber} · ${line.description}`}
-                reason="Linha do extrato sem conciliação persistida: exige vínculo com um movimento financeiro."
-                context={
-                  <>
-                    {MOVEMENT_DIRECTION_LABELS[line.direction] ?? line.direction} ·{' '}
-                    <Money value={line.amount} />
-                  </>
-                }
-                age={<DateTime value={line.occurredOn} mode="date" />}
-                action={
-                  <button
-                    type="button"
-                    className={workbenchPrimaryActionClass}
-                    onClick={() =>
-                      setManualMatch((current) => ({ ...current, lineId: line.id }))
-                    }
-                  >
-                    Vincular esta linha
-                  </button>
-                }
-                drilldown={
-                  manualMatch.lineId === line.id ? (
-                    <span className="text-xs font-semibold text-brand-700">
-                      Selecionada para vínculo manual
-                    </span>
-                  ) : null
-                }
-              />
-            ))}
-          </WorkbenchQueue>
+                    <thead>
+                      <tr>
+                        <th scope="col" className={worklistHeadCellClass}>
+                          Movimento bancário
+                        </th>
+                        <th scope="col" className={worklistHeadCellClass}>
+                          Vencimento
+                        </th>
+                        <th scope="col" className={worklistNumericHeadCellClass}>
+                          Valor banco
+                        </th>
+                        <th scope="col" className={worklistHeadCellClass}>
+                          Registro no CISNE
+                        </th>
+                        <th scope="col" className={worklistNumericHeadCellClass}>
+                          Valor sistema
+                        </th>
+                        <th scope="col" className={worklistNumericHeadCellClass}>
+                          Diferença
+                        </th>
+                        <th scope="col" className={worklistHeadCellClass}>
+                          Situação
+                        </th>
+                        <th scope="col" className={worklistHeadCellClass}>
+                          Ação
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pageItems.map((line) => {
+                        const reconciliation = reconciliationForLine(
+                          line.id,
+                          trackedReconciliations,
+                        );
+                        const systemAmount = reconciliation?.match?.amount ?? null;
+                        const difference =
+                          systemAmount === null ? null : Number(line.amount) - Number(systemAmount);
+                        const isDuplicate = line.duplicate;
+                        const needsWork = line.matchStatus !== 'MATCHED';
+                        return (
+                          <tr
+                            key={line.id}
+                            className={
+                              isDuplicate
+                                ? `${worklistRowClass} bg-red-50/60`
+                                : needsWork
+                                  ? `${worklistRowClass} bg-amber-50/40`
+                                  : worklistRowClass
+                            }
+                            data-match-status={line.matchStatus}
+                            data-duplicate={String(isDuplicate)}
+                          >
+                            <td className={worklistCellClass}>
+                              <span className="font-medium text-gray-900">
+                                {line.description}
+                              </span>
+                              <span className="mt-0.5 block font-mono text-[11px] text-gray-500">
+                                #{line.lineNumber} ·{' '}
+                                {MOVEMENT_DIRECTION_LABELS[line.direction] ?? line.direction}
+                              </span>
+                              {isDuplicate ? (
+                                <span className="mt-0.5 block text-[11px] font-semibold text-red-700">
+                                  Linha repetida no extrato
+                                </span>
+                              ) : null}
+                            </td>
+                            <td className={worklistCellClass}>
+                              <DateTime value={line.occurredOn} mode="date" />
+                            </td>
+                            <td className={worklistNumericCellClass}>
+                              <Money value={line.amount} emphasis />
+                            </td>
+                            <td className={worklistCellClass}>
+                              {reconciliation?.match ? (
+                                <>
+                                  <span className="font-medium text-gray-800">
+                                    {reconciliation.match.targetKind}
+                                  </span>
+                                  <span className="mt-0.5 block font-mono text-[11px] text-gray-500">
+                                    {reconciliation.match.targetId}
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="text-[11px] text-gray-400">
+                                  Nenhum candidato publicado
+                                </span>
+                              )}
+                            </td>
+                            <td className={worklistNumericCellClass}>
+                              {systemAmount === null ? (
+                                <span className="text-gray-400">—</span>
+                              ) : (
+                                <Money value={systemAmount} />
+                              )}
+                            </td>
+                            <td className={worklistNumericCellClass}>
+                              {difference === null ? (
+                                <span className="text-gray-400">—</span>
+                              ) : difference === 0 ? (
+                                <span className="text-[11px] font-medium text-green-700">
+                                  Sem diferença
+                                </span>
+                              ) : (
+                                <span className="font-semibold text-red-700">
+                                  {formatCurrency(Math.abs(difference))}
+                                </span>
+                              )}
+                            </td>
+                            <td className={worklistCellClass}>
+                              <FinanceStatusBadge
+                                status={line.matchStatus}
+                                labels={MATCH_STATUS_LABELS}
+                              />
+                            </td>
+                            <td className={worklistCellClass}>
+                              {needsWork ? (
+                                <button
+                                  type="button"
+                                  className="rounded border border-brand-600 bg-white px-2 py-0.5 text-[12px] font-semibold text-brand-700 hover:bg-brand-50"
+                                  onClick={() => {
+                                    setManualMatch((current) => ({
+                                      ...current,
+                                      lineId: line.id,
+                                    }));
+                                    document
+                                      .getElementById('match-transaction')
+                                      ?.focus();
+                                  }}
+                                >
+                                  Vincular
+                                </button>
+                              ) : (
+                                <span className="text-[11px] text-gray-400">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <ModulePagination
+                  pageNumber={safePageNumber}
+                  rangeLabel={`Página ${safePageNumber} de ${pageCount} · ${lines.length} linhas`}
+                  onPrevious={() => setPageNumber((current) => Math.max(1, current - 1))}
+                  onNext={() => setPageNumber((current) => Math.min(pageCount, current + 1))}
+                  previousDisabled={safePageNumber <= 1}
+                  nextDisabled={safePageNumber >= pageCount}
+                />
+              </>
+            )}
+          </section>
 
           {trackedReconciliations.length > 0 ? (
             <WorkbenchQueue
@@ -977,66 +1164,6 @@ export function BankReconciliationPage() {
             </WorkbenchSection>
           ) : null}
 
-          {/* DETALHE COMPLETO — todas as linhas do extrato, com o vínculo persistido de cada uma. */}
-          {lines.length === 0 ? (
-            <EmptyState title="Extrato sem linhas" />
-          ) : (
-            <>
-              <div className={worklistTableCardClass}>
-                <table className={worklistTableClass} aria-label="Linhas do extrato bancário">
-                  <thead className={worklistHeadCellClass}>
-                    <tr>
-                      <th scope="col" className={worklistHeadCellClass}>
-                        Linha
-                      </th>
-                      <th scope="col" className={worklistHeadCellClass}>
-                        Data
-                      </th>
-                      <th scope="col" className={worklistHeadCellClass}>
-                        Descrição
-                      </th>
-                      <th scope="col" className={worklistHeadCellClass}>
-                        Vínculo
-                      </th>
-                      <th scope="col" className={`${worklistHeadCellClass} text-right`}>
-                        Valor
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pageItems.map((line) => (
-                      <tr key={line.id} className={worklistRowClass}>
-                        <td className={worklistCellClass}>{line.lineNumber}</td>
-                        <td className={worklistCellClass}>
-                          <DateTime value={line.occurredOn} mode="date" />
-                        </td>
-                        <td className={`${worklistCellClass} max-w-xs whitespace-normal`}>
-                          {line.description}
-                          <span className="ml-2 text-xs text-gray-500">
-                            {MOVEMENT_DIRECTION_LABELS[line.direction] ?? line.direction}
-                          </span>
-                        </td>
-                        <td className={worklistCellClass}>
-                          <FinanceStatusBadge status={line.matchStatus} labels={MATCH_STATUS_LABELS} />
-                        </td>
-                        <td className={`${worklistCellClass} text-right`}>
-                          <Money value={line.amount} />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <ModulePagination
-                pageNumber={Math.min(pageNumber, pageCount)}
-                rangeLabel={`Página ${Math.min(pageNumber, pageCount)} de ${pageCount} · ${lines.length} linhas`}
-                onPrevious={() => setPageNumber((current) => Math.max(1, current - 1))}
-                onNext={() => setPageNumber((current) => Math.min(pageCount, current + 1))}
-                previousDisabled={pageNumber <= 1}
-                nextDisabled={pageNumber >= pageCount}
-              />
-            </>
-          )}
         </>
       ) : null}
 

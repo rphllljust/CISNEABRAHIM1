@@ -141,8 +141,15 @@ describe('Finance backoffice UI', () => {
     expect(screen.getByText('BAN-1 — Conta principal')).toBeInTheDocument();
 
     await user.click(screen.getByRole('link', { name: 'STMT-1' }));
-    // A lista continua na tela: a contagem de linhas é a da tabela do extrato aberto.
-    const linesTable = await screen.findByRole('table', { name: /linhas do extrato bancário/i });
+    /*
+     * A GRADE DE TRABALHO compara banco × CISNE numa tabela densa por movimento. O nome mudou
+     * junto com a estrutura; a PAGINAÇÃO não: 50 linhas paginadas continuam rendendo 50 linhas de
+     * corpo + cabeçalho = 51 `<tr>`, e é isso que o número abaixo prende. Renderizar o extrato
+     * inteiro numa parede de blocos faria esta contagem deixar de significar paginação.
+     */
+    const linesTable = await screen.findByRole('table', {
+      name: /movimentos do extrato bancário/i,
+    });
     expect(within(linesTable).getAllByRole('row')).toHaveLength(51);
     expect(fetchMock.mock.calls.some(([input]) => requestedUrl(input).includes(MOCK_STATEMENT_ID))).toBe(true);
   });
