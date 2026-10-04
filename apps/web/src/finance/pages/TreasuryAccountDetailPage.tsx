@@ -2,11 +2,10 @@ import { useCallback, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Button, EmptyState, Field, Input, Money, Select } from '../../ui';
 import { ModulePage, ModulePageHeader } from '../../ui/module-layout';
-import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { CreateRecordForm } from '../../financial-ui/VersionedActionForm';
-import { TREASURY_KIND_LABELS, TREASURY_LIFECYCLE_LABELS } from '../../financial-ui/labels';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
+import { DynamicForm, useEntitySchema } from '../../engine';
 import {
   createTreasuryTransfer,
   getTreasuryAccount,
@@ -17,7 +16,7 @@ import {
   reverseTreasuryTransfer,
 } from '../api/finance-api';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
-import { FinanceStatusBadge } from '../components/FinanceStatusBadge';
+import { treasuryFormValues } from '../utils/finance-engine-rows';
 import type { FinancialAccount, TreasuryReconciliation } from '../types/finance.types';
 import {
   buildPostMovementPayload,
@@ -45,6 +44,42 @@ function describeError(error: unknown): { message: string; retryable: boolean } 
   return { message: mapFinanceErrorToMessage(undefined, 0), retryable: true };
 }
 
+/**
+ * DETALHE DA CONTA FINANCEIRA — bloco de identificação dirigido por metadados.
+ *
+ * O `DefinitionList` artesanal virou `DynamicForm` do schema `treasury-accounts`: o tipo e a
+ * situação são resolvidos pelo METADADO (`select`), não por `TREASURY_KIND_LABELS` /
+ * `TREASURY_LIFECYCLE_LABELS` em TypeScript.
+ *
+ * PARIDADE COM A VERSÃO ARTESANAL (cada feature do arquivo antigo → onde vive agora):
+ *   - DefinitionList tipo/situação/código/saldo/créditos/débitos/movimentos/banco → `DynamicForm`
+ *     para os campos do registro; SALDO, CRÉDITOS, DÉBITOS e MOVIMENTOS continuam desenhados aqui
+ *     porque vêm da RECONCILIAÇÃO (um recurso separado) e não são colunas de `meta.fields`;
+ *   - alerta de falha da conciliação com botão de nova tentativa → PRESERVADO;
+ *   - aviso de conta encerrada (e o bloqueio dos comandos) → PRESERVADO;
+ *   - quatro formulários de comando (movimento, transferência, estorno de movimento e de
+ *     transferência) → PRESERVADOS integralmente, com validação e payload intactos.
+ *
+ * PARIDADE_PERDIDA: nenhuma.
+ *
+ * SOBRE A TIMELINE — DECISÃO DE DOMÍNIO, NÃO DE COMPONENTE.
+ *
+ * `DynamicTimeline` NÃO é montada aqui, e não é por falta de rota: é porque MOVIMENTAÇÃO
+ * FINANCEIRA ≠ AUDIT TRAIL. Em ERP maduro os dois são capacidades separadas — o extrato/razão da
+ * conta (lançamentos, créditos/débitos, transferências, estornos) é uma coisa; a trilha de
+ * auditoria (quem mudou o quê, quando) é outra, com contrato e retenção próprios.
+ *
+ * A versão ORIGINAL desta tela não tinha timeline NEM trilha de auditoria: o único dado de
+ * histórico que ela mostrava era `reconciliation.movementCount` — uma CONTAGEM, não uma lista — e
+ * é exatamente o que continua sendo exibido. Também não existe endpoint de movimentos por conta
+ * publicado pela API (`FinancialAccountMovement` só aparece como `legs` dentro do payload de
+ * transferência). Reproduzir aqui uma timeline exigiria inventar dados ou rota.
+ *
+ * Quando o backend publicar a listagem de movimentos por conta, ela entra nesta tela como LISTA
+ * (`DynamicList` sobre o schema da coleção filha), não como audit trail. Quando publicar
+ * `/audit-timeline` para tesouraria, o `DynamicTimeline` entra em bloco SEPARADO. As duas coisas
+ * são independentes e nenhuma delas é pré-requisito da outra.
+ */
 export function TreasuryAccountDetailPage() {
   const { accountId = '' } = useParams();
   const [movementDraft, setMovementDraft] = useState({
@@ -73,6 +108,8 @@ export function TreasuryAccountDetailPage() {
     reference: '',
     reason: '',
   });
+
+  const { schema } = useEntitySchema('treasury-accounts');
 
   const loader = useCallback(
     async (signal?: AbortSignal): Promise<AccountView> => {
@@ -156,35 +193,58 @@ export function TreasuryAccountDetailPage() {
         description="Saldo, créditos e débitos são os totais reconstruídos pelo servidor."
       />
       <div className="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5">
-        <DefinitionList
-          items={[
-            {
-              label: 'Tipo',
-              value: <FinanceStatusBadge status={account.kind} labels={TREASURY_KIND_LABELS} />,
-            },
-            {
-              label: 'Situação',
-              value: <FinanceStatusBadge status={account.lifecycle} labels={TREASURY_LIFECYCLE_LABELS} />,
-            },
-            { label: 'Código', value: account.code },
-            { label: 'Saldo', value: <Money value={account.balance} currencyCode={account.currencyCode} emphasis /> },
-            {
-              label: 'Créditos',
-              value: reconciliation ? <Money value={reconciliation.credits} currencyCode={account.currencyCode} /> : '—',
-            },
-            {
-              label: 'Débitos',
-              value: reconciliation ? <Money value={reconciliation.debits} currencyCode={account.currencyCode} /> : '—',
-            },
-            { label: 'Movimentos', value: reconciliation ? String(reconciliation.movementCount) : '—' },
-            {
-              label: 'Banco',
-              value: account.bank
-                ? `${account.bank.bankCode} · ${account.bank.agency} · ${account.bank.accountNumber}`
-                : account.cash?.locationCode ?? '—',
-            },
-          ]}
-        />
+        {schema ? (
+          /* SOMENTE LEITURA: quem grava são os comandos do servidor, não o formulário. */
+          <DynamicForm schema={schema} values={treasuryFormValues(account)} readOnly />
+        ) : null}
+
+        {/*
+          SALDO, CRÉDITOS, DÉBITOS e MOVIMENTOS continuam desenhados aqui: vêm da RECONCILIAÇÃO —
+          um recurso separado da API —, e não são colunas de `meta.fields`. Passá-los ao
+          `DynamicForm` exigiria inventar campos no metadado.
+        */}
+        <dl className="mt-4 grid grid-cols-1 gap-3 border-t border-gray-100 pt-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-gray-500">Saldo</dt>
+            <dd className="mt-0.5 text-sm font-semibold text-gray-900">
+              <Money value={account.balance} currencyCode={account.currencyCode} emphasis />
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-gray-500">Créditos</dt>
+            <dd className="mt-0.5 text-sm text-gray-900">
+              {reconciliation ? (
+                <Money value={reconciliation.credits} currencyCode={account.currencyCode} />
+              ) : (
+                '—'
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-gray-500">Débitos</dt>
+            <dd className="mt-0.5 text-sm text-gray-900">
+              {reconciliation ? (
+                <Money value={reconciliation.debits} currencyCode={account.currencyCode} />
+              ) : (
+                '—'
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-gray-500">Movimentos</dt>
+            <dd className="mt-0.5 text-sm text-gray-900" data-movement-count={reconciliation?.movementCount ?? 0}>
+              {reconciliation ? String(reconciliation.movementCount) : '—'}
+            </dd>
+          </div>
+        </dl>
+
+        {/* Banco ou caixa: o vínculo físico da conta. Preservado da versão artesanal. */}
+        <p className="mt-3 text-xs text-gray-500">
+          {account.bank
+            ? `${account.bank.bankCode} · ${account.bank.agency} · ${account.bank.accountNumber}`
+            : account.cash?.locationCode ?? '—'}
+        </p>
+
         {reconciliationError ? (
           <div className="mt-4 rounded-md bg-red-50 p-4" role="alert">
             <p className="text-sm text-red-800">

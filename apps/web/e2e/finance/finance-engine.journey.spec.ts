@@ -162,12 +162,68 @@ test.describe('finance migrado para a engine', () => {
     await rule.locator('[data-testid="dynamic-filter-rule-value"]').fill('1900-01-01');
     await expect(list).toHaveAttribute('data-list-count', '0', { timeout: 30_000 });
 
+    /*
+     * A GRADE PERMANECE MONTADA COM 0 LINHAS — é a prova central da distinção:
+     *   SOURCE_TOTAL=0            -> EmptyState (nada existe)
+     *   SOURCE_TOTAL>0 + FILTRO=0 -> DynamicList + emptyMessage (nada NESTE recorte)
+     *
+     * Aqui o servidor devolveu 3 títulos e o FILTRO zerou. Se a tela tivesse trocado a grade por
+     * um painel, o operador perderia os cabeçalhos das colunas que acabou de filtrar.
+     */
+    const headers = list.locator('thead th');
+    await expect(headers.first()).toBeVisible();
+    expect(await headers.count()).toBeGreaterThan(0);
+    // A mensagem vive DENTRO do grid, na célula vazia.
+    await expect(list.locator('tbody')).toContainText(/Nenhum título corresponde ao recorte/);
+    await expect(list.locator('[data-testid="dynamic-list-row"]')).toHaveCount(0);
+
     // E o resumo passa a descrever a condição.
     await expect(page.locator('[data-testid="dynamic-filter-builder-summary"]')).toBeVisible();
 
-    // Limpar devolve o conjunto original — o filtro não é destrutivo.
+    // Limpar devolve o conjunto original — o filtro não é destrutivo e as linhas VOLTAM.
     await page.locator('[data-testid="dynamic-filter-builder-clear"]').click();
     await expect(list).toHaveAttribute('data-list-count', String(before), { timeout: 30_000 });
+    await expect(list.locator('[data-testid="dynamic-list-row"]').first()).toBeVisible();
+  });
+
+  test('o detalhe de conta financeira usa DynamicForm e preserva os comandos e a conciliacao', async ({ page }) => {
+    await login(page);
+
+    // A lista de caixa e bancos é a porta de entrada: pega um id real da própria tela.
+    await page.goto('/app/finance/treasury');
+    const linked = page.locator('a[href^="/app/finance/treasury/"]').first();
+    await expect(linked).toBeVisible({ timeout: 30_000 });
+    await linked.click();
+    await expect(page).toHaveURL(/\/app\/finance\/treasury\/[^/]+$/, { timeout: 30_000 });
+
+    // O bloco de identificação é o formulário do metadado (tipo e situação vêm do schema).
+    await expect(page.locator('[data-testid="dynamic-form"]')).toBeVisible({ timeout: 30_000 });
+
+    /*
+     * PARIDADE: os totais da CONCILIAÇÃO continuam na tela. Eles NÃO são campos de `meta.fields` —
+     * vêm de um recurso separado da API — e por isso seguem desenhados fora do formulário.
+     */
+    await expect(page.getByText('Créditos', { exact: true })).toBeVisible();
+    await expect(page.getByText('Débitos', { exact: true })).toBeVisible();
+    await expect(page.getByText('Movimentos', { exact: true })).toBeVisible();
+
+    /*
+     * DOMÍNIO: NÃO existe bloco de audit trail nesta tela — a versão original nunca teve, e
+     * movimentação financeira não é trilha de auditoria. A ausência é o comportamento correto.
+     */
+    await expect(page.locator('[data-testid="dynamic-timeline"]')).toHaveCount(0);
+
+    // PARIDADE: os quatro comandos do servidor continuam declarados para conta ativa.
+    const registrar = page.getByRole('heading', { name: 'Registrar movimento' });
+    if ((await registrar.count()) > 0) {
+      await expect(registrar).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Transferir entre contas' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Estornar movimento' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Estornar transferência' })).toBeVisible();
+    } else {
+      // Conta encerrada: o aviso substitui os comandos — comportamento preservado.
+      await expect(page.getByText(/Conta encerrada/)).toBeVisible();
+    }
   });
 
   test('o detalhe de orcamento usa DynamicForm e o subformulario de linhas', async ({ page }) => {

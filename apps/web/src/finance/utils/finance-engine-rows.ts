@@ -2,6 +2,7 @@ import type { MetaEntitySchema, SubformRow } from '../../engine';
 import type {
   BudgetDetail,
   ExpenseDetail,
+  FinancialAccount,
   PayableDetail,
   ReceivableDetail,
 } from '../types/finance.types';
@@ -214,6 +215,27 @@ export function expenseFormValues(expense: ExpenseDetail): Record<string, unknow
     reimbursable: expense.reimbursable,
     status: expense.status,
     version: expense.version,
+  };
+}
+
+/**
+ * Valores da CONTA FINANCEIRA no formato do metadata store.
+ *
+ * `balance` NÃO entra: apesar de ser coluna de `meta.fields`, ela NÃO está em `in_form` da view
+ * `form` de treasury-accounts — o saldo é reconstruído pelo servidor a cada leitura e a tela o
+ * desenha fora do formulário. Passá-lo aqui não o exibiria, e sugeriria que ele é campo editável.
+ */
+export function treasuryFormValues(account: FinancialAccount): Record<string, unknown> {
+  return {
+    code: account.code,
+    name: account.name,
+    kind: account.kind,
+    unit_id: account.unitId,
+    currency_code: account.currencyCode,
+    overdraft_allowed: account.overdraftAllowed,
+    lifecycle: account.lifecycle,
+    row_version: account.rowVersion,
+    created_at: account.createdAt,
   };
 }
 
