@@ -137,35 +137,45 @@ import { MetadataProvider } from './engine';
 import { ServiceOrderEngineDetailPage } from './service-orders/pages/ServiceOrderEngineDetailPage';
 import { MetadataExplorerPage } from './admin/MetadataExplorerPage';
 import { ViewLabPage } from './admin/ViewLabPage';
+import { LanguageProvider } from './i18n';
 
 export function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <SessionMetaBridge />
-        {/*
-          METADATA PROVIDER — a engine de ERP.
-          Envolve as rotas inteiras para que qualquer tela possa consumir metadado sem
-          montar provider próprio. O cache é por entidade, então navegar entre telas da
-          mesma entidade não refaz a chamada.
-        */}
-        <MetadataProvider>
-          <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/access-denied" element={<AccessDeniedPage />} />
-          <Route path="/session-expired" element={<SessionExpiredPage />} />
-          <Route path="/unavailable" element={<ServiceUnavailablePage />} />
-          <Route element={<ProtectedRoute />}>
-            <Route element={<ExecutionShellLayout />}>
-              <Route
-                path="/app/service-orders/:serviceOrderId/execution"
-                element={
-                  <ServiceOrdersRoute>
-                    <ServiceOrderExecutionPage />
-                  </ServiceOrdersRoute>
-                }
-              />
-            </Route>
+    /*
+      LANGUAGE PROVIDER — o provider MAIS EXTERNO da árvore.
+      
+      Fica fora do `BrowserRouter` e do `AuthProvider` porque o idioma não depende de rota
+      nem de sessão: a tela de login, a de acesso negado e a de sessão expirada também são
+      texto para o operador, e todas elas precisam poder traduzir. Um provider mais interno
+      deixaria justamente as telas de borda sem tradução.
+    */
+    <LanguageProvider>
+      <BrowserRouter>
+        <AuthProvider>
+          <SessionMetaBridge />
+          {/*
+            METADATA PROVIDER — a engine de ERP.
+            Envolve as rotas inteiras para que qualquer tela possa consumir metadado sem
+            montar provider próprio. O cache é por entidade, então navegar entre telas da
+            mesma entidade não refaz a chamada.
+          */}
+          <MetadataProvider>
+            <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/access-denied" element={<AccessDeniedPage />} />
+            <Route path="/session-expired" element={<SessionExpiredPage />} />
+            <Route path="/unavailable" element={<ServiceUnavailablePage />} />
+            <Route element={<ProtectedRoute />}>
+              <Route element={<ExecutionShellLayout />}>
+                <Route
+                  path="/app/service-orders/:serviceOrderId/execution"
+                  element={
+                    <ServiceOrdersRoute>
+                      <ServiceOrderExecutionPage />
+                    </ServiceOrdersRoute>
+                  }
+                />
+              </Route>
             <Route element={<AppShellLayout />}>
               <Route path="/app" element={<OperationalDashboardPage />} />
               <Route path="/app/alerts" element={<AlertCenterPage />} />
@@ -1036,7 +1046,8 @@ export function App() {
           <Route path="*" element={<ShellNotFoundPage />} />
         </Routes>
         </MetadataProvider>
-      </AuthProvider>
-    </BrowserRouter>
+        </AuthProvider>
+      </BrowserRouter>
+    </LanguageProvider>
   );
 }

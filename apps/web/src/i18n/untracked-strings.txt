@@ -1,0 +1,2211 @@
+CISNE — STRINGS DE INTERFACE NÃO RASTREADAS (extração automática)
+
+Gerado por: apps/web/src/i18n/extract.ts
+Catálogo de referência: apps/web/src/i18n/pt-BR.json
+
+Arquivos .tsx varridos : 433
+Strings hardcoded      : 1779
+Arquivos com achados   : 208
+
+ESTE RELATÓRIO NÃO CORRIGE NADA. Ele só reporta.
+
+──────────────────────────────────────────────────────────────────────────────
+
+src/access-admin/access-admin.ui.test.tsx  (1)
+   150: 55  [filho de JSX] NO ACCESS PAGE
+
+src/access-admin/pages/AccessAdminPage.tsx  (3)
+    40:  9  [atributo title] Administração de acesso
+    41:  9  [atributo description] Gestão de roles, concessões, usuários, matrizes de aprovação e catálogos de autorização. O servidor é a única fonte de autoridade: o cliente envia exatamente o que o usuário escolheu e exibe o que o servidor retorna.
+    47:  9  [atributo label] Administração de acesso
+
+src/access-admin/pages/AssignmentsTab.tsx  (7)
+    88: 28  [atributo label] Carregando atribuições…
+    98: 26  [atributo title] Atribuições
+   103: 26  [atributo title] Nenhuma atribuição
+   103: 53  [atributo description] Atribua uma role a uma identidade.
+   108: 47  [atributo aria-label] Atribuições de role
+   247: 15  [atributo label] Âncora do escopo (id)
+   278:  9  [atributo title] Revogar atribuição
+
+src/access-admin/pages/CapabilitiesTab.tsx  (4)
+    10: 26  [atributo label] Carregando catálogo de capacidades…
+    32: 11  [atributo title] Nenhuma capacidade
+    33: 11  [atributo description] O catálogo de capacidades retornado pelo servidor está vazio.
+    37: 49  [atributo aria-label] Catálogo de capacidades
+
+src/access-admin/pages/GrantsTab.tsx  (12)
+    97: 28  [atributo label] Carregando concessões…
+   108: 21  [atributo title] Concessões
+   116: 11  [atributo title] Nenhuma concessão
+   128: 47  [atributo aria-label] Concessões diretas
+   249: 31  [filho de JSX] Todas as identidades
+   289:  9  [atributo title] Revogar concessão
+   373:  7  [atributo title] Nova concessão
+   374:  7  [atributo description] O servidor valida ação, recurso, escopo e referências antes de conceder. O cliente envia exatamente o que foi escolhido.
+   436: 16  [atributo label] Ação
+   438: 27  [atributo label] Carregando catálogo…
+   506: 13  [atributo label] Âncora do escopo (recurso id)
+   522: 11  [atributo label] Válida até (opcional)
+
+src/access-admin/pages/MatricesTab.tsx  (12)
+    89: 23  [atributo label] Carregando matrizes de aprovação…
+    92: 11  [atributo title] Matrizes de aprovação
+   105: 11  [atributo title] Nenhuma matriz de aprovação
+   106: 11  [atributo description] O servidor não retornou matrizes de aprovação.
+   110: 49  [atributo aria-label] Matrizes de aprovação
+   173: 16  [atributo aria-label] Atribuições de role de aprovação
+   182: 27  [atributo label] Carregando atribuições de role de aprovação…
+   193: 53  [atributo aria-label] Atribuições de role de aprovação
+   243:  9  [atributo aria-label] Atribuir role de aprovação
+   246: 60  [filho de JSX] Atribuir role de aprovação
+   306: 13  [atributo label] Role de aprovação
+   349: 15  [atributo label] Âncora do escopo (id)
+
+src/access-admin/pages/RolesTab.tsx  (8)
+    58: 11  [atributo title] Nenhuma role
+    59: 11  [atributo description] Crie a primeira role de acesso para começar.
+    63: 49  [atributo aria-label] Roles de acesso
+   271:  7  [atributo description] O servidor valida os códigos escolhidos e impõe SoD. O cliente não decide autoridade.
+   277: 13  [atributo message] A role foi alterada por outra sessão. Recarregue para obter a versão atual antes de salvar.
+   299: 20  [atributo label] Código
+   317: 20  [atributo label] Descrição
+   344: 31  [atributo label] Carregando catálogo…
+
+src/access-admin/pages/ScopesTab.tsx  (5)
+    10: 26  [atributo label] Carregando catálogo de escopos…
+    32: 11  [atributo title] Nenhum escopo
+    33: 11  [atributo description] O catálogo de escopos retornado pelo servidor está vazio.
+    37: 49  [atributo aria-label] Catálogo de escopos
+    58: 44  [filho de JSX] Não ancorado
+
+src/access-admin/pages/SodConflictsTab.tsx  (2)
+    34: 11  [atributo title] Nenhum conflito SoD
+    35: 11  [atributo description] O servidor não reportou conflitos de segregação de funções no momento.
+
+src/access-admin/pages/UsersTab.tsx  (13)
+    91: 29  [filho de JSX] Todos
+   112: 23  [atributo label] Carregando usuários…
+   115: 11  [atributo title] Usuários
+   125: 11  [atributo title] Nenhum usuário
+   126: 11  [atributo description] Nenhuma identidade corresponde aos filtros informados.
+   130: 49  [atributo aria-label] Usuários (identidades)
+   218: 62  [filho de JSX] Visão do usuário
+   231: 11  [atributo title] Concessões ativas (PDP)
+   236: 53  [atributo aria-label] Concessões ativas do usuário
+   281: 11  [atributo title] Atribuições de role de acesso
+   286: 53  [atributo aria-label] Atribuições de role de acesso do usuário
+   329: 11  [atributo title] Atribuições de role de aprovação
+   334: 53  [atributo aria-label] Atribuições de role de aprovação do usuário
+
+src/accounting/pages/AccountingPostingOriginsPage.tsx  (13)
+   219:  9  [atributo title] Origem dos lançamentos
+   225: 33  [atributo label] Lançados
+   248: 24  [atributo label] Unidade
+   266: 24  [atributo label] Situação
+   273: 29  [filho de JSX] Todas
+   274: 35  [filho de JSX] Lançado
+   279: 24  [atributo label] Evento de origem
+   293: 24  [atributo label] Ocorrido de
+   305: 24  [atributo label] Ocorrido até
+   346: 29  [atributo title] Origem dos lançamentos
+   346: 60  [atributo message] Carregando eventos lançados…
+   351: 11  [atributo title] Origem dos lançamentos
+   384: 51  [atributo aria-label] Origem dos lançamentos contábeis
+
+src/accounting/pages/ChartOfAccountsPage.tsx  (28)
+   250:  9  [atributo title] Plano de contas
+   256: 33  [atributo label] Contas no plano
+   257: 33  [atributo label] Sintéticas
+   283: 24  [atributo label] Unidade
+   301: 24  [atributo label] Plano de contas
+   314: 29  [filho de JSX] Selecione um plano…
+   337: 17  [atributo placeholder] Código ou nome da conta
+   349: 33  [filho de JSX] Todas
+   357: 28  [atributo label] Situação
+   366: 33  [filho de JSX] Todas
+   385: 11  [atributo title] Nenhuma unidade operacional disponível
+   386: 11  [atributo description] Sua sessão não tem unidade operacional autorizada, então não há plano de contas para consultar. O plano é escolhido a partir da unidade; esta tela não aceita identificador digitado.
+   392: 11  [atributo title] Sem permissão para listar planos de contas desta unidade
+   393: 11  [atributo description] A consulta foi recusada pelo servidor. Peça à administração a capability de leitura contábil desta unidade.
+   398: 11  [atributo title] Nenhum plano de contas nesta unidade
+   399: 11  [atributo description] A unidade selecionada não tem plano de contas publicado. Escolha outra unidade operacional na barra acima.
+   404: 11  [atributo title] Nenhum plano selecionado
+   405: 11  [atributo description] Selecione o plano de contas da unidade; as contas e os saldos são consultados automaticamente.
+   453: 15  [atributo title] Nenhuma conta para o recorte atual
+   454: 15  [atributo description] A busca, a classe ou a situação aplicadas não retornam conta neste plano. Limpe os filtros para ver a árvore completa.
+   468: 53  [atributo aria-label] Árvore de contas do plano
+   512: 65  [atributo label] Sintética
+   593: 57  [atributo aria-label] Lançamentos da conta
+   754:  7  [atributo aria-label] Nova conta
+   758: 66  [filho de JSX] Nova conta
+   772: 18  [atributo label] Conta superior (opcional)
+   778: 31  [filho de JSX] (nenhuma — raiz)
+   788: 18  [atributo label] Código
+
+src/accounting/pages/ClosingCenterPage.tsx  (37)
+   197: 25  [atributo title] Central de fechamento
+   199: 11  [atributo title] Nenhuma unidade operacional disponível
+   200: 11  [atributo description] Esta área trabalha por unidade e período; sem unidade autorizada não há fechamento a acompanhar.
+   218:  9  [atributo title] Central de fechamento
+   223: 33  [atributo label] Competência
+   225: 17  [atributo label] Contábil
+   235: 17  [atributo label] Pendências
+   240: 17  [atributo label] Prontidão
+   263: 24  [atributo label] Unidade
+   284: 24  [atributo label] Situação do período
+   293: 29  [filho de JSX] Todos
+   297: 24  [atributo label] Competência
+   368: 11  [atributo title] Nenhum período selecionado
+   378: 29  [atributo title] Central de fechamento
+   378: 59  [atributo message] Lendo o estado do fechamento…
+   383: 11  [atributo title] Central de fechamento
+   384: 11  [atributo message] Você não tem permissão para ler o fechamento deste período.
+   390: 11  [atributo title] Central de fechamento
+   406: 13  [atributo title] Bloqueadores do fechamento
+   426: 17  [atributo aria-label] Bloqueadores do fechamento
+   436: 15  [atributo title] Pendências observadas
+   438: 15  [atributo description] Verificações que não bloqueiam o fechamento pela política vigente.
+   440: 19  [atributo aria-label] Pendências do fechamento
+   451: 13  [atributo aria-label] Próximas ações do fechamento
+   453: 69  [filho de JSX] Próximas ações
+   454: 44  [atributo aria-label] Próximas ações do fechamento
+   464: 17  [atributo title] Fechar período
+   465: 17  [atributo description] O backend reavalia todas as verificações e recusa o fechamento com bloqueador.
+   483: 17  [atributo title] Reabrir período
+   484: 17  [atributo description] Reabertura é registrada e exige motivo; o backend valida que o período está fechado.
+   508: 13  [atributo aria-label] Situação do período
+   510: 69  [filho de JSX] Situação do período
+   515: 48  [filho de JSX] Competência
+   526: 48  [filho de JSX] Contábil
+   540: 55  [filho de JSX] Omitido por autorização
+   545: 36  [atributo aria-label] Seções omitidas por autorização
+   557: 51  [atributo aria-label] Lançamentos por situação no período
+
+src/accounting/pages/FixedAssetsPage.tsx  (35)
+   164: 33  [atributo label] Situação
+   166: 17  [atributo label] Valor contábil
+   169: 33  [atributo label] Vida útil
+   177: 24  [atributo label] Registro contábil
+   183: 13  [atributo placeholder] Identificador do registro
+   221: 20  [atributo label] Unidade
+   237: 15  [atributo placeholder] Buscar por nome ou código do ativo
+   241: 15  [atributo emptyMessage] Nenhum ativo físico encontrado para a busca.
+   245: 20  [atributo label] Vida útil (meses)
+   272:  9  [atributo aria-label] Consultar por ativo operacional
+   275: 66  [filho de JSX] Consultar por ativo operacional
+   287: 20  [atributo label] Unidade
+   303: 15  [atributo placeholder] Buscar por nome ou código do ativo
+   307: 15  [atributo emptyMessage] Nenhum ativo físico encontrado para a busca.
+   324: 11  [atributo title] Nenhum registro carregado
+   325: 11  [atributo description] Consulte pelo identificador do servidor na barra acima, ou pelo ativo operacional. O valor contábil e a depreciação vêm do registro persistido.
+   333: 13  [atributo aria-label] Registro do imobilizado
+   367: 37  [atributo aria-label] Movimentos do imobilizado
+   376: 17  [atributo title] Nenhum movimento registrado
+   377: 17  [atributo description] O ativo ainda não tem aquisição, depreciação, transferência ou baixa persistida pelo servidor.
+   381: 55  [atributo aria-label] Movimentos do imobilizado
+   444: 13  [atributo aria-label] Ações do registro de imobilizado
+   447: 70  [filho de JSX] Ações do registro
+   456: 17  [atributo description] O valor de aquisição é o informado ao servidor.
+   469: 24  [atributo label] Valor
+   472: 24  [atributo label] Data
+   478: 17  [atributo description] A depreciação é calculada pelo backend.
+   488: 17  [atributo description] A baixa é recusada se o servidor não aceitar o estado atual.
+   500: 24  [atributo label] Data da baixa
+   505: 17  [atributo title] Transferir centro de custo
+   506: 17  [atributo description] A transferência é persistida pelo servidor.
+   519: 24  [atributo label] Centro de custo destino
+   527: 24  [atributo label] Data
+   538: 17  [atributo title] Estornar aquisição
+   539: 17  [atributo description] O estorno exige motivo e é recusado se o backend não aceitar.
+
+src/accounting/pages/JournalsPage.tsx  (26)
+   227:  9  [atributo title] Lançamentos
+   233: 33  [atributo label] Rascunhos nesta página
+   234: 33  [atributo label] Postados nesta página
+   235: 33  [atributo label] Estornos nesta página
+   253: 24  [atributo label] Unidade
+   277: 24  [atributo label] Plano de contas
+   293: 24  [atributo label] Período contábil
+   327: 32  [filho de JSX] Todos
+   344: 11  [atributo title] Nenhuma unidade operacional disponível
+   345: 11  [atributo description] Sua sessão não tem unidade operacional autorizada, então não há lançamento para consultar. A unidade é escolhida em lista; esta tela não aceita identificador digitado.
+   374: 15  [atributo description] O período selecionado não tem lançamento para este recorte. Ajuste o estado ou escolha outro período na barra acima.
+   382: 19  [atributo label] Ver todos os estados
+   389: 55  [atributo aria-label] Lançamentos do período
+   539:  9  [atributo title] Lançamento
+   580: 76  [atributo aria-label] Dados do lançamento
+   640: 47  [atributo aria-label] Linhas do lançamento
+   678: 11  [atributo title] Postar lançamento
+   679: 11  [atributo description] A postagem é recusada se o período estiver fechado, o lançamento desbalanceado ou a conta não postável.
+   691: 11  [atributo title] Estornar lançamento
+   692: 11  [atributo description] O estorno gera o lançamento inverso no servidor e preserva o histórico.
+   793: 74  [atributo aria-label] Novo lançamento manual
+   810: 18  [atributo label] Data (AAAA-MM-DD)
+   820: 18  [atributo label] Histórico
+   829: 18  [atributo label] Conta de débito
+   845: 18  [atributo label] Conta de crédito
+   861: 18  [atributo label] Valor (R$)
+
+src/accounting/pages/PeriodClosePage.tsx  (25)
+   166: 17  [atributo label] Situação
+   170: 33  [atributo label] Competência
+   171: 33  [atributo label] Versão
+   179: 19  [atributo label] Última execução
+   191: 24  [atributo label] Unidade
+   207: 24  [atributo label] Plano de contas
+   223: 24  [atributo label] Período contábil
+   238: 29  [filho de JSX] Selecione o período…
+   252: 11  [atributo title] Sem permissão para consultar períodos contábeis desta unidade
+   253: 11  [atributo description] A consulta foi recusada pelo servidor. A unidade escolhida não está no seu escopo de fechamento.
+   261: 11  [atributo title] Nenhum período selecionado
+   262: 11  [atributo description] Escolha o plano de contas da unidade e o período contábil; versão e histórico vêm da API.
+   279: 80  [atributo aria-label] Estado do período
+   301: 82  [atributo aria-label] Checklist do período
+   354: 37  [atributo aria-label] Histórico de fechamentos
+   356: 66  [filho de JSX] Histórico de fechamentos
+   365: 17  [atributo title] Nenhuma execução de fechamento registrada
+   366: 17  [atributo description] O período selecionado ainda não foi fechado. Ao fechar, cada verificação executada pelo servidor fica registrada aqui.
+   370: 55  [atributo aria-label] Execuções de fechamento do período
+   421: 80  [atributo aria-label] Ações do período
+   423: 70  [filho de JSX] Ações do período
+   431: 17  [atributo title] Fechar período
+   432: 17  [atributo description] O servidor avalia o checklist configurável e bloqueia lançamentos concorrentes.
+   449: 17  [atributo title] Reabrir período
+   450: 17  [atributo description] Reabertura exige capability específica e justificativa no servidor.
+
+src/accounting/pages/PeriodReportPages.tsx  (32)
+   324: 35  [atributo label] Competência
+   326: 19  [atributo label] Situação
+   355: 24  [atributo label] Unidade
+   371: 24  [atributo label] Plano de contas
+   387: 24  [atributo label] Período contábil
+   414: 26  [atributo label] Conta (Razão)
+   425: 31  [filho de JSX] Selecione a conta…
+   437: 13  [atributo label] Limpar conta
+   457: 11  [atributo title] Selecione o escopo do relatório
+   458: 11  [atributo description] O relatório é consultado no servidor após escolher o plano de contas da unidade e o período contábil.
+   539: 27  [atributo label] Lançamentos postados
+   541: 11  [atributo label] Página
+   553: 11  [atributo label] Página
+   594:  9  [atributo title] Nenhum lançamento postado no período
+   595:  9  [atributo description] O diário é derivado somente de lançamentos POSTED. O período selecionado não tem lançamento postado para exibir — rascunhos aparecem em Lançamentos até serem postados.
+   603: 47  [atributo aria-label] Livro diário (postados)
+   687: 11  [atributo aria-label] Conta do razão
+   726: 11  [atributo title] Nenhum movimento nesta conta no período
+   727: 11  [atributo description] A conta escolhida não recebeu lançamento postado no período selecionado. Saldo anterior e saldo final continuam sendo os apurados pelo servidor.
+   731: 49  [atributo aria-label] Razão da conta no período
+   789:  9  [atributo title] Balancete sem contas no período
+   790:  9  [atributo description] O período selecionado não tem conta com movimento apurado. Os totais continuam sendo os conferidos pelo servidor.
+   796: 76  [atributo aria-label] Conferência do balancete
+   823: 47  [atributo aria-label] Balancete do período
+   883: 13  [atributo title] DRE indisponível para este plano
+   884: 13  [atributo description] A apuração de resultado exige contas de Receita e Despesa publicadas no plano. Nenhum resultado é estimado nesta tela.
+   891: 74  [atributo aria-label] Resultado do período
+   893: 64  [filho de JSX] Resultado do período
+   936:  9  [atributo title] Balanço indisponível para este plano
+   937:  9  [atributo description] O plano de contas ainda não publica as classes patrimoniais necessárias para a posição. Nenhum valor é estimado nesta tela.
+   959:  9  [atributo aria-label] Posição patrimonial do período
+   963: 68  [filho de JSX] Posição patrimonial
+
+src/alerts/pages/AlertCenterPage.tsx  (18)
+    98: 24  [atributo title] Central de alertas
+   106: 24  [atributo title] Central de alertas
+   107: 28  [atributo message] Você não tem permissão para visualizar alertas operacionais.
+   121:  9  [atributo title] Central de alertas
+   122:  9  [atributo description] Alertas persistentes derivados das políticas operacionais — não substituem ações no fluxo.
+   133: 49  [atributo label] alertas no recorte atual
+   134: 50  [atributo label] críticos
+   135: 49  [atributo label] em atenção
+   184: 29  [filho de JSX] Todos
+   185: 69  [filho de JSX] OS vencida
+   186: 69  [filho de JSX] OS vencendo
+   187: 69  [filho de JSX] OS parada
+   188: 66  [filho de JSX] Medição parada
+   205: 29  [filho de JSX] Todas
+   206: 36  [filho de JSX] Atenção
+   207: 37  [filho de JSX] Crítico
+   223:  9  [atributo title] Fila de alertas
+   225:  9  [atributo description] Ordenada pela severidade persistida e, dentro dela, pelo tempo parado do alerta.
+
+src/analytics/pages/ComplianceBiPage.tsx  (9)
+    61:  9  [atributo title] Conformidade fiscal e contábil
+    62:  9  [atributo description] Agregados de conformidade lidos do servidor. Os números não são recalculados nesta tela.
+    76: 53  [filho de JSX] Nenhuma unidade disponível
+    89: 18  [atributo label] Período
+    97: 36  [filho de JSX] Mês
+   113: 13  [atributo description] Documentos fiscais emitidos e obrigações tributárias abertas no período.
+   117: 13  [atributo title] Contábil
+   118: 13  [atributo description] Períodos contábeis, lançamentos efetivados e eventos de negócio lançados no período.
+   181: 49  [filho de JSX] sem dados no período
+
+src/analytics/pages/OperationalProfitabilityPage.tsx  (10)
+    33:  9  [atributo description] Receita operacional menos custo realizado, no recorte autorizado. Não substitui a contabilidade oficial.
+    37: 18  [atributo label] Período
+    45: 36  [filho de JSX] Mês
+    48: 18  [atributo label] Agrupar por
+    54: 35  [filho de JSX] Sem agrupamento
+    55: 44  [filho de JSX] Ordem de serviço
+    56: 37  [filho de JSX] Cliente
+    58: 43  [filho de JSX] Tipo de serviço
+    65: 24  [filho de JSX] Você não tem permissão para ver a rentabilidade operacional.
+   108: 51  [atributo aria-label] Linhas de rentabilidade por OS
+
+src/assets/components/AssetForm.tsx  (11)
+   162:  9  [atributo aria-label] Dados do ativo
+   165: 11  [atributo title] Identificação
+   166: 11  [atributo description] Código e nome pelos quais o ativo é reconhecido na operação.
+   171: 17  [atributo label] Código do ativo
+   177: 17  [atributo label] Código do ativo
+   196: 20  [atributo label] Nome / descrição
+   210: 11  [atributo title] Classificação
+   211: 11  [atributo description] Tipo de recurso do catálogo e unidade operacional que respondem pelo ativo.
+   246: 13  [atributo title] Dados do veículo
+   247: 13  [atributo description] Campos exigidos para ativos classificados como veículo.
+   285: 13  [atributo description] O uso do ativo é decidido pela alocação em ordens de serviço; este cadastro não altera a disponibilidade.
+
+src/assets/components/AssetLookupFields.tsx  (6)
+    82:  9  [atributo label] Tipo de recurso
+    86:  9  [atributo placeholder] Buscar por nome ou código
+   135:  9  [atributo label] Unidade operacional
+   159:  9  [atributo label] Unidade operacional
+   163:  9  [atributo placeholder] Buscar unidade
+   167:  9  [atributo emptyMessage] Nenhuma unidade operacional registrada para o seu acesso.
+
+src/assets/components/AssetOperationalLifecycle.tsx  (4)
+    79: 60  [filho de JSX] Período da alocação
+    85: 60  [filho de JSX] Situação
+    94: 54  [filho de JSX] Sem uso atual registrado.
+   123: 54  [filho de JSX] Sem próxima utilização registrada.
+
+src/assets/components/AssetSummaryStrip.tsx  (1)
+    67: 14  [atributo aria-label] Indicadores de frota
+
+src/assets/pages/PhysicalAssetCreatePage.tsx  (10)
+    59: 11  [atributo title] Novo ativo físico
+    60: 11  [atributo description] Cadastre uma instância física vinculada a um tipo de recurso do catálogo.
+    62: 29  [atributo title] Novo ativo físico
+    62: 55  [atributo message] Verificando permissões…
+    71: 11  [atributo title] Novo ativo físico
+    72: 11  [atributo description] Cadastre uma instância física vinculada a um tipo de recurso do catálogo.
+    75: 11  [atributo title] Novo ativo físico
+    76: 11  [atributo message] Você não tem permissão para cadastrar ativos.
+   121:  9  [atributo title] Novo ativo físico
+   122:  9  [atributo description] Cadastre uma instância física vinculada a um tipo de recurso do catálogo.
+
+src/assets/pages/PhysicalAssetDetailPage.tsx  (9)
+   260: 27  [atributo title] Ativo físico
+   389: 13  [atributo title] Situação cadastral do ativo
+   395: 24  [atributo title] Histórico
+   398: 15  [atributo title] Histórico do ativo
+   399: 15  [atributo emptyMessage] Este ativo não expõe histórico persistido além dos marcos do cadastro.
+   416: 24  [atributo title] Vida operacional do recurso
+   421: 22  [atributo title] Disponibilidade do recurso
+   430: 33  [filho de JSX] Voltar à lista
+   447:  9  [atributo description] O ativo voltará ao status de cadastro ativo.
+
+src/assets/pages/PhysicalAssetEditPage.tsx  (3)
+   102: 11  [atributo message] Você não tem permissão para editar este ativo.
+   117: 48  [atributo message] Ativo não encontrado.
+   147: 11  [atributo message] Você não tem permissão para editar ativos.
+
+src/assets/pages/PhysicalAssetsListPage.tsx  (15)
+   160: 24  [atributo title] Ativos físicos
+   168: 24  [atributo title] Ativos físicos
+   169: 28  [atributo message] Você não tem permissão para listar ativos físicos.
+   176: 24  [atributo title] Ativos físicos
+   209:  9  [atributo title] Ativos físicos
+   214: 52  [filho de JSX] Novo ativo
+   234: 13  [atributo placeholder] Código, nome ou placa
+   244: 29  [filho de JSX] Todos
+   258: 29  [filho de JSX] Todas
+   259: 71  [filho de JSX] Disponível
+   261: 73  [filho de JSX] Indisponível
+   271: 29  [filho de JSX] Todos
+   296: 34  [atributo title] Nenhum ativo cadastrado.
+   299: 21  [atributo title] Nenhum ativo encontrado para os filtros selecionados.
+   304: 49  [atributo aria-label] Lista de ativos físicos
+
+src/assets/physical-assets-create-edit.ui.test.tsx  (3)
+   188: 21  [filho de JSX] request.body as Record
+   198: 21  [filho de JSX] request.body as Record
+   229: 54  [filho de JSX] Detalhe do ativo
+
+src/billing/components/BillingCommercialTermsMismatchPanel.tsx  (2)
+    18: 40  [filho de JSX] Divergência de condições comerciais
+    23: 50  [atributo aria-label] Comparação de condições comerciais
+
+src/billing/components/BillingDocumentIssueDialog.tsx  (5)
+    36: 41  [filho de JSX] Confirmar emissão da Nota Fatura
+    50: 16  [filho de JSX] Número
+    54: 16  [filho de JSX] Cliente
+    68: 16  [filho de JSX] Total
+    76: 16  [filho de JSX] Condição
+
+src/billing/components/BillingDocumentIssuedList.tsx  (1)
+    16: 51  [filho de JSX] Nenhum documento emitido nesta preparação.
+
+src/billing/components/BillingDocumentPreview.tsx  (5)
+    15: 36  [atributo aria-label] Pré-visualização da Nota Fatura
+    30: 42  [filho de JSX] Cliente
+    39: 14  [filho de JSX] Condição de pagamento
+    47: 14  [filho de JSX] Referência comercial
+    69: 30  [filho de JSX] Descrição
+
+src/billing/components/BillingItemsCards.tsx  (1)
+    25: 18  [filho de JSX] Preço unit.
+
+src/billing/components/BillingItemsTable.tsx  (1)
+    16: 28  [filho de JSX] Descrição
+
+src/billing/components/BillingPrepareDialog.tsx  (1)
+    50: 16  [filho de JSX] Condição comercial
+
+src/billing/components/BillingSummaryPanel.tsx  (2)
+    27: 14  [filho de JSX] Total
+    33: 14  [filho de JSX] Condição comercial
+
+src/billing/components/BillingVoidDialog.tsx  (2)
+    36: 25  [filho de JSX] Anular preparação
+    37: 11  [filho de JSX] Esta ação marca a preparação como anulada. Não altera a medição nem emite documento fiscal.
+
+src/billing/pages/BillingDashboardPage.tsx  (9)
+   168: 28  [atributo message] Você não tem permissão para acessar o faturamento interno.
+   202: 15  [atributo label] com divergência
+   207: 15  [atributo label] prontos para faturar
+   210: 53  [atributo label] em preparação
+   216: 24  [atributo label] Estágio
+   223: 29  [filho de JSX] Todos os estágios
+   239:  9  [atributo title] Fila de trabalho do faturamento
+   241:  9  [atributo description] Cada coluna é um estágio real do processo; o cartão leva a ordem de serviço e mostra a divergência quando existe.
+   277: 46  [atributo aria-label] Etapas do processo de faturamento
+
+src/billing/pages/ServiceOrderBillingDocumentPage.tsx  (23)
+   282: 29  [atributo message] Carregando emissão…
+   290: 28  [atributo message] Você não tem permissão para emitir documentos de faturamento.
+   300: 11  [atributo message] Preparação de faturamento não encontrada ou indisponível para emissão.
+   328: 44  [atributo aria-label] Fluxo de faturamento
+   329: 69  [filho de JSX] Preparação
+   345: 49  [atributo aria-label] Etapas do documento
+   347: 30  [filho de JSX] Cliente
+   348: 33  [filho de JSX] Referências
+   351: 34  [filho de JSX] Divergências
+   352: 31  [filho de JSX] Pré-visualização
+   366:  9  [atributo title] Cadeia de negócio do faturamento
+   371: 14  [filho de JSX] Resumo do faturamento
+   382: 14  [filho de JSX] Dados do cliente
+   385: 18  [filho de JSX] Razão social
+   393: 18  [filho de JSX] Endereço de faturamento
+   397: 51  [filho de JSX] Dados derivados do snapshot da preparação (somente leitura).
+   401: 14  [filho de JSX] Referências comerciais
+   404: 18  [filho de JSX] Referência
+   432: 18  [filho de JSX] Condição de pagamento
+   442: 52  [filho de JSX] Data de vencimento (opcional)
+   461: 14  [filho de JSX] Divergências
+   465: 53  [filho de JSX] Nenhuma divergência comercial bloqueante detectada.
+   471: 16  [filho de JSX] Pré-visualização
+
+src/billing/pages/ServiceOrderBillingPage.tsx  (12)
+   209: 28  [atributo message] Você não tem permissão para acessar este faturamento.
+   219: 11  [atributo message] Ordem de serviço não encontrada.
+   267: 44  [atributo aria-label] Fluxo da ordem de serviço
+   268: 67  [filho de JSX] Medição
+   269: 34  [filho de JSX] Painel de faturamento
+   295: 49  [filho de JSX] Condição comercial para preparação
+   311: 16  [filho de JSX] Cliente
+   319: 16  [filho de JSX] Ordem de serviço
+   323: 16  [filho de JSX] Medição
+   335: 16  [filho de JSX] Preparado em
+   350: 39  [filho de JSX] Itens faturáveis
+   400: 50  [filho de JSX] Nenhum documento vinculado nesta referência comercial.
+
+src/business-chain/BusinessChain.tsx  (3)
+   105: 65  [atributo title] Cadeia de negócio
+   157: 84  [atributo aria-label] Resumo da cadeia
+   167: 43  [atributo aria-label] Linhagem de negócio
+
+src/business-chain/business-chain.ui.test.tsx  (1)
+   231: 51  [atributo message] Não foi possível carregar a cadeia deste registro.
+
+src/catalog/components/ServiceDefinitionForm.tsx  (39)
+   350:  9  [atributo title] Identificação
+   351:  9  [atributo description] O que o serviço é e como o negócio o classifica.
+   356: 15  [atributo label] Código da definição
+   400: 15  [atributo emptyMessage] Busque a categoria pelo nome ou pelo código para ver as opções.
+   402: 15  [atributo placeholder] Buscar por nome ou código
+   413: 18  [atributo label] Arquétipo operacional
+   429: 20  [atributo label] Descrição
+   443:  9  [atributo title] Medição e faturamento
+   444:  9  [atributo description] Como o serviço é medido e quando pode ser faturado.
+   447: 18  [atributo label] Modo de medição
+   462: 18  [atributo label] Base de medição
+   477: 18  [atributo label] Política de faturamento
+   492: 18  [atributo label] Unidade padrão
+   527:  9  [atributo description] Unidades aceitas na medição e no preço do serviço.
+   549: 22  [atributo label] Unidade
+   610: 11  [atributo emptyMessage] Nenhuma unidade permitida ainda. Ao menos uma é obrigatória.
+   616:  9  [atributo title] Modelos de preço
+   617:  9  [atributo description] Como o serviço é cobrado: modelo, unidade e valores.
+   667: 17  [atributo label] Unidade
+   695: 17  [atributo label] Preço de venda
+   740: 11  [atributo emptyMessage] Nenhum modelo de preço ainda. Ao menos um é obrigatório.
+   747:  9  [atributo title] Requisitos de recurso físico
+   748:  9  [atributo description] Recursos que a execução precisa ter disponíveis.
+   771: 22  [atributo label] Tipo de recurso
+   794: 22  [atributo label] Nível do recurso
+   817: 22  [atributo label] Quantidade mínima
+   852: 11  [atributo emptyMessage] Nenhum recurso físico exigido para este serviço.
+   859:  9  [atributo title] Requisitos de mão de obra
+   860:  9  [atributo description] Funções que a execução precisa alocar.
+   883: 22  [atributo label] Tipo de mão de obra
+   906: 22  [atributo label] Nível da mão de obra
+   929: 22  [atributo label] Quantidade mínima
+   964: 11  [atributo emptyMessage] Nenhuma mão de obra exigida para este serviço.
+   971:  9  [atributo title] Requisitos de evidência
+   972:  9  [atributo description] Evidências exigidas para comprovar a execução.
+   995: 22  [atributo label] Tipo de evidência
+  1018: 22  [atributo label] Nível da evidência
+  1042: 24  [atributo label] Condição da evidência
+  1084: 11  [atributo emptyMessage] Nenhuma evidência exigida para este serviço.
+
+src/catalog/components/VersionComparePanel.tsx  (2)
+    16: 25  [filho de JSX] Nenhuma diferença estrutural encontrada entre as versões selecionadas.
+    19: 44  [atributo aria-label] Diferenças entre versões
+
+src/catalog/pages/ServiceDefinitionComparePage.tsx  (10)
+    78: 27  [atributo title] Comparar versões
+    79: 29  [atributo title] Comparar versões
+    79: 54  [atributo message] Carregando comparação…
+    87: 27  [atributo title] Comparar versões
+    89: 11  [atributo title] Comparar versões
+   106:  9  [atributo title] Comparar versões
+   107:  9  [atributo description] A comparação usa as versões carregadas do servidor; nada é inferido no navegador.
+   112: 40  [filho de JSX] Versão esquerda
+   130: 41  [filho de JSX] Versão direita
+   156: 50  [filho de JSX] Voltar à definição
+
+src/catalog/pages/ServiceDefinitionCreatePage.tsx  (5)
+    42: 21  [atributo title] Nova definição de serviço
+    53: 21  [atributo title] Nova definição de serviço
+    54: 28  [filho de JSX] Você não tem permissão para criar definições.
+    97:  9  [atributo title] Nova definição de serviço
+    98:  9  [atributo description] Configure preço, recursos, mão de obra e evidências exigidas.
+
+src/catalog/pages/ServiceDefinitionDetailPage.tsx  (28)
+   124: 27  [atributo title] Definição de serviço
+   125: 29  [atributo title] Definição de serviço
+   125: 58  [atributo message] Carregando definição…
+   133: 27  [atributo title] Definição de serviço
+   135: 11  [atributo title] Definição de serviço
+   136: 11  [atributo message] Você não tem permissão para consultar esta definição.
+   139: 34  [filho de JSX] Voltar à lista
+   148: 27  [atributo title] Definição de serviço
+   150: 11  [atributo title] Definição de serviço
+   151: 11  [atributo message] Definição não encontrada.
+   155: 34  [filho de JSX] Voltar à lista
+   164: 27  [atributo title] Definição de serviço
+   166: 11  [atributo title] Definição de serviço
+   219: 42  [filho de JSX] Linha de definição
+   222: 16  [filho de JSX] Versão de concorrência (lineage)
+   226: 16  [filho de JSX] Última versão publicada
+   234: 16  [filho de JSX] Atualizado em
+   242: 36  [filho de JSX] Versões
+   253: 44  [atributo aria-label] Versões da definição
+   256: 32  [filho de JSX] Versão
+   259: 32  [filho de JSX] Publicada em
+   260: 32  [filho de JSX] Ações
+   300: 32  [filho de JSX] Voltar à lista
+   305:  9  [atributo title] Desativar definição
+   329: 36  [filho de JSX] Motivo da desativação
+   343:  9  [atributo title] Reativar definição
+   344:  9  [atributo description] A definição voltará ao status ativo para novas operações.
+   363:  9  [atributo description] A publicação é validada pelo backend. Versões publicadas tornam-se imutáveis.
+
+src/catalog/pages/ServiceDefinitionDraftEditPage.tsx  (2)
+   107: 28  [filho de JSX] Você não tem permissão para editar rascunhos.
+   200:  9  [atributo description] Configure preço, recursos, mão de obra e evidências exigidas.
+
+src/catalog/pages/ServiceDefinitionVersionCreatePage.tsx  (6)
+    92: 21  [atributo title] Criar nova versão
+   103: 21  [atributo title] Criar nova versão
+   104: 28  [filho de JSX] Você não tem permissão para criar versões.
+   120: 21  [atributo title] Criar nova versão
+   173:  9  [atributo title] Criar nova versão
+   174:  9  [atributo description] Configure preço, recursos, mão de obra e evidências exigidas.
+
+src/catalog/pages/ServiceDefinitionVersionDetailPage.tsx  (23)
+    85: 27  [atributo title] Versão de serviço
+    86: 29  [atributo title] Versão de serviço
+    86: 55  [atributo message] Carregando versão…
+    94: 27  [atributo title] Versão de serviço
+    95: 28  [atributo title] Versão de serviço
+    97: 52  [filho de JSX] Voltar à definição
+   106: 27  [atributo title] Versão de serviço
+   108: 11  [atributo title] Versão de serviço
+   109: 11  [atributo message] Versão não encontrada.
+   113: 52  [filho de JSX] Voltar à definição
+   122: 27  [atributo title] Versão de serviço
+   124: 11  [atributo title] Versão de serviço
+   130: 52  [filho de JSX] Voltar à definição
+   185: 16  [filho de JSX] Publicada em
+   189: 16  [filho de JSX] Arquétipo
+   193: 16  [filho de JSX] Medição
+   199: 16  [filho de JSX] Descrição
+   206: 12  [filho de JSX] Configuração estruturada
+   216: 12  [filho de JSX] Modelos de preço
+   226: 12  [filho de JSX] Requisitos de recurso
+   238: 12  [filho de JSX] Requisitos de mão de obra
+   250: 12  [filho de JSX] Requisitos de evidência
+   265: 50  [filho de JSX] Voltar à definição
+
+src/catalog/pages/ServiceDefinitionsListPage.tsx  (20)
+   151: 24  [atributo title] Catálogo de serviços
+   152: 29  [atributo message] Carregando definições…
+   159: 24  [atributo title] Catálogo de serviços
+   161:  9  [atributo message] Você não tem permissão para listar o catálogo.
+   169: 24  [atributo title] Catálogo de serviços
+   205:  9  [atributo title] Catálogo de serviços
+   210: 53  [filho de JSX] Nova definição
+   218: 17  [atributo label] com versão publicada
+   223: 17  [atributo label] com rascunho em aberto
+   228: 17  [atributo label] ainda não contratáveis
+   251: 13  [atributo placeholder] Nome ou código
+   261: 29  [filho de JSX] Todos
+   266: 24  [atributo label] Versões
+   273: 29  [filho de JSX] Todas
+   274: 38  [filho de JSX] Com rascunho
+   275: 42  [filho de JSX] Com versão publicada
+   276: 41  [filho de JSX] Sem versão publicada
+   323: 49  [atributo aria-label] Lista de definições de serviço
+   357: 66  [filho de JSX] Sem categoria
+   387: 76  [filho de JSX] em edição
+
+src/clients/client-object-page.ui.test.tsx  (1)
+   215: 62  [filho de JSX] Formulário de edição
+
+src/clients/hooks/useClientRelatedRecords.tsx  (1)
+   199: 54  [filho de JSX] Sem versão emitida
+
+src/clients/pages/ClientCreatePage.tsx  (13)
+    50: 24  [atributo title] Novo Cliente
+    51: 29  [atributo message] Verificando permissões para cadastrar Clientes…
+    58: 24  [atributo title] Novo Cliente
+    59: 28  [atributo message] Você não tem permissão para cadastrar Clientes.
+   114:  9  [atributo title] Novo Cliente
+   115:  9  [atributo description] Cadastro de pessoa jurídica com CNPJ e contato operacional obrigatório.
+   150: 11  [atributo aria-label] Dados do cliente
+   159: 13  [atributo title] Identificação jurídica
+   160: 13  [atributo description] Razão social e CNPJ identificam a pessoa jurídica no ERP.
+   164: 17  [atributo label] Razão social
+   199: 17  [atributo label] Referência externa (opcional)
+   215: 13  [atributo description] Quem a operação procura para tratar pedidos, medições e cobrança.
+   229: 22  [atributo label] Nome do contato
+
+src/clients/pages/ClientDetailPage.tsx  (15)
+   237: 27  [atributo title] Cliente
+   309: 15  [atributo title] Ciclo de vida
+   318: 73  [atributo title] Histórico
+   324: 22  [filho de JSX] Criado em
+   328: 22  [filho de JSX] Atualizado em
+   333: 24  [filho de JSX] Desativado em
+   339: 24  [filho de JSX] Motivo da desativação
+   382: 11  [atributo title] Cadeia de negócio do cliente
+   389: 53  [filho de JSX] Nenhum contato cadastrado.
+   406: 22  [atributo title] Endereços
+   408: 53  [filho de JSX] Nenhum endereço cadastrado.
+   430:  9  [atributo title] Desativar Cliente
+   443: 36  [filho de JSX] Motivo da desativação
+   457:  9  [atributo title] Reativar Cliente
+   458:  9  [atributo description] O Cliente voltará ao status ativo. O histórico de desativação anterior será preservado.
+
+src/clients/pages/ClientEditPage.tsx  (15)
+   102: 27  [atributo title] Editar Cliente
+   103: 29  [atributo message] Verificando permissões…
+   111: 27  [atributo title] Editar Cliente
+   113: 11  [atributo title] Editar Cliente
+   114: 11  [atributo message] Você não tem permissão para editar Clientes.
+   123: 27  [atributo title] Editar Cliente
+   132: 27  [atributo title] Editar Cliente
+   134: 11  [atributo title] Editar Cliente
+   187: 25  [atributo title] Editar Cliente
+   228: 11  [atributo aria-label] Dados do cliente
+   231: 13  [atributo title] Identificação
+   232: 13  [atributo description] Razão social é obrigatória. O CNPJ identifica o cadastro e não é editável.
+   235: 22  [atributo label] Razão social
+   253: 17  [atributo label] Referência externa (opcional)
+   269: 13  [atributo description] Pessoa de contato do Cliente para a operação.
+
+src/clients/pages/ClientsListPage.test.tsx  (2)
+    68: 51  [filho de JSX] Cadastro de Cliente
+    69: 57  [filho de JSX] Detalhe do Cliente
+
+src/clients/pages/ClientsListPage.tsx  (16)
+   253: 11  [atributo message] Você não tem permissão para listar Clientes.
+   317: 53  [filho de JSX] Novo Cliente
+   324: 17  [atributo label] No resultado
+   328: 17  [atributo label] Ativos nesta página
+   332: 17  [atributo label] Inativos nesta página
+   351: 13  [atributo placeholder] Razão social, nome fantasia ou CNPJ
+   371: 29  [filho de JSX] Todos
+   397: 13  [atributo label] Limpar filtros da toolbar
+   447: 29  [filho de JSX] Todas
+   464: 11  [atributo title] Nenhum Cliente cadastrado ainda.
+   465: 11  [atributo description] Os Clientes são a contraparte comercial usada por solicitações, propostas, pedidos de compra, ordens de serviço e faturamento. Cadastre o primeiro para começar.
+   468: 55  [filho de JSX] Cadastrar Cliente
+   476: 11  [atributo title] Nenhum Cliente corresponde aos filtros aplicados.
+   477: 11  [atributo description] Ajuste o termo de busca ou limpe os filtros para ver o cadastro completo.
+   521: 22  [atributo aria-label] Lista de Clientes
+   566: 44  [filho de JSX] Ações
+
+src/contracts/ContractsRoute.tsx  (1)
+    66: 11  [filho de JSX] Não foi possível verificar o acesso.
+
+src/contracts/components/ContractFormFields.tsx  (10)
+    42: 11  [atributo label] Cliente
+    62: 16  [atributo label] Unidade operacional
+    69: 13  [atributo placeholder] ID da unidade
+    76: 11  [atributo label] Número do contrato
+    89: 16  [atributo label] Título
+   100: 14  [atributo label] Descrição do escopo
+   112: 11  [atributo label] Vigência inicial
+   126: 16  [atributo label] Vigência final
+   147: 16  [atributo label] Condições de pagamento
+   155: 16  [atributo label] Forma de pagamento
+
+src/contracts/pages/ContractsCreatePage.tsx  (9)
+    67: 27  [atributo title] Novo contrato
+    68: 29  [atributo title] Novo contrato
+    68: 51  [atributo message] Verificando permissões…
+    76: 27  [atributo title] Novo contrato
+    78: 11  [atributo title] Novo contrato
+    79: 11  [atributo message] Você não tem permissão para cadastrar contratos.
+   123: 25  [atributo title] Novo contrato
+   147: 11  [atributo title] Dados do contrato
+   148: 11  [atributo description] Cliente, unidade, identificação comercial e vigência desta versão.
+
+src/contracts/pages/ContractsDetailPage.tsx  (15)
+   386: 13  [atributo title] Ciclo de vida do contrato
+   391: 24  [atributo title] Histórico
+   394: 15  [atributo title] Histórico do contrato
+   395: 15  [atributo emptyMessage] Este contrato não expõe marcos persistidos.
+   412: 29  [atributo title] Contexto do contrato
+   416: 53  [filho de JSX] Nenhum item registrado no contrato.
+   419: 59  [atributo aria-label] Itens do contrato
+   461: 53  [filho de JSX] Nenhum documento vinculado ao contrato.
+   483: 36  [filho de JSX] Voltar à lista
+   489:  9  [atributo title] Editar dados do contrato
+   490:  9  [atributo description] As alterações são permitidas somente enquanto o contrato estiver em rascunho.
+   529:  9  [atributo description] A ativação efetiva o contrato com base na vigência informada.
+   543:  9  [atributo description] Informe o motivo do encerramento.
+   564: 38  [filho de JSX] (obrigatório)
+   579:  9  [atributo description] O backend expira o contrato quando a vigência já terminou; esta ação não exige motivo nem versão.
+
+src/contracts/pages/ContractsListPage.tsx  (9)
+   116: 28  [atributo message] Você não tem permissão para listar contratos comerciais.
+   152: 55  [filho de JSX] Novo contrato
+   158: 24  [atributo label] Cliente
+   160: 13  [atributo label] Cliente
+   167: 13  [atributo emptyMessage] Nenhum cliente encontrado para a busca.
+   175: 24  [atributo label] Unidade
+   210: 17  [atributo label] Ver todos os contratos
+   221: 49  [atributo aria-label] Lista de contratos
+   246: 44  [filho de JSX] Ações
+
+src/dashboard/components/DashboardKpiStrip.tsx  (1)
+   167: 48  [filho de JSX] No período
+
+src/dashboard/components/DashboardPageHeader.tsx  (3)
+    54: 52  [atributo aria-label] Controles do painel
+    63: 42  [filho de JSX] Período
+    66: 13  [atributo aria-label] Período
+
+src/dashboard/components/FinancePanel.tsx  (1)
+   111: 52  [filho de JSX] Faixas de aging não configuradas no backend.
+
+src/dashboard/components/OperationPanel.tsx  (3)
+    55: 50  [filho de JSX] Sem ordens ativas no escopo autorizado.
+   115: 50  [filho de JSX] Último dia com movimento
+   122: 52  [filho de JSX] Sem movimento no período selecionado.
+
+src/dashboard/components/charts/DashboardAgingChart.tsx  (1)
+    44: 50  [filho de JSX] Faixas de aging não disponíveis.
+
+src/dashboard/components/charts/DashboardBarChart.tsx  (1)
+    52: 50  [filho de JSX] Sem dados no período.
+
+src/dashboard/components/charts/DashboardLineChart.tsx  (1)
+    59: 50  [filho de JSX] Sem dados no período.
+
+src/dashboard/components/charts/DashboardSlaChart.tsx  (1)
+    43: 50  [filho de JSX] Sem conclusões elegíveis no período.
+
+src/dashboard/components/dashboard.executive.test.tsx  (3)
+    83:  9  [atributo title] OS por status
+    84:  9  [atributo description] Distribuição por status
+   148:  9  [atributo description] Recebíveis vencidos
+
+src/dashboard/components/dashboard.premium.test.tsx  (1)
+    19:  9  [atributo title] Visão geral
+
+src/dashboard/pages/OperationalDashboardPage.tsx  (1)
+   115: 11  [atributo message] Você não tem permissão para visualizar o painel operacional.
+
+src/dashboard/primitives/index.test.tsx  (1)
+    30: 47  [atributo errorMessage] Fonte indisponível.
+
+src/documents/components/DocumentList.tsx  (5)
+    66: 46  [filho de JSX] Carregando versões…
+    84: 65  [atributo aria-label] Lista de documentos
+    90: 30  [filho de JSX] Versão
+    94: 46  [filho de JSX] Ações
+   174: 22  [filho de JSX] Versão
+
+src/documents/components/DocumentManagementPanel.tsx  (2)
+   161: 31  [filho de JSX] Carregando permissões de documentos…
+   168: 24  [filho de JSX] Você não tem permissão para visualizar documentos neste escopo.
+
+src/documents/components/DocumentUpload.tsx  (2)
+   131: 49  [filho de JSX] Arraste um arquivo aqui (desktop)
+   146: 39  [filho de JSX] PDF, JPEG ou PNG · até 25 MB · um arquivo por envio
+
+src/documents/components/DocumentVersionHistory.tsx  (7)
+    27: 46  [atributo aria-label] Histórico de versões
+    35: 14  [filho de JSX] Versão atual
+    38: 18  [filho de JSX] Versão
+    54: 18  [filho de JSX] Publicada em
+    74: 14  [filho de JSX] Versões anteriores
+    95: 23  [atributo label] Baixar versão
+   106: 16  [filho de JSX] Enviar nova versão
+
+src/documents/pages/DocumentsPage.tsx  (11)
+   198: 11  [atributo message] Você não tem permissão para listar documentos.
+   229:  9  [atributo description] Arquivos já vinculados no sistema. O envio continua nas telas de execução e das entidades.
+   234:  9  [atributo aria-label] Busca e filtros de documentos
+   247: 13  [atributo placeholder] Título do documento
+   266: 29  [filho de JSX] Todos
+   339: 53  [filho de JSX] Nenhum documento disponível no seu escopo.
+   355: 30  [filho de JSX] Ajuste a busca ou o tipo para ver os documentos disponíveis.
+   381: 22  [atributo aria-label] Lista de documentos
+   385: 49  [filho de JSX] Situação
+   386: 49  [filho de JSX] Versão
+   387: 49  [filho de JSX] Unidade
+
+src/enterprise-object/EnterpriseObjectHeader.tsx  (2)
+   138: 15  [atributo label] Mais ações
+   139:147  [filho de JSX] Mais ações
+
+src/enterprise-object/NextActionPanel.tsx  (1)
+    37:  7  [atributo aria-label] Próxima ação
+
+src/enterprise-object/SmartRelationBar.tsx  (1)
+    42: 47  [atributo title] Relações
+
+src/enterprise-object/enterprise-object.contract.test.tsx  (6)
+    82:  9  [atributo title] Ordem de serviço
+   284:  9  [atributo title] Nova proposta
+   286: 75  [atributo aria-label] Título
+   287: 78  [atributo aria-label] Valor
+   311:  9  [atributo title] Nova proposta
+   312: 84  [atributo aria-label] Título
+
+src/finance/components/CollectionPanel.tsx  (16)
+    72: 13  [atributo title] Nenhuma cobrança aberta
+    73: 13  [atributo description] O servidor só abre cobrança quando o título está vencido.
+    76: 17  [atributo title] Abrir cobrança
+    77: 17  [atributo description] A abertura é recusada se o título não estiver vencido.
+    92: 13  [atributo title] Nenhuma cobrança aberta
+   139: 11  [atributo title] Registrar ação
+   157: 37  [filho de JSX] Notificação
+   165: 11  [atributo title] Promessa de pagamento
+   166: 11  [atributo description] Valor e data são validados pelo servidor.
+   180: 18  [atributo label] Valor prometido
+   189: 18  [atributo label] Data da promessa
+   201: 21  [atributo title] Sem ações registradas
+   204: 49  [atributo aria-label] Ações de cobrança
+   228: 49  [atributo aria-label] Promessas de pagamento
+   231: 66  [filho de JSX] Data
+   232: 82  [filho de JSX] Valor
+
+src/finance/components/PayablesDecisionStrip.tsx  (6)
+    25:  5  [atributo title] Atenção: títulos vencidos
+    29:  5  [atributo title] Títulos a vencer no período corrente
+    33:  5  [atributo title] Carteira em dia
+    40: 16  [filho de JSX] Situação:
+    49: 18  [filho de JSX] Exposição vencida:
+    53: 16  [filho de JSX] Próxima ação:
+
+src/finance/components/ReceivablesDecisionStrip.tsx  (6)
+    22:  5  [atributo title] Atenção: recebimentos vencidos
+    26:  5  [atributo title] Títulos a vencer
+    30:  5  [atributo title] Carteira de recebíveis em dia
+    37: 16  [filho de JSX] Situação:
+    46: 18  [filho de JSX] Exposição vencida:
+    50: 16  [filho de JSX] Próxima ação:
+
+src/finance/pages/BankReconciliationPage.tsx  (39)
+   445: 24  [atributo title] Conciliação
+   446: 29  [atributo message] Carregando extratos bancários…
+   453: 24  [atributo title] Conciliação
+   454: 28  [atributo message] Você não tem permissão para acessar conciliação bancária.
+   461: 24  [atributo title] Conciliação
+   502:  9  [atributo title] Conciliação bancária
+   535: 31  [filho de JSX] Todos
+   540: 26  [atributo label] Período de
+   549: 26  [atributo label] Período até
+   559: 13  [atributo label] Conta financeira
+   561: 13  [atributo placeholder] Buscar por código ou nome da conta
+   566: 13  [atributo emptyMessage] Nenhuma conta encontrada para a busca.
+   598: 42  [atributo label] extratos no filtro
+   599: 54  [atributo label] nesta página
+   602: 13  [atributo label] linhas sem conciliação nesta página
+   611:  9  [atributo description] A situação vem das contagens persistidas do servidor; não existe score de correspondência nesta tela.
+   711: 11  [atributo title] Nenhum extrato selecionado
+   712: 11  [atributo description] Escolha um extrato na fila acima para abrir a mesa de conciliação.
+   745: 51  [atributo label] linhas no extrato
+   748: 15  [atributo label] sem vínculo
+   753: 15  [atributo label] conciliações nesta sessão
+   765: 19  [atributo label] sem correspondência
+   770: 19  [atributo label] em revisão
+   786: 13  [atributo title] Exceções do extrato
+   847: 15  [atributo title] Conciliações desta sessão
+   849: 15  [atributo description] Rastreadas nesta sessão: sugestionadas pelo servidor ou criadas no vínculo manual. Confirmar é ato imutável do backend.
+   893: 13  [atributo title] Vínculo manual
+   894: 13  [atributo description] O servidor exige correspondência exata (conta, valor, direção e data) entre a linha e o movimento. Somente linhas ainda sem conciliação aparecem aqui.
+   897: 22  [atributo label] Linha do extrato
+   914: 22  [atributo label] Identificador do movimento financeiro
+   934: 31  [atributo title] Confirmar ou desfazer conciliação
+   935: 22  [atributo label] Conciliação
+   954: 19  [atributo title] Confirmar conciliação
+   955: 19  [atributo description] Confirmação imutável: depois de confirmada só é revertida por desfazer autorizado.
+   965: 19  [atributo title] Desfazer conciliação
+   966: 19  [atributo description] Reverte uma conciliação confirmada para o estado anterior.
+   982: 25  [atributo title] Extrato sem linhas
+   986: 55  [atributo aria-label] Linhas do extrato bancário
+  1078:  9  [atributo description] A importação é do servidor, com idempotência: nenhum arquivo é interpretado no navegador.
+
+src/finance/pages/BudgetsListPage.tsx  (11)
+   133: 24  [atributo title] Orçamentos
+   134: 29  [atributo message] Carregando Orçamentos…
+   141: 24  [atributo title] Orçamentos
+   142: 28  [atributo message] Você não tem permissão para listar Orçamentos.
+   149: 24  [atributo title] Orçamentos
+   172:  9  [atributo title] Orçamentos
+   200: 15  [atributo placeholder] Código ou nome
+   210: 31  [filho de JSX] Todos
+   213: 41  [filho de JSX] Substituído
+   263: 17  [atributo label] Ver todos os orçamentos
+   275: 49  [atributo aria-label] Lista de Orçamentos
+
+src/finance/pages/BudgetsPage.tsx  (21)
+    61:  9  [atributo title] Orçamentos
+    70:  9  [atributo title] Criar orçamento
+    71:  9  [atributo description] O código e a moeda são validados pela API.
+    84: 16  [atributo label] Unidade
+    87: 16  [atributo label] Código
+   104: 21  [atributo title] Nenhum orçamento carregado
+   149:  9  [atributo title] Adicionar período
+   150:  9  [atributo description] A chave do período segue o formato exigido pelo servidor.
+   157: 16  [atributo label] Competência (AAAA-MM)
+   160: 16  [atributo label] Início
+   169:  9  [atributo description] Informe pelo menos uma dimensão. O valor não é totalizado no navegador.
+   182: 16  [atributo label] Período (id)
+   185: 16  [atributo label] Valor
+   188: 16  [atributo label] Centro de custo
+   193: 21  [atributo title] Sem linhas nesta versão
+   193: 53  [atributo description] Inclua períodos e linhas para o rascunho atual.
+   196: 49  [atributo aria-label] Linhas do orçamento
+   229: 11  [atributo description] Aprovação exige checker distinto no backend e a versão carregada aqui.
+   242: 11  [atributo title] Nova versão
+   243: 11  [atributo description] Cria rascunho a partir da versão aprovada.
+   255: 11  [atributo description] Orçado × realizado vêm do servidor.
+
+src/finance/pages/CashForecastPage.tsx  (23)
+   110:  9  [atributo title] Previsão de caixa
+   111:  9  [atributo description] Saldos projetados são os devolvidos pelo servidor. O navegador não soma títulos.
+   114:  9  [atributo title] Parâmetros da projeção
+   115:  9  [atributo description] Unidade e moeda são enviados à API de forecast.
+   127: 16  [atributo label] Unidade
+   138: 16  [atributo label] Posição em
+   141: 16  [atributo label] Horizonte até
+   152: 21  [atributo title] Nenhuma projeção carregada
+   152: 56  [atributo description] Informe a unidade para consultar o servidor.
+   162: 46  [filho de JSX] Unidade:
+   170: 46  [filho de JSX] Posição:
+   174: 46  [filho de JSX] Horizonte até:
+   192: 48  [filho de JSX] Saldo de caixa
+   204: 48  [filho de JSX] Saídas
+   212: 26  [atributo title] Previsto no horizonte
+   221: 48  [filho de JSX] Saídas previstas
+   227: 48  [filho de JSX] Efeito líquido
+   252: 47  [filho de JSX] Exceção no horizonte: títulos já vencidos
+   270: 13  [atributo title] Composição e origem
+   277: 15  [atributo title] Sem linhas de forecast
+   278: 15  [atributo description] O servidor não devolveu movimentos para o horizonte informado.
+   282: 53  [atributo aria-label] Linhas da previsão de caixa
+   287: 86  [filho de JSX] Valor informado
+
+src/finance/pages/ExpensesListPage.tsx  (5)
+   158: 28  [atributo message] Você não tem permissão para listar Despesas.
+   216: 15  [atributo placeholder] Descrição ou centro de custo
+   226: 31  [filho de JSX] Todos
+   280: 17  [atributo label] Ver todas as despesas
+   292: 49  [atributo aria-label] Lista de Despesas
+
+src/finance/pages/ExpensesPage.tsx  (11)
+    78:  9  [atributo description] Os campos são enviados ao servidor. O total é calculado pela API.
+    96: 16  [atributo label] Unidade
+   107: 16  [atributo label] Centro de custo (id)
+   115: 16  [atributo label] Centro de custo (código)
+   132: 16  [atributo label] Condição de pagamento
+   140: 16  [atributo label] Descrição
+   156: 16  [atributo label] Valor do item
+   169: 11  [atributo title] Nenhuma despesa carregada
+   170: 11  [atributo description] A API atual consulta a despesa por identificador.
+   210: 47  [atributo aria-label] Itens da despesa
+   249: 11  [atributo description] Aprovação segue SOD no backend.
+
+src/finance/pages/FinanceOverviewPage.tsx  (8)
+   152:  9  [atributo description] O trabalho financeiro primeiro: o que exige decisão agora e o que está travado. A posição de receber, pagar e caixa vem depois.
+   160:  9  [atributo title] Posição financeira
+   164: 51  [filho de JSX] Não há valores vencidos.
+   235: 59  [atributo aria-label] Aging de contas a pagar
+   265: 55  [filho de JSX] Aging indisponível para o seu acesso.
+   295: 57  [atributo aria-label] Contas de caixa e bancos
+   332: 19  [atributo title] Sem contas financeiras visíveis
+   333: 19  [atributo description] Nenhuma conta de caixa ou banco foi devolvida pelo servidor para o seu escopo.
+
+src/finance/pages/PayableDetailPage.tsx  (16)
+   168: 27  [atributo title] Conta a pagar
+   282: 13  [atributo title] Conta a pagar
+   289: 64  [atributo title] Fluxo do título a pagar
+   294: 24  [atributo title] Histórico
+   297: 15  [atributo title] Histórico do título
+   298: 15  [atributo emptyMessage] Este título não expõe histórico persistido além dos timestamps abaixo.
+   306: 24  [atributo title] Parcelas do título
+   308: 53  [atributo aria-label] Parcelas do título
+   341: 24  [atributo title] Pagamentos do título
+   343: 53  [atributo aria-label] Pagamentos do título
+   399: 24  [atributo title] Pagamentos do título
+   407: 24  [atributo title] Estorno de pagamento
+   425: 15  [atributo description] Estorno integral: sem valor informado, o servidor estorna o valor original do pagamento.
+   463: 13  [atributo description] O valor e a referência são enviados ao servidor sem recálculo local.
+   487: 13  [atributo title] Cancelar título
+   488: 13  [atributo description] Cancelamento exigido pelo servidor com justificativa.
+
+src/finance/pages/PayablesListPage.tsx  (8)
+   207: 11  [atributo label] Obrigações em aberto
+   226: 29  [filho de JSX] Todos
+   245: 29  [filho de JSX] Todos
+   326: 13  [atributo title] Nenhuma obrigação a pagar registrada.
+   327: 13  [atributo description] As obrigações nascem da compra: quando uma nota de fornecedor é registrada, o título aparece aqui com vencimento, aging, saldo e situação. Nada foi somado nem estimado nesta tela.
+   350: 51  [atributo aria-label] Lista de contas a pagar
+   357: 21  [atributo label] Título
+   480:  9  [atributo title] Contexto da obrigação
+
+src/finance/pages/ReceivableDetailPage.tsx  (12)
+   240: 27  [atributo title] Conta a receber
+   346: 13  [atributo title] Conta a receber
+   356: 13  [atributo title] Fluxo do título a receber
+   362: 24  [atributo title] Histórico
+   365: 15  [atributo title] Histórico do título
+   366: 15  [atributo emptyMessage] Este título não expõe histórico persistido além dos timestamps abaixo.
+   381: 11  [atributo title] Cadeia de negócio do título
+   385: 24  [atributo title] Parcelas do título
+   387: 51  [atributo aria-label] Parcelas do título
+   429: 13  [atributo description] O servidor valida o valor, a versão e a idempotência.
+   447: 13  [atributo title] Cancelar título
+   448: 13  [atributo description] O cancelamento exige justificativa e é decidido pelo servidor.
+
+src/finance/pages/ReceivablesListPage.tsx  (7)
+   208: 11  [atributo label] Carteira em aberto
+   231: 29  [filho de JSX] Todos
+   311: 13  [atributo title] Nenhum título a receber registrado.
+   312: 13  [atributo description] Os títulos nascem do faturamento: quando uma medição é aprovada e o documento é emitido, a cobrança aparece aqui com vencimento, saldo e situação. Nada foi somado nem estimado nesta tela.
+   335: 51  [atributo aria-label] Lista de contas a receber
+   342: 21  [atributo label] Título
+   462:  9  [atributo title] Contexto do título
+
+src/finance/pages/TreasuryAccountDetailPage.tsx  (28)
+   124: 27  [atributo title] Conta financeira
+   125: 21  [atributo title] Informe uma conta válida
+   156:  9  [atributo description] Saldo, créditos e débitos são os totais reconstruídos pelo servidor.
+   205: 13  [atributo title] Conta encerrada
+   206: 13  [atributo description] Contas encerradas não aceitam lançamentos, transferências ou estornos.
+   214: 15  [atributo description] Movimento manual (origem MANUAL_AUTHORIZED). O backend valida versão, saldo e idempotência.
+   236: 22  [atributo label] Tipo de lançamento
+   244: 41  [filho de JSX] Crédito (entrada)
+   245: 40  [filho de JSX] Débito (saída)
+   248: 22  [atributo label] Valor
+   257: 22  [atributo label] Referência
+   266: 17  [atributo label] Documento de origem (UUID)
+   278: 22  [atributo label] Referência da origem
+   292: 15  [atributo description] Transferência com pernas de débito/crédito criadas pelo servidor.
+   319: 22  [atributo label] Conta de destino
+   341: 22  [atributo label] Valor
+   350: 22  [atributo label] Referência
+   359: 17  [atributo label] Documento de origem (UUID)
+   371: 22  [atributo label] Referência da origem
+   387: 15  [atributo description] Estorna um movimento manual desta conta (pernas de transferência usam o estorno de transferência).
+   410: 22  [atributo label] Identificador do movimento
+   420: 22  [atributo label] Referência do estorno
+   441: 15  [atributo title] Estornar transferência
+   442: 15  [atributo description] Estorno de transferência com pernas compensatórias. Selecione as contas originais; o backend valida as versões.
+   476: 22  [atributo label] Identificador da transferência
+   486: 22  [atributo label] Conta de origem da transferência
+   503: 22  [atributo label] Conta de destino da transferência
+   520: 22  [atributo label] Referência do estorno
+
+src/finance/pages/TreasuryListPage.tsx  (12)
+    92:  9  [atributo title] Abrir conta financeira
+    93:  9  [atributo description] A abertura é decidida pelo backend: tipo, moeda, conta bancária ou localização de caixa.
+   122: 16  [atributo label] Unidade
+   137: 33  [filho de JSX] Conta bancária
+   140: 16  [atributo label] Código
+   184: 20  [atributo label] Banco (código)
+   193: 20  [atributo label] Agência
+   202: 20  [atributo label] Conta
+   213: 18  [atributo label] Localização do caixa
+   226: 21  [atributo title] Nenhuma conta financeira
+   226: 54  [atributo description] O servidor não devolveu contas no seu escopo.
+   230: 51  [atributo aria-label] Lista de caixa e bancos
+
+src/financial-ui/ClosedPeriodBanner.tsx  (1)
+     5: 27  [atributo title] Período fechado
+
+src/financial-ui/HumanLookupField.tsx  (1)
+    40:  3  [atributo emptyMessage] Nenhum registro encontrado para a busca.
+
+src/fiscal/pages/FiscalApuracaoPage.tsx  (25)
+   138:  9  [atributo title] Apuração
+   144: 33  [atributo label] Apurações no recorte
+   145: 33  [atributo label] Nesta página
+   167: 26  [atributo label] Unidade
+   184: 15  [atributo placeholder] Regra, nome ou origem
+   221: 11  [atributo title] Nenhuma apuração consultada
+   222: 11  [atributo description] Escolha a unidade na barra acima e busque por regra, nome ou origem. A lista é autorizada no servidor.
+   229: 11  [atributo title] Sem permissão para listar apurações desta unidade
+   230: 11  [atributo description] A consulta foi recusada pelo servidor. Esta unidade não está no seu escopo de leitura fiscal.
+   234: 54  [atributo title] Apuração
+   234: 71  [atributo message] Carregando apurações…
+   239: 11  [atributo title] Nenhuma apuração encontrada
+   240: 11  [atributo description] Não há apuração persistida para a unidade e o termo pesquisados. Ajuste a busca ou escolha outra unidade.
+   258: 49  [atributo aria-label] Lista de Apurações
+   262: 66  [filho de JSX] Versão
+   264: 66  [filho de JSX] Calculada em
+   294: 66  [filho de JSX] Não informada
+   344: 13  [atributo aria-label] Resultado da apuração
+   368: 13  [atributo aria-label] Reprodução da apuração
+   372: 72  [filho de JSX] Reprodução
+   392: 37  [atributo aria-label] Linhas da apuração
+   394: 66  [filho de JSX] Linhas da apuração
+   401: 17  [atributo title] Nenhuma linha na apuração
+   402: 17  [atributo description] O servidor não publicou componentes para esta apuração.
+   406: 55  [atributo aria-label] Linhas da apuração
+
+src/fiscal/pages/FiscalDocumentsPage.tsx  (22)
+   422: 35  [atributo label] Aguardando autorização
+   461: 24  [atributo label] Unidade
+   487: 24  [atributo label] Competência
+   498: 31  [filho de JSX] Todas as competências
+   526: 24  [atributo label] Situação
+   536: 29  [filho de JSX] Todas
+   587: 13  [atributo title] Nenhuma unidade operacional
+   588: 13  [atributo description] Não há unidade operacional disponível para o seu acesso.
+   592: 13  [atributo title] Nenhum documento para os filtros selecionados
+   593: 13  [atributo description] A unidade selecionada não tem documento fiscal com o recorte aplicado. Ajuste ou limpe os filtros para ver a fila completa desta unidade.
+   604: 13  [atributo title] Nenhum documento fiscal registrado para esta unidade ainda
+   605: 13  [atributo description] A unidade selecionada ainda não possui documento fiscal registrado. A fila aparece assim que um documento for criado pela origem autorizada.
+   612: 49  [atributo aria-label] Lista de documentos fiscais
+   799:  9  [atributo aria-label] Estado do documento fiscal
+   850: 47  [atributo aria-label] Itens do documento fiscal
+   885: 47  [atributo aria-label] Tributos persistidos no documento
+   923: 11  [atributo title] Eventos do documento fiscal
+   924: 11  [atributo emptyMessage] Nenhum evento registrado para este documento.
+   933: 47  [atributo aria-label] Tentativas de autorização do documento fiscal
+   987: 15  [atributo description] Transição Rascunho → Pronto, aceita pelo servidor nesta situação.
+  1001: 15  [atributo description] A submissão e a autorização são decididas pelo backend.
+  1015: 15  [atributo description] O cancelamento oficial exige justificativa e versão atual.
+
+src/fiscal/pages/FiscalPeriodsPage.tsx  (28)
+   159:  9  [atributo title] Períodos fiscais
+   190: 33  [atributo label] Abertos nesta página
+   197: 35  [atributo label] Já reabertos
+   199: 33  [atributo label] Fechados nesta página
+   207: 24  [atributo label] Unidade
+   224: 24  [atributo label] Situação
+   234: 29  [filho de JSX] Todas
+   245: 11  [atributo label] Limpar situação
+   255:  9  [atributo title] Abrir período
+   256:  9  [atributo description] A competência usa o formato AAAA-MM exigido pela API.
+   265: 16  [atributo label] Competência
+   277: 29  [atributo title] Períodos fiscais
+   277: 54  [atributo message] Carregando períodos…
+   282: 11  [atributo title] Períodos fiscais
+   297: 11  [atributo description] Não há períodos fiscais persistidos para a unidade e a situação selecionadas. Abra a competência na seção acima para começar.
+   305: 15  [atributo label] Ver todas as situações
+   314: 51  [atributo aria-label] Lista de períodos fiscais
+   445:  9  [atributo title] Período fiscal
+   458: 33  [atributo label] Competência
+   460: 17  [atributo label] Situação
+   464: 33  [atributo label] Versão
+   478: 13  [atributo aria-label] Estado do período fiscal
+   517: 13  [atributo aria-label] Checagens de fechamento do período
+   520: 70  [filho de JSX] Checagens de fechamento
+   532: 55  [atributo aria-label] Checagens de fechamento
+   576: 13  [atributo aria-label] Ações do período fiscal
+   579: 70  [filho de JSX] Ações do período
+   588: 17  [atributo description] Checagens de fechamento correm no servidor.
+
+src/fiscal/pages/FiscalTributosPage.tsx  (13)
+   139: 33  [atributo label] Regras nesta página
+   140: 33  [atributo label] Ativas nesta página
+   142: 17  [atributo label] Sem versão publicada
+   155: 24  [atributo label] Unidade
+   173: 24  [atributo label] Situação
+   183: 29  [filho de JSX] Todas
+   194: 11  [atributo label] Limpar situação
+   217: 11  [atributo description] Não há regras tributárias persistidas para a unidade e a situação selecionadas. Nenhuma alíquota é estimada nesta tela.
+   225: 15  [atributo label] Ver todas as situações
+   234: 51  [atributo aria-label] Lista de regras tributárias
+   414:  9  [atributo title] Regra tributária
+   427: 33  [atributo label] Código
+   441: 11  [atributo aria-label] Identificação da regra tributária
+
+src/fiscal/pages/TaxAssessmentsPage.tsx  (31)
+   195:  9  [atributo title] Obrigações tributárias
+   203: 19  [atributo label] Sem título a pagar
+   208: 33  [atributo label] Finalizadas nesta página
+   209: 33  [atributo label] Com obrigação gerada
+   217: 24  [atributo label] Unidade
+   234: 24  [atributo label] Competência
+   247: 24  [atributo label] Situação
+   257: 29  [filho de JSX] Todas
+   275: 29  [atributo title] Obrigações tributárias
+   275: 60  [atributo message] Carregando apurações…
+   280: 11  [atributo title] Obrigações tributárias
+   312: 51  [atributo aria-label] Lista de obrigações tributárias
+   383: 70  [filho de JSX] Não gerado
+   468:  9  [atributo title] Obrigação tributária
+   481: 33  [atributo label] Competência
+   483: 17  [atributo label] Situação
+   494: 17  [atributo label] Valor apurado
+   497: 33  [atributo label] Versão
+   508: 13  [atributo aria-label] Estado da obrigação tributária
+   558: 13  [atributo aria-label] Ações da obrigação tributária
+   561: 70  [filho de JSX] Ações da obrigação
+   571: 17  [atributo description] Gera o título a pagar no backend. Finalize é passo separado do ajuste.
+   593: 24  [atributo label] Centro de custo (id)
+   596: 24  [atributo label] Centro de custo (código)
+   602: 24  [atributo label] Condição
+   626: 17  [atributo description] O ajuste cria sucessor em rascunho. Finalize é um passo separado do checker.
+   644: 24  [atributo label] Nova apuração (opcional)
+   665: 13  [atributo aria-label] Criar obrigação a partir da apuração
+   677: 17  [atributo title] Apuracão de origem
+   678: 17  [atributo description] Informe a apuração já calculada pelo servidor.
+   689: 24  [atributo label] Apuração
+
+src/fleet/pages/FleetListPage.tsx  (12)
+   152: 29  [atributo message] Carregando veículos…
+   161:  9  [atributo message] Você não tem permissão para listar veículos da frota.
+   202: 52  [filho de JSX] Novo veículo
+   222: 13  [atributo placeholder] Código, nome ou placa
+   232: 29  [filho de JSX] Todos
+   246: 29  [filho de JSX] Todas
+   247: 71  [filho de JSX] Disponível
+   249: 73  [filho de JSX] Indisponível
+   259: 29  [filho de JSX] Todos
+   285: 21  [atributo title] Nenhum veículo cadastrado na frota.
+   289: 21  [atributo title] Nenhum veículo encontrado para os filtros selecionados.
+   294: 49  [atributo aria-label] Lista da frota
+
+src/frontend-resilience/frontend-resilience.ui.test.tsx  (11)
+    67: 15  [atributo description] Monitoramento diário de pendências, produtividade e prazos.
+   136: 42  [atributo title] Falha na operação
+   152: 13  [atributo message] Outro usuário alterou este registro.
+   205: 36  [filho de JSX] Mês
+   210: 13  [atributo title] Tendência
+   211: 13  [atributo description] Abertas vs concluídas
+   251: 15  [atributo title] OS por status
+   252: 15  [atributo description] Distribuição
+   270: 13  [atributo title] Tendência
+   271: 13  [atributo description] Sem movimento
+   278: 13  [atributo description] Sem elegíveis
+
+src/inventory/pages/InventoryPage.tsx  (60)
+    85: 13  [atributo placeholder] Código, nome, SKU ou descrição
+   209:  9  [atributo description] Depósitos, itens, movimentos e reservas. Saldos e custos são os persistidos pelo servidor; FIFO/média permanecem indecisos.
+   219: 47  [atributo aria-label] Depósitos
+   222: 64  [filho de JSX] Depósito
+   223: 64  [filho de JSX] Código
+   224: 64  [filho de JSX] Unidade
+   230: 42  [filho de JSX] Nenhum depósito encontrado.
+   263: 47  [atributo aria-label] Itens de estoque
+   268: 64  [filho de JSX] Unidade
+   274: 42  [filho de JSX] Nenhum item de estoque encontrado.
+   277: 42  [filho de JSX] Você não tem permissão para listar itens.
+   312: 27  [filho de JSX] Todos
+   314: 30  [filho de JSX] Saída
+   315: 35  [filho de JSX] Transferência
+   335: 47  [atributo aria-label] Movimentos de estoque
+   338: 64  [filho de JSX] Data
+   340: 64  [filho de JSX] Depósito
+   343: 64  [filho de JSX] Descrição
+   355: 42  [filho de JSX] Você não tem permissão para listar movimentos.
+   389: 47  [atributo aria-label] Reservas de estoque
+   393: 64  [filho de JSX] Depósito
+   400: 42  [filho de JSX] Nenhuma reserva encontrada.
+   403: 42  [filho de JSX] Você não tem permissão para listar reservas.
+   457:  9  [atributo title] Criar depósito
+   458:  9  [atributo description] A unidade é a âncora de escopo do depósito; código e nome são validados pela API.
+   470: 16  [atributo label] Unidade
+   473: 16  [atributo label] Código
+   482:  9  [atributo description] SKU e nome são validados pela API. O método de custeio permanece indeciso.
+   497: 16  [atributo label] Nome do item
+   518:  7  [atributo title] Regra de custeio
+   519:  7  [atributo description] FIFO/média permanecem indecisos. O servidor só aceita método UNDECIDED.
+   531: 14  [atributo label] Unidade
+   534: 14  [atributo label] Código
+   568: 25  [filho de JSX] Selecione o depósito
+   668:  9  [atributo title] Item de estoque
+   669:  9  [atributo description] Saldo, movimentos e reservas do item. O identificador técnico permanece interno.
+   682: 11  [atributo label] Depósito
+   722: 11  [atributo description] Entrada, saída, transferência e ajuste são validados pelo servidor.
+   755: 34  [filho de JSX] Saída
+   756: 39  [filho de JSX] Transferência
+   765: 15  [atributo label] Depósito de destino
+   771: 20  [atributo label] Efeito do ajuste
+   791: 18  [atributo label] Data
+   800: 18  [atributo label] Descrição
+   822: 11  [atributo description] A reserva reduz disponibilidade no servidor.
+   853: 47  [atributo aria-label] Movimentos do item
+   856: 64  [filho de JSX] Data
+   857: 64  [filho de JSX] Depósito
+   862: 64  [filho de JSX] Descrição
+   867: 42  [filho de JSX] Nenhum movimento para este item.
+   927:  7  [atributo description] A chave do comando original é preenchida pelo movimento escolhido na lista acima.
+  1025:  9  [atributo description] Saldo por item e histórico de movimentos do depósito.
+  1050:  9  [atributo description] Escolha o item no cadastro; o saldo é o persistido pelo servidor.
+  1087: 47  [atributo aria-label] Movimentos do depósito
+  1090: 64  [filho de JSX] Data
+  1094: 64  [filho de JSX] Descrição
+  1099: 42  [filho de JSX] Nenhum movimento neste depósito.
+  1135: 11  [atributo title] Depósito não encontrado na lista
+  1136: 11  [atributo description] Volte para a lista de depósitos e escolha um depósito carregado pelo servidor.
+  1161:  7  [atributo description] A reserva é escolhida entre as ativas do servidor.
+
+src/modules-registry/ModulesRegistryPage.tsx  (19)
+   109: 14  [atributo aria-label] Resumo de governança do registry
+   133:  7  [atributo aria-label] Legenda de status de módulos
+   136: 73  [filho de JSX] Significado dos status
+   175: 14  [atributo aria-label] Filtros de módulos
+   184: 13  [atributo placeholder] Nome, descrição ou domínio
+   217: 32  [filho de JSX] Todos os domínios
+   302: 14  [atributo aria-label] Situação de liberação
+   303: 58  [filho de JSX] Situação de liberação
+   365: 31  [atributo title] Detalhes técnicos restritos
+   421: 16  [atributo aria-label] Identificação do módulo
+   452: 16  [atributo aria-label] Dependências
+   457: 52  [filho de JSX] Nenhuma dependência declarada.
+   560:  9  [atributo title] Módulos do sistema
+   561:  9  [atributo description] Central de governança dos módulos registrados no servidor. O estado de liberação é derivado do registry e das flags de release — o frontend apenas apresenta. Detalhes técnicos ficam restritos a administradores de acesso.
+   565: 31  [atributo aria-label] Carregando módulos
+   567: 27  [atributo label] Carregando módulos do registry…
+   616: 15  [atributo title] Nenhum módulo encontrado
+   617: 15  [atributo description] Nenhum módulo corresponde aos filtros atuais. Ajuste a busca ou limpe os filtros para ver o registry completo.
+   625: 22  [atributo aria-label] Módulos registrados
+
+src/operator/business-chain/BusinessChain.tsx  (1)
+    67:  7  [atributo aria-label] Cadeia empresarial do registro
+
+src/operator/commands/CommandPalette.tsx  (3)
+   174:  9  [atributo aria-label] Fechar central de comandos
+   198: 13  [atributo placeholder] Navegar, ver lista filtrada, criar ou buscar…
+   214: 11  [atributo aria-label] Comandos disponíveis
+
+src/operator/context/ContextDrawer.tsx  (1)
+   141: 45  [filho de JSX] Selecione um registro na lista.
+
+src/operator/history/ActivityTimeline.tsx  (2)
+    38:  3  [atributo title] Histórico
+    39:  3  [atributo emptyMessage] Nenhum registro de histórico disponível para este item.
+
+src/operator/smart-list/SavedViewsBar.tsx  (1)
+    88:  7  [atributo aria-label] Visões salvas desta lista
+
+src/pages/AccessDeniedPage.tsx  (2)
+     7:  9  [filho de JSX] You do not have access to this application.
+     9: 26  [filho de JSX] Voltar ao acesso
+
+src/pages/LoginPage.tsx  (3)
+   103: 38  [filho de JSX] Acessar conta
+   104: 32  [filho de JSX] Entre com suas credenciais para continuar.
+   181: 32  [filho de JSX] Acesso restrito a usuários autorizados
+
+src/pages/PlatformDiagnosticsPage.tsx  (1)
+    51:  9  [filho de JSX] Technical probe endpoint — no business data.
+
+src/pages/ServiceUnavailablePage.tsx  (1)
+     9: 26  [filho de JSX] Voltar ao acesso
+
+src/pages/SessionExpiredPage.tsx  (2)
+     7: 22  [filho de JSX] Sua sessão foi encerrada. Entre novamente para continuar.
+     9: 26  [filho de JSX] Voltar ao acesso
+
+src/pages/ShellAccessDeniedPage.tsx  (1)
+    27: 32  [filho de JSX] Voltar ao painel
+
+src/pages/ShellNotFoundPage.tsx  (2)
+     9:  9  [atributo title] Página não encontrada
+    10:  9  [atributo message] O endereço solicitado não existe ou não está disponível nesta versão do sistema.
+
+src/pages/components/CisneWordmark.tsx  (2)
+     9: 44  [atributo aria-label] CISNE Rondônia
+    15: 29  [filho de JSX] Rondônia
+
+src/pages/components/LoginHero.tsx  (1)
+    60: 18  [filho de JSX] Rondônia
+
+src/payroll/pages/PayrollPage.tsx  (29)
+   170:  9  [atributo description] Cálculo e fechamento são do servidor. Fórmulas oficiais permanecem indecisas.
+   175: 13  [atributo label] Unidade
+   185: 31  [filho de JSX] Selecione a unidade
+   198: 39  [filho de JSX] Unidade selecionada
+   204: 13  [atributo label] Período de folha
+   207: 13  [atributo placeholder] Competência, status ou unidade
+   213: 13  [atributo emptyMessage] Nenhum período alcançado nesta sessão. Abra um período abaixo — a API ainda não lista períodos por unidade.
+   226: 13  [atributo description] O contrato não cria alocação de mão de obra na OS.
+   247: 20  [atributo label] Código
+   253: 20  [atributo label] Início
+   267: 11  [atributo title] Abrir período
+   268: 11  [atributo description] Competência e datas são validadas pela API.
+   288: 18  [atributo label] Mês
+   295: 11  [atributo title] Lançar evento
+   296: 11  [atributo description] Tipos aceitos: EARNING, DEDUCTION, EMPLOYER_CHARGE. A fórmula oficial não é inventada.
+   323: 13  [atributo label] Contrato de trabalho
+   327: 13  [atributo placeholder] Código ou nome do contrato
+   332: 13  [atributo emptyMessage] Nenhum contrato alcançado nesta sessão. Cadastre um contrato acima — a API ainda não lista contratos.
+   341: 18  [atributo label] Valor
+   347: 18  [atributo label] Descrição
+   358: 42  [atributo title] Evento já registrado anteriormente
+   365: 11  [atributo title] Nenhum período carregado
+   366: 11  [atributo description] Escolha um período já alcançado na busca por competência ou abra um novo período para começar.
+   425: 55  [atributo aria-label] Resultados da folha
+   431: 88  [filho de JSX] Líquido
+   463: 17  [atributo title] Sem resultados calculados
+   464: 17  [atributo description] Calcule o período para o servidor devolver os totais.
+   472: 35  [atributo title] Acesso negado aos resultados
+   478: 15  [atributo title] Não foi possível carregar os resultados
+
+src/people/PeopleRoute.tsx  (1)
+    61: 11  [filho de JSX] Não foi possível verificar o acesso.
+
+src/people/components/PersonForm.tsx  (11)
+   128:  9  [atributo aria-label] Dados da pessoa
+   131: 11  [atributo title] Identificação
+   132: 11  [atributo description] Nome legal (obrigatório no cadastro) e nome pelo qual a pessoa é chamada.
+   150: 20  [atributo label] Nome de uso
+   162: 11  [atributo title] Vínculo
+   163: 11  [atributo description] Função operacional padrão exercida pela pessoa e referência do cadastro no ERP.
+   167: 15  [atributo label] Função operacional padrão
+   181: 33  [filho de JSX] Sem função padrão
+   194: 20  [atributo label] Referência externa (opcional)
+   207: 13  [atributo title] Situação do cadastro
+   208: 13  [atributo description] Fatos persistidos da pessoa; a inativação é uma ação do detalhe, não deste formulário.
+
+src/people/pages/PeopleListPage.tsx  (13)
+   216: 11  [atributo message] Você não tem permissão para listar Pessoas.
+   251: 52  [filho de JSX] Nova Pessoa
+   266: 17  [atributo label] ativas nesta página
+   271: 17  [atributo label] aptas a alocação
+   274: 73  [atributo label] não alocáveis
+   293: 13  [atributo placeholder] Nome ou código do membro
+   304: 29  [filho de JSX] Todos
+   310: 26  [atributo label] Função
+   317: 31  [filho de JSX] Todas
+   363: 49  [atributo aria-label] Lista de Pessoas
+   382: 44  [filho de JSX] Ações
+   417: 66  [filho de JSX] Apta a alocação
+   419: 56  [filho de JSX] Não alocável em OS
+
+src/people/pages/PersonCreatePage.test.tsx  (1)
+   129: 47  [filho de JSX] Lista de pessoas
+
+src/people/pages/PersonCreatePage.tsx  (7)
+    54: 27  [atributo title] Nova pessoa
+    55: 29  [atributo title] Nova pessoa
+    55: 49  [atributo message] Verificando permissões…
+    63: 27  [atributo title] Nova pessoa
+    65: 11  [atributo title] Nova pessoa
+    66: 11  [atributo message] Você não tem permissão para cadastrar Pessoas.
+   122: 25  [atributo title] Nova pessoa
+
+src/people/pages/PersonDetailPage.tsx  (7)
+   343: 13  [atributo title] Situação cadastral da Pessoa
+   348: 24  [atributo title] Histórico
+   351: 15  [atributo title] Histórico da Pessoa
+   352: 15  [atributo emptyMessage] O servidor não registrou eventos para esta Pessoa.
+   367: 22  [atributo title] Alocação em ordens de serviço
+   375: 24  [atributo title] Inativação
+   390: 33  [filho de JSX] Voltar à lista
+
+src/people/pages/PersonEditPage.tsx  (1)
+   101: 11  [atributo message] Você não tem permissão para editar Pessoas.
+
+src/people/people-create-edit.ui.test.tsx  (1)
+   110: 55  [filho de JSX] Detalhe da pessoa
+
+src/procurement/pages/ProcurementPages.tsx  (61)
+    86: 66  [filho de JSX] Nova solicitação
+   158: 15  [atributo placeholder] Justificativa, fornecedor ou número da nota
+   179: 47  [atributo aria-label] Solicitações de compra
+   182: 64  [filho de JSX] Solicitação
+   184: 71  [filho de JSX] Valor
+   191: 62  [filho de JSX] Nenhuma solicitação de compra encontrada.
+   196: 62  [filho de JSX] Você não tem permissão para listar solicitações de compra.
+   225: 47  [atributo aria-label] Pedidos ao fornecedor
+   229: 64  [filho de JSX] Condição
+   230: 71  [filho de JSX] Valor
+   237: 62  [filho de JSX] Nenhum pedido ao fornecedor encontrado.
+   242: 62  [filho de JSX] Você não tem permissão para listar pedidos ao fornecedor.
+   276: 47  [atributo aria-label] Notas de fornecedor
+   282: 71  [filho de JSX] Total
+   289: 62  [filho de JSX] Nenhuma nota de fornecedor encontrada.
+   294: 62  [filho de JSX] Você não tem permissão para listar notas de fornecedor.
+   339:  9  [atributo title] Nova solicitação de compra
+   343:  9  [atributo title] Solicitação
+   344:  9  [atributo description] A solicitação nasce em rascunho e segue o fluxo de aprovação.
+   362: 16  [atributo label] Unidade
+   390: 16  [atributo label] Valor unitário
+   432: 25  [atributo title] Solicitação de compra
+   433: 21  [atributo title] Informe um identificador válido
+   440: 23  [atributo title] Solicitação de compra
+   454: 47  [atributo aria-label] Linhas da solicitação
+   459: 80  [filho de JSX] Total informado
+   481: 11  [atributo description] Envia a solicitação para aprovação.
+   492: 11  [atributo description] Aprovação segue SOD.
+   505: 11  [atributo description] Justificativa enviada ao servidor.
+   520: 11  [atributo description] Cancelamento versionado no servidor.
+   530: 11  [atributo description] Escolha o fornecedor pelo nome ou CNPJ. O pedido é criado pelo servidor.
+   550: 13  [atributo emptyMessage] Nenhum fornecedor encontrado para a busca.
+   591: 25  [atributo title] Pedido ao fornecedor
+   592: 21  [atributo title] Informe um identificador válido
+   601: 23  [atributo title] Pedido ao fornecedor
+   632: 47  [atributo aria-label] Linhas do pedido
+   653: 49  [atributo aria-label] Recebimentos do pedido
+   658: 66  [filho de JSX] Título a pagar
+   675:  9  [atributo description] Informe por linha a quantidade a receber. O recebimento gera o título a pagar no backend.
+   696: 16  [atributo label] Centro de custo (id)
+   699: 16  [atributo label] Centro de custo (código)
+   745: 11  [atributo title] Conferência tripla
+   746: 11  [atributo description] A classificação vem do servidor. Quantidades não são conferidas neste formulário.
+   760: 11  [atributo description] Cancelamento versionado no servidor.
+   826:  9  [atributo title] Nota do fornecedor
+   836:  9  [atributo description] Valores e datas são validados pela API.
+   854: 16  [atributo label] Unidade
+   864: 11  [atributo emptyMessage] Nenhum fornecedor encontrado para a busca.
+   866: 16  [atributo label] Número
+   869: 16  [atributo label] Emissão
+   875: 16  [atributo label] Total informado
+   884: 16  [atributo label] Condição de pagamento
+   887: 16  [atributo label] Pedido ao fornecedor
+   897: 21  [atributo title] Nenhuma nota carregada
+   897: 52  [atributo description] A API atual consulta a nota por identificador.
+   922: 13  [atributo description] A validação gera o título a pagar no backend.
+   945: 20  [atributo label] Centro de custo (id)
+   953: 20  [atributo label] Centro de custo (código)
+   989: 25  [atributo title] Conferência tripla
+   990: 21  [atributo title] Informe um identificador válido
+   998:  9  [atributo title] Conferência tripla
+
+src/proposals/components/ProposalCommercialItems.tsx  (1)
+    44: 43  [atributo aria-label] Composição comercial da proposta
+
+src/proposals/components/ProposalForm.tsx  (20)
+   173:  9  [atributo title] Identificação
+   174:  9  [atributo description] Cliente, unidade operacional e título comercial da proposta.
+   179: 15  [atributo label] Cliente
+   191: 15  [atributo emptyMessage] Nenhum cliente encontrado para a busca.
+   195: 15  [atributo label] Cliente
+   219: 18  [atributo label] Unidade operacional
+   225: 15  [atributo placeholder] Código, ex. UN-POA-01
+   230: 18  [atributo label] Título
+   243:  9  [atributo title] Condições comerciais
+   244:  9  [atributo description] Como o valor é apurado, em que moeda e até quando a proposta vale.
+   247: 18  [atributo label] Estrutura de preço
+   280: 15  [atributo label] Preço global de venda
+   305: 11  [atributo title] Composição
+   306: 11  [atributo description] Linhas que formam o valor de venda da proposta.
+   320: 13  [atributo emptyMessage] Nenhum item informado. Adicione ao menos um item com valor de venda para registrar a proposta.
+   341: 19  [atributo label] Descrição
+   355: 19  [atributo label] Valor de venda
+   371:  9  [atributo title] Observações
+   372:  9  [atributo description] Condições e ressalvas que acompanham a proposta.
+   374: 16  [atributo label] Observações
+
+src/proposals/components/ProposalRevisionPanel.tsx  (3)
+    84: 58  [filho de JSX] Emissão
+    88: 58  [filho de JSX] Valor
+   125: 52  [atributo aria-label] Campos alterados entre revisões
+
+src/proposals/pages/ProposalCreatePage.tsx  (7)
+    58: 27  [atributo title] Nova proposta
+    59: 29  [atributo title] Nova proposta
+    59: 51  [atributo message] Verificando permissões…
+    67: 27  [atributo title] Nova proposta
+    69: 11  [atributo title] Nova proposta
+    70: 11  [atributo message] Você não tem permissão para registrar propostas.
+   114: 25  [atributo title] Nova proposta
+
+src/proposals/pages/ProposalDetailPage.tsx  (15)
+   562: 86  [atributo title] Ciclo da revisão
+   567: 24  [atributo title] Histórico
+   568: 53  [atributo title] Histórico
+   590: 22  [atributo title] Composição comercial
+   600: 22  [atributo title] Revisões e comparação
+   623: 11  [atributo title] Cadeia de negócio da proposta
+   627: 24  [atributo title] Situação comercial
+   651: 48  [filho de JSX] Motivo da rejeição:
+   657: 48  [filho de JSX] Motivo do cancelamento:
+   663: 48  [filho de JSX] Observações da revisão:
+   673:  9  [atributo title] Registrar aceite da proposta
+   674:  9  [atributo description] Confirme a origem da aceitação comercial.
+   696: 55  [filho de JSX] Origem da aceitação
+   714:  9  [atributo description] Informe o motivo da rejeição, se aplicável.
+   752:  9  [atributo description] Informe o motivo do cancelamento.
+
+src/proposals/pages/ProposalEditPage.tsx  (3)
+   137: 11  [atributo message] Esta proposta não pode ser editada no status atual ou você não tem permissão.
+   140: 52  [filho de JSX] Voltar ao detalhe
+   188:  9  [atributo description] Atualiza o rascunho da versão corrente; o servidor recusa alterações concorrentes.
+
+src/proposals/pages/ProposalsListPage.tsx  (14)
+   209: 11  [atributo message] Você não tem permissão para listar propostas.
+   271: 15  [atributo label] aguardando decisão
+   277: 15  [atributo label] validade próxima/vencida
+   284: 55  [filho de JSX] Nova proposta
+   313: 26  [atributo label] Situação
+   320: 31  [filho de JSX] Todas
+   328: 26  [atributo label] Validade de
+   337: 26  [atributo label] até
+   346: 26  [atributo label] Ordenar por
+   411: 59  [filho de JSX] Nova proposta
+   416: 20  [atributo aria-label] Fila comercial de propostas
+   472: 58  [filho de JSX] Cliente não identificado
+   497: 64  [filho de JSX] Sem versão
+   551: 64  [filho de JSX] Sem versão
+
+src/purchase-orders/components/PurchaseOrderForm.tsx  (24)
+   177:  9  [atributo title] Identificação do pedido
+   178:  9  [atributo description] Cliente, unidade e referências do pedido de compra.
+   183: 15  [atributo label] Cliente
+   195: 15  [atributo emptyMessage] Nenhum cliente encontrado para a busca.
+   199: 15  [atributo label] Cliente
+   221: 18  [atributo label] Unidade operacional
+   227: 15  [atributo placeholder] Código, ex. UN-POA-01
+   233: 13  [atributo label] Número do pedido (PO)
+   247: 18  [atributo label] Número RC
+   259:  9  [atributo title] Emissão e responsável
+   260:  9  [atributo description] Quando o pedido foi emitido e quem acompanha o serviço.
+   263: 18  [atributo label] Data de emissão
+   273: 18  [atributo label] Gestor de serviço
+   285:  9  [atributo title] Valores e condições
+   286:  9  [atributo description] Como o pedido é precificado e como será pago.
+   289: 18  [atributo label] Estrutura de preço
+   322: 15  [atributo label] Valor total autorizado
+   333: 18  [atributo label] Condições de pagamento
+   342: 18  [atributo label] Forma de pagamento
+   355: 11  [atributo title] Itens do pedido
+   356: 11  [atributo description] Linhas que o pedido autoriza, com o total de cada uma.
+   368: 13  [atributo emptyMessage] Nenhum item informado. Adicione ao menos um item com o total da linha para registrar o pedido.
+   389: 19  [atributo label] Descrição
+   403: 19  [atributo label] Total da linha
+
+src/purchase-orders/pages/PurchaseOrderCreatePage.tsx  (7)
+    58: 27  [atributo title] Novo pedido de compra
+    59: 29  [atributo title] Novo pedido de compra
+    59: 59  [atributo message] Verificando permissões…
+    67: 27  [atributo title] Novo pedido de compra
+    69: 11  [atributo title] Novo pedido de compra
+    70: 11  [atributo message] Você não tem permissão para registrar pedidos de compra.
+   114: 25  [atributo title] Novo pedido de compra
+
+src/purchase-orders/pages/PurchaseOrderDetailPage.tsx  (13)
+   216: 27  [atributo title] Pedido de compra
+   335: 13  [atributo title] Pedido de compra
+   359: 13  [atributo title] Fluxo do pedido de compra
+   396: 24  [atributo title] Histórico
+   399: 15  [atributo title] Histórico do pedido
+   400: 15  [atributo emptyMessage] Este pedido não expõe histórico persistido além dos marcos abaixo.
+   418: 47  [atributo aria-label] Itens do pedido
+   422: 34  [filho de JSX] Descrição
+   424: 34  [filho de JSX] Total
+   442: 24  [atributo title] Regras de faturamento
+   466: 11  [atributo title] Cadeia de negócio do pedido
+   479:  9  [atributo title] Cancelar pedido de compra
+   480:  9  [atributo description] Informe o motivo do cancelamento.
+
+src/purchase-orders/pages/PurchaseOrderEditPage.tsx  (10)
+   114: 27  [atributo title] Editar pedido de compra
+   115: 29  [atributo title] Editar pedido de compra
+   123: 27  [atributo title] Editar pedido de compra
+   125: 11  [atributo title] Editar pedido de compra
+   137: 27  [atributo title] Editar pedido de compra
+   139: 11  [atributo title] Editar pedido de compra
+   140: 11  [atributo message] Este pedido não pode ser editado no status atual ou você não tem permissão.
+   143: 63  [filho de JSX] Voltar ao detalhe
+   189:  9  [atributo title] Editar pedido de compra
+   190:  9  [atributo description] Atualiza o rascunho do pedido; o servidor recusa alterações concorrentes.
+
+src/purchase-orders/pages/PurchaseOrdersListPage.tsx  (16)
+   188: 24  [atributo title] Pedidos de compra
+   196: 24  [atributo title] Pedidos de compra
+   197: 28  [atributo message] Você não tem permissão para listar pedidos de compra.
+   204: 24  [atributo title] Pedidos de compra
+   247:  9  [atributo title] Pedidos de compra
+   252: 61  [filho de JSX] Novo pedido
+   284: 56  [atributo label] exigindo atenção
+   291: 24  [atributo label] Cliente
+   294: 13  [atributo label] Cliente
+   300: 13  [atributo emptyMessage] Nenhum cliente encontrado para a busca.
+   303: 24  [atributo label] Unidade
+   310: 13  [atributo placeholder] Filtrar por unidade
+   346: 63  [filho de JSX] Novo pedido
+   352: 49  [atributo aria-label] Lista de pedidos de compra
+   380: 44  [filho de JSX] Ações
+   497: 66  [filho de JSX] Não apurável
+
+src/rentals/pages/RentalsListPage.tsx  (11)
+   169: 24  [atributo title] Locações
+   170: 29  [atributo message] Carregando ordens de locação…
+   176: 24  [atributo title] Locações
+   177: 28  [atributo message] Você não tem permissão para listar locações.
+   183: 24  [atributo title] Locações
+   201:  9  [atributo title] Locações
+   214: 13  [atributo placeholder] Número da OS ou cliente
+   227: 29  [filho de JSX] Todos
+   270: 49  [atributo aria-label] Lista de locações
+   338: 68  [filho de JSX] Sem alocação ativa
+   350: 68  [filho de JSX] Sem ação pendente
+
+src/reports/pages/ReportsPage.tsx  (18)
+    71: 11  [atributo title] Relatórios
+    72: 11  [atributo description] Exportações auditáveis do estado real da operação.
+    74: 29  [atributo message] Carregando catálogo de relatórios…
+    83: 11  [atributo title] Relatórios
+    84: 11  [atributo description] Exportações auditáveis do estado real da operação.
+    87: 11  [atributo title] Relatórios
+    88: 11  [atributo message] Você não tem permissão para gerar relatórios.
+    98: 11  [atributo title] Relatórios
+    99: 11  [atributo description] Exportações auditáveis do estado real da operação.
+   102: 11  [atributo title] Relatórios
+   121:  9  [atributo title] Relatórios
+   122:  9  [atributo description] Exportações auditáveis do estado real da operação. A prévia é limitada; o arquivo traz o recorte completo.
+   179: 22  [atributo label] Período
+   187: 34  [filho de JSX] Mês
+   198: 22  [atributo label] Unidade
+   231: 51  [atributo aria-label] Pré-visualização do relatório selecionado
+   232: 43  [filho de JSX] Pré-visualização do relatório selecionado
+   295: 14  [filho de JSX] Gerando em segundo plano…
+
+src/requests/RequestsRoute.tsx  (1)
+    61: 11  [filho de JSX] Não foi possível verificar o acesso.
+
+src/requests/components/ServiceRequestForm.tsx  (28)
+   185:  9  [atributo title] Origem da solicitação
+   186:  9  [atributo description] Canal ou fonte externa da demanda — diferente de quem registrou internamente no sistema.
+   214: 18  [atributo label] Referência externa
+   227:  9  [atributo title] Cliente, unidade e contato
+   228:  9  [atributo description] Selecione um Cliente autorizado ou informe o contato externo — não criamos Cliente a partir de texto livre.
+   234: 17  [atributo aria-label] Código da nova unidade operacional
+   238: 17  [atributo placeholder] Nova unidade, ex. UN-POA-01
+   273: 15  [atributo label] Cliente
+   285: 15  [atributo emptyMessage] Nenhum cliente encontrado para a busca.
+   289: 15  [atributo label] Cliente (opcional)
+   301: 33  [filho de JSX] Não identificado
+   312: 13  [atributo label] Unidade operacional
+   350: 17  [atributo placeholder] Código, ex. UN-POA-01
+   357: 13  [atributo label] Nome do contato externo
+   370: 18  [atributo label] E-mail do contato
+   380: 18  [atributo label] Telefone do contato
+   392:  9  [atributo title] Detalhes da demanda
+   393:  9  [atributo description] Serviço do catálogo, o que precisa ser feito, onde e quando.
+   398: 15  [atributo label] Serviço do catálogo
+   412: 15  [atributo emptyMessage] Nenhum serviço publicado encontrado para a busca.
+   417: 15  [atributo label] Serviço do catálogo
+   439: 33  [filho de JSX] Sem serviço vinculado
+   450: 13  [atributo label] Descrição
+   467: 18  [atributo label] Local (rótulo)
+   494: 18  [atributo label] Início desejado
+   517:  9  [atributo title] Observações operacionais
+   518:  9  [atributo description] Instruções de acesso, janelas de execução e ressalvas da equipe.
+   520: 16  [atributo label] Observações operacionais
+
+src/requests/components/ServiceRequestSummaryCards.tsx  (1)
+    73: 14  [atributo aria-label] Resumo de solicitações
+
+src/requests/pages/ServiceRequestCreatePage.tsx  (7)
+    93: 27  [atributo title] Nova solicitação
+    94: 29  [atributo title] Nova solicitação
+    94: 54  [atributo message] Verificando permissões…
+   102: 27  [atributo title] Nova solicitação
+   104: 11  [atributo title] Nova solicitação
+   105: 11  [atributo message] Você não tem permissão para registrar solicitações.
+   151: 25  [atributo title] Nova solicitação
+
+src/requests/pages/ServiceRequestDetailPage.tsx  (15)
+   216: 27  [atributo title] Solicitação de serviço
+   404: 26  [atributo title] Próximo passo
+   416: 19  [atributo aria-label] Bloqueios para avançar
+   447: 58  [filho de JSX] Nenhum sinal derivável no momento.
+   490: 50  [filho de JSX] Não autorizado / não identificado
+   558: 22  [atributo title] Histórico do ciclo
+   598: 35  [filho de JSX] Voltar à lista
+   604:  9  [atributo title] Rejeitar solicitação
+   605:  9  [atributo description] Informe o motivo da rejeição. Esta ação não pode ser desfeita.
+   625: 36  [filho de JSX] Motivo da rejeição
+   638:  9  [atributo title] Cancelar solicitação
+   639:  9  [atributo description] Informe o motivo do cancelamento.
+   659: 48  [filho de JSX] Motivo do cancelamento
+   672:  9  [atributo title] Aprovar solicitação
+   673:  9  [atributo description] Defina a prioridade operacional, se necessário.
+
+src/requests/pages/ServiceRequestEditPage.tsx  (18)
+   131: 27  [atributo title] Editar solicitação
+   132: 29  [atributo title] Editar solicitação
+   132: 56  [atributo message] Carregando solicitação…
+   140: 27  [atributo title] Editar solicitação
+   142: 11  [atributo title] Editar solicitação
+   143: 11  [atributo message] Você não tem permissão para editar esta solicitação.
+   146: 57  [filho de JSX] Voltar ao detalhe
+   155: 27  [atributo title] Editar solicitação
+   157: 11  [atributo title] Editar solicitação
+   158: 11  [atributo message] Solicitação não encontrada.
+   162: 35  [filho de JSX] Voltar à lista
+   171: 27  [atributo title] Editar solicitação
+   173: 11  [atributo title] Editar solicitação
+   174: 11  [atributo message] Somente solicitações em rascunho podem ser editadas.
+   177: 57  [filho de JSX] Voltar ao detalhe
+   186: 27  [atributo title] Editar solicitação
+   188: 11  [atributo title] Editar solicitação
+   246:  9  [atributo description] Atualiza o rascunho da solicitação; o servidor recusa alterações concorrentes.
+
+src/requests/pages/ServiceRequestsListPage.tsx  (16)
+   290: 24  [atributo title] Solicitações de serviço
+   291: 29  [atributo message] Carregando solicitações…
+   298: 24  [atributo title] Solicitações de serviço
+   300: 11  [atributo message] Você não tem permissão para listar solicitações.
+   308: 24  [atributo title] Solicitações de serviço
+   337:  9  [atributo title] Solicitações de serviço
+   342: 54  [filho de JSX] Nova solicitação
+   353: 15  [atributo label] Em análise
+   385: 15  [atributo placeholder] Ex.: SR-2026…, troca de compressor, OC 1234
+   402: 29  [filho de JSX] Todos
+   420: 31  [filho de JSX] Todas
+   438: 31  [filho de JSX] Todas
+   447: 26  [atributo label] Ordenar por
+   515: 56  [filho de JSX] Nova solicitação
+   520: 18  [atributo aria-label] Fila operacional de solicitações
+   568: 56  [filho de JSX] Cliente não identificado
+
+src/requests/service-request-create.ui.test.tsx  (1)
+   220: 69  [atributo description] Falha no painel
+
+src/search/components/GlobalSearchBar.tsx  (2)
+    77: 11  [atributo placeholder] Buscar clientes, OS, PO…
+   132: 11  [atributo placeholder] Buscar clientes, OS, PO…
+
+src/search/pages/SearchResultsPage.tsx  (5)
+    51:  9  [atributo aria-label] Filtros de busca
+    67: 11  [atributo title] Digite ao menos 2 caracteres para buscar
+    68: 11  [atributo description] A busca cobre apenas os registros que as suas permissões alcançam.
+    93: 15  [atributo description] Refine o termo ou verifique se o registro está no seu escopo de acesso.
+   111: 74  [filho de JSX] Situação
+
+src/service-orders/ServiceOrdersRoute.tsx  (1)
+    61: 11  [filho de JSX] Não foi possível verificar o acesso.
+
+src/service-orders/components/EvidenceUploader.tsx  (2)
+   126: 40  [filho de JSX] Evidências
+   127: 36  [filho de JSX] Envios em andamento não bloqueiam o restante da tela.
+
+src/service-orders/components/ExecutionActivityPanel.tsx  (2)
+   127: 46  [filho de JSX] Observação
+   151: 48  [filho de JSX] Unidade
+
+src/service-orders/components/ExecutionHeader.tsx  (5)
+    39: 49  [filho de JSX] Ordem de serviço
+    47: 14  [filho de JSX] Serviço
+    52: 16  [filho de JSX] Cliente
+    64: 16  [filho de JSX] Horário
+    75: 14  [filho de JSX] Função
+
+src/service-orders/components/ExecutionTimeline.tsx  (2)
+    58: 40  [filho de JSX] Linha do tempo
+    60: 39  [filho de JSX] Nenhum registro ainda.
+
+src/service-orders/components/MeasurementApprovalDialog.tsx  (5)
+    41:  7  [atributo title] Confirmar aprovação da medição
+    42:  7  [atributo description] Revise o resumo abaixo antes de aprovar. Esta ação não deve ser acionada sem conferência completa.
+    57: 16  [filho de JSX] Valor total
+    61: 16  [filho de JSX] Divergências
+    79: 42  [filho de JSX] Nenhuma divergência registrada nos itens.
+
+src/service-orders/components/MeasurementComparisonCards.tsx  (1)
+    61: 18  [filho de JSX] Valor
+
+src/service-orders/components/MeasurementComparisonTable.tsx  (1)
+    29: 28  [filho de JSX] Conferência
+
+src/service-orders/components/MeasurementStatusBadge.tsx  (1)
+    19: 44  [filho de JSX] Status da medição:
+
+src/service-orders/components/MeasurementSummaryPanel.tsx  (4)
+    17: 41  [filho de JSX] Resumo da conferência
+    24: 57  [filho de JSX] Valor medido
+    30: 57  [filho de JSX] Divergências
+    49: 40  [filho de JSX] Nenhuma divergência identificada nos itens atuais.
+
+src/service-orders/components/MeasurementVersionConflictBanner.tsx  (1)
+     9: 16  [filho de JSX] Medição desatualizada.
+
+src/service-orders/components/OccurrenceForm.tsx  (3)
+    24: 35  [filho de JSX] Registrar ocorrência
+    48: 44  [filho de JSX] Código
+    59: 51  [filho de JSX] Descrição
+
+src/service-orders/components/OperationalActionBar.tsx  (1)
+    24: 57  [atributo aria-label] Ações operacionais
+
+src/service-orders/components/OperationsControlCenter.tsx  (4)
+   128: 54  [filho de JSX] Sem bloqueio derivável.
+   182: 52  [filho de JSX] Sem planejamento
+   199: 52  [filho de JSX] Alocações ativas
+   218: 56  [atributo aria-label] Divergências entre planejado e realizado
+
+src/service-orders/components/PlannedVsActualPanel.tsx  (7)
+    67: 30  [filho de JSX] Unidade
+    70: 30  [filho de JSX] Situação
+    76: 32  [filho de JSX] Nenhuma quantidade medida até o momento.
+   108: 30  [filho de JSX] Código
+   110: 30  [filho de JSX] Alocações ativas
+   116: 32  [filho de JSX] Nenhum recurso planejado.
+   134: 14  [filho de JSX] Nenhuma janela operacional registrada.
+
+src/service-orders/components/RequirementChecklist.tsx  (3)
+    16: 56  [filho de JSX] Instruções
+    21: 39  [filho de JSX] Nenhum requisito de execução para este serviço.
+    48: 68  [filho de JSX] (obrigatório)
+
+src/service-orders/components/RequirementCoverageTable.tsx  (2)
+    26: 28  [filho de JSX] Código
+    27: 28  [filho de JSX] Necessário
+
+src/service-orders/components/ServiceOrderRowActions.tsx  (2)
+    61: 51  [filho de JSX] Carregando ações…
+   106: 48  [filho de JSX] Sem ação direta
+
+src/service-orders/layout/ExecutionShellLayout.tsx  (2)
+    43: 46  [filho de JSX] Execução em campo
+    47: 50  [atributo aria-label] Etapas da ordem de serviço
+
+src/service-orders/pages/ServiceOrderEngineDetailPage.tsx  (8)
+   116: 45  [filho de JSX] Carregando ordem de serviço…
+   124: 31  [filho de JSX] Você não tem acesso a esta ordem de serviço.
+   125: 39  [filho de JSX] Voltar para a lista
+   133: 31  [filho de JSX] Ordem de serviço não encontrada.
+   134: 39  [filho de JSX] Voltar para a lista
+   142: 31  [filho de JSX] Não foi possível carregar a ordem de serviço.
+   151: 12  [atributo aria-label] Navegação
+   152: 39  [filho de JSX] ← Ordens de serviço
+
+src/service-orders/pages/ServiceOrderExecutionPage.tsx  (10)
+   391: 11  [filho de JSX] Carregando execução…
+   400: 11  [filho de JSX] Você não tem permissão para executar esta ordem de serviço.
+   408: 12  [filho de JSX] Ordem não encontrada
+   417: 12  [filho de JSX] Falha ao carregar
+   491: 46  [filho de JSX] Conferência de medição
+   496: 73  [filho de JSX] Abrir conferência de medição
+   580:  9  [atributo title] Concluir ordem de serviço?
+   581:  9  [atributo description] Esta ação encerra a execução. Confirme apenas se todo o serviço foi realizado.
+   590:  9  [atributo title] Pausar execução?
+   591:  9  [atributo description] A ordem ficará pausada até ser retomada. Registros já feitos serão preservados.
+
+src/service-orders/pages/ServiceOrderMeasurementPage.tsx  (19)
+   200: 27  [atributo title] Conferência de medição
+   201: 29  [atributo title] Conferência de medição
+   201: 60  [atributo message] Carregando medição…
+   209: 27  [atributo title] Conferência de medição
+   211: 11  [atributo title] Conferência de medição
+   212: 11  [atributo message] Você não tem permissão para conferir medições desta ordem de serviço.
+   221: 27  [atributo title] Conferência de medição
+   222: 24  [filho de JSX] Ordem de serviço não encontrada.
+   230: 27  [atributo title] Conferência de medição
+   232: 11  [atributo title] Conferência de medição
+   272: 49  [filho de JSX] Conferência de medição
+   280: 50  [atributo aria-label] Atalhos da ordem de serviço
+   282: 71  [filho de JSX] Execução
+   304: 43  [filho de JSX] Medição ainda não gerada
+   345: 47  [filho de JSX] Decisão
+   422: 48  [filho de JSX] Trilha da medição
+   434: 44  [filho de JSX] Preparação de faturamento
+   465:  9  [atributo title] Rejeitar medição
+   466:  9  [atributo description] Informe o motivo da rejeição. A medição ficará registrada como rejeitada.
+
+src/service-orders/pages/ServiceOrderPlanningPage.tsx  (26)
+   116: 48  [atributo aria-label] Exceções da ordem de serviço
+   117: 44  [filho de JSX] Atenção
+   499: 27  [atributo title] Ordem de serviço
+   513: 27  [atributo title] Ordem de serviço
+   527: 27  [atributo title] Ordem de serviço
+   541: 27  [atributo title] Ordem de serviço
+   701: 43  [atributo aria-label] Situação operacional da ordem
+   711: 51  [filho de JSX] alocações ativas
+   714: 52  [filho de JSX] Execuções
+   720: 54  [filho de JSX] Medições
+   742: 55  [filho de JSX] Próxima ação
+   748: 15  [atributo title] Contexto da ordem
+   761: 15  [atributo title] Histórico
+   762: 15  [atributo emptyMessage] Nenhum evento registrado para esta ordem.
+   768: 49  [atributo aria-label] Centro de controle operacional
+   777: 47  [atributo aria-label] Cadeia de negócio
+   783: 13  [atributo title] Cadeia de negócio da ordem
+   799: 18  [filho de JSX] Alocações ativas
+   806: 40  [filho de JSX] Requisitos do serviço
+   892: 40  [filho de JSX] Disponibilidade de ativos físicos
+   930: 39  [filho de JSX] Alocações confirmadas
+   945: 36  [filho de JSX] Início
+   947: 36  [filho de JSX] Ações
+  1050: 22  [filho de JSX] Empregado compatível
+  1052: 19  [filho de JSX] Nenhum empregado ativo com esta função.
+  1070: 20  [filho de JSX] Ativo compatível
+
+src/service-orders/pages/ServiceOrdersEngineListPage.tsx  (1)
+   319: 15  [atributo emptyMessage] Nenhuma ordem de serviço no seu escopo.
+
+src/shell/AppShellLayout.tsx  (3)
+    89: 75  [filho de JSX] Cisne Rondônia
+    90: 53  [filho de JSX] Gestão operacional
+   102: 60  [filho de JSX] Conta ativa
+
+src/shell/ShellErrorBoundary.tsx  (2)
+    33: 13  [atributo title] Erro inesperado
+    34: 13  [atributo message] Algo deu errado ao carregar esta página.
+
+src/shell/ShellMobileDrawer.tsx  (3)
+    53:  9  [atributo aria-label] Fechar menu de navegação
+    56: 71  [atributo aria-label] Menu de navegação
+    62: 47  [filho de JSX] CISNE RONDÔNIA
+
+src/shell/ShellNavList.tsx  (1)
+    56:  7  [atributo aria-label] Navegação principal
+
+src/shell/ShellTopBar.tsx  (2)
+    81: 13  [atributo aria-label] Abrir central de comandos (Ctrl+K)
+    93: 11  [atributo label] Menu do usuário
+
+src/shell/hooks/useOperationalUnits.tsx  (1)
+    72: 28  [filho de JSX] Nenhuma unidade autorizada
+
+src/suppliers/components/SupplierRowActions.tsx  (2)
+    65: 55  [filho de JSX] Carregando ações…
+    77: 55  [filho de JSX] Sem ação direta
+
+src/suppliers/pages/SupplierCreatePage.tsx  (4)
+    28:  9  [atributo title] Novo fornecedor
+    41:  9  [atributo description] O fornecedor é criado e aberto no detalhe para ativação.
+    62: 16  [atributo label] Razão social
+    71: 16  [atributo label] Condição de pagamento
+
+src/suppliers/pages/SuppliersEngineDetailPage.tsx  (6)
+   124: 31  [filho de JSX] Você não tem acesso a este fornecedor.
+   125: 34  [filho de JSX] Voltar para a lista
+   133: 31  [filho de JSX] Fornecedor não encontrado.
+   134: 34  [filho de JSX] Voltar para a lista
+   142: 31  [filho de JSX] Não foi possível carregar o fornecedor.
+   151: 12  [atributo aria-label] Navegação
+
+src/suppliers/pages/SuppliersEngineListPage.tsx  (1)
+    80: 11  [atributo emptyMessage] Nenhum fornecedor cadastrado.
+
+src/transport/pages/TransportListPage.tsx  (5)
+    98: 29  [atributo message] Carregando ordens de transporte...
+   105: 28  [atributo message] Você não tem permissão para listar transportes.
+   141: 11  [atributo title] Nenhum transporte encontrado.
+   142: 11  [atributo description] Nenhuma ordem de serviço com arquétipo TRANSPORT no seu escopo autorizado.
+   146: 49  [atributo aria-label] Lista de transportes
+
+src/ui/Field.tsx  (1)
+    32: 52  [filho de JSX] (obrigatório)
+
+src/ui/Pagination.tsx  (1)
+    26: 10  [atributo aria-label] Paginação
+
+src/ui/VersionConflictBanner.tsx  (1)
+    16: 25  [atributo title] Conflito de versão
+
+src/ui/builder.test.tsx  (7)
+    26: 22  [atributo label] Preço de venda
+    66: 22  [atributo label] Valor
+   107:  9  [atributo emptyMessage] Nenhum modelo de preço neste serviço.
+   148:  9  [atributo emptyMessage] Nenhum requisito físico exigido por este serviço.
+   160:  9  [atributo title] Modelos de preço
+   161:  9  [atributo description] Defina como este serviço será cobrado.
+   164: 11  [filho de JSX] conteúdo
+
+src/ui/builder.tsx  (1)
+    34:  7  [atributo aria-label] Resumo da configuração
+
+src/ui/enterprise-list.tsx  (1)
+   391: 31  [atributo aria-label] Filtros da lista
+
+src/ui/report-workbench.tsx  (3)
+    51:  7  [atributo aria-label] Filtros do relatório
+   106: 14  [atributo aria-label] Pré-visualização do relatório
+   109: 62  [filho de JSX] Pré-visualização
+
+src/ui/ui.components.test.tsx  (12)
+    67: 51  [atributo description] Cliente habilitado
+    93: 45  [filho de JSX] Código
+    98: 27  [filho de JSX] OS-1001
+   114:  9  [atributo label] Seções
+   134: 21  [atributo title] Nenhum registro
+   134: 45  [atributo description] Ajuste os filtros.
+   135: 57  [atributo message] Sem permissão.
+   185:  9  [atributo title] Excluir cliente
+   186:  9  [atributo description] Esta ação não pode ser desfeita.
+   205:  9  [atributo message] Outro usuário alterou este registro.
+   223: 11  [atributo title] Painel operacional com título longo para validação responsiva
+   224: 41  [filho de JSX] Nova ação
+
+src/ui/ui.robustness.test.tsx  (3)
+    32: 11  [atributo title] Falha na operação
+    52: 11  [atributo message] Conexão interrompida.
+    95:  9  [atributo message] Você não possui permissão.
+
+src/ui/workbench.tsx  (1)
+    25:  7  [atributo aria-label] Resumo da fila
+
+src/work-inbox/pages/WorkInboxPage.tsx  (10)
+   186:  9  [atributo title] Central de trabalho
+   187:  9  [atributo description] O que exige atenção agora, de todos os domínios — somente trabalho real.
+   224: 47  [atributo label] trabalhos na fila
+   225: 49  [atributo label] nesta página
+   284: 29  [filho de JSX] Todas
+   303: 42  [filho de JSX] Unidade
+   316: 13  [atributo aria-label] Unidade
+   347: 11  [atributo title] Fila de trabalho
+   349: 11  [atributo description] Ordenada pelo servidor por domínio. O atraso é derivado do vencimento persistido, não de score.
+   427:  9  [atributo title] Contexto do trabalho
+
+src/workspaces/components/DomainWorkZones.tsx  (4)
+    97:  9  [atributo title] Contexto do trabalho
+   155: 51  [filho de JSX] Nenhum trabalho pendente neste domínio.
+   206:  7  [atributo title] Atenção
+   222: 49  [filho de JSX] Nenhum bloqueio ou exceção neste domínio agora.
+
+src/workspaces/pages/WorkspacesIndexPage.tsx  (1)
+    20: 64  [filho de JSX] Trabalho por domínio
+
+──────────────────────────────────────────────────────────────────────────────
+
+TOTAL: 1779 strings hardcoded em apps/web/src
