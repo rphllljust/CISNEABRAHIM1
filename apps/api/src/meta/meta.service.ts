@@ -108,6 +108,53 @@ export class MetaEntityNotFoundError extends Error {
   }
 }
 
+/**
+ * Entrada inválida na escrita de metadados — vira 422, nunca 500.
+ *
+ * Separada de "não encontrado" de propósito: o cliente precisa distinguir "mandei algo
+ * inválido" de "o recurso não existe", porque a ação do operador é diferente.
+ */
+export class MetaValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+  }
+}
+
+/** Campo referenciado não existe na entidade — 404. */
+export class MetaFieldNotFoundError extends Error {
+  constructor(
+    readonly entityName: string,
+    readonly fieldName: string,
+  ) {
+    super(`META_FIELD_NOT_FOUND: ${entityName}.${fieldName}`);
+  }
+}
+
+/** View referenciada não existe na entidade — 404. */
+export class MetaViewNotFoundError extends Error {
+  constructor(
+    readonly entityName: string,
+    readonly viewType: string,
+  ) {
+    super(`META_VIEW_NOT_FOUND: ${entityName}.${viewType}`);
+  }
+}
+
+/**
+ * Campo com o mesmo nome já existe na entidade — 409.
+ *
+ * O UNIQUE é `(entity_id, name)`. Sobrescrever silenciosamente um campo existente seria
+ * perder a configuração dele; criar outro com o mesmo nome é impossível. Conflito explícito.
+ */
+export class MetaFieldConflictError extends Error {
+  constructor(
+    readonly entityName: string,
+    readonly fieldName: string,
+  ) {
+    super(`META_FIELD_CONFLICT: ${entityName}.${fieldName} ja existe.`);
+  }
+}
+
 type EntityRow = {
   id: string;
   name: string;
@@ -312,23 +359,8 @@ export class MetaService {
          FROM meta.fields WHERE entity_id = $1 ORDER BY field_order, name`,
       [entityId],
     );
-    return result.rows.map((row) => ({
-      name: row.name,
-      label: row.label,
-      type: row.type,
-      required: row.required,
-      readOnly: row.read_only,
-      permLevel: row.perm_level,
-      options: row.options,
-      fieldOrder: row.field_order,
-      inForm: row.in_form,
-      inList: row.in_list,
-      listOrder: row.list_order,
-      inFilter: row.in_filter,
-      inSearch: row.in_search,
-      aggregation: row.aggregation,
-      visibleWhen: row.visible_when,
-    }));
+    // Mesmo mapper da escrita: leitura e escrita não podem divergir na forma do campo.
+    return result.rows.map((row) => this.mapFieldRow(row));
   }
 
   /** Campos COMPUTADOS (V2) — derivados por fórmula, sem coluna no banco. */
@@ -440,5 +472,382 @@ export class MetaService {
       }
     }
     return [...levels].sort((left, right) => left - right);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════════════════
+     ESCRITA DE METADADOS (V4)
+
+     Até aqui este serviço só LIA `meta.*`. O explorador e o construtor de formulário exigem
+     gravação, e é esta a metade que faltava.
+
+     ─────────────────────────────────────────────────────────────────────────────────────
+     ALLOWLIST DE COLUNAS, NUNCA O CORPO CRU
+
+     O corpo chega do cliente. Montar `UPDATE ... SET` a partir dele deixaria qualquer chave
+     virar coluna — incluindo `name`, cujo rename quebraria a coluna correspondente no banco,
+     e `entity_id`, que moveria o campo para outra entidade. Cada campo abaixo é mapeado
+     EXPLICITAMENTE de uma chave de entrada para uma coluna; chave não listada é IGNORADA.
+
+     ─────────────────────────────────────────────────────────────────────────────────────
+     O QUE ESTE SERVIÇO NÃO DECIDE
+
+     Autorização NÃO é decidida aqui: quem barra é o `AuthorizationGuard` no controller, com a
+     capability administrativa exigida. Este serviço assume que o ator já passou pela guarda.
+     Regra de negócio no frontend (ou no serviço, depois da guarda) não é boundary de segurança.
+     ══════════════════════════════════════════════════════════════════════════════════════ */
+
+  /** Erro de VALIDAÇÃO de entrada — vira 422, nunca 500. */
+  private static readonly FIELD_TYPES = new Set([
+    'data',
+    'text',
+    'currency',
+    'select',
+    'link',
+    'date',
+    'datetime',
+    'bool',
+    'integer',
+  ]);
+
+  /** Tipos de view que o CHECK de `meta.views` aceita. Espelha a migration 0088. */
+  private static readonly VIEW_TYPES = new Set([
+    'form',
+    'list',
+    'kanban',
+    'calendar',
+    'pivot',
+    'tree',
+    'graph',
+  ]);
+
+  private static readonly AGGREGATIONS = new Set(['sum', 'count', 'avg', 'min', 'max']);
+
+  /**
+   * Atualiza um campo de `meta.fields`.
+   *
+   * `name` e `entity_id` são IMUTÁVEIS por contrato: renomear um campo quebraria a coluna do
+   * banco, e mover entre entidades é remoção + criação, não edição. Chaves imutáveis são
+   * REJEITADAS com erro explícito em vez de silenciosamente ignoradas — uma tentativa de
+   * rename precisa falhar de forma visível.
+   */
+  async patchField(
+    entityName: string,
+    fieldName: string,
+    patch: Record<string, unknown>,
+  ): Promise<MetaFieldDefinition> {
+    const entity = await this.findEntity(entityName);
+    if (!entity) {
+      throw new MetaEntityNotFoundError(entityName);
+    }
+
+    for (const immutable of ['name', 'entityId', 'entity_id']) {
+      if (immutable in patch) {
+        throw new MetaValidationError(
+          `META_FIELD_IMMUTABLE: '${immutable}' nao pode ser alterado.`,
+        );
+      }
+    }
+
+    const assignments: string[] = [];
+    const values: unknown[] = [];
+
+    const setText = (column: string, key: string, maxLength: number): void => {
+      if (!(key in patch)) {
+        return;
+      }
+      const value = patch[key];
+      if (typeof value !== 'string' || value.trim() === '') {
+        throw new MetaValidationError(`META_FIELD_INVALID: '${key}' deve ser texto nao vazio.`);
+      }
+      if (value.length > maxLength) {
+        throw new MetaValidationError(
+          `META_FIELD_INVALID: '${key}' excede ${maxLength} caracteres.`,
+        );
+      }
+      values.push(value.trim());
+      assignments.push(`${column} = $${values.length}`);
+    };
+
+    const setBoolean = (column: string, key: string): void => {
+      if (!(key in patch)) {
+        return;
+      }
+      const value = patch[key];
+      if (typeof value !== 'boolean') {
+        throw new MetaValidationError(`META_FIELD_INVALID: '${key}' deve ser booleano.`);
+      }
+      values.push(value);
+      assignments.push(`${column} = $${values.length}`);
+    };
+
+    const setInteger = (column: string, key: string): void => {
+      if (!(key in patch)) {
+        return;
+      }
+      const value = patch[key];
+      if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+        throw new MetaValidationError(
+          `META_FIELD_INVALID: '${key}' deve ser inteiro nao negativo.`,
+        );
+      }
+      values.push(value);
+      assignments.push(`${column} = $${values.length}`);
+    };
+
+    setText('label', 'label', 160);
+
+    if ('type' in patch) {
+      const type = patch['type'];
+      if (typeof type !== 'string' || !MetaService.FIELD_TYPES.has(type)) {
+        throw new MetaValidationError(
+          `META_FIELD_INVALID: 'type' fora do conjunto aceito (${[...MetaService.FIELD_TYPES].join(', ')}).`,
+        );
+      }
+      values.push(type);
+      assignments.push(`type = $${values.length}`);
+    }
+
+    if ('aggregation' in patch) {
+      const aggregation = patch['aggregation'];
+      // `null` é válido e significa "não totaliza" — é diferente de ausente.
+      if (aggregation === null) {
+        assignments.push('aggregation = NULL');
+      } else if (typeof aggregation === 'string' && MetaService.AGGREGATIONS.has(aggregation)) {
+        values.push(aggregation);
+        assignments.push(`aggregation = $${values.length}`);
+      } else {
+        throw new MetaValidationError(
+          `META_FIELD_INVALID: 'aggregation' deve ser null ou ${[...MetaService.AGGREGATIONS].join('|')}.`,
+        );
+      }
+    }
+
+    setInteger('perm_level', 'permLevel');
+    setBoolean('required', 'required');
+    setBoolean('read_only', 'readOnly');
+    setBoolean('in_form', 'inForm');
+    setBoolean('in_list', 'inList');
+    setBoolean('in_filter', 'inFilter');
+    setBoolean('in_search', 'inSearch');
+    setInteger('field_order', 'fieldOrder');
+    setInteger('list_order', 'listOrder');
+
+    if (assignments.length === 0) {
+      throw new MetaValidationError('META_FIELD_INVALID: nenhum campo alteravel foi enviado.');
+    }
+
+    /*
+     * `perm_level` acima do que a entidade declara em `meta.permissions` é REJEITADO.
+     *
+     * Gravar um nível sem permissão correspondente criaria um campo que NINGUÉM vê — nem
+     * quem gravou. É fail-closed: o nível precisa existir em `meta.permissions` para ser
+     * atribuível, e a checagem é do servidor, não do formulário.
+     */
+    if ('permLevel' in patch && typeof patch['permLevel'] === 'number') {
+      const declared = await this.pool().query<{ perm_level: number }>(
+        `SELECT DISTINCT perm_level FROM meta.permissions WHERE entity_id = $1`,
+        [entity.id],
+      );
+      const allowedLevels = new Set<number>([0, ...declared.rows.map((row) => row.perm_level)]);
+      if (!allowedLevels.has(patch['permLevel'])) {
+        throw new MetaValidationError(
+          `META_FIELD_INVALID: permLevel ${patch['permLevel']} nao esta declarado em meta.permissions da entidade.`,
+        );
+      }
+    }
+
+    values.push(entity.id);
+    values.push(fieldName);
+    const updated = await this.pool().query<FieldRow>(
+      `UPDATE meta.fields SET ${assignments.join(', ')}, updated_at = now()
+        WHERE entity_id = $${values.length - 1} AND name = $${values.length}
+        RETURNING name, label, type, required, read_only, perm_level, options,
+                  field_order, in_form, in_list, list_order, in_filter, in_search,
+                  aggregation, visible_when`,
+      values,
+    );
+
+    const row = updated.rows[0];
+    if (!row) {
+      throw new MetaFieldNotFoundError(entityName, fieldName);
+    }
+    return this.mapFieldRow(row);
+  }
+
+  /**
+   * Atualiza uma view de `meta.views`.
+   *
+   * `view_type` é imutável: é a CHAVE da view na entidade (o UNIQUE é `entity_id, view_type`).
+   * Alterá-lo seria criar outra view, não editar esta. `layout` é JSONB livre por contrato,
+   * mas precisa ser um OBJETO — array ou escalar devolveria uma view que a engine não sabe ler.
+   */
+  async patchView(
+    entityName: string,
+    viewType: string,
+    patch: Record<string, unknown>,
+  ): Promise<MetaViewDefinition> {
+    const entity = await this.findEntity(entityName);
+    if (!entity) {
+      throw new MetaEntityNotFoundError(entityName);
+    }
+
+    if ('viewType' in patch || 'view_type' in patch) {
+      throw new MetaValidationError(
+        'META_VIEW_IMMUTABLE: view_type identifica a view na entidade e nao pode ser alterado.',
+      );
+    }
+
+    const assignments: string[] = [];
+    const values: unknown[] = [];
+
+    if ('label' in patch) {
+      const label = patch['label'];
+      if (typeof label !== 'string' || label.trim() === '') {
+        throw new MetaValidationError('META_VIEW_INVALID: label deve ser texto nao vazio.');
+      }
+      if (label.length > 120) {
+        throw new MetaValidationError('META_VIEW_INVALID: label excede 120 caracteres.');
+      }
+      values.push(label.trim());
+      assignments.push(`label = $${values.length}`);
+    }
+
+    if ('isDefault' in patch) {
+      const isDefault = patch['isDefault'];
+      if (typeof isDefault !== 'boolean') {
+        throw new MetaValidationError('META_VIEW_INVALID: isDefault deve ser booleano.');
+      }
+      values.push(isDefault);
+      assignments.push(`is_default = $${values.length}`);
+    }
+
+    if ('layout' in patch) {
+      const layout = patch['layout'];
+      if (typeof layout !== 'object' || layout === null || Array.isArray(layout)) {
+        throw new MetaValidationError('META_VIEW_INVALID: layout deve ser um objeto JSON.');
+      }
+      values.push(JSON.stringify(layout));
+      assignments.push(`layout = $${values.length}::jsonb`);
+    }
+
+    if (assignments.length === 0) {
+      throw new MetaValidationError('META_VIEW_INVALID: nenhum campo alteravel foi enviado.');
+    }
+
+    values.push(entity.id);
+    values.push(viewType);
+    const updated = await this.pool().query<ViewRow>(
+      `UPDATE meta.views SET ${assignments.join(', ')}, updated_at = now()
+        WHERE entity_id = $${values.length - 1} AND view_type = $${values.length}
+        RETURNING view_type, label, layout, is_default, row_accent`,
+      values,
+    );
+
+    const row = updated.rows[0];
+    if (!row) {
+      throw new MetaViewNotFoundError(entityName, viewType);
+    }
+    return {
+      viewType: row.view_type,
+      label: row.label,
+      layout: row.layout ?? {},
+      isDefault: row.is_default,
+      rowAccent: row.row_accent,
+    };
+  }
+
+  /**
+   * Cria um campo em `meta.fields`.
+   *
+   * `name` é OBRIGATÓRIO aqui (ao contrário do PATCH, onde é imutável): é a identidade do
+   * campo. O par `(entity_id, name)` é UNIQUE no store; a violação vira erro de conflito
+   * explícito, não 500.
+   */
+  async createField(
+    entityName: string,
+    input: Record<string, unknown>,
+  ): Promise<MetaFieldDefinition> {
+    const entity = await this.findEntity(entityName);
+    if (!entity) {
+      throw new MetaEntityNotFoundError(entityName);
+    }
+
+    const name = input['name'];
+    const label = input['label'];
+    const type = input['type'];
+
+    const namePattern = /^[a-z][a-z0-9_]*$/;
+    if (typeof name !== 'string' || !namePattern.test(name) || name.length > 80) {
+      throw new MetaValidationError(
+        'META_FIELD_INVALID: name deve casar ^[a-z][a-z0-9_]*$ com ate 80 caracteres.',
+      );
+    }
+    if (typeof label !== 'string' || label.trim() === '' || label.length > 160) {
+      throw new MetaValidationError('META_FIELD_INVALID: label deve ser texto de 1..160.');
+    }
+    if (typeof type !== 'string' || !MetaService.FIELD_TYPES.has(type)) {
+      throw new MetaValidationError(
+        `META_FIELD_INVALID: type fora do conjunto aceito (${[...MetaService.FIELD_TYPES].join(', ')}).`,
+      );
+    }
+
+    const permLevel = typeof input['permLevel'] === 'number' ? input['permLevel'] : 0;
+    if (!Number.isInteger(permLevel) || permLevel < 0) {
+      throw new MetaValidationError('META_FIELD_INVALID: permLevel deve ser inteiro nao negativo.');
+    }
+
+    const created = await this.pool().query<FieldRow>(
+      `INSERT INTO meta.fields
+         (entity_id, name, label, type, required, read_only, perm_level, options,
+          field_order, in_form, in_list, list_order, in_filter, in_search)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+       ON CONFLICT (entity_id, name) DO NOTHING
+       RETURNING name, label, type, required, read_only, perm_level, options,
+                 field_order, in_form, in_list, list_order, in_filter, in_search,
+                 aggregation, visible_when`,
+      [
+        entity.id,
+        name,
+        label.trim(),
+        type,
+        input['required'] === true,
+        input['readOnly'] === true,
+        permLevel,
+        input['options'] ?? null,
+        typeof input['fieldOrder'] === 'number' ? input['fieldOrder'] : 999,
+        input['inForm'] === true,
+        input['inList'] === true,
+        typeof input['listOrder'] === 'number' ? input['listOrder'] : 999,
+        input['inFilter'] === true,
+        input['inSearch'] === true,
+      ],
+    );
+
+    const row = created.rows[0];
+    if (!row) {
+      throw new MetaFieldConflictError(entityName, name);
+    }
+    return this.mapFieldRow(row);
+  }
+
+  /** Mapeia a linha de `meta.fields` para o contrato público. Um só lugar, sem divergência. */
+  private mapFieldRow(row: FieldRow): MetaFieldDefinition {
+    return {
+      name: row.name,
+      label: row.label,
+      type: row.type,
+      required: row.required,
+      readOnly: row.read_only,
+      permLevel: row.perm_level,
+      options: row.options,
+      fieldOrder: row.field_order,
+      inForm: row.in_form,
+      inList: row.in_list,
+      listOrder: row.list_order,
+      inFilter: row.in_filter,
+      inSearch: row.in_search,
+      aggregation: row.aggregation,
+      visibleWhen: row.visible_when,
+    };
   }
 }
