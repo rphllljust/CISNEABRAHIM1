@@ -333,6 +333,43 @@ export async function getTreasuryAccount(accountId: string, signal?: AbortSignal
   });
 }
 
+/**
+ * Sonda a leitura de CRÉDITOS/DÉBITOS/MOVIMENTOS de UMA conta, sem exigir identificador do
+ * operador.
+ *
+ * `GET /finance/treasury/accounts/:id/reconciliation` é a única rota que publica esses totais, e
+ * ela exige um `accountId` real. A sonda usa a PRIMEIRA conta que a própria listagem autorizada
+ * devolveu: se o ator já pode listar contas, a leitura do bloco de reconciliação daquelas mesmas
+ * contas é decidida pela mesma concessão (`finance:treasury:read`). Sem conta alguma não há o que
+ * sondar, e o resultado é `false` — fail-closed, nunca uma suposição otimista.
+ *
+ * Isto NÃO é uma segunda autorização: quem recusa é o servidor, e a tela reage ao 403 dele. A
+ * sonda existe apenas para separar "sem permissão" de "sem conta" ANTES de desenhar a grade.
+ */
+export async function probeTreasuryReconciliationAccess(
+  accounts: FinancialAccount[],
+  signal?: AbortSignal,
+): Promise<boolean> {
+  const [first] = accounts;
+  if (!first) {
+    return false;
+  }
+  try {
+    await getTreasuryReconciliation(first.id, signal);
+    return true;
+  } catch (error) {
+    if (error instanceof BackofficeApiError) {
+      if (error.status === 401) {
+        throw error;
+      }
+      if (error.kind === 'denied') {
+        return false;
+      }
+    }
+    return false;
+  }
+}
+
 export async function getTreasuryReconciliation(
   accountId: string,
   signal?: AbortSignal,

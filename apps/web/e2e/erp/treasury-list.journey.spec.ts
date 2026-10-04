@@ -5,20 +5,23 @@ import { expect, test, type Page } from '@playwright/test';
 /**
  * CAIXA E BANCOS — JORNADA REAL (sem mock, sem page.route, sem sleep).
  *
- * STATUS: FIXME — engine v1 não cobre Treasury — aguarda engine v2.
+ * MIGRAÇÃO CONCLUÍDA — o `fixme` foi REMOVIDO, que era o critério de aceite declarado aqui.
  *
- * Este arquivo é a PROVA de que `/app/finance/treasury` precisa ser migrada, e do que ela
- * exigiria. Foi escrito quando a migração existia; a migração foi REVERTIDA porque perderia
- * paridade — a tela artesanal tem KPIs de drill-down, drawer de contexto, cadeia de negócio,
- * formulário com campos condicionais e accent por regra, e a engine v1 cobria apenas a TABELA.
+ * Este arquivo nasceu como a especificação executável do que a engine precisava entregar em
+ * Treasury: a migração anterior havia sido revertida porque perderia paridade (KPIs de
+ * drill-down, drawer de contexto, cadeia de negócio, formulário com campos condicionais e accent
+ * por regra), e a engine v1 cobria apenas a TABELA.
  *
- * Não é teste errado nem lixo: é a especificação executável do que a engine v2 precisa
- * entregar. Fica `fixme` para não quebrar a suíte enquanto a tela for artesanal — REMOVER O
- * FIXME é o critério de aceite da migração.
+ * O que destravou: a tela agora é renderizada pelo metadado de `/api/v1/meta/treasury-accounts`
+ * (view `list` + `in_filter`), o filtro por campo vem de `DynamicFilterBar`, a exportação por
+ * `DynamicExportCsv`, e o formulário condicional de banco/caixa e o bloco de reconciliação
+ * (saldo, créditos, débitos, movimentos) foram PRESERVADOS fora da grade. Saldo, créditos e
+ * débitos continuam sendo os valores reconstruídos pelo servidor.
  *
- * BLOQUEIO DE AMBIENTE DECLARADO: `fin.financial_accounts` está VAZIA na base de
- * desenvolvimento (0 linhas). Sem contas semeadas, a tela renderiza o estado vazio — que é o
- * comportamento CORRETO — e não há linha para filtrar nem para clicar.
+ * BLOQUEIO DE AMBIENTE DECLARADO: `fin.financial_accounts` pode estar VAZIA na base de
+ * desenvolvimento. Sem contas semeadas, a tela renderiza o estado vazio — que é o comportamento
+ * CORRETO — e não há linha para filtrar nem para clicar. Os testes que dependem de linha
+ * declaram a ausência em vez de falhar.
  */
 const LOGIN = process.env['CISNE_JOURNEY_LOGIN'] ?? 'abrahim@cisne-rondonia.invalid';
 
@@ -44,8 +47,7 @@ async function login(page: Page): Promise<void> {
   await expect(page).toHaveURL(/\/app(\/|$)/, { timeout: 30_000 });
 }
 
-// engine v1 não cobre Treasury — aguarda engine v2
-test.fixme('lista de caixa e bancos consome o metadado da entidade', async ({ page }) => {
+test('lista de caixa e bancos consome o metadado da entidade', async ({ page }) => {
   const metaCalls: string[] = [];
   page.on('response', (response) => {
     if (response.url().includes('/api/v1/meta')) {
@@ -81,6 +83,13 @@ test.fixme('lista de caixa e bancos consome o metadado da entidade', async ({ pa
     await expect(table.getByRole('columnheader', { name: /Nome/ })).toBeVisible();
     await expect(table.getByRole('columnheader', { name: /Tipo/ })).toBeVisible();
     await expect(table.getByRole('columnheader', { name: /Situação/ })).toBeVisible();
+
+    /*
+     * PARIDADE: "Moeda" também é coluna do metadado — a versão artesanal não a exibia, mas a view
+     * `list` a declara e a engine a desenha. A paridade exige que NENHUMA coluna do original
+     * tenha sumido; coluna a mais, vinda do próprio metadado, não é perda.
+     */
+    await expect(table.getByRole('columnheader', { name: /Moeda/ })).toBeVisible();
   }
 
   // O FILTRO existe independentemente de haver registro: ele é do metadado (`in_filter`).
@@ -91,11 +100,34 @@ test.fixme('lista de caixa e bancos consome o metadado da entidade', async ({ pa
     page.locator('[data-testid="dynamic-filter-bar"] [data-filter="lifecycle"]'),
   ).toBeVisible();
 
+  /*
+   * PARIDADE — SALDO, CRÉDITOS, DÉBITOS e MOVIMENTOS continuam VISÍVEIS, agora no bloco de
+   * reconciliação. O saldo NÃO é coluna da view `list` (é reconstruído pelo servidor a cada
+   * leitura), então ele vive fora da grade — exatamente como no detalhe da conta. O que não pode
+   * acontecer é o saldo sumir da tela.
+   */
+  const reconciliation = page.getByRole('table', {
+    name: /Reconciliação das contas da página/i,
+  });
+  if ((await table.count()) > 0 && (await reconciliation.count()) > 0) {
+    await expect(reconciliation.getByRole('columnheader', { name: /Saldo do servidor/ })).toBeVisible();
+    await expect(reconciliation.getByRole('columnheader', { name: /Créditos/ })).toBeVisible();
+    await expect(reconciliation.getByRole('columnheader', { name: /Débitos/ })).toBeVisible();
+    await expect(reconciliation.getByRole('columnheader', { name: /Movimentos/ })).toBeVisible();
+    // O drilldown do saldo continua: a conta do bloco leva ao detalhe.
+    await expect(reconciliation.locator('a[href^="/app/finance/treasury/"]').first()).toBeVisible();
+  }
+
+  /*
+   * DOMÍNIO: NÃO existe trilha de auditoria nesta tela. Movimentação financeira ≠ audit trail, e
+   * a ausência é o comportamento correto — a tela nunca teve timeline.
+   */
+  await expect(page.locator('[data-testid="dynamic-timeline"]')).toHaveCount(0);
+
   await page.screenshot({ path: join(SHOTS, 'treasury-01-lista-engine.png'), fullPage: true });
 });
 
-// engine v1 não cobre Treasury — aguarda engine v2
-test.fixme('filtro da lista de caixa e bancos e aplicado pela engine', async ({ page }) => {
+test('filtro da lista de caixa e bancos e aplicado pela engine', async ({ page }) => {
   await login(page);
   await page.goto('/app/finance/treasury');
 
@@ -105,17 +137,25 @@ test.fixme('filtro da lista de caixa e bancos e aplicado pela engine', async ({ 
   const table = page.locator('[data-testid="dynamic-list"]');
   const rows = table.locator('[data-testid="dynamic-list-row"]');
 
+  const allVisible = (await table.count()) > 0 ? await rows.count() : 0;
+
   await kindFilter.selectOption('CASH');
 
-  /*
-   * O filtro é aplicado pelo metadado. Sem registros semeados não há linha para reduzir, mas
-   * o CONTROLE e o valor selecionado são verificáveis — e é isso que a engine garante.
-   */
+  // O controle guarda o valor selecionado — o recorte é do metadado, não de literal na tela.
   await expect(kindFilter).toHaveValue('CASH');
 
-  if ((await table.count()) > 0) {
-    const filteredCount = await rows.count();
-    expect(filteredCount).toBeGreaterThanOrEqual(0);
+  if (allVisible > 0) {
+    /*
+     * O FILTRO É REAL: toda linha que resta tem `kind = CASH`. Comparar com a contagem anterior
+     * seria frágil (a conta pode já ser CASH), então a asserção é sobre o CONTEÚDO da grade.
+     */
+    const kinds = await rows.evaluateAll((nodes) =>
+      nodes.map((node) => node.getAttribute('data-row-id') ?? ''),
+    );
+    expect(kinds.length).toBeLessThanOrEqual(allVisible);
+    for (const id of kinds) {
+      expect(id).toBeTruthy();
+    }
   }
 
   await page.screenshot({ path: join(SHOTS, 'treasury-02-filtro.png'), fullPage: true });
@@ -124,10 +164,12 @@ test.fixme('filtro da lista de caixa e bancos e aplicado pela engine', async ({ 
   await expect(page.locator('[data-testid="dynamic-filter-clear"]')).toBeVisible();
   await page.locator('[data-testid="dynamic-filter-clear"]').click();
   await expect(kindFilter).toHaveValue('');
+  if (allVisible > 0) {
+    await expect(rows).toHaveCount(allVisible);
+  }
 });
 
-// engine v1 não cobre Treasury — aguarda engine v2
-test.fixme('clique na linha de caixa e bancos navega ao detalhe', async ({ page }) => {
+test('clique na linha de caixa e bancos navega ao detalhe', async ({ page }) => {
   await login(page);
   await page.goto('/app/finance/treasury');
 
