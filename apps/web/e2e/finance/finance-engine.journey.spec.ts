@@ -35,6 +35,33 @@ async function login(page: Page): Promise<void> {
   await expect(page).toHaveURL(/\/app(\/|$)/, { timeout: 30_000 });
 }
 
+/**
+ * Ator SEM acesso financeiro — `empregado@…` responde 403 em `/finance/receivables` (verificado
+ * contra a API real antes de virar asserção).
+ *
+ * A credencial vem do ambiente pela MESMA regra do ator autorizado: sem ela a jornada para com
+ * erro explícito, em vez de pular silenciosamente a única prova de autorização negativa.
+ */
+const DENIED_LOGIN = process.env['CISNE_JOURNEY_DENIED_LOGIN']?.trim();
+
+function requireDeniedPassword(): string {
+  const value = process.env['CISNE_JOURNEY_DENIED_PASSWORD']?.trim();
+  if (!value) {
+    throw new Error(
+      'CONFIGURATION_ERROR: CISNE_JOURNEY_DENIED_PASSWORD is required to run the negative-authorization journey.',
+    );
+  }
+  return value;
+}
+
+async function loginDenied(page: Page): Promise<void> {
+  await page.goto('/login');
+  await page.getByLabel(/^usuário/i).fill(DENIED_LOGIN ?? '');
+  await page.getByLabel(/^senha/i).fill(requireDeniedPassword());
+  await page.getByRole('button', { name: /entrar/i }).click();
+  await expect(page).toHaveURL(/\/app(\/|$)/, { timeout: 30_000 });
+}
+
 test.describe('finance migrado para a engine', () => {
   test('contas a receber e renderizada pela DynamicList com paridade e cadeia', async ({ page }) => {
     await login(page);
@@ -253,5 +280,51 @@ test.describe('finance migrado para a engine', () => {
       await expect(subform.locator('[data-testid="dynamic-subform-add"]')).toHaveCount(0);
       await expect(subform.locator('[data-testid="dynamic-subform-totals"]')).toBeVisible();
     }
+  });
+
+  /**
+   * AUTORIZAÇÃO NEGATIVA — a engine NÃO é boundary de segurança.
+   *
+   * Uma tela migrada que renderizasse a lista para um ator sem permissão seria uma regressão de
+   * SEGURANÇA, não de layout: `DynamicList` desenha o que recebe, e quem recusa é o servidor
+   * (403) + o gate da tela. Esta prova usa um ator REALMENTE sem acesso financeiro e exige que a
+   * negação seja EXPLÍCITA — nunca uma tabela vazia, que o operador leria como "não há dado".
+   *
+   * QUEM RECUSA PRIMEIRO É O GUARD DE ROTA (`FinanceRoute`), antes da página: o operador vê
+   * "Acesso negado" com a permissão exigida e a informação de que a autorização é do BACKEND —
+   * mais forte que a mensagem de página, porque nem chega a montar o módulo. Quando o guard
+   * deixa passar e é a consulta que falha, o gate da página (`renderQueryGate`) assume com
+   * "não tem permissão…". As duas formas são aceitas aqui; tabela vazia NÃO é.
+   */
+  test('ator sem permissao recebe negacao explicita, nunca lista vazia', async ({ page }) => {
+    if (!DENIED_LOGIN) {
+      throw new Error(
+        'CONFIGURATION_ERROR: CISNE_JOURNEY_DENIED_LOGIN is required to run the negative-authorization journey.',
+      );
+    }
+    await loginDenied(page);
+    await page.goto('/app/finance/receivables');
+
+    // A negação é DITA ao operador — pelo guard de rota ou pelo gate da consulta.
+    await expect(
+      page.getByRole('heading', { name: /Acesso negado|não tem permissão/i }),
+    ).toBeVisible({ timeout: 30_000 });
+    // E nomeia a permissão exigida, em vez de um "erro" genérico.
+    await expect(page.getByText(/finance:receivables/)).toBeVisible();
+
+    // A tabela NÃO é montada — lista vazia aqui seria uma mentira sobre o acesso.
+    await expect(page.locator('[data-testid="dynamic-list"]')).toHaveCount(0);
+
+    /*
+     * SEGUNDA ENTIDADE PROTEGIDA. O ator de teste TEM `finance:treasury` (a tela de caixa abre
+     * normalmente para ele), então tesouraria NÃO serve como prova de negação e não é usada aqui.
+     * A prova repete sobre outra área que ele comprovadamente não acessa — contas a pagar —, o que
+     * mantém o teste sobre autorização REAL em vez de uma suposição sobre o grant.
+     */
+    await page.goto('/app/finance/payables');
+    await expect(
+      page.getByRole('heading', { name: /Acesso negado|não tem permissão/i }),
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-testid="dynamic-list"]')).toHaveCount(0);
   });
 });
