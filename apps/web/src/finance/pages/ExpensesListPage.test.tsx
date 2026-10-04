@@ -15,7 +15,7 @@ describe('ExpensesListPage', () => {
 
   it('lists expenses by description and cost center instead of an identifier', async () => {
     vi.stubGlobal('fetch', createExpensesFetchMock());
-    renderWithProviders(<ExpensesListPage />);
+    renderWithProviders(<ExpensesListPage />, { metadata: true });
 
     await waitFor(() => {
       expect(screen.getByRole('link', { name: 'Combustível da frota' })).toHaveAttribute(
@@ -26,7 +26,12 @@ describe('ExpensesListPage', () => {
 
     expect(screen.getByRole('table', { name: 'Lista de Despesas' })).toBeInTheDocument();
     expect(screen.getByText('CC-MANUT')).toBeInTheDocument();
-    expect(screen.getByText(/2 despesa\(s\) no total/)).toBeInTheDocument();
+    /*
+     * FAIXA REAL DE REGISTROS, no padrão de worklist: "1–2 de 2". A versão anterior dizia
+     * "2 despesa(s) no total", que só informava a página corrente e não situava o operador no
+     * conjunto. A paginação continua server-side; o que mudou é o texto do rodapé.
+     */
+    expect(screen.getByText(/1–2 de 2/)).toBeInTheDocument();
     expect(
       screen.queryByLabelText(/identificador da despesa/i),
     ).not.toBeInTheDocument();
@@ -37,7 +42,7 @@ describe('ExpensesListPage', () => {
     vi.stubGlobal('fetch', fetchMock);
     const user = userEvent.setup();
 
-    renderWithProviders(<ExpensesListPage />);
+    renderWithProviders(<ExpensesListPage />, { metadata: true });
     await waitFor(() => {
       expect(screen.getByRole('link', { name: 'Combustível da frota' })).toBeInTheDocument();
     });
@@ -64,6 +69,7 @@ describe('ExpensesListPage', () => {
     // Antes desta adocao a tela ignorava a query string e mostrava a lista inteira.
     renderWithProviders(<ExpensesListPage />, {
       router: { initialEntries: ['/app/finance/expenses?status=SUBMITTED'] },
+      metadata: true,
     });
 
     await waitFor(() => {

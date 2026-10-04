@@ -48,6 +48,14 @@ export type DynamicListProps = {
   onRowClick?: (row: DynamicListRow) => void;
   emptyMessage?: string;
   /**
+   * NOME ACESSÍVEL da grade (`aria-label`).
+   *
+   * Uma grade densa sem nome obriga o leitor de tela a anunciar apenas "tabela, 5 colunas, 3
+   * linhas" — o operador não sabe QUAL lista abriu. A tela é quem conhece o vocabulário do
+   * domínio, então o nome vem dela; sem a prop, o `aria-label` simplesmente não é emitido.
+   */
+  ariaLabel?: string;
+  /**
    * Seleção múltipla. Ausente = sem coluna de seleção.
    *
    * `ReadonlySet` porque o hook de seleção do operador (`useSelection`) devolve um Set, e
@@ -115,6 +123,7 @@ export function DynamicList({
   renderRowActions,
   onRowClick,
   emptyMessage,
+  ariaLabel,
   selectedIds,
   onSelectionChange,
   ownerField,
@@ -257,6 +266,7 @@ export function DynamicList({
       className="w-full text-sm"
       data-testid="dynamic-list"
       data-entity={schema.name}
+      aria-label={ariaLabel}
       data-column-count={String(columns.length)}
       /*
        * `data-list-count` é o número de linhas RENDERIZADAS — não um total que a engine
@@ -283,7 +293,18 @@ export function DynamicList({
             <th
               key={column.name}
               scope="col"
-              className="border-b border-gray-200 px-2 py-1.5 text-left text-xs font-semibold text-gray-600"
+              /*
+               * ALINHAMENTO DO CABEÇALHO SEGUE O TIPO DA COLUNA.
+               *
+               * Numa coluna de dinheiro os valores ficam à direita (é assim que se comparam
+               * grandezas), e um cabeçalho à esquerda flutuando longe dos próprios números é o
+               * detalhe que denuncia grade inacabada em ERP. O eixo do cabeçalho é o MESMO da
+               * célula, derivado do TIPO do metadado — não de uma lista de nomes de campo.
+               */
+              className={[
+                'border-b border-gray-200 px-2 py-1.5 text-xs font-semibold text-gray-600',
+                isNumericField(column) ? 'text-right' : 'text-left',
+              ].join(' ')}
               aria-sort={
                 sort?.field === column.name
                   ? sort.direction === 'asc'
@@ -294,7 +315,12 @@ export function DynamicList({
             >
               <button
                 type="button"
-                className="inline-flex items-center gap-1"
+                className={[
+                  'inline-flex items-center gap-1',
+                  isNumericField(column) ? 'flex-row-reverse' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
                 onClick={() => toggleSort(column.name)}
               >
                 {column.label}
@@ -373,7 +399,16 @@ export function DynamicList({
                 </td>
               ) : null}
               {columns.map((column) => (
-                <td key={column.name} className="border-b border-gray-100 px-2 py-1.5">
+                <td
+                  key={column.name}
+                  /* Mesmo eixo do cabeçalho: dinheiro à direita, com separador de milhar em coluna. */
+                  className={[
+                    'border-b border-gray-100 px-2 py-1.5',
+                    isNumericField(column) ? 'text-right tabular-nums whitespace-nowrap' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                >
                   {dirty.isEditable(column, row) ? (
                     <InlineCell
                       field={column}
@@ -522,6 +557,17 @@ function resolveCellValue(
 
 function isComputedField(column: MetaField | ComputedField): column is ComputedField {
   return 'formula' in column;
+}
+
+/**
+ * A coluna é NUMÉRICA? — derivado do TIPO do metadado, nunca de uma lista de nomes de campo.
+ *
+ * Dinheiro e inteiro se alinham à direita porque é assim que se comparam grandezas numa grade: as
+ * casas decimais formam uma coluna e a magnitude salta na leitura vertical. A pergunta é sobre o
+ * eixo da célula, e a TELA é quem decide o conteúdo — pelo tipo, não pelo nome.
+ */
+function isNumericField(column: MetaField | ComputedField): boolean {
+  return column.type === 'currency' || column.type === 'integer';
 }
 
 /**

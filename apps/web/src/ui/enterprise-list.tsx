@@ -280,6 +280,11 @@ export function WorklistException({
 /**
  * Uma acao primaria visivel; as secundarias ficam sob "•••" para nao competir.
  * Usa `<details>` nativo: sem biblioteca nova e sem estado de aplicacao.
+ *
+ * LADO A LADO, não empilhado. Empilhar gastava ~42px de altura por linha numa grade densa — o
+ * mesmo espaço que uma célula de texto usa — e deixava o "•••" boiando sozinho num vazio abaixo do
+ * botão. Em linha, a coluna de AÇÕES passa a ter a altura de um controle, e a grade volta a ser
+ * densa sem perder nenhuma ação.
  */
 export function RowActionMenu({
   primary,
@@ -291,17 +296,18 @@ export function RowActionMenu({
   label: string;
 }) {
   return (
-    <div className="flex flex-col items-end gap-1">
+    <div className="inline-flex items-center justify-end gap-1">
       {primary}
       {secondary ? (
         <details className="relative">
           <summary
-            className="cursor-pointer list-none rounded px-1.5 text-xs font-medium text-gray-400 marker:content-[''] hover:bg-gray-100 hover:text-gray-600"
+            className="cursor-pointer list-none rounded border border-transparent px-1.5 py-0.5 text-sm leading-none font-semibold text-gray-400 marker:content-[''] hover:border-gray-200 hover:bg-gray-100 hover:text-gray-700"
             aria-label={`Mais ações — ${label}`}
+            title={`Mais ações — ${label}`}
           >
             •••
           </summary>
-          <div className="absolute right-0 z-20 mt-1 flex min-w-40 flex-col gap-1 rounded-md border border-gray-200 bg-white p-2 shadow-lg">
+          <div className="absolute right-0 z-20 mt-1 flex min-w-56 flex-col gap-1 rounded-md border border-gray-200 bg-white p-2 text-left shadow-lg">
             {secondary}
           </div>
         </details>
