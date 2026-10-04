@@ -2,20 +2,12 @@ import { useCallback, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { EmptyState, Field, Input, Money } from '../../ui';
 import { ModulePage } from '../../ui/module-layout';
-import {
-  WorklistHeader,
-  worklistCellRaisedClass,
-  worklistHeadCellClass,
-  worklistNumericCellClass,
-  worklistNumericHeadCellClass,
-  worklistRowClass,
-  worklistTableCardClass,
-  worklistTableClass,
-} from '../../ui/enterprise-list';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { CreateRecordForm, VersionedActionForm } from '../../financial-ui/VersionedActionForm';
-import { BUDGET_STATUS_LABELS } from '../../financial-ui/labels';
-import { renderQueryGate } from '../../financial-ui/BackofficeStates';import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
+import { renderQueryGate } from '../../financial-ui/BackofficeStates';
+import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
+import { DynamicForm, useEntitySchema } from '../../engine';
+import { DynamicSubform } from '../../engine/DynamicSubform';
 import {
   addBudgetLine,
   addBudgetPeriod,
@@ -26,9 +18,34 @@ import {
   getBudget,
 } from '../api/finance-api';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
-import { FinanceStatusBadge } from '../components/FinanceStatusBadge';
+import { budgetFormValues, budgetLineRows, budgetLineSchema } from '../utils/budget-engine';
 import type { BudgetComparison, BudgetDetail } from '../types/finance.types';
 
+/**
+ * DETALHE DO ORÇAMENTO — dirigido por metadados.
+ *
+ * O bloco de identificação/vigência/controle deixou de ser uma `DefinitionList` artesanal: é o
+ * `DynamicForm` do schema `budgets`, com `status` resolvido pelo metadado em vez de
+ * `BUDGET_STATUS_LABELS` em TypeScript. As LINHAS viraram um `DynamicSubform` — o mesmo padrão
+ * One2Many inline do Odoo, onde a coleção filha é uma tabela dentro do form do pai.
+ *
+ * PARIDADE COM A VERSÃO ARTESANAL (cada feature do arquivo antigo → onde vive agora):
+ *   - DefinitionList código/nome/status/versão/moeda → `DynamicForm` (schema `budgets`);
+ *   - tabela artesanal Competência/Dimensão/Valor     → `DynamicSubform`, com rodapé totalizado
+ *                                                        por `aggregation` declarada;
+ *   - formulário "Adicionar período"                  → PRESERVADO;
+ *   - formulário "Adicionar linha"                    → PRESERVADO;
+ *   - ações Aprovar / Nova versão / Comparar          → PRESERVADAS (`VersionedActionForm`);
+ *   - painel orçado × realizado × variância           → PRESERVADO;
+ *   - link de volta à lista                           → PRESERVADO;
+ *   - estados loading/erro/negação                    → `renderQueryGate`, PRESERVADO.
+ *
+ * PARIDADE_PERDIDA: nenhuma.
+ *
+ * O SUBFORMULÁRIO É SOMENTE LEITURA, e isso é paridade, não perda: a API de orçamento não publica
+ * PATCH por linha — `addBudgetLine` é um comando que exige `periodId`. Um grid editável aqui
+ * prometeria gravação que não existe. Ver `budgetLineSchema()`.
+ */
 export function BudgetsPage() {
   const { budgetId } = useParams();
   const navigate = useNavigate();
@@ -36,6 +53,8 @@ export function BudgetsPage() {
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [currencyCode, setCurrencyCode] = useState('BRL');
+
+  const { schema } = useEntitySchema('budgets');
 
   const loader = useCallback((signal?: AbortSignal) => getBudget(budgetId ?? '', signal), [budgetId]);
   const { state, reload, setReady } = useBackofficeQuery<BudgetDetail>({
@@ -57,15 +76,21 @@ export function BudgetsPage() {
 
   return (
     <ModulePage>
-      <WorklistHeader
-        title="Orçamentos"
-        context="Versões, linhas e aprovação são persistidas pelo servidor. Variância não é calculada no navegador."
-      />
+      <header className="mb-4">
+        <h1 className="text-xl font-semibold" data-testid="entity-title">
+          {schema?.label ?? 'Orçamentos'}
+        </h1>
+        <p className="mt-1 text-sm text-gray-500">
+          Versões, linhas e aprovação são persistidas pelo servidor. Variância não é calculada no
+          navegador.
+        </p>
+      </header>
       <p className="mb-4 text-sm text-gray-500">
         <Link className="font-semibold text-gray-700 hover:text-gray-900" to="/app/finance/budgets">
           Voltar para a lista de orçamentos
         </Link>
       </p>
+
       <CreateRecordForm
         title="Criar orçamento"
         description="O código e a moeda são validados pela API."
@@ -99,9 +124,13 @@ export function BudgetsPage() {
           />
         </Field>
       </CreateRecordForm>
+
       {gate}
       {!budgetId ? (
-        <EmptyState title="Nenhum orçamento carregado" description="Consulte pelo identificador devolvido pelo servidor." />
+        <EmptyState
+          title="Nenhum orçamento carregado"
+          description="Consulte pelo identificador devolvido pelo servidor."
+        />
       ) : null}
       {state.phase === 'ready' ? (
         <BudgetView budget={state.data} onReload={reload} onReady={setReady} />
@@ -126,25 +155,34 @@ function BudgetView({
   const [lineAmount, setLineAmount] = useState('');
   const [costCenterCode, setCostCenterCode] = useState('');
   const [comparison, setComparison] = useState<BudgetComparison | null>(null);
+
+  const { schema } = useEntitySchema('budgets');
   const draft = budget.versions.find((version) => version.status === 'DRAFT') ?? budget.versions.at(-1);
-  const lines = draft?.periods.flatMap((period) => period.lines.map((line) => ({ ...line, periodKey: period.periodKey }))) ?? [];
+  const rows = budgetLineRows(budget);
+  const values = budgetFormValues(budget);
+  const lineSchema = budgetLineSchema();
 
   return (
     <>
-      <div className="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5">
-        <DefinitionList
-          items={[
-            { label: 'Código', value: budget.code },
-            { label: 'Nome', value: budget.name },
-            {
-              label: 'Status',
-              value: <FinanceStatusBadge status={budget.status} labels={BUDGET_STATUS_LABELS} />,
-            },
-            { label: 'Versão do registro', value: String(budget.rowVersion) },
-            { label: 'Moeda', value: budget.currencyCode },
-          ]}
-        />
-      </div>
+      {schema ? (
+        <div className="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5">
+          {/* SOMENTE LEITURA: o detalhe exibe o registro; quem grava são os comandos do servidor. */}
+          <DynamicForm schema={schema} values={values} readOnly />
+        </div>
+      ) : (
+        <div className="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5">
+          <DefinitionList
+            items={[
+              { label: 'Código', value: budget.code },
+              { label: 'Nome', value: budget.name },
+              { label: 'Status', value: budget.status },
+              { label: 'Versão do registro', value: String(budget.rowVersion) },
+              { label: 'Moeda', value: budget.currencyCode },
+            ]}
+          />
+        </div>
+      )}
+
       <CreateRecordForm
         title="Adicionar período"
         description="A chave do período segue o formato exigido pelo servidor."
@@ -164,6 +202,7 @@ function BudgetView({
           <Input id="budget-ends" type="date" value={endsOn} onChange={(event) => setEndsOn(event.target.value)} required />
         </Field>
       </CreateRecordForm>
+
       <CreateRecordForm
         title="Adicionar linha"
         description="Informe pelo menos uma dimensão. O valor não é totalizado no navegador."
@@ -189,40 +228,18 @@ function BudgetView({
           <Input id="budget-line-cc" value={costCenterCode} onChange={(event) => setCostCenterCode(event.target.value)} />
         </Field>
       </CreateRecordForm>
-      {lines.length === 0 ? (
-        <EmptyState title="Sem linhas nesta versão" description="Inclua períodos e linhas para o rascunho atual." />
+
+      {rows.length === 0 ? (
+        <EmptyState
+          title="Sem linhas nesta versão"
+          description="Inclua períodos e linhas para o rascunho atual."
+        />
       ) : (
-        <div className={worklistTableCardClass}>
-          <table className={worklistTableClass} aria-label="Linhas do orçamento">
-            <thead>
-              <tr>
-                <th scope="col" className={worklistHeadCellClass}>
-                  Competência
-                </th>
-                <th scope="col" className={worklistHeadCellClass}>
-                  Dimensão
-                </th>
-                <th scope="col" className={worklistNumericHeadCellClass}>
-                  Valor orçado
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {lines.map((line) => (
-                <tr key={line.id} className={worklistRowClass}>
-                  <td className={worklistCellRaisedClass}>{line.periodKey}</td>
-                  <td className={worklistCellRaisedClass}>
-                    {line.costCenterCode ?? line.expenseCategoryId ?? line.accountId ?? '—'}
-                  </td>
-                  <td className={worklistNumericCellClass}>
-                    <Money value={line.amount} currencyCode={budget.currencyCode} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="mb-6">
+          <DynamicSubform schema={lineSchema} rows={rows} onChange={() => undefined} readOnly />
         </div>
       )}
+
       <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <VersionedActionForm
           title="Aprovar"
@@ -263,6 +280,7 @@ function BudgetView({
           }}
         />
       </div>
+
       {comparison ? (
         <div className="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5">
           <DefinitionList
