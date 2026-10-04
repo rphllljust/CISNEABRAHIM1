@@ -33,6 +33,8 @@ export { DynamicTree, buildTree, flattenTree, idsToDepth } from './DynamicTree';
 export type { DynamicTreeProps, TreeNode } from './DynamicTree';
 export { DynamicGraph, buildBuckets, isChartType } from './DynamicGraph';
 export type { DynamicGraphProps, GraphChartType } from './DynamicGraph';
+export { DynamicSubform, useSubformColumns } from './DynamicSubform';
+export type { DynamicSubformProps, SubformRow } from './DynamicSubform';
 export {
   DynamicViewHost,
   RENDERABLE_VIEW_TYPES,

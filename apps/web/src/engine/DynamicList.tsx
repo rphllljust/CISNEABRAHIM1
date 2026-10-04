@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { t } from '../i18n';
 import { FieldRenderer, toDisplayText } from './FieldRenderer';
 import {
@@ -79,6 +79,34 @@ export type DynamicListProps = {
    * obrigação de desenhar todas as células à mão.
    */
   renderCell?: (field: MetaField, row: DynamicListRow) => ReactNode;
+  /**
+   * EDIÇÃO INLINE — `editable="bottom"` do Odoo, `In-Place Edit` do ERPNext, grid editável do
+   * iDempiere AD_InfoWindow.
+   *
+   * `true` liga a edição com o salvamento INTERNO: a lista acumula as linhas sujas e o botão do
+   * cabeçalho persiste. É o modo autônomo, para tela que não quer orquestrar o estado.
+   *
+   * `false`/ausente = lista somente leitura, exatamente como era.
+   */
+  editable?: boolean;
+  /**
+   * Chamado a cada edição de célula, com a linha JÁ atualizada. Presença deste handler desliga o
+   * salvamento interno: quem persiste é a tela.
+   *
+   * É a mesma divisão do Odoo, onde o `tree editable` emite o `onchange` e a gravação é do
+   * controlador do form — a engine não decide quando o dado vira verdade no banco.
+   */
+  onRowChange?: (row: DynamicListRow) => void;
+  /**
+   * Persiste UMA linha suja. Com este handler o botão "Salvar alterações (N)" aparece.
+   *
+   * A engine chama UMA VEZ POR LINHA e só limpa a linha cujo PATCH resolveu: uma falha no meio
+   * de cinco deixa as outras quatro ainda sujas e visíveis no contador, em vez de marcar tudo
+   * como salvo e perder silenciosamente o trabalho que não foi gravado.
+   */
+  onSaveRows?: (rows: DynamicListRow[]) => Promise<void>;
+  /** Desliga o controle de uma célula mesmo com `editable` ligado. */
+  isCellReadOnly?: (field: MetaField, row: DynamicListRow) => boolean;
 };
 
 export function DynamicList({
@@ -95,11 +123,28 @@ export function DynamicList({
   showTotals = false,
   agingField,
   renderCell,
+  editable = false,
+  onRowChange,
+  onSaveRows,
+  isCellReadOnly,
 }: DynamicListProps): React.ReactElement {
   const columns = useColumns(schema);
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null);
 
-  const sorted = useMemo(() => sortRows(rows, sort), [rows, sort]);
+  /*
+   * ESTADO DA EDIÇÃO INLINE.
+   *
+   * `draft` guarda apenas as linhas SUJAS — nunca uma cópia da lista inteira. Guardar a lista
+   * toda criaria duas verdades sobre as linhas limpas, e a lista renderizada divergiria do
+   * `rows` recebido assim que a tela recarregasse por outro motivo (paginação, refetch) — o
+   * operador veria valores que não existem mais no servidor.
+   */
+  const dirty = useEditableRows(rows, editable, onRowChange, onSaveRows, isCellReadOnly);
+
+  const sorted = useMemo(
+    () => sortRows(rows.map((row) => dirty.merge(row)), sort),
+    [rows, sort, dirty],
+  );
   const selectable = selectedIds !== undefined && onSelectionChange !== undefined;
   const owner = ownerField
     ? schema?.fields.find((field) => field.name === ownerField) ?? null
@@ -185,6 +230,29 @@ export function DynamicList({
   }
 
   return (
+    <>
+      {/*
+        BARRA DE ALTERAÇÕES PENDENTES — só existe quando há o que salvar. O contador é o número
+        de LINHAS sujas, não de células: é a unidade que o PATCH por linha persiste.
+      */}
+      {dirty.count > 0 && onSaveRows ? (
+        <div
+          data-testid="dynamic-list-dirty-bar"
+          data-dirty-count={String(dirty.count)}
+          className="mb-2 flex items-center justify-between rounded border border-amber-200 bg-amber-50 px-3 py-2"
+        >
+          <p className="text-xs text-amber-900">{t('list.editingHint')}</p>
+          <button
+            type="button"
+            data-testid="dynamic-list-save"
+            disabled={dirty.saving}
+            className="rounded bg-slate-900 px-3 py-1 text-xs font-semibold text-white disabled:opacity-50"
+            onClick={() => void dirty.save()}
+          >
+            {t('list.saveChanges')} ({dirty.count})
+          </button>
+        </div>
+      ) : null}
     <table
       className="w-full text-sm"
       data-testid="dynamic-list"
@@ -306,8 +374,19 @@ export function DynamicList({
               ) : null}
               {columns.map((column) => (
                 <td key={column.name} className="border-b border-gray-100 px-2 py-1.5">
-                  {renderCell?.(column, row) ?? (
-                    <FieldRenderer field={column} value={row[column.name]} />
+                  {dirty.isEditable(column, row) ? (
+                    <InlineCell
+                      field={column}
+                      row={row}
+                      value={dirty.valueFor(row, column.name)}
+                      onChange={(next) => dirty.edit(row.id, column.name, next)}
+                      onCommit={() => dirty.commit(row.id)}
+                      onRevert={() => dirty.revert(row.id)}
+                    />
+                  ) : (
+                    renderCell?.(column, row) ?? (
+                      <FieldRenderer field={column} value={row[column.name]} />
+                    )
                   )}
                 </td>
               ))}
@@ -398,6 +477,7 @@ export function DynamicList({
         </tfoot>
       ) : null}
     </table>
+    </>
   );
 }
 
@@ -526,6 +606,236 @@ function buildFooter(
     entries.push({ name: field.name, kind: field.aggregation, total: applyAggregation(field.aggregation, values) });
   }
   return entries;
+}
+
+/**
+ * Célula de edição inline.
+ *
+ * O MAPA TIPO→CONTROLE é o mesmo do formulário e do subformulário: `select` usa as opções do
+ * metadado, `bool` é checkbox, `currency`/`integer` são numéricos. Nenhum tipo exige código por
+ * entidade — a coluna é a mesma que a lista já desenhava, só que agora com controle.
+ *
+ * TECLADO (o contrato do `editable` do Odoo, traduzido):
+ *   - `Enter`   confirma a LINHA: ela permanece suja até o salvamento, mas o foco sai da célula.
+ *   - `Escape`  reverte a LINHA inteira ao valor recebido do servidor — não só a célula.
+ *   - `Tab`     navega célula a célula; é o comportamento nativo do navegador e a engine não o
+ *               intercepta, apenas garante que o `<input>` seguinte está na ordem do DOM.
+ */
+function InlineCell({
+  field,
+  row,
+  value,
+  onChange,
+  onCommit,
+  onRevert,
+}: {
+  field: MetaField;
+  row: DynamicListRow;
+  value: unknown;
+  onChange: (next: unknown) => void;
+  onCommit: () => void;
+  onRevert: () => void;
+}): React.ReactElement {
+  const label = `${field.label} · ${row.id}`;
+  const shared = {
+    'data-testid': 'dynamic-list-cell',
+    'data-field': field.name,
+    'data-row-id': row.id,
+    'aria-label': label,
+    className: 'w-full min-w-16 rounded border border-gray-300 px-1.5 py-0.5 text-sm',
+  } as const;
+
+  const keyHandler = (event: React.KeyboardEvent): void => {
+    if (event.key === 'Enter') {
+      // Sem `preventDefault` o Enter submeteria um `<form>` ancestral que a lista não controla.
+      event.preventDefault();
+      onCommit();
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      onRevert();
+    }
+  };
+
+  if (field.type === 'select') {
+    return (
+      <select
+        {...shared}
+        data-field-type="select"
+        value={toDisplayText(value)}
+        onChange={(event) => onChange(event.target.value)}
+        onKeyDown={keyHandler}
+      >
+        <option value="">—</option>
+        {(field.options?.options ?? []).map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
+  if (field.type === 'bool') {
+    return (
+      <input
+        {...shared}
+        type="checkbox"
+        data-field-type="bool"
+        checked={value === true}
+        onChange={(event) => onChange(event.target.checked)}
+        onKeyDown={keyHandler}
+      />
+    );
+  }
+
+  const inputType =
+    field.type === 'currency' || field.type === 'integer'
+      ? 'number'
+      : field.type === 'date'
+        ? 'date'
+        : field.type === 'datetime'
+          ? 'datetime-local'
+          : 'text';
+
+  return (
+    <input
+      {...shared}
+      type={inputType}
+      data-field-type={field.type}
+      value={toDisplayText(value)}
+      onChange={(event) => onChange(event.target.value)}
+      onKeyDown={keyHandler}
+    />
+  );
+}
+
+/**
+ * Estado das linhas sujas da edição inline.
+ *
+ * Só as linhas SUJAS vivem aqui. `merge` sobrepõe o rascunho ao que veio do servidor, e é isso
+ * que permite a lista renderizar valor editado sem que a tela precise reescrever o próprio
+ * estado a cada tecla.
+ *
+ * `revert` usa a linha RECEBIDA (não o rascunho): reverter tem de devolver o que o servidor
+ * disse, não o que a engine lembra de ter recebido.
+ */
+function useEditableRows(
+  rows: DynamicListRow[],
+  editable: boolean,
+  onRowChange?: (row: DynamicListRow) => void,
+  onSaveRows?: (rows: DynamicListRow[]) => Promise<void>,
+  isCellReadOnly?: (field: MetaField, row: DynamicListRow) => boolean,
+): {
+  count: number;
+  saving: boolean;
+  merge: (row: DynamicListRow) => DynamicListRow;
+  valueFor: (row: DynamicListRow, field: string) => unknown;
+  isEditable: (field: MetaField, row: DynamicListRow) => boolean;
+  edit: (id: string, field: string, value: unknown) => void;
+  commit: (id: string) => void;
+  revert: (id: string) => void;
+  save: () => Promise<void>;
+} {
+  const [draft, setDraft] = useState<Record<string, DynamicListRow>>({});
+  const [saving, setSaving] = useState(false);
+  const source = useRef(rows);
+  source.current = rows;
+
+  // Handler numa ref para que `edit`/`save` não dependam da identidade da função: uma tela que
+  // recria o callback a cada render não deve re-renderizar a lista inteira por isso.
+  const onChangeRef = useRef(onRowChange);
+  onChangeRef.current = onRowChange;
+  const saveRef = useRef(onSaveRows);
+  saveRef.current = onSaveRows;
+
+  const merge = useCallback(
+    (row: DynamicListRow): DynamicListRow => draft[row.id] ?? row,
+    [draft],
+  );
+
+  const count = Object.keys(draft).length;
+
+  const edit = useCallback((id: string, field: string, value: unknown): void => {
+    setDraft((current) => {
+      const base = current[id] ?? source.current.find((row) => row.id === id);
+      if (!base) {
+        return current;
+      }
+      const next = { ...base, [field]: value, id };
+      onChangeRef.current?.(next);
+      return { ...current, [id]: next };
+    });
+  }, []);
+
+  const commit = useCallback((_id: string): void => {
+    // A LINHA permanece suja: "confirmar" no Odoo tira o foco da célula, não grava no banco.
+    // Quem grava é o salvamento — e o contador tem de continuar contando esta linha.
+  }, []);
+
+  const revert = useCallback((id: string): void => {
+    setDraft((current) => {
+      if (!(id in current)) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+  }, []);
+
+  const save = useCallback(async (): Promise<void> => {
+    const pending = Object.values(draft);
+    if (pending.length === 0) {
+      return;
+    }
+    setSaving(true);
+    const saved: string[] = [];
+    for (const row of pending) {
+      try {
+        // POR LINHA, e não em lote: é o contrato do `onSaveRows` e é o que permite uma linha
+        // falhar sem derrubar as outras.
+        await saveRef.current?.([row]);
+        saved.push(row.id);
+      } catch {
+        /*
+         * A falha NÃO é engolida: a linha fica de pé no rascunho, o contador continua mostrando
+         * o que não gravou e o botão segue habilitado. Limpar aqui faria a lista exibir como
+         * salvo um dado que o servidor recusou.
+         */
+      }
+    }
+    setDraft((current) => {
+      const next = { ...current };
+      for (const id of saved) {
+        delete next[id];
+      }
+      return next;
+    });
+    setSaving(false);
+  }, [draft]);
+
+  // Sair do modo editável descarta o rascunho: manter linhas sujas numa lista que voltou a ser
+  // somente leitura deixaria um botão de salvar sem contexto.
+  useEffect(() => {
+    if (!editable) {
+      setDraft({});
+    }
+  }, [editable]);
+
+  const isEditable = useCallback(
+    (field: MetaField, row: DynamicListRow): boolean =>
+      editable && !field.readOnly && !(isCellReadOnly?.(field, row) ?? false),
+    [editable, isCellReadOnly],
+  );
+
+  const valueFor = useCallback(
+    (row: DynamicListRow, field: string): unknown => (draft[row.id] ?? row)[field],
+    [draft],
+  );
+
+  return { count, saving, merge, valueFor, isEditable, edit, commit, revert, save };
 }
 
 /**
