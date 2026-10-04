@@ -153,14 +153,25 @@ test('PROVA 2 — view nova no metadata store aparece como aba', async ({ page }
   await page.screenshot({ path: join(SHOTS, 'p2-aba-nova.png'), fullPage: true });
 
   /*
-   * Ao CLICAR numa aba sem renderizador, a engine DIZ isso em vez de mostrar tela vazia.
-   * Tela vazia o usuário leria como "não há dado" — que é uma mentira diferente.
+   * A ABA TEM RENDERIZADOR — e isto é MUDANÇA DE COMPORTAMENTO, deliberada.
+   *
+   * Antes da V4, `calendar` era uma aba sem renderizador e esta asserção exigia
+   * `dynamic-view-unsupported`. A Track 1 (ENGINE V4) implementou o renderizador de
+   * calendário dirigido por metadado, então "sem renderizador" deixou de ser o comportamento
+   * correto — e continuar exigindo-o seria exigir a ausência da capacidade entregue.
+   *
+   * O que se prova agora é MAIS FORTE: clicar na aba renderiza a view lendo o `layout` que a
+   * mutação SQL acabou de gravar (`dateField`/`titleField`), sem deploy. O caminho
+   * "tipo sem renderizador" continua coberto, com um tipo que realmente não tem um
+   * (`view-switcher.journey.spec.ts`, tipo `gantt`).
    */
   await calendarTab.click();
-  await expect(page.locator('[data-testid="dynamic-view-unsupported"]')).toBeVisible({
-    timeout: 30_000,
-  });
-  await page.screenshot({ path: join(SHOTS, 'p2-aba-sem-renderizador.png'), fullPage: true });
+  const calendar = page.locator('[data-testid="dynamic-calendar"]');
+  await expect(calendar).toBeVisible({ timeout: 30_000 });
+  // A view usou o layout do STORE — os campos vêm do JSONB gravado acima.
+  await expect(calendar).toHaveAttribute('data-date-field', 'created_at');
+  await expect(calendar).toHaveAttribute('data-title-field', 'order_number');
+  await page.screenshot({ path: join(SHOTS, 'p2-aba-com-renderizador.png'), fullPage: true });
 });
 
 /* ══════════════════════════════════════════════════════════════════════════════════════

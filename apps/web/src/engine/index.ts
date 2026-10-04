@@ -13,6 +13,7 @@ export type { SavedView } from './DynamicSavedViews';
 export { DynamicBulkActions } from './DynamicBulkActions';
 export { DynamicPermissionGate, canRender, canRunCommand } from './DynamicPermissionGate';
 export { DynamicViewSwitcher, orderedViews } from './DynamicViewSwitcher';
+<<<<<<< HEAD
 export { DynamicKpiDrilldown, buildKpiMetrics } from './DynamicKpiDrilldown';
 export type { KpiMetric, KpiSpec } from './DynamicKpiDrilldown';
 export { DynamicContextDrawer, drawerSelection } from './DynamicContextDrawer';
@@ -20,6 +21,41 @@ export type { CrossReference, DrawerSelection } from './DynamicContextDrawer';
 export { DynamicBusinessChain, orderChainNodes } from './DynamicBusinessChain';
 export type { ChainNode } from './DynamicBusinessChain';
 export { DynamicExportCsv, buildCsv, downloadCsv, listColumns } from './DynamicExportCsv';
+=======
+export { DynamicCalendar, dayKey, monthGrid, timeLabel } from './DynamicCalendar';
+export type { DynamicCalendarProps } from './DynamicCalendar';
+export {
+  DynamicPivot,
+  applyPivotOp,
+  formatPivotValue,
+  isAggregateOp,
+} from './DynamicPivot';
+export type { DynamicPivotProps, PivotAggregateOp } from './DynamicPivot';
+export { DynamicTree, buildTree, flattenTree, idsToDepth } from './DynamicTree';
+export type { DynamicTreeProps, TreeNode } from './DynamicTree';
+export { DynamicGraph, buildBuckets, isChartType } from './DynamicGraph';
+export type { DynamicGraphProps, GraphChartType } from './DynamicGraph';
+export {
+  DynamicViewHost,
+  RENDERABLE_VIEW_TYPES,
+  UnsupportedViewNotice,
+  isRenderableViewType,
+} from './DynamicViewHost';
+export type { DynamicViewHostProps, RenderableViewType } from './DynamicViewHost';
+export {
+  fieldLabel,
+  findView,
+  readBoolean,
+  readFieldList,
+  readFieldName,
+  readLayout,
+  readString,
+  resolveViewField,
+  resolveViewFieldList,
+  selectableFields,
+} from './view-layout';
+export type { ResolvedViewField, ViewLayout } from './view-layout';
+>>>>>>> wave/track1-engine-v4
 export {
   CommandPalette,
   paletteActionsFromSchema,
@@ -63,3 +99,19 @@ export type {
   SelectOption,
   ViewSection,
 } from './types';
+
+export { DynamicFormBuilder, readFormDraft, moveItem } from './DynamicFormBuilder';
+export type { DynamicFormBuilderProps, FormBuilderDraft } from './DynamicFormBuilder';
+export {
+  FIELD_WRITE_PATH,
+  VIEW_WRITE_PATH,
+  applyFieldPatch,
+  applyViewPatch,
+  patchField,
+  patchView,
+} from './meta-write-api';
+export type {
+  EditableFieldPatch,
+  EditableViewPatch,
+  MetadataWriteOutcome,
+} from './meta-write-api';

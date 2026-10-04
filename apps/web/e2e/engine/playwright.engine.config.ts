@@ -1,43 +1,20 @@
 import { defineConfig } from '@playwright/test';
+import { engineBaseConfig } from './engine-base.config';
 
 /**
- * CISNE — JORNADA REAL DE FORNECEDOR (Fase B).
+ * SUÍTE COMPLETA DE ENGINE — as três janelas de uma vez.
  *
- * Diferente de `playwright.config.ts` (suíte visual, com fixtures), esta jornada roda contra
- * a APLICAÇÃO REAL: API + PostgreSQL + autorização. Nenhum `page.route`, nenhum `fulfill`.
+ * A suíte tem 51 testes e NÃO cabe numa janela de execução com timeout curto: uma rodada
+ * truncou em 26/51 e outra em 34/51, e teste não executado é indistinguível de "passou".
+ * Para rodar tudo, prefira as três janelas — cada uma completa e verificável:
  *
- * Pré-requisitos (o próprio teste falha explicitamente se faltarem):
- *   - API em CISNE_JOURNEY_API_URL (padrão http://127.0.0.1:3000)
- *   - Web em CISNE_JOURNEY_WEB_URL (padrão http://127.0.0.1:5173)
- *   - CISNE_JOURNEY_PASSWORD no ambiente
+ *   engine-v1.config.ts  capacidades de schema do metadata v2
+ *   engine-v2.config.ts  capacidades da engine v4 (Track 1)
+ *   engine-v4.config.ts  genericidade sobre service-orders e suppliers
  *
- * Rodar apenas:
- *   pnpm --filter @cisne/web exec playwright test --config e2e/suppliers/playwright.suppliers.config.ts
- *
- * Sem `webServer`: os servidores reais precisam estar no ar. Subir um `vite preview` aqui
- * apontaria para bundle estático falando com a API de produção — o oposto do que a jornada
- * precisa provar.
+ * Este arquivo continua existindo para descoberta (`--list`) e para quem tiver janela longa.
  */
 export default defineConfig({
-  testDir: '.',
-  // Saída FORA do testDir: com `testDir: '.'` o Playwright limparia o próprio diretório de
-  // testes a cada execução (defeito já documentado em `e2e/hml` e `e2e/meta`).
-  outputDir: '../../test-results-suppliers',
-  fullyParallel: false,
-  workers: 1,
-  retries: 0,
-  forbidOnly: Boolean(process.env.CI),
-  reporter: [['list']],
-  timeout: 120_000,
-  expect: { timeout: 30_000 },
-  use: {
-    baseURL: process.env['CISNE_JOURNEY_WEB_URL'] ?? 'http://127.0.0.1:5173',
-    browserName: 'chromium',
-    locale: 'pt-BR',
-    timezoneId: 'America/Porto_Velho',
-    colorScheme: 'light',
-    viewport: { width: 1440, height: 1000 },
-    screenshot: 'only-on-failure',
-    trace: 'off',
-  },
+  ...engineBaseConfig,
+  outputDir: '../../test-results-engine',
 });
