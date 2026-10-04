@@ -36,6 +36,25 @@ export type { DynamicGraphProps, GraphChartType } from './DynamicGraph';
 export { DynamicSubform, useSubformColumns } from './DynamicSubform';
 export type { DynamicSubformProps, SubformRow } from './DynamicSubform';
 export {
+  DynamicFilterBuilder,
+  FILTER_PARAM,
+  buildFilterGroups,
+  defaultOperatorFor,
+  describeFilterGroup,
+  emptyFilterGroup,
+  filterGroupToQuery,
+  isFilterGroupActive,
+  matchesFilterGroup,
+  operatorsForType,
+  readFilterGroup,
+} from './DynamicFilterBuilder';
+export type {
+  DynamicFilterBuilderProps,
+  FilterGroup,
+  FilterOperator,
+  FilterRule,
+} from './DynamicFilterBuilder';
+export {
   DynamicViewHost,
   RENDERABLE_VIEW_TYPES,
   UnsupportedViewNotice,
