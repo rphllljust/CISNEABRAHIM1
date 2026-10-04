@@ -1,22 +1,13 @@
-import { useCallback, useState } from 'react';
+﻿import { useCallback, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { DateTime, EmptyState, Field, Input, Money } from '../../ui';
 import { ModulePage } from '../../ui/module-layout';
-import {
-  WorklistHeader,
-  worklistCellRaisedClass,
-  worklistHeadCellClass,
-  worklistNumericCellClass,
-  worklistNumericHeadCellClass,
-  worklistRowClass,
-  worklistTableCardClass,
-  worklistTableClass,
-} from '../../ui/enterprise-list';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { CreateRecordForm, VersionedActionForm } from '../../financial-ui/VersionedActionForm';
-import { EXPENSE_STATUS_LABELS } from '../../financial-ui/labels';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
+import { DynamicForm, useEntitySchema } from '../../engine';
+import { DynamicSubform } from '../../engine/DynamicSubform';
 import {
   approveExpense,
   createExpense,
@@ -26,8 +17,32 @@ import {
 } from '../api/finance-api';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import { FinanceStatusBadge } from '../components/FinanceStatusBadge';
+import { expenseFormValues, expenseItemRows, expenseItemSchema } from '../utils/finance-engine-rows';
 import type { ExpenseDetail } from '../types/finance.types';
 
+/**
+ * DETALHE DA DESPESA — dirigido por metadados.
+ *
+ * O bloco de identificação/financeiro/controle deixou de ser `DefinitionList` artesanal: é o
+ * `DynamicForm` do schema `expenses`, com o rótulo de `status` vindo do metadado em vez de
+ * `EXPENSE_STATUS_LABELS`. Os ITENS viraram um `DynamicSubform` — o Table field do ERPNext, onde
+ * o DocType filho rende um grid dentro do form do pai, com o rodapé totalizado pela `aggregation`
+ * declarada.
+ *
+ * PARIDADE COM A VERSÃO ARTESANAL (cada feature do arquivo antigo → onde vive agora):
+ *   - DefinitionList status/total/vencimento/versão/centro de custo/reembolso → `DynamicForm`;
+ *   - tabela artesanal de itens (Item/Valor) → `DynamicSubform`, com total no rodapé;
+ *   - formulário "Registrar despesa"          → PRESERVADO;
+ *   - ações Enviar / Aprovar / Rejeitar       → PRESERVADAS (`VersionedActionForm`, com `disabled`
+ *                                               por estado e motivo obrigatório na rejeição);
+ *   - link de volta à lista                   → PRESERVADO;
+ *   - estados loading/erro/negação            → `renderQueryGate`, PRESERVADO.
+ *
+ * PARIDADE_PERDIDA: nenhuma.
+ *
+ * O SUBFORMULÁRIO É SOMENTE LEITURA, e é paridade: `createExpense` recebe os `items` de uma vez e
+ * a API não publica PATCH por item. Ver `expenseItemSchema()`.
+ */
 export function ExpensesPage() {
   const { expenseId } = useParams();
   const navigate = useNavigate();
@@ -40,6 +55,8 @@ export function ExpensesPage() {
   const [description, setDescription] = useState('');
   const [itemDescription, setItemDescription] = useState('');
   const [itemAmount, setItemAmount] = useState('');
+
+  const { schema } = useEntitySchema('expenses');
 
   const loader = useCallback(
     (signal?: AbortSignal) => getExpense(expenseId ?? '', signal),
@@ -64,10 +81,15 @@ export function ExpensesPage() {
 
   return (
     <ModulePage>
-      <WorklistHeader
-        title="Despesas"
-        context="Cadastro, envio e aprovação são decididos pelo backend. Totais não são recalculados no navegador."
-      />
+      <header className="mb-4">
+        <h1 className="text-xl font-semibold" data-testid="entity-title">
+          {schema?.label ?? 'Despesas'}
+        </h1>
+        <p className="mt-1 text-sm text-gray-500">
+          Cadastro, envio e aprovação são decididos pelo backend. Totais não são recalculados no
+          navegador.
+        </p>
+      </header>
       <p className="mb-3 text-sm text-gray-500">
         <Link className="font-semibold text-gray-700 hover:text-gray-900" to="/app/finance/expenses">
           Voltar para a lista de despesas
@@ -186,50 +208,48 @@ function ExpenseView({
   onReload: () => Promise<void>;
   onReady: (next: ExpenseDetail) => void;
 }) {
+  const { schema } = useEntitySchema('expenses');
+  const items = expenseItemRows(expense);
+
   return (
     <>
-      <div className="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5">
-        <DefinitionList
-          items={[
-            {
-              label: 'Status',
-              value: <FinanceStatusBadge status={expense.status} labels={EXPENSE_STATUS_LABELS} />,
-            },
-            {
-              label: 'Total informado',
-              value: <Money value={expense.totalAmount} currencyCode={expense.currencyCode} emphasis />,
-            },
-            { label: 'Vencimento', value: <DateTime value={expense.dueDate} mode="date" /> },
-            { label: 'Versão', value: String(expense.version) },
-            { label: 'Centro de custo', value: expense.costCenterCode },
-            { label: 'Reembolso', value: expense.reimbursement?.payableId ?? '—' },
-          ]}
-        />
-      </div>
-      <div className={worklistTableCardClass}>
-        <table className={worklistTableClass} aria-label="Itens da despesa">
-          <thead>
-            <tr>
-              <th scope="col" className={worklistHeadCellClass}>
-                Item
-              </th>
-              <th scope="col" className={worklistNumericHeadCellClass}>
-                Valor
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {expense.items.map((item) => (
-              <tr key={item.id} className={worklistRowClass}>
-                <td className={worklistCellRaisedClass}>{item.description}</td>
-                <td className={worklistNumericCellClass}>
-                  <Money value={item.amount} currencyCode={expense.currencyCode} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {schema ? (
+        <div className="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5">
+          {/* SOMENTE LEITURA: o detalhe exibe o registro; quem grava são os comandos do servidor. */}
+          <DynamicForm schema={schema} values={expenseFormValues(expense)} readOnly />
+        </div>
+      ) : (
+        <div className="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5">
+          <DefinitionList
+            items={[
+              {
+                label: 'Status',
+                value: <FinanceStatusBadge status={expense.status} labels={{}} />,
+              },
+              {
+                label: 'Total informado',
+                value: <Money value={expense.totalAmount} currencyCode={expense.currencyCode} emphasis />,
+              },
+              { label: 'Vencimento', value: <DateTime value={expense.dueDate} mode="date" /> },
+              { label: 'Versão', value: String(expense.version) },
+              { label: 'Centro de custo', value: expense.costCenterCode },
+              { label: 'Reembolso', value: expense.reimbursement?.payableId ?? '—' },
+            ]}
+          />
+        </div>
+      )}
+
+      {items.length > 0 ? (
+        <div className="mb-6">
+          <DynamicSubform
+            schema={expenseItemSchema()}
+            rows={items}
+            onChange={() => undefined}
+            readOnly
+          />
+        </div>
+      ) : null}
+
       <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <VersionedActionForm
           title="Enviar"

@@ -18,7 +18,7 @@ import {
   getBudget,
 } from '../api/finance-api';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
-import { budgetFormValues, budgetLineRows, budgetLineSchema } from '../utils/budget-engine';
+import { budgetFormValues, budgetLineRows, budgetLineSchema } from '../utils/finance-engine-rows';
 import type { BudgetComparison, BudgetDetail } from '../types/finance.types';
 
 /**
