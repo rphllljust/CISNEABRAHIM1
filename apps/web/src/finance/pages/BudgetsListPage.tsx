@@ -125,7 +125,6 @@ export function BudgetsListPage() {
 
   const clearFilters = (): void => {
     setSearchParams(new URLSearchParams(), { replace: true });
-    setTerm('');
     setOffset(0);
   };
 
@@ -159,7 +158,12 @@ export function BudgetsListPage() {
 
   const { items, total } = listState;
   const rows = budgetEngineRows(items);
-  const isFiltered = Object.values(filters).some((value) => value.trim() !== '') || term !== '';
+  /*
+   * `isFiltered` considera APENAS a URL. Antes somava um `term` de estado local que já não
+   * existe: a busca vive em `code` no query param (é o que `loadPage` envia como `q`), então ler
+   * o estado local de novo faria a tela dizer "filtrado" sem filtro nenhum aplicado.
+   */
+  const isFiltered = Object.values(filters).some((value) => value.trim() !== '');
   const hasMore = offset + items.length < total;
 
   return (
@@ -235,7 +239,7 @@ export function BudgetsListPage() {
 
           <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
             <span>
-              {offset + 1}–{offset + items.length} nesta página · {toDisplayText(total)} no total
+              {offset + 1}–{offset + items.length} nesta página · {total} no total
             </span>
             <ModulePagination
               pageNumber={Math.floor(offset / PAGE_SIZE) + 1}
