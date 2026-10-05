@@ -68,6 +68,11 @@ export function ReceivablesListPage() {
   const navigate = useNavigate();
   const [pageNumber, setPageNumber] = useState(1);
   const [previewId, setPreviewId] = useState<string | null>(null);
+  /**
+   * O drawer só abre por intenção explícita ("Prévia"). A seleção automática do primeiro título
+   * alimenta o painel de contexto INLINE (coluna ao lado), sem cobrir a fila na entrada.
+   */
+  const [drawerOpen, setDrawerOpen] = useState(false);
   /** Árvore do construtor visual de filtros. Estado da TELA — `useSmartList` não a comporta. */
   const [filterGroup, setFilterGroup] = useState<FilterGroup>(() => emptyFilterGroup());
   const { schema } = useEntitySchema('receivables');
@@ -132,6 +137,18 @@ export function ReceivablesListPage() {
     setStatusForQuery(statusFilter);
   }, [statusFilter]);
 
+  const readyItems = state.phase === 'ready' ? state.data.items : [];
+  /*
+   * SELEÇÃO EFETIVA — derivada, sem effect nem setState automático.
+   *
+   * A seleção explícita (`previewId`) prevalece enquanto ainda está no recorte; quando o item
+   * selecionado deixa de existir no recorte, o primeiro item assume o contexto — sem loop, sem
+   * sincronização redundante. Fila vazia = nenhum selecionado.
+   */
+  const effectiveSelectedId = previewId && readyItems.some((item) => item.id === previewId)
+    ? previewId
+    : readyItems[0]?.id ?? null;
+
   const gate = renderQueryGate(
     'Contas a receber',
     'Carregando contas a receber…',
@@ -169,7 +186,7 @@ export function ReceivablesListPage() {
 
   const rows = byBuilder.map(receivableEngineRow);
   const selectedRows = selection.selectedRows(pageItems);
-  const previewRow = pageItems.find((item) => item.id === previewId) ?? null;
+  const previewRow = pageItems.find((item) => item.id === effectiveSelectedId) ?? null;
 
   /**
    * CARTEIRA VAZIA — `200 + items=[]` e EMPTY DATA, nao negacao de acesso.
@@ -324,103 +341,113 @@ export function ReceivablesListPage() {
         />
       ) : (
         <>
-          <DynamicList
-            schema={schema}
-            rows={rows}
-            emptyMessage="Nenhum título corresponde ao recorte atual. Ajuste o filtro ou limpe a visão para ver toda a carteira."
-            selectedIds={selection.selectedIds}
-            /*
-             * RECONCILIAÇÃO com a API existente do `useSelection`, que expõe `toggle`/`clear`/
-             * `selectAll` — não um "defina esta lista". Reconciliar por diferença evita alterar
-             * `useSelection` (fora do escopo desta migração) e preserva o teto de seleção que só
-             * o hook conhece.
-             */
-            onSelectionChange={(ids) => {
-              const next = new Set(ids);
-              if (next.size === 0) {
-                selection.clear();
-                return;
-              }
-              for (const row of rows) {
-                const id = String(row.id);
-                if (next.has(id) !== selection.isSelected(id)) {
-                  selection.toggle(id);
-                }
-              }
-            }}
-            onRowClick={(row) => {
-              void navigate(`/app/finance/receivables/${row.id}`);
-            }}
-            renderRowActions={(row) => (
-              <button
-                type="button"
-                className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                onClick={() => setPreviewId(String(row.id))}
-                aria-label={`Prévia de ${text(row['external_reference'])}`}
-              >
-                Prévia
-              </button>
-            )}
-            showTotals
-            /* Células tipadas: a engine reserva a coluna, a TELA decide o controle. */
-            renderCell={(field, row) => {
-              const currency = text(row['currency_code']);
-              if (field.name === 'lifecycle') {
-                return (
-                  <FinanceStatusBadge
-                    status={text(row['lifecycle'])}
-                    labels={RECEIVABLE_STATUS_LABELS}
-                  />
-                );
-              }
-              if (field.name === 'due_date') {
-                return <DateTime value={text(row['due_date'])} mode="date" />;
-              }
-              if (field.name === 'principal') {
-                return <Money value={text(row['principal'])} currencyCode={currency} />;
-              }
-              return undefined;
-            }}
-          />
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
+            <div className="min-w-0">
+              <DynamicList
+                schema={schema}
+                rows={rows}
+                emptyMessage="Nenhum título corresponde ao recorte atual. Ajuste o filtro ou limpe a visão para ver toda a carteira."
+                selectedIds={selection.selectedIds}
+                /*
+                 * RECONCILIAÇÃO com a API existente do `useSelection`, que expõe `toggle`/`clear`/
+                 * `selectAll` — não um "defina esta lista". Reconciliar por diferença evita alterar
+                 * `useSelection` (fora do escopo desta migração) e preserva o teto de seleção que só
+                 * o hook conhece.
+                 */
+                onSelectionChange={(ids) => {
+                  const next = new Set(ids);
+                  if (next.size === 0) {
+                    selection.clear();
+                    return;
+                  }
+                  for (const row of rows) {
+                    const id = String(row.id);
+                    if (next.has(id) !== selection.isSelected(id)) {
+                      selection.toggle(id);
+                    }
+                  }
+                }}
+                onRowClick={(row) => {
+                  void navigate(`/app/finance/receivables/${row.id}`);
+                }}
+                renderRowActions={(row) => (
+                  <button
+                    type="button"
+                    className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                    onClick={() => {
+                      setPreviewId(String(row.id));
+                      setDrawerOpen(true);
+                    }}
+                    aria-label={`Prévia de ${text(row['external_reference'])}`}
+                  >
+                    Prévia
+                  </button>
+                )}
+                showTotals
+                /* Células tipadas: a engine reserva a coluna, a TELA decide o controle. */
+                renderCell={(field, row) => {
+                  const currency = text(row['currency_code']);
+                  if (field.name === 'lifecycle') {
+                    return (
+                      <FinanceStatusBadge
+                        status={text(row['lifecycle'])}
+                        labels={RECEIVABLE_STATUS_LABELS}
+                      />
+                    );
+                  }
+                  if (field.name === 'due_date') {
+                    return <DateTime value={text(row['due_date'])} mode="date" />;
+                  }
+                  if (field.name === 'principal') {
+                    return <Money value={text(row['principal'])} currencyCode={currency} />;
+                  }
+                  return undefined;
+                }}
+              />
 
-          <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
-            <span aria-live="polite">
-              Página {safePageNumber} de {pageCount} · {byBuilder.length}{' '}
-              {byBuilder.length === 1 ? 'título' : 'títulos'} no recorte atual
-              {statusFilter
-                ? ` · status: ${RECEIVABLE_STATUS_LABELS[statusFilter] ?? statusFilter}`
-                : ''}
-              {overdue.length > 0 ? ` · ${overdue.length} vencido(s)` : ''}
-              {refreshing ? ' · atualizando…' : ''}
-            </span>
-            <ModulePagination
-              pageNumber={safePageNumber}
-              onPrevious={() => setPageNumber((current) => Math.max(1, current - 1))}
-              onNext={() => setPageNumber((current) => Math.min(pageCount, current + 1))}
-              previousDisabled={safePageNumber <= 1}
-              nextDisabled={safePageNumber >= pageCount}
-            />
+              <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
+                <span aria-live="polite">
+                  Página {safePageNumber} de {pageCount} · {byBuilder.length}{' '}
+                  {byBuilder.length === 1 ? 'título' : 'títulos'} no recorte atual
+                  {statusFilter
+                    ? ` · status: ${RECEIVABLE_STATUS_LABELS[statusFilter] ?? statusFilter}`
+                    : ''}
+                  {overdue.length > 0 ? ` · ${overdue.length} vencido(s)` : ''}
+                  {refreshing ? ' · atualizando…' : ''}
+                </span>
+                <ModulePagination
+                  pageNumber={safePageNumber}
+                  onPrevious={() => setPageNumber((current) => Math.max(1, current - 1))}
+                  onNext={() => setPageNumber((current) => Math.min(pageCount, current + 1))}
+                  previousDisabled={safePageNumber <= 1}
+                  nextDisabled={safePageNumber >= pageCount}
+                />
+              </div>
+            </div>
+
+            {/*
+              CONTEXTO AO LADO — a cadeia comercial do título selecionado fica ao lado da fila no
+              desktop (antes era um bloco abaixo, empurrado para fora da dobra). A seleção na fila
+              atualiza este painel sem navegação.
+            */}
+            {previewRow ? (
+              <aside
+                className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-900/5 lg:sticky lg:top-4 lg:self-start"
+                aria-label="Contexto do título selecionado"
+              >
+                <ReceivableChain row={previewRow} />
+              </aside>
+            ) : null}
           </div>
         </>
       )}
 
       <ContextDrawer
-        open={previewRow !== null}
+        open={drawerOpen && previewRow !== null}
         title="Contexto do título"
         preview={previewRow ? buildReceivablePreview(previewRow) : null}
-        onClose={() => setPreviewId(null)}
+        onClose={() => setDrawerOpen(false)}
       />
-
-      {/*
-        CADEIA COMERCIAL do título selecionado. Feature EXCLUSIVA desta tela — contas a pagar não a
-        tem porque o payload de lá não expõe os degraus intermediários. Fica FORA do drawer, como
-        no original: `ContextPreviewBody` não tem campo de cadeia.
-      */}
-      {previewRow ? (
-        <div className="mt-4 rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-900/5">
-          <ReceivableChain row={previewRow} />
-        </div>
-      ) : null}
     </ModulePage>
   );
 }
