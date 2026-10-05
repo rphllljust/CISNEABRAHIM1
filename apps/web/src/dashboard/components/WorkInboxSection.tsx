@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ContextDrawer } from '../../operator';
+import { SavedViewsBar, useSavedViews } from '../../operator';
 import {
   WorkbenchQueue,
   WorkbenchQueueItem,
@@ -30,6 +31,16 @@ import { cn } from '../../ui/utils/cn';
 
 const DEFAULT_LIMIT = 8;
 
+const SCOPE = 'dashboard.inbox';
+
+/** Allow-list dos filtros reais da work-inbox que esta secao pode persistir. */
+const INBOX_ALLOWED_FILTERS = {
+  filters: {
+    domain: [...WORK_DOMAINS] as readonly string[],
+    overdue: ['true'] as readonly string[],
+  },
+} as const;
+
 function parseDomain(value: string | null): WorkDomain | null {
   return WORK_DOMAINS.find((candidate) => candidate === value) ?? null;
 }
@@ -56,6 +67,10 @@ export function WorkInboxSection() {
   const domain = parseDomain(searchParams.get('inboxDomain'));
   const overdue = searchParams.get('inboxOverdue') === 'true';
 
+  // SAVED VIEWS — reutiliza a infraestrutura existente (`useSavedViews`, permitindo persistir
+  // o recorte enumerado `domain`/`overdue`; nada de texto livre nem dado de registro).
+  const savedViews = useSavedViews(SCOPE, [], INBOX_ALLOWED_FILTERS);
+
   const filters = useMemo(
     () => ({ domain, overdue, limit: DEFAULT_LIMIT, offset: 0 }),
     [domain, overdue],
@@ -74,6 +89,11 @@ export function WorkInboxSection() {
       },
       { replace: true },
     );
+  };
+
+  const applyView = (config: { filters: Record<string, string> }) => {
+    updateParam('inboxDomain', config.filters.domain ?? null);
+    updateParam('inboxOverdue', config.filters.overdue ?? null);
   };
 
   useEffect(() => {
@@ -149,6 +169,38 @@ export function WorkInboxSection() {
           Somente vencidos
         </label>
       </div>
+
+      <SavedViewsBar
+        views={savedViews.views}
+        builtInViews={[]}
+        activeViewId={null}
+        onApply={(view) => applyView(view.config)}
+        onSave={(name) =>
+          savedViews.saveView(name, {
+            filters: {
+              ...(domain ? { domain } : {}),
+              ...(overdue ? { overdue: 'true' } : {}),
+            },
+            sortKey: null,
+            sortDirection: 'asc',
+            groupKey: null,
+          })
+        }
+        onRename={savedViews.renameView}
+        onRemove={savedViews.removeView}
+        currentConfig={{
+          filters: {
+            ...(domain ? { domain } : {}),
+            ...(overdue ? { overdue: 'true' } : {}),
+          },
+          sortKey: null,
+          sortDirection: 'asc',
+          groupKey: null,
+        }}
+        canSave={Boolean(domain || overdue)}
+        allLabel="Tudo"
+        className="mb-2"
+      />
 
       <WorkbenchQueue
         title="Minha fila"
