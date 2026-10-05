@@ -755,7 +755,17 @@ export function ServiceOrderPlanningPage() {
           </div>
         }
         aside={
-          <ObjectPanel>
+          <ObjectPanel title="Operação">
+            {order.controlCenter ? (
+              <OperationsControlCenter
+                controlCenter={order.controlCenter}
+                measurementHref={'/app/service-orders/' + order.id + '/measurement'}
+              />
+            ) : (
+              <p className="m-0 text-sm text-gray-500">
+                Sem controle operacional disponível para esta ordem.
+              </p>
+            )}
             <ActivityTimeline
               facts={historyFacts}
               title="Histórico"
@@ -764,15 +774,6 @@ export function ServiceOrderPlanningPage() {
           </ObjectPanel>
         }
       >
-        {order.controlCenter ? (
-          <section className="planning-section" aria-label="Centro de controle operacional">
-            <OperationsControlCenter
-            controlCenter={order.controlCenter}
-            measurementHref={'/app/service-orders/' + order.id + '/measurement'}
-            />
-          </section>
-        ) : null}
-
         {/* De onde veio / o que foi gerado: a linhagem comercial e operacional desta OS. */}
         <section className="planning-section" aria-label="Cadeia de negócio">
           <BusinessChain
