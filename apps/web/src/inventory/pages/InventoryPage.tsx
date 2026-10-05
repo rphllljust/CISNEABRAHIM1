@@ -4,6 +4,7 @@ import { EmptyState, Field, Input, Money, Select, worklistTableCardClass } from 
 import {
   FilterCard,
   ModulePage,
+  ModulePageHeader,
   ModuleTableLink,
   UnitScopeLabel,
 } from '../../ui/module-layout';
@@ -725,9 +726,15 @@ export function InventoryItemDetailPage() {
 
   return (
     <ModulePage>
-      <WorklistHeader
+      {/*
+        FLOORPLAN DE OBJETO — o detalhe do item é OBJECT PAGE, não worklist. `WorklistHeader`
+        pertence às listas; aqui cabe a moldura de detalhe (`ModulePageHeader`), que continua
+        sendo a gramática real desta superfície até a migração própria para
+        EnterpriseObjectPage/EnterpriseObjectHeader.
+      */}
+      <ModulePageHeader
         title="Item de estoque"
-        context="Saldo, movimentos e reservas do item. O identificador técnico permanece interno."
+        description="Saldo, movimentos e reservas do item. O identificador técnico permanece interno."
         action={
           <Link className="text-sm font-semibold text-gray-700 hover:text-gray-900" to="/app/inventory">
             Voltar para o estoque
@@ -1085,9 +1092,10 @@ export function InventoryWarehouseDetailPage() {
 
   return (
     <ModulePage>
-      <WorklistHeader
+      {/* FLOORPLAN DE OBJETO — detalhe de depósito é OBJECT PAGE, não worklist. */}
+      <ModulePageHeader
         title={warehouse ? `${warehouse.name}` : 'Depósito'}
-        context="Saldo por item e histórico de movimentos do depósito."
+        description="Saldo por item e histórico de movimentos do depósito."
         action={
           <Link className="text-sm font-semibold text-gray-700 hover:text-gray-900" to="/app/inventory">
             Voltar para o estoque
