@@ -339,6 +339,26 @@ export type BudgetComparison = {
   variance: string;
 };
 
+/**
+ * Linha da previsao de caixa, como o servidor publica (`CashForecastLine`).
+ *
+ * O tipo nomeado NAO e decoracao: um campo de linha escrito inline em `CashForecast` devolve
+ * `any` para os consumidores tipados, e o operador da tela de caixa perde a leitura exata de
+ * `kind`/`bucket`. Nomear o contrato mantem a fronteira honesta sem reinterpretar o dado.
+ */
+export type CashForecastLine = {
+  kind: 'REALIZED' | 'FORECAST';
+  /** Saldo, liquidacao ou parcela — a origem do movimento. */
+  source: string;
+  direction: 'INFLOW' | 'OUTFLOW' | 'BALANCE';
+  amount: string;
+  /** Vencimento publicado; `null` quando o movimento nao tem data (saldo, liquidacao). */
+  dueOn: string | null;
+  /** Janela de vencimento publicada pelo servidor; `null` quando nao se aplica. */
+  bucket: 'OVERDUE' | 'DUE' | 'SCHEDULED' | null;
+  originId: string;
+};
+
 export type CashForecast = {
   status: 'PROJECTED' | 'NO_DATA';
   unitId: string;
@@ -348,7 +368,7 @@ export type CashForecast = {
   realized: { cashBalance: string; inflows: string; outflows: string };
   forecast: { inflows: string; outflows: string; overdueInflows: string; overdueOutflows: string; net: string };
   projectedCash: { amount: string };
-  lines: Array<{ kind: string; amount: string; sourceKind?: string }>;
+  lines: CashForecastLine[];
 };
 
 export type CollectionCase = {
