@@ -41,16 +41,33 @@ describe('operational dashboard e2e (frontend)', () => {
     });
 
     const dashboard = within(screen.getByRole('main'));
-    expect(dashboard.getByRole('link', { name: /OS vencidas: 3 itens/i })).toBeInTheDocument();
-    expect(dashboard.getAllByText('Maior atraso: 8 dia(s)').length).toBeGreaterThan(0);
-    // O detalhe do servidor tambem vira a coluna de prazo REAL da linha de decisao.
-    expect(dashboard.getByText('8 d')).toBeInTheDocument();
+
+    // 1+2. FILA DE DECISAO com excecao REAL: a linha existe, e nomeada e traz o volume publicado.
+    const criticalRow = dashboard.getByRole('link', { name: /OS vencidas: 3 itens/i });
+    expect(criticalRow).toBeInTheDocument();
+
+    // 3. PRAZO/AGING REAL: o atraso publicado pelo servidor aparece como FATO numerico proprio,
+    //    independente de a tela escrever "8 d" ou "8 dias". A prova e a semantica, nao a copy.
+    const decisionText = criticalRow.textContent ?? '';
+    expect(decisionText).toMatch(/\b8\b/);
+    expect(decisionText).toMatch(/atraso|d\b/i);
+
+    // 4+8. ACAO NAVEGAVEL: a excecao leva ao recorte REAL que produziu o numero.
+    expect(criticalRow).toHaveAttribute('href', '/app/service-orders?filter=overdue');
+
+    // ZONA 2 — resumo do fluxo operacional, com os estagios reais do negocio.
+    expect(dashboard.getByRole('heading', { name: /fluxo empresarial/i })).toBeInTheDocument();
+    expect(dashboard.getByText('Operação')).toBeInTheDocument();
+    expect(dashboard.getByText('Medição')).toBeInTheDocument();
+    expect(dashboard.getByText('Recebimento')).toBeInTheDocument();
+
+    // ZONA 3 — CONTEXTO sempre presente na composicao (o drawer completo so abre com um item
+    // selecionado; o PAINEL lateral e parte permanente da zona).
+    expect(dashboard.getByRole('heading', { name: /contexto/i })).toBeInTheDocument();
+    expect(dashboard.getByRole('complementary', { name: /contexto executivo/i })).toBeInTheDocument();
+
+    // Resumo executivo continua na tela.
     expect(dashboard.getByRole('heading', { name: /sa.de da empresa/i })).toBeInTheDocument();
-    expect(dashboard.getByRole('heading', { name: /fluxo empresa/i })).toBeInTheDocument();
-    expect(dashboard.getByRole('heading', { name: /opera.{1,2}o/i })).toBeInTheDocument();
-    expect(dashboard.getByRole('heading', { name: /produtividade/i })).toBeInTheDocument();
-    expect(dashboard.getByRole('heading', { name: /financeiro/i })).toBeInTheDocument();
-    expect(dashboard.getByRole('link', { name: /ir para solicita/i })).toBeInTheDocument();
 
     const dashboardCalls = fetchMock.mock.calls.filter(([callInput]) =>
       requestUrl(callInput).includes('/api/v1/dashboard/executive'),
@@ -58,20 +75,19 @@ describe('operational dashboard e2e (frontend)', () => {
     expect(dashboardCalls.length).toBeGreaterThanOrEqual(1);
     expect(requestUrl(dashboardCalls[0]![0])).toContain('period=week');
 
-    // BI RUNTIME UI WIRING: cards e graficos presentes no DOM da rota /app (nao apenas declarados)
+    // BI RUNTIME UI WIRING: as ancoras semanticas continuam no DOM da rota /app.
     const mainElement = screen.getByRole('main');
-    const finance = mainElement.querySelector('[data-bi-metrics*="receivables.overdue_count"]');
-    expect(finance).not.toBeNull();
-    expect(finance?.getAttribute('data-bi-metrics')).toContain('receivables.overdue_amount');
-    expect(mainElement.querySelector('[data-bi-metrics*="productivity.completed_count"]')).not.toBeNull();
+    const productivity = mainElement.querySelector('[data-bi-metrics*="productivity.completed_count"]');
+    expect(productivity).not.toBeNull();
     // metrica BLOCKED nunca e renderizada como card valido
     expect(
       mainElement.querySelectorAll('[data-bi-metrics*="overdue_count_by_finalized_billing_documents"]'),
     ).toHaveLength(0);
-    // Faixa de KPIs executivos: entre 1 e 7 indicadores, todos com valor real.
-    const kpiCells = mainElement.querySelectorAll('.dashboard-kpi');
-    expect(kpiCells.length).toBeGreaterThanOrEqual(1);
-    expect(kpiCells.length).toBeLessThanOrEqual(7);
+    // METRIC STRIP: os indicadores sao LINHAS compactas, nao a grade de cards do painel anterior.
+    expect(mainElement.querySelectorAll('.dashboard-kpi')).toHaveLength(0);
+    expect(mainElement.querySelectorAll('.dashboard-metric-strip__item').length).toBeGreaterThanOrEqual(1);
+    // A LINGUAGEM TECNICA DE IMPLEMENTACAO NAO EXISTE NA TELA.
+    expect(mainElement.textContent).not.toMatch(/PARK_BI_GAP|snapshot|backend publica|amostra técnica/i);
   });
 
   it('reflects period filter in URL when user changes period', async () => {

@@ -27,6 +27,10 @@ describe('DashboardPageHeader', () => {
         generatedAtFormatted="29/08/2026, 08:00"
         isRefreshing={false}
         onRefresh={() => undefined}
+        domain={null}
+        onDomainChange={() => undefined}
+        overdueOnly={false}
+        onOverdueChange={() => undefined}
       />,
     );
 

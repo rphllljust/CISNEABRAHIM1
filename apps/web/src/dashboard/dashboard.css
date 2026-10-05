@@ -31,17 +31,244 @@
    1. COMMAND HEADER — contexto em uma linha, sem hero
    ============================================================ */
 
+/* ============================================================
+   1b. WORKSPACE — grade de 3 zonas: decisão+fluxo à esquerda, contexto à direita
+   ============================================================ */
+
+.dashboard-workspace {
+  display: grid;
+  gap: var(--spacing-4);
+  align-items: start;
+}
+
+@media (min-width: 1100px) {
+  .dashboard-workspace {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 20rem);
+  }
+
+  .dashboard-workspace__side {
+    position: sticky;
+    top: var(--spacing-2);
+  }
+}
+
+.dashboard-workspace__main {
+  min-width: 0;
+}
+
+.dashboard-workspace__side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  min-width: 0;
+}
+
+.dashboard-side-panel {
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-md);
+  background: var(--dashboard-surface);
+  padding: var(--spacing-3);
+}
+
+.dashboard-side-panel__title {
+  margin: 0 0 var(--spacing-2);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-slate-600);
+}
+
+/* BUSINESS CONTEXT: identificação forte, fato principal, ação — em bloco compacto. */
+.dashboard-side-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.dashboard-side-summary__id {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--color-brand-700);
+}
+
+.dashboard-side-summary__title {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.3;
+  color: var(--dashboard-ink);
+}
+
+.dashboard-side-summary__reason {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--color-slate-500);
+}
+
+.dashboard-side-panel__empty {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--color-slate-500);
+}
+
+/* CONTEXT DRAWER — business context, nao formulario read-only: dl mais justo. */
+[role='dialog'] dl {
+  gap: var(--spacing-1) var(--spacing-3);
+}
+
+[role='dialog'] dl dt,
+[role='dialog'] dl dd {
+  line-height: 1.3;
+}
+
+.dashboard-side-summary__actions {
+  margin-top: var(--spacing-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.dashboard-side-summary__primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-brand-600);
+  border-radius: var(--radius-md);
+  background: var(--color-brand-600);
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+}
+
+.dashboard-side-summary__primary:hover {
+  background: var(--color-brand-700);
+}
+
+/* METRIC STRIP — indicadores reais em linha, sem grade de células vazias. */
+.dashboard-metric-strip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.dashboard-metric-strip__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dashboard-metric-strip__item {
+  min-width: 0;
+}
+
+.dashboard-metric-link,
+.dashboard-metric-static {
+  display: inline-flex;
+  text-decoration: none;
+}
+
+.dashboard-metric-link:hover {
+  filter: brightness(0.97);
+}
+
+.dashboard-metric-link:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
+  border-radius: var(--radius-md);
+}
+
+.dashboard-work {
+  margin-top: var(--spacing-3);
+}
+
+.dashboard-work__all {
+  margin-left: var(--spacing-2);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-brand-600);
+  text-decoration: none;
+}
+
+.dashboard-work__all:hover {
+  text-decoration: underline;
+}
+
+/* ============================================================
+   1. COMMAND HEADER — contexto em duas faixas densas, sem hero
+   ============================================================ */
+
 .dashboard-command {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  margin-bottom: var(--spacing-3);
+  background: var(--dashboard-surface);
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-lg);
+}
+
+.dashboard-command__row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-3);
-  padding: var(--spacing-3) var(--spacing-4);
-  margin-bottom: var(--spacing-4);
-  background: var(--dashboard-surface);
+}
+
+.dashboard-command__row--recorte {
+  padding-top: var(--spacing-2);
+  border-top: 1px solid var(--dashboard-line-soft);
+}
+
+.dashboard-command__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+}
+
+.dashboard-command__chip {
   border: 1px solid var(--dashboard-line);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-sm);
+  background: var(--dashboard-surface);
+  padding: 0.125rem var(--spacing-2);
+  font-size: 0.75rem;
+  color: var(--color-slate-600);
+  cursor: pointer;
+}
+
+.dashboard-command__chip:hover {
+  background: var(--color-slate-50);
+}
+
+.dashboard-command__chip--on {
+  border-color: var(--color-brand-600);
+  background: var(--color-brand-600);
+  color: #fff;
+  font-weight: 600;
+}
+
+.dashboard-command__refine {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.dashboard-command__overdue {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  font-size: 0.75rem;
+  color: var(--color-slate-700);
 }
 
 .dashboard-command__identity {
@@ -281,16 +508,25 @@
 
 .dashboard-decision__row {
   display: grid;
-  grid-template-columns: 4.75rem minmax(0, 1fr) 3rem 3rem auto;
+  grid-template-columns: 4.75rem minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: var(--spacing-3);
-  padding: var(--spacing-2) var(--spacing-3);
+  gap: var(--spacing-2) var(--spacing-3);
+  padding: 0.4375rem var(--spacing-3) 0.4375rem 0.75rem;
   text-decoration: none;
   color: inherit;
+  border-left: 2px solid var(--color-slate-200);
 }
 
 a.dashboard-decision__row:hover {
   background: var(--color-slate-50);
+}
+
+.dashboard-decision__row-wrap:has(.dashboard-decision__severity--critical) .dashboard-decision__row {
+  border-left-color: var(--color-red-600);
+}
+
+.dashboard-decision__row-wrap:has(.dashboard-decision__severity--warning) .dashboard-decision__row {
+  border-left-color: var(--color-amber-500);
 }
 
 a.dashboard-decision__row:focus-visible {
@@ -332,9 +568,19 @@ a.dashboard-decision__row:focus-visible {
 }
 
 .dashboard-decision__reason-label {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-1);
   font-size: 0.875rem;
   font-weight: 500;
   color: var(--dashboard-ink);
+}
+
+.dashboard-decision__reason .dashboard-decision__count {
+  text-align: left;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: inherit;
 }
 
 .dashboard-decision__reason-detail {
@@ -344,7 +590,7 @@ a.dashboard-decision__row:focus-visible {
 
 .dashboard-decision__count {
   text-align: right;
-  font-size: 1.0625rem;
+  font-size: 1rem;
   font-weight: 600;
   color: var(--dashboard-ink);
 }
@@ -354,6 +600,7 @@ a.dashboard-decision__row:focus-visible {
   font-size: 0.75rem;
   color: var(--color-slate-400);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .dashboard-decision__deadline--set {
@@ -364,9 +611,10 @@ a.dashboard-decision__row:focus-visible {
 .dashboard-decision__action {
   display: inline-flex;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--spacing-1);
   font-size: 0.75rem;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--color-brand-600);
   white-space: nowrap;
 }
@@ -558,117 +806,252 @@ a.dashboard-kpi:focus-visible {
 }
 
 /* ============================================================
-   6. BUSINESS FLOW — empresa -> caixa
+   6. FLUXO EMPRESARIAL — resumo agregado do workspace (Zona 2)
    ============================================================ */
 
-.dashboard-flow__list {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: stretch;
-  gap: var(--spacing-1);
+.dashboard-flow {
+  margin-bottom: var(--spacing-3);
+}
+
+.dashboard-flow__stages {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   margin: 0;
   padding: 0;
   list-style: none;
-}
-
-.dashboard-flow__item {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  flex: 1 1 9rem;
-  min-width: 0;
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-md);
+  background: var(--dashboard-surface);
+  overflow: hidden;
 }
 
 .dashboard-flow__stage {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 0.125rem;
-  flex: 1 1 auto;
+  gap: 0.0625rem;
   min-width: 0;
   padding: var(--spacing-2) var(--spacing-3);
-  border: 1px solid var(--dashboard-line);
-  border-top-width: 3px;
-  border-top-color: var(--color-slate-300);
-  border-radius: var(--radius-md);
-  background: var(--dashboard-surface);
+  text-decoration: none;
+  color: inherit;
 }
 
+/* CONTINUIDADE: a seta costura o estagio ao anterior, para a faixa ler como UMA cadeia. */
+.dashboard-flow__step {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.875rem;
+  height: 0.875rem;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--dashboard-line);
+  background: var(--dashboard-surface);
+  font-size: 0.5rem;
+  line-height: 1;
+  color: var(--color-slate-400);
+}
+
+/* O acento semântico é do FATO do estágio, não decoração. */
 .dashboard-flow__stage--attention {
-  border-top-color: var(--color-amber-500);
+  box-shadow: inset 0 2px 0 0 var(--color-amber-500);
 }
 
 .dashboard-flow__stage--critical {
-  border-top-color: var(--color-red-600);
-  background: color-mix(in srgb, var(--color-red-50) 45%, #fff);
+  box-shadow: inset 0 2px 0 0 var(--color-red-600);
 }
 
-.dashboard-flow__label {
-  margin: 0;
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--color-slate-600);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* UNKNOWN != ZERO: estágio sem contagem publicada não recebe tratamento de número. */
+.dashboard-flow__stage--unknown {
+  background: var(--color-slate-50);
 }
 
 .dashboard-flow__value {
   display: flex;
   align-items: baseline;
   gap: var(--spacing-2);
-  margin: 0;
+  min-width: 0;
 }
 
 .dashboard-flow__number {
-  font-size: 1.125rem;
+  font-size: 1.25rem;
   font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
   color: var(--dashboard-ink);
   font-variant-numeric: tabular-nums;
 }
 
-.dashboard-flow__amount {
+.dashboard-flow__stage--critical .dashboard-flow__number {
+  color: var(--color-red-700);
+}
+
+.dashboard-flow__stage--attention .dashboard-flow__number {
+  color: var(--color-amber-700);
+}
+
+.dashboard-flow__unknown {
+  font-size: 0.75rem;
+  font-style: italic;
+  color: var(--color-slate-400);
+}
+
+.dashboard-flow__label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-slate-600);
+}
+
+.dashboard-flow__situation {
+  font-size: 0.6875rem;
+  color: var(--color-slate-500);
+}
+
+.dashboard-flow__situation--attention {
+  color: var(--color-amber-700);
+  font-weight: 600;
+}
+
+.dashboard-flow__situation--critical {
+  color: var(--color-red-700);
+  font-weight: 600;
+}
+
+.dashboard-flow__exposure {
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--color-red-700);
   font-variant-numeric: tabular-nums;
 }
 
+/* NUNCA truncar: o fato precisa ser legível por inteiro. */
 .dashboard-flow__hint {
-  margin: 0;
   font-size: 0.6875rem;
+  line-height: 1.35;
   color: var(--color-slate-400);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-.dashboard-flow__situation {
-  margin: 0;
-  font-size: 0.6875rem;
+/* ============================================================
+   6b. MINHA FILA — item denso: aging, objeto, vencimento, ação
+   ============================================================ */
+
+.dashboard-queue-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 3.25rem minmax(0, 1fr) 5.25rem auto;
+  align-items: center;
+  gap: var(--spacing-2) var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-3) var(--spacing-2) 0.875rem;
+  margin-bottom: 1px;
+  background: var(--dashboard-surface);
+  border-bottom: 1px solid var(--dashboard-line-soft);
+}
+
+.dashboard-queue-item:last-child {
+  border-bottom: 0;
+}
+
+.dashboard-queue-item::before {
+  content: '';
+  position: absolute;
+  top: 0.5rem;
+  bottom: 0.5rem;
+  left: 0;
+  width: 2px;
+  border-radius: var(--radius-full);
+  background: var(--color-slate-200);
+}
+
+.dashboard-queue-item--critical::before {
+  background: var(--color-red-500);
+}
+
+.dashboard-queue-item--selected {
+  background: var(--color-brand-50);
+}
+
+.dashboard-queue-item__aging {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.05;
+}
+
+.dashboard-queue-item__aging strong {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-red-700);
+}
+
+.dashboard-queue-item__aging span {
+  font-size: 0.625rem;
   color: var(--color-slate-500);
 }
 
-.dashboard-flow__link {
-  margin-top: 0.125rem;
+.dashboard-queue-item__ontrack {
   font-size: 0.6875rem;
-  font-weight: 600;
-  color: var(--color-brand-600);
-  text-decoration: none;
+  color: var(--color-slate-400);
 }
 
-.dashboard-flow__link:hover {
+.dashboard-queue-item__object {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.0625rem;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dashboard-queue-item__ref {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--color-brand-700);
+}
+
+.dashboard-queue-item__object:hover .dashboard-queue-item__ref {
   text-decoration: underline;
 }
 
-.dashboard-flow__link--absent {
-  color: var(--color-slate-400);
-  font-weight: 400;
+.dashboard-queue-item__title {
+  font-size: 0.8125rem;
+  color: var(--dashboard-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
 }
 
-.dashboard-flow__arrow {
-  color: var(--color-slate-300);
-  font-size: 0.875rem;
-  flex: 0 0 auto;
+.dashboard-queue-item__due {
+  font-size: 0.75rem;
+  color: var(--color-slate-500);
+  text-align: right;
+}
+
+.dashboard-queue-item__meta {
+  grid-column: 2 / -1;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--spacing-1);
+  font-size: 0.6875rem;
+  line-height: 1.35;
+  color: var(--color-slate-400);
+}
+
+.dashboard-queue-item__reason {
+  color: var(--color-slate-500);
 }
 
 /* ============================================================

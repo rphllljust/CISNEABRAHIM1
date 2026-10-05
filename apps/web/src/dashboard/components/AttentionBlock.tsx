@@ -90,14 +90,15 @@ export function AttentionBlock({ items }: AttentionBlockProps) {
               >
                 {SEVERITY_LABEL[item.severity]}
               </span>
+              {/* OBJETO (o que e) e IMPACTO/PRAZO (o que pesa) — o fato da linha. */}
               <span className="dashboard-decision__reason">
-                <span className="dashboard-decision__reason-label">{item.label}</span>
+                <span className="dashboard-decision__reason-label">
+                  <span className="dashboard-decision__count tabular-nums">{item.count}</span>
+                  {item.label}
+                </span>
                 {item.detail ? (
                   <span className="dashboard-decision__reason-detail">{item.detail}</span>
                 ) : null}
-              </span>
-              <span className="dashboard-decision__count tabular-nums" aria-hidden="true">
-                {item.count}
               </span>
               <span
                 className={cn(
@@ -105,7 +106,7 @@ export function AttentionBlock({ items }: AttentionBlockProps) {
                   item.maxDelayDays !== null && 'dashboard-decision__deadline--set',
                 )}
               >
-                {item.maxDelayDays !== null ? `${item.maxDelayDays} d` : '—'}
+                {item.maxDelayDays !== null ? `${item.maxDelayDays} d` : ''}
               </span>
               <span className="dashboard-decision__action">
                 {href ? (
