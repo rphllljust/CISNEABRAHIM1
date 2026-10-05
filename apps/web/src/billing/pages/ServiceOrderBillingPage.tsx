@@ -37,6 +37,13 @@ import {
   ModulePage,
   ModuleStatePage,
 } from '../../ui';
+import {
+  ObjectStateFlow,
+  NextActionPanel,
+  type ObjectStateStep,
+  type NextAction,
+} from '../../enterprise-object';
+import { BILLING_PROCESS_STEPS } from '../utils/billing-process';
 
 type PageState =
   | { phase: 'loading' }
@@ -252,6 +259,54 @@ export function ServiceOrderBillingPage() {
   const canVoid =
     capabilities.canVoid && !versionConflict && billing?.status === BILLING_RECORD_STATUSES.Prepared;
 
+  /*
+   * ESTADO DO PROCESSO — derivado da state machine REAL do faturamento (medicao -> preparacao ->
+   * documento -> recebivel), publicado por `BILLING_PROCESS_STEPS`. Nenhum estado e inventado:
+   * o `currentId` e a etapa onde o processo esta, pelo dado persistido.
+   */
+  const currentStepId =
+    billing?.status === BILLING_RECORD_STATUSES.Prepared
+      ? 'document'
+      : billing?.status === BILLING_RECORD_STATUSES.Voided
+        ? 'preparation'
+        : measurement?.status === MEASUREMENT_STATUSES.Approved
+          ? 'preparation'
+          : 'measurement';
+  const billingFlowSteps: ObjectStateStep[] = BILLING_PROCESS_STEPS.map((step) => ({
+    id: step.id,
+    label: step.label,
+  }));
+
+  /*
+   * PROXIMA ACAO — mesma leitura da state machine + capability: nunca um texto generico. Sem
+   * acao declarada, o painel some (nao ha "editar status").
+   */
+  let billingNextAction: NextAction | null = null;
+  if (canPrepare) {
+    billingNextAction = {
+      kind: 'act',
+      label: 'Preparar faturamento',
+      description: termsDivergence
+        ? 'Bloqueado por divergência entre a condição informada e a fonte autoritativa.'
+        : 'Consolida a medição aprovada em uma cobrança interna.',
+      onSelect: () => setPrepareOpen(true),
+    };
+  } else if (billing?.status === BILLING_RECORD_STATUSES.Prepared && capabilities.canIssueDocument) {
+    billingNextAction = {
+      kind: 'act',
+      label: 'Emitir Nota Fatura',
+      description: 'A preparação está concluída; o próximo passo é emitir o documento interno.',
+      to: `/app/service-orders/${order.id}/billing/document`,
+    };
+  } else if (measurement?.status !== MEASUREMENT_STATUSES.Approved) {
+    billingNextAction = {
+      kind: 'waiting',
+      label: 'Aguardar medição aprovada',
+      description: 'O faturamento nasce de uma medição aprovada.',
+      waitingOn: 'Operação (aprovação da medição)',
+    };
+  }
+
   return (
     <ModulePage>
       <header className="billing-page__header">
@@ -271,6 +326,13 @@ export function ServiceOrderBillingPage() {
       </header>
 
       {versionConflict ? <BillingVersionConflictBanner onReload={() => void reload()} /> : null}
+
+      {/*
+        OBJECT WORKSPACE — estado do processo + próxima ação dominam a leitura, antes dos blocos
+        estáticos. O operador entende ONDE está e O QUE fazer sem interpretar a página.
+      */}
+      <ObjectStateFlow steps={billingFlowSteps} currentId={currentStepId} title="Fluxo do faturamento" />
+      <NextActionPanel action={billingNextAction} />
 
       {feedback ? (
         <p
