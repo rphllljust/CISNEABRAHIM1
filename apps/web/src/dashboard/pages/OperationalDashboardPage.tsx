@@ -7,6 +7,7 @@ import { FiscalPanel } from '../components/FiscalPanel';
 import { OperationPanel } from '../components/OperationPanel';
 import { OperationalDashboardSkeleton } from '../components/OperationalDashboardSkeleton';
 import { ProductivityPanel } from '../components/ProductivityPanel';
+import { WorkInboxSection } from '../components/WorkInboxSection';
 import { useExecutiveDashboard } from '../hooks/useExecutiveDashboard';
 import { useOperationalUnits, operationalUnitLabel } from '../../shell/hooks/useOperationalUnits';
 import { buildDashboardKpis, buildPeriodVolume } from '../utils/build-dashboard-kpis';
@@ -159,6 +160,12 @@ export function OperationalDashboardPage() {
           </div>
 
           {flow.length > 0 ? <BusinessFlowStrip stages={flow} /> : null}
+
+          {/* MINHA FILA — fila de trabalho real composta DENTRO do Command Center.
+              Consome o MESMO read model `GET /work-inbox` da Central de trabalho: o operador
+              processa itens (seleciona, vê contexto no drawer, age ou faz drilldown) sem
+              abandonar o painel. Agregado (AttentionBlock) ≠ fila (WorkInboxSection). */}
+          <WorkInboxSection />
 
           {snapshot.visibility.serviceOrders ? <OperationPanel snapshot={snapshot} /> : null}
 
