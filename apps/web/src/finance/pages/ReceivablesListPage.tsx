@@ -401,6 +401,27 @@ export function ReceivablesListPage() {
                   if (field.name === 'principal') {
                     return <Money value={text(row['principal'])} currencyCode={currency} />;
                   }
+                  /*
+                   * CLIENTE — o DTO publica apenas `clientId` (UUID). A célula não exibe o
+                   * identificador cru nem inventa nome: declara o estado honesto e mantém o
+                   * drilldown real para o cadastro, quando a rota existe.
+                   */
+                  if (field.name === 'client_id') {
+                    const clientId = text(row['client_id']);
+                    return clientId ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="text-xs text-gray-500">Cliente não publicado</span>
+                        <Link
+                          to={`/app/clients/${clientId}`}
+                          className="text-xs font-medium text-brand-700 no-underline hover:text-brand-800"
+                        >
+                          Abrir cliente
+                        </Link>
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    );
+                  }
                   return undefined;
                 }}
               />
@@ -435,7 +456,52 @@ export function ReceivablesListPage() {
                 className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-900/5 lg:sticky lg:top-4 lg:self-start"
                 aria-label="Contexto do título selecionado"
               >
-                <ReceivableChain row={previewRow} />
+                <header className="border-b border-gray-100 pb-3">
+                  <p className="text-sm font-semibold text-gray-900">
+                    {previewRow.externalReference ?? 'Recebível'}
+                  </p>
+                  <div className="mt-1.5">
+                    <FinanceStatusBadge
+                      status={previewRow.status}
+                      labels={RECEIVABLE_STATUS_LABELS}
+                    />
+                  </div>
+                </header>
+                <dl className="my-3 grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)] gap-x-3 gap-y-2">
+                  <dt className="text-xs text-gray-500">Cliente</dt>
+                  <dd className="m-0 text-[13px] text-gray-800">
+                    <span className="text-gray-500">Cliente não publicado · </span>
+                    <Link
+                      to={`/app/clients/${previewRow.clientId}`}
+                      className="text-brand-700 no-underline hover:text-brand-800"
+                    >
+                      Abrir cliente
+                    </Link>
+                  </dd>
+                  <dt className="text-xs text-gray-500">Valor original</dt>
+                  <dd className="m-0 text-[13px] text-gray-800 tabular-nums">
+                    <Money value={previewRow.principal} currencyCode={previewRow.currencyCode} />
+                  </dd>
+                  <dt className="text-xs text-gray-500">Saldo</dt>
+                  <dd className="m-0 text-[13px] font-semibold text-gray-900 tabular-nums">
+                    <Money value={previewRow.remainingBalance} currencyCode={previewRow.currencyCode} emphasis />
+                  </dd>
+                  <dt className="text-xs text-gray-500">Vencimento</dt>
+                  <dd className="m-0 text-[13px] text-gray-800">
+                    <DateTime value={previewRow.dueDate} mode="date" />
+                  </dd>
+                  <dt className="text-xs text-gray-500">Recebimentos</dt>
+                  <dd className="m-0 text-[13px] text-gray-800 tabular-nums">
+                    {previewRow.settlements.length}
+                  </dd>
+                  <dt className="text-xs text-gray-500">Origem</dt>
+                  <dd className="m-0 text-[13px] text-gray-800">
+                    {previewRow.origin.kind ?? '—'}
+                  </dd>
+                </dl>
+                <div className="border-t border-gray-100 pt-3">
+                  <ReceivableChain row={previewRow} />
+                </div>
               </aside>
             ) : null}
           </div>
