@@ -95,7 +95,10 @@ export function buildDashboardKpis(snapshot: ExecutiveDashboardSnapshot): Dashbo
         label: 'OS vencidas',
         value: String(overdueCount),
         unit: plural(overdueCount, 'ordem', 'ordens'),
-        context: maxDelay !== null && maxDelay !== undefined ? `Maior atraso: ${maxDelay} dia(s)` : 'Prazo vencido',
+        context:
+          maxDelay !== null && maxDelay !== undefined
+            ? `Maior atraso: ${maxDelay} ${maxDelay === 1 ? 'dia' : 'dias'}`
+            : 'Prazo vencido',
         href: attentionHref(snapshot, 'overdue-service-orders') ?? frontendDrillHrefForMetric('service_orders.overdue_count'),
         ariaLabel: `OS vencidas: ${overdueCount} ${plural(overdueCount, 'ordem', 'ordens')}`,
         variant: 'critical',

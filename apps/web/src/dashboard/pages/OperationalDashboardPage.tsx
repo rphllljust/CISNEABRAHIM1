@@ -14,6 +14,7 @@ import { ModuleDeniedState, ModulePage } from '../../ui';
 import { ContextDrawer } from '../../operator';
 import { NextActionPanel } from '../../enterprise-object/NextActionPanel';
 import { StatusBadge } from '../../ui/StatusBadge';
+import { Money } from '../../ui/Money';
 import { getWorkInbox, type WorkInboxPage, type WorkItem } from '../../work-inbox/api/work-inbox-api';
 import { daysOverdue } from '../../work-inbox/pages/WorkInboxPage';
 import { WORK_DOMAIN_LABELS, WORK_KIND_LABELS } from '../../work-inbox/api/work-inbox-api';
@@ -37,6 +38,22 @@ function formatMoment(value: string | null): string {
   }
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('pt-BR');
+}
+
+/**
+ * PLURALIZACAO HUMANA — "1 dia" / "11 dias", nunca "1 dia(s)".
+ *
+ * O "(s)" e vicio de redacao tecnica: obriga o leitor a resolver a concordancia. Frase de gestao
+ * escreve o numero e a palavra certos.
+ */
+function pluralizeDias(days: number): string {
+  return `${days} ${days === 1 ? 'dia' : 'dias'}`;
+}
+
+/** Excecao em atraso, em linguagem humana — reaproveitada pelos tres pontos que a exibem. */
+function overdueLabel(dueAt: string | null): string | null {
+  const days = daysOverdue(dueAt);
+  return days === null ? null : `${pluralizeDias(days)} em atraso`;
 }
 
 /** RECORTE ATIVO — nunca o identificador interno de unidade. */
@@ -238,11 +255,7 @@ export function OperationalDashboardPage() {
                   <p className="dashboard-side-summary__title">{selected.title}</p>
                   <div className="mt-1">
                     <StatusBadge
-                      label={
-                        daysOverdue(selected.dueAt) !== null
-                          ? `${daysOverdue(selected.dueAt)} dia(s) em atraso`
-                          : WORK_KIND_LABELS[selected.kind]
-                      }
+                      label={overdueLabel(selected.dueAt) ?? WORK_KIND_LABELS[selected.kind]}
                       tone={daysOverdue(selected.dueAt) !== null ? 'error' : 'info'}
                     />
                   </div>
@@ -291,11 +304,7 @@ export function OperationalDashboardPage() {
                 subtitle: selected.title,
                 status: (
                   <StatusBadge
-                    label={
-                      daysOverdue(selected.dueAt) !== null
-                        ? `${daysOverdue(selected.dueAt)} dia(s) em atraso`
-                        : selected.status
-                    }
+                    label={overdueLabel(selected.dueAt) ?? selected.status}
                     tone={daysOverdue(selected.dueAt) !== null ? 'error' : 'info'}
                   />
                 ),
@@ -307,10 +316,7 @@ export function OperationalDashboardPage() {
                   { label: 'Vencimento', value: formatMoment(selected.dueAt) },
                   {
                     label: 'Exceção',
-                    value:
-                      daysOverdue(selected.dueAt) !== null
-                        ? `${daysOverdue(selected.dueAt)} dia(s) em atraso`
-                        : 'Sem atraso',
+                    value: overdueLabel(selected.dueAt) ?? 'Sem atraso',
                     emphasis: daysOverdue(selected.dueAt) !== null,
                   },
                 ],
@@ -389,7 +395,8 @@ function BusinessFlowSummary({ stages }: { stages: BusinessFlowStage[] }) {
                 <span className="dashboard-flow__unknown">sem contagem publicada</span>
               )}
               {stage.amount ? (
-                <span className="dashboard-flow__exposure tabular-nums">{stage.amount}</span>
+                /* MONEY CANONICO: o primitivo do CISNE formata o valor do servidor (R$ 2.500,00). */
+                <Money value={stage.amount} className="dashboard-flow__exposure" />
               ) : null}
             </span>
             {/* LABEL e SITUACAO sao secundarios. */}

@@ -144,8 +144,21 @@ export function attentionDrillHref(item: ExecutiveAttentionItem): string | null 
   return item.href ?? drillHrefIfKnown(item.id);
 }
 
-function attentionCount(snapshot: ExecutiveDashboardSnapshot, id: string): number {
-  return snapshot.attention.find((item) => item.id === id)?.count ?? 0;
+/**
+ * Contagem de um item de atencao — `null` QUANDO O ITEM NAO FOI PUBLICADO.
+ *
+ * O `?? 0` desta funcao era um gerador de mentira: `overdue-receivables` ausente do snapshot
+ * (porque o executor nao publica essa contagem) virava "0 titulos vencidos" na tela — uma
+ * AFIRMACAO DE AUSENCIA que o servidor nunca fez. AUSENCIA != ZERO.
+ *
+ * Quem precisa do numero para decidir recebe `null` e trata como "nao publicado". Quem so quer
+ * saber se ha trabalho usa `attentionCount(...) ?? 0`, explicitamente, no ponto de decisao.
+ */
+function attentionCountOrNull(
+  snapshot: ExecutiveDashboardSnapshot,
+  id: string,
+): number | null {
+  return snapshot.attention.find((item) => item.id === id)?.count ?? null;
 }
 
 /**
@@ -163,7 +176,7 @@ export function buildBusinessFlow(
   domain: string | null = null,
 ): BusinessFlowStage[] {
   const visibility = snapshot.visibility;
-  const overdueOrders = attentionCount(snapshot, 'overdue-service-orders');
+  const overdueOrders = attentionCountOrNull(snapshot, 'overdue-service-orders');
   const activeOrders = snapshot.charts.serviceOrdersByStatus.items.reduce(
     (total, item) => total + item.count,
     0,
@@ -176,26 +189,33 @@ export function buildBusinessFlow(
       label: 'Operação',
       count: activeOrders,
       amount: null,
-      situation: overdueOrders > 0 ? 'critical' : 'normal',
+      situation: overdueOrders !== null && overdueOrders > 0 ? 'critical' : 'normal',
       situationLabel:
-        overdueOrders > 0
-          ? `${overdueOrders} ${overdueOrders === 1 ? 'ordem vencida' : 'ordens vencidas'}`
-          : 'Nenhuma ordem vencida',
+        overdueOrders === null
+          ? 'Atraso não publicado'
+          : overdueOrders > 0
+            ? `${overdueOrders} ${overdueOrders === 1 ? 'ordem vencida' : 'ordens vencidas'}`
+            : 'Nenhuma ordem vencida',
       href: DASHBOARD_DRILL_DESTINATIONS['service-orders-active'],
       hint: 'Ordens de serviço ativas no escopo autorizado',
     });
   }
 
   if (visibility.measurements && (domain === null || domain === 'OPERACOES')) {
-    const pending = attentionCount(snapshot, 'pending-measurements');
+    const pending = attentionCountOrNull(snapshot, 'pending-measurements');
     stages.push({
       id: 'measurement',
       label: 'Medição',
       count: pending,
       amount: null,
-      situation: pending > 0 ? 'attention' : 'normal',
-      situationLabel: pending > 0 ? 'Aguardando aprovação' : 'Nenhuma parada',
-      href: pending > 0 ? DASHBOARD_DRILL_DESTINATIONS['measurements-pending'] : null,
+      situation: pending !== null && pending > 0 ? 'attention' : 'normal',
+      situationLabel:
+        pending === null
+          ? 'Sem contagem publicada'
+          : pending > 0
+            ? 'Aguardando aprovação'
+            : 'Nenhuma parada',
+      href: pending !== null && pending > 0 ? DASHBOARD_DRILL_DESTINATIONS['measurements-pending'] : null,
       hint: 'Medições aguardando análise ou aprovação',
     });
   }
@@ -216,7 +236,12 @@ export function buildBusinessFlow(
       hint: 'Cobrança preparada a partir da medição aprovada',
     });
 
-    const overdueReceivables = attentionCount(snapshot, 'overdue-receivables');
+    /*
+     * RECEBIMENTO — a contagem vem do item de atencao `overdue-receivables`. Quando o executor NAO
+     * publica esse item, a etapa nao afirma "0 titulos vencidos": ela declara a ausencia, do mesmo
+     * modo que Faturamento. O que nao foi publicado nao vira zero.
+     */
+    const overdueReceivables = attentionCountOrNull(snapshot, 'overdue-receivables');
     const exposure = extractOverdueExposure(
       snapshot.attention.find((item) => item.id === 'overdue-receivables'),
     );
@@ -225,11 +250,13 @@ export function buildBusinessFlow(
       label: 'Recebimento',
       count: overdueReceivables,
       amount: exposure,
-      situation: overdueReceivables > 0 ? 'critical' : 'normal',
+      situation: overdueReceivables !== null && overdueReceivables > 0 ? 'critical' : 'normal',
       situationLabel:
-        overdueReceivables > 0
-          ? `${overdueReceivables} ${overdueReceivables === 1 ? 'título vencido' : 'títulos vencidos'}`
-          : 'Nenhum título vencido',
+        overdueReceivables === null
+          ? 'Sem contagem publicada'
+          : overdueReceivables > 0
+            ? `${overdueReceivables} ${overdueReceivables === 1 ? 'título vencido' : 'títulos vencidos'}`
+            : 'Nenhum título vencido',
       href: DASHBOARD_DRILL_DESTINATIONS['receivables-overdue'],
       hint: 'Títulos emitidos e não liquidados',
     });

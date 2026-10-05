@@ -72,7 +72,8 @@ export function AttentionBlock({ items }: AttentionBlockProps) {
           Central de decisão
         </h2>
         <p className="dashboard-section-head__meta">
-          {ordered.length} exceções · {criticalCount} críticas · mais urgente primeiro
+          {ordered.length} {ordered.length === 1 ? 'exceção' : 'exceções'} · {criticalCount}{' '}
+          {criticalCount === 1 ? 'crítica' : 'críticas'} · mais urgente primeiro
         </p>
       </header>
 
