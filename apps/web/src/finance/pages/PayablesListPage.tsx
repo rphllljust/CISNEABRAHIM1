@@ -66,6 +66,8 @@ export function PayablesListPage() {
   const navigate = useNavigate();
   const [pageNumber, setPageNumber] = useState(1);
   const [previewId, setPreviewId] = useState<string | null>(null);
+  /** O drawer só abre por intenção explícita ("Prévia"); a seleção automática alimenta o contexto inline. */
+  const [drawerOpen, setDrawerOpen] = useState(false);
   /** Árvore do construtor visual de filtros. Estado da TELA — `useSmartList` não a comporta. */
   const [filterGroup, setFilterGroup] = useState<FilterGroup>(() => emptyFilterGroup());
   const { schema } = useEntitySchema('payables');
@@ -174,7 +176,11 @@ export function PayablesListPage() {
 
   const rows = byBuilder.map(payableEngineRow);
   const selectedRows = selection.selectedRows(filtered);
-  const previewRow = pageItems.find((item) => item.id === previewId) ?? null;
+  // SELEÇÃO EFETIVA — derivada, sem effect/setState automático (mesma regra de Receivables).
+  const effectiveSelectedId = previewId && pageItems.some((item) => item.id === previewId)
+    ? previewId
+    : pageItems[0]?.id ?? null;
+  const previewRow = pageItems.find((item) => item.id === effectiveSelectedId) ?? null;
 
   /**
    * CARTEIRA VAZIA — `200 + items=[]` e EMPTY DATA, nao negacao de acesso.
@@ -333,7 +339,9 @@ export function PayablesListPage() {
         />
       ) : (
         <>
-          <DynamicList
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
+            <div className="min-w-0">
+              <DynamicList
             schema={schema}
             rows={rows}
             emptyMessage="Nenhum título corresponde ao recorte atual. Ajuste o filtro ou limpe a visão para ver todas as obrigações."
@@ -367,7 +375,10 @@ export function PayablesListPage() {
               <button
                 type="button"
                 className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                onClick={() => setPreviewId(row.id)}
+                onClick={() => {
+                  setPreviewId(String(row.id));
+                  setDrawerOpen(true);
+                }}
                 aria-label={`Prévia de ${String(row['external_reference'])}`}
               >
                 Prévia
@@ -385,6 +396,26 @@ export function PayablesListPage() {
               }
               if (field.name === 'principal') {
                 return <Money value={text(row['principal'])} currencyCode={currency} />;
+              }
+              /*
+               * CONTRAPARTE — o DTO publica `counterpartyId` (UUID); declara ausência de nome do
+               * credor e mantém drilldown real para o fornecedor, sem expor UUID nem inventar nome.
+               */
+              if (field.name === 'counterparty_id') {
+                const counterpartyId = text(row['counterparty_id']);
+                return counterpartyId ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="text-xs text-gray-500">Credor não publicado</span>
+                    <Link
+                      to={`/app/suppliers/${counterpartyId}`}
+                      className="text-xs font-medium text-brand-700 no-underline hover:text-brand-800"
+                    >
+                      Abrir fornecedor
+                    </Link>
+                  </span>
+                ) : (
+                  <span className="text-xs text-gray-400">—</span>
+                );
               }
               return undefined;
             }}
@@ -408,14 +439,63 @@ export function PayablesListPage() {
               nextDisabled={safePageNumber >= pageCount}
             />
           </div>
+            </div>
+
+            {previewRow ? (
+              <aside
+                className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-900/5 lg:sticky lg:top-4 lg:self-start"
+                aria-label="Contexto da obrigação selecionada"
+              >
+                <header className="border-b border-gray-100 pb-3">
+                  <p className="text-sm font-semibold text-gray-900">
+                    {previewRow.externalReference ?? previewRow.origin.reference ?? 'Obrigação'}
+                  </p>
+                  <div className="mt-1.5">
+                    <FinanceStatusBadge status={previewRow.status} labels={PAYABLE_STATUS_LABELS} />
+                  </div>
+                </header>
+                <dl className="my-3 grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)] gap-x-3 gap-y-2">
+                  <dt className="text-xs text-gray-500">Credor</dt>
+                  <dd className="m-0 text-[13px] text-gray-800">
+                    <span className="text-gray-500">Credor não publicado · </span>
+                    <Link to={`/app/suppliers/${previewRow.counterpartyId}`} className="text-brand-700 no-underline hover:text-brand-800">
+                      Abrir fornecedor
+                    </Link>
+                  </dd>
+                  <dt className="text-xs text-gray-500">Valor original</dt>
+                  <dd className="m-0 text-[13px] text-gray-800 tabular-nums">
+                    <Money value={previewRow.principal} currencyCode={previewRow.currencyCode} />
+                  </dd>
+                  <dt className="text-xs text-gray-500">Saldo</dt>
+                  <dd className="m-0 text-[13px] font-semibold text-gray-900 tabular-nums">
+                    <Money value={previewRow.remainingBalance} currencyCode={previewRow.currencyCode} emphasis />
+                  </dd>
+                  <dt className="text-xs text-gray-500">Vencimento</dt>
+                  <dd className="m-0 text-[13px] text-gray-800">
+                    <DateTime value={previewRow.dueDate} mode="date" />
+                  </dd>
+                  <dt className="text-xs text-gray-500">Aging</dt>
+                  <dd className="m-0 text-[13px] text-gray-800">
+                    {AGING_BUCKET_LABELS[previewRow.agingBucket] ?? previewRow.agingBucket}
+                  </dd>
+                  <dt className="text-xs text-gray-500">Pagamentos</dt>
+                  <dd className="m-0 text-[13px] text-gray-800 tabular-nums">
+                    {previewRow.payments.length}
+                  </dd>
+                  <dt className="text-xs text-gray-500">Centro de custo</dt>
+                  <dd className="m-0 text-[13px] text-gray-800">{previewRow.costCenter.code}</dd>
+                </dl>
+              </aside>
+            ) : null}
+          </div>
         </>
       )}
 
       <ContextDrawer
-        open={previewRow !== null}
+        open={drawerOpen && previewRow !== null}
         title="Contexto da obrigação"
         preview={previewRow ? buildPayablePreview(previewRow) : null}
-        onClose={() => setPreviewId(null)}
+        onClose={() => setDrawerOpen(false)}
       />
     </ModulePage>
   );
