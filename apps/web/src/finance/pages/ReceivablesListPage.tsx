@@ -496,7 +496,7 @@ export function ReceivablesListPage() {
                   </dd>
                   <dt className="text-xs text-gray-500">Origem</dt>
                   <dd className="m-0 text-[13px] text-gray-800">
-                    {previewRow.origin.kind ?? '—'}
+                    {formatOriginKind(previewRow.origin.kind)}
                   </dd>
                 </dl>
                 <div className="border-t border-gray-100 pt-3">
@@ -520,6 +520,18 @@ export function ReceivablesListPage() {
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+}
+
+/** Origem humana do recebível — apresentação, não domínio (o token persiste intacto). */
+const RECEIVABLE_ORIGIN_LABELS: Record<string, string> = {
+  BILLING_DOCUMENT: 'Nota de Fatura',
+  BILLING_RECORD: 'Faturamento',
+  SERVICE_ORDER: 'Ordem de serviço',
+  MEASUREMENT: 'Medição',
+};
+
+function formatOriginKind(kind: string): string {
+  return RECEIVABLE_ORIGIN_LABELS[kind] ?? (kind || '—');
 }
 
 /**
