@@ -151,21 +151,23 @@ export function OperationalDashboardPage() {
 
       {snapshot ? (
         <>
+          {/* 1. AGORA — sinalizador compacto de situações que exigem ação (não é a área principal). */}
+          <AttentionBlock items={snapshot.attention} />
+
+          {/* 2. MINHA FILA — ÁREA DOMINANTE. É aqui que o operador processa o dia: fila real +
+              contexto lateral + ação, sem sair do Command Center. */}
+          <WorkInboxSection />
+
+          {/* 3. FLUXO EMPRESA → CAIXA — contexto de processo, abaixo do trabalho. */}
+          {flow.length > 0 ? <BusinessFlowStrip stages={flow} /> : null}
+
+          {/* 4. SAÚDE DA EMPRESA / ANALYTICS — contexto, não o centro. */}
           <div className="dashboard-fold">
-            <AttentionBlock items={snapshot.attention} />
             <div className="dashboard-fold__kpis">
               <DashboardKpiStrip kpis={kpis} />
               {volume ? <PeriodVolumeFootnote volume={volume} /> : null}
             </div>
           </div>
-
-          {flow.length > 0 ? <BusinessFlowStrip stages={flow} /> : null}
-
-          {/* MINHA FILA — fila de trabalho real composta DENTRO do Command Center.
-              Consome o MESMO read model `GET /work-inbox` da Central de trabalho: o operador
-              processa itens (seleciona, vê contexto no drawer, age ou faz drilldown) sem
-              abandonar o painel. Agregado (AttentionBlock) ≠ fila (WorkInboxSection). */}
-          <WorkInboxSection />
 
           {snapshot.visibility.serviceOrders ? <OperationPanel snapshot={snapshot} /> : null}
 

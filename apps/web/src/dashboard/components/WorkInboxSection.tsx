@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ContextDrawer } from '../../operator';
+import { Link, useSearchParams } from 'react-router-dom';
 import { SavedViewsBar, useSavedViews } from '../../operator';
 import {
   WorkbenchQueue,
@@ -57,7 +56,6 @@ function formatMoment(value: string | null): string {
 }
 
 export function WorkInboxSection() {
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState<WorkInboxPage | null>(null);
   const [phase, setPhase] = useState<'loading' | 'ready' | 'denied' | 'error'>('loading');
@@ -113,6 +111,15 @@ export function WorkInboxSection() {
       });
     return () => controller.abort();
   }, [filters]);
+
+  // AUTO-SELECAO: o Command Center abre já com trabalho + contexto, para o operador entrar
+  // processando. Só seleciona o primeiro item quando a fila muda e nada ainda está selecionado.
+  useEffect(() => {
+    const first = page?.items[0] ?? null;
+    if (first && (selected === null || !page!.items.some((item) => item.id === selected.id))) {
+      setSelected(first);
+    }
+  }, [page, selected]);
 
   const items = page?.items ?? [];
 
@@ -202,102 +209,123 @@ export function WorkInboxSection() {
         className="mb-2"
       />
 
-      <WorkbenchQueue
-        title="Minha fila"
-        count={page?.total ?? null}
-        description="Trabalho real autorizado, de todos os domínios. Selecione um item para ver contexto sem sair do painel."
-        emptyTitle="Nenhum trabalho real neste recorte."
-        emptyDescription="A fila não inventa pendência para parecer cheia."
-        action={
-          <Link className="text-xs font-semibold text-brand-700 no-underline hover:text-brand-800" to="/app/work-inbox">
-            Ver fila completa
-          </Link>
-        }
-      >
-        {items.map((item) => {
-          const late = daysOverdue(item.dueAt);
-          const isSelected = selected?.id === item.id;
-          return (
-            <WorkbenchQueueItem
-              key={item.id}
-              severityTone={late !== null ? 'critical' : 'info'}
-              severity={
-                late !== null ? (
-                  <WorklistException tone="critical">
-                    {late} dia{late === 1 ? '' : 's'}
-                  </WorklistException>
-                ) : (
-                  <WorklistException tone="info">{item.status}</WorklistException>
-                )
-              }
-              title={item.title}
-              reason={item.reason}
-              context={
-                <>
-                  <button
-                    type="button"
-                    className={cn(
-                      'text-xs font-semibold hover:text-brand-800',
-                      isSelected ? 'text-brand-900 underline' : 'text-brand-700',
-                    )}
-                    onClick={() => setSelected(item)}
-                  >
-                    {item.businessReference}
-                  </button>
-                  <span className="ml-2 text-xs text-gray-500">
-                    {WORK_DOMAIN_LABELS[item.domain]}
-                  </span>
-                </>
-              }
-              age={<>Venc. {formatMoment(item.dueAt)}</>}
-              action={
-                <Link className={workbenchPrimaryActionClass} to={item.targetRoute}>
-                  {item.actionLabel}
-                </Link>
-              }
-            />
-          );
-        })}
-      </WorkbenchQueue>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
+        {/* COLUNA ESQUERDA — a fila dominante. */}
+        <div className="min-w-0">
+          <WorkbenchQueue
+            title="Minha fila"
+            count={page?.total ?? null}
+            description="Trabalho real autorizado, de todos os domínios. Selecione um item; o contexto aparece ao lado."
+            emptyTitle="Nenhum trabalho real neste recorte."
+            emptyDescription="A fila não inventa pendência para parecer cheia."
+            action={
+              <Link className="text-xs font-semibold text-brand-700 no-underline hover:text-brand-800" to="/app/work-inbox">
+                Ver fila completa
+              </Link>
+            }
+          >
+            {items.map((item) => {
+              const late = daysOverdue(item.dueAt);
+              const isSelected = selected?.id === item.id;
+              return (
+                <WorkbenchQueueItem
+                  key={item.id}
+                  severityTone={late !== null ? 'critical' : 'info'}
+                  severity={
+                    late !== null ? (
+                      <WorklistException tone="critical">
+                        {late} dia{late === 1 ? '' : 's'}
+                      </WorklistException>
+                    ) : (
+                      <WorklistException tone="info">{item.status}</WorklistException>
+                    )
+                  }
+                  title={item.title}
+                  reason={item.reason}
+                  context={
+                    <>
+                      <button
+                        type="button"
+                        className={cn(
+                          'text-xs font-semibold hover:text-brand-800',
+                          isSelected ? 'text-brand-900 underline' : 'text-brand-700',
+                        )}
+                        onClick={() => setSelected(item)}
+                      >
+                        {item.businessReference}
+                      </button>
+                      <span className="ml-2 text-xs text-gray-500">
+                        {WORK_DOMAIN_LABELS[item.domain]}
+                      </span>
+                    </>
+                  }
+                  age={<>Venc. {formatMoment(item.dueAt)}</>}
+                  action={
+                    <Link className={workbenchPrimaryActionClass} to={item.targetRoute}>
+                      {item.actionLabel}
+                    </Link>
+                  }
+                />
+              );
+            })}
+          </WorkbenchQueue>
+        </div>
 
-      <ContextDrawer
-        open={selected !== null}
-        title="Contexto do trabalho"
-        onClose={() => setSelected(null)}
-        preview={
-          selected
-            ? {
-                identifier: selected.businessReference,
-                subtitle: selected.title,
-                facts: [
-                  { label: 'Domínio', value: WORK_DOMAIN_LABELS[selected.domain] },
-                  { label: 'Natureza', value: WORK_KIND_LABELS[selected.kind] },
-                  { label: 'Situação', value: selected.status },
-                  { label: 'Motivo', value: selected.reason },
-                  { label: 'Contexto', value: selected.contextLabel || '—' },
-                  { label: 'Vencimento', value: formatMoment(selected.dueAt) },
-                  {
-                    label: 'Exceção',
-                    value:
-                      daysOverdue(selected.dueAt) !== null
-                        ? `${daysOverdue(selected.dueAt)} dia(s) em atraso`
-                        : null,
-                  },
-                ],
-                nextAction: {
-                  label: selected.actionLabel,
-                  onClick: () => {
-                    setSelected(null);
-                    void navigate(selected.targetRoute);
-                  },
-                  kind: 'primary',
-                },
-                detailHref: selected.targetRoute,
-                detailLabel: 'Abrir na tela de origem',
-              }
-            : null
-        }
-      />
+        {/* COLUNA DIREITA — contexto do item selecionado, sticky no desktop (Infor business
+            context: a seleção na fila atualiza o painel ao lado, sem navegação). */}
+        <aside
+          className="rounded-md border border-gray-200 bg-white p-3 lg:sticky lg:top-4 lg:self-start"
+          aria-label="Contexto do item selecionado"
+        >
+          {selected ? (
+            <div className="flex flex-col gap-3 text-sm">
+              <header className="border-b border-gray-100 pb-2">
+                <p className="text-sm font-semibold text-gray-900">{selected.businessReference}</p>
+                <p className="mt-0.5 text-xs text-gray-500">{selected.title}</p>
+                <div className="mt-2">
+                  <WorklistException tone={daysOverdue(selected.dueAt) !== null ? 'critical' : 'info'}>
+                    {selected.status}
+                  </WorklistException>
+                </div>
+              </header>
+              <dl className="m-0 grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)] gap-x-3 gap-y-2">
+                <dt className="text-xs text-gray-500">Domínio</dt>
+                <dd className="m-0 text-[13px] text-gray-800">{WORK_DOMAIN_LABELS[selected.domain]}</dd>
+                <dt className="text-xs text-gray-500">Natureza</dt>
+                <dd className="m-0 text-[13px] text-gray-800">{WORK_KIND_LABELS[selected.kind]}</dd>
+                <dt className="text-xs text-gray-500">Motivo</dt>
+                <dd className="m-0 text-[13px] text-gray-800">{selected.reason}</dd>
+                <dt className="text-xs text-gray-500">Contexto</dt>
+                <dd className="m-0 text-[13px] text-gray-800">{selected.contextLabel || '—'}</dd>
+                <dt className="text-xs text-gray-500">Vencimento</dt>
+                <dd className="m-0 text-[13px] text-gray-800 tabular-nums">{formatMoment(selected.dueAt)}</dd>
+                <dt className="text-xs text-gray-500">Exceção</dt>
+                <dd className="m-0 text-[13px] font-medium text-red-700">
+                  {daysOverdue(selected.dueAt) !== null
+                    ? `${daysOverdue(selected.dueAt)} dia(s) em atraso`
+                    : '—'}
+                </dd>
+              </dl>
+              <div className="mt-1 flex flex-col gap-2 border-t border-gray-100 pt-3">
+                <Link
+                  className="inline-flex items-center justify-center rounded-md border border-brand-600 bg-brand-600 px-3 py-2 text-xs font-semibold text-white no-underline hover:bg-brand-700"
+                  to={selected.targetRoute}
+                >
+                  {selected.actionLabel}
+                </Link>
+                <Link
+                  className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 no-underline hover:bg-gray-50"
+                  to={selected.targetRoute}
+                >
+                  Abrir na tela de origem
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500">Selecione um item na fila.</p>
+          )}
+        </aside>
+      </div>
     </>
   );
 }
