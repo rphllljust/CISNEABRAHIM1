@@ -1,8 +1,24 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { EmptyState, Field, Input, Money, Select, worklistTableCardClass } from '../../ui';
-import { FilterCard, ModulePage, ModulePageHeader, ModuleTableLink, filterControlClass, filterLabelClass } from '../../ui/module-layout';
-import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
+import {
+  FilterCard,
+  ModulePage,
+  ModuleTableLink,
+  UnitScopeLabel,
+} from '../../ui/module-layout';
+import {
+  EnterpriseMetric,
+  WorklistClearFilters,
+  WorklistField,
+  WorklistFilterBar,
+  WorklistHeader,
+  worklistCellClass,
+  worklistSelectClass,
+  worklistTableClass,
+  worklistHeadCellClass,
+  worklistRowClass,
+} from '../../ui/enterprise-list';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { CreateRecordForm } from '../../financial-ui/VersionedActionForm';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
@@ -51,51 +67,6 @@ type ListPhase<T> =
   | { phase: 'error' }
   | { phase: 'ready'; items: T[]; total: number };
 
-/** Busca + paginação comuns às listas do estoque. */
-function InventoryListToolbar({
-  id,
-  term,
-  onTermChange,
-  onSearch,
-}: {
-  id: string;
-  term: string;
-  onTermChange: (value: string) => void;
-  onSearch: () => void;
-}) {
-  return (
-    <FilterCard>
-      <form
-        className="flex flex-wrap items-end gap-4"
-        onSubmit={(event) => {
-          event.preventDefault();
-          onSearch();
-        }}
-      >
-        <div>
-          <label className={filterLabelClass} htmlFor={id}>
-            Buscar
-          </label>
-          <input
-            id={id}
-            type="search"
-            className={`${filterControlClass} w-72`}
-            value={term}
-            onChange={(event) => onTermChange(event.target.value)}
-            placeholder="Código, nome, SKU ou descrição"
-          />
-        </div>
-        <button
-          type="submit"
-          className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800"
-        >
-          Buscar
-        </button>
-      </form>
-    </FilterCard>
-  );
-}
-
 function ListMessageRow({ colSpan, children }: { colSpan: number; children: ReactNode }) {
   return (
     <tr className={worklistRowClass}>
@@ -110,6 +81,36 @@ function ListMessageRow({ colSpan, children }: { colSpan: number; children: Reac
  * Escopo estavel de persistencia das visoes salvas desta tela.
  */
 const SCOPE = 'inventory.center';
+
+/**
+ * APRESENTACAO HUMANA dos enums persistidos. O dominio continua sendo o token do servidor
+ * (IN/OUT/TRANSFER/ADJUSTMENT, ACTIVE/RELEASED/CANCELLED); aqui ele so deixa de aparecer cru
+ * na superficie operacional. Token desconhecido cai no proprio valor.
+ */
+const MOVEMENT_TYPE_LABELS: Record<string, string> = {
+  IN: 'Entrada',
+  OUT: 'Saída',
+  TRANSFER: 'Transferência',
+  ADJUSTMENT: 'Ajuste',
+};
+
+const MOVEMENT_STATUS_LABELS: Record<string, string> = {
+  POSTED: 'Lançado',
+  DRAFT: 'Rascunho',
+  CANCELLED: 'Cancelado',
+  REVERSED: 'Estornado',
+};
+
+const RESERVATION_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: 'Ativa',
+  RELEASED: 'Liberada',
+  CANCELLED: 'Cancelada',
+  CONSUMED: 'Consumida',
+};
+
+function humanLabel(value: string, labels: Record<string, string>): string {
+  return labels[value] ?? value;
+}
 
 /** Allow-list: somente os tipos de movimento que o backend ja aceita. */
 const INVENTORY_ALLOWED_FILTERS = {
@@ -204,16 +205,83 @@ export function InventoryPage() {
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      <WorklistHeader
         title="Estoque"
-        description="Depósitos, itens, movimentos e reservas. Saldos e custos são os persistidos pelo servidor; FIFO/média permanecem indecisos."
+        count={items.phase === 'ready' ? items.total : null}
+        context="Depósitos, itens, movimentos e reservas. Saldos e custos são os persistidos pelo servidor; FIFO/média permanecem indecisos."
+        metrics={
+          <>
+            <EnterpriseMetric
+              label="Depósitos"
+              value={warehouses.phase === 'ready' ? warehouses.total : '—'}
+            />
+            <EnterpriseMetric
+              label="Itens"
+              value={items.phase === 'ready' ? items.total : '—'}
+            />
+            <EnterpriseMetric
+              label="Movimentos"
+              value={movements.phase === 'ready' ? movements.total : '—'}
+              tone={movementType ? 'info' : 'neutral'}
+            />
+            <EnterpriseMetric
+              label="Reservas ativas"
+              value={reservations.phase === 'ready' ? reservations.total : '—'}
+              tone={
+                reservations.phase === 'ready' && reservations.total > 0 ? 'warning' : 'neutral'
+              }
+            />
+          </>
+        }
       />
-      <InventoryListToolbar
-        id="inventory-search"
-        term={term}
-        onTermChange={setTerm}
-        onSearch={() => setAppliedTerm(term.trim())}
-      />
+
+      {/* BARRA OPERACIONAL DENSA — busca e tipo de movimento na mesma linha das demais worklists. */}
+      <WorklistFilterBar
+        meta={
+          movements.phase === 'ready' ? `${movements.total} movimento(s) no recorte` : undefined
+        }
+      >
+        <WorklistField label="Buscar" htmlFor="inventory-search" grow>
+          <form
+            className="flex gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              setAppliedTerm(term.trim());
+            }}
+          >
+            <input
+              id="inventory-search"
+              type="search"
+              className={worklistSelectClass}
+              value={term}
+              onChange={(event) => setTerm(event.target.value)}
+              placeholder="Código, nome, SKU ou descrição"
+            />
+            <button type="submit" className="button-secondary">
+              Buscar
+            </button>
+          </form>
+        </WorklistField>
+        <WorklistField label="Tipo de movimento" htmlFor="movement-type-filter">
+          <select
+            id="movement-type-filter"
+            className={worklistSelectClass}
+            value={movementType}
+            onChange={(event) => smartList.setFilter('movementType', event.target.value)}
+          >
+            <option value="">Todos</option>
+            <option value="IN">Entrada</option>
+            <option value="OUT">Saída</option>
+            <option value="TRANSFER">Transferência</option>
+            <option value="ADJUSTMENT">Ajuste</option>
+          </select>
+        </WorklistField>
+        <WorklistClearFilters
+          visible={movementType !== ''}
+          label="Limpar tipo"
+          onClick={() => smartList.setFilter('movementType', '')}
+        />
+      </WorklistFilterBar>
 
       <div className={worklistTableCardClass}>
         <table className={worklistTableClass} aria-label="Depósitos">
@@ -245,7 +313,9 @@ export function InventoryPage() {
                     <td className={`${worklistCellClass} font-mono tabular-nums text-gray-600`}>
                       {warehouse.code}
                     </td>
-                    <td className={worklistCellClass}>{warehouse.unitId}</td>
+                    <td className={worklistCellClass}>
+                      <UnitScopeLabel unitId={warehouse.unitId} />
+                    </td>
                     <td className={worklistCellClass}>
                       <FinanceStatusBadge status={warehouse.status} labels={WAREHOUSE_STATUS_LABELS} />
                     </td>
@@ -285,7 +355,9 @@ export function InventoryPage() {
                     <td className={`${worklistCellClass} font-mono tabular-nums text-gray-600`}>
                       {item.sku}
                     </td>
-                    <td className={worklistCellClass}>{item.unitId}</td>
+                    <td className={worklistCellClass}>
+                      <UnitScopeLabel unitId={item.unitId} />
+                    </td>
                     <td className={worklistCellClass}>
                       <FinanceStatusBadge status={item.status} labels={INVENTORY_ITEM_STATUS_LABELS} />
                     </td>
@@ -298,24 +370,6 @@ export function InventoryPage() {
       <p className="mb-6 mt-2 text-xs text-gray-500" role="status">
         {items.phase === 'ready' ? `${items.total} item(ns) no total.` : 'Carregando itens…'}
       </p>
-
-      <FilterCard>
-        <label className={filterLabelClass} htmlFor="movement-type-filter">
-          Tipo de movimento
-        </label>
-        <select
-          id="movement-type-filter"
-          className={`${filterControlClass} max-w-xs`}
-          value={movementType}
-          onChange={(event) => smartList.setFilter('movementType', event.target.value)}
-        >
-          <option value="">Todos</option>
-          <option value="IN">Entrada</option>
-          <option value="OUT">Saída</option>
-          <option value="TRANSFER">Transferência</option>
-          <option value="ADJUSTMENT">Ajuste</option>
-        </select>
-      </FilterCard>
 
       <SavedViewsBar
         views={smartList.savedViews.views}
@@ -370,7 +424,9 @@ export function InventoryPage() {
                         <span className="block text-xs text-gray-500">{movement.warehouseCode}</span>
                       ) : null}
                     </td>
-                    <td className={worklistCellClass}>{movement.movementType}</td>
+                    <td className={worklistCellClass}>
+                      {humanLabel(movement.movementType, MOVEMENT_TYPE_LABELS)}
+                    </td>
                     <td className={`${worklistCellClass} text-right`}>{movement.signedQuantity}</td>
                     <td className={worklistCellClass}>{movement.description}</td>
                   </tr>
@@ -418,7 +474,12 @@ export function InventoryPage() {
                       ) : null}
                     </td>
                     <td className={`${worklistCellClass} text-right`}>{reservation.quantity}</td>
-                    <td className={worklistCellClass}>{reservation.status}</td>
+                    <td className={worklistCellClass}>
+                      <FinanceStatusBadge
+                        status={reservation.status}
+                        labels={RESERVATION_STATUS_LABELS}
+                      />
+                    </td>
                   </tr>
                 ))
               : null}
@@ -664,9 +725,9 @@ export function InventoryItemDetailPage() {
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      <WorklistHeader
         title="Item de estoque"
-        description="Saldo, movimentos e reservas do item. O identificador técnico permanece interno."
+        context="Saldo, movimentos e reservas do item. O identificador técnico permanece interno."
         action={
           <Link className="text-sm font-semibold text-gray-700 hover:text-gray-900" to="/app/inventory">
             Voltar para o estoque
@@ -881,8 +942,12 @@ export function InventoryItemDetailPage() {
                         <span className="block text-xs text-gray-500">{movement.warehouseCode}</span>
                       ) : null}
                     </td>
-                    <td className={worklistCellClass}>{movement.movementType}</td>
-                    <td className={worklistCellClass}>{movement.status}</td>
+                    <td className={worklistCellClass}>
+                      {humanLabel(movement.movementType, MOVEMENT_TYPE_LABELS)}
+                    </td>
+                    <td className={worklistCellClass}>
+                      {humanLabel(movement.status, MOVEMENT_STATUS_LABELS)}
+                    </td>
                     <td className={`${worklistCellClass} text-right`}>{movement.signedQuantity}</td>
                     <td className={worklistCellClass}>
                       {movement.totalCost ? <Money value={movement.totalCost} /> : '—'}
@@ -1020,9 +1085,9 @@ export function InventoryWarehouseDetailPage() {
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      <WorklistHeader
         title={warehouse ? `${warehouse.name}` : 'Depósito'}
-        description="Saldo por item e histórico de movimentos do depósito."
+        context="Saldo por item e histórico de movimentos do depósito."
         action={
           <Link className="text-sm font-semibold text-gray-700 hover:text-gray-900" to="/app/inventory">
             Voltar para o estoque
@@ -1113,7 +1178,9 @@ export function InventoryWarehouseDetailPage() {
                         <span className="block text-xs text-gray-500">{movement.itemSku}</span>
                       ) : null}
                     </td>
-                    <td className={worklistCellClass}>{movement.movementType}</td>
+                    <td className={worklistCellClass}>
+                      {humanLabel(movement.movementType, MOVEMENT_TYPE_LABELS)}
+                    </td>
                     <td className={`${worklistCellClass} text-right`}>{movement.signedQuantity}</td>
                     <td className={worklistCellClass}>{movement.description}</td>
                   </tr>
