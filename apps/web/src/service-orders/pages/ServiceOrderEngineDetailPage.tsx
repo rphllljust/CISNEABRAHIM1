@@ -13,6 +13,8 @@ import {
   serviceOrderEngineRow,
   type ServiceOrderEngineRow,
 } from './service-order-engine-rows';
+import { OperationsControlCenter } from '../components/OperationsControlCenter';
+import type { ServiceOrderControlCenter } from '../types/service-order.types';
 
 /**
  * Detalhe de ordem de serviço RENDERIZADO PELA ENGINE.
@@ -30,6 +32,7 @@ export function ServiceOrderEngineDetailPage() {
   const { serviceOrderId } = useParams<{ serviceOrderId: string }>();
   const { schema, status } = useEntitySchema('service-orders');
   const [row, setRow] = useState<ServiceOrderEngineRow | null>(null);
+  const [controlCenter, setControlCenter] = useState<ServiceOrderControlCenter | null>(null);
   const [rowStatus, setRowStatus] = useState<'loading' | 'ready' | 'denied' | 'missing' | 'error'>(
     'loading',
   );
@@ -45,6 +48,14 @@ export function ServiceOrderEngineDetailPage() {
       try {
         const detail = await getServiceOrder(serviceOrderId, signal);
         setRow(serviceOrderEngineRow(detail));
+        /*
+         * OPERATIONS CONTROL CENTER — o backend DERIVA a progressão, planejado x realizado,
+         * downstream (medição/faturamento) e o próximo passo com blockers; o frontend apenas
+         * renderiza o que veio autorizado. É capturado AQUI porque `serviceOrderEngineRow`
+         * projeta somente os campos de trabalho da engine, e descartá-lo apagaria o passo
+         * "FACTS + EXECUTION + EXCEPTIONS" da gramática de object page.
+         */
+        setControlCenter(detail.controlCenter ?? null);
         setRowStatus('ready');
       } catch (error) {
         if (error instanceof ServiceOrdersApiError) {
@@ -210,6 +221,53 @@ export function ServiceOrderEngineDetailPage() {
         </p>
       </header>
 
+      {/*
+        FATOS CRÍTICOS — quem, onde e até quando, lidos do payload já carregado (nenhum fetch
+        novo). É o passo "IDENTITY → FACTS" da gramática de object page: o operador entende a
+        OS em segundos antes de descer aos dados e à cadeia de negócio.
+      */}
+      <section className="mb-6" aria-labelledby="engine-facts-heading">
+        <h2 id="engine-facts-heading" className="sr-only">
+          Fatos críticos
+        </h2>
+        <dl className="m-0 grid grid-cols-2 gap-x-6 gap-y-2 lg:grid-cols-4">
+          <div className="min-w-0">
+            <dt className="text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
+              Cliente
+            </dt>
+            <dd className="m-0 truncate text-sm font-medium text-gray-900">
+              {toDisplayText(row['client_snapshot']).trim() !== ''
+                ? toDisplayText(row['client_snapshot'])
+                : '—'}
+            </dd>
+          </div>
+          <div className="min-w-0">
+            <dt className="text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
+              Unidade
+            </dt>
+            <dd className="m-0 truncate text-sm font-medium text-gray-900">
+              {toDisplayText(row['unit_id']).trim() !== '' ? toDisplayText(row['unit_id']) : '—'}
+            </dd>
+          </div>
+          <div className="min-w-0">
+            <dt className="text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
+              Prazo
+            </dt>
+            <dd className="m-0 truncate text-sm font-medium text-gray-900">
+              {toDisplayText(row['deadline_at']).trim() !== ''
+                ? toDisplayText(row['deadline_at'])
+                : '—'}
+            </dd>
+          </div>
+          <div className="min-w-0">
+            <dt className="text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
+              Estado
+            </dt>
+            <dd className="m-0 truncate text-sm font-medium text-gray-900">{currentState}</dd>
+          </div>
+        </dl>
+      </section>
+
       <section className="mb-6" aria-labelledby="engine-actions-heading">
         <h2 id="engine-actions-heading" className="mb-2 text-sm font-semibold">
           Ações disponíveis
@@ -232,6 +290,27 @@ export function ServiceOrderEngineDetailPage() {
           Dados da ordem
         </h2>
         <DynamicForm schema={schema} values={row} readOnly />
+      </section>
+
+      {/*
+        OPERAÇÃO EM MOVIMENTO — o passo "EXECUTION + EXCEPTIONS" da object page. Não há cálculo
+        nem fetch novo: `controlCenter` já veio no payload, e o componente apenas o desenha.
+        Ausência do bloco (backend não publicou / ator sem escopo) não vira seção falsa.
+      */}
+      <section className="mt-6" aria-labelledby="engine-control-center-heading">
+        <h2 id="engine-control-center-heading" className="mb-2 text-sm font-semibold">
+          Operação
+        </h2>
+        {controlCenter ? (
+          <OperationsControlCenter
+            controlCenter={controlCenter}
+            measurementHref={`/app/service-orders/${row.id}/measurement`}
+          />
+        ) : (
+          <p className="m-0 text-sm text-gray-500">
+            Sem controle operacional disponível para esta ordem.
+          </p>
+        )}
       </section>
 
       {/* LINHAGEM: de onde esta ordem veio, do que o payload afirma e nada além. */}
