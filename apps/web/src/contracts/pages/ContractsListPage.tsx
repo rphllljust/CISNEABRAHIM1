@@ -196,23 +196,25 @@ export function ContractsListPage() {
           title={
             hasActiveFilters
               ? 'Nenhum contrato corresponde aos filtros aplicados.'
-              : 'Nenhum contrato encontrado.'
+              : 'Nenhum contrato no recorte atual.'
           }
           description={
             hasActiveFilters
               ? 'Ajuste o cliente ou a unidade para ver outros contratos.'
-              : undefined
+              : 'Os contratos formalizam a vigência comercial com o cliente: duração, status e unidade. Quando o primeiro for registrado, ele aparece aqui.'
           }
           action={
             hasActiveFilters ? (
               <WorklistClearFilters
                 visible
-                label="Ver todos os contratos"
+                label="Revisar filtros"
                 onClick={() => {
                   setClientFilter('');
                   setUnitFilter('');
                 }}
               />
+            ) : capabilities.canCreate ? (
+              <ModulePrimaryLink to="/app/contracts/new">Novo contrato</ModulePrimaryLink>
             ) : null
           }
         />
