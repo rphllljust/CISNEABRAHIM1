@@ -1,27 +1,25 @@
 import type { BillingDocumentDetail } from '../types/billing.types';
 import { BILLING_DOCUMENT_STATUSES } from '../types/billing.types';
+import { StatusBadge, type StatusBadgeTone } from '../../ui/StatusBadge';
 import { formatDateTimePtBr, formatMoneyBrl } from '../utils/billing-format';
 
 /**
  * Rotulo humano do status do DOCUMENTO (nao do registro de preparacao). O contrato publica
- * `FINALIZED`/`CANCELLED`; exibir o enum cru seria vazar codigo tecnico para a superficie
- * operacional. Sem status conhecido, o codigo permanece como ultimo recurso.
+ * `FINALIZED`/`CANCELLED` — uma maquina de estados DISTINTA de PREPARED/VOIDED, que
+ * `BillingStatusBadge` cobre. A gramatica visual e a mesma de TODO o produto (`StatusBadge`);
+ * a semantica, nao: FINALIZED e conclusao, CANCELLED e estorno.
  */
 const DOCUMENT_STATUS_LABELS: Record<string, string> = {
   [BILLING_DOCUMENT_STATUSES.Finalized]: 'Finalizada',
   [BILLING_DOCUMENT_STATUSES.Cancelled]: 'Cancelada',
 };
 
-function formatDocumentStatus(status: string): string {
-  return DOCUMENT_STATUS_LABELS[status] ?? status;
-}
-
-function documentStatusModifier(status: string): string {
+function resolveDocumentStatusTone(status: string): StatusBadgeTone {
   if (status === BILLING_DOCUMENT_STATUSES.Finalized) {
-    return 'finalized';
+    return 'success';
   }
   if (status === BILLING_DOCUMENT_STATUSES.Cancelled) {
-    return 'cancelled';
+    return 'error';
   }
   return 'neutral';
 }
@@ -48,9 +46,10 @@ export function BillingDocumentIssuedList({
           <div>
             <p className="billing-doc-issued-list__number">{document.documentNumber}</p>
             <p className="billing-doc-issued-list__meta">
-              <span className={`billing-doc-status billing-doc-status--${documentStatusModifier(document.status)}`}>
-                {formatDocumentStatus(document.status)}
-              </span>{' '}
+              <StatusBadge
+                label={DOCUMENT_STATUS_LABELS[document.status] ?? document.status}
+                tone={resolveDocumentStatusTone(document.status)}
+              />{' '}
               · v{document.versionNumber} · {formatDateTimePtBr(document.issuedAt)}
             </p>
             <p className="billing-doc-issued-list__amount">
