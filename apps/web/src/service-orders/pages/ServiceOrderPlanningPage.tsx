@@ -825,36 +825,50 @@ export function ServiceOrderPlanningPage() {
               Nenhum item planejado ainda.
             </p>
           ) : (
-            <ul className="planning-list">
-              {physicalPlanned.map((item) => (
-                <li key={item.id}>
-                  <strong>{item.resourceTypeCode}</strong> — qtd. {item.plannedQuantity}
-                  {capabilities.canAllocate && planningAllowed ? (
-                    <button
-                      type="button"
-                      className="button-link"
-                      onClick={() => openAllocationFor(item)}
-                    >
-                      Alocar ativo
-                    </button>
-                  ) : null}
-                </li>
-              ))}
-              {laborPlanned.map((item) => (
-                <li key={item.id}>
-                  <strong>{item.laborTypeCode}</strong> — qtd. {item.plannedQuantity}
-                  {capabilities.canAllocate && planningAllowed ? (
-                    <button
-                      type="button"
-                      className="button-link"
-                      onClick={() => openAllocationFor(item)}
-                    >
-                      Atribuir empregado
-                    </button>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
+            <div className="planning-kind-grid">
+              {physicalPlanned.length > 0 ? (
+                <div className="planning-kind">
+                  <h3 className="planning-kind__title">Recursos físicos</h3>
+                  <ul className="planning-list">
+                    {physicalPlanned.map((item) => (
+                      <li key={item.id}>
+                        <strong>{item.resourceTypeCode}</strong> — qtd. {item.plannedQuantity}
+                        {capabilities.canAllocate && planningAllowed ? (
+                          <button
+                            type="button"
+                            className="button-link"
+                            onClick={() => openAllocationFor(item)}
+                          >
+                            Alocar ativo
+                          </button>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {laborPlanned.length > 0 ? (
+                <div className="planning-kind">
+                  <h3 className="planning-kind__title">Mão de obra</h3>
+                  <ul className="planning-list">
+                    {laborPlanned.map((item) => (
+                      <li key={item.id}>
+                        <strong>{item.laborTypeCode}</strong> — qtd. {item.plannedQuantity}
+                        {capabilities.canAllocate && planningAllowed ? (
+                          <button
+                            type="button"
+                            className="button-link"
+                            onClick={() => openAllocationFor(item)}
+                          >
+                            Atribuir empregado
+                          </button>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
           )}
           {capabilities.canPlan && planningAllowed
             ? coverage

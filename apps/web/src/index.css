@@ -1104,6 +1104,36 @@ main:not(.login-page):not(.dashboard-page):not(.shell-page):not(#main-content) {
   border-bottom: 1px solid #f5f5f5;
 }
 
+/* Grade densa dos tipos planejados: recursos fisicos x mao de obra lado a lado,
+   cada um com titulo proprio. Substitui a lista unica que nao separava o tipo
+   de recurso do que ele aloca. */
+.planning-kind-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1rem;
+  margin: 0 0 0.75rem;
+}
+
+.planning-kind {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #e5e5e5;
+  border-radius: 0.35rem;
+  background: #fafafa;
+}
+
+.planning-kind__title {
+  margin: 0 0 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #525252;
+}
+
+.planning-kind .planning-list {
+  margin-bottom: 0;
+}
+
 .planning-plan-action {
   margin: 0.35rem 0.5rem 0.35rem 0;
 }
