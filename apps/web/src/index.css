@@ -1134,6 +1134,28 @@ main:not(.login-page):not(.dashboard-page):not(.shell-page):not(#main-content) {
   margin-bottom: 0;
 }
 
+/*
+  RAIL OPERACIONAL DA PLANNING — coluna lateral da workspace.
+
+  Distinto do corpo (que usa cards brancos `planning-section`): o rail tem fundo
+  levemente cinza e borda mais marcada para que a area de trabalho e o cerebro
+  operacional nao se confundam. Sticky no desktop para a proxima acao e os
+  blockers acompanharem a rolagem da area principal.
+ */
+.planning-rail {
+  background: #f8fafc;
+  outline: 1px solid #e2e8f0;
+}
+
+@media (min-width: 1024px) {
+  .planning-rail {
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+  }
+}
+
 .planning-plan-action {
   margin: 0.35rem 0.5rem 0.35rem 0;
 }

@@ -755,7 +755,7 @@ export function ServiceOrderPlanningPage() {
           </div>
         }
         aside={
-          <ObjectPanel title="Operação">
+          <ObjectPanel title="Operação" className="planning-rail">
             {order.controlCenter ? (
               <OperationsControlCenter
                 controlCenter={order.controlCenter}
