@@ -19,7 +19,6 @@ import {
   type PhysicalAssetListSummary,
 } from '../types/physical-asset.types';
 import { formatAssetPaginationRange } from '../utils/asset-operational-status';
-import { EmptyState } from '../../ui/EmptyState';
 import {
   RowActionCell,
   WorklistClearFilters,
@@ -28,6 +27,7 @@ import {
   WorklistFooter,
   WorklistHeader,
   WorklistRowLink,
+  WorklistStatePanel,
   worklistCellClass,
   worklistCellRaisedClass,
   worklistHeadCellClass,
@@ -293,10 +293,34 @@ export function PhysicalAssetsListPage() {
         </p>
       ) : null}
 
-      {isEmptyList ? <EmptyState title="Nenhum ativo cadastrado." /> : null}
+      {isEmptyList ? (
+        <WorklistStatePanel
+          title="Nenhum ativo cadastrado."
+          description="Os ativos físicos são o cadastro operacional de veículos, máquinas e equipamentos e sua disponibilidade para alocação em ordens de serviço. Cadastre o primeiro ativo para começar."
+          action={
+            capabilities.canCreate ? (
+              <ModulePrimaryLink to="/app/assets/new">Novo ativo</ModulePrimaryLink>
+            ) : null
+          }
+        />
+      ) : null}
 
       {isEmptyFiltered ? (
-        <EmptyState title="Nenhum ativo encontrado para os filtros selecionados." />
+        <WorklistStatePanel
+          title="Nenhum ativo encontrado para os filtros selecionados."
+          description="Ajuste a busca, o cadastro, a disponibilidade ou o tipo — ou limpe os filtros para ver o cadastro completo."
+          action={
+            <WorklistClearFilters
+              visible
+              onClick={() => {
+                setSearchInput('');
+                setLifecycleFilter('');
+                setAvailabilityFilter('');
+                setResourceTypeFilter('');
+              }}
+            />
+          }
+        />
       ) : null}
 
       {items.length > 0 ? (
