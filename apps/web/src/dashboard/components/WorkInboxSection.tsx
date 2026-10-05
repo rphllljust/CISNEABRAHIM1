@@ -55,6 +55,32 @@ function formatMoment(value: string | null): string {
   return date.toLocaleDateString('pt-BR');
 }
 
+/**
+ * Apresentacao humana do status do work-item. O contrato publica `status` como string tecnica
+ * (ex.: OVERDUE, PENDING, BLOCKED); aqui ela vira verbo/frase de leitura operacional, SEM alterar
+ * o valor do dominio nem o que a fila filtra. Token desconhecido cai no proprio valor.
+ */
+const WORK_STATUS_LABELS: Record<string, string> = {
+  OVERDUE: 'Vencido',
+  PENDING: 'Pendente',
+  BLOCKED: 'Bloqueado',
+  EXCEPTION: 'Exceção',
+  APPROVAL: 'Aprovação',
+  CONTINUITY: 'Continuidade',
+  IN_PROGRESS: 'Em andamento',
+  OPEN: 'Em aberto',
+  REVIEW: 'Em análise',
+  DRAFT: 'Rascunho',
+  COMPLETED: 'Concluído',
+  PARTIALLY_PAID: 'Parcialmente pago',
+  PAID: 'Pago',
+  CANCELLED: 'Cancelado',
+};
+
+function formatWorkStatus(status: string): string {
+  return WORK_STATUS_LABELS[status] ?? status;
+}
+
 export function WorkInboxSection() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState<WorkInboxPage | null>(null);
@@ -237,7 +263,7 @@ export function WorkInboxSection() {
                         {late} dia{late === 1 ? '' : 's'}
                       </WorklistException>
                     ) : (
-                      <WorklistException tone="info">{item.status}</WorklistException>
+                      <WorklistException tone="info">{formatWorkStatus(item.status)}</WorklistException>
                     )
                   }
                   title={item.title}
@@ -284,7 +310,7 @@ export function WorkInboxSection() {
                 <p className="mt-0.5 text-xs text-gray-500">{selected.title}</p>
                 <div className="mt-2">
                   <WorklistException tone={daysOverdue(selected.dueAt) !== null ? 'critical' : 'info'}>
-                    {selected.status}
+                    {formatWorkStatus(selected.status)}
                   </WorklistException>
                 </div>
               </header>
