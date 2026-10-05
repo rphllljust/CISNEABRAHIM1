@@ -2940,6 +2940,33 @@ main:not(.login-page):not(.dashboard-page):not(.shell-page):not(#main-content) {
   color: #64748b;
 }
 
+/* Status do documento (não o do registro de preparação): finalizada = conclusão, cancelada =
+   correção/estorno. Semântico, não enum técnico. */
+.billing-doc-status {
+  display: inline-block;
+  padding: 0.0625rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.4;
+  border: 1px solid transparent;
+}
+.billing-doc-status--finalized {
+  color: #065f46;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+.billing-doc-status--cancelled {
+  color: #9f1239;
+  background: #fff1f2;
+  border-color: #fecdd3;
+}
+.billing-doc-status--neutral {
+  color: #475569;
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+}
+
 .billing-doc-issue-dialog__lead {
   color: #475569;
 }
