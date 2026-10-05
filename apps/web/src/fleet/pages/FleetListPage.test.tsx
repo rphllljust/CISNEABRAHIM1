@@ -76,9 +76,7 @@ describe('FleetListPage', () => {
     );
 
     expect(await screen.findByRole('link', { name: 'TRK-001' })).toBeInTheDocument();
-    // A placa acompanha o codigo do veiculo como contexto da MESMA celula: e assim que o
-    // operador identifica o veiculo na rua. Continua presente e legivel — deixou de ser uma
-    // coluna propria, que gastava largura para repetir um dado ja visivel no codigo.
+    // A placa tem coluna propria (primeira classe na frota) e continua legivel.
     expect(screen.getByText(/ABC-1234/)).toBeInTheDocument();
     expect(screen.getByLabelText(/disponibilidade operacional: alocado/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'OS-2026-0001' })).toHaveAttribute(
@@ -105,6 +103,16 @@ describe('FleetListPage', () => {
         <FleetListPage />
       </MemoryRouter>,
     );
-    expect(await screen.findByRole('heading', { name: /nenhum veículo cadastrado na frota/i })).toBeInTheDocument();
+    // O estado vazio usa a MESMA moldura das demais worklists (`WorklistStatePanel`), cujo
+    // titulo e um paragrafo de status — nao um heading. A assercao e por texto, como nas listas
+    // ja convergidas (Clientes, Solicitações, Propostas, Pedidos, Contratos, Catálogo).
+    expect(
+      await screen.findByText('Nenhum veículo cadastrado na frota.'),
+    ).toBeInTheDocument();
+    // O estado vazio declara o que é a frota e por onde começar — mesma gramática operacional
+    // das demais worklists. O "Novo veículo" do cabeçalho já cobre a ação de criação.
+    expect(
+      screen.getByText(/A frota é a visão operacional sobre os ativos físicos de veículo/i),
+    ).toBeInTheDocument();
   });
 });

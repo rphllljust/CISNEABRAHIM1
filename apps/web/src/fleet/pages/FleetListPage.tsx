@@ -17,7 +17,6 @@ import {
 } from '../../assets/types/physical-asset.types';
 import { formatAssetPaginationRange } from '../../assets/utils/asset-operational-status';
 import { getFleetSummary, listFleetVehicles } from '../api/fleet-api';
-import { EmptyState } from '../../ui';
 import {
   RowActionCell,
   WorklistClearFilters,
@@ -26,6 +25,7 @@ import {
   WorklistFooter,
   WorklistHeader,
   WorklistRowLink,
+  WorklistStatePanel,
   worklistCellClass,
   worklistCellRaisedClass,
   worklistHeadCellClass,
@@ -282,11 +282,33 @@ export function FleetListPage() {
       ) : null}
 
       {isEmptyList ? (
-        <EmptyState title="Nenhum veículo cadastrado na frota." />
+        <WorklistStatePanel
+          title="Nenhum veículo cadastrado na frota."
+          description="A frota é a visão operacional sobre os ativos físicos de veículo: placa, tipo, cadastro e disponibilidade. Cadastre o primeiro veículo para começar."
+          action={
+            capabilities.canCreate ? (
+              <ModulePrimaryLink to="/app/assets/new">Novo veículo</ModulePrimaryLink>
+            ) : null
+          }
+        />
       ) : null}
 
       {isEmptyFiltered ? (
-        <EmptyState title="Nenhum veículo encontrado para os filtros selecionados." />
+        <WorklistStatePanel
+          title="Nenhum veículo encontrado para os filtros selecionados."
+          description="Ajuste a busca, o cadastro, a disponibilidade ou o tipo — ou limpe os filtros para ver a frota completa."
+          action={
+            <WorklistClearFilters
+              visible
+              onClick={() => {
+                setSearchInput('');
+                setLifecycleFilter('');
+                setAvailabilityFilter('');
+                setResourceTypeFilter('');
+              }}
+            />
+          }
+        />
       ) : null}
 
       {items.length > 0 ? (
@@ -298,10 +320,10 @@ export function FleetListPage() {
                   Código
                 </th>
                 <th scope="col" className={worklistHeadCellClass}>
-                  Placa
+                  Nome
                 </th>
                 <th scope="col" className={worklistHeadCellClass}>
-                  Nome
+                  Placa
                 </th>
                 <th scope="col" className={worklistHeadCellClass}>
                   Tipo
@@ -324,11 +346,17 @@ export function FleetListPage() {
                     <WorklistRowLink href={`/app/assets/${asset.id}`}>
                       {asset.assetCode}
                     </WorklistRowLink>
-                    {asset.vehicle?.plate ? (
-                      <p className="text-[11px] text-gray-500">Placa {asset.vehicle.plate}</p>
-                    ) : null}
                   </td>
                   <td className={worklistCellRaisedClass}>{asset.name}</td>
+                  <td className={worklistCellRaisedClass}>
+                    {asset.vehicle?.plate ? (
+                      <span className="font-mono tabular-nums text-gray-800">
+                        {asset.vehicle.plate}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-gray-500">Sem placa</span>
+                    )}
+                  </td>
                   <td className={worklistCellRaisedClass}>
                     {/*
                       LABEL HUMANO DO TIPO. `resourceTypeCode` e um slug tecnico
