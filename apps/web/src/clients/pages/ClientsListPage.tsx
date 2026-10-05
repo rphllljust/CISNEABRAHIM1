@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ClientsApiError, listClients } from '../api/clients-api';
 import { mapClientErrorToMessage } from '../api/client-error-messages';
 import { ClientStatusBadge } from '../components/ClientStatusBadge';
@@ -24,6 +24,11 @@ import {
   type ClientListParams,
 } from '../utils/client-list-params';
 import { useSavedViews, SavedViewsBar } from '../../operator';
+import {
+  ContextDrawer,
+  useContextPreview,
+  type ContextPreviewBody,
+} from '../../operator';
 import {
   CLIENTS_ALLOWED_FILTERS,
   clientViewConfig,
@@ -132,6 +137,11 @@ export function ClientsListPage() {
   const [showMoreFilters, setShowMoreFilters] = useState(
     () => filters.purchaseOrderRequirement !== '',
   );
+  // CONTEXTO SEM SAIR DA FILA: selecionar o cliente abre o painel lateral com os fatos que o
+  // payload da lista já traz (razão social, CNPJ, status, atualização) e as relações que têm
+  // destino real. Nenhuma contagem de solicitações/propostas/OS é exibida porque o contrato de
+  // listagem não a publica — registrar como GAP, não fabricar.
+  const preview = useContextPreview<ClientSummary>();
   const searchInputId = useId();
   const searchHintId = useId();
   const statusFilterId = useId();
@@ -612,11 +622,16 @@ export function ClientsListPage() {
                       {formatClientListDateTime(client.updatedAt)}
                     </DataTableCell>
                     <DataTableCell className="text-right whitespace-nowrap">
-                      {href ? (
-                        <Link to={href} className={rowPrimaryActionClass}>
-                          Abrir cadastro
-                        </Link>
-                      ) : null}
+                      <button
+                        type="button"
+                        className={rowPrimaryActionClass}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          preview.openPreview(client);
+                        }}
+                      >
+                        Contexto
+                      </button>
                     </DataTableCell>
                   </DataTableRow>
                 );
@@ -643,6 +658,47 @@ export function ClientsListPage() {
           onNext={() => setSearchParams(buildClientListSearchParams(filters, offset + PAGE_SIZE))}
         />
       ) : null}
+
+      <ContextDrawer
+        open={preview.previewRow !== null}
+        title="Contexto do cliente"
+        preview={preview.previewRow ? buildClientPreview(preview.previewRow) : null}
+        onClose={preview.closePreview}
+      />
     </ModulePage>
   );
+}
+
+/**
+ * Painel lateral do cliente — SOMENTE fatos que `ClientSummary` já publica e relações com
+ * destino real. Não soma contagem de solicitações/propostas/pedidos/contratos/OS/recebíveis
+ * porque a projeção de listagem não as traz (GAP de contrato registrado, não fabricado).
+ */
+function buildClientPreview(client: ClientSummary): ContextPreviewBody {
+  return {
+    identifier: client.legalName,
+    subtitle: client.tradeName ?? null,
+    status: <ClientStatusBadge status={client.status} />,
+    facts: [
+      { label: 'CNPJ', value: formatCnpjDisplay(client.taxId) },
+      {
+        label: 'Atualizado',
+        value: <span className="tabular-nums">{formatClientListDateTime(client.updatedAt)}</span>,
+      },
+    ],
+    relations: [
+      {
+        label: 'Solicitações deste cliente',
+        value: 'Abrir fila filtrada',
+        href: `/app/requests?clientId=${client.id}`,
+      },
+    ],
+    nextAction: {
+      label: 'Abrir cadastro completo',
+      href: `/app/clients/${client.id}`,
+      kind: 'primary',
+    },
+    detailHref: `/app/clients/${client.id}`,
+    detailLabel: 'Abrir cadastro',
+  };
 }
