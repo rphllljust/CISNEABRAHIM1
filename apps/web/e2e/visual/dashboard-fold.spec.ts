@@ -85,19 +85,23 @@ test.describe('visao geral — fila decisoria exercitada', () => {
     // 3. ACAO REAL: o item da fila entrega uma acao semantica.
     await expect(page.getByRole('button', { name: /abrir ordem/i }).first()).toBeVisible();
 
-    // 4. CONTEXTO do item selecionado (a fila auto-seleciona o primeiro item).
-    const contextPanel = page.getByRole('complementary', { name: /contexto executivo/i });
-    await expect(contextPanel).toBeVisible();
-    await expect(contextPanel.getByText('OS-2026-0184')).toBeVisible();
+    // 4. ESTADO INICIAL: o ContextDrawer NAO reserva area sem selecao explicita.
+    await expect(page.getByRole('dialog')).toHaveCount(0);
 
     // 5. RESUMO OPERACIONAL / FLUXO.
     await expect(page.getByRole('heading', { name: /fluxo empresarial/i })).toBeVisible();
     await expect(page.getByText('Operação')).toBeVisible();
     await expect(page.getByText('Recebimento')).toBeVisible();
 
-    // 6. CENTRAL DE DECISAO visivel na primeira dobra.
-    const decision = page.getByRole('heading', { name: /central de decisão/i });
-    expect((await decision.boundingBox())!.y).toBeLessThan(fold);
+    // 6. ANALYTICS COM DRILLDOWN REAL na coluna lateral (drawer FECHADO).
+    await expect(page.getByRole('heading', { name: /ordens por status/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /atraso por faixa/i })).toBeVisible();
+    // Cada segmento abre a lista filtrada que produziu o numero.
+    const drill = page.getByRole('link', { name: /EM EXECUÇÃO|Em execução: \d+ ordens/i }).first();
+    await expect(drill).toHaveAttribute('href', /status=/);
+    // ESTADO A: a fila continua na primeira dobra com o drawer fechado.
+    const queueVisible = page.getByRole('heading', { name: /minha fila/i });
+    expect((await queueVisible.boundingBox())!.y).toBeLessThan(fold);
 
     // 7. NENHUMA LINGUAGEM TECNICA DE IMPLEMENTACAO NA TELA.
     const text = (await page.locator('#main-content').textContent()) ?? '';
@@ -113,5 +117,18 @@ test.describe('visao geral — fila decisoria exercitada', () => {
     expect(overflow.mainScrollW).toBeLessThanOrEqual(overflow.clientW + 1);
 
     await page.screenshot({ path: 'tmp-dashboard-1440.png', fullPage: false });
+
+    // ESTADO B: clicar no item da fila ABRE o drawer com o contexto, sem perder a fila.
+    await page.locator('.dashboard-queue-item__object').first().click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText('OS-2026-0184')).toBeVisible();
+    await expect(queueVisible).toBeVisible();
+    await page.screenshot({ path: 'tmp-dashboard-drawer-1440.png', fullPage: false });
+
+    // ESTADO C: fechar LIMPA a selecao — o drawer nao permanece visivel sem objeto.
+    await dialog.getByRole('button', { name: /fechar/i }).first().click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(queueVisible).toBeVisible();
   });
 });

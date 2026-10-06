@@ -43,13 +43,121 @@
 
 @media (min-width: 1100px) {
   .dashboard-workspace {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 20rem);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 18rem);
   }
 
   .dashboard-workspace__side {
     position: sticky;
     top: var(--spacing-2);
   }
+}
+
+/* ============================================================
+   ANALYTICS RAIL — distribuição com drilldown real
+   ============================================================ */
+
+.dashboard-analytic {
+  margin-bottom: var(--spacing-3);
+}
+
+.dashboard-dist {
+  display: grid;
+  gap: var(--spacing-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dashboard-dist__item {
+  min-width: 0;
+}
+
+.dashboard-dist__row {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr) 1.75rem;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: 0.125rem var(--spacing-1);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Na coluna analitica o valor da faixa vai para a linha de baixo, sem apertar a barra. */
+.dashboard-dist__amount {
+  grid-column: 1 / -1;
+  text-align: right;
+  font-size: 0.6875rem;
+  color: var(--color-slate-400);
+  white-space: nowrap;
+}
+
+.dashboard-dist__row:hover {
+  background: var(--color-slate-50);
+}
+
+.dashboard-dist__row:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: -2px;
+}
+
+.dashboard-dist__label {
+  font-size: 0.75rem;
+  color: var(--color-slate-600);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dashboard-dist__track {
+  height: 0.5rem;
+  border-radius: var(--radius-full);
+  background: var(--color-slate-100);
+  overflow: hidden;
+}
+
+.dashboard-dist__bar {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: var(--radius-full);
+  background: var(--color-slate-300);
+}
+
+/* Cor com significado: execução ativa e a faixa que concentra atraso. */
+.dashboard-dist__bar--active {
+  background: var(--color-brand-600);
+}
+
+.dashboard-dist__bar--paused {
+  background: var(--color-amber-500);
+}
+
+.dashboard-dist__bar--critical {
+  background: var(--color-red-500);
+}
+
+.dashboard-dist__count {
+  text-align: right;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--dashboard-ink);
+}
+
+.dashboard-dist__amount {
+  text-align: right;
+  font-size: 0.75rem;
+  color: var(--color-slate-500);
+  white-space: nowrap;
+}
+
+.dashboard-analytic__note {
+  margin: var(--spacing-2) 0 0;
+  padding-top: var(--spacing-2);
+  border-top: 1px solid var(--dashboard-line-soft);
+  font-size: 0.6875rem;
+  line-height: 1.35;
+  color: var(--color-slate-400);
 }
 
 .dashboard-workspace__main {

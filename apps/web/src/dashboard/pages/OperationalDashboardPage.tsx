@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { AttentionBlock } from '../components/AttentionBlock';
 import { DashboardPageHeader } from '../components/DashboardPageHeader';
 import { MetricStrip } from '../components/MetricStrip';
@@ -8,11 +8,10 @@ import { WorkInboxSection } from '../components/WorkInboxSection';
 import { useExecutiveDashboard } from '../hooks/useExecutiveDashboard';
 import { useOperationalUnits, operationalUnitLabel } from '../../shell/hooks/useOperationalUnits';
 import { buildDashboardKpis, buildPeriodVolume } from '../utils/build-dashboard-kpis';
-import { buildBusinessFlow, type BusinessFlowStage } from '../utils/dashboard-semantics';
+import { buildBusinessFlow, DASHBOARD_DRILL_DESTINATIONS, type BusinessFlowStage } from '../utils/dashboard-semantics';
 import { semanticSectionAttrs } from '../semantic-dashboard';
 import { ModuleDeniedState, ModulePage } from '../../ui';
 import { ContextDrawer } from '../../operator';
-import { NextActionPanel } from '../../enterprise-object/NextActionPanel';
 import { StatusBadge } from '../../ui/StatusBadge';
 import { Money } from '../../ui/Money';
 import { getWorkInbox, type WorkInboxPage, type WorkItem } from '../../work-inbox/api/work-inbox-api';
@@ -130,14 +129,21 @@ export function OperationalDashboardPage() {
     return () => controller.abort();
   }, [domain, overdueOnly]);
 
-  /* Selecao trocada -> contexto trocado. A fila abre com o primeiro item ja em contexto. */
+  /*
+   * SELECAO — o contexto e SOB DEMANDA, e por isso NAO existe auto-selecao aqui.
+   *
+   * Ate esta pass, um efeito escolhia `inbox.items[0]` assim que a fila chegava: o
+   * ContextDrawer abria sozinho no primeiro render de /app, cobrindo a tela com o contexto de um
+   * item que o operador nunca escolheu. Contexto sem intencao do usuario e ruido, nao ajuda.
+   *
+   * O contrato passa a ser: `selected` comeca `null`, so a acao do operador o preenche, e fechar
+   * o drawer volta para `null`. A UNICA excecao e a selecao que deixa de existir no recorte (item
+   * filtrado para fora): ai a selecao e LIMPA, nunca trocada por outro item sem o operador pedir.
+   */
   useEffect(() => {
-    setSelected((current) => {
-      if (current && inbox?.items.some((item) => item.id === current.id)) {
-        return current;
-      }
-      return inbox?.items[0] ?? null;
-    });
+    setSelected((current) =>
+      current && !inbox?.items.some((item) => item.id === current.id) ? null : current,
+    );
   }, [inbox]);
 
   const onOpenRoute = useCallback(
@@ -245,39 +251,20 @@ export function OperationalDashboardPage() {
             </section>
           </div>
 
-          {/* ZONA 3 — CONTEXTO EXECUTIVO, coluna lateral fixa. */}
-          <aside className="dashboard-workspace__side" aria-label="Contexto executivo">
-            <div className="dashboard-side-panel">
-              <h2 className="dashboard-side-panel__title">Contexto</h2>
-              {selected ? (
-                <div className="dashboard-side-summary">
-                  <p className="dashboard-side-summary__id">{selected.businessReference}</p>
-                  <p className="dashboard-side-summary__title">{selected.title}</p>
-                  <div className="mt-1">
-                    <StatusBadge
-                      label={overdueLabel(selected.dueAt) ?? WORK_KIND_LABELS[selected.kind]}
-                      tone={daysOverdue(selected.dueAt) !== null ? 'error' : 'info'}
-                    />
-                  </div>
-                  <p className="dashboard-side-summary__reason">{selected.reason}</p>
-                  <NextActionPanel
-                    className="mt-2"
-                    action={{
-                      kind: 'act',
-                      label: selected.actionLabel,
-                      description: `${WORK_DOMAIN_LABELS[selected.domain]} · vencimento ${formatMoment(selected.dueAt)}`,
-                      to: selected.targetRoute,
-                    }}
-                  />
-                </div>
-              ) : (
-                <p className="dashboard-side-panel__empty">
-                  Selecione um trabalho na fila para ver o contexto aqui.
-                </p>
-              )}
-            </div>
+          {/*
+            ANALYTICS RAIL — a coluna lateral passa a pertencer a TELA, nao ao contexto.
+            Antes ela reservava ~20rem permanentes para um painel vazio ("Selecione um
+            trabalho...") — 25% da largura gastos para dizer "nada selecionado". O contexto
+            foi para o `ContextDrawer`, que e SOB DEMANDA; o espaco passou a carregar as
+            duas visualizacoes que tem dado autoritativo no snapshot.
+          */}
+          <aside className="dashboard-workspace__side" aria-label="Indicadores analíticos">
+            {/* VISUAL 1 — AGING FINANCEIRO: faixas REAIS publicadas pelo servidor. */}
+            <AgingDistribution aging={snapshot.charts.financialAging} />
 
-            {/* SAUDE DA EMPRESA — metric strip compacto, sem grade de celulas vazias. */}
+            {/* VISUAL 2 — OPERACAO POR STATUS: distribuicao autoritativa + volume do periodo. */}
+            <OperationDistribution snapshot={snapshot} />
+
             <div
               {...semanticSectionAttrs([
                 'productivity.completed_count',
@@ -418,6 +405,128 @@ function BusinessFlowSummary({ stages }: { stages: BusinessFlowStage[] }) {
           </li>
         ))}
       </ol>
+    </section>
+  );
+}
+
+/**
+ * VISUAL 1 — AGING FINANCEIRO.
+ *
+ * Distribuicao por faixa de atraso, com as faixas REAIS que o servidor publicou (nao ha faixa
+ * fixa inventada aqui: 1-7/8-15/16-30/30+ so aparecem se forem as configuradas no backend).
+ *
+ * Cada faixa leva ao recorte real de titulos vencidos. A barra e proporcional a MAIOR faixa — e
+ * uma leitura de distribuicao, nao um total: nenhum valor e somado entre faixas.
+ *
+ * `available=false` (sem aging autorizado) NAO vira zero: a secao inteira desaparece, porque uma
+ * distribuicao de nada nao informa nada.
+ */
+function AgingDistribution({
+  aging,
+}: {
+  aging: ExecutiveDashboardSnapshot['charts']['financialAging'];
+}) {
+  if (!aging.available || aging.buckets.length === 0) {
+    return null;
+  }
+
+  const maxCount = Math.max(1, ...aging.buckets.map((bucket) => bucket.count));
+
+  return (
+    <section className="dashboard-analytic" aria-labelledby="aging-heading">
+      <header className="dashboard-section-head">
+        <h2 id="aging-heading" className="dashboard-section-head__title">
+          Atraso por faixa
+        </h2>
+      </header>
+
+      <ul className="dashboard-dist">
+        {aging.buckets.map((bucket) => (
+          <li key={bucket.bandId} className="dashboard-dist__item">
+            <Link
+              className="dashboard-dist__row"
+              to={DASHBOARD_DRILL_DESTINATIONS['receivables-overdue']}
+              aria-label={`${bucket.label}: ${bucket.count} títulos vencidos. Abrir títulos vencidos.`}
+            >
+              <span className="dashboard-dist__label">{bucket.label}</span>
+              <span className="dashboard-dist__track" aria-hidden>
+                <span
+                  className={
+                    bucket.count > 0
+                      ? 'dashboard-dist__bar dashboard-dist__bar--critical'
+                      : 'dashboard-dist__bar'
+                  }
+                  style={{ width: `${(bucket.count / maxCount) * 100}%` }}
+                />
+              </span>
+              <span className="dashboard-dist__count tabular-nums">{bucket.count}</span>
+              <span className="dashboard-dist__amount tabular-nums">
+                <Money value={bucket.totalAmount} />
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+
+      <p className="dashboard-analytic__note">{aging.summary}</p>
+    </section>
+  );
+}
+
+/**
+ * VISUAL 2 — OPERACAO POR STATUS.
+ *
+ * Distribuicao autoritativa de OS por status (o servidor publica a contagem de cada status no
+ * escopo). Cada barra abre a lista REAL filtrada por aquele status — nenhuma barra e decorativa.
+ *
+ * Nao existe total somado aqui: a soma dos status NAO e apresentada como "OS ativas", porque a
+ * distribuicao e o fato publicado. O volume do periodo aparece separado, no MetricStrip.
+ */
+function OperationDistribution({ snapshot }: { snapshot: ExecutiveDashboardSnapshot }) {
+  const status = snapshot.charts.serviceOrdersByStatus;
+
+  if (status.items.length === 0) {
+    return null;
+  }
+
+  const maxCount = Math.max(1, ...status.items.map((item) => item.count));
+
+  return (
+    <section className="dashboard-analytic" aria-labelledby="status-heading">
+      <header className="dashboard-section-head">
+        <h2 id="status-heading" className="dashboard-section-head__title">
+          Ordens por status
+        </h2>
+      </header>
+
+      <ul className="dashboard-dist">
+        {status.items.map((item) => (
+          <li key={item.status} className="dashboard-dist__item">
+            <Link
+              className="dashboard-dist__row"
+              to={`/app/service-orders?status=${item.status}`}
+              aria-label={`${item.label}: ${item.count} ordens. Abrir lista filtrada.`}
+            >
+              <span className="dashboard-dist__label">{item.label}</span>
+              <span className="dashboard-dist__track" aria-hidden>
+                <span
+                  className={
+                    item.status === 'IN_EXECUTION'
+                      ? 'dashboard-dist__bar dashboard-dist__bar--active'
+                      : item.status === 'PAUSED'
+                        ? 'dashboard-dist__bar dashboard-dist__bar--paused'
+                        : 'dashboard-dist__bar'
+                  }
+                  style={{ width: `${(item.count / maxCount) * 100}%` }}
+                />
+              </span>
+              <span className="dashboard-dist__count tabular-nums">{item.count}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+
+      <p className="dashboard-analytic__note">{status.summary}</p>
     </section>
   );
 }

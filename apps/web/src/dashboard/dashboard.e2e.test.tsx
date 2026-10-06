@@ -61,10 +61,19 @@ describe('operational dashboard e2e (frontend)', () => {
     expect(dashboard.getByText('Medição')).toBeInTheDocument();
     expect(dashboard.getByText('Recebimento')).toBeInTheDocument();
 
-    // ZONA 3 — CONTEXTO sempre presente na composicao (o drawer completo so abre com um item
-    // selecionado; o PAINEL lateral e parte permanente da zona).
-    expect(dashboard.getByRole('heading', { name: /contexto/i })).toBeInTheDocument();
-    expect(dashboard.getByRole('complementary', { name: /contexto executivo/i })).toBeInTheDocument();
+    // ZONA 3 — CONTEXTO SOB DEMANDA: o drawer nao reserva area sem selecao ativa.
+    expect(dashboard.queryByRole('heading', { name: /^contexto$/i })).not.toBeInTheDocument();
+    expect(dashboard.getByRole('complementary', { name: /indicadores analíticos/i })).toBeInTheDocument();
+
+    // ANALYTICS COM DADO AUTORITATIVO: distribuicao real, cada barra com drilldown.
+    expect(dashboard.getByRole('heading', { name: /ordens por status/i })).toBeInTheDocument();
+    expect(dashboard.getByRole('heading', { name: /atraso por faixa/i })).toBeInTheDocument();
+    // Cada segmento leva a lista filtrada real que produziu o numero.
+    expect(dashboard.getByRole('link', { name: /Em execução: 4 ordens/i })).toHaveAttribute(
+      'href',
+      '/app/service-orders?status=IN_EXECUTION',
+    );
+    expect(dashboard.getAllByRole('link', { name: /títulos vencidos/i }).length).toBeGreaterThan(0);
 
     // Resumo executivo continua na tela.
     expect(dashboard.getByRole('heading', { name: /sa.de da empresa/i })).toBeInTheDocument();
