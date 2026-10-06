@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import {
+  DynamicContextDrawer,
+  DynamicSavedViewsBar,
+  useSavedViews,
+  type CrossReference,
+} from '../../engine';
 import { ContractsApiError, listContracts } from '../api/contracts-api';
 import { mapContractErrorToMessage } from '../api/contracts-error-messages';
 import { ContractStatusBadge } from '../components/ContractStatusBadge';
@@ -50,6 +56,13 @@ type ListState =
 export function ContractsListPage() {
   const { capabilities } = useContractCapabilities();
   const { options: unitOptions } = useOperationalUnits();
+  /*
+   * VISÕES SALVAS — o recorte (cliente + unidade) é o que o comercial remonta todo dia ao
+   * acompanhar a vigência de uma carteira. A visão restaura o recorte SERVER-SIDE real, que é
+   * o que a consulta usa; nada de estado visual desconectado do filtro.
+   */
+  const savedViews = useSavedViews('local-operator', 'contracts');
+  const [selected, setSelected] = useState<Contract | null>(null);
   const [clientFilter, setClientFilter] = useState('');
   const [unitFilter, setUnitFilter] = useState('');
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
@@ -191,6 +204,22 @@ export function ContractsListPage() {
         />
       </WorklistFilterBar>
 
+      {/*
+        VISÕES SALVAS — cliente + unidade é o recorte que o comercial reconstrói a cada turno.
+        `persistedLocally` é declarado pela engine: sem endpoint de visões salvas, o
+        armazenamento é local por identidade.
+      */}
+      <DynamicSavedViewsBar
+        views={savedViews.views}
+        persistedLocally={savedViews.persistedLocally}
+        onSave={(name) => savedViews.save(name, { clientFilter, unitFilter }, 'list')}
+        onDelete={savedViews.remove}
+        onApply={(view) => {
+          setClientFilter(view.filters['clientFilter'] ?? '');
+          setUnitFilter(view.filters['unitFilter'] ?? '');
+        }}
+      />
+
       {items.length === 0 ? (
         <WorklistStatePanel
           title={
@@ -251,7 +280,16 @@ export function ContractsListPage() {
             </thead>
             <tbody>
               {items.map((item) => (
-                <tr key={item.id} className={worklistRowClass}>
+                <tr
+                  key={item.id}
+                  className={worklistRowClass}
+                  /*
+                   * CONTEXTO SEM ABANDONAR A LISTA — o comercial compara vigências de vários
+                   * contratos da mesma carteira. O painel lateral mostra os fatos da linha
+                   * clicada sem perder o recorte; o número continua levando à ficha.
+                   */
+                  onClick={() => setSelected(item)}
+                >
                   <td className={worklistCellClass}>
                     {/* Registro inteiro e a superficie de navegacao: link real esticado na linha. */}
                     <WorklistRowLink href={`/app/contracts/${item.id}`}>
@@ -295,7 +333,13 @@ export function ContractsListPage() {
                     grade para nao prometer operacao que nao conclui ali.
                   */}
                   <RowActionCell className="w-16">
-                    <Link to={`/app/contracts/${item.id}`} className={rowPrimaryActionClass}>
+                    <Link
+                      to={`/app/contracts/${item.id}`}
+                      className={rowPrimaryActionClass}
+                      /* O clique na ação NAVEGA; o da linha abre o contexto. Parar a propagação
+                         impede que os dois gestos signifiquem a mesma coisa. */
+                      onClick={(event) => event.stopPropagation()}
+                    >
                       Abrir
                     </Link>
                   </RowActionCell>
@@ -315,6 +359,50 @@ export function ContractsListPage() {
           onNext={() => void loadPage(offset + PAGE_SIZE)}
         />
       </WorklistFooter>
+
+      {/*
+        RELAÇÕES DO CONTRATO — montadas do que a LINHA já traz, sem chamada de rede nova.
+        Contagem de pedidos, OS ou medições vinculadas NÃO é publicada por esta listagem, então
+        nenhuma é afirmada: número sem origem não entra.
+      */}
+      <DynamicContextDrawer
+        open={selected !== null}
+        title={selected ? selected.contractNumber : 'Contrato'}
+        onClose={() => setSelected(null)}
+        crossReferences={selected ? contractCrossReferences(selected) : []}
+      >
+        {selected ? (
+          <Link to={`/app/contracts/${selected.id}`} className={rowPrimaryActionClass}>
+            Abrir contrato
+          </Link>
+        ) : null}
+      </DynamicContextDrawer>
     </ModulePage>
   );
+}
+
+/**
+ * Referências cruzadas do contrato, a partir do payload da listagem.
+ *
+ * Cada item entra só quando o campo existe. Contrato sem término tem a AUSÊNCIA declarada
+ * ("em vigor por prazo indeterminado" só é afirmado quando não há `validTo`) — nunca uma data
+ * fabricada.
+ */
+function contractCrossReferences(item: Contract): CrossReference[] {
+  const references: CrossReference[] = [];
+  const client = formatClientSnapshot(item.clientSnapshot);
+  references.push({ label: 'Cliente', detail: client });
+  references.push({
+    label: 'Vigência',
+    detail: item.validTo
+      ? `${formatDate(item.validFrom)} → ${formatDate(item.validTo)}`
+      : `${formatDate(item.validFrom)} → sem término registrado`,
+  });
+  if (item.title) {
+    references.push({ label: 'Objeto', detail: item.title });
+  }
+  if (item.internalCode) {
+    references.push({ label: 'Código interno', detail: item.internalCode });
+  }
+  return references;
 }
