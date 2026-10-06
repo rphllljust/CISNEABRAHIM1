@@ -3,6 +3,12 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { RELATION_SCOPE_KEYS, useRelationScope } from '../../enterprise-object';
 import { isPersistableValue } from '../../operator';
 import {
+  DynamicContextDrawer,
+  DynamicSavedViewsBar,
+  useSavedViews,
+  type CrossReference,
+} from '../../engine';
+import {
   getServiceRequestSummary,
   listServiceRequests,
   ServiceRequestsApiError,
@@ -196,6 +202,14 @@ function useQueueUrlSync(
 export function ServiceRequestsListPage() {
   const { capabilities } = useServiceRequestCapabilities();
   const [filters, setFilters] = useState<QueueFilters>(EMPTY_FILTERS);
+  /*
+   * VISÕES SALVAS — a fila de solicitações é reconstruída todo dia com o MESMO recorte:
+   * "aprovadas aguardando virar OS", "em análise por prioridade alta". Como o recorte vive na
+   * URL (ver `useQueueUrlSync`), salvar a visão preserva o endereço compartilhável — a visão
+   * restaura o recorte OPERACIONAL real, não um estado visual solto.
+   */
+  const savedViews = useSavedViews('local-operator', 'service-requests');
+  const [selected, setSelected] = useState<ServiceRequestListItem | null>(null);
   // Escopo de relacao (recorte que vem da URL e NAO e editavel no formulario da fila).
   const relationScope = useRelationScope(RELATION_SCOPE_KEYS);
   const [searchInput, setSearchInput] = useState('');
@@ -487,6 +501,39 @@ export function ServiceRequestsListPage() {
       </WorklistFilterBar>
 
       {/*
+        VISÕES SALVAS — restaura o recorte INTEIRO da fila (status, prioridade, origem, janela
+        desejada, ordenação e o termo de busca). Uma visão que salvasse só parte do recorte
+        mentiria sobre o que o operador está vendo.
+      */}
+      <DynamicSavedViewsBar
+        views={savedViews.views}
+        persistedLocally={savedViews.persistedLocally}
+        onSave={(name) => savedViews.save(name, { ...filters }, 'list')}
+        onDelete={savedViews.remove}
+        onApply={(view) => {
+          /*
+           * RESTAURA O RECORTE INTEIRO. Cada chave é lida pelo próprio alfabeto de
+           * `EMPTY_FILTERS` (todas são string), então uma visão salva antes de um campo novo
+           * existir simplesmente cai no valor padrão em vez de deixar a fila num estado
+           * indefinido. `?? ''` cobre a visão antiga; `filters` já traz o default de ordenação.
+           */
+          const restored: QueueFilters = {
+            status: (view.filters['status'] ?? '') as QueueFilters['status'],
+            priority: (view.filters['priority'] ?? '') as QueueFilters['priority'],
+            originSource: (view.filters['originSource'] ?? '') as QueueFilters['originSource'],
+            unitId: view.filters['unitId'] ?? '',
+            desiredFrom: view.filters['desiredFrom'] ?? '',
+            desiredTo: view.filters['desiredTo'] ?? '',
+            search: view.filters['search'] ?? '',
+            sort: (view.filters['sort'] || EMPTY_FILTERS.sort) as QueueFilters['sort'],
+            direction: (view.filters['direction'] || EMPTY_FILTERS.direction) as QueueFilters['direction'],
+          };
+          setFilters(restored);
+          setSearchInput(restored.search);
+        }}
+      />
+
+      {/*
         ESTADO VAZIO COMPACTO — era um `<p>` solto de uma linha. O painel declara o recorte,
         explica o que fazer e oferece a acao real quando ela existe, sem ocupar meia tela.
       */}
@@ -537,7 +584,13 @@ export function ServiceRequestsListPage() {
               return (
                 <li
                   key={item.id}
-                  className="grid grid-cols-1 gap-3 px-4 py-4 transition hover:bg-gray-50/70 lg:grid-cols-[minmax(0,2.1fr)_minmax(0,1.5fr)_7rem_minmax(0,1.3fr)_minmax(0,1.1fr)_minmax(0,1.4fr)_9rem] lg:items-start lg:gap-4"
+                  /*
+                   * CONTEXTO SEM ABANDONAR A FILA — o analista triagem várias solicitações
+                   * seguidas. O painel lateral mostra a demanda, a janela e o próximo passo sem
+                   * perder o recorte; o código da solicitação continua levando à ficha.
+                   */
+                  onClick={() => setSelected(item)}
+                  className="grid cursor-pointer grid-cols-1 gap-3 px-4 py-4 transition hover:bg-gray-50/70 lg:grid-cols-[minmax(0,2.1fr)_minmax(0,1.5fr)_7rem_minmax(0,1.3fr)_minmax(0,1.1fr)_minmax(0,1.4fr)_9rem] lg:items-start lg:gap-4"
                 >
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-baseline gap-x-2">
@@ -641,6 +694,9 @@ export function ServiceRequestsListPage() {
                     <Link
                       to={`/app/requests/${item.id}`}
                       className={rowPrimaryActionClass}
+                      /* O clique na ação NAVEGA; o da linha abre o contexto. Sem parar a
+                         propagação, o link também abriria o painel por cima da navegação. */
+                      onClick={(event) => event.stopPropagation()}
                     >
                       {NEXT_STEP_ACTION_LABEL[item.status] ?? 'Abrir'}
                     </Link>
@@ -662,6 +718,52 @@ export function ServiceRequestsListPage() {
         onPrevious={() => void loadPage(Math.max(0, offset - PAGE_SIZE), filters)}
         onNext={() => void loadPage(offset + PAGE_SIZE, filters)}
       />
+
+      {/*
+        RELAÇÕES DA SOLICITAÇÃO — montadas do que a LINHA já traz, sem chamada de rede nova.
+        Contagem de propostas ou de OS convertidas NÃO é publicada por esta listagem, então
+        nenhuma é afirmada: número sem origem não entra. O painel entrega contexto, ação real e
+        drillback — não duplica a object page.
+      */}
+      <DynamicContextDrawer
+        open={selected !== null}
+        title={selected ? selected.requestCode : 'Solicitação'}
+        onClose={() => setSelected(null)}
+        crossReferences={selected ? requestCrossReferences(selected) : []}
+      >
+        {selected ? (
+          <Link to={`/app/requests/${selected.id}`} className={rowPrimaryActionClass}>
+            {NEXT_STEP_ACTION_LABEL[selected.status] ?? 'Abrir solicitação'}
+          </Link>
+        ) : null}
+      </DynamicContextDrawer>
     </ModulePage>
   );
+}
+
+/**
+ * Referências cruzadas da solicitação, a partir do payload da listagem.
+ *
+ * Cada item entra só quando o campo existe. Sem cliente identificado, a ausência é DECLARADA —
+ * não se fabrica nome nem se omite a linha em silêncio.
+ */
+function requestCrossReferences(item: ServiceRequestListItem): CrossReference[] {
+  const references: CrossReference[] = [
+    { label: 'Situação', detail: formatServiceRequestStatus(item.status) },
+    { label: 'Prioridade', detail: formatServiceRequestPriority(item.priority) },
+    { label: 'Origem', detail: formatServiceRequestOrigin(item.originSource) },
+    { label: 'Próximo passo', detail: NEXT_STEP_BY_STATUS[item.status] },
+  ];
+  references.push({
+    label: 'Cliente',
+    detail: item.clientName ?? 'Cliente não identificado',
+  });
+  const window = formatDesiredWindow(item.desiredStartAt, item.desiredEndAt);
+  if (window) {
+    references.push({ label: 'Janela desejada', detail: window });
+  }
+  if (item.description) {
+    references.push({ label: 'Demanda', detail: summarizeServiceRequestDescription(item.description) });
+  }
+  return references;
 }
