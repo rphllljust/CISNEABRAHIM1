@@ -350,15 +350,25 @@ export function ContractsListPage() {
         </div>
       )}
 
-      <WorklistFooter rangeLabel={`${offset + 1}–${offset + items.length} nesta página`}>
-        <ModulePagination
-          pageNumber={pageNumber}
-          previousDisabled={offset === 0}
-          nextDisabled={!hasMore}
-          onPrevious={() => void loadPage(Math.max(0, offset - PAGE_SIZE))}
-          onNext={() => void loadPage(offset + PAGE_SIZE)}
-        />
-      </WorklistFooter>
+      {/*
+        RODAPÉ — só existe quando há o que paginar.
+
+        Com ZERO registros a tela exibia "1–0 nesta página", "Página 1" e os botões
+        Anterior/Próxima: faixa que não descreve nada, ocupa a primeira dobra de uma tela já
+        vazia e sugere um dataset que não existe. Sem registro, o rodapé simplesmente não é
+        montado — a leitura do vazio fica com o painel de estado, que é quem tem a saída.
+      */}
+      {items.length > 0 ? (
+        <WorklistFooter rangeLabel={`${offset + 1}–${offset + items.length} nesta página`}>
+          <ModulePagination
+            pageNumber={pageNumber}
+            previousDisabled={offset === 0}
+            nextDisabled={!hasMore}
+            onPrevious={() => void loadPage(Math.max(0, offset - PAGE_SIZE))}
+            onNext={() => void loadPage(offset + PAGE_SIZE)}
+          />
+        </WorklistFooter>
+      ) : null}
 
       {/*
         RELAÇÕES DO CONTRATO — montadas do que a LINHA já traz, sem chamada de rede nova.
