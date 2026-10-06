@@ -57,7 +57,7 @@
   "filters.all": "All",
   "filters.apply": "Apply",
   "filters.applyBuilder": "Apply filter",
-  "filters.builder": "Filter builder",
+  "filters.builder": "Advanced filters",
   "filters.clear": "Clear filters",
   "filters.clearBuilder": "Clear",
   "filters.field": "field",

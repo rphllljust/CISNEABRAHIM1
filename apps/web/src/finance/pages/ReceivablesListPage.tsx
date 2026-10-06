@@ -216,7 +216,7 @@ export function ReceivablesListPage() {
       <WorklistHeader
         title="Contas a receber"
         count={page.total}
-        context="Saldos, vencimentos e situação são os publicados pelo servidor. Nenhum título é recalculado nesta tela."
+        context="A carteira a receber: vencimento, situação e saldo vêm do servidor. Cada título abre a cadeia que o originou."
       />
 
       {/* DRILL-DOWN: todo indicador abre a lista filtrada que o originou. */}

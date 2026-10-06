@@ -204,7 +204,7 @@ export function PayablesListPage() {
       <WorklistHeader
         title="Contas a pagar"
         count={page.total}
-        context="Aging, vencimento e saldo restante são os publicados pelo servidor. Nenhuma obrigação é recalculada nesta tela."
+        context="As obrigações a pagar: vencimento, aging e saldo vêm do servidor. Cada título abre o lançamento que o originou."
       />
 
       {/* DRILL-DOWN: todo indicador abre a lista filtrada que o originou. */}
