@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { Checkbox, EmptyState, Field, Input, Money, Select } from '../../ui';
 import { ModulePage, ModulePagination } from '../../ui/module-layout';
 import {
+  RowActionMenu,
   WorklistFooter,
   WorklistHeader,
   WorklistRowLink,
+  rowPrimaryActionClass,
   worklistCellClass,
   worklistHeadCellClass,
   worklistNumericCellClass,
@@ -14,6 +16,7 @@ import {
   worklistTableCardClass,
   worklistTableClass,
 } from '../../ui/enterprise-list';
+import { ContextDrawer } from '../../operator';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { CreateRecordForm } from '../../financial-ui/VersionedActionForm';
 import { TREASURY_KIND_LABELS, TREASURY_LIFECYCLE_LABELS } from '../../financial-ui/labels';
@@ -76,6 +79,16 @@ const EMPTY_DRAFT: AccountDraft = {
 const PAGE_SIZE = 20;
 
 /**
+ * Rótulo humano do tipo de conta, para o painel de contexto.
+ *
+ * A GRADE resolve o rótulo pelo metadado (`meta.fields.options`); o painel lateral não tem esse
+ * `select` à mão e usa este mapa em vez de exibir `CASH`/`BANK`/`INVESTMENT` cru.
+ */
+function labelOrRawKind(kind: string): string {
+  return TREASURY_KIND_LABELS[kind] ?? kind;
+}
+
+/**
  * CAIXA E BANCOS — MESA DE TRABALHO, renderizada pela engine.
  *
  * A grade, os cabeçalhos, os rótulos de tipo/situação e o filtro por campo deixaram de ser JSX
@@ -104,6 +117,8 @@ export function TreasuryListPage() {
   const navigate = useNavigate();
   const [pageNumber, setPageNumber] = useState(1);
   const [draft, setDraft] = useState<AccountDraft>(EMPTY_DRAFT);
+  /** Prévia lateral: o contexto da conta abre por intenção explícita e fechar limpa a seleção. */
+  const [previewAccount, setPreviewAccount] = useState<FinancialAccount | null>(null);
   const [filters, setFilters] = useState<Record<string, string>>({});
   const { schema } = useEntitySchema('treasury-accounts');
 
@@ -294,6 +309,31 @@ export function TreasuryListPage() {
             schema={schema}
             rows={pageItems}
             emptyMessage="Nenhuma conta corresponde ao recorte atual."
+            /*
+             * CONTEXTO SEM SAIR DA MESA. A ação primária abre o contexto da conta (saldo,
+             * créditos, débitos e conciliação já lidos nesta tela); abrir a conta completa é o
+             * drilldown, ao lado. Antes só existia o clique na linha, que abandona a fila.
+             */
+            renderRowActions={(row) => (
+              <RowActionMenu
+                label={`Conta ${String(row['name'])}`}
+                primary={
+                  <button
+                    type="button"
+                    className={rowPrimaryActionClass}
+                    onClick={() => setPreviewAccount(accounts.find((item) => item.id === row.id) ?? null)}
+                    aria-label={`Ver contexto da conta ${String(row['name'])}`}
+                  >
+                    Contexto
+                  </button>
+                }
+                secondary={
+                  <WorklistRowLink href={`/app/finance/treasury/${row.id}`}>
+                    Abrir conta
+                  </WorklistRowLink>
+                }
+              />
+            )}
             onRowClick={(row) => {
               void navigate(`/app/finance/treasury/${row.id}`);
             }}
@@ -547,6 +587,92 @@ export function TreasuryListPage() {
           </Field>
         )}
       </CreateRecordForm>
+
+      {/*
+        CONTEXTO DA CONTA — aberto pela ação da linha, nunca sozinho, e fechado limpa a seleção.
+        Consome SOMENTE o que esta tela já leu: saldo publicado, créditos/débitos/movimentos da
+        conciliação (quando autorizada) e o vínculo bancário. A conta sem leitura de conciliação
+        declara a ausência em vez de exibir zero.
+      */}
+      <ContextDrawer
+        open={previewAccount !== null}
+        title="Contexto da conta"
+        onClose={() => setPreviewAccount(null)}
+        preview={
+          previewAccount
+            ? (() => {
+                const reconciliation = reconciliations.get(previewAccount.id) ?? null;
+                const active = previewAccount.lifecycle === 'ACTIVE';
+                return {
+                  identifier: previewAccount.name,
+                  subtitle: previewAccount.code,
+                  status: (
+                    <FinanceStatusBadge
+                      status={previewAccount.lifecycle}
+                      labels={TREASURY_LIFECYCLE_LABELS}
+                    />
+                  ),
+                  facts: [
+                    {
+                      label: 'Saldo',
+                      value: (
+                        <Money
+                          value={previewAccount.balance}
+                          currencyCode={previewAccount.currencyCode}
+                          emphasis
+                        />
+                      ),
+                      emphasis: true,
+                    },
+                    {
+                      label: 'Tipo',
+                      value: labelOrRawKind(previewAccount.kind),
+                    },
+                    { label: 'Moeda', value: previewAccount.currencyCode },
+                    {
+                      label: 'Créditos',
+                      value: reconciliation ? (
+                        <Money value={reconciliation.credits} currencyCode={previewAccount.currencyCode} />
+                      ) : (
+                        '—'
+                      ),
+                    },
+                    {
+                      label: 'Débitos',
+                      value: reconciliation ? (
+                        <Money value={reconciliation.debits} currencyCode={previewAccount.currencyCode} />
+                      ) : (
+                        '—'
+                      ),
+                    },
+                    {
+                      label: 'Movimentos',
+                      value: reconciliation ? String(reconciliation.movementCount) : '—',
+                    },
+                    {
+                      label: 'Limite de crédito',
+                      value: previewAccount.overdraftAllowed ? 'Habilitado' : 'Não habilitado',
+                    },
+                    {
+                      label: 'Vínculo',
+                      value: previewAccount.bank
+                        ? `${previewAccount.bank.bankCode} · ${previewAccount.bank.agency} · ${previewAccount.bank.accountNumber}`
+                        : (previewAccount.cash?.locationCode ?? '—'),
+                    },
+                  ],
+                  nextAction: active
+                    ? {
+                        label: 'Abrir a conta para lançar, transferir ou estornar',
+                        href: `/app/finance/treasury/${previewAccount.id}`,
+                      }
+                    : null,
+                  detailHref: `/app/finance/treasury/${previewAccount.id}`,
+                  detailLabel: 'Abrir conta completa',
+                };
+              })()
+            : null
+        }
+      />
     </ModulePage>
   );
 }
