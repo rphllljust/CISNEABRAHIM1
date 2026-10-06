@@ -14,6 +14,7 @@ import {
   type ContextPreviewBody,
 } from '../../operator';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
+import { WorklistHeader } from '../../ui/enterprise-list';
 import { AGING_BUCKET_LABELS, PAYABLE_STATUS_LABELS } from '../../financial-ui/labels';
 import { BACKOFFICE_TABLE_PAGE_SIZE } from '../../financial-ui/table-slice';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
@@ -195,21 +196,16 @@ export function PayablesListPage() {
   const portfolioEmpty = page.total === 0 && !smartList.isFiltered;
 
   return (
-    <ModulePage>
-      <header className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold" data-testid="entity-title">
-            {schema?.label ?? 'Contas a pagar'}
-          </h1>
-          <p className="mt-1 text-xs text-gray-500">
-            Aging e saldo restante são os informados pelo servidor. Esta tela não recalcula
-            obrigações.
-          </p>
-        </div>
-        <span className="text-xs text-gray-500" data-list-total={page.total}>
-          {page.total} título(s)
-        </span>
-      </header>
+    <ModulePage layout="workspace">
+      {/*
+        CABEÇALHO DE WORKLIST — mesma gramática do recebível e do workspace: identidade, contagem
+        REAL do recorte (contada no servidor) e procedência em uma linha, sem parágrafo de manual.
+      */}
+      <WorklistHeader
+        title="Contas a pagar"
+        count={page.total}
+        context="Aging, vencimento e saldo restante são os publicados pelo servidor. Nenhuma obrigação é recalculada nesta tela."
+      />
 
       {/* DRILL-DOWN: todo indicador abre a lista filtrada que o originou. */}
       <DrilldownRow>

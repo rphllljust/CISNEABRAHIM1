@@ -16,6 +16,10 @@ import {
   type ContextPreviewBody,
 } from '../../operator';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
+import {
+  WorklistHeader,
+  worklistGroupClass,
+} from '../../ui/enterprise-list';
 import { RECEIVABLE_STATUS_LABELS } from '../../financial-ui/labels';
 import { BACKOFFICE_TABLE_PAGE_SIZE } from '../../financial-ui/table-slice';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
@@ -202,20 +206,18 @@ export function ReceivablesListPage() {
   const portfolioEmpty = page.total === 0 && !smartList.isFiltered && statusForQuery === '';
 
   return (
-    <ModulePage>
-      <header className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold" data-testid="entity-title">
-            {schema?.label ?? 'Contas a receber'}
-          </h1>
-          <p className="mt-1 text-xs text-gray-500">
-            Saldos e status são os informados pelo servidor. Esta tela não recalcula títulos.
-          </p>
-        </div>
-        <span className="text-xs text-gray-500" data-list-total={page.total}>
-          {page.total} título(s)
-        </span>
-      </header>
+    <ModulePage layout="workspace">
+      {/*
+        CABEÇALHO DE WORKLIST — a mesma gramática do workspace financeiro e das demais worklists
+        do CISNE: identidade, contagem REAL do recorte (contada no servidor) e a leitura de
+        procedência em uma linha. Antes era um `<header>` artesanal com o subtítulo explicativo
+        que a baliza de ERP proíbe ("o operador lê número e estado, não manual").
+      */}
+      <WorklistHeader
+        title="Contas a receber"
+        count={page.total}
+        context="Saldos, vencimentos e situação são os publicados pelo servidor. Nenhum título é recalculado nesta tela."
+      />
 
       {/* DRILL-DOWN: todo indicador abre a lista filtrada que o originou. */}
       <DrilldownRow>
@@ -426,7 +428,7 @@ export function ReceivablesListPage() {
                 }}
               />
 
-              <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
+              <div className={`mt-3 flex items-center justify-between text-xs text-gray-500 ${worklistGroupClass}`}>
                 <span aria-live="polite">
                   Página {safePageNumber} de {pageCount} · {byBuilder.length}{' '}
                   {byBuilder.length === 1 ? 'título' : 'títulos'} no recorte atual
