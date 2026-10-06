@@ -13,6 +13,8 @@ import {
   type ProposalListSort,
 } from '../types/proposal.types';
 import { formatDateTime, formatMoney, formatProposalStatus } from '../utils/proposal-labels';
+import { ContextDrawer } from '../../operator';
+import { DateTime, Money } from '../../ui';
 import {
   describeProposalAttention,
   describeValidityTiming,
@@ -21,6 +23,7 @@ import {
 } from '../utils/proposal-workbench';
 import {
   EnterpriseMetric,
+  RowActionMenu,
   WorklistClearFilters,
   WorklistField,
   WorklistFilterBar,
@@ -125,6 +128,12 @@ export function ProposalsListPage() {
   const [searchInput, setSearchInput] = useState('');
   /** Filtros de data, ordenação e sentido ficam atrás de "Mais filtros" — a barra abre compacta. */
   const [showMoreFilters, setShowMoreFilters] = useState(false);
+  /**
+   * Proposta selecionada para o painel de contexto. Abre por clique na linha e NUNCA sozinho;
+   * fechar limpa a seleção, para que o painel não continue afirmando um objeto que o operador
+   * já deixou de olhar.
+   */
+  const [selected, setSelected] = useState<Proposal | null>(null);
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
 
   const loadPage = useCallback(
@@ -532,6 +541,18 @@ export function ProposalsListPage() {
                       enterpriseRowClass,
                       'grid grid-cols-1 gap-3 px-3 py-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_minmax(0,1.2fr)_9rem_minmax(0,1.2fr)_minmax(0,1.5fr)_9rem] lg:items-start lg:gap-4',
                     )}
+                    /*
+                     * CLIQUE NA LINHA abre o CONTEXTO, sem sair da fila. O código da proposta
+                     * continua sendo um link real (teclado, nova aba, leitor de tela) para a
+                     * object page — profundidade. Cliques em elementos interativos internos
+                     * seguem seu próprio comportamento.
+                     */
+                    onClick={(event) => {
+                      if ((event.target as HTMLElement).closest('a, button, select, input')) {
+                        return;
+                      }
+                      setSelected(item);
+                    }}
                   >
                     <div className="min-w-0">
                       <Link
@@ -655,17 +676,39 @@ export function ProposalsListPage() {
                     </div>
 
                     {/*
-                      PROXIMA ACAO — o verbo do proximo passo da versao vigente, como ACAO
-                      SEMANTICA da linha. Antes era um botao "Abrir" repetido em toda linha, sem
-                      dizer o que fazer; agora o rotulo E o passo (Emitir / Revisar / Acompanhar),
-                      e a identidade da proposta ja navega para a object page.
+                      ACOES SECUNDARIAS — menu contextual, nao botao repetido.
+
+                      Antes havia um botao em TODA linha ("Abrir"/"Emitir"), com o mesmo peso
+                      visual da coluna de situacao: a grade gastava uma coluna inteira repetindo a
+                      mesma acao e o operador nao ganhava nenhuma decisao nova. Agora a linha
+                      SELECIONA (abre o contexto ao lado) e o menu traz os dois caminhos reais:
+                      o contexto completo e a ficha (drillback para a object page).
                     */}
                     <div className="flex items-start lg:justify-end">
-                      <Link to={`/app/proposals/${item.id}`} className={rowPrimaryActionClass}>
-                        {item.currentVersionStatus
-                          ? PROPOSAL_ACTION_LABEL[item.currentVersionStatus] ?? 'Abrir'
-                          : 'Completar'}
-                      </Link>
+                      <RowActionMenu
+                        label={`Proposta ${item.proposalCode}`}
+                        primary={
+                          <button
+                            type="button"
+                            className={rowPrimaryActionClass}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setSelected(item);
+                            }}
+                            aria-label={`Abrir contexto da proposta ${item.proposalCode}`}
+                          >
+                            Contexto
+                          </button>
+                        }
+                        secondary={
+                          <Link
+                            to={`/app/proposals/${item.id}`}
+                            className="text-[12px] font-medium text-brand-700 no-underline hover:text-brand-800"
+                          >
+                            Abrir proposta
+                          </Link>
+                        }
+                      />
                     </div>
                   </li>
                 );
@@ -681,6 +724,109 @@ export function ProposalsListPage() {
         nextDisabled={!hasMore}
         onPrevious={() => void loadPage(Math.max(0, pageNumber - 1) * PAGE_SIZE, filters)}
         onNext={() => void loadPage(offset + PAGE_SIZE, filters)}
+      />
+      {/*
+        CONTEXTO SOB DEMANDA — a linha seleciona e abre o painel lateral; o operador investiga
+        SEM SAIR DA FILA. Fechar limpa a seleção.
+
+        O painel NÃO duplica a object page: mostra o que decide a próxima ação (identidade,
+        cliente, origem, valor, validade, situação e os fatos de atenção reais) e oferece o
+        drillback para a profundidade. Nenhum dado novo é buscado — tudo já veio na linha.
+      */}
+      <ContextDrawer
+        open={selected !== null}
+        title="Contexto da proposta"
+        onClose={() => setSelected(null)}
+        preview={
+          selected
+            ? (() => {
+                const attention = describeProposalAttention(
+                  {
+                    currentVersionStatus: selected.currentVersionStatus,
+                    validUntil: selected.validUntil,
+                    originRequestCount: selected.originRequests?.length ?? 0,
+                    revisionCount: selected.revisionCount ?? 0,
+                  },
+                  now,
+                );
+                const timing = describeValidityTiming(selected.validUntil, now);
+                return {
+                  identifier: selected.proposalCode,
+                  subtitle: selected.title,
+                  status: selected.currentVersionStatus ? (
+                    <ProposalStatusBadge status={selected.currentVersionStatus} />
+                  ) : undefined,
+                  facts: [
+                    {
+                      label: 'Cliente',
+                      value: selected.clientName ?? 'Cliente não identificado',
+                    },
+                    {
+                      label: 'Valor',
+                      value: selected.saleTotal ? (
+                        <Money
+                          value={selected.saleTotal}
+                          currencyCode={selected.currencyCode ?? 'BRL'}
+                          emphasis
+                        />
+                      ) : (
+                        '—'
+                      ),
+                      emphasis: true,
+                    },
+                    {
+                      label: 'Validade',
+                      value: selected.validUntil ? (
+                        <DateTime value={selected.validUntil} mode="date" />
+                      ) : (
+                        'Sem validade'
+                      ),
+                    },
+                    {
+                      label: 'Revisão',
+                      value:
+                        selected.revisionNumber === null
+                          ? 'Sem versão'
+                          : `Revisão ${selected.revisionNumber}`,
+                    },
+                    {
+                      label: 'Origem',
+                      value:
+                        selected.originRequests && selected.originRequests.length > 0
+                          ? selected.originRequests.map((request) => request.requestCode).join(', ')
+                          : 'Sem solicitação de origem',
+                    },
+                    ...(timing ? [{ label: 'Prazo', value: timing.text }] : []),
+                    ...attention.map((fact) => ({ label: 'Atenção', value: fact.text })),
+                  ],
+                  relations:
+                    selected.originRequests && selected.originRequests.length > 0
+                      ? selected.originRequests.map((request) => ({
+                          label: 'Solicitação de origem',
+                          value: request.requestCode,
+                          href: `/app/requests/${request.id}`,
+                        }))
+                      : undefined,
+                  nextAction: {
+                    label: selected.currentVersionStatus
+                      ? (NEXT_STEP_BY_STATUS[selected.currentVersionStatus] ??
+                        formatProposalNextStep('CLOSED'))
+                      : formatProposalNextStep('COMPLETE_AND_ISSUE'),
+                    href: `/app/proposals/${selected.id}`,
+                  },
+                  detailHref: `/app/proposals/${selected.id}`,
+                  /*
+                   * O rotulo do drillback e o VERBO do proximo passo da versao vigente — a mesma
+                   * maquina de estados que a lista le, so encurtada para o alvo de clique. Dizer
+                   * "Emitir" ou "Nova revisao" e mais util que um "Abrir" generico.
+                   */
+                  detailLabel: selected.currentVersionStatus
+                    ? `${PROPOSAL_ACTION_LABEL[selected.currentVersionStatus] ?? 'Abrir'} — ficha completa`
+                    : 'Completar e emitir — ficha completa',
+                };
+              })()
+            : null
+        }
       />
     </ModulePage>
   );
