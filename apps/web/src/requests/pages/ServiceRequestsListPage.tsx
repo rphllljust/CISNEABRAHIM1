@@ -1,21 +1,22 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { RELATION_SCOPE_KEYS, useRelationScope } from '../../enterprise-object';
 import { isPersistableValue } from '../../operator';
-import {
-  DynamicContextDrawer,
-  DynamicSavedViewsBar,
-  useSavedViews,
-  type CrossReference,
-} from '../../engine';
+import { DynamicContextDrawer, useSavedViews, type CrossReference } from '../../engine';
 import {
   getServiceRequestSummary,
   listServiceRequests,
   ServiceRequestsApiError,
 } from '../api/service-requests-api';
 import { mapRequestErrorToMessage } from '../api/request-error-messages';
-import { ServiceRequestPriorityBadge } from '../components/ServiceRequestPriorityBadge';
-import { ServiceRequestStatusBadge } from '../components/ServiceRequestStatusBadge';
 import { useServiceRequestCapabilities } from '../hooks/useServiceRequestCapabilities';
 import {
   SERVICE_REQUEST_LIST_SORTS,
@@ -49,25 +50,10 @@ import {
   ModuleLoadingState,
   ModulePage,
   ModuleStatePage,
-  ModulePagination,
   ModulePrimaryLink,
-  ModuleTableLink,
 } from '../../ui/module-layout';
-import {
-  EnterpriseMetric,
-  WorklistClearFilters,
-  WorklistField,
-  WorklistFilterBar,
-  WorklistHeader,
-  WorklistStatePanel,
-  worklistControlClass,
-  worklistSelectClass,
-  rowPrimaryActionClass,
-} from '../../ui/enterprise-list';
+import { WorklistStatePanel } from '../../ui/enterprise-list';
 import { cn } from '../../ui/utils/cn';
-import { Button } from '../../ui/Button';
-import { WorkbenchQueue, WorkbenchQueueItem } from '../../ui/workbench';
-import { StatusBadge } from '../../ui/StatusBadge';
 
 const PAGE_SIZE = 20;
 
@@ -120,11 +106,7 @@ const NEXT_STEP_BY_STATUS: Record<ServiceRequestStatus, string> = {
 };
 
 /**
- * ROTULO CURTO DA ACAO POR ESTADO — mesma maquina de estados, verbo de superficie.
- *
- * O rotulo longo de `NEXT_STEP_BY_STATUS` e uma FRASE ("Enviar para analise"); no botao da
- * linha cabe o VERBO. Nenhuma transicao nova: a tabela abaixo e a mesma do mapa acima, so
- * encurtada para o alvo de clique.
+ * Verbo da acao primaria por estado — a mesma maquina de estados, so encurtada para o alvo.
  */
 const NEXT_STEP_ACTION_LABEL: Record<ServiceRequestStatus, string> = {
   [SERVICE_REQUEST_STATUSES.Draft]: 'Enviar',
@@ -136,18 +118,30 @@ const NEXT_STEP_ACTION_LABEL: Record<ServiceRequestStatus, string> = {
   [SERVICE_REQUEST_STATUSES.Cancelled]: 'Consultar',
 };
 
-const ATTENTION_TONE_CLASS: Record<string, string> = {
-  critical: 'bg-red-50 text-red-700 ring-red-600/20',
-  warning: 'bg-amber-50 text-amber-800 ring-amber-600/20',
-  info: 'bg-gray-100 text-gray-600 ring-gray-400/20',
+/**
+ * PESO DO ESTADO — a regra de leitura da work area inteira.
+ *
+ * Trabalho ABERTO governa o tom da linha; trabalho RESOLVIDO e secundario. E a mesma
+ * classificacao que a maquina de estados ja define (o ciclo terminou ou nao), usada apenas
+ * para decidir contraste — nenhuma prioridade, risco ou SLA e inferido aqui.
+ */
+type Workload = 'open' | 'settled';
+
+const WORKLOAD_BY_STATUS: Record<ServiceRequestStatus, Workload> = {
+  [SERVICE_REQUEST_STATUSES.Draft]: 'open',
+  [SERVICE_REQUEST_STATUSES.Submitted]: 'open',
+  [SERVICE_REQUEST_STATUSES.UnderReview]: 'open',
+  [SERVICE_REQUEST_STATUSES.Approved]: 'open',
+  [SERVICE_REQUEST_STATUSES.Converted]: 'settled',
+  [SERVICE_REQUEST_STATUSES.Rejected]: 'settled',
+  [SERVICE_REQUEST_STATUSES.Cancelled]: 'settled',
 };
 
-function hasActiveFilters(filters: QueueFilters): boolean {
-  const { sort, direction, ...rest } = filters;
-  void sort;
-  void direction;
-  return Object.values(rest).some((value) => value !== '');
-}
+const ATTENTION_TONE_CLASS: Record<string, string> = {
+  critical: 'text-red-700',
+  warning: 'text-amber-700',
+  info: 'text-gray-500',
+};
 
 /** Chaves enumeradas da fila que podem trafegar na URL. Nunca texto livre. */
 const QUEUE_URL_KEYS = ['status', 'priority', 'originSource'] as const;
@@ -206,32 +200,22 @@ export function ServiceRequestsListPage() {
   const { capabilities } = useServiceRequestCapabilities();
   const [filters, setFilters] = useState<QueueFilters>(EMPTY_FILTERS);
   /*
-   * VISÕES SALVAS — a fila de solicitações é reconstruída todo dia com o MESMO recorte:
-   * "aprovadas aguardando virar OS", "em análise por prioridade alta". Como o recorte vive na
-   * URL (ver `useQueueUrlSync`), salvar a visão preserva o endereço compartilhável — a visão
-   * restaura o recorte OPERACIONAL real, não um estado visual solto.
+   * VISOES SALVAS — a fila e reconstruida todo dia com o MESMO recorte. O recorte vive na URL
+   * (ver `useQueueUrlSync`), entao salvar a visao preserva o endereco compartilhavel: a visao
+   * restaura o recorte OPERACIONAL real, nao um estado visual solto.
    */
   const savedViews = useSavedViews('local-operator', 'service-requests');
   const [selected, setSelected] = useState<ServiceRequestListItem | null>(null);
   // Escopo de relacao (recorte que vem da URL e NAO e editavel no formulario da fila).
   const relationScope = useRelationScope(RELATION_SCOPE_KEYS);
   const [searchInput, setSearchInput] = useState('');
-  /**
-   * Filtros secundários (prioridade, origem, ordenação, sentido) atrás de "Mais filtros".
-   *
-   * A barra abria com SEIS controles permanentes: o operador lia formulário inteiro antes de ver
-   * a primeira solicitação. Busca e situação — os dois recortes que a fila de entrada usa todo
-   * dia — ficam visíveis; o resto é progressive disclosure. Nenhum filtro foi removido.
-   */
-  const [showMoreFilters, setShowMoreFilters] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [viewsOpen, setViewsOpen] = useState(false);
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
   const [summary, setSummary] = useState<ServiceRequestListSummary | null>(null);
 
-  // FILA ENDERECAVEL: os recortes enumerados de estado, prioridade e origem passam a viver
-  // na URL. Antes viviam so em memoria: recarregar perdia o recorte, o botao voltar nao
-  // funcionava e a fila nao podia ser compartilhada nem aberta por link. Somente valores
-  // enumerados entram pela URL (o mesmo alfabeto restrito das visoes salvas); texto livre
-  // de busca permanece em memoria, por nao ser persistivel.
+  // FILA ENDERECAVEL: os recortes enumerados de estado, prioridade e origem vivem na URL.
+  // Somente valores enumerados entram pela URL; texto livre permanece em memoria.
   useQueueUrlSync(filters, setFilters);
 
   const loadPage = useCallback(
@@ -308,11 +292,22 @@ export function ServiceRequestsListPage() {
     setFilters((current) => ({ ...current, [key]: value }));
   }, []);
 
-  const activeFilters = useMemo(() => hasActiveFilters(filters), [filters]);
+  const clearFilters = useCallback(() => {
+    setSearchInput('');
+    setFilters(EMPTY_FILTERS);
+  }, []);
+
+  const hasFilterChips = useMemo(
+    () =>
+      Boolean(
+        filters.status || filters.priority || filters.originSource || filters.search.trim(),
+      ),
+    [filters],
+  );
 
   if (listState.phase === 'loading') {
     return (
-      <ModuleStatePage title="Solicitações de serviço">
+      <ModuleStatePage title="Solicitações">
         <ModuleLoadingState message="Carregando solicitações…" />
       </ModuleStatePage>
     );
@@ -320,17 +315,15 @@ export function ServiceRequestsListPage() {
 
   if (listState.phase === 'denied') {
     return (
-      <ModuleStatePage title="Solicitações de serviço">
-        <ModuleDeniedState
-          message="Você não tem permissão para listar solicitações."
-        />
+      <ModuleStatePage title="Solicitações">
+        <ModuleDeniedState message="Você não tem permissão para listar solicitações." />
       </ModuleStatePage>
     );
   }
 
   if (listState.phase === 'error') {
     return (
-      <ModuleStatePage title="Solicitações de serviço">
+      <ModuleStatePage title="Solicitações">
         <ModuleErrorState
           message={listState.message}
           retryable={listState.retryable}
@@ -341,495 +334,379 @@ export function ServiceRequestsListPage() {
   }
 
   const { items, offset, hasMore } = listState;
-  const pageNumber = Math.floor(offset / PAGE_SIZE) + 1;
   const now = new Date();
-  /**
-   * DEMANDAS PRIORITÁRIAS NA PÁGINA — contagem do recorte CARREGADO, nunca do domínio: a
-   * listagem de solicitações não publica total por prioridade, então o rótulo diz "na página" e
-   * o drilldown aplica o filtro de prioridade que o servidor entende.
-   */
-  const urgentCount = items.filter(
-    (item) =>
-      item.priority === SERVICE_REQUEST_PRIORITIES.Urgent ||
-      item.priority === SERVICE_REQUEST_PRIORITIES.High,
-  ).length;
+  const total = summary?.total ?? null;
+  const scope = describeScope(filters, relationScope.clientId !== undefined);
+  const updatedAt = formatRelativePast(latestTimestamp(items), now);
 
   return (
     <ModulePage>
       {/*
-        GRAMATICA GOLD (aprovada em Clientes) — a tela era `ModulePageHeader` + uma faixa de
-        cartoes de resumo + `FilterCard`. O operador lia titulo, cinco cartoes e um card de
-        filtro antes de ver a primeira linha da fila.
-
-        Agora a MESMA informacao vive na cabeca da worklist: `WorklistHeader` carrega titulo,
-        contagem do SERVIDOR, contexto do modulo, acao primaria e a faixa de indicadores; os
-        filtros descem para a toolbar densa, em uma linha.
-
-        Os numeros continuam vindo de `ServiceRequestSummaryCards` (contrato de summary do
-        servidor, com o recorte por status que ja existia) — nada foi recalculado.
+        ZONA 1 — OPERATING HEADER. Uma faixa, nao uma pagina de abertura.
+        Identidade, recorte ativo, total AUTORITATIVO do servidor, acao primaria e ultima
+        atualizacao. Saiu o paragrafo que explicava a tela: contexto aqui e o RECORTE real.
       */}
-      <WorklistHeader
-        title="Solicitações de serviço"
-        count={summary?.total ?? null}
-        context="Fila de entrada do trabalho: o que chegou, em que estado está e qual o próximo passo de cada solicitação."
-        action={
-          capabilities.canCreate ? (
-            <ModulePrimaryLink to="/app/requests/new">Nova solicitação</ModulePrimaryLink>
-          ) : null
-        }
-        metrics={
-          <>
-            <EnterpriseMetric
-              label="Pendentes"
-              value={summary?.pending ?? 0}
-              tone={(summary?.pending ?? 0) > 0 ? 'warning' : 'neutral'}
-            />
-            <EnterpriseMetric
-              label="Em análise"
-              value={summary?.underReview ?? 0}
-            />
-            <EnterpriseMetric label="Convertidas" value={summary?.converted ?? 0} />
-            <EnterpriseMetric
-              label="Canceladas"
-              value={summary?.cancelled ?? 0}
-            />
-          </>
-        }
-      />
+      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-gray-200 px-1 pb-2">
+        <div className="flex min-w-0 items-baseline gap-2">
+          <h1 className="text-[17px] leading-tight font-semibold tracking-tight text-gray-900">
+            Solicitações
+          </h1>
+          {total === null ? (
+            <span className="text-[11px] text-gray-400">total não publicado</span>
+          ) : (
+            <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-semibold text-gray-700 tabular-nums">
+              {total}
+            </span>
+          )}
+          <span className="truncate text-[11px] text-gray-500">{scope}</span>
+          {updatedAt ? (
+            <span className="hidden text-[11px] text-gray-400 sm:inline">
+              atualizada {updatedAt}
+            </span>
+          ) : null}
+        </div>
+        {capabilities.canCreate ? (
+          <ModulePrimaryLink to="/app/requests/new" className="min-h-0 px-3 py-1 text-[13px]">
+            Nova solicitação
+          </ModulePrimaryLink>
+        ) : null}
+      </header>
 
       {/*
-        EXCEÇÃO DA ENTRADA — a fila de intake tem uma pergunta própria: o que chegou e ainda
-        NÃO foi tratado. Antes isso era só mais um número entre quatro na faixa de indicadores, e
-        o operador precisava cruzar estado + prioridade lendo a grade.
-
-        A faixa usa SOMENTE o que o summary do servidor publica (`pending`, `underReview`): o
-        recorte é declarado, com a contagem autoritativa, e a ação aplica exatamente o filtro que
-        a barra de recorte entende. Sem exceção real publicada, a faixa não aparece.
+        ZONA 2 — DECISION / WORK QUEUE STRIP.
+        Nao e um conjunto de cartoes: e uma faixa de estados do PROCESSO. Trabalho ABERTO vem
+        primeiro e com peso; resolvido vem depois e em cinza. Cada numero e o publicado pelo
+        summary do servidor e cada item APLICA o recorte correspondente na fila.
       */}
-      {urgentCount > 0 || (summary?.pending ?? 0) > 0 ? (
-        <WorkbenchQueue
-          title="Entrada exigindo tratamento"
-          description="O que chegou e ainda depende de decisão nesta fila."
+      <nav
+        aria-label="Faixas de trabalho da fila"
+        className="flex flex-wrap items-stretch border-b border-gray-200 bg-white px-1"
+      >
+        <QueueStripCell
+          label="Pendentes"
+          value={summary?.pending ?? null}
+          hint="chegaram e ainda não avançaram para análise"
+          weight="open"
+          active={filters.status === SERVICE_REQUEST_STATUSES.Submitted}
+          onClick={() => applyFilter('status', SERVICE_REQUEST_STATUSES.Submitted)}
+        />
+        <QueueStripCell
+          label="Em análise"
+          value={summary?.underReview ?? null}
+          hint="aguardando decisão de análise"
+          weight="open"
+          active={filters.status === SERVICE_REQUEST_STATUSES.UnderReview}
+          onClick={() => applyFilter('status', SERVICE_REQUEST_STATUSES.UnderReview)}
+        />
+        <QueueStripCell
+          label="Convertidas"
+          value={summary?.converted ?? null}
+          hint="já geraram ordem de serviço"
+          weight="settled"
+          active={filters.status === SERVICE_REQUEST_STATUSES.Converted}
+          onClick={() => applyFilter('status', SERVICE_REQUEST_STATUSES.Converted)}
+        />
+        <QueueStripCell
+          label="Canceladas"
+          value={summary?.cancelled ?? null}
+          hint="encerradas sem conversão"
+          weight="settled"
+          active={filters.status === SERVICE_REQUEST_STATUSES.Cancelled}
+          onClick={() => applyFilter('status', SERVICE_REQUEST_STATUSES.Cancelled)}
+        />
+      </nav>
+
+      {/*
+        ZONA 3 — VIEW + COMMAND SURFACE. UMA barra: segmentos de recorte, busca, situação,
+        mais filtros, visões salvas e o recorte ativo — tudo na mesma altura de linha.
+        O formulario permanente de SEIS controles saiu; nada foi removido do contrato.
+      */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-gray-200 bg-gray-50/60 px-1 py-1.5">
+        <div
+          role="group"
+          aria-label="Recorte de situação"
+          className="flex items-center overflow-hidden rounded border border-gray-300 bg-white"
         >
-          {(summary?.pending ?? 0) > 0 ? (
-            <WorkbenchQueueItem
-              severity={<StatusBadge label="Aguardando" tone="warning" />}
-              severityTone="warning"
-              title="Solicitações ainda não tratadas"
-              reason="Entraram na fila e não avançaram para análise."
-              context={`${summary?.pending} ${summary?.pending === 1 ? 'solicitação' : 'solicitações'}`}
-              action={
-                <button
-                  type="button"
-                  className="text-[13px] font-semibold text-brand-700 hover:text-brand-800"
-                  onClick={() => applyFilter('status', SERVICE_REQUEST_STATUSES.Submitted)}
-                >
-                  Tratar pendentes
-                </button>
-              }
-            />
-          ) : null}
-          {urgentCount > 0 ? (
-            <WorkbenchQueueItem
-              severity={<StatusBadge label="Prioridade" tone="error" />}
-              severityTone="critical"
-              title="Prioridade alta ou urgente na página"
-              reason="Demandas que o solicitante marcou como prioritárias."
-              context={`${urgentCount} ${urgentCount === 1 ? 'solicitação' : 'solicitações'}`}
-              action={
-                <button
-                  type="button"
-                  className="text-[13px] font-semibold text-brand-700 hover:text-brand-800"
-                  onClick={() => applyFilter('priority', SERVICE_REQUEST_PRIORITIES.High)}
-                >
-                  Ver prioridade alta
-                </button>
-              }
-            />
-          ) : null}
-        </WorkbenchQueue>
-      ) : null}
+          {(
+            [
+              ['all', 'Todos', ''],
+              ['submitted', 'Pendentes', SERVICE_REQUEST_STATUSES.Submitted],
+              ['review', 'Em análise', SERVICE_REQUEST_STATUSES.UnderReview],
+            ] as const
+          ).map(([key, label, value]) => {
+            const active = filters.status === value;
+            return (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={active}
+                className={cn(
+                  'border-r border-gray-200 px-2.5 py-1 text-[12px] font-medium last:border-r-0',
+                  active
+                    ? 'bg-brand-700 text-white'
+                    : 'bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+                )}
+                onClick={() => applyFilter('status', value)}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
 
-      {/*
-        RECORTE POR STATUS — os cartoes de resumo eram CLICAVEIS e filtravam a fila. Esse
-        contrato e preservado aqui como quick filters na toolbar: mesma acao, mesmo recorte,
-        sem a faixa de cartoes que empurrava a primeira linha para fora da dobra.
-      */}
-      <WorklistFilterBar meta={`${items.length} nesta página`}>
-        <WorklistField label="Buscar" htmlFor="request-search-filter" grow>
-          <form
-            className="flex gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              applyFilter('search', searchInput);
-            }}
-          >
-            <input
-              id="request-search-filter"
-              type="search"
-              className={worklistControlClass}
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="Ex.: SR-2026…, troca de compressor, OC 1234"
-            />
-            <button type="submit" className="button-secondary">
-              Buscar
-            </button>
-          </form>
-        </WorklistField>
-
-        <WorklistField label="Situação" htmlFor="request-status-filter">
-          <select
-            id="request-status-filter"
-            className={worklistSelectClass}
-            value={filters.status}
-            onChange={(event) =>
-              applyFilter('status', event.target.value as '' | ServiceRequestStatus)
-            }
-          >
-            <option value="">Todos</option>
-            {Object.values(SERVICE_REQUEST_STATUSES).map((status) => (
-              <option key={status} value={status}>
-                {formatServiceRequestStatus(status)}
-              </option>
-            ))}
-          </select>
-        </WorklistField>
-
-        <WorklistField label="&nbsp;" htmlFor="request-more-filters">
-          <Button
-            id="request-more-filters"
-            type="button"
-            variant="secondary"
-            aria-expanded={showMoreFilters}
-            onClick={() => setShowMoreFilters((current) => !current)}
-          >
-            {showMoreFilters ? 'Menos filtros' : 'Mais filtros'}
-          </Button>
-        </WorklistField>
-
-        {activeFilters ? (
-          <WorklistClearFilters
-            visible
-            onClick={() => {
-              setSearchInput('');
-              setFilters(EMPTY_FILTERS);
-            }}
+        <form
+          className="flex min-w-56 flex-1 items-center gap-1"
+          onSubmit={(event) => {
+            event.preventDefault();
+            applyFilter('search', searchInput);
+          }}
+        >
+          <input
+            id="request-search-filter"
+            type="search"
+            aria-label="Buscar solicitação"
+            className="w-full min-w-0 rounded border border-gray-300 bg-white px-2 py-1 text-[13px] text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            placeholder="Buscar solicitação…"
           />
+        </form>
+
+        <label htmlFor="request-status-filter" className="sr-only">
+          Situação
+        </label>
+        <select
+          id="request-status-filter"
+          className="rounded border border-gray-300 bg-white px-2 py-1 text-[13px] text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+          value={filters.status}
+          onChange={(event) =>
+            applyFilter('status', event.target.value as '' | ServiceRequestStatus)
+          }
+        >
+          <option value="">Situação: todas</option>
+          {Object.values(SERVICE_REQUEST_STATUSES).map((status) => (
+            <option key={status} value={status}>
+              {formatServiceRequestStatus(status)}
+            </option>
+          ))}
+        </select>
+
+        <button
+          type="button"
+          aria-expanded={moreOpen}
+          className="rounded border border-gray-300 bg-white px-2 py-1 text-[12px] font-medium text-gray-700 hover:bg-gray-50"
+          onClick={() => setMoreOpen((current) => !current)}
+        >
+          {moreOpen ? 'Menos filtros' : 'Mais filtros'}
+        </button>
+
+        {moreOpen ? (
+          <>
+            <select
+              aria-label="Prioridade"
+              className="rounded border border-gray-300 bg-white px-2 py-1 text-[13px]"
+              value={filters.priority}
+              onChange={(event) =>
+                applyFilter('priority', event.target.value as '' | ServiceRequestPriority)
+              }
+            >
+              <option value="">Prioridade: todas</option>
+              {Object.values(SERVICE_REQUEST_PRIORITIES).map((priority) => (
+                <option key={priority} value={priority}>
+                  {formatServiceRequestPriority(priority)}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Origem"
+              className="rounded border border-gray-300 bg-white px-2 py-1 text-[13px]"
+              value={filters.originSource}
+              onChange={(event) =>
+                applyFilter('originSource', event.target.value as '' | ServiceRequestOrigin)
+              }
+            >
+              <option value="">Origem: todas</option>
+              {Object.values(SERVICE_REQUEST_ORIGINS).map((origin) => (
+                <option key={origin} value={origin}>
+                  {formatServiceRequestOrigin(origin)}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Ordenar por"
+              className="rounded border border-gray-300 bg-white px-2 py-1 text-[13px]"
+              value={filters.sort}
+              onChange={(event) =>
+                applyFilter('sort', event.target.value as ServiceRequestListSort)
+              }
+            >
+              {Object.values(SERVICE_REQUEST_LIST_SORTS).map((sort) => (
+                <option key={sort} value={sort}>
+                  Ordenar: {SORT_LABELS[sort]}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Sentido"
+              className="rounded border border-gray-300 bg-white px-2 py-1 text-[13px]"
+              value={filters.direction}
+              onChange={(event) =>
+                applyFilter('direction', event.target.value as ServiceRequestListDirection)
+              }
+            >
+              <option value="desc">Decrescente</option>
+              <option value="asc">Crescente</option>
+            </select>
+          </>
         ) : null}
 
-        {/*
-          FILTROS SECUNDÁRIOS — prioridade, origem, janela desejada, ordenação e sentido sob
-          "Mais filtros". Eram cinco controles PERMANENTES na barra: o operador lia busca,
-          situação, prioridade, origem, ordenação e sentido antes de ver a primeira solicitação.
-          O recorte continua indo ao SERVIDOR e nenhum filtro foi removido — só deixou de ser
-          formulário aberto.
-        */}
-        {showMoreFilters ? (
-          <div className="mt-2 flex flex-wrap items-end gap-2 border-t border-gray-100 pt-2">
-            <WorklistField label="Prioridade" htmlFor="request-priority-filter">
-              <select
-                id="request-priority-filter"
-                className={worklistSelectClass}
-                value={filters.priority}
-                onChange={(event) =>
-                  applyFilter('priority', event.target.value as '' | ServiceRequestPriority)
-                }
-              >
-                <option value="">Todas</option>
-                {Object.values(SERVICE_REQUEST_PRIORITIES).map((priority) => (
-                  <option key={priority} value={priority}>
-                    {formatServiceRequestPriority(priority)}
-                  </option>
-                ))}
-              </select>
-            </WorklistField>
-
-            <WorklistField label="Origem" htmlFor="request-origin-filter">
-              <select
-                id="request-origin-filter"
-                className={worklistSelectClass}
-                value={filters.originSource}
-                onChange={(event) =>
-                  applyFilter('originSource', event.target.value as '' | ServiceRequestOrigin)
-                }
-              >
-                <option value="">Todas</option>
-                {Object.values(SERVICE_REQUEST_ORIGINS).map((origin) => (
-                  <option key={origin} value={origin}>
-                    {formatServiceRequestOrigin(origin)}
-                  </option>
-                ))}
-              </select>
-            </WorklistField>
-
-            {/* Ordenação e sentido vivem aqui: são recorte, não decisão de primeira dobra. */}
-            <WorklistField label="Ordenar por" htmlFor="request-sort-filter">
-              <select
-                id="request-sort-filter"
-                className={worklistSelectClass}
-                value={filters.sort}
-                onChange={(event) =>
-                  applyFilter('sort', event.target.value as ServiceRequestListSort)
-                }
-              >
-                {Object.values(SERVICE_REQUEST_LIST_SORTS).map((sort) => (
-                  <option key={sort} value={sort}>
-                    {SORT_LABELS[sort]}
-                  </option>
-                ))}
-              </select>
-            </WorklistField>
-
-            <WorklistField label="Sentido" htmlFor="request-direction-filter">
-              <select
-                id="request-direction-filter"
-                className={worklistSelectClass}
-                value={filters.direction}
-                onChange={(event) =>
-                  applyFilter('direction', event.target.value as ServiceRequestListDirection)
-                }
-              >
-                <option value="desc">Decrescente</option>
-                <option value="asc">Crescente</option>
-              </select>
-            </WorklistField>
-          </div>
+        {hasFilterChips ? (
+          <button
+            type="button"
+            className="rounded border border-gray-300 bg-white px-2 py-1 text-[12px] font-medium text-gray-700 hover:bg-gray-50"
+            onClick={clearFilters}
+          >
+            Limpar filtros
+          </button>
         ) : null}
-      </WorklistFilterBar>
+
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-[11px] text-gray-500 tabular-nums">
+            {items.length} nesta página
+          </span>
+          <SavedViewsMenu
+            open={viewsOpen}
+            onToggle={() => setViewsOpen((current) => !current)}
+            views={savedViews.views}
+            onApply={(view) => {
+              const restored: QueueFilters = {
+                status: (view.filters['status'] ?? '') as QueueFilters['status'],
+                priority: (view.filters['priority'] ?? '') as QueueFilters['priority'],
+                originSource: (view.filters['originSource'] ?? '') as QueueFilters['originSource'],
+                unitId: view.filters['unitId'] ?? '',
+                desiredFrom: view.filters['desiredFrom'] ?? '',
+                desiredTo: view.filters['desiredTo'] ?? '',
+                search: view.filters['search'] ?? '',
+                sort: (view.filters['sort'] || EMPTY_FILTERS.sort) as QueueFilters['sort'],
+                direction: (view.filters['direction'] ||
+                  EMPTY_FILTERS.direction) as QueueFilters['direction'],
+              };
+              setFilters(restored);
+              setSearchInput(restored.search);
+              setViewsOpen(false);
+            }}
+            onSave={(name) => savedViews.save(name, { ...filters }, 'list')}
+            onDelete={savedViews.remove}
+          />
+        </div>
+      </div>
 
       {/*
-        VISÕES SALVAS — restaura o recorte INTEIRO da fila (status, prioridade, origem, janela
-        desejada, ordenação e o termo de busca). Uma visão que salvasse só parte do recorte
-        mentiria sobre o que o operador está vendo.
-      */}
-      <DynamicSavedViewsBar
-        views={savedViews.views}
-        persistedLocally={savedViews.persistedLocally}
-        onSave={(name) => savedViews.save(name, { ...filters }, 'list')}
-        onDelete={savedViews.remove}
-        onApply={(view) => {
-          /*
-           * RESTAURA O RECORTE INTEIRO. Cada chave é lida pelo próprio alfabeto de
-           * `EMPTY_FILTERS` (todas são string), então uma visão salva antes de um campo novo
-           * existir simplesmente cai no valor padrão em vez de deixar a fila num estado
-           * indefinido. `?? ''` cobre a visão antiga; `filters` já traz o default de ordenação.
-           */
-          const restored: QueueFilters = {
-            status: (view.filters['status'] ?? '') as QueueFilters['status'],
-            priority: (view.filters['priority'] ?? '') as QueueFilters['priority'],
-            originSource: (view.filters['originSource'] ?? '') as QueueFilters['originSource'],
-            unitId: view.filters['unitId'] ?? '',
-            desiredFrom: view.filters['desiredFrom'] ?? '',
-            desiredTo: view.filters['desiredTo'] ?? '',
-            search: view.filters['search'] ?? '',
-            sort: (view.filters['sort'] || EMPTY_FILTERS.sort) as QueueFilters['sort'],
-            direction: (view.filters['direction'] || EMPTY_FILTERS.direction) as QueueFilters['direction'],
-          };
-          setFilters(restored);
-          setSearchInput(restored.search);
-        }}
-      />
-
-      {/*
-        ESTADO VAZIO COMPACTO — era um `<p>` solto de uma linha. O painel declara o recorte,
-        explica o que fazer e oferece a acao real quando ela existe, sem ocupar meia tela.
+        ZONA 4 — PROCESSING SURFACE. A area de trabalho: identidade, decisao e metadado em
+        hierarquia, com barra de acento pelo PESO do estado. O clique na linha abre o contexto
+        ao lado; o codigo continua sendo o link para a ficha completa.
       */}
       {items.length === 0 ? (
-        <WorklistStatePanel
-          title={
-            activeFilters
-              ? 'Nenhuma solicitação corresponde aos filtros aplicados.'
-              : 'Nenhuma solicitação registrada.'
-          }
-          description={
-            activeFilters
-              ? 'Ajuste a busca, o status ou a janela desejada — ou limpe os filtros para ver a fila completa.'
-              : 'As solicitações são a entrada do trabalho: quando a primeira chegar, ela aparece aqui com prioridade, janela desejada e próximo passo.'
-          }
-          action={
-            activeFilters ? (
-              <WorklistClearFilters
-                visible
-                onClick={() => {
-                  setSearchInput('');
-                  setFilters(EMPTY_FILTERS);
-                }}
-              />
-            ) : capabilities.canCreate ? (
-              <ModulePrimaryLink to="/app/requests/new">Nova solicitação</ModulePrimaryLink>
-            ) : null
-          }
-        />
+        <div className="px-1 pt-3">
+          <WorklistStatePanel
+            title={
+              hasFilterChips
+                ? 'Nenhuma solicitação corresponde aos filtros aplicados.'
+                : 'Nenhuma solicitação registrada.'
+            }
+            description={
+              hasFilterChips
+                ? 'Ajuste a busca, a situação ou a prioridade — ou limpe os filtros para ver a fila completa.'
+                : 'Quando a primeira solicitação chegar, ela aparece aqui com prioridade, janela desejada e próximo passo.'
+            }
+            action={
+              hasFilterChips ? (
+                <button
+                  type="button"
+                  className="rounded border border-gray-300 bg-white px-2 py-1 text-[12px] font-medium text-gray-700 hover:bg-gray-50"
+                  onClick={clearFilters}
+                >
+                  Limpar filtros
+                </button>
+              ) : capabilities.canCreate ? (
+                <ModulePrimaryLink to="/app/requests/new">Nova solicitação</ModulePrimaryLink>
+              ) : null
+            }
+          />
+        </div>
       ) : (
-        <section aria-label="Fila operacional de solicitações" className="mt-3">
-          {/*
-            CINCO COLUNAS COM PESOS DIFERENTES, sem coluna de AÇÃO.
-
-            A grade tinha SETE colunas de peso quase igual — incluindo "Ações", que gastava 9rem
-            em toda linha repetindo o MESMO botão (17 ocorrências de "Abrir OS" na fila). A ação
-            da linha não precisava de coluna: a própria LINHA seleciona e abre o contexto lateral,
-            e o código da solicitação continua sendo o link para a ficha completa.
-          */}
-          <div className="hidden grid-cols-[minmax(0,2.6fr)_minmax(0,1.5fr)_7rem_minmax(0,1.2fr)_minmax(0,1.6fr)] gap-x-4 border-b border-gray-200 px-4 pb-1.5 lg:grid">
-            {['Solicitação e demanda', 'Cliente', 'Prioridade', 'Situação', 'Próxima ação'].map(
-              (heading) => (
-                <span
-                  key={heading}
-                  className="text-[10px] font-semibold tracking-wider text-gray-500 uppercase"
-                >
-                  {heading}
-                </span>
-              ),
-            )}
+        <section aria-label="Fila operacional de solicitações" className="border-b border-gray-200">
+          <div className="flex items-center gap-3 border-b border-gray-100 bg-gray-50/80 px-2 py-1 text-[10px] font-semibold tracking-[0.08em] text-gray-400 uppercase">
+            <span>Solicitação e demanda</span>
+            <span className="ml-auto">Situação</span>
+            <span className="w-28 shrink-0 text-right">Idade</span>
           </div>
-          <ul className="divide-y divide-gray-100">
-            {items.map((item) => {
-              const attention = describeServiceRequestAttention(item, now);
-              const timing = describeDesiredWindowTiming(item.desiredStartAt, now);
-              return (
-                <li
-                  key={item.id}
-                  /*
-                   * CONTEXTO SEM ABANDONAR A FILA — o analista triagem várias solicitações
-                   * seguidas. O painel lateral mostra a demanda, a janela e o próximo passo sem
-                   * perder o recorte; o código da solicitação continua levando à ficha.
-                   */
-                  onClick={() => setSelected(item)}
-                  className="grid cursor-pointer grid-cols-1 gap-3 px-4 py-2.5 transition hover:bg-gray-50/70 lg:grid-cols-[minmax(0,2.6fr)_minmax(0,1.5fr)_7rem_minmax(0,1.2fr)_minmax(0,1.6fr)] lg:items-start lg:gap-x-4"
-                >
-                  {/*
-                    BLOCO PRINCIPAL — solicitação, origem, demanda e escopo em UM bloco
-                    hierárquico. A grade gastava duas colunas (2.1fr + 1.5fr) para dizer coisas
-                    que o operador lê juntas: o que é e o que pede.
-                  */}
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-baseline gap-x-2">
-                      <ModuleTableLink to={`/app/requests/${item.id}`}>
-                        {item.requestCode}
-                      </ModuleTableLink>
-                      <span className="text-xs text-gray-400">
-                        {formatServiceRequestOrigin(item.originSource)}
-                      </span>
-                    </div>
-                    <p className="mt-0.5 line-clamp-1 text-[13px] text-gray-700">
-                      {summarizeServiceRequestDescription(item.description)}
-                    </p>
-                    <p className="mt-0.5 text-[11px] text-gray-500">
-                      {/*
-                        ESCOPO, NAO SLUG: `unitId` e identificador interno (em HML, o
-                        slug `unit-synthetic-homolog`) e nao vai para a superficie
-                        operacional. Nenhum contrato publica o nome humano da unidade —
-                        PARK registrado; ate la a linha declara o escopo.
-                      */}
-                      No seu escopo · atualizada {formatRelativePast(item.updatedAt, now)}
-                      {' · '}
-                      {formatDesiredWindow(item.desiredStartAt, item.desiredEndAt)}
-                    </p>
-                  </div>
-
-                  <div className="min-w-0">
-                    <p className="truncate text-[13px] font-medium text-gray-900">
-                      {item.clientName ?? (
-                        <span className="font-normal text-gray-400">Cliente não identificado</span>
-                      )}
-                    </p>
-                    {item.location?.city || item.location?.label ? (
-                      <p className="mt-0.5 truncate text-[11px] text-gray-500">
-                        {[item.location.label, item.location.city, item.location.state]
-                          .filter(Boolean)
-                          .join(' · ')}
-                      </p>
-                    ) : null}
-                  </div>
-
-                  <div>
-                    <ServiceRequestPriorityBadge priority={item.priority} />
-                  </div>
-
-                  <div className="min-w-0">
-                    <ServiceRequestStatusBadge status={item.status} />
-                    {/*
-                      JANELA DESEJADA como contexto SECUNDÁRIO do estado — ela qualifica a
-                      situação ("em análise" com janela vencida é outro problema). Antes ocupava
-                      uma coluna de 1.1fr com peso igual à situação.
-                    */}
-                    <p
-                      className={cn(
-                        'mt-0.5 text-[11px]',
-                        timing?.tone === 'past'
-                          ? 'font-medium text-red-600'
-                          : timing?.tone === 'today'
-                            ? 'font-medium text-amber-700'
-                            : 'text-gray-500',
-                      )}
-                    >
-                      {timing ? `${timing.text} · ` : ''}
-                      criada {formatRelativePast(item.createdAt, now)}
-                    </p>
-                  </div>
-
-                  <div className="min-w-0">
-                    {/*
-                      PRÓXIMA AÇÃO com peso semântico próprio: a barra de acento à esquerda
-                      separa o que FAZER do que apenas ESTÁ. Antes este texto tinha o mesmo peso
-                      do restante da linha e era acompanhado de um botão verde repetido em TODA
-                      linha ("Abrir OS", "Decidir", "Enviar") — 17 botões dizendo o que uma coluna
-                      de texto já dizia, e a linha em si não respondia ao clique.
-                    */}
-                    <p className="border-l-2 border-brand-200 pl-2 text-[13px] leading-snug font-medium text-gray-800">
-                      {NEXT_STEP_BY_STATUS[item.status]}
-                    </p>
-                    {attention.length > 0 ? (
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {attention.map((fact) => (
-                          <span
-                            key={fact.code}
-                            className={cn(
-                              'inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset',
-                              ATTENTION_TONE_CLASS[fact.tone],
-                            )}
-                          >
-                            {fact.text}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                </li>
-              );
-            })}
+          <ul className="m-0 list-none p-0">
+            {items.map((item) => (
+              <ProcessingRow
+                key={item.id}
+                item={item}
+                now={now}
+                selected={selected?.id === item.id}
+                onSelect={() => setSelected(item)}
+              />
+            ))}
           </ul>
-          <p className="mt-3 px-4 text-xs text-gray-400">
-            Janela desejada é a expectativa registrada na solicitação — não é prazo contratado.
-          </p>
         </section>
       )}
 
-      <ModulePagination
-        pageNumber={pageNumber}
-        previousDisabled={offset === 0}
-        nextDisabled={!hasMore}
-        onPrevious={() => void loadPage(Math.max(0, offset - PAGE_SIZE), filters)}
-        onNext={() => void loadPage(offset + PAGE_SIZE, filters)}
-      />
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1 pt-2">
+        <p className="m-0 text-[11px] text-gray-400">
+          {offset + 1}–{offset + items.length} nesta página · janela desejada é expectativa
+          registrada, não prazo contratado.
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="rounded border border-gray-300 bg-white px-2 py-1 text-[12px] font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={offset === 0}
+            onClick={() => void loadPage(Math.max(0, offset - PAGE_SIZE), filters)}
+          >
+            Anterior
+          </button>
+          <span className="text-[11px] text-gray-500 tabular-nums">
+            Página {Math.floor(offset / PAGE_SIZE) + 1}
+          </span>
+          <button
+            type="button"
+            className="rounded border border-gray-300 bg-white px-2 py-1 text-[12px] font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={!hasMore}
+            onClick={() => void loadPage(offset + PAGE_SIZE, filters)}
+          >
+            Próxima
+          </button>
+        </div>
+      </div>
 
       {/*
-        RELAÇÕES DA SOLICITAÇÃO — montadas do que a LINHA já traz, sem chamada de rede nova.
-        Contagem de propostas ou de OS convertidas NÃO é publicada por esta listagem, então
-        nenhuma é afirmada: número sem origem não entra. O painel entrega contexto, ação real e
-        drillback — não duplica a object page.
+        BUSINESS CONTEXT SOB DEMANDA — a fila nao e abandonada para entender o registro.
+        As referencias vem do payload da LINHA: contagem de propostas ou de OS nao e publicada
+        por esta listagem, entao nenhuma e afirmada.
       */}
       <DynamicContextDrawer
         open={selected !== null}
         title={selected ? selected.requestCode : 'Solicitação'}
         onClose={() => setSelected(null)}
-        crossReferences={selected ? requestCrossReferences(selected) : []}
+        crossReferences={selected ? requestContextRows(selected, now) : []}
       >
         {selected ? (
-          <Link to={`/app/requests/${selected.id}`} className={rowPrimaryActionClass}>
-            {NEXT_STEP_ACTION_LABEL[selected.status] ?? 'Abrir solicitação'}
-          </Link>
+          <div className="flex flex-col gap-2">
+            {/*
+              PROXIMA ACAO uma unica vez: o rotulo do comando ("Iniciar análise") e o que o
+              operador executa. A frase longa do proximo passo ja aparece em "Próximo passo",
+              nas referencias acima — repetir aqui era o mesmo fato em dois formatos.
+            */}
+            <NextActionLink item={selected} />
+            <p className="m-0 border-t border-gray-100 pt-2 text-[11px] text-gray-500">
+              Janela desejada é a expectativa registrada na solicitação — não é prazo
+              contratado.
+            </p>
+          </div>
         ) : null}
       </DynamicContextDrawer>
     </ModulePage>
@@ -837,28 +714,404 @@ export function ServiceRequestsListPage() {
 }
 
 /**
- * Referências cruzadas da solicitação, a partir do payload da listagem.
+ * CELULA DA FAIXA DE TRABALHO — numero autoritativo + recorte em UM controle.
  *
- * Cada item entra só quando o campo existe. Sem cliente identificado, a ausência é DECLARADA —
- * não se fabrica nome nem se omite a linha em silêncio.
+ * Sem numero publicado (`null`), a celula declara a ausencia: `0` afirmaria um recorte
+ * inexistente (`AUSÊNCIA ≠ ZERO`). O peso visual segue o estado: aberto tem contraste de
+ * leitura, resolvido e secundario.
  */
-function requestCrossReferences(item: ServiceRequestListItem): CrossReference[] {
-  const references: CrossReference[] = [
-    { label: 'Situação', detail: formatServiceRequestStatus(item.status) },
-    { label: 'Prioridade', detail: formatServiceRequestPriority(item.priority) },
-    { label: 'Origem', detail: formatServiceRequestOrigin(item.originSource) },
-    { label: 'Próximo passo', detail: NEXT_STEP_BY_STATUS[item.status] },
-  ];
+function QueueStripCell({
+  label,
+  value,
+  hint,
+  weight,
+  active,
+  onClick,
+}: {
+  label: string;
+  value: number | null;
+  hint: string;
+  weight: 'open' | 'settled';
+  active: boolean;
+  onClick: () => void;
+}) {
+  const isOpen = weight === 'open';
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      title={hint}
+      onClick={onClick}
+      className={cn(
+        'flex min-w-[9.5rem] flex-1 flex-col items-start gap-0.5 border-r border-gray-200 px-3 py-1.5 text-left transition-colors last:border-r-0',
+        active ? 'bg-brand-50' : 'hover:bg-gray-50',
+      )}
+    >
+      <span className="flex items-baseline gap-1.5">
+        <span
+          className={cn(
+            'text-[17px] leading-none font-semibold tabular-nums',
+            value === null
+              ? 'text-gray-300'
+              : isOpen
+                ? 'text-gray-900'
+                : 'text-gray-500',
+          )}
+        >
+          {value === null ? 'n/d' : value}
+        </span>
+        <span
+          className={cn(
+            'text-[11px] font-medium tracking-wide uppercase',
+            isOpen ? 'text-gray-700' : 'text-gray-400',
+          )}
+        >
+          {label}
+        </span>
+      </span>
+      <span className="truncate text-[10px] text-gray-400">{hint}</span>
+    </button>
+  );
+}
+
+/**
+ * LINHA DE PROCESSAMENTO — identidade primeiro, decisao segundo, metadado depois.
+ *
+ * A barra de acento a esquerda codifica PESO: trabalho aberto tem acento; resolvido nao.
+ * Nao existe coluna de acoes: a linha inteira abre o contexto e o codigo leva a ficha.
+ */
+function ProcessingRow({
+  item,
+  now,
+  selected,
+  onSelect,
+}: {
+  item: ServiceRequestListItem;
+  now: Date;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const workload = WORKLOAD_BY_STATUS[item.status];
+  const isOpen = workload === 'open';
+  /*
+   * EXCEPTION-FIRST sem repetir coluna: prioridade e janela ja tem lugar proprio na linha,
+   * entao a faixa de decisao carrega SOMENTE o que aquelas colunas nao dizem — dado
+   * ausente que muda a leitura (cliente nao identificado, periodo nao informado). Sem
+   * excecao propria, a linha nao ganha ruido.
+   */
+  const exceptions = describeServiceRequestAttention(item, now).filter(
+    (fact) => fact.code === 'CLIENT_UNIDENTIFIED' || fact.code === 'DESIRED_WINDOW_MISSING',
+  );
+  const timing = describeDesiredWindowTiming(item.desiredStartAt, now);
+  const age = formatRelativePast(item.createdAt, now);
+  const location = [item.location?.label, item.location?.city, item.location?.state]
+    .filter(Boolean)
+    .join(' · ');
+  const demand = summarizeServiceRequestDescription(item.description);
+
+  return (
+    <li
+      onClick={onSelect}
+      className={cn(
+        'relative grid cursor-pointer grid-cols-1 gap-x-3 gap-y-0.5 border-b border-gray-100 py-2 pr-2 pl-3 last:border-b-0 lg:grid-cols-[minmax(0,1fr)_9.5rem_7rem]',
+        'before:absolute before:top-1.5 before:bottom-1.5 before:left-0 before:w-[3px] before:content-[""]',
+        selected
+          ? 'bg-brand-50 before:bg-brand-700'
+          : isOpen
+            ? 'before:bg-amber-400 hover:bg-gray-50/70'
+            : 'before:bg-transparent hover:bg-gray-50/70',
+      )}
+    >
+      {/* IDENTIDADE — o operador reconhece a linha por aqui. */}
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <Link
+            to={`/app/requests/${item.id}`}
+            onClick={(event) => event.stopPropagation()}
+            className="text-[13px] font-semibold text-brand-800 no-underline hover:underline"
+          >
+            {item.requestCode}
+          </Link>
+          <span className="text-[12px] text-gray-800">{item.clientName ?? 'Cliente não identificado'}</span>
+          <span className="text-[11px] text-gray-400">
+            {formatServiceRequestOrigin(item.originSource)}
+          </span>
+        </div>
+        <p className="mt-0.5 line-clamp-1 text-[12px] text-gray-500">{demand}</p>
+        <p className="mt-0.5 truncate text-[11px] text-gray-400">
+          {[location, `criada ${age ?? 'sem data'}`].filter(Boolean).join(' · ')}
+        </p>
+      </div>
+
+      {/* DECISÃO — estado e próximo passo, o que muda a leitura da linha. */}
+      <div className="min-w-0">
+        <span
+          className={cn(
+            'text-[12px] font-semibold',
+            isOpen ? 'text-gray-900' : 'text-gray-500',
+          )}
+        >
+          {formatServiceRequestStatus(item.status)}
+        </span>
+        <p
+          className={cn(
+            'mt-0.5 truncate text-[12px]',
+            isOpen ? 'font-medium text-gray-800' : 'text-gray-400',
+          )}
+        >
+          {NEXT_STEP_BY_STATUS[item.status]}
+        </p>
+        {exceptions.length > 0 ? (
+          <p className="mt-0.5 flex flex-wrap gap-x-3 text-[11px]">
+            {exceptions.map((fact) => (
+              <span key={fact.code} className={ATTENTION_TONE_CLASS[fact.tone]}>
+                {fact.text}
+              </span>
+            ))}
+          </p>
+        ) : null}
+      </div>
+
+      {/* METADADO — prioridade e janela: qualificam a decisao, nao a antecedem. */}
+      <div className="min-w-0 lg:text-right">
+        <span
+          className={cn(
+            'text-[12px] font-medium',
+            item.priority === SERVICE_REQUEST_PRIORITIES.Urgent
+              ? 'text-red-700'
+              : item.priority === SERVICE_REQUEST_PRIORITIES.High
+                ? 'text-amber-700'
+                : 'text-gray-500',
+          )}
+        >
+          {formatServiceRequestPriority(item.priority)}
+        </span>
+        {/*
+          JANELA DESEJADA como fato temporal. Quando o inicio desejado ja passou, o fato ja
+          foi dito na faixa de DECISAO (com o tom de atencao) — repetir aqui seria a mesma
+          informacao duas vezes na mesma linha. A janela COMPLETA (com data) fica no painel
+          de contexto.
+        */}
+        <p
+          className={cn(
+            'mt-0.5 truncate text-[11px] tabular-nums',
+            timing?.tone === 'today'
+              ? 'font-medium text-amber-700'
+              : timing?.tone === 'past'
+                ? 'text-gray-400'
+                : 'text-gray-400',
+          )}
+        >
+          {timing && timing.tone !== 'past' ? timing.text : age ?? 'sem data de criação'}
+        </p>
+        <span className="sr-only">Última atualização: {age ?? 'sem data'}</span>
+      </div>
+    </li>
+  );
+}
+
+/**
+ * ACAO SEMANTICA — so quando existe capacidade real.
+ *
+ * O destino da acao principal e a object page, que executa a transicao com o contrato de
+ * escrita (rowVersion, idempotencia, autorizacao). Sem capability, o painel declara a
+ * ausencia em vez de oferecer um botao que o servidor negaria.
+ */
+function NextActionLink({ item }: { item: ServiceRequestListItem }) {
+  return (
+    <Link
+      to={`/app/requests/${item.id}`}
+      className="inline-flex items-center rounded border border-brand-700 bg-brand-700 px-2.5 py-1 text-[12px] font-semibold text-white no-underline hover:bg-brand-800"
+    >
+      {NEXT_STEP_ACTION_LABEL[item.status] ?? 'Abrir solicitação'}
+    </Link>
+  );
+}
+
+/**
+ * VISÕES SALVAS — menu compacto da command surface.
+ *
+ * O recorte inteiro da fila e restaurado pela visao (a barra antiga fazia o mesmo). Sem visao
+ * salva, o menu diz isso em vez de abrir um formulario permanente no meio da tela.
+ */
+function SavedViewsMenu({
+  open,
+  onToggle,
+  views,
+  onApply,
+  onSave,
+  onDelete,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  views: { id: string; name: string }[];
+  onApply: (view: { id: string; name: string; filters: Record<string, string> }) => void;
+  onSave: (name: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [name, setName] = useState('');
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        aria-expanded={open}
+        className="rounded border border-gray-300 bg-white px-2 py-1 text-[12px] font-medium text-gray-700 hover:bg-gray-50"
+        onClick={onToggle}
+      >
+        Visões
+      </button>
+      {open ? (
+        <div className="absolute right-0 z-30 mt-1 w-64 rounded-md border border-gray-200 bg-white p-2 shadow-lg">
+          {views.length === 0 ? (
+            <p className="m-0 px-1 py-0.5 text-[11px] text-gray-500">Nenhuma visão salva.</p>
+          ) : (
+            <ul className="m-0 list-none p-0">
+              {views.map((view) => (
+                <li key={view.id} className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    className="flex-1 rounded px-1.5 py-1 text-left text-[12px] text-gray-700 hover:bg-gray-50"
+                    onClick={() =>
+                      onApply(view as { id: string; name: string; filters: Record<string, string> })
+                    }
+                  >
+                    {view.name}
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Excluir visão: ${view.name}`}
+                    className="rounded px-1.5 py-1 text-[12px] text-gray-400 hover:bg-gray-50 hover:text-gray-700"
+                    onClick={() => onDelete(view.id)}
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <form
+            className="mt-2 flex items-center gap-1 border-t border-gray-100 pt-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onSave(name);
+              setName('');
+            }}
+          >
+            <input
+              type="text"
+              aria-label="Nome da visão"
+              placeholder="Salvar recorte atual como…"
+              className="min-w-0 flex-1 rounded border border-gray-300 px-1.5 py-1 text-[12px]"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
+            <button
+              type="submit"
+              disabled={name.trim() === ''}
+              className="rounded border border-gray-300 px-1.5 py-1 text-[12px] font-medium text-gray-700 disabled:opacity-50"
+            >
+              Salvar
+            </button>
+          </form>
+          <p className="m-0 px-1 pt-1.5 text-[10px] text-gray-400">
+            Visões ficam neste navegador até o backend publicar visões salvas.
+          </p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** Recorte ativo, em uma linha — o cabecalho declara sobre o que a fila esta recortada. */
+function describeScope(filters: QueueFilters, hasRelationScope: boolean): string {
+  const parts: string[] = [];
+  if (filters.status) {
+    parts.push(formatServiceRequestStatus(filters.status));
+  }
+  if (filters.priority) {
+    parts.push(formatServiceRequestPriority(filters.priority));
+  }
+  if (filters.originSource) {
+    parts.push(formatServiceRequestOrigin(filters.originSource));
+  }
+  if (filters.search.trim()) {
+    parts.push(`busca "${filters.search.trim()}"`);
+  }
+  if (hasRelationScope) {
+    parts.push('cliente no escopo');
+  }
+  return parts.length > 0 ? `recorte: ${parts.join(' · ')}` : 'fila completa';
+}
+
+/** Timestamp mais recente da PAGINA carregada — declarado como "nesta página". */
+function latestTimestamp(items: ServiceRequestListItem[]): string | null {
+  let latest: number | null = null;
+  for (const item of items) {
+    const value = new Date(item.updatedAt).getTime();
+    if (!Number.isNaN(value) && (latest === null || value > latest)) {
+      latest = value;
+    }
+  }
+  return latest === null ? null : new Date(latest).toISOString();
+}
+
+/**
+ * Referencias do painel de contexto, a partir do payload da LINHA.
+ *
+ * Cada item entra so quando o campo existe; a ausencia e DECLARADA, nunca preenchida com
+ * zero ou com identificador tecnico.
+ */
+function requestContextRows(
+  item: ServiceRequestListItem,
+  now: Date,
+): CrossReference[] {
+  const references: CrossReference[] = [];
+  references.push({
+    label: 'Demanda',
+    detail: summarizeServiceRequestDescription(item.description),
+  });
   references.push({
     label: 'Cliente',
     detail: item.clientName ?? 'Cliente não identificado',
   });
-  const window = formatDesiredWindow(item.desiredStartAt, item.desiredEndAt);
-  if (window) {
-    references.push({ label: 'Janela desejada', detail: window });
+  references.push({
+    label: 'Origem',
+    detail: formatServiceRequestOrigin(item.originSource),
+  });
+  if (item.externalContact?.name) {
+    references.push({ label: 'Solicitante', detail: item.externalContact.name });
   }
-  if (item.description) {
-    references.push({ label: 'Demanda', detail: summarizeServiceRequestDescription(item.description) });
+  references.push({
+    label: 'Situação',
+    detail: formatServiceRequestStatus(item.status),
+  });
+  references.push({
+    label: 'Prioridade',
+    detail: formatServiceRequestPriority(item.priority),
+  });
+  references.push({
+    label: 'Próximo passo',
+    detail: NEXT_STEP_BY_STATUS[item.status],
+  });
+  references.push({
+    label: 'Janela desejada',
+    detail: formatDesiredWindow(item.desiredStartAt, item.desiredEndAt),
+  });
+  const created = formatRelativePast(item.createdAt, now);
+  if (created) {
+    references.push({ label: 'Criada', detail: created });
+  }
+  const updated = formatRelativePast(item.updatedAt, now);
+  if (updated) {
+    references.push({ label: 'Atualizada', detail: updated });
+  }
+  if (item.serviceLabel) {
+    references.push({ label: 'Serviço', detail: item.serviceLabel });
   }
   return references;
 }
+
+/**
+ * Peso do estado — exportado para leitura em teste; nao amplia a superficie da pagina.
+ */
+export const __workloadByStatus = WORKLOAD_BY_STATUS;

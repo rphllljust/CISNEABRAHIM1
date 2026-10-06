@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ServiceRequestsListPage } from './ServiceRequestsListPage';
@@ -23,17 +23,18 @@ describe('ServiceRequestsListPage', () => {
       expect(screen.getByRole('link', { name: 'SR-2026-DEMO01' })).toBeInTheDocument();
     });
     /*
-     * GRAMATICA DE WORKLIST: o resumo deixou de ser uma faixa de cartoes clicaveis
-     * (`ServiceRequestSummaryCards`) e passou a viver na cabeca da worklist, como as demais
-     * listas do produto. O que este teste protege e o MESMO fato: as contagens do summary do
-     * servidor aparecem na tela. Antes eram botoes "Filtrar ..."; agora sao indicadores da
-     * cabeca ao lado do total, e o recorte por status continua na toolbar.
+     * OPERATING HEADER + WORK QUEUE STRIP: o resumo deixou de ser uma faixa de cartoes
+     * clicaveis (`ServiceRequestSummaryCards`) e passou a viver na faixa de TRABALHO que
+     * abre a work area — trabalho aberto primeiro, resolvido depois. O que este teste
+     * protege e o MESMO fato: as contagens do summary do servidor aparecem na tela e cada
+     * uma APLICA o recorte correspondente.
      */
-    expect(screen.getByRole('heading', { level: 1, name: /solicitações de serviço/i })).toBeInTheDocument();
-    // "Pendentes" e "Em análise" aparecem como INDICADOR da cabeca e como opcao do campo de
-    // Status — por isso a assercao aceita mais de uma ocorrencia do rotulo.
-    expect(screen.getAllByText('Pendentes').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('Em análise').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole('heading', { level: 1, name: /^solicitações$/i })).toBeInTheDocument();
+    const strip = screen.getByRole('navigation', { name: /faixas de trabalho da fila/i });
+    expect(strip).toBeInTheDocument();
+    for (const label of ['Pendentes', 'Em análise', 'Convertidas', 'Canceladas']) {
+      expect(within(strip).getByText(label)).toBeInTheDocument();
+    }
     expect(
       screen.getByRole('region', { name: /fila operacional de solicitações/i }),
     ).toBeInTheDocument();
@@ -73,11 +74,15 @@ describe('ServiceRequestsListPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Cliente Demo Ltda')).toBeInTheDocument();
     });
-    // Situação e próximo passo derivados do estado (mesma leitura do backend).
-    expect(screen.getByLabelText('Status: Em análise')).toBeInTheDocument();
-    expect(screen.getByText(/registrar decisão da análise/i)).toBeInTheDocument();
+    // Situação e próximo passo derivados do estado (mesma leitura do backend). Na linha de
+    // processamento a situação é TEXTO (o badge saiu): identidade primeiro, decisão
+    // segundo, metadado depois. A faixa de trabalho tambem rotula "Em análise" como
+    // RECORTE — por isso a assercao e escopada a superficie de processamento.
+    const surface = screen.getByRole('region', { name: /fila operacional de solicitações/i });
+    expect(within(surface).getByText('Em análise')).toBeInTheDocument();
+    expect(within(surface).getByText(/registrar decisão da análise/i)).toBeInTheDocument();
     // Fato derivável: a solicitação não tem janela desejada registrada.
-    expect(screen.getByText(/período desejado não informado/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/período desejado não informado/i).length).toBeGreaterThanOrEqual(1);
     // Nenhum UUID técnico como conteúdo da linha.
     expect(
       screen.queryByText('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
@@ -181,14 +186,12 @@ describe('ServiceRequestsListPage', () => {
     });
 
     /*
-     * O recorte rapido por "pendentes" era um cartao clicavel do resumo. Na gramatica de
-     * worklist o mesmo recorte e feito pelo campo de Status da toolbar — a assercao abaixo
-     * protege o MESMO contrato: escolher um status aplica o filtro e a consulta o envia.
+     * O recorte rapido por "pendentes" era um cartao clicavel do resumo e hoje e uma celula
+     * da faixa de trabalho que abre a work area. O contrato protegido e o MESMO: acionar o
+     * recorte aplica o filtro e a consulta o envia ao servidor.
      */
-    await user.selectOptions(
-      screen.getByLabelText('Situação'),
-      SERVICE_REQUEST_STATUSES.Submitted,
-    );
+    const strip = screen.getByRole('navigation', { name: /faixas de trabalho da fila/i });
+    await user.click(within(strip).getByRole('button', { name: /pendentes/i }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(

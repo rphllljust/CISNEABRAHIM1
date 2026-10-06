@@ -31,7 +31,9 @@ describe('service requests administrative flow e2e (frontend)', () => {
     await user.click(screen.getByRole('link', { name: /solicita/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /solicita.*servi/i })).toBeInTheDocument();
+      // A work area abre pelo NOME da superficie ("Solicitações"), nao por um titulo
+      // explicativo. A assercao protege o mesmo contrato: a fila abriu.
+      expect(screen.getByRole('heading', { level: 1, name: /^solicita/i })).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole('link', { name: /nova solicita/i }));
