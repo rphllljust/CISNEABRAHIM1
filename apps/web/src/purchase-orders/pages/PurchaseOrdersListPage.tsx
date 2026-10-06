@@ -563,27 +563,33 @@ export function PurchaseOrdersListPage() {
         </div>
       )}
 
-      <WorklistFooter
-        rangeLabel={`${offset + 1}–${offset + items.length} nesta página`}
-        /*
-          O recorte dos totais e DECLARADO, nao implicito: os valores acima somam a pagina, e a
-          pagina lista um recorte filtrado. Sem isto, paginacao e indicadores poderiam se
-          contradizer na mesma linha.
-        */
-        extra={
-          hasActiveFilters
-            ? 'Totais somam os pedidos filtrados desta página'
-            : 'Totais somam os pedidos desta página'
-        }
-      >
-        <ModulePagination
-          pageNumber={pageNumber}
-          previousDisabled={offset === 0}
-          nextDisabled={!hasMore}
-          onPrevious={() => void loadPage(Math.max(0, offset - PAGE_SIZE))}
-          onNext={() => void loadPage(offset + PAGE_SIZE)}
-        />
-      </WorklistFooter>
+      {/*
+        RODAPÉ — só existe quando há pedido na página. Com zero registros ele dizia "1–0 nesta
+        página", o que não descreve nada e sugere um dataset inexistente.
+      */}
+      {items.length > 0 ? (
+        <WorklistFooter
+          rangeLabel={`${offset + 1}–${offset + items.length} nesta página`}
+          /*
+            O recorte dos totais e DECLARADO, nao implicito: os valores acima somam a pagina, e a
+            pagina lista um recorte filtrado. Sem isto, paginacao e indicadores poderiam se
+            contradizer na mesma linha.
+          */
+          extra={
+            hasActiveFilters
+              ? 'Totais somam os pedidos filtrados desta página'
+              : 'Totais somam os pedidos desta página'
+          }
+        >
+          <ModulePagination
+            pageNumber={pageNumber}
+            previousDisabled={offset === 0}
+            nextDisabled={!hasMore}
+            onPrevious={() => void loadPage(Math.max(0, offset - PAGE_SIZE))}
+            onNext={() => void loadPage(offset + PAGE_SIZE)}
+          />
+        </WorklistFooter>
+      ) : null}
     </ModulePage>
   );
 }
