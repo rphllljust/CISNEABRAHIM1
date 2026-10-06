@@ -1,4 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import {
+  DynamicContextDrawer,
+  DynamicSavedViewsBar,
+  useSavedViews,
+  type CrossReference,
+} from '../../engine';
 import { mapAssetErrorToMessage } from '../../assets/api/asset-error-messages';
 import { AssetsApiError } from '../../assets/api/physical-assets-api';
 import { AssetLifecycleStatusBadge } from '../../assets/components/AssetLifecycleStatusBadge';
@@ -19,6 +26,7 @@ import { formatAssetPaginationRange } from '../../assets/utils/asset-operational
 import { getFleetSummary, listFleetVehicles } from '../api/fleet-api';
 import {
   RowActionCell,
+  rowPrimaryActionClass,
   WorklistClearFilters,
   WorklistField,
   WorklistFilterBar,
@@ -61,6 +69,8 @@ type ListState =
 
 export function FleetListPage() {
   const { capabilities } = useAssetCapabilities();
+  const savedViews = useSavedViews('local-operator', 'fleet-vehicles');
+  const [selected, setSelected] = useState<PhysicalAsset | null>(null);
   const { resourceTypes } = useAssetResourceTypes();
   const vehicleTypes = resourceTypes.filter(
     (type) => type.classification === VEHICLE_CLASSIFICATION,
@@ -275,6 +285,38 @@ export function FleetListPage() {
         />
       </WorklistFilterBar>
 
+      {/*
+        VISÕES SALVAS — o recorte que o despachante da frota remonta todo dia: "veículos
+        disponíveis de um tipo" é a fila real de alocação. Quatro seletores reconstruídos à mão
+        a cada turno é o trabalho que esta barra elimina.
+      */}
+      <DynamicSavedViewsBar
+        views={savedViews.views}
+        persistedLocally={savedViews.persistedLocally}
+        onSave={(name) =>
+          savedViews.save(
+            name,
+            {
+              search,
+              lifecycleFilter,
+              availabilityFilter,
+              resourceTypeFilter,
+            },
+            'list',
+          )
+        }
+        onDelete={savedViews.remove}
+        onApply={(view) => {
+          setSearchInput(view.filters['search'] ?? '');
+          setSearch(view.filters['search'] ?? '');
+          setLifecycleFilter((view.filters['lifecycleFilter'] ?? '') as '' | AssetLifecycleStatus);
+          setAvailabilityFilter(
+            (view.filters['availabilityFilter'] ?? '') as '' | AssetOperationalAvailability,
+          );
+          setResourceTypeFilter(view.filters['resourceTypeFilter'] ?? '');
+        }}
+      />
+
       {listState.phase === 'loading' ? (
         <p className="text-sm text-gray-500" aria-busy="true" aria-live="polite">
           Atualizando listagem…
@@ -341,7 +383,16 @@ export function FleetListPage() {
             </thead>
             <tbody>
               {items.map((asset) => (
-                <tr key={asset.id} className={worklistRowClass}>
+                <tr
+                  key={asset.id}
+                  className={worklistRowClass}
+                  /*
+                   * CONTEXTO SEM ABANDONAR A FILA — o despachante decide COMPARANDO veículos.
+                   * O painel lateral mostra a situação operacional da linha clicada sem perder o
+                   * recorte; o link do código continua sendo o caminho para a ficha do ativo.
+                   */
+                  onClick={() => setSelected(asset)}
+                >
                   <td className={worklistCellClass}>
                     <WorklistRowLink href={`/app/assets/${asset.id}`}>
                       {asset.assetCode}
@@ -398,6 +449,49 @@ export function FleetListPage() {
           />
         </WorklistFooter>
       ) : null}
+
+      {/*
+        RELAÇÕES DO VEÍCULO — do que a LINHA já traz, sem chamada de rede nova. Contagem de
+        ordens de serviço ou de alocações NÃO é publicada por esta listagem, então não aparece:
+        número sem origem não entra.
+      */}
+      <DynamicContextDrawer
+        open={selected !== null}
+        title={selected ? `${selected.assetCode} · ${selected.name}` : 'Veículo'}
+        onClose={() => setSelected(null)}
+        crossReferences={selected ? fleetCrossReferences(selected, typeNameByCode) : []}
+      >
+        {selected ? (
+          <Link className={rowPrimaryActionClass} to={`/app/assets/${selected.id}`}>
+            Abrir ficha do ativo
+          </Link>
+        ) : null}
+      </DynamicContextDrawer>
     </ModulePage>
   );
+}
+
+/**
+ * Referências cruzadas do veículo, a partir do payload da listagem.
+ *
+ * Cada item entra só quando o campo existe. Placa ausente e declaração de ausência — nunca um
+ * valor fabricado nem um traço mudo.
+ */
+function fleetCrossReferences(
+  asset: PhysicalAsset,
+  typeNameByCode: Map<string, string>,
+): CrossReference[] {
+  const references: CrossReference[] = [];
+  references.push({
+    label: 'Disponibilidade',
+    detail: 'Situação operacional do veículo nesta leitura.',
+  });
+  if (asset.vehicle?.plate) {
+    references.push({ label: 'Placa', detail: asset.vehicle.plate });
+  }
+  const typeName = typeNameByCode.get(asset.resourceTypeCode);
+  if (typeName) {
+    references.push({ label: 'Tipo de recurso', detail: typeName });
+  }
+  return references;
 }
