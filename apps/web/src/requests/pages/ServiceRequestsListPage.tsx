@@ -65,6 +65,9 @@ import {
   rowPrimaryActionClass,
 } from '../../ui/enterprise-list';
 import { cn } from '../../ui/utils/cn';
+import { Button } from '../../ui/Button';
+import { WorkbenchQueue, WorkbenchQueueItem } from '../../ui/workbench';
+import { StatusBadge } from '../../ui/StatusBadge';
 
 const PAGE_SIZE = 20;
 
@@ -213,6 +216,14 @@ export function ServiceRequestsListPage() {
   // Escopo de relacao (recorte que vem da URL e NAO e editavel no formulario da fila).
   const relationScope = useRelationScope(RELATION_SCOPE_KEYS);
   const [searchInput, setSearchInput] = useState('');
+  /**
+   * Filtros secundários (prioridade, origem, ordenação, sentido) atrás de "Mais filtros".
+   *
+   * A barra abria com SEIS controles permanentes: o operador lia formulário inteiro antes de ver
+   * a primeira solicitação. Busca e situação — os dois recortes que a fila de entrada usa todo
+   * dia — ficam visíveis; o resto é progressive disclosure. Nenhum filtro foi removido.
+   */
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
   const [summary, setSummary] = useState<ServiceRequestListSummary | null>(null);
 
@@ -332,6 +343,16 @@ export function ServiceRequestsListPage() {
   const { items, offset, hasMore } = listState;
   const pageNumber = Math.floor(offset / PAGE_SIZE) + 1;
   const now = new Date();
+  /**
+   * DEMANDAS PRIORITÁRIAS NA PÁGINA — contagem do recorte CARREGADO, nunca do domínio: a
+   * listagem de solicitações não publica total por prioridade, então o rótulo diz "na página" e
+   * o drilldown aplica o filtro de prioridade que o servidor entende.
+   */
+  const urgentCount = items.filter(
+    (item) =>
+      item.priority === SERVICE_REQUEST_PRIORITIES.Urgent ||
+      item.priority === SERVICE_REQUEST_PRIORITIES.High,
+  ).length;
 
   return (
     <ModulePage>
@@ -375,6 +396,59 @@ export function ServiceRequestsListPage() {
           </>
         }
       />
+
+      {/*
+        EXCEÇÃO DA ENTRADA — a fila de intake tem uma pergunta própria: o que chegou e ainda
+        NÃO foi tratado. Antes isso era só mais um número entre quatro na faixa de indicadores, e
+        o operador precisava cruzar estado + prioridade lendo a grade.
+
+        A faixa usa SOMENTE o que o summary do servidor publica (`pending`, `underReview`): o
+        recorte é declarado, com a contagem autoritativa, e a ação aplica exatamente o filtro que
+        a barra de recorte entende. Sem exceção real publicada, a faixa não aparece.
+      */}
+      {urgentCount > 0 || (summary?.pending ?? 0) > 0 ? (
+        <WorkbenchQueue
+          title="Entrada exigindo tratamento"
+          description="O que chegou e ainda depende de decisão nesta fila."
+        >
+          {(summary?.pending ?? 0) > 0 ? (
+            <WorkbenchQueueItem
+              severity={<StatusBadge label="Aguardando" tone="warning" />}
+              severityTone="warning"
+              title="Solicitações ainda não tratadas"
+              reason="Entraram na fila e não avançaram para análise."
+              context={`${summary?.pending} ${summary?.pending === 1 ? 'solicitação' : 'solicitações'}`}
+              action={
+                <button
+                  type="button"
+                  className="text-[13px] font-semibold text-brand-700 hover:text-brand-800"
+                  onClick={() => applyFilter('status', SERVICE_REQUEST_STATUSES.Submitted)}
+                >
+                  Tratar pendentes
+                </button>
+              }
+            />
+          ) : null}
+          {urgentCount > 0 ? (
+            <WorkbenchQueueItem
+              severity={<StatusBadge label="Prioridade" tone="error" />}
+              severityTone="critical"
+              title="Prioridade alta ou urgente na página"
+              reason="Demandas que o solicitante marcou como prioritárias."
+              context={`${urgentCount} ${urgentCount === 1 ? 'solicitação' : 'solicitações'}`}
+              action={
+                <button
+                  type="button"
+                  className="text-[13px] font-semibold text-brand-700 hover:text-brand-800"
+                  onClick={() => applyFilter('priority', SERVICE_REQUEST_PRIORITIES.High)}
+                >
+                  Ver prioridade alta
+                </button>
+              }
+            />
+          ) : null}
+        </WorkbenchQueue>
+      ) : null}
 
       {/*
         RECORTE POR STATUS — os cartoes de resumo eram CLICAVEIS e filtravam a fila. Esse
@@ -422,82 +496,106 @@ export function ServiceRequestsListPage() {
           </select>
         </WorklistField>
 
-        <WorklistField label="Prioridade" htmlFor="request-priority-filter">
-          <select
-              id="request-priority-filter"
-              className={worklistSelectClass}
-              value={filters.priority}
-              onChange={(event) =>
-                applyFilter('priority', event.target.value as '' | ServiceRequestPriority)
-              }
-            >
-              <option value="">Todas</option>
-              {Object.values(SERVICE_REQUEST_PRIORITIES).map((priority) => (
-                <option key={priority} value={priority}>
-                  {formatServiceRequestPriority(priority)}
-                </option>
-              ))}
-            </select>
-          </WorklistField>
+        <WorklistField label="&nbsp;" htmlFor="request-more-filters">
+          <Button
+            id="request-more-filters"
+            type="button"
+            variant="secondary"
+            aria-expanded={showMoreFilters}
+            onClick={() => setShowMoreFilters((current) => !current)}
+          >
+            {showMoreFilters ? 'Menos filtros' : 'Mais filtros'}
+          </Button>
+        </WorklistField>
 
-          <WorklistField label="Origem" htmlFor="request-origin-filter">
-            <select
-              id="request-origin-filter"
-              className={worklistSelectClass}
-              value={filters.originSource}
-              onChange={(event) =>
-                applyFilter('originSource', event.target.value as '' | ServiceRequestOrigin)
-              }
-            >
-              <option value="">Todas</option>
-              {Object.values(SERVICE_REQUEST_ORIGINS).map((origin) => (
-                <option key={origin} value={origin}>
-                  {formatServiceRequestOrigin(origin)}
-                </option>
-              ))}
-            </select>
-          </WorklistField>
+        {activeFilters ? (
+          <WorklistClearFilters
+            visible
+            onClick={() => {
+              setSearchInput('');
+              setFilters(EMPTY_FILTERS);
+            }}
+          />
+        ) : null}
 
-          <WorklistField label="Ordenar por" htmlFor="request-sort-filter">
-            <select
-              id="request-sort-filter"
-              className={worklistSelectClass}
-              value={filters.sort}
-              onChange={(event) =>
-                applyFilter('sort', event.target.value as ServiceRequestListSort)
-              }
-            >
-              {Object.values(SERVICE_REQUEST_LIST_SORTS).map((sort) => (
-                <option key={sort} value={sort}>
-                  {SORT_LABELS[sort]}
-                </option>
-              ))}
-            </select>
-          </WorklistField>
+        {/*
+          FILTROS SECUNDÁRIOS — prioridade, origem, janela desejada, ordenação e sentido sob
+          "Mais filtros". Eram cinco controles PERMANENTES na barra: o operador lia busca,
+          situação, prioridade, origem, ordenação e sentido antes de ver a primeira solicitação.
+          O recorte continua indo ao SERVIDOR e nenhum filtro foi removido — só deixou de ser
+          formulário aberto.
+        */}
+        {showMoreFilters ? (
+          <div className="mt-2 flex flex-wrap items-end gap-2 border-t border-gray-100 pt-2">
+            <WorklistField label="Prioridade" htmlFor="request-priority-filter">
+              <select
+                id="request-priority-filter"
+                className={worklistSelectClass}
+                value={filters.priority}
+                onChange={(event) =>
+                  applyFilter('priority', event.target.value as '' | ServiceRequestPriority)
+                }
+              >
+                <option value="">Todas</option>
+                {Object.values(SERVICE_REQUEST_PRIORITIES).map((priority) => (
+                  <option key={priority} value={priority}>
+                    {formatServiceRequestPriority(priority)}
+                  </option>
+                ))}
+              </select>
+            </WorklistField>
 
-          <WorklistField label="Sentido" htmlFor="request-direction-filter">
-            <select
-              id="request-direction-filter"
-              className={worklistSelectClass}
-              value={filters.direction}
-              onChange={(event) =>
-                applyFilter('direction', event.target.value as ServiceRequestListDirection)
-              }
-            >
-              <option value="desc">Decrescente</option>
-              <option value="asc">Crescente</option>
-            </select>
-          </WorklistField>
+            <WorklistField label="Origem" htmlFor="request-origin-filter">
+              <select
+                id="request-origin-filter"
+                className={worklistSelectClass}
+                value={filters.originSource}
+                onChange={(event) =>
+                  applyFilter('originSource', event.target.value as '' | ServiceRequestOrigin)
+                }
+              >
+                <option value="">Todas</option>
+                {Object.values(SERVICE_REQUEST_ORIGINS).map((origin) => (
+                  <option key={origin} value={origin}>
+                    {formatServiceRequestOrigin(origin)}
+                  </option>
+                ))}
+              </select>
+            </WorklistField>
 
-          {activeFilters ? (
-            <WorklistClearFilters
-              visible
-              onClick={() => {
-                setSearchInput('');
-                setFilters(EMPTY_FILTERS);
-              }}
-            />
-          ) : null}
+            {/* Ordenação e sentido vivem aqui: são recorte, não decisão de primeira dobra. */}
+            <WorklistField label="Ordenar por" htmlFor="request-sort-filter">
+              <select
+                id="request-sort-filter"
+                className={worklistSelectClass}
+                value={filters.sort}
+                onChange={(event) =>
+                  applyFilter('sort', event.target.value as ServiceRequestListSort)
+                }
+              >
+                {Object.values(SERVICE_REQUEST_LIST_SORTS).map((sort) => (
+                  <option key={sort} value={sort}>
+                    {SORT_LABELS[sort]}
+                  </option>
+                ))}
+              </select>
+            </WorklistField>
+
+            <WorklistField label="Sentido" htmlFor="request-direction-filter">
+              <select
+                id="request-direction-filter"
+                className={worklistSelectClass}
+                value={filters.direction}
+                onChange={(event) =>
+                  applyFilter('direction', event.target.value as ServiceRequestListDirection)
+                }
+              >
+                <option value="desc">Decrescente</option>
+                <option value="asc">Crescente</option>
+              </select>
+            </WorklistField>
+          </div>
+        ) : null}
       </WorklistFilterBar>
 
       {/*

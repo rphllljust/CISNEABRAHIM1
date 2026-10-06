@@ -105,6 +105,12 @@ describe('ServiceRequestsListPage', () => {
       expect(screen.getByRole('link', { name: 'SR-2026-DEMO01' })).toBeInTheDocument();
     });
 
+    /*
+     * PRIORIDADE, ORDENAÇÃO E SENTIDO vivem sob "Mais filtros" (progressive disclosure): a barra
+     * de recorte abre com busca e situação, que são o recorte diário da fila de entrada. O
+     * contrato testado é o MESMO — abrir o disclosure e escolher aplica o filtro no servidor.
+     */
+    await user.click(screen.getByRole('button', { name: 'Mais filtros' }));
     await user.selectOptions(screen.getByLabelText('Prioridade'), 'URGENT');
     await user.selectOptions(screen.getByLabelText('Ordenar por'), 'desiredStartAt');
     await user.selectOptions(screen.getByLabelText('Sentido'), 'asc');
