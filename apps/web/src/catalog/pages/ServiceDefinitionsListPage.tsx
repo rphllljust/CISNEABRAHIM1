@@ -1,8 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { CatalogApiError, listServiceDefinitions } from '../api/service-catalog-api';
 import { mapCatalogErrorToMessage } from '../api/catalog-error-messages';
 import { ServiceDefinitionStatusBadge } from '../components/ServiceDefinitionStatusBadge';
 import { useCatalogCapabilities } from '../hooks/useCatalogCapabilities';
+import { useAuth } from '../../auth/context/AuthProvider';
+import {
+  DynamicContextDrawer,
+  DynamicSavedViewsBar,
+  useSavedViews,
+  type CrossReference,
+} from '../../engine';
 import {
   CATALOG_LINEAGE_STATUSES,
   type CatalogLineageStatus,
@@ -15,6 +23,7 @@ import {
   WorklistFooter,
   WorklistHeader,
   WorklistRowLink,
+  rowPrimaryActionClass,
   WorklistStatePanel,
   EnterpriseMetric,
   worklistCellClass,
@@ -67,6 +76,15 @@ type ListState =
 
 export function ServiceDefinitionsListPage() {
   const { capabilities } = useCatalogCapabilities();
+  const { identityId } = useAuth();
+  /*
+   * VISÕES SALVAS — o recorte (busca + status + versão) que o curador do catálogo remonta todo
+   * dia: "ativos com rascunho em aberto" é a fila real de trabalho dele. `useSavedViews` já é a
+   * capacidade da engine, persistida por identidade e DECLARADA como local enquanto não existe
+   * endpoint de visões salvas.
+   */
+  const savedViews = useSavedViews(identityId ?? 'anonymous', 'catalog-service-definitions');
+  const [selected, setSelected] = useState<ServiceDefinition | null>(null);
   const [statusFilter, setStatusFilter] = useState<'' | CatalogLineageStatus>('');
   const [versionFilter, setVersionFilter] = useState<VersionFilter>('');
   const [search, setSearch] = useState('');
@@ -287,6 +305,24 @@ export function ServiceDefinitionsListPage() {
       </WorklistFilterBar>
 
       {/*
+        VISÕES SALVAS — a fila que o curador reconstrói todo dia ("ativos com rascunho em
+        aberto" é o trabalho pendente real do catálogo). `persistedLocally` é declarado pela
+        engine: sem endpoint de visões salvas, o armazenamento é local por identidade.
+      */}
+      <DynamicSavedViewsBar
+        views={savedViews.views}
+        persistedLocally={savedViews.persistedLocally}
+        onSave={(name) => savedViews.save(name, { search, statusFilter, versionFilter }, 'list')}
+        onDelete={savedViews.remove}
+        onApply={(view) => {
+          setSearch(view.filters['search'] ?? '');
+          setDebouncedSearch(view.filters['search'] ?? '');
+          setStatusFilter((view.filters['statusFilter'] ?? '') as '' | CatalogLineageStatus);
+          setVersionFilter((view.filters['versionFilter'] ?? '') as VersionFilter);
+        }}
+      />
+
+      {/*
         RECORTE DE VERSAO E LOCAL, NAO DO SERVIDOR.
         O contrato de `/catalog/service-definitions` publica apenas `status` e `q`
         (ver `ListServiceDefinitionsParams`). Nao existe filtro de versao publicado, e
@@ -342,7 +378,17 @@ export function ServiceDefinitionsListPage() {
             </thead>
             <tbody>
               {filteredItems.map((definition) => (
-                <tr key={definition.id} className={worklistRowClass}>
+                <tr
+                  key={definition.id}
+                  className={worklistRowClass}
+                  /*
+                   * CONTEXTO SEM ABANDONAR A LISTA — o operador do catálogo decide comparando
+                   * definições. O painel lateral mostra os fatos da linha clicada (categoria,
+                   * ciclo de versão e o que fazer agora) sem tirá-lo do recorte em que está
+                   * trabalhando. O link da primeira coluna continua sendo o caminho para a ficha.
+                   */
+                  onClick={() => setSelected(definition)}
+                >
                   <td className={worklistCellClass}>
                     <WorklistRowLink href={`/app/catalog/${definition.id}`}>
                       {/* Identidade PRINCIPAL e o nome humano; o code fica como contexto. */}
@@ -421,6 +467,62 @@ export function ServiceDefinitionsListPage() {
           onNext={() => void loadPage(offset + PAGE_SIZE)}
         />
       </WorklistFooter>
+
+      {/*
+        RELAÇÕES DA DEFINIÇÃO — montadas do que a LINHA já traz, sem chamada de rede nova.
+        A contagem de versões publicadas NÃO é publicada pelo contrato, então não aparece: um
+        número sem origem seria inventado. O que entra é o que o payload sustenta.
+      */}
+      <DynamicContextDrawer
+        open={selected !== null}
+        title={selected?.name ?? selected?.code ?? 'Serviço'}
+        onClose={() => setSelected(null)}
+        crossReferences={selected ? catalogCrossReferences(selected) : []}
+      >
+        {selected ? (
+          <div className="space-y-2 text-xs text-gray-600">
+            <p className="font-medium text-gray-800">{selected.code}</p>
+            <p>{resolveCatalogNextAction(selected)}</p>
+            <Link
+              to={`/app/catalog/${selected.id}`}
+              className={rowPrimaryActionClass}
+            >
+              Abrir ficha
+            </Link>
+          </div>
+        ) : null}
+      </DynamicContextDrawer>
     </ModulePage>
   );
+}
+
+/**
+ * Referências cruzadas da definição, a partir do payload da listagem.
+ *
+ * Cada item entra só quando o campo existe. Ausência NÃO vira zero nem linha vazia: o painel
+ * declara que não há referência em vez de afirmar um vínculo que o contrato não publica.
+ */
+function catalogCrossReferences(definition: ServiceDefinition): CrossReference[] {
+  const references: CrossReference[] = [];
+  if (definition.categoryName) {
+    references.push({ label: 'Categoria', detail: definition.categoryName });
+  }
+  if (definition.latestPublishedVersion !== null) {
+    references.push({
+      label: 'Versão vigente',
+      detail: `v${definition.latestPublishedVersion} publicada e contratável`,
+    });
+  } else {
+    references.push({
+      label: 'Versão vigente',
+      detail: 'Nenhuma versão publicada — o serviço ainda não é contratável',
+    });
+  }
+  if (definition.currentDraftVersion !== null) {
+    references.push({
+      label: 'Rascunho em edição',
+      detail: `v${definition.currentDraftVersion} aguardando publicação`,
+    });
+  }
+  return references;
 }
