@@ -187,7 +187,11 @@ test.describe('V4 — construtor de formulário', () => {
 
     const before = await page.locator('[data-builder-field]').count();
 
-    await select.selectOption(optionValue as string);
+    if (!optionValue) {
+      throw new Error('Deve haver ao menos um campo disponivel para adicionar.');
+    }
+
+    await select.selectOption(optionValue);
 
     // O CAMPO APARECE NA LISTA — o critério de aceite do construtor.
     await expect(page.locator(`[data-builder-field="${optionValue}"]`)).toBeVisible({
@@ -211,7 +215,10 @@ test.describe('V4 — construtor de formulário', () => {
     const select = page.locator('[data-builder-add-select="0"]');
     await expect(select).toBeVisible({ timeout: 30_000 });
     const optionValue = await select.locator('option').nth(1).getAttribute('value');
-    await select.selectOption(optionValue as string);
+    if (!optionValue) {
+      throw new Error('Deve haver ao menos um campo disponivel para adicionar.');
+    }
+    await select.selectOption(optionValue);
 
     const persist = page.locator('[data-testid="builder-persist"]');
     await expect

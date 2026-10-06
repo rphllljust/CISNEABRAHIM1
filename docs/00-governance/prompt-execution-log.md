@@ -16582,3 +16582,120 @@ STATUS FINAL: PASS_WITH_RESTRICTIONS
    B3-R), independentes de B4.
 6. **Gate de fronteira violado e corrigido dentro da sessao.** A primeira versao introduziu uma
    falha real em `module-boundary-rules.spec.ts`; corrigida antes dos commits, sem contorno.
+
+---
+
+## BLOCO COMERCIAL — CLIENTES (CLOSED/FROZEN) — revisão de conformidade visual
+
+DATA: sessão corrente
+STATUS: **PASS (sem diff)** — nenhuma alteração de produto aplicada.
+
+### Escopo e decisão
+
+Solicitada a execução sequencial irredutível do bloco comercial (Clientes → Solicitações →
+Propostas → Pedidos de Compra → Contratos), uma tela por vez, com baliza SAP List Report +
+Dynamics Worklist + NetSuite Customer List e toolbox CISNE já existente.
+
+### Fato verificado no código (não presumido)
+
+A tela `apps/web/src/clients/pages/ClientsListPage.tsx` **já está no nível da baliza**:
+
+- `WorklistHeader` com título + contagem real do servidor (`total`) + contexto + ação primária
+  (`Novo Cliente` condicionada a `capabilities.canCreate`);
+- faixa `EnterpriseMetric` com total, ativos e inativos (contados sobre a página recebida — nunca
+  estimados);
+- busca com debounce (300 ms) e piso mínimo de busca (`CLIENT_SEARCH_MIN_LENGTH`);
+- filtro de status (`ClientStatusBadge` semântico) + filtro avançado de exigência de pedido;
+- `SavedViewsBar` com configuração restrita (status/ordenação, nunca o termo de busca — para não
+  persistir razão social/CNPJ);
+- grade densa (`DataTable`) com cliente dominante (razão social + nome fantasia como apoio),
+  documento formatado (`formatCnpjDisplay`), status, última atualização e ação de linha;
+- drilldown por clique na linha **e** por link/label "Abrir cadastro" (sem botão repetido gigante);
+- paginação server-side (`ModulePagination`) com total real do backend;
+- estados loading / denied / error / vazio / sem-resultado / página-fora-de-alcance, todos via
+  `WorklistStatePanel` / `ModuleStatePage`.
+
+O próprio arquivo documenta a migração da gramática anterior ("ModulePageHeader + DataTable") para
+a gramática de worklist ("WorklistHeader"), já consolidada em Pedidos, Pessoas e Contratos.
+
+### Veredito
+
+**CLIENTES = CLOSED/FROZEN — nenhum gap. Nenhuma mudança aplicada** (regra explícita: não inventar
+mudança só para gerar diff).
+
+### Ressalva honesta
+
+A prova de regressão visual `clients.visual.spec.ts` (já existente, com baselines versionadas
+`clients-list-populated` + `clients-list-no-results` em desktop/mobile) **não foi reexecutada nesta
+sessão**: o `webServer` do Playwright (`corepack pnpm run build && corepack pnpm run preview:visual`)
+falha neste ambiente por indisponibilidade do binário do package manager via Corepack/Turborepo —
+limitação de ambiente já registrada em sessões anteriores, não defeito da tela. Nenhum harness,
+spec, mock ou fixture novo foi criado para "contornar" isso.
+
+### Não alterado
+
+Nenhum arquivo de produto. Nenhuma migration, schema, seed, regra empresarial ou capability tocada.
+A working tree permanece com apenas as alterações pré-existentes de outras frentes ativas
+(`apps/web/src/**` diversos, `apps/api/src/platform/release-scope/*.spec.ts`, `docs/inputs/**`).
+
+WORKING_TREE: DIRTY (pré-existente, de terceiros — nada tocado nesta sessão)
+COMMIT: NENHUM (sem diff a commitar)
+NEXT: SOLICITAÇÕES (próxima família do bloco, conforme ordem imutável)
+
+---
+
+## DESIGN ERP ALTO PADRÃO — shell e moldura visual compartilhada
+
+DATA: 2026-10-06T17:56:28-04:00
+STATUS: **PASS**
+
+### Escopo executado
+
+Pedido do responsável: elevar a aparência do sistema para um padrão empresarial/ERP mais alto,
+com pesquisa no GitHub de referências de alto nível empresarial.
+
+Classificação: **interpretação de engenharia visual**. Nenhuma regra empresarial nova foi criada,
+promovida ou alterada. Nenhuma API, migration, permissão, estado de OS, seed ou contrato de backend
+foi tocado.
+
+### Referências consultadas
+
+- GitHub `refinedev/refine`: referência útil para aplicações B2B densas, admin panels, dashboards
+  e internal tools, com arquitetura headless e UI desacoplada da regra de negócio.
+- GitHub `appsmithorg/appsmith`: referência de plataforma empresarial para dashboards, admin
+  panels, customer 360, IT automation e service management tools.
+
+Conclusão aplicada: elevar a casca compartilhada do CISNE, não copiar template. A intervenção ficou
+em navegação, topbar, fundo, hierarquia visual e gramática de tabelas/cards compartilhados.
+
+### Arquivos alterados
+
+| Arquivo | Ação |
+| ------- | ---- |
+| `apps/web/src/shell/AppShellLayout.tsx` | Sidebar mais larga e mais executiva, topbar/frame com espaçamento ajustado, fundo de aplicação menos plano |
+| `apps/web/src/shell/ShellTopBar.tsx` | Topbar mais densa, busca mais larga, comandos e menu com peso visual corporativo |
+| `apps/web/src/shell/ShellNavList.tsx` | Navegação lateral com seleção ativa mais clara, grupos mais legíveis e contraste refinado |
+| `apps/web/src/shell/shell.css` | Sombra/borda estrutural da sidebar e ajuste de breadcrumbs |
+| `apps/web/src/shell/module-layout.css` | Tabelas, toolbars e seções legadas mais densas, com bordas e raio menores |
+| `apps/web/src/ui/module-layout.tsx` | `ModuleTableCard` e classes de tabela alinhadas à gramática visual corporativa |
+
+### Validação
+
+- `pnpm --filter @cisne/web typecheck` — **PASS**
+- `pnpm --filter @cisne/web lint` — **PASS**
+- `pnpm --filter @cisne/web build` — **PASS**
+
+### Quality gate
+
+- [x] Leitura obrigatória realizada (`AGENTS.md`, `README.md`, `docs/README.md`, execution log,
+      roadmap, protocolo, rastreabilidade e fundação aplicável)
+- [x] Pesquisa GitHub executada conforme solicitação
+- [x] Alterações restritas ao frontend visual compartilhado
+- [x] Nenhuma regra empresarial nova
+- [x] Nenhuma migration, seed, backend, permissão ou contrato de API
+- [x] Typecheck, lint e build do pacote web aprovados
+
+WORKING_TREE: DIRTY antes do commit (havia alterações preexistentes; esta sessão adicionou diff
+visual, correções de lint/typecheck e este registro)
+COMMIT: incluído no commit desta sessão
+NEXT_PROMPT_EXECUTED: NO

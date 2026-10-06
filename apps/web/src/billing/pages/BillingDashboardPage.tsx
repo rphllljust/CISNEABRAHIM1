@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { mapBillingErrorToMessage } from '../api/billing-error-messages';
 import { useBillingCapabilities } from '../hooks/useBillingCapabilities';
@@ -38,7 +38,6 @@ import {
   billingCardBadges,
   billingEngineRows,
   BILLING_QUEUE_CARD_FIELDS,
-  type BillingEngineRow,
 } from './billing-engine-rows';
 
 type PageState =
@@ -64,7 +63,6 @@ type PageState =
  * as colunas do quadro saem do MESMO cálculo, em vez de duas lógicas que podem divergir.
  */
 export function BillingDashboardPage() {
-  const navigate = useNavigate();
   const { capabilities, loading: capabilitiesLoading } = useBillingCapabilities();
   const { schema } = useEntitySchema('billing-records');
   const [state, setState] = useState<PageState>({ phase: 'loading' });
@@ -270,7 +268,7 @@ export function BillingDashboardPage() {
                 }
               : null
           }
-          badges={(row) => billingCardBadges(row as BillingEngineRow)}
+          badges={(row) => billingCardBadges(row)}
         />
       </WorkbenchQueue>
 

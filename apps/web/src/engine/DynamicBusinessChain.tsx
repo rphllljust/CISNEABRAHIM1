@@ -24,7 +24,7 @@ export type ChainNode = {
   /** Estado persistido, exibido cru quando a tela não traduz. */
   status?: string;
   /** Relação com o registro em foco: raiz ou derivado. */
-  relation?: 'ROOT' | 'RESULT' | 'ORIGIN' | string;
+  relation?: string;
   /** Resumo humano opcional. */
   summary?: string;
   /** Instante ISO do fato. */

@@ -35,7 +35,17 @@ function forecastFixture(overrides: Partial<CashForecast> = {}): CashForecast {
       net: '500.0000',
     },
     projectedCash: { amount: '1500.0000' },
-    lines: [{ kind: 'RECEIVABLE', amount: '800.0000', sourceKind: 'RECEIVABLE' }],
+    lines: [
+      {
+        kind: 'FORECAST',
+        source: 'RECEIVABLE_INSTALLMENT',
+        direction: 'INFLOW',
+        amount: '800.0000',
+        dueOn: '2026-10-15',
+        bucket: 'SCHEDULED',
+        originId: 'receivable-1',
+      },
+    ],
     ...overrides,
   };
 }

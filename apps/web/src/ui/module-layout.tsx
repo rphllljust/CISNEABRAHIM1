@@ -1,5 +1,7 @@
 import type { ReactNode, MouseEvent } from 'react';
 import { Link } from 'react-router-dom';
+import type { PageLayoutMode } from '../shell/page-layout';
+import { PAGE_FRAME_CLASS, useDeclarePageLayoutMode } from '../shell/page-layout';
 import { Button } from './Button';
 import { PageHeader } from './PageHeader';
 import { Pagination } from './Pagination';
@@ -10,9 +12,29 @@ export const filterControlClass =
 
 export const filterLabelClass = 'mb-1.5 block text-xs font-semibold text-gray-700';
 
-export function ModulePage({ children, className }: { children: ReactNode; className?: string }) {
+/**
+ * MOLDURA DA PAGINA — o `<main>` de toda superficie, com o modo de layout declarado por ela.
+ *
+ * Conforme a Pagina 9 do relatorio, a pagina passa a DECLARAR como quer ser enquadrada
+ * (`focused | standard | wide | workspace | fullBleed`) em vez de herdar um teto por efeito
+ * colateral de CSS. O shell le a declaracao e aplica a largura; as classes aqui espelham o
+ * mesmo teto para superficies renderizadas fora do shell.
+ *
+ * `id="main-content"` continua sendo o alvo do skip link do shell e o landmark `<main>`.
+ */
+export function ModulePage({
+  children,
+  className,
+  layout = 'standard',
+}: {
+  children: ReactNode;
+  className?: string;
+  /** Modo de layout da superficie. Ver `shell/page-layout.ts` para o teto de cada modo. */
+  layout?: PageLayoutMode;
+}) {
+  useDeclarePageLayoutMode(layout);
   return (
-    <main id="main-content" className={cn('w-full', className)}>
+    <main id="main-content" className={cn('w-full', PAGE_FRAME_CLASS[layout], className)}>
       {children}
     </main>
   );
@@ -44,7 +66,7 @@ export function ModuleTableCard({ children, className }: { children: ReactNode; 
   return (
     <div
       className={cn(
-        'mb-6 overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-gray-900/5',
+        'mb-6 overflow-x-auto rounded-md border border-slate-200 bg-white shadow-[0_1px_2px_rgb(15_23_42/0.04)]',
         className,
       )}
     >
@@ -264,11 +286,11 @@ export function ModulePagination({
 
 export const moduleTableClass = 'w-full divide-y divide-gray-200';
 
-export const moduleTableHeadClass = 'bg-gray-50/60';
+export const moduleTableHeadClass = 'bg-slate-50';
 
 export const moduleTableHeaderCellClass =
-  'px-6 py-3 text-left text-xs font-semibold tracking-wider text-gray-500 uppercase';
+  'px-4 py-2.5 text-left text-xs font-bold tracking-wide text-slate-600 uppercase';
 
-export const moduleTableRowClass = 'transition hover:bg-gray-50';
+export const moduleTableRowClass = 'transition hover:bg-[#f8fbfb]';
 
-export const moduleTableCellClass = 'px-6 py-3.5 text-sm text-gray-700 whitespace-nowrap';
+export const moduleTableCellClass = 'px-4 py-3 text-sm text-slate-700 whitespace-nowrap';

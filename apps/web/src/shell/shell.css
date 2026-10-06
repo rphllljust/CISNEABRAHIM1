@@ -23,8 +23,18 @@
 }
 
 .sidebar-scroll::-webkit-scrollbar-thumb {
-  background: #374151;
+  background: #334155;
   border-radius: 8px;
+}
+
+.shell__sidebar {
+  box-shadow:
+    inset -1px 0 0 rgb(255 255 255 / 4%),
+    16px 0 32px rgb(15 23 42 / 4%);
+}
+
+.shell-page-frame {
+  container-type: inline-size;
 }
 
 .shell-drawer-backdrop {
@@ -83,7 +93,7 @@ body.shell-drawer-open {
 }
 
 .shell-breadcrumbs {
-  margin-bottom: 1.25rem;
+  margin-bottom: 1rem;
 }
 
 .shell-loading {

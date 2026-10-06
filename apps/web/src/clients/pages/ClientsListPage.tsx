@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { ClientsApiError, listClients } from '../api/clients-api';
 import { mapClientErrorToMessage } from '../api/client-error-messages';
 import { ClientStatusBadge } from '../components/ClientStatusBadge';
@@ -69,7 +69,6 @@ import {
   worklistSelectClass,
   worklistTableCardClass,
   worklistTableClass,
-  rowPrimaryActionClass,
 } from '../../ui/enterprise-list';
 
 const PAGE_SIZE = 20;
@@ -107,7 +106,6 @@ function sortIndicator(filters: ClientListParams, column: SortColumn): string {
 
 export function ClientsListPage() {
   const { capabilities } = useClientCapabilities();
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
   /**
@@ -568,14 +566,6 @@ export function ClientsListPage() {
                     </span>
                   </button>
                 </th>
-                {/*
-                  ACAO DA LINHA — mesma gramatica de Pedidos (GOLD 1), Pessoas (GOLD 3) e
-                  Contratos. A carteira so abria o Cliente pelo clique na linha; a acao
-                  explicita o que o clique faz e da um alvo de teclado com rotulo proprio.
-                */}
-                <th scope="col" className={cn(worklistHeadCellClass, 'text-right')}>
-                  <span className="sr-only">Ações</span>
-                </th>
               </tr>
             </thead>
             <tbody>
@@ -585,19 +575,21 @@ export function ClientsListPage() {
                   <tr
                     key={client.id}
                     className={worklistRowClass}
-                    onClick={
-                      href
-                        ? (event) => {
-                            // Cliques em elementos interativos internos seguem seu próprio
-                            // comportamento; o resto da linha abre o Cliente. O link do nome
-                            // permanece como caminho de teclado e de tecnologia assistiva.
-                            if ((event.target as HTMLElement).closest('a, button, select, input')) {
-                              return;
-                            }
-                            void navigate(href);
-                          }
-                        : undefined
-                    }
+                    /*
+                     * CLIQUE NA LINHA abre o CONTEXTO do Cliente no painel lateral — o operador
+                     * confere identidade, documento e situação sem sair da carteira. Antes isto
+                     * era um botão "Contexto" repetido em TODA linha: uma coluna inteira da grade
+                     * gasta com a mesma ação, e a linha em si não respondia.
+                     *
+                     * O nome continua sendo um link real: teclado, nova aba e leitor de tela
+                     * seguem levando ao cadastro completo (drillback).
+                     */
+                    onClick={(event) => {
+                      if ((event.target as HTMLElement).closest('a, button, select, input')) {
+                        return;
+                      }
+                      preview.openPreview(client);
+                    }}
                   >
                     <td className={worklistCellClass}>
                       <div className="flex flex-col">
@@ -621,18 +613,6 @@ export function ClientsListPage() {
                     </td>
                     <td className={cn(worklistCellClass, 'whitespace-nowrap text-gray-600')}>
                       {formatClientListDateTime(client.updatedAt)}
-                    </td>
-                    <td className={cn(worklistCellClass, 'text-right whitespace-nowrap')}>
-                      <button
-                        type="button"
-                        className={rowPrimaryActionClass}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          preview.openPreview(client);
-                        }}
-                      >
-                        Contexto
-                      </button>
                     </td>
                   </tr>
                 );

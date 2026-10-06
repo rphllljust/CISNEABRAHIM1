@@ -18,6 +18,11 @@ import {
 import { HumanLookupField } from '../../financial-ui/HumanLookupField';
 import { searchClientOptions } from '../../financial-ui/client-lookup';
 import {
+  DynamicSavedViewsBar,
+  useSavedViews,
+} from '../../engine';
+import { useAuth } from '../../auth/context/AuthProvider';
+import {
   EnterpriseMetric,
   RowActionCell,
   RowActionMenu,
@@ -120,6 +125,15 @@ type ListState =
 
 export function PurchaseOrdersListPage() {
   const { capabilities } = usePurchaseOrderCapabilities();
+  /*
+   * VISÕES SALVAS + PALETA DE COMANDOS — capacidades da engine que a tela ainda nao usava.
+   *
+   * O filtro desta worklist e "cliente + unidade": e exatamente esse recorte que o operador
+   * reconstroi todo dia. Salva-lo e o que a engine ja oferece (`useSavedViews`), persistido por
+   * identidade e DECLARADO como local enquanto nao existe endpoint de visoes salvas.
+  */
+  const { identityId } = useAuth();
+  const savedViews = useSavedViews(identityId ?? 'anonymous', 'purchase-orders');
   // RELATION CONTRACT: o recorte vindo da URL (clique em "Pedidos de compra N" na object page
   // do cliente) precisa chegar a consulta autorizada. Sem isto o numero da relacao abriria a
   // lista completa, afirmando um recorte que nao existe.
@@ -321,6 +335,22 @@ export function PurchaseOrdersListPage() {
           />
         ) : null}
       </WorklistFilterBar>
+
+      {/*
+        VISÕES SALVAS — o recorte (cliente + unidade) que o operador remonta todo dia.
+        `persistedLocally` e declarado pela engine: sem endpoint de visoes salvas, o
+        armazenamento e local por identidade, e a barra diz isso em vez de fingir backend.
+      */}
+      <DynamicSavedViewsBar
+        views={savedViews.views}
+        persistedLocally={savedViews.persistedLocally}
+        onSave={(name) => savedViews.save(name, { clientFilter, unitFilter }, 'list')}
+        onDelete={savedViews.remove}
+        onApply={(view) => {
+          setClientFilter(view.filters['clientFilter'] ?? '');
+          setUnitFilter(view.filters['unitFilter'] ?? '');
+        }}
+      />
 
       {items.length === 0 ? (
         <WorklistStatePanel

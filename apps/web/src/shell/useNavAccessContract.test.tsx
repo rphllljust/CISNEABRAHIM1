@@ -111,7 +111,9 @@ describe('mapa de acesso persistido x revisao do contrato', () => {
     );
 
     // Obedeceu ao MAPA, e nao ao servidor: a sonda de ativos nao foi disparada.
-    const calls = fetchMock.mock.calls.map(([input]) => String(input));
+    const calls = fetchMock.mock.calls.map(([input]) =>
+      typeof input === 'string' ? input : input instanceof URL ? input.href : input.url,
+    );
     expect(calls.some((c) => c.includes('/api/v1/resources/physical-assets'))).toBe(false);
   });
 
@@ -134,7 +136,9 @@ describe('mapa de acesso persistido x revisao do contrato', () => {
       { timeout: 10000 },
     );
 
-    const calls = fetchMock.mock.calls.map(([input]) => String(input));
+    const calls = fetchMock.mock.calls.map(([input]) =>
+      typeof input === 'string' ? input : input instanceof URL ? input.href : input.url,
+    );
     // Consultou a LISTA — a mesma leitura que a pagina faz...
     expect(calls.some((c) => c.includes('/api/v1/finance/expenses?'))).toBe(true);
     // ...e nunca o detalhe com UUID sintetico, que era a causa do defeito.

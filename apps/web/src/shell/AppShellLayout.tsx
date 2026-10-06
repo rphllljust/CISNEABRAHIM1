@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
+import { cn } from '../ui/utils/cn';
 import { useAuth } from '../auth/context/AuthProvider';
 import { useAlertBadge } from '../alerts/hooks/useAlerts';
 import { CommandPalette, useCommandPaletteShortcut } from '../operator/commands/CommandPalette';
 import { isReleaseModuleEnabled } from '../release-scope/feature-flags';
 import { ReleaseScopeGate } from '../release-scope/ReleaseScopeGate';
+import { PAGE_FRAME_CLASS, usePageLayoutMode } from './page-layout';
 import { ShellBreadcrumbs } from './ShellBreadcrumbs';
 import { ShellBrandMark } from './ShellBrandMark';
 import { ShellErrorBoundary } from './ShellErrorBoundary';
@@ -21,19 +23,24 @@ import './module-layout.css';
 export function AppShellLayout() {
   const location = useLocation();
   const hideBreadcrumbs = location.pathname === '/app';
-  const isDashboard = location.pathname === '/app';
   /**
-   * LARGURA DA SUPERFICIE DE TRABALHO.
+   * LARGURA DA SUPERFICIE DE TRABALHO — page layout modes (Pagina 9 do relatorio).
    *
    * Antes, SO o painel (`/app`) escapava do `max-w-6xl`: toda outra rota — worklists densas de
    * ERP, relatorios, fiscal, contabil, fechamento — era espremida em 1152px mesmo em monitor de
    * 1440px+. O efeito era o operador ver poucas colunas, poucas linhas na primeira dobra e muito
    * vazio nas laterais: a leitura de "sistema antigo" que esta wave existe para eliminar.
    *
-   * Aqui a moldura passa a ser FLUIDA e o `max-width` vira responsabilidade da propria superficie
-   * (o dashboard mantem o proprio teto; formularios de cadastro podem declarar o seu). Sem isso,
-   * nenhuma migracao de primitivo seria VISIVEL: a grade continuaria estrangulada pelo shell.
+   * O teto agora NAO mora aqui nem em seletor `:has()` do CSS: a PAGINA declara o proprio modo
+   * (`focused | standard | wide | workspace | fullBleed`) e o shell aplica. `workspace` e
+   * `fullBleed` nao tem teto — e o modo das superficies que o relatorio nomeia (Finance, Fiscal,
+   * Execution, Reconciliation, Journal), onde a grade densa E o produto.
+   *
+   * O valor e relido a cada render: o filho registra o modo ao renderizar, e o React renderiza o
+   * filho antes de finalizar o commit deste frame, de modo que a largura ja sai correta no
+   * primeiro paint — sem frame intermediario na largura da tela anterior.
    */
+  const layoutMode = usePageLayoutMode();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const isDesktop = useMediaQuery('(min-width: 64rem)');
   const alertsEnabled = isReleaseModuleEnabled('alerts');
@@ -69,7 +76,7 @@ export function AppShellLayout() {
   const identityHint = isTechnicalIdentity(identityId) ? null : formatIdentityLabel(identityId);
 
   return (
-    <div className="cisne-app flex min-h-dvh bg-gray-50 font-sans text-gray-900 antialiased">
+    <div className="cisne-app flex min-h-dvh bg-[#f4f6f8] font-sans text-gray-900 antialiased">
       <a
         className="shell__skip-link bg-brand-600 text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
         href="#main-content"
@@ -78,37 +85,39 @@ export function AppShellLayout() {
       </a>
 
       <aside
-        className="shell__sidebar fixed inset-y-0 z-30 hidden w-64 flex-col border-r border-white/5 bg-gray-950 lg:flex"
+        className="shell__sidebar fixed inset-y-0 z-30 hidden w-[17rem] flex-col border-r border-[#1c2a36] bg-[#07111d] lg:flex"
         aria-label="Barra lateral"
       >
-        <div className="flex h-16 shrink-0 items-center gap-3 border-b border-white/5 px-6">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500">
+        <div className="flex h-[4.5rem] shrink-0 items-center gap-3 border-b border-white/10 px-5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-brand-500 shadow-[0_0_0_1px_rgb(255_255_255/0.12)]">
             <ShellBrandMark className="h-4 w-4 text-white" />
           </div>
           <div className="leading-tight">
             <p className="text-sm font-semibold tracking-tight text-white">Cisne Rondônia</p>
-            <p className="text-[11px] text-gray-500">Gestão operacional</p>
+            <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
+              ERP operacional
+            </p>
           </div>
         </div>
 
         <ShellNavList alertCount={activeCount} alertsLoading={alertsLoading} theme="dark" />
 
-        <div className="border-t border-white/5 p-4">
-          <div className="flex items-center gap-3 rounded-md px-2 py-1.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-xs font-semibold text-white">
+        <div className="border-t border-white/10 p-4">
+          <div className="flex items-center gap-3 rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-brand-600 text-xs font-semibold text-white">
               CN
             </div>
             <div className="min-w-0 leading-tight">
-              <p className="text-xs font-medium text-white">Conta ativa</p>
+              <p className="text-xs font-semibold text-white">Conta ativa</p>
               {identityHint ? (
-                <p className="truncate text-[11px] text-gray-500">{identityHint}</p>
+                <p className="truncate text-[11px] text-slate-500">{identityHint}</p>
               ) : null}
             </div>
           </div>
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col lg:pl-64">
+      <div className="flex min-w-0 flex-1 flex-col lg:pl-[17rem]">
         <ShellTopBar
           onMenuToggle={toggleMobileNav}
           menuExpanded={mobileNavOpen && !isDesktop}
@@ -117,13 +126,13 @@ export function AppShellLayout() {
             setPaletteOpen(true);
           }}
         />
-        <div className="flex-1 px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex-1 px-4 py-6 sm:px-6 lg:px-8 xl:px-10">
           <div
-            className={
-              isDashboard
-                ? 'shell-page-frame dashboard-shell-frame mx-auto w-full min-w-0'
-                : 'shell-page-frame mx-auto w-full min-w-0'
-            }
+            className={cn(
+              'shell-page-frame mx-auto w-full min-w-0',
+              PAGE_FRAME_CLASS[layoutMode],
+              layoutMode === 'fullBleed' && 'px-0',
+            )}
           >
             {!hideBreadcrumbs ? <ShellBreadcrumbs /> : null}
             <ReleaseScopeGate>

@@ -715,6 +715,15 @@ Classificacao: **interpretacao de engenharia / autorizacao**. Nenhuma regra empr
 | Pedido autorizado de auditoria de permissoes ("EMPREGADO: somente ASSIGNED"; "FINANCEIRO: recebiveis/pagamentos"); perfis autoritativos `apps/api/src/uat/uat-profiles.ts` (`executor` 8 acoes, `finance` 7 acoes) | `packages/database/src/seed/operational-profiles.ts` definia `EMPREGADO_GRANTS = CONTROLE_GRANTS` e entregava `CONTROLE_GRANTS` ao controlador financeiro; banco dev materializou **263 grants GLOBAL identicos** para dono, controlador financeiro e empregado (72 financeiro/contabil/fiscal) | nenhuma BR nova; perfis de desenvolvimento alinhados ao vocabulario de acoes existente | `EMPREGADO_GRANTS` reduzido a 7 acoes `ASSIGNED` de OS/execucao + 4 `GLOBAL` de documento/ativo; novo `CONTROLE_FINANCEIRO_GRANTS` (dominio financeiro + leitura de faturamento); `ensureWorkforceMember` passa a relinkar sempre a identidade atual do login; `OPERATIONAL_PROFILE_GRANTS` exportado | `operational-profiles.spec.ts` 4/4 (novo); database 27/27; lint/typecheck PASS; verificacao no banco: FINANCEIRO 39 grants com 0 fora do escopo, EMPREGADO 17 grants (10 ASSIGNED) com 0 sensivel; 6 OS atribuidas preservadas | PERMISSOES/SoD: PASS |
 | Certificacao ao vivo do servico de metricas de negocio | `GET /api/v1/observability/metrics` respondia 500 por literal de enum invalido (`bil.billing_record_status = 'AWAITING_PAYMENT'`) | nenhuma BR nova | `br.status = 'PREPARED'`; regressao de integracao nova | `business-metrics-collector.integration.spec.ts` 3/3; HML smoke 11/11 (200 em metrics) | OBSERVABILITY METRICS: PASS |
 
+## DESIGN ERP ALTO PADRÃO — 2026-10-06
+
+Classificacao: **interpretacao de engenharia visual**. Nenhuma regra empresarial nova
+`CONFIRMED`; nenhuma permissao, API, migration, seed, estado ou contrato de backend alterado.
+
+| SOURCE | EVIDENCE | BUSINESS RULE | IMPLEMENTATION | TEST | ACCEPTANCE |
+| ------ | -------- | ------------- | -------------- | ---- | ---------- |
+| Pedido do responsavel para elevar o design do sistema a um ERP de alto padrao; pesquisa GitHub solicitada | Referencias consultadas: `refinedev/refine` (B2B apps, admin panels, dashboards, internal tools) e `appsmithorg/appsmith` (dashboards, admin panels, customer 360, service management tools) | nenhuma BR nova | Shell/topbar/sidebar/tabelas/cards compartilhados ajustados em `apps/web/src/shell/*` e `apps/web/src/ui/module-layout.tsx`; correcoes mecanicas de lint/typecheck em superficies web existentes; escopo visual e qualidade de frontend apenas | `pnpm --filter @cisne/web typecheck` PASS; `pnpm --filter @cisne/web lint` PASS; `pnpm --filter @cisne/web build` PASS | DESIGN SHELL ERP: PASS; aguardando avaliacao visual humana |
+
 ## INTEGRIDADE TRANSACIONAL DO SEED E SIMETRIA DO BUILDER DE TESTE — 2026-09-25
 
 Classificacao: **interpretacao de engenharia / persistencia e isolamento de teste**. Nenhuma regra empresarial nova `CONFIRMED`; nenhum enum, tabela ou migration alterado; nenhuma superficie publica do pacote alterada. Producao permanece `NO-GO`.

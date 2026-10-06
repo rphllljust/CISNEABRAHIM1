@@ -35,13 +35,13 @@ export function ShellTopBar({
 
   return (
     <header
-      className="sticky top-0 z-20 flex h-16 items-center gap-4 border-b border-gray-200 bg-white/90 px-4 backdrop-blur sm:px-6 lg:px-8"
+      className="sticky top-0 z-20 flex h-[4.5rem] items-center gap-4 border-b border-slate-200 bg-white/95 px-4 shadow-[0_1px_0_rgb(15_23_42/0.03)] backdrop-blur sm:px-6 lg:px-8 xl:px-10"
       role="banner"
     >
       <button
         id={menuButtonId}
         type="button"
-        className="inline-flex items-center gap-2 rounded-md border-0 bg-transparent p-2 font-inherit text-gray-600 hover:bg-gray-100 lg:hidden"
+        className="inline-flex items-center gap-2 rounded-md border-0 bg-transparent p-2 font-inherit text-slate-600 hover:bg-slate-100 lg:hidden"
         aria-expanded={menuExpanded}
         aria-controls="shell-mobile-drawer"
         onClick={onMenuToggle}
@@ -50,14 +50,14 @@ export function ShellTopBar({
         <span className="sr-only">{menuExpanded ? 'Fechar menu' : 'Abrir menu'}</span>
       </button>
 
-      <div className="max-w-md min-w-0 flex-1">
+      <div className="max-w-xl min-w-0 flex-1">
         <GlobalSearchBar compact />
       </div>
 
-      <div className="ml-auto flex items-center gap-3">
+      <div className="ml-auto flex items-center gap-2.5">
         {environmentLabel ? (
           <span
-            className="hidden items-center rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20 sm:inline-flex"
+            className="hidden items-center rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20 sm:inline-flex"
             aria-label={`Ambiente ${environmentLabel}`}
           >
             {environmentLabel}
@@ -76,31 +76,31 @@ export function ShellTopBar({
         {onOpenCommandPalette ? (
           <button
             type="button"
-            className="hidden items-center gap-2 rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 sm:inline-flex"
+            className="hidden items-center gap-2 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 sm:inline-flex"
             onClick={onOpenCommandPalette}
             aria-label="Abrir central de comandos (Ctrl+K)"
           >
             <span>Navegar, ver, criar…</span>
-            <kbd className="rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 font-mono text-[10px] text-gray-500">
+            <kbd className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] text-slate-500">
               Ctrl K
             </kbd>
           </button>
         ) : null}
 
-        <div className="hidden h-6 w-px bg-gray-200 sm:block" aria-hidden />
+        <div className="hidden h-6 w-px bg-slate-200 sm:block" aria-hidden />
 
         <Dropdown
           label="Menu do usuário"
           trigger={
-            <span className="flex cursor-pointer items-center gap-2.5 rounded-full p-1 pr-2 transition hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">
+            <span className="flex cursor-pointer items-center gap-2.5 rounded-md p-1 pr-2 transition hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">
               <span
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-xs font-semibold text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-md bg-brand-700 text-xs font-semibold text-white"
                 aria-hidden="true"
               >
                 CN
               </span>
-              <span className="hidden text-sm font-medium text-gray-700 sm:block">{userLabel}</span>
-              <ChevronDown className="hidden size-4 text-gray-400 sm:block" aria-hidden />
+              <span className="hidden text-sm font-semibold text-slate-700 sm:block">{userLabel}</span>
+              <ChevronDown className="hidden size-4 text-slate-400 sm:block" aria-hidden />
             </span>
           }
           items={[

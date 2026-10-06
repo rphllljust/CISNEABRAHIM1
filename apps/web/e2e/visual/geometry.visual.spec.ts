@@ -155,7 +155,6 @@ test.describe('evidencia visual medida por dominio', () => {
         ).toBeLessThanOrEqual(64);
       }
 
-      // eslint-disable-next-line no-console
       console.log(
         `[${route.label}] linhas=${m.rowCount} alturaLinha=${m.firstRowHeight}px filtros=${
           m.filtersHeight ?? 'n/a'

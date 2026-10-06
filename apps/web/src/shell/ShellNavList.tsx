@@ -14,16 +14,16 @@ type ShellNavListProps = {
 function buildNavLinkClass(isActive: boolean, theme: 'dark' | 'light') {
   if (theme === 'dark') {
     return cn(
-      'group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium no-underline transition',
+      'group flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium no-underline transition',
       'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500',
       isActive
-        ? 'bg-gray-800/80 text-white'
-        : 'text-gray-400 hover:bg-gray-800/60 hover:text-white',
+        ? 'bg-white/[0.08] text-white shadow-[inset_3px_0_0_#3f9c94]'
+        : 'text-slate-400 hover:bg-white/[0.05] hover:text-white',
     );
   }
 
   return cn(
-    'group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium no-underline transition',
+    'group flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium no-underline transition',
     'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500',
     isActive ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
   );
@@ -33,7 +33,7 @@ function iconClass(isActive: boolean, theme: 'dark' | 'light') {
   if (theme === 'dark') {
     return cn(
       'h-[18px] w-[18px] shrink-0',
-      isActive ? 'text-brand-400' : 'text-gray-500 group-hover:text-gray-300',
+      isActive ? 'text-brand-300' : 'text-slate-500 group-hover:text-slate-300',
     );
   }
   return cn('h-[18px] w-[18px] shrink-0', isActive ? 'text-brand-600' : 'text-gray-400');
@@ -50,8 +50,8 @@ export function ShellNavList({
   return (
     <nav
       className={cn(
-        'sidebar-scroll flex-1 space-y-6 overflow-y-auto px-3 py-5',
-        theme === 'dark' ? 'bg-gray-950' : 'bg-white',
+        'sidebar-scroll flex-1 space-y-7 overflow-y-auto px-3 py-5',
+        theme === 'dark' ? 'bg-[#07111d]' : 'bg-white',
       )}
       aria-label="Navegação principal"
     >
@@ -70,13 +70,13 @@ export function ShellNavList({
           <section key={group.id} aria-label={group.label}>
             <p
               className={cn(
-                'mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider',
-                theme === 'dark' ? 'text-gray-500' : 'text-gray-400',
+                'mb-2.5 px-3 text-[11px] font-semibold uppercase tracking-[0.16em]',
+                theme === 'dark' ? 'text-slate-500' : 'text-slate-400',
               )}
             >
               {group.label}
             </p>
-            <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
+            <ul className="m-0 flex list-none flex-col gap-1 p-0">
               {visibleItems.map((item) => {
                 const Icon = resolveNavIcon(item.id);
                 return (

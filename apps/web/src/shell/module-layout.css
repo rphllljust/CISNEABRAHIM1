@@ -1,35 +1,26 @@
 /* Legacy module pages inside the modern shell — visual parity with dashboard mockup */
 
 @layer components {
-  .dashboard-shell-frame {
-    max-width: 90rem;
-  }
-
   /*
-    LARGURA DA SUPERFICIE — o teto passa a ser da PAGINA, nao do shell.
+    LARGURA DA SUPERFICIE — agora decidida pela PAGINA (page layout modes, Pagina 9 do relatorio).
 
-    O shell aplicava `max-w-6xl` (1152px) a TODA rota que nao fosse o painel. Em monitor de
-    1440px+ isso estrangulava as worklists densas, os relatorios e o fiscal, deixando sobras
-    laterais e poucas colunas visiveis — a leitura de "sistema antigo". A moldura agora e fluida
-    (`AppShellLayout`) e cada arquetipo declara o proprio teto aqui:
+    O teto morava AQUI, em seletor `:has(> .alguma-classe)`: a pagina nao declarava nada e a
+    largura real virava efeito colateral de qual classe raiz a tela por acaso usava. Uma mesa de
+    trabalho densa que caisse no ramo generico ficava em 60rem — o mesmo limite de um formulario
+    de cadastro — e perdia colunas na primeira dobra.
 
-    - worklist / relatorio / mesa de trabalho: faixa larga, para a grade densa caber;
-    - cadastro (formulario): teto estreito, porque campo de formulario longo e ilegivel;
-    - detalhe de objeto: intermediario, entre a grade e o formulario.
+    Agora `ModulePage` recebe `layout` (`focused | standard | wide | workspace | fullBleed`),
+    registra o modo, e o shell aplica o teto correspondente (`shell/page-layout.ts`). Nenhum
+    seletor aqui controla mais largura de pagina: `.shell-page-frame` fica apenas como marcador
+    estrutural.
+
+    Estas regras sao LEGADO REMOVIDO:
+      .shell-page-frame:has(> .shell-page:not(...))  -> 60rem
+      .shell-page-frame:has(> .clients-page/.catalog-page) -> 72rem
+      .dashboard-shell-frame                          -> 90rem
   */
   .shell-page-frame {
-    max-width: 90rem;
-  }
-
-  /* Cadastro: formulario nao deve esticar por 1800px. */
-  .shell-page-frame:has(> .shell-page:not(.clients-page):not(.requests-page):not(.catalog-page)) {
-    max-width: 60rem;
-  }
-
-  /* Detalhe de objeto: leitura de fatos + secoes compactas. */
-  .shell-page-frame:has(> .clients-page),
-  .shell-page-frame:has(> .catalog-page) {
-    max-width: 72rem;
+    max-width: none;
   }
 
   /*
@@ -131,13 +122,14 @@
   .cisne-app .assets-toolbar {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-    gap: 1.25rem;
-    margin-bottom: 1.5rem;
-    border-radius: 0.75rem;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border-default);
     background: #fff;
-    padding: 1.5rem;
-    box-shadow: 0 1px 2px rgb(17 24 39 / 5%);
-    outline: 1px solid rgb(17 24 39 / 5%);
+    padding: 0.75rem;
+    box-shadow: none;
+    outline: none;
   }
 
   .cisne-app .form-field label {
@@ -200,10 +192,10 @@
     border-collapse: separate;
     border-spacing: 0;
     overflow: hidden;
-    border-radius: 0.75rem;
+    border-radius: var(--radius-md);
     background: #fff;
-    box-shadow: 0 1px 2px rgb(17 24 39 / 5%);
-    outline: 1px solid rgb(17 24 39 / 5%);
+    box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
+    outline: 1px solid rgb(15 23 42 / 8%);
   }
 
   .cisne-app .clients-table-wrap,
@@ -211,10 +203,10 @@
   .cisne-app .assets-table-wrap {
     margin-bottom: 1.5rem;
     overflow: hidden;
-    border-radius: 0.75rem;
+    border-radius: var(--radius-md);
     background: #fff;
-    box-shadow: 0 1px 2px rgb(17 24 39 / 5%);
-    outline: 1px solid rgb(17 24 39 / 5%);
+    box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
+    outline: 1px solid rgb(15 23 42 / 8%);
   }
 
   .cisne-app .clients-table-wrap .clients-table,
@@ -232,7 +224,7 @@
   .cisne-app table.billing-table thead,
   .cisne-app table.doc-table thead,
   .cisne-app table.reports-table thead {
-    background: rgb(249 250 251 / 60%);
+    background: #f8fafc;
   }
 
   .cisne-app table.clients-table th,
@@ -242,14 +234,14 @@
   .cisne-app table.billing-table th,
   .cisne-app table.doc-table th,
   .cisne-app table.reports-table th {
-    padding: 0.75rem 1.5rem;
-    border-bottom: 1px solid #e5e7eb;
+    padding: 0.7rem 1rem;
+    border-bottom: 1px solid #dbe3ea;
     text-align: left;
     font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.05em;
+    font-weight: 700;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: #6b7280;
+    color: #475569;
   }
 
   .cisne-app table.clients-table td,
@@ -262,8 +254,8 @@
   .cisne-app table.clients-table tbody th,
   .cisne-app table.catalog-table tbody th,
   .cisne-app table.requests-table tbody th {
-    padding: 0.875rem 1.5rem;
-    border-bottom: 1px solid #f3f4f6;
+    padding: 0.78rem 1rem;
+    border-bottom: 1px solid #edf1f5;
     vertical-align: top;
     font-size: 0.875rem;
     color: #374151;
@@ -276,7 +268,7 @@
   .cisne-app table.billing-table tbody tr:hover,
   .cisne-app table.doc-table tbody tr:hover,
   .cisne-app table.reports-table tbody tr:hover {
-    background: #f9fafb;
+    background: #f8fbfb;
   }
 
   .cisne-app table.clients-table a,
@@ -353,12 +345,12 @@
   .cisne-app .billing-summary,
   .cisne-app .doc-panel {
     margin-bottom: 1.5rem;
-    border-radius: 0.75rem;
-    border: 0;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border-default);
     background: #fff;
-    padding: 1.5rem;
-    box-shadow: 0 1px 2px rgb(17 24 39 / 5%);
-    outline: 1px solid rgb(17 24 39 / 5%);
+    padding: 1rem;
+    box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
+    outline: none;
   }
 
   .cisne-app .client-status,

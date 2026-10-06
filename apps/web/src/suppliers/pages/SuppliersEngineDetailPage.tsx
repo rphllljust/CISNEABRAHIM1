@@ -70,7 +70,7 @@ const STATUS_TONES: Record<string, ObjectHeaderStatus['tone']> = {
   ACTIVE: 'operational',
   INACTIVE: 'warning',
   SUSPENDED: 'warning',
-  ARCHIVED: 'critical',
+  ARCHIVED: 'error',
 };
 
 /**

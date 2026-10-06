@@ -117,7 +117,12 @@ export function ViewLabPage() {
    * mesmo caminho das telas reais); aqui só se garante o `id` que `DynamicListRow` exige.
    */
   const engineRows = useMemo(() => {
-    return rows.map((item, index) => ({ ...item, id: String(item['id'] ?? index) }));
+    return rows.map((item, index) => {
+      const rawId = item['id'];
+      const id =
+        typeof rawId === 'string' || typeof rawId === 'number' ? String(rawId) : String(index);
+      return { ...item, id };
+    });
   }, [rows]);
 
   if (status === 'loading') {
