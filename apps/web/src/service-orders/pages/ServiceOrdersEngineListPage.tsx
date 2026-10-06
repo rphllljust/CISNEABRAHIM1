@@ -8,6 +8,7 @@ import {
   ServiceOrdersApiError,
 } from '../api/service-orders-api';
 import { mapServiceOrdersErrorToMessage } from '../api/service-orders-error-messages';
+import type { ServiceOrderStatus } from '../types/service-order.types';
 import {
   CommandPalette,
   DynamicBulkActions,
@@ -36,6 +37,15 @@ import {
 } from '../../engine';
 import { useAuth } from '../../auth/context/AuthProvider';
 import { entityLabel, useLanguage } from '../../i18n';
+import {
+  WorklistClearFilters,
+  WorklistField,
+  WorklistFilterBar,
+  WorklistFooter,
+  WorklistStatePanel,
+  worklistSelectClass,
+} from '../../ui/enterprise-list';
+import { ModulePagination } from '../../ui/module-layout';
 import { serviceOrderEngineRows, type ServiceOrderEngineRow } from './service-order-engine-rows';
 
 /**
@@ -57,6 +67,14 @@ import { serviceOrderEngineRows, type ServiceOrderEngineRow } from './service-or
  * exatamente a cópia local que obrigava a editar cada tela quando uma capacidade nova surgia.
  */
 const SUPPORTED_VIEW_TYPES: readonly string[] = RENDERABLE_VIEW_TYPES;
+
+/**
+ * Tamanho da página.
+ *
+ * A tela pedia 50 linhas e parava ali, sem paginação: acima de 50 ordens a carteira era
+ * truncada em silêncio. Com paginação explícita, o operador sabe onde está e alcança o resto.
+ */
+const PAGE_SIZE = 20;
 
 const DEFAULT_DESTINATIONS = [
   { id: 'nav-suppliers', label: 'Fornecedores', path: '/app/suppliers', group: 'Navegar' },
@@ -89,6 +107,18 @@ export function ServiceOrdersEngineListPage() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkMessage, setBulkMessage] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  /**
+   * RECORTE SERVER-SIDE — busca e situação.
+   *
+   * O endpoint aceita `q` e `status` desde sempre; a tela carregava 50 linhas fixas e filtrava
+   * `status`/`unit_id`/`origin` NO CLIENTE sobre essa página. Numa carteira maior que 50, a OS
+   * procurada podia simplesmente não estar entre as carregadas, e a tela dizia "nenhum
+   * resultado" para um registro que existe. Agora os dois recortes que o contrato suporta vão ao
+   * SERVIDOR, e a paginação deixa de truncar silenciosamente a carteira.
+   */
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+  const [pageOffset, setPageOffset] = useState(0);
   /** Estado do formulário de criação — a engine fornece, a TELA decide como submeter. */
   const [createOpen, setCreateOpen] = useState(false);
   const [createBusy, setCreateBusy] = useState(false);
@@ -97,6 +127,16 @@ export function ServiceOrdersEngineListPage() {
   const [contextRow, setContextRow] = useState<ServiceOrderEngineRow | null>(null);
 
   const activeViewType = searchParams.get('view') ?? 'list';
+  const statusFilter = (searchParams.get('status') ?? '') as ServiceOrderStatus | '';
+
+  // A busca digitada espera antes de virar requisição: sem o atraso, cada tecla é uma ida à rede.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSearch(searchInput.trim());
+      setPageOffset(0);
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
 
   const filters = useMemo(() => {
     const values: Record<string, string> = {};
@@ -112,13 +152,29 @@ export function ServiceOrdersEngineListPage() {
 
   const loadRows = useCallback(
     async (signal?: AbortSignal) => {
-      setRowsStatus('loading');
+      // Recarga preserva as linhas anteriores: trocar a grade por "Carregando…" a cada tecla
+      // desmontaria a própria barra de busca durante a digitação.
+      setRowsStatus((previous) => (previous === 'ready' ? previous : 'loading'));
       setErrorMessage(null);
       try {
-        const response = await listServiceOrders({ limit: 50, offset: 0 }, signal);
+        const response = await listServiceOrders(
+          {
+            limit: PAGE_SIZE,
+            offset: pageOffset,
+            status: statusFilter || undefined,
+            q: search || undefined,
+          },
+          signal,
+        );
+        if (signal?.aborted) {
+          return;
+        }
         setRows(serviceOrderEngineRows(response.items));
         setRowsStatus('ready');
       } catch (error) {
+        if (signal?.aborted) {
+          return;
+        }
         if (error instanceof ServiceOrdersApiError && error.kind === 'denied') {
           setRowsStatus('denied');
           return;
@@ -131,7 +187,7 @@ export function ServiceOrdersEngineListPage() {
         setRowsStatus('error');
       }
     },
-    [],
+    [pageOffset, search, statusFilter],
   );
 
   useEffect(() => {
@@ -141,26 +197,19 @@ export function ServiceOrdersEngineListPage() {
   }, [loadRows]);
 
   /**
-   * Filtragem aplicada NO CLIENTE sobre a página carregada.
+   * As linhas carregadas SÃO o resultado — não há recorte no cliente.
    *
-   * O endpoint de listagem de OS não aceita os campos que o metadado declara como filtráveis
-   * (`status`, `unit_id`, `origin`) — ele aceita `filter`/`q`/`from`/`to`. Aplicar no cliente
-   * mantém o filtro HONESTO: filtra o que está na tela, sem inventar parâmetro que o backend
-   * ignoraria silenciosamente. GAP_DE_CONTRATO declarado.
+   * O bloco anterior filtrava `status`/`unit_id`/`origin` sobre as 50 linhas da página e
+   * declarava GAP_DE_CONTRATO. O gap era real para esses campos, mas `status` e `q` o endpoint
+   * aceitava desde sempre: o que faltava era a tela mandar. O que o contrato NÃO suporta
+   * continua sem aparecer como filtro — a barra lê `in_filter` do metadado e a busca cobre o
+   * que `q` resolve no servidor.
    */
-  const visibleRows = useMemo(() => {
-    const active = Object.entries(filters).filter(([, value]) => value.trim() !== '');
-    if (active.length === 0) {
-      return rows;
-    }
-    return rows.filter((row) =>
-      active.every(([field, value]) =>
-        toDisplayText(row[field])
-          .toLowerCase()
-          .includes(value.trim().toLowerCase()),
-      ),
-    );
-  }, [rows, filters]);
+  const visibleRows = rows;
+
+  const items = rows;
+  const hasMore = items.length === PAGE_SIZE;
+  const pageNumber = Math.floor(pageOffset / PAGE_SIZE) + 1;
 
   /**
    * INDICADORES DE DRILL-DOWN — derivados das linhas carregadas, com recortes DECLARADOS.
@@ -188,6 +237,9 @@ export function ServiceOrdersEngineListPage() {
       next.set(field, value);
     }
     setSearchParams(next, { replace: true });
+    // MUDAR O RECORTE VOLTA PARA A PRIMEIRA PÁGINA. Sem este reset, quem estivesse na página 3
+    // e filtrasse por situação veria uma página vazia — o recorte mudou, a posição não.
+    setPageOffset(0);
   };
 
   const clearFilters = (): void => {
@@ -196,6 +248,7 @@ export function ServiceOrdersEngineListPage() {
       next.set('view', activeViewType);
     }
     setSearchParams(next, { replace: true });
+    setPageOffset(0);
   };
 
   const changeView = (viewType: string): void => {
@@ -413,6 +466,42 @@ export function ServiceOrdersEngineListPage() {
             onClear={clearFilters}
           />
 
+          {/*
+            BUSCA E SITUAÇÃO — os dois recortes que o CONTRATO suporta, indo ao SERVIDOR.
+            A barra acima é dirigida pelo metadado (`in_filter`) e alimenta a URL; esta faixa
+            cobre o que o operador mais faz: procurar uma OS por número/cliente e recortar por
+            situação. Ambos mudam a CONSULTA, não a página carregada.
+          */}
+          <WorklistFilterBar meta={`${items.length} nesta página`}>
+            <WorklistField label="Buscar" htmlFor="so-engine-search" grow>
+              <input
+                id="so-engine-search"
+                type="search"
+                className={worklistSelectClass}
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                placeholder="Número da OS ou cliente"
+                autoComplete="off"
+              />
+            </WorklistField>
+            {/*
+              NÃO há um segundo seletor de situação aqui.
+              A `DynamicFilterBar` acima já publica um, dirigido pelo `in_filter` do metadado — e
+              é ELE o filtro server-side, porque escreve `status` na URL, que `loadRows` manda à
+              consulta. Dois controles para o mesmo recorte confundiriam o operador e poderiam
+              divergir. A faixa cobre o que a barra do metadado NÃO tem: busca livre por `q`.
+            */}
+            <WorklistClearFilters
+              visible={Boolean(statusFilter || search.trim() || Object.keys(filters).length > 0)}
+              onClick={() => {
+                setSearchInput('');
+                setSearch('');
+                clearFilters();
+                setPageOffset(0);
+              }}
+            />
+          </WorklistFilterBar>
+
           <DynamicSavedViewsBar
             views={savedViews.views}
             persistedLocally={savedViews.persistedLocally}
@@ -477,7 +566,7 @@ export function ServiceOrdersEngineListPage() {
                   onClick={(event) => {
                     // Sem `stopPropagation` o botão também navegaria — o clique subiria ao `<tr>`.
                     event.stopPropagation();
-                    openContext(row as ServiceOrderEngineRow);
+                    openContext(row);
                   }}
                 >
                   Contexto
@@ -502,6 +591,44 @@ export function ServiceOrdersEngineListPage() {
               emptyMessage="Nenhuma ordem de serviço no seu escopo."
             />
           )}
+
+          {/*
+            PAGINAÇÃO SERVER-SIDE.
+            O contrato NÃO publica `total` nesta listagem, então a faixa diz apenas o intervalo
+            da página — "PÁGINA PAGINADA ≠ DATASET". Um total estimado a partir de `hasMore`
+            seria um número inventado; a contagem por estado continua vindo do drill-down, que
+            conta as linhas REALMENTE carregadas.
+          */}
+          <WorklistFooter
+            rangeLabel={`${pageOffset + 1}–${pageOffset + items.length} nesta página`}
+            extra={
+              statusFilter || search.trim()
+                ? `${items.length} nesta página${statusFilter ? ` · situação: ${stateLabel(statusFilter)}` : ''}`
+                : undefined
+            }
+          >
+            <ModulePagination
+              pageNumber={pageNumber}
+              previousDisabled={pageOffset === 0}
+              nextDisabled={!hasMore}
+              onPrevious={() => setPageOffset(Math.max(0, pageOffset - PAGE_SIZE))}
+              onNext={() => setPageOffset(pageOffset + PAGE_SIZE)}
+            />
+          </WorklistFooter>
+          {items.length === 0 ? (
+            <WorklistStatePanel
+              title={
+                statusFilter || search.trim()
+                  ? 'Nenhuma ordem de serviço corresponde aos filtros aplicados.'
+                  : 'Nenhuma ordem de serviço no seu escopo.'
+              }
+              description={
+                statusFilter || search.trim()
+                  ? 'Ajuste a situação ou o termo de busca, ou limpe os filtros para ver a carteira completa.'
+                  : 'As ordens de serviço nascem de solicitações aprovadas ou propostas aceitas; quando a primeira for aberta ela aparece aqui.'
+              }
+            />
+          ) : null}
         </>
       ) : null}
 
