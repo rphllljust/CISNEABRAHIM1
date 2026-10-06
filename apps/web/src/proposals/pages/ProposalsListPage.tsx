@@ -19,11 +19,8 @@ import {
   describeProposalAttention,
   describeValidityTiming,
   formatProposalNextStep,
-  formatRelativePast,
 } from '../utils/proposal-workbench';
 import {
-  EnterpriseMetric,
-  RowActionMenu,
   WorklistClearFilters,
   WorklistField,
   WorklistFilterBar,
@@ -31,13 +28,10 @@ import {
   WorklistStatePanel,
   enterpriseRowClass,
   enterpriseTableCardClass,
-  rowPrimaryActionClass,
   worklistControlClass,
   worklistSelectClass,
 } from '../../ui/enterprise-list';
-import { WorkbenchQueue, WorkbenchQueueItem } from '../../ui/workbench';
 import { Button } from '../../ui/Button';
-import { StatusBadge } from '../../ui/StatusBadge';
 import {
   ModuleDeniedState,
   ModuleErrorState,
@@ -277,22 +271,7 @@ export function ProposalsListPage() {
          * da pagina e a paginacao continua sendo a fonte do "tem mais".
          */
         count={items.length}
-        context="Fila comercial de decisão no seu escopo autorizado: origem, revisão, valor, validade e próximo passo."
-        metrics={
-          <>
-            <EnterpriseMetric
-              value={awaitingCount}
-              label="aguardando decisão"
-              tone={awaitingCount > 0 ? 'info' : 'neutral'}
-            />
-            <EnterpriseMetric value={decidedCount} label="decididas" />
-            <EnterpriseMetric
-              value={expiringCount}
-              label="validade próxima/vencida"
-              tone={expiringCount > 0 ? 'critical' : 'neutral'}
-            />
-          </>
-        }
+        context="Decisão comercial pendente, valor e validade por proposta."
         action={
           capabilities.canCreate ? (
             <ModulePrimaryLink to="/app/proposals/new">Nova proposta</ModulePrimaryLink>
@@ -301,56 +280,54 @@ export function ProposalsListPage() {
       />
 
       {/*
-        WORK QUEUE — a exceção vem ANTES do recorte.
+        FILA DE DECISÃO — faixa COMPACTA, não card explicativo.
 
-        A fila comercial tinha os filtros como primeiro bloco da tela e a exceção (validade
-        crítica, sem origem, sem valor) diluída em badges dentro das linhas. Aqui a exceção sobe
-        para uma faixa operacional: o operador vê o que TRAVA a conversão antes de escolher
-        qualquer filtro. Cada linha da faixa é um RECORTE real e clicável — aplica o mesmo filtro
-        que o servidor entende, não um número solto.
+        A versão anterior ocupava ~180px de primeira dobra com dois cartões que explicavam a
+        própria contagem ("Emitidas e ainda sem aceite, rejeição ou expiração"). O operador de ERP
+        não precisa do manual: precisa do número e do recorte. Aqui cada fato é uma linha de
+        ~28px — rótulo, contagem e clique que aplica o recorte real. A explicação vive no
+        `title` (tooltip), disponível sem ocupar a dobra.
+
+        Sem exceção publicada, a faixa NÃO é montada.
       */}
       {awaitingCount > 0 || expiringCount > 0 ? (
-        <WorkbenchQueue
-          title="Exceções da fila comercial"
-          description="O que exige decisão agora, no recorte carregado."
+        <section
+          aria-label="Fila de decisão"
+          className="mb-2 flex flex-wrap items-center gap-x-5 gap-y-1 border-y border-gray-200 px-1 py-1.5"
         >
+          <span className="text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
+            Fila de decisão
+          </span>
           {awaitingCount > 0 ? (
-            <WorkbenchQueueItem
-              severity={<StatusBadge label="Aguardando" tone="warning" />}
-              severityTone="info"
-              title="Propostas aguardando decisão do cliente"
-              reason="Emitidas e ainda sem aceite, rejeição ou expiração."
-              context={`${awaitingCount} ${awaitingCount === 1 ? 'proposta' : 'propostas'}`}
-              action={
-                <button
-                  type="button"
-                  className="text-[13px] font-semibold text-brand-700 hover:text-brand-800"
-                  onClick={() => applyFilter('status', PROPOSAL_VERSION_STATUSES.Issued)}
-                >
-                  Trabalhar estas propostas
-                </button>
-              }
-            />
+            <button
+              type="button"
+              onClick={() => applyFilter('status', PROPOSAL_VERSION_STATUSES.Issued)}
+              title="Propostas emitidas e ainda sem aceite, rejeição ou expiração."
+              className="inline-flex items-baseline gap-1.5 text-[13px] text-gray-700 hover:text-brand-800"
+            >
+              <strong className="text-[15px] font-semibold tabular-nums text-gray-900">
+                {awaitingCount}
+              </strong>
+              <span className="font-medium">aguardando decisão</span>
+            </button>
           ) : null}
           {expiringCount > 0 ? (
-            <WorkbenchQueueItem
-              severity={<StatusBadge label="Validade" tone="error" />}
-              severityTone="critical"
-              title="Validade vencida ou vencendo"
-              reason="A validade comercial da revisão vigente está no limite — depois dela a proposta não vale mais."
-              context={`${expiringCount} ${expiringCount === 1 ? 'proposta' : 'propostas'}`}
-              action={
-                <button
-                  type="button"
-                  className="text-[13px] font-semibold text-brand-700 hover:text-brand-800"
-                  onClick={() => applyFilter('sort', PROPOSAL_LIST_SORTS.validUntil)}
-                >
-                  Ordenar por validade
-                </button>
-              }
-            />
+            <button
+              type="button"
+              onClick={() => applyFilter('sort', PROPOSAL_LIST_SORTS.validUntil)}
+              title="Validade comercial da revisão vigente vencida ou vencendo."
+              className="inline-flex items-baseline gap-1.5 text-[13px] text-gray-700 hover:text-brand-800"
+            >
+              <strong className="text-[15px] font-semibold tabular-nums text-red-700">
+                {expiringCount}
+              </strong>
+              <span className="font-medium">validade crítica</span>
+            </button>
           ) : null}
-        </WorkbenchQueue>
+          <span className="ml-auto text-[11px] text-gray-500 tabular-nums">
+            {decidedCount} decididas no recorte
+          </span>
+        </section>
       ) : null}
 
       {/*
@@ -504,22 +481,26 @@ export function ProposalsListPage() {
           />
         ) : (
           <section aria-label="Fila comercial de propostas">
-            <div className="hidden grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_minmax(0,1.2fr)_9rem_minmax(0,1.2fr)_minmax(0,1.5fr)] gap-4 border-b border-gray-200 px-3 pb-2 lg:grid">
-              {[
-                'Proposta',
-                'Cliente e origem',
-                'Revisão',
-                'Valor',
-                'Validade',
-                'Situação e próximo passo',
-              ].map((heading) => (
-                <span
-                  key={heading}
-                  className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase"
-                >
-                  {heading}
-                </span>
-              ))}
+            {/*
+              HIERARQUIA DE COLUNA — cinco colunas com PESOS DIFERENTES, não sete iguais.
+
+              "Revisão" deixou de ser coluna: ela não decide nada sozinha (Revisão 1 / Primeira
+              revisão ocupavam 1.2fr de largura para dizer o mesmo em toda linha) e passou a
+              qualificador do bloco principal, ao lado da origem. A coluna de ação também saiu: o
+              botão repetido em toda linha gastava 9rem dizendo sempre a mesma coisa — agora a
+              própria LINHA seleciona e abre o contexto.
+            */}
+            <div className="hidden grid-cols-[minmax(0,2.6fr)_7rem_minmax(0,1fr)_minmax(0,2.2fr)] gap-x-4 border-b border-gray-200 px-3 pb-1.5 lg:grid">
+              {['Proposta e cliente', 'Valor', 'Validade', 'Situação e próxima ação'].map(
+                (heading) => (
+                  <span
+                    key={heading}
+                    className="text-[10px] font-semibold tracking-wider text-gray-500 uppercase"
+                  >
+                    {heading}
+                  </span>
+                ),
+              )}
             </div>
             <ul className="divide-y divide-gray-100">
               {items.map((item) => {
@@ -539,7 +520,7 @@ export function ProposalsListPage() {
                     key={item.id}
                     className={cn(
                       enterpriseRowClass,
-                      'grid grid-cols-1 gap-3 px-3 py-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_minmax(0,1.2fr)_9rem_minmax(0,1.2fr)_minmax(0,1.5fr)_9rem] lg:items-start lg:gap-4',
+                      'grid grid-cols-1 gap-3 px-3 py-2.5 lg:grid-cols-[minmax(0,2.6fr)_7rem_minmax(0,1fr)_minmax(0,2.2fr)] lg:items-start lg:gap-x-4',
                     )}
                     /*
                      * CLIQUE NA LINHA abre o CONTEXTO, sem sair da fila. O código da proposta
@@ -554,86 +535,79 @@ export function ProposalsListPage() {
                       setSelected(item);
                     }}
                   >
+                    {/*
+                      BLOCO PRINCIPAL — proposta, título, cliente e origem/revisão em UM bloco
+                      hierárquico, em vez de três colunas de peso igual. O operador lê de cima
+                      para baixo: o que é, para quem, de onde veio.
+                    */}
                     <div className="min-w-0">
-                      <Link
-                        to={`/app/proposals/${item.id}`}
-                        className="cisne-type-code text-sm font-semibold text-brand-700 no-underline hover:text-brand-800"
-                      >
-                        {item.proposalCode}
-                      </Link>
-                      <p className="mt-1 line-clamp-2 text-sm text-gray-700">{item.title}</p>
-                      <p className="mt-1 text-xs text-gray-400">
-                        <UnitScopeLabel unitId={item.unitId} /> · criada{' '}
-                        {formatRelativePast(item.createdAt, now)}
-                      </p>
-                    </div>
-
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-gray-900">
-                        {item.clientName ?? (
-                          <span className="text-gray-400">Cliente não identificado</span>
-                        )}
-                      </p>
-                      {item.originRequests && item.originRequests.length > 0 ? (
-                        <p className="mt-0.5 truncate text-xs text-gray-500">
-                          De{' '}
-                          <Link
-                            to={`/app/requests/${item.originRequests[0]!.id}`}
-                            className="text-brand-700 no-underline hover:text-brand-800"
-                          >
-                            {item.originRequests[0]!.requestCode}
-                          </Link>
-                          {item.originRequests.length > 1
-                            ? ` +${item.originRequests.length - 1}`
-                            : ''}
-                        </p>
-                      ) : (
-                        <p className="mt-0.5 text-xs text-gray-400">
-                          Sem solicitação de origem visível
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="min-w-0">
-                      {item.revisionNumber === null ? (
-                        <span className="text-sm text-gray-500">Sem versão</span>
-                      ) : (
-                        <>
-                          <span className="text-sm font-medium text-gray-800">
-                            Revisão {item.revisionNumber}
-                          </span>
-                          {revisions > 1 ? (
-                            <span className="mt-0.5 block text-xs text-gray-500">
-                              {revisions - 1} revisão(ões) anterior(es)
-                            </span>
-                          ) : (
-                            <span className="mt-0.5 block text-xs text-gray-400">
-                              Primeira revisão
+                      <div className="flex flex-wrap items-baseline gap-x-2">
+                        <Link
+                          to={`/app/proposals/${item.id}`}
+                          className="cisne-type-code text-[13px] font-semibold text-brand-700 no-underline hover:text-brand-800"
+                        >
+                          {item.proposalCode}
+                        </Link>
+                        <span className="truncate text-[13px] font-medium text-gray-900">
+                          {item.clientName ?? (
+                            <span className="font-normal text-gray-400">
+                              Cliente não identificado
                             </span>
                           )}
-                        </>
-                      )}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 line-clamp-1 text-[13px] text-gray-700">{item.title}</p>
+                      <p className="mt-0.5 text-[11px] text-gray-500">
+                        {item.originRequests && item.originRequests.length > 0 ? (
+                          <>
+                            De{' '}
+                            <Link
+                              to={`/app/requests/${item.originRequests[0]!.id}`}
+                              className="text-brand-700 no-underline hover:text-brand-800"
+                            >
+                              {item.originRequests[0]!.requestCode}
+                            </Link>
+                            {item.originRequests.length > 1
+                              ? ` +${item.originRequests.length - 1}`
+                              : ''}
+                          </>
+                        ) : (
+                          'Sem solicitação de origem'
+                        )}
+                        {item.revisionNumber !== null ? (
+                          <>
+                            {' · '}
+                            {revisions > 1
+                              ? `revisão ${item.revisionNumber}`
+                              : 'primeira revisão'}
+                          </>
+                        ) : null}
+                        {' · '}
+                        <UnitScopeLabel unitId={item.unitId} />
+                      </p>
                     </div>
 
                     <div className="min-w-0">
-                      <span className="cisne-type-money text-sm font-semibold text-gray-900 tabular-nums">
+                      <span className="cisne-type-money text-[13px] font-semibold text-gray-900 tabular-nums">
                         {item.saleTotal
                           ? formatMoney(item.saleTotal, item.currencyCode ?? 'BRL')
                           : '—'}
                       </span>
-                      <span className="mt-0.5 block text-[11px] text-gray-500">
-                        {item.currencyCode ?? 'moeda não informada'}
-                      </span>
                     </div>
 
                     <div className="min-w-0">
-                      <span className="text-sm text-gray-800">
+                      <span className="text-[13px] text-gray-800 tabular-nums">
                         {item.validUntil ? formatDateTime(item.validUntil) : 'Sem validade'}
                       </span>
+                      {/*
+                        PRAZO só aparece quando é EXCEÇÃO real (vencida ou vencendo) — a data
+                        "normal" não precisa de legenda. Antes toda linha carregava uma segunda
+                        linha de texto de prazo, inclusive quando não havia nada a fazer.
+                      */}
                       {timing ? (
                         <span
                           className={cn(
-                            'mt-0.5 block text-xs',
+                            'mt-0.5 block text-[11px]',
                             timing.tone === 'critical'
                               ? 'font-medium text-red-600'
                               : timing.tone === 'warning'
@@ -646,13 +620,28 @@ export function ProposalsListPage() {
                       ) : null}
                     </div>
 
+                    {/*
+                      ESTADO e PRÓXIMA AÇÃO com pesos DIFERENTES: o selo diz ONDE a proposta
+                      está; a linha abaixo diz O QUE FAZER, com peso tipográfico próprio e
+                      separada por um traço. Antes os dois eram dois parágrafos de texto de mesmo
+                      tamanho, sem hierarquia — o operador não distinguia estado de ação.
+                    */}
                     <div className="min-w-0">
-                      {item.currentVersionStatus ? (
-                        <ProposalStatusBadge status={item.currentVersionStatus} />
-                      ) : (
-                        <span className="text-sm text-gray-500">Sem versão</span>
-                      )}
-                      <p className="mt-1 text-sm font-medium text-gray-800">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        {item.currentVersionStatus ? (
+                          <ProposalStatusBadge status={item.currentVersionStatus} />
+                        ) : (
+                          <span className="text-[13px] text-gray-500">Sem versão</span>
+                        )}
+                        <Link
+                          to={`/app/proposals/${item.id}`}
+                          className="text-[12px] font-medium text-brand-700 no-underline hover:text-brand-800"
+                          aria-label={`Abrir proposta ${item.proposalCode}`}
+                        >
+                          Abrir
+                        </Link>
+                      </div>
+                      <p className="mt-1 border-l-2 border-brand-200 pl-2 text-[12px] leading-snug font-medium text-gray-800">
                         {item.currentVersionStatus
                           ? (NEXT_STEP_BY_STATUS[item.currentVersionStatus] ??
                             formatProposalNextStep('CLOSED'))
@@ -673,42 +662,6 @@ export function ProposalsListPage() {
                           ))}
                         </div>
                       ) : null}
-                    </div>
-
-                    {/*
-                      ACOES SECUNDARIAS — menu contextual, nao botao repetido.
-
-                      Antes havia um botao em TODA linha ("Abrir"/"Emitir"), com o mesmo peso
-                      visual da coluna de situacao: a grade gastava uma coluna inteira repetindo a
-                      mesma acao e o operador nao ganhava nenhuma decisao nova. Agora a linha
-                      SELECIONA (abre o contexto ao lado) e o menu traz os dois caminhos reais:
-                      o contexto completo e a ficha (drillback para a object page).
-                    */}
-                    <div className="flex items-start lg:justify-end">
-                      <RowActionMenu
-                        label={`Proposta ${item.proposalCode}`}
-                        primary={
-                          <button
-                            type="button"
-                            className={rowPrimaryActionClass}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              setSelected(item);
-                            }}
-                            aria-label={`Abrir contexto da proposta ${item.proposalCode}`}
-                          >
-                            Contexto
-                          </button>
-                        }
-                        secondary={
-                          <Link
-                            to={`/app/proposals/${item.id}`}
-                            className="text-[12px] font-medium text-brand-700 no-underline hover:text-brand-800"
-                          >
-                            Abrir proposta
-                          </Link>
-                        }
-                      />
                     </div>
                   </li>
                 );
