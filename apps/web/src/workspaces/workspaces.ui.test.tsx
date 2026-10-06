@@ -386,13 +386,22 @@ describe('workspaces de domínio', () => {
     expect(await screen.findByText('CONC-88')).toBeInTheDocument();
 
     const headings = screen.getAllByRole('heading').map((heading) => heading.textContent ?? '');
+    const excecoes = headings.indexOf('Exceções financeiras');
     const agora = headings.indexOf('Agora');
     const atencao = headings.indexOf('Atenção');
     const posicao = headings.indexOf('Posição financeira');
 
-    expect(agora).toBeGreaterThanOrEqual(0);
+    /*
+     * ORDEM DA PRIMEIRA DOBRA — a convergencia do dominio fixou esta sequencia e o teste a
+     * protege: a EXCECAO financeira abre a tela (o dinheiro que exige decisao agora), a POSICAO
+     * autoritativa vem em seguida, e as filas de trabalho do dominio (AGORA/ATENCAO) ficam depois,
+     * como "onde continuar". Antes, tres blocos de trabalho abriam a tela e a excecao que decide o
+     * dia so aparecia abaixo da posicao.
+     */
+    expect(excecoes).toBeGreaterThanOrEqual(0);
+    expect(posicao).toBeGreaterThan(excecoes);
+    expect(agora).toBeGreaterThan(posicao);
     expect(atencao).toBeGreaterThan(agora);
-    expect(posicao).toBeGreaterThan(atencao);
     // A posicao financeira continua sendo servida: nada foi removido da tela.
     expect(screen.getByRole('table', { name: /aging de contas a pagar/i })).toBeInTheDocument();
   });

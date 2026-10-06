@@ -31,6 +31,7 @@ import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import { DomainWorkZones } from '../../workspaces/components/DomainWorkZones';
 import { WorkspaceZone } from '../../workspaces/components/WorkspaceZone';
 import { StatusBadge } from '../../ui/StatusBadge';
+import { WorkbenchQueue, WorkbenchQueueItem } from '../../ui/workbench';
 import {
   getPayablesAging,
   listPayables,
@@ -206,74 +207,6 @@ function payableHref(kind: 'open' | 'overdue'): string {
   return `/app/finance/payables?status=${kind === 'open' ? 'OPEN' : 'OVERDUE'}`;
 }
 
-/**
- * ATENCAO OPERACIONAL — uma linha por excecao real, com valor, contagem e drilldown.
- *
- * Conforme a Pagina 11 ("Indicador sem origem e sem drilldown e decoracao"), cada linha declara
- * a autoridade do numero e abre o recorte correspondente. Nao existe linha para excecao que o
- * servidor nao publicou.
- */
-/**
- * EXCECAO OPERACIONAL — uma linha por excecao real, com contagem, autoridade e drilldown.
- *
- * A linha NAO carrega valor monetario: o contrato nao publica totalizador de valor, e um R$ aqui
- * seria soma de pagina apresentada como total do dominio. O que a linha carrega e o que o
- * servidor sustenta — quantos titulos, sob qual autoridade, e para onde clicar.
- */
-function AttentionRow({
-  id,
-  label,
-  authority,
-  count,
-  href,
-  countLabel,
-  amount,
-  currencyCode,
-}: {
-  id: string;
-  label: string;
-  authority: string;
-  count: number;
-  href: string;
-  /** Rotulo de acessibilidade do CONTADOR — e ele que a verificacao focalizada le. */
-  countLabel: string;
-  /**
-   * Soma do RECORTE COMPLETO publicado pelo servidor para esta linha.
-   *
-   * `null` = o endpoint respondeu sem recorte de status (a contagem veio da AMOSTRA carregada,
-   * nao do recorte), e nesse caso nenhum valor e exibido: um R$ somado de uma pagina exibido ao
-   * lado de uma contagem de dominio seria dinheiro inventado.
-   */
-  amount: string | null;
-  currencyCode: string;
-}) {
-  return (
-    <li id={id} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 border-b border-gray-100 py-2 last:border-b-0">
-      <Link
-        to={href}
-        className="min-w-52 flex-1 text-[13px] font-semibold text-brand-800 no-underline hover:text-brand-900 hover:underline"
-      >
-        {label}
-      </Link>
-      <span className="text-[11px] text-gray-500">{authority}</span>
-      {amount !== null ? (
-        <span
-          aria-label={`Saldo em aberto de ${label}`}
-          className="w-28 text-right text-[13px] font-semibold text-gray-900 tabular-nums"
-        >
-          <Money value={amount} currencyCode={currencyCode} />
-        </span>
-      ) : null}
-      <span
-        aria-label={countLabel}
-        className="w-24 text-right text-[13px] font-semibold text-gray-900 tabular-nums"
-      >
-        {count} {count === 1 ? 'título' : 'títulos'}
-      </span>
-    </li>
-  );
-}
-
 export function FinanceOverviewPage() {
   const loader = useCallback(async (signal?: AbortSignal): Promise<OverviewData> => {
     const [receivables, payables, overdueReceivables, overduePayables, accounts, aging] =
@@ -410,7 +343,129 @@ export function FinanceOverviewPage() {
       />
 
       {/* 1 e 2 e 3 — AGORA, ATENÇÃO e CONTINUAR: as mesmas zonas de todo workspace de dominio. */}
-      <DomainWorkZones domain="FINANCEIRO" />
+
+
+      {/*
+        1. EXCECOES FINANCEIRAS — a PRIMEIRA dobra do workspace financeiro.
+        Vem na gramatica de fila do produto (`WorkbenchQueue` + `WorkbenchQueueItem`), a mesma de
+        Alertas, Conciliacao e Central de trabalho: SEVERIDADE, MOTIVO, VALOR, ACAO, DRILLDOWN, na
+        ordem em que o operador ja le as outras filas. Antes, tres blocos de texto empilhados
+        abriam a tela e a excecao que decide o dia so aparecia abaixo da posicao.
+      */}
+      <WorkbenchQueue
+        title="Exceções financeiras"
+        description="Recortes publicados pelo servidor. A ação abre exatamente o conjunto representado."
+        emptyTitle="Nenhuma exceção financeira"
+        emptyDescription="Nenhum título vencido e nenhuma conta pendente de leitura neste escopo."
+      >
+        {overdueReceivables.error ? (
+          <p role="alert" className="m-0 py-2 text-[13px] text-red-700">
+            Recorte de recebíveis vencidos indisponível: {overdueReceivables.error}
+          </p>
+        ) : (overdueReceivableCount ?? 0) > 0 ? (
+          <WorkbenchQueueItem
+            severity={<StatusBadge label="Vencido" tone="error" />}
+            severityTone="critical"
+            title="Recebíveis vencidos"
+            reason="Títulos a receber cujo vencimento passou e que seguem em aberto."
+            context={
+              <>
+                {overdueReceivableCount} {overdueReceivableCount === 1 ? 'título' : 'títulos'} ·{' '}
+                <Money value={overdueReceivableAmount ?? '0'} currencyCode={overdueCurrency} emphasis />
+              </>
+            }
+            age={overdueIsPartial ? 'valor somado nas linhas devolvidas' : undefined}
+            action={
+              <Link
+                to={receivableHref('overdue')}
+                className="text-[13px] font-semibold text-brand-700 no-underline hover:text-brand-800 hover:underline"
+              >
+                Cobrar títulos vencidos
+              </Link>
+            }
+            drilldown={
+              <Link
+                to="/app/finance/receivables"
+                className="text-[13px] text-gray-600 no-underline hover:text-gray-800 hover:underline"
+              >
+                Ver toda a carteira
+              </Link>
+            }
+          />
+        ) : null}
+
+        {overduePayables.error ? (
+          <p role="alert" className="m-0 py-2 text-[13px] text-red-700">
+            Recorte de pagáveis vencidos indisponível: {overduePayables.error}
+          </p>
+        ) : (overduePayableCount ?? 0) > 0 ? (
+          <WorkbenchQueueItem
+            severity={<StatusBadge label="Vencido" tone="error" />}
+            severityTone="critical"
+            title="Pagáveis vencidos"
+            reason="Obrigações cujo vencimento passou e que ainda não foram pagas."
+            context={
+              <>
+                {overduePayableCount} {overduePayableCount === 1 ? 'título' : 'títulos'} ·{' '}
+                <Money value={overduePayableAmount ?? '0'} currencyCode={overdueCurrency} emphasis />
+              </>
+            }
+            age={overdueIsPartial ? 'valor somado nas linhas devolvidas' : undefined}
+            action={
+              <Link
+                to={payableHref('overdue')}
+                className="text-[13px] font-semibold text-brand-700 no-underline hover:text-brand-800 hover:underline"
+              >
+                Regularizar pagamentos vencidos
+              </Link>
+            }
+            drilldown={
+              <Link
+                to="/app/finance/payables"
+                className="text-[13px] text-gray-600 no-underline hover:text-gray-800 hover:underline"
+              >
+                Ver todas as obrigações
+              </Link>
+            }
+          />
+        ) : null}
+
+        {/*
+          CONCILIACAO — a excecao de conciliacao NAO e contavel por unidade: nao existe endpoint
+          de conciliacao por unidade e o contrato nao publica extrato pendente. Zero nao e
+          afirmado, e por isso a linha aparece como PENDENCIA DE LEITURA (severidade informativa),
+          nao como numero: dizer "0 a conciliar" seria conclusao que o dado nao sustenta.
+        */}
+        {accounts.data && accounts.data.length > 0 ? (
+          <WorkbenchQueueItem
+            severity={<StatusBadge label="Conferir" tone="info" />}
+            severityTone="info"
+            title="Conciliação por conta"
+            reason="A conciliação é por conta e por extrato — não há leitura pendente por unidade."
+            context={
+              <>
+                {accountCount} {accountCount === 1 ? 'conta' : 'contas'} com saldo publicado
+              </>
+            }
+            action={
+              <Link
+                to="/app/finance/reconciliation"
+                className="text-[13px] font-semibold text-brand-700 no-underline hover:text-brand-800 hover:underline"
+              >
+                Abrir conciliação
+              </Link>
+            }
+            drilldown={
+              <Link
+                to="/app/finance/treasury"
+                className="text-[13px] text-gray-600 no-underline hover:text-gray-800 hover:underline"
+              >
+                Ver contas e saldos
+              </Link>
+            }
+          />
+        ) : null}
+      </WorkbenchQueue>
 
       {/*
         SUMMARY — indicadores AUTORITATIVOS: contagem e estado do recorte COMPLETO devolvido pelo
@@ -596,80 +651,11 @@ export function FinanceOverviewPage() {
       </WorkspaceZone>
 
       {/*
-        EXCECOES — VENCIDOS, NAO CONCILIADOS e alertas reais. Vem ANTES da posicao detalhada.
-        Cada linha tem autoridade declarada, contagem, valor e drilldown para o recorte exato.
+        2. FILAS DE TRABALHO E FLUXO DO DOMINIO — AGORA, ATENÇÃO e CONTINUAR, as mesmas zonas de
+        todo workspace de dominio do CISNE. Vem DEPOIS da fila de excecoes: a tela responde
+        primeiro o que exige decisao de dinheiro e so entao onde o trabalho continua.
       */}
-      <WorkspaceZone
-        title="Exceções financeiras"
-        note="Recortes publicados pelo servidor. O clique abre exatamente o conjunto representado."
-      >
-        {positionIsEmpty ? (
-          <p className="m-0 text-sm text-gray-600">Nenhuma exceção financeira.</p>
-        ) : (
-          <ul className="m-0 list-none p-0">
-            {overdueReceivables.error ? (
-              <li className="py-2 text-[13px] text-red-700" role="alert">
-                Recorte de recebíveis vencidos indisponível: {overdueReceivables.error}
-              </li>
-            ) : (
-              <AttentionRow
-                id="attention-receivable-overdue"
-                label="Recebíveis vencidos"
-                authority="recorte do servidor — títulos a receber vencidos"
-                count={overdueReceivableCount ?? 0}
-                countLabel="Quantidade de recebíveis vencidos"
-                href={receivableHref('overdue')}
-                amount={overdueReceivableAmount}
-                currencyCode={overdueCurrency}
-              />
-            )}
-            {overduePayables.error ? (
-              <li className="py-2 text-[13px] text-red-700" role="alert">
-                Recorte de pagáveis vencidos indisponível: {overduePayables.error}
-              </li>
-            ) : (
-              <AttentionRow
-                id="attention-payable-overdue"
-                label="Pagáveis vencidos"
-                authority="recorte do servidor — títulos a pagar vencidos"
-                count={overduePayableCount ?? 0}
-                countLabel="Quantidade de pagáveis vencidos"
-                href={payableHref('overdue')}
-                amount={overduePayableAmount}
-                currencyCode={overdueCurrency}
-              />
-            )}
-            {/*
-              CONCILIACAO — a excecao de conciliacao NAO e contavel por unidade: nao existe
-              endpoint de conciliacao por unidade e o contrato nao publica extrato pendente. A
-              linha declara a autoridade real (as contas que a leitura de tesouraria devolveu) e
-              faz drillback para onde a conciliacao existe por conta e por extrato. Zero nao e
-              afirmado: "nada a conciliar" seria conclusao que o dado nao sustenta.
-            */}
-            <li
-              id="attention-unreconciled-accounts"
-              className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 border-b border-gray-100 py-2 last:border-b-0"
-            >
-              <Link
-                to="/app/finance/reconciliation"
-                className="min-w-52 flex-1 text-[13px] font-semibold text-brand-800 no-underline hover:text-brand-900 hover:underline"
-              >
-                Conciliação por conta
-              </Link>
-              <span className="text-[11px] text-gray-500">
-                a conciliação é por conta e por extrato — não há leitura pendente por unidade
-              </span>
-              <span
-                aria-label="Quantidade de contas financeiras"
-                className="w-24 text-right text-[13px] font-semibold text-gray-900 tabular-nums"
-              >
-                {accountCount === null ? '—' : accountCount}{' '}
-                {accountCount === 1 ? 'conta' : 'contas'}
-              </span>
-            </li>
-          </ul>
-        )}
-      </WorkspaceZone>
+      <DomainWorkZones domain="FINANCEIRO" />
 
       {/*
         TESOURARIA / CONCILIACAO — drilldown. Cada conta e um registro do servidor, com saldo
