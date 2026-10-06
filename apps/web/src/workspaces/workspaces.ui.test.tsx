@@ -181,6 +181,13 @@ function stubFinanceFetch(stub: WorkStub) {
 
 /** Financeiro respondendo zero em TODAS as leituras de posicao. */
 function stubEmptyFinanceFetch(stub: WorkStub) {
+  /*
+   * PAGINA VAZIA — a forma REAL do contrato de titulos: `{ items, limit, offset, total,
+   * totalPages }`. Antes o stub devolvia `[]` (lista crua), o que nao e o payload publicado pelo
+   * endpoint: a tela lia `items` de um array e caia. Corrigir o stub e o que torna o cenario
+   * "posicao zerada" um cenario de verdade — e nao uma resposta que o servidor nunca da.
+   */
+  const emptyTitlePage = { items: [], limit: 100, offset: 0, total: 0, totalPages: 0 };
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const { pathname, searchParams } = parseRequestPath(input);
     if (pathname === '/api/v1/auth/session') {
@@ -190,10 +197,10 @@ function stubEmptyFinanceFetch(stub: WorkStub) {
       return workInboxResponse(stub, searchParams);
     }
     if (pathname === '/api/v1/finance/receivables') {
-      return jsonResponse([]);
+      return jsonResponse(emptyTitlePage);
     }
     if (pathname === '/api/v1/finance/payables') {
-      return jsonResponse([]);
+      return jsonResponse(emptyTitlePage);
     }
     if (pathname === '/api/v1/finance/payables/aging') {
       return jsonResponse({
@@ -390,11 +397,19 @@ describe('workspaces de domínio', () => {
     expect(screen.getByRole('table', { name: /aging de contas a pagar/i })).toBeInTheDocument();
   });
 
-  it('posição zerada não vira parede de zeros: diz que não há valores vencidos', async () => {
+  it('posição zerada não vira parede de zeros: diz que não há títulos nem contas', async () => {
     stubEmptyFinanceFetch({ byDomain: { FINANCEIRO: 0 } });
     renderWithProviders(<FinanceOverviewPage />, { router: { initialEntries: ['/app/finance'] } });
 
-    expect(await screen.findByText('Não há valores vencidos.')).toBeInTheDocument();
+    /*
+     * A frase mudou com a leitura: a posicao zerada nao afirma apenas "nada vencido" — ela diz que
+     * NAO HA TITULO NEM CONTA, que e o fato que o servidor publicou (total 0 nas duas carteiras e
+     * nenhuma conta devolvida pela tesouraria). Zero continua sendo zero declarado, e nao uma
+     * parede de zeros: os indicadores nao sao renderizados.
+     */
+    expect(
+      await screen.findByText('Não há títulos nem contas na posição financeira.'),
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText('Quantidade de títulos a receber')).not.toBeInTheDocument();
     expect(await screen.findByText('Nenhum trabalho pendente neste domínio.')).toBeInTheDocument();
   });

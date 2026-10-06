@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, DateTime, Money, cn } from '../../ui';
+import { formatMoneyBrl } from '../../billing/utils/billing-format';
 import { ModulePage } from '../../ui/module-layout';
 import {
   WorklistFooter,
@@ -22,6 +23,7 @@ import {
   AGING_BUCKET_LABELS,
   PAYABLE_STATUS_LABELS,
   RECEIVABLE_STATUS_LABELS,
+  TREASURY_KIND_LABELS,
   labelOrRaw,
   toneForStatus,
 } from '../../financial-ui/labels';
@@ -87,16 +89,24 @@ type OverviewSlice<T> = {
 };
 
 type OverviewData = {
+  /** Amostra: a posicao que a tela publica na primeira dobra. */
   receivables: OverviewSlice<FinanceTitlePage<ReceivableDetail>>;
   payables: OverviewSlice<FinanceTitlePage<PayableDetail>>;
+  /**
+   * RECORTE VENCIDO — `?status=OVERDUE`, contado E somado pelo SERVIDOR.
+   *
+   * A amostra nao serve para excecao: com 3 titulos dos quais 1 vencido, a pagina carregada
+   * respondia "0 pagaveis vencidos" pelo simples fato de o titulo vencido estar fora das 100
+   * primeiras linhas. Contagem de excecao sobre amostra nao e contagem — e leitura da pagina
+   * disfarcada de posicao do dominio. A excecao passa a vir do unico lugar que conta o dominio
+   * inteiro sob o recorte: o proprio servidor. Ausencia continua sendo ausencia: se a leitura
+   * falhar, a linha declara a falha em vez de exibir zero.
+   */
+  overdueReceivables: OverviewSlice<FinanceTitlePage<ReceivableDetail>>;
+  overduePayables: OverviewSlice<FinanceTitlePage<PayableDetail>>;
   accounts: OverviewSlice<FinancialAccount[]>;
   aging: OverviewSlice<PayableAgingResponse>;
 };
-
-/** Titulo ainda em aberto: e sobre ele que "receber/pagar/vencimentos" fazem sentido. */
-function isOpenStatus(status: string): boolean {
-  return status !== 'PAID' && status !== 'CANCELLED';
-}
 
 function fulfilled<T>(value: T): OverviewSlice<T> {
   return { data: value, error: null, retryable: false };
@@ -139,6 +149,50 @@ function isPositionEmpty(data: OverviewData): boolean {
 }
 
 /**
+ * Posicao da carteira `null` quando a leitura NAO autorizou/recebeu o recorte COMPLETO.
+ *
+ * `total` conta o recorte inteiro sob o filtro do servidor; quando ele vem ausente, contar a
+ * amostra carregada seria apresentar uma pagina como dominio. `null` faz o indicador declarar
+ * "—" (desconhecido) em vez de afirmar um numero que a leitura nao sustenta.
+ */
+function pageTotal(page: FinanceTitlePage<unknown> | null): number | null {
+  if (!page) {
+    return null;
+  }
+  return typeof page.total === 'number' ? page.total : null;
+}
+
+/**
+ * Dinheiro do recorte COMPLETO (`?status=OVERDUE`): soma dos SALDOS EM ABERTO que o servidor
+ * devolveu para aquele recorte.
+ *
+ * A soma envolve o recorte inteiro — nao uma pagina apresentada como dominio. Quando a leitura
+ * do recorte devolve mais linhas do que a pagina carregada, o valor e declarado como piso
+ * (`+`), com a contagem que o acompanha, em vez de passar por total do dominio.
+ */
+function sumOpenBalance(page: FinanceTitlePage<{ remainingBalance: string }> | null): string | null {
+  if (!page || !Array.isArray(page.items)) {
+    return null;
+  }
+  let total = 0;
+  for (const item of page.items) {
+    const numeric = Number(item.remainingBalance);
+    if (Number.isFinite(numeric)) {
+      total += numeric;
+    }
+  }
+  return total.toFixed(4);
+}
+
+/** Recorte carregado por inteiro? Sem `total` publicado, a tela nao afirma cobertura. */
+function isFullyLoaded(page: FinanceTitlePage<unknown> | null): boolean {
+  if (!page || typeof page.total !== 'number') {
+    return false;
+  }
+  return page.items.length >= page.total;
+}
+
+/**
  * Drilldown dos indicadores: o `href` abre o conjunto EXATO do indicador.
  *
  * RECEBER: "em aberto" -> `status=OPEN`; "vencidos" -> `status=OVERDUE`; "nao conciliado" nao
@@ -173,6 +227,8 @@ function AttentionRow({
   count,
   href,
   countLabel,
+  amount,
+  currencyCode,
 }: {
   id: string;
   label: string;
@@ -181,6 +237,15 @@ function AttentionRow({
   href: string;
   /** Rotulo de acessibilidade do CONTADOR — e ele que a verificacao focalizada le. */
   countLabel: string;
+  /**
+   * Soma do RECORTE COMPLETO publicado pelo servidor para esta linha.
+   *
+   * `null` = o endpoint respondeu sem recorte de status (a contagem veio da AMOSTRA carregada,
+   * nao do recorte), e nesse caso nenhum valor e exibido: um R$ somado de uma pagina exibido ao
+   * lado de uma contagem de dominio seria dinheiro inventado.
+   */
+  amount: string | null;
+  currencyCode: string;
 }) {
   return (
     <li id={id} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 border-b border-gray-100 py-2 last:border-b-0">
@@ -191,6 +256,14 @@ function AttentionRow({
         {label}
       </Link>
       <span className="text-[11px] text-gray-500">{authority}</span>
+      {amount !== null ? (
+        <span
+          aria-label={`Saldo em aberto de ${label}`}
+          className="w-28 text-right text-[13px] font-semibold text-gray-900 tabular-nums"
+        >
+          <Money value={amount} currencyCode={currencyCode} />
+        </span>
+      ) : null}
       <span
         aria-label={countLabel}
         className="w-24 text-right text-[13px] font-semibold text-gray-900 tabular-nums"
@@ -203,13 +276,21 @@ function AttentionRow({
 
 export function FinanceOverviewPage() {
   const loader = useCallback(async (signal?: AbortSignal): Promise<OverviewData> => {
-    const [receivables, payables, accounts, aging] = await Promise.allSettled([
-      // A visao geral mostra POSICAO, nao pagina: pede o maior lote aceito e usa `total`.
-      listReceivables({ limit: 100, offset: 0 }, signal),
-      listPayables({ limit: 100, offset: 0 }, signal),
-      listTreasuryAccounts(signal),
-      getPayablesAging(signal),
-    ]);
+    const [receivables, payables, overdueReceivables, overduePayables, accounts, aging] =
+      await Promise.allSettled([
+        // A visao geral mostra POSICAO, nao pagina: pede o maior lote aceito e usa `total`.
+        listReceivables({ limit: 100, offset: 0 }, signal),
+        listPayables({ limit: 100, offset: 0 }, signal),
+        /*
+         * EXCECAO — mesmo lote, recorte de VENCIDO aplicado no servidor. A leitura de excecao
+         * custa uma requisicao a mais e e o unico caminho honesto para dizer "quantos vencidos
+         * existem" e "quanto esta vencido, a receber e a pagar".
+         */
+        listReceivables({ limit: 100, offset: 0, status: 'OVERDUE' }, signal),
+        listPayables({ limit: 100, offset: 0, status: 'OVERDUE' }, signal),
+        listTreasuryAccounts(signal),
+        getPayablesAging(signal),
+      ]);
     const deniedAll =
       receivables.status === 'rejected' &&
       payables.status === 'rejected' &&
@@ -227,6 +308,14 @@ export function FinanceOverviewPage() {
           : failed(receivables.reason),
       payables:
         payables.status === 'fulfilled' ? fulfilled(payables.value) : failed(payables.reason),
+      overdueReceivables:
+        overdueReceivables.status === 'fulfilled'
+          ? fulfilled(overdueReceivables.value)
+          : failed(overdueReceivables.reason),
+      overduePayables:
+        overduePayables.status === 'fulfilled'
+          ? fulfilled(overduePayables.value)
+          : failed(overduePayables.reason),
       accounts:
         accounts.status === 'fulfilled' ? fulfilled(accounts.value) : failed(accounts.reason),
       aging: aging.status === 'fulfilled' ? fulfilled(aging.value) : failed(aging.reason),
@@ -252,22 +341,42 @@ export function FinanceOverviewPage() {
     return null;
   }
 
-  const { receivables, payables, accounts, aging } = state.data;
+  const { receivables, payables, overdueReceivables, overduePayables, accounts, aging } = state.data;
   const agingEntries = aging.data ? Object.entries(aging.data.buckets) : [];
   const positionIsEmpty = isPositionEmpty(state.data);
 
   const receivableItems = receivables.data?.items ?? [];
   const payableItems = payables.data?.items ?? [];
-  const openReceivables = receivableItems.filter((item) => isOpenStatus(item.status));
-  const openPayables = payableItems.filter((item) => isOpenStatus(item.status));
-  const overdueReceivables = receivableItems.filter((item) => item.status === 'OVERDUE');
-  const overduePayables = payableItems.filter((item) => item.status === 'OVERDUE');
+
+  /**
+   * CONTAGEM DE DOMINIO — do servidor, nunca da amostra.
+   *
+   * `total` e contado pelo servidor sob o recorte da consulta; e o numero que a worklist de
+   * destino reproduz. `null` = desconhecido, e desconhecido nao vira zero.
+   */
+  const receivablesInFlight = pageTotal(receivables.data);
+  const payablesInFlight = pageTotal(payables.data);
+  const overdueReceivableCount = pageTotal(overdueReceivables.data);
+  const overduePayableCount = pageTotal(overduePayables.data);
+
+  /** Dinheiro do recorte vencido — somado sobre o recorte inteiro, nunca sobre a amostra. */
+  const overdueReceivableAmount = sumOpenBalance(overdueReceivables.data);
+  const overduePayableAmount = sumOpenBalance(overduePayables.data);
+  const overdueCurrency = overdueReceivables.data?.items[0]?.currencyCode
+    ?? receivableItems[0]?.currencyCode
+    ?? 'BRL';
+  /** Recorte vencido maior que a pagina carregada: o valor e piso, e a tela diz isso. */
+  const overdueIsPartial =
+    !isFullyLoaded(overdueReceivables.data) || !isFullyLoaded(overduePayables.data);
 
   /**
    * DRILLDOWN/contagem apenas. O contrato NAO publica totalizador monetario global, entao esta
    * tela NAO soma a amostra para exibir "total a receber", "total a pagar", "caixa total" ou
    * "carteira total". Somar a pagina e chama-la de total do dominio seria inventar financa.
    * Aqui so existem QUANTIDADES, ESTADOS, VENCIMENTOS e EXCECOES — todos vem do servidor.
+   *
+   * A UNICA excecao e o vencido, e ela e deliberada: aquele valor vem do recorte
+   * `?status=OVERDUE` inteiro, contado e somado pelo servidor — nao da amostra da primeira dobra.
    */
   const agingTitleCount = agingEntries.reduce((total, [, item]) => total + Number(item.count || 0), 0);
 
@@ -278,13 +387,20 @@ export function FinanceOverviewPage() {
   const accountCount = accounts.data ? accounts.data.length : null;
 
   /**
-   * Recorte da amostra carregada: a contagem de REGISTROS e exata e vem de `total`; o contrato nao
-   * publica valor. A tela declara o recorte em vez de apresentar a pagina como o dominio inteiro.
+   * Procedencia do recorte, em uma linha. O operador precisa saber se o numero grande e dominio
+   * ou amostra — e a tela diz qual dos dois, sem esconder o que foi lido.
    */
-  const sampleNote =
-    receivables.data && payables.data
-      ? `Recorte: ${receivableItems.length} de ${receivables.data.total} títulos a receber · ${payableItems.length} de ${payables.data.total} títulos a pagar. Contagens, estados e vencimentos vêm do servidor.`
-      : 'Contagens, estados e vencimentos vêm do servidor.';
+  const positionNote = [
+    'Cada número é uma leitura do servidor sobre um recorte declarado.',
+    receivables.data
+      ? `Em aberto: contagem do recorte completo (${receivablesInFlight ?? '—'} títulos a receber, ${payablesInFlight ?? '—'} a pagar).`
+      : 'Contas a receber indisponíveis nesta leitura.',
+    overdueReceivables.data && overduePayables.data
+      ? `Vencidos: recorte completo (${overdueReceivableCount ?? '—'} a receber, ${overduePayableCount ?? '—'} a pagar)${
+          overdueIsPartial ? ' — valor é o mínimo confirmado nas linhas lidas' : ''
+        }.`
+      : 'Recorte de vencidos indisponível nesta leitura.',
+  ].join(' ');
 
   return (
     <ModulePage layout="workspace">
@@ -297,13 +413,14 @@ export function FinanceOverviewPage() {
       <DomainWorkZones domain="FINANCEIRO" />
 
       {/*
-        SUMMARY — somente indicadores AUTORITATIVOS: quantidades, estados e vencimentos.
-        O contrato so publica contagem (`total`), entao a tela usa contagem. Nenhum KPI em R$:
-        sem totalizador global, valor seria decoracao inventada.
+        SUMMARY — indicadores AUTORITATIVOS: contagem e estado do recorte COMPLETO devolvido pelo
+        servidor. O contrato nao publica totalizador monetario global, entao nao existe "total da
+        carteira" aqui: existem quantos titulos estao em aberto, quantos venceram e quantos ja
+        foram liquidados — cada um abrindo exatamente o conjunto que conta.
       */}
-      <WorkspaceZone title="Posição financeira" note={sampleNote}>
+      <WorkspaceZone title="Posição financeira" note={positionNote}>
         {positionIsEmpty ? (
-          <p className="m-0 text-sm text-gray-600">Não há valores vencidos.</p>
+          <p className="m-0 text-sm text-gray-600">Não há títulos nem contas na posição financeira.</p>
         ) : (
           <ul className="m-0 grid list-none grid-cols-2 gap-x-6 gap-y-3 p-0 lg:grid-cols-4">
             <li className="min-w-0">
@@ -314,7 +431,7 @@ export function FinanceOverviewPage() {
                 aria-label="Quantidade de títulos a receber"
                 className="m-0 text-2xl font-semibold text-gray-900 tabular-nums"
               >
-                {receivables.data ? openReceivables.length : '—'}
+                {receivablesInFlight ?? '—'}
               </p>
               <p className="m-0 text-[11px]">
                 <Link
@@ -333,7 +450,7 @@ export function FinanceOverviewPage() {
                 aria-label="Quantidade de títulos a pagar"
                 className="m-0 text-2xl font-semibold text-gray-900 tabular-nums"
               >
-                {payables.data ? openPayables.length : '—'}
+                {payablesInFlight ?? '—'}
               </p>
               <p className="m-0 text-[11px]">
                 <Link
@@ -350,23 +467,48 @@ export function FinanceOverviewPage() {
               </p>
               <p
                 aria-label="Quantidade de títulos vencidos"
-                className="m-0 text-2xl font-semibold text-gray-900 tabular-nums"
+                className="m-0 text-2xl font-semibold text-red-700 tabular-nums"
               >
-                {receivables.data && payables.data
-                  ? overdueReceivables.length + overduePayables.length
-                  : '—'}
+                {overdueReceivableCount === null || overduePayableCount === null
+                  ? '—'
+                  : overdueReceivableCount + overduePayableCount}
               </p>
+              {/*
+                O VALOR DO VENCIDO — o único dinheiro que esta tela publica, e ele vem do recorte
+                `status=OVERDUE` INTEIRO contado pelo servidor, nao da amostra da primeira dobra.
+                É o número que decide a operação do dia: quanto está atrasado, a receber e a pagar.
+              */}
               <p className="m-0 text-[11px] text-gray-500 tabular-nums">
-                {receivables.data ? `${overdueReceivables.length} a receber` : '—'} ·{' '}
-                {payables.data ? `${overduePayables.length} a pagar` : '—'}
+                {overdueReceivableCount === null ? '—' : `${overdueReceivableCount} a receber`}
+                {overdueReceivableAmount !== null ? (
+                  <>
+                    {' ('}
+                    <Money value={overdueReceivableAmount} currencyCode={overdueCurrency} />
+                    {')'}
+                  </>
+                ) : null}
+                {' · '}
+                {overduePayableCount === null ? '—' : `${overduePayableCount} a pagar`}
+                {overduePayableAmount !== null ? (
+                  <>
+                    {' ('}
+                    <Money value={overduePayableAmount} currencyCode={overdueCurrency} />
+                    {')'}
+                  </>
+                ) : null}
               </p>
+              {overdueIsPartial ? (
+                <p className="m-0 text-[11px] text-gray-500">
+                  Valores somados sobre as linhas que o servidor devolveu neste recorte.
+                </p>
+              ) : null}
             </li>
             <li className="min-w-0">
               <p className="m-0 text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
-                Itens para conciliar
+                Contas financeiras
               </p>
               <p
-                aria-label="Quantidade de contas não conciliadas"
+                aria-label="Quantidade de contas financeiras"
                 className="m-0 text-2xl font-semibold text-gray-900 tabular-nums"
               >
                 {accountCount === null ? '—' : accountCount}
@@ -374,7 +516,7 @@ export function FinanceOverviewPage() {
               <p className="m-0 text-[11px] text-gray-500">
                 {accountCount === null
                   ? 'Tesouraria indisponível'
-                  : `${accountCount === 1 ? 'conta' : 'contas'} — conciliação por conta e extrato`}
+                  : `${accountCount === 1 ? 'conta' : 'contas'} com saldo publicado por conta`}
               </p>
               <p className="m-0 text-[11px]">
                 <Link
@@ -465,38 +607,44 @@ export function FinanceOverviewPage() {
           <p className="m-0 text-sm text-gray-600">Nenhuma exceção financeira.</p>
         ) : (
           <ul className="m-0 list-none p-0">
-            {receivables.error ? (
+            {overdueReceivables.error ? (
               <li className="py-2 text-[13px] text-red-700" role="alert">
-                Contas a receber indisponíveis: {receivables.error}
+                Recorte de recebíveis vencidos indisponível: {overdueReceivables.error}
               </li>
             ) : (
               <AttentionRow
                 id="attention-receivable-overdue"
                 label="Recebíveis vencidos"
-                authority="títulos a receber com status Vencido"
-                count={overdueReceivables.length}
+                authority="recorte do servidor — títulos a receber vencidos"
+                count={overdueReceivableCount ?? 0}
                 countLabel="Quantidade de recebíveis vencidos"
                 href={receivableHref('overdue')}
+                amount={overdueReceivableAmount}
+                currencyCode={overdueCurrency}
               />
             )}
-            {payables.error ? (
+            {overduePayables.error ? (
               <li className="py-2 text-[13px] text-red-700" role="alert">
-                Contas a pagar indisponíveis: {payables.error}
+                Recorte de pagáveis vencidos indisponível: {overduePayables.error}
               </li>
             ) : (
               <AttentionRow
                 id="attention-payable-overdue"
                 label="Pagáveis vencidos"
-                authority="títulos a pagar com status Vencido"
-                count={overduePayables.length}
+                authority="recorte do servidor — títulos a pagar vencidos"
+                count={overduePayableCount ?? 0}
                 countLabel="Quantidade de pagáveis vencidos"
                 href={payableHref('overdue')}
+                amount={overduePayableAmount}
+                currencyCode={overdueCurrency}
               />
             )}
             {/*
-              NAO CONCILIADOS: nao existe endpoint de conciliacao por unidade. A linha declara a
-              autoridade real (contas devolvidas pela leitura de tesouraria) e faz drillback para
-              Caixa e Bancos / Conciliacao, onde a conciliacao por conta e por extrato existe.
+              CONCILIACAO — a excecao de conciliacao NAO e contavel por unidade: nao existe
+              endpoint de conciliacao por unidade e o contrato nao publica extrato pendente. A
+              linha declara a autoridade real (as contas que a leitura de tesouraria devolveu) e
+              faz drillback para onde a conciliacao existe por conta e por extrato. Zero nao e
+              afirmado: "nada a conciliar" seria conclusao que o dado nao sustenta.
             */}
             <li
               id="attention-unreconciled-accounts"
@@ -506,13 +654,13 @@ export function FinanceOverviewPage() {
                 to="/app/finance/reconciliation"
                 className="min-w-52 flex-1 text-[13px] font-semibold text-brand-800 no-underline hover:text-brand-900 hover:underline"
               >
-                Contas não conciliadas
+                Conciliação por conta
               </Link>
               <span className="text-[11px] text-gray-500">
-                conciliação é por conta e por extrato, não por unidade
+                a conciliação é por conta e por extrato — não há leitura pendente por unidade
               </span>
               <span
-                aria-label="Quantidade de contas não conciliadas"
+                aria-label="Quantidade de contas financeiras"
                 className="w-24 text-right text-[13px] font-semibold text-gray-900 tabular-nums"
               >
                 {accountCount === null ? '—' : accountCount}{' '}
@@ -581,7 +729,9 @@ export function FinanceOverviewPage() {
                         {account.code}
                       </span>
                     </td>
-                    <td className={enterpriseCellMutedClass}>{account.kind}</td>
+                    <td className={enterpriseCellMutedClass}>
+                      {labelOrRaw(account.kind, TREASURY_KIND_LABELS)}
+                    </td>
                     <td className={enterpriseNumericCellClass}>
                       <Money value={account.balance} currencyCode={account.currencyCode} />
                     </td>
@@ -609,7 +759,7 @@ export function FinanceOverviewPage() {
       {/* 6 — TITULOS: onde "excecoes" ganha linha, valor, vencimento e drilldown. */}
       <WorkspaceZone
         title="Títulos a receber"
-        note="Amostra devolvida pelo servidor. Vencimento, status e saldo são os publicados pelo contrato."
+        note={`${receivableItems.length} de ${receivables.data?.total ?? '—'} títulos a receber — as primeiras linhas do recorte, para leitura imediata. A lista completa abre em Contas a Receber, com busca, filtro e paginação do servidor.`}
       >
         {receivables.error ? (
           <div role="alert">
@@ -639,6 +789,9 @@ export function FinanceOverviewPage() {
                     Título
                   </th>
                   <th scope="col" className={enterpriseHeadCellClass}>
+                    Cliente
+                  </th>
+                  <th scope="col" className={enterpriseHeadCellClass}>
                     Vencimento
                   </th>
                   <th scope="col" className={enterpriseHeadCellClass}>
@@ -662,7 +815,18 @@ export function FinanceOverviewPage() {
                       >
                         {item.externalReference ?? item.id.slice(0, 8)}
                       </Link>
-                      <span className="ml-2 font-mono text-[11px] text-gray-500">{item.unitId}</span>
+                    </td>
+                    <td className={enterpriseCellMutedClass}>
+                      {item.clientId ? (
+                        <Link
+                          to={`/app/clients/${item.clientId}`}
+                          className="text-brand-700 no-underline hover:underline"
+                        >
+                          Abrir cliente
+                        </Link>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
                     </td>
                     <td className={enterpriseCellMutedClass}>
                       <DateTime value={item.dueDate} mode="date" />
@@ -689,7 +853,7 @@ export function FinanceOverviewPage() {
 
       <WorkspaceZone
         title="Títulos a pagar"
-        note="Amostra devolvida pelo servidor. Vencimento, status e saldo são os publicados pelo contrato."
+        note={`${payableItems.length} de ${payables.data?.total ?? '—'} títulos a pagar — as primeiras linhas do recorte, para leitura imediata. A lista completa abre em Contas a Pagar, com busca, filtro e paginação do servidor.`}
       >
         {payables.error ? (
           <div role="alert">
@@ -745,7 +909,6 @@ export function FinanceOverviewPage() {
                       >
                         {item.externalReference ?? item.id.slice(0, 8)}
                       </Link>
-                      <span className="ml-2 font-mono text-[11px] text-gray-500">{item.unitId}</span>
                     </td>
                     <td className={enterpriseCellMutedClass}>
                       <DateTime value={item.dueDate} mode="date" />
@@ -774,7 +937,7 @@ export function FinanceOverviewPage() {
       </WorkspaceZone>
 
       {/* RODAPE: de onde vem cada numero e onde o resto do dominio vive. */}
-      <WorklistFooter rangeLabel="Origem dos valores" extra="Contratos reais, sem agregado inventado">
+      <WorklistFooter rangeLabel="Origem dos valores" extra="Leituras do servidor, sem agregado inventado">
         <Link to="/app/finance/receivables" className="text-[12px] text-brand-700 no-underline hover:underline">
           Contas a Receber
         </Link>
@@ -792,7 +955,10 @@ export function FinanceOverviewPage() {
         </Link>
       </WorklistFooter>
       <span className={worklistGroupClass}>
-        Valores, vencimentos e status são os devolvidos pelo servidor; nada é recalculado no navegador.
+        Contagens e recortes vêm do servidor. Vencidos: {formatMoneyBrl(overdueReceivableAmount ?? '0')}{' '}
+        a receber e {formatMoneyBrl(overduePayableAmount ?? '0')} a pagar
+        {overdueIsPartial ? ', sobre as linhas devolvidas neste recorte' : ''}. Nada é recalculado no
+        navegador.
       </span>
     </ModulePage>
   );
