@@ -33,6 +33,8 @@ import {
 } from '../api/finance-api';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import { FinanceStatusBadge } from '../components/FinanceStatusBadge';
+import { StatusBadge } from '../../ui/StatusBadge';
+import { WorkbenchQueue, WorkbenchQueueItem } from '../../ui/workbench';
 import type { FinancialAccount, TreasuryReconciliation } from '../types/finance.types';
 import { treasuryEngineRows } from './treasury-engine-rows';
 
@@ -185,12 +187,24 @@ export function TreasuryListPage() {
   const pageItems = byFilter.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
   const isFiltered = activeFilters.length > 0;
 
+  /**
+   * EXCECOES DA MESA DE TESOURARIA — fatos que o servidor publica e que exigem conferencia.
+   *
+   * Só entram linhas sustentadas pelo dado lido: conta ENCERRADA ainda com saldo, e conta com
+   * permissão de saldo negativo (limite de crédito em uso). Não existe linha para "não
+   * conciliado" porque o contrato não publica extrato pendente — declarar isso seria inventar.
+   */
+  const closedWithBalance = allRows.filter(
+    (row) => String(row['lifecycle']) === 'CLOSED' && Number(row['balance'] ?? 0) !== 0,
+  ).length;
+  const overdraftAccounts = accounts.filter((account) => account.overdraftAllowed).length;
+
   return (
     <ModulePage layout="workspace">
       <WorklistHeader
         title={schema?.label ?? 'Caixa e bancos'}
         count={accounts.length}
-        context="O saldo de cada conta é o valor reconstruído pelo servidor. Esta tela não soma nem recalcula."
+        context="Mesa de tesouraria: saldo por conta reconstruído pelo servidor, créditos, débitos e movimentos do período."
       />
 
       {accounts.length === 0 ? (
@@ -200,6 +214,54 @@ export function TreasuryListPage() {
         />
       ) : (
         <>
+          {/*
+            EXCECOES primeiro, contas depois — a ordem de uma mesa de tesouraria. A fila só
+            aparece quando há exceção REAL publicada; sem exceção, a zona fica ausente em vez de
+            exibir um bloco vazio, porque "nada a conferir" já é dito pela ausência da fila.
+          */}
+          {closedWithBalance > 0 || overdraftAccounts > 0 ? (
+            <WorkbenchQueue
+              title="Exceções de tesouraria"
+              description="Fatos publicados pelo servidor que exigem conferência antes do fechamento."
+            >
+              {closedWithBalance > 0 ? (
+                <WorkbenchQueueItem
+                  severity={<StatusBadge label="Encerrada" tone="warning" />}
+                  severityTone="warning"
+                  title="Contas encerradas com saldo"
+                  reason="A conta foi encerrada e o saldo publicado não é zero."
+                  context={`${closedWithBalance} ${closedWithBalance === 1 ? 'conta' : 'contas'}`}
+                  action={
+                    <button
+                      type="button"
+                      className="text-[13px] font-semibold text-brand-700 hover:text-brand-800"
+                      onClick={() => {
+                        setPageNumber(1);
+                        setFilters((current) => ({ ...current, lifecycle: 'CLOSED' }));
+                      }}
+                    >
+                      Ver contas encerradas
+                    </button>
+                  }
+                />
+              ) : null}
+              {overdraftAccounts > 0 ? (
+                <WorkbenchQueueItem
+                  severity={<StatusBadge label="Limite" tone="info" />}
+                  severityTone="info"
+                  title="Contas com limite de crédito habilitado"
+                  reason="Contas autorizadas a operar com saldo negativo — o saldo publicado pode ser devedor."
+                  context={`${overdraftAccounts} ${overdraftAccounts === 1 ? 'conta' : 'contas'}`}
+                  drilldown={
+                    <span className="text-[13px] text-gray-600">
+                      O limite é conferido por conta, no detalhe.
+                    </span>
+                  }
+                />
+              ) : null}
+            </WorkbenchQueue>
+          ) : null}
+
           {/* FILTRO POR CAMPO DO METADADO: `kind` e `lifecycle` são os `in_filter` declarados. */}
           {schema ? (
             <DynamicFilterBar
