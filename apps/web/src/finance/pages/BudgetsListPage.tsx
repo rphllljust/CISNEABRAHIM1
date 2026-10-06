@@ -9,6 +9,11 @@ import {
   ModuleStatePage,
 } from '../../ui/module-layout';
 import { EmptyState } from '../../ui';
+import {
+  WorklistFooter,
+  WorklistHeader,
+  rowPrimaryActionClass,
+} from '../../ui/enterprise-list';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import { BackofficeApiError, listBudgets, type BudgetSummary } from '../api/finance-api';
 /*
@@ -111,6 +116,20 @@ export function BudgetsListPage() {
     return () => controller.abort();
   }, [loadPage, offset]);
 
+  /**
+   * O RECORTE MUDOU: a pagina corrente deixa de valer.
+   *
+   * Buscar ou trocar a situacao mantendo o `offset` faria a leitura pedir "a pagina 3" de um
+   * conjunto que acabou de encolher — e a lista apareceria vazia num recorte que TEM registros.
+   * Zerar o deslocamento aqui e o mesmo comportamento das outras listas financeiras.
+   *
+   * Fica ANTES dos retornos antecipados logo abaixo: hooks nao podem ser condicionais, e o
+   * estado de carregamento/negacao/erro retorna cedo.
+   */
+  useEffect(() => {
+    setOffset(0);
+  }, [statusFilter, searchTerm]);
+
   /** Publica um recorte na URL — o mesmo caminho que a barra de filtros usa. */
   const updateFilter = (field: string, value: string): void => {
     const next = new URLSearchParams(searchParams);
@@ -167,20 +186,23 @@ export function BudgetsListPage() {
   const hasMore = offset + items.length < total;
 
   return (
-    <ModulePage>
-      <header className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold" data-testid="entity-title">
-            {schema?.label ?? 'Orçamentos'}
-          </h1>
-          <p className="mt-1 text-xs text-gray-500" data-list-count={items.length}>
-            {total} orçamento(s) · página {Math.floor(offset / PAGE_SIZE) + 1}
-          </p>
-        </div>
-        <Link className="text-sm font-semibold underline" to="/app/finance/budgets/new">
-          Novo orçamento
-        </Link>
-      </header>
+    <ModulePage layout="workspace">
+      {/*
+        CABEÇALHO DE WORKLIST — identidade, contagem REAL do recorte (contada no servidor) e a
+        ação primária. Mesma gramática das outras listas financeiras: o `<header>` artesanal com
+        "N orçamento(s) · página X" dizia duas coisas em uma linha e repetia o que o rodapé já
+        publica como faixa de registros.
+      */}
+      <WorklistHeader
+        title={schema?.label ?? 'Orçamentos'}
+        count={total}
+        context="Código, nome, moeda e situação são os publicados pelo servidor. Esta tela não compara previsto e realizado."
+        action={
+          <Link className={rowPrimaryActionClass} to="/app/finance/budgets/new">
+            Novo orçamento
+          </Link>
+        }
+      />
 
       {/*
         BUSCA → `q` no servidor. A barra de filtros da engine cobre o recorte por CAMPO do
@@ -237,10 +259,14 @@ export function BudgetsListPage() {
             />
           )}
 
-          <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
-            <span>
-              {offset + 1}–{offset + items.length} nesta página · {total} no total
-            </span>
+          <WorklistFooter
+            rangeLabel={
+              items.length === 0
+                ? 'Nenhum registro no recorte'
+                : `${offset + 1}–${offset + items.length} de ${total}`
+            }
+            extra={`Página ${Math.floor(offset / PAGE_SIZE) + 1}`}
+          >
             <ModulePagination
               pageNumber={Math.floor(offset / PAGE_SIZE) + 1}
               previousDisabled={offset === 0}
@@ -248,7 +274,7 @@ export function BudgetsListPage() {
               onPrevious={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
               onNext={() => setOffset(offset + PAGE_SIZE)}
             />
-          </div>
+          </WorklistFooter>
         </>
       ) : null}
     </ModulePage>
