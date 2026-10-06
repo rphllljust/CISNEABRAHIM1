@@ -259,7 +259,7 @@ export function ContractsListPage() {
                   Código interno
                 </th>
                 <th scope="col" className={worklistHeadCellClass}>
-                  Status
+                  Situação
                 </th>
                 <th scope="col" className={worklistHeadCellClass}>
                   Cliente

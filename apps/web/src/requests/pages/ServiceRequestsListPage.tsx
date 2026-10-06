@@ -404,7 +404,7 @@ export function ServiceRequestsListPage() {
           </form>
         </WorklistField>
 
-        <WorklistField label="Status" htmlFor="request-status-filter">
+        <WorklistField label="Situação" htmlFor="request-status-filter">
           <select
             id="request-status-filter"
             className={worklistSelectClass}

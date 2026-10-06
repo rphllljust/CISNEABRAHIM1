@@ -154,7 +154,7 @@ describe('ServiceRequestsListPage', () => {
       expect(screen.getByRole('link', { name: 'SR-2026-DEMO01' })).toBeInTheDocument();
     });
 
-    await user.selectOptions(screen.getByLabelText('Status'), SERVICE_REQUEST_STATUSES.Draft);
+    await user.selectOptions(screen.getByLabelText('Situação'), SERVICE_REQUEST_STATUSES.Draft);
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -180,7 +180,7 @@ describe('ServiceRequestsListPage', () => {
      * protege o MESMO contrato: escolher um status aplica o filtro e a consulta o envia.
      */
     await user.selectOptions(
-      screen.getByLabelText('Status'),
+      screen.getByLabelText('Situação'),
       SERVICE_REQUEST_STATUSES.Submitted,
     );
 
@@ -190,6 +190,6 @@ describe('ServiceRequestsListPage', () => {
         expect.anything(),
       );
     });
-    expect(screen.getByLabelText('Status')).toHaveValue(SERVICE_REQUEST_STATUSES.Submitted);
+    expect(screen.getByLabelText('Situação')).toHaveValue(SERVICE_REQUEST_STATUSES.Submitted);
   });
 });
