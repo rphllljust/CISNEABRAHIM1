@@ -14,8 +14,10 @@ import {
 } from '../../ui/enterprise-list';
 import { ModulePage } from '../../ui/module-layout';
 import { Button } from '../../ui/Button';
+import { WorkbenchQueue } from '../../ui/workbench';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import { getCashForecast } from '../api/finance-api';
+import { formatDatePtBr } from '../../billing/utils/billing-format';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import type { CashForecast, CashForecastLine } from '../types/finance.types';
 import {
@@ -89,6 +91,33 @@ const HORIZON_PRESETS: Array<{ id: string; label: string; days: number }> = [
 ];
 
 const ISO_DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/**
+ * O QUE A PROJEÇÃO RESPONDE — declarado ANTES de existir projeção carregada.
+ *
+ * Não é texto de sistema: é o mapa das QUATRO leituras que a tela publica quando o servidor
+ * devolve a série (saldo realizado, entradas, saídas e posição projetada) e a origem de cada uma
+ * nos dois razões. Sem isto o estado inicial era um aviso vazio, e o operador só descobria o
+ * alcance da tela depois de projetar.
+ */
+const FORECAST_CAPABILITIES: Array<{ title: string; description: string }> = [
+  {
+    title: 'Saldo realizado',
+    description: 'Caixa e bancos na posição informada, reconstruído por conta.',
+  },
+  {
+    title: 'Entradas previstas',
+    description: 'Parcelas a receber com vencimento dentro do horizonte.',
+  },
+  {
+    title: 'Saídas previstas',
+    description: 'Parcelas a pagar com vencimento dentro do horizonte.',
+  },
+  {
+    title: 'Posição projetada',
+    description: 'Saldo atual somado ao efeito líquido do horizonte, calculado pelo servidor.',
+  },
+];
 
 /** Ultimo dia do horizonte como dia de CALENDARIO — nunca instante UTC. */
 export function addDaysToIsoDate(value: string, days: number): string {
@@ -166,8 +195,8 @@ export function buildForecastContextFields(forecast: CashForecast): ObjectContex
   return [
     { label: 'Unidade', value: forecast.unitId },
     { label: 'Moeda', value: forecast.currencyCode },
-    { label: 'Posição (as of)', value: forecast.asOf.slice(0, 10) },
-    { label: 'Horizonte até', value: forecast.horizonEndsOn.slice(0, 10) },
+    { label: 'Posição (as of)', value: formatDatePtBr(forecast.asOf) },
+    { label: 'Horizonte até', value: formatDatePtBr(forecast.horizonEndsOn) },
     {
       label: 'Situação',
       value: forecast.status === 'NO_DATA' ? 'Sem dados projetados' : 'Projetado',
@@ -289,7 +318,12 @@ function MovementTable({
         <tbody>
           {lines.map((line, index) => (
             <tr key={`${line.kind}-${line.source}-${line.originId}-${index}`} className={enterpriseRowClass}>
-              <td className={enterpriseCellClass}>{cashForecastLineLabel(line.source)}</td>
+              {/*
+                MOVIMENTO — o rótulo humano da ORIGEM, nunca o token do domínio. A primeira coluna
+                exibia `TREASURY_BALANCE` cru; o mapa `cashForecastSourceLabel` já existe nesta tela
+                e é o mesmo usado pela coluna de origem ao lado.
+              */}
+              <td className={enterpriseCellClass}>{cashForecastSourceLabel(line.source)}</td>
               {directions.length > 1 ? (
                 <td className={enterpriseCellClass}>{cashForecastDirectionLabel(line.direction)}</td>
               ) : null}
@@ -399,7 +433,7 @@ export function CashForecastPage() {
   ) : null;
 
   return (
-    <ModulePage>
+    <ModulePage layout="workspace">
       {/*
         PARAMETROS — a unica acao real da tela. Fica ANTES do cabecalho do objeto porque e ela
         que define o recorte; o cabecalho passa a descrever a projecao que ja existe.
@@ -501,7 +535,31 @@ export function CashForecastPage() {
       {/*
         ESTADOS DE PAGINA resolvidos pela MESMA moldura das object pages: negacao nao e
         ausencia de dado, e falha de autorizacao nao se disfarca de lista vazia.
+
+        O estado inicial NAO e uma tela morta: enquanto ninguem projetou, a tela declara o que
+        este workspace responde e quais filas do dominio alimentam a projecao — o operador sabe o
+        que vai encontrar antes de informar a unidade, em vez de olhar um aviso vazio.
       */}
+      {state.phase === 'idle' ? (
+        <section aria-label="Como a previsão é composta" className="mb-2">
+          <WorkbenchQueue
+            title="O que a projeção responde"
+            description="A projeção é calculada pelo servidor para a unidade, a moeda e o horizonte informados. Escolha a posição e o horizonte acima para carregá-la."
+          >
+            <dl className="m-0 grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
+              {FORECAST_CAPABILITIES.map((item) => (
+                <div key={item.title} className="min-w-0">
+                  <dt className="text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
+                    {item.title}
+                  </dt>
+                  <dd className="m-0 mt-0.5 text-[13px] text-gray-700">{item.description}</dd>
+                </div>
+              ))}
+            </dl>
+          </WorkbenchQueue>
+        </section>
+      ) : null}
+
       <EnterpriseObjectPage
         breadcrumb={[{ label: 'Financeiro', href: '/app/finance' }, { label: 'Previsão de caixa' }]}
         phase={
@@ -537,7 +595,12 @@ export function CashForecastPage() {
               <EnterpriseObjectHeader
                 reference={`${forecast.unitId} · ${forecast.currencyCode}`}
                 title="Previsão de caixa"
-                subtitle={`Posição em ${forecast.asOf.slice(0, 10)} · horizonte até ${forecast.horizonEndsOn.slice(0, 10)}`}
+                /*
+                 * Datas em formato HUMANO — o subtítulo exibia `2026-10-06` cru. As mesmas datas
+                 * já aparecem formatadas na linha de recorte acima e no contexto do objeto; aqui
+                 * elas apenas repetem o recorte, na gramática de data do produto.
+                 */
+                subtitle={`Posição em ${formatDatePtBr(forecast.asOf)} · horizonte até ${formatDatePtBr(forecast.horizonEndsOn)}`}
                 status={
                   forecast.status === 'NO_DATA'
                     ? {
@@ -548,7 +611,13 @@ export function CashForecastPage() {
                     : hasNegativeProjectedCash(forecast)
                       ? {
                           label: 'Caixa descoberto no horizonte',
-                          tone: 'critical',
+                          /*
+                           * `tone` do selo é `error`, não `critical`: o contrato de `StatusBadge`
+                           * aceita neutral/success/warning/error/info. O valor anterior não existia
+                           * na união e a tela nunca compilou — o defeito estava registrado como
+                           * pré-existente e é o mesmo fato semântico (falta de caixa projetada).
+                           */
+                          tone: 'error',
                           description:
                             'O saldo projetado publicado pelo servidor é negativo no horizonte consultado.',
                         }
