@@ -194,8 +194,8 @@
     overflow: hidden;
     border-radius: var(--radius-md);
     background: #fff;
-    box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
-    outline: 1px solid rgb(15 23 42 / 8%);
+    box-shadow: 0 1px 0 rgb(15 23 42 / 4%), 0 12px 28px rgb(15 23 42 / 5%);
+    outline: 1px solid #cfd8e3;
   }
 
   .cisne-app .clients-table-wrap,
@@ -205,8 +205,8 @@
     overflow: hidden;
     border-radius: var(--radius-md);
     background: #fff;
-    box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
-    outline: 1px solid rgb(15 23 42 / 8%);
+    box-shadow: 0 1px 0 rgb(15 23 42 / 4%), 0 12px 28px rgb(15 23 42 / 5%);
+    outline: 1px solid #cfd8e3;
   }
 
   .cisne-app .clients-table-wrap .clients-table,
@@ -224,7 +224,7 @@
   .cisne-app table.billing-table thead,
   .cisne-app table.doc-table thead,
   .cisne-app table.reports-table thead {
-    background: #f8fafc;
+    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
   }
 
   .cisne-app table.clients-table th,
@@ -234,14 +234,14 @@
   .cisne-app table.billing-table th,
   .cisne-app table.doc-table th,
   .cisne-app table.reports-table th {
-    padding: 0.7rem 1rem;
-    border-bottom: 1px solid #dbe3ea;
+    padding: 0.78rem 1rem;
+    border-bottom: 1px solid #cfd8e3;
     text-align: left;
     font-size: 0.75rem;
     font-weight: 700;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: #475569;
+    color: #334155;
   }
 
   .cisne-app table.clients-table td,
@@ -255,7 +255,7 @@
   .cisne-app table.catalog-table tbody th,
   .cisne-app table.requests-table tbody th {
     padding: 0.78rem 1rem;
-    border-bottom: 1px solid #edf1f5;
+    border-bottom: 1px solid #e7edf3;
     vertical-align: top;
     font-size: 0.875rem;
     color: #374151;

@@ -23,6 +23,8 @@
   --dashboard-line: var(--color-slate-200);
   --dashboard-line-soft: var(--color-slate-100);
   --dashboard-surface: #fff;
+  --dashboard-surface-strong: #f8fafc;
+  --dashboard-panel-shadow: 0 1px 0 rgb(15 23 42 / 4%), 0 12px 30px rgb(15 23 42 / 5%);
   --dashboard-muted: var(--color-slate-500);
   --dashboard-ink: var(--color-slate-900);
 }
@@ -1754,6 +1756,266 @@ a.dashboard-dense__cell:focus-visible {
   margin-top: var(--spacing-2);
   color: var(--color-indigo-600);
   font-weight: 500;
+}
+
+/* ============================================================
+   13. ENTERPRISE VISUAL PASS — control room ERP
+   ============================================================ */
+
+.dashboard-command {
+  padding: var(--spacing-3) var(--spacing-4);
+  margin-bottom: var(--spacing-4);
+  border-color: rgb(15 66 62 / 65%);
+  background:
+    linear-gradient(135deg, rgb(11 48 45 / 98%) 0%, rgb(15 66 62 / 96%) 42%, rgb(15 23 42 / 96%) 100%),
+    var(--dashboard-surface);
+  color: #fff;
+  box-shadow: 0 18px 42px rgb(15 23 42 / 14%);
+}
+
+.dashboard-command__row--recorte {
+  padding-top: var(--spacing-3);
+  border-top-color: rgb(255 255 255 / 12%);
+}
+
+.dashboard-command__title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: #fff;
+}
+
+.dashboard-command__scope {
+  color: rgb(226 232 240 / 74%);
+}
+
+.dashboard-command__sep {
+  color: rgb(255 255 255 / 24%);
+}
+
+.dashboard-command__updated {
+  color: #fff;
+}
+
+.dashboard-command__updated-label {
+  color: rgb(226 232 240 / 64%);
+}
+
+.dashboard-command__chip,
+.dashboard-command__filter {
+  border-color: rgb(255 255 255 / 18%);
+  background: rgb(255 255 255 / 8%);
+  color: rgb(226 232 240 / 92%);
+}
+
+.dashboard-command__chip:hover {
+  background: rgb(255 255 255 / 13%);
+}
+
+.dashboard-command__chip--on {
+  border-color: rgb(114 188 180 / 84%);
+  background: #fff;
+  color: var(--color-brand-800);
+}
+
+.dashboard-command__overdue {
+  color: rgb(226 232 240 / 92%);
+}
+
+.dashboard-command__clear {
+  color: var(--color-brand-200);
+}
+
+.dashboard-command__select {
+  border-color: rgb(255 255 255 / 22%);
+  background: rgb(255 255 255 / 10%);
+  color: #fff;
+}
+
+.dashboard-command__select option {
+  color: var(--dashboard-ink);
+}
+
+.dashboard-command__refresh {
+  border-color: rgb(255 255 255 / 24%);
+  background: #fff;
+  color: var(--color-brand-800);
+}
+
+.dashboard-command__refresh:hover:not(:disabled) {
+  background: var(--color-brand-50);
+}
+
+.dashboard-workspace {
+  gap: var(--spacing-5);
+}
+
+@media (min-width: 1100px) {
+  .dashboard-workspace {
+    grid-template-columns: minmax(0, 1fr) minmax(19rem, 21rem);
+  }
+}
+
+.dashboard-section-head {
+  min-height: 2rem;
+  align-items: center;
+  margin-bottom: 0;
+  padding: 0.65rem 0.875rem;
+  border: 1px solid var(--dashboard-line);
+  border-bottom: 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+.dashboard-section-head__title {
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  color: #334155;
+}
+
+.dashboard-section-head__meta {
+  color: #64748b;
+}
+
+.dashboard-decision__list,
+.dashboard-flow__stages,
+.dashboard-rail-panel,
+.dashboard-panel,
+.dashboard-dense,
+.dashboard-titles__link {
+  border-color: #cfd8e3;
+  box-shadow: var(--dashboard-panel-shadow);
+}
+
+.dashboard-rail-panel {
+  border-radius: var(--radius-md);
+  background: #fff;
+}
+
+.dashboard-rail-panel > * {
+  padding: var(--spacing-4);
+}
+
+.dashboard-decision__list,
+.dashboard-flow__stages {
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+.dashboard-decision__row {
+  grid-template-columns: 5.25rem minmax(0, 1fr) 4.5rem auto;
+  min-height: 4.25rem;
+  border-left-width: 4px;
+  padding: 0.65rem 1rem 0.65rem 0.875rem;
+}
+
+a.dashboard-decision__row:hover,
+.dashboard-dist__row:hover,
+a.dashboard-kpi-list__cell:hover,
+.dashboard-status-list__link:hover,
+a.dashboard-dense__cell:hover,
+.dashboard-titles__link:hover {
+  background: #f8fafc;
+}
+
+.dashboard-decision__severity {
+  min-height: 1.55rem;
+  border-radius: 0.25rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+}
+
+.dashboard-decision__reason .dashboard-decision__count,
+.dashboard-decision__count {
+  font-size: 1.08rem;
+  font-weight: 800;
+}
+
+.dashboard-flow__stage {
+  min-height: 6.75rem;
+  padding: 0.95rem 1rem;
+  border-right: 1px solid var(--dashboard-line-soft);
+}
+
+.dashboard-flow__stage:last-child {
+  border-right: 0;
+}
+
+.dashboard-flow__stage--critical {
+  box-shadow: inset 0 4px 0 0 var(--color-red-600);
+}
+
+.dashboard-flow__stage--attention {
+  box-shadow: inset 0 4px 0 0 var(--color-amber-500);
+}
+
+.dashboard-flow__number {
+  font-size: 1.55rem;
+  font-weight: 800;
+}
+
+.dashboard-flow__label {
+  letter-spacing: 0.09em;
+}
+
+.dashboard-queue-item {
+  min-height: 4.75rem;
+  margin-bottom: 0;
+  border: 1px solid var(--dashboard-line);
+  border-top: 0;
+  background: #fff;
+  box-shadow: 0 1px 0 rgb(15 23 42 / 3%);
+}
+
+.dashboard-work > section > div:first-child {
+  min-height: 2rem;
+  margin-bottom: 0;
+  padding: 0.65rem 0.875rem;
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+.dashboard-work > section > div:first-child h2 {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #334155;
+}
+
+.dashboard-work > section > div:first-child span {
+  border-color: #cbd5e1;
+  background: #fff;
+}
+
+.dashboard-queue-item__aging strong {
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.dashboard-queue-item__ref {
+  color: var(--color-brand-800);
+}
+
+.dashboard-dist__row,
+.dashboard-kpi-list__cell {
+  padding: 0.35rem 0.25rem;
+}
+
+.dashboard-dist__track,
+.dashboard-status-list__track {
+  height: 0.38rem;
+  background: #e8edf3;
+}
+
+.dashboard-kpi-list__value {
+  font-size: 1.18rem;
+  font-weight: 800;
+}
+
+.dashboard-volume {
+  margin-top: var(--spacing-3);
+  padding-top: var(--spacing-3);
+  border-top: 1px solid var(--dashboard-line-soft);
 }
 
 .sr-only {

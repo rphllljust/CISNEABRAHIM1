@@ -16699,3 +16699,47 @@ WORKING_TREE: DIRTY antes do commit (havia alterações preexistentes; esta sess
 visual, correções de lint/typecheck e este registro)
 COMMIT: incluído no commit desta sessão
 NEXT_PROMPT_EXECUTED: NO
+
+---
+
+## DESIGN ERP ALTO PADRÃO — segunda passada visual executiva
+
+DATA: 2026-10-06T18:45:00-04:00
+STATUS: **PASS**
+
+### Escopo executado
+
+Pedido do responsável: a primeira alteração ainda não parecia um ERP empresarial de alto padrão.
+
+Classificação: **interpretação de engenharia visual**. Nenhuma regra empresarial nova foi criada,
+promovida ou alterada. Nenhuma API, migration, permissão, estado de OS, seed ou contrato de backend
+foi tocado.
+
+### Ajuste aplicado
+
+- Shell ampliado para leitura de suite ERP: sidebar de 18rem, marca mais forte, fundo de aplicação
+  em camadas e topbar com presença executiva.
+- Dashboard operacional elevado para leitura de "control room": cabeçalho escuro de comando,
+  painéis com cabeçalho estruturado, sombras discretas, bordas mais fortes e fluxo/fila com maior
+  hierarquia visual.
+- Tabelas compartilhadas receberam moldura mais sólida, cabeçalho em faixa e separadores com
+  densidade de produto corporativo.
+
+### Validação
+
+- `pnpm --filter @cisne/web typecheck` — **PASS**
+- `pnpm --filter @cisne/web build` — **PASS**
+- `pnpm --filter @cisne/web exec eslint "src/**/*.{ts,tsx}" "e2e/**/*.ts" "playwright.config.ts" --cache --cache-location ../../tmp/eslint-web-cache` — **PASS**
+- `pnpm --filter @cisne/web exec eslint src/shell/AppShellLayout.tsx src/shell/ShellTopBar.tsx src/shell/ShellNavList.tsx` — **PASS**
+- `git diff --check` — **PASS** (apenas aviso normal de normalização CRLF em `shell.css`)
+
+### Quality gate
+
+- [x] Alterações restritas ao frontend visual compartilhado e dashboard
+- [x] Nenhuma regra empresarial nova
+- [x] Nenhuma migration, seed, backend, permissão ou contrato de API
+- [x] Typecheck, lint e build do pacote web aprovados
+
+WORKING_TREE: DIRTY antes do commit (diff visual desta segunda passada)
+COMMIT: incluído no commit desta sessão
+NEXT_PROMPT_EXECUTED: NO

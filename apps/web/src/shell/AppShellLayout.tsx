@@ -76,7 +76,7 @@ export function AppShellLayout() {
   const identityHint = isTechnicalIdentity(identityId) ? null : formatIdentityLabel(identityId);
 
   return (
-    <div className="cisne-app flex min-h-dvh bg-[#f4f6f8] font-sans text-gray-900 antialiased">
+    <div className="cisne-app shell-enterprise flex min-h-dvh bg-[#e9eef3] font-sans text-gray-900 antialiased">
       <a
         className="shell__skip-link bg-brand-600 text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
         href="#main-content"
@@ -85,17 +85,17 @@ export function AppShellLayout() {
       </a>
 
       <aside
-        className="shell__sidebar fixed inset-y-0 z-30 hidden w-[17rem] flex-col border-r border-[#1c2a36] bg-[#07111d] lg:flex"
+        className="shell__sidebar fixed inset-y-0 z-30 hidden w-[18rem] flex-col border-r border-[#1f2d3a] bg-[#07111d] lg:flex"
         aria-label="Barra lateral"
       >
-        <div className="flex h-[4.5rem] shrink-0 items-center gap-3 border-b border-white/10 px-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-brand-500 shadow-[0_0_0_1px_rgb(255_255_255/0.12)]">
+        <div className="shell__brand flex h-[5rem] shrink-0 items-center gap-3 border-b border-white/10 px-5">
+          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-brand-500 shadow-[0_0_0_1px_rgb(255_255_255/0.14),0_14px_28px_rgb(0_0_0/0.24)]">
             <ShellBrandMark className="h-4 w-4 text-white" />
           </div>
           <div className="leading-tight">
-            <p className="text-sm font-semibold tracking-tight text-white">Cisne Rondônia</p>
+            <p className="text-[15px] font-semibold tracking-tight text-white">Cisne Rondônia</p>
             <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
-              ERP operacional
+              ERP corporativo
             </p>
           </div>
         </div>
@@ -103,8 +103,8 @@ export function AppShellLayout() {
         <ShellNavList alertCount={activeCount} alertsLoading={alertsLoading} theme="dark" />
 
         <div className="border-t border-white/10 p-4">
-          <div className="flex items-center gap-3 rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-brand-600 text-xs font-semibold text-white">
+          <div className="shell__account-card flex items-center gap-3 rounded-md border border-white/10 bg-white/[0.045] px-3 py-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-brand-500 text-xs font-semibold text-white">
               CN
             </div>
             <div className="min-w-0 leading-tight">
@@ -117,7 +117,7 @@ export function AppShellLayout() {
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col lg:pl-[17rem]">
+      <div className="flex min-w-0 flex-1 flex-col lg:pl-[18rem]">
         <ShellTopBar
           onMenuToggle={toggleMobileNav}
           menuExpanded={mobileNavOpen && !isDesktop}
@@ -126,7 +126,7 @@ export function AppShellLayout() {
             setPaletteOpen(true);
           }}
         />
-        <div className="flex-1 px-4 py-6 sm:px-6 lg:px-8 xl:px-10">
+        <div className="shell__content flex-1 px-4 py-6 sm:px-6 lg:px-8 xl:px-10">
           <div
             className={cn(
               'shell-page-frame mx-auto w-full min-w-0',

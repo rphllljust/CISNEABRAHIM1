@@ -35,7 +35,7 @@ export function ShellTopBar({
 
   return (
     <header
-      className="sticky top-0 z-20 flex h-[4.5rem] items-center gap-4 border-b border-slate-200 bg-white/95 px-4 shadow-[0_1px_0_rgb(15_23_42/0.03)] backdrop-blur sm:px-6 lg:px-8 xl:px-10"
+      className="shell__topbar sticky top-0 z-20 flex h-[5rem] items-center gap-4 border-b border-slate-200/80 bg-white/92 px-4 shadow-[0_1px_0_rgb(15_23_42/0.05),0_12px_28px_rgb(15_23_42/0.05)] backdrop-blur sm:px-6 lg:px-8 xl:px-10"
       role="banner"
     >
       <button
@@ -50,14 +50,14 @@ export function ShellTopBar({
         <span className="sr-only">{menuExpanded ? 'Fechar menu' : 'Abrir menu'}</span>
       </button>
 
-      <div className="max-w-xl min-w-0 flex-1">
+      <div className="shell__search min-w-0 flex-1">
         <GlobalSearchBar compact />
       </div>
 
-      <div className="ml-auto flex items-center gap-2.5">
+      <div className="ml-auto flex items-center gap-3">
         {environmentLabel ? (
           <span
-            className="hidden items-center rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20 sm:inline-flex"
+            className="hidden items-center rounded-md bg-amber-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-amber-700 ring-1 ring-inset ring-amber-600/20 sm:inline-flex"
             aria-label={`Ambiente ${environmentLabel}`}
           >
             {environmentLabel}
@@ -76,12 +76,12 @@ export function ShellTopBar({
         {onOpenCommandPalette ? (
           <button
             type="button"
-            className="hidden items-center gap-2 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 sm:inline-flex"
+            className="hidden items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-400 hover:bg-slate-50 sm:inline-flex"
             onClick={onOpenCommandPalette}
             aria-label="Abrir central de comandos (Ctrl+K)"
           >
-            <span>Navegar, ver, criar…</span>
-            <kbd className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] text-slate-500">
+              <span>Central de comando</span>
+            <kbd className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 shadow-inner">
               Ctrl K
             </kbd>
           </button>
@@ -92,7 +92,7 @@ export function ShellTopBar({
         <Dropdown
           label="Menu do usuário"
           trigger={
-            <span className="flex cursor-pointer items-center gap-2.5 rounded-md p-1 pr-2 transition hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">
+            <span className="flex cursor-pointer items-center gap-2.5 rounded-md border border-transparent p-1 pr-2 transition hover:border-slate-200 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">
               <span
                 className="flex h-8 w-8 items-center justify-center rounded-md bg-brand-700 text-xs font-semibold text-white"
                 aria-hidden="true"

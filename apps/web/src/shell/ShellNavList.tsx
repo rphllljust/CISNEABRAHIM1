@@ -14,11 +14,11 @@ type ShellNavListProps = {
 function buildNavLinkClass(isActive: boolean, theme: 'dark' | 'light') {
   if (theme === 'dark') {
     return cn(
-      'group flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium no-underline transition',
+      'group relative flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium no-underline transition',
       'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500',
       isActive
-        ? 'bg-white/[0.08] text-white shadow-[inset_3px_0_0_#3f9c94]'
-        : 'text-slate-400 hover:bg-white/[0.05] hover:text-white',
+        ? 'bg-white/[0.105] text-white shadow-[inset_3px_0_0_#72bcb4,0_8px_18px_rgb(0_0_0/0.16)]'
+        : 'text-slate-400 hover:bg-white/[0.065] hover:text-white',
     );
   }
 
@@ -70,7 +70,7 @@ export function ShellNavList({
           <section key={group.id} aria-label={group.label}>
             <p
               className={cn(
-                'mb-2.5 px-3 text-[11px] font-semibold uppercase tracking-[0.16em]',
+                'mb-2.5 px-3 text-[10px] font-semibold uppercase tracking-[0.2em]',
                 theme === 'dark' ? 'text-slate-500' : 'text-slate-400',
               )}
             >
