@@ -8,12 +8,18 @@ import {
   ModulePagination,
   ModuleStatePage,
 } from '../../ui/module-layout';
-import { EmptyState } from '../../ui';
+import { DateTime } from '../../ui';
+import { StatusBadge } from '../../ui/StatusBadge';
 import {
+  RowActionMenu,
+  WorklistClearFilters,
   WorklistFooter,
   WorklistHeader,
+  WorklistStatePanel,
   rowPrimaryActionClass,
+  rowSecondaryActionClass,
 } from '../../ui/enterprise-list';
+import { ContextDrawer, SavedViewsBar, useSmartList } from '../../operator';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import { BackofficeApiError, listBudgets, type BudgetSummary } from '../api/finance-api';
 /*
@@ -50,6 +56,46 @@ import { budgetEngineRows } from './budget-engine-rows';
  */
 const PAGE_SIZE = 20;
 
+/**
+ * Rótulos e tons da situação do orçamento.
+ *
+ * O metadado publica o rótulo humano em `meta.fields.options`, e é ele que a GRADE usa. Este mapa
+ * existe para os dois pontos em que a tela desenha a situação FORA da grade — o painel de contexto
+ * e a célula tipada —, onde o acesso ao `select` do metadado não está disponível no mesmo formato.
+ * O token é o mesmo do domínio; nenhum estado é inventado.
+ */
+const BUDGET_STATUS_LABELS: Record<string, string> = {
+  DRAFT: 'Rascunho',
+  APPROVED: 'Aprovado',
+  SUPERSEDED: 'Substituído',
+};
+
+const BUDGET_STATUS_TONES: Record<string, 'success' | 'warning' | 'neutral' | 'info'> = {
+  DRAFT: 'warning',
+  APPROVED: 'success',
+  SUPERSEDED: 'neutral',
+};
+
+/**
+ * VISÕES EMBUTIDAS do orçamento — os MESMOS recortes que o Ctrl+K já publica
+ * (`?status=DRAFT`, `?status=APPROVED`). Antes o comando navegava recortado e a tela não tinha
+ * como reproduzir o recorte num clique; agora ele está na barra, nomeado.
+ */
+const BUILT_IN_VIEWS = [
+  {
+    id: 'builtin.budgets.draft',
+    name: 'Em rascunho',
+    description: 'Orçamentos ainda não aprovados.',
+    config: { filters: { status: 'DRAFT' }, sortKey: null, sortDirection: 'asc' as const, groupKey: null },
+  },
+  {
+    id: 'builtin.budgets.approved',
+    name: 'Aprovados',
+    description: 'Orçamentos aprovados e vigentes.',
+    config: { filters: { status: 'APPROVED' }, sortKey: null, sortDirection: 'asc' as const, groupKey: null },
+  },
+];
+
 type ListState =
   | { phase: 'loading' }
   | { phase: 'denied' }
@@ -62,6 +108,16 @@ export function BudgetsListPage() {
   const { schema, status } = useEntitySchema('budgets');
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
   const [offset, setOffset] = useState(0);
+  /** Prévia lateral: só abre por intenção explícita, e fechar limpa a seleção. */
+  const [previewRow, setPreviewRow] = useState<BudgetSummary | null>(null);
+  /** Visão salva ativa — a barra precisa saber qual está acesa. */
+  const [activeViewId, setActiveViewId] = useState<string | null>(null);
+
+  /*
+   * VISÕES SALVAS persistidas por identidade, na mesma mecânica das outras listas financeiras.
+   * O escopo (`finance.budgets`) isola o recorte desta superfície do recorte de outra lista.
+   */
+  const savedViews = useSmartList({ scope: 'finance.budgets' }).savedViews;
 
   const filters = useMemo(() => {
     const values: Record<string, string> = {};
@@ -217,6 +273,36 @@ export function BudgetsListPage() {
         onClear={clearFilters}
       />
 
+      {/*
+        VISÕES SALVAS — a mesma barra das outras listas financeiras. No orçamento o recorte que o
+        operador remonta é "situação + termo": é ele que o Ctrl+K publica (`?status=DRAFT`) e é
+        ele que a barra persiste. Aplicar uma visão repõe os dois no lugar.
+      */}
+      <SavedViewsBar
+        views={savedViews.views}
+        builtInViews={BUILT_IN_VIEWS}
+        activeViewId={activeViewId}
+        onApply={(view) => {
+          const next = new URLSearchParams();
+          const status = view.config.filters.status ?? '';
+          if (status) {
+            next.set('status', status);
+          }
+          setSearchParams(next, { replace: true });
+          setOffset(0);
+          setActiveViewId(view.id);
+        }}
+        onSave={(name) => {
+          savedViews.saveView(name, { status: statusFilter }, 'state');
+        }}
+        onRename={savedViews.renameView}
+        onRemove={savedViews.removeView}
+        currentConfig={{ status: statusFilter }}
+        canSave={isFiltered}
+        allLabel="Todos"
+        className="mb-2"
+      />
+
       {status === 'error' ? (
         <p className="text-sm text-red-700" role="alert">
           Não foi possível carregar o schema da entidade.
@@ -236,23 +322,75 @@ export function BudgetsListPage() {
           </div>
 
           {items.length === 0 ? (
-            <EmptyState
+            <WorklistStatePanel
               title={
                 isFiltered
-                  ? 'Nenhum orçamento encontrado para os filtros selecionados.'
+                  ? 'Nenhum orçamento corresponde ao recorte atual.'
                   : 'Nenhum orçamento registrado ainda.'
               }
               description={
                 isFiltered
-                  ? 'Ajuste ou limpe os filtros para ver o conjunto completo.'
-                  : 'Comece criando o primeiro orçamento para comparar previsto e realizado.'
+                  ? 'O conjunto completo continua disponível: limpe o recorte para vê-lo.'
+                  : 'Registre o primeiro orçamento para acompanhar versão, situação e aprovação.'
+              }
+              action={
+                isFiltered ? (
+                  <WorklistClearFilters visible label="Ver todos os orçamentos" onClick={clearFilters} />
+                ) : (
+                  <Link className={rowPrimaryActionClass} to="/app/finance/budgets/new">
+                    Novo orçamento
+                  </Link>
+                )
               }
             />
           ) : (
             <DynamicList
               schema={schema}
               rows={rows}
-              emptyMessage="Nenhum orçamento registrado ainda."
+              emptyMessage="Nenhum orçamento corresponde ao recorte atual."
+              /* A PRÉVIA é o contexto sob demanda — a linha abre o detalhe; o botão abre o painel. */
+              renderRowActions={(row) => (
+                <RowActionMenu
+                  label={`Orçamento ${String(row['code'])}`}
+                  primary={
+                    <Link
+                      className={rowPrimaryActionClass}
+                      to={`/app/finance/budgets/${row.id}`}
+                      aria-label={`Abrir orçamento ${String(row['code'])}`}
+                    >
+                      Abrir
+                    </Link>
+                  }
+                  secondary={
+                    <button
+                      type="button"
+                      className={rowSecondaryActionClass}
+                      onClick={() => setPreviewRow(items.find((item) => item.id === row.id) ?? null)}
+                    >
+                      Prévia
+                    </button>
+                  }
+                />
+              )}
+              renderCell={(field, row) => {
+                /*
+                 * ESTADO — a situação vem do metadado como `select`. A célula desenha `StatusBadge`
+                 * com o rótulo HUMANO, na mesma gramática de recebíveis, pagáveis e despesas; sem
+                 * isto a coluna exibia o valor cru do enum.
+                 */
+                if (field.name === 'status') {
+                  return (
+                    <StatusBadge
+                      label={field.options?.options?.find((option) => option.value === String(row['status']))?.label ?? String(row['status'])}
+                      tone={BUDGET_STATUS_TONES[String(row['status'])] ?? 'neutral'}
+                    />
+                  );
+                }
+                if (field.name === 'created_at') {
+                  return <DateTime value={String(row['created_at'])} />;
+                }
+                return undefined;
+              }}
               onRowClick={(row) => {
                 void navigate(`/app/finance/budgets/${row.id}`);
               }}
@@ -277,6 +415,55 @@ export function BudgetsListPage() {
           </WorklistFooter>
         </>
       ) : null}
+
+      {/*
+        CONTEXTO SOB DEMANDA — abre pela PRÉVIA da linha, nunca sozinho. O painel mostra o que o
+        registro de orçamento publica e a próxima ação real: abrir o orçamento. Não há comparação
+        previsto × realizado aqui porque o DTO da lista não a publica — e uma linha de variância
+        inventada seria pior que a ausência dela.
+      */}
+      <ContextDrawer
+        open={previewRow !== null}
+        title="Contexto do orçamento"
+        onClose={() => setPreviewRow(null)}
+        preview={
+          previewRow
+            ? {
+                identifier: previewRow.code,
+                subtitle: previewRow.name,
+                status: (
+                  <StatusBadge
+                    label={BUDGET_STATUS_LABELS[previewRow.status] ?? previewRow.status}
+                    tone={BUDGET_STATUS_TONES[previewRow.status] ?? 'neutral'}
+                  />
+                ),
+                facts: [
+                  { label: 'Código', value: previewRow.code },
+                  { label: 'Nome', value: previewRow.name },
+                  { label: 'Moeda', value: previewRow.currencyCode },
+                  {
+                    label: 'Versão do registro',
+                    value: String(previewRow.rowVersion),
+                    hint: 'Controle de concorrência usado pelo servidor ao aprovar.',
+                  },
+                  {
+                    label: 'Última atualização',
+                    value: <DateTime value={previewRow.updatedAt} mode="datetime" />,
+                  },
+                ],
+                nextAction: {
+                  label:
+                    previewRow.status === 'DRAFT'
+                      ? 'Abrir o orçamento para revisar e aprovar'
+                      : 'Abrir o orçamento para consultar versões e linhas',
+                  href: `/app/finance/budgets/${previewRow.id}`,
+                },
+                detailHref: `/app/finance/budgets/${previewRow.id}`,
+                detailLabel: 'Abrir orçamento completo',
+              }
+            : null
+        }
+      />
     </ModulePage>
   );
 }

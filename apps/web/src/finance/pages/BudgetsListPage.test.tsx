@@ -104,9 +104,15 @@ describe('BudgetsListPage', () => {
       metadata: true,
     });
 
+    /*
+     * O estado vazio passou a ser `WorklistStatePanel`, o mesmo das outras listas financeiras:
+     * antes era um `EmptyState` solto, sem a saída do recorte na gramática do domínio.
+     */
     await waitFor(() => {
-      expect(screen.getByText(/nenhum orçamento encontrado para os filtros selecionados/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/nenhum orçamento corresponde ao recorte atual/i),
+      ).toBeInTheDocument();
     });
-    expect(screen.getByRole('button', { name: /limpar filtros/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /ver todos os orçamentos/i })).toBeInTheDocument();
   });
 });
