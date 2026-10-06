@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { listRentalServiceOrders } from '../api/rentals-api';
+import {
+  DynamicContextDrawer,
+  DynamicSavedViewsBar,
+  useSavedViews,
+  type CrossReference,
+} from '../../engine';
 import { ServiceOrdersApiError } from '../../service-orders/api/service-orders-api';
 import { mapServiceOrdersErrorToMessage } from '../../service-orders/api/service-orders-error-messages';
 import { ServiceOrderStatusBadge } from '../../service-orders/components/ServiceOrderStatusBadge';
@@ -14,6 +21,7 @@ import {
   WorklistHeader,
   WorklistRowLink,
   WorklistStatePanel,
+  rowPrimaryActionClass,
   worklistCellClass,
   worklistCellRaisedClass,
   worklistHeadCellClass,
@@ -72,6 +80,10 @@ type ListState =
   | { phase: 'ready'; items: Awaited<ReturnType<typeof listRentalServiceOrders>>['items']; offset: number; hasMore: boolean };
 
 export function RentalsListPage() {
+  const savedViews = useSavedViews('local-operator', 'rentals');
+  const [selected, setSelected] = useState<
+    Awaited<ReturnType<typeof listRentalServiceOrders>>['items'][number] | null
+  >(null);
   const [offset, setOffset] = useState(0);
   const [statusFilter, setStatusFilter] = useState<'' | ServiceOrderStatus>('');
   const [searchInput, setSearchInput] = useState('');
@@ -241,6 +253,24 @@ export function RentalsListPage() {
         />
       </WorklistFilterBar>
 
+      {/*
+        VISÕES SALVAS — a fila que o operador de locação remonta todo dia: "paradas" (execução
+        travada) e "aguardando conferência de medição" são os dois recortes de trabalho reais.
+        A barra elimina a remontagem manual do filtro a cada turno.
+      */}
+      <DynamicSavedViewsBar
+        views={savedViews.views}
+        persistedLocally={savedViews.persistedLocally}
+        onSave={(name) => savedViews.save(name, { search, statusFilter }, 'list')}
+        onDelete={savedViews.remove}
+        onApply={(view) => {
+          setSearchInput(view.filters['search'] ?? '');
+          setSearch(view.filters['search'] ?? '');
+          setStatusFilter((view.filters['statusFilter'] ?? '') as '' | ServiceOrderStatus);
+          setOffset(0);
+        }}
+      />
+
       {items.length === 0 ? (
         <WorklistStatePanel
           title={
@@ -295,7 +325,16 @@ export function RentalsListPage() {
                 const exception = rentalException(order.status);
                 const nextAction = RENTAL_NEXT_ACTION[order.status];
                 return (
-                  <tr key={order.id} className={worklistRowClass}>
+                  <tr
+                    key={order.id}
+                    className={worklistRowClass}
+                    /*
+                     * CONTEXTO SEM ABANDONAR A FILA — o locador acompanha vários contratos ao
+                     * mesmo tempo. O painel lateral mostra a situação da locação clicada sem
+                     * perder o recorte; o número da OS continua sendo o caminho ao planejamento.
+                     */
+                    onClick={() => setSelected(order)}
+                  >
                     <td className={worklistCellClass}>
                       <WorklistRowLink href={`/app/service-orders/${order.id}/planning`}>
                         {order.orderNumber}
@@ -370,6 +409,50 @@ export function RentalsListPage() {
           onNext={() => setOffset(offset + PAGE_SIZE)}
         />
       </WorklistFooter>
+
+      {/*
+        RELAÇÕES DA LOCAÇÃO — montadas do que a LINHA já traz, sem chamada de rede nova. Não há
+        contagem de medições nem de faturamento nesta listagem, então nenhuma é afirmada: número
+        sem origem não entra.
+      */}
+      <DynamicContextDrawer
+        open={selected !== null}
+        title={selected ? selected.orderNumber : 'Locação'}
+        onClose={() => setSelected(null)}
+        crossReferences={selected ? rentalCrossReferences(selected) : []}
+      >
+        {selected ? (
+          <Link
+            to={`/app/service-orders/${selected.id}/planning`}
+            className={rowPrimaryActionClass}
+          >
+            Abrir planejamento
+          </Link>
+        ) : null}
+      </DynamicContextDrawer>
     </ModulePage>
   );
+}
+
+/**
+ * Referências cruzadas da locação, a partir do payload da listagem.
+ *
+ * Cada item entra só quando o campo existe. Sem responsável alocado, a ausência é DECLARADA —
+ * não se fabrica nome nem se omite a linha em silêncio.
+ */
+function rentalCrossReferences(
+  order: Awaited<ReturnType<typeof listRentalServiceOrders>>['items'][number],
+): CrossReference[] {
+  const references: CrossReference[] = [
+    { label: 'Cliente', detail: formatClientLabel(order.clientSnapshot, order.clientId) },
+    { label: 'Execução', detail: formatServiceOrderStatus(order.status) },
+  ];
+  references.push({
+    label: 'Responsável',
+    detail: order.assignedWorkforceMember?.displayName ?? 'Sem alocação ativa',
+  });
+  if (order.description) {
+    references.push({ label: 'Descrição', detail: order.description });
+  }
+  return references;
 }
