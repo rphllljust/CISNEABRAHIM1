@@ -32,6 +32,9 @@ import {
   worklistControlClass,
   worklistSelectClass,
 } from '../../ui/enterprise-list';
+import { WorkbenchQueue, WorkbenchQueueItem } from '../../ui/workbench';
+import { Button } from '../../ui/Button';
+import { StatusBadge } from '../../ui/StatusBadge';
 import {
   ModuleDeniedState,
   ModuleErrorState,
@@ -120,6 +123,8 @@ export function ProposalsListPage() {
   // afirma um recorte que nao existe.
   const relationScope = useRelationScope(RELATION_SCOPE_KEYS);
   const [searchInput, setSearchInput] = useState('');
+  /** Filtros de data, ordenação e sentido ficam atrás de "Mais filtros" — a barra abre compacta. */
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
 
   const loadPage = useCallback(
@@ -287,12 +292,72 @@ export function ProposalsListPage() {
       />
 
       {/*
-        TOOLBAR DENSA — era `EnterpriseToolbar` DENTRO de um card (`enterpriseTableCardClass`),
-        o que empurrava a primeira linha da fila para fora da dobra. Passa a `WorklistFilterBar`,
-        a mesma peca das demais worklists: uma linha, densa, com os mesmos filtros e a mesma
-        consulta. Nenhum filtro foi removido nem alterado.
+        WORK QUEUE — a exceção vem ANTES do recorte.
+
+        A fila comercial tinha os filtros como primeiro bloco da tela e a exceção (validade
+        crítica, sem origem, sem valor) diluída em badges dentro das linhas. Aqui a exceção sobe
+        para uma faixa operacional: o operador vê o que TRAVA a conversão antes de escolher
+        qualquer filtro. Cada linha da faixa é um RECORTE real e clicável — aplica o mesmo filtro
+        que o servidor entende, não um número solto.
       */}
-      <WorklistFilterBar meta={`${items.length} nesta página`}>
+      {awaitingCount > 0 || expiringCount > 0 ? (
+        <WorkbenchQueue
+          title="Exceções da fila comercial"
+          description="O que exige decisão agora, no recorte carregado."
+        >
+          {awaitingCount > 0 ? (
+            <WorkbenchQueueItem
+              severity={<StatusBadge label="Aguardando" tone="warning" />}
+              severityTone="info"
+              title="Propostas aguardando decisão do cliente"
+              reason="Emitidas e ainda sem aceite, rejeição ou expiração."
+              context={`${awaitingCount} ${awaitingCount === 1 ? 'proposta' : 'propostas'}`}
+              action={
+                <button
+                  type="button"
+                  className="text-[13px] font-semibold text-brand-700 hover:text-brand-800"
+                  onClick={() => applyFilter('status', PROPOSAL_VERSION_STATUSES.Issued)}
+                >
+                  Trabalhar estas propostas
+                </button>
+              }
+            />
+          ) : null}
+          {expiringCount > 0 ? (
+            <WorkbenchQueueItem
+              severity={<StatusBadge label="Validade" tone="error" />}
+              severityTone="critical"
+              title="Validade vencida ou vencendo"
+              reason="A validade comercial da revisão vigente está no limite — depois dela a proposta não vale mais."
+              context={`${expiringCount} ${expiringCount === 1 ? 'proposta' : 'propostas'}`}
+              action={
+                <button
+                  type="button"
+                  className="text-[13px] font-semibold text-brand-700 hover:text-brand-800"
+                  onClick={() => applyFilter('sort', PROPOSAL_LIST_SORTS.validUntil)}
+                >
+                  Ordenar por validade
+                </button>
+              }
+            />
+          ) : null}
+        </WorkbenchQueue>
+      ) : null}
+
+      {/*
+        TOOLBAR — busca + SITUAÇÃO em uma linha. Data, ordenação e sentido ficam sob "Mais
+        filtros": eram cinco controles abertos ocupando metade da largura útil antes de o
+        operador ver a primeira proposta. O recorte continua indo ao SERVIDOR, e nenhum filtro
+        foi removido — só deixou de ser formulário permanente.
+      */}
+      <WorklistFilterBar
+        meta={
+          <>
+            {items.length} nesta página
+            {hasActiveFilters ? ' · recorte aplicado' : ''}
+          </>
+        }
+      >
         <form
           className="flex flex-wrap items-end gap-2"
           onSubmit={(event) => {
@@ -300,7 +365,7 @@ export function ProposalsListPage() {
             applyFilter('search', searchInput);
           }}
         >
-          <WorklistField label="Busca" htmlFor="proposal-search">
+          <WorklistField label="Busca" htmlFor="proposal-search" grow>
             <input
               id="proposal-search"
               type="search"
@@ -325,24 +390,6 @@ export function ProposalsListPage() {
               ))}
             </select>
           </WorklistField>
-          <WorklistField label="Validade de" htmlFor="proposal-valid-from">
-            <input
-              id="proposal-valid-from"
-              type="date"
-              className={worklistControlClass}
-              value={filters.validFrom}
-              onChange={(event) => applyFilter('validFrom', event.target.value)}
-            />
-          </WorklistField>
-          <WorklistField label="até" htmlFor="proposal-valid-to">
-            <input
-              id="proposal-valid-to"
-              type="date"
-              className={worklistControlClass}
-              value={filters.validTo}
-              onChange={(event) => applyFilter('validTo', event.target.value)}
-            />
-          </WorklistField>
           <WorklistField label="Ordenar por" htmlFor="proposal-sort">
             <select
               id="proposal-sort"
@@ -357,22 +404,20 @@ export function ProposalsListPage() {
               ))}
             </select>
           </WorklistField>
-          <WorklistField label="Sentido" htmlFor="proposal-direction">
-            <select
-              id="proposal-direction"
-              className={worklistSelectClass}
-              value={filters.direction}
-              onChange={(event) =>
-                applyFilter('direction', event.target.value as ProposalListDirection)
-              }
-            >
-              <option value="desc">Decrescente</option>
-              <option value="asc">Crescente</option>
-            </select>
-          </WorklistField>
           <button type="submit" className="button-secondary">
             Buscar
           </button>
+          <WorklistField label="&nbsp;" htmlFor="proposal-more-filters">
+            <Button
+              id="proposal-more-filters"
+              type="button"
+              variant="secondary"
+              aria-expanded={showMoreFilters}
+              onClick={() => setShowMoreFilters((current) => !current)}
+            >
+              {showMoreFilters ? 'Menos filtros' : 'Mais filtros'}
+            </Button>
+          </WorklistField>
           {hasActiveFilters ? (
             <WorklistClearFilters
               visible
@@ -383,6 +428,42 @@ export function ProposalsListPage() {
             />
           ) : null}
         </form>
+
+        {showMoreFilters ? (
+          <div className="mt-2 flex flex-wrap items-end gap-2 border-t border-gray-100 pt-2">
+            <WorklistField label="Validade de" htmlFor="proposal-valid-from">
+              <input
+                id="proposal-valid-from"
+                type="date"
+                className={worklistControlClass}
+                value={filters.validFrom}
+                onChange={(event) => applyFilter('validFrom', event.target.value)}
+              />
+            </WorklistField>
+            <WorklistField label="até" htmlFor="proposal-valid-to">
+              <input
+                id="proposal-valid-to"
+                type="date"
+                className={worklistControlClass}
+                value={filters.validTo}
+                onChange={(event) => applyFilter('validTo', event.target.value)}
+              />
+            </WorklistField>
+            <WorklistField label="Sentido" htmlFor="proposal-direction">
+              <select
+                id="proposal-direction"
+                className={worklistSelectClass}
+                value={filters.direction}
+                onChange={(event) =>
+                  applyFilter('direction', event.target.value as ProposalListDirection)
+                }
+              >
+                <option value="desc">Decrescente</option>
+                <option value="asc">Crescente</option>
+              </select>
+            </WorklistField>
+          </div>
+        ) : null}
       </WorklistFilterBar>
 
       <div className={enterpriseTableCardClass}>
@@ -574,10 +655,10 @@ export function ProposalsListPage() {
                     </div>
 
                     {/*
-                      ACAO DA LINHA — mesma gramatica de Pedidos (GOLD 1), Clientes, Solicitacoes
-                      e Pessoas. A fila comercial so abria pelo codigo; o rotulo do botao e o
-                      PROXIMO PASSO da versao vigente, o mesmo verbo que a coluna ao lado ja
-                      declara — nenhuma transicao nova foi criada.
+                      PROXIMA ACAO — o verbo do proximo passo da versao vigente, como ACAO
+                      SEMANTICA da linha. Antes era um botao "Abrir" repetido em toda linha, sem
+                      dizer o que fazer; agora o rotulo E o passo (Emitir / Revisar / Acompanhar),
+                      e a identidade da proposta ja navega para a object page.
                     */}
                     <div className="flex items-start lg:justify-end">
                       <Link to={`/app/proposals/${item.id}`} className={rowPrimaryActionClass}>
@@ -590,10 +671,6 @@ export function ProposalsListPage() {
                 );
               })}
             </ul>
-            <p className="mt-3 px-3 text-xs text-gray-400">
-              Validade é a data comercial registrada na revisão vigente — não é SLA nem prazo de
-              execução.
-            </p>
           </section>
         )}
       </div>
@@ -602,7 +679,7 @@ export function ProposalsListPage() {
         pageNumber={pageNumber}
         previousDisabled={offset === 0}
         nextDisabled={!hasMore}
-        onPrevious={() => void loadPage(Math.max(0, offset - PAGE_SIZE), filters)}
+        onPrevious={() => void loadPage(Math.max(0, pageNumber - 1) * PAGE_SIZE, filters)}
         onNext={() => void loadPage(offset + PAGE_SIZE, filters)}
       />
     </ModulePage>
