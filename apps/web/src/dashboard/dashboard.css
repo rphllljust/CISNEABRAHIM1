@@ -53,16 +53,32 @@
 }
 
 /* ============================================================
-   ANALYTICS RAIL — distribuição com drilldown real
+   BUSINESS INSIGHT RAIL — um painel, seções separadas por divisor fino
    ============================================================ */
 
+.dashboard-rail-panel {
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-md);
+  background: var(--dashboard-surface);
+  overflow: hidden;
+}
+
+.dashboard-rail-panel > * + * {
+  border-top: 1px solid var(--dashboard-line-soft);
+}
+
+.dashboard-rail-panel > * {
+  margin: 0;
+  padding: var(--spacing-3);
+}
+
 .dashboard-analytic {
-  margin-bottom: var(--spacing-3);
+  margin: 0;
 }
 
 .dashboard-dist {
   display: grid;
-  gap: var(--spacing-1);
+  gap: 0.375rem;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -72,24 +88,17 @@
   min-width: 0;
 }
 
+/* Alinhamento rigoroso: rótulo, barra e número em colunas fixas, baseline única. */
 .dashboard-dist__row {
   display: grid;
-  grid-template-columns: 5.5rem minmax(0, 1fr) 1.75rem;
+  grid-template-columns: 5.5rem minmax(0, 1fr) 1.5rem;
   align-items: center;
   gap: var(--spacing-2);
-  padding: 0.125rem var(--spacing-1);
+  padding: 0.125rem 0.25rem;
+  margin-left: -0.25rem;
   border-radius: var(--radius-sm);
   text-decoration: none;
   color: inherit;
-}
-
-/* Na coluna analitica o valor da faixa vai para a linha de baixo, sem apertar a barra. */
-.dashboard-dist__amount {
-  grid-column: 1 / -1;
-  text-align: right;
-  font-size: 0.6875rem;
-  color: var(--color-slate-400);
-  white-space: nowrap;
 }
 
 .dashboard-dist__row:hover {
@@ -110,7 +119,7 @@
 }
 
 .dashboard-dist__track {
-  height: 0.5rem;
+  height: 4px;
   border-radius: var(--radius-full);
   background: var(--color-slate-100);
   overflow: hidden;
@@ -144,17 +153,17 @@
   color: var(--dashboard-ink);
 }
 
+/* Valor da faixa em linha propria, discreto: o numero e o fato, o dinheiro e contexto. */
 .dashboard-dist__amount {
+  grid-column: 2 / -1;
   text-align: right;
-  font-size: 0.75rem;
-  color: var(--color-slate-500);
+  font-size: 0.6875rem;
+  color: var(--color-slate-400);
   white-space: nowrap;
 }
 
 .dashboard-analytic__note {
   margin: var(--spacing-2) 0 0;
-  padding-top: var(--spacing-2);
-  border-top: 1px solid var(--dashboard-line-soft);
   font-size: 0.6875rem;
   line-height: 1.35;
   color: var(--color-slate-400);
@@ -258,40 +267,73 @@
   background: var(--color-brand-700);
 }
 
-/* METRIC STRIP — indicadores reais em linha, sem grade de células vazias. */
-.dashboard-metric-strip {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
-}
-
-.dashboard-metric-strip__row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-1);
+/* METRIC STRIP — indicadores compactos: rótulo, número, contexto. Sem cardão. */
+.dashboard-kpi-list {
+  display: grid;
+  gap: 0.375rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.dashboard-metric-strip__item {
+.dashboard-kpi-list__item {
   min-width: 0;
 }
 
-.dashboard-metric-link,
-.dashboard-metric-static {
-  display: inline-flex;
+.dashboard-kpi-list__cell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0 var(--spacing-2);
+  padding: 0.125rem 0.25rem;
+  margin-left: -0.25rem;
+  border-radius: var(--radius-sm);
   text-decoration: none;
+  color: inherit;
 }
 
-.dashboard-metric-link:hover {
-  filter: brightness(0.97);
+a.dashboard-kpi-list__cell:hover {
+  background: var(--color-slate-50);
 }
 
-.dashboard-metric-link:focus-visible {
+a.dashboard-kpi-list__cell:focus-visible {
   outline: 2px solid var(--color-brand-500);
-  outline-offset: 1px;
-  border-radius: var(--radius-md);
+  outline-offset: -2px;
+}
+
+.dashboard-kpi-list__label {
+  grid-column: 1;
+  font-size: 0.75rem;
+  color: var(--color-slate-600);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dashboard-kpi-list__value {
+  grid-column: 2;
+  grid-row: 1;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--dashboard-ink);
+}
+
+.dashboard-kpi-list__unit {
+  margin-left: 0.1875rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--color-slate-400);
+}
+
+.dashboard-kpi-list__context {
+  grid-column: 1 / -1;
+  font-size: 0.6875rem;
+  line-height: 1.3;
+  color: var(--color-slate-400);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .dashboard-work {
@@ -1003,9 +1045,12 @@ a.dashboard-kpi:focus-visible {
   color: var(--color-amber-700);
 }
 
+/* UNKNOWN != ZERO: sem contagem e estado NEUTRO e secundario — nao e erro, nao e zero. */
 .dashboard-flow__unknown {
-  font-size: 0.75rem;
-  font-style: italic;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
   color: var(--color-slate-400);
 }
 

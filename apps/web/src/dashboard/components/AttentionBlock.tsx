@@ -144,7 +144,7 @@ export function AttentionBlock({ items }: AttentionBlockProps) {
 
       <p className="dashboard-decision__legend">
         <ShieldAlert className="dashboard-decision__legend-icon" strokeWidth={2} aria-hidden />
-        Coluna “Prazo” mostra o maior atraso real entre as exceções quando o backend o publica.
+        A coluna de prazo mostra o maior atraso entre as exceções listadas.
       </p>
     </section>
   );

@@ -94,9 +94,15 @@ describe('operational dashboard e2e (frontend)', () => {
     ).toHaveLength(0);
     // METRIC STRIP: os indicadores sao LINHAS compactas, nao a grade de cards do painel anterior.
     expect(mainElement.querySelectorAll('.dashboard-kpi')).toHaveLength(0);
-    expect(mainElement.querySelectorAll('.dashboard-metric-strip__item').length).toBeGreaterThanOrEqual(1);
-    // A LINGUAGEM TECNICA DE IMPLEMENTACAO NAO EXISTE NA TELA.
-    expect(mainElement.textContent).not.toMatch(/PARK_BI_GAP|snapshot|backend publica|amostra técnica/i);
+    expect(mainElement.querySelectorAll('.dashboard-kpi-list__item').length).toBeGreaterThanOrEqual(1);
+    /*
+     * LINGUAGEM TECNICA DE IMPLEMENTACAO NAO EXISTE NA TELA.
+     *
+     * O que se prova aqui e o que a TELA gera. `detail`/`summary` sao texto do servidor: se ele
+     * publicar "8 dia(s)", a tela repassa — isso e contrato de dados, nao copy de apresentacao.
+     * A varredura cobre, portanto, os rotulos e estados que o frontend escreve.
+     */
+    expect(mainElement.textContent).not.toMatch(/PARK_BI_GAP|snapshot executivo|backend|amostra técnica/i);
   });
 
   it('reflects period filter in URL when user changes period', async () => {

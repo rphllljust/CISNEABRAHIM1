@@ -1,6 +1,4 @@
 import { Link } from 'react-router-dom';
-import { useMemo } from 'react';
-import { EnterpriseMetric } from '../../ui/enterprise-list';
 import type { DashboardKpi } from '../utils/build-dashboard-kpis';
 
 /**
@@ -30,17 +28,6 @@ export function MetricStrip({
   kpis: DashboardKpi[];
   volume: { opened: number; completed: number; hrefOpened: string; hrefCompleted: string } | null;
 }) {
-  const groups = useMemo(() => {
-    const critical = kpis.filter((kpi) => kpi.variant === 'critical');
-    const warning = kpis.filter((kpi) => kpi.variant === 'warning');
-    const rest = kpis.filter((kpi) => kpi.variant !== 'critical' && kpi.variant !== 'warning');
-    return [
-      { id: 'critical', items: critical, tone: 'critical' as const },
-      { id: 'warning', items: warning, tone: 'warning' as const },
-      { id: 'rest', items: rest, tone: 'info' as const },
-    ].filter((group) => group.items.length > 0);
-  }, [kpis]);
-
   if (kpis.length === 0) {
     return (
       <section aria-labelledby="kpi-heading" className="dashboard-block dashboard-block--compact">
@@ -64,38 +51,40 @@ export function MetricStrip({
         </h2>
       </header>
 
-      <div className="dashboard-metric-strip">
-        {groups.map((group) => (
-          <ul key={group.id} className="dashboard-metric-strip__row" aria-label={`Indicadores ${group.id}`}>
-            {group.items.map((kpi) => (
-              <li key={kpi.id} className="dashboard-metric-strip__item">
-                {kpi.href ? (
-                  <Link
-                    className="dashboard-metric-link"
-                    to={kpi.href}
-                    aria-label={`${kpi.ariaLabel}. ${HREF_LABELS[kpi.id] ?? 'Abrir lista'}.`}
-                    title={`${kpi.label}: ${kpi.context}`}
-                  >
-                    <EnterpriseMetric
-                      value={`${kpi.value}${kpi.unit ? ` ${kpi.unit}` : ''}`}
-                      label={kpi.label}
-                      tone={group.tone}
-                    />
-                  </Link>
-                ) : (
-                  <span className="dashboard-metric-static" title={`${kpi.label}: ${kpi.context}`}>
-                    <EnterpriseMetric
-                      value={`${kpi.value}${kpi.unit ? ` ${kpi.unit}` : ''}`}
-                      label={kpi.label}
-                      tone="neutral"
-                    />
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
-        ))}
-      </div>
+      {/*
+        INDICADORES COMPACTOS: rótulo curto acima, número grande abaixo. Nao e uma tag nem um
+        cardao — a leitura é "quantos", e o drilldown fica no próprio número.
+      */}
+      <ul className="dashboard-kpi-list">
+        {kpis.map((kpi) => {
+          const body = (
+            <>
+              <span className="dashboard-kpi-list__label">{kpi.label}</span>
+              <span className="dashboard-kpi-list__value tabular-nums">
+                {kpi.value}
+                {kpi.unit ? <span className="dashboard-kpi-list__unit">{kpi.unit}</span> : null}
+              </span>
+              <span className="dashboard-kpi-list__context">{kpi.context}</span>
+            </>
+          );
+
+          return (
+            <li key={kpi.id} className="dashboard-kpi-list__item">
+              {kpi.href ? (
+                <Link
+                  className="dashboard-kpi-list__cell"
+                  to={kpi.href}
+                  aria-label={`${kpi.ariaLabel}. ${HREF_LABELS[kpi.id] ?? 'Abrir lista'}.`}
+                >
+                  {body}
+                </Link>
+              ) : (
+                <span className="dashboard-kpi-list__cell">{body}</span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
 
       {volume ? (
         <p className="dashboard-volume">

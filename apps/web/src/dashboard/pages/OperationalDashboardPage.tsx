@@ -252,28 +252,28 @@ export function OperationalDashboardPage() {
           </div>
 
           {/*
-            ANALYTICS RAIL — a coluna lateral passa a pertencer a TELA, nao ao contexto.
-            Antes ela reservava ~20rem permanentes para um painel vazio ("Selecione um
-            trabalho...") — 25% da largura gastos para dizer "nada selecionado". O contexto
-            foi para o `ContextDrawer`, que e SOB DEMANDA; o espaco passou a carregar as
-            duas visualizacoes que tem dado autoritativo no snapshot.
+            BUSINESS INSIGHT RAIL — a coluna lateral e UM painel, nao dois blocos soltos.
+            O `aside` carrega a moldura unica; cada secao interna e separada por um divisor fino,
+            de modo que a leitura seja "indicadores da empresa" e nao "cards empilhados".
           */}
           <aside className="dashboard-workspace__side" aria-label="Indicadores analíticos">
-            {/* VISUAL 1 — AGING FINANCEIRO: faixas REAIS publicadas pelo servidor. */}
-            <AgingDistribution aging={snapshot.charts.financialAging} />
+            <div className="dashboard-rail-panel">
+              {/* VISUAL 1 — OPERACAO POR STATUS: distribuicao autoritativa com drilldown. */}
+              <OperationDistribution snapshot={snapshot} />
 
-            {/* VISUAL 2 — OPERACAO POR STATUS: distribuicao autoritativa + volume do periodo. */}
-            <OperationDistribution snapshot={snapshot} />
+              {/* VISUAL 2 — AGING FINANCEIRO: as faixas REAIS publicadas. */}
+              <AgingDistribution aging={snapshot.charts.financialAging} />
 
-            <div
-              {...semanticSectionAttrs([
-                'productivity.completed_count',
-                'productivity.on_time_rate',
-                'productivity.avg_cycle_hours',
-                'productivity.rework_rate',
-              ])}
-            >
-              <MetricStrip kpis={buildDashboardKpis(snapshot)} volume={buildPeriodVolume(snapshot)} />
+              <div
+                {...semanticSectionAttrs([
+                  'productivity.completed_count',
+                  'productivity.on_time_rate',
+                  'productivity.avg_cycle_hours',
+                  'productivity.rework_rate',
+                ])}
+              >
+                <MetricStrip kpis={buildDashboardKpis(snapshot)} volume={buildPeriodVolume(snapshot)} />
+              </div>
             </div>
           </aside>
         </div>
@@ -378,8 +378,9 @@ function BusinessFlowSummary({ stages }: { stages: BusinessFlowStage[] }) {
               {stage.count !== null ? (
                 <span className="dashboard-flow__number tabular-nums">{stage.count}</span>
               ) : (
-                /* AUSENCIA != ZERO: sem contagem publicada nao existe "0" — existe o estado. */
-                <span className="dashboard-flow__unknown">sem contagem publicada</span>
+                /* AUSENCIA != ZERO: sem contagem, a etapa declara o estado — em tom secundario,
+                   para ler como "a informacao nao esta aqui" e nao como erro. */
+                <span className="dashboard-flow__unknown">sem contagem</span>
               )}
               {stage.amount ? (
                 /* MONEY CANONICO: o primitivo do CISNE formata o valor do servidor (R$ 2.500,00). */
@@ -460,7 +461,8 @@ function AgingDistribution({
                 />
               </span>
               <span className="dashboard-dist__count tabular-nums">{bucket.count}</span>
-              <span className="dashboard-dist__amount tabular-nums">
+              <span className="dashboard-dist__amount">
+                {/* MONEY CANONICO: o primitivo formata o valor do servidor (R$ 500,00). */}
                 <Money value={bucket.totalAmount} />
               </span>
             </Link>
