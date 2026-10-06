@@ -158,6 +158,7 @@ export function CreateRecordForm({
   mapError,
   onSuccess,
   onConflictReload,
+  defaultOpen = false,
 }: {
   title: string;
   description: string;
@@ -177,10 +178,23 @@ export function CreateRecordForm({
    * apenas reconhece o aviso, mantendo os campos intactos.
    */
   onConflictReload?: () => void;
+  /**
+   * PROGRESSIVE DISCLOSURE — o cadastro começa FECHADO ou não.
+   *
+   * Numa tela cujo objeto é a LISTA, o formulário de criação aberto empurra a grade para fora
+   * da primeira dobra: em 1440x900 o operador via "Abrir conta financeira" e os campos, e a
+   * lista de contas — o motivo de ele ter aberto a tela — só aparecia depois de rolar. Fechado
+   * por padrão, a superfície abre na fila; o cadastro aparece quando alguém decide cadastrar.
+   *
+   * Em telas cujo objeto É o cadastro (detalhe de objeto, abertura a partir de contexto), o
+   * formulário continua aberto: lá ele é o conteúdo, não uma ação lateral.
+   */
+  defaultOpen?: boolean;
 }) {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const inflight = useRef(false);
   const idempotencyKey = useRef(createIdempotencyKey());
 
@@ -237,8 +251,33 @@ export function CreateRecordForm({
   }
 
   return (
-    <FormSection title={title} description={description} className="mb-6">
-      <form onSubmit={(event) => void handleSubmit(event)} className="grid grid-cols-1 gap-4 md:grid-cols-2">
+    <FormSection
+      title={title}
+      description={open ? description : undefined}
+      className="mb-6"
+      /* Embutido numa lista, o botão JÁ anuncia a ação — o título repetido seria ruído. */
+      hideTitle={!defaultOpen}
+    >
+      {/*
+        FECHADO: o cabeçalho e a ação primária ficam visíveis; os campos só aparecem quando o
+        operador decide cadastrar. `aria-expanded` declara o estado ao leitor de tela, e o
+        conteúdo não é montado quando fechado — nenhum campo inativo no DOM.
+      */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="m-0 text-xs text-gray-500">
+          {open ? 'Preencha os campos e confirme.' : 'O cadastro abre no mesmo lugar, sem sair da lista.'}
+        </p>
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen((current) => !current)}
+          className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          {open ? `Fechar ${title.toLowerCase()}` : title}
+        </button>
+      </div>
+      {open ? (
+      <form onSubmit={(event) => void handleSubmit(event)} className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
         {children}
         {processing ? (
           <div className="md:col-span-2">
@@ -261,6 +300,7 @@ export function CreateRecordForm({
           </Button>
         </div>
       </form>
+      ) : null}
     </FormSection>
   );
 }
