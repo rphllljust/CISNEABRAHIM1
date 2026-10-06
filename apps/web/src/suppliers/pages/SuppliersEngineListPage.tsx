@@ -206,6 +206,31 @@ export function SuppliersEngineListPage() {
     [],
   );
 
+  /**
+   * Relações que a listagem sustenta declarar. Sem contagem: o payload não a publica.
+   *
+   * ESTE HOOK FICA ANTES DOS RETORNOS ANTECIPADOS — abaixo deles, a ordem dos hooks mudaria
+   * entre a fase de carregamento (que retorna cedo) e a fase pronta, e o React abortaria a
+   * árvore com "Rendered more hooks than during the previous render".
+   */
+  const crossReferences = useMemo<CrossReference[]>(() => {
+    if (!selected) {
+      return [];
+    }
+    return [
+      {
+        label: 'Pedidos de compra',
+        href: `/app/purchase-orders?supplierId=${selected.id}`,
+        detail: 'Compras emitidas para este fornecedor.',
+      },
+      {
+        label: 'Contatos',
+        detail: 'Disponíveis na ficha do fornecedor.',
+        href: `/app/suppliers/${selected.id}`,
+      },
+    ];
+  }, [selected]);
+
   if (listState.phase === 'loading') {
     return (
       <ModuleStatePage title="Fornecedores">
@@ -242,25 +267,6 @@ export function SuppliersEngineListPage() {
   // Indicadores contados sobre as linhas CARREGADAS — nunca estimados a partir do total.
   const activeOnPage = items.filter((item) => item.status === 'ACTIVE').length;
   const blockedOnPage = items.filter((item) => supplierException(item.status) !== null).length;
-
-  /** Relações que a listagem sustenta declarar. Sem contagem: o payload não a publica. */
-  const crossReferences = useMemo<CrossReference[]>(() => {
-    if (!selected) {
-      return [];
-    }
-    return [
-      {
-        label: 'Pedidos de compra',
-        href: `/app/purchase-orders?supplierId=${selected.id}`,
-        detail: 'Compras emitidas para este fornecedor.',
-      },
-      {
-        label: 'Contatos',
-        detail: 'Disponíveis na ficha do fornecedor.',
-        href: `/app/suppliers/${selected.id}`,
-      },
-    ];
-  }, [selected]);
 
   return (
     <ModulePage>
