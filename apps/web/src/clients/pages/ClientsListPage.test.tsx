@@ -156,7 +156,7 @@ describe('ClientsListPage', () => {
       expect(screen.getByRole('link', { name: 'Cliente Demo LTDA' })).toBeInTheDocument();
     });
 
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'INACTIVE');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Situação' }), 'INACTIVE');
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -302,7 +302,7 @@ describe('ClientsListPage', () => {
 
     // Os controles refletem o estado que veio da URL.
     expect(screen.getByRole('searchbox', { name: 'Buscar' })).toHaveValue('Madeira');
-    expect(screen.getByRole('combobox', { name: 'Status' })).toHaveValue('ACTIVE');
+    expect(screen.getByRole('combobox', { name: 'Situação' })).toHaveValue('ACTIVE');
   });
 
   it('sorts by clicking the column header and records it in the URL', async () => {
@@ -520,7 +520,7 @@ describe('ClientsListPage', () => {
     });
 
     // Novo filtro assume a consulta: agora só o Cliente inativo.
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'INACTIVE');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Situação' }), 'INACTIVE');
     await waitFor(() => {
       expect(screen.getByRole('link', { name: 'Beta Logistica LTDA' })).toBeInTheDocument();
     });

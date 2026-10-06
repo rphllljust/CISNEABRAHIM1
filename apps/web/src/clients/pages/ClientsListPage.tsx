@@ -43,14 +43,6 @@ import {
 } from '../utils/client-list-labels';
 import { Button } from '../../ui/Button';
 import {
-  DataTable,
-  DataTableBody,
-  DataTableCell,
-  DataTableHead,
-  DataTableHeaderCell,
-  DataTableRow,
-} from '../../ui/DataTable';
-import {
   ModuleDeniedState,
   ModuleErrorState,
   ModuleLoadingState,
@@ -58,19 +50,25 @@ import {
   ModuleStatePage,
   ModulePagination,
   ModulePrimaryLink,
-  ModuleTableLink,
   filterControlClass,
   filterLabelClass,
 } from '../../ui/module-layout';
+import { cn } from '../../ui/utils/cn';
 import {
   EnterpriseMetric,
   WorklistClearFilters,
   WorklistField,
   WorklistFilterBar,
   WorklistHeader,
+  WorklistRowLink,
   WorklistStatePanel,
+  worklistCellClass,
   worklistControlClass,
+  worklistHeadCellClass,
+  worklistRowClass,
   worklistSelectClass,
+  worklistTableCardClass,
+  worklistTableClass,
   rowPrimaryActionClass,
 } from '../../ui/enterprise-list';
 
@@ -369,7 +367,7 @@ export function ClientsListPage() {
           ) : null}
         </WorklistField>
 
-        <WorklistField label="Status" htmlFor={statusFilterId}>
+        <WorklistField label="Situação" htmlFor={statusFilterId}>
           <select
             id={statusFilterId}
             className={worklistSelectClass}
@@ -524,20 +522,22 @@ export function ClientsListPage() {
       ) : null}
 
       {items.length > 0 ? (
-        <div
-          className="mb-6 overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-gray-900/5"
-          aria-busy={isRefreshing}
-        >
-          <DataTable aria-label="Lista de Clientes">
-            <DataTableHead>
-              <DataTableRow>
-                <DataTableHeaderCell
-                  scope="col"
-                  aria-sort={ariaSortFor(filters, CLIENT_LIST_SORTS.LegalName)}
-                >
+        <div className={worklistTableCardClass} aria-busy={isRefreshing}>
+          {/*
+            GRADE NA GRAMÁTICA DE WORKLIST — a mesma de Pedidos, Contratos, Solicitações e
+            Propostas (`enterprise-list`), no lugar do `DataTable` legado que esta tela ainda
+            usava. O `DataTable` pinta TODO cabeçalho em caixa alta com `tracking-wider`, o que
+            fazia "DOCUMENTO / STATUS / ÚLTIMA ATUALIZAÇÃO" parecer outro produto ao lado das
+            outras worklists comerciais. Aqui o cabeçalho é o da worklist, com o mesmo peso,
+            o mesmo respiro e o mesmo alinhamento numérico à direita.
+          */}
+          <table className={worklistTableClass} aria-label="Lista de Clientes">
+            <thead>
+              <tr>
+                <th scope="col" className={worklistHeadCellClass} aria-sort={ariaSortFor(filters, CLIENT_LIST_SORTS.LegalName)}>
                   <button
                     type="button"
-                    className="inline-flex items-center gap-1 font-semibold uppercase hover:text-gray-700"
+                    className="inline-flex items-center gap-1 hover:text-gray-700"
                     onClick={() =>
                       applyFilters(toggleClientListSort(filters, CLIENT_LIST_SORTS.LegalName))
                     }
@@ -547,16 +547,17 @@ export function ClientsListPage() {
                       {sortIndicator(filters, CLIENT_LIST_SORTS.LegalName)}
                     </span>
                   </button>
-                </DataTableHeaderCell>
-                <DataTableHeaderCell scope="col">Documento</DataTableHeaderCell>
-                <DataTableHeaderCell scope="col">Status</DataTableHeaderCell>
-                <DataTableHeaderCell
-                  scope="col"
-                  aria-sort={ariaSortFor(filters, CLIENT_LIST_SORTS.UpdatedAt)}
-                >
+                </th>
+                <th scope="col" className={worklistHeadCellClass}>
+                  Documento
+                </th>
+                <th scope="col" className={worklistHeadCellClass}>
+                  Situação
+                </th>
+                <th scope="col" className={worklistHeadCellClass} aria-sort={ariaSortFor(filters, CLIENT_LIST_SORTS.UpdatedAt)}>
                   <button
                     type="button"
-                    className="inline-flex items-center gap-1 font-semibold uppercase hover:text-gray-700"
+                    className="inline-flex items-center gap-1 hover:text-gray-700"
                     onClick={() =>
                       applyFilters(toggleClientListSort(filters, CLIENT_LIST_SORTS.UpdatedAt))
                     }
@@ -566,24 +567,24 @@ export function ClientsListPage() {
                       {sortIndicator(filters, CLIENT_LIST_SORTS.UpdatedAt)}
                     </span>
                   </button>
-                </DataTableHeaderCell>
+                </th>
                 {/*
                   ACAO DA LINHA — mesma gramatica de Pedidos (GOLD 1), Pessoas (GOLD 3) e
                   Contratos. A carteira so abria o Cliente pelo clique na linha; a acao
                   explicita o que o clique faz e da um alvo de teclado com rotulo proprio.
                 */}
-                <DataTableHeaderCell scope="col">
+                <th scope="col" className={cn(worklistHeadCellClass, 'text-right')}>
                   <span className="sr-only">Ações</span>
-                </DataTableHeaderCell>
-              </DataTableRow>
-            </DataTableHead>
-            <DataTableBody>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
               {items.map((client) => {
                 const href = navigateToClient ? navigateToClient(client) : null;
                 return (
-                  <DataTableRow
+                  <tr
                     key={client.id}
-                    className={href ? 'cursor-pointer' : undefined}
+                    className={worklistRowClass}
                     onClick={
                       href
                         ? (event) => {
@@ -598,10 +599,10 @@ export function ClientsListPage() {
                         : undefined
                     }
                   >
-                    <DataTableCell>
+                    <td className={worklistCellClass}>
                       <div className="flex flex-col">
                         {href ? (
-                          <ModuleTableLink to={href}>{client.legalName}</ModuleTableLink>
+                          <WorklistRowLink href={href}>{client.legalName}</WorklistRowLink>
                         ) : (
                           <span className="text-sm font-semibold text-gray-900">
                             {client.legalName}
@@ -611,17 +612,17 @@ export function ClientsListPage() {
                           <span className="text-xs text-gray-500">{client.tradeName}</span>
                         ) : null}
                       </div>
-                    </DataTableCell>
-                    <DataTableCell className="font-mono tabular-nums text-gray-600">
+                    </td>
+                    <td className={cn(worklistCellClass, 'font-mono tabular-nums text-gray-600')}>
                       {formatCnpjDisplay(client.taxId)}
-                    </DataTableCell>
-                    <DataTableCell>
+                    </td>
+                    <td className={worklistCellClass}>
                       <ClientStatusBadge status={client.status} />
-                    </DataTableCell>
-                    <DataTableCell className="whitespace-nowrap text-gray-600">
+                    </td>
+                    <td className={cn(worklistCellClass, 'whitespace-nowrap text-gray-600')}>
                       {formatClientListDateTime(client.updatedAt)}
-                    </DataTableCell>
-                    <DataTableCell className="text-right whitespace-nowrap">
+                    </td>
+                    <td className={cn(worklistCellClass, 'text-right whitespace-nowrap')}>
                       <button
                         type="button"
                         className={rowPrimaryActionClass}
@@ -632,12 +633,12 @@ export function ClientsListPage() {
                       >
                         Contexto
                       </button>
-                    </DataTableCell>
-                  </DataTableRow>
+                    </td>
+                  </tr>
                 );
               })}
-            </DataTableBody>
-          </DataTable>
+            </tbody>
+          </table>
         </div>
       ) : null}
 
