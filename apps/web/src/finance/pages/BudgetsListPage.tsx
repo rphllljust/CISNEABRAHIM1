@@ -19,7 +19,7 @@ import {
   rowPrimaryActionClass,
   rowSecondaryActionClass,
 } from '../../ui/enterprise-list';
-import { ContextDrawer, SavedViewsBar, useSmartList } from '../../operator';
+import { ContextDrawer, SavedViewsBar, useSmartList, type SmartListConfig } from '../../operator';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import { BackofficeApiError, listBudgets, type BudgetSummary } from '../api/finance-api';
 /*
@@ -77,6 +77,16 @@ const BUDGET_STATUS_TONES: Record<string, 'success' | 'warning' | 'neutral' | 'i
 };
 
 /**
+ * ALLOW-LIST de recorte da lista de orçamentos.
+ *
+ * Somente `status`, e somente com os valores que o endpoint aceita — é a mesma defesa das outras
+ * listas: uma visão salva não pode persistir um recorte que o servidor não sabe aplicar.
+ */
+const BUDGETS_ALLOWED_FILTERS = {
+  filters: { status: ['DRAFT', 'APPROVED', 'SUPERSEDED'] },
+} as const;
+
+/**
  * VISÕES EMBUTIDAS do orçamento — os MESMOS recortes que o Ctrl+K já publica
  * (`?status=DRAFT`, `?status=APPROVED`). Antes o comando navegava recortado e a tela não tinha
  * como reproduzir o recorte num clique; agora ele está na barra, nomeado.
@@ -114,10 +124,17 @@ export function BudgetsListPage() {
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
 
   /*
-   * VISÕES SALVAS persistidas por identidade, na mesma mecânica das outras listas financeiras.
-   * O escopo (`finance.budgets`) isola o recorte desta superfície do recorte de outra lista.
+   * VISÕES SALVAS — a mesma mecânica e o mesmo contrato das outras listas financeiras
+   * (`useSmartList` + `SmartListConfig`), com allow-list explícita: só `status` é persistível, e
+   * só com os valores que o servidor aceita. O escopo (`finance.budgets`) isola este recorte do
+   * recorte de qualquer outra lista.
    */
-  const savedViews = useSmartList({ scope: 'finance.budgets' }).savedViews;
+  const smartList = useSmartList({
+    scope: 'finance.budgets',
+    builtInViews: BUILT_IN_VIEWS,
+    allowedFilters: BUDGETS_ALLOWED_FILTERS,
+  });
+  const savedViews = smartList.savedViews;
 
   const filters = useMemo(() => {
     const values: Record<string, string> = {};
@@ -129,6 +146,20 @@ export function BudgetsListPage() {
 
   const statusFilter = filters['status'] ?? '';
   const searchTerm = filters['code'] ?? '';
+
+  /**
+   * CONFIGURAÇÃO CORRENTE da lista — é ela que a visão salva captura e restaura.
+   *
+   * Declarada depois de `statusFilter` porque depende dele: a config descreve o recorte ATIVO, não
+   * um recorte hipotético. Ordenação e agrupamento ficam nulos porque esta lista não os oferece —
+   * declarar um valor aqui prometeria restaurar algo que a tela não tem.
+   */
+  const currentConfig: SmartListConfig = {
+    filters: statusFilter ? { status: statusFilter } : {},
+    sortKey: null,
+    sortDirection: 'asc',
+    groupKey: null,
+  };
 
   const loadPage = useCallback(
     async (pageOffset: number, signal?: AbortSignal) => {
@@ -284,7 +315,7 @@ export function BudgetsListPage() {
         activeViewId={activeViewId}
         onApply={(view) => {
           const next = new URLSearchParams();
-          const status = view.config.filters.status ?? '';
+          const status = view.config.filters['status'] ?? '';
           if (status) {
             next.set('status', status);
           }
@@ -292,12 +323,15 @@ export function BudgetsListPage() {
           setOffset(0);
           setActiveViewId(view.id);
         }}
-        onSave={(name) => {
-          savedViews.saveView(name, { status: statusFilter }, 'state');
-        }}
+        /*
+         * A view persiste a CONFIGURAÇÃO da lista (`SmartListConfig`), não um recorte solto: é o
+         * mesmo contrato das outras listas financeiras, e é o que faz a visão restaurar filtro e
+         * ordenação de verdade quando o operador a reabre.
+         */
+        onSave={(name) => savedViews.saveView(name, currentConfig)}
         onRename={savedViews.renameView}
         onRemove={savedViews.removeView}
-        currentConfig={{ status: statusFilter }}
+        currentConfig={currentConfig}
         canSave={isFiltered}
         allLabel="Todos"
         className="mb-2"
@@ -442,9 +476,13 @@ export function BudgetsListPage() {
                   { label: 'Nome', value: previewRow.name },
                   { label: 'Moeda', value: previewRow.currencyCode },
                   {
-                    label: 'Versão do registro',
-                    value: String(previewRow.rowVersion),
-                    hint: 'Controle de concorrência usado pelo servidor ao aprovar.',
+                    label: 'Versão',
+                    /*
+                     * `ContextField` do `ContextDrawer` tem rótulo e valor — sem `hint`. A
+                     * explicação do controle de concorrência vai no próprio texto, que é onde o
+                     * operador a lê, em vez de num campo que o contrato do painel não aceita.
+                     */
+                    value: `Versão ${previewRow.rowVersion} · conferida pelo servidor ao aprovar`,
                   },
                   {
                     label: 'Última atualização',
