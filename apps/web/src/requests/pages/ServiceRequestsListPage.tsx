@@ -662,13 +662,21 @@ export function ServiceRequestsListPage() {
           }
         />
       ) : (
-        <section aria-label="Fila operacional de solicitações" className="mt-4">
-          <div className="hidden grid-cols-[minmax(0,2.1fr)_minmax(0,1.5fr)_7rem_minmax(0,1.3fr)_minmax(0,1.1fr)_minmax(0,1.4fr)_9rem] gap-4 border-b border-gray-200 px-4 pb-2 lg:grid">
-            {['Solicitação', 'Cliente e demanda', 'Prioridade', 'Janela desejada', 'Situação', 'Próxima ação', 'Ações'].map(
+        <section aria-label="Fila operacional de solicitações" className="mt-3">
+          {/*
+            CINCO COLUNAS COM PESOS DIFERENTES, sem coluna de AÇÃO.
+
+            A grade tinha SETE colunas de peso quase igual — incluindo "Ações", que gastava 9rem
+            em toda linha repetindo o MESMO botão (17 ocorrências de "Abrir OS" na fila). A ação
+            da linha não precisava de coluna: a própria LINHA seleciona e abre o contexto lateral,
+            e o código da solicitação continua sendo o link para a ficha completa.
+          */}
+          <div className="hidden grid-cols-[minmax(0,2.6fr)_minmax(0,1.5fr)_7rem_minmax(0,1.2fr)_minmax(0,1.6fr)] gap-x-4 border-b border-gray-200 px-4 pb-1.5 lg:grid">
+            {['Solicitação e demanda', 'Cliente', 'Prioridade', 'Situação', 'Próxima ação'].map(
               (heading) => (
                 <span
                   key={heading}
-                  className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase"
+                  className="text-[10px] font-semibold tracking-wider text-gray-500 uppercase"
                 >
                   {heading}
                 </span>
@@ -688,8 +696,13 @@ export function ServiceRequestsListPage() {
                    * perder o recorte; o código da solicitação continua levando à ficha.
                    */
                   onClick={() => setSelected(item)}
-                  className="grid cursor-pointer grid-cols-1 gap-3 px-4 py-4 transition hover:bg-gray-50/70 lg:grid-cols-[minmax(0,2.1fr)_minmax(0,1.5fr)_7rem_minmax(0,1.3fr)_minmax(0,1.1fr)_minmax(0,1.4fr)_9rem] lg:items-start lg:gap-4"
+                  className="grid cursor-pointer grid-cols-1 gap-3 px-4 py-2.5 transition hover:bg-gray-50/70 lg:grid-cols-[minmax(0,2.6fr)_minmax(0,1.5fr)_7rem_minmax(0,1.2fr)_minmax(0,1.6fr)] lg:items-start lg:gap-x-4"
                 >
+                  {/*
+                    BLOCO PRINCIPAL — solicitação, origem, demanda e escopo em UM bloco
+                    hierárquico. A grade gastava duas colunas (2.1fr + 1.5fr) para dizer coisas
+                    que o operador lê juntas: o que é e o que pede.
+                  */}
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-baseline gap-x-2">
                       <ModuleTableLink to={`/app/requests/${item.id}`}>
@@ -699,10 +712,10 @@ export function ServiceRequestsListPage() {
                         {formatServiceRequestOrigin(item.originSource)}
                       </span>
                     </div>
-                    <p className="mt-1 line-clamp-2 text-sm text-gray-700">
+                    <p className="mt-0.5 line-clamp-1 text-[13px] text-gray-700">
                       {summarizeServiceRequestDescription(item.description)}
                     </p>
-                    <p className="mt-1 text-xs text-gray-400">
+                    <p className="mt-0.5 text-[11px] text-gray-500">
                       {/*
                         ESCOPO, NAO SLUG: `unitId` e identificador interno (em HML, o
                         slug `unit-synthetic-homolog`) e nao vai para a superficie
@@ -710,20 +723,19 @@ export function ServiceRequestsListPage() {
                         PARK registrado; ate la a linha declara o escopo.
                       */}
                       No seu escopo · atualizada {formatRelativePast(item.updatedAt, now)}
+                      {' · '}
+                      {formatDesiredWindow(item.desiredStartAt, item.desiredEndAt)}
                     </p>
                   </div>
 
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-gray-900">
+                    <p className="truncate text-[13px] font-medium text-gray-900">
                       {item.clientName ?? (
-                        <span className="text-gray-400">Cliente não identificado</span>
+                        <span className="font-normal text-gray-400">Cliente não identificado</span>
                       )}
                     </p>
-                    <p className="mt-0.5 truncate text-xs text-gray-500">
-                      {item.serviceLabel ?? summarizeServiceRequestDescription(item.description, 80)}
-                    </p>
                     {item.location?.city || item.location?.label ? (
-                      <p className="mt-0.5 truncate text-xs text-gray-400">
+                      <p className="mt-0.5 truncate text-[11px] text-gray-500">
                         {[item.location.label, item.location.city, item.location.state]
                           .filter(Boolean)
                           .join(' · ')}
@@ -736,34 +748,36 @@ export function ServiceRequestsListPage() {
                   </div>
 
                   <div className="min-w-0">
-                    <p className="text-sm text-gray-800">
-                      {formatDesiredWindow(item.desiredStartAt, item.desiredEndAt)}
-                    </p>
-                    {timing ? (
-                      <p
-                        className={cn(
-                          'mt-0.5 text-xs',
-                          timing.tone === 'past'
-                            ? 'font-medium text-red-600'
-                            : timing.tone === 'today'
-                              ? 'font-medium text-amber-700'
-                              : 'text-gray-500',
-                        )}
-                      >
-                        {timing.text}
-                      </p>
-                    ) : null}
-                  </div>
-
-                  <div className="min-w-0">
                     <ServiceRequestStatusBadge status={item.status} />
-                    <p className="mt-1 text-xs text-gray-400">
-                      Criada {formatRelativePast(item.createdAt, now)}
+                    {/*
+                      JANELA DESEJADA como contexto SECUNDÁRIO do estado — ela qualifica a
+                      situação ("em análise" com janela vencida é outro problema). Antes ocupava
+                      uma coluna de 1.1fr com peso igual à situação.
+                    */}
+                    <p
+                      className={cn(
+                        'mt-0.5 text-[11px]',
+                        timing?.tone === 'past'
+                          ? 'font-medium text-red-600'
+                          : timing?.tone === 'today'
+                            ? 'font-medium text-amber-700'
+                            : 'text-gray-500',
+                      )}
+                    >
+                      {timing ? `${timing.text} · ` : ''}
+                      criada {formatRelativePast(item.createdAt, now)}
                     </p>
                   </div>
 
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-800">
+                    {/*
+                      PRÓXIMA AÇÃO com peso semântico próprio: a barra de acento à esquerda
+                      separa o que FAZER do que apenas ESTÁ. Antes este texto tinha o mesmo peso
+                      do restante da linha e era acompanhado de um botão verde repetido em TODA
+                      linha ("Abrir OS", "Decidir", "Enviar") — 17 botões dizendo o que uma coluna
+                      de texto já dizia, e a linha em si não respondia ao clique.
+                    */}
+                    <p className="border-l-2 border-brand-200 pl-2 text-[13px] leading-snug font-medium text-gray-800">
                       {NEXT_STEP_BY_STATUS[item.status]}
                     </p>
                     {attention.length > 0 ? (
@@ -781,23 +795,6 @@ export function ServiceRequestsListPage() {
                         ))}
                       </div>
                     ) : null}
-                  </div>
-
-                  {/*
-                    ACAO DA LINHA — mesma gramatica de Pedidos (GOLD 1) e Pessoas (GOLD 3).
-                    A fila so abria pelo codigo; a acao da alvo de teclado com rotulo explicito
-                    ao lado do proximo passo, que e onde o operador decide.
-                  */}
-                  <div className="flex items-start lg:justify-end">
-                    <Link
-                      to={`/app/requests/${item.id}`}
-                      className={rowPrimaryActionClass}
-                      /* O clique na ação NAVEGA; o da linha abre o contexto. Sem parar a
-                         propagação, o link também abriria o painel por cima da navegação. */
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      {NEXT_STEP_ACTION_LABEL[item.status] ?? 'Abrir'}
-                    </Link>
                   </div>
                 </li>
               );
