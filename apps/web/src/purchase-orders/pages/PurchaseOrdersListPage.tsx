@@ -50,6 +50,7 @@ import {
   ModulePagination,
   ModulePrimaryLink,
 } from '../../ui/module-layout';
+import { cn } from '../../ui/utils/cn';
 
 const PAGE_SIZE = 20;
 
@@ -456,23 +457,39 @@ export function PurchaseOrdersListPage() {
                     {formatMoney(authorizedAmount, item.currencyCode)}
                   </td>
                   {/*
-                    CONSUMIDO + NIVEL DE CONSUMO — o numero que responde "quanto ja foi usado" e a
-                    proporcao `consumido / autorizado` que responde "quanto isso representa". O
-                    percentual e calculo APRESENTACIONAL sobre dois valores do contrato: nao cria
-                    regra, nao cria status, nao persiste nada. Sem apuracao do dominio, o texto
-                    declara a indisponibilidade.
+                    CONSUMIDO + MICROBAR DE CONSUMO — o numero responde "quanto ja foi usado"; a
+                    barra responde "quanto isso representa" sem exigir que o operador leia dois
+                    valores e divida de cabeca.
+
+                    A barra existe SOMENTE quando o dominio publicou os DOIS lados da razao
+                    (autorizado e consumido). Sem apuracao, o texto declara a indisponibilidade —
+                    nenhuma barra e desenhada a partir de estimativa. O percentual e apresentacao
+                    sobre dois fatos do contrato: nao cria regra, status nem persistencia. Acima do
+                    autorizado a barra satura em 100% e o fato e dito em palavras na coluna ao lado.
                   */}
                   <td className={worklistNumericCellClass}>
                     <span className="block leading-tight">
                       {formatMoney(item.consumedAmount, item.currencyCode)}
                     </span>
                     {usage ? (
-                      <span
-                        className="mt-0.5 block text-[11px] leading-tight text-gray-500"
-                        title={`Consumido ${usage.percent.toFixed(0)}% do valor autorizado.`}
-                      >
-                        {usage.percent.toFixed(0)}% do autorizado
-                      </span>
+                      <>
+                        <span
+                          className="mt-1 block h-1 w-full max-w-[7rem] overflow-hidden rounded-full bg-gray-200"
+                          role="img"
+                          aria-label={`Consumido ${usage.percent.toFixed(0)}% do valor autorizado`}
+                        >
+                          <span
+                            className={cn(
+                              'block h-full rounded-full',
+                              usage.overAuthorized ? 'bg-amber-500' : 'bg-brand-600',
+                            )}
+                            style={{ width: `${Math.min(100, Math.max(0, usage.percent))}%` }}
+                          />
+                        </span>
+                        <span className="mt-0.5 block text-[11px] leading-tight text-gray-500 tabular-nums">
+                          {usage.percent.toFixed(0)}% do autorizado
+                        </span>
+                      </>
                     ) : (
                       <span className="mt-0.5 block text-[11px] leading-tight text-gray-500">
                         Sem apuração
