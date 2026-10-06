@@ -221,15 +221,20 @@ describe('ClientsListPage', () => {
       expect(screen.getByText(/nenhum cliente corresponde aos filtros aplicados/i)).toBeInTheDocument();
     });
     expect(screen.queryByText(/nenhum cliente cadastrado ainda/i)).not.toBeInTheDocument();
-    // Existe saída explícita do estado sem resultado. Sao DUAS saidas legitimas — a da toolbar
-    // (sempre que ha filtro ativo) e a do painel de estado vazio — entao a assercao exige a do
-    // PAINEL, que e a que aparece junto da mensagem. Antes bastava uma; a migracao para a
-    // gramatica de worklist acrescentou a da toolbar e o seletor ficou ambiguo.
+    // Existe saída explícita do estado sem resultado. Sao DUAS saidas legitimas — a do painel
+    // de estado (junto da mensagem) e a da command surface (sempre que ha filtro ativo). A
+    // assercao exige as DUAS, cada uma no seu lugar: antes a da barra tinha um rotulo proprio
+    // ("Limpar filtros da toolbar") que existia so para desambiguar o seletor; com a barra
+    // unica as duas passaram a ser "Limpar filtros", e o escopo e o painel.
     expect(
       screen.getAllByRole('button', { name: /limpar filtros/i }).length,
-    ).toBeGreaterThanOrEqual(1);
+    ).toBeGreaterThanOrEqual(2);
+    const statePanel = screen
+      .getByText(/nenhum cliente corresponde aos filtros aplicados/i)
+      .closest('section');
+    expect(statePanel).not.toBeNull();
     expect(
-      screen.getByRole('button', { name: 'Limpar filtros da toolbar' }),
+      within(statePanel as HTMLElement).getByRole('button', { name: /limpar filtros/i }),
     ).toBeInTheDocument();
   });
 
@@ -540,7 +545,7 @@ describe('ClientsListPage', () => {
     expect(screen.getByText(/1–1 de 1/)).toBeInTheDocument();
   });
 
-  it('opens the client when the row is clicked, not only the name link', async () => {
+  it('opens the client context when the row is clicked, keeping the name as drillback', async () => {
     vi.stubGlobal(
       'fetch',
       createClientsFetchMock({
@@ -552,13 +557,19 @@ describe('ClientsListPage', () => {
     renderList();
     await awaitFirstRow();
 
-    // A célula do documento não é interativa: o clique nela só pode navegar se a LINHA for
-    // navegável, que é exatamente o comportamento em teste.
+    /*
+     * A célula do documento não é interativa: o clique nela só pode responder se a LINHA
+     * responder. Em worklist, responder é ABRIR O CONTEXTO ao lado — o operador confere o
+     * cadastro sem abandonar a carteira. Antes o teste esperava navegação, que é o
+     * comportamento de uma tabela CRUD: sair da fila para ler um registro.
+     */
     await user.click(screen.getByText('11.222.333/0001-81'));
 
-    await waitFor(() => {
-      expect(screen.getByText('Detalhe do Cliente')).toBeInTheDocument();
-    });
+    const dialog = await screen.findByRole('dialog', { name: /contexto do cliente/i });
+    // O drillback para o cadastro completo continua existindo, agora declarado no painel.
+    expect(
+      within(dialog).getByRole('link', { name: /abrir cadastro completo/i }),
+    ).toBeInTheDocument();
   });
 
   it('shows the client document formatted and its status', async () => {

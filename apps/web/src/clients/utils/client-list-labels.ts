@@ -33,6 +33,32 @@ export function formatClientListDateTime(value: string): string {
 
 const NUMBER_FORMAT = new Intl.NumberFormat('pt-BR');
 
+/**
+ * Idade relativa do registro — o que o operador lê primeiro numa worklist.
+ *
+ * Deriva SOMENTE do timestamp que o contrato já publica (`updatedAt`). Não é um prazo, não é
+ * SLA e não é aging de negócio: é há quanto tempo o cadastro foi tocado pela última vez, dito
+ * de forma escaneável. A data absoluta continua disponível para quem precisa do instante exato.
+ */
+export function formatClientListRelative(value: string, now: Date = new Date()): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return '—';
+  }
+  const diff = now.getTime() - parsed.getTime();
+  if (diff < 60_000) {
+    return 'agora há pouco';
+  }
+  if (diff < 3_600_000) {
+    return `há ${Math.floor(diff / 60_000)} min`;
+  }
+  if (diff < 86_400_000) {
+    return `há ${Math.floor(diff / 3_600_000)} h`;
+  }
+  const days = Math.floor(diff / 86_400_000);
+  return days === 1 ? 'há 1 dia' : `há ${days} dias`;
+}
+
 export function formatClientCount(total: number): string {
   return NUMBER_FORMAT.format(total);
 }
