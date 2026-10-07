@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import {
   cancelServiceOrder,
   getServiceOrder,
@@ -9,6 +9,17 @@ import {
 } from '../api/service-orders-api';
 import { mapServiceOrdersErrorToMessage } from '../api/service-orders-error-messages';
 import { ActionBar, DynamicBusinessChain, DynamicForm, DynamicTimeline, toDisplayText, useEntitySchema, type ChainNode } from '../../engine';
+import {
+  EnterpriseObjectHeader,
+  EnterpriseObjectPage,
+  NextActionPanel,
+  ObjectPanel,
+  ObjectStateFlow,
+  SmartRelationBar,
+  type NextAction,
+  type ObjectStateStep,
+  type SmartRelation,
+} from '../../enterprise-object';
 import {
   serviceOrderEngineRow,
   type ServiceOrderEngineRow,
@@ -123,39 +134,57 @@ export function ServiceOrderEngineDetailPage() {
 
   if (rowStatus === 'loading' || status === 'loading') {
     return (
-      <div className="p-6" aria-busy="true">
-        <p className="text-sm text-gray-600">Carregando ordem de serviço…</p>
-      </div>
+      <EnterpriseObjectPage
+        phase="loading"
+        phaseTitle="Ordem de serviço"
+        phaseMessage="Carregando ordem de serviço…"
+        header={null}
+      />
     );
   }
 
   if (rowStatus === 'denied') {
     return (
-      <div className="p-6" role="alert">
-        <p className="text-sm">Você não tem acesso a esta ordem de serviço.</p>
-        <Link to="/app/service-orders">Voltar para a lista</Link>
-      </div>
+      <EnterpriseObjectPage
+        phase="denied"
+        phaseTitle="Ordem de serviço"
+        phaseMessage="Você não tem acesso a esta ordem de serviço."
+        header={null}
+      />
     );
   }
 
   if (rowStatus === 'missing') {
     return (
-      <div className="p-6" role="alert">
-        <p className="text-sm">Ordem de serviço não encontrada.</p>
-        <Link to="/app/service-orders">Voltar para a lista</Link>
-      </div>
+      <EnterpriseObjectPage
+        phase="empty"
+        phaseTitle="Ordem de serviço não encontrada"
+        phaseMessage="A ordem solicitada não está disponível no seu escopo atual."
+        breadcrumb={[{ label: 'Ordens de serviço', href: '/app/service-orders' }]}
+        header={null}
+      />
     );
   }
 
   if (rowStatus === 'error' || !row || !schema) {
     return (
-      <div className="p-6" role="alert">
-        <p className="text-sm">Não foi possível carregar a ordem de serviço.</p>
-      </div>
+      <EnterpriseObjectPage
+        phase="error"
+        phaseTitle="Ordem de serviço"
+        phaseMessage="Não foi possível carregar a ordem de serviço."
+        onRetry={() => void load()}
+        header={null}
+      />
     );
   }
 
   const currentState = toDisplayText(row['status']);
+  const orderNumber = toDisplayText(row['order_number']);
+  const client = toDisplayText(row['client_snapshot']);
+  const deadline = toDisplayText(row['deadline_at']);
+  const stateFlowSteps = stateStepsFromSchema(schema);
+  const relations = relationsFromRow(row);
+  const nextAction = nextActionFromControlCenter(controlCenter, row.id);
 
   /*
    * CADEIA DE NEGÓCIO — montada do que o PAYLOAD trouxe, sem chamada nova e sem inventar
@@ -207,100 +236,53 @@ export function ServiceOrderEngineDetailPage() {
   ];
 
   return (
-    <div className="p-6">
-      <nav aria-label="Navegação" className="mb-3">
-        <Link to="/app/service-orders">← Ordens de serviço</Link>
-      </nav>
-
-      <header className="mb-4">
-        <h1 className="text-xl font-semibold">
-          {toDisplayText(row['order_number']) || schema.label}
-        </h1>
-        <p className="mt-1 text-xs text-gray-500">
-          Estado atual: <span data-testid="engine-current-state">{currentState}</span>
-        </p>
-      </header>
-
-      {/*
-        FATOS CRÍTICOS — quem, onde e até quando, lidos do payload já carregado (nenhum fetch
-        novo). É o passo "IDENTITY → FACTS" da gramática de object page: o operador entende a
-        OS em segundos antes de descer aos dados e à cadeia de negócio.
-      */}
-      <section className="mb-6" aria-labelledby="engine-facts-heading">
-        <h2 id="engine-facts-heading" className="sr-only">
-          Fatos críticos
-        </h2>
-        <dl className="m-0 grid grid-cols-2 gap-x-6 gap-y-2 lg:grid-cols-4">
-          <div className="min-w-0">
-            <dt className="text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
-              Cliente
-            </dt>
-            <dd className="m-0 truncate text-sm font-medium text-gray-900">
-              {toDisplayText(row['client_snapshot']).trim() !== ''
-                ? toDisplayText(row['client_snapshot'])
-                : '—'}
-            </dd>
-          </div>
-          <div className="min-w-0">
-            <dt className="text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
-              Unidade
-            </dt>
-            <dd className="m-0 truncate text-sm font-medium text-gray-900">
-              {toDisplayText(row['unit_id']).trim() !== '' ? toDisplayText(row['unit_id']) : '—'}
-            </dd>
-          </div>
-          <div className="min-w-0">
-            <dt className="text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
-              Prazo
-            </dt>
-            <dd className="m-0 truncate text-sm font-medium text-gray-900">
-              {toDisplayText(row['deadline_at']).trim() !== ''
-                ? toDisplayText(row['deadline_at'])
-                : '—'}
-            </dd>
-          </div>
-          <div className="min-w-0">
-            <dt className="text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
-              Estado
-            </dt>
-            <dd className="m-0 truncate text-sm font-medium text-gray-900">{currentState}</dd>
-          </div>
-        </dl>
-      </section>
-
-      <section className="mb-6" aria-labelledby="engine-actions-heading">
-        <h2 id="engine-actions-heading" className="mb-2 text-sm font-semibold">
-          Ações disponíveis
-        </h2>
-        <ActionBar
-          schema={schema}
-          currentState={currentState}
-          busy={busy}
-          onCommand={(command) => void runCommand(command)}
+    <EnterpriseObjectPage
+      breadcrumb={[{ label: 'Ordens de serviço', href: '/app/service-orders' }]}
+      header={
+        <EnterpriseObjectHeader
+          reference={orderNumber}
+          title={orderNumber || schema.label}
+          subtitle={client}
+          status={{ label: currentState, description: 'Estado atual da ordem' }}
+          metadata={[
+            { label: 'Cliente', value: client },
+            { label: 'Unidade', value: toDisplayText(row['unit_id']) },
+            { label: 'Prazo', value: deadline, emphasis: true },
+          ]}
+          secondaryActions={[
+            { id: 'planning', label: 'Planejamento', to: `/app/service-orders/${row.id}/planning` },
+            { id: 'execution', label: 'Execução', to: `/app/service-orders/${row.id}/execution` },
+          ]}
         />
-        {commandError ? (
-          <p className="mt-2 text-sm text-red-700" role="alert">
-            {commandError}
-          </p>
-        ) : null}
-      </section>
-
-      <section aria-labelledby="engine-form-heading">
-        <h2 id="engine-form-heading" className="mb-2 text-sm font-semibold">
-          Dados da ordem
-        </h2>
-        <DynamicForm schema={schema} values={row} readOnly />
-      </section>
-
-      {/*
-        OPERAÇÃO EM MOVIMENTO — o passo "EXECUTION + EXCEPTIONS" da object page. Não há cálculo
-        nem fetch novo: `controlCenter` já veio no payload, e o componente apenas o desenha.
-        Ausência do bloco (backend não publicou / ator sem escopo) não vira seção falsa.
-      */}
-      <section className="mt-6" aria-labelledby="engine-control-center-heading">
-        <h2 id="engine-control-center-heading" className="mb-2 text-sm font-semibold">
-          Operação
-        </h2>
+      }
+      stateFlow={<ObjectStateFlow steps={stateFlowSteps} currentId={currentState} title="Fluxo da OS" />}
+      nextAction={<NextActionPanel action={nextAction} />}
+      relations={relations.length > 0 ? <SmartRelationBar relations={relations} /> : undefined}
+      aside={
+        <>
+          <ObjectPanel title="Comandos">
+            <ActionBar
+              schema={schema}
+              currentState={currentState}
+              busy={busy}
+              onCommand={(command) => void runCommand(command)}
+            />
+            {commandError ? (
+              <p className="mt-2 text-sm text-red-700" role="alert">
+                {commandError}
+              </p>
+            ) : null}
+          </ObjectPanel>
+          <ObjectPanel title="Cadeia de negócio">
+            <DynamicBusinessChain nodes={chainNodes} title="Cadeia de negócio" />
+          </ObjectPanel>
+          <ObjectPanel title="Histórico">
+            <DynamicTimeline schema={schema} recordId={row.id} />
+          </ObjectPanel>
+        </>
+      }
+    >
+      <ObjectPanel title="Operação">
         {controlCenter ? (
           <OperationsControlCenter
             controlCenter={controlCenter}
@@ -311,28 +293,75 @@ export function ServiceOrderEngineDetailPage() {
             Sem controle operacional disponível para esta ordem.
           </p>
         )}
-      </section>
+      </ObjectPanel>
 
-      {/* LINHAGEM: de onde esta ordem veio, do que o payload afirma e nada além. */}
-      <section className="mt-6" aria-labelledby="engine-chain-heading">
-        <h2 id="engine-chain-heading" className="sr-only">
-          Cadeia de negócio
-        </h2>
-        <DynamicBusinessChain nodes={chainNodes} title="Cadeia de negócio" />
-      </section>
-
-      {/*
-        TIMELINE — restaurada na migração para a engine. A tela artesanal que esta substituiu
-        exibia o histórico da OS; removê-lo seria PARIDADE_PERDIDA. `DynamicTimeline` consome
-        `/api/v1/service-orders/:id/audit-timeline` e resolve os rótulos de estado pelo
-        metadado, sem nenhum JSX por entidade.
-      */}
-      <section className="mt-6" aria-labelledby="engine-timeline-heading">
-        <h2 id="engine-timeline-heading" className="sr-only">
-          Histórico
-        </h2>
-        <DynamicTimeline schema={schema} recordId={row.id} />
-      </section>
-    </div>
+      <ObjectPanel title="Dados da ordem">
+        <DynamicForm schema={schema} values={row} readOnly />
+      </ObjectPanel>
+    </EnterpriseObjectPage>
   );
+}
+
+function stateStepsFromSchema(schema: NonNullable<ReturnType<typeof useEntitySchema>['schema']>): ObjectStateStep[] {
+  const stateField = schema.workflow?.stateField;
+  const field = schema.fields.find((candidate) => candidate.name === stateField);
+  const options = field?.options?.options ?? [];
+  return options.map((option) => ({
+    id: option.value,
+    label: option.label,
+    terminal: option.value === 'COMPLETED' || option.value === 'CANCELLED',
+  }));
+}
+
+function relationsFromRow(row: ServiceOrderEngineRow): SmartRelation[] {
+  const relations: SmartRelation[] = [];
+  const serviceRequestId = toDisplayText(row['service_request_id']);
+  const proposalId = toDisplayText(row['proposal_id']);
+  const purchaseOrderId = toDisplayText(row['purchase_order_id']);
+  if (serviceRequestId.trim() !== '') {
+    relations.push({ id: 'request', label: 'Solicitação', count: 1, to: `/app/requests/${serviceRequestId}` });
+  }
+  if (proposalId.trim() !== '') {
+    relations.push({ id: 'proposal', label: 'Proposta', count: 1, to: `/app/proposals/${proposalId}` });
+  }
+  if (purchaseOrderId.trim() !== '') {
+    relations.push({
+      id: 'purchase-order',
+      label: 'Pedido de compra',
+      count: 1,
+      to: `/app/purchase-orders/${purchaseOrderId}`,
+    });
+  }
+  return relations;
+}
+
+function nextActionFromControlCenter(
+  controlCenter: ServiceOrderControlCenter | null,
+  serviceOrderId: string,
+): NextAction | null {
+  if (!controlCenter) {
+    return null;
+  }
+  const { nextAction } = controlCenter;
+  if (nextAction.blockers.length > 0) {
+    return {
+      kind: 'waiting',
+      label: nextAction.step,
+      description: nextAction.blockers.join(' · '),
+      waitingOn: 'Operação',
+    };
+  }
+  if (nextAction.transition) {
+    return null;
+  }
+  if (nextAction.step === 'PLANNING') {
+    return { kind: 'act', label: 'Planejar OS', to: `/app/service-orders/${serviceOrderId}/planning` };
+  }
+  if (nextAction.step === 'EXECUTION') {
+    return { kind: 'act', label: 'Executar OS', to: `/app/service-orders/${serviceOrderId}/execution` };
+  }
+  if (nextAction.step === 'MEASUREMENT') {
+    return { kind: 'act', label: 'Medir OS', to: `/app/service-orders/${serviceOrderId}/measurement` };
+  }
+  return null;
 }
