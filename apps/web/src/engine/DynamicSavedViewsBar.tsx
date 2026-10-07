@@ -30,23 +30,35 @@ export function DynamicSavedViewsBar({
     <div
       data-testid="dynamic-saved-views"
       data-persisted-locally={persistedLocally ? 'true' : 'false'}
-      className="mb-3 flex flex-wrap items-center gap-2"
+      /*
+        SAVED VIEWS COMO RECURSO CENTRAL.
+
+        Antes: "Nome da visão" + "Salvar visão" como um formulario solto no canto direito, com as
+        visões existentes em botoes cinza do mesmo peso. O operador nao lia aquilo como o mecanismo
+        que evita reconstruir a mesma consulta todo dia.
+
+        Agora a barra tem gramatica de SELECAO: as visões existentes vem primeiro, como um segmento
+        clicavel unico (aplicar + remover lendo como um controle so), e o ato de salvar fica
+        subordinado a direita. A visao aplicada e um comando de primeira classe, nao um chip perdido.
+      */
+      className="cisne-divider flex flex-wrap items-center gap-x-3 gap-y-1 px-0 py-1.5"
     >
-      <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-        {t('views.saved')}
-      </span>
+      <span className="cisne-meta-label shrink-0">{t('views.saved')}</span>
 
       {views.length === 0 ? (
-        <span className="text-xs text-gray-500">{t('views.empty')}</span>
+        <span className="cisne-type-helper">{t('views.empty')}</span>
       ) : (
-        <ul className="m-0 flex list-none flex-wrap gap-1 p-0">
+        <ul className="m-0 flex list-none flex-wrap items-center gap-1 p-0">
           {views.map((view) => (
-            <li key={view.id} className="inline-flex items-center">
+            <li
+              key={view.id}
+              className="inline-flex items-center overflow-hidden rounded-md ring-1 ring-gray-300 ring-inset"
+            >
               <button
                 type="button"
                 data-testid="dynamic-saved-view"
                 data-view-name={view.name}
-                className="rounded-l border border-slate-300 px-2 py-1 text-xs"
+                className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center bg-white px-2 text-gray-700 hover:bg-brand-600 hover:text-white"
                 onClick={() => onApply(view)}
               >
                 {view.name}
@@ -55,7 +67,7 @@ export function DynamicSavedViewsBar({
                 type="button"
                 data-testid="dynamic-saved-view-delete"
                 aria-label={`${t('views.delete')}: ${view.name}`}
-                className="rounded-r border border-l-0 border-slate-300 px-1.5 py-1 text-xs text-slate-500"
+                className="inline-flex min-h-[var(--control-height)] items-center border-l border-gray-300 bg-white px-1.5 text-gray-500 hover:bg-red-50 hover:text-red-700"
                 onClick={() => onDelete(view.id)}
               >
                 ×
@@ -66,7 +78,7 @@ export function DynamicSavedViewsBar({
       )}
 
       <form
-        className="ml-auto flex items-center gap-1"
+        className="ml-auto flex items-center gap-1.5"
         onSubmit={(event) => {
           event.preventDefault();
           onSave(name);
@@ -78,7 +90,7 @@ export function DynamicSavedViewsBar({
           data-testid="dynamic-saved-view-name"
           aria-label={t('views.namePlaceholder')}
           placeholder={t('views.namePlaceholder')}
-          className="rounded border border-gray-300 px-2 py-1 text-xs"
+          className="block min-h-[var(--control-height)] w-40 rounded-md border-0 bg-white px-1.5 text-[length:var(--type-body-size)] text-gray-900 ring-1 ring-gray-300 ring-inset outline-none focus:ring-2 focus:ring-brand-500"
           value={name}
           onChange={(event) => setName(event.target.value)}
         />
@@ -86,7 +98,7 @@ export function DynamicSavedViewsBar({
           type="submit"
           data-testid="dynamic-saved-view-save"
           disabled={name.trim() === ''}
-          className="rounded border border-slate-300 px-2 py-1 text-xs disabled:opacity-50"
+          className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md bg-white px-2 text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {t('views.save')}
         </button>

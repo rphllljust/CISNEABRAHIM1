@@ -126,12 +126,13 @@ export function AppShellLayout() {
             setPaletteOpen(true);
           }}
         />
-        <div className="shell__content flex-1 px-4 py-6 sm:px-6 lg:px-8 xl:px-10">
+        <div className="shell__content flex-1 px-4 py-4 sm:px-6 lg:px-8">
           <div
             className={cn(
               'shell-page-frame mx-auto w-full min-w-0',
+              layoutMode === 'fullBleed' && 'shell-page-frame--bleed',
               PAGE_FRAME_CLASS[layoutMode],
-              layoutMode === 'fullBleed' && 'px-0',
+              layoutMode === 'fullBleed' ? 'px-0' : 'px-5 py-4 sm:px-6',
             )}
           >
             {!hideBreadcrumbs ? <ShellBreadcrumbs /> : null}

@@ -262,6 +262,20 @@ export function DynamicList({
           </button>
         </div>
       ) : null}
+    {/*
+      CONTENÇÃO DA GRADE — a grade densa NÃO PODE VAZAR para cima do contexto.
+
+      A `DynamicList` devolvia uma `<table>` nua. Dentro de uma grade de duas colunas
+      (`main + aside`), a tabela ficava mais larga que a coluna e, com `overflow-x: visible`,
+      ESPRAIAVA por cima do painel de contexto: medido em `/app/finance/receivables`, a coluna de
+      trabalho tinha 637px com 720px de conteúdo e os botões "Prévia" das últimas colunas ficavam
+      por baixo do aside (`elementFromPoint` apontava o `dt` do painel, não o botão).
+
+      O wrapper resolve na ORIGEM, para toda grade do produto: quando a tabela é mais larga que a
+      coluna, ela ROLA dentro da própria coluna em vez de invadir a vizinha. É a mesma garantia que
+      `min-w-0` dá na coluna — sem ela, `minmax(0,1fr)` não basta.
+    */}
+    <div className="w-full min-w-0 max-w-full overflow-x-auto">
     <table
       className="w-full text-sm"
       data-testid="dynamic-list"
@@ -512,6 +526,7 @@ export function DynamicList({
         </tfoot>
       ) : null}
     </table>
+    </div>
     </>
   );
 }

@@ -2,28 +2,33 @@ import type { HTMLAttributes, TableHTMLAttributes, TdHTMLAttributes, ThHTMLAttri
 import { cn } from './utils/cn';
 
 /**
- * DATATABLE — a mesma DENSIDADE da grade enterprise, sem mudar a API.
+ * DATATABLE — a grade enterprise: densa, escaneavel e com TRILHA DE LEITURA.
  *
  * Estas primitivas carregavam `px-6 py-3.5` (padding de 24px na horizontal e 14px na vertical por
  * celula): altura de linha ~88px. Era a densidade LEGADA, irmã de `moduleTableClass`, e fazia
- * `DocumentsPage` e `ClientsListPage` renderem visivelmente mais folgadas que as worklists ja
+ * `DocumentsPage` e `ClientsListPage` renderizarem visivelmente mais folgadas que as worklists ja
  * migradas — de novo "dois produtos" na mesma sidebar.
- *
- * O QUE MUDOU: apenas a densidade (padding, tamanho de fonte e alinhamento vertical), alinhada aos
- * tokens da grade compartilhada (`worklistHeadCellClass` / `worklistCellClass`): ~33-40px por linha.
  *
  * O QUE **NAO** MUDOU: a API dos componentes (mesmos nomes, mesmas props, mesmo `className` de
  * override vindo do chamador, que continua vencendo), o `overflow-x-auto` do wrapper, a semantica de
  * tabela e `cisne-type-money` na celula numerica. Nenhum comportamento, coluna ou dado foi alterado.
  *
- * Efeito: as listas que usam `DataTable` passam a ter a MESMA densidade das worklists de referencia,
- * sem tocar em nenhuma tela — uma troca de token, muitos consumidores.
+ * FOUNDATION (v2) — a densidade agora vem de TOKEN, nao de numero escrito na celula:
+ *   - altura de linha de `--row-height`;
+ *   - o dado da celula usa o papel `body` (13px) e o NUMERO usa o papel `meta-numeric`, ambos com
+ *     `tabular-nums`, para que a coluna de valor alinhe digito a digito;
+ *   - o cabecalho usa o papel `label` (11px uppercase), que e SUBORDINADO ao dado — cabecalho de
+ *     grade e rotulo, nao conteudo;
+ *   - a ultima borda e removida na ultima linha, para nao desenhar uma linha solta no fim da grade.
  */
 export function DataTable({ className, ...props }: TableHTMLAttributes<HTMLTableElement>) {
   return (
-    <div className="overflow-x-auto">
+    <div className="w-full min-w-0 overflow-x-auto">
       <table
-        className={cn('w-full border-separate border-spacing-0 bg-white text-[13px]', className)}
+        className={cn(
+          'w-full border-separate border-spacing-0 bg-white text-[length:var(--type-body-size)]',
+          className,
+        )}
         {...props}
       />
     </div>
@@ -31,7 +36,7 @@ export function DataTable({ className, ...props }: TableHTMLAttributes<HTMLTable
 }
 
 export function DataTableHead(props: HTMLAttributes<HTMLTableSectionElement>) {
-  return <thead className="bg-gray-50" {...props} />;
+  return <thead className="sticky top-0 z-10 bg-gray-50" {...props} />;
 }
 
 export function DataTableBody({ className, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
@@ -40,7 +45,13 @@ export function DataTableBody({ className, ...props }: HTMLAttributes<HTMLTableS
 
 export function DataTableRow({ className, ...props }: HTMLAttributes<HTMLTableRowElement>) {
   return (
-    <tr className={cn('transition-colors hover:bg-brand-50/40', className)} {...props} />
+    <tr
+      className={cn(
+        'h-[var(--row-height)] transition-colors hover:bg-brand-50/40 data-[selected=true]:bg-brand-50',
+        className,
+      )}
+      {...props}
+    />
   );
 }
 
@@ -48,7 +59,7 @@ export function DataTableHeaderCell({ className, ...props }: ThHTMLAttributes<HT
   return (
     <th
       className={cn(
-        'border-b border-gray-200 bg-gray-50 px-2.5 py-1.5 text-left text-[11px] font-semibold tracking-wider text-gray-500 uppercase whitespace-nowrap',
+        'border-b border-gray-300 bg-gray-50 px-2 py-1 text-left text-[length:var(--type-micro-size)] font-semibold tracking-wide text-gray-600 uppercase whitespace-nowrap',
         className,
       )}
       {...props}
@@ -60,7 +71,7 @@ export function DataTableCell({ className, ...props }: TdHTMLAttributes<HTMLTabl
   return (
     <td
       className={cn(
-        'border-b border-gray-100 px-2.5 py-1.5 align-middle text-[13px] text-gray-700',
+        'border-b border-gray-100 px-2 py-1 align-middle text-[length:var(--type-body-size)] text-gray-800',
         className,
       )}
       {...props}
@@ -68,11 +79,17 @@ export function DataTableCell({ className, ...props }: TdHTMLAttributes<HTMLTabl
   );
 }
 
+/**
+ * CELULA NUMERICA — valor de dinheiro/quantidade alinhado a direita e com tabular-nums.
+ *
+ * Numeros so comparam quando alinham pela direita E pela virgula. Sem `tabular-nums` a coluna
+ * "treme" e o operador perde a comparação vertical, que e a razao de a grade existir.
+ */
 export function DataTableNumericCell({ className, ...props }: TdHTMLAttributes<HTMLTableCellElement>) {
   return (
     <td
       className={cn(
-        'cisne-type-money border-b border-gray-100 px-2.5 py-1.5 text-right align-middle whitespace-nowrap text-[13px] text-gray-900 tabular-nums',
+        'cisne-type-money border-b border-gray-100 px-2 py-1 text-right align-middle whitespace-nowrap text-[length:var(--type-body-size)] font-medium text-gray-900',
         className,
       )}
       {...props}

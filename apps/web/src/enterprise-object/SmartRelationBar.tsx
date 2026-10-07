@@ -49,11 +49,8 @@ export function SmartRelationBar({ relations, title = 'Relações', className }:
   }
 
   return (
-    <section
-      aria-label={title}
-      className={cn('rounded-lg bg-white px-4 py-2.5 shadow-sm ring-1 ring-gray-900/5', className)}
-    >
-      <ul className="m-0 flex list-none flex-wrap items-center gap-x-4 gap-y-1.5 p-0">
+    <section aria-label={title} className={cn('cisne-divider--top cisne-divider py-2', className)}>
+      <ul className="m-0 flex list-none flex-wrap items-center gap-x-5 gap-y-1 p-0">
         {visible.map((relation) => (
           <li key={relation.id}>
             <Link

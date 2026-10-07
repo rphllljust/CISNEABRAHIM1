@@ -118,33 +118,37 @@ export function EnterpriseField({
   );
 }
 
-/** Controle de toolbar: mesma semantica dos filtros atuais, densidade maior. */
+/** Controle de toolbar: mesma semantica dos filtros atuais, densidade governada. */
 export const enterpriseControlClass =
-  'w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-[13px] text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30';
+  'min-h-[var(--control-height)] w-full rounded-md border-0 bg-white px-2 text-[length:var(--type-body-size)] text-gray-900 ring-1 ring-gray-300 ring-inset outline-none focus:ring-2 focus:ring-brand-500';
 
 /* ---------------------------------------------------------------------- tabela */
 
-export const enterpriseTableCardClass =
-  'mb-4 overflow-x-auto rounded-lg border border-gray-200 bg-white';
+/*
+ * GRADE ENTERPRISE — sem caixa. A grade e a area de trabalho; o card de segundo nivel era o que
+ * fazia a lista parecer CRUD dentro de um painel.
+ */
+export const enterpriseTableCardClass = 'mb-1 w-full min-w-0 max-w-full overflow-x-auto bg-white';
 
 export const enterpriseTableClass = 'w-full border-separate border-spacing-0';
 
 export const enterpriseHeadCellClass =
-  'sticky top-0 z-10 border-b border-gray-200 bg-gray-50 px-3 py-2 text-left text-[11px] font-semibold tracking-wider text-gray-500 uppercase';
+  'sticky top-0 z-10 border-b border-gray-300 bg-gray-50 px-2 py-1 text-left text-[length:var(--type-micro-size)] font-semibold tracking-wide text-gray-600 uppercase';
 
 export const enterpriseNumericHeadCellClass = cn(enterpriseHeadCellClass, 'text-right');
 
 export const enterpriseCellClass =
-  'border-b border-gray-100 px-3 py-2.5 align-top text-[13px] text-gray-700';
+  'h-[var(--row-height)] border-b border-gray-100 px-2 py-1 align-top text-[length:var(--type-body-size)] text-gray-800';
 
 export const enterpriseCellMutedClass = cn(enterpriseCellClass, 'text-gray-500');
 
 export const enterpriseNumericCellClass = cn(
   enterpriseCellClass,
-  'text-right tabular-nums whitespace-nowrap',
+  'text-right font-medium tabular-nums whitespace-nowrap',
 );
 
-export const enterpriseRowClass = 'group transition-colors hover:bg-brand-50/40';
+export const enterpriseRowClass =
+  'group transition-colors hover:bg-brand-50/40 data-[selected=true]:bg-brand-50';
 
 /* -------------------------------------------------------------- células ricas */
 
@@ -360,30 +364,40 @@ export function WorklistHeader({
   metrics?: ReactNode;
 }) {
   return (
-    <header className="mb-3">
+    <header className="cisne-divider--section mb-0 pb-1.5">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-baseline gap-2">
-            <h1 className="text-xl font-semibold tracking-tight text-gray-900">{title}</h1>
+            <h1 className="cisne-type-workspace m-0">{title}</h1>
+            {/*
+              CONTAGEM DA PAGINA — o numero e o dado, nao um chip. Sem caixa contornada, o
+              operador le "Clientes 20" como uma frase, e nao como um selo a decifrar.
+            */}
             {typeof count === 'number' ? (
               <span
-                className="rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 text-xs font-semibold text-gray-600 tabular-nums"
+                className="cisne-type-meta font-semibold tabular-nums"
                 aria-label={`${count} registros na página`}
               >
                 {count}
               </span>
             ) : null}
           </div>
-          {context ? <p className="mt-0.5 text-xs text-gray-500">{context}</p> : null}
+          {context ? <p className="cisne-type-helper m-0 mt-0.5">{context}</p> : null}
         </div>
-        {action ? <div className="flex shrink-0 items-center gap-2">{action}</div> : null}
+        {action ? <div className="flex shrink-0 items-center gap-1.5">{action}</div> : null}
       </div>
-      {metrics ? <div className="mt-2 flex flex-wrap items-center gap-1.5">{metrics}</div> : null}
+      {metrics ? <div className="mt-1.5 flex flex-wrap items-center gap-0">{metrics}</div> : null}
     </header>
   );
 }
 
-/** Barra compacta de filtros: uma linha, densa, alinhada a esquerda. */
+/**
+ * Barra compacta de filtros: uma linha, densa, alinhada a esquerda.
+ *
+ * FOUNDATION: perdeu a caixa branca contornada. A barra de filtros pertence a AREA DE TRABALHO, e
+ * separa-se do cabecalho e da grade por DIVISOR — nao por mais uma caixa, que era o que fazia o
+ * topo da funcao parecer "card de filtro + card de tabela" empilhados.
+ */
 export function WorklistFilterBar({
   children,
   meta,
@@ -394,16 +408,14 @@ export function WorklistFilterBar({
   notice?: ReactNode;
 }) {
   return (
-    <section className="mb-2" aria-label="Filtros da lista">
-      <div className="flex flex-wrap items-center gap-2 rounded-md border border-gray-200 bg-white px-2 py-1.5">
+    <section aria-label="Filtros da lista">
+      <div className="cisne-divider flex flex-wrap items-center gap-2 px-0 py-1.5">
         {children}
         <span className="hidden min-w-6 flex-1 sm:block" aria-hidden="true" />
-        {meta ? (
-          <span className="ml-auto text-[11px] font-medium text-gray-500 tabular-nums">{meta}</span>
-        ) : null}
+        {meta ? <span className="cisne-type-helper ml-auto tabular-nums">{meta}</span> : null}
       </div>
       {notice ? (
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-1">
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 rounded border border-amber-200 bg-amber-50 px-2 py-1">
           {notice}
         </div>
       ) : null}
@@ -436,15 +448,15 @@ export function WorklistField({
   );
 }
 
-/** Controle denso da barra compacta. */
+/** Controle denso da barra compacta — altura governada pelo token de densidade. */
 export const worklistControlClass =
-  'rounded border border-gray-300 bg-white px-2 py-1 text-[13px] text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30';
+  'min-h-[var(--control-height)] rounded-md border-0 bg-white px-1.5 text-[length:var(--type-body-size)] text-gray-900 ring-1 ring-gray-300 ring-inset outline-none focus:ring-2 focus:ring-brand-500';
 
 export const worklistSelectClass = cn(worklistControlClass, 'cursor-pointer');
 
 /** Botao secundario da barra compacta ("Limpar filtros"), na mesma altura do controle. */
 export const worklistButtonClass =
-  'rounded border border-gray-300 bg-white px-2 py-1 text-[13px] font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60';
+  'cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-60';
 
 /**
  * Limpar filtros — UM controle para as cinco worklists.
@@ -472,27 +484,36 @@ export function WorklistClearFilters({
   );
 }
 
-/** Grade densa: cabecalho pegajoso e altura de linha reduzida. */
-export const worklistTableCardClass =
-  'mb-3 overflow-x-auto rounded-md border border-gray-200 bg-white';
+/**
+ * GRADE DENSA — a FILA e a area de trabalho, nao um card dentro dela.
+ *
+ * Antes: `rounded-md border border-gray-200 bg-white` envolvendo a tabela. Como o `ModulePage`
+ * tambem e branco, a grade aparecia como "tabela dentro de card" — a cardification de segundo
+ * nivel. Agora a grade nao tem caixa: ela e delimitada pelo divisor do cabecalho da grade e pela
+ * regua estrutural, e a hierarquia vem do cabecalho sticky e do alinhamento numerico.
+ */
+export const worklistTableCardClass = 'mb-1 w-full min-w-0 max-w-full overflow-x-auto bg-white';
 
 export const worklistTableClass = 'w-full border-separate border-spacing-0';
 
 /**
  * Cabecalho pegajoso: fica ACIMA do link esticado da linha (`z-0`), senao o alvo de clique
  * cobriria o proprio cabecalho e o texto das colunas deixaria de ser selecionavel.
+ *
+ * A borda inferior e mais forte que a das linhas: e ela que separa ROTULO de DADO. Sem esse peso
+ * diferente, cabecalho e corpo leem como a mesma massa.
  */
 export const worklistHeadCellClass =
-  'sticky top-0 z-10 border-b border-gray-200 bg-gray-50 px-2.5 py-1.5 text-left text-[11px] font-semibold tracking-wider text-gray-500 uppercase whitespace-nowrap';
+  'sticky top-0 z-10 border-b border-gray-300 bg-gray-50 px-2 py-1 text-left text-[length:var(--type-micro-size)] font-semibold tracking-wide text-gray-600 uppercase whitespace-nowrap';
 
 export const worklistNumericHeadCellClass = cn(worklistHeadCellClass, 'text-right');
 
 export const worklistCellClass =
-  'relative border-b border-gray-100 px-2.5 py-1.5 align-middle text-[13px] text-gray-700';
+  'relative h-[var(--row-height)] border-b border-gray-100 px-2 py-0.5 align-middle text-[length:var(--type-body-size)] text-gray-800';
 
 export const worklistNumericCellClass = cn(
   worklistCellClass,
-  'text-right tabular-nums whitespace-nowrap',
+  'text-right font-medium tabular-nums whitespace-nowrap',
 );
 
 /**
@@ -505,9 +526,11 @@ export const worklistNumericCellClass = cn(
 export const worklistCellRaisedClass = cn(worklistCellClass, 'z-[1]');
 
 /** Grupo semantico de colunas dentro da grade densa (mesma linguagem em todas as worklists). */
-export const worklistGroupClass = 'text-[10px] font-semibold tracking-widest text-gray-400';
+export const worklistGroupClass =
+  'text-[length:var(--type-micro-size)] font-semibold tracking-widest text-gray-400';
 
-export const worklistRowClass = 'relative cursor-pointer transition-colors hover:bg-brand-50/40';
+export const worklistRowClass =
+  'relative cursor-pointer transition-colors hover:bg-brand-50/40 data-[selected=true]:bg-brand-50';
 
 /**
  * Celula de ACOES: nunca herda o clique de navegacao da linha.

@@ -37,24 +37,33 @@ export function DynamicFilterBar({
     <form
       data-testid="dynamic-filter-bar"
       data-entity={schema.name}
-      className="mb-3 flex flex-wrap items-end gap-3"
+      /*
+        SUPERFICIE DE FILTRO — uma faixa de operacao, nao um formulario de consulta.
+
+        Antes: `mb-3 flex flex-wrap items-end gap-3` com um titulo "FILTROS (n)" em 12px uppercase
+        ocupando uma linha inteira so para dizer que ali se filtra, mais um rotulo em cima de cada
+        controle. O resultado era o topo da pagina com a assinatura "INPUT SELECT SELECT BUTTON" —
+        o operador via um formulario antes de ver qualquer registro.
+
+        Agora: faixa densa de uma linha, com divisores verticais separando os campos, rotulo
+        compacto ACIMA do controle na mesma celula, e a acao de limpar ancorada a direita. O titulo
+        da faixa deixa de ser um bloco e passa a ser um rotulo inline. Sem caixa: a faixa pertence a
+        area de trabalho e e delimitada por divisor estrutural.
+      */
+      className="cisne-divider flex flex-wrap items-end gap-x-0 gap-y-1 px-0 py-1.5"
       onSubmit={(event) => event.preventDefault()}
     >
-      <p className="w-full text-xs font-semibold uppercase tracking-wider text-gray-500">
+      <p className="cisne-meta-label m-0 mr-3 mb-1 shrink-0 self-center">
         {t('filters.title')}
-        {activeCount > 0 ? (
-          <span className="ml-2 font-normal normal-case text-gray-500">
-            ({activeCount})
-          </span>
-        ) : null}
+        {activeCount > 0 ? <span className="ml-1 font-semibold">({activeCount})</span> : null}
       </p>
 
       {filterable.map((field) => (
-        <div key={field.name} className="min-w-40">
-          <label
-            htmlFor={`filter-${field.name}`}
-            className="block text-xs font-medium text-gray-700"
-          >
+        <div
+          key={field.name}
+          className="min-w-36 border-l border-gray-200 px-2.5 first:border-l-0 first:pl-0"
+        >
+          <label htmlFor={`filter-${field.name}`} className="cisne-meta-label mb-0.5 block">
             {field.label}
           </label>
           <FilterControl
@@ -69,7 +78,7 @@ export function DynamicFilterBar({
         <button
           type="button"
           data-testid="dynamic-filter-clear"
-          className="rounded border border-slate-300 px-2 py-1 text-xs"
+          className="cisne-type-action mb-1 ml-auto inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
           onClick={onClear}
         >
           {t('filters.clear')}
@@ -88,8 +97,13 @@ function FilterControl({
   value: string;
   onChange: (next: string) => void;
 }): React.ReactElement {
+  /*
+   * CONTROLE DA FAIXA — altura e tipografia governadas pelo token de densidade. O filtro nao
+   * inventa o proprio tamanho de campo: ele usa a mesma altura de controle do resto do ERP, para
+   * que a faixa inteira alinhe na mesma linha de base.
+   */
   const controlClass =
-    'mt-1 w-full rounded border border-gray-300 px-2 py-1 text-sm';
+    'block min-h-[var(--control-height)] w-full rounded-md border-0 bg-white px-1.5 text-[length:var(--type-body-size)] text-gray-900 ring-1 ring-gray-300 ring-inset outline-none focus:ring-2 focus:ring-brand-500';
 
   if (field.type === 'select') {
     return (

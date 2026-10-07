@@ -87,8 +87,10 @@ export function EnterpriseObjectPage({
   const hasAside = aside !== null && aside !== undefined;
 
   return (
-    <div className={cn('flex flex-col gap-2.5', className)}>
-      {breadcrumb && breadcrumb.length > 0 ? <Breadcrumb items={breadcrumb} /> : null}
+    <div className={cn('flex flex-col gap-0', className)}>
+      {breadcrumb && breadcrumb.length > 0 ? (
+        <Breadcrumb items={breadcrumb} className="pb-2" />
+      ) : null}
 
       {header}
       {stateFlow}
@@ -96,15 +98,39 @@ export function EnterpriseObjectPage({
       {relations}
       {context}
 
-      <div className={cn('grid gap-2.5', hasAside && 'lg:grid-cols-[minmax(0,1fr)_20rem]')}>
-        <div className="flex min-w-0 flex-col gap-2.5">{children}</div>
-        {hasAside ? <aside className="flex min-w-0 flex-col gap-2.5">{aside}</aside> : null}
+      {/*
+        MAIN / ASIDE GOVERNADO — a coluna de trabalho domina; o contexto lateral tem largura
+        declarada, nao proporcao elastica. Sem aside real, o corpo ocupa a largura inteira em vez
+        de deixar um vazio decorativo.
+
+        `items-start` e obrigatorio: sem ele a grade estica a coluna lateral ate a altura do main,
+        o que faria a superficie de contexto parecer um painel do tamanho do trabalho — a antiga
+        cardification de volta, agora em coluna.
+      */}
+      <div
+        className={cn(
+          'grid items-start gap-0 pt-0',
+          hasAside && 'lg:grid-cols-[minmax(0,1fr)_19rem] lg:gap-x-8',
+        )}
+      >
+        <div className="flex min-w-0 flex-col gap-0 pt-4">{children}</div>
+        {hasAside ? (
+          <aside className="flex min-w-0 flex-col gap-0 border-t border-gray-200 pt-4 lg:border-t-0 lg:border-l lg:border-gray-200 lg:pl-8">
+            {aside}
+          </aside>
+        ) : null}
       </div>
     </div>
   );
 }
 
-/** Bloco de conteudo do corpo/coluna lateral, na mesma densidade da moldura. */
+/**
+ * BLOCO DE CONTEUDO — parte do trabalho, separado por DIVISOR, nao por caixa.
+ *
+ * O `ObjectPanel` era `rounded-lg bg-white shadow-sm ring-1`, exatamente a superficie que fazia a
+ * object page virar uma pilha de cards no mesmo plano. Agora ele e uma secao da area de trabalho:
+ * a hierarquia vem do titulo, da tipografia e do divisor estrutural.
+ */
 export function ObjectPanel({
   title,
   children,
@@ -117,10 +143,10 @@ export function ObjectPanel({
   actions?: ReactNode;
 }) {
   return (
-    <section className={cn('rounded-lg bg-white px-4 py-3 shadow-sm ring-1 ring-gray-900/5', className)}>
+    <section className={cn('cisne-divider pb-3 last:border-b-0 last:pb-0', className)}>
       {title ? (
         <div className="mb-2 flex items-center justify-between gap-2">
-          <h2 className="m-0 text-[10px] font-semibold tracking-wide text-gray-500 uppercase">{title}</h2>
+          <h2 className="cisne-section-title m-0">{title}</h2>
           {actions}
         </div>
       ) : null}

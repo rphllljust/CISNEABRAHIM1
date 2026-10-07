@@ -47,6 +47,34 @@
   --color-surface-sunken: #f3f4f6;
   --color-surface-muted: #f9fafb;
 
+  /*
+   * SURFACE SYSTEM — a hierarquia de superficie e uma DECISAO SEMANTICA, nao um efeito de card.
+   *
+   * O CISNE vinha resolvendo hierarquia com `rounded-lg bg-white shadow-sm ring-1`: toda regiao
+   * virava uma caixa branca flutuante com a MESMA elevacao, de modo que nada se destacava e a
+   * pagina virava uma pilha de cards. ERP denso nao le assim: ele le por TIPO de superficie
+   * (onde estou / onde trabalho / o que e contexto) e por DIVISOR ESTRUTURAL, nao por 30 caixas.
+   *
+   *   canvas  — o fundo da aplicacao (shell). Nao e area de dado.
+   *   work    — a area de trabalho: onde o operador PASSA O DIA. Fundo neutro, sem elevacao,
+   *             porque elevacao em area de trabalho so rouba contraste da grade.
+   *   context — superficie de contexto secundario (aside, drawer, faixa de processo). Distinta
+   *             do trabalho por TOM, nao por sombra.
+   *   raised  — ELEVACAO SOMENTE QUANDO NECESSARIA: dialogo, popover, linha de cabecalho fixa.
+   *
+   * Regra vinculante desta foundation: `raised` NAO e o default. Quem quiser elevar justifica
+   * pelo tipo de superficie acima, nunca por "ficou mais bonito".
+   */
+  --color-canvas: #f1f3f6;
+  --color-canvas-work: #ffffff;
+  --color-surface-context: #f8fafc;
+  --color-surface-context-strong: #eef1f5;
+
+  /* DIVISORES ESTRUTURAIS — a hierarquia que substitui a cardification. */
+  --color-divider: #e2e6eb;
+  --color-divider-strong: #cfd6de;
+  --color-rule-accent: var(--color-brand-600);
+
   --color-text-primary: #111827;
   --color-text-secondary: #4b5563;
   --color-text-muted: #6b7280;
@@ -125,6 +153,48 @@
   --text-label: 0.875rem;
   --text-caption: 0.8125rem;
   --text-table-header: 0.75rem;
+
+  /*
+   * TYPOGRAPHY ROLES — a escala governada do ERP.
+   *
+   * Sintoma que esta escala existe para eliminar: "tudo 13px cinza". Quando workspace title, object
+   * title, label, dado primario e metadata usam o mesmo tamanho e o mesmo cinza, o operador nao tem
+   * TRILHA DE LEITURA: ele precisa ler tudo para achar o que importa.
+   *
+   *   workspace  1.125rem/600  — titulo da superficie de trabalho (a funcao em que estou)
+   *   object     1.25rem/600   — titulo do registro (a coisa sobre a qual trabalho)
+   *   primary    0.9375rem/600 — o dado que decide a leitura da linha
+   *   body       0.8125rem/400 — texto corrente denso
+   *   meta       0.8125rem/400 — valor secundario
+   *   section    0.6875rem/600 uppercase — rotulo de secao (agrupamento)
+   *   label      0.6875rem/600 uppercase — rotulo de campo/metadado
+   *   helper     0.6875rem/400 — ajuda e explicacao
+   *   action     0.8125rem/600 — rotulo de comando
+   *
+   * A diferenca entre `primary` e `meta` e DELIBERADA: dado que decide tem peso e cor de texto
+   * primario; valor secundario e menor e mais claro. Sem isso, uma grade inteira parece um bloco so.
+   */
+  --type-workspace-size: 1.125rem;
+  --type-object-size: 1.25rem;
+  --type-primary-size: 0.9375rem;
+  --type-body-size: 0.8125rem;
+  --type-meta-size: 0.8125rem;
+  --type-micro-size: 0.6875rem;
+
+  /*
+   * DENSITY TOKENS — a altura de controle e uma decisao de sistema, nao de pagina.
+   *
+   * Num ERP a linha de grade e o controle sao as duas medidas que definem produtividade: quanto
+   * menor a linha, mais registros na primeira dobra; quanto menor o controle, mais opera sem scroll.
+   * Mas controle pequeno demais quebra alvo de toque e acessibilidade — por isso os valores sao
+   * GOVERNARADOS aqui, e nao escolhidos por tela.
+   */
+  --control-height: 1.875rem;
+  --control-height-lg: 2.125rem;
+  --row-height: 1.75rem;
+  --row-height-comfortable: 2.125rem;
+  --header-height: 3.25rem;
+  --toolbar-height: 2.5rem;
 }
 
 @layer base {
@@ -174,12 +244,181 @@
     outline: 1px solid rgb(17 24 39 / 5%);
   }
 
+  /*
+   * SURFACE PRIMITIVES — a foundation compartilhada que as object pages consomem.
+   *
+   * Elas existem para que a linguagem de superficie seja declarada em UM lugar. Nenhuma object
+   * page deve redescobrir "rounded-lg bg-white shadow-sm ring-1": esse e exatamente o padrao que
+   * produzia cardification — hierarquia falsa, onde tudo flutua no mesmo plano.
+   */
+
+  /* AREA DE TRABALHO — onde o operador opera. Sem elevacao, sem raio, sem sombra. */
+  .cisne-work-area {
+    background: var(--color-canvas-work);
+  }
+
+  /* SUPERFICIE DE CONTEXTO — aside, faixa de processo, bloco secundario. Tom, nao sombra. */
+  .cisne-context-surface {
+    background: var(--color-surface-context);
+  }
+
+  /* CONTEXTO FORTE — distingue contexto primario de contexto derivado sem elevar. */
+  .cisne-context-surface--strong {
+    background: var(--color-surface-context-strong);
+  }
+
+  /* ELEVACAO SOB DEMANDA — dialogo, popover, cabecalho fixo. Nunca o default. */
+  .cisne-raised-surface {
+    background: var(--color-surface-raised);
+    box-shadow: var(--shadow-sm);
+    outline: 1px solid rgb(17 24 39 / 5%);
+  }
+
+  /*
+   * DIVISORES ESTRUTURAIS — a hierarquia que substitui as caixas.
+   *
+   * `--section` separa assuntos; o divisor padrao separa partes do mesmo assunto. A espessura e o
+   * unico sinal de profundidade — e e suficiente, porque o olho denso le separador melhor que
+   * sombra difusa.
+   */
+  .cisne-divider {
+    border-bottom: 1px solid var(--color-divider);
+  }
+
+  .cisne-divider--section {
+    border-bottom: 1px solid var(--color-divider-strong);
+  }
+
+  .cisne-divider--top {
+    border-top: 1px solid var(--color-divider);
+  }
+
+  /*
+   * FAIXA DE PROCESSO — o state flow deixa de ser card e passa a ser faixa.
+   *
+   * O estado do objeto e CONTEXTO DE PROCESSO, nao bloco de conteudo: ele pertence a faixa logo
+   * abaixo da identidade, na mesma superficie do cabecalho, separado por divisor.
+   */
+  .cisne-process-band {
+    border-top: 1px solid var(--color-divider);
+    border-bottom: 1px solid var(--color-divider);
+    background: transparent;
+  }
+
+  /*
+   * REGUA DE PROXIMA ACAO — "o que acontece agora" e regua semanticamente marcada, nao card
+   * isolado: a barra lateral colorida diz o TIPO de proximo passo (agir / aguardar) antes de o
+   * operador ler o texto.
+   */
+  .cisne-next-action-rule {
+    border-left: 3px solid var(--color-rule-accent);
+    border-top: 1px solid var(--color-divider);
+    border-bottom: 1px solid var(--color-divider);
+    background: transparent;
+  }
+
+  .cisne-next-action-rule--waiting {
+    border-left-color: var(--color-divider-strong);
+  }
+
+  /* TITULO DE SECAO — metadata parece metadata; titulo de secao parece titulo de secao. */
+  .cisne-section-title {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+  }
+
+  /* ROTULO DE METADADO — menor e mais discreto que o titulo de secao, de proposito. */
+  .cisne-meta-label {
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+  }
+
+  /* VALOR PRIMARIO — o dado que o operador le primeiro. Nao e "tudo 13px cinza". */
+  .cisne-meta-value {
+    font-size: 0.875rem;
+    color: var(--color-text-primary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .cisne-meta-value--emphasis {
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+
   .cisne-type-page-title {
     font-size: var(--text-page-title);
     font-weight: 600;
     line-height: 1.25;
     letter-spacing: -0.02em;
     color: #111827;
+  }
+
+  /*
+   * PAPEIS TIPOGRAFICOS GOVERNADOS (v2) — a trilha de leitura do ERP.
+   *
+   * `cisne-type-workspace` e o titulo da FUNCAO; `cisne-type-object` e o titulo do REGISTRO. Eles
+   * sao papeis diferentes porque, numa object page, o operador precisa saber ao mesmo tempo onde
+   * esta e sobre o que esta trabalhando — com um unico tamanho, os dois se confundem.
+   */
+  .cisne-type-workspace {
+    font-size: var(--type-workspace-size);
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    color: var(--color-text-primary);
+  }
+
+  .cisne-type-object {
+    font-size: var(--type-object-size);
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: -0.015em;
+    color: var(--color-text-primary);
+  }
+
+  /* DADO PRIMARIO — o valor que decide a leitura da linha/registro. */
+  .cisne-type-primary {
+    font-size: var(--type-primary-size);
+    font-weight: 600;
+    color: var(--color-text-primary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* CORPO DENSO — texto corrente de grade e lista. */
+  .cisne-type-body {
+    font-size: var(--type-body-size);
+    font-weight: 400;
+    color: var(--color-text-primary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* VALOR SECUNDARIO — presente, mas subordinado ao primario. */
+  .cisne-type-meta {
+    font-size: var(--type-meta-size);
+    font-weight: 400;
+    color: var(--color-text-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* AJUDA — explicacao, nao dado. */
+  .cisne-type-helper {
+    font-size: var(--type-micro-size);
+    font-weight: 400;
+    line-height: 1.35;
+    color: var(--color-text-muted);
+  }
+
+  /* ROTULO DE COMANDO — acao tem peso; nao e texto de corpo. */
+  .cisne-type-action {
+    font-size: var(--type-body-size);
+    font-weight: 600;
+    line-height: 1;
   }
 
   .cisne-type-section-title {

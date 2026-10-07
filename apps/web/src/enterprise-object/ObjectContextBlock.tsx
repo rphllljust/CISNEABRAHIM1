@@ -47,16 +47,11 @@ export function ObjectContextBlock({
   }
 
   return (
-    <section
-      aria-label={title}
-      className={cn('rounded-lg bg-white px-4 py-3 shadow-sm ring-1 ring-gray-900/5', className)}
-    >
-      <h2 className="m-0 mb-2 text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
-        {title}
-      </h2>
+    <section aria-label={title} className={cn('cisne-divider pb-3 last:border-b-0 last:pb-0', className)}>
+      <h2 className="cisne-section-title m-0 mb-2">{title}</h2>
       <dl
         className={cn(
-          'grid gap-x-6 gap-y-2',
+          'm-0 grid gap-x-6 gap-y-1.5',
           columns === 2 && 'sm:grid-cols-2',
           columns === 3 && 'sm:grid-cols-2 lg:grid-cols-3',
           columns === 4 && 'sm:grid-cols-2 lg:grid-cols-4',
@@ -64,10 +59,8 @@ export function ObjectContextBlock({
       >
         {visible.map((field) => (
           <div key={field.label} className="min-w-0">
-            <dt className="text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
-              {field.label}
-            </dt>
-            <dd className="m-0 truncate text-sm text-gray-800">
+            <dt className="cisne-meta-label truncate">{field.label}</dt>
+            <dd className="cisne-meta-value m-0 truncate">
               {field.to ? (
                 <Link to={field.to} className="text-brand-700 no-underline hover:text-brand-800">
                   {field.rendered}

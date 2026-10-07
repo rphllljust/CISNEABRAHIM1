@@ -106,7 +106,7 @@ export function BusinessChain({ chain, phase, message, onRetry, title = 'Cadeia 
   if (phase === 'loading' || phase === 'idle') {
     return (
       <ObjectPanel title={title}>
-        <p className="text-sm text-slate-500" role="status">
+        <p className="m-0 text-sm text-gray-500" role="status">
           Carregando a linhagem deste registro…
         </p>
       </ObjectPanel>
@@ -117,7 +117,7 @@ export function BusinessChain({ chain, phase, message, onRetry, title = 'Cadeia 
     // A cadeia inteira foi negada: nao existe meia-verdade a apresentar.
     return (
       <ObjectPanel title={title}>
-        <p className="text-sm text-slate-500" role="status">
+        <p className="m-0 text-sm text-gray-500" role="status">
           Você não tem permissão para ver a linhagem deste registro.
         </p>
       </ObjectPanel>
@@ -127,7 +127,7 @@ export function BusinessChain({ chain, phase, message, onRetry, title = 'Cadeia 
   if (phase === 'error') {
     return (
       <ObjectPanel title={title}>
-        <p className="text-sm text-slate-500" role="status">
+        <p className="m-0 text-sm text-gray-500" role="status">
           {message ?? 'Não foi possível carregar a cadeia deste registro.'}
         </p>
         {onRetry ? (
@@ -144,7 +144,7 @@ export function BusinessChain({ chain, phase, message, onRetry, title = 'Cadeia 
     // Cadeia parcial REAL (um registro sem linhagem registrada) nao e erro e nao vira placeholder.
     return (
       <ObjectPanel title={title}>
-        <p className="text-sm text-slate-500" role="status">
+        <p className="m-0 text-sm text-gray-500" role="status">
           Este registro não tem linhagem registrada além dele mesmo.
         </p>
       </ObjectPanel>
@@ -154,17 +154,20 @@ export function BusinessChain({ chain, phase, message, onRetry, title = 'Cadeia 
   return (
     <ObjectPanel title={title}>
       {chain && chain.milestones.length > 0 ? (
-        <ul className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600" aria-label="Resumo da cadeia">
+        <ul
+          className="m-0 mb-2 flex list-none flex-wrap gap-x-4 gap-y-0.5 p-0 text-xs text-gray-600"
+          aria-label="Resumo da cadeia"
+        >
           {chain.milestones.map((milestone) => (
             <li key={`${milestone.label}:${milestone.evidence}`}>
-              <span className="font-medium text-slate-800">{milestone.label}</span>
-              <span className="ml-1 text-slate-500">· {milestone.evidence}</span>
+              <span className="font-medium text-gray-800">{milestone.label}</span>
+              <span className="ml-1 text-gray-500">· {milestone.evidence}</span>
             </li>
           ))}
         </ul>
       ) : null}
 
-      <ol className="flex flex-col gap-1" aria-label="Linhagem de negócio">
+      <ol className="m-0 flex list-none flex-col gap-0 p-0" aria-label="Linhagem de negócio">
         {nodes.map((node) => (
           <ChainStep key={`${node.kind}:${node.id}`} node={node} />
         ))}
@@ -173,24 +176,29 @@ export function BusinessChain({ chain, phase, message, onRetry, title = 'Cadeia 
   );
 }
 
+/**
+ * DEGRAU DA CADEIA — o no RAIZ e o registro atual; os demais sao linhagem.
+ *
+ * A distincao era feita por caixa (`rounded border bg-slate-50 p-2` no raiz), o que criava duas
+ * superficies concorrentes dentro do mesmo bloco. Agora ela e feita pelo MARCADOR ESTRUTURAL:
+ * regua de acento no raiz, regua neutra na linhagem — a mesma gramatica da proxima acao.
+ */
 function ChainStep({ node }: { node: BusinessChainNode }) {
   const isRoot = node.relation === 'ROOT';
 
   return (
-    <li className={isRoot ? 'rounded border border-slate-300 bg-slate-50 p-2' : 'border-l-2 border-slate-200 pl-3 py-1'}>
+    <li className={isRoot ? 'border-l-[3px] border-brand-600 py-1 pl-3' : 'border-l border-gray-200 py-1 pl-3'}>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs uppercase tracking-wide text-slate-500">
-          {CHAIN_KIND_LABELS[node.kind]}
-        </span>
-        <Link className="font-medium underline" to={node.route}>
+        <span className="cisne-meta-label">{CHAIN_KIND_LABELS[node.kind]}</span>
+        <Link className="text-sm font-semibold text-brand-700 no-underline hover:text-brand-800" to={node.route}>
           {node.businessReference}
         </Link>
         <StatusBadge tone={chainStatusTone(node.status)} label={chainStatusLabel(node.status)} />
         {!isRoot ? (
-          <span className="text-xs text-slate-500">{CHAIN_RELATION_LABELS[node.relation]}</span>
+          <span className="text-xs text-gray-500">{CHAIN_RELATION_LABELS[node.relation]}</span>
         ) : null}
       </div>
-      <p className="mt-0.5 text-xs text-slate-600">
+      <p className="m-0 mt-0.5 text-xs text-gray-600">
         {node.summary} · <DateTime value={node.occurredAt} />
       </p>
     </li>

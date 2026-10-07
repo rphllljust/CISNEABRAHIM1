@@ -23,7 +23,7 @@ export function WorkbenchSummaryStrip({ children }: { children: ReactNode }) {
   return (
     <section
       aria-label="Resumo da fila"
-      className="mb-2 flex flex-wrap items-stretch gap-2 rounded-md border border-gray-200 bg-white px-3 py-2"
+      className="cisne-divider mb-1 flex flex-wrap items-stretch gap-0 px-0 py-2"
     >
       {children}
     </section>
@@ -33,6 +33,11 @@ export function WorkbenchSummaryStrip({ children }: { children: ReactNode }) {
 /**
  * Um indicador da faixa. `tone` pinta o numero pelo SIGNIFICADO operacional que o chamador ja
  * conhece (critico, atencao, neutro) — nao ha heuristica de risco aqui.
+ *
+ * FOUNDATION: o indicador deixou de ser uma caixinha contornada (`rounded border bg-gray-50/70`) e
+ * passou a ser uma CELULA da faixa, separada por divisor vertical. Numa faixa de 6 indicadores, seis
+ * caixas com borda produzem ruido de contorno que compete com os numeros; divisores deixam o NUMERO
+ * ser o sinal.
  */
 export function WorkbenchMetric({
   value,
@@ -56,19 +61,19 @@ export function WorkbenchMetric({
 
   const body = (
     <>
-      <strong className={cn('text-lg leading-none font-semibold tabular-nums', toneClass)}>
+      <strong className={cn('text-base leading-none font-semibold tabular-nums', toneClass)}>
         {value}
       </strong>
-      <span className="text-[11px] font-medium text-gray-500">{label}</span>
+      <span className="cisne-meta-label">{label}</span>
     </>
   );
 
   const className =
-    'flex min-w-24 flex-col items-start gap-0.5 rounded border border-gray-200 bg-gray-50/70 px-2.5 py-1.5 no-underline transition-colors';
+    'flex min-w-24 flex-col items-start gap-0.5 border-l border-gray-200 px-3 py-0.5 no-underline transition-colors first:border-l-0 first:pl-0';
 
   if (href) {
     return (
-      <a href={href} className={cn(className, 'hover:border-brand-300 hover:bg-brand-50/50')}>
+      <a href={href} className={cn(className, 'hover:bg-brand-50/50')}>
         {body}
       </a>
     );
@@ -102,19 +107,17 @@ export function WorkbenchQueue({
 }) {
   const isEmpty = count === 0 || (!children && count === undefined);
   return (
-    <section className="mb-3" aria-label={title}>
-      <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2">
+    <section className="mb-2" aria-label={title}>
+      <div className="cisne-divider mb-0 flex flex-wrap items-baseline justify-between gap-2 pb-1">
         <div className="flex items-baseline gap-2">
-          <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
+          <h2 className="cisne-type-workspace m-0">{title}</h2>
           {typeof count === 'number' ? (
-            <span className="rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 text-[11px] font-semibold text-gray-600 tabular-nums">
-              {count}
-            </span>
+            <span className="cisne-type-meta font-semibold tabular-nums">{count}</span>
           ) : null}
         </div>
-        {action ? <div className="flex shrink-0 items-center gap-2">{action}</div> : null}
+        {action ? <div className="flex shrink-0 items-center gap-1.5">{action}</div> : null}
       </div>
-      {description ? <p className="mb-1.5 text-xs text-gray-500">{description}</p> : null}
+      {description ? <p className="cisne-type-helper m-0 mb-1">{description}</p> : null}
       {isEmpty ? (
         <EmptyState
           title={emptyTitle ?? 'Nada nesta fila'}
@@ -134,6 +137,11 @@ export function WorkbenchQueue({
  * A ordem dos elementos e deliberada e igual em todas as filas do produto: SEVERIDADE -> MOTIVO
  * (o titulo) -> OBJETO relacionado -> IDADE real -> PROXIMA ACAO. O operador le a mesma coisa na
  * mesma posicao, seja em Alertas, Faturamento ou Conciliacao.
+ *
+ * FOUNDATION: cada item era um CARD (`rounded-md border bg-white` com margem inferior), ou seja, a
+ * fila virava uma pilha de caixas — o operador via 3 itens onde cabiam 10. Agora o item e uma LINHA
+ * de fila: densa, separada por divisor, com a regua de severidade marcando o fato que ordena. A
+ * acao continua na mesma posicao relativa, entao a leitura em coluna permanece.
  */
 export function WorkbenchQueueItem({
   severity,
@@ -161,32 +169,34 @@ export function WorkbenchQueueItem({
   drilldown?: ReactNode;
 }) {
   const stripe = {
-    neutral: 'before:bg-gray-300',
-    info: 'before:bg-brand-400',
-    warning: 'before:bg-amber-400',
-    critical: 'before:bg-red-500',
-    success: 'before:bg-emerald-400',
+    neutral: 'border-l-gray-300',
+    info: 'border-l-brand-400',
+    warning: 'border-l-amber-400',
+    critical: 'border-l-red-500',
+    success: 'border-l-emerald-400',
   }[severityTone];
 
   return (
     <article
       className={cn(
-        'relative mb-1.5 grid grid-cols-1 items-start gap-x-4 gap-y-1.5 rounded-md border border-gray-200 bg-white py-2 pr-3 pl-3.5',
-        'before:absolute before:top-2 before:bottom-2 before:left-0 before:w-0.5 before:rounded-full before:content-[""]',
+        'grid grid-cols-1 items-center gap-x-4 gap-y-0.5 border-b border-l-2 border-gray-100 py-1.5 pr-1 pl-2.5 last:border-b-0',
+        'min-h-[var(--row-height-comfortable)]',
         stripe,
       )}
     >
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         {severity ? <span className="shrink-0">{severity}</span> : null}
-        <span className="min-w-0 text-[13px] font-semibold text-gray-900">{title}</span>
+        <span className="cisne-type-primary min-w-0">{title}</span>
       </div>
-      {reason ? <p className="m-0 text-xs text-gray-600">{reason}</p> : null}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
-        {context ? <span className="min-w-0">{context}</span> : null}
-        {age ? <span className="tabular-nums">{age}</span> : null}
-      </div>
+      {reason ? <p className="cisne-type-meta m-0">{reason}</p> : null}
+      {context || age ? (
+        <div className="cisne-type-meta flex flex-wrap items-center gap-x-4 gap-y-0.5">
+          {context ? <span className="min-w-0">{context}</span> : null}
+          {age ? <span className="tabular-nums">{age}</span> : null}
+        </div>
+      ) : null}
       {action || drilldown ? (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
           {action}
           {drilldown}
         </div>
@@ -198,9 +208,13 @@ export function WorkbenchQueueItem({
 /**
  * Acoes do item: uma primaria visivel, o resto discreto. Mesma decisao de `RowActionMenu`, aplicada
  * a fila — acao primaria e a que resolve o item.
+ *
+ * FOUNDATION: a acao primaria perdeu a borda duplicada (`border` + `bg` da mesma cor) e passou a usar
+ * a altura de controle do sistema. A secundaria continua neutra, mas o contraste entre as duas
+ * aumentou — antes ambas tinham contorno e peso parecidos, o que e o "8 botoes com o mesmo peso".
  */
 export const workbenchPrimaryActionClass =
-  'inline-flex items-center rounded-md border border-brand-600 bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white no-underline transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60';
+  'cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md bg-brand-600 px-2.5 no-underline text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60';
 
 export const workbenchSecondaryActionClass =
-  'inline-flex items-center rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 no-underline transition-colors hover:bg-gray-50';
+  'cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 no-underline transition-colors hover:bg-gray-100 hover:text-gray-900';

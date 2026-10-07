@@ -36,13 +36,13 @@ export function NextActionPanel({ action, className }: NextActionPanelProps) {
     <section
       aria-label="Próxima ação"
       className={cn(
-        'flex flex-wrap items-center justify-between gap-3 rounded-lg border-l-2 bg-white px-4 py-2.5 shadow-sm ring-1 ring-gray-900/5',
-        action.kind === 'waiting' ? 'border-l-gray-300' : 'border-l-brand-600',
+        'cisne-next-action-rule flex flex-wrap items-center justify-between gap-3 px-3 py-2',
+        action.kind === 'waiting' && 'cisne-next-action-rule--waiting',
         className,
       )}
     >
       <div className="min-w-0">
-        <p className="m-0 text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
+        <p className="cisne-meta-label m-0">
           {action.kind === 'waiting' ? 'Aguardando' : 'Próxima ação'}
         </p>
         <p className="m-0 text-sm font-semibold text-gray-900">{label}</p>

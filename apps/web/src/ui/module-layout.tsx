@@ -48,25 +48,34 @@ export function ModulePage({
  * 1440px empurrava a grade para baixo e fazia o filtro dominar a primeira dobra — exatamente o
  * "nao usar card gigante para filtros". Os controles e o comportamento nao mudam; o que muda e
  * a moldura, que passa a ter a densidade de uma linha de operacao.
+ *
+ * FOUNDATION: a moldura perdeu a caixa branca contornada. O filtro pertence a AREA DE TRABALHO
+ * (superficie unica), separado do resto por DIVISOR ESTRUTURAL — nao por uma segunda caixa branca
+ * dentro da area de trabalho, que era o que produzia "tabela dentro de card, filtro dentro de card".
  */
 export function FilterCard({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div
-      className={cn(
-        'mb-2 flex flex-wrap items-end gap-2 rounded-md border border-gray-200 bg-white px-2.5 py-2',
-        className,
-      )}
-    >
+    <div className={cn('cisne-divider mb-0 flex flex-wrap items-end gap-2 px-0 py-2', className)}>
       {children}
     </div>
   );
 }
 
+/**
+ * GRADE DE DADOS — a superficie da grade dentro da area de trabalho.
+ *
+ * Antes: `rounded-md border bg-white shadow-[...]` — uma caixa branca elevada DENTRO da area de
+ * trabalho. Como o `ModulePage` tambem era branco, a grade virava "tabela dentro de card", e a
+ * pagina inteira virava card sobre card.
+ *
+ * Agora a grade e a propria area de trabalho: sem raio, sem sombra, sem contorno decorativo. O que
+ * a delimita e o divisor estrutural do header da grade e a largura da fila.
+ */
 export function ModuleTableCard({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div
       className={cn(
-        'mb-6 overflow-x-auto rounded-md border border-slate-200 bg-white shadow-[0_1px_2px_rgb(15_23_42/0.04)]',
+        'mb-2 w-full min-w-0 overflow-x-auto bg-white',
         className,
       )}
     >

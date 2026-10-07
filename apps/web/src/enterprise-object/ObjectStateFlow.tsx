@@ -40,10 +40,7 @@ export function ObjectStateFlow({
   const currentIndex = currentId ? real.findIndex((step) => step.id === currentId) : -1;
 
   return (
-    <section
-      aria-label={title}
-      className={cn('rounded-lg bg-white px-4 py-2.5 shadow-sm ring-1 ring-gray-900/5', className)}
-    >
+    <section aria-label={title} className={cn('cisne-process-band py-2', className)}>
       <ol className="m-0 flex list-none flex-wrap items-center gap-x-1 gap-y-1 p-0">
         {real.map((step, index) => {
           const isCurrent = index === currentIndex;
@@ -51,7 +48,7 @@ export function ObjectStateFlow({
           return (
             <li key={step.id} className="flex items-center gap-1">
               {index > 0 ? (
-                <span aria-hidden className="px-1 text-xs text-gray-300">
+                <span aria-hidden className="px-0.5 text-xs text-gray-300">
                   →
                 </span>
               ) : null}
@@ -59,9 +56,9 @@ export function ObjectStateFlow({
                 aria-current={isCurrent ? 'step' : undefined}
                 title={step.hint}
                 className={cn(
-                  'rounded px-2 py-0.5 text-xs',
+                  'rounded px-1.5 py-0.5 text-xs',
                   isCurrent && 'bg-brand-600 font-semibold text-white',
-                  !isCurrent && isDone && 'bg-gray-100 font-medium text-gray-700',
+                  !isCurrent && isDone && 'font-medium text-gray-700',
                   !isCurrent && !isDone && 'text-gray-500',
                   step.terminal && !isCurrent && 'text-gray-600 italic',
                 )}

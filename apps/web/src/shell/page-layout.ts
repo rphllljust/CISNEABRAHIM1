@@ -33,16 +33,18 @@ export const DEFAULT_PAGE_LAYOUT_MODE: PageLayoutMode = 'standard';
 /**
  * Teto de cada modo, em rem. `null` = sem teto (a superficie ocupa toda a largura util).
  *
- * - focused   56rem — um fluxo, uma decisao (login, confirmacao, cadastro curto);
- * - standard  72rem — leitura de objeto e formulario comum;
- * - wide      90rem — worklist densa, relatorio, mesa de trabalho;
- * - workspace  none — workspace operacional: sem teto, porque a grade densa E o produto;
- * - fullBleed  none — superficie que desenha a propria moldura (reconciliation, canvas).
+ * - focused   56rem  — um fluxo, uma decisao (login, confirmacao, cadastro curto);
+ * - standard  90rem  — leitura de objeto e formulario comum. NAO e 72rem: 1152px num monitor de
+ *                      1440px deixava ~400px de canvas vazio e cortava coluna de grade densa, o
+ *                      que e exatamente o sintoma de "sistema antigo" que esta wave elimina;
+ * - wide      110rem — worklist densa, relatorio, mesa de trabalho;
+ * - workspace none   — workspace operacional: sem teto, porque a grade densa E o produto;
+ * - fullBleed none   — superficie que desenha a propria moldura (reconciliation, canvas).
  */
 export const PAGE_LAYOUT_MAX_REM: Record<PageLayoutMode, number | null> = {
   focused: 56,
-  standard: 72,
-  wide: 90,
+  standard: 90,
+  wide: 110,
   workspace: null,
   fullBleed: null,
 };
@@ -50,8 +52,8 @@ export const PAGE_LAYOUT_MAX_REM: Record<PageLayoutMode, number | null> = {
 /** Larguras efetivas aplicadas por `AppShellLayout`. */
 export const PAGE_FRAME_CLASS: Record<PageLayoutMode, string> = {
   focused: 'max-w-[56rem]',
-  standard: 'max-w-[72rem]',
-  wide: 'max-w-[90rem]',
+  standard: 'max-w-[90rem]',
+  wide: 'max-w-[110rem]',
   workspace: 'max-w-none',
   fullBleed: 'max-w-none px-0',
 };

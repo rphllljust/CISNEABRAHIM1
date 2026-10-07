@@ -115,20 +115,26 @@ export function EnterpriseObjectHeader({
   ];
 
   return (
-    <header className={cn('rounded-lg bg-white px-4 py-3 shadow-sm ring-1 ring-gray-900/5', className)}>
+    <header className={cn('cisne-divider--section bg-transparent px-0 pt-1 pb-3', className)}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             {humanReference ? (
-              <span className="rounded border border-gray-300 bg-gray-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-gray-700 tabular-nums">
+              <span className="rounded border border-gray-300 bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-gray-700 tabular-nums">
                 {humanReference}
               </span>
             ) : null}
-            <h1 className="m-0 truncate text-lg leading-tight font-semibold text-gray-900">{humanTitle}</h1>
+            <h1 className="m-0 truncate text-xl leading-tight font-semibold tracking-tight text-gray-900">
+              {humanTitle}
+            </h1>
             {statusLabel ? <StatusBadge label={statusLabel} tone={status?.tone} /> : null}
           </div>
-          {humanSubtitle ? <p className="mt-0.5 text-sm text-gray-600">{humanSubtitle}</p> : null}
-          {statusDescription ? <p className="mt-0.5 text-xs text-gray-500">{statusDescription}</p> : null}
+          {humanSubtitle ? (
+            <p className="m-0 mt-0.5 text-sm font-medium text-gray-700">{humanSubtitle}</p>
+          ) : null}
+          {statusDescription ? (
+            <p className="m-0 mt-0.5 text-xs text-gray-500">{statusDescription}</p>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -136,24 +142,31 @@ export function EnterpriseObjectHeader({
           {menuItems.length > 0 ? (
             <Dropdown
               label="Mais ações"
-              trigger={<span className="rounded-md px-3 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50">Mais ações</span>}
+              trigger={
+                <span className="rounded-md px-3 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50">
+                  Mais ações
+                </span>
+              }
               items={menuItems}
             />
           ) : null}
         </div>
       </div>
 
+      {/*
+        METADADOS — a faixa que responde "do que se trata" sem sair do cabecalho.
+        Grade de 2/3/5 colunas com rotulo discreto e valor legivel; `gap-y-1` mantem a faixa curta
+        para que a primeira dobra do objeto continue sendo trabalho, e nao identidade.
+      */}
       {visibleMetadata.length > 0 ? (
-        <dl className="mt-2.5 grid grid-cols-2 gap-x-6 gap-y-1.5 border-t border-gray-100 pt-2.5 sm:grid-cols-3 lg:grid-cols-5">
+        <dl className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-3 lg:grid-cols-5">
           {visibleMetadata.map((field) => (
             <div key={field.label} className="min-w-0">
-              <dt className="text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
-                {field.label}
-              </dt>
+              <dt className="cisne-meta-label truncate">{field.label}</dt>
               <dd
                 className={cn(
-                  'truncate text-sm tabular-nums',
-                  field.emphasis ? 'font-semibold text-gray-900' : 'text-gray-700',
+                  'cisne-meta-value m-0 truncate',
+                  field.emphasis && 'cisne-meta-value--emphasis',
                 )}
               >
                 {field.rendered}

@@ -56,15 +56,43 @@
   max-width: min(43rem, 48vw);
 }
 
+/*
+  WORKSPACE CANVAS — o fundo da aplicacao.
+
+  Antes: tres gradientes decorativos (branco no topo, halo teal radial, e um gradiente vertical)
+  sobre o fundo. O efeito era uma superficie com "clima" de site institucional atras de todo
+  trabalho — exatamente o que um ERP denso nao deve ter, porque gradiente compete com a grade pelo
+  contraste e suja a leitura de linha.
+
+  Agora: canvas plano e neutro, governado por token. A hierarquia de superficie passa a vir do TIPO
+  de superficie (canvas / work area / context / raised), nao de decoracao.
+*/
 .shell__content {
-  background:
-    linear-gradient(180deg, rgb(255 255 255 / 62%) 0, rgb(255 255 255 / 0%) 14rem),
-    radial-gradient(circle at 18% -8%, rgb(35 127 120 / 8%), transparent 22rem),
-    linear-gradient(180deg, #eef3f7 0%, #f7f9fb 42%, #f4f6f8 100%);
+  background: var(--color-canvas, #f1f3f6);
 }
 
+/*
+  WORK AREA — a superficie onde o operador opera.
+
+  O frame da pagina e a AREA DE TRABALHO: fundo de trabalho, sem elevacao e sem raio. Ele nao e um
+  card flutuando no canvas — e o proprio posto de trabalho, delimitado por divisor estrutural.
+
+  `fullBleed` fica de fora: aquelas superficies (reconciliation, canvas) desenham a propria moldura
+  e nao devem receber superficie de trabalho por cima.
+*/
 .shell-page-frame {
   container-type: inline-size;
+}
+
+.shell-page-frame:not(.shell-page-frame--bleed) {
+  background: var(--color-canvas-work, #fff);
+  border: 1px solid var(--color-divider, #e2e6eb);
+  border-radius: 2px;
+}
+
+.shell-page-frame--bleed {
+  background: transparent;
+  border: 0;
 }
 
 .shell-drawer-backdrop {

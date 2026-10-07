@@ -343,7 +343,18 @@ export function ReceivablesListPage() {
         />
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
+          {/*
+            MAIN / ASIDE GOVERNADO — a area de trabalho DOMINA, o contexto e secundario.
+
+            Antes o aside fixava `22rem` (352px) numa grade de 1005px: a fila ficava com 637px para
+            ~10 colunas e os botoes da ultima coluna entravam por baixo do painel (medido por
+            `elementFromPoint`). Um painel de CONTEXTO nao pode custar um terco da largura de uma
+            grade densa — ele e leitura auxiliar, nao a mesa de trabalho.
+
+            `17rem` mantem o painel legivel e devolve ~80px para a fila. O `min-w-0` nas duas
+            colunas continua obrigatorio: sem ele `minmax(0,1fr)` nao impede vazamento.
+          */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,17rem)]">
             <div className="min-w-0">
               <DynamicList
                 schema={schema}
@@ -455,23 +466,33 @@ export function ReceivablesListPage() {
             */}
             {previewRow ? (
               <aside
-                className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-900/5 lg:sticky lg:top-4 lg:self-start"
+                /*
+                 * SUPERFICIE DE CONTEXTO — deixa de ser card e passa a contexto empresarial.
+                 *
+                 * Antes: `rounded-xl bg-white p-4 shadow-sm ring-1` + `lg:sticky`. Alem da
+                 * cardification, o painel sticky tinha fundo branco e ficava SOBRE a grade: os
+                 * botoes "Prévia" das ultimas colunas desapareciam por baixo dele (medido por
+                 * `elementFromPoint`: 3 controles cobertos em /app/finance/receivables).
+                 *
+                 * Agora: superficie de contexto (tom, nao sombra e nao caixa flutuante), regua
+                 * estrutural de separacao e `overflow-hidden` no proprio painel, de modo que o
+                 * conteudo interno nunca escapa para cima da area de trabalho.
+                 */
+                className="cisne-context-surface min-w-0 overflow-hidden border-t border-gray-200 pt-3 lg:sticky lg:top-4 lg:self-start lg:border-t-0 lg:border-l lg:pl-4"
                 aria-label="Contexto do título selecionado"
               >
-                <header className="border-b border-gray-100 pb-3">
-                  <p className="text-sm font-semibold text-gray-900">
-                    {previewRow.externalReference ?? 'Recebível'}
-                  </p>
-                  <div className="mt-1.5">
+                <header className="cisne-divider pb-2">
+                  <p className="cisne-type-primary m-0">{previewRow.externalReference ?? 'Recebível'}</p>
+                  <div className="mt-1">
                     <FinanceStatusBadge
                       status={previewRow.status}
                       labels={RECEIVABLE_STATUS_LABELS}
                     />
                   </div>
                 </header>
-                <dl className="my-3 grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)] gap-x-3 gap-y-2">
-                  <dt className="text-xs text-gray-500">Cliente</dt>
-                  <dd className="m-0 text-[13px] text-gray-800">
+                <dl className="m-0 my-2 grid grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)] gap-x-3 gap-y-1.5">
+                  <dt className="cisne-meta-label pt-0.5">Cliente</dt>
+                  <dd className="cisne-meta-value m-0">
                     <span className="text-gray-500">Cliente não publicado · </span>
                     <Link
                       to={`/app/clients/${previewRow.clientId}`}
@@ -480,28 +501,28 @@ export function ReceivablesListPage() {
                       Abrir cliente
                     </Link>
                   </dd>
-                  <dt className="text-xs text-gray-500">Valor original</dt>
-                  <dd className="m-0 text-[13px] text-gray-800 tabular-nums">
+                  <dt className="cisne-meta-label pt-0.5">Valor original</dt>
+                  <dd className="cisne-meta-value m-0">
                     <Money value={previewRow.principal} currencyCode={previewRow.currencyCode} />
                   </dd>
-                  <dt className="text-xs text-gray-500">Saldo</dt>
-                  <dd className="m-0 text-[13px] font-semibold text-gray-900 tabular-nums">
+                  <dt className="cisne-meta-label pt-0.5">Saldo</dt>
+                  <dd className="cisne-type-primary m-0">
                     <Money value={previewRow.remainingBalance} currencyCode={previewRow.currencyCode} emphasis />
                   </dd>
-                  <dt className="text-xs text-gray-500">Vencimento</dt>
-                  <dd className="m-0 text-[13px] text-gray-800">
+                  <dt className="cisne-meta-label pt-0.5">Vencimento</dt>
+                  <dd className="cisne-meta-value m-0">
                     <DateTime value={previewRow.dueDate} mode="date" />
                   </dd>
-                  <dt className="text-xs text-gray-500">Recebimentos</dt>
-                  <dd className="m-0 text-[13px] text-gray-800 tabular-nums">
+                  <dt className="cisne-meta-label pt-0.5">Recebimentos</dt>
+                  <dd className="cisne-meta-value m-0">
                     {previewRow.settlements.length}
                   </dd>
-                  <dt className="text-xs text-gray-500">Origem</dt>
-                  <dd className="m-0 text-[13px] text-gray-800">
+                  <dt className="cisne-meta-label pt-0.5">Origem</dt>
+                  <dd className="cisne-meta-value m-0">
                     {formatOriginKind(previewRow.origin.kind)}
                   </dd>
                 </dl>
-                <div className="border-t border-gray-100 pt-3">
+                <div className="cisne-divider--top pt-2">
                   <ReceivableChain row={previewRow} />
                 </div>
               </aside>
