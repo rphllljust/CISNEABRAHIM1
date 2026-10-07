@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   cancelServiceOrder,
+  getServiceOrder,
   listServiceOrders,
   prepareServiceOrder,
   releaseServiceOrder,
+  reopenServiceOrder,
   ServiceOrdersApiError,
 } from '../api/service-orders-api';
 import { mapServiceOrdersErrorToMessage } from '../api/service-orders-error-messages';
-import type { ServiceOrderStatus } from '../types/service-order.types';
+import type { ServiceOrderDetail, ServiceOrderStatus } from '../types/service-order.types';
+import { Skeleton } from '../../ui/Skeleton';
 import {
   CommandPalette,
   DynamicBulkActions,
@@ -109,6 +112,8 @@ export function ServiceOrdersEngineListPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkMessage, setBulkMessage] = useState<string | null>(null);
+  /** Motivo do cancelamento em LOTE, informado pelo operador (registro de auditoria). */
+  const [bulkReason, setBulkReason] = useState('');
   const [paletteOpen, setPaletteOpen] = useState(false);
   /**
    * RECORTE SERVER-SIDE — busca e situação.
@@ -128,6 +133,62 @@ export function ServiceOrdersEngineListPage() {
   const [createError, setCreateError] = useState<string | null>(null);
   /** Linha que abriu o drawer de contexto. `null` = painel fechado. */
   const [contextRow, setContextRow] = useState<ServiceOrderEngineRow | null>(null);
+
+  /*
+   * CONTEXTO REAL DA ORDEM — detalhe carregado de `GET /service-orders/:id`.
+   *
+   * O painel exibia APENAS um botão "Abrir ordem": era um modal decorativo que não dizia nada
+   * sobre o registro. O detalhe publica código interno, origem, vínculos reais (solicitação,
+   * proposta, pedido de compra) e `rowVersion` — os fatos que permitem DECIDIR sem abandonar a
+   * fila. Carregamento LOCALIZADO: só o painel espera.
+   */
+  const [detailState, setDetailState] = useState<
+    | { phase: 'idle' }
+    | { phase: 'loading' }
+    | { phase: 'error'; message: string }
+    | { phase: 'ready'; detail: ServiceOrderDetail }
+  >({ phase: 'idle' });
+
+  /*
+   * MOTIVO — informado pelo OPERADOR, nunca fabricado.
+   *
+   * `cancel` e `reopen` exigem motivo no contrato: é registro de auditoria. O código anterior
+   * enviava `'Cancelamento em lote solicitado na lista de ordens de serviço.'` como texto FIXO —
+   * ou seja, o frontend inventava o fato empresarial para satisfazer o schema. Aqui o motivo é
+   * digitado, e o comando fica indisponível enquanto não existir.
+   */
+  const [commandReason, setCommandReason] = useState('');
+  const [commandBusy, setCommandBusy] = useState(false);
+  const [commandError, setCommandError] = useState<string | null>(null);
+
+  const contextId = contextRow?.id ?? null;
+
+  useEffect(() => {
+    if (!contextId) {
+      setDetailState({ phase: 'idle' });
+      setCommandReason('');
+      setCommandError(null);
+      return;
+    }
+    const controller = new AbortController();
+    setDetailState({ phase: 'loading' });
+    setCommandError(null);
+    void getServiceOrder(contextId, controller.signal)
+      .then((detail) => {
+        if (!controller.signal.aborted) {
+          setDetailState({ phase: 'ready', detail });
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setDetailState({
+            phase: 'error',
+            message: 'Não foi possível carregar o contexto da ordem.',
+          });
+        }
+      });
+    return () => controller.abort();
+  }, [contextId]);
 
   const activeViewType = searchParams.get('view') ?? 'list';
   const statusFilter = (searchParams.get('status') ?? '') as ServiceOrderStatus | '';
@@ -196,6 +257,47 @@ export function ServiceOrdersEngineListPage() {
     },
     [pageOffset, search, statusFilter],
   );
+
+  /**
+   * COMANDO REAL a partir do CONTEXTO do registro. Envia intenção + `rowVersion`; quem valida a
+   * transição é o backend. Aqui o motivo vem do operador — em lote ou individual.
+   */
+  const runContextCommand = useCallback(
+    async (command: 'prepare' | 'release' | 'cancel' | 'reopen') => {
+      if (!contextId) {
+        return;
+      }
+      const rowVersion = Number(contextRow?.['row_version'] ?? 1);
+      setCommandBusy(true);
+      setCommandError(null);
+      try {
+        if (command === 'prepare') {
+          await prepareServiceOrder(contextId, rowVersion);
+        } else if (command === 'release') {
+          await releaseServiceOrder(contextId, rowVersion);
+        } else if (command === 'cancel') {
+          await cancelServiceOrder(contextId, {
+            rowVersion,
+            cancellationReason: commandReason,
+          });
+        } else {
+          await reopenServiceOrder(contextId, { rowVersion, reopenReason: commandReason });
+        }
+        setContextRow(null);
+        await loadRows();
+      } catch (error) {
+        setCommandError(
+          error instanceof ServiceOrdersApiError
+            ? mapServiceOrdersErrorToMessage(error.code, error.status)
+            : 'Não foi possível executar o comando.',
+        );
+      } finally {
+        setCommandBusy(false);
+      }
+    },
+    [commandReason, contextId, contextRow, loadRows],
+  );
+
 
   useEffect(() => {
     const controller = new AbortController();
@@ -322,6 +424,18 @@ export function ServiceOrdersEngineListPage() {
   };
 
   async function runCommand(command: string, ids: string[]): Promise<void> {
+    /*
+     * MOTIVO DO OPERADOR, NUNCA FABRICADO.
+     *
+     * O código anterior enviava `'Cancelamento em lote solicitado na lista de ordens de serviço.'`
+     * como texto FIXO para satisfazer o schema de `cancel`. O motivo é REGISTRO DE AUDITORIA:
+     * quem cancelou, quando e por quê. Preenchê-lo pela tela é o frontend inventando um fato
+     * empresarial — e um lote sem motivo real é pior que um lote recusado.
+     */
+    if (command === 'cancel' && bulkReason.trim() === '') {
+      setBulkMessage('Informe o motivo do cancelamento antes de executar o comando.');
+      return;
+    }
     setBulkBusy(true);
     setBulkMessage(null);
     const failures: string[] = [];
@@ -336,7 +450,7 @@ export function ServiceOrdersEngineListPage() {
         } else if (command === 'cancel') {
           await cancelServiceOrder(id, {
             rowVersion,
-            cancellationReason: 'Cancelamento em lote solicitado na lista de ordens de serviço.',
+            cancellationReason: bulkReason.trim(),
           });
         }
       } catch (error) {
@@ -378,7 +492,18 @@ export function ServiceOrdersEngineListPage() {
   useCommandPaletteShortcut(useCallback(() => setPaletteOpen(true), []));
 
   return (
-    <ModulePage layout="workspace" className="space-y-3">
+    <ModulePage layout="workspace">
+      {/*
+        SUPERFÍCIE DE TRABALHO — cabeçalho, visões salvas e comandos numa faixa própria.
+
+        STICKY NÃO É APLICADO AQUI, DE PROPÓSITO. Esta superfície contém 7 blocos (switcher de
+        view, drill-down de KPI, cockpit, export, filtro de metadado, busca e lote) e mediria
+        ~1100px — MAIS ALTA que a viewport. Um `position: sticky` maior que a janela não fica
+        fixo: ele empurra a própria fila para fora da dobra (medido: dobra útil de -441px). Ficar
+        "grudado" era pior que não ficar.
+      */}
+      <div data-region="work-surface">
+      <div data-region="operating-header">
       <header className="cisne-divider--section pb-1.5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
@@ -409,6 +534,7 @@ export function ServiceOrdersEngineListPage() {
           </Button>
         </div>
       </header>
+      </div>
 
       {status === 'loading' || rowsStatus === 'loading' ? (
         <p className="cisne-type-helper m-0" aria-busy="true">
@@ -551,6 +677,7 @@ export function ServiceOrdersEngineListPage() {
             />
           </WorklistFilterBar>
 
+          <div data-region="saved-view-surface">
           <DynamicSavedViewsBar
             views={savedViews.views}
             persistedLocally={savedViews.persistedLocally}
@@ -562,7 +689,29 @@ export function ServiceOrdersEngineListPage() {
               setSearchParams(next, { replace: true });
             }}
           />
+          </div>
 
+          {/*
+            MOTIVO DO LOTE — o operador informa antes de cancelar em massa.
+            Sem motivo real o comando é recusado pela própria tela, porque o backend exige o
+            registro de auditoria e a tela não tem o direito de inventá-lo.
+          */}
+          {selectedIds.length > 0 ? (
+            <label className="mb-1 block" data-region="bulk-reason">
+              <span className="cisne-meta-label mb-0.5 block">
+                Motivo do cancelamento em lote (obrigatório para cancelar)
+              </span>
+              <input
+                type="text"
+                className="min-h-[var(--control-height)] w-full max-w-xl rounded-md border-0 bg-white px-1.5 text-[length:var(--type-body-size)] ring-1 ring-gray-300 ring-inset outline-none focus:ring-2 focus:ring-brand-500"
+                value={bulkReason}
+                onChange={(event) => setBulkReason(event.target.value)}
+                placeholder="Informe o motivo real"
+              />
+            </label>
+          ) : null}
+
+          <div data-region="bulk-command-surface">
           <DynamicBulkActions
             schema={schema}
             selectedIds={selectedIds}
@@ -571,7 +720,9 @@ export function ServiceOrdersEngineListPage() {
             onApply={(command, ids) => void runCommand(command, ids)}
             onClear={() => setSelectedIds([])}
           />
+          </div>
 
+          <div data-region="worklist-master">
           {activeViewType === 'kanban' ? (
             <DynamicKanban
               schema={schema}
@@ -682,24 +833,174 @@ export function ServiceOrdersEngineListPage() {
               }
             />
           ) : null}
+          </div>
         </>
       ) : null}
+      </div>
 
       <DynamicContextDrawer
         open={contextRow !== null}
-        title={contextRow ? toDisplayText(contextRow['order_number']) : ''}
+        title="Contexto da ordem de serviço"
         onClose={() => setContextRow(null)}
         crossReferences={contextRow ? crossReferencesFor(contextRow) : []}
       >
-        {contextRow ? (
-          <button
-            type="button"
-            className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md bg-brand-600 px-3 text-white hover:bg-brand-700"
-            onClick={() => void navigate(`/app/service-orders/${contextRow.id}`)}
-          >
-            Abrir ordem
-          </button>
-        ) : null}
+        <div data-region="context-region">
+          {contextRow ? (
+            <p className="cisne-type-primary m-0 mb-2 truncate">
+              {toDisplayText(contextRow['order_number'])}
+            </p>
+          ) : null}
+
+          {detailState.phase === 'loading' ? (
+            /* SKELETON LOCALIZADO — só o painel espera; a fila segue utilizável. */
+            <div aria-busy="true" role="status" className="flex flex-col gap-1.5">
+              <span className="cisne-type-helper">Carregando contexto…</span>
+              <Skeleton lines={4} />
+            </div>
+          ) : null}
+
+          {detailState.phase === 'error' ? (
+            <p className="cisne-type-body m-0 text-red-700" role="alert">
+              {detailState.message}
+            </p>
+          ) : null}
+
+          {detailState.phase === 'ready' ? (
+            <>
+              <dl className="m-0 grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)] gap-x-3 gap-y-1.5">
+                <dt className="cisne-meta-label pt-0.5">Número</dt>
+                <dd className="cisne-meta-value m-0">{detailState.detail.orderNumber}</dd>
+                <dt className="cisne-meta-label pt-0.5">Código interno</dt>
+                <dd className="cisne-meta-value m-0 font-mono">{detailState.detail.internalCode}</dd>
+                <dt className="cisne-meta-label pt-0.5">Origem</dt>
+                <dd className="cisne-meta-value m-0">{detailState.detail.origin}</dd>
+                {detailState.detail.contractReference ? (
+                  <>
+                    <dt className="cisne-meta-label pt-0.5">Contrato</dt>
+                    <dd className="cisne-meta-value m-0">{detailState.detail.contractReference}</dd>
+                  </>
+                ) : null}
+              </dl>
+
+              {/*
+                VÍNCULOS REAIS — só o que o detalhe publica. Cada degrau presente tem DESTINO
+                real; ausência de vínculo não vira degrau inventado.
+              */}
+              <div className="cisne-divider--top mt-2 pt-2">
+                <h3 className="cisne-section-title m-0 mb-1">Linhagem</h3>
+                <ul className="m-0 flex list-none flex-col gap-0 p-0">
+                  {detailState.detail.serviceRequestId ? (
+                    <li className="cisne-type-meta">
+                      <Link
+                        to={`/app/requests/${detailState.detail.serviceRequestId}`}
+                        className="text-brand-700 no-underline hover:underline"
+                      >
+                        Solicitação de origem
+                      </Link>
+                    </li>
+                  ) : null}
+                  {detailState.detail.proposalId ? (
+                    <li className="cisne-type-meta">
+                      <Link
+                        to={`/app/proposals/${detailState.detail.proposalId}`}
+                        className="text-brand-700 no-underline hover:underline"
+                      >
+                        Proposta
+                      </Link>
+                    </li>
+                  ) : null}
+                  {detailState.detail.purchaseOrderId ? (
+                    <li className="cisne-type-meta">
+                      <Link
+                        to={`/app/purchase-orders/${detailState.detail.purchaseOrderId}`}
+                        className="text-brand-700 no-underline hover:underline"
+                      >
+                        Pedido de compra
+                      </Link>
+                    </li>
+                  ) : null}
+                  {!detailState.detail.serviceRequestId &&
+                  !detailState.detail.proposalId &&
+                  !detailState.detail.purchaseOrderId ? (
+                    <li className="cisne-type-helper">
+                      Nenhum vínculo de origem publicado para esta ordem.
+                    </li>
+                  ) : null}
+                </ul>
+              </div>
+
+              {/*
+                COMMAND LAYER — comandos REAIS de transição. `cancel` e `reopen` exigem MOTIVO
+                digitado: o motivo é registro de auditoria e NÃO é preenchido pela tela.
+              */}
+              <div className="cisne-divider--top mt-2 pt-2">
+                <label className="mb-1 block">
+                  <span className="cisne-meta-label mb-0.5 block">
+                    Motivo (obrigatório para cancelar ou reabrir)
+                  </span>
+                  <input
+                    type="text"
+                    className="min-h-[var(--control-height)] w-full rounded-md border-0 bg-white px-1.5 text-[length:var(--type-body-size)] ring-1 ring-gray-300 ring-inset outline-none focus:ring-2 focus:ring-brand-500"
+                    value={commandReason}
+                    onChange={(event) => setCommandReason(event.target.value)}
+                    placeholder="Informe o motivo real"
+                  />
+                </label>
+
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Button
+                    variant="secondary"
+                    loading={commandBusy}
+                    onClick={() => void runContextCommand('prepare')}
+                  >
+                    Preparar
+                  </Button>
+                  <Button
+                    variant="primary"
+                    loading={commandBusy}
+                    onClick={() => void runContextCommand('release')}
+                  >
+                    Liberar
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    disabled={commandReason.trim() === ''}
+                    loading={commandBusy}
+                    title={commandReason.trim() === '' ? 'Informe o motivo para executar' : undefined}
+                    onClick={() => void runContextCommand('reopen')}
+                  >
+                    Reabrir
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    disabled={commandReason.trim() === ''}
+                    loading={commandBusy}
+                    title={commandReason.trim() === '' ? 'Informe o motivo para executar' : undefined}
+                    onClick={() => void runContextCommand('cancel')}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+
+                {commandError ? (
+                  <p className="cisne-type-helper m-0 mt-1.5 text-red-700" role="alert">
+                    {commandError}
+                  </p>
+                ) : null}
+              </div>
+
+              {/* DRILLBACK ÚNICO — uma vez por registro selecionado, nunca por linha. */}
+              <div className="cisne-divider--top mt-2 pt-2">
+                <Button
+                  variant="secondary"
+                  onClick={() => void navigate(`/app/service-orders/${detailState.detail.id}`)}
+                >
+                  Abrir ficha completa
+                </Button>
+              </div>
+            </>
+          ) : null}
+        </div>
       </DynamicContextDrawer>
 
       <CommandPalette
