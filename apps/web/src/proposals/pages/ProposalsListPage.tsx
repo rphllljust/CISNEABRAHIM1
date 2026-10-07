@@ -14,6 +14,8 @@ import {
 } from '../types/proposal.types';
 import { formatDateTime, formatMoney, formatProposalStatus } from '../utils/proposal-labels';
 import { ContextDrawer } from '../../operator';
+import { useAuth } from '../../auth/context/AuthProvider';
+import { DynamicSavedViewsBar, useSavedViews } from '../../engine';
 import { DateTime, Money } from '../../ui';
 import {
   describeProposalAttention,
@@ -112,6 +114,7 @@ type ListState =
   | { phase: 'ready'; items: Proposal[]; offset: number; hasMore: boolean };
 
 export function ProposalsListPage() {
+  const { identityId } = useAuth();
   const { capabilities } = useProposalCapabilities();
   const [filters, setFilters] = useState<QueueFilters>(EMPTY_FILTERS);
   // RELATION CONTRACT: o recorte que vem da URL (clique em "Propostas N" na object page do
@@ -200,6 +203,15 @@ export function ProposalsListPage() {
     void direction;
     return Object.values(rest).some((value) => value !== '');
   }, [filters]);
+
+  /*
+   * VISÕES SALVAS — o recorte comercial que o operador remonta todo dia.
+   *
+   * A fila tem filtros PERSISTÍVEIS (busca, situação, validade) que vivem na URL e vão ao
+   * SERVIDOR. Salvá-los é produtividade: sem isto o operador reconstrói o mesmo recorte a cada
+   * sessão. O armazenamento é o mesmo das demais worklists (`useSavedViews`).
+   */
+  const savedViews = useSavedViews(identityId ?? 'anonymous', 'proposals');
 
   if (listState.phase === 'loading') {
     return (
@@ -337,6 +349,27 @@ export function ProposalsListPage() {
         operador ver a primeira proposta. O recorte continua indo ao SERVIDOR, e nenhum filtro
         foi removido — só deixou de ser formulário permanente.
       */}
+      {/*
+        SAVED VIEWS — faixa própria da work area, ANTES da superfície de filtro.
+        Gramática: OPERATING HEADER -> SAVED VIEWS -> COMMAND/FILTER -> WORK QUEUE.
+      */}
+      <div data-region="saved-view-surface">
+        <DynamicSavedViewsBar
+          views={savedViews.views}
+          persistedLocally={savedViews.persistedLocally}
+          onSave={(name) => savedViews.save(name, { ...filters }, 'list')}
+          onDelete={savedViews.remove}
+          onApply={(view) => {
+            const restored: QueueFilters = {
+              ...EMPTY_FILTERS,
+              ...(view.filters as Partial<QueueFilters>),
+            };
+            setFilters(restored);
+            setSearchInput(restored.search ?? '');
+          }}
+        />
+      </div>
+
       <div data-region="command-filter-surface">
       <WorklistFilterBar
         meta={
@@ -531,7 +564,13 @@ export function ProposalsListPage() {
                     key={item.id}
                     className={cn(
                       enterpriseRowClass,
-                      'grid grid-cols-1 gap-3 px-3 py-2.5 lg:grid-cols-[minmax(0,2.6fr)_7rem_minmax(0,1fr)_minmax(0,2.2fr)] lg:items-start lg:gap-x-4',
+                      /*
+                        DENSIDADE — `py-2.5` com `items-start` dava 106–131px por linha (medido:
+                        apenas 4 de 14 propostas na primeira dobra). O padding cai para o valor de
+                        token e o alinhamento passa a `items-center`, para que as colunas de valor e
+                        validade (uma linha) não herdem a altura da coluna de identidade.
+                      */
+                      'grid grid-cols-1 gap-y-1 px-3 py-1.5 lg:grid-cols-[minmax(0,2.6fr)_7rem_minmax(0,1fr)_minmax(0,2.2fr)] lg:items-center lg:gap-x-4 lg:gap-y-0',
                     )}
                     /*
                      * CLIQUE NA LINHA abre o CONTEXTO, sem sair da fila. O código da proposta
@@ -567,34 +606,47 @@ export function ProposalsListPage() {
                           )}
                         </span>
                       </div>
-                      <p className="mt-0.5 line-clamp-1 text-[13px] text-gray-700">{item.title}</p>
-                      <p className="mt-0.5 text-[11px] text-gray-500">
-                        {item.originRequests && item.originRequests.length > 0 ? (
-                          <>
-                            De{' '}
-                            <Link
-                              to={`/app/requests/${item.originRequests[0]!.id}`}
-                              className="text-brand-700 no-underline hover:text-brand-800"
-                            >
-                              {item.originRequests[0]!.requestCode}
-                            </Link>
-                            {item.originRequests.length > 1
-                              ? ` +${item.originRequests.length - 1}`
-                              : ''}
-                          </>
-                        ) : (
-                          'Sem solicitação de origem'
-                        )}
-                        {item.revisionNumber !== null ? (
-                          <>
-                            {' · '}
-                            {revisions > 1
-                              ? `revisão ${item.revisionNumber}`
-                              : 'primeira revisão'}
-                          </>
-                        ) : null}
-                        {' · '}
-                        <UnitScopeLabel unitId={item.unitId} />
+                      {/*
+                        TÍTULO + METADADO SUBORDINADO NA MESMA LINHA.
+
+                        O título ocupava linha própria e o metadado (origem, revisão, unidade)
+                        ocupava outra — três linhas só no bloco de identidade, que era o que fixava
+                        a altura da grade. O título é o dado que o operador lê; origem/revisão/
+                        unidade são CONFIRMAÇÃO do registro e ficam ao lado, em tipografia
+                        subordinada. Duas linhas, e nenhuma informação perdida.
+                      */}
+                      <p className="m-0 mt-0.5 flex items-baseline gap-x-2 truncate">
+                        <span className="min-w-0 shrink truncate text-[length:var(--type-body-size)] text-gray-800">
+                          {item.title}
+                        </span>
+                        <span className="cisne-type-helper min-w-0 truncate">
+                          {item.originRequests && item.originRequests.length > 0 ? (
+                            <>
+                              De{' '}
+                              <Link
+                                to={`/app/requests/${item.originRequests[0]!.id}`}
+                                className="text-brand-700 no-underline hover:text-brand-800"
+                              >
+                                {item.originRequests[0]!.requestCode}
+                              </Link>
+                              {item.originRequests.length > 1
+                                ? ` +${item.originRequests.length - 1}`
+                                : ''}
+                            </>
+                          ) : (
+                            'Sem solicitação de origem'
+                          )}
+                          {item.revisionNumber !== null ? (
+                            <>
+                              {' · '}
+                              {revisions > 1
+                                ? `revisão ${item.revisionNumber}`
+                                : 'primeira revisão'}
+                            </>
+                          ) : null}
+                          {' · '}
+                          <UnitScopeLabel unitId={item.unitId} />
+                        </span>
                       </p>
                     </div>
 
@@ -642,26 +694,57 @@ export function ProposalsListPage() {
                       destino não ajudam o operador — só duplicam o alvo de clique.
                     */}
                     <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        {item.currentVersionStatus ? (
-                          <ProposalStatusBadge status={item.currentVersionStatus} />
-                        ) : (
-                          <span className="text-[13px] text-gray-500">Sem versão</span>
-                        )}
+                      {/*
+                        ESTADO + PRÓXIMA AÇÃO NA MESMA LINHA.
+
+                        O selo e a frase do próximo passo empilhavam (selo, depois a frase com
+                        `mt-1`, depois os chips de atenção), somando até três linhas só nesta
+                        célula — e era ela que definia a altura de TODA a grade. Estado diz ONDE
+                        está; a ação diz O QUE FAZER, e o operador compara os dois na HORIZONTAL
+                        ao varrer a coluna. Os chips de atenção continuam em linha própria porque
+                        são EXCEÇÃO, e exceção tem direito a espaço.
+                      */}
+                      {/*
+                        UMA LINHA, SEM WRAP.
+
+                        Medido: esta célula media 103px e era ELA que definia a altura da grade —
+                        o selo somado à frase do próximo passo quebrava em três linhas (`flex-wrap`)
+                        e os chips de atenção em mais duas. Agora selo e frase dividem UMA linha
+                        truncada e os chips ocupam UMA linha truncada: o texto longo é cortado na
+                        pintura, não empilhado, e continua íntegro no DOM (acessível por `title` e
+                        ao leitor de tela).
+                      */}
+                      <div className="flex min-w-0 items-baseline gap-x-2">
+                        <span className="shrink-0">
+                          {item.currentVersionStatus ? (
+                            <ProposalStatusBadge status={item.currentVersionStatus} />
+                          ) : (
+                            <span className="cisne-type-meta">Sem versão</span>
+                          )}
+                        </span>
+                        <span
+                          className="cisne-type-helper min-w-0 truncate font-medium text-gray-700"
+                          title={
+                            item.currentVersionStatus
+                              ? (NEXT_STEP_BY_STATUS[item.currentVersionStatus] ??
+                                formatProposalNextStep('CLOSED'))
+                              : formatProposalNextStep('COMPLETE_AND_ISSUE')
+                          }
+                        >
+                          {item.currentVersionStatus
+                            ? (NEXT_STEP_BY_STATUS[item.currentVersionStatus] ??
+                              formatProposalNextStep('CLOSED'))
+                            : formatProposalNextStep('COMPLETE_AND_ISSUE')}
+                        </span>
                       </div>
-                      <p className="mt-1 border-l-2 border-brand-200 pl-2 text-[12px] leading-snug font-medium text-gray-800">
-                        {item.currentVersionStatus
-                          ? (NEXT_STEP_BY_STATUS[item.currentVersionStatus] ??
-                            formatProposalNextStep('CLOSED'))
-                          : formatProposalNextStep('COMPLETE_AND_ISSUE')}
-                      </p>
                       {attention.length > 0 ? (
-                        <div className="mt-1 flex flex-wrap gap-1">
+                        <div className="mt-0.5 flex min-w-0 items-center gap-1 overflow-hidden">
                           {attention.map((fact) => (
                             <span
                               key={fact.code}
+                              title={fact.text}
                               className={cn(
-                                'inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset',
+                                'inline-flex shrink-0 items-center truncate rounded px-1.5 py-0.5 text-[length:var(--type-micro-size)] font-medium ring-1 ring-inset',
                                 ATTENTION_TONE_CLASS[fact.tone],
                               )}
                             >
