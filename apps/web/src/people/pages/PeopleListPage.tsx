@@ -1,13 +1,26 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { PeopleApiError, listPeople } from '../api/people-api';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  PeopleApiError,
+  activatePerson,
+  deactivatePerson,
+  getPerson,
+  listPeople,
+} from '../api/people-api';
 import { mapPersonErrorToMessage } from '../api/person-error-messages';
 import { PersonStatusBadge } from '../components/PersonStatusBadge';
 import { usePersonCapabilities } from '../hooks/usePersonCapabilities';
+import { useAuth } from '../../auth/context/AuthProvider';
 import { listLaborTypes } from '../../catalog/api/catalog-reference-api';
 import { PERSON_STATUSES, type Person, type PersonStatus } from '../types/person.types';
 import {
-  RowActionCell,
+  DynamicContextDrawer,
+  DynamicSavedViewsBar,
+  useSavedViews,
+} from '../../engine';
+import { Button } from '../../ui/Button';
+import { Skeleton } from '../../ui/Skeleton';
+import {
   EnterpriseMetric,
   WorklistClearFilters,
   WorklistException,
@@ -17,7 +30,6 @@ import {
   WorklistHeader,
   WorklistRowLink,
   WorklistStatePanel,
-  rowPrimaryActionClass,
   worklistCellClass,
   worklistCellRaisedClass,
   worklistControlClass,
@@ -66,6 +78,8 @@ type ListState =
 const SEARCH_DEBOUNCE_MS = 300;
 
 export function PeopleListPage() {
+  const navigate = useNavigate();
+  const { identityId } = useAuth();
   const { capabilities } = usePersonCapabilities();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -78,6 +92,94 @@ export function PeopleListPage() {
   const [searchInput, setSearchInput] = useState(query);
   const [laborTypes, setLaborTypes] = useState<{ code: string; name: string }[]>([]);
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
+
+  /*
+   * VISÕES SALVAS — faixa própria da work area.
+   * O recorte de mão de obra (status + função) é reconstruído todo dia pelo planejador; salvá-lo
+   * é produtividade, não configuração.
+   */
+  const savedViews = useSavedViews(identityId ?? 'anonymous', 'people');
+
+  /*
+   * CONTEXTO DA PESSOA — seleção da linha + detalhe REAL (`GET /people/:id`).
+   *
+   * A listagem é deliberadamente uma projeção magra. O detalhe publica `externalErpId`,
+   * `deactivatedAt`, `deactivationReason` e a `version` — os fatos que permitem CONFERIR e AGIR
+   * sem sair da fila. Carregamento é LOCALIZADO: só o painel espera.
+   */
+  const [selected, setSelected] = useState<Person | null>(null);
+  const [detailState, setDetailState] = useState<
+    | { phase: 'idle' }
+    | { phase: 'loading' }
+    | { phase: 'error'; message: string }
+    | { phase: 'ready'; person: Person }
+  >({ phase: 'idle' });
+
+  /*
+   * MOTIVO DO COMANDO — informado pelo OPERADOR, nunca fabricado.
+   * `deactivatePerson` exige `reason`: o motivo é registro de auditoria. Um texto fixo de tela
+   * seria o frontend inventando um fato empresarial.
+   */
+  const [commandReason, setCommandReason] = useState('');
+  const [commandBusy, setCommandBusy] = useState(false);
+  const [commandError, setCommandError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const personId = selected?.id ?? null;
+    if (!personId) {
+      setDetailState({ phase: 'idle' });
+      setCommandReason('');
+      setCommandError(null);
+      return;
+    }
+    const controller = new AbortController();
+    setDetailState({ phase: 'loading' });
+    setCommandError(null);
+    void getPerson(personId, controller.signal)
+      .then((person) => {
+        if (!controller.signal.aborted) {
+          setDetailState({ phase: 'ready', person });
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setDetailState({
+            phase: 'error',
+            message: 'Não foi possível carregar o contexto da Pessoa.',
+          });
+        }
+      });
+    return () => controller.abort();
+  }, [selected]);
+
+  /** COMANDO REAL do domínio a partir do contexto. O motivo vai como o operador o escreveu. */
+  const runCommand = useCallback(
+    async (command: 'activate' | 'deactivate') => {
+      if (!selected) {
+        return;
+      }
+      setCommandBusy(true);
+      setCommandError(null);
+      try {
+        if (command === 'activate') {
+          await activatePerson(selected.id, selected.version);
+        } else {
+          await deactivatePerson(selected.id, selected.version, commandReason);
+        }
+        setSelected(null);
+        setReloadToken((current) => current + 1);
+      } catch (error) {
+        setCommandError(
+          error instanceof PeopleApiError
+            ? mapPersonErrorToMessage(error.code, error.status)
+            : 'Não foi possível executar o comando.',
+        );
+      } finally {
+        setCommandBusy(false);
+      }
+    },
+    [commandReason, selected],
+  );
 
   const updateParam = useCallback(
     (key: string, value: string | null) => {
@@ -167,11 +269,19 @@ export function PeopleListPage() {
     [statusFilter, query, laborType],
   );
 
+  /**
+   * RECARGA REAL DA FILA — token monotônico.
+   *
+   * Sem ele, um comando de domínio que muda o estado do registro deixaria a grade mostrando o
+   * estado antigo: o efeito de carga não roda de novo se nenhuma de suas dependências muda.
+   */
+  const [reloadToken, setReloadToken] = useState(0);
+
   useEffect(() => {
     const controller = new AbortController();
     void loadPage(offset, controller.signal);
     return () => controller.abort();
-  }, [loadPage, offset]);
+  }, [loadPage, offset, reloadToken]);
 
   /*
    * Opcoes de funcao vem do catalogo AUTORIZADO de tipos de mao de obra
@@ -239,6 +349,12 @@ export function PeopleListPage() {
 
   return (
     <ModulePage>
+      {/*
+        SUPERFÍCIE DE TRABALHO FIXA — cabeçalho, visões salvas e filtros não rolam com a fila.
+        O planejador nunca perde "onde estou" nem "qual recorte de mão de obra estou vendo".
+      */}
+      <div className="sticky top-0 z-20 bg-white" data-region="work-surface">
+      <div data-region="operating-header">
       <WorklistHeader
         title="Pessoas"
         /*
@@ -304,12 +420,52 @@ export function PeopleListPage() {
           ) : null
         }
       />
+      </div>
 
       {/*
-        TOOLBAR COMPACTA — mesma gramatica das demais worklists: busca e filtros em UMA faixa
-        densa. Os indicadores da pagina desceram para o rodape da lista: a frase solta acima da
-        grade empurrava a primeira linha para fora da dobra sem dizer nada que o rodape nao diga.
+        SAVED VIEWS — FAIXA PRÓPRIA DA WORK AREA, não link escondido em menu.
+        O recorte de mão de obra (status + função) é reconstruído todo dia pelo planejador.
       */}
+      <div className="cisne-divider py-0.5" data-region="saved-view-surface">
+        <DynamicSavedViewsBar
+          views={savedViews.views}
+          persistedLocally={savedViews.persistedLocally}
+          onSave={(name) =>
+            savedViews.save(name, { q: query, filterStatus: statusFilter, laborType }, 'list')
+          }
+          onDelete={savedViews.remove}
+          onApply={(view) => {
+            setSearchInput(view.filters['q'] ?? '');
+            setSearchParams(
+              (current) => {
+                const next = new URLSearchParams(current);
+                const nextQ = view.filters['q'] ?? '';
+                const nextStatus = view.filters['filterStatus'] ?? '';
+                const nextLabor = view.filters['laborType'] ?? '';
+                for (const [key, value] of [
+                  ['q', nextQ],
+                  ['status', nextStatus],
+                  ['laborType', nextLabor],
+                ] as const) {
+                  if (value) {
+                    next.set(key, value);
+                  } else {
+                    next.delete(key);
+                  }
+                }
+                next.delete('offset');
+                return next;
+              },
+              { replace: true },
+            );
+          }}
+        />
+      </div>
+
+      {/*
+        COMMAND / FILTER SURFACE — busca e recortes frequentes numa faixa; nada de formulário web.
+      */}
+      <div data-region="command-filter-surface">
       <WorklistFilterBar>
         <WorklistField label="Buscar" htmlFor="person-search" grow>
           <input
@@ -364,6 +520,8 @@ export function PeopleListPage() {
           }}
         />
       </WorklistFilterBar>
+      </div>
+      </div>
 
       {items.length === 0 ? (
         <WorklistStatePanel
@@ -392,7 +550,7 @@ export function PeopleListPage() {
           }
         />
       ) : (
-        <div className={worklistTableCardClass}>
+        <div className={worklistTableCardClass} data-region="worklist-master">
           <table className={worklistTableClass} aria-label="Lista de Pessoas">
             <thead>
               <tr>
@@ -411,14 +569,30 @@ export function PeopleListPage() {
                 <th scope="col" className={worklistHeadCellClass}>
                   Atualizado
                 </th>
-                <th scope="col" className={worklistHeadCellClass}>
-                  <span className="sr-only">Ações</span>
-                </th>
               </tr>
             </thead>
             <tbody>
-              {items.map((person) => (
-                <tr key={person.id} className={worklistRowClass}>
+              {items.map((person) => {
+                const isInactive = person.status !== PERSON_STATUSES.Active;
+                return (
+                  <tr
+                    key={person.id}
+                    className={worklistRowClass}
+                    /*
+                      A LINHA INTEIRA ABRE O CONTEXTO — sem botão "Abrir ficha" repetido.
+
+                      Antes cada linha carregava um link primário "Abrir ficha": a MESMA ação em
+                      todos os registros. Agora clicar a linha abre o contexto lateral (conferir
+                      sem sair da fila) e a IDENTIDADE continua um link real — teclado, clique do
+                      meio, nova aba e leitor de tela levam à ficha completa.
+                    */
+                    onClick={(event) => {
+                      if ((event.target as HTMLElement).closest('a, button, select, input')) {
+                        return;
+                      }
+                      setSelected(person);
+                    }}
+                  >
                   <td className={worklistCellClass}>
                     <WorklistRowLink href={`/app/people/${person.id}`}>
                       {person.preferredName ?? person.legalName}
@@ -435,8 +609,17 @@ export function PeopleListPage() {
                       </span>
                     )}
                   </td>
+                  {/*
+                    EXCEPTION-FIRST — selo só na exceção.
+                    Estado normal fica em texto de baixo ruído; a pessoa fora de operação recebe o
+                    selo, porque é ela que muda o que o planejador pode fazer.
+                  */}
                   <td className={worklistCellRaisedClass}>
-                    <PersonStatusBadge status={person.status} />
+                    {isInactive ? (
+                      <PersonStatusBadge status={person.status} />
+                    ) : (
+                      <span className="cisne-type-meta">Ativa</span>
+                    )}
                   </td>
                   <td className={worklistCellRaisedClass}>
                     {/*
@@ -457,23 +640,9 @@ export function PeopleListPage() {
                       {new Date(person.updatedAt).toLocaleDateString('pt-BR')}
                     </span>
                   </td>
-                  {/*
-                    ACAO DA LINHA — o cadastro parava na navegacao. Abrir a ficha e a leitura que
-                    o ator ja provou ao listar; nenhuma transicao (ativar/inativar) e oferecida
-                    AQUI porque ela exige motivo e prova de versao, contrato que so o detalhe tem.
-                    Oferecer "Inativar" na grade sem isso seria uma acao que mente sobre o que
-                    acontece quando o operador clica.
-                  */}
-                  <RowActionCell className="w-16">
-                    <Link
-                      to={`/app/people/${person.id}`}
-                      className={rowPrimaryActionClass}
-                    >
-                      Abrir ficha
-                    </Link>
-                  </RowActionCell>
-                </tr>
-              ))}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -502,6 +671,157 @@ export function PeopleListPage() {
           onNext={() => updateParam('offset', String(offset + PAGE_SIZE))}
         />
       </WorklistFooter>
+
+      {/*
+        CONTEXT REGION — MASTER/DETAIL SEM ABANDONAR A FILA.
+
+        Selecionar a linha abre o contexto REAL da pessoa (`GET /people/:id`): os fatos que a
+        listagem não publica (`externalErpId`, desativação) e os COMANDOS reais do domínio.
+        Fechar o painel devolve o operador exatamente onde estava — recorte, página e scroll
+        intactos.
+
+        O MOTIVO da inativação é digitado pelo operador: `deactivatePerson` exige `reason` e o
+        motivo é registro de auditoria — texto fixo de tela seria o frontend inventando o fato.
+      */}
+      <DynamicContextDrawer
+        open={selected !== null}
+        title="Contexto da pessoa"
+        onClose={() => setSelected(null)}
+        crossReferences={[]}
+      >
+        <div data-region="context-region">
+          {selected ? (
+            <p className="cisne-type-primary m-0 mb-2 truncate">
+              {selected.preferredName ?? selected.legalName}
+            </p>
+          ) : null}
+
+          {detailState.phase === 'loading' ? (
+            /* SKELETON LOCALIZADO — só o painel espera; a fila segue viva. */
+            <div aria-busy="true" role="status" className="flex flex-col gap-1.5">
+              <span className="cisne-type-helper">Carregando contexto…</span>
+              <Skeleton lines={4} />
+            </div>
+          ) : null}
+
+          {detailState.phase === 'error' ? (
+            <p className="cisne-type-body m-0 text-red-700" role="alert">
+              {detailState.message}
+            </p>
+          ) : null}
+
+          {detailState.phase === 'ready' ? (
+            <>
+              <dl className="m-0 grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)] gap-x-3 gap-y-1.5">
+                <dt className="cisne-meta-label pt-0.5">Nome</dt>
+                <dd className="cisne-meta-value m-0">{detailState.person.legalName}</dd>
+                <dt className="cisne-meta-label pt-0.5">Código</dt>
+                <dd className="cisne-meta-value m-0 font-mono">{detailState.person.memberCode}</dd>
+                {detailState.person.defaultLaborTypeName ? (
+                  <>
+                    <dt className="cisne-meta-label pt-0.5">Função</dt>
+                    <dd className="cisne-meta-value m-0">{detailState.person.defaultLaborTypeName}</dd>
+                  </>
+                ) : null}
+                <dt className="cisne-meta-label pt-0.5">Status</dt>
+                <dd className="cisne-meta-value m-0">
+                  {detailState.person.status === PERSON_STATUSES.Active ? 'Ativa' : 'Inativa'}
+                </dd>
+                {detailState.person.deactivatedAt ? (
+                  <>
+                    <dt className="cisne-meta-label pt-0.5">Desativada em</dt>
+                    <dd className="cisne-meta-value m-0">
+                      {new Date(detailState.person.deactivatedAt).toLocaleDateString('pt-BR')}
+                    </dd>
+                  </>
+                ) : null}
+                {detailState.person.deactivationReason ? (
+                  <>
+                    <dt className="cisne-meta-label pt-0.5">Motivo</dt>
+                    <dd className="cisne-meta-value m-0">
+                      {detailState.person.deactivationReason}
+                    </dd>
+                  </>
+                ) : null}
+              </dl>
+
+              {/*
+                COMMAND LAYER — comandos reais guardados pelas CAPABILITIES reais do backend.
+                Inativar exige motivo digitado; o botão fica indisponível até existir.
+              */}
+              <div className="cisne-divider--top mt-2 pt-2">
+                {detailState.person.status !== PERSON_STATUSES.Active &&
+                capabilities.canActivate ? (
+                  <Button
+                    variant="primary"
+                    loading={commandBusy}
+                    loadingText="Reativando…"
+                    onClick={() => void runCommand('activate')}
+                  >
+                    Reativar pessoa
+                  </Button>
+                ) : null}
+
+                {detailState.person.status === PERSON_STATUSES.Active &&
+                capabilities.canDeactivate ? (
+                  <>
+                    <label className="mb-1 block">
+                      <span className="cisne-meta-label mb-0.5 block">
+                        Motivo (obrigatório para inativar)
+                      </span>
+                      <input
+                        type="text"
+                        className={worklistControlClass}
+                        value={commandReason}
+                        onChange={(event) => setCommandReason(event.target.value)}
+                        placeholder="Informe o motivo real"
+                      />
+                    </label>
+                    <Button
+                      variant="secondary"
+                      disabled={commandReason.trim() === ''}
+                      loading={commandBusy}
+                      loadingText="Inativando…"
+                      title={
+                        commandReason.trim() === ''
+                          ? 'Informe o motivo para executar'
+                          : undefined
+                      }
+                      onClick={() => void runCommand('deactivate')}
+                    >
+                      Inativar pessoa
+                    </Button>
+                  </>
+                ) : null}
+
+                {!capabilities.canActivate && !capabilities.canDeactivate ? (
+                  <p className="cisne-type-helper m-0">
+                    Nenhum comando disponível para o seu acesso.
+                  </p>
+                ) : null}
+
+                {commandError ? (
+                  <p className="cisne-type-helper m-0 mt-1.5 text-red-700" role="alert">
+                    {commandError}
+                  </p>
+                ) : null}
+              </div>
+
+              {/* DRILLBACK ÚNICO — uma vez por registro selecionado, nunca por linha. */}
+              {capabilities.canRead ? (
+                <div className="cisne-divider--top mt-2 pt-2">
+                  <Button
+                    variant="secondary"
+                    onClick={() => void navigate(`/app/people/${detailState.person.id}`)}
+                  >
+                    Abrir ficha completa
+                  </Button>
+                </div>
+              ) : null}
+            </>
+          ) : null}
+        </div>
+      </DynamicContextDrawer>
     </ModulePage>
   );
 }
