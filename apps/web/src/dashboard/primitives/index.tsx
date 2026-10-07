@@ -128,7 +128,7 @@ export function Kpi({ kpi, highlighted }: { kpi: DashboardKpi; highlighted: bool
     </>
   );
 
-  const cellClass = cn('min-h-24 px-3.5 py-3.5', highlighted && 'bg-brand-50/60');
+  const cellClass = cn('min-h-20 px-3 py-2.5', highlighted && 'bg-brand-50/60');
 
   if (kpi.href) {
     return (

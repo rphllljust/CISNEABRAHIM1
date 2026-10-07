@@ -26,8 +26,8 @@ function KpiCardContent({
   return (
     <>
       <p className="text-sm font-medium text-gray-500">{label}</p>
-      <p className="mt-2 flex items-baseline gap-1.5">
-        <span className="text-3xl font-semibold tracking-tight text-gray-900 tabular-nums" aria-hidden="true">
+      <p className="mt-1.5 flex items-baseline gap-1.5">
+        <span className="text-2xl font-semibold text-gray-900 tabular-nums" aria-hidden="true">
           {value}
         </span>
         {unit ? <span className="text-sm text-gray-500">{unit}</span> : null}

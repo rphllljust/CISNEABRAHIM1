@@ -17658,6 +17658,55 @@ NEXT_PROMPT_EXECUTED: NO
 
 ---
 
+## UI PRIMITIVES — KPIS MAIS DENSOS PARA LEITURA OPERACIONAL
+
+DATA: 2026-10-07T10:56:00-04:00
+STATUS: **PASS**
+
+### Escopo executado
+
+Continuidade da wave frontend Enterprise Tier-1 usando os relatórios de design como baliza:
+KPIs operacionais devem apoiar escaneabilidade de ERP, não parecer hero card de landing page.
+
+Módulos: **UI primitives** e **Dashboard primitives**.
+Classificação principal: **SHARED UI TOKENS**.
+
+Classificação: **interpretação de engenharia visual / experiência operacional**. Nenhuma regra
+empresarial criada, promovida ou alterada; nenhum backend, API, migration, seed, permissão ou
+contrato de dados tocado.
+
+### Arquivos alterados
+
+- `apps/web/src/ui/KpiCard.tsx`
+- `apps/web/src/dashboard/primitives/index.tsx`
+
+### Alteração aplicada
+
+- `KpiCard` reduziu o valor de `text-3xl` para `text-2xl`.
+- KPI do dashboard reduziu altura mínima e padding.
+- Valores, aria-labels, links e contrato de NO_DATA foram preservados.
+
+### Validação
+
+- `pnpm --filter @cisne/web exec vitest run --config vite.config.ts src/dashboard/primitives/index.test.tsx src/ui/ui.components.test.tsx` — **PASS** (25/25)
+- `pnpm --filter @cisne/web exec eslint src/ui/KpiCard.tsx src/dashboard/primitives/index.tsx` — **PASS**
+- `pnpm --filter @cisne/web typecheck` — **PASS**
+- `git diff --check` — **PASS**
+
+### Quality gate
+
+- [x] Alteração restrita a primitives visuais
+- [x] Nenhum dado, KPI, relação ou capability inventado
+- [x] Nenhuma regra empresarial nova
+- [x] Nenhuma migration, seed, backend, permissão ou contrato de API
+- [x] Valores resolvidos, links e acessibilidade preservados
+
+WORKING_TREE: limpo após commit
+COMMIT: incluído no commit desta sessão
+NEXT_PROMPT_EXECUTED: NO
+
+---
+
 ## UI PRIMITIVES — DENSIDADE ERP EM FORMSECTION, KPICARD E CHART CARDS
 
 DATA: 2026-10-07T10:55:00-04:00
