@@ -350,19 +350,19 @@ export function ServiceRequestsListPage() {
       */}
       <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-gray-200 px-1 pb-2">
         <div className="flex min-w-0 items-baseline gap-2">
-          <h1 className="text-[17px] leading-tight font-semibold tracking-tight text-gray-900">
+          <h1 className="cisne-type-object leading-tight font-semibold tracking-tight text-gray-900">
             Solicitações
           </h1>
           {total === null ? (
-            <span className="text-[11px] text-gray-400">total não publicado</span>
+            <span className="cisne-type-helper text-gray-400">total não publicado</span>
           ) : (
-            <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-semibold text-gray-700 tabular-nums">
+            <span className="rounded bg-gray-100 px-1.5 py-0.5 cisne-type-helper font-semibold text-gray-700 tabular-nums">
               {total}
             </span>
           )}
-          <span className="truncate text-[11px] text-gray-500">{scope}</span>
+          <span className="truncate cisne-type-helper text-gray-500">{scope}</span>
           {updatedAt ? (
-            <span className="hidden text-[11px] text-gray-400 sm:inline">
+            <span className="hidden cisne-type-helper text-gray-400 sm:inline">
               atualizada {updatedAt}
             </span>
           ) : null}
@@ -441,7 +441,7 @@ export function ServiceRequestsListPage() {
                 type="button"
                 aria-pressed={active}
                 className={cn(
-                  'min-h-8 border-r border-gray-200 px-2.5 py-1 text-[12px] font-medium last:border-r-0',
+                  'min-h-8 border-r border-gray-200 px-2.5 py-1 cisne-type-body font-medium last:border-r-0',
                   active
                     ? 'bg-brand-700 text-white'
                     : 'bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900',
@@ -465,7 +465,7 @@ export function ServiceRequestsListPage() {
             id="request-search-filter"
             type="search"
             aria-label="Buscar solicitação"
-            className="min-h-8 w-full min-w-0 rounded border border-gray-300 bg-white px-2 py-1 text-[13px] text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+            className="min-h-8 w-full min-w-0 rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
             placeholder="Buscar solicitação…"
@@ -477,7 +477,7 @@ export function ServiceRequestsListPage() {
         </label>
         <select
           id="request-status-filter"
-          className="min-h-8 rounded border border-gray-300 bg-white px-2 py-1 text-[13px] text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+          className="min-h-8 rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
           value={filters.status}
           onChange={(event) =>
             applyFilter('status', event.target.value as '' | ServiceRequestStatus)
@@ -494,7 +494,7 @@ export function ServiceRequestsListPage() {
         <button
           type="button"
           aria-expanded={moreOpen}
-          className="min-h-8 rounded border border-gray-300 bg-white px-2 py-1 text-[12px] font-medium text-gray-700 hover:bg-gray-50"
+          className="min-h-8 rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body font-medium text-gray-700 hover:bg-gray-50"
           onClick={() => setMoreOpen((current) => !current)}
         >
           {moreOpen ? 'Menos filtros' : 'Mais filtros'}
@@ -504,7 +504,7 @@ export function ServiceRequestsListPage() {
           <>
             <select
               aria-label="Prioridade"
-              className="min-h-8 rounded border border-gray-300 bg-white px-2 py-1 text-[13px]"
+              className="min-h-8 rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body"
               value={filters.priority}
               onChange={(event) =>
                 applyFilter('priority', event.target.value as '' | ServiceRequestPriority)
@@ -519,7 +519,7 @@ export function ServiceRequestsListPage() {
             </select>
             <select
               aria-label="Origem"
-              className="min-h-8 rounded border border-gray-300 bg-white px-2 py-1 text-[13px]"
+              className="min-h-8 rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body"
               value={filters.originSource}
               onChange={(event) =>
                 applyFilter('originSource', event.target.value as '' | ServiceRequestOrigin)
@@ -534,7 +534,7 @@ export function ServiceRequestsListPage() {
             </select>
             <select
               aria-label="Ordenar por"
-              className="min-h-8 rounded border border-gray-300 bg-white px-2 py-1 text-[13px]"
+              className="min-h-8 rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body"
               value={filters.sort}
               onChange={(event) =>
                 applyFilter('sort', event.target.value as ServiceRequestListSort)
@@ -548,7 +548,7 @@ export function ServiceRequestsListPage() {
             </select>
             <select
               aria-label="Sentido"
-              className="min-h-8 rounded border border-gray-300 bg-white px-2 py-1 text-[13px]"
+              className="min-h-8 rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body"
               value={filters.direction}
               onChange={(event) =>
                 applyFilter('direction', event.target.value as ServiceRequestListDirection)
@@ -563,7 +563,7 @@ export function ServiceRequestsListPage() {
         {hasFilterChips ? (
           <button
             type="button"
-            className="min-h-8 rounded border border-gray-300 bg-white px-2 py-1 text-[12px] font-medium text-gray-700 hover:bg-gray-50"
+            className="min-h-8 rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body font-medium text-gray-700 hover:bg-gray-50"
             onClick={clearFilters}
           >
             Limpar filtros
@@ -571,7 +571,7 @@ export function ServiceRequestsListPage() {
         ) : null}
 
         <div className="ml-auto flex items-center gap-2">
-          <span className="text-[11px] text-gray-500 tabular-nums">
+          <span className="cisne-type-helper text-gray-500 tabular-nums">
             {items.length} nesta página
           </span>
           <SavedViewsMenu
@@ -608,7 +608,7 @@ export function ServiceRequestsListPage() {
       */}
       {items.length === 0 ? (
         <section aria-label="Fila operacional de solicitações" className="border-b border-gray-200">
-          <div className="flex items-center gap-3 border-b border-gray-100 bg-gray-50/80 px-2 py-1 text-[10px] font-semibold tracking-[0.08em] text-gray-400 uppercase">
+          <div className="flex items-center gap-3 border-b border-gray-100 bg-gray-50/80 px-2 py-1 text-[length:var(--type-micro-size)] font-semibold tracking-wide text-gray-500 uppercase">
             <span>Solicitação e demanda</span>
             <span className="ml-auto">Situação</span>
             <span className="w-28 shrink-0 text-right">Idade</span>
@@ -629,7 +629,7 @@ export function ServiceRequestsListPage() {
                 hasFilterChips ? (
                   <button
                     type="button"
-                    className="min-h-8 rounded border border-gray-300 bg-white px-2 py-1 text-[12px] font-medium text-gray-700 hover:bg-gray-50"
+                    className="min-h-8 rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body font-medium text-gray-700 hover:bg-gray-50"
                     onClick={clearFilters}
                   >
                     Limpar filtros
@@ -643,7 +643,7 @@ export function ServiceRequestsListPage() {
         </section>
       ) : (
         <section aria-label="Fila operacional de solicitações" className="border-b border-gray-200">
-          <div className="flex items-center gap-3 border-b border-gray-100 bg-gray-50/80 px-2 py-1 text-[10px] font-semibold tracking-[0.08em] text-gray-400 uppercase">
+          <div className="flex items-center gap-3 border-b border-gray-100 bg-gray-50/80 px-2 py-1 text-[length:var(--type-micro-size)] font-semibold tracking-wide text-gray-500 uppercase">
             <span>Solicitação e demanda</span>
             <span className="ml-auto">Situação</span>
             <span className="w-28 shrink-0 text-right">Idade</span>
@@ -663,25 +663,25 @@ export function ServiceRequestsListPage() {
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-2 px-1 pt-2">
-        <p className="m-0 text-[11px] text-gray-400">
+        <p className="m-0 cisne-type-helper text-gray-400">
           {offset + 1}–{offset + items.length} nesta página · janela desejada é expectativa
           registrada, não prazo contratado.
         </p>
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className="rounded border border-gray-300 bg-white px-2 py-1 text-[12px] font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={offset === 0}
             onClick={() => void loadPage(Math.max(0, offset - PAGE_SIZE), filters)}
           >
             Anterior
           </button>
-          <span className="text-[11px] text-gray-500 tabular-nums">
+          <span className="cisne-type-helper text-gray-500 tabular-nums">
             Página {Math.floor(offset / PAGE_SIZE) + 1}
           </span>
           <button
             type="button"
-            className="rounded border border-gray-300 bg-white px-2 py-1 text-[12px] font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={!hasMore}
             onClick={() => void loadPage(offset + PAGE_SIZE, filters)}
           >
@@ -709,7 +709,7 @@ export function ServiceRequestsListPage() {
               nas referencias acima — repetir aqui era o mesmo fato em dois formatos.
             */}
             <NextActionLink item={selected} />
-            <p className="m-0 border-t border-gray-100 pt-2 text-[11px] text-gray-500">
+            <p className="m-0 border-t border-gray-100 pt-2 cisne-type-helper text-gray-500">
               Janela desejada é a expectativa registrada na solicitação — não é prazo
               contratado.
             </p>
@@ -757,7 +757,7 @@ function QueueStripCell({
       <span className="flex items-baseline gap-1.5">
         <span
           className={cn(
-            'text-[17px] leading-none font-semibold tabular-nums',
+            'cisne-type-object leading-none font-semibold tabular-nums',
             value === null
               ? 'text-gray-300'
               : isOpen
@@ -769,14 +769,14 @@ function QueueStripCell({
         </span>
         <span
           className={cn(
-            'text-[11px] font-medium tracking-wide uppercase',
+            'cisne-type-helper font-medium tracking-wide uppercase',
             isOpen ? 'text-gray-700' : 'text-gray-400',
           )}
         >
           {label}
         </span>
       </span>
-      <span className="truncate text-[10px] text-gray-400">{hint}</span>
+      <span className="cisne-type-helper truncate">{hint}</span>
     </button>
   );
 }
@@ -820,7 +820,7 @@ function ProcessingRow({
     <li
       onClick={onSelect}
       className={cn(
-        'relative grid cursor-pointer grid-cols-1 gap-x-3 gap-y-0.5 border-b border-gray-100 py-2 pr-2 pl-3 last:border-b-0 lg:grid-cols-[minmax(0,1fr)_9.5rem_7rem]',
+        'relative grid cursor-pointer grid-cols-1 gap-x-3 gap-y-0 border-b border-gray-100 py-1 pr-2 pl-3 last:border-b-0 lg:grid-cols-[minmax(0,1fr)_9.5rem_7rem]',
         'before:absolute before:top-1.5 before:bottom-1.5 before:left-0 before:w-[3px] before:content-[""]',
         selected
           ? 'bg-brand-50 before:bg-brand-700'
@@ -835,17 +835,17 @@ function ProcessingRow({
           <Link
             to={`/app/requests/${item.id}`}
             onClick={(event) => event.stopPropagation()}
-            className="text-[13px] font-semibold text-brand-800 no-underline hover:underline"
+            className="cisne-type-primary text-brand-800 no-underline hover:underline"
           >
             {item.requestCode}
           </Link>
-          <span className="text-[12px] text-gray-800">{item.clientName ?? 'Cliente não identificado'}</span>
-          <span className="text-[11px] text-gray-400">
+          <span className="cisne-type-meta text-gray-800">{item.clientName ?? 'Cliente não identificado'}</span>
+          <span className="cisne-type-helper text-gray-400">
             {formatServiceRequestOrigin(item.originSource)}
           </span>
         </div>
-        <p className="mt-0.5 line-clamp-1 text-[12px] text-gray-500">{demand}</p>
-        <p className="mt-0.5 truncate text-[11px] text-gray-400">
+        <p className="mt-0.5 line-clamp-1 cisne-type-meta text-gray-500">{demand}</p>
+        <p className="mt-0.5 truncate cisne-type-helper text-gray-400">
           {[location, `criada ${age ?? 'sem data'}`].filter(Boolean).join(' · ')}
         </p>
       </div>
@@ -854,7 +854,7 @@ function ProcessingRow({
       <div className="min-w-0">
         <span
           className={cn(
-            'text-[12px] font-semibold',
+            'cisne-type-body font-semibold',
             isOpen ? 'text-gray-900' : 'text-gray-500',
           )}
         >
@@ -862,14 +862,14 @@ function ProcessingRow({
         </span>
         <p
           className={cn(
-            'mt-0.5 truncate text-[12px]',
+            'mt-0.5 truncate cisne-type-meta',
             isOpen ? 'font-medium text-gray-800' : 'text-gray-400',
           )}
         >
           {NEXT_STEP_BY_STATUS[item.status]}
         </p>
         {exceptions.length > 0 ? (
-          <p className="mt-0.5 flex flex-wrap gap-x-3 text-[11px]">
+          <p className="mt-0.5 flex flex-wrap gap-x-3 cisne-type-helper">
             {exceptions.map((fact) => (
               <span key={fact.code} className={ATTENTION_TONE_CLASS[fact.tone]}>
                 {fact.text}
@@ -883,7 +883,7 @@ function ProcessingRow({
       <div className="min-w-0 lg:text-right">
         <span
           className={cn(
-            'text-[12px] font-medium',
+            'cisne-type-body font-medium',
             item.priority === SERVICE_REQUEST_PRIORITIES.Urgent
               ? 'text-red-700'
               : item.priority === SERVICE_REQUEST_PRIORITIES.High
@@ -901,7 +901,7 @@ function ProcessingRow({
         */}
         <p
           className={cn(
-            'mt-0.5 truncate text-[11px] tabular-nums',
+            'mt-0.5 truncate cisne-type-helper tabular-nums',
             timing?.tone === 'today'
               ? 'font-medium text-amber-700'
               : timing?.tone === 'past'
@@ -928,7 +928,7 @@ function NextActionLink({ item }: { item: ServiceRequestListItem }) {
   return (
     <Link
       to={`/app/requests/${item.id}`}
-      className="inline-flex items-center rounded border border-brand-700 bg-brand-700 px-2.5 py-1 text-[12px] font-semibold text-white no-underline hover:bg-brand-800"
+      className="inline-flex items-center rounded border border-brand-700 bg-brand-700 px-2.5 py-1 cisne-type-body font-semibold text-white no-underline hover:bg-brand-800"
     >
       {NEXT_STEP_ACTION_LABEL[item.status] ?? 'Abrir solicitação'}
     </Link>
@@ -962,7 +962,7 @@ function SavedViewsMenu({
       <button
         type="button"
         aria-expanded={open}
-        className="rounded border border-gray-300 bg-white px-2 py-1 text-[12px] font-medium text-gray-700 hover:bg-gray-50"
+        className="rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body font-medium text-gray-700 hover:bg-gray-50"
         onClick={onToggle}
       >
         Visões
@@ -970,14 +970,14 @@ function SavedViewsMenu({
       {open ? (
         <div className="absolute right-0 z-30 mt-1 w-64 rounded-md border border-gray-200 bg-white p-2 shadow-lg">
           {views.length === 0 ? (
-            <p className="m-0 px-1 py-0.5 text-[11px] text-gray-500">Nenhuma visão salva.</p>
+            <p className="m-0 px-1 py-0.5 cisne-type-helper text-gray-500">Nenhuma visão salva.</p>
           ) : (
             <ul className="m-0 list-none p-0">
               {views.map((view) => (
                 <li key={view.id} className="flex items-center gap-1">
                   <button
                     type="button"
-                    className="flex-1 rounded px-1.5 py-1 text-left text-[12px] text-gray-700 hover:bg-gray-50"
+                    className="flex-1 rounded px-1.5 py-1 text-left cisne-type-meta text-gray-700 hover:bg-gray-50"
                     onClick={() =>
                       onApply(view as { id: string; name: string; filters: Record<string, string> })
                     }
@@ -987,7 +987,7 @@ function SavedViewsMenu({
                   <button
                     type="button"
                     aria-label={`Excluir visão: ${view.name}`}
-                    className="rounded px-1.5 py-1 text-[12px] text-gray-400 hover:bg-gray-50 hover:text-gray-700"
+                    className="rounded px-1.5 py-1 cisne-type-meta text-gray-400 hover:bg-gray-50 hover:text-gray-700"
                     onClick={() => onDelete(view.id)}
                   >
                     ×
@@ -1008,19 +1008,19 @@ function SavedViewsMenu({
               type="text"
               aria-label="Nome da visão"
               placeholder="Salvar recorte atual como…"
-              className="min-w-0 flex-1 rounded border border-gray-300 px-1.5 py-1 text-[12px]"
+              className="min-w-0 flex-1 rounded border border-gray-300 px-1.5 py-1 cisne-type-meta"
               value={name}
               onChange={(event) => setName(event.target.value)}
             />
             <button
               type="submit"
               disabled={name.trim() === ''}
-              className="rounded border border-gray-300 px-1.5 py-1 text-[12px] font-medium text-gray-700 disabled:opacity-50"
+              className="rounded border border-gray-300 px-1.5 py-1 cisne-type-body font-medium text-gray-700 disabled:opacity-50"
             >
               Salvar
             </button>
           </form>
-          <p className="m-0 px-1 pt-1.5 text-[10px] text-gray-400">
+          <p className="cisne-type-helper m-0 px-1 pt-1.5">
             Visões ficam neste navegador até o backend publicar visões salvas.
           </p>
         </div>
