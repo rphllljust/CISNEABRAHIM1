@@ -5,6 +5,7 @@ import { PAGE_FRAME_CLASS, useDeclarePageLayoutMode } from '../shell/page-layout
 import { Button } from './Button';
 import { PageHeader } from './PageHeader';
 import { Pagination } from './Pagination';
+import { SkeletonTable } from './Skeleton';
 import { cn } from './utils/cn';
 
 export const filterControlClass =
@@ -201,14 +202,16 @@ export function ModuleStatePage({
  */
 export function ModuleLoadingState({ title, message }: { title?: string; message: string }) {
   return (
-    <p
-      aria-busy="true"
-      aria-live="polite"
-      aria-label={title}
-      className="text-sm text-gray-500"
-    >
-      {message}
-    </p>
+    /*
+      CARGA LOCALIZADA — o bloco comunica o estado SEM derrubar a superficie.
+      Ele permanece um texto com `role="status"` (o leitor de tela anuncia), mas agora ocupa a area
+      que o dado vai ocupar e traz a forma do que vem (`SkeletonTable`), em vez de uma unica linha
+      cinza que faz a pagina saltar quando o dado chega.
+    */
+    <div role="status" aria-busy="true" aria-live="polite" aria-label={title} className="w-full">
+      <p className="cisne-type-helper m-0 mb-1.5">{message}</p>
+      <SkeletonTable rows={6} columns={5} />
+    </div>
   );
 }
 

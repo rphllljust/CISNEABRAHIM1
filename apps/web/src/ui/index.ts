@@ -46,7 +46,12 @@ export { PageHeader, type PageHeaderProps } from './PageHeader';
 export { Pagination, type PaginationProps } from './Pagination';
 export { Radio, type RadioProps } from './Radio';
 export { Select, type SelectProps } from './Select';
-export { Skeleton, type SkeletonProps } from './Skeleton';
+export {
+  Skeleton,
+  SkeletonForm,
+  SkeletonTable,
+  type SkeletonProps,
+} from './Skeleton';
 export { StatusBadge, type StatusBadgeProps, type StatusBadgeTone } from './StatusBadge';
 export { Switch, type SwitchProps } from './Switch';
 export { Tabs, type TabItem, type TabsProps } from './Tabs';
