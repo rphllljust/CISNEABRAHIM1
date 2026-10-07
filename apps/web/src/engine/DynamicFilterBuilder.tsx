@@ -428,13 +428,24 @@ export function DynamicFilterBuilder({
     <section
       data-testid="dynamic-filter-builder"
       data-entity={schema.name}
-      className="mb-3 rounded border border-gray-200 bg-white p-3"
+      /*
+        FILTRO AVANCADO — DIVULGACAO PROGRESSIVA, nao painel permanente.
+
+        Antes: `rounded border bg-white p-3` sempre presente, com titulo uppercase e caixa propria —
+        ou seja, mais uma caixa branca no topo, mesmo quando o operador nunca usa filtro composto.
+
+        Agora: o construtor e a camada AVANCADA da superficie de filtro. Ele nao tem caixa (pertence
+        a area de trabalho, delimitado por divisor), o gatilho e uma linha discreta com `aria-expanded`
+        e o resumo do recorte ativo e visivel MESMO FECHADO — porque um filtro composto aplicado e
+        estado da tela, e estado da tela nao pode ficar escondido atras de um disclosure recolhido.
+      */
+      className="cisne-divider px-0 py-1.5"
     >
-      <div className="mb-2 flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <button
           type="button"
           data-testid="dynamic-filter-builder-toggle"
-          className="text-xs font-semibold uppercase tracking-wider text-gray-500"
+          className="cisne-meta-label inline-flex min-h-[var(--control-height)] items-center gap-1 rounded-md px-1.5 hover:bg-gray-100 hover:text-gray-900"
           aria-expanded={open}
           onClick={() => setOpen((current) => !current)}
         >
@@ -442,13 +453,16 @@ export function DynamicFilterBuilder({
         </button>
         {isFilterGroupActive(value) ? (
           <div className="flex items-center gap-2">
-            <span data-testid="dynamic-filter-builder-summary" className="text-xs text-gray-600">
+            <span
+              data-testid="dynamic-filter-builder-summary"
+              className="cisne-type-helper font-medium text-gray-700"
+            >
               {summary}
             </span>
             <button
               type="button"
               data-testid="dynamic-filter-builder-clear"
-              className="rounded border border-slate-300 px-2 py-0.5 text-xs"
+              className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
               onClick={() => onChange(emptyFilterGroup())}
             >
               {t('filters.clearBuilder')}
@@ -458,13 +472,15 @@ export function DynamicFilterBuilder({
       </div>
 
       {open ? (
-        <FilterGroupEditor
-          group={value}
-          fields={fields}
-          depth={0}
-          maxDepth={maxDepth}
-          onChange={onChange}
-        />
+        <div className="pt-1.5">
+          <FilterGroupEditor
+            group={value}
+            fields={fields}
+            depth={0}
+            maxDepth={maxDepth}
+            onChange={onChange}
+          />
+        </div>
       ) : null}
     </section>
   );
@@ -562,17 +578,21 @@ function FilterGroupEditor({
       data-testid="dynamic-filter-group"
       data-group-op={group.op}
       data-group-depth={String(depth)}
-      className={
-        depth === 0
-          ? ''
-          : 'mt-2 rounded border border-dashed border-gray-300 bg-gray-50 p-2'
-      }
+      /*
+        SUBGRUPO — aninhamento por REGUA DE INDENTACAO, nao por caixa tracejada.
+
+        A caixa `border-dashed bg-gray-50` desenhava um retangulo dentro do painel para cada nivel de
+        aninhamento; com 2 niveis, o operador via caixas concêntricas dentro de uma caixa. A
+        profundidade ja e dita pela INDENTACAO e pela regua vertical — que e como uma expressao
+        logica e lida.
+      */
+      className={depth === 0 ? '' : 'mt-1.5 border-l-2 border-gray-300 pl-2'}
     >
-      <div className="mb-2 flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-1.5">
         <select
           data-testid="dynamic-filter-group-op"
           aria-label={t('filters.operator')}
-          className="rounded border border-gray-300 px-1.5 py-0.5 text-xs font-semibold"
+          className="min-h-[var(--control-height)] rounded-md border-0 bg-white px-1 text-[length:var(--type-body-size)] font-semibold text-gray-900 ring-1 ring-gray-300 ring-inset outline-none focus:ring-2 focus:ring-brand-500"
           value={group.op}
           onChange={(event) => update({ op: event.target.value === 'OR' ? 'OR' : 'AND' })}
         >
@@ -582,7 +602,7 @@ function FilterGroupEditor({
         <button
           type="button"
           data-testid="dynamic-filter-add-rule"
-          className="rounded border border-slate-300 px-2 py-0.5 text-xs"
+          className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
           onClick={addRule}
         >
           {t('filters.addCondition')}
@@ -591,7 +611,7 @@ function FilterGroupEditor({
           <button
             type="button"
             data-testid="dynamic-filter-add-group"
-            className="rounded border border-slate-300 px-2 py-0.5 text-xs"
+            className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
             onClick={addGroup}
           >
             {t('filters.addGroup')}
@@ -602,7 +622,7 @@ function FilterGroupEditor({
             type="button"
             data-testid="dynamic-filter-remove-group"
             aria-label={t('filters.removeGroup')}
-            className="ml-auto rounded border border-red-200 px-2 py-0.5 text-xs text-red-700"
+            className="cisne-type-action ml-auto inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-red-700 hover:bg-red-50"
             onClick={onRemove}
           >
             {t('filters.removeGroup')}
@@ -615,11 +635,15 @@ function FilterGroupEditor({
         const operators = operatorsForType(field?.type);
         const valueless = VALUELESS_OPERATORS.has(rule.op);
         return (
-          <div key={`rule-${index}`} data-testid="dynamic-filter-rule" className="mb-1 flex items-center gap-2">
+          <div
+            key={`rule-${index}`}
+            data-testid="dynamic-filter-rule"
+            className="mt-1 flex flex-wrap items-center gap-1.5"
+          >
             <select
               data-testid="dynamic-filter-rule-field"
               aria-label={t('filters.field')}
-              className="rounded border border-gray-300 px-1.5 py-0.5 text-sm"
+              className="min-h-[var(--control-height)] rounded-md border-0 bg-white px-1 text-[length:var(--type-body-size)] text-gray-900 ring-1 ring-gray-300 ring-inset outline-none focus:ring-2 focus:ring-brand-500"
               value={rule.field}
               onChange={(event) => changeRuleField(index, event.target.value)}
             >
@@ -633,7 +657,7 @@ function FilterGroupEditor({
             <select
               data-testid="dynamic-filter-rule-op"
               aria-label={t('filters.operator')}
-              className="rounded border border-gray-300 px-1.5 py-0.5 text-sm"
+              className="min-h-[var(--control-height)] rounded-md border-0 bg-white px-1 text-[length:var(--type-body-size)] text-gray-900 ring-1 ring-gray-300 ring-inset outline-none focus:ring-2 focus:ring-brand-500"
               value={rule.op}
               onChange={(event) => changeRuleOperator(index, event.target.value as FilterOperator)}
             >
@@ -657,7 +681,7 @@ function FilterGroupEditor({
               type="button"
               data-testid="dynamic-filter-remove-rule"
               aria-label={t('filters.removeCondition')}
-              className="rounded border border-red-200 px-2 py-0.5 text-xs text-red-700"
+              className="inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-red-700 hover:bg-red-50"
               onClick={() => removeRule(index)}
             >
               ×
@@ -697,7 +721,8 @@ function RuleValueInput({
   rule: FilterRule;
   onChange: (next: string) => void;
 }): React.ReactElement {
-  const className = 'rounded border border-gray-300 px-1.5 py-0.5 text-sm';
+  const className =
+    'min-h-[var(--control-height)] rounded-md border-0 bg-white px-1.5 text-[length:var(--type-body-size)] text-gray-900 ring-1 ring-gray-300 ring-inset outline-none focus:ring-2 focus:ring-brand-500';
   const label = `${t('filters.value')}: ${field?.label ?? rule.field}`;
 
   if (field?.type === 'select' && rule.op !== 'in') {    return (
