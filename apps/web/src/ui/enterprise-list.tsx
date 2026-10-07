@@ -311,7 +311,7 @@ export function RowActionMenu({
           >
             •••
           </summary>
-          <div className="absolute right-0 z-20 mt-1 flex min-w-56 flex-col gap-1 rounded-md border border-gray-200 bg-white p-2 text-left shadow-lg">
+          <div className="cisne-raised-surface absolute right-0 z-20 mt-1 flex min-w-56 flex-col gap-0.5 rounded-md p-1 text-left">
             {secondary}
           </div>
         </details>
@@ -320,13 +320,22 @@ export function RowActionMenu({
   );
 }
 
-/** Botao de acao primaria compacto, para uso dentro da linha. */
+/**
+ * Botao de acao primaria compacto, para uso dentro da linha.
+ *
+ * O primario e o UNICO elemento em brand na linha; por isso ele nao carrega contorno duplicado
+ * (borda + fundo da mesma cor) — o que fazia a acao primaria da linha parecer um botao secundario
+ * contornado, junto com todas as outras.
+ */
 export const rowPrimaryActionClass =
-  'inline-flex items-center rounded-md border border-brand-600 bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white no-underline transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60';
+  'cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md bg-brand-600 px-2 text-white no-underline transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60';
 
-/** Acao secundaria dentro do menu "•••". */
+/**
+ * Acao secundaria dentro do menu "•••" — discreta ate o hover, para que o menu leia como lista de
+ * comandos e nao como um bloco de botoes.
+ */
 export const rowSecondaryActionClass =
-  'w-full rounded px-2 py-1 text-left text-xs font-medium text-gray-600 no-underline hover:bg-gray-50 hover:text-gray-900';
+  'cisne-type-action w-full rounded px-2 py-1 text-left text-gray-600 no-underline hover:bg-gray-100 hover:text-gray-900';
 
 /* -------------------------------------------------- worklist compacta (densa) */
 

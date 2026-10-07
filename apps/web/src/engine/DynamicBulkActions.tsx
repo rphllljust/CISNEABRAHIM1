@@ -51,24 +51,37 @@ export function DynamicBulkActions({
     <div
       data-testid="dynamic-bulk-actions"
       data-selected-count={selectedIds.length}
-      className="mb-3 flex flex-wrap items-center gap-3 rounded border border-slate-300 bg-slate-50 px-3 py-2"
+      /*
+        BARRA DE COMANDO EM LOTE — hierarquia real entre comando, selecao e saida.
+
+        Antes: `rounded border bg-slate-50` com o rotulo "Aplicar" DUPLICADO (um `<label>` e o texto
+        do botao) e o botao em `slate-800` — uma cor de produto que nao existe em nenhum outro lugar
+        do CISNE. O comando em lote e a acao de MAIOR alcance da tela e aparecia com peso visual
+        menor que um botao secundario qualquer.
+
+        Agora: a barra e uma regua de comando (regua de acento + divisor), o NUMERO de selecionados e
+        o dado primario da faixa, o comando em lote e o unico elemento em brand (comando primario) e
+        "Limpar seleção" e a saida discreta a direita — tres papeis distintos, tres pesos distintos.
+      */
+      className="cisne-divider flex flex-wrap items-center gap-2 border-l-[3px] border-l-brand-600 bg-brand-50/40 px-2.5 py-1.5"
     >
-      <p className="text-sm">
-        <strong data-testid="dynamic-bulk-count">{selectedIds.length}</strong>{' '}
+      <p className="cisne-type-body m-0">
+        <strong data-testid="dynamic-bulk-count" className="cisne-type-primary">
+          {selectedIds.length}
+        </strong>{' '}
         {t('bulk.selected')}
       </p>
 
       {transitions.length === 0 ? (
-        <p className="text-sm text-gray-500">{t('bulk.none')}</p>
+        <p className="cisne-type-helper m-0">{t('bulk.none')}</p>
       ) : (
         <>
-          <label htmlFor="bulk-command" className="text-xs font-medium text-gray-700">
-            {t('bulk.apply')}
-          </label>
+          <span className="cisne-meta-label">{t('bulk.apply')}</span>
           <select
             id="bulk-command"
             data-testid="dynamic-bulk-command"
-            className="rounded border border-gray-300 px-2 py-1 text-sm"
+            aria-label={t('bulk.apply')}
+            className="min-h-[var(--control-height)] rounded-md border-0 bg-white px-1.5 text-[length:var(--type-body-size)] font-medium text-gray-900 ring-1 ring-gray-300 ring-inset outline-none focus:ring-2 focus:ring-brand-500"
             value={command}
             disabled={busy}
             onChange={(event) => setCommand(event.target.value)}
@@ -84,7 +97,7 @@ export function DynamicBulkActions({
             type="button"
             data-testid="dynamic-bulk-apply"
             disabled={busy || selected === null}
-            className="rounded bg-slate-800 px-3 py-1 text-sm text-white disabled:opacity-60"
+            className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md bg-brand-600 px-3 text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={() => {
               if (selected) {
                 onApply(selected.command, selectedIds);
@@ -99,14 +112,14 @@ export function DynamicBulkActions({
       <button
         type="button"
         data-testid="dynamic-bulk-clear"
-        className="ml-auto text-xs text-slate-600 underline"
+        className="cisne-type-action ml-auto inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
         onClick={onClear}
       >
         {t('bulk.clear')}
       </button>
 
       {errorMessage ? (
-        <p className="w-full text-sm text-red-700" role="alert">
+        <p className="m-0 w-full text-[length:var(--type-body-size)] text-red-700" role="alert">
           {errorMessage}
         </p>
       ) : null}
