@@ -203,6 +203,16 @@ export function FleetListPage() {
 
   return (
     <ModulePage>
+      {/*
+        GRAMÁTICA DE REGIÕES — a ordem da família.
+
+        DEFEITO CORRIGIDO: a superfície de VISÕES SALVAS vinha DEPOIS da de FILTRO. É a QUINTA
+        ocorrência da mesma inversão nesta wave (Catálogo, Propostas, Recebíveis, Despesas,
+        Orçamentos) — a ordem da família não estava sendo aplicada por padrão.
+
+            OPERATING HEADER -> SAVED VIEWS -> COMMAND/FILTER -> WORK QUEUE
+      */}
+      <div data-region="operating-header">
       <WorklistHeader
         title="Frota"
         count={total}
@@ -220,7 +230,43 @@ export function FleetListPage() {
           />
         }
       />
+      </div>
 
+      <div data-region="saved-view-surface">
+      {/*
+        VISÕES SALVAS — o recorte que o despachante da frota remonta todo dia: "veículos
+        disponíveis de um tipo" é a fila real de alocação. Quatro seletores reconstruídos à mão
+        a cada turno é o trabalho que esta barra elimina.
+      */}
+      <DynamicSavedViewsBar
+        views={savedViews.views}
+        persistedLocally={savedViews.persistedLocally}
+        onSave={(name) =>
+          savedViews.save(
+            name,
+            {
+              search,
+              lifecycleFilter,
+              availabilityFilter,
+              resourceTypeFilter,
+            },
+            'list',
+          )
+        }
+        onDelete={savedViews.remove}
+        onApply={(view) => {
+          setSearchInput(view.filters['search'] ?? '');
+          setSearch(view.filters['search'] ?? '');
+          setLifecycleFilter((view.filters['lifecycleFilter'] ?? '') as '' | AssetLifecycleStatus);
+          setAvailabilityFilter(
+            (view.filters['availabilityFilter'] ?? '') as '' | AssetOperationalAvailability,
+          );
+          setResourceTypeFilter(view.filters['resourceTypeFilter'] ?? '');
+        }}
+      />
+      </div>
+
+      <div data-region="command-filter-surface">
       <WorklistFilterBar meta={rangeLabel}>
         <WorklistField label="Buscar" htmlFor="fleet-search" grow>
           <input
@@ -284,39 +330,9 @@ export function FleetListPage() {
           }}
         />
       </WorklistFilterBar>
+      </div>
 
-      {/*
-        VISÕES SALVAS — o recorte que o despachante da frota remonta todo dia: "veículos
-        disponíveis de um tipo" é a fila real de alocação. Quatro seletores reconstruídos à mão
-        a cada turno é o trabalho que esta barra elimina.
-      */}
-      <DynamicSavedViewsBar
-        views={savedViews.views}
-        persistedLocally={savedViews.persistedLocally}
-        onSave={(name) =>
-          savedViews.save(
-            name,
-            {
-              search,
-              lifecycleFilter,
-              availabilityFilter,
-              resourceTypeFilter,
-            },
-            'list',
-          )
-        }
-        onDelete={savedViews.remove}
-        onApply={(view) => {
-          setSearchInput(view.filters['search'] ?? '');
-          setSearch(view.filters['search'] ?? '');
-          setLifecycleFilter((view.filters['lifecycleFilter'] ?? '') as '' | AssetLifecycleStatus);
-          setAvailabilityFilter(
-            (view.filters['availabilityFilter'] ?? '') as '' | AssetOperationalAvailability,
-          );
-          setResourceTypeFilter(view.filters['resourceTypeFilter'] ?? '');
-        }}
-      />
-
+      <div data-region="worklist-master">
       {listState.phase === 'loading' ? (
         <p className="text-sm text-gray-500" aria-busy="true" aria-live="polite">
           Atualizando listagem…
@@ -449,6 +465,7 @@ export function FleetListPage() {
           />
         </WorklistFooter>
       ) : null}
+      </div>
 
       {/*
         RELAÇÕES DO VEÍCULO — do que a LINHA já traz, sem chamada de rede nova. Contagem de

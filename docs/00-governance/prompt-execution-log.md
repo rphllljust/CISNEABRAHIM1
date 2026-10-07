@@ -20349,3 +20349,90 @@ crase, e a ausência de uma chave esperada é tratada como falha de instrumento,
 3. `rowHeights` único em 35px para as três linhas; nada de defeito estrutural medido além disso.
 
 WORKING_TREE: 1 arquivo + este registro
+
+---
+
+## FROTA — GRAMÁTICA DE REGIÕES (rodada 21) — 2026-10-07
+
+STATUS: **PASS_COM_RESTRICAO**
+Commit: `feat(web): put the fleet worklist in family region order`
+
+### Escolha da função, por medição
+
+Antes de abrir a rodada, os candidatos restantes foram medidos com a sessão real:
+
+| Endpoint | Registros |
+| -------- | --------- |
+| `/resources/physical-assets?classification=VEHICLE` (**Frota**) | **4, com `total` autoritativo** |
+| `/fiscal/documents`, `/fiscal/periods` | 0 |
+| `/accounting/charts`, `/accounting/posting-requests` | 0 |
+| `/accounting/fixed-assets` | 400 (exige outro parâmetro) |
+
+Frota foi escolhida por ter dado real. Fato de contrato registrado: `fleet-api.ts` **não tem endpoint
+próprio** — ele reusa `/api/v1/resources/physical-assets` com `classification=VEHICLE`. Frota e
+Ativos são a MESMA entidade por recortes diferentes.
+
+### Defeito corrigido — QUINTA ocorrência da mesma inversão
+
+A superfície de **VISÕES SALVAS vinha DEPOIS da de FILTRO**. Com Catálogo, Propostas, Recebíveis,
+Despesas, Orçamentos e agora Frota, são **seis telas** corrigidas pelo mesmo motivo. Registro o
+número porque ele é a evidência de que isto não é descuido pontual.
+
+Correção: `DynamicSavedViewsBar` movido para ANTES do `WorklistFilterBar`, e as quatro regiões
+declaradas — `operating-header > saved-view-surface > command-filter-surface > worklist-master`.
+
+### Gate de DOM (REDE + DOM, CDP, cache desabilitado, servidor real)
+
+| Prova | Resultado |
+| ----- | --------- |
+| ordem das regiões no DOM | `operating-header > saved-view-surface > command-filter-surface > worklist-master` |
+| `familyOrderFull` / `savedViewsBeforeFilter` | **true / true** |
+| superfícies presentes | **true** nas quatro |
+| barra de visões salvas | presente; `data-persisted-locally = true` |
+| linhas = `items` do corpo | **true** (4 = 4) |
+| contagem do cabeçalho = `payload.total` | **true** (4 = 4) |
+| rodapé publica o total autoritativo | **true** ("1–4 de 4 veículos") |
+| **toda linha é VEÍCULO** | **true** — `classifications = [VEHICLE]`, provando que a tela mostra o recorte que ela afirma |
+| `occluded` / `overflowX` / erros de console | **0 / 0 / 0** |
+
+### Erro do meu próprio instrumento, de novo — e registrado
+
+O primeiro gate devolveu `footerStatesAuthoritativeTotal: false`. Não registrei como defeito de
+produto: o probe lia o `innerText` de **`#main-content`**, e o primeiro texto casado era o da barra de
+visões salvas ("Nenhuma visão salva."), não o rodapé. Corrigido para ler DENTRO de
+`[data-region="worklist-master"]`, onde o rodapé realmente vive. Resultado real: **true**.
+
+Este é o terceiro erro de instrumento desta wave (clamp de coordenadas, `details` fechado, e agora
+escopo de leitura). O padrão é sempre o mesmo: **o probe mede o lugar errado e o número parece
+plausível**. Por isso a partir da rodada 20 toda métrica nova passou a exigir confirmação de ESCOPO
+antes de virar conclusão.
+
+### Gates técnicos
+
+- `tsc --noEmit` — **PASS**; `eslint src/fleet` — **PASS**
+- `src/fleet` + `src/assets` + `src/finance` — **11 falhas / 125 passes**, e as 11 são exatamente as
+  pré-existentes de finanças (`finance-smart-list` 7/7, `finance-backoffice` 4/10).
+  `src/fleet` e `src/assets` passam inteiros. **Zero falha nova.**
+- `git diff --check` — **PASS**; 1 arquivo alterado
+
+### RESTRIÇÕES CONHECIDAS
+
+1. **IDENTIDADE PLACEHOLDER MANTIDA — e agora com o caminho de correção identificado.**
+   `useSavedViews('local-operator', 'fleet-vehicles')` usa um literal como dono da visão salva:
+   a personalização NÃO está ligada à identidade autenticada. **Não corrigi nesta rodada** porque a
+   correção não é local: `useAuth` **lança** fora do `AuthProvider`, e a suíte desta página a monta
+   sem provider — trocar o literal por `identityId` quebraria os testes e não resolveria o caso
+   "sem identidade". A correção correta é de CAMADA COMPARTILHADA:
+   (a) `useSavedViews(owner: string | null, entity)` passa a **não persistir e não carregar** quando
+   `owner` é nulo, em vez de aceitar um namespace compartilhado; e
+   (b) um acesso à identidade que **não lance** fora do provider.
+   Isso afeta os **nove** chamadores de `useSavedViews` e é uma rodada própria — a próxima desta
+   linha de trabalho, registrada aqui como pendência explícita em vez de remendo local.
+2. **O MESMO literal existe em outras duas telas**: `ContractsListPage` (`'contracts'`) e
+   `RentalsListPage` (`'rentals'`). A rodada (1) corrige as três de uma vez.
+3. **O drawer de contexto desta página continua sendo só um LINK.** `DynamicContextDrawer` monta um
+   `<Link>` para `/app/assets/{id}` e nada mais — nenhum fato autoritativo, nenhum comando. Corrigir
+   exige a MESMA decisão de produto que segue aberta desde a rodada 18 (gating só por estado × PARK),
+   e a leitura autoritativa via `getPhysicalAsset`.
+
+WORKING_TREE: 1 arquivo + este registro
