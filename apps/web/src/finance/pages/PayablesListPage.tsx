@@ -201,13 +201,16 @@ export function PayablesListPage() {
         CABEÇALHO DE WORKLIST — mesma gramática do recebível e do workspace: identidade, contagem
         REAL do recorte (contada no servidor) e procedência em uma linha, sem parágrafo de manual.
       */}
+      <div data-region="operating-header">
       <WorklistHeader
         title="Contas a pagar"
         count={page.total}
         context="As obrigações a pagar: vencimento, aging e saldo vêm do servidor. Cada título abre o lançamento que o originou."
       />
+      </div>
 
       {/* DRILL-DOWN: todo indicador abre a lista filtrada que o originou. */}
+      <div data-region="drilldown-surface">
       <DrilldownRow>
         <DrilldownMetric
           label="Vencidos"
@@ -238,6 +241,7 @@ export function PayablesListPage() {
           to="/app/finance/payables"
         />
       </DrilldownRow>
+      </div>
 
       {/*
         FILTRO VISUAL — o construtor AND/OR aninhável da engine, espelhando o domain de `ir.filters`
@@ -247,10 +251,15 @@ export function PayablesListPage() {
         enumerados por chave — um domain aninhado não cabe nesse contrato, e forçá-lo lá dentro
         mudaria o smart list inteiro para atender uma tela.
       */}
-      {schema ? (
-        <DynamicFilterBuilder schema={schema} value={filterGroup} onChange={setFilterGroup} />
-      ) : null}
+      {/*
+        SAVED VIEWS — faixa própria da work area, ANTES da superfície de filtro.
 
+        Gramática obrigatória: OPERATING HEADER -> SAVED VIEWS -> COMMAND/FILTER -> WORK QUEUE.
+        A ordem importa: o operador primeiro reconhece o RECORTE SALVO em que está trabalhando, e
+        só então ajusta o filtro. Aplicada nesta ordem desde a primeira versão — em Contas a
+        Receber a faixa nasceu depois do filtro e precisou ser corrigida por medição.
+      */}
+      <div data-region="saved-view-surface">
       <SavedViewsBar
         views={smartList.savedViews.views}
         builtInViews={smartList.savedViews.builtInViews}
@@ -266,7 +275,15 @@ export function PayablesListPage() {
         canSave={smartList.isFiltered}
         allLabel="Tudo"
       />
+      </div>
 
+      <div data-region="command-filter-surface">
+      {schema ? (
+        <DynamicFilterBuilder schema={schema} value={filterGroup} onChange={setFilterGroup} />
+      ) : null}
+      </div>
+
+      <div data-region="bulk-command-surface">
       <BulkActionBar
         count={selection.count}
         visibleCount={filtered.length}
@@ -306,7 +323,9 @@ export function PayablesListPage() {
           },
         ]}
       />
+      </div>
 
+      <div data-region="worklist-master">
       {/*
         CORPO DA WORKLIST — a tabela e o estado vazio ocupam o MESMO lugar. A pagina em volta
         (cabecalho, indicadores, filtros, visoes salvas, paginacao) e sempre a mesma.
@@ -486,6 +505,7 @@ export function PayablesListPage() {
           </div>
         </>
       )}
+      </div>
 
       <ContextDrawer
         open={drawerOpen && previewRow !== null}
