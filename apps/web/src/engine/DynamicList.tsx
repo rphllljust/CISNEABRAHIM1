@@ -293,7 +293,7 @@ export function DynamicList({
       <thead>
         <tr>
           {selectable ? (
-            <th scope="col" className="w-8 border-b border-gray-200 px-2 py-1.5">
+            <th scope="col" className="w-8 border-b border-gray-300 bg-gray-50 px-2 py-1">
               <input
                 type="checkbox"
                 data-testid="dynamic-list-select-all"
@@ -314,9 +314,13 @@ export function DynamicList({
                * grandezas), e um cabeçalho à esquerda flutuando longe dos próprios números é o
                * detalhe que denuncia grade inacabada em ERP. O eixo do cabeçalho é o MESMO da
                * célula, derivado do TIPO do metadado — não de uma lista de nomes de campo.
+               *
+               * DENSIDADE: `py-1.5` + `text-xs` produzia cabeçalho de 61px medidos. O cabeçalho
+               * é RÓTULO, não conteúdo: usa o papel `label` (11px uppercase), `py-1` e fundo
+               * sólido, que é o que dá a faixa contínua sob a qual a grade rola.
                */
               className={[
-                'border-b border-gray-200 px-2 py-1.5 text-xs font-semibold text-gray-600',
+                'sticky top-0 z-10 border-b border-gray-300 bg-gray-50 px-2 py-1 text-[length:var(--type-micro-size)] font-semibold tracking-wide text-gray-600 uppercase whitespace-nowrap',
                 isNumericField(column) ? 'text-right' : 'text-left',
               ].join(' ')}
               aria-sort={
@@ -343,12 +347,12 @@ export function DynamicList({
             </th>
           ))}
           {owner ? (
-            <th scope="col" className="border-b border-gray-200 px-2 py-1.5 text-left text-xs font-semibold text-gray-600">
+            <th scope="col" className="sticky top-0 z-10 border-b border-gray-300 bg-gray-50 px-2 py-1 text-left text-[length:var(--type-micro-size)] font-semibold tracking-wide text-gray-600 uppercase whitespace-nowrap">
               {owner.label}
             </th>
           ) : null}
           {aging ? (
-            <th scope="col" className="border-b border-gray-200 px-2 py-1.5 text-left text-xs font-semibold text-gray-600">
+            <th scope="col" className="sticky top-0 z-10 border-b border-gray-300 bg-gray-50 px-2 py-1 text-left text-[length:var(--type-micro-size)] font-semibold tracking-wide text-gray-600 uppercase whitespace-nowrap">
               Aging
             </th>
           ) : null}
@@ -361,7 +365,7 @@ export function DynamicList({
               key={field.name}
               scope="col"
               data-computed-field={field.name}
-              className="border-b border-gray-200 px-2 py-1.5 text-left text-xs font-semibold text-gray-600"
+              className="sticky top-0 z-10 border-b border-gray-300 bg-gray-50 px-2 py-1 text-left text-[length:var(--type-micro-size)] font-semibold tracking-wide text-gray-600 uppercase whitespace-nowrap"
             >
               {field.label}
             </th>
@@ -400,7 +404,7 @@ export function DynamicList({
               onClick={onRowClick ? () => onRowClick(row) : undefined}
             >
               {selectable ? (
-                <td className="border-b border-gray-100 px-2 py-1.5">
+                <td className="h-[var(--row-height)] w-8 border-b border-gray-100 px-2 py-0.5">
                   <input
                     type="checkbox"
                     data-testid="dynamic-list-select-row"
@@ -415,9 +419,22 @@ export function DynamicList({
               {columns.map((column) => (
                 <td
                   key={column.name}
-                  /* Mesmo eixo do cabeçalho: dinheiro à direita, com separador de milhar em coluna. */
+                  /*
+                   * ALTURA DA LINHA É DO TOKEN; LARGURA É DO NAVEGADOR.
+                   *
+                   * Medido em `/app/service-orders`: as linhas saíam com 105px enquanto o texto de
+                   * cada célula tinha UMA linha de 18,5px. A causa não era a célula — era um valor
+                   * longo e inquebrável numa coluna de referência (identificador técnico) que, com
+                   * `table-layout: auto`, ALARGAVA a coluna e obrigava as demais células a quebrar
+                   * em várias linhas.
+                   *
+                   * `max-w-0` + `truncate` fazem a célula respeitar a largura calculada em vez de
+                   * esticá-la, e a grade volta a ter altura previsível mesmo quando o dado que
+                   * chega é um identificador comprido. O valor continua íntegro no DOM (nada é
+                   * cortado do dado, só da pintura) e o eixo numérico permanece à direita.
+                   */
                   className={[
-                    'border-b border-gray-100 px-2 py-1.5',
+                    'h-[var(--row-height)] max-w-0 truncate border-b border-gray-100 px-2 py-0.5 text-[length:var(--type-body-size)]',
                     isNumericField(column) ? 'text-right tabular-nums whitespace-nowrap' : '',
                   ]
                     .filter(Boolean)
@@ -440,7 +457,7 @@ export function DynamicList({
                 </td>
               ))}
               {owner ? (
-                <td className="border-b border-gray-100 px-2 py-1.5">
+                <td className="h-[var(--row-height)] max-w-0 truncate border-b border-gray-100 px-2 py-0.5 text-[length:var(--type-body-size)]">
                   <OwnerCell
                     row={row}
                     ownerField={owner}
@@ -450,7 +467,7 @@ export function DynamicList({
                 </td>
               ) : null}
               {aging ? (
-                <td className="border-b border-gray-100 px-2 py-1.5">
+                <td className="h-[var(--row-height)] max-w-0 truncate border-b border-gray-100 px-2 py-0.5 text-[length:var(--type-body-size)]">
                   <AgingBadge value={row[aging.name]} />
                 </td>
               ) : null}
@@ -463,14 +480,14 @@ export function DynamicList({
                 <td
                   key={field.name}
                   data-computed-cell={field.name}
-                  className="border-b border-gray-100 px-2 py-1.5 tabular-nums"
+                  className="h-[var(--row-height)] max-w-0 truncate border-b border-gray-100 px-2 py-0.5 text-[length:var(--type-body-size)] tabular-nums"
                 >
                   <ComputedCell field={field} row={row} />
                 </td>
               ))}
               {renderRowActions ? (
                 <td
-                  className="border-b border-gray-100 px-2 py-1.5 text-right"
+                  className="h-[var(--row-height)] border-b border-gray-100 px-2 py-0.5 text-[length:var(--type-body-size)] text-right"
                   onClick={(event) => event.stopPropagation()}
                 >
                   {renderRowActions(row)}
@@ -920,8 +937,7 @@ function OwnerCell({
 
   if (!onReassign || !reassignOptions || reassignOptions.length === 0) {
     return (
-      <span data-testid="dynamic-list-owner" className="text-sm">
-        {display}
+      <span data-testid="dynamic-list-owner" className="cisne-type-body">`n        {display}
       </span>
     );
   }

@@ -46,6 +46,8 @@ import {
   worklistSelectClass,
 } from '../../ui/enterprise-list';
 import { ModulePage, ModulePagination } from '../../ui/module-layout';
+import { Button } from '../../ui/Button';
+import { cn } from '../../ui/utils/cn';
 import { serviceOrderEngineRows, type ServiceOrderEngineRow } from './service-order-engine-rows';
 
 /**
@@ -377,7 +379,7 @@ export function ServiceOrdersEngineListPage() {
 
   return (
     <ModulePage layout="workspace" className="space-y-3">
-      <header className="rounded-md border border-slate-200 bg-white px-4 py-3 shadow-[0_1px_2px_rgb(15_23_42/0.04)]">
+      <header className="cisne-divider--section pb-1.5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             {/*
@@ -388,48 +390,46 @@ export function ServiceOrdersEngineListPage() {
               `data-testid` é o gancho da prova de browser — é este nó que precisa mudar quando
               o operador troca o idioma, SEM reload.
             */}
-            <h1 className="text-xl font-semibold text-slate-950" data-testid="entity-title">
+            <h1 className="cisne-type-workspace m-0" data-testid="entity-title">
               {entityLabel('service-orders', schema?.label ?? 'Ordens de serviço')}
             </h1>
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="cisne-type-helper m-0 mt-0.5">
               Cockpit operacional renderizado pela engine a partir do metadata store e da carteira autorizada.
             </p>
           </div>
           {/* Criação pela engine: os campos são os que o metadado declara como criáveis. */}
-          <button
-            type="button"
+          <Button
             data-testid="dynamic-create-open"
-            className="rounded bg-slate-800 px-3 py-1.5 text-sm text-white"
             onClick={() => {
               setCreateError(null);
               setCreateOpen((current) => !current);
             }}
           >
             Nova OS
-          </button>
+          </Button>
         </div>
       </header>
 
       {status === 'loading' || rowsStatus === 'loading' ? (
-        <p className="text-sm text-gray-600" aria-busy="true">
+        <p className="cisne-type-helper m-0" aria-busy="true">
           Carregando…
         </p>
       ) : null}
 
       {status === 'error' ? (
-        <p className="text-sm text-red-700" role="alert">
+        <p className="cisne-type-body m-0 text-red-700" role="alert">
           Não foi possível carregar o schema da entidade.
         </p>
       ) : null}
 
       {rowsStatus === 'denied' ? (
-        <p className="text-sm" role="alert">
+        <p className="cisne-type-body m-0" role="alert">
           Você não tem permissão para listar ordens de serviço.
         </p>
       ) : null}
 
       {rowsStatus === 'error' ? (
-        <p className="text-sm text-red-700" role="alert">
+        <p className="cisne-type-body m-0 text-red-700" role="alert">
           {errorMessage ?? 'Não foi possível carregar as ordens de serviço.'}
         </p>
       ) : null}
@@ -472,8 +472,19 @@ export function ServiceOrdersEngineListPage() {
             onDrilldown={(field, value) => updateFilter(field, value)}
           />
 
+          {/*
+            COCKPIT DA CARTEIRA — a faixa de sinais, NÃO um card.
+
+            Antes era `rounded-md border bg-white shadow-[...] px-3 py-3`: um card de 109px dentro
+            da área de trabalho, que já é branca. Somado ao cabeçalho em card, isso empurrava a
+            primeira linha REAL da grade para fora da primeira dobra (medido: 0 registros visíveis
+            na dobra com 17 carregados).
+
+            Agora é uma faixa com divisores: os seis sinais são células separadas por régua, a
+            hierarquia vem do número e do rótulo, e a grade sobe para a dobra.
+          */}
           <section
-            className="grid gap-2 rounded-md border border-slate-200 bg-white px-3 py-3 shadow-[0_1px_2px_rgb(15_23_42/0.04)] md:grid-cols-3 xl:grid-cols-6"
+            className="cisne-divider flex flex-wrap items-stretch gap-0 py-1.5"
             aria-label="Cockpit operacional da carteira"
           >
             <OperationalSignal label="Na página" value={operationalSnapshot.pageTotal} detail="ordens carregadas" />
@@ -600,7 +611,7 @@ export function ServiceOrdersEngineListPage() {
                   type="button"
                   data-testid="dynamic-open-context"
                   data-context-row={row.id}
-                  className="rounded border border-slate-300 px-2 py-0.5 text-xs"
+                  className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                   onClick={(event) => {
                     // Sem `stopPropagation` o botão também navegaria — o clique subiria ao `<tr>`.
                     event.stopPropagation();
@@ -683,7 +694,7 @@ export function ServiceOrdersEngineListPage() {
         {contextRow ? (
           <button
             type="button"
-            className="rounded bg-slate-800 px-3 py-1.5 text-sm text-white"
+            className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md bg-brand-600 px-3 text-white hover:bg-brand-700"
             onClick={() => void navigate(`/app/service-orders/${contextRow.id}`)}
           >
             Abrir ordem
@@ -714,16 +725,23 @@ function OperationalSignal({
   tone?: 'default' | 'warning';
 }) {
   return (
-    <div
-      className={
-        tone === 'warning'
-          ? 'min-w-0 rounded border border-amber-200 bg-amber-50 px-3 py-2'
-          : 'min-w-0 rounded border border-slate-200 bg-slate-50/70 px-3 py-2'
-      }
-    >
-      <p className="m-0 text-[11px] font-semibold tracking-wide text-slate-500 uppercase">{label}</p>
-      <p className="m-0 mt-1 text-xl font-semibold text-slate-950 tabular-nums">{value}</p>
-      <p className="m-0 text-xs text-slate-500">{detail}</p>
+    /*
+      SINAL OPERACIONAL — célula da faixa, não card.
+      A distinção entre "atenção" e "normal" continua existindo, mas agora vem da COR DO NÚMERO e
+      de uma régua, não de uma caixa âmbar inteira: exceção precisa ser visível sem virar um bloco
+      que compete com as outras cinco células.
+    */
+    <div className="min-w-[9rem] flex-1 border-l border-gray-200 px-3 py-0.5 first:border-l-0 first:pl-0">
+      <p className="cisne-meta-label m-0">{label}</p>
+      <p
+        className={cn(
+          'cisne-type-object m-0 leading-none tabular-nums',
+          tone === 'warning' ? 'text-amber-700' : 'text-gray-900',
+        )}
+      >
+        {value}
+      </p>
+      <p className="cisne-type-helper m-0 truncate">{detail}</p>
     </div>
   );
 }
