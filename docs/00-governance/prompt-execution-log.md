@@ -20634,3 +20634,72 @@ inexistente no produto — a partir de uma página em branco.
 3. **As duas famílias seguem sem unificação.**
 
 WORKING_TREE: sem alteração de código; só este registro
+
+---
+
+## VARREDURA DA INVERSÃO DE REGIÕES + LOCAÇÕES (rodada 25) — 2026-10-07
+
+STATUS: **PASS_COM_RESTRICAO**
+Commit: `fix(web): put the rentals worklist in family region order`
+
+### O mapa completo, medido — e não estimado
+
+Varredura estática de TODAS as páginas que renderizam uma barra de visões salvas, comparando a
+posição do bloco da barra com a do bloco de filtro. Resultado: **21 páginas usam a barra, 13 estão
+corretas e 8 estavam INVERTIDAS** — a barra DEPOIS do filtro.
+
+| Página | barra | filtro | Estado |
+| ------ | ----- | ------ | ------ |
+| `RentalsListPage` | 263 | 220 | **corrigida nesta rodada** |
+| `AccountingPostingOriginsPage` | 328 | 241 | invertida |
+| `ContractsListPage` | 326 | 273 | invertida |
+| `DocumentsPage` | 314 | 274 | invertida |
+| `BankReconciliationPage` | 646 | 576 | invertida |
+| `FiscalDocumentsPage` | 547 | 442 | invertida |
+| `InventoryPage` | 375 | 240 | invertida |
+| `ServiceOrdersEngineListPage` | 682 | 651 | invertida |
+
+Isto encerra a contagem por tela: o defeito não estava em "seis telas" como eu vinha registrando por
+amostragem — eram **oito**, mais as seis já corrigidas nas rodadas anteriores.
+
+### Correção aplicada (Locações)
+
+`DynamicSavedViewsBar` movido para ANTES do `WorklistFilterBar`, e as quatro regiões declaradas.
+Ordem conferida no PRÓPRIO ARQUIVO:
+
+```
+222 operating-header > 230 saved-view-surface (barra 236) > 251 command-filter-surface (filtro 252) > 291 worklist-master
+```
+
+Gates: `tsc` **PASS**; `eslint src/rentals` **PASS**; `src/rentals` — **1/1 PASS**.
+
+### DESCOBERTA QUE MUDA O PESO DA VARREDURA: A ROTA É GATED
+
+O gate de gramática foi executado em `/app/rentals` e caiu em **`/app/no-access`**
+(composition: "Acesso negado"). Confirmado no `nav-config`: **`rentals` é rota com feature flag**
+(fora da Release 1, exatamente como a suíte de shell já protegia ao exigir que "Locações" NÃO
+apareça na navegação).
+
+**Consequência, e ela é material**: a verificação por DOM desta correção **NÃO É POSSÍVEL** com o
+perfil disponível — a tela não abre. Então:
+
+- a correção está **aplicada e conferida na fonte** (ordem dos blocos no arquivo + typecheck + lint);
+- a correção está **LATENTE**, não observável: enquanto a rota estiver gated, nenhum operador vê a
+  ordem errada nem a certa;
+- **não alego verificação por DOM** desta rodada.
+
+E isso vale para o mapa acima: **antes de corrigir cada uma das 7 restantes, é preciso conferir se a
+rota é alcançável**. Corrigir uma tela gated é correto, mas não é verificável por DOM e não muda a
+experiência de ninguém hoje — o que muda a priorização.
+
+### RESTRIÇÕES CONHECIDAS
+
+1. **7 páginas com a inversão ainda aberta**, agora enumeradas com nome e linha. Duas delas
+   (`ContractsListPage`, e provavelmente `FiscalDocumentsPage`/`InventoryPage`) também são gated.
+2. **A ordem da família continua sem regra compartilhada que a imponha.** Reordenar é por página,
+   porque ordem de DOM não se corrige por CSS sem quebrar a ordem de tabulação — e a ordem de
+   tabulação é justamente o que importa para teclado. Registro como fato estrutural, não como
+   pendência de implementação.
+3. `persistable` → `canSave` (família `operator`) segue pendente, herdado da rodada 23.
+
+WORKING_TREE: 1 arquivo + este registro

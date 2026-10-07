@@ -211,12 +211,44 @@ export function RentalsListPage() {
 
   return (
     <ModulePage>
+      {/*
+        GRAMÁTICA DE REGIÕES — a ordem da família.
+
+        DEFEITO CORRIGIDO: a superfície de VISÕES SALVAS vinha DEPOIS da de FILTRO. Varredura
+        estática nesta rodada encontrou **8 telas** ainda invertidas nesta wave; esta é uma delas.
+
+            OPERATING HEADER -> SAVED VIEWS -> COMMAND/FILTER -> WORK QUEUE
+      */}
+      <div data-region="operating-header">
       <WorklistHeader
         title="Locações"
         count={items.length}
         context="Ordens de serviço com arquétipo de locação, com o estágio de execução de cada contrato."
       />
+      </div>
 
+      <div data-region="saved-view-surface">
+      {/*
+        VISÕES SALVAS — a fila que o operador de locação remonta todo dia: "paradas" (execução
+        travada) e "aguardando conferência de medição" são os dois recortes de trabalho reais.
+        A barra elimina a remontagem manual do filtro a cada turno.
+      */}
+      <DynamicSavedViewsBar
+        views={savedViews.views}
+        persistedLocally={savedViews.persistedLocally}
+        persistable={savedViews.persistable}
+        onSave={(name) => savedViews.save(name, { search, statusFilter }, 'list')}
+        onDelete={savedViews.remove}
+        onApply={(view) => {
+          setSearchInput(view.filters['search'] ?? '');
+          setSearch(view.filters['search'] ?? '');
+          setStatusFilter((view.filters['statusFilter'] ?? '') as '' | ServiceOrderStatus);
+          setOffset(0);
+        }}
+      />
+      </div>
+
+      <div data-region="command-filter-surface">
       <WorklistFilterBar meta={`${items.length} nesta página`}>
         <WorklistField label="Buscar" htmlFor="rental-search" grow>
           <input
@@ -254,25 +286,9 @@ export function RentalsListPage() {
           }}
         />
       </WorklistFilterBar>
+      </div>
 
-      {/*
-        VISÕES SALVAS — a fila que o operador de locação remonta todo dia: "paradas" (execução
-        travada) e "aguardando conferência de medição" são os dois recortes de trabalho reais.
-        A barra elimina a remontagem manual do filtro a cada turno.
-      */}
-      <DynamicSavedViewsBar
-        views={savedViews.views}
-        persistedLocally={savedViews.persistedLocally}
-        persistable={savedViews.persistable}
-        onSave={(name) => savedViews.save(name, { search, statusFilter }, 'list')}
-        onDelete={savedViews.remove}
-        onApply={(view) => {
-          setSearchInput(view.filters['search'] ?? '');
-          setSearch(view.filters['search'] ?? '');
-          setStatusFilter((view.filters['statusFilter'] ?? '') as '' | ServiceOrderStatus);
-          setOffset(0);
-        }}
-      />
+      <div data-region="worklist-master">
 
       {items.length === 0 ? (
         <WorklistStatePanel
@@ -412,6 +428,7 @@ export function RentalsListPage() {
           onNext={() => setOffset(offset + PAGE_SIZE)}
         />
       </WorklistFooter>
+      </div>
 
       {/*
         RELAÇÕES DA LOCAÇÃO — montadas do que a LINHA já traz, sem chamada de rede nova. Não há
