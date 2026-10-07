@@ -12,17 +12,30 @@ import { RELATION_SCOPE_KEYS, useRelationScope } from '../../enterprise-object';
 import { isPersistableValue } from '../../operator';
 import { DynamicContextDrawer, useSavedViews, type CrossReference } from '../../engine';
 import {
+  approveServiceRequest,
+  cancelServiceRequest,
+  convertServiceRequest,
+  getServiceRequest,
   getServiceRequestSummary,
   listServiceRequests,
+  rejectServiceRequest,
+  startServiceRequestReview,
+  submitServiceRequest,
   ServiceRequestsApiError,
 } from '../api/service-requests-api';
 import { mapRequestErrorToMessage } from '../api/request-error-messages';
 import { useServiceRequestCapabilities } from '../hooks/useServiceRequestCapabilities';
+import { Button } from '../../ui/Button';
+import { Skeleton } from '../../ui/Skeleton';
+import {
+  DynamicSavedViewsBar,
+} from '../../engine';
 import {
   SERVICE_REQUEST_LIST_SORTS,
   SERVICE_REQUEST_ORIGINS,
   SERVICE_REQUEST_PRIORITIES,
   SERVICE_REQUEST_STATUSES,
+  type ServiceRequestDetail,
   type ServiceRequestListItem,
   type ServiceRequestListDirection,
   type ServiceRequestListSort,
@@ -103,19 +116,6 @@ const NEXT_STEP_BY_STATUS: Record<ServiceRequestStatus, string> = {
   [SERVICE_REQUEST_STATUSES.Converted]: formatServiceRequestNextStep('OPEN_SERVICE_ORDER'),
   [SERVICE_REQUEST_STATUSES.Rejected]: formatServiceRequestNextStep('CLOSED'),
   [SERVICE_REQUEST_STATUSES.Cancelled]: formatServiceRequestNextStep('CLOSED'),
-};
-
-/**
- * Verbo da acao primaria por estado — a mesma maquina de estados, so encurtada para o alvo.
- */
-const NEXT_STEP_ACTION_LABEL: Record<ServiceRequestStatus, string> = {
-  [SERVICE_REQUEST_STATUSES.Draft]: 'Enviar',
-  [SERVICE_REQUEST_STATUSES.Submitted]: 'Iniciar análise',
-  [SERVICE_REQUEST_STATUSES.UnderReview]: 'Decidir',
-  [SERVICE_REQUEST_STATUSES.Approved]: 'Converter em OS',
-  [SERVICE_REQUEST_STATUSES.Converted]: 'Abrir OS',
-  [SERVICE_REQUEST_STATUSES.Rejected]: 'Consultar',
-  [SERVICE_REQUEST_STATUSES.Cancelled]: 'Consultar',
 };
 
 /**
@@ -210,9 +210,110 @@ export function ServiceRequestsListPage() {
   const relationScope = useRelationScope(RELATION_SCOPE_KEYS);
   const [searchInput, setSearchInput] = useState('');
   const [moreOpen, setMoreOpen] = useState(false);
-  const [viewsOpen, setViewsOpen] = useState(false);
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
   const [summary, setSummary] = useState<ServiceRequestListSummary | null>(null);
+
+  /*
+   * CONTEXTO DA SOLICITAÇÃO — detalhe REAL (`GET /service-requests/:id`).
+   *
+   * A fila publica uma projeção; o detalhe publica `readiness` (prontidão real para converter),
+   * `linkedChain` (a LINHAGEM real do processo), documentos e histórico. É o que permite ao
+   * operador DECIDIR sem abrir a ficha — e carrega em paralelo com a fila: só o painel espera.
+   */
+  const [detailState, setDetailState] = useState<
+    | { phase: 'idle' }
+    | { phase: 'loading' }
+    | { phase: 'error'; message: string }
+    | { phase: 'ready'; detail: ServiceRequestDetail }
+  >({ phase: 'idle' });
+
+  /*
+   * MOTIVO DO COMANDO — informado pelo OPERADOR, nunca fabricado.
+   * `reject` e `cancel` exigem motivo no contrato: é registro de auditoria. Texto fixo de tela
+   * seria o frontend inventando um fato empresarial.
+   */
+  const [commandReason, setCommandReason] = useState('');
+  const [commandBusy, setCommandBusy] = useState(false);
+  const [commandError, setCommandError] = useState<string | null>(null);
+
+  const selectedId = selected?.id ?? null;
+
+  /**
+   * RECARGA REAL DA FILA — token monotônico, declarado ANTES de quem o usa.
+   *
+   * Um comando muda o estado da solicitação; sem este token o efeito de carga não roda de novo e a
+   * fila continuaria exibindo o estado anterior ao comando.
+   */
+  const [reloadToken, setReloadToken] = useState(0);
+  const reload = useCallback(() => setReloadToken((current) => current + 1), []);
+
+  useEffect(() => {
+    if (!selectedId) {
+      setDetailState({ phase: 'idle' });
+      setCommandReason('');
+      setCommandError(null);
+      return;
+    }
+    const controller = new AbortController();
+    setDetailState({ phase: 'loading' });
+    setCommandError(null);
+    void getServiceRequest(selectedId, controller.signal)
+      .then((detail) => {
+        if (!controller.signal.aborted) {
+          setDetailState({ phase: 'ready', detail });
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setDetailState({
+            phase: 'error',
+            message: 'Não foi possível carregar o contexto da solicitação.',
+          });
+        }
+      });
+    return () => controller.abort();
+  }, [selectedId]);
+
+  /**
+   * COMANDO REAL do domínio a partir do contexto. Envia INTENÇÃO + `rowVersion`; quem valida a
+   * transição é o backend. `VERSION_CONFLICT` (outro operador agiu antes) não é sobrescrito.
+   */
+  const runCommand = useCallback(
+    async (command: 'submit' | 'review' | 'approve' | 'reject' | 'cancel' | 'convert') => {
+      if (!selected) {
+        return;
+      }
+      const rowVersion = selected.rowVersion;
+      setCommandBusy(true);
+      setCommandError(null);
+      try {
+        if (command === 'submit') {
+          await submitServiceRequest(selected.id, rowVersion);
+        } else if (command === 'review') {
+          await startServiceRequestReview(selected.id, rowVersion);
+        } else if (command === 'approve') {
+          await approveServiceRequest(selected.id, rowVersion);
+        } else if (command === 'reject') {
+          await rejectServiceRequest(selected.id, rowVersion, commandReason);
+        } else if (command === 'cancel') {
+          await cancelServiceRequest(selected.id, rowVersion, commandReason);
+        } else {
+          await convertServiceRequest(selected.id, rowVersion);
+        }
+        setSelected(null);
+        reload();
+      } catch (error) {
+        setCommandError(
+          error instanceof ServiceRequestsApiError
+            ? mapRequestErrorToMessage(error.code, error.status)
+            : 'Não foi possível executar o comando.',
+        );
+      } finally {
+        setCommandBusy(false);
+      }
+    },
+    [commandReason, reload, selected],
+  );
 
   // FILA ENDERECAVEL: os recortes enumerados de estado, prioridade e origem vivem na URL.
   // Somente valores enumerados entram pela URL; texto livre permanece em memoria.
@@ -286,7 +387,7 @@ export function ServiceRequestsListPage() {
     const controller = new AbortController();
     void loadPage(0, filters, controller.signal);
     return () => controller.abort();
-  }, [filters, loadPage]);
+  }, [filters, loadPage, reloadToken]);
 
   const applyFilter = useCallback(<K extends keyof QueueFilters>(key: K, value: QueueFilters[K]) => {
     setFilters((current) => ({ ...current, [key]: value }));
@@ -344,10 +445,16 @@ export function ServiceRequestsListPage() {
   return (
     <ModulePage>
       {/*
+        SUPERFÍCIE DE TRABALHO FIXA — cabeçalho, faixas de decisão, visões salvas e filtros não
+        rolam com a fila: o operador nunca perde o recorte nem a leitura do processo.
+      */}
+      <div className="sticky top-0 z-20 bg-white" data-region="work-surface">
+      {/*
         ZONA 1 — OPERATING HEADER. Uma faixa, nao uma pagina de abertura.
         Identidade, recorte ativo, total AUTORITATIVO do servidor, acao primaria e ultima
         atualizacao. Saiu o paragrafo que explicava a tela: contexto aqui e o RECORTE real.
       */}
+      <div data-region="operating-header">
       <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-gray-200 px-1 pb-2">
         <div className="flex min-w-0 items-baseline gap-2">
           <h1 className="cisne-type-object leading-tight font-semibold tracking-tight text-gray-900">
@@ -371,6 +478,7 @@ export function ServiceRequestsListPage() {
           <ModulePrimaryLink to="/app/requests/new">Nova solicitação</ModulePrimaryLink>
         ) : null}
       </header>
+      </div>
 
       {/*
         ZONA 2 — DECISION / WORK QUEUE STRIP.
@@ -380,7 +488,7 @@ export function ServiceRequestsListPage() {
       */}
       <nav
         aria-label="Faixas de trabalho da fila"
-        className="flex flex-wrap items-stretch border-b border-gray-200 bg-white px-1"
+        className="cisne-divider flex flex-wrap items-stretch py-1"
       >
         <QueueStripCell
           label="Pendentes"
@@ -417,11 +525,46 @@ export function ServiceRequestsListPage() {
       </nav>
 
       {/*
+        SAVED VIEWS — FAIXA PRÓPRIA DA WORK AREA, não menu escondido.
+
+        Antes era `SavedViewsMenu`: um botão "Visões" que abria um formulário de salvar. O recorte
+        que o operador remonta todo dia — situação, prioridade, origem, unidade, janela desejada —
+        passa a ser comando visível da superfície de trabalho, com a visão aplicada evidente.
+      */}
+      <div className="cisne-divider py-0.5" data-region="saved-view-surface">
+        <DynamicSavedViewsBar
+          views={savedViews.views}
+          persistedLocally={savedViews.persistedLocally}
+          onSave={(name) => savedViews.save(name, { ...filters }, 'list')}
+          onDelete={savedViews.remove}
+          onApply={(view) => {
+            const restored: QueueFilters = {
+              status: (view.filters['status'] ?? '') as QueueFilters['status'],
+              priority: (view.filters['priority'] ?? '') as QueueFilters['priority'],
+              originSource: (view.filters['originSource'] ?? '') as QueueFilters['originSource'],
+              unitId: view.filters['unitId'] ?? '',
+              desiredFrom: view.filters['desiredFrom'] ?? '',
+              desiredTo: view.filters['desiredTo'] ?? '',
+              search: view.filters['search'] ?? '',
+              sort: (view.filters['sort'] || EMPTY_FILTERS.sort) as QueueFilters['sort'],
+              direction: (view.filters['direction'] ||
+                EMPTY_FILTERS.direction) as QueueFilters['direction'],
+            };
+            setFilters(restored);
+            setSearchInput(restored.search);
+          }}
+        />
+      </div>
+
+      {/*
         ZONA 3 — VIEW + COMMAND SURFACE. UMA barra: segmentos de recorte, busca, situação,
         mais filtros, visões salvas e o recorte ativo — tudo na mesma altura de linha.
         O formulario permanente de SEIS controles saiu; nada foi removido do contrato.
       */}
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-gray-200 bg-gray-50/60 px-1 py-1.5">
+      <div
+        data-region="command-filter-surface"
+        className="cisne-divider flex flex-wrap items-center gap-x-2 gap-y-1 px-0 py-1.5"
+      >
         <div
           role="group"
           aria-label="Recorte de situação"
@@ -574,40 +717,17 @@ export function ServiceRequestsListPage() {
           <span className="cisne-type-helper text-gray-500 tabular-nums">
             {items.length} nesta página
           </span>
-          <SavedViewsMenu
-            open={viewsOpen}
-            onToggle={() => setViewsOpen((current) => !current)}
-            views={savedViews.views}
-            onApply={(view) => {
-              const restored: QueueFilters = {
-                status: (view.filters['status'] ?? '') as QueueFilters['status'],
-                priority: (view.filters['priority'] ?? '') as QueueFilters['priority'],
-                originSource: (view.filters['originSource'] ?? '') as QueueFilters['originSource'],
-                unitId: view.filters['unitId'] ?? '',
-                desiredFrom: view.filters['desiredFrom'] ?? '',
-                desiredTo: view.filters['desiredTo'] ?? '',
-                search: view.filters['search'] ?? '',
-                sort: (view.filters['sort'] || EMPTY_FILTERS.sort) as QueueFilters['sort'],
-                direction: (view.filters['direction'] ||
-                  EMPTY_FILTERS.direction) as QueueFilters['direction'],
-              };
-              setFilters(restored);
-              setSearchInput(restored.search);
-              setViewsOpen(false);
-            }}
-            onSave={(name) => savedViews.save(name, { ...filters }, 'list')}
-            onDelete={savedViews.remove}
-          />
         </div>
       </div>
+      </div>
+
 
       {/*
         ZONA 4 — PROCESSING SURFACE. A area de trabalho: identidade, decisao e metadado em
-        hierarquia, com barra de acento pelo PESO do estado. O clique na linha abre o contexto
-        ao lado; o codigo continua sendo o link para a ficha completa.
+        hierarquia, com barra de acento pelo PESO do estado. O clique na linha abre o contexto        ao lado; o codigo continua sendo o link para a ficha completa.
       */}
       {items.length === 0 ? (
-        <section aria-label="Fila operacional de solicitações" className="border-b border-gray-200">
+        <section aria-label="Fila operacional de solicitações" className="border-b border-gray-200" data-region="worklist-master">
           <div className="flex items-center gap-3 border-b border-gray-100 bg-gray-50/80 px-2 py-1 text-[length:var(--type-micro-size)] font-semibold tracking-wide text-gray-500 uppercase">
             <span>Solicitação e demanda</span>
             <span className="ml-auto">Situação</span>
@@ -642,7 +762,7 @@ export function ServiceRequestsListPage() {
           </div>
         </section>
       ) : (
-        <section aria-label="Fila operacional de solicitações" className="border-b border-gray-200">
+        <section aria-label="Fila operacional de solicitações" className="border-b border-gray-200" data-region="worklist-master">
           <div className="flex items-center gap-3 border-b border-gray-100 bg-gray-50/80 px-2 py-1 text-[length:var(--type-micro-size)] font-semibold tracking-wide text-gray-500 uppercase">
             <span>Solicitação e demanda</span>
             <span className="ml-auto">Situação</span>
@@ -697,24 +817,173 @@ export function ServiceRequestsListPage() {
       */}
       <DynamicContextDrawer
         open={selected !== null}
-        title={selected ? selected.requestCode : 'Solicitação'}
+        title="Contexto da solicitação"
         onClose={() => setSelected(null)}
         crossReferences={selected ? requestContextRows(selected, now) : []}
       >
-        {selected ? (
-          <div className="flex flex-col gap-2">
-            {/*
-              PROXIMA ACAO uma unica vez: o rotulo do comando ("Iniciar análise") e o que o
-              operador executa. A frase longa do proximo passo ja aparece em "Próximo passo",
-              nas referencias acima — repetir aqui era o mesmo fato em dois formatos.
-            */}
-            <NextActionLink item={selected} />
-            <p className="m-0 border-t border-gray-100 pt-2 cisne-type-helper text-gray-500">
-              Janela desejada é a expectativa registrada na solicitação — não é prazo
-              contratado.
+        <div data-region="context-region">
+          {selected ? (
+            <p className="cisne-type-primary m-0 mb-2 truncate">{selected.requestCode}</p>
+          ) : null}
+
+          {detailState.phase === 'loading' ? (
+            /* SKELETON LOCALIZADO — só o painel espera; a fila segue utilizável. */
+            <div aria-busy="true" role="status" className="flex flex-col gap-1.5">
+              <span className="cisne-type-helper">Carregando contexto…</span>
+              <Skeleton lines={4} />
+            </div>
+          ) : null}
+
+          {detailState.phase === 'error' ? (
+            <p className="cisne-type-body m-0 text-red-700" role="alert">
+              {detailState.message}
             </p>
-          </div>
-        ) : null}
+          ) : null}
+
+          {detailState.phase === 'ready' ? (
+            <>
+              {/*
+                PRONTIDÃO PARA CONVERTER — fato REAL do detalhe (`readiness`), não um KPI
+                decorativo: é ele que diz se a solicitação pode virar OS e o que ainda falta.
+              */}
+              {detailState.detail.readiness.blockers.length > 0 ? (
+                <div className="mb-2">
+                  <h3 className="cisne-section-title m-0 mb-1">Pendências para converter</h3>
+                  <ul className="m-0 flex list-none flex-col gap-0 p-0">
+                    {detailState.detail.readiness.blockers.map((blocker) => (
+                      <li key={blocker} className="cisne-type-helper text-amber-700">
+                        {blocker}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p className="cisne-type-helper m-0 mb-2">
+                  Sem pendências conhecidas para conversão em ordem de serviço.
+                </p>
+              )}
+
+              {/* LINHAGEM REAL do processo — só o que o detalhe publica. */}
+              {detailState.detail.linkedChain.length > 0 ? (
+                <div className="cisne-divider--top mb-2 pt-2">
+                  <h3 className="cisne-section-title m-0 mb-1">Linhagem</h3>
+                  <ul className="m-0 flex list-none flex-col gap-0 p-0">
+                    {detailState.detail.linkedChain.map((node) => (
+                      <li key={`${node.kind}:${node.id}`} className="cisne-type-meta truncate">
+                        {node.kind}
+                        {node.label ? ` · ${node.label}` : ''}
+                        {node.status ? ` · ${node.status}` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {/*
+                COMMAND LAYER — comandos REAIS do domínio, guardados pelas CAPABILITIES reais.
+                Cada botão é uma TRANSIÇÃO de processo (não `PATCH status`). Rejeitar e cancelar
+                exigem motivo digitado: o campo é do operador, porque motivo é auditoria.
+              */}
+              <div className="cisne-divider--top mt-2 pt-2">
+                {(capabilities.canReject || capabilities.canCancel) ? (
+                  <label className="mb-1 block">
+                    <span className="cisne-meta-label mb-0.5 block">
+                      Motivo (obrigatório para rejeitar ou cancelar)
+                    </span>
+                    <input
+                      type="text"
+                      className="min-h-[var(--control-height)] w-full rounded-md border-0 bg-white px-1.5 text-[length:var(--type-body-size)] ring-1 ring-gray-300 ring-inset outline-none focus:ring-2 focus:ring-brand-500"
+                      value={commandReason}
+                      onChange={(event) => setCommandReason(event.target.value)}
+                      placeholder="Informe o motivo real"
+                    />
+                  </label>
+                ) : null}
+
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {capabilities.canSubmit ? (
+                    <Button
+                      variant="secondary"
+                      loading={commandBusy}
+                      onClick={() => void runCommand('submit')}
+                    >
+                      Enviar
+                    </Button>
+                  ) : null}
+                  {capabilities.canReview ? (
+                    <Button
+                      variant="secondary"
+                      loading={commandBusy}
+                      onClick={() => void runCommand('review')}
+                    >
+                      Iniciar análise
+                    </Button>
+                  ) : null}
+                  {capabilities.canApprove ? (
+                    <Button
+                      variant="primary"
+                      loading={commandBusy}
+                      onClick={() => void runCommand('approve')}
+                    >
+                      Aprovar
+                    </Button>
+                  ) : null}
+                  {capabilities.canReject ? (
+                    <Button
+                      variant="secondary"
+                      disabled={commandReason.trim() === ''}
+                      loading={commandBusy}
+                      title={commandReason.trim() === '' ? 'Informe o motivo para executar' : undefined}
+                      onClick={() => void runCommand('reject')}
+                    >
+                      Rejeitar
+                    </Button>
+                  ) : null}
+                  {capabilities.canCancel ? (
+                    <Button
+                      variant="secondary"
+                      disabled={commandReason.trim() === ''}
+                      loading={commandBusy}
+                      title={commandReason.trim() === '' ? 'Informe o motivo para executar' : undefined}
+                      onClick={() => void runCommand('cancel')}
+                    >
+                      Cancelar
+                    </Button>
+                  ) : null}
+                  <Button
+                    variant="secondary"
+                    loading={commandBusy}
+                    disabled={detailState.detail.readiness.blockers.length > 0}
+                    title={
+                      detailState.detail.readiness.blockers.length > 0
+                        ? 'Existem pendências registradas para a conversão'
+                        : undefined
+                    }
+                    onClick={() => void runCommand('convert')}
+                  >
+                    Converter em OS
+                  </Button>
+                </div>
+
+                {commandError ? (
+                  <p className="cisne-type-helper m-0 mt-1.5 text-red-700" role="alert">
+                    {commandError}
+                  </p>
+                ) : null}
+              </div>
+
+              {/* DRILLBACK ÚNICO — uma vez por registro selecionado, nunca por linha. */}
+              <div className="cisne-divider--top mt-2 pt-2">
+                <Link
+                  to={`/app/requests/${detailState.detail.serviceRequest.id}`}
+                  className="cisne-type-action text-brand-700 no-underline hover:underline"
+                >
+                  Abrir ficha completa
+                </Link>
+              </div>
+            </>
+          ) : null}
+        </div>
       </DynamicContextDrawer>
     </ModulePage>
   );
@@ -924,110 +1193,6 @@ function ProcessingRow({
  * escrita (rowVersion, idempotencia, autorizacao). Sem capability, o painel declara a
  * ausencia em vez de oferecer um botao que o servidor negaria.
  */
-function NextActionLink({ item }: { item: ServiceRequestListItem }) {
-  return (
-    <Link
-      to={`/app/requests/${item.id}`}
-      className="inline-flex items-center rounded border border-brand-700 bg-brand-700 px-2.5 py-1 cisne-type-body font-semibold text-white no-underline hover:bg-brand-800"
-    >
-      {NEXT_STEP_ACTION_LABEL[item.status] ?? 'Abrir solicitação'}
-    </Link>
-  );
-}
-
-/**
- * VISÕES SALVAS — menu compacto da command surface.
- *
- * O recorte inteiro da fila e restaurado pela visao (a barra antiga fazia o mesmo). Sem visao
- * salva, o menu diz isso em vez de abrir um formulario permanente no meio da tela.
- */
-function SavedViewsMenu({
-  open,
-  onToggle,
-  views,
-  onApply,
-  onSave,
-  onDelete,
-}: {
-  open: boolean;
-  onToggle: () => void;
-  views: { id: string; name: string }[];
-  onApply: (view: { id: string; name: string; filters: Record<string, string> }) => void;
-  onSave: (name: string) => void;
-  onDelete: (id: string) => void;
-}) {
-  const [name, setName] = useState('');
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        aria-expanded={open}
-        className="rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body font-medium text-gray-700 hover:bg-gray-50"
-        onClick={onToggle}
-      >
-        Visões
-      </button>
-      {open ? (
-        <div className="absolute right-0 z-30 mt-1 w-64 rounded-md border border-gray-200 bg-white p-2 shadow-lg">
-          {views.length === 0 ? (
-            <p className="m-0 px-1 py-0.5 cisne-type-helper text-gray-500">Nenhuma visão salva.</p>
-          ) : (
-            <ul className="m-0 list-none p-0">
-              {views.map((view) => (
-                <li key={view.id} className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    className="flex-1 rounded px-1.5 py-1 text-left cisne-type-meta text-gray-700 hover:bg-gray-50"
-                    onClick={() =>
-                      onApply(view as { id: string; name: string; filters: Record<string, string> })
-                    }
-                  >
-                    {view.name}
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`Excluir visão: ${view.name}`}
-                    className="rounded px-1.5 py-1 cisne-type-meta text-gray-400 hover:bg-gray-50 hover:text-gray-700"
-                    onClick={() => onDelete(view.id)}
-                  >
-                    ×
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <form
-            className="mt-2 flex items-center gap-1 border-t border-gray-100 pt-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              onSave(name);
-              setName('');
-            }}
-          >
-            <input
-              type="text"
-              aria-label="Nome da visão"
-              placeholder="Salvar recorte atual como…"
-              className="min-w-0 flex-1 rounded border border-gray-300 px-1.5 py-1 cisne-type-meta"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-            />
-            <button
-              type="submit"
-              disabled={name.trim() === ''}
-              className="rounded border border-gray-300 px-1.5 py-1 cisne-type-body font-medium text-gray-700 disabled:opacity-50"
-            >
-              Salvar
-            </button>
-          </form>
-          <p className="cisne-type-helper m-0 px-1 pt-1.5">
-            Visões ficam neste navegador até o backend publicar visões salvas.
-          </p>
-        </div>
-      ) : null}
-    </div>
-  );
-}
 
 /** Recorte ativo, em uma linha — o cabecalho declara sobre o que a fila esta recortada. */
 function describeScope(filters: QueueFilters, hasRelationScope: boolean): string {
