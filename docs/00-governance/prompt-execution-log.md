@@ -19164,3 +19164,60 @@ Durante a recomposicao o arquivo ficou com fechamento JSX desbalanceado e variav
 (`reloadToken`, `reload`). Corrigido antes do commit; nenhum teste foi afrouxado para passar.
 
 WORKING_TREE: limpo apos commit
+
+---
+
+## ORDENS DE SERVICO — CONTEXT REGION REAL (rodada 7) — 2026-10-07
+
+STATUS: **PASS_COM_RESTRICAO**
+Commit: `398ba70` — feat(web): give service orders a real context region and operator-supplied reasons
+
+### Classificacao
+
+Categoria **A — WORKLIST** (workspace operacional com grade da engine). Contrato verificado:
+`GET /service-orders/:id` (detalhe), comandos reais `prepare`/`release`/`cancel`/`reopen`.
+
+### Defeitos encontrados e corrigidos
+
+1. **PAINEL DE CONTEXTO VAZIO.** O `DynamicContextDrawer` exibia APENAS um botão "Abrir ordem" e
+   nenhuma informação do registro — o "modal decorativo" que a ordem proíbe. Agora carrega o
+   detalhe REAL (`internalCode`, `origin`, `contractReference`, vínculos de solicitação/proposta/
+   pedido de compra) com skeleton localizado, e executa os quatro comandos reais.
+
+2. **MOTIVO EMPRESARIAL FABRICADO PELO FRONTEND.** O cancelamento em lote enviava
+   `cancellationReason: 'Cancelamento em lote solicitado na lista de ordens de serviço.'` — texto
+   FIXO, inventado pela tela para satisfazer o schema. Motivo é REGISTRO DE AUDITORIA. Agora o
+   operador informa o motivo e o comando é recusado sem ele (individual e em lote).
+
+### Evidencia DOM (Chromium 1440x900, dev server real — 17 ordens carregadas)
+
+| Criterio | Medido |
+| -------- | ------ |
+| `data-region` presentes | work-surface, operating-header, saved-view-surface, bulk-command-surface, worklist-master, context-region |
+| Linhas carregadas | 17 |
+| Altura de linha | 35px |
+| Overlap / overflow-x | **0 / 0** |
+
+### RESTRICAO REGISTRADA (nao ocultada)
+
+**Sticky NAO aplicado nesta pagina, e a tentativa foi revertida por medicao.** A superficie de
+trabalho desta tela contem 7 blocos (view switcher, drill-down de KPI, cockpit, export, filtro de
+metadado, busca e lote) e mediu **1097px de altura — mais alta que a viewport (804px)**. Um
+`position: sticky` maior que a janela nao gruda: ele empurra a fila para fora da dobra. Medido:
+**dobra util de -441px**. A classe sticky foi removida e o motivo ficou documentado no codigo.
+
+Tambem registrado: `worklist-master` ficou ANINHADO dentro de `work-surface` (heranca de um
+fragmento JSX da engine), o que e semanticamente imperfeito embora inofensivo sem sticky.
+
+### Validacao
+
+- `eslint src/service-orders` — **PASS**; `typecheck` — **PASS**
+- `service-orders-list.e2e` + `ServiceOrdersEngineListPage.test` — **9/9 PASS**
+- `git diff --check` — **PASS** (exit 0) apos remover linha em branco final
+
+### Incidente registrado
+
+Duas tentativas de fechamento de JSX ficaram desbalanceadas (fragmento vs `div`) e foram
+corrigidas antes do commit. Nenhum teste foi afrouxado.
+
+WORKING_TREE: limpo apos commit
