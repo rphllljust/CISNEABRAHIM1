@@ -12,7 +12,17 @@ import {
   type CrossReference,
   type MetaEntitySchema,
 } from '../../engine';
-import { EnterpriseMetric, WorklistStatePanel } from '../../ui/enterprise-list';
+import {
+  EnterpriseMetric,
+  WorklistClearFilters,
+  WorklistField,
+  WorklistFilterBar,
+  WorklistHeader,
+  WorklistStatePanel,
+  worklistControlClass,
+  worklistSelectClass,
+} from '../../ui/enterprise-list';
+import { Button } from '../../ui/Button';
 import {
   ModuleDeniedState,
   ModuleErrorState,
@@ -88,7 +98,13 @@ function supplierException(status: string): 'critical' | 'warning' | null {
   return null;
 }
 
-/** Próxima ação REAL, derivada do estado que o backend devolve. */
+/**
+ * PRÓXIMO PASSO REAL, derivado do estado que o backend devolve.
+ *
+ * Ele diz ao operador O QUE FAZER com o registro que está bloqueado — sem ele, a linha informa o
+ * problema e não o caminho. É derivado do MESMO estado que a exceção, então nunca contradiz a
+ * linha; e é curto porque mora na célula de estado, junto do rótulo.
+ */
 function nextActionLabel(status: string): string | null {
   if (ARCHIVED_STATUSES.has(status)) {
     return 'Reativar cadastro';
@@ -103,8 +119,7 @@ function nextActionLabel(status: string): string | null {
 }
 
 type ListState =
-  | { phase: 'loading' }
-  | { phase: 'denied' }
+  | { phase: 'loading' }  | { phase: 'denied' }
   | { phase: 'error'; message: string; retryable: boolean }
   | {
       phase: 'ready';
@@ -270,30 +285,28 @@ export function SuppliersEngineListPage() {
 
   return (
     <ModulePage>
-      <header className="mb-3 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-semibold text-gray-900">
-            {schema?.label ?? 'Fornecedores'}
-          </h1>
-          <p className="mt-0.5 text-xs text-gray-500">
-            Terceiros habilitados a receber pedidos de compra, com o estado de cada cadastro.
-          </p>
-        </div>
-        <button
-          type="button"
-          className="rounded border border-brand-700 bg-brand-700 px-3 py-1.5 text-xs font-medium text-white"
-          onClick={() => void navigate('/app/suppliers/new')}
-        >
-          Novo fornecedor
-        </button>
-      </header>
+      {/*
+        OPERATING HEADER — identidade da funcao + comando primario, na gramatica congelada da
+        foundation. Antes o cabecalho era um `<header>` local com `h1 text-lg` e um botao com
+        `border+bg` da mesma cor; agora usa `WorklistHeader`, entao a funcao abre com a MESMA
+        hierarquia de todas as outras worklists do CISNE.
+      */}
+      <WorklistHeader
+        title={schema?.label ?? 'Fornecedores'}
+        context="Terceiros habilitados a receber pedidos de compra, com o estado de cada cadastro."
+        action={
+          <Button variant="primary" onClick={() => void navigate('/app/suppliers/new')}>
+            Novo fornecedor
+          </Button>
+        }
+      />
 
       {/*
         FAIXA DE INDICADORES — responde "qual e o tamanho e o estado desta fila?" antes da
         primeira linha. A contagem total e a autoritativa do servidor; as demais sao contagens
         das linhas carregadas e dizem isso no rotulo.
       */}
-      <div className="mb-3 flex flex-wrap gap-4">
+      <div className="cisne-divider flex flex-wrap gap-0 py-1.5">
         {total !== null ? (
           <EnterpriseMetric value={total} label="fornecedores no cadastro" />
         ) : null}
@@ -308,25 +321,31 @@ export function SuppliersEngineListPage() {
       </div>
 
       {/*
-        TOOLBAR COMPACTA — busca e estado em uma faixa densa, mesma gramatica das demais
-        worklists. A busca e o recorte que o operador refaz todo dia, e os dois vao ao servidor.
+        COMMAND SURFACE + FILTER SURFACE — uma faixa, nao um formulario de consulta.
+        A busca e o recorte que o operador refaz todo dia, e os dois vao ao servidor.
       */}
-      <div className="mb-2 flex flex-wrap items-end gap-3">
-        <label className="flex min-w-64 flex-1 flex-col">
-          <span className="text-[11px] font-medium text-gray-600">Buscar</span>
+      <WorklistFilterBar
+        meta={
+          total !== null
+            ? `${offset + 1}–${offset + items.length} de ${total}`
+            : `${offset + 1}–${offset + items.length} nesta página`
+        }
+      >
+        <WorklistField label="Buscar" htmlFor="suppliers-search" grow>
           <input
+            id="suppliers-search"
             type="search"
-            className="mt-0.5 w-full rounded border border-gray-300 px-2 py-1 text-sm"
+            className={worklistControlClass}
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
             placeholder="Razão social, nome fantasia ou CNPJ"
             autoComplete="off"
           />
-        </label>
-        <label className="flex flex-col">
-          <span className="text-[11px] font-medium text-gray-600">Estado</span>
+        </WorklistField>
+        <WorklistField label="Estado" htmlFor="suppliers-status">
           <select
-            className="mt-0.5 rounded border border-gray-300 px-2 py-1 text-sm"
+            id="suppliers-status"
+            className={worklistSelectClass}
             value={statusFilter}
             onChange={(event) => {
               setStatusFilter(event.target.value);
@@ -340,21 +359,16 @@ export function SuppliersEngineListPage() {
               </option>
             ))}
           </select>
-        </label>
-        {hasActiveFilters ? (
-          <button
-            type="button"
-            className="rounded border border-slate-300 px-2 py-1 text-xs"
-            onClick={() => {
-              setSearchInput('');
-              setStatusFilter('');
-              setOffset(0);
-            }}
-          >
-            Limpar filtros
-          </button>
-        ) : null}
-      </div>
+        </WorklistField>
+        <WorklistClearFilters
+          visible={hasActiveFilters}
+          onClick={() => {
+            setSearchInput('');
+            setStatusFilter('');
+            setOffset(0);
+          }}
+        />
+      </WorklistFilterBar>
 
       {/* VISÕES SALVAS — o recorte que o operador remonta todo dia. `persistedLocally` e
           declarado pela engine: sem endpoint de visoes salvas o armazenamento e local. */}
@@ -366,13 +380,13 @@ export function SuppliersEngineListPage() {
         onApply={(view) => {
           setSearchInput(view.filters['search'] ?? '');
           setSearch(view.filters['search'] ?? '');
-          setStatusFilter(view.filters['statusFilter'] ?? '');
+          setStatusFilter(view.filters['filterStatus'] ?? '');
           setOffset(0);
         }}
       />
 
       {status === 'error' ? (
-        <p className="mb-2 text-sm text-amber-800" role="alert">
+        <p className="cisne-type-helper m-0 mb-1 text-amber-800" role="alert">
           Colunas indisponíveis no momento: exibindo a grade padrão.
         </p>
       ) : null}
@@ -391,25 +405,18 @@ export function SuppliersEngineListPage() {
           }
           action={
             hasActiveFilters ? (
-              <button
-                type="button"
-                className="rounded border border-slate-300 px-2 py-1 text-xs"
+              <WorklistClearFilters
+                visible
                 onClick={() => {
                   setSearchInput('');
                   setStatusFilter('');
                   setOffset(0);
                 }}
-              >
-                Limpar filtros
-              </button>
+              />
             ) : (
-              <button
-                type="button"
-                className="rounded border border-brand-700 bg-brand-700 px-3 py-1.5 text-xs font-medium text-white"
-                onClick={() => void navigate('/app/suppliers/new')}
-              >
+              <Button variant="primary" onClick={() => void navigate('/app/suppliers/new')}>
                 Cadastrar fornecedor
-              </button>
+              </Button>
             )
           }
         />
@@ -450,30 +457,40 @@ export function SuppliersEngineListPage() {
             }
             // EXCECAO VISIVEL na coluna de estado: e ela que explica por que o fornecedor
             // nao pode receber compra. O rotulo e humano — o enum cru nao aparece.
+            //
+            // DENSIDADE: a celula empilhava TRES linhas (estado, excecao e proxima acao), o que
+            // dobrava a altura de TODA a grade — medido, a pagina tinha 1675px para 18 linhas e
+            // apenas 5 registros cabiam na primeira dobra. Estado e excecao cabem na MESMA linha
+            // (o operador compara na horizontal); a proxima acao ja e oferecida pelo comando real
+            // da propria linha (`SupplierRowActions`), entao repeti-la em texto era ruido.
             if (field.name === 'status') {
               const exception = supplierException(item.status);
+              const nextAction = nextActionLabel(item.status);
               return (
-                <div className="flex flex-col gap-1">
-                  <span className="text-[12px] font-medium text-gray-800">
+                <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
+                  <span className="text-[length:var(--type-body-size)] font-medium text-gray-900">
                     {statusLabel(item.status)}
                   </span>
                   {exception ? (
                     <span
                       className={
                         exception === 'critical'
-                          ? 'text-[11px] font-medium text-red-700'
-                          : 'text-[11px] font-medium text-amber-700'
+                          ? 'text-[length:var(--type-micro-size)] font-semibold text-red-700'
+                          : 'text-[length:var(--type-micro-size)] font-semibold text-amber-700'
                       }
                     >
                       {exception === 'critical' ? 'Fora de operação' : 'Não pode comprar'}
                     </span>
                   ) : null}
-                  {nextActionLabel(item.status) ? (
-                    <span className="text-[11px] text-gray-500">
-                      {nextActionLabel(item.status)}
-                    </span>
+                  {nextAction ? (
+                    <>
+                      <span aria-hidden="true" className="text-gray-300">
+                        ·
+                      </span>
+                      <span className="cisne-type-helper">{nextAction}</span>
+                    </>
                   ) : null}
-                </div>
+                </span>
               );
             }
             return undefined;
@@ -488,28 +505,35 @@ export function SuppliersEngineListPage() {
         crossReferences={crossReferences}
       >
         {selected ? (
-          <div className="space-y-2 text-xs text-gray-600">
-            <p className="font-medium text-gray-800">{selected.legalName}</p>
-            <p>CNPJ: {selected.taxId}</p>
-            {selected.paymentTerms ? <p>Condição de pagamento: {selected.paymentTerms}</p> : null}
-            <p>Estado: {statusLabel(selected.status)}</p>
-            <button
-              type="button"
-              className="rounded border border-brand-700 bg-brand-700 px-3 py-1.5 text-xs font-medium text-white"
-              onClick={() => void navigate(`/app/suppliers/${selected.id}`)}
-            >
+          <dl className="m-0 grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)] gap-x-3 gap-y-1.5">
+            <dt className="cisne-meta-label pt-0.5">Razão social</dt>
+            <dd className="cisne-meta-value m-0">{selected.legalName}</dd>
+            <dt className="cisne-meta-label pt-0.5">CNPJ</dt>
+            <dd className="cisne-meta-value m-0">{selected.taxId}</dd>
+            {selected.paymentTerms ? (
+              <>
+                <dt className="cisne-meta-label pt-0.5">Pagamento</dt>
+                <dd className="cisne-meta-value m-0">{selected.paymentTerms}</dd>
+              </>
+            ) : null}
+            <dt className="cisne-meta-label pt-0.5">Estado</dt>
+            <dd className="cisne-meta-value m-0">{statusLabel(selected.status)}</dd>
+          </dl>
+        ) : null}
+
+        {/* COMANDO DE CONTEXTO — acesso a ficha profunda sem abandonar a fila. */}
+        {selected ? (
+          <div className="cisne-divider--top mt-2 pt-2">
+            <Button variant="secondary" onClick={() => void navigate(`/app/suppliers/${selected.id}`)}>
               Abrir ficha
-            </button>
+            </Button>
           </div>
         ) : null}
       </DynamicContextDrawer>
 
-      <footer className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-2">
-        <p className="text-[11px] text-gray-500">
-          {total !== null
-            ? `${offset + 1}–${offset + items.length} de ${total}`
-            : `${offset + 1}–${offset + items.length} nesta página`}
-          {activeStatusLabel ? ` · estado: ${activeStatusLabel}` : ''}
+      <footer className="cisne-divider--top mt-1 flex flex-wrap items-center justify-between gap-3 pt-1.5">
+        <p className="cisne-type-helper m-0">
+          {activeStatusLabel ? `estado: ${activeStatusLabel}` : 'sem recorte de estado'}
           {hasActiveFilters ? ` · ${items.length} nesta página` : ''}
         </p>
         <ModulePagination
