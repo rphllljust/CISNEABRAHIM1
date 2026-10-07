@@ -27,7 +27,6 @@ import {
   WorklistHeader,
   WorklistStatePanel,
   enterpriseRowClass,
-  enterpriseTableCardClass,
   worklistControlClass,
   worklistSelectClass,
 } from '../../ui/enterprise-list';
@@ -262,6 +261,7 @@ export function ProposalsListPage() {
         de indicadores, sem moldura. A familia usa a mesma peca para o operador reconhecer a tela
         pelo mesmo desenho em todas as worklists.
       */}
+      <div data-region="operating-header">
       <WorklistHeader
         title="Propostas comerciais"
         /*
@@ -278,6 +278,7 @@ export function ProposalsListPage() {
           ) : null
         }
       />
+      </div>
 
       {/*
         FILA DE DECISÃO — faixa COMPACTA, não card explicativo.
@@ -336,6 +337,7 @@ export function ProposalsListPage() {
         operador ver a primeira proposta. O recorte continua indo ao SERVIDOR, e nenhum filtro
         foi removido — só deixou de ser formulário permanente.
       */}
+      <div data-region="command-filter-surface">
       <WorklistFilterBar
         meta={
           <>
@@ -451,8 +453,17 @@ export function ProposalsListPage() {
           </div>
         ) : null}
       </WorklistFilterBar>
+      </div>
 
-      <div className={enterpriseTableCardClass}>
+      {/*
+        WORK QUEUE — a fila é a ÁREA DE TRABALHO, não um card dentro dela.
+
+        Antes: `enterpriseTableCardClass` (`rounded-md border bg-white shadow-[...]`) em volta da
+        lista. Como a área de trabalho já é branca, a fila aparecia como "tabela dentro de card" —
+        cardification de segundo nível. Agora a fila não tem caixa: é delimitada pelo divisor da
+        superfície de filtro e pela largura da própria lista.
+      */}
+      <div data-region="worklist-master">
         {items.length === 0 ? (
           <WorklistStatePanel
             title={
@@ -623,8 +634,12 @@ export function ProposalsListPage() {
                     {/*
                       ESTADO e PRÓXIMA AÇÃO com pesos DIFERENTES: o selo diz ONDE a proposta
                       está; a linha abaixo diz O QUE FAZER, com peso tipográfico próprio e
-                      separada por um traço. Antes os dois eram dois parágrafos de texto de mesmo
-                      tamanho, sem hierarquia — o operador não distinguia estado de ação.
+                      separada por um traço.
+
+                      O link "Abrir" foi REMOVIDO: a IDENTIDADE da linha (`proposalCode`) já é o
+                      drillback real para a ficha completa, e repetir a mesma ação em toda linha é
+                      exatamente o padrão CRUD que esta wave elimina. Duas portas para o mesmo
+                      destino não ajudam o operador — só duplicam o alvo de clique.
                     */}
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -633,13 +648,6 @@ export function ProposalsListPage() {
                         ) : (
                           <span className="text-[13px] text-gray-500">Sem versão</span>
                         )}
-                        <Link
-                          to={`/app/proposals/${item.id}`}
-                          className="text-[12px] font-medium text-brand-700 no-underline hover:text-brand-800"
-                          aria-label={`Abrir proposta ${item.proposalCode}`}
-                        >
-                          Abrir
-                        </Link>
                       </div>
                       <p className="mt-1 border-l-2 border-brand-200 pl-2 text-[12px] leading-snug font-medium text-gray-800">
                         {item.currentVersionStatus
