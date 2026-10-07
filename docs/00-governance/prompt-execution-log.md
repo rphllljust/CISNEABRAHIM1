@@ -19287,3 +19287,68 @@ Nao foram introduzidas nem corrigidas aqui; permanecem registradas.
 - `git diff --check` — **PASS** (exit 0)
 
 WORKING_TREE: limpo apos commit
+
+---
+
+## CONTAS A PAGAR — WORK AREA (rodada 9) — 2026-10-07
+
+STATUS: **PASS_COM_RESTRICAO**
+Commit: `d23c8aa` — feat(web): align payables work area regions with saved views before filters
+
+### Classificacao
+
+Categoria **A — WORKLIST**. Contrato verificado: `GET /finance/payables/:id` (detalhe),
+`payPayable` / `cancelPayable` / `reversePayable` (comandos reais).
+
+### Alteracao aplicada
+
+- Regioes estruturais adicionadas: operating-header, drilldown-surface, saved-view-surface,
+  command-filter-surface, bulk-command-surface, worklist-master.
+- **ORDEM CORRETA DESDE A PRIMEIRA VERSAO**: a faixa de visoes salvas nasceu ANTES da superficie de
+  filtro, conforme a gramatica (OPERATING HEADER -> SAVED VIEWS -> COMMAND/FILTER -> WORK QUEUE).
+  Em Contas a Receber essa ordem precisou ser corrigida por medicao na rodada anterior; aqui a
+  licao foi aplicada de inicio.
+
+### Evidencia DOM (Chromium 1440x900, dev server real)
+
+| Regiao | top | altura |
+| ------ | --- | ------ |
+| operating-header | 149 | 43 |
+| **saved-view-surface** | 276 | 43 |
+| command-filter-surface | 319 | 42 |
+| worklist-master | 391 | 154 |
+
+`occluded = 0`; `docOverflowX = 0`.
+
+### Achado de HARNESS (importante para as proximas rodadas)
+
+O gate servia **MODULO TRANSFORMADO ANTIGO** a partir do perfil persistente do Chrome. Medido:
+apos editar `PayablesListPage.tsx`, o dev server JA servia o arquivo com `data-region`, mas o DOM
+continuava SEM as regioes — bundle em cache. O gate foi corrigido com
+`Network.setCacheDisabled({ cacheDisabled: true })`.
+
+**Um gate que mede codigo velho pode REPROVAR ou APROVAR a coisa errada.** Este achado invalida,
+em principio, qualquer medicao anterior feita logo apos uma edicao. Para fechar a duvida, a pagina
+alterada na rodada anterior foi RE-MEDIDA com o gate corrigido: os numeros de Contas a Receber
+(operating 149 / saved 276 / filter 319 / master 391, 3 linhas, linha de 31px, 0 overlap,
+0 links repetidos) se mantem identicos — ou seja, a evidencia da rodada 8 permanece valida.
+
+### RESTRICAO REGISTRADA (nao ocultada)
+
+- O banco de desenvolvimento tem **0 contas a pagar** (`GET /api/v1/finance/payables` devolve
+  `total: 0`). A grade populada, a interacao de linha e o painel de contexto NAO puderam ser
+  exercitados com dado real.
+- `work-surface` (sticky) NAO declarada nesta pagina, pelo mesmo motivo de Contas a Receber: a
+  estabilidade da faixa ainda nao foi medida isoladamente neste workspace.
+
+### Falhas PREEXISTENTES (identicas ao baseline)
+
+`finance-smart-list` 7/7 e `finance-backoffice` 4/10 falham por timeout tambem no baseline limpo
+(verificado por `git stash` na rodada 8). Contagem inalterada nesta rodada: 11 falhas.
+
+### Validacao
+
+- `eslint src/finance/pages/PayablesListPage.tsx` — **PASS**; `typecheck` — **PASS**
+- `git diff --check` — **PASS** (exit 0)
+
+WORKING_TREE: limpo apos commit
