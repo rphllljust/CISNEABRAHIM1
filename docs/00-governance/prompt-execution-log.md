@@ -20508,3 +20508,70 @@ restantes são comentários que documentam a remoção. `'anonymous'` saiu de to
    uso real — registrada em vez de assumida como inofensiva.
 
 WORKING_TREE: 13 arquivos + este registro
+
+---
+
+## FAMÍLIA `operator` DE VISÕES SALVAS — DONO GENÉRICO (rodada 23) — 2026-10-07
+
+STATUS: **PASS_COM_RESTRICAO** (com verificação end-to-end **INCONCLUSIVA**, declarada abaixo)
+Commit: `fix(web): stop persisting operator saved views under a shared owner`
+
+### O que a leitura revelou — e corrige uma imprecisão minha
+
+A rodada 22 registrou que existem DUAS famílias de visões salvas e que só a da engine tinha sido
+corrigida. Ao abrir a segunda, o resultado foi em parte MELHOR e em parte PIOR do que eu havia
+registrado:
+
+- **Melhor**: `operator/smart-list/useSavedViews` lê a identidade **internamente** (`useAuth()`), e o
+  primeiro argumento de `useSavedViews('commercial.clients', …)` é o **ESCOPO da tela**, não um dono.
+  Ou seja: **Clientes NÃO tinha o defeito do dono literal** — minha nota da rodada 22 estava
+  imprecisa e fica corrigida aqui.
+- **Pior**: quando não há identidade, a chave cai em `'anon'` — um namespace **compartilhado**: toda
+  sessão sem identidade enxergaria as visões das outras. É o MESMO defeito, na forma de dono
+  genérico em vez de literal.
+
+### Correção
+
+Mesmo contrato que fixei na família da engine: **sem dono, não lê e não grava**.
+`readStore` e `writeStore` recusam operar sem identidade; `persistable` passa a ser publicado no
+resultado do hook para a tela poder declarar a indisponibilidade. `storageKeyFor` foi PRESERVADO
+como está — ele é contrato testado (`storageKeyFor('finance.receivables', 'identity-abc-123')` não
+pode conter o id cru), e o comentário agora diz que ele não é caminho de I/O.
+
+### VERIFICAÇÃO — e por que ela NÃO fecha
+
+Gates técnicos: `tsc` **PASS**; `eslint src/operator` **PASS**; `src/operator` + `src/clients` +
+`src/finance` — **11 falhas / 185 passes**, e as 11 são exatamente as pré-existentes de finanças
+(`finance-smart-list` 7/7, `finance-backoffice` 4/10). **Zero falha nova.**
+
+**Experimento controlado, e o resultado honesto**: semeei ANTES do app subir as DUAS lojas com a
+MESMA forma de dado — `…:commercial.clients:anon` ("VISAO ANONIMA") e
+`…:commercial.clients:19scmwb` ("VISAO DA IDENTIDADE", hash da identidade real). Se só a segunda
+aparecesse, a recusa estaria provada. **Nenhuma das duas apareceu.**
+
+Veredito do gate: **INCONCLUSIVO** — o mais provável é que `sanitizeSmartListConfig` tenha descartado
+a forma semeada (`config: {}`), já que a tela declara allow-list. **Não conto isso como aprovação**, e
+o próprio gate foi escrito para devolver INCONCLUSIVO em vez de "passou".
+
+Chave da identidade conferida por cálculo independente: `hashScope('6f007b51-…')` = `19scmwb`,
+replicado no gate a partir do algoritmo do módulo — a chave esperada era a certa; o que não foi
+possível confirmar foi a LEITURA renderizada.
+
+### RESTRIÇÕES CONHECIDAS
+
+1. **VERIFICAÇÃO END-TO-END PENDENTE** para a recusa de leitura sem identidade. Para fechar, é
+   preciso semear uma visão com `config` que passe o sanitizador da tela (ler `sanitizeSmartListConfig`
+   e a allow-list de `commercial.clients`) ou exercitar o formulário de salvar da `SavedViewsBar`,
+   que **não tem `data-testid`** — as duas coisas custam mais do que esta rodada tinha.
+2. **A BRANCHA `'anon'` ERA LATENTE, NÃO ATIVA.** Numa sessão autenticada normal a identidade sempre
+   existe, então a loja compartilhada não era usada no app. Diferente da família da engine, onde o
+   dono literal `'local-operator'` **estava ativo em produção de desenvolvimento** e foi provado
+   end-to-end na rodada 22. A distinção importa e não deve ser apagada: esta rodada fecha um defeito
+   **latente**; aquela fechou um defeito **ativo**.
+3. **`persistable` ainda NÃO está ligado ao `canSave` desta família.** O hook publica o campo, mas as
+   telas que usam `SavedViewsBar` ainda não o consomem — então, no caso sem identidade, o formulário
+   continua sendo oferecido. É a próxima unidade desta linha e está enumerada, não escondida.
+4. As duas famílias **continuam sem unificação** (auditoria aponta três implementações). Rodada
+   própria, não tentada.
+
+WORKING_TREE: 1 arquivo + este registro

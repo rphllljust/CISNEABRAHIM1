@@ -140,6 +140,14 @@ function hashScope(value: string): string {
   return (hash >>> 0).toString(36);
 }
 
+/*
+ * CHAVE DE ARMAZENAMENTO — o dono é o HASH da identidade, nunca o id cru.
+ *
+ * `'anon'` continua existindo como fallback de CHAVE, mas deixou de ser um namespace usado para
+ * I/O: `readStore`/`writeStore` recusam operar sem identidade (ver abaixo). A função é exportada
+ * porque é contrato testado (`storageKeyFor('finance.receivables', 'identity-abc-123')` não pode
+ * conter o id), não porque alguém deva gravar sob ausência de dono.
+ */
 export function storageKeyFor(scope: string, identityId: string | null | undefined): string {
   const owner = identityId ? hashScope(identityId) : 'anon';
   return `${STORAGE_PREFIX}:${scope}:${owner}`;
@@ -151,6 +159,17 @@ function readStore(
   allowedFilters?: SmartListAllowedFilters,
 ): SavedView[] {
   if (typeof window === 'undefined') {
+    return [];
+  }
+  /*
+   * SEM IDENTIDADE, NÃO LÊ.
+   *
+   * Antes, a ausência de identidade caía em `'anon'` — um namespace COMPARTILHADO: toda sessão sem
+   * identidade enxergaria as visões salvas das outras. É o mesmo defeito que a família da engine
+   * tinha com o dono literal, aqui na forma de um dono genérico. A resposta correta é ausência de
+   * visões, e quem chama declara isso (`persistable`).
+   */
+  if (!identityId) {
     return [];
   }
   try {
@@ -195,6 +214,10 @@ function writeStore(
   if (typeof window === 'undefined') {
     return;
   }
+  /* SEM IDENTIDADE, NÃO GRAVA: um dono genérico gravaria a visão de um operador no espaço de outro. */
+  if (!identityId) {
+    return;
+  }
   try {
     const payload: SavedViewsStore = { version: 1, views: views.slice(0, MAX_VIEWS_PER_SCOPE) };
     window.localStorage.setItem(storageKeyFor(scope, identityId), JSON.stringify(payload));
@@ -223,6 +246,13 @@ export type UseSavedViewsResult = {
   renameView: (id: string, name: string) => boolean;
   removeView: (id: string) => void;
   getView: (id: string) => SavedView | undefined;
+  /**
+   * `false` quando NÃO há identidade: a visão salva não pode existir.
+   *
+   * Existe para a tela poder DECLARAR a indisponibilidade em vez de oferecer um "Salvar visão" que
+   * não salva nada. Mesmo contrato já adotado pela família da engine (`DynamicSavedViews`).
+   */
+  persistable: boolean;
 };
 
 /**
@@ -308,7 +338,15 @@ export function useSavedViews(
   );
 
   return useMemo(
-    () => ({ views, builtInViews, saveView, renameView, removeView, getView }),
-    [views, builtInViews, saveView, renameView, removeView, getView],
+    () => ({
+      views,
+      builtInViews,
+      saveView,
+      renameView,
+      removeView,
+      getView,
+      persistable: identityId !== null && identityId !== undefined,
+    }),
+    [views, builtInViews, saveView, renameView, removeView, getView, identityId],
   );
 }
