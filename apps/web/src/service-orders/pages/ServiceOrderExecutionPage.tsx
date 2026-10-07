@@ -20,7 +20,6 @@ import { getServiceOrder } from '../api/service-orders-api';
 import { mapServiceOrdersErrorToMessage } from '../api/service-orders-error-messages';
 import type { ActivitySubmitPayload } from '../components/ExecutionActivityPanel';
 import { ExecutionActivityPanel } from '../components/ExecutionActivityPanel';
-import { ExecutionHeader } from '../components/ExecutionHeader';
 import { ExecutionTimeline } from '../components/ExecutionTimeline';
 import { EvidenceUploader, type EvidenceUploadHandler } from '../components/EvidenceUploader';
 import { OccurrenceForm } from '../components/OccurrenceForm';
@@ -43,6 +42,13 @@ import {
   isFileEvidenceKind,
   parseExecutionRequirements,
 } from '../utils/execution-requirements';
+import {
+  EnterpriseObjectHeader,
+  EnterpriseObjectPage,
+  ObjectPanel,
+  ObjectStateFlow,
+  type ObjectStateStep,
+} from '../../enterprise-object';
 
 type PageState =
   | { phase: 'loading' }
@@ -461,17 +467,38 @@ export function ServiceOrderExecutionPage() {
     order.status === SERVICE_ORDER_STATUSES.Paused;
 
   return (
-    <div className="execution-page">
-      <ExecutionHeader
-        orderNumber={order.orderNumber}
-        status={order.status}
-        serviceName={order.serviceSnapshot.serviceName}
-        clientLabel={readClientLabel(order)}
-        locationLabel={order.description}
-        scheduleLabel={readScheduleLabel(allocations)}
-        equipmentLabel={readEquipmentLabel(allocations)}
-        operatorLabel={readRoleLabel(allocations) ?? '—'}
-      />
+    <EnterpriseObjectPage
+      className="execution-page gap-3"
+      breadcrumb={[{ label: 'Ordens de serviço', href: '/app/service-orders' }]}
+      header={
+        <EnterpriseObjectHeader
+          className="border-gray-200 px-5 py-4 shadow-none"
+          reference={order.orderNumber}
+          title={order.orderNumber}
+          subtitle={order.serviceSnapshot.serviceName}
+          status={{ label: executionStatusLabel(order.status), description: 'Estado atual da execução' }}
+          metadata={[
+            { label: 'Cliente', value: readClientLabel(order) },
+            { label: 'Local', value: order.description },
+            { label: 'Horário', value: readScheduleLabel(allocations) },
+            { label: 'Equipamento', value: readEquipmentLabel(allocations) },
+            { label: 'Função', value: readRoleLabel(allocations) },
+          ]}
+          secondaryActions={[{ id: 'order-detail', label: 'Detalhe da OS', to: `/app/service-orders/${serviceOrderId}` }]}
+        />
+      }
+      stateFlow={<ObjectStateFlow steps={executionStateSteps()} currentId={order.status} title="Fluxo da OS" className="border-gray-200 px-5 shadow-none" />}
+      aside={
+        <div className="border-l border-gray-200 pl-4">
+          <ObjectPanel title="Planejado versus realizado" className="shadow-none">
+            <PlannedVsActualPanel comparison={bundle.comparison} />
+          </ObjectPanel>
+          <ObjectPanel title="Histórico da execução" className="shadow-none">
+            <ExecutionTimeline entries={bundle.entries} evidence={bundle.evidence} occurrences={bundle.occurrences} />
+          </ObjectPanel>
+        </div>
+      }
+    >
 
       {feedback ? (
         <div
@@ -484,7 +511,8 @@ export function ServiceOrderExecutionPage() {
         </div>
       ) : null}
 
-      <RequirementChecklist items={coverage} instructions={order.description} />
+      <main className="space-y-6">
+        <RequirementChecklist items={coverage} instructions={order.description} />
 
       {order.status === SERVICE_ORDER_STATUSES.Completed ? (
         <section className="execution-section" aria-labelledby="execution-measurement-next">
@@ -504,14 +532,6 @@ export function ServiceOrderExecutionPage() {
           onUpload={handleEvidenceUpload}
         />
       ) : null}
-
-      <PlannedVsActualPanel comparison={bundle.comparison} />
-
-      <ExecutionTimeline
-        entries={bundle.entries}
-        evidence={bundle.evidence}
-        occurrences={bundle.occurrences}
-      />
 
       <ExecutionActivityPanel
         open={activityOpen}
@@ -594,6 +614,35 @@ export function ServiceOrderExecutionPage() {
         onCancel={() => setConfirmAction(null)}
         onConfirm={() => void runTransition('pause')}
       />
-    </div>
+      </main>
+    </EnterpriseObjectPage>
   );
+}
+
+function executionStatusLabel(status: string): string {
+  return {
+    [SERVICE_ORDER_STATUSES.Draft]: 'Rascunho',
+    [SERVICE_ORDER_STATUSES.Prepared]: 'Preparada',
+    [SERVICE_ORDER_STATUSES.Released]: 'Liberada',
+    [SERVICE_ORDER_STATUSES.InExecution]: 'Em execução',
+    [SERVICE_ORDER_STATUSES.Paused]: 'Pausada',
+    [SERVICE_ORDER_STATUSES.Completed]: 'Concluída',
+    [SERVICE_ORDER_STATUSES.Cancelled]: 'Cancelada',
+  }[status] ?? status;
+}
+
+function executionStateSteps(): ObjectStateStep[] {
+  return [
+    SERVICE_ORDER_STATUSES.Draft,
+    SERVICE_ORDER_STATUSES.Prepared,
+    SERVICE_ORDER_STATUSES.Released,
+    SERVICE_ORDER_STATUSES.InExecution,
+    SERVICE_ORDER_STATUSES.Paused,
+    SERVICE_ORDER_STATUSES.Completed,
+    SERVICE_ORDER_STATUSES.Cancelled,
+  ].map((id) => ({
+    id,
+    label: executionStatusLabel(id),
+    terminal: id === SERVICE_ORDER_STATUSES.Completed || id === SERVICE_ORDER_STATUSES.Cancelled,
+  }));
 }
