@@ -15,6 +15,14 @@ export type DynamicSavedViewsBarProps = {
   onDelete: (id: string) => void;
   /** `true` quando o backend ainda não publica visões salvas. */
   persistedLocally?: boolean;
+  /**
+   * `false` quando NÃO existe identidade para ser dona da visão.
+   *
+   * O formulário de salvar deixa de ser oferecido: um "Salvar visão" que não salva nada é pior que
+   * a ausência dele — o operador digita um nome, confirma e perde a configuração ao recarregar sem
+   * entender por quê. A barra DECLARA a indisponibilidade em vez de fingir.
+   */
+  persistable?: boolean;
 };
 
 export function DynamicSavedViewsBar({
@@ -23,6 +31,7 @@ export function DynamicSavedViewsBar({
   onSave,
   onDelete,
   persistedLocally = false,
+  persistable = true,
 }: DynamicSavedViewsBarProps): React.ReactElement {
   const [name, setName] = useState('');
 
@@ -45,7 +54,13 @@ export function DynamicSavedViewsBar({
     >
       <span className="cisne-meta-label shrink-0">{t('views.saved')}</span>
 
-      {views.length === 0 ? (
+      {!persistable ? (
+        <span className="cisne-type-helper" data-testid="dynamic-saved-views-unavailable">
+          Indisponível sem sessão identificada — não há dono para a visão.
+        </span>
+      ) : null}
+
+      {persistable && views.length === 0 ? (
         <span className="cisne-type-helper">{t('views.empty')}</span>
       ) : (
         <ul className="m-0 flex list-none flex-wrap items-center gap-1 p-0">
@@ -77,6 +92,7 @@ export function DynamicSavedViewsBar({
         </ul>
       )}
 
+      {persistable ? (
       <form
         className="ml-auto flex items-center gap-1.5"
         onSubmit={(event) => {
@@ -103,6 +119,7 @@ export function DynamicSavedViewsBar({
           {t('views.save')}
         </button>
       </form>
+      ) : null}
     </div>
   );
 }

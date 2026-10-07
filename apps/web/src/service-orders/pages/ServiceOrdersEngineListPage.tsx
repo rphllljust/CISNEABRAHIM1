@@ -212,7 +212,8 @@ export function ServiceOrdersEngineListPage() {
     return values;
   }, [searchParams]);
 
-  const savedViews = useSavedViews(identityId ?? 'anonymous', 'service-orders');
+  /* SEM IDENTIDADE, NÃO PERSISTE: `null` em vez do namespace compartilhado `'anonymous'`. */
+  const savedViews = useSavedViews(identityId ?? null, 'service-orders');
 
   const loadRows = useCallback(
     async (signal?: AbortSignal) => {

@@ -137,7 +137,8 @@ export function PurchaseOrdersListPage() {
   */
   const navigate = useNavigate();
   const { identityId } = useAuth();
-  const savedViews = useSavedViews(identityId ?? 'anonymous', 'purchase-orders');
+  /* SEM IDENTIDADE, NÃO PERSISTE: `null` em vez do namespace compartilhado `'anonymous'`. */
+  const savedViews = useSavedViews(identityId ?? null, 'purchase-orders');
   // RELATION CONTRACT: o recorte vindo da URL (clique em "Pedidos de compra N" na object page
   // do cliente) precisa chegar a consulta autorizada. Sem isto o numero da relacao abriria a
   // lista completa, afirmando um recorte que nao existe.

@@ -6,6 +6,7 @@ import {
   useSavedViews,
   type CrossReference,
 } from '../../engine';
+import { useOptionalIdentityId } from '../../auth/context/AuthProvider';
 import { mapAssetErrorToMessage } from '../../assets/api/asset-error-messages';
 import { AssetsApiError } from '../../assets/api/physical-assets-api';
 import { AssetLifecycleStatusBadge } from '../../assets/components/AssetLifecycleStatusBadge';
@@ -69,7 +70,20 @@ type ListState =
 
 export function FleetListPage() {
   const { capabilities } = useAssetCapabilities();
-  const savedViews = useSavedViews('local-operator', 'fleet-vehicles');
+  /*
+   * VISÕES SALVAS COM DONO REAL.
+   *
+   * Antes: `useSavedViews('local-operator', 'fleet-vehicles')` — um LITERAL como dono, ou seja, um
+   * namespace compartilhado que não corresponde a nenhuma identidade autenticada. Duas contas no
+   * mesmo navegador veriam as visões uma da outra; e a auditoria classificou o literal como
+   * arquitetura de protótipo numa superfície empresarial.
+   *
+   * O literal existia porque a única forma de ler a identidade (`useAuth`) LANÇA fora do
+   * `AuthProvider`. A capacidade passou a aceitar ausência de dono (`string | null`) e a existir um
+   * acesso que NÃO lança: sem identidade, a visão NÃO é persistida nem lida, e a barra declara isso
+   * em vez de oferecer um "Salvar visão" que não salva.
+   */
+  const savedViews = useSavedViews(useOptionalIdentityId(), 'fleet-vehicles');
   const [selected, setSelected] = useState<PhysicalAsset | null>(null);
   const { resourceTypes } = useAssetResourceTypes();
   const vehicleTypes = resourceTypes.filter(
@@ -241,6 +255,7 @@ export function FleetListPage() {
       <DynamicSavedViewsBar
         views={savedViews.views}
         persistedLocally={savedViews.persistedLocally}
+        persistable={savedViews.persistable}
         onSave={(name) =>
           savedViews.save(
             name,

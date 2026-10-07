@@ -125,7 +125,8 @@ export function ServiceDefinitionsListPage() {
    * capacidade da engine, persistida por identidade e DECLARADA como local enquanto não existe
    * endpoint de visões salvas.
    */
-  const savedViews = useSavedViews(identityId ?? 'anonymous', 'catalog-service-definitions');
+  /* SEM IDENTIDADE, NÃO PERSISTE: `null` em vez do namespace compartilhado `'anonymous'`. */
+  const savedViews = useSavedViews(identityId ?? null, 'catalog-service-definitions');
   const [selected, setSelected] = useState<ServiceDefinition | null>(null);
   const [statusFilter, setStatusFilter] = useState<'' | CatalogLineageStatus>('');
   const [versionFilter, setVersionFilter] = useState<VersionFilter>('');

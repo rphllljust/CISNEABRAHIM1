@@ -141,7 +141,8 @@ export function SuppliersEngineListPage() {
   const navigate = useNavigate();
   const { identityId } = useAuth();
   const { schema, status } = useEntitySchema('suppliers');
-  const savedViews = useSavedViews(identityId ?? 'anonymous', 'suppliers');
+  /* SEM IDENTIDADE, NÃO PERSISTE: `null` em vez do namespace compartilhado `'anonymous'`. */
+  const savedViews = useSavedViews(identityId ?? null, 'suppliers');
 
   const [offset, setOffset] = useState(0);
   const [statusFilter, setStatusFilter] = useState('');

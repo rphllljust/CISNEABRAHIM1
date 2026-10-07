@@ -195,6 +195,22 @@ export function useAuth(): AuthContextValue {
   return context;
 }
 
+/**
+ * IDENTIDADE OPCIONAL — para capacidades que precisam de um DONO mas não podem exigir provider.
+ *
+ * Existe por um defeito concreto: `useSavedViews` precisa da identidade para chavear a visão salva,
+ * e as telas que a usam não tinham como obtê-la sem `useAuth` — que LANÇA fora do `AuthProvider`.
+ * A saída encontrada na prática foi passar um literal (`'local-operator'`), criando um dono
+ * compartilhado que não corresponde a ninguém.
+ *
+ * `null` aqui significa "não há identidade", e quem chama decide o que fazer com isso. O contrato
+ * correto é NÃO PERSISTIR — nunca inventar um dono.
+ */
+export function useOptionalIdentityId(): string | null {
+  const context = useContext(AuthContext);
+  return context?.identityId ?? null;
+}
+
 export function mapLoginError(error: unknown): AuthUserMessage {
   if (error instanceof AuthApiError) {
     return error.userMessage;

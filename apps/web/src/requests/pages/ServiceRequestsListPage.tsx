@@ -8,6 +8,7 @@ import {
   type SetStateAction,
 } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { useOptionalIdentityId } from '../../auth/context/AuthProvider';
 import { RELATION_SCOPE_KEYS, useRelationScope } from '../../enterprise-object';
 import { isPersistableValue } from '../../operator';
 import { DynamicContextDrawer, useSavedViews, type CrossReference } from '../../engine';
@@ -204,7 +205,15 @@ export function ServiceRequestsListPage() {
    * (ver `useQueueUrlSync`), entao salvar a visao preserva o endereco compartilhavel: a visao
    * restaura o recorte OPERACIONAL real, nao um estado visual solto.
    */
-  const savedViews = useSavedViews('local-operator', 'service-requests');
+  /*
+   * DONO REAL — o literal `'local-operator'` foi REMOVIDO.
+   *
+   * Ele era um namespace compartilhado que não correspondia a nenhuma identidade autenticada: duas
+   * contas no mesmo navegador viam as visões uma da outra. A causa era não existir leitura de
+   * identidade que não LANÇASSE fora do `AuthProvider`; agora existe, e sem identidade a visão
+   * simplesmente não é persistida nem lida.
+   */
+  const savedViews = useSavedViews(useOptionalIdentityId(), 'service-requests');
   const [selected, setSelected] = useState<ServiceRequestListItem | null>(null);
   // Escopo de relacao (recorte que vem da URL e NAO e editavel no formulario da fila).
   const relationScope = useRelationScope(RELATION_SCOPE_KEYS);
@@ -535,6 +544,7 @@ export function ServiceRequestsListPage() {
         <DynamicSavedViewsBar
           views={savedViews.views}
           persistedLocally={savedViews.persistedLocally}
+          persistable={savedViews.persistable}
           onSave={(name) => savedViews.save(name, { ...filters }, 'list')}
           onDelete={savedViews.remove}
           onApply={(view) => {

@@ -98,7 +98,8 @@ export function PeopleListPage() {
    * O recorte de mão de obra (status + função) é reconstruído todo dia pelo planejador; salvá-lo
    * é produtividade, não configuração.
    */
-  const savedViews = useSavedViews(identityId ?? 'anonymous', 'people');
+  /* SEM IDENTIDADE, NÃO PERSISTE: `null` em vez do namespace compartilhado `'anonymous'`. */
+  const savedViews = useSavedViews(identityId ?? null, 'people');
 
   /*
    * CONTEXTO DA PESSOA — seleção da linha + detalhe REAL (`GET /people/:id`).

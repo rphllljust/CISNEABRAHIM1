@@ -20436,3 +20436,75 @@ antes de virar conclusão.
    e a leitura autoritativa via `getPhysicalAsset`.
 
 WORKING_TREE: 1 arquivo + este registro
+
+---
+
+## VISÕES SALVAS — IDENTIDADE REAL (rodada 22) — 2026-10-07
+
+STATUS: **PASS**
+Commit: `fix(web): key saved views to the real identity instead of a placeholder owner`
+
+### O defeito da auditoria, corrigido na CAPACIDADE — e não em uma tela
+
+A auditoria apontou a personalização como um dos gaps enterprise: `useSavedViews('local-operator', …)`
+usava um **literal como dono**, ou seja, um namespace compartilhado que não corresponde a nenhuma
+identidade autenticada. Duas contas no mesmo navegador viam as visões uma da outra.
+
+**A causa era estrutural, não descuido**: a única forma de ler a identidade (`useAuth`) **LANÇA**
+fora do `AuthProvider`, e as suítes de página montam as telas sem provider. O literal era a saída
+encontrada na prática. Corrigir tela a tela reproduziria o problema na tela seguinte.
+
+### Correção em três camadas
+
+| Camada | Mudança |
+| ------ | ------- |
+| `auth/context/AuthProvider.tsx` | novo `useOptionalIdentityId(): string \| null` — acesso que **NÃO lança** fora do provider |
+| `engine/DynamicSavedViews.tsx` | `useSavedViews(owner: string \| null, entity)`; **sem dono, não lê e não grava**; novo campo `persistable` |
+| `engine/DynamicSavedViewsBar.tsx` | `persistable=false` → a barra **declara** a indisponibilidade em vez de oferecer um "Salvar visão" que não salva |
+
+E **13 arquivos de página** atualizados: as 4 com o literal (`fleet`, `contracts`, `rentals`,
+`requests`) passaram a usar a identidade real e a declarar `persistable`; as 6 com
+`identityId ?? 'anonymous'` (`catalog`, `people`, `service-orders`, `purchase-orders`, `suppliers`,
+`proposals`) passaram a `?? null`, fechando a MESMA classe de defeito.
+
+### Gate de REDE + DOM + armazenamento (sessão real)
+
+Instrumento: `tmp/saved-views-identity-gate.mjs`. A identidade esperada vem de `GET /auth/session`.
+
+| Prova | Resultado |
+| ----- | --------- |
+| identidade real da sessão | `6f007b51-e7de-494f-b34a-75c5955fb511` |
+| barra presente e formulário oferecido | **true / true** |
+| visão salva pelo caminho REAL da UI | **true** ("Verificação de identidade" aparece na barra) |
+| **chave de armazenamento usa a identidade real** | **true** — `cisne.saved-views.6f007b51-…fleet-vehicles` |
+| **nenhuma chave contém `local-operator`** | **true** |
+| erros de console | **0** |
+
+Verificação de fonte: `local-operator` **não existe mais em código vivo** — as únicas ocorrências
+restantes são comentários que documentam a remoção. `'anonymous'` saiu de todos os chamadores.
+
+### Gates técnicos
+
+- `tsc --noEmit` — **PASS**; `eslint src` (todo o `src`) — **PASS**
+- 55 arquivos de teste dos 11 módulos afetados — **8 falhas / 249 passes**, e as 8 são exatamente as
+  pré-existentes registradas (`OperationsControlCenter` **4/4**, `ServiceOrderMeasurementPage`
+  **4/13**). `auth-flow.e2e` **1 falha** é a mesma pré-existente do `role="banner"` duplicado provada
+  por baseline nesta sessão — confirmada de novo, na hora, com a mensagem literal.
+  **Zero falha nova.**
+- `git diff --check` — **PASS**; 13 arquivos alterados
+
+### RESTRIÇÕES CONHECIDAS
+
+1. **`useSavedViews` continua sendo localStorage.** A correção desta rodada é de OWNERSHIP, não de
+   persistência: a visão ainda vive no navegador e não acompanha o operador entre estações. Isso é
+   `GAP_DE_CONTRATO` declarado no próprio arquivo (não existe endpoint de visões salvas) e segue
+   registrado como pendência — não foi escondido atrás da correção de identidade.
+2. **Existem DUAS famílias de visões salvas**: a da engine (`DynamicSavedViews`, corrigida aqui) e a
+   de `operator/smart-list` (`ClientsListPage` usa `useSavedViews('commercial.clients', [], …)`).
+   A auditoria aponta três implementações; a unificação é rodada própria e **não** foi tentada.
+3. **Comportamento novo a observar**: se `identityId` vier nulo numa sessão autenticada, a visão
+   deixará de persistir e a barra declarará isso. É o comportamento CORRETO segundo a auditoria
+   ("sem identidade → não persistir"), mas é uma mudança de comportamento que merece observação em
+   uso real — registrada em vez de assumida como inofensiva.
+
+WORKING_TREE: 13 arquivos + este registro

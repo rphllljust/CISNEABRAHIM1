@@ -46,10 +46,16 @@ function isSavedView(value: unknown): value is SavedView {
  *
  * Entrada corrompida é DESCARTADA, não lançada: um `localStorage` inválido não pode derrubar
  * a tela. Cada item é validado antes de entrar na lista.
+ *
+ * SEM DONO, NÃO LÊ. `owner === null` significa ausência de identidade, e a resposta correta é
+ * ausência de visões — nunca um namespace compartilhado entre operadores diferentes.
  */
-export function readSavedViews(identityId: string, entity: string): SavedView[] {
+export function readSavedViews(owner: string | null, entity: string): SavedView[] {
+  if (!owner) {
+    return [];
+  }
   try {
-    const raw = window.localStorage.getItem(storageKey(identityId, entity));
+    const raw = window.localStorage.getItem(storageKey(owner, entity));
     if (!raw) {
       return [];
     }
@@ -63,9 +69,13 @@ export function readSavedViews(identityId: string, entity: string): SavedView[] 
   }
 }
 
-function writeSavedViews(identityId: string, entity: string, views: SavedView[]): void {
+function writeSavedViews(owner: string | null, entity: string, views: SavedView[]): void {
+  /* Sem dono, não grava: um dono literal gravaria a visão de um operador no espaço de outro. */
+  if (!owner) {
+    return;
+  }
   try {
-    window.localStorage.setItem(storageKey(identityId, entity), JSON.stringify(views));
+    window.localStorage.setItem(storageKey(owner, entity), JSON.stringify(views));
   } catch {
     // Cota cheia ou armazenamento indisponível: a visão não persiste, mas a tela não quebra.
   }
@@ -77,21 +87,26 @@ export type UseSavedViewsResult = {
   remove: (id: string) => void;
   /** `true` quando o backend ainda não publica visões salvas — a UI declara o fallback. */
   persistedLocally: boolean;
+  /**
+   * `false` quando NÃO há identidade: a visão salva não pode existir, e a UI precisa dizer isso em
+   * vez de oferecer um "Salvar visão" que não salva nada.
+   */
+  persistable: boolean;
 };
 
-export function useSavedViews(identityId: string, entity: string): UseSavedViewsResult {
-  const [views, setViews] = useState<SavedView[]>(() => readSavedViews(identityId, entity));
+export function useSavedViews(owner: string | null, entity: string): UseSavedViewsResult {
+  const [views, setViews] = useState<SavedView[]>(() => readSavedViews(owner, entity));
 
   // Trocar de entidade (ou de usuário) recarrega do armazenamento: manter a lista anterior
   // mostraria visões de outra entidade.
   useEffect(() => {
-    setViews(readSavedViews(identityId, entity));
-  }, [identityId, entity]);
+    setViews(readSavedViews(owner, entity));
+  }, [owner, entity]);
 
   const save = useCallback(
     (name: string, filters: Record<string, string>, viewType: string) => {
       const trimmed = name.trim();
-      if (trimmed === '') {
+      if (trimmed === '' || !owner) {
         return;
       }
       const next: SavedView = {
@@ -105,26 +120,29 @@ export function useSavedViews(identityId: string, entity: string): UseSavedViews
         // Substitui a visão de MESMO NOME: salvar duas vezes com o mesmo nome é editar.
         const withoutDuplicate = current.filter((view) => view.name !== trimmed);
         const updated = [...withoutDuplicate, next];
-        writeSavedViews(identityId, entity, updated);
+        writeSavedViews(owner, entity, updated);
         return updated;
       });
     },
-    [identityId, entity],
+    [owner, entity],
   );
 
   const remove = useCallback(
     (id: string) => {
+      if (!owner) {
+        return;
+      }
       setViews((current) => {
         const updated = current.filter((view) => view.id !== id);
-        writeSavedViews(identityId, entity, updated);
+        writeSavedViews(owner, entity, updated);
         return updated;
       });
     },
-    [identityId, entity],
+    [owner, entity],
   );
 
   return useMemo(
-    () => ({ views, save, remove, persistedLocally: true }),
-    [views, save, remove],
+    () => ({ views, save, remove, persistedLocally: true, persistable: owner !== null }),
+    [views, save, remove, owner],
   );
 }

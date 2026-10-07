@@ -378,7 +378,8 @@ export function ProposalsListPage() {
    * SERVIDOR. Salvá-los é produtividade: sem isto o operador reconstrói o mesmo recorte a cada
    * sessão. O armazenamento é o mesmo das demais worklists (`useSavedViews`).
    */
-  const savedViews = useSavedViews(identityId ?? 'anonymous', 'proposals');
+  /* SEM IDENTIDADE, NÃO PERSISTE: `null` em vez do namespace compartilhado `'anonymous'`. */
+  const savedViews = useSavedViews(identityId ?? null, 'proposals');
 
   if (listState.phase === 'loading') {
     return (

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useOptionalIdentityId } from '../../auth/context/AuthProvider';
 import { listRentalServiceOrders } from '../api/rentals-api';
 import {
   DynamicContextDrawer,
@@ -80,7 +81,8 @@ type ListState =
   | { phase: 'ready'; items: Awaited<ReturnType<typeof listRentalServiceOrders>>['items']; offset: number; hasMore: boolean };
 
 export function RentalsListPage() {
-  const savedViews = useSavedViews('local-operator', 'rentals');
+  /* DONO REAL: sem identidade a visão não é persistida nem lida (ver `useSavedViews`). */
+  const savedViews = useSavedViews(useOptionalIdentityId(), 'rentals');
   const [selected, setSelected] = useState<
     Awaited<ReturnType<typeof listRentalServiceOrders>>['items'][number] | null
   >(null);
@@ -261,6 +263,7 @@ export function RentalsListPage() {
       <DynamicSavedViewsBar
         views={savedViews.views}
         persistedLocally={savedViews.persistedLocally}
+        persistable={savedViews.persistable}
         onSave={(name) => savedViews.save(name, { search, statusFilter }, 'list')}
         onDelete={savedViews.remove}
         onApply={(view) => {

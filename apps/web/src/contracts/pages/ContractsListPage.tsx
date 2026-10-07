@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useOptionalIdentityId } from '../../auth/context/AuthProvider';
 import {
   DynamicContextDrawer,
   DynamicSavedViewsBar,
@@ -97,7 +98,8 @@ export function ContractsListPage() {
    * VISOES SALVAS — o recorte (cliente + unidade) e o que o comercial remonta ao acompanhar a
    * vigencia de uma carteira. A visao restaura o recorte SERVER-SIDE real.
    */
-  const savedViews = useSavedViews('local-operator', 'contracts');
+  /* DONO REAL: sem identidade a visão não é persistida nem lida (ver `useSavedViews`). */
+  const savedViews = useSavedViews(useOptionalIdentityId(), 'contracts');
   const [selected, setSelected] = useState<Contract | null>(null);
   const [clientFilter, setClientFilter] = useState('');
   const [unitFilter, setUnitFilter] = useState('');
@@ -324,6 +326,7 @@ export function ContractsListPage() {
           <DynamicSavedViewsBar
             views={savedViews.views}
             persistedLocally={savedViews.persistedLocally}
+            persistable={savedViews.persistable}
             onSave={(name) => savedViews.save(name, { clientFilter, unitFilter }, 'list')}
             onDelete={savedViews.remove}
             onApply={(view) => {
