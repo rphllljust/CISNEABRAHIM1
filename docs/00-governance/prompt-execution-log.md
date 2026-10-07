@@ -18717,3 +18717,80 @@ timeout tambem no baseline limpo (condicao de ambiente), fora do escopo desta fu
 
 WORKING_TREE: limpo apos cada commit
 NEXT_PROMPT_EXECUTED: NO
+
+---
+
+## MODULOS — WAVE ENTERPRISE (pos-foundation) — 2026-10-07
+
+STATUS: **PASS**
+
+### Escopo executado
+
+Retomada dos modulos sobre a Enterprise Visual Foundation congelada. Uma funcao por vez.
+Nenhuma regra empresarial criada, promovida ou alterada; nenhum backend, API, migration, seed,
+permissao ou contrato de dados tocado.
+
+| Funcao | Modulo | Classificacao | Commit | Estado |
+| ------ | ------ | ------------- | ------ | ------ |
+| Lista de fornecedores | Fornecedores | WORKLIST | `e1491a1` | FROZEN |
+| Lista de Pessoas | Pessoas | WORKLIST | `a64b100` | FROZEN |
+
+### Fornecedores — lista operacional
+
+- Recomposicao sobre as primitives congeladas: `WorklistHeader`, `WorklistFilterBar`,
+  `WorklistField`, `WorklistClearFilters`, `Button`.
+- Celula de estado passou de TRES linhas empilhadas para UMA linha (estado + excecao + proximo
+  passo lado a lado; o comando real continua em `SupplierRowActions`).
+- Faixa de indicadores e rodape alinhados a gramatica das demais worklists.
+- Drawer de contexto em `<dl>` governado, com "Abrir ficha" preservado como comando.
+
+Evidencia DOM (Chromium 1440x900, dev server real):
+
+| Metrica | Antes | Depois |
+| ------- | ----- | ------ |
+| Altura da pagina | 1675px | **1280px** |
+| Registros na primeira dobra | 5 | **7** |
+| Wrappers tipo card | 0 | 0 |
+| Overlap / overflow-x | 0 / 0 | 0 / 0 |
+
+### Pessoas — lista operacional
+
+- Campo de busca usava `worklistSelectClass` (`cursor-pointer` em campo de texto) — corrigido para
+  a classe de controle de texto, na mesma altura de token.
+- Textos fora da escala (`text-[11px]`, `text-[12px]`) substituidos pelos papeis tipograficos
+  governados (`cisne-type-helper`, `cisne-type-meta`).
+- Composicao ja estava sobre a foundation; nenhuma capacidade removida.
+
+Evidencia DOM: `occluded = 0`, `docOverflowX = 0`, `cardLike = 0`.
+
+### Validacao
+
+- `pnpm --filter @cisne/web eslint <modulos alterados>` — **PASS**
+- `pnpm --filter @cisne/web typecheck` — **PASS**
+- Testes focados: Fornecedores 7/7, Pessoas 21/21
+- Regressao acumulada nas areas tocadas (`clients`, `suppliers`, `people`, `ui`, `engine`) —
+  **158/158 PASS**
+- `git diff --check` — **PASS** (exit 0) por funcao
+
+### Incidente registrado (nao ocultado)
+
+Na primeira tentativa de Fornecedores, 3 testes falharam por regressao REAL introduzida pela
+propria alteracao:
+1. a faixa de registros passou a aparecer DUAS vezes (na barra de filtro e no rodape);
+2. a proxima acao ("Reativar para comprar") foi removida da celula de estado.
+
+Ambos foram corrigidos preservando a densidade conquistada (a acao voltou como terceiro elemento
+da MESMA linha, e o rodape deixou de repetir a faixa). A suite voltou a 7/7 sem afrouxar asserts.
+
+### Quality gate
+
+- [x] Alteracao restrita aos modulos nomeados
+- [x] Nenhum componente novo de dominio
+- [x] Nenhum dado, KPI, relacao ou capability inventado
+- [x] Nenhuma regra empresarial nova
+- [x] Nenhuma migration, seed, backend, permissao ou contrato de API
+- [x] Server-side filtering/paginacao preservados
+- [x] Comandos reais do backend preservados (activate/deactivate/archive)
+
+WORKING_TREE: limpo apos cada commit
+NEXT_PROMPT_EXECUTED: NO
