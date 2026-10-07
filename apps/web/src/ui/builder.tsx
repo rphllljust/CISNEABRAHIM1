@@ -237,6 +237,11 @@ export type StickyActionBarProps = {
 
 /**
  * STICKY ACTION BAR — a acao principal nao fica perdida no fim de uma pagina longa.
+ *
+ * FOUNDATION: `bg-white/95 backdrop-blur` era um painel translucido de template. Numa ferramenta
+ * operacional a barra de comando precisa ser OPACA e legivel sobre a grade rolada — translucidez
+ * deixa o dado por baixo competindo com o rotulo da acao. Aqui ela e a superficie elevada (a
+ * elevacao e justificada: a barra flutua sobre o conteudo) com altura densa.
  */
 export function StickyActionBar({ children, note, className }: StickyActionBarProps) {
   const staticActionBar = className?.split(/\s+/).includes('!static') ?? false;
@@ -245,13 +250,13 @@ export function StickyActionBar({ children, note, className }: StickyActionBarPr
     <div
       className={cn(
         staticActionBar ? 'static' : 'sticky bottom-0',
-        'z-10 -mx-4 mt-1 border-t border-gray-200 bg-white/95 px-4 py-2.5 backdrop-blur sm:-mx-6 sm:px-6',
+        'z-10 -mx-4 mt-1 border-t border-gray-300 bg-white px-4 py-1.5 sm:-mx-6 sm:px-6',
         className,
       )}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="text-[11px] text-gray-500">{note}</div>
-        <div className="flex flex-wrap items-center gap-2">{children}</div>
+        <div className="cisne-type-helper">{note}</div>
+        <div className="flex flex-wrap items-center gap-1.5">{children}</div>
       </div>
     </div>
   );

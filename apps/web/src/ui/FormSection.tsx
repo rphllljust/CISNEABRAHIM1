@@ -28,17 +28,25 @@ export function FormSection({
 
   return (
     <section
-      className={cn(
-        'rounded-md border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgb(15_23_42/0.04)]',
-        className,
-      )}
+      /*
+        SECAO SEMANTICA DO FORMULARIO — agrupamento por hierarquia, nao por caixa.
+
+        Antes: `rounded-md border bg-white shadow-[...] p-4`. O formulario enterprise virava uma
+        pilha de cards dentro do card da pagina, e o operador lia "caixa, caixa, caixa" em vez de
+        "identificacao, condicoes comerciais, requisitos".
+
+        Agora a secao e delimitada por DIVISOR ESTRUTURAL e pelo titulo governado; o agrupamento vem
+        da tipografia e do espacamento. Nenhum campo, validacao ou comportamento foi alterado — muda
+        a superficie, nao o dado.
+      */
+      className={cn('cisne-divider--section pb-3 last:border-b-0 last:pb-0', className)}
       aria-labelledby={headingId}
     >
-      <header className={hideTitle ? 'sr-only' : 'mb-3'}>
-        <h2 id={headingId} className="cisne-type-section-title">
+      <header className={hideTitle ? 'sr-only' : 'mb-2'}>
+        <h2 id={headingId} className="cisne-section-title m-0">
           {title}
         </h2>
-        {description ? <p className="cisne-type-caption mt-1">{description}</p> : null}
+        {description ? <p className="cisne-type-helper m-0 mt-0.5">{description}</p> : null}
       </header>
       {children}
     </section>

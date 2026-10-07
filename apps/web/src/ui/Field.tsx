@@ -20,8 +20,16 @@ export function Field({ label, htmlFor, hint, error, required, children, classNa
   const describedBy = [hintId, errorId].filter(Boolean).join(' ') || undefined;
 
   return (
-    <div className={cn('flex flex-col gap-1.5', className)}>
-      <label htmlFor={fieldId} className="mb-1.5 block text-xs font-semibold text-gray-700">
+    /*
+      CAMPO — rotulo, ajuda, controle e erro na MESMA celula, com gaps governados.
+
+      Antes: `gap-1.5` no container + `mb-1.5` no rotulo. A soma dos dois afastava o rotulo do
+      proprio controle, e num formulario de 20 campos isso vira ~60px de espaco morto — exatamente
+      o "margem decorativa" que a densidade enterprise elimina. Agora o gap e unico e o rotulo fica
+      colado ao controle que ele nomeia.
+    */
+    <div className={cn('flex min-w-0 flex-col gap-0.5', className)}>
+      <label htmlFor={fieldId} className="cisne-meta-label block">
         {label}
         {required ? (
           <span className="text-error-fg" aria-hidden="true">
@@ -32,7 +40,7 @@ export function Field({ label, htmlFor, hint, error, required, children, classNa
         {required ? <span className="cisne-sr-only"> (obrigatório)</span> : null}
       </label>
       {hint ? (
-        <p id={hintId} className="cisne-type-caption">
+        <p id={hintId} className="cisne-type-helper m-0">
           {hint}
         </p>
       ) : null}
