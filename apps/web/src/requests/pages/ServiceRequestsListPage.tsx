@@ -368,9 +368,7 @@ export function ServiceRequestsListPage() {
           ) : null}
         </div>
         {capabilities.canCreate && !isEmptyQueue ? (
-          <ModulePrimaryLink to="/app/requests/new" className="min-h-0 px-3 py-1 text-[13px]">
-            Nova solicitação
-          </ModulePrimaryLink>
+          <ModulePrimaryLink to="/app/requests/new">Nova solicitação</ModulePrimaryLink>
         ) : null}
       </header>
 

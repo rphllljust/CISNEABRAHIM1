@@ -306,19 +306,17 @@ export function ClientsListPage() {
         barra de visoes salvas: cinco blocos de chrome antes do primeiro Cliente. Agora a
         identidade, o total AUTORITATIVO, o recorte ativo e a acao primaria dividem UMA linha.
       */}
-      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-gray-200 px-1 pb-2">
+      <header className="cisne-divider--section flex flex-wrap items-center justify-between gap-x-4 gap-y-1 pb-1.5">
         <div className="flex min-w-0 items-baseline gap-2">
-          <h1 className="text-[17px] leading-tight font-semibold tracking-tight text-gray-900">
-            Clientes
-          </h1>
+          <h1 className="cisne-type-workspace m-0">Clientes</h1>
           {hasCatalog ? (
-            <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-semibold text-gray-700 tabular-nums">
+            <span className="cisne-type-meta font-semibold tabular-nums">
               {formatClientCount(total)}
             </span>
           ) : null}
-          <span className="truncate text-[11px] text-gray-500">{scope}</span>
+          <span className="cisne-type-helper truncate">{scope}</span>
           {isRefreshing ? (
-            <span role="status" className="text-[11px] text-gray-400">
+            <span role="status" className="cisne-type-helper">
               atualizando…
             </span>
           ) : null}
@@ -336,9 +334,11 @@ export function ClientsListPage() {
           painel NAO a repete. As duas condicoes sao mutuamente exclusivas por construcao.
         */}
         {capabilities.canCreate && !isEmptyCatalogue ? (
-          <ModulePrimaryLink to="/app/clients/new" className="min-h-0 px-3 py-1 text-[13px]">
-            Novo cliente
-          </ModulePrimaryLink>
+          /*
+            NAVEGAÇÃO É LINK — um cadastro novo é um DESTINO, não um efeito. `ModulePrimaryLink`
+            mantém clique do meio, nova aba e leitor de tela; só a densidade passa a vir do token.
+          */
+          <ModulePrimaryLink to="/app/clients/new">Novo cliente</ModulePrimaryLink>
         ) : null}
       </header>
 
@@ -404,7 +404,7 @@ export function ClientsListPage() {
                 type="button"
                 aria-pressed={active}
                 className={cn(
-                  'border-r border-gray-200 px-2.5 py-1 text-[12px] font-medium last:border-r-0',
+                  'cisne-type-action border-r border-gray-200 px-2.5 py-1 last:border-r-0',
                   active
                     ? 'bg-brand-700 text-white'
                     : 'bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900',
@@ -424,7 +424,7 @@ export function ClientsListPage() {
           <input
             id={searchInputId}
             type="search"
-            className="w-full min-w-0 rounded border border-gray-300 bg-white px-2 py-1 text-[13px] text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+            className="w-full min-w-0 min-h-[var(--control-height)] rounded-md border-0 bg-white px-1.5 text-[length:var(--type-body-size)] text-gray-900 ring-1 ring-gray-300 ring-inset outline-none focus:ring-2 focus:ring-brand-500"
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
             placeholder="Buscar cliente…"
@@ -438,7 +438,7 @@ export function ClientsListPage() {
         </label>
         <select
           id={statusFilterId}
-          className="rounded border border-gray-300 bg-white px-2 py-1 text-[13px] text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+          className="min-h-[var(--control-height)] rounded-md border-0 bg-white px-1.5 text-[length:var(--type-body-size)] text-gray-900 ring-1 ring-gray-300 ring-inset outline-none focus:ring-2 focus:ring-brand-500"
           value={filters.status}
           onChange={(event) =>
             applyFilters({ status: event.target.value as ClientListParams['status'] })
@@ -453,7 +453,7 @@ export function ClientsListPage() {
           id={moreFiltersId}
           type="button"
           aria-expanded={showMoreFilters}
-          className="rounded border border-gray-300 bg-white px-2 py-1 text-[12px] font-medium text-gray-700 hover:bg-gray-50"
+          className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
           onClick={() => setShowMoreFilters((current) => !current)}
         >
           {showMoreFilters ? 'Menos filtros' : 'Mais filtros'}
@@ -467,7 +467,7 @@ export function ClientsListPage() {
             <select
               id={requirementFilterId}
               aria-label="Exigência de pedido de compra"
-              className="rounded border border-gray-300 bg-white px-2 py-1 text-[13px] text-gray-900"
+              className="min-h-[var(--control-height)] rounded-md border-0 bg-white px-1.5 text-[length:var(--type-body-size)] text-gray-900 ring-1 ring-gray-300 ring-inset"
               value={filters.purchaseOrderRequirement}
               onChange={(event) =>
                 applyFilters({
@@ -489,7 +489,7 @@ export function ClientsListPage() {
         {hasFilters || searchInput.trim() !== '' ? (
           <button
             type="button"
-            className="rounded border border-gray-300 bg-white px-2 py-1 text-[12px] font-medium text-gray-700 hover:bg-gray-50"
+            className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
             onClick={clearFilters}
           >
             Limpar filtros
@@ -497,20 +497,20 @@ export function ClientsListPage() {
         ) : null}
 
         {searchDraftTooShort ? (
-          <p id={searchHintId} className="text-[11px] text-gray-500">
+          <p id={searchHintId} className="cisne-type-helper m-0">
             Digite pelo menos {CLIENT_SEARCH_MIN_LENGTH} caracteres.
           </p>
         ) : null}
 
         <div className="ml-auto flex items-center gap-2">
-          <span className="text-[11px] text-gray-500 tabular-nums">
+          <span className="cisne-type-helper m-0 tabular-nums">
             {items.length} nesta página
           </span>
           <div className="relative">
             <button
               type="button"
               aria-expanded={viewsOpen}
-              className="rounded border border-gray-300 bg-white px-2 py-1 text-[12px] font-medium text-gray-700 hover:bg-gray-50"
+              className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
               onClick={() => setViewsOpen((current) => !current)}
             >
               Visões
@@ -567,7 +567,7 @@ export function ClientsListPage() {
             action={
               <button
                 type="button"
-                className="rounded border border-gray-300 bg-white px-2 py-1 text-[12px] font-medium text-gray-700 hover:bg-gray-50"
+                className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                 onClick={clearFilters}
               >
                 Limpar filtros
@@ -589,7 +589,7 @@ export function ClientsListPage() {
             action={
               <button
                 type="button"
-                className="rounded border border-gray-300 bg-white px-2 py-1 text-[12px] font-medium text-gray-700 hover:bg-gray-50"
+                className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                 onClick={() => setSearchParams(buildClientListSearchParams(filters, 0))}
               >
                 Ir para a primeira página
@@ -690,58 +690,70 @@ export function ClientsListPage() {
                             <Link
                               to={href}
                               onClick={(event) => event.stopPropagation()}
-                              className="text-[13px] font-semibold text-brand-800 no-underline hover:underline"
+                              className="cisne-type-primary text-brand-800 no-underline hover:underline"
                             >
                               {client.legalName}
                             </Link>
                           ) : (
-                            <span className="text-[13px] font-semibold text-gray-900">
-                              {client.legalName}
-                            </span>
+                            <span className="cisne-type-primary text-gray-900">{client.legalName}</span>
                           )}
                           {client.tradeName ? (
-                            <span className="text-[12px] text-gray-500">{client.tradeName}</span>
+                            <span className="cisne-type-meta truncate">{client.tradeName}</span>
                           ) : null}
                         </div>
-                        <p className="mt-0.5 font-mono text-[11px] text-gray-400 tabular-nums">
+                        <p className="cisne-type-helper m-0 font-mono tabular-nums">
                           {formatCnpjDisplay(client.taxId)}
                         </p>
                       </div>
                     </td>
 
                     <td className={cn(cellClass, 'z-[1]')}>
-                      <span
-                        aria-label={`Status: ${clientStatusLabel(client.status)}`}
-                        className={cn(
-                          'text-[12px] font-semibold',
-                          isInactive ? 'text-red-700' : 'text-gray-900',
-                        )}
-                      >
-                        {clientStatusLabel(client.status)}
+                      {/*
+                        ESTADO + PRÓXIMO PASSO na MESMA linha.
+
+                        A célula empilhava TRÊS linhas (situação, ação e o aviso de documento) e
+                        era ela que definia a altura de TODA a grade — medido, linhas de 61 a 96px
+                        contra o token de 28px, e só 8 registros na primeira dobra. Situação e ação
+                        se comparam na HORIZONTAL (o operador varre a coluna), então dividem uma
+                        linha. O aviso de documento continua em linha própria porque é a exceção
+                        que restringe a operação, e exceção tem direito a espaço.
+                      */}
+                      <span className="flex flex-wrap items-baseline gap-x-1.5">
+                        <span
+                          aria-label={`Status: ${clientStatusLabel(client.status)}`}
+                          className={cn(
+                            'cisne-type-body font-semibold',
+                            isInactive ? 'text-red-700' : 'text-gray-900',
+                          )}
+                        >
+                          {clientStatusLabel(client.status)}
+                        </span>
+                        <span
+                          className={cn(
+                            'cisne-type-helper truncate',
+                            nextAction.pending ? 'font-medium text-brand-700' : 'text-gray-400',
+                          )}
+                        >
+                          {nextAction.label}
+                        </span>
                       </span>
-                      <p
-                        className={cn(
-                          'mt-0.5 truncate text-[12px]',
-                          nextAction.pending
-                            ? 'font-medium text-brand-700'
-                            : 'text-gray-400',
-                        )}
-                      >
-                        {nextAction.label}
-                      </p>
                       {isInactive ? (
-                        <p className="mt-0.5 text-[11px] text-red-700">
+                        <p className="cisne-type-helper m-0 mt-0.5 text-red-700">
                           Cadastro inativo não é aceito em novos documentos
                         </p>
                       ) : null}
                     </td>
 
                     <td className={cn(cellClass, 'z-[1] pr-3 text-right')}>
-                      <span className="block text-[12px] text-gray-700 tabular-nums">
+                      {/*
+                        DATA — a leitura relativa e a que decide ("há 12 dias" ordena a atenção);
+                        o carimbo absoluto é a prova. Os dois cabem na MESMA linha: empilhá-los
+                        custava uma segunda linha em TODA linha da grade, e o carimbo absoluto
+                        raramente é o que o operador lê primeiro.
+                      */}
+                      <span className="cisne-type-meta whitespace-nowrap">
                         {formatClientListRelative(client.updatedAt, now)}
-                      </span>
-                      <span className="mt-0.5 block text-[11px] text-gray-400 tabular-nums">
-                        {formatClientListDateTime(client.updatedAt)}
+                        <span className="cisne-type-helper"> · {formatClientListDateTime(client.updatedAt)}</span>
                       </span>
                     </td>
                   </tr>
@@ -754,7 +766,7 @@ export function ClientsListPage() {
 
       {hasCatalog || offset > 0 ? (
         <div className="flex flex-wrap items-center justify-between gap-2 px-1 pt-2">
-          <p className="m-0 text-[11px] text-gray-500 tabular-nums">
+          <p className="cisne-type-helper m-0 tabular-nums">
             Clientes {formatClientRangeLabel(offset, items.length, total)}
           </p>
           <ModulePagination
@@ -786,13 +798,19 @@ export function ClientsListPage() {
 /* ------------------------------------------------------------------ densidade */
 
 /**
- * Cabecalho da worklist: mesma altura de uma linha, sem caixa alta com tracking largo — a
- * grade de Clientes era a unica do Comercial que ainda usava o cabecalho do `DataTable`.
+ * Células da grade — densidade e tipografia GOVERNADAS pelos tokens da foundation.
+ *
+ * Antes: `py-2` com `align-top`, `text-[10px]` no cabeçalho e `text-[11px..13px]` nas células —
+ * cinco tamanhos crus que não vinham de escala nenhuma. Medido no DOM real: linhas de 61 a 96px
+ * contra o token de 28px, e só 8 registros na primeira dobra.
+ *
+ * Agora a altura da linha vem de `--row-height`, o cabeçalho usa o papel `label` e as células usam
+ * `body`/`meta`/`helper`. A grade de Clientes passa a ter a MESMA gramática das demais worklists.
  */
 const headCellClass =
-  'sticky top-0 z-10 border-b border-gray-200 bg-gray-50/80 px-2.5 py-1 text-left text-[10px] font-semibold tracking-[0.08em] text-gray-400 uppercase';
+  'sticky top-0 z-10 border-b border-gray-300 bg-gray-50 px-2 py-1 text-left text-[length:var(--type-micro-size)] font-semibold tracking-wide text-gray-600 uppercase';
 
-const cellClass = 'relative border-b border-gray-100 py-2 pr-2 align-top text-gray-700';
+const cellClass = 'relative h-[var(--row-height)] border-b border-gray-100 px-2 py-0.5 align-middle';
 
 /**
  * CELULA DA FAIXA DE CARTEIRA — numero real + recorte em UM controle.
@@ -831,24 +849,24 @@ function QueueStripCell({
       title={hint}
       onClick={onClick}
       className={cn(
-        'flex min-w-[10rem] flex-1 flex-col items-start gap-0.5 border-r border-gray-200 px-3 py-1.5 text-left transition-colors last:border-r-0',
+        'flex min-w-[10rem] flex-1 flex-col items-start gap-0 border-r border-gray-200 px-3 py-1 text-left transition-colors last:border-r-0',
         active ? 'bg-brand-50' : 'hover:bg-gray-50',
       )}
     >
       <span className="flex items-baseline gap-1.5">
-        <span className={cn('text-[17px] leading-none font-semibold tabular-nums', numberClass)}>
+        <span className={cn('cisne-type-object leading-none tabular-nums', numberClass)}>
           {value === null ? 'n/d' : formatClientCount(value)}
         </span>
         <span
           className={cn(
-            'text-[11px] font-medium tracking-wide uppercase',
+            'cisne-meta-label',
             weight === 'settled' ? 'text-gray-400' : 'text-gray-700',
           )}
         >
           {label}
         </span>
       </span>
-      <span className="truncate text-[10px] text-gray-400">{hint}</span>
+      <span className="cisne-type-helper truncate">{hint}</span>
     </button>
   );
 }

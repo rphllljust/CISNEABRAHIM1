@@ -85,6 +85,17 @@ export function ModuleTableCard({ children, className }: { children: ReactNode; 
   );
 }
 
+/**
+ * COMANDO PRIMÁRIO DE NAVEGAÇÃO — destino real, densidade governada.
+ *
+ * Antes: `min-h-9 px-4 py-2 shadow-sm`. Isso produzia ~44px de altura e obrigava cada página a
+ * sobrescrever a classe para não estourar a primeira dobra — em Clientes o override era
+ * `min-h-0 px-3 py-1 text-[13px]`, um tamanho cru que existia só para corrigir o primitive.
+ *
+ * Agora a altura vem de `--control-height`, o rótulo usa o papel `action` e a elevação sai (o
+ * contorno + o fundo já separam o comando; sombra em botão de toolbar é ruído). Nenhuma página
+ * precisa mais corrigir este componente.
+ */
 export function ModulePrimaryLink({
   to,
   children,
@@ -98,7 +109,7 @@ export function ModulePrimaryLink({
     <Link
       to={to}
       className={cn(
-        'inline-flex min-h-9 items-center rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm no-underline transition hover:bg-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500',
+        'cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md bg-brand-600 px-3 text-white no-underline transition-colors hover:bg-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500',
         className,
       )}
     >
