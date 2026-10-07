@@ -19098,3 +19098,69 @@ composicao, interacao e contexto acima foram todas verificadas.
 - `git diff --check` — **PASS** (exit 0)
 
 WORKING_TREE: limpo apos commit
+
+---
+
+## SOLICITACOES — WORK AREA OPERACIONAL (rodada 6) — 2026-10-07
+
+STATUS: **PASS**
+Commit: `24d94f9` — feat(web): rebuild service requests queue as operational work area with real commands
+
+### Classificacao
+
+Categoria **A — WORKLIST** (fila de processo). Contrato verificado antes de compor:
+`GET /service-requests/:id` (detalhe com `readiness`, `linkedChain`, documentos e historico),
+seis comandos reais (`submit`, `review`, `approve`, `reject`, `cancel`, `convert`) e capabilities
+reais (`canSubmit`/`canReview`/`canApprove`/`canReject`/`canCancel`).
+
+### Modelo anterior (reprovado pela ordem)
+
+`SavedViewsMenu` — visoes salvas atras de um BOTAO/menu, com formulario de salvar. Acoes de estado
+vinham de um mapa local `NEXT_STEP_ACTION_LABEL` (frontend dono do mapeamento estado -> acao) e o
+painel de contexto ecoava a LINHA da fila, sem carregar o detalhe.
+
+### Alteracao aplicada (receita A)
+
+- `work-surface` STICKY: operating-header + saved-view-surface + command/filter-surface fixos;
+  a fila e o conteudo que rola;
+- `DynamicSavedViewsBar` em FAIXA PRÓPRIA, com a ordem exigida pela gramatica:
+  OPERATING HEADER -> SAVED VIEWS -> COMMAND/FILTER -> WORK QUEUE;
+- `DynamicContextDrawer` carrega o detalhe REAL e mostra:
+  `readiness.blockers` (pendencias reais para converter), `linkedChain` (linhagem real do processo)
+  e skeleton localizado;
+- **COMMAND LAYER real**: os seis comandos de transicao, guardados pelas capabilities reais;
+  `reject` e `cancel` exigem MOTIVO DIGITADO pelo operador (registro de auditoria);
+  `convert` fica indisponivel enquanto houver pendencias publicadas;
+- `NEXT_STEP_ACTION_LABEL` REMOVIDO — o frontend deixou de ser dono do mapa estado -> acao;
+- token de recarga real (`reloadToken`) para a fila refletir o comando.
+
+### Evidencia DOM (Chromium 1440x900, dev server real)
+
+| Regiao | top | altura |
+| ------ | --- | ------ |
+| `work-surface` (sticky) | 149 | 189 |
+| operating-header | 149 | 39 |
+| **saved-view-surface** | 246 | 46 |
+| command-filter-surface | 292 | 46 |
+| worklist-master | 338 | 1491 |
+
+`occluded = 0`; `docOverflowX = -15`; ordem das regioes conforme a gramatica obrigatoria.
+
+### Limitacao registrada (nao ocultada)
+
+O banco de desenvolvimento tem **0 solicitacoes** (`GET /api/v1/procurement/requests` devolve
+`total: 0`). Por isso NAO foi possivel exercitar por DOM o clique na linha, o painel de contexto e
+os comandos com dado real. A composicao, a ordem das regioes, a ausencia de overlap/overflow e os
+testes focados foram verificados; a INTERACAO com dado real permanece pendente de dado.
+
+### Validacao
+
+- `eslint src/requests` — **PASS**; `typecheck` — **PASS**; `src/requests` — **34/34 PASS**
+- `git diff --check` — **PASS** (exit 0) apos remover linha em branco final introduzida por script
+
+### Incidente registrado
+
+Durante a recomposicao o arquivo ficou com fechamento JSX desbalanceado e variaveis duplicadas
+(`reloadToken`, `reload`). Corrigido antes do commit; nenhum teste foi afrouxado para passar.
+
+WORKING_TREE: limpo apos commit
