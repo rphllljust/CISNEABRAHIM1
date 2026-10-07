@@ -124,16 +124,14 @@ export function EnterpriseObjectHeader({
                 {humanReference}
               </span>
             ) : null}
-            <h1 className="m-0 truncate text-xl leading-tight font-semibold tracking-tight text-gray-900">
-              {humanTitle}
-            </h1>
+            <h1 className="cisne-type-object m-0 truncate">{humanTitle}</h1>
             {statusLabel ? <StatusBadge label={statusLabel} tone={status?.tone} /> : null}
           </div>
           {humanSubtitle ? (
-            <p className="m-0 mt-0.5 text-sm font-medium text-gray-700">{humanSubtitle}</p>
+            <p className="cisne-type-meta m-0 mt-0.5 font-medium text-gray-700">{humanSubtitle}</p>
           ) : null}
           {statusDescription ? (
-            <p className="m-0 mt-0.5 text-xs text-gray-500">{statusDescription}</p>
+            <p className="cisne-type-helper m-0 mt-0.5">{statusDescription}</p>
           ) : null}
         </div>
 
