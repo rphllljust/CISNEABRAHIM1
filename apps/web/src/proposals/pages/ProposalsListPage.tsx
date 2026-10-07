@@ -1,22 +1,40 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { RELATION_SCOPE_KEYS, useRelationScope } from '../../enterprise-object';
-import { listProposals, ProposalsApiError } from '../api/proposals-api';
+import {
+  acceptProposalVersion,
+  cancelProposalVersion,
+  expireProposalVersion,
+  getProposal,
+  issueProposalVersion,
+  listProposals,
+  ProposalsApiError,
+  rejectProposalVersion,
+} from '../api/proposals-api';
 import { mapProposalErrorToMessage } from '../api/proposal-error-messages';
 import { useProposalCapabilities } from '../hooks/useProposalCapabilities';
 import { ProposalStatusBadge } from '../components/ProposalStatusBadge';
 import {
+  PROPOSAL_ACCEPTANCE_ORIGINS,
   PROPOSAL_LIST_SORTS,
   PROPOSAL_VERSION_STATUSES,
   type Proposal,
+  type ProposalAcceptanceOrigin,
+  type ProposalDetail,
   type ProposalListDirection,
   type ProposalListSort,
+  type ProposalTransition,
 } from '../types/proposal.types';
-import { formatDateTime, formatMoney, formatProposalStatus } from '../utils/proposal-labels';
-import { ContextDrawer } from '../../operator';
+import {
+  formatAcceptanceOrigin,
+  formatDateTime,
+  formatMoney,
+  formatProposalStatus,
+} from '../utils/proposal-labels';
 import { useAuth } from '../../auth/context/AuthProvider';
-import { DynamicSavedViewsBar, useSavedViews } from '../../engine';
+import { DynamicContextDrawer, DynamicSavedViewsBar, useSavedViews } from '../../engine';
 import { DateTime, Money } from '../../ui';
+import { Skeleton } from '../../ui/Skeleton';
 import {
   describeProposalAttention,
   describeValidityTiming,
@@ -65,27 +83,36 @@ const NEXT_STEP_BY_STATUS: Record<string, string> = {
   [PROPOSAL_VERSION_STATUSES.Cancelled]: formatProposalNextStep('CREATE_NEW_REVISION'),
 };
 
-/**
- * ROTULO CURTO DA ACAO POR ESTADO — mesma maquina de estados, verbo de superficie.
- *
- * `NEXT_STEP_BY_STATUS` entrega a FRASE ("Aguardar decisão do cliente"); no botao da linha cabe
- * o VERBO. Nenhuma transicao nova: a tabela abaixo le a mesma maquina de estados, so encurtada
- * para o alvo de clique.
- */
-const PROPOSAL_ACTION_LABEL: Record<string, string> = {
-  [PROPOSAL_VERSION_STATUSES.Draft]: 'Completar',
-  [PROPOSAL_VERSION_STATUSES.Issued]: 'Acompanhar',
-  [PROPOSAL_VERSION_STATUSES.Accepted]: 'Abrir',
-  [PROPOSAL_VERSION_STATUSES.Rejected]: 'Nova revisão',
-  [PROPOSAL_VERSION_STATUSES.Expired]: 'Nova revisão',
-  [PROPOSAL_VERSION_STATUSES.Cancelled]: 'Consultar',
-};
-
 const ATTENTION_TONE_CLASS: Record<string, string> = {
   critical: 'bg-red-50 text-red-700 ring-red-600/20',
   warning: 'bg-amber-50 text-amber-800 ring-amber-600/20',
   info: 'bg-gray-100 text-gray-600 ring-gray-400/20',
 };
+
+/**
+ * VERBO DO COMANDO NO CONTEXTO — o rótulo do botão é a própria transição, não um "Executar".
+ *
+ * O botão só é montado quando o BACKEND publicou a transição em `availableTransitions`; o rótulo
+ * aqui não autoriza nada, apenas nomeia o que o servidor já admitiu.
+ */
+const COMMAND_LABEL: Record<Exclude<ProposalTransition, 'revise'>, string> = {
+  issue: 'Emitir revisão',
+  accept: 'Registrar aceite',
+  reject: 'Rejeitar',
+  expire: 'Marcar como expirada',
+  cancel: 'Cancelar',
+};
+
+const COMMAND_DONE_LABEL: Record<Exclude<ProposalTransition, 'revise'>, string> = {
+  issue: 'Revisão emitida.',
+  accept: 'Aceite registrado.',
+  reject: 'Revisão rejeitada.',
+  expire: 'Revisão marcada como expirada.',
+  cancel: 'Revisão cancelada.',
+};
+
+/** Comandos que o contrato aceita SEM motivo. O motivo é auditado pelo operador, não fabricado. */
+const COMMANDS_WITH_REASON: Array<Exclude<ProposalTransition, 'revise'>> = ['reject', 'cancel'];
 
 type QueueFilters = {
   status: string;
@@ -131,6 +158,33 @@ export function ProposalsListPage() {
    */
   const [selected, setSelected] = useState<Proposal | null>(null);
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
+  /*
+   * CONTEXTO AUTORITATIVO — a linha NÃO basta para agir.
+   *
+   * A linha da lista publica `currentVersionNumber` e o `rowVersion` da PROPOSTA, mas não o
+   * `rowVersion` da VERSÃO — que é o que os comandos exigem. Sem buscar o detalhe, o painel só
+   * poderia (a) exibir fatos que talvez não sejam os vigentes e (b) oferecer comandos que o
+   * servidor recusaria. Por isso o painel busca `getProposal` e trata o detalhe como o que ele é:
+   * a fonte da versão vigente, das transições disponíveis e dos bloqueios.
+   */
+  const [detailState, setDetailState] = useState<
+    | { phase: 'idle' }
+    | { phase: 'loading' }
+    | { phase: 'error'; message: string }
+    | { phase: 'ready'; detail: ProposalDetail }
+  >({ phase: 'idle' });
+  /** Motivo digitado pelo OPERADOR. Nos contratos de rejeição/cancelamento o campo é OPCIONAL. */
+  const [commandReason, setCommandReason] = useState('');
+  /** Origem da aceitação: enum do contrato, não texto livre. */
+  const [acceptanceOrigin, setAcceptanceOrigin] = useState<ProposalAcceptanceOrigin>(
+    PROPOSAL_ACCEPTANCE_ORIGINS.ClientWrittenConfirmation,
+  );
+  const [commandBusy, setCommandBusy] = useState(false);
+  const [commandError, setCommandError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
+  const [commandDone, setCommandDone] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const selectedId = selected?.id ?? null;
 
   const loadPage = useCallback(
     async (offset: number, active: QueueFilters, signal?: AbortSignal) => {
@@ -188,7 +242,120 @@ export function ProposalsListPage() {
     const controller = new AbortController();
     void loadPage(0, filters, controller.signal);
     return () => controller.abort();
-  }, [filters, loadPage]);
+  }, [filters, loadPage, reloadToken]);
+
+  /*
+   * CARREGAMENTO LOCALIZADO DO CONTEXTO — só o painel espera. A fila permanece utilizável, e o
+   * detalhe é buscado de novo a cada seleção para que o painel nunca afirme estado velho.
+   */
+  useEffect(() => {
+    if (!selectedId) {
+      setDetailState({ phase: 'idle' });
+      setCommandReason('');
+      setCommandError(null);
+      setCommandDone(null);
+      return;
+    }
+    const controller = new AbortController();
+    setDetailState({ phase: 'loading' });
+    setCommandError(null);
+    setCommandDone(null);
+    void getProposal(selectedId, controller.signal)
+      .then((detail) => {
+        if (!controller.signal.aborted) {
+          setDetailState({ phase: 'ready', detail });
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setDetailState({
+            phase: 'error',
+            message: 'Não foi possível carregar o contexto da proposta.',
+          });
+        }
+      });
+    return () => controller.abort();
+  }, [selectedId, reloadToken]);
+
+  /*
+   * COMANDO REAL A PARTIR DO CONTEXTO.
+   *
+   * DUAS BARREIRAS INDEPENDENTES, e é isso que torna o comando honesto:
+   *   1. `readiness.availableTransitions` — o BACKEND decide quais transições a versão vigente
+   *      admite. O frontend não conhece a máquina de estados e não a reimplementa.
+   *   2. `capabilities.can*` — o BACKEND decide o que o ator pode fazer.
+   * Um comando só aparece na interseção das duas. `rowVersion` vai no payload: concorrência
+   * otimista é do domínio, e conflito de versão vira mensagem — não é mascarado.
+   */
+  const availableCommands = useMemo<ProposalTransition[]>(() => {
+    if (detailState.phase !== 'ready') {
+      return [];
+    }
+    const allowed: Record<ProposalTransition, boolean> = {
+      issue: capabilities.canIssue,
+      accept: capabilities.canAccept,
+      reject: capabilities.canReject,
+      expire: capabilities.canExpire,
+      cancel: capabilities.canCancel,
+      /*
+       * `revise` cria uma NOVA versão — é um fluxo de formulário, não um comando de linha. Ele não
+       * é oferecido aqui para não transformar criação de documento em clique de contexto.
+       */
+      revise: false,
+    };
+    return detailState.detail.readiness.availableTransitions.filter((transition) => allowed[transition]);
+  }, [capabilities, detailState]);
+
+  const runContextCommand = useCallback(
+    async (command: Exclude<ProposalTransition, 'revise'>) => {
+      if (detailState.phase !== 'ready') {
+        return;
+      }
+      const version = detailState.detail.currentVersion;
+      if (!version) {
+        setCommandError('A proposta não tem versão vigente para receber comando.');
+        return;
+      }
+      const reason = commandReason.trim();
+      setCommandBusy(true);
+      setCommandError(null);
+      setCommandDone(null);
+      try {
+        if (command === 'issue') {
+          await issueProposalVersion(detailState.detail.proposal.id, version.versionNumber, version.rowVersion);
+        } else if (command === 'expire') {
+          await expireProposalVersion(detailState.detail.proposal.id, version.versionNumber, version.rowVersion);
+        } else if (command === 'accept') {
+          await acceptProposalVersion(detailState.detail.proposal.id, version.versionNumber, {
+            rowVersion: version.rowVersion,
+            acceptanceOriginCode: acceptanceOrigin,
+          });
+        } else if (command === 'reject') {
+          await rejectProposalVersion(detailState.detail.proposal.id, version.versionNumber, {
+            rowVersion: version.rowVersion,
+            ...(reason === '' ? {} : { rejectionReason: reason }),
+          });
+        } else {
+          await cancelProposalVersion(detailState.detail.proposal.id, version.versionNumber, {
+            rowVersion: version.rowVersion,
+            ...(reason === '' ? {} : { cancellationReason: reason }),
+          });
+        }
+        setCommandReason('');
+        setCommandDone(COMMAND_DONE_LABEL[command]);
+        setReloadToken((current) => current + 1);
+      } catch (error) {
+        setCommandError(
+          error instanceof ProposalsApiError
+            ? mapProposalErrorToMessage(error.code, error.status)
+            : 'Não foi possível executar o comando.',
+        );
+      } finally {
+        setCommandBusy(false);
+      }
+    },
+    [acceptanceOrigin, commandReason, detailState],
+  );
 
   const applyFilter = useCallback(
     <K extends keyof QueueFilters>(key: K, value: QueueFilters[K]) => {
@@ -277,13 +444,18 @@ export function ProposalsListPage() {
       <WorklistHeader
         title="Propostas comerciais"
         /*
-         * CONTAGEM = o que o contrato desta lista REALMENTE publica. Diferente de Clientes, a
-         * listagem de propostas nao devolve `total` do servidor — so a pagina carregada e o
-         * `hasMore`. Declarar um total aqui seria inventar numero; a cabeca mostra a contagem
-         * da pagina e a paginacao continua sendo a fonte do "tem mais".
+         * CONTAGEM = o que o contrato desta lista REALMENTE publica.
+         *
+         * VERIFICADO NO CONTRATO (nao presumido): `ProposalListResponse` e `{ items, limit, offset }`
+         * — NAO existe `total`. Portanto o numero ao lado do titulo e a contagem DESTA PAGINA, e o
+         * escopo precisa estar escrito: um numero solto ao lado do titulo de uma worklist le como
+         * total do conjunto, e aqui isso seria amostra apresentada como dataset.
+         *
+         * O escopo vai no `context`, que o operador le, e nao so no `aria-label`. O `hasMore`
+         * continua sendo a unica fonte do "tem mais".
          */
         count={items.length}
-        context="Decisão comercial pendente, valor e validade por proposta."
+        context={`Página ${pageNumber} — decisão comercial por proposta. Esta lista não publica total; a contagem acima é desta página.`}
         action={
           capabilities.canCreate ? (
             <ModulePrimaryLink to="/app/proposals/new">Nova proposta</ModulePrimaryLink>
@@ -293,52 +465,52 @@ export function ProposalsListPage() {
       </div>
 
       {/*
-        FILA DE DECISÃO — faixa COMPACTA, não card explicativo.
+        RECORTE DE DECISÃO — resumo LOCAL, declarado como local.
 
-        A versão anterior ocupava ~180px de primeira dobra com dois cartões que explicavam a
-        própria contagem ("Emitidas e ainda sem aceite, rejeição ou expiração"). O operador de ERP
-        não precisa do manual: precisa do número e do recorte. Aqui cada fato é uma linha de
-        ~28px — rótulo, contagem e clique que aplica o recorte real. A explicação vive no
-        `title` (tooltip), disponível sem ocupar a dobra.
+        O rótulo anterior era "Fila de decisão" e os números saíam da página carregada: um operador
+        lia "3 aguardando decisão" como a fila inteira da empresa. A API desta lista nao publica
+        agregado nenhum, entao a escolha honesta nao e inventar o numero nem apagar o recorte — e
+        dizer de onde ele vem. "Nesta página" aparece no nome da faixa, no tooltip de cada contagem e
+        no fecho; nao so na acessibilidade.
 
-        Sem exceção publicada, a faixa NÃO é montada.
+        Sem exceção publicada, a faixa NAO e montada.
       */}
       {awaitingCount > 0 || expiringCount > 0 ? (
         <section
-          aria-label="Fila de decisão"
+          aria-label="Decisão nesta página"
           className="mb-2 flex flex-wrap items-center gap-x-5 gap-y-1 border-y border-gray-200 px-1 py-1.5"
         >
           <span className="text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
-            Fila de decisão
+            Decisão nesta página
           </span>
           {awaitingCount > 0 ? (
             <button
               type="button"
               onClick={() => applyFilter('status', PROPOSAL_VERSION_STATUSES.Issued)}
-              title="Propostas emitidas e ainda sem aceite, rejeição ou expiração."
+              title="Nesta página: propostas emitidas e ainda sem aceite, rejeição ou expiração. A API desta lista não publica total do conjunto."
               className="inline-flex items-baseline gap-1.5 text-[13px] text-gray-700 hover:text-brand-800"
             >
               <strong className="text-[15px] font-semibold tabular-nums text-gray-900">
                 {awaitingCount}
               </strong>
-              <span className="font-medium">aguardando decisão</span>
+              <span className="font-medium">aguardando decisão nesta página</span>
             </button>
           ) : null}
           {expiringCount > 0 ? (
             <button
               type="button"
               onClick={() => applyFilter('sort', PROPOSAL_LIST_SORTS.validUntil)}
-              title="Validade comercial da revisão vigente vencida ou vencendo."
+              title="Nesta página: validade comercial da revisão vigente vencida ou vencendo. A API desta lista não publica total do conjunto."
               className="inline-flex items-baseline gap-1.5 text-[13px] text-gray-700 hover:text-brand-800"
             >
               <strong className="text-[15px] font-semibold tabular-nums text-red-700">
                 {expiringCount}
               </strong>
-              <span className="font-medium">validade crítica</span>
+              <span className="font-medium">validade crítica nesta página</span>
             </button>
           ) : null}
           <span className="ml-auto text-[11px] text-gray-500 tabular-nums">
-            {decidedCount} decididas no recorte
+            {decidedCount} decididas nesta página
           </span>
         </section>
       ) : null}
@@ -770,108 +942,228 @@ export function ProposalsListPage() {
         onNext={() => void loadPage(offset + PAGE_SIZE, filters)}
       />
       {/*
-        CONTEXTO SOB DEMANDA — a linha seleciona e abre o painel lateral; o operador investiga
-        SEM SAIR DA FILA. Fechar limpa a seleção.
+        CONTEXT REGION AUTORITATIVA — decisão rápida na fila, sobre o dado do SERVIDOR.
 
-        O painel NÃO duplica a object page: mostra o que decide a próxima ação (identidade,
-        cliente, origem, valor, validade, situação e os fatos de atenção reais) e oferece o
-        drillback para a profundidade. Nenhum dado novo é buscado — tudo já veio na linha.
+        ANTES: o painel era alimentado pela LINHA da lista e não oferecia comando nenhum — o
+        "próximo passo" era um link para a ficha. Dois defeitos: (a) a linha é um RESUMO, então o
+        painel podia afirmar valor, validade e revisão diferentes dos da versão vigente real;
+        (b) a ação prometida era NAVEGAÇÃO vestida de comando, porque agir exigia sair da fila.
+
+        AGORA: selecionar busca `getProposal` e o painel lê o DETALHE — versão vigente
+        (`versionNumber`, `rowVersion`, situação, valor, validade) e `readiness`, onde o BACKEND
+        publica as transições admitidas e os bloqueios. O comando aparece na INTERSEÇÃO entre
+        transição publicada e capability do ator; nenhuma das duas é inferida aqui.
+
+        A FILA NÃO DESMONTA: filtros, ordenação, Saved View, página e scroll permanecem, porque o
+        detalhe vive em estado próprio e o único `loading` é o do painel.
       */}
-      <ContextDrawer
+      <DynamicContextDrawer
         open={selected !== null}
         title="Contexto da proposta"
         onClose={() => setSelected(null)}
-        preview={
-          selected
+        crossReferences={[]}
+      >
+        <div data-region="context-region">
+          {selected ? (
+            <p className="cisne-type-primary m-0 mb-2 truncate">
+              {selected.proposalCode}
+              <span className="cisne-type-helper"> · {selected.title}</span>
+            </p>
+          ) : null}
+
+          {detailState.phase === 'loading' ? (
+            <div aria-busy="true" role="status" className="flex flex-col gap-1.5">
+              <span className="cisne-type-helper">Carregando contexto…</span>
+              <Skeleton lines={4} />
+            </div>
+          ) : null}
+
+          {detailState.phase === 'error' ? (
+            <p className="cisne-type-body m-0 text-red-700" role="alert">
+              {detailState.message}
+            </p>
+          ) : null}
+
+          {detailState.phase === 'ready'
             ? (() => {
-                const attention = describeProposalAttention(
-                  {
-                    currentVersionStatus: selected.currentVersionStatus,
-                    validUntil: selected.validUntil,
-                    originRequestCount: selected.originRequests?.length ?? 0,
-                    revisionCount: selected.revisionCount ?? 0,
-                  },
-                  now,
+                const detail = detailState.detail;
+                const version = detail.currentVersion;
+                /*
+                 * VALOR DA VERSÃO VIGENTE — mesma expressão que a ficha usa
+                 * (`globalSalePrice ?? itemsSaleTotal`). Não é regra nova: é a leitura que o módulo
+                 * já adota, para que painel e ficha nunca publiquem números diferentes.
+                 */
+                const amount = version?.globalSalePrice ?? version?.itemsSaleTotal ?? null;
+                return (
+                  <>
+                    <dl className="m-0 grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)] gap-x-3 gap-y-1.5">
+                      <dt className="cisne-meta-label pt-0.5">Cliente</dt>
+                      <dd className="cisne-meta-value m-0 truncate">
+                        {detail.proposal.clientName ?? 'Não identificado neste acesso'}
+                      </dd>
+                      <dt className="cisne-meta-label pt-0.5">Situação</dt>
+                      <dd className="cisne-meta-value m-0">
+                        {version ? (
+                          <ProposalStatusBadge status={version.status} />
+                        ) : (
+                          'Sem versão vigente'
+                        )}
+                      </dd>
+                      <dt className="cisne-meta-label pt-0.5">Revisão</dt>
+                      <dd className="cisne-meta-value m-0">
+                        {version ? `Revisão ${version.versionNumber}` : '—'}
+                      </dd>
+                      <dt className="cisne-meta-label pt-0.5">Valor</dt>
+                      <dd className="cisne-meta-value m-0">
+                        {amount ? (
+                          <Money
+                            value={amount}
+                            currencyCode={version?.currencyCode ?? 'BRL'}
+                            emphasis
+                          />
+                        ) : (
+                          '—'
+                        )}
+                      </dd>
+                      <dt className="cisne-meta-label pt-0.5">Validade</dt>
+                      <dd className="cisne-meta-value m-0">
+                        {version?.validUntil ? (
+                          <DateTime value={version.validUntil} mode="date" />
+                        ) : (
+                          'Sem validade'
+                        )}
+                      </dd>
+                      <dt className="cisne-meta-label pt-0.5">Próximo passo</dt>
+                      <dd className="cisne-meta-value m-0">
+                        {formatProposalNextStep(detail.readiness.nextStep)}
+                      </dd>
+                    </dl>
+
+                    {/* IMPEDIMENTOS PUBLICADOS — o que o BACKEND diz que trava o próximo passo. */}
+                    {detail.readiness.blockers.length > 0 ? (
+                      <div className="cisne-divider--top mb-2 mt-2 pt-2">
+                        <h3 className="cisne-section-title m-0 mb-1">Impedimentos publicados</h3>
+                        <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
+                          {detail.readiness.blockers.map((blocker) => (
+                            <li key={blocker} className="cisne-type-meta">
+                              {blocker}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+
+                    {/* LINHAGEM REAL — só os degraus que o detalhe publica. */}
+                    {detail.linkedChain.length > 0 ? (
+                      <div className="cisne-divider--top mb-2 mt-2 pt-2">
+                        <h3 className="cisne-section-title m-0 mb-1">Linhagem</h3>
+                        <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
+                          {detail.linkedChain.map((node) => (
+                            <li key={`${node.kind}:${node.id}`} className="cisne-type-meta truncate">
+                              {node.kind}
+                              {node.label ? ` · ${node.label}` : ''}
+                              {node.status ? ` · ${node.status}` : ''}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+
+                    <div className="cisne-divider--top mt-2 pt-2">
+                      {availableCommands.length > 0 ? (
+                        <>
+                          {availableCommands.some((command) =>
+                            COMMANDS_WITH_REASON.includes(command),
+                          ) ? (
+                            <label className="mb-1 block">
+                              <span className="cisne-meta-label mb-0.5 block">
+                                Motivo (opcional neste contrato; fica na auditoria do comando)
+                              </span>
+                              <textarea
+                                rows={2}
+                                className="w-full rounded-md border-0 bg-white px-1.5 py-1 text-[length:var(--type-body-size)] text-gray-900 ring-1 ring-gray-300 ring-inset outline-none focus:ring-2 focus:ring-brand-500"
+                                value={commandReason}
+                                onChange={(event) => setCommandReason(event.target.value)}
+                                placeholder="Descreva o motivo, se houver"
+                              />
+                            </label>
+                          ) : null}
+
+                          {availableCommands.includes('accept') ? (
+                            <label className="mb-1 block">
+                              <span className="cisne-meta-label mb-0.5 block">
+                                Origem da aceitação
+                              </span>
+                              <select
+                                className="min-h-[var(--control-height)] w-full rounded-md border-0 bg-white px-1.5 text-[length:var(--type-body-size)] text-gray-900 ring-1 ring-gray-300 ring-inset outline-none focus:ring-2 focus:ring-brand-500"
+                                value={acceptanceOrigin}
+                                onChange={(event) =>
+                                  setAcceptanceOrigin(
+                                    event.target.value as ProposalAcceptanceOrigin,
+                                  )
+                                }
+                              >
+                                {Object.values(PROPOSAL_ACCEPTANCE_ORIGINS).map((origin) => (
+                                  <option key={origin} value={origin}>
+                                    {formatAcceptanceOrigin(origin)}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          ) : null}
+
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {availableCommands.map((command) => (
+                              <Button
+                                key={command}
+                                variant={
+                                  command === 'issue' || command === 'accept'
+                                    ? 'primary'
+                                    : 'secondary'
+                                }
+                                loading={commandBusy}
+                                onClick={() => void runContextCommand(command)}
+                              >
+                                {COMMAND_LABEL[command]}
+                              </Button>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        <p className="cisne-type-helper m-0">
+                          {detail.readiness.nextStep === 'CREATE_NEW_REVISION'
+                            ? 'Sem comando de contexto: o próximo passo é abrir uma nova revisão.'
+                            : 'Nenhum comando disponível para o seu acesso nesta versão.'}
+                        </p>
+                      )}
+
+                      {commandDone ? (
+                        <p className="cisne-type-helper m-0 mt-1.5 text-emerald-700" role="status">
+                          {commandDone}
+                        </p>
+                      ) : null}
+                      {commandError ? (
+                        <p className="cisne-type-helper m-0 mt-1.5 text-red-700" role="alert">
+                          {commandError}
+                        </p>
+                      ) : null}
+                    </div>
+
+                    {/* DRILLBACK ÚNICO — uma vez por registro selecionado, nunca por linha. */}
+                    <div className="cisne-divider--top mt-2 pt-2">
+                      <Button
+                        variant="secondary"
+                        onClick={() => void navigate(`/app/proposals/${detail.proposal.id}`)}
+                      >
+                        Abrir ficha completa
+                      </Button>
+                    </div>
+                  </>
                 );
-                const timing = describeValidityTiming(selected.validUntil, now);
-                return {
-                  identifier: selected.proposalCode,
-                  subtitle: selected.title,
-                  status: selected.currentVersionStatus ? (
-                    <ProposalStatusBadge status={selected.currentVersionStatus} />
-                  ) : undefined,
-                  facts: [
-                    {
-                      label: 'Cliente',
-                      value: selected.clientName ?? 'Cliente não identificado',
-                    },
-                    {
-                      label: 'Valor',
-                      value: selected.saleTotal ? (
-                        <Money
-                          value={selected.saleTotal}
-                          currencyCode={selected.currencyCode ?? 'BRL'}
-                          emphasis
-                        />
-                      ) : (
-                        '—'
-                      ),
-                      emphasis: true,
-                    },
-                    {
-                      label: 'Validade',
-                      value: selected.validUntil ? (
-                        <DateTime value={selected.validUntil} mode="date" />
-                      ) : (
-                        'Sem validade'
-                      ),
-                    },
-                    {
-                      label: 'Revisão',
-                      value:
-                        selected.revisionNumber === null
-                          ? 'Sem versão'
-                          : `Revisão ${selected.revisionNumber}`,
-                    },
-                    {
-                      label: 'Origem',
-                      value:
-                        selected.originRequests && selected.originRequests.length > 0
-                          ? selected.originRequests.map((request) => request.requestCode).join(', ')
-                          : 'Sem solicitação de origem',
-                    },
-                    ...(timing ? [{ label: 'Prazo', value: timing.text }] : []),
-                    ...attention.map((fact) => ({ label: 'Atenção', value: fact.text })),
-                  ],
-                  relations:
-                    selected.originRequests && selected.originRequests.length > 0
-                      ? selected.originRequests.map((request) => ({
-                          label: 'Solicitação de origem',
-                          value: request.requestCode,
-                          href: `/app/requests/${request.id}`,
-                        }))
-                      : undefined,
-                  nextAction: {
-                    label: selected.currentVersionStatus
-                      ? (NEXT_STEP_BY_STATUS[selected.currentVersionStatus] ??
-                        formatProposalNextStep('CLOSED'))
-                      : formatProposalNextStep('COMPLETE_AND_ISSUE'),
-                    href: `/app/proposals/${selected.id}`,
-                  },
-                  detailHref: `/app/proposals/${selected.id}`,
-                  /*
-                   * O rotulo do drillback e o VERBO do proximo passo da versao vigente — a mesma
-                   * maquina de estados que a lista le, so encurtada para o alvo de clique. Dizer
-                   * "Emitir" ou "Nova revisao" e mais util que um "Abrir" generico.
-                   */
-                  detailLabel: selected.currentVersionStatus
-                    ? `${PROPOSAL_ACTION_LABEL[selected.currentVersionStatus] ?? 'Abrir'} — ficha completa`
-                    : 'Completar e emitir — ficha completa',
-                };
               })()
-            : null
-        }
-      />
+            : null}
+        </div>
+      </DynamicContextDrawer>
     </ModulePage>
   );
 }

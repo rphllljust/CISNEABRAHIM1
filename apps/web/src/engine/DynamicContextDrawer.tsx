@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { t } from '../i18n';
 
 /**
@@ -37,12 +38,52 @@ export function DynamicContextDrawer({
   crossReferences,
   children,
 }: DynamicContextDrawerProps): React.ReactElement | null {
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  /*
+   * SAIDA PELO TECLADO — o painel declara `aria-modal="true"`, e a declaracao precisa ser VERDADEIRA.
+   *
+   * Defeito medido no gate de Propostas: o unico caminho de saida era um botao rotulado "Acoes"
+   * (`t('common.actions')`, chave errada para um controle de FECHAR) e a tecla Escape nao fazia
+   * nada. Em `role="dialog" aria-modal="true"` isso prende o operador de teclado: sem backdrop e
+   * sem Escape, sair dependia de achar um "×" com nome que nao diz o que faz.
+   *
+   * Duas correcoes MINIMAS, sem tocar em desenho: rotulo de fechar correto e Escape ligado. O
+   * listener guarda `onClose` em ref porque as telas passam closure nova a cada render — depender de
+   * `onClose` religaria o efeito a cada tecla e o foco voltaria para o painel no meio da digitacao.
+   */
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        onCloseRef.current();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [open]);
+
+  /* FOCO ENTRA NO PAINEL ao abrir — `aria-modal` so e honesto se o foco estiver dentro dele. */
+  useEffect(() => {
+    if (open) {
+      panelRef.current?.focus();
+    }
+  }, [open]);
+
   if (!open) {
     return null;
   }
 
   return (
     <div
+      ref={panelRef}
+      tabIndex={-1}
       data-testid="dynamic-context-drawer"
       data-cross-ref-count={crossReferences.length}
       role="dialog"
@@ -67,7 +108,7 @@ export function DynamicContextDrawer({
         <button
           type="button"
           data-testid="dynamic-context-drawer-close"
-          aria-label={t('common.actions')}
+          aria-label={t('common.close')}
           className="inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
           onClick={onClose}
         >

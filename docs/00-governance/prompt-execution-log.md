@@ -19733,3 +19733,113 @@ faixa de filtro passaram a ter vocabulario e pesos proprios.
    existe e o codigo esta no HEAD; o registro detalhado daquela rodada continua PENDENTE.
 
 WORKING_TREE: 9 arquivos compartilhados + este registro
+
+---
+
+## PROPOSTAS COMERCIAIS — VERACIDADE DO CONTEXTO E DA CONTAGEM (rodada 14) — 2026-10-07
+
+STATUS: **PASS_COM_RESTRICAO**
+Commit: `feat(web): make proposals context region authoritative and counts page-scoped`
+
+### Escopo
+
+Rodada cirúrgica de VERACIDADE. Dois alvos, nenhum redesenho: nao foi tocada a foundation, a shell,
+a tipografia global, a densidade global, row height, Saved Views nem a command surface.
+
+### Arquivos alterados (2; +468 / -135)
+
+| Arquivo | Papel |
+| ------- | ----- |
+| `apps/web/src/proposals/pages/ProposalsListPage.tsx` | contexto autoritativo + contagem honesta |
+| `apps/web/src/engine/DynamicContextDrawer.tsx` | defeito de acessibilidade medido no gate (ver abaixo) |
+
+### ALVO 1 — CONTEXT REGION AUTORITATIVA
+
+DEFEITO CORRIGIDO: o painel era alimentado pela LINHA da lista. A linha publica
+`currentVersionNumber`, `currentVersionStatus`, `saleTotal`, `validUntil` — e **nao publica o
+`rowVersion` da VERSAO**, que e o que os comandos exigem. Ou seja: o painel afirmava fatos de um
+RESUMO e, para agir, mandava sair da fila. O "proximo passo" era um link rotulado com verbo —
+navegacao vestida de comando.
+
+AGORA: selecionar linha dispara `getProposal(id)`; o painel le o DETALHE (`currentVersion` com
+`versionNumber`/`rowVersion`/situacao/valor/validade, `readiness.nextStep`, `readiness.blockers`,
+`linkedChain`) e oferece comandos na **INTERSECAO** de duas decisoes do servidor:
+
+1. `readiness.availableTransitions` — o BACKEND decide o que a versao vigente admite;
+2. `capabilities.can{Issue,Accept,Reject,Expire,Cancel}` — o BACKEND decide o que o ator pode.
+
+`revise` NAO e oferecido no painel: criar revisao e fluxo de formulario, nao comando de linha.
+Motivo de rejeicao/cancelamento vai SÓ quando o operador digita (contrato os marca opcionais).
+`rowVersion` vai no payload; conflito de versao vira mensagem, nao e mascarado.
+`PROPOSAL_ACTION_LABEL` foi REMOVIDO — existia apenas para vestir o drillback de comando.
+
+### ALVO 2 — CONTAGEM HONESTA
+
+CONTRATO VERIFICADO (nao presumido): `ProposalListResponse = { items, limit, offset }` — **nao
+existe `total`**. Portanto nenhuma contagem global e possivel, e nenhuma foi inventada.
+
+| Antes | Depois |
+| ----- | ------ |
+| cabecalho com numero sem escopo; contexto dizia apenas "Decisao comercial pendente..." | contexto visivel: "Pagina N — decisao comercial por proposta. Esta lista nao publica total; a contagem acima e desta pagina." |
+| faixa `aria-label="Fila de decisao"` | `aria-label="Decisao nesta pagina"` |
+| "aguardando decisao" / "validade critica" | "aguardando decisao **nesta pagina**" / "validade critica **nesta pagina**" |
+| "{n} decididas no recorte" | "{n} decididas **nesta pagina**" |
+| tooltips afirmando o conjunto | tooltips delimitando a pagina e declarando que a API nao publica total |
+
+Nenhum KPI decorativo foi criado; a faixa continua sendo o mesmo recorte local, agora declarado.
+
+### DEFEITO 3 — ENCONTRADO PELO PROPRIO GATE, NA PRIMITIVA COMPARTILHADA
+
+`DynamicContextDrawer` e `role="dialog" aria-modal="true"` e **nao tratava Escape**. Alem disso o
+botao de fechar usava `t('common.actions')` = **"Acoes"** — rotulo errado para um controle de
+FECHAR. Sem backdrop, o unico caminho de saida do operador de teclado era um botao cujo nome nao diz
+o que ele faz. Corrigido na primitiva (afeta Propostas, Clientes, Fornecedores e Pedidos de Compra):
+`t('common.close')` = "Fechar", Escape fecha, e o foco entra no painel ao abrir — sem mover um pixel.
+
+### Gate de veracidade (REDE + DOM, CDP, cache desabilitado, servidor real)
+
+Instrumento: `tmp/proposals-veracity-gate.mjs`. Amostra: 14 propostas reais; sondas de capability
+(`/proposals/00000000-0000-4000-8000-*/...`, 404 por desenho) foram CLASSIFICADAS A PARTE para nao
+entrarem na prova.
+
+| # | Prova exigida | Resultado medido |
+| - | ------------- | ---------------- |
+| 1 | selecionar dispara detalhe real | **6 GET de detalhe** para 3 selecoes, com o id EXATO da linha clicada (`d5c5885b…`, `44c5dbf7…`, `1046d707…`) |
+| 2 | contexto usa payload de detalhe | `payloadCode = domCode = PROP-2026-DC14E998`; `globalSalePrice 7500` BRL → **"VALOR R$ 7.500,00"**; `versionNumber 1` → **"REVISAO Revisao 1"**; `nextStep AWAIT_CLIENT_DECISION` → **"Aguardar decisao do cliente"** |
+| 3 | loading so no contexto | `{contextBusy: true, moduleLoading: false, rowsDuringLoading: 14, worklistPresent: true}` |
+| 4 | worklist nao desmonta | `rows = 14` em TODOS os estados (e `1` com o recorte ISSUED aplicado) |
+| 5 | filtros permanecem | `filterPresent` e `savedViewPresent` = true em todos os estados |
+| 6 | scroll permanece | `260 → 260 → 260` (antes, apos selecionar, apos fechar) |
+| 7 | trocar selecao troca contexto | A `PROP-2026-B5C0D628` → B `PROP-2026-AD7BC889`, com novo GET do novo id |
+| 8 | fechar nao limpa a fila | `drawerPresent: false`, `contextRegionPresent: false`, `rows: 14`, filtros intactos |
+| 9 | nenhum dado inventado | `clientName` vazio no payload → **"Nao identificado neste acesso"** (nao inventa nome); `validUntil` nulo → "Sem validade" |
+| 10 | nenhuma capability inferida | `availableTransitions = [accept, reject, expire, cancel, revise]` → DOM `["Registrar aceite","Rejeitar","Marcar como expirada","Cancelar"]`; `everyCommandPublished: true`; `revise` ausente por decisao documentada |
+
+Gate da contagem: `shownCount` = `rows` nos dois recortes (`14/14` sem filtro, `1/1` com ISSUED); o
+texto visivel de escopo, a `aria-label` da faixa e os tooltips foram lidos do DOM.
+
+### Gates tecnicos
+
+- `tsc --noEmit` — **PASS**; `eslint src/proposals src/engine` — **PASS**
+- `src/proposals` — **34/34 PASS**
+- `src/proposals` + `src/engine` + `src/clients` + `src/suppliers` + `src/purchase-orders` — **150/150 PASS** (a primitiva alterada e consumida por todos esses)
+- `git diff --check` — **PASS**; `git diff --name-only` — somente os 2 arquivos acima
+
+### RESTRICOES CONHECIDAS
+
+1. **Sem backdrop e sem inertizacao do fundo.** O painel agora fecha por Escape e recebe o foco, mas
+   o conteudo atras continua interativo enquanto `aria-modal="true"` afirma o contrario. Nao foi
+   corrigido nesta rodada para nao ampliar escopo (backdrop e mudanca de desenho).
+2. **2 GET de detalhe por selecao** (6 para 3 cliques). Consistente com o duplo disparo de efeito do
+   StrictMode em desenvolvimento; em build de producao e 1. Registrado como observacao de ambiente.
+3. **Dois subcampos do meu proprio comparador estao defeituosos** (`domHasAmount`, `domShowsRevision`
+   retornaram `false` por escaping de regex no script do gate). A evidencia de valor e revisao vem do
+   `contextText` medido, que publica "VALOR R$ 7.500,00" e "REVISAO Revisao 1" — coerentes com
+   `globalSalePrice 7500` e `versionNumber 1`. O comparador NAO foi reexecutado (evitar "mais uma
+   verificacao"); fica registrado como limitacao do instrumento, nao do produto.
+4. A topbar `sticky` cobre parcialmente a PRIMEIRA linha quando a pagina esta rolada. E
+   comportamento esperado de cabecalho pegajoso; a sonda passou a escolher linhas integralmente
+   visiveis. Nenhum defeito de produto.
+5. `02ea564` (context region de Pedidos de Compra) segue **sem entrada propria neste log**.
+
+WORKING_TREE: 2 arquivos + este registro
