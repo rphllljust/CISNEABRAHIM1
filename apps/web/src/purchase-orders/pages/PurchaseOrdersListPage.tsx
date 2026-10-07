@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { RELATION_SCOPE_KEYS, useRelationScope } from '../../enterprise-object';
 import { listPurchaseOrders, PurchaseOrdersApiError } from '../api/purchase-orders-api';
 import { mapPurchaseOrderErrorToMessage } from '../api/purchase-order-error-messages';
@@ -12,7 +11,6 @@ import {
   purchaseOrderAuthorizedAmount,
   purchaseOrderNextAction,
   purchaseOrderNotice,
-  purchaseOrderRowActions,
   purchaseOrderUsage,
 } from '../utils/purchase-order-list-presentation';
 import { HumanLookupField } from '../../financial-ui/HumanLookupField';
@@ -24,8 +22,6 @@ import {
 import { useAuth } from '../../auth/context/AuthProvider';
 import {
   EnterpriseMetric,
-  RowActionCell,
-  RowActionMenu,
   WorklistClearFilters,
   WorklistException,
   WorklistField,
@@ -34,8 +30,6 @@ import {
   WorklistHeader,
   WorklistRowLink,
   WorklistStatePanel,
-  rowPrimaryActionClass,
-  rowSecondaryActionClass,
   worklistCellClass,
   worklistCellRaisedClass,
   worklistHeadCellClass,
@@ -43,7 +37,6 @@ import {
   worklistNumericHeadCellClass,
   worklistRowClass,
   worklistSelectClass,
-  worklistTableCardClass,
   worklistTableClass,
 } from '../../ui/enterprise-list';
 import {
@@ -258,6 +251,7 @@ export function PurchaseOrdersListPage() {
 
   return (
     <ModulePage>
+      <div data-region="operating-header">
       <WorklistHeader
         title="Pedidos de compra"
         count={items.length}
@@ -301,7 +295,22 @@ export function PurchaseOrdersListPage() {
           </>
         }
       />
+      </div>
 
+      <div data-region="saved-view-surface">
+      <DynamicSavedViewsBar
+        views={savedViews.views}
+        persistedLocally={savedViews.persistedLocally}
+        onSave={(name) => savedViews.save(name, { clientFilter, unitFilter }, 'list')}
+        onDelete={savedViews.remove}
+        onApply={(view) => {
+          setClientFilter(view.filters['clientFilter'] ?? '');
+          setUnitFilter(view.filters['unitFilter'] ?? '');
+        }}
+      />
+      </div>
+
+      <div data-region="command-filter-surface">
       <WorklistFilterBar meta={`${items.length} nesta página`}>
         <WorklistField label="Cliente" htmlFor="po-client-search" grow>
           <HumanLookupField
@@ -335,23 +344,14 @@ export function PurchaseOrdersListPage() {
           />
         ) : null}
       </WorklistFilterBar>
+      </div>
 
       {/*
-        VISÕES SALVAS — o recorte (cliente + unidade) que o operador remonta todo dia.
-        `persistedLocally` e declarado pela engine: sem endpoint de visoes salvas, o
-        armazenamento e local por identidade, e a barra diz isso em vez de fingir backend.
+        VISÕES SALVAS — faixa própria da work area, ANTES da superfície de filtro.
+        Gramática: OPERATING HEADER -> SAVED VIEWS -> COMMAND/FILTER -> WORK QUEUE.
       */}
-      <DynamicSavedViewsBar
-        views={savedViews.views}
-        persistedLocally={savedViews.persistedLocally}
-        onSave={(name) => savedViews.save(name, { clientFilter, unitFilter }, 'list')}
-        onDelete={savedViews.remove}
-        onApply={(view) => {
-          setClientFilter(view.filters['clientFilter'] ?? '');
-          setUnitFilter(view.filters['unitFilter'] ?? '');
-        }}
-      />
 
+      <div data-region="worklist-master">
       {items.length === 0 ? (
         <WorklistStatePanel
           title={
@@ -379,7 +379,7 @@ export function PurchaseOrdersListPage() {
           }
         />
       ) : (
-        <div className={worklistTableCardClass}>
+        <div className="w-full min-w-0 max-w-full overflow-x-auto bg-white">
           <table className={worklistTableClass} aria-label="Lista de pedidos de compra">
             <thead>
               <tr>
@@ -419,11 +419,6 @@ export function PurchaseOrdersListPage() {
                  * primaria quando existe (e o proximo passo do pedido); as demais vao para o
                  * menu "•••" para nao competir com ela.
                  */
-                const rowActions = purchaseOrderRowActions(item, capabilities);
-                const primaryAction = rowActions.find((action) => action.kind === 'primary');
-                const secondaryActions = rowActions.filter(
-                  (action) => action.id !== primaryAction?.id,
-                );
                 const notice = purchaseOrderNotice(item);
                 // Leitura do consumo: percentual puramente apresentacional. Sem `balance` a regra
                 // de dominio recusou apurar, e a celula declara isso em vez de estimar.
@@ -565,43 +560,6 @@ export function PurchaseOrdersListPage() {
                       {nextAction}
                     </span>
                   </td>
-                  {/*
-                    ACOES DA LINHA — condicionadas ao ESTADO e a CAPABILITY, nunca fixas.
-
-                    Antes a lista so navegava: registrar ou cancelar exigia abrir o pedido, achar
-                    a acao no detalhe e voltar. As transicoes sao as MESMAS que o detalhe executa
-                    (`registerPurchaseOrder` / `cancelPurchaseOrder`) — nenhuma regra nova.
-                  */}
-                  <RowActionCell>
-                    <RowActionMenu
-                      label={item.poNumber}
-                      primary={
-                        primaryAction ? (
-                          <Link
-                            to={`/app/purchase-orders/${item.id}`}
-                            className={rowPrimaryActionClass}
-                          >
-                            {primaryAction.label}
-                          </Link>
-                        ) : null
-                      }
-                      secondary={
-                        secondaryActions.length > 0 ? (
-                          <>
-                            {secondaryActions.map((action) => (
-                              <Link
-                                key={action.id}
-                                to={`/app/purchase-orders/${item.id}`}
-                                className={rowSecondaryActionClass}
-                              >
-                                {action.label}
-                              </Link>
-                            ))}
-                          </>
-                        ) : undefined
-                      }
-                    />
-                  </RowActionCell>
                 </tr>
                 );
               })}
@@ -637,6 +595,7 @@ export function PurchaseOrdersListPage() {
           />
         </WorklistFooter>
       ) : null}
+      </div>
     </ModulePage>
   );
 }
