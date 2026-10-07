@@ -17658,6 +17658,55 @@ NEXT_PROMPT_EXECUTED: NO
 
 ---
 
+## ATIVOS / SOLICITACOES — AVISOS SEM FORM-NOTICE LEGADO
+
+DATA: 2026-10-07T10:46:00-04:00
+STATUS: **PASS**
+
+### Escopo executado
+
+Continuidade da wave frontend Enterprise Tier-1, uma função por vez.
+
+Módulos: **Ativos** e **Solicitações**.
+Funções: aviso de conflito de Ativos e aviso de sucesso no detalhe de Solicitação.
+Classificação principal: **NOTICE / OBJECT PAGE**.
+
+Classificação: **interpretação de engenharia visual / experiência operacional**. Nenhuma regra
+empresarial criada, promovida ou alterada; nenhum backend, API, migration, seed, permissão ou
+contrato de dados tocado.
+
+### Arquivos alterados
+
+- `apps/web/src/assets/components/AssetVersionConflictNotice.tsx`
+- `apps/web/src/requests/pages/ServiceRequestDetailPage.tsx`
+
+### Alteração aplicada
+
+- Aviso de conflito de Ativos deixou `form-notice assets-conflict-notice`.
+- Aviso de sucesso de Solicitações deixou `form-notice`.
+- Reload de conflito e status acessível de sucesso foram preservados.
+
+### Validação
+
+- `pnpm --filter @cisne/web exec vitest run --config vite.config.ts src/assets/assets.e2e.test.tsx src/assets/physical-assets-create-edit.ui.test.tsx src/requests/pages/ServiceRequestDetailPage.test.tsx src/requests/service-requests.e2e.test.tsx` — **PASS** (21/21)
+- `pnpm --filter @cisne/web exec eslint src/assets/components/AssetVersionConflictNotice.tsx src/requests/pages/ServiceRequestDetailPage.tsx` — **PASS**
+- `pnpm --filter @cisne/web typecheck` — **PASS**
+- `git diff --check` — **PASS**
+
+### Quality gate
+
+- [x] Alteração restrita a avisos visuais
+- [x] Nenhum dado, KPI, relação ou capability inventado
+- [x] Nenhuma regra empresarial nova
+- [x] Nenhuma migration, seed, backend, permissão ou contrato de API
+- [x] Reload de conflito e status de sucesso preservados
+
+WORKING_TREE: limpo após commit
+COMMIT: incluído no commit desta sessão
+NEXT_PROMPT_EXECUTED: NO
+
+---
+
 ## CLIENTES — DETALHE: AVISO E DIALOG SEM CLASSES LEGADAS
 
 DATA: 2026-10-07T10:44:00-04:00

@@ -523,7 +523,10 @@ export function ServiceRequestDetailPage() {
           </p>
         ) : null}
         {actionSuccess ? (
-          <p className="form-notice" role="status">
+          <p
+            className="m-0 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
+            role="status"
+          >
             {actionSuccess}
           </p>
         ) : null}
