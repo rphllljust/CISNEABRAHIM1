@@ -75,8 +75,13 @@ export function ConfirmDialog({
         <h2 id={titleId}>{title}</h2>
         <p id={descriptionId}>{description}</p>
         {children}
-        <div className="button-row confirm-dialog__actions">
-          <button type="button" data-dialog-cancel onClick={onCancel}>
+        <div className="confirm-dialog__actions flex flex-wrap items-center justify-end gap-2">
+          <button
+            type="button"
+            className="button-secondary"
+            data-dialog-cancel
+            onClick={onCancel}
+          >
             {cancelLabel}
           </button>
           <button type="submit" disabled={confirmDisabled}>

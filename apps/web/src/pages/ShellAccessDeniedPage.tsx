@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { ErrorState } from '../ui/ErrorState';
+import { ModulePage } from '../ui/module-layout';
 
 type ShellAccessState = {
   from?: string;
@@ -15,7 +16,7 @@ export function ShellAccessDeniedPage() {
   const featureDisabled = state.reason === 'feature_disabled';
 
   return (
-    <main id="main-content" className="shell-page">
+    <ModulePage>
       <ErrorState
         kind="denied"
         title="Acesso negado"
@@ -31,6 +32,6 @@ export function ShellAccessDeniedPage() {
           Caminho solicitado: <code>{state.from}</code>
         </p>
       ) : null}
-    </main>
+    </ModulePage>
   );
 }

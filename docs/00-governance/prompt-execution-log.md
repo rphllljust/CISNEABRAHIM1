@@ -17658,6 +17658,59 @@ NEXT_PROMPT_EXECUTED: NO
 
 ---
 
+## SHELL / PRIMITIVES — BALIZA DOS RELATORIOS DE DESIGN APLICADA
+
+DATA: 2026-10-07T10:53:00-04:00
+STATUS: **PASS**
+
+### Escopo executado
+
+Continuidade da wave frontend Enterprise Tier-1, usando os relatórios gravados como baliza:
+shell ERP executivo, primitives compartilhados, worklists densas, `ModulePage`, `DefinitionList`,
+e ausência de dashboard/métrica inventada.
+
+Módulos: **Shell técnico** e **ConfirmDialog compartilhado**.
+Classificação principal: **SHARED UI / SHELL**.
+
+Classificação: **interpretação de engenharia visual / experiência operacional**. Nenhuma regra
+empresarial criada, promovida ou alterada; nenhum backend, API, migration, seed, permissão ou
+contrato de dados tocado.
+
+### Arquivos alterados
+
+- `apps/web/src/clients/components/ConfirmDialog.tsx`
+- `apps/web/src/pages/AppHomePage.tsx`
+- `apps/web/src/pages/ShellNotFoundPage.tsx`
+- `apps/web/src/pages/ShellAccessDeniedPage.tsx`
+- `apps/web/src/pages/PlatformDiagnosticsPage.tsx`
+
+### Alteração aplicada
+
+- `ConfirmDialog` deixou `button-row` e passou a usar ações flex utilitárias, afetando todos os
+  dialogs consumidores.
+- Páginas shell técnicas deixaram `shell-page` local e passaram para `ModulePage`/`ModulePageHeader`.
+- Diagnóstico técnico passou a usar `DefinitionList` em painel, mantendo “no business data”.
+
+### Validação
+
+- `pnpm --filter @cisne/web exec eslint src/clients/components/ConfirmDialog.tsx src/pages/AppHomePage.tsx src/pages/ShellNotFoundPage.tsx src/pages/ShellAccessDeniedPage.tsx src/pages/PlatformDiagnosticsPage.tsx` — **PASS**
+- `pnpm --filter @cisne/web typecheck` — **PASS**
+- `git diff --check` — **PASS**
+
+### Quality gate
+
+- [x] Alteração restrita a shell/primitives visuais
+- [x] Nenhum dado, KPI, relação ou capability inventado
+- [x] Nenhuma regra empresarial nova
+- [x] Nenhuma migration, seed, backend, permissão ou contrato de API
+- [x] Rotas, ações e mensagens preservadas
+
+WORKING_TREE: limpo após commit
+COMMIT: incluído no commit desta sessão
+NEXT_PROMPT_EXECUTED: NO
+
+---
+
 ## ORDENS DE SERVICO — PLANEJAMENTO: DIALOG DE ALOCACAO SEM FORM-FIELD
 
 DATA: 2026-10-07T10:49:00-04:00

@@ -1,9 +1,10 @@
 import { Link } from 'react-router-dom';
 import { ErrorState } from '../ui/ErrorState';
+import { ModulePage } from '../ui/module-layout';
 
 export function ShellNotFoundPage() {
   return (
-    <main id="main-content" className="shell-page">
+    <ModulePage>
       <ErrorState
         kind="not_found"
         title="Página não encontrada"
@@ -14,6 +15,6 @@ export function ShellNotFoundPage() {
           </Link>
         }
       />
-    </main>
+    </ModulePage>
   );
 }

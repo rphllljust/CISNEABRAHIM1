@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AuthzApiError, probeRequest } from '../auth/api/authz-api';
 import { useAuth } from '../auth/context/AuthProvider';
+import { DefinitionList } from '../financial-ui/DefinitionList';
+import { ModulePage, ModulePageHeader } from '../ui/module-layout';
 
 type ProbeState =
   | { status: 'loading' }
@@ -46,29 +48,26 @@ export function PlatformDiagnosticsPage() {
   }, [expireSession]);
 
   return (
-    <main id="main-content" className="shell-page">
-      <h1>Platform diagnostics</h1>
-      <p>Technical probe endpoint — no business data.</p>
+    <ModulePage>
+      <ModulePageHeader
+        title="Platform diagnostics"
+        description="Technical probe endpoint — no business data."
+      />
       {probe.status === 'loading' ? (
         <p aria-busy="true" aria-live="polite">
           Running probe…
         </p>
       ) : null}
       {probe.status === 'ok' ? (
-        <dl className="session-details">
-          <div>
-            <dt>Probe status</dt>
-            <dd>ok</dd>
-          </div>
-          <div>
-            <dt>Identity</dt>
-            <dd>{probe.identityId}</dd>
-          </div>
-          <div>
-            <dt>Session</dt>
-            <dd>{probe.sessionId}</dd>
-          </div>
-        </dl>
+        <section className="rounded-md border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgb(15_23_42/0.04)]">
+          <DefinitionList
+            items={[
+              { label: 'Probe status', value: 'ok' },
+              { label: 'Identity', value: probe.identityId },
+              { label: 'Session', value: probe.sessionId },
+            ]}
+          />
+        </section>
       ) : null}
       {probe.status === 'denied' ? (
         <p role="alert">Access denied by the authorization service.</p>
@@ -77,6 +76,6 @@ export function PlatformDiagnosticsPage() {
       <p>
         <Link to="/app">Back to home</Link>
       </p>
-    </main>
+    </ModulePage>
   );
 }
