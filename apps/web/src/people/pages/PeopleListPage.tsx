@@ -20,6 +20,7 @@ import {
   rowPrimaryActionClass,
   worklistCellClass,
   worklistCellRaisedClass,
+  worklistControlClass,
   worklistHeadCellClass,
   worklistRowClass,
   worklistSelectClass,
@@ -314,7 +315,12 @@ export function PeopleListPage() {
           <input
             id="person-search"
             type="search"
-            className={worklistSelectClass}
+            /*
+              CONTROLE DE BUSCA — nao o `select` emprestado.
+              O campo usava `worklistSelectClass`, que carrega `cursor-pointer`: um campo de texto
+              com cursor de lista. Agora usa a classe de controle de texto, na mesma altura de token.
+            */
+            className={worklistControlClass}
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
             placeholder="Nome ou código do membro"
@@ -417,14 +423,14 @@ export function PeopleListPage() {
                     <WorklistRowLink href={`/app/people/${person.id}`}>
                       {person.preferredName ?? person.legalName}
                     </WorklistRowLink>
-                    <p className="text-[11px] text-gray-500">
+                    <p className="cisne-type-helper m-0">
                       {person.memberCode}
                       {person.preferredName ? ` · ${person.legalName}` : ''}
                     </p>
                   </td>
                   <td className={worklistCellRaisedClass}>
                     {person.defaultLaborTypeName ?? (
-                      <span className="text-[11px] text-gray-500">
+                      <span className="cisne-type-helper">
                         {person.defaultLaborTypeCode ? 'Função sem rótulo' : 'Função não informada'}
                       </span>
                     )}
@@ -441,13 +447,13 @@ export function PeopleListPage() {
                       entrar numa OS.
                     */}
                     {person.serviceOrderAllocationSupported ? (
-                      <span className="text-[12px] text-gray-600">Apta a alocação</span>
+                      <span className="cisne-type-meta">Apta a alocação</span>
                     ) : (
                       <WorklistException tone="warning">Não alocável em OS</WorklistException>
                     )}
                   </td>
                   <td className={worklistCellRaisedClass}>
-                    <span className="whitespace-nowrap text-[12px] text-gray-600">
+                    <span className="cisne-type-meta whitespace-nowrap">
                       {new Date(person.updatedAt).toLocaleDateString('pt-BR')}
                     </span>
                   </td>
