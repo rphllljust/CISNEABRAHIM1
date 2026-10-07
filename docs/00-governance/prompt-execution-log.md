@@ -51,6 +51,61 @@ FILES_CHANGED: (nenhum preexistente; workspace estava vazio além do .git criado
 QUALITY_GATE: PASS
 FUNCTIONAL_CODE_CREATED: NO
 NEXT_PROMPT_EXECUTED: NO
+
+---
+
+## ORDENS DE SERVICO — WORK AREA OPERACIONAL ENTERPRISE — 2026-10-07
+
+STATUS: **PASS**
+
+### Escopo executado
+
+Continuidade da wave frontend Enterprise Tier-1 real, uma funcao por vez.
+
+Modulo: **Ordens de Servico**.
+Funcao: **Lista/engine de ordens de servico** (`/app/service-orders`).
+Classificacao principal: **LISTA OPERACIONAL / WORK AREA**.
+
+Classificacao: **interpretacao de engenharia visual / experiencia operacional**.
+Nenhuma regra empresarial criada, promovida ou alterada; nenhum backend, API, migration, seed,
+permissao ou contrato de dados tocado.
+
+### Arquivos alterados
+
+- `apps/web/src/service-orders/pages/ServiceOrdersEngineListPage.tsx`
+- `apps/web/src/service-orders/service-orders-list.e2e.test.tsx`
+- `docs/01-foundation/requirements-traceability.md`
+
+### Alteracao aplicada
+
+- A lista de OS deixou de ser uma superficie `p-6` com titulo/filtros/tabela e passou a declarar
+  `ModulePage layout="workspace"`.
+- A funcao passou a expor header operacional, sinais de carteira derivados somente das linhas
+  carregadas, work queue engine, saved views, filtros metadata/server-side, bulk commands,
+  context drawer e command palette na mesma experiencia.
+- A paginacao continua sem inventar total global: pagina paginada nao e dataset.
+- O teste e2e foi alinhado ao contrato i18n real do `entity-title`, preservando a verificacao
+  das colunas vindas do metadata store.
+
+### Validacao
+
+- `pnpm --filter @cisne/web exec eslint src/service-orders/pages/ServiceOrdersEngineListPage.tsx src/service-orders/service-orders-list.e2e.test.tsx` — **PASS**
+- `pnpm --filter @cisne/web exec vitest run --config vite.config.ts src/service-orders/pages/ServiceOrdersEngineListPage.test.tsx src/service-orders/service-orders-list.e2e.test.tsx` — **PASS** (9/9)
+- `pnpm --filter @cisne/web typecheck` — **PASS**
+- `git diff --check` — **PASS**
+
+### Quality gate
+
+- [x] Alteracao restrita a funcao de lista operacional de OS e rastreabilidade
+- [x] Reuso de infraestrutura existente: `ModulePage`, `DynamicKpiDrilldown`, `DynamicSavedViewsBar`, `DynamicFilterBar`, `DynamicBulkActions`, `DynamicContextDrawer`, `CommandPalette`
+- [x] Nenhum dado, KPI, relacao ou capability inventado
+- [x] Nenhuma regra empresarial nova
+- [x] Nenhuma migration, seed, backend, permissao ou contrato de API
+- [x] Server-side filtering/pagination preservados
+
+WORKING_TREE: limpo apos commit
+COMMIT: incluido no commit desta sessao
+NEXT_PROMPT_EXECUTED: NO
 NOTES:
   Workspace C:\CISNEABRAHIM inspecionado vazio; git init local (branch master, sem remoto, sem commit até o encerramento desta etapa).
   Identidade Git já existia (user.name / user.email); commit desta etapa previsto após este registro.

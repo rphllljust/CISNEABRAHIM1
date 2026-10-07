@@ -29,9 +29,7 @@ describe('service orders list e2e (frontend)', () => {
     window.history.pushState({}, '', '/app/service-orders');
     render(<App />);
 
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /ordens de serviço/i })).toBeInTheDocument();
-    });
+    expect(await screen.findByTestId('entity-title')).toHaveTextContent(/ordens de serviço|service orders/i);
 
     const table = await screen.findByTestId('dynamic-list');
     expect(table).toHaveAttribute('data-entity', 'service-orders');

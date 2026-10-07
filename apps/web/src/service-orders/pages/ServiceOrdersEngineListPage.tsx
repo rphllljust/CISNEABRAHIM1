@@ -45,7 +45,7 @@ import {
   WorklistStatePanel,
   worklistSelectClass,
 } from '../../ui/enterprise-list';
-import { ModulePagination } from '../../ui/module-layout';
+import { ModulePage, ModulePagination } from '../../ui/module-layout';
 import { serviceOrderEngineRows, type ServiceOrderEngineRow } from './service-order-engine-rows';
 
 /**
@@ -102,6 +102,7 @@ export function ServiceOrdersEngineListPage() {
 
   const [rows, setRows] = useState<ServiceOrderEngineRow[]>([]);
   const [rowsStatus, setRowsStatus] = useState<'loading' | 'ready' | 'denied' | 'error'>('loading');
+  const [pageBusy, setPageBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -157,6 +158,7 @@ export function ServiceOrdersEngineListPage() {
       setRowsStatus((previous) => (previous === 'ready' ? previous : 'loading'));
       setErrorMessage(null);
       try {
+        setPageBusy(true);
         const response = await listServiceOrders(
           {
             limit: PAGE_SIZE,
@@ -171,12 +173,14 @@ export function ServiceOrdersEngineListPage() {
         }
         setRows(serviceOrderEngineRows(response.items));
         setRowsStatus('ready');
+        setPageBusy(false);
       } catch (error) {
         if (signal?.aborted) {
           return;
         }
         if (error instanceof ServiceOrdersApiError && error.kind === 'denied') {
           setRowsStatus('denied');
+          setPageBusy(false);
           return;
         }
         setErrorMessage(
@@ -185,6 +189,7 @@ export function ServiceOrdersEngineListPage() {
             : 'Não foi possível carregar as ordens de serviço.',
         );
         setRowsStatus('error');
+        setPageBusy(false);
       }
     },
     [pageOffset, search, statusFilter],
@@ -228,6 +233,21 @@ export function ServiceOrdersEngineListPage() {
     [],
   );
   const kpiMetrics = useMemo(() => buildKpiMetrics(rows, kpiSpecs), [rows, kpiSpecs]);
+
+  const operationalSnapshot = useMemo(() => {
+    const countStatus = (expected: string): number =>
+      rows.filter((row) => toDisplayText(row['status']) === expected).length;
+    const withDeadline = rows.filter((row) => toDisplayText(row['deadline_at']).trim() !== '').length;
+    return {
+      pageTotal: rows.length,
+      released: countStatus('RELEASED'),
+      inExecution: countStatus('IN_EXECUTION'),
+      paused: countStatus('PAUSED'),
+      completed: countStatus('COMPLETED'),
+      cancelled: countStatus('CANCELLED'),
+      withDeadline,
+    };
+  }, [rows]);
 
   const updateFilter = (field: string, value: string): void => {
     const next = new URLSearchParams(searchParams);
@@ -356,36 +376,38 @@ export function ServiceOrdersEngineListPage() {
   useCommandPaletteShortcut(useCallback(() => setPaletteOpen(true), []));
 
   return (
-    <div className="p-6">
-      <header className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          {/*
-            ENTITY TITLE — o rótulo da entidade, resolvido pelo i18n.
+    <ModulePage layout="workspace" className="space-y-3">
+      <header className="rounded-md border border-slate-200 bg-white px-4 py-3 shadow-[0_1px_2px_rgb(15_23_42/0.04)]">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            {/*
+              ENTITY TITLE — o rótulo da entidade, resolvido pelo i18n.
 
-            O metadata store devolve o rótulo em português (`Ordens de serviço`). Aqui ele
-            passa pelo catálogo: em pt-BR sai igual ao metadado, em en-US sai traduzido. O
-            `data-testid` é o gancho da prova de browser — é este nó que precisa mudar quando
-            o operador troca o idioma, SEM reload.
-          */}
-          <h1 className="text-xl font-semibold" data-testid="entity-title">
-            {entityLabel('service-orders', schema?.label ?? 'Ordens de serviço')}
-          </h1>
-          <p className="mt-1 text-xs text-gray-500">
-            Renderizado pela engine a partir de <code>/api/v1/meta/service-orders</code>.
-          </p>
+              O metadata store devolve o rótulo em português (`Ordens de serviço`). Aqui ele
+              passa pelo catálogo: em pt-BR sai igual ao metadado, em en-US sai traduzido. O
+              `data-testid` é o gancho da prova de browser — é este nó que precisa mudar quando
+              o operador troca o idioma, SEM reload.
+            */}
+            <h1 className="text-xl font-semibold text-slate-950" data-testid="entity-title">
+              {entityLabel('service-orders', schema?.label ?? 'Ordens de serviço')}
+            </h1>
+            <p className="mt-1 text-xs text-gray-500">
+              Cockpit operacional renderizado pela engine a partir do metadata store e da carteira autorizada.
+            </p>
+          </div>
+          {/* Criação pela engine: os campos são os que o metadado declara como criáveis. */}
+          <button
+            type="button"
+            data-testid="dynamic-create-open"
+            className="rounded bg-slate-800 px-3 py-1.5 text-sm text-white"
+            onClick={() => {
+              setCreateError(null);
+              setCreateOpen((current) => !current);
+            }}
+          >
+            Nova OS
+          </button>
         </div>
-        {/* Criação pela engine: os campos são os que o metadado declara como criáveis. */}
-        <button
-          type="button"
-          data-testid="dynamic-create-open"
-          className="rounded bg-slate-800 px-3 py-1.5 text-sm text-white"
-          onClick={() => {
-            setCreateError(null);
-            setCreateOpen((current) => !current);
-          }}
-        >
-          Nova OS
-        </button>
       </header>
 
       {status === 'loading' || rowsStatus === 'loading' ? (
@@ -449,6 +471,22 @@ export function ServiceOrdersEngineListPage() {
             activeFilters={filters}
             onDrilldown={(field, value) => updateFilter(field, value)}
           />
+
+          <section
+            className="grid gap-2 rounded-md border border-slate-200 bg-white px-3 py-3 shadow-[0_1px_2px_rgb(15_23_42/0.04)] md:grid-cols-3 xl:grid-cols-6"
+            aria-label="Cockpit operacional da carteira"
+          >
+            <OperationalSignal label="Na página" value={operationalSnapshot.pageTotal} detail="ordens carregadas" />
+            <OperationalSignal label="Liberadas" value={operationalSnapshot.released} detail="prontas para execução" />
+            <OperationalSignal label="Em execução" value={operationalSnapshot.inExecution} detail="campo ativo" />
+            <OperationalSignal label="Pausadas" value={operationalSnapshot.paused} detail="atenção operacional" tone="warning" />
+            <OperationalSignal label="Com prazo" value={operationalSnapshot.withDeadline} detail="deadline informado" />
+            <OperationalSignal
+              label="Fechadas"
+              value={operationalSnapshot.completed + operationalSnapshot.cancelled}
+              detail="concluídas/canceladas"
+            />
+          </section>
 
           <div className="mb-2">
             <DynamicExportCsv
@@ -600,7 +638,11 @@ export function ServiceOrdersEngineListPage() {
             conta as linhas REALMENTE carregadas.
           */}
           <WorklistFooter
-            rangeLabel={`${pageOffset + 1}–${pageOffset + items.length} nesta página`}
+            rangeLabel={
+              pageBusy
+                ? 'Atualizando carteira...'
+                : `${pageOffset + 1}–${pageOffset + items.length} nesta página`
+            }
             extra={
               statusFilter || search.trim()
                 ? `${items.length} nesta página${statusFilter ? ` · situação: ${stateLabel(statusFilter)}` : ''}`
@@ -656,6 +698,32 @@ export function ServiceOrdersEngineListPage() {
         actions={paletteActions}
         onNavigate={(path) => void navigate(path)}
       />
+    </ModulePage>
+  );
+}
+
+function OperationalSignal({
+  label,
+  value,
+  detail,
+  tone = 'default',
+}: {
+  label: string;
+  value: number;
+  detail: string;
+  tone?: 'default' | 'warning';
+}) {
+  return (
+    <div
+      className={
+        tone === 'warning'
+          ? 'min-w-0 rounded border border-amber-200 bg-amber-50 px-3 py-2'
+          : 'min-w-0 rounded border border-slate-200 bg-slate-50/70 px-3 py-2'
+      }
+    >
+      <p className="m-0 text-[11px] font-semibold tracking-wide text-slate-500 uppercase">{label}</p>
+      <p className="m-0 mt-1 text-xl font-semibold text-slate-950 tabular-nums">{value}</p>
+      <p className="m-0 text-xs text-slate-500">{detail}</p>
     </div>
   );
 }
