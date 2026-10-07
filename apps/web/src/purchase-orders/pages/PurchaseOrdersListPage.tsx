@@ -1,10 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { RELATION_SCOPE_KEYS, useRelationScope } from '../../enterprise-object';
-import { listPurchaseOrders, PurchaseOrdersApiError } from '../api/purchase-orders-api';
+import {
+  cancelPurchaseOrder,
+  getPurchaseOrder,
+  listPurchaseOrders,
+  registerPurchaseOrder,
+  PurchaseOrdersApiError,
+} from '../api/purchase-orders-api';
 import { mapPurchaseOrderErrorToMessage } from '../api/purchase-order-error-messages';
 import { PurchaseOrderStatusBadge } from '../components/PurchaseOrderStatusBadge';
 import { usePurchaseOrderCapabilities } from '../hooks/usePurchaseOrderCapabilities';
-import type { PurchaseOrder } from '../types/purchase-order.types';
+import type { PurchaseOrder, PurchaseOrderDetail } from '../types/purchase-order.types';
+import { Button } from '../../ui/Button';
+import { Skeleton } from '../../ui/Skeleton';
 import { PURCHASE_ORDER_STATUSES } from '../types/purchase-order.types';
 import { formatClientSnapshot, formatDate, formatMoney } from '../utils/purchase-order-labels';
 import {
@@ -16,6 +25,7 @@ import {
 import { HumanLookupField } from '../../financial-ui/HumanLookupField';
 import { searchClientOptions } from '../../financial-ui/client-lookup';
 import {
+  DynamicContextDrawer,
   DynamicSavedViewsBar,
   useSavedViews,
 } from '../../engine';
@@ -125,6 +135,7 @@ export function PurchaseOrdersListPage() {
    * reconstroi todo dia. Salva-lo e o que a engine ja oferece (`useSavedViews`), persistido por
    * identidade e DECLARADO como local enquanto nao existe endpoint de visoes salvas.
   */
+  const navigate = useNavigate();
   const { identityId } = useAuth();
   const savedViews = useSavedViews(identityId ?? 'anonymous', 'purchase-orders');
   // RELATION CONTRACT: o recorte vindo da URL (clique em "Pedidos de compra N" na object page
@@ -134,6 +145,94 @@ export function PurchaseOrdersListPage() {
   const [clientFilter, setClientFilter] = useState(relationScope.clientId ?? '');
   const [unitFilter, setUnitFilter] = useState('');
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
+
+  /*
+   * CONTEXT REGION — o pedido selecionado, com o detalhe REAL.
+   *
+   * `GET /purchase-orders/:id` publica o que a listagem não traz: itens, regras de faturamento,
+   * documentos vinculados e a CADEIA relacionada (solicitação, OS, medição, faturamento). É o que
+   * permite conferir e agir SEM abrir a ficha e voltar — o vaivém que a ordem elimina.
+   * Carregamento LOCALIZADO: só o painel espera.
+   */
+  const [selected, setSelected] = useState<PurchaseOrder | null>(null);
+  const [detailState, setDetailState] = useState<
+    | { phase: 'idle' }
+    | { phase: 'loading' }
+    | { phase: 'error'; message: string }
+    | { phase: 'ready'; detail: PurchaseOrderDetail }
+  >({ phase: 'idle' });
+  /**
+   * MOTIVO DO CANCELAMENTO — informado pelo OPERADOR.
+   * No contrato deste domínio `cancellationReason` é OPCIONAL: enviamos o que o operador escrever
+   * e NÃO inventamos texto fixo. Forçar um motivo que o backend não exige seria criar regra nova
+   * no frontend; preenchê-lo sozinho seria fabricar registro de auditoria.
+   */
+  const [commandReason, setCommandReason] = useState('');
+  const [commandBusy, setCommandBusy] = useState(false);
+  const [commandError, setCommandError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
+
+  const selectedId = selected?.id ?? null;
+
+  useEffect(() => {
+    if (!selectedId) {
+      setDetailState({ phase: 'idle' });
+      setCommandReason('');
+      setCommandError(null);
+      return;
+    }
+    const controller = new AbortController();
+    setDetailState({ phase: 'loading' });
+    setCommandError(null);
+    void getPurchaseOrder(selectedId, controller.signal)
+      .then((detail) => {
+        if (!controller.signal.aborted) {
+          setDetailState({ phase: 'ready', detail });
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setDetailState({
+            phase: 'error',
+            message: 'Não foi possível carregar o contexto do pedido.',
+          });
+        }
+      });
+    return () => controller.abort();
+  }, [selectedId]);
+
+  /** COMANDO REAL a partir do contexto. Envia intenção + `rowVersion`; o backend decide. */
+  const runContextCommand = useCallback(
+    async (command: 'register' | 'cancel') => {
+      if (!selected) {
+        return;
+      }
+      const rowVersion = selected.rowVersion;
+      setCommandBusy(true);
+      setCommandError(null);
+      try {
+        if (command === 'register') {
+          await registerPurchaseOrder(selected.id, rowVersion);
+        } else {
+          await cancelPurchaseOrder(selected.id, {
+            rowVersion,
+            ...(commandReason.trim() === '' ? {} : { cancellationReason: commandReason.trim() }),
+          });
+        }
+        setSelected(null);
+        setReloadToken((current) => current + 1);
+      } catch (error) {
+        setCommandError(
+          error instanceof PurchaseOrdersApiError
+            ? mapPurchaseOrderErrorToMessage(error.code, error.status)
+            : 'Não foi possível executar o comando.',
+        );
+      } finally {
+        setCommandBusy(false);
+      }
+    },
+    [commandReason, selected],
+  );
 
   const loadPage = useCallback(
     async (offset: number, signal?: AbortSignal) => {
@@ -189,7 +288,7 @@ export function PurchaseOrdersListPage() {
     const controller = new AbortController();
     void loadPage(0, controller.signal);
     return () => controller.abort();
-  }, [loadPage]);
+  }, [loadPage, reloadToken]);
 
   if (listState.phase === 'loading') {
     return (
@@ -430,7 +529,22 @@ export function PurchaseOrdersListPage() {
                   item.status === PURCHASE_ORDER_STATUSES.Registered;
 
                 return (
-                  <tr key={item.id} className={worklistRowClass}>
+                  <tr
+                    key={item.id}
+                    className={cn(worklistRowClass, 'cursor-pointer')}
+                    /*
+                      SELEÇÃO abre o CONTEXTO; a IDENTIDADE (`poNumber`) continua um link real para
+                      a ficha completa. São TRÊS gestos distintos e não misturados: a linha abre o
+                      contexto lateral, o código faz o drillback, e o comando é executado dentro do
+                      painel. Cliques em elementos interativos internos seguem seu próprio caminho.
+                    */
+                    onClick={(event) => {
+                      if ((event.target as HTMLElement).closest('a, button, select, input')) {
+                        return;
+                      }
+                      setSelected(item);
+                    }}
+                  >
                   {/*
                     COLUNA PRINCIPAL = alvo de clique da linha. O `internalCode` saiu: ele e o
                     codigo INTERNO do ERP, e o operador trabalha com o numero do cliente
@@ -596,6 +710,134 @@ export function PurchaseOrdersListPage() {
         </WorklistFooter>
       ) : null}
       </div>
+
+      {/*
+        CONTEXT REGION — decidir sem abandonar a fila.
+
+        O painel carrega o DETALHE real do pedido e executa os comandos reais do domínio
+        (`register` / `cancel`). Antes, registrar ou cancelar exigia abrir a ficha, achar a ação e
+        voltar — e as "ações" da linha eram apenas links para essa mesma ficha.
+
+        O motivo do cancelamento é digitado pelo operador e enviado SÓ quando existe: no contrato
+        deste domínio ele é opcional, e a tela não inventa texto de auditoria.
+      */}
+      <DynamicContextDrawer
+        open={selected !== null}
+        title="Contexto do pedido de compra"
+        onClose={() => setSelected(null)}
+        crossReferences={[]}
+      >
+        <div data-region="context-region">
+          {selected ? (
+            <p className="cisne-type-primary m-0 mb-2 truncate">{selected.poNumber}</p>
+          ) : null}
+
+          {detailState.phase === 'loading' ? (
+            <div aria-busy="true" role="status" className="flex flex-col gap-1.5">
+              <span className="cisne-type-helper">Carregando contexto…</span>
+              <Skeleton lines={4} />
+            </div>
+          ) : null}
+
+          {detailState.phase === 'error' ? (
+            <p className="cisne-type-body m-0 text-red-700" role="alert">
+              {detailState.message}
+            </p>
+          ) : null}
+
+          {detailState.phase === 'ready' ? (
+            <>
+              <dl className="m-0 grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)] gap-x-3 gap-y-1.5">
+                <dt className="cisne-meta-label pt-0.5">Cliente</dt>
+                <dd className="cisne-meta-value m-0 truncate">
+                  {formatClientSnapshot(detailState.detail.purchaseOrder.clientSnapshot)}
+                </dd>
+                <dt className="cisne-meta-label pt-0.5">Situação</dt>
+                <dd className="cisne-meta-value m-0">
+                  <PurchaseOrderStatusBadge status={detailState.detail.purchaseOrder.status} />
+                </dd>
+                <dt className="cisne-meta-label pt-0.5">Itens</dt>
+                <dd className="cisne-meta-value m-0">{detailState.detail.items.length}</dd>
+                <dt className="cisne-meta-label pt-0.5">Documentos</dt>
+                <dd className="cisne-meta-value m-0">{detailState.detail.documentLinks.length}</dd>
+              </dl>
+
+              {/* CADEIA REAL — só os degraus que o detalhe publica. */}
+              {detailState.detail.linked && detailState.detail.linked.length > 0 ? (
+                <div className="cisne-divider--top mb-2 mt-2 pt-2">
+                  <h3 className="cisne-section-title m-0 mb-1">Linhagem</h3>
+                  <ul className="m-0 flex list-none flex-col gap-0 p-0">
+                    {detailState.detail.linked.map((node) => (
+                      <li key={`${node.kind}:${node.id}`} className="cisne-type-meta truncate">
+                        {node.kind}
+                        {node.label ? ` · ${node.label}` : ''}
+                        {node.status ? ` · ${node.status}` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              <div className="cisne-divider--top mt-2 pt-2">
+                <label className="mb-1 block">
+                  <span className="cisne-meta-label mb-0.5 block">
+                    Motivo do cancelamento (opcional neste contrato)
+                  </span>
+                  <input
+                    type="text"
+                    className="min-h-[var(--control-height)] w-full rounded-md border-0 bg-white px-1.5 text-[length:var(--type-body-size)] ring-1 ring-gray-300 ring-inset outline-none focus:ring-2 focus:ring-brand-500"
+                    value={commandReason}
+                    onChange={(event) => setCommandReason(event.target.value)}
+                    placeholder="Informe o motivo, se houver"
+                  />
+                </label>
+
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {capabilities.canRegister ? (
+                    <Button
+                      variant="primary"
+                      loading={commandBusy}
+                      onClick={() => void runContextCommand('register')}
+                    >
+                      Registrar
+                    </Button>
+                  ) : null}
+                  {capabilities.canCancel ? (
+                    <Button
+                      variant="secondary"
+                      loading={commandBusy}
+                      onClick={() => void runContextCommand('cancel')}
+                    >
+                      Cancelar
+                    </Button>
+                  ) : null}
+                  {!capabilities.canRegister && !capabilities.canCancel ? (
+                    <p className="cisne-type-helper m-0">
+                      Nenhum comando disponível para o seu acesso.
+                    </p>
+                  ) : null}
+                </div>
+
+                {commandError ? (
+                  <p className="cisne-type-helper m-0 mt-1.5 text-red-700" role="alert">
+                    {commandError}
+                  </p>
+                ) : null}
+              </div>
+
+              {/* DRILLBACK ÚNICO — uma vez por registro selecionado, nunca por linha. */}
+              <div className="cisne-divider--top mt-2 pt-2">
+                <Button
+                  variant="secondary"
+                  onClick={() => void navigate(`/app/purchase-orders/${detailState.detail.purchaseOrder.id}`)}
+                >
+                  Abrir ficha completa
+                </Button>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </DynamicContextDrawer>
     </ModulePage>
   );
 }
