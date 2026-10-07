@@ -29,7 +29,7 @@ export function FormSection({
   return (
     <section
       className={cn(
-        'rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5',
+        'rounded-md border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgb(15_23_42/0.04)]',
         className,
       )}
       aria-labelledby={headingId}

@@ -49,7 +49,7 @@ export function KpiCard({
   footer,
 }: KpiCardProps) {
   const surface = cn(
-    'rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5',
+    'rounded-md border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgb(15_23_42/0.04)]',
     href && 'block text-inherit no-underline transition hover:bg-gray-50/80 focus-visible:cisne-focus-ring',
     className,
   );

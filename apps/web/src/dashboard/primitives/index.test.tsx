@@ -93,7 +93,7 @@ describe('VISUALIZATION PRIMITIVES', () => {
   });
 
   it('chartCardClassName e a classe canonica estavel do card de grafico', () => {
-    expect(chartCardClassName).toContain('rounded-xl');
-    expect(chartCardClassName).toContain('shadow-sm');
+    expect(chartCardClassName).toContain('rounded-md');
+    expect(chartCardClassName).toContain('border-slate-200');
   });
 });

@@ -17658,6 +17658,58 @@ NEXT_PROMPT_EXECUTED: NO
 
 ---
 
+## UI PRIMITIVES — DENSIDADE ERP EM FORMSECTION, KPICARD E CHART CARDS
+
+DATA: 2026-10-07T10:55:00-04:00
+STATUS: **PASS**
+
+### Escopo executado
+
+Continuidade da wave frontend Enterprise Tier-1 usando os relatórios de design como baliza:
+reduzir cartões `rounded-xl p-6 shadow-sm`, aumentar densidade operacional e reforçar primitives
+compartilhados.
+
+Módulos: **UI primitives** e **Dashboard primitives**.
+Classificação principal: **SHARED UI TOKENS**.
+
+Classificação: **interpretação de engenharia visual / experiência operacional**. Nenhuma regra
+empresarial criada, promovida ou alterada; nenhum backend, API, migration, seed, permissão ou
+contrato de dados tocado.
+
+### Arquivos alterados
+
+- `apps/web/src/ui/FormSection.tsx`
+- `apps/web/src/ui/KpiCard.tsx`
+- `apps/web/src/dashboard/primitives/index.tsx`
+- `apps/web/src/dashboard/primitives/index.test.tsx`
+
+### Alteração aplicada
+
+- `FormSection`, `KpiCard` e `chartCardClassName` passaram para superfície `rounded-md`, borda
+  `slate-200`, `p-4` e sombra discreta.
+- APIs, props, semântica acessível e consumidores foram preservados.
+
+### Validação
+
+- `pnpm --filter @cisne/web exec vitest run --config vite.config.ts src/dashboard/primitives/index.test.tsx src/ui/ui.components.test.tsx src/ui/ui.robustness.test.tsx` — **PASS** (38/38)
+- `pnpm --filter @cisne/web exec eslint src/ui/FormSection.tsx src/ui/KpiCard.tsx src/dashboard/primitives/index.tsx src/dashboard/primitives/index.test.tsx` — **PASS**
+- `pnpm --filter @cisne/web typecheck` — **PASS**
+- `git diff --check` — **PASS**
+
+### Quality gate
+
+- [x] Alteração restrita a tokens/primitives visuais
+- [x] Nenhum dado, KPI, relação ou capability inventado
+- [x] Nenhuma regra empresarial nova
+- [x] Nenhuma migration, seed, backend, permissão ou contrato de API
+- [x] API dos primitives preservada
+
+WORKING_TREE: limpo após commit
+COMMIT: incluído no commit desta sessão
+NEXT_PROMPT_EXECUTED: NO
+
+---
+
 ## SHELL / PRIMITIVES — BALIZA DOS RELATORIOS DE DESIGN APLICADA
 
 DATA: 2026-10-07T10:53:00-04:00

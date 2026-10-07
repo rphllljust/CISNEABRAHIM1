@@ -13,7 +13,8 @@ import type { DashboardKpi } from '../utils/build-dashboard-kpis';
  */
 
 /** Classe canonica do card de grafico (era duplicada em 4 componentes). */
-export const chartCardClassName = 'm-0 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5';
+export const chartCardClassName =
+  'm-0 rounded-md border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgb(15_23_42/0.04)]';
 
 export type ChartStatus = 'ready' | 'loading' | 'error' | 'denied' | 'noData' | 'empty' | 'partial';
 
