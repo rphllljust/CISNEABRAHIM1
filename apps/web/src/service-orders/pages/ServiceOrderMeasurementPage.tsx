@@ -18,7 +18,6 @@ import { mapServiceOrdersErrorToMessage } from '../api/service-orders-error-mess
 import { MeasurementApprovalDialog } from '../components/MeasurementApprovalDialog';
 import { MeasurementComparisonCards } from '../components/MeasurementComparisonCards';
 import { MeasurementComparisonTable } from '../components/MeasurementComparisonTable';
-import { MeasurementStatusBadge } from '../components/MeasurementStatusBadge';
 import { MeasurementSummaryPanel } from '../components/MeasurementSummaryPanel';
 import { MeasurementTimeline } from '../components/MeasurementTimeline';
 import { MeasurementVersionConflictBanner } from '../components/MeasurementVersionConflictBanner';
@@ -40,6 +39,7 @@ import {
   ModulePage,
   ModulePageHeader,
 } from '../../ui';
+import { EnterpriseObjectHeader, EnterpriseObjectPage, ObjectPanel } from '../../enterprise-object';
 
 type PageState =
   | { phase: 'loading' }
@@ -267,23 +267,39 @@ export function ServiceOrderMeasurementPage() {
     capabilities.canUpdate && measurement?.status === MEASUREMENT_STATUSES.Rejected;
 
   return (
-    <ModulePage className="measurement-page">
-      <header className="measurement-page__header">
-        <p className="measurement-page__eyebrow">Conferência de medição</p>
-        <div className="measurement-page__title-row">
-          <h1>{order.orderNumber}</h1>
-          {measurement ? <MeasurementStatusBadge status={status} /> : null}
+    <EnterpriseObjectPage
+      className="measurement-page gap-3"
+      breadcrumb={[{ label: 'Ordens de serviço', href: '/app/service-orders' }]}
+      header={
+        <EnterpriseObjectHeader
+          className="border-gray-200 px-5 py-4 shadow-none"
+          reference={order.orderNumber}
+          title={order.orderNumber}
+          subtitle={order.serviceSnapshot.serviceName}
+          status={{ label: status, description: 'Estado atual da medição' }}
+          metadata={[{ label: 'Cliente', value: readClientLabel(order) }, { label: 'Itens', value: measurement?.items.length ?? 0 }, { label: 'Ordem', value: order.orderNumber }]}
+          secondaryActions={[
+            { id: 'planning', label: 'Planejamento', to: `/app/service-orders/${serviceOrderId}/planning` },
+            { id: 'execution', label: 'Execução', to: `/app/service-orders/${serviceOrderId}/execution` },
+            { id: 'billing', label: 'Faturamento', to: `/app/service-orders/${serviceOrderId}/billing` },
+          ]}
+        />
+      }
+      aside={
+        <div className="border-l border-gray-200 pl-4">
+          <ObjectPanel title="Trilha da medição" className="shadow-none">
+            {measurement ? <MeasurementTimeline events={measurement.historyEvents} /> : null}
+          </ObjectPanel>
         </div>
-        <p className="measurement-page__meta">
-          {order.serviceSnapshot.serviceName} · {readClientLabel(order)}
-        </p>
-        <nav className="measurement-page__links" aria-label="Atalhos da ordem de serviço">
-          <Link to={`/app/service-orders/${serviceOrderId}/planning`}>Planejamento</Link>
-          <Link to={`/app/service-orders/${serviceOrderId}/execution`}>Execução</Link>
-          <Link to={`/app/service-orders/${serviceOrderId}/billing`}>Faturamento</Link>
-        </nav>
-      </header>
-
+      }
+    >
+      <main className="space-y-6">
+      <p className="m-0 text-sm font-medium text-gray-600">Conferência de medição</p>
+      <nav aria-label="Atalhos da ordem de serviço" className="flex flex-wrap gap-3 text-sm">
+        <Link to={`/app/service-orders/${serviceOrderId}/planning`}>Planejamento</Link>
+        <Link to={`/app/service-orders/${serviceOrderId}/execution`}>Execução</Link>
+        <Link to={`/app/service-orders/${serviceOrderId}/billing`}>Faturamento</Link>
+      </nav>
       {versionConflict ? <MeasurementVersionConflictBanner onReload={() => void reload()} /> : null}
 
       <div
@@ -418,14 +434,6 @@ export function ServiceOrderMeasurementPage() {
             </div>
           </section>
 
-          <section className="measurement-section" aria-labelledby="measurement-timeline-title">
-            <h2 id="measurement-timeline-title">Trilha da medição</h2>
-            <p className="measurement-hint">
-              Registro das decisões da medição: geração, submissão, análise, aprovação, rejeição e
-              ajustes autorizados. Somente leitura.
-            </p>
-            <MeasurementTimeline events={measurement.historyEvents} />
-          </section>
         </>
       )}
 
@@ -493,6 +501,7 @@ export function ServiceOrderMeasurementPage() {
           />
         </label>
       </ConfirmDialog>
-    </ModulePage>
+      </main>
+    </EnterpriseObjectPage>
   );
 }
