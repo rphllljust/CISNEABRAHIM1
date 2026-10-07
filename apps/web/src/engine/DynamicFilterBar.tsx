@@ -50,10 +50,10 @@ export function DynamicFilterBar({
         da faixa deixa de ser um bloco e passa a ser um rotulo inline. Sem caixa: a faixa pertence a
         area de trabalho e e delimitada por divisor estrutural.
       */
-      className="cisne-divider flex flex-wrap items-end gap-x-0 gap-y-1 px-0 py-1.5"
+      className="cisne-filter-surface"
       onSubmit={(event) => event.preventDefault()}
     >
-      <p className="cisne-meta-label m-0 mr-3 mb-1 shrink-0 self-center">
+      <p className="cisne-meta-label m-0 mr-3 shrink-0">
         {t('filters.title')}
         {activeCount > 0 ? <span className="ml-1 font-semibold">({activeCount})</span> : null}
       </p>
@@ -61,7 +61,7 @@ export function DynamicFilterBar({
       {filterable.map((field) => (
         <div
           key={field.name}
-          className="min-w-36 border-l border-gray-200 px-2.5 first:border-l-0 first:pl-0"
+          className="min-w-36 border-l border-[color:var(--color-divider)] px-2.5 first:border-l-0 first:pl-0"
         >
           <label htmlFor={`filter-${field.name}`} className="cisne-meta-label mb-0.5 block">
             {field.label}
@@ -78,7 +78,7 @@ export function DynamicFilterBar({
         <button
           type="button"
           data-testid="dynamic-filter-clear"
-          className="cisne-type-action mb-1 ml-auto inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+          className="cisne-type-action ml-auto inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
           onClick={onClear}
         >
           {t('filters.clear')}

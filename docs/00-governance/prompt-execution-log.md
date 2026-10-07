@@ -19580,3 +19580,156 @@ registrado como a proxima pendencia desta funcao.
 - `src/purchase-orders` — **25/25 PASS**; `git diff --check` — **PASS** (exit 0)
 
 WORKING_TREE: limpo apos commit
+
+---
+
+## ENTERPRISE VISUAL FOUNDATION — CAMADA COMPARTILHADA (rodada 13) — 2026-10-07
+
+STATUS: **PASS_COM_RESTRICAO**
+Commit: `feat(web): establish enterprise visual foundation`
+
+### Escopo
+
+Somente camada compartilhada. **Nenhuma pagina de modulo editada. Nenhum backend, API, migration,
+seed, permissao, DTO, capability ou workflow tocado.** Nenhuma biblioteca instalada. Stack preservada.
+
+Objetivo desta rodada nao foi "cada vez menos borda/sombra/raio/padding". Foi INVERTER o default da
+camada compartilhada para que paginas **nunca editadas** mudem por heranca.
+
+### Arquivos compartilhados alterados (9; +359 / -56)
+
+| Arquivo | Camada |
+| ------- | ------ |
+| `apps/web/src/ui/theme.css` | governanca global: superficie, raio, elevacao, divisores de regiao, densidade de grade, estados, foco |
+| `apps/web/src/shell/shell.css` | workspace canvas, moldura da pagina, faixa de orientacao, loading |
+| `apps/web/src/shell/AppShellLayout.tsx` | margem morta do work area |
+| `apps/web/src/ui/PageHeader.tsx` | faixa de identidade do workspace |
+| `apps/web/src/ui/Breadcrumb.tsx` | trilha de orientacao (wayfinding, nao titulo) |
+| `apps/web/src/ui/Badge.tsx` | token de estado na grade de densidade |
+| `apps/web/src/ui/enterprise-list.tsx` | superficie de comando / superficie de filtro |
+| `apps/web/src/ui/module-layout.tsx` | `FilterCard` -> superficie de filtro |
+| `apps/web/src/engine/DynamicFilterBar.tsx` | superficie de filtro |
+
+### Mudanca estrutural (nao cosmetica)
+
+1. **MORREU A "FOLHA BRANCA".** A moldura tinha fundo branco + borda + raio sobre canvas cinza. Agora
+   o canvas da AREA DE TRABALHO e a superficie de trabalho e a moldura nao pinta fundo proprio
+   (`transparent`). Sem folha, sem mesa: a hierarquia passa a vir de REGIAO ESTRUTURAL.
+2. **REGIAO ESTRUTURAL GOVERNada.** O divisor de regiao e desenhado pelo sistema. `.shell-page-frame > * + *`, `#main-content > * + *` e
+   `[data-region] + [data-region]` desenham a fronteira entre regioes; `#main-content > *:has(+ *)`
+   cede a borda inferior de quem tem irmao depois, para nao existir regua dupla.
+3. **DENSIDADE DEIXOU DE SER PROPRIEDADE DA PRIMITIVA.** Cabecalho e celula de TODA tabela da area de
+   trabalho passam a ser governados por token — inclusive em telas que nunca usaram a worklist.
+   Escotilha semantica: `table[role="presentation"]` (tabela de layout) fica intocada.
+4. **ESTADOS E FOCO DEIXARAM DE SER LOCAIS.** Foco unico do workspace, hover de linha **somente onde
+   existe alvo real** (`:has(a[href], button:not([disabled]))` — sem affordance inventada) e selecao
+   como estado do sistema.
+5. **SUPERFICIE DE COMANDO E DE FILTRO** viraram vocabulario do sistema (`.cisne-command-surface`,
+   `.cisne-filter-surface`), com pesos de regua DIFERENTES: comando separa com regua forte, filtro com
+   regua comum.
+
+### Correcao de escopo registrada (erro desta rodada, corrigido antes do commit)
+
+A primeira versao da regra de divisor governava `#main-content > div + div`; a segunda governava
+`#main-content .shell-page-frame > * + *`, que e **impossivel de casar** — `id="main-content"` esta no
+proprio `<main>` que `ModulePage` renderiza, e esse `<main>` e FILHO de `.shell-page-frame`. Um seletor
+descendente nao sobe a arvore: a regra teria efeito ZERO. Registrado porque a licao vale mais que a
+regra: seletor de governanca precisa ser conferido contra a arvore REAL, nao contra a pretendida.
+
+### Canario DOM — 3 paginas NAO EDITADAS (BEFORE vs AFTER)
+
+Instrumento: `tmp/foundation-canary-gate.mjs` (CDP, Chromium 1440x900, cache desabilitado, servidor
+real). "OFF" e EMULADO por stylesheet com os valores exatos anteriores a esta wave (padding de
+shell/moldura, margem de breadcrumb, fundo/borda/raio da moldura). **Nenhum stash, nenhum reset.**
+
+| Metrica | `/app/catalog` | `/app/suppliers/new` | `/app/finance/payables` |
+| ------- | -------------- | -------------------- | ----------------------- |
+| usable width ON/OFF | **1063 / 1007** | **1078 / 1022** | **1078 / 1022** |
+| dead margin lateral ON/OFF | **16 / 32** | **16 / 32** | **16 / 32** |
+| content padding left ON/OFF | **16 / 32** | **16 / 32** | **16 / 32** |
+| frame padding left ON/OFF | **12 / 24** | **12 / 24** | **12 / 24** |
+| frame bg/borda/raio ON | `transparent` / 0 / 0 | `transparent` / 0 / 0 | `transparent` / 0 / 0 |
+| frame bg/borda/raio OFF | `#fff` / 1 / 2 | `#fff` / 1 / 2 | `#fff` / 1 / 2 |
+| topo do cabecalho ON/OFF | **118 / 147** | **118 / 147** | **118 / 147** |
+| margem inferior do breadcrumb ON/OFF | **4 / 16** | **4 / 16** | **4 / 16** |
+| altura do cabecalho ON=OFF | 79 | 42 | 43 |
+| control height | 30 | 34 | 26 |
+| filter surface | **30** | — (sem filtro) | — (sem registro) |
+| grade: th / fonte / transform / thBg | **26px / 11px / uppercase / rgb(241,243,246)** | — | — |
+| grade: padding da celula | **2px** | — | — |
+| grade: altura de linha | 41 | — | — |
+| linhas / na dobra | **20 / 12** | — | — |
+| superficies: claras / contornadas / sombreadas / aninhamento | 1 / 0 / **0** / 0 | 0 / 0 / **0** / 0 | 3 / 1 / **0** / 1 |
+| regioes sticky | 5 (nenhuma acima da dobra) | 0 | 0 |
+| main/aside | 3,69 | 3,74 | 3,74 |
+| overflow horizontal | -15 (barra de rolagem) | 0 | 0 |
+| overlap (`elementFromPoint`, sem clamp) | **0** | **0** | **0** |
+| regua dupla | **0** | **0** | **0** |
+| regua sobre coluna | **0** | **0** | **0** |
+| erros de console | 0 | 0 | 0 |
+
+Ganho medido por heranca, igual nas tres: **+56px de largura util**, margem morta lateral pela metade
+(32 -> 16), **29px recuperados antes do cabecalho do workspace**, moldura sem folha/borda/raio.
+
+### Canario de ESTADOS — prova por pseudo-estado forcado (`CSS.forcePseudoState`)
+
+`tmp/foundation-states-gate.mjs` em `/app/catalog` (28 controles focaveis, 20 linhas):
+
+| Prova | OFF | ON |
+| ----- | --- | -- |
+| controle SEM indicacao propria | `outline-style: none` | **`solid 2px rgb(35,127,120)`** |
+| controle que declara `outline-none` (usa ring) | `none` | `none` (sem indicacao dobrada) |
+| linha de grade com alvo, `:hover` | `rgba(0,0,0,0)` | **`rgb(238,247,246)`** |
+
+### Confirmacao de que NAO e "CRUD mais plano"
+
+O gate anti-maquiagem pedia mudanca em hierarquia, densidade, workspace, surface grammar, headers,
+commands e data presentation — nao apenas padding/raio/sombra/borda. Evidencia: (a) a ESTRUTURA da
+moldura mudou (branco+borda+raio -> transparente) enquanto a caixa permaneceu; (b) uma pagina que
+nunca declarou densidade passou a ter cabecalho de grade e celula governados por token; (c) existe
+regiao estrutural entre blocos, sem regua dupla nem regua sobre coluna; (d) 24 dos 28 controles
+focaveis da canario passaram a ter indicacao de foco que **nao existia**; (e) a faixa de comando e a
+faixa de filtro passaram a ter vocabulario e pesos proprios.
+
+### Gates
+
+- `tsc --noEmit` — **PASS** (exit 0); `eslint src/shell src/ui src/engine` — **PASS** (exit 0)
+- `src/ui` + `src/engine` — **46/46 PASS**
+- `git diff --check` — **PASS**
+- `git status` / `git diff --name-only` — somente os 9 arquivos compartilhados acima
+
+### RESTRICOES CONHECIDAS (registradas, nao mascaradas)
+
+1. **`src/shell/shell.e2e.test.tsx` — 6 falhas PRE-EXISTENTES.** FALHAM IDENTICAMENTE SEM A FOUNDATION,
+   provado por comparacao com o baseline `02ea564` (mesmos nomes, mesma contagem, mesma assinatura de
+   duracao: a primeira em ~744ms por `Found multiple elements with the role "banner"` e as outras 5 por
+   timeout de 5s no titulo "Acesso negado"). Causa provavel: `role="banner"` DUPLICADO na arvore do
+   shell. **NAO investigado e NAO corrigido nesta wave** por decisao explicita: nao e regressao da
+   foundation, e abrir auditoria de shell no meio da wave visual misturaria dois escopos.
+2. **Suite completa do web: 39 falhas / 914 passes (163 arquivos).** Comparadas com o registro de
+   baseline desta sessao: 26 das falhas ja eram conhecidas e pre-existentes; a 27a
+   (`ServiceOrdersEngineListPage`, paginacao "21-25") PASSA agora. As 13 restantes foram classificadas
+   por MECANISMO, sem novo baseline global (proibido) e sem stash: 4 sao o MESMO defeito de
+   `banner` duplicado ja provado pre-existente (`vertical-quality-gate` x3, `auth-flow.e2e` x1);
+   1 e teste unitario PURO de funcao (`feature-flags`, 10ms, sem render, `isNavItemVisible`);
+   2 sao conteudo ausente em formulario dirigido por backend (`enterprise-ui-catchup`);
+   1 e contagem (`compliance-bi`); 4 sao timeout de 5s (flaky: `payroll-period-discovery`,
+   `BillingPages`, `billing.e2e`, `billing-document.e2e`); 1 (`closing-center`) **PASSA em execucao
+   isolada**, portanto e flaky por ordem. Nenhum mecanismo e alcancavel por alteracao de CSS ou de
+   `className` — o unico efeito de DOM desta wave e o reposicionamento de `meta` dentro de
+   `PageHeader`, que nao e alvo de nenhuma das falhas.
+3. **Altura de linha em `/app/catalog` = 41px, nao `--row-height` (28px).** O token atua como MINIMO e
+   o conteudo da celula domina (a pagina embute um controle na linha). Densidade dessa pagina e tarefa
+   de COMPOSICAO DA PAGINA (wave serial de modulos), nao da camada compartilhada.
+4. **Garantia "hover sem alvo" NAO exercitada:** as 20 linhas da canario tem link/botao
+   (`rowsWithoutTarget = 0`). O mecanismo existe e esta medido no hover COM alvo; a ausencia de falsa
+   affordance permanece **nao provada nesta amostra**.
+5. **`.cisne-command-surface` nao exercitada por nenhuma das 3 canarios** (nenhuma renderiza a
+   primitiva). Esta ligada em `EnterpriseToolbar`, mas a canario prova apenas a superficie de FILTRO.
+6. **Camadas 8 (Saved Views), 10 (Object Experience) e 12 (Context Drawers)** foram entregues em
+   rodadas anteriores desta mesma wave e **nao foram alteradas nesta rodada**; as canarios nao as
+   renderizam, logo esta rodada nao as re-prova.
+7. **`02ea564` (context region de Pedidos de Compra) nao possui entrada propria neste log.** O commit
+   existe e o codigo esta no HEAD; o registro detalhado daquela rodada continua PENDENTE.
+
+WORKING_TREE: 9 arquivos compartilhados + este registro

@@ -81,16 +81,15 @@ export function EnterpriseToolbar({
   children: ReactNode;
   className?: string;
 }) {
-  return (
-    <div
-      className={cn(
-        'flex flex-wrap items-end gap-2 border-b border-gray-200 bg-gray-50/70 px-3 py-2',
-        className,
-      )}
-    >
-      {children}
-    </div>
-  );
+  /*
+   * SUPERFICIE DE COMANDO — a governanca vive em `.cisne-command-surface` (theme.css), nao aqui.
+   *
+   * Antes esta barra era `bg-gray-50/70 border-b border-gray-200 px-3 py-2 items-end`: faixa tingida
+   * (card deitado), cor hardcoded fora do sistema de superficies e alinhamento pela base. Agora a
+   * barra NAO tem vocabulario proprio — ela e a superficie de comando do ERP, e qualquer tela que
+   * use esta primitiva herda a mesma altura, a mesma regua e o mesmo alinhamento.
+   */
+  return <div className={cn('cisne-command-surface', className)}>{children}</div>;
 }
 
 /** Campo compacto de toolbar: rotulo pequeno acima, controle denso abaixo. */
@@ -418,7 +417,7 @@ export function WorklistFilterBar({
 }) {
   return (
     <section aria-label="Filtros da lista">
-      <div className="cisne-divider flex flex-wrap items-center gap-2 px-0 py-1.5">
+      <div className="cisne-filter-surface">
         {children}
         <span className="hidden min-w-6 flex-1 sm:block" aria-hidden="true" />
         {meta ? <span className="cisne-type-helper ml-auto tabular-nums">{meta}</span> : null}

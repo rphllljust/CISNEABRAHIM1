@@ -126,13 +126,24 @@ export function AppShellLayout() {
             setPaletteOpen(true);
           }}
         />
-        <div className="shell__content flex-1 px-4 py-4 sm:px-6 lg:px-8">
+        {/*
+          WORK AREA — MARGEM MORTA ELIMINADA.
+
+          Antes: `px-4 py-4 sm:px-6 lg:px-8` de canvas + `px-5 py-4 sm:px-6` de moldura — cerca de
+          56px horizontais e 32px verticais consumidos antes do primeiro dado, em TODA página.
+          Somado à moldura com borda e raio, o efeito perceptível era "uma folha branca dentro do
+          ERP": documento, não ferramenta.
+
+          Agora o padding externo é mínimo e a moldura não carrega respiro próprio — as regiões da
+          página governam o seu. A área de trabalho encosta no shell e devolve largura útil.
+        */}
+        <div className="shell__content flex-1 px-3 py-2 sm:px-4">
           <div
             className={cn(
               'shell-page-frame mx-auto w-full min-w-0',
               layoutMode === 'fullBleed' && 'shell-page-frame--bleed',
               PAGE_FRAME_CLASS[layoutMode],
-              layoutMode === 'fullBleed' ? 'px-0' : 'px-5 py-4 sm:px-6',
+              layoutMode === 'fullBleed' ? 'px-0' : 'px-3 py-2',
             )}
           >
             {!hideBreadcrumbs ? <ShellBreadcrumbs /> : null}

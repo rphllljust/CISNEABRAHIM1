@@ -294,6 +294,50 @@
   }
 
   /*
+   * SUPERFICIE DE COMANDO — a faixa onde se AGE, distinta da faixa onde se LE.
+   *
+   * Antes, cada tela compunha a propria barra: `bg-gray-50/70 border-b px-3 py-2` com `items-end`.
+   * Dois defeitos: (a) era uma FAIXA TINGIDA, ou seja, um card deitado — o mesmo vocabulario visual
+   * que a foundation remove; (b) `items-end` alinhava tudo pela BASE, entao um controle de altura
+   * governada e um botao de rotulo alto nao alinhavam entre si.
+   *
+   * Agora: comando e separado da leitura por REGUA, nao por cor de fundo, com altura minima
+   * governada pelo token de toolbar — a barra de comando nao muda de altura de tela para tela.
+   *
+   * PESO DA REGUA: `--divider-strong`. A faixa de comando e a fronteira mais importante da pagina,
+   * porque e onde o operador deixa de ler e passa a agir. A faixa de FILTRO logo abaixo usa a regua
+   * comum, de proposito: filtrar e recortar a leitura, nao agir sobre o negocio.
+   *
+   * SEM `border-top`: a regua superior vem da governanca de regiao (ela e desenhada pela regiao
+   * seguinte, nunca pela anterior). Declarar as duas produziria regua dupla no mesmo pixel.
+   */
+  .cisne-command-surface {
+    display: flex;
+    min-height: var(--toolbar-height);
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0;
+    border-bottom: 1px solid var(--color-divider-strong);
+  }
+
+  /*
+   * SUPERFICIE DE FILTRO — a faixa que RECORTA a leitura.
+   *
+   * Uma linha, densa, alinhada pela linha de base dos controles. Sem caixa: a faixa pertence a area
+   * de trabalho e o que a delimita e o divisor.
+   */
+  .cisne-filter-surface {
+    display: flex;
+    min-height: var(--control-height);
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.75rem;
+    padding: 0.25rem 0;
+    border-bottom: 1px solid var(--color-divider);
+  }
+
+  /*
    * FAIXA DE PROCESSO — o state flow deixa de ser card e passa a ser faixa.
    *
    * O estado do objeto e CONTEXTO DE PROCESSO, nao bloco de conteudo: ele pertence a faixa logo
@@ -481,4 +525,197 @@
     outline: 2px solid var(--color-focus-ring);
     outline-offset: 2px;
   }
+}
+
+/*
+ * ============================================================================
+ * GOVERNANÇA GLOBAL DE ELEVAÇÃO E RAIO — ENTERPRISE VISUAL FOUNDATION
+ * ============================================================================
+ *
+ * O CISNE tinha um DNA visual de CRUD porque a receita de CARD era o DEFAULT de todo bloco:
+ *
+ *     rounded-lg + bg-white + border + shadow
+ *
+ * repetida em cada região de cada página. O resultado perceptível era sempre o mesmo:
+ *
+ *     fundo cinza -> retângulo branco -> cartões empilhados -> tabela dentro de card.
+ *
+ * Corrigir isso página a página NÃO resolve: enquanto a camada compartilhada permitir que
+ * qualquer bloco se torne um cartão elevado por padrão, toda tela nova volta ao mesmo desenho.
+ *
+ * Esta camada INVERTE o default. Dentro da área de trabalho (`#main-content`):
+ *
+ *   1. SHADOW deixa de ser separador. Superfície se separa por DIVISOR e hierarquia de fundo.
+ *      Elevação passa a ser EXCEÇÃO EXPLÍCITA — overlay, drawer, menu, popover, superfície
+ *      flutuante — declarada por `[data-elevated]` ou por papel semântico.
+ *   2. RAIO grande (SaaS/pill/cápsula) recua para o raio de container do sistema.
+ *
+ * Efeito: uma página que NUNCA foi editada deixa de renderizar cartões empilhados só por herdar
+ * esta folha. É o teste canário da foundation — se apenas as páginas editadas mudassem, a
+ * foundation teria falhado.
+ *
+ * EXCLUSÕES (elevação é legítima e PRESERVADA):
+ *   - diálogos, drawers e overlays (`[role="dialog"]`, `[role="menu"]`, `[role="listbox"]`,
+ *     `[role="tooltip"]`, `[aria-modal="true"]`);
+ *   - superfícies que declaram `[data-elevated]`;
+ *   - o próprio shell (sidebar, topbar, mobile drawer), que vive fora de `#main-content`.
+ *
+ * FORA DE `@layer`, DE PROPÓSITO. Esta regra nasceu dentro de `@layer base` e NÃO FUNCIONOU: no
+ * Tailwind v4 as utilities vivem em `@layer utilities`, que vem DEPOIS de `base` — então
+ * `shadow-sm` e `rounded-xl` venciam por ORDEM DE CAMADA, não por especificidade. O teste canário
+ * mediu as três páginas e não viu diferença NENHUMA. CSS sem layer tem prioridade sobre CSS em
+ * layer; é aqui que a governança precisa morar para valer sobre as utilities.
+ */
+#main-content [class*='shadow-']:not([data-elevated]):not([role='dialog']):not([role='menu']):not(
+    [role='listbox']
+  ):not([role='tooltip']):not([aria-modal='true']),
+#main-content [class*='shadow-']:not([data-elevated]):not([role='dialog']):not([role='menu']):not(
+    [role='listbox']
+  ):not([role='tooltip']):not([aria-modal='true'])
+  * {
+  box-shadow: none;
+}
+
+/*
+ * Raio: o container do ERP usa raio discreto. `rounded-xl`/`rounded-2xl`/`rounded-3xl` são
+ * vocabulário de SaaS e recuam para o raio de container; pills (`rounded-full`) continuam
+ * existindo porque são semânticos para estado/tag/avatar.
+ */
+#main-content [class*='rounded-xl']:not([data-elevated]):not([role='dialog']):not([aria-modal='true']),
+#main-content [class*='rounded-2xl']:not([data-elevated]):not([role='dialog']):not([aria-modal='true']),
+#main-content [class*='rounded-3xl']:not([data-elevated]):not([role='dialog']):not([aria-modal='true']) {
+  border-radius: var(--radius-md);
+}
+
+/*
+ * ----------------------------------------------------------------------------
+ * DIVISORES — a separação estrutural ganha o peso que a sombra perdeu.
+ *
+ * Regiões que se separavam por elevação passam a se separar por régua: é o sinal que o olho
+ * denso lê melhor, e não custa contraste de grade.
+ *
+ * ESCOPO CORRIGIDO DUAS VEZES, E O MOTIVO IMPORTA.
+ *
+ * 1. A primeira versão governava `#main-content > div + div`. Como TODA região de página nasce de um
+ *    `div`, isso atingia também containers de LAYOUT: uma página cujo filho direto é uma linha de
+ *    duas colunas ganharia régua em cima da coluna da direita. Defeito, não hierarquia.
+ * 2. A segunda versão governava `#main-content .shell-page-frame > * + *`, que é IMPOSSÍVEL de
+ *    casar: `id="main-content"` está no PRÓPRIO `<main>` que `ModulePage` renderiza, e esse `<main>`
+ *    é FILHO de `.shell-page-frame`, não ancestral dele. Um seletor descendente não sobe a árvore —
+ *    a regra teria efeito zero.
+ *
+ * O escopo correto é duplo, porque há duas fronteiras reais de região:
+ *   - `.shell-page-frame > * + *`  — a faixa de orientação terminando e a SUPERFÍCIE DE TRABALHO
+ *     começando;
+ *   - `#main-content > * + *`      — as REGIÕES da página entre si (esta é a que faz uma tela nunca
+ *     editada passar a ler como regiões empilhadas em vez de blocos soltos).
+ *
+ * O risco residual do caso (1) — régua sobre a segunda coluna de um container horizontal — é
+ * medido no gate de canário, não presumido: o gate reprova se algum elemento com `border-top`
+ * estiver lado a lado com um irmão em vez de abaixo dele.
+ * ------------------------------------------------------------------------- */
+.shell-page-frame > * + *,
+#main-content > * + *,
+#main-content [data-region] + [data-region] {
+  border-top: 1px solid var(--color-divider);
+}
+
+/*
+ * A RÉGUA DE REGIÃO É DESENHADA PELA REGIÃO SEGUINTE — logo a anterior não desenha a dela.
+ *
+ * Sem esta linha, uma região com `border-bottom` seguida de outra com o `border-top` de cima
+ * produziria 2px de linha no mesmo y: a "régua dupla", que é o defeito clássico de governança de
+ * divisor feita em duas camadas que não se conhecem. Aqui as duas camadas se conhecem: quem tem
+ * irmão depois cede a borda inferior, e a fronteira passa a ter UM desenho só.
+ */
+#main-content > *:has(+ *) {
+  border-bottom: 0;
+}
+
+/*
+ * ----------------------------------------------------------------------------
+ * DENSIDADE HERDADA DA GRADE.
+ *
+ * Um ERP é denso na GRADE. Antes, a densidade era propriedade das PRIMITIVAS (`worklistCellClass`,
+ * `DynamicList`): bastava uma tela desenhar o próprio `<table>` — e existem várias — para voltar a
+ * `px-4 py-3` e a cinco ou seis linhas por dobra. Densidade não pode ser escolha de tela; é
+ * propriedade da ÁREA DE TRABALHO.
+ *
+ * `:not([role='presentation'])` é a escotilha de saída e é semântica: tabela usada como LAYOUT
+ * (grade de horário, calendário) declara `role="presentation"` e fica intocada.
+ *
+ * NADA de `text-align` aqui: a utilities `text-right` das colunas numéricas precisa continuar
+ * vencendo. Alinhamento é semântica de COLUNA; altura e respiro são semântica de SISTEMA.
+ * ------------------------------------------------------------------------- */
+#main-content table:not([role='presentation']) > thead > tr > th,
+#main-content table:not([role='presentation']) > thead > tr > td {
+  /*
+   * SEM `height`: a altura do cabeçalho é consequência do respiro + tipografia. Fixá-la no token
+   * de toolbar (2.5rem) deixaria o cabeçalho MAIS alto do que era, ou seja, a "densidade" herdada
+   * tiraria linha da dobra. Densidade só é densidade se o número de linhas visíveis subir.
+   */
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--color-divider-strong);
+  background: var(--color-canvas);
+  color: var(--color-text-secondary);
+  font-size: var(--type-micro-size);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+#main-content table:not([role='presentation']) > tbody > tr > td {
+  height: var(--row-height);
+  padding: 0.125rem 0.5rem;
+  border-bottom: 1px solid var(--color-divider);
+  color: var(--color-text-primary);
+  font-size: var(--type-body-size);
+  vertical-align: middle;
+}
+
+/*
+ * ----------------------------------------------------------------------------
+ * ESTADOS HERDADOS — alvo, seleção e foco deixam de ser decisão local de cada tela.
+ * ------------------------------------------------------------------------- */
+#main-content table:not([role='presentation']) > tbody > tr {
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+/*
+ * Hover de linha SOMENTE onde existe alvo real.
+ *
+ * `:has(a[href], button:not([disabled]))` impede a falsa affordance: uma tabela de relatório sem
+ * comando e sem link não pode reagir ao ponteiro como se fosse clicável. Um ERP que inventa
+ * affordance ensina o operador a clicar no que não faz nada.
+ */
+#main-content
+  table:not([role='presentation'])
+  > tbody
+  > tr:has(a[href], button:not([disabled])):hover {
+  background-color: var(--color-brand-50);
+}
+
+/*
+ * Seleção como estado do SISTEMA, não como cor local. Restrita a LINHA de grade e a OPÇÃO de lista
+ * (`role="option"`): abas também usam `aria-selected`, mas ali a seleção já é desenhada pelo
+ * próprio controle, e tingir as duas produziria indicação dobrada.
+ */
+#main-content tr[aria-selected='true'],
+#main-content tr[data-selected='true'],
+#main-content [role='option'][aria-selected='true'] {
+  background-color: var(--color-brand-50);
+}
+
+/*
+ * FOCO HERDADO — um único sinal de foco no workspace inteiro.
+ *
+ * `:not([class*='outline-none'])` respeita quem JÁ declarou a própria indicação: as primitivas
+ * densas usam `ring`, e sem essa exclusão o operador veria anel e contorno no mesmo controle. Em
+ * troca, todo controle de tela não editada — que hoje não tem indicação nenhuma — passa a ter.
+ */
+#main-content :focus-visible:not([class*='outline-none']) {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
 }

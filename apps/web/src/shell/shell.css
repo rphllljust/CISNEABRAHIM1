@@ -57,37 +57,35 @@
 }
 
 /*
-  WORKSPACE CANVAS — o fundo da aplicacao.
+  WORKSPACE CANVAS — a superficie onde o operador opera.
 
-  Antes: tres gradientes decorativos (branco no topo, halo teal radial, e um gradiente vertical)
-  sobre o fundo. O efeito era uma superficie com "clima" de site institucional atras de todo
-  trabalho — exatamente o que um ERP denso nao deve ter, porque gradiente compete com a grade pelo
-  contraste e suja a leitura de linha.
+  Antes: tres gradientes decorativos sobre um canvas cinza, e dentro dele uma MOLDURA BRANCA com
+  borda, raio e padding proprio. O resultado perceptivel, em TODA pagina, era sempre o mesmo:
 
-  Agora: canvas plano e neutro, governado por token. A hierarquia de superficie passa a vir do TIPO
-  de superficie (canvas / work area / context / raised), nao de decoracao.
+      fundo cinza -> retangulo branco -> cartoes empilhados -> tabela dentro de card.
+
+  Isso e o DNA visual de DOCUMENTO, nao de ferramenta: uma folha sobre uma mesa. Num ERP denso nao
+  existe folha — a area de trabalho E a superficie, de ponta a ponta, e a hierarquia vem de REGIAO
+  ESTRUTURAL (divisor, faixa de comando, cabecalho de grade), nao de uma caixa flutuando num fundo
+  de cor diferente.
+
+  Por isso o canvas da area de trabalho passa a ser a superficie de trabalho (`--color-canvas-work`)
+  e a moldura deixa de pintar FUNDO PROPRIO: se as duas continuassem com cores diferentes, a "folha
+  branca" apenas reapareceria mais larga. O contraste do sistema passa a vir do shell (sidebar e
+  topbar), que e onde ele significa alguma coisa.
+
+  Isto muda TODA pagina nao editada de uma vez, porque nenhuma delas desenha o proprio frame.
 */
 .shell__content {
-  background: var(--color-canvas, #f1f3f6);
+  background: var(--color-canvas-work, #fff);
 }
 
-/*
-  WORK AREA — a superficie onde o operador opera.
-
-  O frame da pagina e a AREA DE TRABALHO: fundo de trabalho, sem elevacao e sem raio. Ele nao e um
-  card flutuando no canvas — e o proprio posto de trabalho, delimitado por divisor estrutural.
-
-  `fullBleed` fica de fora: aquelas superficies (reconciliation, canvas) desenham a propria moldura
-  e nao devem receber superficie de trabalho por cima.
-*/
 .shell-page-frame {
   container-type: inline-size;
 }
 
 .shell-page-frame:not(.shell-page-frame--bleed) {
-  background: var(--color-canvas-work, #fff);
-  border: 1px solid var(--color-divider, #e2e6eb);
-  border-radius: 2px;
+  background: transparent;
 }
 
 .shell-page-frame--bleed {
@@ -150,13 +148,29 @@ body.shell-drawer-open {
   overflow: hidden;
 }
 
+/*
+  FAIXA DE ORIENTACAO — wayfinding colado a superficie de trabalho.
+
+  Antes: `margin-bottom: 1rem`. Dezesseis pixels entre a trilha e o titulo da funcao, em toda pagina
+  com secao, sem nada entre os dois: espaco morto que empurra a grade para fora da dobra e faz a
+  trilha ler como um bloco independente em vez de orientacao subordinada. A trilha pertence ao topo
+  da superficie, nao a uma faixa propria.
+*/
 .shell-breadcrumbs {
-  margin-bottom: 1rem;
+  margin-bottom: 0.25rem;
 }
 
+/*
+  LOADING LOCALIZADO — a espera tem a forma do que vai chegar e nao derruba a aplicacao.
+
+  Antes: `padding: 1.25rem 1rem` com `#4b5563` fixo. O texto de espera ocupava uma faixa larga e
+  usava cor hardcoded, fora do sistema de superficies. Agora a espera e tipografia secundaria
+  governada e respiro minimo: enquanto ela aparece, a shell e a navegacao continuam utilizaveis.
+*/
 .shell-loading {
-  padding: 1.25rem 1rem;
-  color: #4b5563;
+  padding: 0.5rem 0;
+  color: var(--color-text-secondary, #4b5563);
+  font-size: var(--type-meta-size);
 }
 
 .sr-only {

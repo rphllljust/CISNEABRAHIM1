@@ -55,11 +55,7 @@ export function ModulePage({
  * dentro da area de trabalho, que era o que produzia "tabela dentro de card, filtro dentro de card".
  */
 export function FilterCard({ children, className }: { children: ReactNode; className?: string }) {
-  return (
-    <div className={cn('cisne-divider mb-0 flex flex-wrap items-end gap-2 px-0 py-2', className)}>
-      {children}
-    </div>
-  );
+  return <div className={cn('cisne-filter-surface', className)}>{children}</div>;
 }
 
 /**

@@ -18,9 +18,25 @@ const toneClasses: Record<BadgeTone, string> = {
 
 export function Badge({ children, tone = 'neutral', className, ...props }: BadgeProps) {
   return (
+    /*
+      TOKEN DE ESTADO — geometria governada pela DENSIDADE, cor governada pelo TOM.
+
+      Antes: `px-2.5 py-0.5 text-xs rounded-full`. O texto do estado era maior que o texto do DADO
+      da propria linha e o pilulo tinha respiro de SaaS, entao a coluna de situacao dominava a
+      leitura da grade — o operador lia o selo antes do registro.
+
+      Agora: altura FIXA no grid de densidade (1.125rem dentro de uma linha de `--row-height`),
+      microtipografia, `leading-none` para nao clipar dentro da altura fixa e `tabular-nums` para
+      que selos numericos alinhem na vertical. A cor NAO muda: tom e SEMANTICA de dominio, e
+      inventar cor nova aqui seria inventar regra de negocio.
+
+      O pilulo (`rounded-full`) permanece de proposito: forma arredondada e o vocabulario de
+      ESTADO/TAG no CISNE (a governanca de raio em theme.css preserva `rounded-full` exatamente
+      por isso) — o que estava errado era o TAMANHO, nao a forma.
+    */
     <span
       className={cn(
-        'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset',
+        'inline-flex h-[1.125rem] items-center rounded-full px-1.5 text-[length:var(--type-micro-size)] leading-none font-semibold whitespace-nowrap tabular-nums ring-1 ring-inset',
         toneClasses[tone],
         className,
       )}
