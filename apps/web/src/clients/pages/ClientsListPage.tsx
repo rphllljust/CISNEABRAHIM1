@@ -1,8 +1,16 @@
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ClientsApiError, listClients } from '../api/clients-api';
+import {
+  DynamicContextDrawer,
+  type CrossReference,
+} from '../../engine';
+import {
+  ClientsApiError,
+  activateClient,
+  getClient,
+  listClients,
+} from '../api/clients-api';
 import { mapClientErrorToMessage } from '../api/client-error-messages';
-import { ClientStatusBadge } from '../components/ClientStatusBadge';
 import { useClientCapabilities } from '../hooks/useClientCapabilities';
 import {
   CLIENT_LIST_SORTS,
@@ -10,6 +18,7 @@ import {
   PURCHASE_ORDER_REQUIREMENTS,
   type ClientListResponse,
   type ClientListSort,
+  type Client,
   type ClientSummary,
 } from '../types/client.types';
 import { formatCnpjDisplay } from '../utils/format-cnpj';
@@ -24,7 +33,7 @@ import {
   type ClientListParams,
 } from '../utils/client-list-params';
 import { useSavedViews, SavedViewsBar } from '../../operator';
-import { ContextDrawer, useContextPreview, type ContextPreviewBody } from '../../operator';
+import { useContextPreview } from '../../operator';
 import {
   CLIENTS_ALLOWED_FILTERS,
   clientViewConfig,
@@ -48,6 +57,17 @@ import {
   ModulePrimaryLink,
 } from '../../ui/module-layout';
 import { WorklistStatePanel } from '../../ui/enterprise-list';
+import {
+  WorklistClearFilters,
+  WorklistField,
+  WorklistFilterBar,
+  WorklistHeader,
+  worklistControlClass,
+  worklistSelectClass,
+} from '../../ui/enterprise-list';
+import { StatusBadge } from '../../ui/StatusBadge';
+import { Button } from '../../ui/Button';
+import { Skeleton } from '../../ui/Skeleton';
 import { cn } from '../../ui/utils/cn';
 
 const PAGE_SIZE = 20;
@@ -127,7 +147,6 @@ export function ClientsListPage() {
    */
   const savedViews = useSavedViews('commercial.clients', [], CLIENTS_ALLOWED_FILTERS);
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
-  const [viewsOpen, setViewsOpen] = useState(false);
 
   // Busca, filtros, ordenação e página vivem na URL: recarregar não perde contexto, o botão
   // voltar funciona e o endereço é compartilhável.
@@ -148,6 +167,58 @@ export function ClientsListPage() {
   // payload da lista já traz e as relações que têm destino real. Nenhuma contagem de
   // solicitações/propostas/OS é exibida porque o contrato de listagem não a publica.
   const preview = useContextPreview<ClientSummary>();
+
+  /**
+   * CONTEXTO REAL DO REGISTRO — carregado do endpoint de detalhe, não ecoado da linha.
+   *
+   * `GET /api/v1/clients/:id` existe e publica o que a LISTAGEM deliberadamente não traz:
+   * contatos, endereços, exigência de pedido de compra, motivo e data de desativação e a
+   * `version`. Sem isso o painel lateral só repetiria as três colunas da grade — que é
+   * exatamente o "modal decorativo" que esta rodada existe para eliminar.
+   *
+   * CARREGAMENTO LOCALIZADO: só ESTE painel entra em `loading`. A fila, os filtros e a
+   * paginação continuam utilizáveis enquanto o detalhe chega — a tela inteira nunca é bloqueada
+   * por causa de um registro.
+   */
+  const [detail, setDetail] = useState<
+    | { phase: 'idle' }
+    | { phase: 'loading' }
+    | { phase: 'denied' }
+    | { phase: 'error'; message: string }
+    | { phase: 'ready'; client: Client }
+  >({ phase: 'idle' });
+  const [commandBusy, setCommandBusy] = useState(false);
+  const [commandError, setCommandError] = useState<string | null>(null);
+
+  const previewId = preview.previewRow?.id ?? null;
+
+  useEffect(() => {
+    if (!previewId) {
+      setDetail({ phase: 'idle' });
+      setCommandError(null);
+      return;
+    }
+    const controller = new AbortController();
+    setDetail({ phase: 'loading' });
+    setCommandError(null);
+    void getClient(previewId, controller.signal)
+      .then((client) => {
+        if (!controller.signal.aborted) {
+          setDetail({ phase: 'ready', client });
+        }
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+        if (error instanceof ClientsApiError && error.kind === 'denied') {
+          setDetail({ phase: 'denied' });
+          return;
+        }
+        setDetail({ phase: 'error', message: 'Não foi possível carregar o contexto do Cliente.' });
+      });
+    return () => controller.abort();
+  }, [previewId]);
   const searchInputId = useId();
   const searchHintId = useId();
   const statusFilterId = useId();
@@ -171,7 +242,7 @@ export function ClientsListPage() {
 
   const clearFilters = useCallback(() => {
     setSearchInput('');
-    setViewsOpen(false);
+    setActiveViewId(null);
     setSearchParams(buildClientListSearchParams(EMPTY_CLIENT_LIST_PARAMS), { replace: true });
   }, [setSearchParams]);
 
@@ -245,6 +316,31 @@ export function ClientsListPage() {
     return () => controller.abort();
   }, [filters, loadPage, offset, reloadToken]);
 
+  /**
+   * Executa um comando REAL de domínio a partir do contexto e recarrega a fila com a versão nova.
+   * Falha não é escondida: `VERSION_CONFLICT` (outro operador alterou) e negação viram mensagem.
+   */
+  const runDetailCommand = useCallback(
+    async (command: () => Promise<unknown>) => {
+      setCommandBusy(true);
+      setCommandError(null);
+      try {
+        await command();
+        preview.closePreview();
+        setReloadToken((current) => current + 1);
+      } catch (error) {
+        setCommandError(
+          error instanceof ClientsApiError
+            ? mapClientErrorToMessage(error.code, error.status)
+            : mapClientErrorToMessage(undefined, 0),
+        );
+      } finally {
+        setCommandBusy(false);
+      }
+    },
+    [preview],
+  );
+
   if (listState.phase === 'loading') {
     return (
       <ModuleStatePage title="Clientes">
@@ -300,248 +396,203 @@ export function ClientsListPage() {
   return (
     <ModulePage>
       {/*
-        ZONA 1 — OPERATING HEADER. Uma faixa, nao uma pagina de abertura.
+        SUPERFÍCIE DE TRABALHO FIXA — o contexto de operação não rola com a fila.
 
-        A tela abria com titulo + PARAGRAFO explicando o modulo + TRES chips + barra de filtros +
-        barra de visoes salvas: cinco blocos de chrome antes do primeiro Cliente. Agora a
-        identidade, o total AUTORITATIVO, o recorte ativo e a acao primaria dividem UMA linha.
+        Cabeçalho, faixa de estado, visões salvas e superfície de filtro ficam ESTÁVEIS; o que se
+        move é a fila. É o que separa uma ferramenta de operação contínua de uma página que se
+        rola para cima a cada troca de recorte: o operador nunca perde "onde estou" nem "qual
+        recorte estou vendo".
+
+        `data-region` em cada faixa existe para que a mudança de modelo seja MEDÍVEL por DOM, e
+        não afirmada em prosa.
       */}
-      <header className="cisne-divider--section flex flex-wrap items-center justify-between gap-x-4 gap-y-1 pb-1.5">
-        <div className="flex min-w-0 items-baseline gap-2">
-          <h1 className="cisne-type-workspace m-0">Clientes</h1>
-          {hasCatalog ? (
-            <span className="cisne-type-meta font-semibold tabular-nums">
-              {formatClientCount(total)}
-            </span>
-          ) : null}
-          <span className="cisne-type-helper truncate">{scope}</span>
-          {isRefreshing ? (
-            <span role="status" className="cisne-type-helper">
-              atualizando…
-            </span>
-          ) : null}
-        </div>
+      <div className="sticky top-0 z-20 bg-white" data-region="work-surface">
         {/*
-          ACAO PRIMARIA — UMA UNICA EXPRESSAO, E SO.
+          OPERATING HEADER + STATE RAIL — uma faixa, não três cartões de KPI.
 
-          MEDIDO no DOM real com a carteira vazia: a tela renderizava DOIS links primarios de
-          criacao ao mesmo tempo — "Novo cliente" no cabecalho e "Cadastrar Cliente" dentro do
-          painel de estado vazio (dois `ModulePrimaryLink`, ambos com peso de acao primaria).
-          Duas CTAs primarias na mesma dobra: o operador nao sabe qual e a acao.
-
-          Sem carteira, a criacao desce para DENTRO do painel vazio, que ja explica o que um
-          Cliente e. Havendo carteira — ou havendo recorte aplicado — ela fica no cabecalho e o
-          painel NAO a repete. As duas condicoes sao mutuamente exclusivas por construcao.
+          A identidade, o total AUTORITATIVO, o recorte ativo, o comando primário e os recortes
+          operacionais dividem a mesma faixa. `AUSÊNCIA ≠ ZERO`: sem carteira autorizada o total
+          não é afirmado (`count` fica `undefined`) em vez de imprimir "0".
         */}
-        {capabilities.canCreate && !isEmptyCatalogue ? (
-          /*
-            NAVEGAÇÃO É LINK — um cadastro novo é um DESTINO, não um efeito. `ModulePrimaryLink`
-            mantém clique do meio, nova aba e leitor de tela; só a densidade passa a vir do token.
-          */
-          <ModulePrimaryLink to="/app/clients/new">Novo cliente</ModulePrimaryLink>
-        ) : null}
-      </header>
-
-      {/*
-        ZONA 2 — WORK QUEUE STRIP. A carteira tem UM eixo de decisao: cadastro que ainda pode
-        operar e cadastro que nao pode. Trabalho ABERTO (inativo) tem peso; o resto e leitura.
-        Cada celula APLICA o recorte — nao e um painel decorativo.
-      */}
-      {hasCatalog ? (
-        <nav
-          aria-label="Recortes da carteira"
-          className="flex flex-wrap items-stretch border-b border-gray-200 bg-white px-1"
-        >
-          <QueueStripCell
-            label="No resultado"
-            value={total}
-            hint={hasFilters ? 'sob os filtros aplicados' : 'carteira autorizada'}
-            weight="open"
-            active={filters.status === ''}
-            onClick={() => applyFilters({ status: '' })}
-          />
-          <QueueStripCell
-            label="Ativos"
-            value={activeOnPage}
-            hint="nesta página"
-            weight="open"
-            active={filters.status === CLIENT_STATUSES.Active}
-            onClick={() => applyFilters({ status: CLIENT_STATUSES.Active })}
-          />
-          <QueueStripCell
-            label="Inativos"
-            value={inactiveOnPage}
-            hint="não podem ser usados em novos documentos"
-            weight={inactiveOnPage > 0 ? 'alert' : 'settled'}
-            active={filters.status === CLIENT_STATUSES.Inactive}
-            onClick={() => applyFilters({ status: CLIENT_STATUSES.Inactive })}
-          />
-        </nav>
-      ) : null}
-
-      {/*
-        ZONA 3 — VIEW + COMMAND SURFACE. UMA barra: busca, situacao, filtros secundarios,
-        limpeza, tamanho da pagina e visoes salvas goverrnadas. As tres barras empilhadas
-        (filtros + visoes + bloco de filtro avancado) viraram uma.
-      */}
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-gray-200 bg-gray-50/60 px-1 py-1.5">
-        <div
-          role="group"
-          aria-label="Recorte de situação"
-          className="flex items-center overflow-hidden rounded border border-gray-300 bg-white"
-        >
-          {(
-            [
-              ['all', 'Todos', ''],
-              ['active', 'Ativos', CLIENT_STATUSES.Active],
-              ['inactive', 'Inativos', CLIENT_STATUSES.Inactive],
-            ] as const
-          ).map(([key, label, value]) => {
-            const active = filters.status === value;
-            return (
-              <button
-                key={key}
-                type="button"
-                aria-pressed={active}
-                className={cn(
-                  'cisne-type-action border-r border-gray-200 px-2.5 py-1 last:border-r-0',
-                  active
-                    ? 'bg-brand-700 text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900',
-                )}
-                onClick={() => applyFilters({ status: value })}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="flex min-w-56 flex-1 items-center gap-1">
-          <label className="sr-only" htmlFor={searchInputId}>
-            Buscar
-          </label>
-          <input
-            id={searchInputId}
-            type="search"
-            className="w-full min-w-0 min-h-[var(--control-height)] rounded-md border-0 bg-white px-1.5 text-[length:var(--type-body-size)] text-gray-900 ring-1 ring-gray-300 ring-inset outline-none focus:ring-2 focus:ring-brand-500"
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="Buscar cliente…"
-            autoComplete="off"
-            aria-describedby={searchDraftTooShort ? searchHintId : undefined}
+        <div data-region="operating-header">
+          <WorklistHeader
+            title="Clientes"
+            count={hasCatalog ? total : undefined}
+            context={
+              isRefreshing ? (
+                <>
+                  {scope} <span role="status">atualizando…</span>
+                </>
+              ) : (
+                scope
+              )
+            }
+            action={
+              /*
+                COMANDO PRIMÁRIO ÚNICO. Com a carteira vazia a criação desce para o painel de
+                estado vazio (que já explica o que um Cliente é) e o cabeçalho não a repete —
+                duas CTAs primárias na mesma dobra deixam o operador sem saber qual é a ação.
+              */
+              capabilities.canCreate && !isEmptyCatalogue ? (
+                <ModulePrimaryLink to="/app/clients/new">Novo cliente</ModulePrimaryLink>
+              ) : null
+            }
+            metrics={
+              hasCatalog ? (
+                <>
+                  <QueueStripCell
+                    label="No recorte"
+                    value={total}
+                    hint={hasFilters ? 'sob os filtros aplicados' : 'carteira autorizada'}
+                    weight="neutral"
+                    active={filters.status === ''}
+                    onClick={() => applyFilters({ status: '' })}
+                  />
+                  <QueueStripCell
+                    label="Ativos"
+                    value={activeOnPage}
+                    hint="nesta página"
+                    weight="neutral"
+                    active={filters.status === CLIENT_STATUSES.Active}
+                    onClick={() => applyFilters({ status: CLIENT_STATUSES.Active })}
+                  />
+                  {/*
+                    EXCEPTION-FIRST: só o recorte que EXIGE o operador carrega sinal. "19 ativos"
+                    é o estado normal da carteira e não pode gritar; "fora de operação" é o que
+                    trava novos documentos, e só ganha peso quando existe trabalho nele.
+                  */}
+                  <QueueStripCell
+                    label="Fora de operação"
+                    value={inactiveOnPage}
+                    hint="não entram em novos documentos"
+                    weight={inactiveOnPage > 0 ? 'alert' : 'settled'}
+                    active={filters.status === CLIENT_STATUSES.Inactive}
+                    onClick={() => applyFilters({ status: CLIENT_STATUSES.Inactive })}
+                  />
+                </>
+              ) : undefined
+            }
           />
         </div>
 
-        <label htmlFor={statusFilterId} className="sr-only">
-          Situação
-        </label>
-        <select
-          id={statusFilterId}
-          className="min-h-[var(--control-height)] rounded-md border-0 bg-white px-1.5 text-[length:var(--type-body-size)] text-gray-900 ring-1 ring-gray-300 ring-inset outline-none focus:ring-2 focus:ring-brand-500"
-          value={filters.status}
-          onChange={(event) =>
-            applyFilters({ status: event.target.value as ClientListParams['status'] })
-          }
-        >
-          <option value="">Situação: todas</option>
-          <option value={CLIENT_STATUSES.Active}>Ativos</option>
-          <option value={CLIENT_STATUSES.Inactive}>Inativos</option>
-        </select>
+        {/*
+          SAVED VIEWS — FAIXA PRÓPRIA DA WORK AREA.
 
-        <button
-          id={moreFiltersId}
-          type="button"
-          aria-expanded={showMoreFilters}
-          className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-          onClick={() => setShowMoreFilters((current) => !current)}
-        >
-          {showMoreFilters ? 'Menos filtros' : 'Mais filtros'}
-        </button>
+          Antes: um botão "Visões" que abria um dropdown — link solto, fora da área de trabalho.
+          Agora é uma faixa própria, sempre visível, com a visão ATIVA evidente, as visões
+          existentes acessíveis, salvar subordinado e remover no próprio item.
 
-        {showMoreFilters ? (
-          <>
-            <label htmlFor={requirementFilterId} className="sr-only">
-              Exigência de pedido de compra
-            </label>
-            <select
-              id={requirementFilterId}
-              aria-label="Exigência de pedido de compra"
-              className="min-h-[var(--control-height)] rounded-md border-0 bg-white px-1.5 text-[length:var(--type-body-size)] text-gray-900 ring-1 ring-gray-300 ring-inset"
-              value={filters.purchaseOrderRequirement}
-              onChange={(event) =>
-                applyFilters({
-                  purchaseOrderRequirement: event.target
-                    .value as ClientListParams['purchaseOrderRequirement'],
-                })
-              }
-            >
-              <option value="">Pedido de compra: todos</option>
-              {Object.values(PURCHASE_ORDER_REQUIREMENTS).map((requirement) => (
-                <option key={requirement} value={requirement}>
-                  {formatPurchaseOrderRequirement(requirement)}
-                </option>
-              ))}
-            </select>
-          </>
-        ) : null}
-
-        {hasFilters || searchInput.trim() !== '' ? (
-          <button
-            type="button"
-            className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-            onClick={clearFilters}
-          >
-            Limpar filtros
-          </button>
-        ) : null}
-
-        {searchDraftTooShort ? (
-          <p id={searchHintId} className="cisne-type-helper m-0">
-            Digite pelo menos {CLIENT_SEARCH_MIN_LENGTH} caracteres.
-          </p>
-        ) : null}
-
-        <div className="ml-auto flex items-center gap-2">
-          <span className="cisne-type-helper m-0 tabular-nums">
-            {items.length} nesta página
-          </span>
-          <div className="relative">
-            <button
-              type="button"
-              aria-expanded={viewsOpen}
-              className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-              onClick={() => setViewsOpen((current) => !current)}
-            >
-              Visões
-            </button>
-            {viewsOpen ? (
-              <div className="absolute right-0 z-30 mt-1 w-[26rem] rounded-md border border-gray-200 bg-white shadow-lg">
-                {/*
-                  Implementação REUTILIZADA (`operator/smart-list/SavedViewsBar`): nenhuma
-                  engine paralela foi criada. O que mudou foi a GOVERNANÇA — a barra deixou de
-                  ser um formulário permanente na primeira dobra e passou a ser sob demanda.
-                */}
-                <SavedViewsBar
-                  views={savedViews.views}
-                  builtInViews={[]}
-                  activeViewId={activeViewId}
-                  onApply={(view) => {
-                    setActiveViewId(view.id === '__all__' ? null : view.id);
-                    applyFilters(clientViewToParams(view.config));
-                    setViewsOpen(false);
-                  }}
-                  onSave={savedViews.saveView}
-                  onRename={savedViews.renameView}
-                  onRemove={savedViews.removeView}
-                  currentConfig={clientViewConfig(filters)}
-                  canSave={hasSavableViewConfig(filters)}
-                  allLabel="Todos"
-                  className="mb-0 border-0 bg-transparent"
-                />
-              </div>
-            ) : null}
+          A implementação é a MESMA (`operator/smart-list/SavedViewsBar`) e o MESMO store: nenhuma
+          engine paralela foi criada e nenhuma visão já salva pelo operador se perde.
+        */}
+        {hasCatalog ? (
+          <div className="cisne-divider py-0.5" data-region="saved-view-surface">
+            <SavedViewsBar
+              views={savedViews.views}
+              builtInViews={[]}
+              activeViewId={activeViewId}
+              onApply={(view) => {
+                setActiveViewId(view.id === '__all__' ? null : view.id);
+                applyFilters(clientViewToParams(view.config));
+              }}
+              onSave={savedViews.saveView}
+              onRename={savedViews.renameView}
+              onRemove={savedViews.removeView}
+              currentConfig={clientViewConfig(filters)}
+              canSave={hasSavableViewConfig(filters)}
+              allLabel="Todos"
+              className="mb-0 border-0 bg-transparent"
+            />
           </div>
+        ) : null}
+
+        {/*
+          COMMAND / FILTER SURFACE — UMA superfície, não um formulário web.
+
+          Busca é o comando principal (ocupa a largura); situação é filtro frequente; exigência de
+          pedido de compra é avançada e vive sob divulgação progressiva. O rodapé da superfície
+          declara o recorte ativo e a saída — não há "label input label select botão" empilhados.
+          Nada saiu do contrato: os três continuam indo ao SERVIDOR.
+        */}
+        <div data-region="command-filter-surface">
+          <WorklistFilterBar
+            meta={
+              hasFilters ? `${items.length} nesta página · recorte ativo` : `${items.length} nesta página`
+            }
+            notice={
+              searchDraftTooShort ? (
+                <p id={searchHintId} className="cisne-type-helper m-0">
+                  Digite pelo menos {CLIENT_SEARCH_MIN_LENGTH} caracteres para buscar.
+                </p>
+              ) : null
+            }
+          >
+            <WorklistField label="Buscar" htmlFor={searchInputId} grow>
+              <input
+                id={searchInputId}
+                type="search"
+                className={worklistControlClass}
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                placeholder="Razão social, nome fantasia ou CNPJ"
+                autoComplete="off"
+                aria-describedby={searchDraftTooShort ? searchHintId : undefined}
+              />
+            </WorklistField>
+
+            <WorklistField label="Situação" htmlFor={statusFilterId}>
+              <select
+                id={statusFilterId}
+                className={worklistSelectClass}
+                value={filters.status}
+                onChange={(event) =>
+                  applyFilters({ status: event.target.value as ClientListParams['status'] })
+                }
+              >
+                <option value="">Todas</option>
+                <option value={CLIENT_STATUSES.Active}>Ativos</option>
+                <option value={CLIENT_STATUSES.Inactive}>Inativos</option>
+              </select>
+            </WorklistField>
+
+            <button
+              id={moreFiltersId}
+              type="button"
+              aria-expanded={showMoreFilters}
+              className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+              onClick={() => setShowMoreFilters((current) => !current)}
+            >
+              {showMoreFilters ? 'Menos filtros' : 'Mais filtros'}
+            </button>
+
+            {showMoreFilters ? (
+              <WorklistField label="Exigência de pedido de compra" htmlFor={requirementFilterId}>
+                <select
+                  id={requirementFilterId}
+                  className={worklistSelectClass}
+                  value={filters.purchaseOrderRequirement}
+                  onChange={(event) =>
+                    applyFilters({
+                      purchaseOrderRequirement: event.target
+                        .value as ClientListParams['purchaseOrderRequirement'],
+                    })
+                  }
+                >
+                  <option value="">Todas</option>
+                  {Object.values(PURCHASE_ORDER_REQUIREMENTS).map((requirement) => (
+                    <option key={requirement} value={requirement}>
+                      {formatPurchaseOrderRequirement(requirement)}
+                    </option>
+                  ))}
+                </select>
+              </WorklistField>
+            ) : null}
+
+            <WorklistClearFilters
+              visible={hasFilters || searchInput.trim() !== ''}
+              onClick={clearFilters}
+            />
+          </WorklistFilterBar>
         </div>
       </div>
 
@@ -600,53 +651,67 @@ export function ClientsListPage() {
       ) : null}
 
       {/*
-        ZONA 4 — MASTER DATA WORKLIST. Identidade primeiro (razao social + nome fantasia +
-        documento no MESMO bloco, em vez de uma coluna inteira gasta com o CNPJ), decisao
-        depois (situacao + proxima acao + excecao) e metadado por ultimo (atividade). A barra
-        de acento a esquerda marca o cadastro que NAO pode operar.
+        ZONA 4 — PROCESSING WORKLIST.
+
+        A GRADE É DESENHADA POR FUNÇÃO OPERACIONAL, NÃO POR ESPELHAMENTO DO DTO.
+
+        `ClientSummary` publica sete campos, mas DTO ≠ design de tela. As sete informações foram
+        CLASSIFICADAS por papel e as que pertencem ao mesmo papel foram HIERARQUIZADAS dentro da
+        mesma célula, em vez de virarem colunas independentes com o mesmo peso visual:
+
+          IDENTIDADE  → razão social (principal)
+                        ↳ nome fantasia (subordinado)
+                        ↳ CNPJ (subordinado, mono)
+          ESTADO      → situação (compacta, rotulada)
+                        ↳ próximo passo (subordinado)
+          TEMPO       → última atualização: leitura relativa + carimbo absoluto
+                        ↳ criado em (subordinado)
+
+        Três colunas funcionais, e não seis campos lado a lado. O ganho não é "mais colunas": é a
+        linha ficar escaneável em 2–3 segundos — QUEM É, QUAL A SITUAÇÃO, QUANDO MUDOU, PRECISO
+        AGIR — sem aumentar a altura da linha (o token de densidade continua mandando).
       */}
       {items.length > 0 ? (
-        <section
-          aria-busy={isRefreshing}
-          aria-label="Lista de clientes"
-          className="border-b border-gray-200"
-        >
-          <table className="w-full border-separate border-spacing-0" aria-label="Lista de clientes">
+        <section aria-busy={isRefreshing} data-region="worklist-master">
+          <table
+            className="w-full table-fixed border-separate border-spacing-0"
+            aria-label="Lista de clientes"
+          >
             <thead>
               <tr>
-                <th scope="col" className={headCellClass} aria-sort={ariaSortFor(filters, CLIENT_LIST_SORTS.LegalName)}>
+                <th
+                  scope="col"
+                  className={cn(headCellClass, 'w-[46%]')}
+                  aria-sort={ariaSortFor(filters, CLIENT_LIST_SORTS.LegalName)}
+                >
                   <button
                     type="button"
-                    className="inline-flex items-center gap-1 hover:text-gray-700"
+                    className="inline-flex items-center gap-1 hover:text-gray-900"
                     onClick={() =>
                       applyFilters(toggleClientListSort(filters, CLIENT_LIST_SORTS.LegalName))
                     }
                   >
                     Cliente
-                    <span aria-hidden="true">
-                      {sortIndicator(filters, CLIENT_LIST_SORTS.LegalName)}
-                    </span>
+                    <span aria-hidden="true">{sortIndicator(filters, CLIENT_LIST_SORTS.LegalName)}</span>
                   </button>
                 </th>
-                <th scope="col" className={cn(headCellClass, 'w-[16rem]')}>
+                <th scope="col" className={cn(headCellClass, 'w-[22%]')}>
                   Situação
                 </th>
                 <th
                   scope="col"
-                  className={cn(headCellClass, 'w-40 text-right')}
+                  className={cn(headCellClass, 'w-[32%]')}
                   aria-sort={ariaSortFor(filters, CLIENT_LIST_SORTS.UpdatedAt)}
                 >
                   <button
                     type="button"
-                    className="inline-flex items-center gap-1 hover:text-gray-700"
+                    className="inline-flex items-center gap-1 hover:text-gray-900"
                     onClick={() =>
                       applyFilters(toggleClientListSort(filters, CLIENT_LIST_SORTS.UpdatedAt))
                     }
                   >
                     Última atualização
-                    <span aria-hidden="true">
-                      {sortIndicator(filters, CLIENT_LIST_SORTS.UpdatedAt)}
-                    </span>
+                    <span aria-hidden="true">{sortIndicator(filters, CLIENT_LIST_SORTS.UpdatedAt)}</span>
                   </button>
                 </th>
               </tr>
@@ -660,15 +725,20 @@ export function ClientsListPage() {
                   <tr
                     key={client.id}
                     className={cn(
-                      'cursor-pointer transition-colors hover:bg-gray-50/70',
-                      isInactive && 'bg-red-50/30',
+                      'h-[var(--row-height)] cursor-pointer transition-colors hover:bg-brand-50/40',
+                      /*
+                        EXCEPTION-FIRST: só o cadastro que NÃO pode operar carrega sinal. Cliente
+                        ativo é o estado normal da carteira e fica em silêncio — pintar 19 linhas
+                        de "normal" é o que faz a exceção perder significado.
+                      */
+                      isInactive && 'bg-red-50/40',
                     )}
                     /*
-                     * SELECAO abre o CONTEXTO do Cliente no painel lateral — o operador
-                     * confere identidade, documento, situacao e relacoes sem sair da carteira.
-                     * O nome continua sendo um link real: teclado, nova aba e leitor de tela
-                     * seguem levando ao cadastro completo (drillback).
-                     */
+                      A IDENTIDADE É O DRILLBACK. A linha inteira abre o CONTEXTO no painel lateral
+                      e o nome é um link REAL — teclado, clique do meio, nova aba e leitor de tela
+                      levam ao cadastro completo. NÃO existe botão "Abrir cadastro"/"Detalhes"
+                      repetido em cada linha.
+                    */
                     onClick={(event) => {
                       if ((event.target as HTMLElement).closest('a, button, select, input')) {
                         return;
@@ -676,84 +746,99 @@ export function ClientsListPage() {
                       preview.openPreview(client);
                     }}
                   >
+                    {/*
+                      IDENTIDADE — três níveis numa coluna só.
+                      A razão social é o que o operador procura; fantasia e documento são
+                      CONFIRMAÇÃO de que achou o registro certo. Dar a cada um a sua coluna daria
+                      o mesmo peso visual a três coisas de peso diferente.
+                    */}
                     <td className={cn(cellClass, 'pl-3')}>
-                      <span
-                        aria-hidden="true"
-                        className={cn(
-                          'absolute top-1.5 bottom-1.5 left-0 w-[3px]',
-                          isInactive ? 'bg-red-500' : 'bg-transparent',
+                      {isInactive ? (
+                        <span
+                          aria-hidden="true"
+                          className="absolute top-1 bottom-1 left-0 w-[3px] bg-red-500"
+                        />
+                      ) : null}
+                      <span className="flex min-w-0 items-baseline gap-x-2">
+                        {href ? (
+                          <Link
+                            to={href}
+                            onClick={(event) => event.stopPropagation()}
+                            title={client.legalName}
+                            className="cisne-type-primary min-w-0 truncate text-brand-800 no-underline hover:underline"
+                          >
+                            {client.legalName}
+                          </Link>
+                        ) : (
+                          <span
+                            className="cisne-type-primary min-w-0 truncate text-gray-900"
+                            title={client.legalName}
+                          >
+                            {client.legalName}
+                          </span>
                         )}
-                      />
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-baseline gap-x-2">
-                          {href ? (
-                            <Link
-                              to={href}
-                              onClick={(event) => event.stopPropagation()}
-                              className="cisne-type-primary text-brand-800 no-underline hover:underline"
-                            >
-                              {client.legalName}
-                            </Link>
-                          ) : (
-                            <span className="cisne-type-primary text-gray-900">{client.legalName}</span>
-                          )}
-                          {client.tradeName ? (
-                            <span className="cisne-type-meta truncate">{client.tradeName}</span>
-                          ) : null}
-                        </div>
-                        <p className="cisne-type-helper m-0 font-mono tabular-nums">
+                        {client.tradeName ? (
+                          <span className="cisne-type-meta min-w-0 truncate" title={client.tradeName}>
+                            {client.tradeName}
+                          </span>
+                        ) : null}
+                        <span className="cisne-type-helper hidden shrink-0 font-mono tabular-nums lg:inline">
                           {formatCnpjDisplay(client.taxId)}
-                        </p>
-                      </div>
-                    </td>
-
-                    <td className={cn(cellClass, 'z-[1]')}>
-                      {/*
-                        ESTADO + PRÓXIMO PASSO na MESMA linha.
-
-                        A célula empilhava TRÊS linhas (situação, ação e o aviso de documento) e
-                        era ela que definia a altura de TODA a grade — medido, linhas de 61 a 96px
-                        contra o token de 28px, e só 8 registros na primeira dobra. Situação e ação
-                        se comparam na HORIZONTAL (o operador varre a coluna), então dividem uma
-                        linha. O aviso de documento continua em linha própria porque é a exceção
-                        que restringe a operação, e exceção tem direito a espaço.
-                      */}
-                      <span className="flex flex-wrap items-baseline gap-x-1.5">
-                        <span
-                          aria-label={`Status: ${clientStatusLabel(client.status)}`}
-                          className={cn(
-                            'cisne-type-body font-semibold',
-                            isInactive ? 'text-red-700' : 'text-gray-900',
-                          )}
-                        >
-                          {clientStatusLabel(client.status)}
-                        </span>
-                        <span
-                          className={cn(
-                            'cisne-type-helper truncate',
-                            nextAction.pending ? 'font-medium text-brand-700' : 'text-gray-400',
-                          )}
-                        >
-                          {nextAction.label}
                         </span>
                       </span>
-                      {isInactive ? (
-                        <p className="cisne-type-helper m-0 mt-0.5 text-red-700">
-                          Cadastro inativo não é aceito em novos documentos
-                        </p>
-                      ) : null}
                     </td>
 
-                    <td className={cn(cellClass, 'z-[1] pr-3 text-right')}>
-                      {/*
-                        DATA — a leitura relativa e a que decide ("há 12 dias" ordena a atenção);
-                        o carimbo absoluto é a prova. Os dois cabem na MESMA linha: empilhá-los
-                        custava uma segunda linha em TODA linha da grade, e o carimbo absoluto
-                        raramente é o que o operador lê primeiro.
-                      */}
+                    {/*
+                      ESTADO — EXCEPTION-FIRST, não coloração do dataset.
+
+                      A coluna pintava um `StatusBadge` VERDE em cada cliente ativo: dezenove
+                      selos idênticos que não dizem nada e fazem a única linha que importa
+                      (fora de operação) desaparecer no meio. Estado normal fica em TEXTO com
+                      baixo ruído; só a EXCEÇÃO recebe selo e cor. O enum cru nunca aparece.
+                    */}
+                    <td className={cn(cellClass, 'z-[1]')}>
+                      {isInactive ? (
+                        <span className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
+                          <StatusBadge label={clientStatusLabel(client.status)} tone="error" />
+                          <span
+                            className={cn(
+                              'cisne-type-helper min-w-0 truncate',
+                              nextAction.pending ? 'font-medium text-brand-700' : 'text-gray-400',
+                            )}
+                          >
+                            {nextAction.label}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="flex min-w-0 items-baseline gap-x-1.5">
+                          <span
+                            aria-label={`Status: ${clientStatusLabel(client.status)}`}
+                            className="cisne-type-meta shrink-0"
+                          >
+                            {clientStatusLabel(client.status)}
+                          </span>
+                          <span className="cisne-type-helper min-w-0 truncate text-gray-400">
+                            {nextAction.label}
+                          </span>
+                        </span>
+                      )}
+                    </td>
+
+                    {/*
+                      TEMPO — a leitura relativa é a que decide ("há 12 dias" ordena a atenção); o
+                      carimbo absoluto é a prova; a criação é contexto subordinado. Três datas
+                      possíveis, uma coluna funcional.
+                    */}
+                    <td className={cn(cellClass, 'z-[1] pr-3')}>
                       <span className="cisne-type-meta whitespace-nowrap">
                         {formatClientListRelative(client.updatedAt, now)}
-                        <span className="cisne-type-helper"> · {formatClientListDateTime(client.updatedAt)}</span>
+                        <span className="cisne-type-helper">
+                          {' · '}
+                          {formatClientListDateTime(client.updatedAt)}
+                        </span>
+                      </span>
+                      <span className="cisne-type-helper block truncate">
+                        criado em {formatClientListDateTime(client.createdAt)}
                       </span>
                     </td>
                   </tr>
@@ -785,12 +870,140 @@ export function ClientsListPage() {
         </div>
       ) : null}
 
-      <ContextDrawer
+      {/*
+        CONTEXT REGION — MASTER/DETAIL SEM ABANDONAR A FILA.
+
+        Selecionar a linha abre o contexto REAL do registro: identidade, situação, os fatos que a
+        listagem não publica (exigência de pedido de compra, desativação) e as RELAÇÕES reais
+        (contatos e endereços vêm do detalhe). Fechar o painel devolve o operador exatamente onde
+        estava: filtros, ordenação, página e scroll intactos.
+
+        Não existe "Abrir cadastro" repetido na grade: a identidade é o drillback e a linha abre o
+        contexto. Comandos reais (`activate`/`deactivate`) ficam AQUI, no contexto do objeto — não
+        como botões espalhados na tabela.
+      */}
+      <DynamicContextDrawer
         open={preview.previewRow !== null}
         title="Contexto do cliente"
-        preview={preview.previewRow ? buildClientPreview(preview.previewRow, now) : null}
         onClose={preview.closePreview}
-      />
+        crossReferences={detailCrossReferences(detail)}
+      >
+        <div data-region="context-region">
+          {/* Identidade humana do registro selecionado — nunca um identificador técnico. */}
+          {preview.previewRow ? (
+            <p className="cisne-type-primary m-0 mb-2 truncate">
+              {preview.previewRow.tradeName ?? preview.previewRow.legalName}
+            </p>
+          ) : null}
+
+          {detail.phase === 'loading' ? (
+            /* SKELETON LOCALIZADO — só o painel espera; a worklist segue viva. */
+            <div aria-busy="true" role="status" className="flex flex-col gap-1.5">
+              <span className="cisne-type-helper">Carregando contexto…</span>
+              <Skeleton lines={4} />
+            </div>
+          ) : null}
+
+          {detail.phase === 'denied' ? (
+            /* NEGAÇÃO ≠ VAZIO: sem permissão de detalhe, o painel diz isso — não mostra ficha em branco. */
+            <p className="cisne-type-body m-0" role="alert">
+              Você não tem permissão para ver a ficha deste Cliente.
+            </p>
+          ) : null}
+
+          {detail.phase === 'error' ? (
+            <p className="cisne-type-body m-0 text-red-700" role="alert">
+              {detail.message}
+            </p>
+          ) : null}
+
+          {detail.phase === 'ready' ? (
+            <>
+              <dl className="m-0 grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)] gap-x-3 gap-y-1.5">
+                <dt className="cisne-meta-label pt-0.5">Razão social</dt>
+                <dd className="cisne-meta-value m-0">{detail.client.legalName}</dd>
+                {detail.client.tradeName ? (
+                  <>
+                    <dt className="cisne-meta-label pt-0.5">Nome fantasia</dt>
+                    <dd className="cisne-meta-value m-0">{detail.client.tradeName}</dd>
+                  </>
+                ) : null}
+                <dt className="cisne-meta-label pt-0.5">CNPJ</dt>
+                <dd className="cisne-meta-value m-0 font-mono">
+                  {formatCnpjDisplay(detail.client.taxId)}
+                </dd>
+                <dt className="cisne-meta-label pt-0.5">Situação</dt>
+                <dd className="cisne-meta-value m-0">{clientStatusLabel(detail.client.status)}</dd>
+                <dt className="cisne-meta-label pt-0.5">Pedido de compra</dt>
+                <dd className="cisne-meta-value m-0">
+                  {formatPurchaseOrderRequirement(detail.client.purchaseOrderRequirement)}
+                </dd>
+                <dt className="cisne-meta-label pt-0.5">Atualizado</dt>
+                <dd className="cisne-meta-value m-0">{formatClientListDateTime(detail.client.updatedAt)}</dd>
+                {detail.client.deactivatedAt ? (
+                  <>
+                    <dt className="cisne-meta-label pt-0.5">Desativado</dt>
+                    <dd className="cisne-meta-value m-0">
+                      {formatClientListDateTime(detail.client.deactivatedAt)}
+                    </dd>
+                  </>
+                ) : null}
+                {detail.client.deactivationReason ? (
+                  <>
+                    <dt className="cisne-meta-label pt-0.5">Motivo</dt>
+                    <dd className="cisne-meta-value m-0">{detail.client.deactivationReason}</dd>
+                  </>
+                ) : null}
+              </dl>
+
+              {/*
+                COMANDOS REAIS DO DOMÍNIO — e SÓ os que o contrato permite executar daqui.
+
+                `activate` exige apenas `version`, que SÓ o detalhe publica — por isso ele vive
+                aqui e não na linha, e é enviado como INTENÇÃO: quem valida é o backend.
+
+                `deactivate` exige `version` E `reason` (invariante do domínio). Não existe motivo
+                padrão honesto para preencher no lugar do operador, então a desativação NÃO é
+                oferecida como botão aqui: ela é um drillback para onde o motivo é capturado. Botão
+                que inventa o motivo seria pior que a ausência do botão.
+              */}
+              <div className="cisne-divider--top mt-2 flex flex-wrap items-center gap-1.5 pt-2">
+                {detail.client.status === CLIENT_STATUSES.Inactive && capabilities.canActivate ? (
+                  <Button
+                    variant="primary"
+                    loading={commandBusy}
+                    loadingText="Reativando…"
+                    onClick={() => {
+                      void runDetailCommand(() =>
+                        activateClient(detail.client.id, detail.client.version),
+                      );
+                    }}
+                  >
+                    Reativar cadastro
+                  </Button>
+                ) : null}
+                {/*
+                  DRILLBACK ÚNICO — vive AQUI, uma vez por registro selecionado. A grade não
+                  repete "Abrir cadastro" em cada linha: a identidade é o drillback da linha, e o
+                  painel oferece o caminho para a ficha completa (onde o motivo da desativação é
+                  capturado, já que `deactivate` exige `reason` e não há motivo padrão honesto).
+                */}
+                {capabilities.canRead ? (
+                  <ModulePrimaryLink to={`/app/clients/${detail.client.id}`}>
+                    Abrir cadastro completo
+                  </ModulePrimaryLink>
+                ) : null}
+              </div>
+
+              {commandError ? (
+                <p className="cisne-type-helper m-0 mt-1.5 text-red-700" role="alert">
+                  {commandError}
+                </p>
+              ) : null}
+            </>
+          ) : null}
+        </div>
+      </DynamicContextDrawer>
     </ModulePage>
   );
 }
@@ -813,11 +1026,12 @@ const headCellClass =
 const cellClass = 'relative h-[var(--row-height)] border-b border-gray-100 px-2 py-0.5 align-middle';
 
 /**
- * CELULA DA FAIXA DE CARTEIRA — numero real + recorte em UM controle.
+ * CÉLULA DA FAIXA DE TRABALHO — recorte REAL em UM controle.
  *
- * O peso comunica o trabalho: `alert` marca o recorte que exige o operador (cadastro inativo),
- * `settled` o que e apenas leitura. Sem numero publicado, a celula declara a ausencia — `0`
- * afirmaria um recorte inexistente (`AUSÊNCIA ≠ ZERO`).
+ * O peso comunica o trabalho, e EXCEPTION-FIRST é a regra: `neutral` é o estado normal da
+ * carteira (baixo ruído — 19 ativos não podem gritar), `alert` marca o recorte que exige o
+ * operador, `settled` o que já está resolvido. Sem número publicado a célula declara `n/d` em vez
+ * de `0`, porque zero afirmaria um recorte inexistente (`AUSÊNCIA ≠ ZERO`).
  */
 function QueueStripCell({
   label,
@@ -830,7 +1044,7 @@ function QueueStripCell({
   label: string;
   value: number | null;
   hint: string;
-  weight: 'open' | 'settled' | 'alert';
+  weight: 'neutral' | 'settled' | 'alert';
   active: boolean;
   onClick: () => void;
 }) {
@@ -839,7 +1053,7 @@ function QueueStripCell({
       ? 'text-gray-300'
       : weight === 'alert'
         ? 'text-red-700'
-        : weight === 'open'
+        : weight === 'neutral'
           ? 'text-gray-900'
           : 'text-gray-500';
   return (
@@ -887,50 +1101,43 @@ function describeClientScope(filters: ClientListParams): string {
 }
 
 /**
- * Painel lateral do cliente — SOMENTE fatos que `ClientSummary` já publica e relações com
- * destino real. Não soma contagem de solicitações/propostas/pedidos/contratos/OS/recebíveis
- * porque a projeção de listagem não as traz (GAP de contrato registrado, não fabricado).
+ * RELAÇÕES REAIS DO CLIENTE — só o que o detalhe publica e o que tem DESTINO real.
+ *
+ * Contatos e endereços vêm de `GET /api/v1/clients/:id`; a fila de solicitações filtrada é uma
+ * rota real. Nenhuma contagem é afirmada aqui: o detalhe publica a LISTA, não um total — e
+ * número sem dono é número inventado.
  */
-function buildClientPreview(client: ClientSummary, now: Date): ContextPreviewBody {
-  const isInactive = client.status === CLIENT_STATUSES.Inactive;
-  return {
-    identifier: client.legalName,
-    subtitle: client.tradeName ?? null,
-    status: <ClientStatusBadge status={client.status} />,
-    facts: [
-      { label: 'CNPJ', value: formatCnpjDisplay(client.taxId) },
-      {
-        label: 'Situação',
-        value: isInactive
-          ? 'Inativo — não é aceito em novos documentos'
-          : 'Ativo — aceito em novos documentos',
-      },
-      {
-        label: 'Última atualização',
-        value: (
-          <span className="tabular-nums">
-            {formatClientListRelative(client.updatedAt, now)} ·{' '}
-            {formatClientListDateTime(client.updatedAt)}
-          </span>
-        ),
-      },
-    ],
-    relations: [
-      {
-        label: 'Solicitações deste cliente',
-        value: 'Abrir fila filtrada',
-        href: `/app/requests?clientId=${client.id}`,
-      },
-    ],
-    /*
-     * PROXIMA ACAO so quando existe trabalho: cadastro ATIVO e a condicao normal da carteira e
-     * nao tem pendencia — oferecer um botao ali seria inventar uma tarefa. Cadastro INATIVO e a
-     * excecao, e o comando real roda na object page (a listagem nao publica `version`).
-     */
-    nextAction: isInactive
-      ? { label: 'Reativar cadastro', href: `/app/clients/${client.id}`, kind: 'primary' }
-      : null,
-    detailHref: `/app/clients/${client.id}`,
-    detailLabel: 'Abrir cadastro completo',
-  };
+function detailCrossReferences(detail: { phase: string; client?: Client }): CrossReference[] {
+  if (detail.phase !== 'ready' || !detail.client) {
+    return [];
+  }
+  const client = detail.client;
+  const references: CrossReference[] = [
+    {
+      label: 'Solicitações deste cliente',
+      detail: 'Abrir a fila recortada por este cadastro.',
+      href: `/app/requests?clientId=${client.id}`,
+    },
+  ];
+  if (client.contacts.length > 0) {
+    references.push({
+      label: 'Contatos',
+      detail: client.contacts
+        .map((contact) => contact.name)
+        .filter((name) => name.trim() !== '')
+        .join(' · '),
+    });
+  } else {
+    references.push({ label: 'Contatos', detail: 'Nenhum contato cadastrado.' });
+  }
+  if (client.addresses.length > 0) {
+    references.push({
+      label: 'Endereços',
+      detail: client.addresses
+        .map((address) => [address.city, address.state].filter(Boolean).join('/'))
+        .filter((entry) => entry.trim() !== '')
+        .join(' · '),
+    });
+  }
+  return references;
 }
