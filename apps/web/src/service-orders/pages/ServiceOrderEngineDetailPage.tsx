@@ -237,9 +237,11 @@ export function ServiceOrderEngineDetailPage() {
 
   return (
     <EnterpriseObjectPage
+      className="service-order-object-page gap-3"
       breadcrumb={[{ label: 'Ordens de serviço', href: '/app/service-orders' }]}
       header={
         <EnterpriseObjectHeader
+          className="service-order-object-header border-gray-200 px-5 py-4 shadow-none"
           reference={orderNumber}
           title={orderNumber || schema.label}
           subtitle={client}
@@ -255,12 +257,31 @@ export function ServiceOrderEngineDetailPage() {
           ]}
         />
       }
-      stateFlow={<ObjectStateFlow steps={stateFlowSteps} currentId={currentState} title="Fluxo da OS" />}
-      nextAction={<NextActionPanel action={nextAction} />}
-      relations={relations.length > 0 ? <SmartRelationBar relations={relations} /> : undefined}
+      stateFlow={
+        <ObjectStateFlow
+          steps={stateFlowSteps}
+          currentId={currentState}
+          title="Fluxo da OS"
+          className="service-order-state-flow border-gray-200 px-5 shadow-none"
+        />
+      }
+      nextAction={
+        <NextActionPanel
+          action={nextAction}
+          className="service-order-next-action border-gray-200 shadow-none"
+        />
+      }
+      relations={
+        relations.length > 0 ? (
+          <SmartRelationBar
+            relations={relations}
+            className="service-order-relations border-gray-200 shadow-none"
+          />
+        ) : undefined
+      }
       aside={
-        <>
-          <ObjectPanel title="Comandos">
+        <div className="service-order-context-rail border-l border-gray-200 pl-4">
+          <ObjectPanel title="Comandos" className="service-order-command-surface shadow-none">
             <ActionBar
               schema={schema}
               currentState={currentState}
@@ -273,31 +294,47 @@ export function ServiceOrderEngineDetailPage() {
               </p>
             ) : null}
           </ObjectPanel>
-          <ObjectPanel title="Cadeia de negócio">
+          <ObjectPanel title="Cadeia de negócio" className="service-order-context-panel shadow-none">
             <DynamicBusinessChain nodes={chainNodes} title="Cadeia de negócio" />
           </ObjectPanel>
-          <ObjectPanel title="Histórico">
+          <ObjectPanel title="Histórico" className="service-order-context-panel shadow-none">
             <DynamicTimeline schema={schema} recordId={row.id} />
           </ObjectPanel>
-        </>
+        </div>
       }
     >
-      <ObjectPanel title="Operação">
-        {controlCenter ? (
-          <OperationsControlCenter
-            controlCenter={controlCenter}
-            measurementHref={`/app/service-orders/${row.id}/measurement`}
-          />
-        ) : (
-          <p className="m-0 text-sm text-gray-500">
-            Sem controle operacional disponível para esta ordem.
-          </p>
-        )}
-      </ObjectPanel>
+      <main className="service-order-main-canvas space-y-6">
+        <section aria-label="Operação" className="service-order-operational-canvas border-b border-gray-200 pb-6">
+          <div className="service-order-section-heading mb-3 flex items-end gap-3">
+            <div>
+              <p className="m-0 text-[10px] font-semibold tracking-wide text-gray-500 uppercase">Trabalho atual</p>
+              <h2 className="m-0 text-base font-semibold text-gray-900">Operação da ordem</h2>
+            </div>
+            <span className="mb-1 h-px flex-1 bg-gray-200" aria-hidden="true" />
+          </div>
+          {controlCenter ? (
+            <OperationsControlCenter
+              controlCenter={controlCenter}
+              measurementHref={`/app/service-orders/${row.id}/measurement`}
+            />
+          ) : (
+            <p className="m-0 text-sm text-gray-500">
+              Sem controle operacional disponível para esta ordem.
+            </p>
+          )}
+        </section>
 
-      <ObjectPanel title="Dados da ordem">
-        <DynamicForm schema={schema} values={row} readOnly />
-      </ObjectPanel>
+        <section aria-label="Dados da ordem" className="service-order-record-canvas">
+          <div className="service-order-section-heading mb-3 flex items-end gap-3">
+            <div>
+              <p className="m-0 text-[10px] font-semibold tracking-wide text-gray-500 uppercase">Registro</p>
+              <h2 className="m-0 text-base font-semibold text-gray-900">Dados da ordem</h2>
+            </div>
+            <span className="mb-1 h-px flex-1 bg-gray-200" aria-hidden="true" />
+          </div>
+          <DynamicForm schema={schema} values={row} readOnly />
+        </section>
+      </main>
     </EnterpriseObjectPage>
   );
 }
