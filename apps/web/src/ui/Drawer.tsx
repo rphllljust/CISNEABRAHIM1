@@ -41,20 +41,32 @@ export function Drawer({ open, title, onClose, children, side = 'right' }: Drawe
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        /*
+          PAINEL LATERAL — superficie de contexto, nao caixa branca generica.
+          Mantem a elevacao (aqui ela e necessaria: o painel cobre a work area) e ganha a regua de
+          acento + tipografia governada, para ler como contexto empresarial do CISNE e nao como
+          modal generico de template.
+        */
         className={cn(
-          'absolute top-0 flex h-full w-[min(24rem,100vw)] flex-col border-border-subtle bg-surface-raised shadow-[var(--shadow-dialog)]',
-          side === 'right' ? 'right-0 border-l' : 'left-0 border-r',
+          'cisne-context-surface absolute top-0 flex h-full w-[min(24rem,100vw)] flex-col shadow-[var(--shadow-dialog)]',
+          side === 'right'
+            ? 'right-0 border-l-[3px] border-l-brand-600'
+            : 'left-0 border-r-[3px] border-r-brand-600',
         )}
       >
-        <header className="flex items-center justify-between border-b border-border-subtle px-4 py-3">
-          <h2 id={titleId} className="cisne-type-section-title">
+        <header className="cisne-divider--section flex items-center justify-between gap-2 px-3 py-2">
+          <h2 id={titleId} className="cisne-type-workspace m-0 truncate">
             {title}
           </h2>
-          <button type="button" className="text-cisne-action focus-visible:cisne-focus-ring" onClick={onClose}>
+          <button
+            type="button"
+            className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+            onClick={onClose}
+          >
             Fechar
           </button>
         </header>
-        <div className="flex-1 overflow-auto p-4">{children}</div>
+        <div className="flex-1 overflow-auto px-3 py-2">{children}</div>
       </aside>
     </div>
   );

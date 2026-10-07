@@ -48,50 +48,62 @@ export function DynamicContextDrawer({
       role="dialog"
       aria-modal="true"
       aria-label={title}
-      className="fixed inset-y-0 right-0 z-40 flex w-full max-w-md flex-col border-l border-gray-200 bg-white shadow-xl"
+      /*
+        CONTEXTO EMPRESARIAL — nao modal lateral generico.
+
+        Antes: `bg-white shadow-xl` com borda, isto e, a MESMA assinatura visual do resto do produto,
+        aberta por cima. Nada dizia ao operador "isto e contexto do registro que voce esta operando".
+
+        Agora o painel e uma SUPERFICIE DE CONTEXTO: tom distinto da area de trabalho (para o olho
+        separar contexto de trabalho sem precisar ler), regua de acento na borda que encosta no
+        conteudo e divisor estrutural no cabecalho. A sombra permanece porque AQUI ela e necessaria —
+        e a unica superficie realmente elevada sobre a work area, que e exatamente o "elevated
+        surface somente quando necessaria".
+      */
+      className="cisne-context-surface fixed inset-y-0 right-0 z-40 flex w-full max-w-md flex-col border-l-[3px] border-l-brand-600 shadow-[var(--shadow-dialog)]"
     >
-      <header className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-        <h2 className="text-sm font-semibold">{title}</h2>
+      <header className="cisne-divider--section flex items-center justify-between gap-2 px-3 py-2">
+        <h2 className="cisne-type-workspace m-0 truncate">{title}</h2>
         <button
           type="button"
           data-testid="dynamic-context-drawer-close"
           aria-label={t('common.actions')}
-          className="rounded border border-slate-300 px-2 py-0.5 text-xs"
+          className="inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
           onClick={onClose}
         >
           ×
         </button>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto px-3 py-2">
         {crossReferences.length === 0 ? (
-          <p className="text-sm text-gray-500" data-testid="dynamic-context-drawer-empty">
+          <p className="cisne-type-helper m-0" data-testid="dynamic-context-drawer-empty">
             Nenhuma referência cruzada para este registro.
           </p>
         ) : (
-          <ul className="m-0 list-none space-y-2 p-0">
+          <ul className="m-0 flex list-none flex-col gap-0 p-0">
             {crossReferences.map((reference) => (
               <li
                 key={reference.label}
                 data-testid="dynamic-cross-ref"
                 data-cross-ref={reference.label}
                 data-cross-ref-count={reference.count ?? null}
-                className="rounded border border-gray-200 px-3 py-2"
+                className="cisne-divider py-1.5 last:border-b-0"
               >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium">{reference.label}</span>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="cisne-type-body font-medium">{reference.label}</span>
                   {reference.count !== undefined ? (
-                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs tabular-nums">
+                    <span className="cisne-type-meta font-semibold tabular-nums">
                       {reference.count}
                     </span>
                   ) : null}
                 </div>
                 {reference.detail ? (
-                  <p className="mt-0.5 text-xs text-gray-500">{reference.detail}</p>
+                  <p className="cisne-type-helper m-0 mt-0.5">{reference.detail}</p>
                 ) : null}
                 {reference.href ? (
                   <a
-                    className="mt-1 inline-block text-xs underline"
+                    className="cisne-type-action mt-0.5 inline-block text-brand-700 no-underline hover:text-brand-800 hover:underline"
                     href={reference.href}
                     onClick={(event) => event.stopPropagation()}
                   >
@@ -103,7 +115,7 @@ export function DynamicContextDrawer({
           </ul>
         )}
 
-        {children ? <div className="mt-4">{children}</div> : null}
+        {children ? <div className="mt-2">{children}</div> : null}
       </div>
     </div>
   );
