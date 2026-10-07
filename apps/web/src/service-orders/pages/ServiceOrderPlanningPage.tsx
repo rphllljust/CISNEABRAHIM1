@@ -1042,22 +1042,24 @@ export function ServiceOrderPlanningPage() {
         onConfirm={() => void handleAllocate()}
       >
         <div className="planning-form">
-          <label className="form-field">
+          <label className="flex min-w-0 flex-col gap-1.5 text-sm font-semibold text-gray-700">
             Início operacional
             <input
               type="datetime-local"
               value={operationalStart}
               onChange={(event) => setOperationalStart(event.target.value)}
               required
+              className="mt-1 min-h-9 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
             />
           </label>
-          <label className="form-field">
+          <label className="flex min-w-0 flex-col gap-1.5 text-sm font-semibold text-gray-700">
             Fim operacional
             <input
               type="datetime-local"
               value={operationalEnd}
               onChange={(event) => setOperationalEnd(event.target.value)}
               required
+              className="mt-1 min-h-9 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-none"
             />
           </label>
           {allocateKind === 'LABOR' ? (

@@ -17658,6 +17658,54 @@ NEXT_PROMPT_EXECUTED: NO
 
 ---
 
+## ORDENS DE SERVICO — PLANEJAMENTO: DIALOG DE ALOCACAO SEM FORM-FIELD
+
+DATA: 2026-10-07T10:49:00-04:00
+STATUS: **PASS**
+
+### Escopo executado
+
+Continuidade da wave frontend Enterprise Tier-1, uma função por vez.
+
+Módulo: **Ordens de Serviço**.
+Função: **Planejamento / alocação** (`/app/service-orders/:id/planning`).
+Classificação principal: **PLANNING / DIALOG FORM**.
+
+Classificação: **interpretação de engenharia visual / experiência operacional**. Nenhuma regra
+empresarial criada, promovida ou alterada; nenhum backend, API, migration, seed, permissão ou
+contrato de dados tocado.
+
+### Arquivo alterado
+
+- `apps/web/src/service-orders/pages/ServiceOrderPlanningPage.tsx`
+
+### Alteração aplicada
+
+- Campos de início/fim operacional do dialog de alocação deixaram `form-field`.
+- Alocação de ativo/empregado, bloqueio de duplo submit, intervalo e confirmação pelo servidor
+  foram preservados.
+
+### Validação
+
+- `pnpm --filter @cisne/web exec vitest run --config vite.config.ts src/service-orders/pages/ServiceOrderPlanningPage.test.tsx` — **PASS** (8/8)
+- `pnpm --filter @cisne/web exec eslint src/service-orders/pages/ServiceOrderPlanningPage.tsx` — **PASS**
+- `pnpm --filter @cisne/web typecheck` — **PASS**
+- `git diff --check` — **PASS**
+
+### Quality gate
+
+- [x] Alteração restrita ao dialog de alocação no planejamento de OS
+- [x] Nenhum dado, KPI, relação ou capability inventado
+- [x] Nenhuma regra empresarial nova
+- [x] Nenhuma migration, seed, backend, permissão ou contrato de API
+- [x] Alocação, intervalo e bloqueio de submit preservados
+
+WORKING_TREE: limpo após commit
+COMMIT: incluído no commit desta sessão
+NEXT_PROMPT_EXECUTED: NO
+
+---
+
 ## ORDENS DE SERVICO — EXECUCAO: FORMULARIOS OPERACIONAIS SEM FORM-FIELD/BUTTON-ROW
 
 DATA: 2026-10-07T10:48:00-04:00
