@@ -280,6 +280,7 @@ export function BudgetsListPage() {
         "N orçamento(s) · página X" dizia duas coisas em uma linha e repetia o que o rodapé já
         publica como faixa de registros.
       */}
+      <div data-region="operating-header">
       <WorklistHeader
         title={schema?.label ?? 'Orçamentos'}
         count={total}
@@ -290,20 +291,22 @@ export function BudgetsListPage() {
           </Link>
         }
       />
+      </div>
 
       {/*
-        BUSCA → `q` no servidor. A barra de filtros da engine cobre o recorte por CAMPO do
-        metadado; esta entidade não declara nenhum campo `in_filter`, e inventar um aqui seria
-        hardcode. Enquanto o metadado não declarar, o recorte por coluna não existe — e é
-        melhor ele não existir do que existir só nesta tela.
-      */}
-      <BudgetSearchForm
-        statusFilter={statusFilter}
-        isFiltered={isFiltered}
-        onChange={updateFilter}
-        onClear={clearFilters}
-      />
+        GRAMÁTICA DE REGIÕES — a ordem da família.
 
+        DEFEITO CORRIGIDO: a superfície de VISÕES SALVAS vinha DEPOIS da de BUSCA/FILTRO. É a
+        QUARTA ocorrência da mesma inversão nesta wave (Catálogo, Propostas, Recebíveis, Despesas) —
+        ou seja, não é descuido de uma tela: a ordem da família não estava sendo aplicada por
+        padrão. A ordem é
+
+            OPERATING HEADER -> SAVED VIEWS -> COMMAND/FILTER -> WORK QUEUE
+
+        e o operador que aprendeu a procurar o recorte salvo ANTES do recorte ad-hoc encontrava,
+        aqui, o contrário.
+      */}
+      <div data-region="saved-view-surface">
       {/*
         VISÕES SALVAS — a mesma barra das outras listas financeiras. No orçamento o recorte que o
         operador remonta é "situação + termo": é ele que o Ctrl+K publica (`?status=DRAFT`) e é
@@ -336,6 +339,22 @@ export function BudgetsListPage() {
         allLabel="Todos"
         className="mb-2"
       />
+      </div>
+
+      <div data-region="command-filter-surface">
+      {/*
+        BUSCA → `q` no servidor. A barra de filtros da engine cobre o recorte por CAMPO do
+        metadado; esta entidade não declara nenhum campo `in_filter`, e inventar um aqui seria
+        hardcode. Enquanto o metadado não declarar, o recorte por coluna não existe — e é
+        melhor ele não existir do que existir só nesta tela.
+      */}
+      <BudgetSearchForm
+        statusFilter={statusFilter}
+        isFiltered={isFiltered}
+        onChange={updateFilter}
+        onClear={clearFilters}
+      />
+      </div>
 
       {status === 'error' ? (
         <p className="text-sm text-red-700" role="alert">
@@ -343,6 +362,7 @@ export function BudgetsListPage() {
         </p>
       ) : null}
 
+      <div data-region="worklist-master">
       {schema ? (
         <>
           <div className="mb-2">
@@ -449,6 +469,7 @@ export function BudgetsListPage() {
           </WorklistFooter>
         </>
       ) : null}
+      </div>
 
       {/*
         CONTEXTO SOB DEMANDA — abre pela PRÉVIA da linha, nunca sozinho. O painel mostra o que o

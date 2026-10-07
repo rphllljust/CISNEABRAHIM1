@@ -20268,3 +20268,84 @@ ordem não tocou nenhuma delas.
 3. **Sem context region nesta página.** Continua pendente da decisão (1).
 
 WORKING_TREE: 1 arquivo + este registro
+
+---
+
+## ORÇAMENTOS — GRAMÁTICA DE REGIÕES (rodada 20) — 2026-10-07
+
+STATUS: **PASS_COM_RESTRICAO**
+Commit: `feat(web): put the budget worklist in family region order`
+
+### Escolha da função
+
+Feita por medição, como nas anteriores: `/finance/budgets` tem **3 registros com `total`
+autoritativo** (`{ items, limit, offset, total, totalPages }`). Esta rodada NÃO dependia da decisão
+de produto que segue aberta, então foi ela que andou.
+
+### Defeito corrigido — QUARTA ocorrência da mesma inversão
+
+A superfície de **VISÕES SALVAS vinha DEPOIS da de BUSCA/FILTRO**.
+
+Somando as ocorrências desta wave — Catálogo, Propostas, Recebíveis, Despesas e agora Orçamentos —
+o padrão deixa de ser descuido de uma tela e passa a ser um fato sobre a wave: **a ordem da família
+não estava sendo aplicada por padrão**, e cada tela precisou ser corrigida uma a uma. O registro
+importa porque indica onde a próxima tela provavelmente também estará errada.
+
+Correção: `SavedViewsBar` movido para ANTES do `BudgetSearchForm`, e as quatro regiões declaradas —
+`operating-header > saved-view-surface > command-filter-surface > worklist-master`.
+
+### Gate de DOM (REDE + DOM, CDP, cache desabilitado, servidor real)
+
+| Prova | Resultado |
+| ----- | --------- |
+| ordem das regiões no DOM | `operating-header > saved-view-surface > command-filter-surface > worklist-master` |
+| `savedViewsBeforeFilter` / `familyOrderFull` | **true / true** |
+| superfícies presentes | visões salvas, filtro e fila: **true** |
+| linhas = `items` do corpo | **true** (3 = 3) |
+| contagem do cabeçalho = `payload.total` | **true** (3 = 3) |
+| rodapé publica o total autoritativo | **true** ("1–3 de 3 · Página 1") |
+| `occluded` | **0** |
+| `overflowX` | **0** |
+| erros de console | **0** |
+
+### DEFEITO NO MEU PRÓPRIO INSTRUMENTO — e a correção vale mais que o número
+
+A primeira medição acusou **`occluded: 3`**. Não presumi que fosse pré-existente nem que fosse
+defeito: medi a **pilha completa de hit-test** (`elementsFromPoint`) e a **cadeia de ancestrais** dos
+controles. Resultado: os três botões `Prévia` vivem dentro de um painel `absolute` sob um
+`<details>` — e **`<details>` FECHADO no Chrome mantém caixa de layout nos filhos sem pintá-los nem
+torná-los hit-testáveis**. O ponto medido caía sobre o `<td>` do menu fechado, produzindo "coberto"
+FALSO.
+
+Corrigido no instrumento: controles dentro de `details:not([open])` são **excluídos e CONTADOS**
+(`skippedInsideClosedDetails: 3`), para o gate dizer quantos ficaram de fora em vez de esconder o
+número. Resultado real: **`occluded: 0`**.
+
+Erro adicional do instrumento, também registrado: um comentário dentro do probe usava **crase**, e o
+probe vive dentro de um template literal — isso fechou a string e quebrou o módulo. **O script parou
+de rodar e as duas medições seguintes leram o JSON ANTIGO**, mostrando números plausíveis e errados.
+Detectado porque uma chave nova aparecia ausente. A partir daqui: comentário dentro do probe não usa
+crase, e a ausência de uma chave esperada é tratada como falha de instrumento, não como valor.
+
+### Gates técnicos
+
+- `tsc --noEmit` — **PASS**; `eslint src/finance` — **PASS**
+- `src/finance` — **11 falhas / 73 passes**, idêntico ao baseline registrado
+  (`finance-smart-list` 7/7, `finance-backoffice` 4/10). **Zero falha nova.**
+- `git diff --check` — **PASS**; 1 arquivo alterado
+
+### RESTRIÇÕES CONHECIDAS
+
+1. **A DECISÃO DE PRODUTO SEGUE ABERTA** (rodadas 18 e 19, ainda sem resposta): os comandos de
+   transição continuam não ligados onde o contrato não publica flag de permissão. Aqui há um agravante
+   próprio, medido: `approveBudget` exige o **`version` da VERSÃO do orçamento**, e a linha da lista
+   publica `rowVersion` do ORÇAMENTO — **são campos diferentes**. Ou seja, nesta tela o comando de
+   aprovação **não é executável a partir da linha**: exige leitura autoritativa (`getBudget`). A
+   correção do drawer desta página depende disso e da decisão (1).
+2. **O drawer de contexto continua alimentado pela linha** (`previewRow`) e a "próxima ação" é um
+   LINK (`nextAction.href` / `detailHref`) — navegação apresentada como próximo passo, o mesmo padrão
+   já removido em Propostas e Ativos. Registrar sem corrigir foi deliberado: corrigir exigiria a
+   decisão (1) e a leitura autoritativa do item (1).
+3. `rowHeights` único em 35px para as três linhas; nada de defeito estrutural medido além disso.
+
+WORKING_TREE: 1 arquivo + este registro
