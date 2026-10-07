@@ -20205,3 +20205,66 @@ Instrumento: `tmp/expenses-scope-gate.mjs`. Esperado derivado do PRÓPRIO corpo 
    está no instrumento de propósito, para não mascarar a lacuna registrada em (1).
 
 WORKING_TREE: 1 arquivo + este registro
+
+---
+
+## DESPESAS — GRAMÁTICA DE REGIÕES (rodada 19) — 2026-10-07
+
+STATUS: **PASS_COM_RESTRICAO**
+Commit: `feat(web): put the expense worklist in family region order`
+
+### Defeito corrigido — e ele era PERCEPTÍVEL, não só de instrumentação
+
+A rodada anterior registrou "a página não declara regiões" como lacuna de gramática. Ao abrir o
+arquivo para fechá-la, apareceu defeito maior que a lacuna: a superfície de **VISÕES SALVAS vinha
+DEPOIS da superfície de FILTRO**.
+
+É a MESMA inversão já corrigida em Catálogo, Propostas e Recebíveis — e aqui sobrevivia. O operador
+desta tela lia "recorte ad-hoc primeiro, recorte salvo depois" enquanto **todas** as outras worklists
+leem o contrário. Não é cosmético: é a ordem em que a família ensina o operador a procurar o recorte
+salvo.
+
+Correção: `SavedViewsBar` **movido para antes** de `WorklistFilterBar`, e o bloco "recorte ativo em
+texto" mantido junto da superfície de filtro, de propósito — ele é o ECO do recorte que aquela faixa
+aplicou, não uma região própria. As regiões passaram a ser declaradas por `data-region`.
+
+Nenhum filtro, visão salva, valor, destino, capability ou contrato foi alterado: só a ordem e a
+declaração.
+
+### Gate de DOM (mesmo instrumento da rodada 18, reexecutado)
+
+| Prova | Resultado |
+| ----- | --------- |
+| ordem das regiões no DOM | `operating-header > drilldown-surface > saved-view-surface > command-filter-surface > worklist-master` |
+| `pageHasRegionMarkers` | **true** (era `false` — lacuna fechada) |
+| superfícies presentes | visões salvas, filtro e fila: **true** |
+| escopo no `aria-label` dos 5 indicadores | **true** (`metricsWithoutScope: []`) |
+| total do recorte exposto / cabeçalho = `payload.total` | **true / true** (3 = 3) |
+| valores do DOM = conteúdo da página | **true** nos quatro |
+| destinos preservados | `?status=SUBMITTED`, `?status=DRAFT`, `?status=APPROVED` |
+| erros de console | **0** |
+
+As cinco provas de VERACIDADE da rodada 18 seguem passando depois da reordenação — a mudança de
+ordem não tocou nenhuma delas.
+
+### Gates técnicos
+
+- `tsc --noEmit` — **PASS**; `eslint src/finance` — **PASS**
+- `src/finance` — **11 falhas / 73 passes**, idêntico ao baseline registrado
+  (`finance-smart-list` 7/7, `finance-backoffice` 4/10). **Zero falha nova.**
+- `git diff --check` — **PASS**; 1 arquivo alterado
+
+### RESTRIÇÕES CONHECIDAS
+
+1. **A DECISÃO DE PRODUTO SEGUE ABERTA** (registrada na rodada 18 e ainda sem resposta): os comandos
+   de transição de Recebíveis e Despesas continuam NÃO ligados porque nenhuma capability de permissão
+   é publicada para eles. As duas saídas são (a) aceitar gating **só por estado**, deixando o backend
+   recusar quem não pode, ou (b) manter `PARK` até o backend publicar as flags. Não escolhi por
+   conta própria: a primeira troca uma garantia de UI por uma recusa de servidor, e isso é decisão de
+   dono do produto.
+2. **A rodada 18 e esta formam uma unidade**: a de escopo corrigiu a AFIRMAÇÃO dos indicadores; esta
+   corrigiu a ORDEM das superfícies e a declaração das regiões. Ambas mantêm que **os números não
+   mudaram** — o que mudou foi a leitura que a tela permite.
+3. **Sem context region nesta página.** Continua pendente da decisão (1).
+
+WORKING_TREE: 1 arquivo + este registro

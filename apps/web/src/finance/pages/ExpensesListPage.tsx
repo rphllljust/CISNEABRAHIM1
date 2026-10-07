@@ -231,6 +231,7 @@ export function ExpensesListPage() {
      * de sobrar espaço vazio na tela.
      */
     <ModulePage className="flex h-full min-h-0 flex-col">
+      <div data-region="operating-header">
       {/*
         CABEÇALHO — identidade, contagem REAL do recorte (contada no servidor) e a única ação
         primária da tela. Sem parágrafo explicativo: o operador de ERP lê número e estado, não
@@ -245,6 +246,9 @@ export function ExpensesListPage() {
           </Link>
         }
       />
+      </div>
+
+      <div data-region="drilldown-surface">
 
       {/*
         INDICADORES DO RECORTE VISÍVEL. Todo indicador tem caminho até o dado: ele abre ESTA lista
@@ -321,7 +325,41 @@ export function ExpensesListPage() {
           to="/app/finance/expenses"
         />
       </DrilldownRow>
+      </div>
 
+      {/*
+        GRAMÁTICA DE REGIÕES — a ordem da família, medida no DOM.
+
+        DEFEITO CORRIGIDO: a superfície de VISÕES SALVAS vinha DEPOIS da superfície de FILTRO. É a
+        mesma inversão já corrigida em Catálogo, Propostas e Recebíveis, e aqui sobrevivia: o
+        operador desta tela lia "recorte ad-hoc primeiro, recorte salvo depois" enquanto todas as
+        outras worklists leem o contrário. A ordem da família é
+
+            OPERATING HEADER -> SAVED VIEWS -> COMMAND/FILTER -> WORK QUEUE
+
+        e o "recorte ativo em texto" fica JUNTO da superfície de filtro, porque ele é o eco do
+        recorte que aquela faixa aplicou — não uma região própria.
+      */}
+      <div data-region="saved-view-surface">
+      <SavedViewsBar
+        views={smartList.savedViews.views}
+        builtInViews={smartList.savedViews.builtInViews}
+        activeViewId={smartList.activeViewId}
+        onApply={(view) => {
+          setAppliedTerm(term.trim());
+          smartList.applyView(view);
+        }}
+        onSave={smartList.savedViews.saveView}
+        onRename={smartList.savedViews.renameView}
+        onRemove={smartList.savedViews.removeView}
+        currentConfig={smartList.currentConfig}
+        canSave={Object.keys(smartList.filters).length > 0}
+        allLabel="Todas"
+        className="mb-2"
+      />
+      </div>
+
+      <div data-region="command-filter-surface">
       {/*
         TOOLBAR — busca, filtro e limpeza em UMA faixa densa. A busca continua SUBMETIDA
         (Enter/botão): uma consulta por tecla digitada castigaria o servidor sem ganho de operação.
@@ -379,7 +417,7 @@ export function ExpensesListPage() {
         RECORTE ATIVO EM TEXTO — o operador vê QUAL recorte está aplicado sem reabrir o controle, e
         cada um é removível no lugar. O recorte de busca vive em estado próprio (não no smart list)
         e por isso precisa aparecer aqui também: sem isto, o filtro só existia dentro do `<select>`
-        que o aplicou.
+        que o aplicou. Fica DENTRO da superfície de filtro de propósito: é o eco dela.
       */}
       {isFiltered ? (
         <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] text-gray-600">
@@ -403,23 +441,9 @@ export function ExpensesListPage() {
           ) : null}
         </div>
       ) : null}
+      </div>
 
-      <SavedViewsBar
-        views={smartList.savedViews.views}
-        builtInViews={smartList.savedViews.builtInViews}
-        activeViewId={smartList.activeViewId}
-        onApply={(view) => {
-          setAppliedTerm(term.trim());
-          smartList.applyView(view);
-        }}
-        onSave={smartList.savedViews.saveView}
-        onRename={smartList.savedViews.renameView}
-        onRemove={smartList.savedViews.removeView}
-        currentConfig={smartList.currentConfig}
-        canSave={Object.keys(smartList.filters).length > 0}
-        allLabel="Todas"
-        className="mb-2"
-      />
+      <div data-region="worklist-master">
 
       {/*
         CARTEIRA VAZIA vs. RECORTE SEM RESULTADO.
@@ -587,6 +611,7 @@ export function ExpensesListPage() {
           onNext={() => setOffset(page.offset + PAGE_SIZE)}
         />
       </WorklistFooter>
+      </div>
     </ModulePage>
   );
 }
