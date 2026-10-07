@@ -19039,3 +19039,62 @@ Todos corrigidos no SENTIDO DO CONTRATO — nenhum assert foi afrouxado. Suite v
 - [x] Nenhum bulk inventado (endpoint inexistente)
 
 WORKING_TREE: limpo apos commit
+
+---
+
+## PESSOAS — WORK AREA OPERACIONAL (rodada 5) — 2026-10-07
+
+STATUS: **PASS**
+Commit: `86a1674` — feat(web): rebuild people worklist as operational work area with real context
+
+### Classificacao
+
+Categoria **A — WORKLIST**. Contrato verificado antes de compor: `GET /people/:id` (detalhe real),
+`activatePerson(id, version)` e `deactivatePerson(id, version, reason)` (comandos reais, motivo
+obrigatorio), capabilities reais (`canActivate`/`canDeactivate`/`canRead`). Nenhum bulk existe.
+
+### Modelo anterior (reprovado pela ordem)
+
+`WorklistHeader → WorklistFilterBar → tabela` — CRUD com nomes enterprise. Sem visoes salvas, sem
+regiao de contexto, e um link primario "Abrir ficha" REPETIDO em toda linha.
+
+### Alteracao aplicada (receita A)
+
+- `work-surface` STICKY agrupando operating-header + saved-view-surface + command-filter-surface;
+- `DynamicSavedViewsBar` em faixa propria da work area (status + funcao + busca persistidos);
+- `DynamicContextDrawer` com detalhe REAL (`GET /people/:id`) e skeleton localizado;
+- comandos reais no CONTEXTO, guardados pelas capabilities reais;
+- **motivo da inativacao digitado pelo operador** (`deactivatePerson` exige `reason`); o botao fica
+  indisponivel ate existir motivo — o frontend nao inventa fato empresarial;
+- "Abrir ficha" por linha REMOVIDO: a identidade e o drillback e a linha abre o contexto;
+- EXCEPTION-FIRST: selo de status so na pessoa inativa; ativa e texto de baixo ruido;
+- token de recarga real (`reloadToken`) para a grade refletir o comando.
+
+### Evidencia DOM (Chromium 1440x900, dev server real)
+
+| Criterio | Medido |
+| -------- | ------ |
+| `work-surface` | `position: sticky`, h=166 |
+| operating-header / saved-view / command-filter | 78px / **46px** / 42px |
+| worklist-master | presente (regiao medida) |
+| "Abrir" repetido por linha | **0** |
+| Links por linha | **[1]** (so identidade) |
+| Selos em linha normal | **[0]** |
+| Clique na linha | dialog "Contexto da pessoa" |
+| Dado exclusivo do detalhe | Codigo `EMP-DEV-001`, Funcao `Operador` |
+| Comando real com motivo | `Motivo (obrigatorio para inativar)` + `Inativar pessoa` |
+| Fila preservada | `worklistStillMounted: true` |
+| Overlap / overflow-x | **0 / 0** |
+
+### Limitacao registrada (nao ocultada)
+
+O banco de desenvolvimento tem **1 pessoa** (`GET /api/v1/people` devolve 1 item; o contrato NAO
+publica `total`). A densidade da grade populada NAO pode ser medida nesta rodada; as metricas de
+composicao, interacao e contexto acima foram todas verificadas.
+
+### Validacao
+
+- `eslint src/people` — **PASS**; `typecheck` — **PASS**; `src/people` — **21/21 PASS**
+- `git diff --check` — **PASS** (exit 0)
+
+WORKING_TREE: limpo apos commit
