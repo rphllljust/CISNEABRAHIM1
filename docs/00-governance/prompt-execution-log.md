@@ -19221,3 +19221,69 @@ Duas tentativas de fechamento de JSX ficaram desbalanceadas (fragmento vs `div`)
 corrigidas antes do commit. Nenhum teste foi afrouxado.
 
 WORKING_TREE: limpo apos commit
+
+---
+
+## CONTAS A RECEBER — WORK AREA (rodada 8) — 2026-10-07
+
+STATUS: **PASS_COM_RESTRICAO**
+Commit: `c202902` — feat(web): remove repeated client link and align receivables work area regions
+
+### Classificacao
+
+Categoria **A — WORKLIST**. Contrato verificado: `GET /finance/receivables/:id` (detalhe),
+`settleReceivable` / `cancelReceivable` (comandos reais).
+
+### Defeitos corrigidos
+
+1. **LINK REPETIDO EM TODA LINHA.** A celula de cliente renderizava
+   `Cliente não publicado · Abrir cliente` — a MESMA ação em todos os registros, exatamente o
+   padrao que a ordem proíbe. Além disso o controle inline (`inline-flex`) estourava a largura da
+   celula truncada e cobria o link vizinho por hit test. Agora a celula DECLARA a ausência
+   (`Cliente não publicado`) e para; o drillback do cadastro vive na cadeia comercial do painel de
+   contexto e a linha navega para o título.
+
+2. **REGIÕES ESTRUTURAIS AUSENTES.** A pagina nao expunha nenhuma `data-region`. Adicionadas:
+   operating-header, saved-view-surface, command-filter-surface, bulk-command-surface,
+   worklist-master. A ordem foi medida e CORRIGIDA: a faixa de visões salvas estava DEPOIS da
+   superficie de filtro; foi movida para antes, conforme a gramatica obrigatoria.
+
+### Evidencia DOM (Chromium 1440x900, dev server real)
+
+| Regiao | top | altura |
+| ------ | --- | ------ |
+| operating-header | 149 | 43 |
+| **saved-view-surface** | 276 | 43 |
+| command-filter-surface | 319 | 42 |
+| worklist-master | 391 | 429 |
+
+| Criterio de aceite | Medido |
+| ------------------ | ------ |
+| Link repetido por linha ("Abrir cliente") | **0** |
+| Links por linha | **[0,0,0]** |
+| Overlap (hit test no centro real) | **0** |
+| Overflow horizontal | **0** (`docOverflowX = -15`) |
+| Linhas / altura de linha | 3 / 31px |
+
+### RESTRICAO REGISTRADA (nao ocultada)
+
+`work-surface` NAO foi declarada nesta pagina: os blocos acima da fila (drill-down de 4
+indicadores + construtor de filtro + barra de lote) somam ~240px e a experiencia de sticky deste
+workspace ainda nao foi medida isoladamente. Preferi nao declarar a regiao a declarar uma regiao
+cuja estabilidade nao foi verificada. Fica PENDENTE para a proxima passada neste modulo.
+
+### Falhas PREEXISTENTES verificadas por `git stash` sobre o baseline limpo
+
+- `src/finance/finance-smart-list.ui.test.tsx` — 7/7 falham por timeout NO BASELINE LIMPO,
+  identico com e sem as alteracoes desta rodada;
+- `src/finance/finance-backoffice.ui.test.tsx` — 4 falhas, mesma condicao.
+
+Nao foram introduzidas nem corrigidas aqui; permanecem registradas.
+
+### Validacao
+
+- `eslint src/finance/pages/ReceivablesListPage.tsx` — **PASS**
+- `typecheck` — **PASS**
+- `git diff --check` — **PASS** (exit 0)
+
+WORKING_TREE: limpo apos commit
