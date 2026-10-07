@@ -18,12 +18,21 @@ type AssetSummaryStripProps = {
   summary: PhysicalAssetListSummary | null;
   activeAvailabilityFilter: '' | AssetOperationalAvailability;
   onSelectAvailability: (availability: '' | AssetOperationalAvailability) => void;
+  /**
+   * NOME ACESSÍVEL DA FAIXA.
+   *
+   * O componente nasceu na Frota e foi reusado em Ativos físicos com o rótulo fixo "Indicadores de
+   * frota": na página de ativos, o leitor de tela anunciava uma frota que não é a daquela tela.
+   * O texto passa a ser declarado por quem usa; o padrão preserva a Frota.
+   */
+  sectionLabel?: string;
 };
 
 export function AssetSummaryStrip({
   summary,
   activeAvailabilityFilter,
   onSelectAvailability,
+  sectionLabel = 'Indicadores de frota',
 }: AssetSummaryStripProps) {
   const metrics: AssetSummaryMetric[] = [
     {
@@ -64,7 +73,7 @@ export function AssetSummaryStrip({
       `metrics` do `WorklistHeader`, entao Frota passa a ter a mesma primeira dobra das
       outras quatro. Cada indicador continua sendo um filtro real (`aria-pressed`).
     */
-    <section aria-label="Indicadores de frota" className="flex flex-wrap items-center gap-1.5">
+    <section aria-label={sectionLabel} className="flex flex-wrap items-center gap-1.5">
       {metrics.map((metric) => {
         const isActive = activeAvailabilityFilter === metric.filterAvailability;
         return (

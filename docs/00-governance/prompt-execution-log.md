@@ -19938,3 +19938,114 @@ por desenho) classificadas à parte.
    vez antes de registrar — o instrumento não pode mentir a favor nem contra o produto.
 
 WORKING_TREE: 1 arquivo + este registro
+
+---
+
+## ATIVOS FÍSICOS — WORKLIST SOBRE DADOS REAIS (rodada 16) — 2026-10-07
+
+STATUS: **PASS_COM_RESTRICAO**
+Commit: `feat(web): give physical assets a real context region and drop per-row action menus`
+
+### Escopo e escolha da função
+
+Função escolhida por MEDIÇÃO, não por preferência. Antes de abrir a rodada, os endpoints candidatos
+foram consultados com a sessão real para saber onde existe dado que permita verificação por DOM:
+
+| Endpoint | Registros |
+| -------- | --------- |
+| `/commercial/contracts` | **0** |
+| `/inventory/items`, `/inventory/warehouses`, `/procurement/requests`, `/procurement/orders` | **0** |
+| `/finance/expenses`, `/finance/budgets` | 3 cada |
+| `/resources/physical-assets` | **8, com `total` autoritativo** |
+| `/requests/service-requests` | 17 (já elevada em rodada anterior) |
+
+Contratos **não** têm registro no dataset de desenvolvimento: elevar a tela ali produziria uma rodada
+sem prova possível. Ativos foi escolhido por ter dado real E `total` autoritativo — o que permite uma
+prova mais forte que a de Propostas e Catálogo.
+
+### Arquivos alterados (3)
+
+| Arquivo | Papel |
+| ------- | ----- |
+| `apps/web/src/assets/pages/PhysicalAssetsListPage.tsx` | regiões, contexto autoritativo, comandos, remoção do menu de linha |
+| `apps/web/src/assets/components/AssetSummaryStrip.tsx` | nome acessível declarado por quem usa |
+| `apps/web/src/assets/pages/PhysicalAssetsListPage.test.tsx` | contrato reescrito para o novo padrão |
+
+### Defeitos corrigidos
+
+1. **NAVEGAÇÃO VESTIDA DE AÇÃO, repetida em toda linha.** Cada linha carregava um menu `···` com TRÊS
+   itens — `Visualizar detalhes`, `Editar`, `Histórico/Alocações` — e **os três eram `navigate(...)`**.
+   Nenhum executava comando. Ao mesmo tempo, os comandos que o contrato PUBLICA
+   (`deactivatePhysicalAsset` / `activatePhysicalAsset`) **não apareciam em lugar nenhum da tela**.
+   O menu e a coluna "Ações" foram REMOVIDOS; as três capacidades passaram para o contexto, UMA vez
+   para o registro selecionado em vez de oito vezes na grade, e nenhuma foi perdida.
+2. **NOME ACESSÍVEL ERRADO.** `AssetSummaryStrip` anunciava-se como "Indicadores de frota" na página
+   de **ativos físicos** — o componente nasceu na Frota e foi reusado com o rótulo fixo. O rótulo passa
+   a ser declarado por quem usa (o padrão preserva a Frota).
+3. **SEM GRAMÁTICA DE REGIÃO.** Zero `data-region`. As regiões foram declaradas na ordem da família.
+
+### CONTAGEM — aqui ela é AUTORITATIVA, e isso foi provado
+
+Diferente de Propostas e Catálogo, `PhysicalAssetListResponse` publica **`total`**, e o resumo vem de
+endpoint próprio (`/physical-assets/summary`) — ou seja, **não é contagem de página**. Medido:
+
+| Fonte | Valor |
+| ----- | ----- |
+| corpo da listagem (`limit=20, offset=0`) | `total = 8`, `items = 8` |
+| corpo do summary | `{ total: 8, available: 0, allocated: 8, unavailable: 0 }` |
+| DOM | `rows = 8`, `shownCount = 8`, rodapé "1–8 de 8 ativos" |
+| `countMatchesPayload` | **true** |
+| `summaryTotalMatchesListTotal` | **true** |
+
+Nenhum número desta tela deriva da página carregada — e por isso nada aqui foi rotulado "nesta
+página": rotular de página um agregado de dataset seria errar na direção oposta.
+
+### Gate de DOM (REDE + DOM, CDP, cache desabilitado, servidor real)
+
+Instrumento: `tmp/assets-dom-gate.mjs`. Sondas de capability (`/physical-assets/00000000-…`) e a
+listagem-sonda (`limit=1`, 204) classificadas à parte.
+
+| Prova | Resultado medido |
+| ----- | ---------------- |
+| ordem das regiões | `operating-header > command-filter-surface > worklist-master` e, com o painel aberto, `… > context-region` |
+| grade sem menu repetido | `actionsColumnPresent: false`, `rowsWithActionMenu: 0` |
+| leitura real no contexto | **16 GET de detalhe** para 8 seleções (2 cada = duplo disparo em dev), cada um com o **id exato** da linha clicada |
+| painel usa o payload | `payloadCode` de cada uma das 8 seleções confere com a linha clicada (`EXCAVATOR-…`, `TRUCK-…`, `WATER_TRUCK-…`) |
+| **comando segue o estado publicado** | 8 seleções, todas `ACTIVE`, **zero violações**: só `Inativar ativo`, nunca `Reativar ativo`, mais os três drillbacks |
+| loading só no painel | `{contextBusy: true, moduleLoading: false, rowsDuringLoading: 8, worklistPresent: true}` |
+| fila não desmonta | 8 linhas em todos os estados |
+| filtros | presentes em todos os estados |
+| fechar não limpa a fila | painel e região somem; 8 linhas; worklist e filtros intactos |
+| densidade | `rowHeights [47, 61]`, 8 linhas na dobra (dataset inteiro) |
+| defeitos | `shadows 0`, `boxes 0`, `aninhamento 0`, `régua dupla 0`, `régua sobre coluna 0`, `occluded 0`, `overflowX 0` |
+
+### Gates técnicos
+
+- `tsc --noEmit` — **PASS**; `eslint src/assets` — **PASS**
+- `src/assets` — **49/49 PASS**
+- `git diff --check` — **PASS**; 3 arquivos alterados
+
+### RESTRIÇÕES CONHECIDAS
+
+1. **A PRESERVAÇÃO DE SCROLL NÃO FOI EXERCITADA.** `window.scrollTo(0, 200)` resultou em `scrollY = 0`:
+   com 8 registros a página **não rola** em 1440×900, então a prova é vacuosa. Registro como NÃO
+   exercitada, não como aprovada.
+2. **O ramo INACTIVE não foi exercitado no DOM.** As 8 linhas do dataset real são `ACTIVE`. O caminho
+   `Reativar ativo` está coberto pelo TESTE (`offers reactivation only for an inactive asset`), não por
+   dado real — a distinção importa.
+3. **O comando NÃO foi executado.** O gate provou disponibilidade e aderência ao estado publicado sem
+   clicar em Inativar/Reativar, para não mutar o dataset de desenvolvimento. Execução ponta a ponta
+   segue pendente explícita.
+4. **VISÕES SALVAS deliberadamente NÃO adicionadas nesta tela**, e o motivo está no código: a tela tem
+   quatro filtros e se beneficiaria, mas as duas saídas disponíveis hoje são piores que a ausência —
+   `identityId ?? 'anonymous'` cria o namespace COMPARTILHADO que a auditoria apontou como defeito, e
+   `useAuth` lança fora do `AuthProvider` (quebraria a suíte, que monta a página sem provider). A
+   correção certa é na CAPACIDADE (sem identidade, não persistir), o que afeta os nove chamadores e
+   pertence a uma rodada de camada compartilhada. Fica registrado como pendência.
+5. `rowHeights` tem DOIS valores (47 e 61): linhas com placa/célula de duas linhas são mais altas que
+   as demais. O token de linha atua como mínimo.
+6. O comparador do gate precisou de UMA correção: ele capturava o corpo da SONDA de capability
+   (`limit=1`, 204, sem corpo) como se fosse a listagem, o que zerava `listTotal` e derrubava a prova
+   de contagem. Corrigido e reexecutado UMA vez antes de registrar.
+
+WORKING_TREE: 3 arquivos + este registro

@@ -1,18 +1,34 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PhysicalAssetsListPage } from './PhysicalAssetsListPage';
 import { ASSET_OPERATIONAL_AVAILABILITIES } from '../types/physical-asset.types';
 
-const { mockListPhysicalAssets, mockGetPhysicalAssetSummary } = vi.hoisted(() => ({
+const {
+  mockListPhysicalAssets,
+  mockGetPhysicalAssetSummary,
+  mockGetPhysicalAsset,
+  mockDeactivatePhysicalAsset,
+  mockActivatePhysicalAsset,
+} = vi.hoisted(() => ({
   mockListPhysicalAssets: vi.fn(),
   mockGetPhysicalAssetSummary: vi.fn(),
+  mockGetPhysicalAsset: vi.fn(),
+  mockDeactivatePhysicalAsset: vi.fn(),
+  mockActivatePhysicalAsset: vi.fn(),
 }));
 
 vi.mock('../hooks/useAssetCapabilities', () => ({
   useAssetCapabilities: () => ({
-    capabilities: { canCreate: true, canList: true, canRead: true, canUpdate: true },
+    capabilities: {
+      canCreate: true,
+      canList: true,
+      canRead: true,
+      canUpdate: true,
+      canDeactivate: true,
+      canActivate: true,
+    },
     loading: false,
     error: false,
   }),
@@ -26,8 +42,13 @@ vi.mock('../hooks/useAssetCapabilities', () => ({
 }));
 
 vi.mock('../api/physical-assets-api', () => ({
+  /* A tela trata `AssetsApiError` no caminho de erro: o dublê precisa publicar a classe. */
+  AssetsApiError: class AssetsApiError extends Error {},
   listPhysicalAssets: mockListPhysicalAssets,
   getPhysicalAssetSummary: mockGetPhysicalAssetSummary,
+  getPhysicalAsset: mockGetPhysicalAsset,
+  deactivatePhysicalAsset: mockDeactivatePhysicalAsset,
+  activatePhysicalAsset: mockActivatePhysicalAsset,
 }));
 
 function mockListSuccess(
@@ -43,6 +64,13 @@ function mockListSuccess(
     offset: 0,
     total: options?.total ?? items.length,
   });
+  /*
+   * O DETALHE responde pelo mesmo registro que a grade entregou. Sem isso, abrir o contexto num
+   * teste que nao declarou o detalhe mediria um painel alimentado por `undefined`.
+   */
+  mockGetPhysicalAsset.mockImplementation((id: string) =>
+    Promise.resolve(items.find((item) => item['id'] === id) ?? items[0]),
+  );
 }
 
 const allocatedItem = {
@@ -70,6 +98,9 @@ describe('PhysicalAssetsListPage', () => {
   beforeEach(() => {
     mockListPhysicalAssets.mockReset();
     mockGetPhysicalAssetSummary.mockReset();
+    mockGetPhysicalAsset.mockReset();
+    mockDeactivatePhysicalAsset.mockReset();
+    mockActivatePhysicalAsset.mockReset();
   });
 
   it('renders operational availability with service order and summary strip', async () => {
@@ -95,9 +126,10 @@ describe('PhysicalAssetsListPage', () => {
     expect(screen.getByText('1–1 de 1 ativos')).toBeInTheDocument();
   });
 
-  it('opens row actions menu with existing operations', async () => {
+  it('keeps row actions out of the grade and offers the real command in the context region', async () => {
     const user = userEvent.setup();
     mockListSuccess([allocatedItem]);
+    mockGetPhysicalAsset.mockResolvedValue(allocatedItem);
 
     render(
       <MemoryRouter>
@@ -106,13 +138,51 @@ describe('PhysicalAssetsListPage', () => {
     );
 
     await screen.findByRole('link', { name: 'TRK-001' });
-    await user.click(screen.getByRole('button', { name: 'Ações para TRK-001' }));
-    const menu = screen.getByRole('menu');
-    expect(within(menu).getByRole('menuitem', { name: 'Visualizar detalhes' })).toBeInTheDocument();
-    expect(within(menu).getByRole('menuitem', { name: 'Editar' })).toBeInTheDocument();
-    expect(
-      within(menu).getByRole('menuitem', { name: 'Histórico/Alocações' }),
-    ).toBeInTheDocument();
+
+    /*
+     * A GRADE NAO REPETE MENU DE ACOES POR LINHA.
+     *
+     * Os tres itens do antigo menu `···` eram `navigate(...)`: navegacao vestida de acao, repetida
+     * em toda linha, e o drillback para a ficha ja existia como link real no codigo do ativo.
+     * Enquanto isso, os comandos que o contrato PUBLICA nao apareciam em lugar nenhum da tela.
+     */
+    expect(screen.queryByRole('button', { name: 'Ações para TRK-001' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Ações' })).not.toBeInTheDocument();
+
+    /* O CONTEXTO le o DETALHE e oferece o comando do estado publicado (ativo -> inativar). */
+    await user.click(screen.getByText('Caminhao pipa'));
+
+    expect(await screen.findByRole('button', { name: 'Inativar ativo' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Abrir ficha completa' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Editar ativo' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Histórico e alocações' })).toBeInTheDocument();
+    expect(mockGetPhysicalAsset).toHaveBeenCalledWith('asset-1', expect.anything());
+  });
+
+  it('offers reactivation only for an inactive asset — o comando segue o estado publicado', async () => {
+    const user = userEvent.setup();
+    const inactive = {
+      ...allocatedItem,
+      lifecycleStatus: 'INACTIVE',
+      allocationStatus: 'AVAILABLE',
+      currentAllocation: null,
+    };
+    mockListSuccess([inactive]);
+    mockGetPhysicalAsset.mockResolvedValue(inactive);
+
+    render(
+      <MemoryRouter>
+        <PhysicalAssetsListPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole('link', { name: 'TRK-001' });
+    await user.click(screen.getByText('Caminhao pipa'));
+
+    expect(await screen.findByRole('button', { name: 'Reativar ativo' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Inativar ativo' })).not.toBeInTheDocument();
+    /* Sem alocacao corrente, o drillback de historico nao e oferecido — nao se inventa alvo. */
+    expect(screen.queryByRole('button', { name: 'Histórico e alocações' })).not.toBeInTheDocument();
   });
 
   it('shows registered empty state when there are no assets', async () => {
