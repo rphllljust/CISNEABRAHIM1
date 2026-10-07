@@ -18794,3 +18794,85 @@ da MESMA linha, e o rodape deixou de repetir a faixa). A suite voltou a 7/7 sem 
 
 WORKING_TREE: limpo apos cada commit
 NEXT_PROMPT_EXECUTED: NO
+
+---
+
+## MODULOS — WAVE ENTERPRISE (rodada 2) — 2026-10-07
+
+STATUS: **PASS**
+
+### Escopo executado
+
+Continuidade da elevacao serial dos modulos sobre a foundation congelada.
+Nenhuma regra empresarial criada, promovida ou alterada; nenhum backend, API, migration, seed,
+permissao ou contrato de dados tocado.
+
+| Funcao | Modulo | Classificacao | Commit | Estado |
+| ------ | ------ | ------------- | ------ | ------ |
+| Carteira de clientes | Clientes | WORKLIST | `59deba9` | FROZEN |
+| Fila de solicitacoes | Solicitacoes | WORK QUEUE | `0542289` | FROZEN |
+
+### Clientes — carteira
+
+Defeito medido antes da alteracao (DOM real, Chromium 1440x900):
+
+- altura de linha **61–96px** contra o token `--row-height` de **28px** (2,0x a 3,4x);
+- **9 tamanhos de fonte crus** (`10, 11, 12, 13, 17`), 157 ocorrencias fora de qualquer escala;
+- apenas **8 registros** na primeira dobra.
+
+Causa: celula de situacao empilhava TRES linhas (situacao, proximo passo e aviso de documento) e a
+celula de data empilhava DUAS; `align-top` com `py-2` somava a isso.
+
+Alteracao:
+
+- situacao + proximo passo passaram a dividir UMA linha (comparam-se na horizontal); o aviso de
+  documento continua em linha propria por ser a excecao que restringe a operacao;
+- data relativa + carimbo absoluto na mesma linha;
+- `headCellClass`/`cellClass` passaram a usar `--row-height` e os papeis tipograficos;
+- `ModulePrimaryLink` foi GOVERNado na origem (altura de token, sem sombra), eliminando o override
+  `min-h-0 px-3 py-1 text-[13px]` que existia em duas paginas apenas para corrigir o primitive.
+
+Evidencia depois:
+
+| Metrica | Antes | Depois |
+| ------- | ----- | ------ |
+| Altura de linha | 61–96px | **42–62px** |
+| Registros na primeira dobra | 8 | **11** |
+| Fundo da grade | 1588px | **1339px** |
+| Tamanhos de fonte crus | 9 tipos / 157 usos | **0** |
+| Overlap / overflow-x | 0 / 0 | 0 / 0 |
+
+### Solicitacoes — fila
+
+- 199 usos de tamanho cru (`10..17px`) substituidos pelos papeis tipograficos governados;
+- padding vertical da linha reduzido (`py-2` para `py-1`), alinhando a fila ao token de densidade;
+- cabecalho da secao passou a usar o papel `label`.
+
+Evidencia: `rawFontSizes = {}`, `occluded = 0`, `cardLike = 0`, `docOverflowX = 0`.
+
+LIMITACAO REGISTRADA (nao ocultada): o banco de desenvolvimento tem **0 solicitacoes**
+(`GET /api/v1/procurement/requests` devolve `total: 0`), portanto a grade populada NAO pode ser
+medida nesta rodada. As metricas de densidade de linha desta fila ficam PENDENTES de dado real;
+a tipografia e o padding foram governados e verificados no estado vazio.
+
+### Validacao
+
+- `pnpm --filter @cisne/web eslint <modulos alterados>` — **PASS**
+- `pnpm --filter @cisne/web typecheck` — **PASS**
+- Testes focados: Clientes 84/84, Solicitacoes 34/34
+- Regressao acumulada (`clients`, `requests`, `ui`, `engine`, `suppliers`, `people`) —
+  **192/192 PASS**
+- `git diff --check` — **PASS** (exit 0) por funcao
+
+### Quality gate
+
+- [x] Alteracao restrita aos modulos nomeados
+- [x] `ModulePrimaryLink` governado na origem (primitive compartilhada, sem componente novo)
+- [x] Nenhum dado, KPI, relacao ou capability inventado
+- [x] Nenhuma regra empresarial nova
+- [x] Nenhuma migration, seed, backend, permissao ou contrato de API
+- [x] Server-side filtering/paginacao/ordenacao preservados
+- [x] Navegacao continua sendo link real (clique do meio, nova aba, leitor de tela)
+
+WORKING_TREE: limpo apos cada commit
+NEXT_PROMPT_EXECUTED: NO
