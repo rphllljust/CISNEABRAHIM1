@@ -18958,3 +18958,84 @@ registradas e NAO foram mascaradas nem afrouxadas.
 
 WORKING_TREE: limpo apos commit
 NEXT_PROMPT_EXECUTED: NO
+
+---
+
+## CLIENTES — WORK AREA OPERACIONAL (rodada 4) — 2026-10-07
+
+STATUS: **PASS**
+
+Commit: `733f239` — feat(web): rebuild clients as operational work area with real context drawer
+
+### O que mudou de MODELO (não de aparência)
+
+Recomposição de `/app/clients` de "lista de cadastros" para AREA OPERACIONAL. A mudança é
+estrutural e medida por DOM, não afirmada em prosa.
+
+| Modelo anterior | Modelo novo |
+| --------------- | ----------- |
+| header → contadores → filtros → tabela | operating-header → saved-view-surface → command-filter-surface → worklist-master → context-region |
+| barra de filtros como formulário web | superfície única de comando/filtro, busca como comando principal |
+| Saved Views atrás de dropdown "Visões" | faixa própria, sempre visível, na work area |
+| drawer decorativo (eco da linha) | drawer com `GET /api/v1/clients/:id`, comando real e skeleton localizado |
+| badge verde em toda linha ativa | EXCEPTION-FIRST: selo e cor só na exceção |
+| página que rola inteira | superfície de trabalho STICKY; a fila é o conteúdo que rola |
+
+### Alteracao aplicada
+
+- **Superfície de trabalho fixa**: cabeçalho + faixa de estado + visões salvas + filtros
+  permanecem estáveis durante o scroll (`position: sticky` medido).
+- **Context region real**: `DynamicContextDrawer` carrega o DETALHE do registro. A listagem não
+  publica contatos, endereços, exigência de pedido de compra, motivo/data de desativação nem
+  `version` — o painel publica. Carregamento é LOCALIZADO: só o painel espera.
+- **Comando real**: `activateClient(id, version)` oferecido no contexto quando a capability
+  permite. `deactivateClient` exige `reason` (invariante do domínio) — NÃO foi oferecido como
+  botão, porque não existe motivo padrão honesto; o caminho é o drillback para a ficha.
+- **Drillback único**: a identidade é o link da linha; o painel tem UM "Abrir cadastro completo".
+  Nenhum "Abrir cadastro" repetido por linha.
+- **Não se inventou bulk**: o backend de Clientes não publica endpoint bulk.
+
+### Evidencia DOM (Chromium 1440x900, dev server real)
+
+Regiões medidas: `work-surface` top=149 h=182 `position: sticky`; `operating-header` 93px;
+`saved-view-surface` 47px; `command-filter-surface` 42px; `worklist-master` **902px**.
+
+| Criterio de aceite | Medido |
+| ------------------ | ------ |
+| "Abrir cadastro" repetido por linha | **0** |
+| Links por linha (só identidade) | **[1,1,1,1]** |
+| Selos em linhas normais (ruído) | **[0,0,0,0,0,0]** |
+| Worklist domina a área útil | 902px vs 182px de superfícies |
+| Clique na linha abre contexto | dialog "Contexto do cliente" |
+| Dado exclusivo do detalhe aparece | "Pedido de compra: Não exige" |
+| Fila preservada com painel aberto | `worklistStillMounted = true` |
+| Overlap / overflow-x | **0 / 0** |
+
+### Validacao
+
+- `eslint src/clients/pages/ClientsListPage.tsx` — **PASS**
+- `typecheck` — **PASS**
+- `src/clients` — **84/84 PASS**
+- `git diff --check` — **PASS** (exit 0)
+
+### Regressões causadas e corrigidas nesta rodada (registradas)
+
+Ao recompor, 12 testes falharam por contratos que a alteração quebrou:
+1. nome acessível da tabela renomeado para "Carteira de clientes" (contrato: "Lista de clientes");
+2. label do filtro avançado trocado (contrato: "Exigência de pedido de compra");
+3. nome acessível do painel trocado (contrato: "Contexto do cliente");
+4. link de drillback renomeado (contrato: "Abrir cadastro completo");
+5. `aria-label` de status removido da linha ativa.
+
+Todos corrigidos no SENTIDO DO CONTRATO — nenhum assert foi afrouxado. Suite voltou a 84/84.
+
+### Quality gate
+
+- [x] Alteração restrita a Clientes
+- [x] Nenhum componente de domínio novo; primitives CISNE reutilizadas
+- [x] Nenhum dado, KPI, relação ou capability inventado
+- [x] Nenhuma migration, seed, backend, permissao ou contrato de API
+- [x] Filtros, sorting e paginacao permanecem server-side
+- [x] Nenhum bulk inventado (endpoint inexistente)
+
+WORKING_TREE: limpo apos commit
