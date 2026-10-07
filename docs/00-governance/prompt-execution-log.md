@@ -19352,3 +19352,68 @@ alterada na rodada anterior foi RE-MEDIDA com o gate corrigido: os numeros de Co
 - `git diff --check` — **PASS** (exit 0)
 
 WORKING_TREE: limpo apos commit
+
+---
+
+## PROPOSTAS COMERCIAIS — WORKLIST (rodada 10) — 2026-10-07
+
+STATUS: **PASS_COM_RESTRICAO**
+Commit: `c0c435c` — feat(web): remove repeated open action and cardify from proposals worklist
+
+### Classificacao
+
+Categoria **A — WORKLIST** (fila de decisão comercial, com dado real: 14 propostas).
+
+### Defeitos corrigidos
+
+1. **ACAO REPETIDA EM TODA LINHA.** Cada item renderizava um link `Abrir` ao lado do selo de
+   estado — a MESMA ação em todos os registros, quando a IDENTIDADE da linha (`proposalCode`) ja
+   era um link real para a ficha completa. Duas portas para o mesmo destino. O link foi REMOVIDO.
+
+2. **CARDIFICATION DE SEGUNDO NIVEL.** A fila vivia em `enterpriseTableCardClass`
+   (`rounded-md border bg-white shadow-[...]`) dentro de uma área de trabalho que ja e branca:
+   "lista dentro de card". A caixa foi removida e a fila passou a ser delimitada por divisor.
+
+3. **REGIÕES AUSENTES.** Adicionadas: operating-header, command-filter-surface, worklist-master.
+
+### Evidencia DOM (Chromium 1440x900, dev server real, cache desabilitado)
+
+| Regiao | top | altura |
+| ------ | --- | ------ |
+| operating-header | 149 | 43 |
+| command-filter-surface | 237 | 48 |
+| worklist-master | 285 | 1569 |
+
+| Criterio de aceite | Medido |
+| ------------------ | ------ |
+| "Abrir" repetido por linha | **0** |
+| Botoes repetidos por linha | **[]** (nenhum) |
+| Links da 1a linha (drillback real) | `PROP-2026-0B709E3F`, `SR-2026-4F7C5EA9` |
+| Linhas carregadas | **14** |
+| Overlap / overflow-x | 0 / `-15` |
+
+### RESTRICAO REGISTRADA — DENSIDADE NAO RESOLVIDA
+
+A linha desta fila mede **106 a 131px** (media 4 registros na primeira dobra de 14). A fila usa
+`<ul>` próprio, nao a grade da engine, e a altura alta NAO foi corrigida nesta rodada.
+
+**PROPOSTAS COMERCIAIS NAO ESTA COMPLETA para o criterio de densidade da ordem.** O que foi
+entregue aqui e verificavel: ausencia de ação repetida, ausencia de cardification e regiões
+estruturais. O que falta: recompor a linha em hierarquia compacta (identidade + estado + tempo)
+como foi feito em Clientes, com meta proxima do token de linha.
+
+Tambem pendente: faixa de visoes salvas (a pagina nao tem saved views) e painel de contexto real
+(a pagina usa `ContextDrawer` com dados da propria linha).
+
+### Achado de harness
+
+O gate de work-area nao reconhece esta fila (`rows: 0`) porque ela nao e `<table>` nem
+`ul[aria-label]`. Foi criado `tmp/list-probe.mjs` para medir listas customizadas; o gate principal
+continua valido para as telas baseadas na engine.
+
+### Validacao
+
+- `eslint src/proposals` — **PASS**; `typecheck` — **PASS**; `src/proposals` — **34/34 PASS**
+- `git diff --check` — **PASS** (exit 0)
+
+WORKING_TREE: limpo apos commit
