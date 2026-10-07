@@ -19466,3 +19466,51 @@ worklist-master 327.
 
 WORKING_TREE: limpo apos commit
 NEXT: proxima funcao real (Pedidos de Compra).
+
+---
+
+## PROPOSTAS — GATE DE GRAMÁTICA (ANTES vs DEPOIS POR DOM) — 2026-10-07
+
+Regra aplicada a partir daqui: **teste verde nao congela CRUD. TIER-1 congela.** Antes de manter o
+freeze, a GRAMATICA da funcao foi comparada por DOM, nao por lint/typecheck/teste.
+
+Ferramenta: `tmp/grammar-gate.mjs` — lista os blocos de primeiro nivel de `#main-content` NA
+ORDEM, com papel inferido (`data-region`, tag, presenca de card), e quantos wrappers tipo card
+existem. Nao interpreta imagem.
+
+### ANTES (medido nas rodadas 10/11, antes das alteracoes)
+
+- `data-region` presentes: **nenhuma** (`operatingHeader`, `savedViewSurface`,
+  `commandFilterSurface`, `worklistMaster` todos `null`);
+- a fila vivia em `enterpriseTableCardClass` — **card com borda, fundo branco e sombra** dentro da
+  area de trabalho;
+- `Abrir` repetido em TODA linha (**14 registros**);
+- gramatica perceptivel: titulo -> faixa -> filtros -> LISTA EM CARD.
+
+### DEPOIS (medido agora, cache desabilitado)
+
+| # | Bloco | papel | top | altura | cards |
+| - | ----- | ----- | --- | ------ | ----- |
+| 1 | operating-header | `operating-header` | 149 | 43 | 0 |
+| 2 | faixa de decisao | `section` | 192 | 37 | 0 |
+| 3 | saved views | `saved-view-surface` | 237 | 42 | 0 |
+| 4 | comando/filtro | `command-filter-surface` | 279 | 48 | 0 |
+| 5 | fila | `worklist-master` | 327 | **882** | 0 |
+| 6 | paginacao | `nav` | 1209 | 34 | 0 |
+
+- `gridOrTablePresent`: **false** — a funcao NAO e uma tabela generica;
+- `cards`: **0** — nenhuma cardification;
+- `regions`: **5** — as cinco regioes da gramatica, na ordem exigida.
+
+### Julgamento
+
+A composicao passou de `TITULO -> FAIXA -> FILTROS -> LISTA EM CARD` para
+`WORKSPACE -> ESTADO OPERACIONAL -> SAVED VIEW SURFACE -> COMMAND/FILTER SURFACE -> WORK QUEUE`,
+com a fila dominando a area util (882px) e zero cards. **A mudanca e estrutural, nao cosmetica** —
+nao e "a mesma tabela com componente Enterprise".
+
+Ressalva honesta: nao existe comparacao automatica contra a versao anterior (o servidor de
+desenvolvimento serve apenas o codigo atual); o ANTES acima vem das medicoes registradas nesta
+mesma sessao, com a mesma ferramenta e a mesma viewport.
+
+FREEZE MANTIDO: `6e90eaf` (codigo) / `90c1b95` (registro).
