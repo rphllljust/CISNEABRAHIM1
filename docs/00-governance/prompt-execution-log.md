@@ -19514,3 +19514,69 @@ desenvolvimento serve apenas o codigo atual); o ANTES acima vem das medicoes reg
 mesma sessao, com a mesma ferramenta e a mesma viewport.
 
 FREEZE MANTIDO: `6e90eaf` (codigo) / `90c1b95` (registro).
+
+---
+
+## PEDIDOS DE COMPRA — SUBSTITUICAO DE GRAMATICA (rodada 12) — 2026-10-07
+
+STATUS: **PASS_COM_RESTRICAO**
+Commit: `ade1f7d` — feat(web): replace legacy grammar with work-area regions in purchase orders
+
+### Regra aplicada
+
+NAO acrescentar a gramatica nova sobre a antiga. A antiga foi SUBSTITUIDA.
+
+### Duplicacao — criterio de aceite, contado no arquivo
+
+| Item | Contagem |
+| ---- | -------- |
+| `DynamicSavedViewsBar` | **1** |
+| `WorklistFilterBar` | **1** |
+| Containers de tabela | **1** |
+| `RowActionCell` / `RowActionMenu` | **0** (removidos) |
+| `worklistTableCardClass` | **0** (removido) |
+| `data-region` | **4** |
+
+Durante a recomposicao eu criei de fato uma abertura duplicada de Saved Views; ela foi corrigida e
+a contagem acima e a verificacao de que nao sobrou camada dupla.
+
+### Substituicoes aplicadas
+
+1. **Card da grade REMOVIDO.** `worklistTableCardClass` (`rounded-md border bg-white`) fazia a fila
+   parecer "tabela dentro de card" numa area de trabalho que ja e branca. Agora a fila e delimitada
+   pelo divisor da superficie de filtro.
+2. **ACOES DE LINHA REMOVIDAS.** O `RowActionCell` renderizava um menu cujos itens eram TODOS
+   `<Link to={/app/purchase-orders/${id}}>` — ou seja, nao executavam comando algum: eram
+   NAVEGACAO vestida de acao, repetida em toda linha, quando a identidade (`poNumber`) ja era um
+   `WorklistRowLink` real para o mesmo destino. Nenhuma capacidade foi perdida na remocao.
+3. **Importacoes mortas removidas** (`purchaseOrderRowActions`, `rowPrimaryActionClass`,
+   `rowSecondaryActionClass`, `RowActionMenu`, `RowActionCell`).
+
+### Gate de gramatica (DOM, cache desabilitado)
+
+| # | Bloco | papel | top | altura | cards |
+| - | ----- | ----- | --- | ------ | ----- |
+| 1 | operating-header ("Pedidos de compra") | `operating-header` | 149 | 79 | 0 |
+| 2 | visoes salvas | `saved-view-surface` | 228 | 42 | 0 |
+| 3 | comando/filtro | `command-filter-surface` | 270 | 42 | 0 |
+| 4 | fila | `worklist-master` | 312 | **734** | 0 |
+
+`cards: 0`; `regions: 4`; ordem = OPERATING HEADER -> SAVED VIEWS -> COMMAND/FILTER -> WORK QUEUE.
+A gramatica NAO e mais `breadcrumb -> titulo -> filtros -> tabela`.
+
+### RESTRICAO REGISTRADA — CONTEXT REGION PENDENTE
+
+A composicao alvo inclui **CONTEXT REGION** com comandos. Nesta pagina ela **nao foi entregue**:
+`getPurchaseOrder` existe, `registerPurchaseOrder`/`cancelPurchaseOrder` existem, mas o painel de
+contexto real (com motivo informado pelo operador para cancelar) NAO foi implementado nesta rodada.
+O que existe hoje e: identidade como drillback real e a linha ainda NAVEGA para o detalhe.
+
+**PEDIDOS DE COMPRA NAO ESTA COMPLETA** para o criterio de command layer vindo da fila. Fica
+registrado como a proxima pendencia desta funcao.
+
+### Validacao
+
+- `eslint src/purchase-orders` — **PASS**; `typecheck` — **PASS**
+- `src/purchase-orders` — **25/25 PASS**; `git diff --check` — **PASS** (exit 0)
+
+WORKING_TREE: limpo apos commit
