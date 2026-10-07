@@ -19417,3 +19417,52 @@ continua valido para as telas baseadas na engine.
 - `git diff --check` — **PASS** (exit 0)
 
 WORKING_TREE: limpo apos commit
+
+---
+
+## PROPOSTAS COMERCIAIS — FROZEN (rodada 11) — 2026-10-07
+
+STATUS: **PASS**
+Commit: `6e90eaf` — feat(web): recompose proposals rows and integrate saved views
+
+### Fechamento do que a rodada 10 deixou pendente
+
+- linha: **106–131px → 59–74px** (o driver era a celula de situacao, 103px: selo + frase do
+  proximo passo quebravam em 3 linhas e os chips em mais 2; agora uma linha truncada cada);
+- registros na primeira dobra: **4 → 7**, de 14 carregados;
+- **Saved Views integradas** (`DynamicSavedViewsBar` em faixa propria, ANTES do filtro) — era o
+  unico criterio nao atendido;
+- identidade hierarquizada: codigo + cliente (principal) / titulo + origem·revisao·unidade numa
+  unica linha subordinada.
+
+### Os 16 criterios, medidos por DOM
+
+| # | Criterio | Medido |
+| - | -------- | ------ |
+| 1 | Identidade principal clara | `PROP-2026-0B709E3F` |
+| 2 | Cliente subordinado | inline na identidade |
+| 3 | Titulo sem redundancia | 1 linha truncada |
+| 4 | Money | `formatMoney` |
+| 5 | Validade | `formatDateTime` |
+| 6 | Estado com baixo ruido | selo + passo, uma linha |
+| 7 | Proxima acao sem duplicar command | sem botao por linha |
+| 8 | "Abrir" repetido | **0** |
+| 9 | Row drillback real | linha abre contexto; codigo navega |
+| 10 | Saved Views | `saved-view-surface` top=237 h=42 |
+| 11 | Filtros server-side | preservados (URL -> servidor) |
+| 12 | Contexto preserva a fila | `ContextDrawer` |
+| 13 | Exception-first | chips so na excecao |
+| 14 | Overflow | `docOverflowX = -15` |
+| 15 | Overlap | `occluded = 0` |
+| 16 | Keyboard/focus | links reais; **0** botoes repetidos |
+
+Regioes (ordem da gramatica): operating-header 149 / saved-view 237 / command-filter 279 /
+worklist-master 327.
+
+### Validacao
+
+- `eslint src/proposals` — **PASS**; `typecheck` — **PASS**; `src/proposals` — **34/34 PASS**
+- `git diff --check` — **PASS** (exit 0)
+
+WORKING_TREE: limpo apos commit
+NEXT: proxima funcao real (Pedidos de Compra).
