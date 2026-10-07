@@ -207,19 +207,16 @@ export function ReceivablesListPage() {
 
   return (
     <ModulePage layout="workspace">
-      {/*
-        CABEÇALHO DE WORKLIST — a mesma gramática do workspace financeiro e das demais worklists
-        do CISNE: identidade, contagem REAL do recorte (contada no servidor) e a leitura de
-        procedência em uma linha. Antes era um `<header>` artesanal com o subtítulo explicativo
-        que a baliza de ERP proíbe ("o operador lê número e estado, não manual").
-      */}
+      <div data-region="operating-header">
       <WorklistHeader
         title="Contas a receber"
         count={page.total}
         context="A carteira a receber: vencimento, situação e saldo vêm do servidor. Cada título abre a cadeia que o originou."
       />
+      </div>
 
       {/* DRILL-DOWN: todo indicador abre a lista filtrada que o originou. */}
+      <div data-region="drilldown-surface">
       <DrilldownRow>
         <DrilldownMetric
           label="Vencidos"
@@ -248,15 +245,13 @@ export function ReceivablesListPage() {
           to="/app/finance/receivables"
         />
       </DrilldownRow>
+      </div>
 
       {/*
         FILTRO VISUAL — o construtor AND/OR aninhável da engine, espelhando o domain de `ir.filters`
         do Odoo.
       */}
-      {schema ? (
-        <DynamicFilterBuilder schema={schema} value={filterGroup} onChange={setFilterGroup} />
-      ) : null}
-
+      <div data-region="saved-view-surface">
       <SavedViewsBar
         views={smartList.savedViews.views}
         builtInViews={smartList.savedViews.builtInViews}
@@ -272,7 +267,17 @@ export function ReceivablesListPage() {
         canSave={smartList.isFiltered}
         allLabel="Tudo"
       />
+      </div>
 
+      <div data-region="command-filter-surface">
+      {schema ? (
+        <DynamicFilterBuilder schema={schema} value={filterGroup} onChange={setFilterGroup} />
+      ) : null}
+      </div>
+
+      {/* SAVED VIEWS — faixa própria da work area. */}
+
+      <div data-region="bulk-command-surface">
       <BulkActionBar
         count={selection.count}
         visibleCount={byBuilder.length}
@@ -311,7 +316,9 @@ export function ReceivablesListPage() {
           },
         ]}
       />
+      </div>
 
+      <div data-region="worklist-master">
       {/*
         CORPO DA WORKLIST — a tabela e o estado vazio ocupam o MESMO lugar. A pagina em volta
         (cabecalho, indicadores, filtros, visoes salvas, paginacao) e sempre a mesma.
@@ -415,24 +422,23 @@ export function ReceivablesListPage() {
                     return <Money value={text(row['principal'])} currencyCode={currency} />;
                   }
                   /*
-                   * CLIENTE — o DTO publica apenas `clientId` (UUID). A célula não exibe o
-                   * identificador cru nem inventa nome: declara o estado honesto e mantém o
-                   * drilldown real para o cadastro, quando a rota existe.
+                   * CLIENTE — o DTO publica apenas `clientId` (UUID).
+                   *
+                   * A célula exibia "Cliente não publicado" MAIS um link "Abrir cliente"
+                   * repetido em TODA linha — a mesma ação em todos os registros, além de o
+                   * controle inline estourar a largura da célula truncada e cobrir o link
+                   * vizinho (medido por hit test). Nenhum identificador cru é exibido e o nome
+                   * não é inventado: a célula DECLARA a ausência e para.
+                   *
+                   * O caminho para o cadastro continua existindo onde ele é do REGISTRO, não da
+                   * repetição: a linha navega para o título, e a cadeia comercial do painel de
+                   * contexto leva ao cliente.
                    */
                   if (field.name === 'client_id') {
-                    const clientId = text(row['client_id']);
-                    return clientId ? (
-                      <span className="inline-flex items-center gap-1.5">
-                        <span className="text-xs text-gray-500">Cliente não publicado</span>
-                        <Link
-                          to={`/app/clients/${clientId}`}
-                          className="text-xs font-medium text-brand-700 no-underline hover:text-brand-800"
-                        >
-                          Abrir cliente
-                        </Link>
-                      </span>
+                    return text(row['client_id']) ? (
+                      <span className="cisne-type-meta truncate">Cliente não publicado</span>
                     ) : (
-                      <span className="text-xs text-gray-400">—</span>
+                      <span className="cisne-type-helper">—</span>
                     );
                   }
                   return undefined;
@@ -530,6 +536,7 @@ export function ReceivablesListPage() {
           </div>
         </>
       )}
+      </div>
 
       <ContextDrawer
         open={drawerOpen && previewRow !== null}
