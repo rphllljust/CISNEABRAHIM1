@@ -126,7 +126,18 @@ describe('SuppliersEngineListPage', () => {
     expect(within(table).queryByText('ACTIVE')).not.toBeInTheDocument();
   });
 
-  it('exposes the real backend commands on the row', async () => {
+  /*
+   * COMANDOS REAIS NO CONTEXTO — não repetidos em cada linha.
+   *
+   * O teste anterior exigia `data-testid="supplier-row-actions"` DENTRO da linha, ou seja, o mesmo
+   * conjunto de botões repetido em todos os registros. Esse é o padrão CRUD que a função abandonou:
+   * comandos idênticos em toda linha, apresentados sem o contexto do registro afetado, e com o
+   * MOTIVO de inativação/arquivamento preenchido por texto fixo do frontend.
+   *
+   * O contrato agora é: a linha abre o CONTEXTO e os comandos válidos — publicados pelo próprio
+   * backend em `available-actions` — aparecem lá, com o motivo informado pelo operador.
+   */
+  it('exposes the real backend commands in the row context, not repeated per row', async () => {
     vi.stubGlobal(
       'fetch',
       createSuppliersFetchMock({
@@ -140,15 +151,32 @@ describe('SuppliersEngineListPage', () => {
         ],
       }),
     );
+    const user = userEvent.setup();
 
     renderWithProviders(<SuppliersEngineListPage />, { metadata: true });
 
     await waitFor(() => {
-      expect(screen.getAllByTestId('supplier-row-actions').length).toBeGreaterThan(0);
+      expect(screen.getByText('Metalúrgica Aurora Ltda')).toBeInTheDocument();
     });
 
-    // O comando do domínio chega rotulado pelo backend — não é `setStatus`.
-    expect(screen.getAllByRole('button', { name: 'Reativar' }).length).toBeGreaterThan(0);
+    // Nenhum comando repetido na grade: a linha carrega apenas a identidade como drillback.
+    expect(screen.queryAllByTestId('supplier-row-actions')).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: 'Reativar' })).not.toBeInTheDocument();
+
+    /*
+     * DOIS GESTOS DISTINTOS, de propósito:
+     *   - clicar a IDENTIDADE (link real) navega para a ficha completa — drillback;
+     *   - clicar qualquer outra área da LINHA abre o CONTEXTO, sem sair da fila.
+     * Por isso o teste clica na linha, e não no nome: o nome é um link de navegação.
+     */
+    const row = screen.getAllByRole('row')[1];
+    if (!row) {
+      throw new Error('a grade deveria ter ao menos uma linha de registro');
+    }
+    await user.click(row);
+
+    const context = await screen.findByRole('dialog', { name: /contexto do fornecedor/i });
+    expect(within(context).getByRole('button', { name: 'Reativar' })).toBeInTheDocument();
   });
 
   it('shows the denied state when the server refuses the list grant', async () => {

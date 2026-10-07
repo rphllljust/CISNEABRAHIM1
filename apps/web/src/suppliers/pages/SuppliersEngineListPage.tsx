@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { listSuppliers } from '../api/suppliers-api';
+import { Link, useNavigate } from 'react-router-dom';
+import {
+  archiveSupplier,
+  activateSupplier,
+  deactivateSupplier,
+  getSupplier,
+  listSuppliers,
+} from '../api/suppliers-api';
 import { BackofficeApiError } from '../../financial-ui/enterprise-api';
 import { useAuth } from '../../auth/context/AuthProvider';
 import {
@@ -23,6 +29,7 @@ import {
   worklistSelectClass,
 } from '../../ui/enterprise-list';
 import { Button } from '../../ui/Button';
+import { Skeleton } from '../../ui/Skeleton';
 import {
   ModuleDeniedState,
   ModuleErrorState,
@@ -32,8 +39,9 @@ import {
   ModulePagination,
 } from '../../ui/module-layout';
 import { supplierEngineRows, type SupplierEngineRow } from './supplier-engine-rows';
-import { SupplierRowActions } from '../components/SupplierRowActions';
-import type { SupplierSummary } from '../types/supplier.types';
+import { useSupplierAvailableActions } from '../hooks/useSupplierAvailableActions';
+import { mapSupplierErrorToMessage } from '../api/supplier-error-messages';
+import type { SupplierDetail, SupplierSummary } from '../types/supplier.types';
 
 /**
  * WORKLIST DE FORNECEDORES — cadastro de terceiros como fila de trabalho.
@@ -142,6 +150,114 @@ export function SuppliersEngineListPage() {
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
   const [selected, setSelected] = useState<SupplierSummary | null>(null);
 
+  /**
+   * CONTEXTO REAL DO FORNECEDOR — carregado do endpoint de detalhe.
+   *
+   * `GET /suppliers/:id` publica o que a listagem não traz: contatos, moeda, motivo de
+   * desativação e a `version`. Sem isso o painel lateral só repetiria as colunas da grade.
+   * Carregamento LOCALIZADO: só o painel espera; a fila continua utilizável.
+   */
+  const [detailState, setDetailState] = useState<
+    | { phase: 'idle' }
+    | { phase: 'loading' }
+    | { phase: 'error'; message: string }
+    | { phase: 'ready'; supplier: SupplierDetail }
+  >({ phase: 'idle' });
+
+  /*
+   * MOTIVO DO COMANDO — informado pelo OPERADOR, nunca fabricado.
+   *
+   * `deactivate` e `archive` exigem `reason` no contrato. A versão anterior deste módulo enviava
+   * `'Inativação a partir da lista.'` como texto fixo — ou seja, o FRONTEND INVENTAVA UM FATO
+   * EMPRESARIAL para satisfazer o schema. O motivo é registro de auditoria: quem inativou e por
+   * quê. Aqui ele é digitado, e o comando só fica disponível quando existe.
+   */
+  const [commandReason, setCommandReason] = useState('');
+  const [commandBusy, setCommandBusy] = useState(false);
+  const [commandError, setCommandError] = useState<string | null>(null);
+  const [commandsRefresh, setCommandsRefresh] = useState(0);
+
+  const selectedId = selected?.id ?? null;
+
+  /*
+   * RECARGA REAL DA FILA — declarada ANTES de quem a usa (o comando de contexto).
+   *
+   * A versão anterior era `setOffset((value) => value)`: uma atribuição de identidade, da qual o
+   * React BAILA sem re-renderizar — ou seja, `onChanged={reload}` NUNCA recarregava nada e a grade
+   * continuava mostrando o estado antigo depois de um comando de domínio. Um token monotônico
+   * força o efeito de carga a rodar de novo.
+   */
+  const [reloadToken, setReloadToken] = useState(0);
+  const reload = useCallback(() => setReloadToken((current) => current + 1), []);
+
+  // COMANDOS VÁLIDOS vêm do BACKEND (`available-actions`), não de um mapa de status no frontend.
+  const availableActions = useSupplierAvailableActions(selectedId, selectedId !== null, commandsRefresh);
+
+  useEffect(() => {
+    if (!selectedId) {
+      setDetailState({ phase: 'idle' });
+      setCommandError(null);
+      setCommandReason('');
+      return;
+    }
+    const controller = new AbortController();
+    setDetailState({ phase: 'loading' });
+    setCommandError(null);
+    void getSupplier(selectedId, controller.signal)
+      .then((supplier) => {
+        if (!controller.signal.aborted) {
+          setDetailState({ phase: 'ready', supplier });
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setDetailState({
+            phase: 'error',
+            message: 'Não foi possível carregar o contexto do fornecedor.',
+          });
+        }
+      });
+    return () => controller.abort();
+  }, [selectedId]);
+
+  /**
+   * Executa um COMANDO REAL do domínio a partir do contexto.
+   * `reason` é enviado apenas quando o operador o informou — nunca preenchido pelo frontend.
+   */
+  const runCommand = useCallback(
+    async (command: string, requiresReason: boolean) => {
+      if (!selected) {
+        return;
+      }
+      setCommandBusy(true);
+      setCommandError(null);
+      try {
+        if (command === 'activate') {
+          await activateSupplier(selected.id, { version: selected.version });
+        } else if (command === 'deactivate') {
+          await deactivateSupplier(selected.id, { version: selected.version, reason: commandReason });
+        } else if (command === 'archive') {
+          await archiveSupplier(selected.id, { version: selected.version, reason: commandReason });
+        }
+        if (requiresReason) {
+          setCommandReason('');
+        }
+        setSelected(null);
+        setCommandsRefresh((current) => current + 1);
+        reload();
+      } catch (error) {
+        setCommandError(
+          error instanceof BackofficeApiError
+            ? mapSupplierErrorToMessage(error.code, error.status)
+            : 'Não foi possível executar o comando.',
+        );
+      } finally {
+        setCommandBusy(false);
+      }
+    },
+    [commandReason, reload, selected],
+  );
+
   // A busca vai ao SERVIDOR: filtrar a pagina atual esconderia um fornecedor que existe adiante.
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -150,8 +266,6 @@ export function SuppliersEngineListPage() {
     }, SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
   }, [searchInput]);
-
-  const reload = useCallback(() => setOffset((value) => value), []);
 
   const loadPage = useCallback(
     async (pageOffset: number, signal?: AbortSignal) => {
@@ -201,7 +315,7 @@ export function SuppliersEngineListPage() {
     const controller = new AbortController();
     void loadPage(offset, controller.signal);
     return () => controller.abort();
-  }, [loadPage, offset]);
+  }, [loadPage, offset, reloadToken]);
 
   const rows = useMemo<SupplierEngineRow[]>(
     () => (listState.phase === 'ready' ? supplierEngineRows(listState.items) : []),
@@ -286,89 +400,108 @@ export function SuppliersEngineListPage() {
   return (
     <ModulePage>
       {/*
-        OPERATING HEADER — identidade da funcao + comando primario, na gramatica congelada da
-        foundation. Antes o cabecalho era um `<header>` local com `h1 text-lg` e um botao com
-        `border+bg` da mesma cor; agora usa `WorklistHeader`, entao a funcao abre com a MESMA
-        hierarquia de todas as outras worklists do CISNE.
+        SUPERFÍCIE DE TRABALHO FIXA — cabeçalho, visões salvas e filtros não rolam com a fila.
+        O operador nunca perde "onde estou" nem "qual recorte estou vendo".
       */}
-      <WorklistHeader
-        title={schema?.label ?? 'Fornecedores'}
-        context="Terceiros habilitados a receber pedidos de compra, com o estado de cada cadastro."
-        action={
-          <Button variant="primary" onClick={() => void navigate('/app/suppliers/new')}>
-            Novo fornecedor
-          </Button>
-        }
-      />
-
-      {/*
-        FAIXA DE INDICADORES — responde "qual e o tamanho e o estado desta fila?" antes da
-        primeira linha. A contagem total e a autoritativa do servidor; as demais sao contagens
-        das linhas carregadas e dizem isso no rotulo.
-      */}
-      <div className="cisne-divider flex flex-wrap gap-0 py-1.5">
-        {total !== null ? (
-          <EnterpriseMetric value={total} label="fornecedores no cadastro" />
-        ) : null}
-        <EnterpriseMetric
-          value={activeOnPage}
-          label="ativos nesta página"
-          tone={activeOnPage > 0 ? 'info' : 'neutral'}
-        />
-        {blockedOnPage > 0 ? (
-          <EnterpriseMetric value={blockedOnPage} label="fora de operação" tone="warning" />
-        ) : null}
-      </div>
-
-      {/*
-        COMMAND SURFACE + FILTER SURFACE — uma faixa, nao um formulario de consulta.
-        A busca e o recorte que o operador refaz todo dia, e os dois vao ao servidor.
-      */}
-      <WorklistFilterBar
-        meta={
-          total !== null
-            ? `${offset + 1}–${offset + items.length} de ${total}`
-            : `${offset + 1}–${offset + items.length} nesta página`
-        }
-      >
-        <WorklistField label="Buscar" htmlFor="suppliers-search" grow>
-          <input
-            id="suppliers-search"
-            type="search"
-            className={worklistControlClass}
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="Razão social, nome fantasia ou CNPJ"
-            autoComplete="off"
+      <div className="sticky top-0 z-20 bg-white" data-region="work-surface">
+        <div data-region="operating-header">
+          <WorklistHeader
+            title={schema?.label ?? 'Fornecedores'}
+            context="Terceiros habilitados a receber pedidos de compra, com o estado de cada cadastro."
+            action={
+              <Button variant="primary" onClick={() => void navigate('/app/suppliers/new')}>
+                Novo fornecedor
+              </Button>
+            }
           />
-        </WorklistField>
-        <WorklistField label="Estado" htmlFor="suppliers-status">
-          <select
-            id="suppliers-status"
-            className={worklistSelectClass}
-            value={statusFilter}
-            onChange={(event) => {
-              setStatusFilter(event.target.value);
+        </div>
+
+        {/*
+          FAIXA DE INDICADORES — responde "qual e o tamanho e o estado desta fila?" antes da
+          primeira linha. A contagem total e a autoritativa do servidor; as demais sao contagens
+          das linhas carregadas e dizem isso no rotulo.
+        */}
+        <div className="cisne-divider flex flex-wrap gap-0 py-1.5">
+          {total !== null ? (
+            <EnterpriseMetric value={total} label="fornecedores no cadastro" />
+          ) : null}
+          <EnterpriseMetric
+            value={activeOnPage}
+            label="ativos nesta página"
+            tone={activeOnPage > 0 ? 'info' : 'neutral'}
+          />
+          {blockedOnPage > 0 ? (
+            <EnterpriseMetric value={blockedOnPage} label="fora de operação" tone="warning" />
+          ) : null}
+        </div>
+
+        {/*
+          SAVED VIEWS — FAIXA PRÓPRIA DA WORK AREA, não link "Visões" escondido em menu.
+          O recorte que o operador remonta todo dia é comando da superfície de trabalho.
+        */}
+        <div className="cisne-divider py-0.5" data-region="saved-view-surface">
+          <DynamicSavedViewsBar
+            views={savedViews.views}
+            persistedLocally={savedViews.persistedLocally}
+            onSave={(name) => savedViews.save(name, { search, statusFilter }, 'list')}
+            onDelete={savedViews.remove}
+            onApply={(view) => {
+              setSearchInput(view.filters['search'] ?? '');
+              setSearch(view.filters['search'] ?? '');
+              setStatusFilter(view.filters['filterStatus'] ?? '');
               setOffset(0);
             }}
+          />
+        </div>
+
+        <div data-region="command-filter-surface">
+          <WorklistFilterBar
+            meta={
+              total !== null
+                ? `${offset + 1}–${offset + items.length} de ${total}`
+                : `${offset + 1}–${offset + items.length} nesta página`
+            }
           >
-            <option value="">Todos</option>
-            {statusOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </WorklistField>
-        <WorklistClearFilters
-          visible={hasActiveFilters}
-          onClick={() => {
-            setSearchInput('');
-            setStatusFilter('');
-            setOffset(0);
-          }}
-        />
-      </WorklistFilterBar>
+            <WorklistField label="Buscar" htmlFor="suppliers-search" grow>
+              <input
+                id="suppliers-search"
+                type="search"
+                className={worklistControlClass}
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                placeholder="Razão social, nome fantasia ou CNPJ"
+                autoComplete="off"
+              />
+            </WorklistField>
+            <WorklistField label="Estado" htmlFor="suppliers-status">
+              <select
+                id="suppliers-status"
+                className={worklistSelectClass}
+                value={statusFilter}
+                onChange={(event) => {
+                  setStatusFilter(event.target.value);
+                  setOffset(0);
+                }}
+              >
+                <option value="">Todos</option>
+                {statusOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </WorklistField>
+            <WorklistClearFilters
+              visible={hasActiveFilters}
+              onClick={() => {
+                setSearchInput('');
+                setStatusFilter('');
+                setOffset(0);
+              }}
+            />
+          </WorklistFilterBar>
+        </div>
+      </div>
 
       {/* VISÕES SALVAS — o recorte que o operador remonta todo dia. `persistedLocally` e
           declarado pela engine: sem endpoint de visoes salvas o armazenamento e local. */}
@@ -421,48 +554,58 @@ export function SuppliersEngineListPage() {
           }
         />
       ) : (
-        <DynamicList
+        <div data-region="worklist-master">
+          <DynamicList
           schema={schema}
           rows={rows}
           ariaLabel="Lista de fornecedores"
           emptyMessage="Nenhum fornecedor cadastrado."
+          /*
+            A LINHA INTEIRA ABRE O CONTEXTO — arquivo morto de botões por linha.
+
+            Antes cada linha carregava os comandos `activate`/`deactivate`/`archive` como botões
+            (`SupplierRowActions`), além de um "Abrir fornecedor" de fallback. Isso é o padrão CRUD
+            que esta rodada elimina por três razões:
+              1. repetição de ação idêntica em TODA linha;
+              2. comandos apresentados SEM contexto do registro que será afetado;
+              3. o motivo de inativação/arquivamento era TEXTO FIXO inventado pelo frontend.
+
+            Agora a linha abre o CONTEXTO e os comandos reais vivem lá, dirigidos pelo backend
+            (`available-actions`) e com o motivo informado pelo operador.
+          */
           onRowClick={(row) => {
             const item = items.find((entry) => entry.id === row.id) ?? null;
             setSelected(item);
-          }}
-          /*
-            ACAO DA LINHA — os comandos REAIS do backend (`activate`/`deactivate`/`archive`)
-            via `SupplierRowActions`, que ja existia e estava desligado da lista. Nao ha
-            `setStatus`: cada botao executa o comando de dominio e recarrega com a versao nova.
-          */
-          renderRowActions={(row) => {
-            const item = items.find((entry) => entry.id === row.id);
-            if (!item) {
-              return null;
-            }
-            return (
-              <SupplierRowActions
-                supplierId={item.id}
-                status={item.status}
-                version={item.version}
-                openPath={`/app/suppliers/${item.id}`}
-                onChanged={reload}
-              />
-            );
           }}
           renderCell={(field, row) => {
             const item = items.find((entry) => entry.id === row.id);
             if (!item) {
               return undefined;
             }
+            /*
+              IDENTIDADE É O DRILLBACK — link real na RAZÃO SOCIAL, que é o dado principal do
+              terceiro (o nome fantasia é metadata subordinada e tem a própria coluna). Teclado,
+              clique do meio, nova aba e leitor de tela levam à ficha completa; a linha abre o
+              contexto. Nenhum "Abrir cadastro" repetido.
+            */
+            if (field.name === 'legal_name' || field.name === schema?.labelField) {
+              return (
+                <Link
+                  to={`/app/suppliers/${item.id}`}
+                  onClick={(event) => event.stopPropagation()}
+                  title={item.legalName}
+                  className="cisne-type-primary block truncate text-brand-800 no-underline hover:underline"
+                >
+                  {item.legalName}
+                </Link>
+              );
+            }
             // EXCECAO VISIVEL na coluna de estado: e ela que explica por que o fornecedor
             // nao pode receber compra. O rotulo e humano — o enum cru nao aparece.
             //
             // DENSIDADE: a celula empilhava TRES linhas (estado, excecao e proxima acao), o que
             // dobrava a altura de TODA a grade — medido, a pagina tinha 1675px para 18 linhas e
-            // apenas 5 registros cabiam na primeira dobra. Estado e excecao cabem na MESMA linha
-            // (o operador compara na horizontal); a proxima acao ja e oferecida pelo comando real
-            // da propria linha (`SupplierRowActions`), entao repeti-la em texto era ruido.
+            // apenas 5 registros cabiam na primeira dobra. Estado e excecao cabem na MESMA linha.
             if (field.name === 'status') {
               const exception = supplierException(item.status);
               const nextAction = nextActionLabel(item.status);
@@ -496,39 +639,163 @@ export function SuppliersEngineListPage() {
             return undefined;
           }}
         />
+        </div>
       )}
 
       <DynamicContextDrawer
         open={selected !== null}
-        title={selected?.tradeName ?? selected?.legalName ?? 'Fornecedor'}
+        title="Contexto do fornecedor"
         onClose={() => setSelected(null)}
         crossReferences={crossReferences}
       >
-        {selected ? (
-          <dl className="m-0 grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)] gap-x-3 gap-y-1.5">
-            <dt className="cisne-meta-label pt-0.5">Razão social</dt>
-            <dd className="cisne-meta-value m-0">{selected.legalName}</dd>
-            <dt className="cisne-meta-label pt-0.5">CNPJ</dt>
-            <dd className="cisne-meta-value m-0">{selected.taxId}</dd>
-            {selected.paymentTerms ? (
-              <>
-                <dt className="cisne-meta-label pt-0.5">Pagamento</dt>
-                <dd className="cisne-meta-value m-0">{selected.paymentTerms}</dd>
-              </>
-            ) : null}
-            <dt className="cisne-meta-label pt-0.5">Estado</dt>
-            <dd className="cisne-meta-value m-0">{statusLabel(selected.status)}</dd>
-          </dl>
-        ) : null}
+        <div data-region="context-region">
+          {selected ? (
+            <p className="cisne-type-primary m-0 mb-2 truncate">
+              {selected.tradeName ?? selected.legalName}
+            </p>
+          ) : null}
 
-        {/* COMANDO DE CONTEXTO — acesso a ficha profunda sem abandonar a fila. */}
-        {selected ? (
-          <div className="cisne-divider--top mt-2 pt-2">
-            <Button variant="secondary" onClick={() => void navigate(`/app/suppliers/${selected.id}`)}>
-              Abrir ficha
-            </Button>
-          </div>
-        ) : null}
+          {detailState.phase === 'loading' ? (
+            /* SKELETON LOCALIZADO — só o painel espera; a fila segue viva. */
+            <div aria-busy="true" role="status" className="flex flex-col gap-1.5">
+              <span className="cisne-type-helper">Carregando contexto…</span>
+              <Skeleton lines={4} />
+            </div>
+          ) : null}
+
+          {detailState.phase === 'error' ? (
+            <p className="cisne-type-body m-0 text-red-700" role="alert">
+              {detailState.message}
+            </p>
+          ) : null}
+
+          {detailState.phase === 'ready' ? (
+            <>
+              <dl className="m-0 grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)] gap-x-3 gap-y-1.5">
+                <dt className="cisne-meta-label pt-0.5">Razão social</dt>
+                <dd className="cisne-meta-value m-0">{detailState.supplier.legalName}</dd>
+                <dt className="cisne-meta-label pt-0.5">CNPJ</dt>
+                <dd className="cisne-meta-value m-0 font-mono">{detailState.supplier.taxId}</dd>
+                {detailState.supplier.paymentTerms ? (
+                  <>
+                    <dt className="cisne-meta-label pt-0.5">Pagamento</dt>
+                    <dd className="cisne-meta-value m-0">{detailState.supplier.paymentTerms}</dd>
+                  </>
+                ) : null}
+                <dt className="cisne-meta-label pt-0.5">Moeda</dt>
+                <dd className="cisne-meta-value m-0">{detailState.supplier.currencyCode}</dd>
+                <dt className="cisne-meta-label pt-0.5">Estado</dt>
+                <dd className="cisne-meta-value m-0">{statusLabel(detailState.supplier.status)}</dd>
+                {detailState.supplier.deactivationReason ? (
+                  <>
+                    <dt className="cisne-meta-label pt-0.5">Motivo</dt>
+                    <dd className="cisne-meta-value m-0">
+                      {detailState.supplier.deactivationReason}
+                    </dd>
+                  </>
+                ) : null}
+              </dl>
+
+              {/* CONTATOS — dado exclusivo do detalhe, não da listagem. */}
+              <div className="cisne-divider--top mt-2 pt-2">
+                <h3 className="cisne-section-title m-0 mb-1">Contatos</h3>
+                {detailState.supplier.contacts.length === 0 ? (
+                  <p className="cisne-type-helper m-0">Nenhum contato cadastrado.</p>
+                ) : (
+                  <ul className="m-0 flex list-none flex-col gap-0 p-0">
+                    {detailState.supplier.contacts.map((contact) => (
+                      <li key={contact.id} className="cisne-type-meta truncate">
+                        {contact.name}
+                        {contact.email ? ` · ${contact.email}` : ''}
+                        {contact.phone ? ` · ${contact.phone}` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              {/*
+                COMMAND LAYER — comandos REAIS, publicados pelo BACKEND em `available-actions`.
+                O frontend não conhece mapa de status; ele apresenta o que o servidor declara
+                válido e envia a INTENÇÃO. Comandos destrutivos exigem MOTIVO digitado aqui:
+                o campo é do operador, porque motivo é registro de auditoria — nunca texto fixo
+                inventado pela tela.
+              */}
+              <div className="cisne-divider--top mt-2 pt-2">
+                {availableActions.status === 'ready' &&
+                availableActions.data &&
+                availableActions.data.comandos_validos.length > 0 ? (
+                  <>
+                    {availableActions.data.comandos_validos.some(
+                      (action) => action.comando !== 'activate',
+                    ) ? (
+                      <label className="mb-1 block">
+                        <span className="cisne-meta-label mb-0.5 block">
+                          Motivo (obrigatório para desativar/arquivar)
+                        </span>
+                        <input
+                          type="text"
+                          className={worklistControlClass}
+                          value={commandReason}
+                          onChange={(event) => setCommandReason(event.target.value)}
+                          placeholder="Informe o motivo real"
+                        />
+                      </label>
+                    ) : null}
+
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {availableActions.data.comandos_validos.map((action) => {
+                        const needsReason = action.comando !== 'activate';
+                        const blocked =
+                          !action.usuario_tem_permissao || (needsReason && commandReason.trim() === '');
+                        return (
+                          <Button
+                            key={action.comando}
+                            variant={action.comando === 'activate' ? 'primary' : 'secondary'}
+                            disabled={blocked}
+                            loading={commandBusy}
+                            title={
+                              !action.usuario_tem_permissao
+                                ? 'Sem permissão para este comando'
+                                : needsReason && commandReason.trim() === ''
+                                  ? 'Informe o motivo para executar'
+                                  : undefined
+                            }
+                            onClick={() => void runCommand(action.comando, needsReason)}
+                          >
+                            {action.label ?? action.comando}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <p className="cisne-type-helper m-0">Nenhum comando disponível para este registro.</p>
+                )}
+
+                {commandError ? (
+                  <p className="cisne-type-helper m-0 mt-1.5 text-red-700" role="alert">
+                    {commandError}
+                  </p>
+                ) : null}
+
+                {/*
+                  DRILLBACK ÚNICO — vive AQUI, uma vez por registro selecionado. A grade não repete
+                  "Abrir" em cada linha; a identidade é o drillback da linha e o painel oferece o
+                  caminho para a ficha completa (histórico e edição).
+                */}
+                <div className="cisne-divider--top mt-2 pt-2">
+                  <Button
+                    variant="secondary"
+                    onClick={() => void navigate(`/app/suppliers/${detailState.supplier.id}`)}
+                  >
+                    Abrir ficha completa
+                  </Button>
+                </div>
+              </div>
+            </>
+          ) : null}
+        </div>
       </DynamicContextDrawer>
 
       <footer className="cisne-divider--top mt-1 flex flex-wrap items-center justify-between gap-3 pt-1.5">

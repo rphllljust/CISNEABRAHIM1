@@ -157,6 +157,37 @@ export function createSuppliersFetchMock(options: SuppliersFetchMockOptions = {}
       });
     }
 
+    /*
+     * DETALHE DO FORNECEDOR — `GET /api/v1/suppliers/:id`.
+     *
+     * O endpoint EXISTE e é o que sustenta o painel de contexto (contatos, moeda, motivo de
+     * desativação, `version`). O mock precisa servi-lo: um fixture que omite rota real faz o teste
+     * passar sobre um contrato que não é o de produção.
+     *
+     * A rota é declarada DEPOIS de `/available-actions` e ANTES do casamento exato de
+     * `/api/v1/suppliers`, para que só o caminho com id caia aqui.
+     */
+    if (
+      method === 'GET' &&
+      pathname.startsWith('/api/v1/suppliers/') &&
+      !pathname.endsWith('/available-actions') &&
+      !pathname.endsWith('/history')
+    ) {
+      const supplierId = pathname.split('/')[4] ?? '';
+      const current = SUPPLIERS.find((supplier) => supplier.id === supplierId);
+      if (!current) {
+        return jsonResponse({ error: { code: 'SUPPLIER_NOT_FOUND' } }, 404);
+      }
+      return jsonResponse({
+        ...current,
+        currencyCode: 'BRL',
+        deactivationReason: null,
+        contacts: [
+          { id: `${current.id}-c1`, name: 'Contato Comercial', purpose: 'COMMERCIAL', email: null, phone: null },
+        ],
+      });
+    }
+
     if (pathname === '/api/v1/suppliers' && method === 'GET') {
       if (options.denied) {
         return jsonResponse({ error: { code: 'SUPPLIER_ACCESS_DENIED' } }, 403);
