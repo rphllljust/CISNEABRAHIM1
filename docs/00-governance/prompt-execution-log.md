@@ -18613,3 +18613,107 @@ Medição DOM/Playwright, Chromium 1440x900, dev server real, API mockada soment
 WORKING_TREE: limpo após commit
 COMMIT: incluído no commit desta sessão
 NEXT_PROMPT_EXECUTED: NO
+
+---
+
+## ENTERPRISE VISUAL FOUNDATION — WAVE VISUAL GLOBAL — 2026-10-07
+
+STATUS: **PASS**
+
+### Escopo executado
+
+Fundacao visual compartilhada do frontend CISNE. **Nenhuma pagina de modulo foi alterada nesta
+etapa**, exceto `ReceivablesListPage` — e apenas onde ela era a origem medida de um bug real de
+sobreposicao (ver Evidencia).
+
+Classificacao: **interpretacao de engenharia visual / experiencia operacional**. Nenhuma regra
+empresarial criada, promovida ou alterada; nenhum backend, API, migration, seed, permissao ou
+contrato de dados tocado. Nenhuma biblioteca nova instalada. Stack preservada.
+
+### Subetapas executadas (serialmente, uma por vez)
+
+| # | Subetapa | Commit | Estado |
+| - | -------- | ------ | ------ |
+| 1 | Tokens, superficie, densidade, worklist, filtros | `0b7819b` | FROZEN |
+| 2 | Filtros + Saved Views | `e56a280` | FROZEN |
+| 3 | Object Experience | `08fcf13` | FROZEN |
+| 4 | Context Drawers | `593a41d` | FROZEN |
+| 5 | Forms | `3b8b423` | FROZEN |
+| 6 | States / Skeleton | `121ebfd` | FROZEN |
+| 7 | Command Surface | `9b02847` | FROZEN |
+
+### Alteracao aplicada
+
+- **Surface system** (`theme.css`): canvas / work area / context surface / elevated surface, com
+  divisores estruturais substituindo a cardification. `raised` deixou de ser o default.
+- **Typography roles** governados: workspace, object, primary, body, meta, section, label, helper,
+  action. Elimina o sintoma "tudo 13px cinza".
+- **Density tokens**: `--control-height`, `--row-height`, `--row-height-comfortable`,
+  `--header-height`, `--toolbar-height`. Altura de controle e de linha viraram decisao de sistema.
+- **App Shell**: canvas plano (removidos 3 gradientes decorativos) e frame da pagina como area de
+  trabalho. `standard` de 72rem para 90rem — o teto antigo desperdicava ~400px de canvas.
+- **Worklist / grade**: `WorkbenchQueueItem`, `WorkbenchMetric`, `WorklistHeader`,
+  `WorklistFilterBar`, `DataTable`, `DynamicList`, `enterprise-list` — grade densa, sem caixa,
+  cabecalho sticky com peso de divisor, numerico alinhado a direita.
+- **Filtros**: `DynamicFilterBar` como faixa de operacao (nao formulario), `DynamicSavedViewsBar`
+  como recurso central, `DynamicFilterBuilder` com divulgacao progressiva e resumo do recorte
+  visivel mesmo fechado.
+- **Object Experience**: `EnterpriseObjectPage` com main/aside governado, `ObjectStateFlow` como
+  faixa de processo, `NextActionPanel` como regua semantica, `BusinessChain` alinhado ao
+  vocabulario da familia.
+- **Context Drawers**: `Drawer` e `DynamicContextDrawer` como superficie de contexto empresarial.
+- **Forms**: `Field`, `FormSection`, `Select`, `Textarea`, `StickyActionBar` com densidade
+  governada.
+- **States**: `SkeletonTable`, `SkeletonForm` e `ModuleLoadingState` — loading localizado com a
+  forma do dado que vai chegar.
+- **Command Surface**: `DynamicBulkActions` com hierarquia real (comando primario, selecao, saida);
+  `RowActionMenu` e acoes de linha com pesos distintos.
+
+### Evidencia (DOM / Playwright, Chromium 1440x900, dev server real)
+
+Medido por geometria, computed styles e `elementFromPoint` — nenhuma analise por imagem.
+
+| Rota | cardLike | dividers | occluded | docOverflowX | main/aside |
+| ---- | -------- | -------- | -------- | ------------ | ---------- |
+| `/app/clients` | 0 | 6 | 0 | -15 | — |
+| `/app/finance/receivables` | 0 | 5 | 0 | -15 | 3.69 |
+| `/app/clients/:id` | 0 | 3 | 0 | -15 | 3.31 |
+
+- **Bug real encontrado e corrigido**: em `/app/finance/receivables` a coluna de trabalho tinha
+  637px com 720px de conteudo e `overflow-x: visible`; os botoes "Prévia" das ultimas colunas
+  ficavam sob o painel de contexto sticky (3 controles cobertos, confirmados por
+  `elementFromPoint`). Causa na origem: a `DynamicList` devolvia uma `<table>` nua, sem contencao
+  horizontal. Corrigido no primitivo + aside de 22rem para 17rem. Resultado: `occluded = 0`.
+- **Formulario** (`/app/clients/new`): 7 controles, todos exatamente na altura de token (30px);
+  labels 15px; secoes 3; `occluded = 0`; `docOverflowX = -15`.
+
+### Validacao
+
+- `pnpm --filter @cisne/web typecheck` — **PASS** (a cada subetapa)
+- `pnpm --filter @cisne/web exec eslint <primitives alteradas>` — **PASS**
+- Testes focados das primitives e seus consumidores diretos — **PASS**, a cada subetapa
+  (ex.: 88/88, 68/68, 55/55, 54/54, 46/46)
+- `git diff --check` — **PASS** (exit 0) em cada subetapa
+
+### Falha preexistente (nao ocultada)
+
+`src/enterprise-object/propagation.ui.test.tsx` — "em título cancelado não declara próxima ação e
+mantém as ações de estado bloqueadas" falha **no baseline limpo** (verificado por `git stash` sobre
+o commit anterior desta wave). Nao foi introduzida nem corrigida nesta etapa; permanece registrada.
+
+Os testes de `finance-smart-list`, `finance-backoffice` e `OperationsControlCenter` falham por
+timeout tambem no baseline limpo (condicao de ambiente), fora do escopo desta fundacao.
+
+### Quality gate
+
+- [x] Nenhuma pagina de modulo alterada (unica excecao: correcao medida de sobreposicao)
+- [x] Nenhum componente novo de dominio; apenas primitives compartilhadas e tokens
+- [x] Nenhum dado, KPI, relacao ou capability inventado
+- [x] Nenhuma regra empresarial nova
+- [x] Nenhuma migration, seed, backend, permissao ou contrato de API
+- [x] Nenhuma biblioteca externa adicionada (View Engine reutilizado)
+- [x] Stack preservada (React + TS + Tailwind)
+- [x] Gate objetivo por DOM: 0 cardification, 0 overlap, 0 overflow horizontal
+
+WORKING_TREE: limpo apos cada commit
+NEXT_PROMPT_EXECUTED: NO
