@@ -17658,6 +17658,56 @@ NEXT_PROMPT_EXECUTED: NO
 
 ---
 
+## ORDENS DE SERVICO — EXECUCAO: FORMULARIOS OPERACIONAIS SEM FORM-FIELD/BUTTON-ROW
+
+DATA: 2026-10-07T10:48:00-04:00
+STATUS: **PASS**
+
+### Escopo executado
+
+Continuidade da wave frontend Enterprise Tier-1, uma função por vez.
+
+Módulo: **Ordens de Serviço**.
+Funções: registro de atividade de execução e ocorrência.
+Classificação principal: **EXECUTION / FORM**.
+
+Classificação: **interpretação de engenharia visual / experiência operacional**. Nenhuma regra
+empresarial criada, promovida ou alterada; nenhum backend, API, migration, seed, permissão ou
+contrato de dados tocado.
+
+### Arquivos alterados
+
+- `apps/web/src/service-orders/components/ExecutionActivityPanel.tsx`
+- `apps/web/src/service-orders/components/OccurrenceForm.tsx`
+
+### Alteração aplicada
+
+- Campos de atividade/ocorrência deixaram `form-field`.
+- Ações de formulário deixaram `button-row`.
+- Validações locais, payloads de evidência, ocorrência, callbacks e estados busy/disabled foram
+  preservados.
+
+### Validação
+
+- `pnpm --filter @cisne/web exec vitest run --config vite.config.ts src/service-orders/service-order-execution.e2e.test.tsx src/service-orders/service-order-object-page.ui.test.tsx` — **PASS** (19/19)
+- `pnpm --filter @cisne/web exec eslint src/service-orders/components/OccurrenceForm.tsx src/service-orders/components/ExecutionActivityPanel.tsx` — **PASS**
+- `pnpm --filter @cisne/web typecheck` — **PASS**
+- `git diff --check` — **PASS**
+
+### Quality gate
+
+- [x] Alteração restrita aos formulários de execução de OS
+- [x] Nenhum dado, KPI, relação ou capability inventado
+- [x] Nenhuma regra empresarial nova
+- [x] Nenhuma migration, seed, backend, permissão ou contrato de API
+- [x] Payloads, validações locais e callbacks preservados
+
+WORKING_TREE: limpo após commit
+COMMIT: incluído no commit desta sessão
+NEXT_PROMPT_EXECUTED: NO
+
+---
+
 ## ATIVOS / SOLICITACOES — AVISOS SEM FORM-NOTICE LEGADO
 
 DATA: 2026-10-07T10:46:00-04:00

@@ -22,6 +22,11 @@ type ExecutionActivityPanelProps = {
   onSubmit: (payload: ActivitySubmitPayload) => void;
 };
 
+const fieldClass = 'flex min-w-0 flex-col gap-1.5';
+const labelClass = 'text-sm font-semibold text-gray-700';
+const controlClass =
+  'min-h-9 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-none disabled:bg-gray-50 disabled:text-gray-500';
+
 export function ExecutionActivityPanel({
   open,
   pendingKinds,
@@ -106,12 +111,15 @@ export function ExecutionActivityPanel({
           </div>
         ) : null}
         {pendingKinds.length > 1 ? (
-          <div className="form-field">
-            <label htmlFor={`${formId}-kind`}>Tipo</label>
+          <div className={fieldClass}>
+            <label htmlFor={`${formId}-kind`} className={labelClass}>
+              Tipo
+            </label>
             <select
               id={`${formId}-kind`}
               value={activeKind}
               disabled={disabled || busy}
+              className={controlClass}
               onChange={(event) => setSelectedKind(event.target.value as ExecutionEvidenceKind)}
             >
               {pendingKinds.map((kind) => (
@@ -123,11 +131,13 @@ export function ExecutionActivityPanel({
           </div>
         ) : null}
         {activeKind === EXECUTION_EVIDENCE_KINDS.Observation ? (
-          <div className="form-field">
-            <label htmlFor={`${formId}-text`}>Observação</label>
+          <div className={fieldClass}>
+            <label htmlFor={`${formId}-text`} className={labelClass}>
+              Observação
+            </label>
             <textarea
               id={`${formId}-text`}
-              className="execution-textarea"
+              className={`${controlClass} min-h-28`}
               rows={4}
               value={text}
               disabled={disabled || busy}
@@ -137,23 +147,29 @@ export function ExecutionActivityPanel({
         ) : null}
         {activeKind === EXECUTION_EVIDENCE_KINDS.Quantity ? (
           <>
-            <div className="form-field">
-              <label htmlFor={`${formId}-quantity`}>Quantidade</label>
+            <div className={fieldClass}>
+              <label htmlFor={`${formId}-quantity`} className={labelClass}>
+                Quantidade
+              </label>
               <input
                 id={`${formId}-quantity`}
                 inputMode="decimal"
                 value={quantityValue}
                 disabled={disabled || busy}
+                className={controlClass}
                 onChange={(event) => setQuantityValue(event.target.value)}
               />
             </div>
-            <div className="form-field">
-              <label htmlFor={`${formId}-unit`}>Unidade</label>
+            <div className={fieldClass}>
+              <label htmlFor={`${formId}-unit`} className={labelClass}>
+                Unidade
+              </label>
               {allowedUnits.length > 0 ? (
                 <select
                   id={`${formId}-unit`}
                   value={unitCode}
                   disabled={disabled || busy}
+                  className={controlClass}
                   onChange={(event) => setUnitCode(event.target.value)}
                 >
                   {allowedUnits.map((unit) => (
@@ -167,6 +183,7 @@ export function ExecutionActivityPanel({
                   id={`${formId}-unit`}
                   value={unitCode}
                   disabled={disabled || busy}
+                  className={controlClass}
                   onChange={(event) => setUnitCode(event.target.value)}
                 />
               )}
@@ -174,18 +191,21 @@ export function ExecutionActivityPanel({
           </>
         ) : null}
         {isMeasuredEntryKind(activeKind) ? (
-          <div className="form-field">
-            <label htmlFor={`${formId}-measured`}>{labelForEvidenceKind(activeKind)}</label>
+          <div className={fieldClass}>
+            <label htmlFor={`${formId}-measured`} className={labelClass}>
+              {labelForEvidenceKind(activeKind)}
+            </label>
             <input
               id={`${formId}-measured`}
               inputMode="decimal"
               value={measuredValue}
               disabled={disabled || busy}
+              className={controlClass}
               onChange={(event) => setMeasuredValue(event.target.value)}
             />
           </div>
         ) : null}
-        <div className="button-row">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <button type="button" className="button-secondary" disabled={busy} onClick={onClose}>
             Cancelar
           </button>

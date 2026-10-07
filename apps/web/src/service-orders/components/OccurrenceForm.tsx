@@ -8,6 +8,11 @@ type OccurrenceFormProps = {
   onSubmit: (input: { occurrenceCode: string; description: string }) => void;
 };
 
+const fieldClass = 'flex min-w-0 flex-col gap-1.5';
+const labelClass = 'text-sm font-semibold text-gray-700';
+const controlClass =
+  'min-h-9 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-none disabled:bg-gray-50 disabled:text-gray-500';
+
 export function OccurrenceForm({ open, disabled = false, busy = false, onClose, onSubmit }: OccurrenceFormProps) {
   const formId = useId();
   const [occurrenceCode, setOccurrenceCode] = useState('');
@@ -44,8 +49,10 @@ export function OccurrenceForm({ open, disabled = false, busy = false, onClose, 
             <p>{error}</p>
           </div>
         ) : null}
-        <div className="form-field">
-          <label htmlFor={`${formId}-code`}>Código</label>
+        <div className={fieldClass}>
+          <label htmlFor={`${formId}-code`} className={labelClass}>
+            Código
+          </label>
           <input
             id={`${formId}-code`}
             name="occurrenceCode"
@@ -53,21 +60,24 @@ export function OccurrenceForm({ open, disabled = false, busy = false, onClose, 
             disabled={disabled || busy}
             onChange={(event) => setOccurrenceCode(event.target.value)}
             autoComplete="off"
+            className={controlClass}
           />
         </div>
-        <div className="form-field">
-          <label htmlFor={`${formId}-description`}>Descrição</label>
+        <div className={fieldClass}>
+          <label htmlFor={`${formId}-description`} className={labelClass}>
+            Descrição
+          </label>
           <textarea
             id={`${formId}-description`}
             name="description"
-            className="execution-textarea"
+            className={`${controlClass} min-h-24`}
             rows={3}
             value={description}
             disabled={disabled || busy}
             onChange={(event) => setDescription(event.target.value)}
           />
         </div>
-        <div className="button-row">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <button type="button" className="button-secondary" disabled={busy} onClick={onClose}>
             Cancelar
           </button>
