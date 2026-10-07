@@ -272,7 +272,18 @@ export function ExpensesListPage() {
         <DrilldownMetric
           label="Aguardando aprovação"
           value={pending}
-          hint="ver enviadas"
+          /*
+           * ESCOPO DECLARADO EM TODOS OS CINCO.
+           *
+           * A faixa já tinha a convenção certa no primeiro e no quinto cartão ("Nesta página",
+           * "Em aberto nesta página"), mas os TRÊS do meio contavam a PÁGINA carregada com um
+           * `hint` que não dizia de onde vinha o número — "ver enviadas" descreve o DESTINO, não a
+           * origem. Numa página de 3 de 300 despesas, "2 aguardando aprovação" seria lido como o
+           * recorte inteiro. O `hint` entra no `aria-label` do indicador, então o escopo passa a
+           * valer também para leitor de tela; o destino (lista filtrada pelo servidor) NÃO muda e
+           * continua sendo o caminho até o dado autoritativo.
+           */
+          hint="aguardando aprovação nesta página · ver enviadas"
           tone={pending > 0 ? 'warning' : 'neutral'}
           muted={pending === 0}
           to="/app/finance/expenses?status=SUBMITTED"
@@ -280,14 +291,14 @@ export function ExpensesListPage() {
         <DrilldownMetric
           label="Rascunhos"
           value={drafts}
-          hint="ver rascunhos"
+          hint="rascunhos nesta página · ver rascunhos"
           muted={drafts === 0}
           to="/app/finance/expenses?status=DRAFT"
         />
         <DrilldownMetric
           label="Aprovadas"
           value={approved}
-          hint="ver aprovadas"
+          hint="aprovadas nesta página · ver aprovadas"
           tone="info"
           muted={approved === 0}
           to="/app/finance/expenses?status=APPROVED"

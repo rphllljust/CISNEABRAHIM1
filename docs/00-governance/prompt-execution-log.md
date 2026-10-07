@@ -20134,3 +20134,74 @@ corpo da resposta, não de regra nova.
    contexto autoritativo.
 
 WORKING_TREE: 1 arquivo + este registro
+
+---
+
+## DESPESAS — ESCOPO DOS INDICADORES (rodada 18) — 2026-10-07
+
+STATUS: **PASS_COM_RESTRICAO**
+Commit: `fix(web): declare the page scope of the three remaining expense indicators`
+
+### O que a leitura revelou antes de editar
+
+`ExpensesListPage` **já tinha** a convenção certa — e o comentário do arquivo explica por quê
+("somar o valor das linhas desta página e chamar isso de 'total' seria mentir"). O primeiro cartão
+(`Nesta página`, com `hint` = `${page.total} no recorte`) e o quinto (`Em aberto nesta página`)
+declaravam escopo. **Os três do meio não**: `Aguardando aprovação`, `Rascunhos` e `Aprovadas` eram
+contagens de `items` (a página) com `hint` que descrevia só o DESTINO ("ver enviadas"), sem dizer de
+onde vinha o número.
+
+Numa página de 3 de 300 despesas, "2 aguardando aprovação" seria lido como o recorte inteiro. O
+defeito é o MESMO P1 #14 da auditoria, sobrevivendo em três cartões de uma faixa que já o havia
+corrigido em dois.
+
+### Defeito corrigido
+
+Os três `hint` passam a declarar a origem, mantendo a convenção da própria faixa:
+`aguardando aprovação nesta página · ver enviadas`, `rascunhos nesta página · ver rascunhos`,
+`aprovadas nesta página · ver aprovadas`. Como `DrilldownMetric` compõe o `aria-label` a partir de
+`label` + `hint`, o escopo vale também para leitor de tela. **Nenhum valor mudou e nenhum destino
+mudou.**
+
+### Gate de DOM (REDE + DOM, CDP, cache desabilitado, servidor real)
+
+Instrumento: `tmp/expenses-scope-gate.mjs`. Esperado derivado do PRÓPRIO corpo da resposta.
+
+| Prova | Resultado |
+| ----- | --------- |
+| corpo da listagem | `total = 3`, `limit = 20`, `items = 3`, `statuses = [APPROVED, SUBMITTED, DRAFT]` |
+| esperado do payload | página 3 · enviadas 1 · rascunhos 1 · aprovadas 1 |
+| indicadores na faixa | **5** |
+| TODO `aria-label` declara escopo | **true** — `metricsWithoutScope: []` |
+| total do recorte exposto | **true** ("3 no recorte") |
+| contagem do cabeçalho = `payload.total` | **true** (3 = 3) |
+| valores do DOM = conteúdo da página | **true** nos quatro |
+| destinos preservados | `/app/finance/expenses`, `?status=SUBMITTED`, `?status=DRAFT`, `?status=APPROVED` |
+| erros de console | **0** |
+
+### Gates técnicos
+
+- `tsc --noEmit` — **PASS**; `eslint src/finance` — **PASS**
+- `src/finance` — **11 falhas / 73 passes**, idêntico ao baseline registrado:
+  `finance-smart-list` **7/7** e `finance-backoffice` **4/10**. **Zero falha nova.**
+- `git diff --check` — **PASS**; 1 arquivo alterado
+
+### RESTRIÇÕES CONHECIDAS
+
+1. **A PÁGINA NÃO DECLARA REGIÕES.** Medido no gate: `pageHasRegionMarkers: false` — zero
+   `data-region` em `ExpensesListPage`. É lacuna de GRAMÁTICA (não de veracidade) e ficou fora desta
+   rodada de propósito: a rodada foi de escopo, e misturar as duas coisas entregaria duas mudanças
+   com uma verificação só. Registrado como a próxima unidade desta função.
+2. **OS NÚMEROS NÃO MUDARAM** (3 · 1 · 1 · 1 e a página = dataset hoje, com `limit = 20` e
+   `total = 3`). O que mudou é a AFIRMAÇÃO. A correção no número, em escala, exigiria agregado
+   autoritativo por situação — que a lista **não publica**; o `total` publicado É autoritativo e já
+   está exposto na faixa.
+3. **Sem context region e sem comandos nesta página.** `submitExpense`, `approveExpense` e
+   `rejectExpense` existem no cliente e **não** estão ligados aqui; `rejectExpense` exige `reason`
+   obrigatório. Ligá-los esbarra na mesma questão registrada em Recebíveis: o contrato de
+   capabilities desta área não publica flag de permissão para as transições, e a decisão sobre
+   aceitar gating só por estado é do dono do produto, não minha.
+4. O gate localiza a faixa por `role="group"` justamente porque não há `data-region` — a limitação
+   está no instrumento de propósito, para não mascarar a lacuna registrada em (1).
+
+WORKING_TREE: 1 arquivo + este registro
