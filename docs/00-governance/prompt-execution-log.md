@@ -19843,3 +19843,98 @@ texto visivel de escopo, a `aria-label` da faixa e os tooltips foram lidos do DO
 5. `02ea564` (context region de Pedidos de Compra) segue **sem entrada propria neste log**.
 
 WORKING_TREE: 2 arquivos + este registro
+
+---
+
+## CATÁLOGO DE SERVIÇOS — WORKLIST SOBRE DADOS REAIS (rodada 15) — 2026-10-07
+
+STATUS: **PASS_COM_RESTRICAO**
+Commit: `feat(web): give the service catalog an authoritative context region and family grammar`
+
+### Escopo
+
+Uma função (WORKLIST). Nenhuma alteração de foundation, shell, tipografia, densidade global ou
+primitiva compartilhada. Backend, API, migrations, DTOs e regras de domínio intocados.
+
+### Arquivo alterado (1; +375 / -40)
+
+`apps/web/src/catalog/pages/ServiceDefinitionsListPage.tsx`
+
+### Defeitos corrigidos
+
+1. **GRAMÁTICA FORA DE ORDEM.** A superfície de visões salvas vinha DEPOIS da superfície de filtro —
+   o inverso da ordem da família (`OPERATING HEADER -> SAVED VIEWS -> COMMAND/FILTER -> WORK QUEUE`).
+   Corrigido, e as regiões passaram a ser declaradas por `data-region`.
+2. **CONTAGEM E INDICADORES SEM ESCOPO.** O contrato `ServiceDefinitionListResponse` é
+   `{ items, limit, offset }` — **não existe `total`** (verificado, não presumido). O número ao lado do
+   título e os três indicadores saíam da página carregada sem dizer isso. Agora o cabeçalho declara
+   "Página N … Esta lista não publica total; a contagem acima e os indicadores abaixo são desta
+   página", e a faixa de indicadores tem rótulo próprio de escopo ("Indicadores desta página").
+3. **CONTEXT REGION ALIMENTADA PELA LINHA.** O painel exibia fatos da projeção da listagem e oferecia
+   **apenas** um link "Abrir ficha" — nenhum comando. Agora selecionar re-lê a linhaça
+   (`getServiceDefinition`) e as versões (`listServiceDefinitionVersions`), e é dessa leitura que saem
+   os fatos E os comandos.
+
+### Comandos: interseção estado-publicado ∩ capability
+
+O catálogo **não publica tabela de transições** (diferente de Propostas, que tem
+`readiness.availableTransitions`). A barreira da esquerda é o estado que o contrato já nomeia:
+`status` da linhaça (`CATALOG_LINEAGE_STATUSES`, 2 valores) e a existência de versão em `DRAFT`:
+
+| Comando | Estado publicado que o habilita | Motivo |
+| ------- | ------------------------------- | ------ |
+| `publish` | existe versão com situação `DRAFT` | publica a versão em rascunho |
+| `deactivate` | linhaça `ACTIVE` | `DeactivateDefinitionPayload.reason` é **obrigatório** |
+| `activate` | linhaça `INACTIVE` | sem motivo no contrato |
+
+A barreira da direita é `capabilities.can{Publish,Deactivate,Activate}`. Onde o contrato exige
+motivo, a tela exige e o botão fica desabilitado sem ele; onde não exige, a tela **não** fabrica texto
+de auditoria. Após comando bem-sucedido, linhaça e versões são relidas e a LISTA é recarregada — senão
+a grade continuaria afirmando o estado anterior.
+
+### Gate de DOM (REDE + DOM, CDP, cache desabilitado, servidor real)
+
+Instrumento: `tmp/catalog-dom-gate.mjs`. Sondas de capability (`/service-definitions/00000000-…`, 404
+por desenho) classificadas à parte.
+
+| Prova | Resultado medido |
+| ----- | ---------------- |
+| ordem das regiões no DOM | `operating-header > saved-view-surface > command-filter-surface > worklist-master` e, com o painel aberto, `… > context-region` |
+| **tamanho REAL do dataset** | paginado com o próprio controle da tela: **p1=20, p2=20, p3=20, p4=10 → 70 registros**, `nextDisabled: true` na p4 |
+| contagem honesta | `shownCount = rows` em TODAS as páginas (20/20/20/10); rodapé "1–20 nesta página"; cabeçalho declara ausência de total |
+| leitura real no contexto | **4 GET de linhaça + 4 GET de versões** para 2 seleções (2 cada = duplo disparo de efeito em dev), com o id EXATO da linha clicada |
+| painel usa o payload | código, categoria ("Portfólio CISNE Rondônia") e "v1 publicada" conferidos contra o corpo da resposta |
+| loading só no painel | `{contextBusy: true, moduleLoading: false, rowsDuringLoading: 20, worklistPresent: true}` |
+| fila não desmonta | 20 linhas em todos os estados |
+| filtros e visões salvas | presentes em todos os estados |
+| scroll | `240 → 240 → 240` |
+| fechar não limpa a fila | painel e região somem; 20 linhas; filtros e visões intactos |
+| nenhuma capability inferida | `Inativar` é o ÚNICO comando visível: habilitado porque `status = ACTIVE`, **desabilitado** porque o motivo obrigatório está vazio, e `Publicar rascunho` **não aparece** porque o payload de versões só tem `PUBLISHED` (sem `DRAFT`) |
+| densidade e defeitos | `rowHeights [41]`, 12 linhas na dobra, `shadows 0`, `boxes 0`, `aninhamento 0`, `régua dupla 0`, `régua sobre coluna 0`, `occluded 0`, `overflowX -15` |
+
+### Gates técnicos
+
+- `tsc --noEmit` — **PASS**; `eslint src/catalog` — **PASS**
+- `src/catalog` — **31/31 PASS** (inclui `ServiceDefinitionsListPage.test.tsx`, que protege nome como
+  identidade primária, code como contexto, busca resolvida no SERVIDOR e estado vazio humano)
+- `git diff --check` — **PASS**; `git diff --name-only` — somente o arquivo acima
+
+### RESTRIÇÕES CONHECIDAS
+
+1. **O comando NÃO foi executado.** O gate provou que ele aparece, que está corretamente habilitado
+   pelo estado publicado e que exige o motivo obrigatório — mas não clicou, porque executar inativaria
+   uma definição do dataset de desenvolvimento (mutação real). A execução ponta a ponta do comando
+   fica como pendência explícita, não como suposição.
+2. **O dataset tem 70 registros, não 49.** O número 49 vinha de estimativa anterior; o valor medido,
+   paginando com o controle da tela, é 70. Registro o MEDIDO.
+3. **Altura de linha = 41px, não `--row-height` (28px).** A célula de identidade carrega duas linhas
+   (nome + code como contexto), e o token atua como mínimo. 12 linhas na dobra. Reduzir isso é
+   composição da página (cabeçalho de família), não da camada compartilhada.
+4. **Recorte de versão continua local**, aplicado sobre a página. Já estava declarado na tela
+   (meta "recorte de versão vale só nesta página" + estado vazio + PARK). Nesta rodada o escopo foi
+   preservado, não ampliado.
+5. O comparador do meu próprio gate tinha um defeito (comparava o estado `apos-fechar`, com o painel
+   já fechado, e por isso acusava "código do payload não está no DOM"). Corrigido e reexecutado UMA
+   vez antes de registrar — o instrumento não pode mentir a favor nem contra o produto.
+
+WORKING_TREE: 1 arquivo + este registro
