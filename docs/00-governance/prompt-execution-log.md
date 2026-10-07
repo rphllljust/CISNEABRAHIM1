@@ -20049,3 +20049,88 @@ listagem-sonda (`limit=1`, 204) classificadas à parte.
    de contagem. Corrigido e reexecutado UMA vez antes de registrar.
 
 WORKING_TREE: 3 arquivos + este registro
+
+---
+
+## CONTAS A RECEBER — ESCOPO DOS INDICADORES (rodada 17) — 2026-10-07
+
+STATUS: **PASS_COM_RESTRICAO**
+Commit: `fix(web): declare the page scope of the receivables drilldown indicators`
+
+### Alvo escolhido por medição
+
+`/finance/receivables` tem **3 registros com `total` autoritativo** no dataset de
+desenvolvimento, e é a página que a auditoria apontou como **P1 #14 — "provavelmente o maior
+problema semântico do frontend atual"**: os quatro indicadores (`Vencidos`, `A vencer`,
+`Recebidos`, `Carteira em aberto`) são calculados sobre `pageItems` — a PÁGINA carregada — e a faixa
+se apresentava como se descrevesse a CARTEIRA, com drill-down para lista filtrada.
+
+Contrato verificado (não presumido): `listReceivables` devolve `{ items, limit, offset, total,
+totalPages }` — **`total` É autoritativo** (contado sob o mesmo recorte). **Não existe endpoint de
+agregado** de vencidos/a-vencer/recebidos nem de soma de saldo.
+
+### Defeito corrigido
+
+A faixa declarava escopo que não tem. Agora:
+
+- rótulo visível da faixa: **"Indicadores desta página · N título(s) no recorte"**, onde N é o
+  `page.total` — o ÚNICO número do recorte inteiro que o contrato publica;
+- os quatro `hint` passam a declarar o escopo **e** o saldo como local
+  ("R$ 2.500,00 vencidos nesta página · ver lista filtrada");
+- o escopo entra no **nome acessível** de cada indicador, porque `DrilldownMetric` compõe o
+  `aria-label` a partir do `hint` — não é correção só visual;
+- os quatro drill-downs foram **preservados** (`?status=OVERDUE|OPEN|PAID` e a carteira), que é o
+  caminho até o dado cujo `total` É autoritativo.
+
+### Gate de DOM (REDE + DOM, CDP, cache desabilitado, servidor real)
+
+Instrumento: `tmp/receivables-scope-gate.mjs`. O esperado de cada indicador foi derivado do PRÓPRIO
+corpo da resposta, não de regra nova.
+
+| Prova | Resultado |
+| ----- | --------- |
+| corpo da listagem | `total = 3`, `limit = 50`, `items = 3`, `statuses = [PAID, OVERDUE, PAID]` |
+| esperado do payload | vencidos 1 · a vencer 0 · recebidos 2 · em aberto 1 |
+| rótulo declara escopo de página | **true** |
+| rótulo publica o total do recorte | **true** |
+| total do rótulo = `payload.total` | **true** (3 = 3) |
+| valores do DOM = conteúdo da página | **true** nos quatro |
+| todo `hint` declara escopo | **true** |
+| todo `aria-label` declara escopo | **true** |
+| drill-downs preservados | `?status=OVERDUE`, `?status=OPEN`, `?status=PAID`, carteira |
+| contagem do cabeçalho = `payload.total` | **true** |
+| ordem das regiões | `operating-header > drilldown-surface > saved-view-surface > command-filter-surface > bulk-command-surface > worklist-master` |
+| erros de console | **0** |
+
+### Gates técnicos
+
+- `tsc --noEmit` — **PASS**; `eslint src/finance` — **PASS**
+- `src/finance` — **11 falhas / 73 passes**, e as 11 são **exatamente as pré-existentes registradas**:
+  `finance-smart-list` **7/7** e `finance-backoffice` **4/10**, todas timeout de 5s. **Zero falha nova.**
+- `git diff --check` — **PASS**; 1 arquivo alterado
+
+### RESTRIÇÕES CONHECIDAS — e a mais importante primeiro
+
+1. **OS NÚMEROS NÃO MUDARAM.** Com `limit = 50` e `total = 3`, a página É o dataset inteiro hoje, e
+   os valores seguem 1 / 0 / 2 / 1. O que foi corrigido é a **AFIRMAÇÃO**, não o número: a tela deixou
+   de apresentar uma janela paginada como carteira. A correção **no número**, em escala, exige agregado
+   autoritativo (vencidos / a-vencer / recebidos e soma de saldo) — **endpoint que não existe** e cuja
+   criação está fora do escopo desta wave (nenhuma alteração de backend). Fica registrado como a
+   pendência real desta função.
+2. **A PRÉVIA CONTINUA ALIMENTADA PELA LINHA.** `previewRow` sai de `pageItems` e
+   `buildReceivablePreview` recebe esse registro. Aqui o defeito é MENOR que em Propostas: o item da
+   listagem é `ReceivableDetail` e **já inclui `rowVersion`**. Mesmo assim, agir sobre estado de
+   listagem é agir sobre estado possivelmente velho — a leitura autoritativa (`getReceivable`, que
+   existe) ainda não é usada. Registrado.
+3. **`settleReceivable` / `cancelReceivable` NÃO foram ligados à tela**, e o motivo é de contrato:
+   `FinanceCapabilities` publica apenas `{ canListReceivables, canListPayables, canListTreasury,
+   canReadReconciliation }` — **não há flag de permissão para liquidar ou cancelar**. Ligar os
+   comandos sem capability significaria oferecer ação cuja permissão a tela não conhece. Os dois
+   exigem payload real (`settle`: `amount` + `idempotencyKey`; `cancel`: `cancelReason` obrigatório),
+   e o cancelamento exige motivo digitado pelo operador. Pendência: ou o backend publica as flags, ou
+   a rodada aceita explicitamente o gating só por estado.
+4. A rodada foi deliberadamente estreita. As duas pendências acima (contexto autoritativo + comandos)
+   são a próxima unidade desta MESMA função, e não foram abertas aqui para não entregar metade de um
+   contexto autoritativo.
+
+WORKING_TREE: 1 arquivo + este registro

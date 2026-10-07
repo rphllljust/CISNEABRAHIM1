@@ -215,33 +215,53 @@ export function ReceivablesListPage() {
       />
       </div>
 
-      {/* DRILL-DOWN: todo indicador abre a lista filtrada que o originou. */}
+      {/*
+        DRILL-DOWN COM ESCOPO DECLARADO.
+
+        DEFEITO CORRIGIDO (auditoria, P1): os quatro indicadores são calculados sobre `pageItems`
+        — a PÁGINA carregada — e a faixa se apresentava como se descrevesse a CARTEIRA. Com 3
+        títulos no dataset os números coincidem por acidente; com 1.000 e página de 20, "3 vencidos"
+        seria lido como a carteira inteira. E os `hint` somavam SALDO de uma janela paginada,
+        publicando um valor que parece total.
+
+        O contrato desta lista publica `total` (autoritativo, contado sob o MESMO recorte), mas NÃO
+        publica agregado de vencidos/a-vencer/recebidos nem soma de saldo. Então a escolha honesta
+        não é inventar o número nem apagar o indicador: é declarar de onde ele vem — e mostrar ao
+        lado o único número que É do recorte inteiro (`page.total`). O caminho até o dado continua
+        sendo o drilldown, que abre a lista filtrada cujo `total` é autoritativo.
+
+        Cada `hint` entra no `aria-label` do indicador (`DrilldownMetric`), então o escopo vale
+        também para leitor de tela — não é só texto visual.
+      */}
       <div data-region="drilldown-surface">
+      <p className="cisne-meta-label m-0 mb-1">
+        Indicadores desta página · {page.total} título(s) no recorte
+      </p>
       <DrilldownRow>
         <DrilldownMetric
           label="Vencidos"
           value={overdue.length}
-          hint={`${formatCurrency(overdueTotal)} · ver lista filtrada`}
+          hint={`${formatCurrency(overdueTotal)} vencidos nesta página · ver lista filtrada`}
           tone={overdue.length > 0 ? 'critical' : 'neutral'}
           to="/app/finance/receivables?status=OVERDUE"
         />
         <DrilldownMetric
           label="A vencer"
           value={notOverdue.length}
-          hint={`${formatCurrency(openTotal)} · ver lista filtrada`}
+          hint={`${formatCurrency(openTotal)} a vencer nesta página · ver lista filtrada`}
           tone="info"
           to="/app/finance/receivables?status=OPEN"
         />
         <DrilldownMetric
           label="Recebidos"
           value={pageItems.filter((item) => item.status === 'PAID').length}
-          hint="ver lista filtrada"
+          hint="recebidos nesta página · ver lista filtrada"
           to="/app/finance/receivables?status=PAID"
         />
         <DrilldownMetric
           label="Carteira em aberto"
           value={inFlight.length}
-          hint={`${formatCurrency(overdueTotal + openTotal)} sob acompanhamento`}
+          hint={`${formatCurrency(overdueTotal + openTotal)} em aberto nesta página`}
           to="/app/finance/receivables"
         />
       </DrilldownRow>
