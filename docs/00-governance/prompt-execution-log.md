@@ -18876,3 +18876,85 @@ a tipografia e o padding foram governados e verificados no estado vazio.
 
 WORKING_TREE: limpo apos cada commit
 NEXT_PROMPT_EXECUTED: NO
+
+---
+
+## MODULOS — WAVE ENTERPRISE (rodada 3) — 2026-10-07
+
+STATUS: **PASS**
+
+### Escopo executado
+
+| Funcao | Modulo | Classificacao | Commit | Estado |
+| ------ | ------ | ------------- | ------ | ------ |
+| Cockpit da carteira de OS + grade da engine | Ordens de Servico | WORKSPACE + GRADE | `b4f5d40` | FROZEN |
+
+Classificacao: **interpretacao de engenharia visual / experiencia operacional**.
+Nenhuma regra empresarial criada; nenhum backend, API, migration, seed, permissao ou contrato tocado.
+
+### Defeito medido antes da alteracao
+
+`/app/service-orders`, DOM real (Chromium 1440x900):
+
+- altura de linha **105px uniforme** contra o token `--row-height` de **28px** (3,75x);
+- cabeçalho de grade **61px**;
+- **0 registros** na primeira dobra, com 17 carregados;
+- fundo da grade em **2044px**;
+- **2 wrappers tipo card** (cabeçalho e cockpit de 109px) dentro da area de trabalho.
+
+### Causa raiz (diagnosticada por probe de DOM, nao por suposicao)
+
+O probe de altura por celula mostrou que **todas** as celulas mediam 105px enquanto o texto de cada
+uma tinha UMA linha de 18,5px. A causa nao era a celula:
+
+1. um valor **longo e inquebravel** numa coluna de referencia (identificador tecnico) alargava a
+   coluna com `table-layout: auto` e obrigava as demais celulas a quebrar;
+2. a celula de **descricao livre** quebrava em 2-3 linhas nas linhas com texto longo;
+3. o `DynamicList` nao governava altura/tipografia de celula nem de cabeçalho.
+
+### Alteracao aplicada
+
+- `DynamicList` (primitive da engine, beneficia TODA lista da engine): celulas com
+  `h-[var(--row-height)] max-w-0 truncate`, cabeçalho `sticky` no papel `label` com `py-1`;
+- cabecalho da pagina e cockpit deixaram de ser cards e passaram a faixa com divisores;
+- `OperationalSignal` virou celula de faixa (a atencao vem da cor do numero, nao de uma caixa ambar);
+- comandos passaram a `Button`/`cn` governados.
+
+### Evidencia depois
+
+| Metrica | Antes | Depois |
+| ------- | ----- | ------ |
+| Altura de linha | 105px (uniforme) | **35px** (uniforme) |
+| Cabecalho da grade | 61px | **29px** |
+| Wrappers tipo card | 2 | **0** |
+| Fundo da grade | 2044px | **1259px** |
+| Registros na primeira dobra | 0 | **4** |
+| Overlap / overflow-x | 0 / 0 | 0 / 0 |
+
+### Validacao
+
+- `pnpm --filter @cisne/web eslint <arquivos alterados>` — **PASS**
+- `pnpm --filter @cisne/web typecheck` — **PASS**
+- `src/engine` + `src/ui` — **46/46 PASS**
+- `git diff --check` — **PASS** (exit 0)
+
+### Falhas PREEXISTENTES verificadas por `git stash` sobre o baseline limpo (nao introduzidas aqui)
+
+- `src/service-orders/components/OperationsControlCenter.test.tsx` — 4 falhas por timeout;
+- `src/service-orders/pages/ServiceOrderMeasurementPage.test.tsx` — 4 falhas;
+- `src/service-orders/pages/ServiceOrdersEngineListPage.test.tsx` — 1 falha ("21–25" na paginacao).
+
+As oito falhas reproduzem IDENTICAMENTE com as alteracoes desta rodada removidas. Permanecem
+registradas e NAO foram mascaradas nem afrouxadas.
+
+### Quality gate
+
+- [x] Alteracao restrita ao modulo nomeado + primitive da engine
+- [x] Nenhum componente novo de dominio
+- [x] Nenhum dado, KPI, relacao ou capability inventado
+- [x] Nenhuma regra empresarial nova
+- [x] Nenhuma migration, seed, backend, permissao ou contrato de API
+- [x] Server-side filtering/paginacao preservados
+
+WORKING_TREE: limpo apos commit
+NEXT_PROMPT_EXECUTED: NO
