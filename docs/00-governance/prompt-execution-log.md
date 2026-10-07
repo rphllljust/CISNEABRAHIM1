@@ -20575,3 +20575,62 @@ possível confirmar foi a LEITURA renderizada.
    própria, não tentada.
 
 WORKING_TREE: 1 arquivo + este registro
+
+---
+
+## FAMÍLIA `operator` — FECHAMENTO DO GATE (rodada 24) — 2026-10-07
+
+STATUS: **PASS** (nenhuma alteração de produto nesta rodada — o produto está em `5eb4a4d`)
+Commit: `docs(governance): close the operator saved-views owner gate and correct a false claim`
+
+### CORREÇÃO DE UMA AFIRMAÇÃO FALSA REGISTRADA NA RODADA 23
+
+A entrada anterior afirma: *"Chave da identidade conferida por cálculo independente:
+`hashScope('6f007b51-…')` = `19scmwb`, replicado no gate a partir do algoritmo do módulo — a chave
+esperada era a certa"*.
+
+**Isso é FALSO e fica retificado.** A função real (`operator/smart-list/useSavedViews.ts`) inicializa
+`let hash = 5381` (djb2). O gate replicou com `hash = 0`, produziu o dono **errado** (`19scmwb`) e
+semeou a chave errada. O dono correto é **`12su0kw`**. A frase "a chave esperada era a certa" era uma
+conclusão minha sobre o meu próprio instrumento, sem verificação — exatamente o erro que esta wave
+vem catalogando.
+
+### O gate, agora fechado
+
+`PROVADO: lê a loja da identidade e NÃO lê a loja sem dono.`
+
+| Evidência | Valor |
+| --------- | ----- |
+| dono correto (djb2, semente 5381) | `12su0kw` |
+| chave semeada da identidade | `cisne:operator:views:v1:commercial.clients:12su0kw` |
+| chave semeada sem dono | `cisne:operator:views:v1:commercial.clients:anon` |
+| barra renderiza a visão da identidade | **true** — "VISAO DA IDENTIDADE" visível em "VISÕES" |
+| barra renderiza a visão anônima | **false** |
+
+### TRÊS BLOQUEADORES, TODOS DO INSTRUMENTO — e nenhum do produto
+
+O INCONCLUSIVO da rodada 23 tinha **três** causas, e todas foram eliminadas por leitura de código e
+medição, não por tentativa:
+
+1. **`config` vazia é descartada na leitura.** `sanitizeSmartListConfig` faz
+   `if (filtros vazios && !sortKey && !groupKey) return null`. A semente usava `config: {}` → visão
+   descartada. Corrigido **descobrindo o valor enumerado na própria tela** (as `<option>` do filtro,
+   `ACTIVE`/`INACTIVE`) em vez de fixar literais no script.
+2. **A página não renderizava na segunda navegação.** O refresh token é ROTACIONADO no primeiro
+   bootstrap: a fase 1 o consumiu, e a fase 2 recarregou com o token velho → `/login` → página vazia.
+   O gate "media" `#main-content` sem texto e devolvia `false` como se fosse resposta. Corrigido
+   removendo o injetor antigo e reusando o token ROTACIONADO — o mesmo cuidado já adotado nos outros
+   gates da wave.
+3. **Minha replicação do hash estava errada** (item acima).
+
+Sem o diagnóstico 2, eu teria concluído "a loja da identidade não carrega" e ido caçar um bug
+inexistente no produto — a partir de uma página em branco.
+
+### RESTRIÇÕES CONHECIDAS
+
+1. **Nenhuma mudança de produto nesta rodada.** O código da família `operator` está como em
+   `5eb4a4d`; esta rodada produziu **prova** e **retificação**, não comportamento novo.
+2. **`persistable` continua não ligado ao `canSave`** desta família (herdado da rodada 23).
+3. **As duas famílias seguem sem unificação.**
+
+WORKING_TREE: sem alteração de código; só este registro
