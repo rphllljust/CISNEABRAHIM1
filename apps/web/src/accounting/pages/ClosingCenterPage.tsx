@@ -193,7 +193,7 @@ export function ClosingCenterPage() {
 
   if (units.length === 0) {
     return (
-      <ModulePage>
+      <ModulePage layout="workspace">
         <WorklistHeader title="Central de fechamento" />
         <WorklistStatePanel
           title="Nenhuma unidade operacional disponível"
@@ -207,7 +207,7 @@ export function ClosingCenterPage() {
   const pendingCount = readiness ? readiness.pending.length : 0;
 
   return (
-    <ModulePage>
+    <ModulePage layout="workspace">
       {/*
         A central já era workbench; o que faltava era a CABEÇA na mesma gramática das demais
         superfícies (título + situação + contexto numa faixa) e os ESTADOS DENTRO DA ESTRUTURA —
