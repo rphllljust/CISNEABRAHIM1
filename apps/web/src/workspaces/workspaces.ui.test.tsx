@@ -356,6 +356,22 @@ describe('workspaces de domínio', () => {
     expect(screen.queryByText('Nenhum trabalho pendente neste domínio.')).not.toBeInTheDocument();
   });
 
+  it('operações não oferece atalhos para módulos que ainda são stubs', async () => {
+    stubWorkFetch({ byDomain: { OPERACOES: 0 } });
+    renderWithProviders(<DomainWorkspacePage domain="OPERACOES" />, {
+      router: { initialEntries: ['/app/workspaces/operacoes'] },
+    });
+
+    await screen.findByText('Nenhum trabalho pendente neste domínio.');
+    const continuar = screen.getByRole('region', { name: 'Continuar' });
+
+    expect(within(continuar).getByRole('link', { name: 'Ordens de serviço' })).toBeInTheDocument();
+    expect(within(continuar).getByRole('link', { name: 'Frota' })).toBeInTheDocument();
+    expect(within(continuar).getByRole('link', { name: 'Ativos físicos' })).toBeInTheDocument();
+    expect(within(continuar).queryByRole('link', { name: 'Locações' })).not.toBeInTheDocument();
+    expect(within(continuar).queryByRole('link', { name: 'Transporte' })).not.toBeInTheDocument();
+  });
+
   it('no workspace financeiro o AGORA e a ATENÇÃO antecedem o bloco de posição', async () => {
     stubFinanceFetch({
       byDomain: { FINANCEIRO: 5 },

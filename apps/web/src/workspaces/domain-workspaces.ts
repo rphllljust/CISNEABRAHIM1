@@ -66,8 +66,6 @@ export const DOMAIN_WORKSPACES: Record<WorkDomain, DomainWorkspaceConfig> = {
     shortcuts: [
       { label: 'Ordens de serviço', to: '/app/service-orders' },
       { label: 'Solicitações', to: '/app/requests' },
-      { label: 'Locações', to: '/app/rentals' },
-      { label: 'Transporte', to: '/app/transport' },
       { label: 'Frota', to: '/app/fleet' },
       { label: 'Ativos físicos', to: '/app/assets' },
     ],
