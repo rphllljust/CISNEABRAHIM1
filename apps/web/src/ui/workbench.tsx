@@ -179,24 +179,26 @@ export function WorkbenchQueueItem({
   return (
     <article
       className={cn(
-        'grid grid-cols-1 items-center gap-x-4 gap-y-0.5 border-b border-l-2 border-gray-100 py-1.5 pr-1 pl-2.5 last:border-b-0',
+        'grid grid-cols-1 items-center gap-x-4 gap-y-0.5 border-b border-l-2 border-gray-100 py-1.5 pr-1 pl-2.5 last:border-b-0 md:grid-cols-[minmax(0,1fr)_auto]',
         'min-h-[var(--row-height-comfortable)]',
         stripe,
       )}
     >
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
-        {severity ? <span className="shrink-0">{severity}</span> : null}
-        <span className="cisne-type-primary min-w-0">{title}</span>
-      </div>
-      {reason ? <p className="cisne-type-meta m-0">{reason}</p> : null}
-      {context || age ? (
-        <div className="cisne-type-meta flex flex-wrap items-center gap-x-4 gap-y-0.5">
-          {context ? <span className="min-w-0">{context}</span> : null}
-          {age ? <span className="tabular-nums">{age}</span> : null}
+      <div className="min-w-0">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          {severity ? <span className="shrink-0">{severity}</span> : null}
+          <span className="cisne-type-primary min-w-0">{title}</span>
         </div>
-      ) : null}
+        {reason ? <p className="cisne-type-meta m-0">{reason}</p> : null}
+        {context || age ? (
+          <div className="cisne-type-meta flex flex-wrap items-center gap-x-4 gap-y-0.5">
+            {context ? <span className="min-w-0">{context}</span> : null}
+            {age ? <span className="tabular-nums">{age}</span> : null}
+          </div>
+        ) : null}
+      </div>
       {action || drilldown ? (
-        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5 md:justify-end">
           {action}
           {drilldown}
         </div>
