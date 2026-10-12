@@ -297,9 +297,9 @@ export function PayrollPage() {
             <div className="px-3 py-3">
               <ErrorState
                 title="Não foi possível carregar as competências"
-                description={periods.state.message}
-                actionLabel="Tentar novamente"
-                onAction={() => void periods.reload()}
+                message={periods.state.message}
+                retryLabel="Tentar novamente"
+                onRetry={() => void periods.reload()}
               />
             </div>
           ) : null}
