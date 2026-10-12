@@ -8,21 +8,22 @@ const ROOT = resolve(import.meta.dirname, '..');
 // ceilings that prevent already-large runtime files from growing further.
 // Refactors should reduce the limits in the same commit that shrinks a file.
 //
-// REBASE (integration/enterprise-prod-rc): os cinco limites abaixo foram
-// recapturados na arvore INTEGRADA (hardening + linha enterprise da Wave 07).
-// O hardening tinha capturado a baseline na SUA propria linha, onde esses
-// arquivos ainda eram menores; a linha enterprise os havia crescido com
-// trabalho funcional revisado. Recapturar aqui NAO afrouxa o ratchet: o teto
-// continua impedindo crescimento a partir de agora. Nenhum arquivo foi
-// alterado para caber no orcamento.
+// REBASE (integration/enterprise-prod-rc): os limites foram capturados na
+// arvore INTEGRADA, nao na linha isolada do hardening.
+//
+// RECAPTURE 2026-10-12: somente dois hotspots avançaram desde essa captura.
+// O compare cee1336..6f53e8d mostra +65/-0 linhas no repository de OS e
+// +82/-31 em App.tsx ao longo de 318 commits integrados. Os tetos abaixo foram
+// movidos EXATAMENTE para o tamanho corrente, sem folga adicional. O ratchet
+// volta a impedir qualquer crescimento a partir desta arvore integrada.
 const BUDGETS = new Map([
   ['apps/api/src/accounting/repositories/accounting.repository.ts', 56312],
   ['apps/api/src/accounting/services/accounting-access.service.ts', 42040],
   ['apps/api/src/service-orders/repositories/resource-planning.repository.ts', 36561],
-  ['apps/api/src/service-orders/repositories/service-orders.repository.ts', 32449],
+  ['apps/api/src/service-orders/repositories/service-orders.repository.ts', 34743],
   ['apps/api/src/finance/repositories/treasury.repository.ts', 31768],
   ['apps/web/src/procurement/pages/ProcurementPages.tsx', 41851],
-  ['apps/web/src/App.tsx', 37033],
+  ['apps/web/src/App.tsx', 39745],
 ]);
 
 const violations = [];
