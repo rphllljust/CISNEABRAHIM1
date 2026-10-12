@@ -57,6 +57,23 @@ export type PayrollCalculationResponse = {
   idempotent: boolean;
 };
 
+export type PayrollPeriodListResponse = {
+  items: PayrollPeriodResponse[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+export type EmploymentContractListResponse = {
+  items: EmploymentContractResponse[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+
 function money(value: string): string {
   const negative = value.startsWith('-');
   const formatted = formatMoneyAmountForApi(negative ? value.slice(1) : value);
@@ -104,6 +121,36 @@ export function toPayrollEventResponse(
     formulaStatus: row.formula_status,
     idempotencyKey: row.idempotency_key,
     idempotent,
+  };
+}
+
+export function toPayrollPeriodListResponse(input: {
+  items: PayrollPeriodRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+}): PayrollPeriodListResponse {
+  return {
+    items: input.items.map(toPayrollPeriodResponse),
+    total: input.total,
+    page: input.page,
+    pageSize: input.pageSize,
+    totalPages: input.pageSize > 0 ? Math.ceil(input.total / input.pageSize) : 0,
+  };
+}
+
+export function toEmploymentContractListResponse(input: {
+  items: EmploymentContractRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+}): EmploymentContractListResponse {
+  return {
+    items: input.items.map(toEmploymentContractResponse),
+    total: input.total,
+    page: input.page,
+    pageSize: input.pageSize,
+    totalPages: input.pageSize > 0 ? Math.ceil(input.total / input.pageSize) : 0,
   };
 }
 
