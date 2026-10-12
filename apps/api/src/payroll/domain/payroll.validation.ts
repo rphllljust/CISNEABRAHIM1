@@ -1,6 +1,7 @@
 import { isPositiveMoneyAmount } from '../../platform/kernel/money-math';
 import { assertUuid } from '../../platform/kernel/uuid';
 import {
+  PAYROLL_PERIOD_STATUSES,
   PayrollError,
   assertConceptualComponentLabel,
   assertNotLaborAssignmentSource,
@@ -151,5 +152,84 @@ export function validateRecordPayrollEventInput(
     idempotencyKey: requiredText(input.idempotencyKey),
     sourceKind,
     sourceId,
+  };
+}
+
+
+export type PayrollPeriodListQuery = {
+  unitId: string;
+  status?: string;
+  q?: string;
+  page: number;
+  pageSize: number;
+};
+
+export type EmploymentContractListQuery = {
+  unitId: string;
+  q?: string;
+  page: number;
+  pageSize: number;
+};
+
+function optionalListText(value: unknown): string | undefined {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+  if (typeof value !== 'string') {
+    throw new PayrollValidationError('PAYROLL_VALIDATION_FAILED');
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function listPage(value: unknown): number {
+  const page = value === undefined || value === '' ? 0 : Number(value);
+  if (!Number.isInteger(page) || page < 0) {
+    throw new PayrollValidationError('PAYROLL_VALIDATION_FAILED');
+  }
+  return page;
+}
+
+function listPageSize(value: unknown): number {
+  const pageSize = value === undefined || value === '' ? 20 : Number(value);
+  if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) {
+    throw new PayrollValidationError('PAYROLL_VALIDATION_FAILED');
+  }
+  return pageSize;
+}
+
+/** Consulta server-side da carteira de competências da unidade autorizada. */
+export function validatePayrollPeriodListQuery(input: {
+  unitId?: unknown;
+  status?: unknown;
+  q?: unknown;
+  page?: unknown;
+  pageSize?: unknown;
+}): PayrollPeriodListQuery {
+  const status = optionalListText(input.status)?.toUpperCase();
+  if (status && !Object.values(PAYROLL_PERIOD_STATUSES).includes(status as never)) {
+    throw new PayrollValidationError('PAYROLL_VALIDATION_FAILED');
+  }
+  return {
+    unitId: requiredText(input.unitId),
+    status,
+    q: optionalListText(input.q),
+    page: listPage(input.page),
+    pageSize: listPageSize(input.pageSize),
+  };
+}
+
+/** Consulta server-side do diretório de contratos de trabalho da unidade autorizada. */
+export function validateEmploymentContractListQuery(input: {
+  unitId?: unknown;
+  q?: unknown;
+  page?: unknown;
+  pageSize?: unknown;
+}): EmploymentContractListQuery {
+  return {
+    unitId: requiredText(input.unitId),
+    q: optionalListText(input.q),
+    page: listPage(input.page),
+    pageSize: listPageSize(input.pageSize),
   };
 }
