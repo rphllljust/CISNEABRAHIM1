@@ -262,7 +262,7 @@ async function replaceRoleCapabilitiesBulk(
     `INSERT INTO "authorization".access_role_capabilities
        (role_id, capability, added_by_identity_id)
      SELECT $1, capability, $3
-       FROM unnest($2::text[]) AS capability
+       FROM unnest($2::text[]) AS t(capability)
      ON CONFLICT (role_id, capability) DO NOTHING`,
     [roleId, capabilities, actorIdentityId],
   );
@@ -281,7 +281,7 @@ async function ensureFullAssignmentsBulk(
             identity_id,
             'GLOBAL'::"authorization".authz_scope_type,
             $3
-       FROM unnest($2::uuid[]) AS identity_id
+       FROM unnest($2::uuid[]) AS t(identity_id)
      ON CONFLICT DO NOTHING`,
     [roleId, identityIds, actorIdentityId],
   );
