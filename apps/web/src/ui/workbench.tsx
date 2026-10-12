@@ -23,7 +23,7 @@ export function WorkbenchSummaryStrip({ children }: { children: ReactNode }) {
   return (
     <section
       aria-label="Resumo da fila"
-      className="cisne-divider mb-1 flex flex-wrap items-stretch gap-0 px-0 py-2"
+      className="mb-2 flex flex-wrap items-stretch gap-0 border-y border-gray-200 bg-gray-50/80 px-2 py-2"
     >
       {children}
     </section>
@@ -61,7 +61,7 @@ export function WorkbenchMetric({
 
   const body = (
     <>
-      <strong className={cn('text-base leading-none font-semibold tabular-nums', toneClass)}>
+      <strong className={cn('text-xl leading-none font-semibold tracking-tight tabular-nums', toneClass)}>
         {value}
       </strong>
       <span className="cisne-meta-label">{label}</span>
@@ -69,7 +69,7 @@ export function WorkbenchMetric({
   );
 
   const className =
-    'flex min-w-24 flex-col items-start gap-0.5 border-l border-gray-200 px-3 py-0.5 no-underline transition-colors first:border-l-0 first:pl-0';
+    'flex min-w-28 flex-col items-start gap-0.5 border-l border-gray-200 px-4 py-1 no-underline transition-colors first:border-l-0';
 
   if (href) {
     return (
@@ -108,7 +108,7 @@ export function WorkbenchQueue({
   const isEmpty = count === 0 || (!children && count === undefined);
   return (
     <section className="mb-2" aria-label={title}>
-      <div className="cisne-divider mb-0 flex flex-wrap items-baseline justify-between gap-2 pb-1">
+      <div className="mb-0 flex flex-wrap items-center justify-between gap-2 border-y border-gray-200 bg-gray-100 px-2.5 py-1.5">
         <div className="flex items-baseline gap-2">
           <h2 className="cisne-type-workspace m-0">{title}</h2>
           {typeof count === 'number' ? (
@@ -117,7 +117,7 @@ export function WorkbenchQueue({
         </div>
         {action ? <div className="flex shrink-0 items-center gap-1.5">{action}</div> : null}
       </div>
-      {description ? <p className="cisne-type-helper m-0 mb-1">{description}</p> : null}
+      {description ? <p className="cisne-type-helper m-0 border-b border-gray-100 bg-white px-2.5 py-1">{description}</p> : null}
       {isEmpty ? (
         <EmptyState
           title={emptyTitle ?? 'Nada nesta fila'}
@@ -179,7 +179,7 @@ export function WorkbenchQueueItem({
   return (
     <article
       className={cn(
-        'grid grid-cols-1 items-center gap-x-4 gap-y-0.5 border-b border-l-2 border-gray-100 py-1.5 pr-1 pl-2.5 last:border-b-0 md:grid-cols-[minmax(0,1fr)_auto]',
+        'grid grid-cols-1 items-center gap-x-4 gap-y-0.5 border-b border-l-[3px] border-gray-100 bg-white py-2 pr-2 pl-3 transition-colors last:border-b-0 hover:bg-brand-50/30 md:grid-cols-[minmax(0,1fr)_auto]',
         'min-h-[var(--row-height-comfortable)]',
         stripe,
       )}

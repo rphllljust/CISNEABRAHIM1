@@ -436,6 +436,52 @@ export function WorkInboxPage() {
         </div>
       ) : null}
 
+
+      {phase === 'ready' && overdueItems.length > 0 ? (
+        <section
+          aria-label="Atenção operacional"
+          className="mb-2 border-y border-red-200 border-l-4 border-l-red-500 bg-red-50/70 px-3 py-2"
+        >
+          <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="m-0 text-[10px] font-semibold tracking-[0.16em] text-red-700 uppercase">
+                Atenção operacional
+              </p>
+              <p className="m-0 text-sm font-semibold text-gray-950">
+                {overdueItems.length} trabalho{overdueItems.length === 1 ? '' : 's'} vencido{overdueItems.length === 1 ? '' : 's'} nesta página
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => updateParam('overdue', overdue ? null : 'true')}
+              className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md bg-red-700 px-2.5 text-white hover:bg-red-800"
+            >
+              {overdue ? 'Mostrar toda a fila' : 'Isolar vencidos'}
+            </button>
+          </div>
+          <div className="divide-y divide-red-100 border-t border-red-100">
+            {overdueItems.slice(0, 3).map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setSelected(item)}
+                className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-1.5 text-left hover:bg-red-100/50"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-xs font-semibold text-gray-950">
+                    {item.businessReference} · {item.title}
+                  </span>
+                  <span className="block truncate text-[11px] text-gray-600">{item.reason}</span>
+                </span>
+                <span className="text-[11px] font-semibold text-red-700">
+                  {daysOverdue(item.dueAt)} dia{daysOverdue(item.dueAt) === 1 ? '' : 's'}
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       {page && page.unavailableDomains.length > 0 ? (
         <p
           role="status"

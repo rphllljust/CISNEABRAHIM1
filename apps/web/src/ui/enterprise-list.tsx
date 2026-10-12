@@ -132,7 +132,7 @@ export const enterpriseTableCardClass = 'mb-1 w-full min-w-0 max-w-full overflow
 export const enterpriseTableClass = 'w-full border-separate border-spacing-0';
 
 export const enterpriseHeadCellClass =
-  'sticky top-0 z-10 border-b border-gray-300 bg-gray-50 px-2 py-1 text-left text-[length:var(--type-micro-size)] font-semibold tracking-wide text-gray-600 uppercase';
+  'sticky top-0 z-10 border-b border-gray-300 bg-gray-100 px-2.5 py-1.5 text-left text-[length:var(--type-micro-size)] font-semibold tracking-wide text-gray-600 uppercase';
 
 export const enterpriseNumericHeadCellClass = cn(enterpriseHeadCellClass, 'text-right');
 
@@ -372,11 +372,14 @@ export function WorklistHeader({
   metrics?: ReactNode;
 }) {
   return (
-    <header className="cisne-divider--section mb-0 pb-1.5">
+    <header className="mb-2 border-y border-gray-200 bg-gray-50/80 px-3 py-2.5">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div className="min-w-0">
+          <p className="m-0 mb-0.5 text-[10px] font-semibold tracking-[0.16em] text-gray-500 uppercase">
+            Área de trabalho
+          </p>
           <div className="flex items-baseline gap-2">
-            <h1 className="cisne-type-workspace m-0">{title}</h1>
+            <h1 className="m-0 text-[1.2rem] leading-tight font-semibold tracking-tight text-gray-950">{title}</h1>
             {/*
               CONTAGEM DA PAGINA — o numero e o dado, nao um chip. Sem caixa contornada, o
               operador le "Clientes 20" como uma frase, e nao como um selo a decifrar.
@@ -417,7 +420,7 @@ export function WorklistFilterBar({
 }) {
   return (
     <section aria-label="Filtros da lista">
-      <div className="cisne-filter-surface">
+      <div className="cisne-filter-surface border-y border-gray-200 bg-white px-2 py-1">
         {children}
         <span className="hidden min-w-6 flex-1 sm:block" aria-hidden="true" />
         {meta ? <span className="cisne-type-helper ml-auto tabular-nums">{meta}</span> : null}
@@ -500,7 +503,7 @@ export function WorklistClearFilters({
  * nivel. Agora a grade nao tem caixa: ela e delimitada pelo divisor do cabecalho da grade e pela
  * regua estrutural, e a hierarquia vem do cabecalho sticky e do alinhamento numerico.
  */
-export const worklistTableCardClass = 'mb-1 w-full min-w-0 max-w-full overflow-x-auto bg-white';
+export const worklistTableCardClass = 'mb-2 w-full min-w-0 max-w-full overflow-x-auto border-y border-gray-200 bg-white';
 
 export const worklistTableClass = 'w-full border-separate border-spacing-0';
 
@@ -517,7 +520,7 @@ export const worklistHeadCellClass =
 export const worklistNumericHeadCellClass = cn(worklistHeadCellClass, 'text-right');
 
 export const worklistCellClass =
-  'relative h-[var(--row-height)] border-b border-gray-100 px-2 py-0.5 align-middle text-[length:var(--type-body-size)] text-gray-800';
+  'relative h-[var(--row-height)] border-b border-gray-100 px-2.5 py-1 align-middle text-[length:var(--type-body-size)] text-gray-800';
 
 export const worklistNumericCellClass = cn(
   worklistCellClass,
@@ -538,7 +541,7 @@ export const worklistGroupClass =
   'text-[length:var(--type-micro-size)] font-semibold tracking-widest text-gray-400';
 
 export const worklistRowClass =
-  'relative cursor-pointer transition-colors hover:bg-brand-50/40 data-[selected=true]:bg-brand-50';
+  'relative cursor-pointer transition-colors hover:bg-brand-50/60 data-[selected=true]:bg-brand-50 data-[selected=true]:shadow-[inset_3px_0_0_var(--color-brand-600)]';
 
 /**
  * Celula de ACOES: nunca herda o clique de navegacao da linha.
