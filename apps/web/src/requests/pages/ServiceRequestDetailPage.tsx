@@ -228,7 +228,7 @@ export function ServiceRequestDetailPage() {
     const notFound = state.phase === 'not_found';
 
     return (
-      <ModulePage>
+      <ModulePage layout="wide">
         <ModulePageHeader title="Solicitação de serviço" />
         <EnterpriseObjectPage
           breadcrumb={[
@@ -414,7 +414,7 @@ export function ServiceRequestDetailPage() {
   ];
 
   return (
-    <ModulePage>
+    <ModulePage layout="wide">
       <EnterpriseObjectPage
         breadcrumb={[
           { label: 'Solicitações', href: '/app/requests' },
