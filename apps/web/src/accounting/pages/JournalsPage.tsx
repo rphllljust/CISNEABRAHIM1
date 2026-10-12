@@ -222,7 +222,7 @@ function JournalListRoute() {
   const scopePending = !chartId || !periodId;
 
   return (
-    <ModulePage>
+    <ModulePage layout="wide">
       <WorklistHeader
         title="Lançamentos"
         count={page ? page.total : null}
@@ -534,7 +534,7 @@ function JournalDetailRoute({
   });
 
   return (
-    <ModulePage>
+    <ModulePage layout="wide">
       <WorklistHeader
         title="Lançamento"
         context="Detalhe do lançamento lido do servidor. Postar e estornar são decididos pelo backend."
