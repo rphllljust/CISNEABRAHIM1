@@ -26,7 +26,7 @@ import {
   matchesFilterGroup,
   type FilterGroup,
 } from '../../engine/DynamicFilterBuilder';
-import { listPayables, type FinanceTitlePage } from '../api/finance-api';
+import { getPayablesSummary, listPayables, type FinanceTitlePage, type FinanceTitleSummary } from '../api/finance-api';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import { FinanceStatusBadge } from '../components/FinanceStatusBadge';
 import { PAYABLES_ALLOWED_FILTERS, PAYABLES_BUILT_IN_VIEWS } from './finance-smart-list';
@@ -97,6 +97,14 @@ export function PayablesListPage() {
     loader,
     mapError: mapFinanceErrorToMessage,
   });
+  const summaryLoader = useCallback(
+    (signal?: AbortSignal) => getPayablesSummary({ status: statusForQuery || undefined }, signal),
+    [statusForQuery],
+  );
+  const { state: summaryState } = useBackofficeQuery<FinanceTitleSummary>({
+    loader: summaryLoader,
+    mapError: mapFinanceErrorToMessage,
+  });
 
   const sortAccessors = useMemo(
     () => ({
@@ -147,6 +155,7 @@ export function PayablesListPage() {
   }
 
   const page = state.data;
+  const summary = summaryState.phase === 'ready' ? summaryState.data : null;
   const pageItems = page.items;
   const agingFilter = smartList.filters.agingBucket ?? '';
   const pageCount = Math.max(1, page.totalPages);
@@ -157,12 +166,9 @@ export function PayablesListPage() {
     : pageItems;
 
   // Contadores reais derivados do payload carregado.
+  // Contagem da página fica apenas no rodapé; KPIs globais vêm do resumo autoritativo.
   const inFlight = pageItems.filter((item) => !['PAID', 'CANCELLED'].includes(item.status));
   const overdue = inFlight.filter((item) => item.status === 'OVERDUE');
-  const notOverdue = inFlight.filter((item) => item.status !== 'OVERDUE');
-  const aging90 = inFlight.filter((item) => item.agingBucket === '90_PLUS');
-  const overdueTotal = overdue.reduce((sum, item) => sum + Number(item.remainingBalance), 0);
-  const openTotal = notOverdue.reduce((sum, item) => sum + Number(item.remainingBalance), 0);
 
   /*
    * RECORTE EM DUAS CAMADAS, na ordem em que o operador as compôs:
