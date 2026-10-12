@@ -233,7 +233,7 @@ export function ClientDetailPage() {
     }
 
     return (
-      <ModulePage className="clients-page">
+      <ModulePage layout="wide" className="clients-page">
         <ModulePageHeader title="Cliente" />
         <EnterpriseObjectPage
           breadcrumb={CLIENT_BREADCRUMB}
@@ -280,7 +280,7 @@ export function ClientDetailPage() {
   });
 
   return (
-    <ModulePage className="clients-page">
+    <ModulePage layout="wide" className="clients-page">
       <EnterpriseObjectPage
         breadcrumb={[
           { label: 'Clientes', href: '/app/clients' },
