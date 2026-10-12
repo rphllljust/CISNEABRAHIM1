@@ -62,6 +62,16 @@ export type PayableListResponse = {
   totalPages: number;
 };
 
+export type PayableSummaryResponse = {
+  total: number;
+  openCount: number;
+  overdueCount: number;
+  dueCount: number;
+  paidCount: number;
+  aging90PlusCount: number;
+  amounts: Array<{ currencyCode: string; openAmount: string; overdueAmount: string; dueAmount: string }>;
+};
+
 function buildPayablePage(
   items: PayableDetailResponse[],
   limit: number,
@@ -267,6 +277,36 @@ export class PayablesAccessService implements FinancePayablePort {
       query.offset,
       page.total,
     );
+  }
+
+  async summary(
+    actor: IdentityAuthzContext,
+    query: { status?: string; q?: string; dueFrom?: string; dueTo?: string },
+  ): Promise<PayableSummaryResponse> {
+    await this.authz.assertPayableList(actor);
+    const grants = await this.authorizationRepository.findActiveGrants(
+      actor.identityId, AUTHZ_ACTIONS.FinancePayableList, AUTHZ_RESOURCE_TYPES.FinancePayable,
+    );
+    const scope = this.scopeEnforcement.buildFinancialTitleListFilter(grants);
+    if (scope.clause === 'FALSE') {
+      return { total: 0, openCount: 0, overdueCount: 0, dueCount: 0, paidCount: 0, aging90PlusCount: 0, amounts: [] };
+    }
+    const rows = await this.repository.summarize({
+      scopeClause: scope.clause, scopeParams: scope.params, status: query.status,
+      dueFrom: query.dueFrom, dueTo: query.dueTo, search: query.q,
+    });
+    return {
+      total: rows.reduce((sum, row) => sum + Number(row.total_count), 0),
+      openCount: rows.reduce((sum, row) => sum + Number(row.open_count), 0),
+      overdueCount: rows.reduce((sum, row) => sum + Number(row.overdue_count), 0),
+      dueCount: rows.reduce((sum, row) => sum + Number(row.due_count), 0),
+      paidCount: rows.reduce((sum, row) => sum + Number(row.paid_count), 0),
+      aging90PlusCount: rows.reduce((sum, row) => sum + Number(row.aging_90_plus_count), 0),
+      amounts: rows.map((row) => ({
+        currencyCode: row.currency_code, openAmount: row.open_amount,
+        overdueAmount: row.overdue_amount, dueAmount: row.due_amount,
+      })),
+    };
   }
 
   async aging(actor: IdentityAuthzContext, asOf?: Date) {

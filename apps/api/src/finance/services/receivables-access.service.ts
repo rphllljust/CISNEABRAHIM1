@@ -52,6 +52,15 @@ export type ReceivableListResponse = {
   totalPages: number;
 };
 
+export type ReceivableSummaryResponse = {
+  total: number;
+  openCount: number;
+  overdueCount: number;
+  dueCount: number;
+  paidCount: number;
+  amounts: Array<{ currencyCode: string; openAmount: string; overdueAmount: string; dueAmount: string }>;
+};
+
 function buildPage(items: ReceivableDetailResponse[], limit: number, offset: number, total: number): ReceivableListResponse {
   return { items, limit, offset, total, totalPages: limit > 0 ? Math.ceil(total / limit) : 0 };
 }
@@ -226,6 +235,35 @@ export class ReceivablesAccessService implements FinanceReceivablePort {
       query.offset,
       page.total,
     );
+  }
+
+  async summary(
+    actor: IdentityAuthzContext,
+    query: { status?: string; q?: string; dueFrom?: string; dueTo?: string },
+  ): Promise<ReceivableSummaryResponse> {
+    await this.authz.assertReceivableList(actor);
+    const grants = await this.authorizationRepository.findActiveGrants(
+      actor.identityId, AUTHZ_ACTIONS.FinanceReceivableList, AUTHZ_RESOURCE_TYPES.FinanceReceivable,
+    );
+    const scope = this.scopeEnforcement.buildFinancialTitleListFilter(grants);
+    if (scope.clause === 'FALSE') {
+      return { total: 0, openCount: 0, overdueCount: 0, dueCount: 0, paidCount: 0, amounts: [] };
+    }
+    const rows = await this.repository.summarize({
+      scopeClause: scope.clause, scopeParams: scope.params, status: query.status,
+      dueFrom: query.dueFrom, dueTo: query.dueTo, search: query.q,
+    });
+    return {
+      total: rows.reduce((sum, row) => sum + Number(row.total_count), 0),
+      openCount: rows.reduce((sum, row) => sum + Number(row.open_count), 0),
+      overdueCount: rows.reduce((sum, row) => sum + Number(row.overdue_count), 0),
+      dueCount: rows.reduce((sum, row) => sum + Number(row.due_count), 0),
+      paidCount: rows.reduce((sum, row) => sum + Number(row.paid_count), 0),
+      amounts: rows.map((row) => ({
+        currencyCode: row.currency_code, openAmount: row.open_amount,
+        overdueAmount: row.overdue_amount, dueAmount: row.due_amount,
+      })),
+    };
   }
 
   async getById(actor: IdentityAuthzContext, receivableId: string): Promise<ReceivableDetailResponse> {

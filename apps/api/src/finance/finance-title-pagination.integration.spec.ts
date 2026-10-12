@@ -382,4 +382,36 @@ describe('Finance title pagination and authorized scope (PostgreSQL integration)
     expect(receivables.items[0]!.unitId).toBe(UNIT_A);
     expect(payables.items[0]!.unitId).toBe(UNIT_A);
   });
+
+  it('aggregates title balances on the server under the authorized scope', async () => {
+    const actor = await seedUnitActor(UNIT_A);
+    const fixture = await seedFixtureActor();
+    await openReceivable(fixture.identityId, UNIT_A, '2020-01-01', 'AR-OVERDUE');
+    await openReceivable(fixture.identityId, UNIT_A, '2099-01-01', 'AR-DUE');
+    await openPayable(fixture.identityId, UNIT_A, '2020-01-01', 'AP-OVERDUE');
+    await openPayable(fixture.identityId, UNIT_A, '2099-01-01', 'AP-DUE');
+
+    const [receivables, payables] = await Promise.all([
+      receivablesAccess.summary(actor, {}),
+      payablesAccess.summary(actor, {}),
+    ]);
+    expect(receivables.total).toBe(2);
+    expect(receivables.openCount).toBe(2);
+    expect(receivables.overdueCount).toBe(1);
+    expect(receivables.dueCount).toBe(1);
+    expect(receivables.amounts).toHaveLength(1);
+    expect(receivables.amounts[0]!.currencyCode).toBe('BRL');
+    expect(Number(receivables.amounts[0]!.openAmount)).toBe(200);
+    expect(Number(receivables.amounts[0]!.overdueAmount)).toBe(100);
+    expect(Number(receivables.amounts[0]!.dueAmount)).toBe(100);
+
+    expect(payables.total).toBe(2);
+    expect(payables.openCount).toBe(2);
+    expect(payables.overdueCount).toBe(1);
+    expect(payables.dueCount).toBe(1);
+    expect(payables.aging90PlusCount).toBe(1);
+    expect(payables.amounts).toHaveLength(1);
+    expect(payables.amounts[0]!.currencyCode).toBe('BRL');
+    expect(Number(payables.amounts[0]!.openAmount)).toBe(200);
+  });
 });
