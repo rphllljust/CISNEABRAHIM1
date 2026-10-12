@@ -13,8 +13,6 @@ import { AuthModule } from '../auth/auth.module';
 import { AUTH_TEST_PASSWORD, applyAuthTestEnv } from '../auth/test/auth-test-env';
 import { normalizeLoginIdentifier } from '../auth/crypto/token-crypto';
 import { AuthorizationModule } from '../authorization/authorization.module';
-import { ApprovalMatrixAccessService } from '../authorization/services/approval-matrix-access.service';
-import { enableCriticalSodFor } from '../authorization/test/critical-sod-harness';
 import { AUTHZ_ACTIONS } from '../authorization/types/authz-actions';
 import { AUTHZ_RESOURCE_TYPES } from '../authorization/types/authz-resources';
 import { AUTHZ_SCOPES } from '../authorization/types/authz-scopes';
@@ -71,7 +69,6 @@ describe('Finance title pagination and authorized scope (PostgreSQL integration)
   let pool: Pool;
   let receivablesAccess: ReceivablesAccessService;
   let payablesAccess: PayablesAccessService;
-  let matrices: ApprovalMatrixAccessService;
   const testDatabaseUrl = process.env['TEST_DATABASE_URL'];
 
   beforeAll(async () => {
@@ -84,7 +81,6 @@ describe('Finance title pagination and authorized scope (PostgreSQL integration)
     }).compile();
     receivablesAccess = module.get(ReceivablesAccessService);
     payablesAccess = module.get(PayablesAccessService);
-    matrices = module.get(ApprovalMatrixAccessService);
     pool = new Pool({ connectionString: testDatabaseUrl });
   });
 
@@ -141,14 +137,6 @@ describe('Finance title pagination and authorized scope (PostgreSQL integration)
       }
     }
     return { identityId, sessionId: 'test-session' };
-  }
-
-  /**
-   * Ator com concessao GLOBAL sem ancora: le todo o escopo permitido.
-   * Serve de contraponto ao ator UNIT — o contraste entre os dois e a prova do escopo.
-   */
-  async function seedGlobalActor(): Promise<{ identityId: string; sessionId: string }> {
-    return seedUnitActor('', { receivable: true, payable: true });
   }
 
   /**
