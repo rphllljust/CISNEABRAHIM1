@@ -26,7 +26,7 @@ import {
   probeFiscalPeriodReadAccess,
   probeTaxReadAccess,
 } from '../fiscal/api/fiscal-api';
-import { probeAccountingReadAccess, probeFixedAssetReadAccess } from '../accounting/api/accounting-api';
+import { probeFixedAssetReadAccess } from '../accounting/api/accounting-api';
 import { probeProcurementReadAccess } from '../procurement/api/procurement-api';
 import { probeInventoryReadAccess } from '../inventory/api/inventory-api';
 import { probePayrollReadAccess } from '../payroll/api/payroll-api';
@@ -34,7 +34,7 @@ import { probeAccessAdminAccess } from '../access-admin/api/access-admin-api';
 import { useAuth } from '../auth/context/AuthProvider';
 import { isReleaseModuleEnabled } from '../release-scope/feature-flags';
 import { SHELL_NAV_ITEMS } from './nav-config';
-import { hasEntryRead, probeSurfaceAccess, resolveAuthorizedUnit, SURFACE_ACCESS_CONTRACT_VERSION } from './surface-access';
+import { hasEntryRead, probeExplicitCapability, probeSurfaceAccess, resolveAuthorizedUnit, SURFACE_ACCESS_CONTRACT_VERSION } from './surface-access';
 import type { NavAccessMap } from './types';
 
 type NavAccessState = {
@@ -530,7 +530,12 @@ export function useNavAccess(): NavAccessState {
 
         if (item.accessCheck === 'accounting-journal-read') {
           try {
-            nextAccess[item.id] = await probeAccountingReadAccess(controller.signal);
+            const result = await probeExplicitCapability(
+              ownerIdentityId,
+              'accounting:journal:read',
+              controller.signal,
+            );
+            nextAccess[item.id] = result.outcome === 'allowed';
           } catch {
             if (!cancelled) {
               nextAccess[item.id] = false;
