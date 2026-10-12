@@ -24,6 +24,13 @@ export class ReceivablesController {
     );
   }
 
+  @Get('summary')
+  summary(@CurrentAuth() auth: AccessTokenClaims, @Query() query: Record<string, unknown>) {
+    return this.receivablesAccess.summary(
+      { identityId: auth.sub, sessionId: auth.sid }, parseFinanceListQuery(query),
+    );
+  }
+
   @Get(':receivableId')
   getById(@CurrentAuth() auth: AccessTokenClaims, @Param('receivableId') receivableId: string) {
     return this.receivablesAccess.getById({ identityId: auth.sub, sessionId: auth.sid }, receivableId);
