@@ -53,6 +53,23 @@ export type PayrollCalculation = {
   idempotent: boolean;
 };
 
+export type PayrollPeriodPage = {
+  items: PayrollPeriod[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+export type EmploymentContractPage = {
+  items: EmploymentContract[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+
 /**
  * Resposta de POST /api/v1/payroll/events (espelha PayrollEventResponse do
  * backend em apps/api/src/payroll/serializers/payroll-response.serializer.ts).
@@ -126,6 +143,43 @@ export function mapPayrollErrorToMessage(code: string | undefined, status: numbe
  * fronteira do cliente: é o único ponto por onde passa dado do servidor, e assim nenhuma opção
  * inventada consegue entrar na busca do operador.
  */
+export async function listPayrollPeriods(
+  query: { unitId: string; status?: string; q?: string; page?: number; pageSize?: number },
+  signal?: AbortSignal,
+): Promise<PayrollPeriodPage> {
+  const params = new URLSearchParams({
+    unitId: query.unitId,
+    page: String(query.page ?? 0),
+    pageSize: String(query.pageSize ?? 20),
+  });
+  if (query.status) params.set('status', query.status);
+  if (query.q?.trim()) params.set('q', query.q.trim());
+  const page = await requestJson<PayrollPeriodPage>(
+    `/api/v1/payroll/periods?${params.toString()}`,
+    { method: 'GET', headers: authHeaders(), signal },
+  );
+  page.items.forEach(rememberPayrollPeriod);
+  return page;
+}
+
+export async function listEmploymentContracts(
+  query: { unitId: string; q?: string; page?: number; pageSize?: number },
+  signal?: AbortSignal,
+): Promise<EmploymentContractPage> {
+  const params = new URLSearchParams({
+    unitId: query.unitId,
+    page: String(query.page ?? 0),
+    pageSize: String(query.pageSize ?? 20),
+  });
+  if (query.q?.trim()) params.set('q', query.q.trim());
+  const page = await requestJson<EmploymentContractPage>(
+    `/api/v1/payroll/contracts?${params.toString()}`,
+    { method: 'GET', headers: authHeaders(), signal },
+  );
+  page.items.forEach(rememberEmploymentContract);
+  return page;
+}
+
 export async function getPayrollPeriod(
   periodId: string,
   unitId: string,
