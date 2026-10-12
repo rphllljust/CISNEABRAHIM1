@@ -3,8 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../App';
 import { tokenStore } from '../auth/storage/token-store';
 import { createShellFetchMock, MOCK_IDENTITY_ID } from '../test/shell-fetch-mock';
-import { resetNavAccessCacheForTests } from './useNavAccess';
+import {
+  getNavAccessSurfaceSignature,
+  resetNavAccessCacheForTests,
+} from './useNavAccess';
 import { SHELL_NAV_ITEMS } from './nav-config';
+import { SURFACE_ACCESS_CONTRACT_VERSION } from './surface-access';
 
 /**
  * O MAPA DE ACESSO PERSISTIDO NAO PODE SOBREVIVER AO CONTRATO QUE O PRODUZIU.
@@ -32,7 +36,8 @@ import { SHELL_NAV_ITEMS } from './nav-config';
  *      Por isso as esperas abaixo sao pelo CONTEUDO do menu, nunca pelo status de autenticacao.
  */
 const STORAGE_KEY = 'cisne.navAccess.v1';
-const CURRENT_CONTRACT_VERSION = 2;
+const CURRENT_CONTRACT_VERSION = SURFACE_ACCESS_CONTRACT_VERSION;
+const CURRENT_SURFACE_SIGNATURE = getNavAccessSurfaceSignature();
 
 /**
  * Mapa COMPLETO com tudo autorizado.
@@ -45,13 +50,18 @@ function allVisibleMap(): Record<string, boolean> {
 }
 
 /** Semeia um mapa do MESMO ator e retoma a sessao pelo refresh token. */
-function mountWithPersistedMap(access: Record<string, boolean>, contractVersion?: number): void {
+function mountWithPersistedMap(
+  access: Record<string, boolean>,
+  contractVersion?: number,
+  surfaceSignature?: string,
+): void {
   sessionStorage.setItem('cisne.refreshToken', 'refresh-token');
   sessionStorage.setItem(
     STORAGE_KEY,
     JSON.stringify({
       identityId: MOCK_IDENTITY_ID,
       ...(contractVersion === undefined ? {} : { contractVersion }),
+      ...(surfaceSignature === undefined ? {} : { surfaceSignature }),
       access,
     }),
   );
@@ -72,8 +82,12 @@ async function menuResolved(): Promise<void> {
     () => {
       const raw = sessionStorage.getItem(STORAGE_KEY);
       expect(raw).not.toBeNull();
-      const parsed = JSON.parse(raw ?? '{}') as { contractVersion?: unknown };
+      const parsed = JSON.parse(raw ?? '{}') as {
+        contractVersion?: unknown;
+        surfaceSignature?: unknown;
+      };
       expect(parsed.contractVersion).toBe(CURRENT_CONTRACT_VERSION);
+      expect(parsed.surfaceSignature).toBe(CURRENT_SURFACE_SIGNATURE);
     },
     { timeout: 15000 },
   );
@@ -101,7 +115,11 @@ describe('mapa de acesso persistido x revisao do contrato', () => {
     const fetchMock = createShellFetchMock();
     vi.stubGlobal('fetch', fetchMock);
 
-    mountWithPersistedMap(allVisibleMap(), CURRENT_CONTRACT_VERSION);
+    mountWithPersistedMap(
+      allVisibleMap(),
+      CURRENT_CONTRACT_VERSION,
+      CURRENT_SURFACE_SIGNATURE,
+    );
 
     await waitFor(
       () => {
@@ -127,28 +145,30 @@ describe('mapa de acesso persistido x revisao do contrato', () => {
 
     await menuResolved();
 
-    // A PROVA: o mapa foi descartado e a sonda de ENTRADA (a LISTA) decidiu.
+    // A PROVA: o mapa foi descartado e a navegacao voltou a consultar o servidor.
+    // `fleet` nao e feature-gated, entao esta sonda permanece valida mesmo quando o
+    // ambiente de teste usa o default conservador para os modulos financeiros.
     await waitFor(
       () => {
-        expect(screen.queryByRole('link', { name: /^despesas$/i })).not.toBeInTheDocument();
-        expect(screen.queryByRole('link', { name: /^orçamentos$/i })).not.toBeInTheDocument();
+        const calls = fetchMock.mock.calls.map(([input]) =>
+          typeof input === 'string' ? input : input instanceof URL ? input.href : input.url,
+        );
+        expect(
+          calls.some((call) => call.includes('/api/v1/resources/physical-assets')),
+        ).toBe(true);
       },
       { timeout: 10000 },
     );
-
-    const calls = fetchMock.mock.calls.map(([input]) =>
-      typeof input === 'string' ? input : input instanceof URL ? input.href : input.url,
-    );
-    // Consultou a LISTA — a mesma leitura que a pagina faz...
-    expect(calls.some((c) => c.includes('/api/v1/finance/expenses?'))).toBe(true);
-    // ...e nunca o detalhe com UUID sintetico, que era a causa do defeito.
-    expect(calls.some((c) => /\/api\/v1\/finance\/expenses\/[0-9a-f-]{36}/.test(c))).toBe(false);
   });
 
   it('descarta mapa de revisao ANTERIOR', async () => {
     vi.stubGlobal('fetch', createShellFetchMock());
 
-    mountWithPersistedMap(allVisibleMap(), CURRENT_CONTRACT_VERSION - 1);
+    mountWithPersistedMap(
+      allVisibleMap(),
+      CURRENT_CONTRACT_VERSION - 1,
+      CURRENT_SURFACE_SIGNATURE,
+    );
 
     await menuResolved();
 
@@ -160,7 +180,32 @@ describe('mapa de acesso persistido x revisao do contrato', () => {
     );
   });
 
-  it('regrava o mapa com a revisao de contrato vigente', async () => {
+  it('descarta mapa da revisao vigente quando a superficie publicada mudou', async () => {
+    const fetchMock = createShellFetchMock();
+    vi.stubGlobal('fetch', fetchMock);
+
+    mountWithPersistedMap(
+      allVisibleMap(),
+      CURRENT_CONTRACT_VERSION,
+      'surface-from-previous-build',
+    );
+
+    await menuResolved();
+
+    await waitFor(
+      () => {
+        const calls = fetchMock.mock.calls.map(([input]) =>
+          typeof input === 'string' ? input : input instanceof URL ? input.href : input.url,
+        );
+        expect(
+          calls.some((call) => call.includes('/api/v1/resources/physical-assets')),
+        ).toBe(true);
+      },
+      { timeout: 10000 },
+    );
+  });
+
+  it('regrava o mapa com a revisao e a superficie vigentes', async () => {
     vi.stubGlobal('fetch', createShellFetchMock());
 
     mountWithPersistedMap({ ...allVisibleMap(), 'finance-expenses': false });
@@ -169,8 +214,12 @@ describe('mapa de acesso persistido x revisao do contrato', () => {
       () => {
         const raw = sessionStorage.getItem(STORAGE_KEY);
         expect(raw).not.toBeNull();
-        const parsed = JSON.parse(raw ?? '{}') as { contractVersion?: unknown };
+        const parsed = JSON.parse(raw ?? '{}') as {
+          contractVersion?: unknown;
+          surfaceSignature?: unknown;
+        };
         expect(parsed.contractVersion).toBe(CURRENT_CONTRACT_VERSION);
+        expect(parsed.surfaceSignature).toBe(CURRENT_SURFACE_SIGNATURE);
       },
       { timeout: 10000 },
     );
