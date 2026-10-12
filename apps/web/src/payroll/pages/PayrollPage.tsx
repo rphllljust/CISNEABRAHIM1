@@ -431,7 +431,14 @@ export function PayrollPage() {
             required
             hint="Busque por código ou nome do contrato."
             placeholder="Código ou nome do contrato"
-            search={(term) => Promise.resolve(searchEmploymentContractOptions(term))}
+            search={async (term, signal) => {
+              if (!unitId.trim()) return [];
+              await listEmploymentContracts(
+                { unitId: unitId.trim(), q: term, page: 0, pageSize: 20 },
+                signal,
+              );
+              return searchEmploymentContractOptions(term, unitId.trim());
+            }}
             value={contractId}
             onChange={setContractId}
             emptyOptionLabel="Selecione o contrato"
