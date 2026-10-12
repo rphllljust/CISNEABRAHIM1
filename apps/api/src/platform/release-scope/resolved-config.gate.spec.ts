@@ -30,6 +30,7 @@ import { describe, expect, it } from 'vitest';
 
 const REPO_ROOT = resolve(__dirname, '../../../../..');
 const GATE = resolve(REPO_ROOT, 'scripts/hml/verify-resolved-config.mjs');
+const TEST_ENV_FILE = '.env.hml.example';
 
 /** Ambiente hostil: diverge da política em ambas as direções. */
 const CONTAMINATED_ENV = {
@@ -45,7 +46,7 @@ function runGate(extraEnv: Record<string, string> = {}, extraArgs: string[] = []
   // `shell: false` é obrigatório no Windows: com shell, o caminho do Node
   // (`C:\Program Files\nodejs\node.exe`) é quebrado no espaço e o shell tenta executar
   // `C:\Program` — erro de ambiente que nada tem a ver com a configuração sendo testada.
-  const result = spawnSync(process.execPath, [GATE, ...extraArgs], {
+  const result = spawnSync(process.execPath, [GATE, '--env-file', TEST_ENV_FILE, ...extraArgs], {
     cwd: REPO_ROOT,
     encoding: 'utf8',
     shell: false,
@@ -76,7 +77,7 @@ describe('ambiente host contaminado — HML permanece determinístico', () => {
       ),
     );
 
-    const result = spawnSync(process.execPath, [GATE], {
+    const result = spawnSync(process.execPath, [GATE, '--env-file', TEST_ENV_FILE], {
       cwd: REPO_ROOT,
       encoding: 'utf8',
       shell: false,
