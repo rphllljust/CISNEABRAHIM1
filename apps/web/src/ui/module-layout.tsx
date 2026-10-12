@@ -165,7 +165,7 @@ export function ModulePageHeader({
   description?: string;
   action?: ReactNode;
 }) {
-  return <PageHeader title={title} description={description} actions={action} className="mb-8" />;
+  return <PageHeader title={title} description={description} actions={action} />;
 }
 
 /**
