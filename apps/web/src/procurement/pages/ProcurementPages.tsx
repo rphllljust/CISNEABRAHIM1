@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { EmptyState, Field, Input, Money, worklistTableCardClass } from '../../ui';
-import { ModulePage, ModulePrimaryLink, ModuleTableLink } from '../../ui/module-layout';
+import { ModulePage, ModulePagination, ModulePrimaryLink, ModuleTableLink } from '../../ui/module-layout';
 import {
   WorklistClearFilters,
   WorklistField,
   WorklistFilterBar,
+  WorklistFooter,
   WorklistHeader,
   worklistCellClass,
   worklistCellRaisedClass,
@@ -112,31 +113,58 @@ function ProcurementLists() {
   });
   const [term, setTerm] = useState('');
   const [appliedTerm, setAppliedTerm] = useState('');
+  const [offsets, setOffsets] = useState({ requests: 0, orders: 0, invoices: 0 });
 
   useEffect(() => {
     const controller = new AbortController();
-    setState({
-      requests: { phase: 'loading' },
-      orders: { phase: 'loading' },
-      invoices: { phase: 'loading' },
-    });
-    const query = { limit: LIST_PAGE_SIZE, offset: 0, q: appliedTerm || undefined };
-
-    void listPurchaseRequests(query, controller.signal).then(
-      (response) => setState((current) => ({ ...current, requests: { phase: 'ready', items: response.items, total: response.total } })),
+    setState((current) => ({ ...current, requests: { phase: 'loading' } }));
+    void listPurchaseRequests(
+      { limit: LIST_PAGE_SIZE, offset: offsets.requests, q: appliedTerm || undefined },
+      controller.signal,
+    ).then(
+      (response) =>
+        setState((current) => ({
+          ...current,
+          requests: { phase: 'ready', items: response.items, total: response.total },
+        })),
       () => setState((current) => ({ ...current, requests: { phase: 'denied' } })),
     );
-    void listSupplierPurchaseOrders(query, controller.signal).then(
-      (response) => setState((current) => ({ ...current, orders: { phase: 'ready', items: response.items, total: response.total } })),
+    return () => controller.abort();
+  }, [appliedTerm, offsets.requests]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setState((current) => ({ ...current, orders: { phase: 'loading' } }));
+    void listSupplierPurchaseOrders(
+      { limit: LIST_PAGE_SIZE, offset: offsets.orders, q: appliedTerm || undefined },
+      controller.signal,
+    ).then(
+      (response) =>
+        setState((current) => ({
+          ...current,
+          orders: { phase: 'ready', items: response.items, total: response.total },
+        })),
       () => setState((current) => ({ ...current, orders: { phase: 'denied' } })),
     );
-    void listSupplierInvoices(query, controller.signal).then(
-      (response) => setState((current) => ({ ...current, invoices: { phase: 'ready', items: response.items, total: response.total } })),
+    return () => controller.abort();
+  }, [appliedTerm, offsets.orders]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setState((current) => ({ ...current, invoices: { phase: 'loading' } }));
+    void listSupplierInvoices(
+      { limit: LIST_PAGE_SIZE, offset: offsets.invoices, q: appliedTerm || undefined },
+      controller.signal,
+    ).then(
+      (response) =>
+        setState((current) => ({
+          ...current,
+          invoices: { phase: 'ready', items: response.items, total: response.total },
+        })),
       () => setState((current) => ({ ...current, invoices: { phase: 'denied' } })),
     );
-
     return () => controller.abort();
-  }, [appliedTerm]);
+  }, [appliedTerm, offsets.invoices]);
 
   return (
     <>
@@ -145,6 +173,7 @@ function ProcurementLists() {
           className="flex flex-wrap items-center gap-2"
           onSubmit={(event) => {
             event.preventDefault();
+            setOffsets({ requests: 0, orders: 0, invoices: 0 });
             setAppliedTerm(term.trim());
           }}
         >
@@ -169,6 +198,7 @@ function ProcurementLists() {
             label="Limpar busca"
             onClick={() => {
               setTerm('');
+              setOffsets({ requests: 0, orders: 0, invoices: 0 });
               setAppliedTerm('');
             }}
           />
@@ -216,9 +246,32 @@ function ProcurementLists() {
               : null}
           </tbody>
         </table>
-        <div className="border-t border-gray-200 px-3 py-2 text-[11px] text-gray-500 tabular-nums" role="status">
-          {state.requests.phase === 'ready' ? `${state.requests.total} registro(s) no recorte` : 'Carregando solicitações…'}
-        </div>
+        <WorklistFooter
+          rangeLabel={
+            state.requests.phase === 'ready'
+              ? state.requests.total === 0
+                ? '0 solicitações no recorte'
+                : `${offsets.requests + 1}–${Math.min(offsets.requests + state.requests.items.length, state.requests.total)} de ${state.requests.total} solicitações`
+              : 'Carregando solicitações…'
+          }
+        >
+          {state.requests.phase === 'ready' && state.requests.total > LIST_PAGE_SIZE ? (
+            <ModulePagination
+              pageNumber={Math.floor(offsets.requests / LIST_PAGE_SIZE) + 1}
+              previousDisabled={offsets.requests === 0}
+              nextDisabled={offsets.requests + state.requests.items.length >= state.requests.total}
+              onPrevious={() =>
+                setOffsets((current) => ({
+                  ...current,
+                  requests: Math.max(0, current.requests - LIST_PAGE_SIZE),
+                }))
+              }
+              onNext={() =>
+                setOffsets((current) => ({ ...current, requests: current.requests + LIST_PAGE_SIZE }))
+              }
+            />
+          ) : null}
+        </WorklistFooter>
       </div>
 
       <div className={worklistTableCardClass}>
@@ -267,9 +320,32 @@ function ProcurementLists() {
               : null}
           </tbody>
         </table>
-        <div className="border-t border-gray-200 px-3 py-2 text-[11px] text-gray-500 tabular-nums" role="status">
-          {state.orders.phase === 'ready' ? `${state.orders.total} registro(s) no recorte` : 'Carregando pedidos…'}
-        </div>
+        <WorklistFooter
+          rangeLabel={
+            state.orders.phase === 'ready'
+              ? state.orders.total === 0
+                ? '0 pedidos no recorte'
+                : `${offsets.orders + 1}–${Math.min(offsets.orders + state.orders.items.length, state.orders.total)} de ${state.orders.total} pedidos`
+              : 'Carregando pedidos…'
+          }
+        >
+          {state.orders.phase === 'ready' && state.orders.total > LIST_PAGE_SIZE ? (
+            <ModulePagination
+              pageNumber={Math.floor(offsets.orders / LIST_PAGE_SIZE) + 1}
+              previousDisabled={offsets.orders === 0}
+              nextDisabled={offsets.orders + state.orders.items.length >= state.orders.total}
+              onPrevious={() =>
+                setOffsets((current) => ({
+                  ...current,
+                  orders: Math.max(0, current.orders - LIST_PAGE_SIZE),
+                }))
+              }
+              onNext={() =>
+                setOffsets((current) => ({ ...current, orders: current.orders + LIST_PAGE_SIZE }))
+              }
+            />
+          ) : null}
+        </WorklistFooter>
       </div>
 
       <div className={worklistTableCardClass}>
@@ -317,9 +393,32 @@ function ProcurementLists() {
               : null}
           </tbody>
         </table>
-        <div className="border-t border-gray-200 px-3 py-2 text-[11px] text-gray-500 tabular-nums" role="status">
-          {state.invoices.phase === 'ready' ? `${state.invoices.total} registro(s) no recorte` : 'Carregando notas…'}
-        </div>
+        <WorklistFooter
+          rangeLabel={
+            state.invoices.phase === 'ready'
+              ? state.invoices.total === 0
+                ? '0 notas no recorte'
+                : `${offsets.invoices + 1}–${Math.min(offsets.invoices + state.invoices.items.length, state.invoices.total)} de ${state.invoices.total} notas`
+              : 'Carregando notas…'
+          }
+        >
+          {state.invoices.phase === 'ready' && state.invoices.total > LIST_PAGE_SIZE ? (
+            <ModulePagination
+              pageNumber={Math.floor(offsets.invoices / LIST_PAGE_SIZE) + 1}
+              previousDisabled={offsets.invoices === 0}
+              nextDisabled={offsets.invoices + state.invoices.items.length >= state.invoices.total}
+              onPrevious={() =>
+                setOffsets((current) => ({
+                  ...current,
+                  invoices: Math.max(0, current.invoices - LIST_PAGE_SIZE),
+                }))
+              }
+              onNext={() =>
+                setOffsets((current) => ({ ...current, invoices: current.invoices + LIST_PAGE_SIZE }))
+              }
+            />
+          ) : null}
+        </WorklistFooter>
       </div>
     </>
   );

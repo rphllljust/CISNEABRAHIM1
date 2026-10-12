@@ -2,7 +2,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetTokenStoreForTests, tokenStore } from '../../auth/storage/token-store';
-import { createProcurementFetchMock } from '../../test/procurement-fetch-mock';
+import { createProcurementFetchMock, PROCUREMENT_TEST_DATA } from '../../test/procurement-fetch-mock';
 import { requestUrl } from '../../test/request-url';
 import { renderWithProviders } from '../../test/render-with-providers';
 import { ProcurementHubPage } from './ProcurementPages';
@@ -60,6 +60,52 @@ describe('ProcurementHubPage', () => {
       expect(urls.some((url) => url.includes('/procurement/orders') && url.includes('q=Manutencao'))).toBe(true);
       expect(urls.some((url) => url.includes('/supplier-invoices') && url.includes('q=Manutencao'))).toBe(true);
     });
+  });
+
+  it('paginates purchase requests with the server offset without moving the other queues', async () => {
+    const baseFetch = createProcurementFetchMock();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input);
+      if (url.includes('/procurement/requests')) {
+        const parsed = new URL(url, 'http://127.0.0.1');
+        const offset = Number(parsed.searchParams.get('offset') ?? '0');
+        return new Response(
+          JSON.stringify({
+            items: [PROCUREMENT_TEST_DATA.REQUESTS[0]],
+            limit: 20,
+            offset,
+            total: 21,
+            totalPages: 2,
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      return baseFetch(input, init);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+
+    renderWithProviders(<ProcurementHubPage />);
+    await waitFor(() => {
+      expect(screen.getByText('1–1 de 21 solicitações')).toBeInTheDocument();
+    });
+
+    const nextButtons = screen.getAllByRole('button', { name: 'Próxima página' });
+    await user.click(nextButtons[0]!);
+
+    await waitFor(() => {
+      const urls = fetchMock.mock.calls.map((call) => requestUrl(call[0]));
+      expect(
+        urls.some(
+          (url) =>
+            url.includes('/procurement/requests') &&
+            url.includes('limit=20') &&
+            url.includes('offset=20'),
+        ),
+      ).toBe(true);
+    });
+    expect(screen.getByRole('link', { name: 'Alfa Insumos' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'NF-1001' })).toBeInTheDocument();
   });
 
   it('states the refusal per list when the server denies the list grant', async () => {
