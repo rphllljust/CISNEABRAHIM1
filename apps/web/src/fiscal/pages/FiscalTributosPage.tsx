@@ -128,7 +128,7 @@ function TaxRulesList() {
   const withoutPublishedVersion = items.filter((item) => !item.publishedVersion).length;
 
   return (
-    <ModulePage>
+    <ModulePage layout="wide">
       <WorklistHeader
         title="Tributos"
         count={total}
@@ -409,7 +409,7 @@ function TaxRuleDetail({ taxRuleId }: { taxRuleId: string }) {
   );
 
   return (
-    <ModulePage>
+    <ModulePage layout="wide">
       <WorklistHeader
         title="Regra tributária"
         context="Consulta regras versionadas já persistidas. Alíquotas oficiais não são inventadas nesta interface."
