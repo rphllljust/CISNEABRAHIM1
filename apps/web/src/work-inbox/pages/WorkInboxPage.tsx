@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useOptionalIdentityId } from '../../auth/context/AuthProvider';
-import { DynamicContextDrawer, DynamicSavedViewsBar, useSavedViews, type SavedView } from '../../engine';
+import {
+  DynamicContextDrawer,
+  DynamicFilterBuilder,
+  DynamicKpiDrilldown,
+  DynamicSavedViewsBar,
+  useSavedViews,
+  type FilterGroup,
+  type SavedView,
+} from '../../engine';
 import { Button } from '../../ui/Button';
 import { ModulePage } from '../../ui/module-layout';
 import {
@@ -27,6 +35,7 @@ import {
   workbenchPrimaryActionClass,
 } from '../../ui/workbench';
 import { cn } from '../../ui/utils/cn';
+import type { MetaField } from '../../engine/types';
 import {
   WORK_DOMAIN_LABELS,
   WORK_DOMAINS,
@@ -60,6 +69,61 @@ import {
  */
 
 const DEFAULT_LIMIT = 25;
+
+const WORK_INBOX_ADVANCED_FIELDS: MetaField[] = [
+  {
+    name: 'domain',
+    label: 'Domínio',
+    type: 'select',
+    required: false,
+    in_list: true,
+    in_filter: true,
+    sortable: false,
+    readonly: true,
+    options: {
+      options: WORK_DOMAINS.map((value) => ({ value, label: WORK_DOMAIN_LABELS[value] })),
+    },
+  },
+  {
+    name: 'kind',
+    label: 'Natureza',
+    type: 'select',
+    required: false,
+    in_list: true,
+    in_filter: true,
+    sortable: false,
+    readonly: true,
+    options: {
+      options: WORK_KINDS.map((value) => ({ value, label: WORK_KIND_LABELS[value] })),
+    },
+  },
+  {
+    name: 'unitId',
+    label: 'Unidade',
+    type: 'text',
+    required: false,
+    in_list: true,
+    in_filter: true,
+    sortable: false,
+    readonly: true,
+  },
+];
+
+function emptyAdvancedFilter(): FilterGroup {
+  return { op: 'AND', rules: [], groups: [] };
+}
+
+function advancedFilterFromParams(
+  domain: WorkDomain | null,
+  kind: WorkKind | null,
+  unitId: string | null,
+): FilterGroup {
+  const rules: FilterGroup['rules'] = [];
+  if (domain) rules.push({ field: 'domain', op: '=', value: domain });
+  if (kind) rules.push({ field: 'kind', op: '=', value: kind });
+  if (unitId) rules.push({ field: 'unitId', op: '=', value: unitId });
+  return { op: 'AND', rules, groups: [] };
+}
 
 function parseDomain(value: string | null): WorkDomain | null {
   return WORK_DOMAINS.find((candidate) => candidate === value) ?? null;
@@ -119,6 +183,10 @@ export function WorkInboxPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selected, setSelected] = useState<WorkItem | null>(null);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
+  const [advancedFilter, setAdvancedFilter] = useState<FilterGroup>(() =>
+    advancedFilterFromParams(domain, kind, unitId),
+  );
 
   const filters = useMemo(
     () => ({ domain, kind, overdue, unitId, limit: DEFAULT_LIMIT, offset }),
@@ -217,6 +285,27 @@ export function WorkInboxPage() {
     setSearchParams(new URLSearchParams(), { replace: true });
   }, [setSearchParams]);
 
+  useEffect(() => {
+    setAdvancedFilter(advancedFilterFromParams(domain, kind, unitId));
+  }, [domain, kind, unitId]);
+
+  const applyAdvancedFilter = useCallback(() => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('domain');
+    next.delete('kind');
+    next.delete('unitId');
+    next.delete('offset');
+
+    for (const rule of advancedFilter.rules) {
+      if (rule.op !== '=' || !rule.value.trim()) continue;
+      if (rule.field === 'domain' && parseDomain(rule.value)) next.set('domain', rule.value);
+      if (rule.field === 'kind' && parseKind(rule.value)) next.set('kind', rule.value);
+      if (rule.field === 'unitId') next.set('unitId', rule.value.trim());
+    }
+    setSearchParams(next, { replace: true });
+    setAdvancedFiltersOpen(false);
+  }, [advancedFilter.rules, searchParams, setSearchParams]);
+
   if (phase === 'denied') {
     return (
       <ModulePage layout="workspace">
@@ -287,6 +376,45 @@ export function WorkInboxPage() {
         persistable={savedViews.persistable}
       />
 
+      <div className="mb-2 flex items-center justify-between gap-2 border-b border-gray-200 pb-1.5">
+        <div>
+          <p className="cisne-meta-label m-0">Consulta governada</p>
+          <p className="cisne-type-helper m-0">
+            O recorte permanece na URL e a consulta continua sendo executada pelo servidor.
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="secondary"
+          aria-expanded={advancedFiltersOpen}
+          onClick={() => setAdvancedFiltersOpen((current) => !current)}
+        >
+          {advancedFiltersOpen ? 'Fechar filtros avançados' : 'Filtros avançados'}
+        </Button>
+      </div>
+
+      {advancedFiltersOpen ? (
+        <div className="cisne-divider mb-2 pb-2">
+          <DynamicFilterBuilder
+            fields={WORK_INBOX_ADVANCED_FIELDS}
+            value={advancedFilter}
+            onChange={setAdvancedFilter}
+          />
+          <div className="mt-1.5 flex items-center gap-1.5">
+            <Button type="button" onClick={applyAdvancedFilter}>
+              Aplicar recorte
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setAdvancedFilter(emptyAdvancedFilter())}
+            >
+              Limpar construtor
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       {page && page.unavailableDomains.length > 0 ? (
         <p
           role="status"
@@ -313,6 +441,33 @@ export function WorkInboxPage() {
             href={overdueHref}
           />
         </WorkbenchSummaryStrip>
+      ) : null}
+
+      {phase === 'ready' && page ? (
+        <DynamicKpiDrilldown
+          metrics={[
+            {
+              id: 'all-work',
+              label: 'Todo o trabalho',
+              value: page.total,
+              filterField: 'domain',
+              filterValue: '',
+              tone: 'neutral',
+            },
+            ...WORK_DOMAINS.filter((candidate) => page.byDomain[candidate] > 0).map((candidate) => ({
+              id: `domain-${candidate}`,
+              label: WORK_DOMAIN_LABELS[candidate],
+              value: page.byDomain[candidate],
+              filterField: 'domain',
+              filterValue: candidate,
+              tone: candidate === domain ? ('info' as const) : ('neutral' as const),
+            })),
+          ]}
+          activeFilters={{ domain: domain ?? '' }}
+          onDrilldown={(field, value) => {
+            if (field === 'domain') updateParam('domain', value || null);
+          }}
+        />
       ) : null}
 
       {/* AGORA — contagem real por dominio, do MESMO conjunto que a fila exibe. Clicar aplica
