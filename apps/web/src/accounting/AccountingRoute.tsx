@@ -2,7 +2,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/context/AuthProvider';
 import { BackofficeApiError } from '../financial-ui/enterprise-api';
-import { probeAccountingReadAccess, probeFixedAssetReadAccess } from './api/accounting-api';
+import { probeFixedAssetReadAccess } from './api/accounting-api';
+import { probeSurfaceAccess, resolveAuthorizedUnit } from '../shell/surface-access';
 
 type AccountingRouteAccess = 'journals' | 'fixed-assets';
 
@@ -10,16 +11,16 @@ const ACCOUNTING_ACCESS: Record<
   AccountingRouteAccess,
   {
     capabilityId: string;
-    probe: (signal?: AbortSignal) => Promise<boolean>;
+    accessCheck: string;
   }
 > = {
   journals: {
     capabilityId: 'accounting:journal:read',
-    probe: probeAccountingReadAccess,
+    accessCheck: 'accounting-journal-read',
   },
   'fixed-assets': {
     capabilityId: 'accounting:fixed-asset:read',
-    probe: probeFixedAssetReadAccess,
+    accessCheck: 'accounting-fixed-asset-read',
   },
 };
 
@@ -31,50 +32,79 @@ export function AccountingRoute({
   access?: AccountingRouteAccess;
 }) {
   const location = useLocation();
-  const { expireSession } = useAuth();
+  const { expireSession, identityId } = useAuth();
   const [state, setState] = useState<'loading' | 'allowed' | 'denied' | 'session_expired'>('loading');
-  const accessPolicy = ACCOUNTING_ACCESS[access];
-
-  /*
-   * LOOP DE PROBE (P0) — a sonda de acesso disparava a cada render.
-   *
-   * `accessPolicy` e um elemento de `ACCOUNTING_ACCESS`, mas o objeto em si e recriado a cada
-   * render do modulo. Como ele estava na lista de dependencias, cada `setState` produzia uma
-   * referencia nova, o efeito rodava de novo e a tela ficava chamando
-   * `/accounting/charts/<id>` em ciclo — sem nunca estabilizar. O 404 e a resposta CORRETA do
-   * probe (recurso inexistente com leitura autorizada), mas repetido dezenas de vezes por
-   * segundo polui o console e martela a API.
-   *
-   * Depender dos VALORES usados dentro do efeito (`access`, `expireSession`, rota) mantem a
-   * semantica — revalidar ao trocar de rota e ao expirar sessao — sem o ciclo.
-   */
-  const { probe, capabilityId } = accessPolicy;
+  const policy = ACCOUNTING_ACCESS[access];
 
   useEffect(() => {
     const controller = new AbortController();
     let cancelled = false;
-    void probe(controller.signal)
-      .then((allowed) => {
+
+    async function resolveAccess() {
+      if (!identityId) {
+        if (!cancelled) {
+          setState('denied');
+        }
+        return;
+      }
+
+      try {
+        /*
+         * Plano/lançamentos entram pela lista real de planos da unidade.
+         * O probe antigo consultava um chart sintético e podia receber 403 antes de
+         * alcançar a leitura que a própria tela usa.
+         *
+         * Ativo imobilizado não possui listagem de entrada sem um ativo concreto;
+         * por isso mantém a sonda de capability já existente.
+         */
+        let allowed = false;
+        if (access === 'fixed-assets') {
+          allowed = await probeFixedAssetReadAccess(controller.signal);
+        } else {
+          const unitId = await resolveAuthorizedUnit(identityId, controller.signal);
+          if (cancelled) {
+            return;
+          }
+          const result = await probeSurfaceAccess(
+            policy.accessCheck,
+            unitId,
+            controller.signal,
+          );
+          allowed = result.outcome === 'allowed';
+        }
+
         if (!cancelled) {
           setState(allowed ? 'allowed' : 'denied');
         }
-      })
-      .catch((error: unknown) => {
+      } catch (error: unknown) {
         if (cancelled) {
           return;
         }
-        if (error instanceof BackofficeApiError && error.status === 401) {
+        if (
+          (error instanceof Error && error.message === 'session_expired') ||
+          (error instanceof BackofficeApiError && error.status === 401)
+        ) {
           expireSession();
           setState('session_expired');
           return;
         }
         setState('denied');
-      });
+      }
+    }
+
+    void resolveAccess();
+
     return () => {
       cancelled = true;
       controller.abort();
     };
-  }, [probe, expireSession, location.pathname]);
+  }, [
+    access,
+    expireSession,
+    identityId,
+    location.pathname,
+    policy.accessCheck,
+  ]);
 
   if (state === 'loading') {
     return (
@@ -91,7 +121,7 @@ export function AccountingRoute({
       <Navigate
         to="/app/no-access"
         replace
-        state={{ from: location.pathname, capabilityId }}
+        state={{ from: location.pathname, capabilityId: policy.capabilityId }}
       />
     );
   }
