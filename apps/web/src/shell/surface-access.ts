@@ -66,7 +66,7 @@ const enc = encodeURIComponent;
  * `probeEntry` (o que autoriza, o que nega) EXIGE incrementar esta revisão. Mapa persistido com
  * revisão diferente é DESCARTADO e o menu é resolvido de novo pela rede.
  */
-export const SURFACE_ACCESS_CONTRACT_VERSION = 6;
+export const SURFACE_ACCESS_CONTRACT_VERSION = 7;
 
 /** Operação de leitura que representa entrar no módulo. `null` = superfície sem leitura própria. */
 export type SurfaceEntryRead = (unitId: string) => string | null;
