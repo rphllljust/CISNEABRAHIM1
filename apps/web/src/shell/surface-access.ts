@@ -66,7 +66,7 @@ const enc = encodeURIComponent;
  * `probeEntry` (o que autoriza, o que nega) EXIGE incrementar esta revisão. Mapa persistido com
  * revisão diferente é DESCARTADO e o menu é resolvido de novo pela rede.
  */
-export const SURFACE_ACCESS_CONTRACT_VERSION = 4;
+export const SURFACE_ACCESS_CONTRACT_VERSION = 5;
 
 /** Operação de leitura que representa entrar no módulo. `null` = superfície sem leitura própria. */
 export type SurfaceEntryRead = (unitId: string) => string | null;
@@ -187,8 +187,13 @@ export async function resolveAuthorizedUnit(
   signal?: AbortSignal,
 ): Promise<string> {
   const cached = unitCache;
-  if (cached && cached.identityId === identityId) {
+  if (cached && cached.identityId === identityId && cached.units.length > 0) {
     return cached.units[0] ?? '';
+  }
+  // Cache vazio não prova ausência de escopo. Ele pode ter sido gravado antes de uma
+  // reautenticação/repair de RBAC; nesse caso precisamos consultar a fonte autoritativa de novo.
+  if (cached && cached.identityId === identityId && cached.units.length === 0) {
+    unitCache = null;
   }
 
   try {
@@ -197,8 +202,12 @@ export async function resolveAuthorizedUnit(
       const parsed = JSON.parse(raw) as { identityId?: unknown; units?: unknown };
       if (parsed.identityId === identityId && Array.isArray(parsed.units)) {
         const units = parsed.units.filter((u): u is string => typeof u === 'string');
-        unitCache = { identityId, units };
-        return units[0] ?? '';
+        if (units.length > 0) {
+          unitCache = { identityId, units };
+          return units[0] ?? '';
+        }
+        // Não perpetua um snapshot vazio entre logins: refaz a leitura real abaixo.
+        window.sessionStorage.removeItem(UNIT_STORAGE_KEY);
       }
     }
   } catch {
