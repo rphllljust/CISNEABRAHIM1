@@ -139,10 +139,9 @@ export function mapPayrollErrorToMessage(code: string | undefined, status: numbe
 }
 
 /**
- * Cliente da folha. A API endereça período e contrato por identificador (UUID), então cada resposta
- * que devolve essas entidades alimenta o diretório humano (`../utils/payroll-directory`) na própria
- * fronteira do cliente: é o único ponto por onde passa dado do servidor, e assim nenhuma opção
- * inventada consegue entrar na busca do operador.
+ * Cliente da folha. A API publica diretórios paginados por unidade e continua endereçando os
+ * comandos por identificador. Toda resposta real alimenta o diretório humano de navegação; nenhuma
+ * opção é fabricada no navegador.
  */
 export async function listPayrollPeriods(
   query: { unitId: string; status?: string; q?: string; page?: number; pageSize?: number },
