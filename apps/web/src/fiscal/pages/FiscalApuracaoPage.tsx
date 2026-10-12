@@ -133,7 +133,7 @@ export function FiscalApuracaoPage() {
   }
 
   return (
-    <ModulePage>
+    <ModulePage layout="workspace">
       <WorklistHeader
         title="Apuração"
         count={listPhase === 'ready' ? total : null}
