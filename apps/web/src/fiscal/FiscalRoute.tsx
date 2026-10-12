@@ -1,7 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/context/AuthProvider';
-import { probeSurfaceAccess, resolveAuthorizedUnit } from '../shell/surface-access';
+import {
+  probeExplicitCapability,
+  probeSurfaceAccess,
+  resolveAuthorizedUnit,
+} from '../shell/surface-access';
 
 type FiscalRouteAccess = 'documents' | 'tax' | 'period';
 
@@ -61,11 +65,17 @@ export function FiscalRoute({ children, access }: FiscalRouteProps) {
           return;
         }
 
-        const result = await probeSurfaceAccess(
-          accessPolicy.accessCheck,
-          unitId,
-          controller.signal,
-        );
+        const result = unitId
+          ? await probeSurfaceAccess(
+              accessPolicy.accessCheck,
+              unitId,
+              controller.signal,
+            )
+          : await probeExplicitCapability(
+              identityId,
+              accessPolicy.capabilityId,
+              controller.signal,
+            );
         if (!cancelled) {
           setState(result.outcome === 'allowed' ? 'allowed' : 'denied');
         }
