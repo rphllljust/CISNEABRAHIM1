@@ -3,7 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/context/AuthProvider';
 import { BackofficeApiError } from '../financial-ui/enterprise-api';
 import { probeFixedAssetReadAccess } from './api/accounting-api';
-import { probeSurfaceAccess, resolveAuthorizedUnit } from '../shell/surface-access';
+import { probeExplicitCapability, probeSurfaceAccess, resolveAuthorizedUnit } from '../shell/surface-access';
 
 type AccountingRouteAccess = 'journals' | 'fixed-assets';
 
@@ -65,11 +65,18 @@ export function AccountingRoute({
           if (cancelled) {
             return;
           }
-          const result = await probeSurfaceAccess(
+          let result = await probeSurfaceAccess(
             policy.accessCheck,
             unitId,
             controller.signal,
           );
+          if (result.outcome === 'undetermined') {
+            result = await probeExplicitCapability(
+              identityId,
+              policy.capabilityId,
+              controller.signal,
+            );
+          }
           allowed = result.outcome === 'allowed';
         }
 
