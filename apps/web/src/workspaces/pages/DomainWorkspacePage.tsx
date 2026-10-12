@@ -17,7 +17,7 @@ export function DomainWorkspacePage({ domain }: { domain: WorkDomain }) {
   const config = DOMAIN_WORKSPACES[domain];
 
   return (
-    <ModulePage>
+    <ModulePage layout="workspace">
       <WorklistHeader
         title={config.title}
         context={config.purpose}
