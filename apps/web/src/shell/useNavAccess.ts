@@ -84,7 +84,31 @@ const INITIAL_ACCESS: NavAccessMap = Object.fromEntries(
  */
 const NAV_ACCESS_STORAGE_KEY = 'cisne.navAccess.v1';
 
-let navAccessCache: { identityId: string; state: NavAccessState } | null = null;
+/**
+ * Assinatura da superfície realmente embutida neste bundle.
+ *
+ * As flags VITE_FEATURE_MODULE_* são resolvidas no BUILD. Um deploy pode, portanto, publicar
+ * módulos diferentes sem alterar a versão do contrato de sondas. O mapa persistido precisa
+ * carregar essa assinatura; caso contrário, um "finance=false" gravado no sessionStorage
+ * sobreviveria ao bundle seguinte com "finance=true" e o módulo continuaria invisível.
+ */
+export function getNavAccessSurfaceSignature(): string {
+  const featureFlags = [
+    ...new Set(
+      SHELL_NAV_ITEMS.flatMap((item) => (item.featureFlag ? [item.featureFlag] : [])),
+    ),
+  ].sort();
+
+  return featureFlags
+    .map((featureFlag) => `${featureFlag}:${isReleaseModuleEnabled(featureFlag) ? '1' : '0'}`)
+    .join('|');
+}
+
+let navAccessCache: {
+  identityId: string;
+  surfaceSignature: string;
+  state: NavAccessState;
+} | null = null;
 
 function readPersistedNavAccess(identityId: string): NavAccessState | null {
   try {
@@ -95,6 +119,7 @@ function readPersistedNavAccess(identityId: string): NavAccessState | null {
     const parsed = JSON.parse(raw) as {
       identityId?: unknown;
       contractVersion?: unknown;
+      surfaceSignature?: unknown;
       access?: unknown;
     };
     // Identidade diferente = cache de OUTRO ator. Descartar, nunca herdar.
@@ -107,6 +132,13 @@ function readPersistedNavAccess(identityId: string): NavAccessState | null {
      * nao alcanca quem ja navegou: o menu continua mostrando a porta que a pagina nao abre.
      */
     if (parsed.contractVersion !== SURFACE_ACCESS_CONTRACT_VERSION) {
+      return null;
+    }
+    /**
+     * Mesmo contrato de sonda nao significa mesma superficie publicada. As flags de modulo
+     * entram no bundle em build-time; se mudaram desde a gravacao, o mapa antigo e invalido.
+     */
+    if (parsed.surfaceSignature !== getNavAccessSurfaceSignature()) {
       return null;
     }
     return { loading: false, access: parsed.access as NavAccessMap };
@@ -122,6 +154,7 @@ function persistNavAccess(identityId: string, state: NavAccessState): void {
       JSON.stringify({
         identityId,
         contractVersion: SURFACE_ACCESS_CONTRACT_VERSION,
+        surfaceSignature: getNavAccessSurfaceSignature(),
         access: state.access,
       }),
     );
@@ -153,15 +186,20 @@ export function useNavAccess(): NavAccessState {
       return;
     }
 
+    const surfaceSignature = getNavAccessSurfaceSignature();
     const inMemory = navAccessCache;
-    if (inMemory && inMemory.identityId === identityId) {
+    if (
+      inMemory &&
+      inMemory.identityId === identityId &&
+      inMemory.surfaceSignature === surfaceSignature
+    ) {
       setState(inMemory.state);
       return;
     }
 
     const persisted = readPersistedNavAccess(identityId);
     if (persisted) {
-      navAccessCache = { identityId, state: persisted };
+      navAccessCache = { identityId, surfaceSignature, state: persisted };
       setState(persisted);
       return;
     }
@@ -584,7 +622,11 @@ export function useNavAccess(): NavAccessState {
 
       if (!cancelled) {
         const resolved: NavAccessState = { loading: false, access: nextAccess };
-        navAccessCache = { identityId: ownerIdentityId, state: resolved };
+        navAccessCache = {
+          identityId: ownerIdentityId,
+          surfaceSignature,
+          state: resolved,
+        };
         persistNavAccess(ownerIdentityId, resolved);
         setState(resolved);
       }
