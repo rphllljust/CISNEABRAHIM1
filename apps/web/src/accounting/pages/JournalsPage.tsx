@@ -513,6 +513,13 @@ function JournalListRoute() {
         </>
       ) : null}
 
+      <ContextDrawer
+        open={previewRow !== null}
+        title="Contexto do lançamento"
+        preview={previewRow ? buildJournalPreview(previewRow) : null}
+        onClose={() => setPreviewId(null)}
+      />
+
       {periodId && chartId ? (
         <ManualDraftCard
           chartId={chartId}
