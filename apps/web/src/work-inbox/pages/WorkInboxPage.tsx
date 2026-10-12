@@ -1,11 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useOptionalIdentityId } from '../../auth/context/AuthProvider';
+import { DynamicSavedViewsBar, useSavedViews, type SavedView } from '../../engine';
 import { ContextDrawer } from '../../operator';
 import { Button } from '../../ui/Button';
-import { ModulePage, ModulePageHeader } from '../../ui/module-layout';
-import { WorklistException } from '../../ui/enterprise-list';
+import { ModulePage } from '../../ui/module-layout';
+import {
+  WorklistClearFilters,
+  WorklistException,
+  WorklistField,
+  WorklistFilterBar,
+  WorklistHeader,
+  WorklistStatePanel,
+  worklistControlClass,
+  worklistSelectClass,
+} from '../../ui/enterprise-list';
 import {
   OperationalUnitOptions,
+  operationalUnitLabel,
   useOperationalUnits,
 } from '../../shell/hooks/useOperationalUnits';
 import {
@@ -93,6 +105,8 @@ export function daysOverdue(dueAt: string | null, now: Date = new Date()): numbe
 export function WorkInboxPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const identityId = useOptionalIdentityId();
+  const savedViews = useSavedViews(identityId, 'work-inbox');
   /** Unidades autorizadas — alimenta o filtro de escopo em linguagem humana. */
   const { options: unitOptions } = useOperationalUnits();
 
@@ -106,6 +120,7 @@ export function WorkInboxPage() {
   const [phase, setPhase] = useState<'loading' | 'ready' | 'denied' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selected, setSelected] = useState<WorkItem | null>(null);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
 
   const filters = useMemo(
     () => ({ domain, kind, overdue, unitId, limit: DEFAULT_LIMIT, offset }),
@@ -140,6 +155,7 @@ export function WorkInboxPage() {
       try {
         const result = await getWorkInbox(filters, signal);
         setPage(result);
+        setLastUpdatedAt(new Date());
         setPhase('ready');
       } catch (error) {
         if (error instanceof WorkInboxApiError && error.kind === 'denied') {
@@ -163,12 +179,54 @@ export function WorkInboxPage() {
     return () => controller.abort();
   }, [load]);
 
+  const savedViewFilters = useMemo(
+    () => ({
+      domain: domain ?? '',
+      kind: kind ?? '',
+      overdue: overdue ? 'true' : '',
+      unitId: unitId ?? '',
+    }),
+    [domain, kind, overdue, unitId],
+  );
+
+  const activeSavedView = useMemo(
+    () =>
+      savedViews.views.find(
+        (view) =>
+          view.viewType === 'work-inbox' &&
+          Object.entries(savedViewFilters).every(
+            ([key, value]) => (view.filters[key] ?? '') === value,
+          ),
+      ) ?? null,
+    [savedViewFilters, savedViews.views],
+  );
+
+  const applySavedView = useCallback(
+    (view: SavedView) => {
+      const next = new URLSearchParams();
+      for (const key of ['domain', 'kind', 'overdue', 'unitId'] as const) {
+        const value = view.filters[key]?.trim();
+        if (value) {
+          next.set(key, value);
+        }
+      }
+      setSearchParams(next, { replace: true });
+    },
+    [setSearchParams],
+  );
+
+  const clearFilters = useCallback(() => {
+    setSearchParams(new URLSearchParams(), { replace: true });
+  }, [setSearchParams]);
+
   if (phase === 'denied') {
     return (
       <ModulePage>
-        <p role="alert" className="text-sm text-red-700">
-          Você não tem permissão para ler a fila de trabalho.
-        </p>
+        <WorklistStatePanel
+          tone="critical"
+          title="Acesso à central de trabalho indisponível"
+          description="Você não tem permissão para ler esta fila."
+        />
       </ModulePage>
     );
   }
@@ -179,12 +237,30 @@ export function WorkInboxPage() {
    * vencimento persistido. Nao ha priorizacao inventada: "vencido" e um fato do dado.
    */
   const overdueItems = items.filter((item) => daysOverdue(item.dueAt) !== null);
+  const hasActiveFilters = Boolean(domain || kind || overdue || unitId);
+  const scopeLabel = unitId
+    ? operationalUnitLabel(unitOptions, unitId, 'Unidade autorizada')
+    : 'Todas as unidades autorizadas';
+  const domainLabel = domain ? WORK_DOMAIN_LABELS[domain] : 'Todos os domínios';
+  const updatedLabel = lastUpdatedAt
+    ? lastUpdatedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    : 'aguardando leitura';
+  const overdueParams = new URLSearchParams(searchParams);
+  overdueParams.set('overdue', 'true');
+  overdueParams.delete('offset');
+  const overdueHref = `/app/work-inbox?${overdueParams.toString()}`;
 
   return (
     <ModulePage>
-      <ModulePageHeader
+      <WorklistHeader
         title="Central de trabalho"
-        description="O que exige atenção agora, de todos os domínios — somente trabalho real."
+        count={phase === 'ready' && page ? page.total : null}
+        context={
+          <span>
+            {domainLabel} · {scopeLabel} · Atualizado {updatedLabel}
+            {activeSavedView ? ` · Visão: ${activeSavedView.name}` : ''}
+          </span>
+        }
         action={
           <>
             {overdueItems.length > 0 ? (
@@ -204,6 +280,15 @@ export function WorkInboxPage() {
         }
       />
 
+      <DynamicSavedViewsBar
+        views={savedViews.views}
+        onApply={applySavedView}
+        onSave={(name) => savedViews.save(name, savedViewFilters, 'work-inbox')}
+        onDelete={savedViews.remove}
+        persistedLocally={savedViews.persistedLocally}
+        persistable={savedViews.persistable}
+      />
+
       {page && page.unavailableDomains.length > 0 ? (
         <p
           role="status"
@@ -221,12 +306,13 @@ export function WorkInboxPage() {
       */}
       {phase === 'ready' && page ? (
         <WorkbenchSummaryStrip>
-          <WorkbenchMetric value={page.total} label="trabalhos na fila" />
+          <WorkbenchMetric value={page.total} label="trabalhos na fila" href="/app/work-inbox" />
           <WorkbenchMetric value={items.length} label="nesta página" />
           <WorkbenchMetric
             value={overdueItems.length}
             label="vencidos neste recorte"
             tone={overdueItems.length > 0 ? 'critical' : 'neutral'}
+            href={overdueHref}
           />
         </WorkbenchSummaryStrip>
       ) : null}
@@ -272,14 +358,13 @@ export function WorkInboxPage() {
         })}
       </div>
 
-      <div className="mb-2 flex flex-wrap items-center gap-2 text-xs rounded-md border border-gray-200 bg-white px-2 py-1.5">
-        <label className="flex items-center gap-1.5">
-          <span className="text-gray-500">Natureza</span>
+      <WorklistFilterBar meta={page ? `${items.length} nesta página` : undefined}>
+        <WorklistField label="Natureza">
           <select
             aria-label="Natureza"
             value={kind ?? ''}
             onChange={(event) => updateParam('kind', event.target.value || null)}
-            className="rounded border border-gray-300 bg-white py-1 px-2 text-xs outline-none focus:border-brand-500"
+            className={worklistSelectClass}
           >
             <option value="">Todas</option>
             {WORK_KINDS.map((candidate) => (
@@ -288,54 +373,91 @@ export function WorkInboxPage() {
               </option>
             ))}
           </select>
-        </label>
+        </WorklistField>
 
-        <label className="flex items-center gap-1.5">
+        <WorklistField label="Unidade">
+          <select
+            aria-label="Unidade"
+            value={unitId ?? ''}
+            onChange={(event) => updateParam('unitId', event.target.value || null)}
+            className={cn(worklistSelectClass, 'w-44')}
+          >
+            <OperationalUnitOptions options={unitOptions} includeAllLabel="Todas as unidades" />
+          </select>
+        </WorklistField>
+
+        <label className="flex min-h-[var(--control-height)] items-center gap-1.5 px-1.5 text-xs text-gray-700">
           <input
             type="checkbox"
             checked={overdue}
             onChange={(event) => updateParam('overdue', event.target.checked ? 'true' : null)}
           />
-          <span className="text-gray-700">Somente vencidos</span>
+          Somente vencidos
         </label>
 
-        <label className="flex items-center gap-1.5">
-          <span className="text-gray-500">Unidade</span>
-          {/*
-            ESCOPO HUMANO — nunca "digite o código da unidade".
+        <WorklistClearFilters visible={hasActiveFilters} onClick={clearFilters} />
+      </WorklistFilterBar>
 
-            Este filtro era um `<input>` de texto com `placeholder="código da unidade"`: exigia que
-            o operador SOUBESSE o identificador interno de cor (em HML, um slug de ambiente como
-            `unit-synthetic-homolog`). Nenhuma superficie do CISNE pode pedir isso.
-
-            O `value` enviado a consulta continua sendo o identificador REAL, porque e o que a API
-            autoriza; o que sai e a digitacao dele. Mesmo primitivo de todas as outras telas
-            (`useOperationalUnits`), para o operador escolher pelo rotulo.
-          */}
-          <select
-            aria-label="Unidade"
-            value={unitId ?? ''}
-            onChange={(event) => updateParam('unitId', event.target.value || null)}
-            className="w-44 rounded border border-gray-300 bg-white py-1 px-2 text-xs outline-none focus:border-brand-500"
-          >
-            <OperationalUnitOptions
-              options={unitOptions}
-              includeAllLabel="Todas as unidades"
-            />
-          </select>
-        </label>
-      </div>
+      {hasActiveFilters ? (
+        <div aria-label="Filtros ativos" className="mb-2 flex flex-wrap items-center gap-1.5">
+          <span className="cisne-meta-label">Recorte ativo</span>
+          {domain ? (
+            <button
+              type="button"
+              onClick={() => updateParam('domain', null)}
+              className={cn(worklistControlClass, 'min-h-0 bg-brand-50 px-2 py-0.5 text-brand-800')}
+            >
+              Domínio: {WORK_DOMAIN_LABELS[domain]} ×
+            </button>
+          ) : null}
+          {kind ? (
+            <button
+              type="button"
+              onClick={() => updateParam('kind', null)}
+              className={cn(worklistControlClass, 'min-h-0 bg-brand-50 px-2 py-0.5 text-brand-800')}
+            >
+              Natureza: {WORK_KIND_LABELS[kind]} ×
+            </button>
+          ) : null}
+          {overdue ? (
+            <button
+              type="button"
+              onClick={() => updateParam('overdue', null)}
+              className={cn(worklistControlClass, 'min-h-0 bg-red-50 px-2 py-0.5 text-red-800')}
+            >
+              Somente vencidos ×
+            </button>
+          ) : null}
+          {unitId ? (
+            <button
+              type="button"
+              onClick={() => updateParam('unitId', null)}
+              className={cn(worklistControlClass, 'min-h-0 bg-brand-50 px-2 py-0.5 text-brand-800')}
+            >
+              {scopeLabel} ×
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       {phase === 'loading' ? (
-        <p aria-busy="true" aria-live="polite" className="text-sm text-gray-500">
-          Carregando a fila de trabalho…
-        </p>
+        <WorklistStatePanel
+          title="Atualizando a central de trabalho"
+          description="Mantendo o recorte atual enquanto o servidor recompõe a fila."
+        />
       ) : null}
 
       {phase === 'error' ? (
-        <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-500/20 ring-inset">
-          {errorMessage}
-        </p>
+        <WorklistStatePanel
+          tone="critical"
+          title="Não foi possível carregar a fila de trabalho"
+          description={errorMessage}
+          action={
+            <Button type="button" variant="secondary" onClick={() => void load()}>
+              Tentar novamente
+            </Button>
+          }
+        />
       ) : null}
 
       {/*
@@ -348,7 +470,14 @@ export function WorkInboxPage() {
           count={items.length}
           description="Ordenada pelo servidor por domínio. O atraso é derivado do vencimento persistido, não de score."
           emptyTitle="Nenhum trabalho real neste recorte."
-          emptyDescription="A fila não inventa pendência para parecer cheia."
+          emptyDescription="A fila não inventa pendência para parecer cheia. Ajuste o recorte ou aguarde novo trabalho."
+          emptyAction={
+            hasActiveFilters ? (
+              <Button type="button" variant="secondary" onClick={clearFilters}>
+                Limpar recorte
+              </Button>
+            ) : null
+          }
         >
           {items.map((item) => {
             const late = daysOverdue(item.dueAt);
