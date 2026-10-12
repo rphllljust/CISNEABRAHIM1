@@ -1,13 +1,12 @@
 import { useCallback, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Button, DateTime, EmptyState, Field, Input, Money, Select } from '../../ui';
-import { ModulePage, ModulePagination } from '../../ui/module-layout';
-import { WorklistFooter, WorklistHeader } from '../../ui/enterprise-list';
+import { EmptyState, Field, Input, Money } from '../../ui';
+import { ModulePage } from '../../ui/module-layout';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { CreateRecordForm, VersionedActionForm } from '../../financial-ui/VersionedActionForm';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
-import { DynamicForm, DynamicList, useEntitySchema } from '../../engine';
+import { DynamicForm, useEntitySchema } from '../../engine';
 import { DynamicSubform } from '../../engine/DynamicSubform';
 import {
   addBudgetLine,
@@ -17,166 +16,10 @@ import {
   createBudget,
   createBudgetVersion,
   getBudget,
-  listBudgets,
 } from '../api/finance-api';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
-import { BUDGET_STATUS_LABELS } from '../../financial-ui/labels';
-import { FinanceStatusBadge } from '../components/FinanceStatusBadge';
 import { budgetFormValues, budgetLineRows, budgetLineSchema } from '../utils/finance-engine-rows';
 import type { BudgetComparison, BudgetDetail } from '../types/finance.types';
-import type { BudgetSummary } from '../api/finance-api';
-
-const BUDGET_LIST_PAGE_SIZE = 25;
-
-function budgetSummaryRow(item: BudgetSummary): Record<string, unknown> & { id: string } {
-  return {
-    id: item.id,
-    unit_id: item.unitId,
-    code: item.code,
-    name: item.name,
-    currency_code: item.currencyCode,
-    status: item.status,
-    row_version: item.rowVersion,
-    updated_at: item.updatedAt,
-  };
-}
-
-function BudgetListWorkspace() {
-  const navigate = useNavigate();
-  const { schema } = useEntitySchema('budgets');
-  const [pageNumber, setPageNumber] = useState(1);
-  const [status, setStatus] = useState('');
-  const [searchDraft, setSearchDraft] = useState('');
-  const [search, setSearch] = useState('');
-  const offset = (pageNumber - 1) * BUDGET_LIST_PAGE_SIZE;
-  const loader = useCallback(
-    (signal?: AbortSignal) =>
-      listBudgets(
-        {
-          limit: BUDGET_LIST_PAGE_SIZE,
-          offset,
-          status: status || undefined,
-          q: search || undefined,
-        },
-        signal,
-      ),
-    [offset, search, status],
-  );
-  const { state, reload, refreshing } = useBackofficeQuery({
-    loader,
-    mapError: mapFinanceErrorToMessage,
-  });
-
-  const gate = renderQueryGate(
-    'Orçamentos',
-    'Carregando orçamentos…',
-    'Você não tem permissão para listar orçamentos.',
-    state,
-    () => void reload(),
-  );
-  if (gate) return gate;
-  if (state.phase !== 'ready') return null;
-
-  const page = state.data;
-  const pageCount = Math.max(1, page.totalPages);
-  const safePage = Math.min(pageNumber, pageCount);
-  const rows = page.items.map(budgetSummaryRow);
-
-  return (
-    <>
-      <WorklistHeader
-        title={schema?.label ?? 'Orçamentos'}
-        count={page.total}
-        context="Carteira orçamentária versionada: código, unidade, moeda e estado vêm do servidor. Abra o registro para linhas, períodos, aprovação e comparação com realizado."
-      />
-
-      <div className="mb-4 grid gap-3 rounded-xl border border-gray-200 bg-white p-4 md:grid-cols-[minmax(0,1fr)_220px_auto]">
-        <Field label="Buscar" htmlFor="budget-list-search">
-          <Input
-            id="budget-list-search"
-            value={searchDraft}
-            placeholder="Código ou nome"
-            onChange={(event) => setSearchDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                setPageNumber(1);
-                setSearch(searchDraft.trim());
-              }
-            }}
-          />
-        </Field>
-        <Field label="Situação" htmlFor="budget-list-status">
-          <Select
-            id="budget-list-status"
-            value={status}
-            onChange={(event) => {
-              setPageNumber(1);
-              setStatus(event.target.value);
-            }}
-          >
-            <option value="">Todas</option>
-            {Object.entries(BUDGET_STATUS_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </Select>
-        </Field>
-        <div className="flex items-end gap-2">
-          <Button
-            type="button"
-            onClick={() => {
-              setPageNumber(1);
-              setSearch(searchDraft.trim());
-            }}
-          >
-            Aplicar
-          </Button>
-          {(search || status) ? (
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                setSearchDraft('');
-                setSearch('');
-                setStatus('');
-                setPageNumber(1);
-              }}
-            >
-              Limpar
-            </Button>
-          ) : null}
-        </div>
-      </div>
-
-      <DynamicList
-        schema={schema}
-        rows={rows}
-        emptyMessage="Nenhum orçamento corresponde ao recorte atual."
-        onRowClick={(row) => void navigate(`/app/finance/budgets/${row.id}`)}
-        renderCell={(field, row) => {
-          if (field.name === 'status') {
-            return <FinanceStatusBadge status={String(row.status)} labels={BUDGET_STATUS_LABELS} />;
-          }
-          if (field.name === 'updated_at') {
-            return <DateTime value={String(row.updated_at)} />;
-          }
-          return undefined;
-        }}
-      />
-
-      <WorklistFooter
-        rangeLabel={`Página ${safePage} de ${pageCount} · ${page.total} orçamento(s)${refreshing ? ' · atualizando…' : ''}`}
-      >
-        <ModulePagination
-          pageNumber={safePage}
-          previousDisabled={safePage <= 1}
-          nextDisabled={safePage >= pageCount}
-          onPrevious={() => setPageNumber((current) => Math.max(1, current - 1))}
-          onNext={() => setPageNumber((current) => Math.min(pageCount, current + 1))}
-        />
-      </WorklistFooter>
-    </>
-  );
-}
 
 /**
  * DETALHE DO ORÇAMENTO — dirigido por metadados.
@@ -233,26 +76,20 @@ export function BudgetsPage() {
 
   return (
     <ModulePage>
-      {!budgetId ? (
-        <BudgetListWorkspace />
-      ) : (
-        <>
-          <header className="mb-4">
-            <h1 className="text-xl font-semibold" data-testid="entity-title">
-              {schema?.label ?? 'Orçamentos'}
-            </h1>
-            <p className="mt-1 text-sm text-gray-500">
-              Versões, linhas e aprovação são persistidas pelo servidor. Variância não é calculada no
-              navegador.
-            </p>
-          </header>
-          <p className="mb-4 text-sm text-gray-500">
-            <Link className="font-semibold text-gray-700 hover:text-gray-900" to="/app/finance/budgets">
-              Voltar para a lista de orçamentos
-            </Link>
-          </p>
-        </>
-      )}
+      <header className="mb-4">
+        <h1 className="text-xl font-semibold" data-testid="entity-title">
+          {schema?.label ?? 'Orçamentos'}
+        </h1>
+        <p className="mt-1 text-sm text-gray-500">
+          Versões, linhas e aprovação são persistidas pelo servidor. Variância não é calculada no
+          navegador.
+        </p>
+      </header>
+      <p className="mb-4 text-sm text-gray-500">
+        <Link className="font-semibold text-gray-700 hover:text-gray-900" to="/app/finance/budgets">
+          Voltar para a lista de orçamentos
+        </Link>
+      </p>
 
       <CreateRecordForm
         title="Criar orçamento"
@@ -289,6 +126,12 @@ export function BudgetsPage() {
       </CreateRecordForm>
 
       {gate}
+      {!budgetId ? (
+        <EmptyState
+          title="Nenhum orçamento carregado"
+          description="Consulte pelo identificador devolvido pelo servidor."
+        />
+      ) : null}
       {state.phase === 'ready' ? (
         <BudgetView budget={state.data} onReload={reload} onReady={setReady} />
       ) : null}
