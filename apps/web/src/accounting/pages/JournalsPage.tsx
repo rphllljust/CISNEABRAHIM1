@@ -459,12 +459,21 @@ function JournalListRoute() {
                           <Money value={entry.creditTotal} currencyCode={entry.currencyCode} />
                         </td>
                         <td className={worklistCellClass}>
-                          <Link
-                            to={`/app/accounting/journals/${entry.id}`}
-                            className={rowPrimaryActionClass}
-                          >
-                            Abrir
-                          </Link>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="secondary"
+                              onClick={() => setPreviewId(entry.id)}
+                              aria-label={`Prévia do lançamento ${entry.entryNumber ?? entry.id}`}
+                            >
+                              Prévia
+                            </Button>
+                            <Link
+                              to={`/app/accounting/journals/${entry.id}`}
+                              className={rowPrimaryActionClass}
+                            >
+                              Abrir
+                            </Link>
+                          </div>
                         </td>
                       </tr>
                     ))}
