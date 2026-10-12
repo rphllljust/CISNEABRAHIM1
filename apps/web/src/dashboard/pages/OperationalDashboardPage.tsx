@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AttentionBlock } from '../components/AttentionBlock';
 import { DashboardPageHeader } from '../components/DashboardPageHeader';
 import { MetricStrip } from '../components/MetricStrip';
@@ -29,6 +29,12 @@ function formatGeneratedAt(value: string): string {
 
 function formatPeriodLabel(from: string, to: string): string {
   return `${from} — ${to}`;
+}
+
+function parseDashboardDomain(value: string | null): WorkDomain | null {
+  return value && (Object.keys(WORK_DOMAIN_LABELS) as WorkDomain[]).includes(value as WorkDomain)
+    ? (value as WorkDomain)
+    : null;
 }
 
 function formatMoment(value: string | null): string {
@@ -100,9 +106,13 @@ export function OperationalDashboardPage() {
   const { options: unitOptions } = useOperationalUnits();
   const navigate = useNavigate();
 
-  /** UNICO recorte de dominio da tela — alimenta fila, cadeia e faixa de indicadores. */
-  const [domain, setDomain] = useState<WorkDomain | null>(null);
-  const [overdueOnly, setOverdueOnly] = useState(false);
+  /**
+   * RECORTE OPERACIONAL NA URL — domínio e vencimento sobrevivem a refresh, back/forward,
+   * bookmark e drillback. O dashboard deixa de esconder o contexto em useState local.
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const domain = parseDashboardDomain(searchParams.get('domain'));
+  const overdueOnly = searchParams.get('overdue') === 'true';
   const [inbox, setInbox] = useState<WorkInboxPage | null>(null);
   const [inboxPhase, setInboxPhase] = useState<'loading' | 'ready' | 'denied' | 'error'>('loading');
   const [selected, setSelected] = useState<WorkItem | null>(null);
@@ -153,6 +163,21 @@ export function OperationalDashboardPage() {
     [navigate],
   );
 
+  const updateOperationalRecorte = useCallback(
+    (key: 'domain' | 'overdue', value: string | null) => {
+      setSearchParams(
+        (current) => {
+          const next = new URLSearchParams(current);
+          if (value) next.set(key, value);
+          else next.delete(key);
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
   const headerProps = {
     title: 'Visão geral',
     period: filters.period,
@@ -161,9 +186,11 @@ export function OperationalDashboardPage() {
     isRefreshing,
     onRefresh: () => void reload(),
     domain,
-    onDomainChange: setDomain,
+    onDomainChange: (nextDomain: WorkDomain | null) =>
+      updateOperationalRecorte('domain', nextDomain),
     overdueOnly,
-    onOverdueChange: setOverdueOnly,
+    onOverdueChange: (value: boolean) =>
+      updateOperationalRecorte('overdue', value ? 'true' : null),
   };
 
   const unitLabel = filters.unitId ? operationalUnitLabel(unitOptions, filters.unitId) : null;

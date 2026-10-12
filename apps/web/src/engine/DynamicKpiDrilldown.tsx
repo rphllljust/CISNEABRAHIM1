@@ -1,4 +1,5 @@
 import { t } from '../i18n';
+import { cn } from '../ui/utils/cn';
 
 /**
  * KPI DRILL-DOWN — cards de indicador que aplicam filtro na lista.
@@ -45,12 +46,24 @@ export function DynamicKpiDrilldown({
   }
 
   return (
-    <div data-testid="dynamic-kpi-drilldown" className="mb-3 flex flex-wrap gap-2" role="group">
+    <div
+      data-testid="dynamic-kpi-drilldown"
+      className="cisne-divider mb-2 flex flex-wrap items-stretch gap-0 border-y border-gray-200 bg-white"
+      role="group"
+      aria-label="Recortes operacionais"
+    >
       {metrics.map((metric) => {
         const drillable = metric.filterField !== undefined && onDrilldown !== undefined;
         const active =
           metric.filterField !== undefined &&
           (activeFilters[metric.filterField] ?? '') === (metric.filterValue ?? '');
+        const toneClass = {
+          neutral: 'text-gray-900',
+          info: 'text-brand-700',
+          warning: 'text-amber-700',
+          critical: 'text-red-700',
+          success: 'text-emerald-700',
+        }[metric.tone ?? 'neutral'];
 
         return (
           <button
@@ -62,24 +75,27 @@ export function DynamicKpiDrilldown({
             data-kpi-field={metric.filterField ?? null}
             data-kpi-filter={metric.filterValue ?? null}
             data-kpi-active={active ? 'true' : 'false'}
-            /* Card sem `filterField` não é botão de ação: fica inerte, não finge clicabilidade. */
             disabled={!drillable}
             aria-pressed={drillable ? active : undefined}
-            className={`rounded-lg border px-3 py-2 text-left ${
-              active ? 'border-slate-800 bg-slate-100' : 'border-gray-200 bg-white'
-            } ${drillable ? 'cursor-pointer hover:border-slate-400' : 'cursor-default'}`}
+            aria-label={`${metric.label} ${metric.value}`}
+            className={cn(
+              'flex min-w-28 flex-col items-start gap-0.5 border-r border-gray-200 px-3 py-1.5 text-left last:border-r-0',
+              'transition-colors focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-brand-500',
+              active && 'bg-brand-50',
+              drillable ? 'cursor-pointer hover:bg-gray-50' : 'cursor-default',
+            )}
             onClick={() => {
               if (metric.filterField !== undefined && onDrilldown) {
                 onDrilldown(metric.filterField, metric.filterValue ?? '');
               }
             }}
           >
-            <span className="block text-lg font-semibold tabular-nums" data-kpi-number>
+            <span className={cn('text-base leading-none font-semibold tabular-nums', toneClass)} data-kpi-number>
               {metric.value}
             </span>
-            <span className="block text-xs text-gray-600">{metric.label}</span>
+            <span className={cn('cisne-meta-label', active && 'text-brand-800')}>{metric.label}</span>
             {metric.hint ? (
-              <span className="mt-0.5 block text-[11px] text-gray-500">{metric.hint}</span>
+              <span className="cisne-type-helper mt-0.5">{metric.hint}</span>
             ) : null}
           </button>
         );

@@ -349,21 +349,9 @@ export function WorkInboxPage() {
           </span>
         }
         action={
-          <>
-            {overdueItems.length > 0 ? (
-              <button
-                type="button"
-                onClick={() => updateParam('overdue', overdue ? null : 'true')}
-                aria-pressed={overdue}
-                className="rounded-md bg-red-50 px-2 py-1 text-xs font-semibold text-red-700 ring-1 ring-red-500/20 ring-inset hover:bg-red-100"
-              >
-                {overdueItems.length} vencido{overdueItems.length === 1 ? '' : 's'} neste recorte
-              </button>
-            ) : null}
-            <Button type="button" variant="secondary" onClick={() => void load()}>
-              Atualizar
-            </Button>
-          </>
+          <Button type="button" variant="secondary" onClick={() => void load()}>
+            Atualizar
+          </Button>
         }
       />
 
@@ -469,47 +457,6 @@ export function WorkInboxPage() {
           }}
         />
       ) : null}
-
-      {/* AGORA — contagem real por dominio, do MESMO conjunto que a fila exibe. Clicar aplica
-          exatamente o recorte contado (sem repetir o bug de filtro silenciosamente ignorado). */}
-      <div className="mb-2 flex flex-wrap items-center gap-1.5">
-        <button
-          type="button"
-          onClick={() => updateParam('domain', null)}
-          aria-pressed={domain === null}
-          className={cn(
-            'rounded px-2 py-1 text-xs ring-1 ring-inset',
-            domain === null
-              ? 'bg-brand-600 font-semibold text-white ring-brand-600'
-              : 'bg-white text-gray-700 ring-gray-300 hover:bg-gray-50',
-          )}
-        >
-          Todos {page ? page.total : 0}
-        </button>
-        {WORK_DOMAINS.map((candidate) => {
-          const count = page?.byDomain[candidate] ?? 0;
-          const isActive = domain === candidate;
-          return (
-            <button
-              key={candidate}
-              type="button"
-              onClick={() => updateParam('domain', isActive ? null : candidate)}
-              aria-pressed={isActive}
-              data-domain={candidate}
-              className={cn(
-                'rounded px-2 py-1 text-xs ring-1 ring-inset',
-                isActive
-                  ? 'bg-brand-600 font-semibold text-white ring-brand-600'
-                  : count === 0
-                    ? 'bg-white text-gray-400 ring-gray-200'
-                    : 'bg-white text-gray-700 ring-gray-300 hover:bg-gray-50',
-              )}
-            >
-              {WORK_DOMAIN_LABELS[candidate]} {count}
-            </button>
-          );
-        })}
-      </div>
 
       <WorklistFilterBar meta={page ? `${items.length} nesta página` : undefined}>
         <WorklistField label="Natureza">

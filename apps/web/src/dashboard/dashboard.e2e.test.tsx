@@ -105,6 +105,36 @@ describe('operational dashboard e2e (frontend)', () => {
     expect(mainElement.textContent).not.toMatch(/PARK_BI_GAP|snapshot executivo|backend|amostra técnica/i);
   });
 
+  it('keeps domain and overdue operational recorte in the URL', async () => {
+    const shellMock = createShellFetchMock();
+    const dashboardMock = createDashboardFetchMock();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input);
+      if (url.includes('/api/v1/dashboard/executive')) {
+        return dashboardMock(input, init);
+      }
+      return shellMock(input, init);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    const user = userEvent.setup();
+    await login(user);
+
+    await user.click(await screen.findByRole('button', { name: 'Financeiro' }));
+    await waitFor(() => expect(window.location.search).toContain('domain=FINANCEIRO'));
+
+    await user.click(screen.getByRole('checkbox', { name: 'Somente vencidos' }));
+    await waitFor(() => expect(window.location.search).toContain('overdue=true'));
+
+    expect(
+      fetchMock.mock.calls.some(([callInput]) => {
+        const url = requestUrl(callInput);
+        return url.includes('/api/v1/work-inbox') && url.includes('domain=FINANCEIRO') && url.includes('overdue=true');
+      }),
+    ).toBe(true);
+  });
+
   it('reflects period filter in URL when user changes period', async () => {
     const shellMock = createShellFetchMock();
     const dashboardMock = createDashboardFetchMock();
