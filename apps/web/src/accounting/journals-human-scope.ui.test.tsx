@@ -357,6 +357,30 @@ describe('Lançamentos — escopo humano vindo do shell (unidade -> plano -> per
     expect(within(originCell).queryByRole('link')).toBeNull();
   });
 
+  it('abre contexto do lançamento sem sair da fila e usa somente fatos persistidos', async () => {
+    const { fetchMock } = createFetchMock();
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup({ delay: null, pointerEventsCheck: 0 });
+    renderJournals();
+
+    await chooseUnit(user, 'unit-b');
+    await chooseChart(user, CHART_B);
+    await choosePeriod(user, PERIOD_B);
+
+    const preview = await screen.findByRole('button', { name: 'Prévia do lançamento 9' });
+    await user.click(preview);
+
+    expect(screen.getByText('Contexto do lançamento')).toBeInTheDocument();
+    expect(screen.getByText('Lançamento #9')).toBeInTheDocument();
+    expect(screen.getByText('Tributos · FIS-2026-0001')).toBeInTheDocument();
+    expect(screen.getByText('Apuração do período')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Abrir lançamento completo' })).toHaveAttribute(
+      'href',
+      `/app/accounting/journals/${JOURNAL_B}`,
+    );
+    expect(screen.getByRole('table', { name: /lançamentos do período/i })).toBeInTheDocument();
+  });
+
   it('trocar a unidade limpa plano e periodo escolhidos antes (nenhum uuid orfao)', async () => {
     const { fetchMock } = createFetchMock();
     vi.stubGlobal('fetch', fetchMock);
