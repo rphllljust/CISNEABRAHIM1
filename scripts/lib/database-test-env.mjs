@@ -34,10 +34,10 @@ export function readDrizzleJournal() {
  *
  * Classification rule (why every tag above 0018 has an entry here): a probe is
  * only registered when the migration produces a DETERMINISTIC, REPRESENTATIVE
- * structural effect that is cheap to verify — a relation, a column, an enum
- * label, an index or a function. Tags whose only effect is a data rewrite or an
- * incidental comment have no stable artefact and stay out of this table on
- * purpose; that is why this is a curated registry and not a generated one.
+ * effect that is cheap to verify — a relation, a column, an enum label, an index,
+ * a function or (for seed-only migrations) a deterministic seeded row. This is a
+ * curated registry rather than a generated one: each probe must prove an effect
+ * that the migration itself owns, never merely an artefact created by an earlier tag.
  *
  * Every effect below was read from the migration SQL itself, not guessed:
  * - 0043/0048 only create/replace `rpt.*` views (no table), hence `view`;
@@ -129,6 +129,12 @@ const MIGRATION_EFFECT_CHECKS = {
     column: ['fin', 'settlements', 'reversal_idempotency_key'],
   },
   '0082_audit_trail_logs': { table: 'audit.audit_logs' },
+  '0083_supplier_archived_status_and_columns': { column: ['pty', 'suppliers', 'archive_reason'] },
+  '0084_metadata_store': { table: 'meta.permissions' },
+  '0085_metadata_seed_entities': { row: ['meta', 'entities', 'name', 'billing-records'] },
+  '0086_metadata_seed_finance': { row: ['meta', 'entities', 'name', 'cash-forecast'] },
+  '0087_metadata_v2': { table: 'meta.computed_fields' },
+  '0088_metadata_views_v4': { row: ['meta', 'views', 'view_type', 'graph'] },
 };
 
 /**
@@ -230,6 +236,16 @@ async function migrationEffectsPresent(pool, tag) {
     );
     return result.rows[0]?.exists === true;
   }
+  if (check.row) {
+    const [schema, table, column, value] = check.row;
+    const relation = `${quoteIdentifier(schema)}.${quoteIdentifier(table)}`;
+    const field = quoteIdentifier(column);
+    const result = await pool.query(
+      `SELECT EXISTS (SELECT 1 FROM ${relation} WHERE ${field} = $1) AS exists`,
+      [value],
+    );
+    return result.rows[0]?.exists === true;
+  }
   return null;
 }
 
@@ -324,6 +340,10 @@ export async function syncDrizzleJournal(pool) {
           ? 'journal aligned except for unprobed tags'
           : 'journal already aligned',
   };
+}
+
+function quoteIdentifier(identifier) {
+  return `"${String(identifier).replaceAll('"', '""')}"`;
 }
 
 async function tableExists(pool, table) {
