@@ -44,6 +44,17 @@ function normalizeLogin(login: string): string {
   return login.trim().toLowerCase();
 }
 
+async function rollbackKeepingPrimaryCause(client: PoolClient): Promise<Error | undefined> {
+  try {
+    await client.query('ROLLBACK');
+    return undefined;
+  } catch (rollbackFailure) {
+    return rollbackFailure instanceof Error
+      ? rollbackFailure
+      : new Error(String(rollbackFailure));
+  }
+}
+
 function readProfiles(): ProductionProfile[] {
   if (requiredEnv('PROD_PROFILES_CONFIRM') !== CONFIRM_VALUE) {
     throw new Error('CONFIGURATION_ERROR: PROD_PROFILES_CONFIRM token mismatch.');
@@ -402,6 +413,8 @@ async function main(): Promise<void> {
   // de RBAC nao deixam a autenticacao de producao presa a uma transacao longa.
   {
     const client = await pool.connect();
+    let evictWith: Error | undefined;
+
     try {
       await client.query('BEGIN');
 
@@ -421,10 +434,10 @@ async function main(): Promise<void> {
         }),
       );
     } catch (error) {
-      await client.query('ROLLBACK');
+      evictWith = await rollbackKeepingPrimaryCause(client);
       throw error;
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 
@@ -436,6 +449,8 @@ async function main(): Promise<void> {
   }
 
   const client = await pool.connect();
+  let evictWith: Error | undefined;
+
   try {
     await client.query('BEGIN');
 
@@ -513,10 +528,10 @@ async function main(): Promise<void> {
       }),
     );
   } catch (error) {
-    await client.query('ROLLBACK');
+    evictWith = await rollbackKeepingPrimaryCause(client);
     throw error;
   } finally {
-    client.release();
+    client.release(evictWith);
     await pool.end();
   }
 }

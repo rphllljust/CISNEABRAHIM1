@@ -151,16 +151,38 @@ describe('finance source — titulo vencido vira trabalho', () => {
 
 describe('finance source — leitura e autorizacao', () => {
   it('le recebiveis e contas a pagar pelas autoridades do dominio (uma leitura por carteira)', async () => {
-    const receivables = { list: vi.fn().mockResolvedValue([receivable()]) };
-    const payables = { list: vi.fn().mockResolvedValue([payable()]) };
+    const receivables = {
+      list: vi.fn().mockResolvedValue({
+        items: [receivable()],
+        total: 1,
+        limit: 100,
+        offset: 0,
+      }),
+    };
+    const payables = {
+      list: vi.fn().mockResolvedValue({
+        items: [payable()],
+        total: 1,
+        limit: 100,
+        offset: 0,
+      }),
+    };
 
     const items = await new FinanceWorkSource(
       receivables as never,
       payables as never,
     ).collect(ACTOR);
 
-    expect(receivables.list).toHaveBeenCalledWith(ACTOR);
-    expect(payables.list).toHaveBeenCalledWith(ACTOR);
+    expect(receivables.list).toHaveBeenCalledWith(ACTOR, {
+      limit: 100,
+      offset: 0,
+      status: RECEIVABLE_STATUSES.Overdue,
+    });
+    expect(payables.list).toHaveBeenCalledWith(ACTOR, {
+      limit: 100,
+      offset: 0,
+      status: PAYABLE_STATUSES.Overdue,
+    });
     expect(items.map((item) => item.id)).toEqual([
       `FINANCEIRO:RECEIVABLE:${RECEIVABLE_ID}`,
       `FINANCEIRO:PAYABLE:${PAYABLE_ID}`,
@@ -171,7 +193,14 @@ describe('finance source — leitura e autorizacao', () => {
     const receivables = {
       list: vi.fn().mockRejectedValue(new HttpException('Access denied.', 403)),
     };
-    const payables = { list: vi.fn().mockResolvedValue([payable()]) };
+    const payables = {
+      list: vi.fn().mockResolvedValue({
+        items: [payable()],
+        total: 1,
+        limit: 100,
+        offset: 0,
+      }),
+    };
 
     const items = await new FinanceWorkSource(
       receivables as never,
@@ -184,7 +213,9 @@ describe('finance source — leitura e autorizacao', () => {
 
   it('falha real do dominio nao vira fila vazia', async () => {
     const receivables = { list: vi.fn().mockRejectedValue(new Error('connection refused')) };
-    const payables = { list: vi.fn().mockResolvedValue([]) };
+    const payables = {
+      list: vi.fn().mockResolvedValue({ items: [], total: 0, limit: 100, offset: 0 }),
+    };
 
     await expect(
       new FinanceWorkSource(receivables as never, payables as never).collect(ACTOR),
