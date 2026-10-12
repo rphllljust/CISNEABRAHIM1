@@ -90,12 +90,19 @@ const ATTENTION_TONE_CLASS: Record<string, string> = {
 };
 
 /**
+ * `revise` cria uma NOVA versão — é um fluxo de formulário, não um comando de contexto. O backend
+ * publica `revise` em `availableTransitions`, mas esta página não o oferece como botão de linha, e
+ * por isso todo comando de contexto aqui é uma transição SEM `revise`.
+ */
+type ProposalContextCommand = Exclude<ProposalTransition, 'revise'>;
+
+/**
  * VERBO DO COMANDO NO CONTEXTO — o rótulo do botão é a própria transição, não um "Executar".
  *
  * O botão só é montado quando o BACKEND publicou a transição em `availableTransitions`; o rótulo
  * aqui não autoriza nada, apenas nomeia o que o servidor já admitiu.
  */
-const COMMAND_LABEL: Record<Exclude<ProposalTransition, 'revise'>, string> = {
+const COMMAND_LABEL: Record<ProposalContextCommand, string> = {
   issue: 'Emitir revisão',
   accept: 'Registrar aceite',
   reject: 'Rejeitar',
@@ -103,7 +110,7 @@ const COMMAND_LABEL: Record<Exclude<ProposalTransition, 'revise'>, string> = {
   cancel: 'Cancelar',
 };
 
-const COMMAND_DONE_LABEL: Record<Exclude<ProposalTransition, 'revise'>, string> = {
+const COMMAND_DONE_LABEL: Record<ProposalContextCommand, string> = {
   issue: 'Revisão emitida.',
   accept: 'Aceite registrado.',
   reject: 'Revisão rejeitada.',
@@ -112,7 +119,7 @@ const COMMAND_DONE_LABEL: Record<Exclude<ProposalTransition, 'revise'>, string> 
 };
 
 /** Comandos que o contrato aceita SEM motivo. O motivo é auditado pelo operador, não fabricado. */
-const COMMANDS_WITH_REASON: Array<Exclude<ProposalTransition, 'revise'>> = ['reject', 'cancel'];
+const COMMANDS_WITH_REASON: ProposalContextCommand[] = ['reject', 'cancel'];
 
 type QueueFilters = {
   status: string;
@@ -287,7 +294,7 @@ export function ProposalsListPage() {
    * Um comando só aparece na interseção das duas. `rowVersion` vai no payload: concorrência
    * otimista é do domínio, e conflito de versão vira mensagem — não é mascarado.
    */
-  const availableCommands = useMemo<ProposalTransition[]>(() => {
+  const availableCommands = useMemo<ProposalContextCommand[]>(() => {
     if (detailState.phase !== 'ready') {
       return [];
     }
@@ -303,11 +310,14 @@ export function ProposalsListPage() {
        */
       revise: false,
     };
-    return detailState.detail.readiness.availableTransitions.filter((transition) => allowed[transition]);
+    return detailState.detail.readiness.availableTransitions.filter(
+      (transition): transition is ProposalContextCommand =>
+        transition !== 'revise' && allowed[transition],
+    );
   }, [capabilities, detailState]);
 
   const runContextCommand = useCallback(
-    async (command: Exclude<ProposalTransition, 'revise'>) => {
+    async (command: ProposalContextCommand) => {
       if (detailState.phase !== 'ready') {
         return;
       }
