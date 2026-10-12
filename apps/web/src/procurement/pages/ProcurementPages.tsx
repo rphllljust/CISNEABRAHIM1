@@ -320,9 +320,32 @@ function ProcurementLists() {
               : null}
           </tbody>
         </table>
-        <div className="border-t border-gray-200 px-3 py-2 text-[11px] text-gray-500 tabular-nums" role="status">
-          {state.orders.phase === 'ready' ? `${state.orders.total} registro(s) no recorte` : 'Carregando pedidos…'}
-        </div>
+        <WorklistFooter
+          rangeLabel={
+            state.orders.phase === 'ready'
+              ? state.orders.total === 0
+                ? '0 pedidos no recorte'
+                : `${offsets.orders + 1}–${Math.min(offsets.orders + state.orders.items.length, state.orders.total)} de ${state.orders.total} pedidos`
+              : 'Carregando pedidos…'
+          }
+        >
+          {state.orders.phase === 'ready' && state.orders.total > LIST_PAGE_SIZE ? (
+            <ModulePagination
+              pageNumber={Math.floor(offsets.orders / LIST_PAGE_SIZE) + 1}
+              previousDisabled={offsets.orders === 0}
+              nextDisabled={offsets.orders + state.orders.items.length >= state.orders.total}
+              onPrevious={() =>
+                setOffsets((current) => ({
+                  ...current,
+                  orders: Math.max(0, current.orders - LIST_PAGE_SIZE),
+                }))
+              }
+              onNext={() =>
+                setOffsets((current) => ({ ...current, orders: current.orders + LIST_PAGE_SIZE }))
+              }
+            />
+          ) : null}
+        </WorklistFooter>
       </div>
 
       <div className={worklistTableCardClass}>
