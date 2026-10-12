@@ -273,6 +273,32 @@ function JournalListRoute() {
         }
       />
 
+      <SavedViewsBar
+        views={savedViews.views}
+        builtInViews={savedViews.builtInViews}
+        activeViewId={activeViewId}
+        onApply={(view) => {
+          const status = view.config.filters.status;
+          setStatusFilter(status === 'DRAFT' || status === 'POSTED' ? status : 'ALL');
+          setActiveViewId(view.id === '__all__' ? null : view.id);
+          setPageNumber(0);
+        }}
+        onSave={savedViews.saveView}
+        onRename={savedViews.renameView}
+        onRemove={(id) => {
+          savedViews.removeView(id);
+          if (activeViewId === id) setActiveViewId(null);
+        }}
+        currentConfig={{
+          filters: statusFilter === 'ALL' ? {} : { status: statusFilter },
+          sortKey: null,
+          sortDirection: 'asc',
+          groupKey: null,
+        }}
+        canSave={savedViews.persistable && statusFilter !== 'ALL'}
+        allLabel="Todos"
+      />
+
       {/*
         BARRA OPERACIONAL — os quatro controles soltos (unidade, plano, período, estado) viram
         UMA linha de trabalho. Nenhum filtro, consulta, capability ou paginação mudou: o mesmo
@@ -356,6 +382,7 @@ function JournalListRoute() {
             value={statusFilter}
             onChange={(event) => {
               setStatusFilter(event.target.value as 'ALL' | JournalStatus);
+              setActiveViewId(null);
               setPageNumber(0);
             }}
           >
@@ -368,6 +395,7 @@ function JournalListRoute() {
           visible={statusFilter !== 'ALL'}
           onClick={() => {
             setStatusFilter('ALL');
+            setActiveViewId(null);
             setPageNumber(0);
           }}
           label="Limpar estado"
