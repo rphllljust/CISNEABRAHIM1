@@ -774,6 +774,111 @@ $$;`);
       await applySqlFile(pool, '0081_receivable_settlement_reversal_columns.sql');
     }
 
+    // 0082 ends by creating this index. Using the terminal effect as the probe prevents
+    // reconciliation from claiming the migration when only part of its DDL exists.
+    const hasAuditTrailLogs = await tableExists(pool, 'audit.audit_logs_created_at_idx');
+    if (!hasAuditTrailLogs) {
+      await applySqlFile(pool, '0082_audit_trail_logs.sql');
+    }
+
+    // 0083 is safe to replay (enum/columns use IF NOT EXISTS). Verify every externally
+    // observable addition rather than trusting a single column that may have been added manually.
+    const hasSupplierArchivedAt = await columnExists(pool, 'pty', 'suppliers', 'archived_at');
+    const hasSupplierArchivedBy = await columnExists(
+      pool,
+      'pty',
+      'suppliers',
+      'archived_by_identity_id',
+    );
+    const hasSupplierArchiveReason = await columnExists(pool, 'pty', 'suppliers', 'archive_reason');
+    const hasSupplierArchivedStatus = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM pg_enum e
+         INNER JOIN pg_type t ON t.oid = e.enumtypid
+         INNER JOIN pg_namespace n ON n.oid = t.typnamespace
+         WHERE n.nspname = 'pty'
+           AND t.typname = 'supplier_status'
+           AND e.enumlabel = 'ARCHIVED'
+       ) AS exists`,
+    );
+    if (
+      !hasSupplierArchivedAt ||
+      !hasSupplierArchivedBy ||
+      !hasSupplierArchiveReason ||
+      !hasSupplierArchivedStatus.rows[0]?.exists
+    ) {
+      await applySqlFile(pool, '0083_supplier_archived_status_and_columns.sql');
+    }
+
+    // 0084's final DDL effect is the workflow-transition ordering index. If it exists,
+    // every metadata table and preceding index in that migration has been reached.
+    const hasMetadataStore = await tableExists(pool, 'meta.meta_workflow_transitions_workflow_idx');
+    if (!hasMetadataStore) {
+      await applySqlFile(pool, '0084_metadata_store.sql');
+    }
+
+    // 0085 ends with billing-record permissions. This terminal seed row proves the ordered,
+    // idempotent seed completed instead of merely checking that meta.entities exists.
+    const hasMetadataEntitySeed = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM meta.permissions p
+         INNER JOIN meta.entities e ON e.id = p.entity_id
+         WHERE e.name = 'billing-records'
+           AND p.action = 'void'
+           AND p.required_permission = 'billing:billing-record:void'
+       ) AS exists`,
+    );
+    if (!hasMetadataEntitySeed.rows[0]?.exists) {
+      await applySqlFile(pool, '0085_metadata_seed_entities.sql');
+    }
+
+    // 0086's final statement creates the cash-forecast form view.
+    const hasMetadataFinanceSeed = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM meta.views v
+         INNER JOIN meta.entities e ON e.id = v.entity_id
+         WHERE e.name = 'cash-forecast'
+           AND v.view_type = 'form'
+       ) AS exists`,
+    );
+    if (!hasMetadataFinanceSeed.rows[0]?.exists) {
+      await applySqlFile(pool, '0086_metadata_seed_finance.sql');
+    }
+
+    // 0087 finishes by assigning the service-order list row accent. Checking the terminal
+    // seed catches partial execution after the v2 columns/tables were created.
+    const hasMetadataV2 = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM meta.views v
+         INNER JOIN meta.entities e ON e.id = v.entity_id
+         WHERE e.name = 'service-orders'
+           AND v.view_type = 'list'
+           AND v.row_accent IS NOT NULL
+       ) AS exists`,
+    );
+    if (!hasMetadataV2.rows[0]?.exists) {
+      await applySqlFile(pool, '0087_metadata_v2.sql');
+    }
+
+    // 0088 expands the view-type constraint before inserting pivot/tree/graph; the final
+    // graph row can only exist after that constraint accepts the new view family.
+    const hasMetadataViewsV4 = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM meta.views v
+         INNER JOIN meta.entities e ON e.id = v.entity_id
+         WHERE e.name = 'service-orders'
+           AND v.view_type = 'graph'
+       ) AS exists`,
+    );
+    if (!hasMetadataViewsV4.rows[0]?.exists) {
+      await applySqlFile(pool, '0088_metadata_views_v4.sql');
+    }
+
     await syncDrizzleJournal(pool);
   } finally {
     await pool.end();
