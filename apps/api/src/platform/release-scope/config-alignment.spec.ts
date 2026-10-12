@@ -51,20 +51,20 @@ function isEnabled(value: string | undefined): boolean {
 }
 
 describe('alinhamento de configuração web × api', () => {
-  describe('.env.hml — o arquivo que o compose HML consome', () => {
-    const env = parseEnvFile(readRepoFile('.env.hml'));
+  describe('.env.hml.example — contrato versionado do arquivo que o compose HML consome', () => {
+    const env = parseEnvFile(readRepoFile('.env.hml.example'));
 
     it('declara a flag de runtime da API para todo módulo com gate', () => {
       for (const moduleId of GATED_MODULE_IDS) {
         const apiKey = FEATURE_FLAG_ENV[moduleId];
-        expect(env[apiKey], `chave de API ausente em .env.hml: ${apiKey}`).toBeDefined();
+        expect(env[apiKey], `chave de API ausente em .env.hml.example: ${apiKey}`).toBeDefined();
       }
     });
 
     it('declara a flag de build do web para todo módulo com gate', () => {
       for (const moduleId of GATED_MODULE_IDS) {
         const webKey = `VITE_${FEATURE_FLAG_ENV[moduleId]}`;
-        expect(env[webKey], `chave de web ausente em .env.hml: ${webKey}`).toBeDefined();
+        expect(env[webKey], `chave de web ausente em .env.hml.example: ${webKey}`).toBeDefined();
       }
     });
 
@@ -81,8 +81,8 @@ describe('alinhamento de configuração web × api', () => {
     });
   });
 
-  describe('.env — ambiente de desenvolvimento local', () => {
-    const env = parseEnvFile(readRepoFile('.env'));
+  describe('.env.example — contrato versionado do ambiente de desenvolvimento local', () => {
+    const env = parseEnvFile(readRepoFile('.env.example'));
 
     it('mantém API e web concordando módulo a módulo', () => {
       for (const moduleId of GATED_MODULE_IDS) {
@@ -90,14 +90,14 @@ describe('alinhamento de configuração web × api', () => {
         const webEnabled = isEnabled(env[`VITE_${FEATURE_FLAG_ENV[moduleId]}`]);
         expect(
           webEnabled,
-          `divergência em '${moduleId}' no .env: API=${apiEnabled} web=${webEnabled}.`,
+          `divergência em '${moduleId}' no .env.example: API=${apiEnabled} web=${webEnabled}.`,
         ).toBe(apiEnabled);
       }
     });
   });
 
   describe('stubs permanecem desligados em todo ambiente versionado', () => {
-    const versionedEnvs = ['.env', '.env.hml'];
+    const versionedEnvs = ['.env.example', '.env.hml.example'];
 
     for (const envPath of versionedEnvs) {
       const env = parseEnvFile(readRepoFile(envPath));
