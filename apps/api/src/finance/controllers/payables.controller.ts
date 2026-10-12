@@ -42,6 +42,13 @@ export class PayablesController {
     );
   }
 
+  @Get('payables/summary')
+  summary(@CurrentAuth() auth: AccessTokenClaims, @Query() query: Record<string, unknown>) {
+    return this.payablesAccess.summary(
+      { identityId: auth.sub, sessionId: auth.sid }, parseFinanceListQuery(query),
+    );
+  }
+
   @Post('payables')
   @HttpCode(200)
   open(@CurrentAuth() auth: AccessTokenClaims, @Req() request: FastifyRequest) {
