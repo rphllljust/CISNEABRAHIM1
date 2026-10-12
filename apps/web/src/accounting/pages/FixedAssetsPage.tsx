@@ -145,7 +145,7 @@ export function FixedAssetsPage() {
   }
 
   return (
-    <ModulePage>
+    <ModulePage layout="wide">
       {/*
         CONSULTA COMO BARRA OPERACIONAL — os campos de identificador e de busca humana deixam de
         ser dois formulários empilhados (`RecordLookupCard` + `CreateRecordForm`) e passam a UMA
