@@ -8,6 +8,13 @@ export type QueryState<T> =
   | { phase: 'error'; message: string; retryable: boolean; kind: BackofficeApiError['kind'] }
   | { phase: 'ready'; data: T };
 
+/** Abortar não é falha: é o efeito desmontando ou uma consulta substituindo a anterior. */
+function isAbortError(error: unknown): boolean {
+  return (
+    typeof DOMException !== 'undefined' && error instanceof DOMException && error.name === 'AbortError'
+  );
+}
+
 export function useBackofficeQuery<T>(options: {
   enabled?: boolean;
   loader: (signal?: AbortSignal) => Promise<T>;
@@ -29,6 +36,14 @@ export function useBackofficeQuery<T>(options: {
   loaderRef.current = loader;
   mapErrorRef.current = mapError;
 
+  /*
+   * SEQUÊNCIA DE REQUISIÇÃO — cada `reload` recebe um número; só o dono do número vigente pode
+   * escrever no estado. Sem isso, uma resposta LENTA e antiga sobrescreve a resposta NOVA que
+   * chegou antes dela, e a tela exibe um recorte que o filtro atual não pediu.
+   * `reset` e `setReady` também avançam a sequência: eles invalidam o que está em voo.
+   */
+  const requestSequenceRef = useRef(0);
+
   // Fluidez: quando já existe conteúdo, o refresh NÃO volta para `loading`.
   // Voltar para loading trocaria a tabela por um spinner de página inteira,
   // fazendo o layout pular e o filtro parecer resetado.
@@ -38,6 +53,7 @@ export function useBackofficeQuery<T>(options: {
   stateRef.current = state;
 
   const reload = useCallback(async (signal?: AbortSignal) => {
+    const requestSequence = ++requestSequenceRef.current;
     const keepContent = stateRef.current.phase === 'ready';
     if (keepContent) {
       setRefreshing(true);
@@ -46,8 +62,14 @@ export function useBackofficeQuery<T>(options: {
     }
     try {
       const data = await loaderRef.current(signal);
+      if (signal?.aborted || requestSequence !== requestSequenceRef.current) {
+        return;
+      }
       setState({ phase: 'ready', data });
     } catch (error) {
+      if (signal?.aborted || requestSequence !== requestSequenceRef.current || isAbortError(error)) {
+        return;
+      }
       if (error instanceof BackofficeApiError) {
         if (error.kind === 'denied') {
           setState({ phase: 'denied' });
@@ -72,8 +94,14 @@ export function useBackofficeQuery<T>(options: {
     }
   }, []);
 
-  const reset = useCallback(() => setState({ phase: 'idle' }), []);
-  const setReady = useCallback((data: T) => setState({ phase: 'ready', data }), []);
+  const reset = useCallback(() => {
+    requestSequenceRef.current += 1;
+    setState({ phase: 'idle' });
+  }, []);
+  const setReady = useCallback((data: T) => {
+    requestSequenceRef.current += 1;
+    setState({ phase: 'ready', data });
+  }, []);
 
   /*
    * RECARGA QUANDO A CONSULTA MUDA.
