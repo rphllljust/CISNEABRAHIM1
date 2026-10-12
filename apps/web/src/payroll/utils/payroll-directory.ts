@@ -6,10 +6,9 @@ import type { EmploymentContract, PayrollPeriod } from '../api/payroll-api';
 /**
  * DIRETÓRIO HUMANO DA FOLHA — períodos e contratos já alcançados do servidor.
  *
- * Problema: a API de folha deste release endereça período por `periodId` (UUID) e contrato por
- * `employmentContractId` (UUID). Ela NÃO expõe `GET /payroll/periods?unitId=` nem
- * `GET /payroll/contracts`: as únicas listas possíveis hoje são as que o próprio operador já
- * alcançou do servidor. Sem elas, a única forma de chegar a um período era digitar o UUID.
+ * A API de folha agora publica diretórios autorizados de períodos e contratos por unidade.
+ * Este módulo conserva as respostas recentes apenas para rotular vínculos, reaproveitar opções
+ * já carregadas e manter a navegação humana entre comandos; a fonte da busca é o servidor.
  *
  * Este diretório é memória de NAVEGAÇÃO, não cadastro: cada entrada nasce exclusivamente de uma
  * resposta real da API (abrir/consultar/calcular/fechar/reabrir período, cadastrar contrato),
@@ -19,8 +18,7 @@ import type { EmploymentContract, PayrollPeriod } from '../api/payroll-api';
  *
  * Limites declarados: a memória vale para a sessão do navegador (não é persistida em
  * localStorage/sessionStorage, para não gravar dado de negócio no browser) e é limitada às
- * entradas mais recentes. Quando a API ganhar listas por unidade, a busca passa a usá-las e este
- * diretório deixa de ser a fonte.
+ * entradas mais recentes. Ela nunca substitui paginação, filtro ou autorização do backend.
  */
 export type KnownPayrollPeriod = {
   id: string;
@@ -219,9 +217,9 @@ function contractHaystack(entry: KnownEmploymentContract): string {
  * Opções humanas de período: competência + status no rótulo, unidade e vigência no apoio.
  * O identificador técnico permanece interno do componente de busca.
  */
-export function searchPayrollPeriodOptions(term: string): HumanLookupOption[] {
+export function searchPayrollPeriodOptions(term: string, unitId?: string): HumanLookupOption[] {
   return knownPeriods
-    .filter((entry) => matchesTerm(periodHaystack(entry), term))
+    .filter((entry) => (!unitId || entry.unitId === unitId) && matchesTerm(periodHaystack(entry), term))
     .map((entry) => ({
       id: entry.id,
       label: `${formatPayrollCompetence(entry)} — ${payrollPeriodStatusLabel(entry.status)}`,
@@ -230,9 +228,9 @@ export function searchPayrollPeriodOptions(term: string): HumanLookupOption[] {
 }
 
 /** Opções humanas de contrato: código + nome no rótulo, unidade e vigência no apoio. */
-export function searchEmploymentContractOptions(term: string): HumanLookupOption[] {
+export function searchEmploymentContractOptions(term: string, unitId?: string): HumanLookupOption[] {
   return knownContracts
-    .filter((entry) => matchesTerm(contractHaystack(entry), term))
+    .filter((entry) => (!unitId || entry.unitId === unitId) && matchesTerm(contractHaystack(entry), term))
     .map((entry) => ({
       id: entry.id,
       label: `${entry.code} — ${entry.displayName}`,
