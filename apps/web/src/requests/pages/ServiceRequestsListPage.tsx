@@ -452,7 +452,7 @@ export function ServiceRequestsListPage() {
   const isEmptyQueue = items.length === 0 && total === 0 && !hasFilterChips;
 
   return (
-    <ModulePage>
+    <ModulePage layout="wide">
       {/*
         SUPERFÍCIE DE TRABALHO FIXA — cabeçalho, faixas de decisão, visões salvas e filtros não
         rolam com a fila: o operador nunca perde o recorte nem a leitura do processo.
