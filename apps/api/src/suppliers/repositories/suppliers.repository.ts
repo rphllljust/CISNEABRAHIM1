@@ -58,6 +58,17 @@ export class SuppliersRepository {
     return connection.pool;
   }
 
+  private async rollbackKeepingPrimaryCause(client: PoolClient): Promise<Error | undefined> {
+    try {
+      await client.query('ROLLBACK');
+      return undefined;
+    } catch (rollbackFailure) {
+      return rollbackFailure instanceof Error
+        ? rollbackFailure
+        : new Error(String(rollbackFailure));
+    }
+  }
+
   async findRowById(supplierId: string): Promise<SupplierRow | null> {
     const result = await this.pool().query<SupplierRow>(
       `SELECT ${SUPPLIER_RETURNING} FROM pty.suppliers WHERE id = $1`,
@@ -201,6 +212,7 @@ export class SuppliersRepository {
     correlationId: string;
   }): Promise<SupplierRow> {
     const client = await this.pool().connect();
+    let evictWith: Error | undefined;
     try {
       await client.query('BEGIN');
       const created = await client.query<SupplierRow>(
@@ -265,10 +277,10 @@ export class SuppliersRepository {
       await client.query('COMMIT');
       return supplier;
     } catch (error) {
-      await client.query('ROLLBACK');
+      evictWith = await this.rollbackKeepingPrimaryCause(client);
       throw error;
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 
@@ -311,6 +323,7 @@ export class SuppliersRepository {
     // PAR dado_antigo/dado_novo, e sem o anterior o evento de UPDATE não teria contra o que
     // comparar. Fica na MESMA transação da escrita para não ler estado concorrente.
     const client = await this.pool().connect();
+    let evictWith: Error | undefined;
     try {
       await client.query('BEGIN');
       const before = await client.query<SupplierRow>(
@@ -349,10 +362,10 @@ export class SuppliersRepository {
       await client.query('COMMIT');
       return after;
     } catch (error) {
-      await client.query('ROLLBACK');
+      evictWith = await this.rollbackKeepingPrimaryCause(client);
       throw error;
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 
@@ -378,6 +391,7 @@ export class SuppliersRepository {
     }
 
     const client = await this.pool().connect();
+    let evictWith: Error | undefined;
     try {
       await client.query('BEGIN');
       const updated = await client.query<SupplierRow>(
@@ -420,10 +434,10 @@ export class SuppliersRepository {
       await client.query('COMMIT');
       return after;
     } catch (error) {
-      await client.query('ROLLBACK');
+      evictWith = await this.rollbackKeepingPrimaryCause(client);
       throw error;
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 }
