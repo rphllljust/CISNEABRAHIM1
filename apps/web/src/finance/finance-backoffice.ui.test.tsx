@@ -84,6 +84,15 @@ describe('Finance backoffice UI', () => {
     expect(screen.queryByRole('link', { name: 'AR-001' })).not.toBeInTheDocument();
   });
 
+  it('uses authoritative portfolio metrics instead of counting the current page', async () => {
+    vi.stubGlobal('fetch', createFinanceFetchMock({ receivableCount: 60 }));
+    renderWithProviders(<ReceivablesListPage />);
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: /Carteira em aberto/ })).toHaveTextContent('60');
+    });
+    expect(screen.getAllByRole('row')).toHaveLength(51);
+  });
+
   it('overview uses counts and server aging, not a client-side balance total', async () => {
     vi.stubGlobal('fetch', createFinanceFetchMock());
     renderWithProviders(<FinanceOverviewPage />);
