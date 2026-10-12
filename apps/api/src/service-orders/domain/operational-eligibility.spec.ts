@@ -59,6 +59,7 @@ describe('operational eligibility (fail-safe)', () => {
 
     const dueSoon = evaluateOperationalEligibility(
       baseInput({ maintenance: { nextDueAt: '2026-09-30', overdue: false, status: 'DUE_SOON' } }),
+      { asOf: new Date('2026-09-15T12:00:00.000Z') },
     );
     expect(dueSoon.decision).toBe('REVIEW_REQUIRED');
   });

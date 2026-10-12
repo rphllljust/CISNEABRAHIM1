@@ -774,6 +774,59 @@ $$;`);
       await applySqlFile(pool, '0081_receivable_settlement_reversal_columns.sql');
     }
 
+    const hasAuditTrailLogs = await tableExists(pool, 'audit.audit_logs');
+    if (!hasAuditTrailLogs) {
+      await applySqlFile(pool, '0082_audit_trail_logs.sql');
+    }
+
+    const hasSupplierArchiveReason = await columnExists(pool, 'pty', 'suppliers', 'archive_reason');
+    if (!hasSupplierArchiveReason) {
+      await applySqlFile(pool, '0083_supplier_archived_status_and_columns.sql');
+    }
+
+    const hasMetadataPermissions = await tableExists(pool, 'meta.permissions');
+    if (!hasMetadataPermissions) {
+      await applySqlFile(pool, '0084_metadata_store.sql');
+    }
+
+    const hasMetadataEntitySeed = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM meta.entities
+         WHERE name = 'billing-records'
+       ) AS exists`,
+    );
+    if (!hasMetadataEntitySeed.rows[0]?.exists) {
+      await applySqlFile(pool, '0085_metadata_seed_entities.sql');
+    }
+
+    const hasMetadataFinanceSeed = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM meta.entities
+         WHERE name = 'cash-forecast'
+       ) AS exists`,
+    );
+    if (!hasMetadataFinanceSeed.rows[0]?.exists) {
+      await applySqlFile(pool, '0086_metadata_seed_finance.sql');
+    }
+
+    const hasMetadataComputedFields = await tableExists(pool, 'meta.computed_fields');
+    if (!hasMetadataComputedFields) {
+      await applySqlFile(pool, '0087_metadata_v2.sql');
+    }
+
+    const hasMetadataGraphView = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM meta.views
+         WHERE view_type = 'graph'
+       ) AS exists`,
+    );
+    if (!hasMetadataGraphView.rows[0]?.exists) {
+      await applySqlFile(pool, '0088_metadata_views_v4.sql');
+    }
+
     await syncDrizzleJournal(pool);
   } finally {
     await pool.end();

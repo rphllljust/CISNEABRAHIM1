@@ -20,7 +20,7 @@ describe('NotificationDeliveryService', () => {
     getOrCreateNotification: ReturnType<typeof vi.fn>;
     findAcceptedAttempt: ReturnType<typeof vi.fn>;
     countAttempts: ReturnType<typeof vi.fn>;
-    recordDeliveryAttempt: ReturnType<typeof vi.fn>;
+    recordDeliveryAttempt: ReturnType<typeof vi.fn<NotificationsRepository['recordDeliveryAttempt']>>;
     updateNotificationStatus: ReturnType<typeof vi.fn>;
   };
   let registry: NotificationChannelRegistry;
@@ -46,7 +46,7 @@ describe('NotificationDeliveryService', () => {
       getOrCreateNotification: vi.fn(),
       findAcceptedAttempt: vi.fn(),
       countAttempts: vi.fn(),
-      recordDeliveryAttempt: vi.fn(),
+      recordDeliveryAttempt: vi.fn<NotificationsRepository['recordDeliveryAttempt']>(),
       updateNotificationStatus: vi.fn(),
     };
     registry = new NotificationChannelRegistry();

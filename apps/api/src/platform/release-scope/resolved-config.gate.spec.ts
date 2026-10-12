@@ -45,7 +45,7 @@ function runGate(extraEnv: Record<string, string> = {}, extraArgs: string[] = []
   // `shell: false` é obrigatório no Windows: com shell, o caminho do Node
   // (`C:\Program Files\nodejs\node.exe`) é quebrado no espaço e o shell tenta executar
   // `C:\Program` — erro de ambiente que nada tem a ver com a configuração sendo testada.
-  const result = spawnSync(process.execPath, [GATE, ...extraArgs], {
+  const result = spawnSync(process.execPath, [GATE, '--env-file', '.env.hml.example', ...extraArgs], {
     cwd: REPO_ROOT,
     encoding: 'utf8',
     shell: false,
@@ -76,7 +76,7 @@ describe('ambiente host contaminado — HML permanece determinístico', () => {
       ),
     );
 
-    const result = spawnSync(process.execPath, [GATE], {
+    const result = spawnSync(process.execPath, [GATE, '--env-file', '.env.hml.example'], {
       cwd: REPO_ROOT,
       encoding: 'utf8',
       shell: false,
