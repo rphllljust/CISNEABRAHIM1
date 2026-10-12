@@ -848,7 +848,7 @@ describe('Contrato enterprise — propagação: conta a receber', () => {
     // Título encerrado não tem proximo passo declarado: a secao inteira desaparece.
     expect(screen.queryByRole('region', { name: 'Próxima ação' })).not.toBeInTheDocument();
     // As acoes reais de liquidacao/cancelamento continuam bloqueadas pela regra de estado.
-    expect(screen.getByRole('button', { name: 'Receber' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Receber' })).not.toBeInTheDocument();
     expect(screen.getAllByText('Faturamento emitido em duplicidade').length).toBeGreaterThan(0);
   });
 });
