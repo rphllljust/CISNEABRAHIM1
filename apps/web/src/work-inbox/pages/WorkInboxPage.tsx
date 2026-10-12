@@ -35,7 +35,7 @@ import {
   workbenchPrimaryActionClass,
 } from '../../ui/workbench';
 import { cn } from '../../ui/utils/cn';
-import type { MetaField } from '../../engine/types';
+import type { MetaEntitySchema } from '../../engine/types';
 import {
   WORK_DOMAIN_LABELS,
   WORK_DOMAINS,
@@ -70,44 +70,69 @@ import {
 
 const DEFAULT_LIMIT = 25;
 
-const WORK_INBOX_ADVANCED_FIELDS: MetaField[] = [
-  {
-    name: 'domain',
-    label: 'Domínio',
-    type: 'select',
-    required: false,
-    in_list: true,
-    in_filter: true,
-    sortable: false,
-    readonly: true,
-    options: {
-      options: WORK_DOMAINS.map((value) => ({ value, label: WORK_DOMAIN_LABELS[value] })),
+const WORK_INBOX_FILTER_SCHEMA: MetaEntitySchema = {
+  name: 'work-inbox',
+  label: 'Central de trabalho',
+  description: 'Recorte governado da fila unificada',
+  dataSchema: 'work_inbox',
+  dataTable: 'work_inbox',
+  labelField: 'title',
+  fields: [
+    {
+      name: 'domain',
+      label: 'Domínio',
+      type: 'select',
+      required: false,
+      readOnly: true,
+      permLevel: 0,
+      options: {
+        options: WORK_DOMAINS.map((value) => ({ value, label: WORK_DOMAIN_LABELS[value] })),
+      },
+      fieldOrder: 1,
+      inForm: false,
+      inList: true,
+      listOrder: 1,
+      inFilter: true,
+      inSearch: false,
     },
-  },
-  {
-    name: 'kind',
-    label: 'Natureza',
-    type: 'select',
-    required: false,
-    in_list: true,
-    in_filter: true,
-    sortable: false,
-    readonly: true,
-    options: {
-      options: WORK_KINDS.map((value) => ({ value, label: WORK_KIND_LABELS[value] })),
+    {
+      name: 'kind',
+      label: 'Natureza',
+      type: 'select',
+      required: false,
+      readOnly: true,
+      permLevel: 0,
+      options: {
+        options: WORK_KINDS.map((value) => ({ value, label: WORK_KIND_LABELS[value] })),
+      },
+      fieldOrder: 2,
+      inForm: false,
+      inList: true,
+      listOrder: 2,
+      inFilter: true,
+      inSearch: false,
     },
-  },
-  {
-    name: 'unitId',
-    label: 'Unidade',
-    type: 'text',
-    required: false,
-    in_list: true,
-    in_filter: true,
-    sortable: false,
-    readonly: true,
-  },
-];
+    {
+      name: 'unitId',
+      label: 'Unidade',
+      type: 'text',
+      required: false,
+      readOnly: true,
+      permLevel: 0,
+      options: null,
+      fieldOrder: 3,
+      inForm: false,
+      inList: true,
+      listOrder: 3,
+      inFilter: true,
+      inSearch: false,
+    },
+  ],
+  views: [],
+  workflow: null,
+  permissions: [],
+  allowedPermLevels: [0],
+};
 
 function emptyAdvancedFilter(): FilterGroup {
   return { op: 'AND', rules: [], groups: [] };
@@ -384,7 +409,7 @@ export function WorkInboxPage() {
       {advancedFiltersOpen ? (
         <div className="cisne-divider mb-2 pb-2">
           <DynamicFilterBuilder
-            fields={WORK_INBOX_ADVANCED_FIELDS}
+            schema={WORK_INBOX_FILTER_SCHEMA}
             value={advancedFilter}
             onChange={setAdvancedFilter}
           />
