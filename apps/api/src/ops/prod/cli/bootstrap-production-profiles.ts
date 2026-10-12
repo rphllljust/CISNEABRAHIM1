@@ -298,6 +298,38 @@ async function ensureFullGrantsBulk(
     resource_type: resolveResourceType(action),
   }));
 
+  // Reativa concessoes globais previamente revogadas. Alguns ambientes de producao
+  // preservam a linha historica por unicidade; nesse caso um INSERT ... DO NOTHING
+  // deixaria o perfil FULL_ACCESS sem grants ativos.
+  await client.query(
+    `WITH target_identities AS (
+       SELECT unnest($1::uuid[]) AS identity_id
+     ),
+     target_actions AS (
+       SELECT action, resource_type
+         FROM jsonb_to_recordset($2::jsonb)
+           AS x(action text, resource_type text)
+     )
+     UPDATE "authorization".grants g
+        SET revoked_at = NULL,
+            revoked_by_identity_id = NULL,
+            valid_from = NOW(),
+            valid_until = NULL,
+            scope_type = 'GLOBAL'::"authorization".authz_scope_type,
+            constraints = NULL,
+            granted_by_identity_id = $3,
+            updated_at = NOW(),
+            version = version + 1
+       FROM target_identities ti
+       JOIN target_actions ta ON TRUE
+      WHERE g.identity_id = ti.identity_id
+        AND g.action = ta.action
+        AND g.resource_type = ta.resource_type
+        AND g.resource_id IS NULL
+        AND g.revoked_at IS NOT NULL`,
+    [identityIds, JSON.stringify(actionRows), actorIdentityId],
+  );
+
   await client.query(
     `WITH target_identities AS (
        SELECT unnest($1::uuid[]) AS identity_id
