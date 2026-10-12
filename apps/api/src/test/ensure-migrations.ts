@@ -774,6 +774,59 @@ $$;`);
       await applySqlFile(pool, '0081_receivable_settlement_reversal_columns.sql');
     }
 
+    const hasAuditTrailLogs = await tableExists(pool, 'audit.audit_logs');
+    if (!hasAuditTrailLogs) {
+      await applySqlFile(pool, '0082_audit_trail_logs.sql');
+    }
+
+    const hasSupplierArchiveColumns = await columnExists(pool, 'pty', 'suppliers', 'archived_at');
+    if (!hasSupplierArchiveColumns) {
+      await applySqlFile(pool, '0083_supplier_archived_status_and_columns.sql');
+    }
+
+    const hasMetadataStore = await tableExists(pool, 'meta.entities');
+    if (!hasMetadataStore) {
+      await applySqlFile(pool, '0084_metadata_store.sql');
+    }
+
+    const metadataSupplierSeed = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM meta.entities
+         WHERE name = 'suppliers'
+       ) AS exists`,
+    );
+    if (!metadataSupplierSeed.rows[0]?.exists) {
+      await applySqlFile(pool, '0085_metadata_seed_entities.sql');
+    }
+
+    const metadataFinanceSeed = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM meta.entities
+         WHERE name = 'receivables'
+       ) AS exists`,
+    );
+    if (!metadataFinanceSeed.rows[0]?.exists) {
+      await applySqlFile(pool, '0086_metadata_seed_finance.sql');
+    }
+
+    const hasMetadataComputedFields = await tableExists(pool, 'meta.computed_fields');
+    if (!hasMetadataComputedFields) {
+      await applySqlFile(pool, '0087_metadata_v2.sql');
+    }
+
+    const hasMetadataPivotView = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM meta.views
+         WHERE view_type = 'pivot'
+       ) AS exists`,
+    );
+    if (!hasMetadataPivotView.rows[0]?.exists) {
+      await applySqlFile(pool, '0088_metadata_views_v4.sql');
+    }
+
     await syncDrizzleJournal(pool);
   } finally {
     await pool.end();
