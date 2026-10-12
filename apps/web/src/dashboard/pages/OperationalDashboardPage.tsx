@@ -14,7 +14,7 @@ import { ModuleDeniedState, ModulePage } from '../../ui';
 import { ContextDrawer } from '../../operator';
 import { StatusBadge } from '../../ui/StatusBadge';
 import { Money } from '../../ui/Money';
-import { getWorkInbox, type WorkInboxPage, type WorkItem } from '../../work-inbox/api/work-inbox-api';
+import { getWorkInbox, type WorkDomain, type WorkInboxPage, type WorkItem } from '../../work-inbox/api/work-inbox-api';
 import { daysOverdue } from '../../work-inbox/pages/WorkInboxPage';
 import { WORK_DOMAIN_LABELS, WORK_KIND_LABELS } from '../../work-inbox/api/work-inbox-api';
 import type { ExecutiveDashboardSnapshot } from '../types/dashboard.types';
@@ -101,7 +101,7 @@ export function OperationalDashboardPage() {
   const navigate = useNavigate();
 
   /** UNICO recorte de dominio da tela — alimenta fila, cadeia e faixa de indicadores. */
-  const [domain, setDomain] = useState<string | null>(null);
+  const [domain, setDomain] = useState<WorkDomain | null>(null);
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [inbox, setInbox] = useState<WorkInboxPage | null>(null);
   const [inboxPhase, setInboxPhase] = useState<'loading' | 'ready' | 'denied' | 'error'>('loading');
@@ -112,7 +112,7 @@ export function OperationalDashboardPage() {
     const controller = new AbortController();
     setInboxPhase('loading');
     void getWorkInbox(
-      { domain: (domain ?? undefined) as never, overdue: overdueOnly, limit: 6, offset: 0 },
+      { domain: domain ?? undefined, overdue: overdueOnly, limit: 6, offset: 0 },
       controller.signal,
     )
       .then((result) => {
@@ -170,7 +170,7 @@ export function OperationalDashboardPage() {
 
   if (state.phase === 'loading') {
     return (
-      <ModulePage className="max-w-7xl">
+      <ModulePage layout="workspace">
         <DashboardPageHeader
           {...headerProps}
           unitLabel={unitLabel}
@@ -186,7 +186,7 @@ export function OperationalDashboardPage() {
 
   if (state.phase === 'denied') {
     return (
-      <ModulePage className="max-w-7xl">
+      <ModulePage layout="workspace">
         <DashboardPageHeader
           {...headerProps}
           unitLabel={unitLabel}
@@ -208,7 +208,7 @@ export function OperationalDashboardPage() {
   const periodLabel = snapshot ? formatPeriodLabel(snapshot.period.from, snapshot.period.to) : null;
 
   return (
-    <ModulePage className="max-w-7xl">
+    <ModulePage layout="workspace">
       <DashboardPageHeader
         {...headerProps}
         unitLabel={unitLabel}
