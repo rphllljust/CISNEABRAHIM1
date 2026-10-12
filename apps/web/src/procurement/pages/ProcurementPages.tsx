@@ -117,28 +117,54 @@ function ProcurementLists() {
 
   useEffect(() => {
     const controller = new AbortController();
-    setState({
-      requests: { phase: 'loading' },
-      orders: { phase: 'loading' },
-      invoices: { phase: 'loading' },
-    });
-    const query = { limit: LIST_PAGE_SIZE, offset: 0, q: appliedTerm || undefined };
-
-    void listPurchaseRequests(query, controller.signal).then(
-      (response) => setState((current) => ({ ...current, requests: { phase: 'ready', items: response.items, total: response.total } })),
+    setState((current) => ({ ...current, requests: { phase: 'loading' } }));
+    void listPurchaseRequests(
+      { limit: LIST_PAGE_SIZE, offset: offsets.requests, q: appliedTerm || undefined },
+      controller.signal,
+    ).then(
+      (response) =>
+        setState((current) => ({
+          ...current,
+          requests: { phase: 'ready', items: response.items, total: response.total },
+        })),
       () => setState((current) => ({ ...current, requests: { phase: 'denied' } })),
     );
-    void listSupplierPurchaseOrders(query, controller.signal).then(
-      (response) => setState((current) => ({ ...current, orders: { phase: 'ready', items: response.items, total: response.total } })),
+    return () => controller.abort();
+  }, [appliedTerm, offsets.requests]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setState((current) => ({ ...current, orders: { phase: 'loading' } }));
+    void listSupplierPurchaseOrders(
+      { limit: LIST_PAGE_SIZE, offset: offsets.orders, q: appliedTerm || undefined },
+      controller.signal,
+    ).then(
+      (response) =>
+        setState((current) => ({
+          ...current,
+          orders: { phase: 'ready', items: response.items, total: response.total },
+        })),
       () => setState((current) => ({ ...current, orders: { phase: 'denied' } })),
     );
-    void listSupplierInvoices(query, controller.signal).then(
-      (response) => setState((current) => ({ ...current, invoices: { phase: 'ready', items: response.items, total: response.total } })),
+    return () => controller.abort();
+  }, [appliedTerm, offsets.orders]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setState((current) => ({ ...current, invoices: { phase: 'loading' } }));
+    void listSupplierInvoices(
+      { limit: LIST_PAGE_SIZE, offset: offsets.invoices, q: appliedTerm || undefined },
+      controller.signal,
+    ).then(
+      (response) =>
+        setState((current) => ({
+          ...current,
+          invoices: { phase: 'ready', items: response.items, total: response.total },
+        })),
       () => setState((current) => ({ ...current, invoices: { phase: 'denied' } })),
     );
-
     return () => controller.abort();
-  }, [appliedTerm]);
+  }, [appliedTerm, offsets.invoices]);
 
   return (
     <>
@@ -147,6 +173,7 @@ function ProcurementLists() {
           className="flex flex-wrap items-center gap-2"
           onSubmit={(event) => {
             event.preventDefault();
+            setOffsets({ requests: 0, orders: 0, invoices: 0 });
             setAppliedTerm(term.trim());
           }}
         >
@@ -171,6 +198,7 @@ function ProcurementLists() {
             label="Limpar busca"
             onClick={() => {
               setTerm('');
+              setOffsets({ requests: 0, orders: 0, invoices: 0 });
               setAppliedTerm('');
             }}
           />
