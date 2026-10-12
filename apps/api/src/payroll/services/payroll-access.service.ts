@@ -26,22 +26,30 @@ import {
 } from '../domain/payroll';
 import {
   validateCreateEmploymentContractInput,
+  validateEmploymentContractListQuery,
   validateOpenPayrollPeriodInput,
+  validatePayrollPeriodListQuery,
   validateRecordPayrollEventInput,
   type CreateEmploymentContractInput,
+  type EmploymentContractListQuery,
   type OpenPayrollPeriodInput,
+  type PayrollPeriodListQuery,
   type RecordPayrollEventInput,
 } from '../domain/payroll.validation';
 import { PayrollRepository } from '../repositories/payroll.repository';
 import type { PayrollEventRow, PayrollPeriodRow } from '../repositories/payroll.repository.types';
 import {
+  toEmploymentContractListResponse,
   toEmploymentContractResponse,
   toPayrollEventResponse,
+  toPayrollPeriodListResponse,
   toPayrollPeriodResponse,
   toPayrollResultResponse,
+  type EmploymentContractListResponse,
   type EmploymentContractResponse,
   type PayrollCalculationResponse,
   type PayrollEventResponse,
+  type PayrollPeriodListResponse,
   type PayrollPeriodResponse,
   type PayrollResultResponse,
 } from '../serializers/payroll-response.serializer';
@@ -319,6 +327,61 @@ export class PayrollAccessService implements PayrollContractPort {
         metadata: { status: reopened.status },
       });
       return toPayrollPeriodResponse(reopened);
+    } catch (error) {
+      throw mapPayrollDomainError(error);
+    }
+  }
+
+  async listPeriods(
+    actor: IdentityAuthzContext,
+    query: {
+      unitId?: unknown;
+      status?: unknown;
+      q?: unknown;
+      page?: unknown;
+      pageSize?: unknown;
+    },
+  ): Promise<PayrollPeriodListResponse> {
+    try {
+      const validated: PayrollPeriodListQuery = validatePayrollPeriodListQuery(query);
+      await this.authz.assertPayrollAction(actor, AUTHZ_ACTIONS.PayrollRead, {
+        id: validated.unitId,
+        unitId: validated.unitId,
+      });
+      const result = await this.repository.listPeriods(validated);
+      return toPayrollPeriodListResponse({
+        items: result.items,
+        total: result.total,
+        page: validated.page,
+        pageSize: validated.pageSize,
+      });
+    } catch (error) {
+      throw mapPayrollDomainError(error);
+    }
+  }
+
+  async listContracts(
+    actor: IdentityAuthzContext,
+    query: {
+      unitId?: unknown;
+      q?: unknown;
+      page?: unknown;
+      pageSize?: unknown;
+    },
+  ): Promise<EmploymentContractListResponse> {
+    try {
+      const validated: EmploymentContractListQuery = validateEmploymentContractListQuery(query);
+      await this.authz.assertPayrollAction(actor, AUTHZ_ACTIONS.PayrollRead, {
+        id: validated.unitId,
+        unitId: validated.unitId,
+      });
+      const result = await this.repository.listContracts(validated);
+      return toEmploymentContractListResponse({
+        items: result.items,
+        total: result.total,
+        page: validated.page,
+        pageSize: validated.pageSize,
+      });
     } catch (error) {
       throw mapPayrollDomainError(error);
     }
