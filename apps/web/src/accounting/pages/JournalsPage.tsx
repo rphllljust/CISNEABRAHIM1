@@ -22,7 +22,14 @@ import {
   worklistTableCardClass,
   worklistTableClass,
 } from '../../ui/enterprise-list';
-import { ContextDrawer, type ContextPreviewBody } from '../../operator';
+import {
+  ContextDrawer,
+  SavedViewsBar,
+  useSavedViews,
+  type BuiltInView,
+  type ContextPreviewBody,
+  type SmartListAllowedFilters,
+} from '../../operator';
 import { ClosedPeriodBanner } from '../../financial-ui/ClosedPeriodBanner';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { JOURNAL_STATUS_LABELS, MOVEMENT_DIRECTION_LABELS, PERIOD_STATUS_LABELS } from '../../financial-ui/labels';
@@ -73,6 +80,25 @@ function NEXT_ACTION_FOR(status: JournalStatus): string {
  * `sourceReference` do próprio registro, então a coluna "Origem" lê o dado gravado; nada é
  * inferido a partir do histórico do lançamento. Valor sem rótulo conhecido aparece cru.
  */
+const JOURNAL_SAVED_VIEW_FILTERS: SmartListAllowedFilters = {
+  filters: { status: ['DRAFT', 'POSTED'] },
+};
+
+const JOURNAL_BUILT_IN_VIEWS: BuiltInView[] = [
+  {
+    id: 'journal-drafts',
+    name: 'Rascunhos',
+    description: 'Lançamentos em rascunho no período selecionado.',
+    config: { filters: { status: 'DRAFT' }, sortKey: null, sortDirection: 'asc', groupKey: null },
+  },
+  {
+    id: 'journal-posted',
+    name: 'Postados',
+    description: 'Lançamentos já postados no período selecionado.',
+    config: { filters: { status: 'POSTED' }, sortKey: null, sortDirection: 'asc', groupKey: null },
+  },
+];
+
 const SOURCE_KIND_LABELS: Record<string, string> = {
   MANUAL: 'Manual',
   BILLING: 'Faturamento',
@@ -124,6 +150,12 @@ function JournalListRoute() {
   const [statusFilter, setStatusFilter] = useState<'ALL' | JournalStatus>('ALL');
   const [pageNumber, setPageNumber] = useState(0);
   const [previewId, setPreviewId] = useState<string | null>(null);
+  const [activeViewId, setActiveViewId] = useState<string | null>(null);
+  const savedViews = useSavedViews(
+    'accounting.journals',
+    JOURNAL_BUILT_IN_VIEWS,
+    JOURNAL_SAVED_VIEW_FILTERS,
+  );
 
   const chartsQuery = useBackofficeQuery<ChartsList>({
     enabled: unitId !== '',
