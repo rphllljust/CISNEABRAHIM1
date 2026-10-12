@@ -97,9 +97,9 @@ export function OperationsControlCenter({
   const billingVisible = downstream.billing.count > 0 || downstream.billing.status !== null;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-0">
       <section
-        className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+        className="cisne-divider py-3 first:pt-0 last:border-b-0"
         aria-labelledby="occ-next-action-heading"
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -132,7 +132,7 @@ export function OperationsControlCenter({
       </section>
 
       <section
-        className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+        className="cisne-divider py-3 first:pt-0 last:border-b-0"
         aria-labelledby="occ-progression-heading"
       >
         <h2 id="occ-progression-heading" className="cisne-type-section-title">
@@ -163,9 +163,9 @@ export function OperationsControlCenter({
         </ol>
       </section>
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-0 lg:grid-cols-2 lg:divide-x lg:divide-gray-200">
         <section
-          className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+          className="cisne-divider py-3 lg:pr-5"
           aria-labelledby="occ-planned-heading"
         >
           <h2 id="occ-planned-heading" className="cisne-type-section-title">
@@ -188,7 +188,7 @@ export function OperationsControlCenter({
         </section>
 
         <section
-          className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+          className="cisne-divider py-3 lg:pl-5"
           aria-labelledby="occ-actual-heading"
         >
           <h2 id="occ-actual-heading" className="cisne-type-section-title">
@@ -233,9 +233,9 @@ export function OperationsControlCenter({
         </section>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-0 lg:grid-cols-2 lg:divide-x lg:divide-gray-200">
         <section
-          className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+          className="cisne-divider py-3 lg:pr-5"
           aria-labelledby="occ-measurement-heading"
         >
           <h2 id="occ-measurement-heading" className="cisne-type-section-title">
@@ -265,7 +265,7 @@ export function OperationsControlCenter({
         </section>
 
         <section
-          className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+          className="cisne-divider py-3 lg:pl-5"
           aria-labelledby="occ-billing-heading"
         >
           <h2 id="occ-billing-heading" className="cisne-type-section-title">
