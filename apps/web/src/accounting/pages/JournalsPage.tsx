@@ -22,6 +22,7 @@ import {
   worklistTableCardClass,
   worklistTableClass,
 } from '../../ui/enterprise-list';
+import { ContextDrawer, type ContextPreviewBody } from '../../operator';
 import { ClosedPeriodBanner } from '../../financial-ui/ClosedPeriodBanner';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { JOURNAL_STATUS_LABELS, MOVEMENT_DIRECTION_LABELS, PERIOD_STATUS_LABELS } from '../../financial-ui/labels';
@@ -122,6 +123,7 @@ function JournalListRoute() {
   const [periodId, setPeriodId] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | JournalStatus>('ALL');
   const [pageNumber, setPageNumber] = useState(0);
+  const [previewId, setPreviewId] = useState<string | null>(null);
 
   const chartsQuery = useBackofficeQuery<ChartsList>({
     enabled: unitId !== '',
@@ -162,6 +164,7 @@ function JournalListRoute() {
   const periods = periodsQuery.state.phase === 'ready' ? periodsQuery.state.data.items : [];
   const accounts = accountsQuery.state.phase === 'ready' ? accountsQuery.state.data.items : [];
   const page = journalsQuery.state.phase === 'ready' ? journalsQuery.state.data : null;
+  const previewRow = page?.items.find((entry) => entry.id === previewId) ?? null;
 
   const { reload: reloadCharts, reset: resetCharts } = chartsQuery;
   const { reload: reloadPeriods, reset: resetPeriods } = periodsQuery;
