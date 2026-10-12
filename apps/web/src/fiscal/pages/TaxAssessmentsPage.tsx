@@ -190,7 +190,7 @@ function TaxAssessmentsList() {
   const filtersActive = status !== '' || periodKey !== '';
 
   return (
-    <ModulePage>
+    <ModulePage layout="wide">
       <WorklistHeader
         title="Obrigações tributárias"
         count={total}
@@ -463,7 +463,7 @@ function TaxAssessmentDetail({ assessmentId }: { assessmentId: string }) {
   const selectors = state.phase === 'ready' ? allowedAssessmentActions(state.data.status) : null;
 
   return (
-    <ModulePage>
+    <ModulePage layout="wide">
       <WorklistHeader
         title="Obrigação tributária"
         context="O valor apurado vem da apuração persistida. Esta tela não calcula imposto."
