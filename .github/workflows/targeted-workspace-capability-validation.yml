@@ -1,0 +1,49 @@
+name: Targeted Workspace Capability Validation
+
+on:
+  push:
+    branches:
+      - 'rc/workspace-real-capabilities-20261012'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Focused workspace capability gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 3
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Focused lint
+        run: pnpm --dir apps/web exec eslint src/workspaces/domain-workspaces.ts src/workspaces/workspaces.ui.test.tsx
+
+      - name: Web typecheck
+        run: pnpm --filter @cisne/web typecheck
+
+      - name: Focused test
+        run: pnpm --filter @cisne/web exec vitest run --config vite.config.ts src/workspaces/workspaces.ui.test.tsx
+
+      - name: Production web build
+        run: pnpm --filter @cisne/web build
+
+      - name: Diff check
+        run: git diff --check HEAD~2 HEAD~1 -- apps/web/src/workspaces/domain-workspaces.ts apps/web/src/workspaces/workspaces.ui.test.tsx
