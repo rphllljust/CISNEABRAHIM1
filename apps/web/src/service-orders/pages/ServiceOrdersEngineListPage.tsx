@@ -635,6 +635,32 @@ export function ServiceOrdersEngineListPage() {
             />
           </div>
 
+          {/*
+            GRAMÁTICA DE REGIÕES — a ordem da família.
+
+            DEFEITO CORRIGIDO: a superfície de VISÕES SALVAS vinha DEPOIS das DUAS superfícies de
+            filtro (`DynamicFilterBar` + `WorklistFilterBar`). Varredura estática desta wave
+            encontrou 8 telas ainda invertidas; esta é a maior delas e uma das alcançáveis, o que
+            permite verificar a correção por DOM.
+
+                OPERATING HEADER -> SAVED VIEWS -> COMMAND/FILTER -> WORK QUEUE
+          */}
+          <div data-region="saved-view-surface">
+          <DynamicSavedViewsBar
+            views={savedViews.views}
+            persistedLocally={savedViews.persistedLocally}
+            persistable={savedViews.persistable}
+            onSave={(name) => savedViews.save(name, filters, activeViewType)}
+            onDelete={savedViews.remove}
+            onApply={(view) => {
+              const next = filtersToSearchParams(view.filters);
+              next.set('view', view.viewType);
+              setSearchParams(next, { replace: true });
+            }}
+          />
+          </div>
+
+          <div data-region="command-filter-surface">
           <DynamicFilterBar
             schema={schema}
             values={filters}
@@ -677,19 +703,6 @@ export function ServiceOrdersEngineListPage() {
               }}
             />
           </WorklistFilterBar>
-
-          <div data-region="saved-view-surface">
-          <DynamicSavedViewsBar
-            views={savedViews.views}
-            persistedLocally={savedViews.persistedLocally}
-            onSave={(name) => savedViews.save(name, filters, activeViewType)}
-            onDelete={savedViews.remove}
-            onApply={(view) => {
-              const next = filtersToSearchParams(view.filters);
-              next.set('view', view.viewType);
-              setSearchParams(next, { replace: true });
-            }}
-          />
           </div>
 
           {/*
