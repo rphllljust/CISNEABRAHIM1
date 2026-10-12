@@ -443,7 +443,7 @@ export function ProposalsListPage() {
   }).length;
 
   return (
-    <ModulePage>
+    <ModulePage layout="wide">
       {/*
         GRAMATICA APROVADA (Clientes) — `WorklistHeader`, nao `EnterpriseListHeader`.
         Sao componentes DIFERENTES: `EnterpriseListHeader` envolve a cabeca em um CARD com borda;
