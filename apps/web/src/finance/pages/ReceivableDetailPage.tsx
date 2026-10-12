@@ -246,7 +246,7 @@ export function ReceivableDetailPage() {
         break;
     }
     return (
-      <ModulePage>
+      <ModulePage layout="wide">
         <ModulePageHeader title="Conta a receber" />
         <EnterpriseObjectPage
           breadcrumb={[
@@ -348,7 +348,7 @@ export function ReceivableDetailPage() {
   ];
 
   return (
-    <ModulePage>
+    <ModulePage layout="wide">
       <EnterpriseObjectPage
         breadcrumb={[
           { label: 'Contas a receber', href: '/app/finance/receivables' },
