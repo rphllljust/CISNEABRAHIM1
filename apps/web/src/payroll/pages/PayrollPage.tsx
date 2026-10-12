@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Alert, Button, EmptyState, ErrorState, Field, Input, Money, Select, worklistTableCardClass } from '../../ui';
+import { Alert, Button, DateTime, EmptyState, ErrorState, Field, Input, Money, Select, worklistTableCardClass } from '../../ui';
 import { FilterCard, ModulePage } from '../../ui/module-layout';
 import { EnterpriseMetric, WorklistHeader, worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
 import { CreateRecordForm, VersionedActionForm } from '../../financial-ui/VersionedActionForm';
@@ -35,6 +35,7 @@ import {
   recordPayrollEvent,
   reopenPayrollPeriod,
   type PayrollPeriod,
+  type PayrollPeriodPage,
   type PayrollResult,
 } from '../api/payroll-api';
 
@@ -113,6 +114,23 @@ export function PayrollPage() {
     enabled: Boolean(periodId && unitId && state.phase === 'ready'),
     autoLoad: Boolean(periodId && unitId && state.phase === 'ready'),
   });
+
+  const periodsLoader = useCallback(
+    (signal?: AbortSignal) =>
+      listPayrollPeriods({ unitId, page: 0, pageSize: 10 }, signal),
+    [unitId],
+  );
+  const periods = useBackofficeQuery<PayrollPeriodPage>({
+    loader: periodsLoader,
+    mapError: mapPayrollErrorToMessage,
+    enabled: Boolean(unitId),
+    autoLoad: false,
+  });
+  useEffect(() => {
+    if (unitId) {
+      void periods.reload();
+    }
+  }, [periods.reload, unitId]);
   /*
    * Escolher outro período na busca humana (ou trocar a unidade) muda a chave do que está na tela
    * SEM remontar a página. O hook compartilhado carrega uma vez por `enabled`, então sem este
@@ -256,6 +274,78 @@ export function PayrollPage() {
           contratos cadastrados aqui. Nenhum identificador técnico é digitado.
         </p>
       </FilterCard>
+
+      {unitId ? (
+        <section className="mb-6 rounded-md border border-gray-200 bg-white" aria-label="Competências recentes">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-3 py-2">
+            <div>
+              <h2 className="text-[13px] font-semibold text-gray-900">Competências da unidade</h2>
+              <p className="mt-0.5 text-xs text-gray-500">
+                Últimos períodos autorizados, ordenados da competência mais recente para a mais antiga.
+              </p>
+            </div>
+            {periods.state.phase === 'ready' ? (
+              <span className="text-xs tabular-nums text-gray-500">
+                {periods.state.data.total} período(s)
+              </span>
+            ) : null}
+          </div>
+          {periods.state.phase === 'loading' || periods.state.phase === 'idle' ? (
+            <p className="px-3 py-3 text-sm text-gray-500">Carregando competências…</p>
+          ) : null}
+          {periods.state.phase === 'error' ? (
+            <div className="px-3 py-3">
+              <ErrorState
+                title="Não foi possível carregar as competências"
+                description={periods.state.message}
+                actionLabel="Tentar novamente"
+                onAction={() => void periods.reload()}
+              />
+            </div>
+          ) : null}
+          {periods.state.phase === 'ready' && periods.state.data.items.length === 0 ? (
+            <p className="px-3 py-3 text-sm text-gray-500">
+              Nenhuma competência persistida para esta unidade.
+            </p>
+          ) : null}
+          {periods.state.phase === 'ready' && periods.state.data.items.length > 0 ? (
+            <div className={worklistTableCardClass}>
+              <table className={worklistTableClass} aria-label="Competências recentes da folha">
+                <thead>
+                  <tr>
+                    <th className={worklistHeadCellClass}>Competência</th>
+                    <th className={worklistHeadCellClass}>Situação</th>
+                    <th className={worklistHeadCellClass}>Vigência</th>
+                    <th className={worklistHeadCellClass}>Versão</th>
+                    <th className={worklistHeadCellClass}>Ação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {periods.state.data.items.map((item) => (
+                    <tr key={item.id} className={worklistRowClass}>
+                      <td className={worklistCellClass}>
+                        <strong>{formatPayrollCompetence(item)}</strong>
+                      </td>
+                      <td className={worklistCellClass}>
+                        <FinanceStatusBadge status={item.status} labels={PAYROLL_PERIOD_STATUS_LABELS} />
+                      </td>
+                      <td className={worklistCellClass}>
+                        <DateTime value={item.startsOn} mode="date" /> — <DateTime value={item.endsOn} mode="date" />
+                      </td>
+                      <td className={worklistCellClass}>{item.rowVersion}</td>
+                      <td className={worklistCellClass}>
+                        <Button type="button" variant="secondary" onClick={() => openPeriod(item.id)}>
+                          Selecionar
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       {state.phase === 'ready' ? (
         <WorkbenchQueue
