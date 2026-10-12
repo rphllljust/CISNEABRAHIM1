@@ -154,7 +154,7 @@ function FiscalPeriodsList() {
   ).length;
 
   return (
-    <ModulePage>
+    <ModulePage layout="wide">
       <WorklistHeader
         title="Períodos fiscais"
         count={total}
@@ -440,7 +440,7 @@ function FiscalPeriodDetail({ periodId }: { periodId: string }) {
   );
 
   return (
-    <ModulePage>
+    <ModulePage layout="wide">
       <WorklistHeader
         title="Período fiscal"
         context="Abertura, fechamento e reabertura são decididos pelo backend, com SOD e justificativa."
