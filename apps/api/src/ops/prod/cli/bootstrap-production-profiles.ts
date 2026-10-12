@@ -392,6 +392,54 @@ async function ensureFullGrantsBulk(
   );
 }
 
+
+async function backfillOperationalUnitScopeRefs(client: PoolClient): Promise<number> {
+  /*
+   * Produção histórica pode possuir fatos de negócio com unit_id antes de a tabela
+   * authorization.scope_refs ter sido populada. O shell usa scope_refs como catálogo de
+   * unidades autorizadas; quando ele fica vazio, Fiscal/Contabilidade não conseguem montar
+   * as leituras de entrada e o usuário FULL_ACCESS cai em /app/no-access mesmo com grants
+   * globais válidos.
+   *
+   * A reparação é conservadora: somente registra unidades que JÁ EXISTEM em dados
+   * autoritativos. Não inventa código de unidade e é idempotente.
+   */
+  const result = await client.query<{ ref_id: string }>(
+    `WITH known_units AS (
+       SELECT unit_id AS ref_id FROM sr.service_requests
+       UNION
+       SELECT unit_id AS ref_id FROM so.service_orders
+       UNION
+       SELECT unit_id AS ref_id FROM fin.receivables
+       UNION
+       SELECT unit_id AS ref_id FROM fin.payables
+       UNION
+       SELECT unit_id AS ref_id FROM fin.financial_accounts
+       UNION
+       SELECT unit_id AS ref_id FROM acc.charts_of_accounts
+       UNION
+       SELECT unit_id AS ref_id FROM acc.accounting_periods
+       UNION
+       SELECT unit_id AS ref_id FROM acc.journal_entries
+       UNION
+       SELECT unit_id AS ref_id FROM fis.fiscal_documents
+       UNION
+       SELECT unit_id AS ref_id FROM fis.fiscal_periods
+     ),
+     inserted AS (
+       INSERT INTO "authorization".scope_refs (scope_type, ref_id)
+       SELECT 'UNIT'::"authorization".authz_scope_type, trim(ref_id)
+         FROM known_units
+        WHERE ref_id IS NOT NULL
+          AND length(trim(ref_id)) > 0
+       ON CONFLICT DO NOTHING
+       RETURNING ref_id
+     )
+     SELECT ref_id FROM inserted`,
+  );
+  return result.rowCount ?? result.rows.length;
+}
+
 async function replaceEmployeeAccess(
   client: PoolClient,
   roleId: string,
@@ -537,6 +585,8 @@ async function main(): Promise<void> {
       actorIdentityId,
     );
 
+    const operationalUnitsBackfilled = await backfillOperationalUnitScopeRefs(client);
+
     const restrictedRoleId = await ensureRole(
       client,
       'EMPREGADO_RESTRITO',
@@ -572,6 +622,7 @@ async function main(): Promise<void> {
           .map((profile) => profile.login),
         fullAccessActions: allActions.length,
         employeeGrants: EMPLOYEE_GRANTS.length,
+        operationalUnitsBackfilled,
       }),
     );
   } catch (error) {
