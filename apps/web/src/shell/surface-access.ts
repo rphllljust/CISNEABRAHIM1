@@ -281,6 +281,51 @@ async function probeEntry(url: string, signal?: AbortSignal): Promise<SurfaceAcc
 }
 
 /**
+ * Fallback AUTORITATIVO para superfícies que exigem unidade quando ainda não existe
+ * nenhuma unidade operacional cadastrada.
+ *
+ * Não transforma "sem unidade" em "sem permissão": perfis administrativos podem provar
+ * uma capability GLOBAL/DIRETA pelo catálogo de grants já existente. O backend continua
+ * sendo a fronteira de segurança e perfis sem AccessAdminRead falham fechados.
+ */
+export async function probeExplicitCapability(
+  identityId: string,
+  capabilityId: string,
+  signal?: AbortSignal,
+): Promise<SurfaceAccessResult> {
+  const accessToken = tokenStore.getAccessToken();
+  if (!accessToken || !identityId || !capabilityId) {
+    return { outcome: 'denied' };
+  }
+
+  const response = await fetch(
+    `${getApiBaseUrl()}/api/v1/authz/access-admin/grants?identityId=${enc(identityId)}`,
+    {
+      method: 'GET',
+      headers: { Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
+      signal,
+    },
+  );
+
+  if (response.status === 401) {
+    throw new Error('session_expired');
+  }
+  if (!response.ok) {
+    return { outcome: 'denied' };
+  }
+
+  const grants = (await response.json()) as Array<{
+    action?: unknown;
+    revokedAt?: unknown;
+  }>;
+  const allowed = Array.isArray(grants)
+    && grants.some(
+      (grant) => grant.action === capabilityId && (grant.revokedAt === null || grant.revokedAt === undefined),
+    );
+  return { outcome: allowed ? 'allowed' : 'denied' };
+}
+
+/**
  * Decide o acesso de UMA superfície pelo contrato acima.
  *
  * Superfícies compostas tentam cada entrada e autorizam se qualquer uma responder 2xx.
