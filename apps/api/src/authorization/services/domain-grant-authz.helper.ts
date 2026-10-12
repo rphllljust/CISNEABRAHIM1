@@ -40,18 +40,37 @@ export async function hasPolicyAndGrantScope(
     return false;
   }
 
-  const grants = await deps.authorizationRepository.findActiveGrants(
-    input.actor.identityId,
-    input.action,
-    input.resourceType,
-  );
-  return grants.some((grant) =>
+  const [grants, roleDerived] = await Promise.all([
+    deps.authorizationRepository.findActiveGrants(
+      input.actor.identityId,
+      input.action,
+      input.resourceType,
+    ),
+    deps.authorizationRepository.findRoleDerivedActionRows(
+      input.actor.identityId,
+      input.action,
+    ),
+  ]);
+
+  const directMatch = grants.some((grant) =>
     grantMatchesResourceContext({
       grant,
       identityId: input.actor.identityId,
       context: input.context,
     }),
   );
+  const roleMatch = roleDerived.some((row) =>
+    grantMatchesResourceContext({
+      grant: {
+        scope_type: row.scope_type,
+        resource_id: row.scope_anchor,
+        resource_type: input.resourceType,
+      },
+      identityId: input.actor.identityId,
+      context: input.context,
+    }),
+  );
+  return directMatch || roleMatch;
 }
 
 /**
@@ -84,23 +103,42 @@ export async function hasPolicyAndGrantScopeBatch(
     { audit: input.audit },
   );
 
-  const grants = await deps.authorizationRepository.findActiveGrants(
-    input.actor.identityId,
-    input.action,
-    input.resourceType,
-  );
+  const [grants, roleDerived] = await Promise.all([
+    deps.authorizationRepository.findActiveGrants(
+      input.actor.identityId,
+      input.action,
+      input.resourceType,
+    ),
+    deps.authorizationRepository.findRoleDerivedActionRows(
+      input.actor.identityId,
+      input.action,
+    ),
+  ]);
 
-  return input.contexts.map(
-    (context, index) =>
-      decisions[index]?.result !== 'DENY' &&
-      grants.some((grant) =>
-        grantMatchesResourceContext({
-          grant,
-          identityId: input.actor.identityId,
-          context,
-        }),
-      ),
-  );
+  return input.contexts.map((context, index) => {
+    if (decisions[index]?.result === 'DENY') {
+      return false;
+    }
+    const directMatch = grants.some((grant) =>
+      grantMatchesResourceContext({
+        grant,
+        identityId: input.actor.identityId,
+        context,
+      }),
+    );
+    const roleMatch = roleDerived.some((row) =>
+      grantMatchesResourceContext({
+        grant: {
+          scope_type: row.scope_type,
+          resource_id: row.scope_anchor,
+          resource_type: input.resourceType,
+        },
+        identityId: input.actor.identityId,
+        context,
+      }),
+    );
+    return directMatch || roleMatch;
+  });
 }
 
 export async function assertPolicyAndGrantScope(
@@ -157,12 +195,18 @@ export async function assertListAccess(
     throw input.onDenied();
   }
 
-  const grants = await deps.authorizationRepository.findActiveGrants(
-    input.actor.identityId,
-    input.action,
-    input.resourceType,
-  );
-  if (grants.length === 0) {
+  const [grants, roleDerived] = await Promise.all([
+    deps.authorizationRepository.findActiveGrants(
+      input.actor.identityId,
+      input.action,
+      input.resourceType,
+    ),
+    deps.authorizationRepository.findRoleDerivedActionRows(
+      input.actor.identityId,
+      input.action,
+    ),
+  ]);
+  if (grants.length === 0 && roleDerived.length === 0) {
     throw input.onDenied();
   }
 }
