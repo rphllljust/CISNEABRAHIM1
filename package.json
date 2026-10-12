@@ -10,15 +10,7 @@
   "pnpm": {
     "overrides": {
       "@esbuild-kit/core-utils@3.3.2>esbuild": "0.25.12",
-      "@nestjs/platform-fastify@<11.2.4": "11.2.4",
-      "@nestjs/platform-fastify@11.2.4>fastify": "5.12.2",
-      "source-map-js@<1.2.2": "1.2.2",
-      "tinypool@<2.1.2": "2.1.2",
-      "fast-uri@>=3.0.0 <3.1.7": "3.1.7",
-      "fast-uri@>=4.0.0 <4.1.4": "4.1.4",
-      "brace-expansion@<1.1.20": "1.1.20",
-      "brace-expansion@>=2.0.0 <2.1.6": "2.1.6",
-      "brace-expansion@>=4.0.0 <5.0.11": "5.0.11"
+      "@nestjs/platform-fastify@11.2.3>fastify": "5.12.1"
     }
   },
   "scripts": {
