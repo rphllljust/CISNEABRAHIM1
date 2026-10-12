@@ -350,6 +350,14 @@ export function WorkInboxPage() {
    */
   const overdueItems = items.filter((item) => daysOverdue(item.dueAt) !== null);
   const hasActiveFilters = Boolean(domain || kind || overdue || unitId);
+  const selectedLate = selected ? daysOverdue(selected.dueAt) : null;
+  const selectedIndex = selected ? items.findIndex((item) => item.id === selected.id) : -1;
+  const adjacentSelected = (direction: -1 | 1) => {
+    if (items.length === 0) return;
+    const current = selectedIndex >= 0 ? selectedIndex : 0;
+    const next = (current + direction + items.length) % items.length;
+    setSelected(items[next] ?? null);
+  };
   const scopeLabel = unitId
     ? operationalUnitLabel(unitOptions, unitId, 'Unidade autorizada')
     : 'Todas as unidades autorizadas';
@@ -593,13 +601,18 @@ export function WorkInboxPage() {
         <WorkbenchQueue
           title="Fila de trabalho"
           count={items.length}
-          description="Ordenada pelo servidor por precedência operacional. O atraso é derivado do vencimento persistido, não de score."
+          description="Exceções e decisões reais, preservando o recorte enquanto você investiga e resolve."
           action={
-            items.length > 1 ? (
-              <span className="cisne-type-helper hidden md:inline">
-                ↑/↓ navega entre objetos · Enter abre contexto · Esc fecha
+            <div className="flex items-center gap-2">
+              <span className="cisne-type-helper hidden lg:inline">
+                {page ? `${page.offset + 1}–${Math.min(page.offset + page.limit, page.total)} de ${page.total}` : ''}
               </span>
-            ) : null
+              {items.length > 1 ? (
+                <span className="cisne-type-helper hidden md:inline">
+                  ↑/↓ navega · Enter abre contexto
+                </span>
+              ) : null}
+            </div>
           }
           emptyTitle="Nenhum trabalho real neste recorte."
           emptyDescription="A fila não inventa pendência para parecer cheia. Ajuste o recorte ou aguarde novo trabalho."
@@ -708,12 +721,27 @@ export function WorkInboxPage() {
       >
         {selected ? (
           <>
+            <div className="mb-2 flex items-center justify-between gap-2 border-b border-gray-200 pb-1.5">
+              <span className="cisne-type-helper">
+                {selectedIndex >= 0 ? `Item ${selectedIndex + 1} de ${items.length} nesta página` : 'Contexto operacional'}
+              </span>
+              {items.length > 1 ? (
+                <div className="flex items-center gap-1">
+                  <Button type="button" variant="secondary" onClick={() => adjacentSelected(-1)}>
+                    Anterior
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={() => adjacentSelected(1)}>
+                    Próximo
+                  </Button>
+                </div>
+              ) : null}
+            </div>
             <div className="cisne-divider pb-2">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="cisne-type-primary m-0">{selected.businessReference}</p>
-                <WorklistException tone={daysOverdue(selected.dueAt) !== null ? 'critical' : 'info'}>
-                  {daysOverdue(selected.dueAt) !== null
-                    ? `${daysOverdue(selected.dueAt)} dia${daysOverdue(selected.dueAt) === 1 ? '' : 's'} em atraso`
+                <WorklistException tone={selectedLate !== null ? 'critical' : 'info'}>
+                  {selectedLate !== null
+                    ? `${selectedLate} dia${selectedLate === 1 ? '' : 's'} em atraso`
                     : selected.status}
                 </WorklistException>
               </div>
@@ -740,10 +768,15 @@ export function WorkInboxPage() {
               </dd>
             </dl>
             <div className="cisne-divider pt-2">
-              <p className="cisne-meta-label m-0 mb-1">Próxima ação</p>
-              <Link className={workbenchPrimaryActionClass} to={selected.targetRoute} onClick={() => setSelected(null)}>
-                {selected.actionLabel}
-              </Link>
+              <p className="cisne-meta-label m-0 mb-1">Próxima ação autorizada pelo objeto de origem</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Link className={workbenchPrimaryActionClass} to={selected.targetRoute} onClick={() => setSelected(null)}>
+                  {selected.actionLabel}
+                </Link>
+                <span className="cisne-type-helper">
+                  A fila permanece preservada; a regra de negócio continua no domínio responsável.
+                </span>
+              </div>
             </div>
           </>
         ) : null}
