@@ -44,17 +44,6 @@ function normalizeLogin(login: string): string {
   return login.trim().toLowerCase();
 }
 
-async function rollbackKeepingPrimaryCause(client: PoolClient): Promise<Error | undefined> {
-  try {
-    await client.query('ROLLBACK');
-    return undefined;
-  } catch (rollbackFailure) {
-    return rollbackFailure instanceof Error
-      ? rollbackFailure
-      : new Error(String(rollbackFailure));
-  }
-}
-
 function readProfiles(): ProductionProfile[] {
   if (requiredEnv('PROD_PROFILES_CONFIRM') !== CONFIRM_VALUE) {
     throw new Error('CONFIGURATION_ERROR: PROD_PROFILES_CONFIRM token mismatch.');
@@ -87,21 +76,21 @@ function readProfiles(): ProductionProfile[] {
     },
   ];
 
-  const logins = new Set<string>();
+  const uniqueLogins = new Set<string>();
   for (const profile of profiles) {
     profile.login = normalizeLogin(profile.login);
     if (profile.login.length < 3) {
       throw new Error(`CONFIGURATION_ERROR: invalid login for ${profile.key}.`);
     }
-    if (logins.has(profile.login)) {
+    if (uniqueLogins.has(profile.login)) {
       throw new Error('CONFIGURATION_ERROR: production profile logins must be unique.');
     }
-    logins.add(profile.login);
+    uniqueLogins.add(profile.login);
 
-    const passwordCheck = validatePasswordStrength(profile.password);
-    if (!passwordCheck.valid) {
+    const strength = validatePasswordStrength(profile.password);
+    if (!strength.valid) {
       throw new Error(
-        `CONFIGURATION_ERROR: password for ${profile.key} rejected: ${passwordCheck.reason ?? 'weak password'}`,
+        `CONFIGURATION_ERROR: password for ${profile.key} rejected: ${strength.reason ?? 'weak password'}`,
       );
     }
   }
@@ -160,10 +149,10 @@ async function upsertIdentity(
   password: string,
 ): Promise<string> {
   const current = await client.query<{ identity_id: string }>(
-    `SELECT identity_id
-       FROM identity.credentials
-      WHERE login_identifier_normalized = $1
-        AND revoked_at IS NULL
+    `SELECT c.identity_id
+       FROM identity.credentials c
+      WHERE c.login_identifier_normalized = $1
+        AND c.revoked_at IS NULL
       LIMIT 1`,
     [login],
   );
@@ -173,14 +162,6 @@ async function upsertIdentity(
 
   if (identityId) {
     await client.query(
-      `UPDATE identity.credentials
-          SET password_hash = $2,
-              updated_at = NOW()
-        WHERE identity_id = $1
-          AND revoked_at IS NULL`,
-      [identityId, passwordHash],
-    );
-    await client.query(
       `UPDATE identity.identities
           SET status = 'active',
               disabled_at = NULL,
@@ -188,6 +169,15 @@ async function upsertIdentity(
               version = version + 1
         WHERE id = $1`,
       [identityId],
+    );
+    await client.query(
+      `UPDATE identity.credentials
+          SET password_hash = $2,
+              updated_at = NOW()
+        WHERE identity_id = $1
+          AND login_identifier_normalized = $3
+          AND revoked_at IS NULL`,
+      [identityId, passwordHash, login],
     );
     return identityId;
   }
@@ -208,6 +198,7 @@ async function upsertIdentity(
      VALUES ($1, $2, $3)`,
     [createdId, login, passwordHash],
   );
+
   return createdId;
 }
 
@@ -222,6 +213,7 @@ async function ensureRole(
     `SELECT id FROM "authorization".access_roles WHERE code = $1`,
     [code],
   );
+
   const existingId = current.rows[0]?.id;
   if (existingId) {
     await client.query(
@@ -251,7 +243,7 @@ async function ensureRole(
   return id;
 }
 
-async function replaceRoleCapabilities(
+async function replaceRoleCapabilitiesBulk(
   client: PoolClient,
   roleId: string,
   capabilities: readonly string[],
@@ -262,104 +254,86 @@ async function replaceRoleCapabilities(
     [roleId],
   );
 
-  for (const capability of capabilities) {
-    await client.query(
-      `INSERT INTO "authorization".access_role_capabilities
-         (role_id, capability, added_by_identity_id)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (role_id, capability) DO NOTHING`,
-      [roleId, capability, actorIdentityId],
-    );
-  }
-}
-
-async function ensureAssignment(
-  client: PoolClient,
-  roleId: string,
-  identityId: string,
-  scopeType: 'GLOBAL' | 'ASSIGNED',
-  actorIdentityId: string,
-): Promise<void> {
-  const current = await client.query(
-    `SELECT 1
-       FROM "authorization".access_role_assignments
-      WHERE role_id = $1
-        AND identity_id = $2
-        AND scope_type = $3::"authorization".authz_scope_type
-        AND scope_anchor IS NULL
-        AND revoked_at IS NULL
-      LIMIT 1`,
-    [roleId, identityId, scopeType],
-  );
-  if (current.rowCount) {
+  if (capabilities.length === 0) {
     return;
   }
 
+  await client.query(
+    `INSERT INTO "authorization".access_role_capabilities
+       (role_id, capability, added_by_identity_id)
+     SELECT $1, capability, $3
+       FROM unnest($2::text[]) AS capability
+     ON CONFLICT (role_id, capability) DO NOTHING`,
+    [roleId, capabilities, actorIdentityId],
+  );
+}
+
+async function ensureFullAssignmentsBulk(
+  client: PoolClient,
+  roleId: string,
+  identityIds: readonly string[],
+  actorIdentityId: string,
+): Promise<void> {
   await client.query(
     `INSERT INTO "authorization".access_role_assignments
        (role_id, identity_id, scope_type, assigned_by_identity_id)
-     VALUES ($1, $2, $3::"authorization".authz_scope_type, $4)`,
-    [roleId, identityId, scopeType, actorIdentityId],
+     SELECT $1,
+            identity_id,
+            'GLOBAL'::"authorization".authz_scope_type,
+            $3
+       FROM unnest($2::uuid[]) AS identity_id
+     ON CONFLICT DO NOTHING`,
+    [roleId, identityIds, actorIdentityId],
   );
 }
 
-async function ensureGrant(
+async function ensureFullGrantsBulk(
   client: PoolClient,
-  identityId: string,
-  action: string,
-  resourceType: string,
-  scopeType: 'GLOBAL' | 'ASSIGNED',
+  identityIds: readonly string[],
+  actions: readonly string[],
   actorIdentityId: string,
 ): Promise<void> {
-  const current = await client.query(
-    `SELECT 1
-       FROM "authorization".grants
-      WHERE identity_id = $1
-        AND action = $2
-        AND resource_type = $3
-        AND scope_type = $4::"authorization".authz_scope_type
-        AND resource_id IS NULL
-        AND revoked_at IS NULL
-      LIMIT 1`,
-    [identityId, action, resourceType, scopeType],
-  );
-  if (current.rowCount) {
-    return;
-  }
+  const actionRows = actions.map((action) => ({
+    action,
+    resource_type: resolveResourceType(action),
+  }));
 
   await client.query(
-    `INSERT INTO "authorization".grants
+    `WITH target_identities AS (
+       SELECT unnest($1::uuid[]) AS identity_id
+     ),
+     target_actions AS (
+       SELECT action, resource_type
+         FROM jsonb_to_recordset($2::jsonb)
+           AS x(action text, resource_type text)
+     )
+     INSERT INTO "authorization".grants
        (identity_id, action, resource_type, scope_type, granted_by_identity_id)
-     VALUES ($1, $2, $3, $4::"authorization".authz_scope_type, $5)`,
-    [identityId, action, resourceType, scopeType, actorIdentityId],
+     SELECT ti.identity_id,
+            ta.action,
+            ta.resource_type,
+            'GLOBAL'::"authorization".authz_scope_type,
+            $3
+       FROM target_identities ti
+       CROSS JOIN target_actions ta
+      WHERE NOT EXISTS (
+        SELECT 1
+          FROM "authorization".grants g
+         WHERE g.identity_id = ti.identity_id
+           AND g.action = ta.action
+           AND g.resource_type = ta.resource_type
+           AND g.scope_type = 'GLOBAL'::"authorization".authz_scope_type
+           AND g.resource_id IS NULL
+           AND g.revoked_at IS NULL
+      )`,
+    [identityIds, JSON.stringify(actionRows), actorIdentityId],
   );
 }
 
-async function grantFullAccess(
+async function replaceEmployeeAccess(
   client: PoolClient,
   roleId: string,
-  identityId: string,
-  actorIdentityId: string,
-  actions: readonly string[],
-): Promise<void> {
-  await ensureAssignment(client, roleId, identityId, 'GLOBAL', actorIdentityId);
-
-  for (const action of actions) {
-    await ensureGrant(
-      client,
-      identityId,
-      action,
-      resolveResourceType(action),
-      'GLOBAL',
-      actorIdentityId,
-    );
-  }
-}
-
-async function restrictEmployee(
-  client: PoolClient,
-  roleId: string,
-  identityId: string,
+  employeeIdentityId: string,
   actorIdentityId: string,
 ): Promise<void> {
   await client.query(
@@ -370,7 +344,7 @@ async function restrictEmployee(
             updated_at = NOW()
       WHERE identity_id = $1
         AND revoked_at IS NULL`,
-    [identityId, actorIdentityId],
+    [employeeIdentityId, actorIdentityId],
   );
 
   await client.query(
@@ -380,21 +354,37 @@ async function restrictEmployee(
             version = version + 1
       WHERE identity_id = $1
         AND revoked_at IS NULL`,
-    [identityId, actorIdentityId],
+    [employeeIdentityId, actorIdentityId],
   );
 
-  await ensureAssignment(client, roleId, identityId, 'ASSIGNED', actorIdentityId);
+  await client.query(
+    `INSERT INTO "authorization".access_role_assignments
+       (role_id, identity_id, scope_type, assigned_by_identity_id)
+     VALUES (
+       $1,
+       $2,
+       'ASSIGNED'::"authorization".authz_scope_type,
+       $3
+     )`,
+    [roleId, employeeIdentityId, actorIdentityId],
+  );
 
-  for (const grant of EMPLOYEE_GRANTS) {
-    await ensureGrant(
-      client,
-      identityId,
-      grant.action,
-      grant.resourceType,
-      grant.scopeType,
-      actorIdentityId,
-    );
-  }
+  await client.query(
+    `INSERT INTO "authorization".grants
+       (identity_id, action, resource_type, scope_type, granted_by_identity_id)
+     SELECT $1,
+            g.action,
+            g.resource_type,
+            g.scope_type::"authorization".authz_scope_type,
+            $3
+       FROM jsonb_to_recordset($2::jsonb)
+         AS g(action text, resource_type text, scope_type text)`,
+    [employeeIdentityId, JSON.stringify(EMPLOYEE_GRANTS.map((grant) => ({
+      action: grant.action,
+      resource_type: grant.resourceType,
+      scope_type: grant.scopeType,
+    }))), actorIdentityId],
+  );
 }
 
 async function main(): Promise<void> {
@@ -405,24 +395,49 @@ async function main(): Promise<void> {
   const databaseUrl = requiredEnv('DATABASE_URL');
   const profiles = readProfiles();
   const pool = new Pool({ connectionString: databaseUrl, max: 2 });
-  const client = await pool.connect();
-  let evictWith: Error | undefined;
 
+  const identityIds = new Map<ProductionProfile['key'], string>();
+
+  // Credenciais sao materializadas e confirmadas primeiro. Assim, falhas posteriores
+  // de RBAC nao deixam a autenticacao de producao presa a uma transacao longa.
+  {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      for (const profile of profiles) {
+        identityIds.set(
+          profile.key,
+          await upsertIdentity(client, profile.login, profile.password),
+        );
+      }
+
+      await client.query('COMMIT');
+
+      console.log(
+        JSON.stringify({
+          status: 'AUTH_CREDENTIALS_READY',
+          logins: profiles.map((profile) => profile.login),
+        }),
+      );
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  const actorIdentityId = identityIds.get('abrahim');
+  const employeeIdentityId = identityIds.get('empregado');
+  if (!actorIdentityId || !employeeIdentityId) {
+    await pool.end();
+    throw new Error('PROFILE_BOOTSTRAP_FAILED: required identities missing.');
+  }
+
+  const client = await pool.connect();
   try {
     await client.query('BEGIN');
-
-    const identityIds = new Map<ProductionProfile['key'], string>();
-    for (const profile of profiles) {
-      identityIds.set(
-        profile.key,
-        await upsertIdentity(client, profile.login, profile.password),
-      );
-    }
-
-    const actorIdentityId = identityIds.get('abrahim');
-    if (!actorIdentityId) {
-      throw new Error('PROFILE_BOOTSTRAP_FAILED: Abrahim identity missing.');
-    }
 
     const allActions = Object.values(AUTHZ_ACTIONS);
 
@@ -430,47 +445,52 @@ async function main(): Promise<void> {
       client,
       'FULL_ACCESS',
       'Acesso total',
-      'Perfil de produção com acesso global completo ao catálogo de capacidades do CISNE.',
+      'Perfil de producao com acesso global completo ao catalogo de capacidades do CISNE.',
       actorIdentityId,
     );
-    await replaceRoleCapabilities(client, fullAccessRoleId, allActions, actorIdentityId);
 
-    for (const profile of profiles.filter((item) => item.fullAccess)) {
-      const identityId = identityIds.get(profile.key);
-      if (!identityId) {
-        throw new Error(`PROFILE_BOOTSTRAP_FAILED: identity missing for ${profile.key}.`);
-      }
-      await grantFullAccess(
-        client,
-        fullAccessRoleId,
-        identityId,
-        actorIdentityId,
-        allActions,
-      );
-    }
+    await replaceRoleCapabilitiesBulk(
+      client,
+      fullAccessRoleId,
+      allActions,
+      actorIdentityId,
+    );
+
+    const fullAccessIdentityIds = profiles
+      .filter((profile) => profile.fullAccess)
+      .map((profile) => identityIds.get(profile.key))
+      .filter((identityId): identityId is string => Boolean(identityId));
+
+    await ensureFullAssignmentsBulk(
+      client,
+      fullAccessRoleId,
+      fullAccessIdentityIds,
+      actorIdentityId,
+    );
+
+    await ensureFullGrantsBulk(
+      client,
+      fullAccessIdentityIds,
+      allActions,
+      actorIdentityId,
+    );
 
     const restrictedRoleId = await ensureRole(
       client,
       'EMPREGADO_RESTRITO',
       'Empregado restrito',
-      'Perfil operacional restrito a ordens atribuídas, evidências e leitura operacional mínima.',
-      actorIdentityId,
-    );
-    const assignedCapabilities = EMPLOYEE_GRANTS.filter(
-      (grant) => grant.scopeType === 'ASSIGNED',
-    ).map((grant) => grant.action);
-    await replaceRoleCapabilities(
-      client,
-      restrictedRoleId,
-      assignedCapabilities,
+      'Perfil operacional restrito a ordens atribuidas, evidencias e leitura operacional minima.',
       actorIdentityId,
     );
 
-    const employeeIdentityId = identityIds.get('empregado');
-    if (!employeeIdentityId) {
-      throw new Error('PROFILE_BOOTSTRAP_FAILED: employee identity missing.');
-    }
-    await restrictEmployee(
+    await replaceRoleCapabilitiesBulk(
+      client,
+      restrictedRoleId,
+      EMPLOYEE_GRANTS.map((grant) => grant.action),
+      actorIdentityId,
+    );
+
+    await replaceEmployeeAccess(
       client,
       restrictedRoleId,
       employeeIdentityId,
@@ -482,18 +502,21 @@ async function main(): Promise<void> {
     console.log(
       JSON.stringify({
         status: 'PRODUCTION_PROFILES_READY',
-        logins: profiles.map((profile) => profile.login),
-        fullAccess: profiles.filter((profile) => profile.fullAccess).map((profile) => profile.login),
-        restricted: profiles.filter((profile) => !profile.fullAccess).map((profile) => profile.login),
+        fullAccess: profiles
+          .filter((profile) => profile.fullAccess)
+          .map((profile) => profile.login),
+        restricted: profiles
+          .filter((profile) => !profile.fullAccess)
+          .map((profile) => profile.login),
         fullAccessActions: allActions.length,
         employeeGrants: EMPLOYEE_GRANTS.length,
       }),
     );
   } catch (error) {
-    evictWith = await rollbackKeepingPrimaryCause(client);
+    await client.query('ROLLBACK');
     throw error;
   } finally {
-    client.release(evictWith);
+    client.release();
     await pool.end();
   }
 }
