@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { Pool, type PoolClient } from 'pg';
-import { hashPassword, validatePasswordStrength } from '@cisne/database/seed';
+import { hashPassword, validatePasswordStrength } from '@cisne/database';
 import { AUTHZ_ACTIONS } from '../../../authorization/types/authz-actions';
 
 const CONFIRM_VALUE = 'I_UNDERSTAND';
