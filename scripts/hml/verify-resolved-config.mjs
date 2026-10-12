@@ -94,7 +94,13 @@ function resolveComposeConfig(options) {
       encoding: 'utf8',
       // `docker` é resolvido pelo PATH; sem espaços no nome, o shell é seguro no Windows.
       shell: process.platform === 'win32',
-      env: sanitizeReleaseEnv(process.env),
+      env: {
+        ...sanitizeReleaseEnv(process.env),
+        // O compose também referencia o mesmo arquivo em services.api.env_file.
+        // Tornar o caminho explícito mantém --env-file como fonte única inclusive no CI,
+        // onde .env.hml é corretamente ignorado e só o template versionado existe.
+        HML_ENV_FILE: resolve(repoRoot, options.envFile),
+      },
       maxBuffer: 64 * 1024 * 1024,
     },
   );
