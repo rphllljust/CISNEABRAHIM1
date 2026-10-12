@@ -157,7 +157,7 @@ export function TreasuryAccountDetailPage() {
   }
   if (state.phase !== 'ready') {
     return (
-      <ModulePage>
+      <ModulePage layout="wide">
         <ModulePageHeader title="Conta financeira" />
         <EmptyState title="Informe uma conta válida" />
       </ModulePage>
@@ -187,7 +187,7 @@ export function TreasuryAccountDetailPage() {
   }
 
   return (
-    <ModulePage>
+    <ModulePage layout="wide">
       <ModulePageHeader
         title={account.name}
         description="Saldo, créditos e débitos são os totais reconstruídos pelo servidor."
