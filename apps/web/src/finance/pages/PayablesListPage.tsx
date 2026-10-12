@@ -523,8 +523,18 @@ export function PayablesListPage() {
   );
 }
 
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+function formatSummaryAmount(
+  summary: FinanceTitleSummary,
+  key: 'openAmount' | 'overdueAmount' | 'dueAmount',
+): string {
+  if (summary.amounts.length === 0) return 'sem saldo no recorte';
+  return summary.amounts
+    .map((amount) =>
+      new Intl.NumberFormat('pt-BR', { style: 'currency', currency: amount.currencyCode }).format(
+        Number(amount[key]),
+      ),
+    )
+    .join(' · ');
 }
 
 /**
