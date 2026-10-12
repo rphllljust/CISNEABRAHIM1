@@ -245,7 +245,7 @@ export function ChartOfAccountsPage() {
     charts.length === 0 && chartsQuery.state.phase === 'ready' && units.length > 0;
 
   return (
-    <ModulePage>
+    <ModulePage layout="wide">
       <WorklistHeader
         title="Plano de contas"
         count={activeChartId && accountsQuery.state.phase === 'ready' ? accountRows.length : null}
