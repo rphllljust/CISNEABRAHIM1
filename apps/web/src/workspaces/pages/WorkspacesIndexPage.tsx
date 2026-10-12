@@ -1,55 +1,79 @@
 import { Link } from 'react-router-dom';
 import { ModulePage } from '../../ui/module-layout';
+import { WorklistHeader } from '../../ui/enterprise-list';
+import {
+  WorkbenchQueue,
+  WorkbenchQueueItem,
+  workbenchPrimaryActionClass,
+  workbenchSecondaryActionClass,
+} from '../../ui/workbench';
 import { WORK_DOMAIN_LABELS, WORK_DOMAINS } from '../../work-inbox/api/work-inbox-api';
 import { DOMAIN_WORKSPACES, DOMAIN_WORKSPACE_PATHS } from '../domain-workspaces';
 
 /**
- * TRABALHO POR DOMINIO — porta de entrada do conjunto de workspaces.
+ * TRABALHO POR DOMINIO — switchboard operacional.
  *
- * Este indice NAO mostra contagem: numero aqui seria uma segunda leitura da mesma fila, e a
- * contagem de cada dominio pertence ao proprio workspace (zona AGORA). Aqui existe apenas o mapa
- * humano de "quem responde o que" — uma linha por dominio, sem cartao decorativo.
- *
- * O papel da Central de trabalho e o do Alert Center continuam onde estao: esta tela nao duplica
- * fila nem alerta, apenas distribui a entrada por dominio.
+ * Nao busca contagem aqui: cada dominio continua dono da propria leitura autoritativa. Esta tela
+ * reduz procura e navegacao: uma linha por workspace, objetivo claro, entrada primaria e atalhos
+ * para as listas reais por onde o trabalho continua.
  */
 export function WorkspacesIndexPage() {
   return (
     <ModulePage>
-      <header className="mb-3">
-        <h1 className="m-0 text-lg font-semibold text-gray-900">Trabalho por domínio</h1>
-        <p className="m-0 text-xs text-gray-500">
-          Cada domínio tem a sua tela: o que exige decisão agora, o que está travado e onde
-          continuar. Tudo vem da mesma fila de trabalho.
-        </p>
-      </header>
+      <WorklistHeader
+        title="Trabalho por domínio"
+        count={WORK_DOMAINS.length}
+        context="Workspaces operacionais por processo. Entre no domínio para decidir; use os atalhos para continuar trabalho já conhecido."
+        action={
+          <Link to="/app/work-inbox" className={workbenchSecondaryActionClass}>
+            Central de trabalho
+          </Link>
+        }
+      />
 
-      <ul className="m-0 list-none divide-y divide-gray-100 overflow-hidden rounded-lg bg-white p-0 shadow-sm ring-1 ring-gray-900/5">
+      <WorkbenchQueue
+        title="Workspaces operacionais"
+        count={WORK_DOMAINS.length}
+        description="Cada linha abre uma superfície de decisão; os atalhos levam direto às filas e objetos reais do domínio."
+      >
         {WORK_DOMAINS.map((domain) => {
           const config = DOMAIN_WORKSPACES[domain];
           return (
-            <li key={domain}>
-              <Link
-                to={DOMAIN_WORKSPACE_PATHS[domain]}
-                className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-3 py-2 no-underline hover:bg-gray-50"
-              >
-                <span className="text-sm font-semibold text-gray-900">
-                  {WORK_DOMAIN_LABELS[domain]}
+            <WorkbenchQueueItem
+              key={domain}
+              title={WORK_DOMAIN_LABELS[domain]}
+              reason={config.purpose}
+              context={
+                <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  {config.shortcuts.slice(0, 4).map((shortcut) => (
+                    <Link
+                      key={shortcut.to}
+                      to={shortcut.to}
+                      className={workbenchSecondaryActionClass}
+                    >
+                      {shortcut.label}
+                    </Link>
+                  ))}
+                  {config.shortcuts.length > 4 ? (
+                    <span className="cisne-type-helper">
+                      +{config.shortcuts.length - 4} no workspace
+                    </span>
+                  ) : null}
                 </span>
-                <span className="text-xs text-gray-500">{config.purpose}</span>
-              </Link>
-            </li>
+              }
+              action={
+                <Link
+                  to={DOMAIN_WORKSPACE_PATHS[domain]}
+                  aria-label={`${WORK_DOMAIN_LABELS[domain]} — abrir workspace`}
+                  className={workbenchPrimaryActionClass}
+                >
+                  Abrir workspace
+                </Link>
+              }
+            />
           );
         })}
-      </ul>
-
-      <p className="mt-3 text-xs text-gray-500">
-        A fila completa, com todos os domínios e filtros, fica na{' '}
-        <Link className="font-semibold text-brand-700 no-underline" to="/app/work-inbox">
-          Central de trabalho
-        </Link>
-        .
-      </p>
+      </WorkbenchQueue>
     </ModulePage>
   );
 }

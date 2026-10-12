@@ -11,6 +11,14 @@ import {
 } from '../../work-inbox/api/work-inbox-api';
 import { DOMAIN_WORKSPACES } from '../domain-workspaces';
 import { useDomainWork, type DomainWorkState } from '../api/use-domain-work';
+import {
+  WorklistException,
+  worklistButtonClass,
+} from '../../ui/enterprise-list';
+import {
+  workbenchPrimaryActionClass,
+  workbenchSecondaryActionClass,
+} from '../../ui/workbench';
 import { WorkspaceZone } from './WorkspaceZone';
 
 /**
@@ -130,6 +138,11 @@ function AgoraZone({
     <WorkspaceZone
       title="Agora"
       note="Contagem da fila de trabalho deste domínio — o mesmo número da Central de trabalho."
+      action={
+        <button type="button" className={worklistButtonClass} onClick={state.reload}>
+          Atualizar
+        </button>
+      }
     >
       {state.phase === 'loading' ? (
         <p aria-busy="true" aria-live="polite" className="m-0 text-sm text-gray-500">
@@ -226,9 +239,9 @@ function AtencaoZone({
         <ul className="m-0 flex list-none flex-col divide-y divide-gray-100 p-0">
           {state.attention.map((item) => (
             <li key={item.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-1.5">
-              <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-gray-700 uppercase">
+              <WorklistException tone={item.kind === 'BLOCKER' ? 'critical' : 'warning'}>
                 {WORK_KIND_LABELS[item.kind]}
-              </span>
+              </WorklistException>
               <button
                 type="button"
                 onClick={() => onSelect(item)}
@@ -246,7 +259,7 @@ function AtencaoZone({
               </span>
               <Link
                 to={item.targetRoute}
-                className="ml-auto text-xs font-semibold text-brand-700 no-underline hover:text-brand-800"
+                className={workbenchPrimaryActionClass}
               >
                 {item.actionLabel}
               </Link>
@@ -283,7 +296,7 @@ function ContinuarZone({ domain }: { domain: WorkDomain }) {
           <li key={shortcut.to}>
             <Link
               to={shortcut.to}
-              className="text-[13px] font-semibold text-brand-700 no-underline hover:text-brand-800"
+              className={workbenchSecondaryActionClass}
             >
               {shortcut.label}
             </Link>
