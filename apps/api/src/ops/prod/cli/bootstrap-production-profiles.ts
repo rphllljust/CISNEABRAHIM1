@@ -129,11 +129,13 @@ function resolveResourceType(action: string): string {
   if (action.startsWith('issuer:certificate:')) return 'issuer:certificate';
   if (action.startsWith('finance:receivable:')) return 'finance:receivable';
   if (action.startsWith('finance:payable:')) return 'finance:payable';
-  if (action.startsWith('finance:expense:')) return 'finance:payable';
+  if (action.startsWith('finance:expense:')) return 'finance:expense';
   if (action.startsWith('finance:collection:')) return 'finance:receivable';
   if (action.startsWith('finance:treasury:')) return 'finance:treasury';
-  if (action.startsWith('finance:budget:')) return 'finance:payable';
-  if (action.startsWith('finance:cash-forecast:')) return 'finance:receivable';
+  if (action.startsWith('finance:bank-statement:')) return 'finance:treasury';
+  if (action.startsWith('finance:reconciliation:')) return 'finance:treasury';
+  if (action.startsWith('finance:budget:')) return 'finance:budget';
+  if (action.startsWith('finance:cash-forecast:')) return 'finance:cash-forecast';
   if (action.startsWith('accounting:')) return 'accounting:ledger';
   if (action.startsWith('fiscal:document:')) return 'fiscal:document';
   if (action.startsWith('fiscal:period:')) return 'fiscal:period';
