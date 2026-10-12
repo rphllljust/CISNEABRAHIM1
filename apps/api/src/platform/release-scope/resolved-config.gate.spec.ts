@@ -31,6 +31,7 @@ import { describe, expect, it } from 'vitest';
 const REPO_ROOT = resolve(__dirname, '../../../../..');
 const GATE = resolve(REPO_ROOT, 'scripts/hml/verify-resolved-config.mjs');
 const TEST_ENV_FILE = '.env.hml.example';
+const COMPOSE_SERVICE_ENV_FILE = '../../.env.hml.example';
 
 /** Ambiente hostil: diverge da política em ambas as direções. */
 const CONTAMINATED_ENV = {
@@ -50,7 +51,7 @@ function runGate(extraEnv: Record<string, string> = {}, extraArgs: string[] = []
     cwd: REPO_ROOT,
     encoding: 'utf8',
     shell: false,
-    env: { ...process.env, ...extraEnv },
+    env: { ...process.env, HML_ENV_FILE: COMPOSE_SERVICE_ENV_FILE, ...extraEnv },
     maxBuffer: 64 * 1024 * 1024,
   });
 
@@ -81,7 +82,7 @@ describe('ambiente host contaminado — HML permanece determinístico', () => {
       cwd: REPO_ROOT,
       encoding: 'utf8',
       shell: false,
-      env: cleanEnv,
+      env: { ...cleanEnv, HML_ENV_FILE: COMPOSE_SERVICE_ENV_FILE },
       maxBuffer: 64 * 1024 * 1024,
     });
 
