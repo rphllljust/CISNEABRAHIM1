@@ -256,7 +256,7 @@ export function PhysicalAssetDetailPage() {
       onRetry = () => void reload();
     }
     return (
-      <ModulePage>
+      <ModulePage layout="wide">
         <ModulePageHeader title="Ativo físico" />
         <EnterpriseObjectPage
           breadcrumb={[{ label: 'Ativos físicos', href: '/app/assets' }, { label: 'Ativo' }]}
@@ -357,7 +357,7 @@ export function PhysicalAssetDetailPage() {
   ];
 
   return (
-    <ModulePage>
+    <ModulePage layout="wide">
       <EnterpriseObjectPage
         breadcrumb={[{ label: 'Ativos físicos', href: '/app/assets' }, { label: asset.assetCode }]}
         header={
