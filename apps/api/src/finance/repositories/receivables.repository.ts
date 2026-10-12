@@ -182,6 +182,65 @@ export class ReceivablesRepository {
     return { rows: rows.rows, total: Number(countResult.rows[0]?.total ?? '0') };
   }
 
+  /** Agregados autoritativos sob o mesmo escopo/filtros da listagem; valores separados por moeda. */
+  async summarize(input: {
+    scopeClause: string;
+    scopeParams: unknown[];
+    status?: string;
+    dueFrom?: string;
+    dueTo?: string;
+    search?: string;
+  }): Promise<Array<{
+    currency_code: string;
+    total_count: string;
+    open_count: string;
+    overdue_count: string;
+    due_count: string;
+    paid_count: string;
+    open_amount: string;
+    overdue_amount: string;
+    due_amount: string;
+  }>> {
+    const params: unknown[] = [...input.scopeParams];
+    const where: string[] = [input.scopeClause];
+    const settledExpr = `COALESCE((SELECT sum(s.amount) FROM fin.settlements s
+        WHERE s.receivable_id = r.id AND s.reversed_at IS NULL), 0)`;
+    const remainingExpr = `(r.principal - ${settledExpr})`;
+    const statusPredicates: Record<string, string> = {
+      CANCELLED: `r.lifecycle = 'CANCELLED'`,
+      PAID: `r.lifecycle <> 'CANCELLED' AND ${remainingExpr} <= 0`,
+      OVERDUE: `r.lifecycle <> 'CANCELLED' AND ${remainingExpr} > 0 AND r.due_date < CURRENT_DATE`,
+      OPEN: `r.lifecycle <> 'CANCELLED' AND ${remainingExpr} > 0 AND r.due_date >= CURRENT_DATE AND ${settledExpr} = 0`,
+      PARTIALLY_PAID: `r.lifecycle <> 'CANCELLED' AND ${remainingExpr} > 0 AND ${settledExpr} > 0`,
+    };
+    if (input.status) where.push(statusPredicates[input.status] ?? 'FALSE');
+    if (input.dueFrom) { params.push(input.dueFrom); where.push(`r.due_date >= ${params.length}::date`); }
+    if (input.dueTo) { params.push(input.dueTo); where.push(`r.due_date <= ${params.length}::date`); }
+    if (input.search) {
+      params.push(`%${input.search.replace(/[%_\\]/g, '\\  async listInstallments(receivableId: string): Promise<ReceivableInstallmentRow[]> {')}%`);
+      where.push(`r.external_reference ILIKE ${params.length}`);
+    }
+    const result = await this.pool().query<{
+      currency_code: string; total_count: string; open_count: string; overdue_count: string;
+      due_count: string; paid_count: string; open_amount: string; overdue_amount: string; due_amount: string;
+    }>(
+      `SELECT r.currency_code,
+         count(*)::text AS total_count,
+         count(*) FILTER (WHERE r.lifecycle <> 'CANCELLED' AND ${remainingExpr} > 0)::text AS open_count,
+         count(*) FILTER (WHERE r.lifecycle <> 'CANCELLED' AND ${remainingExpr} > 0 AND r.due_date < CURRENT_DATE)::text AS overdue_count,
+         count(*) FILTER (WHERE r.lifecycle <> 'CANCELLED' AND ${remainingExpr} > 0 AND r.due_date >= CURRENT_DATE)::text AS due_count,
+         count(*) FILTER (WHERE r.lifecycle <> 'CANCELLED' AND ${remainingExpr} <= 0)::text AS paid_count,
+         COALESCE(sum(CASE WHEN r.lifecycle <> 'CANCELLED' AND ${remainingExpr} > 0 THEN ${remainingExpr} ELSE 0 END), 0)::text AS open_amount,
+         COALESCE(sum(CASE WHEN r.lifecycle <> 'CANCELLED' AND ${remainingExpr} > 0 AND r.due_date < CURRENT_DATE THEN ${remainingExpr} ELSE 0 END), 0)::text AS overdue_amount,
+         COALESCE(sum(CASE WHEN r.lifecycle <> 'CANCELLED' AND ${remainingExpr} > 0 AND r.due_date >= CURRENT_DATE THEN ${remainingExpr} ELSE 0 END), 0)::text AS due_amount
+       FROM fin.receivables r
+       WHERE ${where.join(' AND ')}
+       GROUP BY r.currency_code ORDER BY r.currency_code`,
+      params,
+    );
+    return result.rows;
+  }
+
   async listInstallments(receivableId: string): Promise<ReceivableInstallmentRow[]> {
     const result = await this.pool().query<ReceivableInstallmentRow>(
       `SELECT ${INSTALLMENT_RETURNING}
