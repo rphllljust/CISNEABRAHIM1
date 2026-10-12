@@ -14,6 +14,11 @@ import { PayrollAccessService } from '../services/payroll-access.service';
 export class PayrollController {
   constructor(private readonly payroll: PayrollAccessService) {}
 
+  @Get('contracts')
+  listContracts(@CurrentAuth() auth: AccessTokenClaims, @Query() query: Record<string, unknown>) {
+    return this.payroll.listContracts({ identityId: auth.sub, sessionId: auth.sid }, query);
+  }
+
   @Post('contracts')
   @HttpCode(200)
   createContract(@CurrentAuth() auth: AccessTokenClaims, @Body() body: never) {
