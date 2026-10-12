@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useOptionalIdentityId } from '../../auth/context/AuthProvider';
 import { DynamicContextDrawer, DynamicSavedViewsBar, useSavedViews, type SavedView } from '../../engine';
 import { Button } from '../../ui/Button';
@@ -103,7 +103,6 @@ export function daysOverdue(dueAt: string | null, now: Date = new Date()): numbe
 
 export function WorkInboxPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
   const identityId = useOptionalIdentityId();
   const savedViews = useSavedViews(identityId, 'work-inbox');
   /** Unidades autorizadas — alimenta o filtro de escopo em linguagem humana. */
