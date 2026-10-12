@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState, type FormEvent } from 'react';
 import { listClients } from '../../clients/api/clients-api';
+import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
 import { createProposal, ProposalsApiError } from '../api/proposals-api';
 import { mapProposalErrorToMessage } from '../api/proposal-error-messages';
 import { ProposalForm } from '../components/ProposalForm';
@@ -24,6 +25,7 @@ const CREATE_DESCRIPTION =
 
 export function ProposalCreatePage() {
   const navigate = useNavigate();
+  const { options: unitOptions } = useOperationalUnits();
   const { capabilities, loading: capabilitiesLoading } = useProposalCapabilities();
   const [values, setValues] = useState<ProposalFormValues>(EMPTY_PROPOSAL_FORM);
   const [fieldErrors, setFieldErrors] = useState<ProposalFormFieldErrors>({});
@@ -117,6 +119,7 @@ export function ProposalCreatePage() {
         values={values}
         clients={clients}
         clientsLoading={clientsLoading}
+        unitOptions={unitOptions}
         fieldErrors={fieldErrors}
         submitError={submitError}
         submitting={submitting}

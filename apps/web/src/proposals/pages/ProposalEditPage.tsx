@@ -1,6 +1,7 @@
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { listClients } from '../../clients/api/clients-api';
+import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
 import { getProposal, ProposalsApiError, updateProposalDraft } from '../api/proposals-api';
 import { mapProposalErrorToMessage } from '../api/proposal-error-messages';
 import { ProposalForm } from '../components/ProposalForm';
@@ -28,6 +29,7 @@ import {
 export function ProposalEditPage() {
   const { proposalId = '' } = useParams();
   const navigate = useNavigate();
+  const { options: unitOptions } = useOperationalUnits();
   const { capabilities } = useProposalCapabilities();
   const [values, setValues] = useState<ProposalFormValues>(EMPTY_PROPOSAL_FORM);
   const [rowVersion, setRowVersion] = useState(0);
@@ -209,6 +211,7 @@ export function ProposalEditPage() {
         values={values}
         clients={clients}
         clientsLoading={clientsLoading}
+        unitOptions={unitOptions}
         fieldErrors={fieldErrors}
         submitError={submitError}
         submitting={submitting}

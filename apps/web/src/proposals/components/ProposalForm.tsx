@@ -3,6 +3,10 @@ import { useCallback, useId, useRef, useState, type FormEvent } from 'react';
 import { HumanLookupField, type HumanLookupOption } from '../../financial-ui/HumanLookupField';
 import { searchClientOptions } from '../../financial-ui/client-lookup';
 import {
+  OperationalUnitOptions,
+  type OperationalUnitOption,
+} from '../../shell/hooks/useOperationalUnits';
+import {
   BuilderSection,
   BuilderSummary,
   Button,
@@ -33,6 +37,7 @@ type ProposalFormProps = {
   values: ProposalFormValues;
   clients: ClientOption[];
   clientsLoading: boolean;
+  unitOptions: OperationalUnitOption[];
   fieldErrors: ProposalFormFieldErrors;
   submitError: string | null;
   submitting: boolean;
@@ -72,6 +77,7 @@ export function ProposalForm({
   values,
   clients,
   clientsLoading,
+  unitOptions,
   fieldErrors,
   submitError,
   submitting,
@@ -122,6 +128,11 @@ export function ProposalForm({
     pickedClient && pickedClient.id === values.clientId
       ? pickedClient.label
       : (clients.find((client) => client.id === values.clientId)?.label ?? null);
+
+  const availableUnitOptions =
+    values.unitId && !unitOptions.some((option) => option.value === values.unitId)
+      ? [{ value: values.unitId, label: 'Unidade atual' }, ...unitOptions]
+      : unitOptions;
 
   const liveErrors = validateProposalForm(values, mode);
   const missing = describePending(liveErrors);
@@ -199,14 +210,18 @@ export function ProposalForm({
             )}
 
             <Field label="Unidade operacional" htmlFor="proposal-unit" required error={fieldErrors.unitId}>
-              <Input
+              <Select
                 id="proposal-unit"
                 value={values.unitId}
                 onChange={(event) => updateField('unitId', event.target.value)}
-                disabled={submitting}
-                placeholder="Código, ex. UN-POA-01"
+                disabled={submitting || availableUnitOptions.length === 0}
                 invalid={Boolean(fieldErrors.unitId)}
-              />
+              >
+                <OperationalUnitOptions
+                  options={availableUnitOptions}
+                  includeAllLabel="Selecione a unidade"
+                />
+              </Select>
             </Field>
 
             <Field label="Título" htmlFor="proposal-title" required error={fieldErrors.title}>

@@ -1,6 +1,7 @@
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { listClients } from '../../clients/api/clients-api';
+import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
 import {
   getPurchaseOrder,
   PurchaseOrdersApiError,
@@ -30,6 +31,7 @@ import {
 export function PurchaseOrderEditPage() {
   const { purchaseOrderId = '' } = useParams();
   const navigate = useNavigate();
+  const { options: unitOptions } = useOperationalUnits();
   const { capabilities } = usePurchaseOrderCapabilities();
   const [values, setValues] = useState<PurchaseOrderFormValues>(EMPTY_PURCHASE_ORDER_FORM);
   const [rowVersion, setRowVersion] = useState(0);
@@ -211,6 +213,7 @@ export function PurchaseOrderEditPage() {
         values={values}
         clients={clients}
         clientsLoading={clientsLoading}
+        unitOptions={unitOptions}
         fieldErrors={fieldErrors}
         submitError={submitError}
         submitting={submitting}

@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState, type FormEvent } from 'react';
 import { listClients } from '../../clients/api/clients-api';
+import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
 import { createPurchaseOrder, PurchaseOrdersApiError } from '../api/purchase-orders-api';
 import { mapPurchaseOrderErrorToMessage } from '../api/purchase-order-error-messages';
 import { PurchaseOrderForm } from '../components/PurchaseOrderForm';
@@ -24,6 +25,7 @@ const CREATE_DESCRIPTION =
 
 export function PurchaseOrderCreatePage() {
   const navigate = useNavigate();
+  const { options: unitOptions } = useOperationalUnits();
   const { capabilities, loading: capabilitiesLoading } = usePurchaseOrderCapabilities();
   const [values, setValues] = useState<PurchaseOrderFormValues>(EMPTY_PURCHASE_ORDER_FORM);
   const [fieldErrors, setFieldErrors] = useState<PurchaseOrderFormFieldErrors>({});
@@ -117,6 +119,7 @@ export function PurchaseOrderCreatePage() {
         values={values}
         clients={clients}
         clientsLoading={clientsLoading}
+        unitOptions={unitOptions}
         fieldErrors={fieldErrors}
         submitError={submitError}
         submitting={submitting}

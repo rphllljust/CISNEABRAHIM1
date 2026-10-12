@@ -43,6 +43,10 @@ function createPurchaseOrderCreateFetchMock(captured: CapturedCreate = { payload
       });
     }
 
+    if (pathname === '/api/v1/requests/service-requests/operational-units' && method === 'GET') {
+      return jsonResponse({ items: ['UN-POA-01'] });
+    }
+
     if (pathname === '/api/v1/clients' && method === 'GET') {
       return jsonResponse({
         items: [
@@ -170,8 +174,8 @@ async function fillHeaderTotalPurchaseOrder(
     expect(within(clientSelect).getAllByRole('option').length).toBeGreaterThan(1);
   });
   await user.selectOptions(clientSelect, CLIENT_ID);
-  await user.type(
-    screen.getByLabelText(/^unidade operacional/i, { selector: 'input' }),
+  await user.selectOptions(
+    screen.getByLabelText(/^unidade operacional/i, { selector: 'select' }),
     'UN-POA-01',
   );
   await user.type(
