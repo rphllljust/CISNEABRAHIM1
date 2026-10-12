@@ -407,7 +407,7 @@ function FiscalDocumentsList() {
   }, [setFilter]);
 
   return (
-    <ModulePage>
+    <ModulePage layout="wide">
       <WorklistHeader
         title="Documentos fiscais"
         count={state.phase === 'ready' ? state.total : null}
@@ -757,7 +757,7 @@ function FiscalDocumentDetail({ fiscalDocumentId }: { fiscalDocumentId: string }
   );
 
   return (
-    <ModulePage>
+    <ModulePage layout="wide">
       <WorklistHeader
         title="Documento fiscal"
         context="Consulta e transições usam o documento oficial do servidor."
