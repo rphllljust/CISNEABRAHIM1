@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useOptionalIdentityId } from '../../auth/context/AuthProvider';
-import { DynamicSavedViewsBar, useSavedViews, type SavedView } from '../../engine';
-import { ContextDrawer } from '../../operator';
+import { DynamicContextDrawer, DynamicSavedViewsBar, useSavedViews, type SavedView } from '../../engine';
 import { Button } from '../../ui/Button';
 import { ModulePage } from '../../ui/module-layout';
 import {
@@ -221,7 +220,7 @@ export function WorkInboxPage() {
 
   if (phase === 'denied') {
     return (
-      <ModulePage>
+      <ModulePage layout="workspace">
         <WorklistStatePanel
           tone="critical"
           title="Acesso à central de trabalho indisponível"
@@ -251,7 +250,7 @@ export function WorkInboxPage() {
   const overdueHref = `/app/work-inbox?${overdueParams.toString()}`;
 
   return (
-    <ModulePage>
+    <ModulePage layout="workspace">
       <WorklistHeader
         title="Central de trabalho"
         count={phase === 'ready' && page ? page.total : null}
@@ -468,7 +467,14 @@ export function WorkInboxPage() {
         <WorkbenchQueue
           title="Fila de trabalho"
           count={items.length}
-          description="Ordenada pelo servidor por domínio. O atraso é derivado do vencimento persistido, não de score."
+          description="Ordenada pelo servidor por precedência operacional. O atraso é derivado do vencimento persistido, não de score."
+          action={
+            items.length > 1 ? (
+              <span className="cisne-type-helper hidden md:inline">
+                ↑/↓ navega entre objetos · Enter abre contexto · Esc fecha
+              </span>
+            ) : null
+          }
           emptyTitle="Nenhum trabalho real neste recorte."
           emptyDescription="A fila não inventa pendência para parecer cheia. Ajuste o recorte ou aguarde novo trabalho."
           emptyAction={
@@ -500,7 +506,20 @@ export function WorkInboxPage() {
                   <>
                     <button
                       type="button"
+                      data-work-inbox-preview
                       onClick={() => setSelected(item)}
+                      onKeyDown={(event) => {
+                        if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+                        const controls = Array.from(
+                          document.querySelectorAll<HTMLButtonElement>('[data-work-inbox-preview]'),
+                        );
+                        const currentIndex = controls.indexOf(event.currentTarget);
+                        if (currentIndex < 0 || controls.length === 0) return;
+                        const direction = event.key === 'ArrowDown' ? 1 : -1;
+                        const nextIndex = (currentIndex + direction + controls.length) % controls.length;
+                        controls[nextIndex]?.focus();
+                        event.preventDefault();
+                      }}
                       className="text-xs font-semibold text-brand-700 hover:text-brand-800"
                     >
                       {item.businessReference}
@@ -551,43 +570,58 @@ export function WorkInboxPage() {
         </div>
       ) : null}
 
-      <ContextDrawer
+      <DynamicContextDrawer
         open={selected !== null}
         title="Contexto do trabalho"
         onClose={() => setSelected(null)}
-        preview={
+        crossReferences={
           selected
-            ? {
-                identifier: selected.businessReference,
-                subtitle: selected.title,
-                facts: [
-                  { label: 'Domínio', value: WORK_DOMAIN_LABELS[selected.domain] },
-                  { label: 'Natureza', value: WORK_KIND_LABELS[selected.kind] },
-                  { label: 'Situação', value: selected.status },
-                  { label: 'Motivo', value: selected.reason },
-                  { label: 'Contexto', value: selected.contextLabel || '—' },
-                  { label: 'Vencimento', value: formatMoment(selected.dueAt) },
-                  {
-                    label: 'Exceção',
-                    value:
-                      daysOverdue(selected.dueAt) !== null
-                        ? `${daysOverdue(selected.dueAt)} dia(s) em atraso`
-                        : null,
-                  },
-                  { label: 'Unidade', value: selected.unitId ?? '—' },
-                ],
-                nextAction: {
-                  label: selected.actionLabel,
-                  onClick: () => {
-                    setSelected(null);
-                    void navigate(selected.targetRoute);
-                  },
-                  kind: 'primary',
-                },
-              }
-            : null
+            ? [{ label: 'Objeto de origem', detail: selected.businessReference, href: selected.targetRoute }]
+            : []
         }
-      />
+      >
+        {selected ? (
+          <>
+            <div className="cisne-divider pb-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="cisne-type-primary m-0">{selected.businessReference}</p>
+                <WorklistException tone={daysOverdue(selected.dueAt) !== null ? 'critical' : 'info'}>
+                  {daysOverdue(selected.dueAt) !== null
+                    ? `${daysOverdue(selected.dueAt)} dia${daysOverdue(selected.dueAt) === 1 ? '' : 's'} em atraso`
+                    : selected.status}
+                </WorklistException>
+              </div>
+              <p className="cisne-type-helper m-0 mt-0.5">{selected.title}</p>
+            </div>
+            <dl className="m-0 grid grid-cols-[8rem_minmax(0,1fr)] gap-x-3 gap-y-1.5 py-2">
+              <dt className="cisne-type-helper">Domínio</dt>
+              <dd className="cisne-type-body m-0">{WORK_DOMAIN_LABELS[selected.domain]}</dd>
+              <dt className="cisne-type-helper">Natureza</dt>
+              <dd className="cisne-type-body m-0">{WORK_KIND_LABELS[selected.kind]}</dd>
+              <dt className="cisne-type-helper">Motivo</dt>
+              <dd className="cisne-type-body m-0">{selected.reason}</dd>
+              <dt className="cisne-type-helper">Contexto</dt>
+              <dd className="cisne-type-body m-0">{selected.contextLabel || '—'}</dd>
+              <dt className="cisne-type-helper">Ocorrido em</dt>
+              <dd className="cisne-type-body m-0 tabular-nums">{formatMoment(selected.occurredAt)}</dd>
+              <dt className="cisne-type-helper">Vencimento</dt>
+              <dd className="cisne-type-body m-0 tabular-nums">{formatMoment(selected.dueAt)}</dd>
+              <dt className="cisne-type-helper">Unidade</dt>
+              <dd className="cisne-type-body m-0">
+                {selected.unitId
+                  ? operationalUnitLabel(unitOptions, selected.unitId, 'Unidade autorizada')
+                  : 'Sem unidade informada'}
+              </dd>
+            </dl>
+            <div className="cisne-divider pt-2">
+              <p className="cisne-meta-label m-0 mb-1">Próxima ação</p>
+              <Link className={workbenchPrimaryActionClass} to={selected.targetRoute} onClick={() => setSelected(null)}>
+                {selected.actionLabel}
+              </Link>
+            </div>
+          </>
+        ) : null}
+      </DynamicContextDrawer>
     </ModulePage>
   );
 }
