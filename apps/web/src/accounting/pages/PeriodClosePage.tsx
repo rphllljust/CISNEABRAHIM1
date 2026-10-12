@@ -155,7 +155,7 @@ export function PeriodClosePage() {
   })();
 
   return (
-    <ModulePage>
+    <ModulePage layout="workspace">
       <WorklistHeader
         title="Fechamentos"
         context="Períodos e fechamentos são lidos do servidor. Fechar ou reabrir envia a versão atual e a justificativa; o navegador não decide o close."
