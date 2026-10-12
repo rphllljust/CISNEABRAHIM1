@@ -43,6 +43,14 @@ RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 WORKDIR /app
 COPY . .
 RUN pnpm install --frozen-lockfile
+# Registra somente flags públicas, nunca segredos. Evidência da matriz de módulos
+# efetivamente incorporada ao bundle Vite desta release.
+RUN printf 'CISNE_BUILD_MODULES finance=%s fiscal=%s accounting=%s inventory=%s payroll=%s procurement=%s suppliers=%s contracts=%s people=%s alerts=%s reports=%s approvals=%s profitability=%s rentals=%s transport=%s\n' \
+  "$VITE_FEATURE_MODULE_FINANCE" "$VITE_FEATURE_MODULE_FISCAL" "$VITE_FEATURE_MODULE_ACCOUNTING" \
+  "$VITE_FEATURE_MODULE_INVENTORY" "$VITE_FEATURE_MODULE_PAYROLL" "$VITE_FEATURE_MODULE_PROCUREMENT" \
+  "$VITE_FEATURE_MODULE_SUPPLIERS" "$VITE_FEATURE_MODULE_CONTRACTS" "$VITE_FEATURE_MODULE_PEOPLE" \
+  "$VITE_FEATURE_MODULE_ALERTS" "$VITE_FEATURE_MODULE_REPORTS" "$VITE_FEATURE_MODULE_APPROVAL_MATRIX" \
+  "$VITE_FEATURE_MODULE_OPERATIONAL_PROFITABILITY" "$VITE_FEATURE_MODULE_RENTALS" "$VITE_FEATURE_MODULE_TRANSPORT"
 RUN pnpm --filter @cisne/web build
 
 FROM nginx:1.27-alpine AS runner
