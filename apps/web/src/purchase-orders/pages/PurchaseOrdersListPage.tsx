@@ -350,7 +350,7 @@ export function PurchaseOrdersListPage() {
   }`;
 
   return (
-    <ModulePage>
+    <ModulePage layout="wide">
       <div data-region="operating-header">
       <WorklistHeader
         title="Pedidos de compra"
