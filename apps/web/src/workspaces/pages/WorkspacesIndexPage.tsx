@@ -19,7 +19,7 @@ import { DOMAIN_WORKSPACES, DOMAIN_WORKSPACE_PATHS } from '../domain-workspaces'
  */
 export function WorkspacesIndexPage() {
   return (
-    <ModulePage>
+    <ModulePage layout="workspace">
       <WorklistHeader
         title="Trabalho por domínio"
         count={WORK_DOMAINS.length}
