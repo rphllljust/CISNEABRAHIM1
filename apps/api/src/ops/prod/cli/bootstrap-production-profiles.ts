@@ -274,6 +274,22 @@ async function ensureFullAssignmentsBulk(
   identityIds: readonly string[],
   actorIdentityId: string,
 ): Promise<void> {
+  // Produção pode preservar assignments históricos revogados. O ON CONFLICT sozinho
+  // não os reativa, e o PDP então ignora todas as capabilities derivadas da role.
+  await client.query(
+    `UPDATE "authorization".access_role_assignments
+        SET revoked_at = NULL,
+            revoked_by_identity_id = NULL,
+            scope_type = 'GLOBAL'::"authorization".authz_scope_type,
+            scope_anchor = NULL,
+            assigned_by_identity_id = $3,
+            version = version + 1
+      WHERE role_id = $1
+        AND identity_id = ANY($2::uuid[])
+        AND revoked_at IS NOT NULL`,
+    [roleId, identityIds, actorIdentityId],
+  );
+
   await client.query(
     `INSERT INTO "authorization".access_role_assignments
        (role_id, identity_id, scope_type, assigned_by_identity_id)
@@ -283,6 +299,20 @@ async function ensureFullAssignmentsBulk(
             $3
        FROM unnest($2::uuid[]) AS t(identity_id)
      ON CONFLICT DO NOTHING`,
+    [roleId, identityIds, actorIdentityId],
+  );
+
+  // Corrige também assignments ativos antigos que ficaram com escopo parcial.
+  await client.query(
+    `UPDATE "authorization".access_role_assignments
+        SET scope_type = 'GLOBAL'::"authorization".authz_scope_type,
+            scope_anchor = NULL,
+            assigned_by_identity_id = $3,
+            version = version + 1
+      WHERE role_id = $1
+        AND identity_id = ANY($2::uuid[])
+        AND revoked_at IS NULL
+        AND (scope_type <> 'GLOBAL'::"authorization".authz_scope_type OR scope_anchor IS NOT NULL)`,
     [roleId, identityIds, actorIdentityId],
   );
 }
