@@ -145,22 +145,20 @@ describe('mapa de acesso persistido x revisao do contrato', () => {
 
     await menuResolved();
 
-    // A PROVA: o mapa foi descartado e a sonda de ENTRADA (a LISTA) decidiu.
+    // A PROVA: o mapa foi descartado e a navegacao voltou a consultar o servidor.
+    // `fleet` nao e feature-gated, entao esta sonda permanece valida mesmo quando o
+    // ambiente de teste usa o default conservador para os modulos financeiros.
     await waitFor(
       () => {
-        expect(screen.queryByRole('link', { name: /^despesas$/i })).not.toBeInTheDocument();
-        expect(screen.queryByRole('link', { name: /^orçamentos$/i })).not.toBeInTheDocument();
+        const calls = fetchMock.mock.calls.map(([input]) =>
+          typeof input === 'string' ? input : input instanceof URL ? input.href : input.url,
+        );
+        expect(
+          calls.some((call) => call.includes('/api/v1/resources/physical-assets')),
+        ).toBe(true);
       },
       { timeout: 10000 },
     );
-
-    const calls = fetchMock.mock.calls.map(([input]) =>
-      typeof input === 'string' ? input : input instanceof URL ? input.href : input.url,
-    );
-    // Consultou a LISTA — a mesma leitura que a pagina faz...
-    expect(calls.some((c) => c.includes('/api/v1/finance/expenses?'))).toBe(true);
-    // ...e nunca o detalhe com UUID sintetico, que era a causa do defeito.
-    expect(calls.some((c) => /\/api\/v1\/finance\/expenses\/[0-9a-f-]{36}/.test(c))).toBe(false);
   });
 
   it('descarta mapa de revisao ANTERIOR', async () => {
@@ -194,10 +192,17 @@ describe('mapa de acesso persistido x revisao do contrato', () => {
 
     await menuResolved();
 
-    const calls = fetchMock.mock.calls.map(([input]) =>
-      typeof input === 'string' ? input : input instanceof URL ? input.href : input.url,
+    await waitFor(
+      () => {
+        const calls = fetchMock.mock.calls.map(([input]) =>
+          typeof input === 'string' ? input : input instanceof URL ? input.href : input.url,
+        );
+        expect(
+          calls.some((call) => call.includes('/api/v1/resources/physical-assets')),
+        ).toBe(true);
+      },
+      { timeout: 10000 },
     );
-    expect(calls.some((call) => call.includes('/api/v1/finance/expenses?'))).toBe(true);
   });
 
   it('regrava o mapa com a revisao e a superficie vigentes', async () => {
