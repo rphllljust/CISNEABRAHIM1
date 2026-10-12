@@ -74,6 +74,20 @@ export function createFinanceFetchMock(options: FinanceFetchMockOptions = {}) {
       return jsonResponse({ status: 'ok' });
     }
 
+    if (pathname === '/api/v1/finance/receivables/summary' && method === 'GET') {
+      if (options.receivableListAllowed === false) return denied('FINANCE_DENIED');
+      const count = receivableCount;
+      const amount = (count * 1500).toFixed(4);
+      return jsonResponse({
+        total: count,
+        openCount: count,
+        overdueCount: 0,
+        dueCount: count,
+        paidCount: 0,
+        amounts: [{ currencyCode: 'BRL', openAmount: amount, overdueAmount: '0.0000', dueAmount: amount }],
+      });
+    }
+
     if (pathname === '/api/v1/finance/receivables' && method === 'GET') {
       if (options.receivableListAllowed === false) {
         return denied('FINANCE_DENIED');
@@ -247,6 +261,19 @@ export function createFinanceFetchMock(options: FinanceFetchMockOptions = {}) {
               },
             ]
           : [],
+      });
+    }
+
+    if (pathname === '/api/v1/finance/payables/summary' && method === 'GET') {
+      if (options.payableListAllowed === false) return denied('FINANCE_DENIED');
+      return jsonResponse({
+        total: 1,
+        openCount: 1,
+        overdueCount: 0,
+        dueCount: 1,
+        paidCount: 0,
+        aging90PlusCount: 0,
+        amounts: [{ currencyCode: 'BRL', openAmount: '800.0000', overdueAmount: '0.0000', dueAmount: '800.0000' }],
       });
     }
 

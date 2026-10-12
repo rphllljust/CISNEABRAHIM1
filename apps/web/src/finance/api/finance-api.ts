@@ -70,6 +70,21 @@ export type FinanceTitlePage<T> = {
   totalPages: number;
 };
 
+export type FinanceTitleSummary = {
+  total: number;
+  openCount: number;
+  overdueCount: number;
+  dueCount: number;
+  paidCount: number;
+  aging90PlusCount?: number;
+  amounts: Array<{
+    currencyCode: string;
+    openAmount: string;
+    overdueAmount: string;
+    dueAmount: string;
+  }>;
+};
+
 export type FinanceTitleListQuery = {
   limit?: number;
   offset?: number;
@@ -101,6 +116,16 @@ export async function listReceivables(
 ): Promise<FinanceTitlePage<ReceivableDetail>> {
   return requestJson<FinanceTitlePage<ReceivableDetail>>(
     `/api/v1/finance/receivables${buildFinanceTitleQuery(query)}`,
+    { method: 'GET', headers: authHeaders(), signal },
+  );
+}
+
+export async function getReceivablesSummary(
+  query: FinanceTitleListQuery = {},
+  signal?: AbortSignal,
+): Promise<FinanceTitleSummary> {
+  return requestJson<FinanceTitleSummary>(
+    `/api/v1/finance/receivables/summary${buildFinanceTitleQuery(query)}`,
     { method: 'GET', headers: authHeaders(), signal },
   );
 }
@@ -141,6 +166,16 @@ export async function listPayables(
 ): Promise<FinanceTitlePage<PayableDetail>> {
   return requestJson<FinanceTitlePage<PayableDetail>>(
     `/api/v1/finance/payables${buildFinanceTitleQuery(query)}`,
+    { method: 'GET', headers: authHeaders(), signal },
+  );
+}
+
+export async function getPayablesSummary(
+  query: FinanceTitleListQuery = {},
+  signal?: AbortSignal,
+): Promise<FinanceTitleSummary> {
+  return requestJson<FinanceTitleSummary>(
+    `/api/v1/finance/payables/summary${buildFinanceTitleQuery(query)}`,
     { method: 'GET', headers: authHeaders(), signal },
   );
 }

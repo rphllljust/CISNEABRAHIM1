@@ -26,7 +26,7 @@ import {
   matchesFilterGroup,
   type FilterGroup,
 } from '../../engine/DynamicFilterBuilder';
-import { listPayables, type FinanceTitlePage } from '../api/finance-api';
+import { getPayablesSummary, listPayables, type FinanceTitlePage, type FinanceTitleSummary } from '../api/finance-api';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import { FinanceStatusBadge } from '../components/FinanceStatusBadge';
 import { PAYABLES_ALLOWED_FILTERS, PAYABLES_BUILT_IN_VIEWS } from './finance-smart-list';
@@ -97,6 +97,14 @@ export function PayablesListPage() {
     loader,
     mapError: mapFinanceErrorToMessage,
   });
+  const summaryLoader = useCallback(
+    (signal?: AbortSignal) => getPayablesSummary({ status: statusForQuery || undefined }, signal),
+    [statusForQuery],
+  );
+  const { state: summaryState } = useBackofficeQuery<FinanceTitleSummary>({
+    loader: summaryLoader,
+    mapError: mapFinanceErrorToMessage,
+  });
 
   const sortAccessors = useMemo(
     () => ({
@@ -147,6 +155,7 @@ export function PayablesListPage() {
   }
 
   const page = state.data;
+  const summary = summaryState.phase === 'ready' ? summaryState.data : null;
   const pageItems = page.items;
   const agingFilter = smartList.filters.agingBucket ?? '';
   const pageCount = Math.max(1, page.totalPages);
@@ -157,12 +166,9 @@ export function PayablesListPage() {
     : pageItems;
 
   // Contadores reais derivados do payload carregado.
+  // Contagem da página fica apenas no rodapé; KPIs globais vêm do resumo autoritativo.
   const inFlight = pageItems.filter((item) => !['PAID', 'CANCELLED'].includes(item.status));
   const overdue = inFlight.filter((item) => item.status === 'OVERDUE');
-  const notOverdue = inFlight.filter((item) => item.status !== 'OVERDUE');
-  const aging90 = inFlight.filter((item) => item.agingBucket === '90_PLUS');
-  const overdueTotal = overdue.reduce((sum, item) => sum + Number(item.remainingBalance), 0);
-  const openTotal = notOverdue.reduce((sum, item) => sum + Number(item.remainingBalance), 0);
 
   /*
    * RECORTE EM DUAS CAMADAS, na ordem em que o operador as compôs:
@@ -209,35 +215,35 @@ export function PayablesListPage() {
       />
       </div>
 
-      {/* DRILL-DOWN: todo indicador abre a lista filtrada que o originou. */}
+      {/* DRILL-DOWN: métricas do recorte completo, agregadas no backend. */}
       <div data-region="drilldown-surface">
       <DrilldownRow>
         <DrilldownMetric
           label="Vencidos"
-          value={overdue.length}
-          hint={`${formatCurrency(overdueTotal)} · ver lista filtrada`}
-          tone={overdue.length > 0 ? 'critical' : 'neutral'}
+          value={summary?.overdueCount ?? '—'}
+          hint={summary ? `${formatSummaryAmount(summary, 'overdueAmount')} · ver lista filtrada` : 'agregado autoritativo indisponível'}
+          tone={summary && summary.overdueCount > 0 ? 'critical' : 'neutral'}
           to="/app/finance/payables?status=OVERDUE"
         />
         <DrilldownMetric
           label="A vencer"
-          value={notOverdue.length}
-          hint={`${formatCurrency(openTotal)} · ver lista filtrada`}
+          value={summary?.dueCount ?? '—'}
+          hint={summary ? `${formatSummaryAmount(summary, 'dueAmount')} · ver lista filtrada` : 'agregado autoritativo indisponível'}
           tone="info"
           to="/app/finance/payables?status=OPEN"
         />
         <DrilldownMetric
           label="Aging 90+"
-          value={aging90.length}
-          hint="ver lista filtrada"
-          tone={aging90.length > 0 ? 'warning' : 'neutral'}
-          muted={aging90.length === 0}
+          value={summary?.aging90PlusCount ?? '—'}
+          hint="recorte completo · ver lista filtrada"
+          tone={summary && (summary.aging90PlusCount ?? 0) > 0 ? 'warning' : 'neutral'}
+          muted={summary?.aging90PlusCount === 0}
           to="/app/finance/payables?agingBucket=90_PLUS"
         />
         <DrilldownMetric
           label="Obrigações em aberto"
-          value={inFlight.length}
-          hint={`${formatCurrency(overdueTotal + openTotal)} sob acompanhamento`}
+          value={summary?.openCount ?? '—'}
+          hint={summary ? `${formatSummaryAmount(summary, 'openAmount')} sob acompanhamento` : 'agregado autoritativo indisponível'}
           to="/app/finance/payables"
         />
       </DrilldownRow>
@@ -517,8 +523,18 @@ export function PayablesListPage() {
   );
 }
 
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+function formatSummaryAmount(
+  summary: FinanceTitleSummary,
+  key: 'openAmount' | 'overdueAmount' | 'dueAmount',
+): string {
+  if (summary.amounts.length === 0) return 'sem saldo no recorte';
+  return summary.amounts
+    .map((amount) =>
+      new Intl.NumberFormat('pt-BR', { style: 'currency', currency: amount.currencyCode }).format(
+        Number(amount[key]),
+      ),
+    )
+    .join(' · ');
 }
 
 /**

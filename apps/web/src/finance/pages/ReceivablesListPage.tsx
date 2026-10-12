@@ -31,7 +31,7 @@ import {
   matchesFilterGroup,
   type FilterGroup,
 } from '../../engine/DynamicFilterBuilder';
-import { listReceivables, type FinanceTitlePage } from '../api/finance-api';
+import { getReceivablesSummary, listReceivables, type FinanceTitlePage, type FinanceTitleSummary } from '../api/finance-api';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import { FinanceStatusBadge } from '../components/FinanceStatusBadge';
 import { RECEIVABLES_ALLOWED_FILTERS, RECEIVABLES_BUILT_IN_VIEWS } from './finance-smart-list';
@@ -107,6 +107,14 @@ export function ReceivablesListPage() {
     loader,
     mapError: mapFinanceErrorToMessage,
   });
+  const summaryLoader = useCallback(
+    (signal?: AbortSignal) => getReceivablesSummary({ status: statusForQuery || undefined }, signal),
+    [statusForQuery],
+  );
+  const { state: summaryState } = useBackofficeQuery<FinanceTitleSummary>({
+    loader: summaryLoader,
+    mapError: mapFinanceErrorToMessage,
+  });
 
   const sortAccessors = useMemo(
     () => ({
@@ -168,16 +176,14 @@ export function ReceivablesListPage() {
   }
 
   const page = state.data;
+  const summary = summaryState.phase === 'ready' ? summaryState.data : null;
   const pageItems = page.items;
   const pageCount = Math.max(1, page.totalPages);
   const safePageNumber = Math.min(pageNumber, pageCount);
 
-  // Contadores reais — derivados do payload carregado, nunca estimados.
+  // Contagem da página fica apenas no rodapé; KPIs globais vêm do resumo autoritativo.
   const inFlight = pageItems.filter((item) => !['PAID', 'CANCELLED'].includes(item.status));
   const overdue = inFlight.filter((item) => item.status === 'OVERDUE');
-  const notOverdue = inFlight.filter((item) => item.status !== 'OVERDUE');
-  const overdueTotal = overdue.reduce((sum, item) => sum + Number(item.remainingBalance), 0);
-  const openTotal = notOverdue.reduce((sum, item) => sum + Number(item.remainingBalance), 0);
 
   /*
    * RECORTE DO CONSTRUTOR VISUAL — árvore AND/OR sobre os títulos da página. O caminho oficial de
@@ -215,53 +221,36 @@ export function ReceivablesListPage() {
       />
       </div>
 
-      {/*
-        DRILL-DOWN COM ESCOPO DECLARADO.
-
-        DEFEITO CORRIGIDO (auditoria, P1): os quatro indicadores são calculados sobre `pageItems`
-        — a PÁGINA carregada — e a faixa se apresentava como se descrevesse a CARTEIRA. Com 3
-        títulos no dataset os números coincidem por acidente; com 1.000 e página de 20, "3 vencidos"
-        seria lido como a carteira inteira. E os `hint` somavam SALDO de uma janela paginada,
-        publicando um valor que parece total.
-
-        O contrato desta lista publica `total` (autoritativo, contado sob o MESMO recorte), mas NÃO
-        publica agregado de vencidos/a-vencer/recebidos nem soma de saldo. Então a escolha honesta
-        não é inventar o número nem apagar o indicador: é declarar de onde ele vem — e mostrar ao
-        lado o único número que É do recorte inteiro (`page.total`). O caminho até o dado continua
-        sendo o drilldown, que abre a lista filtrada cujo `total` é autoritativo.
-
-        Cada `hint` entra no `aria-label` do indicador (`DrilldownMetric`), então o escopo vale
-        também para leitor de tela — não é só texto visual.
-      */}
+      {/* KPIs do dataset filtrado completo: nunca derivados da página carregada. */}
       <div data-region="drilldown-surface">
       <p className="cisne-meta-label m-0 mb-1">
-        Indicadores desta página · {page.total} título(s) no recorte
+        Indicadores do recorte completo · {summary?.total ?? '—'} título(s)
       </p>
       <DrilldownRow>
         <DrilldownMetric
           label="Vencidos"
-          value={overdue.length}
-          hint={`${formatCurrency(overdueTotal)} vencidos nesta página · ver lista filtrada`}
-          tone={overdue.length > 0 ? 'critical' : 'neutral'}
+          value={summary?.overdueCount ?? '—'}
+          hint={summary ? `${formatSummaryAmount(summary, 'overdueAmount')} vencidos no recorte · ver lista filtrada` : 'agregado autoritativo indisponível'}
+          tone={summary && summary.overdueCount > 0 ? 'critical' : 'neutral'}
           to="/app/finance/receivables?status=OVERDUE"
         />
         <DrilldownMetric
           label="A vencer"
-          value={notOverdue.length}
-          hint={`${formatCurrency(openTotal)} a vencer nesta página · ver lista filtrada`}
+          value={summary?.dueCount ?? '—'}
+          hint={summary ? `${formatSummaryAmount(summary, 'dueAmount')} a vencer no recorte · ver lista filtrada` : 'agregado autoritativo indisponível'}
           tone="info"
           to="/app/finance/receivables?status=OPEN"
         />
         <DrilldownMetric
           label="Recebidos"
-          value={pageItems.filter((item) => item.status === 'PAID').length}
-          hint="recebidos nesta página · ver lista filtrada"
+          value={summary?.paidCount ?? '—'}
+          hint={summary ? 'recebidos no recorte completo · ver lista filtrada' : 'agregado autoritativo indisponível'}
           to="/app/finance/receivables?status=PAID"
         />
         <DrilldownMetric
           label="Carteira em aberto"
-          value={inFlight.length}
-          hint={`${formatCurrency(overdueTotal + openTotal)} em aberto nesta página`}
+          value={summary?.openCount ?? '—'}
+          hint={summary ? `${formatSummaryAmount(summary, 'openAmount')} em aberto no recorte completo` : 'agregado autoritativo indisponível'}
           to="/app/finance/receivables"
         />
       </DrilldownRow>
@@ -568,8 +557,18 @@ export function ReceivablesListPage() {
   );
 }
 
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+function formatSummaryAmount(
+  summary: FinanceTitleSummary,
+  key: 'openAmount' | 'overdueAmount' | 'dueAmount',
+): string {
+  if (summary.amounts.length === 0) return 'sem saldo no recorte';
+  return summary.amounts
+    .map((amount) =>
+      new Intl.NumberFormat('pt-BR', { style: 'currency', currency: amount.currencyCode }).format(
+        Number(amount[key]),
+      ),
+    )
+    .join(' · ');
 }
 
 /** Origem humana do recebível — apresentação, não domínio (o token persiste intacto). */
