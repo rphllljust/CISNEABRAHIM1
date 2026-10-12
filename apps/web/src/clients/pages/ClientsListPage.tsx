@@ -394,7 +394,7 @@ export function ClientsListPage() {
   const scope = describeClientScope(filters);
 
   return (
-    <ModulePage>
+    <ModulePage layout="wide">
       {/*
         SUPERFÍCIE DE TRABALHO FIXA — o contexto de operação não rola com a fila.
 
