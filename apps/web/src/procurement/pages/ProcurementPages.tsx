@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { EmptyState, Field, Input, Money, worklistTableCardClass } from '../../ui';
-import { ModulePage, ModulePrimaryLink, ModuleTableLink } from '../../ui/module-layout';
+import { ModulePage, ModulePagination, ModulePrimaryLink, ModuleTableLink } from '../../ui/module-layout';
 import {
   WorklistClearFilters,
   WorklistField,
   WorklistFilterBar,
+  WorklistFooter,
   WorklistHeader,
   worklistCellClass,
   worklistCellRaisedClass,
@@ -112,6 +113,7 @@ function ProcurementLists() {
   });
   const [term, setTerm] = useState('');
   const [appliedTerm, setAppliedTerm] = useState('');
+  const [offsets, setOffsets] = useState({ requests: 0, orders: 0, invoices: 0 });
 
   useEffect(() => {
     const controller = new AbortController();
