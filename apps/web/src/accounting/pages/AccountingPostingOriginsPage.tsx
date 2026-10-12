@@ -203,7 +203,7 @@ export function AccountingPostingOriginsPage() {
   const rejected = data?.statusCounts.REJECTED ?? 0;
 
   return (
-    <ModulePage>
+    <ModulePage layout="wide">
       {/*
         MESMA GRAMÁTICA DAS DEMAIS SUPERFÍCIES DA FAMÍLIA 4 — esta tela já estava próxima do
         padrão, então a intervenção é MÍNIMA e aditiva: o cabeçalho solto passa a `WorklistHeader`
