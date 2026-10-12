@@ -215,35 +215,35 @@ export function PayablesListPage() {
       />
       </div>
 
-      {/* DRILL-DOWN: todo indicador abre a lista filtrada que o originou. */}
+      {/* DRILL-DOWN: métricas do recorte completo, agregadas no backend. */}
       <div data-region="drilldown-surface">
       <DrilldownRow>
         <DrilldownMetric
           label="Vencidos"
-          value={overdue.length}
-          hint={`${formatCurrency(overdueTotal)} · ver lista filtrada`}
-          tone={overdue.length > 0 ? 'critical' : 'neutral'}
+          value={summary?.overdueCount ?? '—'}
+          hint={summary ? `${formatSummaryAmount(summary, 'overdueAmount')} · ver lista filtrada` : 'agregado autoritativo indisponível'}
+          tone={summary && summary.overdueCount > 0 ? 'critical' : 'neutral'}
           to="/app/finance/payables?status=OVERDUE"
         />
         <DrilldownMetric
           label="A vencer"
-          value={notOverdue.length}
-          hint={`${formatCurrency(openTotal)} · ver lista filtrada`}
+          value={summary?.dueCount ?? '—'}
+          hint={summary ? `${formatSummaryAmount(summary, 'dueAmount')} · ver lista filtrada` : 'agregado autoritativo indisponível'}
           tone="info"
           to="/app/finance/payables?status=OPEN"
         />
         <DrilldownMetric
           label="Aging 90+"
-          value={aging90.length}
-          hint="ver lista filtrada"
-          tone={aging90.length > 0 ? 'warning' : 'neutral'}
-          muted={aging90.length === 0}
+          value={summary?.aging90PlusCount ?? '—'}
+          hint="recorte completo · ver lista filtrada"
+          tone={summary && (summary.aging90PlusCount ?? 0) > 0 ? 'warning' : 'neutral'}
+          muted={summary?.aging90PlusCount === 0}
           to="/app/finance/payables?agingBucket=90_PLUS"
         />
         <DrilldownMetric
           label="Obrigações em aberto"
-          value={inFlight.length}
-          hint={`${formatCurrency(overdueTotal + openTotal)} sob acompanhamento`}
+          value={summary?.openCount ?? '—'}
+          hint={summary ? `${formatSummaryAmount(summary, 'openAmount')} sob acompanhamento` : 'agregado autoritativo indisponível'}
           to="/app/finance/payables"
         />
       </DrilldownRow>
