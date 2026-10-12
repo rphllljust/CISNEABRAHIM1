@@ -235,7 +235,14 @@ export function PayrollPage() {
             htmlFor="payroll-period-lookup"
             hint="Busque por competência (MM/AAAA), status, unidade ou vigência."
             placeholder="Competência, status ou unidade"
-            search={(term) => Promise.resolve(searchPayrollPeriodOptions(term))}
+            search={async (term, signal) => {
+              if (!unitId.trim()) return [];
+              await listPayrollPeriods(
+                { unitId: unitId.trim(), q: term, page: 0, pageSize: 20 },
+                signal,
+              );
+              return searchPayrollPeriodOptions(term, unitId.trim());
+            }}
             value={periodId ?? ''}
             initialLabel={loadedPeriodLabel}
             onChange={openPeriod}
