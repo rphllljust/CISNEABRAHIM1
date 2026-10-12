@@ -17,12 +17,12 @@ import {
   worklistButtonClass,
   worklistSelectClass,
 } from '../../ui/enterprise-list';
-import { DrilldownMetric, DrilldownRow, SavedViewsBar, useSmartList } from '../../operator';
+import { ContextDrawer, DrilldownMetric, DrilldownRow, SavedViewsBar, useSmartList } from '../../operator';
 import { EXPENSE_STATUS_LABELS } from '../../financial-ui/labels';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
-import { DynamicList, useEntitySchema } from '../../engine';
-import { listExpenses } from '../api/finance-api';
+import { DynamicExportCsv, DynamicList, listColumns, useEntitySchema } from '../../engine';
+import { listExpenses, type ExpenseSummary } from '../api/finance-api';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import { FinanceStatusBadge } from '../components/FinanceStatusBadge';
 import { expenseEngineRows, expensesListSchema } from './expense-engine-rows';
@@ -113,6 +113,8 @@ export function ExpensesListPage() {
   const [term, setTerm] = useState('');
   const [appliedTerm, setAppliedTerm] = useState('');
   const [offset, setOffset] = useState(0);
+  /** Contexto sob demanda: abre apenas pela ação explícita da linha. */
+  const [previewRow, setPreviewRow] = useState<ExpenseSummary | null>(null);
   const { schema: rawSchema } = useEntitySchema('expenses');
 
   // O status vive na URL e em visão salva: o Ctrl+K abre a lista JÁ recortada e o endereço é
@@ -445,6 +447,18 @@ export function ExpensesListPage() {
 
       <div data-region="worklist-master">
 
+      {schema && items.length > 0 ? (
+        <div className="mb-2">
+          {/* Exporta exatamente as colunas da grade e somente as linhas já autorizadas desta página. */}
+          <DynamicExportCsv
+            schema={schema}
+            rows={rows}
+            fileName="despesas"
+            columns={listColumns(schema)}
+          />
+        </div>
+      ) : null}
+
       {/*
         CARTEIRA VAZIA vs. RECORTE SEM RESULTADO.
         `page.total === 0` com o servidor respondendo significa "não há despesa no recorte". Quando o
@@ -576,9 +590,13 @@ export function ExpensesListPage() {
                 </Link>
               }
               secondary={
-                <span className={rowSecondaryActionClass}>
-                  Aprovar, rejeitar e enviar são decisões do detalhe.
-                </span>
+                <button
+                  type="button"
+                  className={rowSecondaryActionClass}
+                  onClick={() => setPreviewRow(items.find((item) => item.id === row.id) ?? null)}
+                >
+                  Prévia
+                </button>
               }
             />
           )}
@@ -612,6 +630,66 @@ export function ExpensesListPage() {
         />
       </WorklistFooter>
       </div>
+
+      <ContextDrawer
+        open={previewRow !== null}
+        title="Contexto da despesa"
+        onClose={() => setPreviewRow(null)}
+        preview={
+          previewRow
+            ? (() => {
+                const due = dueFacts(previewRow.dueDate, previewRow.status);
+                return {
+                  identifier: previewRow.description,
+                  subtitle: previewRow.costCenterCode || 'Sem centro de custo publicado',
+                  status: (
+                    <FinanceStatusBadge
+                      status={previewRow.status}
+                      labels={EXPENSE_STATUS_LABELS}
+                    />
+                  ),
+                  facts: [
+                    {
+                      label: 'Valor',
+                      value: (
+                        <Money
+                          value={previewRow.totalAmount}
+                          currencyCode={previewRow.currencyCode}
+                          emphasis
+                        />
+                      ),
+                    },
+                    {
+                      label: 'Vencimento',
+                      value: <DateTime value={previewRow.dueDate} mode="date" />,
+                    },
+                    {
+                      label: 'Prazo',
+                      value: due?.label ?? 'Sem exceção de prazo nesta página',
+                    },
+                    { label: 'Centro de custo', value: previewRow.costCenterCode || '—' },
+                    { label: 'Versão', value: String(previewRow.version) },
+                    {
+                      label: 'Criada em',
+                      value: <DateTime value={previewRow.createdAt} mode="datetime" />,
+                    },
+                  ],
+                  nextAction: {
+                    label:
+                      previewRow.status === 'DRAFT'
+                        ? 'Abrir a despesa para revisar e enviar'
+                        : previewRow.status === 'SUBMITTED'
+                          ? 'Abrir a despesa para decidir aprovação'
+                          : 'Abrir a despesa para consultar o registro',
+                    href: `/app/finance/expenses/${previewRow.id}`,
+                  },
+                  detailHref: `/app/finance/expenses/${previewRow.id}`,
+                  detailLabel: 'Abrir despesa completa',
+                };
+              })()
+            : null
+        }
+      />
     </ModulePage>
   );
 }
