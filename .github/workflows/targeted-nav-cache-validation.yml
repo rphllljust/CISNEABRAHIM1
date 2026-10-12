@@ -34,7 +34,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Focused lint
-        run: pnpm exec eslint apps/web/src/shell/useNavAccess.ts apps/web/src/shell/useNavAccessContract.test.tsx
+        run: pnpm --dir apps/web exec eslint src/shell/useNavAccess.ts src/shell/useNavAccessContract.test.tsx
 
       - name: Web typecheck
         run: pnpm --filter @cisne/web typecheck
