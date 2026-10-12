@@ -38,6 +38,13 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
+    /**
+     * O RTL pode aguardar ate 10s (src/test/setup.ts). O Vitest precisa ter um teto
+     * MAIOR que esse orcamento; com o default de 5s o runner encerrava o caso antes
+     * do waitFor/findBy completar sob contencao da suite, gerando falsos timeouts.
+     * Nenhuma assercao e afrouxada: apenas o runner deixa o harness concluir.
+     */
+    testTimeout: 15_000,
     include: ['src/**/*.test.{ts,tsx}'],
     fileParallelism: false,
     env: {
