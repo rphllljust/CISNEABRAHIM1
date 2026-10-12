@@ -76,6 +76,40 @@ export class PayrollRepository {
     return requiredRow(result.rows[0]);
   }
 
+  async listContracts(input: {
+    unitId: string;
+    q?: string;
+    page: number;
+    pageSize: number;
+  }): Promise<{ items: EmploymentContractRow[]; total: number }> {
+    const values: unknown[] = [input.unitId];
+    const conditions = ['unit_id = $1'];
+    if (input.q) {
+      values.push(`%${input.q}%`);
+      conditions.push(`(code ILIKE ${values.length} OR display_name ILIKE ${values.length})`);
+    }
+    const where = conditions.join(' AND ');
+    const totalResult = await this.pool().query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total
+         FROM pay.employment_contracts
+        WHERE ${where}`,
+      values,
+    );
+    const pageValues = [...values, input.pageSize, input.page * input.pageSize];
+    const result = await this.pool().query<EmploymentContractRow>(
+      `SELECT ${CONTRACT_RETURNING}
+         FROM pay.employment_contracts
+        WHERE ${where}
+        ORDER BY display_name ASC, code ASC, id ASC
+        LIMIT ${values.length + 1} OFFSET ${values.length + 2}`,
+      pageValues,
+    );
+    return {
+      items: result.rows,
+      total: Number(totalResult.rows[0]?.total ?? '0'),
+    };
+  }
+
   async findContractById(id: string): Promise<EmploymentContractRow | null> {
     const result = await this.pool().query<EmploymentContractRow>(
       `SELECT ${CONTRACT_RETURNING} FROM pay.employment_contracts WHERE id = $1`,
@@ -108,6 +142,52 @@ export class PayrollRepository {
       ],
     );
     return requiredRow(result.rows[0]);
+  }
+
+  async listPeriods(input: {
+    unitId: string;
+    status?: string;
+    q?: string;
+    page: number;
+    pageSize: number;
+  }): Promise<{ items: PayrollPeriodRow[]; total: number }> {
+    const values: unknown[] = [input.unitId];
+    const conditions = ['unit_id = $1'];
+    if (input.status) {
+      values.push(input.status);
+      conditions.push(`status::text = ${values.length}`);
+    }
+    if (input.q) {
+      values.push(`%${input.q}%`);
+      const position = values.length;
+      conditions.push(
+        `(
+          (LPAD(competence_month::text, 2, '0') || '/' || competence_year::text) ILIKE ${position}
+          OR (competence_year::text || '-' || LPAD(competence_month::text, 2, '0')) ILIKE ${position}
+          OR status::text ILIKE ${position}
+        )`,
+      );
+    }
+    const where = conditions.join(' AND ');
+    const totalResult = await this.pool().query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total
+         FROM pay.payroll_periods
+        WHERE ${where}`,
+      values,
+    );
+    const pageValues = [...values, input.pageSize, input.page * input.pageSize];
+    const result = await this.pool().query<PayrollPeriodRow>(
+      `SELECT ${PERIOD_RETURNING}
+         FROM pay.payroll_periods
+        WHERE ${where}
+        ORDER BY competence_year DESC, competence_month DESC, id DESC
+        LIMIT ${values.length + 1} OFFSET ${values.length + 2}`,
+      pageValues,
+    );
+    return {
+      items: result.rows,
+      total: Number(totalResult.rows[0]?.total ?? '0'),
+    };
   }
 
   async findPeriodById(id: string): Promise<PayrollPeriodRow | null> {
