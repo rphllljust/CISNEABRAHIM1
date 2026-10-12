@@ -264,6 +264,19 @@ export function createFinanceFetchMock(options: FinanceFetchMockOptions = {}) {
       });
     }
 
+    if (pathname === '/api/v1/finance/payables/summary' && method === 'GET') {
+      if (options.payableListAllowed === false) return denied('FINANCE_DENIED');
+      return jsonResponse({
+        total: 1,
+        openCount: 1,
+        overdueCount: 0,
+        dueCount: 1,
+        paidCount: 0,
+        aging90PlusCount: 0,
+        amounts: [{ currencyCode: 'BRL', openAmount: '800.0000', overdueAmount: '0.0000', dueAmount: '800.0000' }],
+      });
+    }
+
     if (pathname === '/api/v1/finance/payables' && method === 'GET') {
       if (options.payableListAllowed === false) {
         return denied('FINANCE_DENIED');
