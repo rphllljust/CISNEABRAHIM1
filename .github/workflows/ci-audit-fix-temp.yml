@@ -24,9 +24,7 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Apply pnpm security fixes
-        run: pnpm audit --fix
-      - name: Resolve repaired dependency graph
+      - name: Resolve patched dependency graph
         run: pnpm install --no-frozen-lockfile
       - name: Verify high-severity audit gate
         run: pnpm audit --audit-level=high
