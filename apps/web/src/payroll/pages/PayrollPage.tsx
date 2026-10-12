@@ -26,6 +26,8 @@ import {
   closePayrollPeriod,
   createEmploymentContract,
   getPayrollPeriod,
+  listEmploymentContracts,
+  listPayrollPeriods,
   listPayrollResults,
   mapPayrollErrorToMessage,
   openPayrollPeriod,
