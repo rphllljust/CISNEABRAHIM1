@@ -1,6 +1,7 @@
 import {
   authHeaders,
   BACKOFFICE_PROBE_ID,
+  BackofficeApiError,
   jsonHeaders,
   probeReadAccess,
   requestJson,
@@ -154,12 +155,23 @@ export async function listPayrollPeriods(
   });
   if (query.status) params.set('status', query.status);
   if (query.q?.trim()) params.set('q', query.q.trim());
-  const page = await requestJson<PayrollPeriodPage>(
-    `/api/v1/payroll/periods?${params.toString()}`,
-    { method: 'GET', headers: authHeaders(), signal },
-  );
-  page.items.forEach(rememberPayrollPeriod);
-  return page;
+  try {
+    const page = await requestJson<PayrollPeriodPage>(
+      `/api/v1/payroll/periods?${params.toString()}`,
+      { method: 'GET', headers: authHeaders(), signal },
+    );
+    page.items.forEach(rememberPayrollPeriod);
+    return page;
+  } catch (error) {
+    /*
+     * Compatibilidade de rolling deploy: somente API antiga sem a ROTA (404) cai no diretório
+     * de respostas já conhecidas. 401/403 e qualquer outra falha continuam propagadas.
+     */
+    if (error instanceof BackofficeApiError && error.status === 404) {
+      return { items: [], total: 0, page: 0, pageSize: query.pageSize ?? 20, totalPages: 0 };
+    }
+    throw error;
+  }
 }
 
 export async function listEmploymentContracts(
@@ -172,12 +184,19 @@ export async function listEmploymentContracts(
     pageSize: String(query.pageSize ?? 20),
   });
   if (query.q?.trim()) params.set('q', query.q.trim());
-  const page = await requestJson<EmploymentContractPage>(
-    `/api/v1/payroll/contracts?${params.toString()}`,
-    { method: 'GET', headers: authHeaders(), signal },
-  );
-  page.items.forEach(rememberEmploymentContract);
-  return page;
+  try {
+    const page = await requestJson<EmploymentContractPage>(
+      `/api/v1/payroll/contracts?${params.toString()}`,
+      { method: 'GET', headers: authHeaders(), signal },
+    );
+    page.items.forEach(rememberEmploymentContract);
+    return page;
+  } catch (error) {
+    if (error instanceof BackofficeApiError && error.status === 404) {
+      return { items: [], total: 0, page: 0, pageSize: query.pageSize ?? 20, totalPages: 0 };
+    }
+    throw error;
+  }
 }
 
 export async function getPayrollPeriod(
