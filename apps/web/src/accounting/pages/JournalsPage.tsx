@@ -22,6 +22,14 @@ import {
   worklistTableCardClass,
   worklistTableClass,
 } from '../../ui/enterprise-list';
+import {
+  ContextDrawer,
+  SavedViewsBar,
+  useSavedViews,
+  type BuiltInView,
+  type ContextPreviewBody,
+  type SmartListAllowedFilters,
+} from '../../operator';
 import { ClosedPeriodBanner } from '../../financial-ui/ClosedPeriodBanner';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { JOURNAL_STATUS_LABELS, MOVEMENT_DIRECTION_LABELS, PERIOD_STATUS_LABELS } from '../../financial-ui/labels';
@@ -72,6 +80,25 @@ function NEXT_ACTION_FOR(status: JournalStatus): string {
  * `sourceReference` do próprio registro, então a coluna "Origem" lê o dado gravado; nada é
  * inferido a partir do histórico do lançamento. Valor sem rótulo conhecido aparece cru.
  */
+const JOURNAL_SAVED_VIEW_FILTERS: SmartListAllowedFilters = {
+  filters: { status: ['DRAFT', 'POSTED'] },
+};
+
+const JOURNAL_BUILT_IN_VIEWS: BuiltInView[] = [
+  {
+    id: 'journal-drafts',
+    name: 'Rascunhos',
+    description: 'Lançamentos em rascunho no período selecionado.',
+    config: { filters: { status: 'DRAFT' }, sortKey: null, sortDirection: 'asc', groupKey: null },
+  },
+  {
+    id: 'journal-posted',
+    name: 'Postados',
+    description: 'Lançamentos já postados no período selecionado.',
+    config: { filters: { status: 'POSTED' }, sortKey: null, sortDirection: 'asc', groupKey: null },
+  },
+];
+
 const SOURCE_KIND_LABELS: Record<string, string> = {
   MANUAL: 'Manual',
   BILLING: 'Faturamento',
@@ -122,6 +149,13 @@ function JournalListRoute() {
   const [periodId, setPeriodId] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | JournalStatus>('ALL');
   const [pageNumber, setPageNumber] = useState(0);
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const [activeViewId, setActiveViewId] = useState<string | null>(null);
+  const savedViews = useSavedViews(
+    'accounting.journals',
+    JOURNAL_BUILT_IN_VIEWS,
+    JOURNAL_SAVED_VIEW_FILTERS,
+  );
 
   const chartsQuery = useBackofficeQuery<ChartsList>({
     enabled: unitId !== '',
@@ -162,6 +196,7 @@ function JournalListRoute() {
   const periods = periodsQuery.state.phase === 'ready' ? periodsQuery.state.data.items : [];
   const accounts = accountsQuery.state.phase === 'ready' ? accountsQuery.state.data.items : [];
   const page = journalsQuery.state.phase === 'ready' ? journalsQuery.state.data : null;
+  const previewRow = page?.items.find((entry) => entry.id === previewId) ?? null;
 
   const { reload: reloadCharts, reset: resetCharts } = chartsQuery;
   const { reload: reloadPeriods, reset: resetPeriods } = periodsQuery;
@@ -236,6 +271,32 @@ function JournalListRoute() {
             </>
           ) : null
         }
+      />
+
+      <SavedViewsBar
+        views={savedViews.views}
+        builtInViews={savedViews.builtInViews}
+        activeViewId={activeViewId}
+        onApply={(view) => {
+          const status = view.config.filters.status;
+          setStatusFilter(status === 'DRAFT' || status === 'POSTED' ? status : 'ALL');
+          setActiveViewId(view.id === '__all__' ? null : view.id);
+          setPageNumber(0);
+        }}
+        onSave={savedViews.saveView}
+        onRename={savedViews.renameView}
+        onRemove={(id) => {
+          savedViews.removeView(id);
+          if (activeViewId === id) setActiveViewId(null);
+        }}
+        currentConfig={{
+          filters: statusFilter === 'ALL' ? {} : { status: statusFilter },
+          sortKey: null,
+          sortDirection: 'asc',
+          groupKey: null,
+        }}
+        canSave={savedViews.persistable && statusFilter !== 'ALL'}
+        allLabel="Todos"
       />
 
       {/*
@@ -321,6 +382,7 @@ function JournalListRoute() {
             value={statusFilter}
             onChange={(event) => {
               setStatusFilter(event.target.value as 'ALL' | JournalStatus);
+              setActiveViewId(null);
               setPageNumber(0);
             }}
           >
@@ -333,6 +395,7 @@ function JournalListRoute() {
           visible={statusFilter !== 'ALL'}
           onClick={() => {
             setStatusFilter('ALL');
+            setActiveViewId(null);
             setPageNumber(0);
           }}
           label="Limpar estado"
@@ -456,12 +519,21 @@ function JournalListRoute() {
                           <Money value={entry.creditTotal} currencyCode={entry.currencyCode} />
                         </td>
                         <td className={worklistCellClass}>
-                          <Link
-                            to={`/app/accounting/journals/${entry.id}`}
-                            className={rowPrimaryActionClass}
-                          >
-                            Abrir
-                          </Link>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="secondary"
+                              onClick={() => setPreviewId(entry.id)}
+                              aria-label={`Prévia do lançamento ${entry.entryNumber ?? entry.id}`}
+                            >
+                              Prévia
+                            </Button>
+                            <Link
+                              to={`/app/accounting/journals/${entry.id}`}
+                              className={rowPrimaryActionClass}
+                            >
+                              Abrir
+                            </Link>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -501,6 +573,13 @@ function JournalListRoute() {
         </>
       ) : null}
 
+      <ContextDrawer
+        open={previewRow !== null}
+        title="Contexto do lançamento"
+        preview={previewRow ? buildJournalPreview(previewRow) : null}
+        onClose={() => setPreviewId(null)}
+      />
+
       {periodId && chartId ? (
         <ManualDraftCard
           chartId={chartId}
@@ -514,6 +593,32 @@ function JournalListRoute() {
       ) : null}
     </ModulePage>
   );
+}
+
+function buildJournalPreview(entry: JournalEntry): ContextPreviewBody {
+  return {
+    identifier: entry.entryNumber ? `Lançamento #${entry.entryNumber}` : 'Lançamento contábil',
+    subtitle: entry.description,
+    status: <FinanceStatusBadge status={entry.status} labels={JOURNAL_STATUS_LABELS} />,
+    facts: [
+      { label: 'Data', value: <DateTime value={entry.occurredOn} mode="date" /> },
+      {
+        label: 'Origem',
+        value: `${SOURCE_KIND_LABELS[entry.sourceKind] ?? entry.sourceKind} · ${entry.sourceReference}`,
+      },
+      { label: 'Débito', value: <Money value={entry.debitTotal} currencyCode={entry.currencyCode} /> },
+      { label: 'Crédito', value: <Money value={entry.creditTotal} currencyCode={entry.currencyCode} /> },
+      { label: 'Balanceado', value: entry.balanced ? 'Sim' : 'Não' },
+      { label: 'Tipo', value: entry.kind === 'REVERSAL' ? 'Estorno' : 'Lançamento' },
+    ],
+    relations: [],
+    nextAction: {
+      label: entry.status === 'DRAFT' ? 'Abrir e postar lançamento' : 'Abrir lançamento',
+      href: `/app/accounting/journals/${entry.id}`,
+    },
+    detailHref: `/app/accounting/journals/${entry.id}`,
+    detailLabel: 'Abrir lançamento completo',
+  };
 }
 
 function JournalDetailRoute({
