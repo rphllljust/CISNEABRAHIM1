@@ -535,6 +535,32 @@ function JournalListRoute() {
   );
 }
 
+function buildJournalPreview(entry: JournalEntry): ContextPreviewBody {
+  return {
+    identifier: entry.entryNumber ? `Lançamento #${entry.entryNumber}` : 'Lançamento contábil',
+    subtitle: entry.description,
+    status: <FinanceStatusBadge status={entry.status} labels={JOURNAL_STATUS_LABELS} />,
+    facts: [
+      { label: 'Data', value: <DateTime value={entry.occurredOn} mode="date" /> },
+      {
+        label: 'Origem',
+        value: `${SOURCE_KIND_LABELS[entry.sourceKind] ?? entry.sourceKind} · ${entry.sourceReference}`,
+      },
+      { label: 'Débito', value: <Money value={entry.debitTotal} currencyCode={entry.currencyCode} /> },
+      { label: 'Crédito', value: <Money value={entry.creditTotal} currencyCode={entry.currencyCode} /> },
+      { label: 'Balanceado', value: entry.balanced ? 'Sim' : 'Não' },
+      { label: 'Tipo', value: entry.kind === 'REVERSAL' ? 'Estorno' : 'Lançamento' },
+    ],
+    relations: [],
+    nextAction: {
+      label: entry.status === 'DRAFT' ? 'Abrir e postar lançamento' : 'Abrir lançamento',
+      href: `/app/accounting/journals/${entry.id}`,
+    },
+    detailHref: `/app/accounting/journals/${entry.id}`,
+    detailLabel: 'Abrir lançamento completo',
+  };
+}
+
 function JournalDetailRoute({
   journalId,
   onBack,
