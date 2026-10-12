@@ -23,6 +23,11 @@ export class PayrollController {
     );
   }
 
+  @Get('periods')
+  listPeriods(@CurrentAuth() auth: AccessTokenClaims, @Query() query: Record<string, unknown>) {
+    return this.payroll.listPeriods({ identityId: auth.sub, sessionId: auth.sid }, query);
+  }
+
   @Post('periods')
   @HttpCode(200)
   openPeriod(@CurrentAuth() auth: AccessTokenClaims, @Body() body: never) {
