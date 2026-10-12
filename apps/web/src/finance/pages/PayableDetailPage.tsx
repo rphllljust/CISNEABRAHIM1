@@ -204,7 +204,7 @@ export function PayableDetailPage() {
         break;
     }
     return (
-      <ModulePage>
+      <ModulePage layout="wide">
         <ModulePageHeader title="Conta a pagar" />
         <EnterpriseObjectPage
           breadcrumb={[
@@ -324,7 +324,7 @@ export function PayableDetailPage() {
   ];
 
   return (
-    <ModulePage>
+    <ModulePage layout="wide">
       <EnterpriseObjectPage
         breadcrumb={[
           { label: 'Contas a pagar', href: '/app/finance/payables' },
