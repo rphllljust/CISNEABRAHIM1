@@ -212,7 +212,7 @@ export function PurchaseOrderDetailPage() {
       onRetry = () => void reload();
     }
     return (
-      <ModulePage>
+      <ModulePage layout="wide">
         <ModulePageHeader title="Pedido de compra" />
         <EnterpriseObjectPage
           breadcrumb={[
@@ -323,7 +323,7 @@ export function PurchaseOrderDetailPage() {
   ];
 
   return (
-    <ModulePage>
+    <ModulePage layout="wide">
       <EnterpriseObjectPage
         breadcrumb={[
           { label: 'Pedidos de compra', href: '/app/purchase-orders' },
