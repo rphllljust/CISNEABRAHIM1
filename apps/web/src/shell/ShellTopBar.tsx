@@ -35,7 +35,7 @@ export function ShellTopBar({
 
   return (
     <header
-      className="shell__topbar sticky top-0 z-20 flex h-[5rem] items-center gap-4 border-b border-slate-200/80 bg-white/92 px-4 shadow-[0_1px_0_rgb(15_23_42/0.05),0_12px_28px_rgb(15_23_42/0.05)] backdrop-blur sm:px-6 lg:px-8 xl:px-10"
+      className="shell__topbar sticky top-0 z-20 flex h-[4rem] items-center gap-3 border-b border-slate-200 bg-white px-4 sm:px-5 lg:px-6 xl:px-8"
       role="banner"
     >
       <button
@@ -76,12 +76,12 @@ export function ShellTopBar({
         {onOpenCommandPalette ? (
           <button
             type="button"
-            className="hidden items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-400 hover:bg-slate-50 sm:inline-flex"
+            className="hidden min-h-[var(--control-height)] items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50 sm:inline-flex"
             onClick={onOpenCommandPalette}
             aria-label="Abrir central de comandos (Ctrl+K)"
           >
               <span>Central de comando</span>
-            <kbd className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 shadow-inner">
+            <kbd className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] text-slate-500">
               Ctrl K
             </kbd>
           </button>
