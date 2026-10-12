@@ -313,7 +313,7 @@ function PeriodReportShell({ kind }: { kind: ReportKind }) {
   })();
 
   return (
-    <ModulePage>
+    <ModulePage layout="wide">
       <WorklistHeader
         title={meta.title}
         context={meta.description}
