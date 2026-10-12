@@ -201,7 +201,7 @@ export function ProposalDetailPage() {
 
   if (state.phase !== 'ready') {
     return (
-      <ModulePage>
+      <ModulePage layout="wide">
         <EnterpriseObjectPage
           phase={phase}
           phaseTitle="Proposta comercial"
@@ -533,7 +533,7 @@ export function ProposalDetailPage() {
   const publishedAt = currentVersion?.issuedAt ?? null;
 
   return (
-    <ModulePage>
+    <ModulePage layout="wide">
       <EnterpriseObjectPage
         breadcrumb={breadcrumb}
         phase="ready"
