@@ -75,10 +75,23 @@ async function upsertCredential(
   );
 }
 
+
+async function rollbackKeepingPrimaryCause(client: PoolClient): Promise<Error | undefined> {
+  try {
+    await client.query('ROLLBACK');
+    return undefined;
+  } catch (rollbackFailure) {
+    return rollbackFailure instanceof Error
+      ? rollbackFailure
+      : new Error(String(rollbackFailure));
+  }
+}
+
 async function main(): Promise<void> {
   const databaseUrl = required('DATABASE_URL');
   const pool = new Pool({ connectionString: databaseUrl, max: 1 });
   const client = await pool.connect();
+  let evictWith: Error | undefined;
 
   try {
     await client.query('BEGIN');
@@ -101,10 +114,10 @@ async function main(): Promise<void> {
     await client.query('COMMIT');
     console.log(JSON.stringify({ status: 'PRODUCTION_CREDENTIALS_READY', logins }));
   } catch (error) {
-    await client.query('ROLLBACK');
+    evictWith = await rollbackKeepingPrimaryCause(client);
     throw error;
   } finally {
-    client.release();
+    client.release(evictWith);
     await pool.end();
   }
 }

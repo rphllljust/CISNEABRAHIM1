@@ -497,6 +497,18 @@ async function replaceEmployeeAccess(
   );
 }
 
+
+async function rollbackKeepingPrimaryCause(client: PoolClient): Promise<Error | undefined> {
+  try {
+    await client.query('ROLLBACK');
+    return undefined;
+  } catch (rollbackFailure) {
+    return rollbackFailure instanceof Error
+      ? rollbackFailure
+      : new Error(String(rollbackFailure));
+  }
+}
+
 async function main(): Promise<void> {
   if (process.env.NODE_ENV !== 'production') {
     throw new Error('PROFILE_BOOTSTRAP_REJECTED: NODE_ENV must be production.');
@@ -512,6 +524,7 @@ async function main(): Promise<void> {
   // de RBAC nao deixam a autenticacao de producao presa a uma transacao longa.
   {
     const client = await pool.connect();
+    let evictWith: Error | undefined;
     try {
       await client.query('BEGIN');
 
@@ -531,10 +544,10 @@ async function main(): Promise<void> {
         }),
       );
     } catch (error) {
-      await client.query('ROLLBACK');
+      evictWith = await rollbackKeepingPrimaryCause(client);
       throw error;
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 
@@ -546,6 +559,7 @@ async function main(): Promise<void> {
   }
 
   const client = await pool.connect();
+  let evictWith: Error | undefined;
   try {
     await client.query('BEGIN');
 
@@ -626,10 +640,10 @@ async function main(): Promise<void> {
       }),
     );
   } catch (error) {
-    await client.query('ROLLBACK');
+    evictWith = await rollbackKeepingPrimaryCause(client);
     throw error;
   } finally {
-    client.release();
+    client.release(evictWith);
     await pool.end();
   }
 }
