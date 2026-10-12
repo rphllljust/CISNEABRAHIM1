@@ -88,8 +88,8 @@ export function AppShellLayout() {
         className="shell__sidebar fixed inset-y-0 z-30 hidden w-[18rem] flex-col border-r border-[#1f2d3a] bg-[#07111d] lg:flex"
         aria-label="Barra lateral"
       >
-        <div className="shell__brand flex h-[5rem] shrink-0 items-center gap-3 border-b border-white/10 px-5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-brand-500 shadow-[0_0_0_1px_rgb(255_255_255/0.14),0_14px_28px_rgb(0_0_0/0.24)]">
+        <div className="shell__brand flex h-[4rem] shrink-0 items-center gap-3 border-b border-white/10 px-5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-brand-500 ring-1 ring-white/15">
             <ShellBrandMark className="h-4 w-4 text-white" />
           </div>
           <div className="leading-tight">
