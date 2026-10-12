@@ -91,7 +91,6 @@ function page<T>(items: T[], searchParams: URLSearchParams, matches?: (item: T, 
 
 export type ProcurementFetchMockOptions = {
   denied?: boolean;
-  requestTotal?: number;
 };
 
 /**
