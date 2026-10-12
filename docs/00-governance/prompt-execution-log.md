@@ -20703,3 +20703,24 @@ experiência de ninguém hoje — o que muda a priorização.
 3. `persistable` → `canSave` (família `operator`) segue pendente, herdado da rodada 23.
 
 WORKING_TREE: 1 arquivo + este registro
+
+```text
+PROMPT: POSTGRESQL HARDENING AUDIT (FASES 1-35 CISNE) - rodada 3/3 (encerramento)
+STATUS: PASS_WITH_RISKS (gate principal verde; riscos de infra registrados)
+METODO: read-only em HML (cisne_hml:5433, PG 18.6) e local; clean-room cisne_pg_clean; restore cisne_pg_restore; testes em PostgreSQL real isolado; nenhuma operacao destrutiva; nenhuma migration historica editada; nenhuma tabela/coluna/indice/constraint duplicado criado.
+EVIDENCIA (tmp/postgres-audit + tmp/rc-worktree):
+  - Migrations from-zero: clean db cisne_pg_clean applied=75/75; smoke clients 5/5 + outbox 6/6.
+  - Upgrade/idempotencia: runner em DB restaurado applied=0 (75); local dev 75/75.
+  - Drift: catalogo HML real == clean-room (diff 0) - schema real == migrations from-zero.
+  - Backup/restore: pg_dump -Fc HML/local; pg_restore em cisne_pg_restore (15 clientes, 75 migracoes) + clients.integration 5/5.
+  - Concorrencia/billing/outbox: billing.integration PASS (duplicate PREPARED/retry idempotente); outbox FOR UPDATE SKIP LOCKED + lease/retry; EXCLUSION GiST alocacao (res.resource_allocations_no_overlap_active_excl); partial unique PREPARED (service_order_id, measurement_id); integracao em PG real.
+  - CNPJ: normalized_tax_id UNIQUE + CHECK 14 digitos; 0 duplicados.
+  - SQLi: nenhum dynamic order/filter concatenado.
+  - Pool: max=10/idle30s/connect5s (node-pg defaults); servidor timeouts 0/log_lock_waits off.
+  - Performance: baseline EXPLAIN listagem clientes ~1.1ms em volume HML (~15-30 linhas) - sem tuning aplicavel; indices nao removidos sem evidencia.
+RISK (nao alterado - decisao de infra pendente): role HML cisne_hml e SUPERUSER+CREATEDB+CREATEROLE e dona do DB postgres (padrao da imagem oficial); public.CREATE disponivel. Recomendacao: bootstrap com role de migracao (DDL) e role runtime limitada (DML em schemas proprios), revogar public CREATE, SSL obrigatorio, credenciais fora do repo; aplicar em prod antes do Go/No-Go.
+NOTA: 1 teste do tip concorrente a23467a falha (physical-assets 'blocks deactivation while asset has active allocation') - regressao de feature WIP, fora da camada PG.
+COMMIT: docs log (postgres-hardening) - sem mudancas de codigo/migration.
+WORKING TREE: DIRTY (WIP preservado).
+NEXT: decisao de infra (roles/SSL/timeouts) + re-run quality gate.
+```
