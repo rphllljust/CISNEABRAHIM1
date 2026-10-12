@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Alert, EmptyState, ErrorState, Field, Input, Money, Select, worklistTableCardClass } from '../../ui';
-import { FilterCard, ModulePage, ModulePageHeader } from '../../ui/module-layout';
-import { worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
-import { DefinitionList } from '../../financial-ui/DefinitionList';
+import { Alert, Button, EmptyState, ErrorState, Field, Input, Money, Select, worklistTableCardClass } from '../../ui';
+import { FilterCard, ModulePage } from '../../ui/module-layout';
+import { EnterpriseMetric, WorklistHeader, worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
 import { CreateRecordForm, VersionedActionForm } from '../../financial-ui/VersionedActionForm';
 import { HumanLookupField } from '../../financial-ui/HumanLookupField';
 import { PAYROLL_PERIOD_STATUS_LABELS } from '../../financial-ui/labels';
@@ -12,6 +11,7 @@ import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import { BackofficeCapabilityRoute } from '../../financial-ui/BackofficeCapabilityRoute';
 import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge';
 import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
+import { WorkbenchQueue, WorkbenchQueueItem } from '../../ui/workbench';
 import { isIdempotentAck } from '../utils/is-idempotent-ack';
 import { periodActionsForStatus } from '../utils/period-action-state';
 import {
@@ -154,6 +154,11 @@ export function PayrollPage() {
   );
   const loadedPeriodLabel =
     state.phase === 'ready' ? formatPayrollCompetence(state.data) : undefined;
+  const availableActionCount = Object.values(availability).filter((item) => item.available).length;
+
+  function focusAction(actionId: string): void {
+    document.getElementById(actionId)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 
   function openPeriod(nextPeriodId: string): void {
     if (!nextPeriodId) {
@@ -164,10 +169,33 @@ export function PayrollPage() {
   }
 
   return (
-    <ModulePage>
-      <ModulePageHeader
+    <ModulePage layout="workspace">
+      <WorklistHeader
         title="Folha"
-        description="Cálculo e fechamento são do servidor. Fórmulas oficiais permanecem indecisas."
+        context="Workspace da competência: o servidor calcula resultados, controla fechamento e reabertura e aplica segregação de funções. Esta tela organiza o trabalho; não inventa fórmula nem total."
+        metrics={
+          state.phase === 'ready' ? (
+            <>
+              <EnterpriseMetric
+                label="Situação"
+                value={
+                  <FinanceStatusBadge
+                    status={state.data.status}
+                    labels={PAYROLL_PERIOD_STATUS_LABELS}
+                  />
+                }
+                tone={state.data.status === 'CLOSED' ? 'neutral' : 'warning'}
+              />
+              <EnterpriseMetric label="Competência" value={formatPayrollCompetence(state.data)} />
+              <EnterpriseMetric label="Versão" value={state.data.rowVersion} />
+              <EnterpriseMetric
+                label="Resultados"
+                value={results.state.phase === 'ready' ? results.state.data.length : '—'}
+                tone={results.state.phase === 'ready' && results.state.data.length > 0 ? 'info' : 'neutral'}
+              />
+            </>
+          ) : undefined
+        }
       />
       <FilterCard>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -219,6 +247,75 @@ export function PayrollPage() {
           contratos cadastrados aqui. Nenhum identificador técnico é digitado.
         </p>
       </FilterCard>
+
+      {state.phase === 'ready' ? (
+        <WorkbenchQueue
+          title="Próximas ações da competência"
+          description="A fila reflete o estado atual do período. A decisão final continua no backend, inclusive concorrência, idempotência e SoD."
+          count={availableActionCount}
+          emptyTitle="Nenhuma ação disponível"
+          emptyDescription="O estado atual não publica uma transição operacional disponível para este período."
+        >
+          {availability.calculate.available ? (
+            <WorkbenchQueueItem
+              severity={
+                <FinanceStatusBadge
+                  status={state.data.status}
+                  labels={PAYROLL_PERIOD_STATUS_LABELS}
+                />
+              }
+              severityTone="info"
+              title={state.data.status === 'CALCULATED' ? 'Recalcular competência' : 'Calcular competência'}
+              reason={CALCULATE_DESCRIPTION}
+              context={formatPayrollCompetence(state.data)}
+              action={
+                <Button type="button" variant="secondary" onClick={() => focusAction('payroll-action-calculate')}>
+                  Ir para cálculo
+                </Button>
+              }
+            />
+          ) : null}
+          {availability.close.available ? (
+            <WorkbenchQueueItem
+              severity={
+                <FinanceStatusBadge
+                  status={state.data.status}
+                  labels={PAYROLL_PERIOD_STATUS_LABELS}
+                />
+              }
+              severityTone="warning"
+              title="Fechar competência"
+              reason={CLOSE_DESCRIPTION}
+              context={formatPayrollCompetence(state.data)}
+              action={
+                <Button type="button" variant="secondary" onClick={() => focusAction('payroll-action-close')}>
+                  Ir para fechamento
+                </Button>
+              }
+            />
+          ) : null}
+          {availability.reopen.available ? (
+            <WorkbenchQueueItem
+              severity={
+                <FinanceStatusBadge
+                  status={state.data.status}
+                  labels={PAYROLL_PERIOD_STATUS_LABELS}
+                />
+              }
+              severityTone="warning"
+              title="Reabrir competência"
+              reason={REOPEN_DESCRIPTION}
+              context={formatPayrollCompetence(state.data)}
+              action={
+                <Button type="button" variant="secondary" onClick={() => focusAction('payroll-action-reopen')}>
+                  Ir para reabertura
+                </Button>
+              }
+            />
+          ) : null}
+        </WorkbenchQueue>
+      ) : null}
+
       <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div>
           <CreateRecordForm
@@ -368,19 +465,8 @@ export function PayrollPage() {
       ) : null}
       {state.phase === 'ready' ? (
         <>
-          <div className="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5">
-            <DefinitionList
-              items={[
-                {
-                  label: 'Status',
-                  value: <FinanceStatusBadge status={state.data.status} labels={PAYROLL_PERIOD_STATUS_LABELS} />,
-                },
-                { label: 'Competência', value: formatPayrollCompetence(state.data) },
-                { label: 'Versão', value: String(state.data.rowVersion) },
-              ]}
-            />
-          </div>
           <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <div id="payroll-action-calculate">
             <VersionedActionForm
               title="Calcular"
               description={availability.calculate.available ? CALCULATE_DESCRIPTION : (availability.calculate.reason ?? CALCULATE_DESCRIPTION)}
@@ -396,6 +482,8 @@ export function PayrollPage() {
                 await results.reload();
               }}
             />
+            </div>
+            <div id="payroll-action-close">
             <VersionedActionForm
               title="Fechar"
               description={availability.close.available ? CLOSE_DESCRIPTION : (availability.close.reason ?? CLOSE_DESCRIPTION)}
@@ -407,6 +495,8 @@ export function PayrollPage() {
               onReload={() => void reload()}
               onSubmit={async () => setReady(await closePayrollPeriod(state.data.id, unitId.trim()))}
             />
+            </div>
+            <div id="payroll-action-reopen">
             <VersionedActionForm
               title="Reabrir"
               description={availability.reopen.available ? REOPEN_DESCRIPTION : (availability.reopen.reason ?? REOPEN_DESCRIPTION)}
@@ -418,6 +508,7 @@ export function PayrollPage() {
               onReload={() => void reload()}
               onSubmit={async () => setReady(await reopenPayrollPeriod(state.data.id, unitId.trim()))}
             />
+            </div>
           </div>
           {results.state.phase === 'ready' ? (
             results.state.data.length > 0 ? (
