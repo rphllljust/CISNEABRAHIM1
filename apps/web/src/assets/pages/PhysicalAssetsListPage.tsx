@@ -340,7 +340,7 @@ export function PhysicalAssetsListPage() {
   const rangeLabel = formatAssetPaginationRange(offset, PAGE_SIZE, items.length, total);
 
   return (
-    <ModulePage>
+    <ModulePage layout="wide">
       {/*
         MESMA GRAMATICA DA FROTA. Ativos e Frota listam o mesmo agregado por recortes
         diferentes; enquanto esta tela usava `FilterCard` (cartao de respiro largo) + grade
