@@ -1,5 +1,5 @@
 import { RefreshCw } from 'lucide-react';
-import { WORK_DOMAIN_LABELS, WORK_DOMAINS } from '../../work-inbox/api/work-inbox-api';
+import { WORK_DOMAIN_LABELS, WORK_DOMAINS, type WorkDomain } from '../../work-inbox/api/work-inbox-api';
 import { cn } from '../../ui/utils/cn';
 
 type DashboardPageHeaderProps = {
@@ -18,8 +18,8 @@ type DashboardPageHeaderProps = {
   /** Escopo de unidade — mantido no value do seletor, nunca exibido como nome. */
   unitId?: string | null;
   /** UNICO filtro de dominio da tela: alimenta fila, cadeia e faixa de indicadores. */
-  domain: string | null;
-  onDomainChange: (domain: string | null) => void;
+  domain: WorkDomain | null;
+  onDomainChange: (domain: WorkDomain | null) => void;
   /** UNICO refinamento temporal da tela. */
   overdueOnly: boolean;
   onOverdueChange: (value: boolean) => void;
