@@ -216,7 +216,7 @@ export function FleetListPage() {
   );
 
   return (
-    <ModulePage>
+    <ModulePage layout="wide">
       {/*
         GRAMÁTICA DE REGIÕES — a ordem da família.
 
