@@ -1,5 +1,6 @@
 import { getApiBaseUrl, isNetworkError } from '../../auth/api/auth-api';
 import { tokenStore } from '../../auth/storage/token-store';
+import type { AdvancedFilterPayload } from '../../engine';
 import {
   PROPOSAL_ERROR_CODES,
   type AcceptProposalPayload,
@@ -126,6 +127,8 @@ export type ListProposalsParams = {
   search?: string;
   sort?: ProposalListSort;
   direction?: ProposalListDirection;
+  /** Filtro avançado já convertido para o contrato do servidor. */
+  advanced?: AdvancedFilterPayload | null;
 };
 
 export function buildListProposalsQuery(params: ListProposalsParams): string {
@@ -165,6 +168,11 @@ export function buildListProposalsQuery(params: ListProposalsParams): string {
   }
   if (params.direction) {
     search.set('direction', params.direction);
+  }
+  // O filtro avançado entra na MESMA query: paginação, ordenação e recorte composto compõem um
+  // único predicado no servidor.
+  if (params.advanced && params.advanced.groups.length > 0) {
+    search.set('filters', JSON.stringify(params.advanced));
   }
   return search.toString();
 }

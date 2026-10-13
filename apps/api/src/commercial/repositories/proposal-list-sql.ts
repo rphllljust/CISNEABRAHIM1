@@ -2,6 +2,11 @@ import {
   PROPOSAL_PRICING_STRUCTURES,
   isProposalVersionStatus,
 } from '../domain/proposal';
+import {
+  parseAdvancedFilter,
+  type AdvancedFilter,
+  type AdvancedFilterFieldSpec,
+} from '../../infrastructure/http/contracts/advanced-filter-query';
 
 /**
  * Consulta da fila comercial de propostas.
@@ -53,7 +58,121 @@ export type ProposalListFilters = {
   createdFrom?: string;
   createdTo?: string;
   search?: string;
+  /** Filtro avançado já validado pelo domínio; ausente = sem recorte composto. */
+  advanced?: ProposalAdvancedFilter;
 };
+
+/**
+ * FILTRO AVANÇADO — mesma forma publicada em Clientes e Solicitações.
+ *
+ * Campos por allow-list fechado, operadores validados pelo TIPO do campo e valores sempre
+ * parametrizados. A forma do payload é idêntica entre domínios de propósito: é o que permite um
+ * único conversor no frontend servir todas as entidades governadas por metadado.
+ */
+export const PROPOSAL_FILTER_FIELDS = {
+  proposalCode: 'proposalCode',
+  title: 'title',
+  status: 'status',
+  currencyCode: 'currencyCode',
+  validUntil: 'validUntil',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+} as const;
+
+export type ProposalFilterField = (typeof PROPOSAL_FILTER_FIELDS)[keyof typeof PROPOSAL_FILTER_FIELDS];
+
+/**
+ * ESPECIFICAÇÃO DOS CAMPOS DE PROPOSTAS PARA O PARSER GENÉRICO.
+ *
+ * A validação de forma vive em `infrastructure/http/contracts/advanced-filter-query`; aqui fica só
+ * o que é próprio do domínio: quais campos existem, de que família são e qual o vocabulário aceito.
+ */
+export const PROPOSAL_FILTER_SPECS: AdvancedFilterFieldSpec[] = [
+  { name: PROPOSAL_FILTER_FIELDS.proposalCode, kind: 'text' },
+  { name: PROPOSAL_FILTER_FIELDS.title, kind: 'text' },
+  { name: PROPOSAL_FILTER_FIELDS.currencyCode, kind: 'text' },
+  {
+    name: PROPOSAL_FILTER_FIELDS.status,
+    kind: 'enum',
+    isValidEnumValue: isProposalVersionStatus,
+  },
+  { name: PROPOSAL_FILTER_FIELDS.validUntil, kind: 'date' },
+  { name: PROPOSAL_FILTER_FIELDS.createdAt, kind: 'date' },
+  { name: PROPOSAL_FILTER_FIELDS.updatedAt, kind: 'date' },
+];
+
+export type ProposalAdvancedFilter = AdvancedFilter;
+
+export function parseProposalAdvancedFilter(value: unknown): ProposalAdvancedFilter | undefined {
+  return parseAdvancedFilter(value, PROPOSAL_FILTER_SPECS);
+}
+
+function buildProposalAdvancedClause(
+  filter: ProposalAdvancedFilter,
+  firstParamIndex: number,
+): { clause: string; params: unknown[] } | null {
+  const params: unknown[] = [];
+  const groupClauses: string[] = [];
+
+  for (const group of filter.groups) {
+    const conditionClauses: string[] = [];
+    for (const condition of group.conditions) {
+      const index = firstParamIndex + params.length;
+      const param = `$${index}`;
+      const { field, operator, value } = condition;
+
+      if (field === 'status') {
+        conditionClauses.push(
+          `v.status ${operator === 'neq' ? '<>' : '='} ${param}::com.proposal_version_status`,
+        );
+        params.push(value);
+      } else if (field === 'proposalCode') {
+        const built = buildProposalTextClause('p.proposal_code', operator, value, param);
+        conditionClauses.push(built.clause);
+        params.push(...built.params);
+      } else if (field === 'title') {
+        const built = buildProposalTextClause('p.title', operator, value, param);
+        conditionClauses.push(built.clause);
+        params.push(...built.params);
+      } else if (field === 'currencyCode') {
+        const built = buildProposalTextClause('v.currency_code', operator, value, param);
+        conditionClauses.push(built.clause);
+        params.push(...built.params);
+      } else {
+        const column =
+          field === 'validUntil' ? 'v.valid_until' : field === 'updatedAt' ? 'p.updated_at' : 'p.created_at';
+        conditionClauses.push(`${column} ${operator === 'before' ? '<' : '>'} ${param}::timestamptz`);
+        params.push(value);
+      }
+    }
+    if (conditionClauses.length > 0) {
+      groupClauses.push(`(${conditionClauses.join(' AND ')})`);
+    }
+  }
+
+  if (groupClauses.length === 0) {
+    return null;
+  }
+  return { clause: `(${groupClauses.join(` ${filter.connector} `)})`, params };
+}
+
+function buildProposalTextClause(
+  column: string,
+  operator: string,
+  value: string,
+  param: string,
+): { clause: string; params: unknown[] } {
+  if (operator === 'eq') {
+    return { clause: `${column} = ${param}`, params: [value] };
+  }
+  if (operator === 'neq') {
+    return { clause: `(${column} IS NULL OR ${column} <> ${param})`, params: [value] };
+  }
+  if (operator === 'startsWith') {
+    return { clause: `${column} ILIKE ${param}`, params: [`${escapeLikePattern(value)}%`] };
+  }
+  return { clause: `${column} ILIKE ${param}`, params: [`%${escapeLikePattern(value)}%`] };
+}
 
 export const MAX_PROPOSAL_SEARCH_LENGTH = 120;
 
@@ -145,6 +264,16 @@ export function buildProposalListWhere(
     }
     params.push(`%${escapeLikePattern(search)}%`);
     clauses.push(`(p.proposal_code ILIKE $${params.length} OR p.title ILIKE $${params.length})`);
+  }
+
+  // Filtro avançado entra como UM predicado entre os demais, e por isso convive por conjunção com
+  // escopo de unidade, cliente, status e busca.
+  if (query.advanced) {
+    const advanced = buildProposalAdvancedClause(query.advanced, params.length + 1);
+    if (advanced) {
+      clauses.push(advanced.clause);
+      params.push(...advanced.params);
+    }
   }
 
   return { clause: clauses.join(' AND '), params };

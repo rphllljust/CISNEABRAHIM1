@@ -6,6 +6,7 @@ import {
 import {
   isProposalListDirection,
   isProposalListSort,
+  parseProposalAdvancedFilter,
 } from '../repositories/proposal-list-sql';
 import type { ProposalListQuery } from '../services/proposals-access.service';
 import type {
@@ -207,6 +208,7 @@ export function parseListProposalsQuery(query: Record<string, unknown>): Proposa
     createdFrom: typeof query['createdFrom'] === 'string' ? query['createdFrom'] : undefined,
     createdTo: typeof query['createdTo'] === 'string' ? query['createdTo'] : undefined,
     search: typeof query['q'] === 'string' ? query['q'] : undefined,
+    advanced: parseProposalAdvancedFilter(query['filters']),
     sort: sort && isProposalListSort(sort) ? sort : undefined,
     direction: direction && isProposalListDirection(direction) ? direction : undefined,
   };

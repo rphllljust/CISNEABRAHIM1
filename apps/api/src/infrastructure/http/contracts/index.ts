@@ -5,6 +5,20 @@ export {
 } from './body-parsers';
 export { parseCommercialEntityListQuery, type CommercialEntityListQuery } from './commercial-entity-list-query';
 export {
+  ADVANCED_FILTER_MAX_CONDITIONS_PER_GROUP,
+  ADVANCED_FILTER_MAX_GROUPS,
+  ADVANCED_FILTER_OPERATORS,
+  AdvancedFilterParseError,
+  parseAdvancedFilter,
+} from './advanced-filter-query';
+export type {
+  AdvancedFilter,
+  AdvancedFilterCondition,
+  AdvancedFilterFieldSpec,
+  AdvancedFilterKind,
+  AdvancedFilterOperator,
+} from './advanced-filter-query';
+export {
   parseLinkDocumentInput,
   toDocumentLinkResponse,
   type DocumentLinkResponse,

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { RELATION_SCOPE_KEYS, useRelationScope } from '../../enterprise-object';
 import {
   acceptProposalVersion,
@@ -33,6 +33,16 @@ import {
 } from '../utils/proposal-labels';
 import { useAuth } from '../../auth/context/AuthProvider';
 import { DynamicContextDrawer, DynamicSavedViewsBar, useSavedViews } from '../../engine';
+import {
+  advancedFilterFromGroup,
+  DynamicFilterBuilder,
+  FILTER_PARAM,
+  filterGroupToQuery,
+  readFilterGroup,
+  useEntitySchema,
+  type AdvancedFilterFieldSpec,
+  type FilterGroup,
+} from '../../engine';
 import { DateTime, Money } from '../../ui';
 import { Skeleton } from '../../ui/Skeleton';
 import {
@@ -121,6 +131,22 @@ const COMMAND_DONE_LABEL: Record<ProposalContextCommand, string> = {
 /** Comandos que o contrato aceita SEM motivo. O motivo é auditado pelo operador, não fabricado. */
 const COMMANDS_WITH_REASON: ProposalContextCommand[] = ['reject', 'cancel'];
 
+/**
+ * CAMPOS DO FILTRO AVANÇADO PARA O CONVERSOR COMPARTILHADO.
+ *
+ * Allow-list idêntico ao publicado por `buildProposalAdvancedClause`
+ * (`apps/api/src/commercial/repositories/proposal-list-sql.ts`).
+ */
+const PROPOSAL_FILTER_SPECS: AdvancedFilterFieldSpec[] = [
+  { field: 'proposal_code', contractField: 'proposalCode', kind: 'text' },
+  { field: 'title', contractField: 'title', kind: 'text' },
+  { field: 'currency_code', contractField: 'currencyCode', kind: 'text' },
+  { field: 'status', contractField: 'status', kind: 'enum' },
+  { field: 'valid_until', contractField: 'validUntil', kind: 'date' },
+  { field: 'created_at', contractField: 'createdAt', kind: 'date' },
+  { field: 'updated_at', contractField: 'updatedAt', kind: 'date' },
+];
+
 type QueueFilters = {
   status: string;
   validFrom: string;
@@ -193,6 +219,22 @@ export function ProposalsListPage() {
   const navigate = useNavigate();
   const selectedId = selected?.id ?? null;
 
+  /**
+   * FILTRO AVANÇADO — a MESMA engine de metadados do resto do produto.
+   *
+   * A árvore vive na URL pela chave da engine (`filter`) e é convertida pelo conversor
+   * COMPARTILHADO; este módulo declara apenas o mapa de campos, restrito ao allow-list que
+   * `buildProposalAdvancedClause` executa no servidor.
+   */
+  const [urlParams, setUrlParams] = useSearchParams();
+  const urlQuery: string = urlParams.toString();
+  const { schema: proposalSchema } = useEntitySchema('proposal');
+  const advancedGroup = useMemo<FilterGroup>(() => readFilterGroup(urlQuery), [urlQuery]);
+  const advancedPayload = useMemo(
+    () => advancedFilterFromGroup(advancedGroup, PROPOSAL_FILTER_SPECS),
+    [advancedGroup],
+  );
+
   const loadPage = useCallback(
     async (offset: number, active: QueueFilters, signal?: AbortSignal) => {
       setListState({ phase: 'loading' });
@@ -213,6 +255,7 @@ export function ProposalsListPage() {
             sort: active.sort,
             direction: active.direction,
             clientId: relationScope.clientId,
+            advanced: advancedPayload,
           },
           signal,
         );
@@ -669,6 +712,31 @@ export function ProposalsListPage() {
           </div>
         ) : null}
       </WorklistFilterBar>
+      </div>
+
+      {/*
+        FILTRO AVANÇADO — a camada composta da superfície, dirigida por METADADO.
+
+        O construtor é o MESMO do resto do produto. Ele lê `meta.fields` da entidade `proposal`
+        (migration `0091`) e oferece apenas os campos marcados `in_filter` — exatamente os que
+        `buildProposalAdvancedClause` executa no servidor.
+      */}
+      <div className="px-1" data-region="advanced-filter-surface">
+        <DynamicFilterBuilder
+          schema={proposalSchema}
+          value={advancedGroup}
+          onChange={(next) => {
+            const params = new URLSearchParams(urlQuery);
+            const serialized = filterGroupToQuery(next).get(FILTER_PARAM);
+            if (serialized) {
+              params.set(FILTER_PARAM, serialized);
+            } else {
+              params.delete(FILTER_PARAM);
+            }
+            params.delete('offset');
+            setUrlParams(params, { replace: true });
+          }}
+        />
       </div>
 
       {/*

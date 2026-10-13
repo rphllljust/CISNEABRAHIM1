@@ -17,6 +17,7 @@ import {
   buildProposalListOrderClause,
   buildProposalListWhere,
   ProposalListQueryError,
+  type ProposalAdvancedFilter,
   type ProposalListDirection,
   type ProposalListSort,
 } from '../repositories/proposal-list-sql';
@@ -96,6 +97,8 @@ export type ProposalListQuery = {
   createdFrom?: string;
   createdTo?: string;
   search?: string;
+  /** Filtro avançado já validado; ausente = sem recorte composto. */
+  advanced?: ProposalAdvancedFilter;
   sort?: ProposalListSort;
   direction?: ProposalListDirection;
   limit: number;

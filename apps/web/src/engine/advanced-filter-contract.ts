@@ -66,6 +66,8 @@ export type AdvancedFilterFieldSpec = {
   contractField: string;
   /** Família de operadores que o contrato executa para este campo. */
   kind: 'text' | 'date' | 'enum';
+  /** Aceito apenas quando kind é enum: valida o vocabulário real do domínio. */
+  isValidEnumValue?: (value: string) => boolean;
 };
 
 /**
