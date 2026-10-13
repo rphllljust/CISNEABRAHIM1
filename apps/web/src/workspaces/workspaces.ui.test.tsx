@@ -100,6 +100,14 @@ type WorkStub = {
   exceptions?: WorkItem[];
   /** Itens que só voltam quando o recorte por natureza NÃO é aplicado (prova do recorte). */
   itemsWithoutKindFilter?: WorkItem[];
+  /**
+   * Itens que só voltam quando o recorte `overdue=true` é aplicado.
+   *
+   * O stub precisa honrar ESTE recorte como honra `kind`/`domain`: um mock que devolve a mesma lista
+   * para qualquer recorte faz o teste passar sem provar que o recorte foi pedido — e é exatamente o
+   * defeito que um recorte rápido silenciosamente ignorado produziria em produção.
+   */
+  overdueOnly?: WorkItem[];
   blockerTotal?: number;
   exceptionTotal?: number;
   failure?: 'network';
@@ -108,6 +116,7 @@ type WorkStub = {
 function workInboxResponse(stub: WorkStub, searchParams: URLSearchParams): Response {
   const domain = searchParams.get('domain');
   const kind = searchParams.get('kind');
+  const overdue = searchParams.get('overdue') === 'true';
 
   if (!domain) {
     // Leitura de AGORA: sem filtro de dominio, `byDomain` cobre o conjunto autorizado inteiro.
@@ -120,6 +129,23 @@ function workInboxResponse(stub: WorkStub, searchParams: URLSearchParams): Respo
       totalPages: 1,
       byDomain,
       unavailableDomains: stub.unavailableDomains ?? [],
+    });
+  }
+
+  /*
+   * ORDEM DO RECORTE — igual à do servidor: `kind` primeiro, `overdue` depois. Os itens
+   * "somente vencidos" NÃO aparecem nas leituras sem o recorte, e os demais NÃO aparecem com ele.
+   */
+  if (overdue) {
+    const items = stub.overdueOnly ?? [];
+    return jsonResponse({
+      items,
+      limit: 6,
+      offset: 0,
+      total: items.length,
+      totalPages: items.length > 0 ? 1 : 0,
+      byDomain: fullByDomain(),
+      unavailableDomains: [],
     });
   }
 
@@ -138,7 +164,7 @@ function workInboxResponse(stub: WorkStub, searchParams: URLSearchParams): Respo
 
   return jsonResponse({
     items,
-    limit: 5,
+    limit: 6,
     offset: 0,
     total,
     totalPages: total > 0 ? 1 : 0,

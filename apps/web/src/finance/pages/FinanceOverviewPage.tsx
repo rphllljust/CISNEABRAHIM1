@@ -29,7 +29,9 @@ import {
 } from '../../financial-ui/labels';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import { DomainWorkZones } from '../../workspaces/components/DomainWorkZones';
+import { WorkspaceQueueSurface } from '../../workspaces/components/WorkspaceQueueSurface';
 import { WorkspaceZone } from '../../workspaces/components/WorkspaceZone';
+import { FinanceTitleQueues } from '../components/FinanceTitleQueues';
 import { StatusBadge } from '../../ui/StatusBadge';
 import { WorkbenchQueue, WorkbenchQueueItem } from '../../ui/workbench';
 import {
@@ -352,6 +354,15 @@ export function FinanceOverviewPage() {
         ordem em que o operador ja le as outras filas. Antes, tres blocos de texto empilhados
         abriam a tela e a excecao que decide o dia so aparecia abaixo da posicao.
       */}
+      {/*
+        A FILA FINANCEIRA — categoria, nao item.
+
+        Esta fila e da POSICAO: agrega categorias inteiras de excecao ("12 titulos vencidos",
+        "conciliacao por conta") com o valor somado no recorte completo do servidor. A fila de
+        ITENS — os titulos reais, um a um, com referencia, prazo e proxima acao — vive logo abaixo,
+        como zona de trabalho. As duas nao competem: uma diz o tamanho do problema, a outra entrega
+        o trabalho.
+      */}
       <WorkbenchQueue
         title="Exceções financeiras"
         description="Recortes publicados pelo servidor. A ação abre exatamente o conjunto representado."
@@ -656,6 +667,42 @@ export function FinanceOverviewPage() {
         primeiro o que exige decisao de dinheiro e so entao onde o trabalho continua.
       */}
       <DomainWorkZones domain="FINANCEIRO" />
+
+      {/*
+        2b. A FILA FINANCEIRA DE ITENS — o trabalho, aqui e nao em outra tela.
+
+        As excecoes acima agregam CATEGORIAS; as zonas do dominio contam e mostram bloqueios. Nenhuma
+        das duas entrega o titulo concreto que o operador precisa abrir agora, um a um, com
+        referencia, cliente, prazo e proxima acao — e sem isso o workspace financeiro continuava
+        sendo uma tela de leitura da qual se sai para trabalhar.
+
+        E a MESMA superficie dos workspaces de dominio (`WorkspaceQueueSurface`), sobre o mesmo read
+        model (`GET /work-inbox` recortado por `domain=FINANCEIRO` no servidor). Nao existe contador
+        financeiro paralelo: o que a zona mostra e o que a Central de trabalho mostra sob o mesmo
+        recorte, e a saida leva o recorte inteiro para la.
+      */}
+      <WorkspaceQueueSurface
+        title="Fila financeira"
+        ariaLabel="Fila financeira de trabalho"
+        description="Títulos e decisões financeiras reais, do recorte publicado pelo servidor"
+        emptyDescription="Nenhum título financeiro exige ação neste recorte. A posição continua publicada abaixo."
+        savedViewsScope="workspace.FINANCEIRO"
+        scopeSource="local"
+        lockDomain="FINANCEIRO"
+      />
+
+      {/*
+        2c. AS CARTEIRAS COMO TRABALHO — receber e pagar em fila, com recorte de servidor.
+
+        A tabela da tela publicava as primeiras linhas da carteira sem recorte de excecao: para
+        cobrar um titulo vencido o operador tinha de sair do workspace, abrir Contas a Receber,
+        aplicar o filtro la e trabalhar de outra tela. Aqui cada carteira e uma FILA com os recortes
+        que o SERVIDOR executa (`status`, `agingBucket`), visoes salvas, contexto do titulo e a saida
+        que leva o MESMO recorte para a lista completa.
+
+        Somente a leitura entra: liquidacao, baixa e estorno continuam no dominio responsavel.
+      */}
+      <FinanceTitleQueues />
 
       {/*
         TESOURARIA / CONCILIACAO — drilldown. Cada conta e um registro do servidor, com saldo

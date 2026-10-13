@@ -13,9 +13,28 @@
  */
 
 export { DomainWorkZones } from './components/DomainWorkZones';
+export { WorkspaceQueueSurface } from './components/WorkspaceQueueSurface';
 export { WorkspaceZone } from './components/WorkspaceZone';
 export { DomainWorkspacePage } from './pages/DomainWorkspacePage';
 export { WorkspacesIndexPage } from './pages/WorkspacesIndexPage';
+export {
+  ALL_WORKSPACE_QUEUE_SCOPE,
+  WORKSPACE_QUEUE_KINDS,
+  coverageLabel,
+  isAllScope,
+  kindLabel,
+  scopeEquals,
+  scopeFromSavedFilters,
+  scopeFromSearchParams,
+  scopeLabel,
+  scopeToSavedFilters,
+  scopeToSearchParams,
+  unavailableWorkNotice,
+  workInboxHref,
+  workspaceQueueQuery,
+  type WorkspaceQueueScope,
+} from './api/workspace-queue-model';
+export { useWorkspaceQueue, type WorkspaceQueueState } from './api/use-workspace-queue';
 export {
   DOMAIN_WORKSPACES,
   DOMAIN_WORKSPACE_PATHS,

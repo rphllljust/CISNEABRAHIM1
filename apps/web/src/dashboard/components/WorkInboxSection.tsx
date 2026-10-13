@@ -9,7 +9,7 @@ import {
   type WorkInboxPage,
   type WorkItem,
 } from '../../work-inbox/api/work-inbox-api';
-import { daysOverdue } from '../../work-inbox/pages/WorkInboxPage';
+import { daysOverdue } from '../../workspaces/components/WorkspaceQueueSurface';
 
 /**
  * MINHA FILA — a AREA CENTRAL do workspace, e nao mais um bloco secundario.

@@ -45,6 +45,17 @@ export type ContextPreviewBody = {
   /** Atalho para a pagina de detalhe completa. */
   detailHref?: string;
   detailLabel?: string;
+  /**
+   * CONTEXTO AMPLIADO — o que o objeto publica alem dos fatos da linha.
+   *
+   * Existe porque algumas superficies precisam mostrar uma RELACAO VIVA do objeto (a cadeia de
+   * negocio, por exemplo), que exige leitura propria e nao cabe num par rotulo/valor. O painel
+   * continua sendo UM so: `body` acrescenta conteudo dentro dele, e nao um segundo drawer.
+   *
+   * O contrato original segue intacto — painel que nao precisa de contexto ampliado nao o declara,
+   * e o drawer nao busca, nao hidrata e nao amplia dado por conta propria.
+   */
+  body?: ReactNode;
 };
 
 export type ContextDrawerProps = {
@@ -107,6 +118,9 @@ export function ContextDrawer({ open, title, preview, onClose }: ContextDrawerPr
               </ul>
             </section>
           ) : null}
+
+          {/* Contexto ampliado do objeto: a superficie decide o que cabe aqui. */}
+          {preview.body ?? null}
 
           <section className="mt-auto flex flex-col gap-2 border-t border-gray-100 pt-3">
             {preview.nextAction ? (

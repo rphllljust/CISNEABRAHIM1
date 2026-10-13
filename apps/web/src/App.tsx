@@ -62,7 +62,8 @@ import { ContractsCreatePage } from './contracts/pages/ContractsCreatePage';
 import { ContractsDetailPage } from './contracts/pages/ContractsDetailPage';
 import { OperationalDashboardPage } from './dashboard/pages/OperationalDashboardPage';
 import { AlertCenterPage } from './alerts/pages/AlertCenterPage';
-import { WorkInboxPage } from './work-inbox/pages/WorkInboxPage';
+import { MyInboxPage } from './work-inbox/pages/MyInboxPage';
+import { OperationsWorkspacePage } from './service-orders/pages/OperationsWorkspacePage';
 import { SearchResultsPage } from './search/pages/SearchResultsPage';
 import { ReportsPage } from './reports/pages/ReportsPage';
 import { OperationalProfitabilityPage } from './analytics/pages/OperationalProfitabilityPage';
@@ -179,7 +180,7 @@ export function App() {
             <Route element={<AppShellLayout />}>
               <Route path="/app" element={<OperationalDashboardPage />} />
               <Route path="/app/alerts" element={<AlertCenterPage />} />
-              <Route path="/app/work-inbox" element={<WorkInboxPage />} />
+              <Route path="/app/work-inbox" element={<MyInboxPage />} />
               {/*
                 WORKSPACES DE DOMINIO — uma superficie de decisao por dominio, sobre a MESMA
                 fila de trabalho. O financeiro e o unico que vive fora de `/app/workspaces`
@@ -193,7 +194,7 @@ export function App() {
               />
               <Route
                 path="/app/workspaces/operacoes"
-                element={<DomainWorkspacePage domain="OPERACOES" />}
+                element={<OperationsWorkspacePage />}
               />
               <Route
                 path="/app/workspaces/financeiro"

@@ -95,9 +95,14 @@ export function WorkbenchMetric({
  * Secao de fila. `count` e opcional e sempre o numero REAL publicado; sem ele, nenhum total e
  * inventado. `emptyMessage` so aparece quando a fila esta vazia — uma secao vazia continua
  * dizendo o que ela era.
+ *
+ * `regionLabel` nomeia a REGIAO da fila quando o titulo visivel nao pode ser o nome acessivel —
+ * caso de uma tela que publica MAIS DE UMA fila e precisa distinguir as duas para quem le a pagina.
+ * Sem ele, o nome acessivel continua sendo o proprio titulo.
  */
 export function WorkbenchQueue({
   title,
+  regionLabel,
   description,
   count,
   action,
@@ -107,6 +112,7 @@ export function WorkbenchQueue({
   children,
 }: {
   title: string;
+  regionLabel?: string;
   description?: ReactNode;
   count?: number | null;
   action?: ReactNode;
@@ -117,7 +123,7 @@ export function WorkbenchQueue({
 }) {
   const isEmpty = count === 0 || (!children && count === undefined);
   return (
-    <section className="mb-2" aria-label={title}>
+    <section className="mb-2" aria-label={regionLabel ?? title}>
       <div className="mb-0 flex flex-wrap items-center justify-between gap-2 border-y border-gray-200 bg-gray-100 px-2.5 py-1.5">
         <div className="flex items-baseline gap-2">
           <h2 className="cisne-type-workspace m-0">{title}</h2>
