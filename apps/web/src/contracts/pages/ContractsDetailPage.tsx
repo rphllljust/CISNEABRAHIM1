@@ -347,16 +347,6 @@ export function ContractsDetailPage() {
       allowed: Boolean(contract.clientId),
       hint: 'Cliente vinculado ao contrato',
     },
-    {
-      id: 'documents',
-      label: 'Documentos',
-      count: documentLinks.length,
-      to: documentLinks.length > 0
-        ? `/app/documents?scope=CONTRACT&entityId=${contract.id}`
-        : '',
-      allowed: documentLinks.length > 0,
-      hint: 'Documentos vinculados ao contrato',
-    },
   ]);
 
   const contextFields: ObjectContextField[] = [
