@@ -1,6 +1,8 @@
-import { useCallback, useId, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { X } from 'lucide-react';
 import { Drawer } from '../../ui/Drawer';
+import { cn } from '../../ui/utils/cn';
 
 /**
  * CONTEXT DRAWER — painel lateral contextual para listas maduras.
@@ -63,13 +65,34 @@ export type ContextDrawerProps = {
   title: string;
   preview: ContextPreviewBody | null;
   onClose: () => void;
+  /**
+   * MODO DE ENQUADRAMENTO.
+   *
+   * `overlay` (padrao) — o painel flutua sobre a area de trabalho com scrim. E o modo correto para
+   * listas de pagina inteira, onde nao existe coluna reservada para o contexto.
+   *
+   * `inline` — o painel e uma COLUNA REAL do layout do chamador: sem scrim, sem `position: fixed`,
+   * com `border-left`, e a altura e governada pelo container. E o modo dos workspaces em que o
+   * contexto deve conviver com a worklist na MESMA dobra, sem que abrir contexto destrua filtro,
+   * selecao, paginacao ou posicao de scroll.
+   *
+   * O conteudo e o MESMO nos dois modos: o que muda e apenas o enquadramento.
+   */
+  variant?: 'overlay' | 'inline';
+  /** Classe do container no modo `inline` (largura e altura vem do chamador). */
+  className?: string;
 };
 
-export function ContextDrawer({ open, title, preview, onClose }: ContextDrawerProps) {
-  return (
-    <Drawer open={open} title={title} onClose={onClose} side="right">
-      {preview ? (
-        <div className="flex flex-col gap-4 text-sm">
+export function ContextDrawer({
+  open,
+  title,
+  preview,
+  onClose,
+  variant = 'overlay',
+  className,
+}: ContextDrawerProps) {
+  const body = preview ? (
+    <div className="flex flex-col gap-4 text-sm">
           <header className="border-b border-gray-100 pb-3">
             <p className="text-sm font-semibold text-gray-900">{preview.identifier}</p>
             {preview.subtitle ? (
@@ -153,8 +176,79 @@ export function ContextDrawer({ open, title, preview, onClose }: ContextDrawerPr
         </div>
       ) : (
         <p className="text-sm text-gray-500">Selecione um registro na lista.</p>
-      )}
+      );
+
+  if (variant === 'inline') {
+    return <InlineContextPanel open={open} title={title} onClose={onClose} className={className}>{body}</InlineContextPanel>;
+  }
+
+  return (
+    <Drawer open={open} title={title} onClose={onClose} side="right">
+      {body}
     </Drawer>
+  );
+}
+
+/**
+ * PAINEL DE CONTEXTO ANCORADO — a coluna, nao o modal.
+ *
+ * Ele NAO usa o `Drawer` por um motivo de comportamento, nao de estilo: o `Drawer` prende o foco
+ * na `aside` (`role="dialog"`), o que esta certo para um modal e errado para uma coluna de
+ * trabalho — o operador precisa alternar entre a linha da fila e o contexto sem sair do painel a
+ * cada clique. Aqui a coluna e um `complementary` navegavel: o foco entra por Tab, o `Escape`
+ * fecha, e a worklist ao lado continua operavel.
+ *
+ * O cabecalho carrega titulo, botao de fechar e o atalho para a tela de origem quando existe.
+ */
+function InlineContextPanel({
+  open,
+  title,
+  onClose,
+  className,
+  children,
+}: {
+  open: boolean;
+  title: string;
+  onClose: () => void;
+  className?: string;
+  children: ReactNode;
+}) {
+  const titleId = useId();
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [open, onClose]);
+
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <section className={cn('flex min-h-0 flex-col bg-white', className)} aria-labelledby={titleId}>
+      <header className="flex items-center justify-between gap-2 border-b border-gray-200 bg-gray-50 px-2.5 py-1.5">
+        <h2 id={titleId} className="cisne-type-workspace m-0 truncate">
+          {title}
+        </h2>
+        <button
+          type="button"
+          className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-gray-500 hover:bg-gray-200 hover:text-gray-900"
+          onClick={onClose}
+          aria-label="Fechar contexto"
+        >
+          <X className="size-3.5" strokeWidth={2.4} aria-hidden />
+        </button>
+      </header>
+      <div className="min-h-0 flex-1 overflow-auto px-3 py-2.5">{children}</div>
+    </section>
   );
 }
 

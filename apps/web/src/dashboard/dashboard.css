@@ -48,6 +48,78 @@
   --dashboard-surface-selected: #f0f7f6;
 }
 
+/* ============================================================================
+   0. CENTRAL OPERACIONAL — a anatomia de /app, em uma grade com coluna de contexto
+   ============================================================================
+
+   POR QUE UMA GRADE, E NAO UMA COLUNA DE BLOCOS
+
+   A composicao anterior empilhava zonas (`flex-direction: column`) com gap de 12-16px. Cada bloco
+   tinha envelope proprio, altura livre e margem — e o resultado medido era a metade de baixo da
+   viewport vazia, com a fila terminando em ~120px. Empilhamento vertical nao tem como "ocupar o
+   resto da tela": so uma GRADE com `1fr` tem.
+
+   Aqui a area de trabalho e uma linha de dois eixos:
+
+     ZONA DE TRABALHO          linhas de altura natural (indicadores, analitico, fluxo, toolbar)
+                               e UMA linha elastica (a fila) que absorve todo o espaco restante;
+     COLUNA DE CONTEXTO        360px, `border-left`, sem overlay, da toolbar ao rodape.
+
+   Com o contexto ABERTO a grade ganha a segunda coluna; fechado, a zona de trabalho ocupa a
+   largura inteira. Nada abaixo de 1280px tenta ser duas colunas: em tela estreita a coluna de
+   contexto roubaria mais do que entrega.
+   ============================================================================ */
+
+.dashboard-cc {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: var(--spacing-2);
+  min-height: 0;
+  padding: var(--spacing-3) 0 0;
+}
+
+.dashboard-cc__work {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  min-width: 0;
+  min-height: 0;
+}
+
+/*
+  A COLUNA DE CONTEXTO E UMA COLUNA, NAO UM PAINEL FLUTUANTE.
+  Ela encosta na zona de trabalho (`border-left`), tem a altura dela e o scroll e DELA — a worklist
+  ao lado continua rolando de forma independente.
+*/
+.dashboard-cc__context {
+  display: none;
+  min-width: 0;
+  min-height: 0;
+}
+
+@media (min-width: 1280px) {
+  .dashboard-cc--context {
+    grid-template-columns: minmax(0, 1fr) 22.5rem;
+    align-items: stretch;
+  }
+
+  .dashboard-cc__context {
+    display: block;
+    border-left: 1px solid var(--dashboard-line);
+  }
+}
+
+/* A coluna de contexto so pode ser `sticky` porque a pagina (nao ela) rola. */
+.dashboard-context-drawer {
+  position: sticky;
+  top: var(--spacing-2);
+  max-height: calc(100dvh - 9.5rem);
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
 /* ============================================================
    1b. WORKSPACE — coluna unica de zonas; a grade de trabalho vive em `.dashboard-workspace__grid`
    ============================================================ */
@@ -402,20 +474,26 @@ a.dashboard-kpi-list__cell:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 0;
-  margin-bottom: var(--spacing-3);
+  margin-bottom: var(--spacing-2);
   background: transparent;
   border: 0;
   border-bottom: 1px solid var(--dashboard-line);
   border-radius: 0;
 }
 
+/*
+  ALTURA-ALVO DO CABECALHO: 70-85px.
+
+  As duas faixas usam padding de 6px: com titulo de 28px + descricao de 13px na linha 1 e os
+  controles de 30px na linha 2, o bloco fecha em ~78px — sem banner, sem gradiente, sem caixa.
+*/
 .dashboard-workspace-head__row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-2) var(--spacing-4);
-  padding: 0.5rem 0.75rem;
+  padding: 0.375rem 0.25rem;
 }
 
 .dashboard-workspace-head__row--recorte {
@@ -429,13 +507,13 @@ a.dashboard-kpi-list__cell:focus-visible {
   min-width: 0;
 }
 
-/* 1.375rem/650 — o titulo da FUNCAO, na faixa 22-26px da escala de workspace do ERP. */
+/* 1.75rem/650 — o titulo da FUNCAO, na faixa 28-32px da escala de pagina do ERP. */
 .dashboard-workspace-head__title {
   margin: 0;
-  font-size: 1.375rem;
+  font-size: 1.75rem;
   font-weight: 650;
-  line-height: 1.2;
-  letter-spacing: -0.015em;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
   color: var(--dashboard-ink);
 }
 
@@ -2424,13 +2502,24 @@ a.dashboard-dense__cell:hover,
   }
 }
 
+/*
+  CELULA DE INDICADOR — 96px de altura, com o icone em superficie tonal.
+
+  Estrutura interna: [icone] ROTULO / VALOR / contexto / destino. O icone vive numa pastilha de 28px
+  com o fundo do tom do KPI — nao e decoracao: numa faixa de cinco contagens parecidas, ele e o que
+  permite ao olho achar a celula certa sem ler todos os rotulos. Nada de icone gigante, gradiente
+  ou sombra.
+*/
 .dashboard-kpi-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 0.0625rem;
+  display: grid;
+  grid-template-columns: 1.75rem minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
+  align-content: center;
+  column-gap: 0.5rem;
+  row-gap: 0.0625rem;
+  min-height: 6rem;
   height: 100%;
-  padding: 0.625rem 0.875rem 0.6875rem;
-  border-left: 3px solid var(--color-slate-300);
+  padding: 0.75rem 0.875rem;
   text-decoration: none;
   color: inherit;
   transition: background-color 120ms ease;
@@ -2445,36 +2534,65 @@ a.dashboard-kpi-cell:focus-visible {
   outline-offset: -2px;
 }
 
-/* COR COM SIGNIFICADO — a regua lateral indica estado, nunca decoracao. */
-.dashboard-kpi-cell--critical {
-  border-left-color: var(--color-red-600);
+.dashboard-kpi-cell__glyph {
+  grid-row: 1 / span 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-slate-100);
 }
 
-.dashboard-kpi-cell--warning {
-  border-left-color: var(--color-amber-500);
+.dashboard-kpi-cell__glyph-icon {
+  width: 0.9375rem;
+  height: 0.9375rem;
+  color: var(--color-slate-500);
 }
 
-.dashboard-kpi-cell--info {
-  border-left-color: var(--color-brand-600);
+.dashboard-kpi-cell--critical .dashboard-kpi-cell__glyph {
+  background: var(--color-red-50);
 }
 
-.dashboard-kpi-cell--success {
-  border-left-color: var(--color-emerald-600);
+.dashboard-kpi-cell--critical .dashboard-kpi-cell__glyph-icon {
+  color: var(--color-red-600);
+}
+
+.dashboard-kpi-cell--warning .dashboard-kpi-cell__glyph {
+  background: var(--color-amber-50);
+}
+
+.dashboard-kpi-cell--warning .dashboard-kpi-cell__glyph-icon {
+  color: var(--color-amber-600);
+}
+
+.dashboard-kpi-cell--info .dashboard-kpi-cell__glyph {
+  background: var(--color-brand-50);
+}
+
+.dashboard-kpi-cell--info .dashboard-kpi-cell__glyph-icon {
+  color: var(--color-brand-600);
+}
+
+.dashboard-kpi-cell--success .dashboard-kpi-cell__glyph {
+  background: var(--color-emerald-50);
+}
+
+.dashboard-kpi-cell--success .dashboard-kpi-cell__glyph-icon {
+  color: var(--color-emerald-600);
 }
 
 /*
-  VALOR — o maior elemento da celula, na escala 20-28px que o proprio prompt fixa para KPI.
-
-  Antes eram 22px com o rotulo em 12px ACIMA dele: a distancia entre os dois era pequena e a celula
-  lia como par de textos. O valor sobe para 26px e o rotulo vira metadado (micro, uppercase, tracking
-  largo) — a leitura passa a ser "magnitude, depois o que ela significa", que e a ordem da decisao.
+  VALOR — 20-24px, peso 650-700: o maior elemento da celula, logo abaixo do rotulo.
 */
 .dashboard-kpi-cell__value {
-  font-size: 1.625rem;
+  font-size: 1.375rem;
   font-weight: 680;
-  line-height: 1;
+  line-height: 1.05;
   letter-spacing: -0.025em;
   color: var(--dashboard-ink);
+  font-variant-numeric: tabular-nums;
 }
 
 .dashboard-kpi-cell--critical .dashboard-kpi-cell__value {
@@ -2486,19 +2604,14 @@ a.dashboard-kpi-cell:focus-visible {
 }
 
 /*
-  ROTULO — papel de METADADO, acima do valor.
-
-  Micro, uppercase e com tracking largo: e o mesmo papel que a grade densa usa no cabecalho de
-  coluna. Assim o olho varre a faixa pelos NUMEROS e usa o rotulo apenas para confirmar o que leu —
+  ROTULO — 12-13px. O olho varre a faixa pelos NUMEROS e usa o rotulo para confirmar o que leu —
   o inverso de uma lista de textos.
 */
 .dashboard-kpi-cell__label {
-  font-size: 0.625rem;
-  font-weight: 700;
+  font-size: 0.75rem;
+  font-weight: 550;
   line-height: 1.2;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--color-slate-500);
+  color: var(--color-slate-600);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2509,7 +2622,12 @@ a.dashboard-kpi-cell:focus-visible {
   color: var(--color-slate-500);
 }
 
+/*
+  CONTEXTO SECUNDARIO — 11-12px, a linha que explica o numero sem competir com ele. Ocupa as duas
+  colunas da celula, abaixo do bloco icone+valor.
+*/
 .dashboard-kpi-cell__context {
+  grid-column: 1 / -1;
   font-size: 0.6875rem;
   line-height: 1.3;
   color: var(--color-slate-400);
@@ -2521,14 +2639,12 @@ a.dashboard-kpi-cell:focus-visible {
 /*
   RODAPE DE DESTINO — afirmacao de que o numero tem para onde ir.
 
-  Ele fica no FIM da celula e em accent discreto: e a unica parte clicavel nomeada, e num painel onde
-  varias celulas tem destino, repetir um botao com contorno em todas seria ruido de forma. O peso
-  visual e de link, coerente com a gramatica do produto. `margin-top: auto` empurra para a base,
-  de modo que celulas de alturas diferentes (contexto em 1 ou 2 linhas) alinhem os rodapes.
+  Fica no FIM da celula, em accent discreto: e a unica parte clicavel nomeada. `grid-column: 1/-1`
+  mantem o rodape alinhado com o bloco acima, de modo que celulas de alturas diferentes alinhem os
+  rodapes.
 */
 .dashboard-kpi-cell__drill {
-  margin-top: auto;
-  padding-top: 0.25rem;
+  grid-column: 1 / -1;
   font-size: 0.6875rem;
   font-weight: 600;
   color: var(--color-brand-700);
@@ -2893,5 +3009,870 @@ a.dashboard-kpi-cell:hover .dashboard-kpi-cell__drill {
   .dashboard-dense,
   .dashboard-titles__link {
     border: 1px solid CanvasText;
+  }
+}
+
+/* ============================================================================
+   17. CENTRAL OPERACIONAL — ANALITICO, VIEWS, FILA E CONTEXTO
+   ============================================================================
+
+   Este bloco governa a composicao ATUAL de `/app`. Ele substitui, na pratica, a leitura em coluna
+   de blocos: indicadores -> analitico (3 superficies) -> fluxo -> views/toolbar -> FILA DOMINANTE,
+   com a coluna de contexto ancorada a direita quando ha selecao.
+
+   As medidas seguem a faixa de densidade do sistema:
+     KPI               ~96px
+     analitico         ~200px
+     fluxo             ~92px
+     toolbar           ~42px
+     linha de fila     36-42px
+     cabecalho fila    34-38px
+     coluna de contexto 360px
+   ============================================================================ */
+
+/* ------------------------------------------------------------------ ANALITICO */
+
+/*
+  TRES SUPERFICIES, UMA LINHA — e a grade se declara pelo que EXISTE.
+
+  `data-count` e publicado pela tela: com tres superficies, `1.05fr / 1.05fr / 0.9fr` (duas leituras
+  analiticas de peso comparavel e a worklist de excecoes um degrau mais estreita); com duas, metades
+  iguais, sem terco vazio sobrando. Abaixo de 720px vira coluna unica — sem rotacao de conteudo, so
+  de eixo.
+*/
+.dashboard-analytics {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--spacing-2);
+  align-items: stretch;
+}
+
+@media (min-width: 720px) {
+  .dashboard-analytics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1100px) {
+  .dashboard-analytics[data-count='3'] {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.05fr) minmax(0, 0.9fr);
+  }
+
+  .dashboard-analytics[data-count='2'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.dashboard-analytics__panel,
+.dashboard-exceptions {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0.625rem 0.75rem 0.5rem;
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-md);
+  background: var(--dashboard-surface);
+}
+
+.dashboard-analytics__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  margin-bottom: 0.375rem;
+}
+
+.dashboard-analytics__title {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  line-height: 1.2;
+  color: var(--dashboard-ink);
+}
+
+.dashboard-analytics__meta {
+  font-size: 0.6875rem;
+  color: var(--color-slate-400);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dashboard-analytics__note {
+  margin: auto 0 0;
+  padding-top: 0.375rem;
+  font-size: 0.6875rem;
+  line-height: 1.35;
+  color: var(--color-slate-400);
+}
+
+/* --------------------------------------------------------- EXCECOES (worklist) */
+
+/*
+  A SUPERFICIE DE EXCECOES E UMA WORKLIST, NAO UM BANNER.
+
+  Cada linha carrega o fato que a produziu (contagem real), o nome e o drillback. A cor entra pela
+  regua lateral — critico vermelho, atencao ambar, informativo azul — e nunca por area cheia: pintar
+  a linha inteira de vermelho em cinco excecoes simultaneas faz o operador parar de ler cor.
+*/
+.dashboard-exceptions__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dashboard-exceptions__row {
+  display: grid;
+  grid-template-columns: 0.875rem 2.25rem minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: baseline;
+  column-gap: 0.5rem;
+  padding: 0.25rem 0.375rem 0.25rem 0.4375rem;
+  border-left: 3px solid var(--color-slate-300);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: inherit;
+}
+
+a.dashboard-exceptions__row:hover {
+  background: var(--color-slate-50);
+}
+
+a.dashboard-exceptions__row:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: -2px;
+}
+
+.dashboard-exceptions__row--critical {
+  border-left-color: var(--color-red-600);
+}
+
+.dashboard-exceptions__row--warning {
+  border-left-color: var(--color-amber-500);
+}
+
+.dashboard-exceptions__row--info {
+  border-left-color: var(--color-brand-500);
+}
+
+.dashboard-exceptions__icon {
+  grid-row: 1;
+  font-size: 0.5rem;
+  line-height: 1.4;
+  color: var(--color-slate-400);
+}
+
+.dashboard-exceptions__row--critical .dashboard-exceptions__icon {
+  color: var(--color-red-600);
+}
+
+.dashboard-exceptions__row--warning .dashboard-exceptions__icon {
+  color: var(--color-amber-600);
+}
+
+.dashboard-exceptions__row--info .dashboard-exceptions__icon {
+  color: var(--color-brand-600);
+}
+
+.dashboard-exceptions__count {
+  grid-row: 1;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--dashboard-ink);
+}
+
+.dashboard-exceptions__row--critical .dashboard-exceptions__count {
+  color: var(--color-red-700);
+}
+
+.dashboard-exceptions__row--warning .dashboard-exceptions__count {
+  color: var(--color-amber-700);
+}
+
+.dashboard-exceptions__label {
+  grid-row: 1;
+  font-size: 0.75rem;
+  font-weight: 550;
+  color: var(--dashboard-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-exceptions__detail {
+  grid-row: 2;
+  grid-column: 3;
+  font-size: 0.6875rem;
+  line-height: 1.3;
+  color: var(--color-slate-400);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+  ESTADO VAZIO DE UMA LINHA — nunca um banner verde de 100px dizendo "nenhuma excecao".
+  A nao-noticia ocupa uma linha; a primeira dobra pertence ao trabalho.
+*/
+.dashboard-exceptions__empty {
+  margin: 0;
+  padding: 0.25rem 0;
+  font-size: 0.75rem;
+  color: var(--color-slate-400);
+}
+
+.dashboard-exceptions__note {
+  margin: auto 0 0;
+  padding-top: 0.375rem;
+  font-size: 0.6875rem;
+  line-height: 1.35;
+  color: var(--color-slate-400);
+}
+
+/* --------------------------------------------------- VIEWS + TOOLBAR DA FILA */
+
+/*
+  BARRA DE VIEWS E FERRAMENTAS — UMA FAIXA DE 42px, NAO DUAS.
+
+  As views sao o recorte operacional persistente e vivem a esquerda; as ferramentas, a direita.
+  Separar em duas faixas (uma de abas e outra de filtros) custaria 42px de altura por zero
+  informacao adicional — e a toolbar e onde o operador bate o olho ao voltar para a fila.
+*/
+.dashboard-queuebar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  padding: 0.25rem 0.5rem 0.25rem 0.625rem;
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-md);
+  background: var(--dashboard-surface);
+}
+
+/* TABS DE VIEW — sem contorno, com sublinhado de accent. Mesma gramatica das abas de recorte. */
+.dashboard-views {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.875rem;
+}
+
+.dashboard-views__tab {
+  display: inline-flex;
+  align-items: center;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-slate-500);
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease;
+}
+
+.dashboard-views__tab:hover {
+  color: var(--color-slate-800);
+  border-bottom-color: var(--color-slate-300);
+}
+
+.dashboard-views__tab--on {
+  border-bottom-color: var(--color-brand-700);
+  color: var(--dashboard-ink);
+  font-weight: 650;
+}
+
+.dashboard-views__tab:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
+}
+
+.dashboard-queuebar__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+/* BUSCA DA FILA — 240-320px, altura de controle. */
+.dashboard-queuebar__search {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  width: 18rem;
+  max-width: 100%;
+  height: 1.75rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-slate-50);
+}
+
+.dashboard-queuebar__search:focus-within {
+  border-color: var(--color-brand-400);
+  background: var(--dashboard-surface);
+}
+
+.dashboard-queuebar__search-icon {
+  width: 0.8125rem;
+  height: 0.8125rem;
+  flex-shrink: 0;
+  color: var(--color-slate-400);
+}
+
+.dashboard-queuebar__search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  font-size: 0.75rem;
+  color: var(--dashboard-ink);
+  outline: none;
+}
+
+.dashboard-queuebar__search input::placeholder {
+  color: var(--color-slate-400);
+}
+
+/* ESCOPO ATIVO DA FILA — declarado na toolbar, sem virar chip colorido. */
+.dashboard-queuebar__filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  height: 1.75rem;
+  padding: 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 550;
+  color: var(--color-slate-600);
+  white-space: nowrap;
+}
+
+.dashboard-queuebar__filter-icon {
+  width: 0.8125rem;
+  height: 0.8125rem;
+  color: var(--color-slate-400);
+}
+
+.dashboard-queuebar__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  height: 1.75rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-sm);
+  background: var(--dashboard-surface);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-slate-700);
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dashboard-queuebar__button:hover:not(:disabled) {
+  border-color: var(--color-brand-300);
+  background: var(--color-brand-50);
+  color: var(--color-brand-800);
+}
+
+.dashboard-queuebar__button:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.dashboard-queuebar__button:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
+}
+
+.dashboard-queuebar__button-icon {
+  width: 0.8125rem;
+  height: 0.8125rem;
+}
+
+/* --------------------------------------------------------------- FILA (dominante) */
+
+/*
+  A FILA ABSORVE TODO O ESPACO RESTANTE.
+
+  `flex: 1` + `min-height` de piso: com trabalho real, ela cresce e a pagina rola; com poucas
+  linhas, ela ainda desenha a AREA DE PROCESSAMENTO em vez de terminar em 120px e deixar o resto
+  branco. O piso NAO inventa linha — reserva a superficie, e o estado vazio compacto fica dentro.
+*/
+.dashboard-queue {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 20rem;
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-md);
+  background: var(--dashboard-surface);
+  overflow: hidden;
+}
+
+.dashboard-queue__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-2);
+  min-height: 2.125rem;
+  padding: 0.375rem 0.625rem;
+  border-bottom: 1px solid var(--dashboard-line);
+  background: var(--color-slate-50);
+}
+
+.dashboard-queue__title {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  color: var(--dashboard-ink);
+}
+
+.dashboard-queue__count {
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: var(--color-slate-700);
+}
+
+.dashboard-queue__scope {
+  font-size: 0.6875rem;
+  color: var(--color-slate-400);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-queue__spacer {
+  flex: 1;
+}
+
+.dashboard-queue__all {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-brand-700);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.dashboard-queue__all:hover {
+  text-decoration: underline;
+}
+
+.dashboard-queue__all-icon {
+  width: 0.8125rem;
+  height: 0.8125rem;
+}
+
+/* ESTADOS DE LEITURA — declarados em faixa propria, sempre acima do vazio. */
+.dashboard-queue__state {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--color-slate-500);
+}
+
+.dashboard-queue__state p {
+  margin: 0;
+}
+
+.dashboard-queue__state-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+  color: var(--color-slate-400);
+}
+
+.dashboard-queue__state-icon--spin {
+  animation: dashboard-spin 900ms linear infinite;
+}
+
+@keyframes dashboard-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/*
+  VAZIO COMPACTO — 70-100px, nunca meia tela.
+
+  Uma tabela gigantesca reservada para nada faz a tela parecer formulario com rodape. O vazio diz
+  QUAL recorte esvaziou e oferece a acao REAL que o desfaz.
+*/
+.dashboard-queue__empty {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.875rem 0.75rem;
+  border-bottom: 1px solid var(--dashboard-line-soft);
+  background: var(--dashboard-surface);
+}
+
+.dashboard-queue__empty-icon {
+  width: 1.125rem;
+  height: 1.125rem;
+  flex-shrink: 0;
+  color: var(--color-slate-300);
+}
+
+.dashboard-queue__empty-text {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--color-slate-600);
+}
+
+.dashboard-queue__empty-action {
+  display: inline-flex;
+  align-items: center;
+  height: 1.75rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--color-brand-300);
+  border-radius: var(--radius-sm);
+  background: var(--color-brand-50);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-brand-800);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.dashboard-queue__empty-action:hover {
+  background: var(--color-brand-100);
+}
+
+/* AVISO DE FILA INCOMPLETA — fonte indisponivel DITA, nunca escondida. */
+.dashboard-queue__notice {
+  margin: 0;
+  padding: 0.3125rem 0.625rem;
+  border: 1px solid var(--color-amber-200);
+  border-radius: var(--radius-sm);
+  background: var(--color-amber-50);
+  font-size: 0.75rem;
+  color: var(--color-amber-900);
+}
+
+/* ---------------------------------------------------------- GRADE DE TRABALHO */
+
+/*
+  ESTA E A TABELA — a area mais importante da tela e a unica que ocupa "todo o resto".
+
+  A grade rola SO na horizontal quando o viewport e estreito; o corpo rola na vertical dentro do
+  container, de modo que cabecalho e rodape permanecam visiveis enquanto o operador percorre a
+  pagina. Sem isso, a "tabela" vira uma lista longa que empurra a paginacao para fora da tela.
+*/
+.dashboard-queue__table {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: auto;
+}
+
+.dashboard-queue__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.dashboard-queue__row {
+  display: grid;
+  align-items: center;
+  gap: 0 var(--spacing-2);
+  min-width: 60rem;
+  padding: 0 0.625rem 0 0.5rem;
+  min-height: 2.5rem;
+  border-bottom: 1px solid var(--dashboard-line-soft);
+  background: var(--dashboard-surface);
+}
+
+.dashboard-queue__row:hover {
+  background: var(--color-slate-50);
+}
+
+/* CABECALHO DE COLUNAS — 34-38px, micro-uppercase com tracking. */
+.dashboard-queue__row--head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  min-height: 2.25rem;
+  border-bottom: 1px solid var(--dashboard-line);
+  background: var(--color-slate-50);
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--color-slate-500);
+}
+
+.dashboard-queue__row--head:hover {
+  background: var(--color-slate-50);
+}
+
+.dashboard-queue__row--critical {
+  box-shadow: inset 3px 0 0 0 var(--color-red-500);
+}
+
+.dashboard-queue__row--selected,
+.dashboard-queue__row--selected:hover {
+  background: var(--color-brand-50);
+  box-shadow: inset 3px 0 0 0 var(--color-brand-600);
+}
+
+/* PRIORIDADE — bolinha semantica + texto. A bolinha nao substitui a palavra. */
+.dashboard-queue__priority {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+  font-size: 0.75rem;
+  font-weight: 550;
+  color: var(--color-slate-600);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-queue__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  background: var(--color-slate-300);
+}
+
+.dashboard-queue__dot--critical {
+  background: var(--color-red-600);
+}
+
+.dashboard-queue__dot--warning {
+  background: var(--color-amber-500);
+}
+
+.dashboard-queue__dot--neutral {
+  background: var(--color-slate-300);
+}
+
+/* DOCUMENTO — referencia humana sobre o titulo; o botao abre o contexto, nao navega. */
+.dashboard-queue__doc {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.dashboard-queue__ref {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  font-size: 0.6875rem;
+  font-weight: 650;
+  color: var(--color-brand-700);
+  cursor: pointer;
+}
+
+.dashboard-queue__ref:hover {
+  text-decoration: underline;
+}
+
+.dashboard-queue__title {
+  font-size: 0.8125rem;
+  line-height: 1.25;
+  color: var(--dashboard-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-queue__context,
+.dashboard-queue__owner {
+  font-size: 0.75rem;
+  color: var(--color-slate-600);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-queue__owner {
+  color: var(--color-slate-500);
+}
+
+.dashboard-queue__stage {
+  display: flex;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.dashboard-queue__due {
+  font-size: 0.75rem;
+  color: var(--color-slate-500);
+}
+
+.dashboard-queue__due--late {
+  color: var(--color-red-700);
+  font-weight: 650;
+}
+
+/* PROXIMA ACAO — uma primaria visivel por linha, mais o menu de contexto. */
+.dashboard-queue__action {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+}
+
+.dashboard-queue__action-button {
+  display: inline-flex;
+  align-items: center;
+  height: 1.625rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--color-brand-600);
+  border-radius: var(--radius-sm);
+  background: var(--color-brand-600);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dashboard-queue__action-button:hover {
+  background: var(--color-brand-700);
+}
+
+.dashboard-queue__more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.625rem;
+  height: 1.625rem;
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-sm);
+  background: var(--dashboard-surface);
+  font-size: 0.875rem;
+  line-height: 1;
+  color: var(--color-slate-500);
+  cursor: pointer;
+}
+
+.dashboard-queue__more:hover {
+  background: var(--color-slate-100);
+  color: var(--color-slate-800);
+}
+
+/* RODAPE — paginacao REAL, sempre visivel sob a grade. */
+.dashboard-queue__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  min-height: 2.125rem;
+  padding: 0.25rem 0.625rem;
+  border-top: 1px solid var(--dashboard-line);
+  background: var(--color-slate-50);
+  font-size: 0.6875rem;
+  color: var(--color-slate-500);
+}
+
+.dashboard-queue__pager {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.dashboard-queue__page-button {
+  display: inline-flex;
+  align-items: center;
+  height: 1.5rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-sm);
+  background: var(--dashboard-surface);
+  font-size: 0.6875rem;
+  font-weight: 550;
+  color: var(--color-slate-600);
+  cursor: pointer;
+}
+
+.dashboard-queue__page-button:hover:not(:disabled) {
+  background: var(--color-slate-100);
+  color: var(--color-slate-900);
+}
+
+.dashboard-queue__page-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dashboard-queue__view-name {
+  font-weight: 600;
+  color: var(--color-slate-600);
+}
+
+/* ------------------------------------------------------- RODAPE DE ATALHOS */
+
+/*
+  ATALHOS DE MODULO — rotas alternativas, nao comandos. Ficam FORA da zona de trabalho, abaixo
+  dela: sao o que o operador consulta depois de saber o que fazer.
+*/
+.dashboard-shortcuts-bar {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-md);
+  background: var(--dashboard-surface-support);
+}
+
+.dashboard-shortcuts-bar__label {
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-slate-500);
+}
+
+.dashboard-shortcuts-bar__link {
+  display: inline-flex;
+  align-items: center;
+  height: 1.75rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-sm);
+  background: var(--dashboard-surface);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-slate-700);
+  text-decoration: none;
+}
+
+.dashboard-shortcuts-bar__link:hover {
+  border-color: var(--color-brand-300);
+  background: var(--color-brand-50);
+  color: var(--color-brand-800);
+}
+
+.dashboard-shortcuts-bar__link:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-queue__state-icon--spin {
+    animation: none;
   }
 }

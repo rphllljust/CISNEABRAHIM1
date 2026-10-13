@@ -164,6 +164,19 @@ export function AppShellLayout() {
         </div>
       </div>
 
+      {/*
+        O PAINEL OPERACIONAL NAO TEM TETO DE ALTURA.
+
+        O shell e uma coluna de `min-h-dvh` com a area de trabalho em `flex-1`: sem esta declaracao, a
+        pagina `/app` — que E uma grade de altura total (fila elastica + coluna de contexto) — mediria
+        a altura do CONTEUDO, e o `height: 100%` de dentro do painel resolveria contra ela em vez de
+        resolver contra a viewport. O efeito pratico seria a fila nunca "ocupar o resto da tela".
+
+        Escopo por rota, no elemento raiz do shell: a sidebar (que ja e `fixed`) permanece de altura
+        total, e as demais rotas continuam rolando normalmente.
+      */}
+      <style>{`:root:has(#main-content > .dashboard-cc) .shell__content{display:flex;min-height:0;flex:1 1 auto;}`}</style>
+
       {!isDesktop ? (
         <div id="shell-mobile-drawer">
           <ShellMobileDrawer
