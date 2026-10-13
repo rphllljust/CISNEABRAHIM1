@@ -14,6 +14,7 @@ import {
   WorklistFilterBar,
   WorklistHeader,
   WorklistStatePanel,
+  rowPrimaryActionClass,
   worklistCellClass,
   worklistHeadCellClass,
   worklistRowClass,
@@ -25,7 +26,12 @@ import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge'
 import { OperationalUnitOptions, useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
 import { listPostingRequests } from '../api/accounting-api';
 import { mapAccountingErrorToMessage } from '../api/accounting-error-messages';
-import { SavedViewsBar, useSmartList } from '../../operator';
+import {
+  ContextDrawer,
+  SavedViewsBar,
+  useSmartList,
+  type ContextPreviewBody,
+} from '../../operator';
 import type { PostingRequestListItem, PostingRequestPage } from '../types/accounting.types';
 
 const PAGE_SIZE = 25;
@@ -124,6 +130,7 @@ export function AccountingPostingOriginsPage() {
   const [occurredFrom, setOccurredFrom] = useState('');
   const [occurredTo, setOccurredTo] = useState('');
   const [page, setPage] = useState(0);
+  const [previewId, setPreviewId] = useState<string | null>(null);
   const [state, setState] = useState<ListState>({ phase: 'loading' });
 
   // ADOCAO DE MECANISMO: situacao e evento de origem passam a viver na URL e em visao
@@ -201,6 +208,7 @@ export function AccountingPostingOriginsPage() {
   const posted = data?.statusCounts.POSTED ?? 0;
   const pending = data?.statusCounts.PENDING ?? 0;
   const rejected = data?.statusCounts.REJECTED ?? 0;
+  const previewItem = data?.items.find((item) => item.id === previewId) ?? null;
 
   return (
     <ModulePage layout="wide">
@@ -405,6 +413,9 @@ export function AccountingPostingOriginsPage() {
                   <th scope="col" className={worklistHeadCellClass}>
                     Lançamento
                   </th>
+                  <th scope="col" className={worklistHeadCellClass}>
+                    Contexto
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -437,6 +448,15 @@ export function AccountingPostingOriginsPage() {
                         '—'
                       )}
                     </td>
+                    <td className={worklistCellClass}>
+                      <button
+                        type="button"
+                        className={rowPrimaryActionClass}
+                        onClick={() => setPreviewId(item.id)}
+                      >
+                        Ver contexto
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -447,11 +467,53 @@ export function AccountingPostingOriginsPage() {
             pageNumber={data.page + 1}
             previousDisabled={data.page === 0}
             nextDisabled={!hasMore}
-            onPrevious={() => setPage((current) => Math.max(0, current - 1))}
-            onNext={() => setPage((current) => current + 1)}
+            onPrevious={() => {
+              setPreviewId(null);
+              setPage((current) => Math.max(0, current - 1));
+            }}
+            onNext={() => {
+              setPreviewId(null);
+              setPage((current) => current + 1);
+            }}
           />
         </>
       ) : null}
+
+      <ContextDrawer
+        open={previewItem !== null}
+        title="Contexto da origem contábil"
+        preview={previewItem ? buildPostingOriginPreview(previewItem) : null}
+        onClose={() => setPreviewId(null)}
+      />
     </ModulePage>
   );
+}
+
+function buildPostingOriginPreview(item: PostingRequestListItem): ContextPreviewBody {
+  return {
+    identifier: item.sourceReference || 'Evento contábil',
+    subtitle: EVENT_LABELS[item.eventKind] ?? item.eventKind,
+    status: <FinanceStatusBadge status={item.status} labels={STATUS_LABELS} />,
+    facts: [
+      { label: 'Ocorrido em', value: <DateTime value={item.occurredOn} mode="date" /> },
+      { label: 'Origem', value: ORIGIN_LABELS[item.originKind] ?? item.originKind },
+      { label: 'Evento', value: EVENT_LABELS[item.eventKind] ?? item.eventKind },
+      { label: 'Valor', value: <Money value={item.amount} currencyCode={item.currencyCode} /> },
+      {
+        label: 'Lançamento',
+        value: item.journalEntryNumber ? `#${item.journalEntryNumber}` : 'Ainda não vinculado',
+      },
+    ],
+    relations: [],
+    nextAction: item.journalEntryId
+      ? {
+          label: 'Abrir lançamento contábil',
+          href: `/app/accounting/journals/${item.journalEntryId}`,
+        }
+      : undefined,
+    detailHref: item.journalEntryId
+      ? `/app/accounting/journals/${item.journalEntryId}`
+      : undefined,
+    detailLabel: item.journalEntryId ? 'Abrir lançamento completo' : undefined,
+  };
 }
