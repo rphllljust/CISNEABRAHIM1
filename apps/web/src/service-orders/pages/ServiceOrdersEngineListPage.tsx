@@ -11,6 +11,12 @@ import {
 } from '../api/service-orders-api';
 import { mapServiceOrdersErrorToMessage } from '../api/service-orders-error-messages';
 import type { ServiceOrderDetail, ServiceOrderStatus } from '../types/service-order.types';
+import {
+  SERVICE_ORDER_LIST_FILTERS,
+  SERVICE_ORDER_LIST_ORDERS,
+  type ServiceOrderListFilter,
+  type ServiceOrderListOrder,
+} from '../types/service-order-list.types';
 import { Skeleton } from '../../ui/Skeleton';
 import {
   CommandPalette,
@@ -80,6 +86,32 @@ const SUPPORTED_VIEW_TYPES: readonly string[] = RENDERABLE_VIEW_TYPES;
  * truncada em silêncio. Com paginação explícita, o operador sabe onde está e alcança o resto.
  */
 const PAGE_SIZE = 20;
+
+const QUEUE_FILTER_OPTIONS: Array<{ value: ServiceOrderListFilter; label: string }> = [
+  { value: SERVICE_ORDER_LIST_FILTERS.Overdue, label: 'Atrasadas' },
+  { value: SERVICE_ORDER_LIST_FILTERS.ApproachingDue, label: 'Próximas do prazo' },
+  { value: SERVICE_ORDER_LIST_FILTERS.Mine, label: 'Minhas ordens' },
+  { value: SERVICE_ORDER_LIST_FILTERS.Unassigned, label: 'Sem responsável' },
+  { value: SERVICE_ORDER_LIST_FILTERS.Unscheduled, label: 'Sem agenda' },
+  { value: SERVICE_ORDER_LIST_FILTERS.ScheduledToday, label: 'Agendadas hoje' },
+];
+
+const QUEUE_ORDER_OPTIONS: Array<{ value: ServiceOrderListOrder; label: string }> = [
+  { value: SERVICE_ORDER_LIST_ORDERS.Recent, label: 'Mais recentes' },
+  { value: SERVICE_ORDER_LIST_ORDERS.Schedule, label: 'Agenda operacional' },
+];
+
+function parseQueueFilter(value: string | null): ServiceOrderListFilter | undefined {
+  return QUEUE_FILTER_OPTIONS.some((option) => option.value === value)
+    ? (value as ServiceOrderListFilter)
+    : undefined;
+}
+
+function parseQueueOrder(value: string | null): ServiceOrderListOrder | undefined {
+  return QUEUE_ORDER_OPTIONS.some((option) => option.value === value)
+    ? (value as ServiceOrderListOrder)
+    : undefined;
+}
 
 const DEFAULT_DESTINATIONS = [
   { id: 'nav-suppliers', label: 'Fornecedores', path: '/app/suppliers', group: 'Navegar' },
@@ -192,6 +224,8 @@ export function ServiceOrdersEngineListPage() {
 
   const activeViewType = searchParams.get('view') ?? 'list';
   const statusFilter = (searchParams.get('status') ?? '') as ServiceOrderStatus | '';
+  const queueFilter = parseQueueFilter(searchParams.get('filter'));
+  const queueOrder = parseQueueOrder(searchParams.get('order'));
 
   // A busca digitada espera antes de virar requisição: sem o atraso, cada tecla é uma ida à rede.
   useEffect(() => {
@@ -228,6 +262,8 @@ export function ServiceOrdersEngineListPage() {
             limit: PAGE_SIZE,
             offset: pageOffset,
             status: statusFilter || undefined,
+            filter: queueFilter,
+            order: queueOrder,
             q: search || undefined,
           },
           signal,
@@ -256,7 +292,7 @@ export function ServiceOrdersEngineListPage() {
         setPageBusy(false);
       }
     },
-    [pageOffset, search, statusFilter],
+    [pageOffset, queueFilter, queueOrder, search, statusFilter],
   );
 
   /**
@@ -686,6 +722,36 @@ export function ServiceOrdersEngineListPage() {
                 autoComplete="off"
               />
             </WorklistField>
+            <WorklistField label="Fila" htmlFor="so-engine-queue-filter">
+              <select
+                id="so-engine-queue-filter"
+                className={worklistSelectClass}
+                value={queueFilter ?? ''}
+                onChange={(event) => updateFilter('filter', event.target.value)}
+              >
+                <option value="">Todas as ordens</option>
+                {QUEUE_FILTER_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </WorklistField>
+            <WorklistField label="Ordenar" htmlFor="so-engine-queue-order">
+              <select
+                id="so-engine-queue-order"
+                className={worklistSelectClass}
+                value={queueOrder ?? ''}
+                onChange={(event) => updateFilter('order', event.target.value)}
+              >
+                <option value="">Padrão do servidor</option>
+                {QUEUE_ORDER_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </WorklistField>
             {/*
               NÃO há um segundo seletor de situação aqui.
               A `DynamicFilterBar` acima já publica um, dirigido pelo `in_filter` do metadado — e
@@ -694,7 +760,7 @@ export function ServiceOrdersEngineListPage() {
               divergir. A faixa cobre o que a barra do metadado NÃO tem: busca livre por `q`.
             */}
             <WorklistClearFilters
-              visible={Boolean(statusFilter || search.trim() || Object.keys(filters).length > 0)}
+              visible={Boolean(statusFilter || queueFilter || queueOrder || search.trim() || Object.keys(filters).length > 0)}
               onClick={() => {
                 setSearchInput('');
                 setSearch('');
