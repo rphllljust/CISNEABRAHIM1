@@ -37,12 +37,18 @@ export function WorkbenchKpiStrip({ kpis }: { kpis: WorkbenchKpi[] }) {
               to={kpi.href}
               aria-label={kpi.ariaLabel}
             >
+              <span className="dashboard-kpi-cell__label">{kpi.label}</span>
               <span className="dashboard-kpi-cell__value tabular-nums">{kpi.value}</span>
-              <span className="dashboard-kpi-cell__label">
-                {kpi.label}
-                {kpi.unit ? <span className="dashboard-kpi-cell__unit"> {kpi.unit}</span> : null}
-              </span>
+              {kpi.unit ? <span className="dashboard-kpi-cell__unit">{kpi.unit}</span> : null}
               <span className="dashboard-kpi-cell__context">{kpi.context}</span>
+              {/*
+                RODAPE DE DESTINO — a celula DIZ que tem para onde ir, sem exigir o clique para
+                descobrir. Numero sem drilldown e decoracao, e o operador precisa saber disso antes
+                de tentar.
+              */}
+              <span className="dashboard-kpi-cell__drill">
+                Ver<span aria-hidden> →</span>
+              </span>
             </Link>
           </li>
         ))}

@@ -34,8 +34,15 @@ export function ShellTopBar({
   const userLabel = formatUserMenuLabel(identityId);
 
   return (
+    /*
+      ALTURA 56px — a faixa 52-56px do sistema.
+
+      Eram 64px (`h-[4rem]`): a topbar de um ERP desktop e CROME, nao conteudo, e cada 8px que ela
+      retem sao 8px que a grade densa perde na primeira dobra. 56px ainda acomoda a busca principal,
+      o sino e o menu de usuario com folga de ponteiro.
+    */
     <header
-      className="shell__topbar sticky top-0 z-20 flex h-[4rem] items-center gap-3 border-b border-slate-200 bg-white px-4 sm:px-5 lg:px-6 xl:px-8"
+      className="shell__topbar sticky top-0 z-20 flex h-[3.5rem] items-center gap-3 border-b border-slate-200 bg-white px-4 sm:px-5 lg:px-6"
       role="banner"
     >
       <button

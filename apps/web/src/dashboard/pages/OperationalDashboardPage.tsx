@@ -345,7 +345,18 @@ export function OperationalDashboardPage() {
             }
           />
 
-          {/* 3 — COMANDOS CONTEXTUAIS: destinos reais do recorte, nao uma fileira solta de botoes. */}
+          {/*
+            3 — INDICADORES. A faixa vem LOGO depois da situação e ANTES dos comandos.
+
+            ORDEM DE LEITURA DO COMANDO CENTER — o operador pergunta, nesta sequencia:
+            "como esta o recorte?" -> "quanto e o que?" -> "o que eu faco?" -> "onde trabalho?".
+            A barra de comandos estava entre a situacao e os indicadores, e isso QUEBRAVA a cadeia:
+            o numero ficava depois da acao, entao o operador via o botao antes de saber a magnitude
+            do problema que ele resolve. Indicador e leitura; comando e resposta.
+          */}
+          <WorkbenchKpiStrip kpis={workbenchKpis} />
+
+          {/* 4 — COMANDOS CONTEXTUAIS: destinos reais do recorte, depois da magnitude. */}
           <nav className="dashboard-actions" aria-label="Ações do workspace">
             <span className="dashboard-actions__label">Ações do workspace</span>
             {OPERATIONAL_ACTIONS.map((action) => (
@@ -354,9 +365,6 @@ export function OperationalDashboardPage() {
               </Link>
             ))}
           </nav>
-
-          {/* 4 — INDICADORES: faixa densa; cada numero abre o recorte que o produziu. */}
-          <WorkbenchKpiStrip kpis={workbenchKpis} />
 
           {/*
             5 — AREA CENTRAL DE TRABALHO. Duas colunas em desktop grande: a FILA ocupa o dominio

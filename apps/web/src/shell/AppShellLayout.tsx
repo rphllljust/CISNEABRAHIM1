@@ -84,8 +84,16 @@ export function AppShellLayout() {
         Ir para o conteúdo principal
       </a>
 
+      {/*
+        SIDEBAR 240px — a faixa 230-250px do sistema.
+
+        Eram 288px (`w-[18rem]`). A sidebar e navegacao, nao superficie de trabalho: 48px devolvidos
+        aqui sao 48px que a grade densa usa em TODAS as rotas — e numa worklist de sete colunas isso
+        e a diferenca entre ver a coluna de acao e ter de rolar de lado. A densidade dos itens ja
+        estava correta (34px); o que sobrava era largura vazia.
+      */}
       <aside
-        className="shell__sidebar fixed inset-y-0 z-30 hidden w-[18rem] flex-col border-r border-[#1f2d3a] bg-[#07111d] lg:flex"
+        className="shell__sidebar fixed inset-y-0 z-30 hidden w-[15rem] flex-col border-r border-[#1f2d3a] bg-[#07111d] lg:flex"
         aria-label="Barra lateral"
       >
         <div className="shell__brand flex h-[4rem] shrink-0 items-center gap-3 border-b border-white/10 px-5">
@@ -117,7 +125,7 @@ export function AppShellLayout() {
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col lg:pl-[18rem]">
+      <div className="flex min-w-0 flex-1 flex-col lg:pl-[15rem]">
         <ShellTopBar
           onMenuToggle={toggleMobileNav}
           menuExpanded={mobileNavOpen && !isDesktop}

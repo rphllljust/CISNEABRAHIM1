@@ -2476,7 +2476,7 @@ a.dashboard-dense__cell:hover,
   flex-direction: column;
   gap: 0.0625rem;
   height: 100%;
-  padding: 0.5rem 0.75rem 0.5625rem;
+  padding: 0.625rem 0.875rem 0.6875rem;
   border-left: 3px solid var(--color-slate-300);
   text-decoration: none;
   color: inherit;
@@ -2509,11 +2509,18 @@ a.dashboard-kpi-cell:focus-visible {
   border-left-color: var(--color-emerald-600);
 }
 
+/*
+  VALOR — o maior elemento da celula, na escala 20-28px que o proprio prompt fixa para KPI.
+
+  Antes eram 22px com o rotulo em 12px ACIMA dele: a distancia entre os dois era pequena e a celula
+  lia como par de textos. O valor sobe para 26px e o rotulo vira metadado (micro, uppercase, tracking
+  largo) — a leitura passa a ser "magnitude, depois o que ela significa", que e a ordem da decisao.
+*/
 .dashboard-kpi-cell__value {
-  font-size: 1.375rem;
-  font-weight: 650;
-  line-height: 1.05;
-  letter-spacing: -0.02em;
+  font-size: 1.625rem;
+  font-weight: 680;
+  line-height: 1;
+  letter-spacing: -0.025em;
   color: var(--dashboard-ink);
 }
 
@@ -2525,11 +2532,23 @@ a.dashboard-kpi-cell:focus-visible {
   color: var(--color-amber-700);
 }
 
+/*
+  ROTULO — papel de METADADO, acima do valor.
+
+  Micro, uppercase e com tracking largo: e o mesmo papel que a grade densa usa no cabecalho de
+  coluna. Assim o olho varre a faixa pelos NUMEROS e usa o rotulo apenas para confirmar o que leu —
+  o inverso de uma lista de textos.
+*/
 .dashboard-kpi-cell__label {
-  font-size: 0.75rem;
-  font-weight: 600;
-  line-height: 1.25;
-  color: var(--color-slate-700);
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--color-slate-500);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dashboard-kpi-cell__unit {
@@ -2544,6 +2563,26 @@ a.dashboard-kpi-cell:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/*
+  RODAPE DE DESTINO — afirmacao de que o numero tem para onde ir.
+
+  Ele fica no FIM da celula e em accent discreto: e a unica parte clicavel nomeada, e num painel onde
+  varias celulas tem destino, repetir um botao com contorno em todas seria ruido de forma. O peso
+  visual e de link, coerente com a gramatica do produto. `margin-top: auto` empurra para a base,
+  de modo que celulas de alturas diferentes (contexto em 1 ou 2 linhas) alinhem os rodapes.
+*/
+.dashboard-kpi-cell__drill {
+  margin-top: auto;
+  padding-top: 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--color-brand-700);
+}
+
+a.dashboard-kpi-cell:hover .dashboard-kpi-cell__drill {
+  text-decoration: underline;
 }
 
 /* CONTEXTO OPERACIONAL SEM DADO — estado vazio compacto, nunca coluna em branco. */
@@ -2665,16 +2704,35 @@ a.dashboard-kpi-cell:focus-visible {
   CONECTOR DE PROCESSO — a regua que costura um estagio ao seguinte.
   Ele e o que faz a faixa ler como CADEIA em vez de grade: sem ele, quatro colunas separadas por
   divisores verticais leem como quatro blocos independentes.
+
+  FORCA DO SINAL (corrigido nesta wave): o conector tinha 8x2px em `slate-300`, praticamente
+  invisivel a um palmo de distancia — a faixa continuava lendo como quatro celulas. Agora ele tem
+  CORPO (12x2px), tom institucional e uma PONTA de seta desenhada por borda, que e o que declara a
+  DIRECAO do processo. Sem a ponta, um traco horizontal liga dois blocos mas nao diz para onde o
+  trabalho anda.
 */
 .dashboard-chain__connector {
   position: absolute;
   top: 50%;
-  right: -1px;
+  right: -0.375rem;
   z-index: 1;
-  width: 0.5rem;
+  width: 0.75rem;
   height: 2px;
   transform: translateY(-50%);
-  background: var(--color-slate-300);
+  background: var(--color-slate-400);
+}
+
+.dashboard-chain__connector::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 0;
+  width: 0;
+  height: 0;
+  transform: translateY(-50%);
+  border-top: 3px solid transparent;
+  border-bottom: 3px solid transparent;
+  border-left: 4px solid var(--color-slate-400);
 }
 
 @media (max-width: 1099px) {
