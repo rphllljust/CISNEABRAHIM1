@@ -20,12 +20,12 @@ describe('operational dashboard e2e (frontend)', () => {
     await loginAndReachApp(user);
   }
 
-  it('loads the executive control tower from a single API call', async () => {
+  it('loads the operational workspace from a single executive API call', async () => {
     const shellMock = createShellFetchMock();
     const dashboardMock = createDashboardFetchMock();
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = requestUrl(input);
-      if (url.includes('/api/v1/dashboard/executive')) {
+      if (url.includes('/api/v1/dashboard/executive') || url.includes('/api/v1/work-inbox')) {
         return dashboardMock(input, init);
       }
       return shellMock(input, init);
@@ -36,13 +36,17 @@ describe('operational dashboard e2e (frontend)', () => {
     const user = userEvent.setup();
     await login(user);
 
+    // SITUATION HANDLING — o estado do recorte substitui o antigo banner de decisao. O titulo traz a
+    // contagem REAL de excecoes criticas publicadas no snapshot, nunca uma frase generica.
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /central de decis.{1,2}o/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', { name: /2 exceções críticas exigem decisão agora/i }),
+      ).toBeInTheDocument();
     });
 
     const dashboard = within(screen.getByRole('main'));
 
-    // 1+2. FILA DE DECISAO com excecao REAL: a linha existe, e nomeada e traz o volume publicado.
+    // 1+2. SITUACAO com excecao REAL: a linha existe, e nomeada e traz o volume publicado.
     const criticalRow = dashboard.getByRole('link', { name: /OS vencidas: 3 itens/i });
     expect(criticalRow).toBeInTheDocument();
 
@@ -55,20 +59,36 @@ describe('operational dashboard e2e (frontend)', () => {
     // 4+8. ACAO NAVEGAVEL: a excecao leva ao recorte REAL que produziu o numero.
     expect(criticalRow).toHaveAttribute('href', '/app/service-orders?filter=overdue');
 
-    // ZONA 2 — resumo do fluxo operacional, com os estagios reais do negocio.
-    expect(dashboard.getByRole('heading', { name: /fluxo empresarial/i })).toBeInTheDocument();
-    expect(dashboard.getByText('Operação')).toBeInTheDocument();
-    expect(dashboard.getByText('Medição')).toBeInTheDocument();
-    expect(dashboard.getByText('Recebimento')).toBeInTheDocument();
+    // ZONA 2 — FLUXO EMPRESARIAL como cadeia de processo, com os estagios reais do negocio.
+    // Escopo pelo NOME da regiao: "Faturamento" tambem e o rotulo de um comando do workspace, e uma
+    // assercao global provaria a existencia do rotulo, nao da ETAPA da cadeia.
+    const chain = dashboard.getByRole('region', { name: /fluxo empresarial/i });
+    expect(within(chain).getByText('Operação')).toBeInTheDocument();
+    expect(within(chain).getByText('Medição')).toBeInTheDocument();
+    expect(within(chain).getByText('Faturamento')).toBeInTheDocument();
+    expect(within(chain).getByText('Recebimento')).toBeInTheDocument();
+
+    // MINHA FILA e a area CENTRAL do workspace — o trabalho real, nomeado pelo read model.
+    expect(dashboard.getByRole('heading', { name: /minha fila/i })).toBeInTheDocument();
 
     // ZONA 3 — CONTEXTO SOB DEMANDA: o drawer nao reserva area sem selecao ativa.
     expect(dashboard.queryByRole('heading', { name: /^contexto$/i })).not.toBeInTheDocument();
-    expect(dashboard.getByRole('complementary', { name: /indicadores analíticos/i })).toBeInTheDocument();
+    expect(
+      dashboard.getByRole('complementary', { name: /contexto operacional/i }),
+    ).toBeInTheDocument();
+
+    // FAIXA DE INDICADORES: cada numero tem drill para o recorte que o produziu.
+    const kpiStrip = dashboard.getByRole('region', { name: /indicadores operacionais/i });
+    expect(
+      within(kpiStrip).getByLabelText(/Ordens de serviço vencidas: 3 ordens/i),
+    ).toHaveAttribute('href', '/app/service-orders?filter=overdue');
+    expect(
+      within(kpiStrip).getByLabelText(/Recebíveis vencidos: 2 títulos/i),
+    ).toHaveAttribute('href', '/app/finance/receivables?status=OVERDUE');
 
     // ANALYTICS COM DADO AUTORITATIVO: distribuicao real, cada barra com drilldown.
-    expect(dashboard.getByRole('heading', { name: /ordens por status/i })).toBeInTheDocument();
+    expect(dashboard.getByRole('heading', { name: /ordens por situação/i })).toBeInTheDocument();
     expect(dashboard.getByRole('heading', { name: /atraso por faixa/i })).toBeInTheDocument();
-    // Cada segmento leva a lista filtrada real que produziu o numero.
     expect(dashboard.getByRole('link', { name: /Em execução: 4 ordens/i })).toHaveAttribute(
       'href',
       '/app/service-orders?status=IN_EXECUTION',
@@ -95,6 +115,12 @@ describe('operational dashboard e2e (frontend)', () => {
     // METRIC STRIP: os indicadores sao LINHAS compactas, nao a grade de cards do painel anterior.
     expect(mainElement.querySelectorAll('.dashboard-kpi')).toHaveLength(0);
     expect(mainElement.querySelectorAll('.dashboard-kpi-list__item').length).toBeGreaterThanOrEqual(1);
+    /*
+     * O CABECALHO ESCURO NAO EXISTE MAIS — o workspace opera em tema claro e a faixa de contexto e
+     * densa. `dashboard-command` era o bloco teal/slate de ~200px que dominava a primeira dobra.
+     */
+    expect(mainElement.querySelectorAll('[class*="dashboard-command"]')).toHaveLength(0);
+    expect(mainElement.querySelector('.dashboard-workspace-head')).not.toBeNull();
     /*
      * LINGUAGEM TECNICA DE IMPLEMENTACAO NAO EXISTE NA TELA.
      *

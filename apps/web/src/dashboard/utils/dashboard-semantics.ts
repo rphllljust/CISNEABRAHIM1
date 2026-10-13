@@ -1,4 +1,5 @@
 import type { ExecutiveAttentionItem, ExecutiveDashboardSnapshot } from '../types/dashboard.types';
+import type { WorkDomain } from '../../work-inbox/api/work-inbox-api';
 
 /**
  * SEMANTICA DE APRESENTACAO DO PAINEL EXECUTIVO.
@@ -183,7 +184,19 @@ export function buildBusinessFlow(
   );
   const stages: BusinessFlowStage[] = [];
 
-  if (visibility.serviceOrders) {
+  /*
+   * OPERACAO E A ETAPA NATIVA DE QUEM EXECUTA. `serviceOrdersByStatus` e um dado SEM recorte de
+   * dominio: quando o recorte ativo e COMERCIAL ou SUPRIMENTOS, exibir "6 ordens ativas" na cadeia
+   * apresentaria um numero do dominio OPERACOES dentro de um recorte que nao o pediu. A etapa sai
+   * do FOCO — nao vira zero, nao vira estimativa, simplesmente nao e afirmada fora do seu dominio.
+   *
+   * `Tudo` (null), OPERACOES, FINANCEIRO e FISCAL/CONTABILIDADE continuam vendo a operacao: e ela
+   * que produz a medicao e o faturamento que esses recortes consomem.
+   */
+  const operationInScope = domain === null || domain === 'OPERACOES' || domain === 'FINANCEIRO' ||
+    domain === 'FISCAL' || domain === 'CONTABILIDADE';
+
+  if (visibility.serviceOrders && operationInScope) {
     stages.push({
       id: 'operation',
       label: 'Operação',
@@ -273,3 +286,139 @@ export function buildBusinessFlow(
  * e nao duas vezes na fila de trabalho.
  */
 export const DASHBOARD_CHAIN_ONLY_ATTENTION = ['divergences'] as const;
+
+/* ============================================================================
+   RECORTE DE DOMINIO DO WORKSPACE — o que CADA dominio realmente alcanca
+   ============================================================================ */
+
+/**
+ * DIMENSOES DE DADO QUE O SNAPSHOT PUBLICA HOJE.
+ *
+ * O snapshot executivo e um payload COMPOSTO: ele nao publica, por campo, sob qual dominio aquele
+ * numero foi apurado. A unica correspondencia sustentada pelo contrato existente e esta:
+ *
+ *   serviceOrdersByStatus / throughputTrend / sla / productivity  -> OPERACAO (ordens de servico)
+ *   financialAging                                                -> FINANCEIRO (carteira)
+ *   attention[]                                                   -> por declaracao do servidor
+ *
+ * As demais dimensoes (FISCAL, CONTABILIDADE, SUPRIMENTOS, COMERCIAL) existem na fila de trabalho
+ * (`GET /work-inbox`, que RECORTA no servidor por `domain`) mas NAO tem, hoje, contraparte no
+ * snapshot executivo. Isso nao e defeito de tela: e o limite do contrato.
+ *
+ * CONSEQUENCIA NA APRESENTACAO — e esta e a regra que a tela obedece:
+ *   - o painel SEM recorte (Tudo) e AGREGADO: soma sobre os dominios autorizados, como sempre foi;
+ *   - dentro de um recorte de dominio, uma dimensao de OUTRO dominio NAO e exibida. Nem zerada,
+ *     nem estimada, nem "filtrada" por um filtro que o servidor nao aplicou.
+ *
+ * Escolha deliberada contra a alternativa: manter a faixa de OS e os indicadores de produtividade
+ * visiveis sob o chip "Fiscal" faria o operador ler numeros de OPERACAO como se fossem fiscais.
+ * Ocultar e honesto; tingir seria mentir.
+ */
+export const DOMAIN_DATA_DIMENSIONS: Record<string, ReadonlyArray<'OPERACAO' | 'FINANCEIRO'>> = {
+  OPERACOES: ['OPERACAO'],
+  FINANCEIRO: ['FINANCEIRO'],
+  FISCAL: [],
+  CONTABILIDADE: [],
+  COMERCIAL: [],
+  SUPRIMENTOS: [],
+};
+
+/** O recorte ativo alcanca o dado de OPERACAO (ordens, throughput, SLA, produtividade)? */
+export function domainReachesOperation(domain: string | null): boolean {
+  return domain === null || (DOMAIN_DATA_DIMENSIONS[domain]?.includes('OPERACAO') ?? false);
+}
+
+/** O recorte ativo alcanca o dado FINANCEIRO (carteira, aging)? */
+export function domainReachesFinance(domain: string | null): boolean {
+  return domain === null || (DOMAIN_DATA_DIMENSIONS[domain]?.includes('FINANCEIRO') ?? false);
+}
+
+/**
+ * AS SETE POSICOES DO RECORTE — a mesma lista que a barra de dominio oferece.
+ *
+ * A ORDEM E RESPONSABILIDADE DE PRODUTO, nao do `WORK_DOMAINS`: a barra abre com "Tudo" e mantem
+ * a ordem institucional (Financeiro, Fiscal, Contabilidade, Operacoes, Comercial, Suprimentos)
+ * que o menu do CISNE ja usa.
+ */
+export const DASHBOARD_DOMAIN_ORDER: ReadonlyArray<WorkDomain> = [
+  'FINANCEIRO',
+  'FISCAL',
+  'CONTABILIDADE',
+  'OPERACOES',
+  'COMERCIAL',
+  'SUPRIMENTOS',
+];
+
+/** Excecoes de dominio que a tela NAO repete: elas vivem na etapa da cadeia que as produz. */
+const CHAIN_OWNED_ATTENTION: ReadonlyArray<string> = DASHBOARD_CHAIN_ONLY_ATTENTION;
+
+/**
+ * EXCECOES DENTRO DO RECORTE ATIVO — com a origem da AFIRMACAO.
+ *
+ * A distincao que este tipo carrega e a regra central do Situation Handling:
+ *
+ *   `'published'`    o servidor avaliou esta excecao e publicou o numero;
+ *   `'not-evaluated'` o servidor NAO publicou esta excecao para o recorte. Ausencia de item nao e
+ *                     "zero itens": e ausencia de avaliacao, e a tela precisa dizer isso.
+ *
+ * Sem essa distincao, um recorte em que o executor nao publicou `overdue-service-orders` aparecia
+ * na tela como "operacao sem excecoes criticas" — uma conclusao que o dado nunca autorizou.
+ */
+export type ScopedAttention = {
+  /** Excecoes publicadas e aplicaveis ao recorte, ordenadas por severidade. */
+  items: ExecutiveAttentionItem[];
+  /** Ids de excecao que o recorte alcanca mas que o snapshot NAO publicou. */
+  notEvaluated: string[];
+};
+
+/**
+ * MAPA RECORTE -> EXCECOES QUE AQUELE RECORTE ALCANCA.
+ *
+ * Declaracao explicita, nao heuristica: cada dominio lista as excecoes cujo OBJETO pertence a ele.
+ */
+const DOMAIN_ATTENTION_IDS: Record<string, ReadonlyArray<string>> = {
+  FINANCEIRO: ['overdue-receivables'],
+  OPERACOES: ['overdue-service-orders', 'approaching-due-service-orders', 'pending-measurements'],
+  FISCAL: [],
+  CONTABILIDADE: [],
+  COMERCIAL: [],
+  SUPRIMENTOS: [],
+};
+
+/** Rotulo humano da excecao conhecida — usado quando o recorte alcanca uma excecao nao publicada. */
+const ATTENTION_FALLBACK_LABEL: Record<string, string> = {
+  'overdue-service-orders': 'ordens de serviço vencidas',
+  'approaching-due-service-orders': 'ordens de serviço a vencer',
+  'pending-measurements': 'medições aguardando análise',
+  'overdue-receivables': 'títulos a receber vencidos',
+  divergences: 'divergências de conteúdo',
+};
+
+export function attentionLabelFor(id: string): string {
+  return ATTENTION_FALLBACK_LABEL[id] ?? id;
+}
+
+/**
+ * EXCECOES DO RECORTE — SEM inventar avaliacao que o servidor nao fez.
+ *
+ * `divergences` fica de fora porque ela NAO e excecao de prazo: a cadeia a exibe na etapa que a
+ * produz, e repeti-la na fila contaria o mesmo fato duas vezes.
+ */
+export function scopedAttention(
+  snapshot: ExecutiveDashboardSnapshot,
+  domain: string | null,
+): ScopedAttention {
+  const operational = snapshot.attention.filter((item) => !CHAIN_OWNED_ATTENTION.includes(item.id));
+
+  if (domain === null) {
+    return { items: operational, notEvaluated: [] };
+  }
+
+  const expected = DOMAIN_ATTENTION_IDS[domain] ?? [];
+  const published = operational.filter((item) => expected.includes(item.id));
+  const notEvaluated = expected.filter(
+    (id) => !snapshot.attention.some((item) => item.id === id),
+  );
+
+  return { items: published, notEvaluated };
+}

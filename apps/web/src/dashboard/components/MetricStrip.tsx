@@ -24,11 +24,25 @@ const HREF_LABELS: Record<string, string> = {
 export function MetricStrip({
   kpis,
   volume,
+  excludeIds,
 }: {
   kpis: DashboardKpi[];
   volume: { opened: number; completed: number; hrefOpened: string; hrefCompleted: string } | null;
+  /**
+   * IDs JA EXIBIDOS na faixa de indicadores do workspace.
+   *
+   * A tela tem DUAS leituras de indicador, com papeis diferentes: a FAIXA (topo) apresenta o que
+   * exige acao agora; este painel apresenta a SAUDE do periodo, incluindo taxas sem lista de destino.
+   * Quando os dois conjuntos se cruzavam, o mesmo fato aparecia duas vezes com dois rotulos de acao
+   * diferentes ("Abrir títulos vencidos" e "Ver títulos vencidos") — o operador le como dois numeros.
+   *
+   * A exclusao e por IDENTIDADE da metrica, nunca por heuristica de texto.
+   */
+  excludeIds?: ReadonlySet<string>;
 }) {
-  if (kpis.length === 0 && volume === null) {
+  const visible = excludeIds ? kpis.filter((kpi) => !excludeIds.has(kpi.id)) : kpis;
+
+  if (visible.length === 0 && volume === null) {
     return null;
   }
 
@@ -44,9 +58,9 @@ export function MetricStrip({
         INDICADORES COMPACTOS: rótulo curto acima, número grande abaixo. Nao e uma tag nem um
         cardao — a leitura é "quantos", e o drilldown fica no próprio número.
       */}
-      {kpis.length > 0 ? (
+      {visible.length > 0 ? (
         <ul className="dashboard-kpi-list">
-          {kpis.map((kpi) => {
+          {visible.map((kpi) => {
           const body = (
             <>
               <span className="dashboard-kpi-list__label">{kpi.label}</span>

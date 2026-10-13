@@ -140,6 +140,76 @@ const OVERDUE_RECEIVABLE_TITLES = [
   },
 ];
 
+/**
+ * FILA UNIFICADA DE TRABALHO — `GET /work-inbox`.
+ *
+ * O painel operacional le DUAS fontes com um unico recorte: o snapshot executivo (`/dashboard/executive`)
+ * e o read model da fila (`/work-inbox`). Sem esta rota o mock devolvia 404, a faixa "Minha fila"
+ * entrava em estado de falha e o teste media a AUSENCIA da fila em vez da composicao do workspace —
+ * ou seja, a ponta mais importante da tela nao estava coberta.
+ *
+ * O payload honra o contrato real (`WorkInboxPage`): `items`, `total`, `byDomain` e
+ * `unavailableDomains`. `byDomain` e o que a tela usa para a contagem por dominio; `FISCAL` aparece
+ * em `unavailableDomains` de proposito, para que o caminho de FILA INCOMPLETA — que nunca pode ser
+ * silenciado — tambem seja exercitado.
+ */
+const WORK_INBOX_BY_DOMAIN = {
+  FINANCEIRO: 1,
+  FISCAL: 0,
+  CONTABILIDADE: 0,
+  OPERACOES: 2,
+  COMERCIAL: 0,
+  SUPRIMENTOS: 0,
+} as const;
+
+const WORK_INBOX_ITEMS = [
+  {
+    id: 'FINANCEIRO:OVERDUE:NF-2026-000005',
+    domain: 'FINANCEIRO',
+    kind: 'OVERDUE',
+    businessReference: 'NF-2026-000005',
+    title: 'Conta a receber vencida',
+    contextLabel: 'Cliente Alfa',
+    status: 'Vencido',
+    reason: 'Título vencido e ainda não recebido',
+    occurredAt: '2026-08-20T10:00:00.000Z',
+    dueAt: '2026-08-24T10:00:00.000Z',
+    actionLabel: 'Abrir recebível',
+    targetRoute: '/app/finance/receivables',
+    unitId: 'unit-1',
+  },
+  {
+    id: 'OPERACOES:OVERDUE:SO-2026-000042',
+    domain: 'OPERACOES',
+    kind: 'OVERDUE',
+    businessReference: 'SO-2026-000042',
+    title: 'Ordem de serviço vencida',
+    contextLabel: 'Unidade Norte',
+    status: 'Em execução',
+    reason: 'Prazo de execução vencido',
+    occurredAt: '2026-08-18T09:00:00.000Z',
+    dueAt: '2026-08-22T09:00:00.000Z',
+    actionLabel: 'Abrir ordem',
+    targetRoute: '/app/service-orders',
+    unitId: 'unit-1',
+  },
+  {
+    id: 'OPERACOES:APPROVAL:MED-2026-000007',
+    domain: 'OPERACOES',
+    kind: 'APPROVAL',
+    businessReference: 'MED-2026-000007',
+    title: 'Medição aguardando aprovação',
+    contextLabel: 'Unidade Sul',
+    status: 'Pendente',
+    reason: 'Medição enviada e não aprovada',
+    occurredAt: '2026-08-27T11:00:00.000Z',
+    dueAt: null,
+    actionLabel: 'Revisar medição',
+    targetRoute: '/app/billing',
+    unitId: 'unit-1',
+  },
+];
+
 export function createDashboardFetchMock() {
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = requestUrl(input);
@@ -187,6 +257,37 @@ export function createDashboardFetchMock() {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });
+    }
+
+    /*
+     * FILA DE TRABALHO — honra o recorte por dominio e por vencimento NO SERVIDOR, como o read model
+     * real faz. O recorte nao e aplicado na tela: se este mock ignorasse `domain`, um teste de
+     * recorte passaria por acidente e a tela pareceria filtrada quando nao estava.
+     */
+    if (url.includes('/api/v1/work-inbox') && method === 'GET') {
+      const params = new URL(url, 'http://localhost').searchParams;
+      const domain = params.get('domain');
+      const overdueOnly = params.get('overdue') === 'true';
+      const limit = Number.parseInt(params.get('limit') ?? '12', 10) || 12;
+
+      let items = WORK_INBOX_ITEMS.filter((item) => !domain || item.domain === domain);
+      if (overdueOnly) {
+        items = items.filter((item) => item.dueAt !== null && item.dueAt < '2026-08-29');
+      }
+      const sliced = items.slice(0, limit);
+
+      return new Response(
+        JSON.stringify({
+          items: sliced,
+          limit,
+          offset: 0,
+          total: items.length,
+          totalPages: items.length > 0 ? 1 : 0,
+          byDomain: WORK_INBOX_BY_DOMAIN,
+          unavailableDomains: ['FISCAL'],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
     }
     // CARTEIRA DE TITULOS — o drilldown financeiro do painel aponta para
     // /app/finance/receivables?status=OVERDUE; sem a rota o clique no KPI nao era

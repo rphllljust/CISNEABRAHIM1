@@ -11,19 +11,33 @@ type ShellNavListProps = {
   theme?: 'dark' | 'light';
 };
 
+/**
+ * ITEM DE NAVEGACAO — densidade de ERP, nao de landing page.
+ *
+ * `py-2.5` produzia ~44px por item, o mesmo alvo de um botao de toque em aplicativo movel. O CISNE
+ * e uma aplicacao desktop primariamente: com ~40 itens no menu, o operador perdia linhas na primeira
+ * dobra e rolava para trocar de modulo. `py-1.5` entrega ~34px — dentro da faixa que o proprio
+ * sistema documenta como densidade de sidebar (`34-40px`) em `theme.css` — mantendo area de clique
+ * confortavel para ponteiro.
+ *
+ * O ESTADO ATIVO NAO MUDOU DE GRAMATICA: fundo ligeiramente elevado + accent na lateral + texto
+ * claro (dark) / fundo neutro + texto forte (light). O que saiu foi apenas a sobra: a sombra de 18px
+ * do item ativo, que fazia o item "flutuar" dentro da propria sidebar — o accent de 3px a esquerda
+ * ja e inequivoco e nao custa contraste de texto.
+ */
 function buildNavLinkClass(isActive: boolean, theme: 'dark' | 'light') {
   if (theme === 'dark') {
     return cn(
-      'group relative flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium no-underline transition',
+      'group relative flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm font-medium no-underline transition',
       'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500',
       isActive
-        ? 'bg-white/[0.105] text-white shadow-[inset_3px_0_0_#72bcb4,0_8px_18px_rgb(0_0_0/0.16)]'
+        ? 'bg-white/[0.105] text-white shadow-[inset_3px_0_0_#72bcb4]'
         : 'text-slate-400 hover:bg-white/[0.065] hover:text-white',
     );
   }
 
   return cn(
-    'group flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium no-underline transition',
+    'group flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm font-medium no-underline transition',
     'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500',
     isActive ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
   );
@@ -50,7 +64,7 @@ export function ShellNavList({
   return (
     <nav
       className={cn(
-        'sidebar-scroll flex-1 space-y-7 overflow-y-auto px-3 py-5',
+        'sidebar-scroll flex-1 space-y-4 overflow-y-auto px-3 py-3',
         theme === 'dark' ? 'bg-[#07111d]' : 'bg-white',
       )}
       aria-label="Navegação principal"
