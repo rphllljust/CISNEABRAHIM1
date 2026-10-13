@@ -51,6 +51,9 @@ export const COMMERCIAL_CLIENTS_SNAPSHOT: ClientListResponse = {
       tradeName: VISUAL_CLIENT.tradeName,
       taxId: VISUAL_CLIENT.taxId,
       status: VISUAL_CLIENT.status,
+      // A projeção de listagem real publica `version` (concorrência otimista do comando em lote);
+      // o snapshot não pode afirmar um contrato mais pobre que o do servidor.
+      version: VISUAL_CLIENT.version,
       createdAt: VISUAL_CLIENT.createdAt,
       updatedAt: VISUAL_CLIENT.updatedAt,
     },

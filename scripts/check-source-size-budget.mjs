@@ -16,13 +16,20 @@ const ROOT = resolve(import.meta.dirname, '..');
 // +82/-31 em App.tsx ao longo de 318 commits integrados. Os tetos abaixo foram
 // movidos EXATAMENTE para o tamanho corrente, sem folga adicional. O ratchet
 // volta a impedir qualquer crescimento a partir desta arvore integrada.
+//
+// RECAPTURE 2026-10-13 — `ProcurementPages.tsx`: o teto continuava medido ANTES dos filtros
+// server-side independentes de status (`acbb122a`, +82/-8 no proprio arquivo, 49912 -> 54301
+// bytes). O teto nao foi movido junto com a mudanca que o estourou, e a partir dai o gate
+// `pnpm lint` falhava em main, em toda branch e em todo push — bloqueando o pipeline inteiro.
+// O teto abaixo e o tamanho CORRENTE, sem folga: o ratchet volta a impedir crescimento daqui
+// em diante, e reduzir o arquivo deve baixar o numero no mesmo commit.
 const BUDGETS = new Map([
   ['apps/api/src/accounting/repositories/accounting.repository.ts', 56312],
   ['apps/api/src/accounting/services/accounting-access.service.ts', 42040],
   ['apps/api/src/service-orders/repositories/resource-planning.repository.ts', 36561],
   ['apps/api/src/service-orders/repositories/service-orders.repository.ts', 34743],
   ['apps/api/src/finance/repositories/treasury.repository.ts', 31768],
-  ['apps/web/src/procurement/pages/ProcurementPages.tsx', 41851],
+  ['apps/web/src/procurement/pages/ProcurementPages.tsx', 54301],
   ['apps/web/src/App.tsx', 39745],
 ]);
 

@@ -115,8 +115,26 @@ export type ListPurchaseOrdersParams = {
   offset: number;
   clientId?: string;
   unitId?: string;
+  /** Situação do pedido, pelo vocabulário do domínio (`com.purchase_order_status`). */
+  status?: string;
+  /** Busca textual: número do pedido, RC e código interno, conforme o contrato do servidor. */
+  search?: string;
+  /** Janela de emissão, em ISO. O servidor decide o que é inclusivo. */
+  issueFrom?: string;
+  issueTo?: string;
+  /** Filtro avançado já convertido para o contrato do servidor. */
+  advanced?: import('../../engine').AdvancedFilterPayload | null;
 };
 
+/**
+ * Monta a query da listagem.
+ *
+ * REGRA: só entra na query o recorte que o SERVIDOR sabe aplicar. Cada parâmetro abaixo corresponde
+ * a um predicado real de `buildPurchaseOrderListWhere`/`buildPurchaseOrderAdvancedClause`
+ * (`apps/api/src/commercial/repositories/purchase-order-list-sql.ts`). Um parâmetro emitido sem
+ * predicado faria o servidor ignorar o recorte em silêncio e devolver a lista inteira — o defeito
+ * clássico em que a tela afirma um filtro que não existe.
+ */
 export function buildListPurchaseOrdersQuery(params: ListPurchaseOrdersParams): string {
   const search = new URLSearchParams();
   search.set('limit', String(params.limit));
@@ -126,6 +144,24 @@ export function buildListPurchaseOrdersQuery(params: ListPurchaseOrdersParams): 
   }
   if (params.unitId) {
     search.set('unitId', params.unitId);
+  }
+  if (params.status) {
+    search.set('status', params.status);
+  }
+  const term = params.search?.trim();
+  if (term) {
+    search.set('q', term);
+  }
+  if (params.issueFrom) {
+    search.set('issueFrom', params.issueFrom);
+  }
+  if (params.issueTo) {
+    search.set('issueTo', params.issueTo);
+  }
+  // O filtro composto entra na MESMA query: paginação, janela e recorte avançado compõem um único
+  // predicado no servidor, e não três leituras reconciliadas no browser.
+  if (params.advanced && params.advanced.groups.length > 0) {
+    search.set('filters', JSON.stringify(params.advanced));
   }
   return search.toString();
 }

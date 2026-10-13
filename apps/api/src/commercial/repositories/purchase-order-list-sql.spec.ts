@@ -18,10 +18,23 @@ import { PURCHASE_ORDER_STATUSES } from '../domain/purchase-order';
  * SEMPRE por allow-list.
  */
 
+/*
+ * O escopo de autorização é `unknown[]` por contrato: os parâmetros são valores já vinculados, e
+ * `unknown` impede que este teste — ou quem o copiar — passe a tratá-los como string. Sem a
+ * anotação, o literal infere `string[]`, que é MAIS ESTREITO que o parâmetro aceita, e a asserção
+ * vira ruído que o lint corretamente recusa.
+ */
 const SCOPE = { clause: 'unit_id = $1', params: ['UNIDADE-1'] as unknown[] };
 
+/**
+ * Filtros já resolvidos, montados a partir de um parcial.
+ *
+ * O teste entrega um objeto PARCIAL de propósito — cada caso afirma o que a camada faz com UM campo
+ * —, e o tipo de retorno declara esse contrato. Não há conversão: o compilador já aceita a atribuição
+ * direta, e uma asserção aqui seria ruído que o lint recusa com razão.
+ */
 function resolved(overrides: Record<string, unknown> = {}): PurchaseOrderListFilters {
-  return overrides as PurchaseOrderListFilters;
+  return overrides;
 }
 
 describe('buildPurchaseOrderListWhere', () => {

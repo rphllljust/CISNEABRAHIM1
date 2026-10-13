@@ -51,6 +51,12 @@ function toSummary(client: Client): ClientSummary {
     tradeName: client.tradeName,
     taxId: client.taxId,
     status: client.status,
+    /*
+     * A listagem real publica `version` — é contra ela que o comando em lote valida concorrência
+     * otimista. Omiti-la aqui faria o mock afirmar um contrato mais pobre que o do servidor, e o
+     * teste passaria sobre uma projeção que produção não devolve.
+     */
+    version: client.version,
     createdAt: client.createdAt,
     updatedAt: client.updatedAt,
   };
