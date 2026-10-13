@@ -1,12 +1,38 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useOptionalIdentityId } from '../../auth/context/AuthProvider';
 import {
   DynamicContextDrawer,
+  DynamicFilterBuilder,
   DynamicSavedViewsBar,
+  FILTER_PARAM,
+  advancedFilterFromGroup,
+  filterGroupToQuery,
+  readFilterGroup,
+  useEntitySchema,
   useSavedViews,
+  type AdvancedFilterFieldSpec,
   type CrossReference,
+  type FilterGroup,
 } from '../../engine';
+
+/**
+ * CAMPOS DO FILTRO AVANÇADO PARA O CONVERSOR COMPARTILHADO.
+ *
+ * Allow-list idêntico ao publicado por `buildContractListWhere`
+ * (`apps/api/src/commercial/repositories/contract-list-sql.ts`).
+ */
+const CONTRACT_FILTER_SPECS: AdvancedFilterFieldSpec[] = [
+  { field: 'internal_code', contractField: 'internalCode', kind: 'text' },
+  { field: 'contract_number', contractField: 'contractNumber', kind: 'text' },
+  { field: 'title', contractField: 'title', kind: 'text' },
+  { field: 'currency_code', contractField: 'currencyCode', kind: 'text' },
+  { field: 'status', contractField: 'status', kind: 'enum' },
+  { field: 'valid_from', contractField: 'validFrom', kind: 'date' },
+  { field: 'valid_to', contractField: 'validTo', kind: 'date' },
+  { field: 'created_at', contractField: 'createdAt', kind: 'date' },
+  { field: 'updated_at', contractField: 'updatedAt', kind: 'date' },
+];
 import { ContractsApiError, listContracts } from '../api/contracts-api';
 import { mapContractErrorToMessage } from '../api/contracts-error-messages';
 import { ContractStatusBadge } from '../components/ContractStatusBadge';
@@ -103,7 +129,33 @@ export function ContractsListPage() {
   const [selected, setSelected] = useState<Contract | null>(null);
   const [clientFilter, setClientFilter] = useState('');
   const [unitFilter, setUnitFilter] = useState('');
+  /**
+   * RECORTES QUE O SERVIDOR JÁ EXECUTAVA E A TELA NÃO OFERECIA.
+   *
+   * `GET /contracts` aceita `status`, `q`, janela de VIGÊNCIA, ordenação e filtro avançado desde
+   * `contract-list-sql` — e nada disso chegava ao operador, que só recortava por cliente e unidade.
+   */
+  const [statusFilter, setStatusFilter] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+  const [effectiveFrom, setEffectiveFrom] = useState('');
+  const [effectiveTo, setEffectiveTo] = useState('');
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
+
+  /**
+   * FILTRO AVANÇADO — mesma engine de metadados do resto do produto.
+   *
+   * A árvore vive na URL pela chave da engine e é convertida pelo conversor COMPARTILHADO; o mapa
+   * é o allow-list que `buildContractListWhere` executa.
+   */
+  const [urlParams, setUrlParams] = useSearchParams();
+  const urlQuery: string = urlParams.toString();
+  const { schema: contractSchema } = useEntitySchema('contract');
+  const advancedGroup = useMemo<FilterGroup>(() => readFilterGroup(urlQuery), [urlQuery]);
+  const advancedPayload = useMemo(
+    () => advancedFilterFromGroup(advancedGroup, CONTRACT_FILTER_SPECS),
+    [advancedGroup],
+  );
 
   const loadPage = useCallback(
     async (offset: number, signal?: AbortSignal) => {
@@ -115,6 +167,11 @@ export function ContractsListPage() {
             offset,
             clientId: clientFilter.trim() || undefined,
             unitId: unitFilter.trim() || undefined,
+            status: statusFilter || undefined,
+            search: search.trim() || undefined,
+            effectiveFrom: effectiveFrom || undefined,
+            effectiveTo: effectiveTo || undefined,
+            advanced: advancedPayload,
           },
           signal,
         );
@@ -144,7 +201,15 @@ export function ContractsListPage() {
         });
       }
     },
-    [clientFilter, unitFilter],
+    [
+      advancedPayload,
+      clientFilter,
+      effectiveFrom,
+      effectiveTo,
+      search,
+      statusFilter,
+      unitFilter,
+    ],
   );
 
   useEffect(() => {
@@ -294,6 +359,64 @@ export function ContractsListPage() {
           </span>
         </WorklistField>
 
+        <WorklistField label="Buscar" htmlFor="contract-search" grow>
+          <input
+            id="contract-search"
+            type="search"
+            className={worklistSelectClass}
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                setSearch(searchInput);
+              }
+            }}
+            placeholder="Número do contrato, código interno ou título"
+            autoComplete="off"
+          />
+        </WorklistField>
+
+        <WorklistField label="Situação" htmlFor="contract-status-filter">
+          <select
+            id="contract-status-filter"
+            className={worklistSelectClass}
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
+          >
+            <option value="">Todas</option>
+            <option value={CONTRACT_STATUSES.Draft}>Rascunho</option>
+            <option value={CONTRACT_STATUSES.Active}>Ativo</option>
+            <option value={CONTRACT_STATUSES.Closed}>Encerrado</option>
+            <option value={CONTRACT_STATUSES.Expired}>Expirado</option>
+          </select>
+        </WorklistField>
+
+        {/*
+          JANELA DE VIGÊNCIA — o recorte mais próprio deste domínio.
+
+          O predicado do servidor trata `valid_to IS NULL` como prazo INDETERMINADO e mantém esses
+          contratos no recorte. A tela não reinterpreta: envia as datas e mostra o que o servidor
+          devolveu.
+        */}
+        <WorklistField label="Vigente de" htmlFor="contract-effective-from">
+          <input
+            id="contract-effective-from"
+            type="date"
+            className={worklistSelectClass}
+            value={effectiveFrom}
+            onChange={(event) => setEffectiveFrom(event.target.value)}
+          />
+        </WorklistField>
+        <WorklistField label="até" htmlFor="contract-effective-to">
+          <input
+            id="contract-effective-to"
+            type="date"
+            className={worklistSelectClass}
+            value={effectiveTo}
+            onChange={(event) => setEffectiveTo(event.target.value)}
+          />
+        </WorklistField>
+
         <WorklistField label="Unidade" htmlFor="contract-unit-filter">
           <select
             id="contract-unit-filter"
@@ -310,9 +433,39 @@ export function ContractsListPage() {
           onClick={() => {
             setClientFilter('');
             setUnitFilter('');
+            setStatusFilter('');
+            setSearchInput('');
+            setSearch('');
+            setEffectiveFrom('');
+            setEffectiveTo('');
+            const params = new URLSearchParams(urlQuery);
+            params.delete(FILTER_PARAM);
+            params.delete('offset');
+            setUrlParams(params, { replace: true });
           }}
         />
       </WorklistFilterBar>
+
+      {/*
+        FILTRO AVANÇADO COMPOSTO — área própria, dirigida por METADADO.
+      */}
+      <div data-region="advanced-filter-surface" className="mb-2">
+        <DynamicFilterBuilder
+          schema={contractSchema}
+          value={advancedGroup}
+          onChange={(next) => {
+            const params = new URLSearchParams(urlQuery);
+            const serialized = filterGroupToQuery(next).get(FILTER_PARAM);
+            if (serialized) {
+              params.set(FILTER_PARAM, serialized);
+            } else {
+              params.delete(FILTER_PARAM);
+            }
+            params.delete('offset');
+            setUrlParams(params, { replace: true });
+          }}
+        />
+      </div>
 
       {/*
         VISOES SALVAS — integradas a command surface, na MESMA faixa dos filtros que elas

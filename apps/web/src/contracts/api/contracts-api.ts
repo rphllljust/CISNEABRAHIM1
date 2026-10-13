@@ -122,6 +122,24 @@ export function buildListContractsQuery(params: ListContractsParams): string {
   if (params.unitId) {
     search.set('unitId', params.unitId);
   }
+  if (params.status) {
+    search.set('status', params.status);
+  }
+  const term = params.search?.trim();
+  if (term) {
+    search.set('q', term);
+  }
+  if (params.effectiveFrom) {
+    search.set('effectiveFrom', params.effectiveFrom);
+  }
+  if (params.effectiveTo) {
+    search.set('effectiveTo', params.effectiveTo);
+  }
+  // O filtro avançado entra na MESMA query: paginação, ordenação e recorte composto compõem um
+  // único predicado no servidor.
+  if (params.advanced && params.advanced.groups.length > 0) {
+    search.set('filters', JSON.stringify(params.advanced));
+  }
   return search.toString();
 }
 

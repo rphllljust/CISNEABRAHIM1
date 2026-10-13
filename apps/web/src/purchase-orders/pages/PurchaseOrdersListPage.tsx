@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { RELATION_SCOPE_KEYS, useRelationScope } from '../../enterprise-object';
 import {
   cancelPurchaseOrder,
@@ -26,9 +26,36 @@ import { HumanLookupField } from '../../financial-ui/HumanLookupField';
 import { searchClientOptions } from '../../financial-ui/client-lookup';
 import {
   DynamicContextDrawer,
+  DynamicFilterBuilder,
   DynamicSavedViewsBar,
+  FILTER_PARAM,
+  advancedFilterFromGroup,
+  filterGroupToQuery,
+  readFilterGroup,
+  useEntitySchema,
   useSavedViews,
+  type AdvancedFilterFieldSpec,
+  type FilterGroup,
 } from '../../engine';
+
+/**
+ * CAMPOS DO FILTRO AVANÇADO PARA O CONVERSOR COMPARTILHADO.
+ *
+ * Allow-list idêntico ao publicado por `buildPurchaseOrderListWhere`
+ * (`apps/api/src/commercial/repositories/purchase-order-list-sql.ts`).
+ * `consumed_amount` e `authorized_overrun_amount` NÃO entram: são saldo derivado, e filtrá-los
+ * exigiria decidir o que "consumido" significa sob cada regra de faturamento.
+ */
+const PURCHASE_ORDER_FILTER_SPECS: AdvancedFilterFieldSpec[] = [
+  { field: 'internal_code', contractField: 'internalCode', kind: 'text' },
+  { field: 'po_number', contractField: 'poNumber', kind: 'text' },
+  { field: 'rc_number', contractField: 'rcNumber', kind: 'text' },
+  { field: 'currency_code', contractField: 'currencyCode', kind: 'text' },
+  { field: 'status', contractField: 'status', kind: 'enum' },
+  { field: 'issue_date', contractField: 'issueDate', kind: 'date' },
+  { field: 'created_at', contractField: 'createdAt', kind: 'date' },
+  { field: 'updated_at', contractField: 'updatedAt', kind: 'date' },
+];
 import { useAuth } from '../../auth/context/AuthProvider';
 import {
   EnterpriseMetric,
@@ -145,6 +172,19 @@ export function PurchaseOrdersListPage() {
   const relationScope = useRelationScope(RELATION_SCOPE_KEYS);
   const [clientFilter, setClientFilter] = useState(relationScope.clientId ?? '');
   const [unitFilter, setUnitFilter] = useState('');
+  /**
+   * RECORTES QUE O CONTRATO DO SERVIDOR JÁ EXECUTAVA E A TELA NÃO OFERECIA.
+   *
+   * `GET /purchase-orders` aceita `status`, `q`, `issueFrom`/`issueTo`, ordenação e filtro
+   * avançado desde a camada implementada em `purchase-order-list-sql` — e nada disso chegava ao
+   * operador, que só podia recortar por cliente e unidade. Capacidade existente e invisível é
+   * entrega incompleta.
+   */
+  const [statusFilter, setStatusFilter] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+  const [issueFrom, setIssueFrom] = useState('');
+  const [issueTo, setIssueTo] = useState('');
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
 
   /*
@@ -174,6 +214,22 @@ export function PurchaseOrdersListPage() {
   const [reloadToken, setReloadToken] = useState(0);
 
   const selectedId = selected?.id ?? null;
+
+  /**
+   * FILTRO AVANÇADO — a MESMA engine de metadados do resto do produto.
+   *
+   * A árvore vive na URL pela chave da engine (`filter`) e é convertida pelo conversor
+   * COMPARTILHADO. O mapa abaixo é o allow-list que `buildPurchaseOrderListWhere` executa; oferecer
+   * um campo fora dele produziria um recorte que o servidor ignora.
+   */
+  const [urlParams, setUrlParams] = useSearchParams();
+  const urlQuery: string = urlParams.toString();
+  const { schema: poSchema } = useEntitySchema('purchase-order');
+  const advancedGroup = useMemo<FilterGroup>(() => readFilterGroup(urlQuery), [urlQuery]);
+  const advancedPayload = useMemo(
+    () => advancedFilterFromGroup(advancedGroup, PURCHASE_ORDER_FILTER_SPECS),
+    [advancedGroup],
+  );
 
   useEffect(() => {
     if (!selectedId) {
@@ -245,6 +301,11 @@ export function PurchaseOrdersListPage() {
             offset,
             clientId: clientFilter.trim() || undefined,
             unitId: unitFilter.trim() || undefined,
+            status: statusFilter || undefined,
+            search: search.trim() || undefined,
+            issueFrom: issueFrom ? new Date(issueFrom).toISOString() : undefined,
+            issueTo: issueTo ? new Date(issueTo).toISOString() : undefined,
+            advanced: advancedPayload,
           },
           signal,
         );
@@ -274,7 +335,7 @@ export function PurchaseOrdersListPage() {
         });
       }
     },
-    [clientFilter, unitFilter],
+    [advancedPayload, clientFilter, issueFrom, issueTo, search, statusFilter, unitFilter],
   );
 
   // Navegar de uma relacao para outra (mesma rota, outro cliente) precisa refiltrar sem
@@ -412,7 +473,61 @@ export function PurchaseOrdersListPage() {
 
       <div data-region="command-filter-surface">
       <WorklistFilterBar meta={`${items.length} nesta página`}>
-        <WorklistField label="Cliente" htmlFor="po-client-search" grow>
+        {/*
+          BUSCA E SITUAÇÃO — os dois recortes que o operador mais usa, e que o SERVIDOR já
+          executava sem que a tela oferecesse. Ambos mudam a CONSULTA, não a página carregada.
+        */}
+        <WorklistField label="Buscar" htmlFor="po-search" grow>
+          <input
+            id="po-search"
+            type="search"
+            className={worklistSelectClass}
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                setSearch(searchInput);
+              }
+            }}
+            placeholder="Número do pedido, código interno ou RC"
+            autoComplete="off"
+          />
+        </WorklistField>
+
+        <WorklistField label="Situação" htmlFor="po-status">
+          <select
+            id="po-status"
+            className={worklistSelectClass}
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
+          >
+            <option value="">Todas</option>
+            <option value={PURCHASE_ORDER_STATUSES.Draft}>Rascunho</option>
+            <option value={PURCHASE_ORDER_STATUSES.Registered}>Registrado</option>
+            <option value={PURCHASE_ORDER_STATUSES.Cancelled}>Cancelado</option>
+          </select>
+        </WorklistField>
+
+        <WorklistField label="Emissão de" htmlFor="po-issue-from">
+          <input
+            id="po-issue-from"
+            type="date"
+            className={worklistSelectClass}
+            value={issueFrom}
+            onChange={(event) => setIssueFrom(event.target.value)}
+          />
+        </WorklistField>
+        <WorklistField label="até" htmlFor="po-issue-to">
+          <input
+            id="po-issue-to"
+            type="date"
+            className={worklistSelectClass}
+            value={issueTo}
+            onChange={(event) => setIssueTo(event.target.value)}
+          />
+        </WorklistField>
+
+        <WorklistField label="Cliente" htmlFor="po-client-search">
           <HumanLookupField
             variant="compact"
             label="Cliente"
@@ -440,10 +555,43 @@ export function PurchaseOrdersListPage() {
             onClick={() => {
               setClientFilter('');
               setUnitFilter('');
+              setStatusFilter('');
+              setSearchInput('');
+              setSearch('');
+              setIssueFrom('');
+              setIssueTo('');
+              const params = new URLSearchParams(urlQuery);
+              params.delete(FILTER_PARAM);
+              params.delete('offset');
+              setUrlParams(params, { replace: true });
             }}
           />
         ) : null}
       </WorklistFilterBar>
+
+      {/*
+        FILTRO AVANÇADO COMPOSTO — área própria, dirigida por METADADO.
+
+        A faixa acima recorta UM campo por vez. O construtor monta predicado COMBINADO (grupos
+        AND/OR) sobre os mesmos campos e o envia na mesma consulta.
+      */}
+      <div data-region="advanced-filter-surface">
+        <DynamicFilterBuilder
+          schema={poSchema}
+          value={advancedGroup}
+          onChange={(next) => {
+            const params = new URLSearchParams(urlQuery);
+            const serialized = filterGroupToQuery(next).get(FILTER_PARAM);
+            if (serialized) {
+              params.set(FILTER_PARAM, serialized);
+            } else {
+              params.delete(FILTER_PARAM);
+            }
+            params.delete('offset');
+            setUrlParams(params, { replace: true });
+          }}
+        />
+      </div>
       </div>
 
       {/*

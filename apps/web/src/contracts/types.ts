@@ -109,6 +109,13 @@ export type ListContractsParams = {
   offset: number;
   clientId?: string;
   unitId?: string;
+  status?: string;
+  search?: string;
+  /** Janela de vigência: contratos cujo intervalo INTERSECTA [effectiveFrom, effectiveTo]. */
+  effectiveFrom?: string;
+  effectiveTo?: string;
+  /** Filtro avançado já convertido para o contrato do servidor. */
+  advanced?: import('../engine').AdvancedFilterPayload | null;
 };
 
 export type ContractItemInput = {
