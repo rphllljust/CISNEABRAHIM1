@@ -51,6 +51,9 @@ export function serviceOrderEngineRows(items: ServiceOrderSummary[]): ServiceOrd
     updated_at: item.updatedAt,
     contract_reference: null,
     client_snapshot: clientSnapshotText(item.clientSnapshot),
+    client_id: item.clientId,
+    assigned_workforce_name: item.assignedWorkforceMember?.displayName ?? null,
+    assigned_workforce_code: item.assignedWorkforceMember?.memberCode ?? null,
   }));
 }
 
