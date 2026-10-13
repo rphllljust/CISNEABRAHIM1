@@ -333,13 +333,12 @@ export function PayrollPage() {
             initialLabel={loadedPeriodLabel}
             onChange={openPeriod}
             emptyOptionLabel="Selecione o período"
-            emptyMessage="Nenhum período alcançado nesta sessão. Abra um período abaixo — a API ainda não lista períodos por unidade."
+            emptyMessage="Nenhum período encontrado nesta unidade para a busca informada."
           />
         </div>
         <p className="mt-3 text-xs text-gray-500">
-          A API de folha ainda não expõe lista de períodos por unidade nem de contratos. Esta busca
-          oferece o que o servidor já devolveu nesta sessão: períodos abertos ou consultados e
-          contratos cadastrados aqui. Nenhum identificador técnico é digitado.
+          Períodos e contratos são pesquisados na API pela unidade autorizada. O identificador
+          técnico permanece interno à seleção e não precisa ser digitado.
         </p>
       </FilterCard>
 
@@ -600,7 +599,7 @@ export function PayrollPage() {
             value={contractId}
             onChange={setContractId}
             emptyOptionLabel="Selecione o contrato"
-            emptyMessage="Nenhum contrato alcançado nesta sessão. Cadastre um contrato acima — a API ainda não lista contratos."
+            emptyMessage="Nenhum contrato encontrado nesta unidade para a busca informada."
           />
           <Field label="Tipo" htmlFor="event-kind" required>
             <Select id="event-kind" value={eventKind} onChange={(event) => setEventKind(event.target.value)}>
