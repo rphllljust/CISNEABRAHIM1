@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { EmptyState, Field, Input, Money, worklistTableCardClass } from '../../ui';
+import { DateTime, EmptyState, Field, Input, Money, worklistTableCardClass } from '../../ui';
 import { ModulePage, ModulePagination, ModulePrimaryLink, ModuleTableLink } from '../../ui/module-layout';
 import {
+  EnterpriseMetric,
   WorklistClearFilters,
   WorklistField,
   WorklistFilterBar,
@@ -213,6 +214,24 @@ function ProcurementLists() {
         </form>
       </WorklistFilterBar>
 
+      <div className="mb-3 flex flex-wrap gap-2" aria-label="Resumo das filas de compras">
+        <EnterpriseMetric
+          label="solicitações"
+          value={state.requests.phase === 'ready' ? state.requests.total : '—'}
+          tone={state.requests.phase === 'ready' && state.requests.total > 0 ? 'info' : 'neutral'}
+        />
+        <EnterpriseMetric
+          label="pedidos ao fornecedor"
+          value={state.orders.phase === 'ready' ? state.orders.total : '—'}
+          tone={state.orders.phase === 'ready' && state.orders.total > 0 ? 'info' : 'neutral'}
+        />
+        <EnterpriseMetric
+          label="notas de fornecedor"
+          value={state.invoices.phase === 'ready' ? state.invoices.total : '—'}
+          tone={state.invoices.phase === 'ready' && state.invoices.total > 0 ? 'info' : 'neutral'}
+        />
+      </div>
+
       <div className={worklistTableCardClass}>
         <table className={worklistTableClass} aria-label="Solicitações de compra">
           <thead>
@@ -410,7 +429,9 @@ function ProcurementLists() {
                     <td className={worklistCellRaisedClass}>
                       {invoice.supplierName ?? 'Fornecedor não identificado'}
                     </td>
-                    <td className={worklistCellRaisedClass}>{invoice.dueDate}</td>
+                    <td className={worklistCellRaisedClass}>
+                      <DateTime value={invoice.dueDate} mode="date" />
+                    </td>
                     <td className={worklistNumericCellClass}>
                       <Money value={invoice.totalAmount} currencyCode={invoice.currencyCode} />
                     </td>
@@ -478,7 +499,10 @@ function buildProcurementPreview(preview: ProcurementPreview): ContextPreviewBod
       status: <FinanceStatusBadge status={item.status} labels={PROCUREMENT_REQUEST_STATUS_LABELS} />,
       facts: [
         { label: 'Itens', value: item.lineCount },
-        { label: 'Valor', value: <Money value={item.totalAmount} currencyCode={item.currencyCode} /> },
+        { label: 'Valor', value: <Money value={item.totalAmount} currencyCode={item.currencyCode} emphasis /> },
+        { label: 'Versão', value: item.version },
+        { label: 'Criada em', value: <DateTime value={item.createdAt} /> },
+        { label: 'Atualizada em', value: <DateTime value={item.updatedAt} /> },
       ],
       relations: [],
       nextAction: {
@@ -498,7 +522,11 @@ function buildProcurementPreview(preview: ProcurementPreview): ContextPreviewBod
       status: <FinanceStatusBadge status={item.status} labels={SUPPLIER_PO_STATUS_LABELS} />,
       facts: [
         { label: 'Condição', value: item.paymentTerms },
-        { label: 'Valor', value: <Money value={item.totalAmount} currencyCode={item.currencyCode} /> },
+        { label: 'Itens', value: item.lineCount },
+        { label: 'Recebido', value: item.receivedQuantity },
+        { label: 'Valor', value: <Money value={item.totalAmount} currencyCode={item.currencyCode} emphasis /> },
+        { label: 'Emitido em', value: <DateTime value={item.issuedAt} /> },
+        { label: 'Versão', value: item.version },
       ],
       relations: [],
       nextAction: {
@@ -516,8 +544,11 @@ function buildProcurementPreview(preview: ProcurementPreview): ContextPreviewBod
     subtitle: item.supplierName ?? 'Nota de fornecedor',
     status: <FinanceStatusBadge status={item.status} labels={SUPPLIER_INVOICE_STATUS_LABELS} />,
     facts: [
-      { label: 'Vencimento', value: item.dueDate },
-      { label: 'Valor', value: <Money value={item.totalAmount} currencyCode={item.currencyCode} /> },
+      { label: 'Emissão', value: <DateTime value={item.issuedOn} mode="date" /> },
+      { label: 'Vencimento', value: <DateTime value={item.dueDate} mode="date" /> },
+      { label: 'Valor', value: <Money value={item.totalAmount} currencyCode={item.currencyCode} emphasis /> },
+      { label: 'Versão', value: item.version },
+      { label: 'Título a pagar', value: item.payableId ? 'Gerado' : 'Ainda não gerado' },
     ],
     relations: [],
     nextAction: {
