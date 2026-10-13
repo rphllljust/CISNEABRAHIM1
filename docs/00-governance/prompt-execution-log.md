@@ -20918,3 +20918,93 @@ dívida de gate restante, ainda não tratada.
    antes destas rodadas; não foi commitado.
 
 WORKING_TREE: sem alteração pendente de código; só este registro
+
+---
+
+## FILTRO COMPOSTO SERVER-SIDE EM CONTAS A PAGAR (rodada 28) — 2026-10-13
+
+STATUS: **PASS**
+Commit: `9a73b0cc` (contrato + UI + migration 0095)
+
+### DEFEITO — o mesmo de recebíveis, na fila irmã
+
+A worklist de Contas a pagar montava o construtor AND/OR da engine, mas `byBuilder` aplicava a
+árvore **só no navegador** sobre a página já carregada. Numa carteira maior que uma página,
+"nenhuma obrigação" **não significava "não existe"** — significava "não está entre as linhas
+carregadas", e o indicador ao lado continuava contando o conjunto NÃO filtrado.
+
+Corrigir recebíveis e deixar pagáveis no mesmo estado teria sido propagação pela metade.
+
+### PAGÁVEIS NÃO É RECEBÍVEIS COM OUTRO NOME
+
+A fila tem **dois campos de recorte** que a outra não tem:
+
+- `origin_reference` — o documento que gerou a obrigação;
+- `cost_center_code` — o centro de custo.
+
+É por isso que o allow-list é **arquivo próprio** em vez de reutilizar o de recebíveis: a lista
+errada ofereceria ao operador um campo que o servidor recusa com 400, ou esconderia um que ele
+executa. As duas telas agora declaram os seus, e cada um espelha o seu par no servidor.
+
+### Implementação
+
+| Camada | Mudança |
+| ------ | ------- |
+| Contrato | `finance/repositories/payable-list-sql.ts` — allow-list próprio + tradução por condição, pelo parser genérico já compartilhado |
+| Repositório | predicado composto como UM clause, por conjunção com escopo, situação, janela e busca |
+| Controller | valida contra o allow-list da entidade; filtro inválido vira **400**, nunca recorte ignorado |
+| Frontend | árvore convertida por `advancedFilterFromGroup` com `PAYABLE_TITLE_FILTER_SPECS` |
+| Banco | migration **0095** liga os marcadores `in_filter` |
+
+`status`/`lifecycle`, `counterparty_id` e `unit_id` ficam FORA pelos motivos já documentados em
+recebíveis: situação é derivada (não existe coluna) e contraparte/unidade já são o filtro simples e
+o escopo de autorização.
+
+### CASO DE FRONTEIRA DECLARADO NO CÓDIGO
+
+O filtro de **aging continua LOCAL** nesta tela — o servidor não o aceita como parâmetro.
+`byBuilder` agora é **apenas** o resultado do aging, e o comentário no código diz isso, para que
+ninguém o leia como máscara sobre a página. A árvore, essa sim, viaja.
+
+### ERRO MEU, CORRIGIDO
+
+O helper de teste lia a identidade da linha por TEXTO (`/^AP-\d+$/`). Em pagáveis a mesma referência
+aparece **duas vezes** na linha (externa E de origem), então `getByText` encontrava dois elementos e
+lançava. Passou a mirar a coluna (`[data-field="external_reference"]`) — que é o que a tela afirma.
+
+### VALIDAÇÃO
+
+| Gate | Resultado |
+| ---- | --------- |
+| `pnpm lint` | PASS (4/4 tasks) |
+| `pnpm typecheck` | PASS (3/3 packages) |
+| Web financeiro | **93/93** |
+| API financeiro + test | 79/79, incluindo **13 testes novos** do contrato de pagáveis |
+| `git diff --check` | PASS |
+| scripts gate / source-size ratchet | PASS |
+
+### CI
+
+`Lint / Typecheck / Audit` **PASS**. `Unit tests` 953/980 — **27 falhas pré-existentes** (mesmo
+conjunto da rodada anterior: medições de OS, shell, billing, folha, e2e, OperationsControlCenter).
+Nenhuma regressão; +3 testes passando em relação à rodada 27.
+
+### DEPLOY (Railway, produção)
+
+| Item | Estado |
+| ---- | ------ |
+| Commit | `9a73b0cc4dc88a1d46b7496bd6f95984acf1a93c` |
+| `@cisne/api` | **SUCCESS** — pre-deploy aplicou a migration 0095 |
+| `@cisne/web` | **SUCCESS** |
+| Health | API `ready` 200 (`database up`), WEB `/health` 200 |
+| Revisão ativa | bundle `index-SF0Q3JCO.js` (o anterior responde **404**); contém `originReference`, `costCenterCode` e o parâmetro `filters` |
+
+### RESTRIÇÕES CONHECIDAS
+
+1. **27 falhas de CI seguem abertas** e bloqueiam o workflow `CD`.
+2. **Filtro composto ainda ausente** em Orçamentos, Despesas, Fornecedores e Tesouraria — resta esta
+   cauda da lacuna mapeada.
+3. `apps/web/src/purchase-orders/purchase-orders-request-budget.ui.test.tsx` segue não rastreado
+   desde antes destas rodadas; não foi commitado.
+
+WORKING_TREE: sem alteração pendente de código; só este registro
