@@ -39,6 +39,16 @@ import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge';
 import { OperationalUnitOptions, useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
 import {
+  EnterpriseObjectHeader,
+  EnterpriseObjectPage,
+  NextActionPanel,
+  ObjectContextBlock,
+  ObjectPanel,
+  ObjectStateFlow,
+  SmartRelationBar,
+  buildAuthorizedRelations,
+} from '../../enterprise-object';
+import {
   createJournal,
   getJournal,
   listAccounts,
@@ -640,85 +650,179 @@ function JournalDetailRoute({
 
   return (
     <ModulePage layout="wide">
-      <WorklistHeader
-        title="Lançamento"
-        context="Detalhe do lançamento lido do servidor. Postar e estornar são decididos pelo backend."
-        action={
-          <Button variant="secondary" onClick={onBack}>
-            ← Voltar para lançamentos
-          </Button>
-        }
-      />
       {state.phase === 'error' && state.kind === 'closed_period' ? (
         <ClosedPeriodBanner message={state.message} />
       ) : null}
-      {renderQueryGate(
-        'Lançamento',
-        'Carregando lançamento…',
-        'Você não tem permissão para consultar este lançamento.',
-        state,
-        () => void reload(),
+      {state.phase !== 'ready' ? (
+        <>
+          <WorklistHeader
+            title="Lançamento"
+            context="Detalhe do lançamento lido do servidor. Postar e estornar são decididos pelo backend."
+            action={
+              <Button variant="secondary" onClick={onBack}>
+                ← Voltar para lançamentos
+              </Button>
+            }
+          />
+          {renderQueryGate(
+            'Lançamento',
+            'Carregando lançamento…',
+            'Você não tem permissão para consultar este lançamento.',
+            state,
+            () => void reload(),
+          )}
+        </>
+      ) : (
+        <JournalView
+          journal={state.data}
+          onBack={onBack}
+          onReload={reload}
+          onReady={setReady}
+        />
       )}
-      {state.phase === 'ready' ? (
-        <JournalView journal={state.data} onReload={reload} onReady={setReady} />
-      ) : null}
     </ModulePage>
   );
 }
 
 function JournalView({
   journal,
+  onBack,
   onReload,
   onReady,
 }: {
   journal: JournalEntry;
+  onBack: () => void;
   onReload: () => Promise<void>;
   onReady: (next: JournalEntry) => void;
 }) {
+  const canPost = journal.status === 'DRAFT' && journal.kind !== 'REVERSAL';
+  const canReverse = journal.status === 'POSTED';
+
+  const actionTarget = canPost ? 'journal-post-command' : canReverse ? 'journal-reverse-command' : null;
+  const focusCommand = () => {
+    if (!actionTarget) return;
+    document.getElementById(actionTarget)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  const relations = buildAuthorizedRelations([
+    ...(journal.reversesEntryId
+      ? [{
+          id: 'reverses-entry',
+          label: 'Lançamento estornado',
+          count: 1,
+          to: `/app/accounting/journals/${journal.reversesEntryId}`,
+          allowed: true,
+        }]
+      : []),
+    ...(journal.reversedByEntryId
+      ? [{
+          id: 'reversed-by-entry',
+          label: 'Lançamento de estorno',
+          count: 1,
+          to: `/app/accounting/journals/${journal.reversedByEntryId}`,
+          allowed: true,
+        }]
+      : []),
+  ]);
+
+  const nextAction = canPost
+    ? {
+        kind: 'act' as const,
+        label: 'Postar lançamento',
+        description:
+          'O servidor valida período, versão, contas e partidas dobradas antes de fixar o lançamento.',
+        onSelect: focusCommand,
+      }
+    : canReverse
+      ? {
+          kind: 'act' as const,
+          label: 'Estornar lançamento',
+          description:
+            'O estorno gera o lançamento inverso no servidor e preserva o vínculo com o lançamento original.',
+          onSelect: focusCommand,
+        }
+      : null;
+
+  const contextFields = [
+    { label: 'Data contábil', value: <DateTime value={journal.occurredOn} mode="date" /> },
+    {
+      label: 'Origem',
+      value: `${SOURCE_KIND_LABELS[journal.sourceKind] ?? journal.sourceKind} · ${journal.sourceReference}`,
+    },
+    { label: 'Débitos', value: <Money value={journal.debitTotal} currencyCode={journal.currencyCode} />, emphasis: true },
+    { label: 'Créditos', value: <Money value={journal.creditTotal} currencyCode={journal.currencyCode} />, emphasis: true },
+    { label: 'Balanceamento', value: journal.balanced ? 'Balanceado' : 'Desbalanceado' },
+    { label: 'Tipo', value: journal.kind === 'REVERSAL' ? 'Estorno' : 'Lançamento' },
+    {
+      label: 'Lançado em',
+      value: journal.postedAt ? <DateTime value={journal.postedAt} /> : 'Rascunho ainda não postado',
+    },
+    { label: 'Lançado por', value: journal.postedBy },
+    { label: 'Versão', value: String(journal.rowVersion) },
+  ];
+
   return (
-    <>
-      {/*
-        IDENTIDADE DO LANÇAMENTO — faixa densa acima das linhas. Era um cartão
-        `rounded-xl p-6 shadow-sm`; o `DefinitionList` só mudou de moldura e os valores
-        continuam sendo exatamente os do servidor (nenhum total é recalculado aqui).
-      */}
-      <section className="mb-2 rounded-md border border-gray-200 bg-white" aria-label="Dados do lançamento">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-gray-200 px-3 py-2">
-          <span className="text-[13px] font-semibold text-gray-900">
-            {journal.entryNumber !== null ? `Lançamento nº ${journal.entryNumber}` : 'Lançamento (rascunho)'}
-          </span>
-          <FinanceStatusBadge status={journal.status} labels={JOURNAL_STATUS_LABELS} />
-          <span className="text-xs text-gray-500">
-            {journal.kind === 'REVERSAL' ? 'Estorno' : 'Lançamento'} · competência {journal.occurredOn}
-          </span>
-          <StatusBadge
-            tone={journal.balanced ? 'success' : 'error'}
-            label={journal.balanced ? 'Balanceado' : 'Desbalanceado'}
-          />
-          <span className="ml-auto flex flex-wrap items-center gap-x-4 text-xs text-gray-600 tabular-nums">
-            <span>
-              Débitos <Money value={journal.debitTotal} currencyCode={journal.currencyCode} />
-            </span>
-            <span>
-              Créditos <Money value={journal.creditTotal} currencyCode={journal.currencyCode} />
-            </span>
-          </span>
-        </div>
-        <div className="px-3 py-2">
+    <EnterpriseObjectPage
+      breadcrumb={[
+        { label: 'Contabilidade', href: '/app/accounting/journals' },
+        { label: 'Lançamentos', href: '/app/accounting/journals' },
+        {
+          label: journal.entryNumber !== null
+            ? `Lançamento #${journal.entryNumber}`
+            : 'Lançamento em rascunho',
+        },
+      ]}
+      header={
+        <EnterpriseObjectHeader
+          reference={journal.entryNumber !== null ? String(journal.entryNumber) : null}
+          title={journal.description || 'Lançamento contábil'}
+          subtitle={journal.sourceReference}
+          status={{ label: JOURNAL_STATUS_LABELS[journal.status] ?? journal.status }}
+          metadata={[
+            { label: 'Moeda', value: journal.currencyCode },
+            { label: 'Tipo', value: journal.kind === 'REVERSAL' ? 'Estorno' : 'Lançamento' },
+          ]}
+          primaryAction={
+            nextAction
+              ? {
+                  id: canPost ? 'post-journal' : 'reverse-journal',
+                  label: nextAction.label,
+                  onSelect: focusCommand,
+                }
+              : null
+          }
+          secondaryActions={[
+            {
+              id: 'back-to-journals',
+              label: 'Voltar para lançamentos',
+              onSelect: onBack,
+            },
+          ]}
+        />
+      }
+      stateFlow={
+        <ObjectStateFlow
+          title="Fluxo do lançamento"
+          steps={[
+            { id: 'DRAFT', label: 'Rascunho' },
+            { id: 'POSTED', label: 'Postado' },
+          ]}
+          currentId={journal.status === 'DRAFT' || journal.status === 'POSTED' ? journal.status : null}
+        />
+      }
+      nextAction={<NextActionPanel action={nextAction} />}
+      relations={relations.length > 0 ? <SmartRelationBar relations={relations} /> : null}
+      context={<ObjectContextBlock fields={contextFields} columns={3} />}
+      aside={
+        <ObjectPanel title="Rastreabilidade">
           <DefinitionList
             items={[
-              { label: 'Descrição', value: journal.description },
-              { label: 'Origem', value: journal.sourceReference },
-              {
-                label: 'Lançado em',
-                value: journal.postedAt ? <DateTime value={journal.postedAt} /> : '— (rascunho)',
-              },
-              { label: 'Lançado por', value: journal.postedBy ?? '—' },
+              { label: 'Origem persistida', value: journal.sourceReference },
               {
                 label: 'Estorna o lançamento',
                 value: journal.reversesEntryId ? (
                   <Link to={`/app/accounting/journals/${journal.reversesEntryId}`}>
-                    {journal.reversesEntryId}
+                    Abrir lançamento original
                   </Link>
                 ) : (
                   '—'
@@ -729,90 +833,91 @@ function JournalView({
                 value: journal.reversedByEntryId ? (
                   <Link to={`/app/accounting/journals/${journal.reversedByEntryId}`}>
                     {journal.reversedByEntryNumber !== null
-                      ? `#${journal.reversedByEntryNumber}`
-                      : journal.reversedByEntryId}
+                      ? `Abrir estorno #${journal.reversedByEntryNumber}`
+                      : 'Abrir lançamento de estorno'}
                   </Link>
                 ) : (
                   '—'
                 ),
               },
-              { label: 'Versão', value: String(journal.rowVersion) },
             ]}
           />
-        </div>
-      </section>
-      <div className={worklistTableCardClass}>
-        <table className={worklistTableClass} aria-label="Linhas do lançamento">
-          <thead>
-            <tr>
-              <th scope="col" className={worklistHeadCellClass}>
-                Linha
-              </th>
-              <th scope="col" className={worklistHeadCellClass}>
-                Conta
-              </th>
-              <th scope="col" className={worklistHeadCellClass}>
-                Direção
-              </th>
-              <th scope="col" className={worklistNumericHeadCellClass}>
-                Valor
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {journal.lines.map((line) => (
-              <tr key={line.id} className={worklistRowClass}>
-                <td className={worklistCellClass}>{line.lineNumber}</td>
-                <td className={`${worklistCellClass} font-mono`}>
-                  {line.accountCode ?? line.accountId}
-                  {line.accountName ? ` — ${line.accountName}` : ''}
-                </td>
-                <td className={worklistCellClass}>
-                  {MOVEMENT_DIRECTION_LABELS[line.direction] ?? line.direction}
-                </td>
-                <td className={worklistNumericCellClass}>
-                  <Money value={line.amount} currencyCode={journal.currencyCode} />
-                </td>
+        </ObjectPanel>
+      }
+    >
+      <ObjectPanel title="Partidas">
+        <div className={worklistTableCardClass}>
+          <table className={worklistTableClass} aria-label="Linhas do lançamento">
+            <thead>
+              <tr>
+                <th scope="col" className={worklistHeadCellClass}>Linha</th>
+                <th scope="col" className={worklistHeadCellClass}>Conta</th>
+                <th scope="col" className={worklistHeadCellClass}>Direção</th>
+                <th scope="col" className={worklistNumericHeadCellClass}>Valor</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <MoneyActionForm
-          title="Postar lançamento"
-          description="A postagem é recusada se o período estiver fechado, o lançamento desbalanceado ou a conta não postável."
-          confirmTitle="Postar lançamento"
-          confirmDescription="O servidor valida período, versão, contas e partidas dobradas e fixa o número."
-          confirmLabel="Postar"
-          disabled={journal.status !== 'DRAFT' || journal.kind === 'REVERSAL'}
-          mapError={mapAccountingErrorToMessage}
-          onReload={() => void onReload()}
-          onSubmit={async () => {
-            onReady(await postJournal(journal.id, { rowVersion: journal.rowVersion }));
-          }}
-        />
-        <MoneyActionForm
-          title="Estornar lançamento"
-          description="O estorno gera o lançamento inverso no servidor e preserva o histórico."
-          confirmTitle="Estornar lançamento"
-          confirmDescription="Somente o backend decide se o estorno é permitido."
-          confirmLabel="Estornar"
-          reasonLabel="Justificativa"
-          disabled={journal.status !== 'POSTED'}
-          mapError={mapAccountingErrorToMessage}
-          onReload={() => void onReload()}
-          onSubmit={async ({ reason }) => {
-            onReady(
-              await reverseJournal(journal.id, {
-                rowVersion: journal.rowVersion,
-                reason: reason ?? '',
-              }),
-            );
-          }}
-        />
-      </div>
-    </>
+            </thead>
+            <tbody>
+              {journal.lines.map((line) => (
+                <tr key={line.id} className={worklistRowClass}>
+                  <td className={worklistCellClass}>{line.lineNumber}</td>
+                  <td className={`${worklistCellClass} font-mono`}>
+                    {line.accountCode ?? line.accountId}
+                    {line.accountName ? ` — ${line.accountName}` : ''}
+                  </td>
+                  <td className={worklistCellClass}>
+                    {MOVEMENT_DIRECTION_LABELS[line.direction] ?? line.direction}
+                  </td>
+                  <td className={worklistNumericCellClass}>
+                    <Money value={line.amount} currencyCode={journal.currencyCode} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </ObjectPanel>
+
+      <ObjectPanel title="Comandos">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <div id="journal-post-command">
+            <MoneyActionForm
+              title="Postar lançamento"
+              description="A postagem é recusada se o período estiver fechado, o lançamento desbalanceado ou a conta não postável."
+              confirmTitle="Postar lançamento"
+              confirmDescription="O servidor valida período, versão, contas e partidas dobradas e fixa o número."
+              confirmLabel="Postar"
+              disabled={!canPost}
+              mapError={mapAccountingErrorToMessage}
+              onReload={() => void onReload()}
+              onSubmit={async () => {
+                onReady(await postJournal(journal.id, { rowVersion: journal.rowVersion }));
+              }}
+            />
+          </div>
+          <div id="journal-reverse-command">
+            <MoneyActionForm
+              title="Estornar lançamento"
+              description="O estorno gera o lançamento inverso no servidor e preserva o histórico."
+              confirmTitle="Estornar lançamento"
+              confirmDescription="Somente o backend decide se o estorno é permitido."
+              confirmLabel="Estornar"
+              reasonLabel="Justificativa"
+              disabled={!canReverse}
+              mapError={mapAccountingErrorToMessage}
+              onReload={() => void onReload()}
+              onSubmit={async ({ reason }) => {
+                onReady(
+                  await reverseJournal(journal.id, {
+                    rowVersion: journal.rowVersion,
+                    reason: reason ?? '',
+                  }),
+                );
+              }}
+            />
+          </div>
+        </div>
+      </ObjectPanel>
+    </EnterpriseObjectPage>
   );
 }
 
