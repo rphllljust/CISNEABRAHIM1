@@ -1,4 +1,10 @@
-import { isPurchaseOrderPricingStructure } from '../domain/purchase-order';
+import { isPurchaseOrderPricingStructure, isPurchaseOrderStatus } from '../domain/purchase-order';
+import {
+  isPurchaseOrderListDirection,
+  isPurchaseOrderListSort,
+  parsePurchaseOrderAdvancedFilter,
+} from '../repositories/purchase-order-list-sql';
+import type { PurchaseOrderListQuery } from '../services/purchase-orders-access.service';
 import type {
   CancelPurchaseOrderInput,
   CreatePurchaseOrderInput,
@@ -192,6 +198,29 @@ export function parseLinkPurchaseOrderDocumentInput(
   return parseLinkDocumentInput(body);
 }
 
-export function parseListPurchaseOrdersQuery(query: Record<string, unknown>) {
-  return parseCommercialEntityListQuery(query);
+export function parseListPurchaseOrdersQuery(query: Record<string, unknown>): PurchaseOrderListQuery {
+  const base = parseCommercialEntityListQuery(query);
+  const status = typeof query['status'] === 'string' ? query['status'] : undefined;
+  if (status && !isPurchaseOrderStatus(status)) {
+    throw new Error('status invalid');
+  }
+  const sort = typeof query['sort'] === 'string' ? query['sort'] : undefined;
+  const direction = typeof query['direction'] === 'string' ? query['direction'] : undefined;
+  if (sort !== undefined && !isPurchaseOrderListSort(sort)) {
+    throw new Error('sort invalid');
+  }
+  if (direction !== undefined && !isPurchaseOrderListDirection(direction)) {
+    throw new Error('direction invalid');
+  }
+  return {
+    ...base,
+    status,
+    currencyCode: typeof query['currencyCode'] === 'string' ? query['currencyCode'] : undefined,
+    issueFrom: typeof query['issueFrom'] === 'string' ? query['issueFrom'] : undefined,
+    issueTo: typeof query['issueTo'] === 'string' ? query['issueTo'] : undefined,
+    search: typeof query['q'] === 'string' ? query['q'] : undefined,
+    advanced: parsePurchaseOrderAdvancedFilter(query['filters']),
+    sort: sort && isPurchaseOrderListSort(sort) ? sort : undefined,
+    direction: direction && isPurchaseOrderListDirection(direction) ? direction : undefined,
+  };
 }

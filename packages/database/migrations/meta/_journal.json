@@ -645,6 +645,13 @@
                         "when":  179090300000000000,
                         "tag":  "0091_metadata_seed_proposal",
                         "breakpoints":  true
+                    },
+                    {
+                        "idx":  92,
+                        "version":  "7",
+                        "when":  179090350000000000,
+                        "tag":  "0092_metadata_seed_purchase_order",
+                        "breakpoints":  true
                     }
                 ]
 }

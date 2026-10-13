@@ -27,6 +27,13 @@ import type {
 import { PurchaseOrdersRepository } from '../repositories/purchase-orders.repository';
 import type { PurchaseOrderRow } from '../repositories/purchase-orders.repository.types';
 import {
+  buildPurchaseOrderListOrderClause,
+  buildPurchaseOrderListWhere,
+  type PurchaseOrderAdvancedFilter,
+  type PurchaseOrderListDirection,
+  type PurchaseOrderListSort,
+} from '../repositories/purchase-order-list-sql';
+import {
   toPurchaseOrderDetailResponse,
   toPurchaseOrderListItemResponse,
   type PurchaseOrderDetailResponse,
@@ -54,6 +61,27 @@ import {
   resolveUpdatePurchaseOrderDraftInput,
 } from './purchase-orders-input-resolution';
 import { PurchaseOrdersReferenceValidationService } from './purchase-orders-reference-validation.service';
+
+/**
+ * Consulta da fila de pedidos de compra.
+ *
+ * Espelha `ProposalListQuery`: além do escopo (cliente/unidade), aceita enumeração de situação,
+ * moeda, janela de emissão, busca livre, ordenação por allow-list e filtro avançado composto.
+ */
+export type PurchaseOrderListQuery = {
+  clientId?: string;
+  unitId?: string;
+  status?: string;
+  currencyCode?: string;
+  issueFrom?: string;
+  issueTo?: string;
+  search?: string;
+  advanced?: PurchaseOrderAdvancedFilter;
+  sort?: PurchaseOrderListSort;
+  direction?: PurchaseOrderListDirection;
+  limit: number;
+  offset: number;
+};
 
 @Injectable()
 export class PurchaseOrdersAccessService {
@@ -445,26 +473,26 @@ export class PurchaseOrdersAccessService {
 
   async list(
     actor: IdentityAuthzContext,
-    query: { clientId?: string; unitId?: string; limit: number; offset: number },
+    query: PurchaseOrderListQuery,
   ): Promise<{ items: PurchaseOrderListItemResponse[]; limit: number; offset: number }> {
     const scopeFilter = await this.authz.buildListScopeFilter(actor);
 
-    const clauses = [scopeFilter.clause];
-    const params = [...scopeFilter.params];
-    if (query.clientId) {
-      params.push(query.clientId);
-      clauses.push(`client_id = $${params.length}::uuid`);
-    }
-    if (query.unitId) {
-      params.push(query.unitId);
-      clauses.push(`unit_id = $${params.length}`);
-    }
+    /*
+     * PREDICADO ÚNICO, montado no plano de persistência.
+     *
+     * Antes o serviço concatenava `clauses`/`params` inline e conhecia apenas cliente e unidade.
+     * Agora a montagem vive em `purchase-order-list-sql`, ao lado do SQL e das allow-lists de
+     * ordenação — o serviço de aplicação deixa de carregar fragmento de SQL. A autorização
+     * continua sendo o PRIMEIRO termo do predicado, como já era.
+     */
+    const where = buildPurchaseOrderListWhere(scopeFilter, query);
 
     const rows = await this.purchaseOrdersRepository.listPurchaseOrders(
-      clauses.join(' AND '),
-      params,
+      where.clause,
+      where.params,
       query.limit,
       query.offset,
+      buildPurchaseOrderListOrderClause(query.sort, query.direction),
     );
 
     // Aditivo: a listagem passa a expor consumo e saldo. Nenhuma consulta nova — os campos ja
