@@ -6,6 +6,7 @@ import {
   probeReadAccess,
   requestJson,
 } from '../../financial-ui/enterprise-api';
+import type { AdvancedFilterPayload } from '../../engine';
 import type {
   AutoMatchResult,
   BankStatement,
@@ -94,6 +95,11 @@ export type FinanceTitleListQuery = {
   dueTo?: string;
   sortBy?: string;
   sortDir?: string;
+  /**
+   * Filtro composto já convertido para o contrato do servidor
+   * (`advancedFilterFromGroup` + o allow-list do domínio).
+   */
+  advanced?: AdvancedFilterPayload | null;
 };
 
 export function buildFinanceTitleQuery(query: FinanceTitleListQuery): string {
@@ -106,6 +112,11 @@ export function buildFinanceTitleQuery(query: FinanceTitleListQuery): string {
   if (query.dueTo) params.set('dueTo', query.dueTo);
   if (query.sortBy) params.set('sortBy', query.sortBy);
   if (query.sortDir) params.set('sortDir', query.sortDir);
+  // O recorte composto entra na MESMA query: paginação, janela e árvore AND/OR compõem um único
+  // predicado no servidor, e não duas leituras reconciliadas no navegador.
+  if (query.advanced && query.advanced.groups.length > 0) {
+    params.set('filters', JSON.stringify(query.advanced));
+  }
   const serialized = params.toString();
   return serialized ? `?${serialized}` : '';
 }

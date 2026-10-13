@@ -152,6 +152,15 @@ const MIGRATION_EFFECT_CHECKS = {
   '0091_metadata_seed_proposal': { row: ['meta', 'entities', 'name', 'proposal'] },
   '0092_metadata_seed_purchase_order': { row: ['meta', 'entities', 'name', 'purchase-order'] },
   '0093_metadata_seed_contract': { row: ['meta', 'entities', 'name', 'contract'] },
+  /*
+   * 0094 não registra entidade: ela LIGA flags de filtro em campos de uma entidade já semeada. O
+   * efeito observável é a FLAG, então a prova é a coluna `in_filter` de um campo nomeado —
+   * `table`/`row` não descreveriam este efeito, e uma prova frouxa deixaria o hash ser registrado
+   * sem que o recorte composto existisse de fato.
+   */
+  '0094_metadata_receivable_compound_filter': {
+    fieldFlag: ['meta', 'fields', 'receivables', 'external_reference', 'in_filter'],
+  },
 };
 
 /**
@@ -260,6 +269,28 @@ async function migrationEffectsPresent(pool, tag) {
     const result = await pool.query(
       `SELECT EXISTS (SELECT 1 FROM ${relation} WHERE ${field} = $1) AS exists`,
       [value],
+    );
+    return result.rows[0]?.exists === true;
+  }
+  /*
+   * Flag booleana de um campo de metadado.
+   *
+   * Uma migration que LIGA uma capacidade (`in_filter`, `in_list`, `in_form`...) não cria artefato
+   * nenhum: o efeito é o VALOR da coluna na linha daquele campo. `table` provaria só que a tabela
+   * existe (criada por migration anterior) e `row` provaria só que o campo foi semeado — nenhum dos
+   * dois distingue "a flag foi ligada" de "a migration nunca rodou".
+   */
+  if (check.fieldFlag) {
+    const [schema, table, entityName, fieldName, flagColumn] = check.fieldFlag;
+    const relation = `${quoteIdentifier(schema)}.${quoteIdentifier(table)}`;
+    const result = await pool.query(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM ${relation} f
+         INNER JOIN ${quoteIdentifier('meta')}.${quoteIdentifier('entities')} e ON e.id = f.entity_id
+         WHERE e.name = $1 AND f.name = $2 AND f.${quoteIdentifier(flagColumn)} = true
+       ) AS exists`,
+      [entityName, fieldName],
     );
     return result.rows[0]?.exists === true;
   }

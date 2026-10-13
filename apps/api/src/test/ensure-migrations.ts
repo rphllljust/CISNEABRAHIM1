@@ -898,6 +898,25 @@ $$;`);
       await applySqlFile(pool, '0093_metadata_seed_contract.sql');
     }
 
+    /*
+     * 0094 — LIGA flags de filtro em campos de uma entidade JÁ semeada.
+     *
+     * A prova não é a existência da linha (o seed 0086 já a criou) e sim a FLAG: sem esta leitura
+     * um banco onde a 0094 nunca rodou pareceria completo, e o construtor de filtro continuaria
+     * sem oferecer os campos do recorte composto.
+     */
+    const metadataReceivableFilterFlag = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM meta.fields f
+         INNER JOIN meta.entities e ON e.id = f.entity_id
+         WHERE e.name = 'receivables' AND f.name = 'external_reference' AND f.in_filter = true
+       ) AS exists`,
+    );
+    if (!metadataReceivableFilterFlag.rows[0]?.exists) {
+      await applySqlFile(pool, '0094_metadata_receivable_compound_filter.sql');
+    }
+
     await syncDrizzleJournal(pool);
   } finally {
     await pool.end();

@@ -28,9 +28,10 @@ import {
   DynamicFilterBuilder,
   emptyFilterGroup,
   isFilterGroupActive,
-  matchesFilterGroup,
   type FilterGroup,
 } from '../../engine/DynamicFilterBuilder';
+import { advancedFilterFromGroup } from '../../engine';
+import { FINANCE_TITLE_FILTER_SPECS } from './finance-title-filter-specs';
 import { getReceivablesSummary, listReceivables, type FinanceTitlePage, type FinanceTitleSummary } from '../api/finance-api';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import { FinanceStatusBadge } from '../components/FinanceStatusBadge';
@@ -89,6 +90,23 @@ export function ReceivablesListPage() {
    */
   const offset = (pageNumber - 1) * BACKOFFICE_TABLE_PAGE_SIZE;
   const [statusForQuery, setStatusForQuery] = useState('');
+
+  /*
+   * A ÁRVORE DO CONSTRUTOR VAI AO SERVIDOR.
+   *
+   * Antes, o recorte composto era aplicado SÓ no navegador (`byBuilder` filtrava a página já
+   * carregada). Numa carteira maior que uma página, compor um filtro e ver "nenhum título" não
+   * significava "não existe" — significava "não está entre os 20 carregados". O operador não tinha
+   * como distinguir, e o total ao lado continuava contando o conjunto NÃO filtrado.
+   *
+   * O conversor compartilhado traduz a árvore para o contrato do servidor usando o allow-list do
+   * domínio; condição que o servidor não executa é DESCARTADA pelo conversor, não aproximada.
+   */
+  const advancedPayload = useMemo(
+    () => advancedFilterFromGroup(filterGroup, FINANCE_TITLE_FILTER_SPECS),
+    [filterGroup],
+  );
+
   const loader = useCallback(
     (signal?: AbortSignal) =>
       listReceivables(
@@ -96,12 +114,13 @@ export function ReceivablesListPage() {
           limit: BACKOFFICE_TABLE_PAGE_SIZE,
           offset,
           status: statusForQuery || undefined,
+          advanced: advancedPayload,
           sortBy: 'due_date',
           sortDir: 'asc',
         },
         signal,
       ),
-    [offset, statusForQuery],
+    [advancedPayload, offset, statusForQuery],
   );
   const { state, reload, refreshing } = useBackofficeQuery<FinanceTitlePage<ReceivableDetail>>({
     loader,
@@ -190,9 +209,14 @@ export function ReceivablesListPage() {
    * recorte continua sendo `status` na consulta ao servidor; a árvore é o recorte COMPOSTO que o
    * endpoint não aceita como parâmetro.
    */
-  const byBuilder = isFilterGroupActive(filterGroup)
-    ? pageItems.filter((item) => matchesFilterGroup(filterGroup, receivableEngineRow(item)))
-    : pageItems;
+  /*
+   * O RECORTE JÁ VEM APLICADO DO SERVIDOR.
+   *
+   * `byBuilder` deixou de FILTRAR: a árvore agora viaja na consulta, e o que a tela recebe é
+   * exatamente o conjunto do recorte. Refiltrar aqui reintroduziria a segunda verdade que este
+   * ajuste remove — e faria a linha sumir da grade sem que o servidor tivesse sido consultado.
+   */
+  const byBuilder = pageItems;
 
   const rows = byBuilder.map(receivableEngineRow);
   const selectedRows = selection.selectedRows(pageItems);
@@ -383,6 +407,12 @@ export function ReceivablesListPage() {
               <DynamicList
                 schema={schema}
                 rows={rows}
+                /*
+                 * NOME ACESSÍVEL DA GRADE. Faltava: a lista era a única das worklists financeiras
+                 * sem `ariaLabel`, e um leitor de tela anunciava apenas "tabela, 5 colunas" sem
+                 * dizer QUAL fila abriu. O nome é o mesmo que o cabeçalho da página publica.
+                 */
+                ariaLabel="Lista de contas a receber"
                 emptyMessage="Nenhum título corresponde ao recorte atual. Ajuste o filtro ou limpe a visão para ver toda a carteira."
                 selectedIds={selection.selectedIds}
                 /*

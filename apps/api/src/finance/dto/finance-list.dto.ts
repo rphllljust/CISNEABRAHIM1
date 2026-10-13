@@ -15,6 +15,15 @@ export type FinanceListQuery = {
   dueTo?: string;
   sortBy?: string;
   sortDir?: string;
+  /**
+   * Filtro composto já parseado contra o allow-list da ENTIDADE.
+   *
+   * O parser é genérico
+   * (`infrastructure/http/contracts/advanced-filter-query`), mas os campos aceitos são do domínio —
+   * por isso cada listagem chama o seu próprio `parseXAdvancedFilter` e entrega o resultado aqui,
+   * já validado. Este DTO não valida filtro avançado: ele não conhece a entidade.
+   */
+  advanced?: unknown;
 };
 
 const SORT_DIRECTIONS = new Set(['asc', 'desc']);

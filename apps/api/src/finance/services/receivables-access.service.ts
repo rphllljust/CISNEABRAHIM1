@@ -30,6 +30,7 @@ import {
   type SettleReceivableInput,
 } from '../domain/receivable.validation';
 import { ReceivablesRepository } from '../repositories/receivables.repository';
+import type { ReceivableAdvancedFilter } from '../repositories/receivable-list-sql';
 import {
   toReceivableDetailResponse,
   type ReceivableDetailResponse,
@@ -163,7 +164,7 @@ export class ReceivablesAccessService implements FinanceReceivablePort {
    */
   async list(
     actor: IdentityAuthzContext,
-    query: { limit: number; offset: number; status?: string; q?: string; dueFrom?: string; dueTo?: string; sortBy?: string; sortDir?: string },
+    query: { limit: number; offset: number; status?: string; q?: string; dueFrom?: string; dueTo?: string; sortBy?: string; sortDir?: string; advanced?: ReceivableAdvancedFilter },
   ): Promise<ReceivableListResponse> {
     await this.authz.assertReceivableList(actor);
 
@@ -186,6 +187,7 @@ export class ReceivablesAccessService implements FinanceReceivablePort {
       dueFrom: query.dueFrom,
       dueTo: query.dueTo,
       search: query.q,
+      advanced: query.advanced,
       limit: query.limit,
       offset: query.offset,
       sortBy: normalizeReceivableSortBy(query.sortBy),

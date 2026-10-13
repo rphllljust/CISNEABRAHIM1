@@ -22,6 +22,10 @@ import {
   RECONCILIATION_TARGET_KINDS,
 } from '../domain/bank-reconciliation';
 import { CollectionsRepository } from './collections.repository';
+import {
+  buildReceivableAdvancedClause,
+  type ReceivableAdvancedFilter,
+} from './receivable-list-sql';
 import type {
   CancelReceivablePersistenceInput,
   OpenReceivablePersistenceInput,
@@ -113,6 +117,8 @@ export class ReceivablesRepository {
     dueFrom?: string;
     dueTo?: string;
     search?: string;
+    /** Filtro composto já validado pelo contrato; ausente = sem recorte composto. */
+    advanced?: ReceivableAdvancedFilter;
     limit: number;
     offset: number;
     sortBy: 'due_date' | 'created_at';
@@ -155,6 +161,20 @@ export class ReceivablesRepository {
       // mas nunca vira padrao livre no servidor.
       params.push(`%${input.search.replace(/[%_\\]/g, '\\$&')}%`);
       where.push(`(r.external_reference ILIKE $${params.length})`);
+    }
+
+    /*
+     * FILTRO COMPOSTO — entra como UM predicado entre os demais, convivendo por conjunção com o
+     * escopo de autorização, a situação, a janela de vencimento e a busca. A tradução de cada
+     * condição (coluna real, operador, cast e parâmetro) vive em `receivable-list-sql`, junto do
+     * allow-list que o parser valida — leitura e escrita do contrato no mesmo lugar.
+     */
+    if (input.advanced) {
+      const advanced = buildReceivableAdvancedClause(input.advanced, params.length + 1);
+      if (advanced) {
+        where.push(advanced.clause);
+        params.push(...advanced.params);
+      }
     }
 
     const whereSql = `WHERE ${where.join(' AND ')}`;
