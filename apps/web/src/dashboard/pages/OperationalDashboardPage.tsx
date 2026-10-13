@@ -423,22 +423,28 @@ export function OperationalDashboardPage() {
   const productivitySection = showOperationDistribution && dashboardKpis.length > 0
     ? { kpis: dashboardKpis, volume: buildPeriodVolume(snapshot!) }
     : null;
-  /*
-   * QUANTAS SUPERFICIES ANALITICAS EXISTEM DE FATO.
-   *
-   * A grade declara o proprio numero de colunas a partir daqui: com uma superficie so, ela ocupa a
-   * largura inteira em vez de deixar dois tercos vazios na faixa. E a diferenca entre "layout
-   * responsivo" e "layout que se adapta ao que o dado autorizou".
-   */
-  const analyticsCount =
-    (showOperationDistribution ? 1 : 0) + (showAging ? 1 : 0) + 1;
-
   const flowStages = snapshot ? buildBusinessFlow(snapshot, domain) : [];
   const attentionItems = scope?.items ?? [];
+  const hasExceptions = attentionItems.length > 0;
   const queueTotal = inboxPhase === 'ready' ? (inbox?.total ?? null) : null;
   const incompleteNotice = inbox?.unavailableDomains?.length
     ? `Fila incompleta: ${inbox.unavailableDomains.join(', ')} não respondeu nesta leitura.`
     : null;
+
+  /*
+   * QUANTAS SUPERFICIES ANALITICAS EXISTEM DE FATO — E A TERCEIRA NAO E UM SLOT RESERVADO.
+   *
+   * A faixa analitica da referencia tem tres superficies: DISTRIBUICAO | SERIE | ALERTAS. As duas
+   * primeiras existem quando o dado autoritativo existe. A terceira e a worklist de excecoes, e ela
+   * segue a mesma regra: sem excecao publicada NENHUMA, a superficie nao ocupa coluna — a faixa se
+   * recompõe em duas, ou em uma, sem deixar buraco. Uma coluna dizendo "sem excecoes" custaria 24%
+   * da largura para uma nao-noticia.
+   *
+   * A grade recebe `data-count` e declara as proprias colunas a partir daqui: e a diferenca entre
+   * "layout responsivo" e "layout que se adapta ao que o dado autorizou".
+   */
+  const analyticsCount =
+    (showOperationDistribution ? 1 : 0) + (showAging ? 1 : 0) + (hasExceptions ? 1 : 0);
 
   return (
     <ModulePage layout="workspace">
@@ -477,49 +483,29 @@ export function OperationalDashboardPage() {
             <WorkbenchKpiStrip kpis={workbenchKpis} />
 
             {/*
-              LINHA 2 — ANALITICO. Tres superficies: operacao | carteira | EXCECOES.
+              LINHA 2 — ANALITICO. Ate tres superficies: operacao | carteira | EXCECOES.
 
-              A grade se declara pelo que existe: superficie sem dado autoritativo nao reserva
-              coluna, e uma faixa de duas superficies ocupa a largura inteira em vez de deixar um
-              terco vazio. A terceira e uma WORKLIST COMPACTA, nao um banner: cada linha traz
-              quantidade real, descricao e drilldown; nenhuma excecao = estado vazio de UMA linha.
+              Surface ausente NAO reserva coluna: a grade declara `data-count` e se recompoe. A
+              superficie de excecoes so existe quando ha excecao publicada — sem excecao, ela nao
+              ocupa 24% da largura para dizer "nenhuma".
             */}
-            <section
-              className="dashboard-analytics"
-              data-count={analyticsCount}
-              aria-label="Análise operacional"
-            >
-              {showOperationDistribution ? (
-                <OperationDistribution snapshot={snapshot} />
-              ) : null}
+            {analyticsCount > 0 ? (
+              <section
+                className="dashboard-analytics"
+                data-count={analyticsCount}
+                aria-label="Análise operacional"
+              >
+                {showOperationDistribution ? (
+                  <OperationDistribution snapshot={snapshot} />
+                ) : null}
 
-              {showAging ? <AgingDistribution aging={snapshot.charts.financialAging} /> : null}
+                {showAging ? <AgingDistribution aging={snapshot.charts.financialAging} /> : null}
 
-              {productivitySection ? (
-                <div
-                  className="dashboard-analytics__panel"
-                  {...semanticSectionAttrs([
-                    'productivity.completed_count',
-                    'productivity.on_time_rate',
-                    'productivity.avg_cycle_hours',
-                    'productivity.rework_rate',
-                  ])}
-                >
-                  <MetricStrip
-                    kpis={productivitySection.kpis}
-                    volume={productivitySection.volume}
-                    excludeIds={workbenchKpiIds}
-                  />
-                </div>
-              ) : null}
-
-              <ExceptionSurface
-                items={attentionItems}
-                notEvaluated={scope?.notEvaluated ?? []}
-                inboxPhase={inboxPhase}
-                snapshotAvailable={snapshot !== undefined}
-              />
-            </section>
+                {hasExceptions ? (
+                  <ExceptionSurface items={attentionItems} notEvaluated={scope?.notEvaluated ?? []} />
+                ) : null}
+              </section>
+            ) : null}
 
             {/*
               LINHA 3 — FLUXO OPERACIONAL. Uma linha de processo (estagios conectados), nao cards.
@@ -625,6 +611,32 @@ export function OperationalDashboardPage() {
               onClearSearch={() => updateQueueParam('q', null)}
               onClearRecorte={() => updateOperationalRecorte('domain', null)}
             />
+
+            {/*
+              RESUMO EXECUTIVO DO PERIODO — leitura secundaria de MAGNITUDE (produtividade, taxas,
+              volume do periodo). Ele fica DEPOIS da fila de proposito: as tres superficies
+              analiticas sao de RECORTE (onde o trabalho esta) e este e de MAGNITUDE (quanto o
+              periodo produziu). Posicionado antes, ele empurrava a worklist para fora da primeira
+              dobra — e a primeira dobra pertence ao trabalho, nao ao relatorio.
+            */}
+            {productivitySection ? (
+              <section
+                className="dashboard-summary"
+                aria-label="Saúde da empresa no período"
+                {...semanticSectionAttrs([
+                  'productivity.completed_count',
+                  'productivity.on_time_rate',
+                  'productivity.avg_cycle_hours',
+                  'productivity.rework_rate',
+                ])}
+              >
+                <MetricStrip
+                  kpis={productivitySection.kpis}
+                  volume={productivitySection.volume}
+                  excludeIds={workbenchKpiIds}
+                />
+              </section>
+            ) : null}
           </div>
 
           {/*
@@ -737,7 +749,10 @@ function WorkQueue({
   const totalPages = page?.totalPages ?? 1;
 
   return (
-    <section className="dashboard-queue" aria-label="Fila de trabalho do recorte">
+    <section
+      className={cn('dashboard-queue', items.length > 0 && 'dashboard-queue--filled')}
+      aria-label="Fila de trabalho do recorte"
+    >
       <header className="dashboard-queue__head">
         <h2 className="dashboard-queue__title">Fila de trabalho</h2>
         {typeof total === 'number' ? (
@@ -944,15 +959,51 @@ function WorkQueue({
    ============================================================================ */
 
 /**
- * ANALITICO 1 — DISTRIBUICAO OPERACIONAL POR SITUACAO.
+ * ANALITICO A — DISTRIBUICAO DE OPERACAO (DONUT + LEGENDA).
  *
- * O servidor publica a contagem de cada status no escopo. A barra e proporcional a MAIOR barra —
- * leitura de distribuicao, nao de total — e cada linha abre a lista REAL filtrada por aquele
- * status. Nao existe total somado no centro do grafico: a soma dos status nao e um fato publicado.
+ * O servidor publica a contagem de cada status no escopo. O donut e construido com
+ * `conic-gradient` — SEM biblioteca de grafico e SEM canvas, para que cada categoria continue sendo
+ * um NODE do DOM verificavel: o E2E conta segmentos e le o valor, em vez de "olhar o screenshot".
+ *
+ * O TOTAL CENTRAL SO APARECE QUANDO E AUTORITATIVO. A soma dos status e o total das ordens que o
+ * servidor publicou nessa dimensao — a distribuicao E o conjunto aqui, porque a tela so desenha o
+ * donut quando o snapshot publicou `serviceOrdersByStatus.items`. Quando a distribuicao nao cobre o
+ * conjunto (nao e o caso hoje), o centro fica vazio. AUSENCIA != ZERO.
+ *
+ * O PERCENTUAL so aparece quando o denominador e o conjunto publicado — nunca sobre uma amostra.
  */
 function OperationDistribution({ snapshot }: { snapshot: ExecutiveDashboardSnapshot }) {
   const status = snapshot.charts.serviceOrdersByStatus;
-  const maxCount = Math.max(1, ...status.items.map((item) => item.count));
+  const total = status.items.reduce((sum, item) => sum + item.count, 0);
+
+  /*
+   * COR POR SEMANTICA DO ESTADO, no vocabulario que a propria lista de OS usa. O que nao esta
+   * mapeado cai na serie neutra — o donut nao inventa significado de cor para um estado novo.
+   */
+  const strokeFor = (statusId: string): string => {
+    switch (statusId) {
+      case 'IN_EXECUTION':
+        return 'var(--color-brand-600)';
+      case 'PAUSED':
+        return 'var(--color-amber-500)';
+      case 'RELEASED':
+        return 'var(--color-slate-400)';
+      case 'COMPLETED':
+        return 'var(--color-emerald-600)';
+      default:
+        return 'var(--color-slate-300)';
+    }
+  };
+
+  const segments = status.items.filter((item) => item.count > 0);
+  let cursor = 0;
+  const stops = segments.map((item) => {
+    const share = total > 0 ? (item.count / total) * 100 : 0;
+    const from = cursor;
+    cursor += share;
+    return `${strokeFor(item.status)} ${from}% ${cursor}%`;
+  });
+  const ring = stops.length > 0 ? `conic-gradient(${stops.join(', ')})` : 'none';
 
   return (
     <div className="dashboard-analytics__panel" aria-labelledby="status-heading">
@@ -960,35 +1011,46 @@ function OperationDistribution({ snapshot }: { snapshot: ExecutiveDashboardSnaps
         <h2 id="status-heading" className="dashboard-analytics__title">
           Ordens por situação
         </h2>
-        <span className="dashboard-analytics__meta">Distribuição publicada no escopo</span>
+        <span className="dashboard-analytics__meta">Escopo autorizado</span>
       </header>
 
-      <ul className="dashboard-dist">
-        {status.items.map((item) => (
-          <li key={item.status} className="dashboard-dist__item">
-            <Link
-              className="dashboard-dist__row"
-              to={`/app/service-orders?status=${item.status}`}
-              aria-label={`${item.label}: ${item.count} ordens. Abrir lista filtrada.`}
-            >
-              <span className="dashboard-dist__label">{item.label}</span>
-              <span className="dashboard-dist__track" aria-hidden>
-                <span
-                  className={cn(
-                    'dashboard-dist__bar',
-                    item.status === 'IN_EXECUTION' && 'dashboard-dist__bar--active',
-                    item.status === 'PAUSED' && 'dashboard-dist__bar--paused',
-                  )}
-                  style={{ width: `${(item.count / maxCount) * 100}%` }}
-                />
+      <div className="dashboard-donut">
+        <div className="dashboard-donut__ring" style={{ backgroundImage: ring }} aria-hidden>
+          {total > 0 ? (
+            <span className="dashboard-donut__center">
+              <span className="dashboard-donut__total tabular-nums">{total}</span>
+              <span className="dashboard-donut__total-label">
+                {total === 1 ? 'ordem' : 'ordens'}
               </span>
-              <span className="dashboard-dist__count tabular-nums">{item.count}</span>
-            </Link>
-          </li>
-        ))}
-      </ul>
+            </span>
+          ) : null}
+        </div>
 
-      <p className="dashboard-analytics__note">{status.summary}</p>
+        <ul className="dashboard-donut__legend">
+          {status.items.map((item) => (
+            <li key={item.status} className="dashboard-donut__legend-item">
+              <Link
+                className="dashboard-donut__legend-row"
+                to={`/app/service-orders?status=${item.status}`}
+                aria-label={`${item.label}: ${item.count} ordens. Abrir lista filtrada.`}
+              >
+                <span
+                  className="dashboard-donut__swatch"
+                  style={{ background: strokeFor(item.status) }}
+                  aria-hidden
+                />
+                <span className="dashboard-donut__legend-label">{item.label}</span>
+                <span className="dashboard-donut__legend-count tabular-nums">{item.count}</span>
+                {total > 0 ? (
+                  <span className="dashboard-donut__legend-share tabular-nums">
+                    {Math.round((item.count / total) * 100)}%
+                  </span>
+                ) : null}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }
@@ -1050,25 +1112,24 @@ function AgingDistribution({
 }
 
 /**
- * ANALITICO 3 — ALERTAS E EXCECOES.
+ * ANALITICO C — ALERTAS E EXCECOES.
  *
- * WORKLIST COMPACTA, nao banner. Cada linha tem icone semantico, QUANTIDADE REAL publicada,
- * descricao e drilldown. Cor por significado: critico vermelho, atencao ambar, informativo azul,
- * neutro slate. Sem excecao real, o estado vazio tem UMA linha — nunca um bloco verde de 100px
- * dizendo "nenhuma excecao", que gasta a primeira dobra com uma nao-noticia.
+ * WORKLIST COMPACTA, nao banner. Cada linha tem icone semantico, QUANTIDADE REAL publicada, texto e
+ * drilldown, em 28-34px de altura. Cor por significado: critico vermelho, atencao ambar, informativo
+ * azul — sempre pela regua lateral, nunca por area cheia.
+ *
+ * ESTA SUPERFICIE NAO TEM ESTADO VAZIO. Ela so e renderizada quando existe excecao publicada
+ * (`hasExceptions` na pagina governa a coluna); sem excecao, a faixa analitica se recompoe e uma
+ * coluna vazia de 24% nao e reservada para uma nao-noticia.
  *
  * `notEvaluated` NAO e "zero": e ausencia de avaliacao, e aparece como nota neutra.
  */
 function ExceptionSurface({
   items,
   notEvaluated,
-  inboxPhase,
-  snapshotAvailable,
 }: {
   items: ExecutiveDashboardSnapshot['attention'];
   notEvaluated: string[];
-  inboxPhase: 'loading' | 'ready' | 'denied' | 'error';
-  snapshotAvailable: boolean;
 }) {
   const ordered = [...items].sort((left, right) => {
     const rank = { critical: 0, warning: 1, info: 2 } as const;
@@ -1082,51 +1143,43 @@ function ExceptionSurface({
         <h2 id="exceptions-heading" className="dashboard-analytics__title">
           Alertas e exceções
         </h2>
-        <span className="dashboard-analytics__meta">
-          {ordered.length > 0 ? `${ordered.length} publicadas` : 'sem exceção publicada'}
-        </span>
+        <Link className="dashboard-exceptions__all" to="/app/work-inbox">
+          Ver todos
+        </Link>
       </header>
 
-      {ordered.length === 0 ? (
-        <p className="dashboard-exceptions__empty" role="status">
-          {inboxPhase === 'loading' || !snapshotAvailable
-            ? 'Leitura em andamento.'
-            : 'Nenhuma exceção publicada para este recorte e período.'}
-        </p>
-      ) : (
-        <ul className="dashboard-exceptions__list">
-          {ordered.map((item) => {
-            const href = item.href;
-            const body = (
-              <>
-                <span className="dashboard-exceptions__icon" aria-hidden>
-                  {item.severity === 'critical' ? '▲' : item.severity === 'warning' ? '◆' : '●'}
-                </span>
-                <span className="dashboard-exceptions__count tabular-nums">{item.count}</span>
-                <span className="dashboard-exceptions__label">{item.label}</span>
-                <span className="dashboard-exceptions__detail">{item.detail ?? item.ariaLabel}</span>
-              </>
-            );
-            return (
-              <li key={item.id} className="dashboard-exceptions__item">
-                {href ? (
-                  <Link
-                    className={cn('dashboard-exceptions__row', exceptionTone(item.severity))}
-                    to={href}
-                    aria-label={item.ariaLabel}
-                  >
-                    {body}
-                  </Link>
-                ) : (
-                  <div className={cn('dashboard-exceptions__row', exceptionTone(item.severity))}>
-                    {body}
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      <ul className="dashboard-exceptions__list">
+        {ordered.map((item) => {
+          const href = item.href;
+          const body = (
+            <>
+              <span className="dashboard-exceptions__icon" aria-hidden>
+                {item.severity === 'critical' ? '▲' : item.severity === 'warning' ? '◆' : '●'}
+              </span>
+              <span className="dashboard-exceptions__count tabular-nums">{item.count}</span>
+              <span className="dashboard-exceptions__label">{item.label}</span>
+              <span className="dashboard-exceptions__detail">{item.detail ?? item.ariaLabel}</span>
+            </>
+          );
+          return (
+            <li key={item.id} className="dashboard-exceptions__item">
+              {href ? (
+                <Link
+                  className={cn('dashboard-exceptions__row', exceptionTone(item.severity))}
+                  to={href}
+                  aria-label={item.ariaLabel}
+                >
+                  {body}
+                </Link>
+              ) : (
+                <div className={cn('dashboard-exceptions__row', exceptionTone(item.severity))}>
+                  {body}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
 
       {notEvaluated.length > 0 ? (
         <p className="dashboard-exceptions__note">

@@ -85,24 +85,26 @@ export function AppShellLayout() {
       </a>
 
       {/*
-        SIDEBAR 240px — a faixa 230-250px do sistema.
+        SIDEBAR 212px — a faixa 208-218px da referencia de central operacional.
 
-        Eram 288px (`w-[18rem]`). A sidebar e navegacao, nao superficie de trabalho: 48px devolvidos
-        aqui sao 48px que a grade densa usa em TODAS as rotas — e numa worklist de sete colunas isso
+        Eram 240px (`w-[15rem]`). A sidebar e NAVEGACAO, nao superficie de trabalho: 28px devolvidos
+        aqui sao 28px que a grade densa usa em TODAS as rotas — e numa worklist de sete colunas isso
         e a diferenca entre ver a coluna de acao e ter de rolar de lado. A densidade dos itens ja
         estava correta (34px); o que sobrava era largura vazia.
       */}
       <aside
-        className="shell__sidebar fixed inset-y-0 z-30 hidden w-[15rem] flex-col border-r border-[#1f2d3a] bg-[#07111d] lg:flex"
+        className="shell__sidebar fixed inset-y-0 z-30 hidden w-[13.25rem] flex-col border-r border-[#1f2d3a] bg-[#07111d] lg:flex"
         aria-label="Barra lateral"
       >
-        <div className="shell__brand flex h-[4rem] shrink-0 items-center gap-3 border-b border-white/10 px-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-brand-500 ring-1 ring-white/15">
-            <ShellBrandMark className="h-4 w-4 text-white" />
+        <div className="shell__brand flex h-[3.375rem] shrink-0 items-center gap-2.5 border-b border-white/10 px-3.5">
+          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-brand-500 ring-1 ring-white/15">
+            <ShellBrandMark className="h-3.5 w-3.5 text-white" />
           </div>
-          <div className="leading-tight">
-            <p className="text-[15px] font-semibold tracking-tight text-white">Cisne Rondônia</p>
-            <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
+          <div className="min-w-0 leading-tight">
+            <p className="truncate text-[13px] font-semibold tracking-tight text-white">
+              Cisne Rondônia
+            </p>
+            <p className="truncate text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-500">
               ERP corporativo
             </p>
           </div>
@@ -110,22 +112,22 @@ export function AppShellLayout() {
 
         <ShellNavList alertCount={activeCount} alertsLoading={alertsLoading} theme="dark" />
 
-        <div className="border-t border-white/10 p-4">
-          <div className="shell__account-card flex items-center gap-3 rounded-md border border-white/10 bg-white/[0.045] px-3 py-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-brand-500 text-xs font-semibold text-white">
+        <div className="border-t border-white/10 p-2.5">
+          <div className="shell__account-card flex items-center gap-2.5 rounded-md border border-white/10 bg-white/[0.045] px-2.5 py-1.5">
+            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-brand-500 text-[10px] font-semibold text-white">
               CN
             </div>
             <div className="min-w-0 leading-tight">
-              <p className="text-xs font-semibold text-white">Conta ativa</p>
+              <p className="text-[11px] font-semibold text-white">Conta ativa</p>
               {identityHint ? (
-                <p className="truncate text-[11px] text-slate-500">{identityHint}</p>
+                <p className="truncate text-[10px] text-slate-500">{identityHint}</p>
               ) : null}
             </div>
           </div>
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col lg:pl-[15rem]">
+      <div className="flex min-w-0 flex-1 flex-col lg:pl-[13.25rem]">
         <ShellTopBar
           onMenuToggle={toggleMobileNav}
           menuExpanded={mobileNavOpen && !isDesktop}

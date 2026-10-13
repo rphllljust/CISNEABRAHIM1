@@ -38,12 +38,11 @@ export function BusinessChainFlow({
   return (
     <section aria-labelledby="flow-heading" className="dashboard-chain">
       <header className="dashboard-chain__head">
-        <h2 id="flow-heading" className="dashboard-section-head__title">
-          Fluxo empresarial
+        <h2 id="flow-heading" className="dashboard-chain__title">
+          Fluxo operacional
         </h2>
         <p className="dashboard-chain__meta">
-          Operação → Medição → Faturamento → Recebimento · {domainLabel} · cada estágio mostra o que
-          ele mesmo publicou
+          {stages.map((stage) => stage.label).join(' → ')} · {domainLabel}
         </p>
       </header>
 
@@ -60,29 +59,27 @@ export function BusinessChainFlow({
 
           const content = (
             <>
-              <span className="dashboard-chain__label">{stage.label}</span>
-              <span className="dashboard-chain__value">
+              {/*
+                CIRCULO DE ETAPA — o estado da etapa e o proprio icone circular. Ele carrega cor por
+                SIGNIFICADO (critico/atencao/neutro) e o numero publicado dentro, quando existe. Sem
+                contagem, o circulo fica neutro e o numero nao aparece: AUSENCIA != ZERO.
+              */}
+              <span className="dashboard-chain__node" aria-hidden>
                 {stage.count !== null ? (
-                  <span className="dashboard-chain__number tabular-nums">{stage.count}</span>
+                  <span className="dashboard-chain__node-count tabular-nums">{stage.count}</span>
                 ) : (
-                  <span className="dashboard-chain__unknown">sem contagem</span>
+                  <span className="dashboard-chain__node-empty">—</span>
                 )}
-                {stage.amount ? (
-                  <Money value={stage.amount} className="dashboard-chain__exposure" />
-                ) : null}
               </span>
-              <span className="dashboard-chain__situation">{stage.situationLabel}</span>
-              <span className="dashboard-chain__hint">{stage.hint}</span>
-              {stage.href ? (
-                <span className="dashboard-chain__drill">
-                  Abrir fila
-                  <span aria-hidden> →</span>
-                </span>
-              ) : (
-                <span className="dashboard-chain__drill dashboard-chain__drill--absent">
-                  sem lista filtrada neste recorte
-                </span>
-              )}
+
+              <span className="dashboard-chain__body">
+                <span className="dashboard-chain__label">{stage.label}</span>
+                <span className="dashboard-chain__situation">{stage.situationLabel}</span>
+              </span>
+
+              {stage.amount ? (
+                <Money value={stage.amount} className="dashboard-chain__exposure" />
+              ) : null}
             </>
           );
 

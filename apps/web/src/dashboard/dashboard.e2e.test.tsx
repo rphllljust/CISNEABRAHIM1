@@ -68,7 +68,7 @@ describe('operational dashboard e2e (frontend)', () => {
     // FLUXO OPERACIONAL como cadeia de processo, com os estagios reais do negocio.
     // Escopo pelo NOME da regiao: "Faturamento" tambem e o rotulo de um atalho de modulo, e uma
     // assercao global provaria a existencia do rotulo, nao da ETAPA da cadeia.
-    const chain = central.getByRole('region', { name: /fluxo empresarial/i });
+    const chain = central.getByRole('region', { name: /fluxo operacional/i });
     expect(within(chain).getByText('Operação')).toBeInTheDocument();
     expect(within(chain).getByText('Medição')).toBeInTheDocument();
     expect(within(chain).getByText('Faturamento')).toBeInTheDocument();
