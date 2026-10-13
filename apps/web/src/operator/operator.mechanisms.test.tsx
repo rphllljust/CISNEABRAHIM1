@@ -17,6 +17,7 @@ import { exportSelectionToCsv } from './bulk/BulkActionBar';
 import {
   buildSearchCommand,
   OPERATIONAL_VIEW_COMMANDS,
+  WORKSPACE_COMMANDS,
   rankCommands,
   scoreCommand,
   type OperatorCommand,
@@ -390,6 +391,42 @@ describe('command center — casamento determinístico', () => {
     expect(
       rankCommands({ query: 'periodos fiscais abertos', navigationCommands: [] }).some(
         (command) => command.id === 'view.fiscal.periods.open',
+      ),
+    ).toBe(true);
+  });
+
+  it('expõe as filas reais de Solicitações sem inventar estado', () => {
+    const requestCommands = OPERATIONAL_VIEW_COMMANDS.filter((command) =>
+      command.id.startsWith('view.requests.'),
+    );
+    expect(requestCommands.map((command) => command.to)).toEqual(
+      expect.arrayContaining([
+        '/app/requests?status=SUBMITTED',
+        '/app/requests?status=UNDER_REVIEW',
+        '/app/requests?status=APPROVED',
+      ]),
+    );
+    expect(
+      rankCommands({ query: 'solicitacoes em analise', navigationCommands: [] }).some(
+        (command) => command.id === 'view.requests.underReview',
+      ),
+    ).toBe(true);
+  });
+
+  it('leva diretamente aos workspaces de domínio existentes', () => {
+    expect(WORKSPACE_COMMANDS.map((command) => command.to)).toEqual(
+      expect.arrayContaining([
+        '/app/workspaces/comercial',
+        '/app/workspaces/operacoes',
+        '/app/workspaces/financeiro',
+        '/app/workspaces/contabilidade',
+        '/app/workspaces/fiscal',
+        '/app/workspaces/suprimentos',
+      ]),
+    );
+    expect(
+      rankCommands({ query: 'workspace comercial', navigationCommands: [] }).some(
+        (command) => command.to === '/app/workspaces/comercial',
       ),
     ).toBe(true);
   });
