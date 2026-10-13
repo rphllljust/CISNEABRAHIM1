@@ -217,32 +217,23 @@
     outline: none;
   }
 
-  .cisne-app table.clients-table thead,
-  .cisne-app table.catalog-table thead,
-  .cisne-app table.assets-table thead,
-  .cisne-app table.requests-table thead,
-  .cisne-app table.billing-table thead,
-  .cisne-app table.doc-table thead,
-  .cisne-app table.reports-table thead {
-    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
-  }
+  /*
+    (BLOCO LEGADO REMOVIDO — WAVE 1, PROPAGACAO VISUAL)
 
-  .cisne-app table.clients-table th,
-  .cisne-app table.catalog-table th,
-  .cisne-app table.assets-table th,
-  .cisne-app table.requests-table th,
-  .cisne-app table.billing-table th,
-  .cisne-app table.doc-table th,
-  .cisne-app table.reports-table th {
-    padding: 0.78rem 1rem;
-    border-bottom: 1px solid #cfd8e3;
-    text-align: left;
-    font-size: 0.75rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: #334155;
-  }
+    Aqui vivia a ultima "gramatica de grade por nome de tabela" do produto: sete seletores
+    (`clients-table`, `catalog-table`, `assets-table`, `requests-table`, `billing-table`, `doc-table`,
+    `reports-table`) que pintavam `thead` com um gradiente `#f8fafc -> #f1f5f9` e reescreviam padding,
+    borda, tamanho, peso e cor de TODO `<th>` dessas tabelas.
+
+    O que isso causava, medido no DOM: a grade de Clientes saia com cabecalho `#EEF3F8` e tinta
+    `#52647A`, enquanto o painel operacional usava `#EAF0F6` e `#31455C` — a mesma grade, duas cores,
+    e uma terceira ainda diferente em cada modulo que tinha o proprio nome nesta lista. Era a
+    fragmentacao que a propagacao existe para eliminar.
+
+    A gramatica de grade agora tem UMA definicao: `--color-surface-grid-head`, `--color-grid-head-ink`
+    e `--color-grid-row-hover` (theme.css), consumidas por `DataTable` e por `enterprise-list`. Este
+    arquivo nao define mais aparencia de grade — quem precisar de variacao usa os primitivos.
+  */
 
   .cisne-app table.clients-table td,
   .cisne-app table.catalog-table td,

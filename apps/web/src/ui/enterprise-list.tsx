@@ -24,16 +24,24 @@ export function EnterpriseListHeader({
   action?: ReactNode;
 }) {
   return (
-    <header className="mb-3 rounded-lg border border-gray-200 bg-white">
-      <div className="flex flex-wrap items-start justify-between gap-3 px-4 py-3">
+    <header className="mb-3 border-b border-[color:var(--color-divider-strong)]">
+      <div className="flex flex-wrap items-start justify-between gap-3 px-1 py-2.5">
         <div className="min-w-0">
-          <h1 className="text-lg font-semibold tracking-tight text-gray-900">{title}</h1>
-          {description ? <p className="mt-0.5 text-xs text-gray-500">{description}</p> : null}
+          {/* Mesma escala e mesma cor do `WorklistHeader`: o titulo de area de trabalho e um papel
+              unico no produto, nao um estilo por tela. */}
+          <h1 className="text-[1.75rem] leading-tight font-bold tracking-tight text-[color:var(--color-navy-800)]">
+            {title}
+          </h1>
+          {description ? (
+            <p className="mt-0.5 text-[13px] text-[color:var(--color-text-secondary)]">
+              {description}
+            </p>
+          ) : null}
         </div>
         {action ? <div className="flex shrink-0 items-center gap-2">{action}</div> : null}
       </div>
       {metrics ? (
-        <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 bg-gray-50/70 px-4 py-2">
+        <div className="flex flex-wrap items-center gap-2 border-t border-[color:var(--color-divider)] bg-[color:var(--color-surface-header)] px-1 py-2">
           {metrics}
         </div>
       ) : null}
@@ -43,11 +51,22 @@ export function EnterpriseListHeader({
 
 export type MetricTone = 'neutral' | 'warning' | 'critical' | 'info';
 
+/*
+ * TOM SEMANTICO DO INDICADOR — as mesmas familias de estado do produto.
+ *
+ * `info` era teal (`border-brand-200 bg-brand-50 text-brand-800`). Isso colocava a cor de
+ * IDENTIDADE do CISNE no papel de INFORMACAO, enquanto o painel operacional usa azul para isso —
+ * a mesma metrica lia em duas cores dependendo da tela. Azul = informacao/operacao em todo o
+ * produto; teal fica reservado a identidade (logo, accent de navegacao, contexto).
+ */
 const METRIC_TONE: Record<MetricTone, string> = {
-  neutral: 'border-gray-200 bg-white text-gray-700',
-  info: 'border-brand-200 bg-brand-50 text-brand-800',
-  warning: 'border-amber-200 bg-amber-50 text-amber-800',
-  critical: 'border-red-200 bg-red-50 text-red-800',
+  neutral:
+    'border-[color:var(--color-divider)] bg-white text-[color:var(--color-text-secondary)]',
+  info: 'border-[color:var(--color-blue-200)] bg-[color:var(--color-surface-info)] text-[color:var(--color-blue-800)]',
+  warning:
+    'border-[color:var(--color-amber-200)] bg-[color:var(--color-surface-warning)] text-[color:var(--color-amber-700)]',
+  critical:
+    'border-[color:var(--color-red-200)] bg-[color:var(--color-surface-critical)] text-[color:var(--color-red-700)]',
 };
 
 export function EnterpriseMetric({
@@ -372,14 +391,23 @@ export function WorklistHeader({
   metrics?: ReactNode;
 }) {
   return (
-    <header className="mb-2 border-y border-gray-200 bg-gray-50/80 px-3 py-2.5">
+    <header className="mb-2 border-y border-[color:var(--color-divider-strong)] bg-[color:var(--color-surface-header)] px-3 py-2.5">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div className="min-w-0">
-          <p className="m-0 mb-0.5 text-[10px] font-semibold tracking-[0.16em] text-gray-500 uppercase">
+          <p className="m-0 mb-0.5 text-[10px] font-semibold tracking-[0.16em] text-[color:var(--color-text-muted)] uppercase">
             Área de trabalho
           </p>
           <div className="flex items-baseline gap-2">
-            <h1 className="m-0 text-[1.2rem] leading-tight font-semibold tracking-tight text-gray-950">{title}</h1>
+            {/*
+              TITULO NA ESCALA DA BALIZA — 28px/750 em navy profundo.
+
+              Era `text-[1.2rem]` (19px) com `text-gray-950`. Duas divergencias numa linha: escala
+              menor que a do painel operacional e um cinza que nao existe na paleta CISNE. O titulo
+              de area de trabalho e o mesmo papel em todo o produto, entao usa a mesma medida.
+            */}
+            <h1 className="m-0 text-[1.75rem] leading-tight font-bold tracking-tight text-[color:var(--color-navy-800)]">
+              {title}
+            </h1>
             {/*
               CONTAGEM DA PAGINA — o numero e o dado, nao um chip. Sem caixa contornada, o
               operador le "Clientes 20" como uma frase, e nao como um selo a decifrar.
@@ -503,7 +531,8 @@ export function WorklistClearFilters({
  * nivel. Agora a grade nao tem caixa: ela e delimitada pelo divisor do cabecalho da grade e pela
  * regua estrutural, e a hierarquia vem do cabecalho sticky e do alinhamento numerico.
  */
-export const worklistTableCardClass = 'mb-2 w-full min-w-0 max-w-full overflow-x-auto border-y border-gray-200 bg-white';
+export const worklistTableCardClass =
+  'mb-2 w-full min-w-0 max-w-full overflow-x-auto border-y border-[color:var(--color-divider-strong)] bg-white';
 
 export const worklistTableClass = 'w-full border-separate border-spacing-0';
 
@@ -513,14 +542,19 @@ export const worklistTableClass = 'w-full border-separate border-spacing-0';
  *
  * A borda inferior e mais forte que a das linhas: e ela que separa ROTULO de DADO. Sem esse peso
  * diferente, cabecalho e corpo leem como a mesma massa.
+ *
+ * SUPERFICIE TONAL E COR DE TEXTO DA BALIZA: o cabecalho da grade usa o mesmo `surface-header`
+ * (#EAF0F6) e o mesmo navy-acinzentado (#31455C) do grid de `/app`. Antes ele era `bg-gray-50` com
+ * `text-gray-600` — um cinza que nao pertence a paleta CISNE e que fazia a mesma grade ler
+ * diferente em cada modulo.
  */
 export const worklistHeadCellClass =
-  'sticky top-0 z-10 border-b border-gray-300 bg-gray-50 px-2 py-1 text-left text-[length:var(--type-micro-size)] font-semibold tracking-wide text-gray-600 uppercase whitespace-nowrap';
+  'sticky top-0 z-10 border-b border-[color:var(--color-divider-strong)] bg-[color:var(--color-surface-header)] px-2 py-1 text-left text-[length:var(--type-micro-size)] font-semibold tracking-wide text-[color:var(--grid-head-ink)] uppercase whitespace-nowrap';
 
 export const worklistNumericHeadCellClass = cn(worklistHeadCellClass, 'text-right');
 
 export const worklistCellClass =
-  'relative h-[var(--row-height)] border-b border-gray-100 px-2.5 py-1 align-middle text-[length:var(--type-body-size)] text-gray-800';
+  'relative h-[var(--row-height)] border-b border-[color:var(--color-border-subtle)] px-2.5 py-1 align-middle text-[length:var(--type-body-size)] text-[color:var(--color-text-primary)]';
 
 export const worklistNumericCellClass = cn(
   worklistCellClass,
@@ -538,10 +572,18 @@ export const worklistCellRaisedClass = cn(worklistCellClass, 'z-[1]');
 
 /** Grupo semantico de colunas dentro da grade densa (mesma linguagem em todas as worklists). */
 export const worklistGroupClass =
-  'text-[length:var(--type-micro-size)] font-semibold tracking-widest text-gray-400';
+  'text-[length:var(--type-micro-size)] font-semibold tracking-widest text-[color:var(--color-text-muted)]';
 
+/*
+ * LINHA — HOVER AZUL CLARO, SELECAO #EAF3FF COM ACCENT AZUL A ESQUERDA.
+
+ * Antes: `hover:bg-brand-50/60` e selecao em teal (identidade). Duas consequencias: a linha sob o
+ * cursor ficava TEAL, que e a cor de identidade do CISNE e nao de interacao; e o accent de selecao
+ * competia com o teal da sidebar. Azul e a cor de OPERACAO e INTERACAO no sistema — hover e selecao
+ * de grade pertencem a ela.
+ */
 export const worklistRowClass =
-  'relative cursor-pointer transition-colors hover:bg-brand-50/60 data-[selected=true]:bg-brand-50 data-[selected=true]:shadow-[inset_3px_0_0_var(--color-brand-600)]';
+  'relative cursor-pointer transition-colors hover:bg-[color:var(--color-grid-row-hover)] data-[selected=true]:bg-[color:var(--color-surface-selected)] data-[selected=true]:shadow-[inset_3px_0_0_var(--color-blue-600)]';
 
 /**
  * Celula de ACOES: nunca herda o clique de navegacao da linha.
@@ -587,8 +629,8 @@ export function WorklistFooter({
   children: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-gray-200 px-1 pt-2 pb-1">
-      <p className="text-[11px] text-gray-500 tabular-nums">
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-[color:var(--color-divider)] px-1 pt-2 pb-1">
+      <p className="text-[11px] text-[color:var(--color-text-muted)] tabular-nums">
         {rangeLabel}
         {rangeLabel && extra ? ' · ' : null}
         {extra}
@@ -621,23 +663,46 @@ export function WorklistStatePanel({
 }) {
   const isCritical = tone === 'critical';
   return (
+    /*
+      ESTADO COMPACTO — a mesma moldura nas cinco worklists, e NUNCA um bloco gigante.
+
+      `px-4 py-4` produzia ~90px de altura para dizer uma frase, e em quatro telas isso empurrava a
+      grade. O estado de lista pertence a AREA DE TRABALHO: uma faixa densa, sem caixa elevada, com
+      a acao REAL ao lado do texto — nao um hero de empty state.
+    */
     <section
       role={isCritical ? 'alert' : 'status'}
       aria-live={isCritical ? undefined : 'polite'}
       className={cn(
-        'mb-3 rounded-md border px-4 py-4',
-        isCritical ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-white',
+        'mb-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-y px-3 py-2.5',
+        isCritical
+          ? 'border-[color:var(--color-red-100)] bg-[color:var(--color-surface-critical)]'
+          : 'border-[color:var(--color-divider)] bg-[color:var(--color-surface-context)]',
       )}
     >
-      <p className={cn('text-[13px] font-semibold', isCritical ? 'text-red-800' : 'text-gray-900')}>
+      <p
+        className={cn(
+          'm-0 text-[13px] font-semibold',
+          isCritical
+            ? 'text-[color:var(--color-red-700)]'
+            : 'text-[color:var(--color-text-primary)]',
+        )}
+      >
         {title}
       </p>
       {description ? (
-        <p className={cn('mt-1 text-xs', isCritical ? 'text-red-700' : 'text-gray-500')}>
+        <p
+          className={cn(
+            'm-0 text-xs',
+            isCritical ? 'text-[color:var(--color-red-700)]' : 'text-[color:var(--color-text-muted)]',
+          )}
+        >
           {description}
         </p>
       ) : null}
-      {action ? <div className="mt-3 flex flex-wrap items-center gap-2">{action}</div> : null}
+      {action ? (
+        <div className="ml-auto flex flex-wrap items-center gap-2">{action}</div>
+      ) : null}
     </section>
   );
 }

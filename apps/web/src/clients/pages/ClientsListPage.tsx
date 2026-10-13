@@ -74,7 +74,9 @@ import {
   WorklistField,
   WorklistFilterBar,
   WorklistHeader,
+  worklistCellClass,
   worklistControlClass,
+  worklistHeadCellClass,
   worklistSelectClass,
 } from '../../ui/enterprise-list';
 import { StatusBadge } from '../../ui/StatusBadge';
@@ -1308,10 +1310,21 @@ export function ClientsListPage() {
  * Agora a altura da linha vem de `--row-height`, o cabeçalho usa o papel `label` e as células usam
  * `body`/`meta`/`helper`. A grade de Clientes passa a ter a MESMA gramática das demais worklists.
  */
-const headCellClass =
-  'sticky top-0 z-10 border-b border-gray-300 bg-gray-50 px-2 py-1 text-left text-[length:var(--type-micro-size)] font-semibold tracking-wide text-gray-600 uppercase';
+/*
+ * AS CLASSES DA GRADE VEM DO PRIMITIVO COMPARTILHADO.
+ *
+ * Este arquivo declarava `headCellClass`/`cellClass` proprios, com `border-gray-300`, `bg-gray-50` e
+ * `text-gray-600` — a MESMA grade do produto com quatro hex que nao existem na paleta CISNE. O
+ * efeito medido no DOM: o cabecalho de Clientes saia em `#EEF3F8` com tinta `#52647A`, enquanto o
+ * painel operacional usava `#EAF0F6` com `#31455C`. Mesma funcao, duas cores.
+ *
+ * As constantes continuam existindo como ALIAS — as 40 referencias desta tela nao mudam — mas agora
+ * apontam para a unica definicao de cabecalho/celula de worklist do sistema. Corrigir a gramatica em
+ * um lugar passa a corrigir todas as telas.
+ */
+const headCellClass = worklistHeadCellClass;
 
-const cellClass = 'relative h-[var(--row-height)] border-b border-gray-100 px-2 py-0.5 align-middle';
+const cellClass = worklistCellClass;
 
 /**
  * CÉLULA DA FAIXA DE TRABALHO — recorte REAL em UM controle.

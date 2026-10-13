@@ -28,7 +28,7 @@
 }
 
 .shell__sidebar {
-  background: #07111d;
+  background: var(--color-navy-800);
   box-shadow: inset -1px 0 0 rgb(255 255 255 / 4%);
 }
 

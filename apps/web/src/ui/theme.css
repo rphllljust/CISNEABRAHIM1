@@ -61,6 +61,7 @@
 
   --color-emerald-50: #ecfdf5;
   --color-emerald-100: #d1fae5;
+  --color-emerald-200: #a7f3d0;
   --color-emerald-500: #10b981;
   --color-emerald-600: #0a8f5b;
   --color-emerald-700: #07734a;
@@ -68,12 +69,14 @@
 
   --color-amber-50: #fff7e8;
   --color-amber-100: #fdecc8;
+  --color-amber-200: #fbdba0;
   --color-amber-500: #e08c0a;
   --color-amber-600: #d97706;
   --color-amber-700: #b45309;
 
   --color-red-50: #fef2f2;
   --color-red-100: #fee2e2;
+  --color-red-200: #fecaca;
   --color-red-500: #e5484d;
   --color-red-600: #d92d20;
   --color-red-700: #b42318;
@@ -136,6 +139,17 @@
   --color-divider: #d2dde8;
   --color-divider-strong: #becbd9;
   --color-rule-accent: var(--color-brand-600);
+
+  /*
+   * GRAMATICA DE GRADE — compartilhada por TODAS as worklists do produto.
+   *
+   * Estes dois tokens existiam apenas como hex solto dentro da folha do dashboard, o que fazia a
+   * grade de `/app` e a grade das listas (Clientes, Contratos, Financeiro) divergirem no hover, no
+   * cabecalho e no peso do texto. Promovidos aqui, a mesma grade le igual em qualquer modulo.
+   */
+  --color-surface-grid-head: var(--color-surface-header);
+  --color-grid-head-ink: #31455c;
+  --color-grid-row-hover: #f3f8ff;
 
   --color-text-primary: #102033;
   --color-text-secondary: #52647a;
@@ -715,11 +729,17 @@
    * SEM `height`: a altura do cabeçalho é consequência do respiro + tipografia. Fixá-la no token
    * de toolbar (2.5rem) deixaria o cabeçalho MAIS alto do que era, ou seja, a "densidade" herdada
    * tiraria linha da dobra. Densidade só é densidade se o número de linhas visíveis subir.
+   *
+   * SUPERFICIE TONAL, NAO CANVAS. Aqui o cabecalho de grade era pintado com `--color-canvas`
+   * (#EEF3F8) e tinta `--color-text-secondary` (#52647A). O canvas e o FUNDO DA APLICACAO — usa-lo
+   * como superficie de cabecalho fazia a faixa de rotulos se confundir com a pagina atras dela, e
+   * deixava a grade de cada modulo com um cinza diferente do painel operacional (#EAF0F6 /
+   * #31455C). Este seletor governa TODA grade do produto, entao e aqui que a gramatica unica vive.
    */
   padding: 0.25rem 0.5rem;
   border-bottom: 1px solid var(--color-divider-strong);
-  background: var(--color-canvas);
-  color: var(--color-text-secondary);
+  background: var(--color-surface-grid-head);
+  color: var(--color-grid-head-ink);
   font-size: var(--type-micro-size);
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -735,6 +755,22 @@
   color: var(--color-text-primary);
   font-size: var(--type-body-size);
   vertical-align: middle;
+}
+
+/*
+ * HOVER E SELECAO DE LINHA — a mesma gramatica azul em toda grade do produto.
+ *
+ * O hover era teal (`brand-50`), que e a cor de IDENTIDADE do CISNE e nao de INTERACAO: passar o
+ * mouse numa linha pintava a linha com a cor da marca. Azul e a cor de operacao/interacao do
+ * sistema; selecao usa `--color-surface-selected` com accent azul a esquerda, igual ao painel.
+ */
+#main-content table:not([role='presentation']) > tbody > tr:hover {
+  background: var(--color-grid-row-hover);
+}
+
+#main-content table:not([role='presentation']) > tbody > tr[data-selected='true'] {
+  background: var(--color-surface-selected);
+  box-shadow: inset 3px 0 0 var(--color-blue-600);
 }
 
 /*

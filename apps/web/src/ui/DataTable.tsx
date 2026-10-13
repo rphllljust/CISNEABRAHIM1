@@ -36,18 +36,25 @@ export function DataTable({ className, ...props }: TableHTMLAttributes<HTMLTable
 }
 
 export function DataTableHead(props: HTMLAttributes<HTMLTableSectionElement>) {
-  return <thead className="sticky top-0 z-10 bg-gray-50" {...props} />;
+  return (
+    <thead
+      className="sticky top-0 z-10 bg-[color:var(--color-surface-grid-head)]"
+      {...props}
+    />
+  );
 }
 
 export function DataTableBody({ className, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
-  return <tbody className={cn('divide-y divide-gray-100', className)} {...props} />;
+  return (
+    <tbody className={cn('divide-y divide-[color:var(--color-border-subtle)]', className)} {...props} />
+  );
 }
 
 export function DataTableRow({ className, ...props }: HTMLAttributes<HTMLTableRowElement>) {
   return (
     <tr
       className={cn(
-        'h-[var(--row-height)] transition-colors hover:bg-brand-50/40 data-[selected=true]:bg-brand-50',
+        'h-[var(--row-height)] transition-colors hover:bg-[color:var(--color-grid-row-hover)] data-[selected=true]:bg-[color:var(--color-surface-selected)] data-[selected=true]:shadow-[inset_3px_0_0_var(--color-blue-600)]',
         className,
       )}
       {...props}
@@ -55,11 +62,19 @@ export function DataTableRow({ className, ...props }: HTMLAttributes<HTMLTableRo
   );
 }
 
+/**
+ * CABECALHO DE COLUNA — superficie tonal e tinta da GRAMATICA DE GRADE unica.
+ *
+ * Antes: `border-gray-300 bg-gray-50 text-gray-600`. Os tres cinzas nao pertencem a paleta CISNE, e
+ * o efeito medido era a grade de Clientes sair com cabecalho `#EEF3F8`/`#52647A` enquanto o painel
+ * operacional usava `#EAF0F6`/`#31455C`. Mesma funcao, duas cores — o "dois produtos na mesma
+ * sidebar" que esta propagacao existe para eliminar.
+ */
 export function DataTableHeaderCell({ className, ...props }: ThHTMLAttributes<HTMLTableCellElement>) {
   return (
     <th
       className={cn(
-        'border-b border-gray-300 bg-gray-50 px-2 py-1 text-left text-[length:var(--type-micro-size)] font-semibold tracking-wide text-gray-600 uppercase whitespace-nowrap',
+        'border-b border-[color:var(--color-divider-strong)] bg-[color:var(--color-surface-grid-head)] px-2 py-1 text-left text-[length:var(--type-micro-size)] font-semibold tracking-wide text-[color:var(--grid-head-ink)] uppercase whitespace-nowrap',
         className,
       )}
       {...props}
@@ -71,7 +86,7 @@ export function DataTableCell({ className, ...props }: TdHTMLAttributes<HTMLTabl
   return (
     <td
       className={cn(
-        'border-b border-gray-100 px-2 py-1 align-middle text-[length:var(--type-body-size)] text-gray-800',
+        'border-b border-[color:var(--color-border-subtle)] px-2 py-1 align-middle text-[length:var(--type-body-size)] text-[color:var(--color-text-primary)]',
         className,
       )}
       {...props}
