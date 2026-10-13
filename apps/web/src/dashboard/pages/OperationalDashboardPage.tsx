@@ -346,7 +346,21 @@ export function OperationalDashboardPage() {
 
       {snapshot ? (
         <div className="dashboard-workspace">
-          {/* 2 — SITUACAO: o estado do recorte, com UNKNOWN declarado. Substitui o banner antigo. */}
+          {/*
+            ORDEM DA TELA — SITUACAO -> FILA -> CONTEXTO -> PROXIMA ACAO.
+
+            A FILA DOMINA A PRIMEIRA DOBRA. Antes, a tela abria com situacao, faixa de indicadores,
+            barra de atalhos e so entao a fila — o operador atravessava tres blocos de leitura antes
+            de encontrar o primeiro item em que podia agir. Num ERP, o painel operacional e onde o
+            trabalho comeca: a fila vem primeiro e o resto e apoio.
+
+            O que ficou DEPOIS da area de trabalho:
+              - indicadores e produtividade (contexto de magnitude, nao de acao);
+              - atalhos de modulo (rotas alternativas — secundarias por definicao);
+              - fluxo empresarial (leitura de processo).
+            Nada foi removido: o que mudou foi a ORDEM, e ordem e o que faz a tela ler como
+            workspace em vez de relatorio.
+          */}
           {situation ? <SituationPanel situation={situation} /> : null}
 
           <SituationGaps
@@ -360,30 +374,10 @@ export function OperationalDashboardPage() {
           />
 
           {/*
-            3 — INDICADORES. A faixa vem LOGO depois da situação e ANTES dos comandos.
-
-            ORDEM DE LEITURA DO COMANDO CENTER — o operador pergunta, nesta sequencia:
-            "como esta o recorte?" -> "quanto e o que?" -> "o que eu faco?" -> "onde trabalho?".
-            A barra de comandos estava entre a situacao e os indicadores, e isso QUEBRAVA a cadeia:
-            o numero ficava depois da acao, entao o operador via o botao antes de saber a magnitude
-            do problema que ele resolve. Indicador e leitura; comando e resposta.
-          */}
-          <WorkbenchKpiStrip kpis={workbenchKpis} />
-
-          {/* 4 — ATALHOS: rotas de modulo, rotuladas como tal (nao como comandos). */}
-          <nav className="dashboard-actions" aria-label="Atalhos do workspace">
-            <span className="dashboard-actions__label">{WORKSPACE_SHORTCUTS_LABEL}</span>
-            {OPERATIONAL_ACTIONS.map((action) => (
-              <Link key={action.id} className="dashboard-actions__link" to={action.href}>
-                {action.label}
-              </Link>
-            ))}
-          </nav>
-
-          {/*
-            5 — AREA CENTRAL DE TRABALHO. Duas colunas em desktop grande: a FILA ocupa o dominio
-            visual (2fr) e o contexto operacional complementar fica ao lado (0.85fr). Sem conteudo
-            complementar publicado, a fila ocupa a largura inteira — nao existe coluna vazia.
+            AREA DE TRABALHO — a FILA ocupa o dominio visual (2.4fr) e o CONTEXTO fica ao lado
+            (0.85fr), na mesma dobra: o operador le o item e o contexto do recorte sem rolar. Sem
+            conteudo complementar publicado, a fila ocupa a largura inteira — nao existe coluna
+            vazia.
           */}
           <div className="dashboard-workspace__grid">
             <div className="dashboard-workspace__main">
@@ -473,8 +467,27 @@ export function OperationalDashboardPage() {
             </aside>
           </div>
 
-          {/* 6 — FLUXO EMPRESARIAL: cadeia de processo, com drillback por etapa. */}
+          {/*
+            APOIO — o que o operador consulta DEPOIS de saber o que fazer.
+            Indicadores primeiro (magnitude), atalhos em seguida (rotas alternativas), e o fluxo
+            empresarial por ultimo como leitura de processo.
+          */}
+          <WorkbenchKpiStrip kpis={workbenchKpis} />
+
+          {/*
+            FLUXO EMPRESARIAL: cadeia de processo, com drillback por etapa. Ele le como UM processo
+            (estagios conectados na mesma faixa), nao como quatro blocos soltos.
+          */}
           <BusinessChainFlow stages={flowStages} domainLabel={domainLabel} />
+
+          <nav className="dashboard-actions" aria-label="Atalhos do workspace">
+            <span className="dashboard-actions__label">{WORKSPACE_SHORTCUTS_LABEL}</span>
+            {OPERATIONAL_ACTIONS.map((action) => (
+              <Link key={action.id} className="dashboard-actions__link" to={action.href}>
+                {action.label}
+              </Link>
+            ))}
+          </nav>
         </div>
       ) : null}
 

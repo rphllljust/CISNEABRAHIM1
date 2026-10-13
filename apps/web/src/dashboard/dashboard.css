@@ -1388,6 +1388,25 @@ a.dashboard-situation__row:focus-visible {
 }
 
 /*
+  A AREA DE TRABALHO ABRE A DOBRA.
+
+  Com a fila em primeiro lugar, a grade nao pode nascer colada no topo: o espaco acima dela e o que
+  separa a situacao (leitura de estado) do trabalho (leitura de acao). O respiro e ACIMA, nao abaixo
+  — abaixo dela vem apoio, e apoio nao precisa de folga.
+
+  O ESPACO MORTO ENTRE APOIO E TRABALHO SAI. Os blocos de apoio (indicadores, fluxo, atalhos) sao
+  uma sequencia unica de leitura secundaria: eles ficam juntos, com o gap normal do workspace, em vez
+  de cada um abrir a propria faixa de ar.
+*/
+.dashboard-workspace__grid {
+  margin-top: var(--spacing-1);
+}
+
+.dashboard-workspace > .dashboard-chain {
+  margin-top: 0;
+}
+
+/*
   PISO DA SUPERFICIE DE TRABALHO — a fila E o centro operacional mesmo quando vazia.
 
   Uma tabela que termina em 120px de altura faz a tela parecer um formulario com um rodape; um ERP
@@ -2635,11 +2654,18 @@ a.dashboard-kpi-cell:hover .dashboard-kpi-cell__drill {
   Agora nao ha contorno por etapa nem caixa externa. A trilha e desenhada pelo CONECTOR, que corre
   de um estagio ao seguinte na mesma linha de base, e por um fundo de faixa unico. O que separa as
   etapas e a seta, nao uma borda: e a seta que diz "isto continua".
+
+  COLUNA ZERO DE GAP, CONECTOR NO VAO (corrigido nesta wave): com o gap padrao, os estagios ficavam
+  afastados e o conector de 12px boiava no vazio entre eles — o olho lia quatro cartoes alinhados e
+  um traco solto no meio. Sem gap, os estagios se ENCOSTAM e o processo vira uma faixa continua: o
+  conector passa a ser o unico elemento que separa uma etapa da seguinte, que e exatamente o que se
+  quer ler. O respiro interno de cada etapa (`padding`) ja e suficiente para o texto nao colar.
 */
 .dashboard-chain__stages {
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);
+  gap: 0;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -2653,6 +2679,7 @@ a.dashboard-kpi-cell:hover .dashboard-kpi-cell__drill {
   .dashboard-chain__stages {
     grid-auto-flow: row;
     grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    gap: var(--spacing-2);
   }
 }
 
@@ -2710,38 +2737,40 @@ a.dashboard-kpi-cell:hover .dashboard-kpi-cell__drill {
 }
 
 /*
-  CONECTOR DE PROCESSO — a regua que costura um estagio ao seguinte.
-  Ele e o que faz a faixa ler como CADEIA em vez de grade: sem ele, quatro colunas separadas por
-  divisores verticais leem como quatro blocos independentes.
+  CONECTOR DE PROCESSO — a seta que costura um estagio ao seguinte, no ponto exato onde eles se
+  encontram. Ela e o que faz a faixa ler como CADEIA em vez de grade: sem ela, quatro blocos
+  encostados leem como quatro blocos.
 
-  FORCA DO SINAL (corrigido nesta wave): o conector tinha 8x2px em `slate-300`, praticamente
-  invisivel a um palmo de distancia — a faixa continuava lendo como quatro celulas. Agora ele tem
-  CORPO (12x2px), tom institucional e uma PONTA de seta desenhada por borda, que e o que declara a
-  DIRECAO do processo. Sem a ponta, um traco horizontal liga dois blocos mas nao diz para onde o
-  trabalho anda.
+  Com os estagios sem gap, o conector fica na JUNCAO (`right: 0`), centrado no encontro, e nao mais
+  boiando num vao. Ele carrega um pequeno disco de fundo para cobrir a emenda dos dois blocos e uma
+  ponta de seta que declara a DIRECAO do processo — sem a ponta, um traco horizontal liga dois
+  blocos mas nao diz para onde o trabalho anda.
 */
 .dashboard-chain__connector {
   position: absolute;
   top: 50%;
-  right: -0.375rem;
+  right: 0;
   z-index: 1;
-  width: 0.75rem;
-  height: 2px;
-  transform: translateY(-50%);
-  background: var(--color-slate-400);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.125rem;
+  height: 1.125rem;
+  transform: translate(50%, -50%);
+  border-radius: var(--radius-full);
+  background: var(--dashboard-surface);
+  box-shadow: inset 0 0 0 1px var(--dashboard-line);
+  color: var(--color-slate-500);
 }
 
 .dashboard-chain__connector::after {
   content: '';
-  position: absolute;
-  top: 50%;
-  right: 0;
   width: 0;
   height: 0;
-  transform: translateY(-50%);
+  margin-left: 1px;
   border-top: 3px solid transparent;
   border-bottom: 3px solid transparent;
-  border-left: 4px solid var(--color-slate-400);
+  border-left: 4px solid currentColor;
 }
 
 @media (max-width: 1099px) {
