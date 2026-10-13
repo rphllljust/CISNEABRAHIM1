@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Button, Money } from '../../ui';
+import { Button, DateTime, Money } from '../../ui';
 import { ModuleLoadingState, ModulePage, ModulePagination } from '../../ui/module-layout';
 import { cn } from '../../ui/utils/cn';
 import {
@@ -12,6 +12,7 @@ import {
   WorklistHeader,
   WorklistRowLink,
   WorklistStatePanel,
+  rowSecondaryActionClass,
   worklistCellClass,
   worklistCellRaisedClass,
   worklistHeadCellClass,
@@ -23,6 +24,7 @@ import {
   worklistTableClass,
 } from '../../ui/enterprise-list';
 import { ProcessingBanner } from '../../financial-ui/ProcessingBanner';
+import { ContextDrawer, type ContextPreviewBody } from '../../operator';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import { OperationalUnitOptions, useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
@@ -60,6 +62,7 @@ export function FiscalApuracaoPage() {
    */
   const [applied, setApplied] = useState<{ unitId: string; q: string } | null>(null);
   const [items, setItems] = useState<TaxCalculationSummary[]>([]);
+  const [preview, setPreview] = useState<TaxCalculationSummary | null>(null);
   const [total, setTotal] = useState(0);
   const [listPhase, setListPhase] = useState<'idle' | 'loading' | 'ready' | 'denied' | 'error'>('idle');
   const [offset, setOffset] = useState(0);
@@ -264,6 +267,7 @@ export function FiscalApuracaoPage() {
                 <th scope="col" className={worklistHeadCellClass}>Calculada em</th>
                 <th scope="col" className={worklistNumericHeadCellClass}>Base</th>
                 <th scope="col" className={worklistNumericHeadCellClass}>Resultado</th>
+                <th scope="col" className={worklistHeadCellClass}>Contexto</th>
               </tr>
             </thead>
             <tbody>
@@ -307,6 +311,15 @@ export function FiscalApuracaoPage() {
                   <td className={worklistNumericCellClass}>
                     <Money value={calculation.resultAmount} emphasis />
                   </td>
+                  <td className={worklistCellClass}>
+                    <button
+                      type="button"
+                      className={rowSecondaryActionClass}
+                      onClick={() => setPreview(calculation)}
+                    >
+                      Prévia
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -331,6 +344,34 @@ export function FiscalApuracaoPage() {
         </WorklistFooter>
         </>
       ) : null}
+
+function buildTaxCalculationPreview(item: TaxCalculationSummary): ContextPreviewBody {
+  return {
+    identifier: item.ruleName,
+    subtitle: `${item.ruleCode} · versão ${item.versionNumber}`,
+    facts: [
+      { label: 'Base', value: <Money value={item.baseAmount} emphasis /> },
+      { label: 'Alíquota persistida', value: item.rate ?? '—' },
+      { label: 'Resultado', value: <Money value={item.resultAmount} emphasis /> },
+      { label: 'Origem', value: item.sourceKind ?? 'Não informada' },
+      { label: 'Calculada em', value: <DateTime value={item.calculatedAt} /> },
+    ],
+    relations: [],
+    nextAction: {
+      label: 'Abrir apuração e reproduzir no servidor',
+      href: `/app/fiscal/apuracao/${item.id}`,
+    },
+    detailHref: `/app/fiscal/apuracao/${item.id}`,
+    detailLabel: 'Abrir apuração completa',
+  };
+}
+
+      <ContextDrawer
+        open={preview !== null}
+        title="Contexto da apuração"
+        preview={preview ? buildTaxCalculationPreview(preview) : null}
+        onClose={() => setPreview(null)}
+      />
 
       {state.phase === 'ready' ? (
         <>
