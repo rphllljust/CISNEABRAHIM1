@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Alert, Button, DateTime, EmptyState, ErrorState, Field, Input, Money, Select, worklistTableCardClass } from '../../ui';
 import { FilterCard, ModulePage } from '../../ui/module-layout';
 import { EnterpriseMetric, WorklistHeader, worklistCellClass, worklistTableClass, worklistHeadCellClass, worklistRowClass } from '../../ui/enterprise-list';
@@ -8,9 +8,11 @@ import { HumanLookupField } from '../../financial-ui/HumanLookupField';
 import { PAYROLL_PERIOD_STATUS_LABELS } from '../../financial-ui/labels';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
-import { BackofficeCapabilityRoute } from '../../financial-ui/BackofficeCapabilityRoute';
+import { BackofficeApiError } from '../../financial-ui/enterprise-api';
 import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge';
 import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
+import { useAuth } from '../../auth/context/AuthProvider';
+import { probeExplicitCapability, probeSurfaceAccess, resolveAuthorizedUnit } from '../../shell/surface-access';
 import { WorkbenchQueue, WorkbenchQueueItem } from '../../ui/workbench';
 import { isIdempotentAck } from '../utils/is-idempotent-ack';
 import { periodActionsForStatus } from '../utils/period-action-state';
@@ -31,7 +33,6 @@ import {
   listPayrollResults,
   mapPayrollErrorToMessage,
   openPayrollPeriod,
-  probePayrollReadAccess,
   recordPayrollEvent,
   reopenPayrollPeriod,
   type PayrollPeriod,
@@ -55,11 +56,78 @@ const REOPEN_DESCRIPTION = 'Reabertura segue SOD no backend.';
  */
 
 export function PayrollRoute({ children }: { children: ReactNode }) {
-  return (
-    <BackofficeCapabilityRoute probe={probePayrollReadAccess} capabilityId="payroll:period:read">
-      {children}
-    </BackofficeCapabilityRoute>
-  );
+  const location = useLocation();
+  const { expireSession, identityId } = useAuth();
+  const [accessState, setAccessState] = useState<
+    'loading' | 'allowed' | 'denied' | 'session_expired'
+  >('loading');
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let cancelled = false;
+
+    async function resolveAccess() {
+      if (!identityId) {
+        if (!cancelled) setAccessState('denied');
+        return;
+      }
+
+      try {
+        const unitId = await resolveAuthorizedUnit(identityId, controller.signal);
+        if (cancelled) return;
+
+        let result = await probeSurfaceAccess('payroll-read', unitId, controller.signal);
+        if (result.outcome === 'undetermined') {
+          result = await probeExplicitCapability(
+            identityId,
+            'payroll:ledger:read',
+            controller.signal,
+          );
+        }
+        if (!cancelled) {
+          setAccessState(result.outcome === 'allowed' ? 'allowed' : 'denied');
+        }
+      } catch (error: unknown) {
+        if (cancelled) return;
+        if (
+          (error instanceof Error && error.message === 'session_expired') ||
+          (error instanceof BackofficeApiError && error.status === 401)
+        ) {
+          expireSession();
+          setAccessState('session_expired');
+          return;
+        }
+        setAccessState('denied');
+      }
+    }
+
+    void resolveAccess();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [expireSession, identityId, location.pathname]);
+
+  if (accessState === 'loading') {
+    return (
+      <div className="shell-loading" aria-busy="true" aria-live="polite">
+        <p>Verificando acesso…</p>
+      </div>
+    );
+  }
+  if (accessState === 'session_expired') {
+    return <Navigate to="/login" replace state={{ reason: 'session_expired', from: location.pathname }} />;
+  }
+  if (accessState === 'denied') {
+    return (
+      <Navigate
+        to="/app/no-access"
+        replace
+        state={{ from: location.pathname, capabilityId: 'payroll:ledger:read' }}
+      />
+    );
+  }
+  return children;
 }
 
 export function PayrollPage() {
