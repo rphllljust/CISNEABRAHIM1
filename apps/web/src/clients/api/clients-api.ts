@@ -1,5 +1,6 @@
 import { getApiBaseUrl, isNetworkError } from '../../auth/api/auth-api';
 import { tokenStore } from '../../auth/storage/token-store';
+import { CLIENT_ADVANCED_FILTER_PARAM, type ClientAdvancedFilterPayload } from '../utils/client-list-params';
 import {
   CLIENT_ERROR_CODES,
   type Client,
@@ -121,6 +122,13 @@ export type ListClientsParams = {
   purchaseOrderRequirement?: PurchaseOrderRequirement;
   sort?: ClientListSort;
   direction?: ClientListDirection;
+  /**
+   * Filtro avançado já convertido para o contrato do servidor.
+   *
+   * Viaja como JSON na chave `filters`. O backend valida allow-list de campo, operador por tipo,
+   * valores de enum e limites de grupo — um filtro inválido responde 400 em vez de ser ignorado.
+   */
+  advanced?: ClientAdvancedFilterPayload | null;
 };
 
 /**
@@ -146,6 +154,11 @@ export function buildListClientsQuery(params: ListClientsParams): string {
   }
   if (params.direction) {
     search.set('direction', params.direction);
+  }
+  // O filtro avançado entra na MESMA query: paginação, ordenação e recorte composto compõem um
+  // único predicado no servidor, de modo que `total`/`totalPages` correspondam ao recorte real.
+  if (params.advanced && params.advanced.groups.length > 0) {
+    search.set(CLIENT_ADVANCED_FILTER_PARAM, JSON.stringify(params.advanced));
   }
   return search.toString();
 }

@@ -50,6 +50,119 @@ export const EMPTY_CLIENT_LIST_PARAMS: ClientListParams = {
   direction: CLIENT_LIST_DIRECTIONS.Asc,
 };
 
+/**
+ * FILTRO AVANÇADO NO ESTADO DA URL — mesma chave que a engine já usa (`FILTER_PARAM = 'filter'`).
+ *
+ * A árvore vive na URL pelo mesmo motivo que busca e ordenação vivem: recarregar não perde
+ * contexto, o botão voltar funciona e o link é compartilhável. Nenhum mecanismo novo de
+ * persistência — é o `filterGroupToQuery`/`readFilterGroup` da própria engine de metadados.
+ */
+export const CLIENT_ADVANCED_FILTER_PARAM = 'filters';
+
+/**
+ * OPERADORES DA ENGINE → OPERADORES DO CONTRATO SERVER-SIDE.
+ *
+ * A engine `DynamicFilterBuilder` publica símbolos (`=`, `!=`, `contains`, `>`, ...) porque serve
+ * qualquer entidade. O contrato de Clientes (`client-list.query.ts`) publica nomes semânticos
+ * (`eq`, `neq`, `contains`, `startsWith`, `before`, `after`) e valida cada um contra o TIPO do
+ * campo. Este mapa é a única tradução entre os dois vocabulários.
+ *
+ * Operador sem equivalente é DESCARTADO, não aproximado: `in` (lista) e `is_true`/`is_false` não
+ * existem no contrato de Clientes, e inventar um equivalente geraria um recorte que o servidor não
+ * aplica. Descartar aqui, com o filtro reduzido, é o comportamento correto — o builder volta a
+ * oferecer esses operadores apenas quando o backend souber executá-los.
+ */
+const OPERATOR_TO_CONTRACT: Record<string, string> = {
+  '=': 'eq',
+  '!=': 'neq',
+  contains: 'contains',
+};
+
+/** Operadores de ordem só valem sobre data, que é o único tipo ordenável do contrato de Clientes. */
+const DATE_OPERATOR_TO_CONTRACT: Record<string, string> = {
+  '>': 'after',
+  '>=': 'after',
+  '<': 'before',
+  '<=': 'before',
+  '=': 'eq',
+  '!=': 'neq',
+};
+
+/**
+ * CAMPOS DA ENGINE → CAMPOS DO CONTRATO SERVER-SIDE (allow-list fechado).
+ *
+ * Só os campos presentes aqui chegam à requisição. É a SEGUNDA barreira: o backend já recusa campo
+ * fora do allow-list com 400, e o frontend nem o envia. Um campo do metadado que o predicado
+ * server-side não trata (ex.: `external_erp_id`) é simplesmente ignorado na conversão.
+ */
+const FIELD_TO_CONTRACT: Record<string, string> = {
+  status: 'status',
+  purchase_order_requirement: 'purchaseOrderRequirement',
+  legal_name: 'legalName',
+  trade_name: 'tradeName',
+  normalized_tax_id: 'taxId',
+  updated_at: 'updatedAt',
+  created_at: 'createdAt',
+};
+
+const DATE_CONTRACT_FIELDS = new Set(['updatedAt', 'createdAt']);
+
+export type ClientAdvancedFilterCondition = {
+  field: string;
+  operator: string;
+  value: string;
+};
+
+export type ClientAdvancedFilterPayload = {
+  connector: 'AND' | 'OR';
+  groups: Array<{ conditions: ClientAdvancedFilterCondition[] }>;
+};
+
+/**
+ * Converte a árvore da engine no payload do contrato de Clientes.
+ *
+ * A engine aninha grupos recursivamente; o contrato de Clientes aceita UM nível (grupos com
+ * conjunção interna, ligados pelo `connector`). Subgrupos são ACHATADOS no grupo pai com a mesma
+ * conjunção — achatamento conservador e declarado: `(A e B) ou C` continua expressável no nível de
+ * cima, e um aninhamento mais profundo perde a estrutura em vez de ser silenciosamente invertido.
+ */
+export function clientAdvancedFilterFromGroup(
+  group: { op: 'AND' | 'OR'; rules: Array<{ field: string; op: string; value: string }>; groups?: unknown[] },
+): ClientAdvancedFilterPayload | null {
+  const conditions: ClientAdvancedFilterCondition[] = [];
+
+  const collect = (current: typeof group): void => {
+    for (const rule of current.rules) {
+      const contractField = FIELD_TO_CONTRACT[rule.field];
+      if (!contractField) {
+        continue;
+      }
+      const isDateField = DATE_CONTRACT_FIELDS.has(contractField);
+      const contractOperator = isDateField
+        ? DATE_OPERATOR_TO_CONTRACT[rule.op]
+        : OPERATOR_TO_CONTRACT[rule.op];
+      if (!contractOperator) {
+        continue;
+      }
+      const value = rule.value.trim();
+      if (value === '') {
+        continue;
+      }
+      conditions.push({ field: contractField, operator: contractOperator, value });
+    }
+    for (const child of (current.groups ?? []) as Array<typeof group>) {
+      collect(child);
+    }
+  };
+
+  collect(group);
+
+  if (conditions.length === 0) {
+    return null;
+  }
+  return { connector: group.op, groups: [{ conditions }] };
+}
+
 function isClientStatus(value: string): value is ClientStatus {
   return value === CLIENT_STATUSES.Active || value === CLIENT_STATUSES.Inactive;
 }

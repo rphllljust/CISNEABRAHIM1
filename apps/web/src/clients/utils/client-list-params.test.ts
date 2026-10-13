@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildClientListSearchParams,
   buildClientsListHref,
+  clientAdvancedFilterFromGroup,
   EMPTY_CLIENT_LIST_PARAMS,
   hasActiveClientListFilters,
   isApplicableClientSearchTerm,
@@ -181,5 +182,95 @@ describe('toggleClientListSort', () => {
       sort: CLIENT_LIST_SORTS.UpdatedAt,
       direction: CLIENT_LIST_DIRECTIONS.Asc,
     });
+  });
+});
+
+/**
+ * CONVERSÃO ÁRVORE DA ENGINE → CONTRATO DO SERVIDOR.
+ *
+ * O ponto crítico é o DESCARTE: a engine oferece operadores que o contrato de Clientes não executa
+ * (`in`, `is_true`, `is_false`) e campos que o predicado não trata. Enviá-los produziria 400 — ou
+ * pior, um recorte que o operador acredita aplicado. Descartar é a única resposta honesta enquanto
+ * o backend não souber executá-los.
+ */
+describe('clientAdvancedFilterFromGroup', () => {
+  it('maps engine operators and field names to the server contract', () => {
+    const payload = clientAdvancedFilterFromGroup({
+      op: 'AND',
+      rules: [
+        { field: 'status', op: '=', value: 'ACTIVE' },
+        { field: 'legal_name', op: 'contains', value: 'Madeira' },
+      ],
+    });
+    expect(payload).toEqual({
+      connector: 'AND',
+      groups: [
+        {
+          conditions: [
+            { field: 'status', operator: 'eq', value: 'ACTIVE' },
+            { field: 'legalName', operator: 'contains', value: 'Madeira' },
+          ],
+        },
+      ],
+    });
+  });
+
+  it('translates ordering operators on a date field to before/after', () => {
+    const payload = clientAdvancedFilterFromGroup({
+      op: 'AND',
+      rules: [{ field: 'updated_at', op: '>', value: '2026-01-01' }],
+    });
+    expect(payload?.groups[0]?.conditions).toEqual([
+      { field: 'updatedAt', operator: 'after', value: '2026-01-01' },
+    ]);
+  });
+
+  it('drops an operator the server contract does not execute instead of approximating it', () => {
+    // `in` (lista) e `is_true` não existem no contrato: nenhum deles pode virar `eq` por conta
+    // própria — seria inventar semântica sobre o domínio.
+    const payload = clientAdvancedFilterFromGroup({
+      op: 'AND',
+      rules: [
+        { field: 'status', op: 'in', value: 'ACTIVE,INACTIVE' },
+        { field: 'trade_name', op: 'is_true', value: '' },
+        { field: 'legal_name', op: 'contains', value: 'Ltda' },
+      ],
+    });
+    expect(payload?.groups[0]?.conditions).toEqual([
+      { field: 'legalName', operator: 'contains', value: 'Ltda' },
+    ]);
+  });
+
+  it('drops a field outside the server allow-list', () => {
+    const payload = clientAdvancedFilterFromGroup({
+      op: 'AND',
+      rules: [{ field: 'external_erp_id', op: 'contains', value: 'X' }],
+    });
+    expect(payload).toBeNull();
+  });
+
+  it('returns null when nothing survives, so no empty filter is sent', () => {
+    expect(clientAdvancedFilterFromGroup({ op: 'AND', rules: [] })).toBeNull();
+    expect(
+      clientAdvancedFilterFromGroup({
+        op: 'AND',
+        rules: [{ field: 'status', op: '=', value: '   ' }],
+      }),
+    ).toBeNull();
+  });
+
+  it('propagates the group connector and flattens nested groups conservatively', () => {
+    const payload = clientAdvancedFilterFromGroup({
+      op: 'OR',
+      rules: [{ field: 'status', op: '=', value: 'INACTIVE' }],
+      groups: [
+        {
+          op: 'AND',
+          rules: [{ field: 'legal_name', op: 'contains', value: 'Madeira' }],
+        },
+      ],
+    });
+    expect(payload?.connector).toBe('OR');
+    expect(payload?.groups[0]?.conditions).toHaveLength(2);
   });
 });

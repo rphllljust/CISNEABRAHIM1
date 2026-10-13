@@ -624,6 +624,13 @@
                         "when":  179090150000000000,
                         "tag":  "0088_metadata_views_v4",
                         "breakpoints":  true
+                    },
+                    {
+                        "idx":  89,
+                        "version":  "7",
+                        "when":  179090200000000000,
+                        "tag":  "0089_metadata_seed_client",
+                        "breakpoints":  true
                     }
                 ]
 }

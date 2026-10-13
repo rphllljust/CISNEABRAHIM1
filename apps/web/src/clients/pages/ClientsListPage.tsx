@@ -37,6 +37,16 @@ import { buildClientRelationSpecs } from '../utils/client-relations';
 import { buildAuthorizedRelations, SmartRelationBar } from '../../enterprise-object';
 import { BusinessChain, useBusinessChain } from '../../business-chain';
 import {
+  DynamicFilterBuilder,
+  FILTER_PARAM,
+  filterGroupToQuery,
+  isFilterGroupActive,
+  readFilterGroup,
+  type FilterGroup,
+} from '../../engine';
+import { useEntitySchema } from '../../engine';
+import { clientAdvancedFilterFromGroup } from '../utils/client-list-params';
+import {
   CLIENTS_ALLOWED_FILTERS,
   clientViewConfig,
   clientViewToParams,
@@ -222,6 +232,23 @@ export function ClientsListPage() {
   const related = useClientRelatedRecords(previewId);
   const businessChain = useBusinessChain('CLIENT', previewId ?? '');
 
+  /**
+   * FILTRO AVANÇADO — a MESMA engine de metadados do resto do produto.
+   *
+   * `useEntitySchema('client')` lê `meta.entities`/`meta.fields` (migration `0089`), e o
+   * `DynamicFilterBuilder` monta a allow-list e os operadores por TIPO a partir desse metadado.
+   * A árvore vive na URL pela chave `filter`, serializada por `filterGroupToQuery`.
+   *
+   * A conversão para o contrato do servidor (`clientAdvancedFilterFromGroup`) traduz operador e
+   * nome de campo; o backend revalida tudo e responde 400 ao que não aceita.
+   */
+  const { schema: clientSchema } = useEntitySchema('client');
+  const advancedGroup = useMemo<FilterGroup>(() => readFilterGroup(searchParams), [searchParams]);
+  const advancedPayload = useMemo(
+    () => clientAdvancedFilterFromGroup(advancedGroup),
+    [advancedGroup],
+  );
+
   useEffect(() => {
     if (!previewId) {
       setDetail({ phase: 'idle' });
@@ -277,7 +304,6 @@ export function ClientsListPage() {
     setActiveViewId(null);
     setSearchParams(buildClientListSearchParams(EMPTY_CLIENT_LIST_PARAMS), { replace: true });
   }, [setSearchParams]);
-
   useEffect(() => {
     if (searchInput === filters.q) {
       return;
@@ -305,6 +331,7 @@ export function ClientsListPage() {
             purchaseOrderRequirement: activeFilters.purchaseOrderRequirement || undefined,
             sort: activeFilters.sort,
             direction: activeFilters.direction,
+            advanced: advancedPayload,
           },
           signal,
         );
@@ -339,7 +366,7 @@ export function ClientsListPage() {
         }
       }
     },
-    [],
+    [advancedPayload],
   );
 
   useEffect(() => {
@@ -668,11 +695,44 @@ export function ClientsListPage() {
             ) : null}
 
             <WorklistClearFilters
-              visible={hasFilters || searchInput.trim() !== ''}
+              visible={hasFilters || searchInput.trim() !== '' || isFilterGroupActive(advancedGroup)}
               onClick={clearFilters}
             />
           </WorklistFilterBar>
         </div>
+
+        {/*
+          FILTRO AVANÇADO — a camada composta da superfície de filtro, dirigida por METADADO.
+
+          O construtor é o MESMO do resto do produto (`DynamicFilterBuilder`): ele lê `meta.fields`
+          da entidade `client` e oferece apenas os campos marcados `in_filter` — que são exatamente
+          os que o predicado server-side executa. Um campo que o servidor não filtra não aparece
+          aqui, porque oferecê-lo produziria um recorte que o operador lê como "lista vazia".
+
+          A árvore é serializada na URL pela chave da engine (`filter`), e a conversão para o
+          contrato do servidor acontece em `clientAdvancedFilterFromGroup`.
+        */}
+        {hasCatalog ? (
+          <div className="px-1" data-region="advanced-filter-surface">
+            <DynamicFilterBuilder
+              schema={clientSchema}
+              value={advancedGroup}
+              onChange={(next) => {
+                const params = new URLSearchParams(searchParams);
+                const serialized = filterGroupToQuery(next).get(FILTER_PARAM);
+                if (serialized) {
+                  params.set(FILTER_PARAM, serialized);
+                } else {
+                  params.delete(FILTER_PARAM);
+                }
+                // Qualquer mudança de recorte volta à primeira página: manter o offset antigo
+                // sobre um conjunto novo mostraria uma página que pode não existir.
+                params.delete('offset');
+                setSearchParams(params, { replace: true });
+              }}
+            />
+          </div>
+        ) : null}
 
         {/*
           BARRA DE COMANDO EM LOTE — aparece SÓ com seleção, e sobre uma superfície própria.
