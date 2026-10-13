@@ -7,36 +7,82 @@
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  --color-brand-50: #eef7f6;
-  --color-brand-100: #d3ebe8;
-  --color-brand-200: #a7d7d1;
-  --color-brand-300: #72bcb4;
-  --color-brand-400: #3f9c94;
-  --color-brand-500: #237f78;
-  --color-brand-600: #166860;
-  --color-brand-700: #13544e;
-  --color-brand-800: #0f423e;
-  --color-brand-900: #0b302d;
-  --color-brand-950: #062020;
+  /*
+   * CISNE IDENTITY — TEAL INSTITUCIONAL + NAVY OPERACIONAL.
+   *
+   * A escala `brand` e o TEAL da marca: ele identifica o CISNE (logo, accent de navegacao, foco) e
+   * nao deve ser usado como "a cor de tudo". Estado, prioridade e analitica usam as escalas
+   * semanticas abaixo. Reduzir tudo ao teal e o que fazia a interface ler monocromatica.
+   *
+   * Os valores foram aprofundados para a faixa de contraste AA: o teal anterior (#166860) sobre
+   * superficie branca entregava ~4.4:1 em texto pequeno; #0B8F88 e #0E7C74 ficam acima disso e
+   * mantem a identidade.
+   */
+  --color-brand-50: #e9f7f6;
+  --color-brand-100: #c9ecea;
+  --color-brand-200: #97d9d5;
+  --color-brand-300: #5cc0ba;
+  --color-brand-400: #2aa79f;
+  --color-brand-500: #119e96;
+  --color-brand-600: #0b8f88;
+  --color-brand-700: #0e7c74;
+  --color-brand-800: #0d635e;
+  --color-brand-900: #0a4a46;
+  --color-brand-950: #052e2c;
+
+  /*
+   * NAVY OPERACIONAL — a familia da sidebar e do texto forte.
+   *
+   * Existe separada do `slate` porque o CISNE precisa de um navy com IDENTIDADE (levemente
+   * azulado) para o chrome do shell, distinto do cinza-azulado dos neutros de conteudo. Sem essa
+   * distincao a sidebar lia como "cinza escuro" em vez de "navy corporativo".
+   */
+  --color-navy-500: #123e5a;
+  --color-navy-600: #0d2940;
+  --color-navy-700: #0a2033;
+  --color-navy-800: #071827;
+  --color-navy-900: #04101c;
+
+  /* AZUL DE ACAO — distinto do teal de identidade: e o azul de OPERACAO e INTERACAO. */
+  --color-blue-50: #eff6ff;
+  --color-blue-100: #dbeafe;
+  --color-blue-200: #bfdbfe;
+  --color-blue-400: #4d94ee;
+  --color-blue-500: #2f7de4;
+  --color-blue-600: #1769e0;
+  --color-blue-700: #0d56c7;
+  --color-blue-800: #0b4499;
+
+  /* ANALYTICS — roxo para eixo TEMPORAL/analitico. Nunca para estado operacional. */
+  --color-violet-50: #f5f3ff;
+  --color-violet-500: #8b5cf6;
+  --color-violet-600: #7c3aed;
+  --color-violet-700: #6d28d9;
 
   --color-emerald-50: #ecfdf5;
-  --color-emerald-600: #059669;
-  --color-emerald-700: #047857;
+  --color-emerald-100: #d1fae5;
+  --color-emerald-500: #10b981;
+  --color-emerald-600: #0a8f5b;
+  --color-emerald-700: #07734a;
   --color-emerald-800: #065f46;
 
-  --color-amber-50: #fffbeb;
+  --color-amber-50: #fff7e8;
+  --color-amber-100: #fdecc8;
+  --color-amber-500: #e08c0a;
   --color-amber-600: #d97706;
   --color-amber-700: #b45309;
 
   --color-red-50: #fef2f2;
-  --color-red-500: #ef4444;
-  --color-red-700: #b91c1c;
+  --color-red-100: #fee2e2;
+  --color-red-500: #e5484d;
+  --color-red-600: #d92d20;
+  --color-red-700: #b42318;
 
-  --color-cisne-brand: var(--color-brand-800);
-  --color-cisne-brand-strong: var(--color-brand-900);
-  --color-cisne-action: var(--color-brand-600);
-  --color-cisne-action-hover: var(--color-brand-700);
-  --color-cisne-action-muted: var(--color-brand-50);
+  --color-cisne-brand: var(--color-navy-800);
+  --color-cisne-brand-strong: var(--color-navy-900);
+  --color-cisne-action: var(--color-blue-600);
+  --color-cisne-action-hover: var(--color-blue-700);
+  --color-cisne-action-muted: var(--color-blue-50);
 
   --color-accent: var(--color-brand-600);
   --color-accent-muted: var(--color-brand-50);
@@ -65,24 +111,40 @@
    * Regra vinculante desta foundation: `raised` NAO e o default. Quem quiser elevar justifica
    * pelo tipo de superficie acima, nunca por "ficou mais bonito".
    */
-  --color-canvas: #f1f3f6;
+  /*
+   * CAMADAS DE PROFUNDIDADE SEM SOMBRA.
+   *
+   * O CISNE lia "branco demais" porque canvas e superficie de trabalho eram quase o mesmo tom. Aqui
+   * o canvas ganha um azul-cinza mais presente (#F3F6FA) e a superficie de trabalho fica BRANCA: o
+   * contraste entre as duas E a profundidade. Sombras continuam fora — quem separa e o tom, o
+   * divisor e o espaco.
+   */
+  --color-canvas: #f3f6fa;
   --color-canvas-work: #ffffff;
-  --color-surface-context: #f8fafc;
-  --color-surface-context-strong: #eef1f5;
+  --color-surface-context: #f7f9fc;
+  --color-surface-context-strong: #eef2f8;
+  /* CABECALHO TONAL — faixas de titulo de secao, cabecalho de grade, barras de ferramenta. */
+  --color-surface-header: #f2f5f9;
+  /* SELECAO — a linha/aba escolhida. Azul muito claro, distinto do teal de identidade. */
+  --color-surface-selected: #eaf3ff;
+  --color-surface-info: #eff6ff;
+  --color-surface-success: #ecfdf5;
+  --color-surface-warning: #fff7e8;
+  --color-surface-critical: #fef2f2;
 
-  /* DIVISORES ESTRUTURAIS — a hierarquia que substitui a cardification. */
-  --color-divider: #e2e6eb;
-  --color-divider-strong: #cfd6de;
+  /* DIVISORES ESTRUTURAIS — mais definicao: o produto precisa de precisao visual, nao de nevoa. */
+  --color-divider: #d8e1eb;
+  --color-divider-strong: #cad5e2;
   --color-rule-accent: var(--color-brand-600);
 
-  --color-text-primary: #111827;
-  --color-text-secondary: #4b5563;
-  --color-text-muted: #6b7280;
+  --color-text-primary: #102033;
+  --color-text-secondary: #52647a;
+  --color-text-muted: #6b7a8f;
   --color-text-inverse: #ffffff;
 
-  --color-border-default: #e5e7eb;
-  --color-border-subtle: #e5e7eb;
-  --color-border-strong: #9ca3af;
+  --color-border-default: #d8e1eb;
+  --color-border-subtle: #e4eaf2;
+  --color-border-strong: #c2cedb;
 
   --color-focus-ring: var(--color-brand-500);
 

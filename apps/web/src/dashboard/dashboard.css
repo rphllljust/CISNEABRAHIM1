@@ -20,13 +20,32 @@
   --chart-series-5: var(--dashboard-chart-series-5);
 
   /* CONTROL TOWER — densidade deliberada: 1px de borda no lugar de sombra grande. */
-  --dashboard-line: var(--color-slate-200);
-  --dashboard-line-soft: var(--color-slate-100);
+  --dashboard-line: var(--color-divider);
+  --dashboard-line-soft: var(--color-border-subtle);
+  --dashboard-line-strong: var(--color-divider-strong);
   --dashboard-surface: #fff;
-  --dashboard-surface-strong: #f8fafc;
+  --dashboard-surface-strong: var(--color-surface-header);
   --dashboard-panel-shadow: 0 1px 0 rgb(15 23 42 / 4%), 0 12px 30px rgb(15 23 42 / 5%);
-  --dashboard-muted: var(--color-slate-500);
-  --dashboard-ink: var(--color-slate-900);
+  --dashboard-muted: var(--color-text-secondary);
+  --dashboard-ink: var(--color-text-primary);
+
+  /*
+    TOKENS DE ESTADO — a cor FORTE que a tela nao tinha.
+
+    A paleta anterior resolvia tudo com slate + um teal apagado, e o resultado lia "sistema
+    administrativo". Aqui cada FAMILIA tem um papel declarado e nenhuma delas pinta area grande:
+    elas vivem em icone, barra lateral, badge, numero e segmento de grafico — que e onde cor guia o
+    olhar em vez de decorar.
+  */
+  --dashboard-accent: var(--color-blue-600);
+  --dashboard-accent-strong: var(--color-blue-700);
+  --dashboard-accent-soft: var(--color-surface-selected);
+  --dashboard-identity: var(--color-brand-600);
+  --dashboard-success: var(--color-emerald-600);
+  --dashboard-warning: var(--color-amber-600);
+  --dashboard-critical: var(--color-red-600);
+  --dashboard-info: var(--color-blue-600);
+  --dashboard-analytics: var(--color-violet-600);
 
   /*
     CAMADAS DE SUPERFICIE — a tela tinha QUATRO BRANCOS e por isso lia plana.
@@ -511,11 +530,11 @@ a.dashboard-kpi-list__cell:focus-visible {
 /* 1.75rem/650 — o titulo da FUNCAO, na faixa 28-32px da escala de pagina do ERP. */
 .dashboard-workspace-head__title {
   margin: 0;
-  font-size: 1.75rem;
-  font-weight: 650;
-  line-height: 1.15;
-  letter-spacing: -0.02em;
-  color: var(--dashboard-ink);
+  font-size: 1.875rem;
+  font-weight: 750;
+  line-height: 1.12;
+  letter-spacing: -0.022em;
+  color: var(--color-navy-800);
 }
 
 .dashboard-workspace-head__description {
@@ -2513,17 +2532,23 @@ a.dashboard-dense__cell:hover,
 */
 .dashboard-kpi-cell {
   display: grid;
-  grid-template-columns: 1.75rem minmax(0, 1fr);
+  grid-template-columns: 2.125rem minmax(0, 1fr);
   grid-template-rows: auto auto auto;
   align-content: center;
-  column-gap: 0.5rem;
+  column-gap: 0.625rem;
   row-gap: 0.0625rem;
-  min-height: 6rem;
+  min-height: 6.25rem;
   height: 100%;
   padding: 0.75rem 0.875rem;
+  border: 1px solid var(--dashboard-line);
+  border-top: 3px solid var(--dashboard-identity);
+  border-radius: var(--radius-md);
+  background: var(--dashboard-surface);
   text-decoration: none;
   color: inherit;
-  transition: background-color 120ms ease;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
 }
 
 a.dashboard-kpi-cell:hover {
@@ -2531,8 +2556,8 @@ a.dashboard-kpi-cell:hover {
 }
 
 a.dashboard-kpi-cell:focus-visible {
-  outline: 2px solid var(--color-brand-500);
-  outline-offset: -2px;
+  outline: 2px solid var(--dashboard-accent);
+  outline-offset: -1px;
 }
 
 .dashboard-kpi-cell__glyph {
@@ -2540,16 +2565,27 @@ a.dashboard-kpi-cell:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.75rem;
-  height: 1.75rem;
-  border-radius: var(--radius-sm);
+  width: 2.125rem;
+  height: 2.125rem;
+  border-radius: var(--radius-md);
   background: var(--color-slate-100);
 }
 
 .dashboard-kpi-cell__glyph-icon {
-  width: 0.9375rem;
-  height: 0.9375rem;
+  width: 1.125rem;
+  height: 1.125rem;
   color: var(--color-slate-500);
+}
+
+/*
+  COR POR SEMANTICA DO INDICADOR — e o que faz cada KPI ser identificavel em um olhar.
+
+  O square tonal carrega o TOM e a barra superior do card repete o mesmo tom: duas marcas do mesmo
+  fato em pontos opostos da celula, para que o olho encontre o indicador por posicao E por cor. O
+  texto continua em navy — cor forte em numero pequeno destroi a leitura.
+*/
+.dashboard-kpi-cell--critical {
+  border-top-color: var(--dashboard-critical);
 }
 
 .dashboard-kpi-cell--critical .dashboard-kpi-cell__glyph {
@@ -2557,7 +2593,15 @@ a.dashboard-kpi-cell:focus-visible {
 }
 
 .dashboard-kpi-cell--critical .dashboard-kpi-cell__glyph-icon {
-  color: var(--color-red-600);
+  color: var(--dashboard-critical);
+}
+
+.dashboard-kpi-cell--critical .dashboard-kpi-cell__value {
+  color: var(--color-red-700);
+}
+
+.dashboard-kpi-cell--warning {
+  border-top-color: var(--dashboard-warning);
 }
 
 .dashboard-kpi-cell--warning .dashboard-kpi-cell__glyph {
@@ -2565,15 +2609,28 @@ a.dashboard-kpi-cell:focus-visible {
 }
 
 .dashboard-kpi-cell--warning .dashboard-kpi-cell__glyph-icon {
-  color: var(--color-amber-600);
+  color: var(--dashboard-warning);
+}
+
+.dashboard-kpi-cell--warning .dashboard-kpi-cell__value {
+  color: var(--color-amber-700);
+}
+
+.dashboard-kpi-cell--info {
+  border-top-color: var(--dashboard-accent);
 }
 
 .dashboard-kpi-cell--info .dashboard-kpi-cell__glyph {
-  background: var(--color-brand-50);
+  background: var(--color-blue-50);
 }
 
 .dashboard-kpi-cell--info .dashboard-kpi-cell__glyph-icon {
-  color: var(--color-brand-600);
+  color: var(--dashboard-accent);
+}
+
+.dashboard-kpi-cell--success,
+.dashboard-kpi-cell--neutral {
+  border-top-color: var(--dashboard-identity);
 }
 
 .dashboard-kpi-cell--success .dashboard-kpi-cell__glyph {
@@ -2581,38 +2638,37 @@ a.dashboard-kpi-cell:focus-visible {
 }
 
 .dashboard-kpi-cell--success .dashboard-kpi-cell__glyph-icon {
-  color: var(--color-emerald-600);
+  color: var(--dashboard-success);
+}
+
+.dashboard-kpi-cell--neutral .dashboard-kpi-cell__glyph {
+  background: var(--color-brand-50);
+}
+
+.dashboard-kpi-cell--neutral .dashboard-kpi-cell__glyph-icon {
+  color: var(--dashboard-identity);
 }
 
 /*
-  VALOR — 20-24px, peso 650-700: o maior elemento da celula, logo abaixo do rotulo.
+  VALOR — 24px/700: o maior elemento da celula, logo abaixo do rotulo.
 */
 .dashboard-kpi-cell__value {
-  font-size: 1.375rem;
-  font-weight: 680;
+  font-size: 1.5rem;
+  font-weight: 700;
   line-height: 1.05;
   letter-spacing: -0.025em;
-  color: var(--dashboard-ink);
+  color: var(--color-navy-800);
   font-variant-numeric: tabular-nums;
 }
 
-.dashboard-kpi-cell--critical .dashboard-kpi-cell__value {
-  color: var(--color-red-700);
-}
-
-.dashboard-kpi-cell--warning .dashboard-kpi-cell__value {
-  color: var(--color-amber-700);
-}
-
 /*
-  ROTULO — 12-13px. O olho varre a faixa pelos NUMEROS e usa o rotulo para confirmar o que leu —
-  o inverso de uma lista de textos.
+  ROTULO — 12-13px/600. O olho varre a faixa pelos NUMEROS e usa o rotulo para confirmar o que leu.
 */
 .dashboard-kpi-cell__label {
   font-size: 0.75rem;
-  font-weight: 550;
+  font-weight: 600;
   line-height: 1.2;
-  color: var(--color-slate-600);
+  color: var(--dashboard-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3243,23 +3299,24 @@ a.dashboard-donut__legend-row:focus-visible {
 
 .dashboard-donut__legend-label {
   font-size: 0.75rem;
-  color: var(--color-slate-600);
+  color: #31455c;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .dashboard-donut__legend-count {
-  font-size: 0.75rem;
-  font-weight: 650;
-  color: var(--dashboard-ink);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--color-navy-800);
 }
 
 .dashboard-donut__legend-share {
   min-width: 2.25rem;
   text-align: right;
   font-size: 0.6875rem;
-  color: var(--color-slate-400);
+  font-weight: 600;
+  color: var(--dashboard-muted);
 }
 
 .dashboard-analytics__head {
@@ -3456,7 +3513,7 @@ a.dashboard-exceptions__row:focus-visible {
   background: var(--dashboard-surface);
 }
 
-/* TABS DE VIEW — sem contorno, com sublinhado de accent. Mesma gramatica das abas de recorte. */
+/* TABS DE VIEW — sem contorno; o ativo carrega sublinhado azul e peso maior. */
 .dashboard-views {
   display: flex;
   flex-wrap: wrap;
@@ -3475,7 +3532,7 @@ a.dashboard-exceptions__row:focus-visible {
   background: transparent;
   font-size: 0.8125rem;
   font-weight: 500;
-  color: var(--color-slate-500);
+  color: var(--dashboard-muted);
   cursor: pointer;
   transition:
     color 120ms ease,
@@ -3483,18 +3540,18 @@ a.dashboard-exceptions__row:focus-visible {
 }
 
 .dashboard-views__tab:hover {
-  color: var(--color-slate-800);
-  border-bottom-color: var(--color-slate-300);
+  color: var(--color-navy-700);
+  border-bottom-color: var(--color-border-strong);
 }
 
 .dashboard-views__tab--on {
-  border-bottom-color: var(--color-brand-700);
-  color: var(--dashboard-ink);
+  border-bottom-color: var(--dashboard-accent);
+  color: var(--dashboard-accent-strong);
   font-weight: 650;
 }
 
 .dashboard-views__tab:focus-visible {
-  outline: 2px solid var(--color-brand-500);
+  outline: 2px solid var(--dashboard-accent);
   outline-offset: 1px;
 }
 
@@ -3505,30 +3562,31 @@ a.dashboard-exceptions__row:focus-visible {
   gap: 0.375rem;
 }
 
-/* BUSCA DA FILA — 240-320px, altura de controle. */
+/* BUSCA DA FILA — 250-320px, surface tonal, foco azul. */
 .dashboard-queuebar__search {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
   width: 18rem;
   max-width: 100%;
-  height: 1.75rem;
+  height: 1.875rem;
   padding: 0 0.5rem;
   border: 1px solid var(--dashboard-line);
   border-radius: var(--radius-sm);
-  background: var(--color-slate-50);
+  background: var(--color-surface-context);
 }
 
 .dashboard-queuebar__search:focus-within {
-  border-color: var(--color-brand-400);
+  border-color: var(--dashboard-accent);
+  box-shadow: 0 0 0 2px rgb(23 105 224 / 18%);
   background: var(--dashboard-surface);
 }
 
 .dashboard-queuebar__search-icon {
-  width: 0.8125rem;
-  height: 0.8125rem;
+  width: 0.875rem;
+  height: 0.875rem;
   flex-shrink: 0;
-  color: var(--color-slate-400);
+  color: #7791aa;
 }
 
 .dashboard-queuebar__search input {
@@ -3542,7 +3600,7 @@ a.dashboard-exceptions__row:focus-visible {
 }
 
 .dashboard-queuebar__search input::placeholder {
-  color: var(--color-slate-400);
+  color: #8fa3b8;
 }
 
 /* ESCOPO ATIVO DA FILA — declarado na toolbar, sem virar chip colorido. */
@@ -3550,41 +3608,64 @@ a.dashboard-exceptions__row:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 0.3125rem;
-  height: 1.75rem;
+  height: 1.875rem;
   padding: 0 0.5rem;
   font-size: 0.75rem;
-  font-weight: 550;
-  color: var(--color-slate-600);
+  font-weight: 600;
+  color: #31455c;
   white-space: nowrap;
 }
 
 .dashboard-queuebar__filter-icon {
-  width: 0.8125rem;
-  height: 0.8125rem;
-  color: var(--color-slate-400);
+  width: 0.875rem;
+  height: 0.875rem;
+  color: var(--dashboard-accent);
 }
 
+/* BOTOES DA TOOLBAR — secundario neutro e primario cheio: hierarquia, nao fileira igual. */
 .dashboard-queuebar__button {
   display: inline-flex;
   align-items: center;
   gap: 0.3125rem;
-  height: 1.75rem;
-  padding: 0 0.5rem;
+  height: 1.875rem;
+  padding: 0 0.5625rem;
   border: 1px solid var(--dashboard-line);
   border-radius: var(--radius-sm);
   background: var(--dashboard-surface);
   font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--color-slate-700);
+  font-weight: 600;
+  color: #31455c;
   text-decoration: none;
   cursor: pointer;
   white-space: nowrap;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease,
+    color 120ms ease;
 }
 
 .dashboard-queuebar__button:hover:not(:disabled) {
-  border-color: var(--color-brand-300);
-  background: var(--color-brand-50);
-  color: var(--color-brand-800);
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-header);
+  color: var(--color-navy-800);
+}
+
+.dashboard-queuebar__button--active {
+  border-color: var(--color-amber-200);
+  background: var(--color-amber-50);
+  color: var(--color-amber-700);
+}
+
+.dashboard-queuebar__button--primary {
+  border-color: var(--dashboard-accent);
+  background: var(--dashboard-accent);
+  color: #fff;
+}
+
+.dashboard-queuebar__button--primary:hover:not(:disabled) {
+  border-color: var(--color-blue-700);
+  background: var(--color-blue-700);
+  color: #fff;
 }
 
 .dashboard-queuebar__button:disabled {
@@ -3593,13 +3674,13 @@ a.dashboard-exceptions__row:focus-visible {
 }
 
 .dashboard-queuebar__button:focus-visible {
-  outline: 2px solid var(--color-brand-500);
+  outline: 2px solid var(--dashboard-accent);
   outline-offset: 1px;
 }
 
 .dashboard-queuebar__button-icon {
-  width: 0.8125rem;
-  height: 0.8125rem;
+  width: 0.875rem;
+  height: 0.875rem;
 }
 
 /* --------------------------------------------------------------- FILA (dominante) */
@@ -3636,30 +3717,34 @@ a.dashboard-exceptions__row:focus-visible {
 
 .dashboard-queue__head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--spacing-2);
-  min-height: 2.125rem;
+  min-height: 2.25rem;
   padding: 0.375rem 0.625rem;
-  border-bottom: 1px solid var(--dashboard-line);
-  background: var(--color-slate-50);
+  border-bottom: 1px solid var(--dashboard-line-strong);
+  background: var(--dashboard-surface);
 }
 
 .dashboard-queue__title {
   margin: 0;
   font-size: 0.8125rem;
-  font-weight: 650;
-  color: var(--dashboard-ink);
+  font-weight: 700;
+  color: var(--color-navy-800);
 }
 
 .dashboard-queue__count {
-  font-size: 0.75rem;
-  font-weight: 650;
-  color: var(--color-slate-700);
+  padding: 0.0625rem 0.4375rem;
+  border-radius: var(--radius-sm);
+  background: var(--dashboard-accent-soft);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--dashboard-accent-strong);
+  font-variant-numeric: tabular-nums;
 }
 
 .dashboard-queue__scope {
   font-size: 0.6875rem;
-  color: var(--color-slate-400);
+  color: var(--dashboard-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3674,8 +3759,8 @@ a.dashboard-exceptions__row:focus-visible {
   align-items: center;
   gap: 0.25rem;
   font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--color-brand-700);
+  font-weight: 650;
+  color: var(--dashboard-accent-strong);
   text-decoration: none;
   white-space: nowrap;
 }
@@ -3815,33 +3900,35 @@ a.dashboard-exceptions__row:focus-visible {
   background: var(--color-slate-50);
 }
 
-/* CABECALHO DE COLUNAS — 34-38px, micro-uppercase com tracking. */
+/* CABECALHO DE COLUNAS — 34-38px, fundo tonal, micro-uppercase com tracking. */
 .dashboard-queue__row--head {
   position: sticky;
   top: 0;
   z-index: 1;
   min-height: 2.25rem;
-  border-bottom: 1px solid var(--dashboard-line);
-  background: var(--color-slate-50);
-  font-size: 0.625rem;
-  font-weight: 700;
+  border-top: 1px solid var(--dashboard-line-strong);
+  border-bottom: 1px solid var(--dashboard-line-strong);
+  background: var(--color-surface-header);
+  font-size: 0.6875rem;
+  font-weight: 650;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--color-slate-500);
+  letter-spacing: 0.06em;
+  color: #31455c;
 }
 
 .dashboard-queue__row--head:hover {
-  background: var(--color-slate-50);
+  background: var(--color-surface-header);
 }
 
 .dashboard-queue__row--critical {
-  box-shadow: inset 3px 0 0 0 var(--color-red-500);
+  box-shadow: inset 3px 0 0 0 var(--dashboard-critical);
 }
 
+/* SELECAO — azul muito claro + barra esquerda azul de 2px. */
 .dashboard-queue__row--selected,
 .dashboard-queue__row--selected:hover {
-  background: var(--color-brand-50);
-  box-shadow: inset 3px 0 0 0 var(--color-brand-600);
+  background: var(--dashboard-accent-soft);
+  box-shadow: inset 3px 0 0 0 var(--dashboard-accent);
 }
 
 /* PRIORIDADE — bolinha semantica + texto. A bolinha nao substitui a palavra. */
@@ -3851,8 +3938,8 @@ a.dashboard-exceptions__row:focus-visible {
   gap: 0.375rem;
   min-width: 0;
   font-size: 0.75rem;
-  font-weight: 550;
-  color: var(--color-slate-600);
+  font-weight: 600;
+  color: #31455c;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3866,16 +3953,17 @@ a.dashboard-exceptions__row:focus-visible {
   background: var(--color-slate-300);
 }
 
+/* CRITICO vermelho, ALTO laranja, NORMAL azul, BAIXO slate — a escala de prioridade da grade. */
 .dashboard-queue__dot--critical {
-  background: var(--color-red-600);
+  background: var(--dashboard-critical);
 }
 
 .dashboard-queue__dot--warning {
-  background: var(--color-amber-500);
+  background: var(--dashboard-warning);
 }
 
 .dashboard-queue__dot--neutral {
-  background: var(--color-slate-300);
+  background: var(--dashboard-accent);
 }
 
 /* DOCUMENTO — referencia humana sobre o titulo; o botao abre o contexto, nao navega. */
@@ -3890,9 +3978,9 @@ a.dashboard-exceptions__row:focus-visible {
   background: transparent;
   padding: 0;
   text-align: left;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 650;
-  color: var(--color-brand-700);
+  color: var(--dashboard-accent-strong);
   cursor: pointer;
 }
 

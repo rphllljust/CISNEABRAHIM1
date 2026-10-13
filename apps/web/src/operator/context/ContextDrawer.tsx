@@ -92,25 +92,37 @@ export function ContextDrawer({
   className,
 }: ContextDrawerProps) {
   const body = preview ? (
-    <div className="flex flex-col gap-4 text-sm">
-          <header className="border-b border-gray-100 pb-3">
-            <p className="text-sm font-semibold text-gray-900">{preview.identifier}</p>
+    <div className="flex flex-col gap-3.5 text-sm">
+          {/*
+            CABECALHO DA ENTIDADE — identificador em 22px/750 navy. E a identidade do OBJETO, nao um
+            titulo de secao: precisa dominar o painel para que o operador saiba, sem ler nada mais,
+            de que registro ele esta olhando.
+          */}
+          <header className="border-b border-[#D8E1EB] pb-3">
+            <p className="text-[22px] leading-tight font-bold tracking-tight text-[#071827]">
+              {preview.identifier}
+            </p>
             {preview.subtitle ? (
-              <p className="mt-0.5 text-xs text-gray-500">{preview.subtitle}</p>
+              <p className="mt-0.5 text-[13px] text-[#52647A]">{preview.subtitle}</p>
             ) : null}
             {preview.status ? <div className="mt-2">{preview.status}</div> : null}
           </header>
 
           {preview.facts.length > 0 ? (
-            <dl className="m-0 grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)] gap-x-3 gap-y-2">
+            <dl className="m-0 grid grid-cols-[minmax(0,8.5rem)_minmax(0,1fr)] gap-x-3 gap-y-1.5">
               {preview.facts.map((field) => (
-                <div key={field.label} className="col-span-2 grid grid-cols-subgrid">
-                  <dt className="text-xs text-gray-500">{field.label}</dt>
+                <div
+                  key={field.label}
+                  className="col-span-2 grid grid-cols-subgrid border-b border-[#F1F5F9] pb-1.5 last:border-b-0"
+                >
+                  <dt className="text-[11px] font-semibold tracking-wide text-[#52647A] uppercase">
+                    {field.label}
+                  </dt>
                   <dd
                     className={
                       field.emphasis
-                        ? 'm-0 text-[13px] font-semibold text-gray-900 tabular-nums'
-                        : 'm-0 text-[13px] text-gray-800'
+                        ? 'm-0 text-[13px] font-bold text-[#B42318] tabular-nums'
+                        : 'm-0 text-[13px] font-medium text-[#102033]'
                     }
                   >
                     {field.value}
@@ -234,20 +246,20 @@ function InlineContextPanel({
 
   return (
     <section className={cn('flex min-h-0 flex-col bg-white', className)} aria-labelledby={titleId}>
-      <header className="flex items-center justify-between gap-2 border-b border-gray-200 bg-gray-50 px-2.5 py-1.5">
+      <header className="flex items-center justify-between gap-2 border-b border-[#CAD5E2] bg-white px-3 py-2">
         <h2 id={titleId} className="cisne-type-workspace m-0 truncate">
           {title}
         </h2>
         <button
           type="button"
-          className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-gray-500 hover:bg-gray-200 hover:text-gray-900"
+          className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-[#52647A] transition-colors hover:bg-[#F2F5F9] hover:text-[#071827]"
           onClick={onClose}
           aria-label="Fechar contexto"
         >
-          <X className="size-3.5" strokeWidth={2.4} aria-hidden />
+          <X className="size-4" strokeWidth={2.4} aria-hidden />
         </button>
       </header>
-      <div className="min-h-0 flex-1 overflow-auto px-3 py-2.5">{children}</div>
+      <div className="min-h-0 flex-1 overflow-auto bg-white px-3.5 py-3">{children}</div>
     </section>
   );
 }

@@ -28,18 +28,27 @@ type ShellNavListProps = {
 function buildNavLinkClass(isActive: boolean, theme: 'dark' | 'light') {
   if (theme === 'dark') {
     return cn(
-      'group relative flex items-center gap-2 rounded-md px-2 py-[0.3125rem] text-[13px] font-medium no-underline transition',
-      'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500',
+      'group relative flex items-center gap-2 rounded-md px-2 py-[0.3125rem] text-[13px] no-underline transition-colors',
+      'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-400',
+      /*
+        ITEM ATIVO — azul petroleo forte + barra teal de 3px a esquerda + texto branco.
+
+        A hierarquia vem de PESO e CONTRASTE, nao de tamanho: o ativo troca de cor de fundo, ganha
+        a barra de identidade e sobe para 650. O item normal fica em #B8C7D9 sobre o navy — abaixo
+        disso o menu deixa de ser legivel em monitor de escritorio.
+      */
       isActive
-        ? 'bg-white/[0.105] text-white shadow-[inset_3px_0_0_#72bcb4]'
-        : 'text-slate-400 hover:bg-white/[0.065] hover:text-white',
+        ? 'bg-[#123E5A] font-semibold text-white shadow-[inset_3px_0_0_#18A7A0]'
+        : 'font-medium text-[#B8C7D9] hover:bg-[#0D2940] hover:text-white',
     );
   }
 
   return cn(
-    'group flex items-center gap-2 rounded-md px-2 py-[0.3125rem] text-[13px] font-medium no-underline transition',
-    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500',
-    isActive ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+    'group flex items-center gap-2 rounded-md px-2 py-[0.3125rem] text-[13px] no-underline transition-colors',
+    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500',
+    isActive
+      ? 'bg-blue-50 font-semibold text-blue-800'
+      : 'font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900',
   );
 }
 
@@ -47,10 +56,10 @@ function iconClass(isActive: boolean, theme: 'dark' | 'light') {
   if (theme === 'dark') {
     return cn(
       'h-4 w-4 shrink-0',
-      isActive ? 'text-brand-300' : 'text-slate-500 group-hover:text-slate-300',
+      isActive ? 'text-[#18A7A0]' : 'text-[#7791AA] group-hover:text-[#B8C7D9]',
     );
   }
-  return cn('h-4 w-4 shrink-0', isActive ? 'text-brand-600' : 'text-gray-400');
+  return cn('h-4 w-4 shrink-0', isActive ? 'text-blue-700' : 'text-gray-400');
 }
 
 export function ShellNavList({
@@ -65,12 +74,12 @@ export function ShellNavList({
     <nav
       className={cn(
         'sidebar-scroll flex-1 space-y-3 overflow-y-auto px-2.5 py-2.5',
-        theme === 'dark' ? 'bg-[#07111d]' : 'bg-white',
+        theme === 'dark' ? 'bg-[#071827]' : 'bg-white',
       )}
       aria-label="Navegação principal"
     >
       {loading ? (
-        <p className="px-2 text-[13px] text-gray-500" aria-live="polite">
+        <p className="px-2 text-[13px] text-[#7791AA]" aria-live="polite">
           Carregando navegação…
         </p>
       ) : null}
@@ -82,10 +91,15 @@ export function ShellNavList({
 
         return (
           <section key={group.id} aria-label={group.label}>
+            {/*
+              SECTION LABEL — micro-uppercase com tracking forte, em azul acinzentado. Ele separa
+              GRUPOS por TOM, nao por caixa: a sidebar precisa de profundidade visual, e uma borda
+              por grupo faria dela uma lista de retangulos.
+            */}
             <p
               className={cn(
-                'mb-1.5 px-2 text-[9px] font-semibold uppercase tracking-[0.18em]',
-                theme === 'dark' ? 'text-slate-500' : 'text-slate-400',
+                'mb-1.5 px-2 text-[9px] font-bold uppercase tracking-[0.2em]',
+                theme === 'dark' ? 'text-[#5D7896]' : 'text-slate-400',
               )}
             >
               {group.label}

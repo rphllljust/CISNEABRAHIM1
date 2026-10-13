@@ -42,13 +42,13 @@ export function ShellTopBar({
       o sino e o menu de usuario com folga de ponteiro.
     */
     <header
-      className="shell__topbar sticky top-0 z-20 flex h-[3.5rem] items-center gap-3 border-b border-slate-200 bg-white px-4 sm:px-5 lg:px-6"
+      className="shell__topbar sticky top-0 z-20 flex h-[3.375rem] items-center gap-3 border-b border-[#D8E1EB] bg-white px-4 sm:px-5 lg:px-6"
       role="banner"
     >
       <button
         id={menuButtonId}
         type="button"
-        className="inline-flex items-center gap-2 rounded-md border-0 bg-transparent p-2 font-inherit text-slate-600 hover:bg-slate-100 lg:hidden"
+        className="inline-flex items-center gap-2 rounded-md border-0 bg-transparent p-2 font-inherit text-[#52647A] hover:bg-[#F2F5F9] lg:hidden"
         aria-expanded={menuExpanded}
         aria-controls="shell-mobile-drawer"
         onClick={onMenuToggle}
@@ -61,10 +61,10 @@ export function ShellTopBar({
         <GlobalSearchBar compact />
       </div>
 
-      <div className="ml-auto flex items-center gap-3">
+      <div className="ml-auto flex items-center gap-1.5">
         {environmentLabel ? (
           <span
-            className="hidden items-center rounded-md bg-amber-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-amber-700 ring-1 ring-inset ring-amber-600/20 sm:inline-flex"
+            className="hidden items-center rounded-md bg-[#FFF7E8] px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-[#B45309] sm:inline-flex"
             aria-label={`Ambiente ${environmentLabel}`}
           >
             {environmentLabel}
@@ -83,31 +83,38 @@ export function ShellTopBar({
         {onOpenCommandPalette ? (
           <button
             type="button"
-            className="hidden min-h-[var(--control-height)] items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50 sm:inline-flex"
+            className="hidden min-h-[var(--control-height)] items-center gap-2 rounded-md bg-[#1769E0] px-3 text-xs font-bold text-white transition-colors hover:bg-[#0D56C7] sm:inline-flex"
             onClick={onOpenCommandPalette}
             aria-label="Abrir central de comandos (Ctrl+K)"
           >
-              <span>Central de comando</span>
-            <kbd className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] text-slate-500">
+            <span>Comando</span>
+            <kbd className="rounded bg-white/20 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-white">
               Ctrl K
             </kbd>
           </button>
         ) : null}
 
-        <div className="hidden h-6 w-px bg-slate-200 sm:block" aria-hidden />
+        <div className="hidden h-6 w-px bg-[#D8E1EB] sm:block" aria-hidden />
 
         <Dropdown
           label="Menu do usuário"
           trigger={
-            <span className="flex cursor-pointer items-center gap-2.5 rounded-md border border-transparent p-1 pr-2 transition hover:border-slate-200 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">
+            <span className="flex cursor-pointer items-center gap-2.5 rounded-md p-1 pr-2 transition hover:bg-[#F2F5F9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500">
+              {/*
+                AVATAR EM TEAL — identidade CISNE no ponto de conta. O nome fica em peso 650 e o
+                ambiente vira metadata: e a hierarquia de um application shell, nao de um formulario.
+              */}
               <span
-                className="flex h-8 w-8 items-center justify-center rounded-md bg-brand-700 text-xs font-semibold text-white"
+                className="flex h-7 w-7 items-center justify-center rounded-md bg-[#0B8F88] text-[11px] font-bold text-white"
                 aria-hidden="true"
               >
                 CN
               </span>
-              <span className="hidden text-sm font-semibold text-slate-700 sm:block">{userLabel}</span>
-              <ChevronDown className="hidden size-4 text-slate-400 sm:block" aria-hidden />
+              <span className="hidden leading-tight sm:block">
+                <span className="block text-[12px] font-semibold text-[#071827]">{userLabel}</span>
+                <span className="block text-[10px] text-[#52647A]">Cisne Rondônia</span>
+              </span>
+              <ChevronDown className="hidden size-4 text-[#7791AA] sm:block" aria-hidden />
             </span>
           }
           items={[

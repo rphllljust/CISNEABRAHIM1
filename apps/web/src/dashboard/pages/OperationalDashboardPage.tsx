@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
+  AlertTriangle,
   ArrowUpRight,
   FolderOpen,
   Loader2,
@@ -550,9 +551,27 @@ export function OperationalDashboardPage() {
                 </label>
 
                 <span className="dashboard-queuebar__filter">
-                  <SlidersHorizontal className="dashboard-queuebar__filter-icon" strokeWidth={2.2} aria-hidden />
+                  <SlidersHorizontal className="dashboard-queuebar__filter-icon" strokeWidth={2.4} aria-hidden />
                   {domainLabel}
                 </span>
+
+                {/*
+                  "SOMENTE VENCIDOS" COMO TOGGLE DE FILTRO REAL — o read model executa `overdue`
+                  no servidor, entao o controle tem efeito verdadeiro. Ele fica na toolbar (e nao no
+                  cabecalho) porque e um refinamento DA FILA, nao do escopo do painel.
+                */}
+                <button
+                  type="button"
+                  className={cn(
+                    'dashboard-queuebar__button',
+                    overdueOnly && 'dashboard-queuebar__button--active',
+                  )}
+                  aria-pressed={overdueOnly}
+                  onClick={() => updateOperationalRecorte('overdue', overdueOnly ? null : 'true')}
+                >
+                  <AlertTriangle className="dashboard-queuebar__button-icon" strokeWidth={2.4} aria-hidden />
+                  Atrasados
+                </button>
 
                 <button
                   type="button"
@@ -560,13 +579,16 @@ export function OperationalDashboardPage() {
                   onClick={() => void reload()}
                   disabled={isRefreshing}
                 >
-                  <RefreshCw className="dashboard-queuebar__button-icon" strokeWidth={2.2} aria-hidden />
+                  <RefreshCw className="dashboard-queuebar__button-icon" strokeWidth={2.4} aria-hidden />
                   Atualizar
                 </button>
 
-                <Link className="dashboard-queuebar__button" to="/app/work-inbox">
-                  Central de trabalho
-                  <ArrowUpRight className="dashboard-queuebar__button-icon" strokeWidth={2.2} aria-hidden />
+                <Link
+                  className="dashboard-queuebar__button dashboard-queuebar__button--primary"
+                  to="/app/work-inbox"
+                >
+                  Abrir fila
+                  <ArrowUpRight className="dashboard-queuebar__button-icon" strokeWidth={2.4} aria-hidden />
                 </Link>
               </div>
             </div>
@@ -977,21 +999,27 @@ function OperationDistribution({ snapshot }: { snapshot: ExecutiveDashboardSnaps
   const total = status.items.reduce((sum, item) => sum + item.count, 0);
 
   /*
-   * COR POR SEMANTICA DO ESTADO, no vocabulario que a propria lista de OS usa. O que nao esta
-   * mapeado cai na serie neutra — o donut nao inventa significado de cor para um estado novo.
+   * COR POR SEMANTICA DO ESTADO — paleta DIFERENCIADA, nao monocromatica.
+   *
+   * Um donut em cinco tons de azul nao informa nada: o operador precisa distinguir "em execucao" de
+   * "pausada" sem ler a legenda. Cada estado recebe a familia que o representa no vocabulario do
+   * produto (operacao=azul, atencao=ambar, concluido=verde) e o que nao esta mapeado cai em slate —
+   * o grafico nao inventa significado para um estado que ele nao conhece.
    */
-  const strokeFor = (statusId: string): string => {
+  const colorFor = (statusId: string): string => {
     switch (statusId) {
       case 'IN_EXECUTION':
-        return 'var(--color-brand-600)';
-      case 'PAUSED':
-        return 'var(--color-amber-500)';
+        return '#1769E0';
       case 'RELEASED':
-        return 'var(--color-slate-400)';
+        return '#5C9CEB';
+      case 'PAUSED':
+        return '#D97706';
       case 'COMPLETED':
-        return 'var(--color-emerald-600)';
+        return '#0A8F5B';
+      case 'CANCELLED':
+        return '#D92D20';
       default:
-        return 'var(--color-slate-300)';
+        return '#94A3B8';
     }
   };
 
@@ -1001,7 +1029,7 @@ function OperationDistribution({ snapshot }: { snapshot: ExecutiveDashboardSnaps
     const share = total > 0 ? (item.count / total) * 100 : 0;
     const from = cursor;
     cursor += share;
-    return `${strokeFor(item.status)} ${from}% ${cursor}%`;
+    return `${colorFor(item.status)} ${from}% ${cursor}%`;
   });
   const ring = stops.length > 0 ? `conic-gradient(${stops.join(', ')})` : 'none';
 
@@ -1036,7 +1064,7 @@ function OperationDistribution({ snapshot }: { snapshot: ExecutiveDashboardSnaps
               >
                 <span
                   className="dashboard-donut__swatch"
-                  style={{ background: strokeFor(item.status) }}
+                  style={{ background: colorFor(item.status) }}
                   aria-hidden
                 />
                 <span className="dashboard-donut__legend-label">{item.label}</span>
