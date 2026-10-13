@@ -482,9 +482,8 @@ export function ServiceOrderExecutionPage() {
             label: primary.label,
             description:
               primary.kind === 'record'
-                ? 'Registre a evidência operacional ainda exigida para avançar a execução.'
-                : 'A ação usa o comando já autorizado da execução e mantém validação no backend.',
-            onSelect: runPrimaryAction,
+                ? 'Registre a evidência operacional ainda exigida para avançar a execução na barra de ações.'
+                : 'A barra operacional executa este comando com a autorização e as validações do backend.',
           }
         : null;
   const pendingActivityKinds = requirements
