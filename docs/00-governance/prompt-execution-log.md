@@ -21008,3 +21008,73 @@ Nenhuma regressão; +3 testes passando em relação à rodada 27.
    desde antes destas rodadas; não foi commitado.
 
 WORKING_TREE: sem alteração pendente de código; só este registro
+
+---
+
+## FILTRO COMPOSTO SERVER-SIDE EM ORÇAMENTOS (rodada 29) — 2026-10-13
+
+STATUS: **PASS**
+Commit: `b799a8b2` (contrato + UI + migration 0096)
+
+### AQUI O DEFEITO ERA AUSÊNCIA, NÃO MÁSCARA
+
+Recebíveis e pagáveis tinham o construtor montado e aplicado só no navegador. Orçamentos era
+diferente: a tela oferecia **um** termo de busca e **um** valor de situação, e combinar "situação
+ACTIVE E moeda BRL E criado depois de X" **não era expressável**. Não havia máscara para corrigir —
+havia um vazio, preenchido já pelo caminho correto: a árvore vira `filters` na MESMA consulta, então
+paginação e contagem seguem coerentes com o recorte, e nada é refiltrado no navegador.
+
+### `status` ENTRA AQUI — e a diferença é de DOMÍNIO, não de gosto
+
+| Entidade | Situação | Recorte composto por situação |
+| -------- | -------- | ----------------------------- |
+| recebíveis / pagáveis | DERIVADA (lifecycle + liquidações + vencimento); **não há coluna** | excluída |
+| **orçamentos** | **COLUNA real** (`fin.budget_status`, ACTIVE/INACTIVE), já usada pelo filtro simples | **incluída** |
+
+O teste fixa essa diferença em vez de assumir que as três telas são iguais — foi justamente copiar
+allow-list entre entidades que a rodada anterior recusou.
+
+`unit_id` fica fora: já é o filtro simples e o escopo de autorização.
+
+### Implementação
+
+`budget-list-sql.ts` (allow-list + cast do ENUM `fin.budget_status`, sem o qual o Postgres compararia
+enum com texto e o erro seria de TIPO em vez de zero linhas) · predicado composto como um clause no
+`whereParts` já existente · controller devolve **400** em filtro inválido · migration **0096** liga os
+marcadores `in_filter`.
+
+### VALIDAÇÃO
+
+| Gate | Resultado |
+| ---- | --------- |
+| `pnpm lint` | PASS (4/4 tasks) |
+| `pnpm typecheck` | PASS (3/3 packages) |
+| Web financeiro | **96/96** |
+| API financeiro + test | 79/79, com **14 testes novos** do contrato de orçamentos |
+| `git diff --check` | PASS |
+| scripts gate / journal coverage / source-size | PASS |
+
+### DEPLOY (Railway, produção)
+
+| Item | Estado |
+| ---- | ------ |
+| Commit | `b799a8b2fd107aa2ba0e5267d7e57fccabd7cbbc` |
+| `@cisne/api` | **SUCCESS** — pre-deploy aplicou a migration 0096 |
+| `@cisne/web` | **SUCCESS** |
+| Health | API `ready` 200 (`database up`), WEB `/health` 200 |
+| Revisão ativa | bundle `index-BVYvBSeI.js` (o anterior responde **404**) |
+
+### RESTRIÇÕES CONHECIDAS
+
+1. **Cauda do filtro composto**: Despesas, Fornecedores e Tesouraria ainda não o têm.
+2. **27 falhas de CI pré-existentes** seguem abertas e bloqueiam o workflow `CD`.
+3. **Arquivos não rastreados de TERCEIROS apareceram na árvore durante esta rodada**
+   (`dashboard/components/BusinessChainFlow.tsx`, `DashboardWorkbenchHeader.tsx`,
+   `SituationPanel.tsx`, `WorkbenchKpiStrip.tsx`, `dashboard/utils/build-workbench-kpis.ts`,
+   `dashboard-situation.ts`, mais modificações em `ShellNavList.tsx` e na página do dashboard).
+   **NÃO foram tocados nem commitados** — não são deste trabalho, e misturá-los num commit de
+   financeiro seria atribuição errada. Ficam registrados para o responsável decidir.
+4. `apps/web/src/purchase-orders/purchase-orders-request-budget.ui.test.tsx` segue não rastreado desde
+   antes destas rodadas.
+
+WORKING_TREE: alterações de TERCEIROS presentes e deliberadamente não commitadas (ver item 3)
