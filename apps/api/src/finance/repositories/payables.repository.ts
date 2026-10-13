@@ -28,6 +28,10 @@ import type {
   PaymentRow,
   ReversePaymentPersistenceInput,
 } from './payables.repository.types';
+import {
+  buildPayableAdvancedClause,
+  type PayableAdvancedFilter,
+} from './payable-list-sql';
 
 const CATEGORY_RETURNING = `
   id, code, name, status::text AS status, created_at, updated_at, created_by_identity_id, updated_by_identity_id
@@ -131,6 +135,8 @@ export class PayablesRepository {
     dueFrom?: string;
     dueTo?: string;
     search?: string;
+    /** Filtro composto já validado pelo contrato; ausente = sem recorte composto. */
+    advanced?: PayableAdvancedFilter;
     limit: number;
     offset: number;
     sortBy: 'due_date' | 'created_at';
@@ -168,6 +174,20 @@ export class PayablesRepository {
       // Curinga escapado: o termo e do operador, nunca vira padrao livre no servidor.
       params.push(`%${input.search.replace(/[%_\\]/g, '\\$&')}%`);
       where.push(`r.external_reference ILIKE $${params.length}`);
+    }
+
+    /*
+     * FILTRO COMPOSTO — entra como UM predicado entre os demais, convivendo por conjunção com o
+     * escopo de autorização, a situação, a janela de vencimento e a busca. A tradução de cada
+     * condição (coluna real, operador, cast e parâmetro) vive em `payable-list-sql`, junto do
+     * allow-list que o parser valida — leitura e escrita do contrato no mesmo lugar.
+     */
+    if (input.advanced) {
+      const advanced = buildPayableAdvancedClause(input.advanced, params.length + 1);
+      if (advanced) {
+        where.push(advanced.clause);
+        params.push(...advanced.params);
+      }
     }
 
     const whereSql = `WHERE ${where.join(' AND ')}`;

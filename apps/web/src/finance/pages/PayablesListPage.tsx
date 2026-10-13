@@ -23,9 +23,10 @@ import {
   DynamicFilterBuilder,
   emptyFilterGroup,
   isFilterGroupActive,
-  matchesFilterGroup,
   type FilterGroup,
 } from '../../engine/DynamicFilterBuilder';
+import { advancedFilterFromGroup } from '../../engine';
+import { PAYABLE_TITLE_FILTER_SPECS } from './finance-title-filter-specs';
 import { getPayablesSummary, listPayables, type FinanceTitlePage, type FinanceTitleSummary } from '../api/finance-api';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import { FinanceStatusBadge } from '../components/FinanceStatusBadge';
@@ -79,6 +80,24 @@ export function PayablesListPage() {
    */
   const offset = (pageNumber - 1) * BACKOFFICE_TABLE_PAGE_SIZE;
   const [statusForQuery, setStatusForQuery] = useState('');
+
+  /*
+   * A ÁRVORE DO CONSTRUTOR VAI AO SERVIDOR.
+   *
+   * Antes, o recorte composto era aplicado SÓ no navegador (`byBuilder` filtrava a página já
+   * carregada com `matchesFilterGroup`). Numa carteira maior que uma página, compor um filtro e ver
+   * "nenhuma obrigação" não significava "não existe" — significava "não está entre as linhas
+   * carregadas". O operador não tinha como distinguir, e o indicador ao lado continuava contando o
+   * conjunto NÃO filtrado.
+   *
+   * O conversor compartilhado traduz a árvore para o contrato do servidor usando o allow-list DESTA
+   * entidade; condição que o servidor não executa é DESCARTADA pelo conversor, não aproximada.
+   */
+  const advancedPayload = useMemo(
+    () => advancedFilterFromGroup(filterGroup, PAYABLE_TITLE_FILTER_SPECS),
+    [filterGroup],
+  );
+
   const loader = useCallback(
     (signal?: AbortSignal) =>
       listPayables(
@@ -86,12 +105,13 @@ export function PayablesListPage() {
           limit: BACKOFFICE_TABLE_PAGE_SIZE,
           offset,
           status: statusForQuery || undefined,
+          advanced: advancedPayload,
           sortBy: 'due_date',
           sortDir: 'asc',
         },
         signal,
       ),
-    [offset, statusForQuery],
+    [advancedPayload, offset, statusForQuery],
   );
   const { state, reload } = useBackofficeQuery<FinanceTitlePage<PayableDetail>>({
     loader,
@@ -171,15 +191,17 @@ export function PayablesListPage() {
   const overdue = inFlight.filter((item) => item.status === 'OVERDUE');
 
   /*
-   * RECORTE EM DUAS CAMADAS, na ordem em que o operador as compôs:
-   *   1. o construtor visual (árvore AND/OR) sobre os títulos da página;
-   *   2. o filtro de aging do smart list, que o servidor não aceita como parâmetro.
-   * Aplicar a árvore sobre o conjunto já recortado por aging mantém os dois recortes
-   * CONJUNTIVOS, que é a leitura correta de dois filtros ativos ao mesmo tempo.
+   * A ÁRVORE JÁ VEM APLICADA DO SERVIDOR; o aging continua sendo recorte LOCAL.
+   *
+   * `byBuilder` deixou de refiltrar pela árvore — ela agora viaja na consulta, e refiltrar aqui
+   * reintroduziria a segunda verdade que este ajuste remove (a linha sumiria da grade sem que o
+   * servidor tivesse sido consultado).
+   *
+   * O aging permanece no cliente porque o SERVIDOR NÃO o aceita como parâmetro: é uma dimensão
+   * derivada que a listagem não filtra. Manter a diferença explícita é o que impede alguém de
+   * supor que `byBuilder` é uma máscara sobre a página — ele agora é só o resultado do aging.
    */
-  const byBuilder = isFilterGroupActive(filterGroup)
-    ? filtered.filter((item) => matchesFilterGroup(filterGroup, payableEngineRow(item)))
-    : filtered;
+  const byBuilder = filtered;
 
   const rows = byBuilder.map(payableEngineRow);
   const selectedRows = selection.selectedRows(filtered);

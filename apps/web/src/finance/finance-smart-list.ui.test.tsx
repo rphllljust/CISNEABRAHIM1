@@ -40,11 +40,18 @@ function readAllStorage(): string {
   return parts.join('|');
 }
 
-/** Identidade HUMANA da linha, lida do texto da célula de referência externa. */
+/**
+ * Identidade HUMANA da linha, lida do atributo `data-field="external_reference"` da célula.
+ *
+ * NÃO se usa um matcher por TEXTO: em contas a pagar a mesma referência aparece DUAS vezes na linha
+ * (referência externa E referência de origem), e `getByText` encontraria dois elementos e lançaria.
+ * Mirar a coluna certa é o que a tela realmente afirma.
+ */
 function rowIdentifiers(): string[] {
-  return screen
-    .getAllByTestId('dynamic-list-row')
-    .map((row) => within(row).getByText(/^A[RP]-\d+$/).textContent ?? '');
+  return screen.getAllByTestId('dynamic-list-row').map((row) => {
+    const cell = row.querySelector('[data-field="external_reference"]');
+    return cell?.textContent ?? '';
+  });
 }
 
 describe('Financeiro — smart lists e mecanismos de operação', () => {

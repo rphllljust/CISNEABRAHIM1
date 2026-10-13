@@ -1,9 +1,15 @@
-import { Controller, Get, HttpCode, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import { CurrentAuth } from '../../auth/decorators/current-auth.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import type { AccessTokenClaims } from '../../auth/services/token.service';
 import { parseFinanceListQuery } from '../dto/finance-list.dto';
+import {
+  parsePayableAdvancedFilter,
+  type PayableAdvancedFilter,
+} from '../repositories/payable-list-sql';
+import { FinanceHttpException } from '../errors/finance-http.exception';
+import { FINANCE_ERROR_CODES } from '../errors/finance-error-codes';
 import {
   validateCancelPayableInput,
   validateCreateExpenseCategoryInput,
@@ -11,6 +17,26 @@ import {
   validateReversePaymentInput,
 } from '../domain/payable.validation';
 import { PayablesAccessService } from '../services/payables-access.service';
+
+/**
+ * Filtro composto inválido vira 400 com o código de validação do Financeiro.
+ *
+ * `parseAdvancedFilter` lança `AdvancedFilterParseError`, que é um `Error` comum: sem esta conversão
+ * o `ApiExceptionFilter` (que só captura `HttpException`) não o trataria e o cliente receberia 500
+ * para um erro de entrada do operador. Recusar explicitamente também é o comportamento correto:
+ * descartar a condição faria a tela exibir a lista inteira como se o recorte tivesse sido aplicado.
+ */
+function parsePayableAdvancedFilterOrThrow(value: unknown): PayableAdvancedFilter | undefined {
+  try {
+    return parsePayableAdvancedFilter(value);
+  } catch {
+    throw new FinanceHttpException(
+      HttpStatus.BAD_REQUEST,
+      FINANCE_ERROR_CODES.VALIDATION_FAILED,
+      'Invalid advanced filter.',
+    );
+  }
+}
 
 @Controller('finance')
 @UseGuards(JwtAuthGuard)
@@ -38,7 +64,12 @@ export class PayablesController {
   list(@CurrentAuth() auth: AccessTokenClaims, @Query() query: Record<string, unknown>) {
     return this.payablesAccess.list(
       { identityId: auth.sub, sessionId: auth.sid },
-      parseFinanceListQuery(query),
+      {
+        ...parseFinanceListQuery(query),
+        // Validado contra o allow-list DESTA entidade antes de descer: campo ou operador fora do
+        // contrato vira 400, e não um recorte silenciosamente ignorado no SQL.
+        advanced: parsePayableAdvancedFilterOrThrow(query['filters']),
+      },
     );
   }
 

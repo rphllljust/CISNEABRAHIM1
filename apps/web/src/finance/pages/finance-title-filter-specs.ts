@@ -1,7 +1,7 @@
 import type { AdvancedFilterFieldSpec } from '../../engine';
 
 /**
- * ALLOW-LIST DO FILTRO COMPOSTO PARA CONTAS A RECEBER E A PAGAR.
+ * ALLOW-LIST DO FILTRO COMPOSTO PARA CONTAS A RECEBER.
  *
  * O conversor compartilhado (`advancedFilterFromGroup`) monta o payload a partir desta lista, e o
  * servidor valida a MESMA lista do outro lado (`finance/repositories/receivable-list-sql.ts`).
@@ -20,6 +20,28 @@ import type { AdvancedFilterFieldSpec } from '../../engine';
  */
 export const FINANCE_TITLE_FILTER_SPECS: AdvancedFilterFieldSpec[] = [
   { field: 'external_reference', contractField: 'externalReference', kind: 'text' },
+  { field: 'currency_code', contractField: 'currencyCode', kind: 'text' },
+  { field: 'due_date', contractField: 'dueDate', kind: 'date' },
+  { field: 'created_at', contractField: 'createdAt', kind: 'date' },
+  { field: 'updated_at', contractField: 'updatedAt', kind: 'date' },
+];
+
+/**
+ * ALLOW-LIST DO FILTRO COMPOSTO PARA CONTAS A PAGAR.
+ *
+ * Espelha `PAYABLE_FILTER_SPECS` (`apps/api/src/finance/repositories/payable-list-sql.ts`).
+ * Pagáveis tem DOIS campos que recebíveis não tem — a referência de ORIGEM (o documento que gerou a
+ * obrigação) e o CENTRO DE CUSTO. É por isso que a lista é própria em vez de reutilizar a de
+ * recebíveis: usar o allow-list errado ofereceria ao operador um campo que o servidor recusa com
+ * 400, ou esconderia um que ele executa.
+ *
+ * `lifecycle` e `status` ficam fora pelo mesmo motivo de domínio documentado acima; `counterparty_id`
+ * e `unit_id` ficam fora porque já são o recorte do filtro simples e do escopo de autorização.
+ */
+export const PAYABLE_TITLE_FILTER_SPECS: AdvancedFilterFieldSpec[] = [
+  { field: 'external_reference', contractField: 'externalReference', kind: 'text' },
+  { field: 'origin_reference', contractField: 'originReference', kind: 'text' },
+  { field: 'cost_center_code', contractField: 'costCenterCode', kind: 'text' },
   { field: 'currency_code', contractField: 'currencyCode', kind: 'text' },
   { field: 'due_date', contractField: 'dueDate', kind: 'date' },
   { field: 'created_at', contractField: 'createdAt', kind: 'date' },

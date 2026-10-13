@@ -37,6 +37,7 @@ import {
   type ReversePaymentInput,
 } from '../domain/payable.validation';
 import { PayablesRepository } from '../repositories/payables.repository';
+import type { PayableAdvancedFilter } from '../repositories/payable-list-sql';
 import type { PayableRow } from '../repositories/payables.repository.types';
 import {
   toExpenseCategoryResponse,
@@ -205,7 +206,7 @@ export class PayablesAccessService implements FinancePayablePort {
    */
   async list(
     actor: IdentityAuthzContext,
-    query: { limit: number; offset: number; status?: string; q?: string; dueFrom?: string; dueTo?: string; sortBy?: string; sortDir?: string },
+    query: { limit: number; offset: number; status?: string; q?: string; dueFrom?: string; dueTo?: string; sortBy?: string; sortDir?: string; advanced?: PayableAdvancedFilter },
   ): Promise<PayableListResponse> {
     // Gate de LISTA (capability + grant aplicavel). Sem ele a negacao virava lista vazia.
     await this.authz.assertPayableList(actor);
@@ -228,6 +229,7 @@ export class PayablesAccessService implements FinancePayablePort {
       dueFrom: query.dueFrom,
       dueTo: query.dueTo,
       search: query.q,
+      advanced: query.advanced,
       limit: query.limit,
       offset: query.offset,
       sortBy: normalizePayableSortBy(query.sortBy),

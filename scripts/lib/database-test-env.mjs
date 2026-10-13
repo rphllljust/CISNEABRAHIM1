@@ -161,6 +161,9 @@ const MIGRATION_EFFECT_CHECKS = {
   '0094_metadata_receivable_compound_filter': {
     fieldFlag: ['meta', 'fields', 'receivables', 'external_reference', 'in_filter'],
   },
+  '0095_metadata_payable_compound_filter': {
+    fieldFlag: ['meta', 'fields', 'payables', 'external_reference', 'in_filter'],
+  },
 };
 
 /**

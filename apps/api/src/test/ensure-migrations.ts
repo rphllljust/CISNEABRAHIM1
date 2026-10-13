@@ -917,6 +917,19 @@ $$;`);
       await applySqlFile(pool, '0094_metadata_receivable_compound_filter.sql');
     }
 
+    /* 0095 — mesma prova de FLAG, para a fila de Contas a pagar (que é outra entidade). */
+    const metadataPayableFilterFlag = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM meta.fields f
+         INNER JOIN meta.entities e ON e.id = f.entity_id
+         WHERE e.name = 'payables' AND f.name = 'external_reference' AND f.in_filter = true
+       ) AS exists`,
+    );
+    if (!metadataPayableFilterFlag.rows[0]?.exists) {
+      await applySqlFile(pool, '0095_metadata_payable_compound_filter.sql');
+    }
+
     await syncDrizzleJournal(pool);
   } finally {
     await pool.end();

@@ -134,12 +134,63 @@ const RECEIVABLES_META = {
   allowedPermLevels: [0],
 };
 
+/**
+ * Pagáveis NÃO é recebíveis com outro nome: tem dois campos de recorte que recebíveis não tem —
+ * a referência de ORIGEM (documento que gerou a obrigação) e o CENTRO DE CUSTO. Um mock que
+ * reutilizasse a lista de recebíveis faria o teste passar sobre um allow-list que produção não
+ * serve, e esconderia justamente a divergência entre as duas telas.
+ */
 const PAYABLES_META = {
-  ...RECEIVABLES_META,
   name: 'payables',
   label: 'Conta a pagar',
+  description: null,
+  dataSchema: 'fin',
   dataTable: 'payables',
   labelField: 'external_reference',
+  fields: [
+    metaField('external_reference', 'Referência externa', 'data', {
+      inList: true,
+      listOrder: 1,
+      inFilter: true,
+    }),
+    metaField('origin_reference', 'Referência de origem', 'data', {
+      inList: true,
+      listOrder: 2,
+      inFilter: true,
+    }),
+    metaField('counterparty_id', 'Contraparte', 'link', { inList: true, listOrder: 3 }),
+    metaField('principal', 'Valor principal', 'currency', { inList: true, listOrder: 4 }),
+    metaField('currency_code', 'Moeda', 'data', { inList: true, listOrder: 5, inFilter: true }),
+    metaField('due_date', 'Vencimento', 'date', { inList: true, listOrder: 6, inFilter: true }),
+    metaField('cost_center_code', 'Centro de custo', 'data', {
+      inList: false,
+      listOrder: 7,
+      inFilter: true,
+    }),
+    metaField('lifecycle', 'Situação', 'select', {
+      inList: true,
+      listOrder: 8,
+      options: {
+        options: [
+          { value: 'ACTIVE', label: 'Ativo' },
+          { value: 'CANCELLED', label: 'Cancelado' },
+        ],
+      },
+    }),
+  ],
+  views: [
+    {
+      viewType: 'list',
+      label: 'Lista de contas a pagar',
+      layout: {
+        columns: ['external_reference', 'origin_reference', 'principal', 'due_date', 'lifecycle'],
+      },
+      isDefault: true,
+    },
+  ],
+  workflow: null,
+  permissions: [{ action: 'read', permLevel: 0, requiredPermission: null, allowed: true }],
+  allowedPermLevels: [0],
 };
 
 /**

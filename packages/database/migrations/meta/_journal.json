@@ -666,6 +666,13 @@
                         "when":  179090450000000000,
                         "tag":  "0094_metadata_receivable_compound_filter",
                         "breakpoints":  true
+                    },
+                    {
+                        "idx":  95,
+                        "version":  "7",
+                        "when":  179090500000000000,
+                        "tag":  "0095_metadata_payable_compound_filter",
+                        "breakpoints":  true
                     }
                 ]
 }
