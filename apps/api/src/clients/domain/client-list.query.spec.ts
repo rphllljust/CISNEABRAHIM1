@@ -8,6 +8,7 @@ import {
   CLIENT_LIST_DIRECTIONS,
   CLIENT_LIST_MAX_LIMIT,
   CLIENT_LIST_SORTS,
+  CLIENT_FILTER_MAX_GROUPS,
   CLIENT_SEARCH_MAX_LENGTH,
   parseListClientsQuery,
   resolveClientListQuery,
@@ -250,5 +251,195 @@ describe('buildClientSearchClause', () => {
   it('escapes LIKE metacharacters so a search cannot become a wildcard sweep', () => {
     const clause = buildClientSearchClause('100%_\\', 1);
     expect(clause?.params[1]).toBe('%100\\%\\_\\\\%');
+  });
+});
+
+/**
+ * FILTRO AVANÇADO — o predicado composto roda no SERVIDOR e é o ponto onde uma entrada de
+ * operador chega mais perto do SQL. Estes testes cobrem as duas garantias que sustentam a
+ * capacidade: (1) o valor recebido NUNCA é interpolado — só o nome lógico do campo, traduzido por
+ * um mapa fechado; (2) uma condição inválida derruba a requisição em vez de ser descartada, porque
+ * descartar faria a tela exibir um recorte que o servidor não aplicou.
+ */
+describe('parseListClientsQuery — filtro avançado', () => {
+  function withFilter(filter: unknown): Record<string, unknown> {
+    return { filters: JSON.stringify(filter) };
+  }
+
+  it('parses an AND group into a single conjunction', () => {
+    const parsed = parseListClientsQuery(
+      withFilter({
+        connector: 'AND',
+        groups: [
+          {
+            conditions: [
+              { field: 'status', operator: 'eq', value: 'ACTIVE' },
+              { field: 'purchaseOrderRequirement', operator: 'eq', value: 'NOT_REQUIRED' },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(parsed.advanced?.connector).toBe('AND');
+    expect(parsed.advanced?.groups[0]?.conditions).toHaveLength(2);
+  });
+
+  it('joins groups by the declared connector and conditions by AND', () => {
+    const parts = buildClientListSqlParts(
+      resolved({
+        advanced: {
+          connector: 'OR',
+          groups: [
+            { conditions: [{ field: 'status', operator: 'eq', value: 'ACTIVE' }] },
+            { conditions: [{ field: 'status', operator: 'eq', value: 'INACTIVE' }] },
+          ],
+        },
+      }),
+      SCOPE_GLOBAL,
+    );
+    expect(parts.whereClause).toContain('OR');
+    expect(parts.whereClause).toContain('c.status = $1::"pty"."client_status"');
+    expect(parts.whereClause).toContain('c.status = $2::"pty"."client_status"');
+    expect(parts.params).toEqual(['ACTIVE', 'INACTIVE']);
+  });
+
+  it('binds text filters as parameters and never interpolates the value', () => {
+    const parts = buildClientListSqlParts(
+      resolved({
+        advanced: {
+          connector: 'AND',
+          groups: [
+            {
+              conditions: [
+                { field: 'legalName', operator: 'contains', value: "O'Brien Ltda" },
+              ],
+            },
+          ],
+        },
+      }),
+      SCOPE_GLOBAL,
+    );
+    expect(parts.whereClause).not.toContain("O'Brien");
+    expect(parts.whereClause).toContain('c.legal_name ILIKE $1');
+    expect(parts.params).toEqual(["%O'Brien Ltda%"]);
+  });
+
+  it('escapes wildcards in a startsWith filter, so a prefix cannot become a sweep', () => {
+    const parts = buildClientListSqlParts(
+      resolved({
+        advanced: {
+          connector: 'AND',
+          groups: [{ conditions: [{ field: 'taxId', operator: 'startsWith', value: '11%_' }] }],
+        },
+      }),
+      SCOPE_GLOBAL,
+    );
+    expect(parts.params).toEqual(['11\\%\\_%']);
+  });
+
+  it('casts date filters and rejects an unparseable date', () => {
+    const parts = buildClientListSqlParts(
+      resolved({
+        advanced: {
+          connector: 'AND',
+          groups: [
+            {
+              conditions: [
+                { field: 'updatedAt', operator: 'after', value: '2026-01-01T00:00:00.000Z' },
+              ],
+            },
+          ],
+        },
+      }),
+      SCOPE_GLOBAL,
+    );
+    expect(parts.whereClause).toContain('c.updated_at > $1::timestamptz');
+
+    const error = catchClientListQueryError(
+      withFilter({
+        connector: 'AND',
+        groups: [{ conditions: [{ field: 'updatedAt', operator: 'after', value: 'ontem' }] }],
+      }),
+    );
+    expect(error.field).toBe('filters.value');
+  });
+
+  it('keeps the advanced predicate conjoined with search, status and purchase order', () => {
+    const parts = buildClientListSqlParts(
+      resolveClientListQuery({
+        limit: 20,
+        offset: 0,
+        status: 'ACTIVE',
+        q: 'Madeira',
+        advanced: {
+          connector: 'AND',
+          groups: [{ conditions: [{ field: 'legalName', operator: 'contains', value: 'Ltda' }] }],
+        },
+      }),
+      SCOPE_GLOBAL,
+    );
+    // Quatro fontes de recorte coexistem por AND: status, busca, filtro avançado.
+    expect(parts.whereClause).toContain('c.status = $1');
+    expect(parts.whereClause).toContain('c.legal_name ILIKE');
+    expect(parts.params).toContain('ACTIVE');
+    expect(parts.params).toContain('Madeira');
+    expect(parts.params).toContain('%Ltda%');
+  });
+
+  it('rejects a field outside the allow-list instead of asking the database', () => {
+    const error = catchClientListQueryError(
+      withFilter({
+        connector: 'AND',
+        groups: [{ conditions: [{ field: 'password_hash', operator: 'eq', value: 'x' }] }],
+      }),
+    );
+    expect(error.field).toBe('filters.field');
+  });
+
+  it('rejects an operator that the field type does not admit', () => {
+    // `contains` sobre enum não existe: aceitar exigiria inventar semântica sobre o domínio.
+    const error = catchClientListQueryError(
+      withFilter({
+        connector: 'AND',
+        groups: [{ conditions: [{ field: 'status', operator: 'contains', value: 'ACT' }] }],
+      }),
+    );
+    expect(error.field).toBe('filters.operator');
+  });
+
+  it('rejects an enum value outside the published vocabulary', () => {
+    const error = catchClientListQueryError(
+      withFilter({
+        connector: 'AND',
+        groups: [{ conditions: [{ field: 'status', operator: 'eq', value: 'SUSPENDED' }] }],
+      }),
+    );
+    expect(error.field).toBe('filters.value');
+  });
+
+  it('rejects malformed JSON and an unknown connector', () => {
+    expect(catchClientListQueryError({ filters: '{oops' }).field).toBe('filters');
+    expect(
+      catchClientListQueryError(
+        withFilter({
+          connector: 'XOR',
+          groups: [{ conditions: [{ field: 'status', operator: 'eq', value: 'ACTIVE' }] }],
+        }),
+      ).field,
+    ).toBe('filters.connector');
+  });
+
+  it('treats an empty filter as absence of filter rather than an error', () => {
+    expect(parseListClientsQuery({ filters: '' }).advanced).toBeUndefined();
+    expect(parseListClientsQuery(withFilter({ connector: 'AND', groups: [] })).advanced).toBeUndefined();
+  });
+
+  it('refuses more groups than the published maximum', () => {
+    const groups = Array.from({ length: CLIENT_FILTER_MAX_GROUPS + 1 }, () => ({
+      conditions: [{ field: 'status', operator: 'eq', value: 'ACTIVE' }],
+    }));
+    expect(catchClientListQueryError(withFilter({ connector: 'AND', groups })).field).toBe(
+      'filters.groups',
+    );
   });
 });

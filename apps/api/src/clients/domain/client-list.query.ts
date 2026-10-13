@@ -76,11 +76,72 @@ export type ListClientsQuery = {
   q?: string;
   status?: ClientStatus;
   purchaseOrderRequirement?: PurchaseOrderRequirement;
+  /** Filtro avançado já validado; absent = sem recorte composto. */
+  advanced?: ClientAdvancedFilter;
   sort: ClientListSort;
   direction: ClientListDirection;
   limit: number;
   offset: number;
 };
+
+/**
+ * FILTRO AVANÇADO — predicado composto, avaliado no SERVIDOR.
+ *
+ * O cliente HTTP envia os grupos como JSON em `filters`, e cada grupo é uma conjunção de
+ * condições ligada aos demais pelo `connector` (`AND`/`OR`). O conjunto de CAMPOS aceitos é um
+ * allow-list fechado: nenhum identificador de coluna chega do cliente, apenas o nome lógico do
+ * campo, que é traduzido aqui para a coluna real. É isso que impede o filtro de virar injeção.
+ *
+ * `connector` é aplicado entre GRUPOS, não dentro de um grupo (dentro, a conjunção é sempre AND).
+ * Isso cobre o caso de uso real ("ativos E sem pedido de compra, OU inativos") sem exigir uma
+ * árvore recursiva — que seria complexidade sem demanda provada.
+ */
+export const CLIENT_FILTER_FIELDS = {
+  status: 'status',
+  purchaseOrderRequirement: 'purchaseOrderRequirement',
+  legalName: 'legalName',
+  tradeName: 'tradeName',
+  taxId: 'taxId',
+  updatedAt: 'updatedAt',
+  createdAt: 'createdAt',
+} as const;
+
+export type ClientFilterField =
+  (typeof CLIENT_FILTER_FIELDS)[keyof typeof CLIENT_FILTER_FIELDS];
+
+export const CLIENT_FILTER_OPERATORS = [
+  'eq',
+  'neq',
+  'contains',
+  'startsWith',
+  'before',
+  'after',
+] as const;
+
+export type ClientFilterOperator = (typeof CLIENT_FILTER_OPERATORS)[number];
+
+export const CLIENT_FILTER_CONNECTORS = ['AND', 'OR'] as const;
+
+export type ClientFilterConnector = (typeof CLIENT_FILTER_CONNECTORS)[number];
+
+export type ClientFilterCondition = {
+  field: ClientFilterField;
+  operator: ClientFilterOperator;
+  value: string;
+};
+
+export type ClientFilterGroup = {
+  conditions: ClientFilterCondition[];
+};
+
+export type ClientAdvancedFilter = {
+  connector: ClientFilterConnector;
+  groups: ClientFilterGroup[];
+};
+
+/** Máximos explícitos: o filtro é entrada de operador, não canal de varredura arbitrária. */
+export const CLIENT_FILTER_MAX_GROUPS = 8;
+export const CLIENT_FILTER_MAX_CONDITIONS_PER_GROUP = 8;
 
 /**
  * Consulta ainda sem os defaults de ordenação aplicados.
@@ -92,6 +153,7 @@ export type ListClientsQuery = {
 export type ClientListRequest = Omit<ListClientsQuery, 'sort' | 'direction'> & {
   sort?: ClientListSort;
   direction?: ClientListDirection;
+  advanced?: ClientAdvancedFilter;
 };
 
 export type ClientListSqlParts = {
@@ -155,6 +217,149 @@ function readPositiveInt(
   return parsed;
 }
 
+const FILTER_FIELD_SET = new Set<string>(Object.values(CLIENT_FILTER_FIELDS));
+const FILTER_OPERATOR_SET = new Set<string>(CLIENT_FILTER_OPERATORS);
+const FILTER_CONNECTOR_SET = new Set<string>(CLIENT_FILTER_CONNECTORS);
+
+/** Operadores que só fazem sentido sobre os campos de texto e sobre os de data. */
+const TEXT_FIELDS = new Set<string>([
+  CLIENT_FILTER_FIELDS.legalName,
+  CLIENT_FILTER_FIELDS.tradeName,
+  CLIENT_FILTER_FIELDS.taxId,
+]);
+const DATE_FIELDS = new Set<string>([
+  CLIENT_FILTER_FIELDS.updatedAt,
+  CLIENT_FILTER_FIELDS.createdAt,
+]);
+const ENUM_FIELDS = new Set<string>([
+  CLIENT_FILTER_FIELDS.status,
+  CLIENT_FILTER_FIELDS.purchaseOrderRequirement,
+]);
+
+const STATUS_FILTER_SET = new Set<string>(['ACTIVE', 'INACTIVE']);
+const REQUIREMENT_FILTER_SET = new Set<string>(['NOT_REQUIRED', 'BEFORE_EXECUTION', 'BEFORE_BILLING']);
+
+/**
+ * Valida UMA condição contra o allow-list de campo e o conjunto de operadores que o TIPO do campo
+ * admite. Uma condição inválida derruba a requisição inteira (400) em vez de ser descartada em
+ * silêncio: descartar faria a tela mostrar um recorte que o servidor não aplicou.
+ */
+function parseFilterCondition(value: unknown, index: number): ClientFilterCondition {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new ClientListQueryError(`filters.groups[${index}].conditions`);
+  }
+  const record = value as Record<string, unknown>;
+  const field = record['field'];
+  const operator = record['operator'];
+  const rawValue = record['value'];
+
+  if (typeof field !== 'string' || !FILTER_FIELD_SET.has(field)) {
+    throw new ClientListQueryError('filters.field');
+  }
+  if (typeof operator !== 'string' || !FILTER_OPERATOR_SET.has(operator)) {
+    throw new ClientListQueryError('filters.operator');
+  }
+  if (typeof rawValue !== 'string' || rawValue.trim() === '') {
+    throw new ClientListQueryError('filters.value');
+  }
+
+  const typedField = field as ClientFilterField;
+  const typedOperator = operator as ClientFilterOperator;
+  const trimmed = rawValue.trim();
+
+  if (TEXT_FIELDS.has(field)) {
+    if (typedOperator === 'before' || typedOperator === 'after') {
+      throw new ClientListQueryError('filters.operator');
+    }
+  } else if (DATE_FIELDS.has(field)) {
+    if (typedOperator !== 'before' && typedOperator !== 'after') {
+      throw new ClientListQueryError('filters.operator');
+    }
+    if (Number.isNaN(Date.parse(trimmed))) {
+      throw new ClientListQueryError('filters.value');
+    }
+  } else if (ENUM_FIELDS.has(field)) {
+    if (typedOperator !== 'eq' && typedOperator !== 'neq') {
+      throw new ClientListQueryError('filters.operator');
+    }
+    const allowed = field === CLIENT_FILTER_FIELDS.status ? STATUS_FILTER_SET : REQUIREMENT_FILTER_SET;
+    if (!allowed.has(trimmed)) {
+      throw new ClientListQueryError('filters.value');
+    }
+  }
+
+  return { field: typedField, operator: typedOperator, value: trimmed };
+}
+
+/**
+ * Lê o filtro avançado. Aceita objeto já decodificado (a camada HTTP é quem faz o parse do JSON,
+ * para que este domínio continue sem dependência de formato de transporte) ou ausente.
+ */
+export function parseClientAdvancedFilter(value: unknown): ClientAdvancedFilter | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    throw new ClientListQueryError('filters');
+  }
+  const record = value as Record<string, unknown>;
+  const connector = record['connector'];
+  if (typeof connector !== 'string' || !FILTER_CONNECTOR_SET.has(connector)) {
+    throw new ClientListQueryError('filters.connector');
+  }
+  const groupsRaw = record['groups'];
+  if (!Array.isArray(groupsRaw) || groupsRaw.length === 0) {
+    return undefined;
+  }
+  if (groupsRaw.length > CLIENT_FILTER_MAX_GROUPS) {
+    throw new ClientListQueryError('filters.groups');
+  }
+
+  const groups: ClientFilterGroup[] = [];
+  for (const [index, groupRaw] of groupsRaw.entries()) {
+    if (!groupRaw || typeof groupRaw !== 'object' || Array.isArray(groupRaw)) {
+      throw new ClientListQueryError(`filters.groups[${index}]`);
+    }
+    const conditionsRaw = (groupRaw as Record<string, unknown>)['conditions'];
+    if (!Array.isArray(conditionsRaw) || conditionsRaw.length === 0) {
+      continue;
+    }
+    if (conditionsRaw.length > CLIENT_FILTER_MAX_CONDITIONS_PER_GROUP) {
+      throw new ClientListQueryError(`filters.groups[${index}].conditions`);
+    }
+    groups.push({
+      conditions: conditionsRaw.map((condition) => parseFilterCondition(condition, index)),
+    });
+  }
+
+  if (groups.length === 0) {
+    return undefined;
+  }
+  return { connector: connector as ClientFilterConnector, groups };
+}
+
+function readAdvancedFilter(query: Record<string, unknown>): ClientAdvancedFilter | undefined {
+  const raw = query['filters'];
+  if (raw === undefined || raw === null) {
+    return undefined;
+  }
+  // A URL carrega o filtro como JSON serializado; um corpo já decodificado também é aceito.
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (trimmed === '') {
+      return undefined;
+    }
+    let decoded: unknown;
+    try {
+      decoded = JSON.parse(trimmed);
+    } catch {
+      throw new ClientListQueryError('filters');
+    }
+    return parseClientAdvancedFilter(decoded);
+  }
+  return parseClientAdvancedFilter(raw);
+}
+
 export function parseListClientsQuery(query: Record<string, unknown>): ClientListRequest {
   const status = readString(query, 'status');
   const purchaseOrderRequirement = readString(query, 'purchaseOrderRequirement');
@@ -187,6 +392,7 @@ export function parseListClientsQuery(query: Record<string, unknown>): ClientLis
     // Sem cast: `isPurchaseOrderRequirement` é predicado de tipo, então o guard acima já
     // estreitou o valor para `PurchaseOrderRequirement | undefined`.
     purchaseOrderRequirement,
+    advanced: readAdvancedFilter(query),
     sort: sort as ClientListSort | undefined,
     direction: direction as ClientListDirection | undefined,
     limit: readPositiveInt(query, 'limit', CLIENT_LIST_DEFAULT_LIMIT, {
@@ -252,10 +458,121 @@ export function buildClientListSqlParts(
     }
   }
 
+  /*
+   * FILTRO AVANÇADO — os grupos entram como UM predicado entre os demais, e por isso convivem com
+   * busca/status/pedido de compra por conjunção. Dentro de um grupo a ligação é sempre AND; entre
+   * grupos vale o `connector` declarado. Tudo parametrizado: nenhum valor do cliente entra no SQL
+   * como texto.
+   */
+  if (query.advanced) {
+    const advanced = buildAdvancedFilterClause(query.advanced, params.length + 1);
+    if (advanced) {
+      clauses.push(advanced.clause);
+      params.push(...advanced.params);
+    }
+  }
+
   return {
     whereClause: clauses.length > 0 ? clauses.join(' AND ') : 'TRUE',
     params,
     orderBy,
+  };
+}
+
+/**
+ * Traduz o filtro avançado para SQL parametrizado.
+ *
+ * O mapa campo→coluna é o único ponto onde um nome lógico vira identificador de coluna, e ele é
+ * fechado: o valor recebido nunca é interpolado. Operadores de texto usam `ILIKE` com escape de
+ * curinga, e os de data fazem cast explícito para `timestamptz`, de modo que uma data inválida
+ * falhe na validação (400) e não no banco (500).
+ */
+function buildAdvancedFilterClause(
+  filter: ClientAdvancedFilter,
+  firstParamIndex: number,
+): { clause: string; params: unknown[] } | null {
+  const params: unknown[] = [];
+  const groupClauses: string[] = [];
+
+  for (const group of filter.groups) {
+    const conditionClauses: string[] = [];
+    for (const condition of group.conditions) {
+      const index = firstParamIndex + params.length;
+      const built = buildConditionClause(condition, index);
+      conditionClauses.push(built.clause);
+      params.push(...built.params);
+    }
+    if (conditionClauses.length > 0) {
+      groupClauses.push(`(${conditionClauses.join(' AND ')})`);
+    }
+  }
+
+  if (groupClauses.length === 0) {
+    return null;
+  }
+  return { clause: `(${groupClauses.join(` ${filter.connector} `)})`, params };
+}
+
+function buildConditionClause(
+  condition: ClientFilterCondition,
+  paramIndex: number,
+): { clause: string; params: unknown[] } {
+  const param = `$${paramIndex}`;
+  const { field, operator, value } = condition;
+
+  if (field === CLIENT_FILTER_FIELDS.status) {
+    const comparison = operator === 'neq' ? '<>' : '=';
+    return { clause: `c.status ${comparison} ${param}::"pty"."client_status"`, params: [value] };
+  }
+
+  if (field === CLIENT_FILTER_FIELDS.purchaseOrderRequirement) {
+    const comparison = operator === 'neq' ? '<>' : '=';
+    return {
+      clause: `c.purchase_order_requirement ${comparison} ${param}::"pty"."purchase_order_requirement"`,
+      params: [value],
+    };
+  }
+
+  if (field === CLIENT_FILTER_FIELDS.legalName) {
+    return buildTextCondition('c.legal_name', operator, value, param);
+  }
+  if (field === CLIENT_FILTER_FIELDS.tradeName) {
+    return buildTextCondition('c.trade_name', operator, value, param);
+  }
+  if (field === CLIENT_FILTER_FIELDS.taxId) {
+    return buildTextCondition('c.normalized_tax_id', operator, value, param);
+  }
+
+  const column =
+    field === CLIENT_FILTER_FIELDS.updatedAt ? 'c.updated_at' : 'c.created_at';
+  const comparison = operator === 'before' ? '<' : '>';
+  return {
+    clause: `${column} ${comparison} ${param}::timestamptz`,
+    params: [value],
+  };
+}
+
+function buildTextCondition(
+  column: string,
+  operator: ClientFilterOperator,
+  value: string,
+  param: string,
+): { clause: string; params: unknown[] } {
+  if (operator === 'eq') {
+    return { clause: `${column} = ${param}`, params: [value] };
+  }
+  if (operator === 'neq') {
+    return { clause: `(${column} IS NULL OR ${column} <> ${param})`, params: [value] };
+  }
+  if (operator === 'startsWith') {
+    return {
+      clause: `${column} ILIKE ${param} ESCAPE '\\'`,
+      params: [`${escapeLikeWildcards(value)}%`],
+    };
+  }
+  return {
+    clause: `${column} ILIKE ${param} ESCAPE '\\'`,
+    params: [`%${escapeLikeWildcards(value)}%`],
   };
 }
 
