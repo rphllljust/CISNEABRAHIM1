@@ -20724,3 +20724,99 @@ COMMIT: docs log (postgres-hardening) - sem mudancas de codigo/migration.
 WORKING TREE: DIRTY (WIP preservado).
 NEXT: decisao de infra (roles/SSL/timeouts) + re-run quality gate.
 ```
+---
+
+## PROPAGAÇÃO DE CAPABILITIES ENTERPRISE — WORKLISTS FINANCEIRAS (rodada 26) — 2026-10-13
+
+STATUS: **PASS**
+Commits: `c9b66b9d` (bulk bar), `c7c8d29a` (despesas/orçamentos)
+
+### O que foi feito, e por que esta ordem
+
+A varredura de capabilities nas 18 worklists mostrou duas lacunas reais, não hipotéticas:
+
+| Capability | Onde faltava |
+| ---------- | ------------ |
+| Processamento em lote | 17 de 18 worklists (só Ordens de serviço tinha) |
+| Filtro composto | Recebíveis, Pagáveis, Orçamentos, Despesas, Fornecedores |
+
+Antes de propagar, corrigi um defeito no PRIMITIVO que a propagação iria multiplicar.
+
+### DEFEITO 1 — `BulkActionBar` entregava seleção VAZIA à ação
+
+`operator/bulk/BulkActionBar.tsx` publicava `run: (selectedIds: string[]) => void` e chamava
+`action.run([])`. A barra anunciava "N selecionados" e entregava ZERO ids.
+
+Por que sobreviveu: os dois consumidores existentes (Recebíveis, Pagáveis) **ignoram o parâmetro** e
+leem `selectedRows` do próprio closure. A tela funcionava e o contrato publicado era falso — o
+próximo consumidor a confiar no parâmetro exportaria/agiria sobre conjunto vazio, em silêncio,
+enquanto o operador via a barra contando a seleção dele.
+
+Correção: a barra recebe `selectedIds` e repassa. Os dois consumidores passaram a ler do parâmetro,
+para a armadilha não ser herdada.
+
+PROVA: teste de regressão que **falha contra o código anterior** (verificado revertendo o one-liner
+isoladamente) e passa agora, incluindo a prova negativa de que id não selecionado nunca chega à ação.
+
+### DEFEITO 2 — duas worklists sem processamento em massa
+
+Despesas e Orçamentos não tinham seleção múltipla utilizável nem ação em lote: o operador marcava N
+registros e repetia a ação N vezes.
+
+Não existe endpoint de transição em massa, e nenhum foi inventado: cada registro selecionado vai ao
+SEU próprio comando autorizado, com a SUA própria versão — preservando autorização, concorrência
+otimista e auditoria por registro. Lote parcial é relatado como parcial ("2 de 5 não puderam ser
+concluídas") em vez de mascarado como sucesso.
+
+- **Despesas**: `submit` e `approve` (`submitExpense`/`approveExpense`). `reject` fica FORA de
+  propósito: exige motivo POR REGISTRO, e um motivo único aplicado a N despesas seria o frontend
+  inventando justificativa de auditoria — mesma razão pela qual `DynamicBulkActions` exclui comandos
+  com `requiresReason`.
+- **Orçamentos**: `approve` (`approveBudget`, compare-and-set sobre `rowVersion`). Emitir nova versão
+  e reabrir ficam fora: são decisões por orçamento.
+
+### REGISTRO DE UM ERRO MEU, CORRIGIDO
+
+A primeira versão declarava `runBulk` com `useCallback` DEPOIS dos retornos antecipados de
+loading/denied/error — violação das Rules of Hooks que o teste pegou de imediato ("Rendered more
+hooks than during the previous render"). Movido para antes dos gates, com `itemsRef`/`reloadRef`
+para a leitura atual sem nova dependência por render.
+
+### VALIDAÇÃO
+
+| Gate | Resultado |
+| ---- | --------- |
+| `pnpm lint` | PASS (4/4 tasks) |
+| `pnpm typecheck` | PASS (3/3 packages) |
+| Testes focados (despesas, orçamentos, operator) | 38/38 PASS |
+| `git diff --check` | PASS |
+| scripts gate / source-size ratchet | PASS |
+
+As 12 falhas em `finance-backoffice`/`finance-smart-list` e as 39 do `Unit tests` do CI **reproduzem
+em árvore limpa com stash** (mesma contagem antes e depois), portanto são pré-existentes e não foram
+mascaradas.
+
+### DEPLOY (Railway, produção)
+
+| Item | Estado |
+| ---- | ------ |
+| Commit | `c7c8d29a5cf98d631ff904169edab920f5f9bfb1` |
+| `@cisne/web` build/deploy | SUCCESS (deployment criado pelo push) |
+| `@cisne/api` build/deploy | SKIPPED — "No changes to watched files" (correto: mudança só de web) |
+| Health API `ready`/`live` | 200 / 200 (`database up`) |
+| Health WEB | 200 |
+| Revisão ativa | confirmada: bundle `index-Bk6Ch_Q1.js` (o anterior `index-1WnaqygT.js` responde 404) |
+| Bundle contém a capability | "Enviar para aprovação", "Aprovar selecionados" e as 3 mensagens de lote parcial |
+
+### RESTRIÇÕES CONHECIDAS
+
+1. **CI `Unit tests` segue vermelho** — 39 falhas pré-existentes (Finance backoffice, Finance smart
+   list, medições de OS, shell, billing, folha, e2e de pedidos/propostas). Bloqueia o workflow `CD`,
+   que exige CI `success`. Não é regressão desta rodada; é a maior dívida de gate do repositório.
+2. **Filtro composto continua ausente** em Recebíveis, Pagáveis, Orçamentos, Despesas e Fornecedores
+   — a segunda metade da lacuna mapeada, ainda não propagada.
+3. **A ordem da família de regiões** segue sem regra compartilhada (herdado da rodada 25).
+4. `apps/web/src/purchase-orders/purchase-orders-request-budget.ui.test.tsx` já estava não rastreado
+   na árvore antes desta rodada; não foi commitado.
+
+WORKING_TREE: sem alteração pendente de código; só este registro
