@@ -1,6 +1,16 @@
 import type { ReactNode } from 'react';
 import { cn } from './utils/cn';
 import { EmptyState } from './EmptyState';
+/*
+ * A GRAMATICA DA LINHA DE TRABALHO VEM COM O COMPONENTE.
+ *
+ * `.dashboard-queue-item` / `.dashboard-queue-head` sao a linha de fila do produto inteiro — a
+ * Central de trabalho, os workspaces de dominio e o Control Center desenham a MESMA linha. Elas
+ * vivem neste modulo (`workbench.css`) e sao importadas AQUI, junto do `WorkbenchQueue`, para que
+ * qualquer consumidor receba o estilo junto do componente — e nao por depender do CSS do dashboard,
+ * que e composicao de uma tela especifica.
+ */
+import './workbench.css';
 
 /**
  * WORKBENCH ENTERPRISE — a superficie de FILA, nao de consulta.

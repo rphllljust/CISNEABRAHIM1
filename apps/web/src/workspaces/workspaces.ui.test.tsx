@@ -337,7 +337,17 @@ describe('workspaces de domínio', () => {
       router: { initialEntries: ['/app/workspaces/fiscal'] },
     });
 
-    const aviso = await screen.findByRole('status');
+    /*
+     * A assercao e ESCOPADA a zona AGORA.
+     *
+     * O workspace passou a ter mais de uma regiao que fala sobre o estado da leitura — a zona AGORA
+     * e a fila de trabalho declararam cada uma o seu `role="status"`. Um `findByRole('status')` sem
+     * escopo passou a encontrar dois elementos e a falhar, mas o que este teste protege sempre foi a
+     * afirmacao DA ZONA DE CONTAGEM: dominio indisponivel nao vira zero. Escopar mantem a prova
+     * intacta; enfraquecer o seletor (pegar o primeiro) e que a teria destruido.
+     */
+    const agora = within(await screen.findByRole('region', { name: 'Agora' }));
+    const aviso = await agora.findByRole('status');
     expect(aviso).toHaveTextContent(/não respondeu nesta leitura/i);
     expect(aviso).toHaveTextContent(/não é zero/i);
     expect(screen.queryByText('Nenhum trabalho pendente neste domínio.')).not.toBeInTheDocument();
@@ -446,5 +456,112 @@ describe('workspaces de domínio', () => {
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
+  });
+});
+
+/**
+ * FILA DE TRABALHO DO WORKSPACE — a zona que faltava.
+ *
+ * O workspace tinha AGORA, ATENCAO e CONTINUAR: o operador via O NUMERO e O PROBLEMA, mas nao
+ * trabalhava ali — tinha de sair para a Central de trabalho para executar qualquer coisa. Estes
+ * testes travam a capacidade nova: a fila do DOMINIO, com recorte aplicado no SERVIDOR e contexto
+ * sem sair dela.
+ *
+ * O que NAO se prova aqui: que a fila e completa. A zona mostra os primeiros itens e DIZ quantos
+ * existem no total — apresentar a pagina como se fosse o conjunto e o defeito que o `total` do read
+ * model existe para impedir.
+ */
+describe('workspaces de domínio — fila de trabalho do domínio', () => {
+  beforeEach(() => {
+    resetTokenStoreForTests();
+    tokenStore.setTokens('access-token', 'refresh-token');
+    vi.unstubAllGlobals();
+  });
+
+  it('mostra a fila do domínio com referência humana, contexto e próxima ação', async () => {
+    stubWorkFetch({
+      itemsWithoutKindFilter: [
+        workItem({
+          domain: 'OPERACOES',
+          kind: 'OVERDUE',
+          reference: 'SO-2026-000042',
+          title: 'Ordem de serviço vencida',
+        }),
+      ],
+    });
+
+    renderWithProviders(<DomainWorkspacePage domain="OPERACOES" />, {
+      router: { initialEntries: ['/app/workspaces/operacoes'] },
+    });
+
+    const fila = within(await screen.findByRole('region', { name: 'Fila de trabalho' }));
+    expect(await fila.findByText('SO-2026-000042')).toBeInTheDocument();
+    expect(fila.getByText('Ordem de serviço vencida')).toBeInTheDocument();
+    expect(fila.getByText('Unidade Norte')).toBeInTheDocument();
+    // A proxima acao e real: o rotulo vem do read model, nao de uma copia da state machine na tela.
+    expect(fila.getByRole('link', { name: 'Abrir no domínio' })).toHaveAttribute(
+      'href',
+      '/app/accounting/fechamentos',
+    );
+  });
+
+  it('recorta o domínio no SERVIDOR — a consulta leva `domain`, nunca filtra no navegador', async () => {
+    const fetchMock = stubWorkFetch({ itemsWithoutKindFilter: [] });
+
+    renderWithProviders(<DomainWorkspacePage domain="FINANCEIRO" />, {
+      router: { initialEntries: ['/app/workspaces/financeiro'] },
+    });
+
+    await waitFor(() => {
+      expect(
+        requestedUrls(fetchMock).some(
+          (url) => url.includes('/work-inbox') && url.includes('domain=FINANCEIRO'),
+        ),
+      ).toBe(true);
+    });
+  });
+
+  it('declara o total do recorte em vez de apresentar a página como o conjunto', async () => {
+    stubWorkFetch({
+      itemsWithoutKindFilter: [
+        workItem({
+          domain: 'OPERACOES',
+          kind: 'OVERDUE',
+          reference: 'SO-1',
+          title: 'Primeira',
+        }),
+      ],
+    });
+
+    renderWithProviders(<DomainWorkspacePage domain="OPERACOES" />, {
+      router: { initialEntries: ['/app/workspaces/operacoes'] },
+    });
+
+    const fila = within(await screen.findByRole('region', { name: 'Fila de trabalho' }));
+    // A faixa diz de quantos itens a pagina e recorte; o conjunto nunca e afirmado pela pagina.
+    expect(await fila.findByText(/de \d+ (item|itens)/)).toBeInTheDocument();
+  });
+
+  it('fila vazia não inventa pendência e oferece a saída real', async () => {
+    stubWorkFetch({ itemsWithoutKindFilter: [] });
+
+    renderWithProviders(<DomainWorkspacePage domain="OPERACOES" />, {
+      router: { initialEntries: ['/app/workspaces/operacoes'] },
+    });
+
+    const fila = within(await screen.findByRole('region', { name: 'Fila de trabalho' }));
+    expect(
+      await fila.findByText('Nenhum trabalho pendente neste recorte.'),
+    ).toBeInTheDocument();
+    /*
+     * O mesmo rotulo existe no cabecalho da pagina E na saida do estado vazio da fila — os dois
+     * levam ao mesmo destino, e o segundo existe porque o estado vazio precisa do proprio caminho de
+     * saida: mandar o operador procurar o botao no topo e o defeito que o estado vazio compacto
+     * corrige. A assercao e escopada a fila para provar a saida LOCAL.
+     */
+    expect(fila.getByRole('link', { name: 'Abrir fila completa' })).toHaveAttribute(
+      'href',
+      '/app/work-inbox?domain=OPERACOES',
+    );
   });
 });

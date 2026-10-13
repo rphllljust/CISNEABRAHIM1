@@ -1,0 +1,224 @@
+/* ============================================================================
+   WORKBENCH — GRAMATICA DE LINHA DE TRABALHO COMPARTILHADA
+   ============================================================================
+
+   POR QUE ESTE ARQUIVO EXISTE
+
+   A linha de fila do CISNE (aging -> objeto -> contexto -> estado -> prazo -> acao) nasceu dentro
+   do `dashboard.css`, quando a unica superficie que mostrava fila era o Painel Operacional. Isso
+   deixou de ser verdade: a mesma linha aparece hoje na Central de trabalho, no Control Center e nos
+   workspaces de dominio — e esses consumidores nao importam o CSS do dashboard.
+
+   A saida ruim seria copiar as regras para cada consumidor (duas versoes da mesma linha, que
+   divergem na primeira manutencao) ou importar `dashboard.css` de fora do dashboard (acoplar a
+   infraestrutura de workspace a composicao de uma tela). Nenhuma das duas.
+
+   A saida correta e esta: a linha de trabalho e INFRAESTRUTURA e mora junto do `WorkbenchQueue`
+   (`ui/workbench.tsx`), que ja e o dono do cabecalho e do estado vazio da fila. O dashboard passa a
+   ser apenas MAIS UM consumidor — ele mantem no `dashboard.css` somente o que e composicao
+   especifica dele (grid do workspace, cabecalho, cadeia, faixa de KPI).
+
+   DEPENDENCIA DE TOKENS
+
+   O bloco original usava variaveis locais do dashboard (`--dashboard-surface`, `--dashboard-ink`).
+   Aqui elas foram trocadas pelos tokens do design system (`theme.css`), que ja publicam exatamente
+   os mesmos valores. E o que permite a linha ser usada fora do dashboard sem arrastar o contexto
+   de variaveis dele — e sem criar um segundo design system.
+
+   NOMES DE CLASSE
+
+   `.dashboard-queue-*` foi mantido para nao quebrar os consumidores existentes nem os testes que
+   os exercitam. O prefixo ficou estreito para o que a classe passou a significar, mas renomear
+   agora trocaria um problema de leitura por um risco de regressao silenciosa. A divida esta
+   registrada aqui, com o nome que ela deveria ter: `cisne-work-queue-*`.
+   ============================================================================ */
+
+/*
+  AS COLUNAS DA FILA — definidas UMA vez e usadas pelo cabecalho E pela linha.
+
+  Estavam repetidas em dois lugares; acrescentar uma coluna exigia mudar os dois, e esquecer um
+  desalinhava cabecalho e corpo sem erro visivel no codigo. Como custom property a medida e uma so,
+  e um consumidor que precise de outro recorte sobrescreve no proprio escopo.
+
+  A ordem segue a decisao: aging (numeros curtos) -> objeto (elastico, e o que o operador le) ->
+  contexto -> estado -> prazo -> acao.
+*/
+:root {
+  --workbench-queue-columns: 3.25rem minmax(0, 1.6fr) minmax(0, 1fr) 5.5rem 5.25rem
+    minmax(6rem, auto);
+}
+
+/* ---------------------------------------------------------------- cabecalho */
+
+/*
+  CABECALHO DA FILA — faixa densa com as MESMAS colunas da linha.
+
+  Cabecalho e corpo compartilham `grid-template-columns`. Se as duas medidas divergirem, a grade
+  deixa de ser varrida em coluna — que e a unica razao de existir um cabecalho de colunas.
+*/
+.dashboard-queue-head {
+  display: grid;
+  grid-template-columns: var(--workbench-queue-columns);
+  align-items: center;
+  gap: var(--spacing-2) var(--spacing-3);
+  padding: 0.3125rem 0.75rem 0.3125rem 0.875rem;
+  border: 1px solid var(--color-slate-200);
+  background: var(--color-slate-50);
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #64748b;
+}
+
+.dashboard-queue-head span:nth-child(1),
+.dashboard-queue-head span:nth-child(6) {
+  text-align: left;
+}
+
+.dashboard-queue-head span:nth-child(5) {
+  text-align: right;
+}
+
+/* ------------------------------------------------------------------- linha */
+
+/*
+  A ORDEM DE LEITURA E A DA DECISAO, e as colunas sao as mesmas do cabecalho:
+  prioridade (aging real) -> objeto -> contexto -> estado -> prazo -> acao.
+*/
+.dashboard-queue-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--workbench-queue-columns);
+  align-items: center;
+  gap: var(--spacing-2) var(--spacing-3);
+  padding: 0.375rem 0.75rem 0.375rem 0.875rem;
+  margin-bottom: 0;
+  background: var(--color-canvas-work);
+  border-bottom: 1px solid var(--color-slate-100);
+}
+
+.dashboard-queue-item:last-child {
+  border-bottom: 0;
+}
+
+/* MARCA DE ESTADO NA LATERAL — nao ha contorno por linha: a fila e uma superficie continua. */
+.dashboard-queue-item::before {
+  content: '';
+  position: absolute;
+  top: 0.4375rem;
+  bottom: 0.4375rem;
+  left: 0;
+  width: 2px;
+  border-radius: var(--radius-full);
+  background: var(--color-slate-200);
+}
+
+.dashboard-queue-item--critical::before {
+  background: var(--color-red-500);
+}
+
+.dashboard-queue-item--selected {
+  background: var(--color-brand-50);
+}
+
+/* ---------------------------------------------------------------- celulas */
+
+.dashboard-queue-item__aging {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.05;
+}
+
+/* O NUMERO E O SINAL: 1rem/600 le como dado; 1.25rem/800 leria como decoracao. */
+.dashboard-queue-item__aging strong {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-red-700);
+}
+
+.dashboard-queue-item__aging span {
+  font-size: 0.625rem;
+  color: var(--color-slate-500);
+}
+
+.dashboard-queue-item__ontrack {
+  font-size: 0.6875rem;
+  color: var(--color-slate-400);
+}
+
+/* CONTEXTO E ESTADO — colunas proprias: o operador compara sem abrir cada registro. */
+.dashboard-queue-item__context,
+.dashboard-queue-item__status {
+  font-size: 0.75rem;
+  color: var(--color-slate-600);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-queue-item__status {
+  color: var(--color-slate-500);
+}
+
+.dashboard-queue-item__action {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* OBJETO — referencia humana acima do titulo; o botao existe para abrir o contexto, nao para agir. */
+.dashboard-queue-item__object {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.0625rem;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dashboard-queue-item__ref {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--color-brand-700);
+}
+
+.dashboard-queue-item__object:hover .dashboard-queue-item__ref {
+  text-decoration: underline;
+}
+
+.dashboard-queue-item__title {
+  font-size: 0.8125rem;
+  color: var(--color-slate-900);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.dashboard-queue-item__due {
+  font-size: 0.75rem;
+  color: var(--color-slate-500);
+  text-align: right;
+}
+
+/* METADATA SECUNDARIA — dominio, natureza e motivo, sem competir com a linha principal. */
+.dashboard-queue-item__meta {
+  grid-column: 2 / -1;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--spacing-1);
+  font-size: 0.6875rem;
+  line-height: 1.3;
+  color: var(--color-slate-400);
+}
+
+.dashboard-queue-item__reason {
+  color: var(--color-slate-500);
+}
