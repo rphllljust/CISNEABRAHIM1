@@ -656,6 +656,37 @@ a.dashboard-kpi-list__cell:focus-visible {
   color: var(--color-emerald-600);
 }
 
+.dashboard-decision--clear {
+  margin-bottom: var(--spacing-2);
+}
+
+.dashboard-decision--clear .dashboard-decision__clear {
+  min-height: 2.5rem;
+  border-color: color-mix(in srgb, var(--color-emerald-600) 18%, transparent);
+  background: color-mix(in srgb, var(--color-emerald-50) 58%, #fff);
+}
+
+.dashboard-decision__clear > span {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.dashboard-decision__clear strong {
+  font-size: 0.8125rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.dashboard-decision__clear-detail {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--color-emerald-800);
+  opacity: 0.78;
+}
+
+
 .dashboard-decision__list {
   margin: 0;
   padding: 0;
@@ -1062,6 +1093,31 @@ a.dashboard-kpi:focus-visible {
 /* UNKNOWN != ZERO: estágio sem contagem publicada não recebe tratamento de número. */
 .dashboard-flow__stage--unknown {
   background: var(--color-slate-50);
+  color: var(--color-slate-500);
+}
+
+.dashboard-flow__stage--unknown .dashboard-flow__value {
+  min-height: 1.1rem;
+}
+
+.dashboard-flow__stage--unknown .dashboard-flow__unknown {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.055em;
+  color: var(--color-slate-400);
+}
+
+.dashboard-flow__stage--unknown .dashboard-flow__hint {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+
+.dashboard-flow__stage--unknown:not(.dashboard-flow__stage--actionable) {
+  padding-top: 0.55rem;
+  padding-bottom: 0.55rem;
 }
 
 .dashboard-flow__value {
