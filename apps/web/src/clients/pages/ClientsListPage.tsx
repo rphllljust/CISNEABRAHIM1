@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import {
-  DynamicContextDrawer,
-  type CrossReference,
-} from '../../engine';
+import { DynamicContextDrawer } from '../../engine';
 import {
   ClientsApiError,
   activateClient,
@@ -34,6 +31,10 @@ import {
 } from '../utils/client-list-params';
 import { useSavedViews, SavedViewsBar } from '../../operator';
 import { useContextPreview } from '../../operator';
+import { useClientRelatedRecords } from '../hooks/useClientRelatedRecords';
+import { buildClientRelationSpecs } from '../utils/client-relations';
+import { buildAuthorizedRelations, SmartRelationBar } from '../../enterprise-object';
+import { BusinessChain, useBusinessChain } from '../../business-chain';
 import {
   CLIENTS_ALLOWED_FILTERS,
   clientViewConfig,
@@ -191,6 +192,21 @@ export function ClientsListPage() {
   const [commandError, setCommandError] = useState<string | null>(null);
 
   const previewId = preview.previewRow?.id ?? null;
+
+  /**
+   * CADEIA COMERCIAL DO CLIENTE SELECIONADO — a MESMA leitura da object page.
+   *
+   * `useClientRelatedRecords` faz uma requisição por módulo que aceita `clientId`, e
+   * `buildClientRelationSpecs` converte o resultado em relações AUTORIZADAS (módulo negado
+   * desaparece por inteiro; contagem só entra quando o backend a comprovou). `useBusinessChain`
+   * lê o read model do servidor, que devolve a cadeia já autorizada e ordenada a partir da
+   * posição `CLIENT`.
+   *
+   * Os hooks ficam ANTES dos retornos antecipados de fase: hooks não podem ser condicionais, e
+   * a lista precisa poder entrar em `loading`/`denied`/`error` sem quebrar a ordem das chamadas.
+   */
+  const related = useClientRelatedRecords(previewId);
+  const businessChain = useBusinessChain('CLIENT', previewId ?? '');
 
   useEffect(() => {
     if (!previewId) {
@@ -886,7 +902,7 @@ export function ClientsListPage() {
         open={preview.previewRow !== null}
         title="Contexto do cliente"
         onClose={preview.closePreview}
-        crossReferences={detailCrossReferences(detail)}
+        crossReferences={[]}
       >
         <div data-region="context-region">
           {/* Identidade humana do registro selecionado — nunca um identificador técnico. */}
@@ -1000,6 +1016,25 @@ export function ClientsListPage() {
                   {commandError}
                 </p>
               ) : null}
+
+              {/*
+                CADEIA COMERCIAL — o MESMO primitivo da object page, não uma segunda versão.
+
+                Antes esta região montava à mão UMA referência ("Solicitações deste cliente"), o que
+                jogava fora três módulos que o backend já responde e não mostrava a LIGAÇÃO entre os
+                objetos. Agora a barra vem de `buildClientRelationSpecs` (que respeita `read A !=
+                read B` e só publica contagem comprovada) e a cadeia vem do read model do servidor.
+                O painel continua sem número inventado: módulo negado não é desenhado.
+              */}
+              <SmartRelationBar
+                relations={buildAuthorizedRelations(
+                  buildClientRelationSpecs(related, detail.client.id),
+                )}
+                className="mt-2"
+              />
+              <div className="mt-2">
+                <BusinessChain chain={businessChain.chain} phase={businessChain.phase} />
+              </div>
             </>
           ) : null}
         </div>
@@ -1101,43 +1136,10 @@ function describeClientScope(filters: ClientListParams): string {
 }
 
 /**
- * RELAÇÕES REAIS DO CLIENTE — só o que o detalhe publica e o que tem DESTINO real.
+ * RELAÇÕES REAIS DO CLIENTE — removida.
  *
- * Contatos e endereços vêm de `GET /api/v1/clients/:id`; a fila de solicitações filtrada é uma
- * rota real. Nenhuma contagem é afirmada aqui: o detalhe publica a LISTA, não um total — e
- * número sem dono é número inventado.
+ * Existia aqui uma montagem artesanal que publicava UMA referência ("Solicitações deste cliente")
+ * e descartava os outros três módulos que o backend já responde para o mesmo `clientId`. A fonte
+ * única passou a ser `buildClientRelationSpecs` + `buildAuthorizedRelations`, os MESMOS usados pela
+ * object page — sem segunda implementação da mesma leitura.
  */
-function detailCrossReferences(detail: { phase: string; client?: Client }): CrossReference[] {
-  if (detail.phase !== 'ready' || !detail.client) {
-    return [];
-  }
-  const client = detail.client;
-  const references: CrossReference[] = [
-    {
-      label: 'Solicitações deste cliente',
-      detail: 'Abrir a fila recortada por este cadastro.',
-      href: `/app/requests?clientId=${client.id}`,
-    },
-  ];
-  if (client.contacts.length > 0) {
-    references.push({
-      label: 'Contatos',
-      detail: client.contacts
-        .map((contact) => contact.name)
-        .filter((name) => name.trim() !== '')
-        .join(' · '),
-    });
-  } else {
-    references.push({ label: 'Contatos', detail: 'Nenhum contato cadastrado.' });
-  }
-  if (client.addresses.length > 0) {
-    references.push({
-      label: 'Endereços',
-      detail: client.addresses
-        .map((address) => [address.city, address.state].filter(Boolean).join('/'))
-        .filter((entry) => entry.trim() !== '')
-        .join(' · '),
-    });
-  }
-  return references;
-}
