@@ -66,7 +66,7 @@ const enc = encodeURIComponent;
  * `probeEntry` (o que autoriza, o que nega) EXIGE incrementar esta revisão. Mapa persistido com
  * revisão diferente é DESCARTADO e o menu é resolvido de novo pela rede.
  */
-export const SURFACE_ACCESS_CONTRACT_VERSION = 7;
+export const SURFACE_ACCESS_CONTRACT_VERSION = 8;
 
 /** Operação de leitura que representa entrar no módulo. `null` = superfície sem leitura própria. */
 export type SurfaceEntryRead = (unitId: string) => string | null;
@@ -133,7 +133,8 @@ export const SURFACE_ENTRY_READS: Record<string, SurfaceEntryRead> = {
    * sonda nova aqui seria uma SEGUNDA regra de acesso para a mesma porta.
    */
   'billing-list': () => null,
-  'payroll-read': () => null,
+  'payroll-read': (unitId) =>
+    unitId ? `/api/v1/payroll/periods?unitId=${enc(unitId)}&page=0&pageSize=1` : null,
   'accounting-fixed-asset-read': () => null,
 };
 
