@@ -990,15 +990,44 @@ a.dashboard-kpi:focus-visible {
   overflow: hidden;
 }
 
+.dashboard-flow__stage-wrap {
+  min-width: 0;
+}
+
 .dashboard-flow__stage {
   position: relative;
   display: flex;
   flex-direction: column;
   gap: 0.0625rem;
   min-width: 0;
+  height: 100%;
   padding: var(--spacing-2) var(--spacing-3);
   text-decoration: none;
   color: inherit;
+}
+
+.dashboard-flow__stage--actionable {
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.dashboard-flow__stage--actionable:hover {
+  background: var(--color-brand-50);
+}
+
+.dashboard-flow__stage--actionable:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: -2px;
+}
+
+.dashboard-flow__drill {
+  margin-top: auto;
+  padding-top: var(--spacing-1);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--color-brand-700);
 }
 
 /* CONTINUIDADE: a seta costura o estagio ao anterior, para a faixa ler como UMA cadeia. */

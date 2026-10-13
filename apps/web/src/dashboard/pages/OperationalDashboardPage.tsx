@@ -420,55 +420,73 @@ function BusinessFlowSummary({ stages }: { stages: BusinessFlowStage[] }) {
       </header>
 
       <ol className="dashboard-flow__stages">
-        {stages.map((stage, index) => (
-          <li
-            key={stage.id}
-            className={[
-              'dashboard-flow__stage',
-              stage.situation === 'critical' && 'dashboard-flow__stage--critical',
-              stage.situation === 'attention' && 'dashboard-flow__stage--attention',
-              stage.count === null && 'dashboard-flow__stage--unknown',
-            ]
-              .filter(Boolean)
-              .join(' ')}
-          >
-            {index > 0 ? (
-              <span className="dashboard-flow__step" aria-hidden>
-                →
-              </span>
-            ) : null}
-            {/* O NUMERO E O FATO PRINCIPAL do estagio. */}
-            <span className="dashboard-flow__value">
-              {stage.count !== null ? (
-                <span className="dashboard-flow__number tabular-nums">{stage.count}</span>
-              ) : (
-                /* AUSENCIA != ZERO: sem contagem, a etapa declara o estado — em tom secundario,
-                   para ler como "a informacao nao esta aqui" e nao como erro. */
-                <span className="dashboard-flow__unknown">sem contagem</span>
-              )}
-              {stage.amount ? (
-                /* MONEY CANONICO: o primitivo do CISNE formata o valor do servidor (R$ 2.500,00). */
-                <Money value={stage.amount} className="dashboard-flow__exposure" />
+        {stages.map((stage, index) => {
+          const stageClassName = [
+            'dashboard-flow__stage',
+            stage.href && 'dashboard-flow__stage--actionable',
+            stage.situation === 'critical' && 'dashboard-flow__stage--critical',
+            stage.situation === 'attention' && 'dashboard-flow__stage--attention',
+            stage.count === null && 'dashboard-flow__stage--unknown',
+          ]
+            .filter(Boolean)
+            .join(' ');
+
+          const content = (
+            <>
+              {index > 0 ? (
+                <span className="dashboard-flow__step" aria-hidden>
+                  →
+                </span>
               ) : null}
-            </span>
-            {/* LABEL e SITUACAO sao secundarios. */}
-            <span className="dashboard-flow__label">{stage.label}</span>
-            {stage.count !== null ? (
-              <span
-                className={[
-                  'dashboard-flow__situation',
-                  stage.situation === 'critical' && 'dashboard-flow__situation--critical',
-                  stage.situation === 'attention' && 'dashboard-flow__situation--attention',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-              >
-                {stage.situationLabel}
+              <span className="dashboard-flow__value">
+                {stage.count !== null ? (
+                  <span className="dashboard-flow__number tabular-nums">{stage.count}</span>
+                ) : (
+                  <span className="dashboard-flow__unknown">sem contagem</span>
+                )}
+                {stage.amount ? (
+                  <Money value={stage.amount} className="dashboard-flow__exposure" />
+                ) : null}
               </span>
-            ) : null}
-            <span className="dashboard-flow__hint">{stage.hint}</span>
-          </li>
-        ))}
+              <span className="dashboard-flow__label">{stage.label}</span>
+              {stage.count !== null ? (
+                <span
+                  className={[
+                    'dashboard-flow__situation',
+                    stage.situation === 'critical' && 'dashboard-flow__situation--critical',
+                    stage.situation === 'attention' && 'dashboard-flow__situation--attention',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                >
+                  {stage.situationLabel}
+                </span>
+              ) : null}
+              <span className="dashboard-flow__hint">{stage.hint}</span>
+              {stage.href ? (
+                <span className="dashboard-flow__drill" aria-hidden>
+                  Abrir fila →
+                </span>
+              ) : null}
+            </>
+          );
+
+          return (
+            <li key={stage.id} className="dashboard-flow__stage-wrap">
+              {stage.href ? (
+                <Link
+                  className={stageClassName}
+                  to={stage.href}
+                  aria-label={`${stage.label}: ${stage.situationLabel}. Abrir fila relacionada.`}
+                >
+                  {content}
+                </Link>
+              ) : (
+                <div className={stageClassName}>{content}</div>
+              )}
+            </li>
+          );
+        })}
       </ol>
     </section>
   );
