@@ -6,6 +6,7 @@ import {
   isPurchaseOrderListSort,
   parsePurchaseOrderAdvancedFilter,
   PurchaseOrderListQueryError,
+  type PurchaseOrderListFilters,
 } from './purchase-order-list-sql';
 import { PURCHASE_ORDER_STATUSES } from '../domain/purchase-order';
 
@@ -19,8 +20,8 @@ import { PURCHASE_ORDER_STATUSES } from '../domain/purchase-order';
 
 const SCOPE = { clause: 'unit_id = $1', params: ['UNIDADE-1'] as unknown[] };
 
-function resolved(overrides: Record<string, unknown> = {}) {
-  return { limit: 20, offset: 0, ...overrides };
+function resolved(overrides: Record<string, unknown> = {}): PurchaseOrderListFilters {
+  return overrides as PurchaseOrderListFilters;
 }
 
 describe('buildPurchaseOrderListWhere', () => {

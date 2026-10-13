@@ -25,12 +25,17 @@ import {
   DynamicCreateForm,
   DynamicExportCsv,
   DynamicFilterBar,
+  DynamicFilterBuilder,
   DynamicKanban,
   DynamicKpiDrilldown,
   DynamicList,
   DynamicSavedViewsBar,
   DynamicViewHost,
   DynamicViewSwitcher,
+  FILTER_PARAM,
+  advancedFilterFromGroup,
+  filterGroupToQuery,
+  readFilterGroup,
   buildKpiMetrics,
   RENDERABLE_VIEW_TYPES,
   filtersToSearchParams,
@@ -41,6 +46,8 @@ import {
   useSavedViews,
   toDisplayText,
   type CrossReference,
+  type AdvancedFilterFieldSpec,
+  type FilterGroup,
   type KpiSpec,
   type MetaEntitySchema,
 } from '../../engine';
@@ -58,6 +65,21 @@ import { ModulePage, ModulePagination } from '../../ui/module-layout';
 import { Button } from '../../ui/Button';
 import { cn } from '../../ui/utils/cn';
 import { serviceOrderEngineRows, type ServiceOrderEngineRow } from './service-order-engine-rows';
+
+/**
+ * CAMPOS DO FILTRO AVANÇADO PARA O CONVERSOR COMPARTILHADO.
+ *
+ * Allow-list idêntico ao publicado por `buildServiceOrderAdvancedClause`
+ * (`apps/api/src/service-orders/domain/service-order-list.query.ts`).
+ */
+const SERVICE_ORDER_FILTER_SPECS: AdvancedFilterFieldSpec[] = [
+  { field: 'order_number', contractField: 'order_number', kind: 'text' },
+  { field: 'status', contractField: 'status', kind: 'enum' },
+  { field: 'client_id', contractField: 'client_id', kind: 'text' },
+  { field: 'unit_id', contractField: 'unit_id', kind: 'text' },
+  { field: 'created_at', contractField: 'created_at', kind: 'date' },
+  { field: 'updated_at', contractField: 'updated_at', kind: 'date' },
+];
 
 /**
  * Lista de ordens de serviço RENDERIZADA PELA ENGINE — a tela de referência do ERP.
@@ -124,6 +146,21 @@ export function ServiceOrdersEngineListPage() {
   const { identityId } = useAuth();
   const { schema, status } = useEntitySchema('service-orders');
   const [searchParams, setSearchParams] = useSearchParams();
+
+  /**
+   * FILTRO AVANÇADO — a MESMA engine de metadados que já governa esta entidade.
+   *
+   * OS é a única entidade do produto já registrada no metadata store, então aqui o construtor lê
+   * `meta.fields` direto e não dependeu de seed novo. A árvore vive na URL pela chave da engine e é
+   * convertida pelo conversor COMPARTILHADO; o recorte composto é ADITIVO ao recorte operacional
+   * (`filter=overdue`, `filter=mine`), que continua respondendo a sua própria pergunta.
+   */
+  const urlQuery: string = searchParams.toString();
+  const advancedGroup = useMemo<FilterGroup>(() => readFilterGroup(urlQuery), [urlQuery]);
+  const advancedPayload = useMemo(
+    () => advancedFilterFromGroup(advancedGroup, SERVICE_ORDER_FILTER_SPECS),
+    [advancedGroup],
+  );
 
   /*
    * ASSINATURA DE IDIOMA.
@@ -265,6 +302,7 @@ export function ServiceOrdersEngineListPage() {
             filter: queueFilter,
             order: queueOrder,
             q: search || undefined,
+            advanced: advancedPayload,
           },
           signal,
         );
@@ -292,7 +330,7 @@ export function ServiceOrdersEngineListPage() {
         setPageBusy(false);
       }
     },
-    [pageOffset, queueFilter, queueOrder, search, statusFilter],
+    [advancedPayload, pageOffset, queueFilter, queueOrder, search, statusFilter],
   );
 
   /**
@@ -723,6 +761,33 @@ export function ServiceOrdersEngineListPage() {
             onChange={updateFilter}
             onClear={clearFilters}
           />
+
+          {/*
+            FILTRO AVANÇADO COMPOSTO — a camada que a `DynamicFilterBar` NÃO cobre.
+
+            A barra acima filtra UM campo por vez (igualdade sobre `in_filter`). O construtor abaixo
+            monta um predicado COMBINADO (grupos AND/OR) sobre os mesmos campos, e é ADITIVO ao
+            recorte operacional (`filter=overdue`, `filter=mine`): os dois respondem perguntas
+            diferentes e convivem na mesma consulta.
+          */}
+          <div data-region="advanced-filter-surface">
+            <DynamicFilterBuilder
+              schema={schema}
+              value={advancedGroup}
+              onChange={(next) => {
+                const params = new URLSearchParams(urlQuery);
+                const serialized = filterGroupToQuery(next).get(FILTER_PARAM);
+                if (serialized) {
+                  params.set(FILTER_PARAM, serialized);
+                } else {
+                  params.delete(FILTER_PARAM);
+                }
+                // Mudança de recorte volta à primeira página.
+                params.delete('offset');
+                setSearchParams(params, { replace: true });
+              }}
+            />
+          </div>
 
           {/*
             BUSCA E SITUAÇÃO — os dois recortes que o CONTRATO suporta, indo ao SERVIDOR.

@@ -1,5 +1,6 @@
 import { getApiBaseUrl, isNetworkError } from '../../auth/api/auth-api';
 import { tokenStore } from '../../auth/storage/token-store';
+import type { AdvancedFilterPayload } from '../../engine';
 import type { ServiceOrderListFilter, ServiceOrderListOrder } from '../types/service-order-list.types';
 import {
   SERVICE_ORDERS_ERROR_CODES,
@@ -145,6 +146,8 @@ export async function listServiceOrders(
     from?: string;
     to?: string;
     event?: 'opened' | 'completed';
+    /** Filtro avançado já convertido para o contrato do servidor. */
+    advanced?: AdvancedFilterPayload | null;
   },
   signal?: AbortSignal,
 ): Promise<{ items: ServiceOrderSummary[]; limit: number; offset: number }> {
@@ -180,6 +183,11 @@ export async function listServiceOrders(
   }
   if (query.event) {
     params.set('event', query.event);
+  }
+  // O filtro avançado entra na MESMA query: paginação, ordenação, recorte operacional e recorte
+  // composto compõem um único predicado no servidor.
+  if (query.advanced && query.advanced.groups.length > 0) {
+    params.set('filters', JSON.stringify(query.advanced));
   }
   return requestJson(`/api/v1/service-orders?${params.toString()}`, {
     method: 'GET',

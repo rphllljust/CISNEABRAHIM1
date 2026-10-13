@@ -4,6 +4,11 @@ import {
   escapeLikeWildcards,
   normalizeSearchQuery,
 } from '../../search/domain/search-query-normalizer';
+import {
+  parseAdvancedFilter,
+  type AdvancedFilter,
+  type AdvancedFilterFieldSpec,
+} from '../../infrastructure/http/contracts/advanced-filter-query';
 import { isServiceOrderStatus, SERVICE_ORDER_STATUSES } from './service-order';
 import { TERMINAL_SERVICE_ORDER_STATUSES } from './service-order.state-machine';
 
@@ -64,9 +69,107 @@ export type ListServiceOrdersQuery = {
   from?: Date;
   toExclusive?: Date;
   event?: ServiceOrderListEvent;
+  /** Filtro avançado já validado; ausente = sem recorte composto. */
+  advanced?: AdvancedFilter;
   limit: number;
   offset: number;
 };
+
+/**
+ * FILTRO AVANÇADO — mesma forma publicada nos demais domínios.
+ *
+ * A validação de FORMA é a compartilhada (`infrastructure/http/contracts/advanced-filter-query`);
+ * aqui fica só a especificação dos campos que ESTA entidade aceita, e ela é a allow-list fechada:
+ * um campo fora dela é recusado com 400, nunca interpolado.
+ *
+ * `archetype` e `assignedIdentityId` NÃO entram: o primeiro é texto livre de classificação sem
+ * vocabulário publicado, e o segundo exigiria decidir qual das alocações representa "o responsável"
+ * — regra que o predicado de `filter=assigned` já resolve sem ambiguidade. Oferecer no construtor um
+ * recorte que o servidor não executa é o defeito que esta allow-list existe para impedir.
+ */
+export const SERVICE_ORDER_FILTER_SPECS: AdvancedFilterFieldSpec[] = [
+  { name: 'order_number', kind: 'text' },
+  { name: 'status', kind: 'enum', isValidEnumValue: isServiceOrderStatus },
+  { name: 'client_id', kind: 'text' },
+  { name: 'unit_id', kind: 'text' },
+  { name: 'created_at', kind: 'date' },
+  { name: 'updated_at', kind: 'date' },
+];
+
+export function parseServiceOrderAdvancedFilter(value: unknown): AdvancedFilter | undefined {
+  return parseAdvancedFilter(value, SERVICE_ORDER_FILTER_SPECS);
+}
+
+/**
+ * Predicado do filtro avançado.
+ *
+ * `so.` é o alias canônico da OS na consulta de listagem, então as colunas são qualificadas aqui
+ * para conviver com os LEFT JOINs que a listagem já monta.
+ */
+function buildServiceOrderAdvancedClause(
+  filter: AdvancedFilter,
+  firstParamIndex: number,
+): { clause: string; params: unknown[] } | null {
+  const params: unknown[] = [];
+  const groupClauses: string[] = [];
+
+  for (const group of filter.groups) {
+    const conditionClauses: string[] = [];
+    for (const condition of group.conditions) {
+      const index = firstParamIndex + params.length;
+      const param = `$${index}`;
+      const { field, operator, value } = condition;
+
+      if (field === 'status') {
+        conditionClauses.push(
+          `so.status ${operator === 'neq' ? '<>' : '='} ${param}::so.service_order_status`,
+        );
+        params.push(value);
+      } else if (field === 'created_at' || field === 'updated_at') {
+        const column = field === 'updated_at' ? 'so.updated_at' : 'so.created_at';
+        conditionClauses.push(`${column} ${operator === 'before' ? '<' : '>'} ${param}::timestamptz`);
+        params.push(value);
+      } else if (field === 'client_id') {
+        conditionClauses.push(
+          `so.client_id ${operator === 'neq' ? '<>' : '='} ${param}::uuid`,
+        );
+        params.push(value);
+      } else {
+        const column = field === 'unit_id' ? 'so.unit_id' : 'so.order_number';
+        const built = buildServiceOrderTextClause(column, operator, value, param);
+        conditionClauses.push(built.clause);
+        params.push(...built.params);
+      }
+    }
+    if (conditionClauses.length > 0) {
+      groupClauses.push(`(${conditionClauses.join(' AND ')})`);
+    }
+  }
+
+  if (groupClauses.length === 0) {
+    return null;
+  }
+  return { clause: `(${groupClauses.join(` ${filter.connector} `)})`, params };
+}
+
+function buildServiceOrderTextClause(
+  column: string,
+  operator: string,
+  value: string,
+  param: string,
+): { clause: string; params: unknown[] } {
+  const escape = (term: string): string => term.replace(/[\\%_]/g, (match) => `\\${match}`);
+  if (operator === 'eq') {
+    return { clause: `${column} = ${param}`, params: [value] };
+  }
+  if (operator === 'neq') {
+    return { clause: `(${column} IS NULL OR ${column} <> ${param})`, params: [value] };
+  }
+  if (operator === 'startsWith') {
+    return { clause: `${column} ILIKE ${param}`, params: [`${escape(value)}%`] };
+  }
+  return { clause: `${column} ILIKE ${param}`, params: [`%${escape(value)}%`] };
+}
 
 export type ServiceOrderListSqlParts = {
   fromClause: string;
@@ -211,6 +314,7 @@ export function parseListServiceOrdersQuery(query: Record<string, unknown>): Lis
     from,
     toExclusive,
     event: eventRaw as ServiceOrderListEvent | undefined,
+    advanced: parseServiceOrderAdvancedFilter(query['filters']),
     limit,
     offset,
   };
@@ -295,6 +399,20 @@ export function buildServiceOrderListSqlParts(
   } else if (query.filter === SERVICE_ORDER_LIST_FILTERS.ScheduledToday) {
     clauses.push(NON_TERMINAL_SERVICE_ORDER_SQL);
     clauses.push(buildOperationalWindowExists(true));
+  }
+
+  /*
+   * FILTRO AVANÇADO — entra como UM predicado entre os demais, e por isso convive por conjunção com
+   * escopo de unidade, cliente, situação, arquétipo, busca, período e com o recorte OPERACIONAL
+   * (`filter=`). Os dois não se substituem: `filter=overdue` responde "o que venceu"; o composto
+   * responde "quais OS, entre essas, têm tal situação e tal janela de criação".
+   */
+  if (query.advanced) {
+    const advanced = buildServiceOrderAdvancedClause(query.advanced, params.length + 1);
+    if (advanced) {
+      clauses.push(advanced.clause);
+      params.push(...advanced.params);
+    }
   }
 
   return {
