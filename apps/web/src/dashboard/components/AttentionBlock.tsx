@@ -48,15 +48,19 @@ function resolveAttentionAction(item: ExecutiveAttentionItem): string {
 export function AttentionBlock({ items }: AttentionBlockProps) {
   if (items.length === 0) {
     return (
-      <section className="dashboard-decision" aria-labelledby="attention-heading" role="status">
-        <header className="dashboard-section-head">
-          <h2 id="attention-heading" className="dashboard-section-head__title">
-            Central de decisão
-          </h2>
-        </header>
+      <section
+        className="dashboard-decision dashboard-decision--clear"
+        aria-label="Central de decisão"
+        role="status"
+      >
         <p className="dashboard-decision__clear">
           <Check className="dashboard-decision__clear-icon" strokeWidth={2.6} aria-hidden />
-          Nenhuma pendência crítica no período autorizado.
+          <span>
+            <strong>Operação sem exceções críticas</strong>
+            <span className="dashboard-decision__clear-detail">
+              Nenhuma pendência crítica foi publicada para o período e escopo autorizados.
+            </span>
+          </span>
         </p>
       </section>
     );
