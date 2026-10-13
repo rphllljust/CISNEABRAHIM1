@@ -48,6 +48,10 @@
     grid-template-columns: minmax(0, 1fr) minmax(0, 18rem);
   }
 
+  .dashboard-workspace--single {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .dashboard-workspace__side {
     position: sticky;
     top: var(--spacing-2);
@@ -339,7 +343,15 @@ a.dashboard-kpi-list__cell:focus-visible {
 }
 
 .dashboard-work {
-  margin-top: var(--spacing-3);
+  margin-top: 0;
+  margin-bottom: var(--spacing-3);
+}
+
+.dashboard-shortcuts--operational {
+  margin: 0 0 var(--spacing-3);
+  padding: 0.45rem 0;
+  border-top: 1px solid var(--dashboard-line-soft);
+  border-bottom: 1px solid var(--dashboard-line-soft);
 }
 
 .dashboard-work__all {

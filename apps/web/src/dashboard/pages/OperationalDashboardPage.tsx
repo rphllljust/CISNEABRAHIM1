@@ -122,7 +122,7 @@ export function OperationalDashboardPage() {
     const controller = new AbortController();
     setInboxPhase('loading');
     void getWorkInbox(
-      { domain: domain ?? undefined, overdue: overdueOnly, limit: 6, offset: 0 },
+      { domain: domain ?? undefined, overdue: overdueOnly, limit: 12, offset: 0 },
       controller.signal,
     )
       .then((result) => {
@@ -233,6 +233,17 @@ export function OperationalDashboardPage() {
   const snapshot = state.phase === 'ready' ? state.snapshot : state.partial;
   const activeFilters = buildActiveFilterLabels(filters, unitOptions);
   const periodLabel = snapshot ? formatPeriodLabel(snapshot.period.from, snapshot.period.to) : null;
+  const dashboardKpis = snapshot ? buildDashboardKpis(snapshot) : [];
+  const periodVolume = snapshot ? buildPeriodVolume(snapshot) : null;
+  const flowStages = snapshot ? buildBusinessFlow(snapshot, domain) : [];
+  const hasInsightRail = Boolean(
+    snapshot &&
+      (snapshot.charts.serviceOrdersByStatus.items.length > 0 ||
+        (snapshot.charts.financialAging.available &&
+          snapshot.charts.financialAging.buckets.length > 0) ||
+        dashboardKpis.length > 0 ||
+        periodVolume !== null),
+  );
 
   return (
     <ModulePage layout="workspace">
@@ -258,15 +269,17 @@ export function OperationalDashboardPage() {
       ) : null}
 
       {snapshot ? (
-        <div className="dashboard-workspace">
+        <div
+          className={`dashboard-workspace${hasInsightRail ? '' : ' dashboard-workspace--single'}`}
+        >
           <div className="dashboard-workspace__main">
-            {/* ZONA 1 — DECISAO. Excecoes que exigem decisao, em linhas densas. */}
+            {/* EXCECOES PRIMEIRO — quando existem, ficam acima da fila; quando nao, viram uma linha compacta. */}
             <AttentionBlock items={scopedAttention(snapshot, domain)} />
 
-            {/* ZONA 2 — FLUXO EMPRESARIAL: resumo agregado do workspace, estágio por estágio. */}
-            <BusinessFlowSummary stages={buildBusinessFlow(snapshot, domain)} />
+            {/* ACESSOS OPERACIONAIS REAIS publicados pelo snapshot — sem card decorativo. */}
+            <DashboardShortcuts shortcuts={snapshot.shortcuts} />
 
-            {/* FILA — o trabalho real que sustenta os numeros acima. */}
+            {/* FILA PRIMEIRO — esta e a superficie dominante do cockpit operacional. */}
             <section className="dashboard-work" aria-labelledby="queue-heading">
               <WorkInboxSection
                 page={inbox}
@@ -276,33 +289,29 @@ export function OperationalDashboardPage() {
                 onOpenRoute={onOpenRoute}
               />
             </section>
+
+            {/* CADEIA DE PROCESSO ABAIXO DA FILA: contexto de fluxo, nao substituto do trabalho. */}
+            <BusinessFlowSummary stages={flowStages} />
           </div>
 
-          {/*
-            BUSINESS INSIGHT RAIL — a coluna lateral e UM painel, nao dois blocos soltos.
-            O `aside` carrega a moldura unica; cada secao interna e separada por um divisor fino,
-            de modo que a leitura seja "indicadores da empresa" e nao "cards empilhados".
-          */}
-          <aside className="dashboard-workspace__side" aria-label="Indicadores analíticos">
-            <div className="dashboard-rail-panel">
-              {/* VISUAL 1 — OPERACAO POR STATUS: distribuicao autoritativa com drilldown. */}
-              <OperationDistribution snapshot={snapshot} />
-
-              {/* VISUAL 2 — AGING FINANCEIRO: as faixas REAIS publicadas. */}
-              <AgingDistribution aging={snapshot.charts.financialAging} />
-
-              <div
-                {...semanticSectionAttrs([
-                  'productivity.completed_count',
-                  'productivity.on_time_rate',
-                  'productivity.avg_cycle_hours',
-                  'productivity.rework_rate',
-                ])}
-              >
-                <MetricStrip kpis={buildDashboardKpis(snapshot)} volume={buildPeriodVolume(snapshot)} />
+          {hasInsightRail ? (
+            <aside className="dashboard-workspace__side" aria-label="Indicadores analíticos">
+              <div className="dashboard-rail-panel">
+                <OperationDistribution snapshot={snapshot} />
+                <AgingDistribution aging={snapshot.charts.financialAging} />
+                <div
+                  {...semanticSectionAttrs([
+                    'productivity.completed_count',
+                    'productivity.on_time_rate',
+                    'productivity.avg_cycle_hours',
+                    'productivity.rework_rate',
+                  ])}
+                >
+                  <MetricStrip kpis={dashboardKpis} volume={periodVolume} />
+                </div>
               </div>
-            </div>
-          </aside>
+            </aside>
+          ) : null}
         </div>
       ) : null}
 
@@ -366,6 +375,34 @@ export function OperationalDashboardPage() {
  *   StatusBadge      -> a situacao dominante do estagio
  * Um estagio sem contagem publicada mostra o ESTADO, nunca um zero.
  */
+function DashboardShortcuts({
+  shortcuts,
+}: {
+  shortcuts: ExecutiveDashboardSnapshot['shortcuts'];
+}) {
+  if (shortcuts.length === 0) {
+    return null;
+  }
+
+  return (
+    <nav
+      className="dashboard-shortcuts dashboard-shortcuts--operational"
+      aria-label="Atalhos operacionais"
+    >
+      {shortcuts.slice(0, 8).map((shortcut) => (
+        <Link
+          key={shortcut.id}
+          className="dashboard-shortcuts__link"
+          to={shortcut.href}
+          aria-label={shortcut.ariaLabel}
+        >
+          {shortcut.label}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
 function BusinessFlowSummary({ stages }: { stages: BusinessFlowStage[] }) {
   if (stages.length === 0) {
     return null;

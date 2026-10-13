@@ -1,4 +1,8 @@
-import { WorkbenchQueue, workbenchPrimaryActionClass } from '../../ui/workbench';
+import {
+  WorkbenchQueue,
+  workbenchPrimaryActionClass,
+  workbenchSecondaryActionClass,
+} from '../../ui/workbench';
 import {
   WORK_DOMAIN_LABELS,
   WORK_KIND_LABELS,
@@ -45,6 +49,15 @@ export function WorkInboxSection({
     <WorkbenchQueue
       title="Minha fila"
       count={page?.total ?? null}
+      action={
+        <button
+          type="button"
+          className={workbenchSecondaryActionClass}
+          onClick={() => onOpenRoute('/app/work-inbox')}
+        >
+          Abrir fila completa
+        </button>
+      }
       emptyTitle="Nenhum trabalho real neste recorte."
       emptyDescription="A fila não inventa pendência para parecer cheia."
     >

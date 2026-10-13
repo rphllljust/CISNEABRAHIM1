@@ -28,19 +28,8 @@ export function MetricStrip({
   kpis: DashboardKpi[];
   volume: { opened: number; completed: number; hrefOpened: string; hrefCompleted: string } | null;
 }) {
-  if (kpis.length === 0) {
-    return (
-      <section aria-labelledby="kpi-heading" className="dashboard-block dashboard-block--compact">
-        <header className="dashboard-section-head">
-          <h2 id="kpi-heading" className="dashboard-section-head__title">
-            Saúde da empresa
-          </h2>
-        </header>
-        <p className="dashboard-panel__empty">
-          Indicadores adicionais aparecem quando houver volume no período.
-        </p>
-      </section>
-    );
+  if (kpis.length === 0 && volume === null) {
+    return null;
   }
 
   return (
@@ -55,8 +44,9 @@ export function MetricStrip({
         INDICADORES COMPACTOS: rótulo curto acima, número grande abaixo. Nao e uma tag nem um
         cardao — a leitura é "quantos", e o drilldown fica no próprio número.
       */}
-      <ul className="dashboard-kpi-list">
-        {kpis.map((kpi) => {
+      {kpis.length > 0 ? (
+        <ul className="dashboard-kpi-list">
+          {kpis.map((kpi) => {
           const body = (
             <>
               <span className="dashboard-kpi-list__label">{kpi.label}</span>
@@ -83,8 +73,9 @@ export function MetricStrip({
               )}
             </li>
           );
-        })}
-      </ul>
+          })}
+        </ul>
+      ) : null}
 
       {volume ? (
         <p className="dashboard-volume">
