@@ -827,6 +827,77 @@ $$;`);
       await applySqlFile(pool, '0088_metadata_views_v4.sql');
     }
 
+    /*
+     * SEEDS DE METADADO (0089–0093) — uma prova por tag, na mesma forma das anteriores.
+     *
+     * Cada seed REGISTRA no metadata store uma entidade que já existe no domínio; o efeito
+     * observável é a LINHA em `meta.entities` com aquele `name`, e é ele que é conferido — nunca a
+     * mera existência da tabela, que uma migration anterior já criou.
+     *
+     * Sem estes blocos o reconciliador não tinha como justificar o hash: `syncDrizzleJournal`
+     * deixava os cinco tags deliberadamente não registrados e o migrator os reexecutava a cada
+     * subida (idempotente por ON CONFLICT, portanto silencioso), enquanto a suíte de cobertura
+     * falhava. A prova fecha a lacuna pelo caminho previsto.
+     *
+     * A tag é escrita LITERAL em cada bloco, como em todo o resto do arquivo: a suíte
+     * `ensure-migrations-journal-coverage.spec.ts` confere exatamente a presença de `<tag>.sql` no
+     * texto-fonte, e uma tag montada em laço não é cobertura verificável.
+     */
+    const metadataClientSeed = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM meta.entities
+         WHERE name = 'client'
+       ) AS exists`,
+    );
+    if (!metadataClientSeed.rows[0]?.exists) {
+      await applySqlFile(pool, '0089_metadata_seed_client.sql');
+    }
+
+    const metadataServiceRequestSeed = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM meta.entities
+         WHERE name = 'service-request'
+       ) AS exists`,
+    );
+    if (!metadataServiceRequestSeed.rows[0]?.exists) {
+      await applySqlFile(pool, '0090_metadata_seed_service_request.sql');
+    }
+
+    const metadataProposalSeed = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM meta.entities
+         WHERE name = 'proposal'
+       ) AS exists`,
+    );
+    if (!metadataProposalSeed.rows[0]?.exists) {
+      await applySqlFile(pool, '0091_metadata_seed_proposal.sql');
+    }
+
+    const metadataPurchaseOrderSeed = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM meta.entities
+         WHERE name = 'purchase-order'
+       ) AS exists`,
+    );
+    if (!metadataPurchaseOrderSeed.rows[0]?.exists) {
+      await applySqlFile(pool, '0092_metadata_seed_purchase_order.sql');
+    }
+
+    const metadataContractSeed = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM meta.entities
+         WHERE name = 'contract'
+       ) AS exists`,
+    );
+    if (!metadataContractSeed.rows[0]?.exists) {
+      await applySqlFile(pool, '0093_metadata_seed_contract.sql');
+    }
+
     await syncDrizzleJournal(pool);
   } finally {
     await pool.end();

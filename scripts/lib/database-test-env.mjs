@@ -135,6 +135,23 @@ const MIGRATION_EFFECT_CHECKS = {
   '0086_metadata_seed_finance': { row: ['meta', 'entities', 'name', 'cash-forecast'] },
   '0087_metadata_v2': { table: 'meta.computed_fields' },
   '0088_metadata_views_v4': { row: ['meta', 'views', 'view_type', 'graph'] },
+  /*
+   * SEEDS DE METADADO (0089–0093) — o artefacto é a LINHA em `meta.entities`.
+   *
+   * O seed não cria tabela, coluna, índice nem enum: ele REGISTRA no metadata store uma entidade
+   * que já existia. A linha é, portanto, o efeito observável — e o valor escolhido é o `name` da
+   * entidade criada por aquele arquivo, não um campo qualquer dele.
+   *
+   * Sem estas provas o reconciliador não tinha como justificar o hash: os tags ficavam
+   * deliberadamente NÃO registrados (o migrator então reexecuta a migration, que é idempotente por
+   * ON CONFLICT — comportamento correto e por isso silencioso) e o gate `pnpm lint` falhava em toda
+   * branch. A prova fecha a lacuna pelo caminho previsto, sem afrouxar a regra.
+   */
+  '0089_metadata_seed_client': { row: ['meta', 'entities', 'name', 'client'] },
+  '0090_metadata_seed_service_request': { row: ['meta', 'entities', 'name', 'service-request'] },
+  '0091_metadata_seed_proposal': { row: ['meta', 'entities', 'name', 'proposal'] },
+  '0092_metadata_seed_purchase_order': { row: ['meta', 'entities', 'name', 'purchase-order'] },
+  '0093_metadata_seed_contract': { row: ['meta', 'entities', 'name', 'contract'] },
 };
 
 /**
