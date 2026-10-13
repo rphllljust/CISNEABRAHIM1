@@ -34,8 +34,6 @@ import {
   ObjectContextBlock,
   ObjectPanel,
   ObjectStateFlow,
-  SmartRelationBar,
-  buildAuthorizedRelations,
   type NextAction,
   type ObjectAction,
   type ObjectContextField,
@@ -338,17 +336,6 @@ export function ContractsDetailPage() {
     { label: 'Atualizado em', value: formatDateTime(contract.updatedAt) },
   ];
 
-  const relations = buildAuthorizedRelations([
-    {
-      id: 'client',
-      label: 'Cliente',
-      count: contract.clientId ? 1 : 0,
-      to: contract.clientId ? `/app/clients/${contract.clientId}` : '',
-      allowed: Boolean(contract.clientId),
-      hint: 'Cliente vinculado ao contrato',
-    },
-  ]);
-
   const contextFields: ObjectContextField[] = [
     ...(clientName === '—' ? [] : [{ label: 'Cliente', value: clientName }]),
     { label: 'Código interno', value: contract.internalCode },
@@ -400,7 +387,6 @@ export function ContractsDetailPage() {
           />
         }
         nextAction={<NextActionPanel action={nextAction} />}
-        relations={<SmartRelationBar relations={relations} />}
         aside={
           <ObjectPanel title="Histórico">
             <ActivityTimeline
