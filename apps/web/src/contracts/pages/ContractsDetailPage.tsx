@@ -1,6 +1,6 @@
 import { Link, useParams } from 'react-router-dom';
 import { useCallback, useEffect, useState } from 'react';
-import { listClients } from '../../clients/api/clients-api';
+import { getClient, listClients } from '../../clients/api/clients-api';
 import {
   activateContract,
   closeContract,
@@ -28,12 +28,14 @@ import {
   formatMoney,
 } from '../utils/contract-status-labels';
 import {
+  buildAuthorizedRelations,
   EnterpriseObjectHeader,
   EnterpriseObjectPage,
   NextActionPanel,
   ObjectContextBlock,
   ObjectPanel,
   ObjectStateFlow,
+  SmartRelationBar,
   type NextAction,
   type ObjectAction,
   type ObjectContextField,
@@ -113,6 +115,7 @@ export function ContractsDetailPage() {
   const [editValues, setEditValues] = useState<ContractFormValues | null>(null);
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [clientsLoading, setClientsLoading] = useState(true);
+  const [clientRelationAllowed, setClientRelationAllowed] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -167,6 +170,29 @@ export function ContractsDetailPage() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    if (state.phase !== 'ready' || !state.detail.contract.clientId) {
+      setClientRelationAllowed(false);
+      return;
+    }
+    const controller = new AbortController();
+    setClientRelationAllowed(false);
+    void getClient(state.detail.contract.clientId, controller.signal)
+      .then(() => {
+        if (!controller.signal.aborted) {
+          setClientRelationAllowed(true);
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setClientRelationAllowed(false);
+        }
+      });
+    return () => controller.abort();
+  }, [state]);
+
+
 
   function openEditDialog() {
     if (state.phase !== 'ready') {
@@ -322,6 +348,16 @@ export function ContractsDetailPage() {
       : null;
 
   const clientName = formatClientSnapshot(contract.clientSnapshot);
+  const relations = buildAuthorizedRelations([
+    {
+      id: 'client',
+      label: 'Cliente',
+      count: 1,
+      to: `/app/clients/${contract.clientId}`,
+      allowed: clientRelationAllowed,
+      hint: clientName === '—' ? undefined : clientName,
+    },
+  ]);
 
   const metadata: ObjectMetadataField[] = [
     {
@@ -387,6 +423,7 @@ export function ContractsDetailPage() {
           />
         }
         nextAction={<NextActionPanel action={nextAction} />}
+        relations={<SmartRelationBar relations={relations} />}
         aside={
           <ObjectPanel title="Histórico">
             <ActivityTimeline
