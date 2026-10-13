@@ -8,6 +8,7 @@ import {
   WorklistFilterBar,
   WorklistFooter,
   WorklistHeader,
+  rowPrimaryActionClass,
   worklistCellClass,
   worklistCellRaisedClass,
   worklistHeadCellClass,
@@ -26,6 +27,7 @@ import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import { BackofficeCapabilityRoute } from '../../financial-ui/BackofficeCapabilityRoute';
 import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge';
 import { formatCnpjDisplay } from '../../clients/utils/format-cnpj';
+import { ContextDrawer, type ContextPreviewBody } from '../../operator';
 import {
   approvePurchaseRequest,
   cancelPurchaseOrder,
@@ -95,6 +97,11 @@ export function ProcurementHubPage() {
 
 const LIST_PAGE_SIZE = 20;
 
+type ProcurementPreview =
+  | { kind: 'request'; item: PurchaseRequestSummary }
+  | { kind: 'order'; item: SupplierPurchaseOrderSummary }
+  | { kind: 'invoice'; item: SupplierInvoiceSummary };
+
 type ListsState = {
   requests: { phase: 'loading' } | { phase: 'ready'; items: PurchaseRequestSummary[]; total: number } | { phase: 'denied' } | { phase: 'error' };
   orders: { phase: 'loading' } | { phase: 'ready'; items: SupplierPurchaseOrderSummary[]; total: number } | { phase: 'denied' } | { phase: 'error' };
@@ -113,6 +120,7 @@ function ProcurementLists() {
   });
   const [term, setTerm] = useState('');
   const [appliedTerm, setAppliedTerm] = useState('');
+  const [preview, setPreview] = useState<ProcurementPreview | null>(null);
   const [offsets, setOffsets] = useState({ requests: 0, orders: 0, invoices: 0 });
 
   useEffect(() => {
@@ -213,17 +221,18 @@ function ProcurementLists() {
               <th scope="col" className={worklistHeadCellClass}>Itens</th>
               <th scope="col" className={worklistNumericHeadCellClass}>Valor</th>
               <th scope="col" className={worklistHeadCellClass}>Status</th>
+              <th scope="col" className={worklistHeadCellClass}>Contexto</th>
             </tr>
           </thead>
           <tbody>
             {state.requests.phase === 'ready' && state.requests.items.length === 0 ? (
               <tr className={worklistRowClass}>
-                <td className={worklistCellClass} colSpan={4}>Nenhuma solicitação de compra encontrada.</td>
+                <td className={worklistCellClass} colSpan={5}>Nenhuma solicitação de compra encontrada.</td>
               </tr>
             ) : null}
             {state.requests.phase === 'denied' ? (
               <tr className={worklistRowClass}>
-                <td className={worklistCellClass} colSpan={4}>Você não tem permissão para listar solicitações de compra.</td>
+                <td className={worklistCellClass} colSpan={5}>Você não tem permissão para listar solicitações de compra.</td>
               </tr>
             ) : null}
             {state.requests.phase === 'ready'
@@ -240,6 +249,15 @@ function ProcurementLists() {
                     </td>
                     <td className={worklistCellRaisedClass}>
                       <FinanceStatusBadge status={request.status} labels={PROCUREMENT_REQUEST_STATUS_LABELS} />
+                    </td>
+                    <td className={worklistCellClass}>
+                      <button
+                        type="button"
+                        className={rowPrimaryActionClass}
+                        onClick={() => setPreview({ kind: 'request', item: request })}
+                      >
+                        Ver contexto
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -282,17 +300,18 @@ function ProcurementLists() {
               <th scope="col" className={worklistHeadCellClass}>Condição</th>
               <th scope="col" className={worklistNumericHeadCellClass}>Valor</th>
               <th scope="col" className={worklistHeadCellClass}>Status</th>
+              <th scope="col" className={worklistHeadCellClass}>Contexto</th>
             </tr>
           </thead>
           <tbody>
             {state.orders.phase === 'ready' && state.orders.items.length === 0 ? (
               <tr className={worklistRowClass}>
-                <td className={worklistCellClass} colSpan={4}>Nenhum pedido ao fornecedor encontrado.</td>
+                <td className={worklistCellClass} colSpan={5}>Nenhum pedido ao fornecedor encontrado.</td>
               </tr>
             ) : null}
             {state.orders.phase === 'denied' ? (
               <tr className={worklistRowClass}>
-                <td className={worklistCellClass} colSpan={4}>Você não tem permissão para listar pedidos ao fornecedor.</td>
+                <td className={worklistCellClass} colSpan={5}>Você não tem permissão para listar pedidos ao fornecedor.</td>
               </tr>
             ) : null}
             {state.orders.phase === 'ready'
@@ -314,6 +333,15 @@ function ProcurementLists() {
                     </td>
                     <td className={worklistCellRaisedClass}>
                       <FinanceStatusBadge status={order.status} labels={SUPPLIER_PO_STATUS_LABELS} />
+                    </td>
+                    <td className={worklistCellClass}>
+                      <button
+                        type="button"
+                        className={rowPrimaryActionClass}
+                        onClick={() => setPreview({ kind: 'order', item: order })}
+                      >
+                        Ver contexto
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -357,17 +385,18 @@ function ProcurementLists() {
               <th scope="col" className={worklistHeadCellClass}>Vencimento</th>
               <th scope="col" className={worklistNumericHeadCellClass}>Total</th>
               <th scope="col" className={worklistHeadCellClass}>Status</th>
+              <th scope="col" className={worklistHeadCellClass}>Contexto</th>
             </tr>
           </thead>
           <tbody>
             {state.invoices.phase === 'ready' && state.invoices.items.length === 0 ? (
               <tr className={worklistRowClass}>
-                <td className={worklistCellClass} colSpan={5}>Nenhuma nota de fornecedor encontrada.</td>
+                <td className={worklistCellClass} colSpan={6}>Nenhuma nota de fornecedor encontrada.</td>
               </tr>
             ) : null}
             {state.invoices.phase === 'denied' ? (
               <tr className={worklistRowClass}>
-                <td className={worklistCellClass} colSpan={5}>Você não tem permissão para listar notas de fornecedor.</td>
+                <td className={worklistCellClass} colSpan={6}>Você não tem permissão para listar notas de fornecedor.</td>
               </tr>
             ) : null}
             {state.invoices.phase === 'ready'
@@ -387,6 +416,15 @@ function ProcurementLists() {
                     </td>
                     <td className={worklistCellRaisedClass}>
                       <FinanceStatusBadge status={invoice.status} labels={SUPPLIER_INVOICE_STATUS_LABELS} />
+                    </td>
+                    <td className={worklistCellClass}>
+                      <button
+                        type="button"
+                        className={rowPrimaryActionClass}
+                        onClick={() => setPreview({ kind: 'invoice', item: invoice })}
+                      >
+                        Ver contexto
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -420,8 +458,75 @@ function ProcurementLists() {
           ) : null}
         </WorklistFooter>
       </div>
+
+      <ContextDrawer
+        open={preview !== null}
+        title="Contexto de compras"
+        preview={preview ? buildProcurementPreview(preview) : null}
+        onClose={() => setPreview(null)}
+      />
     </>
   );
+}
+
+function buildProcurementPreview(preview: ProcurementPreview): ContextPreviewBody {
+  if (preview.kind === 'request') {
+    const item = preview.item;
+    return {
+      identifier: item.justification,
+      subtitle: 'Solicitação de compra',
+      status: <FinanceStatusBadge status={item.status} labels={PROCUREMENT_REQUEST_STATUS_LABELS} />,
+      facts: [
+        { label: 'Itens', value: item.lineCount },
+        { label: 'Valor', value: <Money value={item.totalAmount} currencyCode={item.currencyCode} /> },
+      ],
+      relations: [],
+      nextAction: {
+        label: 'Abrir solicitação',
+        href: `/app/procurement/requests/${item.id}`,
+      },
+      detailHref: `/app/procurement/requests/${item.id}`,
+      detailLabel: 'Abrir solicitação completa',
+    };
+  }
+
+  if (preview.kind === 'order') {
+    const item = preview.item;
+    return {
+      identifier: item.supplierName ?? 'Pedido ao fornecedor',
+      subtitle: item.supplierTaxId ? formatCnpjDisplay(item.supplierTaxId) : 'Pedido ao fornecedor',
+      status: <FinanceStatusBadge status={item.status} labels={SUPPLIER_PO_STATUS_LABELS} />,
+      facts: [
+        { label: 'Condição', value: item.paymentTerms },
+        { label: 'Valor', value: <Money value={item.totalAmount} currencyCode={item.currencyCode} /> },
+      ],
+      relations: [],
+      nextAction: {
+        label: 'Abrir pedido',
+        href: `/app/procurement/orders/${item.id}`,
+      },
+      detailHref: `/app/procurement/orders/${item.id}`,
+      detailLabel: 'Abrir pedido completo',
+    };
+  }
+
+  const item = preview.item;
+  return {
+    identifier: item.invoiceNumber,
+    subtitle: item.supplierName ?? 'Nota de fornecedor',
+    status: <FinanceStatusBadge status={item.status} labels={SUPPLIER_INVOICE_STATUS_LABELS} />,
+    facts: [
+      { label: 'Vencimento', value: item.dueDate },
+      { label: 'Valor', value: <Money value={item.totalAmount} currencyCode={item.currencyCode} /> },
+    ],
+    relations: [],
+    nextAction: {
+      label: 'Abrir nota',
+      href: `/app/procurement/invoices/${item.id}`,
+    },
+    detailHref: `/app/procurement/invoices/${item.id}`,
+    detailLabel: 'Abrir nota completa',
+  };
 }
 
 export function PurchaseRequestCreatePage() {
