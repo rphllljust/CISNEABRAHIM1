@@ -673,6 +673,13 @@
                         "when":  179090500000000000,
                         "tag":  "0095_metadata_payable_compound_filter",
                         "breakpoints":  true
+                    },
+                    {
+                        "idx":  96,
+                        "version":  "7",
+                        "when":  179090550000000000,
+                        "tag":  "0096_metadata_budget_compound_filter",
+                        "breakpoints":  true
                     }
                 ]
 }

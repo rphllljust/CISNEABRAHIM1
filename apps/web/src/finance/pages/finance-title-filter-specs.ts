@@ -47,3 +47,25 @@ export const PAYABLE_TITLE_FILTER_SPECS: AdvancedFilterFieldSpec[] = [
   { field: 'created_at', contractField: 'createdAt', kind: 'date' },
   { field: 'updated_at', contractField: 'updatedAt', kind: 'date' },
 ];
+
+/**
+ * ALLOW-LIST DO FILTRO COMPOSTO PARA ORÇAMENTOS.
+ *
+ * Espelha `BUDGET_FILTER_SPECS` (`apps/api/src/finance/repositories/budget-list-sql.ts`).
+ *
+ * AQUI `status` ENTRA, e a diferença em relação às filas de títulos é de DOMÍNIO, não de gosto:
+ * recebíveis e pagáveis derivam a situação (lifecycle + liquidações + vencimento) e por isso não têm
+ * coluna para filtrar. `fin.budgets` TEM a coluna `status` (`fin.budget_status`, ACTIVE/INACTIVE) e o
+ * filtro simples já a usa — então oferecê-la no recorte composto é executável de verdade.
+ *
+ * `unit_id` fica fora: já é o recorte do filtro simples e o escopo de autorização. Duplicá-lo aqui
+ * criaria dois caminhos para o mesmo recorte, com semânticas que podem divergir.
+ */
+export const BUDGET_TITLE_FILTER_SPECS: AdvancedFilterFieldSpec[] = [
+  { field: 'code', contractField: 'code', kind: 'text' },
+  { field: 'name', contractField: 'name', kind: 'text' },
+  { field: 'currency_code', contractField: 'currencyCode', kind: 'text' },
+  { field: 'status', contractField: 'status', kind: 'enum' },
+  { field: 'created_at', contractField: 'createdAt', kind: 'date' },
+  { field: 'updated_at', contractField: 'updatedAt', kind: 'date' },
+];

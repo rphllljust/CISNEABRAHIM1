@@ -596,7 +596,14 @@ export type BudgetSummary = {
 };
 
 export async function listBudgets(
-  params: { limit: number; offset: number; status?: string; q?: string },
+  params: {
+    limit: number;
+    offset: number;
+    status?: string;
+    q?: string;
+    /** Filtro composto já convertido para o contrato do servidor. */
+    advanced?: AdvancedFilterPayload | null;
+  },
   signal?: AbortSignal,
 ): Promise<{ items: BudgetSummary[]; limit: number; offset: number; total: number; totalPages: number }> {
   const search = new URLSearchParams({ limit: String(params.limit), offset: String(params.offset) });
@@ -605,6 +612,11 @@ export async function listBudgets(
   }
   if (params.q && params.q.trim().length > 0) {
     search.set('q', params.q.trim());
+  }
+  // O recorte composto entra na MESMA query: paginação, busca e árvore AND/OR compõem um único
+  // predicado no servidor, e não duas leituras reconciliadas no navegador.
+  if (params.advanced && params.advanced.groups.length > 0) {
+    search.set('filters', JSON.stringify(params.advanced));
   }
   return requestJson(`/api/v1/finance/budgets?${search.toString()}`, {
     method: 'GET',

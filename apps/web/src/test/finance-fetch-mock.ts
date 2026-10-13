@@ -194,6 +194,54 @@ const PAYABLES_META = {
 };
 
 /**
+ * Orçamentos: aqui `status` É filtrável no recorte composto, e a razão é de domínio — `fin.budgets`
+ * tem COLUNA `status` (`fin.budget_status`), ao contrário das filas de títulos, cuja situação é
+ * derivada. Um mock que copiasse a lista de recebíveis esconderia justamente essa diferença.
+ */
+const BUDGETS_META = {
+  name: 'budgets',
+  label: 'Orçamento',
+  description: null,
+  dataSchema: 'fin',
+  dataTable: 'budgets',
+  labelField: 'code',
+  fields: [
+    metaField('code', 'Código', 'data', { inList: true, listOrder: 1, inFilter: true }),
+    metaField('name', 'Nome', 'data', { inList: true, listOrder: 2, inFilter: true }),
+    metaField('status', 'Situação', 'select', {
+      inList: true,
+      listOrder: 3,
+      inFilter: true,
+      options: {
+        options: [
+          { value: 'ACTIVE', label: 'Ativo' },
+          { value: 'INACTIVE', label: 'Inativo' },
+        ],
+      },
+    }),
+    metaField('currency_code', 'Moeda', 'data', { inList: true, listOrder: 4, inFilter: true }),
+    metaField('unit_id', 'Unidade', 'link', { inList: true, listOrder: 5 }),
+    metaField('created_at', 'Criado em', 'datetime', {
+      readOnly: true,
+      inList: true,
+      listOrder: 6,
+      inFilter: true,
+    }),
+  ],
+  views: [
+    {
+      viewType: 'list',
+      label: 'Lista de orçamentos',
+      layout: { columns: ['code', 'name', 'status', 'currency_code', 'created_at'] },
+      isDefault: true,
+    },
+  ],
+  workflow: null,
+  permissions: [{ action: 'read', permLevel: 0, requiredPermission: null, allowed: true }],
+  allowedPermLevels: [0],
+};
+
+/**
  * Entidades de metadado servidas pelo mock.
  *
  * `budgets`, `expenses` e `treasury` já têm o próprio mock (`expenses-fetch-mock`); aqui entram as
@@ -202,7 +250,7 @@ const PAYABLES_META = {
 const META_BY_ENTITY: Record<string, unknown> = {
   receivables: RECEIVABLES_META,
   payables: PAYABLES_META,
-  budgets: { ...RECEIVABLES_META, name: 'budgets', label: 'Orçamento', dataTable: 'budgets' },
+  budgets: BUDGETS_META,
   expenses: { ...RECEIVABLES_META, name: 'expenses', label: 'Despesa', dataTable: 'expenses' },
 };
 
@@ -226,6 +274,35 @@ export function createFinanceFetchMock(options: FinanceFetchMockOptions = {}) {
         return jsonResponse(entity);
       }
       return jsonResponse({ error: { code: 'META_ENTITY_NOT_FOUND' } }, 404);
+    }
+
+    /*
+     * ORÇAMENTOS — listagem mínima, com `filters` repassado ao servidor como o backend real faz.
+     *
+     * O mock NÃO avalia a árvore: quem a executa é o SQL. O que ele prova é que o recorte CHEGA —
+     * que é exatamente o defeito que estes testes travam.
+     */
+    if (pathname === '/api/v1/finance/budgets' && method === 'GET') {
+      const limit = Number(searchParams.get('limit') ?? '20');
+      const offset = Number(searchParams.get('offset') ?? '0');
+      return jsonResponse({
+        items: [
+          {
+            id: 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1',
+            unitId: 'unit-1',
+            code: 'ORC-001',
+            name: 'Orçamento operacional',
+            currencyCode: 'BRL',
+            status: 'ACTIVE',
+            rowVersion: 1,
+            updatedAt: '2026-08-01T12:00:00.000Z',
+          },
+        ],
+        limit,
+        offset,
+        total: 1,
+        totalPages: 1,
+      });
     }
 
     if (pathname === '/api/v1/auth/session' && method === 'GET') {

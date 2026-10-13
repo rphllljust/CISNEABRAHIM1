@@ -930,6 +930,19 @@ $$;`);
       await applySqlFile(pool, '0095_metadata_payable_compound_filter.sql');
     }
 
+    /* 0096 — mesma prova de FLAG, para a fila de Orçamentos (entidade distinta). */
+    const metadataBudgetFilterFlag = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM meta.fields f
+         INNER JOIN meta.entities e ON e.id = f.entity_id
+         WHERE e.name = 'budgets' AND f.name = 'code' AND f.in_filter = true
+       ) AS exists`,
+    );
+    if (!metadataBudgetFilterFlag.rows[0]?.exists) {
+      await applySqlFile(pool, '0096_metadata_budget_compound_filter.sql');
+    }
+
     await syncDrizzleJournal(pool);
   } finally {
     await pool.end();

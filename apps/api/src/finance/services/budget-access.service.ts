@@ -33,6 +33,10 @@ import {
 } from '../domain/budget.validation';
 import { BudgetRepository } from '../repositories/budget.repository';
 import {
+  buildBudgetAdvancedClause,
+  type BudgetAdvancedFilter,
+} from '../repositories/budget-list-sql';
+import {
   toBudgetResponse,
   toBudgetSummaryResponse,
   type BudgetComparisonResponse,
@@ -58,7 +62,15 @@ export class BudgetAccessService {
    */
   async list(
     actor: IdentityAuthzContext,
-    query: { limit: number; offset: number; status?: string; unitId?: string; q?: string },
+    query: {
+      limit: number;
+      offset: number;
+      status?: string;
+      unitId?: string;
+      q?: string;
+      /** Filtro composto já validado contra o allow-list de `budget-list-sql`. */
+      advanced?: BudgetAdvancedFilter;
+    },
   ): Promise<BudgetListResponse> {
     const grants = await this.authorizationRepository.findActiveGrants(
       actor.identityId,
@@ -82,6 +94,18 @@ export class BudgetAccessService {
       if (query.q) {
         whereParts.push(`(code ILIKE $${params.length + 1} OR name ILIKE $${params.length + 1})`);
         params.push(`%${query.q}%`);
+      }
+      /*
+       * FILTRO COMPOSTO — entra como UM predicado entre os demais, por conjunção com a situação, a
+       * unidade e a busca. A tradução de cada condição vive em `budget-list-sql`, junto do
+       * allow-list que o parser valida.
+       */
+      if (query.advanced) {
+        const advanced = buildBudgetAdvancedClause(query.advanced, params.length + 1);
+        if (advanced) {
+          whereParts.push(advanced.clause);
+          params.push(...advanced.params);
+        }
       }
       const whereClause = whereParts.length > 0 ? whereParts.join(' AND ') : 'TRUE';
 

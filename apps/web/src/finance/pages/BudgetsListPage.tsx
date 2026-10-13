@@ -36,6 +36,9 @@ import {
  * tela consome a engine: nomear o barrel torna isso verificável por leitura direta.
  */
 import { DynamicExportCsv, DynamicList, listColumns, useEntitySchema } from '../../engine/index';
+import { DynamicFilterBuilder, emptyFilterGroup, type FilterGroup } from '../../engine';
+import { advancedFilterFromGroup } from '../../engine';
+import { BUDGET_TITLE_FILTER_SPECS } from './finance-title-filter-specs';
 import { toDisplayText } from '../../engine/FieldRenderer';
 import { BudgetSearchForm } from './budget-search-form';
 import { budgetEngineRows } from './budget-engine-rows';
@@ -147,6 +150,20 @@ export function BudgetsListPage() {
   const reloadRef = useRef<(pageOffset: number) => Promise<void>>(async () => undefined);
 
   /*
+   * FILTRO COMPOSTO — a capability que faltava nesta worklist, e que aqui vai DIRETO ao servidor.
+   *
+   * Diferente do que foi corrigido em recebíveis/pagáveis, esta tela nunca montou o construtor: não
+   * havia máscara sobre a página, havia ausência. O recorte composto entra já pelo caminho correto —
+   * a árvore vira `filters` na consulta, e o servidor devolve o conjunto; nada é refiltrado no
+   * navegador.
+   */
+  const [filterGroup, setFilterGroup] = useState<FilterGroup>(() => emptyFilterGroup());
+  const advancedPayload = useMemo(
+    () => advancedFilterFromGroup(filterGroup, BUDGET_TITLE_FILTER_SPECS),
+    [filterGroup],
+  );
+
+  /*
    * VISÕES SALVAS — a mesma mecânica e o mesmo contrato das outras listas financeiras
    * (`useSmartList` + `SmartListConfig`), com allow-list explícita: só `status` é persistível, e
    * só com os valores que o servidor aceita. O escopo (`finance.budgets`) isola este recorte do
@@ -194,6 +211,7 @@ export function BudgetsListPage() {
             offset: pageOffset,
             status: statusFilter || undefined,
             q: searchTerm || undefined,
+            advanced: advancedPayload,
           },
           signal,
         );
@@ -217,7 +235,7 @@ export function BudgetsListPage() {
         });
       }
     },
-    [statusFilter, searchTerm],
+    [advancedPayload, statusFilter, searchTerm],
   );
 
   useEffect(() => {
@@ -238,7 +256,7 @@ export function BudgetsListPage() {
    */
   useEffect(() => {
     setOffset(0);
-  }, [statusFilter, searchTerm]);
+  }, [advancedPayload, statusFilter, searchTerm]);
 
   /** Publica um recorte na URL — o mesmo caminho que a barra de filtros usa. */
   const updateFilter = (field: string, value: string): void => {
@@ -413,6 +431,21 @@ export function BudgetsListPage() {
         onChange={updateFilter}
         onClear={clearFilters}
       />
+      </div>
+
+      {/*
+        FILTRO COMPOSTO — a árvore AND/OR da engine, com recorte por VÁRIOS campos ao mesmo tempo.
+
+        A busca acima é UM termo e o filtro de situação é UM valor; combinar "situação ACTIVE E
+        moeda BRL E criado depois de X" não era expressável. O construtor monta essa árvore e o
+        servidor a executa: o payload vira `filters` na MESMA consulta, então paginação e contagem
+        seguem coerentes com o recorte.
+
+        A ordem das superfícies segue a gramática da família: cabeçalho operacional → visões salvas
+        → superfície de comando (busca + construtor) → grade.
+      */}
+      <div data-region="compound-filter-surface" className="mb-2">
+        <DynamicFilterBuilder schema={schema} value={filterGroup} onChange={setFilterGroup} />
       </div>
 
       {status === 'error' ? (
