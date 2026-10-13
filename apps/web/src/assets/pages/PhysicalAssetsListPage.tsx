@@ -22,7 +22,8 @@ import {
   type PhysicalAssetListSummary,
 } from '../types/physical-asset.types';
 import { formatAssetPaginationRange } from '../utils/asset-operational-status';
-import { DynamicContextDrawer } from '../../engine';
+import { DynamicContextDrawer, DynamicSavedViewsBar, useSavedViews } from '../../engine';
+import { useOptionalIdentityId } from '../../auth/context/AuthProvider';
 import { Button } from '../../ui/Button';
 import { DateTime } from '../../ui';
 import { Skeleton } from '../../ui/Skeleton';
@@ -131,16 +132,13 @@ export function PhysicalAssetsListPage() {
   const [commandDone, setCommandDone] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
   /*
-   * VISÕES SALVAS — NÃO nesta rodada, de propósito.
+   * VISÕES SALVAS — agora usando a leitura OPCIONAL de identidade já consolidada no shell.
    *
-   * Esta tela tem quatro filtros e se beneficiaria da capacidade, mas `useSavedViews` exige um dono,
-   * e as duas saídas disponíveis hoje são piores que a ausência: passar `identityId ?? 'anonymous'`
-   * cria o namespace COMPARTILHADO que a auditoria apontou como defeito, e `useAuth` lança fora do
-   * `AuthProvider` (o que quebraria a suíte desta página, que a monta sem provider). A correção
-   * certa é na capacidade: sem identidade, NÃO persistir — e isso é mudança de camada
-   * compartilhada, que afeta os nove chamadores. Fica REGISTRADO como pendência, não escondido
-   * atrás de um fallback.
+   * Sem identidade, a engine não persiste nem lê visões; com identidade, o recorte operacional
+   * completo (busca + cadastro + disponibilidade + tipo) pode ser retomado sem reconstrução manual.
+   * Não existe namespace compartilhado "anonymous".
    */
+  const savedViews = useSavedViews(useOptionalIdentityId(), 'physical-assets');
   const navigate = useNavigate();
 
   const loadPage = useCallback(
@@ -372,6 +370,39 @@ export function PhysicalAssetsListPage() {
           />
         }
       />
+      </div>
+
+      <div data-region="saved-view-surface">
+        <DynamicSavedViewsBar
+          views={savedViews.views}
+          persistedLocally={savedViews.persistedLocally}
+          persistable={savedViews.persistable}
+          onSave={(name) =>
+            savedViews.save(
+              name,
+              {
+                search,
+                lifecycleFilter,
+                availabilityFilter,
+                resourceTypeFilter,
+              },
+              'list',
+            )
+          }
+          onDelete={savedViews.remove}
+          onApply={(view) => {
+            const nextSearch = view.filters['search'] ?? '';
+            setSearchInput(nextSearch);
+            setSearch(nextSearch);
+            setLifecycleFilter(
+              (view.filters['lifecycleFilter'] ?? '') as '' | AssetLifecycleStatus,
+            );
+            setAvailabilityFilter(
+              (view.filters['availabilityFilter'] ?? '') as '' | AssetOperationalAvailability,
+            );
+            setResourceTypeFilter(view.filters['resourceTypeFilter'] ?? '');
+          }}
+        />
       </div>
 
       <div data-region="command-filter-surface">
