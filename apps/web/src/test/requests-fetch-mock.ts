@@ -315,9 +315,64 @@ export function createRequestsFetchMock(options: RequestsFetchMockOptions = {}) 
     return toDetail(request, allowed, links, linkedChain, historyFor(request));
   }
 
+  function linkedRoute(item: ServiceRequestLinked): string {
+    switch (item.kind) {
+      case 'SERVICE_ORDER':
+        return `/app/service-orders/${item.id}`;
+      case 'PROPOSAL':
+        return `/app/proposals/${item.id}`;
+      case 'PURCHASE_ORDER':
+        return `/app/purchase-orders/${item.id}`;
+      default:
+        return '/app/requests';
+    }
+  }
+
   return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const { pathname, searchParams } = parseRequestPath(input);
     const method = init?.method ?? 'GET';
+
+    const chainMatch = pathname.match(/^\/api\/v1\/business-chain\/SERVICE_REQUEST\/([^/]+)$/);
+    if (chainMatch && method === 'GET') {
+      const request = findRequest(chainMatch[1]!);
+      const auth = init?.headers ? new Headers(init.headers).get('authorization') : null;
+      if (!auth?.startsWith('Bearer ')) {
+        return requestError('AUTH_UNAUTHORIZED', 401);
+      }
+      if (!request || !listAllowed) {
+        return requestError('REQUESTS_DENIED', request ? 403 : 404);
+      }
+      return jsonResponse({
+        anchor: { kind: 'SERVICE_REQUEST', id: request.id },
+        nodes: [
+          {
+            id: request.id,
+            kind: 'SERVICE_REQUEST',
+            businessReference: request.requestCode,
+            status: request.status,
+            occurredAt: request.createdAt,
+            route: `/app/requests/${request.id}`,
+            relation: 'ROOT',
+            summary: request.description || request.requestCode,
+            unitId: request.unitId,
+            clientId: request.clientId,
+          },
+          ...linkedChain.map((item) => ({
+            id: item.id,
+            kind: item.kind,
+            businessReference: item.label,
+            status: item.status,
+            occurredAt: item.occurredAt,
+            route: linkedRoute(item),
+            relation: 'RESULT',
+            summary: item.label,
+            unitId: request.unitId,
+            clientId: request.clientId,
+          })),
+        ],
+        milestones: [],
+      });
+    }
 
     const documentsResponse = documentsMock.handle(pathname, method, init, searchParams);
     if (documentsResponse) {
