@@ -13,7 +13,7 @@ import {
 } from './smart-list/useSavedViews';
 import { SavedViewsBar } from './smart-list/SavedViewsBar';
 import { useSelection } from './bulk/useSelection';
-import { exportSelectionToCsv } from './bulk/BulkActionBar';
+import { exportSelectionToCsv, BulkActionBar } from './bulk/BulkActionBar';
 import {
   buildSearchCommand,
   OPERATIONAL_VIEW_COMMANDS,
@@ -283,6 +283,58 @@ describe('bulk — prova negativa', () => {
     );
     act(() => result.current.selectAll(rows));
     expect(result.current.count).toBe(2);
+  });
+});
+
+/* ------------------------------- BULK: a barra entrega a SELEÇÃO REAL à ação */
+
+/*
+ * DEFEITO MEDIDO (corrigido nesta mudança): `BulkActionBar` chamava `action.run([])` — a barra
+ * anunciava "N selecionados" e entregava ZERO ids. Os dois consumidores existentes ignoravam o
+ * parâmetro e liam `selectedRows` do próprio closure, então nada quebrou visivelmente; o contrato
+ * publicado (`run: (selectedIds: string[]) => void`) era simplesmente falso. O teste abaixo falha
+ * contra o código anterior e passa contra o atual.
+ */
+describe('BulkActionBar — a ação recebe exatamente os ids selecionados', () => {
+  it('entrega os ids marcados à ação, na ordem da seleção', async () => {
+    const run = vi.fn();
+    render(
+      <MemoryRouter>
+        <BulkActionBar
+          count={2}
+          visibleCount={3}
+          selectedIds={['r1', 'r3']}
+          onClear={() => undefined}
+          actions={[{ id: 'export', label: 'Exportar selecionados', run }]}
+        />
+      </MemoryRouter>,
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Exportar selecionados' }));
+
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledWith(['r1', 'r3']);
+    // PROVA NEGATIVA: o registro NÃO marcado não entra no conjunto entregue.
+    expect(run.mock.calls[0]?.[0]).not.toContain('r2');
+  });
+
+  it('não inventa ids quando nada está marcado além do contador', async () => {
+    const run = vi.fn();
+    render(
+      <MemoryRouter>
+        <BulkActionBar
+          count={0}
+          visibleCount={3}
+          selectedIds={[]}
+          onClear={() => undefined}
+          actions={[{ id: 'export', label: 'Exportar selecionados', run }]}
+        />
+      </MemoryRouter>,
+    );
+
+    // Sem seleção a barra não oferece a ação — logo não há como despachar conjunto vazio.
+    expect(screen.queryByRole('button', { name: 'Exportar selecionados' })).toBeNull();
+    expect(run).not.toHaveBeenCalled();
   });
 });
 

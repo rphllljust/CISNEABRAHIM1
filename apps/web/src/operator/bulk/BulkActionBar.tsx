@@ -38,6 +38,15 @@ export type BulkActionBarProps = {
   onClear: () => void;
   /** Total de linhas visiveis, para o operador saber o recorte real. */
   visibleCount: number;
+  /**
+   * IDs das linhas marcadas, na ordem em que a lista as entregou.
+   *
+   * A barra NAO guarda a selecao — ela apenas a repassa. Sem esta prop, `run` era chamado com
+   * lista vazia e os dois consumidores existentes mascaravam o defeito fechando sobre estado
+   * proprio (`selectedRows`); qualquer terceiro consumidor que confiasse no parametro receberia
+   * `[]` e operaria ZERO registros enquanto a barra anunciava "N selecionados".
+   */
+  selectedIds: readonly string[];
   onSelectAllVisible?: () => void;
   /** Acoes sensiveis conhecidas, exibidas como PARK — honestidade operacional. */
   parkedNote?: ReactNode;
@@ -49,6 +58,7 @@ export function BulkActionBar({
   actions,
   onClear,
   visibleCount,
+  selectedIds,
   onSelectAllVisible,
   parkedNote,
   className,
@@ -101,7 +111,7 @@ export function BulkActionBar({
           className="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
           disabled={action.disabled}
           title={action.disabled ? action.disabledReason : undefined}
-          onClick={() => action.run([])}
+          onClick={() => action.run([...selectedIds])}
         >
           {action.label}
         </button>
