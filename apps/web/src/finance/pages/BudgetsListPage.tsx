@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ModuleDeniedState,
@@ -20,8 +20,14 @@ import {
   rowSecondaryActionClass,
 } from '../../ui/enterprise-list';
 import { ContextDrawer, SavedViewsBar, useSmartList, type SmartListConfig } from '../../operator';
+import { BulkActionBar, exportSelectionToCsv, useSelection } from '../../operator';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
-import { BackofficeApiError, listBudgets, type BudgetSummary } from '../api/finance-api';
+import {
+  approveBudget,
+  BackofficeApiError,
+  listBudgets,
+  type BudgetSummary,
+} from '../api/finance-api';
 /*
  * Importa o BARREL da engine pelo caminho explícito `engine/index`.
  *
@@ -30,6 +36,7 @@ import { BackofficeApiError, listBudgets, type BudgetSummary } from '../api/fina
  * tela consome a engine: nomear o barrel torna isso verificável por leitura direta.
  */
 import { DynamicExportCsv, DynamicList, listColumns, useEntitySchema } from '../../engine/index';
+import { toDisplayText } from '../../engine/FieldRenderer';
 import { BudgetSearchForm } from './budget-search-form';
 import { budgetEngineRows } from './budget-engine-rows';
 
@@ -122,6 +129,22 @@ export function BudgetsListPage() {
   const [previewRow, setPreviewRow] = useState<BudgetSummary | null>(null);
   /** Visão salva ativa — a barra precisa saber qual está acesa. */
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
+
+  /*
+   * SELEÇÃO + LOTE — mesma capability já propagada em Despesas, Recebíveis e Pagáveis.
+   *
+   * `itemsRef`/`reloadRef` existem porque `runBulk` é declarado ANTES dos retornos antecipados de
+   * loading/denied/error: hooks não podem ser condicionais, e o handler precisa ler a página atual
+   * sem depender de um valor que só existe depois do gate.
+   */
+  const selection = useSelection<Record<string, unknown> & { id: string }>({
+    getId: (row) => String(row.id),
+  });
+  const clearSelection = selection.clear;
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState<string | null>(null);
+  const pageItemsRef = useRef<BudgetSummary[]>([]);
+  const reloadRef = useRef<(pageOffset: number) => Promise<void>>(async () => undefined);
 
   /*
    * VISÕES SALVAS — a mesma mecânica e o mesmo contrato das outras listas financeiras
@@ -229,6 +252,40 @@ export function BudgetsListPage() {
     setOffset(0);
   };
 
+  /**
+   * Aprova em lote a versão em rascunho de CADA orçamento selecionado.
+   *
+   * Não existe endpoint de aprovação em massa: cada orçamento recebe o seu próprio POST com a sua
+   * própria `version_number`, e é o servidor que faz compare-and-set e responde 409 quando o
+   * rascunho mudou. É o que preserva autorização, concorrência otimista e auditoria por registro —
+   * e é por isso que o resultado pode ser PARCIAL, e o operador precisa saber de quê.
+   */
+  const runBulkApprove = useCallback(
+    async (ids: string[]): Promise<void> => {
+      setBulkBusy(true);
+      setBulkMessage(null);
+      const selected = pageItemsRef.current.filter((item) => ids.includes(item.id));
+      let failures = 0;
+      for (const item of selected) {
+        try {
+          await approveBudget(item.id, { version: item.rowVersion });
+        } catch {
+          /* Falha contada e dita — nunca convertida em sucesso silencioso. */
+          failures += 1;
+        }
+      }
+      setBulkBusy(false);
+      clearSelection();
+      if (failures > 0) {
+        setBulkMessage(
+          `${failures} de ${selected.length} não puderam ser aprovados (versão ou estado mudou).`,
+        );
+      }
+      await reloadRef.current(offset);
+    },
+    [clearSelection, offset],
+  );
+
   const clearFilters = (): void => {
     setSearchParams(new URLSearchParams(), { replace: true });
     setOffset(0);
@@ -264,6 +321,8 @@ export function BudgetsListPage() {
 
   const { items, total } = listState;
   const rows = budgetEngineRows(items);
+  pageItemsRef.current = items;
+  reloadRef.current = loadPage;
   /*
    * `isFiltered` considera APENAS a URL. Antes somava um `term` de estado local que já não
    * existe: a busca vive em `code` no query param (é o que `loadPage` envia como `q`), então ler
@@ -375,6 +434,53 @@ export function BudgetsListPage() {
             />
           </div>
 
+          {/*
+            PROCESSAMENTO EM LOTE — a capacidade que faltava nesta worklist.
+
+            O operador marcava N orçamentos e aprovava um a um. A barra usa o comando REAL do
+            domínio (`approveBudget`, com compare-and-set por `version_number`), não uma transição
+            paralela em massa.
+          */}
+          <BulkActionBar
+            count={selection.count}
+            visibleCount={rows.length}
+            selectedIds={[...selection.selectedIds]}
+            onClear={clearSelection}
+            onSelectAllVisible={() => selection.selectAll(rows)}
+            parkedNote="Aprovação em lote reexecuta o comando individual de cada orçamento (autorização e versão por registro). Nova versão e reabertura continuam fora: são decisões por orçamento."
+            actions={[
+              {
+                id: 'export',
+                label: 'Exportar selecionados (CSV)',
+                run: (ids) =>
+                  exportSelectionToCsv(
+                    'orcamentos-selecionados.csv',
+                    ['Código', 'Moeda', 'Situação', 'Versão'],
+                    rows
+                      .filter((row) => ids.includes(row.id))
+                      .map((row) => [
+                        toDisplayText(row['code']) || row.id,
+                        toDisplayText(row['currency_code']),
+                        toDisplayText(row['status']),
+                        toDisplayText(row['row_version']),
+                      ]),
+                  ),
+              },
+              {
+                id: 'approve',
+                label: 'Aprovar selecionados',
+                disabled: bulkBusy,
+                run: (ids) => void runBulkApprove(ids),
+              },
+            ]}
+          />
+
+          {bulkMessage ? (
+            <p className="mb-2 text-[length:var(--type-body-size)] text-red-700" role="alert">
+              {bulkMessage}
+            </p>
+          ) : null}
+
           {items.length === 0 ? (
             <WorklistStatePanel
               title={
@@ -402,6 +508,20 @@ export function BudgetsListPage() {
               schema={schema}
               rows={rows}
               emptyMessage="Nenhum orçamento corresponde ao recorte atual."
+              /* SELEÇÃO MÚLTIPLA — o par `selectedIds`+`onSelectionChange` habilita as caixas. */
+              selectedIds={selection.selectedIds}
+              onSelectionChange={(ids) => {
+                for (const id of ids) {
+                  if (!selection.isSelected(id)) {
+                    selection.toggle(id);
+                  }
+                }
+                for (const id of [...selection.selectedIds]) {
+                  if (!ids.includes(id)) {
+                    selection.toggle(id);
+                  }
+                }
+              }}
               /* A PRÉVIA é o contexto sob demanda — a linha abre o detalhe; o botão abre o painel. */
               renderRowActions={(row) => (
                 <RowActionMenu

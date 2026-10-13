@@ -88,4 +88,63 @@ describe('ExpensesListPage', () => {
       expect(screen.getByRole('alert')).toHaveTextContent(/não tem permissão/i);
     });
   });
+
+  /*
+   * PROCESSAMENTO EM LOTE — a capability que esta worklist não tinha.
+   *
+   * Antes: o operador marcava N despesas e repetia a ação uma a uma. Os testes abaixo provam o
+   * caminho completo (seleção → barra → comando por registro) e, principalmente, que um lote
+   * PARCIAL é relatado como parcial — nunca como sucesso.
+   */
+  it('processes only the selected expenses in bulk, one authorized command per record', async () => {
+    const fetchMock = createExpensesFetchMock();
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+
+    renderWithProviders(<ExpensesListPage />, { metadata: true });
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'Combustível da frota' })).toBeInTheDocument();
+    });
+
+    // Seleciona APENAS a primeira despesa (DRAFT, a que pode ser enviada).
+    const boxes = screen.getAllByTestId('dynamic-list-select-row');
+    await user.click(boxes[0]!);
+
+    await user.click(await screen.findByRole('button', { name: 'Enviar para aprovação' }));
+
+    await waitFor(() => {
+      const posts = fetchMock.mock.calls.filter(
+        (call) =>
+          call[1]?.method === 'POST' &&
+          typeof call[0] === 'string' &&
+          call[0].includes('/submit'),
+      );
+      expect(posts.length).toBe(1);
+      // PROVA NEGATIVA: a despesa NÃO selecionada não é processada.
+      expect(posts[0]![0]).toContain(EXPENSES_TEST_DATA.EXPENSES[0]!.id);
+      expect(posts[0]![0]).not.toContain(EXPENSES_TEST_DATA.EXPENSES[1]!.id);
+    });
+  });
+
+  it('reports a partial batch as partial instead of masking the failure', async () => {
+    const failingId = EXPENSES_TEST_DATA.EXPENSES[1]!.id;
+    const fetchMock = createExpensesFetchMock({ failCommandFor: [failingId] });
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+
+    renderWithProviders(<ExpensesListPage />, { metadata: true });
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'Combustível da frota' })).toBeInTheDocument();
+    });
+
+    for (const box of screen.getAllByTestId('dynamic-list-select-row')) {
+      await user.click(box);
+    }
+    await user.click(await screen.findByRole('button', { name: 'Aprovar' }));
+
+    // O lote de 2 com 1 recusa tem de DIZER que 1 falhou — não pode sair limpo.
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/1 de 2/);
+    });
+  });
 });

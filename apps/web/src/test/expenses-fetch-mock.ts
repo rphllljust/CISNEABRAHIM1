@@ -131,7 +131,9 @@ const EXPENSES_META = {
   allowedPermLevels: [0],
 };
 
-export function createExpensesFetchMock(options: { denied?: boolean } = {}) {
+export function createExpensesFetchMock(
+  options: { denied?: boolean; failCommandFor?: string[] } = {},
+) {
   const shellMock = createShellFetchMock();
   return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const method = init?.method ?? 'GET';
@@ -166,6 +168,37 @@ export function createExpensesFetchMock(options: { denied?: boolean } = {}) {
         offset,
         total: items.length,
         totalPages: items.length > 0 ? 1 : 0,
+      });
+    }
+
+    /*
+     * COMANDOS POR REGISTRO — o caminho que o processamento em lote usa.
+     *
+     * Cada despesa é enviada ao SEU próprio endpoint, com a versão da linha. O mock responde por
+     * registro e pode RECUSAR seletivamente (`failCommandFor`), que é o que permite provar que um
+     * lote parcial é relatado como parcial em vez de mascarado como sucesso.
+     */
+    if (
+      pathname.startsWith('/api/v1/finance/expenses/') &&
+      method === 'POST' &&
+      /^\/(submit|approve)$/.test(pathname.slice('/api/v1/finance/expenses/'.length + 36))
+    ) {
+      const command = pathname.endsWith('/submit') ? 'submit' : 'approve';
+      const expenseId = pathname.slice(
+        '/api/v1/finance/expenses/'.length,
+        pathname.lastIndexOf('/'),
+      );
+      if (options.failCommandFor?.includes(expenseId)) {
+        return jsonResponse({ error: { code: 'FINANCE_VERSION_CONFLICT' } }, 409);
+      }
+      const found = EXPENSES.find((expense) => expense.id === expenseId);
+      if (!found) {
+        return jsonResponse({ error: { code: 'FINANCE_EXPENSE_NOT_FOUND' } }, 404);
+      }
+      return jsonResponse({
+        ...found,
+        status: command === 'submit' ? 'SUBMITTED' : 'APPROVED',
+        version: found.version + 1,
       });
     }
 

@@ -290,6 +290,12 @@ export function ReceivablesListPage() {
       <BulkActionBar
         count={selection.count}
         visibleCount={byBuilder.length}
+        /*
+         * A SELECAO VAI PARA A BARRA. Ela repassa esses IDs para `run`; antes a barra entregava
+         * lista vazia e a tela mascarava o defeito lendo `selectedRows` do proprio closure. Agora
+         * o parametro e a fonte, e um consumidor futuro nao herda a armadilha.
+         */
+        selectedIds={[...selection.selectedIds]}
         onClear={selection.clear}
         onSelectAllVisible={() => selection.selectAll(pageItems)}
         parkedNote="Liquidação, baixa, cancelamento e reconciliação em lote continuam PARK: exigem prova de segregação de funções e idempotência por título. A ação em lote daqui apenas organiza o trabalho."
@@ -297,18 +303,20 @@ export function ReceivablesListPage() {
           {
             id: 'export',
             label: 'Exportar selecionados (CSV)',
-            run: () =>
+            run: (ids) =>
               exportSelectionToCsv(
                 'contas-a-receber-selecionadas.csv',
                 ['Título', 'Vencimento', 'Status', 'Principal', 'Saldo', 'Moeda'],
-                selectedRows.map((row) => [
-                  row.externalReference ?? row.id,
-                  row.dueDate,
-                  RECEIVABLE_STATUS_LABELS[row.status] ?? row.status,
-                  row.principal,
-                  row.remainingBalance,
-                  row.currencyCode,
-                ]),
+                pageItems
+                  .filter((row) => ids.includes(row.id))
+                  .map((row) => [
+                    row.externalReference ?? row.id,
+                    row.dueDate,
+                    RECEIVABLE_STATUS_LABELS[row.status] ?? row.status,
+                    row.principal,
+                    row.remainingBalance,
+                    row.currencyCode,
+                  ]),
               ),
           },
           {
@@ -316,8 +324,8 @@ export function ReceivablesListPage() {
             label: 'Abrir registro',
             disabled: selectedRows.length !== 1,
             disabledReason: 'Selecione exatamente um título para abrir a prévia.',
-            run: () => {
-              const [only] = selectedRows;
+            run: (ids) => {
+              const [only] = pageItems.filter((row) => ids.includes(row.id));
               if (only) {
                 setPreviewId(only.id);
               }

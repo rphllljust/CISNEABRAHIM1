@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { DateTime, Money } from '../../ui';
 import { ModulePage, ModulePagination } from '../../ui/module-layout';
@@ -18,11 +18,18 @@ import {
   worklistSelectClass,
 } from '../../ui/enterprise-list';
 import { ContextDrawer, DrilldownMetric, DrilldownRow, SavedViewsBar, useSmartList } from '../../operator';
+import { BulkActionBar, exportSelectionToCsv, useSelection } from '../../operator';
 import { EXPENSE_STATUS_LABELS } from '../../financial-ui/labels';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import { DynamicExportCsv, DynamicList, listColumns, useEntitySchema } from '../../engine';
-import { listExpenses, type ExpenseSummary } from '../api/finance-api';
+import { toDisplayText } from '../../engine/FieldRenderer';
+import {
+  approveExpense,
+  listExpenses,
+  submitExpense,
+  type ExpenseSummary,
+} from '../api/finance-api';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import { FinanceStatusBadge } from '../components/FinanceStatusBadge';
 import { expenseEngineRows, expensesListSchema } from './expense-engine-rows';
@@ -155,6 +162,70 @@ export function ExpensesListPage() {
 
   const schema = useMemo(() => expensesListSchema(rawSchema), [rawSchema]);
 
+  /*
+   * SELEÇÃO + LOTE — a capability enterprise que faltava nesta worklist.
+   *
+   * `useSelection` opera só sobre linhas já visíveis e autorizadas; `bulkBusy`/`bulkMessage`
+   * espelham a disciplina do resto do produto: o resultado é DISCRIMINADO por registro, e o que
+   * falhou é dito em número, nunca mascarado como sucesso.
+   */
+  const selection = useSelection<Record<string, unknown> & { id: string }>({
+    getId: (row) => String(row.id),
+  });
+  const clearSelection = selection.clear;
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState<string | null>(null);
+
+  /*
+   * Os registros da página ficam numa REF porque `runBulk` é declarado ANTES dos gates de estado
+   * (hooks não podem ser chamados depois de um `return` antecipado). A ref dá ao handler a leitura
+   * atual sem criar uma dependência nova a cada render.
+   */
+  const itemsRef = useRef<ExpenseSummary[]>([]);
+  const reloadRef = useRef(reload);
+  reloadRef.current = reload;
+
+  /**
+   * Executa o comando em CADA registro selecionado, pelo caminho individual autorizado.
+   *
+   * NÃO existe endpoint de transição em massa: cada despesa recebe o seu próprio POST, com a sua
+   * própria versão. É o que preserva autorização, concorrência otimista e auditoria por registro —
+   * e é por isso que o resultado pode ser parcial, e o operador precisa saber de quê.
+   */
+  const runBulk = useCallback(
+    async (command: 'submit' | 'approve', ids: string[]): Promise<void> => {
+      setBulkBusy(true);
+      setBulkMessage(null);
+      const selected = itemsRef.current.filter((item) => ids.includes(item.id));
+      let failures = 0;
+      for (const item of selected) {
+        try {
+          if (command === 'submit') {
+            await submitExpense(item.id, { version: item.version });
+          } else {
+            await approveExpense(item.id, { version: item.version });
+          }
+        } catch {
+          /*
+           * A falha NÃO é engolida nem convertida em sucesso: conta e é dita. O erro individual
+           * mais provável é conflito de versão ou estado incompatível — os dois exigem que o
+           * operador olhe o registro, não que a tela finja que deu certo.
+           */
+          failures += 1;
+        }
+      }
+      setBulkBusy(false);
+      clearSelection();
+      if (failures > 0) {
+        setBulkMessage(
+          `${failures} de ${selected.length} não puderam ser concluídas (estado ou versão mudou).`,
+        );
+      }
+      await reloadRef.current();
+    },
+    [clearSelection],
+  );
+
   const gate = renderQueryGate(
     'Despesas',
     'Carregando Despesas…',
@@ -177,6 +248,7 @@ export function ExpensesListPage() {
   const isFiltered = smartList.isFiltered || appliedTerm !== '';
   const rows = expenseEngineRows(items);
   const today = startOfDay(new Date());
+  itemsRef.current = items;
 
   /*
    * CONTAGENS DO CONJUNTO VISÍVEL — derivadas exclusivamente do que o SERVIDOR já autorizou e
@@ -460,6 +532,70 @@ export function ExpensesListPage() {
       ) : null}
 
       {/*
+        PROCESSAMENTO EM LOTE — a capability que faltava nesta worklist.
+
+        Despesas já tinha seleção visual por caixa, mas nada acontecia com o que era marcado: o
+        operador marcava N despesas e repetia a ação uma a uma. A barra usa os comandos REAIS do
+        domínio (`submit`/`approve`), cada um no seu caminho autorizado e com a versão da linha —
+        nenhuma transição paralela em massa.
+
+        `reject` NÃO entra: exige motivo POR REGISTRO, e um motivo único aplicado a N despesas seria
+        o frontend inventando justificativa de auditoria. `DynamicBulkActions` já exclui comandos
+        com `requiresReason` pela mesma razão.
+      */}
+      <BulkActionBar
+        count={selection.count}
+        visibleCount={rows.length}
+        selectedIds={[...selection.selectedIds]}
+        onClear={clearSelection}
+        onSelectAllVisible={() => selection.selectAll(rows)}
+        parkedNote="Aprovação e envio em lote reexecutam o comando individual de cada despesa (autorização e versão por registro). Rejeição em lote continua fora: exige motivo por registro."
+        actions={[
+          {
+            id: 'export',
+            label: 'Exportar selecionados (CSV)',
+            run: (ids) =>
+              exportSelectionToCsv(
+                'despesas-selecionadas.csv',
+                ['Descrição', 'Centro de custo', 'Vencimento', 'Valor', 'Situação'],
+                /*
+                 * As colunas são as MESMAS nomes de campo que a grade usa (`expenseEngineRows`),
+                 * não os do DTO: exportar um cabeçalho que a tela não desenha seria vender um
+                 * arquivo que não corresponde ao que o operador vê.
+                 */
+                rows
+                  .filter((row) => ids.includes(row.id))
+                  .map((row) => [
+                    toDisplayText(row['description']) || row.id,
+                    toDisplayText(row['cost_center_code']),
+                    toDisplayText(row['due_date']),
+                    toDisplayText(row['total_amount']),
+                    toDisplayText(row['status']),
+                  ]),
+              ),
+          },
+          {
+            id: 'submit',
+            label: 'Enviar para aprovação',
+            disabled: bulkBusy,
+            run: (ids) => void runBulk('submit', ids),
+          },
+          {
+            id: 'approve',
+            label: 'Aprovar',
+            disabled: bulkBusy,
+            run: (ids) => void runBulk('approve', ids),
+          },
+        ]}
+      />
+
+      {bulkMessage ? (
+        <p className="mb-2 text-[length:var(--type-body-size)] text-red-700" role="alert">
+          {bulkMessage}
+        </p>
+      ) : null}
+
+      {/*
         CARTEIRA VAZIA vs. RECORTE SEM RESULTADO.
         `page.total === 0` com o servidor respondendo significa "não há despesa no recorte". Quando o
         recorte zera, o painel explica E oferece a saída; a saída existe também quando quem zerou foi
@@ -493,6 +629,23 @@ export function ExpensesListPage() {
           rows={rows}
           /* Nome acessível da grade: o operador de leitor de tela sabe QUAL lista abriu. */
           ariaLabel="Lista de Despesas"
+          /*
+           * SELEÇÃO MÚLTIPLA — habilita o processamento em lote. Só faz sentido com `onSelectionChange`
+           * junto, e é exatamente o par que a `DynamicList` exige para desenhar a coluna de caixas.
+           */
+          selectedIds={selection.selectedIds}
+          onSelectionChange={(ids) => {
+            for (const id of ids) {
+              if (!selection.isSelected(id)) {
+                selection.toggle(id);
+              }
+            }
+            for (const id of [...selection.selectedIds]) {
+              if (!ids.includes(id)) {
+                selection.toggle(id);
+              }
+            }
+          }}
           /* Recorte sem resultado permanece em GRADE: a grade continua montada, com a saída dentro. */
           emptyMessage="Nenhuma despesa corresponde ao recorte atual."
           /*

@@ -293,6 +293,12 @@ export function PayablesListPage() {
       <BulkActionBar
         count={selection.count}
         visibleCount={filtered.length}
+        /*
+         * A SELECAO VAI PARA A BARRA. Ela repassa esses IDs para `run`; antes a barra entregava
+         * lista vazia e a tela mascarava o defeito lendo `selectedRows` do proprio closure. Agora
+         * o parametro e a fonte, e um consumidor futuro nao herda a armadilha.
+         */
+        selectedIds={[...selection.selectedIds]}
         onClear={selection.clear}
         onSelectAllVisible={() => selection.selectAll(filtered)}
         parkedNote="Pagamento, aprovação e cancelamento em lote continuam PARK: exigem aprovação, segregação de funções e idempotência por título. A ação em lote daqui apenas organiza o trabalho."
@@ -300,19 +306,21 @@ export function PayablesListPage() {
           {
             id: 'export',
             label: 'Exportar selecionados (CSV)',
-            run: () =>
+            run: (ids) =>
               exportSelectionToCsv(
                 'contas-a-pagar-selecionadas.csv',
                 ['Referência', 'Origem', 'Vencimento', 'Status', 'Aging', 'Saldo', 'Moeda'],
-                selectedRows.map((row) => [
-                  row.externalReference ?? row.origin.reference ?? row.id,
-                  row.origin.reference,
-                  row.dueDate,
-                  PAYABLE_STATUS_LABELS[row.status] ?? row.status,
-                  AGING_BUCKET_LABELS[row.agingBucket] ?? row.agingBucket,
-                  row.remainingBalance,
-                  row.currencyCode,
-                ]),
+                filtered
+                  .filter((row) => ids.includes(row.id))
+                  .map((row) => [
+                    row.externalReference ?? row.origin.reference ?? row.id,
+                    row.origin.reference,
+                    row.dueDate,
+                    PAYABLE_STATUS_LABELS[row.status] ?? row.status,
+                    AGING_BUCKET_LABELS[row.agingBucket] ?? row.agingBucket,
+                    row.remainingBalance,
+                    row.currencyCode,
+                  ]),
               ),
           },
           {
@@ -320,8 +328,8 @@ export function PayablesListPage() {
             label: 'Abrir prévia',
             disabled: selectedRows.length !== 1,
             disabledReason: 'Selecione exatamente um título para abrir a prévia.',
-            run: () => {
-              const [only] = selectedRows;
+            run: (ids) => {
+              const [only] = filtered.filter((row) => ids.includes(row.id));
               if (only) {
                 setPreviewId(only.id);
               }
