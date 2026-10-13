@@ -57,6 +57,11 @@ export type ClientDetail = ClientRow & {
  * qual endereço representa a localidade do Cliente quando ele tem mais de um (SRC-002 Q14 confirma
  * apenas as FINALIDADES `operational`/`billing`/`correspondence`). Escolher uma delas seria
  * inventar semântica de negócio, então a coluna não é oferecida.
+ *
+ * `version` ENTRA na projeção: os comandos de transição (`activate`/`deactivate`) exigem a versão
+ * do registro para concorrência otimista, e sem ela na listagem cada linha de um lote precisaria de
+ * um `GET /clients/:id` adicional — N+1 no caminho de escrita. O campo não expõe dado novo: é o
+ * mesmo `version` que o detalhe já publica, e sem ele a ação em lote é inviável na linha.
  */
 export type ClientSummaryRow = {
   id: string;
@@ -64,6 +69,7 @@ export type ClientSummaryRow = {
   trade_name: string | null;
   normalized_tax_id: string;
   status: ClientStatus;
+  version: number;
   created_at: string;
   updated_at: string;
 };
@@ -74,6 +80,8 @@ export type ClientSummary = {
   tradeName: string | null;
   taxId: string;
   status: ClientStatus;
+  /** Versão do registro, necessária aos comandos de transição em lote. */
+  version: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -169,6 +177,7 @@ export function toClientSummaryResponse(row: ClientSummaryRow): ClientSummary {
     tradeName: row.trade_name,
     taxId: row.normalized_tax_id,
     status: row.status,
+    version: row.version,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

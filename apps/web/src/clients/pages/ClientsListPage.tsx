@@ -4,6 +4,7 @@ import { DynamicContextDrawer } from '../../engine';
 import {
   ClientsApiError,
   activateClient,
+  deactivateClient,
   getClient,
   listClients,
 } from '../api/clients-api';
@@ -191,6 +192,19 @@ export function ClientsListPage() {
   const [commandBusy, setCommandBusy] = useState(false);
   const [commandError, setCommandError] = useState<string | null>(null);
 
+  /**
+   * AÇÃO EM LOTE — estado próprio, isolado do contexto de um registro.
+   *
+   * Os comandos em lote são os MESMOS do domínio (`activate`/`deactivate`), despachados um a um
+   * com a `version` que a listagem publica. Não existe catálogo paralelo de "ações em lote": uma
+   * ação em lote é um comando de domínio aplicado a N registros.
+   */
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState<string | null>(null);
+  const [bulkReason, setBulkReason] = useState('');
+  const [bulkCommand, setBulkCommand] = useState('');
+
   const previewId = preview.previewRow?.id ?? null;
 
   /**
@@ -240,6 +254,8 @@ export function ClientsListPage() {
   const statusFilterId = useId();
   const moreFiltersId = useId();
   const requirementFilterId = useId();
+  const bulkCommandId = useId();
+  const selectAllId = useId();
 
   const searchDraftTooShort =
     searchInput.trim().length > 0 && !isApplicableClientSearchTerm(searchInput);
@@ -357,8 +373,55 @@ export function ClientsListPage() {
     [preview],
   );
 
-  if (listState.phase === 'loading') {
-    return (
+  /**
+   * EXECUTA UM COMANDO DE DOMÍNIO EM LOTE.
+   *
+   * `deactivate` exige `reason` — invariante do domínio. A tela NÃO fabrica um motivo padrão: sem
+   * texto do operador o lote é RECUSADO aqui, com mensagem, em vez de gravar justificativa
+   * inventada no registro de auditoria. Um lote sem motivo real é pior que um lote recusado.
+   *
+   * A falha de uma linha não interrompe as demais: o resultado informa quantas não puderam ser
+   * concluídas, e a fila é recarregada com as versões novas. Conflito de versão em uma linha é
+   * consequência legítima de outro operador ter agido antes, não erro de programação.
+   */
+  const runClientBulkCommand = useCallback(
+    async (command: string, ids: string[], reason: string): Promise<void> => {
+      if (command === 'deactivate' && reason.trim() === '') {
+        setBulkMessage('Informe o motivo da desativação antes de executar a ação em lote.');
+        return;
+      }
+      const rows = listState.phase === 'ready' ? listState.response.items : [];
+      setBulkBusy(true);
+      setBulkMessage(null);
+      let failures = 0;
+      for (const id of ids) {
+        const row = rows.find((candidate) => candidate.id === id);
+        if (!row) {
+          failures += 1;
+          continue;
+        }
+        try {
+          if (command === 'activate') {
+            await activateClient(id, row.version);
+          } else if (command === 'deactivate') {
+            await deactivateClient(id, row.version, reason.trim());
+          }
+        } catch {
+          failures += 1;
+        }
+      }
+      setBulkBusy(false);
+      setSelectedIds([]);
+      setBulkReason('');
+      if (failures > 0) {
+        setBulkMessage(`${failures} de ${ids.length} não puderam ser concluídos.`);
+      }
+      setReloadToken((current) => current + 1);
+    },
+    [listState],
+  );
+
+  if (listState.phase === 'loading') {    return (
       <ModuleStatePage title="Clientes">
         <ModuleLoadingState message="Carregando Clientes…" />
       </ModuleStatePage>
@@ -610,6 +673,97 @@ export function ClientsListPage() {
             />
           </WorklistFilterBar>
         </div>
+
+        {/*
+          BARRA DE COMANDO EM LOTE — aparece SÓ com seleção, e sobre uma superfície própria.
+
+          Os comandos oferecidos são exatamente os que o domínio sustenta hoje: `activate` e
+          `deactivate`. Não há ação de "editar em lote" porque não existe comando para isso, e
+          `deactivate` carrega campo de motivo: o operador fornece o texto, a tela não o inventa.
+        */}
+        {selectedIds.length > 0 ? (
+          <div
+            data-region="bulk-command-surface"
+            data-selected-count={selectedIds.length}
+            className="cisne-divider flex flex-wrap items-center gap-2 border-l-[3px] border-l-brand-600 bg-brand-50/40 px-2.5 py-1.5"
+          >
+            <p className="cisne-type-body m-0">
+              <strong className="cisne-type-primary">{selectedIds.length}</strong> cliente
+              {selectedIds.length === 1 ? '' : 's'} selecionado
+              {selectedIds.length === 1 ? '' : 's'}
+            </p>
+
+            <label className="cisne-meta-label" htmlFor={bulkCommandId}>
+              Ação
+            </label>
+            <select
+              id={bulkCommandId}
+              data-testid="clients-bulk-command"
+              className={worklistSelectClass}
+              value={bulkCommand}
+              disabled={bulkBusy}
+              onChange={(event) => {
+                setBulkCommand(event.target.value);
+                setBulkMessage(null);
+              }}
+            >
+              <option value="">—</option>
+              {capabilities.canActivate ? <option value="activate">Reativar cadastros</option> : null}
+              {capabilities.canDeactivate ? (
+                <option value="deactivate">Desativar cadastros</option>
+              ) : null}
+            </select>
+
+            {/*
+              MOTIVO — exigido APENAS pelo comando que o domínio exige. Não é campo decorativo:
+              `deactivate` grava `deactivationReason` em auditoria, então o texto vem do operador.
+            */}
+            {bulkCommand === 'deactivate' ? (
+              <label className="flex items-center gap-1.5">
+                <span className="cisne-meta-label">Motivo</span>
+                <input
+                  type="text"
+                  data-testid="clients-bulk-reason"
+                  aria-label="Motivo da desativação"
+                  className={worklistControlClass}
+                  value={bulkReason}
+                  disabled={bulkBusy}
+                  onChange={(event) => setBulkReason(event.target.value)}
+                />
+              </label>
+            ) : null}
+
+            <Button
+              variant="primary"
+              loading={bulkBusy}
+              loadingText="Executando…"
+              disabled={bulkCommand === ''}
+              onClick={() => void runClientBulkCommand(bulkCommand, selectedIds, bulkReason)}
+            >
+              Aplicar
+            </Button>
+
+            <button
+              type="button"
+              data-testid="clients-bulk-clear"
+              className="cisne-type-action ml-auto inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+              onClick={() => {
+                setSelectedIds([]);
+                setBulkReason('');
+                setBulkCommand('');
+                setBulkMessage(null);
+              }}
+            >
+              Limpar seleção
+            </button>
+
+            {bulkMessage ? (
+              <p className="m-0 w-full cisne-type-body text-red-700" role="alert">
+                {bulkMessage}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       {isEmptyCatalogue ? (
@@ -695,6 +849,24 @@ export function ClientsListPage() {
           >
             <thead>
               <tr>
+                {/*
+                  SELEÇÃO POR LINHA — coluna própria, com "selecionar todos" da PÁGINA.
+
+                  O estado vive na tela (não na engine): a worklist de Clientes não é governada
+                  por metadado, então a seleção é do domínio, não do schema.
+                */}
+                <th scope="col" className={cn(headCellClass, 'w-[2.5rem]')}>
+                  <input
+                    id={selectAllId}
+                    type="checkbox"
+                    data-testid="clients-select-all"
+                    aria-label="Selecionar todos os clientes desta página"
+                    checked={items.length > 0 && selectedIds.length === items.length}
+                    onChange={(event) =>
+                      setSelectedIds(event.target.checked ? items.map((item) => item.id) : [])
+                    }
+                  />
+                </th>
                 <th
                   scope="col"
                   className={cn(headCellClass, 'w-[46%]')}
@@ -762,6 +934,27 @@ export function ClientsListPage() {
                       preview.openPreview(client);
                     }}
                   >
+                    {/*
+                      CAIXA DE SELEÇÃO — `stopPropagation` para que marcar não abra o contexto.
+                      O clique na LINHA continua abrindo o drawer; a caixa é um alvo próprio.
+                    */}
+                    <td className={cn(cellClass, 'w-[2.5rem]')}>
+                      <input
+                        type="checkbox"
+                        data-testid="clients-select-row"
+                        data-row-id={client.id}
+                        aria-label={`Selecionar ${client.legalName}`}
+                        checked={selectedIds.includes(client.id)}
+                        onChange={(event) =>
+                          setSelectedIds((current) =>
+                            event.target.checked
+                              ? [...current, client.id]
+                              : current.filter((id) => id !== client.id),
+                          )
+                        }
+                        onClick={(event) => event.stopPropagation()}
+                      />
+                    </td>
                     {/*
                       IDENTIDADE — três níveis numa coluna só.
                       A razão social é o que o operador procura; fantasia e documento são

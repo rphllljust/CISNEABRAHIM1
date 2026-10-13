@@ -82,6 +82,13 @@ export type ClientSummary = {
   tradeName: string | null;
   taxId: string;
   status: ClientStatus;
+  /**
+   * Versão do registro, publicada na listagem para permitir comando em lote.
+   *
+   * `activate`/`deactivate` exigem concorrência otimista; sem a versão aqui, cada linha do lote
+   * precisaria de um `GET /clients/:id` adicional (N+1 no caminho de escrita).
+   */
+  version: number;
   createdAt: string;
   updatedAt: string;
 };

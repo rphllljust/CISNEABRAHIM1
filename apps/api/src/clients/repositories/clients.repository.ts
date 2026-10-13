@@ -76,6 +76,7 @@ const CLIENT_SUMMARY_COLUMNS = `c.id,
               c.trade_name,
               c.normalized_tax_id,
               c.status,
+              c.version,
               c.created_at,
               c.updated_at`;
 
