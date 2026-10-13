@@ -28,6 +28,8 @@ describe('service order execution flow e2e (frontend)', () => {
     expect(screen.getByText(/execução em campo/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /open menu/i })).not.toBeInTheDocument();
     expect(screen.getByText(/cliente demo/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('Próxima ação')).toBeInTheDocument();
+    expect(screen.getByLabelText('Linhagem de negócio')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /requisitos/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /confirmar e começar/i })).toBeInTheDocument();
   }, 20000);

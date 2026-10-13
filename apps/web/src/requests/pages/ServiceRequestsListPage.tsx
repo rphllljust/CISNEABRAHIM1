@@ -66,7 +66,7 @@ import {
   ModuleStatePage,
   ModulePrimaryLink,
 } from '../../ui/module-layout';
-import { WorklistStatePanel } from '../../ui/enterprise-list';
+import { WorklistHeader, WorklistStatePanel } from '../../ui/enterprise-list';
 import { cn } from '../../ui/utils/cn';
 
 const PAGE_SIZE = 20;
@@ -464,29 +464,16 @@ export function ServiceRequestsListPage() {
         atualizacao. Saiu o paragrafo que explicava a tela: contexto aqui e o RECORTE real.
       */}
       <div data-region="operating-header">
-      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-gray-200 px-1 pb-2">
-        <div className="flex min-w-0 items-baseline gap-2">
-          <h1 className="cisne-type-object leading-tight font-semibold tracking-tight text-gray-900">
-            Solicitações
-          </h1>
-          {total === null ? (
-            <span className="cisne-type-helper text-gray-400">total não publicado</span>
-          ) : (
-            <span className="rounded bg-gray-100 px-1.5 py-0.5 cisne-type-helper font-semibold text-gray-700 tabular-nums">
-              {total}
-            </span>
-          )}
-          <span className="truncate cisne-type-helper text-gray-500">{scope}</span>
-          {updatedAt ? (
-            <span className="hidden cisne-type-helper text-gray-400 sm:inline">
-              atualizada {updatedAt}
-            </span>
-          ) : null}
-        </div>
-        {capabilities.canCreate && !isEmptyQueue ? (
-          <ModulePrimaryLink to="/app/requests/new">Nova solicitação</ModulePrimaryLink>
-        ) : null}
-      </header>
+        <WorklistHeader
+          title="Solicitações"
+          count={total}
+          context={updatedAt ? `${scope} · atualizada ${updatedAt}` : scope}
+          action={
+            capabilities.canCreate && !isEmptyQueue ? (
+              <ModulePrimaryLink to="/app/requests/new">Nova solicitação</ModulePrimaryLink>
+            ) : null
+          }
+        />
       </div>
 
       {/*

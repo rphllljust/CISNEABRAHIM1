@@ -14,7 +14,6 @@ import {
 } from '../api/service-requests-api';
 import { mapRequestErrorToMessage } from '../api/request-error-messages';
 import { ServiceRequestPriorityBadge } from '../components/ServiceRequestPriorityBadge';
-import { ServiceRequestRelatedChain } from '../components/ServiceRequestRelatedChain';
 import { ServiceRequestTimeline } from '../components/ServiceRequestTimeline';
 import { VersionConflictNotice } from '../components/VersionConflictNotice';
 import { useServiceRequestCapabilities } from '../hooks/useServiceRequestCapabilities';
@@ -62,6 +61,7 @@ import type { StatusBadgeTone } from '../../ui/StatusBadge';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { ModulePage, ModulePageHeader, UnitScopeLabel } from '../../ui';
 import { cn } from '../../ui/utils/cn';
+import { BusinessChain, useBusinessChain } from '../../business-chain';
 
 /**
  * OBJECT PAGE DA SOLICITAÇÃO DE SERVIÇO — leitura canônica do contrato `enterprise-object`.
@@ -129,6 +129,7 @@ export function ServiceRequestDetailPage() {
   const [rejectReason, setRejectReason] = useState('');
   const [cancelReason, setCancelReason] = useState('');
   const [approvePriority, setApprovePriority] = useState<string>(SERVICE_REQUEST_PRIORITIES.Normal);
+  const businessChain = useBusinessChain('SERVICE_REQUEST', serviceRequestId);
 
   const reload = useCallback(async () => {
     setState({ phase: 'loading' });
@@ -592,21 +593,13 @@ export function ServiceRequestDetailPage() {
           />
         </ObjectPanel>
 
-        <ObjectPanel title="Cadeia relacionada">
-          <p className="m-0 mb-3 text-xs text-gray-500">
-            Proposta, pedido de compra e ordens de serviço realmente vinculados. Cada elo aparece
-            apenas se você puder consultá-lo no módulo responsável.
-          </p>
-          <ServiceRequestRelatedChain
-            chain={linkedChain}
-            hasUnidentifiedLinks={
-              (serviceRequest.proposalId !== null ||
-                serviceRequest.purchaseOrderId !== null ||
-                serviceRequest.convertedServiceOrderId !== null) &&
-              linkedChain.length === 0
-            }
-          />
-        </ObjectPanel>
+        <BusinessChain
+          chain={businessChain.chain}
+          phase={businessChain.phase}
+          message={businessChain.message}
+          onRetry={businessChain.retry}
+          title="Cadeia empresarial"
+        />
 
         <ObjectPanel title="Histórico do ciclo">
           <p className="m-0 mb-3 text-xs text-gray-500">

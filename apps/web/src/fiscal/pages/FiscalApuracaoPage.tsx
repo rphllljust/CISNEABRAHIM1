@@ -37,6 +37,27 @@ import {
 import { mapFiscalErrorToMessage } from '../api/fiscal-error-messages';
 import type { TaxCalculation, TaxReproduction } from '../types/fiscal.types';
 
+function buildTaxCalculationPreview(item: TaxCalculationSummary): ContextPreviewBody {
+  return {
+    identifier: item.ruleName,
+    subtitle: `${item.ruleCode} · versão ${item.versionNumber}`,
+    facts: [
+      { label: 'Base', value: <Money value={item.baseAmount} emphasis /> },
+      { label: 'Alíquota persistida', value: item.rate ?? '—' },
+      { label: 'Resultado', value: <Money value={item.resultAmount} emphasis /> },
+      { label: 'Origem', value: item.sourceKind ?? 'Não informada' },
+      { label: 'Calculada em', value: <DateTime value={item.calculatedAt} /> },
+    ],
+    relations: [],
+    nextAction: {
+      label: 'Abrir apuração e reproduzir no servidor',
+      href: `/app/fiscal/apuracao/${item.id}`,
+    },
+    detailHref: `/app/fiscal/apuracao/${item.id}`,
+    detailLabel: 'Abrir apuração completa',
+  };
+}
+
 /**
  * Apuração. Antes era consulta por identificador digitado. Agora a apuração é ENCONTRADA por
  * regra, versão, base/resultado e origem — e o detalhe é acessado pela lista.
@@ -344,27 +365,6 @@ export function FiscalApuracaoPage() {
         </WorklistFooter>
         </>
       ) : null}
-
-function buildTaxCalculationPreview(item: TaxCalculationSummary): ContextPreviewBody {
-  return {
-    identifier: item.ruleName,
-    subtitle: `${item.ruleCode} · versão ${item.versionNumber}`,
-    facts: [
-      { label: 'Base', value: <Money value={item.baseAmount} emphasis /> },
-      { label: 'Alíquota persistida', value: item.rate ?? '—' },
-      { label: 'Resultado', value: <Money value={item.resultAmount} emphasis /> },
-      { label: 'Origem', value: item.sourceKind ?? 'Não informada' },
-      { label: 'Calculada em', value: <DateTime value={item.calculatedAt} /> },
-    ],
-    relations: [],
-    nextAction: {
-      label: 'Abrir apuração e reproduzir no servidor',
-      href: `/app/fiscal/apuracao/${item.id}`,
-    },
-    detailHref: `/app/fiscal/apuracao/${item.id}`,
-    detailLabel: 'Abrir apuração completa',
-  };
-}
 
       <ContextDrawer
         open={preview !== null}

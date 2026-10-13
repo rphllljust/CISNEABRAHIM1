@@ -45,10 +45,13 @@ import {
 import {
   EnterpriseObjectHeader,
   EnterpriseObjectPage,
+  NextActionPanel,
   ObjectPanel,
   ObjectStateFlow,
+  type NextAction,
   type ObjectStateStep,
 } from '../../enterprise-object';
+import { BusinessChain, useBusinessChain } from '../../business-chain';
 
 type PageState =
   | { phase: 'loading' }
@@ -135,6 +138,7 @@ export function ServiceOrderExecutionPage() {
   const [occurrenceOpen, setOccurrenceOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
   const pendingIdempotencyRef = useRef<string | null>(null);
+  const businessChain = useBusinessChain('SERVICE_ORDER', serviceOrderId);
 
   const reload = useCallback(async () => {
     const seq = ++requestSeq.current;
@@ -443,6 +447,45 @@ export function ServiceOrderExecutionPage() {
     requirementsComplete,
     canMutate,
   });
+
+  const runPrimaryAction = () => {
+    if (primary.kind === 'start') {
+      void runTransition('start');
+      return;
+    }
+    if (primary.kind === 'resume') {
+      void runTransition('resume');
+      return;
+    }
+    if (primary.kind === 'complete') {
+      setConfirmAction('complete');
+      return;
+    }
+    if (primary.kind === 'record') {
+      setActivityOpen(true);
+      setOccurrenceOpen(false);
+    }
+  };
+
+  const nextAction: NextAction | null =
+    order.status === SERVICE_ORDER_STATUSES.Completed
+      ? {
+          kind: 'act',
+          label: 'Abrir conferência de medição',
+          description:
+            'A execução foi concluída; a próxima etapa existente é conferir o realizado antes do faturamento candidato.',
+          to: `/app/service-orders/${serviceOrderId}/measurement`,
+        }
+      : primary.kind !== 'none'
+        ? {
+            kind: 'act',
+            label: primary.label,
+            description:
+              primary.kind === 'record'
+                ? 'Registre a evidência operacional ainda exigida para avançar a execução na barra de ações.'
+                : 'A barra operacional executa este comando com a autorização e as validações do backend.',
+          }
+        : null;
   const pendingActivityKinds = requirements
     .filter((requirement) => !satisfiedKinds.has(requirement.evidenceKind))
     .map((requirement) => requirement.evidenceKind)
@@ -488,6 +531,7 @@ export function ServiceOrderExecutionPage() {
         />
       }
       stateFlow={<ObjectStateFlow steps={executionStateSteps()} currentId={order.status} title="Fluxo da OS" className="border-gray-200 px-5 shadow-none" />}
+      nextAction={<NextActionPanel action={nextAction} />}
       aside={
         <div className="border-l border-gray-200 pl-4">
           <ObjectPanel title="Planejado versus realizado" className="shadow-none">
@@ -512,6 +556,14 @@ export function ServiceOrderExecutionPage() {
       ) : null}
 
       <main className="space-y-6">
+        <BusinessChain
+          chain={businessChain.chain}
+          phase={businessChain.phase}
+          message={businessChain.message}
+          onRetry={businessChain.retry}
+          title="Cadeia empresarial"
+        />
+
         <RequirementChecklist items={coverage} instructions={order.description} />
 
       {order.status === SERVICE_ORDER_STATUSES.Completed ? (
@@ -555,24 +607,7 @@ export function ServiceOrderExecutionPage() {
       <OperationalActionBar
         primary={primary}
         primaryBusy={busy}
-        onPrimary={() => {
-          if (primary.kind === 'start') {
-            void runTransition('start');
-            return;
-          }
-          if (primary.kind === 'resume') {
-            void runTransition('resume');
-            return;
-          }
-          if (primary.kind === 'complete') {
-            setConfirmAction('complete');
-            return;
-          }
-          if (primary.kind === 'record') {
-            setActivityOpen(true);
-            setOccurrenceOpen(false);
-          }
-        }}
+        onPrimary={runPrimaryAction}
         secondaryActions={
           showOperationalActions
             ? [
