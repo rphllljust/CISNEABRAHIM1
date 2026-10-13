@@ -51,7 +51,7 @@ describe('ServiceRequestDetailPage', () => {
     });
     expect(screen.getByRole('heading', { name: /próximo passo/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /histórico do ciclo/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /cadeia relacionada/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /cadeia empresarial/i })).toBeInTheDocument();
     expect(screen.getByLabelText('Fluxo da solicitação')).toBeInTheDocument();
     expect(screen.getByLabelText('Relações')).toBeInTheDocument();
     // Nome humano do cliente (módulo CLIENTES autorizado) — nunca o UUID.
@@ -87,6 +87,7 @@ describe('ServiceRequestDetailPage', () => {
     await waitFor(() => {
       expect(screen.getByRole('link', { name: 'OS-2026-0007' })).toBeInTheDocument();
     });
+    expect(screen.getByLabelText('Linhagem de negócio')).toBeInTheDocument();
     expect(screen.getByText('Ordem de serviço')).toBeInTheDocument();
     expect(screen.queryByText('Proposta comercial')).not.toBeInTheDocument();
     expect(screen.queryByText('Pedido de compra')).not.toBeInTheDocument();
