@@ -20820,3 +20820,101 @@ mascaradas.
    na árvore antes desta rodada; não foi commitado.
 
 WORKING_TREE: sem alteração pendente de código; só este registro
+
+---
+
+## FILTRO COMPOSTO SERVER-SIDE EM CONTAS A RECEBER (rodada 27) — 2026-10-13
+
+STATUS: **PASS**
+Commits: `07ef92e3` (contrato + UI + migration), `61f4db52` (harness e contratos de teste)
+
+### DEFEITO 1 — o recorte composto nunca chegava ao servidor
+
+A worklist de Contas a receber montava o construtor AND/OR da engine desde a adoção do padrão de
+worklists, mas a árvore era aplicada **só no navegador**: `byBuilder` filtrava a página já carregada
+com `matchesFilterGroup`.
+
+Numa carteira maior que uma página, compor um filtro e ver "nenhum título" **não significava "não
+existe"** — significava "não está entre as 20 linhas carregadas". O total exibido ao lado continuava
+contando o conjunto NÃO filtrado. Os testes existentes passavam porque mediam a MÁSCARA, não o
+contrato.
+
+### O que foi implementado (backend real, sem mecanismo paralelo)
+
+| Camada | Mudança |
+| ------ | ------- |
+| Contrato | `finance/repositories/receivable-list-sql.ts` — allow-list + tradução por condição, reusando o parser genérico que os módulos comerciais já compartilham |
+| Repositório | `receivables.repository.ts` — o predicado composto entra como UM clause, por conjunção com escopo, situação, janela e busca |
+| Controller | valida contra o allow-list da entidade e converte filtro inválido em **400** (descartar em silêncio devolveria a lista inteira como se o recorte tivesse sido aplicado) |
+| Frontend | árvore convertida por `advancedFilterFromGroup` com spec que espelha o servidor; `byBuilder` deixou de refiltrar |
+| Banco | migration **0094** liga os marcadores `in_filter` no metadata store — sem eles o construtor não renderiza campo algum |
+
+**`status` fica FORA do allow-list composto, e a razão é de domínio:** o título não tem coluna de
+situação. O status que o operador lê é DERIVADO de lifecycle + liquidações + vencimento, e o filtro
+simples já o traduz para os predicados reais. Oferecê-lo aqui trocaria um filtro correto por um
+quase-correto — pior, porque parece funcionar.
+
+### DEFEITO 2 — 12 falhas de teste carregadas como "pré-existentes" sem causa lida
+
+Ambas as suítes de UI financeira estavam vermelhas em `main`. Eram **duas** causas, nenhuma de
+produto:
+
+1. **HARNESS.** As telas são dirigidas por METADADO, mas as suítes renderizavam sem
+   `{ metadata: true }` e o mock de financeiro não servia NENHUMA rota `/api/v1/meta/:entity`. A
+   página ficava presa antes da grade e todo teste estourava `waitFor` de 10s — por isso as falhas
+   **pareciam** intermitentes.
+2. **CONTRATO.** As asserções de identidade eram `getByRole('link', { name: 'AR-001' })`. A worklist
+   migrou para o padrão enterprise de linha: navegação é `onRowClick` e a ação visível é o botão
+   "Prévia de AR-001". Não existe mais `<a>` na linha.
+
+Achados adicionais corrigidos ao provar o acima: a grade de recebíveis **não tinha `ariaLabel`**
+(única das worklists financeiras sem ele — leitor de tela anunciava "tabela, 5 colunas" sem dizer
+qual fila abriu); asserções de paginação contavam `role=row` (cabeçalho e rodapé inclusos) em vez de
+linhas de dado.
+
+**Nenhuma asserção foi enfraquecida**: as provas negativas (não selecionado não é exportado, visão
+vazia esconde linhas, métrica autoritativa não é contada da página) permanecem.
+
+### HIPÓTESE QUE DESCARTei COM MEDIÇÃO
+
+Suspeitei de um `useMemo` declarado após os retornos antecipados em `ReceivablesListPage`. Medido:
+**não existe** violação das Rules of Hooks ali; o defeito era o harness. Registro a hipótese
+descartada para que não seja reaberta.
+
+### VALIDAÇÃO
+
+| Gate | Resultado |
+| ---- | --------- |
+| `pnpm lint` | PASS (4/4 tasks) |
+| `pnpm typecheck` | PASS (3/3 packages) |
+| Web financeiro | **90/90** (era 78/90 — as 12 falhas eram estas) |
+| API financeiro + test | 66/66, incluindo **13 testes novos** do contrato |
+| `git diff --check` | PASS |
+| scripts gate / source-size ratchet | PASS |
+
+### CI
+
+`Unit tests` caiu de **39 → 27 falhas** (950/977 passando; os arquivos de financeiro saíram da lista).
+`Lint / Typecheck / Audit` **PASS**. O job continua vermelho por outras 27 falhas pré-existentes
+(medições de OS, shell, billing, folha, e2e de pedidos/propostas, OperationsControlCenter) — a maior
+dívida de gate restante, ainda não tratada.
+
+### DEPLOY (Railway, produção)
+
+| Item | Estado |
+| ---- | ------ |
+| Commit | `61f4db52095f76835ace88c6ac5a99ca8373cce4` |
+| `@cisne/web` | **SUCCESS** |
+| `@cisne/api` | **SUCCESS** — pre-deploy aplicou a migration 0094 |
+| Health | API `ready` 200 (`database up`), API `live` 200, WEB `/health` 200 |
+| Revisão ativa | bundle `index-iI2-umc5.js` (o anterior responde **404**) |
+
+### RESTRIÇÕES CONHECIDAS
+
+1. **27 falhas de CI seguem abertas** e bloqueiam o workflow `CD`.
+2. **Filtro composto ainda ausente** em Pagáveis, Orçamentos, Despesas e Fornecedores — a outra
+   metade da lacuna mapeada na rodada 26.
+3. `apps/web/src/purchase-orders/purchase-orders-request-budget.ui.test.tsx` já estava não rastreado
+   antes destas rodadas; não foi commitado.
+
+WORKING_TREE: sem alteração pendente de código; só este registro
