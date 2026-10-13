@@ -379,6 +379,9 @@ export function ServiceOrdersEngineListPage() {
     const countStatus = (expected: string): number =>
       rows.filter((row) => toDisplayText(row['status']) === expected).length;
     const withDeadline = rows.filter((row) => toDisplayText(row['deadline_at']).trim() !== '').length;
+    const unassigned = rows.filter(
+      (row) => toDisplayText(row['assigned_workforce_name']).trim() === '',
+    ).length;
     return {
       pageTotal: rows.length,
       released: countStatus('RELEASED'),
@@ -387,6 +390,7 @@ export function ServiceOrdersEngineListPage() {
       completed: countStatus('COMPLETED'),
       cancelled: countStatus('CANCELLED'),
       withDeadline,
+      unassigned,
     };
   }, [rows]);
 
@@ -456,6 +460,16 @@ export function ServiceOrdersEngineListPage() {
     const deadline = toDisplayText(row['deadline_at']);
     if (deadline.trim() !== '') {
       references.push({ label: 'Prazo', detail: deadline });
+    }
+    const responsible = toDisplayText(row['assigned_workforce_name']);
+    const responsibleCode = toDisplayText(row['assigned_workforce_code']);
+    if (responsible.trim() !== '') {
+      references.push({
+        label: 'Responsável',
+        detail: responsibleCode.trim() !== '' ? `${responsible} · ${responsibleCode}` : responsible,
+      });
+    } else {
+      references.push({ label: 'Responsável', detail: 'Sem responsável atribuído' });
     }
     return references;
   };
@@ -655,6 +669,12 @@ export function ServiceOrdersEngineListPage() {
             <OperationalSignal label="Em execução" value={operationalSnapshot.inExecution} detail="campo ativo" />
             <OperationalSignal label="Pausadas" value={operationalSnapshot.paused} detail="atenção operacional" tone="warning" />
             <OperationalSignal label="Com prazo" value={operationalSnapshot.withDeadline} detail="deadline informado" />
+            <OperationalSignal
+              label="Sem responsável"
+              value={operationalSnapshot.unassigned}
+              detail="nesta página"
+              tone={operationalSnapshot.unassigned > 0 ? 'warning' : 'default'}
+            />
             <OperationalSignal
               label="Fechadas"
               value={operationalSnapshot.completed + operationalSnapshot.cancelled}
