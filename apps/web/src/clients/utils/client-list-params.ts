@@ -8,6 +8,12 @@ import {
   type ClientStatus,
   type PurchaseOrderRequirement,
 } from '../types/client.types';
+import {
+  advancedFilterFromGroup,
+  type AdvancedFilterFieldSpec,
+  type AdvancedFilterPayload,
+  type FilterGroup,
+} from '../../engine';
 
 /**
  * Estado da listagem de Clientes serializado na URL.
@@ -60,107 +66,29 @@ export const EMPTY_CLIENT_LIST_PARAMS: ClientListParams = {
 export const CLIENT_ADVANCED_FILTER_PARAM = 'filters';
 
 /**
- * OPERADORES DA ENGINE → OPERADORES DO CONTRATO SERVER-SIDE.
+ * ESPECIFICAÇÃO DOS CAMPOS DE CLIENTES PARA O CONVERSOR COMPARTILHADO.
  *
- * A engine `DynamicFilterBuilder` publica símbolos (`=`, `!=`, `contains`, `>`, ...) porque serve
- * qualquer entidade. O contrato de Clientes (`client-list.query.ts`) publica nomes semânticos
- * (`eq`, `neq`, `contains`, `startsWith`, `before`, `after`) e valida cada um contra o TIPO do
- * campo. Este mapa é a única tradução entre os dois vocabulários.
- *
- * Operador sem equivalente é DESCARTADO, não aproximado: `in` (lista) e `is_true`/`is_false` não
- * existem no contrato de Clientes, e inventar um equivalente geraria um recorte que o servidor não
- * aplica. Descartar aqui, com o filtro reduzido, é o comportamento correto — o builder volta a
- * oferecer esses operadores apenas quando o backend souber executá-los.
+ * O allow-list aqui é o MESMO publicado por `buildAdvancedFilterClause` no backend. O conversor
+ * (`engine/advanced-filter-contract`) é um só para todas as entidades; o que muda por módulo é
+ * apenas este mapa.
  */
-const OPERATOR_TO_CONTRACT: Record<string, string> = {
-  '=': 'eq',
-  '!=': 'neq',
-  contains: 'contains',
-};
-
-/** Operadores de ordem só valem sobre data, que é o único tipo ordenável do contrato de Clientes. */
-const DATE_OPERATOR_TO_CONTRACT: Record<string, string> = {
-  '>': 'after',
-  '>=': 'after',
-  '<': 'before',
-  '<=': 'before',
-  '=': 'eq',
-  '!=': 'neq',
-};
-
-/**
- * CAMPOS DA ENGINE → CAMPOS DO CONTRATO SERVER-SIDE (allow-list fechado).
- *
- * Só os campos presentes aqui chegam à requisição. É a SEGUNDA barreira: o backend já recusa campo
- * fora do allow-list com 400, e o frontend nem o envia. Um campo do metadado que o predicado
- * server-side não trata (ex.: `external_erp_id`) é simplesmente ignorado na conversão.
- */
-const FIELD_TO_CONTRACT: Record<string, string> = {
-  status: 'status',
-  purchase_order_requirement: 'purchaseOrderRequirement',
-  legal_name: 'legalName',
-  trade_name: 'tradeName',
-  normalized_tax_id: 'taxId',
-  updated_at: 'updatedAt',
-  created_at: 'createdAt',
-};
-
-const DATE_CONTRACT_FIELDS = new Set(['updatedAt', 'createdAt']);
-
-export type ClientAdvancedFilterCondition = {
-  field: string;
-  operator: string;
-  value: string;
-};
-
-export type ClientAdvancedFilterPayload = {
-  connector: 'AND' | 'OR';
-  groups: Array<{ conditions: ClientAdvancedFilterCondition[] }>;
-};
+const CLIENT_FILTER_SPECS: AdvancedFilterFieldSpec[] = [
+  { field: 'status', contractField: 'status', kind: 'enum' },
+  { field: 'purchase_order_requirement', contractField: 'purchaseOrderRequirement', kind: 'enum' },
+  { field: 'legal_name', contractField: 'legalName', kind: 'text' },
+  { field: 'trade_name', contractField: 'tradeName', kind: 'text' },
+  { field: 'normalized_tax_id', contractField: 'taxId', kind: 'text' },
+  { field: 'updated_at', contractField: 'updatedAt', kind: 'date' },
+  { field: 'created_at', contractField: 'createdAt', kind: 'date' },
+];
 
 /**
  * Converte a árvore da engine no payload do contrato de Clientes.
  *
- * A engine aninha grupos recursivamente; o contrato de Clientes aceita UM nível (grupos com
- * conjunção interna, ligados pelo `connector`). Subgrupos são ACHATADOS no grupo pai com a mesma
- * conjunção — achatamento conservador e declarado: `(A e B) ou C` continua expressável no nível de
- * cima, e um aninhamento mais profundo perde a estrutura em vez de ser silenciosamente invertido.
+ * Delega ao conversor compartilhado: nenhuma regra de tradução vive aqui além do mapa de campos.
  */
-export function clientAdvancedFilterFromGroup(
-  group: { op: 'AND' | 'OR'; rules: Array<{ field: string; op: string; value: string }>; groups?: unknown[] },
-): ClientAdvancedFilterPayload | null {
-  const conditions: ClientAdvancedFilterCondition[] = [];
-
-  const collect = (current: typeof group): void => {
-    for (const rule of current.rules) {
-      const contractField = FIELD_TO_CONTRACT[rule.field];
-      if (!contractField) {
-        continue;
-      }
-      const isDateField = DATE_CONTRACT_FIELDS.has(contractField);
-      const contractOperator = isDateField
-        ? DATE_OPERATOR_TO_CONTRACT[rule.op]
-        : OPERATOR_TO_CONTRACT[rule.op];
-      if (!contractOperator) {
-        continue;
-      }
-      const value = rule.value.trim();
-      if (value === '') {
-        continue;
-      }
-      conditions.push({ field: contractField, operator: contractOperator, value });
-    }
-    for (const child of (current.groups ?? []) as Array<typeof group>) {
-      collect(child);
-    }
-  };
-
-  collect(group);
-
-  if (conditions.length === 0) {
-    return null;
-  }
-  return { connector: group.op, groups: [{ conditions }] };
+export function clientAdvancedFilterFromGroup(group: FilterGroup): AdvancedFilterPayload | null {
+  return advancedFilterFromGroup(group, CLIENT_FILTER_SPECS);
 }
 
 function isClientStatus(value: string): value is ClientStatus {

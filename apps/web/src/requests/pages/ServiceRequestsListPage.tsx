@@ -32,6 +32,17 @@ import {
   DynamicSavedViewsBar,
 } from '../../engine';
 import {
+  advancedFilterFromGroup,
+  DynamicFilterBuilder,
+  FILTER_PARAM,
+  filterGroupToQuery,
+  isFilterGroupActive,
+  readFilterGroup,
+  useEntitySchema,
+  type AdvancedFilterFieldSpec,
+  type FilterGroup,
+} from '../../engine';
+import {
   SERVICE_REQUEST_LIST_SORTS,
   SERVICE_REQUEST_ORIGINS,
   SERVICE_REQUEST_PRIORITIES,
@@ -107,6 +118,24 @@ type ListState =
   | { phase: 'denied' }
   | { phase: 'error'; message: string; retryable: boolean }
   | { phase: 'ready'; items: ServiceRequestListItem[]; offset: number; hasMore: boolean };
+
+/**
+ * CAMPOS DO FILTRO AVANÇADO PARA O CONVERSOR COMPARTILHADO.
+ *
+ * O allow-list é o MESMO publicado por `buildServiceRequestListWhere`
+ * (`apps/api/src/requests/repositories/service-request-list-sql.ts`): marcar aqui um campo que o
+ * servidor não filtra faria o construtor oferecer um recorte inexistente.
+ */
+const REQUEST_FILTER_SPECS: AdvancedFilterFieldSpec[] = [
+  { field: 'status', contractField: 'status', kind: 'enum' },
+  { field: 'priority', contractField: 'priority', kind: 'enum' },
+  { field: 'origin_source', contractField: 'originSource', kind: 'enum' },
+  { field: 'request_code', contractField: 'requestCode', kind: 'text' },
+  { field: 'description', contractField: 'description', kind: 'text' },
+  { field: 'desired_start_at', contractField: 'desiredStartAt', kind: 'date' },
+  { field: 'created_at', contractField: 'createdAt', kind: 'date' },
+  { field: 'updated_at', contractField: 'updatedAt', kind: 'date' },
+];
 
 /** Proximo passo por estado — mesma leitura que o backend deriva da maquina de estados. */
 const NEXT_STEP_BY_STATUS: Record<ServiceRequestStatus, string> = {
@@ -328,6 +357,34 @@ export function ServiceRequestsListPage() {
   // Somente valores enumerados entram pela URL; texto livre permanece em memoria.
   useQueueUrlSync(filters, setFilters);
 
+  /*
+   * A URL é lida AQUI, no componente: `useQueueUrlSync` tem o próprio `useSearchParams` interno e
+   * não o expõe. O filtro avançado precisa do par de leitura/escrita da URL, então o componente
+   * declara o seu — o hook auxiliar continua responsável apenas pelos recortes enumerados.
+   *
+   * A serialização para string é explícita: o builder trafega a árvore como JSON numa única chave,
+   * e a forma textual é a mesma que `readFilterGroup` aceita na leitura.
+   */
+  const [urlParams, setUrlParams] = useSearchParams();
+  const urlQuery: string = urlParams.toString();
+
+  /**
+   * FILTRO AVANÇADO — a MESMA engine de metadados do resto do produto.
+   *
+   * A árvore vive na URL pela chave da engine (`filter`) e é convertida para o contrato do
+   * servidor pelo conversor COMPARTILHADO (`advancedFilterFromGroup`); o que este módulo declara é
+   * apenas o mapa de campos, restrito ao allow-list que o predicado server-side executa.
+   */
+  const { schema: requestSchema } = useEntitySchema('service-request');
+  const advancedGroup = useMemo<FilterGroup>(
+    () => readFilterGroup(urlQuery),
+    [urlQuery],
+  );
+  const advancedPayload = useMemo(
+    () => advancedFilterFromGroup(advancedGroup, REQUEST_FILTER_SPECS),
+    [advancedGroup],
+  );
+
   const loadPage = useCallback(
     async (offset: number, activeFilters: QueueFilters, signal?: AbortSignal) => {
       setListState({ phase: 'loading' });
@@ -356,6 +413,7 @@ export function ServiceRequestsListPage() {
               search: activeFilters.search.trim() || undefined,
               sort: activeFilters.sort,
               direction: activeFilters.direction,
+              advanced: advancedPayload,
               ...scopedFilters,
             },
             signal,
@@ -389,7 +447,7 @@ export function ServiceRequestsListPage() {
         });
       }
     },
-    [relationScope.clientId],
+    [advancedPayload, relationScope.clientId],
   );
 
   useEffect(() => {
@@ -713,11 +771,17 @@ export function ServiceRequestsListPage() {
           </>
         ) : null}
 
-        {hasFilterChips ? (
+        {hasFilterChips || isFilterGroupActive(advancedGroup) ? (
           <button
             type="button"
             className="min-h-8 rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body font-medium text-gray-700 hover:bg-gray-50"
-            onClick={clearFilters}
+            onClick={() => {
+              clearFilters();
+              const params = new URLSearchParams(urlQuery);
+              params.delete(FILTER_PARAM);
+              params.delete('offset');
+              setUrlParams(params, { replace: true });
+            }}
           >
             Limpar filtros
           </button>
@@ -729,6 +793,33 @@ export function ServiceRequestsListPage() {
           </span>
         </div>
       </div>
+      </div>
+
+      {/*
+        FILTRO AVANÇADO — a camada composta da superfície, dirigida por METADADO.
+
+        O construtor é o MESMO do resto do produto. Ele lê `meta.fields` da entidade
+        `service-request` (migration `0090`) e oferece apenas os campos marcados `in_filter`, que
+        são exatamente os que `buildServiceRequestListWhere` executa no servidor.
+      */}
+      <div className="px-1" data-region="advanced-filter-surface">
+        <DynamicFilterBuilder
+          schema={requestSchema}
+          value={advancedGroup}
+          onChange={(next) => {
+            const params = new URLSearchParams(urlQuery);
+            const serialized = filterGroupToQuery(next).get(FILTER_PARAM);
+            if (serialized) {
+              params.set(FILTER_PARAM, serialized);
+            } else {
+              params.delete(FILTER_PARAM);
+            }
+            // Mudança de recorte volta à primeira página: manter o offset antigo sobre um
+            // conjunto novo mostraria uma página que pode não existir.
+            params.delete('offset');
+            setUrlParams(params, { replace: true });
+          }}
+        />
       </div>
 
 

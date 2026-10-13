@@ -13,6 +13,7 @@ import { ServiceRequestValidationError } from '../domain/service-request.validat
 import {
   buildServiceRequestListOrderClause,
   buildServiceRequestListWhere,
+  type ServiceRequestAdvancedFilter,
   type ServiceRequestListDirection,
   type ServiceRequestListSort,
 } from '../repositories/service-request-list-sql';
@@ -51,6 +52,8 @@ export type ServiceRequestListQuery = {
   desiredFrom?: string;
   desiredTo?: string;
   search?: string;
+  /** Filtro avançado já validado; ausente = sem recorte composto. */
+  advanced?: ServiceRequestAdvancedFilter;
   sort?: ServiceRequestListSort;
   direction?: ServiceRequestListDirection;
   limit: number;

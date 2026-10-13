@@ -55,6 +55,17 @@ export type {
   FilterRule,
 } from './DynamicFilterBuilder';
 export {
+  advancedFilterFromGroup,
+  DATE_OPERATOR_MAP,
+  ENUM_OPERATOR_MAP,
+  TEXT_OPERATOR_MAP,
+} from './advanced-filter-contract';
+export type {
+  AdvancedFilterCondition,
+  AdvancedFilterFieldSpec,
+  AdvancedFilterPayload,
+} from './advanced-filter-contract';
+export {
   DynamicViewHost,
   RENDERABLE_VIEW_TYPES,
   UnsupportedViewNotice,

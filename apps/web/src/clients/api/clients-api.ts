@@ -1,6 +1,7 @@
 import { getApiBaseUrl, isNetworkError } from '../../auth/api/auth-api';
 import { tokenStore } from '../../auth/storage/token-store';
-import { CLIENT_ADVANCED_FILTER_PARAM, type ClientAdvancedFilterPayload } from '../utils/client-list-params';
+import { CLIENT_ADVANCED_FILTER_PARAM } from '../utils/client-list-params';
+import type { AdvancedFilterPayload } from '../../engine';
 import {
   CLIENT_ERROR_CODES,
   type Client,
@@ -128,7 +129,7 @@ export type ListClientsParams = {
    * Viaja como JSON na chave `filters`. O backend valida allow-list de campo, operador por tipo,
    * valores de enum e limites de grupo — um filtro inválido responde 400 em vez de ser ignorado.
    */
-  advanced?: ClientAdvancedFilterPayload | null;
+  advanced?: AdvancedFilterPayload | null;
 };
 
 /**

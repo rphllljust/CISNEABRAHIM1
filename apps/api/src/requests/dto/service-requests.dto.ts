@@ -2,6 +2,7 @@ import { isServiceRequestOrigin, isServiceRequestPriority } from '../domain/serv
 import {
   isServiceRequestListDirection,
   isServiceRequestListSort,
+  parseServiceRequestAdvancedFilter,
 } from '../repositories/service-request-list-sql';
 import type { ServiceRequestListQuery } from '../services/service-requests-access.query';
 import type {
@@ -185,11 +186,38 @@ export function parseListServiceRequestsQuery(query: Record<string, unknown>): S
     desiredFrom: typeof query['desiredFrom'] === 'string' ? query['desiredFrom'] : undefined,
     desiredTo: typeof query['desiredTo'] === 'string' ? query['desiredTo'] : undefined,
     search: typeof query['q'] === 'string' ? query['q'] : undefined,
+    advanced: readServiceRequestAdvancedFilter(query['filters']),
     sort: sort && isServiceRequestListSort(sort) ? sort : undefined,
     direction: direction && isServiceRequestListDirection(direction) ? direction : undefined,
     limit,
     offset,
   };
+}
+
+/**
+ * Lê o filtro avançado vindo na query. Aceita JSON serializado (URL) ou objeto já decodificado.
+ *
+ * Um JSON malformado é 400 — nunca filtro silenciosamente ausente: ignorar faria a tela mostrar a
+ * lista inteira como se o recorte tivesse sido aplicado.
+ */
+function readServiceRequestAdvancedFilter(raw: unknown) {
+  if (raw === undefined || raw === null) {
+    return undefined;
+  }
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (trimmed === '') {
+      return undefined;
+    }
+    let decoded: unknown;
+    try {
+      decoded = JSON.parse(trimmed);
+    } catch {
+      throw new Error('filters invalid');
+    }
+    return parseServiceRequestAdvancedFilter(decoded);
+  }
+  return parseServiceRequestAdvancedFilter(raw);
 }
 
 export function parseServiceRequestSummaryQuery(query: Record<string, unknown>): {

@@ -1,5 +1,6 @@
 import { getApiBaseUrl, isNetworkError } from '../../auth/api/auth-api';
 import { tokenStore } from '../../auth/storage/token-store';
+import type { AdvancedFilterPayload } from '../../engine';
 import {
   REQUEST_ERROR_CODES,
   type CreateServiceRequestPayload,
@@ -119,6 +120,8 @@ export type ListServiceRequestsParams = {
   search?: string;
   sort?: ServiceRequestListSort;
   direction?: ServiceRequestListDirection;
+  /** Filtro avançado já convertido para o contrato do servidor. */
+  advanced?: AdvancedFilterPayload | null;
 };
 
 export type ServiceRequestSummaryParams = {
@@ -171,6 +174,11 @@ export function buildListServiceRequestsQuery(params: ListServiceRequestsParams)
   }
   if (params.direction) {
     search.set('direction', params.direction);
+  }
+  // O filtro avançado entra na MESMA query: paginação, ordenação e recorte composto compõem um
+  // único predicado no servidor.
+  if (params.advanced && params.advanced.groups.length > 0) {
+    search.set('filters', JSON.stringify(params.advanced));
   }
   return search.toString();
 }
