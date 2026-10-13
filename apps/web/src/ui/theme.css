@@ -115,26 +115,26 @@
    * CAMADAS DE PROFUNDIDADE SEM SOMBRA.
    *
    * O CISNE lia "branco demais" porque canvas e superficie de trabalho eram quase o mesmo tom. Aqui
-   * o canvas ganha um azul-cinza mais presente (#F3F6FA) e a superficie de trabalho fica BRANCA: o
-   * contraste entre as duas E a profundidade. Sombras continuam fora — quem separa e o tom, o
-   * divisor e o espaco.
+   * o canvas ganha um azul-cinza mais presente (#EEF3F8) e a superficie de trabalho fica BRANCA: o
+   * contraste entre as duas E a profundidade — o operador precisa VER tres degraus (canvas, support,
+   * work) sem que nenhum deles seja sombra.
    */
-  --color-canvas: #f3f6fa;
+  --color-canvas: #eef3f8;
   --color-canvas-work: #ffffff;
   --color-surface-context: #f7f9fc;
   --color-surface-context-strong: #eef2f8;
   /* CABECALHO TONAL — faixas de titulo de secao, cabecalho de grade, barras de ferramenta. */
-  --color-surface-header: #f2f5f9;
+  --color-surface-header: #eaf0f6;
   /* SELECAO — a linha/aba escolhida. Azul muito claro, distinto do teal de identidade. */
-  --color-surface-selected: #eaf3ff;
+  --color-surface-selected: #e5f0ff;
   --color-surface-info: #eff6ff;
   --color-surface-success: #ecfdf5;
   --color-surface-warning: #fff7e8;
   --color-surface-critical: #fef2f2;
 
-  /* DIVISORES ESTRUTURAIS — mais definicao: o produto precisa de precisao visual, nao de nevoa. */
-  --color-divider: #d8e1eb;
-  --color-divider-strong: #cad5e2;
+  /* DIVISORES ESTRUTURAIS — precisao visual, nao nevoa. */
+  --color-divider: #d2dde8;
+  --color-divider-strong: #becbd9;
   --color-rule-accent: var(--color-brand-600);
 
   --color-text-primary: #102033;
@@ -142,9 +142,9 @@
   --color-text-muted: #6b7a8f;
   --color-text-inverse: #ffffff;
 
-  --color-border-default: #d8e1eb;
-  --color-border-subtle: #e4eaf2;
-  --color-border-strong: #c2cedb;
+  --color-border-default: #d2dde8;
+  --color-border-subtle: #e2e9f1;
+  --color-border-strong: #becbd9;
 
   --color-focus-ring: var(--color-brand-500);
 

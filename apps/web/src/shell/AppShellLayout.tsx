@@ -76,7 +76,7 @@ export function AppShellLayout() {
   const identityHint = isTechnicalIdentity(identityId) ? null : formatIdentityLabel(identityId);
 
   return (
-    <div className="cisne-app shell-enterprise flex min-h-dvh bg-[#F3F6FA] font-sans text-gray-900 antialiased">
+    <div className="cisne-app shell-enterprise flex min-h-dvh bg-[#EEF3F8] font-sans text-gray-900 antialiased">
       <a
         className="shell__skip-link bg-brand-600 text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
         href="#main-content"
@@ -93,7 +93,7 @@ export function AppShellLayout() {
         estava correta (34px); o que sobrava era largura vazia.
       */}
       <aside
-        className="shell__sidebar fixed inset-y-0 z-30 hidden w-[13.25rem] flex-col border-r border-[#0D2940] bg-[#071827] lg:flex"
+        className="shell__sidebar fixed inset-y-0 z-30 hidden w-[13.25rem] flex-col border-r border-[#0B2B42] bg-[#061726] lg:flex"
         aria-label="Barra lateral"
       >
         <div className="shell__brand flex h-[3.375rem] shrink-0 items-center gap-2.5 border-b border-[#0D2940] px-3.5">
@@ -116,9 +116,9 @@ export function AppShellLayout() {
 
         <ShellNavList alertCount={activeCount} alertsLoading={alertsLoading} theme="dark" />
 
-        <div className="border-t border-[#0D2940] p-2.5">
-          <div className="flex items-center gap-2.5 rounded-md bg-[#0D2940] px-2.5 py-1.5">
-            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-[#123E5A] text-[10px] font-bold text-[#18A7A0]">
+        <div className="border-t border-[#0B2B42] p-2.5">
+          <div className="flex items-center gap-2.5 rounded-md bg-[#0B2B42] px-2.5 py-1.5">
+            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-[#0E3C59] text-[10px] font-bold text-[#18A7A0]">
               CN
             </div>
             <div className="min-w-0 leading-tight">

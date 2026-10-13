@@ -38,8 +38,8 @@ function buildNavLinkClass(isActive: boolean, theme: 'dark' | 'light') {
         disso o menu deixa de ser legivel em monitor de escritorio.
       */
       isActive
-        ? 'bg-[#123E5A] font-semibold text-white shadow-[inset_3px_0_0_#18A7A0]'
-        : 'font-medium text-[#B8C7D9] hover:bg-[#0D2940] hover:text-white',
+        ? 'bg-[#0E3C59] font-semibold text-white shadow-[inset_3px_0_0_#18A7A0]'
+        : 'font-medium text-[#B8C7D9] hover:bg-[#0B2B42] hover:text-white',
     );
   }
 
@@ -74,7 +74,7 @@ export function ShellNavList({
     <nav
       className={cn(
         'sidebar-scroll flex-1 space-y-3 overflow-y-auto px-2.5 py-2.5',
-        theme === 'dark' ? 'bg-[#071827]' : 'bg-white',
+        theme === 'dark' ? 'bg-[#061726]' : 'bg-white',
       )}
       aria-label="Navegação principal"
     >
@@ -99,7 +99,7 @@ export function ShellNavList({
             <p
               className={cn(
                 'mb-1.5 px-2 text-[9px] font-bold uppercase tracking-[0.2em]',
-                theme === 'dark' ? 'text-[#5D7896]' : 'text-slate-400',
+                theme === 'dark' ? 'text-[#6688A8]' : 'text-slate-400',
               )}
             >
               {group.label}

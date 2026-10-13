@@ -69,10 +69,17 @@ describe('operational dashboard e2e (frontend)', () => {
     // Escopo pelo NOME da regiao: "Faturamento" tambem e o rotulo de um atalho de modulo, e uma
     // assercao global provaria a existencia do rotulo, nao da ETAPA da cadeia.
     const chain = central.getByRole('region', { name: /fluxo operacional/i });
-    expect(within(chain).getByText('Operação')).toBeInTheDocument();
-    expect(within(chain).getByText('Medição')).toBeInTheDocument();
-    expect(within(chain).getByText('Faturamento')).toBeInTheDocument();
-    expect(within(chain).getByText('Recebimento')).toBeInTheDocument();
+    for (const stage of [
+      'Solicitação',
+      'Proposta',
+      'Contrato',
+      'Ordem de serviço',
+      'Medição',
+      'Faturamento',
+      'Recebimento',
+    ]) {
+      expect(within(chain).getByText(stage)).toBeInTheDocument();
+    }
 
     // A FILA E O ELEMENTO DOMINANTE — grade real, com cabecalho de colunas e rodape de paginacao.
     const queue = central.getByRole('region', { name: /fila de trabalho do recorte/i });

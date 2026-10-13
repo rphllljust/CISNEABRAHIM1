@@ -25,7 +25,7 @@ import {
   domainReachesOperation,
   scopedAttention,
 } from '../utils/dashboard-semantics';
-import { buildOperationalSituation } from '../utils/dashboard-situation';
+import { buildOperationalSituation, situationBadgeLabel } from '../utils/dashboard-situation';
 import { semanticSectionAttrs } from '../semantic-dashboard';
 import { ModuleDeniedState, ModulePage } from '../../ui';
 import { ContextDrawer } from '../../operator';
@@ -110,6 +110,24 @@ const OPERATIONAL_SHORTCUTS = [
   { id: 'billing', label: 'Faturamento', href: '/app/billing' },
   { id: 'receivables', label: 'Contas a receber', href: '/app/finance/receivables' },
   { id: 'requests', label: 'Solicitações', href: '/app/requests' },
+] as const;
+
+/**
+ * A TRILHA DO PROCESSO, em rotulos — a MESMA ordem que `buildBusinessFlow` publica.
+ *
+ * O rail de contexto sem selecao declara o processo em texto porque ali nao cabe a trilha completa;
+ * ele existe para responder "em que ponto do processo eu estou" sem exigir que o operador role a
+ * tela. A ordem e unica: qualquer mudanca no fluxo acontece em `dashboard-semantics`, e este array
+ * apenas espelha os rotulos.
+ */
+const FLOW_LABELS = [
+  'Solicitação',
+  'Proposta',
+  'Contrato',
+  'Ordem de serviço',
+  'Medição',
+  'Faturamento',
+  'Recebimento',
 ] as const;
 
 /**
@@ -426,26 +444,22 @@ export function OperationalDashboardPage() {
     : null;
   const flowStages = snapshot ? buildBusinessFlow(snapshot, domain) : [];
   const attentionItems = scope?.items ?? [];
-  const hasExceptions = attentionItems.length > 0;
   const queueTotal = inboxPhase === 'ready' ? (inbox?.total ?? null) : null;
   const incompleteNotice = inbox?.unavailableDomains?.length
     ? `Fila incompleta: ${inbox.unavailableDomains.join(', ')} não respondeu nesta leitura.`
     : null;
 
   /*
-   * QUANTAS SUPERFICIES ANALITICAS EXISTEM DE FATO — E A TERCEIRA NAO E UM SLOT RESERVADO.
+   * AS TRES SUPERFICIES ANALITICAS SAO FIXAS — e isso e deliberado.
    *
-   * A faixa analitica da referencia tem tres superficies: DISTRIBUICAO | SERIE | ALERTAS. As duas
-   * primeiras existem quando o dado autoritativo existe. A terceira e a worklist de excecoes, e ela
-   * segue a mesma regra: sem excecao publicada NENHUMA, a superficie nao ocupa coluna — a faixa se
-   * recompõe em duas, ou em uma, sem deixar buraco. Uma coluna dizendo "sem excecoes" custaria 24%
-   * da largura para uma nao-noticia.
+   * A faixa do cockpit e DISTRIBUICAO | CARTEIRA | ALERTAS. Cada superficie permanece na grade em
+   * todos os recortes; o que varia e o ESTADO INTERNO (grafico quando o dado existe, estado
+   * governado declarado quando nao existe). Uma faixa que encolhe conforme o recorte faz o cockpit
+   * parecer quebrado e esconde do operador QUAIS leituras o painel oferece.
    *
-   * A grade recebe `data-count` e declara as proprias colunas a partir daqui: e a diferenca entre
-   * "layout responsivo" e "layout que se adapta ao que o dado autorizou".
+   * Isso nao inventa dado: "não publicado para este recorte" e uma afirmacao verdadeira sobre o que
+   * o servidor entregou, e a decision de exibir a lista continua sendo do operador.
    */
-  const analyticsCount =
-    (showOperationDistribution ? 1 : 0) + (showAging ? 1 : 0) + (hasExceptions ? 1 : 0);
 
   return (
     <ModulePage layout="workspace">
@@ -484,29 +498,32 @@ export function OperationalDashboardPage() {
             <WorkbenchKpiStrip kpis={workbenchKpis} />
 
             {/*
-              LINHA 2 — ANALITICO. Ate tres superficies: operacao | carteira | EXCECOES.
+              LINHA 2 — ANALITICO. As TRES superficies do cockpit, SEMPRE.
 
-              Surface ausente NAO reserva coluna: a grade declara `data-count` e se recompoe. A
-              superficie de excecoes so existe quando ha excecao publicada — sem excecao, ela nao
-              ocupa 24% da largura para dizer "nenhuma".
+              Antes, uma superficie sem dado simplesmente nao era renderizada — e a faixa encolhia
+              para duas ou uma coluna, deixando buraco do lado e fazendo o cockpit parecer quebrado.
+              Agora a arquitetura e FIXA (operacao | carteira | excecoes) e o que varia e o ESTADO
+              INTERNO: grafico quando o dado existe, estado governado declarado quando nao existe.
+
+              Isso nao inventa dado nenhum: "Distribuição não publicada para este recorte" e uma
+              afirmacao verdadeira sobre o que o servidor entregou.
             */}
-            {analyticsCount > 0 ? (
-              <section
-                className="dashboard-analytics"
-                data-count={analyticsCount}
-                aria-label="Análise operacional"
-              >
-                {showOperationDistribution ? (
-                  <OperationDistribution snapshot={snapshot} />
-                ) : null}
+            <section className="dashboard-analytics" aria-label="Análise operacional">
+              <OperationDistribution
+                snapshot={snapshot}
+                available={showOperationDistribution}
+              />
 
-                {showAging ? <AgingDistribution aging={snapshot.charts.financialAging} /> : null}
+              <AgingDistribution
+                aging={snapshot.charts.financialAging}
+                available={showAging}
+              />
 
-                {hasExceptions ? (
-                  <ExceptionSurface items={attentionItems} notEvaluated={scope?.notEvaluated ?? []} />
-                ) : null}
-              </section>
-            ) : null}
+              <ExceptionSurface
+                items={attentionItems}
+                notEvaluated={scope?.notEvaluated ?? []}
+              />
+            </section>
 
             {/*
               LINHA 3 — FLUXO OPERACIONAL. Uma linha de processo (estagios conectados), nao cards.
@@ -662,13 +679,24 @@ export function OperationalDashboardPage() {
           </div>
 
           {/*
-            COLUNA DE CONTEXTO — o MESMO `ContextDrawer` do produto, em modo `inline`.
+            COLUNA DE CONTEXTO — PERSISTENTE.
 
-            Ela NAO e um segundo conteudo: e o contexto da entidade SELECIONADA, e so existe quando
-            existe selecao. Abrir contexto nao navega, nao limpa filtro e nao perde scroll.
+            Ela NAO some quando nao ha selecao. Sem selecao ela mostra o CONTEXTO OPERACIONAL do
+            recorte (escopo, dominio, periodo, estado da fila, situacao, atualizacao, processo e
+            atalhos reais); com selecao, o MESMO rail se transforma no contexto da entidade.
+
+            Por que persistente: uma terceira zona que aparece e desaparece faz a tela "pular" e
+            deixa a direita vazia na maior parte do tempo — que era exatamente o oceano branco
+            apontado na reprovacao. Contexto do recorte e informacao REAL que a tela ja possui; nao
+            e placeholder.
           */}
-          {selected ? (
-            <aside className="dashboard-cc__context" aria-label="Contexto da entidade selecionada">
+          <aside
+            className="dashboard-cc__context"
+            aria-label={
+              selected ? 'Contexto da entidade selecionada' : 'Contexto operacional do recorte'
+            }
+          >
+            {selected ? (
               <ContextDrawer
                 open
                 variant="inline"
@@ -709,8 +737,30 @@ export function OperationalDashboardPage() {
                   detailLabel: 'Abrir na tela de origem',
                 }}
               />
-            </aside>
-          ) : null}
+            ) : (
+              <OperationalContextRail
+                unitLabel={unitLabel}
+                domainLabel={domainLabel}
+                periodLabel={periodLabel}
+                generatedAtFormatted={
+                  snapshot ? formatGeneratedAt(snapshot.generatedAt) : null
+                }
+                queueStateLabel={
+                  inboxPhase === 'ready'
+                    ? `${queueTotal ?? 0} ${plural(queueTotal ?? 0, 'item', 'itens')} na fila`
+                    : inboxPhase === 'loading'
+                      ? 'Leitura em andamento'
+                      : 'Fila não publicada nesta leitura'
+                }
+                pageCount={inbox?.items.length ?? 0}
+                situationLabel={
+                  situation
+                    ? situationBadgeLabel(situation)
+                    : 'Situação não avaliada neste recorte'
+                }
+              />
+            )}
+          </aside>
 
           {/*
             RODAPE OPERACIONAL — leitura secundaria (rotas alternativas de modulo), fora da area de
@@ -727,6 +777,120 @@ export function OperationalDashboardPage() {
         </div>
       ) : null}
     </ModulePage>
+  );
+}
+
+/**
+ * CONTEXTO OPERACIONAL DO RECORTE — o estado do rail quando NAO ha entidade selecionada.
+ *
+ * Tudo aqui e FATO que a tela ja possui: escopo autorizado, dominio ativo, periodo, estado da fila,
+ * tamanho da pagina lida, situacao avaliada e hora da ultima leitura. Nenhum campo e placeholder e
+ * nenhum numero e inventado — quando um fato nao existe para o recorte, ele e declarado como nao
+ * publicado em vez de virar `0` ou `—` decorativo.
+ *
+ * As tres secoes respondem, nesta ordem, as tres perguntas do operador ao abrir o painel:
+ *   ONDE ESTOU   (recorte)
+ *   EM QUE PONTO (processo)
+ *   PARA ONDE IR (atalhos reais)
+ */
+function OperationalContextRail({
+  unitLabel,
+  domainLabel,
+  periodLabel,
+  generatedAtFormatted,
+  queueStateLabel,
+  pageCount,
+  situationLabel,
+}: {
+  unitLabel: string | null;
+  domainLabel: string;
+  periodLabel: string | null;
+  generatedAtFormatted: string | null;
+  queueStateLabel: string;
+  pageCount: number;
+  situationLabel: string;
+}) {
+  return (
+    <div className="dashboard-rail">
+      <section className="dashboard-rail__section" aria-labelledby="rail-context">
+        <header className="dashboard-rail__head">
+          <span className="dashboard-rail__mark dashboard-rail__mark--info" aria-hidden />
+          <h2 id="rail-context" className="dashboard-rail__title">
+            Contexto operacional
+          </h2>
+        </header>
+        <dl className="dashboard-rail__facts">
+          <div className="dashboard-rail__fact">
+            <dt>Escopo</dt>
+            <dd>{unitLabel ?? 'Todas as unidades autorizadas'}</dd>
+          </div>
+          <div className="dashboard-rail__fact">
+            <dt>Domínio</dt>
+            <dd>{domainLabel}</dd>
+          </div>
+          <div className="dashboard-rail__fact">
+            <dt>Período</dt>
+            <dd className="tabular-nums">{periodLabel ?? 'Não informado'}</dd>
+          </div>
+          <div className="dashboard-rail__fact">
+            <dt>Fila</dt>
+            <dd>{queueStateLabel}</dd>
+          </div>
+          <div className="dashboard-rail__fact">
+            <dt>Nesta página</dt>
+            <dd className="tabular-nums">
+              {pageCount} {plural(pageCount, 'item lido', 'itens lidos')}
+            </dd>
+          </div>
+          <div className="dashboard-rail__fact">
+            <dt>Situação</dt>
+            <dd>{situationLabel}</dd>
+          </div>
+          <div className="dashboard-rail__fact">
+            <dt>Atualização</dt>
+            <dd className="tabular-nums">{generatedAtFormatted ?? 'Não publicada'}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section className="dashboard-rail__section" aria-labelledby="rail-process">
+        <header className="dashboard-rail__head">
+          <span className="dashboard-rail__mark dashboard-rail__mark--identity" aria-hidden />
+          <h2 id="rail-process" className="dashboard-rail__title">
+            Processo atual
+          </h2>
+        </header>
+        <ol className="dashboard-rail__process">
+          {FLOW_LABELS.map((label) => (
+            <li key={label} className="dashboard-rail__process-step">
+              {label}
+            </li>
+          ))}
+        </ol>
+        <p className="dashboard-rail__note">
+          A trilha descreve o processo do CISNE. Contagem só aparece quando o servidor publica.
+        </p>
+      </section>
+
+      <section className="dashboard-rail__section" aria-labelledby="rail-shortcuts">
+        <header className="dashboard-rail__head">
+          <span className="dashboard-rail__mark dashboard-rail__mark--neutral" aria-hidden />
+          <h2 id="rail-shortcuts" className="dashboard-rail__title">
+            Atalhos contextuais
+          </h2>
+        </header>
+        <ul className="dashboard-rail__links">
+          {OPERATIONAL_SHORTCUTS.map((shortcut) => (
+            <li key={shortcut.id}>
+              <Link className="dashboard-rail__link" to={shortcut.href}>
+                {shortcut.label}
+                <ArrowUpRight className="dashboard-rail__link-icon" strokeWidth={2.4} aria-hidden />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>
   );
 }
 
@@ -772,7 +936,10 @@ function WorkQueue({
 
   return (
     <section
-      className={cn('dashboard-queue', items.length > 0 && 'dashboard-queue--filled')}
+      className={cn(
+        'dashboard-queue',
+        items.length > 0 ? 'dashboard-queue--filled' : 'dashboard-queue--empty',
+      )}
       aria-label="Fila de trabalho do recorte"
     >
       <header className="dashboard-queue__head">
@@ -810,34 +977,52 @@ function WorkQueue({
         </div>
       ) : items.length === 0 ? (
         /*
-         * ESTADO VAZIO COMPACTO — 70-100px, nunca meia tela.
+         * ESTADO VAZIO DENTRO DA GRADE — o cabecalho de colunas CONTINUA.
 
-         * Uma tabela gigantesca reservada para nada faz a tela parecer um formulario com rodape; e
-         * inventar linha para preencher seria mentir. O vazio diz QUAL recorte esvaziou e oferece a
-         * acao REAL que o desfaz.
+         * Zero itens nao desmonta o workbench. O operador precisa reconhecer a mesma superficie de
+         * processamento que ele usa quando ha trabalho: grade, colunas nomeadas e uma unica linha
+         * dizendo que o recorte esta vazio, com a acao REAL que o desfaz. O vazio ocupa 48-56px de
+         * conteudo; a superficie em volta continua reservada por `.dashboard-queue--empty`.
          */
-        <div className="dashboard-queue__empty">
-          <FolderOpen className="dashboard-queue__empty-icon" strokeWidth={2} aria-hidden />
-          <p className="dashboard-queue__empty-text">
-            {search
-              ? `Nenhum item desta página corresponde a “${search}”.`
-              : `Nenhum trabalho pendente no recorte ${domainLabel}.`}
-          </p>
-          {search ? (
-            <button type="button" className="dashboard-queue__empty-action" onClick={onClearSearch}>
-              Limpar busca
-            </button>
-          ) : null}
-          {!search && domainLabel !== 'Tudo' ? (
-            <button type="button" className="dashboard-queue__empty-action" onClick={onClearRecorte}>
-              Ver todos os domínios
-            </button>
-          ) : null}
-          {!search && domainLabel === 'Tudo' ? (
-            <Link className="dashboard-queue__empty-action" to="/app/work-inbox">
-              Abrir central de trabalho
-            </Link>
-          ) : null}
+        <div className="dashboard-queue__table" role="table" aria-label="Trabalho do recorte">
+          <div
+            className="dashboard-queue__row dashboard-queue__row--head"
+            role="row"
+            style={{ gridTemplateColumns: QUEUE_COLUMNS }}
+          >
+            <span role="columnheader">Prioridade</span>
+            <span role="columnheader">Documento</span>
+            <span role="columnheader">Contexto</span>
+            <span role="columnheader">Etapa</span>
+            <span role="columnheader">Responsável</span>
+            <span role="columnheader">Prazo</span>
+            <span role="columnheader">Próxima ação</span>
+          </div>
+
+          <div className="dashboard-queue__empty" role="row">
+            <FolderOpen className="dashboard-queue__empty-icon" strokeWidth={2} aria-hidden />
+            <p className="dashboard-queue__empty-text">
+              {search
+                ? `Nenhum item desta página corresponde a “${search}”.`
+                : `Nenhum trabalho neste recorte · ${domainLabel}`}
+            </p>
+            <span className="dashboard-queue__empty-spacer" />
+            {search ? (
+              <button type="button" className="dashboard-queue__empty-action" onClick={onClearSearch}>
+                Limpar busca
+              </button>
+            ) : null}
+            {!search && domainLabel !== 'Tudo' ? (
+              <button type="button" className="dashboard-queue__empty-action" onClick={onClearRecorte}>
+                Ver todos os domínios
+              </button>
+            ) : null}
+            {!search && domainLabel === 'Tudo' ? (
+              <Link className="dashboard-queue__empty-action" to="/app/work-inbox">
+                Abrir central de trabalho
+              </Link>
+            ) : null}
+          </div>
         </div>
       ) : (
         <>
@@ -994,7 +1179,13 @@ function WorkQueue({
  *
  * O PERCENTUAL so aparece quando o denominador e o conjunto publicado — nunca sobre uma amostra.
  */
-function OperationDistribution({ snapshot }: { snapshot: ExecutiveDashboardSnapshot }) {
+function OperationDistribution({
+  snapshot,
+  available,
+}: {
+  snapshot: ExecutiveDashboardSnapshot;
+  available: boolean;
+}) {
   const status = snapshot.charts.serviceOrdersByStatus;
   const total = status.items.reduce((sum, item) => sum + item.count, 0);
 
@@ -1032,6 +1223,34 @@ function OperationDistribution({ snapshot }: { snapshot: ExecutiveDashboardSnaps
     return `${colorFor(item.status)} ${from}% ${cursor}%`;
   });
   const ring = stops.length > 0 ? `conic-gradient(${stops.join(', ')})` : 'none';
+
+  /*
+   * ESTADO GOVERNADO — a superficie existe, o dado nao.
+   *
+   * Nao ha grafico falso nem eixo vazio: a superficie declara o que o servidor NAO publicou para
+   * este recorte. O operador le "nao publicado", que e diferente de "zero ordens" e diferente de
+   * "esta tudo bem".
+   */
+  if (!available || stops.length === 0) {
+    return (
+      <div className="dashboard-analytics__panel" aria-labelledby="status-heading">
+        <header className="dashboard-analytics__head">
+          <h2 id="status-heading" className="dashboard-analytics__title">
+            Ordens por situação
+          </h2>
+          <span className="dashboard-analytics__meta">Operação</span>
+        </header>
+        <p className="dashboard-analytics__governed" role="status">
+          <span className="dashboard-analytics__governed-mark" aria-hidden />
+          Distribuição não publicada para este recorte.
+        </p>
+        <p className="dashboard-analytics__note">
+          A lista de ordens continua disponível; o que não existe é a contagem por situação neste
+          escopo.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard-analytics__panel" aria-labelledby="status-heading">
@@ -1092,9 +1311,37 @@ function OperationDistribution({ snapshot }: { snapshot: ExecutiveDashboardSnaps
  */
 function AgingDistribution({
   aging,
+  available,
 }: {
   aging: ExecutiveDashboardSnapshot['charts']['financialAging'];
+  available: boolean;
 }) {
+  /*
+   * ESTADO GOVERNADO — a carteira nao foi publicada (ou o recorte nao alcanca o financeiro).
+   *
+   * `available: false` NAO e "carteira zerada": e ausencia de publicacao. A superficie permanece no
+   * cockpit com a declaracao honesta, em vez de desaparecer e deixar a faixa manca.
+   */
+  if (!available || !aging.available || aging.buckets.length === 0) {
+    return (
+      <div className="dashboard-analytics__panel" aria-labelledby="aging-heading">
+        <header className="dashboard-analytics__head">
+          <h2 id="aging-heading" className="dashboard-analytics__title">
+            Atraso por faixa
+          </h2>
+          <span className="dashboard-analytics__meta">Carteira</span>
+        </header>
+        <p className="dashboard-analytics__governed" role="status">
+          <span className="dashboard-analytics__governed-mark" aria-hidden />
+          Faixas de atraso não publicadas para este recorte.
+        </p>
+        <p className="dashboard-analytics__note">
+          A carteira de títulos continua disponível em Contas a receber.
+        </p>
+      </div>
+    );
+  }
+
   const maxCount = Math.max(1, ...aging.buckets.map((bucket) => bucket.count));
 
   return (
@@ -1176,7 +1423,19 @@ function ExceptionSurface({
         </Link>
       </header>
 
-      <ul className="dashboard-exceptions__list">
+      {/*
+        SEM EXCECAO PUBLICADA — ESTADO POSITIVO COMPACTO DENTRO DA SUPERFICIE.
+
+        A superficie permanece (a arquitetura do cockpit e fixa), mas o conteudo e uma UNICA linha
+        declarando ausencia — nunca um bloco verde de 100px celebrando uma nao-noticia.
+      */}
+      {ordered.length === 0 ? (
+        <p className="dashboard-analytics__governed dashboard-analytics__governed--positive" role="status">
+          <span className="dashboard-analytics__governed-mark" aria-hidden>✓</span>
+          Nenhuma exceção crítica publicada.
+        </p>
+      ) : (
+        <ul className="dashboard-exceptions__list">
         {ordered.map((item) => {
           const href = item.href;
           const body = (
@@ -1207,7 +1466,8 @@ function ExceptionSurface({
             </li>
           );
         })}
-      </ul>
+        </ul>
+      )}
 
       {notEvaluated.length > 0 ? (
         <p className="dashboard-exceptions__note">

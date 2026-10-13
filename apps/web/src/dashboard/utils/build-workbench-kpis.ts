@@ -26,6 +26,18 @@ export type WorkbenchKpi = {
   href: string;
   ariaLabel: string;
   tone: WorkbenchKpiTone;
+  /**
+   * METRICA DO CONTRATO SEM VALOR PUBLICADO PARA O RECORTE.
+   *
+   * A celula continua na faixa com `value: '—'` e este flag ligado. E a diferenca entre
+   * "nao publicado" e "zero": o servidor nao afirmou ausencia, entao a tela tambem nao pode.
+   *
+   * AUSENCIA != ZERO — mas AUSENCIA TAMBEM NAO DESMONTA A FAIXA. Uma faixa que encolhe para tres
+   * celulas porque o recorte nao publicou quatro metricas faz o cockpit parecer quebrado; o operador
+   * precisa reconhecer a MESMA estrutura de indicadores em todo recorte, com o estado honesto dito
+   * em cada celula.
+   */
+  unmeasured: boolean;
 };
 
 function plural(count: number, singular: string, pluralForm: string): string {
@@ -46,8 +58,19 @@ function overdueContext(maxDelayDays: number | null | undefined, scope: string):
 }
 
 /**
- * INDICADORES DO WORKSPACE — ordem de decisao: primeiro o que esta vencido, depois o que esta
- * parado, depois o que esta em andamento. Volume de OS nunca abre a faixa sozinho.
+ * INDICADORES DO WORKSPACE — ESTRUTURA ESTAVEL, ESTADO HONESTO.
+ *
+ * A faixa publica SEMPRE as mesmas celulas do contrato do painel, na ordem de decisao: vencido
+ * (financeiro e operacional), a vencer, medicao parada e volume em andamento. O que varia por
+ * recorte e o ESTADO de cada celula, nao a existencia dela:
+ *
+ *   valor publicado            -> numero real + drilldown para a lista que o produziu;
+ *   metrica nao publicada      -> `—` + "não publicado neste recorte", sem drill (nao ha lista);
+ *   fora do dominio do recorte -> `—` + "fora do recorte ativo".
+ *
+ * Antes, metrica nao publicada simplesmente NAO ENTRAVA — e a faixa encolhia de cinco para tres
+ * celulas conforme o recorte, o que fazia o cockpit parecer quebrado e escondia do operador quais
+ * indicadores existem. AUSENCIA != ZERO, mas ausencia tambem nao e motivo para desmontar a faixa.
  */
 export function buildWorkbenchKpis(
   snapshot: ExecutiveDashboardSnapshot,
@@ -56,90 +79,168 @@ export function buildWorkbenchKpis(
   const kpis: WorkbenchKpi[] = [];
   const attention = (id: string) => snapshot.attention.find((item) => item.id === id);
   const operationScope = domain === null ? 'no escopo autorizado' : 'no recorte selecionado';
+  const operationInScope = domainReachesOperation(domain);
+  const financeInScope = domainReachesFinance(domain);
+  const outOfScope = 'Fora do recorte ativo';
 
-  /* ---- ATRASO FINANCEIRO: so no recorte que alcanca a carteira ------------------------------ */
-  if (snapshot.visibility.billing && snapshot.charts.financialAging.available && domainReachesFinance(domain)) {
-    const overdue = attention('overdue-receivables');
-    if (overdue && overdue.count > 0) {
-      kpis.push({
-        id: 'overdue-receivables',
-        label: 'Recebíveis vencidos',
-        value: String(overdue.count),
-        unit: plural(overdue.count, 'título', 'títulos'),
-        context: overdue.detail ?? 'Vencimento ultrapassado e saldo em aberto',
-        href: overdue.href ?? '/app/finance/receivables?status=OVERDUE',
-        ariaLabel: `Recebíveis vencidos: ${overdue.count} ${plural(overdue.count, 'título', 'títulos')}. Abrir títulos vencidos.`,
-        tone: 'critical',
-      });
-    }
+  /* ---- ATRASO FINANCEIRO --------------------------------------------------------------------- */
+  {
+    const overdue = financeInScope ? attention('overdue-receivables') : undefined;
+    const measured = financeInScope && snapshot.visibility.billing &&
+      snapshot.charts.financialAging.available && overdue !== undefined && overdue.count > 0;
+    kpis.push(
+      measured
+        ? {
+            id: 'overdue-receivables',
+            label: 'Recebíveis vencidos',
+            value: String(overdue.count),
+            unit: plural(overdue.count, 'título', 'títulos'),
+            context: overdue.detail ?? 'Vencimento ultrapassado e saldo em aberto',
+            href: overdue.href ?? '/app/finance/receivables?status=OVERDUE',
+            ariaLabel: `Recebíveis vencidos: ${overdue.count} ${plural(overdue.count, 'título', 'títulos')}. Abrir títulos vencidos.`,
+            tone: 'critical',
+            unmeasured: false,
+          }
+        : {
+            id: 'overdue-receivables',
+            label: 'Recebíveis vencidos',
+            value: '—',
+            unit: null,
+            context: financeInScope ? 'Não publicado neste recorte' : outOfScope,
+            href: '/app/finance/receivables?status=OVERDUE',
+            ariaLabel: 'Recebíveis vencidos: não publicado neste recorte.',
+            tone: 'neutral',
+            unmeasured: true,
+          },
+    );
   }
 
-  /* ---- ATRASO OPERACIONAL: so no recorte que alcanca as ordens ------------------------------ */
-  if (snapshot.visibility.serviceOrders && domainReachesOperation(domain)) {
-    const overdue = attention('overdue-service-orders');
-    if (overdue && overdue.count > 0) {
-      kpis.push({
-        id: 'overdue-service-orders',
-        label: 'Ordens vencidas',
-        value: String(overdue.count),
-        unit: plural(overdue.count, 'ordem', 'ordens'),
-        context: overdueContext(overdue.maxDelayDays, operationScope),
-        href: overdue.href ?? '/app/service-orders?filter=overdue',
-        ariaLabel: `Ordens de serviço vencidas: ${overdue.count} ${plural(overdue.count, 'ordem', 'ordens')}. Abrir ordens vencidas.`,
-        tone: 'critical',
-      });
-    }
+  /* ---- ATRASO OPERACIONAL -------------------------------------------------------------------- */
+  {
+    const overdue = operationInScope ? attention('overdue-service-orders') : undefined;
+    const measured = snapshot.visibility.serviceOrders && overdue !== undefined && overdue.count > 0;
+    kpis.push(
+      measured
+        ? {
+            id: 'overdue-service-orders',
+            label: 'Ordens vencidas',
+            value: String(overdue.count),
+            unit: plural(overdue.count, 'ordem', 'ordens'),
+            context: overdueContext(overdue.maxDelayDays, operationScope),
+            href: overdue.href ?? '/app/service-orders?filter=overdue',
+            ariaLabel: `Ordens de serviço vencidas: ${overdue.count} ${plural(overdue.count, 'ordem', 'ordens')}. Abrir ordens vencidas.`,
+            tone: 'critical',
+            unmeasured: false,
+          }
+        : {
+            id: 'overdue-service-orders',
+            label: 'Ordens vencidas',
+            value: '—',
+            unit: null,
+            context: operationInScope ? 'Não publicado neste recorte' : outOfScope,
+            href: '/app/service-orders?filter=overdue',
+            ariaLabel: 'Ordens de serviço vencidas: não publicado neste recorte.',
+            tone: 'neutral',
+            unmeasured: true,
+          },
+    );
+  }
 
-    const approaching = attention('approaching-due-service-orders');
-    if (approaching && approaching.count > 0) {
-      kpis.push({
-        id: 'approaching-due-service-orders',
-        label: 'Ordens vencendo',
-        value: String(approaching.count),
-        unit: plural(approaching.count, 'ordem', 'ordens'),
-        context: `Prazo nos próximos dias · ${operationScope}`,
-        href: approaching.href ?? '/app/service-orders?filter=approaching-due',
-        ariaLabel: `Ordens de serviço vencendo: ${approaching.count} ${plural(approaching.count, 'ordem', 'ordens')}. Abrir ordens a vencer.`,
-        tone: 'warning',
-      });
-    }
+  /* ---- A VENCER ------------------------------------------------------------------------------ */
+  {
+    const approaching = operationInScope ? attention('approaching-due-service-orders') : undefined;
+    const measured =
+      snapshot.visibility.serviceOrders && approaching !== undefined && approaching.count > 0;
+    kpis.push(
+      measured
+        ? {
+            id: 'approaching-due-service-orders',
+            label: 'Ordens vencendo',
+            value: String(approaching.count),
+            unit: plural(approaching.count, 'ordem', 'ordens'),
+            context: `Prazo nos próximos dias · ${operationScope}`,
+            href: approaching.href ?? '/app/service-orders?filter=approaching-due',
+            ariaLabel: `Ordens de serviço vencendo: ${approaching.count} ${plural(approaching.count, 'ordem', 'ordens')}. Abrir ordens a vencer.`,
+            tone: 'warning',
+            unmeasured: false,
+          }
+        : {
+            id: 'approaching-due-service-orders',
+            label: 'Ordens vencendo',
+            value: '—',
+            unit: null,
+            context: operationInScope ? 'Não publicado neste recorte' : outOfScope,
+            href: '/app/service-orders?filter=approaching-due',
+            ariaLabel: 'Ordens de serviço vencendo: não publicado neste recorte.',
+            tone: 'neutral',
+            unmeasured: true,
+          },
+    );
   }
 
   /* ---- MEDICAO PARADA ------------------------------------------------------------------------ */
-  if (snapshot.visibility.measurements && domainReachesOperation(domain)) {
-    const pending = attention('pending-measurements');
-    if (pending && pending.count > 0) {
-      kpis.push({
-        id: 'pending-measurements',
-        label: 'Medições paradas',
-        value: String(pending.count),
-        unit: plural(pending.count, 'medição', 'medições'),
-        context: 'Aguardando análise ou aprovação',
-        href: pending.href ?? '/app/billing',
-        ariaLabel: `Medições aguardando aprovação: ${pending.count}. Abrir fila de faturamento.`,
-        tone: 'warning',
-      });
-    }
+  {
+    const pending = operationInScope ? attention('pending-measurements') : undefined;
+    const measured = snapshot.visibility.measurements && pending !== undefined && pending.count > 0;
+    kpis.push(
+      measured
+        ? {
+            id: 'pending-measurements',
+            label: 'Medições paradas',
+            value: String(pending.count),
+            unit: plural(pending.count, 'medição', 'medições'),
+            context: 'Aguardando análise ou aprovação',
+            href: pending.href ?? '/app/billing',
+            ariaLabel: `Medições aguardando aprovação: ${pending.count}. Abrir fila de faturamento.`,
+            tone: 'warning',
+            unmeasured: false,
+          }
+        : {
+            id: 'pending-measurements',
+            label: 'Medições paradas',
+            value: '—',
+            unit: null,
+            context: operationInScope ? 'Não publicado neste recorte' : outOfScope,
+            href: '/app/billing',
+            ariaLabel: 'Medições paradas: não publicado neste recorte.',
+            tone: 'neutral',
+            unmeasured: true,
+          },
+    );
   }
 
   /* ---- VOLUME EM ANDAMENTO ------------------------------------------------------------------- */
-  if (snapshot.visibility.serviceOrders && domainReachesOperation(domain)) {
+  {
     const active = snapshot.charts.serviceOrdersByStatus.items.reduce(
       (total, item) => total + item.count,
       0,
     );
-    if (active > 0) {
-      kpis.push({
-        id: 'active-service-orders',
-        label: 'Ordens em andamento',
-        value: String(active),
-        unit: plural(active, 'ordem', 'ordens'),
-        context: `Distribuição atual por situação · ${operationScope}`,
-        href: '/app/service-orders?status=active',
-        ariaLabel: `Ordens de serviço em andamento: ${active} ${plural(active, 'ordem', 'ordens')}. Abrir ordens ativas.`,
-        tone: 'info',
-      });
-    }
+    const measured = snapshot.visibility.serviceOrders && operationInScope && active > 0;
+    kpis.push(
+      measured
+        ? {
+            id: 'active-service-orders',
+            label: 'Ordens em andamento',
+            value: String(active),
+            unit: plural(active, 'ordem', 'ordens'),
+            context: `Distribuição atual por situação · ${operationScope}`,
+            href: '/app/service-orders?status=active',
+            ariaLabel: `Ordens de serviço em andamento: ${active} ${plural(active, 'ordem', 'ordens')}. Abrir ordens ativas.`,
+            tone: 'info',
+            unmeasured: false,
+          }
+        : {
+            id: 'active-service-orders',
+            label: 'Ordens em andamento',
+            value: '—',
+            unit: null,
+            context: operationInScope ? 'Não publicado neste recorte' : outOfScope,
+            href: '/app/service-orders?status=active',
+            ariaLabel: 'Ordens de serviço em andamento: não publicado neste recorte.',
+            tone: 'neutral',
+            unmeasured: true,
+          },
+    );
   }
 
   return kpis;

@@ -152,35 +152,71 @@ describe('domain recorte reaches only the data it can reach', () => {
     }
   });
 
-  it('drops operation indicators out of a recorte that cannot read operation', () => {
+  /*
+   * ESTRUTURA ESTAVEL — a faixa publica as MESMAS celulas em todo recorte.
+   *
+   * A regra anterior era "indicador que o recorte nao alcanca nao entra na faixa", e por isso a
+   * faixa encolhia de cinco celulas para tres (ou zero) conforme o chip, fazendo o cockpit parecer
+   * quebrado e escondendo do operador QUAIS indicadores existem. A regra agora e outra, e continua
+   * honesta:
+   *
+   *   metrica fora do dominio do recorte -> celula presente, valor `—`, `unmeasured: true`;
+   *   metrica no dominio mas nao publicada -> celula presente, valor `—`, `unmeasured: true`.
+   *
+   * Nenhum numero de OPERACAO aparece sob um recorte COMERCIAL: o que muda e o ESTADO da celula,
+   * nunca o dado. AUSENCIA != ZERO, e ausencia tambem nao desmonta a faixa.
+   */
+  it('keeps the KPI band structurally identical across recortes, with honest states', () => {
     const snapshot = EXECUTIVE_DASHBOARD_SNAPSHOT;
     const all = buildWorkbenchKpis(snapshot, null);
     const operations = buildWorkbenchKpis(snapshot, 'OPERACOES');
     const fiscal = buildWorkbenchKpis(snapshot, 'FISCAL');
 
-    expect(all.some((kpi) => kpi.id === 'overdue-receivables')).toBe(true);
-    expect(all.some((kpi) => kpi.id === 'overdue-service-orders')).toBe(true);
+    const ids = (list: typeof all) => list.map((kpi) => kpi.id);
+    expect(ids(operations)).toEqual(ids(all));
+    expect(ids(fiscal)).toEqual(ids(all));
 
-    // OPERACOES perde a carteira; FISCAL perde as duas dimensoes.
-    expect(operations.some((kpi) => kpi.id === 'overdue-receivables')).toBe(false);
-    expect(operations.some((kpi) => kpi.id === 'overdue-service-orders')).toBe(true);
-    expect(fiscal).toHaveLength(0);
+    // OPERACOES: a carteira sai do ESCOPO — celula presente, sem valor, sem numero emprestado.
+    const receivables = operations.find((kpi) => kpi.id === 'overdue-receivables');
+    expect(receivables?.value).toBe('—');
+    expect(receivables?.unmeasured).toBe(true);
+    expect(receivables?.context).toMatch(/fora do recorte/i);
+
+    // FISCAL nao alcanca nenhuma das dimensoes: TODAS as celulas ficam nao medidas.
+    expect(fiscal.every((kpi) => kpi.unmeasured)).toBe(true);
+    expect(fiscal.every((kpi) => kpi.value === '—')).toBe(true);
+    // E nenhuma delas afirma zero.
+    expect(fiscal.some((kpi) => kpi.value === '0')).toBe(false);
   });
 
   it('gives every workspace indicator a drill destination — no number without a list', () => {
     const kpis = buildWorkbenchKpis(EXECUTIVE_DASHBOARD_SNAPSHOT, null);
     expect(kpis.length).toBeGreaterThan(0);
     for (const kpi of kpis) {
+      // Toda celula tem destino: numero sem lista e decoracao, e celula sem valor tambem aponta
+      // para a lista, porque e a LISTA que existe — o que falta e a contagem sob este recorte.
       expect(kpi.href.length).toBeGreaterThan(0);
-      expect(kpi.ariaLabel).toContain('Abrir');
+      expect(kpi.ariaLabel.length).toBeGreaterThan(0);
+    }
+    // As celulas COM valor afirmam numericamente; as sem valor dizem "não publicado".
+    for (const kpi of kpis.filter((candidate) => !candidate.unmeasured)) {
+      expect(kpi.value).not.toBe('—');
+    }
+    for (const kpi of kpis.filter((candidate) => candidate.unmeasured)) {
+      expect(kpi.value).toBe('—');
+      expect(kpi.context).toMatch(/não publicado|fora do recorte/i);
     }
   });
 
-  it('never emits an indicator whose count was not published', () => {
+  it('never turns an unpublished count into zero', () => {
     const snapshot = withoutAttention('approaching-due-service-orders');
     const kpis = buildWorkbenchKpis(snapshot, null);
-    // O indicador ausente simplesmente NAO existe — nao vira card com zero.
-    expect(kpis.some((kpi) => kpi.id === 'approaching-due-service-orders')).toBe(false);
+    const approaching = kpis.find((kpi) => kpi.id === 'approaching-due-service-orders');
+
+    // O indicador CONTINUA na faixa — mas sem afirmar numero e sem afirmar zero.
+    expect(approaching).toBeDefined();
+    expect(approaching?.value).toBe('—');
+    expect(approaching?.unmeasured).toBe(true);
   });
 });
 
@@ -194,18 +230,63 @@ describe('business chain', () => {
     expect(billing?.situationLabel).toMatch(/sem contagem publicada/i);
   });
 
-  it('does not affirm the operation stage inside a recorte that does not reach it', () => {
+  it('keeps the operation stage in the chain outside its own recorte, without a count', () => {
     const snapshot = EXECUTIVE_DASHBOARD_SNAPSHOT;
 
-    expect(buildBusinessFlow(snapshot, 'COMERCIAL').map((stage) => stage.id)).not.toContain('operation');
-    expect(buildBusinessFlow(snapshot, 'OPERACOES').map((stage) => stage.id)).toContain('operation');
-
-    // A cadeia continua com as etapas que o recorte ALCANCA.
-    expect(buildBusinessFlow(snapshot, 'FINANCEIRO').map((stage) => stage.id)).toEqual([
+    /*
+     * A TRILHA E O PROCESSO INTEIRO — nao apenas as etapas que o recorte alcanca.
+     *
+     * Antes, a etapa sumia quando o recorte nao a alimentava. Isso apagava do operador a FORMA do
+     * processo que ele opera: a trilha do CISNE e Solicitacao -> Proposta -> Contrato -> Ordem de
+     * servico -> Medicao -> Faturamento -> Recebimento, e essa forma nao depende de qual chip esta
+     * ativo.
+     *
+     * O que o recorte governa e a CONTAGEM, nunca a existencia da etapa: fora do dominio que a
+     * alimenta, a etapa permanece com `count: null` e `unmeasured: true` — nenhum numero de OPERACAO
+     * aparece sob um recorte COMERCIAL.
+     */
+    const commercial = buildBusinessFlow(snapshot, 'COMERCIAL');
+    expect(commercial.map((stage) => stage.id)).toEqual([
+      'request',
+      'proposal',
+      'contract',
       'operation',
+      'measurement',
       'billing',
       'receivement',
     ]);
+
+    const operationOutOfScope = commercial.find((stage) => stage.id === 'operation');
+    expect(operationOutOfScope?.count).toBeNull();
+    expect(operationOutOfScope?.unmeasured).toBe(true);
+    expect(operationOutOfScope?.situationLabel).toMatch(/fora do recorte/i);
+
+    // Dentro do recorte que a alimenta, a etapa afirma a contagem publicada.
+    const operations = buildBusinessFlow(snapshot, 'OPERACOES');
+    const operationInScope = operations.find((stage) => stage.id === 'operation');
+    expect(operationInScope?.count).not.toBeNull();
+    expect(operationInScope?.unmeasured).toBe(false);
+  });
+
+  it('publishes the full process trail even when no stage has a published count', () => {
+    const stages = buildBusinessFlow(EXECUTIVE_DASHBOARD_SNAPSHOT, null);
+
+    // As sete etapas reais do processo, sempre, na ordem do negocio.
+    expect(stages.map((stage) => stage.id)).toEqual([
+      'request',
+      'proposal',
+      'contract',
+      'operation',
+      'measurement',
+      'billing',
+      'receivement',
+    ]);
+
+    // Etapa sem contador continua na trilha, marcada como nao medida — e nunca como zero.
+    for (const stage of stages.filter((candidate) => candidate.count === null)) {
+      expect(stage.unmeasured).toBe(true);
+      expect(stage.situationLabel).toMatch(/sem contagem publicada|fora do recorte/i);
+    }
   });
 
   it('declares receivement without a count when the server did not publish the exception', () => {

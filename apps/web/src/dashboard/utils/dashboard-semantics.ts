@@ -105,6 +105,18 @@ export type BusinessFlowStage = {
   href: string | null;
   /** Fato que ancora a etapa — nunca uma promessa de funcionalidade. */
   hint: string;
+  /**
+   * ESTAGIO DO PROCESSO SEM CONTADOR PUBLICADO.
+   *
+   * A etapa existe no processo do CISNE (Solicitacao -> Proposta -> Contrato -> OS -> Medicao ->
+   * Faturamento -> Recebimento) ainda que o snapshot nao publique um numero para ela. Nesse caso o
+   * estagio continua na trilha com `count: null` e este flag ligado: a tela mostra `—` e "sem
+   * contagem publicada".
+   *
+   * FLUXO DESCREVE PROCESSO. CONTADOR DESCREVE DADO. Remover a etapa porque falta o numero
+   * confundiria os dois — e apagaria do operador a forma do processo que ele opera.
+   */
+  unmeasured: boolean;
 };
 
 /**
@@ -185,95 +197,147 @@ export function buildBusinessFlow(
   const stages: BusinessFlowStage[] = [];
 
   /*
-   * OPERACAO E A ETAPA NATIVA DE QUEM EXECUTA. `serviceOrdersByStatus` e um dado SEM recorte de
-   * dominio: quando o recorte ativo e COMERCIAL ou SUPRIMENTOS, exibir "6 ordens ativas" na cadeia
-   * apresentaria um numero do dominio OPERACOES dentro de um recorte que nao o pediu. A etapa sai
-   * do FOCO — nao vira zero, nao vira estimativa, simplesmente nao e afirmada fora do seu dominio.
+   * A TRILHA E O PROCESSO INTEIRO, NAO SO AS ETAPAS COM CONTADOR.
    *
-   * `Tudo` (null), OPERACOES, FINANCEIRO e FISCAL/CONTABILIDADE continuam vendo a operacao: e ela
-   * que produz a medicao e o faturamento que esses recortes consomem.
+   * O fluxo do CISNE e: SOLICITACAO -> PROPOSTA -> CONTRATO -> ORDEM DE SERVICO -> MEDICAO ->
+   * FATURAMENTO -> RECEBIMENTO. As tres primeiras existem como modulo real no produto, mas o
+   * snapshot executivo nao publica contagem por elas; as demais publicam (ou publicam o FATO da
+   * etapa sem numero, como Faturamento).
+   *
+   * Antes, uma etapa so entrava na trilha quando a dimensao inteira era publicada — e por isso a
+   * tela abria com "Operacao -> Medicao -> Faturamento -> Recebimento", escondendo do operador
+   * metade do processo que ele opera. Agora a trilha e SEMPRE completa: etapa sem contador publicado
+   * permanece, com `count: null` e `unmeasured: true`, e a tela mostra `—` + "sem contagem
+   * publicada". Ausencia de numero nao apaga a forma do processo.
+   *
+   * O RECORTE DE DOMINIO continua governando a CONTAGEM, nao a existencia da etapa: fora do dominio
+   * que a alimenta, a etapa permanece visivel com a contagem suprimida (`unmeasured`), em vez de
+   * exibir numero de OPERACOES sob um chip COMERCIAL.
    */
-  const operationInScope = domain === null || domain === 'OPERACOES' || domain === 'FINANCEIRO' ||
+  const operationInScope =
+    domain === null || domain === 'OPERACOES' || domain === 'FINANCEIRO' ||
     domain === 'FISCAL' || domain === 'CONTABILIDADE';
+  const financeInScope = visibility.billing && (domain === null || domain === 'FINANCEIRO');
 
-  if (visibility.serviceOrders && operationInScope) {
-    stages.push({
-      id: 'operation',
-      label: 'Operação',
-      count: activeOrders,
-      amount: null,
-      situation: overdueOrders !== null && overdueOrders > 0 ? 'critical' : 'normal',
-      situationLabel:
-        overdueOrders === null
-          ? 'Atraso não publicado'
-          : overdueOrders > 0
-            ? `${overdueOrders} ${overdueOrders === 1 ? 'ordem vencida' : 'ordens vencidas'}`
-            : 'Nenhuma ordem vencida',
-      href: DASHBOARD_DRILL_DESTINATIONS['service-orders-active'],
-      hint: 'Ordens de serviço ativas no escopo autorizado',
-    });
-  }
+  /* ---- ETAPAS COMERCIAIS: o processo comeca aqui, mesmo sem contador publicado -------------- */
 
-  if (visibility.measurements && (domain === null || domain === 'OPERACOES')) {
-    const pending = attentionCountOrNull(snapshot, 'pending-measurements');
-    stages.push({
-      id: 'measurement',
-      label: 'Medição',
-      count: pending,
-      amount: null,
-      situation: pending !== null && pending > 0 ? 'attention' : 'normal',
-      situationLabel:
-        pending === null
-          ? 'Sem contagem publicada'
-          : pending > 0
-            ? 'Aguardando aprovação'
-            : 'Nenhuma parada',
-      href: pending !== null && pending > 0 ? DASHBOARD_DRILL_DESTINATIONS['measurements-pending'] : null,
-      hint: 'Medições aguardando análise ou aprovação',
-    });
-  }
+  stages.push({
+    id: 'request',
+    label: 'Solicitação',
+    count: null,
+    amount: null,
+    situation: 'normal',
+    situationLabel: 'Sem contagem publicada',
+    href: '/app/requests',
+    hint: 'Demanda registrada pelo cliente e triada pelo comercial',
+    unmeasured: true,
+  });
 
-  if (visibility.billing && (domain === null || domain === 'FINANCEIRO')) {
-    /*
-     * FATURAMENTO — o executor publica o FATO da etapa sem contagem. A etapa permanece visivel
-     * como estagio real da cadeia; nenhum numero e estimado no lugar dela.
-     */
-    stages.push({
-      id: 'billing',
-      label: 'Faturamento',
-      count: null,
-      amount: null,
-      situation: 'normal',
-      situationLabel: 'Sem contagem publicada',
-      href: DASHBOARD_DRILL_DESTINATIONS['awaiting-billing'],
-      hint: 'Cobrança preparada a partir da medição aprovada',
-    });
+  stages.push({
+    id: 'proposal',
+    label: 'Proposta',
+    count: null,
+    amount: null,
+    situation: 'normal',
+    situationLabel: 'Sem contagem publicada',
+    href: '/app/proposals',
+    hint: 'Oferta comercial derivada da solicitação',
+    unmeasured: true,
+  });
 
-    /*
-     * RECEBIMENTO — a contagem vem do item de atencao `overdue-receivables`. Quando o executor NAO
-     * publica esse item, a etapa nao afirma "0 titulos vencidos": ela declara a ausencia, do mesmo
-     * modo que Faturamento. O que nao foi publicado nao vira zero.
-     */
-    const overdueReceivables = attentionCountOrNull(snapshot, 'overdue-receivables');
-    const exposure = extractOverdueExposure(
-      snapshot.attention.find((item) => item.id === 'overdue-receivables'),
-    );
-    stages.push({
-      id: 'receivement',
-      label: 'Recebimento',
-      count: overdueReceivables,
-      amount: exposure,
-      situation: overdueReceivables !== null && overdueReceivables > 0 ? 'critical' : 'normal',
-      situationLabel:
-        overdueReceivables === null
-          ? 'Sem contagem publicada'
-          : overdueReceivables > 0
-            ? `${overdueReceivables} ${overdueReceivables === 1 ? 'título vencido' : 'títulos vencidos'}`
-            : 'Nenhum título vencido',
-      href: DASHBOARD_DRILL_DESTINATIONS['receivables-overdue'],
-      hint: 'Títulos emitidos e não liquidados',
-    });
-  }
+  stages.push({
+    id: 'contract',
+    label: 'Contrato',
+    count: null,
+    amount: null,
+    situation: 'normal',
+    situationLabel: 'Sem contagem publicada',
+    href: '/app/contracts',
+    hint: 'Vínculo formal que autoriza a execução',
+    unmeasured: true,
+  });
+
+  /* ---- OPERACAO ------------------------------------------------------------------------------ */
+
+  stages.push({
+    id: 'operation',
+    label: 'Ordem de serviço',
+    count: visibility.serviceOrders && operationInScope ? activeOrders : null,
+    amount: null,
+    situation:
+      operationInScope && overdueOrders !== null && overdueOrders > 0 ? 'critical' : 'normal',
+    situationLabel: !operationInScope
+      ? 'Fora do recorte ativo'
+      : overdueOrders === null
+        ? 'Atraso não publicado'
+        : overdueOrders > 0
+          ? `${overdueOrders} ${overdueOrders === 1 ? 'ordem vencida' : 'ordens vencidas'}`
+          : 'Nenhuma ordem vencida',
+    href: DASHBOARD_DRILL_DESTINATIONS['service-orders-active'],
+    hint: 'Ordens ativas no escopo autorizado',
+    unmeasured: !visibility.serviceOrders || !operationInScope || activeOrders === 0,
+  });
+
+  /* ---- MEDICAO ------------------------------------------------------------------------------- */
+
+  const pending = visibility.measurements && operationInScope
+    ? attentionCountOrNull(snapshot, 'pending-measurements')
+    : null;
+  stages.push({
+    id: 'measurement',
+    label: 'Medição',
+    count: pending,
+    amount: null,
+    situation: pending !== null && pending > 0 ? 'attention' : 'normal',
+    situationLabel: pending === null
+      ? 'Sem contagem publicada'
+      : pending > 0
+        ? 'Aguardando aprovação'
+        : 'Nenhuma parada',
+    href: pending !== null && pending > 0
+      ? DASHBOARD_DRILL_DESTINATIONS['measurements-pending']
+      : DASHBOARD_DRILL_DESTINATIONS['awaiting-billing'],
+    hint: 'Serviço executado medido e submetido à aprovação',
+    unmeasured: pending === null,
+  });
+
+  /* ---- FATURAMENTO E RECEBIMENTO ------------------------------------------------------------- */
+
+  stages.push({
+    id: 'billing',
+    label: 'Faturamento',
+    count: null,
+    amount: null,
+    situation: 'normal',
+    situationLabel: financeInScope ? 'Sem contagem publicada' : 'Fora do recorte ativo',
+    href: DASHBOARD_DRILL_DESTINATIONS['awaiting-billing'],
+    hint: 'Cobrança preparada a partir da medição aprovada',
+    unmeasured: true,
+  });
+
+  const overdueReceivables = financeInScope
+    ? attentionCountOrNull(snapshot, 'overdue-receivables')
+    : null;
+  const exposure = extractOverdueExposure(
+    snapshot.attention.find((item) => item.id === 'overdue-receivables'),
+  );
+  stages.push({
+    id: 'receivement',
+    label: 'Recebimento',
+    count: overdueReceivables,
+    amount: financeInScope ? exposure : null,
+    situation: overdueReceivables !== null && overdueReceivables > 0 ? 'critical' : 'normal',
+    situationLabel: !financeInScope
+      ? 'Fora do recorte ativo'
+      : overdueReceivables === null
+        ? 'Sem contagem publicada'
+        : overdueReceivables > 0
+          ? `${overdueReceivables} ${overdueReceivables === 1 ? 'título vencido' : 'títulos vencidos'}`
+          : 'Nenhum título vencido',
+    href: DASHBOARD_DRILL_DESTINATIONS['receivables-overdue'],
+    hint: 'Títulos emitidos e não liquidados',
+    unmeasured: overdueReceivables === null,
+  });
 
   return stages;
 }

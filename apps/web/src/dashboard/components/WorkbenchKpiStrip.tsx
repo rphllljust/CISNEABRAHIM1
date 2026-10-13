@@ -50,7 +50,11 @@ export function WorkbenchKpiStrip({ kpis }: { kpis: WorkbenchKpi[] }) {
           return (
             <li key={kpi.id} className="dashboard-kpi-strip__item">
               <Link
-                className={cn('dashboard-kpi-cell', `dashboard-kpi-cell--${kpi.tone}`)}
+                className={cn(
+                  'dashboard-kpi-cell',
+                  `dashboard-kpi-cell--${kpi.tone}`,
+                  kpi.unmeasured && 'dashboard-kpi-cell--unmeasured',
+                )}
                 to={kpi.href}
                 aria-label={kpi.ariaLabel}
               >
@@ -67,9 +71,14 @@ export function WorkbenchKpiStrip({ kpis }: { kpis: WorkbenchKpi[] }) {
                   RODAPE DE DESTINO — a celula DIZ que tem para onde ir, sem exigir o clique para
                   descobrir. Numero sem drilldown e decoracao, e o operador precisa saber disso antes
                   de tentar.
+
+                  CELULA SEM VALOR PUBLICADO NAO PROMETE NUMERO: ela declara o estado
+                  ("não publicado neste recorte") e mantem o destino, porque a LISTA existe — o que
+                  nao existe e a contagem sob este recorte.
                 */}
                 <span className="dashboard-kpi-cell__drill">
-                  Ver<span aria-hidden> →</span>
+                  {kpi.unmeasured ? 'Abrir lista' : 'Ver'}
+                  <span aria-hidden> →</span>
                 </span>
               </Link>
             </li>

@@ -22,6 +22,7 @@ function kpi(overrides: Partial<WorkbenchKpi> = {}): WorkbenchKpi {
     href: '/app/service-orders?filter=overdue',
     ariaLabel: 'Ordens de serviço vencidas: 3 ordens. Abrir ordens vencidas.',
     tone: 'critical',
+    unmeasured: false,
     ...overrides,
   };
 }

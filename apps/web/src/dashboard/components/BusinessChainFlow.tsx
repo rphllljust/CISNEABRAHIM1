@@ -60,9 +60,14 @@ export function BusinessChainFlow({
           const content = (
             <>
               {/*
-                CIRCULO DE ETAPA — o estado da etapa e o proprio icone circular. Ele carrega cor por
-                SIGNIFICADO (critico/atencao/neutro) e o numero publicado dentro, quando existe. Sem
-                contagem, o circulo fica neutro e o numero nao aparece: AUSENCIA != ZERO.
+                CIRCULO DE ETAPA — o estado da etapa e o proprio icone circular.
+
+                COM contagem: o numero real aparece dentro do circulo.
+                SEM contagem: `—` no lugar do numero e "sem contagem publicada" no corpo.
+
+                O ESTAGIO NAO SAI DA TRILHA quando falta o contador: o fluxo descreve PROCESSO, o
+                numero descreve DADO. A etapa continua clicavel e continua nomeada — o que muda e so
+                a afirmacao numerica, que fica honestamente vazia.
               */}
               <span className="dashboard-chain__node" aria-hidden>
                 {stage.count !== null ? (
@@ -74,7 +79,14 @@ export function BusinessChainFlow({
 
               <span className="dashboard-chain__body">
                 <span className="dashboard-chain__label">{stage.label}</span>
-                <span className="dashboard-chain__situation">{stage.situationLabel}</span>
+                <span
+                  className={cn(
+                    'dashboard-chain__situation',
+                    stage.unmeasured && 'dashboard-chain__situation--unmeasured',
+                  )}
+                >
+                  {stage.situationLabel}
+                </span>
               </span>
 
               {stage.amount ? (
