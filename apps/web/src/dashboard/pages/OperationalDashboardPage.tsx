@@ -17,7 +17,7 @@ import {
   domainReachesOperation,
   scopedAttention,
 } from '../utils/dashboard-semantics';
-import { buildOperationalSituation } from '../utils/dashboard-situation';
+import { buildOperationalSituation, situationBadgeLabel } from '../utils/dashboard-situation';
 import { semanticSectionAttrs } from '../semantic-dashboard';
 import { ModuleDeniedState, ModulePage } from '../../ui';
 import { ContextDrawer } from '../../operator';
@@ -42,6 +42,20 @@ const OPERATIONAL_ACTIONS = [
   { id: 'work-inbox', label: 'Central de trabalho', href: '/app/work-inbox' },
   { id: 'receivables', label: 'Contas a receber', href: '/app/finance/receivables' },
 ] as const;
+
+/**
+ * ATALHOS x COMANDOS — a distincao que a barra precisava declarar.
+ *
+ * Os cinco itens abaixo sao ROTAS de modulo: levam a uma lista, nao executam transicao de estado.
+ * Chama-los de "Ações do workspace" era vocabulario errado — em ERP, "acao" significa comando
+ * (aprovar, faturar, registrar medicao), e um link de navegacao apresentado como acao ensina o
+ * operador a esperar que clicar mude o estado de alguma coisa.
+ *
+ * Eles continuam na tela porque sao atalhos legitimos; o que muda e o ROTULO, que agora diz o que
+ * eles sao. Comando real entra aqui quando existir um comando autorizado que a tela possa executar
+ * — e nenhum foi inventado para preencher a barra.
+ */
+const WORKSPACE_SHORTCUTS_LABEL = 'Atalhos';
 
 function formatGeneratedAt(value: string): string {
   return new Intl.DateTimeFormat('pt-BR', {
@@ -356,9 +370,9 @@ export function OperationalDashboardPage() {
           */}
           <WorkbenchKpiStrip kpis={workbenchKpis} />
 
-          {/* 4 — COMANDOS CONTEXTUAIS: destinos reais do recorte, depois da magnitude. */}
-          <nav className="dashboard-actions" aria-label="Ações do workspace">
-            <span className="dashboard-actions__label">Ações do workspace</span>
+          {/* 4 — ATALHOS: rotas de modulo, rotuladas como tal (nao como comandos). */}
+          <nav className="dashboard-actions" aria-label="Atalhos do workspace">
+            <span className="dashboard-actions__label">{WORKSPACE_SHORTCUTS_LABEL}</span>
             {OPERATIONAL_ACTIONS.map((action) => (
               <Link key={action.id} className="dashboard-actions__link" to={action.href}>
                 {action.label}
@@ -403,15 +417,56 @@ export function OperationalDashboardPage() {
                   <AgingDistribution aging={snapshot.charts.financialAging} visible={showAging} />
                 </section>
               ) : (
-                <section className="dashboard-context-empty" aria-label="Contexto operacional">
-                  <h2 className="dashboard-section-head__title">Contexto operacional</h2>
-                  <p className="dashboard-context-empty__text">
+                /*
+                 * CONTEXTO OPERACIONAL — ESTRUTURA DE CONTEXTO, NAO TEXTO DE AJUDA.
+                 *
+                 * Antes, quando o recorte nao publicava indicador agregado, esta coluna virava um
+                 * paragrafo explicativo — e o operador lia "mensagem de sistema" onde deveria ler
+                 * "estado do meu recorte". O painel agora responde SEMPRE as mesmas perguntas
+                 * (escopo, dominio, periodo, fila, situacao), com fatos que a tela JA possui, e a
+                 * frase de ausencia fica como NOTA SECUNDARIA abaixo delas.
+                 *
+                 * Nenhum valor e inventado: o que nao foi publicado aparece como ausencia declarada.
+                 */
+                <section className="dashboard-context" aria-label="Contexto operacional">
+                  <h2 className="dashboard-context__title">Contexto</h2>
+                  <dl className="dashboard-context__facts">
+                    <div className="dashboard-context__fact">
+                      <dt>Escopo</dt>
+                      <dd>{unitLabel ?? 'Todas as unidades autorizadas'}</dd>
+                    </div>
+                    <div className="dashboard-context__fact">
+                      <dt>Domínio</dt>
+                      <dd>{domainLabel}</dd>
+                    </div>
+                    <div className="dashboard-context__fact">
+                      <dt>Período</dt>
+                      <dd className="tabular-nums">{periodLabel ?? 'não informado'}</dd>
+                    </div>
+                    <div className="dashboard-context__fact">
+                      <dt>Fila</dt>
+                      <dd>
+                        {inboxPhase === 'ready'
+                          ? `${inbox?.total ?? 0} ${(inbox?.total ?? 0) === 1 ? 'item' : 'itens'}`
+                          : 'não publicada nesta leitura'}
+                      </dd>
+                    </div>
+                    <div className="dashboard-context__fact">
+                      <dt>Situação</dt>
+                      <dd>{situation ? situationBadgeLabel(situation) : 'não avaliada'}</dd>
+                    </div>
+                  </dl>
+
+                  <p className="dashboard-context__note">
                     {domain
-                      ? `Nenhum indicador agregado é publicado para o recorte ${domainLabel}. A fila de trabalho é recortada no servidor e permanece completa à esquerda.`
+                      ? `Nenhum indicador agregado é publicado para o recorte ${domainLabel}. A fila continua recortada no servidor.`
                       : 'O snapshot executivo não publicou indicadores agregados para este escopo e período.'}
                   </p>
-                  <Link className="dashboard-context-empty__link" to={`/app/work-inbox${domain ? `?domain=${domain}` : ''}`}>
-                    Abrir a Central de trabalho
+                  <Link
+                    className="dashboard-context__link"
+                    to={`/app/work-inbox${domain ? `?domain=${domain}` : ''}`}
+                  >
+                    Central de trabalho<span aria-hidden> →</span>
                   </Link>
                 </section>
               )}

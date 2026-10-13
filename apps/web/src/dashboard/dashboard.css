@@ -27,6 +27,25 @@
   --dashboard-panel-shadow: 0 1px 0 rgb(15 23 42 / 4%), 0 12px 30px rgb(15 23 42 / 5%);
   --dashboard-muted: var(--color-slate-500);
   --dashboard-ink: var(--color-slate-900);
+
+  /*
+    CAMADAS DE SUPERFICIE — a tela tinha QUATRO BRANCOS e por isso lia plana.
+
+    Um ERP Tier-1 organiza profundidade sem sombra: ele empilha TONS. Aqui ficam as tres camadas,
+    reaproveitando os tokens que o design system ja publica (`--color-canvas`, `--color-canvas-work`,
+    `--color-surface-context`) em vez de inventar hex novo. A regra de uso:
+
+      canvas      o fundo onde a tela vive (o shell ja o aplica);
+      work        a superficie de TRABALHO — fila e rodape de processo; e a mais clara;
+      support     a superficie de APOIO — contexto lateral e faixas secundarias; um degrau abaixo,
+                  para que o painel de contexto se leia como apoio e nao como segundo trabalho.
+
+    O contraste entre as duas ultimas e DELIBERADAMENTE pequeno (2%) — em monitor de escritorio e
+    suficiente para separar as areas sem que a tela vire um mosaico.
+  */
+  --dashboard-surface-work: var(--color-canvas-work);
+  --dashboard-surface-support: var(--color-surface-context);
+  --dashboard-surface-selected: #f0f7f6;
 }
 
 /* ============================================================
@@ -368,14 +387,26 @@ a.dashboard-kpi-list__cell:focus-visible {
   ALTURA ALVO: ~120px totais (dois controles de 2rem + titulo + divisores), contra os ~200px do
   bloco escuro anterior. O que garante isso nao e padding pequeno: e nao ter caixa.
 */
+/*
+  WORKSPACE IDENTITY — FAIXA ESTRUTURAL DO CANVAS, NAO CARD.
+
+  Antes: `background: surface` + `border` + `border-radius`. O cabecalho era uma CAIXA dentro da
+  pagina, e isso e o que fazia a tela ler como painel administrativo — o envelope visual anunciava
+  "aqui comeca um bloco", quando o cabecalho e a CONTINUACAO do shell.
+
+  Agora ele nao tem envelope: fundo igual ao canvas, UMA linha de base separando as duas faixas do
+  conteudo. A hierarquia vem de tipografia, espacamento e do divisor — que e como um ERP desktop
+  separa identidade de trabalho sem desenhar retangulo em volta de tudo.
+*/
 .dashboard-workspace-head {
   display: flex;
   flex-direction: column;
   gap: 0;
   margin-bottom: var(--spacing-3);
-  background: var(--dashboard-surface);
-  border: 1px solid var(--dashboard-line);
-  border-radius: var(--radius-md);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--dashboard-line);
+  border-radius: 0;
 }
 
 .dashboard-workspace-head__row {
@@ -505,50 +536,70 @@ a.dashboard-kpi-list__cell:focus-visible {
   height: 0.875rem;
 }
 
+/*
+  WORKSPACE TABS — o recorte de dominio e NAVEGACAO DE AREA, nao formulario.
+
+  Antes: sete botoes com borda, fundo e raio — a gramatica de `form control`. Sete controles
+  contornados competem entre si e com o resto da pagina, e o operador le "filtros" onde deveria ler
+  "onde eu estou".
+
+  Agora e uma faixa de TABS: sem contorno, sem raio, altura 32px, e o ativo se declara por
+  sublinhado de accent mais texto forte. E a mesma gramatica que o produto ja usa para navegar entre
+  visoes (SavedViewsBar) — uma linguagem, nao duas.
+*/
 .dashboard-workspace-head__chips {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--spacing-1);
+  gap: var(--spacing-4);
+  align-items: center;
 }
 
-/* CHIP DE RECORTE — o filtro de contexto do workspace. Altura 26px (faixa 26-30px de chip). */
+/*
+  TAB DE RECORTE — sem contorno, com divisor inferior de 2px que SO o ativo carrega.
+
+  O sublinhado e o que faz a faixa ler como "abas de area de trabalho" em vez de sete botoes: o olho
+  encontra o estado atual por posicao, nao por contraste de fundo. `padding` horizontal zero (o
+  espacamento vem do `gap`) mantem a faixa alinhada com o titulo acima.
+*/
 .dashboard-workspace-head__chip {
   display: inline-flex;
   align-items: center;
-  height: 1.625rem;
-  padding: 0 var(--spacing-3);
-  border: 1px solid var(--dashboard-line);
-  border-radius: var(--radius-sm);
-  background: var(--dashboard-surface);
-  font-size: 0.75rem;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  font-size: 0.8125rem;
   font-weight: 500;
-  color: var(--color-slate-600);
+  color: var(--color-slate-500);
   cursor: pointer;
   transition:
-    background-color 120ms ease,
+    color 120ms ease,
     border-color 120ms ease;
 }
 
 .dashboard-workspace-head__chip:hover {
-  background: var(--color-slate-50);
   color: var(--color-slate-800);
+  border-bottom-color: var(--color-slate-300);
 }
 
 /*
-  SELECIONADO: fundo INSTITUCIONAL solido + texto branco. O chip de recorte e o unico lugar da tela
-  onde o accent aparece em area cheia — porque "onde eu estou olhando" e a decisao mais importante
-  da faixa e precisa ser inequivoca a um palmo de distancia.
+  ABA ATIVA: texto forte + sublinhado institucional. Sem fundo cheio.
+
+  O chip ativo era `background: brand-700` com texto branco — area solida de accent no meio de uma
+  faixa de contexto. Accent em area cheia num cabecalho compete com o dado; aqui a tela usa accent
+  para MARCAR POSICAO, nao para pintar bloco.
 */
 .dashboard-workspace-head__chip--on {
-  border-color: var(--color-brand-700);
-  background: var(--color-brand-700);
-  color: #fff;
-  font-weight: 600;
+  border-bottom-color: var(--color-brand-700);
+  color: var(--dashboard-ink);
+  font-weight: 650;
 }
 
 .dashboard-workspace-head__chip--on:hover {
-  background: var(--color-brand-800);
-  color: #fff;
+  border-bottom-color: var(--color-brand-800);
+  color: var(--dashboard-ink);
 }
 
 .dashboard-workspace-head__chip:focus-visible {
@@ -1094,11 +1145,21 @@ a.dashboard-kpi:focus-visible {
   `unknown` NAO usa vermelho nem ambar: nao e risco medido, e ausencia de medicao. Pintar de alerta
   um dado que nao existe ensina o operador a ignorar alertas de verdade.
 */
+/*
+  REGUA DE SITUACAO — FAIXA OPERACIONAL DE BAIXA ALTURA, NAO ALERT BOX.
+
+  Antes: `border` completo + `radius` + fundo cheio. Isso e a gramatica de ALERT BOX — um retangulo
+  que se anuncia como caixa e rouba altura da dobra para dizer algo que, no caso normal, e uma linha.
+
+  Agora a regua nao tem envelope superior nem inferior: ela e uma faixa do canvas marcada por um
+  traco semantico a ESQUERDA (o unico lugar onde a cor de estado aparece em area cheia). O olho
+  encontra o estado pela borda colorida e le o texto — sem caixa competindo com a fila logo abaixo.
+*/
 .dashboard-situation {
-  border: 1px solid var(--dashboard-line);
-  border-left-width: 3px;
-  border-radius: var(--radius-md);
-  background: var(--dashboard-surface);
+  border: 0;
+  border-left: 3px solid var(--color-slate-300);
+  border-radius: 0;
+  background: transparent;
 }
 
 .dashboard-situation--critical {
@@ -1111,12 +1172,10 @@ a.dashboard-kpi:focus-visible {
 
 .dashboard-situation--normal {
   border-left-color: var(--color-emerald-600);
-  background: color-mix(in srgb, var(--color-emerald-50) 34%, #fff);
 }
 
 .dashboard-situation--unknown {
   border-left-color: var(--color-slate-400);
-  background: var(--color-slate-50);
 }
 
 .dashboard-situation__head {
@@ -1310,10 +1369,11 @@ a.dashboard-situation__row:focus-visible {
    ============================================================ */
 
 /*
-  PROPORCAO DELIBERADA: a fila ocupa o dominio visual (2fr) e o contexto complementar fica ao lado
-  (0.85fr, com piso de 320px para nao virar coluna ilegivel). Isso elimina o defeito de a fila
-  ocupar toda a largura enquanto informacao real do backend ficava abaixo, fora da primeira dobra —
-  e o defeito oposto, de uma coluna lateral de 18rem espremendo a grade.
+  PROPORCAO DELIBERADA: a fila ocupa o dominio visual e o contexto complementar fica ao lado.
+
+  `2.4fr` (era `2fr`): a fila e a PROCESSING SCREEN desta tela e precisa dominar a dobra. Com 1600px
+  uteis, a diferenca entre 2fr e 2.4fr e uma coluna inteira a mais visivel antes do truncamento —
+  e e a coluna de ACAO, justamente a que o operador precisa ver sem rolar de lado.
 */
 .dashboard-workspace__grid {
   display: grid;
@@ -1323,7 +1383,27 @@ a.dashboard-situation__row:focus-visible {
 
 @media (min-width: 1100px) {
   .dashboard-workspace__grid {
-    grid-template-columns: minmax(0, 2fr) minmax(320px, 0.85fr);
+    grid-template-columns: minmax(0, 2.4fr) minmax(320px, 0.85fr);
+  }
+}
+
+/*
+  PISO DA SUPERFICIE DE TRABALHO — a fila E o centro operacional mesmo quando vazia.
+
+  Uma tabela que termina em 120px de altura faz a tela parecer um formulario com um rodape; um ERP
+  de verdade mostra a AREA DE PROCESSAMENTO, e area tem altura. O piso NAO inventa linha: ele
+  reserva a superficie, e o estado vazio compacto fica dentro dela.
+
+  `min-height` em vez de `height` para que a superficie CRESCA com o trabalho — 12 itens reais
+  empurram a cadeia para baixo, como deve ser.
+*/
+.dashboard-work {
+  min-height: 22rem;
+}
+
+@media (min-width: 1100px) {
+  .dashboard-work {
+    min-height: min(30rem, calc(100dvh - 24rem));
   }
 }
 
@@ -2586,28 +2666,86 @@ a.dashboard-kpi-cell:hover .dashboard-kpi-cell__drill {
 }
 
 /* CONTEXTO OPERACIONAL SEM DADO — estado vazio compacto, nunca coluna em branco. */
-.dashboard-context-empty {
-  padding: 0.75rem;
-  border: 1px dashed var(--dashboard-line);
+/*
+  CONTEXTO OPERACIONAL — SUPERFICIE DE CONTEXTO, NAO CAIXA TRACEJADA.
+
+  Antes: `border: 1px dashed` + fundo cinza. Uma caixa TRACEJADA e a gramatica universal de
+  "placeholder / conteudo ausente" — o painel anunciava vazio mesmo quando tinha cinco fatos reais
+  para mostrar. Agora e uma superficie solida de apoio (o mesmo papel do painel analitico ao lado),
+  com os fatos em lista de definicao e a nota de ausencia como rodape secundario.
+*/
+.dashboard-context {
+  padding: 0.75rem 0.875rem 0.875rem;
+  border: 1px solid var(--dashboard-line);
   border-radius: var(--radius-md);
-  background: var(--color-slate-50);
+  background: var(--dashboard-surface-support);
 }
 
-.dashboard-context-empty__text {
-  margin: var(--spacing-1) 0 var(--spacing-2);
-  font-size: 0.75rem;
+.dashboard-context__title {
+  margin: 0 0 var(--spacing-2);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--color-slate-500);
+}
+
+/*
+  LISTA DE FATOS — rotulo e valor na MESMA linha, sem borda por item.
+
+  `grid-template-columns: auto minmax(0,1fr)` alinha todos os valores na mesma coluna: e isso que faz
+  cinco fatos lerem como FICHA em vez de cinco paragrafos. O separador e um divisor entre linhas,
+  nao um retangulo por fato.
+*/
+.dashboard-context__facts {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-context__fact {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  gap: var(--spacing-2);
+  align-items: baseline;
+  padding: 0.3125rem 0;
+  border-bottom: 1px solid var(--dashboard-line-soft);
+}
+
+.dashboard-context__fact:last-child {
+  border-bottom: 0;
+}
+
+.dashboard-context__fact dt {
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--color-slate-500);
+}
+
+.dashboard-context__fact dd {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--dashboard-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dashboard-context__note {
+  margin: var(--spacing-3) 0 var(--spacing-2);
+  font-size: 0.6875rem;
   line-height: 1.4;
-  color: var(--color-slate-600);
+  color: var(--color-slate-500);
 }
 
-.dashboard-context-empty__link {
+.dashboard-context__link {
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--color-brand-700);
   text-decoration: none;
 }
 
-.dashboard-context-empty__link:hover {
+.dashboard-context__link:hover {
   text-decoration: underline;
 }
 
@@ -2633,6 +2771,17 @@ a.dashboard-kpi-cell:hover .dashboard-kpi-cell__drill {
   color: var(--dashboard-muted);
 }
 
+/*
+  PROCESS NAVIGATOR — UMA TRILHA CONTINUA, NAO QUATRO CAIXAS LADO A LADO.
+
+  Antes: a faixa era `grid` com `border` externa, `radius` e um divisor vertical por etapa. Quatro
+  celulas contornadas dentro de um retangulo maior leem como TABELA — e foi exatamente assim que a
+  captura reprovou: "quatro celulas horizontais", nao um processo.
+
+  Agora nao ha contorno por etapa nem caixa externa. A trilha e desenhada pelo CONECTOR, que corre
+  de um estagio ao seguinte na mesma linha de base, e por um fundo de faixa unico. O que separa as
+  etapas e a seta, nao uma borda: e a seta que diz "isto continua".
+*/
 .dashboard-chain__stages {
   display: grid;
   grid-auto-flow: column;
@@ -2640,10 +2789,10 @@ a.dashboard-kpi-cell:hover .dashboard-kpi-cell__drill {
   margin: 0;
   padding: 0;
   list-style: none;
-  border: 1px solid var(--dashboard-line);
-  border-radius: var(--radius-md);
-  background: var(--dashboard-surface);
-  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
 }
 
 @media (max-width: 1099px) {
@@ -2658,16 +2807,22 @@ a.dashboard-kpi-cell:hover .dashboard-kpi-cell__drill {
   min-width: 0;
 }
 
+/*
+  ESTAGIO — bloco com fundo de faixa e regua de estado no topo, sem contorno.
+
+  O `box-shadow` superior continua sendo o indicador de estado (critical/attention), que e cor com
+  significado. O que saiu foi a borda: a etapa nao e uma caixa, e um TRECHO da trilha.
+*/
 .dashboard-chain__stage {
   display: flex;
   flex-direction: column;
   gap: 0.125rem;
   height: 100%;
   min-width: 0;
-  padding: 0.5rem 0.75rem 0.625rem;
+  padding: 0.625rem 1rem 0.75rem;
+  background: var(--dashboard-surface);
   text-decoration: none;
   color: inherit;
-  /* Regua superior: o estado da etapa marca a faixa inteira, sem pintar o bloco. */
   box-shadow: inset 0 2px 0 0 var(--color-slate-200);
 }
 
