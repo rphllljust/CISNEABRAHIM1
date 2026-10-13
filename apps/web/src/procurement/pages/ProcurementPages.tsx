@@ -121,6 +121,11 @@ function ProcurementLists() {
   });
   const [term, setTerm] = useState('');
   const [appliedTerm, setAppliedTerm] = useState('');
+  const [statusFilters, setStatusFilters] = useState({
+    requests: '',
+    orders: '',
+    invoices: '',
+  });
   const [preview, setPreview] = useState<ProcurementPreview | null>(null);
   const [offsets, setOffsets] = useState({ requests: 0, orders: 0, invoices: 0 });
 
@@ -128,7 +133,12 @@ function ProcurementLists() {
     const controller = new AbortController();
     setState((current) => ({ ...current, requests: { phase: 'loading' } }));
     void listPurchaseRequests(
-      { limit: LIST_PAGE_SIZE, offset: offsets.requests, q: appliedTerm || undefined },
+      {
+        limit: LIST_PAGE_SIZE,
+        offset: offsets.requests,
+        q: appliedTerm || undefined,
+        status: statusFilters.requests || undefined,
+      },
       controller.signal,
     ).then(
       (response) =>
@@ -139,13 +149,18 @@ function ProcurementLists() {
       () => setState((current) => ({ ...current, requests: { phase: 'denied' } })),
     );
     return () => controller.abort();
-  }, [appliedTerm, offsets.requests]);
+  }, [appliedTerm, offsets.requests, statusFilters.requests]);
 
   useEffect(() => {
     const controller = new AbortController();
     setState((current) => ({ ...current, orders: { phase: 'loading' } }));
     void listSupplierPurchaseOrders(
-      { limit: LIST_PAGE_SIZE, offset: offsets.orders, q: appliedTerm || undefined },
+      {
+        limit: LIST_PAGE_SIZE,
+        offset: offsets.orders,
+        q: appliedTerm || undefined,
+        status: statusFilters.orders || undefined,
+      },
       controller.signal,
     ).then(
       (response) =>
@@ -156,13 +171,18 @@ function ProcurementLists() {
       () => setState((current) => ({ ...current, orders: { phase: 'denied' } })),
     );
     return () => controller.abort();
-  }, [appliedTerm, offsets.orders]);
+  }, [appliedTerm, offsets.orders, statusFilters.orders]);
 
   useEffect(() => {
     const controller = new AbortController();
     setState((current) => ({ ...current, invoices: { phase: 'loading' } }));
     void listSupplierInvoices(
-      { limit: LIST_PAGE_SIZE, offset: offsets.invoices, q: appliedTerm || undefined },
+      {
+        limit: LIST_PAGE_SIZE,
+        offset: offsets.invoices,
+        q: appliedTerm || undefined,
+        status: statusFilters.invoices || undefined,
+      },
       controller.signal,
     ).then(
       (response) =>
@@ -173,7 +193,7 @@ function ProcurementLists() {
       () => setState((current) => ({ ...current, invoices: { phase: 'denied' } })),
     );
     return () => controller.abort();
-  }, [appliedTerm, offsets.invoices]);
+  }, [appliedTerm, offsets.invoices, statusFilters.invoices]);
 
   return (
     <>
@@ -196,6 +216,54 @@ function ProcurementLists() {
               placeholder="Justificativa, fornecedor ou número da nota"
             />
           </WorklistField>
+          <WorklistField label="Solicitações" htmlFor="procurement-request-status">
+            <select
+              id="procurement-request-status"
+              className={worklistSelectClass}
+              value={statusFilters.requests}
+              onChange={(event) => {
+                setOffsets((current) => ({ ...current, requests: 0 }));
+                setStatusFilters((current) => ({ ...current, requests: event.target.value }));
+              }}
+            >
+              <option value="">Todos os estados</option>
+              {Object.entries(PROCUREMENT_REQUEST_STATUS_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </WorklistField>
+          <WorklistField label="Pedidos" htmlFor="procurement-order-status">
+            <select
+              id="procurement-order-status"
+              className={worklistSelectClass}
+              value={statusFilters.orders}
+              onChange={(event) => {
+                setOffsets((current) => ({ ...current, orders: 0 }));
+                setStatusFilters((current) => ({ ...current, orders: event.target.value }));
+              }}
+            >
+              <option value="">Todos os estados</option>
+              {Object.entries(SUPPLIER_PO_STATUS_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </WorklistField>
+          <WorklistField label="Notas" htmlFor="procurement-invoice-status">
+            <select
+              id="procurement-invoice-status"
+              className={worklistSelectClass}
+              value={statusFilters.invoices}
+              onChange={(event) => {
+                setOffsets((current) => ({ ...current, invoices: 0 }));
+                setStatusFilters((current) => ({ ...current, invoices: event.target.value }));
+              }}
+            >
+              <option value="">Todos os estados</option>
+              {Object.entries(SUPPLIER_INVOICE_STATUS_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </WorklistField>
           <button
             type="submit"
             className="rounded border border-brand-600 bg-brand-600 px-2.5 py-1 text-[13px] font-semibold text-white transition-colors hover:bg-brand-700"
@@ -203,12 +271,18 @@ function ProcurementLists() {
             Buscar
           </button>
           <WorklistClearFilters
-            visible={appliedTerm !== ''}
-            label="Limpar busca"
+            visible={
+              appliedTerm !== '' ||
+              statusFilters.requests !== '' ||
+              statusFilters.orders !== '' ||
+              statusFilters.invoices !== ''
+            }
+            label="Limpar filtros"
             onClick={() => {
               setTerm('');
               setOffsets({ requests: 0, orders: 0, invoices: 0 });
               setAppliedTerm('');
+              setStatusFilters({ requests: '', orders: '', invoices: '' });
             }}
           />
         </form>
