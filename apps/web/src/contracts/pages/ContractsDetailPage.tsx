@@ -34,6 +34,8 @@ import {
   ObjectContextBlock,
   ObjectPanel,
   ObjectStateFlow,
+  SmartRelationBar,
+  buildAuthorizedRelations,
   type NextAction,
   type ObjectAction,
   type ObjectContextField,
@@ -323,6 +325,22 @@ export function ContractsDetailPage() {
 
   const clientName = formatClientSnapshot(contract.clientSnapshot);
 
+  /*
+   * RELAÇÃO CROSS-DOMAIN COMPROVADA PELO CONTRATO.
+   *
+   * clientId faz parte do payload canônico de Contract. Não inferimos proposta, solicitação,
+   * pedido ou OS: esses vínculos não existem neste contrato de leitura e, portanto, não aparecem.
+   */
+  const relations = buildAuthorizedRelations([
+    {
+      id: 'contract-client',
+      label: 'Cliente',
+      count: 1,
+      to: `/app/clients/${contract.clientId}`,
+      allowed: Boolean(contract.clientId),
+    },
+  ]);
+
   const metadata: ObjectMetadataField[] = [
     {
       label: 'Vigência',
@@ -387,6 +405,7 @@ export function ContractsDetailPage() {
           />
         }
         nextAction={<NextActionPanel action={nextAction} />}
+        relations={<SmartRelationBar relations={relations} />}
         aside={
           <ObjectPanel title="Histórico">
             <ActivityTimeline
