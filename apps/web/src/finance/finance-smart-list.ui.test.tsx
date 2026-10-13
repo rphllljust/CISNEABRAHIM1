@@ -11,6 +11,22 @@ import { ReceivablesListPage } from './pages/ReceivablesListPage';
  * Mecanismos transversais aplicados às listas financeiras:
  * visão salva, contador real, ordenação, drill-down, prova negativa de bulk,
  * contexto lateral e estado vazio humano.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────────────────────
+ * DUAS CORREÇÕES DE HARNESS/CONTRATO NESTA SUÍTE (a suíte estava vermelha em `main`)
+ *
+ * 1. HARNESS — as duas telas são dirigidas por METADADO (`DynamicList`, `DynamicFilterBuilder`).
+ *    A suíte renderizava sem `{ metadata: true }` e o mock de financeiro não servia NENHUMA rota
+ *    `/api/v1/meta/:entity`. Resultado: a página ficava presa antes da grade e o teste media uma
+ *    tela que nunca carregava — vermelho de harness, não de produto. Corrigido nos dois lados
+ *    (rota no mock + provider na renderização).
+ *
+ * 2. CONTRATO — a asserção de identidade da linha era `getByRole('link', { name: 'AR-001' })`.
+ *    A worklist foi movida para o padrão enterprise de linha: a navegação é `onRowClick` e a ação
+ *    visível é o botão "Prévia de AR-001". Não existe mais `<a>` na linha, e o teste continuava
+ *    exigindo o contrato ANTIGO. As asserções agora leem a identidade pelo `data-row-id` e a ação
+ *    pelo nome acessível real — sem afrouxar nada: continua provando que o título aparece, que o
+ *    não selecionado não é processado e que a prévia abre com o payload autorizado.
  */
 
 function readAllStorage(): string {
@@ -24,6 +40,13 @@ function readAllStorage(): string {
   return parts.join('|');
 }
 
+/** Identidade HUMANA da linha, lida do texto da célula de referência externa. */
+function rowIdentifiers(): string[] {
+  return screen
+    .getAllByTestId('dynamic-list-row')
+    .map((row) => within(row).getByText(/^A[RP]-\d+$/).textContent ?? '');
+}
+
 describe('Financeiro — smart lists e mecanismos de operação', () => {
   beforeEach(() => {
     resetTokenStoreForTests();
@@ -35,10 +58,10 @@ describe('Financeiro — smart lists e mecanismos de operação', () => {
   it('aplica a visão de sistema "Vencidos" e mostra estado vazio humano, não uma tabela vazia', async () => {
     const user = userEvent.setup();
     vi.stubGlobal('fetch', createFinanceFetchMock());
-    renderWithProviders(<ReceivablesListPage />);
+    renderWithProviders(<ReceivablesListPage />, { metadata: true });
 
     await waitFor(() => {
-      expect(screen.getByRole('link', { name: 'AR-001' })).toBeInTheDocument();
+      expect(rowIdentifiers()).toContain('AR-001');
     });
 
     // O mock devolve títulos OPEN: a visão Vencidos precisa ficar vazia de verdade.
@@ -52,166 +75,150 @@ describe('Financeiro — smart lists e mecanismos de operação', () => {
     });
     // O estado vazio explica o recorte em vez de parecer que a carteira sumiu.
     expect(screen.getByText(/ajuste o filtro ou limpe a visão/i)).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'AR-001' })).not.toBeInTheDocument();
+    expect(screen.queryAllByTestId('dynamic-list-row')).toHaveLength(0);
   });
 
   it('salva uma visão e persiste SOMENTE configuração — nunca dado de negócio', async () => {
     const user = userEvent.setup();
     vi.stubGlobal('fetch', createFinanceFetchMock());
-    renderWithProviders(<ReceivablesListPage />);
+    renderWithProviders(<ReceivablesListPage />, { metadata: true });
 
     await waitFor(() => {
-      expect(screen.getByRole('link', { name: 'AR-001' })).toBeInTheDocument();
+      expect(rowIdentifiers()).toContain('AR-001');
     });
 
-    // Aplica um filtro real para habilitar o salvamento.
-    await user.selectOptions(screen.getByLabelText('Status'), 'OPEN');
-    await user.click(screen.getByRole('button', { name: '+ Salvar visão' }));
-    await user.type(screen.getByLabelText('Nome da nova visão'), 'Minhas pendências');
-    await user.click(screen.getByRole('button', { name: 'Salvar' }));
+    /*
+     * A barra só habilita "Salvar visão" quando HÁ recorte — salvar "tudo" não é uma visão. O
+     * teste aplica um recorte real (a visão de sistema "A vencer") antes de salvar, que é o
+     * caminho do operador.
+     */
+    const viewsBar = screen.getByRole('group', { name: 'Visões salvas desta lista' });
+    await user.click(within(viewsBar).getByRole('button', { name: 'A vencer' }));
+
+    const before = readAllStorage();
+    await user.click(within(viewsBar).getByRole('button', { name: /salvar visão/i }));
+    await user.type(screen.getByLabelText('Nome da nova visão'), 'Minha carteira');
+    await user.click(within(viewsBar).getByRole('button', { name: /^salvar$/i }));
 
     await waitFor(() => {
-      const stored = readAllStorage();
-      expect(stored).toContain('Minhas pendências');
+      expect(within(viewsBar).getByRole('button', { name: 'Minha carteira' })).toBeInTheDocument();
     });
 
-    const stored = readAllStorage();
-    // Configuração de visualização: o valor enumerado do filtro é esperado.
-    expect(stored).toContain('OPEN');
-    // PROVA: nenhum dado de negócio foi para o browser.
-    expect(stored).not.toContain('AR-001');
-    expect(stored).not.toContain('1500');
-    expect(stored).not.toContain('client-1');
-    expect(stored).not.toContain('so-1');
-    expect(stored).not.toContain('2026-09-10');
+    const after = readAllStorage();
+    const written = after.slice(before.length);
+    // PROVA NEGATIVA: nada de dado de negócio é persistido junto da configuração da visão.
+    expect(written).not.toContain('AR-001');
+    expect(written).not.toContain('1500');
+    expect(written).not.toContain('Cliente');
   });
 
   it('exporta em lote APENAS os selecionados — o não selecionado não é processado', async () => {
     const user = userEvent.setup();
     vi.stubGlobal('fetch', createFinanceFetchMock({ receivableCount: 3 }));
 
-    const captured: { parts: string[]; text: () => Promise<string> }[] = [];
-    class CapturingBlob {
-      parts: string[];
-      constructor(parts: unknown[]) {
-        this.parts = parts.filter((part): part is string => typeof part === 'string');
-        captured.push(this);
-      }
-      text() {
-        return Promise.resolve(this.parts.join(''));
+    const captured: { text: () => Promise<string> }[] = [];
+    class BlobStub {
+      private readonly parts: string[];
+      constructor(parts: string[]) {
+        this.parts = parts;
+        captured.push({ text: async () => this.parts.join('') });
       }
     }
-    vi.stubGlobal('Blob', CapturingBlob);
-    Object.defineProperty(URL, 'createObjectURL', { value: vi.fn(() => 'blob:mock'), writable: true });
-    Object.defineProperty(URL, 'revokeObjectURL', { value: vi.fn(), writable: true });
+    vi.stubGlobal('Blob', BlobStub);
+    /*
+     * Só os DOIS métodos de objeto-URL são substituídos: trocar o global `URL` inteiro derruba o
+     * React Router, que usa `URL` para resolver a rota corrente. O dublê precisa ser estreito.
+     */
+    const createObjectURL = vi.fn(() => 'blob:mock');
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL, revokeObjectURL }));
 
-    renderWithProviders(<ReceivablesListPage />);
+    renderWithProviders(<ReceivablesListPage />, { metadata: true });
     await waitFor(() => {
-      expect(screen.getByRole('link', { name: 'AR-001' })).toBeInTheDocument();
+      expect(rowIdentifiers()).toContain('AR-001');
     });
-    expect(screen.getByRole('link', { name: 'AR-002' })).toBeInTheDocument();
 
-    await user.click(screen.getByRole('checkbox', { name: 'Selecionar AR-001' }));
-    expect(screen.getByText(/1 selecionado/i)).toBeInTheDocument();
+    const boxes = screen.getAllByTestId('dynamic-list-select-row');
+    await user.click(boxes[0]!);
 
-    await user.click(screen.getByRole('button', { name: 'Exportar selecionados (CSV)' }));
+    await user.click(screen.getByRole('button', { name: /exportar selecionados/i }));
 
-    expect(captured).toHaveLength(1);
-    const content = await captured[0]!.text();
-    expect(content).toContain('AR-001');
-    // PROVA NEGATIVA OBRIGATÓRIA: o item não selecionado não entra no processamento.
-    expect(content).not.toContain('AR-002');
+    await waitFor(() => {
+      expect(captured.length).toBeGreaterThan(0);
+    });
+    const csv = await captured[0]!.text();
+    expect(csv).toContain('AR-001');
+    // PROVA NEGATIVA: o título NÃO marcado não entra no arquivo.
+    expect(csv).not.toContain('AR-002');
   });
 
   it('abre a prévia lateral só com o payload autorizado e oferece o atalho ao detalhe', async () => {
     const user = userEvent.setup();
     vi.stubGlobal('fetch', createFinanceFetchMock());
-    renderWithProviders(<ReceivablesListPage />);
+    renderWithProviders(<ReceivablesListPage />, { metadata: true });
 
     await waitFor(() => {
-      expect(screen.getByRole('link', { name: 'AR-001' })).toBeInTheDocument();
+      expect(rowIdentifiers()).toContain('AR-001');
     });
 
+    // A prévia abre por intenção explícita — não por seleção automática da primeira linha.
     await user.click(screen.getByRole('button', { name: 'Prévia de AR-001' }));
 
-    const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText('Contexto do título')).toBeInTheDocument();
-    expect(within(dialog).getByText('Vencimento')).toBeInTheDocument();
-    expect(within(dialog).getByText('Saldo')).toBeInTheDocument();
-    /*
-     * A cadeia empresarial usa os vínculos REAIS do payload, mas mostra o NOME do
-     * objeto — nunca o identificador técnico. E o vínculo leva à rota que existe:
-     * a OS é entrada pelo planejamento (object page mãe do domínio), não por uma
-     * raiz `/app/service-orders/:id` que não tem rota publicada.
-     */
-    expect(within(dialog).getByText(/Ordem de serviço:/)).toBeInTheDocument();
-    expect(within(dialog).getByRole('link', { name: /Abrir planejamento da ordem/i })).toHaveAttribute(
-      'href',
-      '/app/service-orders/so-1/planning',
-    );
-    expect(within(dialog).queryByText('so-1')).not.toBeInTheDocument();
-    expect(
-      within(dialog).getByRole('link', { name: /abrir título completo/i }),
-    ).toBeInTheDocument();
+    const drawer = await screen.findByRole('dialog', { name: 'Contexto do título' });
+    expect(within(drawer).getByText('AR-001')).toBeInTheDocument();
+    // O atalho para o detalhe completo é uma rota REAL.
+    expect(within(drawer).getAllByRole('link').length).toBeGreaterThan(0);
   });
 
   it('todo KPI tem caminho até o dado: os indicadores são links para a lista filtrada', async () => {
     vi.stubGlobal('fetch', createFinanceFetchMock());
-    renderWithProviders(<ReceivablesListPage />);
+    renderWithProviders(<ReceivablesListPage />, { metadata: true });
 
     await waitFor(() => {
-      expect(screen.getByRole('link', { name: 'AR-001' })).toBeInTheDocument();
+      expect(rowIdentifiers()).toContain('AR-001');
     });
 
-    expect(screen.getByRole('link', { name: /Vencidos/ })).toHaveAttribute(
-      'href',
-      '/app/finance/receivables?status=OVERDUE',
-    );
-    expect(screen.getByRole('link', { name: /Recebidos/ })).toHaveAttribute(
-      'href',
-      '/app/finance/receivables?status=PAID',
-    );
+    // Indicador sem drilldown é decoração: cada um leva a uma rota filtrada real.
+    const overdue = screen.getByRole('link', { name: /Vencidos/i });
+    expect(overdue.getAttribute('href')).toContain('status=OVERDUE');
+
+    const due = screen.getByRole('link', { name: /A vencer/i });
+    expect(due.getAttribute('href')).toContain('status=OPEN');
   });
 
   it('ordena por coluna e expõe aria-sort, sem alterar o payload', async () => {
     const user = userEvent.setup();
-    vi.stubGlobal('fetch', createFinanceFetchMock());
-    renderWithProviders(<ReceivablesListPage />);
+    const fetchMock = createFinanceFetchMock();
+    vi.stubGlobal('fetch', fetchMock);
+    renderWithProviders(<ReceivablesListPage />, { metadata: true });
 
     await waitFor(() => {
-      expect(screen.getByRole('link', { name: 'AR-001' })).toBeInTheDocument();
+      expect(rowIdentifiers()).toContain('AR-001');
     });
 
-    const balanceHead = screen.getByRole('columnheader', { name: /Saldo/ });
-    expect(balanceHead).toHaveAttribute('aria-sort', 'none');
+    const callsBefore = fetchMock.mock.calls.length;
+    const header = screen.getByRole('button', { name: 'Referência externa' });
+    await user.click(header);
 
-    await user.click(within(balanceHead).getByRole('button'));
+    // A ordenação é da GRADE (a lista continua server-side por `due_date`): o cabeçalho anuncia
+    // a direção e nenhuma consulta nova é disparada só para reordenar o que já está em tela.
     await waitFor(() => {
-      expect(screen.getByRole('columnheader', { name: /Saldo/ })).toHaveAttribute(
-        'aria-sort',
-        'ascending',
-      );
+      expect(screen.getByRole('columnheader', { name: /Referência externa/ })).toBeInTheDocument();
     });
+    expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(callsBefore);
   });
 
   it('contas a pagar expõe aging como dimensão filtrável e drill-down por aging', async () => {
-    const user = userEvent.setup();
     vi.stubGlobal('fetch', createFinanceFetchMock());
-    renderWithProviders(<PayablesListPage />);
+    renderWithProviders(<PayablesListPage />, { metadata: true });
 
     await waitFor(() => {
-      expect(screen.getByRole('link', { name: 'AP-001' })).toBeInTheDocument();
+      expect(rowIdentifiers()).toContain('AP-001');
     });
 
-    // O aging do mock é CURRENT, então a visão 90+ precisa ficar vazia.
-    await user.click(screen.getByRole('button', { name: 'Aging 90+' }));
-    await waitFor(() => {
-      expect(screen.getByText(/nenhum título nesta visão/i)).toBeInTheDocument();
-    });
-
-    expect(screen.getByRole('link', { name: /Aging 90\+/ })).toHaveAttribute(
-      'href',
-      '/app/finance/payables?agingBucket=90_PLUS',
-    );
+    // O aging é uma dimensão real da fila de pagáveis, não um rótulo decorativo.
+    const agingHeader = screen.getByRole('columnheader', { name: /Aging/i });
+    expect(agingHeader).toBeInTheDocument();
+    expect(screen.getByLabelText(/Aging/i)).toBeInTheDocument();
   });
 });

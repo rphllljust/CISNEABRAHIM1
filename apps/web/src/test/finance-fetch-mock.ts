@@ -47,6 +47,114 @@ function denied(code: string) {
   return jsonResponse({ error: { code, message: 'Forbidden.' } }, 403);
 }
 
+/* ------------------------------------------------------------------ metadata store */
+
+/**
+ * METADATA STORE — as worklists financeiras são RENDERIZADAS PELA ENGINE.
+ *
+ * `DynamicList` e `DynamicFilterBuilder` não desenham nada sem schema: sem `GET /api/v1/meta/:entity`
+ * a grade fica presa em "Carregando…". Este mock não servia NENHUMA rota de metadado, e por isso as
+ * suítes de financeiro mediam uma tela parada em vez do produto — o vermelho vinha do harness, não
+ * de defeito na aplicação.
+ *
+ * O payload espelha o contrato de `/api/v1/meta/:entity` (campos com `in_list`/`in_filter`, view
+ * `list` com `layout`, `allowedPermLevels`). É uma CÓPIA do FORMATO, não uma segunda fonte de
+ * verdade de negócio.
+ */
+function metaField(
+  name: string,
+  label: string,
+  type: string,
+  extra: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    name,
+    label,
+    type,
+    required: false,
+    readOnly: false,
+    inList: false,
+    inForm: true,
+    inFilter: false,
+    listOrder: 0,
+    fieldOrder: 0,
+    permLevel: 0,
+    options: null,
+    ...extra,
+  };
+}
+
+const RECEIVABLES_META = {
+  name: 'receivables',
+  label: 'Conta a receber',
+  description: null,
+  dataSchema: 'fin',
+  dataTable: 'receivables',
+  labelField: 'external_reference',
+  fields: [
+    metaField('external_reference', 'Referência externa', 'data', {
+      inList: true,
+      listOrder: 1,
+      // Os cinco campos do recorte composto são exatamente os que o servidor executa
+      // (`RECEIVABLE_FILTER_SPECS`). Marcar um campo que o servidor não traduz faria o operador
+      // compor um recorte que volta como lista inteira.
+      inFilter: true,
+    }),
+    metaField('client_id', 'Cliente', 'link', { inList: true, listOrder: 2 }),
+    metaField('principal', 'Valor principal', 'currency', { inList: true, listOrder: 3 }),
+    metaField('currency_code', 'Moeda', 'data', {
+      inList: true,
+      listOrder: 4,
+      inFilter: true,
+    }),
+    metaField('due_date', 'Vencimento', 'date', { inList: true, listOrder: 5, inFilter: true }),
+    metaField('lifecycle', 'Situação', 'select', {
+      inList: true,
+      listOrder: 6,
+      options: {
+        options: [
+          { value: 'ACTIVE', label: 'Ativo' },
+          { value: 'CANCELLED', label: 'Cancelado' },
+        ],
+      },
+    }),
+  ],
+  views: [
+    {
+      viewType: 'list',
+      label: 'Lista de contas a receber',
+      layout: {
+        columns: ['external_reference', 'client_id', 'principal', 'due_date', 'lifecycle'],
+      },
+      isDefault: true,
+    },
+  ],
+  workflow: null,
+  permissions: [{ action: 'read', permLevel: 0, requiredPermission: null, allowed: true }],
+  allowedPermLevels: [0],
+};
+
+const PAYABLES_META = {
+  ...RECEIVABLES_META,
+  name: 'payables',
+  label: 'Conta a pagar',
+  dataTable: 'payables',
+  labelField: 'external_reference',
+};
+
+/**
+ * Entidades de metadado servidas pelo mock.
+ *
+ * `budgets`, `expenses` e `treasury` já têm o próprio mock (`expenses-fetch-mock`); aqui entram as
+ * que a suíte de financeiro monta diretamente.
+ */
+const META_BY_ENTITY: Record<string, unknown> = {
+  receivables: RECEIVABLES_META,
+  payables: PAYABLES_META,
+  budgets: { ...RECEIVABLES_META, name: 'budgets', label: 'Orçamento', dataTable: 'budgets' },
+  expenses: { ...RECEIVABLES_META, name: 'expenses', label: 'Despesa', dataTable: 'expenses' },
+};
+
 export function createFinanceFetchMock(options: FinanceFetchMockOptions = {}) {
   const settleCalls = options.settleCalls ?? { count: 0 };
   const receivableCount = options.receivableCount ?? 2;
@@ -58,6 +166,16 @@ export function createFinanceFetchMock(options: FinanceFetchMockOptions = {}) {
 
     const { pathname, searchParams } = parseRequestPath(input);
     const method = init?.method ?? 'GET';
+
+    // METADATA STORE — sem isto a grade dirigida por metadado nunca sai de "Carregando…".
+    const metaMatch = /^\/api\/v1\/meta\/([^/]+)$/.exec(pathname);
+    if (metaMatch && method === 'GET') {
+      const entity = META_BY_ENTITY[metaMatch[1]!];
+      if (entity) {
+        return jsonResponse(entity);
+      }
+      return jsonResponse({ error: { code: 'META_ENTITY_NOT_FOUND' } }, 404);
+    }
 
     if (pathname === '/api/v1/auth/session' && method === 'GET') {
       return jsonResponse({

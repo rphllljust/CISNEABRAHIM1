@@ -26,6 +26,21 @@ function applyViewport(width: number): void {
   window.dispatchEvent(new Event('resize'));
 }
 
+/**
+ * IDENTIDADE DA LINHA, lida do texto da célula de referência externa.
+ *
+ * A worklist foi movida para o padrão enterprise de linha: a navegação é `onRowClick` e a ação
+ * visível é o botão "Prévia de AR-001" — não existe mais `<a>` na linha, e as asserções antigas
+ * (`getByRole('link', { name: 'AR-001' })`) exigiam um contrato que a tela não publica mais. Ler a
+ * identidade pelo `data-row-id` da linha de dado prova a MESMA coisa sem depender do elemento que
+ * a tela escolheu para navegar.
+ */
+function rowIdentifiers(): string[] {
+  return screen
+    .getAllByTestId('dynamic-list-row')
+    .map((row) => within(row).getByText(/^A[RP]-\d+$/).textContent ?? '');
+}
+
 describe('Finance backoffice UI', () => {
   beforeEach(() => {
     resetTokenStoreForTests();
@@ -35,10 +50,10 @@ describe('Finance backoffice UI', () => {
 
   it('shows loading then titles from the backend', async () => {
     vi.stubGlobal('fetch', createFinanceFetchMock());
-    renderWithProviders(<ReceivablesListPage />);
+    renderWithProviders(<ReceivablesListPage />, { metadata: true });
     expect(screen.getByText(/carregando contas a receber/i)).toBeInTheDocument();
     await waitFor(() => {
-      expect(screen.getByRole('link', { name: 'AR-001' })).toBeInTheDocument();
+      expect(rowIdentifiers()).toContain('AR-001');
     });
     expect(screen.getByRole('table', { name: /lista de contas a receber/i })).toBeInTheDocument();
     expect(screen.getAllByText(/1\.500/).length).toBeGreaterThan(0);
@@ -46,7 +61,7 @@ describe('Finance backoffice UI', () => {
 
   it('shows empty state when the server returns no titles', async () => {
     vi.stubGlobal('fetch', createFinanceFetchMock({ receivableCount: 0 }));
-    renderWithProviders(<ReceivablesListPage />);
+    renderWithProviders(<ReceivablesListPage />, { metadata: true });
     await waitFor(() => {
       expect(screen.getByText(/nenhum título a receber/i)).toBeInTheDocument();
     });
@@ -54,7 +69,7 @@ describe('Finance backoffice UI', () => {
 
   it('shows permission denied from the API', async () => {
     vi.stubGlobal('fetch', createFinanceFetchMock({ receivableListAllowed: false }));
-    renderWithProviders(<ReceivablesListPage />);
+    renderWithProviders(<ReceivablesListPage />, { metadata: true });
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/não tem permissão/i);
     });
@@ -62,7 +77,7 @@ describe('Finance backoffice UI', () => {
 
   it('shows network failure with retry', async () => {
     vi.stubGlobal('fetch', createFinanceFetchMock({ networkError: true }));
-    renderWithProviders(<ReceivablesListPage />);
+    renderWithProviders(<ReceivablesListPage />, { metadata: true });
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/conectar ao servidor/i);
     });
@@ -72,25 +87,30 @@ describe('Finance backoffice UI', () => {
   it('paginates large tables without inventing extra rows', async () => {
     const user = userEvent.setup();
     vi.stubGlobal('fetch', createFinanceFetchMock({ receivableCount: 60 }));
-    renderWithProviders(<ReceivablesListPage />);
+    renderWithProviders(<ReceivablesListPage />, { metadata: true });
     await waitFor(() => {
-      expect(screen.getByRole('link', { name: 'AR-001' })).toBeInTheDocument();
+      expect(rowIdentifiers()).toContain('AR-001');
     });
-    expect(screen.getAllByRole('row')).toHaveLength(51);
+    /*
+     * A página server-side traz 50 títulos: 50 linhas de dados + 1 linha de cabeçalho. A grade
+     * não inventa linha, e a contagem é feita por `dynamic-list-row` (linha de DADO), não por
+     * `role=row` — que incluiria o cabeçalho e o rodapé de agregação.
+     */
+    expect(screen.getAllByTestId('dynamic-list-row')).toHaveLength(50);
     await user.click(screen.getByRole('button', { name: /próxima/i }));
     await waitFor(() => {
-      expect(screen.getByRole('link', { name: 'AR-051' })).toBeInTheDocument();
+      expect(rowIdentifiers()).toContain('AR-051');
     });
-    expect(screen.queryByRole('link', { name: 'AR-001' })).not.toBeInTheDocument();
+    expect(rowIdentifiers()).not.toContain('AR-001');
   });
 
   it('uses authoritative portfolio metrics instead of counting the current page', async () => {
     vi.stubGlobal('fetch', createFinanceFetchMock({ receivableCount: 60 }));
-    renderWithProviders(<ReceivablesListPage />);
+    renderWithProviders(<ReceivablesListPage />, { metadata: true });
     await waitFor(() => {
       expect(screen.getByRole('link', { name: /Carteira em aberto/ })).toHaveTextContent('60');
     });
-    expect(screen.getAllByRole('row')).toHaveLength(51);
+    expect(screen.getAllByTestId('dynamic-list-row')).toHaveLength(50);
   });
 
   it('overview uses counts and server aging, not a client-side balance total', async () => {
@@ -113,8 +133,20 @@ describe('Finance backoffice UI', () => {
       <Routes>
         <Route path="/app/finance/receivables/:receivableId" element={<ReceivableDetailPage />} />
       </Routes>,
-      { router: { initialEntries: [`/app/finance/receivables/${MOCK_RECEIVABLE_ID}`] } },
+      {
+        router: { initialEntries: [`/app/finance/receivables/${MOCK_RECEIVABLE_ID}`] },
+        metadata: true,
+      },
     );
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Registrar recebimento' })).toBeInTheDocument();
+    });
+    /*
+     * O formulário é PROGRESSIVO: o campo "Valor" só existe depois que o operador abre a ação de
+     * recebimento. O teste antigo esperava o campo direto, sem abrir nada — media um estado que a
+     * tela não oferece. Abrir é o caminho real.
+     */
+    await user.click(screen.getByRole('button', { name: 'Registrar recebimento' }));
     await waitFor(() => {
       expect(screen.getByLabelText(/valor/i)).toBeInTheDocument();
     });
@@ -181,7 +213,7 @@ describe('Finance backoffice UI', () => {
 
   it('keeps primary finance surfaces usable across required viewports', async () => {
     vi.stubGlobal('fetch', createFinanceFetchMock());
-    const { container } = renderWithProviders(<ReceivablesListPage />);
+    const { container } = renderWithProviders(<ReceivablesListPage />, { metadata: true });
     await waitFor(() => {
       expect(screen.getByRole('table', { name: /lista de contas a receber/i })).toBeInTheDocument();
     });
