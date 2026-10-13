@@ -350,6 +350,36 @@ export const OPERATIONAL_VIEW_COMMANDS: OperatorCommand[] = [
    * O termo de busca nunca entra aqui: é texto livre do operador.
    */
   {
+    id: 'view.requests.submitted',
+    navItemId: 'requests',
+    kind: 'view',
+    group: COMMAND_GROUPS.view,
+    label: 'Solicitações pendentes',
+    to: '/app/requests?status=SUBMITTED',
+    keywords: ['solicitacao', 'pendente', 'enviada', 'fila', 'comercial'],
+    hint: 'Solicitações enviadas aguardando início da análise',
+  },
+  {
+    id: 'view.requests.underReview',
+    navItemId: 'requests',
+    kind: 'view',
+    group: COMMAND_GROUPS.view,
+    label: 'Solicitações em análise',
+    to: '/app/requests?status=UNDER_REVIEW',
+    keywords: ['solicitacao', 'analise', 'revisao', 'fila', 'comercial'],
+    hint: 'Solicitações com análise em andamento',
+  },
+  {
+    id: 'view.requests.approved',
+    navItemId: 'requests',
+    kind: 'view',
+    group: COMMAND_GROUPS.view,
+    label: 'Solicitações aprovadas para conversão',
+    to: '/app/requests?status=APPROVED',
+    keywords: ['solicitacao', 'aprovada', 'converter', 'ordem de servico', 'comercial'],
+    hint: 'Solicitações aprovadas que podem seguir para ordem de serviço',
+  },
+  {
     id: 'view.clients.active',
     navItemId: 'clients',
     kind: 'view',
@@ -457,6 +487,69 @@ export const CREATE_COMMANDS: OperatorCommand[] = [
 ];
 
 /** Destinos que respondem diretamente "o que precisa de mim". */
+export const WORKSPACE_COMMANDS: OperatorCommand[] = [
+  {
+    id: 'workspace.commercial',
+    navItemId: 'work-workspaces',
+    kind: 'navigate',
+    group: COMMAND_GROUPS.navigate,
+    label: 'Workspace Comercial',
+    to: '/app/workspaces/comercial',
+    keywords: ['workspace', 'comercial', 'clientes', 'solicitacoes', 'propostas', 'contratos'],
+    hint: 'Trabalho e exceções do domínio Comercial',
+  },
+  {
+    id: 'workspace.operations',
+    navItemId: 'work-workspaces',
+    kind: 'navigate',
+    group: COMMAND_GROUPS.navigate,
+    label: 'Workspace Operações',
+    to: '/app/workspaces/operacoes',
+    keywords: ['workspace', 'operacoes', 'ordens de servico', 'ativos', 'frota'],
+    hint: 'Trabalho e exceções do domínio Operações',
+  },
+  {
+    id: 'workspace.finance',
+    navItemId: 'work-workspaces',
+    kind: 'navigate',
+    group: COMMAND_GROUPS.navigate,
+    label: 'Workspace Financeiro',
+    to: '/app/workspaces/financeiro',
+    keywords: ['workspace', 'financeiro', 'receber', 'pagar', 'tesouraria'],
+    hint: 'Trabalho e exceções do domínio Financeiro',
+  },
+  {
+    id: 'workspace.accounting',
+    navItemId: 'work-workspaces',
+    kind: 'navigate',
+    group: COMMAND_GROUPS.navigate,
+    label: 'Workspace Contabilidade',
+    to: '/app/workspaces/contabilidade',
+    keywords: ['workspace', 'contabilidade', 'lancamentos', 'fechamento'],
+    hint: 'Trabalho e exceções do domínio Contabilidade',
+  },
+  {
+    id: 'workspace.fiscal',
+    navItemId: 'work-workspaces',
+    kind: 'navigate',
+    group: COMMAND_GROUPS.navigate,
+    label: 'Workspace Fiscal',
+    to: '/app/workspaces/fiscal',
+    keywords: ['workspace', 'fiscal', 'documentos fiscais', 'tributos'],
+    hint: 'Trabalho e exceções do domínio Fiscal',
+  },
+  {
+    id: 'workspace.procurement',
+    navItemId: 'work-workspaces',
+    kind: 'navigate',
+    group: COMMAND_GROUPS.navigate,
+    label: 'Workspace Suprimentos',
+    to: '/app/workspaces/suprimentos',
+    keywords: ['workspace', 'suprimentos', 'compras', 'estoque', 'fornecedores'],
+    hint: 'Trabalho e exceções do domínio Suprimentos',
+  },
+];
+
 export const PRIORITY_COMMANDS: OperatorCommand[] = [
   {
     id: 'priority.work-inbox',
@@ -558,6 +651,7 @@ export function rankCommands({
 }: RankCommandsOptions): OperatorCommand[] {
   const all = [
     ...PRIORITY_COMMANDS,
+    ...WORKSPACE_COMMANDS,
     ...OPERATIONAL_VIEW_COMMANDS,
     ...CREATE_COMMANDS,
     ...navigationCommands,
