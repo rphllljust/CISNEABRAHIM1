@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { EmptyState, Field, Input, Money, Select, worklistTableCardClass } from '../../ui';
+import { DateTime, EmptyState, Field, Input, Money, Select, worklistTableCardClass } from '../../ui';
 import {
   FilterCard,
   ModulePage,
@@ -14,6 +14,7 @@ import {
   WorklistField,
   WorklistFilterBar,
   WorklistHeader,
+  rowSecondaryActionClass,
   worklistCellClass,
   worklistSelectClass,
   worklistTableClass,
@@ -27,7 +28,7 @@ import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import { BackofficeCapabilityRoute } from '../../financial-ui/BackofficeCapabilityRoute';
 import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge';
 import { INVENTORY_ITEM_STATUS_LABELS, WAREHOUSE_STATUS_LABELS } from '../../financial-ui/labels';
-import { SavedViewsBar, useSmartList } from '../../operator';
+import { ContextDrawer, SavedViewsBar, useSmartList, type ContextPreviewBody } from '../../operator';
 import {
   createInventoryItem,
   createWarehouse,
@@ -162,6 +163,11 @@ export function InventoryPage() {
   const [reservations, setReservations] = useState<ListPhase<StockReservationSummary>>({
     phase: 'loading',
   });
+  const [preview, setPreview] = useState<
+    | { kind: 'movement'; item: StockMovementSummary }
+    | { kind: 'reservation'; item: StockReservationSummary }
+    | null
+  >(null);
 
   const loadAll = useCallback(
     async (signal?: AbortSignal) => {
@@ -396,18 +402,19 @@ export function InventoryPage() {
               <th scope="col" className={worklistHeadCellClass}>Tipo</th>
               <th scope="col" className={`${worklistHeadCellClass} text-right`}>Quantidade</th>
               <th scope="col" className={worklistHeadCellClass}>Descrição</th>
+              <th scope="col" className={worklistHeadCellClass}>Contexto</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {movements.phase === 'ready' && movements.items.length === 0 ? (
-              <ListMessageRow colSpan={6}>
+              <ListMessageRow colSpan={7}>
                 {movementType
                   ? 'Nenhum movimento para o tipo selecionado. Limpe o filtro para ver todos.'
                   : 'Nenhum movimento encontrado.'}
               </ListMessageRow>
             ) : null}
             {movements.phase === 'denied' ? (
-              <ListMessageRow colSpan={6}>Você não tem permissão para listar movimentos.</ListMessageRow>
+              <ListMessageRow colSpan={7}>Você não tem permissão para listar movimentos.</ListMessageRow>
             ) : null}
             {movements.phase === 'ready'
               ? movements.items.map((movement) => (
@@ -430,6 +437,15 @@ export function InventoryPage() {
                     </td>
                     <td className={`${worklistCellClass} text-right`}>{movement.signedQuantity}</td>
                     <td className={worklistCellClass}>{movement.description}</td>
+                    <td className={worklistCellClass}>
+                      <button
+                        type="button"
+                        className={rowSecondaryActionClass}
+                        onClick={() => setPreview({ kind: 'movement', item: movement })}
+                      >
+                        Prévia
+                      </button>
+                    </td>
                   </tr>
                 ))
               : null}
@@ -450,14 +466,15 @@ export function InventoryPage() {
               <th scope="col" className={worklistHeadCellClass}>Depósito</th>
               <th scope="col" className={`${worklistHeadCellClass} text-right`}>Quantidade</th>
               <th scope="col" className={worklistHeadCellClass}>Status</th>
+              <th scope="col" className={worklistHeadCellClass}>Contexto</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {reservations.phase === 'ready' && reservations.items.length === 0 ? (
-              <ListMessageRow colSpan={4}>Nenhuma reserva encontrada.</ListMessageRow>
+              <ListMessageRow colSpan={5}>Nenhuma reserva encontrada.</ListMessageRow>
             ) : null}
             {reservations.phase === 'denied' ? (
-              <ListMessageRow colSpan={4}>Você não tem permissão para listar reservas.</ListMessageRow>
+              <ListMessageRow colSpan={5}>Você não tem permissão para listar reservas.</ListMessageRow>
             ) : null}
             {reservations.phase === 'ready'
               ? reservations.items.map((reservation) => (
@@ -481,6 +498,15 @@ export function InventoryPage() {
                         labels={RESERVATION_STATUS_LABELS}
                       />
                     </td>
+                    <td className={worklistCellClass}>
+                      <button
+                        type="button"
+                        className={rowSecondaryActionClass}
+                        onClick={() => setPreview({ kind: 'reservation', item: reservation })}
+                      >
+                        Prévia
+                      </button>
+                    </td>
                   </tr>
                 ))
               : null}
@@ -500,8 +526,55 @@ export function InventoryPage() {
         Movimentar, reservar e estornar ficam no detalhe do item, onde depósito e item são
         escolhidos nas listas — não digitados.
       </p>
+
+      <ContextDrawer
+        open={preview !== null}
+        title="Contexto do estoque"
+        preview={preview ? buildInventoryPreview(preview) : null}
+        onClose={() => setPreview(null)}
+      />
     </ModulePage>
   );
+}
+
+function buildInventoryPreview(
+  preview:
+    | { kind: 'movement'; item: StockMovementSummary }
+    | { kind: 'reservation'; item: StockReservationSummary },
+): ContextPreviewBody {
+  if (preview.kind === 'movement') {
+    const item = preview.item;
+    return {
+      identifier: item.itemName ?? item.itemSku ?? 'Movimento de estoque',
+      subtitle: item.warehouseName ?? item.warehouseCode ?? 'Depósito não identificado',
+      status: <FinanceStatusBadge status={item.status} labels={MOVEMENT_STATUS_LABELS} />,
+      facts: [
+        { label: 'Tipo', value: humanLabel(item.movementType, MOVEMENT_TYPE_LABELS) },
+        { label: 'Quantidade', value: item.signedQuantity },
+        { label: 'Ocorrido em', value: <DateTime value={item.occurredOn} mode="date" /> },
+        { label: 'Descrição', value: item.description },
+        {
+          label: 'Custo total',
+          value: item.totalCost ? <Money value={item.totalCost} emphasis /> : '—',
+        },
+        { label: 'Origem', value: item.originKind ?? '—' },
+      ],
+      relations: [],
+    };
+  }
+
+  const item = preview.item;
+  return {
+    identifier: item.itemName ?? item.itemSku ?? 'Reserva de estoque',
+    subtitle: item.warehouseName ?? item.warehouseCode ?? 'Depósito não identificado',
+    status: <FinanceStatusBadge status={item.status} labels={RESERVATION_STATUS_LABELS} />,
+    facts: [
+      { label: 'Quantidade', value: item.quantity },
+      { label: 'SKU', value: item.itemSku ?? '—' },
+      { label: 'Depósito', value: item.warehouseCode ?? item.warehouseName ?? '—' },
+    ],
+    relations: [],
+  };
 }
 
 /** Cadastro de depósito e item: a unidade é a âncora de escopo informada uma vez, no cadastro. */
