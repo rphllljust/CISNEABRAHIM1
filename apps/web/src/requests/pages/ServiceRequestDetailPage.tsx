@@ -309,6 +309,9 @@ export function ServiceRequestDetailPage() {
   const serviceOrderLink = serviceRequest.convertedServiceOrderId
     ? `/app/service-orders/${serviceRequest.convertedServiceOrderId}/planning`
     : null;
+  const proposalLinks = linkedChain.filter((link) => link.kind === 'PROPOSAL');
+  const purchaseOrderLinks = linkedChain.filter((link) => link.kind === 'PURCHASE_ORDER');
+  const serviceOrderLinks = linkedChain.filter((link) => link.kind === 'SERVICE_ORDER');
   const relations = buildAuthorizedRelations([
     {
       id: 'client',
@@ -319,20 +322,38 @@ export function ServiceRequestDetailPage() {
       hint: 'Cliente vinculado à solicitação',
     },
     {
+      id: 'proposal',
+      label: 'Proposta',
+      count: proposalLinks.length,
+      to: proposalLinks.length === 1 ? `/app/proposals/${proposalLinks[0]!.id}` : `/app/requests/${serviceRequest.id}`,
+      allowed: proposalLinks.length > 0,
+      hint: 'Proposta autorizada vinculada à solicitação',
+    },
+    {
+      id: 'purchase-order',
+      label: 'Pedido',
+      count: purchaseOrderLinks.length,
+      to: purchaseOrderLinks.length === 1 ? `/app/purchase-orders/${purchaseOrderLinks[0]!.id}` : `/app/requests/${serviceRequest.id}`,
+      allowed: purchaseOrderLinks.length > 0,
+      hint: 'Pedido autorizado vinculado à solicitação',
+    },
+    {
+      id: 'service-order',
+      label: 'Ordem de serviço',
+      count: serviceOrderLinks.length,
+      to: serviceOrderLinks.length === 1
+        ? `/app/service-orders/${serviceOrderLinks[0]!.id}/planning`
+        : `/app/requests/${serviceRequest.id}`,
+      allowed: serviceOrderLinks.length > 0,
+      hint: 'Ordem de serviço autorizada vinculada à solicitação',
+    },
+    {
       id: 'documents',
       label: 'Documentos',
       count: detail.documentLinks.length,
       to: `/app/documents?scope=SERVICE_REQUEST&entityId=${serviceRequest.id}`,
       allowed: detail.documentLinks.length > 0,
       hint: 'Documentos vinculados à solicitação',
-    },
-    {
-      id: 'chain',
-      label: 'Cadeia',
-      count: linkedChain.length,
-      to: `/app/requests/${serviceRequest.id}`,
-      allowed: linkedChain.length > 0,
-      hint: 'Elos de negócio autorizados para esta solicitação',
     },
   ]);
 
