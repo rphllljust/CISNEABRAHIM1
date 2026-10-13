@@ -1,3 +1,10 @@
+import { isContractStatus } from '../domain/contract';
+import {
+  isContractListDirection,
+  isContractListSort,
+  parseContractAdvancedFilter,
+} from '../repositories/contract-list-sql';
+import type { ContractListQuery } from '../services/contracts-access.service';
 import type {
   CloseContractInput,
   CreateContractInput,
@@ -102,6 +109,29 @@ export function parseLinkContractDocumentInput(body: unknown): LinkContractDocum
   return parseLinkDocumentInput(body);
 }
 
-export function parseListContractsQuery(query: Record<string, unknown>) {
-  return parseCommercialEntityListQuery(query);
+export function parseListContractsQuery(query: Record<string, unknown>): ContractListQuery {
+  const base = parseCommercialEntityListQuery(query);
+  const status = typeof query['status'] === 'string' ? query['status'] : undefined;
+  if (status && !isContractStatus(status)) {
+    throw new Error('status invalid');
+  }
+  const sort = typeof query['sort'] === 'string' ? query['sort'] : undefined;
+  const direction = typeof query['direction'] === 'string' ? query['direction'] : undefined;
+  if (sort !== undefined && !isContractListSort(sort)) {
+    throw new Error('sort invalid');
+  }
+  if (direction !== undefined && !isContractListDirection(direction)) {
+    throw new Error('direction invalid');
+  }
+  return {
+    ...base,
+    status,
+    currencyCode: typeof query['currencyCode'] === 'string' ? query['currencyCode'] : undefined,
+    effectiveFrom: typeof query['effectiveFrom'] === 'string' ? query['effectiveFrom'] : undefined,
+    effectiveTo: typeof query['effectiveTo'] === 'string' ? query['effectiveTo'] : undefined,
+    search: typeof query['q'] === 'string' ? query['q'] : undefined,
+    advanced: parseContractAdvancedFilter(query['filters']),
+    sort: sort && isContractListSort(sort) ? sort : undefined,
+    direction: direction && isContractListDirection(direction) ? direction : undefined,
+  };
 }

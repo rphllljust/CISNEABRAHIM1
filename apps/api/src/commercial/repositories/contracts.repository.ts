@@ -142,16 +142,24 @@ export class ContractsRepository {
     return this.findByContractNumber(clientId, trimmed);
   }
 
+  /**
+   * Listagem paginada.
+   *
+   * `orderBy` vem do allow-list de `contract-list-sql` — nunca de texto do cliente. Quando ausente
+   * mantém a ordenação histórica (`created_at DESC`), de modo que nenhum chamador existente muda de
+   * comportamento.
+   */
   async listContracts(
     whereClause: string,
     params: unknown[],
     limit: number,
     offset: number,
+    orderBy?: string,
   ): Promise<ContractRow[]> {
     const result = await this.pool().query<ContractRow>(
       `${CONTRACT_SELECT}
        WHERE ${whereClause}
-       ORDER BY ${orderByCreatedAtDesc()}
+       ORDER BY ${orderBy ?? orderByCreatedAtDesc()}
        LIMIT $${params.length + 1}
        OFFSET $${params.length + 2}`,
       [...params, limit, offset],

@@ -17,6 +17,13 @@ import type {
 } from '../domain/contract.validation';
 import { assertContractActivationValidity } from '../domain/contract-operational';
 import { ContractsRepository } from '../repositories/contracts.repository';
+import {
+  buildContractListOrderClause,
+  buildContractListWhere,
+  type ContractAdvancedFilter,
+  type ContractListDirection,
+  type ContractListSort,
+} from '../repositories/contract-list-sql';
 import type { ContractRow } from '../repositories/contracts.repository.types';
 import {
   toContractDetailResponse,
@@ -42,6 +49,27 @@ import {
   resolveUpdateContractDraftInput,
 } from './contracts-input-resolution';
 import { ContractsReferenceValidationService } from './contracts-reference-validation.service';
+
+/**
+ * Consulta da área de trabalho de contratos.
+ *
+ * Espelha `ProposalListQuery`/`PurchaseOrderListQuery`: escopo (cliente/unidade), enumeração de
+ * situação, moeda, janela de VIGÊNCIA, busca livre, ordenação por allow-list e filtro avançado.
+ */
+export type ContractListQuery = {
+  clientId?: string;
+  unitId?: string;
+  status?: string;
+  currencyCode?: string;
+  effectiveFrom?: string;
+  effectiveTo?: string;
+  search?: string;
+  advanced?: ContractAdvancedFilter;
+  sort?: ContractListSort;
+  direction?: ContractListDirection;
+  limit: number;
+  offset: number;
+};
 
 @Injectable()
 export class ContractsAccessService {
@@ -369,26 +397,25 @@ export class ContractsAccessService {
 
   async list(
     actor: IdentityAuthzContext,
-    query: { clientId?: string; unitId?: string; limit: number; offset: number },
+    query: ContractListQuery,
   ): Promise<{ items: ReturnType<typeof toContractResponse>[]; limit: number; offset: number }> {
     const scopeFilter = await this.authz.buildListScopeFilter(actor);
 
-    const clauses = [scopeFilter.clause];
-    const params = [...scopeFilter.params];
-    if (query.clientId) {
-      params.push(query.clientId);
-      clauses.push(`client_id = $${params.length}::uuid`);
-    }
-    if (query.unitId) {
-      params.push(query.unitId);
-      clauses.push(`unit_id = $${params.length}`);
-    }
+    /*
+     * PREDICADO ÚNICO, montado no plano de persistência.
+     *
+     * Antes o serviço concatenava `clauses`/`params` inline e conhecia apenas cliente e unidade.
+     * Agora a montagem vive em `contract-list-sql`, ao lado do SQL e do allow-list de ordenação. A
+     * autorização continua sendo o PRIMEIRO termo do predicado, como já era.
+     */
+    const where = buildContractListWhere(scopeFilter, query);
 
     const rows = await this.contractsRepository.listContracts(
-      clauses.join(' AND '),
-      params,
+      where.clause,
+      where.params,
       query.limit,
       query.offset,
+      buildContractListOrderClause(query.sort, query.direction),
     );
 
     return {
