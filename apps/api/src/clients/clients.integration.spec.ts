@@ -1175,6 +1175,71 @@ describe('Clients PostgreSQL integration', () => {
       expect(updated?.after).toMatchObject({ tradeName: 'Auditada' });
     });
 
+    /*
+     * TODO COMANDO QUE MUDA O AGREGADO ENTRA NA TRILHA DE VALOR.
+     *
+     * Este teste existe por causa de um defeito REAL encontrado na validação autenticada contra
+     * produção: contato, unidade e hierarquia gravavam apenas no canal de SEGURANÇA
+     * ("fulano executou client:contact:manage"), e a ficha mostrava um histórico com buracos — as
+     * alterações feitas pelos painéis novos simplesmente não apareciam. A leitura do operador era
+     * "nada mudou", que é falso.
+     *
+     * O teste percorre os TRÊS comandos e exige que cada um produza uma entrada com o par
+     * (antes, depois). Um comando novo que esqueça o `auditRecorder` passa a falhar aqui.
+     */
+    it('records contact, unit and hierarchy commands in the value trail', async () => {
+      const { identityId } = await seedActor();
+      const actor = { identityId, sessionId: 'sid' };
+      const created = await clientAccess.create(actor, {
+        legalName: 'Trilha Completa LTDA',
+        taxId: TEST_CNPJ,
+        contacts: [
+          { name: 'Ops', purpose: CONTACT_PURPOSES.Operational, email: 'ops@client.invalid' },
+        ],
+      });
+
+      const withContact = await clientAccess.applyContactCommand(actor, created.id, {
+        kind: 'add',
+        version: created.version,
+        name: 'Compras',
+        purpose: CONTACT_PURPOSES.Commercial,
+        role: CONTACT_ROLES.Purchasing,
+        phone: '6533334444',
+      });
+
+      const withUnit = await clientAccess.applyUnitCommand(actor, created.id, {
+        kind: 'add',
+        version: withContact.version,
+        name: 'Filial Vilhena',
+        city: 'Vilhena',
+        state: 'RO',
+      });
+
+      await clientAccess.setHierarchy(actor, created.id, {
+        version: withUnit.version,
+        groupName: 'Grupo Trilha',
+      });
+
+      const trail = await clientAccess.getAuditTrail(actor, created.id, 50, 0);
+      // CREATE do cadastro + os três comandos.
+      expect(trail.total).toBeGreaterThanOrEqual(4);
+
+      const updates = trail.items.filter((entry) => entry.action === 'UPDATE');
+      expect(updates.length).toBeGreaterThanOrEqual(3);
+      // Todo comando registra o PAR: sem "antes" a trilha não prova o que mudou.
+      for (const entry of updates) {
+        expect(entry.before).not.toBeNull();
+        expect(entry.after).not.toBeNull();
+      }
+
+      // A declaração de grupo aparece no "depois" da entrada correspondente.
+      const groupEntry = updates.find(
+        (entry) => (entry.after as { groupId?: string | null } | null)?.groupId,
+      );
+      expect(groupEntry).toBeDefined();
+      expect((groupEntry?.before as { groupId?: string | null } | null)?.groupId).toBeNull();
+    });
+
     it('records a status change as a TRANSITION', async () => {
       const { identityId } = await seedActor();
       const actor = { identityId, sessionId: 'sid' };

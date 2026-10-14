@@ -632,11 +632,31 @@ export class ClientsRepository {
     expectedVersion: number;
     parentClientId?: string | null;
     groupId?: string | null;
+    /**
+     * TRILHA DE AUDITORIA — declarar grupo econômico ou matriz altera o CADASTRO, então precisa
+     * do par (antes, depois) na trilha de valor. A leitura do "antes" acontece dentro da transação
+     * e antes do UPDATE, pelo mesmo motivo dos demais comandos: ler por fora abriria uma janela em
+     * que outro operador altera o registro e a trilha afirmaria uma transição inexistente.
+     */
+    auditRecorder?: (
+      client: PoolClient,
+      before: ClientDetailRow | null,
+      after: ClientDetailRow,
+    ) => Promise<void>;
   }): Promise<ClientDetail | 'VERSION_CONFLICT' | null> {
     const pool = this.pool();
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+
+      const beforeResult = await client.query<ClientDetailRow>(
+        `SELECT ${CLIENT_COLUMNS}
+         FROM ${CLIENT_FROM}
+         WHERE c.id = $1`,
+        [input.clientId],
+      );
+      const beforeRow = beforeResult.rows[0] ?? null;
+
       const sets: string[] = ['updated_at = NOW()', 'version = version + 1'];
       const params: unknown[] = [input.clientId, input.expectedVersion];
       let paramIndex = 3;
@@ -663,8 +683,13 @@ export class ClientsRepository {
         return exists.rowCount === 0 ? null : 'VERSION_CONFLICT';
       }
 
+      const after = await this.loadDetailWithin(client, input.clientId);
+      if (input.auditRecorder) {
+        await input.auditRecorder(client, beforeRow, after);
+      }
+
       await client.query('COMMIT');
-      return (await this.findById(input.clientId))!;
+      return after;
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;

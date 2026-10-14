@@ -357,6 +357,24 @@ export class ClientAccessService implements CommercialClientPort {
       clientId,
       expectedVersion: command.version,
       command,
+      /*
+       * TRILHA DE VALOR — o comando de contato TAMBÉM altera o agregado.
+       *
+       * O `security_audit` abaixo registra "fulano executou client:contact:manage com sucesso", mas
+       * isso não responde O QUE mudou: qual contato virou principal, qual papel foi atribuído, quem
+       * foi inativado. Sem esta chamada, a ficha mostrava um histórico com buracos — as alterações
+       * feitas pelos painéis novos simplesmente não apareciam, e a leitura seria "nada mudou".
+       * Defeito encontrado na validação autenticada contra produção, não por leitura.
+       */
+      auditRecorder: async (client, before, after) => {
+        await this.clientAudit.recordTransition(
+          client,
+          this.auditContext(actor),
+          clientId,
+          before,
+          after,
+        );
+      },
     });
 
     if (result === null) {
@@ -463,6 +481,17 @@ export class ClientAccessService implements CommercialClientPort {
       expectedVersion: input.version,
       parentClientId,
       groupId,
+      // Trilha de valor: declarar grupo e matriz é mudança de cadastro, e o histórico precisa
+      // mostrá-la com o par (antes, depois), não apenas como ação de segurança.
+      auditRecorder: async (client, before, after) => {
+        await this.clientAudit.recordTransition(
+          client,
+          this.auditContext(actor),
+          clientId,
+          before,
+          after,
+        );
+      },
     });
 
     if (result === null) {
@@ -513,6 +542,17 @@ export class ClientAccessService implements CommercialClientPort {
       clientId,
       expectedVersion: command.version,
       command,
+      // Trilha de valor: declarar filial e trocar a matriz são mudanças do agregado, e precisam
+      // aparecer no histórico com o par (antes, depois) — não só no canal de segurança.
+      auditRecorder: async (client, before, after) => {
+        await this.clientAudit.recordTransition(
+          client,
+          this.auditContext(actor),
+          clientId,
+          before,
+          after,
+        );
+      },
     });
 
     if (result === null) {
