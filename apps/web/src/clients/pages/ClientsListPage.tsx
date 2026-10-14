@@ -521,30 +521,242 @@ export function ClientsListPage() {
   const inactiveOnPage = items.length - activeOnPage;
   const scope = describeClientScope(filters);
 
+  /**
+   * CORPO DO CONTEXTO — UMA implementação, DOIS enquadramentos.
+   *
+   * A coluna do workspace (>= xl) e o drawer (abaixo de xl) renderizam ESTE MESMO conteúdo. Duas
+   * cópias divergiriam no primeiro ajuste, e a tela passaria a mostrar coisas diferentes conforme
+   * a largura — o defeito clássico de "versão mobile esquecida".
+   */
+  const contextBody = (
+          <div data-region="context-region">
+            {/* Identidade humana do registro selecionado — nunca um identificador técnico. */}
+            {preview.previewRow ? (
+              <p className="cisne-type-primary m-0 mb-2 truncate">
+                {preview.previewRow.tradeName ?? preview.previewRow.legalName}
+              </p>
+            ) : null}
+
+            {detail.phase === 'loading' ? (
+              /* SKELETON LOCALIZADO — só o painel espera; a worklist segue viva. */
+              <div aria-busy="true" role="status" className="flex flex-col gap-1.5">
+                <span className="cisne-type-helper">Carregando contexto…</span>
+                <Skeleton lines={4} />
+              </div>
+            ) : null}
+
+            {detail.phase === 'denied' ? (
+              /* NEGAÇÃO ≠ VAZIO: sem permissão de detalhe, o painel diz isso — não mostra ficha em branco. */
+              <p className="cisne-type-body m-0" role="alert">
+                Você não tem permissão para ver a ficha deste Cliente.
+              </p>
+            ) : null}
+
+            {detail.phase === 'error' ? (
+              <p className="cisne-type-body m-0 text-red-700" role="alert">
+                {detail.message}
+              </p>
+            ) : null}
+
+            {detail.phase === 'ready' ? (
+              <>
+                <dl className="m-0 grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)] gap-x-3 gap-y-1.5">
+                  <dt className="cisne-meta-label pt-0.5">Razão social</dt>
+                  <dd className="cisne-meta-value m-0">{detail.client.legalName}</dd>
+                  {detail.client.tradeName ? (
+                    <>
+                      <dt className="cisne-meta-label pt-0.5">Nome fantasia</dt>
+                      <dd className="cisne-meta-value m-0">{detail.client.tradeName}</dd>
+                    </>
+                  ) : null}
+                  <dt className="cisne-meta-label pt-0.5">CNPJ</dt>
+                  <dd className="cisne-meta-value m-0 font-mono">
+                    {formatCnpjDisplay(detail.client.taxId)}
+                  </dd>
+                  <dt className="cisne-meta-label pt-0.5">Situação</dt>
+                  <dd className="cisne-meta-value m-0">{clientStatusLabel(detail.client.status)}</dd>
+                  <dt className="cisne-meta-label pt-0.5">Pedido de compra</dt>
+                  <dd className="cisne-meta-value m-0">
+                    {formatPurchaseOrderRequirement(detail.client.purchaseOrderRequirement)}
+                  </dd>
+                  <dt className="cisne-meta-label pt-0.5">Atualizado</dt>
+                  <dd className="cisne-meta-value m-0">{formatClientListDateTime(detail.client.updatedAt)}</dd>
+                  {detail.client.deactivatedAt ? (
+                    <>
+                      <dt className="cisne-meta-label pt-0.5">Desativado</dt>
+                      <dd className="cisne-meta-value m-0">
+                        {formatClientListDateTime(detail.client.deactivatedAt)}
+                      </dd>
+                    </>
+                  ) : null}
+                  {detail.client.deactivationReason ? (
+                    <>
+                      <dt className="cisne-meta-label pt-0.5">Motivo</dt>
+                      <dd className="cisne-meta-value m-0">{detail.client.deactivationReason}</dd>
+                    </>
+                  ) : null}
+                </dl>
+
+                {/*
+                  COMANDOS REAIS DO DOMÍNIO — e SÓ os que o contrato permite executar daqui.
+
+                  `activate` exige apenas `version`, que SÓ o detalhe publica — por isso ele vive
+                  aqui e não na linha, e é enviado como INTENÇÃO: quem valida é o backend.
+
+                  `deactivate` exige `version` E `reason` (invariante do domínio). Não existe motivo
+                  padrão honesto para preencher no lugar do operador, então a desativação NÃO é
+                  oferecida como botão aqui: ela é um drillback para onde o motivo é capturado. Botão
+                  que inventa o motivo seria pior que a ausência do botão.
+                */}
+                <div className="cisne-divider--top mt-2 flex flex-wrap items-center gap-1.5 pt-2">
+                  {detail.client.status === CLIENT_STATUSES.Inactive && capabilities.canActivate ? (
+                    <Button
+                      variant="primary"
+                      loading={commandBusy}
+                      loadingText="Reativando…"
+                      onClick={() => {
+                        void runDetailCommand(() =>
+                          activateClient(detail.client.id, detail.client.version),
+                        );
+                      }}
+                    >
+                      Reativar cadastro
+                    </Button>
+                  ) : null}
+                  {/*
+                    DRILLBACK ÚNICO — vive AQUI, uma vez por registro selecionado. A grade não
+                    repete "Abrir cadastro" em cada linha: a identidade é o drillback da linha, e o
+                    painel oferece o caminho para a ficha completa (onde o motivo da desativação é
+                    capturado, já que `deactivate` exige `reason` e não há motivo padrão honesto).
+                  */}
+                  {capabilities.canRead ? (
+                    <ModulePrimaryLink to={`/app/clients/${detail.client.id}`}>
+                      Abrir cadastro completo
+                    </ModulePrimaryLink>
+                  ) : null}
+                </div>
+
+                {commandError ? (
+                  <p className="cisne-type-helper m-0 mt-1.5 text-red-700" role="alert">
+                    {commandError}
+                  </p>
+                ) : null}
+
+                {/*
+                  CADEIA COMERCIAL — o MESMO primitivo da object page, não uma segunda versão.
+
+                  Antes esta região montava à mão UMA referência ("Solicitações deste cliente"), o que
+                  jogava fora três módulos que o backend já responde e não mostrava a LIGAÇÃO entre os
+                  objetos. Agora a barra vem de `buildClientRelationSpecs` (que respeita `read A !=
+                  read B` e só publica contagem comprovada) e a cadeia vem do read model do servidor.
+                  O painel continua sem número inventado: módulo negado não é desenhado.
+                */}
+                <SmartRelationBar
+                  relations={buildAuthorizedRelations(
+                    buildClientRelationSpecs(related, detail.client.id),
+                  )}
+                  className="mt-2"
+                />
+                <div className="mt-2">
+                  <BusinessChain chain={businessChain.chain} phase={businessChain.phase} />
+                </div>
+
+                {/*
+                  CONTEXTO AMPLIADO — o que o operador precisa ANTES de decidir sair da fila.
+                  Quatro seções curtas e reais, na ordem de decisão: o que exige ação, o que o
+                  servidor avalia do cadastro, quanto está em aberto, e para onde ir em seguida.
+                  Nenhuma delas busca dado para a PÁGINA inteira: só para o registro aberto.
+                */}
+                <div className="mt-3 flex flex-col gap-2.5" data-region="context-extended">
+                  <ContextSection title="Situações publicadas">
+                    <ClientSituationStrip
+                      status={detail.client.status}
+                      quality={extended.quality}
+                      financial={extended.financial}
+                    />
+                  </ContextSection>
+
+                  <ContextSection title="Qualidade do cadastro">
+                    {extended.qualityPhase === 'loading' ? (
+                      <Skeleton lines={2} />
+                    ) : extended.qualityPhase === 'denied' ? (
+                      <p className="cisne-type-helper m-0">
+                        Sem permissão para avaliar a qualidade deste cadastro.
+                      </p>
+                    ) : extended.qualityPhase === 'error' ? (
+                      <p className="cisne-type-helper m-0 text-red-700">
+                        Não foi possível avaliar a qualidade do cadastro.
+                      </p>
+                    ) : (
+                      <ClientQualitySummary quality={extended.quality} />
+                    )}
+                  </ContextSection>
+
+                  {/*
+                    FINANCEIRO — a seção só existe quando a leitura foi TENTADA. Um ator sem
+                    `finance:receivable:list` recebe 403, e a seção declara a restrição em vez de
+                    sumir em silêncio: sumir faria o operador achar que o Cliente não tem títulos.
+                  */}
+                  <ContextSection title="Financeiro">
+                    {extended.financialPhase === 'loading' ? (
+                      <Skeleton lines={2} />
+                    ) : extended.financialPhase === 'denied' ? (
+                      <p className="cisne-type-helper m-0" data-region="context-financial-forbidden">
+                        Você não tem permissão para consultar títulos a receber.
+                      </p>
+                    ) : extended.financialPhase === 'error' ? (
+                      <p className="cisne-type-helper m-0 text-red-700">
+                        Não foi possível carregar o contexto financeiro.
+                      </p>
+                    ) : (
+                      <ClientFinancialSummary context={extended.financial} />
+                    )}
+                  </ContextSection>
+
+                  <ClientNextActionStrip
+                    client={{
+                      ...preview.previewRow!,
+                      status: detail.client.status,
+                    }}
+                    capabilities={capabilities}
+                    href={`/app/clients/${detail.client.id}`}
+                  />
+                </div>
+              </>
+            ) : null}
+          </div>
+
+  );
+
   return (
     <ModulePage layout="wide">
-      {/*
-        SUPERFÍCIE DE TRABALHO FIXA — o contexto de operação não rola com a fila.
+      {/*      {/*
+        CUSTOMER WORKSPACE — CABEÇALHO INTEGRADO AO CANVAS, NÃO CARD.
 
-        Cabeçalho, faixa de estado, visões salvas e superfície de filtro ficam ESTÁVEIS; o que se
-        move é a fila. É o que separa uma ferramenta de operação contínua de uma página que se
-        rola para cima a cada troca de recorte: o operador nunca perde "onde estou" nem "qual
-        recorte estou vendo".
+        A composição anterior empilhava, na mesma faixa fixa: um cabeçalho de área de trabalho, uma
+        régua de três indicadores, a faixa de visões salvas, a superfície de filtro e o construtor
+        de filtro avançado. Medido em 1600×900: essa faixa consumia 239px e a TABELA ficava com
+        226px — cinco linhas — deixando 301px vazios abaixo. O cabeçalho dominava a tela, que é
+        exatamente o sintoma de "página de cadastro" que a recomposição existe para eliminar.
 
-        `data-region` em cada faixa existe para que a mudança de modelo seja MEDÍVEL por DOM, e
-        não afirmada em prosa.
+        Agora a faixa fixa é UMA superfície de comando densa: identidade + recorte em uma linha,
+        visões e ferramentas em outra, tudo com régua própria e sem cards. A tabela passa a receber
+        a maior parte da altura disponível.
+
+        `data-region` em cada faixa mantém a mudança de modelo MEDÍVEL por DOM.
       */}
       <div className="sticky top-0 z-20 bg-white" data-region="work-surface">
         {/*
-          OPERATING HEADER + STATE RAIL — uma faixa, não três cartões de KPI.
+          OPERATING HEADER — uma linha única, no canvas, sem moldura.
 
-          A identidade, o total AUTORITATIVO, o recorte ativo, o comando primário e os recortes
-          operacionais dividem a mesma faixa. `AUSÊNCIA ≠ ZERO`: sem carteira autorizada o total
-          não é afirmado (`count` fica `undefined`) em vez de imprimir "0".
+          Identidade, descrição curta, recorte ativo, contagem AUTORITATIVA e comando primário
+          dividem a MESMA linha. `AUSÊNCIA ≠ ZERO`: sem carteira autorizada o total não é afirmado
+          (`count` fica `undefined`) em vez de imprimir "0".
         */}
         <div data-region="operating-header">
           <WorklistHeader
             title="Clientes"
+            description="Carteira empresarial e relacionamento"
             count={hasCatalog ? total : undefined}
             context={
               isRefreshing ? (
@@ -569,7 +781,7 @@ export function ClientsListPage() {
               hasCatalog ? (
                 <>
                   <QueueStripCell
-                    label="No recorte"
+                    label="no recorte"
                     value={total}
                     hint={hasFilters ? 'sob os filtros aplicados' : 'carteira autorizada'}
                     weight="neutral"
@@ -577,7 +789,7 @@ export function ClientsListPage() {
                     onClick={() => applyFilters({ status: '' })}
                   />
                   <QueueStripCell
-                    label="Ativos"
+                    label="ativos"
                     value={activeOnPage}
                     hint="nesta página"
                     weight="neutral"
@@ -590,7 +802,7 @@ export function ClientsListPage() {
                     trava novos documentos, e só ganha peso quando existe trabalho nele.
                   */}
                   <QueueStripCell
-                    label="Fora de operação"
+                    label="fora de operação"
                     value={inactiveOnPage}
                     hint="não entram em novos documentos"
                     weight={inactiveOnPage > 0 ? 'alert' : 'settled'}
@@ -604,96 +816,124 @@ export function ClientsListPage() {
         </div>
 
         {/*
-          SAVED VIEWS — FAIXA PRÓPRIA DA WORK AREA.
+          WORKBENCH TOOLBAR — VISÕES E FERRAMENTAS NA MESMA FAIXA.
 
-          Antes: um botão "Visões" que abria um dropdown — link solto, fora da área de trabalho.
-          Agora é uma faixa própria, sempre visível, com a visão ATIVA evidente, as visões
-          existentes acessíveis, salvar subordinado e remover no próprio item.
+          Antes eram DUAS faixas empilhadas: uma só para as visões salvas e outra só para o filtro,
+          cada uma com a sua régua. Juntas elas consumiam altura que a tabela precisava, e faziam a
+          área de trabalho parecer um formulário de configuração.
 
-          A implementação é a MESMA (`operator/smart-list/SavedViewsBar`) e o MESMO store: nenhuma
-          engine paralela foi criada e nenhuma visão já salva pelo operador se perde.
+          Agora é uma barra de ferramentas de bancada: visões à esquerda (o RECORTE), busca e
+          filtros à direita (a CONSULTA). Uma régua só.
         */}
         {hasCatalog ? (
-          <div className="cisne-divider py-0.5" data-region="saved-view-surface">
-            <SavedViewsBar
-              views={savedViews.views}
-              builtInViews={[]}
-              activeViewId={activeViewId}
-              onApply={(view) => {
-                setActiveViewId(view.id === '__all__' ? null : view.id);
-                applyFilters(clientViewToParams(view.config));
-              }}
-              onSave={savedViews.saveView}
-              onRename={savedViews.renameView}
-              onRemove={savedViews.removeView}
-              currentConfig={clientViewConfig(filters)}
-              canSave={hasSavableViewConfig(filters)}
-              allLabel="Todos"
-              className="mb-0 border-0 bg-transparent"
-            />
+          <div
+            className="cisne-divider flex flex-wrap items-center gap-x-3 gap-y-1 py-1"
+            data-region="workbench-toolbar"
+          >
+            <div data-region="saved-view-surface" className="min-w-0">
+              <SavedViewsBar
+                views={savedViews.views}
+                builtInViews={[]}
+                activeViewId={activeViewId}
+                onApply={(view) => {
+                  setActiveViewId(view.id === '__all__' ? null : view.id);
+                  applyFilters(clientViewToParams(view.config));
+                }}
+                onSave={savedViews.saveView}
+                onRename={savedViews.renameView}
+                onRemove={savedViews.removeView}
+                currentConfig={clientViewConfig(filters)}
+                canSave={hasSavableViewConfig(filters)}
+                allLabel="Todos"
+                className="mb-0 border-0 bg-transparent"
+              />
+            </div>
+
+            <div className="ml-auto min-w-0" data-region="command-filter-surface">
+              <WorklistFilterBar
+                meta={hasFilters ? `${items.length} nesta página · recorte ativo` : null}
+                notice={
+                  searchDraftTooShort ? (
+                    <span id={searchHintId} className="cisne-type-helper m-0">
+                      Digite pelo menos {CLIENT_SEARCH_MIN_LENGTH} caracteres para buscar.
+                    </span>
+                  ) : null
+                }
+              >
+                <WorklistField label="Buscar" htmlFor={searchInputId} grow>
+                  <input
+                    id={searchInputId}
+                    type="search"
+                    className={worklistControlClass}
+                    value={searchInput}
+                    onChange={(event) => setSearchInput(event.target.value)}
+                    placeholder="Razão social, nome fantasia ou CNPJ"
+                    autoComplete="off"
+                    aria-describedby={searchDraftTooShort ? searchHintId : undefined}
+                  />
+                </WorklistField>
+
+                <WorklistField label="Situação" htmlFor={statusFilterId}>
+                  <select
+                    id={statusFilterId}
+                    className={worklistSelectClass}
+                    value={filters.status}
+                    onChange={(event) =>
+                      applyFilters({ status: event.target.value as ClientListParams['status'] })
+                    }
+                  >
+                    <option value="">Todas</option>
+                    <option value={CLIENT_STATUSES.Active}>Ativos</option>
+                    <option value={CLIENT_STATUSES.Inactive}>Inativos</option>
+                  </select>
+                </WorklistField>
+
+                {/*
+                  FILTROS AVANÇADOS EM BOTÃO, NÃO EM TEXTO.
+                  O construtor de metadado fica ATRÁS deste controle e só é renderizado quando o
+                  operador o abre — um construtor de filtro composto aberto por padrão custa altura
+                  permanente para uma tarefa ocasional.
+                */}
+                <button
+                  id={moreFiltersId}
+                  type="button"
+                  aria-expanded={showMoreFilters}
+                  data-testid="clients-more-filters"
+                  className={cn(
+                    'cisne-type-action inline-flex min-h-[var(--control-height)] items-center gap-1 rounded-md border px-2',
+                    isFilterGroupActive(advancedGroup)
+                      ? 'border-brand-300 bg-brand-50 text-brand-800'
+                      : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50',
+                  )}
+                  onClick={() => setShowMoreFilters((current) => !current)}
+                >
+                  Filtros
+                  {isFilterGroupActive(advancedGroup) ? (
+                    <span aria-hidden="true" className="text-[10px]">
+                      ●
+                    </span>
+                  ) : null}
+                </button>
+
+                <WorklistClearFilters
+                  visible={hasFilters || searchInput.trim() !== '' || isFilterGroupActive(advancedGroup)}
+                  onClick={clearFilters}
+                />
+              </WorklistFilterBar>
+            </div>
           </div>
         ) : null}
 
         {/*
-          COMMAND / FILTER SURFACE — UMA superfície, não um formulário web.
+          SUPERFÍCIE DE FILTRO AVANÇADO — SOB DIVULGAÇÃO PROGRESSIVA.
 
-          Busca é o comando principal (ocupa a largura); situação é filtro frequente; exigência de
-          pedido de compra é avançada e vive sob divulgação progressiva. O rodapé da superfície
-          declara o recorte ativo e a saída — não há "label input label select botão" empilhados.
-          Nada saiu do contrato: os três continuam indo ao SERVIDOR.
+          Os filtros secundários (exigência de pedido de compra) e o construtor dirigido por
+          metadado aparecem SOMENTE quando abertos. Antes, o construtor era renderizado sempre que
+          havia carteira: uma faixa permanente para uma tarefa ocasional.
         */}
-        <div data-region="command-filter-surface">
-          <WorklistFilterBar
-            meta={
-              hasFilters ? `${items.length} nesta página · recorte ativo` : `${items.length} nesta página`
-            }
-            notice={
-              searchDraftTooShort ? (
-                <p id={searchHintId} className="cisne-type-helper m-0">
-                  Digite pelo menos {CLIENT_SEARCH_MIN_LENGTH} caracteres para buscar.
-                </p>
-              ) : null
-            }
-          >
-            <WorklistField label="Buscar" htmlFor={searchInputId} grow>
-              <input
-                id={searchInputId}
-                type="search"
-                className={worklistControlClass}
-                value={searchInput}
-                onChange={(event) => setSearchInput(event.target.value)}
-                placeholder="Razão social, nome fantasia ou CNPJ"
-                autoComplete="off"
-                aria-describedby={searchDraftTooShort ? searchHintId : undefined}
-              />
-            </WorklistField>
-
-            <WorklistField label="Situação" htmlFor={statusFilterId}>
-              <select
-                id={statusFilterId}
-                className={worklistSelectClass}
-                value={filters.status}
-                onChange={(event) =>
-                  applyFilters({ status: event.target.value as ClientListParams['status'] })
-                }
-              >
-                <option value="">Todas</option>
-                <option value={CLIENT_STATUSES.Active}>Ativos</option>
-                <option value={CLIENT_STATUSES.Inactive}>Inativos</option>
-              </select>
-            </WorklistField>
-
-            <button
-              id={moreFiltersId}
-              type="button"
-              aria-expanded={showMoreFilters}
-              className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-              onClick={() => setShowMoreFilters((current) => !current)}
-            >
-              {showMoreFilters ? 'Menos filtros' : 'Mais filtros'}
-            </button>
-
-            {showMoreFilters ? (
+        {hasCatalog && showMoreFilters ? (
+          <div className="cisne-divider flex flex-col gap-1 py-1.5" data-region="advanced-filter-surface">
+            <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
               <WorklistField label="Exigência de pedido de compra" htmlFor={requirementFilterId}>
                 <select
                   id={requirementFilterId}
@@ -714,28 +954,13 @@ export function ClientsListPage() {
                   ))}
                 </select>
               </WorklistField>
-            ) : null}
+            </div>
 
-            <WorklistClearFilters
-              visible={hasFilters || searchInput.trim() !== '' || isFilterGroupActive(advancedGroup)}
-              onClick={clearFilters}
-            />
-          </WorklistFilterBar>
-        </div>
-
-        {/*
-          FILTRO AVANÇADO — a camada composta da superfície de filtro, dirigida por METADADO.
-
-          O construtor é o MESMO do resto do produto (`DynamicFilterBuilder`): ele lê `meta.fields`
-          da entidade `client` e oferece apenas os campos marcados `in_filter` — que são exatamente
-          os que o predicado server-side executa. Um campo que o servidor não filtra não aparece
-          aqui, porque oferecê-lo produziria um recorte que o operador lê como "lista vazia".
-
-          A árvore é serializada na URL pela chave da engine (`filter`), e a conversão para o
-          contrato do servidor acontece em `clientAdvancedFilterFromGroup`.
-        */}
-        {hasCatalog ? (
-          <div className="px-1" data-region="advanced-filter-surface">
+            {/*
+              O construtor é o MESMO da engine (`DynamicFilterBuilder`): ele lê `meta.fields` da
+              entidade `client` e oferece apenas os campos marcados `in_filter` — exatamente os que
+              o predicado server-side executa.
+            */}
             <DynamicFilterBuilder
               schema={clientSchema}
               value={advancedGroup}
@@ -923,6 +1148,25 @@ export function ClientsListPage() {
         linha ficar escaneável em 2–3 segundos — QUEM É, QUAL A SITUAÇÃO, QUANDO MUDOU, PRECISO
         AGIR — sem aumentar a altura da linha (o token de densidade continua mandando).
       */}
+      {/*
+        WORK SURFACE EM DUAS COLUNAS — A WORKLIST DOMINA, O CONTEXTO ACOMPANHA.
+
+        Medido antes desta recomposição em 1600×900: a tabela ocupava a largura inteira e o
+        contexto só existia como overlay; a primeira dobra tinha 226px de tabela e 301px vazios.
+        A tela lia como uma página de listagem, não como uma bancada de trabalho.
+
+        Agora a superfície é uma grade: a fila ocupa ~74% e a coluna de contexto ~26%. A coluna de
+        contexto é uma COLUNA REAL do layout — não um modal flutuante —, e é ela que responde
+        "quem é este Cliente" sem que o operador abandone o recorte.
+
+        A proporção é declarada em `grid-template-columns` com `minmax(0,…)` nas duas colunas: sem
+        o `minmax(0,…)` a tabela larga força a coluna a crescer e a grade estoura o viewport.
+      */}
+      <div
+        className="grid items-start gap-x-4 xl:grid-cols-[minmax(0,74fr)_minmax(0,26fr)]"
+        data-region="work-split"
+      >
+        <div className="flex min-w-0 flex-col">
       {items.length > 0 ? (
         <section aria-busy={isRefreshing} data-region="worklist-master">
           <table
@@ -1202,7 +1446,7 @@ export function ClientsListPage() {
       ) : null}
 
       {hasCatalog || offset > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 px-1 pt-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5">
           <p className="cisne-type-helper m-0 tabular-nums">
             Clientes {formatClientRangeLabel(offset, items.length, total)}
           </p>
@@ -1221,222 +1465,80 @@ export function ClientsListPage() {
           />
         </div>
       ) : null}
+        </div>
+
+        {/*
+          COLUNA DE CONTEXTO DO WORKSPACE — COLUNA, NÃO OVERLAY.
+
+          É a MESMA superfície de contexto (`ContextDrawer` em modo `inline`), não uma segunda
+          implementação: o painel é uma coluna real do layout, sem scrim e sem prender o foco, para
+          que o operador alterne entre a linha da fila e o contexto sem sair da bancada.
+
+          SEM SELEÇÃO, a coluna não fica vazia: ela declara a instrução de uso e mantém a bancada
+          estável — a grade não "salta" quando o operador seleciona a primeira linha.
+        */}
+        <div className="hidden min-w-0 xl:block" data-region="context-column">
+          {preview.previewRow === null ? (
+            <div className="cisne-panel h-full px-3 py-2.5">
+              <p className="cisne-meta-label m-0">Contexto do cliente</p>
+              <p className="cisne-type-helper m-0 mt-1">
+                Selecione um cliente na fila para ver identidade, situações, contatos, estrutura,
+                financeiro e próxima ação sem sair do recorte.
+              </p>
+            </div>
+          ) : (
+            /*
+             * A COLUNA É O PRÓPRIO PAINEL — sem `Drawer`.
+             *
+             * `ContextDrawer` (do operator) só aceita `preview` ESTRUTURADO e `DynamicContextDrawer`
+             * é um `role="dialog"` fixo com scrim. Nenhum dos dois é a coluna de bancada: o
+             * primeiro prenderia o conteúdo a um formato que a ficha do Cliente não cabe (ela tem
+             * seções com comandos), e o segundo prenderia o FOCO, o que é errado para uma coluna
+             * que convive com a grade.
+             *
+             * A coluna usa o corpo COMPARTILHADO (`contextBody`) sobre a superfície `cisne-panel`,
+             * e o `DynamicContextDrawer` continua sendo usado abaixo de `xl`. Um conteúdo, dois
+             * enquadramentos — nenhuma segunda implementação de contexto.
+             */
+            <section
+              aria-label="Contexto do cliente"
+              className="cisne-panel flex min-h-0 flex-col"
+            >
+              <header className="flex items-center justify-between gap-2 border-b border-[color:var(--color-divider)] px-2.5 py-1.5">
+                <h2 className="cisne-meta-label m-0">Contexto do cliente</h2>
+                <button
+                  type="button"
+                  className="cisne-type-action rounded-md px-1.5 text-gray-500 hover:bg-white/70 hover:text-gray-900"
+                  onClick={preview.closePreview}
+                  aria-label="Fechar contexto"
+                >
+                  ×
+                </button>
+              </header>
+              <div className="min-h-0 flex-1 overflow-auto px-2.5 py-2">{contextBody}</div>
+            </section>
+          )}
+        </div>
+      </div>
 
       {/*
-        CONTEXT REGION — MASTER/DETAIL SEM ABANDONAR A FILA.
+        CONTEXT REGION — MASTER/DETAIL EM VIEWPORT ESTREITO.
 
-        Selecionar a linha abre o contexto REAL do registro: identidade, situação, os fatos que a
-        listagem não publica (exigência de pedido de compra, desativação) e as RELAÇÕES reais
-        (contatos e endereços vêm do detalhe). Fechar o painel devolve o operador exatamente onde
-        estava: filtros, ordenação, página e scroll intactos.
-
-        Não existe "Abrir cadastro" repetido na grade: a identidade é o drillback e a linha abre o
-        contexto. Comandos reais (`activate`/`deactivate`) ficam AQUI, no contexto do objeto — não
-        como botões espalhados na tabela.
+        Em telas abaixo de `xl` não há largura para duas colunas legíveis: a coluna de contexto
+        daria ~200px e a tabela espremeria. Ali o contexto vira o drawer do próprio workspace, que
+        já existe (`DynamicContextDrawer`) — o MESMO conteúdo, enquadramento diferente. Nenhuma
+        segunda implementação de contexto: os dois caminhos chamam `buildContextPreview`.
       */}
-      <DynamicContextDrawer
-        open={preview.previewRow !== null}
-        title="Contexto do cliente"
-        onClose={preview.closePreview}
-        crossReferences={[]}
-      >
-        <div data-region="context-region">
-          {/* Identidade humana do registro selecionado — nunca um identificador técnico. */}
-          {preview.previewRow ? (
-            <p className="cisne-type-primary m-0 mb-2 truncate">
-              {preview.previewRow.tradeName ?? preview.previewRow.legalName}
-            </p>
-          ) : null}
-
-          {detail.phase === 'loading' ? (
-            /* SKELETON LOCALIZADO — só o painel espera; a worklist segue viva. */
-            <div aria-busy="true" role="status" className="flex flex-col gap-1.5">
-              <span className="cisne-type-helper">Carregando contexto…</span>
-              <Skeleton lines={4} />
-            </div>
-          ) : null}
-
-          {detail.phase === 'denied' ? (
-            /* NEGAÇÃO ≠ VAZIO: sem permissão de detalhe, o painel diz isso — não mostra ficha em branco. */
-            <p className="cisne-type-body m-0" role="alert">
-              Você não tem permissão para ver a ficha deste Cliente.
-            </p>
-          ) : null}
-
-          {detail.phase === 'error' ? (
-            <p className="cisne-type-body m-0 text-red-700" role="alert">
-              {detail.message}
-            </p>
-          ) : null}
-
-          {detail.phase === 'ready' ? (
-            <>
-              <dl className="m-0 grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)] gap-x-3 gap-y-1.5">
-                <dt className="cisne-meta-label pt-0.5">Razão social</dt>
-                <dd className="cisne-meta-value m-0">{detail.client.legalName}</dd>
-                {detail.client.tradeName ? (
-                  <>
-                    <dt className="cisne-meta-label pt-0.5">Nome fantasia</dt>
-                    <dd className="cisne-meta-value m-0">{detail.client.tradeName}</dd>
-                  </>
-                ) : null}
-                <dt className="cisne-meta-label pt-0.5">CNPJ</dt>
-                <dd className="cisne-meta-value m-0 font-mono">
-                  {formatCnpjDisplay(detail.client.taxId)}
-                </dd>
-                <dt className="cisne-meta-label pt-0.5">Situação</dt>
-                <dd className="cisne-meta-value m-0">{clientStatusLabel(detail.client.status)}</dd>
-                <dt className="cisne-meta-label pt-0.5">Pedido de compra</dt>
-                <dd className="cisne-meta-value m-0">
-                  {formatPurchaseOrderRequirement(detail.client.purchaseOrderRequirement)}
-                </dd>
-                <dt className="cisne-meta-label pt-0.5">Atualizado</dt>
-                <dd className="cisne-meta-value m-0">{formatClientListDateTime(detail.client.updatedAt)}</dd>
-                {detail.client.deactivatedAt ? (
-                  <>
-                    <dt className="cisne-meta-label pt-0.5">Desativado</dt>
-                    <dd className="cisne-meta-value m-0">
-                      {formatClientListDateTime(detail.client.deactivatedAt)}
-                    </dd>
-                  </>
-                ) : null}
-                {detail.client.deactivationReason ? (
-                  <>
-                    <dt className="cisne-meta-label pt-0.5">Motivo</dt>
-                    <dd className="cisne-meta-value m-0">{detail.client.deactivationReason}</dd>
-                  </>
-                ) : null}
-              </dl>
-
-              {/*
-                COMANDOS REAIS DO DOMÍNIO — e SÓ os que o contrato permite executar daqui.
-
-                `activate` exige apenas `version`, que SÓ o detalhe publica — por isso ele vive
-                aqui e não na linha, e é enviado como INTENÇÃO: quem valida é o backend.
-
-                `deactivate` exige `version` E `reason` (invariante do domínio). Não existe motivo
-                padrão honesto para preencher no lugar do operador, então a desativação NÃO é
-                oferecida como botão aqui: ela é um drillback para onde o motivo é capturado. Botão
-                que inventa o motivo seria pior que a ausência do botão.
-              */}
-              <div className="cisne-divider--top mt-2 flex flex-wrap items-center gap-1.5 pt-2">
-                {detail.client.status === CLIENT_STATUSES.Inactive && capabilities.canActivate ? (
-                  <Button
-                    variant="primary"
-                    loading={commandBusy}
-                    loadingText="Reativando…"
-                    onClick={() => {
-                      void runDetailCommand(() =>
-                        activateClient(detail.client.id, detail.client.version),
-                      );
-                    }}
-                  >
-                    Reativar cadastro
-                  </Button>
-                ) : null}
-                {/*
-                  DRILLBACK ÚNICO — vive AQUI, uma vez por registro selecionado. A grade não
-                  repete "Abrir cadastro" em cada linha: a identidade é o drillback da linha, e o
-                  painel oferece o caminho para a ficha completa (onde o motivo da desativação é
-                  capturado, já que `deactivate` exige `reason` e não há motivo padrão honesto).
-                */}
-                {capabilities.canRead ? (
-                  <ModulePrimaryLink to={`/app/clients/${detail.client.id}`}>
-                    Abrir cadastro completo
-                  </ModulePrimaryLink>
-                ) : null}
-              </div>
-
-              {commandError ? (
-                <p className="cisne-type-helper m-0 mt-1.5 text-red-700" role="alert">
-                  {commandError}
-                </p>
-              ) : null}
-
-              {/*
-                CADEIA COMERCIAL — o MESMO primitivo da object page, não uma segunda versão.
-
-                Antes esta região montava à mão UMA referência ("Solicitações deste cliente"), o que
-                jogava fora três módulos que o backend já responde e não mostrava a LIGAÇÃO entre os
-                objetos. Agora a barra vem de `buildClientRelationSpecs` (que respeita `read A !=
-                read B` e só publica contagem comprovada) e a cadeia vem do read model do servidor.
-                O painel continua sem número inventado: módulo negado não é desenhado.
-              */}
-              <SmartRelationBar
-                relations={buildAuthorizedRelations(
-                  buildClientRelationSpecs(related, detail.client.id),
-                )}
-                className="mt-2"
-              />
-              <div className="mt-2">
-                <BusinessChain chain={businessChain.chain} phase={businessChain.phase} />
-              </div>
-
-              {/*
-                CONTEXTO AMPLIADO — o que o operador precisa ANTES de decidir sair da fila.
-                Quatro seções curtas e reais, na ordem de decisão: o que exige ação, o que o
-                servidor avalia do cadastro, quanto está em aberto, e para onde ir em seguida.
-                Nenhuma delas busca dado para a PÁGINA inteira: só para o registro aberto.
-              */}
-              <div className="mt-3 flex flex-col gap-2.5" data-region="context-extended">
-                <ContextSection title="Situações publicadas">
-                  <ClientSituationStrip
-                    status={detail.client.status}
-                    quality={extended.quality}
-                    financial={extended.financial}
-                  />
-                </ContextSection>
-
-                <ContextSection title="Qualidade do cadastro">
-                  {extended.qualityPhase === 'loading' ? (
-                    <Skeleton lines={2} />
-                  ) : extended.qualityPhase === 'denied' ? (
-                    <p className="cisne-type-helper m-0">
-                      Sem permissão para avaliar a qualidade deste cadastro.
-                    </p>
-                  ) : extended.qualityPhase === 'error' ? (
-                    <p className="cisne-type-helper m-0 text-red-700">
-                      Não foi possível avaliar a qualidade do cadastro.
-                    </p>
-                  ) : (
-                    <ClientQualitySummary quality={extended.quality} />
-                  )}
-                </ContextSection>
-
-                {/*
-                  FINANCEIRO — a seção só existe quando a leitura foi TENTADA. Um ator sem
-                  `finance:receivable:list` recebe 403, e a seção declara a restrição em vez de
-                  sumir em silêncio: sumir faria o operador achar que o Cliente não tem títulos.
-                */}
-                <ContextSection title="Financeiro">
-                  {extended.financialPhase === 'loading' ? (
-                    <Skeleton lines={2} />
-                  ) : extended.financialPhase === 'denied' ? (
-                    <p className="cisne-type-helper m-0" data-region="context-financial-forbidden">
-                      Você não tem permissão para consultar títulos a receber.
-                    </p>
-                  ) : extended.financialPhase === 'error' ? (
-                    <p className="cisne-type-helper m-0 text-red-700">
-                      Não foi possível carregar o contexto financeiro.
-                    </p>
-                  ) : (
-                    <ClientFinancialSummary context={extended.financial} />
-                  )}
-                </ContextSection>
-
-                <ClientNextActionStrip
-                  client={{
-                    ...preview.previewRow!,
-                    status: detail.client.status,
-                  }}
-                  capabilities={capabilities}
-                  href={`/app/clients/${detail.client.id}`}
-                />
-              </div>
-            </>
-          ) : null}
-        </div>
-      </DynamicContextDrawer>
+      <div className="xl:hidden">
+        <DynamicContextDrawer
+          open={preview.previewRow !== null}
+          title="Contexto do cliente"
+          onClose={preview.closePreview}
+          crossReferences={[]}
+        >
+          {contextBody}
+        </DynamicContextDrawer>
+      </div>
     </ModulePage>
   );
 }

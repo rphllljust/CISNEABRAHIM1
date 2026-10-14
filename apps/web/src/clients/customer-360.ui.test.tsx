@@ -238,6 +238,19 @@ async function awaitHeader() {
   await screen.findByRole('heading', { name: /Amaggi Exportadora LTDA/ });
 }
 
+/**
+ * NAVEGAÇÃO POR ABAS — a ficha passou a usar DIVULGAÇÃO PROGRESSIVA.
+ *
+ * O detalhe (contatos, estrutura, qualidade, histórico) deixou de ficar sempre renderizado e
+ * desceu para abas. Os testes abrem a aba correspondente antes de afirmar sobre o painel — o que
+ * é exatamente o comportamento novo: o painel não monta até ser pedido, e portanto também não
+ * dispara a leitura de rede correspondente.
+ */
+async function openTab(name: RegExp): Promise<void> {
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole('tab', { name }));
+}
+
 beforeEach(() => {
   resetTokenStoreForTests();
   tokenStore.setTokens('access-token', 'refresh-token');
@@ -453,7 +466,7 @@ describe('Customer 360 — unidades', () => {
       }),
     });
     await awaitHeader();
-
+    await openTab(/estrutura/i);
     const rows = screen.getAllByTestId('client-unit-row');
     expect(rows).toHaveLength(2);
     // MATRIZ PRIMEIRO: a ordenação respeita o dado declarado, não a ordem de cadastro.
@@ -488,6 +501,7 @@ describe('Customer 360 — unidades', () => {
       { router: { initialEntries: [`/app/clients/${CLIENT_ID}`] } },
     );
     await awaitHeader();
+    await openTab(/estrutura/i);
 
     const user = userEvent.setup();
     // A capability chega após o cabeçalho: espera pelo CONTROLE antes de interagir.
@@ -511,6 +525,7 @@ describe('Customer 360 — hierarquia', () => {
   it('declara que não há vínculo em vez de sugerir hierarquia provável', async () => {
     renderPage();
     await awaitHeader();
+    await openTab(/estrutura/i);
 
     const panel = await screen.findByLabelText('Hierarquia empresarial');
     await waitFor(() => {
@@ -525,6 +540,7 @@ describe('Customer 360 — hierarquia', () => {
       client: clientFixture({ groupId: 'g-1', groupName: 'Grupo Amaggi' }),
     });
     await awaitHeader();
+    await openTab(/estrutura/i);
 
     const panel = await screen.findByLabelText('Hierarquia empresarial');
     /*
@@ -561,6 +577,7 @@ describe('Customer 360 — qualidade do cadastro', () => {
       },
     });
     await awaitHeader();
+    await openTab(/qualidade/i);
 
     const panel = await screen.findByLabelText('Qualidade do cadastro');
     await waitFor(() => {
@@ -578,6 +595,7 @@ describe('Customer 360 — qualidade do cadastro', () => {
   it('afirma completude quando o servidor diz que não há apontamento', async () => {
     renderPage({ quality: { evaluated: true, isComplete: true, findings: [] } });
     await awaitHeader();
+    await openTab(/qualidade/i);
 
     const panel = await screen.findByLabelText('Qualidade do cadastro');
     await waitFor(() => {
@@ -602,6 +620,7 @@ describe('Customer 360 — trilha de auditoria', () => {
       ],
     });
     await awaitHeader();
+    await openTab(/histórico/i);
 
     const panel = await screen.findByLabelText('Histórico de alterações');
     await waitFor(() => {
@@ -618,6 +637,7 @@ describe('Customer 360 — trilha de auditoria', () => {
   it('declara a restrição quando o servidor nega a leitura da trilha', async () => {
     renderPage({ auditTrailAccess: 'denied' });
     await awaitHeader();
+    await openTab(/histórico/i);
 
     const panel = await screen.findByLabelText('Histórico de alterações');
     await waitFor(() => {
@@ -630,6 +650,7 @@ describe('Customer 360 — trilha de auditoria', () => {
   it('declara ausência real de alterações quando a trilha volta vazia', async () => {
     renderPage({ auditTrail: [] });
     await awaitHeader();
+    await openTab(/histórico/i);
 
     const panel = await screen.findByLabelText('Histórico de alterações');
     await waitFor(() => {

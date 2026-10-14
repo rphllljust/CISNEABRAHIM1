@@ -192,14 +192,32 @@ export function ClientCreatePage() {
 
   return (
     <ModulePage>
+      {/*
+        NOVO CLIENTE — WORKFLOW GOVERNADO, NÃO FORMULÁRIO ESPALHADO.
+
+        MEDIDO antes desta recomposição em 1600×900: os campos atravessavam a largura inteira da
+        área de conteúdo (~1350px) em duas colunas gigantes, o aviso de duplicidade empilhava em
+        cima do formulário, a ação ficava no fim de uma faixa longa, e o resultado era 208px de
+        vazio abaixo do conteúdo — a tela lia como um formulário cru, não como um passo de
+        cadastro empresarial.
+
+        Agora: largura GOVERN Ada (~48rem para o formulário) e coluna de APOIO à direita com a
+        checagem de duplicidade e o resumo do que está sendo criado. A ação principal fica na
+        barra aderente, sempre alcançável.
+      */}
       <ModulePageHeader title="Novo Cliente" />
 
       <form
         onSubmit={(event) => void handleSubmit(event)}
         noValidate
-        className="flex flex-col gap-3"
+        className="grid items-start gap-x-6 gap-y-3 xl:grid-cols-[minmax(0,48rem)_minmax(0,20rem)]"
         aria-describedby={submitError ? formErrorId : undefined}
       >
+        {/*
+          COLUNA PRINCIPAL — o cadastro em si. Largura controlada, e não a tela inteira: campos
+          que atravessam 1350px obrigam o olho a varrer demais entre rótulo e valor.
+        */}
+        <div className="flex min-w-0 flex-col gap-3">
         {submitError ? (
           <p
             id={formErrorId}
@@ -209,16 +227,6 @@ export function ClientCreatePage() {
             {submitError}
           </p>
         ) : null}
-
-        {/*
-          AVISO DE DUPLICIDADE — ACIMA DO FORMULÁRIO, E NÃO DEPOIS DELE.
-
-          O operador precisa ver que o Cliente já existe ANTES de preencher o resto. Colocado no
-          rodapé, o aviso chegaria depois do trabalho; aqui ele interrompe a digitação no momento
-          em que o CNPJ (ou o nome) fica completo, que é exatamente quando a informação passa a
-          existir. A checagem roda contra o servidor: nada é comparado no navegador.
-        */}
-        <DuplicateWarning state={duplicates} canRead={capabilities.canRead} />
 
         {/*
           PAINEL DE IDENTIFICACAO — antes este bloco era um `ModulePageHeader` solto sobre o
@@ -440,6 +448,52 @@ export function ClientCreatePage() {
             Cadastrar Cliente
           </Button>
         </StickyActionBar>
+        </div>
+
+        {/*
+          COLUNA DE APOIO — A CHECAGEM E O QUE ESTÁ SENDO CRIADO.
+
+          A verificação de duplicidade é CONTEXTO DA CRIAÇÃO, não um toast que aparece e some:
+          ela vive aqui, estável, enquanto o operador preenche. É também o lugar natural para o
+          resumo do que já foi digitado — antes esse resumo estava no rodapé do painel de
+          identificação, longe do formulário e sem função clara.
+
+          A coluna não é decorativa: quando a checagem está ociosa ela DIZ que está ociosa, e
+          quando acha algo ela é o ponto focal da tela.
+        */}
+        <aside className="flex min-w-0 flex-col gap-3" data-region="create-support">
+          <section className="cisne-panel px-3 py-2.5">
+            <h2 className="cisne-meta-label m-0">Verificação de cadastro</h2>
+            <div className="mt-1.5">
+              <DuplicateWarning state={duplicates} canRead={capabilities.canRead} />
+            </div>
+          </section>
+
+          <section className="cisne-panel px-3 py-2.5">
+            <h2 className="cisne-meta-label m-0">Em andamento</h2>
+            <dl className="m-0 mt-1.5 flex flex-col gap-1">
+              {[
+                { label: 'Razão social', value: legalName.trim() },
+                { label: 'Nome fantasia', value: tradeName.trim() },
+                { label: 'CNPJ', value: taxId.trim() },
+                { label: 'Contato', value: contactName.trim() },
+              ].map((item) => (
+                <div key={item.label} className="flex min-w-0 flex-col">
+                  <dt className="cisne-meta-label">{item.label}</dt>
+                  <dd
+                    className={
+                      item.value
+                        ? 'cisne-type-meta m-0 min-w-0 truncate tabular-nums'
+                        : 'cisne-type-helper m-0'
+                    }
+                  >
+                    {item.value || 'não informado'}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        </aside>
       </form>
     </ModulePage>
   );

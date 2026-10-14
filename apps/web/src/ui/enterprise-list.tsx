@@ -379,53 +379,73 @@ export const rowSecondaryActionClass =
  */
 export function WorklistHeader({
   title,
+  description,
   count,
   context,
   action,
   metrics,
 }: {
   title: string;
+  /**
+   * Descrição curta da ÁREA DE TRABALHO — o que a carteira é, em uma linha.
+   *
+   * Existe separada de `context` de propósito: `context` declara o RECORTE ATIVO (muda a cada
+   * filtro), e `description` declara a NATUREZA da área (não muda). Antes, as duas coisas
+   * dividiam o mesmo lugar, e o operador perdia a segunda assim que aplicava o primeiro filtro.
+   */
+  description?: string;
   count?: number | null;
   context?: ReactNode;
   action?: ReactNode;
   metrics?: ReactNode;
 }) {
+  /*
+   * CABEÇALHO INTEGRADO AO CANVAS — uma faixa, não um card.
+   *
+   * Antes: `border-y` + `bg-surface-header` (banda cinza) envolvendo um eyebrow "Área de trabalho",
+   * um `<h1>` de 28px e uma linha de indicadores. Medido em 1600×900, esse bloco empilhado com as
+   * faixas seguintes consumia 239px e deixava a TABELA com 226px — cinco linhas — e 301px vazios
+   * abaixo. O cabeçalho dominava a tela: o sintoma exato de "página de cadastro".
+   *
+   * Agora: sem banda de fundo, sem eyebrow, título na escala de identidade de área (22px) e os
+   * indicadores NA MESMA LINHA do título, à direita. O cabeçalho deixa de ser um bloco e passa a
+   * ser a primeira linha da bancada.
+   */
   return (
-    <header className="mb-2 border-y border-[color:var(--color-divider-strong)] bg-[color:var(--color-surface-header)] px-3 py-2.5">
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <div className="min-w-0">
-          <p className="m-0 mb-0.5 text-[10px] font-semibold tracking-[0.16em] text-[color:var(--color-text-muted)] uppercase">
-            Área de trabalho
-          </p>
-          <div className="flex items-baseline gap-2">
-            {/*
-              TITULO NA ESCALA DA BALIZA — 28px/750 em navy profundo.
+    <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--color-divider-strong)] pb-1.5">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+        <h1 className="m-0 text-[1.375rem] leading-tight font-bold tracking-tight text-[color:var(--color-navy-800)]">
+          {title}
+        </h1>
+        {typeof count === 'number' ? (
+          <span
+            className="cisne-type-object leading-none tabular-nums text-[color:var(--color-navy-800)]"
+            aria-label={`${count} registros no recorte`}
+          >
+            {count}
+          </span>
+        ) : null}
+        {description ? (
+          <span className="cisne-type-helper">{description}</span>
+        ) : null}
+      </div>
 
-              Era `text-[1.2rem]` (19px) com `text-gray-950`. Duas divergencias numa linha: escala
-              menor que a do painel operacional e um cinza que nao existe na paleta CISNE. O titulo
-              de area de trabalho e o mesmo papel em todo o produto, entao usa a mesma medida.
-            */}
-            <h1 className="m-0 text-[1.75rem] leading-tight font-bold tracking-tight text-[color:var(--color-navy-800)]">
-              {title}
-            </h1>
-            {/*
-              CONTAGEM DA PAGINA — o numero e o dado, nao um chip. Sem caixa contornada, o
-              operador le "Clientes 20" como uma frase, e nao como um selo a decifrar.
-            */}
-            {typeof count === 'number' ? (
-              <span
-                className="cisne-type-meta font-semibold tabular-nums"
-                aria-label={`${count} registros na página`}
-              >
-                {count}
-              </span>
-            ) : null}
-          </div>
-          {context ? <p className="cisne-type-helper m-0 mt-0.5">{context}</p> : null}
-        </div>
+      <div className="flex shrink-0 items-center gap-2">
+        {/* RECORTE ATIVO — muda com o filtro, e por isso vive ao lado do dado, não do título. */}
+        {context ? <span className="cisne-type-helper">{context}</span> : null}
         {action ? <div className="flex shrink-0 items-center gap-1.5">{action}</div> : null}
       </div>
-      {metrics ? <div className="mt-1.5 flex flex-wrap items-center gap-0">{metrics}</div> : null}
+
+      {/*
+        INDICADORES EM FAIXA COMPACTA — uma régua de números, não três cartões.
+
+        Ocupam a largura inteira abaixo da linha de identidade porque são CLICÁVEIS e funcionam
+        como recorte rápido: cada célula aplica o seu filtro. Um card por número daria peso de
+        painel executivo a um controle de filtro.
+      */}
+      {metrics ? (
+        <div className="flex w-full flex-wrap items-center gap-x-1">{metrics}</div>
+      ) : null}
     </header>
   );
 }

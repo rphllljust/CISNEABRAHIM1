@@ -47,7 +47,7 @@ import {
   type ObjectPagePhase,
 } from '../../enterprise-object';
 import { BusinessChain, useBusinessChain } from '../../business-chain';
-import { Alert, Button, ModulePage, ModulePageHeader } from '../../ui';
+import { Alert, Button, ModulePage, ModulePageHeader, Tabs } from '../../ui';
 
 /**
  * OBJECT PAGE DO CLIENTE — leitura canônica do contrato `enterprise-object`.
@@ -95,6 +95,16 @@ export function ClientDetailPage() {
   const [activateOpen, setActivateOpen] = useState(false);
   const [deactivateReason, setDeactivateReason] = useState('');
   const [actionSubmitting, setActionSubmitting] = useState(false);
+
+  /**
+   * ABA ATIVA — o detalhe da ficha vive sob divulgação progressiva.
+   *
+   * `resumo` é a abertura porque responde "o que é este Cliente e o que nasceu dele", que é a
+   * pergunta de quem chega pela fila. As outras abas só MONTAM o seu painel quando ativas: sem
+   * isso, abrir uma ficha dispararia qualidade, financeiro e trilha de uma vez, para dado que o
+   * operador talvez não vá ler.
+   */
+  const [activeTab, setActiveTab] = useState('resumo');
 
   const reload = useCallback(async () => {
     setState({ phase: 'loading' });
@@ -306,14 +316,14 @@ export function ClientDetailPage() {
         aside={
           <>
             {/*
-              COLUNA DE APOIO — O CADASTRO OPERACIONAL DO CLIENTE.
+              COLUNA DE APOIO — O QUE DECIDE AGORA, SEM ABRIR ABA.
 
-              CONTATOS, UNIDADES E ENDEREÇOS SÃO AGORA OPERÁVEIS, e não texto. Antes desta onda a
-              coluna listava as três coleções em `<li>` sem nenhuma ação: corrigir um telefone
-              exigia sair da ficha e reenviar o formulário inteiro do cadastro. Cada painel agora
-              despacha COMANDOS PRÓPRIOS (adicionar, papel, principal, inativar, matriz, remover),
-              com a `version` do Cliente como concorrência otimista. O servidor continua sendo o
-              boundary: toda ação é uma chamada que ele pode recusar, e a recusa vira mensagem.
+              A ordem é por URGÊNCIA DE LEITURA, não por tipo de dado: primeiro o CONJUNTO de
+              contatos (com quem eu falo), depois a ESTRUTURA (onde este Cliente se encaixa) e o
+              FINANCEIRO (quanto está em aberto). Cadastro administrativo fecha a coluna.
+
+              Os painéis operáveis continuam aqui: cada um despacha COMANDOS PRÓPRIOS com a
+              `version` do Cliente como concorrência otimista, e o servidor segue sendo o boundary.
             */}
             <ClientContactsPanel
               client={client}
@@ -322,42 +332,14 @@ export function ClientDetailPage() {
               onError={setActionError}
             />
 
-            <ClientUnitsPanel
-              client={client}
-              canManage={capabilities.canManageUnits}
-              onUpdated={(updated) => setState({ phase: 'ready', client: updated })}
-              onError={setActionError}
-            />
-
-            <ClientAddressesPanel client={client} />
-
             {/*
-              CONTEXTO FINANCEIRO — o read model DO SERVIDOR, não uma soma de páginas.
-
-              A seção declara três estados distintos e todos honestos: valores medidos sob o escopo
-              do ator; "sem títulos" quando o servidor consultou e não há nenhum; e "sem acesso"
-              quando o ator não tem concessão financeira. NUNCA zero no lugar de ausência.
+              FINANCEIRO — o read model DO SERVIDOR, não uma soma de páginas.
+              Três desfechos honestos: medido / "sem títulos" / "sem acesso". NUNCA zero no lugar
+              de ausência.
             */}
             <ObjectPanel title="Financeiro">
               <ClientFinancialContextPanel clientId={client.id} />
             </ObjectPanel>
-
-            {/*
-              QUALIDADE DO CADASTRO — apontamentos reais do servidor.
-              Fica na coluna de apoio porque é uma AVALIAÇÃO do cadastro, não parte do trabalho
-              corrente: o operador consulta quando vai completar o registro.
-            */}
-            <ClientDataQualityPanel clientId={client.id} />
-
-            {/*
-              HISTÓRICO — A TRILHA DE VALOR, e não mais uma inferência sobre timestamps.
-
-              A seção anterior derivava "Cadastro criado/atualizado/desativado" comparando
-              `createdAt`, `updatedAt` e `deactivatedAt`. Isso dizia QUANDO algo mudou e nunca O QUE
-              mudou nem QUEM mudou — que é a pergunta que a governança de cadastro faz. Agora a
-              leitura é do canal AUDIT_TRAIL, com o par (antes, depois) por alteração.
-            */}
-            <ClientAuditTrailPanel clientId={client.id} />
 
             <ObjectPanel title="Administrativo">
               <dl className="client-details m-0">
@@ -414,24 +396,6 @@ export function ClientDetailPage() {
           primeira tentativa produziu e que a medicao pegou (coluna principal caindo para 380px e
           fichas para 185px). Os paineis sao os mesmos; o que muda e onde sao compostos.
         */}
-        <ObjectContextBlock fields={buildClientContextFields(client)} />
-
-        {/*
-          HIERARQUIA EMPRESARIAL — na coluna PRINCIPAL, e não na de apoio.
-
-          A estrutura organizacional (grupo econômico, matriz, filiais) é o que responde "onde este
-          Cliente se encaixa" — parte central do Customer 360, e não um detalhe de cadastro. A
-          seção é renderizada SEMPRE, inclusive quando não há vínculo: a ausência de estrutura é
-          uma informação legítima, e a seção a declara em vez de sumir. Só uma leitura NEGADA a
-          remove, o que o próprio painel decide.
-        */}
-        <ClientHierarchyPanel
-          client={client}
-          canManage={capabilities.canManageHierarchy}
-          onUpdated={(updated) => setState({ phase: 'ready', client: updated })}
-          onError={setActionError}
-        />
-
         {actionError ? (
           <Alert tone="error" title="Não foi possível concluir a ação">
             {actionError}
@@ -449,16 +413,82 @@ export function ClientDetailPage() {
           </Alert>
         ) : null}
 
-        {/* Linhagem autorizada: o que nasceu deste Cliente, do pedido ao dinheiro. */}
-        <BusinessChain
-          chain={businessChain.chain}
-          phase={businessChain.phase}
-          message={businessChain.message}
-          onRetry={businessChain.retry}
-          title="Cadeia de negócio do cliente"
-        />
+        {/*
+          DIVULGAÇÃO PROGRESSIVA — ABAS, E NÃO UMA PÁGINA LONGA.
 
-        <ClientRelatedRecords modules={related} />
+          MEDIDO antes desta recomposição em 1600×900: a página empilhava contexto, hierarquia,
+          cadeia e relacionados em faixas verticais de largura total, e o conteúdo terminava com
+          698px de vazio abaixo. Tudo estava sempre renderizado e quase nada estava na primeira
+          dobra: o operador rolava para descobrir o básico.
+
+          Agora o que é CONTEXTO DE DECISÃO permanece sempre visível acima (cabeçalho, próxima
+          ação, relações) e o detalhe desce para ABAS. Cada aba só monta o seu painel quando está
+          ativa: as leituras de qualidade, financeiro e trilha deixam de disparar em toda abertura
+          de ficha, e o operador não paga por dado que não pediu.
+
+          Nenhuma capacidade foi removida: todas as seções continuam acessíveis pelo mesmo painel,
+          na aba correspondente.
+        */}
+        <Tabs
+          label="Seções do cliente"
+          activeId={activeTab}
+          onChange={setActiveTab}
+          className="pt-3"
+          items={[
+            {
+              id: 'resumo',
+              label: 'Resumo',
+              panel: (
+                <div className="flex flex-col gap-0">
+                  <ObjectContextBlock fields={buildClientContextFields(client)} />
+                  <BusinessChain
+                    chain={businessChain.chain}
+                    phase={businessChain.phase}
+                    message={businessChain.message}
+                    onRetry={businessChain.retry}
+                    title="Cadeia de negócio do cliente"
+                  />
+                </div>
+              ),
+            },
+            {
+              id: 'relacionamentos',
+              label: 'Relacionamentos',
+              panel: <ClientRelatedRecords modules={related} />,
+            },
+            {
+              id: 'estrutura',
+              label: 'Estrutura',
+              panel: (
+                <div className="flex flex-col gap-0">
+                  <ClientHierarchyPanel
+                    client={client}
+                    canManage={capabilities.canManageHierarchy}
+                    onUpdated={(updated) => setState({ phase: 'ready', client: updated })}
+                    onError={setActionError}
+                  />
+                  <ClientUnitsPanel
+                    client={client}
+                    canManage={capabilities.canManageUnits}
+                    onUpdated={(updated) => setState({ phase: 'ready', client: updated })}
+                    onError={setActionError}
+                  />
+                  <ClientAddressesPanel client={client} />
+                </div>
+              ),
+            },
+            {
+              id: 'qualidade',
+              label: 'Qualidade',
+              panel: <ClientDataQualityPanel clientId={client.id} />,
+            },
+            {
+              id: 'historico',
+              label: 'Histórico',
+              panel: <ClientAuditTrailPanel clientId={client.id} />,
+            },
+          ]}
+        />
       </EnterpriseObjectPage>
 
       <ConfirmDialog

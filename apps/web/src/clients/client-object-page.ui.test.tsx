@@ -1,4 +1,5 @@
 import { configure, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientDetailPage } from './pages/ClientDetailPage';
@@ -323,6 +324,18 @@ async function awaitHeader(name = 'Amaggi Exportadora LTDA'): Promise<HTMLElemen
   return screen.findByRole('heading', { name });
 }
 
+/**
+ * ABRE UMA ABA DA FICHA — a object page passou a usar divulgação progressiva.
+ *
+ * O detalhe (relacionamentos, estrutura, qualidade, histórico) deixou de ficar sempre renderizado.
+ * O teste abre a aba antes de afirmar sobre o painel, o que também prova o comportamento novo: o
+ * painel não monta — e portanto não dispara leitura de rede — até ser pedido.
+ */
+async function openTab(name: RegExp): Promise<void> {
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole('tab', { name }));
+}
+
 describe('Object page do Cliente', () => {
   beforeEach(() => {
     resetTokenStoreForTests();
@@ -400,6 +413,7 @@ describe('Object page do Cliente', () => {
     vi.stubGlobal('fetch', createClientObjectFetchMock({ proposals: 'unknown-total' }));
     renderClientPage();
     await awaitHeader();
+    await openTab(/relacionamentos/i);
 
     // Espera a leitura dos módulos terminar: solicitações resolvidas e registros de proposta na tela.
     const relations = await screen.findByLabelText('Relações');
@@ -490,6 +504,7 @@ describe('Object page do Cliente', () => {
     );
     renderClientPage();
     await awaitHeader();
+    await openTab(/histórico/i);
 
     const history = await screen.findByLabelText('Histórico de alterações');
     expect(within(history).getByText('Cadastro criado')).toBeInTheDocument();
@@ -532,6 +547,7 @@ describe('Object page do Cliente', () => {
     );
     renderClientPage();
     await awaitHeader();
+    await openTab(/histórico/i);
 
     const history = await screen.findByLabelText('Histórico de alterações');
     expect(
@@ -561,6 +577,7 @@ describe('Object page do Cliente', () => {
     );
     renderClientPage();
     await awaitHeader();
+    await openTab(/histórico/i);
 
     expect(screen.getByLabelText('Status: Inativo')).toBeInTheDocument();
 

@@ -232,14 +232,17 @@ describe('ClientsListPage', () => {
       expect(screen.getByText(/nenhum cliente corresponde aos filtros aplicados/i)).toBeInTheDocument();
     });
     expect(screen.queryByText(/nenhum cliente cadastrado ainda/i)).not.toBeInTheDocument();
-    // Existe saída explícita do estado sem resultado. Sao DUAS saidas legitimas — a do painel
-    // de estado (junto da mensagem) e a da command surface (sempre que ha filtro ativo). A
-    // assercao exige as DUAS, cada uma no seu lugar: antes a da barra tinha um rotulo proprio
-    // ("Limpar filtros da toolbar") que existia so para desambiguar o seletor; com a barra
-    // unica as duas passaram a ser "Limpar filtros", e o escopo e o painel.
-    expect(
-      screen.getAllByRole('button', { name: /limpar filtros/i }).length,
-    ).toBeGreaterThanOrEqual(2);
+    /*
+     * EXISTE SAÍDA EXPLÍCITA DO ESTADO SEM RESULTADO.
+     *
+     * A bancada consolidou a superfície de comando: antes havia DUAS saídas "Limpar filtros" (uma
+     * do painel de estado, outra da barra de ferramentas), e o teste exigia as duas. Com a
+     * consolidação a saída é UMA — a do painel de estado, que está fisicamente ao lado da
+     * mensagem e portanto é onde o operador a procura. Asserção ajustada ao modelo novo, não
+     * afrouxada: continua exigindo a saída explícita.
+     */
+    const clearButtons = screen.getAllByRole('button', { name: /limpar filtros/i });
+    expect(clearButtons.length).toBeGreaterThanOrEqual(1);
     const statePanel = screen
       .getByText(/nenhum cliente corresponde aos filtros aplicados/i)
       .closest('section');
@@ -368,7 +371,15 @@ describe('ClientsListPage', () => {
     });
   });
 
-  it('keeps secondary filters behind "Mais filtros"', async () => {
+  /*
+   * O CONTROLE PASSOU A SE CHAMAR "Filtros".
+   *
+   * Antes era um botão de TEXTO alternando "Mais filtros"/"Menos filtros" no meio da superfície.
+   * Na bancada virou um controle de barra de ferramentas com rótulo fixo e `aria-expanded` — o
+   * mesmo comportamento de divulgação progressiva, com o estado declarado por ATRIBUTO em vez de
+   * por troca de texto (o que também o torna verificável sem depender do idioma).
+   */
+  it('keeps secondary filters behind the "Filtros" control', async () => {
     vi.stubGlobal('fetch', createClientsFetchMock({ clients: [makeClient(1)] }));
     const user = userEvent.setup();
 
@@ -380,7 +391,9 @@ describe('ClientsListPage', () => {
       screen.queryByRole('combobox', { name: /exigência de pedido de compra/i }),
     ).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /mais filtros/i }));
+    expect(screen.getByTestId('clients-more-filters')).toHaveAttribute('aria-expanded', 'false');
+    await user.click(screen.getByTestId('clients-more-filters'));
+    expect(screen.getByTestId('clients-more-filters')).toHaveAttribute('aria-expanded', 'true');
 
     const requirement = await screen.findByRole('combobox', {
       name: /exigência de pedido de compra/i,

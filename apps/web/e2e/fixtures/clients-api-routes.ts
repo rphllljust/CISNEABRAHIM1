@@ -94,6 +94,139 @@ export async function handleClientsApiRoute(route: Route): Promise<boolean> {
     return true;
   }
 
+  /*
+   * DETALHE E CONTEXTO DO REGISTRO — as rotas que a COLUNA DE CONTEXTO consome.
+   *
+   * Sem elas o catch-all devolvia 404 e a coluna abria com "não foi possível carregar", o que
+   * tornava a evidência visual inútil: a captura mostraria uma tela de erro em vez da composição
+   * real. O fixture serve o contrato COMPLETO do Cliente selecionado — identidade, contatos,
+   * unidades e endereços —, e responde qualidade e financeiro com o mesmo formato do servidor.
+   */
+  const detailMatch = pathname.match(/^\/api\/v1\/clients\/([0-9a-f-]{36})(\/.*)?$/i);
+  if (detailMatch && method === 'GET') {
+    const clientId = detailMatch[1]!;
+    const sub = detailMatch[2] ?? '';
+    const summary = CLIENTS_LIST_VISUAL_SNAPSHOT.items.find((item) => item.id === clientId);
+
+    if (sub === '/data-quality') {
+      await fulfillJson(route, {
+        evaluated: true,
+        isComplete: false,
+        findings: [
+          {
+            code: 'MISSING_BILLING_CONTACT',
+            severity: 'attention',
+            summary: 'Sem contato de faturamento.',
+            consequence: 'A cobrança não tem destinatário declarado no cadastro do Cliente.',
+          },
+        ],
+      });
+      return true;
+    }
+
+    /*
+     * FINANCEIRO AUTORIZADO E VAZIO — o estado em que o servidor CONSULTOU e não há título. É o
+     * desfecho que prova a distinção entre "sem títulos" e "não autorizado": a coluna deve dizer
+     * "Nenhum título a receber", e nunca "R$ 0,00".
+     */
+    if (sub === '/financial-context') {
+      await fulfillJson(route, {
+        evaluated: true,
+        authorized: true,
+        currencies: [],
+        asOf: new Date().toISOString(),
+      });
+      return true;
+    }
+
+    if (sub === '/hierarchy') {
+      await fulfillJson(route, {
+        rootId: clientId,
+        nodes: [
+          {
+            id: clientId,
+            legal_name: summary?.legalName ?? 'Cliente',
+            trade_name: summary?.tradeName ?? null,
+            status: summary?.status ?? 'ACTIVE',
+            parent_client_id: summary?.parentClientId ?? null,
+            group_id: summary?.groupId ?? null,
+            group_name: summary?.groupName ?? null,
+            child_count: summary?.childCount ?? 0,
+            depth: 0,
+            relation: 'self',
+          },
+        ],
+        truncated: false,
+        maxDepth: 8,
+      });
+      return true;
+    }
+
+    if (sub === '/audit-trail') {
+      await fulfillJson(route, { items: [], limit: 20, offset: 0, total: 0, totalPages: 0 });
+      return true;
+    }
+
+    if (sub === '') {
+      await fulfillJson(route, {
+        ...(summary ?? {}),
+        externalErpId: null,
+        deactivatedAt: null,
+        deactivationReason: null,
+        purchaseOrderRequirement: 'NOT_REQUIRED',
+        contacts: [
+          {
+            id: 'cccccccc-cccc-4ccc-8ccc-cccccccccc01',
+            name: 'Operações Alfa',
+            purpose: 'operational',
+            role: 'operational',
+            isPrimary: true,
+            deactivatedAt: null,
+            email: 'ops@alfa.invalid',
+            phone: '6533330001',
+          },
+          {
+            id: 'cccccccc-cccc-4ccc-8ccc-cccccccccc02',
+            name: 'Compras Alfa',
+            purpose: 'commercial',
+            role: 'purchasing',
+            isPrimary: false,
+            deactivatedAt: null,
+            email: 'compras@alfa.invalid',
+            phone: null,
+          },
+        ],
+        addresses: [
+          {
+            id: 'dddddddd-dddd-4ddd-8ddd-dddddddddd01',
+            purpose: 'billing',
+            unitId: null,
+            unitName: 'Matriz Cuiabá',
+            street: 'Av. Historiador Rubens de Mendonça',
+            number: '1000',
+            complement: null,
+            district: 'Centro',
+            city: 'Cuiabá',
+            state: 'MT',
+            postalCode: '78000-000',
+            country: 'Brasil',
+          },
+        ],
+        units: [
+          {
+            id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeee01',
+            name: 'Matriz Cuiabá',
+            isHeadquarters: true,
+            city: 'Cuiabá',
+            state: 'MT',
+            addressCount: 1,
+          },
+        ],
+      });
+      return true;
+    }
+  }
+
   // Sondas de capability do módulo: 404 (e não 403) é o que faz o probe concluir que a capability
   // existe, mantendo visíveis as ações autorizadas — "Novo Cliente" e as linhas navegáveis.
   await fulfillJson(route, { error: { code: 'CLIENT_NOT_FOUND', message: 'Not found.' } }, 404);

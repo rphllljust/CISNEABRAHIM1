@@ -361,6 +361,23 @@
     border-bottom: 1px solid var(--color-divider);
   }
 
+  /*
+   * PAINEL DE APOIO — a superficie do CONTEXTO, ao lado da superficie de trabalho.
+   *
+   * Existe porque a bancada de trabalho tem DUAS superficies com papeis diferentes: a fila (branca,
+   * densa, o trabalho) e o contexto (levemente tingida, mais clara em densidade, a leitura paralela).
+   * Sem uma classe compartilhada, cada tela inventava a sua — e o mesmo painel saia com borda,
+   * fundo e padding diferentes conforme o modulo.
+   *
+   * SEM sombra: a separacao vem do FUNDO e de uma borda fina. Sombra aqui competiria com a
+   * hierarquia da grade, que ja e dada por regua e tipografia.
+   */
+  .cisne-panel {
+    background: var(--color-surface-context);
+    border: 1px solid var(--color-divider);
+    border-radius: var(--radius-md);
+  }
+
   .cisne-divider--section {
     border-bottom: 1px solid var(--color-divider-strong);
   }
