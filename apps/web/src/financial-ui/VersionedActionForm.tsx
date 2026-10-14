@@ -295,9 +295,23 @@ export function CreateRecordForm({
           </p>
         ) : null}
         <div className="md:col-span-2">
-          <Button type="submit" disabled={disabled || processing} loading={processing}>
-            {submitLabel}
-          </Button>
+          {/*
+            BARRA DE COMANDO DO FORMULARIO — o comando primario nao se perde no fim da pagina.
+
+            Antes o botao de envio era mais um item do grid, no fim do formulario. Em superficie
+            curta isso funciona; num cadastro de doze campos o operador preenche, rola e precisa
+            PROCURAR o comando — e num formulario aberto dentro da lista o botao ficava ainda
+            mais longe do ultimo campo.
+
+            `cisne-command-surface` + `sticky bottom-0` e a mesma gramatica que a object page e a
+            criacao de OS ja usam: a acao fica alcancavel sem abandonar o preenchimento. O
+            `defaultOpen` nao muda — o bloco continua recolhido ate o operador decidir cadastrar.
+          */}
+          <div className="cisne-command-surface sticky bottom-0 z-10 flex-wrap justify-end border-b-0 bg-[var(--color-canvas-work)]">
+            <Button type="submit" disabled={disabled || processing} loading={processing}>
+              {submitLabel}
+            </Button>
+          </div>
         </div>
       </form>
       ) : null}

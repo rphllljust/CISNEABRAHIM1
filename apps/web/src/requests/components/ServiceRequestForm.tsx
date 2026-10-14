@@ -545,9 +545,24 @@ export function ServiceRequestForm({
         </p>
       </aside>
 
+      {/*
+        BARRA DE COMANDO DO FORMULARIO — um comando, uma superficie.
+
+        O bloco acumulava TRES defeitos que a foundation remove:
+          1. `!static` — desligava a fixacao nos DOIS modos, entao num formulario longo o
+             comando "Registrar solicitacao" ficava no fim da pagina e tinha de ser procurado;
+          2. `rounded-lg border bg-white shadow-sm` — a receita de CARD dentro da area de
+             trabalho, exatamente o padrao que `theme.css` governa globalmente;
+          3. `backdrop-blur-none` e o `mx-0 mt-0` — override em cascata para neutralizar o
+             proprio `StickyActionBar`, sinal de que a classe certa nao era essa.
+
+        Agora usa a superficie de comando do sistema. A fixacao vale SO na criacao: na edicao o
+        formulario longo tem conteudo de leitura depois dele, e uma barra fixa cobriria o que o
+        operador veio consultar.
+      */}
       <StickyActionBar
         note={null}
-        className="!static mx-0 mt-0 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm backdrop-blur-none sm:mx-0 sm:px-4 lg:col-span-2"
+        className={mode === 'edit' ? '!static lg:col-span-2' : 'lg:col-span-2'}
       >
         <Link to={cancelHref} className="button-link button-secondary">
           Cancelar

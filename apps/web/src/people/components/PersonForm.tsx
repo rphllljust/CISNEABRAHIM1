@@ -213,7 +213,21 @@ export function PersonForm({
         ) : null}
         </fieldset>
 
-        <StickyActionBar className="!static" note={null}>
+        {/*
+          BARRA DE COMANDO — FIXA NO CADASTRO, ESTÁTICA NA EDIÇÃO.
+
+          O `!static` estava aplicado nos DOIS modos. Ele existe por um motivo real: no modo de
+          edição, abaixo do formulário vive a lista de fatos do registro (`DefinitionList`), e
+          uma barra fixa cobriria justamente o conteúdo que o operador veio consultar.
+
+          No CADASTRO esse motivo não existe — não há bloco de leitura depois do formulário — e
+          o efeito do `!static` era o defeito: num cadastro longo, o comando "Cadastrar" ficava
+          no fim da página e tinha de ser procurado por rolagem.
+
+          Condicionar ao modo preserva a razão do override onde ela vale e devolve o comando
+          alcançável onde ele importa.
+        */}
+        <StickyActionBar className={isEdit ? '!static' : undefined} note={null}>
           <Link to={cancelHref} className={SECONDARY_LINK_CLASS}>
             Cancelar
           </Link>

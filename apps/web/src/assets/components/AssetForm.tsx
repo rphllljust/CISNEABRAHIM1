@@ -281,7 +281,7 @@ export function AssetForm({
         ) : null}
         </fieldset>
 
-        <StickyActionBar className="!static" note={null}>
+        <StickyActionBar className={isEdit ? '!static' : undefined} note={null}>
           <Link to={cancelHref} className={SECONDARY_LINK_CLASS}>
             Cancelar
           </Link>

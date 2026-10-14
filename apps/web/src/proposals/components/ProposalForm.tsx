@@ -379,7 +379,7 @@ export function ProposalForm({
           </Field>
         </BuilderSection>
 
-        <StickyActionBar className="!static" note={null}>
+        <StickyActionBar className={mode === 'edit' ? '!static' : undefined} note={null}>
           <Link to={cancelHref} className="button-link button-secondary">
             Cancelar
           </Link>
