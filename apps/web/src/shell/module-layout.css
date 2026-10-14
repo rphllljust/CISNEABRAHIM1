@@ -99,7 +99,20 @@
     font-size: 0.875rem;
     font-weight: 600;
     color: var(--color-text-secondary);
-    box-shadow: 0 1px 2px rgb(17 24 39 / 5%);
+    /*
+      SEM SOMBRA — o botao secundario e um CONTROLE, nao uma superficie.
+
+      Ele declarava `box-shadow: 0 1px 2px rgb(17 24 39 / 5%)` — exatamente o `--shadow-sm` do
+      sistema. A intencao era dar relevo; o efeito medido e outro: num ERP denso, sombra em
+      CONTROLE repete o vocabulario de CARD que a governanca global existe para eliminar, e o
+      botao passa a flutuar sobre a faixa de filtro em vez de pertencer a ela.
+
+      A governanca de `#main-content` nao pegava este caso: ela e escopada ao CONTEUDO, e esta
+      regra vive em `.cisne-app`, que inclui o shell. Por isso a sombra sobreviveu a todas as
+      waves anteriores — so foi encontrada quando o gate passou a MEDIR sombra por rota real.
+
+      O relevo do botao vem da BORDA e do fundo, que e o que o resto do sistema usa.
+    */
     cursor: pointer;
   }
 

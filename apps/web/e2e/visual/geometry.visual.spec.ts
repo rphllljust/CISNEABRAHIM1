@@ -70,6 +70,52 @@ async function measure(page: Page) {
     const headerCell = document.querySelector('th');
     const headerStyle = headerCell ? getComputedStyle(headerCell) : null;
 
+    /*
+      GOVERNANÇA DE SUPERFÍCIE — MEDIDA, NÃO PRESUMIDA.
+
+      A regra global de `theme.css` neutraliza sombra e raio grande dentro de `#main-content`
+      (elevação deixa de ser separador; superfície se separa por divisor). A regra existe desde
+      a foundation, mas nada a MEDIA em rota real: se um seletor futuro deixar de casar — por
+      ordem de camada do Tailwind, por `:not()` mal escrito, por um wrapper que muda a árvore —
+      o cardification volta em silêncio e nenhum teste acusa.
+
+      Aqui a superfície é medida no DOM COMPUTADO de cada rota: nenhum elemento dentro da área
+      de trabalho pode pintar sombra projetada, exceto os papéis que legitimamente flutuam
+      (diálogo, menu, listbox, tooltip, overlay declarado). É a prova de que a governança vale
+      nas telas que o operador abre — não só na folha de estilo.
+    */
+    const FLOATING_SELECTOR =
+      '[role="dialog"],[role="menu"],[role="listbox"],[role="tooltip"],[aria-modal="true"],[data-elevated]';
+    const main = document.querySelector('#main-content');
+    const shadowOffenders: string[] = [];
+    if (main) {
+      for (const el of Array.from(main.querySelectorAll('*'))) {
+        if (el.closest(FLOATING_SELECTOR)) {
+          continue;
+        }
+        const shadow = getComputedStyle(el).boxShadow;
+        if (shadow && shadow !== 'none' && !shadow.includes('inset')) {
+          // Primeiro token de classe basta para localizar o ofensor no relatório.
+          const cls = (el.getAttribute('class') ?? '').split(/\s+/).find((c) => c.startsWith('shadow')) ?? '';
+          shadowOffenders.push(`${el.tagName.toLowerCase()}${cls ? `.${cls}` : ''}`);
+          if (shadowOffenders.length >= 5) {
+            break;
+          }
+        }
+      }
+    }
+
+    /*
+      TOKENS DO CHROME RESOLVIDOS — o shell deixou de escrever hex literal (WAVE 1).
+
+      Um token NÃO declarado resolve para string vazia e a propriedade cai no valor inicial: a
+      sidebar ficaria transparente em vez de navy, sem erro de build e sem teste vermelho. Este
+      é o único jeito de provar que a conversão para token não quebrou a cor.
+    */
+    const shellEl = document.querySelector('.shell__sidebar') ?? document.querySelector('.shell__topbar');
+    const shellStyle = shellEl ? getComputedStyle(shellEl) : null;
+    const shellBackground = shellStyle ? shellStyle.backgroundColor : null;
+
     return {
       scrollWidth: doc.scrollWidth,
       clientWidth: doc.clientWidth,
@@ -83,6 +129,8 @@ async function measure(page: Page) {
       filtersHeight: filtersBar ? Math.round(filtersBar.getBoundingClientRect().height) : null,
       headerFontSize: headerStyle ? headerStyle.fontSize : null,
       headerPaddingY: headerStyle ? headerStyle.paddingTop : null,
+      shadowOffenders,
+      shellBackground,
       /** Faixa de resumo da worklist (metricas reais do recorte). */
       hasSummary: document.querySelectorAll('strong').length > 0,
       bodyText: (document.body.innerText ?? '').slice(0, 20000),
@@ -153,6 +201,30 @@ test.describe('evidencia visual medida por dominio', () => {
           m.firstRowHeight,
           `${route.label}: altura de linha densa (${m.firstRowHeight}px), nao a grade folgada de antes`,
         ).toBeLessThanOrEqual(64);
+      }
+
+      /*
+        GOVERNANÇA DE SUPERFÍCIE — nenhum card elevado dentro da área de trabalho.
+
+        Se esta asserção falhar, o ofensor está nomeado no relatório: a governança global de
+        `theme.css` deixou de casar para aquele elemento e o vocabulário de card voltou.
+      */
+      expect(
+        m.shadowOffenders,
+        `${route.label}: superficie elevada dentro da area de trabalho (${m.shadowOffenders.join(', ')}) — a hierarquia deve vir de divisor, nao de sombra`,
+      ).toEqual([]);
+
+      /*
+        CHROME RESOLVIDO — a sidebar/topbar tem cor de verdade.
+
+        `rgba(0, 0, 0, 0)` significa que o token não resolveu: a conversão da WAVE 1 apontaria
+        para uma variável inexistente e o chrome ficaria transparente sem quebrar o build.
+      */
+      if (m.shellBackground !== null) {
+        expect(
+          m.shellBackground,
+          `${route.label}: o chrome do shell nao resolveu cor (${m.shellBackground}) — token ausente ou invalido`,
+        ).not.toBe('rgba(0, 0, 0, 0)');
       }
 
       console.log(

@@ -329,7 +329,22 @@ export function RowActionMenu({
           >
             •••
           </summary>
-          <div className="cisne-raised-surface absolute right-0 z-20 mt-1 flex min-w-56 flex-col gap-0.5 rounded-md p-1 text-left">
+          {/*
+            `data-elevated` — a escotilha SEMANTICA da governanca de superficie.
+
+            O painel de "Mais ações" FLUTUA sobre a grade (posicionado `absolute`), e elevação
+            em superfície flutuante é legítima: a regra global de `theme.css` preserva diálogo,
+            menu, listbox, tooltip e overlay declarado.
+
+            Ele não era nenhum desses para o seletor: é um `<div>` sem `role`, então a
+            governança o tratava como superfície de trabalho e mandava remover a sombra — o que
+            faria o menu se confundir com a linha atrás dele. `data-elevated` é exatamente o
+            canal que a foundation reserva para este caso: elevação EXPLÍCITA, nunca default.
+          */}
+          <div
+            data-elevated="true"
+            className="cisne-raised-surface absolute right-0 z-20 mt-1 flex min-w-56 flex-col gap-0.5 rounded-md p-1 text-left"
+          >
             {secondary}
           </div>
         </details>
