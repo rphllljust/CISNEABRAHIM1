@@ -33,16 +33,27 @@ function makeClient(
     deactivatedAt: null,
     deactivationReason: null,
     purchaseOrderRequirement: PURCHASE_ORDER_REQUIREMENTS.NotRequired,
+    // CUSTOMER 360 — o fixture declara os campos novos com o estado NEUTRO (sem vínculo, sem
+    // coleção filha), que é o que o servidor devolve para um cadastro sem estrutura declarada.
+    groupId: null,
+    groupName: null,
+    parentClientId: null,
+    parentClientName: null,
+    childCount: 0,
     contacts: [
       {
         id: `cccccccc-cccc-4ccc-8ccc-${String(index).padStart(12, '0')}`,
         name: 'Operações',
         purpose: CONTACT_PURPOSES.Operational,
+        role: null,
+        isPrimary: true,
+        deactivatedAt: null,
         email: `ops${index}@demo.invalid`,
         phone: null,
       },
     ],
     addresses: [],
+    units: [],
     ...overrides,
   };
 }

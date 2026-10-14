@@ -151,16 +151,32 @@ export function createClientsFetchMock(options: ClientsFetchMockOptions = {}) {
       deactivatedAt: null,
       deactivationReason: null,
       purchaseOrderRequirement: PURCHASE_ORDER_REQUIREMENTS.NotRequired,
+      /*
+       * CUSTOMER 360 — hierarquia e coleções novas do contrato.
+       *
+       * O Cliente de demonstração NÃO declara vínculo (`null`) porque é o estado real de um
+       * cadastro sem grupo nem matriz; `childCount` é 0 porque não há filial. Declarar valores
+       * aqui faria o mock afirmar uma estrutura que os testes de hierarquia não pediram.
+       */
+      groupId: null,
+      groupName: null,
+      parentClientId: null,
+      parentClientName: null,
+      childCount: 0,
       contacts: [
         {
           id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
           name: 'Operações',
           purpose: CONTACT_PURPOSES.Operational,
+          role: null,
+          isPrimary: true,
+          deactivatedAt: null,
           email: 'ops@demo.invalid',
           phone: null,
         },
       ],
       addresses: [],
+      units: [],
     },
   ];
 
@@ -214,16 +230,27 @@ export function createClientsFetchMock(options: ClientsFetchMockOptions = {}) {
         deactivatedAt: null,
         deactivationReason: null,
         purchaseOrderRequirement: PURCHASE_ORDER_REQUIREMENTS.NotRequired,
+        // Cadastro recém-criado não tem vínculo declarado nem coleções filhas — o mesmo estado
+        // real que o servidor devolve, não um preenchimento de conveniência do mock.
+        groupId: null,
+        groupName: null,
+        parentClientId: null,
+        parentClientName: null,
+        childCount: 0,
         contacts: [
           {
             id: crypto.randomUUID(),
             name: 'Ops',
             purpose: CONTACT_PURPOSES.Operational,
+            role: null,
+            isPrimary: true,
+            deactivatedAt: null,
             email: 'new@demo.invalid',
             phone: null,
           },
         ],
         addresses: [],
+        units: [],
       };
       store.push(created);
       return jsonResponse(created, 201);

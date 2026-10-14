@@ -39,8 +39,18 @@ const VISUAL_CLIENT: Client = {
   deactivatedAt: null,
   deactivationReason: null,
   purchaseOrderRequirement: PURCHASE_ORDER_REQUIREMENTS.NotRequired,
+  /*
+   * CUSTOMER 360 — o Cliente visual do e2e declara GRUPO para que a ficha exercite a hierarquia de
+   * verdade. `null` aqui significaria "não declarado", que já é coberto pelos testes de unidade.
+   */
+  groupId: '99999999-9999-4999-8999-999999999999',
+  groupName: 'Grupo Visual',
+  parentClientId: null,
+  parentClientName: null,
+  childCount: 0,
   contacts: [],
   addresses: [],
+  units: [],
 };
 
 export const COMMERCIAL_CLIENTS_SNAPSHOT: ClientListResponse = {
