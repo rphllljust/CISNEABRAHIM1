@@ -34,8 +34,22 @@ export function ModulePage({
   layout?: PageLayoutMode;
 }) {
   useDeclarePageLayoutMode(layout);
+  /*
+   * BANCADA PREENCHE A TELA.
+   *
+   * `workspace` e `fullBleed` sao as superficies onde a grade E o produto: nelas o `<main>` vira uma
+   * coluna flexivel de altura minima zero, para que a fila dentro dele seja elastica em vez de
+   * medir o proprio conteudo. Foi essa ausencia que produziu 403px de canvas vazio na worklist de
+   * Clientes e 489px em Minhas pendencias — em 1600x900, quase metade da tela em branco abaixo do
+   * ultimo registro.
+   */
+  const fills = layout === 'workspace' || layout === 'fullBleed';
   return (
-    <main id="main-content" className={cn('w-full', PAGE_FRAME_CLASS[layout], className)}>
+    <main
+      id="main-content"
+      className={cn('w-full', fills && 'flex min-h-0 flex-1 flex-col', PAGE_FRAME_CLASS[layout], className)}
+      data-layout-mode={layout}
+    >
       {children}
     </main>
   );

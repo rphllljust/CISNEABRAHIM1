@@ -47,21 +47,32 @@ import { HumanLookupField } from '../../financial-ui/HumanLookupField';
 import { searchClientOptions } from '../../financial-ui/client-lookup';
 import { OperationalUnitOptions, useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
 import {
-  EnterpriseMetric,
   RecordStatusCell,
   WorklistClearFilters,
   WorklistField,
-  WorklistFilterBar,
-  WorklistFooter,
-  WorklistHeader,
   WorklistRowLink,
-  WorklistStatePanel,
-  worklistCellClass,
-  worklistHeadCellClass,
+  worklistControlClass,
   worklistSelectClass,
-  worklistTableCardClass,
   worklistTableClass,
 } from '../../ui/enterprise-list';
+/*
+ * A MOLDURA DA BANCADA VEM DO PRIMITIVO COMPARTILHADO (`ui/workspace-frame`).
+ *
+ * Nenhuma moldura paralela: as reguas, a faixa de comando, a grade elastica e as classes de
+ * celula desta tela sao as MESMAS de Clientes e das demais worklists que ja adotaram o frame.
+ */
+import {
+  WorkspaceBody,
+  WorkspaceEmpty,
+  WorkspaceHeader,
+  WorkspacePane,
+  WorkspaceStatusLine,
+  WorkspaceToolbar,
+  workspaceCellClass,
+  workspaceCellRaisedClass,
+  workspaceHeadCellClass,
+  workspaceRowClass,
+} from '../../ui/workspace-frame';
 import {
   ModuleDeniedState,
   ModuleErrorState,
@@ -280,18 +291,30 @@ export function ContractsListPage() {
   ).length;
 
   return (
-    <ModulePage>
+    /*
+     * `layout="workspace"` — A BANCADA OCUPA A ALTURA DO SHELL.
+     *
+     * A moldura passa a ser uma coluna flexivel de altura cheia: o painel da grade dentro dela e
+     * elastico e a tela deixa de medir o proprio conteudo (que era o que sobrava em canvas vazio
+     * abaixo do ultimo registro). Nenhuma chamada, filtro ou rota muda por causa disso.
+     */
+    <ModulePage layout="workspace">
       {/*
-        ZONA 1 — CABECALHO DA WORKLIST, na gramatica `WorklistHeader` que as worklists
-        enterprise irmaes (pedidos de compra, ordens de servico) ja usam.
+        ZONA 1 — CABECALHO DA BANCADA, na gramatica `WorkspaceHeader` da moldura de workspace
+        (a MESMA que as worklists irmaes ja usam).
 
         HIERARQUIA: o titulo da tela concentra o maior peso da pagina; o contexto de dominio
         entra como UMA linha de leitura, no lugar do antigo paragrafo solto. A acao primaria
         aparece UMA UNICA VEZ em toda a tela.
 
-        CONTAGEM — declarada UMA VEZ, na barra de filtros ("N nesta página"). O chip de contagem
-        do cabecalho foi removido: ele repetia o mesmo numero que a faixa de metricas ja
-        descreve por classe (vigente/exigindo atenção/rascunho/encerrado), e a tela tinha o
+        IDENTIDADE — a linha que declara o que a AREA e, e nao o recorte. O texto que esta tela ja
+        publicava como `context` do `WorklistHeader` nunca mudou com filtro nenhum, entao ele
+        pertence ao `identity` da moldura (a linha que NAO muda); `scope` fica reservado ao recorte
+        ATIVO, que aqui continua sem texto proprio. A redacao e EXATAMENTE a mesma de antes.
+
+        CONTAGEM — declarada UMA VEZ, na linha de status do cabecalho ("N nesta página"). O chip
+        de contagem do cabecalho foi removido: ele repetia o mesmo numero que a faixa de metricas
+        ja descreve por classe (vigente/exigindo atenção/rascunho/encerrado), e a tela tinha o
         total da pagina escrito em tres lugares. Reference de densidade: Fiori/Dynamics declaram
         o tamanho uma vez, junto do recorte que o produziu.
 
@@ -305,37 +328,76 @@ export function ContractsListPage() {
         de `status`/`validTo` que a listagem ja publica: a listagem NAO publica `total`, entao
         nao ha contagem de dominio afirmada aqui. O recorte real (cliente + unidade) continua
         sendo o unico filtro que o servidor executa — as metricas DECLARAM, nao filtram.
+
+        Os MESMOS numeros passam a viver em `WorkspaceStatusLine`, ao lado do titulo: uma linha
+        de metadata no lugar de quatro caixas contornadas que gastavam faixa propria acima da
+        grade. Nenhum numero novo e afirmado e nenhum numero existente foi perdido: o rotulo
+        "nesta página" e exatamente o que a barra de filtros publicava (`N nesta página`), agora
+        como item da mesma linha. `tone: 'alert'` continua exclusivo do que EXIGE o operador — o
+        contrato com vigencia vencida —, que antes era o unico indicador em `tone="warning"`.
       */}
-      <WorklistHeader
+      <WorkspaceHeader
         title="Contratos"
-        context="Carteira de contratos comerciais, com vigência, situação e unidade de cada um."
+        identity="Carteira de contratos comerciais, com vigência, situação e unidade de cada um."
         action={
           showCreateInHeader ? (
             <ModulePrimaryLink to="/app/contracts/new">Novo contrato</ModulePrimaryLink>
           ) : null
         }
-        metrics={
+        status={
           items.length > 0 ? (
-            <>
-              <EnterpriseMetric value={activeCount} label="vigente(s)" tone="info" />
-              <EnterpriseMetric
-                value={attentionCount}
-                label="exigindo atenção"
-                tone={attentionCount > 0 ? 'warning' : 'neutral'}
-              />
-              <EnterpriseMetric value={draftCount} label="rascunho(s)" />
-              <EnterpriseMetric value={settledCount} label="encerrado(s)" />
-            </>
-          ) : null
+            <WorkspaceStatusLine
+              items={[
+                { value: activeCount, label: 'vigente(s)' },
+                {
+                  value: attentionCount,
+                  label: 'exigindo atenção',
+                  tone: attentionCount > 0 ? 'alert' : 'neutral',
+                },
+                { value: draftCount, label: 'rascunho(s)' },
+                { value: settledCount, label: 'encerrado(s)' },
+                { value: items.length, label: 'nesta página' },
+              ]}
+            />
+          ) : undefined
         }
       />
 
       {/*
-        ZONA 2 — COMMAND SURFACE COMPACTA. Barra unica: busca de cliente humana, unidade
-        (escopo autorizado) e visoes salvas na MESMA linha de operacao — sem formulario cru,
+        ZONA 2 — BARRA DE FERRAMENTAS DA BANCADA. Uma faixa de comando, com a ordem fixa da
+        moldura: VISOES a esquerda e CONSULTA a direita.
+
+        Busca de cliente humana, busca textual, situacao, janela de vigencia, unidade (escopo
+        autorizado) e as visoes salvas continuam na MESMA linha de operacao — sem formulario cru,
         sem cartao de respiro largo empurrando a grade para fora da primeira dobra.
       */}
-      <WorklistFilterBar meta={items.length > 0 ? `${items.length} nesta página` : undefined}>
+      <WorkspaceToolbar
+        views={
+          items.length > 0 ? (
+            <div data-region="saved-view-surface">
+              {/*
+                VISOES SALVAS — integradas a command surface, na MESMA faixa dos filtros que elas
+                restauram. O recorte (cliente + unidade) e o que o comercial remonta todo dia e a visao
+                reaplica o recorte SERVER-SIDE real. `persistedLocally` e declarado pela engine: sem
+                endpoint de visoes salvas o armazenamento e local, e a barra diz isso em vez de fingir
+                backend. O antigo `-mt-1`, que colava a barra na faixa de filtros, deixou de existir:
+                dentro de `WorkspaceToolbar` a barra ja vive na faixa, sem cartao proprio.
+              */}
+              <DynamicSavedViewsBar
+                views={savedViews.views}
+                persistedLocally={savedViews.persistedLocally}
+                persistable={savedViews.persistable}
+                onSave={(name) => savedViews.save(name, { clientFilter, unitFilter }, 'list')}
+                onDelete={savedViews.remove}
+                onApply={(view) => {
+                  setClientFilter(view.filters['clientFilter'] ?? '');
+                  setUnitFilter(view.filters['unitFilter'] ?? '');
+                }}
+              />
+            </div>
+          ) : undefined
+        }
+      >
         {/*
           BUSCA DE CLIENTE — `HumanLookupField` compacto NAO encolhe.
 
@@ -363,7 +425,7 @@ export function ContractsListPage() {
           <input
             id="contract-search"
             type="search"
-            className={worklistSelectClass}
+            className={worklistControlClass}
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
             onKeyDown={(event) => {
@@ -402,7 +464,7 @@ export function ContractsListPage() {
           <input
             id="contract-effective-from"
             type="date"
-            className={worklistSelectClass}
+            className={worklistControlClass}
             value={effectiveFrom}
             onChange={(event) => setEffectiveFrom(event.target.value)}
           />
@@ -411,7 +473,7 @@ export function ContractsListPage() {
           <input
             id="contract-effective-to"
             type="date"
-            className={worklistSelectClass}
+            className={worklistControlClass}
             value={effectiveTo}
             onChange={(event) => setEffectiveTo(event.target.value)}
           />
@@ -444,7 +506,7 @@ export function ContractsListPage() {
             setUrlParams(params, { replace: true });
           }}
         />
-      </WorklistFilterBar>
+      </WorkspaceToolbar>
 
       {/*
         FILTRO AVANÇADO COMPOSTO — área própria, dirigida por METADADO.
@@ -468,186 +530,198 @@ export function ContractsListPage() {
       </div>
 
       {/*
-        VISOES SALVAS — integradas a command surface, na MESMA faixa dos filtros que elas
-        restauram. O recorte (cliente + unidade) e o que o comercial remonta todo dia e a visao
-        reaplica o recorte SERVER-SIDE real. `persistedLocally` e declarado pela engine: sem
-        endpoint de visoes salvas o armazenamento e local, e a barra diz isso em vez de fingir
-        backend. O `-mt-1` apenas cola a barra na faixa de filtros, sem cartao proprio.
-      */}
-      {items.length > 0 ? (
-        <div className="-mt-1 mb-2 flex flex-wrap items-center gap-2 [&>div]:mb-0">
-          <DynamicSavedViewsBar
-            views={savedViews.views}
-            persistedLocally={savedViews.persistedLocally}
-            persistable={savedViews.persistable}
-            onSave={(name) => savedViews.save(name, { clientFilter, unitFilter }, 'list')}
-            onDelete={savedViews.remove}
-            onApply={(view) => {
-              setClientFilter(view.filters['clientFilter'] ?? '');
-              setUnitFilter(view.filters['unitFilter'] ?? '');
-            }}
-          />
-        </div>
-      ) : null}
-
-      {/*
         ZONA 3 — PROCESSING WORKLIST. A lista domina a pagina. Identidade primeiro (contrato,
         titulo/objeto e cliente), decisao depois (situacao + o fato que exige o operador) e
         ciclo/vigencia por ultimo. A barra de acento marca o contrato que EXIGE o operador.
       */}
-      {items.length === 0 ? (
-        /*
-          ESTADO VAZIO — menor e mais funcional: a moldura `WorklistStatePanel` explica o que um
-          contrato e e carrega a UNICA acao primaria quando a criacao e permitida. Sem o
-          enquadramento de altura minima que deixava a tela orfa, o vazio ocupa o que precisa e
-          devolve a primeira dobra para a area de trabalho.
-        */
-        <WorklistStatePanel
-          title={
-            hasActiveFilters
-              ? 'Nenhum contrato corresponde aos filtros aplicados.'
-              : 'Nenhum contrato no recorte atual.'
-          }
-          description={
-            hasActiveFilters
-              ? 'Ajuste o cliente ou a unidade para ver outros contratos.'
-              : 'Os contratos formalizam a vigência comercial com o cliente: duração, status e unidade. Quando o primeiro for registrado, ele aparece aqui.'
-          }
-          action={
-            hasActiveFilters ? (
-              <WorklistClearFilters
-                visible
-                onClick={() => {
-                  setClientFilter('');
-                  setUnitFilter('');
-                }}
-              />
-            ) : showCreateInEmptyState ? (
-              <ModulePrimaryLink to="/app/contracts/new">Novo contrato</ModulePrimaryLink>
-            ) : null
-          }
-        />
-      ) : (
-        <div className={worklistTableCardClass}>
-          <table className={worklistTableClass} aria-label="Lista de contratos">
-            <thead>
-              <tr>
-                <th scope="col" className={worklistHeadCellClass}>
-                  Contrato
-                </th>
-                <th scope="col" className={worklistHeadCellClass}>
-                  Situação
-                </th>
-                <th scope="col" className={worklistHeadCellClass}>
-                  Vigência
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item) => {
-                const weight = contractWeight(item.status, item.validTo, now);
-                return (
-                  <tr
-                    key={item.id}
-                    className="group relative cursor-pointer transition-colors hover:bg-brand-50/40"
-                    /*
-                     * CONTEXTO SEM ABANDONAR A LISTA — o comercial compara vigencias de varios
-                     * contratos da mesma carteira. O painel lateral mostra os fatos da linha
-                     * clicada sem perder o recorte.
-                     */
-                    onClick={() => setSelected(item)}
-                  >
-                    {/*
-                      IDENTIDADE — contrato, cliente e titulo num bloco so.
+      <WorkspaceBody>
+        {/*
+          A GRADE VIVE NA SUPERFICIE DA MOLDURA.
 
-                      O `WorklistRowLink` estica a area de clique do link por meio de um
-                      pseudo-elemento posicionado contra o ancestral posicionado mais proximo.
-                      Medido no gate visual: esse ancestral e a PROPRIA `<td>` (402px), nao a
-                      linha — e por isso o overlay engolia o `onClick` do `<tr>` em TODA a
-                      celula de identidade e o painel de contexto nunca abria (`drawerOpen: 0`),
-                      navegando para o detalhe em vez de mostrar o contexto.
+          Antes a tabela era `worklistTableCardClass`: um card que crescia com o conteudo, e o
+          resto da tela ficava em canvas vazio. Agora o painel ocupa a ALTURA que o shell deixou e
+          a rolagem e do miolo (`min-h-0 flex-1 overflow-auto`) — tres contratos ou vinte ocupam o
+          mesmo quadro, e o rodape de paginacao continua visivel porque e `shrink-0`.
 
-                      A correcao NAO e empilhar z-index: e dar ao link um ancestral posicionado
-                      do tamanho do proprio codigo (`relative` no `<span>` do numero). O overlay
-                      passa a cobrir apenas o codigo do contrato — que continua sendo um `<a>`
-                      real, com clique do meio, nova aba e foco — e o restante da linha segue
-                      abrindo o painel de contexto, como nas worklists irmas.
-                    */}
-                    <td className={cn(worklistCellClass, 'pl-3')}>
-                      <span
-                        aria-hidden="true"
-                        className={cn(
-                          'absolute top-1.5 bottom-1.5 left-0 w-[3px]',
-                          weight === 'attention' ? 'bg-red-500' : 'bg-transparent',
-                        )}
-                      />
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-baseline gap-x-2">
-                          <span className="relative">
-                            <WorklistRowLink href={`/app/contracts/${item.id}`}>
-                              {item.contractNumber}
-                            </WorklistRowLink>
-                          </span>
-                          <span className="text-[12px] text-gray-500">
-                            {formatClientSnapshot(item.clientSnapshot)}
-                          </span>
-                        </div>
-                        <p className="mt-0.5 line-clamp-1 text-[12px] text-gray-500">
-                          {item.title}
-                        </p>
-                        <p className="mt-0.5 truncate text-[11px] text-gray-400">
-                          {item.internalCode ? `${item.internalCode} · ` : ''}
-                          <UnitScopeLabel unitId={item.unitId} />
-                        </p>
-                      </div>
-                    </td>
+          `data-region="worklist-master"` e declarado no proprio painel: a fila inclui os estados
+          (vazio/sem resultado), nao apenas a tabela.
+        */}
+        <WorkspacePane className="h-full overflow-hidden" data-region="worklist-master">
+          {items.length === 0 ? (
+            /*
+              ESTADO VAZIO — A MOLDURA PERMANECE; so o miolo da grade muda. O cabecalho e a
+              toolbar continuam montados e `WorkspaceEmpty` explica o que um contrato e, com a
+              UNICA acao primaria quando a criacao e permitida.
+            */
+            <WorkspaceEmpty
+              title={
+                hasActiveFilters
+                  ? 'Nenhum contrato corresponde aos filtros aplicados.'
+                  : 'Nenhum contrato no recorte atual.'
+              }
+              description={
+                hasActiveFilters
+                  ? 'Ajuste o cliente ou a unidade para ver outros contratos.'
+                  : 'Os contratos formalizam a vigência comercial com o cliente: duração, status e unidade. Quando o primeiro for registrado, ele aparece aqui.'
+              }
+              action={
+                hasActiveFilters ? (
+                  <WorklistClearFilters
+                    visible
+                    onClick={() => {
+                      setClientFilter('');
+                      setUnitFilter('');
+                    }}
+                  />
+                ) : showCreateInEmptyState ? (
+                  <ModulePrimaryLink to="/app/contracts/new">Novo contrato</ModulePrimaryLink>
+                ) : null
+              }
+            />
+          ) : null}
 
-                    {/* DECISAO — situacao + o fato que exige o operador, na mesma coluna. */}
-                    <td className={cn(worklistCellClass, 'z-[1]')}>
-                      <RecordStatusCell
-                        badge={<ContractStatusBadge status={item.status} />}
-                        accent={weight === 'attention' ? 'critical' : 'none'}
-                        context={
-                          item.status === CONTRACT_STATUSES.Active && item.validTo
-                            ? (() => {
-                                const end = new Date(`${item.validTo}T23:59:59`);
-                                const past =
-                                  !Number.isNaN(end.getTime()) && end.getTime() < now.getTime();
-                                return past ? 'Vigência encerrada no relógio' : null;
-                              })()
-                            : null
-                        }
-                      />
-                    </td>
+          {items.length > 0 ? (
+            <>
+              <div className="min-h-0 flex-1 overflow-auto">
+                <table className={worklistTableClass} aria-label="Lista de contratos">
+                  <thead>
+                    <tr>
+                      <th scope="col" className={workspaceHeadCellClass}>
+                        Contrato
+                      </th>
+                      <th scope="col" className={workspaceHeadCellClass}>
+                        Situação
+                      </th>
+                      <th scope="col" className={workspaceHeadCellClass}>
+                        Vigência
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((item) => {
+                      const weight = contractWeight(item.status, item.validTo, now);
+                      return (
+                        <tr
+                          key={item.id}
+                          /* O registro cujo contexto esta aberto e o alvo da bancada: `data-selected`
+                             e o canal que `workspaceRowClass` usa para marcar isso. A LOGICA de
+                             selecao nao mudou — continua sendo `onClick` sobre a linha. */
+                          data-selected={selected?.id === item.id}
+                          className={cn(workspaceRowClass)}
+                          /*
+                           * CONTEXTO SEM ABANDONAR A LISTA — o comercial compara vigencias de varios
+                           * contratos da mesma carteira. O painel lateral mostra os fatos da linha
+                           * clicada sem perder o recorte.
+                           */
+                          onClick={() => setSelected(item)}
+                        >
+                          {/*
+                            IDENTIDADE — contrato, cliente e titulo num bloco so.
 
-                    {/* CICLO — a vigencia real, sem data fabricada. */}
-                    <td className={cn(worklistCellClass, 'z-[1] pr-3')}>
-                      <span className="block text-[12px] text-gray-700 tabular-nums">
-                        {formatDate(item.validFrom)}
-                        {item.validTo
-                          ? ` → ${formatDate(item.validTo)}`
-                          : ' → sem término registrado'}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+                            O `WorklistRowLink` estica a area de clique do link por meio de um
+                            pseudo-elemento posicionado contra o ancestral posicionado mais proximo.
+                            Medido no gate visual: esse ancestral e a PROPRIA `<td>` (402px), nao a
+                            linha — e por isso o overlay engolia o `onClick` do `<tr>` em TODA a
+                            celula de identidade e o painel de contexto nunca abria (`drawerOpen: 0`),
+                            navegando para o detalhe em vez de mostrar o contexto.
 
-      {items.length > 0 ? (
-        <WorklistFooter rangeLabel={`${offset + 1}–${offset + items.length} nesta página`}>
-          <ModulePagination
-            pageNumber={pageNumber}
-            previousDisabled={offset === 0}
-            nextDisabled={!hasMore}
-            onPrevious={() => void loadPage(Math.max(0, offset - PAGE_SIZE))}
-            onNext={() => void loadPage(offset + PAGE_SIZE)}
-          />
-        </WorklistFooter>
-      ) : null}
+                            A correcao NAO e empilhar z-index: e dar ao link um ancestral posicionado
+                            do tamanho do proprio codigo (`relative` no `<span>` do numero). O overlay
+                            passa a cobrir apenas o codigo do contrato — que continua sendo um `<a>`
+                            real, com clique do meio, nova aba e foco — e o restante da linha segue
+                            abrindo o painel de contexto, como nas worklists irmas.
+                          */}
+                          {/*
+                            `relative` NAO E DECORATIVO NESTA CELULA: a barra de acento de excecao e
+                            `absolute` e o `WorklistRowLink` posiciona o overlay contra o ancestral
+                            posicionado mais proximo. A classe da moldura (`workspaceCellClass`) nao
+                            carrega `position`, entao ela e declarada aqui para que o recorte continue
+                            sendo DESTA celula — exatamente como era.
+                          */}
+                          <td className={cn(workspaceCellClass, 'relative pl-3')}>
+                            <span
+                              aria-hidden="true"
+                              className={cn(
+                                'absolute top-1.5 bottom-1.5 left-0 w-[3px]',
+                                weight === 'attention' ? 'bg-red-500' : 'bg-transparent',
+                              )}
+                            />
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-baseline gap-x-2">
+                                <span className="relative">
+                                  <WorklistRowLink href={`/app/contracts/${item.id}`}>
+                                    {item.contractNumber}
+                                  </WorklistRowLink>
+                                </span>
+                                <span className="text-[12px] text-gray-500">
+                                  {formatClientSnapshot(item.clientSnapshot)}
+                                </span>
+                              </div>
+                              <p className="mt-0.5 line-clamp-1 text-[12px] text-gray-500">
+                                {item.title}
+                              </p>
+                              <p className="mt-0.5 truncate text-[11px] text-gray-400">
+                                {item.internalCode ? `${item.internalCode} · ` : ''}
+                                <UnitScopeLabel unitId={item.unitId} />
+                              </p>
+                            </div>
+                          </td>
+
+                          {/* DECISAO — situacao + o fato que exige o operador, na mesma coluna. */}
+                          <td className={workspaceCellRaisedClass}>
+                            <RecordStatusCell
+                              badge={<ContractStatusBadge status={item.status} />}
+                              accent={weight === 'attention' ? 'critical' : 'none'}
+                              context={
+                                item.status === CONTRACT_STATUSES.Active && item.validTo
+                                  ? (() => {
+                                      const end = new Date(`${item.validTo}T23:59:59`);
+                                      const past =
+                                        !Number.isNaN(end.getTime()) && end.getTime() < now.getTime();
+                                      return past ? 'Vigência encerrada no relógio' : null;
+                                    })()
+                                  : null
+                              }
+                            />
+                          </td>
+
+                          {/* CICLO — a vigencia real, sem data fabricada. */}
+                          <td className={cn(workspaceCellRaisedClass, 'pr-3')}>
+                            <span className="block text-[12px] text-gray-700 tabular-nums">
+                              {formatDate(item.validFrom)}
+                              {item.validTo
+                                ? ` → ${formatDate(item.validTo)}`
+                                : ' → sem término registrado'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/*
+                RODAPE DA FILA — `shrink-0`, para que a paginacao nao encolha quando a grade rola,
+                e separado do dado por REGUA (nao por caixa). O intervalo e o MESMO texto de antes
+                (`1–20 nesta página`); ele vive aqui por ser o rodape do painel.
+              */}
+              <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-[color:var(--color-divider)] px-3 py-1.5">
+                <p className="cisne-type-helper m-0 tabular-nums">
+                  {`${offset + 1}–${offset + items.length} nesta página`}
+                </p>
+                <ModulePagination
+                  pageNumber={pageNumber}
+                  previousDisabled={offset === 0}
+                  nextDisabled={!hasMore}
+                  onPrevious={() => void loadPage(Math.max(0, offset - PAGE_SIZE))}
+                  onNext={() => void loadPage(offset + PAGE_SIZE)}
+                />
+              </div>
+            </>
+          ) : null}
+        </WorkspacePane>
+      </WorkspaceBody>
 
       {/*
         RELACOES DO CONTRATO — montadas do que a LINHA ja traz, sem chamada de rede nova.

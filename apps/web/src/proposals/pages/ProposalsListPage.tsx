@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { RELATION_SCOPE_KEYS, useRelationScope } from '../../enterprise-object';
 import {
@@ -53,13 +53,18 @@ import {
 import {
   WorklistClearFilters,
   WorklistField,
-  WorklistFilterBar,
-  WorklistHeader,
-  WorklistStatePanel,
-  enterpriseRowClass,
   worklistControlClass,
   worklistSelectClass,
 } from '../../ui/enterprise-list';
+import {
+  WorkspaceBody,
+  WorkspaceEmpty,
+  WorkspaceHeader,
+  WorkspacePane,
+  WorkspaceStatusLine,
+  WorkspaceToolbar,
+  workspaceRowClass,
+} from '../../ui/workspace-frame';
 import { Button } from '../../ui/Button';
 import {
   ModuleDeniedState,
@@ -485,124 +490,128 @@ export function ProposalsListPage() {
     );
   }).length;
 
+  /**
+   * RECORTE DE DECISÃO COMO METADATA DO CONJUNTO — os MESMOS números, não três caixas.
+   *
+   * O rótulo da faixa era "Fila de decisão" e os números saíam da página carregada: um operador lia
+   * "3 aguardando decisão" como a fila inteira da empresa. A API desta lista NÃO publica agregado
+   * nenhum, então a escolha honesta não é inventar o número nem apagar o recorte — é dizer de onde
+   * ele vem. O "nesta página" continua no nome de cada item, no tooltip não há mais onde pendurar
+   * (a linha de status é texto) e o escopo do cabeçalho segue declarando que a lista não publica
+   * total.
+   *
+   * `tone: 'alert'` é do ÚNICO número que é EXCEÇÃO: validade vencida ou vencendo. "aguardando
+   * decisão" é o estado normal de uma proposta emitida e não pode gritar.
+   */
+  const statusItems: Array<{
+    value: ReactNode;
+    label: string;
+    tone?: 'neutral' | 'alert';
+    onClick?: () => void;
+  }> = [
+    { value: items.length, label: 'nesta página' },
+    ...(awaitingCount > 0 || expiringCount > 0
+      ? [
+          ...(awaitingCount > 0
+            ? [
+                {
+                  value: awaitingCount,
+                  label: 'aguardando decisão nesta página',
+                  onClick: () => applyFilter('status', PROPOSAL_VERSION_STATUSES.Issued),
+                },
+              ]
+            : []),
+          ...(expiringCount > 0
+            ? [
+                {
+                  value: expiringCount,
+                  label: 'validade crítica nesta página',
+                  tone: 'alert' as const,
+                  onClick: () => applyFilter('sort', PROPOSAL_LIST_SORTS.validUntil),
+                },
+              ]
+            : []),
+          { value: decidedCount, label: 'decididas nesta página' },
+        ]
+      : []),
+  ];
+
   return (
-    <ModulePage layout="wide">
+    <ModulePage layout="workspace">
       {/*
-        GRAMATICA APROVADA (Clientes) — `WorklistHeader`, nao `EnterpriseListHeader`.
-        Sao componentes DIFERENTES: `EnterpriseListHeader` envolve a cabeca em um CARD com borda;
-        `WorklistHeader` publica titulo + CONTAGEM DO SERVIDOR em badge + contexto + acao + faixa
-        de indicadores, sem moldura. A familia usa a mesma peca para o operador reconhecer a tela
-        pelo mesmo desenho em todas as worklists.
+        WORKSPACE COMERCIAL — a mesma moldura de área de trabalho das demais bancadas.
+
+        A mudança estrutural: a página passa a OCUPAR a altura do shell (modo `workspace`) e a fila
+        vira uma grade ELÁSTICA dentro de um painel — com dois itens ou com duzentos, a silhueta é a
+        mesma e não sobra canvas branco abaixo do conteúdo.
+
+        O QUE NÃO MUDOU: as chamadas de API, o filtro avançado na URL, as visões salvas, a
+        interseção `readiness.availableTransitions` × `capabilities` que libera cada comando, o
+        detalhe carregado só para o registro selecionado, o `DynamicContextDrawer` e todos os
+        rótulos em português.
       */}
-      <div data-region="operating-header">
-      <WorklistHeader
+      {/*
+        CABEÇALHO — `WorkspaceHeader` no lugar do `WorklistHeader`, como em Clientes.
+
+        O `count` deixou de ser pílula ao lado do título e passou a ser METADATA do conjunto
+        (`WorkspaceStatusLine`), junto com os números da faixa de decisão que antes eram uma segunda
+        régua de tela. A lista NÃO publica total — verificado no contrato, `ProposalListResponse` é
+        `{ items, limit, offset }` — então cada número continua rotulado "nesta página" e o escopo
+        segue declarando isso por extenso: amostra nunca se apresenta como dataset.
+      */}
+      <WorkspaceHeader
         title="Propostas comerciais"
-        /*
-         * CONTAGEM = o que o contrato desta lista REALMENTE publica.
-         *
-         * VERIFICADO NO CONTRATO (nao presumido): `ProposalListResponse` e `{ items, limit, offset }`
-         * — NAO existe `total`. Portanto o numero ao lado do titulo e a contagem DESTA PAGINA, e o
-         * escopo precisa estar escrito: um numero solto ao lado do titulo de uma worklist le como
-         * total do conjunto, e aqui isso seria amostra apresentada como dataset.
-         *
-         * O escopo vai no `context`, que o operador le, e nao so no `aria-label`. O `hasMore`
-         * continua sendo a unica fonte do "tem mais".
-         */
-        count={items.length}
-        context={`Página ${pageNumber} — decisão comercial por proposta. Esta lista não publica total; a contagem acima é desta página.`}
+        scope={`Página ${pageNumber} — decisão comercial por proposta. Esta lista não publica total; a contagem acima é desta página.${hasActiveFilters ? ' · recorte aplicado' : ''}`}
+        status={<WorkspaceStatusLine items={statusItems} />}
         action={
           capabilities.canCreate ? (
             <ModulePrimaryLink to="/app/proposals/new">Nova proposta</ModulePrimaryLink>
           ) : null
         }
       />
-      </div>
 
       {/*
-        RECORTE DE DECISÃO — resumo LOCAL, declarado como local.
+        FAIXA "DECISÃO NESTA PÁGINA" — REMOVIDA como faixa, NÃO como informação.
 
-        O rótulo anterior era "Fila de decisão" e os números saíam da página carregada: um operador
-        lia "3 aguardando decisão" como a fila inteira da empresa. A API desta lista nao publica
-        agregado nenhum, entao a escolha honesta nao e inventar o numero nem apagar o recorte — e
-        dizer de onde ele vem. "Nesta página" aparece no nome da faixa, no tooltip de cada contagem e
-        no fecho; nao so na acessibilidade.
+        Ela montava uma terceira régua de tela entre o cabeçalho e os filtros, com um rótulo em
+        caixa alta, dois contadores-botão e um "decididas nesta página" solto à direita. O número
+        continua exatamente o mesmo — e continua derivado dos MESMOS itens — mas agora vive em
+        `WorkspaceStatusLine`, na linha de identidade do cabeçalho: três números que são CONTEXTO do
+        conjunto não precisam de régua própria, de `title` por botão nem de altura que a grade
+        podia estar usando.
 
-        Sem exceção publicada, a faixa NAO e montada.
-      */}
-      {awaitingCount > 0 || expiringCount > 0 ? (
-        <section
-          aria-label="Decisão nesta página"
-          className="mb-2 flex flex-wrap items-center gap-x-5 gap-y-1 border-y border-gray-200 px-1 py-1.5"
-        >
-          <span className="text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
-            Decisão nesta página
-          </span>
-          {awaitingCount > 0 ? (
-            <button
-              type="button"
-              onClick={() => applyFilter('status', PROPOSAL_VERSION_STATUSES.Issued)}
-              title="Nesta página: propostas emitidas e ainda sem aceite, rejeição ou expiração. A API desta lista não publica total do conjunto."
-              className="inline-flex items-baseline gap-1.5 text-[13px] text-gray-700 hover:text-brand-800"
-            >
-              <strong className="text-[15px] font-semibold tabular-nums text-gray-900">
-                {awaitingCount}
-              </strong>
-              <span className="font-medium">aguardando decisão nesta página</span>
-            </button>
-          ) : null}
-          {expiringCount > 0 ? (
-            <button
-              type="button"
-              onClick={() => applyFilter('sort', PROPOSAL_LIST_SORTS.validUntil)}
-              title="Nesta página: validade comercial da revisão vigente vencida ou vencendo. A API desta lista não publica total do conjunto."
-              className="inline-flex items-baseline gap-1.5 text-[13px] text-gray-700 hover:text-brand-800"
-            >
-              <strong className="text-[15px] font-semibold tabular-nums text-red-700">
-                {expiringCount}
-              </strong>
-              <span className="font-medium">validade crítica nesta página</span>
-            </button>
-          ) : null}
-          <span className="ml-auto text-[11px] text-gray-500 tabular-nums">
-            {decidedCount} decididas nesta página
-          </span>
-        </section>
-      ) : null}
-
-      {/*
-        TOOLBAR — busca + SITUAÇÃO em uma linha. Data, ordenação e sentido ficam sob "Mais
-        filtros": eram cinco controles abertos ocupando metade da largura útil antes de o
-        operador ver a primeira proposta. O recorte continua indo ao SERVIDOR, e nenhum filtro
-        foi removido — só deixou de ser formulário permanente.
+        O recorte continua ACIONÁVEL: cada número carrega o seu `onClick` (situação ou ordenação),
+        o mesmo filtro de antes. Sem exceção publicada a barra também não é montada — a linha de
+        status só recebe os contadores de decisão quando existe algum.
       */}
       {/*
-        SAVED VIEWS — faixa própria da work area, ANTES da superfície de filtro.
-        Gramática: OPERATING HEADER -> SAVED VIEWS -> COMMAND/FILTER -> WORK QUEUE.
-      */}
-      <div data-region="saved-view-surface">
-        <DynamicSavedViewsBar
-          views={savedViews.views}
-          persistedLocally={savedViews.persistedLocally}
-          onSave={(name) => savedViews.save(name, { ...filters }, 'list')}
-          onDelete={savedViews.remove}
-          onApply={(view) => {
-            const restored: QueueFilters = {
-              ...EMPTY_FILTERS,
-              ...(view.filters as Partial<QueueFilters>),
-            };
-            setFilters(restored);
-            setSearchInput(restored.search ?? '');
-          }}
-        />
-      </div>
+        TOOLBAR — visões salvas à esquerda, busca + filtros à direita, NUMA faixa só.
 
-      <div data-region="command-filter-surface">
-      <WorklistFilterBar
-        meta={
-          <>
-            {items.length} nesta página
-            {hasActiveFilters ? ' · recorte aplicado' : ''}
-          </>
+        Antes eram três réguas empilhadas: a faixa "Decisão nesta página" (que subiu para o
+        cabeçalho como metadata do conjunto), a faixa de visões salvas e a barra de filtro. Data,
+        ordenação e sentido continuam sob "Mais filtros": eram cinco controles abertos ocupando
+        metade da largura útil antes de o operador ver a primeira proposta. O recorte continua indo
+        ao SERVIDOR e NENHUM filtro foi removido — só deixou de ser formulário permanente.
+
+        Gramática da faixa: VISÕES (o recorte) à esquerda, CONSULTA (busca, filtros, mais, limpar) à
+        direita — a MESMA posição em todas as bancadas do produto.
+      */}
+      <WorkspaceToolbar
+        views={
+          <DynamicSavedViewsBar
+            views={savedViews.views}
+            persistedLocally={savedViews.persistedLocally}
+            onSave={(name) => savedViews.save(name, { ...filters }, 'list')}
+            onDelete={savedViews.remove}
+            onApply={(view) => {
+              const restored: QueueFilters = {
+                ...EMPTY_FILTERS,
+                ...(view.filters as Partial<QueueFilters>),
+              };
+              setFilters(restored);
+              setSearchInput(restored.search ?? '');
+            }}
+          />
         }
       >
         <form
@@ -677,7 +686,7 @@ export function ProposalsListPage() {
         </form>
 
         {showMoreFilters ? (
-          <div className="mt-2 flex flex-wrap items-end gap-2 border-t border-gray-100 pt-2">
+          <div className="flex w-full flex-wrap items-end gap-2 border-t border-[color:var(--color-divider)] pt-2">
             <WorklistField label="Validade de" htmlFor="proposal-valid-from">
               <input
                 id="proposal-valid-from"
@@ -711,8 +720,7 @@ export function ProposalsListPage() {
             </WorklistField>
           </div>
         ) : null}
-      </WorklistFilterBar>
-      </div>
+      </WorkspaceToolbar>
 
       {/*
         FILTRO AVANÇADO — a camada composta da superfície, dirigida por METADADO.
@@ -740,102 +748,120 @@ export function ProposalsListPage() {
       </div>
 
       {/*
-        WORK QUEUE — a fila é a ÁREA DE TRABALHO, não um card dentro dela.
+        WORK QUEUE — a fila é a ÁREA DE TRABALHO, dentro do painel da moldura.
 
         Antes: `enterpriseTableCardClass` (`rounded-md border bg-white shadow-[...]`) em volta da
-        lista. Como a área de trabalho já é branca, a fila aparecia como "tabela dentro de card" —
-        cardification de segundo nível. Agora a fila não tem caixa: é delimitada pelo divisor da
-        superfície de filtro e pela largura da própria lista.
-      */}
-      <div data-region="worklist-master">
-        {items.length === 0 ? (
-          <WorklistStatePanel
-            title={
-              hasActiveFilters
-                ? 'Nenhuma proposta corresponde aos filtros aplicados.'
-                : 'Nenhuma proposta registrada.'
-            }
-            description={
-              hasActiveFilters
-                ? 'Ajuste a busca, a situação ou a validade — ou limpe os filtros para ver a fila comercial completa.'
-                : 'As propostas nascem das solicitações aprovadas; quando a primeira for emitida ela aparece aqui com revisão, valor, validade e próximo passo.'
-            }
-            action={
-              hasActiveFilters ? (
-                <WorklistClearFilters
-                  visible
-                  onClick={() => {
-                    setSearchInput('');
-                    setFilters(EMPTY_FILTERS);
-                  }}
-                />
-              ) : capabilities.canCreate ? (
-                <ModulePrimaryLink to="/app/proposals/new">Nova proposta</ModulePrimaryLink>
-              ) : null
-            }
-          />
-        ) : (
-          <section aria-label="Fila comercial de propostas">
-            {/*
-              HIERARQUIA DE COLUNA — cinco colunas com PESOS DIFERENTES, não sete iguais.
+        lista — como a área de trabalho já é branca, a fila aparecia como "tabela dentro de card",
+        cardification de segundo nível. Agora o painel tem UM contorno de 1px (`WorkspacePane`), sem
+        sombra e sem segunda borda, e a grade é ELÁSTICA: ela recebe a altura que sobra da tela.
 
-              "Revisão" deixou de ser coluna: ela não decide nada sozinha (Revisão 1 / Primeira
-              revisão ocupavam 1.2fr de largura para dizer o mesmo em toda linha) e passou a
-              qualificador do bloco principal, ao lado da origem. A coluna de ação também saiu: o
-              botão repetido em toda linha gastava 9rem dizendo sempre a mesma coisa — agora a
-              própria LINHA seleciona e abre o contexto.
-            */}
-            <div className="hidden grid-cols-[minmax(0,2.6fr)_7rem_minmax(0,1fr)_minmax(0,2.2fr)] gap-x-4 border-b border-gray-200 px-3 pb-1.5 lg:grid">
-              {['Proposta e cliente', 'Valor', 'Validade', 'Situação e próxima ação'].map(
-                (heading) => (
-                  <span
-                    key={heading}
-                    className="text-[10px] font-semibold tracking-wider text-gray-500 uppercase"
-                  >
-                    {heading}
-                  </span>
-                ),
-              )}
-            </div>
-            <ul className="divide-y divide-gray-100">
-              {items.map((item) => {
-                const attention = describeProposalAttention(
-                  {
-                    currentVersionStatus: item.currentVersionStatus,
-                    validUntil: item.validUntil,
-                    originRequestCount: item.originRequests?.length ?? 0,
-                    revisionCount: item.revisionCount ?? 0,
-                  },
-                  now,
-                );
-                const timing = describeValidityTiming(item.validUntil, now);
-                const revisions = item.revisionCount ?? 0;
-                return (
-                  <li
-                    key={item.id}
-                    className={cn(
-                      enterpriseRowClass,
-                      /*
-                        DENSIDADE — `py-2.5` com `items-start` dava 106–131px por linha (medido:
-                        apenas 4 de 14 propostas na primeira dobra). O padding cai para o valor de
-                        token e o alinhamento passa a `items-center`, para que as colunas de valor e
-                        validade (uma linha) não herdem a altura da coluna de identidade.
-                      */
-                      'grid grid-cols-1 gap-y-1 px-3 py-1.5 lg:grid-cols-[minmax(0,2.6fr)_7rem_minmax(0,1fr)_minmax(0,2.2fr)] lg:items-center lg:gap-x-4 lg:gap-y-0',
+        O corpo é uma grade de UMA COLUNA: esta tela não tem coluna de contexto — o contexto é o
+        drawer (`DynamicContextDrawer`) no fim da página, e inventar uma coluna aqui seria criar uma
+        segunda gramática de contexto que a tela não tem.
+      */}
+      <WorkspaceBody>
+        <WorkspacePane className="h-full overflow-hidden">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-region="worklist-master">
+            {items.length === 0 ? (
+              <WorkspaceEmpty
+                title={
+                  hasActiveFilters
+                    ? 'Nenhuma proposta corresponde aos filtros aplicados.'
+                    : 'Nenhuma proposta registrada.'
+                }
+                description={
+                  hasActiveFilters
+                    ? 'Ajuste a busca, a situação ou a validade — ou limpe os filtros para ver a fila comercial completa.'
+                    : 'As propostas nascem das solicitações aprovadas; quando a primeira for emitida ela aparece aqui com revisão, valor, validade e próximo passo.'
+                }
+                action={
+                  hasActiveFilters ? (
+                    <WorklistClearFilters
+                      visible
+                      onClick={() => {
+                        setSearchInput('');
+                        setFilters(EMPTY_FILTERS);
+                      }}
+                    />
+                  ) : capabilities.canCreate ? (
+                    <ModulePrimaryLink to="/app/proposals/new">Nova proposta</ModulePrimaryLink>
+                  ) : null
+                }
+              />
+            ) : (
+              /* GRADE ELÁSTICA: o contêiner de rolagem recebe a altura restante e rola DENTRO do
+                 painel — a fila termina onde a tela termina, não no último registro. */
+              <div className="min-h-0 flex-1 overflow-auto">
+                <section aria-label="Fila comercial de propostas">
+                  {/*
+                    HIERARQUIA DE COLUNA — cinco colunas com PESOS DIFERENTES, não sete iguais.
+
+                    "Revisão" deixou de ser coluna: ela não decide nada sozinha (Revisão 1 / Primeira
+                    revisão ocupavam 1.2fr de largura para dizer o mesmo em toda linha) e passou a
+                    qualificador do bloco principal, ao lado da origem. A coluna de ação também saiu:
+                    o botão repetido em toda linha gastava 9rem dizendo sempre a mesma coisa — agora
+                    a própria LINHA seleciona e abre o contexto.
+                  */}
+                  <div className="hidden grid-cols-[minmax(0,2.6fr)_7rem_minmax(0,1fr)_minmax(0,2.2fr)] gap-x-4 border-b border-[color:var(--color-divider)] bg-[color:var(--color-surface-header)] px-3 py-1.5 lg:grid">
+                    {['Proposta e cliente', 'Valor', 'Validade', 'Situação e próxima ação'].map(
+                      (heading) => (
+                        <span
+                          key={heading}
+                          className="text-[10px] font-semibold tracking-wider text-[color:var(--color-grid-head-ink)] uppercase"
+                        >
+                          {heading}
+                        </span>
+                      ),
                     )}
-                    /*
-                     * CLIQUE NA LINHA abre o CONTEXTO, sem sair da fila. O código da proposta
-                     * continua sendo um link real (teclado, nova aba, leitor de tela) para a
-                     * object page — profundidade. Cliques em elementos interativos internos
-                     * seguem seu próprio comportamento.
-                     */
-                    onClick={(event) => {
-                      if ((event.target as HTMLElement).closest('a, button, select, input')) {
-                        return;
-                      }
-                      setSelected(item);
-                    }}
-                  >
+                  </div>
+                  <ul className="divide-y divide-gray-100">
+                    {items.map((item) => {
+                      const attention = describeProposalAttention(
+                        {
+                          currentVersionStatus: item.currentVersionStatus,
+                          validUntil: item.validUntil,
+                          originRequestCount: item.originRequests?.length ?? 0,
+                          revisionCount: item.revisionCount ?? 0,
+                        },
+                        now,
+                      );
+                      const timing = describeValidityTiming(item.validUntil, now);
+                      const revisions = item.revisionCount ?? 0;
+                      return (
+                        <li
+                          key={item.id}
+                          /*
+                           * A LINHA É SELECIONÁVEL e agora DECLARA isso: `data-selected` liga o
+                           * estado de seleção ao `workspaceRowClass` (hover e accent de trabalho do
+                           * produto). Antes o atributo não existia e o estilo de seleção da classe
+                           * nunca chegava à tela. A LÓGICA não mudou — quem manda continua sendo o
+                           * registro selecionado no contexto.
+                           */
+                          data-selected={selected?.id === item.id}
+                          className={cn(
+                            workspaceRowClass,
+                            /*
+                              DENSIDADE — `py-2.5` com `items-start` dava 106–131px por linha
+                              (medido: apenas 4 de 14 propostas na primeira dobra). O padding cai
+                              para o valor de token e o alinhamento passa a `items-center`, para que
+                              as colunas de valor e validade (uma linha) não herdem a altura da
+                              coluna de identidade.
+                            */
+                            'grid grid-cols-1 gap-y-1 px-3 py-1.5 lg:grid-cols-[minmax(0,2.6fr)_7rem_minmax(0,1fr)_minmax(0,2.2fr)] lg:items-center lg:gap-x-4 lg:gap-y-0',
+                          )}
+                          /*
+                           * CLIQUE NA LINHA abre o CONTEXTO, sem sair da fila. O código da proposta
+                           * continua sendo um link real (teclado, nova aba, leitor de tela) para a
+                           * object page — profundidade. Cliques em elementos interativos internos
+                           * seguem seu próprio comportamento.
+                           */
+                          onClick={(event) => {
+                            if ((event.target as HTMLElement).closest('a, button, select, input')) {
+                              return;
+                            }
+                            setSelected(item);
+                          }}
+                        >
                     {/*
                       BLOCO PRINCIPAL — proposta, título, cliente e origem/revisão em UM bloco
                       hierárquico, em vez de três colunas de peso igual. O operador lê de cima
@@ -1008,18 +1034,28 @@ export function ProposalsListPage() {
                   </li>
                 );
               })}
-            </ul>
-          </section>
-        )}
-      </div>
+                  </ul>
+                </section>
+              </div>
+            )}
 
-      <ModulePagination
-        pageNumber={pageNumber}
-        previousDisabled={offset === 0}
-        nextDisabled={!hasMore}
-        onPrevious={() => void loadPage(Math.max(0, pageNumber - 1) * PAGE_SIZE, filters)}
-        onNext={() => void loadPage(offset + PAGE_SIZE, filters)}
-      />
+            {/*
+              RODAPÉ DA JANELA — paginação fora do contêiner de rolagem (`shrink-0`), separada da
+              grade pelo divisor estrutural. `hasMore` continua sendo a ÚNICA fonte do "tem mais":
+              esta lista não publica total.
+            */}
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-[color:var(--color-divider)] px-3 py-1.5">
+              <ModulePagination
+                pageNumber={pageNumber}
+                previousDisabled={offset === 0}
+                nextDisabled={!hasMore}
+                onPrevious={() => void loadPage(Math.max(0, pageNumber - 1) * PAGE_SIZE, filters)}
+                onNext={() => void loadPage(offset + PAGE_SIZE, filters)}
+              />
+            </div>
+          </div>
+        </WorkspacePane>
+      </WorkspaceBody>
       {/*
         CONTEXT REGION AUTORITATIVA — decisão rápida na fila, sobre o dado do SERVIDOR.
 

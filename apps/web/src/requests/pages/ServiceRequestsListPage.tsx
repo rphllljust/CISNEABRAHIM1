@@ -77,7 +77,21 @@ import {
   ModuleStatePage,
   ModulePrimaryLink,
 } from '../../ui/module-layout';
-import { WorklistStatePanel } from '../../ui/enterprise-list';
+import {
+  WorklistClearFilters,
+  worklistButtonClass,
+  worklistControlClass,
+  worklistSelectClass,
+} from '../../ui/enterprise-list';
+import {
+  WorkspaceBody,
+  WorkspaceEmpty,
+  WorkspaceHeader,
+  WorkspacePane,
+  WorkspaceStatusLine,
+  WorkspaceToolbar,
+  workspaceRowClass,
+} from '../../ui/workspace-frame';
 import { cn } from '../../ui/utils/cn';
 
 const PAGE_SIZE = 20;
@@ -509,43 +523,67 @@ export function ServiceRequestsListPage() {
   // Fila vazia sem recorte: a criacao nasce no painel vazio; recorte vazio oferece limpar.
   const isEmptyQueue = items.length === 0 && total === 0 && !hasFilterChips;
 
+  /*
+    BALIZA DA GRADE — os MESMOS três rótulos de coluna de hoje ("Solicitação e demanda",
+    "Situação", "Idade"). Antes ela era duplicada nos dois ramos (fila com itens e fila vazia);
+    agora é uma só, porque a estrutura da área de trabalho NÃO desmonta quando o recorte zera — o
+    que muda é o miolo da grade, nunca a moldura.
+
+    A tinta e a superfície vêm dos tokens da baliza de grade (`surface-header` / `grid-head-ink`),
+    os MESMOS que `workspaceHeadCellClass` usa nas telas de grade tabular: esta fila é uma grade,
+    mesmo sendo montada com `<ul>` em vez de `<table>`.
+  */
+  const queueHeadRow = (
+    <div className="flex shrink-0 items-center gap-3 border-b border-[color:var(--color-divider)] bg-[color:var(--color-surface-header)] px-3 py-1.5 text-[length:var(--type-micro-size)] font-semibold tracking-wide text-[color:var(--color-grid-head-ink)] uppercase">
+      <span>Solicitação e demanda</span>
+      <span className="ml-auto">Situação</span>
+      <span className="w-28 shrink-0 text-right">Idade</span>
+    </div>
+  );
+
   return (
-    <ModulePage layout="wide">
+    <ModulePage layout="workspace">
       {/*
-        SUPERFÍCIE DE TRABALHO FIXA — cabeçalho, faixas de decisão, visões salvas e filtros não
-        rolam com a fila: o operador nunca perde o recorte nem a leitura do processo.
+        WORKSPACE DA FILA — a MESMA gramática de área de trabalho das demais bancadas do produto.
+
+        A superfície fixa (`sticky top-0` + `data-region="work-surface"`) que agrupava cabeçalho,
+        faixa de trabalho, visões salvas e filtros saiu com a moldura antiga: no modo `workspace` a
+        página OCUPA a altura que o shell deixou e quem rola é a GRADE, dentro do painel — não o
+        documento. Um `sticky` sobre um corpo que já não rola era chrome sem função, e era ele que
+        deixava a fila terminar no último registro em vez de ocupar o quadro.
+
+        O QUE NÃO MUDOU (e não podia mudar): as chamadas de API, o recorte na URL
+        (`useQueueUrlSync`), as visões salvas, o comando real por transição, a capability de cada
+        botão, os `data-testid`, os `aria-label`/`aria-pressed` e todos os rótulos em português.
       */}
-      <div className="sticky top-0 z-20 bg-white" data-region="work-surface">
       {/*
-        ZONA 1 — OPERATING HEADER. Uma faixa, nao uma pagina de abertura.
-        Identidade, recorte ativo, total AUTORITATIVO do servidor, acao primaria e ultima
-        atualizacao. Saiu o paragrafo que explicava a tela: contexto aqui e o RECORTE real.
+        ZONA 1 — CABEÇALHO DA ÁREA DE TRABALHO: identidade, total AUTORITATIVO do servidor, recorte
+        ativo e a ação primária na MESMA faixa. Saiu a pílula cinza solta do contador: o número
+        publicado pelo servidor passa a ser declarado como metadata operacional do conjunto, com
+        rótulo dizendo de onde ele vem — `AUSÊNCIA ≠ ZERO` continua valendo, e sem total publicado a
+        tela declara a ausência em vez de afirmar `0`.
       */}
-      <div data-region="operating-header">
-      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-gray-200 px-1 pb-2">
-        <div className="flex min-w-0 items-baseline gap-2">
-          <h1 className="cisne-type-object leading-tight font-semibold tracking-tight text-gray-900">
-            Solicitações
-          </h1>
-          {total === null ? (
-            <span className="cisne-type-helper text-gray-400">total não publicado</span>
-          ) : (
-            <span className="rounded bg-gray-100 px-1.5 py-0.5 cisne-type-helper font-semibold text-gray-700 tabular-nums">
-              {total}
-            </span>
-          )}
-          <span className="truncate cisne-type-helper text-gray-500">{scope}</span>
-          {updatedAt ? (
-            <span className="hidden cisne-type-helper text-gray-400 sm:inline">
-              atualizada {updatedAt}
-            </span>
-          ) : null}
-        </div>
-        {capabilities.canCreate && !isEmptyQueue ? (
-          <ModulePrimaryLink to="/app/requests/new">Nova solicitação</ModulePrimaryLink>
-        ) : null}
-      </header>
-      </div>
+      <WorkspaceHeader
+        title="Solicitações"
+        scope={updatedAt ? `${scope} · atualizada ${updatedAt}` : scope}
+        status={
+          <WorkspaceStatusLine
+            items={[
+              {
+                value: total === null ? 'n/d' : total,
+                label:
+                  total === null ? 'total não publicado' : hasFilterChips ? 'no recorte' : 'na fila',
+              },
+              { value: items.length, label: 'nesta página' },
+            ]}
+          />
+        }
+        action={
+          capabilities.canCreate && !isEmptyQueue ? (
+            <ModulePrimaryLink to="/app/requests/new">Nova solicitação</ModulePrimaryLink>
+          ) : null
+        }
+      />
 
       {/*
         ZONA 2 — DECISION / WORK QUEUE STRIP.
@@ -592,51 +630,53 @@ export function ServiceRequestsListPage() {
       </nav>
 
       {/*
-        SAVED VIEWS — FAIXA PRÓPRIA DA WORK AREA, não menu escondido.
+        ZONA 3 — VISÕES + COMMAND SURFACE NUMA FAIXA SÓ (`WorkspaceToolbar`).
 
-        Antes era `SavedViewsMenu`: um botão "Visões" que abria um formulário de salvar. O recorte
-        que o operador remonta todo dia — situação, prioridade, origem, unidade, janela desejada —
-        passa a ser comando visível da superfície de trabalho, com a visão aplicada evidente.
-      */}
-      <div className="cisne-divider py-0.5" data-region="saved-view-surface">
-        <DynamicSavedViewsBar
-          views={savedViews.views}
-          persistedLocally={savedViews.persistedLocally}
-          persistable={savedViews.persistable}
-          onSave={(name) => savedViews.save(name, { ...filters }, 'list')}
-          onDelete={savedViews.remove}
-          onApply={(view) => {
-            const restored: QueueFilters = {
-              status: (view.filters['status'] ?? '') as QueueFilters['status'],
-              priority: (view.filters['priority'] ?? '') as QueueFilters['priority'],
-              originSource: (view.filters['originSource'] ?? '') as QueueFilters['originSource'],
-              unitId: view.filters['unitId'] ?? '',
-              desiredFrom: view.filters['desiredFrom'] ?? '',
-              desiredTo: view.filters['desiredTo'] ?? '',
-              search: view.filters['search'] ?? '',
-              sort: (view.filters['sort'] || EMPTY_FILTERS.sort) as QueueFilters['sort'],
-              direction: (view.filters['direction'] ||
-                EMPTY_FILTERS.direction) as QueueFilters['direction'],
-            };
-            setFilters(restored);
-            setSearchInput(restored.search);
-          }}
-        />
-      </div>
+        A ordem é fixa em toda bancada do produto: VIEWS à esquerda, CONSULTA à direita. Antes eram
+        TRÊS réguas empilhadas — visões salvas, barra de comando e a pílula do contador no fim —, e
+        era o dado que pagava a altura delas.
 
-      {/*
-        ZONA 3 — VIEW + COMMAND SURFACE. UMA barra: segmentos de recorte, busca, situação,
-        mais filtros, visões salvas e o recorte ativo — tudo na mesma altura de linha.
-        O formulario permanente de SEIS controles saiu; nada foi removido do contrato.
+        Nenhum controle saiu: os mesmos segmentos de recorte de situação (com `aria-pressed`), a
+        mesma busca, os mesmos selects, o mesmo "mais filtros" e o mesmo "limpar filtros" — com o
+        MESMO recorte indo ao servidor. O contador "nesta página" subiu para o cabeçalho, na linha
+        de metadata do conjunto, em vez de viver solto no fim da barra.
+
+        SAVED VIEWS continuam comando VISÍVEL da superfície, não menu escondido: antes era
+        `SavedViewsMenu`, um botão "Visões" que abria um formulário de salvar. O recorte que o
+        operador remonta todo dia — situação, prioridade, origem, unidade, janela desejada — fica à
+        vista e é aplicado por um clique.
       */}
-      <div
-        data-region="command-filter-surface"
-        className="cisne-divider flex flex-wrap items-center gap-x-2 gap-y-1 px-0 py-1.5"
+      <WorkspaceToolbar
+        views={
+          <DynamicSavedViewsBar
+            views={savedViews.views}
+            persistedLocally={savedViews.persistedLocally}
+            persistable={savedViews.persistable}
+            onSave={(name) => savedViews.save(name, { ...filters }, 'list')}
+            onDelete={savedViews.remove}
+            onApply={(view) => {
+              const restored: QueueFilters = {
+                status: (view.filters['status'] ?? '') as QueueFilters['status'],
+                priority: (view.filters['priority'] ?? '') as QueueFilters['priority'],
+                originSource: (view.filters['originSource'] ?? '') as QueueFilters['originSource'],
+                unitId: view.filters['unitId'] ?? '',
+                desiredFrom: view.filters['desiredFrom'] ?? '',
+                desiredTo: view.filters['desiredTo'] ?? '',
+                search: view.filters['search'] ?? '',
+                sort: (view.filters['sort'] || EMPTY_FILTERS.sort) as QueueFilters['sort'],
+                direction: (view.filters['direction'] ||
+                  EMPTY_FILTERS.direction) as QueueFilters['direction'],
+              };
+              setFilters(restored);
+              setSearchInput(restored.search);
+            }}
+          />
+        }
       >
         <div
           role="group"
           aria-label="Recorte de situação"
-          className="flex items-center overflow-hidden rounded border border-gray-300 bg-white"
+          className="flex items-center overflow-hidden rounded border border-[color:var(--color-border-default)] bg-white"
         >
           {(
             [
@@ -652,7 +692,7 @@ export function ServiceRequestsListPage() {
                 type="button"
                 aria-pressed={active}
                 className={cn(
-                  'min-h-8 border-r border-gray-200 px-2.5 py-1 cisne-type-body font-medium last:border-r-0',
+                  'min-h-[var(--control-height)] border-r border-[color:var(--color-divider)] px-2.5 cisne-type-body font-medium last:border-r-0',
                   active
                     ? 'bg-brand-700 text-white'
                     : 'bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900',
@@ -676,7 +716,7 @@ export function ServiceRequestsListPage() {
             id="request-search-filter"
             type="search"
             aria-label="Buscar solicitação"
-            className="min-h-8 w-full min-w-0 rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+            className={cn(worklistControlClass, 'w-full min-w-0')}
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
             placeholder="Buscar solicitação…"
@@ -688,7 +728,7 @@ export function ServiceRequestsListPage() {
         </label>
         <select
           id="request-status-filter"
-          className="min-h-8 rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+          className={worklistSelectClass}
           value={filters.status}
           onChange={(event) =>
             applyFilter('status', event.target.value as '' | ServiceRequestStatus)
@@ -705,7 +745,7 @@ export function ServiceRequestsListPage() {
         <button
           type="button"
           aria-expanded={moreOpen}
-          className="min-h-8 rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body font-medium text-gray-700 hover:bg-gray-50"
+          className={cn(worklistButtonClass, 'ring-1 ring-gray-300 ring-inset')}
           onClick={() => setMoreOpen((current) => !current)}
         >
           {moreOpen ? 'Menos filtros' : 'Mais filtros'}
@@ -715,7 +755,7 @@ export function ServiceRequestsListPage() {
           <>
             <select
               aria-label="Prioridade"
-              className="min-h-8 rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body"
+              className={worklistSelectClass}
               value={filters.priority}
               onChange={(event) =>
                 applyFilter('priority', event.target.value as '' | ServiceRequestPriority)
@@ -730,7 +770,7 @@ export function ServiceRequestsListPage() {
             </select>
             <select
               aria-label="Origem"
-              className="min-h-8 rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body"
+              className={worklistSelectClass}
               value={filters.originSource}
               onChange={(event) =>
                 applyFilter('originSource', event.target.value as '' | ServiceRequestOrigin)
@@ -745,7 +785,7 @@ export function ServiceRequestsListPage() {
             </select>
             <select
               aria-label="Ordenar por"
-              className="min-h-8 rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body"
+              className={worklistSelectClass}
               value={filters.sort}
               onChange={(event) =>
                 applyFilter('sort', event.target.value as ServiceRequestListSort)
@@ -759,7 +799,7 @@ export function ServiceRequestsListPage() {
             </select>
             <select
               aria-label="Sentido"
-              className="min-h-8 rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body"
+              className={worklistSelectClass}
               value={filters.direction}
               onChange={(event) =>
                 applyFilter('direction', event.target.value as ServiceRequestListDirection)
@@ -771,29 +811,22 @@ export function ServiceRequestsListPage() {
           </>
         ) : null}
 
-        {hasFilterChips || isFilterGroupActive(advancedGroup) ? (
-          <button
-            type="button"
-            className="min-h-8 rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body font-medium text-gray-700 hover:bg-gray-50"
-            onClick={() => {
-              clearFilters();
-              const params = new URLSearchParams(urlQuery);
-              params.delete(FILTER_PARAM);
-              params.delete('offset');
-              setUrlParams(params, { replace: true });
-            }}
-          >
-            Limpar filtros
-          </button>
-        ) : null}
-
-        <div className="ml-auto flex items-center gap-2">
-          <span className="cisne-type-helper text-gray-500 tabular-nums">
-            {items.length} nesta página
-          </span>
-        </div>
-      </div>
-      </div>
+        {/*
+          UM controle de "limpar" para as DUAS camadas de recorte: os filtros da barra e a árvore
+          do filtro avançado, que vive na URL. O comportamento é o MESMO de antes — a tela não
+          inventa um segundo "limpar" com semântica diferente.
+        */}
+        <WorklistClearFilters
+          visible={hasFilterChips || isFilterGroupActive(advancedGroup)}
+          onClick={() => {
+            clearFilters();
+            const params = new URLSearchParams(urlQuery);
+            params.delete(FILTER_PARAM);
+            params.delete('offset');
+            setUrlParams(params, { replace: true });
+          }}
+        />
+      </WorkspaceToolbar>
 
       {/*
         FILTRO AVANÇADO — a camada composta da superfície, dirigida por METADADO.
@@ -824,92 +857,112 @@ export function ServiceRequestsListPage() {
 
 
       {/*
-        ZONA 4 — PROCESSING SURFACE. A area de trabalho: identidade, decisao e metadado em
-        hierarquia, com barra de acento pelo PESO do estado. O clique na linha abre o contexto        ao lado; o codigo continua sendo o link para a ficha completa.
-      */}
-      {items.length === 0 ? (
-        <section aria-label="Fila operacional de solicitações" className="border-b border-gray-200" data-region="worklist-master">
-          <div className="flex items-center gap-3 border-b border-gray-100 bg-gray-50/80 px-2 py-1 text-[length:var(--type-micro-size)] font-semibold tracking-wide text-gray-500 uppercase">
-            <span>Solicitação e demanda</span>
-            <span className="ml-auto">Situação</span>
-            <span className="w-28 shrink-0 text-right">Idade</span>
-          </div>
-          <div className="px-1 py-3">
-            <WorklistStatePanel
-              title={
-                hasFilterChips
-                  ? 'Nenhuma solicitação corresponde aos filtros aplicados.'
-                  : 'Nenhuma solicitação registrada.'
-              }
-              description={
-                hasFilterChips
-                  ? 'Ajuste a busca, a situação ou a prioridade — ou limpe os filtros para ver a fila completa.'
-                  : 'Quando a primeira solicitação chegar, ela aparece aqui com prioridade, janela desejada e próximo passo.'
-              }
-              action={
-                hasFilterChips ? (
-                  <button
-                    type="button"
-                    className="min-h-8 rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body font-medium text-gray-700 hover:bg-gray-50"
-                    onClick={clearFilters}
-                  >
-                    Limpar filtros
-                  </button>
-                ) : capabilities.canCreate ? (
-                  <ModulePrimaryLink to="/app/requests/new">Nova solicitação</ModulePrimaryLink>
-                ) : null
-              }
-            />
-          </div>
-        </section>
-      ) : (
-        <section aria-label="Fila operacional de solicitações" className="border-b border-gray-200" data-region="worklist-master">
-          <div className="flex items-center gap-3 border-b border-gray-100 bg-gray-50/80 px-2 py-1 text-[length:var(--type-micro-size)] font-semibold tracking-wide text-gray-500 uppercase">
-            <span>Solicitação e demanda</span>
-            <span className="ml-auto">Situação</span>
-            <span className="w-28 shrink-0 text-right">Idade</span>
-          </div>
-          <ul className="m-0 list-none p-0">
-            {items.map((item) => (
-              <ProcessingRow
-                key={item.id}
-                item={item}
-                now={now}
-                selected={selected?.id === item.id}
-                onSelect={() => setSelected(item)}
-              />
-            ))}
-          </ul>
-        </section>
-      )}
+        ZONA 4 — ÁREA DE TRABALHO (`WorkspaceBody` + `WorkspacePane`).
 
-      <div className="flex flex-wrap items-center justify-between gap-2 px-1 pt-2">
-        <p className="m-0 cisne-type-helper text-gray-400">
-          {offset + 1}–{offset + items.length} nesta página · janela desejada é expectativa
-          registrada, não prazo contratado.
-        </p>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={offset === 0}
-            onClick={() => void loadPage(Math.max(0, offset - PAGE_SIZE), filters)}
-          >
-            Anterior
-          </button>
-          <span className="cisne-type-helper text-gray-500 tabular-nums">
-            Página {Math.floor(offset / PAGE_SIZE) + 1}
-          </span>
-          <button
-            type="button"
-            className="rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={!hasMore}
-            onClick={() => void loadPage(offset + PAGE_SIZE, filters)}
-          >
-            Próxima
-          </button>
-        </div>
-      </div>
+        A fila ocupa a ALTURA DISPONÍVEL: identidade, decisão e metadado em hierarquia, com barra de
+        acento pelo PESO do estado (`ProcessingRow`). O clique na linha abre o contexto ao lado; o
+        código continua sendo o link para a ficha completa.
+
+        O corpo é uma grade de UMA COLUNA: esta tela NÃO tem conceito de coluna de contexto — o
+        contexto é o drawer (`DynamicContextDrawer`) que continua no fim da página. Inventar uma
+        coluna aqui seria criar uma segunda gramática de contexto que a tela não tem.
+      */}
+      <WorkspaceBody>
+        <WorkspacePane className="h-full overflow-hidden">
+          {items.length === 0 ? (
+            <section
+              aria-label="Fila operacional de solicitações"
+              className="flex min-h-0 min-w-0 flex-1 flex-col"
+              data-region="worklist-master"
+            >
+              {queueHeadRow}
+              <WorkspaceEmpty
+                title={
+                  hasFilterChips
+                    ? 'Nenhuma solicitação corresponde aos filtros aplicados.'
+                    : 'Nenhuma solicitação registrada.'
+                }
+                description={
+                  hasFilterChips
+                    ? 'Ajuste a busca, a situação ou a prioridade — ou limpe os filtros para ver a fila completa.'
+                    : 'Quando a primeira solicitação chegar, ela aparece aqui com prioridade, janela desejada e próximo passo.'
+                }
+                action={
+                  hasFilterChips ? (
+                    <button
+                      type="button"
+                      className="min-h-8 rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body font-medium text-gray-700 hover:bg-gray-50"
+                      onClick={clearFilters}
+                    >
+                      Limpar filtros
+                    </button>
+                  ) : capabilities.canCreate ? (
+                    <ModulePrimaryLink to="/app/requests/new">Nova solicitação</ModulePrimaryLink>
+                  ) : null
+                }
+              />
+            </section>
+          ) : (
+            <section
+              aria-label="Fila operacional de solicitações"
+              className="flex min-h-0 min-w-0 flex-1 flex-col"
+              data-region="worklist-master"
+            >
+              {queueHeadRow}
+              {/*
+                GRADE ELÁSTICA: o contêiner de rolagem é `min-h-0 flex-1 overflow-auto`, então o
+                corpo recebe a altura que sobra da tela e rola DENTRO do painel. O cabeçalho de
+                coluna fica fora dele, sempre visível.
+              */}
+              <div className="min-h-0 flex-1 overflow-auto">
+                <ul className="m-0 list-none p-0">
+                  {items.map((item) => (
+                    <ProcessingRow
+                      key={item.id}
+                      item={item}
+                      now={now}
+                      selected={selected?.id === item.id}
+                      onSelect={() => setSelected(item)}
+                    />
+                  ))}
+                </ul>
+              </div>
+            </section>
+          )}
+
+          {/*
+            RODAPÉ DA JANELA — intervalo REAL da página e paginação, fora do contêiner de rolagem
+            (`shrink-0`): paginar não pode depender de rolar até o fim da fila.
+          */}
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[color:var(--color-divider)] px-3 py-1.5">
+            <p className="m-0 cisne-type-helper text-gray-400">
+              {offset + 1}–{offset + items.length} nesta página · janela desejada é expectativa
+              registrada, não prazo contratado.
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={offset === 0}
+                onClick={() => void loadPage(Math.max(0, offset - PAGE_SIZE), filters)}
+              >
+                Anterior
+              </button>
+              <span className="cisne-type-helper text-gray-500 tabular-nums">
+                Página {Math.floor(offset / PAGE_SIZE) + 1}
+              </span>
+              <button
+                type="button"
+                className="rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!hasMore}
+                onClick={() => void loadPage(offset + PAGE_SIZE, filters)}
+              >
+                Próxima
+              </button>
+            </div>
+          </div>
+        </WorkspacePane>
+      </WorkspaceBody>
 
       {/*
         BUSINESS CONTEXT SOB DEMANDA — a fila nao e abandonada para entender o registro.
@@ -1156,6 +1209,11 @@ function QueueStripCell({
  *
  * A barra de acento a esquerda codifica PESO: trabalho aberto tem acento; resolvido nao.
  * Nao existe coluna de acoes: a linha inteira abre o contexto e o codigo leva a ficha.
+ *
+ * A LINHA É SELECIONAVEL e agora declara isso com `data-selected`: o hover e o fundo de selecao
+ * vem de `workspaceRowClass` (o acento de TRABALHO do produto), e a barra de PESO continua sendo
+ * o `before:` desta linha — ela diz em que estado o trabalho está, não que trabalho foi escolhido.
+ * A LÓGICA de seleção não mudou: quem manda continua sendo o `selected` do pai.
  */
 function ProcessingRow({
   item,
@@ -1189,14 +1247,16 @@ function ProcessingRow({
   return (
     <li
       onClick={onSelect}
+      data-selected={selected}
       className={cn(
-        'relative grid cursor-pointer grid-cols-1 gap-x-3 gap-y-0 border-b border-gray-100 py-1 pr-2 pl-3 last:border-b-0 lg:grid-cols-[minmax(0,1fr)_9.5rem_7rem]',
+        workspaceRowClass,
+        'relative grid grid-cols-1 gap-x-3 gap-y-0 border-b border-gray-100 py-1 pr-2 pl-3 last:border-b-0 lg:grid-cols-[minmax(0,1fr)_9.5rem_7rem]',
         'before:absolute before:top-1.5 before:bottom-1.5 before:left-0 before:w-[3px] before:content-[""]',
         selected
-          ? 'bg-brand-50 before:bg-brand-700'
+          ? 'before:bg-brand-700'
           : isOpen
-            ? 'before:bg-amber-400 hover:bg-gray-50/70'
-            : 'before:bg-transparent hover:bg-gray-50/70',
+            ? 'before:bg-amber-400'
+            : 'before:bg-transparent',
       )}
     >
       {/* IDENTIDADE — o operador reconhece a linha por aqui. */}

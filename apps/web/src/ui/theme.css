@@ -18,14 +18,14 @@
    * superficie branca entregava ~4.4:1 em texto pequeno; #0B8F88 e #0E7C74 ficam acima disso e
    * mantem a identidade.
    */
-  --color-brand-50: #e9f7f6;
+  --color-brand-50: #eaf4f3;
   --color-brand-100: #c9ecea;
   --color-brand-200: #97d9d5;
   --color-brand-300: #5cc0ba;
   --color-brand-400: #2aa79f;
   --color-brand-500: #119e96;
-  --color-brand-600: #0b8f88;
-  --color-brand-700: #0e7c74;
+  --color-brand-600: #087f78;
+  --color-brand-700: #066b65;
   --color-brand-800: #0d635e;
   --color-brand-900: #0a4a46;
   --color-brand-950: #052e2c;
@@ -40,7 +40,7 @@
   --color-navy-500: #123e5a;
   --color-navy-600: #0d2940;
   --color-navy-700: #0a2033;
-  --color-navy-800: #071827;
+  --color-navy-800: #0b1f2d;
   --color-navy-900: #04101c;
 
   /*
@@ -60,18 +60,18 @@
    *   dock-ink — o ponto de identidade dentro dela (avatar/letra)
    *   on-shell — texto sobre o navy: primario e secundario
    */
-  --color-shell-surface: #061726;
-  --color-shell-chrome: #0b2b42;
-  --color-shell-dock: #0e3c59;
-  --color-shell-dock-ink: #18a7a0;
+  --color-shell-surface: #0b1f2d;
+  --color-shell-chrome: #102a3a;
+  --color-shell-dock: #102a3a;
+  --color-shell-dock-ink: #087f78;
   --color-on-shell: #ffffff;
-  --color-on-shell-muted: #7791aa;
-  --color-on-shell-dim: #6688a8;
+  --color-on-shell-muted: #8fa7b8;
+  --color-on-shell-dim: #7b93a5;
 
   /* HOVER/PRESSIONADO SOBRE NAVY — o estado de interacao da navegacao escura. */
-  --color-shell-hover: #0d2940;
-  --color-shell-active: #13544e;
-  --color-shell-active-ink: #eef7f6;
+  --color-shell-hover: #102a3a;
+  --color-shell-active: #103733;
+  --color-shell-active-ink: #7fd4cc;
 
   /*
    * TINTA DE NAVEGACAO SOBRE NAVY — o degrau de LEGIBILIDADE do item inativo.
@@ -184,22 +184,22 @@
    * contraste entre as duas E a profundidade — o operador precisa VER tres degraus (canvas, support,
    * work) sem que nenhum deles seja sombra.
    */
-  --color-canvas: #eef3f8;
+  --color-canvas: #f3f6f8;
   --color-canvas-work: #ffffff;
-  --color-surface-context: #f7f9fc;
+  --color-surface-context: #f7f9fb;
   --color-surface-context-strong: #eef2f8;
   /* CABECALHO TONAL — faixas de titulo de secao, cabecalho de grade, barras de ferramenta. */
-  --color-surface-header: #eaf0f6;
-  /* SELECAO — a linha/aba escolhida. Azul muito claro, distinto do teal de identidade. */
-  --color-surface-selected: #e5f0ff;
+  --color-surface-header: #f7f9fb;
+  /* SELECAO — a linha/aba escolhida. Teal muito claro: a selecao pertence ao acento de trabalho. */
+  --color-surface-selected: #eaf4f3;
   --color-surface-info: #eff6ff;
   --color-surface-success: #ecfdf5;
   --color-surface-warning: #fff7e8;
   --color-surface-critical: #fef2f2;
 
   /* DIVISORES ESTRUTURAIS — precisao visual, nao nevoa. */
-  --color-divider: #d2dde8;
-  --color-divider-strong: #becbd9;
+  --color-divider: #d9e1e7;
+  --color-divider-strong: #c4d0d9;
   --color-rule-accent: var(--color-brand-600);
 
   /*
@@ -210,17 +210,18 @@
    * cabecalho e no peso do texto. Promovidos aqui, a mesma grade le igual em qualquer modulo.
    */
   --color-surface-grid-head: var(--color-surface-header);
-  --color-grid-head-ink: #31455c;
-  --color-grid-row-hover: #f3f8ff;
+  --color-grid-head-ink: #566575;
+  --color-grid-row-hover: #f4faf9;
 
-  --color-text-primary: #102033;
-  --color-text-secondary: #52647a;
-  --color-text-muted: #6b7a8f;
+  --color-text-primary: #17212b;
+  --color-text-secondary: #566575;
+  /* MUTED CORRIGIDO PARA AA — ver nota de contraste no bloco de governanca. */
+  --color-text-muted: #66768a;
   --color-text-inverse: #ffffff;
 
-  --color-border-default: #d2dde8;
-  --color-border-subtle: #e2e9f1;
-  --color-border-strong: #becbd9;
+  --color-border-default: #d9e1e7;
+  --color-border-subtle: #e5eaee;
+  --color-border-strong: #c4d0d9;
 
   --color-focus-ring: var(--color-brand-500);
 
@@ -312,8 +313,8 @@
    * A diferenca entre `primary` e `meta` e DELIBERADA: dado que decide tem peso e cor de texto
    * primario; valor secundario e menor e mais claro. Sem isso, uma grade inteira parece um bloco so.
    */
-  --type-workspace-size: 1.125rem;
-  --type-object-size: 1.25rem;
+  --type-workspace-size: 1.375rem;
+  --type-object-size: 1.5rem;
   --type-primary-size: 0.9375rem;
   --type-body-size: 0.8125rem;
   --type-meta-size: 0.8125rem;

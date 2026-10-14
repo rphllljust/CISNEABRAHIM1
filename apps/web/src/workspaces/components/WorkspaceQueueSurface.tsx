@@ -9,12 +9,20 @@ import {
   type WorkItem,
 } from '../../work-inbox/api/work-inbox-api';
 import {
-  WorkbenchQueue,
   WorkbenchQueueItem,
   workbenchPrimaryActionClass,
   workbenchSecondaryActionClass,
 } from '../../ui/workbench';
 import { WorklistException, worklistSelectClass } from '../../ui/enterprise-list';
+import {
+  ContextFacts,
+  ContextSection,
+  WorkspaceBody,
+  WorkspaceEmpty,
+  WorkspacePane,
+  WorkspacePaneHeader,
+  WorkspaceSkeletonRows,
+} from '../../ui/workspace-frame';
 import { cn } from '../../ui/utils/cn';
 import { ContextDrawer, type ContextField } from '../../operator';
 import { isTechnicalIdentity } from '../../shell/format-identity';
@@ -265,233 +273,378 @@ export function WorkspaceQueueSurface({
       : null;
 
   return (
-    <div className={className}>
-      <WorkbenchQueue
-        title={title}
-        regionLabel={ariaLabel}
-        count={total}
-        description={
-          state.phase === 'loading'
-            ? 'Lendo o trabalho do recorte no servidor…'
-            : state.phase === 'ready' && page
-              ? [
-                  coverageLabel(page, items.length),
-                  scopeDescription(effectiveScope, lockDomain),
-                  description,
-                ]
-                  .filter(Boolean)
-                  .join(' · ')
-              : description
-        }
-        action={
-          <div className="flex flex-wrap items-center gap-1.5">
-            <button type="button" className={workbenchSecondaryActionClass} onClick={reload}>
-              Atualizar
-            </button>
-            {/*
-              A ACAO DO CABECALHO SO EXISTE QUANDO HA LINHA PARA ROLAR.
+    <div className={cn('flex min-h-0 flex-1 flex-col', className)}>
+      {/*
+        BANCADA DE FILA — GRADE ELASTICA: a fila ocupa a altura que o shell deixou.
 
-              Com a fila cheia, "Abrir fila completa" e a saida do cabecalho. Com a fila vazia, o
-              mesmo destino ja aparece dentro do estado vazio — duas ocorrencias seriam o MESMO
-              destino oferecido duas vezes na mesma dobra, com dois alvos identicos para o mesmo
-              clique. No vazio quem governa a saida e o estado vazio.
-            */}
-            {items.length > 0 && !paginate ? (
-              <Link className={workbenchSecondaryActionClass} to={fullQueueHref}>
-                Abrir fila completa
-              </Link>
-            ) : null}
-            {headerAction}
+        Antes esta superficie era um bloco que crescia com o conteudo: com a fila vazia ela media
+        329px e o resto da viewport ficava branco (medido em 1600x900: conteudo terminava em y=624
+        de 900 — 276px vazios). Agora a fila vive dentro de `WorkspaceBody`, que e uma grade de altura
+        total, e as duas colunas (fila e contexto) acompanham a tela em vez de encolherem ate o dado.
+
+        ZERO ITENS NAO DESMONTA A BANCADA: cabecalho, visoes, recortes, barra de filtros e a coluna
+        de contexto continuam montados; o que muda e apenas o miolo da grade.
+      */}
+      <WorkspaceBody
+        context={
+          <WorkspacePane
+            aria-label="Contexto da decisão"
+            className="hidden h-full overflow-auto bg-[color:var(--color-surface-context)] xl:flex"
+          >
+            <WorkspacePaneHeader title="Contexto da decisão" />
+            {selected ? (
+              <ContextSection title="Trabalho selecionado">
+                <p className="m-0 text-[13px] font-semibold text-[color:var(--color-text-primary)]">
+                  {selected.businessReference}
+                </p>
+                <p className="m-0 mt-0.5 text-[12px] text-[color:var(--color-text-secondary)]">
+                  {selected.title}
+                </p>
+                <ContextFacts
+                  facts={contextFacts(selected, selectedUnitLabel).map((fact) => ({
+                    label: fact.label,
+                    value: fact.value,
+                  }))}
+                />
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Link className={workbenchPrimaryActionClass} to={selected.targetRoute}>
+                    {selected.actionLabel}
+                  </Link>
+                </div>
+              </ContextSection>
+            ) : (
+              /*
+                SEM ITEM SELECIONADO — E, PRINCIPALMENTE, SEM ITEM NENHUM.
+
+                A coluna de contexto e o que faz a fila vazia continuar sendo uma RESPOSTA. Ela diz
+                qual recorte foi lido, quais dominios responderam, quantos itens existem e o que
+                entra nesta fila. Sem isso, "0 trabalhos" e indistinguivel de "a tela quebrou" — e
+                era exatamente o que o operador via antes: uma mensagem e 276px de branco.
+              */
+              <>
+                <ContextSection title="Recorte lido">
+                  <ContextFacts
+                    facts={[
+                      { label: 'Domínio', value: scopeDescription(effectiveScope, lockDomain) },
+                      { label: 'Itens publicados', value: total === null ? 'Não lido' : String(total) },
+                      {
+                        label: 'Nesta página',
+                        value: state.phase === 'ready' ? String(items.length) : 'Não lido',
+                      },
+                    ]}
+                  />
+                </ContextSection>
+
+                <ContextSection title="Domínios consultados">
+                  {page ? (
+                    <ContextFacts
+                      facts={WORK_DOMAINS.map((domain) => ({
+                        label: WORK_DOMAIN_LABELS[domain],
+                        value: page.unavailableDomains.includes(domain)
+                          ? 'Não respondeu'
+                          : String(page.byDomain[domain] ?? 0),
+                      }))}
+                    />
+                  ) : (
+                    <p className="cisne-type-helper m-0">
+                      A leitura por domínio não foi publicada nesta consulta.
+                    </p>
+                  )}
+                </ContextSection>
+
+                <ContextSection title="O que entra nesta fila">
+                  <ul className="m-0 list-disc space-y-1 pl-4 text-[12px] text-[color:var(--color-text-secondary)]">
+                    <li>Exceções e bloqueios publicados pelos domínios autorizados.</li>
+                    <li>Aprovações e vencimentos com prazo persistido.</li>
+                    <li>
+                      A fila não inventa pendência: sem fato publicado, ela fica vazia — e isso é uma
+                      resposta, não uma falha.
+                    </li>
+                  </ul>
+                </ContextSection>
+
+                {incompleteNotice ? (
+                  <ContextSection title="Leitura parcial">
+                    <p className="m-0 text-[12px] text-[color:var(--color-amber-700)]">
+                      {incompleteNotice}
+                    </p>
+                  </ContextSection>
+                ) : null}
+              </>
+            )}
+          </WorkspacePane>
+        }
+      >
+        <WorkspacePane className="h-full overflow-hidden">
+          {/* CABECALHO DA FILA — identidade da regiao, contagem do servidor e comandos. */}
+          <WorkspacePaneHeader
+            title={title}
+            count={total ?? undefined}
+            action={
+              <>
+                <button type="button" className={workbenchSecondaryActionClass} onClick={reload}>
+                  Atualizar
+                </button>
+                {/*
+                  A ACAO DO CABECALHO SO EXISTE QUANDO HA LINHA PARA ROLAR.
+                  Com a fila cheia, "Abrir fila completa" e a saida do cabecalho. Com a fila vazia, o
+                  mesmo destino ja aparece dentro do estado vazio — duas ocorrencias seriam o MESMO
+                  destino oferecido duas vezes na mesma dobra, com dois alvos identicos.
+                */}
+                {items.length > 0 && !paginate ? (
+                  <Link className={workbenchSecondaryActionClass} to={fullQueueHref}>
+                    Abrir fila completa
+                  </Link>
+                ) : null}
+                {headerAction}
+              </>
+            }
+          />
+
+          {/*
+            VISOES SALVAS — o modo de trabalho do operador, na propria area de trabalho.
+            A barra persiste apenas o RECORTE que o servidor executa: guardar dado de negocio dentro
+            de uma visao seria manter uma copia de dado autoritativo no navegador.
+          */}
+          <div className="shrink-0 border-b border-[color:var(--color-divider)] px-3 py-1.5">
+            <DynamicSavedViewsBar
+              views={savedViews.views}
+              persistedLocally={savedViews.persistedLocally}
+              persistable={savedViews.persistable}
+              onSave={(name) => savedViews.save(name, scopeToSavedFilters(effectiveScope), 'list')}
+              onDelete={savedViews.remove}
+              onApply={(view) => applyScope(scopeFromSavedFilters(view.filters))}
+            />
           </div>
-        }
-        emptyTitle={
-          state.phase === 'denied'
-            ? 'Fila indisponível'
-            : state.phase === 'error'
-              ? 'Não foi possível ler a fila'
-              : (emptyTitle ?? 'Nenhum trabalho pendente neste recorte.')
-        }
-        emptyDescription={
-          state.phase === 'denied'
-            ? 'Você não tem permissão para ler esta fila de trabalho.'
-            : state.phase === 'error'
-              ? state.message
-              : (emptyDescription ??
-                'A fila não inventa pendência para parecer cheia. Ajuste o recorte ou abra a fila completa.')
-        }
-        emptyAction={
-          state.phase === 'ready' ? (
-            <>
-              {!isAllScope(effectiveScope) ? (
+
+          {showScopeBar ? (
+            /*
+              RECORTES DE SISTEMA — exatamente as dimensoes que o contrato do read model executa.
+              Uma visao que o servidor nao executa voltaria como lista inteira e o operador acharia
+              que recortou.
+            */
+            <ul
+              aria-label="Recortes da fila"
+              className="m-0 flex shrink-0 list-none flex-wrap items-center gap-1.5 border-b border-[color:var(--color-divider)] px-3 py-1.5"
+            >
+              <li>
+                <ScopeButton
+                  active={isAllScope(effectiveScope)}
+                  label="Tudo"
+                  onClick={() => applyScope({ ...effectiveScope, kind: null, overdue: false })}
+                />
+              </li>
+              {WORKSPACE_QUEUE_KINDS.map((recorte) => (
+                <li key={recorte.kind}>
+                  <ScopeButton
+                    active={effectiveScope.kind === recorte.kind && !effectiveScope.overdue}
+                    label={recorte.label}
+                    onClick={() =>
+                      applyScope({ ...effectiveScope, kind: recorte.kind, overdue: false })
+                    }
+                  />
+                </li>
+              ))}
+              <li>
+                <ScopeButton
+                  active={effectiveScope.overdue}
+                  label="Somente vencidos"
+                  onClick={() => applyScope({ ...effectiveScope, kind: null, overdue: true })}
+                />
+              </li>
+              {showUnitFilter ? (
+                <li className="ml-1">
+                  <select
+                    aria-label="Unidade"
+                    value={effectiveScope.unitId ?? ''}
+                    onChange={(event) =>
+                      applyScope({ ...effectiveScope, unitId: event.target.value || null })
+                    }
+                    className={cn(worklistSelectClass, 'w-44')}
+                  >
+                    <OperationalUnitOptions options={unitOptions} includeAllLabel="Todas as unidades" />
+                  </select>
+                </li>
+              ) : null}
+              {activeSavedView ? (
+                <li className="cisne-type-helper ml-1">Visão: {activeSavedView.name}</li>
+              ) : null}
+            </ul>
+          ) : null}
+
+          {incompleteNotice ? (
+            <p
+              role="status"
+              className="m-0 shrink-0 border-b border-[color:var(--color-amber-200)] bg-[color:var(--color-surface-warning)] px-3 py-1.5 text-[11px] text-[color:var(--color-amber-700)]"
+            >
+              {incompleteNotice}
+            </p>
+          ) : null}
+
+          {/*
+            CORPO DA FILA — a area elastica E a regiao nomeada da fila.
+
+            E uma `<section>` com o nome acessivel da fila (`ariaLabel`), como era antes: a linha de
+            trabalho precisa estar DENTRO da secao que a contem — e a assercao que garante que o item
+            pertence a fila, com referencia humana, motivo, prazo e acao. Um `<div>` de rolagem
+            anonimo quebraria essa leitura (e o leitor de tela perderia o landmark).
+
+            Com itens, e a lista; sem itens, e o estado vazio COMPACTO — a moldura em volta permanece
+            (visoes, recortes, cabecalho, contexto), que e a regra de "zero itens nao desmonta a
+            bancada".
+          */}
+          <section
+            aria-label={ariaLabel ?? title}
+            aria-busy={state.phase === 'loading'}
+            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+          >
+            {/*
+              DESCRICAO DO RECORTE — a procedencia do conjunto, DENTRO da regiao nomeada da fila.
+
+              `coverageLabel` ("Exibindo N de M itens" / "1 de 1 item no recorte") tem de estar dentro
+              da secao "Fila de trabalho": e ela que impede a PAGINA de passar por CONJUNTO. Fora do
+              landmark, quem le a fila por regiao nao recebe essa declaracao — que e exatamente o
+              defeito que o `total` do read model existe para impedir.
+
+              A descricao da superficie (o que ESTA fila e) acompanha a cobertura na mesma linha: as
+              duas descrevem o recorte carregado, e separa-las custaria uma segunda faixa.
+            */}
+            <p className="m-0 shrink-0 border-b border-[color:var(--color-divider)] px-3 py-1 text-[11px] text-[color:var(--color-text-muted)]">
+              {[
+                state.phase === 'loading'
+                  ? 'Lendo o trabalho do recorte no servidor…'
+                  : state.phase === 'ready' && page
+                    ? coverageLabel(page, items.length)
+                    : null,
+                scopeDescription(effectiveScope, lockDomain),
+                description,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
+
+            <div className="min-h-0 flex-1 overflow-auto">
+              {state.phase === 'loading' ? <WorkspaceSkeletonRows rows={8} columns={4} /> : null}
+              {state.phase !== 'loading' && items.length === 0 ? (
+                <WorkspaceEmpty
+                  title={
+                    state.phase === 'denied'
+                      ? 'Fila indisponível'
+                      : state.phase === 'error'
+                        ? 'Não foi possível ler a fila'
+                        : (emptyTitle ?? 'Nenhum trabalho pendente neste recorte.')
+                  }
+                  description={
+                    state.phase === 'denied'
+                      ? 'Você não tem permissão para ler esta fila de trabalho.'
+                      : state.phase === 'error'
+                        ? state.message
+                        : (emptyDescription ??
+                          'A fila não inventa pendência para parecer cheia. Ajuste o recorte ou abra a fila completa.')
+                  }
+                  action={
+                    state.phase === 'ready' ? (
+                      <>
+                        {!isAllScope(effectiveScope) ? (
+                          <button
+                            type="button"
+                            className={workbenchSecondaryActionClass}
+                            onClick={() => applyScope(ALL_WORKSPACE_QUEUE_SCOPE)}
+                          >
+                            {declaredScope.domain || lockDomain ? 'Ver todo o domínio' : 'Ver toda a fila'}
+                          </button>
+                        ) : null}
+                        {!paginate ? (
+                          <Link className={workbenchPrimaryActionClass} to={fullQueueHref}>
+                            Abrir fila completa
+                          </Link>
+                        ) : null}
+                      </>
+                    ) : null
+                  }
+                />
+              ) : null}
+
+              {items.map((item) => {
+                const late = daysOverdue(item.dueAt);
+                return (
+                  <WorkbenchQueueItem
+                    key={item.id}
+                    severity={
+                      late !== null ? (
+                        <WorklistException tone="critical">
+                          {late} dia{late === 1 ? '' : 's'} em atraso
+                        </WorklistException>
+                      ) : (
+                        <WorklistException tone={item.kind === 'BLOCKER' ? 'warning' : 'info'}>
+                          {item.kind}
+                        </WorklistException>
+                      )
+                    }
+                    severityTone={
+                      late !== null ? 'critical' : item.kind === 'BLOCKER' ? 'warning' : 'info'
+                    }
+                    title={item.title}
+                    reason={item.reason}
+                    context={
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedId(item.id)}
+                          title="Ver o contexto deste trabalho"
+                          className="text-xs font-semibold text-brand-700 hover:text-brand-800"
+                        >
+                          {item.businessReference}
+                        </button>
+                        <span className="ml-3">
+                          {item.contextLabel || WORK_DOMAIN_LABELS[item.domain]}
+                        </span>
+                      </>
+                    }
+                    age={<>Vencimento {formatMoment(item.dueAt)}</>}
+                    action={
+                      <Link className={workbenchPrimaryActionClass} to={item.targetRoute}>
+                        {item.actionLabel}
+                      </Link>
+                    }
+                  />
+                );
+              })}
+            </div>
+          </section>
+
+          {paginate && page && page.totalPages > 1 ? (
+            <div className="flex shrink-0 items-center justify-between border-t border-[color:var(--color-divider)] px-3 py-1.5 text-[11px] text-[color:var(--color-text-secondary)]">
+              <span className="tabular-nums">
+                {page.offset + 1}–{Math.min(page.offset + page.limit, page.total)} de {page.total}
+              </span>
+              <span className="flex gap-2">
                 <button
                   type="button"
                   className={workbenchSecondaryActionClass}
-                  onClick={() => applyScope(ALL_WORKSPACE_QUEUE_SCOPE)}
+                  disabled={page.offset === 0}
+                  onClick={() => setOffsetParam(searchParams, setSearchParams, Math.max(0, page.offset - page.limit))}
                 >
-                  {declaredScope.domain || lockDomain ? 'Ver todo o domínio' : 'Ver toda a fila'}
+                  Anterior
                 </button>
-              ) : null}
-              {!paginate ? (
-                <Link className={workbenchPrimaryActionClass} to={fullQueueHref}>
-                  Abrir fila completa
-                </Link>
-              ) : null}
-            </>
-          ) : null
-        }
-      >
-        {/*
-          VISOES SALVAS — o modo de trabalho do operador, na propria area de trabalho.
-          A barra persiste apenas o RECORTE que o servidor executa: guardar dado de negocio dentro de
-          uma visao seria manter uma copia de dado autoritativo no navegador.
-        */}
-        <div className="border-b border-gray-100 px-2.5 py-1.5">
-          <DynamicSavedViewsBar
-            views={savedViews.views}
-            persistedLocally={savedViews.persistedLocally}
-            persistable={savedViews.persistable}
-            onSave={(name) => savedViews.save(name, scopeToSavedFilters(effectiveScope), 'list')}
-            onDelete={savedViews.remove}
-            onApply={(view) => applyScope(scopeFromSavedFilters(view.filters))}
-          />
-        </div>
-
-        {showScopeBar ? (
-          /*
-            RECORTES DE SISTEMA — exatamente as dimensoes que o contrato do read model executa.
-            Uma visao que o servidor nao executa voltaria como lista inteira e o operador acharia que
-            recortou.
-          */
-          <ul
-            aria-label="Recortes da fila"
-            className="m-0 flex list-none flex-wrap items-center gap-1.5 border-b border-gray-100 bg-gray-50/60 px-2.5 py-1.5"
-          >
-            <li>
-              <ScopeButton
-                active={isAllScope(effectiveScope)}
-                label="Tudo"
-                onClick={() => applyScope({ ...effectiveScope, kind: null, overdue: false })}
-              />
-            </li>
-            {WORKSPACE_QUEUE_KINDS.map((recorte) => (
-              <li key={recorte.kind}>
-                <ScopeButton
-                  active={effectiveScope.kind === recorte.kind && !effectiveScope.overdue}
-                  label={recorte.label}
-                  onClick={() =>
-                    applyScope({ ...effectiveScope, kind: recorte.kind, overdue: false })
-                  }
-                />
-              </li>
-            ))}
-            <li>
-              <ScopeButton
-                active={effectiveScope.overdue}
-                label="Somente vencidos"
-                onClick={() => applyScope({ ...effectiveScope, kind: null, overdue: true })}
-              />
-            </li>
-            {showUnitFilter ? (
-              <li className="ml-1">
-                <select
-                  aria-label="Unidade"
-                  value={effectiveScope.unitId ?? ''}
-                  onChange={(event) =>
-                    applyScope({ ...effectiveScope, unitId: event.target.value || null })
-                  }
-                  className={cn(worklistSelectClass, 'w-44')}
+                <button
+                  type="button"
+                  className={workbenchSecondaryActionClass}
+                  disabled={page.offset + page.limit >= page.total}
+                  onClick={() => setOffsetParam(searchParams, setSearchParams, page.offset + page.limit)}
                 >
-                  <OperationalUnitOptions options={unitOptions} includeAllLabel="Todas as unidades" />
-                </select>
-              </li>
-            ) : null}
-            {activeSavedView ? (
-              <li className="cisne-type-helper ml-1">Visão: {activeSavedView.name}</li>
-            ) : null}
-          </ul>
-        ) : null}
-
-        {incompleteNotice ? (
-          <p
-            role="status"
-            className="m-0 border-b border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900"
-          >
-            {incompleteNotice}
-          </p>
-        ) : null}
-
-        {items.map((item) => {
-          const late = daysOverdue(item.dueAt);
-          return (
-            <WorkbenchQueueItem
-              key={item.id}
-              severity={
-                late !== null ? (
-                  <WorklistException tone="critical">
-                    {late} dia{late === 1 ? '' : 's'} em atraso
-                  </WorklistException>
-                ) : (
-                  <WorklistException tone={item.kind === 'BLOCKER' ? 'warning' : 'info'}>
-                    {item.kind}
-                  </WorklistException>
-                )
-              }
-              severityTone={late !== null ? 'critical' : item.kind === 'BLOCKER' ? 'warning' : 'info'}
-              title={item.title}
-              reason={item.reason}
-              context={
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedId(item.id)}
-                    title="Ver o contexto deste trabalho"
-                    className="text-xs font-semibold text-brand-700 hover:text-brand-800"
-                  >
-                    {item.businessReference}
-                  </button>
-                  <span className="ml-3">{item.contextLabel || WORK_DOMAIN_LABELS[item.domain]}</span>
-                </>
-              }
-              age={<>Vencimento {formatMoment(item.dueAt)}</>}
-              action={
-                <Link className={workbenchPrimaryActionClass} to={item.targetRoute}>
-                  {item.actionLabel}
-                </Link>
-              }
-            />
-          );
-        })}
-      </WorkbenchQueue>
-
-      {paginate && page && page.totalPages > 1 ? (
-        <div className="mt-1 mb-2 flex items-center justify-between text-xs text-gray-600">
-          <span className="tabular-nums">
-            {page.offset + 1}–{Math.min(page.offset + page.limit, page.total)} de {page.total}
-          </span>
-          <span className="flex gap-2">
-            <button
-              type="button"
-              className={workbenchSecondaryActionClass}
-              disabled={page.offset === 0}
-              onClick={() => setOffsetParam(searchParams, setSearchParams, Math.max(0, page.offset - page.limit))}
-            >
-              Anterior
-            </button>
-            <button
-              type="button"
-              className={workbenchSecondaryActionClass}
-              disabled={page.offset + page.limit >= page.total}
-              onClick={() => setOffsetParam(searchParams, setSearchParams, page.offset + page.limit)}
-            >
-              Próxima
-            </button>
-          </span>
-        </div>
-      ) : null}
+                  Próxima
+                </button>
+              </span>
+            </div>
+          ) : null}
+        </WorkspacePane>
+      </WorkspaceBody>
 
       {/*
-        CONTEXTO DO ITEM — o MESMO primitivo lateral das listas maduras. Nao duplica Object Page:
-        entrega o suficiente para decidir e o atalho para o objeto completo, sem sair da fila.
+        CONTEXTO DO ITEM EM VIEWPORT ESTREITO — abaixo de `xl` nao ha largura para duas colunas,
+        entao o MESMO conteudo vira o drawer. Nao duplica Object Page: entrega o suficiente para
+        decidir e o atalho para o objeto completo, sem sair da fila.
       */}
       <ContextDrawer
         open={selected !== null}

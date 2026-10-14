@@ -16,7 +16,6 @@ import {
   ClientNextActionStrip,
   ClientQualitySummary,
   ClientSituationStrip,
-  ContextSection,
 } from '../components/ClientWorkspacePanels';
 import {
   deriveClientAttention,
@@ -80,20 +79,30 @@ import {
   ModulePagination,
   ModulePrimaryLink,
 } from '../../ui/module-layout';
-import { WorklistStatePanel } from '../../ui/enterprise-list';
 import {
   WorklistClearFilters,
   WorklistField,
-  WorklistFilterBar,
-  WorklistHeader,
-  worklistCellClass,
   worklistControlClass,
-  worklistHeadCellClass,
   worklistSelectClass,
 } from '../../ui/enterprise-list';
+import {
+  workspaceCellClass,
+  workspaceHeadCellClass,
+} from '../../ui/workspace-frame';
 import { StatusBadge } from '../../ui/StatusBadge';
 import { Button } from '../../ui/Button';
 import { Skeleton } from '../../ui/Skeleton';
+import {
+  ContextFacts,
+  ContextSection,
+  WorkspaceBody,
+  WorkspaceEmpty,
+  WorkspaceHeader,
+  WorkspacePane,
+  WorkspacePaneHeader,
+  WorkspaceStatusLine,
+  WorkspaceToolbar,
+} from '../../ui/workspace-frame';
 import { cn } from '../../ui/utils/cn';
 
 const PAGE_SIZE = 20;
@@ -729,108 +738,102 @@ export function ClientsListPage() {
   );
 
   return (
-    <ModulePage layout="wide">
-      {/*      {/*
-        CUSTOMER WORKSPACE — CABEÇALHO INTEGRADO AO CANVAS, NÃO CARD.
+    <ModulePage layout="workspace">
+      {/*
+        CUSTOMER WORKSPACE — A BANCADA DE CARTEIRA.
 
-        A composição anterior empilhava, na mesma faixa fixa: um cabeçalho de área de trabalho, uma
-        régua de três indicadores, a faixa de visões salvas, a superfície de filtro e o construtor
-        de filtro avançado. Medido em 1600×900: essa faixa consumia 239px e a TABELA ficava com
-        226px — cinco linhas — deixando 301px vazios abaixo. O cabeçalho dominava a tela, que é
-        exatamente o sintoma de "página de cadastro" que a recomposição existe para eliminar.
+        ─────────────────────────────────────────────────────────────────────────────────────────
+        O QUE ESTA TELA ERA, MEDIDO
 
-        Agora a faixa fixa é UMA superfície de comando densa: identidade + recorte em uma linha,
-        visões e ferramentas em outra, tudo com régua própria e sem cards. A tabela passa a receber
-        a maior parte da altura disponível.
+        Em 1600×900, com cinco clientes publicados:
 
-        `data-region` em cada faixa mantém a mudança de modelo MEDÍVEL por DOM.
+          cabeçalho + toolbar   139px   (uma faixa fixa `sticky`)
+          tabela                225px   (5 linhas de 44px)
+          coluna de contexto     84px   (!!)
+          conteúdo terminava    y=497
+          canvas vazio abaixo   403px   — 45% da viewport, branco, sem função
+
+        A coluna de contexto media 84 PIXELADOS: o painel "Contexto do cliente" era uma caixa com
+        uma frase de instrução, porque sem seleção ele não tinha o que mostrar e o layout o deixava
+        encolher até o conteúdo. A tela lia como ADMINISTRATIVE LIST PAGE — cabeçalho, filtros,
+        tabela, um boxezinho e um vazio no fim.
+
+        ─────────────────────────────────────────────────────────────────────────────────────────
+        O QUE ELA É AGORA
+
+        Uma bancada de CUSTOMER OPERATIONS com a gramática de workspace do produto:
+
+          WorkspaceHeader   Clientes + situação da carteira em UMA linha de metadata
+          WorkspaceToolbar  visões + busca + filtros numa faixa só
+          WorkspaceBody     grade da carteira + coluna de contexto, AMBAS com altura de viewport
+
+        A mudança estrutural que produz a diferença: o corpo da bancada é uma GRADE DE ALTURA TOTAL.
+        A coluna de contexto passa a ter ~600px de altura em vez de 84px, e a silhueta da tela não
+        depende mais de quantos registros existem — dois clientes ou duzentos ocupam o mesmo quadro.
+
+        ─────────────────────────────────────────────────────────────────────────────────────────
+        O QUE NÃO MUDOU (e não podia mudar)
+
+        Nenhuma chamada de API, nenhum filtro, nenhuma rota, nenhuma capability, nenhuma regra de
+        domínio. `AUSÊNCIA ≠ ZERO` continua valendo: sem carteira autorizada o total não é afirmado.
+        A seleção de linha, o comando em lote, a coluna de contexto abaixo de `xl` (drawer) e todos
+        os `data-testid` permanecem exatamente onde estavam.
       */}
-      <div className="sticky top-0 z-20 bg-white" data-region="work-surface">
-        {/*
-          OPERATING HEADER — uma linha única, no canvas, sem moldura.
+      <WorkspaceHeader
+        title="Clientes"
+        identity="Carteira autorizada e relacionamento"
+        scope={isRefreshing ? `${scope} · atualizando…` : scope}
+        status={
+          hasCatalog ? (
+            /*
+              SITUAÇÃO DA CARTEIRA COMO METADATA OPERACIONAL — não como três cartões.
 
-          Identidade, descrição curta, recorte ativo, contagem AUTORITATIVA e comando primário
-          dividem a MESMA linha. `AUSÊNCIA ≠ ZERO`: sem carteira autorizada o total não é afirmado
-          (`count` fica `undefined`) em vez de imprimir "0".
-        */}
-        <div data-region="operating-header">
-          <WorklistHeader
-            title="Clientes"
-            description="Carteira empresarial e relacionamento"
-            count={hasCatalog ? total : undefined}
-            context={
-              isRefreshing ? (
-                <>
-                  {scope} <span role="status">atualizando…</span>
-                </>
-              ) : (
-                scope
-              )
-            }
-            action={
-              /*
-                COMANDO PRIMÁRIO ÚNICO. Com a carteira vazia a criação desce para o painel de
-                estado vazio (que já explica o que um Cliente é) e o cabeçalho não a repete —
-                duas CTAs primárias na mesma dobra deixam o operador sem saber qual é a ação.
-              */
-              capabilities.canCreate && !isEmptyCatalogue ? (
-                <ModulePrimaryLink to="/app/clients/new">Novo cliente</ModulePrimaryLink>
-              ) : null
-            }
-            metrics={
-              hasCatalog ? (
-                <>
-                  <QueueStripCell
-                    label="no recorte"
-                    value={total}
-                    hint={hasFilters ? 'sob os filtros aplicados' : 'carteira autorizada'}
-                    weight="neutral"
-                    active={filters.status === ''}
-                    onClick={() => applyFilters({ status: '' })}
-                  />
-                  <QueueStripCell
-                    label="ativos"
-                    value={activeOnPage}
-                    hint="nesta página"
-                    weight="neutral"
-                    active={filters.status === CLIENT_STATUSES.Active}
-                    onClick={() => applyFilters({ status: CLIENT_STATUSES.Active })}
-                  />
-                  {/*
-                    EXCEPTION-FIRST: só o recorte que EXIGE o operador carrega sinal. "19 ativos"
-                    é o estado normal da carteira e não pode gritar; "fora de operação" é o que
-                    trava novos documentos, e só ganha peso quando existe trabalho nele.
-                  */}
-                  <QueueStripCell
-                    label="fora de operação"
-                    value={inactiveOnPage}
-                    hint="não entram em novos documentos"
-                    weight={inactiveOnPage > 0 ? 'alert' : 'settled'}
-                    active={filters.status === CLIENT_STATUSES.Inactive}
-                    onClick={() => applyFilters({ status: CLIENT_STATUSES.Inactive })}
-                  />
-                </>
-              ) : undefined
-            }
-          />
-        </div>
+              Eram três caixas contornadas, cada uma com número e legenda, ocupando uma faixa de
+              ~40px acima da grade. São três números que cabem numa linha de texto e que NÃO são a
+              tarefa do operador: são contexto. Aqui eles ficam na linha de identidade, com o número
+              em peso e o rótulo em muted.
 
-        {/*
-          WORKBENCH TOOLBAR — VISÕES E FERRAMENTAS NA MESMA FAIXA.
+              EXCEPTION-FIRST continua: só "fora de operação" carrega sinal, e só quando existe
+              trabalho nele. "19 ativos" é o estado normal da carteira e não pode gritar.
+            */
+            <WorkspaceStatusLine
+              items={[
+                {
+                  value: formatClientCount(total),
+                  label: hasFilters ? 'no recorte' : 'na carteira',
+                  onClick: () => applyFilters({ status: '' }),
+                },
+                {
+                  value: formatClientCount(activeOnPage),
+                  label: 'ativos nesta página',
+                  onClick: () => applyFilters({ status: CLIENT_STATUSES.Active }),
+                },
+                {
+                  value: formatClientCount(inactiveOnPage),
+                  label: 'fora de operação',
+                  tone: inactiveOnPage > 0 ? 'alert' : 'neutral',
+                  onClick: () => applyFilters({ status: CLIENT_STATUSES.Inactive }),
+                },
+              ]}
+            />
+          ) : undefined
+        }
+        action={
+          /*
+            COMANDO PRIMÁRIO ÚNICO. Com a carteira vazia a criação desce para o estado vazio (que
+            já explica o que um Cliente é) e o cabeçalho não a repete — duas CTAs primárias na mesma
+            dobra deixam o operador sem saber qual é a ação.
+          */
+          capabilities.canCreate && !isEmptyCatalogue ? (
+            <ModulePrimaryLink to="/app/clients/new">Novo cliente</ModulePrimaryLink>
+          ) : null
+        }
+      />
 
-          Antes eram DUAS faixas empilhadas: uma só para as visões salvas e outra só para o filtro,
-          cada uma com a sua régua. Juntas elas consumiam altura que a tabela precisava, e faziam a
-          área de trabalho parecer um formulário de configuração.
-
-          Agora é uma barra de ferramentas de bancada: visões à esquerda (o RECORTE), busca e
-          filtros à direita (a CONSULTA). Uma régua só.
-        */}
-        {hasCatalog ? (
-          <div
-            className="cisne-divider flex flex-wrap items-center gap-x-3 gap-y-1 py-1"
-            data-region="workbench-toolbar"
-          >
-            <div data-region="saved-view-surface" className="min-w-0">
+      {hasCatalog ? (
+        <WorkspaceToolbar
+          views={
+            <>
               <SavedViewsBar
                 views={savedViews.views}
                 builtInViews={[]}
@@ -847,334 +850,384 @@ export function ClientsListPage() {
                 allLabel="Todos"
                 className="mb-0 border-0 bg-transparent"
               />
-            </div>
+            </>
+          }
+        >
+          <input
+            id={searchInputId}
+            type="search"
+            aria-label="Buscar"
+            className={cn(worklistControlClass, 'w-[280px] max-w-full')}
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            placeholder="Razão social, nome fantasia ou CNPJ"
+            autoComplete="off"
+            aria-describedby={searchDraftTooShort ? searchHintId : undefined}
+          />
 
-            <div className="ml-auto min-w-0" data-region="command-filter-surface">
-              <WorklistFilterBar
-                meta={hasFilters ? `${items.length} nesta página · recorte ativo` : null}
-                notice={
-                  searchDraftTooShort ? (
-                    <span id={searchHintId} className="cisne-type-helper m-0">
-                      Digite pelo menos {CLIENT_SEARCH_MIN_LENGTH} caracteres para buscar.
-                    </span>
-                  ) : null
+          <select
+            id={statusFilterId}
+            aria-label="Situação"
+            className={worklistSelectClass}
+            value={filters.status}
+            onChange={(event) =>
+              applyFilters({ status: event.target.value as ClientListParams['status'] })
+            }
+          >
+            <option value="">Todas as situações</option>
+            <option value={CLIENT_STATUSES.Active}>Ativos</option>
+            <option value={CLIENT_STATUSES.Inactive}>Inativos</option>
+          </select>
+
+          {/*
+            FILTROS AVANÇADOS EM BOTÃO, NÃO EM TEXTO.
+            O construtor de metadado fica ATRÁS deste controle e só é renderizado quando o operador
+            o abre — um construtor de filtro composto aberto por padrão custa altura permanente para
+            uma tarefa ocasional.
+          */}
+          <button
+            id={moreFiltersId}
+            type="button"
+            aria-expanded={showMoreFilters}
+            data-testid="clients-more-filters"
+            className={cn(
+              'cisne-type-action inline-flex min-h-[var(--control-height)] items-center gap-1 rounded-[4px] border px-2',
+              isFilterGroupActive(advancedGroup)
+                ? 'border-brand-300 bg-brand-50 text-brand-800'
+                : 'border-[color:var(--color-border-default)] bg-white text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-surface-hover)]',
+            )}
+            onClick={() => setShowMoreFilters((current) => !current)}
+          >
+            Filtros
+            {isFilterGroupActive(advancedGroup) ? (
+              <span aria-hidden="true" className="text-[10px]">
+                ●
+              </span>
+            ) : null}
+          </button>
+
+          <WorklistClearFilters
+            visible={hasFilters || searchInput.trim() !== '' || isFilterGroupActive(advancedGroup)}
+            onClick={clearFilters}
+          />
+        </WorkspaceToolbar>
+      ) : null}
+
+      {searchDraftTooShort ? (
+        <p id={searchHintId} className="cisne-type-helper m-0 mb-2">
+          Digite pelo menos {CLIENT_SEARCH_MIN_LENGTH} caracteres para buscar.
+        </p>
+      ) : null}
+
+      {/*
+        SUPERFÍCIE DE FILTRO AVANÇADO — SOB DIVULGAÇÃO PROGRESSIVA.
+
+        Os filtros secundários (exigência de pedido de compra) e o construtor dirigido por metadado
+        aparecem SOMENTE quando abertos. Antes, o construtor era renderizado sempre que havia
+        carteira: uma faixa permanente para uma tarefa ocasional.
+      */}
+      {hasCatalog && showMoreFilters ? (
+        <div
+          className="cisne-divider mb-2 flex flex-col gap-1 border-b border-[color:var(--color-divider)] py-1.5"
+          data-region="advanced-filter-surface"
+        >
+          <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
+            <WorklistField label="Exigência de pedido de compra" htmlFor={requirementFilterId}>
+              <select
+                id={requirementFilterId}
+                className={worklistSelectClass}
+                value={filters.purchaseOrderRequirement}
+                onChange={(event) =>
+                  applyFilters({
+                    purchaseOrderRequirement: event.target
+                      .value as ClientListParams['purchaseOrderRequirement'],
+                  })
                 }
               >
-                <WorklistField label="Buscar" htmlFor={searchInputId} grow>
-                  <input
-                    id={searchInputId}
-                    type="search"
-                    className={worklistControlClass}
-                    value={searchInput}
-                    onChange={(event) => setSearchInput(event.target.value)}
-                    placeholder="Razão social, nome fantasia ou CNPJ"
-                    autoComplete="off"
-                    aria-describedby={searchDraftTooShort ? searchHintId : undefined}
-                  />
-                </WorklistField>
-
-                <WorklistField label="Situação" htmlFor={statusFilterId}>
-                  <select
-                    id={statusFilterId}
-                    className={worklistSelectClass}
-                    value={filters.status}
-                    onChange={(event) =>
-                      applyFilters({ status: event.target.value as ClientListParams['status'] })
-                    }
-                  >
-                    <option value="">Todas</option>
-                    <option value={CLIENT_STATUSES.Active}>Ativos</option>
-                    <option value={CLIENT_STATUSES.Inactive}>Inativos</option>
-                  </select>
-                </WorklistField>
-
-                {/*
-                  FILTROS AVANÇADOS EM BOTÃO, NÃO EM TEXTO.
-                  O construtor de metadado fica ATRÁS deste controle e só é renderizado quando o
-                  operador o abre — um construtor de filtro composto aberto por padrão custa altura
-                  permanente para uma tarefa ocasional.
-                */}
-                <button
-                  id={moreFiltersId}
-                  type="button"
-                  aria-expanded={showMoreFilters}
-                  data-testid="clients-more-filters"
-                  className={cn(
-                    'cisne-type-action inline-flex min-h-[var(--control-height)] items-center gap-1 rounded-md border px-2',
-                    isFilterGroupActive(advancedGroup)
-                      ? 'border-brand-300 bg-brand-50 text-brand-800'
-                      : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50',
-                  )}
-                  onClick={() => setShowMoreFilters((current) => !current)}
-                >
-                  Filtros
-                  {isFilterGroupActive(advancedGroup) ? (
-                    <span aria-hidden="true" className="text-[10px]">
-                      ●
-                    </span>
-                  ) : null}
-                </button>
-
-                <WorklistClearFilters
-                  visible={hasFilters || searchInput.trim() !== '' || isFilterGroupActive(advancedGroup)}
-                  onClick={clearFilters}
-                />
-              </WorklistFilterBar>
-            </div>
+                <option value="">Todas</option>
+                {Object.values(PURCHASE_ORDER_REQUIREMENTS).map((requirement) => (
+                  <option key={requirement} value={requirement}>
+                    {formatPurchaseOrderRequirement(requirement)}
+                  </option>
+                ))}
+              </select>
+            </WorklistField>
           </div>
-        ) : null}
 
-        {/*
-          SUPERFÍCIE DE FILTRO AVANÇADO — SOB DIVULGAÇÃO PROGRESSIVA.
+          {/*
+            O construtor é o MESMO da engine (`DynamicFilterBuilder`): ele lê `meta.fields` da
+            entidade `client` e oferece apenas os campos marcados `in_filter` — exatamente os que
+            o predicado server-side executa.
+          */}
+          <DynamicFilterBuilder
+            schema={clientSchema}
+            value={advancedGroup}
+            onChange={(next) => {
+              const params = new URLSearchParams(searchParams);
+              const serialized = filterGroupToQuery(next).get(FILTER_PARAM);
+              if (serialized) {
+                params.set(FILTER_PARAM, serialized);
+              } else {
+                params.delete(FILTER_PARAM);
+              }
+              // Qualquer mudança de recorte volta à primeira página: manter o offset antigo
+              // sobre um conjunto novo mostraria uma página que pode não existir.
+              params.delete('offset');
+              setSearchParams(params, { replace: true });
+            }}
+          />
+        </div>
+      ) : null}
 
-          Os filtros secundários (exigência de pedido de compra) e o construtor dirigido por
-          metadado aparecem SOMENTE quando abertos. Antes, o construtor era renderizado sempre que
-          havia carteira: uma faixa permanente para uma tarefa ocasional.
-        */}
-        {hasCatalog && showMoreFilters ? (
-          <div className="cisne-divider flex flex-col gap-1 py-1.5" data-region="advanced-filter-surface">
-            <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
-              <WorklistField label="Exigência de pedido de compra" htmlFor={requirementFilterId}>
-                <select
-                  id={requirementFilterId}
-                  className={worklistSelectClass}
-                  value={filters.purchaseOrderRequirement}
-                  onChange={(event) =>
-                    applyFilters({
-                      purchaseOrderRequirement: event.target
-                        .value as ClientListParams['purchaseOrderRequirement'],
-                    })
-                  }
-                >
-                  <option value="">Todas</option>
-                  {Object.values(PURCHASE_ORDER_REQUIREMENTS).map((requirement) => (
-                    <option key={requirement} value={requirement}>
-                      {formatPurchaseOrderRequirement(requirement)}
-                    </option>
-                  ))}
-                </select>
-              </WorklistField>
-            </div>
+      {/*
+        BARRA DE COMANDO EM LOTE — aparece SÓ com seleção, e sobre uma superfície própria.
 
-            {/*
-              O construtor é o MESMO da engine (`DynamicFilterBuilder`): ele lê `meta.fields` da
-              entidade `client` e oferece apenas os campos marcados `in_filter` — exatamente os que
-              o predicado server-side executa.
-            */}
-            <DynamicFilterBuilder
-              schema={clientSchema}
-              value={advancedGroup}
-              onChange={(next) => {
-                const params = new URLSearchParams(searchParams);
-                const serialized = filterGroupToQuery(next).get(FILTER_PARAM);
-                if (serialized) {
-                  params.set(FILTER_PARAM, serialized);
-                } else {
-                  params.delete(FILTER_PARAM);
-                }
-                // Qualquer mudança de recorte volta à primeira página: manter o offset antigo
-                // sobre um conjunto novo mostraria uma página que pode não existir.
-                params.delete('offset');
-                setSearchParams(params, { replace: true });
-              }}
-            />
-          </div>
-        ) : null}
+        Os comandos oferecidos são exatamente os que o domínio sustenta hoje: `activate` e
+        `deactivate`. Não há ação de "editar em lote" porque não existe comando para isso, e
+        `deactivate` carrega campo de motivo: o operador fornece o texto, a tela não o inventa.
+      */}
+      {selectedIds.length > 0 ? (
+        <div
+          data-region="bulk-command-surface"
+          data-selected-count={selectedIds.length}
+          className="mb-2 flex flex-wrap items-center gap-2 rounded-[4px] border border-[color:var(--color-brand-200)] border-l-[3px] border-l-[color:var(--color-brand-600)] bg-[color:var(--color-brand-50)] px-2.5 py-1.5"
+        >
+          <p className="cisne-type-body m-0">
+            <strong className="cisne-type-primary">{selectedIds.length}</strong> cliente
+            {selectedIds.length === 1 ? '' : 's'} selecionado
+            {selectedIds.length === 1 ? '' : 's'}
+          </p>
 
-        {/*
-          BARRA DE COMANDO EM LOTE — aparece SÓ com seleção, e sobre uma superfície própria.
-
-          Os comandos oferecidos são exatamente os que o domínio sustenta hoje: `activate` e
-          `deactivate`. Não há ação de "editar em lote" porque não existe comando para isso, e
-          `deactivate` carrega campo de motivo: o operador fornece o texto, a tela não o inventa.
-        */}
-        {selectedIds.length > 0 ? (
-          <div
-            data-region="bulk-command-surface"
-            data-selected-count={selectedIds.length}
-            className="cisne-divider flex flex-wrap items-center gap-2 border-l-[3px] border-l-brand-600 bg-brand-50/40 px-2.5 py-1.5"
+          <label className="cisne-meta-label" htmlFor={bulkCommandId}>
+            Ação
+          </label>
+          <select
+            id={bulkCommandId}
+            data-testid="clients-bulk-command"
+            className={worklistSelectClass}
+            value={bulkCommand}
+            disabled={bulkBusy}
+            onChange={(event) => {
+              setBulkCommand(event.target.value);
+              setBulkMessage(null);
+            }}
           >
-            <p className="cisne-type-body m-0">
-              <strong className="cisne-type-primary">{selectedIds.length}</strong> cliente
-              {selectedIds.length === 1 ? '' : 's'} selecionado
-              {selectedIds.length === 1 ? '' : 's'}
-            </p>
+            <option value="">—</option>
+            {capabilities.canActivate ? <option value="activate">Reativar cadastros</option> : null}
+            {capabilities.canDeactivate ? (
+              <option value="deactivate">Desativar cadastros</option>
+            ) : null}
+          </select>
 
-            <label className="cisne-meta-label" htmlFor={bulkCommandId}>
-              Ação
+          {/*
+            MOTIVO — exigido APENAS pelo comando que o domínio exige. Não é campo decorativo:
+            `deactivate` grava `deactivationReason` em auditoria, então o texto vem do operador.
+          */}
+          {bulkCommand === 'deactivate' ? (
+            <label className="flex items-center gap-1.5">
+              <span className="cisne-meta-label">Motivo</span>
+              <input
+                type="text"
+                data-testid="clients-bulk-reason"
+                aria-label="Motivo da desativação"
+                className={worklistControlClass}
+                value={bulkReason}
+                disabled={bulkBusy}
+                onChange={(event) => setBulkReason(event.target.value)}
+              />
             </label>
-            <select
-              id={bulkCommandId}
-              data-testid="clients-bulk-command"
-              className={worklistSelectClass}
-              value={bulkCommand}
-              disabled={bulkBusy}
-              onChange={(event) => {
-                setBulkCommand(event.target.value);
-                setBulkMessage(null);
-              }}
-            >
-              <option value="">—</option>
-              {capabilities.canActivate ? <option value="activate">Reativar cadastros</option> : null}
-              {capabilities.canDeactivate ? (
-                <option value="deactivate">Desativar cadastros</option>
-              ) : null}
-            </select>
+          ) : null}
 
-            {/*
-              MOTIVO — exigido APENAS pelo comando que o domínio exige. Não é campo decorativo:
-              `deactivate` grava `deactivationReason` em auditoria, então o texto vem do operador.
-            */}
-            {bulkCommand === 'deactivate' ? (
-              <label className="flex items-center gap-1.5">
-                <span className="cisne-meta-label">Motivo</span>
-                <input
-                  type="text"
-                  data-testid="clients-bulk-reason"
-                  aria-label="Motivo da desativação"
-                  className={worklistControlClass}
-                  value={bulkReason}
-                  disabled={bulkBusy}
-                  onChange={(event) => setBulkReason(event.target.value)}
-                />
-              </label>
-            ) : null}
-
-            <Button
-              variant="primary"
-              loading={bulkBusy}
-              loadingText="Executando…"
-              disabled={bulkCommand === ''}
-              onClick={() => void runClientBulkCommand(bulkCommand, selectedIds, bulkReason)}
-            >
-              Aplicar
-            </Button>
-
-            <button
-              type="button"
-              data-testid="clients-bulk-clear"
-              className="cisne-type-action ml-auto inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-              onClick={() => {
-                setSelectedIds([]);
-                setBulkReason('');
-                setBulkCommand('');
-                setBulkMessage(null);
-              }}
-            >
-              Limpar seleção
-            </button>
-
-            {bulkMessage ? (
-              <p className="m-0 w-full cisne-type-body text-red-700" role="alert">
-                {bulkMessage}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
-
-      {isEmptyCatalogue ? (
-        <div className="px-1 pt-3">
-          <WorklistStatePanel
-            title="Nenhum Cliente cadastrado ainda."
-            description="Os Clientes são a contraparte comercial usada por solicitações, propostas, pedidos de compra, ordens de serviço e faturamento. Cadastre o primeiro para começar."
-            action={
-              capabilities.canCreate ? (
-                <ModulePrimaryLink to="/app/clients/new">Cadastrar Cliente</ModulePrimaryLink>
-              ) : null
-            }
-          />
-        </div>
-      ) : null}
-
-      {isNoResults ? (
-        <div className="px-1 pt-3">
-          <WorklistStatePanel
-            title="Nenhum Cliente corresponde aos filtros aplicados."
-            description="Ajuste o termo de busca ou limpe os filtros para ver o cadastro completo."
-            action={
-              <button
-                type="button"
-                className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                onClick={clearFilters}
-              >
-                Limpar filtros
-              </button>
-            }
-          />
-        </div>
-      ) : null}
-
-      {isOutOfRange ? (
-        <div className="px-1 pt-3">
-          <WorklistStatePanel
-            title="Esta página não existe mais para os filtros aplicados."
-            description={`Existem ${formatClientCount(total)} ${
-              total === 1 ? 'Cliente' : 'Clientes'
-            } no total, em ${formatClientCount(totalPages)} ${
-              totalPages === 1 ? 'página' : 'páginas'
-            }.`}
-            action={
-              <button
-                type="button"
-                className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                onClick={() => setSearchParams(buildClientListSearchParams(filters, 0))}
-              >
-                Ir para a primeira página
-              </button>
-            }
-          />
-        </div>
-      ) : null}
-
-      {/*
-        ZONA 4 — PROCESSING WORKLIST.
-
-        A GRADE É DESENHADA POR FUNÇÃO OPERACIONAL, NÃO POR ESPELHAMENTO DO DTO.
-
-        `ClientSummary` publica sete campos, mas DTO ≠ design de tela. As sete informações foram
-        CLASSIFICADAS por papel e as que pertencem ao mesmo papel foram HIERARQUIZADAS dentro da
-        mesma célula, em vez de virarem colunas independentes com o mesmo peso visual:
-
-          IDENTIDADE  → razão social (principal)
-                        ↳ nome fantasia (subordinado)
-                        ↳ CNPJ (subordinado, mono)
-          ESTADO      → situação (compacta, rotulada)
-                        ↳ próximo passo (subordinado)
-          TEMPO       → última atualização: leitura relativa + carimbo absoluto
-                        ↳ criado em (subordinado)
-
-        Três colunas funcionais, e não seis campos lado a lado. O ganho não é "mais colunas": é a
-        linha ficar escaneável em 2–3 segundos — QUEM É, QUAL A SITUAÇÃO, QUANDO MUDOU, PRECISO
-        AGIR — sem aumentar a altura da linha (o token de densidade continua mandando).
-      */}
-      {/*
-        WORK SURFACE EM DUAS COLUNAS — A WORKLIST DOMINA, O CONTEXTO ACOMPANHA.
-
-        Medido antes desta recomposição em 1600×900: a tabela ocupava a largura inteira e o
-        contexto só existia como overlay; a primeira dobra tinha 226px de tabela e 301px vazios.
-        A tela lia como uma página de listagem, não como uma bancada de trabalho.
-
-        Agora a superfície é uma grade: a fila ocupa ~74% e a coluna de contexto ~26%. A coluna de
-        contexto é uma COLUNA REAL do layout — não um modal flutuante —, e é ela que responde
-        "quem é este Cliente" sem que o operador abandone o recorte.
-
-        A proporção é declarada em `grid-template-columns` com `minmax(0,…)` nas duas colunas: sem
-        o `minmax(0,…)` a tabela larga força a coluna a crescer e a grade estoura o viewport.
-      */}
-      <div
-        className="grid items-start gap-x-4 xl:grid-cols-[minmax(0,74fr)_minmax(0,26fr)]"
-        data-region="work-split"
-      >
-        <div className="flex min-w-0 flex-col">
-      {items.length > 0 ? (
-        <section aria-busy={isRefreshing} data-region="worklist-master">
-          <table
-            className="w-full table-fixed border-separate border-spacing-0"
-            aria-label="Lista de clientes"
+          <Button
+            variant="primary"
+            loading={bulkBusy}
+            loadingText="Executando…"
+            disabled={bulkCommand === ''}
+            onClick={() => void runClientBulkCommand(bulkCommand, selectedIds, bulkReason)}
           >
-            <thead>
-              <tr>
+            Aplicar
+          </Button>
+
+          <button
+            type="button"
+            data-testid="clients-bulk-clear"
+            className="cisne-type-action ml-auto inline-flex min-h-[var(--control-height)] items-center rounded-[4px] px-2 text-[color:var(--color-text-secondary)] hover:bg-white"
+            onClick={() => {
+              setSelectedIds([]);
+              setBulkReason('');
+              setBulkCommand('');
+              setBulkMessage(null);
+            }}
+          >
+            Limpar seleção
+          </button>
+
+          {bulkMessage ? (
+            <p className="cisne-type-body m-0 w-full text-red-700" role="alert">
+              {bulkMessage}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/*
+        CORPO DA BANCADA — GRADE DA CARTEIRA + CONTEXTO DO CLIENTE, ALTURA DE VIEWPORT.
+
+        As duas colunas têm a MESMA altura, que é a altura que o shell deixou. Consequências
+        diretas, medidas: a coluna de contexto passa de 84px para ~600px, a grade recebe a altura
+        restante em vez de encolher até o último registro, e não existe mais "metade branca" abaixo
+        do conteúdo — a superfície ocupa o quadro inteiro.
+      */}
+      <WorkspaceBody
+        context={
+          <div className="hidden min-w-0 xl:block" data-region="context-column">
+            {preview.previewRow === null ? (
+              /*
+                SEM SELEÇÃO, A COLUNA DE CONTEXTO NÃO É UM BOX VAZIO.
+
+                Antes ela era uma caixa com uma frase e 84px de altura. Agora ela é uma SUPERFÍCIE DE
+                LEITURA com o que o operador precisa para decidir qual registro abrir: o resumo do
+                recorte que ele está vendo e a lista dos sinais que exigem atenção. Isso é valor
+                operacional antes de qualquer clique — e a coluna continua estável, sem "salto"
+                quando a primeira linha é selecionada.
+              */
+              <WorkspacePane aria-label="Contexto do cliente" className="h-full overflow-auto">
+                <WorkspacePaneHeader title="Contexto do cliente" />
+                <ContextSection title="Carteira neste recorte">
+                  <ContextFacts
+                    facts={[
+                      {
+                        label: 'Clientes',
+                        value: hasCatalog ? formatClientCount(total) : 'Sem carteira autorizada',
+                      },
+                      { label: 'Nesta página', value: formatClientCount(items.length) },
+                      { label: 'Ativos', value: formatClientCount(activeOnPage) },
+                      {
+                        label: 'Fora de operação',
+                        value: formatClientCount(inactiveOnPage),
+                      },
+                      { label: 'Recorte', value: scope },
+                    ]}
+                  />
+                </ContextSection>
+
+                <ContextSection title="Requer atenção">
+                  {inactiveOnPage > 0 ? (
+                    <p className="cisne-type-body m-0">
+                      <strong className="font-semibold">{inactiveOnPage}</strong>{' '}
+                      {inactiveOnPage === 1 ? 'cliente está' : 'clientes estão'} fora de operação
+                      nesta página. Cadastros inativos não entram em novos documentos.
+                    </p>
+                  ) : (
+                    <p className="cisne-type-body m-0">
+                      Nenhum cliente fora de operação nesta página.
+                    </p>
+                  )}
+                </ContextSection>
+
+                <ContextSection title="Como usar">
+                  <ul className="cisne-type-body m-0 list-disc space-y-1 pl-4 text-[color:var(--color-text-secondary)]">
+                    <li>Clique numa linha para abrir o contexto do cliente aqui, sem sair do recorte.</li>
+                    <li>O nome do cliente abre a ficha completa (Customer 360).</li>
+                    <li>Marque as caixas à esquerda para aplicar um comando em lote.</li>
+                  </ul>
+                </ContextSection>
+              </WorkspacePane>
+            ) : (
+              /*
+               * A COLUNA É O PRÓPRIO PAINEL — sem `Drawer`.
+               *
+               * `ContextDrawer` (do operator) só aceita `preview` ESTRUTURADO e `DynamicContextDrawer`
+               * é um `role="dialog"` fixo com scrim. Nenhum dos dois é a coluna de bancada: o
+               * primeiro prenderia o conteúdo a um formato que a ficha do Cliente não cabe (ela tem
+               * seções com comandos), e o segundo prenderia o FOCO, o que é errado para uma coluna
+               * que convive com a grade.
+               *
+               * A coluna usa o corpo COMPARTILHADO (`contextBody`) sobre a superfície de contexto,
+               * e o `DynamicContextDrawer` continua sendo usado abaixo de `xl`. Um conteúdo, dois
+               * enquadramentos — nenhuma segunda implementação de contexto.
+               */
+              <section
+                aria-label="Contexto do cliente"
+                className="flex h-full min-h-0 flex-col overflow-hidden rounded-[4px] border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-context)]"
+              >
+                <header className="flex shrink-0 items-center justify-between gap-2 border-b border-[color:var(--color-divider)] px-3 py-2">
+                  <h2 className="m-0 text-[13px] font-[650] text-[color:var(--color-text-primary)]">
+                    Contexto do cliente
+                  </h2>
+                  <button
+                    type="button"
+                    className="inline-flex h-6 w-6 items-center justify-center rounded-[3px] text-[color:var(--color-text-muted)] hover:bg-white hover:text-[color:var(--color-text-primary)]"
+                    onClick={preview.closePreview}
+                    aria-label="Fechar contexto"
+                  >
+                    ×
+                  </button>
+                </header>
+                <div className="min-h-0 flex-1 overflow-auto px-3 py-2.5">{contextBody}</div>
+              </section>
+            )}
+          </div>
+        }
+      >
+        <WorkspacePane aria-busy={isRefreshing} className="h-full overflow-hidden">
+          {isEmptyCatalogue ? (
+            <WorkspaceEmpty
+              title="Nenhum Cliente cadastrado ainda."
+              description="Os Clientes são a contraparte comercial usada por solicitações, propostas, pedidos de compra, ordens de serviço e faturamento. Cadastre o primeiro para começar."
+              action={
+                capabilities.canCreate ? (
+                  <ModulePrimaryLink to="/app/clients/new">Cadastrar Cliente</ModulePrimaryLink>
+                ) : null
+              }
+            />
+          ) : null}
+
+          {isNoResults ? (
+            <WorkspaceEmpty
+              title="Nenhum Cliente corresponde aos filtros aplicados."
+              description="Ajuste o termo de busca ou limpe os filtros para ver o cadastro completo."
+              action={
+                <button
+                  type="button"
+                  className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-[4px] border border-[color:var(--color-border-default)] bg-white px-2.5 text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-surface-hover)]"
+                  onClick={clearFilters}
+                >
+                  Limpar filtros
+                </button>
+              }
+            />
+          ) : null}
+
+          {isOutOfRange ? (
+            <WorkspaceEmpty
+              title="Esta página não existe mais para os filtros aplicados."
+              description={`Existem ${formatClientCount(total)} ${
+                total === 1 ? 'Cliente' : 'Clientes'
+              } no total, em ${formatClientCount(totalPages)} ${
+                totalPages === 1 ? 'página' : 'páginas'
+              }.`}
+              action={
+                <button
+                  type="button"
+                  className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-[4px] border border-[color:var(--color-border-default)] bg-white px-2.5 text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-surface-hover)]"
+                  onClick={() => setSearchParams(buildClientListSearchParams(filters, 0))}
+                >
+                  Ir para a primeira página
+                </button>
+              }
+            />
+          ) : null}
+
+          {items.length > 0 ? (
+            <div className="flex min-h-0 flex-1 flex-col" data-region="worklist-master">
+              <div className="min-h-0 flex-1 overflow-auto">
+                <table
+                  className="w-full table-fixed border-separate border-spacing-0"
+                  aria-label="Lista de clientes"
+                >
+                  <thead>
+                    <tr>
                 {/*
                   SELEÇÃO POR LINHA — coluna própria, com "selecionar todos" da PÁGINA.
 
@@ -1273,14 +1326,9 @@ export function ClientsListPage() {
                 return (
                   <tr
                     key={client.id}
+                    data-selected={preview.previewRow?.id === client.id}
                     className={cn(
-                      'h-[var(--row-height)] cursor-pointer transition-colors hover:bg-brand-50/40',
-                      /*
-                        EXCEPTION-FIRST: só o cadastro que NÃO pode operar carrega sinal. Cliente
-                        ativo é o estado normal da carteira e fica em silêncio — pintar 19 linhas
-                        de "normal" é o que faz a exceção perder significado.
-                      */
-                      isInactive && 'bg-red-50/40',
+                      'h-[44px] cursor-pointer transition-colors duration-100 hover:bg-[color:var(--color-grid-row-hover)] data-[selected=true]:bg-[color:var(--color-surface-selected)] data-[selected=true]:shadow-[inset_2px_0_0_0_var(--color-brand-600)]',
                     )}
                     /*
                       A IDENTIDADE É O DRILLBACK. A linha inteira abre o CONTEXTO no painel lateral
@@ -1441,85 +1489,33 @@ export function ClientsListPage() {
                 );
               })}
             </tbody>
-          </table>
-        </section>
-      ) : null}
+                </table>
+              </div>
 
-      {hasCatalog || offset > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5">
-          <p className="cisne-type-helper m-0 tabular-nums">
-            Clientes {formatClientRangeLabel(offset, items.length, total)}
-          </p>
-          <ModulePagination
-            pageNumber={pageNumber}
-            previousDisabled={offset === 0}
-            nextDisabled={offset + items.length >= total}
-            onPrevious={() =>
-              setSearchParams(
-                buildClientListSearchParams(filters, Math.max(0, offset - PAGE_SIZE)),
-              )
-            }
-            onNext={() =>
-              setSearchParams(buildClientListSearchParams(filters, offset + PAGE_SIZE))
-            }
-          />
-        </div>
-      ) : null}
-        </div>
-
-        {/*
-          COLUNA DE CONTEXTO DO WORKSPACE — COLUNA, NÃO OVERLAY.
-
-          É a MESMA superfície de contexto (`ContextDrawer` em modo `inline`), não uma segunda
-          implementação: o painel é uma coluna real do layout, sem scrim e sem prender o foco, para
-          que o operador alterne entre a linha da fila e o contexto sem sair da bancada.
-
-          SEM SELEÇÃO, a coluna não fica vazia: ela declara a instrução de uso e mantém a bancada
-          estável — a grade não "salta" quando o operador seleciona a primeira linha.
-        */}
-        <div className="hidden min-w-0 xl:block" data-region="context-column">
-          {preview.previewRow === null ? (
-            <div className="cisne-panel h-full px-3 py-2.5">
-              <p className="cisne-meta-label m-0">Contexto do cliente</p>
-              <p className="cisne-type-helper m-0 mt-1">
-                Selecione um cliente na fila para ver identidade, situações, contatos, estrutura,
-                financeiro e próxima ação sem sair do recorte.
-              </p>
+              {hasCatalog || offset > 0 ? (
+                <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-[color:var(--color-divider)] px-3 py-1.5">
+                  <p className="cisne-type-helper m-0 tabular-nums">
+                    Clientes {formatClientRangeLabel(offset, items.length, total)}
+                  </p>
+                  <ModulePagination
+                    pageNumber={pageNumber}
+                    previousDisabled={offset === 0}
+                    nextDisabled={offset + items.length >= total}
+                    onPrevious={() =>
+                      setSearchParams(
+                        buildClientListSearchParams(filters, Math.max(0, offset - PAGE_SIZE)),
+                      )
+                    }
+                    onNext={() =>
+                      setSearchParams(buildClientListSearchParams(filters, offset + PAGE_SIZE))
+                    }
+                  />
+                </div>
+              ) : null}
             </div>
-          ) : (
-            /*
-             * A COLUNA É O PRÓPRIO PAINEL — sem `Drawer`.
-             *
-             * `ContextDrawer` (do operator) só aceita `preview` ESTRUTURADO e `DynamicContextDrawer`
-             * é um `role="dialog"` fixo com scrim. Nenhum dos dois é a coluna de bancada: o
-             * primeiro prenderia o conteúdo a um formato que a ficha do Cliente não cabe (ela tem
-             * seções com comandos), e o segundo prenderia o FOCO, o que é errado para uma coluna
-             * que convive com a grade.
-             *
-             * A coluna usa o corpo COMPARTILHADO (`contextBody`) sobre a superfície `cisne-panel`,
-             * e o `DynamicContextDrawer` continua sendo usado abaixo de `xl`. Um conteúdo, dois
-             * enquadramentos — nenhuma segunda implementação de contexto.
-             */
-            <section
-              aria-label="Contexto do cliente"
-              className="cisne-panel flex min-h-0 flex-col"
-            >
-              <header className="flex items-center justify-between gap-2 border-b border-[color:var(--color-divider)] px-2.5 py-1.5">
-                <h2 className="cisne-meta-label m-0">Contexto do cliente</h2>
-                <button
-                  type="button"
-                  className="cisne-type-action rounded-md px-1.5 text-gray-500 hover:bg-white/70 hover:text-gray-900"
-                  onClick={preview.closePreview}
-                  aria-label="Fechar contexto"
-                >
-                  ×
-                </button>
-              </header>
-              <div className="min-h-0 flex-1 overflow-auto px-2.5 py-2">{contextBody}</div>
-            </section>
-          )}
-        </div>
-      </div>
+          ) : null}
+        </WorkspacePane>
+      </WorkspaceBody>
 
       {/*
         CONTEXT REGION — MASTER/DETAIL EM VIEWPORT ESTREITO.
@@ -1567,69 +1563,19 @@ export function ClientsListPage() {
  * apontam para a unica definicao de cabecalho/celula de worklist do sistema. Corrigir a gramatica em
  * um lugar passa a corrigir todas as telas.
  */
-const headCellClass = worklistHeadCellClass;
+const headCellClass = workspaceHeadCellClass;
 
-const cellClass = worklistCellClass;
+const cellClass = workspaceCellClass;
 
 /**
- * CÉLULA DA FAIXA DE TRABALHO — recorte REAL em UM controle.
+ * RECORTE DA CARTEIRA — removido o componente `QueueStripCell`.
  *
- * O peso comunica o trabalho, e EXCEPTION-FIRST é a regra: `neutral` é o estado normal da
- * carteira (baixo ruído — 19 ativos não podem gritar), `alert` marca o recorte que exige o
- * operador, `settled` o que já está resolvido. Sem número publicado a célula declara `n/d` em vez
- * de `0`, porque zero afirmaria um recorte inexistente (`AUSÊNCIA ≠ ZERO`).
+ * Ele desenhava as três caixas contornadas ("no recorte / ativos / fora de operação") que ficavam
+ * acima da grade. A informação continua exatamente a mesma — e continua sendo derivada dos MESMOS
+ * números — mas agora vive em `WorkspaceStatusLine`, na linha de identidade do cabeçalho: três
+ * números que são CONTEXTO da carteira não precisam de três caixas, de borda e de ~40px de altura
+ * que a grade podia estar usando.
  */
-function QueueStripCell({
-  label,
-  value,
-  hint,
-  weight,
-  active,
-  onClick,
-}: {
-  label: string;
-  value: number | null;
-  hint: string;
-  weight: 'neutral' | 'settled' | 'alert';
-  active: boolean;
-  onClick: () => void;
-}) {
-  const numberClass =
-    value === null
-      ? 'text-gray-300'
-      : weight === 'alert'
-        ? 'text-red-700'
-        : weight === 'neutral'
-          ? 'text-gray-900'
-          : 'text-gray-500';
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      title={hint}
-      onClick={onClick}
-      className={cn(
-        'flex min-w-[10rem] flex-1 flex-col items-start gap-0 border-r border-gray-200 px-3 py-1 text-left transition-colors last:border-r-0',
-        active ? 'bg-brand-50' : 'hover:bg-gray-50',
-      )}
-    >
-      <span className="flex items-baseline gap-1.5">
-        <span className={cn('cisne-type-object leading-none tabular-nums', numberClass)}>
-          {value === null ? 'n/d' : formatClientCount(value)}
-        </span>
-        <span
-          className={cn(
-            'cisne-meta-label',
-            weight === 'settled' ? 'text-gray-400' : 'text-gray-700',
-          )}
-        >
-          {label}
-        </span>
-      </span>
-      <span className="cisne-type-helper truncate">{hint}</span>
-    </button>
-  );
-}
 
 /** Recorte ativo em uma linha — o cabecalho declara sobre o que a carteira esta recortada. */
 function describeClientScope(filters: ClientListParams): string {

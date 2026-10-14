@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { test, type Page } from '@playwright/test';
 import { prepareAuthenticatedSession, stabilizePage } from '../fixtures/visual-helpers';
 
 /**

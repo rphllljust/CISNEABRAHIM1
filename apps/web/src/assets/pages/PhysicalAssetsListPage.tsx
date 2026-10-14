@@ -30,19 +30,29 @@ import { Skeleton } from '../../ui/Skeleton';
 import {
   WorklistClearFilters,
   WorklistField,
-  WorklistFilterBar,
-  WorklistFooter,
-  WorklistHeader,
   WorklistRowLink,
-  WorklistStatePanel,
-  worklistCellClass,
-  worklistCellRaisedClass,
-  worklistHeadCellClass,
-  worklistRowClass,
+  worklistControlClass,
   worklistSelectClass,
-  worklistTableCardClass,
   worklistTableClass,
 } from '../../ui/enterprise-list';
+/*
+ * A MOLDURA DA BANCADA VEM DO PRIMITIVO COMPARTILHADO (`ui/workspace-frame`).
+ *
+ * A regua do cabecalho, a faixa de comando, o painel elastico e as classes de celula desta tela
+ * sao as MESMAS de Clientes e das demais worklists que ja adotaram o frame — nenhuma moldura
+ * paralela, nenhuma segunda definicao de grade.
+ */
+import {
+  WorkspaceBody,
+  WorkspaceEmpty,
+  WorkspaceHeader,
+  WorkspacePane,
+  WorkspaceToolbar,
+  workspaceCellClass,
+  workspaceCellRaisedClass,
+  workspaceHeadCellClass,
+  workspaceRowClass,
+} from '../../ui/workspace-frame';
 import {
   ModuleDeniedState,
   ModuleErrorState,
@@ -338,269 +348,340 @@ export function PhysicalAssetsListPage() {
   const rangeLabel = formatAssetPaginationRange(offset, PAGE_SIZE, items.length, total);
 
   return (
-    <ModulePage layout="wide">
+    <ModulePage layout="workspace">
       {/*
         MESMA GRAMATICA DA FROTA. Ativos e Frota listam o mesmo agregado por recortes
         diferentes; enquanto esta tela usava `FilterCard` (cartao de respiro largo) + grade
         `px-6 py-3.5`, o operador trocava de tela e mudava de produto. Os indicadores clicaveis
-        sobem para a faixa `metrics` do cabecalho, os filtros vao para UMA linha densa e a grade
-        passa a ser a worklist compacta. Nenhum filtro, rota, capability ou contrato mudou.
+        sobem para a linha de status do cabecalho, os filtros vao para UMA faixa de comando e a
+        grade passa a ser a worklist compacta. Nenhum filtro, rota, capability ou contrato mudou.
+
+        `layout="workspace"`: a bancada ocupa a ALTURA que o shell deixou. A moldura vira coluna
+        flexivel, o painel da grade e elastico e a tela deixa de medir o proprio conteudo.
 
         REGIOES DECLARADAS: OPERATING HEADER -> SAVED VIEWS -> COMMAND/FILTER -> WORK QUEUE ->
         CONTEXT REGION. A contagem aqui é AUTORITATIVA (`PhysicalAssetListResponse.total`) e o
         resumo vem de endpoint proprio (`/physical-assets/summary`), então nenhum número desta tela
         é derivado da página carregada.
       */}
-      <div data-region="operating-header">
-      <WorklistHeader
-        title="Ativos físicos"
-        count={total}
-        context="Cadastro operacional dos ativos físicos e sua disponibilidade para alocação em ordens de serviço."
-        action={
-          capabilities.canCreate ? (
-            <ModulePrimaryLink to="/app/assets/new">Novo ativo</ModulePrimaryLink>
-          ) : null
-        }
-        metrics={
-          <AssetSummaryStrip
-            summary={summary}
-            sectionLabel="Indicadores de ativos físicos"
-            activeAvailabilityFilter={availabilityFilter}
-            onSelectAvailability={setAvailabilityFilter}
-          />
-        }
-      />
-      </div>
+      <div className="shrink-0" data-region="operating-header">
+        {/*
+          CABECALHO DA BANCADA — identidade, comando primario e o SINAL OPERACIONAL DO CONJUNTO.
 
-      <div data-region="saved-view-surface">
-        <DynamicSavedViewsBar
-          views={savedViews.views}
-          persistedLocally={savedViews.persistedLocally}
-          persistable={savedViews.persistable}
-          onSave={(name) =>
-            savedViews.save(
-              name,
-              {
-                search,
-                lifecycleFilter,
-                availabilityFilter,
-                resourceTypeFilter,
-              },
-              'list',
-            )
-          }
-          onDelete={savedViews.remove}
-          onApply={(view) => {
-            const nextSearch = view.filters['search'] ?? '';
-            setSearchInput(nextSearch);
-            setSearch(nextSearch);
-            setLifecycleFilter(
-              (view.filters['lifecycleFilter'] ?? '') as '' | AssetLifecycleStatus,
-            );
-            setAvailabilityFilter(
-              (view.filters['availabilityFilter'] ?? '') as '' | AssetOperationalAvailability,
-            );
-            setResourceTypeFilter(view.filters['resourceTypeFilter'] ?? '');
-          }}
-        />
-      </div>
+          `count={total}` (o chip solto ao lado do titulo) foi DROPADO daqui por nao somar: o MESMO
+          numero autoritativo ja e publicado pelo indicador "Total de ativos" da faixa de resumo, e
+          a moldura nao afirma contagem duas vezes na mesma dobra. Nenhum numero novo e afirmado e
+          nenhum numero existente foi perdido — a faixa de resumo continua sendo lida do endpoint
+          `/physical-assets/summary`.
 
-      <div data-region="command-filter-surface">
-      <WorklistFilterBar>
-        <WorklistField label="Buscar" htmlFor="asset-search" grow>
-          <input
-            id="asset-search"
-            type="search"
-            className={worklistSelectClass}
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="Código, nome ou placa"
-          />
-        </WorklistField>
-        <WorklistField label="Cadastro" htmlFor="asset-lifecycle-filter">
-          <select
-            id="asset-lifecycle-filter"
-            className={worklistSelectClass}
-            value={lifecycleFilter}
-            onChange={(event) => setLifecycleFilter(event.target.value as '' | AssetLifecycleStatus)}
-          >
-            <option value="">Todos</option>
-            <option value={ASSET_LIFECYCLE_STATUSES.Active}>Ativo</option>
-            <option value={ASSET_LIFECYCLE_STATUSES.Inactive}>Inativo</option>
-          </select>
-        </WorklistField>
-        <WorklistField label="Disponibilidade" htmlFor="asset-availability-filter">
-          <select
-            id="asset-availability-filter"
-            className={worklistSelectClass}
-            value={availabilityFilter}
-            onChange={(event) =>
-              setAvailabilityFilter(event.target.value as '' | AssetOperationalAvailability)
-            }
-          >
-            <option value="">Todas</option>
-            <option value={ASSET_OPERATIONAL_AVAILABILITIES.Available}>Disponível</option>
-            <option value={ASSET_OPERATIONAL_AVAILABILITIES.Allocated}>Alocado</option>
-            <option value={ASSET_OPERATIONAL_AVAILABILITIES.Unavailable}>Indisponível</option>
-          </select>
-        </WorklistField>
-        <WorklistField label="Tipo" htmlFor="asset-type-filter">
-          <select
-            id="asset-type-filter"
-            className={worklistSelectClass}
-            value={resourceTypeFilter}
-            onChange={(event) => setResourceTypeFilter(event.target.value)}
-          >
-            <option value="">Todos</option>
-            {resourceTypes.map((type) => (
-              <option key={type.id} value={type.id}>
-                {type.name}
-              </option>
-            ))}
-          </select>
-        </WorklistField>
-        <WorklistClearFilters
-          visible={filtersActive}
-          onClick={() => {
-            setSearchInput('');
-            setLifecycleFilter('');
-            setAvailabilityFilter('');
-            setResourceTypeFilter('');
-          }}
-        />
-      </WorklistFilterBar>
-      </div>
+          IDENTIDADE — a linha que declara o que a AREA e, e nao o recorte. O texto que esta tela
+          ja publicava como `context` do `WorklistHeader` nunca mudou com filtro nenhum, entao ele
+          pertence ao `identity` da moldura (a linha que NAO muda); `scope` fica reservado ao
+          recorte ATIVO, que aqui continua sem texto proprio. A redacao e EXATAMENTE a mesma.
 
-      <div data-region="worklist-master">
-      {listState.phase === 'loading' ? (
-        <p className="text-sm text-gray-500" aria-busy="true" aria-live="polite">
-          Atualizando listagem…
-        </p>
-      ) : null}
-
-      {isEmptyList ? (
-        <WorklistStatePanel
-          title="Nenhum ativo cadastrado."
-          description="Os ativos físicos são o cadastro operacional de veículos, máquinas e equipamentos e sua disponibilidade para alocação em ordens de serviço. Cadastre o primeiro ativo para começar."
+          `AssetSummaryStrip` e um componente EXISTENTE do modulo e permanece INTEGRO: cada
+          indicador continua sendo um filtro real (`aria-pressed`, com os mesmos nomes acessíveis
+          "Filtrar ativos disponíveis/alocados/indisponíveis"), por isso ele e o conteudo do
+          `status` em vez de ser reescrito como `WorkspaceStatusLine` — reescreve-lo mudaria nomes
+          acessíveis dos quais o produto depende.
+        */}
+        <WorkspaceHeader
+          title="Ativos físicos"
+          identity="Cadastro operacional dos ativos físicos e sua disponibilidade para alocação em ordens de serviço."
           action={
             capabilities.canCreate ? (
               <ModulePrimaryLink to="/app/assets/new">Novo ativo</ModulePrimaryLink>
             ) : null
           }
-        />
-      ) : null}
-
-      {isEmptyFiltered ? (
-        <WorklistStatePanel
-          title="Nenhum ativo encontrado para os filtros selecionados."
-          description="Ajuste a busca, o cadastro, a disponibilidade ou o tipo — ou limpe os filtros para ver o cadastro completo."
-          action={
-            <WorklistClearFilters
-              visible
-              onClick={() => {
-                setSearchInput('');
-                setLifecycleFilter('');
-                setAvailabilityFilter('');
-                setResourceTypeFilter('');
-              }}
+          status={
+            <AssetSummaryStrip
+              summary={summary}
+              sectionLabel="Indicadores de ativos físicos"
+              activeAvailabilityFilter={availabilityFilter}
+              onSelectAvailability={setAvailabilityFilter}
             />
           }
         />
-      ) : null}
-
-      {items.length > 0 ? (
-        <div className={worklistTableCardClass}>
-          <table className={worklistTableClass} aria-label="Lista de ativos físicos">
-            <thead>
-              <tr>
-                <th scope="col" className={worklistHeadCellClass}>
-                  Código
-                </th>
-                <th scope="col" className={worklistHeadCellClass}>
-                  Nome
-                </th>
-                <th scope="col" className={worklistHeadCellClass}>
-                  Tipo
-                </th>
-                <th scope="col" className={worklistHeadCellClass}>
-                  Cadastro
-                </th>
-                <th scope="col" className={worklistHeadCellClass}>
-                  Disponibilidade
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((asset) => (
-                <tr
-                  key={asset.id}
-                  className={cn(worklistRowClass, 'cursor-pointer')}
-                  /*
-                   * CONTEXTO SEM ABANDONAR A FILA. Clicar na linha abre o painel lateral com o
-                   * estado autoritativo e os comandos reais; o código continua sendo um `<a>` de
-                   * verdade (nova aba, teclado, leitor de tela) para a ficha.
-                   *
-                   * Cliques em elementos interativos internos (o link da OS, o próprio código)
-                   * seguem o comportamento deles: o guarda abaixo impede que navegar abra o painel.
-                   */
-                  onClick={(event) => {
-                    if ((event.target as HTMLElement).closest('a, button, select, input, textarea')) {
-                      return;
-                    }
-                    setSelected(asset);
-                  }}
-                >
-                  <td className={worklistCellClass}>
-                    {/*
-                      DRILLDOWN NA LINHA INTEIRA: antes o registro so abria por `onClick` no
-                      `<tr>` mais um `tabIndex`, o que nao gera link real (sem "abrir em nova
-                      aba", sem menu de contexto). Agora e um `<a>` de verdade com area
-                      esticada por toda a linha — mesma solucao da Frota.
-                    */}
-                    <WorklistRowLink href={`/app/assets/${asset.id}`}>
-                      {asset.assetCode}
-                    </WorklistRowLink>
-                    {asset.vehicle?.plate ? (
-                      <p className="text-[11px] text-gray-500">Placa {asset.vehicle.plate}</p>
-                    ) : null}
-                  </td>
-                  <td className={worklistCellRaisedClass}>{asset.name}</td>
-                  {/*
-                    LABEL HUMANO DO TIPO, nao o slug. `resourceTypeCode` e tecnico
-                    (`EXCAVATOR`, `WATER_TRUCK`) e era o que a grade mostrava, enquanto o
-                    filtro da MESMA tela ja oferecia o nome publicado pelo catalogo
-                    ("Escavadeira", "Caminhão pipa"). O de-para vem do catalogo autorizado que
-                    a pagina ja carrega; sem rotulo publicado, o codigo permanece como ultimo
-                    recurso — nunca um texto fabricado.
-                  */}
-                  <td className={worklistCellRaisedClass}>
-                    {typeNameByCode.get(asset.resourceTypeCode) ?? asset.resourceTypeCode}
-                  </td>
-                  <td className={worklistCellRaisedClass}>
-                    <AssetLifecycleStatusBadge status={asset.lifecycleStatus} />
-                  </td>
-                  <td className={worklistCellRaisedClass}>
-                    <AssetOperationalStatusCell asset={asset} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
-
-      {total > 0 ? (
-        <WorklistFooter rangeLabel={rangeLabel}>
-          <ModulePagination
-            pageNumber={Math.floor(offset / PAGE_SIZE) + 1}
-            previousDisabled={offset === 0 || listState.phase === 'loading'}
-            nextDisabled={!hasMore || listState.phase === 'loading'}
-            onPrevious={() => void loadPage(Math.max(0, offset - PAGE_SIZE))}
-            onNext={() => void loadPage(offset + PAGE_SIZE)}
-          />
-        </WorklistFooter>
-      ) : null}
       </div>
+
+      {/*
+        FAIXA DE COMANDO DA BANCADA — visoes salvas a esquerda, consulta a direita.
+
+        A ordem e fixa em todas as worklists do produto, entao o operador aprende a posicao uma
+        vez. As visoes salvas entram pelo prop `views` (e nao numa faixa propria acima da grade):
+        elas sao o RECORTE, e o recorte vive na mesma linha dos filtros que ele restaura.
+      */}
+      <div className="shrink-0" data-region="command-filter-surface">
+        <WorkspaceToolbar
+          views={
+            <div data-region="saved-view-surface">
+              <DynamicSavedViewsBar
+                views={savedViews.views}
+                persistedLocally={savedViews.persistedLocally}
+                persistable={savedViews.persistable}
+                onSave={(name) =>
+                  savedViews.save(
+                    name,
+                    {
+                      search,
+                      lifecycleFilter,
+                      availabilityFilter,
+                      resourceTypeFilter,
+                    },
+                    'list',
+                  )
+                }
+                onDelete={savedViews.remove}
+                onApply={(view) => {
+                  const nextSearch = view.filters['search'] ?? '';
+                  setSearchInput(nextSearch);
+                  setSearch(nextSearch);
+                  setLifecycleFilter(
+                    (view.filters['lifecycleFilter'] ?? '') as '' | AssetLifecycleStatus,
+                  );
+                  setAvailabilityFilter(
+                    (view.filters['availabilityFilter'] ?? '') as '' | AssetOperationalAvailability,
+                  );
+                  setResourceTypeFilter(view.filters['resourceTypeFilter'] ?? '');
+                }}
+              />
+            </div>
+          }
+        >
+          <WorklistField label="Buscar" htmlFor="asset-search" grow>
+            <input
+              id="asset-search"
+              type="search"
+              className={worklistControlClass}
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="Código, nome ou placa"
+            />
+          </WorklistField>
+          <WorklistField label="Cadastro" htmlFor="asset-lifecycle-filter">
+            <select
+              id="asset-lifecycle-filter"
+              className={worklistSelectClass}
+              value={lifecycleFilter}
+              onChange={(event) => setLifecycleFilter(event.target.value as '' | AssetLifecycleStatus)}
+            >
+              <option value="">Todos</option>
+              <option value={ASSET_LIFECYCLE_STATUSES.Active}>Ativo</option>
+              <option value={ASSET_LIFECYCLE_STATUSES.Inactive}>Inativo</option>
+            </select>
+          </WorklistField>
+          <WorklistField label="Disponibilidade" htmlFor="asset-availability-filter">
+            <select
+              id="asset-availability-filter"
+              className={worklistSelectClass}
+              value={availabilityFilter}
+              onChange={(event) =>
+                setAvailabilityFilter(event.target.value as '' | AssetOperationalAvailability)
+              }
+            >
+              <option value="">Todas</option>
+              <option value={ASSET_OPERATIONAL_AVAILABILITIES.Available}>Disponível</option>
+              <option value={ASSET_OPERATIONAL_AVAILABILITIES.Allocated}>Alocado</option>
+              <option value={ASSET_OPERATIONAL_AVAILABILITIES.Unavailable}>Indisponível</option>
+            </select>
+          </WorklistField>
+          <WorklistField label="Tipo" htmlFor="asset-type-filter">
+            <select
+              id="asset-type-filter"
+              className={worklistSelectClass}
+              value={resourceTypeFilter}
+              onChange={(event) => setResourceTypeFilter(event.target.value)}
+            >
+              <option value="">Todos</option>
+              {resourceTypes.map((type) => (
+                <option key={type.id} value={type.id}>
+                  {type.name}
+                </option>
+              ))}
+            </select>
+          </WorklistField>
+          <WorklistClearFilters
+            visible={filtersActive}
+            onClick={() => {
+              setSearchInput('');
+              setLifecycleFilter('');
+              setAvailabilityFilter('');
+              setResourceTypeFilter('');
+            }}
+          />
+        </WorkspaceToolbar>
+      </div>
+
+      {/*
+        CORPO DA BANCADA — A GRADE OCUPA A ALTURA DO SHELL.
+
+        `WorkspaceBody` e uma grade de altura total e `WorkspacePane` e a superficie UNICA da fila:
+        um contorno, raio de 4px, sem sombra, com a rolagem no MIOLO (`min-h-0 flex-1
+        overflow-auto`). Antes a tabela era um card (`worklistTableCardClass`) que crescia com o
+        conteudo, e o rodape de paginacao ficava depois dele, fora da area de trabalho. Agora o
+        painel termina onde a tela termina e o rodape e `shrink-0`, sempre visivel.
+
+        UMA COLUNA: esta tela NAO tem coluna de contexto. O contexto do ativo e o painel lateral
+        (`DynamicContextDrawer`), que abre por selecao — uma coluna aqui duplicaria o mesmo
+        conteudo duas vezes no DOM. Sem `context`, a moldura devolve grade de uma coluna.
+
+        `data-region="worklist-master"` e declarado no proprio painel: a fila inclui os estados
+        (vazio/sem resultado), nao apenas a tabela.
+      */}
+      <WorkspaceBody>
+        <WorkspacePane className="h-full overflow-hidden" data-region="worklist-master">
+          {listState.phase === 'loading' ? (
+            <p className="shrink-0 px-3 pt-2 text-sm text-gray-500" aria-busy="true" aria-live="polite">
+              Atualizando listagem…
+            </p>
+          ) : null}
+
+          {isEmptyList ? (
+            /*
+              ESTADO VAZIO — A MOLDURA PERMANECE; so o miolo da grade muda. O cabecalho e a faixa
+              de comando continuam montados e `WorkspaceEmpty` explica o que um ativo e, com a
+              UNICA acao primaria quando a criacao e permitida.
+            */
+            <WorkspaceEmpty
+              title="Nenhum ativo cadastrado."
+              description="Os ativos físicos são o cadastro operacional de veículos, máquinas e equipamentos e sua disponibilidade para alocação em ordens de serviço. Cadastre o primeiro ativo para começar."
+              action={
+                capabilities.canCreate ? (
+                  <ModulePrimaryLink to="/app/assets/new">Novo ativo</ModulePrimaryLink>
+                ) : null
+              }
+            />
+          ) : null}
+
+          {isEmptyFiltered ? (
+            <WorkspaceEmpty
+              title="Nenhum ativo encontrado para os filtros selecionados."
+              description="Ajuste a busca, o cadastro, a disponibilidade ou o tipo — ou limpe os filtros para ver o cadastro completo."
+              action={
+                <WorklistClearFilters
+                  visible
+                  onClick={() => {
+                    setSearchInput('');
+                    setLifecycleFilter('');
+                    setAvailabilityFilter('');
+                    setResourceTypeFilter('');
+                  }}
+                />
+              }
+            />
+          ) : null}
+
+          {items.length > 0 ? (
+            <>
+              <div className="min-h-0 flex-1 overflow-auto">
+                <table className={worklistTableClass} aria-label="Lista de ativos físicos">
+                  <thead>
+                    <tr>
+                      <th scope="col" className={workspaceHeadCellClass}>
+                        Código
+                      </th>
+                      <th scope="col" className={workspaceHeadCellClass}>
+                        Nome
+                      </th>
+                      <th scope="col" className={workspaceHeadCellClass}>
+                        Tipo
+                      </th>
+                      <th scope="col" className={workspaceHeadCellClass}>
+                        Cadastro
+                      </th>
+                      <th scope="col" className={workspaceHeadCellClass}>
+                        Disponibilidade
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((asset) => (
+                      <tr
+                        key={asset.id}
+                        /* O ativo cujo contexto esta aberto e o alvo da bancada: `data-selected` e o
+                           canal que `workspaceRowClass` usa para marcar isso. A LOGICA de selecao
+                           nao mudou — continua sendo `onClick` sobre a linha. */
+                        data-selected={selected?.id === asset.id}
+                        className={cn(workspaceRowClass)}
+                        /*
+                         * CONTEXTO SEM ABANDONAR A FILA. Clicar na linha abre o painel lateral com o
+                         * estado autoritativo e os comandos reais; o código continua sendo um `<a>` de
+                         * verdade (nova aba, teclado, leitor de tela) para a ficha.
+                         *
+                         * Cliques em elementos interativos internos (o link da OS, o próprio código)
+                         * seguem o comportamento deles: o guarda abaixo impede que navegar abra o painel.
+                         */
+                        onClick={(event) => {
+                          if ((event.target as HTMLElement).closest('a, button, select, input, textarea')) {
+                            return;
+                          }
+                          setSelected(asset);
+                        }}
+                      >
+                        {/*
+                          `relative` NAO E DECORATIVO NESTA CELULA: o `WorklistRowLink` posiciona o
+                          pseudo-elemento que estica a area de clique contra o ancestral posicionado mais
+                          proximo — e ele e a PROPRIA celula do codigo, nao a linha. A classe da moldura
+                          (`workspaceCellClass`) nao carrega `position`, entao ela e declarada aqui para
+                          que o overlay continue cobrindo apenas esta coluna (e o restante da linha siga
+                          abrindo o painel de contexto).
+                        */}
+                        <td className={cn(workspaceCellClass, 'relative')}>
+                          {/*
+                            DRILLDOWN NA LINHA INTEIRA: antes o registro so abria por `onClick` no
+                            `<tr>` mais um `tabIndex`, o que nao gera link real (sem "abrir em nova
+                            aba", sem menu de contexto). Agora e um `<a>` de verdade com area
+                            esticada por toda a linha — mesma solucao da Frota.
+                          */}
+                          <WorklistRowLink href={`/app/assets/${asset.id}`}>
+                            {asset.assetCode}
+                          </WorklistRowLink>
+                          {asset.vehicle?.plate ? (
+                            <p className="text-[11px] text-gray-500">Placa {asset.vehicle.plate}</p>
+                          ) : null}
+                        </td>
+                        <td className={workspaceCellRaisedClass}>{asset.name}</td>
+                        {/*
+                          LABEL HUMANO DO TIPO, nao o slug. `resourceTypeCode` e tecnico
+                          (`EXCAVATOR`, `WATER_TRUCK`) e era o que a grade mostrava, enquanto o
+                          filtro da MESMA tela ja oferecia o nome publicado pelo catalogo
+                          ("Escavadeira", "Caminhão pipa"). O de-para vem do catalogo autorizado que
+                          a pagina ja carrega; sem rotulo publicado, o codigo permanece como ultimo
+                          recurso — nunca um texto fabricado.
+                        */}
+                        <td className={workspaceCellRaisedClass}>
+                          {typeNameByCode.get(asset.resourceTypeCode) ?? asset.resourceTypeCode}
+                        </td>
+                        <td className={workspaceCellRaisedClass}>
+                          <AssetLifecycleStatusBadge status={asset.lifecycleStatus} />
+                        </td>
+                        <td className={workspaceCellRaisedClass}>
+                          <AssetOperationalStatusCell asset={asset} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+            </table>
+              </div>
+
+              {/*
+                RODAPE DA FILA — `shrink-0`, para que a paginacao nao encolha quando a grade rola,
+                e separado do dado por REGUA (nao por caixa). O intervalo e o MESMO texto de antes.
+              */}
+              <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-[color:var(--color-divider)] px-3 py-1.5">
+                <p className="cisne-type-helper m-0 tabular-nums">{rangeLabel}</p>
+                <ModulePagination
+                  pageNumber={Math.floor(offset / PAGE_SIZE) + 1}
+                  previousDisabled={offset === 0 || listState.phase === 'loading'}
+                  nextDisabled={!hasMore || listState.phase === 'loading'}
+                  onPrevious={() => void loadPage(Math.max(0, offset - PAGE_SIZE))}
+                  onNext={() => void loadPage(offset + PAGE_SIZE)}
+                />
+              </div>
+            </>
+          ) : null}
+        </WorkspacePane>
+      </WorkspaceBody>
 
       {/*
         CONTEXT REGION AUTORITATIVA — decidir sobre o ativo sem sair da fila.

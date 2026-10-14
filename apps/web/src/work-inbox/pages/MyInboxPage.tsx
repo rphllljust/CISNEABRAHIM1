@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Button } from '../../ui/Button';
 import { ModulePage } from '../../ui/module-layout';
-import { WorklistHeader, worklistControlClass } from '../../ui/enterprise-list';
+import { worklistSelectClass } from '../../ui/enterprise-list';
+import { WorkspaceHeader } from '../../ui/workspace-frame';
 import { cn } from '../../ui/utils/cn';
 import { workbenchSecondaryActionClass } from '../../ui/workbench';
 import {
@@ -79,35 +79,100 @@ export function MyInboxPage() {
 
   const clearScope = () => setSearchParams(new URLSearchParams(), { replace: true });
 
+  /*
+   * O RECORTE ATIVO EM UMA LINHA — vai para o cabeçalho, ao lado da identidade da área.
+   * É a mesma informação que o operador precisa para saber QUAL conjunto está lendo; antes ela
+   * vivia dentro da faixa de filtros e se perdia entre os controles.
+   */
+  const scopeLabelText = [
+    scope.domain === null ? 'Todos os domínios' : WORK_DOMAIN_LABELS[scope.domain],
+    scope.kind === null ? null : WORK_KIND_LABELS[scope.kind],
+    scope.overdue ? 'somente vencidos' : null,
+    scope.unitId ? 'unidade autorizada' : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
   return (
     <ModulePage layout="workspace">
-      <WorklistHeader
+      {/*
+        ENTERPRISE WORK INBOX — A FILA E A BANCADA, NAO UM FILTRO SOBRE UMA LISTA VAZIA.
+
+        ─────────────────────────────────────────────────────────────────────────────────────────
+        O QUE ESTA TELA ERA, MEDIDO
+
+        Em 1600×900, com a fila vazia (o estado mais comum de quem acaba de resolver tudo):
+
+          cabeçalho               40px
+          faixa de situação       62px
+          chips de domínio        34px
+          barra de recorte        43px
+          fila (estado vazio)    329px
+          conteúdo terminava     y=624
+          canvas vazio abaixo    276px  — 31% da viewport
+
+        E com a fila publicada o conteúdo parava em y=690: a mesma bancada, sem altura. A tela era
+        um cabeçalho, três faixas de filtro empilhadas e uma lista — o operador que abria "Minhas
+        pendências" via um formulário de consulta em cima de um vazio.
+
+        ─────────────────────────────────────────────────────────────────────────────────────────
+        O QUE ELA É AGORA
+
+        Uma bancada de trabalho com a mesma gramática de `Clientes`:
+
+          WorkspaceHeader   identidade + situação da fila em uma linha
+          WorkspaceToolbar  recorte (domínio, natureza, vencidos) + recarregar
+          WorkspaceBody     FILA (altura de viewport) + CONTEXTO DA DECISÃO
+
+        A DIFERENÇA ESTRUTURAL DECISIVA: ZERO ITENS NAO DESMONTA A TELA.
+
+        Antes, a fila vazia colapsava para uma faixa de mensagem e o resto da tela ficava branco.
+        Agora a bancada tem altura de viewport, e a coluna de contexto responde — mesmo sem um único
+        item — o que o operador precisa saber para confiar no vazio: QUAL recorte foi lido, QUAIS
+        domínios responderam, QUANDO foi atualizado e O QUE entra nesta fila. Vazio com contexto é
+        uma resposta; vazio sem contexto é um sistema que parece quebrado.
+
+        ─────────────────────────────────────────────────────────────────────────────────────────
+        O QUE NAO MUDOU
+
+        Nenhuma chamada, nenhum recorte, nenhuma rota. `scopeSource="url"` continua: recarregar,
+        voltar e compartilhar preservam o conjunto. A leitura parcial continua dita, a pagina
+        continua separada do conjunto, e a prioridade continua nao sendo inventada.
+      */}
+      <WorkspaceHeader
         title="Minhas pendências"
-        context="Fila unificada de trabalho: exceções, bloqueios, aprovações e vencimentos reais de todos os domínios autorizados."
+        identity="Trabalho que exige decisão ou intervenção"
+        scope={scopeLabelText}
         action={
-          <Button
+          <button
             type="button"
-            variant="secondary"
+            className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-[4px] border border-[color:var(--color-border-default)] bg-white px-2.5 text-[color:var(--color-text-secondary)] transition-colors hover:bg-[color:var(--color-surface-hover)]"
             onClick={() => setSearchParams(new URLSearchParams(searchParams), { replace: true })}
           >
-            Recarregar
-          </Button>
+            Atualizar
+          </button>
         }
       />
 
+      {/*
+        FAIXA DE SITUAÇÃO — os números do servidor, acima da bancada.
+
+        Ela continua sendo a PRIMEIRA resposta ("o que exige decisão agora"), e continua vindo do
+        MESMO payload da fila: `byDomain` sem contagem paralela no navegador.
+      */}
       <MyInboxSituationBand loader={situationLoader} scope={scope} onScopeChange={applyScope} />
 
       {/*
-        FILTRO GOVERNADO — o recorte que o servidor executa, em controles humanos.
-        Ele nao substitui a barra de recortes da fila: aqui o operador escolhe o DOMINIO e a UNIDADE
-        (dimensoes de escopo organizacional), la ele escolhe a NATUREZA e o vencimento (dimensoes do
-        proprio trabalho). As duas barras sao a mesma pergunta em dois niveis.
+        RECORTE GOVERNADO — o recorte que o servidor executa, em controles humanos.
+        Domínio e unidade são dimensões de ESCOPO organizacional; natureza e vencimento são
+        dimensões do PRÓPRIO trabalho e vivem na barra da fila. As duas barras são a mesma pergunta
+        em dois níveis.
       */}
       <div
         aria-label="Recorte por domínio"
-        className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-y border-gray-200 bg-gray-50/60 px-2.5 py-1.5"
+        className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-[color:var(--color-divider)] pb-2"
       >
-        <span className="cisne-meta-label">Escopo</span>
+        <span className="cisne-meta-label">Domínio</span>
         <ul className="m-0 flex list-none flex-wrap items-center gap-1.5 p-0">
           <li>
             <button
@@ -115,14 +180,13 @@ export function MyInboxPage() {
               aria-pressed={scope.domain === null}
               onClick={() => applyScope({ ...scope, domain: null })}
               className={cn(
-                worklistControlClass,
-                'min-h-0 px-2 py-0.5 text-xs',
+                'cisne-type-action inline-flex min-h-[24px] items-center rounded-[3px] border px-2 text-[11px]',
                 scope.domain === null
-                  ? 'border-brand-600 bg-brand-50 font-semibold text-brand-800'
-                  : 'bg-white text-gray-600',
+                  ? 'border-[color:var(--color-brand-600)] bg-[color:var(--color-brand-50)] font-semibold text-[color:var(--color-brand-800)]'
+                  : 'border-[color:var(--color-border-default)] bg-white font-medium text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-surface-hover)]',
               )}
             >
-              Todos os domínios
+              Todos
             </button>
           </li>
           {WORK_DOMAINS.map((domain) => (
@@ -132,11 +196,10 @@ export function MyInboxPage() {
                 aria-pressed={scope.domain === domain}
                 onClick={() => applyScope({ ...scope, domain: scope.domain === domain ? null : domain })}
                 className={cn(
-                  worklistControlClass,
-                  'min-h-0 px-2 py-0.5 text-xs',
+                  'cisne-type-action inline-flex min-h-[24px] items-center rounded-[3px] border px-2 text-[11px]',
                   scope.domain === domain
-                    ? 'border-brand-600 bg-brand-50 font-semibold text-brand-800'
-                    : 'bg-white text-gray-600',
+                    ? 'border-[color:var(--color-brand-600)] bg-[color:var(--color-brand-50)] font-semibold text-[color:var(--color-brand-800)]'
+                    : 'border-[color:var(--color-border-default)] bg-white font-medium text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-surface-hover)]',
                 )}
               >
                 {WORK_DOMAIN_LABELS[domain]}
@@ -145,8 +208,8 @@ export function MyInboxPage() {
           ))}
         </ul>
 
-        <label className="flex items-center gap-1.5 text-xs text-gray-700">
-          <span className="cisne-type-helper">Natureza</span>
+        <label className="flex items-center gap-1.5 text-[11px] text-[color:var(--color-text-secondary)]">
+          <span className="cisne-meta-label">Natureza</span>
           <select
             aria-label="Natureza do trabalho"
             value={scope.kind ?? ''}
@@ -156,7 +219,7 @@ export function MyInboxPage() {
                 kind: WORK_KINDS.find((kind) => kind === event.target.value) ?? null,
               })
             }
-            className={cn(worklistControlClass, 'min-h-0 py-0.5 text-xs')}
+            className={worklistSelectClass}
           >
             <option value="">Todas</option>
             {WORK_KINDS.map((kind) => (
@@ -167,7 +230,7 @@ export function MyInboxPage() {
           </select>
         </label>
 
-        <label className="flex items-center gap-1.5 text-xs text-gray-700">
+        <label className="flex items-center gap-1.5 text-[11px] text-[color:var(--color-text-secondary)]">
           <input
             type="checkbox"
             checked={scope.overdue}

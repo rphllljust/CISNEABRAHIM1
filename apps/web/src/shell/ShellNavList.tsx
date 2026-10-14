@@ -12,43 +12,40 @@ type ShellNavListProps = {
 };
 
 /**
- * ITEM DE NAVEGACAO — densidade de ERP, nao de landing page.
+ * ITEM DE NAVEGACAO — 36px, a densidade da especificacao do app shell.
  *
- * `py-2.5` produzia ~44px por item, o mesmo alvo de um botao de toque em aplicativo movel. O CISNE
- * e uma aplicacao desktop primariamente: com ~40 itens no menu, o operador perdia linhas na primeira
- * dobra e rolava para trocar de modulo. `py-1.5` entrega ~34px — dentro da faixa que o proprio
- * sistema documenta como densidade de sidebar (`34-40px`) em `theme.css` — mantendo area de clique
- * confortavel para ponteiro.
+ * Eram ~30px (`py-[0.3125rem]` sobre 13px). 36px devolve a faixa 34-40px que o proprio sistema
+ * documenta como densidade de sidebar e mantem a area de clique confortavel para ponteiro, sem que
+ * o menu vire uma lista de botoes de toque.
  *
- * O ESTADO ATIVO NAO MUDOU DE GRAMATICA: fundo ligeiramente elevado + accent na lateral + texto
- * claro (dark) / fundo neutro + texto forte (light). O que saiu foi apenas a sobra: a sombra de 18px
- * do item ativo, que fazia o item "flutuar" dentro da propria sidebar — o accent de 3px a esquerda
- * ja e inequivoco e nao custa contraste de texto.
+ * O ESTADO ATIVO NAO E UM BLOCO AZUL.
+ *
+ * Antes: `--color-shell-dock` (#0E3C59, um azul cheio) com 3px de accent. Sobre um navy escuro,
+ * um retangulo azul claro de ponta a ponta e a assinatura visual de "admin panel": ele pinta mais
+ * AREA que qualquer outro elemento do chrome e passa a ser a primeira coisa que o olho encontra
+ * numa tela onde o trabalho e o que importa.
+ *
+ * Agora o ativo e um LAVADO TEAL TRANSLUCIDO com barra de 2px e tinta clara: a mesma informacao
+ * ("voce esta aqui"), com uma fracao do peso visual — o item continua inequivoco por causa da
+ * barra + do peso 650, nao por causa de area pintada.
  */
 function buildNavLinkClass(isActive: boolean, theme: 'dark' | 'light') {
   if (theme === 'dark') {
     return cn(
-      'group relative flex items-center gap-2 rounded-md px-2 py-[0.3125rem] text-[13px] no-underline transition-colors',
+      'group relative flex h-9 items-center gap-2 rounded-[4px] px-2.5 text-[13px] no-underline transition-colors',
       'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-400',
-      /*
-        ITEM ATIVO — azul petroleo forte + barra teal de 3px a esquerda + texto branco.
-
-        A hierarquia vem de PESO e CONTRASTE, nao de tamanho: o ativo troca de cor de fundo, ganha
-        a barra de identidade e sobe para 650. O item normal fica em #B8C7D9 sobre o navy — abaixo
-        disso o menu deixa de ser legivel em monitor de escritorio.
-      */
       isActive
-        ? 'bg-[var(--color-shell-dock)] font-semibold text-[var(--color-on-shell)] shadow-[inset_3px_0_0_var(--color-shell-dock-ink)]'
-        : 'font-medium text-[var(--color-on-shell-nav)] hover:bg-[var(--color-shell-chrome)] hover:text-[var(--color-on-shell)]',
+        ? 'bg-[var(--color-shell-active)] font-semibold text-[var(--color-shell-active-ink)] shadow-[inset_2px_0_0_0_var(--color-shell-dock-ink)]'
+        : 'font-normal text-[var(--color-on-shell-nav)] hover:bg-[var(--color-shell-chrome)] hover:text-[var(--color-on-shell)]',
     );
   }
 
   return cn(
-    'group flex items-center gap-2 rounded-md px-2 py-[0.3125rem] text-[13px] no-underline transition-colors',
-    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500',
+    'group flex h-9 items-center gap-2 rounded-[4px] px-2.5 text-[13px] no-underline transition-colors',
+    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500',
     isActive
-      ? 'bg-blue-50 font-semibold text-blue-800'
-      : 'font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+      ? 'bg-[var(--color-surface-selected)] font-semibold text-[var(--color-brand-800)] shadow-[inset_2px_0_0_0_var(--color-brand-600)]'
+      : 'font-normal text-[color:var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[color:var(--color-text-primary)]',
   );
 }
 
@@ -57,11 +54,14 @@ function iconClass(isActive: boolean, theme: 'dark' | 'light') {
     return cn(
       'h-4 w-4 shrink-0',
       isActive
-        ? 'text-[var(--color-shell-dock-ink)]'
+        ? 'text-[var(--color-shell-active-ink)]'
         : 'text-[var(--color-on-shell-muted)] group-hover:text-[var(--color-on-shell-nav)]',
     );
   }
-  return cn('h-4 w-4 shrink-0', isActive ? 'text-blue-700' : 'text-gray-400');
+  return cn(
+    'h-4 w-4 shrink-0',
+    isActive ? 'text-[var(--color-brand-700)]' : 'text-[color:var(--color-text-muted)]',
+  );
 }
 
 export function ShellNavList({
@@ -75,7 +75,7 @@ export function ShellNavList({
   return (
     <nav
       className={cn(
-        'sidebar-scroll flex-1 space-y-3 overflow-y-auto px-2.5 py-2.5',
+        'sidebar-scroll flex-1 space-y-1 overflow-y-auto px-2.5 py-2',
         theme === 'dark' ? 'bg-[var(--color-shell-surface)]' : 'bg-white',
       )}
       aria-label="Navegação principal"
@@ -92,18 +92,18 @@ export function ShellNavList({
         }
 
         return (
-          <section key={group.id} aria-label={group.label}>
+          <section key={group.id} aria-label={group.label} className="pt-2.5 first:pt-0">
             {/*
-              SECTION LABEL — micro-uppercase com tracking forte, em azul acinzentado. Ele separa
-              GRUPOS por TOM, nao por caixa: a sidebar precisa de profundidade visual, e uma borda
-              por grupo faria dela uma lista de retangulos.
+              SECTION LABEL — 10px, uppercase, tracking moderado, azul-acinzentado discreto.
+              Ele separa GRUPOS por TOM, nao por caixa: a sidebar precisa de profundidade visual, e
+              uma borda por grupo faria dela uma lista de retangulos.
             */}
             <p
               className={cn(
-                'mb-1.5 px-2 text-[9px] font-bold uppercase tracking-[0.2em]',
+                'mb-1 px-2.5 text-[10px] font-semibold uppercase tracking-[0.1em]',
                 theme === 'dark'
                   ? 'text-[var(--color-on-shell-dim)]'
-                  : 'text-slate-400',
+                  : 'text-[color:var(--color-text-muted)]',
               )}
             >
               {group.label}

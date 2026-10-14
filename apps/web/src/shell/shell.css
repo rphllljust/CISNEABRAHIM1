@@ -28,8 +28,8 @@
 }
 
 .shell__sidebar {
-  background: var(--color-navy-800);
-  box-shadow: inset -1px 0 0 rgb(255 255 255 / 4%);
+  background: var(--color-shell-surface);
+  box-shadow: inset -1px 0 0 rgb(255 255 255 / 5%);
 }
 
 .shell__brand {
@@ -45,7 +45,9 @@
 }
 
 .shell__search {
-  max-width: min(43rem, 48vw);
+  /* O teto da busca global vive no utilitario do componente (420-560px); aqui apenas garante que
+     ela nunca estoure o container em telas estreitas. */
+  max-width: 100%;
 }
 
 /*
@@ -69,7 +71,7 @@
   Isto muda TODA pagina nao editada de uma vez, porque nenhuma delas desenha o proprio frame.
 */
 .shell__content {
-  background: var(--color-canvas-work, #fff);
+  background: var(--color-canvas);
 }
 
 .shell-page-frame {
@@ -83,6 +85,21 @@
 .shell-page-frame--bleed {
   background: transparent;
   border: 0;
+}
+
+/*
+  MOLDURA QUE PREENCHE — a bancada ocupa a altura que o shell deixou.
+
+  Sem isto, uma worklist com dois registros media a altura do proprio conteudo: o painel da grade
+  encolhia ate o tamanho do dado e o restante da viewport ficava branco (medido: 403px em Clientes,
+  489px em Minhas pendencias, em 1600x900). Com a moldura preenchendo, a grade tem altura definida e
+  a superficie pode ser elastica — a silhueta passa a ser a mesma com 2 ou com 200 registros.
+*/
+.shell-page-frame--fill {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
 }
 
 .shell-drawer-backdrop {

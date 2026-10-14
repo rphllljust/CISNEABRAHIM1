@@ -110,6 +110,26 @@ export {
   workbenchSecondaryActionClass,
 } from './workbench';
 export {
+  WorkspaceFrame,
+  WorkspaceHeader,
+  WorkspaceStatusLine,
+  WorkspaceToolbar,
+  WorkspaceActiveFilters,
+  WorkspaceBody,
+  WorkspacePane,
+  WorkspacePaneHeader,
+  ContextSection,
+  ContextFacts,
+  WorkspaceEmpty,
+  WorkspaceSkeletonRows,
+  workspaceHeadCellClass,
+  workspaceNumericHeadCellClass,
+  workspaceCellClass,
+  workspaceNumericCellClass,
+  workspaceRowClass,
+  workspaceCellRaisedClass,
+} from './workspace-frame';
+export {
   ReportWorkbenchHeader,
   ReportToolbar,
   ReportField,

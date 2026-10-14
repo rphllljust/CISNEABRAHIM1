@@ -58,24 +58,28 @@ const PURCHASE_ORDER_FILTER_SPECS: AdvancedFilterFieldSpec[] = [
 ];
 import { useAuth } from '../../auth/context/AuthProvider';
 import {
-  EnterpriseMetric,
   WorklistClearFilters,
   WorklistException,
   WorklistField,
-  WorklistFilterBar,
-  WorklistFooter,
-  WorklistHeader,
   WorklistRowLink,
-  WorklistStatePanel,
-  worklistCellClass,
-  worklistCellRaisedClass,
-  worklistHeadCellClass,
-  worklistNumericCellClass,
-  worklistNumericHeadCellClass,
-  worklistRowClass,
+  worklistControlClass,
   worklistSelectClass,
   worklistTableClass,
 } from '../../ui/enterprise-list';
+import {
+  WorkspaceBody,
+  WorkspaceEmpty,
+  WorkspaceHeader,
+  WorkspacePane,
+  WorkspaceStatusLine,
+  WorkspaceToolbar,
+  workspaceCellClass,
+  workspaceCellRaisedClass,
+  workspaceHeadCellClass,
+  workspaceNumericCellClass,
+  workspaceNumericHeadCellClass,
+  workspaceRowClass,
+} from '../../ui/workspace-frame';
 import {
   ModuleDeniedState,
   ModuleErrorState,
@@ -411,145 +415,162 @@ export function PurchaseOrdersListPage() {
   }`;
 
   return (
-    <ModulePage layout="wide">
-      <div data-region="operating-header">
-      <WorklistHeader
+    <ModulePage layout="workspace">
+      {/*
+        PEDIDOS DE COMPRA — BANCADA DE CARTEIRA NA MOLDURA DE WORKSPACE.
+
+        Antes: `layout="wide"` — a pagina media a altura do proprio conteudo. Medido em 1600x900 com
+        a carteira publicada: o conteudo terminava em y=448 de 900, deixando 452px de canvas branco
+        abaixo da ultima linha. A tela era um cabecalho, duas faixas de filtro e uma grade curta.
+
+        Agora a superficie declara `workspace`: a grade e elastica e a bancada ocupa a tela — a mesma
+        silhueta de Clientes, Solicitacoes e Propostas.
+
+        Os indicadores deixaram de ser uma faixa de caixas contornadas (`EnterpriseMetric`) e viraram
+        `WorkspaceStatusLine` no cabecalho: MESMOS numeros, MESMA origem (a propria lista), mesma
+        regra de exception-first — "exigindo atencao" e o unico com sinal.
+      */}
+      <WorkspaceHeader
         title="Pedidos de compra"
-        count={items.length}
-        context="Carteira de pedidos recebidos dos clientes, com o consumo autorizado de cada um."
+        identity="Carteira de pedidos recebidos dos clientes, com o consumo autorizado de cada um."
+        scope={`${items.length} nesta página`}
+        status={
+          <WorkspaceStatusLine
+            items={[
+              { value: items.length, label: 'nesta página' },
+              ...(draftCount > 0
+                ? [{ value: draftCount, label: 'rascunho(s)' as const }]
+                : []),
+              ...(registeredCount > 0
+                ? [{ value: registeredCount, label: 'registrado(s)' as const }]
+                : []),
+              ...(cancelledCount > 0
+                ? [{ value: cancelledCount, label: 'cancelado(s)' as const }]
+                : []),
+              {
+                value: formatMoney(String(authorized.total), currencyCode),
+                label: 'autorizado',
+              },
+              { value: formatMoney(String(ledger.consumed), currencyCode), label: 'consumido' },
+              { value: formatMoney(String(ledger.balance), currencyCode), label: 'saldo' },
+              ...(attentionCount > 0
+                ? [
+                    {
+                      value: attentionCount,
+                      label: 'exigindo atenção',
+                      tone: 'alert' as const,
+                    },
+                  ]
+                : []),
+            ]}
+          />
+        }
         action={
           capabilities.canCreate ? (
             <ModulePrimaryLink to="/app/purchase-orders/new">Novo pedido</ModulePrimaryLink>
           ) : null
         }
-        /*
-          FAIXA DE INDICADORES — o operador responde "qual e o tamanho, o estado e o saldo desta
-          pagina?" antes de ler a primeira linha. Cada valor e uma soma ou uma contagem do que a
-          lista ja entregou; metricas de estado so aparecem quando existem linhas naquele estado.
-        */
-        metrics={
-          <>
-            {draftCount > 0 ? <EnterpriseMetric value={draftCount} label="rascunho(s)" /> : null}
-            {registeredCount > 0 ? (
-              <EnterpriseMetric value={registeredCount} label="registrado(s)" tone="info" />
-            ) : null}
-            {cancelledCount > 0 ? (
-              <EnterpriseMetric value={cancelledCount} label="cancelado(s)" />
-            ) : null}
-            <span title={moneyHint}>
-              <EnterpriseMetric
-                value={formatMoney(String(authorized.total), currencyCode)}
-                label="autorizado"
-              />
-            </span>
-            <EnterpriseMetric
-              value={formatMoney(String(ledger.consumed), currencyCode)}
-              label="consumido"
+      />
+
+      {/*
+        BARRA DE FERRAMENTAS — VISÕES E CONSULTA NUMA FAIXA SÓ.
+
+        Antes eram DUAS faixas empilhadas (visões salvas, depois a barra de filtro) mais uma terceira
+        para o construtor composto: três réguas para a mesma pergunta ("qual recorte estou lendo"),
+        ~90px que a grade pagava em toda dobra.
+      */}
+      <WorkspaceToolbar
+        views={
+          <div data-region="saved-view-surface">
+            <DynamicSavedViewsBar
+              views={savedViews.views}
+              persistedLocally={savedViews.persistedLocally}
+              onSave={(name) => savedViews.save(name, { clientFilter, unitFilter }, 'list')}
+              onDelete={savedViews.remove}
+              onApply={(view) => {
+                setClientFilter(view.filters['clientFilter'] ?? '');
+                setUnitFilter(view.filters['unitFilter'] ?? '');
+              }}
             />
-            <EnterpriseMetric
-              value={formatMoney(String(ledger.balance), currencyCode)}
-              label="saldo"
-            />
-            {attentionCount > 0 ? (
-              <EnterpriseMetric value={attentionCount} label="exigindo atenção" tone="warning" />
-            ) : null}
-          </>
+          </div>
         }
-      />
-      </div>
+      >
+        <div
+          data-region="command-filter-surface"
+          className="flex min-w-0 flex-wrap items-center gap-1.5"
+        >
+          <WorklistField label="Buscar" htmlFor="po-search" grow>
+            <input
+              id="po-search"
+              type="search"
+              className={worklistControlClass}
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  setSearch(searchInput);
+                }
+              }}
+              placeholder="Número do pedido, código interno ou RC"
+              autoComplete="off"
+            />
+          </WorklistField>
 
-      <div data-region="saved-view-surface">
-      <DynamicSavedViewsBar
-        views={savedViews.views}
-        persistedLocally={savedViews.persistedLocally}
-        onSave={(name) => savedViews.save(name, { clientFilter, unitFilter }, 'list')}
-        onDelete={savedViews.remove}
-        onApply={(view) => {
-          setClientFilter(view.filters['clientFilter'] ?? '');
-          setUnitFilter(view.filters['unitFilter'] ?? '');
-        }}
-      />
-      </div>
+          <WorklistField label="Situação" htmlFor="po-status">
+            <select
+              id="po-status"
+              className={worklistSelectClass}
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+            >
+              <option value="">Todas</option>
+              <option value={PURCHASE_ORDER_STATUSES.Draft}>Rascunho</option>
+              <option value={PURCHASE_ORDER_STATUSES.Registered}>Registrado</option>
+              <option value={PURCHASE_ORDER_STATUSES.Cancelled}>Cancelado</option>
+            </select>
+          </WorklistField>
 
-      <div data-region="command-filter-surface">
-      <WorklistFilterBar meta={`${items.length} nesta página`}>
-        {/*
-          BUSCA E SITUAÇÃO — os dois recortes que o operador mais usa, e que o SERVIDOR já
-          executava sem que a tela oferecesse. Ambos mudam a CONSULTA, não a página carregada.
-        */}
-        <WorklistField label="Buscar" htmlFor="po-search" grow>
-          <input
-            id="po-search"
-            type="search"
-            className={worklistSelectClass}
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                setSearch(searchInput);
-              }
-            }}
-            placeholder="Número do pedido, código interno ou RC"
-            autoComplete="off"
-          />
-        </WorklistField>
+          <WorklistField label="Emissão" htmlFor="po-issue-from">
+            <input
+              id="po-issue-from"
+              type="date"
+              className={worklistControlClass}
+              value={issueFrom}
+              onChange={(event) => setIssueFrom(event.target.value)}
+            />
+          </WorklistField>
+          <WorklistField label="até" htmlFor="po-issue-to">
+            <input
+              id="po-issue-to"
+              type="date"
+              className={worklistControlClass}
+              value={issueTo}
+              onChange={(event) => setIssueTo(event.target.value)}
+            />
+          </WorklistField>
 
-        <WorklistField label="Situação" htmlFor="po-status">
-          <select
-            id="po-status"
-            className={worklistSelectClass}
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
-          >
-            <option value="">Todas</option>
-            <option value={PURCHASE_ORDER_STATUSES.Draft}>Rascunho</option>
-            <option value={PURCHASE_ORDER_STATUSES.Registered}>Registrado</option>
-            <option value={PURCHASE_ORDER_STATUSES.Cancelled}>Cancelado</option>
-          </select>
-        </WorklistField>
-
-        <WorklistField label="Emissão de" htmlFor="po-issue-from">
-          <input
-            id="po-issue-from"
-            type="date"
-            className={worklistSelectClass}
-            value={issueFrom}
-            onChange={(event) => setIssueFrom(event.target.value)}
-          />
-        </WorklistField>
-        <WorklistField label="até" htmlFor="po-issue-to">
-          <input
-            id="po-issue-to"
-            type="date"
-            className={worklistSelectClass}
-            value={issueTo}
-            onChange={(event) => setIssueTo(event.target.value)}
-          />
-        </WorklistField>
-
-        <WorklistField label="Cliente" htmlFor="po-client-search">
-          <HumanLookupField
-            variant="compact"
-            label="Cliente"
-            htmlFor="po-client-search"
-            search={searchClientOptions}
-            value={clientFilter}
-            onChange={setClientFilter}
-            emptyOptionLabel="Todos os clientes"
-            emptyMessage="Nenhum cliente encontrado para a busca."
-          />
-        </WorklistField>
-        <WorklistField label="Unidade" htmlFor="po-unit-filter">
-          <input
-            id="po-unit-filter"
-            type="search"
-            className={worklistSelectClass}
-            value={unitFilter}
-            onChange={(event) => setUnitFilter(event.target.value)}
-            placeholder="Filtrar por unidade"
-          />
-        </WorklistField>
-        {hasActiveFilters ? (
+          <WorklistField label="Cliente" htmlFor="po-client-search">
+            <HumanLookupField
+              variant="compact"
+              label="Cliente"
+              htmlFor="po-client-search"
+              search={searchClientOptions}
+              value={clientFilter}
+              onChange={setClientFilter}
+              emptyOptionLabel="Todos os clientes"
+              emptyMessage="Nenhum cliente encontrado para a busca."
+            />
+          </WorklistField>
+          <WorklistField label="Unidade" htmlFor="po-unit-filter">
+            <input
+              id="po-unit-filter"
+              type="search"
+              className={worklistControlClass}
+              value={unitFilter}
+              onChange={(event) => setUnitFilter(event.target.value)}
+              placeholder="Filtrar por unidade"
+            />
+          </WorklistField>
           <WorklistClearFilters
             visible={hasActiveFilters}
             onClick={() => {
@@ -566,8 +587,8 @@ export function PurchaseOrdersListPage() {
               setUrlParams(params, { replace: true });
             }}
           />
-        ) : null}
-      </WorklistFilterBar>
+        </div>
+      </WorkspaceToolbar>
 
       {/*
         FILTRO AVANÇADO COMPOSTO — área própria, dirigida por METADADO.
@@ -592,70 +613,71 @@ export function PurchaseOrdersListPage() {
           }}
         />
       </div>
-      </div>
 
       {/*
-        VISÕES SALVAS — faixa própria da work area, ANTES da superfície de filtro.
-        Gramática: OPERATING HEADER -> SAVED VIEWS -> COMMAND/FILTER -> WORK QUEUE.
+        ÁREA DE TRABALHO — a grade é elástica e ocupa a altura que o shell deixou.
+        Zero pedidos NÃO desmonta a bancada: cabeçalho, visões e filtros continuam montados e o
+        estado vazio explica o que um pedido de compra é.
       */}
-
-      <div data-region="worklist-master">
-      {items.length === 0 ? (
-        <WorklistStatePanel
-          title={
-            hasActiveFilters
-              ? 'Nenhum pedido de compra corresponde aos filtros aplicados.'
-              : 'Nenhum pedido de compra encontrado.'
-          }
-          description={
-            hasActiveFilters
-              ? 'Ajuste o cliente ou a unidade, ou limpe os filtros para ver a carteira completa.'
-              : 'Os pedidos chegam ao CISNE registrados pelos clientes; quando o primeiro for emitido ele aparece aqui.'
-          }
-          action={
-            hasActiveFilters ? (
-              <WorklistClearFilters
-                visible
-                onClick={() => {
-                  setClientFilter('');
-                  setUnitFilter('');
-                }}
+      <WorkspaceBody>
+        <WorkspacePane className="h-full overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col" data-region="worklist-master">
+            {items.length === 0 ? (
+              <WorkspaceEmpty
+                title={
+                  hasActiveFilters
+                    ? 'Nenhum pedido de compra corresponde aos filtros aplicados.'
+                    : 'Nenhum pedido de compra encontrado.'
+                }
+                description={
+                  hasActiveFilters
+                    ? 'Ajuste o cliente ou a unidade, ou limpe os filtros para ver a carteira completa.'
+                    : 'Os pedidos chegam ao CISNE registrados pelos clientes; quando o primeiro for emitido ele aparece aqui.'
+                }
+                action={
+                  hasActiveFilters ? (
+                    <WorklistClearFilters
+                      visible
+                      onClick={() => {
+                        setClientFilter('');
+                        setUnitFilter('');
+                      }}
+                    />
+                  ) : capabilities.canCreate ? (
+                    <ModulePrimaryLink to="/app/purchase-orders/new">Novo pedido</ModulePrimaryLink>
+                  ) : null
+                }
               />
-            ) : capabilities.canCreate ? (
-              <ModulePrimaryLink to="/app/purchase-orders/new">Novo pedido</ModulePrimaryLink>
-            ) : null
-          }
-        />
-      ) : (
-        <div className="w-full min-w-0 max-w-full overflow-x-auto bg-white">
-          <table className={worklistTableClass} aria-label="Lista de pedidos de compra">
+            ) : (
+              <div className="min-h-0 flex-1 overflow-auto">
+                <table className={worklistTableClass} aria-label="Lista de pedidos de compra">
             <thead>
               <tr>
-                <th scope="col" className={worklistHeadCellClass}>
+                <th scope="col" className={workspaceHeadCellClass}>
                   Pedido
                 </th>
-                <th scope="col" className={worklistHeadCellClass}>
+                <th scope="col" className={workspaceHeadCellClass}>
                   Cliente
                 </th>
-                <th scope="col" className={worklistHeadCellClass}>
+                <th scope="col" className={workspaceHeadCellClass}>
                   Situação
                 </th>
-                <th scope="col" className={worklistNumericHeadCellClass}>
+                <th scope="col" className={workspaceNumericHeadCellClass}>
                   Valor autorizado
                 </th>
-                <th scope="col" className={worklistNumericHeadCellClass}>
+                <th scope="col" className={workspaceNumericHeadCellClass}>
                   Consumido / consumo
                 </th>
-                <th scope="col" className={worklistNumericHeadCellClass}>
+                <th scope="col" className={workspaceNumericHeadCellClass}>
                   Saldo
                 </th>
-                <th scope="col" className={worklistHeadCellClass}>
+                <th scope="col" className={workspaceHeadCellClass}>
                   Emissão
                 </th>
-                <th scope="col" className={worklistHeadCellClass}>
+                <th scope="col" className={workspaceHeadCellClass}>
                   Próxima ação
                 </th>
-                <th scope="col" className={worklistHeadCellClass}>
+                <th scope="col" className={workspaceHeadCellClass}>
                   <span className="sr-only">Ações</span>
                 </th>
               </tr>
@@ -680,7 +702,7 @@ export function PurchaseOrdersListPage() {
                 return (
                   <tr
                     key={item.id}
-                    className={cn(worklistRowClass, 'cursor-pointer')}
+                    className={cn(workspaceRowClass, 'cursor-pointer')}
                     /*
                       SELEÇÃO abre o CONTEXTO; a IDENTIDADE (`poNumber`) continua um link real para
                       a ficha completa. São TRÊS gestos distintos e não misturados: a linha abre o
@@ -700,12 +722,12 @@ export function PurchaseOrdersListPage() {
                     (`poNumber`). Dois codigos na mesma celula so criavam duvida sobre qual
                     procurar no documento impresso.
                   */}
-                  <td className={worklistCellClass}>
+                  <td className={workspaceCellClass}>
                     <WorklistRowLink href={`/app/purchase-orders/${item.id}`}>
                       {item.poNumber}
                     </WorklistRowLink>
                   </td>
-                  <td className={worklistCellRaisedClass}>
+                  <td className={workspaceCellRaisedClass}>
                     <div className="min-w-0">
                       <p className="max-w-[32ch] truncate text-gray-800" title={clientLabel(item)}>
                         {clientLabel(item)}
@@ -720,7 +742,7 @@ export function PurchaseOrdersListPage() {
                     status porque e ela que decide se a linha precisa do operador agora; sem fato
                     que a sustente, a celula mostra so o status.
                   */}
-                  <td className={worklistCellRaisedClass}>
+                  <td className={workspaceCellRaisedClass}>
                     <div className="flex flex-wrap items-center gap-1.5">
                       <PurchaseOrderStatusBadge status={item.status} />
                       {notice ? (
@@ -741,7 +763,7 @@ export function PurchaseOrdersListPage() {
                     Em pedidos com precificacao por itens o `totalAmount` do cabecalho e
                     legitimamente nulo e o valor do pedido mora em `balance.authorizedAmount`.
                   */}
-                  <td className={worklistNumericCellClass}>
+                  <td className={workspaceNumericCellClass}>
                     {formatMoney(authorizedAmount, item.currencyCode)}
                   </td>
                   {/*
@@ -755,7 +777,7 @@ export function PurchaseOrdersListPage() {
                     sobre dois fatos do contrato: nao cria regra, status nem persistencia. Acima do
                     autorizado a barra satura em 100% e o fato e dito em palavras na coluna ao lado.
                   */}
-                  <td className={worklistNumericCellClass}>
+                  <td className={workspaceNumericCellClass}>
                     <span className="block leading-tight">
                       {formatMoney(item.consumedAmount, item.currencyCode)}
                     </span>
@@ -784,7 +806,7 @@ export function PurchaseOrdersListPage() {
                       </span>
                     )}
                   </td>
-                  <td className={worklistNumericCellClass}>
+                  <td className={workspaceNumericCellClass}>
                     {/* Saldo vem da regra de dominio. Quando ela recusa apurar, a celula
                         declara a indisponibilidade em vez de mostrar zero. */}
                     {item.balance ? (
@@ -802,7 +824,7 @@ export function PurchaseOrdersListPage() {
                       <span className="text-[11px] text-gray-500">Não apurável</span>
                     )}
                   </td>
-                  <td className={worklistCellRaisedClass}>
+                  <td className={workspaceCellRaisedClass}>
                     <span className="whitespace-nowrap">
                       {item.issueDate ? formatDate(item.issueDate) : 'Sem data'}
                     </span>
@@ -812,7 +834,7 @@ export function PurchaseOrdersListPage() {
                     peso tipografico proprio porque e ela que diz onde agir; pedido encerrado
                     declara a propria condicao em vez de oferecer um passo que nao existe.
                   */}
-                  <td className={worklistCellRaisedClass}>
+                  <td className={workspaceCellRaisedClass}>
                     <span
                       className={
                         hasPendingStep
@@ -826,39 +848,41 @@ export function PurchaseOrdersListPage() {
                 </tr>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
-      )}
+                </tbody>
+              </table>
+              </div>
+            )}
 
-      {/*
-        RODAPÉ — só existe quando há pedido na página. Com zero registros ele dizia "1–0 nesta
-        página", o que não descreve nada e sugere um dataset inexistente.
-      */}
-      {items.length > 0 ? (
-        <WorklistFooter
-          rangeLabel={`${offset + 1}–${offset + items.length} nesta página`}
-          /*
-            O recorte dos totais e DECLARADO, nao implicito: os valores acima somam a pagina, e a
-            pagina lista um recorte filtrado. Sem isto, paginacao e indicadores poderiam se
-            contradizer na mesma linha.
-          */
-          extra={
-            hasActiveFilters
-              ? 'Totais somam os pedidos filtrados desta página'
-              : 'Totais somam os pedidos desta página'
-          }
-        >
-          <ModulePagination
-            pageNumber={pageNumber}
-            previousDisabled={offset === 0}
-            nextDisabled={!hasMore}
-            onPrevious={() => void loadPage(Math.max(0, offset - PAGE_SIZE))}
-            onNext={() => void loadPage(offset + PAGE_SIZE)}
-          />
-        </WorklistFooter>
-      ) : null}
-      </div>
+            {/*
+              RODAPÉ — só existe quando há pedido na página. Com zero registros ele dizia "1–0 nesta
+              página", o que não descreve nada e sugere um dataset inexistente.
+            */}
+            {items.length > 0 ? (
+              <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-[color:var(--color-divider)] px-3 py-1.5">
+                <p className="m-0 text-[11px] text-[color:var(--color-text-muted)] tabular-nums">
+                  {`${offset + 1}–${offset + items.length} nesta página`}
+                  {/*
+                    O recorte dos totais e DECLARADO, nao implicito: os valores somam a pagina, e a
+                    pagina lista um recorte filtrado. Sem isto, paginacao e indicadores poderiam se
+                    contradizer na mesma linha.
+                  */}
+                  {' · '}
+                  {hasActiveFilters
+                    ? 'Totais somam os pedidos filtrados desta página'
+                    : 'Totais somam os pedidos desta página'}
+                </p>
+                <ModulePagination
+                  pageNumber={pageNumber}
+                  previousDisabled={offset === 0}
+                  nextDisabled={!hasMore}
+                  onPrevious={() => void loadPage(Math.max(0, offset - PAGE_SIZE))}
+                  onNext={() => void loadPage(offset + PAGE_SIZE)}
+                />
+              </div>
+            ) : null}
+          </div>
+        </WorkspacePane>
+      </WorkspaceBody>
 
       {/*
         CONTEXT REGION — decidir sem abandonar a fila.
