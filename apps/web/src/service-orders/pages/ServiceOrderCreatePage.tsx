@@ -205,6 +205,31 @@ export function ServiceOrderCreatePage() {
           <section className="cisne-panel flex flex-col gap-3 px-3 py-3">
             <h2 className="cisne-section-title m-0">Dados da ordem</h2>
 
+            {/*
+              SEM UNIDADE AUTORIZADA, A ORDEM NÃO PODE SER CRIADA — E A TELA DIZ ISSO.
+              
+              O servidor exige `unitId` e recusa qualquer unidade fora do escopo do ator
+              (`assertUnitRegistered`). Quando `operational-units` volta vazio, NÃO existe valor
+              que o operador possa digitar para satisfazer a regra: o `<select>` mostra
+              "Nenhuma unidade autorizada" e o botão fica desabilitado, sem explicar a causa.
+              
+              Este bloco nomeia o bloqueio e o caminho real. Ele NÃO oferece campo livre para
+              unidade: aceitar texto arbitrário só trocaria um bloqueio honesto por um 400 — e
+              pior, sugeriria que a unidade é escolha do operador, quando ela é ESCOPO concedido.
+            */}
+            {unitOptions.length === 0 ? (
+              <p
+                data-testid="so-create-no-unit"
+                role="alert"
+                className="m-0 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900 ring-1 ring-amber-500/30 ring-inset"
+              >
+                <strong className="block">Nenhuma unidade autorizada no seu escopo.</strong>
+                A ordem de serviço exige uma unidade, e a unidade precisa estar concedida ao seu
+                acesso — não é um dado que se digita. Registre a unidade operacional no seu escopo
+                e volte a esta tela.
+              </p>
+            ) : null}
+
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Origem" htmlFor={originId} required>
                 <select

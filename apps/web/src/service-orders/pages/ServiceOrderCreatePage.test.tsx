@@ -146,6 +146,33 @@ describe('Nova OS — contrato de criação', () => {
     expect(values).toContain('PURCHASE_ORDER');
   });
 
+  /*
+   * SEM UNIDADE AUTORIZADA — O ESTADO REAL DE PRODUÇÃO.
+   *
+   * `GET operational-units` devolve `{"items":[]}` em produção, porque nenhuma unidade está
+   * registrada no escopo do ator. O servidor exige `unitId` e recusa unidade fora do escopo
+   * (`assertUnitRegistered`), então NÃO existe valor digitável que satisfaça a regra.
+   *
+   * As duas provas que importam: a tela NOMEIA o bloqueio, e NÃO inventa uma saída falsa —
+   * não oferece campo livre para unidade, o que trocaria um bloqueio honesto por um 400.
+   */
+  it('declara o bloqueio sem oferecer campo livre para a unidade', async () => {
+    const mock = renderCreate({ units: [] });
+    await awaitForm();
+
+    expect(screen.getByTestId('so-create-no-unit')).toHaveTextContent(
+      'Registre a unidade operacional no seu escopo e volte a esta tela.',
+    );
+
+    // O controle continua sendo um SELETOR — não vira texto livre.
+    const select = screen.getByTestId<HTMLSelectElement>('so-create-unit');
+    expect(select.tagName).toBe('SELECT');
+    expect([...select.options].map((option) => option.value)).toEqual(['']);
+
+    // E nenhum POST sai enquanto o bloqueio existir.
+    expect(postCalls(mock)).toHaveLength(0);
+  });
+
   /* As unidades vêm do servidor — o formulário não mantém lista própria. */
   it('oferece as unidades autorizadas publicadas pelo servidor', async () => {
     renderCreate({ units: ['UNIDADE-A', 'UNIDADE-B'] });
@@ -256,7 +283,17 @@ describe('Nova OS — contrato de criação', () => {
     await waitFor(() => {
       expect(screen.getByTestId('so-create-submit')).toBeDisabled();
     });
-    expect(screen.getByText(/nenhuma unidade autorizada/i)).toBeInTheDocument();
+    /*
+     * Consulta pelo TESTID do painel, não por texto solto.
+     *
+     * `getByText(/nenhuma unidade autorizada/i)` passou a casar DOIS nós quando o painel de
+     * bloqueio foi adicionado: a própria `<option>` do seletor tem esse rótulo, e o painel
+     * repete a expressão no título. Ambiguidade real de tela — resolvida aqui apontando para o
+     * nó que este teste quer provar, em vez de afrouxar o matcher.
+     */
+    expect(screen.getByTestId('so-create-no-unit')).toHaveTextContent(
+      'Nenhuma unidade autorizada no seu escopo.',
+    );
   });
 
   /* Falha do servidor vira causa legível, e não um código cru. */
