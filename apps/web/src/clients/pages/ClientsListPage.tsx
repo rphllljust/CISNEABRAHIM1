@@ -10,6 +10,18 @@ import {
 } from '../api/clients-api';
 import { mapClientErrorToMessage } from '../api/client-error-messages';
 import { useClientCapabilities } from '../hooks/useClientCapabilities';
+import { useClientExtendedContext } from '../hooks/useClientExtendedContext';
+import {
+  ClientFinancialSummary,
+  ClientNextActionStrip,
+  ClientQualitySummary,
+  ClientSituationStrip,
+  ContextSection,
+} from '../components/ClientWorkspacePanels';
+import {
+  deriveClientAttention,
+  hierarchyLabel,
+} from '../utils/client-workspace-presentation';
 import {
   CLIENT_LIST_SORTS,
   CLIENT_STATUSES,
@@ -233,6 +245,14 @@ export function ClientsListPage() {
    */
   const related = useClientRelatedRecords(previewId);
   const businessChain = useBusinessChain('CLIENT', previewId ?? '');
+
+  /**
+   * CONTEXTO AMPLIADO DO REGISTRO SELECIONADO — qualidade e financeiro.
+   *
+   * Carregados SOMENTE para o Cliente aberto (nunca para a página inteira): buscar qualidade e
+   * financeiro de 20 linhas seria N+1 no caminho de leitura mais usado do módulo.
+   */
+  const extended = useClientExtendedContext(previewId);
 
   /**
    * FILTRO AVANÇADO — a MESMA engine de metadados do resto do produto.
@@ -931,7 +951,7 @@ export function ClientsListPage() {
                 </th>
                 <th
                   scope="col"
-                  className={cn(headCellClass, 'w-[46%]')}
+                  className={cn(headCellClass, 'w-[34%]')}
                   aria-sort={ariaSortFor(filters, CLIENT_LIST_SORTS.LegalName)}
                 >
                   <button
@@ -945,12 +965,34 @@ export function ClientsListPage() {
                     <span aria-hidden="true">{sortIndicator(filters, CLIENT_LIST_SORTS.LegalName)}</span>
                   </button>
                 </th>
-                <th scope="col" className={cn(headCellClass, 'w-[22%]')}>
+                {/*
+                  ESTRUTURA EMPRESARIAL — COLUNA DE DECISÃO, NÃO DE CADASTRO.
+
+                  O grupo econômico é o que permite ao operador raciocinar por CONTA e não por
+                  linha solta ("esta compra é do Grupo X"). Ele passou a existir no payload nesta
+                  onda e por isso ganha coluna própria; sem dado publicado a célula fica vazia, e
+                  nunca escreve "sem grupo", que soaria como pendência de cadastro.
+                */}
+                <th scope="col" className={cn(headCellClass, 'w-[20%]')}>
+                  Estrutura
+                </th>
+                <th scope="col" className={cn(headCellClass, 'w-[16%]')}>
                   Situação
+                </th>
+                {/*
+                  ATENÇÃO — A COLUNA QUE RESPONDE "EM QUEM EU MEXO AGORA".
+
+                  Substitui o peso que "Próxima ação" ocupava como texto solto: agora o sinal de
+                  exceção (bloqueio, atenção, sem avaliação) e o próximo passo vivem na mesma
+                  célula, com o SINAL primeiro. `unknown` aparece como tal quando a qualidade não
+                  foi carregada para a linha — não vira "em dia".
+                */}
+                <th scope="col" className={cn(headCellClass, 'w-[16%]')}>
+                  Atenção
                 </th>
                 <th
                   scope="col"
-                  className={cn(headCellClass, 'w-[32%]')}
+                  className={cn(headCellClass, 'w-[14%]')}
                   aria-sort={ariaSortFor(filters, CLIENT_LIST_SORTS.UpdatedAt)}
                 >
                   <button
@@ -960,7 +1002,7 @@ export function ClientsListPage() {
                       applyFilters(toggleClientListSort(filters, CLIENT_LIST_SORTS.UpdatedAt))
                     }
                   >
-                    Última atualização
+                    Atualização
                     <span aria-hidden="true">{sortIndicator(filters, CLIENT_LIST_SORTS.UpdatedAt)}</span>
                   </button>
                 </th>
@@ -971,6 +1013,19 @@ export function ClientsListPage() {
                 const href = navigateToClient ? navigateToClient(client) : null;
                 const isInactive = client.status === CLIENT_STATUSES.Inactive;
                 const nextAction = clientNextAction(client, capabilities);
+                /*
+                 * ESTRUTURA E ATENÇÃO SÃO DERIVADAS DO PAYLOAD DA LINHA.
+                 *
+                 * A qualidade NÃO é buscada por linha (seria N+1 na leitura mais usada do módulo),
+                 * então `attention` cai em `unknown` quando não há dado carregado — e a coluna
+                 * exibe isso em vez de afirmar "em dia". Quando o operador abre o contexto do
+                 * registro, a qualidade real chega e o sinal passa a ser o do servidor.
+                 */
+                const structureLabel = hierarchyLabel(client);
+                const attention = deriveClientAttention(
+                  client,
+                  preview.previewRow?.id === client.id ? extended.quality ?? undefined : undefined,
+                );
                 return (
                   <tr
                     key={client.id}
@@ -1060,56 +1115,82 @@ export function ClientsListPage() {
                     </td>
 
                     {/*
-                      ESTADO — EXCEPTION-FIRST, não coloração do dataset.
+                      ESTRUTURA — grupo econômico / matriz / filiais DECLARADOS.
+                      Célula vazia quando não há vínculo: o operador lê a ausência como ausência,
+                      e não como pendência. É o que permite raciocinar por CONTA na fila.
+                    */}
+                    <td className={cn(cellClass, 'z-[1]')}>
+                      {structureLabel ? (
+                        <span className="cisne-type-meta block min-w-0 truncate" title={structureLabel}>
+                          {client.groupName ?? structureLabel}
+                        </span>
+                      ) : null}
+                      {client.childCount > 0 ? (
+                        <span className="cisne-type-helper block truncate">
+                          {client.childCount} {client.childCount === 1 ? 'filial' : 'filiais'}
+                        </span>
+                      ) : client.parentClientName ? (
+                        <span className="cisne-type-helper block truncate">
+                          Matriz: {client.parentClientName}
+                        </span>
+                      ) : null}
+                    </td>
 
-                      A coluna pintava um `StatusBadge` VERDE em cada cliente ativo: dezenove
-                      selos idênticos que não dizem nada e fazem a única linha que importa
-                      (fora de operação) desaparecer no meio. Estado normal fica em TEXTO com
-                      baixo ruído; só a EXCEÇÃO recebe selo e cor. O enum cru nunca aparece.
+                    {/*
+                      SITUAÇÃO — EXCEPTION-FIRST, não coloração do dataset.
+
+                      Estado normal fica em TEXTO com baixo ruído; só a EXCEÇÃO recebe selo e cor.
+                      O enum cru nunca aparece.
                     */}
                     <td className={cn(cellClass, 'z-[1]')}>
                       {isInactive ? (
-                        <span className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
-                          <StatusBadge label={clientStatusLabel(client.status)} tone="error" />
-                          <span
-                            className={cn(
-                              'cisne-type-helper min-w-0 truncate',
-                              nextAction.pending ? 'font-medium text-brand-700' : 'text-gray-400',
-                            )}
-                          >
-                            {nextAction.label}
-                          </span>
-                        </span>
+                        <StatusBadge label={clientStatusLabel(client.status)} tone="error" />
                       ) : (
-                        <span className="flex min-w-0 items-baseline gap-x-1.5">
-                          <span
-                            aria-label={`Status: ${clientStatusLabel(client.status)}`}
-                            className="cisne-type-meta shrink-0"
-                          >
-                            {clientStatusLabel(client.status)}
-                          </span>
-                          <span className="cisne-type-helper min-w-0 truncate text-gray-400">
-                            {nextAction.label}
-                          </span>
+                        <span
+                          aria-label={`Status: ${clientStatusLabel(client.status)}`}
+                          className="cisne-type-meta"
+                        >
+                          {clientStatusLabel(client.status)}
                         </span>
                       )}
                     </td>
 
                     {/*
+                      ATENÇÃO — SINAL PRIMEIRO, PRÓXIMO PASSO DEPOIS.
+
+                      A coluna responde "em quem eu mexo agora": o nível vem da qualidade avaliada
+                      pelo servidor quando existe, e `unknown` é exibido como tal quando não foi
+                      carregada — nunca como "em dia", que afirmaria uma avaliação que ninguém fez.
+                    */}
+                    <td className={cn(cellClass, 'z-[1]')}>
+                      <span className="flex min-w-0 flex-col gap-0.5">
+                        {attention.level === 'blocking' ? (
+                          <StatusBadge label="Bloqueio" tone="error" />
+                        ) : attention.level === 'attention' ? (
+                          <StatusBadge label="Atenção" tone="warning" />
+                        ) : null}
+                        <span
+                          className={cn(
+                            'cisne-type-helper min-w-0 truncate',
+                            nextAction.pending ? 'font-medium text-brand-700' : 'text-gray-400',
+                          )}
+                        >
+                          {attention.reason ?? nextAction.label}
+                        </span>
+                      </span>
+                    </td>
+
+                    {/*
                       TEMPO — a leitura relativa é a que decide ("há 12 dias" ordena a atenção); o
-                      carimbo absoluto é a prova; a criação é contexto subordinado. Três datas
-                      possíveis, uma coluna funcional.
+                      carimbo absoluto é a prova. A criação saiu da linha: é contexto de ficha, não
+                      sinal de fila, e ocupava peso que a estrutura empresarial passou a usar.
                     */}
                     <td className={cn(cellClass, 'z-[1] pr-3')}>
                       <span className="cisne-type-meta whitespace-nowrap">
                         {formatClientListRelative(client.updatedAt, now)}
-                        <span className="cisne-type-helper">
-                          {' · '}
-                          {formatClientListDateTime(client.updatedAt)}
-                        </span>
                       </span>
                       <span className="cisne-type-helper block truncate">
-                        criado em {formatClientListDateTime(client.createdAt)}
+                        {formatClientListDateTime(client.updatedAt)}
                       </span>
                     </td>
                   </tr>
@@ -1289,6 +1370,68 @@ export function ClientsListPage() {
               />
               <div className="mt-2">
                 <BusinessChain chain={businessChain.chain} phase={businessChain.phase} />
+              </div>
+
+              {/*
+                CONTEXTO AMPLIADO — o que o operador precisa ANTES de decidir sair da fila.
+                Quatro seções curtas e reais, na ordem de decisão: o que exige ação, o que o
+                servidor avalia do cadastro, quanto está em aberto, e para onde ir em seguida.
+                Nenhuma delas busca dado para a PÁGINA inteira: só para o registro aberto.
+              */}
+              <div className="mt-3 flex flex-col gap-2.5" data-region="context-extended">
+                <ContextSection title="Situações publicadas">
+                  <ClientSituationStrip
+                    status={detail.client.status}
+                    quality={extended.quality}
+                    financial={extended.financial}
+                  />
+                </ContextSection>
+
+                <ContextSection title="Qualidade do cadastro">
+                  {extended.qualityPhase === 'loading' ? (
+                    <Skeleton lines={2} />
+                  ) : extended.qualityPhase === 'denied' ? (
+                    <p className="cisne-type-helper m-0">
+                      Sem permissão para avaliar a qualidade deste cadastro.
+                    </p>
+                  ) : extended.qualityPhase === 'error' ? (
+                    <p className="cisne-type-helper m-0 text-red-700">
+                      Não foi possível avaliar a qualidade do cadastro.
+                    </p>
+                  ) : (
+                    <ClientQualitySummary quality={extended.quality} />
+                  )}
+                </ContextSection>
+
+                {/*
+                  FINANCEIRO — a seção só existe quando a leitura foi TENTADA. Um ator sem
+                  `finance:receivable:list` recebe 403, e a seção declara a restrição em vez de
+                  sumir em silêncio: sumir faria o operador achar que o Cliente não tem títulos.
+                */}
+                <ContextSection title="Financeiro">
+                  {extended.financialPhase === 'loading' ? (
+                    <Skeleton lines={2} />
+                  ) : extended.financialPhase === 'denied' ? (
+                    <p className="cisne-type-helper m-0" data-region="context-financial-forbidden">
+                      Você não tem permissão para consultar títulos a receber.
+                    </p>
+                  ) : extended.financialPhase === 'error' ? (
+                    <p className="cisne-type-helper m-0 text-red-700">
+                      Não foi possível carregar o contexto financeiro.
+                    </p>
+                  ) : (
+                    <ClientFinancialSummary context={extended.financial} />
+                  )}
+                </ContextSection>
+
+                <ClientNextActionStrip
+                  client={{
+                    ...preview.previewRow!,
+                    status: detail.client.status,
+                  }}
+                  capabilities={capabilities}
+                  href={`/app/clients/${detail.client.id}`}
+                />
               </div>
             </>
           ) : null}

@@ -4,6 +4,7 @@ import {
   ClientsApiError,
   getClientAuditTrail,
   getClientDataQuality,
+  getClientFinancialContext,
   getClientHierarchy,
   setClientHierarchy,
 } from '../api/clients-api';
@@ -11,6 +12,7 @@ import type {
   Client,
   ClientAuditTrail,
   ClientDataQuality,
+  ClientFinancialContext,
   ClientHierarchy,
   ClientHierarchyNode,
 } from '../types/client.types';
@@ -22,6 +24,7 @@ import {
   qualitySeverityLabel,
   qualitySeverityTone,
 } from '../utils/client-360-presentation';
+import { formatMoney } from '../utils/client-workspace-presentation';
 import { ObjectPanel } from '../../enterprise-object';
 import { Button } from '../../ui/Button';
 import { Skeleton } from '../../ui/Skeleton';
@@ -494,6 +497,155 @@ export function ClientDataQualityPanel({ clientId }: { clientId: string }) {
         </ul>
       )}
     </ObjectPanel>
+  );
+}
+
+/* ── financeiro ────────────────────────────────────────────────────────────────────────── */
+
+type FinancialState =
+  | { phase: 'loading' }
+  | { phase: 'denied' }
+  | { phase: 'error' }
+  | { phase: 'ready'; context: ClientFinancialContext };
+
+/**
+ * CONTEXTO FINANCEIRO DO CLIENTE — READ MODEL AUTORITATIVO.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────────────────────
+ * POR QUE ESTA SEÇÃO NÃO SOMA NADA NO FRONTEND
+ * ─────────────────────────────────────────────────────────────────────────────────────────────
+ *
+ * A tentação seria somar as páginas de `GET /finance/receivables?clientId=...`. Isso produziria um
+ * total FALSO: página paginada não é conjunto, e o número exibido mudaria conforme o operador
+ * paginasse. O servidor agrega sob o escopo do ator e publica o resultado pronto.
+ *
+ * TRÊS DESFECHOS, TRÊS LEITURAS DIFERENTES:
+ *
+ *  - valores medidos      → "Em aberto" e, quando houver, "Vencido (n)" em destaque;
+ *  - autorizado e vazio   → "Nenhum título a receber", que é um FATO consultado;
+ *  - não autorizado (403) → a seção DECLARA a restrição. NÃO mostra zero: "R$ 0,00" afirmaria que
+ *    o Cliente não deve nada, quando na verdade o dado não foi lido.
+ */
+export function ClientFinancialContextPanel({ clientId }: { clientId: string }) {
+  const [state, setState] = useState<FinancialState>({ phase: 'loading' });
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setState({ phase: 'loading' });
+    void getClientFinancialContext(clientId, controller.signal)
+      .then((context) => {
+        if (!controller.signal.aborted) {
+          setState({ phase: 'ready', context });
+        }
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+        setState({
+          phase: error instanceof ClientsApiError && error.kind === 'denied' ? 'denied' : 'error',
+        });
+      });
+    return () => controller.abort();
+  }, [clientId]);
+
+  if (state.phase === 'loading') {
+    return (
+      <div aria-busy="true" role="status">
+        <Skeleton lines={2} />
+      </div>
+    );
+  }
+
+  /*
+   * NEGAÇÃO DE ACESSO É DECLARADA, E NÃO CONFUNDIDA COM AUSÊNCIA DE DÍVIDA.
+   * O ator pode ler o Cliente sem ter concessão sobre títulos a receber — e nesse caso o valor é
+   * DESCONHECIDO, não zero.
+   */
+  if (state.phase === 'denied') {
+    return (
+      <p className="cisne-type-helper m-0" role="note" data-region="financial-denied">
+        Sem acesso aos títulos deste Cliente. O valor não é exibido como zero porque ele não foi
+        lido.
+      </p>
+    );
+  }
+
+  if (state.phase === 'error') {
+    return (
+      <p className="cisne-type-helper m-0 text-red-700" role="alert">
+        Não foi possível carregar o contexto financeiro. Isso não significa que o Cliente não tenha
+        títulos.
+      </p>
+    );
+  }
+
+  const { context } = state;
+
+  /* Sem concessão utilizável: o servidor respondeu, mas nenhum título está ao alcance do ator. */
+  if (!context.authorized || context.currencies === null) {
+    return (
+      <p className="cisne-type-helper m-0" role="note" data-region="financial-unauthorized">
+        Os títulos deste Cliente não estão no seu escopo de acesso. O valor não é exibido como zero
+        porque ele não foi lido.
+      </p>
+    );
+  }
+
+  if (context.currencies.length === 0) {
+    return (
+      <p className="cisne-type-meta m-0" data-region="financial-empty">
+        Nenhum título a receber para este Cliente.
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2" data-region="financial-context">
+      {context.currencies.map((totals) => (
+        <dl
+          key={totals.currencyCode}
+          className="m-0 grid grid-cols-[minmax(0,1fr)_auto] gap-x-2.5 gap-y-1"
+        >
+          <dt className="cisne-meta-label pt-0.5">Em aberto</dt>
+          <dd className="m-0 text-right font-mono text-[13px] tabular-nums text-gray-900">
+            {formatMoney(totals.openAmount, totals.currencyCode)}
+          </dd>
+
+          {/*
+            VENCIDO SÓ APARECE QUANDO EXISTE — um "Vencido R$ 0,00" em toda ficha pintaria de
+            vermelho o estado normal e faria a exceção perder significado.
+          */}
+          {totals.overdueCount > 0 ? (
+            <>
+              <dt className="cisne-meta-label pt-0.5">Vencido ({totals.overdueCount})</dt>
+              <dd className="m-0 text-right font-mono text-[13px] font-semibold tabular-nums text-red-700">
+                {formatMoney(totals.overdueAmount, totals.currencyCode)}
+              </dd>
+            </>
+          ) : null}
+
+          {totals.nextDueDate ? (
+            <>
+              <dt className="cisne-meta-label pt-0.5">Próximo vencimento</dt>
+              <dd className="m-0 text-right font-mono text-[13px] tabular-nums text-gray-900">
+                {new Date(totals.nextDueDate).toLocaleDateString('pt-BR')}
+              </dd>
+            </>
+          ) : null}
+
+          <dt className="cisne-meta-label pt-0.5">Faturado</dt>
+          <dd className="m-0 text-right font-mono text-[13px] tabular-nums text-gray-600">
+            {formatMoney(totals.billedAmount, totals.currencyCode)}
+          </dd>
+
+          <dt className="cisne-meta-label pt-0.5">Recebido</dt>
+          <dd className="m-0 text-right font-mono text-[13px] tabular-nums text-gray-600">
+            {formatMoney(totals.receivedAmount, totals.currencyCode)}
+          </dd>
+        </dl>
+      ))}
+    </div>
   );
 }
 

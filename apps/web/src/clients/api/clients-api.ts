@@ -10,6 +10,7 @@ import {
   type ClientDataQuality,
   type ClientDuplicateCheck,
   type ClientErrorCode,
+  type ClientFinancialContext,
   type ClientHierarchy,
   type ClientListDirection,
   type ClientListResponse,
@@ -498,6 +499,26 @@ export async function setClientHierarchy(
     body: JSON.stringify(payload),
     signal,
   });
+}
+
+/**
+ * CONTEXTO FINANCEIRO DO CLIENTE.
+ *
+ * A rota vive sob `finance/receivables` porque o RECURSO é um título a receber recortado por
+ * Cliente, e é ali que mora o vocabulário de autorização (`finance:receivable:list`). O frontend
+ * apenas consome o agregado — ele NÃO soma páginas de recebíveis para produzir total.
+ *
+ * `kind: 'denied'` é um resultado LEGÍTIMO e esperado: o operador pode ler o Cliente sem ter
+ * concessão financeira. Quem chama trata a negação como "não autorizado", nunca como zero.
+ */
+export async function getClientFinancialContext(
+  clientId: string,
+  signal?: AbortSignal,
+): Promise<ClientFinancialContext> {
+  return requestJson<ClientFinancialContext>(
+    `/api/v1/finance/receivables/clients/${clientId}/financial-context`,
+    { method: 'GET', headers: authHeaders(), signal },
+  );
 }
 
 export type ClientCapabilities = {

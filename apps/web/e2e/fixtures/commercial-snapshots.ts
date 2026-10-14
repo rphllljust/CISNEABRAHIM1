@@ -66,6 +66,12 @@ export const COMMERCIAL_CLIENTS_SNAPSHOT: ClientListResponse = {
       version: VISUAL_CLIENT.version,
       createdAt: VISUAL_CLIENT.createdAt,
       updatedAt: VISUAL_CLIENT.updatedAt,
+      // Estrutura empresarial também é publicada na listagem (LEFT JOIN de grupo e matriz).
+      groupId: VISUAL_CLIENT.groupId,
+      groupName: VISUAL_CLIENT.groupName,
+      parentClientId: VISUAL_CLIENT.parentClientId,
+      parentClientName: VISUAL_CLIENT.parentClientName,
+      childCount: VISUAL_CLIENT.childCount,
     },
   ],
   limit: 100,

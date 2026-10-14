@@ -93,9 +93,14 @@ export function buildClientStateFlow(
 }
 
 /**
- * Fatos curtos do cabeçalho: o documento (quando a referência já é o código do ERP) e a data de
- * cadastro. As datas administrativas (atualização, desativação e motivo) ficam no painel
- * administrativo e no histórico — não se repetem aqui.
+ * Fatos curtos do cabeçalho: o documento (quando a referência já é o código do ERP), a ESTRUTURA
+ * EMPRESARIAL declarada e a data de cadastro. As datas administrativas (atualização, desativação e
+ * motivo) ficam no painel administrativo e no histórico — não se repetem aqui.
+ *
+ * GRUPO E MATRIZ ENTRARAM NO CABEÇALHO porque são o que responde "onde este Cliente se encaixa"
+ * antes de o operador rolar a página. Ambos são vínculos DECLARADOS: quando não existem, o campo
+ * simplesmente não aparece — o cabeçalho não escreve "sem grupo", que soaria como pendência de
+ * cadastro quando pode ser apenas um Cliente independente.
  */
 export function buildClientMetadata(client: Client): ObjectMetadataField[] {
   const fields: ObjectMetadataField[] = [];
@@ -105,6 +110,21 @@ export function buildClientMetadata(client: Client): ObjectMetadataField[] {
     if (taxId.trim().length > 0) {
       fields.push({ label: 'CNPJ', value: taxId });
     }
+  }
+
+  if (client.groupName) {
+    fields.push({ label: 'Grupo econômico', value: client.groupName });
+  }
+
+  if (client.parentClientName) {
+    fields.push({ label: 'Matriz', value: client.parentClientName });
+  }
+
+  if (client.childCount > 0) {
+    fields.push({
+      label: 'Filiais',
+      value: String(client.childCount),
+    });
   }
 
   const createdAt = formatTimestamp(client.createdAt);

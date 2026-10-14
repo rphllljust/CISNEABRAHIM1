@@ -59,6 +59,16 @@ function toSummary(client: Client): ClientSummary {
     version: client.version,
     createdAt: client.createdAt,
     updatedAt: client.updatedAt,
+    /*
+     * ESTRUTURA EMPRESARIAL — o servidor publica estes campos na listagem (LEFT JOIN de grupo e
+     * matriz + contagem de filhos). O mock os repassa do Cliente para que a worklist exercite a
+     * coluna de decisão sobre o MESMO contrato que produção devolve.
+     */
+    groupId: client.groupId,
+    groupName: client.groupName,
+    parentClientId: client.parentClientId,
+    parentClientName: client.parentClientName,
+    childCount: client.childCount,
   };
 }
 

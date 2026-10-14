@@ -331,12 +331,18 @@ describe('ClientsListPage', () => {
     renderList();
     await awaitFirstRow();
 
-    const updatedHeader = screen.getByRole('columnheader', { name: /última atualização/i });
+    /*
+     * A COLUNA PASSOU A SE CHAMAR "Atualização".
+     *
+     * O rótulo encurtou porque a grade ganhou colunas de DECISÃO (Estrutura e Atenção) e a
+     * ordenação por tempo deixou de ser o eixo dominante da leitura. O COMPORTAMENTO não mudou:
+     * clicar abre descendente, porque o interesse imediato é o mais recente.
+     */
+    const updatedHeader = screen.getByRole('columnheader', { name: /atualização/i });
     expect(updatedHeader).toHaveAttribute('aria-sort', 'none');
 
     await user.click(within(updatedHeader).getByRole('button'));
 
-    // "Última atualização" abre descendente: o interesse imediato é o mais recente.
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining('sort=updatedAt&direction=desc'),
@@ -344,7 +350,7 @@ describe('ClientsListPage', () => {
       );
     });
     await waitFor(() => {
-      expect(screen.getByRole('columnheader', { name: /última atualização/i })).toHaveAttribute(
+      expect(screen.getByRole('columnheader', { name: /atualização/i })).toHaveAttribute(
         'aria-sort',
         'descending',
       );
@@ -352,10 +358,10 @@ describe('ClientsListPage', () => {
 
     // Clicar de novo inverte.
     await user.click(
-      within(screen.getByRole('columnheader', { name: /última atualização/i })).getByRole('button'),
+      within(screen.getByRole('columnheader', { name: /atualização/i })).getByRole('button'),
     );
     await waitFor(() => {
-      expect(screen.getByRole('columnheader', { name: /última atualização/i })).toHaveAttribute(
+      expect(screen.getByRole('columnheader', { name: /atualização/i })).toHaveAttribute(
         'aria-sort',
         'ascending',
       );

@@ -17,6 +17,7 @@ import { ClientAddressesPanel, ClientUnitsPanel } from '../components/ClientUnit
 import {
   ClientAuditTrailPanel,
   ClientDataQualityPanel,
+  ClientFinancialContextPanel,
   ClientHierarchyPanel,
 } from '../components/ClientHierarchyPanel';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -329,6 +330,17 @@ export function ClientDetailPage() {
             />
 
             <ClientAddressesPanel client={client} />
+
+            {/*
+              CONTEXTO FINANCEIRO — o read model DO SERVIDOR, não uma soma de páginas.
+
+              A seção declara três estados distintos e todos honestos: valores medidos sob o escopo
+              do ator; "sem títulos" quando o servidor consultou e não há nenhum; e "sem acesso"
+              quando o ator não tem concessão financeira. NUNCA zero no lugar de ausência.
+            */}
+            <ObjectPanel title="Financeiro">
+              <ClientFinancialContextPanel clientId={client.id} />
+            </ObjectPanel>
 
             {/*
               QUALIDADE DO CADASTRO — apontamentos reais do servidor.

@@ -112,6 +112,18 @@ export type ClientSummaryRow = {
   version: number;
   created_at: string;
   updated_at: string;
+  /**
+   * ESTRUTURA EMPRESARIAL NA LISTAGEM — vínculo DECLARADO, com o nome já resolvido.
+   *
+   * Entrou na projeção junto com as colunas de decisão da worklist. `null` significa NÃO
+   * DECLARADO: a linha não afirma "sem grupo", apenas não mostra estrutura. Tornar estes campos
+   * obrigatórios no tipo é o que impede a UI de ler um campo que o servidor não publica.
+   */
+  group_id: string | null;
+  group_name: string | null;
+  parent_client_id: string | null;
+  parent_client_name: string | null;
+  child_count: number;
 };
 
 export type ClientSummary = {
@@ -124,6 +136,11 @@ export type ClientSummary = {
   version: number;
   createdAt: string;
   updatedAt: string;
+  groupId: string | null;
+  groupName: string | null;
+  parentClientId: string | null;
+  parentClientName: string | null;
+  childCount: number;
 };
 
 /**
@@ -259,5 +276,10 @@ export function toClientSummaryResponse(row: ClientSummaryRow): ClientSummary {
     version: row.version,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    groupId: row.group_id,
+    groupName: row.group_name,
+    parentClientId: row.parent_client_id,
+    parentClientName: row.parent_client_name,
+    childCount: Number(row.child_count ?? 0),
   };
 }

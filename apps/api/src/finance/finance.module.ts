@@ -14,6 +14,7 @@ import { BankReconciliationController } from './controllers/bank-reconciliation.
 import { BankStatementsController } from './controllers/bank-statements.controller';
 import { BudgetController } from './controllers/budget.controller';
 import { CashFlowForecastController } from './controllers/cash-flow-forecast.controller';
+import { ClientFinancialContextController } from './controllers/client-financial-context.controller';
 import { BankReconciliationRepository } from './repositories/bank-reconciliation.repository';
 import { BudgetRepository } from './repositories/budget.repository';
 import { BankReconciliationAccessService } from './services/bank-reconciliation-access.service';
@@ -22,6 +23,8 @@ import { BudgetAccessService } from './services/budget-access.service';
 import { CashFlowForecastRepository } from './repositories/cash-flow-forecast.repository';
 import { CashFlowForecastAccessAuthz } from './services/cash-flow-forecast-access.authz';
 import { CashFlowForecastAccessService } from './services/cash-flow-forecast-access.service';
+import { ClientFinancialContextRepository } from './repositories/client-financial-context.repository';
+import { ClientFinancialContextService } from './services/client-financial-context.service';
 import { ExpenseFailureInjection } from './domain/expense-failure-injection';
 import { CollectionsRepository } from './repositories/collections.repository';
 import { ExpenseRepository } from './repositories/expense.repository';
@@ -52,6 +55,7 @@ import { TreasuryAccessService } from './services/treasury-access.service';
     BankStatementsController,
     BudgetController,
     CashFlowForecastController,
+    ClientFinancialContextController,
   ],
   providers: [
     ReceivablesRepository,
@@ -78,6 +82,8 @@ import { TreasuryAccessService } from './services/treasury-access.service';
     CashFlowForecastRepository,
     CashFlowForecastAccessAuthz,
     CashFlowForecastAccessService,
+    ClientFinancialContextRepository,
+    ClientFinancialContextService,
     {
       provide: ENTERPRISE_CORE_PORT.FinanceReceivable,
       useExisting: ReceivablesAccessService,

@@ -4,6 +4,8 @@ import { Building2 } from 'lucide-react';
 import { ClientsApiError, createClient } from '../api/clients-api';
 import { mapClientErrorToMessage } from '../api/client-error-messages';
 import { useClientCapabilities } from '../hooks/useClientCapabilities';
+import { useClientDuplicateCheck } from '../hooks/useClientDuplicateCheck';
+import { DuplicateWarning } from '../components/DuplicateWarning';
 import { maskCnpjInput } from '../utils/format-cnpj';
 import {
   buildCreatePayload,
@@ -86,6 +88,31 @@ export function ClientCreatePage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  /**
+   * DUPLICIDADE — consulta o SERVIDOR enquanto o operador digita.
+   *
+   * Ligada APENAS aqui, na criação: editar um Cliente existente acusaria duplicidade contra ele
+   * mesmo. A classificação (prova x suspeita) vem do servidor; esta tela só decide o que fazer com
+   * ela — bloquear com prova, avisar com suspeita, e nunca fundir.
+   */
+  const duplicates = useClientDuplicateCheck({
+    legalName,
+    tradeName,
+    taxId,
+    externalErpId,
+    enabled: true,
+  });
+
+  /*
+   * BLOQUEIO POR DUPLICIDADE PROVADA.
+   *
+   * `duplicates.blocking` só é verdadeiro com coincidência de DOCUMENTO ou de REFERÊNCIA EXTERNA.
+   * Suspeita por nome não bloqueia: empresas distintas podem ter o mesmo nome, e bloquear por
+   * semelhança ensinaria o operador a contornar o aviso. O servidor continua barrando o CNPJ
+   * idêntico no INSERT (409) como segunda barreira.
+   */
+  const blockedByDuplicate = duplicates.blocking;
+
   if (capabilitiesLoading) {
     return (
       <ModuleStatePage title="Novo Cliente">
@@ -105,6 +132,20 @@ export function ClientCreatePage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submitting) {
+      return;
+    }
+
+    /*
+     * SEGUNDA BARREIRA NO CLIENTE, ANTES DA REQUISIÇÃO.
+     *
+     * O bloqueio já desabilita o botão, mas o submit pode ser disparado por Enter no formulário.
+     * Recusar aqui evita uma requisição que o servidor recusaria de qualquer forma — e deixa claro
+     * ao operador POR QUE o cadastro não seguiu, em vez de um 409 genérico.
+     */
+    if (blockedByDuplicate) {
+      setSubmitError(
+        'Há um Cliente com o mesmo documento. Abra o cadastro existente em vez de criar um novo.',
+      );
       return;
     }
 
@@ -168,6 +209,16 @@ export function ClientCreatePage() {
             {submitError}
           </p>
         ) : null}
+
+        {/*
+          AVISO DE DUPLICIDADE — ACIMA DO FORMULÁRIO, E NÃO DEPOIS DELE.
+
+          O operador precisa ver que o Cliente já existe ANTES de preencher o resto. Colocado no
+          rodapé, o aviso chegaria depois do trabalho; aqui ele interrompe a digitação no momento
+          em que o CNPJ (ou o nome) fica completo, que é exatamente quando a informação passa a
+          existir. A checagem roda contra o servidor: nada é comparado no navegador.
+        */}
+        <DuplicateWarning state={duplicates} canRead={capabilities.canRead} />
 
         {/*
           PAINEL DE IDENTIFICACAO — antes este bloco era um `ModulePageHeader` solto sobre o
@@ -366,12 +417,26 @@ export function ClientCreatePage() {
         {/* ACTION BAR: a acao principal fecha o formulario sem sobrepor os ultimos campos. */}
         <StickyActionBar
           className="!static"
-          note="Somente razão social, CNPJ e nome do contato são obrigatórios; informe e-mail ou telefone."
+          note={
+            blockedByDuplicate
+              ? 'Cadastro bloqueado: há um Cliente com o mesmo documento. Abra o cadastro existente.'
+              : 'Somente razão social, CNPJ e nome do contato são obrigatórios; informe e-mail ou telefone.'
+          }
         >
           <Link to="/app/clients" className={SECONDARY_LINK_CLASS}>
             Cancelar
           </Link>
-          <Button type="submit" loading={submitting} loadingText="Salvando…">
+          {/*
+            BLOQUEIO POR DOCUMENTO COINCIDENTE DESABILITA O COMANDO PRIMÁRIO.
+            O botão continua VISÍVEL (em vez de sumir) para que o operador entenda que a ação
+            existe e está impedida — um botão que desaparece faria parecer defeito da tela.
+          */}
+          <Button
+            type="submit"
+            loading={submitting}
+            loadingText="Salvando…"
+            disabled={blockedByDuplicate}
+          >
             Cadastrar Cliente
           </Button>
         </StickyActionBar>

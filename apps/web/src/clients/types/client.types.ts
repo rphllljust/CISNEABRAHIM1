@@ -181,6 +181,44 @@ export type ClientAuditTrail = {
   totalPages: number;
 };
 
+/**
+ * CONTEXTO FINANCEIRO DO CLIENTE — read model agregado no SERVIDOR.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────────────────────
+ * AUSÊNCIA, AUTORIZAÇÃO E ZERO SÃO TRÊS COISAS DIFERENTES.
+ * ─────────────────────────────────────────────────────────────────────────────────────────────
+ *
+ *  - `authorized: false` → o ator não tem concessão financeira utilizável; `currencies` é `null`.
+ *    A seção declara que o dado não está ao alcance dele — NÃO mostra zero.
+ *  - `authorized: true` + `currencies: []` → consultado, e o Cliente não tem título. Isso a UI
+ *    pode afirmar como "sem títulos".
+ *  - Valor numérico → medido sob o escopo do ator, pelo servidor.
+ *
+ * O frontend NUNCA soma páginas de recebíveis para produzir estes números: página paginada não é
+ * conjunto, e o total exibido mudaria conforme o operador paginasse.
+ */
+export type ClientFinancialCurrencyTotals = {
+  currencyCode: string;
+  openAmount: string;
+  overdueAmount: string;
+  dueAmount: string;
+  billedAmount: string;
+  receivedAmount: string;
+  openCount: number;
+  overdueCount: number;
+  dueCount: number;
+  paidCount: number;
+  /** Compromisso mais urgente em aberto. `null` quando não há título com saldo. */
+  nextDueDate: string | null;
+};
+
+export type ClientFinancialContext = {
+  evaluated: boolean;
+  authorized: boolean;
+  currencies: ClientFinancialCurrencyTotals[] | null;
+  asOf: string;
+};
+
 export type Client = {
   id: string;
   legalName: string;
@@ -230,6 +268,17 @@ export type ClientSummary = {
   version: number;
   createdAt: string;
   updatedAt: string;
+  /**
+   * ESTRUTURA EMPRESARIAL — vínculo DECLARADO, resolvido pelo servidor na própria listagem.
+   *
+   * `null` é NÃO DECLARADO, e não "sem grupo": a linha simplesmente não mostra estrutura. Tornar
+   * estes campos obrigatórios no tipo é o que impede a worklist de ler uma coluna sem fonte.
+   */
+  groupId: string | null;
+  groupName: string | null;
+  parentClientId: string | null;
+  parentClientName: string | null;
+  childCount: number;
 };
 
 export const CLIENT_LIST_SORTS = {

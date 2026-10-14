@@ -206,12 +206,24 @@ const CLIENT_FROM = `pty.clients c
        LEFT JOIN pty.clients p ON p.id = c.parent_client_id`;
 
 /**
- * Projeção de listagem: apenas a tabela de Clientes.
+ * Projeção de listagem: Cliente + os DOIS vínculos de estrutura, resolvidos por LEFT JOIN.
  *
- * Sem junção de endereços. `pty.client_addresses` permite várias linhas por Cliente com finalidades
- * distintas (`operational`/`billing`/`correspondence`) e não existe regra empresarial confirmada
- * que eleja um endereço como "a" localidade do Cliente — eleger um seria inventar semântica de
- * negócio. Contatos e endereços permanecem disponíveis no detalhe (`GET /api/v1/clients/:id`).
+ * ─────────────────────────────────────────────────────────────────────────────────────────────
+ * POR QUE GRUPO E MATRIZ ENTRARAM NA LISTAGEM
+ * ─────────────────────────────────────────────────────────────────────────────────────────────
+ *
+ * A worklist passou a ter colunas de DECISÃO, e uma delas é a estrutura empresarial: o operador
+ * precisa raciocinar por CONTA ("esta compra é do Grupo X"), não só por linha solta. Sem publicar
+ * o nome resolvido aqui, a coluna existiria sem fonte — exatamente o defeito que a regra "não
+ * adicione colunas sem origem" existe para impedir.
+ *
+ * O custo é um LEFT JOIN por índice (`group_id` e `parent_client_id` têm índice desde a migration
+ * 0097) e um `count` correlacionado sobre `clients_parent_client_id_idx`. A alternativa seria uma
+ * requisição por linha para descobrir a estrutura, que é N+1 no caminho de leitura mais usado do
+ * módulo.
+ *
+ * Continua SEM junção de endereços: `pty.client_addresses` permite várias linhas por Cliente com
+ * finalidades distintas e não existe regra confirmada que eleja um endereço como "a" localidade.
  */
 const CLIENT_SUMMARY_COLUMNS = `c.id,
               c.legal_name,
@@ -220,7 +232,17 @@ const CLIENT_SUMMARY_COLUMNS = `c.id,
               c.status,
               c.version,
               c.created_at,
-              c.updated_at`;
+              c.updated_at,
+              c.group_id,
+              g.name AS group_name,
+              c.parent_client_id,
+              p.legal_name AS parent_client_name,
+              (SELECT count(*)::int FROM pty.clients ch WHERE ch.parent_client_id = c.id) AS child_count`;
+
+/** FROM da listagem — os mesmos LEFT JOINs do detalhe, sem tocar nas coleções filhas. */
+const CLIENT_SUMMARY_FROM = `pty.clients c
+       LEFT JOIN pty.client_groups g ON g.id = c.group_id
+       LEFT JOIN pty.clients p ON p.id = c.parent_client_id`;
 
 
 @Injectable()
@@ -279,7 +301,7 @@ export class ClientsRepository {
   ): Promise<ClientSummaryRow[]> {
     const result = await this.pool().query<ClientSummaryRow>(
       `SELECT ${CLIENT_SUMMARY_COLUMNS}
-       FROM pty.clients c
+       FROM ${CLIENT_SUMMARY_FROM}
        WHERE ${sqlParts.whereClause}
        ORDER BY ${sqlParts.orderBy}
        LIMIT $${sqlParts.params.length + 1}
@@ -295,8 +317,17 @@ export class ClientsRepository {
    */
   async countClientList(whereClause: string, params: unknown[]): Promise<number> {
     const result = await this.pool().query<{ total: string }>(
+      /*
+       * O MESMO FROM DA PÁGINA — e isso é uma correção, não uma conveniência.
+       *
+       * O predicado de escopo qualifica `c.id` (a mesma qualificação usada na listagem). Com
+       * `FROM pty.clients c` puro a contagem até funcionaria, mas contaria sobre um conjunto
+       * definido por um FROM DIFERENTE do da página: qualquer JOIN acrescentado à listagem que
+       * pudesse multiplicar linhas faria o total divergir da página em silêncio. Reusar a
+       * constante mantém as duas consultas sobre o MESMO conjunto por construção.
+       */
       `SELECT COUNT(*)::text AS total
-       FROM pty.clients c
+       FROM ${CLIENT_SUMMARY_FROM}
        WHERE ${whereClause}`,
       params,
     );
