@@ -193,17 +193,34 @@ export function OperationsWorkspacePage() {
 
   return (
     <ModulePage layout="workspace">
-      <WorklistHeader
-        title="Operações"
-        count={data ? (data.inExecution.data?.length ?? 0) + (data.paused.data?.length ?? 0) : null}
-        context="Execução em curso, ordens sem medição, fila de trabalho do domínio e a carteira liberada. Exceção primeiro; cada item abre a ordem que o forma."
-        action={
-          <Button type="button" variant="secondary" onClick={reload}>
-            Atualizar
-          </Button>
-        }
-      />
+      {/*
+        GRAMATICA DE REGIOES NA WORKSPACE OPERACIONAL.
 
+        Esta e a superficie onde o operador PASSA O DIA, e era uma das duas workspaces sem
+        nenhuma `data-region`. A governanca de divisor em `theme.css` casa `#main-content > *
+        + *` e `[data-region] + [data-region]`: sem as regioes, o cabecalho e as quatro zonas
+        de trabalho ficavam colados, sem a regua que separa "onde estou" de "o que esta em
+        execucao".
+
+        A ORDEM AQUI E A DO TRABALHO, nao a de leitura: excecao primeiro (execucao em curso e
+        pausadas), depois o que falta medir, depois a fila liberada. E a sequencia em que um
+        coordenador de operacoes olha a mesa.
+      */}
+      <div data-region="work-surface">
+      <div data-region="operating-header">
+        <WorklistHeader
+          title="Operações"
+          count={data ? (data.inExecution.data?.length ?? 0) + (data.paused.data?.length ?? 0) : null}
+          context="Execução em curso, ordens sem medição, fila de trabalho do domínio e a carteira liberada. Exceção primeiro; cada item abre a ordem que o forma."
+          action={
+            <Button type="button" variant="secondary" onClick={reload}>
+              Atualizar
+            </Button>
+          }
+        />
+      </div>
+
+      <div data-region="worklist-master">
       {state.phase === 'loading' ? (
         <WorklistStatePanel
           title="Lendo a operação"
@@ -323,6 +340,8 @@ export function OperationsWorkspacePage() {
           <DomainWorkZones domain="OPERACOES" />
         </>
       ) : null}
+      </div>
+      </div>
 
       {/*
         CONTEXTO DA ORDEM — o mesmo primitivo lateral das demais filas, com a CADEIA DE NEGOCIO e o

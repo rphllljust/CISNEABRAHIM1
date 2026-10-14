@@ -386,15 +386,21 @@ export function OperationalDashboardPage() {
   if (state.phase === 'loading') {
     return (
       <ModulePage layout="workspace">
-        <DashboardWorkbenchHeader
-          {...headerProps}
-          unitLabel={unitLabel}
-          periodLabel={null}
-          generatedAt={null}
-          generatedAtFormatted={null}
-          activeFilters={[]}
-        />
-        <OperationalDashboardSkeleton />
+        <div data-region="work-surface">
+          <div data-region="operating-header">
+            <DashboardWorkbenchHeader
+              {...headerProps}
+              unitLabel={unitLabel}
+              periodLabel={null}
+              generatedAt={null}
+              generatedAtFormatted={null}
+              activeFilters={[]}
+            />
+          </div>
+          <div data-region="worklist-master">
+            <OperationalDashboardSkeleton />
+          </div>
+        </div>
       </ModulePage>
     );
   }
@@ -402,18 +408,24 @@ export function OperationalDashboardPage() {
   if (state.phase === 'denied') {
     return (
       <ModulePage layout="workspace">
-        <DashboardWorkbenchHeader
-          {...headerProps}
-          unitLabel={unitLabel}
-          periodLabel={null}
-          generatedAt={null}
-          generatedAtFormatted={null}
-          activeFilters={[]}
-        />
-        <ModuleDeniedState
-          title="Visão geral"
-          message="Você não tem permissão para visualizar a visão geral."
-        />
+        <div data-region="work-surface">
+          <div data-region="operating-header">
+            <DashboardWorkbenchHeader
+              {...headerProps}
+              unitLabel={unitLabel}
+              periodLabel={null}
+              generatedAt={null}
+              generatedAtFormatted={null}
+              activeFilters={[]}
+            />
+          </div>
+          <div data-region="worklist-master">
+            <ModuleDeniedState
+              title="Visão geral"
+              message="Você não tem permissão para visualizar a visão geral."
+            />
+          </div>
+        </div>
       </ModulePage>
     );
   }
@@ -463,6 +475,18 @@ export function OperationalDashboardPage() {
 
   return (
     <ModulePage layout="workspace">
+      {/*
+        GRAMATICA DE REGIOES NA CENTRAL OPERACIONAL.
+
+        Esta e a superficie de entrada do produto e era uma das duas workspaces sem nenhuma
+        `data-region`. O cockpit tem layout interno proprio (`dashboard-cc` com zona de trabalho
+        e zona de contexto), mas o CABECALHO e as ZONAS externas ficavam colados: a regua que
+        separa "onde estou / qual recorte" de "o que a operacao mostra" e desenhada pela
+        governanca global a partir das regioes, e sem elas a faixa de orientacao se confundia
+        com o primeiro bloco de dado.
+      */}
+      <div data-region="work-surface">
+      <div data-region="operating-header">
       <DashboardWorkbenchHeader
         {...headerProps}
         unitLabel={unitLabel}
@@ -474,6 +498,7 @@ export function OperationalDashboardPage() {
         generatedAt={snapshot?.generatedAt ?? null}
         generatedAtFormatted={snapshot ? formatGeneratedAt(snapshot.generatedAt) : null}
       />
+      </div>
 
       {state.phase === 'error' ? (
         <div className="dashboard-alert" role="alert">
@@ -489,6 +514,7 @@ export function OperationalDashboardPage() {
           className={cn('dashboard-cc', selected && 'dashboard-cc--context')}
           role="group"
           aria-label="Central operacional"
+          data-region="worklist-master"
         >
           {/* ZONA DE TRABALHO — leitura e processamento. */}
           <div className="dashboard-cc__work">
@@ -776,6 +802,7 @@ export function OperationalDashboardPage() {
           </nav>
         </div>
       ) : null}
+      </div>
     </ModulePage>
   );
 }
