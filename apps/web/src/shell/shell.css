@@ -29,7 +29,14 @@
 
 .shell__sidebar {
   background: var(--color-shell-surface);
-  box-shadow: inset -1px 0 0 rgb(255 255 255 / 5%);
+  /*
+   * A DIVISA DO CHROME e translucida (`rgba(255,255,255,0.08)`), nao um cinza solido.
+   *
+   * Sobre navy, uma linha de 1px em cinza claro le como BORDA de caixa; uma linha branca a 8% le
+   * como DEGRAU de superficie — que e o que ela e. Um inset extra de 5% (que existia aqui) somava
+   * 13% de branco no mesmo pixel e engordava a divisa sem motivo.
+   */
+  box-shadow: none;
 }
 
 .shell__brand {
@@ -51,24 +58,44 @@
 }
 
 /*
-  WORKSPACE CANVAS — a superficie onde o operador opera.
+  ═══════════════════════════════════════════════════════════════════════════════════════════════
+  CORRECAO DE COMPOSICAO — O CANVAS VOLTA A SER CANVAS (NAO UMA FOLHA BRANCA).
 
-  Antes: tres gradientes decorativos sobre um canvas cinza, e dentro dele uma MOLDURA BRANCA com
-  borda, raio e padding proprio. O resultado perceptivel, em TODA pagina, era sempre o mesmo:
+  O DEFEITO, e ele NAO era de token.
 
-      fundo cinza -> retangulo branco -> cartoes empilhados -> tabela dentro de card.
+  A area de conteudo do shell era pintada com `--color-canvas` (cinza), e cada pagina desenhava a
+  PROPRIA superficie de trabalho. Enquanto foi assim, a hierarquia existia: o operador via
 
-  Isso e o DNA visual de DOCUMENTO, nao de ferramenta: uma folha sobre uma mesa. Num ERP denso nao
-  existe folha — a area de trabalho E a superficie, de ponta a ponta, e a hierarquia vem de REGIAO
-  ESTRUTURAL (divisor, faixa de comando, cabecalho de grade), nao de uma caixa flutuando num fundo
-  de cor diferente.
+      chrome navy  ->  canvas  ->  superficie de trabalho branca
 
-  Por isso o canvas da area de trabalho passa a ser a superficie de trabalho (`--color-canvas-work`)
-  e a moldura deixa de pintar FUNDO PROPRIO: se as duas continuassem com cores diferentes, a "folha
-  branca" apenas reapareceria mais larga. O contraste do sistema passa a vir do shell (sidebar e
-  topbar), que e onde ele significa alguma coisa.
+  Em algum momento a decisao foi invertida: o canvas do shell passou a ser BRANCO
+  (`--color-canvas-work`) com a justificativa de que "a area de trabalho E a superficie, de ponta a
+  ponta". O efeito medido foi o OPOSTO do pretendido, porque as paginas nunca deixaram de desenhar a
+  propria moldura:
 
-  Isto muda TODA pagina nao editada de uma vez, porque nenhuma delas desenha o proprio frame.
+      shell__content   BRANCO      (virou a folha)
+      shell-page-frame BRANCO      (mesma cor: nenhum degrau)
+      painel da fila   BRANCO      (terceira camada branca sobreposta)
+
+  Tres superficies empilhadas na MESMA cor nao produzem profundidade nenhuma. O que o operador ve e
+  uma unica folha branca infinita de ponta a ponta, com a sidebar navy colada de um lado: nao existe
+  "onde estou" x "onde trabalho", e a Coluna de Contexto (`#f5f6f7`, 4 pontos de diferenca) fica
+  indistinguivel do trabalho. Foi exatamente isso que produziu a leitura de "painel administrativo
+  generico" — nao a paleta, mas a AUSENCIA DE DEGRAU entre as camadas.
+
+  A REGRA, agora aplicada por composicao e nao por token:
+
+      LEVEL 0  shell__content  = --color-canvas       cinza neutro. O PLANO DE FUNDO.
+      LEVEL 1  painel de fila  = --color-canvas-work  BRANCO. Onde o operador opera.
+      LEVEL 2  contexto        = --color-surface-context  cinza mais frio. Apoio.
+
+  Canvas != work surface. Work surface == branco. Support != work surface. Support != canvas.
+  Os tres valores ja existiam no tema; o que faltava era o shell PARAR de pintar branco por cima do
+  canvas e deixar cada REGIAO declarar a propria camada (WorkspacePane surface=work|support).
+
+  Isto e uma correcao de COMPOSICAO: nenhuma pagina precisa saber disso, e nenhuma pagina que ja
+  declara `WorkspacePane surface=...` muda de comportamento.
+  ═══════════════════════════════════════════════════════════════════════════════════════════════
 */
 .shell__content {
   background: var(--color-canvas);
@@ -88,17 +115,33 @@
 }
 
 /*
-  MOLDURA QUE PREENCHE — a bancada ocupa a altura que o shell deixou.
+  MOLDURA QUE PREENCHE — a bancada ocupa a altura que o shell deixou, E NAO MAIS QUE ELA.
 
   Sem isto, uma worklist com dois registros media a altura do proprio conteudo: o painel da grade
   encolhia ate o tamanho do dado e o restante da viewport ficava branco (medido: 403px em Clientes,
   489px em Minhas pendencias, em 1600x900). Com a moldura preenchendo, a grade tem altura definida e
   a superficie pode ser elastica — a silhueta passa a ser a mesma com 2 ou com 200 registros.
+
+  ─────────────────────────────────────────────────────────────────────────────────────────────
+  `flex: 1 1 auto` NAO BASTAVA — FALTAVA O LIMITE SUPERIOR. MEDIDO.
+
+  Com `flex-basis: auto`, a base do flex e o TAMANHO DO CONTEUDO. Se um filho for mais alto que a
+  viewport (a coluna de contexto da Central Financeira media 3917px), a moldura CRESCE junto: ela
+  "preenche" e "transborda" ao mesmo tempo. Medicao a 1600x900:
+
+      .shell__content = 1380 x 4093 px      (4,5 viewports)
+
+  A regra que a moldura declara — "a silhueta e a mesma com 2 ou com 200 registros" — so vale se a
+  altura for LIMITADA pela viewport. Por isso `flex-basis: 0`: a base deixa de ser o conteudo e
+  passa a ser zero, e a moldura ocupa exatamente o espaco livre do shell. O que passa disso rola
+  DENTRO da regiao que declara rolagem (a grade, ou a coluna de apoio) — nunca empurra a pagina.
+  ─────────────────────────────────────────────────────────────────────────────────────────────
 */
 .shell-page-frame--fill {
   display: flex;
   min-height: 0;
-  flex: 1 1 auto;
+  /* A BASE E ZERO, NAO O CONTEUDO. Ver nota acima: e o que impede a moldura de transbordar. */
+  flex: 1 1 0;
   flex-direction: column;
 }
 

@@ -1091,7 +1091,11 @@ export function ClientsListPage() {
                 operacional antes de qualquer clique — e a coluna continua estável, sem "salto"
                 quando a primeira linha é selecionada.
               */
-              <WorkspacePane aria-label="Contexto do cliente" className="h-full overflow-auto">
+              <WorkspacePane
+                surface="support"
+                aria-label="Contexto do cliente"
+                className="h-full overflow-auto"
+              >
                 <WorkspacePaneHeader title="Contexto do cliente" />
                 <ContextSection title="Carteira neste recorte">
                   <ContextFacts
@@ -1125,12 +1129,36 @@ export function ClientsListPage() {
                   )}
                 </ContextSection>
 
-                <ContextSection title="Como usar">
-                  <ul className="cisne-type-body m-0 list-disc space-y-1 pl-4 text-[color:var(--color-text-secondary)]">
-                    <li>Clique numa linha para abrir o contexto do cliente aqui, sem sair do recorte.</li>
-                    <li>O nome do cliente abre a ficha completa (Customer 360).</li>
-                    <li>Marque as caixas à esquerda para aplicar um comando em lote.</li>
-                  </ul>
+                {/*
+                  CONTEXTO E DADO DE NEGOCIO, NAO TUTORIAL.
+
+                  Aqui havia uma secao "Como usar" com tres instrucoes de interface ("clique numa
+                  linha para abrir o contexto...", "marque as caixas a esquerda..."). Um ERP nao
+                  ensina o proprio produto dentro da coluna de contexto: essa coluna existe para
+                  responder "o que e este trabalho", e cada pixel gasto explicando a tela e um dado
+                  que o operador nao ve.
+
+                  O que fica no lugar e a ESTRUTURA DA CARTEIRA no recorte — o fato que a coluna
+                  pode afirmar com o que foi publicado, sem inventar agregacao que o servidor nao
+                  mandou.
+                */}
+                <ContextSection title="Estrutura da carteira">
+                  <ContextFacts
+                    facts={[
+                      { label: 'Recorte', value: scope },
+                      {
+                        label: 'Operação',
+                        value:
+                          inactiveOnPage > 0
+                            ? `${formatClientCount(inactiveOnPage)} fora de operação`
+                            : 'Todos em operação',
+                      },
+                      {
+                        label: 'Leitura',
+                        value: hasCatalog ? 'Publicada pelo servidor' : 'Sem carteira autorizada',
+                      },
+                    ]}
+                  />
                 </ContextSection>
               </WorkspacePane>
             ) : (
@@ -1170,7 +1198,29 @@ export function ClientsListPage() {
           </div>
         }
       >
-        <WorkspacePane aria-busy={isRefreshing} className="h-full overflow-hidden">
+        {/*
+          A REGIAO DE TRABALHO E DECLARADA NO PROPRIO PAINEL — E NAO NUM WRAPPER INTERNO.
+
+          DEFEITO MEDIDO, corrigido aqui. Em Clientes o `data-region="worklist-master"` estava num
+          `<div>` TRANSPARENTE dentro do `WorkspacePane`:
+
+              ANCESTOR[0]  region=worklist-master  bg=rgba(0, 0, 0, 0)   940x660   <- a regiao
+              ANCESTOR[1]  region=-                bg=rgb(255, 255, 255)  942x662   <- a superficie
+
+          Consequencia: a REGIAO publicada pela tela nao era a superficie de trabalho, e qualquer
+          leitura de "qual e o fundo da area de trabalho em Clientes" media o wrapper e devolvia
+          TRANSPARENTE. Foi exatamente o que a prova de contrato acusou — e a assimetria era real:
+          em Contas a Receber a mesma regiao esta no painel, aqui estava num filho.
+
+          A regiao passa a ser declarada pelo painel, igual as outras bancadas do produto. O wrapper
+          interno continua existindo, porque ele e quem governa o flex da grade — so deixa de
+          carregar a identidade da regiao.
+        */}
+        <WorkspacePane
+          aria-busy={isRefreshing}
+          className="h-full overflow-hidden"
+          data-region="worklist-master"
+        >
           {isEmptyCatalogue ? (
             <WorkspaceEmpty
               title="Nenhum Cliente cadastrado ainda."
@@ -1220,7 +1270,7 @@ export function ClientsListPage() {
           ) : null}
 
           {items.length > 0 ? (
-            <div className="flex min-h-0 flex-1 flex-col" data-region="worklist-master">
+            <div className="flex min-h-0 flex-1 flex-col">
               <div className="min-h-0 flex-1 overflow-auto">
                 <table
                   className="w-full table-fixed border-separate border-spacing-0"

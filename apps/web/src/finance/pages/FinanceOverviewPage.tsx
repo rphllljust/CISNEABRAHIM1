@@ -35,6 +35,7 @@ import { FinanceTitleQueues } from '../components/FinanceTitleQueues';
 import { FinanceSituationStrip } from '../components/FinanceSituation';
 import { StatusBadge } from '../../ui/StatusBadge';
 import { WorkbenchQueue, WorkbenchQueueItem } from '../../ui/workbench';
+import { ContextSection, WorkspaceBody, WorkspacePane } from '../../ui/workspace-frame';
 import {
   getPayablesAging,
   listPayables,
@@ -144,12 +145,7 @@ function isPositionEmpty(data: OverviewData): boolean {
   // `total` pode vir ausente numa leitura vazia; posicao sem titulo nenhum e vazia de fato.
   const receivableTotal = receivables.data.total ?? 0;
   const payableTotal = payables.data.total ?? 0;
-  return (
-    receivableTotal === 0 &&
-    payableTotal === 0 &&
-    accounts.data.length === 0 &&
-    agingIsZero
-  );
+  return receivableTotal === 0 && payableTotal === 0 && accounts.data.length === 0 && agingIsZero;
 }
 
 /**
@@ -174,7 +170,9 @@ function pageTotal(page: FinanceTitlePage<unknown> | null): number | null {
  * do recorte devolve mais linhas do que a pagina carregada, o valor e declarado como piso
  * (`+`), com a contagem que o acompanha, em vez de passar por total do dominio.
  */
-function sumOpenBalance(page: FinanceTitlePage<{ remainingBalance: string }> | null): string | null {
+function sumOpenBalance(
+  page: FinanceTitlePage<{ remainingBalance: string }> | null,
+): string | null {
   if (!page || !Array.isArray(page.items)) {
     return null;
   }
@@ -277,7 +275,8 @@ export function FinanceOverviewPage() {
     return null;
   }
 
-  const { receivables, payables, overdueReceivables, overduePayables, accounts, aging } = state.data;
+  const { receivables, payables, overdueReceivables, overduePayables, accounts, aging } =
+    state.data;
   const agingEntries = aging.data ? Object.entries(aging.data.buckets) : [];
   const positionIsEmpty = isPositionEmpty(state.data);
 
@@ -298,9 +297,8 @@ export function FinanceOverviewPage() {
   /** Dinheiro do recorte vencido — somado sobre o recorte inteiro, nunca sobre a amostra. */
   const overdueReceivableAmount = sumOpenBalance(overdueReceivables.data);
   const overduePayableAmount = sumOpenBalance(overduePayables.data);
-  const overdueCurrency = overdueReceivables.data?.items[0]?.currencyCode
-    ?? receivableItems[0]?.currencyCode
-    ?? 'BRL';
+  const overdueCurrency =
+    overdueReceivables.data?.items[0]?.currencyCode ?? receivableItems[0]?.currencyCode ?? 'BRL';
   /** Recorte vencido maior que a pagina carregada: o valor e piso, e a tela diz isso. */
   const overdueIsPartial =
     !isFullyLoaded(overdueReceivables.data) || !isFullyLoaded(overduePayables.data);
@@ -314,7 +312,10 @@ export function FinanceOverviewPage() {
    * A UNICA excecao e o vencido, e ela e deliberada: aquele valor vem do recorte
    * `?status=OVERDUE` inteiro, contado e somado pelo servidor — nao da amostra da primeira dobra.
    */
-  const agingTitleCount = agingEntries.reduce((total, [, item]) => total + Number(item.count || 0), 0);
+  const agingTitleCount = agingEntries.reduce(
+    (total, [, item]) => total + Number(item.count || 0),
+    0,
+  );
 
   /** Moeda do aging a pagar: vem do proprio titulo a pagar devolvido pelo servidor. */
   const agingCurrency = payableItems[0]?.currencyCode ?? 'BRL';
@@ -348,15 +349,30 @@ export function FinanceOverviewPage() {
         recorte" (operating-header) se separa do "que a operacao financeira mostra" (situation,
         priority queue, posicao).
       */}
-      <div data-region="work-surface">
-      <div data-region="operating-header">
-      <WorklistHeader
-        title="Financeiro"
-        context="Central de operações financeiras: o que exige decisão agora, o que está vencido e onde está o dinheiro. Cada número abre os registros que o formam."
-      />
-      </div>
-
       {/*
+        SUPERFICIE DE TRABALHO — o conteiner de TODAS as regioes da central.
+
+        PRECISA SER UM FLEX COLUMN DE ALTURA LIMITADA. Um `<div>` de bloco comum QUEBRA a cadeia de
+        altura do shell: o `<main>` acima dele e `flex-1` (com altura ja definida), mas um filho de
+        bloco NAO repassa essa altura para os netos. Resultado medido a 1600x900:
+
+            .shell__content                   = 1380 x 850    (correto, limitado pela viewport)
+            [data-region="work-surface"] e filhos  =  ... x 3918   (estourado)
+
+        O `WorkspaceBody` la dentro e `flex-1 min-h-0`; sem um pai FLEX de altura definida, `flex-1`
+        resolve contra o CONTEUDO e a divisao principal cresce indefinidamente. Com
+        `flex min-h-0 flex-1 flex-col`, a altura do shell CHEGA ate a grade e a coluna de apoio
+        passa a rolar dentro do proprio espaco — que e exatamente a regra da moldura.
+      */}
+      <div className="flex min-h-0 flex-1 flex-col" data-region="work-surface">
+        <div data-region="operating-header">
+          <WorklistHeader
+            title="Financeiro"
+            context="Central de operações financeiras: o que exige decisão agora, o que está vencido e onde está o dinheiro. Cada número abre os registros que o formam."
+          />
+        </div>
+
+        {/*
         FAIXA DE SITUACAO — a PRIMEIRA leitura, e nao uma parede de cards.
 
         Ela responde, em uma linha densa, as quatro perguntas que o operador faz ao abrir a central:
@@ -367,60 +383,61 @@ export function FinanceOverviewPage() {
         A faixa substitui a abertura por blocos: antes a tela comecava pela fila de excecoes e a
         posicao vinha depois, de modo que o operador lia o problema antes de saber o tamanho dele.
       */}
-      <div data-region="situation-surface" className="pt-2">
-        <FinanceSituationStrip
-          items={[
-            {
-              id: 'overdue-receivable',
-              label: 'Vencido a receber',
-              value: overdueReceivableCount === null ? null : String(overdueReceivableCount),
-              note:
-                overdueReceivableAmount === null
-                  ? 'valor não publicado'
-                  : `${formatMoneyBrl(overdueReceivableAmount)}${overdueIsPartial ? ' (mínimo nas linhas lidas)' : ''}`,
-              tone: (overdueReceivableCount ?? 0) > 0 ? 'critical' : 'neutral',
-              to: receivableHref('overdue'),
-            },
-            {
-              id: 'overdue-payable',
-              label: 'Vencido a pagar',
-              value: overduePayableCount === null ? null : String(overduePayableCount),
-              note:
-                overduePayableAmount === null
-                  ? 'valor não publicado'
-                  : `${formatMoneyBrl(overduePayableAmount)}${overdueIsPartial ? ' (mínimo nas linhas lidas)' : ''}`,
-              tone: (overduePayableCount ?? 0) > 0 ? 'critical' : 'neutral',
-              to: payableHref('overdue'),
-            },
-            {
-              id: 'receivable-open',
-              label: 'Recebíveis em aberto',
-              value: receivablesInFlight === null ? null : String(receivablesInFlight),
-              note: 'contagem do recorte completo',
-              tone: 'info',
-              to: receivableHref('open'),
-            },
-            {
-              id: 'payable-open',
-              label: 'Pagáveis em aberto',
-              value: payablesInFlight === null ? null : String(payablesInFlight),
-              note: 'contagem do recorte completo',
-              tone: 'warning',
-              to: payableHref('open'),
-            },
-            {
-              id: 'accounts',
-              label: 'Contas financeiras',
-              value: accountCount === null ? null : String(accountCount),
-              note: accountCount === null ? 'tesouraria indisponível' : 'saldo publicado por conta',
-              tone: 'neutral',
-              to: '/app/finance/treasury',
-            },
-          ]}
-        />
-      </div>
+        <div data-region="situation-surface" className="pt-2">
+          <FinanceSituationStrip
+            items={[
+              {
+                id: 'overdue-receivable',
+                label: 'Vencido a receber',
+                value: overdueReceivableCount === null ? null : String(overdueReceivableCount),
+                note:
+                  overdueReceivableAmount === null
+                    ? 'valor não publicado'
+                    : `${formatMoneyBrl(overdueReceivableAmount)}${overdueIsPartial ? ' (mínimo nas linhas lidas)' : ''}`,
+                tone: (overdueReceivableCount ?? 0) > 0 ? 'critical' : 'neutral',
+                to: receivableHref('overdue'),
+              },
+              {
+                id: 'overdue-payable',
+                label: 'Vencido a pagar',
+                value: overduePayableCount === null ? null : String(overduePayableCount),
+                note:
+                  overduePayableAmount === null
+                    ? 'valor não publicado'
+                    : `${formatMoneyBrl(overduePayableAmount)}${overdueIsPartial ? ' (mínimo nas linhas lidas)' : ''}`,
+                tone: (overduePayableCount ?? 0) > 0 ? 'critical' : 'neutral',
+                to: payableHref('overdue'),
+              },
+              {
+                id: 'receivable-open',
+                label: 'Recebíveis em aberto',
+                value: receivablesInFlight === null ? null : String(receivablesInFlight),
+                note: 'contagem do recorte completo',
+                tone: 'info',
+                to: receivableHref('open'),
+              },
+              {
+                id: 'payable-open',
+                label: 'Pagáveis em aberto',
+                value: payablesInFlight === null ? null : String(payablesInFlight),
+                note: 'contagem do recorte completo',
+                tone: 'warning',
+                to: payableHref('open'),
+              },
+              {
+                id: 'accounts',
+                label: 'Contas financeiras',
+                value: accountCount === null ? null : String(accountCount),
+                note:
+                  accountCount === null ? 'tesouraria indisponível' : 'saldo publicado por conta',
+                tone: 'neutral',
+                to: '/app/finance/treasury',
+              },
+            ]}
+          />
+        </div>
 
-      {/*
+        {/*
         A FILA FINANCEIRA — categoria, nao item.
 
         Esta fila e da POSICAO: agrega categorias inteiras de excecao ("12 titulos vencidos",
@@ -429,320 +446,368 @@ export function FinanceOverviewPage() {
         como zona de trabalho. As duas nao competem: uma diz o tamanho do problema, a outra entrega
         o trabalho.
       */}
-      <div data-region="priority-queue-surface" className="pt-2">
-      <WorkbenchQueue
-        title="Exceções financeiras"
-        description="Recortes publicados pelo servidor. A ação abre exatamente o conjunto representado."
-        emptyTitle="Nenhuma exceção financeira"
-        emptyDescription="Nenhum título vencido e nenhuma conta pendente de leitura neste escopo."
-      >
-        {overdueReceivables.error ? (
-          <p role="alert" className="m-0 py-2 text-[13px] text-red-700">
-            Recorte de recebíveis vencidos indisponível: {overdueReceivables.error}
-          </p>
-        ) : (overdueReceivableCount ?? 0) > 0 ? (
-          <WorkbenchQueueItem
-            severity={<StatusBadge label="Vencido" tone="error" />}
-            severityTone="critical"
-            title="Recebíveis vencidos"
-            reason="Títulos a receber cujo vencimento passou e que seguem em aberto."
-            context={
-              <>
-                {overdueReceivableCount} {overdueReceivableCount === 1 ? 'título' : 'títulos'} ·{' '}
-                <Money value={overdueReceivableAmount ?? '0'} currencyCode={overdueCurrency} emphasis />
-              </>
-            }
-            age={overdueIsPartial ? 'valor somado nas linhas devolvidas' : undefined}
-            action={
-              <Link
-                to={receivableHref('overdue')}
-                className="text-[13px] font-semibold text-brand-700 no-underline hover:text-brand-800 hover:underline"
-              >
-                Cobrar títulos vencidos
-              </Link>
-            }
-            drilldown={
-              <Link
-                to="/app/finance/receivables"
-                className="text-[13px] text-gray-600 no-underline hover:text-gray-800 hover:underline"
-              >
-                Ver toda a carteira
-              </Link>
-            }
-          />
-        ) : null}
-
-        {overduePayables.error ? (
-          <p role="alert" className="m-0 py-2 text-[13px] text-red-700">
-            Recorte de pagáveis vencidos indisponível: {overduePayables.error}
-          </p>
-        ) : (overduePayableCount ?? 0) > 0 ? (
-          <WorkbenchQueueItem
-            severity={<StatusBadge label="Vencido" tone="error" />}
-            severityTone="critical"
-            title="Pagáveis vencidos"
-            reason="Obrigações cujo vencimento passou e que ainda não foram pagas."
-            context={
-              <>
-                {overduePayableCount} {overduePayableCount === 1 ? 'título' : 'títulos'} ·{' '}
-                <Money value={overduePayableAmount ?? '0'} currencyCode={overdueCurrency} emphasis />
-              </>
-            }
-            age={overdueIsPartial ? 'valor somado nas linhas devolvidas' : undefined}
-            action={
-              <Link
-                to={payableHref('overdue')}
-                className="text-[13px] font-semibold text-brand-700 no-underline hover:text-brand-800 hover:underline"
-              >
-                Regularizar pagamentos vencidos
-              </Link>
-            }
-            drilldown={
-              <Link
-                to="/app/finance/payables"
-                className="text-[13px] text-gray-600 no-underline hover:text-gray-800 hover:underline"
-              >
-                Ver todas as obrigações
-              </Link>
-            }
-          />
-        ) : null}
 
         {/*
+        ═════════════════════════════════════════════════════════════════════════════════════
+        DIVISAO PRINCIPAL — A FILA NO EIXO, O RESTO NA COLUNA DE APOIO.
+
+        DEFEITO MEDIDO (1600x900, dados de fixture, `getBoundingClientRect` sobre o DOM):
+
+            .shell__content  =  1380 x 2972 px     ->  3,3 viewports de altura
+
+        A tela era uma PILHA VERTICAL de nove faixas no MESMO eixo. Cada bloco empurrava o
+        proximo para baixo em vez de disputar espaco com ele — e a FILA DE TRABALHO nunca
+        aparecia junto do que ela significa. Nove blocos corretos, empilhados, produzem uma
+        pagina errada: o defeito era de COMPOSICAO, nao de conteudo nem de token.
+
+        GRAMATICA APLICADA (`WorkspaceBody`):
+
+            main     FILA DE ITENS   LEVEL 1 (branco)    domina a area util
+            support  CONTEXTO        LEVEL 2 (#F5F7FA)   320-380px
+
+        O eixo principal fica com o TRABALHO — o titulo concreto, com referencia, prazo e
+        proxima acao. A coluna de apoio fica com o CONTEXTO: excecoes agregadas (o TAMANHO do
+        problema), posicao, zonas do dominio, carteiras, tesouraria e a proveniencia dos
+        numeros. Nenhum dado sai da tela.
+        ═════════════════════════════════════════════════════════════════════════════════════
+      */}
+        <WorkspaceBody
+          context={
+            <WorkspacePane
+              surface="support"
+              className="h-full overflow-auto"
+              data-region="context-region"
+              aria-label="Contexto operacional financeiro"
+            >
+              {/* EXCECOES — a categoria agregada: responde "qual o TAMANHO do problema". */}
+              <ContextSection title="Exceções financeiras">
+                <WorkbenchQueue
+                  title="Exceções financeiras"
+                  description="Recortes publicados pelo servidor. A ação abre exatamente o conjunto representado."
+                  emptyTitle="Nenhuma exceção financeira"
+                  emptyDescription="Nenhum título vencido e nenhuma conta pendente de leitura neste escopo."
+                >
+                  {overdueReceivables.error ? (
+                    <p role="alert" className="m-0 py-2 text-[13px] text-red-700">
+                      Recorte de recebíveis vencidos indisponível: {overdueReceivables.error}
+                    </p>
+                  ) : (overdueReceivableCount ?? 0) > 0 ? (
+                    <WorkbenchQueueItem
+                      severity={<StatusBadge label="Vencido" tone="error" />}
+                      severityTone="critical"
+                      title="Recebíveis vencidos"
+                      reason="Títulos a receber cujo vencimento passou e que seguem em aberto."
+                      context={
+                        <>
+                          {overdueReceivableCount}{' '}
+                          {overdueReceivableCount === 1 ? 'título' : 'títulos'} ·{' '}
+                          <Money
+                            value={overdueReceivableAmount ?? '0'}
+                            currencyCode={overdueCurrency}
+                            emphasis
+                          />
+                        </>
+                      }
+                      age={overdueIsPartial ? 'valor somado nas linhas devolvidas' : undefined}
+                      action={
+                        <Link
+                          to={receivableHref('overdue')}
+                          className="text-[13px] font-semibold text-brand-700 no-underline hover:text-brand-800 hover:underline"
+                        >
+                          Cobrar títulos vencidos
+                        </Link>
+                      }
+                      drilldown={
+                        <Link
+                          to="/app/finance/receivables"
+                          className="text-[13px] text-gray-600 no-underline hover:text-gray-800 hover:underline"
+                        >
+                          Ver toda a carteira
+                        </Link>
+                      }
+                    />
+                  ) : null}
+
+                  {overduePayables.error ? (
+                    <p role="alert" className="m-0 py-2 text-[13px] text-red-700">
+                      Recorte de pagáveis vencidos indisponível: {overduePayables.error}
+                    </p>
+                  ) : (overduePayableCount ?? 0) > 0 ? (
+                    <WorkbenchQueueItem
+                      severity={<StatusBadge label="Vencido" tone="error" />}
+                      severityTone="critical"
+                      title="Pagáveis vencidos"
+                      reason="Obrigações cujo vencimento passou e que ainda não foram pagas."
+                      context={
+                        <>
+                          {overduePayableCount} {overduePayableCount === 1 ? 'título' : 'títulos'} ·{' '}
+                          <Money
+                            value={overduePayableAmount ?? '0'}
+                            currencyCode={overdueCurrency}
+                            emphasis
+                          />
+                        </>
+                      }
+                      age={overdueIsPartial ? 'valor somado nas linhas devolvidas' : undefined}
+                      action={
+                        <Link
+                          to={payableHref('overdue')}
+                          className="text-[13px] font-semibold text-brand-700 no-underline hover:text-brand-800 hover:underline"
+                        >
+                          Regularizar pagamentos vencidos
+                        </Link>
+                      }
+                      drilldown={
+                        <Link
+                          to="/app/finance/payables"
+                          className="text-[13px] text-gray-600 no-underline hover:text-gray-800 hover:underline"
+                        >
+                          Ver todas as obrigações
+                        </Link>
+                      }
+                    />
+                  ) : null}
+
+                  {/*
           CONCILIACAO — a excecao de conciliacao NAO e contavel por unidade: nao existe endpoint
           de conciliacao por unidade e o contrato nao publica extrato pendente. Zero nao e
           afirmado, e por isso a linha aparece como PENDENCIA DE LEITURA (severidade informativa),
           nao como numero: dizer "0 a conciliar" seria conclusao que o dado nao sustenta.
         */}
-        {accounts.data && accounts.data.length > 0 ? (
-          <WorkbenchQueueItem
-            severity={<StatusBadge label="Conferir" tone="info" />}
-            severityTone="info"
-            title="Conciliação por conta"
-            reason="A conciliação é por conta e por extrato — não há leitura pendente por unidade."
-            context={
-              <>
-                {accountCount} {accountCount === 1 ? 'conta' : 'contas'} com saldo publicado
-              </>
-            }
-            action={
-              <Link
-                to="/app/finance/reconciliation"
-                className="text-[13px] font-semibold text-brand-700 no-underline hover:text-brand-800 hover:underline"
-              >
-                Abrir conciliação
-              </Link>
-            }
-            drilldown={
-              <Link
-                to="/app/finance/treasury"
-                className="text-[13px] text-gray-600 no-underline hover:text-gray-800 hover:underline"
-              >
-                Ver contas e saldos
-              </Link>
-            }
-          />
-        ) : null}
-      </WorkbenchQueue>
-      </div>
+                  {accounts.data && accounts.data.length > 0 ? (
+                    <WorkbenchQueueItem
+                      severity={<StatusBadge label="Conferir" tone="info" />}
+                      severityTone="info"
+                      title="Conciliação por conta"
+                      reason="A conciliação é por conta e por extrato — não há leitura pendente por unidade."
+                      context={
+                        <>
+                          {accountCount} {accountCount === 1 ? 'conta' : 'contas'} com saldo
+                          publicado
+                        </>
+                      }
+                      action={
+                        <Link
+                          to="/app/finance/reconciliation"
+                          className="text-[13px] font-semibold text-brand-700 no-underline hover:text-brand-800 hover:underline"
+                        >
+                          Abrir conciliação
+                        </Link>
+                      }
+                      drilldown={
+                        <Link
+                          to="/app/finance/treasury"
+                          className="text-[13px] text-gray-600 no-underline hover:text-gray-800 hover:underline"
+                        >
+                          Ver contas e saldos
+                        </Link>
+                      }
+                    />
+                  ) : null}
+                </WorkbenchQueue>
+              </ContextSection>
 
-      {/*
-        POSICAO FINANCEIRA — contagem e estado do recorte COMPLETO devolvido pelo servidor.
-
-        O contrato NAO publica totalizador monetario global, entao nao existe "total da carteira"
-        aqui: existem quantos titulos estao em aberto, quantos venceram e quantas contas existem —
-        cada um abrindo exatamente o conjunto que conta. Somar a pagina carregada e chama-la de
-        posicao do dominio seria inventar financa.
-      */}
-      <div data-region="position-surface" className="pt-2">
-      <WorkspaceZone title="Carteira e tesouraria" note={positionNote}>
-        {positionIsEmpty ? (
-          <p className="m-0 text-sm text-gray-600">Não há títulos nem contas na posição financeira.</p>
-        ) : (
-          <ul className="m-0 grid list-none grid-cols-2 gap-x-6 gap-y-3 p-0 lg:grid-cols-4">
-            <li className="min-w-0">
-              <p className="m-0 text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
-                Recebíveis em aberto
-              </p>
-              <p
-                aria-label="Quantidade de títulos a receber"
-                className="m-0 text-2xl font-semibold text-gray-900 tabular-nums"
-              >
-                {receivablesInFlight ?? '—'}
-              </p>
-              <p className="m-0 text-[11px]">
-                <Link
-                  to={receivableHref('open')}
-                  className="text-brand-700 no-underline hover:underline"
-                >
-                  Abrir títulos a receber
-                </Link>
-              </p>
-            </li>
-            <li className="min-w-0">
-              <p className="m-0 text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
-                Pagáveis em aberto
-              </p>
-              <p
-                aria-label="Quantidade de títulos a pagar"
-                className="m-0 text-2xl font-semibold text-gray-900 tabular-nums"
-              >
-                {payablesInFlight ?? '—'}
-              </p>
-              <p className="m-0 text-[11px]">
-                <Link
-                  to={payableHref('open')}
-                  className="text-brand-700 no-underline hover:underline"
-                >
-                  Abrir títulos a pagar
-                </Link>
-              </p>
-            </li>
-            <li className="min-w-0">
-              <p className="m-0 text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
-                Vencidos
-              </p>
-              <p
-                aria-label="Quantidade de títulos vencidos"
-                className="m-0 text-2xl font-semibold text-red-700 tabular-nums"
-              >
-                {overdueReceivableCount === null || overduePayableCount === null
-                  ? '—'
-                  : overdueReceivableCount + overduePayableCount}
-              </p>
-              {/*
+              {/* POSICAO — leitura do negocio, nao trabalho. */}
+              <div data-region="position-surface" className="pt-2">
+                <WorkspaceZone title="Carteira e tesouraria" note={positionNote}>
+                  {positionIsEmpty ? (
+                    <p className="m-0 text-sm text-gray-600">
+                      Não há títulos nem contas na posição financeira.
+                    </p>
+                  ) : (
+                    <ul className="m-0 grid list-none grid-cols-2 gap-x-6 gap-y-3 p-0 lg:grid-cols-4">
+                      <li className="min-w-0">
+                        <p className="m-0 text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
+                          Recebíveis em aberto
+                        </p>
+                        <p
+                          aria-label="Quantidade de títulos a receber"
+                          className="m-0 text-2xl font-semibold text-gray-900 tabular-nums"
+                        >
+                          {receivablesInFlight ?? '—'}
+                        </p>
+                        <p className="m-0 text-[11px]">
+                          <Link
+                            to={receivableHref('open')}
+                            className="text-brand-700 no-underline hover:underline"
+                          >
+                            Abrir títulos a receber
+                          </Link>
+                        </p>
+                      </li>
+                      <li className="min-w-0">
+                        <p className="m-0 text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
+                          Pagáveis em aberto
+                        </p>
+                        <p
+                          aria-label="Quantidade de títulos a pagar"
+                          className="m-0 text-2xl font-semibold text-gray-900 tabular-nums"
+                        >
+                          {payablesInFlight ?? '—'}
+                        </p>
+                        <p className="m-0 text-[11px]">
+                          <Link
+                            to={payableHref('open')}
+                            className="text-brand-700 no-underline hover:underline"
+                          >
+                            Abrir títulos a pagar
+                          </Link>
+                        </p>
+                      </li>
+                      <li className="min-w-0">
+                        <p className="m-0 text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
+                          Vencidos
+                        </p>
+                        <p
+                          aria-label="Quantidade de títulos vencidos"
+                          className="m-0 text-2xl font-semibold text-red-700 tabular-nums"
+                        >
+                          {overdueReceivableCount === null || overduePayableCount === null
+                            ? '—'
+                            : overdueReceivableCount + overduePayableCount}
+                        </p>
+                        {/*
                 O VALOR DO VENCIDO — o único dinheiro que esta tela publica, e ele vem do recorte
                 `status=OVERDUE` INTEIRO contado pelo servidor, nao da amostra da primeira dobra.
                 É o número que decide a operação do dia: quanto está atrasado, a receber e a pagar.
               */}
-              <p className="m-0 text-[11px] text-gray-500 tabular-nums">
-                {overdueReceivableCount === null ? '—' : `${overdueReceivableCount} a receber`}
-                {overdueReceivableAmount !== null ? (
-                  <>
-                    {' ('}
-                    <Money value={overdueReceivableAmount} currencyCode={overdueCurrency} />
-                    {')'}
-                  </>
-                ) : null}
-                {' · '}
-                {overduePayableCount === null ? '—' : `${overduePayableCount} a pagar`}
-                {overduePayableAmount !== null ? (
-                  <>
-                    {' ('}
-                    <Money value={overduePayableAmount} currencyCode={overdueCurrency} />
-                    {')'}
-                  </>
-                ) : null}
-              </p>
-              {overdueIsPartial ? (
-                <p className="m-0 text-[11px] text-gray-500">
-                  Valores somados sobre as linhas que o servidor devolveu neste recorte.
-                </p>
-              ) : null}
-            </li>
-            <li className="min-w-0">
-              <p className="m-0 text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
-                Contas financeiras
-              </p>
-              <p
-                aria-label="Quantidade de contas financeiras"
-                className="m-0 text-2xl font-semibold text-gray-900 tabular-nums"
-              >
-                {accountCount === null ? '—' : accountCount}
-              </p>
-              <p className="m-0 text-[11px] text-gray-500">
-                {accountCount === null
-                  ? 'Tesouraria indisponível'
-                  : `${accountCount === 1 ? 'conta' : 'contas'} com saldo publicado por conta`}
-              </p>
-              <p className="m-0 text-[11px]">
-                <Link
-                  to="/app/finance/reconciliation"
-                  className="text-brand-700 no-underline hover:underline"
-                >
-                  Abrir Conciliação
-                </Link>
-              </p>
-            </li>
-          </ul>
-        )}
+                        <p className="m-0 text-[11px] text-gray-500 tabular-nums">
+                          {overdueReceivableCount === null
+                            ? '—'
+                            : `${overdueReceivableCount} a receber`}
+                          {overdueReceivableAmount !== null ? (
+                            <>
+                              {' ('}
+                              <Money
+                                value={overdueReceivableAmount}
+                                currencyCode={overdueCurrency}
+                              />
+                              {')'}
+                            </>
+                          ) : null}
+                          {' · '}
+                          {overduePayableCount === null ? '—' : `${overduePayableCount} a pagar`}
+                          {overduePayableAmount !== null ? (
+                            <>
+                              {' ('}
+                              <Money value={overduePayableAmount} currencyCode={overdueCurrency} />
+                              {')'}
+                            </>
+                          ) : null}
+                        </p>
+                        {overdueIsPartial ? (
+                          <p className="m-0 text-[11px] text-gray-500">
+                            Valores somados sobre as linhas que o servidor devolveu neste recorte.
+                          </p>
+                        ) : null}
+                      </li>
+                      <li className="min-w-0">
+                        <p className="m-0 text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
+                          Contas financeiras
+                        </p>
+                        <p
+                          aria-label="Quantidade de contas financeiras"
+                          className="m-0 text-2xl font-semibold text-gray-900 tabular-nums"
+                        >
+                          {accountCount === null ? '—' : accountCount}
+                        </p>
+                        <p className="m-0 text-[11px] text-gray-500">
+                          {accountCount === null
+                            ? 'Tesouraria indisponível'
+                            : `${accountCount === 1 ? 'conta' : 'contas'} com saldo publicado por conta`}
+                        </p>
+                        <p className="m-0 text-[11px]">
+                          <Link
+                            to="/app/finance/reconciliation"
+                            className="text-brand-700 no-underline hover:underline"
+                          >
+                            Abrir Conciliação
+                          </Link>
+                        </p>
+                      </li>
+                    </ul>
+                  )}
 
-        {/* VENCENDO — faixas de aging publicadas pelo servidor: titulos e vencimento, sem R$. */}
-        {aging.error ? (
-          <div role="alert" className="mt-4">
-            <p className="m-0 text-[13px] text-red-700">
-              Não foi possível carregar o aging: {aging.error}
-            </p>
-            {aging.retryable ? (
-              <Button
-                type="button"
-                variant="secondary"
-                className="mt-2"
-                onClick={() => void reload()}
-              >
-                Tentar novamente
-              </Button>
-            ) : null}
-          </div>
-        ) : aging.data && agingEntries.length > 0 ? (
-          <div className={cn(enterpriseTableCardClass, 'mt-4 mb-0')}>
-            <table className={enterpriseTableClass} aria-label="Aging de contas a pagar">
-              <caption className="px-3 pt-3 text-left text-[11px] text-gray-500">
-                Faixas de vencimento a pagar — posição em{' '}
-                <DateTime value={aging.data.asOf} mode="date" />. {agingTitleCount} títulos nas
-                faixas.
-              </caption>
-              <thead>
-                <tr>
-                  <th scope="col" className={enterpriseHeadCellClass}>
-                    Faixa
-                  </th>
-                  <th scope="col" className={enterpriseNumericHeadCellClass}>
-                    Títulos
-                  </th>
-                  <th scope="col" className={enterpriseNumericHeadCellClass}>
-                    Saldo informado
-                  </th>
-                  <th scope="col" className={enterpriseHeadCellClass}>
-                    Drilldown
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {agingEntries.map(([bucket, item]) => (
-                  <tr key={bucket} className={enterpriseRowClass}>
-                    <td className={enterpriseCellClass}>{labelOrRaw(bucket, AGING_BUCKET_LABELS)}</td>
-                    <td className={enterpriseNumericCellClass}>{item.count}</td>
-                    <td className={enterpriseNumericCellClass}>
-                      <Money value={item.remaining} currencyCode={agingCurrency} />
-                    </td>
-                    <td className={enterpriseCellMutedClass}>
-                      <Link
-                        to={`/app/finance/payables?agingBucket=${encodeURIComponent(bucket)}`}
-                        className="text-brand-700 no-underline hover:underline"
-                      >
-                        Abrir títulos desta faixa
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
-      </WorkspaceZone>
-      </div>
+                  {/* VENCENDO — faixas de aging publicadas pelo servidor: titulos e vencimento, sem R$. */}
+                  {aging.error ? (
+                    <div role="alert" className="mt-4">
+                      <p className="m-0 text-[13px] text-red-700">
+                        Não foi possível carregar o aging: {aging.error}
+                      </p>
+                      {aging.retryable ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="mt-2"
+                          onClick={() => void reload()}
+                        >
+                          Tentar novamente
+                        </Button>
+                      ) : null}
+                    </div>
+                  ) : aging.data && agingEntries.length > 0 ? (
+                    <div className={cn(enterpriseTableCardClass, 'mt-4 mb-0')}>
+                      <table className={enterpriseTableClass} aria-label="Aging de contas a pagar">
+                        <caption className="px-3 pt-3 text-left text-[11px] text-gray-500">
+                          Faixas de vencimento a pagar — posição em{' '}
+                          <DateTime value={aging.data.asOf} mode="date" />. {agingTitleCount}{' '}
+                          títulos nas faixas.
+                        </caption>
+                        <thead>
+                          <tr>
+                            <th scope="col" className={enterpriseHeadCellClass}>
+                              Faixa
+                            </th>
+                            <th scope="col" className={enterpriseNumericHeadCellClass}>
+                              Títulos
+                            </th>
+                            <th scope="col" className={enterpriseNumericHeadCellClass}>
+                              Saldo informado
+                            </th>
+                            <th scope="col" className={enterpriseHeadCellClass}>
+                              Drilldown
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {agingEntries.map(([bucket, item]) => (
+                            <tr key={bucket} className={enterpriseRowClass}>
+                              <td className={enterpriseCellClass}>
+                                {labelOrRaw(bucket, AGING_BUCKET_LABELS)}
+                              </td>
+                              <td className={enterpriseNumericCellClass}>{item.count}</td>
+                              <td className={enterpriseNumericCellClass}>
+                                <Money value={item.remaining} currencyCode={agingCurrency} />
+                              </td>
+                              <td className={enterpriseCellMutedClass}>
+                                <Link
+                                  to={`/app/finance/payables?agingBucket=${encodeURIComponent(bucket)}`}
+                                  className="text-brand-700 no-underline hover:underline"
+                                >
+                                  Abrir títulos desta faixa
+                                </Link>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : null}
+                </WorkspaceZone>
+              </div>
 
-      {/*
+              {/*
         2. FILAS DE TRABALHO E FLUXO DO DOMINIO — AGORA, ATENÇÃO e CONTINUAR, as mesmas zonas de
         todo workspace de dominio do CISNE. Vem DEPOIS da fila de excecoes: a tela responde
         primeiro o que exige decisao de dinheiro e so entao onde o trabalho continua.
       */}
-      <div data-region="domain-zones-surface" className="pt-2">
-      <DomainWorkZones domain="FINANCEIRO" />
-      </div>
 
-      {/*
+              {/* ZONAS DO DOMINIO, CARTEIRAS, TESOURARIA E ORIGEM — leitura paralela. */}
+              <div data-region="domain-zones-surface" className="pt-2">
+                <DomainWorkZones domain="FINANCEIRO" />
+              </div>
+
+              {/*
         2b. A FILA FINANCEIRA DE ITENS — o trabalho, aqui e nao em outra tela.
 
         As excecoes acima agregam CATEGORIAS; as zonas do dominio contam e mostram bloqueios. Nenhuma
@@ -755,17 +820,8 @@ export function FinanceOverviewPage() {
         financeiro paralelo: o que a zona mostra e o que a Central de trabalho mostra sob o mesmo
         recorte, e a saida leva o recorte inteiro para la.
       */}
-      <WorkspaceQueueSurface
-        title="Fila financeira"
-        ariaLabel="Fila financeira de trabalho"
-        description="Títulos e decisões financeiras reais, do recorte publicado pelo servidor"
-        emptyDescription="Nenhum título financeiro exige ação neste recorte. A posição continua publicada abaixo."
-        savedViewsScope="workspace.FINANCEIRO"
-        scopeSource="local"
-        lockDomain="FINANCEIRO"
-      />
 
-      {/*
+              {/*
         2c. AS CARTEIRAS COMO TRABALHO — receber e pagar em fila, com recorte de servidor.
 
         A tabela da tela publicava as primeiras linhas da carteira sem recorte de excecao: para
@@ -776,309 +832,360 @@ export function FinanceOverviewPage() {
 
         Somente a leitura entra: liquidacao, baixa e estorno continuam no dominio responsavel.
       */}
-      <div data-region="title-queues-surface" className="pt-2">
-      <FinanceTitleQueues />
-      </div>
+              <div data-region="title-queues-surface" className="pt-2">
+                <FinanceTitleQueues />
+              </div>
 
-      {/*
+              {/*
         TESOURARIA / CONCILIACAO — drilldown. Cada conta e um registro do servidor, com saldo
         proprio e origem (link para a conta). Nenhum saldo e somado aqui: o contrato nao publica
         "caixa total", e soma de contas seria inventar financa.
       */}
-      <WorkspaceZone
-        title="Caixa e Bancos"
-        note="Contas devolvidas pelo servidor. O saldo é o publicado por conta; a conciliação é por conta e por extrato."
-      >
-        {accounts.error ? (
-          <div role="alert">
-            <p className="m-0 text-[13px] text-red-700">
-              Não foi possível carregar as contas: {accounts.error}
-            </p>
-            {accounts.retryable ? (
-              <Button
-                type="button"
-                variant="secondary"
-                className="mt-2"
-                onClick={() => void reload()}
+              <WorkspaceZone
+                title="Caixa e Bancos"
+                note="Contas devolvidas pelo servidor. O saldo é o publicado por conta; a conciliação é por conta e por extrato."
               >
-                Tentar novamente
-              </Button>
-            ) : null}
-          </div>
-        ) : accounts.data && accounts.data.length > 0 ? (
-          <div className={cn(enterpriseTableCardClass, 'mb-0')}>
-            <table className={enterpriseTableClass} aria-label="Contas de caixa e bancos">
-              <thead>
-                <tr>
-                  <th scope="col" className={enterpriseHeadCellClass}>
-                    Conta
-                  </th>
-                  <th scope="col" className={enterpriseHeadCellClass}>
-                    Tipo
-                  </th>
-                  <th scope="col" className={enterpriseNumericHeadCellClass}>
-                    Saldo do servidor
-                  </th>
-                  <th scope="col" className={enterpriseHeadCellClass}>
-                    Conciliação
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {accounts.data.map((account) => (
-                  <tr key={account.id} className={enterpriseRowClass}>
-                    <td className={enterpriseCellClass}>
-                      <Link
-                        to={`/app/finance/treasury/${account.id}`}
-                        className="font-semibold text-brand-800 no-underline hover:underline"
+                {accounts.error ? (
+                  <div role="alert">
+                    <p className="m-0 text-[13px] text-red-700">
+                      Não foi possível carregar as contas: {accounts.error}
+                    </p>
+                    {accounts.retryable ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="mt-2"
+                        onClick={() => void reload()}
                       >
-                        {account.name}
-                      </Link>
-                      <span className="ml-2 font-mono text-[11px] text-gray-500">
-                        {account.code}
-                      </span>
-                    </td>
-                    <td className={enterpriseCellMutedClass}>
-                      {labelOrRaw(account.kind, TREASURY_KIND_LABELS)}
-                    </td>
-                    <td className={enterpriseNumericCellClass}>
-                      <Money value={account.balance} currencyCode={account.currencyCode} />
-                    </td>
-                    <td className={enterpriseCellMutedClass}>
-                      <Link
-                        to={`/app/finance/treasury/${account.id}`}
-                        className="text-brand-700 no-underline hover:underline"
-                      >
-                        Ver movimentos e conciliação
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : accounts.data ? (
-          <WorklistStatePanel
-            title="Sem contas financeiras visíveis"
-            description="Nenhuma conta de caixa ou banco foi devolvida pelo servidor para o seu escopo."
-          />
-        ) : null}
-      </WorkspaceZone>
+                        Tentar novamente
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : accounts.data && accounts.data.length > 0 ? (
+                  <div className={cn(enterpriseTableCardClass, 'mb-0')}>
+                    <table className={enterpriseTableClass} aria-label="Contas de caixa e bancos">
+                      <thead>
+                        <tr>
+                          <th scope="col" className={enterpriseHeadCellClass}>
+                            Conta
+                          </th>
+                          <th scope="col" className={enterpriseHeadCellClass}>
+                            Tipo
+                          </th>
+                          <th scope="col" className={enterpriseNumericHeadCellClass}>
+                            Saldo do servidor
+                          </th>
+                          <th scope="col" className={enterpriseHeadCellClass}>
+                            Conciliação
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {accounts.data.map((account) => (
+                          <tr key={account.id} className={enterpriseRowClass}>
+                            <td className={enterpriseCellClass}>
+                              <Link
+                                to={`/app/finance/treasury/${account.id}`}
+                                className="font-semibold text-brand-800 no-underline hover:underline"
+                              >
+                                {account.name}
+                              </Link>
+                              <span className="ml-2 font-mono text-[11px] text-gray-500">
+                                {account.code}
+                              </span>
+                            </td>
+                            <td className={enterpriseCellMutedClass}>
+                              {labelOrRaw(account.kind, TREASURY_KIND_LABELS)}
+                            </td>
+                            <td className={enterpriseNumericCellClass}>
+                              <Money value={account.balance} currencyCode={account.currencyCode} />
+                            </td>
+                            <td className={enterpriseCellMutedClass}>
+                              <Link
+                                to={`/app/finance/treasury/${account.id}`}
+                                className="text-brand-700 no-underline hover:underline"
+                              >
+                                Ver movimentos e conciliação
+                              </Link>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : accounts.data ? (
+                  <WorklistStatePanel
+                    title="Sem contas financeiras visíveis"
+                    description="Nenhuma conta de caixa ou banco foi devolvida pelo servidor para o seu escopo."
+                  />
+                ) : null}
+              </WorkspaceZone>
 
-      {/*
+              {/*
         TITULOS — amostra de leitura imediata das DUAS carteiras.
 
         Elas sao AMOSTRA, e a nota abaixo diz isso: "N de M". O trabalho de verdade (recorte, busca,
         ordenacao, contexto e paginacao) vive nas worklists Tier-1 de Receber e Pagar, e a nota leva
         o operador para la nomeando exatamente o que existe la.
       */}
-      <div data-region="title-sample-surface" className="pt-2">
-      <WorkspaceZone
-        title="Títulos a receber"
-        note={`${receivableItems.length} de ${receivables.data?.total ?? '—'} títulos a receber — as primeiras linhas do recorte, para leitura imediata. A lista completa abre em Contas a Receber, com busca, filtro e paginação do servidor.`}
-      >
-        {receivables.error ? (
-          <div role="alert">
-            <p className="m-0 text-[13px] text-red-700">{receivables.error}</p>
-            {receivables.retryable ? (
-              <Button
-                type="button"
-                variant="secondary"
-                className="mt-2"
-                onClick={() => void reload()}
-              >
-                Tentar novamente
-              </Button>
-            ) : null}
-          </div>
-        ) : receivableItems.length === 0 ? (
-          <WorklistStatePanel
-            title="Nenhum título a receber"
-            description="O servidor não devolveu títulos para o seu escopo."
-          />
-        ) : (
-          <div className={cn(enterpriseTableCardClass, 'mb-0')}>
-            <table className={enterpriseTableClass} aria-label="Títulos a receber">
-              <thead>
-                <tr>
-                  <th scope="col" className={enterpriseHeadCellClass}>
-                    Título
-                  </th>
-                  <th scope="col" className={enterpriseHeadCellClass}>
-                    Cliente
-                  </th>
-                  <th scope="col" className={enterpriseHeadCellClass}>
-                    Vencimento
-                  </th>
-                  <th scope="col" className={enterpriseHeadCellClass}>
-                    Status
-                  </th>
-                  <th scope="col" className={enterpriseNumericHeadCellClass}>
-                    Principal
-                  </th>
-                  <th scope="col" className={enterpriseNumericHeadCellClass}>
-                    Saldo
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {receivableItems.map((item) => (
-                  <tr key={item.id} className={enterpriseRowClass}>
-                    <td className={enterpriseCellClass}>
-                      <Link
-                        to={`/app/finance/receivables/${item.id}`}
-                        className="font-semibold text-brand-800 no-underline hover:underline"
-                      >
-                        {item.externalReference ?? item.id.slice(0, 8)}
-                      </Link>
-                    </td>
-                    <td className={enterpriseCellMutedClass}>
-                      {item.clientId ? (
-                        <Link
-                          to={`/app/clients/${item.clientId}`}
-                          className="text-brand-700 no-underline hover:underline"
+              <div data-region="title-sample-surface" className="pt-2">
+                <WorkspaceZone
+                  title="Títulos a receber"
+                  note={`${receivableItems.length} de ${receivables.data?.total ?? '—'} títulos a receber — as primeiras linhas do recorte, para leitura imediata. A lista completa abre em Contas a Receber, com busca, filtro e paginação do servidor.`}
+                >
+                  {receivables.error ? (
+                    <div role="alert">
+                      <p className="m-0 text-[13px] text-red-700">{receivables.error}</p>
+                      {receivables.retryable ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="mt-2"
+                          onClick={() => void reload()}
                         >
-                          Abrir cliente
-                        </Link>
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )}
-                    </td>
-                    <td className={enterpriseCellMutedClass}>
-                      <DateTime value={item.dueDate} mode="date" />
-                    </td>
-                    <td className={enterpriseCellClass}>
-                      <StatusBadge
-                        label={labelOrRaw(item.status, RECEIVABLE_STATUS_LABELS)}
-                        tone={toneForStatus(item.status)}
-                      />
-                    </td>
-                    <td className={enterpriseNumericCellClass}>
-                      <Money value={item.principal} currencyCode={item.currencyCode} />
-                    </td>
-                    <td className={enterpriseNumericCellClass}>
-                      <Money value={item.remainingBalance} currencyCode={item.currencyCode} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </WorkspaceZone>
+                          Tentar novamente
+                        </Button>
+                      ) : null}
+                    </div>
+                  ) : receivableItems.length === 0 ? (
+                    <WorklistStatePanel
+                      title="Nenhum título a receber"
+                      description="O servidor não devolveu títulos para o seu escopo."
+                    />
+                  ) : (
+                    <div className={cn(enterpriseTableCardClass, 'mb-0')}>
+                      <table className={enterpriseTableClass} aria-label="Títulos a receber">
+                        <thead>
+                          <tr>
+                            <th scope="col" className={enterpriseHeadCellClass}>
+                              Título
+                            </th>
+                            <th scope="col" className={enterpriseHeadCellClass}>
+                              Cliente
+                            </th>
+                            <th scope="col" className={enterpriseHeadCellClass}>
+                              Vencimento
+                            </th>
+                            <th scope="col" className={enterpriseHeadCellClass}>
+                              Status
+                            </th>
+                            <th scope="col" className={enterpriseNumericHeadCellClass}>
+                              Principal
+                            </th>
+                            <th scope="col" className={enterpriseNumericHeadCellClass}>
+                              Saldo
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {receivableItems.map((item) => (
+                            <tr key={item.id} className={enterpriseRowClass}>
+                              <td className={enterpriseCellClass}>
+                                <Link
+                                  to={`/app/finance/receivables/${item.id}`}
+                                  className="font-semibold text-brand-800 no-underline hover:underline"
+                                >
+                                  {item.externalReference ?? item.id.slice(0, 8)}
+                                </Link>
+                              </td>
+                              <td className={enterpriseCellMutedClass}>
+                                {item.clientId ? (
+                                  <Link
+                                    to={`/app/clients/${item.clientId}`}
+                                    className="text-brand-700 no-underline hover:underline"
+                                  >
+                                    Abrir cliente
+                                  </Link>
+                                ) : (
+                                  <span className="text-gray-400">—</span>
+                                )}
+                              </td>
+                              <td className={enterpriseCellMutedClass}>
+                                <DateTime value={item.dueDate} mode="date" />
+                              </td>
+                              <td className={enterpriseCellClass}>
+                                <StatusBadge
+                                  label={labelOrRaw(item.status, RECEIVABLE_STATUS_LABELS)}
+                                  tone={toneForStatus(item.status)}
+                                />
+                              </td>
+                              <td className={enterpriseNumericCellClass}>
+                                <Money value={item.principal} currencyCode={item.currencyCode} />
+                              </td>
+                              <td className={enterpriseNumericCellClass}>
+                                <Money
+                                  value={item.remainingBalance}
+                                  currencyCode={item.currencyCode}
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </WorkspaceZone>
 
-      <WorkspaceZone
-        title="Títulos a pagar"
-        note={`${payableItems.length} de ${payables.data?.total ?? '—'} títulos a pagar — as primeiras linhas do recorte, para leitura imediata. A lista completa abre em Contas a Pagar, com busca, filtro e paginação do servidor.`}
-      >
-        {payables.error ? (
-          <div role="alert">
-            <p className="m-0 text-[13px] text-red-700">{payables.error}</p>
-            {payables.retryable ? (
-              <Button
-                type="button"
-                variant="secondary"
-                className="mt-2"
-                onClick={() => void reload()}
-              >
-                Tentar novamente
-              </Button>
-            ) : null}
-          </div>
-        ) : payableItems.length === 0 ? (
-          <WorklistStatePanel
-            title="Nenhum título a pagar"
-            description="O servidor não devolveu títulos para o seu escopo."
+                <WorkspaceZone
+                  title="Títulos a pagar"
+                  note={`${payableItems.length} de ${payables.data?.total ?? '—'} títulos a pagar — as primeiras linhas do recorte, para leitura imediata. A lista completa abre em Contas a Pagar, com busca, filtro e paginação do servidor.`}
+                >
+                  {payables.error ? (
+                    <div role="alert">
+                      <p className="m-0 text-[13px] text-red-700">{payables.error}</p>
+                      {payables.retryable ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="mt-2"
+                          onClick={() => void reload()}
+                        >
+                          Tentar novamente
+                        </Button>
+                      ) : null}
+                    </div>
+                  ) : payableItems.length === 0 ? (
+                    <WorklistStatePanel
+                      title="Nenhum título a pagar"
+                      description="O servidor não devolveu títulos para o seu escopo."
+                    />
+                  ) : (
+                    <div className={cn(enterpriseTableCardClass, 'mb-0')}>
+                      <table className={enterpriseTableClass} aria-label="Títulos a pagar">
+                        <thead>
+                          <tr>
+                            <th scope="col" className={enterpriseHeadCellClass}>
+                              Título
+                            </th>
+                            <th scope="col" className={enterpriseHeadCellClass}>
+                              Vencimento
+                            </th>
+                            <th scope="col" className={enterpriseHeadCellClass}>
+                              Status
+                            </th>
+                            <th scope="col" className={enterpriseHeadCellClass}>
+                              Faixa
+                            </th>
+                            <th scope="col" className={enterpriseNumericHeadCellClass}>
+                              Principal
+                            </th>
+                            <th scope="col" className={enterpriseNumericHeadCellClass}>
+                              Saldo
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {payableItems.map((item) => (
+                            <tr key={item.id} className={enterpriseRowClass}>
+                              <td className={enterpriseCellClass}>
+                                <Link
+                                  to={`/app/finance/payables/${item.id}`}
+                                  className="font-semibold text-brand-800 no-underline hover:underline"
+                                >
+                                  {item.externalReference ?? item.id.slice(0, 8)}
+                                </Link>
+                              </td>
+                              <td className={enterpriseCellMutedClass}>
+                                <DateTime value={item.dueDate} mode="date" />
+                              </td>
+                              <td className={enterpriseCellClass}>
+                                <StatusBadge
+                                  label={labelOrRaw(item.status, PAYABLE_STATUS_LABELS)}
+                                  tone={toneForStatus(item.status)}
+                                />
+                              </td>
+                              <td className={enterpriseCellMutedClass}>
+                                {labelOrRaw(item.agingBucket, AGING_BUCKET_LABELS)}
+                              </td>
+                              <td className={enterpriseNumericCellClass}>
+                                <Money value={item.principal} currencyCode={item.currencyCode} />
+                              </td>
+                              <td className={enterpriseNumericCellClass}>
+                                <Money
+                                  value={item.remainingBalance}
+                                  currencyCode={item.currencyCode}
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </WorkspaceZone>
+              </div>
+
+              {/*
+        RODAPE: de onde vem cada numero e onde o resto do dominio vive.
+
+        Fica DENTRO da coluna de apoio: e proveniencia e navegacao de contexto, nao trabalho.
+      */}
+              <div data-region="origin-footer" className="pt-2">
+                <WorklistFooter
+                  rangeLabel="Origem dos valores"
+                  extra="Leituras do servidor, sem agregado inventado"
+                >
+                  <Link
+                    to="/app/finance/receivables"
+                    className="text-[12px] text-brand-700 no-underline hover:underline"
+                  >
+                    Contas a Receber
+                  </Link>
+                  <Link
+                    to="/app/finance/payables"
+                    className="text-[12px] text-brand-700 no-underline hover:underline"
+                  >
+                    Contas a Pagar
+                  </Link>
+                  <Link
+                    to="/app/finance/treasury"
+                    className="text-[12px] text-brand-700 no-underline hover:underline"
+                  >
+                    Caixa e Bancos
+                  </Link>
+                  <Link
+                    to="/app/finance/reconciliation"
+                    className="text-[12px] text-brand-700 no-underline hover:underline"
+                  >
+                    Conciliação
+                  </Link>
+                  <Link
+                    to="/app/finance/forecast"
+                    className="text-[12px] text-brand-700 no-underline hover:underline"
+                  >
+                    Previsão de caixa
+                  </Link>
+                </WorklistFooter>
+                <span className={worklistGroupClass}>
+                  Contagens e recortes vêm do servidor. Vencidos:{' '}
+                  {formatMoneyBrl(overdueReceivableAmount ?? '0')} a receber e{' '}
+                  {formatMoneyBrl(overduePayableAmount ?? '0')} a pagar
+                  {overdueIsPartial ? ', sobre as linhas devolvidas neste recorte' : ''}. Nada é
+                  recalculado no navegador.
+                </span>
+              </div>
+            </WorkspacePane>
+          }
+        >
+          {/*
+          FILA FINANCEIRA DE ITENS — O UNICO TRABALHO DA TELA, E O CONTEUDO QUE DOMINA A
+          AREA UTIL.
+
+          E a MESMA superficie dos workspaces de dominio (`WorkspaceQueueSurface`), sobre o
+          mesmo read model (`GET /work-inbox` recortado por `domain=FINANCEIRO` no SERVIDOR).
+          Nao existe contador financeiro paralelo: o que a zona mostra e o que a Central de
+          trabalho mostra sob o mesmo recorte.
+        */}
+          <WorkspaceQueueSurface
+            title="Fila financeira"
+            ariaLabel="Fila financeira de trabalho"
+            description="Títulos e decisões financeiras reais, do recorte publicado pelo servidor"
+            emptyDescription="Nenhum título financeiro exige ação neste recorte. A posição continua publicada abaixo."
+            savedViewsScope="workspace.FINANCEIRO"
+            scopeSource="local"
+            lockDomain="FINANCEIRO"
           />
-        ) : (
-          <div className={cn(enterpriseTableCardClass, 'mb-0')}>
-            <table className={enterpriseTableClass} aria-label="Títulos a pagar">
-              <thead>
-                <tr>
-                  <th scope="col" className={enterpriseHeadCellClass}>
-                    Título
-                  </th>
-                  <th scope="col" className={enterpriseHeadCellClass}>
-                    Vencimento
-                  </th>
-                  <th scope="col" className={enterpriseHeadCellClass}>
-                    Status
-                  </th>
-                  <th scope="col" className={enterpriseHeadCellClass}>
-                    Faixa
-                  </th>
-                  <th scope="col" className={enterpriseNumericHeadCellClass}>
-                    Principal
-                  </th>
-                  <th scope="col" className={enterpriseNumericHeadCellClass}>
-                    Saldo
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {payableItems.map((item) => (
-                  <tr key={item.id} className={enterpriseRowClass}>
-                    <td className={enterpriseCellClass}>
-                      <Link
-                        to={`/app/finance/payables/${item.id}`}
-                        className="font-semibold text-brand-800 no-underline hover:underline"
-                      >
-                        {item.externalReference ?? item.id.slice(0, 8)}
-                      </Link>
-                    </td>
-                    <td className={enterpriseCellMutedClass}>
-                      <DateTime value={item.dueDate} mode="date" />
-                    </td>
-                    <td className={enterpriseCellClass}>
-                      <StatusBadge
-                        label={labelOrRaw(item.status, PAYABLE_STATUS_LABELS)}
-                        tone={toneForStatus(item.status)}
-                      />
-                    </td>
-                    <td className={enterpriseCellMutedClass}>
-                      {labelOrRaw(item.agingBucket, AGING_BUCKET_LABELS)}
-                    </td>
-                    <td className={enterpriseNumericCellClass}>
-                      <Money value={item.principal} currencyCode={item.currencyCode} />
-                    </td>
-                    <td className={enterpriseNumericCellClass}>
-                      <Money value={item.remainingBalance} currencyCode={item.currencyCode} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </WorkspaceZone>
-      </div>
-
-      {/* RODAPE: de onde vem cada numero e onde o resto do dominio vive. */}
-      <div data-region="origin-footer" className="pt-2">
-      <WorklistFooter rangeLabel="Origem dos valores" extra="Leituras do servidor, sem agregado inventado">
-        <Link to="/app/finance/receivables" className="text-[12px] text-brand-700 no-underline hover:underline">
-          Contas a Receber
-        </Link>
-        <Link to="/app/finance/payables" className="text-[12px] text-brand-700 no-underline hover:underline">
-          Contas a Pagar
-        </Link>
-        <Link to="/app/finance/treasury" className="text-[12px] text-brand-700 no-underline hover:underline">
-          Caixa e Bancos
-        </Link>
-        <Link to="/app/finance/reconciliation" className="text-[12px] text-brand-700 no-underline hover:underline">
-          Conciliação
-        </Link>
-        <Link to="/app/finance/forecast" className="text-[12px] text-brand-700 no-underline hover:underline">
-          Previsão de caixa
-        </Link>
-      </WorklistFooter>
-      <span className={worklistGroupClass}>
-        Contagens e recortes vêm do servidor. Vencidos: {formatMoneyBrl(overdueReceivableAmount ?? '0')}{' '}
-        a receber e {formatMoneyBrl(overduePayableAmount ?? '0')} a pagar
-        {overdueIsPartial ? ', sobre as linhas devolvidas neste recorte' : ''}. Nada é recalculado no
-        navegador.
-      </span>
-      </div>
+        </WorkspaceBody>
       </div>
     </ModulePage>
   );

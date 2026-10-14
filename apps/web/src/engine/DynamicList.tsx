@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { t } from '../i18n';
+import { cn } from '../ui/utils/cn';
 import { FieldRenderer, toDisplayText } from './FieldRenderer';
 import {
   applyAggregation,
@@ -32,6 +33,33 @@ import type { MetaEntitySchema, MetaField } from './types';
  * parâmetro de compatibilidade para payloads antigos; o canal oficial tem precedência.
  */
 export type DynamicListRow = Record<string, unknown> & { id: string };
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ * CABECALHO DE GRADE DA ENGINE — UMA CLASSE, APLICADA A TODAS AS CELULAS DE CABECALHO.
+ *
+ * DEFEITO MEDIDO, a 1600x900, `getBoundingClientRect` sobre o DOM renderizado:
+ *
+ *     cabecalho de grade em /app/finance/receivables  =  26,2px   (contrato: 36px)
+ *     cabecalho de grade em /app/finance/payables     =  26,2px   (contrato: 36px)
+ *
+ * A causa nao era o valor — era a DUPLICACAO. As cinco celulas de cabecalho desta grade (selecao,
+ * colunas do schema, owner, aging, campos computados e acoes) redeclaravam cada uma o proprio
+ * estilo, com `px-2 py-1` e sem altura. O resultado era uma grade 10px mais densa que
+ * `workspaceHeadCellClass`, e o MESMO produto media 26px no Financeiro e 36px em Clientes.
+ *
+ * Agora existe UMA declaracao, e ela aponta para os mesmos tokens da grade principal:
+ *
+ *   altura     36px (`--grid-head-height`)     — contrato de densidade
+ *   fundo      #F8FAFC (`--surface-header`)    — neutro, nao o `bg-gray-50` do Tailwind
+ *   regua      1px `--border-strong` (#D6DCE4) — divisor mais escuro, porque e a baliza da grade
+ *   tinta      11px/600 uppercase, `--grid-head-ink`
+ *
+ * `sticky` permanece: numa grade de 20 linhas o rotulo da coluna precisa continuar disponivel.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ */
+const DYNAMIC_LIST_HEAD_CELL =
+  'sticky top-0 z-10 h-[var(--grid-head-height)] border-b border-[color:var(--color-border-strong)] bg-[color:var(--color-surface-header)] px-2.5 text-left text-[length:var(--type-caption-size)] font-semibold tracking-[0.02em] text-[color:var(--color-grid-head-ink)] uppercase whitespace-nowrap';
 
 export type DynamicListProps = {
   /**
@@ -293,7 +321,7 @@ export function DynamicList({
       <thead>
         <tr>
           {selectable ? (
-            <th scope="col" className="w-8 border-b border-gray-300 bg-gray-50 px-2 py-1">
+            <th scope="col" className={cn(DYNAMIC_LIST_HEAD_CELL, 'w-8')}>
               <input
                 type="checkbox"
                 data-testid="dynamic-list-select-all"
@@ -315,14 +343,12 @@ export function DynamicList({
                * detalhe que denuncia grade inacabada em ERP. O eixo do cabeçalho é o MESMO da
                * célula, derivado do TIPO do metadado — não de uma lista de nomes de campo.
                *
-               * DENSIDADE: `py-1.5` + `text-xs` produzia cabeçalho de 61px medidos. O cabeçalho
-               * é RÓTULO, não conteúdo: usa o papel `label` (11px uppercase), `py-1` e fundo
-               * sólido, que é o que dá a faixa contínua sob a qual a grade rola.
+               * DENSIDADE — A CLASSE VIVE EM `DYNAMIC_LIST_HEAD_CELL`, UMA VEZ. Ver a nota dela:
+               * esta grade era a que media 26px de cabeçalho onde o contrato pede 36px, porque as
+               * cinco células de cabeçalho redeclaravam o próprio estilo e divergiam da grade
+               * principal do produto.
                */
-              className={[
-                'sticky top-0 z-10 border-b border-gray-300 bg-gray-50 px-2 py-1 text-[length:var(--type-micro-size)] font-semibold tracking-wide text-gray-600 uppercase whitespace-nowrap',
-                isNumericField(column) ? 'text-right' : 'text-left',
-              ].join(' ')}
+              className={cn(DYNAMIC_LIST_HEAD_CELL, isNumericField(column) ? 'text-right' : 'text-left')}
               aria-sort={
                 sort?.field === column.name
                   ? sort.direction === 'asc'
@@ -347,12 +373,12 @@ export function DynamicList({
             </th>
           ))}
           {owner ? (
-            <th scope="col" className="sticky top-0 z-10 border-b border-gray-300 bg-gray-50 px-2 py-1 text-left text-[length:var(--type-micro-size)] font-semibold tracking-wide text-gray-600 uppercase whitespace-nowrap">
+            <th scope="col" className={DYNAMIC_LIST_HEAD_CELL}>
               {owner.label}
             </th>
           ) : null}
           {aging ? (
-            <th scope="col" className="sticky top-0 z-10 border-b border-gray-300 bg-gray-50 px-2 py-1 text-left text-[length:var(--type-micro-size)] font-semibold tracking-wide text-gray-600 uppercase whitespace-nowrap">
+            <th scope="col" className={DYNAMIC_LIST_HEAD_CELL}>
               Aging
             </th>
           ) : null}
@@ -365,13 +391,13 @@ export function DynamicList({
               key={field.name}
               scope="col"
               data-computed-field={field.name}
-              className="sticky top-0 z-10 border-b border-gray-300 bg-gray-50 px-2 py-1 text-left text-[length:var(--type-micro-size)] font-semibold tracking-wide text-gray-600 uppercase whitespace-nowrap"
+              className={DYNAMIC_LIST_HEAD_CELL}
             >
               {field.label}
             </th>
           ))}
           {renderRowActions ? (
-            <th scope="col" className="border-b border-gray-200 px-2 py-1.5 text-right text-xs font-semibold text-gray-600">
+            <th scope="col" className={cn(DYNAMIC_LIST_HEAD_CELL, 'text-right')}>
               {t('common.actions')}
             </th>
           ) : null}

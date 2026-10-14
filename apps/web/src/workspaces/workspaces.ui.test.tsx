@@ -422,24 +422,58 @@ describe('workspaces de domínio', () => {
     expect(await screen.findByText('CONC-88')).toBeInTheDocument();
 
     const headings = screen.getAllByRole('heading').map((heading) => heading.textContent ?? '');
-    const excecoes = headings.indexOf('Exceções financeiras');
-    const agora = headings.indexOf('Agora');
-    const atencao = headings.indexOf('Atenção');
-    const posicao = headings.indexOf('Posição financeira');
 
     /*
-     * ORDEM DA PRIMEIRA DOBRA — a convergencia do dominio fixou esta sequencia e o teste a
-     * protege: a EXCECAO financeira abre a tela (o dinheiro que exige decisao agora), a POSICAO
-     * autoritativa vem em seguida, e as filas de trabalho do dominio (AGORA/ATENCAO) ficam depois,
-     * como "onde continuar". Antes, tres blocos de trabalho abriam a tela e a excecao que decide o
-     * dia so aparecia abaixo da posicao.
+     * ═══════════════════════════════════════════════════════════════════════════════════════════
+     * COMPOSICAO DA CENTRAL FINANCEIRA — A ASSERCAO MUDOU PORQUE A COMPOSICAO MUDOU.
+     *
+     * ANTES: o teste protegia uma ORDEM VERTICAL — excecao, posicao, AGORA, ATENCAO — porque a tela
+     * era uma PILHA de faixas no mesmo eixo vertical.
+     *
+     * O QUE A MEDICAO REVELOU: essa pilha media 2972px de altura numa viewport de 900px (3,3
+     * viewports). A ordem estava certa e o resultado estava errado: com tudo no mesmo eixo, a FILA
+     * DE TRABALHO nunca aparecia junto do que ela significa, e o operador precisava rolar mais de
+     * duas telas para alcancar o primeiro titulo acionavel.
+     *
+     * AGORA a tela usa `WorkspaceBody`: a FILA ocupa o eixo principal e o CONTEXTO fica na coluna de
+     * apoio (320-380px). A "ordem" deixa de ser uma sequencia vertical e passa a ser uma RELACAO
+     * ENTRE REGIOES — por isso o teste verifica ESTRUTURA, e nao indices de heading.
+     *
+     * O que continua protegido, e e o que importa:
+     *   1. a fila de trabalho E a regiao principal;
+     *   2. excecoes, posicao e as filas do dominio (AGORA/ATENCAO) continuam SERVIDAS — nada foi
+     *      removido da tela;
+     *   3. o contexto nao esta dentro do eixo da fila: ele e IRMAO dela na divisao.
+     * ═══════════════════════════════════════════════════════════════════════════════════════════
      */
-    expect(excecoes).toBeGreaterThanOrEqual(0);
-    expect(posicao).toBeGreaterThan(excecoes);
-    expect(agora).toBeGreaterThan(posicao);
-    expect(atencao).toBeGreaterThan(agora);
-    // A posicao financeira continua sendo servida: nada foi removido da tela.
+    const split = document.querySelector('[data-region="work-split"]');
+    expect(split, 'a Central Financeira deve declarar a divisao principal').not.toBeNull();
+
+    const mainColumn = split!.firstElementChild;
+    const supportColumn = split!.lastElementChild;
+    expect(mainColumn, 'a divisao precisa de uma coluna principal').not.toBeNull();
+    expect(supportColumn, 'a divisao precisa de uma coluna de apoio').not.toBeNull();
+
+    /* 1. A FILA DE TRABALHO E A REGIAO PRINCIPAL — o trabalho, no eixo principal. */
+    expect(mainColumn!.textContent ?? '').toContain('Fila financeira');
+
+    /*
+     * 2. O CONTEXTO E IRMAO DA FILA, NAO DESCENDENTE — esta e a garantia estrutural de que a coluna
+     *    de apoio nao empurra o trabalho para baixo.
+     */
+    expect(supportColumn!.contains(mainColumn)).toBe(false);
+    expect(mainColumn!.contains(supportColumn)).toBe(false);
+
+    /* 3. NADA FOI REMOVIDO: excecoes, posicao, AGORA/ATENCAO e a posicao financeira continuam. */
+    expect(headings).toContain('Exceções financeiras');
+    expect(await screen.findByText('CONC-88')).toBeInTheDocument();
     expect(screen.getByRole('table', { name: /aging de contas a pagar/i })).toBeInTheDocument();
+
+    /* 4. A SUPERFICIE DE APOIO E DISTINTA DO TRABALHO — o painel de contexto pinta a camada LEVEL 2. */
+    expect(
+      supportColumn!.innerHTML,
+      'a coluna de apoio deve declarar a superficie de contexto',
+    ).toContain('surface-context');
   });
 
   it('posição zerada não vira parede de zeros: diz que não há títulos nem contas', async () => {

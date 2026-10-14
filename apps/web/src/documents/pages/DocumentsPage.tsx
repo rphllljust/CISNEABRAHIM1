@@ -8,23 +8,29 @@ import {
   ModulePagination,
 } from '../../ui/module-layout';
 import {
-  EnterpriseMetric,
   WorklistClearFilters,
   WorklistException,
   WorklistField,
   WorklistFilterBar,
-  WorklistHeader,
-  WorklistStatePanel,
   worklistControlClass,
   worklistSelectClass,
-  worklistCellClass,
-  worklistCellRaisedClass,
-  worklistHeadCellClass,
-  worklistRowClass,
-  worklistTableCardClass,
   worklistTableClass,
 } from '../../ui/enterprise-list';
 import { StatusBadge } from '../../ui/StatusBadge';
+import {
+  ContextFacts,
+  ContextSection,
+  WorkspaceBody,
+  WorkspaceEmpty,
+  WorkspaceHeader,
+  WorkspacePane,
+  WorkspacePaneHeader,
+  WorkspaceStatusLine,
+  workspaceCellRaisedClass,
+  workspaceHeadCellClass,
+  workspaceRowClass,
+} from '../../ui/workspace-frame';
+import { cn } from '../../ui/utils/cn';
 import {
   DOCUMENT_LIST_PAGE_SIZE,
   DocumentsApiError,
@@ -243,30 +249,55 @@ export function DocumentsPage() {
   };
 
   return (
-    <ModulePage>
-      <WorklistHeader
+    <ModulePage layout="workspace">
+      {/*
+        ═════════════════════════════════════════════════════════════════════════════════════════
+        DOCUMENTOS — RECOMPOSTO NA GRAMATICA DE BANCADA.
+
+        DEFEITO MEDIDO (1600x900, `getBoundingClientRect` sobre o DOM renderizado): a rota nao
+        declarava NENHUMA regiao de trabalho. A sonda de camadas devolveu, no nivel do `<main>`:
+
+            <h1> Documentos                  sem region
+            <div> cisne-filter-surface       bg=rgb(255,255,255)  1336x44   <- faixa BRANCA de filtro
+            <div> bg=oklab(.../0.7)          bg=cinza 70%         1336x43   <- OUTRA faixa de filtro
+            <button>  bg=rgb(8,127,120)                            57x26    <- chip TEAL
+
+        Tres consequencias, todas de COMPOSICAO:
+
+        1. A tabela vivia num `worklistTableCardClass` solto no `main`, sem `WorkspaceBody`: nao
+           existia divisao trabalho/contexto, e a pagina era uma COLUNA unica de largura total.
+        2. As duas faixas de filtro empilhavam 87px de chrome ANTES do primeiro dado — e a barra de
+           filtro pintava BRANCO cheio de ponta a ponta, virando uma segunda superficie de trabalho
+           sem conteudo dentro.
+        3. O chip de recorte ativo era TEAL (`rgb(8,127,120)`) — a cor de IDENTIDADE do CISNE usada
+           como estado de filtro. Teal nao e estado: e apoio e contexto.
+
+        Agora a rota usa a mesma gramatica de Clientes, Contratos e Financeiro: cabecalho com a
+        linha de situacao, `WorkspaceBody` com a grade BRANCA no eixo e a coluna de CONTEXTO
+        (320-380px, `#F5F7FA`) ao lado, e estado vazio dentro da estrutura.
+        ═════════════════════════════════════════════════════════════════════════════════════════
+      */}
+      <WorkspaceHeader
         title="Documentos"
-        count={total}
-        context="Acervo documental do escopo autorizado: tipo, classificação, versão corrente e vínculo com os fluxos que geraram o arquivo."
-        metrics={
+        identity="Acervo documental do escopo autorizado: tipo, classificação, versão corrente e vínculo com os fluxos que geraram o arquivo."
+        scope={`${formatDocumentCount(total)} ${total === 1 ? 'documento' : 'documentos'} publicados`}
+        status={
           total > 0 ? (
-            <>
-              <EnterpriseMetric
-                value={withVersionCount}
-                label="com versão"
-                tone="neutral"
-              />
-              <EnterpriseMetric
-                value={items.length - withVersionCount}
-                label="sem versão"
-                tone={items.length - withVersionCount > 0 ? 'warning' : 'neutral'}
-              />
-              <EnterpriseMetric
-                value={restrictedCount}
-                label="restritos"
-                tone={restrictedCount > 0 ? 'critical' : 'neutral'}
-              />
-            </>
+            <WorkspaceStatusLine
+              items={[
+                { value: formatDocumentCount(withVersionCount), label: 'com versão' },
+                {
+                  value: formatDocumentCount(items.length - withVersionCount),
+                  label: 'sem versão',
+                  tone: items.length - withVersionCount > 0 ? 'alert' : 'neutral',
+                },
+                {
+                  value: formatDocumentCount(restrictedCount),
+                  label: 'restritos',
+                  tone: restrictedCount > 0 ? 'alert' : 'neutral',
+                },
+              ]}
+            />
           ) : null
         }
       />
@@ -328,138 +359,202 @@ export function DocumentsPage() {
         className="mb-4"
       />
 
-      {isOutOfRange ? (
-        <WorklistStatePanel
-          title="Esta página não existe mais para os filtros aplicados."
-          description={`Existem ${formatDocumentCount(total)} ${total === 1 ? 'documento' : 'documentos'} no total, em ${formatDocumentCount(totalPages)} ${totalPages === 1 ? 'página' : 'páginas'}.`}
-          action={<WorklistClearFilters visible label="Ir para a primeira página" onClick={() => setOffset(0)} />}
-        />
-      ) : null}
+      {/*
+        DIVISAO DE BANCADA — A GRADE NO EIXO, O RECORTE NO CONTEXTO.
 
-      {isCatalogueEmpty ? (
-        <WorklistStatePanel
-          title="Nenhum documento disponível no seu escopo."
-          description="Os documentos são anexados pelos fluxos de execução, medição, faturamento e pelas telas das entidades. Assim que o primeiro arquivo for vinculado, ele aparece aqui."
-        />
-      ) : null}
+        O estado vazio NAO desmonta a area de trabalho: os paineis de estado entram DENTRO do painel
+        branco, e a coluna de contexto continua publicada ao lado. Antes eles empilhavam no `main` e
+        a pagina colapsava para uma mensagem solta.
+      */}
+      <WorkspaceBody
+        context={
+          <WorkspacePane surface="support" className="h-full overflow-auto" data-region="context-region">
+            <WorkspacePaneHeader title="Recorte e acervo" />
+            <ContextSection title="Recorte lido">
+              <ContextFacts
+                facts={[
+                  {
+                    label: 'Documentos no recorte',
+                    value: formatDocumentCount(total),
+                  },
+                  {
+                    label: 'Nesta página',
+                    value: String(items.length),
+                  },
+                  {
+                    label: 'Tipo',
+                    value: categoryCode
+                      ? (DOCUMENT_CATEGORY_OPTIONS.find((option) => option.value === categoryCode)
+                          ?.label ?? categoryCode)
+                      : 'Todos os tipos',
+                  },
+                  {
+                    label: 'Busca',
+                    value: appliedSearch || 'Sem termo',
+                  },
+                ]}
+              />
+            </ContextSection>
 
-      {isNoResult ? (
-        <WorklistStatePanel
-          title="Nenhum documento corresponde aos filtros aplicados."
-          description="Ajuste a busca ou o tipo para ver os documentos disponíveis."
-          action={<WorklistClearFilters visible label="Ver todos os documentos" onClick={clearAll} />}
-        />
-      ) : null}
+            {/*
+              IDENTIDADE E SITUACAO DO ACERVO — DADO EMPRESARIAL, NAO AJUDA DE INTERFACE.
 
-      {items.length > 0 ? (
-        <div className={worklistTableCardClass} aria-busy={isRefreshing}>
-          <table className={worklistTableClass} aria-label="Lista de documentos">
-            <thead>
-              <tr>
-                <th scope="col" className={worklistHeadCellClass}>
-                  Documento
-                </th>
-                <th scope="col" className={worklistHeadCellClass}>
-                  Situação
-                </th>
-                <th scope="col" className={worklistHeadCellClass}>
-                  Versão
-                </th>
-                <th scope="col" className={worklistHeadCellClass}>
-                  Unidade
-                </th>
-                <th scope="col" className={worklistHeadCellClass}>
-                  Atualizado
-                </th>
-                <th scope="col" className={worklistHeadCellClass}>
-                  Arquivo
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item) => (
-                <tr key={item.id} className={worklistRowClass}>
-                  <td className={worklistCellClass}>
-                    <span
-                      className="max-w-[24rem] truncate text-sm font-semibold text-gray-900"
-                      title={item.title}
-                    >
-                      {item.title}
-                    </span>
-                    <p className="text-[11px] text-gray-500">
-                      {buildDocumentContextLabel(item.categoryCode, item.classificationCode)}
-                    </p>
-                  </td>
-                  <td className={worklistCellRaisedClass}>
-                    {/*
-                      STATUS SEMÂNTICO — antes `formatDocumentStatus` renderizava texto puro.
-                      "Restrito" é um fato de SEGURANÇA: documento confidencial exige saliência.
-                      O status (Ativo/Arquivado) vira badge; a classificação RESTRICTED ganha
-                      exceção própria, junto do status, porque é ela que o operador precisa
-                      notar antes de abrir o arquivo.
-                    */}
-                    <StatusBadge
-                      label={formatDocumentStatus(item.status)}
-                      tone={item.status === 'ARCHIVED' ? 'neutral' : 'success'}
-                    />
-                    {item.classificationCode === DOCUMENT_CLASSIFICATIONS.Restricted ? (
-                      <WorklistException tone="critical">Restrito</WorklistException>
-                    ) : null}
-                  </td>
-                  <td className={worklistCellRaisedClass}>
-                    <span className="tabular-nums text-gray-700">
-                      {formatDocumentVersion(item.currentVersionNumber)}
-                    </span>
-                  </td>
-                  <td className={worklistCellRaisedClass}>
-                    {/*
-                      UNIDADE — nenhum identificador tecnico vai para a superficie
-                      operacional (PARK: nome humano da unidade no documento).
-                    */}
-                    <span className="text-xs text-gray-600">
-                      {item.unitId ? 'No seu escopo autorizado' : 'Sem unidade informada'}
-                    </span>
-                  </td>
-                  <td
-                    className={worklistCellRaisedClass}
-                    title={item.updatedAt}
-                  >
-                    <span className="whitespace-nowrap tabular-nums text-gray-700">
-                      {formatDateTimePtBr(item.updatedAt, { withSeconds: true })}
-                    </span>
-                  </td>
-                  <td className={worklistCellRaisedClass}>
-                    {capabilities.canDownload && item.currentVersionNumber ? (
-                      <DocumentDownloadAction
-                        documentId={item.id}
-                        versionNumber={item.currentVersionNumber}
-                        filename={item.title}
-                        variant="secondary"
-                      />
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
+              Uma secao "como usar" aqui seria tutorial, e o contrato proibe. O que a coluna publica
+              e o que o acervo E: quantos documentos tem versao vigente, quantos estao restritos e o
+              que cada estado significa em termos de acesso.
+            */}
+            <ContextSection title="Situação do acervo">
+              <ContextFacts
+                facts={[
+                  {
+                    label: 'Com versão vigente',
+                    value: formatDocumentCount(withVersionCount),
+                  },
+                  {
+                    label: 'Sem versão publicada',
+                    value: formatDocumentCount(items.length - withVersionCount),
+                  },
+                  {
+                    label: 'Classificação restrita',
+                    value:
+                      restrictedCount > 0
+                        ? `${formatDocumentCount(restrictedCount)} — exige acesso autorizado`
+                        : 'Nenhum no recorte',
+                  },
+                  {
+                    label: 'Arquivados',
+                    value: formatDocumentCount(
+                      items.filter((item) => item.status === 'ARCHIVED').length,
+                    ),
+                  },
+                ]}
+              />
+            </ContextSection>
+          </WorkspacePane>
+        }
+      >
+        <WorkspacePane className="h-full overflow-hidden" data-region="worklist-master">
+          {isOutOfRange ? (
+            <WorkspaceEmpty
+              title="Esta página não existe mais para os filtros aplicados."
+              description={`Existem ${formatDocumentCount(total)} ${total === 1 ? 'documento' : 'documentos'} no total, em ${formatDocumentCount(totalPages)} ${totalPages === 1 ? 'página' : 'páginas'}.`}
+              action={<WorklistClearFilters visible label="Ir para a primeira página" onClick={() => setOffset(0)} />}
+            />
+          ) : null}
 
-      {/* "Existe proxima" vem do TOTAL informado pelo backend, e nao da heuristica "a pagina veio
-          cheia" — que oferecia uma pagina fantasma quando o total era multiplo exato do tamanho da
-          pagina. */}
-      {total > 0 || offset > 0 ? (
-        <ModulePagination
-          pageNumber={pageNumber}
-          rangeLabel={`Documentos ${formatDocumentRangeLabel(offset, items.length, total)}`}
-          previousDisabled={offset === 0}
-          nextDisabled={offset + items.length >= total}
-          onPrevious={() => setOffset(Math.max(0, offset - DOCUMENT_LIST_PAGE_SIZE))}
-          onNext={() => setOffset(offset + DOCUMENT_LIST_PAGE_SIZE)}
-        />
-      ) : null}
+          {isCatalogueEmpty ? (
+            <WorkspaceEmpty
+              title="Nenhum documento disponível no seu escopo."
+              description="Os documentos são anexados pelos fluxos de execução, medição, faturamento e pelas telas das entidades. Assim que o primeiro arquivo for vinculado, ele aparece aqui."
+            />
+          ) : null}
+
+          {isNoResult ? (
+            <WorkspaceEmpty
+              title="Nenhum documento corresponde aos filtros aplicados."
+              description="Ajuste a busca ou o tipo para ver os documentos disponíveis."
+              action={<WorklistClearFilters visible label="Ver todos os documentos" onClick={clearAll} />}
+            />
+          ) : null}
+
+          {items.length > 0 ? (
+            <div className="min-h-0 flex-1 overflow-auto" aria-busy={isRefreshing}>
+              <table className={worklistTableClass} aria-label="Lista de documentos">
+                <thead>
+                  <tr>
+                    <th scope="col" className={workspaceHeadCellClass}>
+                      Documento
+                    </th>
+                    <th scope="col" className={workspaceHeadCellClass}>
+                      Situação
+                    </th>
+                    <th scope="col" className={workspaceHeadCellClass}>
+                      Versão
+                    </th>
+                    <th scope="col" className={workspaceHeadCellClass}>
+                      Unidade
+                    </th>
+                    <th scope="col" className={workspaceHeadCellClass}>
+                      Atualizado
+                    </th>
+                    <th scope="col" className={workspaceHeadCellClass}>
+                      Arquivo
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((item) => (
+                    <tr key={item.id} className={workspaceRowClass}>
+                      <td className={workspaceCellRaisedClass}>
+                        {/* IDENTIFICADOR PRIMARIO — texto primario em peso 600, conforme o contrato da grade. */}
+                        <span
+                          className="block max-w-[24rem] truncate text-[length:var(--type-primary-size)] font-semibold text-[color:var(--color-text-primary)]"
+                          title={item.title}
+                        >
+                          {item.title}
+                        </span>
+                        <p className="m-0 text-[11px] text-[color:var(--color-text-muted)]">
+                          {buildDocumentContextLabel(item.categoryCode, item.classificationCode)}
+                        </p>
+                      </td>
+                      <td className={workspaceCellRaisedClass}>
+                        <StatusBadge
+                          label={formatDocumentStatus(item.status)}
+                          tone={item.status === 'ARCHIVED' ? 'neutral' : 'success'}
+                        />
+                        {item.classificationCode === DOCUMENT_CLASSIFICATIONS.Restricted ? (
+                          <WorklistException tone="critical">Restrito</WorklistException>
+                        ) : null}
+                      </td>
+                      <td className={cn(workspaceCellRaisedClass, 'tabular-nums')}>
+                        {formatDocumentVersion(item.currentVersionNumber)}
+                      </td>
+                      <td className={workspaceCellRaisedClass}>
+                        <span className="cisne-type-meta">
+                          {item.unitId ? 'No seu escopo autorizado' : 'Sem unidade informada'}
+                        </span>
+                      </td>
+                      <td className={cn(workspaceCellRaisedClass, 'whitespace-nowrap tabular-nums')} title={item.updatedAt}>
+                        {formatDateTimePtBr(item.updatedAt, { withSeconds: true })}
+                      </td>
+                      <td className={workspaceCellRaisedClass}>
+                        {capabilities.canDownload && item.currentVersionNumber ? (
+                          <DocumentDownloadAction
+                            documentId={item.id}
+                            versionNumber={item.currentVersionNumber}
+                            filename={item.title}
+                            variant="secondary"
+                          />
+                        ) : (
+                          <span className="text-[color:var(--color-text-muted)]">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+
+          {/*
+            "Existe proxima" vem do TOTAL informado pelo backend, e nao da heuristica "a pagina veio
+            cheia" — que oferecia uma pagina fantasma quando o total era multiplo exato do tamanho da
+            pagina.
+          */}
+          {total > 0 || offset > 0 ? (
+            <div className="shrink-0 border-t border-[color:var(--color-border-default)] px-2.5 py-1.5">
+              <ModulePagination
+                pageNumber={pageNumber}
+                rangeLabel={`Documentos ${formatDocumentRangeLabel(offset, items.length, total)}`}
+                previousDisabled={offset === 0}
+                nextDisabled={offset + items.length >= total}
+                onPrevious={() => setOffset(Math.max(0, offset - DOCUMENT_LIST_PAGE_SIZE))}
+                onNext={() => setOffset(offset + DOCUMENT_LIST_PAGE_SIZE)}
+              />
+            </div>
+          ) : null}
+        </WorkspacePane>
+      </WorkspaceBody>
     </ModulePage>
   );
 }

@@ -388,7 +388,8 @@ export function PayablesListPage() {
           context={
             <WorkspacePane
               aria-label="Contexto do título"
-              className="hidden h-full overflow-auto bg-[color:var(--color-surface-context)] xl:flex"
+              surface="support"
+              className="hidden h-full overflow-auto xl:flex"
               data-region="context-region"
             >
               <WorkspacePaneHeader title="Contexto do título" />
@@ -460,16 +461,39 @@ export function PayablesListPage() {
                       ]}
                     />
                   </ContextSection>
-                  <ContextSection title="Como ler esta carteira">
-                    <ul className="m-0 list-disc space-y-1 pl-4 text-[12px] text-[color:var(--color-text-secondary)]">
-                      <li>Valores e contagens vêm do resumo do servidor sobre o recorte completo.</li>
-                      <li>
-                        A faixa de atraso é FATO persistido do título. A coluna de atraso é leitura do
-                        vencimento — as duas aparecem e não se substituem.
-                      </li>
-                      <li>O recorte por faixa é aplicado nesta página; o servidor não o aceita como filtro.</li>
-                      <li>Selecione um título para ver origem, valores e ciclo aqui.</li>
-                    </ul>
+                  {/*
+                    CONTEXTO E DADO EMPRESARIAL, NAO TUTORIAL.
+
+                    Aqui havia "Como ler esta carteira" — instrucao de operador dentro da coluna que
+                    existe para dar FATO. Um ERP Tier-1 nao ensina o proprio produto no contexto
+                    operacional.
+
+                    No lugar fica a PROVENIENCIA dos numeros: o que e resumo do servidor, o que e
+                    fato persistido e o que e recorte aplicado localmente. Isso muda a leitura do
+                    operador — ele passa a saber o ALCANCE de cada numero, o que e informacao de
+                    negocio, e nao ajuda de interface.
+                  */}
+                  <ContextSection title="Origem dos números">
+                    <ContextFacts
+                      facts={[
+                        {
+                          label: 'Valores e contagens',
+                          value: 'Resumo do servidor sobre o recorte',
+                        },
+                        {
+                          label: 'Faixa de atraso',
+                          value: 'Fato persistido do título',
+                        },
+                        {
+                          label: 'Atraso',
+                          value: 'Leitura do vencimento persistido',
+                        },
+                        {
+                          label: 'Recorte por faixa',
+                          value: 'Aplicado nesta página',
+                        },
+                      ]}
+                    />
                   </ContextSection>
                 </>
               )}

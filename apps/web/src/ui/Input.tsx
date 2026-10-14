@@ -6,11 +6,17 @@ export type InputProps = InputHTMLAttributes<HTMLInputElement> & {
 };
 
 /**
- * CONTROLE DE ENTRADA — altura governada por `--control-height`.
+ * CONTROLE DE ENTRADA — altura e raio governados por token.
+ *
+ * CONTRATO: input height 34px, radius 5px.
  *
  * Antes: `py-2 px-3` sem altura declarada, o que produzia ~38px por campo. Numa barra de filtros de
  * 6 campos isso e meia linha de grade perdida, e no formulario empurra a action bar para fora da
  * primeira dobra. A altura agora vem do token de densidade e nao de padding adivinhado por tela.
+ *
+ * A BORDA usa `--color-border-strong` (#D6DCE4) em vez de `ring-gray-300`: o campo precisa ser
+ * visivelmente um CONTROLE dentro da superficie branca, e o cinza `gray-300` do Tailwind nao pertence
+ * a familia de bordas do produto.
  */
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   { className, invalid, readOnly, ...props },
@@ -22,8 +28,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       readOnly={readOnly}
       aria-invalid={invalid || undefined}
       className={cn(
-        'block min-h-[var(--control-height)] w-full rounded-md border-0 bg-white px-2 py-1 text-[length:var(--type-body-size)] text-gray-900 ring-1 ring-gray-300 ring-inset outline-none focus:ring-2 focus:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-70',
-        invalid && 'bg-red-50 ring-red-500/30',
+        'block min-h-[var(--control-height)] w-full rounded-[5px] border border-[color:var(--color-border-strong)] bg-white px-2.5 py-1 text-[length:var(--type-body-size)] text-[color:var(--color-text-primary)] outline-none focus:border-[color:var(--color-focus-ring)] focus:ring-2 focus:ring-[color:var(--color-focus-ring-soft)] disabled:cursor-not-allowed disabled:bg-[color:var(--color-surface-sunken)] disabled:text-[color:var(--color-text-disabled)]',
+        invalid && 'border-[color:var(--color-critical-fg)]',
         className,
       )}
       {...props}

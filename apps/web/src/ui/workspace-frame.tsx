@@ -321,12 +321,31 @@ export function WorkspaceBody({
 
   return (
     <div
-      className={cn('grid min-h-0 min-w-0 flex-1 items-stretch gap-3', className)}
+      className={cn('grid min-h-0 min-w-0 flex-1 items-stretch gap-3.5', className)}
       style={{ gridTemplateColumns: `minmax(0,1fr) ${contextWidth}` }}
       data-region="work-split"
     >
       <div className="flex min-h-0 min-w-0 flex-col">{children}</div>
-      {context}
+      {/*
+        A COLUNA DE APOIO ROLA SOZINHA; ELA NAO ESTICA A PAGINA.
+
+        DEFEITO MEDIDO: numa grade com `items-stretch`, a ALTURA DA LINHA e a do mais alto dos dois
+        filhos. Quando a coluna de contexto tem mais conteudo que a fila, ela deixa de ser "leitura
+        paralela" e passa a DITAR a altura da pagina inteira. Na Central Financeira isso foi medido:
+
+            context-region = 380 x 3917 px   ->   .shell__content = 1380 x 4093 px
+
+        Ou seja: a coluna de 380px de largura mandava na altura de uma tela de 1600px de largura, e
+        a FILA — que e o trabalho — ficava com 3.918px de area morta ao lado. A composicao estava
+        correta e a pagina continuava errada, porque a restricao de altura nao existia.
+
+        Agora a coluna de apoio tem altura LIMITADA pela linha (`min-h-0` + `overflow-auto`) e rola
+        internamente. A altura da bancada passa a ser a da FILA: com 2 ou com 200 itens, a silhueta e
+        a mesma — que e a regra que a moldura declara desde o inicio.
+
+        Isto NAO corta conteudo: tudo o que estava na coluna continua alcancavel por rolagem.
+      */}
+      <div className="flex min-h-0 min-w-0 flex-col overflow-y-auto">{context}</div>
     </div>
   );
 }
@@ -336,16 +355,35 @@ export function WorkspaceBody({
  *
  * UMA borda de 1px, raio de 4px, SEM sombra. `flush` remove o contorno quando a superficie ja esta
  * dentro de outra moldura (object page, painel aninhado) — nunca para "deixar mais leve" por gosto.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────────────────────
+ * `surface` — A CAMADA CROMATICA DO PAINEL (FINAL 4)
+ *
+ * O painel nasce em LEVEL 1 (branco, `--color-surface-raised`), que e o certo para a GRADE: a area
+ * onde o operador trabalha e a mais clara da tela, e e dela que as outras camadas se destacam.
+ *
+ * A coluna de CONTEXTO e LEVEL 2: ela informa, nao opera, e precisa se distinguir do trabalho. O
+ * caminho anterior era a tela passar `bg-[color:var(--color-surface-context)]` por `className` — e
+ * isso NAO funcionava: `cn` e uma juncao simples de strings (nao resolve conflito entre utilitarios),
+ * entao as DUAS classes de fundo eram emitidas e a ordem do CSS decidia. O painel base vinha depois
+ * e vencia, deixando o contexto BRANCO igual ao trabalho. A hierarquia existia no token e nao
+ * chegava a tela.
+ *
+ * Declarar a camada aqui resolve na origem: uma classe de fundo, escolhida pelo significado, sem
+ * disputa de especificidade.
  */
 export function WorkspacePane({
   children,
   flush = false,
+  surface = 'work',
   className,
   as: As = 'div',
   ...rest
 }: {
   children: ReactNode;
   flush?: boolean;
+  /** `work` = LEVEL 1 (branco). `support` = LEVEL 2 (contexto). */
+  surface?: 'work' | 'support';
   className?: string;
   as?: 'div' | 'section';
   'aria-label'?: string;
@@ -354,8 +392,30 @@ export function WorkspacePane({
   return (
     <As
       className={cn(
-        'flex min-h-0 min-w-0 flex-col bg-[color:var(--color-surface-raised)]',
-        flush ? '' : 'rounded-[4px] border border-[color:var(--color-border-default)]',
+        'flex min-h-0 min-w-0 flex-col',
+        /*
+         * A CAMADA DECIDE A SUPERFICIE **E** A DIVISA.
+         *
+         * CONTRATO DA SUPERFICIE DE APOIO:
+         *   background  #F5F7FA
+         *   border-left 1px solid #D6DCE4
+         *
+         * O contexto se separa do trabalho por BORDA ESQUERDA, nao por contorno completo. Um
+         * contorno fechado em volta da coluna faz dela uma CAIXA ao lado de outra CAIXA — o
+         * vocabulario de "card", que e exatamente o que o ERP Tier-1 nao pode usar aqui. A divisa
+         * de 1px a esquerda diz a mesma coisa ("isto e leitura paralela") sem criar um objeto.
+         *
+         * `border-strong` (#D6DCE4) e um degrau mais escuro que o divisor padrao: sobre o cinza de
+         * apoio, o divisor claro desapareceria.
+         */
+        surface === 'support'
+          ? 'bg-[color:var(--color-surface-context)] border-l border-[color:var(--color-border-strong)]'
+          : 'bg-[color:var(--color-surface-raised)]',
+        flush
+          ? ''
+          : surface === 'support'
+            ? 'rounded-r-[6px]'
+            : 'rounded-[6px] border border-[color:var(--color-border-default)]',
         className,
       )}
       {...rest}
@@ -383,11 +443,9 @@ export function WorkspacePaneHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-[color:var(--color-divider)] px-3 py-2">
+    <div className="flex h-[var(--panel-head-height)] shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-[color:var(--color-divider)] px-3.5">
       <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-        <h2 className="m-0 text-[13px] font-[650] tracking-[-0.005em] text-[color:var(--color-text-primary)]">
-          {title}
-        </h2>
+        <h2 className="cisne-type-region-title m-0 text-[15px]! leading-6!">{title}</h2>
         {count !== undefined && count !== null ? (
           <span className="text-[12px] font-semibold tabular-nums text-[color:var(--color-text-secondary)]">
             {count}
@@ -546,21 +604,37 @@ export function WorkspaceSkeletonRows({ rows = 8, columns = 5 }: { rows?: number
 /**
  * CABECALHO DE GRADE — a baliza visual do dado tabular em todo o produto.
  *
- * Altura 34px, superficie tonal clara, tinta muted de 11px. `sticky` porque numa grade de 20 linhas
+ * Altura 36px, superficie tonal clara, tinta muted de 11px. `sticky` porque numa grade de 20 linhas
  * o rotulo da coluna precisa continuar disponivel — rolar ate o fim e perder a coluna e o defeito
  * classico de grade longa em ERP.
  */
 export const workspaceHeadCellClass =
-  'sticky top-0 z-10 h-[34px] border-b border-[color:var(--color-divider)] bg-[color:var(--color-surface-header)] px-3 text-left text-[11px] font-semibold tracking-[0.02em] text-[color:var(--color-grid-head-ink)] whitespace-nowrap';
+  'sticky top-0 z-10 h-[36px] border-b border-[color:var(--color-border-strong)] bg-[color:var(--color-surface-header)] px-2.5 text-left text-[11px] font-semibold tracking-[0.02em] text-[color:var(--color-grid-head-ink)] whitespace-nowrap';
 
 export const workspaceNumericHeadCellClass = cn(workspaceHeadCellClass, 'text-right');
 
 /**
- * CELULA DE CORPO — 44px, alinhada ao topo para que a linha de apoio (CNPJ, metadados) caiba sem
- * empurrar a grade. Densidade de ERP: a primeira dobra precisa entregar trabalho, nao respiro.
+ * CELULA DE CORPO — 40px, a densidade de linha do contrato.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────────────────────
+ * `max-h` NAO E REDUNDANTE COM `h` — ELE E O QUE FAZ A ALTURA VALER. MEDIDO.
+ *
+ * `h-[40px]` sozinho define a altura MINIMA de uma celula de tabela, nao a maxima: se o conteudo
+ * pedir mais (uma linha de identificador FORTE + uma linha de contexto, que e o padrao do
+ * identificador primario numa grade de ERP), a celula CRESCE e a densidade da grade se perde.
+ *
+ * Foi exatamente o que a prova de contrato mediu em Documentos, a 1600x900:
+ *
+ *     altura da linha de grade em /app/documents  =  47px   (contrato: 40px)
+ *
+ * 47px por linha entrega 17 registros na altura util onde 40px entrega 20 — uma perda de 15% de
+ * produtividade por um titulo que cabe em uma linha. `max-h` fecha a altura, `leading-tight`
+ * garante que as duas linhas caibam dentro dela, e `overflow-hidden` impede que o texto estoure a
+ * celula em vez de ser truncado pelo proprio conteudo.
+ * ─────────────────────────────────────────────────────────────────────────────────────────────
  */
 export const workspaceCellClass =
-  'h-[44px] border-b border-[color:var(--color-border-subtle)] px-3 py-1 align-middle text-[13px] text-[color:var(--color-text-primary)]';
+  'h-[40px] max-h-[40px] overflow-hidden border-b border-[color:var(--color-border-subtle)] px-2.5 py-1 align-middle text-[13px] leading-tight text-[color:var(--color-text-primary)]';
 
 export const workspaceNumericCellClass = cn(
   workspaceCellClass,
@@ -570,12 +644,15 @@ export const workspaceNumericCellClass = cn(
 /**
  * LINHA SELECIONAVEL — o registro inteiro e o alvo, e a selecao tem accent a esquerda.
  *
- * A selecao de grade pertence ao acento de TRABALHO (teal), nao a um azul generico: e o mesmo
- * acento do item ativo da navegacao e da acao primaria, e e assim que a superficie comunica
- * "este e o objeto que voce esta operando".
+ * SELECAO = AZUL DE INTERACAO (`--color-surface-selected`), nao teal.
+ *
+ * O teal e o acento de IDENTIDADE do CISNE (marca, accent contextual, apoio). A linha que o
+ * operador esta operando e um estado de TRABALHO, e trabalho no CISNE e azul — a mesma familia da
+ * acao primaria, do foco e da informacao. Com teal aqui, "selecionado" e "identidade da marca"
+ * competiam pelo mesmo tom e a grade perdia a leitura de estado.
  */
 export const workspaceRowClass =
-  'group relative cursor-pointer transition-colors duration-100 hover:bg-[color:var(--color-grid-row-hover)] data-[selected=true]:bg-[color:var(--color-surface-selected)] data-[selected=true]:shadow-[inset_2px_0_0_0_var(--color-brand-600)]';
+  'group relative cursor-pointer transition-colors duration-100 hover:bg-[color:var(--color-grid-row-hover)] data-[selected=true]:bg-[color:var(--color-surface-selected)] data-[selected=true]:shadow-[inset_2px_0_0_0_var(--color-blue-600)]';
 
 /** Celula com conteudo interativo — sobe acima do alvo de clique da linha. */
 export const workspaceCellRaisedClass = cn(workspaceCellClass, 'relative z-[1]');

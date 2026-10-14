@@ -289,7 +289,8 @@ export function WorkspaceQueueSurface({
         context={
           <WorkspacePane
             aria-label="Contexto da decisão"
-            className="hidden h-full overflow-auto bg-[color:var(--color-surface-context)] xl:flex"
+            surface="support"
+            className="hidden h-full overflow-auto xl:flex"
           >
             <WorkspacePaneHeader title="Contexto da decisão" />
             {selected ? (
@@ -353,14 +354,48 @@ export function WorkspaceQueueSurface({
                 </ContextSection>
 
                 <ContextSection title="O que entra nesta fila">
-                  <ul className="m-0 list-disc space-y-1 pl-4 text-[12px] text-[color:var(--color-text-secondary)]">
-                    <li>Exceções e bloqueios publicados pelos domínios autorizados.</li>
-                    <li>Aprovações e vencimentos com prazo persistido.</li>
-                    <li>
-                      A fila não inventa pendência: sem fato publicado, ela fica vazia — e isso é uma
-                      resposta, não uma falha.
-                    </li>
-                  </ul>
+                  {/*
+                    CONTEXTO E DADO DE NEGOCIO, NAO TUTORIAL.
+
+                    Aqui havia tres bullets INSTRUCIONAIS ("Excecoes e bloqueios publicados pelos
+                    dominios autorizados", "A fila nao inventa pendencia..."). Isso e texto de AJUDA
+                    ocupando a coluna mais cara da tela — a coluna que existe para responder "o que e
+                    este trabalho". Um ERP Tier-1 nao explica o proprio produto dentro do contexto
+                    operacional: ele mostra o FATO.
+
+                    O que fica no lugar e o mesmo conteudo, dito como CONTRATO DO RECORTE: quais
+                    dimensoes o servidor executou e quantas publicaram trabalho. O operador sai daqui
+                    sabendo o que a fila contem AGORA, e nao como usar a tela.
+                  */}
+                  <ContextFacts
+                    facts={[
+                      {
+                        label: 'Recorte',
+                        value: isAllScope(effectiveScope)
+                          ? 'Todos os tipos publicados'
+                          : (WORKSPACE_QUEUE_KINDS.find(
+                              (recorte) =>
+                                recorte.kind === effectiveScope.kind && !effectiveScope.overdue,
+                            )?.label ?? 'Somente vencidos'),
+                      },
+                      {
+                        label: 'Prazo',
+                        value: effectiveScope.overdue ? 'Somente vencidos' : 'Todos os prazos',
+                      },
+                      {
+                        label: 'Unidade',
+                        value: effectiveScope.unitId ? selectedUnitLabel : 'Todas as unidades',
+                      },
+                      {
+                        label: 'Domínios com trabalho',
+                        value: page
+                          ? String(
+                              WORK_DOMAINS.filter((domain) => (page.byDomain[domain] ?? 0) > 0).length,
+                            )
+                          : 'Não lido',
+                      },
+                    ]}
+                  />
                 </ContextSection>
 
                 {incompleteNotice ? (

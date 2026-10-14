@@ -407,7 +407,8 @@ export function ReceivablesListPage() {
           context={
             <WorkspacePane
               aria-label="Contexto do título"
-              className="hidden h-full overflow-auto bg-[color:var(--color-surface-context)] xl:flex"
+              surface="support"
+              className="hidden h-full overflow-auto xl:flex"
               data-region="context-region"
             >
               <WorkspacePaneHeader title="Contexto do título" />
@@ -474,15 +475,35 @@ export function ReceivablesListPage() {
                       ]}
                     />
                   </ContextSection>
-                  <ContextSection title="Como ler esta carteira">
-                    <ul className="m-0 list-disc space-y-1 pl-4 text-[12px] text-[color:var(--color-text-secondary)]">
-                      <li>Valores e contagens vêm do resumo do servidor sobre o recorte completo.</li>
-                      <li>
-                        A coluna de atraso é leitura do vencimento persistido — o domínio não publica
-                        faixa de aging para títulos a receber.
-                      </li>
-                      <li>Selecione um título para ver origem, cadeia e valores aqui.</li>
-                    </ul>
+                  {/*
+                    CONTEXTO E DADO EMPRESARIAL, NAO TUTORIAL.
+
+                    Aqui havia "Como ler esta carteira" com tres bullets explicando a propria tela
+                    ("valores e contagens vem do resumo do servidor...", "selecione um titulo para
+                    ver..."). Instrucao de operador nao e contexto: a coluna responde "o que e este
+                    trabalho", e explicar a interface consome a area mais cara sem entregar fato.
+
+                    No lugar ficam as PROVENIENCIA dos numeros que ja estao na coluna — o que o
+                    servidor agregou e o que e leitura derivada. Isso e contexto de negocio: diz de
+                    onde vem o valor e o que ele NAO inclui.
+                  */}
+                  <ContextSection title="Origem dos números">
+                    <ContextFacts
+                      facts={[
+                        {
+                          label: 'Valores e contagens',
+                          value: 'Resumo do servidor sobre o recorte',
+                        },
+                        {
+                          label: 'Atraso',
+                          value: 'Leitura do vencimento persistido',
+                        },
+                        {
+                          label: 'Faixa de aging',
+                          value: 'Não publicada pelo domínio a receber',
+                        },
+                      ]}
+                    />
                   </ContextSection>
                 </>
               )}

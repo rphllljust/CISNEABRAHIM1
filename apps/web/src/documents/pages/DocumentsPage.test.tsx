@@ -137,7 +137,19 @@ describe('DocumentsPage', () => {
     // Em listas com titulos repetidos, "Baixar" sozinho nao diz QUAL documento sera baixado.
     const button = await screen.findByRole('button', { name: 'Baixar Contrato assinado' });
     expect(button).toHaveTextContent('Baixar');
-    expect(button.className).toContain('border-gray-300');
+    /*
+     * A ASSERCAO E SOBRE A VARIANTE SEMANTICA, NAO SOBRE UM HEX.
+     *
+     * Ela exigia `border-gray-300` — o cinza do Tailwind que o botao SECUNDARIO usava antes. Com o
+     * contrato de controles aplicado (secundario = branco + borda `#D6DCE4` + texto primario), esse
+     * literal deixou de existir: o cinza generico nao pertence a familia de bordas do produto.
+     *
+     * O que o teste precisa garantir e o que ele sempre quis garantir — que a acao e um CONTROLE
+     * REAL, com a variante secundaria do design system, e nao texto solto. Ancorar no TOKEN em vez
+     * do valor antigo mantem o teste util quando a paleta evoluir.
+     */
+    expect(button.className).toContain('border-[color:var(--color-border-strong)]');
+    expect(button.className).toContain('bg-white');
   });
 
   it('resolves search and type on the server instead of filtering the loaded page', async () => {

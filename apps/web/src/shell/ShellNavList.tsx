@@ -14,37 +14,43 @@ type ShellNavListProps = {
 /**
  * ITEM DE NAVEGACAO — 36px, a densidade da especificacao do app shell.
  *
- * Eram ~30px (`py-[0.3125rem]` sobre 13px). 36px devolve a faixa 34-40px que o proprio sistema
- * documenta como densidade de sidebar e mantem a area de clique confortavel para ponteiro, sem que
- * o menu vire uma lista de botoes de toque.
+ * Eram ~30px (`py-[0.3125rem]` sobre 13px). 36px devolve a faixa 34-38px que o sistema documenta
+ * como densidade de navegacao e mantem a area de clique confortavel para ponteiro, sem que o menu
+ * vire uma lista de botoes de toque.
  *
- * O ESTADO ATIVO NAO E UM BLOCO AZUL.
+ * O ESTADO ATIVO E UM LAVADO AZUL DE 12%, COM BARRA DE 2px — NAO UM BLOCO PINTADO.
  *
- * Antes: `--color-shell-dock` (#0E3C59, um azul cheio) com 3px de accent. Sobre um navy escuro,
- * um retangulo azul claro de ponta a ponta e a assinatura visual de "admin panel": ele pinta mais
- * AREA que qualquer outro elemento do chrome e passa a ser a primeira coisa que o olho encontra
- * numa tela onde o trabalho e o que importa.
+ * O contrato do app shell e explicito:
  *
- * Agora o ativo e um LAVADO TEAL TRANSLUCIDO com barra de 2px e tinta clara: a mesma informacao
- * ("voce esta aqui"), com uma fracao do peso visual — o item continua inequivoco por causa da
- * barra + do peso 650, nao por causa de area pintada.
+ *   active nav  background rgba(37,99,235,0.12)   +   indicator 2-3px   +   tinta de alto contraste
+ *   hover       nav-hover
+ *
+ * Antes o ativo era `--color-shell-dock` — um azul de CHROME (o mesmo do dock de conta) com 3px de
+ * accent. Dois defeitos: (a) o estado ativo reutilizava a cor de outra regiao, de modo que "voce esta
+ * aqui" e "bloco de conta" liam igual; (b) era um retangulo de ponta a ponta, ou seja, o elemento
+ * com MAIS area pintada do chrome inteiro numa tela onde o trabalho e o que importa.
+ *
+ * Agora o ativo usa o AZUL DE INTERACAO em 14% de opacidade, com barra de 2px e tinta BRANCA em peso
+ * 600. O item continua inequivoco — barra + contraste + peso fazem isso — sem pintar area. E o azul e
+ * a mesma familia da acao primaria do produto: o operador aprende uma cor para "isto esta ativo /
+ * isto e o comando", na navegacao e na superficie.
  */
 function buildNavLinkClass(isActive: boolean, theme: 'dark' | 'light') {
   if (theme === 'dark') {
     return cn(
-      'group relative flex h-9 items-center gap-2 rounded-[4px] px-2.5 text-[13px] no-underline transition-colors',
-      'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-400',
+      'group relative flex h-[var(--nav-row-height)] items-center gap-2 rounded-[4px] px-2.5 text-[13px] no-underline transition-colors',
+      'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400',
       isActive
-        ? 'bg-[var(--color-shell-active)] font-semibold text-[var(--color-shell-active-ink)] shadow-[inset_2px_0_0_0_var(--color-shell-dock-ink)]'
-        : 'font-normal text-[var(--color-on-shell-nav)] hover:bg-[var(--color-shell-chrome)] hover:text-[var(--color-on-shell)]',
+        ? 'bg-[var(--color-shell-active)] font-semibold text-[var(--color-shell-active-ink)] shadow-[inset_2px_0_0_0_var(--color-shell-active-indicator)]'
+        : 'font-normal text-[var(--color-on-shell-nav)] hover:bg-[var(--color-shell-hover)] hover:text-[var(--color-on-shell)]',
     );
   }
 
   return cn(
-    'group flex h-9 items-center gap-2 rounded-[4px] px-2.5 text-[13px] no-underline transition-colors',
-    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500',
+    'group flex h-[var(--nav-row-height)] items-center gap-2 rounded-[4px] px-2.5 text-[13px] no-underline transition-colors',
+    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500',
     isActive
-      ? 'bg-[var(--color-surface-selected)] font-semibold text-[var(--color-brand-800)] shadow-[inset_2px_0_0_0_var(--color-brand-600)]'
+      ? 'bg-[var(--color-surface-selected)] font-semibold text-[var(--color-blue-800)] shadow-[inset_2px_0_0_0_var(--color-blue-600)]'
       : 'font-normal text-[color:var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[color:var(--color-text-primary)]',
   );
 }
@@ -54,13 +60,13 @@ function iconClass(isActive: boolean, theme: 'dark' | 'light') {
     return cn(
       'h-4 w-4 shrink-0',
       isActive
-        ? 'text-[var(--color-shell-active-ink)]'
+        ? 'text-[var(--color-on-shell)]'
         : 'text-[var(--color-on-shell-muted)] group-hover:text-[var(--color-on-shell-nav)]',
     );
   }
   return cn(
     'h-4 w-4 shrink-0',
-    isActive ? 'text-[var(--color-brand-700)]' : 'text-[color:var(--color-text-muted)]',
+    isActive ? 'text-[var(--color-blue-700)]' : 'text-[color:var(--color-text-muted)]',
   );
 }
 

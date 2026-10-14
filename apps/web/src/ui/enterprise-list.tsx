@@ -145,20 +145,48 @@ export const enterpriseControlClass =
 /*
  * GRADE ENTERPRISE — sem caixa. A grade e a area de trabalho; o card de segundo nivel era o que
  * fazia a lista parecer CRUD dentro de um painel.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────────────────────
+ * RECOMPOSTA NA GRAMATICA DE GRADE DO CONTRATO. MEDIDO, NAO ESTIMADO.
+ *
+ * Esta familia de classes era a SEGUNDA linguagem de grade do produto, e ela divergia da principal
+ * (`workspaceHeadCellClass` / `workspaceCellClass` em `workspace-frame.tsx`). A divergencia nao era
+ * cosmetica — foi medida na prova de contrato, a 1600x900:
+
+ *     cabecalho de grade em /app/finance/receivables  =  26,2px   (contrato: 36px)
+ *     cabecalho de grade em /app/finance/payables     =  26,2px   (contrato: 36px)
+ *     linha da grade                                  =  28px     (contrato: 40px)
+ *
+ * Ou seja: a MESMA grade media 26px de cabecalho no Financeiro e 36px em Clientes. O operador
+ * aprendia duas densidades para a mesma leitura, e o Financeiro — a tela com mais linhas do produto
+ * — entregava 12 registros por dobra onde caberiam 18.
+ *
+ * A divergencia vinha de tres decisoes que nao pertenciam a esta folha:
+ *
+ *   bg-gray-100    cabecalho CINZA do Tailwind, fora do sistema de superficies
+ *   --row-height   28px: o token de linha COMPACTA, aplicado como padrao
+ *   brand-50       hover/selecao em TEAL — cor de identidade usada como estado
+ *
+ * Agora a familia aponta para os MESMOS tokens e valores da grade principal: cabecalho 36px em
+ * `--color-surface-header` (#F8FAFC) com regua `--color-border-strong`, linha 40px, hover neutro e
+ * selecao em AZUL de interacao. Uma grade, uma densidade, uma semantica.
  */
 export const enterpriseTableCardClass = 'mb-1 w-full min-w-0 max-w-full overflow-x-auto bg-white';
 
 export const enterpriseTableClass = 'w-full border-separate border-spacing-0';
 
 export const enterpriseHeadCellClass =
-  'sticky top-0 z-10 border-b border-gray-300 bg-gray-100 px-2.5 py-1.5 text-left text-[length:var(--type-micro-size)] font-semibold tracking-wide text-gray-600 uppercase';
+  'sticky top-0 z-10 h-[var(--grid-head-height)] border-b border-[color:var(--color-border-strong)] bg-[color:var(--color-surface-header)] px-2.5 text-left text-[length:var(--type-caption-size)] font-semibold tracking-[0.02em] text-[color:var(--color-grid-head-ink)] uppercase';
 
 export const enterpriseNumericHeadCellClass = cn(enterpriseHeadCellClass, 'text-right');
 
 export const enterpriseCellClass =
-  'h-[var(--row-height)] border-b border-gray-100 px-2 py-1 align-top text-[length:var(--type-body-size)] text-gray-800';
+  'h-[var(--row-height-comfortable)] border-b border-[color:var(--color-border-subtle)] px-2.5 py-1 align-middle text-[length:var(--type-body-size)] text-[color:var(--color-text-primary)]';
 
-export const enterpriseCellMutedClass = cn(enterpriseCellClass, 'text-gray-500');
+export const enterpriseCellMutedClass = cn(
+  enterpriseCellClass,
+  'text-[color:var(--color-text-secondary)]',
+);
 
 export const enterpriseNumericCellClass = cn(
   enterpriseCellClass,
@@ -166,7 +194,7 @@ export const enterpriseNumericCellClass = cn(
 );
 
 export const enterpriseRowClass =
-  'group transition-colors hover:bg-brand-50/40 data-[selected=true]:bg-brand-50';
+  'group transition-colors duration-100 hover:bg-[color:var(--color-grid-row-hover)] data-[selected=true]:bg-[color:var(--color-surface-selected)] data-[selected=true]:shadow-[inset_2px_0_0_0_var(--color-blue-600)]';
 
 /* -------------------------------------------------------------- células ricas */
 

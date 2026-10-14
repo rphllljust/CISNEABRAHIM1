@@ -13,15 +13,31 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   loadingText?: string;
 };
 
+/**
+ * VARIANTES DE COMANDO — CONTRATO DE COR DO ERP.
+ *
+ *   PRIMARY     bg #2563EB / hover #1D4ED8 / text #FFFFFF
+ *   SECONDARY   bg #FFFFFF / border #D6DCE4 / text #0F172A
+ *   TERTIARY    transparente
+ *   DANGER      vermelho SOMENTE para comando destrutivo
+ *
+ * O primario era TEAL (`brand-600` #087f78). Isso colocava a COR DE IDENTIDADE do CISNE no papel de
+ * ACAO: o botao mais importante da tela era verde-agua enquanto a informacao, o foco e a selecao
+ * eram azuis — duas familias disputando o mesmo significado. Agora a acao primaria e o AZUL DE
+ * INTERACAO, e o teal fica reservado ao ACCENT DE APOIO (contexto, relacao, identidade).
+ *
+ * O `danger` mantem vermelho cheio: e o unico comando que pode destruir dado, e a cor precisa ser
+ * exclusiva dele. Se qualquer outro botao pudesse ser vermelho, o vermelho deixaria de avisar.
+ */
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    'border border-brand-600 bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-700 disabled:opacity-70',
+    'border border-[color:var(--color-blue-600)] bg-[color:var(--color-blue-600)] text-white hover:bg-[color:var(--color-blue-700)] hover:border-[color:var(--color-blue-700)] active:bg-[color:var(--color-blue-800)] disabled:opacity-70',
   secondary:
-    'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 active:bg-gray-100 disabled:opacity-70',
+    'border border-[color:var(--color-border-strong)] bg-white text-[color:var(--color-text-primary)] hover:bg-[color:var(--color-surface-hover)] active:bg-[color:var(--color-surface-sunken-soft)] disabled:opacity-70',
   ghost:
-    'border border-transparent bg-transparent text-gray-700 hover:bg-gray-100 active:bg-gray-200 disabled:opacity-70',
+    'border border-transparent bg-transparent text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-surface-hover)] hover:text-[color:var(--color-text-primary)] active:bg-[color:var(--color-surface-sunken-soft)] disabled:opacity-70',
   danger:
-    'border border-red-700 bg-red-700 text-white hover:opacity-90 active:opacity-100 disabled:opacity-70',
+    'border border-[color:var(--color-critical-fg)] bg-[color:var(--color-critical-fg)] text-white hover:brightness-95 active:brightness-90 disabled:opacity-70',
 };
 
 /**
@@ -31,8 +47,8 @@ const variantClasses: Record<ButtonVariant, string> = {
  * ERP operado por mouse e teclado por 8h, 44px de altura por comando engorda toolbar, action bar e
  * linha de comando — e a barra de acoes passa a empurrar a grade para fora da primeira dobra.
  *
- * Agora a altura vem de `--control-height` (30px), mantendo area de clique confortavel e foco
- * visivel. Controles que precisam de alvo maior (telas de toque) usam `size="lg"`.
+ * Agora a altura vem de `--control-height` (34px) e o raio e 5px, conforme o contrato de controles.
+ * Controles que precisam de alvo maior (telas de toque) usam `size="lg"`.
  */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   { variant = 'primary', size = 'md', loading = false, loadingText, className, disabled, children, type = 'button', ...props },
@@ -52,9 +68,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       aria-busy={loading || undefined}
       aria-label={loading ? loadingAriaLabel : accessibleName}
       className={cn(
-        'cisne-type-action inline-flex items-center justify-center gap-1.5 rounded-md transition-colors duration-[var(--duration-fast)] ease-[var(--ease-standard)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed',
+        'cisne-type-action inline-flex items-center justify-center gap-1.5 rounded-[5px] transition-colors duration-[var(--duration-fast)] ease-[var(--ease-standard)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--color-focus-ring)] disabled:cursor-not-allowed',
         size === 'lg'
-          ? 'min-h-[var(--spacing-touch)] px-3.5 py-2'
+          ? 'min-h-[var(--control-height-lg)] px-3.5 py-2'
           : 'min-h-[var(--control-height)] px-2.5 py-1',
         variantClasses[variant],
         className,

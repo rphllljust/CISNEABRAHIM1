@@ -35,14 +35,22 @@ export function ShellTopBar({
 
   return (
     /*
-      ALTURA 54px — a faixa do app shell corporativo.
+      TOPBAR — BRANCA, 50px, COM REGUA DE 1px.
 
       A topbar de um ERP desktop e CROME, nao conteudo: cada 8px que ela retem sao 8px que a grade
-      densa perde na primeira dobra. 54px acomoda a busca principal, o sino, o seletor de idioma, o
-      comando e o menu de usuario com folga de ponteiro.
+      densa perde na primeira dobra. 50px (`--shell-chrome-height`) esta dentro da faixa 48-52px do
+      app shell corporativo e acomoda busca, sino, idioma, comando e menu de conta com folga de
+      ponteiro.
+
+      Eram 54px — dois pixels acima do topo da faixa, sem ganho funcional nenhum.
+
+      BRANCA, e nao navy: o chrome escuro do CISNE e a NAVEGACAO (a sidebar). Se a topbar tambem
+      fosse escura, o topo da aplicacao viraria um bloco unico e o conteudo perderia o segundo ponto
+      de ancoragem. Branca sobre o canvas `#F8FAFC`, ela delimita a area de trabalho por cima; a
+      sidebar navy delimita por baixo. A moldura fecha.
     */
     <header
-      className="shell__topbar sticky top-0 z-20 flex h-[3.375rem] items-center gap-3 border-b border-[var(--color-divider)] bg-[var(--color-surface-raised)] px-4 sm:px-5 lg:px-6"
+      className="shell__topbar sticky top-0 z-20 flex h-[var(--shell-chrome-height)] shrink-0 items-center gap-3 border-b border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-4 sm:px-5 lg:px-6"
       role="banner"
     >
       <button
@@ -58,14 +66,14 @@ export function ShellTopBar({
       </button>
 
       {/*
-        BUSCA GLOBAL CONTIDA — 420-560px, alinhada ao inicio do conteudo.
+        BUSCA GLOBAL CONTIDA — 420-600px, alinhada ao inicio do conteudo.
 
         Antes ela era `flex-1` e esticava por toda a largura livre entre a sidebar e o cluster de
         utilitarios: o campo de busca virava a maior superficie da topbar e a aplicacao abria com
-        cara de "formulario horizontal". Um teto de 560px mantem o campo com o tamanho de um campo
-        e devolve o meio da barra para o que e chrome de verdade — a identidade da area de trabalho.
+        cara de "formulario horizontal". Um teto em 600px mantem o campo com o tamanho de um CAMPO
+        — busca de ERP nao e hero — e devolve o meio da barra para o que e chrome de verdade.
       */}
-      <div className="shell__search w-full min-w-0 max-w-[35rem]">
+      <div className="shell__search w-full min-w-0 max-w-[37.5rem]">
         <GlobalSearchBar compact />
       </div>
 

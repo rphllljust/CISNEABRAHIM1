@@ -102,7 +102,7 @@ export function AppShellLayout() {
         e a area de trabalho.
       */}
       <aside
-        className="shell__sidebar fixed inset-y-0 z-30 hidden w-[13.75rem] flex-col border-r border-[var(--color-shell-chrome)] bg-[var(--color-shell-surface)] lg:flex"
+        className="shell__sidebar fixed inset-y-0 z-30 hidden w-[13.75rem] flex-col border-r border-[var(--color-shell-border)] bg-[var(--color-shell-surface)] lg:flex"
         aria-label="Barra lateral"
       >
         {/*
@@ -112,13 +112,19 @@ export function AppShellLayout() {
           virava duas faixas brancas/navy de peso igual. 48px mantem o logotipo, o nome e o
           subordinado "ERP corporativo" sem que a marca dispute com o conteudo.
         */}
-        <div className="shell__brand flex h-12 shrink-0 items-center gap-2.5 border-b border-[var(--color-shell-chrome)] px-3.5">
+        <div className="shell__brand flex h-[var(--shell-brand-height)] shrink-0 items-center gap-2.5 border-b border-[var(--color-shell-border)] px-3.5">
           {/*
-            MARCA EM TEAL — o unico lugar da sidebar onde o teal aparece em AREA. E o que da
-            identidade ao chrome sem tingir a navegacao inteira de accent.
+            MARCA — o ponto de IDENTIDADE do chrome.
+
+            O quadrado da marca era TEAL (`--color-brand-600`, #087f78). Sobre o navy novo ele lia
+            como uma mancha esverdeada no canto da navegacao e introduzia uma TERCEIRA familia de cor
+            no chrome (navy + teal + azul de interacao). Agora a marca e o AZUL DO CISNE
+            (`--color-blue-600`) — o mesmo azul da acao primaria. O chrome passa a ter duas cores
+            apenas: o navy da navegacao e o azul do que e interativo, e o teal fica reservado ao
+            ACCENT DE APOIO dentro da area de trabalho, onde ele significa contexto.
           */}
-          <div className="flex h-7 w-7 items-center justify-center rounded-[4px] bg-[var(--color-brand-600)] shadow-[0_1px_0_0_rgba(255,255,255,0.12)_inset]">
-            <ShellBrandMark className="h-3.5 w-3.5 text-[var(--color-on-shell)]" />
+          <div className="flex h-7 w-7 items-center justify-center rounded-[4px] bg-[var(--color-blue-600)]">
+            <ShellBrandMark className="h-3.5 w-3.5 text-white" />
           </div>
           <div className="min-w-0 leading-tight">
             <p className="truncate text-[13px] font-semibold tracking-tight text-[var(--color-on-shell)]">
@@ -132,9 +138,9 @@ export function AppShellLayout() {
 
         <ShellNavList alertCount={activeCount} alertsLoading={alertsLoading} theme="dark" />
 
-        <div className="border-t border-[var(--color-shell-chrome)] p-2.5">
-          <div className="flex items-center gap-2.5 rounded-[4px] bg-[var(--color-shell-chrome)] px-2.5 py-1.5">
-            <div className="flex h-6 w-6 items-center justify-center rounded-[4px] bg-[var(--color-shell-dock-ink)] text-[10px] font-bold text-[var(--color-on-shell)]">
+        <div className="border-t border-[var(--color-shell-border)] p-2.5">
+          <div className="flex items-center gap-2.5 rounded-[4px] bg-[var(--color-shell-dock)] px-2.5 py-1.5">
+            <div className="flex h-6 w-6 items-center justify-center rounded-[4px] bg-[var(--color-blue-600)] text-[10px] font-bold text-white">
               CN
             </div>
             <div className="min-w-0 leading-tight">
@@ -159,17 +165,20 @@ export function AppShellLayout() {
           }}
         />
         {/*
-          WORK AREA — CANVAS COM MARGEM DE FERRAMENTA.
+          AREA DE TRABALHO — O CANVAS COM MARGEM DE FERRAMENTA.
 
-          O padding externo e o da especificacao do app shell: 18px no topo, 22px nas laterais e
-          24px no rodape. Antes ele era `px-3 py-2` (12/8px) — tao apertado que a superficie de
-          trabalho encostava no chrome e a aplicacao lia como uma unica folha, sem o degrau visual
-          entre "moldura do sistema" e "area onde o operador trabalha".
+          O padding externo segue a especificacao do app shell: 20-24px horizontais e 16-20px
+          verticais. Aqui: 22px horizontais, 16px no topo, 20px no rodape.
 
-          A moldura continua SEM fundo proprio: o contraste do sistema vem do shell (sidebar navy
-          + topbar branca) e do canvas (`--color-canvas`), que sao onde ele significa alguma coisa.
+          Eram 18px/24px. O topo perde 2px de proposito — e o unico lado em que cada pixel gasto
+          empurra a GRADE para fora da primeira dobra. O rodape mantem 20px porque e onde a ultima
+          linha precisa respirar antes do fim da janela.
+
+          A moldura NAO tem fundo proprio: o contraste do sistema vem do shell (sidebar navy +
+          topbar branca) e do canvas cinza (`#F8FAFC`). Se a moldura pintasse tambem, voltariam as
+          tres superficies empilhadas que produziam a leitura de "folha branca infinita".
         */}
-        <div className="shell__content flex-1 px-[22px] pt-[18px] pb-6">
+        <div className="shell__content flex-1 px-[22px] pt-4 pb-5">
           <div
             className={cn(
               'shell-page-frame mx-auto w-full min-w-0',
