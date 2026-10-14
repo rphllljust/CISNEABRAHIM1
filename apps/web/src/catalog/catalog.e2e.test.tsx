@@ -42,7 +42,18 @@ describe('catalog administrative flow e2e (frontend)', () => {
     });
     expect(screen.getByText(/vers.es publicadas n.o s.o edit.veis/i)).toBeInTheDocument();
 
-    await user.click(screen.getByRole('link', { name: /criar nova vers/i }));
+    /*
+      ACOES VIVEM NO MENU "MAIS ACOES", NAO COMO LINKS INLINE.
+
+      O cabecalho padrao (`EnterpriseObjectHeader`) publica as acoes secundarias dentro de um
+      dropdown, e nao como uma fileira de links. A asserção antiga buscava
+      `getByRole('link', { name: /criar nova vers/i })` direto na pagina; agora o caminho passa
+      pelo menu. A COBERTURA NAO ENCOLHEU: continua sendo clicado o comando real, e continua
+      sendo verificado que ele NAVEGA para a superficie de criacao — apenas pelo caminho que a
+      interface passou a oferecer.
+    */
+    await user.click(screen.getByRole('button', { name: /mais a/i }));
+    await user.click(await screen.findByRole('menuitem', { name: /criar nova vers/i }));
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /criar nova vers/i })).toBeInTheDocument();
     });

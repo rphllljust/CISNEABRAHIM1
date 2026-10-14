@@ -13,7 +13,14 @@ import {
   ModulePage,
   ModulePageHeader,
 } from '../../ui/module-layout';
-import { VersionStatusBadge } from '../components/VersionStatusBadge';
+import {
+  EnterpriseObjectHeader,
+  EnterpriseObjectPage,
+} from '../../enterprise-object';
+import {
+  VERSION_STATUS_LABELS,
+  VersionStatusBadge,
+} from '../components/VersionStatusBadge';
 import { ARCHETYPE_LABELS } from '../constants/catalog-vocabulary';
 import { VERSION_STATUSES, type ServiceDefinitionVersion } from '../types/service-catalog.types';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
@@ -139,30 +146,51 @@ export function ServiceDefinitionVersionDetailPage() {
 
   return (
     <ModulePage>
-      <ModulePageHeader
-        title={`${version.code} — v${version.version}`}
-        action={
-          <>
-            <VersionStatusBadge status={version.status} />
-            {!isPublished && version.status === VERSION_STATUSES.Draft ? (
-              <Link
-                to={`/app/catalog/${definitionId}/versions/${version.version}/edit`}
-                className="button-link button-secondary"
-              >
-                Editar rascunho
-              </Link>
-            ) : null}
-            {isPublished ? (
-              <Link
-                to={`/app/catalog/${definitionId}/versions/new`}
-                className="button-link"
-              >
-                Criar nova versão
-              </Link>
-            ) : null}
-          </>
+      {/*
+        OBJECT PAGE — a versao entra na mesma gramatica das demais fichas do produto.
+
+        O titulo ja era humano (`CODIGO — vN`), mas vinha de `ModulePageHeader` com o estado e
+        os comandos soltos num `action` de fragmento. Agora o cabecalho padrao publica a
+        identidade (referencia, titulo, estado) e as acoes por PAPEL: navegacao vai em
+        `secondaryActions` (vira LINK), e nada aqui e destrutivo.
+      */}
+      <EnterpriseObjectPage
+        phaseTitle="Versão de serviço"
+        header={
+          <EnterpriseObjectHeader
+            /*
+              O TITULO E "CODIGO — vN", EM UM SO HEADING.
+
+              A prova de browser prende `LOCACAO-DEMO ... v2` num unico heading: a versao NAO e
+              um registro independente, e a revisao de uma definicao — e o operador precisa ler
+              as duas coisas juntas para saber o que esta aberto. Separar codigo em `reference`
+              e versao em `title` quebraria essa leitura (e o teste).
+            */
+            title={`${version.code} — v${version.version}`}
+            status={{ label: VERSION_STATUS_LABELS[version.status] }}
+            secondaryActions={[
+              ...(!isPublished && version.status === VERSION_STATUSES.Draft
+                ? [
+                    {
+                      id: 'edit-draft',
+                      label: 'Editar rascunho',
+                      to: `/app/catalog/${definitionId}/versions/${version.version}/edit`,
+                    },
+                  ]
+                : []),
+              ...(isPublished
+                ? [
+                    {
+                      id: 'new-version',
+                      label: 'Criar nova versão',
+                      to: `/app/catalog/${definitionId}/versions/new`,
+                    },
+                  ]
+                : []),
+            ]}
+          />
         }
-      />
+      >
 
       {isPublished ? (
         <p
@@ -227,6 +255,7 @@ export function ServiceDefinitionVersionDetailPage() {
       <p>
         <Link to={`/app/catalog/${definitionId}`}>Voltar à definição</Link>
       </p>
+      </EnterpriseObjectPage>
     </ModulePage>
   );
 }

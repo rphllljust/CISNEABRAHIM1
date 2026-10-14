@@ -20,7 +20,12 @@ import {
   ModulePage,
   ModulePageHeader,
 } from '../../ui/module-layout';
-import { ServiceDefinitionStatusBadge } from '../components/ServiceDefinitionStatusBadge';
+import {
+  EnterpriseObjectHeader,
+  EnterpriseObjectPage,
+  ObjectPanel,
+} from '../../enterprise-object';
+import { serviceDefinitionStatusLabel } from '../components/ServiceDefinitionStatusBadge';
 import { VersionConflictNotice } from '../components/VersionConflictNotice';
 import { VersionStatusBadge } from '../components/VersionStatusBadge';
 import { useCatalogCapabilities } from '../hooks/useCatalogCapabilities';
@@ -186,37 +191,78 @@ export function ServiceDefinitionDetailPage() {
 
   return (
     <ModulePage>
-      <ModulePageHeader
-        title={definition.code}
-        action={
-          <>
-            <ServiceDefinitionStatusBadge status={definition.status} />
-            {capabilities.canUpdate && definition.currentDraftVersion === null ? (
-              <Link
-                to={`/app/catalog/${definition.id}/versions/new`}
-                className="button-link button-secondary"
-              >
-                Criar nova versão
-              </Link>
-            ) : null}
-            {capabilities.canDeactivate && definition.status === CATALOG_LINEAGE_STATUSES.Active ? (
-              <button
-                type="button"
-                className="button-secondary"
-                onClick={() => setDeactivateOpen(true)}
-              >
-                Desativar definição
-              </button>
-            ) : null}
-            {capabilities.canActivate && definition.status === CATALOG_LINEAGE_STATUSES.Inactive ? (
-              <button type="button" onClick={() => setActivateOpen(true)}>
-                Reativar definição
-              </button>
-            ) : null}
-          </>
-        }
-      />
+      {/*
+        OBJECT PAGE — a definição de serviço entra na mesma gramática das outras fichas.
 
+        A tela usava `ModulePageHeader` com título ESTÁTICO ("Definição de serviço") e o corpo
+        em blocos `rounded-md border bg-white shadow-[...]`. Dois defeitos somados: (a) o
+        cabeçalho não dizia QUAL definição estava aberta — o operador tinha de descer até o
+        corpo para descobrir o código; (b) a superfície era o padrão de CARD que a governança
+        global de `theme.css` existe para eliminar.
+
+        Agora o cabeçalho publica a IDENTIDADE do registro (código como referência humana,
+        nome como título, estado e capacidades ao lado) e os blocos passam a `ObjectPanel`,
+        separados por divisor em vez de caixa elevada.
+      */}
+      <EnterpriseObjectPage
+        phaseTitle="Definição de serviço"
+        header={
+          <EnterpriseObjectHeader
+            reference={definition.code}
+            /*
+              O CODIGO E O TITULO — e a referencia humana deste registro.
+
+              A conversao inicial colocou `name` como titulo e o codigo apenas como referencia,
+              e isso QUEBROU o contrato que a prova de browser ja prendia: a ficha precisa
+              anunciar `LOCACAO-DEMO` no heading. O codigo e o identificador de negocio pelo
+              qual o operador procura o servico; `name` e descricao e vai para o subtitulo.
+
+              `name` e nullable: ausente, o subtitulo simplesmente nao aparece — nunca um
+              placeholder.
+            */
+            title={definition.code}
+            subtitle={definition.name}
+            status={{
+              label: serviceDefinitionStatusLabel(definition.status),
+            }}
+            metadata={[
+              { label: 'Versões', value: versions.length },
+              { label: 'Rascunho vigente', value: definition.currentDraftVersion ?? 'Nenhum' },
+            ]}
+            secondaryActions={[
+              ...(capabilities.canUpdate && definition.currentDraftVersion === null
+                ? [
+                    {
+                      id: 'new-version',
+                      label: 'Criar nova versão',
+                      to: `/app/catalog/${definition.id}/versions/new`,
+                    },
+                  ]
+                : []),
+            ]}
+            destructiveActions={[
+              ...(capabilities.canDeactivate && definition.status === CATALOG_LINEAGE_STATUSES.Active
+                ? [
+                    {
+                      id: 'deactivate',
+                      label: 'Desativar definição',
+                      onSelect: () => setDeactivateOpen(true),
+                    },
+                  ]
+                : []),
+              ...(capabilities.canActivate && definition.status === CATALOG_LINEAGE_STATUSES.Inactive
+                ? [
+                    {
+                      id: 'activate',
+                      label: 'Reativar definição',
+                      onSelect: () => setActivateOpen(true),
+                    },
+                  ]
+                : []),
+            ]}
+          />
+        }
+      >
       {actionError ? (
         <p className="form-error" role="alert">
           {actionError}
@@ -224,13 +270,7 @@ export function ServiceDefinitionDetailPage() {
       ) : null}
       {versionConflict ? <VersionConflictNotice onReload={() => void reload()} /> : null}
 
-      <section
-        className="rounded-md border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgb(15_23_42/0.04)]"
-        aria-labelledby="definition-admin-heading"
-      >
-        <h2 id="definition-admin-heading" className="mt-0 mb-3 text-base font-semibold text-gray-900">
-          Linha de definição
-        </h2>
+      <ObjectPanel title="Linha de definição">
         <DefinitionList
           items={[
             { label: 'Versão de concorrência (lineage)', value: definition.version },
@@ -239,25 +279,21 @@ export function ServiceDefinitionDetailPage() {
             { label: 'Atualizado em', value: formatDateTime(definition.updatedAt) },
           ]}
         />
-      </section>
+      </ObjectPanel>
 
-      <section
-        className="rounded-md border border-slate-200 bg-white shadow-[0_1px_2px_rgb(15_23_42/0.04)]"
-        aria-labelledby="versions-heading"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
-          <h2 id="versions-heading" className="m-0 text-base font-semibold text-gray-900">
-            Versões
-          </h2>
-          {versions.length >= 2 ? (
+      <ObjectPanel
+        title="Versões"
+        actions={
+          versions.length >= 2 ? (
             <Link
               to={`/app/catalog/${definition.id}/compare`}
               className="button-link button-secondary"
             >
               Comparar versões
             </Link>
-          ) : null}
-        </div>
+          ) : null
+        }
+      >
         <DataTable aria-label="Versões da definição">
           <DataTableHead>
             <DataTableRow>
@@ -301,7 +337,7 @@ export function ServiceDefinitionDetailPage() {
         <p className="m-0 border-t border-slate-100 px-4 py-3 text-xs text-gray-500" role="note">
           Versões publicadas não são editáveis diretamente. Para alterar, crie uma nova versão em rascunho.
         </p>
-      </section>
+      </ObjectPanel>
 
       <p>
         <Link to="/app/catalog">Voltar à lista</Link>
@@ -390,6 +426,7 @@ export function ServiceDefinitionDetailPage() {
           })
         }
       />
+      </EnterpriseObjectPage>
     </ModulePage>
   );
 }

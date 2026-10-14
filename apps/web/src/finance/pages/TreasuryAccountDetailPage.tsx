@@ -1,7 +1,16 @@
 import { useCallback, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Button, EmptyState, Field, Input, Money, Select } from '../../ui';
-import { ModulePage, ModulePageHeader } from '../../ui/module-layout';
+import { ModulePage } from '../../ui/module-layout';
+import {
+  EnterpriseObjectHeader,
+  EnterpriseObjectPage,
+  ObjectPanel,
+} from '../../enterprise-object';
+import {
+  TREASURY_KIND_LABELS,
+  TREASURY_LIFECYCLE_LABELS,
+} from '../../financial-ui/labels';
 import { CreateRecordForm } from '../../financial-ui/VersionedActionForm';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
@@ -158,7 +167,6 @@ export function TreasuryAccountDetailPage() {
   if (state.phase !== 'ready') {
     return (
       <ModulePage layout="wide">
-        <ModulePageHeader title="Conta financeira" />
         <EmptyState title="Informe uma conta válida" />
       </ModulePage>
     );
@@ -188,11 +196,36 @@ export function TreasuryAccountDetailPage() {
 
   return (
     <ModulePage layout="wide">
-      <ModulePageHeader
-        title={account.name}
-        description="Saldo, créditos e débitos são os totais reconstruídos pelo servidor."
-      />
-      <div className="mb-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5">
+      {/*
+        OBJECT PAGE — a ficha da conta financeira entra na mesma gramática das outras 12.
+
+        Esta tela era uma das TRÊS do produto que ainda montavam a ficha à mão, com
+        `ModulePageHeader` + um bloco `rounded-xl bg-white p-6 shadow-sm ring-1`. Esse é
+        literalmente o padrão de CARD que a governança global de `theme.css` existe para
+        eliminar: superfície branca elevada, com raio de SaaS, repetida por região. O resultado
+        é que a ficha da conta lia como documento flutuante enquanto Clientes, Contratos,
+        Recebíveis, Pagáveis e Ordens de Serviço liiam como superfície de trabalho.
+
+        Agora: `EnterpriseObjectHeader` para identidade/estado e `ObjectPanel` para os blocos —
+        separação por DIVISOR e tipografia, não por sombra e caixa.
+      */}
+      <EnterpriseObjectPage
+        phaseTitle={account.name}
+        header={
+          <EnterpriseObjectHeader
+            reference={account.code}
+            title={account.name}
+            subtitle={`${TREASURY_KIND_LABELS[account.kind] ?? account.kind} · ${account.currencyCode}`}
+            status={{ label: TREASURY_LIFECYCLE_LABELS[account.lifecycle] ?? account.lifecycle }}
+            metadata={[
+              { label: 'Unidade', value: account.unitId },
+              { label: 'Saldo', value: account.balance },
+              { label: 'Movimentos', value: reconciliation?.movementCount ?? 0 },
+            ]}
+          />
+        }
+      >
+      <ObjectPanel>
         {schema ? (
           /* SOMENTE LEITURA: quem grava são os comandos do servidor, não o formulário. */
           <DynamicForm schema={schema} values={treasuryFormValues(account)} readOnly />
@@ -257,7 +290,7 @@ export function TreasuryAccountDetailPage() {
             ) : null}
           </div>
         ) : null}
-      </div>
+      </ObjectPanel>
 
       {!accountActive ? (
         <div className="mb-6">
@@ -599,6 +632,7 @@ export function TreasuryAccountDetailPage() {
           </div>
         </>
       )}
+      </EnterpriseObjectPage>
     </ModulePage>
   );
 }

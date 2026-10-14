@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { Dropdown } from '../ui/Dropdown';
 import { StatusBadge } from '../ui/StatusBadge';
@@ -99,18 +99,38 @@ export function EnterpriseObjectHeader({
     .map((field) => ({ ...field, rendered: renderFact(field.value) }))
     .filter((field) => field.rendered !== null && field.rendered !== undefined && field.rendered !== '');
 
+  /*
+   * ACAO DE MENU COM DESTINO PRECISA NAVEGAR.
+   *
+   * DEFEITO CORRIGIDO: `menuItems` montava `onSelect: () => action.onSelect?.()` e DESCARTAVA
+   * `action.to`. O `Dropdown` so chama `onSelect`, entao uma acao secundaria declarada como
+   * NAVEGACAO (ex.: "Criar nova versao" com `to`) abria e fechava o menu sem sair do lugar —
+   * o botao existia, reagia ao clique e nao fazia nada.
+   *
+   * A `primaryAction` ja tratava `to` corretamente (virando `<Link>`); a inconsistencia estava
+   * so no caminho do menu. Aqui o destino e honrado pelo roteador, preservando `onSelect` para
+   * quem declara efeito proprio.
+   */
+  const navigate = useNavigate();
+  const menuSelect = (action: ObjectAction): (() => void) => {
+    if (action.to) {
+      return () => void navigate(action.to as string);
+    }
+    return () => action.onSelect?.();
+  };
+
   const menuItems = [
     ...secondaryActions.map((action) => ({
       id: action.id,
       label: toHumanText(action.label) ?? action.label,
       disabled: action.disabled === true,
-      onSelect: () => action.onSelect?.(),
+      onSelect: menuSelect(action),
     })),
     ...destructiveActions.map((action) => ({
       id: action.id,
       label: toHumanText(action.label) ?? action.label,
       disabled: action.disabled === true,
-      onSelect: () => action.onSelect?.(),
+      onSelect: menuSelect(action),
     })),
   ];
 
