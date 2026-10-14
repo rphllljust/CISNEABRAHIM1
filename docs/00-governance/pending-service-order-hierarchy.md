@@ -90,3 +90,51 @@ provável e provado.
 - A view `tree` **existe** no metadata store para `service-orders` e é renderizável (migration
   `0088_metadata_views_v4`), com hierarquia de um nível por `unit_id`.
 - Nenhuma coluna criada. Nenhuma regra marcada `CONFIRMED`. Nenhum dado inventado.
+
+## FECHAMENTO PARCIAL — a aba rasa deixou de ser oferecida
+
+| Campo         | Valor                                                              |
+| ------------- | ------------------------------------------------------------------ |
+| Data          | 2026-10-02 (mesma sessão, wave de Ordens de Serviço)                |
+| Classificação | **Interpretação de engenharia** sobre o gap acima                   |
+| Status        | Decisão de negócio continua `PENDING`; exposição da aba `CLOSED`    |
+
+A decisão pendente acima continua pendente: **nenhuma coluna auto-referente foi criada**, e
+nenhuma fonte apareceu para declarar hierarquia OS↔OS.
+
+O que mudou é a **exposição**. O texto acima registrava que a view `tree` "existe no metadata
+store e é renderizável, com hierarquia de um nível por `unit_id`" — tratado como aceitável.
+Medido no produto, o efeito não era aceitável:
+
+- `unit_id` não é auto-referência. Ele aponta para a UNIDADE, não para outra OS.
+- `buildTree` promove a raiz todo nó cujo pai não está na página (comportamento correto, e
+  provado). Com `parentField = unit_id`, **nenhum** pai está na página: toda linha vira raiz.
+- A aba abria, pintava e respondia ao clique — mostrando uma floresta plana sob o rótulo
+  "Árvore por unidade". O operador lê isso como "a carteira não tem hierarquia".
+
+Ou seja: a tela afirmava um FATO FALSO sobre a estrutura da carteira. Uma árvore ausente é uma
+perda visível; uma árvore rasa é uma afirmação falsa — e a segunda é pior.
+
+Resolução (`apps/web/src/engine/view-capability.ts`, commit `0562f6fd`):
+
+- `auditViewCapabilities` recusa a view cujo eixo não pode ser alimentado. `tree` exige
+  `parentField` auto-referente (`id`/`parent_id` por contrato); qualquer outro `*_id` é FK para
+  outra tabela e não é eixo de hierarquia.
+- A tela de OS passa `functionalViewTypes(schema)` ao switcher, não `RENDERABLE_VIEW_TYPES`.
+- A view recusada **não some em silêncio**: a tela declara que ela existe no store e por quê.
+- O critério é EIXO, não VOLUME: entidade sem nenhuma linha mantém todas as suas views.
+
+**A view `tree` NÃO foi removida do metadata store.** Ela continua declarada e volta a ser
+oferecida automaticamente no dia em que a coluna existir — é exatamente a tese de
+views-como-dados. O que foi retirado é a aba que mentia.
+
+O que destrava continua sendo o mesmo: fonte identificada e/ou decisão do responsável. Com a
+coluna `parent_service_order_id`, `looksSelfReferential` passa a aceitar o eixo sem alteração de
+código (o nome termina em `_id` e o campo estará em `schema.fields`) — ou `parent_id`, aceito por
+contrato.
+
+**Nota de honestidade:** quando a coluna existir, o teste
+`view-capability.test.ts > RECUSA a view tree real de service-orders` precisa ser revisto, porque
+ele prende o estado ATUAL (eixo `unit_id`). Ele é a evidência de que a recusa é real hoje, e é o
+lembrete de que ela deve ser revista quando o gap fechar.
+
