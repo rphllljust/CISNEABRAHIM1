@@ -216,11 +216,33 @@ export function TreasuryListPage() {
 
   return (
     <ModulePage layout="workspace">
-      <WorklistHeader
-        title={schema?.label ?? 'Caixa e bancos'}
-        count={accounts.length}
-        context="Mesa de tesouraria: saldo por conta reconstruído pelo servidor, créditos, débitos e movimentos do período."
-      />
+      {/*
+        GRAMÁTICA DE REGIÕES — a ordem é CONTRATUAL, não estética.
+
+            work-surface
+              operating-header      (quem sou / qual é a função)
+              worklist-master       (a fila: trabalho)
+              command-filter-surface (o recorte)
+
+        Esta tela era a maior listagem do produto SEM nenhum `data-region`. O efeito prático
+        não era cosmético: a governança de divisor em `theme.css` seleciona `#main-content >
+        * + *` e `[data-region] + [data-region]`, de modo que sem as regiões as faixas
+        ficavam coladas uma na outra, sem a régua que separa "o que leio" de "o que recorto".
+        Outras 15 listas já declaravam a gramática; esta e a de Transporte ficaram para trás.
+
+        A ORDEM AQUI É DELIBERADA E DIFERE DAS DEMAIS LISTAS: as EXCEÇÕES vêm ANTES da fila.
+        É a ordem de uma mesa de tesouraria — o que exige conferência aparece primeiro, e não
+        depois de 200 linhas de conta. Colocar o filtro antes da exceção enterraria justamente
+        o bloco que motiva a tela.
+      */}
+      <div data-region="work-surface">
+        <div data-region="operating-header">
+          <WorklistHeader
+            title={schema?.label ?? 'Caixa e bancos'}
+            count={accounts.length}
+            context="Mesa de tesouraria: saldo por conta reconstruído pelo servidor, créditos, débitos e movimentos do período."
+          />
+        </div>
 
       {accounts.length === 0 ? (
         <EmptyState
@@ -234,6 +256,7 @@ export function TreasuryListPage() {
             aparece quando há exceção REAL publicada; sem exceção, a zona fica ausente em vez de
             exibir um bloco vazio, porque "nada a conferir" já é dito pela ausência da fila.
           */}
+          <div data-region="exception-surface">
           {closedWithBalance > 0 || overdraftAccounts > 0 ? (
             <WorkbenchQueue
               title="Exceções de tesouraria"
@@ -276,7 +299,9 @@ export function TreasuryListPage() {
               ) : null}
             </WorkbenchQueue>
           ) : null}
+          </div>
 
+          <div data-region="command-filter-surface">
           {/* FILTRO POR CAMPO DO METADADO: `kind` e `lifecycle` são os `in_filter` declarados. */}
           {schema ? (
             <DynamicFilterBar
@@ -292,7 +317,9 @@ export function TreasuryListPage() {
               }}
             />
           ) : null}
+          </div>
 
+          <div data-region="export-surface">
           {schema ? (
             <div className="mb-2">
               {/* O arquivo leva as MESMAS colunas que a grade exibe. */}
@@ -304,7 +331,9 @@ export function TreasuryListPage() {
               />
             </div>
           ) : null}
+          </div>
 
+          <div data-region="worklist-master">
           <DynamicList
             schema={schema}
             rows={pageItems}
@@ -446,8 +475,10 @@ export function TreasuryListPage() {
               nextDisabled={safePage >= pageCount}
             />
           </WorklistFooter>
+          </div>
         </>
       )}
+      </div>
 
       {/*
         ABRIR CONTA — depois da fila, não antes dela.

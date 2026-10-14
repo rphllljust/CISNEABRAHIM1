@@ -122,20 +122,29 @@ export function TransportListPage() {
   const pageNumber = Math.floor(offset / PAGE_SIZE) + 1;
 
   return (
-    <ModulePage>
+    <ModulePage layout="workspace">
       {/*
-        MESMA GRAMATICA DA CENTRAL DE OS. Transporte e um RECORTE da mesma fila (ordens de
-        servico com arquetipo TRANSPORT) e ainda usava a grade legada `px-6 py-3.5` dentro de um
-        cartao com sombra — parecia outro modulo. Aqui entram o cabecalho da worklist, a grade
-        densa e o drilldown por link real, sem tocar na consulta nem no escopo.
-        A tela nao tem filtro publicado pelo contrato, entao nao ha barra de filtros vazia.
-      */}
-      <WorklistHeader
-        title="Transporte"
-        count={items.length}
-        context="Ordens de serviço com arquétipo TRANSPORT. Origem, destino, veículo, cliente e pedido permanecem nos módulos existentes."
-      />
+        GRAMATICA DE REGIOES — a mesma das outras 15 listas.
 
+        Esta tela declarava `WorklistHeader` e a grade densa, mas NENHUMA regiao. A governanca
+        de divisor em `theme.css` casa `#main-content > * + *` e `[data-region] + [data-region]`:
+        sem as regioes, cabecalho, fila e rodape ficavam colados sem a regua que separa
+        "o que leio" de "o que e a fila" — exatamente a leitura de blocos soltos que a
+        foundation remove.
+
+        A tela NAO tem filtro publicado pelo contrato, entao nao ha `command-filter-surface`:
+        uma regiao vazia so para completar a gramatica seria decoracao.
+      */}
+      <div data-region="work-surface">
+        <div data-region="operating-header">
+          <WorklistHeader
+            title="Transporte"
+            count={items.length}
+            context="Ordens de serviço com arquétipo TRANSPORT. Origem, destino, veículo, cliente e pedido permanecem nos módulos existentes."
+          />
+        </div>
+
+      <div data-region="worklist-master">
       {items.length === 0 ? (
         <WorklistStatePanel
           title="Nenhum transporte encontrado."
@@ -201,6 +210,8 @@ export function TransportListPage() {
           />
         </WorklistFooter>
       ) : null}
+      </div>
+      </div>
     </ModulePage>
   );
 }
