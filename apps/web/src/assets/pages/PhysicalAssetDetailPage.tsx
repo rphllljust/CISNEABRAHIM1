@@ -25,6 +25,7 @@ import {
   ObjectPanel,
   ObjectStateFlow,
   SmartRelationBar,
+  UnavailableCapability,
   buildAuthorizedRelations,
   type NextAction,
   type ObjectAction,
@@ -341,20 +342,82 @@ export function PhysicalAssetDetailPage() {
     { label: 'Atualizado em', value: formatDateTime(asset.updatedAt) },
   ];
 
-  const contextFields: ObjectContextField[] = [
-    { label: 'Código do tipo', value: asset.resourceTypeCode },
+  /*
+   * IDENTIDADE OPERACIONAL — separada do CADASTRO.
+   *
+   * A ficha do ativo respondia "title + campos": nome, codigo e tipo no mesmo plano da situacao e da
+   * alocacao. Um ativo e um objeto OPERACIONAL, e o operador precisa ler em blocos distintos:
+   *
+   *   IDENTIDADE   o que este recurso E (codigo, nome, tipo, classificacao)
+   *   ESTADO       em que ponto do ciclo ele esta (cadastro x disponibilidade)
+   *   LOCALIZACAO  onde ele esta agora (unidade, alocacao vigente)
+   *   PERFIL       o que so existe para veiculo (placa, chassi, modelo)
+   *
+   * `cadastro` e `disponibilidade` sao DIMENSOES INDEPENDENTES no dominio: um ativo ativo pode estar
+   * indisponivel por alocacao. Separa-las em dois blocos nomeados e o que impede o operador de ler
+   * "Ativo" e concluir "disponivel".
+   */
+  const identityFields: ObjectContextField[] = [
+    { label: 'Código do ativo', value: asset.assetCode },
+    { label: 'Nome', value: asset.name },
+    { label: 'Tipo de recurso', value: resourceTypeName ?? asset.resourceTypeCode },
     { label: 'Classificação', value: asset.resourceTypeClassification },
-    { label: 'Unidade operacional', value: asset.unitId },
+  ];
+
+  const stateFields: ObjectContextField[] = [
     {
-      label: 'Detalhe da disponibilidade',
-      value: operationalStatus.detail,
+      label: 'Situação cadastral',
+      value: LIFECYCLE_LABELS[asset.lifecycleStatus],
     },
+    { label: 'Disponibilidade', value: operationalStatus.label },
+    { label: 'Detalhe da disponibilidade', value: operationalStatus.detail },
     { label: 'Cadastrado em', value: formatDateTime(asset.createdAt) },
     { label: 'Desativado em', value: formatDateTime(asset.deactivatedAt) },
+  ];
+
+  const locationFields: ObjectContextField[] = [
+    { label: 'Unidade operacional', value: asset.unitId },
+    ...(allocation
+      ? [{ label: 'Alocação vigente', value: allocation.orderNumber }]
+      : []),
+    // O ativo NAO publica localizacao fisica nem responsavel: ver a declaracao de profundidade.
+  ];
+
+  const vehicleFields: ObjectContextField[] = [
     { label: 'Placa', value: asset.vehicle?.plate ?? null },
     { label: 'Chassi', value: asset.vehicle?.chassis ?? null },
     { label: 'Modelo', value: asset.vehicle?.model ?? null },
   ];
+
+  /*
+   * COMANDOS SEMANTICOS — a acao com a CONSEQUENCIA declarada.
+   *
+   * "Editar cadastro" e uma acao de registro; "Desativar ativo" e uma TRANSICAO de ciclo, e ela muda
+   * o que o recurso pode fazer (deixa de ser alocavel). O operador precisa saber disso ANTES de
+   * confirmar, e o dialogo de confirmacao continua sendo o lugar da consequencia irreversivel.
+   */
+  const commandEffects: Array<{ id: string; label: string; effect: string }> = [];
+  if (primaryAction) {
+    commandEffects.push({
+      id: 'edit',
+      label: primaryAction.label,
+      effect: 'Altera nome e perfil do recurso. Não muda a situação nem a alocação.',
+    });
+  }
+  if (isActive && capabilities.canDeactivate) {
+    commandEffects.push({
+      id: 'deactivate',
+      label: 'Desativar ativo',
+      effect: DEACTIVATION_CONSEQUENCE_MESSAGE,
+    });
+  }
+  if (!isActive && capabilities.canActivate) {
+    commandEffects.push({
+      id: 'activate',
+      label: 'Reativar o ativo',
+      effect: 'O cadastro volta a ativo e o recurso pode ser alocado em ordens de serviço.',
+    });
+  }
 
   return (
     <ModulePage layout="wide">
@@ -401,9 +464,17 @@ export function PhysicalAssetDetailPage() {
           </ObjectPanel>
         }
       >
-        {/* O contexto entra no corpo: a moldura do contrato nesta revisao nao renderiza o
-            slot `context` (so breadcrumb, header, fluxo, proxima acao, relacoes e corpo). */}
-        <ObjectContextBlock fields={contextFields} columns={3} />
+        {/*
+          IDENTIDADE -> ESTADO -> LOCALIZACAO -> PERFIL, em blocos nomeados.
+          A grade unica de contexto misturava as quatro camadas no mesmo plano; ver o comentario de
+          `identityFields` para por que cadastro e disponibilidade NAO podem ler juntos.
+        */}
+        <ObjectContextBlock title="Identidade do recurso" fields={identityFields} columns={2} />
+        <ObjectContextBlock title="Estado operacional" fields={stateFields} columns={2} />
+        <ObjectContextBlock title="Unidade e alocação" fields={locationFields} columns={2} />
+        {asset.vehicle ? (
+          <ObjectContextBlock title="Perfil de veículo" fields={vehicleFields} columns={3} />
+        ) : null}
 
         {versionConflict ? <AssetVersionConflictNotice onReload={() => void reload()} /> : null}
         {actionError ? (
@@ -411,6 +482,33 @@ export function PhysicalAssetDetailPage() {
             {actionError}
           </p>
         ) : null}
+
+        {/*
+          COMANDOS SEMÂNTICOS — o que o operador PODE fazer, e o que cada um produz.
+          Um botão de ciclo de vida sem a consequência declarada obriga o operador a adivinhar o
+          efeito de uma transição que muda o que o recurso pode fazer.
+        */}
+        <ObjectPanel title="Comandos disponíveis">
+          {commandEffects.length === 0 ? (
+            <p className="m-0 text-sm text-gray-600">
+              Seu perfil não tem comando autorizado para a situação atual deste ativo. A transição é do
+              servidor.
+            </p>
+          ) : (
+            <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
+              {commandEffects.map((command) => (
+                <li key={command.id} className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="text-[13px] font-semibold text-[color:var(--color-text-primary)]">
+                    {command.label}
+                  </span>
+                  <span className="text-[12px] text-[color:var(--color-text-secondary)]">
+                    {command.effect}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </ObjectPanel>
 
         {asset.operationalLifecycle ? (
           <ObjectPanel title="Vida operacional do recurso">
@@ -424,6 +522,45 @@ export function PhysicalAssetDetailPage() {
             ativo pode estar indisponível por alocação em ordem de serviço.
           </p>
           <p className="text-sm text-gray-700">{operationalStatus.label}</p>
+        </ObjectPanel>
+
+        {/*
+          PROFUNDIDADE NÃO PUBLICADA — declarada, nunca inventada.
+
+          A ficha do ativo é operacional, e o operador procura nela localização física, responsável e
+          documentos. Nenhuma dessas três camadas tem fonte no payload de `PhysicalAsset`: o contrato
+          publica identidade, tipo, situação, unidade, alocação vigente, perfil de veículo e a vida
+          operacional derivada. Declarar é a única leitura honesta — esconder faria o operador
+          concluir que o ativo não tem documento vinculado.
+        */}
+        <ObjectPanel title="Profundidade não publicada nesta leitura">
+          <div className="flex flex-col gap-2">
+            <UnavailableCapability
+              title="Localização física"
+              reason="O ativo publica a UNIDADE operacional e a alocação vigente, mas não um endereço ou ponto de guarda. Não há campo de localização no cadastro do recurso."
+            />
+            <UnavailableCapability
+              title="Responsável pelo recurso"
+              reason="O ativo não publica responsável direto. Quem responde pelo recurso em um período é o membro de mão de obra alocado na ordem de serviço, e essa leitura vive no planejamento da OS."
+            >
+              {allocation ? (
+                <Link
+                  to={`/app/service-orders/${allocation.serviceOrderId}/planning`}
+                  className="text-brand-700 no-underline hover:underline"
+                >
+                  Abrir planejamento da {allocation.orderNumber}
+                </Link>
+              ) : null}
+            </UnavailableCapability>
+            <UnavailableCapability
+              title="Documentos do ativo"
+              reason="Não existe vínculo de documento publicado para ativos físicos. O módulo de documentos expõe vínculos para contrato e outras entidades, não para recurso físico."
+            >
+              <Link to="/app/documents" className="text-brand-700 no-underline hover:underline">
+                Abrir documentos
+              </Link>
+            </UnavailableCapability>
+          </div>
         </ObjectPanel>
 
         <p>

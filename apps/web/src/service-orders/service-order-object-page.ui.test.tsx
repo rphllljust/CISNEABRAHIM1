@@ -231,6 +231,53 @@ function planningFetchMock(detail: ServiceOrderDetail, options: MockOptions = {}
     if (pathname === `/api/v1/service-orders/${SERVICE_ORDER_ID}` && method === 'GET') {
       return jsonResponse(detail);
     }
+    /*
+     * METADATA STORE — a OS 360 E RENDERIZADA PELA ENGINE.
+     *
+     * `ServiceOrderEngineDetailPage` usa `useEntitySchema('service-orders')`. O harness monta o
+     * `MetadataProvider` (`renderServiceOrderRoutes` passa `metadata: true`, a opcao que
+     * `renderWithProviders` ja suporta), e e este handler que responde a chamada dele:
+     * `GET /api/v1/meta/service-orders`. Sem os dois, o schema nunca resolve e a pagina fica presa
+     * em "Carregando" — um vermelho de FIXTURE, nao de produto.
+     *
+     * O payload espelha o contrato do metadata store (campos, view `form`, workflow com transicoes),
+     * no mesmo formato que as demais suites de engine ja usam.
+     */
+    if (pathname === '/api/v1/meta/service-orders' && method === 'GET') {
+      return jsonResponse({
+        name: 'service-orders',
+        label: 'Ordem de serviço',
+        description: null,
+        dataSchema: 'so',
+        dataTable: 'service_orders',
+        labelField: 'order_number',
+        fields: [
+          { name: 'order_number', label: 'Número', type: 'data', required: false, readOnly: true, permLevel: 0, options: null, fieldOrder: 10, inForm: true, inList: true, listOrder: 10, inFilter: false, inSearch: true },
+          { name: 'status', label: 'Situação', type: 'select', required: false, readOnly: true, permLevel: 0, options: { options: [
+            { value: 'DRAFT', label: 'Rascunho' },
+            { value: 'PREPARED', label: 'Preparada' },
+            { value: 'RELEASED', label: 'Liberada' },
+            { value: 'IN_EXECUTION', label: 'Em execução' },
+            { value: 'PAUSED', label: 'Pausada' },
+            { value: 'COMPLETED', label: 'Concluída' },
+            { value: 'CANCELLED', label: 'Cancelada' },
+          ] }, fieldOrder: 20, inForm: true, inList: true, listOrder: 20, inFilter: true, inSearch: false },
+          { name: 'unit_id', label: 'Unidade', type: 'data', required: false, readOnly: true, permLevel: 0, options: null, fieldOrder: 30, inForm: true, inList: true, listOrder: 30, inFilter: false, inSearch: false },
+          { name: 'row_version', label: 'Versão', type: 'integer', required: false, readOnly: true, permLevel: 0, options: null, fieldOrder: 40, inForm: true, inList: false, listOrder: 40, inFilter: false, inSearch: false },
+        ],
+        views: [{ viewType: 'form', label: 'Ordem de serviço', layout: { columns: ['order_number', 'status', 'unit_id'] }, isDefault: true }],
+        workflow: {
+          stateField: 'status',
+          transitions: [
+            { command: 'prepare', label: 'Preparar', fromStates: ['DRAFT'], toState: 'PREPARED', permission: 'service-orders:service-order:prepare', allowed: true, buttonOrder: 10 },
+            { command: 'release', label: 'Liberar', fromStates: ['PREPARED'], toState: 'RELEASED', permission: 'service-orders:service-order:release', allowed: true, buttonOrder: 20 },
+            { command: 'cancel', label: 'Cancelar', fromStates: ['DRAFT', 'PREPARED', 'RELEASED'], toState: 'CANCELLED', permission: 'service-orders:service-order:cancel', allowed: true, buttonOrder: 30 },
+          ],
+        },
+        permissions: [{ action: 'read', permLevel: 0, requiredPermission: null, allowed: true }],
+        allowedPermLevels: [0],
+      });
+    }
     if (
       pathname === `/api/v1/service-orders/${SERVICE_ORDER_ID}/planned-resources` &&
       method === 'GET'
@@ -631,5 +678,82 @@ describe('ordem de serviço — object page canônica', () => {
     expect(within(history).queryByText(/execução iniciada/i)).not.toBeInTheDocument();
     expect(history.textContent).not.toContain(ACTOR_ID);
     expect(within(history).queryByText(/sistema/i)).not.toBeInTheDocument();
+  });
+
+  /**
+   * CANCELAMENTO — O MOTIVO É DO OPERADOR, NUNCA DO FRONTEND.
+   *
+   * O backend exige `cancellationReason` porque ele é registro de AUDITORIA: grava quem cancelou e
+   * por quê. A tela enviava uma frase FIXA (`'Cancelamento solicitado na visão geral da ordem de
+   * serviço.'`) só para satisfazer a validação — o resultado era um histórico de cancelamento sem
+   * razão real, que ninguém conseguia corrigir depois.
+   *
+   * Este teste prende as duas metades da correção: (a) o corpo enviado carrega o motivo DIGITADO, e
+   * (b) sem motivo o comando não é despachado.
+   */
+  it('exige o motivo do cancelamento e envia o texto do operador, não uma frase fixa', async () => {
+    const user = userEvent.setup();
+    const fetchMock = planningFetchMock(
+      orderDetail({
+        status: SERVICE_ORDER_STATUSES.Prepared,
+        releasedAt: null,
+        controlCenter: controlCenter({
+          status: SERVICE_ORDER_STATUSES.Prepared,
+          availableTransitions: ['release', 'cancel'],
+        }),
+      }),
+      {
+        availableActions: {
+          service_order_id: SERVICE_ORDER_ID,
+          status_atual: SERVICE_ORDER_STATUSES.Prepared,
+          comandos_validos: [
+            {
+              comando: 'cancel',
+              label: 'Cancelar',
+              requer_permissao: 'service-orders:service-order:cancel',
+              usuario_tem_permissao: true,
+            },
+          ],
+          comandos_invalidos_para_status: ['prepare', 'start'],
+        },
+      },
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    renderServiceOrderRoutes(`/app/service-orders/${SERVICE_ORDER_ID}`);
+
+    await findHeaderReference();
+
+    // O comando do workflow abre o diálogo — ele NÃO despacha direto.
+    await user.click(await screen.findByRole('button', { name: 'Cancelar' }));
+
+    const dialog = await screen.findByRole('dialog');
+    const reason = within(dialog).getByLabelText(/motivo do cancelamento/i);
+    expect(reason).toBeInTheDocument();
+
+    // O corpo do POST /cancel que a tela monta — nenhuma requisição foi feita ainda.
+    const cancelCalls = () =>
+      fetchMock.mock.calls.filter(([input]) =>
+        parseRequestPath(input).pathname.endsWith('/cancel'),
+      );
+    expect(cancelCalls()).toHaveLength(0);
+
+    await user.type(reason, 'Cliente suspendeu a obra por prazo indeterminado.');
+    await user.click(within(dialog).getByRole('button', { name: /confirmar cancelamento/i }));
+
+    await waitFor(() => {
+      expect(cancelCalls().length).toBeGreaterThan(0);
+    });
+    /*
+     * O corpo é lido do `init` da chamada. `String(...)` sobre um objeto produziria
+     * "[object Object]" e o `JSON.parse` falharia com uma mensagem que não diz nada — o corpo é
+     * serializado só quando já é string, que é o que o fetch recebe nesta tela.
+     */
+    const rawBody = cancelCalls()[0]?.[1]?.body;
+    const body = JSON.parse(typeof rawBody === 'string' ? rawBody : '{}') as {
+      cancellationReason?: string;
+    };
+    expect(body.cancellationReason).toBe('Cliente suspendeu a obra por prazo indeterminado.');
+    // PROVA NEGATIVA: a frase fixa antiga não existe em lugar nenhum do payload.
+    expect(JSON.stringify(body)).not.toMatch(/visão geral da ordem de serviço/i);
   });
 });

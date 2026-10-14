@@ -35,6 +35,7 @@ import {
   ObjectPanel,
   ObjectStateFlow,
   SmartRelationBar,
+  UnavailableCapability,
   buildAuthorizedRelations,
   type NextAction,
   type ObjectAction,
@@ -76,6 +77,55 @@ type DetailState =
   | { phase: 'ready'; detail: ContractDetail };
 
 type ActionKind = 'update' | 'activate' | 'close' | 'expire';
+
+/**
+ * EFEITO REAL DE CADA COMANDO — o que muda quando o operador confirma.
+ *
+ * Um botao de ciclo de vida sem a consequencia declarada obriga o operador a adivinhar. O texto e do
+ * DOMINIO (o que o comando faz de fato), nao uma promessa de interface.
+ */
+const CONTRACT_COMMAND_EFFECT: Record<string, string> = {
+  edit: 'Altera os dados enquanto o contrato ainda é rascunho.',
+  activate: 'O contrato passa a produzir efeito a partir da vigência informada.',
+  close: 'Encerra o contrato e exige motivo registrado.',
+  expire: 'Registra a expiração pela vigência já terminada.',
+};
+
+/**
+ * PERCENTUAL EM ESCALA DO DOMÍNIO -> TEXTO HUMANO.
+ *
+ * `commercialTerms.adjustments[].percent` é string em escala 4 onde `5.0000` significa 5%
+ * (`parseContractCommercialTerms` no servidor). A conversão é de APRESENTAÇÃO e não altera o dado:
+ * o valor cru continua intacto no payload e é ele que o servidor usa no cálculo.
+ */
+function formatPercent(percent: string): string {
+  const numeric = Number(percent);
+  if (!Number.isFinite(numeric)) {
+    return percent;
+  }
+  return `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 4 }).format(numeric)}%`;
+}
+
+/**
+ * RÓTULO HUMANO DO ITEM DE CATÁLOGO.
+ *
+ * O item guarda `serviceSnapshot` (o serviço CONGELADO no momento da contratação). O snapshot é um
+ * `Record<string, unknown>` sem contrato publicado de chaves, então lemos apenas os rótulos que o
+ * próprio domínio usa (`name`, `code`, `label`) e NÃO imprimimos nada quando nenhum existe — um
+ * snapshot cru com chaves internas na tela seria pior que a ausência de rótulo.
+ */
+function catalogLabel(snapshot: Record<string, unknown> | null): string | null {
+  if (!snapshot) {
+    return null;
+  }
+  for (const key of ['name', 'label', 'code']) {
+    const value = snapshot[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return null;
+}
 
 /**
  * FLUXO REAL DE ESTADO.
@@ -326,10 +376,50 @@ export function ContractsDetailPage() {
   const clientName = formatClientSnapshot(contract.clientSnapshot);
 
   /*
-   * RELAÇÃO CROSS-DOMAIN COMPROVADA PELO CONTRATO.
+   * TERMOS COMERCIAIS — REAJUSTES E LIMITES, lidos de `commercialTerms`.
    *
-   * clientId faz parte do payload canônico de Contract. Não inferimos proposta, solicitação,
-   * pedido ou OS: esses vínculos não existem neste contrato de leitura e, portanto, não aparecem.
+   * O contrato GRAVA `commercial_terms` (jsonb) com dois blocos tipados e versionados
+   * (`parseContractCommercialTerms` no dominio): `adjustments` — a trilha de reajuste, com data
+   * efetiva, percentual e indice — e `limits` — o teto contratado e se o estouro e permitido.
+   *
+   * Isto e leitura de CONTRATO, nao decoracao: um operador que registra medicao precisa saber qual
+   * percentual ja incidiu sobre o preco unitario e se o consumo esta dentro do teto. A tela anterior
+   * publicava apenas Moeda, Itens e Documentos, entao a informacao existia no payload e nao aparecia.
+   *
+   * O parse e TOLERANTE e local, com as MESMAS regras do servidor (data YYYY-MM-DD, percentual
+   * numerico nao-zero, valor monetario normalizado): campo ausente ou invalido e DESCARTADO, nunca
+   * exibido cru. Nada aqui e recalculado — nem o preco reajustado, nem o saldo do limite.
+   */
+  const commercialAdjustments = Array.isArray(contract.commercialTerms['adjustments'])
+    ? (contract.commercialTerms['adjustments'] as unknown[]).filter(
+        (entry): entry is { effectiveOn: string; percent: string; indexCode?: string } =>
+          Boolean(entry) &&
+          typeof entry === 'object' &&
+          typeof (entry as { effectiveOn?: unknown }).effectiveOn === 'string' &&
+          typeof (entry as { percent?: unknown }).percent === 'string',
+      )
+    : [];
+
+  const commercialLimits =
+    contract.commercialTerms['limits'] &&
+    typeof contract.commercialTerms['limits'] === 'object'
+      ? (contract.commercialTerms['limits'] as {
+          maxTotalAmount?: string;
+          allowOverrun?: boolean;
+        })
+      : null;
+
+  /*
+   * RELACAO CROSS-DOMAIN COMPROVADA PELO CONTRATO.
+   *
+   * `clientId` faz parte do payload canonico de Contract. NAO inferimos proposta, solicitacao, pedido
+   * ou OS: esses vinculos nao existem neste contrato de leitura e, portanto, nao aparecem.
+   *
+   * E importante ser explicito sobre POR QUE as OS nao entram: `so.service_orders` PERSISTE
+   * `contract_id` (o fato existe no banco), mas a listagem de OS NAO publica `contractId` como
+   * parametro — a allow-list de `SERVICE_ORDER_FILTER_SPECS` nao o inclui, e o endpoint nao o aceita.
+   * Filtrar por cliente e apresentar o resultado como "OS deste contrato" seria afirmar um vinculo
+   * que a leitura nao sustenta. A camada e declarada indisponivel abaixo, nomeando exatamente isso.
    */
   const relations = buildAuthorizedRelations([
     {
@@ -338,6 +428,20 @@ export function ContractsDetailPage() {
       count: 1,
       to: `/app/clients/${contract.clientId}`,
       allowed: Boolean(contract.clientId),
+    },
+    {
+      id: 'contract-items',
+      label: 'Itens',
+      count: items.length,
+      to: '#itens-contratuais',
+      allowed: items.length > 0,
+    },
+    {
+      id: 'contract-documents',
+      label: 'Documentos',
+      count: documentLinks.length,
+      to: '#documentos-vinculados',
+      allowed: documentLinks.length > 0,
     },
   ]);
 
@@ -354,15 +458,55 @@ export function ContractsDetailPage() {
     { label: 'Atualizado em', value: formatDateTime(contract.updatedAt) },
   ];
 
-  const contextFields: ObjectContextField[] = [
+  /*
+   * CONTEXTO — separado por CAMADA, nao em uma lista unica.
+   *
+   * A grade unica de contexto misturava identificacao, vigencia, pagamento e encerramento no mesmo
+   * plano: o operador lia dez pares rotulo/valor sem hierarquia. Agora sao tres blocos nomeados, na
+   * ordem das perguntas — QUEM (identidade), QUANTO TEMPO (vigencia), COMO SE PAGA (comercial) — mais
+   * o bloco de encerramento, que so existe quando o contrato saiu de circulacao.
+   */
+  const identityFields: ObjectContextField[] = [
     ...(clientName === '—' ? [] : [{ label: 'Cliente', value: clientName }]),
     { label: 'Código interno', value: contract.internalCode },
+    { label: 'Número', value: contract.contractNumber },
+    { label: 'Título', value: contract.title },
     // O `unitId` é dado interno (em HML, um slug sintético): a tela declara o ESCOPO.
     { label: 'Unidade operacional', value: <UnitScopeLabel unitId={contract.unitId} /> },
+  ];
+
+  const validityFields: ObjectContextField[] = [
+    { label: 'Início da vigência', value: formatDate(contract.validFrom) },
+    {
+      label: 'Fim da vigência',
+      value: contract.validTo ? formatDate(contract.validTo) : 'Sem término definido',
+    },
+    { label: 'Situação', value: formatContractStatus(contract.status) },
+    { label: 'Ativado em', value: contract.activatedAt ? formatDateTime(contract.activatedAt) : null },
+  ];
+
+  const commercialFields: ObjectContextField[] = [
     { label: 'Escopo', value: contract.scopeDescription },
     { label: 'Condições de pagamento', value: contract.paymentTerms },
     { label: 'Forma de pagamento', value: contract.paymentMethod },
-    { label: 'Ativado em', value: contract.activatedAt ? formatDateTime(contract.activatedAt) : null },
+    {
+      label: 'Limite contratado',
+      value: commercialLimits?.maxTotalAmount
+        ? formatMoney(commercialLimits.maxTotalAmount, contract.currencyCode)
+        : null,
+    },
+    {
+      label: 'Estouro de limite',
+      value:
+        commercialLimits?.allowOverrun === undefined
+          ? null
+          : commercialLimits.allowOverrun
+            ? 'Permitido'
+            : 'Não permitido',
+    },
+  ];
+
+  const closureFields: ObjectContextField[] = [
     { label: 'Encerrado em', value: contract.closedAt ? formatDateTime(contract.closedAt) : null },
     { label: 'Motivo do encerramento', value: contract.closureReason },
     { label: 'Criado em', value: formatDateTime(contract.createdAt) },
@@ -378,6 +522,21 @@ export function ContractsDetailPage() {
     ...(contract.closedAt ? [{ at: contract.closedAt, event: 'Contrato encerrado' }] : []),
     { at: contract.updatedAt, event: 'Cadastro atualizado' },
   ];
+
+  /**
+   * TOTAL CONTRATADO — soma das LINHAS publicadas, e declarada como tal.
+   *
+   * Isto NAO e o valor do contrato no dominio: e a soma das linhas que o payload trouxe. A soma roda
+   * em CENTAVOS INTEIROS para nao introduzir erro de ponto flutuante em dinheiro, e a nota ao lado do
+   * numero diz de onde ele vem. Quando nao ha linha com total publicado, o valor e `null` — nao zero.
+   */
+  const lineTotals = items
+    .map((item) => item.lineTotal)
+    .filter((value): value is string => typeof value === 'string' && value.length > 0);
+  const contractedTotal =
+    lineTotals.length === 0
+      ? null
+      : (lineTotals.reduce((sum, value) => sum + Math.round(Number(value) * 100), 0) / 100).toFixed(2);
 
   return (
     <ModulePage>
@@ -428,53 +587,163 @@ export function ContractsDetailPage() {
           </p>
         ) : null}
 
-        <ObjectContextBlock title="Contexto do contrato" fields={contextFields} columns={3} />
+        <ObjectContextBlock title="Identidade" fields={identityFields} columns={3} />
+        <ObjectContextBlock title="Vigência e situação" fields={validityFields} columns={3} />
+        <ObjectContextBlock title="Contexto comercial" fields={commercialFields} columns={3} />
+        {contract.closedAt || contract.closureReason ? (
+          <ObjectContextBlock title="Encerramento" fields={closureFields} columns={3} />
+        ) : null}
 
-        <ObjectPanel title="Itens">
-          {items.length === 0 ? (
-            <p className="m-0 text-sm text-gray-500">Nenhum item registrado no contrato.</p>
+        {/*
+          COMANDOS SEMÂNTICOS — os comandos de ciclo de vida do contrato, com o efeito declarado.
+
+          Um ERP nao oferece "mudar status": ele oferece a TRANSICAO, e o operador precisa saber o que
+          ela faz antes de confirmar. Aqui cada comando disponivel aparece com a consequencia real
+          ("passa a produzir efeito", "encerra e exige motivo"), e quando nao ha comando o bloco diz
+          por que — porque a ausencia de botao e uma informacao de processo, nao um vazio.
+        */}
+        <ObjectPanel title="Comandos disponíveis">
+          {availableActions.length === 0 ? (
+            <p className="m-0 text-sm text-gray-600">
+              {contract.status === CONTRACT_STATUSES.Closed
+                ? 'Contrato encerrado: o ciclo de vida terminou e não há comando de transição.'
+                : contract.status === CONTRACT_STATUSES.Expired
+                  ? 'Contrato expirado pela vigência: não há comando de transição a partir deste estado.'
+                  : 'Seu perfil não tem comando autorizado para a situação atual deste contrato. A transição é do servidor.'}
+            </p>
           ) : (
+            <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
+              {availableActions.map((action) => (
+                <li key={action.id} className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="text-[13px] font-semibold text-[color:var(--color-text-primary)]">
+                    {action.label}
+                  </span>
+                  <span className="text-[12px] text-[color:var(--color-text-secondary)]">
+                    {CONTRACT_COMMAND_EFFECT[action.id] ?? ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </ObjectPanel>
+
+        {/*
+          REAJUSTES — trilha comercial PERSISTIDA em `commercialTerms.adjustments`.
+          Cada linha e um reajuste registrado: quando passa a valer, quanto incide e por qual indice.
+          O preco reajustado NAO e calculado aqui — o servidor aplica (`applyUnitPriceAdjustment`) no
+          momento em que o preco e usado; a tela publica o REGISTRO, nao o resultado.
+        */}
+        {commercialAdjustments.length > 0 ? (
+          <ObjectPanel title="Reajustes contratuais">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm" aria-label="Itens do contrato">
+              <table className="w-full text-left text-sm" aria-label="Reajustes do contrato">
                 <thead className="text-xs text-gray-500 uppercase">
                   <tr>
-                    <th scope="col" className="py-2 pr-4 font-semibold">
-                      Linha
-                    </th>
-                    <th scope="col" className="py-2 pr-4 font-semibold">
-                      Descrição
-                    </th>
-                    <th scope="col" className="py-2 pr-4 font-semibold">
-                      Qtd.
-                    </th>
-                    <th scope="col" className="py-2 pr-4 font-semibold">
-                      Preço unit.
-                    </th>
-                    <th scope="col" className="py-2 pr-4 text-right font-semibold">
-                      Total
-                    </th>
+                    <th scope="col" className="py-2 pr-4 font-semibold">Efetivo em</th>
+                    <th scope="col" className="py-2 pr-4 font-semibold">Percentual</th>
+                    <th scope="col" className="py-2 pr-4 font-semibold">Índice</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {items.map((item) => (
-                    <tr key={item.id}>
-                      <td className="py-2 pr-4 text-gray-700 tabular-nums">{item.lineNumber}</td>
-                      <td className="py-2 pr-4 text-gray-700">{item.description}</td>
-                      <td className="py-2 pr-4 text-gray-700 tabular-nums">{item.quantity ?? '—'}</td>
+                  {commercialAdjustments.map((adjustment, index) => (
+                    <tr key={`${adjustment.effectiveOn}-${index}`}>
                       <td className="py-2 pr-4 text-gray-700 tabular-nums">
-                        {formatMoney(item.unitPrice, contract.currencyCode)}
+                        {formatDate(adjustment.effectiveOn)}
                       </td>
-                      <td className="py-2 pr-4 text-right text-gray-700 tabular-nums">
-                        {formatMoney(item.lineTotal, contract.currencyCode)}
+                      <td className="py-2 pr-4 text-gray-700 tabular-nums">
+                        {formatPercent(adjustment.percent)}
+                      </td>
+                      <td className="py-2 pr-4 text-gray-700">
+                        {adjustment.indexCode ?? 'Sem índice informado'}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+          </ObjectPanel>
+        ) : null}
+
+        <div id="itens-contratuais">
+        <ObjectPanel title="Itens contratuais">
+          {items.length === 0 ? (
+            <p className="m-0 text-sm text-gray-500">Nenhum item registrado no contrato.</p>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm" aria-label="Itens do contrato">
+                  <thead className="text-xs text-gray-500 uppercase">
+                    <tr>
+                      <th scope="col" className="py-2 pr-4 font-semibold">
+                        Linha
+                      </th>
+                      <th scope="col" className="py-2 pr-4 font-semibold">
+                        Descrição
+                      </th>
+                      <th scope="col" className="py-2 pr-4 font-semibold">
+                        Qtd.
+                      </th>
+                      <th scope="col" className="py-2 pr-4 font-semibold">
+                        Unidade
+                      </th>
+                      <th scope="col" className="py-2 pr-4 font-semibold">
+                        Preço unit.
+                      </th>
+                      <th scope="col" className="py-2 pr-4 text-right font-semibold">
+                        Total
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {items.map((item) => (
+                      <tr key={item.id}>
+                        <td className="py-2 pr-4 text-gray-700 tabular-nums">{item.lineNumber}</td>
+                        <td className="py-2 pr-4 text-gray-700">
+                          {item.description}
+                          {/*
+                            VÍNCULO AO CATÁLOGO — declarado, não inventado.
+                            O item guarda `serviceDefinitionId` e um `serviceSnapshot`; quando o
+                            snapshot publica um rótulo humano, ele aparece como procedência do item.
+                          */}
+                          {catalogLabel(item.serviceSnapshot) ? (
+                            <span className="ml-2 text-[11px] text-gray-500">
+                              Catálogo: {catalogLabel(item.serviceSnapshot)}
+                            </span>
+                          ) : null}
+                        </td>
+                        <td className="py-2 pr-4 text-gray-700 tabular-nums">{item.quantity ?? '—'}</td>
+                        <td className="py-2 pr-4 text-gray-700">{item.unitCode ?? '—'}</td>
+                        <td className="py-2 pr-4 text-gray-700 tabular-nums">
+                          {formatMoney(item.unitPrice, contract.currencyCode)}
+                        </td>
+                        <td className="py-2 pr-4 text-right text-gray-700 tabular-nums">
+                          {formatMoney(item.lineTotal, contract.currencyCode)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {/*
+                TOTAL DAS LINHAS — dito como tal. Ele NAO e "valor do contrato": e a soma dos totais
+                de linha que o payload publicou, e a nota ao lado impede a leitura errada.
+              */}
+              {contractedTotal ? (
+                <p className="m-0 mt-2 text-[12px] text-[color:var(--color-text-secondary)]">
+                  Soma das {items.length} linha{items.length === 1 ? '' : 's'} publicada
+                  {items.length === 1 ? '' : 's'}:{' '}
+                  <span className="font-semibold text-[color:var(--color-text-primary)] tabular-nums">
+                    {formatMoney(contractedTotal, contract.currencyCode)}
+                  </span>{' '}
+                  — valor do contrato no domínio é do servidor, não desta soma.
+                </p>
+              ) : null}
+            </>
           )}
         </ObjectPanel>
+        </div>
 
+        <div id="documentos-vinculados">
         <ObjectPanel title="Documentos vinculados">
           {documentLinks.length === 0 ? (
             <p className="m-0 text-sm text-gray-500">Nenhum documento vinculado ao contrato.</p>
@@ -496,6 +765,37 @@ export function ContractsDetailPage() {
               ))}
             </ul>
           )}
+        </ObjectPanel>
+        </div>
+
+        {/*
+          CAMADAS DE PROFUNDIDADE NÃO PUBLICADAS — declaradas, nunca inventadas.
+
+          O contrato de leitura do contrato (`ContractDetailResponse`) publica três coisas: o
+          contrato, os itens e os vínculos de documento. As camadas abaixo são do VOCABULÁRIO do
+          domínio — o operador as procura numa ficha de contrato — mas não têm fonte nesta leitura.
+          Esconder cada uma faria o operador concluir "este contrato não tem OS", que é a leitura
+          errada; declará-las diz a verdade: elas existem no produto e não estão publicadas aqui.
+        */}
+        <ObjectPanel title="Profundidade não publicada nesta leitura">
+          <div className="flex flex-col gap-2">
+            <UnavailableCapability
+              title="Ordens de serviço relacionadas"
+              reason="A OS persiste o vínculo com o contrato, mas a listagem de ordens não publica filtro por contrato — não há leitura que devolva as OS deste contrato sem inferi-las pelo cliente."
+            />
+            <UnavailableCapability
+              title="Medições"
+              reason="A medição pertence ao ciclo da ordem de serviço e não é publicada no detalhe do contrato."
+            />
+            <UnavailableCapability
+              title="Contexto financeiro"
+              reason="O detalhe do contrato não publica títulos, faturamento nem saldo. O financeiro do contrato vive em Contas a Receber, que recorta por título e não por contrato."
+            >
+              <Link to="/app/finance/receivables" className="text-brand-700 no-underline hover:underline">
+                Abrir Contas a Receber
+              </Link>
+            </UnavailableCapability>
+          </div>
         </ObjectPanel>
 
         <p>

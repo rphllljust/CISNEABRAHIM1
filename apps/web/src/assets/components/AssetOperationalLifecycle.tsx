@@ -55,7 +55,14 @@ export function AssetOperationalLifecyclePanel({
     <div className="space-y-5">
       <div className="grid gap-5 lg:grid-cols-2">
         <section
-          className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+          /*
+            SECAO POR DIVISOR, NAO POR CARTAO.
+            Era `rounded-xl border shadow-sm`: a elevacao que o contrato visual do CISNE abandonou.
+            Dentro de uma object page que ja tem moldura, o cartao produzia card-sobre-card e a
+            hierarquia passava a vir da sombra em vez do titulo. Agora a secao e delimitada pela
+            regua estrutural e pela tipografia.
+          */
+          className="border-t border-[color:var(--color-divider)] pt-3"
           aria-labelledby="asset-current-use-heading"
         >
           <h2 id="asset-current-use-heading" className="cisne-type-section-title">
@@ -96,7 +103,7 @@ export function AssetOperationalLifecyclePanel({
         </section>
 
         <section
-          className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+          className="border-t border-[color:var(--color-divider)] pt-3"
           aria-labelledby="asset-next-use-heading"
         >
           <h2 id="asset-next-use-heading" className="cisne-type-section-title">
@@ -126,7 +133,7 @@ export function AssetOperationalLifecyclePanel({
       </div>
 
       <section
-        className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+        className="border-t border-[color:var(--color-divider)] pt-3"
         aria-labelledby="asset-usage-history-heading"
       >
         <h2 id="asset-usage-history-heading" className="cisne-type-section-title">
@@ -163,7 +170,7 @@ export function AssetOperationalLifecyclePanel({
       </section>
 
       <section
-        className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+        className="border-t border-[color:var(--color-divider)] pt-3"
         aria-labelledby="asset-occurrences-heading"
       >
         <h2 id="asset-occurrences-heading" className="cisne-type-section-title">

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import {
   cancelServiceOrder,
   getServiceOrder,
@@ -13,19 +13,23 @@ import {
   EnterpriseObjectHeader,
   EnterpriseObjectPage,
   NextActionPanel,
+  ObjectContextBlock,
   ObjectPanel,
   ObjectStateFlow,
   SmartRelationBar,
+  UnavailableCapability,
   type NextAction,
+  type ObjectContextField,
   type ObjectStateStep,
   type SmartRelation,
 } from '../../enterprise-object';
+import { ConfirmAction, Money } from '../../ui';
 import {
   serviceOrderEngineRow,
   type ServiceOrderEngineRow,
 } from './service-order-engine-rows';
 import { OperationsControlCenter } from '../components/OperationsControlCenter';
-import type { ServiceOrderControlCenter } from '../types/service-order.types';
+import type { ServiceOrderControlCenter, ServiceOrderDetail } from '../types/service-order.types';
 
 /**
  * Detalhe de ordem de serviço RENDERIZADO PELA ENGINE.
@@ -44,6 +48,17 @@ export function ServiceOrderEngineDetailPage() {
   const { schema, status } = useEntitySchema('service-orders');
   const [row, setRow] = useState<ServiceOrderEngineRow | null>(null);
   const [controlCenter, setControlCenter] = useState<ServiceOrderControlCenter | null>(null);
+  /**
+   * DETALHE CANÔNICO — guardado inteiro, e não só a projeção da engine.
+   *
+   * `serviceOrderEngineRow` projeta os campos de trabalho do metadata store; ele DESCARTA
+   * `contractSnapshot`, `purchaseOrderSnapshot`, `serviceSnapshot`, `origin` e os instantes
+   * persistidos. A coluna de contexto da OS 360 precisa exatamente desses fatos para dizer de onde a
+   * ordem veio e sob qual contrato ela corre — então o payload autorizado é preservado aqui.
+   */
+  const [detail, setDetail] = useState<ServiceOrderDetail | null>(null);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
   const [rowStatus, setRowStatus] = useState<'loading' | 'ready' | 'denied' | 'missing' | 'error'>(
     'loading',
   );
@@ -59,6 +74,7 @@ export function ServiceOrderEngineDetailPage() {
       try {
         const detail = await getServiceOrder(serviceOrderId, signal);
         setRow(serviceOrderEngineRow(detail));
+        setDetail(detail);
         /*
          * OPERATIONS CONTROL CENTER — o backend DERIVA a progressão, planejado x realizado,
          * downstream (medição/faturamento) e o próximo passo com blockers; o frontend apenas
@@ -94,12 +110,19 @@ export function ServiceOrderEngineDetailPage() {
   /**
    * Despacha o comando que a ENGINE ofereceu.
    *
-   * `cancel` exige justificativa no backend (`cancellationReason`), por isso a tela informa
-   * uma justificativa explícita em vez de inventar uma vazia. `start`, `pause`, `resume` e
-   * `complete` pertencem à tela de execução, que tem o contexto operacional (alocações,
-   * evidências) — aqui elas aparecem como indisponíveis, não como botões que falhariam.
+   * `start`, `pause`, `resume` e `complete` pertencem à tela de execução, que tem o contexto
+   * operacional (alocações, evidências) — aqui elas aparecem como indisponíveis, não como botões
+   * que falhariam.
+   *
+   * CANCELAMENTO EXIGE MOTIVO, E O MOTIVO É DO OPERADOR.
+   *
+   * Antes esta tela enviava `cancellationReason: 'Cancelamento solicitado na visão geral da ordem de
+   * serviço.'` — uma justificativa INVENTADA pelo frontend para satisfazer a validação do servidor.
+   * O backend exige o motivo porque ele é registro de auditoria: quem cancelou, e por quê. Gravar
+   * uma frase fixa produzia um histórico de cancelamento sem razão real, e o operador não tinha como
+   * corrigi-lo depois. Agora o comando ABRE o diálogo, e o motivo digitado é o que vai ao servidor.
    */
-  async function runCommand(command: string): Promise<void> {
+  async function runCommand(command: string, reason?: string): Promise<void> {
     if (!serviceOrderId || !row) {
       return;
     }
@@ -112,10 +135,12 @@ export function ServiceOrderEngineDetailPage() {
       } else if (command === 'release') {
         await releaseServiceOrder(serviceOrderId, rowVersion);
       } else if (command === 'cancel') {
-        await cancelServiceOrder(serviceOrderId, {
-          rowVersion,
-          cancellationReason: 'Cancelamento solicitado na visão geral da ordem de serviço.',
-        });
+        const cancellationReason = (reason ?? '').trim();
+        if (cancellationReason.length === 0) {
+          setCommandError('Informe o motivo do cancelamento: ele é registrado na auditoria da ordem.');
+          return;
+        }
+        await cancelServiceOrder(serviceOrderId, { rowVersion, cancellationReason });
       } else {
         setCommandError(`O comando "${command}" não é executado nesta tela.`);
         return;
@@ -185,6 +210,54 @@ export function ServiceOrderEngineDetailPage() {
   const stateFlowSteps = stateStepsFromSchema(schema);
   const relations = relationsFromRow(row);
   const nextAction = nextActionFromControlCenter(controlCenter, row.id);
+
+  /*
+   * IDENTIDADE — o que a ordem É, antes de como ela está.
+   * `origin` é o token persistido da origem da demanda e `internalCode` é o código interno: os dois
+   * vêm do payload e nenhum é derivado na tela.
+   */
+  const identityFields: ObjectContextField[] = [
+    { label: 'Número da OS', value: detail?.orderNumber ?? orderNumber },
+    { label: 'Código interno', value: detail?.internalCode ?? null },
+    { label: 'Cliente', value: client },
+    { label: 'Unidade operacional', value: detail?.unitId ?? toDisplayText(row['unit_id']) },
+    { label: 'Situação', value: currentState },
+    { label: 'Origem', value: detail?.origin ?? null },
+  ];
+
+  /*
+   * ORIGEM E VÍNCULOS — de onde a ordem veio e sob qual contrato ela corre.
+   *
+   * Cada linha só existe quando o vínculo veio PERSISTIDO. `contractReference` é o rótulo humano do
+   * contrato; quando ele não veio, o degrau não aparece — afirmar um contrato que não está registrado
+   * seria mentir sobre a origem do dinheiro.
+   */
+  const originFields: ObjectContextField[] = [
+    { label: 'Contrato', value: detail?.contractReference ?? null },
+    {
+      label: 'Solicitação',
+      value: detail?.serviceRequestId ? 'Vinculada à ordem' : null,
+    },
+    {
+      label: 'Proposta',
+      value: snapshotText(detail?.proposalSnapshot, 'proposalNumber'),
+    },
+    {
+      label: 'Pedido de compra',
+      value: snapshotText(detail?.purchaseOrderSnapshot, 'poNumber'),
+    },
+    { label: 'Descrição', value: detail?.description ?? null },
+  ];
+
+  /*
+   * DOWNSTREAM REAL — medição e faturamento, do control center DERIVADO pelo backend.
+   *
+   * O contador e o valor são do servidor; a tela não soma nada. Quando o ator não tem autorização no
+   * módulo dono, o backend devolve o bloco zerado/nulo — e é por isso que a leitura abaixo só afirma
+   * o que existe (`count > 0`), em vez de exibir zero como se fosse fato.
+   */
+  const measurementDownstream = controlCenter?.downstream.measurement ?? null;
+  const billingDownstream = controlCenter?.downstream.billing ?? null;
 
   /*
    * CADEIA DE NEGÓCIO — montada do que o PAYLOAD trouxe, sem chamada nova e sem inventar
@@ -286,7 +359,15 @@ export function ServiceOrderEngineDetailPage() {
               schema={schema}
               currentState={currentState}
               busy={busy}
-              onCommand={(command) => void runCommand(command)}
+              onCommand={(command) =>
+                /*
+                 * CANCELAMENTO ABRE DIÁLOGO — o motivo é do OPERADOR, não do frontend.
+                 * Ver o comentário de `runCommand`: a frase fixa que existia aqui virou registro de
+                 * auditoria sem razão real. Os demais comandos seguem diretos, porque não exigem
+                 * justificativa no contrato do servidor.
+                 */
+                command === 'cancel' ? setCancelOpen(true) : void runCommand(command)
+              }
             />
             {commandError ? (
               <p className="mt-2 text-sm text-red-700" role="alert">
@@ -304,6 +385,17 @@ export function ServiceOrderEngineDetailPage() {
       }
     >
       <main className="service-order-main-canvas space-y-6">
+        {/*
+          IDENTIDADE E ORIGEM — a leitura que situa a OS.
+
+          A OS 360 abria pela operação e pelos campos da engine; o operador tinha de reconstruir de
+          cabeça de onde a ordem veio e sob qual contrato ela corre. Estes dois blocos trazem os fatos
+          que o DETALHE já publicava (`origin`, `contractReference`, `contractSnapshot`, `unitId`) e
+          que a projeção da engine descartava.
+        */}
+        <ObjectContextBlock title="Identidade da ordem" fields={identityFields} columns={3} />
+        <ObjectContextBlock title="Origem e vínculos" fields={originFields} columns={3} />
+
         <section aria-label="Operação" className="service-order-operational-canvas border-b border-gray-200 pb-6">
           <div className="service-order-section-heading mb-3 flex items-end gap-3">
             <div>
@@ -334,9 +426,169 @@ export function ServiceOrderEngineDetailPage() {
           </div>
           <DynamicForm schema={schema} values={row} readOnly />
         </section>
+
+        {/*
+          DOWNSTREAM — medição e faturamento como CONSEQUÊNCIA da ordem.
+          A OS produz medição, e a medição produz faturamento. Sem esta seção o operador lia a ordem
+          como um fim em si; com ela, a cadeia que continua depois da execução fica na própria ficha.
+          Todos os números são do control center do SERVIDOR.
+        */}
+        <section aria-label="Desdobramento" className="service-order-record-canvas">
+          <div className="service-order-section-heading mb-3 flex items-end gap-3">
+            <div>
+              <p className="m-0 text-[10px] font-semibold tracking-wide text-gray-500 uppercase">Depois da execução</p>
+              <h2 className="m-0 text-base font-semibold text-gray-900">Medição e faturamento</h2>
+            </div>
+            <span className="mb-1 h-px flex-1 bg-gray-200" aria-hidden="true" />
+          </div>
+          {controlCenter ? (
+            <dl className="m-0 grid grid-cols-1 gap-x-6 gap-y-2 md:grid-cols-2">
+              <div className="min-w-0">
+                <dt className="cisne-meta-label">Medições</dt>
+                <dd className="m-0 text-sm text-gray-900">
+                  {measurementDownstream && measurementDownstream.count > 0 ? (
+                    <>
+                      {measurementDownstream.count}{' '}
+                      {measurementDownstream.count === 1 ? 'medição' : 'mediações'}
+                      {measurementDownstream.status ? ` · ${measurementDownstream.status}` : ''}{' '}
+                      <Link
+                        to={`/app/service-orders/${row.id}/measurement`}
+                        className="text-brand-700 no-underline hover:underline"
+                      >
+                        Abrir medição
+                      </Link>
+                    </>
+                  ) : (
+                    <span className="text-gray-600">Nenhuma medição registrada nesta ordem.</span>
+                  )}
+                </dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="cisne-meta-label">Faturamento</dt>
+                <dd className="m-0 text-sm text-gray-900">
+                  {billingDownstream && billingDownstream.count > 0 ? (
+                    <>
+                      {billingDownstream.count}{' '}
+                      {billingDownstream.count === 1 ? 'documento' : 'documentos'}
+                      {billingDownstream.status ? ` · ${billingDownstream.status}` : ''}
+                      {billingDownstream.totalAmount && billingDownstream.currencyCode ? (
+                        <>
+                          {' · '}
+                          <Money
+                            value={billingDownstream.totalAmount}
+                            currencyCode={billingDownstream.currencyCode}
+                          />
+                        </>
+                      ) : null}{' '}
+                      <Link
+                        to={`/app/service-orders/${row.id}/billing`}
+                        className="text-brand-700 no-underline hover:underline"
+                      >
+                        Abrir faturamento
+                      </Link>
+                    </>
+                  ) : (
+                    <span className="text-gray-600">Nenhum faturamento registrado nesta ordem.</span>
+                  )}
+                </dd>
+              </div>
+            </dl>
+          ) : (
+            <p className="m-0 text-sm text-gray-600">
+              O desdobramento não foi publicado para esta ordem nesta leitura.
+            </p>
+          )}
+        </section>
+
+        {/*
+          PROFUNDIDADE NÃO PUBLICADA — declarada, nunca inventada.
+
+          O detalhe da OS publica identidade, origem, contrato (referência e snapshot), serviço
+          congelado, instantes do ciclo, histórico e o control center derivado. Não publica responsável
+          nominal, documentos anexos nem uma lista de medições — só a CONTAGEM derivada. Declarar cada
+          camada impede que o operador conclua "esta OS não tem documento".
+        */}
+        <section aria-label="Profundidade não publicada" className="service-order-record-canvas">
+          <div className="flex flex-col gap-2">
+            <UnavailableCapability
+              title="Responsável nominal pela ordem"
+              reason="O detalhe não publica o responsável. Quem executa são os recursos ALOCADOS, e a leitura nominal vive no planejamento da ordem."
+            >
+              <Link
+                to={`/app/service-orders/${row.id}/planning`}
+                className="text-brand-700 no-underline hover:underline"
+              >
+                Abrir planejamento
+              </Link>
+            </UnavailableCapability>
+            <UnavailableCapability
+              title="Documentos da ordem"
+              reason="O detalhe da ordem de serviço não publica vínculos de documento. Evidências de execução vivem na tela de execução, e o acervo documental é do módulo de documentos."
+            >
+              <Link to="/app/documents" className="text-brand-700 no-underline hover:underline">
+                Abrir documentos
+              </Link>
+            </UnavailableCapability>
+          </div>
+        </section>
       </main>
+
+      {/*
+        DIÁLOGO DE CANCELAMENTO — o motivo é registro de AUDITORIA.
+        O backend exige `cancellationReason` porque ele grava quem cancelou e por quê. A tela anterior
+        enviava uma frase fixa para satisfazer a validação, o que produzia histórico de cancelamento
+        sem razão real. Aqui o operador digita o motivo, e ele é obrigatório para confirmar.
+      */}
+      <ConfirmAction
+        open={cancelOpen}
+        title="Cancelar ordem de serviço"
+        description="O cancelamento encerra a ordem e é registrado na auditoria. Informe o motivo real: ele fica no histórico da OS."
+        confirmLabel="Confirmar cancelamento"
+        confirmDisabled={busy || cancelReason.trim().length === 0}
+        loading={busy}
+        onConfirm={() => {
+          void runCommand('cancel', cancelReason).then(() => {
+            setCancelOpen(false);
+            setCancelReason('');
+          });
+        }}
+        onCancel={() => {
+          setCancelOpen(false);
+          setCancelReason('');
+        }}
+      >
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="service-order-cancel-reason" className="text-xs font-semibold text-gray-700">
+            Motivo do cancelamento
+            <span className="text-red-600" aria-hidden="true">
+              {' '}
+              *
+            </span>
+            <span className="sr-only"> (obrigatório)</span>
+          </label>
+          <textarea
+            id="service-order-cancel-reason"
+            value={cancelReason}
+            onChange={(event) => setCancelReason(event.target.value)}
+            rows={3}
+            className="block w-full min-h-[5.5rem] resize-y rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 ring-1 ring-gray-300 ring-inset outline-none focus:ring-2 focus:ring-brand-500"
+          />
+        </div>
+      </ConfirmAction>
     </EnterpriseObjectPage>
   );
+}
+
+/**
+ * RÓTULO HUMANO DE UM SNAPSHOT.
+ *
+ * Os snapshots (`proposalSnapshot`, `purchaseOrderSnapshot`) são `Record<string, unknown>` sem chave
+ * publicada. Lemos apenas os rótulos que o domínio usa e NÃO imprimimos nada quando nenhum existe —
+ * um snapshot cru com chaves internas na tela seria pior que a ausência de rótulo.
+ */
+function snapshotText(snapshot: Record<string, unknown> | null | undefined, key: string): string | null {
+  const value = snapshot?.[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
 function stateStepsFromSchema(schema: NonNullable<ReturnType<typeof useEntitySchema>['schema']>): ObjectStateStep[] {

@@ -42,6 +42,7 @@ export {
 export { NextActionPanel, type NextActionPanelProps } from './NextActionPanel';
 export { EnterpriseCreateSheet, type EnterpriseCreateSheetProps } from './EnterpriseCreateSheet';
 export { EnterpriseObjectPage, ObjectPanel } from './EnterpriseObjectPage';
+export { UnavailableCapability, type UnavailableCapabilityProps } from './UnavailableCapability';
 export { RELATION_SCOPE_KEYS, useRelationScope } from './use-url-scope';
 
 export type {
