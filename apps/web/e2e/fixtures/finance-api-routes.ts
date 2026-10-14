@@ -224,9 +224,410 @@ const BUDGETS_META = {
   allowedPermLevels: [0],
 };
 
+/* ============================================================================
+   TITULOS A RECEBER / A PAGAR — as duas worklists Tier-1
+   ============================================================================ */
+
+/**
+ * DADOS DE ACEITE DAS WORKLISTS FINANCEIRAS.
+ *
+ * Estes titulos existem para que o aceite visual exercite a superficie REAL — nao uma tela vazia.
+ * Os valores cobrem os estados que a tela precisa distinguir:
+ *
+ *   AR-001  VENCIDO     vencimento no passado, saldo integral  -> atraso, faixa critica
+ *   AR-002  VENCIDO     vencimento no passado, saldo parcial   -> atraso + liquidacao parcial
+ *   AR-003  EM ABERTO   vencimento futuro                      -> prazo "em N dias"
+ *   AR-004  RECEBIDO    saldo zerado                           -> estado liquidado
+ *
+ * O aging PERSISTIDO (`agingBucket`) so existe do lado a pagar: e fato de dominio de `payables`, e
+ * `ReceivableDetail` nao o publica. A fixture respeita essa diferenca em vez de uniformizar os dois
+ * lados — uniformizar aqui esconderia exatamente a divergencia que a tela precisa declarar.
+ */
+const RECEIVABLES = [
+  {
+    id: 'rrrrrrrr-rrrr-4rrr-8rrr-rrrrrrrrrr01',
+    unitId: 'unit-1',
+    clientId: 'client-1',
+    origin: {
+      kind: 'BILLING_DOCUMENT',
+      billingDocumentId: 'nf-2026-0001',
+      billingRecordId: 'br-1',
+      serviceOrderId: 'so-1',
+      measurementId: 'm-1',
+    },
+    principal: '12000.0000',
+    currencyCode: 'BRL',
+    dueDate: '2026-08-10',
+    paymentTerms: '30 dias',
+    externalReference: 'AR-001',
+    status: 'OVERDUE',
+    remainingBalance: '12000.0000',
+    settledAmount: '0.0000',
+    lifecycle: 'OVERDUE',
+    cancelledAt: null,
+    cancelReason: null,
+    rowVersion: 1,
+    createdAt: '2026-07-11T12:00:00.000Z',
+    updatedAt: '2026-08-11T12:00:00.000Z',
+    installments: [
+      { id: 'i-1', installmentNumber: 1, principal: '12000.0000', dueDate: '2026-08-10' },
+    ],
+    settlements: [],
+  },
+  {
+    id: 'rrrrrrrr-rrrr-4rrr-8rrr-rrrrrrrrrr02',
+    unitId: 'unit-1',
+    clientId: 'client-1',
+    origin: {
+      kind: 'MEASUREMENT',
+      billingDocumentId: 'nf-2026-0002',
+      billingRecordId: 'br-2',
+      serviceOrderId: 'so-2',
+      measurementId: 'm-2',
+    },
+    principal: '8400.0000',
+    currencyCode: 'BRL',
+    dueDate: '2026-09-05',
+    paymentTerms: '45 dias',
+    externalReference: 'AR-002',
+    status: 'OVERDUE',
+    remainingBalance: '3400.0000',
+    settledAmount: '5000.0000',
+    lifecycle: 'OVERDUE',
+    cancelledAt: null,
+    cancelReason: null,
+    rowVersion: 2,
+    createdAt: '2026-07-22T12:00:00.000Z',
+    updatedAt: '2026-09-06T12:00:00.000Z',
+    installments: [
+      { id: 'i-2', installmentNumber: 1, principal: '8400.0000', dueDate: '2026-09-05' },
+    ],
+    settlements: [
+      {
+        id: 's-1',
+        installmentId: 'i-2',
+        amount: '5000.0000',
+        currencyCode: 'BRL',
+        status: 'SETTLED',
+        settledAt: '2026-09-01T12:00:00.000Z',
+        idempotencyKey: 'idem-s-1',
+        externalReference: 'REC-0001',
+      },
+    ],
+  },
+  {
+    id: 'rrrrrrrr-rrrr-4rrr-8rrr-rrrrrrrrrr03',
+    unitId: 'unit-1',
+    clientId: 'client-1',
+    origin: {
+      kind: 'SERVICE_ORDER',
+      billingDocumentId: 'nf-2026-0003',
+      billingRecordId: 'br-3',
+      serviceOrderId: 'so-3',
+      measurementId: 'm-3',
+    },
+    principal: '5600.0000',
+    currencyCode: 'BRL',
+    dueDate: '2026-11-20',
+    paymentTerms: '30 dias',
+    externalReference: 'AR-003',
+    status: 'OPEN',
+    remainingBalance: '5600.0000',
+    settledAmount: '0.0000',
+    lifecycle: 'OPEN',
+    cancelledAt: null,
+    cancelReason: null,
+    rowVersion: 1,
+    createdAt: '2026-10-21T12:00:00.000Z',
+    updatedAt: '2026-10-21T12:00:00.000Z',
+    installments: [
+      { id: 'i-3', installmentNumber: 1, principal: '5600.0000', dueDate: '2026-11-20' },
+    ],
+    settlements: [],
+  },
+  {
+    id: 'rrrrrrrr-rrrr-4rrr-8rrr-rrrrrrrrrr04',
+    unitId: 'unit-1',
+    clientId: 'client-1',
+    origin: {
+      kind: 'BILLING_RECORD',
+      billingDocumentId: 'nf-2026-0004',
+      billingRecordId: 'br-4',
+      serviceOrderId: 'so-4',
+      measurementId: 'm-4',
+    },
+    principal: '2300.0000',
+    currencyCode: 'BRL',
+    dueDate: '2026-09-28',
+    paymentTerms: 'à vista',
+    externalReference: 'AR-004',
+    status: 'PAID',
+    remainingBalance: '0.0000',
+    settledAmount: '2300.0000',
+    lifecycle: 'PAID',
+    cancelledAt: null,
+    cancelReason: null,
+    rowVersion: 3,
+    createdAt: '2026-08-29T12:00:00.000Z',
+    updatedAt: '2026-09-28T12:00:00.000Z',
+    installments: [
+      { id: 'i-4', installmentNumber: 1, principal: '2300.0000', dueDate: '2026-09-28' },
+    ],
+    settlements: [
+      {
+        id: 's-2',
+        installmentId: 'i-4',
+        amount: '2300.0000',
+        currencyCode: 'BRL',
+        status: 'SETTLED',
+        settledAt: '2026-09-28T12:00:00.000Z',
+        idempotencyKey: 'idem-s-2',
+        externalReference: 'REC-0002',
+      },
+    ],
+  },
+];
+
+const PAYABLES = [
+  {
+    id: 'pppppppp-pppp-4ppp-8ppp-pppppppppp01',
+    unitId: 'unit-1',
+    counterpartyId: 'supplier-1',
+    origin: { kind: 'SUPPLIER_INVOICE', id: 'inv-1', reference: 'NF-FORN-7781' },
+    expenseCategoryId: 'cat-1',
+    costCenter: { id: 'cc-1', code: 'CC-OPER' },
+    principal: '9800.0000',
+    currencyCode: 'BRL',
+    dueDate: '2026-07-15',
+    paymentTerms: '30 dias',
+    externalReference: 'AP-001',
+    status: 'OVERDUE',
+    agingBucket: '90_PLUS',
+    remainingBalance: '9800.0000',
+    paidAmount: '0.0000',
+    lifecycle: 'OVERDUE',
+    cancelledAt: null,
+    cancelReason: null,
+    rowVersion: 1,
+    createdAt: '2026-06-15T12:00:00.000Z',
+    updatedAt: '2026-07-16T12:00:00.000Z',
+    installments: [
+      { id: 'pi-1', installmentNumber: 1, principal: '9800.0000', dueDate: '2026-07-15' },
+    ],
+    payments: [],
+  },
+  {
+    id: 'pppppppp-pppp-4ppp-8ppp-pppppppppp02',
+    unitId: 'unit-1',
+    counterpartyId: 'supplier-1',
+    origin: { kind: 'SUPPLIER_INVOICE', id: 'inv-2', reference: 'NF-FORN-7802' },
+    expenseCategoryId: 'cat-1',
+    costCenter: { id: 'cc-1', code: 'CC-MANUT' },
+    principal: '4200.0000',
+    currencyCode: 'BRL',
+    dueDate: '2026-10-02',
+    paymentTerms: '45 dias',
+    externalReference: 'AP-002',
+    status: 'PARTIALLY_PAID',
+    agingBucket: '31_60',
+    remainingBalance: '2200.0000',
+    paidAmount: '2000.0000',
+    lifecycle: 'PARTIALLY_PAID',
+    cancelledAt: null,
+    cancelReason: null,
+    rowVersion: 2,
+    createdAt: '2026-08-18T12:00:00.000Z',
+    updatedAt: '2026-10-03T12:00:00.000Z',
+    installments: [
+      { id: 'pi-2', installmentNumber: 1, principal: '4200.0000', dueDate: '2026-10-02' },
+    ],
+    payments: [
+      {
+        id: 'pay-1',
+        installmentId: 'pi-2',
+        kind: 'PARTIAL',
+        amount: '2000.0000',
+        currencyCode: 'BRL',
+        paidAt: '2026-10-03T12:00:00.000Z',
+        idempotencyKey: 'idem-pay-1',
+        paymentReference: 'PIX-99120',
+        originKind: 'SUPPLIER_INVOICE',
+        originId: 'inv-2',
+        originReference: 'NF-FORN-7802',
+        reversesPaymentId: null,
+        actorIdentityId: 'identity-1',
+        createdAt: '2026-10-03T12:00:00.000Z',
+      },
+    ],
+  },
+  {
+    id: 'pppppppp-pppp-4ppp-8ppp-pppppppppp03',
+    unitId: 'unit-1',
+    counterpartyId: 'supplier-1',
+    origin: { kind: 'SUPPLIER_INVOICE', id: 'inv-3', reference: 'NF-FORN-7840' },
+    expenseCategoryId: 'cat-1',
+    costCenter: { id: 'cc-1', code: 'CC-ADM' },
+    principal: '3100.0000',
+    currencyCode: 'BRL',
+    dueDate: '2026-11-25',
+    paymentTerms: '30 dias',
+    externalReference: 'AP-003',
+    status: 'OPEN',
+    agingBucket: 'CURRENT',
+    remainingBalance: '3100.0000',
+    paidAmount: '0.0000',
+    lifecycle: 'OPEN',
+    cancelledAt: null,
+    cancelReason: null,
+    rowVersion: 1,
+    createdAt: '2026-10-26T12:00:00.000Z',
+    updatedAt: '2026-10-26T12:00:00.000Z',
+    installments: [
+      { id: 'pi-3', installmentNumber: 1, principal: '3100.0000', dueDate: '2026-11-25' },
+    ],
+    payments: [],
+  },
+];
+
+/** Resumo autoritativo — contagens e valores do recorte COMPLETO, agregados pelo SERVIDOR. */
+function titleSummary(
+  items: ReadonlyArray<{ status: string; remainingBalance: string; agingBucket?: string }>,
+): Record<string, unknown> {
+  const sum = (filter: (item: { status: string; remainingBalance: string }) => boolean) =>
+    items
+      .filter(filter)
+      .reduce((total, item) => total + Number(item.remainingBalance), 0)
+      .toFixed(4);
+  const overdue = items.filter((item) => item.status === 'OVERDUE');
+  const due = items.filter((item) => item.status === 'OPEN');
+  const open = items.filter((item) => item.status === 'OPEN' || item.status === 'OVERDUE' || item.status === 'PARTIALLY_PAID');
+  const paid = items.filter((item) => item.status === 'PAID');
+  const aging90 = items.filter((item) => item.agingBucket === '90_PLUS');
+  return {
+    total: items.length,
+    openCount: open.length,
+    overdueCount: overdue.length,
+    dueCount: due.length,
+    paidCount: paid.length,
+    ...(items.some((item) => item.agingBucket !== undefined)
+      ? { aging90PlusCount: aging90.length }
+      : {}),
+    amounts: [
+      {
+        currencyCode: 'BRL',
+        openAmount: sum((item) => item.status === 'OPEN' || item.status === 'OVERDUE' || item.status === 'PARTIALLY_PAID'),
+        overdueAmount: sum((item) => item.status === 'OVERDUE'),
+        dueAmount: sum((item) => item.status === 'OPEN'),
+      },
+    ],
+  };
+}
+
+/** Envelope canonico de pagina, honrando `limit`/`offset` como a API real. */
+function titlePage<T>(items: readonly T[], route: Route): Record<string, unknown> {
+  const params = new URL(route.request().url()).searchParams;
+  const limit = Number(params.get('limit') ?? '50');
+  const offset = Number(params.get('offset') ?? '0');
+  const status = params.get('status');
+  const filtered = status ? items.filter((item) => (item as { status: string }).status === status) : items;
+  const total = filtered.length;
+  return {
+    items: filtered.slice(offset, offset + limit),
+    limit,
+    offset,
+    total,
+    totalPages: total > 0 ? Math.max(1, Math.ceil(total / limit)) : 0,
+  };
+}
+
+/** Campos da view `list` de titulos — os mesmos nomes que `finance-engine-rows` preenche. */
+const RECEIVABLES_META = {
+  name: 'receivables',
+  label: 'Contas a receber',
+  description: null,
+  dataSchema: 'fin',
+  dataTable: 'receivables',
+  labelField: 'external_reference',
+  fields: [
+    metaField('external_reference', 'Título', 'text', { inList: true, listOrder: 10 }),
+    metaField('client_id', 'Cliente', 'data', { inList: true, listOrder: 20 }),
+    metaField('due_date', 'Vencimento', 'date', { inList: true, listOrder: 30 }),
+    metaField('lifecycle', 'Situação', 'select', { inList: true, listOrder: 40 }),
+    metaField('principal', 'Principal', 'currency', { inList: true, listOrder: 50, aggregation: 'sum' }),
+    metaField('remaining_balance', 'Saldo', 'currency', { inList: true, listOrder: 60, aggregation: 'sum' }),
+  ],
+  views: [
+    {
+      viewType: 'list',
+      label: 'Lista de contas a receber',
+      layout: {
+        columns: [
+          'external_reference',
+          'client_id',
+          'due_date',
+          'lifecycle',
+          'principal',
+          'remaining_balance',
+        ],
+      },
+      isDefault: true,
+    },
+  ],
+  workflow: null,
+  permissions: [{ action: 'read', permLevel: 0, requiredPermission: null, allowed: true }],
+  allowedPermLevels: [0],
+};
+
+const PAYABLES_META = {
+  name: 'payables',
+  label: 'Contas a pagar',
+  description: null,
+  dataSchema: 'fin',
+  dataTable: 'payables',
+  labelField: 'external_reference',
+  fields: [
+    metaField('external_reference', 'Título', 'text', { inList: true, listOrder: 10 }),
+    metaField('counterparty_id', 'Fornecedor', 'data', { inList: true, listOrder: 20 }),
+    metaField('due_date', 'Vencimento', 'date', { inList: true, listOrder: 30 }),
+    metaField('lifecycle', 'Situação', 'select', { inList: true, listOrder: 40 }),
+    metaField('aging_bucket', 'Faixa', 'select', { inList: false, listOrder: 45 }),
+    metaField('principal', 'Principal', 'currency', { inList: true, listOrder: 50, aggregation: 'sum' }),
+    metaField('remaining_balance', 'Saldo', 'currency', { inList: true, listOrder: 60, aggregation: 'sum' }),
+  ],
+  views: [
+    {
+      viewType: 'list',
+      label: 'Lista de contas a pagar',
+      layout: {
+        columns: [
+          'external_reference',
+          'counterparty_id',
+          'due_date',
+          'lifecycle',
+          'principal',
+          'remaining_balance',
+        ],
+      },
+      isDefault: true,
+    },
+  ],
+  workflow: null,
+  permissions: [{ action: 'read', permLevel: 0, requiredPermission: null, allowed: true }],
+  allowedPermLevels: [0],
+};
+
+/*
+ * O REGISTRO DE METADADOS VEM DEPOIS DAS CONSTANTES QUE ELE INDEXA.
+ *
+ * `const` nao sofre hoisting de valor: um `META_BY_ENTITY` declarado acima destes objetos leria a
+ * zona morta temporal e quebraria a fixture inteira em tempo de importacao. O registro fica aqui,
+ * depois das quatro entidades, e e o unico ponto que o handler consulta.
+ */
 const META_BY_ENTITY: Record<string, unknown> = {
   expenses: EXPENSES_META,
   budgets: BUDGETS_META,
+  receivables: RECEIVABLES_META,
+  payables: PAYABLES_META,
 };
 
 /**
@@ -285,6 +686,48 @@ export async function handleFinanceApiRoute(route: Route): Promise<boolean> {
           item.code.toLowerCase().includes(q) || item.name.toLowerCase().includes(q),
         ),
       );
+      return true;
+    }
+
+    /*
+     * TITULOS A RECEBER / A PAGAR — as duas worklists Tier-1.
+     *
+     * ORDEM IMPORTA: `/receivables/summary` tem de ser testado ANTES de `/receivables`, porque o
+     * prefixo do primeiro tambem casa com o segundo. Sem essa precedencia, a tela receberia um
+     * envelope de PAGINA onde espera um RESUMO, e a faixa de situacao leria `undefined` em todos os
+     * campos — exatamente o tipo de defeito de fixture que o aceite visual existe para nao mascarar.
+     */
+    if (pathname === '/api/v1/finance/receivables/summary') {
+      await fulfillJson(route, titleSummary(RECEIVABLES));
+      return true;
+    }
+    if (pathname === '/api/v1/finance/payables/summary') {
+      await fulfillJson(route, titleSummary(PAYABLES));
+      return true;
+    }
+    if (pathname === '/api/v1/finance/receivables') {
+      await fulfillJson(route, titlePage(RECEIVABLES, route));
+      return true;
+    }
+    if (pathname === '/api/v1/finance/payables') {
+      await fulfillJson(route, titlePage(PAYABLES, route));
+      return true;
+    }
+    if (pathname === '/api/v1/finance/payables/aging') {
+      const buckets: Record<string, { count: number; remaining: string }> = {};
+      for (const item of PAYABLES) {
+        const bucket = item.agingBucket;
+        const current = buckets[bucket] ?? { count: 0, remaining: '0.0000' };
+        buckets[bucket] = {
+          count: current.count + 1,
+          remaining: (Number(current.remaining) + Number(item.remainingBalance)).toFixed(4),
+        };
+      }
+      await fulfillJson(route, { asOf: '2026-10-14T12:00:00.000Z', buckets });
+      return true;
+    }
+    if (pathname === '/api/v1/finance/treasury/accounts') {
+      await fulfillJson(route, []);
       return true;
     }
   }

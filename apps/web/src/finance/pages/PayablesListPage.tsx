@@ -1,20 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { DateTime, EmptyState, Money } from '../../ui';
+import { Link, useSearchParams } from 'react-router-dom';
+import { DateTime, Money } from '../../ui';
 import { ModulePage, ModulePagination } from '../../ui/module-layout';
 import {
-  DrilldownMetric,
-  DrilldownRow,
-  SavedViewsBar,
-  ContextDrawer,
   BulkActionBar,
+  ContextDrawer,
+  SavedViewsBar,
   exportSelectionToCsv,
   useSelection,
   useSmartList,
   type ContextPreviewBody,
 } from '../../operator';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
-import { WorklistHeader } from '../../ui/enterprise-list';
+import { WorklistHeader, worklistGroupClass } from '../../ui/enterprise-list';
 import { AGING_BUCKET_LABELS, PAYABLE_STATUS_LABELS } from '../../financial-ui/labels';
 import { BACKOFFICE_TABLE_PAGE_SIZE } from '../../financial-ui/table-slice';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
@@ -26,73 +24,156 @@ import {
   type FilterGroup,
 } from '../../engine/DynamicFilterBuilder';
 import { advancedFilterFromGroup } from '../../engine';
+import {
+  ContextFacts,
+  ContextSection,
+  WorkspaceActiveFilters,
+  WorkspaceBody,
+  WorkspaceEmpty,
+  WorkspacePane,
+  WorkspacePaneHeader,
+  WorkspaceSkeletonRows,
+} from '../../ui/workspace-frame';
 import { PAYABLE_TITLE_FILTER_SPECS } from './finance-title-filter-specs';
-import { getPayablesSummary, listPayables, type FinanceTitlePage, type FinanceTitleSummary } from '../api/finance-api';
+import {
+  getPayablesSummary,
+  listPayables,
+  type FinanceTitlePage,
+  type FinanceTitleSummary,
+} from '../api/finance-api';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import { FinanceStatusBadge } from '../components/FinanceStatusBadge';
+import {
+  FinanceSituationStrip,
+  formatSummaryAmounts,
+  publishedCount,
+} from '../components/FinanceSituation';
+import {
+  FinanceWorklistToolbar,
+  financeControlClass,
+} from '../components/FinanceWorklistToolbar';
+import { FinanceTitleContext } from '../components/FinanceTitleContext';
 import { PAYABLES_ALLOWED_FILTERS, PAYABLES_BUILT_IN_VIEWS } from './finance-smart-list';
 import { payableEngineRow } from '../utils/finance-engine-rows';
+import {
+  FINANCE_DEFAULT_SORT,
+  daysPastDue,
+  dueLabel,
+  overdueLabel,
+  sortTitles,
+  type FinanceSortState,
+  type FinanceSortableTitle,
+} from '../utils/finance-aging';
 import type { PayableDetail } from '../types/finance.types';
 
 const SCOPE = 'finance.payables';
 
 /**
- * CONTAS A PAGAR — MESA DE TRABALHO, renderizada pela engine.
+ * CONTAS A PAGAR — WORKLIST FINANCEIRA TIER-1.
  *
- * A tabela, os cabeçalhos e os rótulos de status deixaram de ser JSX artesanal: as colunas vêm da
- * view `list` de `/api/v1/meta/payables`. Aging, saldo e status continuam vindo do servidor — esta
- * tela não recalcula obrigação, não projeta caixa e não decide pagamento.
+ * Mesmo padrao operacional de Contas a Receber, e deliberadamente o MESMO codigo: a unica diferenca
+ * real entre as duas carteiras e o que o DTO publica. Aqui o titulo tem `agingBucket` PERSISTIDO e
+ * `paidAmount`; la ele tem `settledAmount` e nao tem faixa. Todo o resto — busca no servidor, janela
+ * de vencimento, ordenacao declarada, coluna de atraso, faixa de situacao, coluna de contexto — e a
+ * mesma superficie, para que o operador nao reaprenda a tela ao trocar de lado do razao.
  *
- * PARIDADE COM A VERSÃO ARTESANAL (cada feature do arquivo antigo → onde vive agora):
- *   - tabela de títulos (Título/Vencimento/Status/Aging/Saldo) → view `list` + colunas extras
- *     desenhadas por `renderCell` (saldo e aging NÃO são coluna da view, são leitura da TELA);
- *   - ordenação por título/vencimento/status/aging/saldo → `useSmartList` + sortAccessors,
- *     PRESERVADA (a `DynamicList` continua ordenando o conjunto exibido);
- *   - indicadores de drill-down Vencidos/A vencer/Aging 90+/Obrigações → `DrilldownRow`, PRESERVADO;
- *   - filtros Status e Aging em uma linha → PRESERVADOS;
- *   - visões salvas (aplicar/salvar/renomear/remover) → `SavedViewsBar`, PRESERVADO;
- *   - barra de ações em lote (exportar CSV, abrir prévia) + nota PARK → `BulkActionBar`, PRESERVADO;
- *   - seleção múltipla por linha e "selecionar tudo visível" → `DynamicList` + `useSelection`;
- *   - prévia lateral → `ContextDrawer` + `buildPayablePreview`, PRESERVADO;
- *   - paginação server-side com faixa e totais → `ModulePagination` + `WorklistFooter`, PRESERVADO;
- *   - estados vazio-de-carteira vs. vazio-de-visão → PRESERVADOS, com o mesmo texto;
- *   - link da linha para o detalhe → `onRowClick`, PRESERVADO.
+ * ─────────────────────────────────────────────────────────────────────────────────────────────
+ * AGING PERSISTIDO x ATRASO CALCULADO — as duas coisas, e sem confundi-las
  *
- * PARIDADE_PERDIDA: nenhuma.
+ * `agingBucket` e FATO DO DOMINIO: coluna do titulo, calculada e congelada pelo servidor, base das
+ * visoes de sistema ("Aging 90+") e do aging agregado. Ele aparece na coluna de faixa e nas visoes,
+ * e NUNCA e recalculado aqui.
  *
- * AÇÕES EM LOTE continuam PARK e a nota foi preservada: pagamento, aprovação e cancelamento em
- * lote exigem aprovação, segregação de funções e idempotência por título. O bulk daqui só organiza
- * trabalho — exportar selecionados e abrir prévia.
+ * A coluna de ATRASO e outra leitura: dias corridos entre o vencimento persistido e hoje. Ela existe
+ * porque "vencido" e um estado e a decisao de pagamento precisa da MAGNITUDE do atraso. E a mesma
+ * excecao que a Central de trabalho ja afirma, e ela e dita como leitura humana — nao como faixa.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────────────────────
+ * O QUE NAO MUDOU
+ *
+ * - Nenhum agregado no navegador: a faixa de situacao le `/finance/payables/summary`.
+ * - Status, busca e janela de vencimento vao ao SERVIDOR.
+ * - O recorte de aging continua LOCAL, e a tela diz isso: o servidor nao aceita `agingBucket` como
+ *   parametro de lista. Esconde-lo faria o operador supor que o conjunto foi recortado no dominio.
+ * - Bulk continua PARK: pagamento, aprovacao e cancelamento em lote exigem aprovacao, segregacao de
+ *   funcoes e idempotencia por titulo.
  */
+
+type PayableSortable = FinanceSortableTitle & { row: PayableDetail };
+
+function toSortable(row: PayableDetail): PayableSortable {
+  return {
+    row,
+    dueDate: row.dueDate,
+    reference: row.externalReference ?? row.origin.reference ?? null,
+    amount: Number.isFinite(Number(row.principal)) ? Number(row.principal) : null,
+    outstanding: Number.isFinite(Number(row.remainingBalance)) ? Number(row.remainingBalance) : null,
+    overdueDays: daysPastDue(row.dueDate),
+    status: row.status,
+  };
+}
+
 export function PayablesListPage() {
-  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [pageNumber, setPageNumber] = useState(1);
   const [previewId, setPreviewId] = useState<string | null>(null);
-  /** O drawer só abre por intenção explícita ("Prévia"); a seleção automática alimenta o contexto inline. */
   const [drawerOpen, setDrawerOpen] = useState(false);
-  /** Árvore do construtor visual de filtros. Estado da TELA — `useSmartList` não a comporta. */
   const [filterGroup, setFilterGroup] = useState<FilterGroup>(() => emptyFilterGroup());
   const { schema } = useEntitySchema('payables');
-  /*
-   * PAGINACAO SERVER-SIDE: uma pagina por requisicao, com `limit`/`offset`/`status` na consulta e
-   * `total`/`totalPages` contados no servidor sob o mesmo escopo e filtro. O filtro do smart list
-   * vai ao servidor, nao mascara a pagina.
-   */
-  const offset = (pageNumber - 1) * BACKOFFICE_TABLE_PAGE_SIZE;
-  const [statusForQuery, setStatusForQuery] = useState('');
 
   /*
-   * A ÁRVORE DO CONSTRUTOR VAI AO SERVIDOR.
-   *
-   * Antes, o recorte composto era aplicado SÓ no navegador (`byBuilder` filtrava a página já
-   * carregada com `matchesFilterGroup`). Numa carteira maior que uma página, compor um filtro e ver
-   * "nenhuma obrigação" não significava "não existe" — significava "não está entre as linhas
-   * carregadas". O operador não tinha como distinguir, e o indicador ao lado continuava contando o
-   * conjunto NÃO filtrado.
-   *
-   * O conversor compartilhado traduz a árvore para o contrato do servidor usando o allow-list DESTA
-   * entidade; condição que o servidor não executa é DESCARTADA pelo conversor, não aproximada.
+   * RECORTE NA URL — a mesma regra de Recebiveis. O aging entra como parametro de URL porque, mesmo
+   * sendo recorte LOCAL sobre a pagina, ele precisa sobreviver a refresh e ao drillback que a propria
+   * tela publica (`?agingBucket=90_PLUS`).
    */
+  const search = searchParams.get('q') ?? '';
+  const dueFrom = searchParams.get('dueFrom') ?? '';
+  const dueTo = searchParams.get('dueTo') ?? '';
+  const statusForQuery = searchParams.get('status') ?? '';
+  const agingFilter = searchParams.get('agingBucket') ?? '';
+
+  const patchParams = useCallback(
+    (patch: Record<string, string | null>) => {
+      setSearchParams(
+        (current) => {
+          const next = new URLSearchParams(current);
+          for (const [key, value] of Object.entries(patch)) {
+            if (value) next.set(key, value);
+            else next.delete(key);
+          }
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
+  /** Debounce de 300ms: `q` vai ao servidor e cada tecla nao pode virar uma consulta ao dominio. */
+  const [searchDraft, setSearchDraft] = useState(search);
+  useEffect(() => {
+    if (searchDraft === search) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      patchParams({ q: searchDraft || null });
+      setPageNumber(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchDraft, search, patchParams]);
+
+  useEffect(() => {
+    setSearchDraft(search);
+  }, [search]);
+
+  useEffect(() => {
+    setPageNumber(1);
+  }, [dueFrom, dueTo, statusForQuery]);
+
+  const [sort, setSort] = useState<FinanceSortState>(FINANCE_DEFAULT_SORT);
+
+  const offset = (pageNumber - 1) * BACKOFFICE_TABLE_PAGE_SIZE;
+
   const advancedPayload = useMemo(
     () => advancedFilterFromGroup(filterGroup, PAYABLE_TITLE_FILTER_SPECS),
     [filterGroup],
@@ -105,38 +186,40 @@ export function PayablesListPage() {
           limit: BACKOFFICE_TABLE_PAGE_SIZE,
           offset,
           status: statusForQuery || undefined,
+          q: search || undefined,
+          dueFrom: dueFrom || undefined,
+          dueTo: dueTo || undefined,
           advanced: advancedPayload,
           sortBy: 'due_date',
           sortDir: 'asc',
         },
         signal,
       ),
-    [advancedPayload, offset, statusForQuery],
+    [advancedPayload, offset, statusForQuery, search, dueFrom, dueTo],
   );
-  const { state, reload } = useBackofficeQuery<FinanceTitlePage<PayableDetail>>({
+  const { state, reload, refreshing } = useBackofficeQuery<FinanceTitlePage<PayableDetail>>({
     loader,
     mapError: mapFinanceErrorToMessage,
   });
+
   const summaryLoader = useCallback(
-    (signal?: AbortSignal) => getPayablesSummary({ status: statusForQuery || undefined }, signal),
-    [statusForQuery],
+    (signal?: AbortSignal) =>
+      getPayablesSummary(
+        {
+          status: statusForQuery || undefined,
+          q: search || undefined,
+          dueFrom: dueFrom || undefined,
+          dueTo: dueTo || undefined,
+          advanced: advancedPayload,
+        },
+        signal,
+      ),
+    [statusForQuery, search, dueFrom, dueTo, advancedPayload],
   );
   const { state: summaryState } = useBackofficeQuery<FinanceTitleSummary>({
     loader: summaryLoader,
     mapError: mapFinanceErrorToMessage,
   });
-
-  const sortAccessors = useMemo(
-    () => ({
-      externalReference: (row: PayableDetail) => row.externalReference ?? row.origin.reference ?? row.id,
-      dueDate: (row: PayableDetail) => new Date(row.dueDate).getTime(),
-      status: (row: PayableDetail) => row.status,
-      agingBucket: (row: PayableDetail) => row.agingBucket,
-      principal: (row: PayableDetail) => Number(row.principal),
-      remainingBalance: (row: PayableDetail) => Number(row.remainingBalance),
-    }),
-    [],
-  );
 
   const smartList = useSmartList<PayableDetail>({
     scope: SCOPE,
@@ -144,21 +227,38 @@ export function PayablesListPage() {
     allowedFilters: PAYABLES_ALLOWED_FILTERS,
     urlSync: true,
     initialSort: { key: 'dueDate', direction: 'asc' },
-    sortAccessors,
+    sortAccessors: {
+      externalReference: (row: PayableDetail) => row.externalReference ?? row.origin.reference ?? row.id,
+      dueDate: (row: PayableDetail) => new Date(row.dueDate).getTime(),
+      status: (row: PayableDetail) => row.status,
+      agingBucket: (row: PayableDetail) => row.agingBucket,
+      principal: (row: PayableDetail) => Number(row.principal),
+      remainingBalance: (row: PayableDetail) => Number(row.remainingBalance),
+    },
   });
 
   const selection = useSelection<PayableDetail>({ getId: (row) => row.id });
 
   /*
-   * Status vai ao SERVIDOR (mesmo recorte dos dois lados do razao); aging segue local, porque
-   * `agingBucket` e derivado do titulo e nao existe como filtro de lista na API.
-   * O efeito fica ANTES dos retornos antecipados: hooks nao sao condicionais.
+   * ORDENACAO — o `useMemo` fica ANTES de qualquer retorno antecipado.
+   * A ordem dos hooks e parte do contrato do React: um hook depois do `return gate` faria a contagem
+   * mudar entre a renderizacao do gate e a da tela pronta.
    */
-  const statusFilter = smartList.filters.status ?? '';
-  useEffect(() => {
-    setPageNumber(1);
-    setStatusForQuery(statusFilter);
-  }, [statusFilter]);
+  const pageItems = state.phase === 'ready' ? state.data.items : [];
+
+  /*
+   * RECORTE DE AGING — LOCAL, e a tela DECLARA isso.
+   * O servidor nao aceita `agingBucket` como parametro de lista; o smart list aplica a visao de
+   * sistema sobre a pagina. Aplicar aqui mantem a mesma semantica das visoes salvas e deixa o
+   * recorte visivel na URL e nos chips — em vez de esconder que o conjunto exibido e menor que o lido.
+   */
+  const agingScoped = useMemo(
+    () => (agingFilter ? pageItems.filter((item) => item.agingBucket === agingFilter) : pageItems),
+    [pageItems, agingFilter],
+  );
+
+  const ordered = useMemo(() => sortTitles(agingScoped.map(toSortable), sort), [agingScoped, sort]);
+  const orderedRows = ordered.map((entry) => entry.row);
 
   const gate = renderQueryGate(
     'Contas a pagar',
@@ -170,382 +270,547 @@ export function PayablesListPage() {
   if (gate) {
     return gate;
   }
-  if (state.phase !== 'ready') {
-    return null;
-  }
 
-  const page = state.data;
+  const page = state.phase === 'ready' ? state.data : null;
   const summary = summaryState.phase === 'ready' ? summaryState.data : null;
-  const pageItems = page.items;
-  const agingFilter = smartList.filters.agingBucket ?? '';
-  const pageCount = Math.max(1, page.totalPages);
+
+  const rows = orderedRows.map(payableEngineRow);
+  const selectedRows = selection.selectedRows(orderedRows);
+
+  const previewRow = pageItems.find((item) => item.id === previewId) ?? null;
+
+  const pageCount = page ? Math.max(1, page.totalPages) : 1;
   const safePageNumber = Math.min(pageNumber, pageCount);
 
-  const filtered = agingFilter
-    ? pageItems.filter((item) => item.agingBucket === agingFilter)
-    : pageItems;
+  const hasActiveQuery = Boolean(search || dueFrom || dueTo || statusForQuery || agingFilter);
+  const portfolioEmpty =
+    page !== null &&
+    page.total === 0 &&
+    !smartList.isFiltered &&
+    !hasActiveQuery &&
+    !isFilterGroupActive(filterGroup);
+  const recorteEmpty =
+    page !== null && page.total === 0 && (smartList.isFiltered || hasActiveQuery);
 
-  // Contadores reais derivados do payload carregado.
-  // Contagem da página fica apenas no rodapé; KPIs globais vêm do resumo autoritativo.
-  const inFlight = pageItems.filter((item) => !['PAID', 'CANCELLED'].includes(item.status));
-  const overdue = inFlight.filter((item) => item.status === 'OVERDUE');
+  const activeFilterChips = [
+    ...(statusForQuery
+      ? [
+          {
+            id: 'status',
+            label: `Situação: ${PAYABLE_STATUS_LABELS[statusForQuery] ?? statusForQuery}`,
+            onRemove: () => patchParams({ status: null }),
+          },
+        ]
+      : []),
+    ...(agingFilter
+      ? [
+          {
+            id: 'agingBucket',
+            label: `Faixa: ${AGING_BUCKET_LABELS[agingFilter] ?? agingFilter}`,
+            onRemove: () => patchParams({ agingBucket: null }),
+          },
+        ]
+      : []),
+    ...(search ? [{ id: 'q', label: `Busca: ${search}`, onRemove: () => patchParams({ q: null }) }] : []),
+    ...(dueFrom
+      ? [{ id: 'dueFrom', label: `Vence de ${dueFrom}`, onRemove: () => patchParams({ dueFrom: null }) }]
+      : []),
+    ...(dueTo
+      ? [{ id: 'dueTo', label: `Vence até ${dueTo}`, onRemove: () => patchParams({ dueTo: null }) }]
+      : []),
+  ];
 
   /*
-   * A ÁRVORE JÁ VEM APLICADA DO SERVIDOR; o aging continua sendo recorte LOCAL.
-   *
-   * `byBuilder` deixou de refiltrar pela árvore — ela agora viaja na consulta, e refiltrar aqui
-   * reintroduziria a segunda verdade que este ajuste remove (a linha sumiria da grade sem que o
-   * servidor tivesse sido consultado).
-   *
-   * O aging permanece no cliente porque o SERVIDOR NÃO o aceita como parâmetro: é uma dimensão
-   * derivada que a listagem não filtra. Manter a diferença explícita é o que impede alguém de
-   * supor que `byBuilder` é uma máscara sobre a página — ele agora é só o resultado do aging.
+   * FAIXA DE SITUACAO — as perguntas do lado a pagar.
+   * "Aging 90+" aparece porque ELE EXISTE no resumo (`aging90PlusCount`) e no dominio (faixa
+   * persistida). Onde ele nao existe — recebiveis — a faixa nao e oferecida: ausencia nao vira zero.
    */
-  const byBuilder = filtered;
-
-  const rows = byBuilder.map(payableEngineRow);
-  const selectedRows = selection.selectedRows(filtered);
-  // SELEÇÃO EFETIVA — derivada, sem effect/setState automático (mesma regra de Receivables).
-  const effectiveSelectedId = previewId && pageItems.some((item) => item.id === previewId)
-    ? previewId
-    : pageItems[0]?.id ?? null;
-  const previewRow = pageItems.find((item) => item.id === effectiveSelectedId) ?? null;
-
-  /**
-   * CARTEIRA VAZIA — `200 + items=[]` e EMPTY DATA, nao negacao de acesso.
-   *
-   * O estado vazio e um ESTADO DA WORKLIST, nunca uma segunda estrutura de pagina: a barra de
-   * filtros, os indicadores, as visoes salvas e a paginacao continuam na tela, porque e justamente
-   * quando a carteira esta vazia que o operador precisa deles para entender o recorte.
-   *
-   * `page.total` conta o recorte ATIVO; por isso o painel distingue "carteira sem obrigacoes" de
-   * "nada nesta visao" — o segundo caso ja tem o proprio estado humano dentro da tabela.
-   */
-  const portfolioEmpty = page.total === 0 && !smartList.isFiltered;
+  const situationItems = [
+    {
+      id: 'overdue',
+      label: 'Vencido',
+      value: publishedCount(summary?.overdueCount),
+      note: formatSummaryAmounts(summary, 'overdueAmount') ?? 'valor não publicado',
+      tone: (summary?.overdueCount ?? 0) > 0 ? ('critical' as const) : ('neutral' as const),
+      to: '/app/finance/payables?status=OVERDUE',
+    },
+    {
+      id: 'due',
+      label: 'A vencer',
+      value: publishedCount(summary?.dueCount),
+      note: formatSummaryAmounts(summary, 'dueAmount') ?? 'valor não publicado',
+      tone: 'info' as const,
+      to: '/app/finance/payables?status=OPEN',
+    },
+    {
+      id: 'open',
+      label: 'Em aberto',
+      value: publishedCount(summary?.openCount),
+      note: formatSummaryAmounts(summary, 'openAmount') ?? 'valor não publicado',
+      tone: 'warning' as const,
+      to: '/app/finance/payables',
+    },
+    {
+      id: 'aging90',
+      label: 'Aging 90+',
+      value: publishedCount(summary?.aging90PlusCount),
+      note: 'faixa persistida no título',
+      tone: (summary?.aging90PlusCount ?? 0) > 0 ? ('critical' as const) : ('neutral' as const),
+      to: '/app/finance/payables?agingBucket=90_PLUS',
+    },
+    {
+      id: 'paid',
+      label: 'Pago',
+      value: publishedCount(summary?.paidCount),
+      note: 'títulos liquidados no recorte',
+      tone: 'success' as const,
+      to: '/app/finance/payables?status=PAID',
+    },
+  ];
 
   return (
     <ModulePage layout="workspace">
-      {/*
-        CABEÇALHO DE WORKLIST — mesma gramática do recebível e do workspace: identidade, contagem
-        REAL do recorte (contada no servidor) e procedência em uma linha, sem parágrafo de manual.
-      */}
-      <div data-region="operating-header">
-      <WorklistHeader
-        title="Contas a pagar"
-        count={page.total}
-        context="As obrigações a pagar: vencimento, aging e saldo vêm do servidor. Cada título abre o lançamento que o originou."
-      />
-      </div>
-
-      {/* DRILL-DOWN: métricas do recorte completo, agregadas no backend. */}
-      <div data-region="drilldown-surface">
-      <DrilldownRow>
-        <DrilldownMetric
-          label="Vencidos"
-          value={summary?.overdueCount ?? '—'}
-          hint={summary ? `${formatSummaryAmount(summary, 'overdueAmount')} · ver lista filtrada` : 'agregado autoritativo indisponível'}
-          tone={summary && summary.overdueCount > 0 ? 'critical' : 'neutral'}
-          to="/app/finance/payables?status=OVERDUE"
-        />
-        <DrilldownMetric
-          label="A vencer"
-          value={summary?.dueCount ?? '—'}
-          hint={summary ? `${formatSummaryAmount(summary, 'dueAmount')} · ver lista filtrada` : 'agregado autoritativo indisponível'}
-          tone="info"
-          to="/app/finance/payables?status=OPEN"
-        />
-        <DrilldownMetric
-          label="Aging 90+"
-          value={summary?.aging90PlusCount ?? '—'}
-          hint="recorte completo · ver lista filtrada"
-          tone={summary && (summary.aging90PlusCount ?? 0) > 0 ? 'warning' : 'neutral'}
-          muted={summary?.aging90PlusCount === 0}
-          to="/app/finance/payables?agingBucket=90_PLUS"
-        />
-        <DrilldownMetric
-          label="Obrigações em aberto"
-          value={summary?.openCount ?? '—'}
-          hint={summary ? `${formatSummaryAmount(summary, 'openAmount')} sob acompanhamento` : 'agregado autoritativo indisponível'}
-          to="/app/finance/payables"
-        />
-      </DrilldownRow>
-      </div>
-
-      {/*
-        FILTRO VISUAL — o construtor AND/OR aninhável da engine, espelhando o domain de `ir.filters`
-        do Odoo. O recorte que ele compõe é aplicado LOCALMENTE sobre a página carregada; o caminho
-        oficial de recorte continua sendo `status` na consulta ao servidor, que o smart list já
-        publica. A árvore vive em estado próprio porque `useSmartList` filtra por valores
-        enumerados por chave — um domain aninhado não cabe nesse contrato, e forçá-lo lá dentro
-        mudaria o smart list inteiro para atender uma tela.
-      */}
-      {/*
-        SAVED VIEWS — faixa própria da work area, ANTES da superfície de filtro.
-
-        Gramática obrigatória: OPERATING HEADER -> SAVED VIEWS -> COMMAND/FILTER -> WORK QUEUE.
-        A ordem importa: o operador primeiro reconhece o RECORTE SALVO em que está trabalhando, e
-        só então ajusta o filtro. Aplicada nesta ordem desde a primeira versão — em Contas a
-        Receber a faixa nasceu depois do filtro e precisou ser corrigida por medição.
-      */}
-      <div data-region="saved-view-surface">
-      <SavedViewsBar
-        views={smartList.savedViews.views}
-        builtInViews={smartList.savedViews.builtInViews}
-        activeViewId={smartList.activeViewId}
-        onApply={(view) => {
-          smartList.applyView(view);
-          setPageNumber(1);
-        }}
-        onSave={smartList.savedViews.saveView}
-        onRename={smartList.savedViews.renameView}
-        onRemove={smartList.savedViews.removeView}
-        currentConfig={smartList.currentConfig}
-        canSave={smartList.isFiltered}
-        allLabel="Tudo"
-      />
-      </div>
-
-      <div data-region="command-filter-surface">
-      {schema ? (
-        <DynamicFilterBuilder schema={schema} value={filterGroup} onChange={setFilterGroup} />
-      ) : null}
-      </div>
-
-      <div data-region="bulk-command-surface">
-      <BulkActionBar
-        count={selection.count}
-        visibleCount={filtered.length}
-        /*
-         * A SELECAO VAI PARA A BARRA. Ela repassa esses IDs para `run`; antes a barra entregava
-         * lista vazia e a tela mascarava o defeito lendo `selectedRows` do proprio closure. Agora
-         * o parametro e a fonte, e um consumidor futuro nao herda a armadilha.
-         */
-        selectedIds={[...selection.selectedIds]}
-        onClear={selection.clear}
-        onSelectAllVisible={() => selection.selectAll(filtered)}
-        parkedNote="Pagamento, aprovação e cancelamento em lote continuam PARK: exigem aprovação, segregação de funções e idempotência por título. A ação em lote daqui apenas organiza o trabalho."
-        actions={[
-          {
-            id: 'export',
-            label: 'Exportar selecionados (CSV)',
-            run: (ids) =>
-              exportSelectionToCsv(
-                'contas-a-pagar-selecionadas.csv',
-                ['Referência', 'Origem', 'Vencimento', 'Status', 'Aging', 'Saldo', 'Moeda'],
-                filtered
-                  .filter((row) => ids.includes(row.id))
-                  .map((row) => [
-                    row.externalReference ?? row.origin.reference ?? row.id,
-                    row.origin.reference,
-                    row.dueDate,
-                    PAYABLE_STATUS_LABELS[row.status] ?? row.status,
-                    AGING_BUCKET_LABELS[row.agingBucket] ?? row.agingBucket,
-                    row.remainingBalance,
-                    row.currencyCode,
-                  ]),
-              ),
-          },
-          {
-            id: 'preview-single',
-            label: 'Abrir prévia',
-            disabled: selectedRows.length !== 1,
-            disabledReason: 'Selecione exatamente um título para abrir a prévia.',
-            run: (ids) => {
-              const [only] = filtered.filter((row) => ids.includes(row.id));
-              if (only) {
-                setPreviewId(only.id);
-              }
-            },
-          },
-        ]}
-      />
-      </div>
-
-      <div data-region="worklist-master">
-      {/*
-        CORPO DA WORKLIST — a tabela e o estado vazio ocupam o MESMO lugar. A pagina em volta
-        (cabecalho, indicadores, filtros, visoes salvas, paginacao) e sempre a mesma.
-
-        O painel de estado vazio e reservado para CARTEIRA VAZIA (nada existe) e para o recorte do
-        smart list (que ja tem texto proprio). Quando e o CONSTRUTOR VISUAL que zera o conjunto, a
-        TABELA CONTINUA MONTADA e mostra a mensagem dentro do proprio grid — apagar a tabela ali
-        tiraria do operador a coluna que ele acabou de filtrar, e ele perderia a referencia do que
-        esta recortando. E o comportamento de grid do Odoo/ERPNext: o filtro sem resultado mostra
-        "nenhum registro" NA grade, nunca troca a grade por outra tela.
-      */}
-      {portfolioEmpty ? (
-        <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5">
-          <EmptyState
-            title="Nenhuma obrigação a pagar registrada."
-            description="As obrigações nascem da compra: quando uma nota de fornecedor é registrada, o título aparece aqui com vencimento, aging, saldo e situação. Nada foi somado nem estimado nesta tela."
+      <div className="flex min-h-0 flex-1 flex-col" data-region="work-surface">
+        <div data-region="operating-header">
+          <WorklistHeader
+            title="Contas a pagar"
+            count={page?.total}
+            context="As obrigações a pagar: vencimento, faixa e saldo vêm do servidor. Cada título abre o lançamento que o originou."
           />
-          <Link to="/app/procurement" className="mt-3 inline-block text-xs font-semibold text-brand-700 no-underline">
-            Ver compras
-          </Link>
         </div>
-      ) : byBuilder.length === 0 && smartList.isFiltered && !isFilterGroupActive(filterGroup) ? (
-        <EmptyState
-          title="Nenhum título nesta visão"
-          description="Nenhum título corresponde ao recorte atual. Ajuste o filtro ou limpe a visão para ver todas as obrigações."
-        />
-      ) : (
-        <>
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
-            <div className="min-w-0">
-              <DynamicList
-            schema={schema}
-            rows={rows}
-            emptyMessage="Nenhum título corresponde ao recorte atual. Ajuste o filtro ou limpe a visão para ver todas as obrigações."
-            selectedIds={selection.selectedIds}
-            /*
-             * RECONCILIAÇÃO com a API existente do `useSelection`.
-             *
-             * A `DynamicList` PUBLIC A LISTA COMPLETA de selecionados (é o que o "selecionar
-             * todos" dela produz), enquanto `useSelection` expõe `toggle`/`clear`/`selectAll` — não
-             * um "defina esta lista". Reconciliar por diferença evita alterar `useSelection`, que
-             * está fora do escopo desta migração autorizada, e preserva o teto de seleção
-             * (`maxSelection`) que só o hook conhece.
-             */
-            onSelectionChange={(ids) => {
-              const next = new Set(ids);
-              if (next.size === 0) {
-                selection.clear();
-                return;
-              }
-              for (const row of rows) {
-                const id = String(row.id);
-                if (next.has(id) !== selection.isSelected(id)) {
-                  selection.toggle(id);
-                }
-              }
-            }}
-            onRowClick={(row) => {
-              void navigate(`/app/finance/payables/${row.id}`);
-            }}
-            renderRowActions={(row) => (
-              <button
-                type="button"
-                className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                onClick={() => {
-                  setPreviewId(String(row.id));
-                  setDrawerOpen(true);
-                }}
-                aria-label={`Prévia de ${String(row['external_reference'])}`}
-              >
-                Prévia
-              </button>
-            )}
-            showTotals
-            /* Saldo e aging NÃO são coluna da view `list`: a TELA desenha a célula. */
-            renderCell={(field, row) => {
-              const currency = text(row['currency_code']);
-              if (field.name === 'lifecycle') {
-                return <FinanceStatusBadge status={text(row['lifecycle'])} labels={PAYABLE_STATUS_LABELS} />;
-              }
-              if (field.name === 'due_date') {
-                return <DateTime value={text(row['due_date'])} mode="date" />;
-              }
-              if (field.name === 'principal') {
-                return <Money value={text(row['principal'])} currencyCode={currency} />;
-              }
-              /*
-               * CONTRAPARTE — o DTO publica `counterpartyId` (UUID); declara ausência de nome do
-               * credor e mantém drilldown real para o fornecedor, sem expor UUID nem inventar nome.
-               */
-              if (field.name === 'counterparty_id') {
-                const counterpartyId = text(row['counterparty_id']);
-                return counterpartyId ? (
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="text-xs text-gray-500">Credor não publicado</span>
-                    <Link
-                      to={`/app/suppliers/${counterpartyId}`}
-                      className="text-xs font-medium text-brand-700 no-underline hover:text-brand-800"
-                    >
-                      Abrir fornecedor
-                    </Link>
-                  </span>
-                ) : (
-                  <span className="text-xs text-gray-400">—</span>
-                );
-              }
-              return undefined;
-            }}
-          />
 
-          <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
-            <span aria-live="polite">
-              Página {safePageNumber} de {pageCount} · {filtered.length}{' '}
-              {filtered.length === 1 ? 'título' : 'títulos'} no recorte atual
-              {statusFilter
-                ? ` · status: ${PAYABLE_STATUS_LABELS[statusFilter] ?? statusFilter}`
-                : ''}
-              {agingFilter ? ` · aging: ${AGING_BUCKET_LABELS[agingFilter] ?? agingFilter}` : ''}
-              {overdue.length > 0 ? ` · ${overdue.length} vencido(s)` : ''}
-            </span>
-            <ModulePagination
-              pageNumber={safePageNumber}
-              onPrevious={() => setPageNumber((current) => Math.max(1, current - 1))}
-              onNext={() => setPageNumber((current) => Math.min(pageCount, current + 1))}
-              previousDisabled={safePageNumber <= 1}
-              nextDisabled={safePageNumber >= pageCount}
+        <div data-region="situation-surface" className="pt-2">
+          <FinanceSituationStrip items={situationItems} />
+        </div>
+
+        <WorkspaceBody
+          className="min-h-0 flex-1 pt-2"
+          context={
+            <WorkspacePane
+              aria-label="Contexto do título"
+              className="hidden h-full overflow-auto bg-[color:var(--color-surface-context)] xl:flex"
+              data-region="context-region"
+            >
+              <WorkspacePaneHeader title="Contexto do título" />
+              {previewRow ? (
+                <FinanceTitleContext
+                  reference={previewRow.externalReference ?? previewRow.origin.reference ?? previewRow.id.slice(0, 8)}
+                  status={previewRow.status}
+                  statusLabels={PAYABLE_STATUS_LABELS}
+                  dueDate={previewRow.dueDate}
+                  principal={previewRow.principal}
+                  remainingBalance={previewRow.remainingBalance}
+                  settledAmount={previewRow.paidAmount}
+                  currencyCode={previewRow.currencyCode}
+                  agingBucket={previewRow.agingBucket}
+                  paymentTerms={previewRow.paymentTerms}
+                  originKind={previewRow.origin.kind}
+                  originReference={previewRow.origin.reference || null}
+                  installmentsCount={previewRow.installments.length}
+                  settlementsCount={previewRow.payments.length}
+                  createdAt={previewRow.createdAt}
+                  updatedAt={previewRow.updatedAt}
+                  counterpartyLabel="Fornecedor"
+                  counterpartyHref={`/app/suppliers/${previewRow.counterpartyId}`}
+                  actions={
+                    <>
+                      <Link
+                        to={`/app/finance/payables/${previewRow.id}`}
+                        className="inline-flex h-[var(--control-height)] items-center rounded-[3px] border border-[color:var(--color-brand-600)] bg-[color:var(--color-brand-600)] px-2.5 text-[12px] font-semibold text-white no-underline hover:bg-[color:var(--color-brand-700)]"
+                      >
+                        {previewRow.status === 'OVERDUE'
+                          ? 'Abrir e regularizar'
+                          : 'Abrir título'}
+                      </Link>
+                      <button
+                        type="button"
+                        className={financeControlClass}
+                        onClick={() => setDrawerOpen(true)}
+                      >
+                        Prévia
+                      </button>
+                    </>
+                  }
+                />
+              ) : (
+                <>
+                  <ContextSection title="Recorte lido">
+                    <ContextFacts
+                      facts={[
+                        { label: 'Títulos no recorte', value: publishedCount(page?.total) ?? 'Não lido' },
+                        {
+                          label: 'Situação',
+                          value: statusForQuery
+                            ? (PAYABLE_STATUS_LABELS[statusForQuery] ?? statusForQuery)
+                            : 'Todas',
+                        },
+                        {
+                          label: 'Faixa',
+                          value: agingFilter
+                            ? (AGING_BUCKET_LABELS[agingFilter] ?? agingFilter)
+                            : 'Todas',
+                        },
+                        { label: 'Busca', value: search || 'Sem termo' },
+                        { label: 'Vence de', value: dueFrom || 'Sem início' },
+                        { label: 'Vence até', value: dueTo || 'Sem fim' },
+                        {
+                          label: 'Nesta página',
+                          value: state.phase === 'ready' ? String(orderedRows.length) : 'Não lido',
+                        },
+                      ]}
+                    />
+                  </ContextSection>
+                  <ContextSection title="Como ler esta carteira">
+                    <ul className="m-0 list-disc space-y-1 pl-4 text-[12px] text-[color:var(--color-text-secondary)]">
+                      <li>Valores e contagens vêm do resumo do servidor sobre o recorte completo.</li>
+                      <li>
+                        A faixa de atraso é FATO persistido do título. A coluna de atraso é leitura do
+                        vencimento — as duas aparecem e não se substituem.
+                      </li>
+                      <li>O recorte por faixa é aplicado nesta página; o servidor não o aceita como filtro.</li>
+                      <li>Selecione um título para ver origem, valores e ciclo aqui.</li>
+                    </ul>
+                  </ContextSection>
+                </>
+              )}
+            </WorkspacePane>
+          }
+        >
+          <WorkspacePane className="h-full overflow-hidden" data-region="worklist-master">
+            <WorkspacePaneHeader
+              title="Títulos a pagar"
+              count={page?.total}
+              action={
+                <button type="button" className={financeControlClass} onClick={() => void reload()}>
+                  {refreshing ? 'Atualizando…' : 'Atualizar'}
+                </button>
+              }
             />
-          </div>
+
+            <div className="shrink-0 px-3 pt-2">
+              <FinanceWorklistToolbar
+                views={
+                  <SavedViewsBar
+                    views={smartList.savedViews.views}
+                    builtInViews={smartList.savedViews.builtInViews}
+                    activeViewId={smartList.activeViewId}
+                    onApply={(view) => {
+                      smartList.applyView(view);
+                      setPageNumber(1);
+                      const nextStatus = view.config.filters.status;
+                      const nextAging = view.config.filters.agingBucket;
+                      patchParams({
+                        status: typeof nextStatus === 'string' && nextStatus ? nextStatus : null,
+                        agingBucket: typeof nextAging === 'string' && nextAging ? nextAging : null,
+                      });
+                    }}
+                    onSave={smartList.savedViews.saveView}
+                    onRename={smartList.savedViews.renameView}
+                    onRemove={smartList.savedViews.removeView}
+                    currentConfig={smartList.currentConfig}
+                    canSave={smartList.isFiltered || hasActiveQuery}
+                    allLabel="Tudo"
+                  />
+                }
+                search={searchDraft}
+                onSearchChange={setSearchDraft}
+                dueFrom={dueFrom}
+                dueTo={dueTo}
+                onDueFromChange={(value) => patchParams({ dueFrom: value || null })}
+                onDueToChange={(value) => patchParams({ dueTo: value || null })}
+                sort={sort}
+                onSortChange={setSort}
+              >
+                <span className="cisne-type-helper">Ordenação desta página</span>
+              </FinanceWorklistToolbar>
+
+              <WorkspaceActiveFilters
+                filters={activeFilterChips}
+                onClearAll={() =>
+                  patchParams({ status: null, agingBucket: null, q: null, dueFrom: null, dueTo: null })
+                }
+              />
             </div>
 
-            {previewRow ? (
-              <aside
-                className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-900/5 lg:sticky lg:top-4 lg:self-start"
-                aria-label="Contexto da obrigação selecionada"
-              >
-                <header className="border-b border-gray-100 pb-3">
-                  <p className="text-sm font-semibold text-gray-900">
-                    {previewRow.externalReference ?? previewRow.origin.reference ?? 'Obrigação'}
-                  </p>
-                  <div className="mt-1.5">
-                    <FinanceStatusBadge status={previewRow.status} labels={PAYABLE_STATUS_LABELS} />
-                  </div>
-                </header>
-                <dl className="my-3 grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)] gap-x-3 gap-y-2">
-                  <dt className="text-xs text-gray-500">Credor</dt>
-                  <dd className="m-0 text-[13px] text-gray-800">
-                    <span className="text-gray-500">Credor não publicado · </span>
-                    <Link to={`/app/suppliers/${previewRow.counterpartyId}`} className="text-brand-700 no-underline hover:text-brand-800">
-                      Abrir fornecedor
-                    </Link>
-                  </dd>
-                  <dt className="text-xs text-gray-500">Valor original</dt>
-                  <dd className="m-0 text-[13px] text-gray-800 tabular-nums">
-                    <Money value={previewRow.principal} currencyCode={previewRow.currencyCode} />
-                  </dd>
-                  <dt className="text-xs text-gray-500">Saldo</dt>
-                  <dd className="m-0 text-[13px] font-semibold text-gray-900 tabular-nums">
-                    <Money value={previewRow.remainingBalance} currencyCode={previewRow.currencyCode} emphasis />
-                  </dd>
-                  <dt className="text-xs text-gray-500">Vencimento</dt>
-                  <dd className="m-0 text-[13px] text-gray-800">
-                    <DateTime value={previewRow.dueDate} mode="date" />
-                  </dd>
-                  <dt className="text-xs text-gray-500">Aging</dt>
-                  <dd className="m-0 text-[13px] text-gray-800">
-                    {AGING_BUCKET_LABELS[previewRow.agingBucket] ?? previewRow.agingBucket}
-                  </dd>
-                  <dt className="text-xs text-gray-500">Pagamentos</dt>
-                  <dd className="m-0 text-[13px] text-gray-800 tabular-nums">
-                    {previewRow.payments.length}
-                  </dd>
-                  <dt className="text-xs text-gray-500">Centro de custo</dt>
-                  <dd className="m-0 text-[13px] text-gray-800">{previewRow.costCenter.code}</dd>
-                </dl>
-              </aside>
+            {schema ? (
+              <div className="shrink-0 px-3 pt-2" data-region="command-filter-surface">
+                <DynamicFilterBuilder schema={schema} value={filterGroup} onChange={setFilterGroup} />
+              </div>
             ) : null}
-          </div>
-        </>
-      )}
+
+            <div className="shrink-0 px-3 pt-2" data-region="bulk-command-surface">
+              <BulkActionBar
+                count={selection.count}
+                visibleCount={orderedRows.length}
+                selectedIds={[...selection.selectedIds]}
+                onClear={selection.clear}
+                onSelectAllVisible={() => selection.selectAll(orderedRows)}
+                parkedNote="Pagamento, aprovação e cancelamento em lote continuam PARK: exigem aprovação, segregação de funções e idempotência por título. A ação em lote daqui apenas organiza o trabalho."
+                actions={[
+                  {
+                    id: 'export',
+                    label: 'Exportar selecionados (CSV)',
+                    run: (ids) =>
+                      exportSelectionToCsv(
+                        'contas-a-pagar-selecionadas.csv',
+                        ['Referência', 'Origem', 'Vencimento', 'Atraso', 'Situação', 'Faixa', 'Saldo', 'Moeda'],
+                        orderedRows
+                          .filter((row) => ids.includes(row.id))
+                          .map((row) => [
+                            row.externalReference ?? row.origin.reference ?? row.id,
+                            row.origin.reference,
+                            row.dueDate,
+                            overdueLabel(row.dueDate) ?? 'sem atraso',
+                            PAYABLE_STATUS_LABELS[row.status] ?? row.status,
+                            AGING_BUCKET_LABELS[row.agingBucket] ?? row.agingBucket,
+                            row.remainingBalance,
+                            row.currencyCode,
+                          ]),
+                      ),
+                  },
+                  {
+                    id: 'preview-single',
+                    label: 'Abrir prévia',
+                    disabled: selectedRows.length !== 1,
+                    disabledReason: 'Selecione exatamente um título para abrir a prévia.',
+                    run: (ids) => {
+                      const [only] = orderedRows.filter((row) => ids.includes(row.id));
+                      if (only) {
+                        setPreviewId(only.id);
+                        setDrawerOpen(true);
+                      }
+                    },
+                  },
+                ]}
+              />
+            </div>
+
+            <section
+              aria-label="Títulos a pagar"
+              aria-busy={state.phase === 'loading'}
+              className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 pt-2"
+            >
+              <p className="m-0 shrink-0 pb-1 text-[11px] text-[color:var(--color-text-muted)]">
+                {state.phase === 'loading'
+                  ? 'Lendo a carteira no servidor…'
+                  : page
+                    ? `${orderedRows.length} de ${page.total} títulos · ${safePageNumber} de ${pageCount} páginas${agingFilter ? ' · recorte por faixa aplicado nesta página' : ''}${refreshing ? ' · atualizando…' : ''}`
+                    : 'Leitura não publicada'}
+              </p>
+
+              <div className="min-h-0 flex-1 overflow-auto">
+                {state.phase === 'loading' ? <WorkspaceSkeletonRows rows={10} columns={6} /> : null}
+
+                {state.phase === 'error' ? (
+                  <WorkspaceEmpty
+                    title="Não foi possível ler a carteira"
+                    description={state.message}
+                    action={
+                      <button type="button" className={financeControlClass} onClick={() => void reload()}>
+                        Tentar novamente
+                      </button>
+                    }
+                  />
+                ) : null}
+
+                {state.phase === 'ready' && portfolioEmpty ? (
+                  <WorkspaceEmpty
+                    title="Nenhuma obrigação a pagar registrada."
+                    description="As obrigações nascem da compra: quando uma nota de fornecedor é registrada, o título aparece aqui com vencimento, faixa, saldo e situação. Nada foi somado nem estimado nesta tela."
+                    action={
+                      <Link className={financeControlClass} to="/app/procurement">
+                        Ver compras
+                      </Link>
+                    }
+                  />
+                ) : null}
+
+                {state.phase === 'ready' && recorteEmpty ? (
+                  <WorkspaceEmpty
+                    title="Nenhum título neste recorte"
+                    description="Nenhuma obrigação corresponde ao recorte atual. Ajuste o filtro ou limpe a visão para ver toda a carteira."
+                    action={
+                      <button
+                        type="button"
+                        className={financeControlClass}
+                        onClick={() => {
+                          patchParams({
+                            status: null,
+                            agingBucket: null,
+                            q: null,
+                            dueFrom: null,
+                            dueTo: null,
+                          });
+                          setFilterGroup(emptyFilterGroup());
+                        }}
+                      >
+                        Limpar recorte
+                      </button>
+                    }
+                  />
+                ) : null}
+
+                {/*
+                  RECORTE POR FAIXA SEM RESULTADO NA PAGINA — estado PRÓPRIO.
+                  A carteira tem títulos e o filtro de faixa zerou a pagina. Sem esta distincao o
+                  operador leria "nenhum título neste recorte" e concluiria que a faixa nao existe no
+                  dominio, quando o que existe e uma pagina que nao a contem.
+                */}
+                {state.phase === 'ready' &&
+                !portfolioEmpty &&
+                !recorteEmpty &&
+                orderedRows.length === 0 ? (
+                  <WorkspaceEmpty
+                    title="Nenhum título desta faixa nesta página"
+                    description={`O recorte por faixa é aplicado sobre as ${pageItems.length} linhas carregadas — o servidor não filtra por faixa. Navegue pelas páginas ou abra a visão "Aging 90+" para o conjunto completo.`}
+                    action={
+                      <button
+                        type="button"
+                        className={financeControlClass}
+                        onClick={() => patchParams({ agingBucket: null })}
+                      >
+                        Remover recorte de faixa
+                      </button>
+                    }
+                  />
+                ) : null}
+
+                {state.phase === 'ready' &&
+                !portfolioEmpty &&
+                !recorteEmpty &&
+                orderedRows.length > 0 &&
+                schema ? (
+                  <DynamicList
+                    schema={schema}
+                    rows={rows}
+                    ariaLabel="Lista de contas a pagar"
+                    emptyMessage="Nenhuma obrigação corresponde ao recorte atual."
+                    selectedIds={selection.selectedIds}
+                    onSelectionChange={(ids) => {
+                      const next = new Set(ids);
+                      if (next.size === 0) {
+                        selection.clear();
+                        return;
+                      }
+                      for (const row of rows) {
+                        const id = String(row.id);
+                        if (next.has(id) !== selection.isSelected(id)) {
+                          selection.toggle(id);
+                        }
+                      }
+                    }}
+                    onRowClick={(row) => setPreviewId(String(row.id))}
+                    renderRowActions={(row) => (
+                      <button
+                        type="button"
+                        className={financeControlClass}
+                        onClick={() => {
+                          setPreviewId(String(row.id));
+                          setDrawerOpen(true);
+                        }}
+                        aria-label={`Prévia de ${text(row['external_reference'])}`}
+                      >
+                        Prévia
+                      </button>
+                    )}
+                    showTotals
+                    renderCell={(field, row) => {
+                      const currency = text(row['currency_code']);
+                      if (field.name === 'lifecycle') {
+                        return (
+                          <FinanceStatusBadge
+                            status={text(row['lifecycle'])}
+                            labels={PAYABLE_STATUS_LABELS}
+                          />
+                        );
+                      }
+                      if (field.name === 'due_date') {
+                        const value = text(row['due_date']);
+                        const late = overdueLabel(value);
+                        return (
+                          <span className="flex flex-col leading-tight">
+                            <DateTime value={value} mode="date" />
+                            <span
+                              className={
+                                late
+                                  ? 'text-[10px] font-semibold text-[color:var(--color-red-700)]'
+                                  : 'text-[10px] text-[color:var(--color-text-muted)]'
+                              }
+                            >
+                              {late ?? dueLabel(value)}
+                            </span>
+                          </span>
+                        );
+                      }
+                      if (field.name === 'principal') {
+                        return <Money value={text(row['principal'])} currencyCode={currency} />;
+                      }
+                      /*
+                        FAIXA DE AGING — FATO PERSISTIDO do título, exibido como badge.
+                        Ela nao e recalculada a partir da data: o servidor decidiu a faixa, e a tela
+                        apenas a apresenta. Ausencia de faixa publicada cai em "—", nunca em "A vencer".
+                      */
+                      if (field.name === 'aging_bucket') {
+                        const bucket = text(row['aging_bucket']);
+                        return bucket ? (
+                          <span className="cisne-type-meta">
+                            {AGING_BUCKET_LABELS[bucket] ?? bucket}
+                          </span>
+                        ) : (
+                          <span className="cisne-type-helper">—</span>
+                        );
+                      }
+                      if (field.name === 'remaining_balance') {
+                        return (
+                          <Money
+                            value={text(row['remaining_balance'])}
+                            currencyCode={currency}
+                            emphasis
+                          />
+                        );
+                      }
+                      /*
+                        FORNECEDOR — o DTO publica apenas `counterpartyId` (UUID).
+                        A celula declara a ausencia; o caminho para o cadastro vive na coluna de
+                        contexto, onde ele e do REGISTRO e nao da repeticao em todas as linhas.
+                      */
+                      if (field.name === 'counterparty_id') {
+                        return text(row['counterparty_id']) ? (
+                          <span className="cisne-type-meta">Fornecedor não publicado</span>
+                        ) : (
+                          <span className="cisne-type-helper">—</span>
+                        );
+                      }
+                      return undefined;
+                    }}
+                  />
+                ) : null}
+              </div>
+
+              {page && pageCount > 1 ? (
+                <div
+                  className={`flex shrink-0 items-center justify-between py-1.5 text-[11px] text-[color:var(--color-text-secondary)] ${worklistGroupClass}`}
+                >
+                  <span aria-live="polite" className="tabular-nums">
+                    {page.offset + 1}–{Math.min(page.offset + page.limit, page.total)} de {page.total}
+                  </span>
+                  <ModulePagination
+                    pageNumber={safePageNumber}
+                    onPrevious={() => setPageNumber((current) => Math.max(1, current - 1))}
+                    onNext={() => setPageNumber((current) => Math.min(pageCount, current + 1))}
+                    previousDisabled={safePageNumber <= 1}
+                    nextDisabled={safePageNumber >= pageCount}
+                  />
+                </div>
+              ) : null}
+            </section>
+          </WorkspacePane>
+        </WorkspaceBody>
       </div>
 
       <ContextDrawer
         open={drawerOpen && previewRow !== null}
-        title="Contexto da obrigação"
+        title="Contexto do título"
         preview={previewRow ? buildPayablePreview(previewRow) : null}
         onClose={() => setDrawerOpen(false)}
       />
@@ -553,44 +818,24 @@ export function PayablesListPage() {
   );
 }
 
-function formatSummaryAmount(
-  summary: FinanceTitleSummary,
-  key: 'openAmount' | 'overdueAmount' | 'dueAmount',
-): string {
-  if (summary.amounts.length === 0) return 'sem saldo no recorte';
-  return summary.amounts
-    .map((amount) =>
-      new Intl.NumberFormat('pt-BR', { style: 'currency', currency: amount.currencyCode }).format(
-        Number(amount[key]),
-      ),
-    )
-    .join(' · ');
-}
-
-/**
- * Valor de célula como texto, nunca `String(valor)` direto.
- *
- * `String(undefined)` produziria a string `"undefined"` na tela — um dado que parece dado e não é.
- * Vazio explícito é o que o `FieldRenderer` já trata como ausência.
- */
+/** Valor de célula como texto, nunca `String(valor)` direto — `String(undefined)` viraria "undefined". */
 function text(value: unknown): string {
   return typeof value === 'string' || typeof value === 'number' ? String(value) : '';
 }
 
 /**
- * Prévia lateral com o payload já carregado.
- *
- * Não há BusinessChain aqui de propósito: o payload de contas a pagar expõe apenas `origin`
- * (kind/id/reference) e `counterpartyId`, sem os degraus intermediários da cadeia comercial.
- * Montar uma cadeia exigiria inventar vínculo — o que está PARK até o backend expor a relação.
+ * Prévia lateral montada SOMENTE com o payload já recebido pela lista.
+ * Se o detalhe completo exigisse API nova, aqui não faríamos: oferecemos o atalho.
  */
 export function buildPayablePreview(row: PayableDetail): ContextPreviewBody {
   return {
     identifier: row.externalReference ?? row.origin.reference ?? row.id,
-    subtitle: `Origem: ${row.origin.kind} · ${row.origin.reference}`,
+    subtitle: `Origem: ${row.origin.kind}`,
     status: <FinanceStatusBadge status={row.status} labels={PAYABLE_STATUS_LABELS} />,
     facts: [
       { label: 'Vencimento', value: <DateTime value={row.dueDate} mode="date" /> },
+      { label: 'Atraso', value: overdueLabel(row.dueDate) ?? 'sem atraso' },
+      { label: 'Faixa', value: AGING_BUCKET_LABELS[row.agingBucket] ?? row.agingBucket },
       { label: 'Principal', value: <Money value={row.principal} currencyCode={row.currencyCode} /> },
       {
         label: 'Saldo',
@@ -598,8 +843,6 @@ export function buildPayablePreview(row: PayableDetail): ContextPreviewBody {
         emphasis: true,
       },
       { label: 'Pago', value: <Money value={row.paidAmount} currencyCode={row.currencyCode} /> },
-      { label: 'Aging', value: AGING_BUCKET_LABELS[row.agingBucket] ?? row.agingBucket },
-      { label: 'Centro de custo', value: row.costCenter.code },
       { label: 'Parcelas', value: String(row.installments.length) },
       { label: 'Pagamentos', value: String(row.payments.length) },
       { label: 'Condição de pagamento', value: row.paymentTerms },
@@ -607,17 +850,25 @@ export function buildPayablePreview(row: PayableDetail): ContextPreviewBody {
       { label: 'Atualizado em', value: <DateTime value={row.updatedAt} mode="datetime" /> },
     ],
     relations: [
-      { label: 'Contraparte', value: row.counterpartyId },
+      /*
+       * Relacao sem rotulo humano NAO exibe o identificador tecnico: o vinculo existe (e navega,
+       * quando ha destino real), mas o valor mostrado e o nome do objeto.
+       */
+      {
+        label: 'Fornecedor',
+        value: 'Abrir cadastro do fornecedor',
+        href: `/app/suppliers/${row.counterpartyId}`,
+      },
       { label: 'Origem', value: row.origin.reference },
     ],
     nextAction: {
       label:
         row.status === 'OVERDUE'
-          ? 'Abrir a obrigação e decidir o pagamento'
-          : 'Abrir a obrigação para acompanhar vencimento',
+          ? 'Abrir o título e regularizar o pagamento'
+          : 'Abrir o título para registrar pagamento',
       href: `/app/finance/payables/${row.id}`,
     },
     detailHref: `/app/finance/payables/${row.id}`,
-    detailLabel: 'Abrir obrigação completa',
+    detailLabel: 'Abrir título completo',
   };
 }

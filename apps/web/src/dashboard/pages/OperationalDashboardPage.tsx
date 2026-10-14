@@ -516,50 +516,66 @@ export function OperationalDashboardPage() {
           aria-label="Central operacional"
           data-region="worklist-master"
         >
-          {/* ZONA DE TRABALHO — leitura e processamento. */}
+          {/*
+            ZONA DE TRABALHO — a SILHUETA DA PRIMEIRA DOBRA.
+
+            ─────────────────────────────────────────────────────────────────────────────────────
+            A ORDEM E A DA DECISAO, NAO A DO RELATORIO
+
+            A composicao anterior empilhava, nesta ordem: faixa de KPIs, tres superficies analiticas,
+            fluxo, barra de views e SO ENTAO a fila. Medida em 1600x900, a consequencia era que o
+            TRABALHO — a unica coisa que o operador vem fazer — comecava abaixo da dobra, e o que
+            ocupava a primeira tela era leitura de contexto.
+
+            A ordem nova responde as perguntas na ordem em que elas sao feitas ao abrir o painel:
+
+              1. SITUACAO   — onde eu estou e como esta o recorte   (cabecalho, acima)
+              2. TRABALHO   — o que exige decisao AGORA             (fila, dominante)
+              3. PROCESSO   — em que ponto do fluxo isso esta       (trilha compacta)
+              4. CONTEXTO   — onde esta o trabalho e a leitura      (rail + analitico)
+              5. DECISAO    — a proxima acao real                   (coluna de contexto)
+
+            A FILA VEM PRIMEIRO e ocupa o espaco elastico. O analitico NAO desapareceu: ele desceu
+            para DEPOIS da fila, porque uma distribuicao e uma leitura de MAGNITUDE — ela qualifica o
+            trabalho, nao o substitui. Trocar a ordem sem remover nada e o que faz "situacao +
+            trabalho + decisao + processo + contexto" caberem na primeira dobra sem esconder leitura.
+          */}
           <div className="dashboard-cc__work">
             {/*
-              LINHA 1 — INDICADORES ACIONAVEIS. Faixa horizontal unica; numero sem drill nao entra.
+              1. FAIXA DE SITUACAO — indicadores ACIONAVEIS, uma linha horizontal unica.
+              Numero sem drill nao entra: cada celula abre a lista que a produziu.
             */}
             <WorkbenchKpiStrip kpis={workbenchKpis} />
 
             {/*
-              LINHA 2 — ANALITICO. As TRES superficies do cockpit, SEMPRE.
-
-              Antes, uma superficie sem dado simplesmente nao era renderizada — e a faixa encolhia
-              para duas ou uma coluna, deixando buraco do lado e fazendo o cockpit parecer quebrado.
-              Agora a arquitetura e FIXA (operacao | carteira | excecoes) e o que varia e o ESTADO
-              INTERNO: grafico quando o dado existe, estado governado declarado quando nao existe.
-
-              Isso nao inventa dado nenhum: "Distribuição não publicada para este recorte" e uma
-              afirmacao verdadeira sobre o que o servidor entregou.
+              2. A FILA E O ELEMENTO DOMINANTE DA TELA — ela vem ANTES de qualquer analitico.
             */}
-            <section className="dashboard-analytics" aria-label="Análise operacional">
-              <OperationDistribution
-                snapshot={snapshot}
-                available={showOperationDistribution}
-              />
-
-              <AgingDistribution
-                aging={snapshot.charts.financialAging}
-                available={showAging}
-              />
-
-              <ExceptionSurface
-                items={attentionItems}
-                notEvaluated={scope?.notEvaluated ?? []}
-              />
-            </section>
+            <WorkQueue
+              phase={inboxPhase}
+              items={visibleItems}
+              page={inbox}
+              total={queueTotal}
+              view={view}
+              domainLabel={domainLabel}
+              search={queueSearch}
+              selectedId={selected?.id ?? null}
+              onSelect={setSelected}
+              onOpenRoute={onOpenRoute}
+              onNavigateOffset={(nextOffset) =>
+                updateQueueParam('offset', nextOffset > 0 ? String(nextOffset) : null)
+              }
+              onClearSearch={() => updateQueueParam('q', null)}
+              onClearRecorte={() => updateOperationalRecorte('domain', null)}
+            />
 
             {/*
-              LINHA 3 — FLUXO OPERACIONAL. Uma linha de processo (estagios conectados), nao cards.
-            */}
-            <BusinessChainFlow stages={flowStages} domainLabel={domainLabel} />
-
-            {/*
-              LINHA 4 — VIEWS + TOOLBAR DA FILA.
+              3. VIEWS + TOOLBAR DA FILA.
               As views sao EXATAMENTE os recortes que o servidor executa (`kind`, `overdue`); a
               contagem por view vem de `byDomain`/`total` publicados, nunca de um calculo local.
+
+              A barra fica LOGO ABAIXO da fila: e ela que refina o conjunto que o operador acabou de
+              ler, e por isso pertence ao mesmo bloco de trabalho — separada dele por uma superficie
+              inteira de analitico, ela deixava de ser encontrada.
             */}
             <div className="dashboard-queuebar">
               <div className="dashboard-views" role="group" aria-label="Views da fila">
@@ -600,8 +616,7 @@ export function OperationalDashboardPage() {
 
                 {/*
                   "SOMENTE VENCIDOS" COMO TOGGLE DE FILTRO REAL — o read model executa `overdue`
-                  no servidor, entao o controle tem efeito verdadeiro. Ele fica na toolbar (e nao no
-                  cabecalho) porque e um refinamento DA FILA, nao do escopo do painel.
+                  no servidor, entao o controle tem efeito verdadeiro.
                 */}
                 <button
                   type="button"
@@ -653,36 +668,43 @@ export function OperationalDashboardPage() {
             ) : null}
 
             {/*
-              LINHA 5 — A FILA E O ELEMENTO DOMINANTE DA TELA.
-
-              Grade real: cabecalho de colunas, linhas densas (36-42px), rodape com paginacao real.
-              O vazio NAO domina: quando nao ha trabalho no recorte ele ocupa uma faixa de ~90px e o
-              resto da tela continua mostrando leitura util (analitico, excecoes, fluxo).
+              4. FLUXO OPERACIONAL — uma linha de processo (estagios conectados), nao cards.
+              Fica DEPOIS do trabalho: ele situa a fila no processo, e situar so faz sentido depois
+              de o operador ter visto o que esta parado.
             */}
-            <WorkQueue
-              phase={inboxPhase}
-              items={visibleItems}
-              page={inbox}
-              total={queueTotal}
-              view={view}
-              domainLabel={domainLabel}
-              search={queueSearch}
-              selectedId={selected?.id ?? null}
-              onSelect={setSelected}
-              onOpenRoute={onOpenRoute}
-              onNavigateOffset={(nextOffset) =>
-                updateQueueParam('offset', nextOffset > 0 ? String(nextOffset) : null)
-              }
-              onClearSearch={() => updateQueueParam('q', null)}
-              onClearRecorte={() => updateOperationalRecorte('domain', null)}
-            />
+            <BusinessChainFlow stages={flowStages} domainLabel={domainLabel} />
 
             {/*
-              RESUMO EXECUTIVO DO PERIODO — leitura secundaria de MAGNITUDE (produtividade, taxas,
-              volume do periodo). Ele fica DEPOIS da fila de proposito: as tres superficies
-              analiticas sao de RECORTE (onde o trabalho esta) e este e de MAGNITUDE (quanto o
-              periodo produziu). Posicionado antes, ele empurrava a worklist para fora da primeira
-              dobra — e a primeira dobra pertence ao trabalho, nao ao relatorio.
+              5. ANALITICO — DISTRIBUICAO | CARTEIRA | EXCECOES.
+
+              As tres superficies sao FIXAS na grade (operacao | carteira | excecoes); o que varia e o
+              ESTADO INTERNO: grafico quando o dado existe, estado governado declarado quando nao
+              existe. Uma faixa que encolhe conforme o recorte faz o cockpit parecer quebrado e esconde
+              do operador QUAIS leituras o painel oferece.
+
+              Elas descem para DEPOIS da fila de proposito: sao leitura de RECORTE (onde o trabalho
+              esta), e a fila e o trabalho. Em cima, empurravam a bancada para fora da primeira dobra.
+            */}
+            <section className="dashboard-analytics" aria-label="Análise operacional">
+              <OperationDistribution
+                snapshot={snapshot}
+                available={showOperationDistribution}
+              />
+
+              <AgingDistribution
+                aging={snapshot.charts.financialAging}
+                available={showAging}
+              />
+
+              <ExceptionSurface
+                items={attentionItems}
+                notEvaluated={scope?.notEvaluated ?? []}
+              />
+            </section>
+
+            {/*
+              6. RESUMO EXECUTIVO DO PERIODO — leitura de MAGNITUDE (produtividade, taxas, volume).
+              Ultimo bloco de proposito: e o dado mais distante da decisao imediata.
             */}
             {productivitySection ? (
               <section

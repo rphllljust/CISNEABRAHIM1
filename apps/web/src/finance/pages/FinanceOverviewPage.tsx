@@ -32,6 +32,7 @@ import { DomainWorkZones } from '../../workspaces/components/DomainWorkZones';
 import { WorkspaceQueueSurface } from '../../workspaces/components/WorkspaceQueueSurface';
 import { WorkspaceZone } from '../../workspaces/components/WorkspaceZone';
 import { FinanceTitleQueues } from '../components/FinanceTitleQueues';
+import { FinanceSituationStrip } from '../components/FinanceSituation';
 import { StatusBadge } from '../../ui/StatusBadge';
 import { WorkbenchQueue, WorkbenchQueueItem } from '../../ui/workbench';
 import {
@@ -339,21 +340,86 @@ export function FinanceOverviewPage() {
 
   return (
     <ModulePage layout="workspace">
+      {/*
+        GRAMATICA DE REGIOES DA CENTRAL FINANCEIRA.
+        A tela nao tinha nenhuma `data-region`: o cabecalho, a fila de excecoes e as zonas se
+        empilhavam sem a regua estrutural que `theme.css` desenha entre regioes, e a faixa de
+        orientacao se confundia com o primeiro bloco de dado. Com as regioes, "onde estou / qual
+        recorte" (operating-header) se separa do "que a operacao financeira mostra" (situation,
+        priority queue, posicao).
+      */}
+      <div data-region="work-surface">
+      <div data-region="operating-header">
       <WorklistHeader
         title="Financeiro"
-        context="Workspace financeiro: quanto receber, quanto pagar, caixa atual, o que vence, o que está atrasado e o que não foi conciliado. Exceções primeiro; cada número abre os registros que o formam."
+        context="Central de operações financeiras: o que exige decisão agora, o que está vencido e onde está o dinheiro. Cada número abre os registros que o formam."
       />
-
-      {/* 1 e 2 e 3 — AGORA, ATENÇÃO e CONTINUAR: as mesmas zonas de todo workspace de dominio. */}
-
+      </div>
 
       {/*
-        1. EXCECOES FINANCEIRAS — a PRIMEIRA dobra do workspace financeiro.
-        Vem na gramatica de fila do produto (`WorkbenchQueue` + `WorkbenchQueueItem`), a mesma de
-        Alertas, Conciliacao e Central de trabalho: SEVERIDADE, MOTIVO, VALOR, ACAO, DRILLDOWN, na
-        ordem em que o operador ja le as outras filas. Antes, tres blocos de texto empilhados
-        abriam a tela e a excecao que decide o dia so aparecia abaixo da posicao.
+        FAIXA DE SITUACAO — a PRIMEIRA leitura, e nao uma parede de cards.
+
+        Ela responde, em uma linha densa, as quatro perguntas que o operador faz ao abrir a central:
+        quanto esta vencido, quantos titulos exigem acao, o que vence, e quantas contas existem. Os
+        valores vem das leituras do servidor que a tela JA faz (recorte `?status=OVERDUE` completo e
+        contagem de contas) — nada e recalculado no navegador.
+
+        A faixa substitui a abertura por blocos: antes a tela comecava pela fila de excecoes e a
+        posicao vinha depois, de modo que o operador lia o problema antes de saber o tamanho dele.
       */}
+      <div data-region="situation-surface" className="pt-2">
+        <FinanceSituationStrip
+          items={[
+            {
+              id: 'overdue-receivable',
+              label: 'Vencido a receber',
+              value: overdueReceivableCount === null ? null : String(overdueReceivableCount),
+              note:
+                overdueReceivableAmount === null
+                  ? 'valor não publicado'
+                  : `${formatMoneyBrl(overdueReceivableAmount)}${overdueIsPartial ? ' (mínimo nas linhas lidas)' : ''}`,
+              tone: (overdueReceivableCount ?? 0) > 0 ? 'critical' : 'neutral',
+              to: receivableHref('overdue'),
+            },
+            {
+              id: 'overdue-payable',
+              label: 'Vencido a pagar',
+              value: overduePayableCount === null ? null : String(overduePayableCount),
+              note:
+                overduePayableAmount === null
+                  ? 'valor não publicado'
+                  : `${formatMoneyBrl(overduePayableAmount)}${overdueIsPartial ? ' (mínimo nas linhas lidas)' : ''}`,
+              tone: (overduePayableCount ?? 0) > 0 ? 'critical' : 'neutral',
+              to: payableHref('overdue'),
+            },
+            {
+              id: 'receivable-open',
+              label: 'Recebíveis em aberto',
+              value: receivablesInFlight === null ? null : String(receivablesInFlight),
+              note: 'contagem do recorte completo',
+              tone: 'info',
+              to: receivableHref('open'),
+            },
+            {
+              id: 'payable-open',
+              label: 'Pagáveis em aberto',
+              value: payablesInFlight === null ? null : String(payablesInFlight),
+              note: 'contagem do recorte completo',
+              tone: 'warning',
+              to: payableHref('open'),
+            },
+            {
+              id: 'accounts',
+              label: 'Contas financeiras',
+              value: accountCount === null ? null : String(accountCount),
+              note: accountCount === null ? 'tesouraria indisponível' : 'saldo publicado por conta',
+              tone: 'neutral',
+              to: '/app/finance/treasury',
+            },
+          ]}
+        />
+      </div>
+
       {/*
         A FILA FINANCEIRA — categoria, nao item.
 
@@ -363,6 +429,7 @@ export function FinanceOverviewPage() {
         como zona de trabalho. As duas nao competem: uma diz o tamanho do problema, a outra entrega
         o trabalho.
       */}
+      <div data-region="priority-queue-surface" className="pt-2">
       <WorkbenchQueue
         title="Exceções financeiras"
         description="Recortes publicados pelo servidor. A ação abre exatamente o conjunto representado."
@@ -477,14 +544,18 @@ export function FinanceOverviewPage() {
           />
         ) : null}
       </WorkbenchQueue>
+      </div>
 
       {/*
-        SUMMARY — indicadores AUTORITATIVOS: contagem e estado do recorte COMPLETO devolvido pelo
-        servidor. O contrato nao publica totalizador monetario global, entao nao existe "total da
-        carteira" aqui: existem quantos titulos estao em aberto, quantos venceram e quantos ja
-        foram liquidados — cada um abrindo exatamente o conjunto que conta.
+        POSICAO FINANCEIRA — contagem e estado do recorte COMPLETO devolvido pelo servidor.
+
+        O contrato NAO publica totalizador monetario global, entao nao existe "total da carteira"
+        aqui: existem quantos titulos estao em aberto, quantos venceram e quantas contas existem —
+        cada um abrindo exatamente o conjunto que conta. Somar a pagina carregada e chama-la de
+        posicao do dominio seria inventar financa.
       */}
-      <WorkspaceZone title="Posição financeira" note={positionNote}>
+      <div data-region="position-surface" className="pt-2">
+      <WorkspaceZone title="Carteira e tesouraria" note={positionNote}>
         {positionIsEmpty ? (
           <p className="m-0 text-sm text-gray-600">Não há títulos nem contas na posição financeira.</p>
         ) : (
@@ -660,13 +731,16 @@ export function FinanceOverviewPage() {
           </div>
         ) : null}
       </WorkspaceZone>
+      </div>
 
       {/*
         2. FILAS DE TRABALHO E FLUXO DO DOMINIO — AGORA, ATENÇÃO e CONTINUAR, as mesmas zonas de
         todo workspace de dominio do CISNE. Vem DEPOIS da fila de excecoes: a tela responde
         primeiro o que exige decisao de dinheiro e so entao onde o trabalho continua.
       */}
+      <div data-region="domain-zones-surface" className="pt-2">
       <DomainWorkZones domain="FINANCEIRO" />
+      </div>
 
       {/*
         2b. A FILA FINANCEIRA DE ITENS — o trabalho, aqui e nao em outra tela.
@@ -702,7 +776,9 @@ export function FinanceOverviewPage() {
 
         Somente a leitura entra: liquidacao, baixa e estorno continuam no dominio responsavel.
       */}
+      <div data-region="title-queues-surface" className="pt-2">
       <FinanceTitleQueues />
+      </div>
 
       {/*
         TESOURARIA / CONCILIACAO — drilldown. Cada conta e um registro do servidor, com saldo
@@ -789,7 +865,14 @@ export function FinanceOverviewPage() {
         ) : null}
       </WorkspaceZone>
 
-      {/* 6 — TITULOS: onde "excecoes" ganha linha, valor, vencimento e drilldown. */}
+      {/*
+        TITULOS — amostra de leitura imediata das DUAS carteiras.
+
+        Elas sao AMOSTRA, e a nota abaixo diz isso: "N de M". O trabalho de verdade (recorte, busca,
+        ordenacao, contexto e paginacao) vive nas worklists Tier-1 de Receber e Pagar, e a nota leva
+        o operador para la nomeando exatamente o que existe la.
+      */}
+      <div data-region="title-sample-surface" className="pt-2">
       <WorkspaceZone
         title="Títulos a receber"
         note={`${receivableItems.length} de ${receivables.data?.total ?? '—'} títulos a receber — as primeiras linhas do recorte, para leitura imediata. A lista completa abre em Contas a Receber, com busca, filtro e paginação do servidor.`}
@@ -968,8 +1051,10 @@ export function FinanceOverviewPage() {
           </div>
         )}
       </WorkspaceZone>
+      </div>
 
       {/* RODAPE: de onde vem cada numero e onde o resto do dominio vive. */}
+      <div data-region="origin-footer" className="pt-2">
       <WorklistFooter rangeLabel="Origem dos valores" extra="Leituras do servidor, sem agregado inventado">
         <Link to="/app/finance/receivables" className="text-[12px] text-brand-700 no-underline hover:underline">
           Contas a Receber
@@ -993,6 +1078,8 @@ export function FinanceOverviewPage() {
         {overdueIsPartial ? ', sobre as linhas devolvidas neste recorte' : ''}. Nada é recalculado no
         navegador.
       </span>
+      </div>
+      </div>
     </ModulePage>
   );
 }

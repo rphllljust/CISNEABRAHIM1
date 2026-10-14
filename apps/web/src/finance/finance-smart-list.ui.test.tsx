@@ -78,7 +78,7 @@ describe('Financeiro — smart lists e mecanismos de operação', () => {
     await user.click(within(viewsBar).getByRole('button', { name: 'Vencidos' }));
 
     await waitFor(() => {
-      expect(screen.getByText(/nenhum título nesta visão/i)).toBeInTheDocument();
+      expect(screen.getByText(/nenhum título neste recorte/i)).toBeInTheDocument();
     });
     // O estado vazio explica o recorte em vez de parecer que a carteira sumiu.
     expect(screen.getByText(/ajuste o filtro ou limpe a visão/i)).toBeInTheDocument();
@@ -185,11 +185,21 @@ describe('Financeiro — smart lists e mecanismos de operação', () => {
       expect(rowIdentifiers()).toContain('AR-001');
     });
 
-    // Indicador sem drilldown é decoração: cada um leva a uma rota filtrada real.
-    const overdue = screen.getByRole('link', { name: /Vencidos/i });
+    /*
+     * A FAIXA DE SITUAÇÃO SUBSTITUIU A GRADE DE DRILL-DOWN — o CONTRATO é o mesmo.
+     *
+     * Antes os indicadores eram células de `DrilldownRow` (rótulo "Vencidos", "A vencer", "Recebidos");
+     * agora são a `FinanceSituationStrip`, que publica a mesma promessa em linguagem de operação:
+     * cada valor é um LINK para o conjunto EXATO que ele conta. "Indicador sem drilldown é decoração"
+     * continua sendo a regra — o que mudou foi o rótulo e a densidade, não a exigência.
+     *
+     * O nome acessível do link é a FRASE ("Vencido: 0: R$ 0,00"), e não apenas o número: o valor
+     * sozinho não diria de que indicador ele é.
+     */
+    const overdue = screen.getByRole('link', { name: /^Vencido/i });
     expect(overdue.getAttribute('href')).toContain('status=OVERDUE');
 
-    const due = screen.getByRole('link', { name: /A vencer/i });
+    const due = screen.getByRole('link', { name: /^A vencer/i });
     expect(due.getAttribute('href')).toContain('status=OPEN');
   });
 

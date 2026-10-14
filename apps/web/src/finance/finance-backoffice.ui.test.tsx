@@ -108,7 +108,18 @@ describe('Finance backoffice UI', () => {
     vi.stubGlobal('fetch', createFinanceFetchMock({ receivableCount: 60 }));
     renderWithProviders(<ReceivablesListPage />, { metadata: true });
     await waitFor(() => {
-      expect(screen.getByRole('link', { name: /Carteira em aberto/ })).toHaveTextContent('60');
+      /*
+       * A FAIXA DE SITUAÇÃO substituiu os cartões de drill-down. O número continua vindo do resumo
+       * do SERVIDOR ("60" títulos no recorte), e não da página carregada — que traz 50. É essa
+       * diferença entre 60 e 50 que prova que a tela não conta a amostra.
+       *
+       * "Recorte" é o único indicador SEM drilldown (ele não abre um subconjunto de si mesmo): por
+       * isso ele é texto, e o valor é lido pelo rótulo do próprio grupo.
+       */
+      const strip = screen.getByLabelText(/situação financeira do recorte/i);
+      const recorteValue = within(strip).getByText('Recorte').closest('div');
+      expect(recorteValue).not.toBeNull();
+      expect(within(recorteValue as HTMLElement).getByText('60')).toBeInTheDocument();
     });
     expect(screen.getAllByTestId('dynamic-list-row')).toHaveLength(50);
   });
