@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -26,6 +26,14 @@ import { renderWithProviders } from '../../test/render-with-providers';
  */
 
 const CREATED_ID = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+
+/*
+ * IDENTIFICADORES TÉCNICOS DOS VÍNCULOS — vivem SÓ aqui e no `value` das opções.
+ * A prova de que a tela virou lookup é que o operador NUNCA digita estes valores: ele escolhe pelo
+ * código humano ("PROP-2026-0031"), e é o `value` da opção que carrega o id até o payload.
+ */
+const PROPOSAL_ID = '11111111-2222-4333-8444-555555555555';
+const PURCHASE_ORDER_ID = '99999999-8888-4777-8666-555555555555';
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -57,6 +65,57 @@ function createFetchMock(options: { units?: string[]; createStatus?: number } = 
     // LOOKUP DE UNIDADE — a origem do dado é o servidor, não uma lista no frontend.
     if (pathname === '/api/v1/requests/service-requests/operational-units') {
       return jsonResponse({ items: units });
+    }
+    /*
+     * LOOKUP DAS RELAÇÕES DE ORIGEM — o vínculo deixou de ser texto livre e passou a ser escolha
+     * em lista servida pelo SERVIDOR. Sem esta rota a busca devolveria vazio, a opção não existiria
+     * e o teste mediria um seletor sem fonte — que é justamente o que a mudança removeu.
+     */
+    if (pathname === '/api/v1/commercial/proposals') {
+      return jsonResponse({
+        items: [
+          {
+            id: PROPOSAL_ID,
+            proposalCode: 'PROP-2026-0031',
+            clientId: '22222222-2222-4222-8222-222222222222',
+            unitId: 'UNIDADE-A',
+            title: 'Contrato anual de manutenção',
+            currentVersionNumber: 2,
+            currentVersionStatus: 'ACCEPTED',
+            currencyCode: 'BRL',
+            saleTotal: '48000.0000',
+            validUntil: '2026-12-31',
+            clientName: 'Cliente Alfa',
+            rowVersion: 1,
+            createdAt: '2026-01-10T10:00:00.000Z',
+            updatedAt: '2026-02-10T10:00:00.000Z',
+          },
+        ],
+        limit: 20,
+        offset: 0,
+      });
+    }
+    if (pathname === '/api/v1/commercial/purchase-orders') {
+      return jsonResponse({
+        items: [
+          {
+            id: PURCHASE_ORDER_ID,
+            internalCode: 'PO-INT-0088',
+            clientId: '22222222-2222-4222-8222-222222222222',
+            unitId: 'UNIDADE-A',
+            poNumber: 'PO-2026-0088',
+            rcNumber: 'RC-2026-0012',
+            status: 'ISSUED',
+            currencyCode: 'BRL',
+            clientSnapshot: { tradeName: 'Cliente Alfa' },
+            rowVersion: 1,
+            createdAt: '2026-01-10T10:00:00.000Z',
+            updatedAt: '2026-02-10T10:00:00.000Z',
+          },
+        ],
+        limit: 20,
+        offset: 0,
+      });
     }
     if (pathname === '/api/v1/service-orders' && method === 'POST') {
       if (options.createStatus && options.createStatus >= 400) {
@@ -214,53 +273,68 @@ describe('Nova OS — contrato de criação', () => {
   });
 
   /* PROPOSAL exige o vínculo: a tela antecipa a regra do servidor antes de enviar. */
-  it('exige o identificador da proposta quando a origem é proposta', async () => {
+  it('exige o vínculo da proposta quando a origem é proposta', async () => {
     const mock = renderCreate({ units: ['UNIDADE-A'] });
     await awaitForm();
 
     const user = userEvent.setup();
     await user.selectOptions(screen.getByTestId('so-create-origin'), 'PROPOSAL');
 
-    // O campo de vínculo aparece por causa da origem escolhida.
-    expect(await screen.findByTestId('so-create-proposal')).toBeInTheDocument();
+    // O CAMPO DE VÍNCULO É LOOKUP, NÃO TEXTO LIVRE: a busca humana (que consulta o SERVIDOR)
+    // aparece ao lado da seleção — nunca um campo que espera UUID digitado. A asserção usa os
+    // ganchos estáveis dos dois controles, porque o rótulo do campo e o `aria-label` da busca
+    // compartilham a mesma expressão e um matcher por texto casaria os dois nós.
+    expect(await screen.findByLabelText(/buscar proposta de origem/i)).toBeInTheDocument();
+    expect(screen.getByTestId('so-create-proposal-select')).toBeInTheDocument();
 
     await user.click(screen.getByTestId('so-create-submit'));
 
     // Sem o vínculo, NENHUM POST parte — a tela recusa antes do servidor.
-    expect(await screen.findByText(/informe o identificador da proposta/i)).toBeInTheDocument();
+    expect(await screen.findByText(/selecione a proposta de origem/i)).toBeInTheDocument();
     expect(postCalls(mock)).toHaveLength(0);
   });
 
-  it('exige o identificador do pedido de compra quando a origem é pedido', async () => {
+  it('exige o vínculo do pedido de compra quando a origem é pedido', async () => {
     const mock = renderCreate({ units: ['UNIDADE-A'] });
     await awaitForm();
 
     const user = userEvent.setup();
     await user.selectOptions(screen.getByTestId('so-create-origin'), 'PURCHASE_ORDER');
-    expect(await screen.findByTestId('so-create-purchase-order')).toBeInTheDocument();
+    expect(await screen.findByTestId('so-create-purchase-order-select')).toBeInTheDocument();
 
     await user.click(screen.getByTestId('so-create-submit'));
     /*
-     * A asserção é escopada na MENSAGEM DE ERRO, não no texto solto: "identificador do pedido de
-     * compra" aparece também no RÓTULO do campo, e uma busca global casaria os dois — ambiguidade
-     * do matcher, não defeito da tela.
+     * A asserção é escopada na MENSAGEM DE ERRO, não no texto solto: "pedido de compra" aparece
+     * também no RÓTULO do campo, e uma busca global casaria os dois — ambiguidade do matcher, não
+     * defeito da tela.
      */
     const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent(/identificador do pedido de compra/i);
+    expect(alert).toHaveTextContent(/selecione o pedido de compra de origem/i);
     expect(postCalls(mock)).toHaveLength(0);
   });
 
-  /* Com o vínculo informado, o POST leva o campo da origem correta. */
-  it('envia o vínculo de proposta quando informado', async () => {
+  /* Com o vínculo escolhido, o POST leva o campo da origem correta. */
+  it('envia o vínculo de proposta escolhido na lista do servidor', async () => {
     const mock = renderCreate({ units: ['UNIDADE-A'] });
     await awaitForm();
 
     const user = userEvent.setup();
     await user.selectOptions(screen.getByTestId('so-create-origin'), 'PROPOSAL');
-    await user.type(
-      await screen.findByTestId('so-create-proposal'),
-      '11111111-2222-4333-8444-555555555555',
-    );
+
+    /*
+     * A ESCOLHA VEM DO SERVIDOR. O operador não digita identificador: ele busca pelo código e
+     * escolhe a opção que o servidor devolveu. A lista é alimentada por `listProposals` (mockada
+     * abaixo), e o `value` da opção é o id — que só então chega ao payload.
+     */
+    const select = await screen.findByTestId<HTMLSelectElement>('so-create-proposal-select');
+    await waitFor(() => {
+      expect(within(select).queryAllByRole('option').length).toBeGreaterThan(1);
+    });
+    const option = within(select)
+      .getAllByRole('option')
+      .find((candidate) => (candidate as HTMLOptionElement).value !== '') as HTMLOptionElement;
+    await user.selectOptions(select, option.value);
+
     await user.click(screen.getByTestId('so-create-submit'));
 
     await waitFor(() => {
@@ -268,7 +342,7 @@ describe('Nova OS — contrato de criação', () => {
     });
     const body = firstPostBody(mock);
     expect(body.origin).toBe('PROPOSAL');
-    expect(body.proposalId).toBe('11111111-2222-4333-8444-555555555555');
+    expect(body.proposalId).toBe(option.value);
     expect(body).not.toHaveProperty('purchaseOrderId');
   });
 

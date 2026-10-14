@@ -435,10 +435,23 @@ export function ServiceRequestsListPage() {
           getServiceRequestSummary(scopedFilters, signal),
         ]);
         setSummary(summaryResponse);
+        /*
+         * `offset` DO SERVIDOR, COM PISO NO OFFSET QUE A TELA PEDIU.
+         *
+         * O tipo declara `offset: number`, mas isso e o contrato do TIPO, nao uma garantia de
+         * runtime: quando a resposta nao traz `offset`, o valor chega `undefined` e o rodape
+         * renderizava `NaN–NaN nesta página · Página NaN` — um defeito REAL, visivel ao operador,
+         * na faixa que declara o recorte lido.
+         *
+         * O fallback e o offset PEDIDO (nao zero): se a tela pediu a pagina 3 e o servidor nao ecoou
+         * a posicao, a leitura honesta e a posicao solicitada — cair para zero faria a faixa afirmar
+         * que esta na primeira pagina, que e uma segunda mentira em cima da primeira.
+         */
+        const echoedOffset = Number(response.offset);
         setListState({
           phase: 'ready',
           items: response.items,
-          offset: response.offset,
+          offset: Number.isFinite(echoedOffset) ? echoedOffset : offset,
           hasMore: response.items.length === response.limit,
         });
       } catch (error) {

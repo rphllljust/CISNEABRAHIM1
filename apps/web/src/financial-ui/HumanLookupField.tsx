@@ -33,6 +33,7 @@ export function HumanLookupField({
   htmlFor,
   required,
   hint,
+  error,
   placeholder,
   search,
   value,
@@ -41,12 +42,22 @@ export function HumanLookupField({
   emptyOptionLabel,
   className,
   initialLabel,
+  selectTestId,
   variant = 'field',
 }: {
   label: string;
   htmlFor: string;
   required?: boolean;
   hint?: string;
+  /**
+   * ERRO DE VALIDAÇÃO DO CAMPO.
+   *
+   * Sem esta propriedade, um lookup obrigatório nao tinha onde declarar que estava faltando: a tela
+   * de criacao de OS recusava o envio e o operador nao via causa nenhuma no campo — o erro ficava
+   * invisivel justamente no controle que o produziu. O `Field` ja desenha a mensagem com
+   * `role="alert"`; o lookup apenas a repassa.
+   */
+  error?: string;
   placeholder?: string;
   search: (term: string, signal?: AbortSignal) => Promise<HumanLookupOption[]>;
   value: string;
@@ -57,6 +68,14 @@ export function HumanLookupField({
   className?: string;
   /** Rótulo já conhecido (ex.: vindo do próprio registro) para exibir sem nova busca. */
   initialLabel?: string;
+  /**
+   * `data-testid` do `<select>` de escolha.
+   *
+   * Existe porque o ROTULO do campo e o `aria-label` da busca compartilham a mesma expressao
+   * ("proposta de origem" / "buscar proposta de origem"), e um matcher por texto casaria os dois
+   * nos. Um gancho estavel aponta para o controle que o teste quer exercitar.
+   */
+  selectTestId?: string;
   /**
    * `field` (padrão) é o campo de formulário: rótulo próprio acima, busca e seleção empilhadas.
    * `compact` é a variante de BARRA DE FILTROS: um único controle denso, do lado dos demais
@@ -153,7 +172,7 @@ export function HumanLookupField({
 
   return (
     <div className={className}>
-      <Field label={label} htmlFor={selectId} required={required} hint={hint}>
+      <Field label={label} htmlFor={selectId} required={required} hint={hint} error={error}>
         <Input
           id={htmlFor}
           value={term}
@@ -165,6 +184,7 @@ export function HumanLookupField({
         />
         <Select
           id={selectId}
+          data-testid={selectTestId}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           required={required}

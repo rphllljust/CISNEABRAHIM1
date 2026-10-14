@@ -8,8 +8,14 @@ import {
   type ServiceOrderOrigin,
 } from '../api/service-orders-api';
 import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
+import { HumanLookupField } from '../../financial-ui/HumanLookupField';
 import { Button, Field, Input, ModulePage, ModulePageHeader, Textarea } from '../../ui';
 import { cn } from '../../ui/utils/cn';
+import {
+  searchClientsForLookup,
+  searchProposalsForLookup,
+  searchPurchaseOrdersForLookup,
+} from '../utils/service-order-relation-lookup';
 
 /**
  * NOVA ORDEM DE SERVIÇO — SUPERFÍCIE DE CRIAÇÃO GOVERNADA.
@@ -78,7 +84,8 @@ export function ServiceOrderCreatePage() {
   const originId = useId();
   const unitId_ = useId();
   const clientId_ = useId();
-  const linkIdId = useId();
+  const proposalFieldId = useId();
+  const purchaseOrderFieldId = useId();
   const descriptionId = useId();
   const notesId = useId();
   const rcId = useId();
@@ -88,7 +95,16 @@ export function ServiceOrderCreatePage() {
   );
   const [unitId, setUnitId] = useState('');
   const [clientId, setClientId] = useState('');
-  const [linkId, setLinkId] = useState('');
+  /*
+   * UM ESTADO POR VÍNCULO — e não um `linkId` compartilhado.
+   *
+   * O campo era único e reaproveitado pelas duas origens: escolher uma proposta e depois trocar a
+   * origem para "Pedido de compra" deixava o identificador da PROPOSTA no campo do PEDIDO, e a tela
+   * enviava o vínculo errado. Separar os estados elimina a contaminação entre os dois e permite que o
+   * valor escolhido em cada origem sobreviva à troca de volta.
+   */
+  const [proposalId, setProposalId] = useState('');
+  const [purchaseOrderId, setPurchaseOrderId] = useState('');
   const [description, setDescription] = useState('');
   const [operationalNotes, setOperationalNotes] = useState('');
   const [rcNumber, setRcNumber] = useState('');
@@ -113,13 +129,16 @@ export function ServiceOrderCreatePage() {
     if (!effectiveUnitId) {
       errors.unitId = 'Selecione a unidade da ordem.';
     }
-    // As duas exigências por origem são do SERVIDOR; a tela as antecipa para dar causa legível
-    // em vez de um 400 genérico.
-    if (requiresProposal && !linkId.trim()) {
-      errors.proposalId = 'Informe o identificador da proposta de origem.';
+    /*
+     * As duas exigências por origem são do SERVIDOR; a tela as antecipa para dar causa legível em
+     * vez de um 400 genérico. A mensagem deixou de falar em "identificador": o operador escolhe da
+     * lista, então o que falta é a SELEÇÃO, não um código digitado.
+     */
+    if (requiresProposal && !proposalId.trim()) {
+      errors.proposalId = 'Selecione a proposta de origem.';
     }
-    if (requiresPurchaseOrder && !linkId.trim()) {
-      errors.purchaseOrderId = 'Informe o identificador do pedido de compra de origem.';
+    if (requiresPurchaseOrder && !purchaseOrderId.trim()) {
+      errors.purchaseOrderId = 'Selecione o pedido de compra de origem.';
     }
     return errors;
   }
@@ -146,10 +165,10 @@ export function ServiceOrderCreatePage() {
       payload.clientId = clientId.trim();
     }
     if (requiresProposal) {
-      payload.proposalId = linkId.trim();
+      payload.proposalId = proposalId.trim();
     }
     if (requiresPurchaseOrder) {
-      payload.purchaseOrderId = linkId.trim();
+      payload.purchaseOrderId = purchaseOrderId.trim();
     }
     if (description.trim()) {
       payload.description = description.trim();
@@ -239,10 +258,23 @@ export function ServiceOrderCreatePage() {
                   value={origin}
                   disabled={submitting}
                   onChange={(event) => {
-                    setOrigin(event.target.value as ServiceOrderOrigin);
-                    // Trocar a origem invalida o vínculo anterior: proposta e pedido são campos
-                    // DIFERENTES, e manter o texto faria o operador enviar o id errado.
-                    setLinkId('');
+                    /*
+                     * TROCAR A ORIGEM LIMPA O VÍNCULO DA ORIGEM ABANDONADA — e só dela.
+                     *
+                     * Proposta e pedido são vínculos DIFERENTES, com estados próprios. Antes havia um
+                     * único `linkId` compartilhado: escolher uma proposta e mudar para "Pedido de
+                     * compra" deixava o id da PROPOSTA no campo do PEDIDO, e a tela enviava o vínculo
+                     * errado. Limpar só o lado que sai evita a contaminação sem descartar a escolha
+                     * feita no lado que o operador pode querer retomar.
+                     */
+                    const nextOrigin = event.target.value as ServiceOrderOrigin;
+                    if (origin === SERVICE_ORDER_ORIGINS.Proposal && nextOrigin !== origin) {
+                      setProposalId('');
+                    }
+                    if (origin === SERVICE_ORDER_ORIGINS.PurchaseOrder && nextOrigin !== origin) {
+                      setPurchaseOrderId('');
+                    }
+                    setOrigin(nextOrigin);
                     setFieldErrors({});
                   }}
                 >
@@ -281,52 +313,54 @@ export function ServiceOrderCreatePage() {
                 VÍNCULO POR ORIGEM — obrigatório só quando o SERVIDOR exige.
                 Com origem direta autorizada o campo não aparece: pedir um vínculo que a criação
                 não usa faria o operador procurar um dado inexistente.
+
+                LOOKUP REAL, NÃO CAMPO DE UUID. O operador busca pelo CÓDIGO que ele conhece
+                ("PROP-2026-0031", "PO-2026-0088") e escolhe da lista que o servidor devolveu. O
+                identificador técnico circula apenas dentro do `value` da opção e do payload de
+                criação — nunca é digitado nem exibido.
               */}
               {requiresProposal ? (
-                <Field
+                <HumanLookupField
                   label="Proposta de origem"
-                  htmlFor={linkIdId}
+                  htmlFor={proposalFieldId}
                   required
                   error={fieldErrors.proposalId}
-                >
-                  <Input
-                    id={linkIdId}
-                    data-testid="so-create-proposal"
-                    value={linkId}
-                    disabled={submitting}
-                    invalid={Boolean(fieldErrors.proposalId)}
-                    onChange={(event) => setLinkId(event.target.value)}
-                  />
-                </Field>
+                  selectTestId="so-create-proposal-select"
+                  hint="Busque pelo código da proposta e escolha na lista devolvida pelo servidor."
+                  placeholder="Buscar por código ou título da proposta"
+                  search={searchProposalsForLookup}
+                  value={proposalId}
+                  onChange={setProposalId}
+                  emptyMessage="Nenhuma proposta encontrada para esta busca."
+                />
               ) : null}
 
               {requiresPurchaseOrder ? (
-                <Field
+                <HumanLookupField
                   label="Pedido de compra de origem"
-                  htmlFor={linkIdId}
+                  htmlFor={purchaseOrderFieldId}
                   required
                   error={fieldErrors.purchaseOrderId}
-                >
-                  <Input
-                    id={linkIdId}
-                    data-testid="so-create-purchase-order"
-                    value={linkId}
-                    disabled={submitting}
-                    invalid={Boolean(fieldErrors.purchaseOrderId)}
-                    onChange={(event) => setLinkId(event.target.value)}
-                  />
-                </Field>
+                  selectTestId="so-create-purchase-order-select"
+                  hint="Busque pelo número do pedido e escolha na lista devolvida pelo servidor."
+                  placeholder="Buscar por número do pedido"
+                  search={searchPurchaseOrdersForLookup}
+                  value={purchaseOrderId}
+                  onChange={setPurchaseOrderId}
+                  emptyMessage="Nenhum pedido de compra encontrado para esta busca."
+                />
               ) : null}
 
-              <Field label="Cliente (opcional)" htmlFor={clientId_} error={fieldErrors.clientId}>
-                <Input
-                  id={clientId_}
-                  data-testid="so-create-client"
-                  value={clientId}
-                  disabled={submitting}
-                  onChange={(event) => setClientId(event.target.value)}
-                />
-              </Field>
+              <HumanLookupField
+                label="Cliente (opcional)"
+                htmlFor={clientId_}
+                hint="Vínculo opcional. Busque pelo nome ou documento do cliente."
+                placeholder="Buscar por nome ou documento do cliente"
+                search={searchClientsForLookup}
+                value={clientId}
+                onChange={setClientId}
+                emptyMessage="Nenhum cliente encontrado para esta busca."
+              />
 
               <Field label="RC (opcional)" htmlFor={rcId}>
                 <Input
