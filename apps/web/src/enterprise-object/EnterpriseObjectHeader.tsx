@@ -46,16 +46,24 @@ function ObjectActionButton({ action, variant }: { action: ObjectAction; variant
   const disabled = action.disabled === true;
   const label = toHumanText(action.label) ?? action.label;
 
-  // Acao com destino real e um LINK: navegacao nao deve virar botao com efeito colateral.
+  /*
+   * ACAO COM DESTINO REAL E UM LINK.
+   *
+   * GEOMETRIA CORRIGIDA: a acao primaria era `px-3.5 py-2 text-sm shadow-sm` — cerca de 42px de
+   * altura, com sombra. Numa object page ela e a UNICA acao primaria da tela e precisa ter a mesma
+   * altura dos controles do resto do produto (`--control-height`), sem sombra: o contorno + o fundo
+   * ja separam o comando, e sombra em botao de cabecalho de objeto e ruido de superficie — o mesmo
+   * defeito que o `ModulePrimaryLink` ja havia corrigido nas worklists.
+   */
   if (action.to && !disabled && !action.loading) {
     return (
       <Link
         to={action.to}
         className={cn(
-          'inline-flex min-h-[var(--spacing-touch)] items-center justify-center gap-2 rounded-md px-3.5 py-2 text-sm font-semibold no-underline transition-colors',
+          'cisne-type-action inline-flex min-h-[var(--control-height)] items-center justify-center gap-1.5 rounded-[4px] px-3 no-underline transition-colors',
           variant === 'primary'
-            ? 'border border-brand-600 bg-brand-600 text-white shadow-sm hover:bg-brand-700'
-            : 'border border-gray-300 bg-white text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50',
+            ? 'bg-brand-600 text-white hover:bg-brand-700'
+            : 'border border-[color:var(--color-border-default)] bg-white text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-surface-hover)]',
         )}
       >
         {label}
@@ -140,7 +148,7 @@ export function EnterpriseObjectHeader({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             {humanReference ? (
-              <span className="rounded border border-gray-300 bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-gray-700 tabular-nums">
+              <span className="rounded-[3px] border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-context)] px-1.5 py-0.5 font-mono text-[11px] font-semibold text-[color:var(--color-text-secondary)] tabular-nums">
                 {humanReference}
               </span>
             ) : null}
@@ -148,20 +156,22 @@ export function EnterpriseObjectHeader({
             {statusLabel ? <StatusBadge label={statusLabel} tone={status?.tone} /> : null}
           </div>
           {humanSubtitle ? (
-            <p className="cisne-type-meta m-0 mt-0.5 font-medium text-gray-700">{humanSubtitle}</p>
+            <p className="m-0 mt-0.5 text-[12px] font-medium text-[color:var(--color-text-secondary)]">
+              {humanSubtitle}
+            </p>
           ) : null}
           {statusDescription ? (
             <p className="cisne-type-helper m-0 mt-0.5">{statusDescription}</p>
           ) : null}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           {primaryAction ? <ObjectActionButton action={primaryAction} variant="primary" /> : null}
           {menuItems.length > 0 ? (
             <Dropdown
               label="Mais ações"
               trigger={
-                <span className="rounded-md px-3 py-2 text-sm font-semibold text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50">
+                <span className="cisne-type-action inline-flex min-h-[var(--control-height)] cursor-pointer items-center rounded-[4px] px-2 text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-surface-hover)] hover:text-[color:var(--color-text-primary)]">
                   Mais ações
                 </span>
               }
@@ -180,10 +190,12 @@ export function EnterpriseObjectHeader({
         <dl className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-3 lg:grid-cols-5">
           {visibleMetadata.map((field) => (
             <div key={field.label} className="min-w-0">
-              <dt className="cisne-meta-label truncate">{field.label}</dt>
+              <dt className="text-[10px] font-medium tracking-wide text-[color:var(--color-text-muted)] uppercase">
+                {field.label}
+              </dt>
               <dd
                 className={cn(
-                  'cisne-meta-value m-0 truncate',
+                  'm-0 truncate text-[12px] text-[color:var(--color-text-primary)]',
                   field.emphasis && 'cisne-meta-value--emphasis',
                 )}
               >

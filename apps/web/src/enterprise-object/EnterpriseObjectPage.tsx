@@ -99,9 +99,15 @@ export function EnterpriseObjectPage({
       {context}
 
       {/*
-        MAIN / ASIDE GOVERNADO — a coluna de trabalho domina; o contexto lateral tem largura
+        MAIN / SUPPORT GOVERNADO — a coluna de trabalho domina; o contexto lateral tem largura
         declarada, nao proporcao elastica. Sem aside real, o corpo ocupa a largura inteira em vez
         de deixar um vazio decorativo.
+
+        PROPORCAO DO CONTRATO: o trabalho ocupa 65-72% e o suporte 28-35%. A coluna era `19rem`
+        (304px) cravada — em 1600px isso e 21% e em 1280px e 23%, ou seja, o suporte ficava menor
+        que o piso do contrato nas duas larguras. Agora a faixa e 300-380px e a divisa e do
+        SUporte, nao do trabalho: em monitor largo o suporte cresce, em monitor estreito ele
+        encolhe, e o trabalho nunca perde a proporcao.
 
         `items-start` e obrigatorio: sem ele a grade estica a coluna lateral ate a altura do main,
         o que faria a superficie de contexto parecer um painel do tamanho do trabalho — a antiga
@@ -110,12 +116,13 @@ export function EnterpriseObjectPage({
       <div
         className={cn(
           'grid items-start gap-0 pt-0',
-          hasAside && 'lg:grid-cols-[minmax(0,1fr)_19rem] lg:gap-x-8',
+          hasAside &&
+            'lg:grid-cols-[minmax(0,1fr)_clamp(18.75rem,26vw,23.75rem)] lg:gap-x-6 xl:gap-x-8',
         )}
       >
         <div className="flex min-w-0 flex-col gap-0 pt-4">{children}</div>
         {hasAside ? (
-          <aside className="flex min-w-0 flex-col gap-0 border-t border-gray-200 pt-4 lg:border-t-0 lg:border-l lg:border-gray-200 lg:pl-8">
+          <aside className="flex min-w-0 flex-col gap-0 border-t border-[color:var(--color-divider)] pt-4 lg:border-t-0 lg:border-l lg:pl-6 xl:pl-8">
             {aside}
           </aside>
         ) : null}
