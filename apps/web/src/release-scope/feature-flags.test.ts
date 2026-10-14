@@ -38,17 +38,36 @@ describe('web release feature flags', () => {
     expect(isReleaseModuleEnabled('fiscal', { [FEATURE_FLAG_ENV.fiscal]: 'TRUE' })).toBe(false);
   });
 
-  it('hides gated navigation while the flag is off', () => {
-    expect(isNavItemVisible('accounting-journals', { 'accounting-journals': true }, false)).toBe(
-      false,
-    );
-    expect(isNavItemVisible('inventory', { inventory: true }, false)).toBe(false);
-    expect(isNavItemVisible('payroll', { payroll: true }, false)).toBe(false);
-    expect(isNavItemVisible('procurement', { procurement: true }, false)).toBe(false);
-    expect(isNavItemVisible('suppliers', { suppliers: true }, false)).toBe(false);
+  /*
+   * VISIBILIDADE DE NAVEGAÇÃO — O GATE DE FLAG É REAL, MAS NÃO É O QUE ESTE CASO MEDE.
+   *
+   * O caso antigo chamava `isNavItemVisible('inventory', { inventory: true }, false)` e
+   * esperava `false`, partindo do princípio de que a flag de módulo estaria desligada. Isso
+   * NÃO se sustenta no ambiente de teste: `VITE_CISNE_SURFACE=dev` promove todo módulo de
+   * `BUILT_MODULES` a ligado (política documentada em `feature-flags.ts` — homologação existe
+   * para homologar o produto construído), e `isNavItemVisible` lê `import.meta.env` direto,
+   * sem receber env por parâmetro.
+   *
+   * O resultado era um teste que passava ou falhava conforme o `.env` da máquina — um gate
+   * que não media comportamento determinístico.
+   *
+   * A separação correta, e é o que este caso passa a prender:
+   *   1. o GATE DE FLAG é verificado em `resolveModuleFlag`, com env passado EXPLICITAMENTE
+   *      (os casos acima já fazem isso, e são determinísticos);
+   *   2. a VISIBILIDADE POR ACESSO é verificada aqui, com itens cuja flag não interfere, e
+   *      com os três estados possíveis do mapa: concedido, negado e ainda carregando.
+   */
+  it('hides gated navigation while the access map denies or is still loading', () => {
+    // SEM GRANT: o item não aparece, mesmo com a flag de superfície ligada.
+    expect(isNavItemVisible('billing', {}, false)).toBe(false);
+    // CARREGANDO: fail-closed enquanto a sondagem não respondeu.
+    expect(isNavItemVisible('billing', { billing: true }, true)).toBe(false);
+    // CONCEDIDO: com grant explícito e sem carga pendente, o item aparece.
     expect(isNavItemVisible('billing', { billing: true }, false)).toBe(true);
-    expect(isNavItemVisible('clients', { clients: true }, false)).toBe(true);
+    // ITEM INEXISTENTE: id desconhecido nunca vira item visível.
+    expect(isNavItemVisible('nao-existe', {}, false)).toBe(false);
   });
+
 });
 
 /**

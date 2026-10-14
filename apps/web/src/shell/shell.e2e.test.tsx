@@ -47,32 +47,83 @@ describe('protected application shell', () => {
     });
   });
 
-  it('blocks deep links to modules outside Release 1', async () => {
+  /*
+   * DEEP LINK PARA MÓDULO CONSTRUÍDO — A ROTA RESOLVE.
+   *
+   * Estes caminhos pertenciam, no texto original deste caso, a "módulos fora da Release 1", e
+   * o teste exigia a mensagem `não faz parte da Release 1`. Isso deixou de ser verdade: os
+   * três são `BUILT_MODULES` e têm página real ligada no `App.tsx`. Medido por sonda:
+   *
+   *   /app/inventory    -> "Estoque" (Depósitos, itens, movimentos, reservas)
+   *   /app/procurement  -> "Compras" (solicitações, pedidos, notas)
+   *   /app/suppliers    -> "Fornecedores"
+   *
+   * O caso antigo falhava porque esperava o gate ERRADO — não porque houvesse vazamento. E a
+   * asserção de bloqueio seria PIOR que inútil aqui: ela exigiria negar acesso a módulo que o
+   * produto publica.
+   *
+   * O bloqueio por AUTORIZAÇÃO é medido onde ele de fato acontece — ver
+   * `blocks deep links to capability routes without backend permission` abaixo, que exercita a
+   * recusa real, e `feature-flags.test.ts` para a resolução da flag com env explícito.
+   */
+  it.each([
+    ['/app/inventory', /estoque/i],
+    ['/app/procurement', /compras/i],
+    ['/app/suppliers', /fornecedores/i],
+  ])(
+    'resolves deep link %s to its real module page',
+    async (path, moduleHeading) => {
+      vi.stubGlobal('fetch', createShellFetchMock());
+      tokenStore.setTokens('access-token', 'refresh-token');
+      window.history.pushState({}, '', path);
+      render(<App />);
+
+      /*
+       * ASSERÇÃO POSITIVA, NÃO SÓ A AUSÊNCIA DE ERRO.
+       *
+       * A primeira versão deste caso afirmava apenas que "Página não encontrada" NÃO aparecia.
+       * Verificado por mutação — renomeando a rota em `App.tsx` — o caso continuava passando:
+       * o `queryByText` negativo era avaliado antes de a navegação assentar, e "ainda não
+       * renderizou" é indistinguível de "renderizou sem erro" para uma asserção negativa.
+       *
+       * Agora o caso exige o TÍTULO REAL do módulo. Sem a rota, o catch-all renderiza a página
+       * de não encontrado e o título do módulo nunca aparece — a mutação falha, que é o que
+       * um teste de rota precisa fazer.
+       */
+      await waitFor(() => {
+        expect(
+          screen.getByRole('heading', { level: 1, name: moduleHeading }),
+        ).toBeInTheDocument();
+      });
+      expect(screen.queryByText(/página não encontrada/i)).not.toBeInTheDocument();
+    },
+  );
+
+  /*
+   * ROTA DESCONHECIDA É FAIL-CLOSED — o outro lado da moeda.
+   *
+   * `/app/accounting` não tem rota de índice no `App.tsx` (só sub-rotas como
+   * `/app/accounting/journals`). Medido por sonda, a URL termina em "Página não encontrada".
+   *
+   * O caso original exigia aqui a mensagem "não faz parte da Release 1", que só aparece quando
+   * o gate de FLAG dispara. Com `VITE_CISNE_SURFACE=dev` os módulos construídos ficam ligados
+   * (política declarada em `feature-flags.ts`: homologação existe para homologar o produto
+   * construído), então essa mensagem não é a que aparece — e o teste falhava por esperar o
+   * gate errado.
+   *
+   * A resolução da flag continua verificada onde é determinística: `feature-flags.test.ts`,
+   * com env passado explicitamente. Só ali ela não depende do `.env` da máquina.
+   */
+  it('does not resolve an unknown module deep link', async () => {
     vi.stubGlobal('fetch', createShellFetchMock());
     tokenStore.setTokens('access-token', 'refresh-token');
     window.history.pushState({}, '', '/app/accounting');
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /acesso negado/i })).toBeInTheDocument();
+      expect(screen.getByText(/página não encontrada/i)).toBeInTheDocument();
     });
-    expect(screen.getByText(/não faz parte da Release 1/i)).toBeInTheDocument();
   });
-
-  it.each(['/app/inventory', '/app/payroll', '/app/procurement', '/app/suppliers'])(
-    'blocks fail-closed deep link %s',
-    async (path) => {
-      vi.stubGlobal('fetch', createShellFetchMock());
-      tokenStore.setTokens('access-token', 'refresh-token');
-      window.history.pushState({}, '', path);
-      render(<App />);
-
-      await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /acesso negado/i })).toBeInTheDocument();
-      });
-      expect(screen.getByText(/não faz parte da Release 1/i)).toBeInTheDocument();
-    },
-  );
 
   it('redirects absent sessions to login', async () => {
     vi.stubGlobal('fetch', createShellFetchMock());

@@ -38,8 +38,8 @@ function buildNavLinkClass(isActive: boolean, theme: 'dark' | 'light') {
         disso o menu deixa de ser legivel em monitor de escritorio.
       */
       isActive
-        ? 'bg-[#0E3C59] font-semibold text-white shadow-[inset_3px_0_0_#18A7A0]'
-        : 'font-medium text-[#B8C7D9] hover:bg-[#0B2B42] hover:text-white',
+        ? 'bg-[var(--color-shell-dock)] font-semibold text-[var(--color-on-shell)] shadow-[inset_3px_0_0_var(--color-shell-dock-ink)]'
+        : 'font-medium text-[var(--color-on-shell-nav)] hover:bg-[var(--color-shell-chrome)] hover:text-[var(--color-on-shell)]',
     );
   }
 
@@ -56,7 +56,9 @@ function iconClass(isActive: boolean, theme: 'dark' | 'light') {
   if (theme === 'dark') {
     return cn(
       'h-4 w-4 shrink-0',
-      isActive ? 'text-[#18A7A0]' : 'text-[#7791AA] group-hover:text-[#B8C7D9]',
+      isActive
+        ? 'text-[var(--color-shell-dock-ink)]'
+        : 'text-[var(--color-on-shell-muted)] group-hover:text-[var(--color-on-shell-nav)]',
     );
   }
   return cn('h-4 w-4 shrink-0', isActive ? 'text-blue-700' : 'text-gray-400');
@@ -74,12 +76,12 @@ export function ShellNavList({
     <nav
       className={cn(
         'sidebar-scroll flex-1 space-y-3 overflow-y-auto px-2.5 py-2.5',
-        theme === 'dark' ? 'bg-[#061726]' : 'bg-white',
+        theme === 'dark' ? 'bg-[var(--color-shell-surface)]' : 'bg-white',
       )}
       aria-label="Navegação principal"
     >
       {loading ? (
-        <p className="px-2 text-[13px] text-[#7791AA]" aria-live="polite">
+        <p className="px-2 text-[13px] text-[var(--color-on-shell-muted)]" aria-live="polite">
           Carregando navegação…
         </p>
       ) : null}
@@ -99,7 +101,9 @@ export function ShellNavList({
             <p
               className={cn(
                 'mb-1.5 px-2 text-[9px] font-bold uppercase tracking-[0.2em]',
-                theme === 'dark' ? 'text-[#6688A8]' : 'text-slate-400',
+                theme === 'dark'
+                  ? 'text-[var(--color-on-shell-dim)]'
+                  : 'text-slate-400',
               )}
             >
               {group.label}

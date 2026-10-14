@@ -61,7 +61,7 @@ export function GlobalSearchBar({ compact = false }: GlobalSearchBarProps) {
           Busca global
         </label>
         <Search
-          className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-[#7791AA]"
+          className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-[var(--color-on-shell-muted)]"
           strokeWidth={2.2}
           aria-hidden
         />
@@ -72,11 +72,11 @@ export function GlobalSearchBar({ compact = false }: GlobalSearchBarProps) {
             BUSCA DE APPLICATION SHELL — surface tonal, borda quase invisivel, foco azul forte.
 
             O campo e o maior alvo da topbar (35-40% da largura util) e por isso ele NAO e um
-            controle de formulario: e uma superficie de consulta. Fundo #F3F6FA sobre a topbar branca
-            separa os dois planos sem borda pesada; o foco troca para branco + ring azul, que e
-            quando o operador esta de fato digitando.
+            controle de formulario: e uma superficie de consulta. `--color-search-surface` sobre a
+            topbar branca separa os dois planos sem borda pesada; o foco troca para branco + ring
+            azul, que e quando o operador esta de fato digitando.
           */
-          className="w-full rounded-md border border-[#E4EAF2] bg-[#F3F6FA] py-2 pr-3 pl-9 text-[13px] text-[#102033] outline-none transition placeholder:text-[#7791AA] focus:border-[#1769E0] focus:bg-white focus:ring-2 focus:ring-[#1769E0]/25"
+          className="w-full rounded-md border border-[var(--color-search-border)] bg-[var(--color-search-surface)] py-2 pr-3 pl-9 text-[13px] text-[var(--color-text-primary)] outline-none transition placeholder:text-[var(--color-on-shell-muted)] focus:border-[var(--color-cisne-action)] focus:bg-white focus:ring-2 focus:ring-[var(--color-cisne-action)]/25"
           type="search"
           role="combobox"
           aria-autocomplete="list"
@@ -94,7 +94,7 @@ export function GlobalSearchBar({ compact = false }: GlobalSearchBarProps) {
         {recentSearches.length > 0 ? (
           <ul
             id={listboxId}
-            className="absolute top-[calc(100%+0.25rem)] right-0 left-0 z-[var(--z-dropdown)] m-0 list-none rounded-lg border border-[#D8E1EB] bg-white p-1 shadow-[0_10px_24px_rgb(7_24_39/12%)]"
+            className="absolute top-[calc(100%+0.25rem)] right-0 left-0 z-[var(--z-dropdown)] m-0 list-none rounded-lg border border-[var(--color-divider)] bg-white p-1 shadow-[0_10px_24px_rgb(7_24_39/12%)]"
             role="listbox"
           >
             {recentSearches.map((entry, index) => (
@@ -102,8 +102,8 @@ export function GlobalSearchBar({ compact = false }: GlobalSearchBarProps) {
                 <button
                   type="button"
                   className={cn(
-                    'w-full rounded-md px-3 py-2 text-left text-[13px] text-[#102033]',
-                    index === activeIndex ? 'bg-[#EAF3FF]' : 'hover:bg-[#F2F5F9]',
+                    'w-full rounded-md px-3 py-2 text-left text-[13px] text-[var(--color-text-primary)]',
+                    index === activeIndex ? 'bg-[var(--color-surface-highlight)]' : 'hover:bg-[var(--color-surface-hover)]',
                   )}
                   onClick={() => submitSearch(entry)}
                 >

@@ -43,6 +43,68 @@
   --color-navy-800: #071827;
   --color-navy-900: #04101c;
 
+  /*
+   * CHROME DO SHELL — OS DEGRAUS DO NAVY, NOMEADOS.
+   *
+   * A sidebar do CISNE empilhava cinco hex proprios (`#061726`, `#0B2B42`, `#0D2940`, `#0E3C59`,
+   * `#7791AA`) escritos DENTRO do JSX. Consequencia pratica: trocar o tom do chrome exigia editar
+   * componentes, e nenhuma mudanca no tema chegava ate eles — o shell ficava de fora do sistema de
+   * tokens justamente na superficie mais visivel do produto.
+   *
+   * Os degraus sao SEMANTICOS, nao "navy um pouco mais claro": cada um responde a uma pergunta de
+   * hierarquia do chrome.
+   *
+   *   shell    — o fundo da navegacao (o plano mais profundo da aplicacao)
+   *   chrome   — a divisa entre a navegacao e o conteudo
+   *   dock     — a superficie do bloco de conta, dentro da navegacao
+   *   dock-ink — o ponto de identidade dentro dela (avatar/letra)
+   *   on-shell — texto sobre o navy: primario e secundario
+   */
+  --color-shell-surface: #061726;
+  --color-shell-chrome: #0b2b42;
+  --color-shell-dock: #0e3c59;
+  --color-shell-dock-ink: #18a7a0;
+  --color-on-shell: #ffffff;
+  --color-on-shell-muted: #7791aa;
+  --color-on-shell-dim: #6688a8;
+
+  /* HOVER/PRESSIONADO SOBRE NAVY — o estado de interacao da navegacao escura. */
+  --color-shell-hover: #0d2940;
+  --color-shell-active: #13544e;
+  --color-shell-active-ink: #eef7f6;
+
+  /*
+   * TINTA DE NAVEGACAO SOBRE NAVY — o degrau de LEGIBILIDADE do item inativo.
+   *
+   * O item de menu nao pode usar o mesmo tom do rotulo de secao: se os dois ficassem em
+   * `--color-on-shell-dim`, o menu perderia a trilha de leitura (o operador nao distingue
+   * "agrupamento" de "destino clicavel"). Este e o tom claro o suficiente para ser um DESTINO.
+   */
+  --color-on-shell-nav: #b8c7d9;
+
+  /*
+   * SUPERFICIE DE CONTROLE NEUTRA — o fundo de hover/estado de botoes e itens CLAROS.
+   *
+   * Existia como `#F2F5F9` solto no topbar e no menu. E o mesmo papel do `surface-sunken`, mas com
+   * o azul-cinza desta paleta; nomeado, ele para de ser reinventado por tela.
+   */
+  --color-surface-hover: #f2f5f9;
+  --color-surface-sunken-soft: #eef2f8;
+
+  /*
+   * SUPERFICIE DE CONSULTA — o campo de busca do application shell.
+   *
+   * Ele NAO e um controle de formulario: e uma superficie de consulta na topbar, e por isso tem
+   * tom proprio em vez de branco-sobre-branco. Estes dois degraus davam-se como hex solto dentro
+   * do componente (o que impedia o shell de participar do tema); nomeados aqui, o campo de busca
+   * segue a mesma politica de superficie do resto do chrome.
+   */
+  --color-search-surface: #f3f6fa;
+  --color-search-border: #e4eaf2;
+
+  /* SELECAO DE RESULTADO — o item sob o cursor na lista de sugestoes. */
+  --color-surface-highlight: #eaf3ff;
+
   /* AZUL DE ACAO — distinto do teal de identidade: e o azul de OPERACAO e INTERACAO. */
   --color-blue-50: #eff6ff;
   --color-blue-100: #dbeafe;

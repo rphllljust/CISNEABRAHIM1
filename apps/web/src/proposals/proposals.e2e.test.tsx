@@ -5,7 +5,7 @@ import { App } from '../App';
 import { resetTokenStoreForTests } from '../auth/storage/token-store';
 import { createCommercialFetchMock } from '../test/commercial-fetch-mock';
 import { loginAndReachApp } from '../test/login-ui-helpers';
-import { createShellFetchMock } from '../test/shell-fetch-mock';
+import { createShellFetchMock, MOCK_UNIT_ID } from '../test/shell-fetch-mock';
 import { parseRequestPath } from '../test/request-url';
 import { createProposalItemRow } from './utils/proposal-form-validation';
 
@@ -56,7 +56,24 @@ describe('proposals administrative flow e2e (frontend)', () => {
       expect(within(clientSelect).getAllByRole('option').length).toBeGreaterThan(1);
     });
     await user.selectOptions(clientSelect, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
-    await user.type(screen.getByLabelText(/^unidade operacional/i), 'unit-demo');
+    /*
+     * UNIDADE É `<select>` DE UNIDADES AUTORIZADAS — não campo de texto.
+     *
+     * Este passo fazia `user.type(getByLabelText(/^unidade operacional/i), 'unit-demo')`, que é
+     * a interação de quando a unidade era digitada. `user.type` sobre um `<select>` não digita
+     * nada e não dispara `change`: o estado controlado ficava vazio, a validação barrava o
+     * envio e o POST saía com corpo `{}` — medido com sonda. A tela permanecia em
+     * `/app/proposals/new` e o caso falhava em "Proposta E2E" por uma causa que nada tinha a
+     * ver com o título.
+     *
+     * A unidade vem do servidor (`operational-units`); o valor oferecido é o publicado pelo
+     * mock. O caso irmão `proposal-create.ui.test.tsx` já usava `selectOptions` — era só este
+     * que ficara para trás.
+     */
+    await user.selectOptions(
+      screen.getByLabelText(/^unidade operacional/i, { selector: 'select' }),
+      MOCK_UNIT_ID,
+    );
     await user.type(screen.getByLabelText(/^título/i), 'Proposta E2E');
     await user.type(screen.getByLabelText(/^preço global de venda/i), '25000.00');
     await user.click(screen.getByRole('button', { name: /registrar proposta/i }));

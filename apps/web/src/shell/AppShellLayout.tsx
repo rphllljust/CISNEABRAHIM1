@@ -76,7 +76,7 @@ export function AppShellLayout() {
   const identityHint = isTechnicalIdentity(identityId) ? null : formatIdentityLabel(identityId);
 
   return (
-    <div className="cisne-app shell-enterprise flex min-h-dvh bg-[#EEF3F8] font-sans text-gray-900 antialiased">
+    <div className="cisne-app shell-enterprise flex min-h-dvh bg-[var(--color-canvas)] font-sans text-[var(--color-text-primary)] antialiased">
       <a
         className="shell__skip-link bg-brand-600 text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
         href="#main-content"
@@ -93,22 +93,22 @@ export function AppShellLayout() {
         estava correta (34px); o que sobrava era largura vazia.
       */}
       <aside
-        className="shell__sidebar fixed inset-y-0 z-30 hidden w-[13.25rem] flex-col border-r border-[#0B2B42] bg-[#061726] lg:flex"
+        className="shell__sidebar fixed inset-y-0 z-30 hidden w-[13.25rem] flex-col border-r border-[var(--color-shell-chrome)] bg-[var(--color-shell-surface)] lg:flex"
         aria-label="Barra lateral"
       >
-        <div className="shell__brand flex h-[3.375rem] shrink-0 items-center gap-2.5 border-b border-[#0D2940] px-3.5">
+        <div className="shell__brand flex h-[3.375rem] shrink-0 items-center gap-2.5 border-b border-[var(--color-shell-hover)] px-3.5">
           {/*
             MARCA EM TEAL — o unico lugar da sidebar onde o teal aparece em AREA. E o que da
             identidade ao chrome sem tingir a navegacao inteira de accent.
           */}
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[#0B8F88] shadow-[0_1px_0_0_rgba(255,255,255,0.12)_inset]">
-            <ShellBrandMark className="h-3.5 w-3.5 text-white" />
+          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--color-brand-600)] shadow-[0_1px_0_0_rgba(255,255,255,0.12)_inset]">
+            <ShellBrandMark className="h-3.5 w-3.5 text-[var(--color-on-shell)]" />
           </div>
           <div className="min-w-0 leading-tight">
-            <p className="truncate text-[13px] font-bold tracking-tight text-white">
+            <p className="truncate text-[13px] font-bold tracking-tight text-[var(--color-on-shell)]">
               Cisne Rondônia
             </p>
-            <p className="truncate text-[9px] font-semibold uppercase tracking-[0.16em] text-[#7791AA]">
+            <p className="truncate text-[9px] font-semibold uppercase tracking-[0.16em] text-[var(--color-on-shell-muted)]">
               ERP corporativo
             </p>
           </div>
@@ -116,15 +116,17 @@ export function AppShellLayout() {
 
         <ShellNavList alertCount={activeCount} alertsLoading={alertsLoading} theme="dark" />
 
-        <div className="border-t border-[#0B2B42] p-2.5">
-          <div className="flex items-center gap-2.5 rounded-md bg-[#0B2B42] px-2.5 py-1.5">
-            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-[#0E3C59] text-[10px] font-bold text-[#18A7A0]">
+        <div className="border-t border-[var(--color-shell-chrome)] p-2.5">
+          <div className="flex items-center gap-2.5 rounded-md bg-[var(--color-shell-chrome)] px-2.5 py-1.5">
+            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--color-shell-dock)] text-[10px] font-bold text-[var(--color-shell-dock-ink)]">
               CN
             </div>
             <div className="min-w-0 leading-tight">
-              <p className="text-[11px] font-semibold text-white">Conta ativa</p>
+              <p className="text-[11px] font-semibold text-[var(--color-on-shell)]">Conta ativa</p>
               {identityHint ? (
-                <p className="truncate text-[10px] text-[#7791AA]">{identityHint}</p>
+                <p className="truncate text-[10px] text-[var(--color-on-shell-muted)]">
+                  {identityHint}
+                </p>
               ) : null}
             </div>
           </div>

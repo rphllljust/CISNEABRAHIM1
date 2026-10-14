@@ -23,7 +23,7 @@
 }
 
 .sidebar-scroll::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: var(--color-on-shell-dim);
   border-radius: 8px;
 }
 
@@ -102,7 +102,7 @@
   width: min(18rem, 88vw);
   height: 100dvh;
   border-right: 1px solid rgb(255 255 255 / 5%);
-  background: #030712;
+  background: var(--color-navy-900);
   box-shadow: var(--shadow-dialog);
 }
 
@@ -128,7 +128,7 @@
   border: 1px solid rgb(255 255 255 / 10%);
   border-radius: var(--radius-md);
   background: transparent;
-  color: #d1d5db;
+  color: var(--color-on-shell-nav);
 }
 
 .shell-drawer__close:focus-visible {

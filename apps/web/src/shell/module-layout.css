@@ -48,7 +48,7 @@
     font-size: 1.5rem;
     font-weight: 600;
     letter-spacing: -0.02em;
-    color: #111827;
+    color: var(--color-text-primary);
   }
 
   .cisne-app [class*='-page__header'],
@@ -63,7 +63,7 @@
 
   .cisne-app [class*='-page__lead'],
   .cisne-app [class*='-page__eyebrow'] {
-    color: #6b7280;
+    color: var(--color-text-muted);
     font-size: 0.875rem;
   }
 
@@ -74,7 +74,7 @@
     align-items: center;
     border-radius: 0.375rem;
     border: 0;
-    background-color: #166860;
+    background-color: var(--color-brand-700);
     padding: 0.5rem 1rem;
     font-size: 0.875rem;
     font-weight: 600;
@@ -85,7 +85,7 @@
 
   .cisne-app a.button-link:hover,
   .cisne-app .button-link:hover {
-    background-color: #13544e;
+    background-color: var(--color-brand-800);
   }
 
   .cisne-app .button-secondary {
@@ -93,18 +93,18 @@
     min-height: 2.25rem;
     align-items: center;
     border-radius: 0.375rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--color-border-default);
     background: #fff;
     padding: 0.5rem 1rem;
     font-size: 0.875rem;
     font-weight: 600;
-    color: #374151;
+    color: var(--color-text-secondary);
     box-shadow: 0 1px 2px rgb(17 24 39 / 5%);
     cursor: pointer;
   }
 
   .cisne-app .button-secondary:hover {
-    background: #f9fafb;
+    background: var(--color-surface-sunken);
   }
 
   /*
@@ -137,7 +137,7 @@
     margin-bottom: 0.375rem;
     font-size: 0.75rem;
     font-weight: 600;
-    color: #374151;
+    color: var(--color-text-secondary);
   }
 
   .cisne-app .form-field input,
@@ -153,29 +153,29 @@
     padding: 0.5rem 0.75rem;
     font: inherit;
     font-size: 0.875rem;
-    color: #111827;
+    color: var(--color-text-primary);
     outline: none;
-    box-shadow: inset 0 0 0 1px #d1d5db;
+    box-shadow: inset 0 0 0 1px var(--color-border-default);
   }
 
   .cisne-app .form-field input:focus,
   .cisne-app .form-field select:focus,
   .cisne-app .form-field textarea:focus {
-    box-shadow: inset 0 0 0 2px #237f78;
+    box-shadow: inset 0 0 0 2px var(--color-brand-700);
   }
 
   .cisne-app .form-hint {
     margin-top: 0.75rem;
     font-size: 0.75rem;
-    color: #9ca3af;
+    color: var(--color-text-muted);
   }
 
   .cisne-app .form-error {
     margin-bottom: 1rem;
     border-radius: 0.375rem;
-    background: #fef2f2;
+    background: var(--color-error-bg);
     padding: 0.75rem 1rem;
-    color: #b91c1c;
+    color: var(--color-error-fg);
     box-shadow: inset 0 0 0 1px rgb(239 68 68 / 20%);
   }
 
@@ -195,7 +195,7 @@
     border-radius: var(--radius-md);
     background: #fff;
     box-shadow: 0 1px 0 rgb(15 23 42 / 4%), 0 12px 28px rgb(15 23 42 / 5%);
-    outline: 1px solid #cfd8e3;
+    outline: 1px solid var(--color-border-default);
   }
 
   .cisne-app .clients-table-wrap,
@@ -206,7 +206,7 @@
     border-radius: var(--radius-md);
     background: #fff;
     box-shadow: 0 1px 0 rgb(15 23 42 / 4%), 0 12px 28px rgb(15 23 42 / 5%);
-    outline: 1px solid #cfd8e3;
+    outline: 1px solid var(--color-border-default);
   }
 
   .cisne-app .clients-table-wrap .clients-table,
@@ -246,10 +246,10 @@
   .cisne-app table.catalog-table tbody th,
   .cisne-app table.requests-table tbody th {
     padding: 0.78rem 1rem;
-    border-bottom: 1px solid #e7edf3;
+    border-bottom: 1px solid var(--color-border-subtle);
     vertical-align: top;
     font-size: 0.875rem;
-    color: #374151;
+    color: var(--color-text-secondary);
   }
 
   .cisne-app table.clients-table tbody tr:hover,
@@ -259,7 +259,7 @@
   .cisne-app table.billing-table tbody tr:hover,
   .cisne-app table.doc-table tbody tr:hover,
   .cisne-app table.reports-table tbody tr:hover {
-    background: #f8fbfb;
+    background: var(--color-surface-context);
   }
 
   .cisne-app table.clients-table a,
@@ -269,7 +269,7 @@
   .cisne-app table.billing-table a,
   .cisne-app table.doc-table a {
     font-weight: 600;
-    color: #13544e !important;
+    color: var(--color-brand-800) !important;
     text-decoration: none;
   }
 
@@ -277,7 +277,7 @@
   .cisne-app table.catalog-table a:hover,
   .cisne-app table.assets-table a:hover,
   .cisne-app table.requests-table a:hover {
-    color: #0f423e !important;
+    color: var(--color-brand-900) !important;
   }
 
   .cisne-app table.catalog-table td:first-child a {
@@ -304,12 +304,12 @@
     min-height: 2.25rem;
     align-items: center;
     border-radius: 0.375rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--color-border-default);
     background: #fff;
     padding: 0.5rem 1rem;
     font-size: 0.875rem;
     font-weight: 600;
-    color: #374151;
+    color: var(--color-text-secondary);
     cursor: pointer;
   }
 
@@ -362,8 +362,8 @@
     font-size: 0.75rem;
     font-weight: 500;
     box-shadow: inset 0 0 0 1px rgb(5 150 105 / 20%);
-    background: #ecfdf5;
-    color: #047857;
+    background: var(--color-success-bg);
+    color: var(--color-success-fg);
   }
 
   .cisne-app .client-status--inactive,
@@ -371,46 +371,46 @@
   .cisne-app .assets-lifecycle-status--inactive,
   .cisne-app .requests-status--rejected,
   .cisne-app .requests-status--cancelled {
-    background: #fef2f2;
-    color: #b91c1c;
+    background: var(--color-error-bg);
+    color: var(--color-error-fg);
     box-shadow: inset 0 0 0 1px rgb(239 68 68 / 20%);
   }
 
   .cisne-app .requests-status--draft,
   .cisne-app .catalog-version-status--draft {
-    background: #fffbeb;
-    color: #b45309;
+    background: var(--color-warning-bg);
+    color: var(--color-warning-fg);
     box-shadow: inset 0 0 0 1px rgb(217 119 6 / 20%);
   }
 
   .cisne-app .requests-status--submitted,
   .cisne-app .requests-status--review,
   .cisne-app .assets-allocation-status--allocated {
-    background: #eef7f6;
-    color: #13544e;
+    background: var(--color-brand-50);
+    color: var(--color-brand-800);
     box-shadow: inset 0 0 0 1px rgb(35 127 120 / 20%);
   }
 
   .cisne-app .requests-status--converted {
-    background: #eef2ff;
-    color: #4338ca;
+    background: var(--color-violet-50);
+    color: var(--color-violet-700);
     box-shadow: inset 0 0 0 1px rgb(99 102 241 / 20%);
   }
 
   .cisne-app .shell-page > a {
-    color: #166860;
+    color: var(--color-brand-700);
     font-weight: 500;
     text-decoration: none;
   }
 
   .cisne-app .shell-page > a:hover {
-    color: #13544e;
+    color: var(--color-brand-800);
     text-decoration: underline;
   }
 
   .cisne-app .shell-page > p[role='status'],
   .cisne-app .shell-page > p:not([class]) {
-    color: #6b7280;
+    color: var(--color-text-muted);
     font-size: 0.875rem;
   }
 }

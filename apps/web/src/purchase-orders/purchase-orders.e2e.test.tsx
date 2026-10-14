@@ -5,7 +5,7 @@ import { App } from '../App';
 import { resetTokenStoreForTests } from '../auth/storage/token-store';
 import { createCommercialFetchMock } from '../test/commercial-fetch-mock';
 import { loginAndReachApp } from '../test/login-ui-helpers';
-import { createShellFetchMock } from '../test/shell-fetch-mock';
+import { createShellFetchMock, MOCK_UNIT_ID } from '../test/shell-fetch-mock';
 import { parseRequestPath } from '../test/request-url';
 import {
   createPurchaseOrderItemRow,
@@ -106,7 +106,26 @@ describe('purchase orders administrative flow e2e (frontend)', () => {
       expect(within(clientSelect).getAllByRole('option').length).toBeGreaterThan(1);
     });
     await user.selectOptions(clientSelect, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
-    await user.type(screen.getByLabelText(/^unidade operacional/i), 'unit-demo');
+    /*
+     * UNIDADE É `<select>` DE UNIDADES AUTORIZADAS — não campo de texto.
+     *
+     * Este passo fazia `user.type(getByLabelText(/^unidade operacional/i), 'unit-demo')`. Sobre
+     * um `<select>`, `user.type` não digita nem dispara `change`: o estado controlado ficava
+     * vazio, a validação barrava o envio e a tela nunca chegava ao detalhe — o caso falhava em
+     * "Pedido de compra" por uma causa que nada tinha a ver com o título.
+     *
+     * É o MESMO defeito corrigido em `proposals.e2e.test.tsx`, onde foi medido com sonda: o
+     * POST saía com corpo `{}`. A unidade vem de `operational-units`, e o valor é o publicado
+     * pelo mock compartilhado.
+     *
+     * O arquivo estava com o timeout elevado para 20s/45s numa alteração anterior — aumento de
+     * espera que não corrigia nada e apenas mascarava a causa. Revertido: a correção é a
+     * interação, não o relógio.
+     */
+    await user.selectOptions(
+      screen.getByLabelText(/^unidade operacional/i, { selector: 'select' }),
+      MOCK_UNIT_ID,
+    );
     await user.type(screen.getByLabelText(/número do pedido/i), 'PO-E2E-001');
     await user.selectOptions(screen.getByLabelText('Estrutura de preço'), 'HEADER_TOTAL');
     await user.type(screen.getByLabelText(/valor total autorizado/i), '30000.00');
