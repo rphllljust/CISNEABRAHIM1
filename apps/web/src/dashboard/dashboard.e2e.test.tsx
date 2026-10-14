@@ -49,7 +49,21 @@ describe('operational dashboard e2e (frontend)', () => {
       expect(dashboard.getByRole('group', { name: /central operacional/i })).toBeInTheDocument();
     });
 
-    const central = within(dashboard.getByRole('group', { name: /central operacional/i }));
+    const centralRoot = dashboard.getByRole('group', { name: /central operacional/i });
+    const central = within(centralRoot);
+
+    const layoutOrder = [
+      'situation-strip',
+      'operational-analytics',
+      'compact-process-flow',
+      'main-workspace',
+    ].map((layout) =>
+      Array.from(centralRoot.querySelectorAll<HTMLElement>('[data-layout]')).findIndex(
+        (element) => element.getAttribute('data-layout') === layout,
+      ),
+    );
+    expect(layoutOrder.every((index) => index >= 0)).toBe(true);
+    expect(layoutOrder).toEqual([...layoutOrder].sort((left, right) => left - right));
 
     // EXCECOES — worklist compacta com a contagem REAL publicada, dentro da faixa analitica.
     const exceptions = central.getByRole('region', { name: /alertas e exceções/i });
@@ -86,12 +100,17 @@ describe('operational dashboard e2e (frontend)', () => {
     expect(within(queue).getByRole('table')).toBeInTheDocument();
     expect(within(queue).getByRole('columnheader', { name: /próxima ação/i })).toBeInTheDocument();
     // A grade publica as referencias REAIS do read model, uma linha por item de trabalho.
-    expect(within(queue).getAllByRole('button', { name: /^SO-\d{4}-\d{6}$/ }).length).toBeGreaterThan(0);
+    expect(
+      within(queue).getAllByRole('button', { name: /^SO-\d{4}-\d{6}$/ }).length,
+    ).toBeGreaterThan(0);
     // Rodape com paginacao real, sempre visivel sob a grade.
     expect(within(queue).getByRole('button', { name: 'Próxima' })).toBeInTheDocument();
 
     // VIEWS DA FILA — tabs reais, mapeadas para recortes que o servidor executa.
-    expect(central.getByRole('button', { name: 'Bloqueios' })).toHaveAttribute('aria-pressed', 'false');
+    expect(central.getByRole('button', { name: 'Bloqueios' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
     expect(central.getByRole('button', { name: 'Fila completa' })).toHaveAttribute(
       'aria-pressed',
       'true',
@@ -107,9 +126,10 @@ describe('operational dashboard e2e (frontend)', () => {
     expect(
       within(kpiStrip).getByLabelText(/Ordens de serviço vencidas: 3 ordens/i),
     ).toHaveAttribute('href', '/app/service-orders?filter=overdue');
-    expect(
-      within(kpiStrip).getByLabelText(/Recebíveis vencidos: 2 títulos/i),
-    ).toHaveAttribute('href', '/app/finance/receivables?status=OVERDUE');
+    expect(within(kpiStrip).getByLabelText(/Recebíveis vencidos: 2 títulos/i)).toHaveAttribute(
+      'href',
+      '/app/finance/receivables?status=OVERDUE',
+    );
 
     // ANALYTICS COM DADO AUTORITATIVO: distribuicao real, cada barra com drilldown.
     expect(central.getByRole('heading', { name: /ordens por situação/i })).toBeInTheDocument();
@@ -131,15 +151,21 @@ describe('operational dashboard e2e (frontend)', () => {
 
     // BI RUNTIME UI WIRING: as ancoras semanticas continuam no DOM da rota /app.
     const mainElement = screen.getByRole('main');
-    const productivity = mainElement.querySelector('[data-bi-metrics*="productivity.completed_count"]');
+    const productivity = mainElement.querySelector(
+      '[data-bi-metrics*="productivity.completed_count"]',
+    );
     expect(productivity).not.toBeNull();
     // metrica BLOCKED nunca e renderizada como card valido
     expect(
-      mainElement.querySelectorAll('[data-bi-metrics*="overdue_count_by_finalized_billing_documents"]'),
+      mainElement.querySelectorAll(
+        '[data-bi-metrics*="overdue_count_by_finalized_billing_documents"]',
+      ),
     ).toHaveLength(0);
     // METRIC STRIP: os indicadores sao LINHAS compactas, nao a grade de cards do painel anterior.
     expect(mainElement.querySelectorAll('.dashboard-kpi')).toHaveLength(0);
-    expect(mainElement.querySelectorAll('.dashboard-kpi-list__item').length).toBeGreaterThanOrEqual(1);
+    expect(mainElement.querySelectorAll('.dashboard-kpi-list__item').length).toBeGreaterThanOrEqual(
+      1,
+    );
     /*
      * O CABECALHO ESCURO NAO EXISTE MAIS — o workspace opera em tema claro e a faixa de contexto e
      * densa. `dashboard-command` era o bloco teal/slate de ~200px que dominava a primeira dobra.
@@ -153,7 +179,9 @@ describe('operational dashboard e2e (frontend)', () => {
      * publicar "8 dia(s)", a tela repassa — isso e contrato de dados, nao copy de apresentacao.
      * A varredura cobre, portanto, os rotulos e estados que o frontend escreve.
      */
-    expect(mainElement.textContent).not.toMatch(/PARK_BI_GAP|snapshot executivo|backend|amostra técnica/i);
+    expect(mainElement.textContent).not.toMatch(
+      /PARK_BI_GAP|snapshot executivo|backend|amostra técnica/i,
+    );
   });
 
   it('keeps domain and overdue operational recorte in the URL', async () => {
@@ -181,7 +209,11 @@ describe('operational dashboard e2e (frontend)', () => {
     expect(
       fetchMock.mock.calls.some(([callInput]) => {
         const url = requestUrl(callInput);
-        return url.includes('/api/v1/work-inbox') && url.includes('domain=FINANCEIRO') && url.includes('overdue=true');
+        return (
+          url.includes('/api/v1/work-inbox') &&
+          url.includes('domain=FINANCEIRO') &&
+          url.includes('overdue=true')
+        );
       }),
     ).toBe(true);
   });
@@ -210,9 +242,9 @@ describe('operational dashboard e2e (frontend)', () => {
 
     await waitFor(() => {
       expect(window.location.search).toContain('period=month');
-      expect(fetchMock.mock.calls.some(([callInput]) => requestUrl(callInput).includes('period=month'))).toBe(
-        true,
-      );
+      expect(
+        fetchMock.mock.calls.some(([callInput]) => requestUrl(callInput).includes('period=month')),
+      ).toBe(true);
     });
   });
 });

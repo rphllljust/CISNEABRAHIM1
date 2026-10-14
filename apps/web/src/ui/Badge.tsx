@@ -9,11 +9,11 @@ export type BadgeProps = HTMLAttributes<HTMLSpanElement> & {
 };
 
 const toneClasses: Record<BadgeTone, string> = {
-  neutral: 'bg-gray-100 text-gray-700 ring-gray-200',
-  success: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
-  warning: 'bg-amber-50 text-amber-700 ring-amber-600/20',
-  error: 'bg-red-50 text-red-700 ring-red-500/20',
-  info: 'bg-brand-50 text-brand-700 ring-brand-600/20',
+  neutral: 'bg-slate-100 text-slate-700 ring-slate-200',
+  success: 'bg-green-100 text-green-800 ring-green-600/20',
+  warning: 'bg-orange-100 text-orange-800 ring-orange-600/20',
+  error: 'bg-red-100 text-red-700 ring-red-600/20',
+  info: 'bg-blue-100 text-blue-800 ring-blue-600/20',
 };
 
 export function Badge({ children, tone = 'neutral', className, ...props }: BadgeProps) {

@@ -60,14 +60,39 @@ export function DashboardLineChart({
       ) : (
         <>
           <div className="relative mt-4 w-full">
-            <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="h-24 w-full overflow-visible" aria-hidden>
-              <line x1="0" y1="20" x2={WIDTH} y2="20" stroke="#F3F4F6" strokeWidth="1" />
-              <line x1="0" y1="45" x2={WIDTH} y2="45" stroke="#F3F4F6" strokeWidth="1" />
-              <line x1="0" y1="70" x2={WIDTH} y2="70" stroke="#F3F4F6" strokeWidth="1" />
+            <svg
+              viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+              className="h-24 w-full overflow-visible"
+              aria-hidden
+            >
+              <line
+                x1="0"
+                y1="20"
+                x2={WIDTH}
+                y2="20"
+                stroke="var(--color-border-subtle)"
+                strokeWidth="1"
+              />
+              <line
+                x1="0"
+                y1="45"
+                x2={WIDTH}
+                y2="45"
+                stroke="var(--color-border-subtle)"
+                strokeWidth="1"
+              />
+              <line
+                x1="0"
+                y1="70"
+                x2={WIDTH}
+                y2="70"
+                stroke="var(--color-border-subtle)"
+                strokeWidth="1"
+              />
               <polyline
                 points={pathToPolyline(completedPath)}
                 fill="none"
-                stroke="#166860"
+                stroke="var(--dashboard-chart-positive)"
                 strokeWidth="2.2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -75,7 +100,7 @@ export function DashboardLineChart({
               <polyline
                 points={pathToPolyline(openedPath)}
                 fill="none"
-                stroke="#D1D5DB"
+                stroke="var(--dashboard-chart-series-1)"
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -86,7 +111,7 @@ export function DashboardLineChart({
                   cx={toX(lastIndex)}
                   cy={toY(points[lastIndex].completed)}
                   r="3"
-                  fill="#166860"
+                  fill="var(--dashboard-chart-positive)"
                 />
               ) : null}
             </svg>
@@ -133,7 +158,11 @@ export function DashboardLineChart({
             rows={points}
             rowKey={(point) => point.date}
             cell={(point, key) =>
-              key === 'date' ? formatDateLabel(point.date) : key === 'opened' ? point.opened : point.completed
+              key === 'date'
+                ? formatDateLabel(point.date)
+                : key === 'opened'
+                  ? point.opened
+                  : point.completed
             }
           />
         </>

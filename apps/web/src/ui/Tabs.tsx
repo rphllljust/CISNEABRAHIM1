@@ -21,7 +21,11 @@ export function Tabs({ items, activeId, onChange, label, className }: TabsProps)
 
   return (
     <div className={className}>
-      <div role="tablist" aria-label={label} className="flex flex-wrap gap-1 border-b border-border-subtle">
+      <div
+        role="tablist"
+        aria-label={label}
+        className="flex flex-wrap gap-3 border-b border-border-subtle"
+      >
         {items.map((item) => {
           const selected = item.id === activeId;
           return (
@@ -34,10 +38,10 @@ export function Tabs({ items, activeId, onChange, label, className }: TabsProps)
               aria-controls={`${baseId}-${item.id}-panel`}
               disabled={item.disabled}
               className={cn(
-                'min-h-[var(--spacing-touch)] rounded-t-[var(--radius-md)] px-3 text-sm font-medium focus-visible:cisne-focus-ring disabled:cursor-not-allowed disabled:opacity-60',
+                'relative min-h-[var(--tab-height)] border-b-2 px-1 text-sm font-medium transition-colors focus-visible:cisne-focus-ring disabled:cursor-not-allowed disabled:opacity-60',
                 selected
-                  ? 'border border-b-0 border-border-subtle bg-surface-raised text-cisne-action'
-                  : 'text-text-secondary hover:bg-surface-sunken',
+                  ? 'border-blue-600 text-blue-700'
+                  : 'border-transparent text-text-secondary hover:text-text-primary',
               )}
               onClick={() => onChange(item.id)}
             >

@@ -59,12 +59,11 @@ import '../dashboard.css';
  *
  * A composicao atual tem a anatomia de uma central operacional:
  *
- *   LINHA 1  indicadores ACIONAVEIS (faixa horizontal unica)
- *   LINHA 2  analitico em tres superficies — distribuicao | periodo | EXCECOES
- *   LINHA 3  fluxo operacional (uma linha de processo, nao cards)
- *   LINHA 4  views da fila + toolbar de trabalho
- *   LINHA 5  FILA OCUPANDO TODO O ESPACO RESTANTE, com o CONTEXTO da entidade selecionada
- *            ancorado na direita, sem overlay e sem destruir estado da worklist
+ *   LINHA 1  indicadores acionaveis
+ *   LINHA 2  distribuicao | carteira | excecoes
+ *   LINHA 3  produtividade e tendencia publicada
+ *   LINHA 4  fluxo operacional
+ *   LINHA 5  workbench: fila real + contexto lateral persistente
  *
  * ─────────────────────────────────────────────────────────────────────────────────────────────
  * REGRA DE AREA — a mesma de antes, agora aplicada a composicao inteira
@@ -521,28 +520,9 @@ export function OperationalDashboardPage() {
             data-region="worklist-master"
           >
             {/*
-            ZONA DE TRABALHO — a SILHUETA DA PRIMEIRA DOBRA.
-
-            ─────────────────────────────────────────────────────────────────────────────────────
-            A ORDEM E A DA DECISAO, NAO A DO RELATORIO
-
-            A composicao anterior empilhava, nesta ordem: faixa de KPIs, tres superficies analiticas,
-            fluxo, barra de views e SO ENTAO a fila. Medida em 1600x900, a consequencia era que o
-            TRABALHO — a unica coisa que o operador vem fazer — comecava abaixo da dobra, e o que
-            ocupava a primeira tela era leitura de contexto.
-
-            A ordem nova responde as perguntas na ordem em que elas sao feitas ao abrir o painel:
-
-              1. SITUACAO   — onde eu estou e como esta o recorte   (cabecalho, acima)
-              2. TRABALHO   — o que exige decisao AGORA             (fila, dominante)
-              3. PROCESSO   — em que ponto do fluxo isso esta       (trilha compacta)
-              4. CONTEXTO   — onde esta o trabalho e a leitura      (rail + analitico)
-              5. DECISAO    — a proxima acao real                   (coluna de contexto)
-
-            A FILA VEM PRIMEIRO e ocupa o espaco elastico. O analitico NAO desapareceu: ele desceu
-            para DEPOIS da fila, porque uma distribuicao e uma leitura de MAGNITUDE — ela qualifica o
-            trabalho, nao o substitui. Trocar a ordem sem remover nada e o que faz "situacao +
-            trabalho + decisao + processo + contexto" caberem na primeira dobra sem esconder leitura.
+            CONTROL CENTER — a ordem responde primeiro como esta a operacao, onde ha desvio e em
+            que ponto o processo parou; a fila e a bancada acionavel que vem em seguida. Todos os
+            numeros e links abaixo derivam do snapshot executivo e do work inbox publicados.
           */}
             <section
               className="dashboard-situation-strip"
@@ -552,6 +532,39 @@ export function OperationalDashboardPage() {
             >
               <WorkbenchKpiStrip kpis={workbenchKpis} />
             </section>
+
+            <section
+              className="dashboard-analytics"
+              aria-label="Análise operacional"
+              data-layout="operational-analytics"
+            >
+              <OperationDistribution snapshot={snapshot} available={showOperationDistribution} />
+              <AgingDistribution aging={snapshot.charts.financialAging} available={showAging} />
+              <ExceptionSurface items={attentionItems} notEvaluated={scope?.notEvaluated ?? []} />
+            </section>
+
+            {productivitySection ? (
+              <section
+                className="dashboard-summary"
+                aria-label="Saúde da empresa no período"
+                {...semanticSectionAttrs([
+                  'productivity.completed_count',
+                  'productivity.on_time_rate',
+                  'productivity.avg_cycle_hours',
+                  'productivity.rework_rate',
+                ])}
+              >
+                <MetricStrip
+                  kpis={productivitySection.kpis}
+                  volume={productivitySection.volume}
+                  excludeIds={workbenchKpiIds}
+                />
+              </section>
+            ) : null}
+
+            <div data-layout="compact-process-flow">
+              <BusinessChainFlow stages={flowStages} domainLabel={domainLabel} />
+            </div>
 
             <div className="dashboard-cc__work">
               <div className="dashboard-cc__workspace" data-layout="main-workspace">
@@ -777,61 +790,6 @@ export function OperationalDashboardPage() {
                   )}
                 </aside>
               </div>
-
-              {/*
-              4. FLUXO OPERACIONAL — uma linha de processo (estagios conectados), nao cards.
-              Fica DEPOIS do trabalho: ele situa a fila no processo, e situar so faz sentido depois
-              de o operador ter visto o que esta parado.
-            */}
-              <div data-layout="compact-process-flow">
-                <BusinessChainFlow stages={flowStages} domainLabel={domainLabel} />
-              </div>
-
-              {/*
-              5. ANALITICO — DISTRIBUICAO | CARTEIRA | EXCECOES.
-
-              As tres superficies sao FIXAS na grade (operacao | carteira | excecoes); o que varia e o
-              ESTADO INTERNO: grafico quando o dado existe, estado governado declarado quando nao
-              existe. Uma faixa que encolhe conforme o recorte faz o cockpit parecer quebrado e esconde
-              do operador QUAIS leituras o painel oferece.
-
-              Elas descem para DEPOIS da fila de proposito: sao leitura de RECORTE (onde o trabalho
-              esta), e a fila e o trabalho. Em cima, empurravam a bancada para fora da primeira dobra.
-            */}
-              <section
-                className="dashboard-analytics"
-                aria-label="Análise operacional"
-                data-layout="secondary-operational-insights"
-              >
-                <OperationDistribution snapshot={snapshot} available={showOperationDistribution} />
-
-                <AgingDistribution aging={snapshot.charts.financialAging} available={showAging} />
-
-                <ExceptionSurface items={attentionItems} notEvaluated={scope?.notEvaluated ?? []} />
-              </section>
-
-              {/*
-              6. RESUMO EXECUTIVO DO PERIODO — leitura de MAGNITUDE (produtividade, taxas, volume).
-              Ultimo bloco de proposito: e o dado mais distante da decisao imediata.
-            */}
-              {productivitySection ? (
-                <section
-                  className="dashboard-summary"
-                  aria-label="Saúde da empresa no período"
-                  {...semanticSectionAttrs([
-                    'productivity.completed_count',
-                    'productivity.on_time_rate',
-                    'productivity.avg_cycle_hours',
-                    'productivity.rework_rate',
-                  ])}
-                >
-                  <MetricStrip
-                    kpis={productivitySection.kpis}
-                    volume={productivitySection.volume}
-                    excludeIds={workbenchKpiIds}
-                  />
-                </section>
-              ) : null}
             </div>
 
             {/*
@@ -1302,17 +1260,17 @@ function OperationDistribution({
   const colorFor = (statusId: string): string => {
     switch (statusId) {
       case 'IN_EXECUTION':
-        return '#1769E0';
+        return '#2563EB';
       case 'RELEASED':
-        return '#5C9CEB';
+        return '#3B82F6';
       case 'PAUSED':
-        return '#D97706';
+        return '#F59E0B';
       case 'COMPLETED':
-        return '#0A8F5B';
+        return '#16A34A';
       case 'CANCELLED':
-        return '#D92D20';
-      default:
         return '#94A3B8';
+      default:
+        return '#64748B';
     }
   };
 

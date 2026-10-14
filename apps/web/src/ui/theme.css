@@ -1,34 +1,33 @@
 @import 'tailwindcss';
 
 /*
- * Cisne brand — teal palette + gray neutrals (layout reference mockup).
+ * CISNE enterprise palette — navy navigation, blue actions, semantic state colors.
  */
 @theme {
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   /*
-   * CISNE IDENTITY — TEAL INSTITUCIONAL + NAVY OPERACIONAL.
+   * CISNE INTERACTION — BLUE ACTIONS + NAVY NAVIGATION.
    *
-   * A escala `brand` e o TEAL da marca: ele identifica o CISNE (logo, accent de navegacao, foco) e
-   * nao deve ser usado como "a cor de tudo". Estado, prioridade e analitica usam as escalas
-   * semanticas abaixo. Reduzir tudo ao teal e o que fazia a interface ler monocromatica.
+   * A escala `brand` e o AZUL de interacao para manter compatibilidade com consumidores legados
+   * do token: links, selecao e foco usam azul; estados continuam nas escalas semanticas abaixo.
+   * O cyan/teal permanece apenas como cor de apoio em `--color-teal`.
    *
-   * Os valores foram aprofundados para a faixa de contraste AA: o teal anterior (#166860) sobre
-   * superficie branca entregava ~4.4:1 em texto pequeno; #0B8F88 e #0E7C74 ficam acima disso e
-   * mantem a identidade.
+   * Consumidores legados de `brand-*` continuam funcionando, agora na paleta azul usada por ações,
+   * links, seleção e foco.
    */
-  --color-brand-50: #eaf4f3;
-  --color-brand-100: #c9ecea;
-  --color-brand-200: #97d9d5;
-  --color-brand-300: #5cc0ba;
-  --color-brand-400: #2aa79f;
-  --color-brand-500: #119e96;
-  --color-brand-600: #087f78;
-  --color-brand-700: #066b65;
-  --color-brand-800: #0d635e;
-  --color-brand-900: #0a4a46;
-  --color-brand-950: #052e2c;
+  --color-brand-50: #eff6ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-200: #bfdbfe;
+  --color-brand-300: #93c5fd;
+  --color-brand-400: #60a5fa;
+  --color-brand-500: #3b82f6;
+  --color-brand-600: #2563eb;
+  --color-brand-700: #1d4ed8;
+  --color-brand-800: #1e40af;
+  --color-brand-900: #1e3a8a;
+  --color-brand-950: #172554;
 
   /*
    * NAVY OPERACIONAL — a familia da sidebar e do texto forte.
@@ -37,11 +36,11 @@
    * azulado) para o chrome do shell, distinto do cinza-azulado dos neutros de conteudo. Sem essa
    * distincao a sidebar lia como "cinza escuro" em vez de "navy corporativo".
    */
-  --color-navy-500: #123e5a;
-  --color-navy-600: #0d2940;
-  --color-navy-700: #0a2033;
-  --color-navy-800: #0b1f2d;
-  --color-navy-900: #04101c;
+  --color-navy-500: #173f73;
+  --color-navy-600: #122b4d;
+  --color-navy-700: #0b1f3b;
+  --color-navy-800: #0b1f3b;
+  --color-navy-900: #07172e;
 
   /*
    * CHROME DO SHELL — OS DEGRAUS DO NAVY, NOMEADOS.
@@ -126,8 +125,8 @@
    * interacao com significado — o acento (teal/azul) fica reservado ao estado que o operador
    * ESCOLHEU. Com azul no hover, o acento aparecia em toda a barra ao menor movimento.
    */
-  --color-surface-hover: #f2f3f4;
-  --color-surface-sunken-soft: #eef0f2;
+  --color-surface-hover: #f1f5f9;
+  --color-surface-sunken-soft: #e9eef5;
 
   /*
    * SUPERFICIE DE CONSULTA — o campo de busca do application shell.
@@ -137,15 +136,15 @@
    * do componente (o que impedia o shell de participar do tema); nomeados aqui, o campo de busca
    * segue a mesma politica de superficie do resto do chrome.
    */
-  --color-search-surface: #f2f3f4;
-  --color-search-border: #e2e4e7;
+  --color-search-surface: #f4f7fb;
+  --color-search-border: #d8e0e9;
 
   /*
    * SELECAO DE RESULTADO — o item sob o cursor na lista de sugestoes.
    * Azul de INFORMACAO e correto aqui: a lista de sugestoes e leitura assistida e o realce indica
    * "este e o item apontado". Nao e decoracao — e o unico azul de superficie que permanece.
    */
-  --color-surface-highlight: #eaf3ff;
+  --color-surface-highlight: #eff6ff;
 
   /*
    * AZUL DE INTERACAO — o azul de OPERACAO do CISNE.
@@ -178,24 +177,24 @@
   --color-emerald-50: #ecfdf5;
   --color-emerald-100: #d1fae5;
   --color-emerald-200: #a7f3d0;
-  --color-emerald-500: #10b981;
-  --color-emerald-600: #0a8f5b;
-  --color-emerald-700: #07734a;
-  --color-emerald-800: #065f46;
+  --color-emerald-500: #22c55e;
+  --color-emerald-600: #16a34a;
+  --color-emerald-700: #15803d;
+  --color-emerald-800: #166534;
 
   --color-amber-50: #fff7e8;
   --color-amber-100: #fdecc8;
   --color-amber-200: #fbdba0;
-  --color-amber-500: #e08c0a;
-  --color-amber-600: #d97706;
-  --color-amber-700: #b45309;
+  --color-amber-500: #f59e0b;
+  --color-amber-600: #ea8a00;
+  --color-amber-700: #c96a00;
 
   --color-red-50: #fef2f2;
   --color-red-100: #fee2e2;
   --color-red-200: #fecaca;
-  --color-red-500: #e5484d;
-  --color-red-600: #d92d20;
-  --color-red-700: #b42318;
+  --color-red-500: #ef4444;
+  --color-red-600: #dc2626;
+  --color-red-700: #b91c1c;
 
   --color-cisne-brand: var(--color-navy-800);
   --color-cisne-brand-strong: var(--color-navy-900);
@@ -286,7 +285,7 @@
    * `--color-surface-app` mantem-se como alias porque varias superficies o consomem.
    */
   --color-canvas: #f8fafc;
-  --color-canvas-secondary: #f4f6f8;
+  --color-canvas-secondary: #f4f7fb;
   --color-surface-app: #f8fafc;
 
   /* LEVEL 1 — PRIMARY WORK SURFACE: BRANCO PURO. Onde o operador passa o dia. */
@@ -300,11 +299,11 @@
    * branco por TOM, nunca por sombra (sombra em contexto compete com o popover que o operador abriu
    * por cima dele).
    */
-  --color-surface-context: #f5f7fa;
-  --color-surface-context-strong: #eef1f5;
-  --color-surface-support: #f5f7fa;
+  --color-surface-context: #f3f6fa;
+  --color-surface-context-strong: #e9eef5;
+  --color-surface-support: #f3f6fa;
   /* CABECALHO TONAL — faixa de titulo, cabecalho de grade, barra de ferramentas. */
-  --color-surface-header: #f8fafc;
+  --color-surface-header: #f4f7fb;
   --color-surface-sunken: #f3f5f7;
   --color-surface-muted: #f8fafc;
 
@@ -355,10 +354,10 @@
   /*
    * BORDAS — a linguagem de divisor do ERP.
    */
-  --color-border-default: #e5e7eb;
+  --color-border-default: #d8e0e9;
   --color-border-muted: #eef1f4;
   --color-border-subtle: #eef1f4;
-  --color-border-strong: #d6dce4;
+  --color-border-strong: #c5d0dd;
 
   /* FOCO — halo de 3-4px sobre o azul de interacao. Visivel sem ser faixa. */
   --color-focus-ring: #2563eb;
@@ -383,8 +382,8 @@
   --color-success-border: #bbf7d0;
 
   --color-warning-fg: #f59e0b;
-  --color-warning-bg: #fffbeb;
-  --color-warning-border: #fde68a;
+  --color-warning-bg: #fff7ed;
+  --color-warning-border: #fed7aa;
 
   --color-critical-fg: #ef4444;
   --color-critical-bg: #fef2f2;
@@ -401,7 +400,7 @@
 
   /* TEXTO SEMANTICO LEGIVEL (nao o tom puro, que e claro demais para rotulo). */
   --color-success-ink: #15803d;
-  --color-warning-ink: #b45309;
+  --color-warning-ink: #c96a00;
   --color-critical-ink: #b91c1c;
   --color-info-ink: #1d4ed8;
   --color-neutral-ink: #64748b;

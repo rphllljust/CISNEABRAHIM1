@@ -111,12 +111,8 @@ export function AppShellLayout() {
           {/*
             MARCA — o ponto de IDENTIDADE do chrome.
 
-            O quadrado da marca era TEAL (`--color-brand-600`, #087f78). Sobre o navy novo ele lia
-            como uma mancha esverdeada no canto da navegacao e introduzia uma TERCEIRA familia de cor
-            no chrome (navy + teal + azul de interacao). Agora a marca e o AZUL DO CISNE
-            (`--color-blue-600`) — o mesmo azul da acao primaria. O chrome passa a ter duas cores
-            apenas: o navy da navegacao e o azul do que e interativo, e o teal fica reservado ao
-            ACCENT DE APOIO dentro da area de trabalho, onde ele significa contexto.
+            A marca usa azul de interacao sobre navy; cyan/teal fica restrito aos detalhes de apoio
+            dentro da area de trabalho.
           */}
           <div className="flex h-7 w-7 items-center justify-center rounded-[4px] bg-[var(--color-blue-600)]">
             <ShellBrandMark className="h-3.5 w-3.5 text-white" />

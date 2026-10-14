@@ -21,10 +21,7 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
  *   TERTIARY    transparente
  *   DANGER      vermelho SOMENTE para comando destrutivo
  *
- * O primario era TEAL (`brand-600` #087f78). Isso colocava a COR DE IDENTIDADE do CISNE no papel de
- * ACAO: o botao mais importante da tela era verde-agua enquanto a informacao, o foco e a selecao
- * eram azuis — duas familias disputando o mesmo significado. Agora a acao primaria e o AZUL DE
- * INTERACAO, e o teal fica reservado ao ACCENT DE APOIO (contexto, relacao, identidade).
+ * O comando primario usa azul forte de interacao. Cyan/teal fica reservado a apoio e contexto.
  *
  * O `danger` mantem vermelho cheio: e o unico comando que pode destruir dado, e a cor precisa ser
  * exclusiva dele. Se qualquer outro botao pudesse ser vermelho, o vermelho deixaria de avisar.
@@ -51,7 +48,17 @@ const variantClasses: Record<ButtonVariant, string> = {
  * Controles que precisam de alvo maior (telas de toque) usam `size="lg"`.
  */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { variant = 'primary', size = 'md', loading = false, loadingText, className, disabled, children, type = 'button', ...props },
+  {
+    variant = 'primary',
+    size = 'md',
+    loading = false,
+    loadingText,
+    className,
+    disabled,
+    children,
+    type = 'button',
+    ...props
+  },
   ref,
 ) {
   const isDisabled = disabled || loading;
