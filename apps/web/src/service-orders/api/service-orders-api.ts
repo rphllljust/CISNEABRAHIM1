@@ -207,6 +207,67 @@ export async function getServiceOrder(
   });
 }
 
+/**
+ * ORIGENS PUBLICADAS PELO DOMÍNIO.
+ *
+ * Os valores são os do enum do servidor (`service-order.ts`). NÃO existe origem de texto livre: o
+ * `origin` enviado precisa pertencer a este conjunto, e o backend recusa o resto.
+ *
+ * A LEITURA DE CADA ORIGEM IMPORTA PARA O FORMULÁRIO:
+ *
+ *  - `SERVICE_REQUEST` NÃO é uma origem criável. `validateCreateServiceOrderInput` REJEITA
+ *    explicitamente essa origem na criação: uma OS nascida de solicitação só existe pelo caminho
+ *    de CONVERSÃO, que carrega o vínculo. Por isso ela não aparece como opção.
+ *  - `PROPOSAL` exige `proposalId` e `PURCHASE_ORDER` exige `purchaseOrderId` — o servidor valida
+ *    e recusa sem eles.
+ *  - `AUTHORIZED_DIRECT` é a criação direta autorizada, e é a única que fecha com `unitId` só.
+ */
+export const SERVICE_ORDER_ORIGINS = {
+  ServiceRequest: 'SERVICE_REQUEST',
+  Proposal: 'PROPOSAL',
+  PurchaseOrder: 'PURCHASE_ORDER',
+  AuthorizedDirect: 'AUTHORIZED_DIRECT',
+} as const;
+
+export type ServiceOrderOrigin =
+  (typeof SERVICE_ORDER_ORIGINS)[keyof typeof SERVICE_ORDER_ORIGINS];
+
+/**
+ * PAYLOAD DE CRIAÇÃO — o MESMO contrato de `parseCreateServiceOrderInput`.
+ *
+ * Só os campos que o servidor aceita. `origin` e `unitId` são os únicos obrigatórios para a
+ * criação direta; `proposalId`/`purchaseOrderId` passam a ser exigidos conforme a origem, e essa
+ * regra é do SERVIDOR — o formulário apenas não oferece a combinação que ele recusaria.
+ */
+export type CreateServiceOrderPayload = {
+  origin: ServiceOrderOrigin;
+  unitId: string;
+  clientId?: string;
+  serviceDefinitionId?: string;
+  serviceDefinitionVersionId?: string;
+  description?: string;
+  location?: Record<string, unknown>;
+  priority?: string;
+  operationalNotes?: string;
+  proposalId?: string;
+  purchaseOrderId?: string;
+  rcNumber?: string;
+  contractReference?: string;
+  idempotencyKey?: string;
+};
+
+export function createServiceOrder(
+  payload: CreateServiceOrderPayload,
+  signal?: AbortSignal,
+): Promise<ServiceOrderDetail> {
+  return requestJson<ServiceOrderDetail>('/api/v1/service-orders', {
+    method: 'POST',
+    headers: jsonHeaders(),
+    body: JSON.stringify(payload),
+    signal,
+  });
+}
+
 export type CancelServiceOrderPayload = {
   rowVersion: number;
   cancellationReason: string;

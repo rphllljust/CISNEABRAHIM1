@@ -22,7 +22,6 @@ import {
   CommandPalette,
   DynamicBulkActions,
   DynamicContextDrawer,
-  DynamicCreateForm,
   DynamicExportCsv,
   DynamicFilterBar,
   DynamicFilterBuilder,
@@ -196,10 +195,13 @@ export function ServiceOrdersEngineListPage() {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [pageOffset, setPageOffset] = useState(0);
-  /** Estado do formulário de criação — a engine fornece, a TELA decide como submeter. */
-  const [createOpen, setCreateOpen] = useState(false);
-  const [createBusy, setCreateBusy] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
+  /*
+   * O ESTADO DO FORMULÁRIO DE CRIAÇÃO SAIU DAQUI junto com o formulário inline.
+   *
+   * Não há mais `createOpen`/`createBusy`/`createError`: a criação é uma ROTA
+   * (`/app/service-orders/new`) com estado próprio, e a fila não guarda nada sobre ela. Manter os
+   * três aqui deixaria a tela carregando estado morto que ninguém mais lê.
+   */
   /** Linha que abriu o drawer de contexto. `null` = painel fechado. */
   const [contextRow, setContextRow] = useState<ServiceOrderEngineRow | null>(null);
 
@@ -611,13 +613,20 @@ export function ServiceOrdersEngineListPage() {
               Cockpit operacional renderizado pela engine a partir do metadata store e da carteira autorizada.
             </p>
           </div>
-          {/* Criação pela engine: os campos são os que o metadado declara como criáveis. */}
+          {/*
+            COMANDO PRIMÁRIO — NAVEGA, NÃO ABRE FORMULÁRIO INLINE.
+
+            Antes este botão alternava um `DynamicCreateForm` DENTRO da área de trabalho, e o envio
+            era recusado pela própria tela ("a ordem nasce de uma solicitação aprovada..."). O
+            formulário existia para não funcionar, e ainda espremia a fila quando aberto.
+
+            A criação passou a ser um passo com endereço próprio (`/app/service-orders/new`), onde
+            o contrato REAL do servidor é exercido: criação direta autorizada é válida, e a origem
+            por proposta/pedido exige o vínculo correspondente.
+          */}
           <Button
-            data-testid="dynamic-create-open"
-            onClick={() => {
-              setCreateError(null);
-              setCreateOpen((current) => !current);
-            }}
+            data-testid="service-order-create-link"
+            onClick={() => void navigate('/app/service-orders/new')}
           >
             Nova OS
           </Button>
@@ -651,29 +660,6 @@ export function ServiceOrdersEngineListPage() {
 
       {schema && rowsStatus === 'ready' ? (
         <>
-          {createOpen ? (
-            <div className="mb-4" data-testid="dynamic-create-panel">
-              <DynamicCreateForm
-                schema={schema}
-                busy={createBusy}
-                errorMessage={createError}
-                onCancel={() => setCreateOpen(false)}
-                onSubmit={() => {
-                  /*
-                   * A ENGINE coleta; a TELA decide como gravar. O endpoint de criação de OS
-                   * exige vínculo com solicitação/proposta aceita — criar uma OS "solta" não é
-                   * operação do domínio. Enquanto essa tela não tiver o vínculo, o formulário
-                   * DIZ isso em vez de enviar um POST que o backend recusaria.
-                   */
-                  setCreateError(
-                    'A ordem de serviço nasce de uma solicitação aprovada ou proposta aceita. Abra a origem e converta.',
-                  );
-                  setCreateBusy(false);
-                }}
-              />
-            </div>
-          ) : null}
-
           <DynamicViewSwitcher
             schema={schema}
             activeViewType={activeViewType}

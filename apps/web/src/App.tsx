@@ -42,6 +42,7 @@ import { ServiceOrdersEngineListPage } from './service-orders/pages/ServiceOrder
 import { ExecutionShellLayout } from './service-orders/layout/ExecutionShellLayout';
 import { ServiceOrderExecutionPage } from './service-orders/pages/ServiceOrderExecutionPage';
 import { ServiceOrderMeasurementPage } from './service-orders/pages/ServiceOrderMeasurementPage';
+import { ServiceOrderCreatePage } from './service-orders/pages/ServiceOrderCreatePage';
 import { ServiceRequestCreatePage } from './requests/pages/ServiceRequestCreatePage';
 import { ServiceRequestDetailPage } from './requests/pages/ServiceRequestDetailPage';
 import { ServiceRequestEditPage } from './requests/pages/ServiceRequestEditPage';
@@ -537,6 +538,21 @@ export function App() {
                 element={
                   <ServiceOrdersRoute>
                     <ServiceOrdersEngineListPage />
+                  </ServiceOrdersRoute>
+                }
+              />
+              {/*
+                CRIAÇÃO EM ROTA PRÓPRIA — o formulário NÃO abre inline sobre a worklist.
+
+                A criação é um passo do fluxo, com endereço próprio: o operador pode voltar,
+                compartilhar e recarregar sem perder os dados digitados, e a fila nunca é
+                espremida por um formulário que ocupa a área de trabalho.
+              */}
+              <Route
+                path="/app/service-orders/new"
+                element={
+                  <ServiceOrdersRoute>
+                    <ServiceOrderCreatePage />
                   </ServiceOrdersRoute>
                 }
               />
