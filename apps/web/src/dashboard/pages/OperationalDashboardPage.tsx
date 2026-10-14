@@ -223,7 +223,8 @@ function exceptionTone(severity: 'critical' | 'warning' | 'info'): string {
 }
 
 export function OperationalDashboardPage() {
-  const { state, reload, filters, setFilters, periodOptions, isRefreshing } = useExecutiveDashboard();
+  const { state, reload, filters, setFilters, periodOptions, isRefreshing } =
+    useExecutiveDashboard();
   const { options: unitOptions } = useOperationalUnits();
   const navigate = useNavigate();
 
@@ -377,8 +378,7 @@ export function OperationalDashboardPage() {
     onDomainChange: (nextDomain: WorkDomain | null) =>
       updateOperationalRecorte('domain', nextDomain),
     overdueOnly,
-    onOverdueChange: (value: boolean) =>
-      updateOperationalRecorte('overdue', value ? 'true' : null),
+    onOverdueChange: (value: boolean) => updateOperationalRecorte('overdue', value ? 'true' : null),
     situation,
     queueTotal: inboxPhase === 'ready' ? (inbox?.total ?? null) : null,
   };
@@ -451,9 +451,10 @@ export function OperationalDashboardPage() {
     snapshot!.charts.financialAging.buckets.length > 0;
   const dashboardKpis = showOperationDistribution ? buildDashboardKpis(snapshot!) : [];
   const workbenchKpiIds = new Set(workbenchKpis.map((kpi) => kpi.id));
-  const productivitySection = showOperationDistribution && dashboardKpis.length > 0
-    ? { kpis: dashboardKpis, volume: buildPeriodVolume(snapshot!) }
-    : null;
+  const productivitySection =
+    showOperationDistribution && dashboardKpis.length > 0
+      ? { kpis: dashboardKpis, volume: buildPeriodVolume(snapshot!) }
+      : null;
   const flowStages = snapshot ? buildBusinessFlow(snapshot, domain) : [];
   const attentionItems = scope?.items ?? [];
   const queueTotal = inboxPhase === 'ready' ? (inbox?.total ?? null) : null;
@@ -486,37 +487,40 @@ export function OperationalDashboardPage() {
         com o primeiro bloco de dado.
       */}
       <div data-region="work-surface">
-      <div data-region="operating-header">
-      <DashboardWorkbenchHeader
-        {...headerProps}
-        unitLabel={unitLabel}
-        periodLabel={periodLabel}
-        activeFilters={activeFilters}
-        onClearFilters={
-          activeFilters.length > 0 ? () => setFilters({ unitId: '', from: '', to: '' }) : undefined
-        }
-        generatedAt={snapshot?.generatedAt ?? null}
-        generatedAtFormatted={snapshot ? formatGeneratedAt(snapshot.generatedAt) : null}
-      />
-      </div>
-
-      {state.phase === 'error' ? (
-        <div className="dashboard-alert" role="alert">
-          <p>{state.message}</p>
-          <button type="button" className="dashboard-alert__retry" onClick={() => void reload()}>
-            Tentar novamente
-          </button>
+        <div data-region="operating-header">
+          <DashboardWorkbenchHeader
+            {...headerProps}
+            unitLabel={unitLabel}
+            periodLabel={periodLabel}
+            activeFilters={activeFilters}
+            onClearFilters={
+              activeFilters.length > 0
+                ? () => setFilters({ unitId: '', from: '', to: '' })
+                : undefined
+            }
+            generatedAt={snapshot?.generatedAt ?? null}
+            generatedAtFormatted={snapshot ? formatGeneratedAt(snapshot.generatedAt) : null}
+          />
         </div>
-      ) : null}
 
-      {snapshot ? (
-        <div
-          className={cn('dashboard-cc', selected && 'dashboard-cc--context')}
-          role="group"
-          aria-label="Central operacional"
-          data-region="worklist-master"
-        >
-          {/*
+        {state.phase === 'error' ? (
+          <div className="dashboard-alert" role="alert">
+            <p>{state.message}</p>
+            <button type="button" className="dashboard-alert__retry" onClick={() => void reload()}>
+              Tentar novamente
+            </button>
+          </div>
+        ) : null}
+
+        {snapshot ? (
+          <div
+            className={cn('dashboard-cc', selected && 'dashboard-cc--context')}
+            role="group"
+            aria-label="Central operacional"
+            data-layout="operations-control-center"
+            data-region="worklist-master"
+          >
+            {/*
             ZONA DE TRABALHO — a SILHUETA DA PRIMEIRA DOBRA.
 
             ─────────────────────────────────────────────────────────────────────────────────────
@@ -540,141 +544,250 @@ export function OperationalDashboardPage() {
             trabalho, nao o substitui. Trocar a ordem sem remover nada e o que faz "situacao +
             trabalho + decisao + processo + contexto" caberem na primeira dobra sem esconder leitura.
           */}
-          <div className="dashboard-cc__work">
-            {/*
-              1. FAIXA DE SITUACAO — indicadores ACIONAVEIS, uma linha horizontal unica.
-              Numero sem drill nao entra: cada celula abre a lista que a produziu.
-            */}
-            <WorkbenchKpiStrip kpis={workbenchKpis} />
+            <section
+              className="dashboard-situation-strip"
+              aria-label="Situação operacional"
+              data-layout="situation-strip"
+              data-region="situation-strip"
+            >
+              <WorkbenchKpiStrip kpis={workbenchKpis} />
+            </section>
 
-            {/*
-              2. A FILA E O ELEMENTO DOMINANTE DA TELA — ela vem ANTES de qualquer analitico.
-            */}
-            <WorkQueue
-              phase={inboxPhase}
-              items={visibleItems}
-              page={inbox}
-              total={queueTotal}
-              view={view}
-              domainLabel={domainLabel}
-              search={queueSearch}
-              selectedId={selected?.id ?? null}
-              onSelect={setSelected}
-              onOpenRoute={onOpenRoute}
-              onNavigateOffset={(nextOffset) =>
-                updateQueueParam('offset', nextOffset > 0 ? String(nextOffset) : null)
-              }
-              onClearSearch={() => updateQueueParam('q', null)}
-              onClearRecorte={() => updateOperationalRecorte('domain', null)}
-            />
-
-            {/*
-              3. VIEWS + TOOLBAR DA FILA.
+            <div className="dashboard-cc__work">
+              <div className="dashboard-cc__workspace" data-layout="main-workspace">
+                <section
+                  className="dashboard-cc__priority"
+                  aria-label="Fila prioritária"
+                  data-layout="priority-work-area"
+                >
+                  {/*
+              VIEWS + TOOLBAR DA FILA — antes da grade, dentro da própria superfície de trabalho.
               As views sao EXATAMENTE os recortes que o servidor executa (`kind`, `overdue`); a
               contagem por view vem de `byDomain`/`total` publicados, nunca de um calculo local.
 
-              A barra fica LOGO ABAIXO da fila: e ela que refina o conjunto que o operador acabou de
-              ler, e por isso pertence ao mesmo bloco de trabalho — separada dele por uma superficie
-              inteira de analitico, ela deixava de ser encontrada.
+              O recorte e a busca ficam imediatamente antes da fila que controlam.
             */}
-            <div className="dashboard-queuebar">
-              <div className="dashboard-views" role="group" aria-label="Views da fila">
-                {QUEUE_VIEWS.map((candidate) => (
-                  <button
-                    key={candidate.id}
-                    type="button"
-                    aria-pressed={view === candidate.id}
-                    className={cn(
-                      'dashboard-views__tab',
-                      view === candidate.id && 'dashboard-views__tab--on',
-                    )}
-                    onClick={() =>
-                      updateQueueParam('view', candidate.id === 'all' ? null : candidate.id)
-                    }
-                  >
-                    {candidate.label}
-                  </button>
-                ))}
-              </div>
+                  <div className="dashboard-queuebar" data-layout="queue-toolbar">
+                    <div className="dashboard-views" role="group" aria-label="Views da fila">
+                      {QUEUE_VIEWS.map((candidate) => (
+                        <button
+                          key={candidate.id}
+                          type="button"
+                          aria-pressed={view === candidate.id}
+                          className={cn(
+                            'dashboard-views__tab',
+                            view === candidate.id && 'dashboard-views__tab--on',
+                          )}
+                          onClick={() =>
+                            updateQueueParam('view', candidate.id === 'all' ? null : candidate.id)
+                          }
+                        >
+                          {candidate.label}
+                        </button>
+                      ))}
+                    </div>
 
-              <div className="dashboard-queuebar__tools">
-                <label className="dashboard-queuebar__search">
-                  <Search className="dashboard-queuebar__search-icon" strokeWidth={2.2} aria-hidden />
-                  <span className="cisne-sr-only">Buscar nesta página da fila</span>
-                  <input
-                    type="search"
-                    value={queueSearch}
-                    onChange={(event) => updateQueueParam('q', event.target.value || null)}
-                    placeholder="Buscar nesta página: referência, cliente, motivo…"
-                  />
-                </label>
+                    <div className="dashboard-queuebar__tools">
+                      <label className="dashboard-queuebar__search">
+                        <Search
+                          className="dashboard-queuebar__search-icon"
+                          strokeWidth={2.2}
+                          aria-hidden
+                        />
+                        <span className="cisne-sr-only">Buscar nesta página da fila</span>
+                        <input
+                          type="search"
+                          value={queueSearch}
+                          onChange={(event) => updateQueueParam('q', event.target.value || null)}
+                          placeholder="Buscar nesta página: referência, cliente, motivo…"
+                        />
+                      </label>
 
-                <span className="dashboard-queuebar__filter">
-                  <SlidersHorizontal className="dashboard-queuebar__filter-icon" strokeWidth={2.4} aria-hidden />
-                  {domainLabel}
-                </span>
+                      <span className="dashboard-queuebar__filter">
+                        <SlidersHorizontal
+                          className="dashboard-queuebar__filter-icon"
+                          strokeWidth={2.4}
+                          aria-hidden
+                        />
+                        {domainLabel}
+                      </span>
 
-                {/*
+                      {/*
                   "SOMENTE VENCIDOS" COMO TOGGLE DE FILTRO REAL — o read model executa `overdue`
                   no servidor, entao o controle tem efeito verdadeiro.
                 */}
-                <button
-                  type="button"
-                  className={cn(
-                    'dashboard-queuebar__button',
-                    overdueOnly && 'dashboard-queuebar__button--active',
+                      <button
+                        type="button"
+                        className={cn(
+                          'dashboard-queuebar__button',
+                          overdueOnly && 'dashboard-queuebar__button--active',
+                        )}
+                        aria-pressed={overdueOnly}
+                        onClick={() =>
+                          updateOperationalRecorte('overdue', overdueOnly ? null : 'true')
+                        }
+                      >
+                        <AlertTriangle
+                          className="dashboard-queuebar__button-icon"
+                          strokeWidth={2.4}
+                          aria-hidden
+                        />
+                        Atrasados
+                      </button>
+
+                      <button
+                        type="button"
+                        className="dashboard-queuebar__button"
+                        onClick={() => void reload()}
+                        disabled={isRefreshing}
+                      >
+                        <RefreshCw
+                          className="dashboard-queuebar__button-icon"
+                          strokeWidth={2.4}
+                          aria-hidden
+                        />
+                        Atualizar
+                      </button>
+
+                      <Link
+                        className="dashboard-queuebar__button dashboard-queuebar__button--primary"
+                        to="/app/work-inbox"
+                      >
+                        Abrir fila
+                        <ArrowUpRight
+                          className="dashboard-queuebar__button-icon"
+                          strokeWidth={2.4}
+                          aria-hidden
+                        />
+                      </Link>
+                    </div>
+                  </div>
+
+                  <WorkQueue
+                    phase={inboxPhase}
+                    items={visibleItems}
+                    page={inbox}
+                    total={queueTotal}
+                    view={view}
+                    domainLabel={domainLabel}
+                    search={queueSearch}
+                    selectedId={selected?.id ?? null}
+                    onSelect={setSelected}
+                    onOpenRoute={onOpenRoute}
+                    onNavigateOffset={(nextOffset) =>
+                      updateQueueParam('offset', nextOffset > 0 ? String(nextOffset) : null)
+                    }
+                    onClearSearch={() => updateQueueParam('q', null)}
+                    onClearRecorte={() => updateOperationalRecorte('domain', null)}
+                  />
+
+                  <SituationGaps
+                    inboxPhase={inboxPhase}
+                    unavailableDomains={inbox?.unavailableDomains ?? []}
+                    errorMessage={
+                      inboxPhase === 'error'
+                        ? 'Não foi possível falar com o servidor para montar a fila de trabalho.'
+                        : null
+                    }
+                  />
+
+                  {incompleteNotice && inboxPhase === 'ready' ? (
+                    <p className="dashboard-queue__notice" role="status">
+                      {incompleteNotice}
+                    </p>
+                  ) : null}
+                </section>
+
+                {/*
+                RAIL OPERACIONAL CONTÍNUO: acompanha somente a superfície da fila e preserva o
+                recorte enquanto o operador troca a seleção.
+              */}
+                <aside
+                  className="dashboard-cc__context"
+                  data-layout="operational-context"
+                  aria-label={
+                    selected
+                      ? 'Contexto da entidade selecionada'
+                      : 'Contexto operacional do recorte'
+                  }
+                >
+                  {selected ? (
+                    <ContextDrawer
+                      open
+                      variant="inline"
+                      className="dashboard-context-drawer"
+                      title="Contexto do trabalho"
+                      onClose={() => setSelected(null)}
+                      preview={{
+                        identifier: selected.businessReference,
+                        subtitle: selected.title,
+                        status: (
+                          <StatusBadge
+                            label={overdueLabel(selected.dueAt) ?? selected.status}
+                            tone={daysOverdue(selected.dueAt) !== null ? 'error' : 'info'}
+                          />
+                        ),
+                        facts: [
+                          { label: 'Cliente / contexto', value: selected.contextLabel || '—' },
+                          { label: 'Domínio', value: WORK_DOMAIN_LABELS[selected.domain] },
+                          { label: 'Natureza', value: WORK_KIND_LABELS[selected.kind] },
+                          { label: 'Situação', value: selected.status },
+                          { label: 'Motivo', value: selected.reason },
+                          { label: 'Ocorrido em', value: formatMoment(selected.occurredAt) },
+                          { label: 'Vencimento', value: formatMoment(selected.dueAt) },
+                          {
+                            label: 'Prazo',
+                            value: overdueLabel(selected.dueAt) ?? 'Sem atraso',
+                            emphasis: daysOverdue(selected.dueAt) !== null,
+                          },
+                        ],
+                        nextAction: {
+                          label: selected.actionLabel,
+                          onClick: () => {
+                            void navigate(selected.targetRoute);
+                          },
+                          kind: 'primary',
+                        },
+                        detailHref: selected.targetRoute,
+                        detailLabel: 'Abrir na tela de origem',
+                      }}
+                    />
+                  ) : (
+                    <OperationalContextRail
+                      unitLabel={unitLabel}
+                      domainLabel={domainLabel}
+                      periodLabel={periodLabel}
+                      generatedAtFormatted={
+                        snapshot ? formatGeneratedAt(snapshot.generatedAt) : null
+                      }
+                      queueStateLabel={
+                        inboxPhase === 'ready'
+                          ? `${queueTotal ?? 0} ${plural(queueTotal ?? 0, 'item', 'itens')} na fila`
+                          : inboxPhase === 'loading'
+                            ? 'Leitura em andamento'
+                            : 'Fila não publicada nesta leitura'
+                      }
+                      pageCount={inbox?.items.length ?? 0}
+                      situationLabel={
+                        situation
+                          ? situationBadgeLabel(situation)
+                          : 'Situação não avaliada neste recorte'
+                      }
+                    />
                   )}
-                  aria-pressed={overdueOnly}
-                  onClick={() => updateOperationalRecorte('overdue', overdueOnly ? null : 'true')}
-                >
-                  <AlertTriangle className="dashboard-queuebar__button-icon" strokeWidth={2.4} aria-hidden />
-                  Atrasados
-                </button>
-
-                <button
-                  type="button"
-                  className="dashboard-queuebar__button"
-                  onClick={() => void reload()}
-                  disabled={isRefreshing}
-                >
-                  <RefreshCw className="dashboard-queuebar__button-icon" strokeWidth={2.4} aria-hidden />
-                  Atualizar
-                </button>
-
-                <Link
-                  className="dashboard-queuebar__button dashboard-queuebar__button--primary"
-                  to="/app/work-inbox"
-                >
-                  Abrir fila
-                  <ArrowUpRight className="dashboard-queuebar__button-icon" strokeWidth={2.4} aria-hidden />
-                </Link>
+                </aside>
               </div>
-            </div>
 
-            <SituationGaps
-              inboxPhase={inboxPhase}
-              unavailableDomains={inbox?.unavailableDomains ?? []}
-              errorMessage={
-                inboxPhase === 'error'
-                  ? 'Não foi possível falar com o servidor para montar a fila de trabalho.'
-                  : null
-              }
-            />
-
-            {incompleteNotice && inboxPhase === 'ready' ? (
-              <p className="dashboard-queue__notice" role="status">
-                {incompleteNotice}
-              </p>
-            ) : null}
-
-            {/*
+              {/*
               4. FLUXO OPERACIONAL — uma linha de processo (estagios conectados), nao cards.
               Fica DEPOIS do trabalho: ele situa a fila no processo, e situar so faz sentido depois
               de o operador ter visto o que esta parado.
             */}
-            <BusinessChainFlow stages={flowStages} domainLabel={domainLabel} />
+              <div data-layout="compact-process-flow">
+                <BusinessChainFlow stages={flowStages} domainLabel={domainLabel} />
+              </div>
 
-            {/*
+              {/*
               5. ANALITICO — DISTRIBUICAO | CARTEIRA | EXCECOES.
 
               As tres superficies sao FIXAS na grade (operacao | carteira | excecoes); o que varia e o
@@ -685,145 +798,60 @@ export function OperationalDashboardPage() {
               Elas descem para DEPOIS da fila de proposito: sao leitura de RECORTE (onde o trabalho
               esta), e a fila e o trabalho. Em cima, empurravam a bancada para fora da primeira dobra.
             */}
-            <section className="dashboard-analytics" aria-label="Análise operacional">
-              <OperationDistribution
-                snapshot={snapshot}
-                available={showOperationDistribution}
-              />
+              <section
+                className="dashboard-analytics"
+                aria-label="Análise operacional"
+                data-layout="secondary-operational-insights"
+              >
+                <OperationDistribution snapshot={snapshot} available={showOperationDistribution} />
 
-              <AgingDistribution
-                aging={snapshot.charts.financialAging}
-                available={showAging}
-              />
+                <AgingDistribution aging={snapshot.charts.financialAging} available={showAging} />
 
-              <ExceptionSurface
-                items={attentionItems}
-                notEvaluated={scope?.notEvaluated ?? []}
-              />
-            </section>
+                <ExceptionSurface items={attentionItems} notEvaluated={scope?.notEvaluated ?? []} />
+              </section>
 
-            {/*
+              {/*
               6. RESUMO EXECUTIVO DO PERIODO — leitura de MAGNITUDE (produtividade, taxas, volume).
               Ultimo bloco de proposito: e o dado mais distante da decisao imediata.
             */}
-            {productivitySection ? (
-              <section
-                className="dashboard-summary"
-                aria-label="Saúde da empresa no período"
-                {...semanticSectionAttrs([
-                  'productivity.completed_count',
-                  'productivity.on_time_rate',
-                  'productivity.avg_cycle_hours',
-                  'productivity.rework_rate',
-                ])}
-              >
-                <MetricStrip
-                  kpis={productivitySection.kpis}
-                  volume={productivitySection.volume}
-                  excludeIds={workbenchKpiIds}
-                />
-              </section>
-            ) : null}
-          </div>
+              {productivitySection ? (
+                <section
+                  className="dashboard-summary"
+                  aria-label="Saúde da empresa no período"
+                  {...semanticSectionAttrs([
+                    'productivity.completed_count',
+                    'productivity.on_time_rate',
+                    'productivity.avg_cycle_hours',
+                    'productivity.rework_rate',
+                  ])}
+                >
+                  <MetricStrip
+                    kpis={productivitySection.kpis}
+                    volume={productivitySection.volume}
+                    excludeIds={workbenchKpiIds}
+                  />
+                </section>
+              ) : null}
+            </div>
 
-          {/*
-            COLUNA DE CONTEXTO — PERSISTENTE.
-
-            Ela NAO some quando nao ha selecao. Sem selecao ela mostra o CONTEXTO OPERACIONAL do
-            recorte (escopo, dominio, periodo, estado da fila, situacao, atualizacao, processo e
-            atalhos reais); com selecao, o MESMO rail se transforma no contexto da entidade.
-
-            Por que persistente: uma terceira zona que aparece e desaparece faz a tela "pular" e
-            deixa a direita vazia na maior parte do tempo — que era exatamente o oceano branco
-            apontado na reprovacao. Contexto do recorte e informacao REAL que a tela ja possui; nao
-            e placeholder.
-          */}
-          <aside
-            className="dashboard-cc__context"
-            aria-label={
-              selected ? 'Contexto da entidade selecionada' : 'Contexto operacional do recorte'
-            }
-          >
-            {selected ? (
-              <ContextDrawer
-                open
-                variant="inline"
-                className="dashboard-context-drawer"
-                title="Contexto do trabalho"
-                onClose={() => setSelected(null)}
-                preview={{
-                  identifier: selected.businessReference,
-                  subtitle: selected.title,
-                  status: (
-                    <StatusBadge
-                      label={overdueLabel(selected.dueAt) ?? selected.status}
-                      tone={daysOverdue(selected.dueAt) !== null ? 'error' : 'info'}
-                    />
-                  ),
-                  facts: [
-                    { label: 'Cliente / contexto', value: selected.contextLabel || '—' },
-                    { label: 'Domínio', value: WORK_DOMAIN_LABELS[selected.domain] },
-                    { label: 'Natureza', value: WORK_KIND_LABELS[selected.kind] },
-                    { label: 'Situação', value: selected.status },
-                    { label: 'Motivo', value: selected.reason },
-                    { label: 'Ocorrido em', value: formatMoment(selected.occurredAt) },
-                    { label: 'Vencimento', value: formatMoment(selected.dueAt) },
-                    {
-                      label: 'Prazo',
-                      value: overdueLabel(selected.dueAt) ?? 'Sem atraso',
-                      emphasis: daysOverdue(selected.dueAt) !== null,
-                    },
-                  ],
-                  nextAction: {
-                    label: selected.actionLabel,
-                    onClick: () => {
-                      void navigate(selected.targetRoute);
-                    },
-                    kind: 'primary',
-                  },
-                  detailHref: selected.targetRoute,
-                  detailLabel: 'Abrir na tela de origem',
-                }}
-              />
-            ) : (
-              <OperationalContextRail
-                unitLabel={unitLabel}
-                domainLabel={domainLabel}
-                periodLabel={periodLabel}
-                generatedAtFormatted={
-                  snapshot ? formatGeneratedAt(snapshot.generatedAt) : null
-                }
-                queueStateLabel={
-                  inboxPhase === 'ready'
-                    ? `${queueTotal ?? 0} ${plural(queueTotal ?? 0, 'item', 'itens')} na fila`
-                    : inboxPhase === 'loading'
-                      ? 'Leitura em andamento'
-                      : 'Fila não publicada nesta leitura'
-                }
-                pageCount={inbox?.items.length ?? 0}
-                situationLabel={
-                  situation
-                    ? situationBadgeLabel(situation)
-                    : 'Situação não avaliada neste recorte'
-                }
-              />
-            )}
-          </aside>
-
-          {/*
+            {/*
             RODAPE OPERACIONAL — leitura secundaria (rotas alternativas de modulo), fora da area de
             trabalho para nao competir com a fila.
           */}
-          <nav className="dashboard-shortcuts-bar" aria-label="Atalhos do workspace">
-            <span className="dashboard-shortcuts-bar__label">{WORKSPACE_SHORTCUTS_LABEL}</span>
-            {OPERATIONAL_SHORTCUTS.map((shortcut) => (
-              <Link key={shortcut.id} className="dashboard-shortcuts-bar__link" to={shortcut.href}>
-                {shortcut.label}
-              </Link>
-            ))}
-          </nav>
-        </div>
-      ) : null}
+            <nav className="dashboard-shortcuts-bar" aria-label="Atalhos do workspace">
+              <span className="dashboard-shortcuts-bar__label">{WORKSPACE_SHORTCUTS_LABEL}</span>
+              {OPERATIONAL_SHORTCUTS.map((shortcut) => (
+                <Link
+                  key={shortcut.id}
+                  className="dashboard-shortcuts-bar__link"
+                  to={shortcut.href}
+                >
+                  {shortcut.label}
+                </Link>
+              ))}
+            </nav>
+          </div>
+        ) : null}
       </div>
     </ModulePage>
   );
@@ -990,6 +1018,7 @@ function WorkQueue({
         items.length > 0 ? 'dashboard-queue--filled' : 'dashboard-queue--empty',
       )}
       aria-label="Fila de trabalho do recorte"
+      data-layout="priority-work-queue"
     >
       <header className="dashboard-queue__head">
         <h2 className="dashboard-queue__title">Fila de trabalho</h2>
@@ -1000,7 +1029,9 @@ function WorkQueue({
         ) : null}
         <span className="dashboard-queue__scope">
           {domainLabel}
-          {search ? ` · busca local em ${items.length} de ${page?.items.length ?? items.length}` : ''}
+          {search
+            ? ` · busca local em ${items.length} de ${page?.items.length ?? items.length}`
+            : ''}
         </span>
         <span className="dashboard-queue__spacer" />
         {typeof total === 'number' && total > items.length ? (
@@ -1013,7 +1044,11 @@ function WorkQueue({
 
       {phase === 'loading' ? (
         <div className="dashboard-queue__state" role="status" aria-busy="true">
-          <Loader2 className="dashboard-queue__state-icon dashboard-queue__state-icon--spin" strokeWidth={2.2} aria-hidden />
+          <Loader2
+            className="dashboard-queue__state-icon dashboard-queue__state-icon--spin"
+            strokeWidth={2.2}
+            aria-hidden
+          />
           <p>Lendo o trabalho do recorte no servidor…</p>
         </div>
       ) : phase === 'denied' ? (
@@ -1057,12 +1092,20 @@ function WorkQueue({
             </p>
             <span className="dashboard-queue__empty-spacer" />
             {search ? (
-              <button type="button" className="dashboard-queue__empty-action" onClick={onClearSearch}>
+              <button
+                type="button"
+                className="dashboard-queue__empty-action"
+                onClick={onClearSearch}
+              >
                 Limpar busca
               </button>
             ) : null}
             {!search && domainLabel !== 'Tudo' ? (
-              <button type="button" className="dashboard-queue__empty-action" onClick={onClearRecorte}>
+              <button
+                type="button"
+                className="dashboard-queue__empty-action"
+                onClick={onClearRecorte}
+              >
                 Ver todos os domínios
               </button>
             ) : null}
@@ -1076,7 +1119,11 @@ function WorkQueue({
       ) : (
         <>
           <div className="dashboard-queue__table" role="table" aria-label="Trabalho do recorte">
-            <div className="dashboard-queue__row dashboard-queue__row--head" role="row" style={{ gridTemplateColumns: QUEUE_COLUMNS }}>
+            <div
+              className="dashboard-queue__row dashboard-queue__row--head"
+              role="row"
+              style={{ gridTemplateColumns: QUEUE_COLUMNS }}
+            >
               <span role="columnheader">Prioridade</span>
               <span role="columnheader">Documento</span>
               <span role="columnheader">Contexto</span>
@@ -1114,7 +1161,9 @@ function WorkQueue({
                         )}
                         aria-hidden
                       />
-                      {late !== null ? `${late} ${late === 1 ? 'dia' : 'dias'}` : WORK_KIND_LABELS[item.kind]}
+                      {late !== null
+                        ? `${late} ${late === 1 ? 'dia' : 'dias'}`
+                        : WORK_KIND_LABELS[item.kind]}
                     </span>
 
                     <span className="dashboard-queue__doc" role="cell">
@@ -1129,7 +1178,11 @@ function WorkQueue({
                       <span className="dashboard-queue__title">{item.title}</span>
                     </span>
 
-                    <span className="dashboard-queue__context" role="cell" title={item.contextLabel}>
+                    <span
+                      className="dashboard-queue__context"
+                      role="cell"
+                      title={item.contextLabel}
+                    >
                       {item.contextLabel || '—'}
                     </span>
 
@@ -1479,42 +1532,49 @@ function ExceptionSurface({
         declarando ausencia — nunca um bloco verde de 100px celebrando uma nao-noticia.
       */}
       {ordered.length === 0 ? (
-        <p className="dashboard-analytics__governed dashboard-analytics__governed--positive" role="status">
-          <span className="dashboard-analytics__governed-mark" aria-hidden>✓</span>
+        <p
+          className="dashboard-analytics__governed dashboard-analytics__governed--positive"
+          role="status"
+        >
+          <span className="dashboard-analytics__governed-mark" aria-hidden>
+            ✓
+          </span>
           Nenhuma exceção crítica publicada.
         </p>
       ) : (
         <ul className="dashboard-exceptions__list">
-        {ordered.map((item) => {
-          const href = item.href;
-          const body = (
-            <>
-              <span className="dashboard-exceptions__icon" aria-hidden>
-                {item.severity === 'critical' ? '▲' : item.severity === 'warning' ? '◆' : '●'}
-              </span>
-              <span className="dashboard-exceptions__count tabular-nums">{item.count}</span>
-              <span className="dashboard-exceptions__label">{item.label}</span>
-              <span className="dashboard-exceptions__detail">{item.detail ?? item.ariaLabel}</span>
-            </>
-          );
-          return (
-            <li key={item.id} className="dashboard-exceptions__item">
-              {href ? (
-                <Link
-                  className={cn('dashboard-exceptions__row', exceptionTone(item.severity))}
-                  to={href}
-                  aria-label={item.ariaLabel}
-                >
-                  {body}
-                </Link>
-              ) : (
-                <div className={cn('dashboard-exceptions__row', exceptionTone(item.severity))}>
-                  {body}
-                </div>
-              )}
-            </li>
-          );
-        })}
+          {ordered.map((item) => {
+            const href = item.href;
+            const body = (
+              <>
+                <span className="dashboard-exceptions__icon" aria-hidden>
+                  {item.severity === 'critical' ? '▲' : item.severity === 'warning' ? '◆' : '●'}
+                </span>
+                <span className="dashboard-exceptions__count tabular-nums">{item.count}</span>
+                <span className="dashboard-exceptions__label">{item.label}</span>
+                <span className="dashboard-exceptions__detail">
+                  {item.detail ?? item.ariaLabel}
+                </span>
+              </>
+            );
+            return (
+              <li key={item.id} className="dashboard-exceptions__item">
+                {href ? (
+                  <Link
+                    className={cn('dashboard-exceptions__row', exceptionTone(item.severity))}
+                    to={href}
+                    aria-label={item.ariaLabel}
+                  >
+                    {body}
+                  </Link>
+                ) : (
+                  <div className={cn('dashboard-exceptions__row', exceptionTone(item.severity))}>
+                    {body}
+                  </div>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
 

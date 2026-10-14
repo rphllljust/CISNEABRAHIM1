@@ -93,16 +93,11 @@ export function AppShellLayout() {
       </a>
 
       {/*
-        SIDEBAR 220px — a largura da especificacao do app shell.
-
-        Eram 212px. A navegacao ganha 8px e o ITEM de menu passa a ter 36px de altura (era 30px):
-        a faixa 34-40px e a densidade de sidebar do sistema, e 30px deixava o menu com aparencia de
-        "lista de links" em vez de destinos de trabalho. A largura e NAVEGACAO, nao superficie de
-        trabalho: ela nao cresce alem do que o rotulo mais longo precisa — quem opera a grade densa
-        e a area de trabalho.
+        SIDEBAR 216px — a largura da especificação do app shell. A largura é navegação; a área
+        principal preserva a largura restante para listas e contexto empresarial.
       */}
       <aside
-        className="shell__sidebar fixed inset-y-0 z-30 hidden w-[13.75rem] flex-col border-r border-[var(--color-shell-border)] bg-[var(--color-shell-surface)] lg:flex"
+        className="shell__sidebar fixed inset-y-0 z-30 hidden w-[13.5rem] flex-col border-r border-[var(--color-shell-border)] bg-[var(--color-shell-surface)] lg:flex"
         aria-label="Barra lateral"
       >
         {/*
@@ -155,7 +150,7 @@ export function AppShellLayout() {
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col lg:pl-[13.75rem]">
+      <div className="flex min-w-0 flex-1 flex-col lg:pl-[13.5rem]">
         <ShellTopBar
           onMenuToggle={toggleMobileNav}
           menuExpanded={mobileNavOpen && !isDesktop}

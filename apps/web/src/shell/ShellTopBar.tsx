@@ -35,10 +35,10 @@ export function ShellTopBar({
 
   return (
     /*
-      TOPBAR — BRANCA, 50px, COM REGUA DE 1px.
+      TOPBAR — BRANCA, 52px, COM REGUA DE 1px.
 
       A topbar de um ERP desktop e CROME, nao conteudo: cada 8px que ela retem sao 8px que a grade
-      densa perde na primeira dobra. 50px (`--shell-chrome-height`) esta dentro da faixa 48-52px do
+      densa perde na primeira dobra. 52px (`--shell-chrome-height`) fecha a faixa prevista para o
       app shell corporativo e acomoda busca, sino, idioma, comando e menu de conta com folga de
       ponteiro.
 
@@ -61,7 +61,11 @@ export function ShellTopBar({
         aria-controls="shell-mobile-drawer"
         onClick={onMenuToggle}
       >
-        {menuExpanded ? <X className="size-5" aria-hidden /> : <Menu className="size-5" aria-hidden />}
+        {menuExpanded ? (
+          <X className="size-5" aria-hidden />
+        ) : (
+          <Menu className="size-5" aria-hidden />
+        )}
         <span className="sr-only">{menuExpanded ? 'Fechar menu' : 'Abrir menu'}</span>
       </button>
 
@@ -143,7 +147,10 @@ export function ShellTopBar({
                   Cisne Rondônia
                 </span>
               </span>
-              <ChevronDown className="hidden size-3.5 text-[var(--color-text-muted)] sm:block" aria-hidden />
+              <ChevronDown
+                className="hidden size-3.5 text-[var(--color-text-muted)] sm:block"
+                aria-hidden
+              />
             </span>
           }
           items={[

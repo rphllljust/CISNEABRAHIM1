@@ -93,10 +93,100 @@
 .dashboard-cc {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
   gap: var(--spacing-2);
   min-height: 0;
   padding: var(--spacing-3) 0 0;
+}
+
+.dashboard-situation-strip {
+  min-width: 0;
+  margin-top: var(--spacing-2);
+  overflow: hidden;
+  border: 1px solid var(--dashboard-line-strong);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.dashboard-situation-strip .dashboard-kpi-strip__list {
+  min-height: 3.5rem;
+  border: 0;
+  border-radius: 0;
+}
+
+.dashboard-situation-strip .dashboard-kpi-cell {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  align-content: center;
+  column-gap: 0.75rem;
+  min-height: 3.5rem;
+  height: auto;
+  padding: 0.45rem 0.75rem;
+  border: 0;
+  border-radius: 0;
+}
+
+.dashboard-situation-strip .dashboard-kpi-cell__glyph {
+  display: none;
+}
+
+.dashboard-situation-strip .dashboard-kpi-cell__label {
+  grid-column: 1;
+  grid-row: 1;
+  font-size: 0.625rem;
+  line-height: 1rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dashboard-situation-strip .dashboard-kpi-cell__value {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  font-size: 1.25rem;
+  line-height: 1.5rem;
+}
+
+.dashboard-situation-strip .dashboard-kpi-cell__context {
+  grid-column: 1;
+  grid-row: 2;
+  font-size: 0.6875rem;
+}
+
+.dashboard-situation-strip .dashboard-kpi-cell__drill {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: end;
+  font-size: 0.625rem;
+}
+
+.dashboard-cc__workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  min-width: 0;
+  min-height: 0;
+}
+
+.dashboard-cc__priority {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--dashboard-line-strong);
+  border-radius: 6px;
+  background: var(--dashboard-surface);
+}
+
+.dashboard-cc__priority > .dashboard-queuebar {
+  border: 0;
+  border-bottom: 1px solid var(--dashboard-line-strong);
+  border-radius: 0;
+}
+
+.dashboard-cc__priority > .dashboard-queue {
+  flex: 0 1 auto;
+  border: 0;
+  border-radius: 0;
 }
 
 .dashboard-cc__work {
@@ -122,15 +212,24 @@
 }
 
 @media (min-width: 1280px) {
-  .dashboard-cc {
-    grid-template-columns: minmax(0, 1fr) 22.5rem;
+  .dashboard-cc__workspace {
+    grid-template-columns: minmax(0, 1fr) 340px;
     align-items: stretch;
   }
 
   .dashboard-cc__context {
     display: block;
     border-left: 1px solid var(--dashboard-line-strong);
-    padding-left: var(--spacing-3);
+    padding-left: 0.75rem;
+    background: #f8fafc;
+  }
+
+  .dashboard-cc__context .dashboard-rail,
+  .dashboard-cc__context .dashboard-context-drawer {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
   }
 }
 
@@ -988,7 +1087,6 @@ a.dashboard-kpi-list__cell:focus-visible {
   cursor: pointer;
 }
 
-
 /* ============================================================
    2. CABECALHOS DE SECAO — sem texto explicativo sobrando
    ============================================================ */
@@ -1105,7 +1203,6 @@ a.dashboard-kpi-list__cell:focus-visible {
   opacity: 0.78;
 }
 
-
 .dashboard-decision__list {
   margin: 0;
   padding: 0;
@@ -1135,7 +1232,8 @@ a.dashboard-decision__row:hover {
   background: var(--color-slate-50);
 }
 
-.dashboard-decision__row-wrap:has(.dashboard-decision__severity--critical) .dashboard-decision__row {
+.dashboard-decision__row-wrap:has(.dashboard-decision__severity--critical)
+  .dashboard-decision__row {
   border-left-color: var(--color-red-600);
 }
 
@@ -2504,7 +2602,6 @@ a.dashboard-dense__cell:focus-visible {
   gap: var(--spacing-3);
 }
 
-
 .dashboard-section-head {
   min-height: 2rem;
   align-items: center;
@@ -3363,7 +3460,6 @@ a.dashboard-kpi-cell:hover .dashboard-kpi-cell__drill {
   font-weight: 400;
   color: var(--color-slate-400);
 }
-
 
 .sr-only {
   position: absolute;

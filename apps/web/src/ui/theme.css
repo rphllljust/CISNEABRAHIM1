@@ -570,7 +570,7 @@
   --panel-head-height: 2.5rem; /*   40px — cabecalho de painel/regiao */
   --tab-height: 2.25rem; /*         36px */
   --nav-row-height: 2.25rem; /*     36px */
-  --shell-chrome-height: 3.125rem; /* 50px — topbar (contrato) */
+  --shell-chrome-height: 3.25rem; /* 52px — topbar (contrato visual) */
   --shell-brand-height: 3rem; /*    48px */
   --header-height: 3.25rem;
   --toolbar-height: 2.5rem;
@@ -584,7 +584,9 @@
     font-family: var(--font-sans);
     line-height: 1.5;
     font-weight: 400;
-    font-feature-settings: 'tnum' 1, 'cv11' 1;
+    font-feature-settings:
+      'tnum' 1,
+      'cv11' 1;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -1170,10 +1172,12 @@
  * mediu as três páginas e não viu diferença NENHUMA. CSS sem layer tem prioridade sobre CSS em
  * layer; é aqui que a governança precisa morar para valer sobre as utilities.
  */
-#main-content [class*='shadow-']:not([data-elevated]):not([role='dialog']):not([role='menu']):not(
+#main-content
+  [class*='shadow-']:not([data-elevated]):not([role='dialog']):not([role='menu']):not(
     [role='listbox']
   ):not([role='tooltip']):not([aria-modal='true']),
-#main-content [class*='shadow-']:not([data-elevated]):not([role='dialog']):not([role='menu']):not(
+#main-content
+  [class*='shadow-']:not([data-elevated]):not([role='dialog']):not([role='menu']):not(
     [role='listbox']
   ):not([role='tooltip']):not([aria-modal='true'])
   * {
@@ -1185,9 +1189,12 @@
  * vocabulário de SaaS e recuam para o raio de container; pills (`rounded-full`) continuam
  * existindo porque são semânticos para estado/tag/avatar.
  */
-#main-content [class*='rounded-xl']:not([data-elevated]):not([role='dialog']):not([aria-modal='true']),
-#main-content [class*='rounded-2xl']:not([data-elevated]):not([role='dialog']):not([aria-modal='true']),
-#main-content [class*='rounded-3xl']:not([data-elevated]):not([role='dialog']):not([aria-modal='true']) {
+#main-content
+  [class*='rounded-xl']:not([data-elevated]):not([role='dialog']):not([aria-modal='true']),
+#main-content
+  [class*='rounded-2xl']:not([data-elevated]):not([role='dialog']):not([aria-modal='true']),
+#main-content
+  [class*='rounded-3xl']:not([data-elevated]):not([role='dialog']):not([aria-modal='true']) {
   border-radius: var(--radius-md);
 }
 
