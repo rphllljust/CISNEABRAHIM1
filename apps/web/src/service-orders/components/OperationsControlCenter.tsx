@@ -97,7 +97,20 @@ export function OperationsControlCenter({
   const billingVisible = downstream.billing.count > 0 || downstream.billing.status !== null;
 
   return (
-    <div className="space-y-0">
+    /*
+      MARCO ACESSÍVEL DO CENTRO DE CONTROLE.
+      
+      O contêiner era um `<div>` solto: quem navega por região (leitor de tela, salto entre
+      landmarks) não tinha como alcançar o bloco como uma unidade. O commit 3770e9ac achatou
+      a superfície e trocou o marco por uma div, sem atualizar os specs que o buscavam.
+      
+      O nome vem de um `aria-label` PRÓPRIO, não do `h2` interno: apontar `aria-labelledby`
+      para `occ-next-action-heading` duplicaria esse mesmo id no contêiner e no título,
+      que é HTML inválido e quebra a associação. O rótulo nomeia o BLOCO — que reúne
+      próximo passo, progressão, planejado x realizado, medição e faturamento — e não
+      qualquer uma das seções internas.
+    */
+    <section className="space-y-0" aria-label="Centro de controle operacional">
       <section
         className="cisne-divider py-3 first:pt-0 last:border-b-0"
         aria-labelledby="occ-next-action-heading"
@@ -293,6 +306,6 @@ export function OperationsControlCenter({
           )}
         </section>
       </div>
-    </div>
+    </section>
   );
 }

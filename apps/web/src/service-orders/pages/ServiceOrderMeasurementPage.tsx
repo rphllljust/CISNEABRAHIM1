@@ -19,6 +19,7 @@ import { MeasurementApprovalDialog } from '../components/MeasurementApprovalDial
 import { MeasurementComparisonCards } from '../components/MeasurementComparisonCards';
 import { MeasurementComparisonTable } from '../components/MeasurementComparisonTable';
 import { MeasurementSummaryPanel } from '../components/MeasurementSummaryPanel';
+import { MEASUREMENT_STATUS_LABELS } from '../components/MeasurementStatusBadge';
 import { MeasurementTimeline } from '../components/MeasurementTimeline';
 import { MeasurementVersionConflictBanner } from '../components/MeasurementVersionConflictBanner';
 import { useMeasurementCapabilities } from '../hooks/useMeasurementCapabilities';
@@ -249,6 +250,17 @@ export function ServiceOrderMeasurementPage() {
     : [];
   const totalAmount = sumMoneyLines(measurement?.items.map((item) => item.lineAmount) ?? []);
   const status = measurement?.status ?? MEASUREMENT_STATUSES.Draft;
+  /*
+   * ESTADO EM RÓTULO DE NEGÓCIO, NUNCA O ENUM.
+   *
+   * Esta linha passava `status` cru para o cabeçalho, e o operador lia `SUBMITTED` — o
+   * identificador interno do ciclo — onde deveria ler "Submetida". O enum é contrato de
+   * máquina; a tela fala a língua do negócio.
+   *
+   * Os rótulos são os MESMOS que `MeasurementStatusBadge` já publicava. Eles são reusados
+   * aqui em vez de redesenhados: duas tabelas de tradução para o mesmo enum divergiriam.
+   */
+  const statusLabel = MEASUREMENT_STATUS_LABELS[status];
   const actionsBlocked = versionConflict || submitting;
   const canCreate =
     capabilities.canCreate &&
@@ -276,7 +288,7 @@ export function ServiceOrderMeasurementPage() {
           reference={order.orderNumber}
           title={order.orderNumber}
           subtitle={order.serviceSnapshot.serviceName}
-          status={{ label: status, description: 'Estado atual da medição' }}
+          status={{ label: statusLabel, description: 'Estado atual da medição' }}
           metadata={[{ label: 'Cliente', value: readClientLabel(order) }, { label: 'Itens', value: measurement?.items.length ?? 0 }, { label: 'Ordem', value: order.orderNumber }]}
           secondaryActions={[
             { id: 'planning', label: 'Planejamento', to: `/app/service-orders/${serviceOrderId}/planning` },

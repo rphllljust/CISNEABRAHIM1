@@ -10,6 +10,29 @@ import {
 
 const measurementPath = `/app/service-orders/${MOCK_SERVICE_ORDER_ID}/measurement`;
 
+/**
+ * ESTADO DA MEDIÇÃO COMO O OPERADOR O LÊ.
+ *
+ * Os testes buscavam `document.querySelector('.measurement-status--submitted')` — a classe do
+ * `MeasurementStatusBadge`. Quando a ficha passou a exibir o estado pelo cabeçalho padrão
+ * (`EnterpriseObjectHeader`), esse nó deixou de existir e as asserções passaram a receber
+ * `null`. O teste continuava "verde" na intenção e vermelho na execução: media um componente
+ * que a tela não renderiza mais.
+ *
+ * A consulta vai pelo `StatusBadge`, que publica `aria-label="Status: <rótulo>"` — âncora
+ * estável e sem ambiguidade (a tela tem mais de uma região `banner`, então buscar pelo
+ * cabeçalho inteiro casaria vários nós). O `description` NÃO entra no aria-label: o
+ * cabeçalho o renderiza como parágrafo próprio, ao lado do badge.
+ *
+ * Isso prende DUAS coisas: que o estado apareça, e que apareça como RÓTULO DE NEGÓCIO. Se
+ * alguém voltar a passar o enum cru ao cabeçalho, este helper devolve "SUBMITTED" e o teste
+ * acusa — em vez de aceitar silenciosamente um identificador interno na tela.
+ */
+function measurementStatusText(): string {
+  const badge = screen.getByLabelText(/^Status: (rascunho|submetida|em análise|aprovada|rejeitada)$/i);
+  return badge.textContent ?? '';
+}
+
 describe('ServiceOrderMeasurementPage', () => {
   beforeEach(() => {
     resetTokenStoreForTests();
@@ -134,7 +157,7 @@ describe('ServiceOrderMeasurementPage', () => {
     await waitFor(() => {
       expect(screen.getByText(/medição submetida para análise/i)).toBeInTheDocument();
     });
-    expect(document.querySelector('.measurement-status--submitted')).toHaveTextContent('Submetida');
+    expect(measurementStatusText()).toBe('Submetida');
   });
 
   it('requires acknowledgement before approving', async () => {
@@ -166,7 +189,7 @@ describe('ServiceOrderMeasurementPage', () => {
     await waitFor(() => {
       expect(screen.getByText(/medição aprovada/i)).toBeInTheDocument();
     });
-    expect(document.querySelector('.measurement-status--approved')).toHaveTextContent('Aprovada');
+    expect(measurementStatusText()).toBe('Aprovada');
   });
 
   it('rejects a measurement with reason', async () => {
@@ -193,7 +216,7 @@ describe('ServiceOrderMeasurementPage', () => {
     await waitFor(() => {
       expect(screen.getByText(/medição rejeitada/i)).toBeInTheDocument();
     });
-    expect(document.querySelector('.measurement-status--rejected')).toHaveTextContent('Rejeitada');
+    expect(measurementStatusText()).toBe('Rejeitada');
   });
 
   it('blocks critical actions and shows stale banner on version conflict', async () => {
@@ -286,7 +309,7 @@ describe('ServiceOrderMeasurementPage', () => {
     renderServiceOrderRoutes(measurementPath);
 
     await waitFor(() => {
-      expect(document.querySelector('.measurement-status--rejected')).toHaveTextContent('Rejeitada');
+      expect(measurementStatusText()).toBe('Rejeitada');
     });
 
     const resubmitButton = screen.getByRole('button', { name: /reenviar medição/i });
@@ -296,7 +319,7 @@ describe('ServiceOrderMeasurementPage', () => {
     await waitFor(() => {
       expect(screen.getByText(/medição reenviada/i)).toBeInTheDocument();
     });
-    expect(document.querySelector('.measurement-status--draft')).toHaveTextContent('Rascunho');
+    expect(measurementStatusText()).toBe('Rascunho');
     expect(screen.getByRole('button', { name: /submeter medição/i })).toBeEnabled();
   });
 });
