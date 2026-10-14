@@ -71,10 +71,58 @@ export type KanbanLayout = {
   cardFields?: string[];
 };
 
+/**
+ * LAYOUTS POR TIPO DE VIEW.
+ *
+ * Cada `view_type` lê chaves próprias de `layout`, e a engine as valida em tempo de render
+ * (uma view que não declara `groupBy` recebe um aviso nomeado, não uma tela vazia). Manter os
+ * tipos aqui — em vez de um `Record<string, unknown>` — é o que faz o compilador acusar uma
+ * tela que monte a view com o eixo errado.
+ */
+export type PivotLayout = {
+  groupBy?: string[];
+  valueField?: string;
+  aggregateOp?: string;
+};
+
+export type TreeLayout = {
+  parentField?: string;
+  labelField?: string;
+  idField?: string;
+};
+
+export type GraphLayout = {
+  categoryField?: string;
+  valueField?: string;
+  chartType?: string;
+  aggregateOp?: string;
+  maxCategories?: number;
+};
+
+/**
+ * TIPOS DE VIEW — espelha `meta.meta_views_type_chk`, não a lista que a engine sabe desenhar.
+ *
+ * DEFEITO CORRIGIDO: esta união declarava apenas `form | list | kanban | calendar`, mas a
+ * migration 0088 ampliou o CHECK do banco para aceitar também `pivot`, `tree` e `graph` e
+ * passou a SEMEAR as três para `service-orders`. O tipo do cliente ficou para trás do banco:
+ * o servidor podia devolver um `viewType` que o compilador jurava impossível, e qualquer
+ * `switch` exaustivo escrito sobre a união estreita estaria errado por construção.
+ *
+ * O `& {}` preserva o autocompletar dos literais conhecidos sem fechar o conjunto: uma view
+ * nova registrada no banco chega tipada como `string` em vez de erro de compilação — porque
+ * acrescentar capacidade é uma escrita no metadata store, não um deploy de frontend.
+ */
+export type MetaViewType = 'form' | 'list' | 'kanban' | 'calendar' | 'pivot' | 'tree' | 'graph';
+
 export type MetaView = {
-  viewType: 'form' | 'list' | 'kanban' | 'calendar';
+  viewType: MetaViewType | (string & {});
   label: string;
-  layout: FormLayout & ListLayout & KanbanLayout;
+  layout: FormLayout &
+    ListLayout &
+    KanbanLayout &
+    PivotLayout &
+    TreeLayout &
+    GraphLayout;
   isDefault: boolean;
   /** V2 — regras de cor de linha. Mesmo bloqueio de canal das demais capacidades. */
   rowAccent?: unknown;

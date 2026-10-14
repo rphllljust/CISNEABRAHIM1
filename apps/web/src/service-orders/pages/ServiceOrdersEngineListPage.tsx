@@ -36,9 +36,10 @@ import {
   filterGroupToQuery,
   readFilterGroup,
   buildKpiMetrics,
-  RENDERABLE_VIEW_TYPES,
   filtersToSearchParams,
+  functionalViewTypes,
   listColumns,
+  nonFunctionalViews,
   paletteActionsFromSchema,
   useCommandPaletteShortcut,
   useEntitySchema,
@@ -93,12 +94,22 @@ const SERVICE_ORDER_FILTER_SPECS: AdvancedFilterFieldSpec[] = [
  * chega ao backend — conhecimento que a engine não tem como adivinhar.
  */
 /*
- * Tipos com renderizador na engine.
+ * SABER DESENHAR NÃO É O MESMO QUE CONSEGUIR ALIMENTAR.
  *
- * A lista vem do PRÓPRIO engine (`RENDERABLE_VIEW_TYPES`), não de uma constante local: era
- * exatamente a cópia local que obrigava a editar cada tela quando uma capacidade nova surgia.
+ * `RENDERABLE_VIEW_TYPES` responde "a engine tem renderizador?". A pergunta do operador é
+ * "esta aba vai mostrar alguma coisa NESTA entidade?". As duas respostas divergem e a
+ * divergência é visível: o metadata store declara para `service-orders` uma view `tree` com
+ * `{"parentField":"unit_id"}` — e `unit_id` aponta para a UNIDADE, não para outra ordem de
+ * serviço. A aba abria, pintava, respondia ao clique, e mostrava uma floresta rasa: toda
+ * linha virava raiz porque nenhum pai está na página. O agrupamento prometido não existia.
+ *
+ * Por isso a tela NÃO passa `RENDERABLE_VIEW_TYPES` ao switcher. Ela passa
+ * `functionalViewTypes(schema)`, que cruza as duas perguntas e devolve só o que esta entidade
+ * consegue alimentar de verdade — ver `supportedViewTypes` abaixo.
+ *
+ * O critério NÃO é volume de dado: entidade sem nenhuma linha mantém todas as suas views.
+ * O que se recusa é eixo inexistente, condição que nenhuma carteira cheia corrige.
  */
-const SUPPORTED_VIEW_TYPES: readonly string[] = RENDERABLE_VIEW_TYPES;
 
 /**
  * Tamanho da página.
@@ -265,6 +276,24 @@ export function ServiceOrdersEngineListPage() {
   const statusFilter = (searchParams.get('status') ?? '') as ServiceOrderStatus | '';
   const queueFilter = parseQueueFilter(searchParams.get('filter'));
   const queueOrder = parseQueueOrder(searchParams.get('order'));
+
+  /*
+   * SÓ VIEW PROVADA FUNCIONAL VIRA ABA.
+   *
+   * O switcher recebe a INTERSEÇÃO entre "a engine sabe desenhar" e "esta entidade consegue
+   * alimentar". Sem este recorte ele oferecia `tree`, que o store declara sobre `unit_id` —
+   * campo que aponta para a UNIDADE, não para outra ordem. A aba abria e mostrava uma
+   * floresta de um nível: cada linha virava raiz porque nenhum pai está na página, e a tela
+   * afirmava "a carteira não tem hierarquia" quando o que havia era declaração errada.
+   *
+   * As recusadas ficam registradas em `refusedViews`, com o motivo — não somem em silêncio.
+   * `null` enquanto o schema carrega: a lista vazia seria lida como "nenhuma view funciona".
+   */
+  const supportedViewTypes = useMemo<string[]>(
+    () => (schema ? functionalViewTypes(schema) : []),
+    [schema],
+  );
+  const refusedViews = useMemo(() => (schema ? nonFunctionalViews(schema) : []), [schema]);
 
   // A busca digitada espera antes de virar requisição: sem o atraso, cada tecla é uma ida à rede.
   useEffect(() => {
@@ -664,8 +693,25 @@ export function ServiceOrdersEngineListPage() {
             schema={schema}
             activeViewType={activeViewType}
             onChange={changeView}
-            supportedViewTypes={SUPPORTED_VIEW_TYPES}
+            supportedViewTypes={supportedViewTypes}
           />
+
+          {/*
+            VIEW RECUSADA NÃO DESAPARECE EM SILÊNCIO.
+            
+            A aba sai do switcher — oferecê-la seria abrir num painel de aviso — mas a tela
+            DIZ que ela existe no metadata store e por que não é oferecida. Sem esta linha, a
+            recusa vira uma decisão invisível: quem configurou a view no store a veria sumir
+            sem explicação, e o próximo a mexer no metadado repetiria o mesmo eixo.
+          */}
+          {refusedViews.length > 0 ? (
+            <p className="cisne-type-helper m-0" data-testid="service-orders-refused-views">
+              {refusedViews.length === 1
+                ? '1 visão declarada no metadata store não é oferecida: '
+                : `${refusedViews.length} visões declaradas no metadata store não são oferecidas: `}
+              {refusedViews.map((view) => `${view.label} (${view.reason})`).join(' ')}
+            </p>
+          ) : null}
 
           <DynamicKpiDrilldown
             metrics={kpiMetrics}

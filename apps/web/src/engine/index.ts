@@ -73,6 +73,12 @@ export {
 } from './DynamicViewHost';
 export type { DynamicViewHostProps, RenderableViewType } from './DynamicViewHost';
 export {
+  auditViewCapabilities,
+  functionalViewTypes,
+  nonFunctionalViews,
+} from './view-capability';
+export type { ViewCapabilityVerdict } from './view-capability';
+export {
   fieldLabel,
   findView,
   readBoolean,
