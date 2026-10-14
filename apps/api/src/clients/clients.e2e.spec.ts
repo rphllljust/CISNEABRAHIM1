@@ -67,18 +67,28 @@ describe('Clients E2E', () => {
    * declara um cliente distinto, como fariam clientes reais.
    */
   async function loginWithClientGrants(): Promise<{ accessToken: string; identityId: string }> {
-    const loginId = normalizeLoginIdentifier(`clients-e2e-${crypto.randomUUID()}@cisne.invalid`);
-    const passwordHash = await hashPassword(AUTH_TEST_PASSWORD);
-    const { identityId } = await insertIdentity(pool, loginId, passwordHash);
-
-    for (const action of [
+    return loginWithGrants([
       AUTHZ_ACTIONS.ClientCreate,
       AUTHZ_ACTIONS.ClientRead,
       AUTHZ_ACTIONS.ClientList,
       AUTHZ_ACTIONS.ClientUpdate,
       AUTHZ_ACTIONS.ClientDeactivate,
       AUTHZ_ACTIONS.ClientActivate,
-    ]) {
+      AUTHZ_ACTIONS.ClientContactManage,
+      AUTHZ_ACTIONS.ClientUnitManage,
+      AUTHZ_ACTIONS.ClientHierarchyManage,
+      AUTHZ_ACTIONS.ClientAuditRead,
+    ]);
+  }
+
+  async function loginWithGrants(
+    actions: string[],
+  ): Promise<{ accessToken: string; identityId: string }> {
+    const loginId = normalizeLoginIdentifier(`clients-e2e-${crypto.randomUUID()}@cisne.invalid`);
+    const passwordHash = await hashPassword(AUTH_TEST_PASSWORD);
+    const { identityId } = await insertIdentity(pool, loginId, passwordHash);
+
+    for (const action of actions) {
       await insertGrant(pool, {
         identityId,
         action,
@@ -96,6 +106,28 @@ describe('Clients E2E', () => {
     });
     const body = parseAuthTokenResponse(response.body);
     return { accessToken: body.accessToken, identityId };
+  }
+
+  /** Cria um Cliente mínimo válido e devolve o registro criado. */
+  async function createClient(
+    accessToken: string,
+    payload: Record<string, unknown> = {},
+  ): Promise<{ id: string; version: number }> {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/clients',
+      headers: { authorization: `Bearer ${accessToken}` },
+      payload: {
+        legalName: 'Cliente E2E LTDA',
+        taxId: '11.222.333/0001-81',
+        contacts: [
+          { name: 'Operações', purpose: CONTACT_PURPOSES.Operational, email: 'e2e@client.invalid' },
+        ],
+        ...payload,
+      },
+    });
+    expect(response.statusCode).toBe(201);
+    return JSON.parse(response.body) as { id: string; version: number };
   }
 
   it('denies anonymous access and supports full client lifecycle via HTTP', async () => {
@@ -375,5 +407,214 @@ describe('Clients E2E', () => {
       headers: { authorization: `Bearer ${outsiderToken}` },
     });
     expect(deniedWithSearch.statusCode).toBe(403);
+  });
+
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+     CUSTOMER 360 — as rotas novas, exercitadas por HTTP REAL
+     ══════════════════════════════════════════════════════════════════════════════════════════ */
+
+  /*
+   * ORDEM DE ROTA: `duplicate-check` NÃO PODE CAIR NA ROTA DE DETALHE.
+   *
+   * `GET /clients/:clientId` existe, então uma rota literal declarada DEPOIS dela seria capturada
+   * como um `clientId` e recusada por não ser UUID — a consulta prévia nunca responderia. Este
+   * teste é o que prende a ordem: ele falha com 400 se `duplicate-check` for movido para baixo.
+   */
+  it('serves the duplicate check before the client detail route', async () => {
+    const { accessToken } = await loginWithClientGrants();
+    await createClient(accessToken);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/clients/duplicate-check?taxId=11222333000181&legalName=Outro%20Nome',
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body) as {
+      checked: boolean;
+      certainCount: number;
+      matches: Array<{ reasons: string[]; certain: boolean }>;
+    };
+    expect(body.checked).toBe(true);
+    expect(body.certainCount).toBe(1);
+    expect(body.matches[0]?.reasons).toContain('TAX_ID_MATCH');
+    expect(body.matches[0]?.certain).toBe(true);
+  });
+
+  it('serves data quality and hierarchy for a client over HTTP', async () => {
+    const { accessToken } = await loginWithClientGrants();
+    const created = await createClient(accessToken);
+
+    const quality = await app.inject({
+      method: 'GET',
+      url: `/api/v1/clients/${created.id}/data-quality`,
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    expect(quality.statusCode).toBe(200);
+    const qualityBody = JSON.parse(quality.body) as {
+      evaluated: boolean;
+      isComplete: boolean;
+      findings: Array<{ code: string }>;
+    };
+    expect(qualityBody.evaluated).toBe(true);
+    expect(qualityBody.findings.map((f) => f.code)).toContain('MISSING_BILLING_CONTACT');
+
+    const hierarchy = await app.inject({
+      method: 'GET',
+      url: `/api/v1/clients/${created.id}/hierarchy`,
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    expect(hierarchy.statusCode).toBe(200);
+    const hierarchyBody = JSON.parse(hierarchy.body) as {
+      rootId: string;
+      nodes: Array<{ id: string; relation: string; depth: number }>;
+      truncated: boolean;
+    };
+    expect(hierarchyBody.rootId).toBe(created.id);
+    expect(hierarchyBody.truncated).toBe(false);
+    expect(hierarchyBody.nodes).toHaveLength(1);
+    expect(hierarchyBody.nodes[0]?.relation).toBe('self');
+  });
+
+  it('runs the contact and unit commands over HTTP', async () => {
+    const { accessToken } = await loginWithClientGrants();
+    const created = await createClient(accessToken);
+
+    const addContact = await app.inject({
+      method: 'POST',
+      url: `/api/v1/clients/${created.id}/contacts`,
+      headers: { authorization: `Bearer ${accessToken}` },
+      payload: {
+        version: created.version,
+        name: 'Compras',
+        purpose: CONTACT_PURPOSES.Commercial,
+        role: 'purchasing',
+        email: 'compras@client.invalid',
+      },
+    });
+    expect(addContact.statusCode).toBe(200);
+    const withContact = JSON.parse(addContact.body) as {
+      version: number;
+      contacts: Array<{ id: string; name: string; role: string | null; isPrimary: boolean }>;
+    };
+    const added = withContact.contacts.find((c) => c.name === 'Compras');
+    expect(added?.role).toBe('purchasing');
+
+    const setPrimary = await app.inject({
+      method: 'POST',
+      url: `/api/v1/clients/${created.id}/contacts/${added!.id}/primary`,
+      headers: { authorization: `Bearer ${accessToken}` },
+      payload: { version: withContact.version },
+    });
+    expect(setPrimary.statusCode).toBe(200);
+    const primaryBody = JSON.parse(setPrimary.body) as {
+      version: number;
+      contacts: Array<{ id: string; isPrimary: boolean }>;
+    };
+    expect(primaryBody.contacts.filter((c) => c.isPrimary)).toHaveLength(1);
+
+    const addUnit = await app.inject({
+      method: 'POST',
+      url: `/api/v1/clients/${created.id}/units`,
+      headers: { authorization: `Bearer ${accessToken}` },
+      payload: { version: primaryBody.version, name: 'Filial Vilhena', city: 'Vilhena', state: 'RO' },
+    });
+    expect(addUnit.statusCode).toBe(200);
+    const unitBody = JSON.parse(addUnit.body) as {
+      units: Array<{ id: string; name: string; isHeadquarters: boolean }>;
+    };
+    expect(unitBody.units).toHaveLength(1);
+    expect(unitBody.units[0]?.isHeadquarters).toBe(false);
+  });
+
+  it('declares hierarchy and refuses a cycle over HTTP', async () => {
+    const { accessToken } = await loginWithClientGrants();
+    const parent = await createClient(accessToken);
+    const child = await createClient(accessToken, {
+      legalName: 'Filial E2E LTDA',
+      taxId: '11.222.333/0002-62',
+    });
+
+    const link = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/clients/${child.id}/hierarchy`,
+      headers: { authorization: `Bearer ${accessToken}` },
+      payload: { version: child.version, parentClientId: parent.id },
+    });
+    expect(link.statusCode).toBe(200);
+
+    const cycle = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/clients/${parent.id}/hierarchy`,
+      headers: { authorization: `Bearer ${accessToken}` },
+      payload: { version: parent.version, parentClientId: child.id },
+    });
+    expect(cycle.statusCode).toBe(409);
+    expect(parseClientError(cycle.body).error.code).toBe(CLIENT_ERROR_CODES.HIERARCHY_CYCLE);
+  });
+
+  it('serves the audit trail and hides it from an actor without the capability', async () => {
+    const { accessToken } = await loginWithClientGrants();
+    const created = await createClient(accessToken);
+
+    const trail = await app.inject({
+      method: 'GET',
+      url: `/api/v1/clients/${created.id}/audit-trail`,
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    expect(trail.statusCode).toBe(200);
+    const trailBody = JSON.parse(trail.body) as {
+      total: number;
+      items: Array<{ action: string; before: unknown; after: unknown }>;
+    };
+    expect(trailBody.total).toBeGreaterThanOrEqual(1);
+    expect(trailBody.items[0]?.action).toBe('CREATE');
+    expect(trailBody.items[0]?.before).toBeNull();
+
+    // Ator com leitura mas SEM `client:audit:read`: a trilha é negada, e não vazia.
+    const { accessToken: readerToken } = await loginWithGrants([
+      AUTHZ_ACTIONS.ClientRead,
+      AUTHZ_ACTIONS.ClientList,
+    ]);
+    const denied = await app.inject({
+      method: 'GET',
+      url: `/api/v1/clients/${created.id}/audit-trail`,
+      headers: { authorization: `Bearer ${readerToken}` },
+    });
+    expect(denied.statusCode).toBe(403);
+    expect(parseClientError(denied.body).error.code).toBe(CLIENT_ERROR_CODES.DENIED);
+  });
+
+  it('rejects a malformed contact role and a stale version over HTTP', async () => {
+    const { accessToken } = await loginWithClientGrants();
+    const created = await createClient(accessToken);
+
+    const badRole = await app.inject({
+      method: 'POST',
+      url: `/api/v1/clients/${created.id}/contacts`,
+      headers: { authorization: `Bearer ${accessToken}` },
+      payload: {
+        version: created.version,
+        name: 'Invalido',
+        purpose: CONTACT_PURPOSES.Commercial,
+        role: 'inventado',
+      },
+    });
+    expect(badRole.statusCode).toBe(400);
+
+    const stale = await app.inject({
+      method: 'POST',
+      url: `/api/v1/clients/${created.id}/contacts`,
+      headers: { authorization: `Bearer ${accessToken}` },
+      payload: {
+        version: created.version + 99,
+        name: 'Desatualizado',
+        purpose: CONTACT_PURPOSES.Commercial,
+        phone: '6533334444',
+      },
+    });
+    expect(stale.statusCode).toBe(409);
+    expect(parseClientError(stale.body).error.code).toBe(CLIENT_ERROR_CODES.VERSION_CONFLICT);
   });
 });

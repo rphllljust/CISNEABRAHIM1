@@ -18,7 +18,7 @@ import { AUTHZ_RESOURCE_TYPES } from '../authorization/types/authz-resources';
 import { AUTHZ_SCOPES } from '../authorization/types/authz-scopes';
 import { ClientsModule } from './clients.module';
 import { ClientAccessService } from './services/client-access.service';
-import { CONTACT_PURPOSES, PURCHASE_ORDER_REQUIREMENTS } from './domain/client-status';
+import { CONTACT_PURPOSES, CONTACT_ROLES, PURCHASE_ORDER_REQUIREMENTS } from './domain/client-status';
 import type { IdentityAuthzContext } from '../authorization/types/authz-decision';
 import type { ClientResponse } from './serializers/client-response.serializer';
 import { CLIENT_ERROR_CODES } from './errors/client-error-codes';
@@ -38,6 +38,16 @@ async function grantClientAdmin(
     AUTHZ_ACTIONS.ClientUpdate,
     AUTHZ_ACTIONS.ClientDeactivate,
     AUTHZ_ACTIONS.ClientActivate,
+    /*
+     * Capacidades do Customer 360 (migration 0097). Concedidas ao ator administrativo do teste
+     * porque ele representa o perfil completo do módulo; o teste de negação da trilha de auditoria
+     * usa um ator PARCIAL, para provar que `client:audit:read` é mesmo independente de
+     * `client:client:read`.
+     */
+    AUTHZ_ACTIONS.ClientContactManage,
+    AUTHZ_ACTIONS.ClientUnitManage,
+    AUTHZ_ACTIONS.ClientHierarchyManage,
+    AUTHZ_ACTIONS.ClientAuditRead,
   ];
   for (const action of actions) {
     await insertGrant(pool, {
@@ -191,7 +201,15 @@ describe('Clients PostgreSQL integration', () => {
     // A lista é projeção de identificação: não carrega as coleções filhas do Cliente.
     expect(item).not.toHaveProperty('contacts');
     expect(item).not.toHaveProperty('addresses');
-    expect(item).not.toHaveProperty('version');
+    expect(item).not.toHaveProperty('units');
+    /*
+     * `version` FOI publicada deliberadamente na listagem (commit ef65d83c): `activate`/`deactivate`
+     * exigem a versão para concorrência otimista, e sem ela cada linha de um comando em lote
+     * precisaria de um `GET /clients/:id` adicional — N+1 no caminho de escrita. A asserção
+     * anterior ("a lista não publica version") ficou obsoleta com aquela mudança e é corrigida
+     * aqui, não contornada.
+     */
+    expect(item).toHaveProperty('version');
     // Nem localidade: não há regra confirmada que eleja um endereço entre vários (SRC-002 Q14
     // confirma apenas as finalidades). O detalhe continua expondo os endereços completos.
     expect(item).not.toHaveProperty('locality');
@@ -713,6 +731,528 @@ describe('Clients PostgreSQL integration', () => {
 
       // Candidato medido e REJEITADO: coberto por (legal_name, id), e mais lento que ele.
       expect(names).not.toContain('clients_status_legal_name_id_idx');
+    });
+
+    /* Índices que a migration 0097 acrescentou e cuja ausência degradaria a hierarquia. */
+    it('has the indexes the customer 360 hierarchy relies on', async () => {
+      const indexes = await pool.query<{ indexname: string }>(
+        `SELECT indexname FROM pg_indexes WHERE schemaname = 'pty'`,
+      );
+      const names = indexes.rows.map((row) => row.indexname);
+      expect(names).toEqual(
+        expect.arrayContaining([
+          'clients_group_id_idx',
+          'clients_parent_client_id_idx',
+          'client_units_client_id_idx',
+          'client_units_headquarters_uidx',
+          'client_contacts_primary_uidx',
+          'client_addresses_unit_id_idx',
+        ]),
+      );
+    });
+
+    /* O canal AUDIT_TRAIL passa a ser append-only também para a trilha de VALOR (migration 0097). */
+    it('protects the value audit trail against mutation', async () => {
+      const triggers = await pool.query<{ tgname: string }>(
+        `SELECT tgname FROM pg_trigger WHERE tgname = 'audit_logs_no_update'`,
+      );
+      expect(triggers.rowCount).toBe(1);
+    });
+  });
+
+  /* ══════════════════════════════════════════════════════════════════════════════
+     CUSTOMER 360 — contatos, unidades, hierarquia, qualidade e trilha de auditoria
+     ══════════════════════════════════════════════════════════════════════════════ */
+
+  describe('customer 360 — contacts, units and hierarchy', () => {
+    async function seedClient(identityId: string, override: Partial<{ legalName: string; taxId: string }> = {}) {
+      return clientAccess.create(
+        { identityId, sessionId: 'sid' },
+        {
+          legalName: override.legalName ?? 'Cliente 360 LTDA',
+          taxId: override.taxId ?? TEST_CNPJ,
+          contacts: [
+            {
+              name: 'Operações',
+              purpose: CONTACT_PURPOSES.Operational,
+              email: 'ops@client.invalid',
+            },
+          ],
+        },
+      );
+    }
+
+    it('adds a contact with role and marks it primary', async () => {
+      const { identityId } = await seedActor();
+      const actor = { identityId, sessionId: 'sid' };
+      const created = await seedClient(identityId);
+
+      const withContact = await clientAccess.applyContactCommand(actor, created.id, {
+        kind: 'add',
+        version: created.version,
+        name: 'Compras',
+        purpose: CONTACT_PURPOSES.Commercial,
+        role: CONTACT_ROLES.Purchasing,
+        email: 'compras@client.invalid',
+      });
+
+      const added = withContact.contacts.find((contact) => contact.name === 'Compras');
+      expect(added?.role).toBe(CONTACT_ROLES.Purchasing);
+      expect(added?.isPrimary).toBe(false);
+
+      const withPrimary = await clientAccess.applyContactCommand(actor, created.id, {
+        kind: 'setPrimary',
+        version: withContact.version,
+        contactId: added!.id,
+      });
+      expect(withPrimary.contacts.filter((contact) => contact.isPrimary)).toHaveLength(1);
+      expect(withPrimary.contacts.find((contact) => contact.isPrimary)?.name).toBe('Compras');
+    });
+
+    /*
+     * TROCAR O PRINCIPAL É ATÔMICO. O índice parcial do banco só admite um; marcar o novo sem
+     * desmarcar o anterior seria recusado. O teste prova que a troca funciona — o que só é possível
+     * porque o repositório desmarca e marca na MESMA transação.
+     */
+    it('moves the primary flag between contacts', async () => {
+      const { identityId } = await seedActor();
+      const actor = { identityId, sessionId: 'sid' };
+      const created = await seedClient(identityId);
+
+      const first = created.contacts[0]!;
+      const afterFirst = await clientAccess.applyContactCommand(actor, created.id, {
+        kind: 'setPrimary',
+        version: created.version,
+        contactId: first.id,
+      });
+      expect(afterFirst.contacts.find((c) => c.isPrimary)?.id).toBe(first.id);
+
+      const second = await clientAccess.applyContactCommand(actor, created.id, {
+        kind: 'add',
+        version: afterFirst.version,
+        name: 'Financeiro',
+        purpose: CONTACT_PURPOSES.Billing,
+        phone: '6533334444',
+      });
+      const secondContact = second.contacts.find((c) => c.name === 'Financeiro')!;
+
+      const afterSecond = await clientAccess.applyContactCommand(actor, created.id, {
+        kind: 'setPrimary',
+        version: second.version,
+        contactId: secondContact.id,
+      });
+      expect(afterSecond.contacts.filter((c) => c.isPrimary)).toHaveLength(1);
+      expect(afterSecond.contacts.find((c) => c.isPrimary)?.id).toBe(secondContact.id);
+    });
+
+    /*
+     * DESATIVAR PRESERVA O HISTÓRICO. O contato sai de operação mas continua na ficha — apagá-lo
+     * faria a organização do Cliente perder memória a cada troca de pessoa.
+     */
+    it('deactivates a contact without deleting it', async () => {
+      const { identityId } = await seedActor();
+      const actor = { identityId, sessionId: 'sid' };
+      const created = await seedClient(identityId);
+      const contact = created.contacts[0]!;
+
+      const deactivated = await clientAccess.applyContactCommand(actor, created.id, {
+        kind: 'deactivate',
+        version: created.version,
+        contactId: contact.id,
+      });
+
+      const stillThere = deactivated.contacts.find((c) => c.id === contact.id);
+      expect(stillThere).toBeDefined();
+      expect(stillThere?.deactivatedAt).not.toBeNull();
+
+      const reactivated = await clientAccess.applyContactCommand(actor, created.id, {
+        kind: 'reactivate',
+        version: deactivated.version,
+        contactId: contact.id,
+      });
+      expect(reactivated.contacts.find((c) => c.id === contact.id)?.deactivatedAt).toBeNull();
+    });
+
+    /* Papel `null` REMOVE a atribuição — distinto de "não mexe", que é `undefined`. */
+    it('clears a contact role when null is sent', async () => {
+      const { identityId } = await seedActor();
+      const actor = { identityId, sessionId: 'sid' };
+      const created = await seedClient(identityId);
+
+      const withRole = await clientAccess.applyContactCommand(actor, created.id, {
+        kind: 'setRole',
+        version: created.version,
+        contactId: created.contacts[0]!.id,
+        role: CONTACT_ROLES.Management,
+      });
+      expect(withRole.contacts[0]?.role).toBe(CONTACT_ROLES.Management);
+
+      const cleared = await clientAccess.applyContactCommand(actor, created.id, {
+        kind: 'setRole',
+        version: withRole.version,
+        contactId: created.contacts[0]!.id,
+        role: null,
+      });
+      expect(cleared.contacts[0]?.role).toBeNull();
+    });
+
+    it('declares units and keeps exactly one headquarters', async () => {
+      const { identityId } = await seedActor();
+      const actor = { identityId, sessionId: 'sid' };
+      const created = await seedClient(identityId);
+
+      const withUnits = await clientAccess.applyUnitCommand(actor, created.id, {
+        kind: 'add',
+        version: created.version,
+        name: 'Filial Vilhena',
+        city: 'Vilhena',
+        state: 'RO',
+      });
+      expect(withUnits.units).toHaveLength(1);
+      expect(withUnits.units[0]?.isHeadquarters).toBe(false);
+
+      const added = withUnits.units[0]!;
+      const asHeadquarters = await clientAccess.applyUnitCommand(actor, created.id, {
+        kind: 'setHeadquarters',
+        version: withUnits.version,
+        unitId: added.id,
+      });
+      expect(asHeadquarters.units.filter((u) => u.isHeadquarters)).toHaveLength(1);
+      expect(asHeadquarters.units[0]?.isHeadquarters).toBe(true);
+    });
+
+    it('declares the economic group by name and reuses it across clients', async () => {
+      const { identityId } = await seedActor();
+      const actor = { identityId, sessionId: 'sid' };
+      const first = await seedClient(identityId, { taxId: TEST_CNPJ });
+
+      const withGroup = await clientAccess.setHierarchy(actor, first.id, {
+        version: first.version,
+        groupName: 'Grupo Vilhena',
+      });
+      expect(withGroup.groupName).toBe('Grupo Vilhena');
+      expect(withGroup.groupId).not.toBeNull();
+
+      const second = await clientAccess.create(actor, {
+        legalName: 'Cliente 360 Filial LTDA',
+        taxId: '11222333000262',
+        contacts: [
+          { name: 'Operações', purpose: CONTACT_PURPOSES.Operational, email: 'ops2@client.invalid' },
+        ],
+      });
+
+      // MESMO NOME -> MESMO REGISTRO. É o que torna a consolidação por grupo possível; dois grupos
+      // homônimos seriam o defeito de tratar o grupo como texto livre no Cliente.
+      const secondWithGroup = await clientAccess.setHierarchy(actor, second.id, {
+        version: second.version,
+        groupName: 'Grupo Vilhena',
+      });
+      expect(secondWithGroup.groupId).toBe(withGroup.groupId);
+    });
+
+    it('links a parent client and exposes the hierarchy tree', async () => {
+      const { identityId } = await seedActor();
+      const actor = { identityId, sessionId: 'sid' };
+      const parent = await seedClient(identityId, { taxId: TEST_CNPJ });
+      const child = await clientAccess.create(actor, {
+        legalName: 'Filial LTDA',
+        taxId: '11222333000262',
+        contacts: [
+          { name: 'Operações', purpose: CONTACT_PURPOSES.Operational, email: 'ops2@client.invalid' },
+        ],
+      });
+
+      const linked = await clientAccess.setHierarchy(actor, child.id, {
+        version: child.version,
+        parentClientId: parent.id,
+      });
+      expect(linked.parentClientId).toBe(parent.id);
+      expect(linked.parentClientName).toBe(parent.legalName);
+
+      const hierarchy = await clientAccess.getHierarchy(actor, parent.id);
+      expect(hierarchy.rootId).toBe(parent.id);
+      expect(hierarchy.truncated).toBe(false);
+      expect(hierarchy.nodes.map((node) => node.id)).toEqual(
+        expect.arrayContaining([parent.id, child.id]),
+      );
+      const childNode = hierarchy.nodes.find((node) => node.id === child.id);
+      expect(childNode?.relation).toBe('child');
+      expect(childNode?.depth).toBe(1);
+    });
+
+    /*
+     * CICLO DE HIERARQUIA É RECUSADO. Sem esta proteção, A -> B -> A faria a travessia da árvore
+     * girar indefinidamente. O banco barra apenas a auto-referência; o ciclo longo é do serviço.
+     */
+    it('rejects a hierarchy cycle', async () => {
+      const { identityId } = await seedActor();
+      const actor = { identityId, sessionId: 'sid' };
+      const a = await seedClient(identityId, { taxId: TEST_CNPJ });
+      const b = await clientAccess.create(actor, {
+        legalName: 'B LTDA',
+        taxId: '11222333000262',
+        contacts: [
+          { name: 'Ops', purpose: CONTACT_PURPOSES.Operational, email: 'b@client.invalid' },
+        ],
+      });
+
+      const bLinkedToA = await clientAccess.setHierarchy(actor, b.id, {
+        version: b.version,
+        parentClientId: a.id,
+      });
+
+      await expect(
+        clientAccess.setHierarchy(actor, a.id, {
+          version: a.version,
+          parentClientId: b.id,
+        }),
+      ).rejects.toMatchObject({ code: CLIENT_ERROR_CODES.HIERARCHY_CYCLE });
+
+      // O vínculo válido permanece intacto.
+      const reloaded = await clientAccess.getById(actor, b.id);
+      expect(reloaded.parentClientId).toBe(a.id);
+      expect(bLinkedToA.parentClientId).toBe(a.id);
+    });
+
+    it('rejects a client as its own parent', async () => {
+      const { identityId } = await seedActor();
+      const actor = { identityId, sessionId: 'sid' };
+      const created = await seedClient(identityId);
+
+      await expect(
+        clientAccess.setHierarchy(actor, created.id, {
+          version: created.version,
+          parentClientId: created.id,
+        }),
+      ).rejects.toMatchObject({ code: CLIENT_ERROR_CODES.VALIDATION_FAILED });
+    });
+
+    /* Concorrência otimista: dois comandos com a MESMA versão não podem ambos vencer. */
+    it('refuses a command carrying a stale version', async () => {
+      const { identityId } = await seedActor();
+      const actor = { identityId, sessionId: 'sid' };
+      const created = await seedClient(identityId);
+
+      await clientAccess.applyContactCommand(actor, created.id, {
+        kind: 'add',
+        version: created.version,
+        name: 'Segundo',
+        purpose: CONTACT_PURPOSES.Billing,
+        phone: '6533334444',
+      });
+
+      await expect(
+        clientAccess.applyContactCommand(actor, created.id, {
+          kind: 'add',
+          version: created.version,
+          name: 'Terceiro',
+          purpose: CONTACT_PURPOSES.Billing,
+          phone: '6533335555',
+        }),
+      ).rejects.toMatchObject({ code: CLIENT_ERROR_CODES.VERSION_CONFLICT });
+    });
+
+    it('reports contact, unit and address changes under the manage capabilities', async () => {
+      const { identityId } = await seedActor();
+      const actor = { identityId, sessionId: 'sid' };
+      const created = await seedClient(identityId);
+
+      const withContact = await clientAccess.applyContactCommand(actor, created.id, {
+        kind: 'add',
+        version: created.version,
+        name: 'Compras',
+        purpose: CONTACT_PURPOSES.Commercial,
+        phone: '6533334444',
+      });
+      await clientAccess.applyUnitCommand(actor, created.id, {
+        kind: 'add',
+        version: withContact.version,
+        name: 'Filial',
+      });
+
+      const events = await pool.query<{ action: string }>(
+        `SELECT action FROM audit.security_audit_events WHERE resource_id = $1`,
+        [created.id],
+      );
+      const actions = events.rows.map((row) => row.action);
+      expect(actions).toContain('security:client:contact:manage');
+      expect(actions).toContain('security:client:unit:manage');
+    });
+  });
+
+  describe('customer 360 — data quality, duplicates and audit trail', () => {
+    it('reports blocking findings for a cadastro without usable operational contact', async () => {
+      const { identityId } = await seedActor();
+      const actor = { identityId, sessionId: 'sid' };
+      const created = await clientAccess.create(actor, {
+        legalName: 'Sem Contato LTDA',
+        taxId: TEST_CNPJ,
+        contacts: [
+          { name: 'Ops', purpose: CONTACT_PURPOSES.Operational, email: 'ops@client.invalid' },
+        ],
+      });
+
+      const quality = await clientAccess.getDataQuality(actor, created.id);
+      expect(quality.evaluated).toBe(true);
+      // O Cliente TEM contato operacional utilizável, então nada bloqueia.
+      expect(quality.findings.filter((f) => f.severity === 'blocking')).toHaveLength(0);
+      // Mas não tem faturamento nem referência externa — apontamentos reais.
+      expect(quality.findings.map((f) => f.code)).toContain('MISSING_BILLING_CONTACT');
+      expect(quality.findings.map((f) => f.code)).toContain('MISSING_EXTERNAL_REFERENCE');
+      expect(quality.isComplete).toBe(false);
+    });
+
+    it('proves a duplicate by document even when names differ', async () => {
+      const { identityId } = await seedActor();
+      const actor = { identityId, sessionId: 'sid' };
+      await clientAccess.create(actor, {
+        legalName: 'Empresa Original LTDA',
+        taxId: TEST_CNPJ,
+        contacts: [
+          { name: 'Ops', purpose: CONTACT_PURPOSES.Operational, email: 'ops@client.invalid' },
+        ],
+      });
+
+      const check = await clientAccess.checkDuplicates(actor, {
+        legalName: 'Nome Totalmente Diferente',
+        taxId: TEST_CNPJ,
+      });
+
+      expect(check.checked).toBe(true);
+      expect(check.certainCount).toBe(1);
+      expect(check.suspectedCount).toBe(0);
+      expect(check.matches[0]?.reasons).toContain('TAX_ID_MATCH');
+    });
+
+    it('excludes the record being edited from its own duplicate check', async () => {
+      const { identityId } = await seedActor();
+      const actor = { identityId, sessionId: 'sid' };
+      const created = await clientAccess.create(actor, {
+        legalName: 'Empresa Unica LTDA',
+        taxId: TEST_CNPJ,
+        contacts: [
+          { name: 'Ops', purpose: CONTACT_PURPOSES.Operational, email: 'ops@client.invalid' },
+        ],
+      });
+
+      const check = await clientAccess.checkDuplicates(actor, {
+        legalName: created.legalName,
+        taxId: created.taxId,
+        excludeClientId: created.id,
+      });
+      expect(check.matches).toHaveLength(0);
+    });
+
+    /*
+     * A TRILHA DE VALOR registra o PAR antes/depois. É o que responde "o que mudou", pergunta que o
+     * canal de segurança (ação/resultado) não responde.
+     */
+    it('records the before/after pair of a value change', async () => {
+      const { identityId } = await seedActor();
+      const actor = { identityId, sessionId: 'sid' };
+      const created = await clientAccess.create(actor, {
+        legalName: 'Auditada LTDA',
+        taxId: TEST_CNPJ,
+        contacts: [
+          { name: 'Ops', purpose: CONTACT_PURPOSES.Operational, email: 'ops@client.invalid' },
+        ],
+      });
+
+      await clientAccess.update(actor, created.id, {
+        version: created.version,
+        tradeName: 'Auditada',
+      });
+
+      const trail = await clientAccess.getAuditTrail(actor, created.id, 20, 0);
+      expect(trail.total).toBeGreaterThanOrEqual(2);
+
+      const created0 = trail.items.find((entry) => entry.action === 'CREATE');
+      expect(created0?.before).toBeNull();
+      expect(created0?.after).toMatchObject({ legalName: 'Auditada LTDA' });
+
+      const updated = trail.items.find((entry) => entry.action === 'UPDATE');
+      expect(updated?.before).toMatchObject({ tradeName: null });
+      expect(updated?.after).toMatchObject({ tradeName: 'Auditada' });
+    });
+
+    it('records a status change as a TRANSITION', async () => {
+      const { identityId } = await seedActor();
+      const actor = { identityId, sessionId: 'sid' };
+      const created = await clientAccess.create(actor, {
+        legalName: 'Transicionada LTDA',
+        taxId: TEST_CNPJ,
+        contacts: [
+          { name: 'Ops', purpose: CONTACT_PURPOSES.Operational, email: 'ops@client.invalid' },
+        ],
+      });
+
+      await clientAccess.deactivate(actor, created.id, created.version, 'Encerramento');
+
+      const trail = await clientAccess.getAuditTrail(actor, created.id, 20, 0);
+      const transition = trail.items.find((entry) => entry.action === 'TRANSITION');
+      expect(transition).toBeDefined();
+      expect(transition?.before).toMatchObject({ status: 'ACTIVE' });
+      expect(transition?.after).toMatchObject({ status: 'INACTIVE' });
+    });
+
+    /*
+     * NENHUM SEGREDO E NENHUMA COLEÇÃO PESSOAL NA TRILHA. O snapshot auditável é um ALLOW-LIST
+     * fechada: contatos e endereços de terceiros NÃO entram, e um campo sensível novo só passa a ser
+     * auditado quando alguém o declarar — nunca por acidente.
+     */
+    it('keeps personal contact data out of the audit snapshot', async () => {
+      const { identityId } = await seedActor();
+      const actor = { identityId, sessionId: 'sid' };
+      const created = await clientAccess.create(actor, {
+        legalName: 'Privacidade LTDA',
+        taxId: TEST_CNPJ,
+        contacts: [
+          {
+            name: 'Pessoa Nominal',
+            purpose: CONTACT_PURPOSES.Operational,
+            email: 'pessoa@client.invalid',
+          },
+        ],
+      });
+
+      const trail = await clientAccess.getAuditTrail(actor, created.id, 20, 0);
+      const serialized = JSON.stringify(trail.items);
+      expect(serialized).not.toContain('pessoa@client.invalid');
+      expect(serialized).not.toContain('Pessoa Nominal');
+      expect(serialized).not.toContain('contacts');
+    });
+
+    /* A trilha exige capability PRÓPRIA, separada de `ClientRead`. */
+    it('denies the audit trail to an actor without the audit capability', async () => {
+      const { identityId: adminId } = await seedActor();
+      const created = await clientAccess.create(
+        { identityId: adminId, sessionId: 'sid' },
+        {
+          legalName: 'Restrita LTDA',
+          taxId: TEST_CNPJ,
+          contacts: [
+            { name: 'Ops', purpose: CONTACT_PURPOSES.Operational, email: 'ops@client.invalid' },
+          ],
+        },
+      );
+
+      // Ator com leitura de Cliente, mas SEM `client:audit:read`.
+      const readerLogin = normalizeLoginIdentifier(`reader-${crypto.randomUUID()}@cisne.invalid`);
+      const readerHash = await hashPassword(AUTH_TEST_PASSWORD);
+      const { identityId: readerId } = await insertIdentity(pool, readerLogin, readerHash);
+      for (const action of [AUTHZ_ACTIONS.ClientRead, AUTHZ_ACTIONS.ClientList]) {
+        await insertGrant(pool, {
+          identityId: readerId,
+          action,
+          resourceType: AUTHZ_RESOURCE_TYPES.Client,
+          scopeType: AUTHZ_SCOPES.Global,
+          grantedByIdentityId: readerId,
+        });
+      }
+
+      await expect(
+        clientAccess.getAuditTrail({ identityId: readerId, sessionId: 'sid' }, created.id, 20, 0),
+      ).rejects.toMatchObject({ code: CLIENT_ERROR_CODES.DENIED });
     });
   });
 });

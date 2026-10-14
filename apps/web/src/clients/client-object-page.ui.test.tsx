@@ -10,6 +10,9 @@ import {
   CONTACT_PURPOSES,
   PURCHASE_ORDER_REQUIREMENTS,
   type Client,
+  type ClientAuditTrailEntry,
+  type ClientDataQuality,
+  type ClientHierarchyNode,
   type ClientStatus,
 } from './types/client.types';
 
@@ -18,7 +21,13 @@ import {
  *
  * Estes testes provam o que a página AFIRMA na tela: os fatos reais do objeto, a ausência de
  * identificador técnico, o descarte integral de relação não autorizada, o fluxo com o estado
- * corrente real, o histórico apenas com fatos persistidos e a ação que só existe sob capability.
+ * corrente real, a TRILHA DE AUDITORIA apenas com o que o servidor publicou e a ação que só
+ * existe sob capability.
+ *
+ * A seção de histórico mudou de natureza nesta onda: ela deixou de derivar fatos de timestamps
+ * (`buildClientHistoryFacts`) e passou a ler o canal AUDIT_TRAIL, que publica o par (antes,
+ * depois). Os testes abaixo afirmam a trilha REAL, inclusive o caso em que o servidor NEGA a
+ * leitura — que não pode ser confundido com "não há alterações".
  */
 
 const CLIENT_ID = '9f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f';
@@ -51,16 +60,47 @@ function clientFixture(overrides: Partial<Client> = {}): Client {
     deactivatedAt: null,
     deactivationReason: null,
     purchaseOrderRequirement: PURCHASE_ORDER_REQUIREMENTS.BeforeExecution,
+    /*
+     * HIERARQUIA — vínculo DECLARADO. O fixture declara grupo e matriz porque é o caso que prova a
+     * ordenação da cadeia (raiz -> pai -> este Cliente); os testes que precisam do caso SEM
+     * estrutura passam `groupName: null` explicitamente.
+     */
+    groupId: '99999999-9999-4999-8999-999999999999',
+    groupName: 'Grupo Amaggi',
+    parentClientId: null,
+    parentClientName: null,
+    childCount: 0,
     contacts: [
       {
         id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
         name: 'Operações',
         purpose: CONTACT_PURPOSES.Operational,
+        role: null,
+        isPrimary: true,
+        deactivatedAt: null,
         email: 'ops@amaggi.invalid',
         phone: null,
       },
     ],
     addresses: [],
+    units: [],
+    ...overrides,
+  };
+}
+
+/** Entrada da trilha de auditoria: o par (antes, depois) por alteração. */
+function auditEntryFixture(
+  index: number,
+  overrides: Partial<ClientAuditTrailEntry> = {},
+): ClientAuditTrailEntry {
+  return {
+    id: `${String(index).padStart(8, '0')}-2222-4222-8222-00000000000${index}`,
+    action: 'UPDATE',
+    actorIdentityId: '11111111-1111-4111-8111-111111111111',
+    correlationId: `${String(index).padStart(8, '0')}-3333-4333-8333-00000000000${index}`,
+    occurredAt: `2026-02-0${index}T12:00:00.000Z`,
+    before: { tradeName: null },
+    after: { tradeName: 'Amaggi' },
     ...overrides,
   };
 }
@@ -93,6 +133,14 @@ type FetchFixtureOptions = {
   requests?: ListFixture;
   /** Resposta do próprio cadastro — prova o mapeamento de loading/denied/error/empty. */
   detail?: 'denied' | 'not_found' | 'error';
+  /** Entradas da trilha de auditoria devolvidas pelo servidor. */
+  auditTrail?: ClientAuditTrailEntry[];
+  /** `denied` prova que a seção de histórico distingue NEGADO de VAZIO. */
+  auditTrailAccess?: 'allowed' | 'denied' | 'error';
+  /** Apontamentos de qualidade devolvidos pelo servidor. */
+  quality?: ClientDataQuality;
+  /** Nós da árvore de hierarquia devolvidos pelo servidor. */
+  hierarchy?: { nodes: ClientHierarchyNode[]; truncated?: boolean };
 };
 
 /**
@@ -162,6 +210,59 @@ function createClientObjectFetchMock(options: FetchFixtureOptions = {}) {
         return clientError('CLIENT_INTERNAL', 500);
       }
       return jsonResponse(client);
+    }
+
+    /*
+     * CUSTOMER 360 — as três leituras da ficha.
+     *
+     * `hierarchy` é resolvida a partir do PRÓPRIO fixture quando o teste não declara os nós: a
+     * árvore mínima é o Cliente como raiz de si mesmo, que é o que o servidor devolve para um
+     * cadastro sem vínculo. Assim os testes que não falam de hierarquia não precisam montá-la.
+     */
+    if (pathname === `/api/v1/clients/${client.id}/hierarchy` && method === 'GET') {
+      const nodes = options.hierarchy?.nodes ?? [
+        {
+          id: client.id,
+          legal_name: client.legalName,
+          trade_name: client.tradeName,
+          status: client.status,
+          parent_client_id: client.parentClientId,
+          group_id: client.groupId,
+          group_name: client.groupName,
+          child_count: client.childCount,
+          depth: 0,
+          relation: 'self' as const,
+        },
+      ];
+      return jsonResponse({
+        rootId: client.id,
+        nodes,
+        truncated: options.hierarchy?.truncated ?? false,
+        maxDepth: 8,
+      });
+    }
+
+    if (pathname === `/api/v1/clients/${client.id}/data-quality` && method === 'GET') {
+      return jsonResponse(
+        options.quality ?? { evaluated: true, isComplete: true, findings: [] },
+      );
+    }
+
+    if (pathname === `/api/v1/clients/${client.id}/audit-trail` && method === 'GET') {
+      if (options.auditTrailAccess === 'denied') {
+        return clientError('CLIENT_DENIED', 403);
+      }
+      if (options.auditTrailAccess === 'error') {
+        return clientError('CLIENT_INTERNAL', 500);
+      }
+      const items = options.auditTrail ?? [];
+      return jsonResponse({
+        items,
+        limit: 20,
+        offset: 0,
+        total: items.length,
+        totalPages: items.length > 0 ? 1 : 0,
+      });
     }
 
     if (pathname === '/api/v1/requests/service-requests/summary') {
@@ -358,25 +459,88 @@ describe('Object page do Cliente', () => {
     expect(buildClientStateFlow('SEM_ESTADO' as ClientStatus)).toBeNull();
   });
 
-  it('mostra no histórico apenas os fatos persistidos, sem ator inventado', async () => {
+  /*
+   * O HISTÓRICO PASSOU A SER A TRILHA DE VALOR.
+   *
+   * Antes, esta asserção verificava "Cadastro criado"/"Cadastro atualizado" — fatos DERIVADOS da
+   * comparação de `createdAt`/`updatedAt`. Isso dizia QUANDO algo mudou e nunca O QUE mudou nem
+   * QUEM mudou. A seção agora lê `audit-trail`, que publica o par (antes, depois) por alteração.
+   *
+   * O que o teste continua protegendo, e que é o ponto: nenhum ator e nenhum evento é INVENTADO.
+   * O que aparece é exatamente o que o servidor publicou.
+   */
+  it('mostra no histórico apenas as alterações publicadas pelo servidor, sem ator inventado', async () => {
     vi.stubGlobal(
       'fetch',
       createClientObjectFetchMock({
         client: clientFixture({ deactivatedAt: null }),
+        auditTrail: [
+          auditEntryFixture(1, {
+            action: 'CREATE',
+            before: null,
+            after: { legalName: 'Amaggi Exportadora LTDA', tradeName: null },
+          }),
+          auditEntryFixture(2, {
+            action: 'UPDATE',
+            before: { tradeName: null },
+            after: { tradeName: 'Amaggi' },
+          }),
+        ],
       }),
     );
     renderClientPage();
     await awaitHeader();
 
-    const history = screen.getByLabelText('Histórico');
+    const history = await screen.findByLabelText('Histórico de alterações');
     expect(within(history).getByText('Cadastro criado')).toBeInTheDocument();
-    expect(within(history).getByText('Cadastro atualizado')).toBeInTheDocument();
-    // Exatamente os dois fatos persistidos: nenhum evento de negócio ou ator inventado.
-    expect(within(history).getAllByRole('listitem')).toHaveLength(2);
-    expect(history.textContent).not.toMatch(/sistema|usuário|auditoria/i);
+    expect(within(history).getByText('Cadastro alterado')).toBeInTheDocument();
+    // Exatamente as duas entradas publicadas: nenhum evento de negócio inventado.
+    expect(within(history).getAllByTestId('client-audit-entry')).toHaveLength(2);
+    /*
+     * A CRIAÇÃO NÃO TEM ESTADO ANTERIOR, e a UI DIZ isso em vez de imprimir string vazia. A
+     * asserção é por ENTRADA (não pelo texto solto na seção) porque os dois campos da criação não
+     * têm valor anterior — `getByText` global encontraria dois elementos e o teste seria ambíguo.
+     */
+    const [createEntry, updateEntry] = within(history).getAllByTestId('client-audit-entry');
+    /*
+     * A CRIAÇÃO tem UM campo com valor publicado (`legalName`); `tradeName` nasceu nulo nos dois
+     * lados do par, então não é alteração e não vira linha. Isso é o comportamento correto de
+     * `diffAuditEntry`: ele compara o par e ignora o que não mudou, em vez de listar o snapshot.
+     */
+    expect(within(createEntry!).getAllByText('não havia valor')).toHaveLength(1);
+    expect(within(createEntry!).getByText('Amaggi Exportadora LTDA')).toBeInTheDocument();
+    // A ATUALIZAÇÃO tem valor anterior real: o nome fantasia saiu de vazio para "Amaggi".
+    expect(within(updateEntry!).getByText('não havia valor')).toBeInTheDocument();
+    expect(within(updateEntry!).getByText('Amaggi')).toBeInTheDocument();
+    // Nenhum ator é afirmado: a trilha publica o identificador da identidade, e a seção não o
+    // converte em nome de pessoa nem inventa "sistema".
+    expect(history.textContent).not.toMatch(/sistema/i);
   });
 
-  it('registra a desativação como fato persistido e oferece a reativação quando autorizada', async () => {
+  /*
+   * NEGADO ≠ VAZIO na trilha. O servidor exige `client:audit:read`, separada de `client:client:read`;
+   * quando ele responde 403 a seção DECLARA a restrição. Uma lista vazia afirmaria "não há
+   * alterações", que é um fato diferente e falso.
+   */
+  it('declara a restrição do histórico quando o servidor nega a leitura da trilha', async () => {
+    vi.stubGlobal(
+      'fetch',
+      createClientObjectFetchMock({
+        client: clientFixture(),
+        auditTrailAccess: 'denied',
+      }),
+    );
+    renderClientPage();
+    await awaitHeader();
+
+    const history = await screen.findByLabelText('Histórico de alterações');
+    expect(
+      within(history).getByText(/não tem permissão para consultar o histórico/i),
+    ).toBeInTheDocument();
+    expect(within(history).queryByText(/nenhuma alteração registrada/i)).not.toBeInTheDocument();
+  });
+
+  it('registra a desativação como transição real e oferece a reativação quando autorizada', async () => {
     vi.stubGlobal(
       'fetch',
       createClientObjectFetchMock({
@@ -386,17 +550,26 @@ describe('Object page do Cliente', () => {
           deactivatedAt: '2026-03-02T18:00:00.000Z',
           deactivationReason: 'Encerramento contratual',
         }),
+        auditTrail: [
+          auditEntryFixture(1, {
+            action: 'TRANSITION',
+            before: { status: 'ACTIVE' },
+            after: { status: 'INACTIVE' },
+          }),
+        ],
       }),
     );
     renderClientPage();
     await awaitHeader();
 
     expect(screen.getByLabelText('Status: Inativo')).toBeInTheDocument();
-    const history = screen.getByLabelText('Histórico');
-    expect(within(history).getByText('Cliente desativado')).toBeInTheDocument();
-    // A atualização do timestamp de desativação não é repetida como segundo fato.
-    expect(within(history).queryByText('Cadastro atualizado')).not.toBeInTheDocument();
-    expect(within(history).getAllByRole('listitem')).toHaveLength(2);
+
+    const history = await screen.findByLabelText('Histórico de alterações');
+    expect(within(history).getByText('Situação alterada')).toBeInTheDocument();
+    // O par (antes, depois) é o que a trilha acrescenta: a transição mostra de onde veio.
+    expect(within(history).getByText('ACTIVE')).toBeInTheDocument();
+    expect(within(history).getByText('INACTIVE')).toBeInTheDocument();
+    expect(within(history).getAllByTestId('client-audit-entry')).toHaveLength(1);
 
     // Próxima ação derivada de estado + capability.
     expect(await screen.findByRole('button', { name: 'Reativar Cliente' })).toBeInTheDocument();

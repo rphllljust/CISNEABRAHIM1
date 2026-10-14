@@ -2,6 +2,7 @@ import type {
   AddressPurpose,
   ClientStatus,
   ContactPurpose,
+  ContactRole,
   PurchaseOrderRequirement,
 } from '../domain/client-status';
 
@@ -9,6 +10,9 @@ export type ClientContactRow = {
   id: string;
   name: string;
   purpose: ContactPurpose;
+  role: ContactRole | null;
+  is_primary: boolean;
+  deactivated_at: string | null;
   email: string | null;
   phone: string | null;
 };
@@ -16,6 +20,8 @@ export type ClientContactRow = {
 export type ClientAddressRow = {
   id: string;
   purpose: AddressPurpose;
+  unit_id: string | null;
+  unit_name: string | null;
   street: string | null;
   number: string | null;
   complement: string | null;
@@ -26,6 +32,28 @@ export type ClientAddressRow = {
   country: string | null;
 };
 
+/**
+ * UNIDADE DO CLIENTE.
+ *
+ * `address_count` é contagem REAL calculada na consulta que carrega as unidades — não uma
+ * estimativa do frontend. Sem ela a object page teria de baixar todos os endereços só para contá-los.
+ */
+export type ClientUnitRow = {
+  id: string;
+  name: string;
+  is_headquarters: boolean;
+  city: string | null;
+  state: string | null;
+  address_count: number;
+};
+
+/**
+ * LINHA COMPLETA DO CLIENTE — o que a consulta de detalhe devolve.
+ *
+ * `child_count` é calculado na própria consulta (subselect), então ele JÁ está presente quando a
+ * linha chega; `ClientRow` é a forma da tabela e não o contém. Separar os dois tipos é o que
+ * impede `loadChildren` de ter de afirmar um número que não leu.
+ */
 export type ClientRow = {
   id: string;
   legal_name: string;
@@ -39,12 +67,24 @@ export type ClientRow = {
   deactivated_at: string | null;
   deactivation_reason: string | null;
   purchase_order_requirement: PurchaseOrderRequirement;
+  /** HIERARQUIA — vínculo DECLARADO. `null` significa não declarado, nunca inferido. */
+  group_id: string | null;
+  group_name: string | null;
+  parent_client_id: string | null;
+  parent_client_name: string | null;
 };
 
-export type ClientDetail = ClientRow & {
+export type ClientDetailRow = ClientRow & {
+  /** Filhos DIRETOS declarados. A árvore completa tem endpoint próprio. */
+  child_count: number;
+};
+
+export type ClientDetail = ClientDetailRow & {
   contacts: ClientContactRow[];
   addresses: ClientAddressRow[];
+  units: ClientUnitRow[];
 };
+
 
 /**
  * Projeção de listagem do master data de Clientes.
@@ -113,16 +153,28 @@ export type ClientResponse = {
   deactivatedAt: string | null;
   deactivationReason: string | null;
   purchaseOrderRequirement: PurchaseOrderRequirement;
+  /** GRUPO ECONÔMICO — os dois campos andam juntos: id para agir, nome para ler. */
+  groupId: string | null;
+  groupName: string | null;
+  /** MATRIZ — pai declarado na hierarquia, com o nome já resolvido para leitura humana. */
+  parentClientId: string | null;
+  parentClientName: string | null;
+  childCount: number;
   contacts: Array<{
     id: string;
     name: string;
     purpose: ContactPurpose;
+    role: ContactRole | null;
+    isPrimary: boolean;
+    deactivatedAt: string | null;
     email: string | null;
     phone: string | null;
   }>;
   addresses: Array<{
     id: string;
     purpose: AddressPurpose;
+    unitId: string | null;
+    unitName: string | null;
     street: string | null;
     number: string | null;
     complement: string | null;
@@ -131,6 +183,14 @@ export type ClientResponse = {
     state: string | null;
     postalCode: string | null;
     country: string | null;
+  }>;
+  units: Array<{
+    id: string;
+    name: string;
+    isHeadquarters: boolean;
+    city: string | null;
+    state: string | null;
+    addressCount: number;
   }>;
 };
 
@@ -148,16 +208,26 @@ export function toClientResponse(detail: ClientDetail): ClientResponse {
     deactivatedAt: detail.deactivated_at,
     deactivationReason: detail.deactivation_reason,
     purchaseOrderRequirement: detail.purchase_order_requirement,
+    groupId: detail.group_id,
+    groupName: detail.group_name,
+    parentClientId: detail.parent_client_id,
+    parentClientName: detail.parent_client_name,
+    childCount: Number(detail.child_count ?? 0),
     contacts: detail.contacts.map((contact) => ({
       id: contact.id,
       name: contact.name,
       purpose: contact.purpose,
+      role: contact.role,
+      isPrimary: contact.is_primary,
+      deactivatedAt: contact.deactivated_at,
       email: contact.email,
       phone: contact.phone,
     })),
     addresses: detail.addresses.map((address) => ({
       id: address.id,
       purpose: address.purpose,
+      unitId: address.unit_id,
+      unitName: address.unit_name,
       street: address.street,
       number: address.number,
       complement: address.complement,
@@ -167,8 +237,17 @@ export function toClientResponse(detail: ClientDetail): ClientResponse {
       postalCode: address.postal_code,
       country: address.country,
     })),
+    units: detail.units.map((unit) => ({
+      id: unit.id,
+      name: unit.name,
+      isHeadquarters: unit.is_headquarters,
+      city: unit.city,
+      state: unit.state,
+      addressCount: Number(unit.address_count ?? 0),
+    })),
   };
 }
+
 
 export function toClientSummaryResponse(row: ClientSummaryRow): ClientSummary {
   return {

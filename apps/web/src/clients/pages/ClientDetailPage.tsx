@@ -12,6 +12,13 @@ import {
   VERSION_CONFLICT_MESSAGE,
 } from '../api/client-error-messages';
 import { ClientRelatedRecords } from '../components/ClientRelatedRecords';
+import { ClientContactsPanel } from '../components/ClientContactsPanel';
+import { ClientAddressesPanel, ClientUnitsPanel } from '../components/ClientUnitsPanel';
+import {
+  ClientAuditTrailPanel,
+  ClientDataQualityPanel,
+  ClientHierarchyPanel,
+} from '../components/ClientHierarchyPanel';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useClientCapabilities } from '../hooks/useClientCapabilities';
 import { useClientRelatedRecords } from '../hooks/useClientRelatedRecords';
@@ -19,7 +26,6 @@ import { CLIENT_STATUSES, type Client } from '../types/client.types';
 import { buildClientRelationSpecs } from '../utils/client-relations';
 import {
   buildClientContextFields,
-  buildClientHistoryFacts,
   buildClientMetadata,
   buildClientNextAction,
   buildClientStateFlow,
@@ -39,7 +45,6 @@ import {
   type ObjectAction,
   type ObjectPagePhase,
 } from '../../enterprise-object';
-import { ActivityTimeline } from '../../operator';
 import { BusinessChain, useBusinessChain } from '../../business-chain';
 import { Alert, Button, ModulePage, ModulePageHeader } from '../../ui';
 
@@ -64,21 +69,6 @@ type DetailState =
   | { phase: 'not_found' }
   | { phase: 'error'; message: string }
   | { phase: 'ready'; client: Client };
-
-function formatPurposeLabel(purpose: string): string {
-  switch (purpose) {
-    case 'operational':
-      return 'Operacional';
-    case 'commercial':
-      return 'Comercial';
-    case 'billing':
-      return 'Faturamento';
-    case 'correspondence':
-      return 'Correspondência';
-    default:
-      return purpose;
-  }
-}
 
 function formatDateTime(value: string | null): string {
   if (!value) {
@@ -315,67 +305,47 @@ export function ClientDetailPage() {
         aside={
           <>
             {/*
-              COLUNA DE APOIO — o cadastro operacional do Cliente, em leitura paralela ao corpo.
-              Contatos e enderecos sao consulta pontual; a contagem no titulo diz de imediato se
-              vale abrir. Historico e administracao fecham a coluna.
+              COLUNA DE APOIO — O CADASTRO OPERACIONAL DO CLIENTE.
+
+              CONTATOS, UNIDADES E ENDEREÇOS SÃO AGORA OPERÁVEIS, e não texto. Antes desta onda a
+              coluna listava as três coleções em `<li>` sem nenhuma ação: corrigir um telefone
+              exigia sair da ficha e reenviar o formulário inteiro do cadastro. Cada painel agora
+              despacha COMANDOS PRÓPRIOS (adicionar, papel, principal, inativar, matriz, remover),
+              com a `version` do Cliente como concorrência otimista. O servidor continua sendo o
+              boundary: toda ação é uma chamada que ele pode recusar, e a recusa vira mensagem.
             */}
-            <ObjectPanel
-              title={`Contatos${client.contacts.length > 0 ? ` · ${client.contacts.length}` : ''}`}
-            >
-              {client.contacts.length === 0 ? (
-                <p className="m-0 text-sm text-gray-500">Nenhum contato cadastrado.</p>
-              ) : (
-                <ul className="m-0 flex list-none flex-col gap-2 p-0">
-                  {client.contacts.map((contact) => (
-                    <li key={contact.id ?? `${contact.name}-${contact.purpose}`}>
-                      <strong className="text-[13px] text-gray-900">{contact.name}</strong>
-                      <span className="text-[11px] text-gray-500">
-                        {' '}
-                        · {formatPurposeLabel(contact.purpose)}
-                      </span>
-                      <div className="text-[11px] text-gray-600">
-                        {contact.email ? <span>{contact.email}</span> : null}
-                        {contact.email && contact.phone ? <span> · </span> : null}
-                        {contact.phone ? <span>{contact.phone}</span> : null}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </ObjectPanel>
+            <ClientContactsPanel
+              client={client}
+              canManage={capabilities.canManageContacts}
+              onUpdated={(updated) => setState({ phase: 'ready', client: updated })}
+              onError={setActionError}
+            />
 
-            <ObjectPanel
-              title={`Endereços${client.addresses.length > 0 ? ` · ${client.addresses.length}` : ''}`}
-            >
-              {client.addresses.length === 0 ? (
-                <p className="m-0 text-sm text-gray-500">Nenhum endereço cadastrado.</p>
-              ) : (
-                <ul className="m-0 flex list-none flex-col gap-2 p-0">
-                  {client.addresses.map((address) => (
-                    <li key={address.id ?? address.purpose}>
-                      <strong className="text-[13px] text-gray-900">
-                        {formatPurposeLabel(address.purpose)}
-                      </strong>
-                      <div className="text-[11px] text-gray-600">
-                        {[address.street, address.number, address.complement, address.district, address.city, address.state]
-                          .filter(Boolean)
-                          .join(', ') || '—'}
-                      </div>
-                      {address.postalCode ? (
-                        <div className="text-[11px] text-gray-600">CEP: {address.postalCode}</div>
-                      ) : null}
-                      {address.country ? (
-                        <div className="text-[11px] text-gray-600">País: {address.country}</div>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </ObjectPanel>
+            <ClientUnitsPanel
+              client={client}
+              canManage={capabilities.canManageUnits}
+              onUpdated={(updated) => setState({ phase: 'ready', client: updated })}
+              onError={setActionError}
+            />
 
-            <ObjectPanel>
-              <ActivityTimeline facts={buildClientHistoryFacts(client)} title="Histórico" />
-            </ObjectPanel>
+            <ClientAddressesPanel client={client} />
+
+            {/*
+              QUALIDADE DO CADASTRO — apontamentos reais do servidor.
+              Fica na coluna de apoio porque é uma AVALIAÇÃO do cadastro, não parte do trabalho
+              corrente: o operador consulta quando vai completar o registro.
+            */}
+            <ClientDataQualityPanel clientId={client.id} />
+
+            {/*
+              HISTÓRICO — A TRILHA DE VALOR, e não mais uma inferência sobre timestamps.
+
+              A seção anterior derivava "Cadastro criado/atualizado/desativado" comparando
+              `createdAt`, `updatedAt` e `deactivatedAt`. Isso dizia QUANDO algo mudou e nunca O QUE
+              mudou nem QUEM mudou — que é a pergunta que a governança de cadastro faz. Agora a
+              leitura é do canal AUDIT_TRAIL, com o par (antes, depois) por alteração.
+            */}
+            <ClientAuditTrailPanel clientId={client.id} />
 
             <ObjectPanel title="Administrativo">
               <dl className="client-details m-0">
@@ -433,6 +403,22 @@ export function ClientDetailPage() {
           fichas para 185px). Os paineis sao os mesmos; o que muda e onde sao compostos.
         */}
         <ObjectContextBlock fields={buildClientContextFields(client)} />
+
+        {/*
+          HIERARQUIA EMPRESARIAL — na coluna PRINCIPAL, e não na de apoio.
+
+          A estrutura organizacional (grupo econômico, matriz, filiais) é o que responde "onde este
+          Cliente se encaixa" — parte central do Customer 360, e não um detalhe de cadastro. A
+          seção é renderizada SEMPRE, inclusive quando não há vínculo: a ausência de estrutura é
+          uma informação legítima, e a seção a declara em vez de sumir. Só uma leitura NEGADA a
+          remove, o que o próprio painel decide.
+        */}
+        <ClientHierarchyPanel
+          client={client}
+          canManage={capabilities.canManageHierarchy}
+          onUpdated={(updated) => setState({ phase: 'ready', client: updated })}
+          onError={setActionError}
+        />
 
         {actionError ? (
           <Alert tone="error" title="Não foi possível concluir a ação">

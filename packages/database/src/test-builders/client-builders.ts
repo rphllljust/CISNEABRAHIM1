@@ -3,10 +3,15 @@ import type { Pool, PoolClient } from 'pg';
 type DbClient = Pool | PoolClient;
 
 export async function truncateClientTables(client: DbClient): Promise<void> {
+  // A ORDEM importa: `clients.parent_client_id` referencia `clients.id` e `client_groups`
+  // referencia `clients`. Num único TRUNCATE ... CASCADE o PostgreSQL resolve as dependências
+  // sozinho, então a lista pode declarar todas as tabelas do agregado de uma vez.
   await client.query(`
     TRUNCATE TABLE
       pty.client_addresses,
       pty.client_contacts,
+      pty.client_units,
+      pty.client_groups,
       pty.clients
     RESTART IDENTITY CASCADE
   `);
@@ -28,6 +33,8 @@ export async function truncateAllOperationalTables(client: DbClient): Promise<vo
       audit.security_audit_events,
       pty.client_addresses,
       pty.client_contacts,
+      pty.client_units,
+      pty.client_groups,
       pty.clients,
       pty.supplier_history_events,
       pty.supplier_addresses,

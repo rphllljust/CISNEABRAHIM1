@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import { Breadcrumb } from '../ui/Breadcrumb';
 import { EmptyState } from '../ui/EmptyState';
 import { cn } from '../ui/utils/cn';
@@ -142,11 +142,25 @@ export function ObjectPanel({
   className?: string;
   actions?: ReactNode;
 }) {
+  /*
+   * NOME ACESSÍVEL DERIVADO DO TÍTULO.
+   *
+   * A seção já era uma `<section>` com `<h2>`, mas o título NÃO estava ligado a ela: leitores de
+   * tela e testes encontravam um cabeçalho solto sem região correspondente, e `getByLabelText`
+   * não tinha como endereçar o painel. `aria-labelledby` apontando para o próprio título resolve
+   * os dois casos sem alterar a aparência nem a hierarquia visual.
+   */
+  const titleId = useId();
   return (
-    <section className={cn('cisne-divider pb-3 last:border-b-0 last:pb-0', className)}>
+    <section
+      className={cn('cisne-divider pb-3 last:border-b-0 last:pb-0', className)}
+      aria-labelledby={title ? titleId : undefined}
+    >
       {title ? (
         <div className="mb-2 flex items-center justify-between gap-2">
-          <h2 className="cisne-section-title m-0">{title}</h2>
+          <h2 id={titleId} className="cisne-section-title m-0">
+            {title}
+          </h2>
           {actions}
         </div>
       ) : null}

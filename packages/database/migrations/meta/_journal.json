@@ -680,6 +680,20 @@
                         "when":  179090550000000000,
                         "tag":  "0096_metadata_budget_compound_filter",
                         "breakpoints":  true
+                    },
+                    {
+                        "idx":  97,
+                        "version":  "7",
+                        "when":  179090600000000000,
+                        "tag":  "0097_client_customer_360",
+                        "breakpoints":  true
+                    },
+                    {
+                        "idx":  98,
+                        "version":  "7",
+                        "when":  179090650000000000,
+                        "tag":  "0098_metadata_seed_customer_360",
+                        "breakpoints":  true
                     }
                 ]
 }

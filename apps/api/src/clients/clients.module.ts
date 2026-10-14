@@ -7,6 +7,7 @@ import { ENTERPRISE_CORE_PORT } from '../platform/bounded-contexts/enterprise-co
 import { ClientsController } from './controllers/clients.controller';
 import { ClientsRepository } from './repositories/clients.repository';
 import { ClientAccessService } from './services/client-access.service';
+import { ClientAuditService } from './services/client-audit.service';
 
 @Module({
   imports: [DatabaseModule, AuthModule, AuthorizationModule, AuditModule],
@@ -14,6 +15,11 @@ import { ClientAccessService } from './services/client-access.service';
   providers: [
     ClientsRepository,
     ClientAccessService,
+    /**
+     * Trilha de auditoria do cadastro. Depende do `AuditModule`, que é o dono do schema `audit` —
+     * o serviço de Clientes nunca escreve SQL contra esse schema diretamente.
+     */
+    ClientAuditService,
     {
       provide: ENTERPRISE_CORE_PORT.CommercialClient,
       useExisting: ClientAccessService,

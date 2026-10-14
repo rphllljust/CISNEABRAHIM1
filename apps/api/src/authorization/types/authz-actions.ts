@@ -20,6 +20,26 @@ export const AUTHZ_ACTIONS = {
   ClientUpdate: 'client:client:update',
   ClientDeactivate: 'client:client:deactivate',
   ClientActivate: 'client:client:activate',
+  /**
+   * CUSTOMER 360 — capacidades ADITIVAS (migration 0097).
+   *
+   * Cada uma governa uma INTENÇÃO própria, e não um "editar cadastro" genérico:
+   *
+   *  - `ClientContactManage` — adicionar contato, atribuir papel, marcar o principal, inativar.
+   *  - `ClientUnitManage`    — declarar filiais/estabelecimentos e a matriz.
+   *  - `ClientHierarchyManage` — declarar grupo econômico e matriz/filial entre Clientes.
+   *  - `ClientAuditRead`     — LER a trilha de alteração de valor. Separada de `ClientRead` porque
+   *    a trilha mostra QUEM mudou o quê, e um perfil pode legitimamente precisar ver o cadastro
+   *    sem enxergar o histórico de alterações nem os atores.
+   *
+   * As seis capacidades originais permanecem intactas: nenhuma foi substituída.
+   */
+  ClientContactManage: 'client:contact:manage',
+  ClientUnitManage: 'client:unit:manage',
+  ClientHierarchyManage: 'client:hierarchy:manage',
+  ClientAuditRead: 'client:audit:read',
+  /** Exportação em massa da carteira — governa o comando em lote de exportação. */
+  ClientExport: 'client:client:export',
   SupplierCreate: 'supplier:supplier:create',
   SupplierRead: 'supplier:supplier:read',
   SupplierList: 'supplier:supplier:list',

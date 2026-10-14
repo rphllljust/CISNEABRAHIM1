@@ -2,6 +2,14 @@ import { useEffect, useState } from 'react';
 import { ClientsApiError, probeClientCapabilities, type ClientCapabilities } from '../api/clients-api';
 import { useAuth } from '../../auth/context/AuthProvider';
 
+/**
+ * ESTADO INICIAL E DE NEGAÇÃO — NEGAÇÃO EM TODAS, INCLUSIVE NAS DO CUSTOMER 360.
+ *
+ * Exaustividade aqui é requisito, não estilo: uma capacidade acrescentada ao tipo e esquecida
+ * neste objeto fica `undefined`, e os painéis que a consomem passam a oferecer (ou a esconder)
+ * comandos com base em ausência de valor em vez de uma decisão. As quatro capacidades novas estão
+ * declaradas explicitamente por isso.
+ */
 const EMPTY_CAPABILITIES: ClientCapabilities = {
   canList: false,
   canCreate: false,
@@ -9,6 +17,10 @@ const EMPTY_CAPABILITIES: ClientCapabilities = {
   canUpdate: false,
   canDeactivate: false,
   canActivate: false,
+  canManageContacts: false,
+  canManageUnits: false,
+  canManageHierarchy: false,
+  canReadAudit: false,
 };
 
 export function useClientCapabilities() {

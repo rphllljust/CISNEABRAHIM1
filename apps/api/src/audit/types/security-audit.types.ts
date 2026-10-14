@@ -16,6 +16,18 @@ export const SECURITY_AUDIT_ACTIONS = {
   ClientUpdate: 'security:client:update',
   ClientDeactivate: 'security:client:deactivate',
   ClientActivate: 'security:client:activate',
+  /**
+   * CUSTOMER 360 — ações ADITIVAS do domínio de Clientes (migration 0097).
+   *
+   * Cada comando semântico tem a sua própria ação de segurança, e não uma ação genérica de
+   * "update". Isso é o que permite a auditoria responder "quem marcou o contato principal?" em vez
+   * de "quem alterou o cadastro?" — a pergunta que a governança de cadastro de fato faz.
+   */
+  ClientContactManage: 'security:client:contact:manage',
+  ClientUnitManage: 'security:client:unit:manage',
+  ClientHierarchyManage: 'security:client:hierarchy:manage',
+  ClientAuditRead: 'security:client:audit:read',
+  ClientExport: 'security:client:export',
   PeoplePersonCreate: 'security:people:person:create',
   PeoplePersonUpdate: 'security:people:person:update',
   PeoplePersonDeactivate: 'security:people:person:deactivate',

@@ -5,11 +5,17 @@ import type { AdvancedFilterPayload } from '../../engine';
 import {
   CLIENT_ERROR_CODES,
   type Client,
+  type ClientAuditTrail,
+  type ClientContact,
+  type ClientDataQuality,
+  type ClientDuplicateCheck,
   type ClientErrorCode,
+  type ClientHierarchy,
   type ClientListDirection,
   type ClientListResponse,
   type ClientListSort,
   type ClientStatus,
+  type ContactRole,
   type CreateClientPayload,
   type PurchaseOrderRequirement,
   type UpdateClientPayload,
@@ -236,6 +242,264 @@ export async function activateClient(
   });
 }
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+   CUSTOMER 360 — leituras e comandos semânticos (migration 0097)
+   ══════════════════════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * CONSULTA PRÉVIA DE DUPLICIDADE.
+ *
+ * Roda ANTES de criar e NUNCA funde nada: devolve os candidatos com a força da evidência separada
+ * (`certain` = coincidência provada por documento ou referência externa; suspeita = apenas nome).
+ * A decisão de seguir com o cadastro é do operador.
+ */
+export async function checkClientDuplicates(
+  probe: {
+    legalName?: string;
+    tradeName?: string;
+    taxId?: string;
+    externalErpId?: string;
+    excludeClientId?: string;
+  },
+  signal?: AbortSignal,
+): Promise<ClientDuplicateCheck> {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(probe)) {
+    // Parâmetro vazio NÃO é enviado: o servidor distingue "sem sinal" de "sinal vazio", e mandar
+    // string vazia faria a triagem comparar contra nada.
+    if (typeof value === 'string' && value.trim().length > 0) {
+      search.set(key, value.trim());
+    }
+  }
+  const query = search.toString();
+  return requestJson<ClientDuplicateCheck>(
+    `/api/v1/clients/duplicate-check${query ? `?${query}` : ''}`,
+    { method: 'GET', headers: authHeaders(), signal },
+  );
+}
+
+/** QUALIDADE DOS DADOS — apontamentos reais derivados do cadastro persistido. */
+export async function getClientDataQuality(
+  clientId: string,
+  signal?: AbortSignal,
+): Promise<ClientDataQuality> {
+  return requestJson<ClientDataQuality>(`/api/v1/clients/${clientId}/data-quality`, {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+}
+
+/** HIERARQUIA EMPRESARIAL declarada — grupo econômico, matriz e filiais. */
+export async function getClientHierarchy(
+  clientId: string,
+  signal?: AbortSignal,
+): Promise<ClientHierarchy> {
+  return requestJson<ClientHierarchy>(`/api/v1/clients/${clientId}/hierarchy`, {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+}
+
+/**
+ * TRILHA DE AUDITORIA do cadastro.
+ *
+ * Capability própria no servidor (`client:audit:read`): a chamada pode responder 403 mesmo para
+ * quem lê o Cliente, e a UI trata isso como seção indisponível — não como erro da página.
+ */
+export async function getClientAuditTrail(
+  clientId: string,
+  params: { limit?: number; offset?: number } = {},
+  signal?: AbortSignal,
+): Promise<ClientAuditTrail> {
+  const search = new URLSearchParams();
+  if (params.limit !== undefined) {
+    search.set('limit', String(params.limit));
+  }
+  if (params.offset !== undefined) {
+    search.set('offset', String(params.offset));
+  }
+  const query = search.toString();
+  return requestJson<ClientAuditTrail>(
+    `/api/v1/clients/${clientId}/audit-trail${query ? `?${query}` : ''}`,
+    { method: 'GET', headers: authHeaders(), signal },
+  );
+}
+
+/* ── comandos de contato ─────────────────────────────────────────────────────────────────── */
+
+export type AddClientContactPayload = {
+  version: number;
+  name: string;
+  purpose: ClientContact['purpose'];
+  role?: ContactRole | null;
+  email?: string;
+  phone?: string;
+};
+
+export async function addClientContact(
+  clientId: string,
+  payload: AddClientContactPayload,
+  signal?: AbortSignal,
+): Promise<Client> {
+  return requestJson<Client>(`/api/v1/clients/${clientId}/contacts`, {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    signal,
+  });
+}
+
+export async function setClientPrimaryContact(
+  clientId: string,
+  contactId: string,
+  version: number,
+  signal?: AbortSignal,
+): Promise<Client> {
+  return requestJson<Client>(`/api/v1/clients/${clientId}/contacts/${contactId}/primary`, {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ version }),
+    signal,
+  });
+}
+
+/** `role: null` REMOVE a atribuição de papel — distinto de omitir, que não altera nada. */
+export async function setClientContactRole(
+  clientId: string,
+  contactId: string,
+  role: ContactRole | null,
+  version: number,
+  signal?: AbortSignal,
+): Promise<Client> {
+  return requestJson<Client>(`/api/v1/clients/${clientId}/contacts/${contactId}/role`, {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ version, role }),
+    signal,
+  });
+}
+
+export async function deactivateClientContact(
+  clientId: string,
+  contactId: string,
+  version: number,
+  signal?: AbortSignal,
+): Promise<Client> {
+  return requestJson<Client>(`/api/v1/clients/${clientId}/contacts/${contactId}/deactivate`, {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ version }),
+    signal,
+  });
+}
+
+export async function reactivateClientContact(
+  clientId: string,
+  contactId: string,
+  version: number,
+  signal?: AbortSignal,
+): Promise<Client> {
+  return requestJson<Client>(`/api/v1/clients/${clientId}/contacts/${contactId}/reactivate`, {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ version }),
+    signal,
+  });
+}
+
+/** Remoção definitiva do contato. A inativação é o caminho normal; esta é a exceção deliberada. */
+export async function removeClientContact(
+  clientId: string,
+  contactId: string,
+  version: number,
+  signal?: AbortSignal,
+): Promise<Client> {
+  return requestJson<Client>(`/api/v1/clients/${clientId}/contacts/${contactId}`, {
+    method: 'DELETE',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ version }),
+    signal,
+  });
+}
+
+/* ── comandos de unidade ─────────────────────────────────────────────────────────────────── */
+
+export type AddClientUnitPayload = {
+  version: number;
+  name: string;
+  isHeadquarters?: boolean;
+  city?: string;
+  state?: string;
+};
+
+export async function addClientUnit(
+  clientId: string,
+  payload: AddClientUnitPayload,
+  signal?: AbortSignal,
+): Promise<Client> {
+  return requestJson<Client>(`/api/v1/clients/${clientId}/units`, {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    signal,
+  });
+}
+
+export async function setClientUnitHeadquarters(
+  clientId: string,
+  unitId: string,
+  version: number,
+  signal?: AbortSignal,
+): Promise<Client> {
+  return requestJson<Client>(`/api/v1/clients/${clientId}/units/${unitId}/headquarters`, {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ version }),
+    signal,
+  });
+}
+
+export async function removeClientUnit(
+  clientId: string,
+  unitId: string,
+  version: number,
+  signal?: AbortSignal,
+): Promise<Client> {
+  return requestJson<Client>(`/api/v1/clients/${clientId}/units/${unitId}`, {
+    method: 'DELETE',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ version }),
+    signal,
+  });
+}
+
+/* ── hierarquia empresarial ──────────────────────────────────────────────────────────────── */
+
+/**
+ * DECLARA O VÍNCULO DE HIERARQUIA.
+ *
+ * `parentClientId: null` remove o pai; `undefined` (chave ausente) não altera. O mesmo vale para
+ * `groupName`. O servidor valida CICLO antes de gravar e responde `CLIENT_HIERARCHY_CYCLE`.
+ */
+export async function setClientHierarchy(
+  clientId: string,
+  payload: {
+    version: number;
+    parentClientId?: string | null;
+    groupName?: string | null;
+  },
+  signal?: AbortSignal,
+): Promise<Client> {
+  return requestJson<Client>(`/api/v1/clients/${clientId}/hierarchy`, {
+    method: 'PATCH',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    signal,
+  });
+}
+
 export type ClientCapabilities = {
   canList: boolean;
   canCreate: boolean;
@@ -243,7 +507,40 @@ export type ClientCapabilities = {
   canUpdate: boolean;
   canDeactivate: boolean;
   canActivate: boolean;
+  /** Capacidades do Customer 360 (migration 0097), cada uma com comando próprio no servidor. */
+  canManageContacts: boolean;
+  canManageUnits: boolean;
+  canManageHierarchy: boolean;
+  canReadAudit: boolean;
 };
+
+/**
+ * DERIVAÇÃO DAS CAPACIDADES DO CUSTOMER 360.
+ *
+ * As capacidades novas (contato, unidade, hierarquia, auditoria) NÃO ganharam endpoint de sondagem
+ * próprio — inventar um seria criar superfície de API só para a UI. A derivação usa o par que o
+ * servidor de fato exige EM CONJUNTO para cada comando de escrita: `ClientRead` (sem ele nem o
+ * detalhe nem a `version` chegam) + `ClientUpdate` (a capability de escrita do cadastro).
+ *
+ * `canReadAudit` é OTIMISTA e VERIFICADO NA PRÁTICA: a seção de auditoria desaparece sozinha
+ * quando o servidor responde 403 na primeira leitura da trilha. Uma suposição otimista que se
+ * corrige é melhor que esconder a seção por precaução — e em nenhum dos casos a UI decide
+ * autorização: o servidor continua recusando o que não é permitido.
+ */
+function deriveCustomer360Capabilities(base: {
+  canRead: boolean;
+  canUpdate: boolean;
+}): Pick<
+  ClientCapabilities,
+  'canManageContacts' | 'canManageUnits' | 'canManageHierarchy' | 'canReadAudit'
+> {
+  return {
+    canManageContacts: base.canRead && base.canUpdate,
+    canManageUnits: base.canRead && base.canUpdate,
+    canManageHierarchy: base.canRead && base.canUpdate,
+    canReadAudit: base.canRead,
+  };
+}
 
 async function probeMutation(
   path: string,
@@ -302,7 +599,15 @@ export async function probeClientCapabilities(signal?: AbortSignal): Promise<Cli
     probeMutation(`/api/v1/clients/${PROBE_CLIENT_ID}/activate`, 'POST', { version: 1 }),
   ]);
 
-  return { canList, canCreate, canRead, canUpdate, canDeactivate, canActivate };
+  return {
+    canList,
+    canCreate,
+    canRead,
+    canUpdate,
+    canDeactivate,
+    canActivate,
+    ...deriveCustomer360Capabilities({ canRead, canUpdate }),
+  };
 }
 
 export async function probeClientListAccess(signal?: AbortSignal): Promise<boolean> {

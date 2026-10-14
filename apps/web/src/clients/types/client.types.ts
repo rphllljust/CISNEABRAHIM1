@@ -30,10 +30,33 @@ export const ADDRESS_PURPOSES = {
 
 export type AddressPurpose = (typeof ADDRESS_PURPOSES)[keyof typeof ADDRESS_PURPOSES];
 
+/**
+ * PAPEL do contato na organização do CLIENTE — eixo diferente de `ContactPurpose`.
+ *
+ * `purpose` diz com o que o contato se relaciona no CISNE; `role` diz quem é a pessoa na empresa
+ * do Cliente. `null` é um valor LEGÍTIMO e significa "não declarado": o backfill da migration 0097
+ * não atribuiu papel a nenhum contato histórico, e a UI não deve inventar um.
+ */
+export const CONTACT_ROLES = {
+  Operational: 'operational',
+  Commercial: 'commercial',
+  Billing: 'billing',
+  Purchasing: 'purchasing',
+  Fiscal: 'fiscal',
+  Contracts: 'contracts',
+  Management: 'management',
+} as const;
+
+export type ContactRole = (typeof CONTACT_ROLES)[keyof typeof CONTACT_ROLES];
+
 export type ClientContact = {
   id?: string;
   name: string;
   purpose: ContactPurpose;
+  role?: ContactRole | null;
+  isPrimary?: boolean;
+  /** Instante em que o contato saiu de operação. Presença = inativo (o registro é preservado). */
+  deactivatedAt?: string | null;
   email?: string | null;
   phone?: string | null;
 };
@@ -41,6 +64,9 @@ export type ClientContact = {
 export type ClientAddress = {
   id?: string;
   purpose: AddressPurpose;
+  /** Unidade a que o endereço pertence. `null` = endereço do Cliente, não de uma unidade. */
+  unitId?: string | null;
+  unitName?: string | null;
   street?: string | null;
   number?: string | null;
   complement?: string | null;
@@ -49,6 +75,110 @@ export type ClientAddress = {
   state?: string | null;
   postalCode?: string | null;
   country?: string | null;
+};
+
+/** UNIDADE DO CLIENTE — filial ou estabelecimento declarado. */
+export type ClientUnit = {
+  id: string;
+  name: string;
+  isHeadquarters: boolean;
+  city: string | null;
+  state: string | null;
+  /** Contagem REAL de endereços desta unidade, calculada no servidor. */
+  addressCount: number;
+};
+
+/** QUALIDADE DOS DADOS — apontamentos reais. Não existe nota: ver `client-quality`. */
+export const CLIENT_QUALITY_SEVERITIES = ['blocking', 'attention', 'advisory'] as const;
+
+export type ClientQualitySeverity = (typeof CLIENT_QUALITY_SEVERITIES)[number];
+
+export type ClientQualityFinding = {
+  code: string;
+  severity: ClientQualitySeverity;
+  summary: string;
+  consequence: string;
+};
+
+export type ClientDataQuality = {
+  /** `true` sempre que o servidor respondeu: separa "avaliado" de "não avaliado". */
+  evaluated: boolean;
+  isComplete: boolean;
+  findings: ClientQualityFinding[];
+};
+
+/** RAZÕES DE DUPLICIDADE — os mesmos códigos publicados por `client-duplicates.ts` no servidor. */
+export const CLIENT_DUPLICATE_REASONS = {
+  TaxIdMatch: 'TAX_ID_MATCH',
+  ExternalReferenceMatch: 'EXTERNAL_REFERENCE_MATCH',
+  LegalNameMatch: 'LEGAL_NAME_MATCH',
+  TradeNameMatch: 'TRADE_NAME_MATCH',
+} as const;
+
+export type ClientDuplicateReason =
+  (typeof CLIENT_DUPLICATE_REASONS)[keyof typeof CLIENT_DUPLICATE_REASONS];
+
+export type ClientDuplicateMatch = {
+  id: string;
+  legalName: string;
+  tradeName: string | null;
+  normalizedTaxId: string;
+  externalErpId: string | null;
+  status: string;
+  reasons: ClientDuplicateReason[];
+  /**
+   * `true` = coincidência PROVADA (documento ou referência externa). `false` = SUSPEITA que exige
+   * confirmação humana. A UI usa isso para não tratar as duas como dúvida equivalente.
+   */
+  certain: boolean;
+};
+
+export type ClientDuplicateCheck = {
+  checked: boolean;
+  certainCount: number;
+  suspectedCount: number;
+  matches: ClientDuplicateMatch[];
+};
+
+/** NÓ DA HIERARQUIA — `relation` e `depth` são posição relativa ao Cliente consultado. */
+export type ClientHierarchyNode = {
+  id: string;
+  legal_name: string;
+  trade_name: string | null;
+  status: string;
+  parent_client_id: string | null;
+  group_id: string | null;
+  group_name: string | null;
+  child_count: number;
+  depth: number;
+  relation: 'self' | 'parent' | 'child';
+};
+
+export type ClientHierarchy = {
+  rootId: string;
+  nodes: ClientHierarchyNode[];
+  /** `true` quando o teto de profundidade ou de nós foi atingido — a árvore é PARCIAL. */
+  truncated: boolean;
+  maxDepth: number;
+};
+
+/** ENTRADA DA TRILHA DE AUDITORIA — o par (antes, depois) de cada alteração. */
+export type ClientAuditTrailEntry = {
+  id: string;
+  action: string;
+  actorIdentityId: string;
+  correlationId: string;
+  occurredAt: string;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+};
+
+export type ClientAuditTrail = {
+  items: ClientAuditTrailEntry[];
+  limit: number;
+  offset: number;
+  total: number;
+  totalPages: number;
 };
 
 export type Client = {
@@ -64,8 +194,17 @@ export type Client = {
   deactivatedAt: string | null;
   deactivationReason: string | null;
   purchaseOrderRequirement: PurchaseOrderRequirement;
+  /** GRUPO ECONÔMICO — vínculo declarado. `null` = não declarado (nunca inferido). */
+  groupId: string | null;
+  groupName: string | null;
+  /** MATRIZ declarada na hierarquia, com o nome já resolvido pelo servidor. */
+  parentClientId: string | null;
+  parentClientName: string | null;
+  /** Filhos DIRETOS declarados. */
+  childCount: number;
   contacts: ClientContact[];
   addresses: ClientAddress[];
+  units: ClientUnit[];
 };
 
 /**
