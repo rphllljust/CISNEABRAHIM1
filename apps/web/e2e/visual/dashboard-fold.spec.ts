@@ -47,6 +47,13 @@ const WORK_INBOX_PAGE = {
 test.describe('visao geral — fila decisoria exercitada', () => {
   test.use({ viewport: { width: 1440, height: 900 } });
 
+  test.beforeEach(() => {
+    test.skip(
+      test.info().project.name !== 'desktop',
+      'Esta prova tem contrato fixo de 1440x900 e roda uma única vez no projeto desktop.',
+    );
+  });
+
   test('primeira dobra com fila, excecao, acao, contexto e fluxo', async ({ page }) => {
     /*
      * ORDEM IMPORTA: `prepareAuthenticatedSession` instala o mock global de toda a API. O
@@ -120,7 +127,9 @@ test.describe('visao geral — fila decisoria exercitada', () => {
     await page.screenshot({ path: 'tmp-dashboard-1440.png', fullPage: false });
 
     // ESTADO B: clicar no item da fila ABRE o drawer com o contexto, sem perder a fila.
-    await page.locator('.dashboard-queue-item__object').first().click();
+    await page
+      .getByRole('button', { name: /OS-2026-0184.*Execução de manutenção preventiva/i })
+      .click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
     await expect(dialog.getByText('OS-2026-0184')).toBeVisible();

@@ -155,6 +155,13 @@ async function assertWorkbenchGrammar(page: Page, options: { requireSavedViews?:
 test.describe('aceite visual final — service orders e creates', () => {
   test.use({ viewport: { width: 1600, height: 900 } });
 
+  test.beforeEach(() => {
+    test.skip(
+      test.info().project.name !== 'desktop',
+      'Este aceite tem contrato fixo de 1600x900 e roda uma única vez no projeto desktop.',
+    );
+  });
+
   test('ordens de servico — workspace operacional, nao CRUD', async ({ page }) => {
     /*
      * O PERFIL DE MOCK E POR ROTA, NAO GLOBAL.

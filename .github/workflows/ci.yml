@@ -155,6 +155,49 @@ jobs:
       - name: API end-to-end tests
         run: pnpm test:e2e
 
+  visual-baseline-refresh:
+    name: Visual baseline refresh
+    if: startsWith(github.ref, 'refs/heads/rc/')
+    runs-on: ubuntu-latest
+    needs: static-quality
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @cisne/web exec playwright install chromium --with-deps
+
+      - name: Refresh approved visual baselines
+        continue-on-error: true
+        run: pnpm --filter @cisne/web exec playwright test --update-snapshots --retries=0
+        env:
+          CI: 'true'
+          VITE_CISNE_SURFACE: 'dev'
+
+      - name: Upload refreshed visual baselines
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-visual-baselines-${{ github.run_id }}
+          if-no-files-found: error
+          retention-days: 1
+          path: apps/web/e2e/visual/**/*-snapshots/*.png
+
   build:
     name: Build / artifacts
     runs-on: ubuntu-latest

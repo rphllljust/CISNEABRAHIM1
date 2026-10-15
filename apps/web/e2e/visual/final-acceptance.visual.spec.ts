@@ -69,6 +69,10 @@ test.describe('aceite visual final — 1600x900', () => {
   test.use({ viewport: { width: 1600, height: 900 } });
 
   test.beforeEach(async ({ page }) => {
+    test.skip(
+      test.info().project.name !== 'desktop',
+      'Este aceite tem contrato fixo de 1600x900 e roda uma única vez no projeto desktop.',
+    );
     await prepareAuthenticatedSession(page, 'finance');
   });
 
