@@ -34,6 +34,12 @@ describe('PurchaseOrdersListPage — orçamento de requisições', () => {
       const { pathname } = parseRequestPath(input);
       if (pathname === '/api/v1/commercial/purchase-orders') {
         listingCalls += 1;
+        return jsonResponse({
+          items: [],
+          limit: 20,
+          offset: 0,
+          summary: { recordCount: 0, currencies: [] },
+        });
       }
       const commercialResponse = await commercial(input, init);
       if (commercialResponse) {

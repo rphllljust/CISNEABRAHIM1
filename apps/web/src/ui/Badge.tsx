@@ -9,11 +9,11 @@ export type BadgeProps = HTMLAttributes<HTMLSpanElement> & {
 };
 
 const toneClasses: Record<BadgeTone, string> = {
-  neutral: 'bg-slate-100 text-slate-700 ring-slate-200',
-  success: 'bg-green-100 text-green-800 ring-green-600/20',
-  warning: 'bg-orange-100 text-orange-800 ring-orange-600/20',
-  error: 'bg-red-100 text-red-700 ring-red-600/20',
-  info: 'bg-blue-100 text-blue-800 ring-blue-600/20',
+  neutral: 'bg-[color:var(--color-surface-neutral)] text-[color:var(--erp-neutral)] ring-[color:var(--erp-border)]',
+  success: 'bg-[color:var(--color-success-bg)] text-[color:var(--color-success-ink)] ring-[color:var(--color-success-border)]',
+  warning: 'bg-[color:var(--color-warning-bg)] text-[color:var(--color-warning-ink)] ring-[color:var(--color-warning-border)]',
+  error: 'bg-[color:var(--color-critical-bg)] text-[color:var(--color-critical-ink)] ring-[color:var(--color-critical-border)]',
+  info: 'bg-[color:var(--color-info-bg)] text-[color:var(--color-info-ink)] ring-[color:var(--color-info-border)]',
 };
 
 export function Badge({ children, tone = 'neutral', className, ...props }: BadgeProps) {

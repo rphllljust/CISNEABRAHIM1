@@ -33,6 +33,31 @@ describe('ServiceOrdersRepository.listServiceOrders', () => {
     expect(sql).toContain('OFFSET $3');
     expect(params).toEqual(['unit-a', 20, 40]);
   });
+
+  it('counts the complete authorized query with the same predicate, without page bounds', async () => {
+    const query = vi.fn(async (_sql: string, _params: unknown[]) => ({ rows: [{ total: '47' }] }));
+    const repository = new ServiceOrdersRepository(
+      { getConnection: () => ({ pool: { query } }) } as never,
+      { appendServiceOrderReleased: vi.fn(), appendServiceOrderCompleted: vi.fn() } as never,
+      { registrar: vi.fn() },
+    );
+
+    const total = await repository.countServiceOrders({
+      fromClause: 'so.service_orders so',
+      whereClause: 'so.unit_id = $1 AND so.status = $2',
+      params: ['unit-a', 'COMPLETED'],
+      orderBy: 'so.created_at DESC',
+    });
+
+    expect(total).toBe(47);
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('WHERE so.unit_id = $1 AND so.status = $2'),
+      ['unit-a', 'COMPLETED'],
+    );
+    const [sql] = query.mock.calls[0] ?? [];
+    expect(sql).not.toContain('LIMIT');
+    expect(sql).not.toContain('OFFSET');
+  });
 });
 
 describe('service order completion fact across transitions', () => {

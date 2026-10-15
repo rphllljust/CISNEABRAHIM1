@@ -110,6 +110,67 @@ export class ExpenseRepository {
     return Number(result.rows[0]?.total ?? '0');
   }
 
+  async summarizeList(whereClause: string, params: unknown[]): Promise<{
+    total: number;
+    openCount: number;
+    draftCount: number;
+    submittedCount: number;
+    approvedCount: number;
+    openAmounts: Array<{ currency_code: string; amount: string }>;
+    openAmountUnavailableCount: number;
+  }> {
+    const result = await this.pool().query<{
+      total: string;
+      open_count: string;
+      draft_count: string;
+      submitted_count: string;
+      approved_count: string;
+      currency_code: string | null;
+      open_amount: string | null;
+      open_amount_unavailable_count: string;
+    }>(
+      `WITH scoped AS (
+         SELECT status::text AS status, currency_code,
+                CASE WHEN status IN ('DRAFT', 'SUBMITTED', 'APPROVED') THEN total_amount END AS open_amount
+         FROM fin.expenses
+         WHERE ${whereClause}
+       ), totals AS (
+         SELECT COUNT(*)::text AS total,
+                COUNT(*) FILTER (WHERE status IN ('DRAFT', 'SUBMITTED', 'APPROVED'))::text AS open_count,
+                COUNT(*) FILTER (WHERE status = 'DRAFT')::text AS draft_count,
+                COUNT(*) FILTER (WHERE status = 'SUBMITTED')::text AS submitted_count,
+                COUNT(*) FILTER (WHERE status = 'APPROVED')::text AS approved_count,
+                COUNT(*) FILTER (WHERE status IN ('DRAFT', 'SUBMITTED', 'APPROVED') AND open_amount IS NULL)::text AS unavailable
+         FROM scoped
+       ), amounts AS (
+         SELECT currency_code, SUM(open_amount)::text AS open_amount
+         FROM scoped
+         WHERE open_amount IS NOT NULL
+         GROUP BY currency_code
+       )
+       SELECT totals.total, totals.open_count, totals.draft_count, totals.submitted_count,
+              totals.approved_count, amounts.currency_code, amounts.open_amount,
+              totals.unavailable AS open_amount_unavailable_count
+       FROM totals LEFT JOIN amounts ON TRUE
+       ORDER BY amounts.currency_code`,
+      params,
+    );
+    const first = result.rows[0];
+    return {
+      total: Number(first?.total ?? '0'),
+      openCount: Number(first?.open_count ?? '0'),
+      draftCount: Number(first?.draft_count ?? '0'),
+      submittedCount: Number(first?.submitted_count ?? '0'),
+      approvedCount: Number(first?.approved_count ?? '0'),
+      openAmounts: result.rows.flatMap((row) =>
+        row.currency_code && row.open_amount
+          ? [{ currency_code: row.currency_code, amount: row.open_amount }]
+          : [],
+      ),
+      openAmountUnavailableCount: Number(first?.open_amount_unavailable_count ?? '0'),
+    };
+  }
+
   async documentExists(documentId: string): Promise<boolean> {
     const result = await this.pool().query<{ id: string }>(
       `SELECT id FROM rpt.read_documents WHERE id = $1`,

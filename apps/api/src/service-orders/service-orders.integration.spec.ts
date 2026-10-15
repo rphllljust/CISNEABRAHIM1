@@ -727,6 +727,7 @@ describe('Service orders PostgreSQL integration', () => {
     expect(page.items[0]?.id).toBe(second.id);
     expect(page.limit).toBe(1);
     expect(page.offset).toBe(0);
+    expect(page.total).toBe(2);
 
     const nextPage = await serviceOrdersAccess.list(actor, {
       limit: 1,
@@ -736,6 +737,7 @@ describe('Service orders PostgreSQL integration', () => {
       unitId: UNIT_A,
     });
     expect(nextPage.items[0]?.id).toBe(first.id);
+    expect(nextPage.total).toBe(2);
   });
 
   it('denies list without list grant', async () => {

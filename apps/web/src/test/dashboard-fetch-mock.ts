@@ -210,7 +210,7 @@ const WORK_INBOX_ITEMS = [
   },
 ];
 
-export function createDashboardFetchMock() {
+export function createDashboardFetchMock(snapshot = EXECUTIVE_DASHBOARD_SNAPSHOT) {
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = requestUrl(input);
     const method = init?.method ?? 'GET';
@@ -253,7 +253,7 @@ export function createDashboardFetchMock() {
     }
 
     if (url.includes('/api/v1/dashboard/executive') && method === 'GET') {
-      return new Response(JSON.stringify(EXECUTIVE_DASHBOARD_SNAPSHOT), {
+      return new Response(JSON.stringify(snapshot), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });

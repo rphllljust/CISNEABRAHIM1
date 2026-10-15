@@ -101,10 +101,10 @@ export function DynamicContextDrawer({
         e a unica superficie realmente elevada sobre a work area, que e exatamente o "elevated
         surface somente quando necessaria".
       */
-      className="cisne-context-surface fixed inset-y-0 right-0 z-40 flex w-full max-w-md flex-col border-l-[3px] border-l-brand-600 shadow-[var(--shadow-dialog)]"
+      className="cisne-context-surface fixed inset-y-0 right-0 z-40 flex w-full max-w-[380px] flex-col border-l border-l-[color:var(--erp-border-strong)] shadow-[var(--shadow-dialog)]"
     >
-      <header className="cisne-divider--section flex items-center justify-between gap-2 px-3 py-2">
-        <h2 className="cisne-type-workspace m-0 truncate">{title}</h2>
+      <header className="cisne-divider--section flex items-center justify-between gap-2 bg-[color:var(--color-surface-context-strong)] px-3 py-2">
+        <h2 className="cisne-type-workspace m-0 truncate text-[color:var(--erp-text)]">{title}</h2>
         <button
           type="button"
           data-testid="dynamic-context-drawer-close"

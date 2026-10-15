@@ -90,12 +90,11 @@ const EXPENSES_BUILT_IN_VIEWS = [
  *   ESTADO    Situação como badge humano, sem enum cru
  *   AÇÃO      Ação primária exposta por linha; nada de comando de domínio escondido
  *
- * SOBRE A FAIXA DE INDICADORES — e por que ela NÃO é um total de carteira.
+ * SOBRE A FAIXA DE INDICADORES — projeção autoritativa do recorte completo.
  *
- * `/finance/expenses` é PAGINADO: o servidor devolve `total` (contagem sob o recorte) e a página
- * corrente. Somar o valor das linhas desta página e chamar isso de "total" seria mentir sobre o
- * conjunto. A faixa publica somente o que é verdade — contagens por situação e o valor ainda em
- * aberto DESTA página —, sempre rotulado como tal. Cada indicador é um LINK para esta mesma lista
+ * `/finance/expenses` é PAGINADO: o servidor devolve `total` e uma projeção agregada sob o mesmo
+ * filtro e autorização, agrupando valores por moeda. Somar as linhas desta página e chamar isso de
+ * "total" seria mentir sobre o conjunto. Cada indicador é um LINK para esta mesma lista
  * recortada pelo parâmetro que o servidor entende (`?status=…`), e o rodapé diz a faixa real
  * ("1–3 de 147"), de modo que nenhum número da tela fica órfão da sua origem.
  *
@@ -251,17 +250,23 @@ export function ExpensesListPage() {
   itemsRef.current = items;
 
   /*
-   * CONTAGENS DO CONJUNTO VISÍVEL — derivadas exclusivamente do que o SERVIDOR já autorizou e
-   * devolveu nesta página. Nenhum estado é inventado: as chaves são as do domínio
-   * (`EXPENSE_STATUS_LABELS`) e "em aberto" considera exatamente as despesas ainda não decididas.
+   * O RESUMO E A CONTAGEM vêm do servidor para todo o recorte autorizado e filtrado. Valores
+   * monetários são separados por moeda; desconhecido permanece desconhecido.
    */
-  const countOf = (status: string): number => items.filter((item) => item.status === status).length;
-  const pending = countOf('SUBMITTED');
-  const drafts = countOf('DRAFT');
-  const approved = countOf('APPROVED');
-  const openRows = items.filter((item) => isOpenStatus(item.status));
-  const openAmount = openRows.reduce((sum, item) => sum + Number(item.totalAmount || 0), 0);
-  const openCurrency = openRows[0]?.currencyCode ?? items[0]?.currencyCode ?? 'BRL';
+  const pending = page.summary?.submittedCount ?? null;
+  const drafts = page.summary?.draftCount ?? null;
+  const approved = page.summary?.approvedCount ?? null;
+  const openPortfolioValue = page.summary
+    ? page.summary.openAmounts.length === 0
+      ? page.summary.openCount === 0
+        ? 'Sem valor em aberto'
+        : 'Valor não publicado'
+      : page.summary.openAmounts
+          .map(({ amount, currencyCode }) => ({
+            amount: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: currencyCode }).format(Number(amount)),
+            currencyCode,
+          }))
+    : 'Total do recorte não publicado';
   const overdue = items.filter(
     (item) => isOpenStatus(item.status) && daysUntil(item.dueDate, today) < 0,
   ).length;
@@ -349,7 +354,7 @@ export function ExpensesListPage() {
         />
         <DrilldownMetric
           label="Aguardando aprovação"
-          value={pending}
+          value={pending ?? '—'}
           /*
            * ESCOPO DECLARADO EM TODOS OS CINCO.
            *
@@ -361,29 +366,35 @@ export function ExpensesListPage() {
            * valer também para leitor de tela; o destino (lista filtrada pelo servidor) NÃO muda e
            * continua sendo o caminho até o dado autoritativo.
            */
-          hint="aguardando aprovação nesta página · ver enviadas"
-          tone={pending > 0 ? 'warning' : 'neutral'}
+          hint={page.summary ? 'no recorte · ver enviadas' : 'contagem não publicada · ver enviadas'}
+          tone={(pending ?? 0) > 0 ? 'warning' : 'neutral'}
           muted={pending === 0}
           to="/app/finance/expenses?status=SUBMITTED"
         />
         <DrilldownMetric
           label="Rascunhos"
-          value={drafts}
-          hint="rascunhos nesta página · ver rascunhos"
+          value={drafts ?? '—'}
+          hint={page.summary ? 'no recorte · ver rascunhos' : 'contagem não publicada · ver rascunhos'}
           muted={drafts === 0}
           to="/app/finance/expenses?status=DRAFT"
         />
         <DrilldownMetric
           label="Aprovadas"
-          value={approved}
-          hint="aprovadas nesta página · ver aprovadas"
+          value={approved ?? '—'}
+          hint={page.summary ? 'no recorte · ver aprovadas' : 'contagem não publicada · ver aprovadas'}
           tone="info"
           muted={approved === 0}
           to="/app/finance/expenses?status=APPROVED"
         />
         <DrilldownMetric
-          label="Em aberto nesta página"
-          value={<Money value={String(openAmount)} currencyCode={openCurrency} />}
+          label="Em aberto no recorte"
+          value={
+            Array.isArray(openPortfolioValue)
+              ? openPortfolioValue.map(({ amount, currencyCode }) => (
+                  <span key={currencyCode} className="block text-sm">{amount}</span>
+                ))
+              : openPortfolioValue
+          }
           /*
            * O prazo vencido aparece AQUI, e não como sexto cartão: ele é uma leitura do MESMO
            * conjunto (despesas ainda não decididas) e o servidor só recorta uma situação por vez —
@@ -391,9 +402,9 @@ export function ExpensesListPage() {
            * fica visível sem inventar filtro.
            */
           hint={
-            overdue > 0
-              ? `${overdue} com prazo vencido`
-              : 'ainda não decididas'
+            page.summary
+              ? `${page.summary.openCount} despesas abertas no recorte${page.summary.openAmountUnavailableCount > 0 ? ` · valor não apurado em ${page.summary.openAmountUnavailableCount}` : ''}${Array.isArray(openPortfolioValue) ? ` · ${page.summary.openAmounts.map(({ amount, currencyCode }) => `${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: currencyCode }).format(Number(amount))}`).join(' · ')}` : ` · ${openPortfolioValue}`}${overdue > 0 ? ` · ${overdue} vencidas nesta página` : ''}`
+              : 'Resumo do recorte não publicado'
           }
           tone={overdue > 0 ? 'critical' : 'neutral'}
           to="/app/finance/expenses"

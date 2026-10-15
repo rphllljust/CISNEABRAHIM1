@@ -114,12 +114,12 @@ export function DynamicBusinessChain({
             data-chain-relation={node.relation ?? null}
             className={
               node.relation === 'ROOT'
-                ? 'rounded border border-slate-300 bg-slate-50 p-2'
-                : 'border-l-2 border-slate-200 py-1 pl-3'
+                ? 'rounded border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-context)] p-2'
+                : 'border-l-2 border-[color:var(--color-border-strong)] py-1 pl-3'
             }
           >
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs uppercase tracking-wide text-slate-500">{node.kind}</span>
+              <span className="text-xs uppercase tracking-wide text-[color:var(--color-text-muted)]">{node.kind}</span>
               {node.route ? (
                 <a className="text-sm font-medium underline" href={node.route}>
                   {node.businessReference}
@@ -130,17 +130,17 @@ export function DynamicBusinessChain({
               {node.status ? (
                 <span
                   data-chain-status={node.status}
-                  className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px]"
+                  className="rounded bg-[color:var(--color-surface-context-strong)] px-1.5 py-0.5 text-[11px]"
                 >
                   {node.status}
                 </span>
               ) : null}
               {node.relation && node.relation !== 'ROOT' ? (
-                <span className="text-xs text-slate-500">{node.relation}</span>
+                <span className="text-xs text-[color:var(--color-text-muted)]">{node.relation}</span>
               ) : null}
             </div>
             {node.summary || node.occurredAt ? (
-              <p className="mt-0.5 text-xs text-slate-600">
+              <p className="mt-0.5 text-xs text-[color:var(--color-text-secondary)]">
                 {node.summary ?? ''}
                 {node.summary && node.occurredAt ? ' · ' : ''}
                 {node.occurredAt ?? ''}

@@ -41,10 +41,27 @@ export type ExpenseSummary = {
   createdAt: string;
 };
 
+export type ExpenseListSummary = {
+  total: number;
+  openCount: number;
+  draftCount: number;
+  submittedCount: number;
+  approvedCount: number;
+  openAmounts: Array<{ currencyCode: string; amount: string }>;
+  openAmountUnavailableCount: number;
+};
+
 export async function listExpenses(
   params: { limit: number; offset: number; status?: string; q?: string },
   signal?: AbortSignal,
-): Promise<{ items: ExpenseSummary[]; limit: number; offset: number; total: number; totalPages: number }> {
+): Promise<{
+  items: ExpenseSummary[];
+  limit: number;
+  offset: number;
+  total: number;
+  totalPages: number;
+  summary?: ExpenseListSummary;
+}> {
   const search = new URLSearchParams({ limit: String(params.limit), offset: String(params.offset) });
   if (params.status) {
     search.set('status', params.status);

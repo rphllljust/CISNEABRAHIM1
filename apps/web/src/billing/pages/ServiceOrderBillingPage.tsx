@@ -117,14 +117,14 @@ export function ServiceOrderBillingPage() {
   }, [reload]);
 
   const handlePrepare = async () => {
-    if (state.phase !== 'ready' || !state.measurement) {
+    if (state.phase !== 'ready') {
       return;
     }
     setSubmitting(true);
     setFeedback(null);
     try {
       const billing = await prepareBillingRecord(serviceOrderId, {
-        measurementId: state.measurement.id,
+        measurementId: state.measurement?.id,
         paymentTerms: paymentTerms.trim(),
       });
       setPrepareOpen(false);
@@ -239,6 +239,10 @@ export function ServiceOrderBillingPage() {
   }
 
   const { order, measurement, billing } = state;
+  const entitlementPolicy: unknown = order.serviceSnapshot['billingEntitlementPolicy'];
+  const requiresApprovedMeasurement = entitlementPolicy === undefined ||
+    entitlementPolicy === null ||
+    entitlementPolicy === 'MEASUREMENT_APPROVED';
   const authoritative = resolveAuthoritativePaymentTerms(order);
   const termsDivergence =
     authoritative && paymentTerms.trim()
@@ -246,15 +250,16 @@ export function ServiceOrderBillingPage() {
       : null;
   const displayItems = billing?.items ?? measurement?.items ?? [];
   const currencyCode = billing?.currencyCode ?? 'BRL';
-  const totalAmount =
-    billing?.totalAmount ?? sumMoneyLines(displayItems.map((item) => ('lineAmount' in item ? item.lineAmount : null)));
+  const totalAmount = billing?.totalAmount ?? (displayItems.length > 0
+    ? sumMoneyLines(displayItems.map((item) => ('lineAmount' in item ? item.lineAmount : null)))
+    : null);
   const commercialSnapshot =
     billing?.commercialReferenceSnapshot ?? measurement?.commercialReferenceSnapshot ?? null;
   const documentLabels = readDocumentLabels(commercialSnapshot);
   const canPrepare =
     capabilities.canPrepare &&
     !versionConflict &&
-    measurement?.status === MEASUREMENT_STATUSES.Approved &&
+    (!requiresApprovedMeasurement || measurement?.status === MEASUREMENT_STATUSES.Approved) &&
     (!billing || billing.status === BILLING_RECORD_STATUSES.Voided);
   const canVoid =
     capabilities.canVoid && !versionConflict && billing?.status === BILLING_RECORD_STATUSES.Prepared;
@@ -269,6 +274,8 @@ export function ServiceOrderBillingPage() {
       ? 'document'
       : billing?.status === BILLING_RECORD_STATUSES.Voided
         ? 'preparation'
+        : !requiresApprovedMeasurement
+          ? 'preparation'
         : measurement?.status === MEASUREMENT_STATUSES.Approved
           ? 'preparation'
           : 'measurement';
@@ -282,13 +289,22 @@ export function ServiceOrderBillingPage() {
    * acao declarada, o painel some (nao ha "editar status").
    */
   let billingNextAction: NextAction | null = null;
-  if (canPrepare) {
+  if (termsDivergence && canPrepare) {
+    billingNextAction = {
+      kind: 'waiting',
+      label: 'Resolver condição comercial',
+      description: 'A condição informada diverge da fonte autoritativa; adote a condição comercial de origem para continuar.',
+      waitingOn: 'Condição comercial da ordem',
+    };
+  } else if (canPrepare) {
     billingNextAction = {
       kind: 'act',
       label: 'Preparar faturamento',
       description: termsDivergence
         ? 'Bloqueado por divergência entre a condição informada e a fonte autoritativa.'
-        : 'Consolida a medição aprovada em uma cobrança interna.',
+        : requiresApprovedMeasurement
+          ? 'Consolida a medição aprovada em uma cobrança interna.'
+          : 'Calcula e valida a cobrança a partir da base contratual persistida.',
       onSelect: () => setPrepareOpen(true),
     };
   } else if (billing?.status === BILLING_RECORD_STATUSES.Prepared && capabilities.canIssueDocument) {
@@ -298,7 +314,7 @@ export function ServiceOrderBillingPage() {
       description: 'A preparação está concluída; o próximo passo é emitir o documento interno.',
       to: `/app/service-orders/${order.id}/billing/document`,
     };
-  } else if (measurement?.status !== MEASUREMENT_STATUSES.Approved) {
+  } else if (requiresApprovedMeasurement && measurement?.status !== MEASUREMENT_STATUSES.Approved) {
     billingNextAction = {
       kind: 'waiting',
       label: 'Aguardar medição aprovada',
@@ -464,24 +480,6 @@ export function ServiceOrderBillingPage() {
       </section>
 
       <footer className="billing-actions">
-        {billing?.status === BILLING_RECORD_STATUSES.Prepared && capabilities.canIssueDocument ? (
-          <Link
-            to={`/app/service-orders/${order.id}/billing/document`}
-            className="billing-button billing-button--primary"
-          >
-            Emitir Nota Fatura
-          </Link>
-        ) : null}
-        {canPrepare ? (
-          <button
-            type="button"
-            className="billing-button billing-button--primary"
-            disabled={Boolean(termsDivergence) || submitting}
-            onClick={() => setPrepareOpen(true)}
-          >
-            Preparar faturamento
-          </button>
-        ) : null}
         {canVoid ? (
           <button
             type="button"

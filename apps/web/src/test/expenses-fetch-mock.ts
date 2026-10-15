@@ -168,6 +168,25 @@ export function createExpensesFetchMock(
         offset,
         total: items.length,
         totalPages: items.length > 0 ? 1 : 0,
+        summary: {
+          total: items.length,
+          openCount: items.filter((expense) => ['DRAFT', 'SUBMITTED', 'APPROVED'].includes(expense.status)).length,
+          draftCount: items.filter((expense) => expense.status === 'DRAFT').length,
+          submittedCount: items.filter((expense) => expense.status === 'SUBMITTED').length,
+          approvedCount: items.filter((expense) => expense.status === 'APPROVED').length,
+          openAmounts: items
+            .filter((expense) => ['DRAFT', 'SUBMITTED', 'APPROVED'].includes(expense.status))
+            .reduce<Array<{ currencyCode: string; amount: string }>>((amounts, expense) => {
+              const existing = amounts.find((amount) => amount.currencyCode === expense.currencyCode);
+              if (existing) {
+                existing.amount = String(Number(existing.amount) + Number(expense.totalAmount));
+              } else {
+                amounts.push({ currencyCode: expense.currencyCode, amount: expense.totalAmount });
+              }
+              return amounts;
+            }, []),
+          openAmountUnavailableCount: 0,
+        },
       });
     }
 

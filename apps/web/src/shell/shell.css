@@ -221,7 +221,7 @@ body.shell-drawer-open {
 */
 .shell-loading {
   padding: 0.5rem 0;
-  color: var(--color-text-secondary, #4b5563);
+  color: var(--erp-text-secondary);
   font-size: var(--type-meta-size);
 }
 

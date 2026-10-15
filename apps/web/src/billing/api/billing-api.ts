@@ -4,6 +4,7 @@ import {
   BILLING_ERROR_CODES,
   type BillingCapabilities,
   type BillingRecordDetail,
+  type BillingWorklistResponse,
   type BillingErrorCode,
   type PrepareBillingRecordPayload,
   type VoidBillingRecordPayload,
@@ -95,6 +96,22 @@ async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
 
 function billingPath(serviceOrderId: string, suffix = ''): string {
   return `/api/v1/service-orders/${serviceOrderId}/billing-records${suffix}`;
+}
+
+export async function listBillingWorklist(
+  query: { bucket?: string; search?: string; limit?: number; offset?: number },
+  signal?: AbortSignal,
+): Promise<BillingWorklistResponse> {
+  const params = new URLSearchParams();
+  if (query.bucket) params.set('bucket', query.bucket);
+  if (query.search?.trim()) params.set('q', query.search.trim());
+  params.set('limit', String(query.limit ?? 20));
+  params.set('offset', String(query.offset ?? 0));
+  return requestJson<BillingWorklistResponse>(`/api/v1/billing/worklist?${params.toString()}`, {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
 }
 
 export async function getBillingRecord(

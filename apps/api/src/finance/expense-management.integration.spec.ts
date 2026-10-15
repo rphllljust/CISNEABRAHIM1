@@ -192,6 +192,56 @@ describe('Expense management PostgreSQL integration', () => {
     expect(wrongStatus.total).toBe(0);
   });
 
+  it('publishes open expense totals for the full authorized filter, grouped by currency', async () => {
+    const requester = await seedIdentity(true);
+    const category = await payables.createExpenseCategory(requester, {
+      code: `CAT-${crypto.randomUUID().slice(0, 8)}`,
+      name: 'Resumo de carteira',
+    });
+    const createExpense = (description: string, currencyCode: string, amount: string) =>
+      expenses.create(requester, {
+        unitId: UNIT,
+        expenseCategoryId: category.id,
+        costCenterId: crypto.randomUUID(),
+        costCenterCode: 'CC-SUMMARY',
+        dueDate: '2099-12-31',
+        paymentTerms: 'IMEDIATO',
+        description,
+        receiptDocumentId: null,
+        items: [{ description, amount }],
+        idempotencyKey: `expense-summary-${crypto.randomUUID()}`,
+        currencyCode,
+      });
+    await createExpense('Resumo BRL um', 'BRL', '125.00');
+    await createExpense('Resumo USD', 'USD', '80.00');
+    await createExpense('Resumo BRL dois', 'BRL', '75.00');
+
+    const firstPage = await expenses.list(requester, { limit: 1, offset: 0 });
+    expect(firstPage.items).toHaveLength(1);
+    expect(firstPage.summary.total).toBe(3);
+    expect(firstPage.summary.openCount).toBe(3);
+    expect(firstPage.summary.draftCount).toBe(3);
+    expect(firstPage.summary.submittedCount).toBe(0);
+    expect(firstPage.summary.approvedCount).toBe(0);
+    expect(firstPage.summary.openAmounts).toEqual(
+      [
+        { currencyCode: 'BRL', amount: '200.00' },
+        { currencyCode: 'USD', amount: '80.00' },
+      ],
+    );
+
+    const scoped = await expenses.list(requester, {
+      limit: 20,
+      offset: 0,
+      q: 'Resumo BRL um',
+    });
+    expect(scoped.summary.total).toBe(1);
+    expect(scoped.summary.openCount).toBe(1);
+    expect(scoped.summary.openAmounts).toEqual([
+      { currencyCode: 'BRL', amount: '125.00' },
+    ]);
+  });
+
   it('denies the expenses list without the list grant', async () => {
     const { submitted } = await seedReadyExpense();
     const outsider = await seedIdentity(false);

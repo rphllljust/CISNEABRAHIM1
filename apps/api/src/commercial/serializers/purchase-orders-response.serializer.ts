@@ -14,11 +14,36 @@ import {
 } from '../domain/purchase-order-balance';
 import type {
   PurchaseOrderBillingRuleRow,
+  PurchaseOrderCurrencySummaryRow,
   PurchaseOrderDocumentLinkRow,
   PurchaseOrderLinkedRow,
   PurchaseOrderItemRow,
   PurchaseOrderRow,
 } from '../repositories/purchase-orders.repository.types';
+
+export type PurchaseOrderCurrencySummaryResponse = {
+  currencyCode: string;
+  recordCount: number;
+  authorizedAmount: string | null;
+  authorizedAmountUnavailableCount: number;
+  consumedAmount: string | null;
+  availableBalance: string | null;
+  balanceUnavailableCount: number;
+};
+
+export function toPurchaseOrderCurrencySummaryResponse(
+  row: PurchaseOrderCurrencySummaryRow,
+): PurchaseOrderCurrencySummaryResponse {
+  return {
+    currencyCode: row.currency_code,
+    recordCount: Number(row.record_count),
+    authorizedAmount: row.authorized_amount,
+    authorizedAmountUnavailableCount: Number(row.authorized_amount_unavailable_count),
+    consumedAmount: row.consumed_amount,
+    availableBalance: row.available_balance,
+    balanceUnavailableCount: Number(row.balance_unavailable_count),
+  };
+}
 
 export type PurchaseOrderItemResponse = {
   id: string;

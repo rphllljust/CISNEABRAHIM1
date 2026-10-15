@@ -1,15 +1,8 @@
-import { MEASUREMENT_STATUSES, type MeasurementDetail } from '../../service-orders/types/measurement.types';
 import type { ServiceOrderDetail } from '../../service-orders/types/service-order.types';
 import {
-  BILLING_PROCESS_BUCKETS,
-  BILLING_RECORD_STATUSES,
   PAYMENT_TERMS_SOURCES,
-  type BillingProcessBucket,
-  type BillingRecordDetail,
-  type BillingWorkQueueItem,
   type CommercialTermsDivergence,
 } from '../types/billing.types';
-import { sumMoneyLines } from './billing-format';
 
 export type AuthoritativePaymentTerms = {
   value: string;
@@ -87,70 +80,6 @@ export function suggestDeclaredPaymentTerms(order: ServiceOrderDetail): string {
   return resolveAuthoritativePaymentTerms(order)?.value ?? '';
 }
 
-export function classifyBillingBucket(
-  measurement: MeasurementDetail | null,
-  billing: BillingRecordDetail | null,
-  declaredTerms: string,
-  order: ServiceOrderDetail,
-): BillingProcessBucket {
-  if (billing?.status === BILLING_RECORD_STATUSES.Prepared) {
-    return BILLING_PROCESS_BUCKETS.Prepared;
-  }
-
-  const authoritative = resolveAuthoritativePaymentTerms(order);
-  if (
-    measurement?.status === MEASUREMENT_STATUSES.Approved &&
-    authoritative &&
-    declaredTerms.trim() &&
-    buildCommercialTermsDivergence(authoritative, declaredTerms)
-  ) {
-    return BILLING_PROCESS_BUCKETS.Divergence;
-  }
-
-  if (measurement?.status === MEASUREMENT_STATUSES.Approved) {
-    return BILLING_PROCESS_BUCKETS.Ready;
-  }
-
-  return BILLING_PROCESS_BUCKETS.Ready;
-}
-
-export function buildWorkQueueItem(
-  order: ServiceOrderDetail,
-  measurement: MeasurementDetail | null,
-  billing: BillingRecordDetail | null,
-  declaredTerms: string,
-): BillingWorkQueueItem | null {
-  if (!measurement || measurement.status !== MEASUREMENT_STATUSES.Approved) {
-    if (billing?.status === BILLING_RECORD_STATUSES.Prepared) {
-      // keep prepared records visible even if measurement fetch failed
-    } else {
-      return null;
-    }
-  }
-
-  const bucket = classifyBillingBucket(measurement, billing, declaredTerms, order);
-  const authoritative = resolveAuthoritativePaymentTerms(order);
-  const termsDivergence =
-    authoritative && declaredTerms.trim()
-      ? buildCommercialTermsDivergence(authoritative, declaredTerms)
-      : null;
-
-  const totalAmount =
-    billing?.totalAmount ??
-    (measurement ? sumMoneyLines(measurement.items.map((item) => item.lineAmount)) : null);
-
-  return {
-    serviceOrderId: order.id,
-    orderNumber: order.orderNumber,
-    clientLabel: readClientLabel(order),
-    measurementId: measurement?.id ?? billing?.measurementId ?? null,
-    billingId: billing?.id ?? null,
-    totalAmount,
-    bucket: termsDivergence ? BILLING_PROCESS_BUCKETS.Divergence : bucket,
-    termsDivergence,
-  };
-}
-
 export function readCommercialReferenceLabel(snapshot: Record<string, unknown> | null | undefined): string {
   if (!snapshot) {
     return '—';
@@ -213,10 +142,10 @@ export const BILLING_FUTURE_PROCESS_STEPS = [
 
 /**
  * ETAPAS REAIS DO PROCESSO — a cadeia que o produto de fato executa hoje.
- * Medição aprovada -> Preparação -> Documento interno -> Recebível.
+ * Base comercial elegível -> Preparação -> Documento interno -> Recebível.
  */
 export const BILLING_PROCESS_STEPS = [
-  { id: 'measurement', label: 'Medição aprovada' },
+  { id: 'measurement', label: 'Base de faturamento elegível' },
   { id: 'preparation', label: 'Preparação da cobrança' },
   { id: 'document', label: 'Nota Fatura (documento interno)' },
   { id: 'receivable', label: 'Recebível' },
@@ -224,15 +153,3 @@ export const BILLING_PROCESS_STEPS = [
 
 /** O recebivel existe como etapa real do processo, com destino proprio. */
 export const BILLING_RECEIVABLE_HREF = '/app/finance/receivables';
-
-export function groupWorkQueueByBucket(
-  items: BillingWorkQueueItem[],
-): Record<BillingProcessBucket, BillingWorkQueueItem[]> {
-  return {
-    [BILLING_PROCESS_BUCKETS.Ready]: items.filter((item) => item.bucket === BILLING_PROCESS_BUCKETS.Ready),
-    [BILLING_PROCESS_BUCKETS.Prepared]: items.filter((item) => item.bucket === BILLING_PROCESS_BUCKETS.Prepared),
-    [BILLING_PROCESS_BUCKETS.Divergence]: items.filter(
-      (item) => item.bucket === BILLING_PROCESS_BUCKETS.Divergence,
-    ),
-  };
-}

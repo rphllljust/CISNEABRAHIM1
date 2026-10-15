@@ -11,6 +11,7 @@ import { ServiceOrdersModule } from '../service-orders/service-orders.module';
 import { IssuerRegistryModule } from '../establishments/issuer-registry.module';
 import { BillingController } from './controllers/billing.controller';
 import { BillingDocumentController } from './controllers/billing-document.controller';
+import { BillingWorklistController } from './controllers/billing-worklist.controller';
 import { BillingRepository } from './repositories/billing.repository';
 import { BillingDocumentRepository } from './repositories/billing-document.repository';
 import { BillingAccessService } from './services/billing-access.service';
@@ -31,7 +32,7 @@ import { BillingDocumentArtifactService } from './services/billing-document-arti
     MeasurementsModule,
     IssuerRegistryModule,
   ],
-  controllers: [BillingController, BillingDocumentController],
+  controllers: [BillingController, BillingDocumentController, BillingWorklistController],
   providers: [
     BillingRepository,
     BillingDocumentRepository,

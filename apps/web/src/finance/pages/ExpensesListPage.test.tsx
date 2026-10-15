@@ -32,6 +32,9 @@ describe('ExpensesListPage', () => {
      * conjunto. A paginação continua server-side; o que mudou é o texto do rodapé.
      */
     expect(screen.getByText(/1–2 de 2/)).toBeInTheDocument();
+    expect(screen.getByText('Em aberto no recorte')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Em aberto no recorte:/ })).toHaveTextContent('R$');
+    expect(screen.getByRole('link', { name: /Aguardando aprovação: no recorte/ })).toHaveTextContent('1');
     expect(
       screen.queryByLabelText(/identificador da despesa/i),
     ).not.toBeInTheDocument();

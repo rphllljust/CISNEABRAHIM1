@@ -60,13 +60,10 @@ export type MetricTone = 'neutral' | 'warning' | 'critical' | 'info';
  * produto; teal fica reservado a identidade (logo, accent de navegacao, contexto).
  */
 const METRIC_TONE: Record<MetricTone, string> = {
-  neutral:
-    'border-[color:var(--color-divider)] bg-white text-[color:var(--color-text-secondary)]',
-  info: 'border-[color:var(--color-blue-200)] bg-[color:var(--color-surface-info)] text-[color:var(--color-blue-800)]',
-  warning:
-    'border-[color:var(--color-amber-200)] bg-[color:var(--color-surface-warning)] text-[color:var(--color-amber-700)]',
-  critical:
-    'border-[color:var(--color-red-200)] bg-[color:var(--color-surface-critical)] text-[color:var(--color-red-700)]',
+  neutral: 'border-[color:var(--erp-border)] bg-[color:var(--erp-surface)] text-[color:var(--erp-text-secondary)]',
+  info: 'border-[color:var(--color-info-border)] bg-[color:var(--color-info-bg)] text-[color:var(--erp-info)]',
+  warning: 'border-[color:var(--color-warning-border)] bg-[color:var(--color-warning-bg)] text-[color:var(--erp-warning)]',
+  critical: 'border-[color:var(--color-critical-border)] bg-[color:var(--color-critical-bg)] text-[color:var(--erp-critical)]',
 };
 
 export function EnterpriseMetric({
@@ -81,12 +78,12 @@ export function EnterpriseMetric({
   return (
     <span
       className={cn(
-        'inline-flex items-baseline gap-1.5 rounded-md border px-2 py-1 text-xs',
+        'inline-flex min-h-[72px] min-w-[132px] flex-col items-start justify-center gap-1 rounded-md border px-2.5 py-2 text-xs',
         METRIC_TONE[tone],
       )}
     >
-      <strong className="text-sm font-semibold tabular-nums">{value}</strong>
-      <span className="font-medium">{label}</span>
+      <strong className="text-lg leading-none font-semibold tabular-nums">{value}</strong>
+      <span className="font-medium leading-tight">{label}</span>
     </span>
   );
 }
@@ -457,7 +454,7 @@ export function WorklistHeader({
   return (
     <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--color-divider-strong)] pb-1.5">
       <div className="flex min-w-0 flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
-        <h1 className="m-0 text-[1.375rem] leading-tight font-bold tracking-tight text-[color:var(--color-navy-800)]">
+        <h1 className="m-0 text-[1.375rem] leading-tight font-bold tracking-tight text-[color:var(--erp-text)]">
           {title}
         </h1>
         {typeof count === 'number' ? (
@@ -740,7 +737,7 @@ export function WorklistStatePanel({
         'mb-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-y px-3 py-2.5',
         isCritical
           ? 'border-[color:var(--color-red-100)] bg-[color:var(--color-surface-critical)]'
-          : 'border-[color:var(--color-divider)] bg-[color:var(--color-surface-context)]',
+          : 'border-[color:var(--erp-border)] bg-[color:var(--erp-surface-support)]',
       )}
     >
       <p
@@ -748,7 +745,7 @@ export function WorklistStatePanel({
           'm-0 text-[13px] font-semibold',
           isCritical
             ? 'text-[color:var(--color-red-700)]'
-            : 'text-[color:var(--color-text-primary)]',
+            : 'text-[color:var(--erp-text)]',
         )}
       >
         {title}
@@ -757,7 +754,7 @@ export function WorklistStatePanel({
         <p
           className={cn(
             'm-0 text-xs',
-            isCritical ? 'text-[color:var(--color-red-700)]' : 'text-[color:var(--color-text-muted)]',
+            isCritical ? 'text-[color:var(--erp-critical)]' : 'text-[color:var(--erp-text-muted)]',
           )}
         >
           {description}

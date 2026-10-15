@@ -52,6 +52,17 @@ export type ExpenseListResponse = {
   offset: number;
   total: number;
   totalPages: number;
+  summary: ExpenseListAggregate;
+};
+
+export type ExpenseListAggregate = {
+  total: number;
+  openCount: number;
+  draftCount: number;
+  submittedCount: number;
+  approvedCount: number;
+  openAmounts: Array<{ currencyCode: string; amount: string }>;
+  openAmountUnavailableCount: number;
 };
 
 /** Linha de lista: a despesa é identificada pela descrição, centro de custo, valor e estado. */

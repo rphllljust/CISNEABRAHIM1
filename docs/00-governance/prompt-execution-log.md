@@ -732,6 +732,22 @@ NOTES:
 - [x] rastreabilidade EV→DE atualizada
 - [x] Prompt 07 não executado
 
+## PROJEÇÃO AUTORITATIVA DA WORKLIST DE FATURAMENTO — 2026-10-14
+
+Classificação: **interpretação de engenharia / projeção de leitura**. Nenhuma regra de domínio foi criada ou promovida. O modelo persistente já oferece os vínculos e índices necessários; não foi criada migration.
+
+| SOURCE | EVIDENCE | BUSINESS RULE | IMPLEMENTATION | TEST | ACCEPTANCE |
+| ------ | -------- | ------------- | -------------- | ---- | ---------- |
+| Solicitação do responsável para concluir a vertical Billing, eliminando paginação heurística e indicadores sem escopo | Worklist anterior carregava ordens concluídas e fazia até três leituras adicionais por ordem; a fila não tinha total autoritativo e o frontend classificava/somava somente o lote local | Nenhuma regra nova; autorização e políticas comerciais persistidas continuam fontes; moedas não são convertidas e ausência de valor permanece desconhecida | `GET /api/v1/billing/worklist` publica page items, total do recorte, `hasMore`, contagens e agregados por moeda por uma consulta; filtros/pesquisa/ordenação ficam no servidor; projeção aplica escopos próprios a registro, documento e recebível; fila usa saved views, filtros, drawer, estados e comandos únicos; política comercial aceita apenas snapshots numéricos válidos; removidos adaptadores locais/N+1 | typecheck API/Web PASS; lint focado API/Web PASS; repository unit 1/1 e billing UI 9/9 asserts aprovados; Vitest não encerrou limpo; integração PostgreSQL acrescentada mas não executada (sem `TEST_DATABASE_URL`, psql ou Docker); `git diff --check` PASS | `PASS_WITH_RESTRICTIONS` até execução da integração PostgreSQL em CI; sem deploy |
+
+## VARREDURA GLOBAL DE TOKENS VISUAIS — 2026-10-14
+
+Classificação: **instrução de composição visual**. Utilitários gray/slate genéricos permanecem intactos; primitives e classes identificadas como semânticas consomem os papéis explícitos `--erp-*`.
+
+| SOURCE | EVIDENCE | BUSINESS RULE | IMPLEMENTATION | TEST | ACCEPTANCE |
+| ------ | -------- | ------------- | -------------- | ---- | ---------- |
+| Prompt anexado `CISNE — RECOMPOSIÇÃO VISUAL GLOBAL ERP TIER-1`, correção de saturação e instrução explícita para varrer telas renderizadas | Control Center mantinha painéis de distribuição/aging sem dados, empurrando a fila; drawers e `DynamicBusinessChain` tinham cores locais; tokens de grade/ação e superfícies eram consumidos indiretamente por Tailwind genérico | Nenhuma regra de negócio alterada; ausência continua unknown, dados semânticos preservam cores próprias, neutralidades genéricas permanecem genéricas | Declarados papéis `--erp-*`; aliases de superfície, texto, borda, ação e estado apontam aos papéis; sem remap de gray/slate; `Badge`, `DynamicList`, `Drawer`, `ContextDrawer`, `DynamicContextDrawer`, `EnterpriseMetric`, `WorklistStatePanel`, `OperationsControlCenter` e Control Center consomem papéis; sem gráfico, superfície analítica é omitida; fluxo e fila sobem antes das análises; densidade do contexto e comandos corrigidos | dashboard E2E 4/4, billing UI 9/9 asserts, repository unit 1/1; build Web PASS; typecheck/lint focados em execução; nenhum screenshot real/CI visual disponível; integração PostgreSQL indisponível | `PASS_WITH_RESTRICTIONS`; o estado sem dados e a composição funcional foram testados em DOM; CI deve executar integração PostgreSQL e gate visual antes de release |
+
 ---
 
 ```text
@@ -21078,3 +21094,57 @@ marcadores `in_filter`.
    antes destas rodadas.
 
 WORKING_TREE: alterações de TERCEIROS presentes e deliberadamente não commitadas (ver item 3)
+
+---
+
+## PROJEÇÃO DE CARTEIRA AUTORITATIVA — PEDIDOS DE COMPRA (rodada 30) — 2026-10-14
+
+STATUS: **PASS_WITH_RESTRICTIONS**
+
+### Escopo executado
+
+Correção vertical de uma falha comprovada na worklist de Pedidos de compra: seus valores agregados eram somados no frontend a partir da página carregada, não distinguiam moedas na faixa e não provinham de uma projeção do recorte completo autorizado.
+
+### Implementação
+
+- O repositório consulta linhas paginadas e agregação por moeda sob o mesmo snapshot PostgreSQL (`REPEATABLE READ READ ONLY`), aplicando o mesmo predicado autorizado e os mesmos filtros.
+- A API publica total de registros do recorte e, por moeda, autorizado, consumido, saldo e contagens explícitas de valores/saldos não apuráveis.
+- A worklist não soma mais os valores carregados no browser; a paginação usa o total do servidor. Carteira vazia não renderiza valores monetários como `R$ 0,00`; moedas distintas ficam separadas; estados desconhecidos permanecem desconhecidos.
+- Sem mudança de esquema, constraint ou migration: a query projeta campos persistidos que já possuem semântica no domínio.
+- Nenhuma regra empresarial, command ou capability foi criada.
+
+### Validação
+
+- `@cisne/database` build: PASS.
+- `@cisne/api` e `@cisne/web` typecheck: PASS após build do pacote workspace `@cisne/database`.
+- ESLint focado nos arquivos API e Web alterados: PASS.
+- API unit focado: parser de lista + ledger, **21/21 asserts passaram**. O Vitest deixou handles ativos depois do relatório e foi interrompido pelo executor (exit 130).
+- UI focado: as duas suítes imprimiram aprovação dos asserts (1/1 cada). O Vitest deixou handles ativos depois do relatório e foi interrompido pelo executor (exit 130).
+- Integração PostgreSQL nova adicionada (página vazia, duas moedas, agregação independente do tamanho da página e filtro de unidade), mas não executável neste ambiente: `TEST_DATABASE_URL` ausente e sem servidor/container PostgreSQL instalado.
+- `git diff --check`: PASS.
+
+### Restrições
+
+A consulta SQL nova ainda precisa do teste de integração PostgreSQL em CI para validar execução contra o motor real. Não alegar validação de integração nem publicar como gate completo até essa evidência.
+
+## PROJEÇÃO AUTORITATIVA DA WORKLIST DE DESPESAS — continuação — 2026-10-14
+
+STATUS: **PASS_WITH_RESTRICTIONS**
+
+- A API de Despesas publica total, contagens por estado e valores em aberto por moeda, sob o mesmo predicado de autorização/filtros; a worklist consome esses dados e mostra `—` quando resumo não está publicado.
+- Sem migration: usa status, moeda e valores existentes; comandos de despesa, capability e auditoria existentes preservados.
+- ESLint focado API/Web: PASS. Typecheck API/Web: PASS. UI de Despesas: 6/6 asserts aprovados; o processo Vitest permaneceu ativo após o relatório e foi encerrado pelo executor, portanto o encerramento do runner não está validado.
+- `git diff --check`: PASS.
+- Integração PostgreSQL da lista foi ampliada, mas não executada: `TEST_DATABASE_URL` ausente e runtime de container/PostgreSQL não disponível neste ambiente.
+
+O teste de integração deve ser executado no CI PostgreSQL antes de promover este bloco para produção.
+
+## PAGINAÇÃO AUTORITATIVA E WORKLIST DE ORDENS DE SERVIÇO — 2026-10-15
+
+STATUS: **PASS_WITH_RESTRICTIONS**
+
+- `ServiceOrdersRepository.countServiceOrders` aplica a mesma cláusula autorizada e os mesmos filtros da lista, sem `LIMIT/OFFSET`; API publica `total` do recorte e `hasMore` autoritativo. Filtros e ordenação server-side permanecem no caminho existente. Sem migration: consulta os dados e predicados já persistidos.
+- A worklist remove a heurística `items.length === PAGE_SIZE`, usa `hasMore` e `total` do contrato e mantém o próximo controle indisponível quando a continuidade não é conhecida. KPIs calculados pelas linhas continuam explicitamente “nesta página”; total desconhecido não vira zero nem estimativa.
+- A worklist existente mantém WorklistHeader, Saved Views, filtros compostos, State Panel, Context Drawer, comandos semânticos e ações em lote; a composição de paginação explicita intervalo e universo do recorte quando publicado.
+- ESLint e typecheck focados API/Web: PASS. Unit API: 4/4 PASS (runner permaneceu ativo após relatório). UI: 7 casos aprovados; o processo encerrou pelo timeout após as asserções, sem status de saída limpo. Integração PostgreSQL não executada: `TEST_DATABASE_URL` e servidor/container PostgreSQL não estão disponíveis; nenhuma integração foi alegada.
+- Sem alteração de schema, índice, regra empresarial ou migration. Produção permanece **NO-GO** até CI validar a query contra PostgreSQL.

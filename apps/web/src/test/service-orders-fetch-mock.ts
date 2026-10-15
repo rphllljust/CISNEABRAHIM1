@@ -10,6 +10,7 @@ import {
 import type { PlannedResource, ResourceAllocation } from '../service-orders/types/resource-planning.types';
 import { SERVICE_ORDER_STATUSES } from '../service-orders/types/service-order.types';
 import { PERSON_STATUSES, type Person } from '../people/types/person.types';
+import type { BillingWorklistItem } from '../billing/types/billing.types';
 
 export const MOCK_SERVICE_ORDER_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 export const MOCK_PLANNED_RESOURCE_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
@@ -1871,13 +1872,86 @@ export function createServiceOrdersFetchMock(options: ServiceOrdersFetchMockOpti
       });
     }
 
-    if (!pathname.startsWith('/api/v1/service-orders')) {
+    if (!pathname.startsWith('/api/v1/service-orders') && pathname !== '/api/v1/billing/worklist') {
       return upstream(input, init);
     }
 
     const auth = init?.headers ? new Headers(init.headers).get('authorization') : null;
     if (!auth?.startsWith('Bearer ')) {
       return orderError('AUTH_UNAUTHORIZED', 401);
+    }
+
+    if (pathname === '/api/v1/billing/worklist' && method === 'GET') {
+      if (!billingReadAllowed) return orderError('BILLING_DENIED', 403);
+      const limit = Number(searchParams.get('limit') ?? '20');
+      const offset = Number(searchParams.get('offset') ?? '0');
+      const requestedBucket = searchParams.get('bucket');
+      const q = (searchParams.get('q') ?? '').toLowerCase();
+      const order = getOrder(MOCK_SERVICE_ORDER_ID);
+      const measurement = measurements.get(MOCK_SERVICE_ORDER_ID);
+      const billing = billings.get(MOCK_SERVICE_ORDER_ID);
+      const bucket = billing?.status === 'PREPARED'
+        ? (options.billingTermsMismatch ? 'terms_divergence' : 'prepared')
+        : measurement?.status === 'APPROVED' ? 'ready' : 'measurement_pending';
+      const labelSnapshot = order.clientSnapshot?.tradeName ?? order.clientSnapshot?.legalName;
+      const clientLabel = typeof labelSnapshot === 'string' ? labelSnapshot : 'Cliente Demo LTDA';
+      let rows: BillingWorklistItem[] = options.orderCompleted === true ? [{
+        serviceOrderId: order.id,
+        orderNumber: order.orderNumber,
+        clientLabel,
+        origin: order.origin,
+        serviceOrderStatus: order.status,
+        serviceOrderVersion: order.rowVersion,
+        completedAt: order.status === SERVICE_ORDER_STATUSES.Completed ? order.updatedAt : null,
+        measurementId: measurement?.id ?? null,
+        measurementStatus: measurement?.status ?? null,
+        measurementVersion: measurement?.rowVersion ?? null,
+        billingRecordId: billing?.id ?? null,
+        billingStatus: billing?.status ?? null,
+        billingVersion: billing?.rowVersion ?? null,
+        amount: billing?.totalAmount ?? (measurement?.status === 'APPROVED' ? '1000.0000' : null),
+        currencyCode: billing?.currencyCode ?? (measurement ? 'BRL' : null),
+        bucket,
+        exceptionCode: options.billingTermsMismatch ? 'COMMERCIAL_TERMS_DIVERGE' : null,
+        exceptionDetail: options.billingTermsMismatch ? 'Condição informada diverge da condição comercial de origem.' : null,
+        authoritativeTerms: options.purchaseOrderPaymentTerms ?? null,
+        declaredTerms: billing?.paymentTerms ?? null,
+        billingDocumentId: null,
+        billingDocumentNumber: null,
+        billingDocumentStatus: null,
+        billingDocumentIssuedAt: null,
+        receivableId: null,
+        updatedAt: order.updatedAt,
+        nextAction: bucket === 'ready' ? 'prepare_billing' : bucket === 'prepared' ? 'issue_internal_document' : 'complete_measurement',
+      }] : [];
+      if (q && !`${rows[0]?.orderNumber ?? ''} ${rows[0]?.clientLabel ?? ''}`.toLowerCase().includes(q)) rows = [];
+      if (requestedBucket) rows = rows.filter((row) => row.bucket === requestedBucket);
+      const page = rows.slice(offset, offset + limit);
+      const counts = {
+        cancelled_document: 0,
+        document_state_unknown: 0,
+        terms_divergence: bucket === 'terms_divergence' && options.orderCompleted ? 1 : 0,
+        measurement_pending: bucket === 'measurement_pending' && options.orderCompleted ? 1 : 0,
+        ready: bucket === 'ready' && options.orderCompleted ? 1 : 0,
+        prepared: bucket === 'prepared' && options.orderCompleted ? 1 : 0,
+        issued: 0,
+      };
+      return jsonResponse({
+        items: page,
+        total: rows.length,
+        page: {
+          count: page.length,
+          limit,
+          offset,
+          totalPages: Math.ceil(rows.length / limit),
+          hasMore: offset + page.length < rows.length,
+        },
+        summary: {
+          total: rows.length,
+          counts,
+          amountsByCurrency: rows[0]?.currencyCode ? [{ currencyCode: rows[0].currencyCode, knownAmount: rows[0].amount, knownAmountCount: rows[0].amount ? 1 : 0, unknownAmountCount: rows[0].amount ? 0 : 1 }] : [],
+        },
+      });
     }
 
     if (pathname === '/api/v1/service-orders' && method === 'GET') {

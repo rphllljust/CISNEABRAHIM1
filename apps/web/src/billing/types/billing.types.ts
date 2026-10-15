@@ -91,7 +91,7 @@ export type BillingRecordDetail = {
 };
 
 export type PrepareBillingRecordPayload = {
-  measurementId: string;
+  measurementId?: string;
   paymentTerms: string;
   assertedTotalAmount?: string;
   idempotencyKey?: string;
@@ -180,15 +180,6 @@ export type IssueBillingDocumentPayload = {
   idempotencyKey?: string;
 };
 
-export const BILLING_PROCESS_BUCKETS = {
-  Ready: 'ready',
-  Prepared: 'prepared',
-  Divergence: 'divergence',
-} as const;
-
-export type BillingProcessBucket =
-  (typeof BILLING_PROCESS_BUCKETS)[keyof typeof BILLING_PROCESS_BUCKETS];
-
 export type CommercialTermsDivergence = {
   authoritativeLabel: string;
   authoritativeValue: string;
@@ -196,13 +187,69 @@ export type CommercialTermsDivergence = {
   declaredValue: string;
 };
 
-export type BillingWorkQueueItem = {
+export const BILLING_WORKLIST_BUCKETS = {
+  CancelledDocument: 'cancelled_document',
+  TermsDivergence: 'terms_divergence',
+  MeasurementPending: 'measurement_pending',
+  BillingBasisMissing: 'billing_basis_missing',
+  DocumentStateUnknown: 'document_state_unknown',
+  Ready: 'ready',
+  Prepared: 'prepared',
+  Issued: 'issued',
+} as const;
+
+export type BillingWorklistBucket = (typeof BILLING_WORKLIST_BUCKETS)[keyof typeof BILLING_WORKLIST_BUCKETS];
+
+export type BillingWorklistItem = {
   serviceOrderId: string;
   orderNumber: string;
-  clientLabel: string;
+  clientLabel: string | null;
+  origin: string;
+  serviceOrderStatus: string;
+  serviceOrderVersion: number;
+  completedAt: string | null;
   measurementId: string | null;
-  billingId: string | null;
-  totalAmount: string | null;
-  bucket: BillingProcessBucket;
-  termsDivergence: CommercialTermsDivergence | null;
+  measurementStatus: string | null;
+  measurementVersion: number | null;
+  billingRecordId: string | null;
+  billingStatus: string | null;
+  billingVersion: number | null;
+  amount: string | null;
+  currencyCode: string | null;
+  bucket: BillingWorklistBucket;
+  exceptionCode: string | null;
+  exceptionDetail: string | null;
+  authoritativeTerms: string | null;
+  declaredTerms: string | null;
+  billingDocumentId: string | null;
+  billingDocumentNumber: string | null;
+  billingDocumentStatus: string | null;
+  billingDocumentIssuedAt: string | null;
+  receivableId: string | null;
+  updatedAt: string;
+  nextAction: string;
+};
+
+export type BillingWorklistCurrencySummary = {
+  currencyCode: string;
+  knownAmount: string | null;
+  knownAmountCount: number;
+  unknownAmountCount: number;
+};
+
+export type BillingWorklistResponse = {
+  items: BillingWorklistItem[];
+  total: number;
+  page: {
+    count: number;
+    limit: number;
+    offset: number;
+    totalPages: number;
+    hasMore: boolean;
+  };
+  summary: {
+    total: number;
+    counts: Record<BillingWorklistBucket | 'issued', number>;
+    amountsByCurrency: BillingWorklistCurrencySummary[];
+  };
 };

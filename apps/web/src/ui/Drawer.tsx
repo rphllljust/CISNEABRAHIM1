@@ -50,11 +50,11 @@ export function Drawer({ open, title, onClose, children, side = 'right' }: Drawe
         className={cn(
           'cisne-context-surface absolute top-0 flex h-full w-[min(24rem,100vw)] flex-col shadow-[var(--shadow-dialog)]',
           side === 'right'
-            ? 'right-0 border-l-[3px] border-l-brand-600'
-            : 'left-0 border-r-[3px] border-r-brand-600',
+            ? 'right-0 border-l border-l-[color:var(--erp-border-strong)]'
+            : 'left-0 border-r border-r-[color:var(--erp-border-strong)]',
         )}
       >
-        <header className="cisne-divider--section flex items-center justify-between gap-2 px-3 py-2">
+        <header className="cisne-divider--section flex items-center justify-between gap-2 bg-[color:var(--color-surface-context-strong)] px-3 py-2">
           <h2 id={titleId} className="cisne-type-workspace m-0 truncate">
             {title}
           </h2>

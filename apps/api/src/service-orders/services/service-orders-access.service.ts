@@ -306,18 +306,26 @@ export class ServiceOrdersAccessService {
     items: ReturnType<typeof toServiceOrderListResponse>[];
     limit: number;
     offset: number;
+    total: number;
+    hasMore: boolean;
   }> {
     await this.authz.assertListAction(actor);
     const scopeFilter = await this.authz.getListScopeFilter(actor);
     const parts = resolveServiceOrderListQuery(query, scopeFilter.clause, scopeFilter.params, {
       actorIdentityId: actor.identityId,
     });
-    const rows = await this.repository.listServiceOrders(parts, query.limit, query.offset);
+    const [rows, total] = await Promise.all([
+      this.repository.listServiceOrders(parts, query.limit, query.offset),
+      this.repository.countServiceOrders(parts),
+    ]);
+    const hasMore = query.offset + rows.length < total;
 
     return {
       items: rows.map(toServiceOrderListResponse),
       limit: query.limit,
       offset: query.offset,
+      total,
+      hasMore,
     };
   }
 

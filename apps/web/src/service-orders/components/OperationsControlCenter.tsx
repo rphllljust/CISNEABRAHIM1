@@ -36,10 +36,10 @@ const ORPHAN_OWNER_STATUS: Record<string, string> = {
 };
 
 const STEP_TONE: Record<string, string> = {
-  DONE: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
-  CURRENT: 'bg-brand-50 text-brand-700 ring-brand-600/30',
-  PENDING: 'bg-gray-50 text-gray-500 ring-gray-300/40',
-  ATTENTION: 'bg-amber-50 text-amber-800 ring-amber-600/25',
+  DONE: 'bg-[color:var(--color-success-bg)] text-[color:var(--color-success-ink)] ring-[color:var(--color-success-border)]',
+  CURRENT: 'bg-[color:var(--color-info-bg)] text-[color:var(--color-info-ink)] ring-[color:var(--color-info-border)]',
+  PENDING: 'bg-[color:var(--color-surface-neutral)] text-[color:var(--erp-neutral)] ring-[color:var(--erp-border)]',
+  ATTENTION: 'bg-[color:var(--color-warning-bg)] text-[color:var(--color-warning-ink)] ring-[color:var(--color-warning-border)]',
 };
 
 const NEXT_STEP_LABELS: Record<string, string> = {
@@ -112,7 +112,7 @@ export function OperationsControlCenter({
     */
     <section className="space-y-0" aria-label="Centro de controle operacional">
       <section
-        className="cisne-divider py-3 first:pt-0 last:border-b-0"
+        className="cisne-divider py-2 first:pt-0 last:border-b-0"
         aria-labelledby="occ-next-action-heading"
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -145,7 +145,7 @@ export function OperationsControlCenter({
       </section>
 
       <section
-        className="cisne-divider py-3 first:pt-0 last:border-b-0"
+        className="cisne-divider py-2 first:pt-0 last:border-b-0"
         aria-labelledby="occ-progression-heading"
       >
         <h2 id="occ-progression-heading" className="cisne-type-section-title">
@@ -159,7 +159,7 @@ export function OperationsControlCenter({
             <li
               key={step.code}
               className={cn(
-                'rounded-lg border border-gray-100 px-3 py-2 ring-1 ring-inset',
+                'rounded-md border border-[color:var(--erp-border)] px-2 py-1.5 ring-1 ring-inset',
                 STEP_TONE[step.state],
               )}
             >
@@ -178,7 +178,7 @@ export function OperationsControlCenter({
 
       <div className="grid gap-0 lg:grid-cols-2 lg:divide-x lg:divide-gray-200">
         <section
-          className="cisne-divider py-3 lg:pr-5"
+          className="cisne-divider py-2 lg:pr-4"
           aria-labelledby="occ-planned-heading"
         >
           <h2 id="occ-planned-heading" className="cisne-type-section-title">
@@ -201,7 +201,7 @@ export function OperationsControlCenter({
         </section>
 
         <section
-          className="cisne-divider py-3 lg:pl-5"
+          className="cisne-divider py-2 lg:pl-4"
           aria-labelledby="occ-actual-heading"
         >
           <h2 id="occ-actual-heading" className="cisne-type-section-title">

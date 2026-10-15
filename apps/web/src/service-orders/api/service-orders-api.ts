@@ -150,7 +150,7 @@ export async function listServiceOrders(
     advanced?: AdvancedFilterPayload | null;
   },
   signal?: AbortSignal,
-): Promise<{ items: ServiceOrderSummary[]; limit: number; offset: number }> {
+): Promise<{ items: ServiceOrderSummary[]; limit: number; offset: number; total?: number; hasMore?: boolean }> {
   const params = new URLSearchParams();
   params.set('limit', String(query.limit ?? 20));
   params.set('offset', String(query.offset ?? 0));

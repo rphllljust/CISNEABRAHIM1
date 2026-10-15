@@ -8,6 +8,7 @@ import {
 import { SecurityAuditService } from '../../audit/services/security-audit.service';
 import { AuthorizationRepository } from '../../authorization/repositories/authorization.repository';
 import { PolicyDecisionPointService } from '../../authorization/services/policy-decision-point.service';
+import { ScopeEnforcementService } from '../../authorization/services/scope-enforcement.service';
 import { toResourceContextFromServiceOrder } from '../../authorization/scope/scope-matcher';
 import type { AuthzAction } from '../../authorization/types/authz-actions';
 import { AUTHZ_ACTIONS } from '../../authorization/types/authz-actions';
@@ -52,6 +53,7 @@ import { BILLING_ERROR_CODES } from '../errors/billing-error-codes';
 import { BillingHttpException } from '../errors/billing-http.exception';
 import { BillingRepository } from '../repositories/billing.repository';
 import type { BillingRecordRow } from '../repositories/billing.repository.types';
+import type { BillingWorklistSummary } from '../repositories/billing.repository';
 import {
   toBillingRecordDetailResponse,
   type BillingRecordDetailResponse,
@@ -65,7 +67,118 @@ export class BillingAccessService {
     private readonly authorizationRepository: AuthorizationRepository,
     private readonly policyDecisionPoint: PolicyDecisionPointService,
     private readonly securityAudit: SecurityAuditService,
+    private readonly scopeEnforcement: ScopeEnforcementService,
   ) {}
+
+  async listWorklist(
+    actor: IdentityAuthzContext,
+    input: { bucket?: string; search?: string; limit: number; offset: number },
+  ): Promise<{
+    items: Array<Record<string, unknown>>;
+    total: number;
+    page: { count: number; limit: number; offset: number; totalPages: number; hasMore: boolean };
+    summary: { total: number; counts: Record<string, number>; amountsByCurrency: BillingWorklistSummary['amountsByCurrency'] };
+  }> {
+    const action = AUTHZ_ACTIONS.BillingBillingRecordRead;
+    const grants = await this.authorizationRepository.findActiveGrants(
+      actor.identityId,
+      action,
+      AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+    );
+    const decision = await this.policyDecisionPoint.decide(
+      actor,
+      { action, resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder },
+      { audit: true },
+    );
+    if (decision.result === 'DENY' && grants.length === 0) {
+      throw new BillingHttpException(HttpStatus.FORBIDDEN, BILLING_ERROR_CODES.DENIED, 'Access denied.');
+    }
+    const scope = this.scopeEnforcement.buildServiceOrderListFilter(grants, actor.identityId);
+    const [documentReadGrants, receivableReadGrants] = await Promise.all([
+      this.authorizationRepository.findActiveGrants(
+        actor.identityId,
+        AUTHZ_ACTIONS.BillingBillingDocumentRead,
+        AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+      ),
+      this.authorizationRepository.findActiveGrants(
+        actor.identityId,
+        AUTHZ_ACTIONS.FinanceReceivableRead,
+        AUTHZ_RESOURCE_TYPES.FinanceReceivable,
+      ),
+    ]);
+    const documentScope = this.scopeEnforcement.buildServiceOrderListFilter(documentReadGrants, actor.identityId);
+    const result = await this.billingRepository.listWorklist({
+      scopeClause: scope.clause,
+      scopeParams: scope.params,
+      documentScopeClause: documentScope.clause,
+      documentScopeParams: documentScope.params,
+      bucket: input.bucket,
+      search: input.search,
+      limit: input.limit,
+      offset: input.offset,
+    });
+    return {
+      items: result.items.map((row) => {
+        const canReadDocument = row.can_read_document;
+        const receivableId = row.receivable_id && this.scopeEnforcement.canAccessRecord(
+          receivableReadGrants,
+          actor.identityId,
+          {
+            resourceId: row.receivable_id,
+            unitId: row.receivable_unit_id ?? undefined,
+            clientId: row.receivable_client_id ?? undefined,
+            isFinancial: true,
+          },
+        ) ? row.receivable_id : null;
+        const nextAction = row.bucket === 'ready' ? 'prepare_billing'
+          : row.bucket === 'prepared' ? 'issue_internal_document'
+            : row.bucket === 'issued' ? receivableId ? 'review_receivable' : 'review_issued_document'
+              : row.bucket === 'measurement_pending' ? 'complete_measurement'
+                : row.bucket === 'billing_basis_missing' ? 'resolve_billing_basis'
+                : row.bucket === 'terms_divergence' ? 'resolve_terms_divergence'
+                  : row.bucket === 'document_state_unknown' ? 'review_billing_record'
+                  : 'review_cancelled_document';
+        return {
+          serviceOrderId: row.service_order_id,
+          orderNumber: row.order_number,
+          clientLabel: row.client_label,
+          origin: row.origin,
+          serviceOrderStatus: row.service_order_status,
+          serviceOrderVersion: row.service_order_version,
+          completedAt: row.service_order_completed_at,
+          measurementId: row.measurement_id,
+          measurementStatus: row.measurement_status,
+          measurementVersion: row.measurement_version,
+          billingRecordId: row.billing_record_id,
+          billingStatus: row.billing_status,
+          billingVersion: row.billing_version,
+          amount: row.amount,
+          currencyCode: row.currency_code,
+          bucket: row.bucket,
+          exceptionCode: row.exception_code,
+          exceptionDetail: row.exception_detail,
+          authoritativeTerms: row.authoritative_terms,
+          declaredTerms: row.declared_terms,
+          billingDocumentId: canReadDocument ? row.billing_document_id : null,
+          billingDocumentNumber: canReadDocument ? row.billing_document_number : null,
+          billingDocumentStatus: canReadDocument ? row.billing_document_status : null,
+          billingDocumentIssuedAt: canReadDocument ? row.billing_document_issued_at : null,
+          receivableId,
+          updatedAt: row.updated_at,
+          nextAction,
+        };
+      }),
+      total: result.summary.total,
+      page: {
+        count: result.items.length,
+        limit: input.limit,
+        offset: input.offset,
+        totalPages: Math.ceil(result.summary.total / input.limit),
+        hasMore: input.offset + result.items.length < result.summary.total,
+      },
+      summary: result.summary,
+    };
+  }
 
   async getByServiceOrder(
     actor: IdentityAuthzContext,

@@ -14,8 +14,8 @@ import { ServiceOrdersEngineListPage } from './ServiceOrdersEngineListPage';
  * carteira era truncada em SILÊNCIO, e não havia como alcançar o resto. Agora `q`, `status`,
  * `limit` e `offset` vão ao servidor.
  *
- * REGRA CRÍTICA QUE ESTA SUÍTE PROTEGE: a listagem NÃO publica `total`. Nenhuma asserção aqui
- * aceita "de N", "página X de Y" ou qualquer quantidade global — página paginada não é dataset.
+ * A lista publica o total do recorte autorizado; a suíte prova que a tela usa esse total e não
+ * infere a existência de outra página pela quantidade de linhas retornada.
  */
 
 const PAGE_SIZE = 20;
@@ -95,9 +95,9 @@ const SERVICE_ORDERS_META = {
 
 /**
  * Dublê que respeita `q`, `status`, `limit` e `offset` COMO O BACKEND FAZ, e devolve o mesmo
- * formato do contrato: `{ items, limit, offset }` — sem `total`.
+ * formato do contrato: `{ items, limit, offset, total, hasMore }`.
  */
-function createOrdersMock() {
+function createOrdersMock(dataset = ORDERS) {
   const shell = createShellFetchMock();
   return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const method = init?.method ?? 'GET';
@@ -113,7 +113,7 @@ function createOrdersMock() {
       const status = searchParams.get('status');
       const q = searchParams.get('q')?.trim().toLowerCase() ?? '';
 
-      let items = ORDERS;
+      let items = dataset;
       if (status) {
         items = items.filter((order) => order.status === status);
       }
@@ -125,7 +125,14 @@ function createOrdersMock() {
         );
       }
 
-      return jsonResponse({ items: items.slice(offset, offset + limit), limit, offset });
+      const pageItems = items.slice(offset, offset + limit);
+      return jsonResponse({
+        items: pageItems,
+        limit,
+        offset,
+        total: items.length,
+        hasMore: offset + pageItems.length < items.length,
+      });
     }
 
     return shell(input, init);
@@ -218,25 +225,21 @@ describe('ServiceOrdersEngineListPage — recorte e paginação server-side', ()
     });
   });
 
-  it('navega para a próxima página e volta, sem afirmar total', async () => {
+  it('navega conforme o total autoritativo do recorte e volta', async () => {
     const fetchMock = createOrdersMock();
     vi.stubGlobal('fetch', fetchMock);
     const user = userEvent.setup();
 
     await renderPage();
 
-    // Primeira página: 20 linhas, e o rodapé fala só do INTERVALO da página.
-    expect(screen.getByText(/1–20 nesta página/)).toBeInTheDocument();
-    // A listagem não publica total: a tela NÃO pode afirmar quantidade global.
-    expect(screen.queryByText(/de 25/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Página 1 de/)).not.toBeInTheDocument();
+    expect(screen.getByText(/1–20 de 25 no recorte/)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Próxima' }));
 
     await waitFor(() => {
       // A segunda página traz as 5 restantes e o intervalo acompanha. O rótulo do intervalo e o
       // sufixo "nesta página" são NÓS distintos na moldura, então a busca casa só o intervalo.
-      expect(screen.getByText(/21–25/)).toBeInTheDocument();
+      expect(screen.getByText(/21–25 de 25 no recorte/)).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole('button', { name: 'Anterior' }));
@@ -247,6 +250,15 @@ describe('ServiceOrdersEngineListPage — recorte e paginação server-side', ()
     // O timeout padrão de 5s não cobre duas navegações de página com a árvore cheia; o teste
     // mede comportamento, não velocidade.
   }, 15000);
+
+  it('não oferece página fantasma quando o recorte termina exatamente no limite', async () => {
+    vi.stubGlobal('fetch', createOrdersMock(ORDERS.slice(0, PAGE_SIZE)));
+
+    await renderPage();
+
+    expect(screen.getByText(/1–20 de 20 no recorte/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Próxima' })).toBeDisabled();
+  });
 
   it('desabilita "Anterior" na primeira página', async () => {
     vi.stubGlobal('fetch', createOrdersMock());

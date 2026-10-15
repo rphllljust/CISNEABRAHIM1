@@ -340,6 +340,27 @@ describe('Billing PostgreSQL integration', () => {
     ).rejects.toMatchObject({ code: BILLING_ERROR_CODES.MEASUREMENT_NOT_APPROVED });
   });
 
+  it('projects completed orders with incomplete measurement as an exception in one queue response', async () => {
+    const { actor } = await seedActor();
+    const { completed, measurement } = await seedDraftMeasurement(actor);
+
+    const result = await billingAccess.listWorklist(actor, { limit: 20, offset: 0 });
+
+    expect(result.total).toBe(1);
+    expect(result.page).toEqual({ count: 1, limit: 20, offset: 0, totalPages: 1, hasMore: false });
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        serviceOrderId: completed.id,
+        measurementId: measurement.id,
+        measurementStatus: 'DRAFT',
+        bucket: 'measurement_pending',
+        exceptionCode: 'MEASUREMENT_NOT_APPROVED',
+        amount: null,
+      }),
+    ]);
+    expect(result.summary.counts['measurement_pending']).toBe(1);
+  });
+
   it('rejects measurement-required billing when no measurement is supplied', async () => {
     const { actor } = await seedActor();
     const { completed } = await seedDraftMeasurement(actor);
@@ -366,6 +387,18 @@ describe('Billing PostgreSQL integration', () => {
         JSON.stringify({ globalSalePrice: '1000.0000', currencyCode: 'BRL' }),
       ],
     );
+
+    const worklist = await billingAccess.listWorklist(actor, { limit: 20, offset: 0 });
+    expect(worklist.items).toEqual([
+      expect.objectContaining({
+        serviceOrderId: completed.id,
+        measurementStatus: 'DRAFT',
+        bucket: 'ready',
+        amount: '1000.0000',
+        currencyCode: 'BRL',
+        exceptionCode: null,
+      }),
+    ]);
 
     const billing = await billingAccess.prepare(actor, completed.id, {
       paymentTerms: '30 DDL',
@@ -397,6 +430,18 @@ describe('Billing PostgreSQL integration', () => {
     const costSummary = (billing.commercialReferenceSnapshot as { costSummary?: { totalRevenue?: string } })
       .costSummary;
     expect(costSummary?.totalRevenue).toBe('1000');
+
+    const worklist = await billingAccess.listWorklist(actor, { bucket: 'prepared', limit: 20, offset: 0 });
+    expect(worklist.total).toBe(1);
+    expect(worklist.items[0]).toEqual(expect.objectContaining({
+      serviceOrderId: completed.id,
+      billingRecordId: billing.id,
+      billingVersion: billing.rowVersion,
+      amount: billing.totalAmount,
+      currencyCode: billing.currencyCode,
+      bucket: 'prepared',
+      nextAction: 'issue_internal_document',
+    }));
   });
 
   it('rejects duplicate billing for the same measurement', async () => {

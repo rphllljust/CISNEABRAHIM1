@@ -37,7 +37,12 @@ describe('PurchaseOrdersListPage — superfície operacional', () => {
 
       // Listagem de pedidos: página VAZIA. A superfície de recorte não depende de dado.
       if (path === '/api/v1/commercial/purchase-orders') {
-        return jsonResponse({ items: [], limit: 20, offset: 0 });
+        return jsonResponse({
+          items: [],
+          limit: 20,
+          offset: 0,
+          summary: { recordCount: 0, currencies: [] },
+        });
       }
 
       const commercialResponse = await commercial(input, init);
@@ -73,6 +78,8 @@ describe('PurchaseOrdersListPage — superfície operacional', () => {
     expect(document.getElementById('po-status')).not.toBeNull();
     expect(document.getElementById('po-issue-from')).not.toBeNull();
     expect(document.getElementById('po-issue-to')).not.toBeNull();
+    expect(await screen.findByText('0 pedidos no recorte')).toBeInTheDocument();
+    expect(screen.queryByText(/R\$\s?0,00/)).not.toBeInTheDocument();
   });
 });
 

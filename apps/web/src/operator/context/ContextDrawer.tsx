@@ -98,12 +98,12 @@ export function ContextDrawer({
             titulo de secao: precisa dominar o painel para que o operador saiba, sem ler nada mais,
             de que registro ele esta olhando.
           */}
-          <header className="border-b border-[#D8E1EB] pb-3">
-            <p className="text-[22px] leading-tight font-bold tracking-tight text-[#071827]">
+          <header className="border-b border-[color:var(--erp-border)] pb-2">
+            <p className="text-[18px] leading-tight font-bold tracking-tight text-[color:var(--erp-text)]">
               {preview.identifier}
             </p>
             {preview.subtitle ? (
-              <p className="mt-0.5 text-[13px] text-[#52647A]">{preview.subtitle}</p>
+              <p className="mt-0.5 text-[12px] text-[color:var(--erp-text-secondary)]">{preview.subtitle}</p>
             ) : null}
             {preview.status ? <div className="mt-2">{preview.status}</div> : null}
           </header>
@@ -113,16 +113,16 @@ export function ContextDrawer({
               {preview.facts.map((field) => (
                 <div
                   key={field.label}
-                  className="col-span-2 grid grid-cols-subgrid border-b border-[#F1F5F9] pb-1.5 last:border-b-0"
+                  className="col-span-2 grid grid-cols-subgrid border-b border-[color:var(--erp-border)] pb-1 last:border-b-0"
                 >
-                  <dt className="text-[11px] font-semibold tracking-wide text-[#52647A] uppercase">
+                  <dt className="text-[10px] font-semibold tracking-wide text-[color:var(--erp-text-muted)] uppercase">
                     {field.label}
                   </dt>
                   <dd
                     className={
                       field.emphasis
-                        ? 'm-0 text-[13px] font-bold text-[#B42318] tabular-nums'
-                        : 'm-0 text-[13px] font-medium text-[#102033]'
+                        ? 'm-0 text-[12px] font-bold text-[color:var(--erp-critical)] tabular-nums'
+                        : 'm-0 text-[12px] font-medium text-[color:var(--erp-text)]'
                     }
                   >
                     {field.value}
@@ -245,21 +245,21 @@ function InlineContextPanel({
   }
 
   return (
-    <section className={cn('flex min-h-0 flex-col bg-white', className)} aria-labelledby={titleId}>
-      <header className="flex items-center justify-between gap-2 border-b border-[#CAD5E2] bg-white px-3 py-2">
+    <section className={cn('flex min-h-0 flex-col bg-[color:var(--erp-surface-support)]', className)} aria-labelledby={titleId}>
+      <header className="flex items-center justify-between gap-2 border-b border-[color:var(--erp-border-strong)] bg-[color:var(--color-surface-context-strong)] px-3 py-2">
         <h2 id={titleId} className="cisne-type-workspace m-0 truncate">
           {title}
         </h2>
         <button
           type="button"
-          className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-[#52647A] transition-colors hover:bg-[#F2F5F9] hover:text-[#071827]"
+          className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-[color:var(--erp-text-secondary)] transition-colors hover:bg-[color:var(--color-surface-hover)] hover:text-[color:var(--erp-text)]"
           onClick={onClose}
           aria-label="Fechar contexto"
         >
           <X className="size-4" strokeWidth={2.4} aria-hidden />
         </button>
       </header>
-      <div className="min-h-0 flex-1 overflow-auto bg-white px-3.5 py-3">{children}</div>
+      <div className="min-h-0 flex-1 overflow-auto px-3 py-2">{children}</div>
     </section>
   );
 }

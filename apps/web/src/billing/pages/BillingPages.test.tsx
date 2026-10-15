@@ -19,23 +19,38 @@ describe('BillingDashboardPage', () => {
   });
 
   it('lists work queue buckets', async () => {
-    vi.stubGlobal(
-      'fetch',
-      createServiceOrdersFetchMock({
+    const fetchMock = createServiceOrdersFetchMock({
         orderCompleted: true,
         seedMeasurement: 'approved',
         seedBilling: 'prepared',
-      }),
-    );
+      });
+    vi.stubGlobal('fetch', fetchMock);
     renderBillingRoutes(dashboardPath);
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /pronto para faturar/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Em preparação' })).toBeInTheDocument();
     });
 
-    expect(screen.getByRole('heading', { name: /em preparação/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /com divergência/i })).toBeInTheDocument();
     expect(screen.getByText(/OS-2026-DEMO01/)).toBeInTheDocument();
+    expect(screen.getAllByText(/1–1 de 1 no recorte/)).toHaveLength(2);
+    const requestUrl = (input: RequestInfo | URL) => input instanceof Request ? input.url : input instanceof URL ? input.href : input;
+    expect(fetchMock.mock.calls.filter(([input]) => requestUrl(input).includes('/api/v1/billing/worklist'))).toHaveLength(1);
+    expect(fetchMock.mock.calls.some(([input]) => requestUrl(input).includes('/api/v1/service-orders?status=COMPLETED'))).toBe(false);
+  });
+
+  it('opens business context from the queue row without leaving the worklist', async () => {
+    vi.stubGlobal('fetch', createServiceOrdersFetchMock({
+      orderCompleted: true,
+      seedMeasurement: 'approved',
+      seedBilling: 'prepared',
+    }));
+    renderBillingRoutes(dashboardPath);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Em preparação' }));
+
+    expect(screen.getByRole('dialog', { name: 'Contexto do faturamento' })).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog', { name: 'Contexto do faturamento' })).getAllByText(/OS-2026-DEMO01/)).toHaveLength(2);
+    expect(screen.getByRole('link', { name: 'Abrir registro e comandos' })).toHaveAttribute('href', `${billingPath}`);
   });
 
   it('shows forbidden state when billing read is denied', async () => {
@@ -124,9 +139,8 @@ describe('ServiceOrderBillingPage', () => {
     await user.clear(input);
     await user.type(input, 'À vista');
 
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /preparar faturamento/i })).toBeDisabled();
-    });
+    expect(screen.getByText('Resolver condição comercial')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /preparar faturamento/i })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /adotar condição da fonte autoritativa/i }));
 

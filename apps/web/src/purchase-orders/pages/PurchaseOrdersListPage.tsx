@@ -11,7 +11,11 @@ import {
 import { mapPurchaseOrderErrorToMessage } from '../api/purchase-order-error-messages';
 import { PurchaseOrderStatusBadge } from '../components/PurchaseOrderStatusBadge';
 import { usePurchaseOrderCapabilities } from '../hooks/usePurchaseOrderCapabilities';
-import type { PurchaseOrder, PurchaseOrderDetail } from '../types/purchase-order.types';
+import type {
+  PurchaseOrder,
+  PurchaseOrderDetail,
+  PurchaseOrderListResponse,
+} from '../types/purchase-order.types';
 import { Button } from '../../ui/Button';
 import { Skeleton } from '../../ui/Skeleton';
 import { PURCHASE_ORDER_STATUSES } from '../types/purchase-order.types';
@@ -104,58 +108,17 @@ function clientLabel(order: PurchaseOrder): string {
   return formatClientSnapshot(order.clientSnapshot) || 'Cliente não informado';
 }
 
-/**
- * SOMA DOS VALORES AUTORIZADOS DA PAGINA — leitura apenas dos valores ja publicados pela lista.
- *
- * Nao e uma agregacao nova do dominio: e a soma do papel que a pagina esta mostrando, para o
- * operador dimensionar a carteira sem somar linha a linha. Pedido cujo saldo a regra de dominio
- * recusou apurar entra por `totalAmount` e, quando nem isso existe, fica FORA da soma e e
- * CONTADO — o resumo declara "N sem valor apuravel" em vez de diluir um zero falso no total.
- */
-function summarizeAuthorized(items: PurchaseOrder[]) {
-  let total = 0;
-  let withoutAmount = 0;
-  for (const item of items) {
-    const amount = purchaseOrderAuthorizedAmount(item);
-    const numeric = amount === null ? Number.NaN : Number.parseFloat(amount);
-    if (Number.isNaN(numeric)) {
-      withoutAmount += 1;
-      continue;
-    }
-    total += numeric;
-  }
-  return { total, withoutAmount };
-}
-
-/**
- * SOMA DO CONSUMIDO E DO SALDO — mesmo principio da soma autorizada: so o que o ledger publicou.
- *
- * O saldo NAO e recalculado: quando existe `balance`, ele vem da regra de dominio
- * (`availableBalance`). Quando nao existe, a pagina nao estima saldo nenhum.
- */
-function summarizeLedger(items: PurchaseOrder[]) {
-  let consumed = 0;
-  let balance = 0;
-  for (const item of items) {
-    const consumedValue = Number.parseFloat(item.consumedAmount);
-    if (!Number.isNaN(consumedValue)) {
-      consumed += consumedValue;
-    }
-    if (item.balance) {
-      const balanceValue = Number.parseFloat(item.balance.availableBalance);
-      if (!Number.isNaN(balanceValue)) {
-        balance += balanceValue;
-      }
-    }
-  }
-  return { consumed, balance };
-}
-
 type ListState =
   | { phase: 'loading' }
   | { phase: 'denied' }
   | { phase: 'error'; message: string; retryable: boolean }
-  | { phase: 'ready'; items: PurchaseOrder[]; offset: number; hasMore: boolean };
+  | {
+      phase: 'ready';
+      items: PurchaseOrder[];
+      offset: number;
+      hasMore: boolean;
+      summary: NonNullable<PurchaseOrderListResponse['summary']> | null;
+    };
 
 export function PurchaseOrdersListPage() {
   const { capabilities } = usePurchaseOrderCapabilities();
@@ -317,7 +280,10 @@ export function PurchaseOrdersListPage() {
           phase: 'ready',
           items: response.items,
           offset: response.offset,
-          hasMore: response.items.length === response.limit,
+          hasMore: response.summary
+            ? response.offset + response.items.length < response.summary.recordCount
+            : response.items.length === response.limit,
+          summary: response.summary ?? null,
         });
       } catch (error) {
         if (error instanceof PurchaseOrdersApiError) {
@@ -384,7 +350,7 @@ export function PurchaseOrdersListPage() {
     );
   }
 
-  const { items, offset, hasMore } = listState;
+  const { items, offset, hasMore, summary } = listState;
   const pageNumber = Math.floor(offset / PAGE_SIZE) + 1;
   const hasActiveFilters = Boolean(clientFilter.trim() || unitFilter.trim());
 
@@ -405,14 +371,29 @@ export function PurchaseOrdersListPage() {
     (item) => item.status === PURCHASE_ORDER_STATUSES.Cancelled,
   ).length;
   const attentionCount = items.filter((item) => purchaseOrderNotice(item) !== null).length;
-  const authorized = summarizeAuthorized(items);
-  const ledger = summarizeLedger(items);
-  const currencyCode = items[0]?.currencyCode ?? 'BRL';
-  const moneyHint = `Soma dos valores autorizados apurados nesta página.${
-    authorized.withoutAmount > 0
-      ? ` ${authorized.withoutAmount} pedido(s) sem valor apurável ficaram fora da soma.`
-      : ''
-  }`;
+  const portfolioAmounts = (summary?.currencies ?? []).flatMap((currency) => [
+    {
+      value:
+        currency.authorizedAmount === null
+          ? `Não apurado (${currency.authorizedAmountUnavailableCount})`
+          : formatMoney(currency.authorizedAmount, currency.currencyCode),
+      label: `autorizado · ${currency.currencyCode}`,
+    },
+    {
+      value:
+        currency.consumedAmount === null
+          ? 'Não publicado'
+          : formatMoney(currency.consumedAmount, currency.currencyCode),
+      label: `consumido · ${currency.currencyCode}`,
+    },
+    {
+      value:
+        currency.availableBalance === null
+          ? `Não apurado (${currency.balanceUnavailableCount})`
+          : formatMoney(currency.availableBalance, currency.currencyCode),
+      label: `saldo · ${currency.currencyCode}`,
+    },
+  ]);
 
   return (
     <ModulePage layout="workspace">
@@ -426,38 +407,32 @@ export function PurchaseOrdersListPage() {
         Agora a superficie declara `workspace`: a grade e elastica e a bancada ocupa a tela — a mesma
         silhueta de Clientes, Solicitacoes e Propostas.
 
-        Os indicadores deixaram de ser uma faixa de caixas contornadas (`EnterpriseMetric`) e viraram
-        `WorkspaceStatusLine` no cabecalho: MESMOS numeros, MESMA origem (a propria lista), mesma
-        regra de exception-first — "exigindo atencao" e o unico com sinal.
+        Os sinais usam contagem e totais publicados pelo servidor para todo o recorte autorizado;
+        recortes locais da página permanecem explicitamente rotulados como "nesta página".
       */}
       <WorkspaceHeader
         title="Pedidos de compra"
         identity="Carteira de pedidos recebidos dos clientes, com o consumo autorizado de cada um."
-        scope={`${items.length} nesta página`}
+        scope={summary ? `${summary.recordCount} pedidos no recorte` : 'Contagem não publicada'}
         status={
           <WorkspaceStatusLine
             items={[
-              { value: items.length, label: 'nesta página' },
+              { value: summary?.recordCount ?? '—', label: 'pedidos no recorte' },
               ...(draftCount > 0
-                ? [{ value: draftCount, label: 'rascunho(s)' as const }]
+                ? [{ value: draftCount, label: 'rascunhos nesta página' as const }]
                 : []),
               ...(registeredCount > 0
-                ? [{ value: registeredCount, label: 'registrado(s)' as const }]
+                ? [{ value: registeredCount, label: 'registrados nesta página' as const }]
                 : []),
               ...(cancelledCount > 0
-                ? [{ value: cancelledCount, label: 'cancelado(s)' as const }]
+                ? [{ value: cancelledCount, label: 'cancelados nesta página' as const }]
                 : []),
-              {
-                value: formatMoney(String(authorized.total), currencyCode),
-                label: 'autorizado',
-              },
-              { value: formatMoney(String(ledger.consumed), currencyCode), label: 'consumido' },
-              { value: formatMoney(String(ledger.balance), currencyCode), label: 'saldo' },
+              ...portfolioAmounts,
               ...(attentionCount > 0
                 ? [
                     {
                       value: attentionCount,
-                      label: 'exigindo atenção',
+                      label: 'exigindo atenção nesta página',
                       tone: 'alert' as const,
                     },
                   ]
@@ -860,16 +835,9 @@ export function PurchaseOrdersListPage() {
             {items.length > 0 ? (
               <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-[color:var(--color-divider)] px-3 py-1.5">
                 <p className="m-0 text-[11px] text-[color:var(--color-text-muted)] tabular-nums">
-                  {`${offset + 1}–${offset + items.length} nesta página`}
-                  {/*
-                    O recorte dos totais e DECLARADO, nao implicito: os valores somam a pagina, e a
-                    pagina lista um recorte filtrado. Sem isto, paginacao e indicadores poderiam se
-                    contradizer na mesma linha.
-                  */}
-                  {' · '}
-                  {hasActiveFilters
-                    ? 'Totais somam os pedidos filtrados desta página'
-                    : 'Totais somam os pedidos desta página'}
+                  {summary
+                    ? `${offset + 1}–${offset + items.length} de ${summary.recordCount} pedidos no recorte`
+                    : `${offset + 1}–${offset + items.length} nesta página · total não publicado`}
                 </p>
                 <ModulePagination
                   pageNumber={pageNumber}

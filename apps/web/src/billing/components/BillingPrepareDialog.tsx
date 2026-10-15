@@ -3,7 +3,7 @@ import { useId } from 'react';
 type BillingPrepareDialogProps = {
   open: boolean;
   paymentTerms: string;
-  totalAmount: string;
+  totalAmount: string | null;
   currencyCode: string;
   onPaymentTermsChange: (value: string) => void;
   onClose: () => void;
@@ -40,11 +40,9 @@ export function BillingPrepareDialog({
       >
         <h2 id={titleId}>Preparar faturamento</h2>
         <p id={descriptionId}>
-          Confirme a condição comercial aplicável. O total será derivado dos itens da medição aprovada (
-          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: currencyCode }).format(
-            Number(totalAmount),
-          )}
-          ).
+          Confirme a condição comercial aplicável. {totalAmount === null
+            ? 'O valor será calculado e validado pelo servidor a partir da base contratual persistida.'
+            : <>O total será derivado dos itens da medição aprovada ({new Intl.NumberFormat('pt-BR', { style: 'currency', currency: currencyCode }).format(Number(totalAmount))}).</>}
         </p>
         <label className="billing-field">
           <span>Condição comercial</span>

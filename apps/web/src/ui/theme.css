@@ -163,9 +163,9 @@
   --color-blue-300: #93c5fd;
   --color-blue-400: #60a5fa;
   --color-blue-500: #3b82f6;
-  --color-blue-600: #2563eb;
-  --color-blue-700: #1d4ed8;
-  --color-blue-800: #1e40af;
+  --color-blue-600: var(--erp-action);
+  --color-blue-700: var(--erp-action-hover);
+  --color-blue-800: var(--erp-action-active);
   --color-blue-900: #1e3a8a;
 
   /* ANALYTICS — roxo para eixo TEMPORAL/analitico. Nunca para estado operacional. */
@@ -198,15 +198,15 @@
 
   --color-cisne-brand: var(--color-navy-800);
   --color-cisne-brand-strong: var(--color-navy-900);
-  --color-cisne-action: var(--color-blue-600);
-  --color-cisne-action-hover: var(--color-blue-700);
+  --color-cisne-action: var(--erp-action);
+  --color-cisne-action-hover: var(--erp-action-hover);
   --color-cisne-action-muted: var(--color-blue-50);
 
   --color-accent: var(--color-brand-600);
   --color-accent-muted: var(--color-brand-50);
   --color-accent-subtle: var(--color-brand-50);
 
-  --color-surface-app: #f4f5f6;
+  --color-surface-app: var(--erp-canvas);
   --color-surface-raised: #ffffff;
   --color-surface-sunken: #f3f4f6;
   --color-surface-muted: #f8f9fa;
@@ -284,12 +284,12 @@
    *
    * `--color-surface-app` mantem-se como alias porque varias superficies o consomem.
    */
-  --color-canvas: #f8fafc;
+  --color-canvas: var(--erp-canvas);
   --color-canvas-secondary: #f4f7fb;
-  --color-surface-app: #f8fafc;
+  --color-surface-app: var(--erp-canvas);
 
   /* LEVEL 1 — PRIMARY WORK SURFACE: BRANCO PURO. Onde o operador passa o dia. */
-  --color-canvas-work: #ffffff;
+  --color-canvas-work: var(--erp-surface);
   --color-surface-raised: #ffffff;
 
   /*
@@ -299,11 +299,11 @@
    * branco por TOM, nunca por sombra (sombra em contexto compete com o popover que o operador abriu
    * por cima dele).
    */
-  --color-surface-context: #f3f6fa;
-  --color-surface-context-strong: #e9eef5;
-  --color-surface-support: #f3f6fa;
+  --color-surface-context: var(--erp-surface-support);
+  --color-surface-context-strong: #e4eaf1;
+  --color-surface-support: var(--erp-surface-support);
   /* CABECALHO TONAL — faixa de titulo, cabecalho de grade, barra de ferramentas. */
-  --color-surface-header: #f4f7fb;
+  --color-surface-header: #f0f4f8;
   --color-surface-sunken: #f3f5f7;
   --color-surface-muted: #f8fafc;
 
@@ -314,7 +314,7 @@
    * ele disputava o mesmo tom do logo e do accent contextual, e a grade deixava de comunicar
    * "este e o registro que estou operando".
    */
-  --color-surface-selected: #eff6ff;
+  --color-surface-selected: var(--erp-surface-selected);
   --color-surface-selected-border: #bfdbfe;
 
   /* ESTADOS SEMANTICOS DE SUPERFICIE — cada um com FUNCAO, nunca por variedade. */
@@ -345,19 +345,19 @@
   /*
    * TEXTO — tres degraus e um desabilitado. Com quatro cinzas parecidos, nada se le.
    */
-  --color-text-primary: #0f172a;
-  --color-text-secondary: #475569;
-  --color-text-muted: #64748b;
-  --color-text-disabled: #94a3b8;
+  --color-text-primary: var(--erp-text);
+  --color-text-secondary: var(--erp-text-secondary);
+  --color-text-muted: var(--erp-text-muted);
+  --color-text-disabled: var(--erp-text-disabled);
   --color-text-inverse: #ffffff;
 
   /*
    * BORDAS — a linguagem de divisor do ERP.
    */
-  --color-border-default: #d8e0e9;
+  --color-border-default: var(--erp-border);
   --color-border-muted: #eef1f4;
   --color-border-subtle: #eef1f4;
-  --color-border-strong: #c5d0dd;
+  --color-border-strong: var(--erp-border-strong);
 
   /* FOCO — halo de 3-4px sobre o azul de interacao. Visivel sem ser faixa. */
   --color-focus-ring: #2563eb;
@@ -377,15 +377,15 @@
    * o backend nao publicou nao e um resultado positivo — pintar "sem ocorrencia" de verde ensina o
    * operador a ler verde onde nao ha informacao.
    */
-  --color-success-fg: #16a34a;
+  --color-success-fg: var(--erp-success);
   --color-success-bg: #f0fdf4;
   --color-success-border: #bbf7d0;
 
-  --color-warning-fg: #f59e0b;
+  --color-warning-fg: var(--erp-warning);
   --color-warning-bg: #fff7ed;
   --color-warning-border: #fed7aa;
 
-  --color-critical-fg: #ef4444;
+  --color-critical-fg: var(--erp-critical);
   --color-critical-bg: #fef2f2;
   --color-critical-border: #fecaca;
 
@@ -394,7 +394,7 @@
   --color-error-bg: #fef2f2;
   --color-error-border: #fecaca;
 
-  --color-info-fg: #2563eb;
+  --color-info-fg: var(--erp-info);
   --color-info-bg: #eff6ff;
   --color-info-border: #bfdbfe;
 
@@ -403,7 +403,7 @@
   --color-warning-ink: #c96a00;
   --color-critical-ink: #b91c1c;
   --color-info-ink: #1d4ed8;
-  --color-neutral-ink: #64748b;
+  --color-neutral-ink: var(--erp-neutral);
 
   /*
    * ESTADO OPERACIONAL — o que a entidade ESTA. Cada um responde com uma cor e so uma.
@@ -578,6 +578,24 @@
 
 @layer base {
   :root {
+    --erp-canvas: #f4f7fb;
+    --erp-surface: #ffffff;
+    --erp-surface-support: #f0f4f8;
+    --erp-surface-selected: #eff6ff;
+    --erp-border: #d6dee8;
+    --erp-border-strong: #c5d0dd;
+    --erp-text: #0f172a;
+    --erp-text-secondary: #475569;
+    --erp-text-muted: #64748b;
+    --erp-text-disabled: #94a3b8;
+    --erp-action: #2563eb;
+    --erp-action-hover: #1d4ed8;
+    --erp-action-active: #1e40af;
+    --erp-success: #16a34a;
+    --erp-warning: #d97706;
+    --erp-critical: #dc2626;
+    --erp-info: #2563eb;
+    --erp-neutral: #64748b;
     color: var(--color-text-primary);
     background: var(--color-surface-app);
     font-family: var(--font-sans);

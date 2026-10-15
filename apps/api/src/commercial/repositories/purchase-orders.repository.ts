@@ -18,6 +18,7 @@ import type {
   ClientSnapshotSource,
   CreatePurchaseOrderPersistenceInput,
   PurchaseOrderBillingRuleRow,
+  PurchaseOrderCurrencySummaryRow,
   PurchaseOrderDocumentLinkRow,
   PurchaseOrderItemRow,
   PurchaseOrderLinkedRow,
@@ -147,16 +148,63 @@ export class PurchaseOrdersRepository {
     limit: number,
     offset: number,
     orderBy?: string,
-  ): Promise<PurchaseOrderRow[]> {
-    const result = await this.pool().query<PurchaseOrderRow>(
-      `${PO_SELECT}
-       WHERE ${whereClause}
-       ORDER BY ${orderBy ?? orderByCreatedAtDesc()}
-       LIMIT $${params.length + 1}
-       OFFSET $${params.length + 2}`,
-      [...params, limit, offset],
-    );
-    return result.rows;
+  ): Promise<{ rows: PurchaseOrderRow[]; summary: PurchaseOrderCurrencySummaryRow[] }> {
+    const client = await this.pool().connect();
+    try {
+      // Página e resumo usam o mesmo snapshot, mesmo se um pedido mudar durante a leitura.
+      await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+      const page = await client.query<PurchaseOrderRow>(
+        `${PO_SELECT}
+         WHERE ${whereClause}
+         ORDER BY ${orderBy ?? orderByCreatedAtDesc()}
+         LIMIT $${params.length + 1}
+         OFFSET $${params.length + 2}`,
+        [...params, limit, offset],
+      );
+      const summary = await client.query<PurchaseOrderCurrencySummaryRow>(
+        `WITH scoped AS (
+           SELECT
+             currency_code,
+             CASE
+               WHEN pricing_structure = 'LINE_ITEMS' THEN items_line_total_amount
+               ELSE total_amount
+             END AS authorized_amount,
+             consumed_amount,
+             COALESCE(authorized_overrun_amount, 0) AS authorized_overrun_amount
+           FROM com.purchase_orders
+           WHERE ${whereClause}
+         ), evaluated AS (
+           SELECT
+             *,
+             authorized_amount IS NOT NULL AS has_authorized_amount,
+             authorized_amount IS NOT NULL
+               AND consumed_amount <= authorized_amount + authorized_overrun_amount AS has_valid_balance
+           FROM scoped
+         )
+         SELECT
+           currency_code,
+           COUNT(*)::text AS record_count,
+           CASE WHEN COUNT(*) FILTER (WHERE NOT has_authorized_amount) = 0
+             THEN SUM(authorized_amount)::text ELSE NULL END AS authorized_amount,
+           COUNT(*) FILTER (WHERE NOT has_authorized_amount)::text AS authorized_amount_unavailable_count,
+           SUM(consumed_amount)::text AS consumed_amount,
+           CASE WHEN COUNT(*) FILTER (WHERE NOT has_valid_balance) = 0
+             THEN SUM(authorized_amount + authorized_overrun_amount - consumed_amount)::text
+             ELSE NULL END AS available_balance,
+           COUNT(*) FILTER (WHERE NOT has_valid_balance)::text AS balance_unavailable_count
+         FROM evaluated
+         GROUP BY currency_code
+         ORDER BY currency_code`,
+        params,
+      );
+      await client.query('COMMIT');
+      return { rows: page.rows, summary: summary.rows };
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async listItems(purchaseOrderId: string): Promise<PurchaseOrderItemRow[]> {

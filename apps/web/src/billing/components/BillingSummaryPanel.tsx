@@ -2,7 +2,7 @@ import { formatMoneyBrl, formatPaymentDueHint } from '../utils/billing-format';
 
 type BillingSummaryPanelProps = {
   itemCount: number;
-  totalAmount: string;
+  totalAmount: string | null;
   currencyCode: string;
   paymentTerms: string;
   preparedAt?: string | null;

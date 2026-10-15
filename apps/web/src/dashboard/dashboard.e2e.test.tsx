@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../App';
 import { resetTokenStoreForTests } from '../auth/storage/token-store';
-import { createDashboardFetchMock } from '../test/dashboard-fetch-mock';
+import { createDashboardFetchMock, EXECUTIVE_DASHBOARD_SNAPSHOT } from '../test/dashboard-fetch-mock';
 import { loginAndReachApp } from '../test/login-ui-helpers';
 import { requestUrl } from '../test/request-url';
 import { createShellFetchMock } from '../test/shell-fetch-mock';
@@ -52,18 +52,13 @@ describe('operational dashboard e2e (frontend)', () => {
     const centralRoot = dashboard.getByRole('group', { name: /central operacional/i });
     const central = within(centralRoot);
 
-    const layoutOrder = [
-      'situation-strip',
-      'operational-analytics',
-      'compact-process-flow',
-      'main-workspace',
-    ].map((layout) =>
-      Array.from(centralRoot.querySelectorAll<HTMLElement>('[data-layout]')).findIndex(
-        (element) => element.getAttribute('data-layout') === layout,
-      ),
-    );
-    expect(layoutOrder.every((index) => index >= 0)).toBe(true);
-    expect(layoutOrder).toEqual([...layoutOrder].sort((left, right) => left - right));
+    const visualOrder = ['situation-strip', 'compact-process-flow', 'work-area', 'operational-analytics']
+      .map((layout) => Array.from(centralRoot.querySelectorAll<HTMLElement>('[data-layout]'))
+        .find((element) => element.getAttribute('data-layout') === layout))
+      .filter((element): element is HTMLElement => element !== undefined)
+      .map((element) => Number.parseInt(getComputedStyle(element).order, 10));
+    expect(visualOrder.length).toBe(4);
+    expect(visualOrder).toEqual([...visualOrder].sort((left, right) => left - right));
 
     // EXCECOES — worklist compacta com a contagem REAL publicada, dentro da faixa analitica.
     const exceptions = central.getByRole('region', { name: /alertas e exceções/i });
@@ -182,6 +177,32 @@ describe('operational dashboard e2e (frontend)', () => {
     expect(mainElement.textContent).not.toMatch(
       /PARK_BI_GAP|snapshot executivo|backend|amostra técnica/i,
     );
+  });
+
+  it('collapses unpublished analytics and keeps the real queue in the control center', async () => {
+    const shellMock = createShellFetchMock();
+    const snapshot = {
+      ...EXECUTIVE_DASHBOARD_SNAPSHOT,
+      attention: [],
+      charts: {
+        ...EXECUTIVE_DASHBOARD_SNAPSHOT.charts,
+        serviceOrdersByStatus: { ...EXECUTIVE_DASHBOARD_SNAPSHOT.charts.serviceOrdersByStatus, items: [] },
+        financialAging: { ...EXECUTIVE_DASHBOARD_SNAPSHOT.charts.financialAging, available: false, buckets: [] },
+      },
+    };
+    const dashboardMock = createDashboardFetchMock(snapshot);
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input);
+      if (url.includes('/api/v1/dashboard/executive') || url.includes('/api/v1/work-inbox')) return dashboardMock(input, init);
+      return shellMock(input, init);
+    }));
+
+    render(<App />);
+    await login(userEvent.setup());
+    const main = within(screen.getByRole('main'));
+    await waitFor(() => expect(main.getByRole('region', { name: /fila de trabalho do recorte/i })).toBeInTheDocument());
+    expect(main.queryByRole('region', { name: /análise operacional/i })).not.toBeInTheDocument();
+    expect(main.queryByText(/distribuição não publicada|faixas de atraso não publicadas/i)).not.toBeInTheDocument();
   });
 
   it('keeps domain and overdue operational recorte in the URL', async () => {

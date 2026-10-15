@@ -21,6 +21,7 @@ export type ServiceOrderHistoryEvent = {
 export type ServiceOrderServiceSnapshot = {
   serviceCode: string;
   serviceName: string;
+  billingEntitlementPolicy?: 'MEASUREMENT_APPROVED' | 'FIXED_PRICE' | 'PERIODIC' | 'MILESTONE';
   measurementModel?: {
     mode: string;
     basis: string;

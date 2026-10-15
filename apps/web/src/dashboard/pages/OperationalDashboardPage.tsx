@@ -533,15 +533,17 @@ export function OperationalDashboardPage() {
               <WorkbenchKpiStrip kpis={workbenchKpis} />
             </section>
 
-            <section
-              className="dashboard-analytics"
-              aria-label="Análise operacional"
-              data-layout="operational-analytics"
-            >
-              <OperationDistribution snapshot={snapshot} available={showOperationDistribution} />
-              <AgingDistribution aging={snapshot.charts.financialAging} available={showAging} />
-              <ExceptionSurface items={attentionItems} notEvaluated={scope?.notEvaluated ?? []} />
-            </section>
+            {showOperationDistribution || showAging || attentionItems.length > 0 ? (
+              <section
+                className="dashboard-analytics"
+                aria-label="Análise operacional"
+                data-layout="operational-analytics"
+              >
+                {showOperationDistribution ? <OperationDistribution snapshot={snapshot} available /> : null}
+                {showAging ? <AgingDistribution aging={snapshot.charts.financialAging} available /> : null}
+                {attentionItems.length > 0 ? <ExceptionSurface items={attentionItems} /> : null}
+              </section>
+            ) : null}
 
             {productivitySection ? (
               <section
@@ -566,7 +568,7 @@ export function OperationalDashboardPage() {
               <BusinessChainFlow stages={flowStages} domainLabel={domainLabel} />
             </div>
 
-            <div className="dashboard-cc__work">
+            <div className="dashboard-cc__work" data-layout="work-area">
               <div className="dashboard-cc__workspace" data-layout="main-workspace">
                 <section
                   className="dashboard-cc__priority"
@@ -1260,17 +1262,17 @@ function OperationDistribution({
   const colorFor = (statusId: string): string => {
     switch (statusId) {
       case 'IN_EXECUTION':
-        return '#2563EB';
+        return 'var(--erp-action)';
       case 'RELEASED':
-        return '#3B82F6';
+        return 'var(--erp-info)';
       case 'PAUSED':
-        return '#F59E0B';
+        return 'var(--erp-warning)';
       case 'COMPLETED':
-        return '#16A34A';
+        return 'var(--erp-success)';
       case 'CANCELLED':
-        return '#94A3B8';
+        return 'var(--erp-text-disabled)';
       default:
-        return '#64748B';
+        return 'var(--erp-neutral)';
     }
   };
 
@@ -1291,24 +1293,12 @@ function OperationDistribution({
    * este recorte. O operador le "nao publicado", que e diferente de "zero ordens" e diferente de
    * "esta tudo bem".
    */
-  if (!available || stops.length === 0) {
+  if (!available) {
+    return null;
+  }
+  if (stops.length === 0) {
     return (
-      <div className="dashboard-analytics__panel" aria-labelledby="status-heading">
-        <header className="dashboard-analytics__head">
-          <h2 id="status-heading" className="dashboard-analytics__title">
-            Ordens por situação
-          </h2>
-          <span className="dashboard-analytics__meta">Operação</span>
-        </header>
-        <p className="dashboard-analytics__governed" role="status">
-          <span className="dashboard-analytics__governed-mark" aria-hidden />
-          Distribuição não publicada para este recorte.
-        </p>
-        <p className="dashboard-analytics__note">
-          A lista de ordens continua disponível; o que não existe é a contagem por situação neste
-          escopo.
-        </p>
-      </div>
+      <p className="dashboard-analytics__compact-state" role="status">Nenhuma ordem no recorte publicado.</p>
     );
   }
 
@@ -1383,23 +1373,7 @@ function AgingDistribution({
    * cockpit com a declaracao honesta, em vez de desaparecer e deixar a faixa manca.
    */
   if (!available || !aging.available || aging.buckets.length === 0) {
-    return (
-      <div className="dashboard-analytics__panel" aria-labelledby="aging-heading">
-        <header className="dashboard-analytics__head">
-          <h2 id="aging-heading" className="dashboard-analytics__title">
-            Atraso por faixa
-          </h2>
-          <span className="dashboard-analytics__meta">Carteira</span>
-        </header>
-        <p className="dashboard-analytics__governed" role="status">
-          <span className="dashboard-analytics__governed-mark" aria-hidden />
-          Faixas de atraso não publicadas para este recorte.
-        </p>
-        <p className="dashboard-analytics__note">
-          A carteira de títulos continua disponível em Contas a receber.
-        </p>
-      </div>
-    );
+    return null;
   }
 
   const maxCount = Math.max(1, ...aging.buckets.map((bucket) => bucket.count));
@@ -1457,20 +1431,20 @@ function AgingDistribution({
  * (`hasExceptions` na pagina governa a coluna); sem excecao, a faixa analitica se recompoe e uma
  * coluna vazia de 24% nao e reservada para uma nao-noticia.
  *
- * `notEvaluated` NAO e "zero": e ausencia de avaliacao, e aparece como nota neutra.
+ * Sem exceções publicadas, a superfície some em vez de reservar área para uma não-notícia.
  */
 function ExceptionSurface({
   items,
-  notEvaluated,
 }: {
   items: ExecutiveDashboardSnapshot['attention'];
-  notEvaluated: string[];
 }) {
   const ordered = [...items].sort((left, right) => {
     const rank = { critical: 0, warning: 1, info: 2 } as const;
     const delta = rank[left.severity] - rank[right.severity];
     return delta !== 0 ? delta : right.count - left.count;
   });
+
+  if (ordered.length === 0) return null;
 
   return (
     <section className="dashboard-exceptions" aria-labelledby="exceptions-heading">
@@ -1489,17 +1463,7 @@ function ExceptionSurface({
         A superficie permanece (a arquitetura do cockpit e fixa), mas o conteudo e uma UNICA linha
         declarando ausencia — nunca um bloco verde de 100px celebrando uma nao-noticia.
       */}
-      {ordered.length === 0 ? (
-        <p
-          className="dashboard-analytics__governed dashboard-analytics__governed--positive"
-          role="status"
-        >
-          <span className="dashboard-analytics__governed-mark" aria-hidden>
-            ✓
-          </span>
-          Nenhuma exceção crítica publicada.
-        </p>
-      ) : (
+      {ordered.length > 0 ? (
         <ul className="dashboard-exceptions__list">
           {ordered.map((item) => {
             const href = item.href;
@@ -1534,13 +1498,8 @@ function ExceptionSurface({
             );
           })}
         </ul>
-      )}
-
-      {notEvaluated.length > 0 ? (
-        <p className="dashboard-exceptions__note">
-          Não avaliadas neste recorte: {notEvaluated.length}. Ausência de publicação não é zero.
-        </p>
       ) : null}
+
     </section>
   );
 }

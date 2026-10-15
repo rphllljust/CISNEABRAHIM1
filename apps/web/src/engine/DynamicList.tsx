@@ -421,8 +421,8 @@ export function DynamicList({
               /* O ACCENT é publicado como TOKEN semântico; o design system decide a cor. */
               data-row-accent={accent ?? null}
               className={[
-                onRowClick ? 'cursor-pointer hover:bg-gray-50' : '',
-                isSelected(row.id) ? 'bg-slate-100' : '',
+                onRowClick ? 'cursor-pointer hover:bg-[color:var(--color-grid-row-hover)]' : '',
+                isSelected(row.id) ? 'bg-[color:var(--erp-surface-selected)]' : '',
                 accent ? rowAccentClass(accent) : '',
               ]
                 .filter(Boolean)
@@ -430,7 +430,7 @@ export function DynamicList({
               onClick={onRowClick ? () => onRowClick(row) : undefined}
             >
               {selectable ? (
-                <td className="h-[var(--row-height)] w-8 border-b border-gray-100 px-2 py-0.5">
+                <td className="h-[var(--row-height)] w-8 border-b border-[color:var(--color-border-muted)] px-2 py-0.5">
                   <input
                     type="checkbox"
                     data-testid="dynamic-list-select-row"
@@ -460,7 +460,7 @@ export function DynamicList({
                    * cortado do dado, só da pintura) e o eixo numérico permanece à direita.
                    */
                   className={[
-                    'h-[var(--row-height)] max-w-0 truncate border-b border-gray-100 px-2 py-0.5 text-[length:var(--type-body-size)]',
+                    'h-[var(--row-height)] max-w-0 truncate border-b border-[color:var(--color-border-muted)] px-2 py-0.5 text-[length:var(--type-body-size)]',
                     isNumericField(column) ? 'text-right tabular-nums whitespace-nowrap' : '',
                   ]
                     .filter(Boolean)

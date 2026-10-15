@@ -183,6 +183,16 @@ export class ServiceOrdersRepository {
     return result.rows;
   }
 
+  async countServiceOrders(parts: ServiceOrderListSqlParts): Promise<number> {
+    const result = await this.pool().query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total
+       FROM ${parts.fromClause}
+       WHERE ${parts.whereClause}`,
+      parts.params,
+    );
+    return Number(result.rows[0]?.total ?? '0');
+  }
+
   /** Fatos do Operations Control Center em UMA consulta (ver persistence dedicado). */
   async findControlCenterFacts(
     serviceOrderId: string,

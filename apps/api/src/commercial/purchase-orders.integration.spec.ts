@@ -190,6 +190,66 @@ describe('Commercial purchase orders PostgreSQL integration', () => {
     return catalogAccess.publishVersion(actor, draft.serviceDefinitionId, 1, definition.version);
   }
 
+  it('publishes a full authorized, currency-separated portfolio summary independent of page size', async () => {
+    const { actor } = await seedActor();
+    const empty = await purchaseOrdersAccess.list(actor, { limit: 1, offset: 0 });
+    expect(empty.items).toHaveLength(0);
+    expect(empty.summary).toEqual({ recordCount: 0, currencies: [] });
+
+    const brlClient = await seedClient(actor);
+    const usdClient = await seedClient(actor);
+    await purchaseOrdersAccess.create(actor, {
+      clientId: brlClient.id,
+      unitId: UNIT_A,
+      poNumber: `${FIXTURE_PO}-BRL`,
+      currencyCode: 'BRL',
+      pricingStructure: PURCHASE_ORDER_PRICING_STRUCTURES.HeaderTotal,
+      totalAmount: '9351.2500',
+    });
+    await purchaseOrdersAccess.create(actor, {
+      clientId: usdClient.id,
+      unitId: UNIT_B,
+      poNumber: `${FIXTURE_PO}-USD`,
+      currencyCode: 'USD',
+      pricingStructure: PURCHASE_ORDER_PRICING_STRUCTURES.HeaderTotal,
+      totalAmount: '1200.5000',
+    });
+
+    const firstPage = await purchaseOrdersAccess.list(actor, { limit: 1, offset: 0 });
+    expect(firstPage.items).toHaveLength(1);
+    expect(firstPage.summary.recordCount).toBe(2);
+    expect(firstPage.summary.currencies).toEqual([
+      expect.objectContaining({
+        currencyCode: 'BRL',
+        recordCount: 1,
+        authorizedAmount: '9351.2500',
+        authorizedAmountUnavailableCount: 0,
+        consumedAmount: '0.0000',
+        availableBalance: '9351.2500',
+        balanceUnavailableCount: 0,
+      }),
+      expect.objectContaining({
+        currencyCode: 'USD',
+        recordCount: 1,
+        authorizedAmount: '1200.5000',
+        authorizedAmountUnavailableCount: 0,
+        consumedAmount: '0.0000',
+        availableBalance: '1200.5000',
+        balanceUnavailableCount: 0,
+      }),
+    ]);
+
+    const unitScoped = await purchaseOrdersAccess.list(actor, {
+      limit: 1,
+      offset: 0,
+      unitId: UNIT_A,
+    });
+    expect(unitScoped.summary.recordCount).toBe(1);
+    expect(unitScoped.summary.currencies).toEqual([
+      expect.objectContaining({ currencyCode: 'BRL', recordCount: 1 }),
+    ]);
+  });
+
   it('registers rental PO fixture with per-PO billing rules', async () => {
     const { actor } = await seedActor();
     const client = await seedClient(actor);

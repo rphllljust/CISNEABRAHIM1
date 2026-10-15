@@ -126,17 +126,26 @@ export class ExpenseAccessService {
         limit: query.limit,
         offset: query.offset,
       });
-      const total =
-        query.offset === 0 && rows.length < query.limit
-          ? rows.length
-          : await this.repository.countList(whereClause, params);
+      const summary = await this.repository.summarizeList(whereClause, params);
 
       return {
         items: rows.map(toExpenseSummaryResponse),
         limit: query.limit,
         offset: query.offset,
-        total,
-        totalPages: Math.ceil(total / query.limit),
+        total: summary.total,
+        totalPages: Math.ceil(summary.total / query.limit),
+        summary: {
+          total: summary.total,
+          openCount: summary.openCount,
+          draftCount: summary.draftCount,
+          submittedCount: summary.submittedCount,
+          approvedCount: summary.approvedCount,
+          openAmounts: summary.openAmounts.map(({ currency_code, amount }) => ({
+            currencyCode: currency_code,
+            amount,
+          })),
+          openAmountUnavailableCount: summary.openAmountUnavailableCount,
+        },
       };
     } catch (error) {
       throw mapExpenseError(error);

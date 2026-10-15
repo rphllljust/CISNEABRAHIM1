@@ -54,6 +54,16 @@ export type PurchaseOrderRow = {
   updated_at: string;
 };
 
+export type PurchaseOrderCurrencySummaryRow = {
+  currency_code: string;
+  record_count: string;
+  authorized_amount: string | null;
+  authorized_amount_unavailable_count: string;
+  consumed_amount: string | null;
+  available_balance: string | null;
+  balance_unavailable_count: string;
+};
+
 export type PurchaseOrderItemRow = {
   id: string;
   purchase_order_id: string;

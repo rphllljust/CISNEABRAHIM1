@@ -206,6 +206,8 @@ export function ServiceOrdersEngineListPage() {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [pageOffset, setPageOffset] = useState(0);
+  const [recutTotal, setRecutTotal] = useState<number | null>(null);
+  const [hasMore, setHasMore] = useState<boolean | null>(null);
   /*
    * O ESTADO DO FORMULÁRIO DE CRIAÇÃO SAIU DAQUI junto com o formulário inline.
    *
@@ -341,6 +343,8 @@ export function ServiceOrdersEngineListPage() {
           return;
         }
         setRows(serviceOrderEngineRows(response.items));
+        setRecutTotal(typeof response.total === 'number' ? response.total : null);
+        setHasMore(typeof response.hasMore === 'boolean' ? response.hasMore : null);
         setRowsStatus('ready');
         setPageBusy(false);
       } catch (error) {
@@ -423,7 +427,7 @@ export function ServiceOrdersEngineListPage() {
   const visibleRows = rows;
 
   const items = rows;
-  const hasMore = items.length === PAGE_SIZE;
+  const canGoNext = hasMore ?? (recutTotal === null ? null : pageOffset + items.length < recutTotal);
   const pageNumber = Math.floor(pageOffset / PAGE_SIZE) + 1;
 
   /**
@@ -442,7 +446,10 @@ export function ServiceOrdersEngineListPage() {
     ],
     [],
   );
-  const kpiMetrics = useMemo(() => buildKpiMetrics(rows, kpiSpecs), [rows, kpiSpecs]);
+  const kpiMetrics = useMemo(
+    () => buildKpiMetrics(rows, kpiSpecs).map((metric) => ({ ...metric, hint: 'nesta página' })),
+    [rows, kpiSpecs],
+  );
 
   const operationalSnapshot = useMemo(() => {
     const countStatus = (expected: string): number =>
@@ -735,10 +742,10 @@ export function ServiceOrdersEngineListPage() {
             aria-label="Cockpit operacional da carteira"
           >
             <OperationalSignal label="Na página" value={operationalSnapshot.pageTotal} detail="ordens carregadas" />
-            <OperationalSignal label="Liberadas" value={operationalSnapshot.released} detail="prontas para execução" />
-            <OperationalSignal label="Em execução" value={operationalSnapshot.inExecution} detail="campo ativo" />
-            <OperationalSignal label="Pausadas" value={operationalSnapshot.paused} detail="atenção operacional" tone="warning" />
-            <OperationalSignal label="Com prazo" value={operationalSnapshot.withDeadline} detail="deadline informado" />
+            <OperationalSignal label="Liberadas nesta página" value={operationalSnapshot.released} detail="prontas para execução" />
+            <OperationalSignal label="Em execução nesta página" value={operationalSnapshot.inExecution} detail="campo ativo" />
+            <OperationalSignal label="Pausadas nesta página" value={operationalSnapshot.paused} detail="atenção operacional" tone="warning" />
+            <OperationalSignal label="Com prazo nesta página" value={operationalSnapshot.withDeadline} detail="deadline informado" />
             <OperationalSignal
               label="Sem responsável"
               value={operationalSnapshot.unassigned}
@@ -746,7 +753,7 @@ export function ServiceOrdersEngineListPage() {
               tone={operationalSnapshot.unassigned > 0 ? 'warning' : 'default'}
             />
             <OperationalSignal
-              label="Fechadas"
+              label="Fechadas nesta página"
               value={operationalSnapshot.completed + operationalSnapshot.cancelled}
               detail="concluídas/canceladas"
             />
@@ -991,16 +998,17 @@ export function ServiceOrdersEngineListPage() {
 
           {/*
             PAGINAÇÃO SERVER-SIDE.
-            O contrato NÃO publica `total` nesta listagem, então a faixa diz apenas o intervalo
-            da página — "PÁGINA PAGINADA ≠ DATASET". Um total estimado a partir de `hasMore`
-            seria um número inventado; a contagem por estado continua vindo do drill-down, que
-            conta as linhas REALMENTE carregadas.
+            O total e a existência da próxima página vêm da consulta autorizada no servidor.
+            Indicadores de estado e prazo desta região são contagens da página corrente e aparecem
+            rotulados como tal.
           */}
           <WorklistFooter
             rangeLabel={
               pageBusy
                 ? 'Atualizando carteira...'
-                : `${pageOffset + 1}–${pageOffset + items.length} nesta página`
+                : recutTotal === null
+                  ? `${pageOffset + 1}–${pageOffset + items.length} nesta página · total não publicado`
+                  : `${pageOffset + 1}–${pageOffset + items.length} de ${recutTotal} no recorte`
             }
             extra={
               statusFilter || search.trim()
@@ -1011,7 +1019,7 @@ export function ServiceOrdersEngineListPage() {
             <ModulePagination
               pageNumber={pageNumber}
               previousDisabled={pageOffset === 0}
-              nextDisabled={!hasMore}
+              nextDisabled={canGoNext !== true}
               onPrevious={() => setPageOffset(Math.max(0, pageOffset - PAGE_SIZE))}
               onNext={() => setPageOffset(pageOffset + PAGE_SIZE)}
             />

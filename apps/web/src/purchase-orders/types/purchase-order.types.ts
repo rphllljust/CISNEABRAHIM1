@@ -154,6 +154,19 @@ export type PurchaseOrderListResponse = {
   items: PurchaseOrder[];
   limit: number;
   offset: number;
+  summary?: {
+    /** Número de registros de TODO o recorte autorizado, não apenas da página recebida. */
+    recordCount: number;
+    currencies: Array<{
+      currencyCode: string;
+      recordCount: number;
+      authorizedAmount: string | null;
+      authorizedAmountUnavailableCount: number;
+      consumedAmount: string | null;
+      availableBalance: string | null;
+      balanceUnavailableCount: number;
+    }>;
+  };
 };
 
 export type PurchaseOrderItemInput = {
