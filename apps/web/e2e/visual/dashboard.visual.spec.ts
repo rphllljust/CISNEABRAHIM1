@@ -9,7 +9,7 @@ test.describe('executive dashboard visual regression', () => {
     await prepareAuthenticatedSession(page, 'dashboard');
     await page.goto('/app');
     await expect(page.getByRole('heading', { level: 1, name: /visão geral/i })).toBeVisible();
-    await expect(page.getByRole('heading', { name: /central de decisão/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /fila de trabalho/i })).toBeVisible();
     await stabilizePage(page);
   });
 

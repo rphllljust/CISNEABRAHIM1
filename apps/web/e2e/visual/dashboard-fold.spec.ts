@@ -73,7 +73,7 @@ test.describe('visao geral — fila decisoria exercitada', () => {
     const fold = 900;
 
     // 1. FILA DECISORIA visivel, com o item REAL da fila.
-    const queueHeading = page.getByRole('heading', { name: /minha fila/i });
+    const queueHeading = page.getByRole('heading', { name: /fila de trabalho/i });
     await expect(queueHeading).toBeVisible();
     expect((await queueHeading.boundingBox())!.y).toBeLessThan(fold);
 
@@ -89,18 +89,18 @@ test.describe('visao geral — fila decisoria exercitada', () => {
     await expect(page.getByRole('dialog')).toHaveCount(0);
 
     // 5. RESUMO OPERACIONAL / FLUXO.
-    await expect(page.getByRole('heading', { name: /fluxo empresarial/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /fluxo operacional/i })).toBeVisible();
     await expect(page.getByText('Operação')).toBeVisible();
     await expect(page.getByText('Recebimento')).toBeVisible();
 
     // 6. ANALYTICS COM DRILLDOWN REAL na coluna lateral (drawer FECHADO).
-    await expect(page.getByRole('heading', { name: /ordens por status/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /ordens por situação/i })).toBeVisible();
     await expect(page.getByRole('heading', { name: /atraso por faixa/i })).toBeVisible();
     // Cada segmento abre a lista filtrada que produziu o numero.
     const drill = page.getByRole('link', { name: /EM EXECUÇÃO|Em execução: \d+ ordens/i }).first();
     await expect(drill).toHaveAttribute('href', /status=/);
     // ESTADO A: a fila continua na primeira dobra com o drawer fechado.
-    const queueVisible = page.getByRole('heading', { name: /minha fila/i });
+    const queueVisible = page.getByRole('heading', { name: /fila de trabalho/i });
     expect((await queueVisible.boundingBox())!.y).toBeLessThan(fold);
 
     // 7. NENHUMA LINGUAGEM TECNICA DE IMPLEMENTACAO NA TELA.

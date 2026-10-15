@@ -53,7 +53,7 @@ test.describe('clients visual', () => {
 
     // A barra de busca e o filtro de status ficam junto da lista.
     await expect(page.getByRole('searchbox', { name: 'Buscar' })).toBeVisible();
-    await expect(page.getByRole('combobox', { name: 'Status' })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Situação' })).toBeVisible();
 
     // Tabela com as colunas da listagem e o documento formatado.
     await expect(page.getByRole('columnheader', { name: /cliente/i })).toBeVisible();
