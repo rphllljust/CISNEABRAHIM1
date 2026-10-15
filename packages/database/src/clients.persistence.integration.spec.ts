@@ -52,6 +52,8 @@ describe('Clients persistence migration', () => {
     expect(tables.rows.map((row) => row.tablename)).toEqual([
       'client_addresses',
       'client_contacts',
+      'client_groups',
+      'client_units',
       'clients',
       'establishment_certificates',
       'establishment_history_events',
