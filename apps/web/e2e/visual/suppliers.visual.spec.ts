@@ -14,7 +14,7 @@ import { prepareAuthenticatedSession, stabilizePage } from '../fixtures/visual-h
 async function openSuppliersList(page: Page): Promise<void> {
   await page.goto('/app/suppliers');
   await expect(page.getByRole('heading', { level: 1, name: 'Fornecedores' })).toBeVisible();
-  await expect(page.getByRole('table', { name: 'Lista de Fornecedores' })).toBeVisible();
+  await expect(page.getByRole('table', { name: /lista de fornecedores/i })).toBeVisible();
 }
 
 /**

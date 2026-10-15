@@ -90,8 +90,9 @@ test.describe('visao geral — fila decisoria exercitada', () => {
 
     // 5. RESUMO OPERACIONAL / FLUXO.
     await expect(page.getByRole('heading', { name: /fluxo operacional/i })).toBeVisible();
-    await expect(page.getByText('Ordem de serviço')).toBeVisible();
-    await expect(page.getByText('Recebimento')).toBeVisible();
+    const processFlow = page.locator('.dashboard-chain');
+    await expect(processFlow.getByText('Ordem de serviço', { exact: true })).toBeVisible();
+    await expect(processFlow.getByText('Recebimento', { exact: true })).toBeVisible();
 
     // 6. ANALYTICS COM DRILLDOWN REAL na coluna lateral (drawer FECHADO).
     await expect(page.getByRole('heading', { name: /ordens por situação/i })).toBeVisible();

@@ -28,7 +28,10 @@ test.describe('finance visual', () => {
     await page.goto('/app/finance/expenses');
     await expect(page.getByRole('heading', { level: 1, name: 'Despesas' })).toBeVisible();
     await expect(page.getByRole('table', { name: 'Lista de Despesas' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Combustível da frota' })).toBeVisible();
+    await expect(
+      page.getByRole('table', { name: 'Lista de Despesas' })
+        .getByRole('link', { name: 'Combustível da frota', exact: true }),
+    ).toBeVisible();
     await expect(page.getByText('CC-OPER')).toBeVisible();
     await expect(page.getByLabel(/identificador da despesa/i)).toHaveCount(0);
     await expect(page.getByText(/3 despesa\(s\) no total/)).toBeVisible();

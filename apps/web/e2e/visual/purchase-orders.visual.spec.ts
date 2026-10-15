@@ -43,7 +43,9 @@ test.describe('purchase orders visual regression', () => {
     );
     // CONTRATO DE OBJECT PAGE — prova semantica do objeto:
     // 1) referencia humana exata do pedido;
-    await expect(page.getByText('PO-CLIENTE-41926266', { exact: true })).toBeVisible();
+    await expect(
+      page.locator('#main-content').getByText('PO-CLIENTE-41926266', { exact: true }).first(),
+    ).toBeVisible();
     // 2) `h1` e o titulo de NEGOCIO, nunca o codigo;
     const objectTitle = page.getByRole('heading', { level: 1 });
     await expect(objectTitle).toBeVisible();

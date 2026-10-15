@@ -55,10 +55,14 @@ test.describe('clients visual', () => {
     await expect(page.getByRole('searchbox', { name: 'Buscar' })).toBeVisible();
     await expect(page.getByRole('combobox', { name: 'Situação' })).toBeVisible();
 
-    // Tabela com as colunas da listagem e o documento formatado.
-    await expect(page.getByRole('columnheader', { name: /cliente/i })).toBeVisible();
-    await expect(page.getByRole('columnheader', { name: /documento/i })).toBeVisible();
-    await expect(page.getByRole('columnheader', { name: /última atualização/i })).toBeVisible();
+    // Tabela com as colunas de decisão atuais. O escopo evita casar o checkbox
+    // "Selecionar todos os clientes" com o cabeçalho "Cliente".
+    const table = page.getByRole('table', { name: /lista de clientes/i });
+    await expect(table.getByRole('columnheader', { name: 'Cliente', exact: true })).toBeVisible();
+    await expect(table.getByRole('columnheader', { name: 'Estrutura', exact: true })).toBeVisible();
+    await expect(table.getByRole('columnheader', { name: 'Situação', exact: true })).toBeVisible();
+    await expect(table.getByRole('columnheader', { name: 'Atenção', exact: true })).toBeVisible();
+    await expect(table.getByRole('columnheader', { name: 'Atualização', exact: true })).toBeVisible();
     await expect(page.getByText('11.222.333/0005-18')).toBeVisible();
 
     // Nome fantasia aparece como apoio da razão social.

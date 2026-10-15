@@ -47,8 +47,9 @@ test.describe('customer workspace evidence', () => {
   test('context drawer from a row', async ({ page }) => {
     await openClientsList(page);
 
-    // Selecionar a linha abre o CONTEXTO sem sair da fila.
-    await page.getByRole('cell', { name: /Alfa Madeira LTDA/ }).first().click();
+    // Selecionar a linha abre o CONTEXTO sem sair da fila. A linha é o alvo
+    // semântico estável; a célula de identidade também contém drillback por link.
+    await page.getByRole('row').filter({ hasText: 'Alfa Madeira LTDA' }).first().click();
 
     const drawer = page.getByRole('dialog').or(page.getByRole('complementary'));
     await expect(drawer.first()).toBeVisible();

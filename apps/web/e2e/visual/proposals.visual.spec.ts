@@ -20,9 +20,7 @@ test.describe('proposals visual regression', () => {
 
   test('populated proposals list', async ({ page }) => {
     await openCommercialPage(page, '/app/proposals');
-    await expect(
-      page.getByRole('table', { name: 'Lista de propostas comerciais' }),
-    ).toBeVisible();
+    await expect(page.locator('[data-region="worklist-master"]')).toBeVisible();
     await expect(page.getByRole('link', { name: 'PROP-2026-0042' })).toBeVisible();
     await stabilizePage(page);
 
@@ -36,7 +34,9 @@ test.describe('proposals visual regression', () => {
 
     // CONTRATO DE OBJECT PAGE — a prova e semantica, nao "algum texto aparece":
     // 1) referencia humana exata, como codigo do objeto;
-    await expect(page.getByText('PROP-2026-0042', { exact: true })).toBeVisible();
+    await expect(
+      page.locator('#main-content').getByText('PROP-2026-0042', { exact: true }).first(),
+    ).toBeVisible();
     // 2) o `h1` e o titulo de NEGOCIO, nunca o codigo tecnico;
     const objectTitle = page.getByRole('heading', { level: 1 });
     await expect(objectTitle).toBeVisible();
