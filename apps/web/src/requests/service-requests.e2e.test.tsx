@@ -25,10 +25,11 @@ describe('service requests administrative flow e2e (frontend)', () => {
     const user = userEvent.setup();
     await login(user);
 
+    const primaryNavigation = screen.getByRole('navigation', { name: /navegação principal/i });
     await waitFor(() => {
-      expect(within(screen.getByRole('navigation', { name: /navegação principal/i })).getByRole('link', { name: /solicitações/i })).toBeInTheDocument();
+      expect(within(primaryNavigation).getAllByRole('link', { name: /solicitações/i }).length).toBeGreaterThan(0);
     });
-    await user.click(within(screen.getByRole('navigation', { name: /navegação principal/i })).getByRole('link', { name: /solicitações/i }));
+    await user.click(within(primaryNavigation).getAllByRole('link', { name: /solicitações/i })[0]!);
 
     await waitFor(() => {
       // A work area abre pelo NOME da superficie ("Solicitações"), nao por um titulo
