@@ -90,7 +90,7 @@ describe('ProcurementHubPage', () => {
       expect(screen.getByText('1–1 de 21 solicitações')).toBeInTheDocument();
     });
 
-    const nextButtons = screen.getAllByRole('button', { name: 'Próxima página' });
+    const nextButtons = screen.getAllByRole('button', { name: 'Próxima' });
     await user.click(nextButtons[0]!);
 
     await waitFor(() => {

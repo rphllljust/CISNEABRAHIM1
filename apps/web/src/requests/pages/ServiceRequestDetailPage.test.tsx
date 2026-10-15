@@ -87,7 +87,7 @@ describe('ServiceRequestDetailPage', () => {
     await waitFor(() => {
       expect(screen.getByRole('link', { name: 'OS-2026-0007' })).toBeInTheDocument();
     });
-    expect(screen.getByText('Ordem de serviço')).toBeInTheDocument();
+    expect(screen.getAllByText('Ordem de serviço').length).toBeGreaterThan(0);
     expect(screen.queryByText('Proposta comercial')).not.toBeInTheDocument();
     expect(screen.queryByText('Pedido de compra')).not.toBeInTheDocument();
   });

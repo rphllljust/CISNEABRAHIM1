@@ -373,7 +373,7 @@ describe('Lançamentos — escopo humano vindo do shell (unidade -> plano -> per
     expect(screen.getByText('Contexto do lançamento')).toBeInTheDocument();
     expect(screen.getByText('Lançamento #9')).toBeInTheDocument();
     expect(screen.getByText('Tributos · FIS-2026-0001')).toBeInTheDocument();
-    expect(screen.getByText('Apuração do período')).toBeInTheDocument();
+    expect(screen.getAllByText('Apuração do período').length).toBeGreaterThanOrEqual(2);
     expect(screen.getByRole('link', { name: 'Abrir lançamento completo' })).toHaveAttribute(
       'href',
       `/app/accounting/journals/${JOURNAL_B}`,

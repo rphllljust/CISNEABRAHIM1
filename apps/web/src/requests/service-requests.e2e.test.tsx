@@ -26,7 +26,7 @@ describe('service requests administrative flow e2e (frontend)', () => {
     await login(user);
 
     await waitFor(() => {
-      expect(screen.getByRole('link', { name: /solicita/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /^solicitações$/i })).toBeInTheDocument();
     });
     await user.click(screen.getByRole('link', { name: /solicita/i }));
 

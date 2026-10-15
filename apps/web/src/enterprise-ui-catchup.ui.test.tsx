@@ -165,7 +165,7 @@ describe('Enterprise UI catch-up', () => {
     await waitFor(() => {
       expect(screen.getByRole('table', { name: /itens da despesa/i })).toBeInTheDocument();
     });
-    expect(screen.getByText('Combustivel')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /descrição linha 1/i })).toHaveValue('Combustivel');
   });
 
   it('shows permission denied from the expense API', async () => {
@@ -223,6 +223,7 @@ describe('Enterprise UI catch-up', () => {
     const user = userEvent.setup();
     vi.stubGlobal('fetch', createCatchUpFetchMock({ createCalls }));
     renderWithProviders(<ExpensesPage />);
+    await user.click(screen.getByRole('button', { name: 'Registrar despesa' }));
     await user.type(screen.getByLabelText(/^unidade/i), 'unit-1');
     await user.type(screen.getByLabelText(/^categoria/i), 'cat-1');
     await user.type(screen.getByLabelText(/centro de custo \(id\)/i), 'cc-1');

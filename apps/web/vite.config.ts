@@ -48,6 +48,7 @@ export default defineConfig({
     include: ['src/**/*.test.{ts,tsx}'],
     fileParallelism: false,
     env: {
+      VITE_CISNE_SURFACE: 'dev',
       VITE_FEATURE_MODULE_REPORTS: 'true',
       VITE_FEATURE_MODULE_OPERATIONAL_PROFITABILITY: 'true',
       /**

@@ -45,7 +45,7 @@ export function ActivityTimeline({
     .sort((left, right) => new Date(right.at).getTime() - new Date(left.at).getTime());
 
   return (
-    <section className={className} aria-label={title}>
+    <section className={className}>
       <h3 className="mb-2 text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
         {title}
       </h3>

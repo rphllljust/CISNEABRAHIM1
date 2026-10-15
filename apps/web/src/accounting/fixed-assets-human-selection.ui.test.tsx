@@ -203,7 +203,7 @@ describe('FixedAssetsPage — seleção humana do ativo operacional', () => {
     await user.click(within(section).getByRole('button', { name: 'Consultar ativo operacional' }));
 
     await waitFor(() => expect(captured.lookupUrl).toBeDefined());
-    const query = new URL(String(captured.lookupUrl)).searchParams;
+    const query = new URL(String(captured.lookupUrl), window.location.origin).searchParams;
     expect(query.get('unitId')).toBe(UNIT);
     expect(query.get('operationalAssetId')).toBe(ASSET_ID);
   });

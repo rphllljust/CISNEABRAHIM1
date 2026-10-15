@@ -252,6 +252,7 @@ describe('Folha — descoberta humana de período e contrato', () => {
     });
     const user = userEvent.setup();
     renderPayroll(`/app/payroll/periods/${PERIOD_ID}?unitId=${UNIT}`);
+    await user.click(await screen.findByRole('button', { name: 'Lançar evento' }));
 
     const contractSelect = await screen.findByLabelText(/Contrato de trabalho/);
     await waitFor(() => {
