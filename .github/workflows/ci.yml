@@ -188,6 +188,7 @@ jobs:
         run: pnpm --filter @cisne/web test:visual
         env:
           CI: 'true'
+          VITE_CISNE_SURFACE: 'dev'
 
       - name: Emit build metadata
         run: node scripts/ci-emit-build-metadata.mjs
