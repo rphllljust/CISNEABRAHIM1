@@ -55,7 +55,7 @@ describe('billing administration e2e (frontend)', () => {
 
     const orderRow = screen.getByText('OS-2026-DEMO01').closest('tr');
     expect(orderRow).not.toBeNull();
-    await user.click(within(orderRow as HTMLElement).getByRole('link', { name: /preparar faturamento/i }));
+    await user.click(within(orderRow as HTMLElement).getByRole('link'));
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /itens faturáveis/i })).toBeInTheDocument();

@@ -312,7 +312,6 @@ export function useSubformColumns(schema: MetaEntitySchema | null): MetaField[] 
     const byName = new Map(schema.fields.map((field) => [field.name, field]));
     const allowed = (field: MetaField): boolean =>
       field.inList &&
-      !field.readOnly &&
       schema.allowedPermLevels.includes(field.permLevel);
 
     if (declared.length > 0) {
