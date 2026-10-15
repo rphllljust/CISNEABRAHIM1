@@ -445,7 +445,7 @@ describe('Billing PostgreSQL integration', () => {
       serviceOrderId: completed.id,
       billingRecordId: billing.id,
       billingVersion: billing.rowVersion,
-      amount: billing.totalAmount,
+      amount: '1000.0000',
       currencyCode: billing.currencyCode,
       bucket: 'prepared',
       nextAction: 'issue_internal_document',
