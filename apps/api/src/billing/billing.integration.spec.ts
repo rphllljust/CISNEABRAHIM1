@@ -420,6 +420,14 @@ describe('Billing PostgreSQL integration', () => {
       paymentTerms: '30 DDL',
     });
 
+    await insertGrant(pool, {
+      identityId: actor.identityId,
+      action: AUTHZ_ACTIONS.BillingBillingDocumentRead,
+      resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+      scopeType: AUTHZ_SCOPES.Global,
+      grantedByIdentityId: actor.identityId,
+    });
+
     expect(billing.status).toBe(BILLING_RECORD_STATUSES.Prepared);
     expect(billing.totalAmount).toBe('1000');
     expect(billing.items).toHaveLength(1);

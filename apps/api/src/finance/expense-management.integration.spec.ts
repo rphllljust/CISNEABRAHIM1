@@ -238,7 +238,7 @@ describe('Expense management PostgreSQL integration', () => {
     expect(scoped.summary.total).toBe(1);
     expect(scoped.summary.openCount).toBe(1);
     expect(scoped.summary.openAmounts).toEqual([
-      { currencyCode: 'BRL', amount: '125.00' },
+      { currencyCode: 'BRL', amount: '125.0000' },
     ]);
   });
 
