@@ -23,4 +23,4 @@ export async function stabilizePage(page: Page): Promise<void> {
 
 export const DASHBOARD_SCREENSHOT_MASKS = ['.dashboard-page__meta time', '.dashboard-page__refresh'];
 
-export const BILLING_READY_SELECTOR = '.billing-board';
+export const BILLING_READY_SELECTOR = '[aria-label="Fila de faturamento"]';

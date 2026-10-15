@@ -288,6 +288,32 @@ async function handleApiRoute(route: Route, context: RouteContext): Promise<void
     return;
   }
 
+  if (context.profile === 'billing-empty' && pathname === '/api/v1/billing/worklist' && method === 'GET') {
+    const { url } = parseRequest(route);
+    const limit = Number(url.searchParams.get('limit') ?? '20');
+    const offset = Number(url.searchParams.get('offset') ?? '0');
+    await fulfillJson(route, {
+      items: [],
+      total: 0,
+      page: { count: 0, limit, offset, totalPages: 0, hasMore: false },
+      summary: {
+        total: 0,
+        counts: {
+          cancelled_document: 0,
+          terms_divergence: 0,
+          measurement_pending: 0,
+          billing_basis_missing: 0,
+          document_state_unknown: 0,
+          ready: 0,
+          prepared: 0,
+          issued: 0,
+        },
+        amountsByCurrency: [],
+      },
+    });
+    return;
+  }
+
   const probeBillingBase = `/api/v1/service-orders/${PROBE_SERVICE_ORDER_ID}/billing-records`;
   if (pathname === probeBillingBase && method === 'GET') {
     await fulfillJson(route, null);
