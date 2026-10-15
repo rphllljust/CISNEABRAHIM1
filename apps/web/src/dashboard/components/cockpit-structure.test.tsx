@@ -7,17 +7,7 @@ import { buildBusinessFlow } from '../utils/dashboard-semantics';
 import { EXECUTIVE_DASHBOARD_SNAPSHOT } from '../../test/dashboard-fetch-mock';
 import type { ExecutiveDashboardSnapshot } from '../types/dashboard.types';
 
-/**
- * ESTRUTURA ESTAVEL DO COCKPIT — contrato explicito.
- *
- * A regra que este arquivo trava, e que substituiu deliberadamente a anterior:
- *
- *   ANTES  metrica nao publicada no recorte -> a celula NAO EXISTIA (a faixa encolhia);
- *   AGORA  metrica nao publicada no recorte -> a celula EXISTE, com `—` e estado declarado.
- *
- * AUSENCIA != ZERO continua valendo — mas ausencia tambem nao desmonta o workspace. O que estes
- * testes provam e o par: (a) nenhum numero inventado, (b) estrutura preservada.
- */
+/** Indicadores sem dado ficam em uma linha compacta e não reservam células vazias. */
 
 function renderStrip(snapshot: ExecutiveDashboardSnapshot, domain: string | null) {
   return render(
@@ -35,11 +25,6 @@ function withoutAttention(id: string): ExecutiveDashboardSnapshot {
 }
 
 describe('faixa de KPIs — estrutura estavel, valor honesto', () => {
-  /*
-   * O CONTRATO DA FAIXA E FIXO. A ordem e a identidade das celulas nao mudam com o recorte — o que
-   * muda e o ESTADO de cada uma. Sem isso, o operador que troca de dominio ve uma faixa com outro
-   * numero de celulas e nao reconhece mais o proprio painel.
-   */
   it('keeps the same KPI cells in every recorte', () => {
     const all = buildWorkbenchKpis(EXECUTIVE_DASHBOARD_SNAPSHOT, null).map((kpi) => kpi.id);
     const operational = buildWorkbenchKpis(EXECUTIVE_DASHBOARD_SNAPSHOT, 'OPERACOES').map(
@@ -52,50 +37,46 @@ describe('faixa de KPIs — estrutura estavel, valor honesto', () => {
     expect(all.length).toBeGreaterThanOrEqual(5);
   });
 
-  /*
-   * KPI CONHECIDO SEM PUBLICACAO CONTINUA RENDERIZADO — o caso central desta wave.
-   *
-   * `approaching-due-service-orders` nao vem no snapshot. A celula permanece, e o que ela afirma e
-   * exatamente "não publicado neste recorte".
-   */
-  it('renders a known KPI without publication instead of dropping the cell', () => {
+  it('keeps an unpublished KPI available as a compact queue link', () => {
     const snapshot = withoutAttention('approaching-due-service-orders');
     renderStrip(snapshot, null);
 
-    const cell = screen.getByLabelText(/Ordens de serviço vencendo: não publicado neste recorte/i);
-    expect(cell).toBeInTheDocument();
-    expect(cell).toHaveTextContent('Ordens vencendo');
+    const status = screen.getByRole('status');
+    expect(status).toHaveTextContent('Não publicado neste recorte');
+    expect(within(status).getByRole('link', { name: 'Ordens vencendo' })).toHaveAttribute(
+      'href',
+      '/app/service-orders?filter=approaching-due',
+    );
   });
 
-  /* VALOR AUSENTE E `—`, NUNCA `0`. */
-  it('shows an em dash — never zero — for an unpublished value', () => {
+  it('does not reserve a value cell for an unpublished KPI', () => {
     const snapshot = withoutAttention('approaching-due-service-orders');
     renderStrip(snapshot, null);
 
-    const cell = screen.getByLabelText(/Ordens de serviço vencendo: não publicado neste recorte/i);
-    expect(cell).toHaveTextContent('—');
-    expect(cell).not.toHaveTextContent(/\b0\b/);
+    const status = screen.getByRole('status');
+    expect(status).not.toHaveTextContent('—');
+    expect(status).not.toHaveTextContent(/\b0\b/);
+    expect(screen.queryByRole('link', { name: /Ordens de serviço vencendo:/i })).not.toBeInTheDocument();
   });
 
-  /* O ESTADO "NAO PUBLICADO" E VISIVEL NA TELA, nao apenas no `aria-label`. */
-  it('makes the unpublished state visible in the cell, not only in the accessible name', () => {
+  it('makes the unpublished state visible without an empty KPI card', () => {
     const snapshot = withoutAttention('approaching-due-service-orders');
     renderStrip(snapshot, null);
 
-    const cell = screen.getByLabelText(/Ordens de serviço vencendo: não publicado neste recorte/i);
-    expect(within(cell).getByText(/não publicado neste recorte/i)).toBeInTheDocument();
+    const status = screen.getByRole('status');
+    expect(status).toHaveTextContent(/não publicado neste recorte/i);
+    expect(status.querySelector('.dashboard-kpi-cell')).toBeNull();
   });
 
-  /* FORA DO RECORTE tambem e um estado declarado — nao um numero emprestado de outro dominio. */
-  it('declares out-of-scope metrics without borrowing a number from another domain', () => {
+  it('does not borrow figures when the active recorte has no published indicators', () => {
     renderStrip(EXECUTIVE_DASHBOARD_SNAPSHOT, 'FISCAL');
 
-    const cells = screen.getAllByRole('link');
-    expect(cells.length).toBeGreaterThanOrEqual(5);
-    for (const cell of cells) {
-      expect(cell).toHaveTextContent('—');
-      expect(within(cell).getByText(/fora do recorte ativo/i)).toBeInTheDocument();
-    }
+    const status = screen.getByRole('status');
+    expect(status).toHaveTextContent('Nenhum indicador publicado neste recorte');
+    expect(within(status).getByRole('link', { name: 'Recebíveis vencidos' })).toBeInTheDocument();
+    expect(within(status).getByRole('link', { name: 'Ordens vencidas' })).toBeInTheDocument();
+    expect(within(status).getByRole('link', { name: 'Ordens em andamento' })).toBeInTheDocument();
+    expect(status).not.toHaveTextContent(/\b[0-9]+\b/);
   });
 
   /* CELULA COM VALOR PUBLICADO CONTINUA AFIRMANDO O NUMERO REAL E O DESTINO. */
