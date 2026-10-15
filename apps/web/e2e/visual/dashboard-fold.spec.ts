@@ -78,7 +78,7 @@ test.describe('visao geral — fila decisoria exercitada', () => {
     expect((await queueHeading.boundingBox())!.y).toBeLessThan(fold);
 
     // 2. EXCECAO real: o atraso derivado do dueAt persistido aparece como fato.
-    const overdueRow = page.locator('article').filter({ hasText: 'OS-2026-0184' }).first();
+    const overdueRow = page.getByRole('row').filter({ hasText: 'OS-2026-0184' }).first();
     await expect(overdueRow).toBeVisible();
     expect((await overdueRow.textContent()) ?? '').toMatch(/dia/i);
 
