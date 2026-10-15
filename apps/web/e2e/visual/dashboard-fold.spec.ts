@@ -90,7 +90,7 @@ test.describe('visao geral — fila decisoria exercitada', () => {
 
     // 5. RESUMO OPERACIONAL / FLUXO.
     await expect(page.getByRole('heading', { name: /fluxo operacional/i })).toBeVisible();
-    await expect(page.getByText('Operação')).toBeVisible();
+    await expect(page.getByText('Ordem de serviço')).toBeVisible();
     await expect(page.getByText('Recebimento')).toBeVisible();
 
     // 6. ANALYTICS COM DRILLDOWN REAL na coluna lateral (drawer FECHADO).
