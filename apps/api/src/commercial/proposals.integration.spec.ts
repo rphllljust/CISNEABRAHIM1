@@ -414,6 +414,13 @@ describe('Commercial proposals PostgreSQL integration', () => {
 
   it('snapshots commercial line content on issue and persists decimal totals', async () => {
     const { actor } = await seedActor();
+    await insertGrant(pool, {
+      identityId: actor.identityId,
+      action: AUTHZ_ACTIONS.CommercialProposalReadCost,
+      resourceType: AUTHZ_RESOURCE_TYPES.CommercialProposal,
+      scopeType: AUTHZ_SCOPES.Global,
+      grantedByIdentityId: actor.identityId,
+    });
     const client = await seedClient(actor);
 
     const created = await proposalsAccess.create(actor, {

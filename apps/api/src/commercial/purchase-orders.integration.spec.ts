@@ -197,7 +197,6 @@ describe('Commercial purchase orders PostgreSQL integration', () => {
     expect(empty.summary).toEqual({ recordCount: 0, currencies: [] });
 
     const brlClient = await seedClient(actor);
-    const usdClient = await seedClient(actor);
     await purchaseOrdersAccess.create(actor, {
       clientId: brlClient.id,
       unitId: UNIT_A,
@@ -207,7 +206,7 @@ describe('Commercial purchase orders PostgreSQL integration', () => {
       totalAmount: '9351.2500',
     });
     await purchaseOrdersAccess.create(actor, {
-      clientId: usdClient.id,
+      clientId: brlClient.id,
       unitId: UNIT_B,
       poNumber: `${FIXTURE_PO}-USD`,
       currencyCode: 'USD',

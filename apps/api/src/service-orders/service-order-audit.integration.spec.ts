@@ -210,6 +210,7 @@ describe('Service order audit trail PostgreSQL integration', () => {
     const result = await pool.query<AuditLogRow>(
       `SELECT tabela, acao, dados_antigos, dados_novos, usuario_id, correlation_id, registro_id
        FROM audit.audit_logs
+       WHERE tabela = 'service_orders'
        ORDER BY created_at ASC, id ASC`,
     );
     return result.rows;

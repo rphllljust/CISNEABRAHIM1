@@ -189,7 +189,8 @@ export class BillingRepository {
                      ELSE COALESCE(br.currency_code, NULLIF(m.commercial_reference_snapshot->>'currencyCode', ''),
                        NULLIF(so.proposal_snapshot->>'currencyCode', ''), NULLIF(so.purchase_order_snapshot->>'currencyCode', ''), 'BRL') END AS currency_code,
                 CASE WHEN br.status = 'PREPARED' THEN br.total_amount::text
-                     WHEN item_totals.item_count > 0 AND item_totals.priced_count = item_totals.item_count THEN item_totals.amount::text
+                     WHEN m.status = 'APPROVED' AND item_totals.item_count > 0
+                       AND item_totals.priced_count = item_totals.item_count THEN item_totals.amount::text
                      WHEN COALESCE(so.service_snapshot->>'billingEntitlementPolicy', 'MEASUREMENT_APPROVED') <> 'MEASUREMENT_APPROVED'
                        AND (${CONTRACTUAL_AMOUNT_SQL}) ~ '^[0-9]+(\\.[0-9]{1,4})?$' THEN (${CONTRACTUAL_AMOUNT_SQL})
                      ELSE NULL END AS amount,

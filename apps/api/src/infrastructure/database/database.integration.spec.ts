@@ -51,6 +51,8 @@ const ALLOWED_PTY_TABLES = new Set([
   'clients',
   'client_contacts',
   'client_addresses',
+  'client_groups',
+  'client_units',
   'suppliers',
   'supplier_contacts',
   'supplier_addresses',
