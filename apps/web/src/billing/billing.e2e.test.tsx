@@ -55,7 +55,11 @@ describe('billing administration e2e (frontend)', () => {
 
     const orderRow = screen.getByText('OS-2026-DEMO01').closest('tr');
     expect(orderRow).not.toBeNull();
-    await user.click(within(orderRow as HTMLElement).getByRole('link'));
+    const billingLink = within(orderRow as HTMLElement).getAllByRole('link').find(
+      (link) => link.getAttribute('href') === `/app/service-orders/${MOCK_SERVICE_ORDER_ID}/billing`,
+    );
+    if (!billingLink) throw new Error('Link de faturamento da OS não foi renderizado.');
+    await user.click(billingLink);
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /itens faturáveis/i })).toBeInTheDocument();
