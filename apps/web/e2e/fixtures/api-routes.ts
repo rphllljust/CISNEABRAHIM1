@@ -65,7 +65,7 @@ async function handleApiRoute(route: Route, context: RouteContext): Promise<void
         refreshToken: 'visual-refresh-token',
         tokenType: 'Bearer',
         expiresIn: 900,
-        session: { id: MOCK_SESSION_ID, expiresAt: '2026-08-29T12:00:00.000Z', status: 'active' },
+        session: { id: MOCK_SESSION_ID, expiresAt: '2099-08-29T12:00:00.000Z', status: 'active' },
       });
       return;
     }
@@ -78,7 +78,7 @@ async function handleApiRoute(route: Route, context: RouteContext): Promise<void
     if (auth?.startsWith('Bearer ')) {
       await fulfillJson(route, {
         identityId: MOCK_IDENTITY_ID,
-        session: { id: MOCK_SESSION_ID, expiresAt: '2026-08-29T12:00:00.000Z', status: 'active' },
+        session: { id: MOCK_SESSION_ID, expiresAt: '2099-08-29T12:00:00.000Z', status: 'active' },
       });
       return;
     }
@@ -92,7 +92,7 @@ async function handleApiRoute(route: Route, context: RouteContext): Promise<void
       refreshToken: 'visual-refresh-token-2',
       tokenType: 'Bearer',
       expiresIn: 900,
-      session: { id: MOCK_SESSION_ID, expiresAt: '2026-08-29T12:00:00.000Z', status: 'active' },
+      session: { id: MOCK_SESSION_ID, expiresAt: '2099-08-29T12:00:00.000Z', status: 'active' },
     });
     return;
   }
