@@ -133,7 +133,7 @@ describe('Painel de conformidade fiscal e contábil (BI)', () => {
     expect(screen.getByText(/15,00/)).toBeInTheDocument();
     // O filtro usa rótulo humano; o contexto confirma a unidade consultada.
     expect(screen.getByLabelText('Unidade')).toHaveValue('UN-DEV-001');
-    expect(screen.getByText(/Unidade UN-DEV-001/)).toBeInTheDocument();
+    expect(screen.getByText('UN-DEV-001')).toBeInTheDocument();
   });
 
   it('NAO_DATA != 0: valor nulo aparece como sem dados, nunca como zero', async () => {

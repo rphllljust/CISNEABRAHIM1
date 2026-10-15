@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../App';
@@ -48,12 +48,14 @@ describe('billing administration e2e (frontend)', () => {
 
     await waitFor(
       () => {
-        expect(screen.getByRole('link', { name: /OS-2026-DEMO01/i })).toBeInTheDocument();
+        expect(screen.getByText('OS-2026-DEMO01')).toBeInTheDocument();
       },
       { timeout: 5000 },
     );
 
-    await user.click(screen.getByRole('link', { name: /OS-2026-DEMO01/i }));
+    const orderRow = screen.getByText('OS-2026-DEMO01').closest('tr');
+    expect(orderRow).not.toBeNull();
+    await user.click(within(orderRow as HTMLElement).getByRole('link', { name: /preparar faturamento/i }));
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /itens faturáveis/i })).toBeInTheDocument();

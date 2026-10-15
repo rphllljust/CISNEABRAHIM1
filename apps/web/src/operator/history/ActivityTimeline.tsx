@@ -31,6 +31,8 @@ export type ActivityTimelineProps = {
   title?: string;
   emptyMessage?: string;
   className?: string;
+  /** Render a named region when this timeline is not already inside a named panel. */
+  landmark?: boolean;
 };
 
 export function ActivityTimeline({
@@ -38,6 +40,7 @@ export function ActivityTimeline({
   title = 'Histórico',
   emptyMessage = 'Nenhum registro de histórico disponível para este item.',
   className,
+  landmark = true,
 }: ActivityTimelineProps) {
   // Ordenacao decrescente: o fato mais recente primeiro.
   const ordered = [...facts]
@@ -45,7 +48,7 @@ export function ActivityTimeline({
     .sort((left, right) => new Date(right.at).getTime() - new Date(left.at).getTime());
 
   return (
-    <section className={className}>
+    <section className={className} aria-label={landmark ? title : undefined}>
       <h3 className="mb-2 text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
         {title}
       </h3>

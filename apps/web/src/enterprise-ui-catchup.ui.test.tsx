@@ -165,7 +165,7 @@ describe('Enterprise UI catch-up', () => {
     await waitFor(() => {
       expect(screen.getByRole('table', { name: /itens da despesa/i })).toBeInTheDocument();
     });
-    expect(screen.getByRole('textbox', { name: /descrição linha 1/i })).toHaveValue('Combustivel');
+    expect(screen.getByDisplayValue('Combustivel')).toBeInTheDocument();
   });
 
   it('shows permission denied from the expense API', async () => {

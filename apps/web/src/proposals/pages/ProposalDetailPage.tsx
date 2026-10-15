@@ -565,7 +565,7 @@ export function ProposalDetailPage() {
         context={<ObjectContextBlock fields={visibleContextFields} columns={3} />}
         aside={
           <ObjectPanel title="Histórico">
-            <ActivityTimeline facts={activityFacts} title="Histórico" />
+            <ActivityTimeline facts={activityFacts} title="Histórico" landmark={false} />
           </ObjectPanel>
         }
       >
