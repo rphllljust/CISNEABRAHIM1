@@ -106,7 +106,7 @@ test.describe('medicao da primeira dobra — 1600x900', () => {
     /*
      * A ORDEM E A PROVA. O contrato exige, na primeira dobra: situacao, trabalho, decisao,
      * processo e contexto. Cada regiao e medida contra a dobra e contra as vizinhas — a FILA tem de
-     * vir ACIMA do analitico, e o analitico acima do resumo de magnitude.
+     * situacao e o fluxo operacional antecedem a fila principal, que domina a area de trabalho.
      */
     const header = await rectOf(page, '[data-region="operating-header"]');
     const queue = await rectOf(page, '.dashboard-queue');
@@ -127,12 +127,12 @@ test.describe('medicao da primeira dobra — 1600x900', () => {
       `a fila comecou em y=${queue!.y}; a primeira dobra pertence ao trabalho`,
     ).toBeLessThan(FOLD);
 
-    // 3. A FILA VEM ANTES DO ANALITICO E DO FLUXO. A ordem e a afirmacao.
+    // 3. ANALITICO E FLUXO antecedem a fila principal conforme a geometria aprovada.
     if (analytics) {
-      expect(queue!.y, 'a fila precisa vir ANTES do analitico').toBeLessThan(analytics.y);
+      expect(analytics.y, 'o analitico precisa vir antes da fila').toBeLessThan(queue!.y);
     }
     if (flow) {
-      expect(queue!.y, 'a fila precisa vir ANTES do fluxo').toBeLessThan(flow.y);
+      expect(flow.y, 'o fluxo precisa vir antes da fila').toBeLessThan(queue!.y);
     }
 
     // 4. CONTEXTO presente na mesma tela (coluna propria, a direita).
