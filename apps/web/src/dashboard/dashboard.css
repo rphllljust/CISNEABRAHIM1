@@ -4686,6 +4686,116 @@ a.dashboard-exceptions__row:focus-visible {
   outline-offset: 1px;
 }
 
+/*
+  CONTROL TOWER 2.0 — linguagem de posto de comando, não de formulário empilhado.
+
+  Esta camada muda somente a apresentação do dashboard. A estrutura, o snapshot publicado,
+  filtros, comandos e drillbacks permanecem os mesmos. A área de trabalho ganha uma barra de
+  identidade, divisores mais firmes e um contraste explícito entre fluxo, fila e contexto.
+*/
+.dashboard-workspace-head {
+  margin-bottom: var(--spacing-3);
+  border: 1px solid var(--dashboard-line-strong);
+  border-top: 3px solid var(--dashboard-accent);
+  border-radius: var(--radius-panel);
+  background: var(--dashboard-surface);
+}
+
+.dashboard-workspace-head__row {
+  padding: 0.5rem 0.75rem;
+}
+
+.dashboard-workspace-head__row--recorte {
+  background: var(--color-surface-context);
+}
+
+.dashboard-workspace-head__title {
+  font-size: 1.625rem;
+  color: var(--erp-text);
+}
+
+.dashboard-cc {
+  gap: var(--spacing-3);
+}
+
+.dashboard-situation-strip {
+  border-left: 3px solid var(--dashboard-accent);
+  border-radius: var(--radius-panel);
+  background: var(--dashboard-surface);
+}
+
+.dashboard-chain__head {
+  border-top: 2px solid var(--color-teal);
+  background: var(--color-surface-context);
+}
+
+.dashboard-chain__stages {
+  border: 1px solid var(--dashboard-line-strong);
+  border-top: 0;
+  background: var(--dashboard-surface);
+}
+
+.dashboard-chain__stage {
+  min-height: 4.5rem;
+  border-right: 1px solid var(--dashboard-line);
+}
+
+.dashboard-chain__step:last-child .dashboard-chain__stage {
+  border-right: 0;
+}
+
+.dashboard-chain__node {
+  border-color: var(--color-brand-200);
+  background: var(--color-brand-50);
+}
+
+.dashboard-chain__node-count {
+  color: var(--dashboard-accent-strong);
+}
+
+.dashboard-queuebar {
+  border-top: 2px solid var(--dashboard-accent);
+  background: var(--dashboard-surface);
+}
+
+.dashboard-queue {
+  border-color: var(--dashboard-line-strong);
+  background: var(--dashboard-surface);
+}
+
+.dashboard-queue__head,
+.dashboard-queue__row--head,
+.dashboard-queue__footer {
+  background: var(--color-surface-context);
+}
+
+.dashboard-queue__title,
+.dashboard-rail__title {
+  color: var(--erp-text);
+}
+
+.dashboard-cc__context {
+  border-left: 3px solid var(--color-teal) !important;
+  background: var(--color-surface-context);
+}
+
+.dashboard-rail {
+  background: var(--color-surface-context);
+}
+
+.dashboard-shortcuts-bar {
+  border-left: 3px solid var(--color-border-strong);
+  background: var(--color-surface-context);
+}
+
+@media (max-width: 1099px) {
+  .dashboard-chain__stage,
+  .dashboard-chain__step:last-child .dashboard-chain__stage {
+    border-right: 0;
+    border-bottom: 1px solid var(--dashboard-line);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .dashboard-queue__state-icon--spin {
     animation: none;

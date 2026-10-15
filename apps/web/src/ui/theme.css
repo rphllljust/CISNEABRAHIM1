@@ -17,17 +17,17 @@
    * Consumidores legados de `brand-*` continuam funcionando, agora na paleta azul usada por ações,
    * links, seleção e foco.
    */
-  --color-brand-50: #eff6ff;
-  --color-brand-100: #dbeafe;
-  --color-brand-200: #bfdbfe;
-  --color-brand-300: #93c5fd;
-  --color-brand-400: #60a5fa;
-  --color-brand-500: #3b82f6;
-  --color-brand-600: #2563eb;
-  --color-brand-700: #1d4ed8;
-  --color-brand-800: #1e40af;
-  --color-brand-900: #1e3a8a;
-  --color-brand-950: #172554;
+  --color-brand-50: #edf4ff;
+  --color-brand-100: #dbeaff;
+  --color-brand-200: #b9d6ff;
+  --color-brand-300: #89bbff;
+  --color-brand-400: #4b91ff;
+  --color-brand-500: #146ef5;
+  --color-brand-600: #075ee8;
+  --color-brand-700: #0349bd;
+  --color-brand-800: #07388d;
+  --color-brand-900: #082e6f;
+  --color-brand-950: #061e4b;
 
   /*
    * NAVY OPERACIONAL — a familia da sidebar e do texto forte.
@@ -37,10 +37,10 @@
    * distincao a sidebar lia como "cinza escuro" em vez de "navy corporativo".
    */
   --color-navy-500: #173f73;
-  --color-navy-600: #122b4d;
-  --color-navy-700: #0b1f3b;
-  --color-navy-800: #0b1f3b;
-  --color-navy-900: #07172e;
+  --color-navy-600: #102f56;
+  --color-navy-700: #0b2443;
+  --color-navy-800: #081d37;
+  --color-navy-900: #05162c;
 
   /*
    * CHROME DO SHELL — OS DEGRAUS DO NAVY, NOMEADOS.
@@ -81,13 +81,13 @@
    * NOTA DE CONTRASTE: `nav-text` #DCE6F2 sobre #0B1F3B entrega ~13:1; `nav-text-muted` #91A4BA
    * entrega ~5.6:1 — ambos acima de AA para texto pequeno.
    */
-  --color-shell-surface: #0b1f3b;
-  --color-shell-chrome: #122b4d;
-  --color-shell-dock: #122b4d;
-  --color-shell-dock-ink: #2563eb;
+  --color-shell-surface: #081d37;
+  --color-shell-chrome: #0d2a4d;
+  --color-shell-dock: #102f56;
+  --color-shell-dock-ink: #146ef5;
   --color-on-shell: #ffffff;
-  --color-on-shell-muted: #91a4ba;
-  --color-on-shell-dim: #7f93a9;
+  --color-on-shell-muted: #a9bdd4;
+  --color-on-shell-dim: #7994b2;
 
   /*
    * HOVER / ATIVO SOBRE NAVY — os dois estados de interacao da navegacao escura.
@@ -100,10 +100,10 @@
    * navy, o `blue-600` puro perde contraste contra o fundo escuro e a barra de 2px desaparece. O
    * `blue-500` mantem a mesma familia de matiz e continua legivel a 2px de espessura.
    */
-  --color-shell-hover: #122b4d;
-  --color-shell-active: rgb(37 99 235 / 14%);
+  --color-shell-hover: #102f56;
+  --color-shell-active: rgb(20 110 245 / 20%);
   --color-shell-active-ink: #ffffff;
-  --color-shell-active-indicator: #3b82f6;
+  --color-shell-active-indicator: #42a0ff;
   --color-shell-border: rgb(255 255 255 / 8%);
   --color-on-shell-nav: #dce6f2;
 
@@ -578,24 +578,24 @@
 
 @layer base {
   :root {
-    --erp-canvas: #f4f7fb;
+    --erp-canvas: #f3f7fc;
     --erp-surface: #ffffff;
-    --erp-surface-support: #f0f4f8;
-    --erp-surface-selected: #eff6ff;
-    --erp-border: #d6dee8;
-    --erp-border-strong: #c5d0dd;
-    --erp-text: #0f172a;
-    --erp-text-secondary: #475569;
-    --erp-text-muted: #64748b;
-    --erp-text-disabled: #94a3b8;
-    --erp-action: #2563eb;
-    --erp-action-hover: #1d4ed8;
-    --erp-action-active: #1e40af;
+    --erp-surface-support: #edf3fa;
+    --erp-surface-selected: #edf4ff;
+    --erp-border: #d4e0ee;
+    --erp-border-strong: #b6c8dc;
+    --erp-text: #0b1d3a;
+    --erp-text-secondary: #465d7b;
+    --erp-text-muted: #7185a0;
+    --erp-text-disabled: #9babbe;
+    --erp-action: #075ee8;
+    --erp-action-hover: #0349bd;
+    --erp-action-active: #07388d;
     --erp-success: #16a34a;
     --erp-warning: #d97706;
     --erp-critical: #dc2626;
-    --erp-info: #2563eb;
-    --erp-neutral: #64748b;
+    --erp-info: #075ee8;
+    --erp-neutral: #7185a0;
     color: var(--color-text-primary);
     background: var(--color-surface-app);
     font-family: var(--font-sans);
@@ -1375,4 +1375,4807 @@
 #main-content :focus-visible:not([class*='outline-none']) {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 1px;
+}
+:root {
+  --dashboard-chart-neutral: var(--color-slate-400);
+  --dashboard-chart-positive: var(--color-emerald-600);
+  --dashboard-chart-warning: var(--color-amber-500);
+  --dashboard-chart-critical: var(--color-red-500);
+  --dashboard-chart-series-1: var(--erp-info);
+  --dashboard-chart-series-2: var(--erp-success);
+  --dashboard-chart-series-3: var(--erp-warning);
+  --dashboard-chart-series-4: #8b5cf6;
+  --dashboard-chart-series-5: var(--erp-neutral);
+  --dashboard-chart-series-6: var(--erp-critical);
+  --dashboard-chart-series-7: var(--erp-text-muted);
+
+  --chart-neutral: var(--dashboard-chart-neutral);
+  --chart-positive: var(--dashboard-chart-positive);
+  --chart-warning: var(--dashboard-chart-warning);
+  --chart-critical: var(--dashboard-chart-critical);
+  --chart-series-1: var(--dashboard-chart-series-1);
+  --chart-series-2: var(--dashboard-chart-series-2);
+  --chart-series-3: var(--dashboard-chart-series-3);
+  --chart-series-4: var(--dashboard-chart-series-4);
+  --chart-series-5: var(--dashboard-chart-series-5);
+  --chart-series-6: var(--dashboard-chart-series-6);
+  --chart-series-7: var(--dashboard-chart-series-7);
+
+  /* CONTROL TOWER — densidade deliberada: 1px de borda no lugar de sombra grande. */
+  --dashboard-line: var(--color-divider);
+  --dashboard-line-soft: var(--color-border-subtle);
+  --dashboard-line-strong: var(--color-divider-strong);
+  --dashboard-surface: var(--erp-surface);
+  --dashboard-surface-soft: var(--color-surface-context);
+  --dashboard-surface-strong: var(--color-surface-header);
+  --dashboard-panel-shadow: none;
+  --dashboard-muted: var(--color-text-secondary);
+  --dashboard-ink: var(--color-text-primary);
+
+  /*
+    TOKENS DE ESTADO — a cor FORTE que a tela nao tinha.
+
+    A paleta anterior resolvia tudo com slate + um teal apagado, e o resultado lia "sistema
+    administrativo". Aqui cada FAMILIA tem um papel declarado e nenhuma delas pinta area grande:
+    elas vivem em icone, barra lateral, badge, numero e segmento de grafico — que e onde cor guia o
+    olhar em vez de decorar.
+  */
+  --dashboard-accent: var(--color-blue-600);
+  --dashboard-accent-strong: var(--color-blue-700);
+  --dashboard-accent-soft: var(--color-surface-selected);
+  --dashboard-identity: var(--color-brand-600);
+  --dashboard-success: var(--color-emerald-600);
+  --dashboard-warning: var(--color-amber-600);
+  --dashboard-critical: var(--color-red-600);
+  --dashboard-info: var(--color-blue-600);
+  --dashboard-analytics: var(--color-violet-600);
+
+  /*
+    CAMADAS DE SUPERFICIE — a tela tinha QUATRO BRANCOS e por isso lia plana.
+
+    Um ERP Tier-1 organiza profundidade sem sombra: ele empilha TONS. Aqui ficam as tres camadas,
+    reaproveitando os tokens que o design system ja publica (`--color-canvas`, `--color-canvas-work`,
+    `--color-surface-context`) em vez de inventar hex novo. A regra de uso:
+
+      canvas      o fundo onde a tela vive (o shell ja o aplica);
+      work        a superficie de TRABALHO — fila e rodape de processo; e a mais clara;
+      support     a superficie de APOIO — contexto lateral e faixas secundarias; um degrau abaixo,
+                  para que o painel de contexto se leia como apoio e nao como segundo trabalho.
+
+    O contraste entre as duas ultimas e DELIBERADAMENTE pequeno (2%) — em monitor de escritorio e
+    suficiente para separar as areas sem que a tela vire um mosaico.
+  */
+  --dashboard-surface-work: var(--color-canvas-work);
+  --dashboard-surface-support: var(--color-surface-context);
+  --dashboard-surface-selected: #eff6ff;
+}
+
+/* ============================================================================
+   0. CENTRAL OPERACIONAL — a anatomia de /app, em uma grade com coluna de contexto
+   ============================================================================
+
+   POR QUE UMA GRADE, E NAO UMA COLUNA DE BLOCOS
+
+   A composicao anterior empilhava zonas (`flex-direction: column`) com gap de 12-16px. Cada bloco
+   tinha envelope proprio, altura livre e margem — e o resultado medido era a metade de baixo da
+   viewport vazia, com a fila terminando em ~120px. Empilhamento vertical nao tem como "ocupar o
+   resto da tela": so uma GRADE com `1fr` tem.
+
+   Aqui a area de trabalho e uma linha de dois eixos:
+
+     ZONA DE TRABALHO          linhas de altura natural (indicadores, analitico, fluxo, toolbar)
+                               e UMA linha elastica (a fila) que absorve todo o espaco restante;
+     COLUNA DE CONTEXTO        360px, `border-left`, sem overlay, da toolbar ao rodape.
+
+   Com o contexto ABERTO a grade ganha a segunda coluna; fechado, a zona de trabalho ocupa a
+   largura inteira. Nada abaixo de 1280px tenta ser duas colunas: em tela estreita a coluna de
+   contexto roubaria mais do que entrega.
+   ============================================================================ */
+
+.dashboard-cc {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--spacing-2);
+  min-height: 0;
+  padding: var(--spacing-3) 0 0;
+}
+
+.dashboard-situation-strip {
+  min-width: 0;
+  margin-top: var(--spacing-2);
+  overflow: hidden;
+  border: 1px solid var(--dashboard-line-strong);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.dashboard-situation-strip .dashboard-kpi-strip__list {
+  min-height: 3.5rem;
+  border: 0;
+  border-radius: 0;
+}
+
+.dashboard-situation-strip .dashboard-kpi-cell {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  align-content: center;
+  column-gap: 0.75rem;
+  min-height: 3.5rem;
+  height: auto;
+  padding: 0.45rem 0.75rem;
+  border: 0;
+  border-radius: 0;
+}
+
+.dashboard-situation-strip .dashboard-kpi-cell__glyph {
+  display: none;
+}
+
+.dashboard-situation-strip .dashboard-kpi-cell__label {
+  grid-column: 1;
+  grid-row: 1;
+  font-size: 0.625rem;
+  line-height: 1rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dashboard-situation-strip .dashboard-kpi-cell__value {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  font-size: 1.25rem;
+  line-height: 1.5rem;
+}
+
+.dashboard-situation-strip .dashboard-kpi-cell__context {
+  grid-column: 1;
+  grid-row: 2;
+  font-size: 0.6875rem;
+}
+
+.dashboard-situation-strip .dashboard-kpi-cell__drill {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: end;
+  font-size: 0.625rem;
+}
+
+.dashboard-cc__workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  min-width: 0;
+  min-height: 0;
+}
+
+.dashboard-cc__priority {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--dashboard-line-strong);
+  border-radius: 6px;
+  background: var(--dashboard-surface);
+}
+
+.dashboard-cc__priority > .dashboard-queuebar {
+  border: 0;
+  border-bottom: 1px solid var(--dashboard-line-strong);
+  border-radius: 0;
+}
+
+.dashboard-cc__priority > .dashboard-queue {
+  flex: 0 1 auto;
+  border: 0;
+  border-radius: 0;
+}
+
+.dashboard-cc__work {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  min-width: 0;
+  min-height: 0;
+}
+
+.dashboard-cc[data-layout='operations-control-center'] {
+  gap: 0.625rem;
+}
+
+/* Trabalho real vem antes de análises opcionais; ausência de gráfico não ocupa a dobra. */
+.dashboard-cc[data-layout='operations-control-center'] .dashboard-situation-strip { order: 0; }
+.dashboard-cc[data-layout='operations-control-center'] > [data-layout='compact-process-flow'] { order: 1; }
+.dashboard-cc[data-layout='operations-control-center'] .dashboard-cc__work { order: 2; }
+.dashboard-cc[data-layout='operations-control-center'] .dashboard-analytics,
+.dashboard-cc[data-layout='operations-control-center'] .dashboard-summary { order: 3; }
+
+.dashboard-cc[data-layout='operations-control-center'] .dashboard-cc__work {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  align-items: stretch;
+  column-gap: 0.75rem;
+  row-gap: 0.625rem;
+}
+
+.dashboard-cc[data-layout='operations-control-center'] .dashboard-cc__workspace {
+  display: contents;
+}
+
+.dashboard-cc[data-layout='operations-control-center'] .dashboard-analytics {
+  grid-column: 1;
+  gap: 0.625rem;
+}
+
+.dashboard-cc[data-layout='operations-control-center'] .dashboard-summary,
+.dashboard-cc[data-layout='operations-control-center'] > [data-layout='compact-process-flow'] {
+  grid-column: 1;
+}
+
+.dashboard-cc[data-layout='operations-control-center'] .dashboard-analytics__panel,
+.dashboard-cc[data-layout='operations-control-center'] .dashboard-exceptions {
+  min-height: 10rem;
+  max-height: 11.5rem;
+  border-color: var(--color-border-default);
+  border-radius: var(--radius-panel);
+}
+
+.dashboard-cc[data-layout='operations-control-center'] > [data-layout='compact-process-flow'] {
+  min-height: 4.5rem;
+}
+
+.dashboard-cc[data-layout='operations-control-center'] .dashboard-summary {
+  max-height: 7rem;
+  overflow: auto;
+}
+
+.dashboard-cc[data-layout='operations-control-center'] .dashboard-cc__workspace {
+  grid-template-columns: minmax(0, 1fr) 340px;
+}
+
+.dashboard-cc[data-layout='operations-control-center'] .dashboard-cc__priority {
+  grid-column: 1;
+  min-height: 14rem;
+}
+
+.dashboard-cc[data-layout='operations-control-center'] .dashboard-cc__context {
+  grid-column: 2;
+  grid-row: 1 / span 4;
+  align-self: stretch;
+  background: var(--color-surface-support);
+}
+
+@media (max-width: 1279px) {
+  .dashboard-cc[data-layout='operations-control-center'] .dashboard-cc__work {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dashboard-cc[data-layout='operations-control-center'] .dashboard-cc__context {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+
+/*
+  A COLUNA DE CONTEXTO E UMA COLUNA, NAO UM PAINEL FLUTUANTE — E ELA E PERSISTENTE.
+
+  Ela encosta na zona de trabalho (`border-left`), tem a altura dela e o scroll e DELA. Sem selecao
+  ela mostra o contexto operacional do recorte; com selecao, o contexto da entidade. Nos dois casos
+  a coluna EXISTE: uma terceira zona que aparece e desaparece deixa a direita vazia na maior parte
+  do tempo, e e isso que produz o "oceano branco".
+*/
+.dashboard-cc__context {
+  display: none;
+  min-width: 0;
+  min-height: 0;
+}
+
+@media (min-width: 1280px) {
+  .dashboard-cc__workspace {
+    grid-template-columns: minmax(0, 1fr) 340px;
+    align-items: stretch;
+  }
+
+  .dashboard-cc__context {
+    display: block;
+    border-left: 1px solid var(--dashboard-line-strong);
+    padding-left: 0.75rem;
+    background: var(--erp-surface-support);
+  }
+
+  .dashboard-cc__context .dashboard-rail,
+  .dashboard-cc__context .dashboard-context-drawer {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+}
+
+/* A coluna de contexto so pode ser `sticky` porque a pagina (nao ela) rola. */
+.dashboard-context-drawer,
+.dashboard-rail {
+  position: sticky;
+  top: var(--spacing-2);
+  max-height: calc(100dvh - 9.5rem);
+  border: 1px solid var(--dashboard-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--dashboard-surface);
+  overflow: hidden;
+}
+
+/*
+  RAIL DE CONTEXTO — o estado do painel quando NAO ha entidade selecionada.
+
+  Ele NAO e um placeholder: cada linha e um fato que a tela ja possui. A marca colorida no cabecalho
+  de secao da o codigo de cor que o resto do cockpit usa (azul=operacao/recorte, teal=identidade/
+  processo, slate=neutro/atalhos) para que as tres secoes sejam distinguiveis de relance.
+*/
+.dashboard-rail {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.dashboard-rail__section {
+  padding: 0.75rem 0.875rem;
+}
+
+.dashboard-rail__section + .dashboard-rail__section {
+  border-top: 1px solid var(--dashboard-line);
+}
+
+.dashboard-rail__head {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+  margin-bottom: 0.5rem;
+}
+
+.dashboard-rail__mark {
+  width: 3px;
+  height: 0.875rem;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+  background: var(--color-border-strong);
+}
+
+.dashboard-rail__mark--info {
+  background: var(--dashboard-accent);
+}
+
+.dashboard-rail__mark--identity {
+  background: var(--dashboard-identity);
+}
+
+.dashboard-rail__mark--neutral {
+  background: var(--color-slate-400);
+}
+
+.dashboard-rail__title {
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-navy-700);
+}
+
+.dashboard-rail__facts {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+
+.dashboard-rail__fact {
+  display: grid;
+  grid-template-columns: 5.25rem minmax(0, 1fr);
+  gap: var(--spacing-2);
+  align-items: baseline;
+  padding: 0.3125rem 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.dashboard-rail__fact:last-child {
+  border-bottom: 0;
+}
+
+.dashboard-rail__fact dt {
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--dashboard-muted);
+}
+
+.dashboard-rail__fact dd {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--erp-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* TRILHA DE PROCESSO EM TEXTO — os estagios reais, em ordem, sem contador. */
+.dashboard-rail__process {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dashboard-rail__process-step {
+  position: relative;
+  padding: 0.25rem 0 0.25rem 0.875rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--erp-text-secondary);
+}
+
+.dashboard-rail__process-step::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.5rem;
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: var(--radius-full);
+  background: var(--dashboard-identity);
+}
+
+.dashboard-rail__process-step + .dashboard-rail__process-step::after {
+  content: '';
+  position: absolute;
+  left: 0.15625rem;
+  top: -0.25rem;
+  width: 1px;
+  height: 0.5rem;
+  background: var(--color-border-strong);
+}
+
+.dashboard-rail__note {
+  margin: 0.5rem 0 0;
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  color: var(--dashboard-muted);
+}
+
+.dashboard-rail__links {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dashboard-rail__link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.375rem 0.25rem;
+  border-radius: var(--radius-sm);
+  border-bottom: 1px solid var(--color-border-subtle);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--erp-text-secondary);
+  text-decoration: none;
+}
+
+.dashboard-rail__links li:last-child .dashboard-rail__link {
+  border-bottom: 0;
+}
+
+.dashboard-rail__link:hover {
+  background: var(--color-surface-selected);
+  color: var(--dashboard-accent-strong);
+}
+
+.dashboard-rail__link:focus-visible {
+  outline: 2px solid var(--dashboard-accent);
+  outline-offset: -2px;
+}
+
+.dashboard-rail__link-icon {
+  width: 0.8125rem;
+  height: 0.8125rem;
+  color: var(--erp-text-muted);
+}
+
+/* ============================================================
+   1b. WORKSPACE — coluna unica de zonas; a grade de trabalho vive em `.dashboard-workspace__grid`
+   ============================================================ */
+
+/*
+  O workspace e uma COLUNA de zonas na ordem de leitura (situacao -> acoes -> indicadores ->
+  trabalho -> cadeia). A antiga grade de duas colunas (`1fr | 18rem`) saiu daqui: a coluna lateral
+  era o "rail analitico" e agora e a metade direita da area de trabalho, onde ela realmente pertence.
+*/
+.dashboard-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+@media (min-width: 1100px) {
+  .dashboard-workspace__side {
+    position: sticky;
+    top: var(--spacing-2);
+  }
+}
+
+/* ============================================================
+   BUSINESS INSIGHT RAIL — um painel, seções separadas por divisor fino
+   ============================================================ */
+
+.dashboard-rail-panel {
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-md);
+  background: var(--dashboard-surface);
+  overflow: hidden;
+}
+
+.dashboard-rail-panel > * + * {
+  border-top: 1px solid var(--dashboard-line-soft);
+}
+
+.dashboard-rail-panel > * {
+  margin: 0;
+  padding: var(--spacing-3);
+}
+
+.dashboard-analytic {
+  margin: 0;
+}
+
+.dashboard-dist {
+  display: grid;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dashboard-dist__item {
+  min-width: 0;
+}
+
+/* Alinhamento rigoroso: rótulo, barra e número em colunas fixas, baseline única. */
+.dashboard-dist__row {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr) 1.5rem;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: 0.125rem 0.25rem;
+  margin-left: -0.25rem;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: inherit;
+}
+
+.dashboard-dist__row:hover {
+  background: var(--color-slate-50);
+}
+
+.dashboard-dist__row:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: -2px;
+}
+
+.dashboard-dist__label {
+  font-size: 0.75rem;
+  color: var(--color-slate-600);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dashboard-dist__track {
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--color-slate-100);
+  overflow: hidden;
+}
+
+.dashboard-dist__bar {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: var(--radius-full);
+  background: var(--color-slate-300);
+}
+
+/* Cor com significado: execução ativa e a faixa que concentra atraso. */
+.dashboard-dist__bar--active {
+  background: var(--color-brand-600);
+}
+
+.dashboard-dist__bar--paused {
+  background: var(--color-amber-500);
+}
+
+.dashboard-dist__bar--critical {
+  background: var(--color-red-500);
+}
+
+.dashboard-dist__count {
+  text-align: right;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--dashboard-ink);
+}
+
+/* Valor da faixa em linha propria, discreto: o numero e o fato, o dinheiro e contexto. */
+.dashboard-dist__amount {
+  grid-column: 2 / -1;
+  text-align: right;
+  font-size: 0.6875rem;
+  color: var(--color-slate-400);
+  white-space: nowrap;
+}
+
+.dashboard-analytic__note {
+  margin: var(--spacing-2) 0 0;
+  font-size: 0.6875rem;
+  line-height: 1.35;
+  color: var(--color-slate-400);
+}
+
+.dashboard-workspace__main {
+  min-width: 0;
+}
+
+.dashboard-workspace__side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  min-width: 0;
+}
+
+.dashboard-side-panel {
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-md);
+  background: var(--dashboard-surface);
+  padding: var(--spacing-3);
+}
+
+.dashboard-side-panel__title {
+  margin: 0 0 var(--spacing-2);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-slate-600);
+}
+
+/* BUSINESS CONTEXT: identificação forte, fato principal, ação — em bloco compacto. */
+.dashboard-side-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.dashboard-side-summary__id {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--color-brand-700);
+}
+
+.dashboard-side-summary__title {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.3;
+  color: var(--dashboard-ink);
+}
+
+.dashboard-side-summary__reason {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--color-slate-500);
+}
+
+.dashboard-side-panel__empty {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--color-slate-500);
+}
+
+/* CONTEXT DRAWER — business context, nao formulario read-only: dl mais justo. */
+[role='dialog'] dl {
+  gap: var(--spacing-1) var(--spacing-3);
+}
+
+[role='dialog'] dl dt,
+[role='dialog'] dl dd {
+  line-height: 1.3;
+}
+
+.dashboard-side-summary__actions {
+  margin-top: var(--spacing-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.dashboard-side-summary__primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-brand-600);
+  border-radius: var(--radius-md);
+  background: var(--color-brand-600);
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+}
+
+.dashboard-side-summary__primary:hover {
+  background: var(--color-brand-700);
+}
+
+/* METRIC STRIP — indicadores compactos: rótulo, número, contexto. Sem cardão. */
+.dashboard-kpi-list {
+  display: grid;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dashboard-kpi-list__item {
+  min-width: 0;
+}
+
+.dashboard-kpi-list__cell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0 var(--spacing-2);
+  padding: 0.125rem 0.25rem;
+  margin-left: -0.25rem;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: inherit;
+}
+
+a.dashboard-kpi-list__cell:hover {
+  background: var(--color-slate-50);
+}
+
+a.dashboard-kpi-list__cell:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: -2px;
+}
+
+.dashboard-kpi-list__label {
+  grid-column: 1;
+  font-size: 0.75rem;
+  color: var(--color-slate-600);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dashboard-kpi-list__value {
+  grid-column: 2;
+  grid-row: 1;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--dashboard-ink);
+}
+
+.dashboard-kpi-list__unit {
+  margin-left: 0.1875rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--color-slate-400);
+}
+
+.dashboard-kpi-list__context {
+  grid-column: 1 / -1;
+  font-size: 0.6875rem;
+  line-height: 1.3;
+  color: var(--color-slate-400);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dashboard-work {
+  margin-top: 0;
+  margin-bottom: var(--spacing-3);
+}
+
+.dashboard-shortcuts--operational {
+  margin: 0 0 var(--spacing-3);
+  padding: 0.45rem 0;
+  border-top: 1px solid var(--dashboard-line-soft);
+  border-bottom: 1px solid var(--dashboard-line-soft);
+}
+
+.dashboard-work__all {
+  margin-left: var(--spacing-2);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-brand-600);
+  text-decoration: none;
+}
+
+.dashboard-work__all:hover {
+  text-decoration: underline;
+}
+
+/* ============================================================
+   14. CABECALHO DO WORKSPACE — duas faixas densas, tema claro
+   ============================================================ */
+
+/*
+  ESTRUTURA: identidade + contexto na linha 1, recorte + estado na linha 2.
+  ALTURA ALVO: ~120px totais (dois controles de 2rem + titulo + divisores), contra os ~200px do
+  bloco escuro anterior. O que garante isso nao e padding pequeno: e nao ter caixa.
+*/
+/*
+  WORKSPACE IDENTITY — FAIXA ESTRUTURAL DO CANVAS, NAO CARD.
+
+  Antes: `background: surface` + `border` + `border-radius`. O cabecalho era uma CAIXA dentro da
+  pagina, e isso e o que fazia a tela ler como painel administrativo — o envelope visual anunciava
+  "aqui comeca um bloco", quando o cabecalho e a CONTINUACAO do shell.
+
+  Agora ele nao tem envelope: fundo igual ao canvas, UMA linha de base separando as duas faixas do
+  conteudo. A hierarquia vem de tipografia, espacamento e do divisor — que e como um ERP desktop
+  separa identidade de trabalho sem desenhar retangulo em volta de tudo.
+*/
+.dashboard-workspace-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-bottom: var(--spacing-2);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--dashboard-line);
+  border-radius: 0;
+}
+
+/*
+  ALTURA-ALVO DO CABECALHO: 68-82px.
+
+  As duas faixas usam padding vertical de 4px: com titulo de 30px + descricao de 13px na linha 1, a
+  faixa de recorte de 32px na linha 2 e os divisores, o bloco fecha em ~78px. Nao existe banner,
+  gradiente nem caixa: a hierarquia vem de tipografia, espaco e do divisor.
+*/
+.dashboard-workspace-head__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 var(--spacing-4);
+  padding: 0.25rem 0.25rem;
+}
+
+.dashboard-workspace-head__row--recorte {
+  border-top: 1px solid var(--dashboard-line-soft);
+}
+
+.dashboard-workspace-head__identity {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-3);
+  min-width: 0;
+}
+
+/* 1.75rem/650 — o titulo da FUNCAO, na faixa 28-32px da escala de pagina do ERP. */
+.dashboard-workspace-head__title {
+  margin: 0;
+  font-size: 1.875rem;
+  font-weight: 750;
+  line-height: 1.12;
+  letter-spacing: -0.022em;
+  color: var(--color-navy-800);
+}
+
+.dashboard-workspace-head__description {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.3;
+  color: var(--dashboard-muted);
+  min-width: 0;
+}
+
+.dashboard-workspace-head__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin-left: auto;
+}
+
+.dashboard-workspace-head__scope {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin: 0 var(--spacing-1) 0 0;
+  font-size: 0.8125rem;
+  color: var(--dashboard-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard-workspace-head__sep {
+  color: var(--color-slate-300);
+}
+
+.dashboard-workspace-head__updated {
+  display: flex;
+  flex-direction: column;
+  margin: 0 var(--spacing-1) 0 0;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  color: var(--dashboard-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard-workspace-head__updated-label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--dashboard-muted);
+}
+
+.dashboard-workspace-head__select {
+  height: var(--control-height);
+  padding: 0 var(--spacing-2);
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-md);
+  background: var(--dashboard-surface);
+  font-size: 0.8125rem;
+  color: var(--dashboard-ink);
+}
+
+.dashboard-workspace-head__select:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
+}
+
+/* BOTAO COM ALTURA GOVERNADA — `--control-height` (30px), na faixa 32-36px do sistema. */
+.dashboard-workspace-head__refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  height: var(--control-height);
+  padding: 0 var(--spacing-3);
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-md);
+  background: var(--color-slate-50);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--dashboard-ink);
+  cursor: pointer;
+}
+
+.dashboard-workspace-head__refresh:hover:not(:disabled) {
+  background: var(--color-slate-100);
+}
+
+.dashboard-workspace-head__refresh:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.dashboard-workspace-head__refresh:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
+}
+
+.dashboard-workspace-head__refresh-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+/*
+  WORKSPACE TABS — o recorte de dominio e NAVEGACAO DE AREA, nao formulario.
+
+  Antes: sete botoes com borda, fundo e raio — a gramatica de `form control`. Sete controles
+  contornados competem entre si e com o resto da pagina, e o operador le "filtros" onde deveria ler
+  "onde eu estou".
+
+  Agora e uma faixa de TABS: sem contorno, sem raio, altura 32px, e o ativo se declara por
+  sublinhado de accent mais texto forte. E a mesma gramatica que o produto ja usa para navegar entre
+  visoes (SavedViewsBar) — uma linguagem, nao duas.
+*/
+.dashboard-workspace-head__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-4);
+  align-items: center;
+}
+
+/*
+  TAB DE RECORTE — sem contorno, com divisor inferior de 2px que SO o ativo carrega.
+
+  O sublinhado e o que faz a faixa ler como "abas de area de trabalho" em vez de sete botoes: o olho
+  encontra o estado atual por posicao, nao por contraste de fundo. `padding` horizontal zero (o
+  espacamento vem do `gap`) mantem a faixa alinhada com o titulo acima.
+*/
+.dashboard-workspace-head__chip {
+  display: inline-flex;
+  align-items: center;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-slate-500);
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease;
+}
+
+.dashboard-workspace-head__chip:hover {
+  color: var(--color-slate-800);
+  border-bottom-color: var(--color-slate-300);
+}
+
+/*
+  ABA ATIVA: texto forte + sublinhado institucional. Sem fundo cheio.
+
+  O chip ativo era `background: brand-700` com texto branco — area solida de accent no meio de uma
+  faixa de contexto. Accent em area cheia num cabecalho compete com o dado; aqui a tela usa accent
+  para MARCAR POSICAO, nao para pintar bloco.
+*/
+.dashboard-workspace-head__chip--on {
+  border-bottom-color: var(--color-brand-700);
+  color: var(--dashboard-ink);
+  font-weight: 650;
+}
+
+.dashboard-workspace-head__chip--on:hover {
+  border-bottom-color: var(--color-brand-800);
+  color: var(--dashboard-ink);
+}
+
+.dashboard-workspace-head__chip:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
+}
+
+.dashboard-workspace-head__state {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  margin-left: auto;
+}
+
+/* REGUA DE SITUACAO DO RECORTE — cor com significado, texto sempre presente. */
+.dashboard-workspace-head__situation {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  height: 1.625rem;
+  padding: 0 var(--spacing-2) 0 var(--spacing-3);
+  border: 1px solid var(--dashboard-line);
+  border-left-width: 3px;
+  border-radius: var(--radius-sm);
+  background: var(--color-slate-50);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-slate-700);
+  white-space: nowrap;
+}
+
+.dashboard-workspace-head__situation--critical {
+  border-left-color: var(--color-red-600);
+  background: color-mix(in srgb, var(--color-red-50) 62%, #fff);
+  color: var(--color-red-700);
+}
+
+.dashboard-workspace-head__situation--warning {
+  border-left-color: var(--color-amber-500);
+  background: color-mix(in srgb, var(--color-amber-50) 55%, #fff);
+  color: var(--color-amber-700);
+}
+
+.dashboard-workspace-head__situation--normal {
+  border-left-color: var(--color-emerald-600);
+  background: color-mix(in srgb, var(--color-emerald-50) 50%, #fff);
+  color: var(--color-emerald-800);
+}
+
+/* UNKNOWN NAO E ALERTA: e ausencia de medicao. Cinza neutro, nunca vermelho nem ambar. */
+.dashboard-workspace-head__situation--unknown {
+  border-left-color: var(--color-slate-400);
+  background: var(--color-slate-50);
+  color: var(--color-slate-600);
+}
+
+.dashboard-workspace-head__queue-count {
+  padding-left: var(--spacing-2);
+  border-left: 1px solid currentColor;
+  font-weight: 500;
+  opacity: 0.72;
+}
+
+.dashboard-workspace-head__overdue {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  min-height: 1.625rem;
+  padding: 0 var(--spacing-2);
+  font-size: 0.75rem;
+  color: var(--color-slate-700);
+  cursor: pointer;
+}
+
+.dashboard-workspace-head__filter-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dashboard-workspace-head__filter {
+  padding: 0.0625rem var(--spacing-2);
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-full);
+  background: var(--color-slate-50);
+  font-size: 0.75rem;
+  color: var(--color-slate-600);
+}
+
+.dashboard-workspace-head__clear {
+  border: 0;
+  background: transparent;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-brand-600);
+  cursor: pointer;
+}
+
+/* ============================================================
+   2. CABECALHOS DE SECAO — sem texto explicativo sobrando
+   ============================================================ */
+
+.dashboard-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-2);
+}
+
+.dashboard-section-head__title {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-slate-600);
+}
+
+.dashboard-section-head__meta {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--dashboard-muted);
+}
+
+.dashboard-block {
+  margin-bottom: var(--spacing-5);
+}
+
+.dashboard-block--compact {
+  margin-bottom: var(--spacing-3);
+}
+
+/* ============================================================
+   3. PRIMEIRA DOBRA — decisão + saúde da empresa
+   ============================================================ */
+
+.dashboard-fold {
+  display: grid;
+  gap: var(--spacing-4);
+  margin-bottom: var(--spacing-5);
+}
+
+@media (min-width: 1280px) {
+  .dashboard-fold {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+.dashboard-fold__kpis {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+/* ============================================================
+   4. CENTRAL DE DECISÃO
+   ============================================================ */
+
+.dashboard-decision {
+  min-width: 0;
+}
+
+.dashboard-decision__clear {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin: 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: 1px solid var(--color-emerald-600/20);
+  border-radius: var(--radius-md);
+  background: var(--color-emerald-50);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-emerald-800);
+}
+
+.dashboard-decision__clear-icon {
+  width: 0.9375rem;
+  height: 0.9375rem;
+  color: var(--color-emerald-600);
+}
+
+.dashboard-decision--clear {
+  margin-bottom: var(--spacing-2);
+}
+
+.dashboard-decision--clear .dashboard-decision__clear {
+  min-height: 2.5rem;
+  border-color: color-mix(in srgb, var(--color-emerald-600) 18%, transparent);
+  background: color-mix(in srgb, var(--color-emerald-50) 58%, #fff);
+}
+
+.dashboard-decision__clear > span {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.dashboard-decision__clear strong {
+  font-size: 0.8125rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.dashboard-decision__clear-detail {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--color-emerald-800);
+  opacity: 0.78;
+}
+
+.dashboard-decision__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--dashboard-surface);
+}
+
+.dashboard-decision__row-wrap + .dashboard-decision__row-wrap {
+  border-top: 1px solid var(--dashboard-line-soft);
+}
+
+.dashboard-decision__row {
+  display: grid;
+  grid-template-columns: 4.75rem minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--spacing-2) var(--spacing-3);
+  padding: 0.4375rem var(--spacing-3) 0.4375rem 0.75rem;
+  text-decoration: none;
+  color: inherit;
+  border-left: 2px solid var(--color-slate-200);
+}
+
+a.dashboard-decision__row:hover {
+  background: var(--color-slate-50);
+}
+
+.dashboard-decision__row-wrap:has(.dashboard-decision__severity--critical)
+  .dashboard-decision__row {
+  border-left-color: var(--color-red-600);
+}
+
+.dashboard-decision__row-wrap:has(.dashboard-decision__severity--warning) .dashboard-decision__row {
+  border-left-color: var(--color-amber-500);
+}
+
+a.dashboard-decision__row:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: -2px;
+}
+
+.dashboard-decision__severity {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.0625rem var(--spacing-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--dashboard-line);
+  background: var(--color-slate-50);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-slate-600);
+}
+
+.dashboard-decision__severity--critical {
+  border-color: color-mix(in srgb, var(--color-red-600) 28%, transparent);
+  background: var(--color-red-50);
+  color: var(--color-red-700);
+}
+
+.dashboard-decision__severity--warning {
+  border-color: color-mix(in srgb, var(--color-amber-600) 30%, transparent);
+  background: var(--color-amber-50);
+  color: var(--color-amber-700);
+}
+
+.dashboard-decision__reason {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.dashboard-decision__reason-label {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-1);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--dashboard-ink);
+}
+
+.dashboard-decision__reason .dashboard-decision__count {
+  text-align: left;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: inherit;
+}
+
+.dashboard-decision__reason-detail {
+  font-size: 0.75rem;
+  color: var(--dashboard-muted);
+}
+
+.dashboard-decision__count {
+  text-align: right;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--dashboard-ink);
+}
+
+.dashboard-decision__deadline {
+  text-align: right;
+  font-size: 0.75rem;
+  color: var(--color-slate-400);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dashboard-decision__deadline--set {
+  color: var(--color-red-700);
+  font-weight: 600;
+}
+
+.dashboard-decision__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-1);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-brand-600);
+  white-space: nowrap;
+}
+
+.dashboard-decision__action--absent {
+  color: var(--color-slate-400);
+  font-weight: 400;
+  white-space: normal;
+}
+
+.dashboard-decision__action-arrow {
+  color: var(--color-brand-500);
+}
+
+.dashboard-decision__legend {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  margin: var(--spacing-2) 0 0;
+  font-size: 0.6875rem;
+  color: var(--color-slate-400);
+}
+
+.dashboard-decision__legend-icon {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+/* ============================================================
+   5. FAIXA DE KPIs
+   ============================================================ */
+
+.dashboard-kpi-strip__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+  gap: var(--spacing-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dashboard-kpi-strip__item {
+  min-width: 0;
+}
+
+.dashboard-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  height: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: 1px solid var(--dashboard-line);
+  border-left-width: 3px;
+  border-radius: var(--radius-md);
+  background: var(--dashboard-surface);
+  text-decoration: none;
+  color: inherit;
+}
+
+a.dashboard-kpi:hover {
+  background: var(--color-slate-50);
+}
+
+a.dashboard-kpi:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
+}
+
+.dashboard-kpi--critical {
+  border-left-color: var(--color-red-600);
+  background: color-mix(in srgb, var(--color-red-50) 55%, #fff);
+}
+
+.dashboard-kpi--warning {
+  border-left-color: var(--color-amber-500);
+  background: color-mix(in srgb, var(--color-amber-50) 45%, #fff);
+}
+
+.dashboard-kpi--primary {
+  border-left-color: var(--color-brand-600);
+}
+
+.dashboard-kpi--success {
+  border-left-color: var(--color-emerald-600);
+}
+
+.dashboard-kpi--secondary {
+  border-left-color: var(--color-slate-400);
+}
+
+.dashboard-kpi__label {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-slate-600);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dashboard-kpi__value {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-1);
+  margin: 0;
+}
+
+.dashboard-kpi__number {
+  font-size: 1.375rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--dashboard-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard-kpi--critical .dashboard-kpi__number {
+  color: var(--color-red-700);
+}
+
+.dashboard-kpi--warning .dashboard-kpi__number {
+  color: var(--color-amber-700);
+}
+
+.dashboard-kpi__unit {
+  font-size: 0.75rem;
+  color: var(--dashboard-muted);
+}
+
+.dashboard-kpi__context {
+  margin: 0;
+  font-size: 0.6875rem;
+  color: var(--color-slate-400);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dashboard-kpi__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  margin: var(--spacing-1) 0 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--color-brand-600);
+}
+
+.dashboard-kpi__action--absent {
+  color: var(--color-slate-400);
+  font-weight: 400;
+}
+
+.dashboard-kpi__action-icon {
+  width: 0.6875rem;
+  height: 0.6875rem;
+}
+
+.dashboard-volume {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin: 0;
+  padding: 0 var(--spacing-1);
+  font-size: 0.75rem;
+  color: var(--dashboard-muted);
+}
+
+.dashboard-volume__label {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.6875rem;
+}
+
+.dashboard-volume__link {
+  color: var(--color-slate-600);
+  text-decoration: underline;
+  text-decoration-color: var(--color-slate-300);
+  text-underline-offset: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard-volume__link:hover {
+  color: var(--color-brand-600);
+}
+
+.dashboard-volume__sep {
+  color: var(--color-slate-300);
+}
+
+/* ============================================================
+   2b. SITUATION HANDLING — o estado do recorte em UMA faixa
+   ============================================================ */
+
+/*
+  PESO VISUAL PROPORCIONAL AO FATO. `critical` recebe area (as excecoes em linha, com drill);
+  `warning`, `normal` e `unknown` recebem UMA linha. Um bloco verde gigante para dizer "esta tudo
+  bem" gasta a primeira dobra com uma nao-noticia — o mesmo erro, na direcao oposta.
+
+  `unknown` NAO usa vermelho nem ambar: nao e risco medido, e ausencia de medicao. Pintar de alerta
+  um dado que nao existe ensina o operador a ignorar alertas de verdade.
+*/
+/*
+  REGUA DE SITUACAO — FAIXA OPERACIONAL DE BAIXA ALTURA, NAO ALERT BOX.
+
+  Antes: `border` completo + `radius` + fundo cheio. Isso e a gramatica de ALERT BOX — um retangulo
+  que se anuncia como caixa e rouba altura da dobra para dizer algo que, no caso normal, e uma linha.
+
+  Agora a regua nao tem envelope superior nem inferior: ela e uma faixa do canvas marcada por um
+  traco semantico a ESQUERDA (o unico lugar onde a cor de estado aparece em area cheia). O olho
+  encontra o estado pela borda colorida e le o texto — sem caixa competindo com a fila logo abaixo.
+*/
+.dashboard-situation {
+  border: 0;
+  border-left: 3px solid var(--color-slate-300);
+  border-radius: 0;
+  background: transparent;
+}
+
+.dashboard-situation--critical {
+  border-left-color: var(--color-red-600);
+}
+
+.dashboard-situation--warning {
+  border-left-color: var(--color-amber-500);
+}
+
+.dashboard-situation--normal {
+  border-left-color: var(--color-emerald-600);
+}
+
+.dashboard-situation--unknown {
+  border-left-color: var(--color-slate-400);
+}
+
+.dashboard-situation__head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--dashboard-line-soft);
+}
+
+.dashboard-situation__icon {
+  width: 0.9375rem;
+  height: 0.9375rem;
+  flex-shrink: 0;
+  align-self: center;
+  color: var(--color-slate-500);
+}
+
+.dashboard-situation--critical .dashboard-situation__icon {
+  color: var(--color-red-600);
+}
+
+.dashboard-situation--warning .dashboard-situation__icon {
+  color: var(--color-amber-600);
+}
+
+.dashboard-situation--normal .dashboard-situation__icon {
+  color: var(--color-emerald-600);
+}
+
+.dashboard-situation__title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 650;
+  line-height: 1.25;
+  color: var(--dashboard-ink);
+}
+
+.dashboard-situation__detail {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--dashboard-muted);
+}
+
+.dashboard-situation__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dashboard-situation__item + .dashboard-situation__item {
+  border-top: 1px solid var(--dashboard-line-soft);
+}
+
+.dashboard-situation__row {
+  display: grid;
+  grid-template-columns: 3.25rem minmax(0, 1fr) minmax(0, 1.1fr) auto;
+  align-items: center;
+  gap: var(--spacing-2) var(--spacing-3);
+  padding: 0.375rem 0.75rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+a.dashboard-situation__row:hover {
+  background: var(--color-slate-50);
+}
+
+a.dashboard-situation__row:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: -2px;
+}
+
+.dashboard-situation__count {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--color-red-700);
+}
+
+.dashboard-situation__label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--dashboard-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-situation__fact {
+  font-size: 0.75rem;
+  color: var(--dashboard-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-situation__action {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-brand-700);
+  white-space: nowrap;
+}
+
+/* LINHA UNICA — normal, warning e unknown. Densidade: ~2.25rem, nao um banner. */
+.dashboard-situation__line {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  line-height: 1.3;
+}
+
+.dashboard-situation__line strong {
+  font-weight: 650;
+  color: var(--dashboard-ink);
+}
+
+.dashboard-situation__line-detail {
+  font-size: 0.75rem;
+  color: var(--dashboard-muted);
+}
+
+.dashboard-situation--warning .dashboard-situation,
+.dashboard-situation--warning {
+  color: var(--color-amber-800);
+}
+
+/* AUSENCIA DE LEITURA — declarada em faixa propria, nunca confundida com pendencia de negocio. */
+.dashboard-situation-gap {
+  margin: 0;
+  padding: 0.375rem 0.75rem;
+  border: 1px dashed var(--dashboard-line);
+  border-radius: var(--radius-md);
+  background: var(--color-slate-50);
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--color-slate-600);
+}
+
+/* ============================================================
+   2c. ACOES DO WORKSPACE — comandos contextuais, nao fileira solta
+   ============================================================ */
+
+.dashboard-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.dashboard-actions__label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--dashboard-muted);
+}
+
+.dashboard-actions__link {
+  display: inline-flex;
+  align-items: center;
+  height: 1.75rem;
+  padding: 0 var(--spacing-3);
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-md);
+  background: var(--dashboard-surface);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-slate-700);
+  text-decoration: none;
+}
+
+.dashboard-actions__link:hover {
+  border-color: var(--color-brand-300);
+  background: var(--color-brand-50);
+  color: var(--color-brand-800);
+}
+
+.dashboard-actions__link:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
+}
+
+/* ============================================================
+   2d. GRADE DO WORKSPACE — fila (dominante) + contexto operacional
+   ============================================================ */
+
+/*
+  PROPORCAO DELIBERADA: a fila ocupa o dominio visual e o contexto complementar fica ao lado.
+
+  `2.4fr` (era `2fr`): a fila e a PROCESSING SCREEN desta tela e precisa dominar a dobra. Com 1600px
+  uteis, a diferenca entre 2fr e 2.4fr e uma coluna inteira a mais visivel antes do truncamento —
+  e e a coluna de ACAO, justamente a que o operador precisa ver sem rolar de lado.
+*/
+.dashboard-workspace__grid {
+  display: grid;
+  gap: var(--spacing-3);
+  align-items: start;
+}
+
+@media (min-width: 1100px) {
+  .dashboard-workspace__grid {
+    grid-template-columns: minmax(0, 2.4fr) minmax(320px, 0.85fr);
+  }
+}
+
+/*
+  A AREA DE TRABALHO ABRE A DOBRA.
+
+  Com a fila em primeiro lugar, a grade nao pode nascer colada no topo: o espaco acima dela e o que
+  separa a situacao (leitura de estado) do trabalho (leitura de acao). O respiro e ACIMA, nao abaixo
+  — abaixo dela vem apoio, e apoio nao precisa de folga.
+
+  O ESPACO MORTO ENTRE APOIO E TRABALHO SAI. Os blocos de apoio (indicadores, fluxo, atalhos) sao
+  uma sequencia unica de leitura secundaria: eles ficam juntos, com o gap normal do workspace, em vez
+  de cada um abrir a propria faixa de ar.
+*/
+.dashboard-workspace__grid {
+  margin-top: var(--spacing-1);
+}
+
+.dashboard-workspace > .dashboard-chain {
+  margin-top: 0;
+}
+
+/*
+  PISO DA SUPERFICIE DE TRABALHO — a fila E o centro operacional mesmo quando vazia.
+
+  Uma tabela que termina em 120px de altura faz a tela parecer um formulario com um rodape; um ERP
+  de verdade mostra a AREA DE PROCESSAMENTO, e area tem altura. O piso NAO inventa linha: ele
+  reserva a superficie, e o estado vazio compacto fica dentro dela.
+
+  `min-height` em vez de `height` para que a superficie CRESCA com o trabalho — 12 itens reais
+  empurram a cadeia para baixo, como deve ser.
+*/
+.dashboard-work {
+  min-height: 22rem;
+}
+
+@media (min-width: 1100px) {
+  .dashboard-work {
+    min-height: min(30rem, calc(100dvh - 24rem));
+  }
+}
+
+/* ============================================================
+   6. FLUXO EMPRESARIAL / CADEIA DE PROCESSO
+   ============================================================ */
+
+.dashboard-flow {
+  margin-bottom: var(--spacing-3);
+}
+
+.dashboard-flow__stages {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-md);
+  background: var(--dashboard-surface);
+  overflow: hidden;
+}
+
+.dashboard-flow__stage-wrap {
+  min-width: 0;
+}
+
+.dashboard-flow__stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.0625rem;
+  min-width: 0;
+  height: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  text-decoration: none;
+  color: inherit;
+}
+
+.dashboard-flow__stage--actionable {
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.dashboard-flow__stage--actionable:hover {
+  background: var(--color-brand-50);
+}
+
+.dashboard-flow__stage--actionable:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: -2px;
+}
+
+.dashboard-flow__drill {
+  margin-top: auto;
+  padding-top: var(--spacing-1);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--color-brand-700);
+}
+
+/* CONTINUIDADE: a seta costura o estagio ao anterior, para a faixa ler como UMA cadeia. */
+.dashboard-flow__step {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.875rem;
+  height: 0.875rem;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--dashboard-line);
+  background: var(--dashboard-surface);
+  font-size: 0.5rem;
+  line-height: 1;
+  color: var(--color-slate-400);
+}
+
+/* O acento semântico é do FATO do estágio, não decoração. */
+.dashboard-flow__stage--attention {
+  box-shadow: inset 0 2px 0 0 var(--color-amber-500);
+}
+
+.dashboard-flow__stage--critical {
+  box-shadow: inset 0 2px 0 0 var(--color-red-600);
+}
+
+/* UNKNOWN != ZERO: estágio sem contagem publicada não recebe tratamento de número. */
+.dashboard-flow__stage--unknown {
+  background: var(--color-slate-50);
+  color: var(--color-slate-500);
+}
+
+.dashboard-flow__stage--unknown .dashboard-flow__value {
+  min-height: 1.1rem;
+}
+
+.dashboard-flow__stage--unknown .dashboard-flow__unknown {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.055em;
+  color: var(--color-slate-400);
+}
+
+.dashboard-flow__stage--unknown .dashboard-flow__hint {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+
+.dashboard-flow__stage--unknown:not(.dashboard-flow__stage--actionable) {
+  padding-top: 0.55rem;
+  padding-bottom: 0.55rem;
+}
+
+.dashboard-flow__value {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.dashboard-flow__number {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--dashboard-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard-flow__stage--critical .dashboard-flow__number {
+  color: var(--color-red-700);
+}
+
+.dashboard-flow__stage--attention .dashboard-flow__number {
+  color: var(--color-amber-700);
+}
+
+/* UNKNOWN != ZERO: sem contagem e estado NEUTRO e secundario — nao e erro, nao e zero. */
+.dashboard-flow__unknown {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--color-slate-400);
+}
+
+.dashboard-flow__label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-slate-600);
+}
+
+.dashboard-flow__situation {
+  font-size: 0.6875rem;
+  color: var(--color-slate-500);
+}
+
+.dashboard-flow__situation--attention {
+  color: var(--color-amber-700);
+  font-weight: 600;
+}
+
+.dashboard-flow__situation--critical {
+  color: var(--color-red-700);
+  font-weight: 600;
+}
+
+.dashboard-flow__exposure {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-red-700);
+  font-variant-numeric: tabular-nums;
+}
+
+/* NUNCA truncar: o fato precisa ser legível por inteiro. */
+.dashboard-flow__hint {
+  font-size: 0.6875rem;
+  line-height: 1.35;
+  color: var(--color-slate-400);
+}
+
+/* ============================================================
+   6b. MINHA FILA — a LINHA vem de `ui/workbench.css`
+
+   A linha de trabalho (aging -> objeto -> contexto -> estado -> prazo -> acao) e infraestrutura
+   compartilhada: a Central de trabalho, os workspaces de dominio e este painel desenham a MESMA
+   linha. As regras dela vivem agora em `apps/web/src/ui/workbench.css`, junto do `WorkbenchQueue`,
+   que ja e o dono do cabecalho e do estado vazio da fila.
+
+   O que SOBRA aqui e composicao especifica deste painel: o titulo da secao de trabalho e a grade
+   que coloca fila e contexto lado a lado.
+   ============================================================ */
+
+/* TITULO DA FILA — sem caixa propria: o cabecalho de secao ja governa a faixa. */
+.dashboard-work > section > div:first-child {
+  min-height: 2rem;
+  margin-bottom: 0;
+  padding: 0.4375rem 0.75rem;
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: var(--color-slate-50);
+}
+
+.dashboard-work > section > div:first-child h2 {
+  font-size: 0.8125rem;
+  font-weight: 650;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--dashboard-ink);
+}
+
+/* ============================================================
+   7. OPERAÇÃO — 2/3 dados reais + 1/3 contexto
+   ============================================================ */
+
+.dashboard-operation {
+  display: grid;
+  gap: var(--spacing-3);
+}
+
+@media (min-width: 1024px) {
+  .dashboard-operation {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+.dashboard-panel {
+  min-width: 0;
+  padding: var(--spacing-3);
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-md);
+  background: var(--dashboard-surface);
+}
+
+.dashboard-panel__title {
+  margin: 0 0 var(--spacing-2);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--dashboard-ink);
+}
+
+.dashboard-panel__empty {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-slate-400);
+}
+
+.dashboard-panel__note {
+  margin: var(--spacing-2) 0 0;
+  padding-top: var(--spacing-2);
+  border-top: 1px solid var(--dashboard-line-soft);
+  font-size: 0.6875rem;
+  color: var(--color-slate-400);
+}
+
+.dashboard-panel__cta {
+  display: inline-block;
+  margin-top: var(--spacing-2);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-brand-600);
+  text-decoration: none;
+}
+
+.dashboard-panel__cta:hover {
+  text-decoration: underline;
+}
+
+.dashboard-status-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--spacing-1);
+}
+
+.dashboard-status-list__link {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr) 2rem;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-1) var(--spacing-1);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: inherit;
+}
+
+.dashboard-status-list__link:hover {
+  background: var(--color-slate-50);
+}
+
+.dashboard-status-list__link:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: -2px;
+}
+
+.dashboard-status-list__label {
+  font-size: 0.75rem;
+  color: var(--color-slate-600);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dashboard-status-list__track {
+  height: 0.5rem;
+  border-radius: var(--radius-full);
+  background: var(--color-slate-100);
+  overflow: hidden;
+}
+
+.dashboard-status-list__bar {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  border-radius: var(--radius-full);
+  background: var(--color-slate-400);
+}
+
+.dashboard-status-list__bar--active {
+  background: var(--color-brand-600);
+}
+
+.dashboard-status-list__bar--paused {
+  background: var(--color-amber-500);
+}
+
+.dashboard-status-list__value {
+  text-align: right;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--dashboard-ink);
+}
+
+.dashboard-sla__rate {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--dashboard-ink);
+}
+
+.dashboard-sla__rate-unit {
+  font-size: 0.875rem;
+  color: var(--dashboard-muted);
+}
+
+.dashboard-sla__split {
+  display: flex;
+  gap: var(--spacing-3);
+  margin: var(--spacing-1) 0 0;
+  font-size: 0.75rem;
+}
+
+.dashboard-sla__split-item--ok {
+  color: var(--color-emerald-700);
+}
+
+.dashboard-sla__split-item--late {
+  color: var(--color-red-700);
+}
+
+.dashboard-trend {
+  margin-top: var(--spacing-3);
+  padding-top: var(--spacing-2);
+  border-top: 1px solid var(--dashboard-line-soft);
+}
+
+.dashboard-trend__title {
+  margin: 0;
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-slate-400);
+}
+
+.dashboard-trend__value {
+  margin: 0.125rem 0 0;
+  font-size: 0.75rem;
+  color: var(--color-slate-600);
+}
+
+/* ============================================================
+   8. FAIXA DENSA (produtividade)
+   ============================================================ */
+
+.dashboard-dense {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap: 1px;
+  margin: 0;
+  padding: 1px;
+  list-style: none;
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-md);
+  background: var(--dashboard-line-soft);
+}
+
+.dashboard-dense__item {
+  min-width: 0;
+  background: var(--dashboard-surface);
+}
+
+.dashboard-dense__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  height: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  text-decoration: none;
+  color: inherit;
+}
+
+a.dashboard-dense__cell:hover {
+  background: var(--color-slate-50);
+}
+
+a.dashboard-dense__cell:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: -2px;
+}
+
+.dashboard-dense__label {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-slate-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dashboard-dense__value {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--dashboard-ink);
+}
+
+.dashboard-dense__cell--positive .dashboard-dense__value {
+  color: var(--color-emerald-700);
+}
+
+.dashboard-dense__cell--warning .dashboard-dense__value {
+  color: var(--color-amber-700);
+}
+
+.dashboard-dense__detail {
+  font-size: 0.6875rem;
+  color: var(--color-slate-400);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ============================================================
+   9. FINANCEIRO
+   ============================================================ */
+
+.dashboard-finance {
+  display: grid;
+  gap: var(--spacing-3);
+}
+
+@media (min-width: 1024px) {
+  .dashboard-finance {
+    grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+.dashboard-finance__exposure {
+  display: grid;
+  gap: var(--spacing-3);
+}
+
+@media (min-width: 768px) {
+  .dashboard-finance__exposure {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    align-items: start;
+  }
+}
+
+.dashboard-panel--money {
+  border-left: 3px solid var(--color-red-600);
+  background: color-mix(in srgb, var(--color-red-50) 40%, #fff);
+}
+
+.dashboard-money {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--color-red-700);
+}
+
+.dashboard-money__caption {
+  margin: var(--spacing-1) 0 0;
+  font-size: 0.75rem;
+  color: var(--color-slate-600);
+}
+
+.dashboard-aging {
+  display: grid;
+  gap: var(--spacing-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dashboard-aging__item {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr) 2rem 6rem;
+  align-items: center;
+  gap: var(--spacing-2);
+  font-size: 0.75rem;
+}
+
+.dashboard-aging__label {
+  color: var(--color-slate-600);
+}
+
+.dashboard-aging__track {
+  height: 0.5rem;
+  border-radius: var(--radius-full);
+  background: var(--color-slate-100);
+  overflow: hidden;
+}
+
+.dashboard-aging__bar {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: var(--radius-full);
+  background: var(--color-slate-200);
+}
+
+.dashboard-aging__bar--filled {
+  min-width: 2px;
+  background: var(--color-red-600);
+}
+
+.dashboard-aging__count {
+  text-align: right;
+  font-weight: 600;
+  color: var(--dashboard-ink);
+}
+
+.dashboard-aging__amount {
+  text-align: right;
+  color: var(--color-slate-600);
+}
+
+.dashboard-titles {
+  display: grid;
+  gap: var(--spacing-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dashboard-titles__link {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 var(--spacing-2);
+  padding: var(--spacing-2);
+  border: 1px solid var(--dashboard-line-soft);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: inherit;
+}
+
+.dashboard-titles__link:hover {
+  background: var(--color-slate-50);
+}
+
+.dashboard-titles__link:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: -2px;
+}
+
+.dashboard-titles__label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--dashboard-ink);
+}
+
+.dashboard-titles__detail {
+  grid-column: 1;
+  font-size: 0.6875rem;
+  color: var(--color-slate-400);
+}
+
+.dashboard-titles__arrow {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  color: var(--color-brand-500);
+  font-size: 0.875rem;
+}
+
+/* ============================================================
+   10. FISCAL (compacto por natureza: PARK_BI_GAP)
+   ============================================================ */
+
+.dashboard-fiscal__line {
+  margin: 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: 1px dashed var(--dashboard-line);
+  border-radius: var(--radius-md);
+  background: var(--color-slate-50);
+  font-size: 0.75rem;
+  color: var(--color-slate-500);
+}
+
+/* ============================================================
+   11. ATALHOS
+   ============================================================ */
+
+.dashboard-shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+}
+
+.dashboard-shortcuts__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.75rem;
+  padding: 0 var(--spacing-3);
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-md);
+  background: var(--dashboard-surface);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-slate-700);
+  text-decoration: none;
+}
+
+.dashboard-shortcuts__link:hover {
+  background: var(--color-slate-50);
+}
+
+.dashboard-shortcuts__link:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
+}
+
+/* ============================================================
+   12. ESTADOS (skeleton, alerta, negado)
+   ============================================================ */
+
+.dashboard-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.dashboard-skeleton__fold {
+  display: grid;
+  gap: var(--spacing-4);
+}
+
+.dashboard-skeleton__header,
+.dashboard-skeleton__card,
+.dashboard-skeleton__kpi,
+.dashboard-skeleton__chart,
+.dashboard-skeleton__decision,
+.dashboard-skeleton__strip {
+  background: linear-gradient(
+    90deg,
+    var(--color-slate-100) 25%,
+    var(--color-slate-200) 50%,
+    var(--color-slate-100) 75%
+  );
+  background-size: 200% 100%;
+  animation: dashboard-skeleton 1.2s ease-in-out infinite;
+  border-radius: var(--radius-md);
+}
+
+.dashboard-skeleton__decision {
+  min-height: 6rem;
+}
+
+.dashboard-skeleton__kpi-row {
+  display: grid;
+  gap: var(--spacing-2);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (min-width: 1024px) {
+  .dashboard-skeleton__kpi-row {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+.dashboard-skeleton__kpi {
+  min-height: 4.5rem;
+}
+
+.dashboard-skeleton__strip {
+  min-height: 5rem;
+}
+
+.dashboard-skeleton__chart {
+  min-height: 10rem;
+}
+
+@keyframes dashboard-skeleton {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.dashboard-alert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-4);
+  border: 1px solid color-mix(in srgb, var(--color-red-700) 20%, transparent);
+  background: var(--color-red-50);
+  color: var(--color-red-700);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-2) var(--spacing-3);
+  font-size: 0.8125rem;
+}
+
+.dashboard-alert__retry {
+  min-height: 2rem;
+  padding: var(--spacing-1) var(--spacing-3);
+  border: 1px solid color-mix(in srgb, var(--color-red-700) 20%, transparent);
+  border-radius: var(--radius-md);
+  background: white;
+  color: var(--color-red-700);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.dashboard-denied {
+  padding: var(--spacing-4);
+  border: 1px solid var(--color-amber-200);
+  border-radius: var(--radius-md);
+  background: var(--color-amber-50);
+  color: var(--color-amber-700);
+}
+
+.dashboard-denied__link {
+  display: inline-block;
+  margin-top: var(--spacing-2);
+  color: var(--color-indigo-600);
+  font-weight: 500;
+}
+
+/* ============================================================
+   13. ENTERPRISE VISUAL PASS — control room ERP
+   ============================================================ */
+
+/*
+  O CABECALHO ESCURO FOI REMOVIDO DAQUI.
+
+  Ele era `linear-gradient(135deg, teal -> slate)` com `box-shadow: 0 18px 42px` e titulo de 1.35rem
+  sobre uma area de ~200px. O efeito medido: a primeira dobra do ERP era ocupada por um banner, e o
+  trabalho — a fila — comecava abaixo dela. O CISNE e tema CLARO e ERP desktop: cabecalho de
+  workspace e faixa de contexto densa, e a governanca de superficie do produto
+  (`theme.css` §GOVERNANÇA GLOBAL DE ELEVAÇÃO E RAIO) ja remove sombra de qualquer container dentro
+  de `#main-content`. Manter a sombra aqui era lutar contra o proprio sistema.
+
+  O cabecalho novo vive em `.dashboard-workspace-head` (§14) e nao usa gradiente, sombra nem
+  superficie escura. Nada de `.dashboard-command*` permanece: os seletores foram substituidos, nao
+  apenas sobrepostos, para nao deixar CSS sem dono.
+*/
+
+.dashboard-workspace {
+  gap: var(--spacing-3);
+}
+
+.dashboard-section-head {
+  min-height: 2rem;
+  align-items: center;
+  margin-bottom: 0;
+  padding: 0.65rem 0.875rem;
+  border: 1px solid var(--dashboard-line);
+  border-bottom: 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: var(--erp-surface-support);
+}
+
+.dashboard-section-head__title {
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  color: var(--erp-text-secondary);
+}
+
+.dashboard-section-head__meta {
+  color: #64748b;
+}
+
+.dashboard-decision__list,
+.dashboard-flow__stages,
+.dashboard-rail-panel,
+.dashboard-panel,
+.dashboard-dense,
+.dashboard-titles__link {
+  border-color: var(--erp-border);
+  box-shadow: var(--dashboard-panel-shadow);
+}
+
+.dashboard-rail-panel {
+  border-radius: var(--radius-md);
+  background: #fff;
+}
+
+.dashboard-rail-panel > * {
+  padding: var(--spacing-4);
+}
+
+.dashboard-decision__list,
+.dashboard-flow__stages {
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+.dashboard-decision__row {
+  grid-template-columns: 5.25rem minmax(0, 1fr) 4.5rem auto;
+  min-height: 4.25rem;
+  border-left-width: 4px;
+  padding: 0.65rem 1rem 0.65rem 0.875rem;
+}
+
+a.dashboard-decision__row:hover,
+.dashboard-dist__row:hover,
+a.dashboard-kpi-list__cell:hover,
+.dashboard-status-list__link:hover,
+a.dashboard-dense__cell:hover,
+.dashboard-titles__link:hover {
+  background: var(--color-surface-support);
+}
+
+/*
+  ----------------------------------------------------------------------------
+  DENSIDADE DO WORKSPACE — as regras do enterprise pass anterior foram recalculadas.
+
+  O pass anterior empurrava cada bloco para BAIXO em altura (`min-height: 6.75rem` por estagio,
+  `4.25rem` por linha de decisao, `4.75rem` por linha de fila, cabecalhos de secao com fundo em
+  gradiente). O resultado era o sintoma descrito no pedido: a tela usava espaco vertical demais para
+  pouca informacao e a primeira dobra acabava antes do trabalho.
+
+  O que vale agora e a faixa de densidade do sistema: linha de fila 40-46px, cabecalho de painel
+  32-36px, gap entre paineis 12px. Os valores abaixo sao os unicos que o workspace usa.
+  ----------------------------------------------------------------------------
+*/
+
+/* CABECALHO DE SECAO — faixa, nao caixa com gradiente. */
+.dashboard-section-head {
+  min-height: 1.75rem;
+  align-items: baseline;
+  margin-bottom: 0;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--dashboard-line);
+  border-bottom: 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: var(--color-slate-50);
+}
+
+.dashboard-section-head__title {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--erp-text-secondary);
+}
+
+.dashboard-section-head__meta {
+  color: #64748b;
+}
+
+/* PAINEL ANALITICO — um container, secoes separadas por divisor fino. */
+.dashboard-rail-panel {
+  border-color: var(--erp-border);
+  border-radius: var(--radius-md);
+  background: #fff;
+}
+
+.dashboard-rail-panel > * {
+  padding: var(--spacing-3);
+}
+
+/*
+  A LINHA E O CABECALHO DA FILA SAIRAM DAQUI.
+
+  Este trecho redefinia `.dashboard-queue-item` e `.dashboard-queue-head` por CIMA da definicao
+  anterior do mesmo arquivo — duas versoes da mesma linha, com alturas e bordas diferentes, em que
+  a ultima vencia. Era exatamente o tipo de divergencia silenciosa que a extracao para
+  `ui/workbench.css` elimina: agora existe UMA definicao, compartilhada com a Central de trabalho e
+  com os workspaces de dominio.
+
+  Fica aqui apenas o que e composicao DESTE painel (titulo da secao de trabalho).
+*/
+
+/* TITULO DA FILA — sem caixa propria: o cabecalho de secao ja governa a faixa. */
+.dashboard-work > section > div:first-child {
+  min-height: 2rem;
+  margin-bottom: 0;
+  padding: 0.4375rem 0.75rem;
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: var(--color-slate-50);
+}
+
+.dashboard-work > section > div:first-child h2 {
+  font-size: 0.8125rem;
+  font-weight: 650;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--dashboard-ink);
+}
+
+.dashboard-dist__row,
+.dashboard-kpi-list__cell {
+  padding: 0.25rem 0.25rem;
+}
+
+.dashboard-dist__track,
+.dashboard-status-list__track {
+  height: 0.375rem;
+  background: var(--erp-border);
+}
+
+.dashboard-kpi-list__value {
+  font-size: 1.0625rem;
+  font-weight: 700;
+}
+
+.dashboard-volume {
+  margin-top: var(--spacing-2);
+  padding-top: var(--spacing-2);
+  border-top: 1px solid var(--dashboard-line-soft);
+}
+
+/* ============================================================
+   15. FAIXA DE INDICADORES — celulas densas, separadas por divisor
+   ============================================================ */
+
+/*
+  NAO E UMA GRADE DE CARDS. Seis contornos competindo com seis numeros e ruido de forma: o olho
+  perde o numero. Aqui a celula e delimitada por DIVISOR vertical — o numero passa a ser o sinal.
+
+  A LARGURA E POR CONTEUDO PUBLICADO, NAO POR SLOT FIXO.
+  `grid-auto-columns: minmax(0, 1fr)` sobre um numero FIXO de slots fazia cada celula herdar 1/5 da
+  faixa independentemente de haver numero: uma celula que so continha "—" ocupava os mesmos 186px de
+  uma que continha "3 ordens vencidas". Agora a faixa so distribui o que EXISTE (a celula nao medida
+  vive no rodape `.dashboard-kpi-strip__unpublished`), entao tres indicadores publicados usam a
+  largura inteira em vez de deixarem dois quintos vazios.
+*/
+.dashboard-kpi-strip__list {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-md);
+  background: var(--dashboard-surface);
+  overflow: hidden;
+}
+
+/*
+  RODAPE DOS INDICADORES NAO PUBLICADOS — uma linha, nao duas celulas de 127px.
+
+  Ele nomeia cada indicador sem contagem e mantem o destino de cada um. A borda superior e a mesma
+  régua que separa rotulo de dado em todo o produto: o rodape pertence a faixa, nao e um card novo.
+*/
+.dashboard-kpi-strip__unpublished {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--dashboard-line);
+  border-top: 0;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  background: var(--erp-surface-support);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--erp-text-muted);
+}
+
+.dashboard-kpi-strip__unpublished-label {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+
+.dashboard-kpi-strip__unpublished-link {
+  color: var(--erp-text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-weight: 500;
+}
+
+.dashboard-kpi-strip__unpublished-link:hover {
+  color: var(--erp-action-hover);
+}
+
+@media (max-width: 1099px) {
+  .dashboard-kpi-strip__list {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  }
+}
+
+.dashboard-kpi-strip__item {
+  min-width: 0;
+}
+
+.dashboard-kpi-strip__item + .dashboard-kpi-strip__item {
+  border-left: 1px solid var(--dashboard-line-soft);
+}
+
+@media (max-width: 1099px) {
+  .dashboard-kpi-strip__item + .dashboard-kpi-strip__item {
+    border-left: 0;
+    border-top: 1px solid var(--dashboard-line-soft);
+  }
+}
+
+/*
+  CELULA DE INDICADOR — 96px de altura, com o icone em superficie tonal.
+
+  Estrutura interna: [icone] ROTULO / VALOR / contexto / destino. O icone vive numa pastilha de 28px
+  com o fundo do tom do KPI — nao e decoracao: numa faixa de cinco contagens parecidas, ele e o que
+  permite ao olho achar a celula certa sem ler todos os rotulos. Nada de icone gigante, gradiente
+  ou sombra.
+*/
+.dashboard-kpi-cell {
+  display: grid;
+  grid-template-columns: 2.125rem minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
+  align-content: center;
+  column-gap: 0.625rem;
+  row-gap: 0.0625rem;
+  min-height: 6.25rem;
+  height: 100%;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--dashboard-line);
+  border-top: 3px solid var(--dashboard-identity);
+  border-radius: var(--radius-md);
+  background: var(--dashboard-surface);
+  text-decoration: none;
+  color: inherit;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+a.dashboard-kpi-cell:hover {
+  background: var(--color-slate-50);
+}
+
+a.dashboard-kpi-cell:focus-visible {
+  outline: 2px solid var(--dashboard-accent);
+  outline-offset: -1px;
+}
+
+.dashboard-kpi-cell__glyph {
+  grid-row: 1 / span 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.125rem;
+  height: 2.125rem;
+  border-radius: var(--radius-md);
+  background: var(--color-slate-100);
+}
+
+.dashboard-kpi-cell__glyph-icon {
+  width: 1.125rem;
+  height: 1.125rem;
+  color: var(--color-slate-500);
+}
+
+/*
+  COR POR SEMANTICA DO INDICADOR — e o que faz cada KPI ser identificavel em um olhar.
+
+  O square tonal carrega o TOM e a barra superior do card repete o mesmo tom: duas marcas do mesmo
+  fato em pontos opostos da celula, para que o olho encontre o indicador por posicao E por cor. O
+  texto continua em navy — cor forte em numero pequeno destroi a leitura.
+*/
+.dashboard-kpi-cell--critical {
+  border-top-color: var(--dashboard-critical);
+}
+
+.dashboard-kpi-cell--critical .dashboard-kpi-cell__glyph {
+  background: var(--color-red-50);
+}
+
+.dashboard-kpi-cell--critical .dashboard-kpi-cell__glyph-icon {
+  color: var(--dashboard-critical);
+}
+
+.dashboard-kpi-cell--critical .dashboard-kpi-cell__value {
+  color: var(--color-red-700);
+}
+
+.dashboard-kpi-cell--warning {
+  border-top-color: var(--dashboard-warning);
+}
+
+.dashboard-kpi-cell--warning .dashboard-kpi-cell__glyph {
+  background: var(--color-amber-50);
+}
+
+.dashboard-kpi-cell--warning .dashboard-kpi-cell__glyph-icon {
+  color: var(--dashboard-warning);
+}
+
+.dashboard-kpi-cell--warning .dashboard-kpi-cell__value {
+  color: var(--color-amber-700);
+}
+
+.dashboard-kpi-cell--info {
+  border-top-color: var(--dashboard-accent);
+}
+
+.dashboard-kpi-cell--info .dashboard-kpi-cell__glyph {
+  background: var(--color-blue-50);
+}
+
+.dashboard-kpi-cell--info .dashboard-kpi-cell__glyph-icon {
+  color: var(--dashboard-accent);
+}
+
+.dashboard-kpi-cell--success,
+.dashboard-kpi-cell--neutral {
+  border-top-color: var(--dashboard-identity);
+}
+
+.dashboard-kpi-cell--success .dashboard-kpi-cell__glyph {
+  background: var(--color-emerald-50);
+}
+
+.dashboard-kpi-cell--success .dashboard-kpi-cell__glyph-icon {
+  color: var(--dashboard-success);
+}
+
+.dashboard-kpi-cell--neutral .dashboard-kpi-cell__glyph {
+  background: var(--color-brand-50);
+}
+
+.dashboard-kpi-cell--neutral .dashboard-kpi-cell__glyph-icon {
+  color: var(--dashboard-identity);
+}
+
+/*
+  CELULA SEM VALOR PUBLICADO — ESTRUTURA IGUAL, PESO MENOR.
+
+  A celula continua na faixa (a estrutura do cockpit nao muda por recorte), mas ela nao compete com
+  as que TEM numero: valor em cinza, glyph neutro, barra superior cinza. O operador varre a faixa
+  pelos numeros coloridos e encontra as ausencias declaradas sem confundi-las com zero.
+*/
+.dashboard-kpi-cell--unmeasured {
+  border-top-color: var(--color-border-strong);
+  background: var(--color-surface-context);
+}
+
+.dashboard-kpi-cell--unmeasured .dashboard-kpi-cell__value {
+  color: var(--erp-text-disabled);
+  font-weight: 600;
+}
+
+.dashboard-kpi-cell--unmeasured .dashboard-kpi-cell__glyph {
+  background: var(--erp-surface-support);
+}
+
+.dashboard-kpi-cell--unmeasured .dashboard-kpi-cell__glyph-icon {
+  color: var(--erp-text-disabled);
+}
+
+.dashboard-kpi-cell--unmeasured .dashboard-kpi-cell__context {
+  color: var(--erp-text-disabled);
+  font-style: italic;
+}
+
+/*
+  VALOR — 24px/700: o maior elemento da celula, logo abaixo do rotulo.
+*/
+.dashboard-kpi-cell__value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+  color: var(--color-navy-800);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+  ROTULO — 12-13px/600. O olho varre a faixa pelos NUMEROS e usa o rotulo para confirmar o que leu.
+*/
+.dashboard-kpi-cell__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--dashboard-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-kpi-cell__unit {
+  font-weight: 400;
+  color: var(--color-slate-500);
+}
+
+/*
+  CONTEXTO SECUNDARIO — 11-12px, a linha que explica o numero sem competir com ele. Ocupa as duas
+  colunas da celula, abaixo do bloco icone+valor.
+*/
+.dashboard-kpi-cell__context {
+  grid-column: 1 / -1;
+  font-size: 0.6875rem;
+  line-height: 1.3;
+  color: var(--color-slate-400);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+  RODAPE DE DESTINO — afirmacao de que o numero tem para onde ir.
+
+  Fica no FIM da celula, em accent discreto: e a unica parte clicavel nomeada. `grid-column: 1/-1`
+  mantem o rodape alinhado com o bloco acima, de modo que celulas de alturas diferentes alinhem os
+  rodapes.
+*/
+.dashboard-kpi-cell__drill {
+  grid-column: 1 / -1;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--color-brand-700);
+}
+
+a.dashboard-kpi-cell:hover .dashboard-kpi-cell__drill {
+  text-decoration: underline;
+}
+
+/* CONTEXTO OPERACIONAL SEM DADO — estado vazio compacto, nunca coluna em branco. */
+/*
+  CONTEXTO OPERACIONAL — SUPERFICIE DE CONTEXTO, NAO CAIXA TRACEJADA.
+
+  Antes: `border: 1px dashed` + fundo cinza. Uma caixa TRACEJADA e a gramatica universal de
+  "placeholder / conteudo ausente" — o painel anunciava vazio mesmo quando tinha cinco fatos reais
+  para mostrar. Agora e uma superficie solida de apoio (o mesmo papel do painel analitico ao lado),
+  com os fatos em lista de definicao e a nota de ausencia como rodape secundario.
+*/
+.dashboard-context {
+  padding: 0.75rem 0.875rem 0.875rem;
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-md);
+  background: var(--dashboard-surface-support);
+}
+
+.dashboard-context__title {
+  margin: 0 0 var(--spacing-2);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--color-slate-500);
+}
+
+/*
+  LISTA DE FATOS — rotulo e valor na MESMA linha, sem borda por item.
+
+  `grid-template-columns: auto minmax(0,1fr)` alinha todos os valores na mesma coluna: e isso que faz
+  cinco fatos lerem como FICHA em vez de cinco paragrafos. O separador e um divisor entre linhas,
+  nao um retangulo por fato.
+*/
+.dashboard-context__facts {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-context__fact {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  gap: var(--spacing-2);
+  align-items: baseline;
+  padding: 0.3125rem 0;
+  border-bottom: 1px solid var(--dashboard-line-soft);
+}
+
+.dashboard-context__fact:last-child {
+  border-bottom: 0;
+}
+
+.dashboard-context__fact dt {
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--color-slate-500);
+}
+
+.dashboard-context__fact dd {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--dashboard-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dashboard-context__note {
+  margin: var(--spacing-3) 0 var(--spacing-2);
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  color: var(--color-slate-500);
+}
+
+.dashboard-context__link {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-brand-700);
+  text-decoration: none;
+}
+
+.dashboard-context__link:hover {
+  text-decoration: underline;
+}
+
+/* ============================================================
+   16. CADEIA DE PROCESSO — fluxo com continuidade visivel
+   ============================================================ */
+
+.dashboard-chain {
+  margin-top: 0;
+}
+
+.dashboard-chain__head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  min-height: 1.75rem;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--dashboard-line);
+  border-bottom: 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: var(--color-slate-50);
+}
+
+/*
+  A FAIXA INTEIRA FECHA EM 82-96px: cabecalho de 28px + trilha de ~56px. O que garante isso nao e
+  padding pequeno — e nao ter caixa por etapa. Cada estagio e um TRECHO da trilha, ligado ao
+  seguinte pelo conector; o que separa as etapas e a seta, nao uma borda.
+*/
+.dashboard-chain__meta {
+  margin: 0;
+  font-size: 0.6875rem;
+  color: var(--dashboard-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+  PROCESS NAVIGATOR — UMA TRILHA CONTINUA, NAO QUATRO CAIXAS LADO A LADO.
+
+  Antes: a faixa era `grid` com `border` externa, `radius` e um divisor vertical por etapa. Quatro
+  celulas contornadas dentro de um retangulo maior leem como TABELA — e foi exatamente assim que a
+  captura reprovou: "quatro celulas horizontais", nao um processo.
+
+  Agora nao ha contorno por etapa nem caixa externa. A trilha e desenhada pelo CONECTOR, que corre
+  de um estagio ao seguinte na mesma linha de base, e por um fundo de faixa unico. O que separa as
+  etapas e a seta, nao uma borda: e a seta que diz "isto continua".
+
+  COLUNA ZERO DE GAP, CONECTOR NO VAO (corrigido nesta wave): com o gap padrao, os estagios ficavam
+  afastados e o conector de 12px boiava no vazio entre eles — o olho lia quatro cartoes alinhados e
+  um traco solto no meio. Sem gap, os estagios se ENCOSTAM e o processo vira uma faixa continua: o
+  conector passa a ser o unico elemento que separa uma etapa da seguinte, que e exatamente o que se
+  quer ler. O respiro interno de cada etapa (`padding`) ja e suficiente para o texto nao colar.
+*/
+.dashboard-chain__stages {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+@media (max-width: 1099px) {
+  .dashboard-chain__stages {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    gap: var(--spacing-2);
+  }
+}
+
+.dashboard-chain__step {
+  position: relative;
+  min-width: 0;
+}
+
+/*
+  ESTAGIO — bloco com fundo de faixa e regua de estado no topo, sem contorno.
+
+  O `box-shadow` superior continua sendo o indicador de estado (critical/attention), que e cor com
+  significado. O que saiu foi a borda: a etapa nao e uma caixa, e um TRECHO da trilha.
+*/
+.dashboard-chain__stage {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  height: 100%;
+  min-width: 0;
+  padding: 0.375rem 0.75rem 0.375rem 0.875rem;
+  background: var(--dashboard-surface);
+  text-decoration: none;
+  color: inherit;
+}
+
+.dashboard-chain__stage--critical {
+  box-shadow: inset 0 2px 0 0 var(--color-red-600);
+  background: color-mix(in srgb, var(--color-red-50) 42%, #fff);
+}
+
+.dashboard-chain__stage--attention {
+  box-shadow: inset 0 2px 0 0 var(--color-amber-500);
+  background: color-mix(in srgb, var(--color-amber-50) 38%, #fff);
+}
+
+/* UNKNOWN != ZERO: etapa sem contagem publicada e NEUTRA e secundaria. */
+.dashboard-chain__stage--unknown {
+  background: var(--color-slate-50);
+}
+
+.dashboard-chain__stage--actionable {
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.dashboard-chain__stage--actionable:hover {
+  background: var(--color-brand-50);
+}
+
+.dashboard-chain__stage--actionable:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: -2px;
+}
+
+/* TITULO DA TRILHA — 13px/650, o mesmo papel dos titulos de secao da tela. */
+.dashboard-chain__title {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  color: var(--dashboard-ink);
+}
+
+/*
+  CONECTOR DE PROCESSO — linha fina com seta explicita, na mesma linha de base dos circulos.
+
+  O disco de fundo cobre a emenda entre um trecho e o seguinte e a ponta de seta declara a DIRECAO
+  do processo: sem ela, um traco horizontal liga dois blocos mas nao diz para onde o trabalho anda.
+*/
+.dashboard-chain__connector {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  transform: translate(50%, -50%);
+  border-radius: var(--radius-full);
+  background: var(--dashboard-surface);
+  box-shadow: inset 0 0 0 1px var(--dashboard-line);
+  color: var(--color-brand-600);
+}
+
+.dashboard-chain__connector::after {
+  content: '';
+  width: 0;
+  height: 0;
+  margin-left: 1px;
+  border-top: 3px solid transparent;
+  border-bottom: 3px solid transparent;
+  border-left: 4px solid currentColor;
+}
+
+@media (max-width: 1099px) {
+  .dashboard-chain__connector {
+    display: none;
+  }
+}
+
+/* CIRCULO DE ETAPA — 36px, com o numero real publicado dentro. */
+.dashboard-chain__node {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-slate-200);
+  background: var(--color-slate-50);
+}
+
+.dashboard-chain__node-count {
+  font-size: 0.875rem;
+  font-weight: 680;
+  letter-spacing: -0.01em;
+  color: var(--dashboard-ink);
+}
+
+.dashboard-chain__node-empty {
+  font-size: 0.8125rem;
+  color: var(--color-slate-300);
+}
+
+.dashboard-chain__stage--critical .dashboard-chain__node {
+  border-color: var(--color-red-200);
+  background: var(--color-red-50);
+}
+
+.dashboard-chain__stage--critical .dashboard-chain__node-count {
+  color: var(--color-red-700);
+}
+
+.dashboard-chain__stage--attention .dashboard-chain__node {
+  border-color: var(--color-amber-200);
+  background: var(--color-amber-50);
+}
+
+.dashboard-chain__stage--attention .dashboard-chain__node-count {
+  color: var(--color-amber-700);
+}
+
+.dashboard-chain__body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.15;
+}
+
+.dashboard-chain__label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--color-slate-600);
+}
+
+.dashboard-chain__value {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.dashboard-chain__number {
+  font-size: 1.25rem;
+  font-weight: 650;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--dashboard-ink);
+}
+
+.dashboard-chain__stage--critical .dashboard-chain__number {
+  color: var(--color-red-700);
+}
+
+.dashboard-chain__stage--attention .dashboard-chain__number {
+  color: var(--color-amber-700);
+}
+
+.dashboard-chain__unknown {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-slate-400);
+}
+
+.dashboard-chain__exposure {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-red-700);
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard-chain__situation {
+  font-size: 0.6875rem;
+  color: var(--color-slate-500);
+}
+
+.dashboard-chain__stage--critical .dashboard-chain__situation {
+  color: var(--color-red-700);
+  font-weight: 600;
+}
+
+.dashboard-chain__stage--attention .dashboard-chain__situation {
+  color: var(--color-amber-700);
+  font-weight: 600;
+}
+
+/* NUNCA truncar: o fato ancora o estagio e precisa ser legivel por inteiro. */
+.dashboard-chain__hint {
+  font-size: 0.6875rem;
+  line-height: 1.35;
+  color: var(--color-slate-400);
+}
+
+.dashboard-chain__drill {
+  margin-top: auto;
+  padding-top: var(--spacing-1);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--color-brand-700);
+}
+
+.dashboard-chain__drill--absent {
+  font-weight: 400;
+  color: var(--color-slate-400);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-skeleton__header,
+  .dashboard-skeleton__card,
+  .dashboard-skeleton__kpi,
+  .dashboard-skeleton__chart,
+  .dashboard-skeleton__decision,
+  .dashboard-skeleton__strip {
+    animation: none;
+    background: var(--color-slate-100);
+  }
+}
+
+@media (forced-colors: active) {
+  .dashboard-panel,
+  .dashboard-kpi,
+  .dashboard-decision__list,
+  .dashboard-flow__stage,
+  .dashboard-dense,
+  .dashboard-titles__link {
+    border: 1px solid CanvasText;
+  }
+}
+
+/* ============================================================================
+   17. CENTRAL OPERACIONAL — ANALITICO, VIEWS, FILA E CONTEXTO
+   ============================================================================
+
+   Este bloco governa a composicao ATUAL de `/app`. Ele substitui, na pratica, a leitura em coluna
+   de blocos: indicadores -> analitico (3 superficies) -> fluxo -> views/toolbar -> FILA DOMINANTE,
+   com a coluna de contexto ancorada a direita quando ha selecao.
+
+   As medidas seguem a faixa de densidade do sistema:
+     KPI               ~96px
+     analitico         ~200px
+     fluxo             ~92px
+     toolbar           ~42px
+     linha de fila     36-42px
+     cabecalho fila    34-38px
+     coluna de contexto 360px
+   ============================================================================ */
+
+/* ------------------------------------------------------------------ ANALITICO */
+
+/*
+  TRES SUPERFICIES, UMA LINHA — e a grade se declara pelo que EXISTE.
+
+  `data-count` e publicado pela tela: com tres superficies, `1.05fr / 1.05fr / 0.9fr` (duas leituras
+  analiticas de peso comparavel e a worklist de excecoes um degrau mais estreita); com duas, metades
+  iguais, sem terco vazio sobrando. Abaixo de 720px vira coluna unica — sem rotacao de conteudo, so
+  de eixo.
+*/
+.dashboard-analytics {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--spacing-2);
+  align-items: stretch;
+}
+
+@media (min-width: 720px) {
+  .dashboard-analytics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1100px) {
+  .dashboard-analytics[data-count='3'] {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.05fr) minmax(0, 0.9fr);
+  }
+
+  .dashboard-analytics[data-count='2'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.dashboard-analytics__panel,
+.dashboard-exceptions {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 12rem;
+  max-height: 13.5rem;
+  padding: 0.625rem 0.75rem 0.5rem;
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-md);
+  background: var(--dashboard-surface);
+  overflow: hidden;
+}
+
+.dashboard-analytics__compact-state {
+  align-self: start;
+  margin: 0;
+  padding: 0.25rem 0.5rem;
+  border-left: 2px solid var(--erp-border-strong);
+  color: var(--erp-text-muted);
+  font-size: 0.75rem;
+}
+
+/* ------------------------------------------------------------------- DONUT */
+
+/*
+  DONUT COMPACTO COM LEGENDA LATERAL.
+
+  O anel tem 8.5rem (136px) — dentro da faixa 125-150px da referencia — e e desenhado por
+  `conic-gradient` sobre uma div: cada categoria continua sendo um NODE do DOM na legenda, com valor
+  e percentual reais. O furo central e o proprio fundo da superficie.
+*/
+.dashboard-donut {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  min-height: 0;
+}
+
+.dashboard-donut__ring {
+  position: relative;
+  flex-shrink: 0;
+  width: 8.5rem;
+  height: 8.5rem;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dashboard-donut__ring::after {
+  content: '';
+  position: absolute;
+  inset: 1.375rem;
+  border-radius: var(--radius-full);
+  background: var(--dashboard-surface);
+}
+
+.dashboard-donut__center {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.05;
+}
+
+.dashboard-donut__total {
+  font-size: 1.375rem;
+  font-weight: 680;
+  letter-spacing: -0.02em;
+  color: var(--dashboard-ink);
+}
+
+.dashboard-donut__total-label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--color-slate-400);
+}
+
+.dashboard-donut__legend {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+  flex: 1;
+}
+
+.dashboard-donut__legend-row {
+  display: grid;
+  grid-template-columns: 0.5rem minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.1875rem 0.25rem;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: inherit;
+}
+
+a.dashboard-donut__legend-row:hover {
+  background: var(--color-slate-50);
+}
+
+a.dashboard-donut__legend-row:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: -2px;
+}
+
+.dashboard-donut__swatch {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 2px;
+}
+
+.dashboard-donut__legend-label {
+  font-size: 0.75rem;
+  color: var(--erp-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-donut__legend-count {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--color-navy-800);
+}
+
+.dashboard-donut__legend-share {
+  min-width: 2.25rem;
+  text-align: right;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--dashboard-muted);
+}
+
+.dashboard-analytics__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  margin-bottom: 0.375rem;
+}
+
+.dashboard-analytics__title {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  line-height: 1.2;
+  color: var(--dashboard-ink);
+}
+
+.dashboard-analytics__meta {
+  font-size: 0.6875rem;
+  color: var(--color-slate-400);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dashboard-analytics__note {
+  margin: auto 0 0;
+  padding-top: 0.375rem;
+  font-size: 0.6875rem;
+  line-height: 1.35;
+  color: var(--dashboard-muted);
+}
+
+/*
+  ESTADO GOVERNADO — a superficie existe, o dado nao foi publicado.
+
+  Nao e um "empty state" decorativo: e uma AFIRMACAO sobre o que o servidor entregou. Por isso ele
+  nao usa ilustracao nem caixa tracejada — usa a mesma tipografia do resto da superficie, com uma
+  marca neutra a esquerda e a cor semantica apenas quando o estado e de fato positivo.
+*/
+.dashboard-analytics__governed {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.25rem 0 0;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-context);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--erp-text-secondary);
+}
+
+.dashboard-analytics__governed-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.125rem;
+  height: 1.125rem;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  background: var(--color-border-strong);
+  font-size: 0.625rem;
+  color: #fff;
+}
+
+/* ESTADO POSITIVO — ausencia CONFIRMADA de excecao, nao ausencia de publicacao. */
+.dashboard-analytics__governed--positive {
+  border-color: var(--color-emerald-100);
+  background: var(--color-surface-success);
+  color: var(--color-emerald-800);
+}
+
+.dashboard-analytics__governed--positive .dashboard-analytics__governed-mark {
+  background: var(--dashboard-success);
+}
+
+/* --------------------------------------------------------- EXCECOES (worklist) */
+
+/*
+  A SUPERFICIE DE EXCECOES E UMA WORKLIST, NAO UM BANNER.
+
+  Cada linha carrega o fato que a produziu (contagem real), o nome e o drillback. A cor entra pela
+  regua lateral — critico vermelho, atencao ambar, informativo azul — e nunca por area cheia: pintar
+  a linha inteira de vermelho em cinco excecoes simultaneas faz o operador parar de ler cor.
+*/
+.dashboard-exceptions__all {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--color-brand-700);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.dashboard-exceptions__all:hover {
+  text-decoration: underline;
+}
+
+.dashboard-exceptions__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.dashboard-exceptions__row {
+  display: grid;
+  grid-template-columns: 0.875rem 2.25rem minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: baseline;
+  column-gap: 0.5rem;
+  padding: 0.25rem 0.375rem 0.25rem 0.4375rem;
+  border-left: 3px solid var(--color-slate-300);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: inherit;
+}
+
+a.dashboard-exceptions__row:hover {
+  background: var(--color-slate-50);
+}
+
+a.dashboard-exceptions__row:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: -2px;
+}
+
+.dashboard-exceptions__row--critical {
+  border-left-color: var(--color-red-600);
+}
+
+.dashboard-exceptions__row--warning {
+  border-left-color: var(--color-amber-500);
+}
+
+.dashboard-exceptions__row--info {
+  border-left-color: var(--color-brand-500);
+}
+
+.dashboard-exceptions__icon {
+  grid-row: 1;
+  font-size: 0.5rem;
+  line-height: 1.4;
+  color: var(--color-slate-400);
+}
+
+.dashboard-exceptions__row--critical .dashboard-exceptions__icon {
+  color: var(--color-red-600);
+}
+
+.dashboard-exceptions__row--warning .dashboard-exceptions__icon {
+  color: var(--color-amber-600);
+}
+
+.dashboard-exceptions__row--info .dashboard-exceptions__icon {
+  color: var(--color-brand-600);
+}
+
+.dashboard-exceptions__count {
+  grid-row: 1;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--dashboard-ink);
+}
+
+.dashboard-exceptions__row--critical .dashboard-exceptions__count {
+  color: var(--color-red-700);
+}
+
+.dashboard-exceptions__row--warning .dashboard-exceptions__count {
+  color: var(--color-amber-700);
+}
+
+.dashboard-exceptions__label {
+  grid-row: 1;
+  font-size: 0.75rem;
+  font-weight: 550;
+  color: var(--dashboard-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-exceptions__detail {
+  grid-row: 2;
+  grid-column: 3;
+  font-size: 0.6875rem;
+  line-height: 1.3;
+  color: var(--color-slate-400);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+  ESTADO VAZIO DE UMA LINHA — nunca um banner verde de 100px dizendo "nenhuma excecao".
+  A nao-noticia ocupa uma linha; a primeira dobra pertence ao trabalho.
+*/
+.dashboard-exceptions__empty {
+  margin: 0;
+  padding: 0.25rem 0;
+  font-size: 0.75rem;
+  color: var(--color-slate-400);
+}
+
+.dashboard-exceptions__note {
+  margin: auto 0 0;
+  padding-top: 0.375rem;
+  font-size: 0.6875rem;
+  line-height: 1.35;
+  color: var(--color-slate-400);
+}
+
+/* --------------------------------------------------- VIEWS + TOOLBAR DA FILA */
+
+/*
+  BARRA DE VIEWS E FERRAMENTAS — UMA FAIXA DE 42px, NAO DUAS.
+
+  As views sao o recorte operacional persistente e vivem a esquerda; as ferramentas, a direita.
+  Separar em duas faixas (uma de abas e outra de filtros) custaria 42px de altura por zero
+  informacao adicional — e a toolbar e onde o operador bate o olho ao voltar para a fila.
+
+  Ela e o CABECALHO SUPERIOR do workbench: encosta na grade sem gap, dividindo a mesma superficie.
+*/
+.dashboard-queuebar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  padding: 0.25rem 0.5rem 0.25rem 0.625rem;
+  border: 1px solid var(--dashboard-line-strong);
+  border-bottom: 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: var(--dashboard-surface);
+}
+
+/* TABS DE VIEW — sem contorno; o ativo carrega sublinhado azul e peso maior. */
+.dashboard-views {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.875rem;
+}
+
+.dashboard-views__tab {
+  display: inline-flex;
+  align-items: center;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--dashboard-muted);
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease;
+}
+
+.dashboard-views__tab:hover {
+  color: var(--color-navy-700);
+  border-bottom-color: var(--color-border-strong);
+}
+
+.dashboard-views__tab--on {
+  border-bottom-color: var(--dashboard-accent);
+  color: var(--dashboard-accent-strong);
+  font-weight: 650;
+}
+
+.dashboard-views__tab:focus-visible {
+  outline: 2px solid var(--dashboard-accent);
+  outline-offset: 1px;
+}
+
+.dashboard-queuebar__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+/* BUSCA DA FILA — 250-320px, surface tonal, foco azul. */
+.dashboard-queuebar__search {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  width: 18rem;
+  max-width: 100%;
+  height: 1.875rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-context);
+}
+
+.dashboard-queuebar__search:focus-within {
+  border-color: var(--dashboard-accent);
+  box-shadow: 0 0 0 2px var(--color-focus-ring-soft);
+  background: var(--dashboard-surface);
+}
+
+.dashboard-queuebar__search-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex-shrink: 0;
+  color: var(--erp-text-muted);
+}
+
+.dashboard-queuebar__search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  font-size: 0.75rem;
+  color: var(--dashboard-ink);
+  outline: none;
+}
+
+.dashboard-queuebar__search input::placeholder {
+  color: var(--erp-text-disabled);
+}
+
+/* ESCOPO ATIVO DA FILA — declarado na toolbar, sem virar chip colorido. */
+.dashboard-queuebar__filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  height: 1.875rem;
+  padding: 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--erp-text-secondary);
+  white-space: nowrap;
+}
+
+.dashboard-queuebar__filter-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+  color: var(--dashboard-accent);
+}
+
+/* BOTOES DA TOOLBAR — secundario neutro e primario cheio: hierarquia, nao fileira igual. */
+.dashboard-queuebar__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  height: 1.875rem;
+  padding: 0 0.5625rem;
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-sm);
+  background: var(--dashboard-surface);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--erp-text-secondary);
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.dashboard-queuebar__button:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-header);
+  color: var(--color-navy-800);
+}
+
+.dashboard-queuebar__button--active {
+  border-color: var(--color-amber-200);
+  background: var(--color-amber-50);
+  color: var(--color-amber-700);
+}
+
+.dashboard-queuebar__button--primary {
+  border-color: var(--dashboard-accent);
+  background: var(--dashboard-accent);
+  color: #fff;
+}
+
+.dashboard-queuebar__button--primary:hover:not(:disabled) {
+  border-color: var(--color-blue-700);
+  background: var(--color-blue-700);
+  color: #fff;
+}
+
+.dashboard-queuebar__button:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.dashboard-queuebar__button:focus-visible {
+  outline: 2px solid var(--dashboard-accent);
+  outline-offset: 1px;
+}
+
+.dashboard-queuebar__button-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+/* --------------------------------------------------------------- FILA (dominante) */
+
+/*
+  A FILA ABSORVE TODO O ESPACO RESTANTE.
+
+  `flex: 1` + `min-height` de piso: com trabalho real, ela cresce e a pagina rola; com poucas
+  linhas, ela ainda desenha a AREA DE PROCESSAMENTO em vez de terminar em 120px e deixar o resto
+  branco. O piso NAO inventa linha — reserva a superficie, e o estado vazio compacto fica dentro.
+*/
+.dashboard-queue {
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  min-height: 0;
+  border: 1px solid var(--dashboard-line-strong);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  background: var(--dashboard-surface);
+  overflow: hidden;
+}
+
+/*
+  COM DADOS, A FILA ABSORVE O ESPACO RESTANTE. SEM DADOS, ELA NAO DESAPARECE.
+
+  O piso era ZERO e por isso a worklist vazia encolhia para ~95px e deixava a metade inferior da
+  viewport em branco — o defeito apontado. Agora existe um PISO de superficie: mesmo com zero itens,
+  o workbench continua ocupando a area de trabalho com cabecalho de grade, estado vazio e metadados
+  do recorte. O piso NAO inventa linha: ele reserva a superficie de PROCESSAMENTO, que e o que o
+  operador reconhece como "aqui e onde o trabalho aparece".
+*/
+.dashboard-queue--filled {
+  flex: 1 1 auto;
+  min-height: 16rem;
+}
+
+.dashboard-queue--empty {
+  flex: 1 1 auto;
+  min-height: 11rem;
+}
+
+.dashboard-queue__head {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-height: 2.25rem;
+  padding: 0.375rem 0.625rem;
+  border-bottom: 1px solid var(--dashboard-line-strong);
+  background: var(--dashboard-surface);
+}
+
+.dashboard-queue__title {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--color-navy-800);
+}
+
+.dashboard-queue__count {
+  padding: 0.0625rem 0.4375rem;
+  border-radius: var(--radius-sm);
+  background: var(--dashboard-accent-soft);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--dashboard-accent-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard-queue__scope {
+  font-size: 0.6875rem;
+  color: var(--dashboard-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-queue__spacer {
+  flex: 1;
+}
+
+.dashboard-queue__all {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: var(--dashboard-accent-strong);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.dashboard-queue__all:hover {
+  text-decoration: underline;
+}
+
+.dashboard-queue__all-icon {
+  width: 0.8125rem;
+  height: 0.8125rem;
+}
+
+/* ESTADOS DE LEITURA — declarados em faixa propria, sempre acima do vazio. */
+.dashboard-queue__state {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--color-slate-500);
+}
+
+.dashboard-queue__state p {
+  margin: 0;
+}
+
+.dashboard-queue__state-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+  color: var(--color-slate-400);
+}
+
+.dashboard-queue__state-icon--spin {
+  animation: dashboard-spin 900ms linear infinite;
+}
+
+@keyframes dashboard-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/*
+  LINHA DE VAZIO DENTRO DA GRADE — 48-56px.
+
+  Ela NAO e um bloco solto: e uma LINHA da tabela, na mesma superficie e abaixo do mesmo cabecalho
+  de colunas. Zero itens nao desmonta o workbench; a superficie continua reservada por
+  `.dashboard-queue--empty` e o que muda e apenas o conteudo da linha.
+*/
+.dashboard-queue__empty {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-height: 3.25rem;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--dashboard-line-soft);
+  background: var(--dashboard-surface);
+}
+
+.dashboard-queue__empty-icon {
+  width: 1.125rem;
+  height: 1.125rem;
+  flex-shrink: 0;
+  color: var(--erp-text-disabled);
+}
+
+.dashboard-queue__empty-text {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--erp-text-secondary);
+}
+
+.dashboard-queue__empty-spacer {
+  flex: 1;
+}
+
+.dashboard-queue__empty-action {
+  display: inline-flex;
+  align-items: center;
+  height: 1.75rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--color-brand-300);
+  border-radius: var(--radius-sm);
+  background: var(--color-brand-50);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-brand-800);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.dashboard-queue__empty-action:hover {
+  background: var(--color-brand-100);
+}
+
+/* AVISO DE FILA INCOMPLETA — fonte indisponivel DITA, nunca escondida. */
+.dashboard-queue__notice {
+  margin: 0;
+  padding: 0.3125rem 0.625rem;
+  border: 1px solid var(--color-amber-200);
+  border-radius: var(--radius-sm);
+  background: var(--color-amber-50);
+  font-size: 0.75rem;
+  color: var(--color-amber-900);
+}
+
+/* ---------------------------------------------------------- GRADE DE TRABALHO */
+
+/*
+  ESTA E A TABELA — a area mais importante da tela e a unica que ocupa "todo o resto".
+
+  A grade rola SO na horizontal quando o viewport e estreito; o corpo rola na vertical dentro do
+  container, de modo que cabecalho e rodape permanecam visiveis enquanto o operador percorre a
+  pagina. Sem isso, a "tabela" vira uma lista longa que empurra a paginacao para fora da tela.
+*/
+.dashboard-queue__table {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: auto;
+}
+
+.dashboard-queue__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.dashboard-queue__row {
+  display: grid;
+  align-items: center;
+  gap: 0 var(--spacing-2);
+  min-width: 60rem;
+  padding: 0 0.625rem 0 0.5rem;
+  min-height: 2.5rem;
+  border-bottom: 1px solid var(--dashboard-line-soft);
+  background: var(--dashboard-surface);
+}
+
+.dashboard-queue__row:hover {
+  background: var(--color-slate-50);
+}
+
+/* CABECALHO DE COLUNAS — 34-38px, fundo tonal, micro-uppercase com tracking. */
+.dashboard-queue__row--head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  min-height: 2.25rem;
+  border-top: 1px solid var(--dashboard-line-strong);
+  border-bottom: 1px solid var(--dashboard-line-strong);
+  background: var(--color-surface-header);
+  font-size: 0.6875rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--erp-text-secondary);
+}
+
+.dashboard-queue__row--head:hover {
+  background: var(--color-surface-header);
+}
+
+.dashboard-queue__row--critical {
+  box-shadow: inset 3px 0 0 0 var(--dashboard-critical);
+}
+
+/* SELECAO — azul muito claro + barra esquerda azul de 2px. */
+.dashboard-queue__row--selected,
+.dashboard-queue__row--selected:hover {
+  background: var(--dashboard-accent-soft);
+  box-shadow: inset 3px 0 0 0 var(--dashboard-accent);
+}
+
+/* PRIORIDADE — bolinha semantica + texto. A bolinha nao substitui a palavra. */
+.dashboard-queue__priority {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--erp-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-queue__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  background: var(--color-slate-300);
+}
+
+/* CRITICO vermelho, ALTO laranja, NORMAL azul, BAIXO slate — a escala de prioridade da grade. */
+.dashboard-queue__dot--critical {
+  background: var(--dashboard-critical);
+}
+
+.dashboard-queue__dot--warning {
+  background: var(--dashboard-warning);
+}
+
+.dashboard-queue__dot--neutral {
+  background: var(--dashboard-accent);
+}
+
+/* DOCUMENTO — referencia humana sobre o titulo; o botao abre o contexto, nao navega. */
+.dashboard-queue__doc {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.dashboard-queue__ref {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: var(--dashboard-accent-strong);
+  cursor: pointer;
+}
+
+.dashboard-queue__ref:hover {
+  text-decoration: underline;
+}
+
+.dashboard-queue__title {
+  font-size: 0.8125rem;
+  line-height: 1.25;
+  color: var(--dashboard-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-queue__context,
+.dashboard-queue__owner {
+  font-size: 0.75rem;
+  color: var(--color-slate-600);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-queue__owner {
+  color: var(--color-slate-500);
+}
+
+.dashboard-queue__stage {
+  display: flex;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.dashboard-queue__due {
+  font-size: 0.75rem;
+  color: var(--color-slate-500);
+}
+
+.dashboard-queue__due--late {
+  color: var(--color-red-700);
+  font-weight: 650;
+}
+
+/* PROXIMA ACAO — uma primaria visivel por linha, mais o menu de contexto. */
+.dashboard-queue__action {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+}
+
+.dashboard-queue__action-button {
+  display: inline-flex;
+  align-items: center;
+  height: 1.625rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--color-brand-600);
+  border-radius: var(--radius-sm);
+  background: var(--color-brand-600);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dashboard-queue__action-button:hover {
+  background: var(--color-brand-700);
+}
+
+.dashboard-queue__more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.625rem;
+  height: 1.625rem;
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-sm);
+  background: var(--dashboard-surface);
+  font-size: 0.875rem;
+  line-height: 1;
+  color: var(--color-slate-500);
+  cursor: pointer;
+}
+
+.dashboard-queue__more:hover {
+  background: var(--color-slate-100);
+  color: var(--color-slate-800);
+}
+
+/* RODAPE — paginacao REAL, sempre visivel sob a grade. */
+.dashboard-queue__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  min-height: 2.125rem;
+  padding: 0.25rem 0.625rem;
+  border-top: 1px solid var(--dashboard-line);
+  background: var(--color-slate-50);
+  font-size: 0.6875rem;
+  color: var(--color-slate-500);
+}
+
+.dashboard-queue__pager {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.dashboard-queue__page-button {
+  display: inline-flex;
+  align-items: center;
+  height: 1.5rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-sm);
+  background: var(--dashboard-surface);
+  font-size: 0.6875rem;
+  font-weight: 550;
+  color: var(--color-slate-600);
+  cursor: pointer;
+}
+
+.dashboard-queue__page-button:hover:not(:disabled) {
+  background: var(--color-slate-100);
+  color: var(--color-slate-900);
+}
+
+.dashboard-queue__page-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dashboard-queue__view-name {
+  font-weight: 600;
+  color: var(--color-slate-600);
+}
+
+/* ------------------------------------------------------- RODAPE DE ATALHOS */
+
+/*
+  ATALHOS DE MODULO — rotas alternativas, nao comandos. Ficam FORA da zona de trabalho, abaixo
+  dela: sao o que o operador consulta depois de saber o que fazer.
+*/
+.dashboard-shortcuts-bar {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-md);
+  background: var(--dashboard-surface-support);
+}
+
+.dashboard-shortcuts-bar__label {
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-slate-500);
+}
+
+.dashboard-shortcuts-bar__link {
+  display: inline-flex;
+  align-items: center;
+  height: 1.75rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--dashboard-line);
+  border-radius: var(--radius-sm);
+  background: var(--dashboard-surface);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-slate-700);
+  text-decoration: none;
+}
+
+.dashboard-shortcuts-bar__link:hover {
+  border-color: var(--color-brand-300);
+  background: var(--color-brand-50);
+  color: var(--color-brand-800);
+}
+
+.dashboard-shortcuts-bar__link:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 1px;
+}
+
+/*
+  CONTROL TOWER 2.0 — linguagem de posto de comando, não de formulário empilhado.
+
+  Esta camada muda somente a apresentação do dashboard. A estrutura, o snapshot publicado,
+  filtros, comandos e drillbacks permanecem os mesmos. A área de trabalho ganha uma barra de
+  identidade, divisores mais firmes e um contraste explícito entre fluxo, fila e contexto.
+*/
+.dashboard-workspace-head {
+  margin-bottom: var(--spacing-3);
+  border: 1px solid var(--dashboard-line-strong);
+  border-top: 3px solid var(--dashboard-accent);
+  border-radius: var(--radius-panel);
+  background: var(--dashboard-surface);
+}
+
+.dashboard-workspace-head__row {
+  padding: 0.5rem 0.75rem;
+}
+
+.dashboard-workspace-head__row--recorte {
+  background: var(--color-surface-context);
+}
+
+.dashboard-workspace-head__title {
+  font-size: 1.625rem;
+  color: var(--erp-text);
+}
+
+.dashboard-cc {
+  gap: var(--spacing-3);
+}
+
+.dashboard-situation-strip {
+  border-left: 3px solid var(--dashboard-accent);
+  border-radius: var(--radius-panel);
+  background: var(--dashboard-surface);
+}
+
+.dashboard-chain__head {
+  border-top: 2px solid var(--color-teal);
+  background: var(--color-surface-context);
+}
+
+.dashboard-chain__stages {
+  border: 1px solid var(--dashboard-line-strong);
+  border-top: 0;
+  background: var(--dashboard-surface);
+}
+
+.dashboard-chain__stage {
+  min-height: 4.5rem;
+  border-right: 1px solid var(--dashboard-line);
+}
+
+.dashboard-chain__step:last-child .dashboard-chain__stage {
+  border-right: 0;
+}
+
+.dashboard-chain__node {
+  border-color: var(--color-brand-200);
+  background: var(--color-brand-50);
+}
+
+.dashboard-chain__node-count {
+  color: var(--dashboard-accent-strong);
+}
+
+.dashboard-queuebar {
+  border-top: 2px solid var(--dashboard-accent);
+  background: var(--dashboard-surface);
+}
+
+.dashboard-queue {
+  border-color: var(--dashboard-line-strong);
+  background: var(--dashboard-surface);
+}
+
+.dashboard-queue__head,
+.dashboard-queue__row--head,
+.dashboard-queue__footer {
+  background: var(--color-surface-context);
+}
+
+.dashboard-queue__title,
+.dashboard-rail__title {
+  color: var(--erp-text);
+}
+
+.dashboard-cc__context {
+  border-left: 3px solid var(--color-teal) !important;
+  background: var(--color-surface-context);
+}
+
+.dashboard-rail {
+  background: var(--color-surface-context);
+}
+
+.dashboard-shortcuts-bar {
+  border-left: 3px solid var(--color-border-strong);
+  background: var(--color-surface-context);
+}
+
+@media (max-width: 1099px) {
+  .dashboard-chain__stage,
+  .dashboard-chain__step:last-child .dashboard-chain__stage {
+    border-right: 0;
+    border-bottom: 1px solid var(--dashboard-line);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-queue__state-icon--spin {
+    animation: none;
+  }
 }
