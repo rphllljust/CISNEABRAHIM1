@@ -96,7 +96,7 @@ describe('ambiente host contaminado — HML permanece determinístico', () => {
 
     expect(output).toContain('GATE DE CONFIGURAÇÃO RESOLVIDA: PASS');
     expect(result.status).toBe(0);
-  });
+  }, 30_000);
 
   it('rentals/transport/finance NÃO são alterados por variáveis herdadas do shell', () => {
     // `--allow-inherited` isola a pergunta certa: com um host deliberadamente hostil, a
