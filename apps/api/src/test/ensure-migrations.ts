@@ -943,6 +943,23 @@ $$;`);
       await applySqlFile(pool, '0096_metadata_budget_compound_filter.sql');
     }
 
+    const hasClientUnits = await tableExists(pool, 'pty.client_units');
+    if (!hasClientUnits) {
+      await applySqlFile(pool, '0097_client_customer_360.sql');
+    }
+
+    const hasCustomer360Metadata = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM meta.fields f
+         INNER JOIN meta.entities e ON e.id = f.entity_id
+         WHERE e.name = 'client' AND f.name = 'group_name' AND f.in_list = true
+       ) AS exists`,
+    );
+    if (!hasCustomer360Metadata.rows[0]?.exists) {
+      await applySqlFile(pool, '0098_metadata_seed_customer_360.sql');
+    }
+
     await syncDrizzleJournal(pool);
   } finally {
     await pool.end();

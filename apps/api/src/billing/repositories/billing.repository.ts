@@ -262,7 +262,7 @@ export class BillingRepository {
            ORDER BY bd0.version_number DESC, bd0.id DESC LIMIT 1
          ) doc ON TRUE
          LEFT JOIN LATERAL (
-           SELECT r.id, r.unit_id, r.client_id FROM fin.receivables r WHERE r.origin_billing_document_id = doc.id LIMIT 1
+           SELECT r.id, r.unit_id, r.client_id FROM rpt.read_receivables r WHERE r.origin_billing_document_id = doc.id LIMIT 1
          ) rec ON TRUE
          WHERE so.status = 'COMPLETED' AND (${filterSql})
        ), filtered AS MATERIALIZED (
