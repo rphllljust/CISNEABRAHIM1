@@ -3,7 +3,7 @@ import {
   activeServiceRequestPredicate,
 } from '../domain/purchase-order-reference-semantics';
 import { Injectable } from '@nestjs/common';
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import { DatabaseService } from '../../infrastructure/database/database.service';
 import { queryIsUnitRegistered } from '../../infrastructure/database/reference-lookups';
 import { orderByCreatedAtDesc } from '../../infrastructure/database/sql';
@@ -81,6 +81,17 @@ export class PurchaseOrdersRepository {
       throw new Error('DATABASE_URL is not configured.');
     }
     return connection.pool;
+  }
+
+  private async rollbackKeepingPrimaryCause(client: PoolClient): Promise<Error | undefined> {
+    try {
+      await client.query('ROLLBACK');
+      return undefined;
+    } catch (rollbackFailure) {
+      return rollbackFailure instanceof Error
+        ? rollbackFailure
+        : new Error(String(rollbackFailure));
+    }
   }
 
   async isUnitRegistered(unitId: string): Promise<boolean> {
@@ -201,11 +212,7 @@ export class PurchaseOrdersRepository {
       await client.query('COMMIT');
       return { rows: page.rows, summary: summary.rows };
     } catch (error) {
-      try {
-        await client.query('ROLLBACK');
-      } catch (rollbackFailure) {
-        evictWith = rollbackFailure instanceof Error ? rollbackFailure : new Error(String(rollbackFailure));
-      }
+      evictWith = await this.rollbackKeepingPrimaryCause(client);
       throw error;
     } finally {
       client.release(evictWith);
@@ -264,6 +271,7 @@ export class PurchaseOrdersRepository {
     billingRules: PurchaseOrderBillingRuleRow[];
   }> {
     const client = await this.pool().connect();
+    let evictWith: Error | undefined;
     try {
       await client.query('BEGIN');
 
@@ -327,10 +335,10 @@ export class PurchaseOrdersRepository {
       await client.query('COMMIT');
       return { purchaseOrder, items, billingRules };
     } catch (error) {
-      await client.query('ROLLBACK');
+      evictWith = await this.rollbackKeepingPrimaryCause(client);
       throw error;
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 
@@ -342,6 +350,7 @@ export class PurchaseOrdersRepository {
     | 'INVALID_STATE'
   > {
     const client = await this.pool().connect();
+    let evictWith: Error | undefined;
     try {
       await client.query('BEGIN');
 
@@ -430,10 +439,10 @@ export class PurchaseOrdersRepository {
       }
       return { purchaseOrder, items, billingRules };
     } catch (error) {
-      await client.query('ROLLBACK');
+      evictWith = await this.rollbackKeepingPrimaryCause(client);
       throw error;
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 
@@ -441,6 +450,7 @@ export class PurchaseOrdersRepository {
     input: RegisterPurchaseOrderPersistenceInput,
   ): Promise<PurchaseOrderRow | 'VERSION_CONFLICT' | 'INVALID_STATE'> {
     const client = await this.pool().connect();
+    let evictWith: Error | undefined;
     try {
       await client.query('BEGIN');
 
@@ -523,10 +533,10 @@ export class PurchaseOrdersRepository {
       await client.query('COMMIT');
       return result.rows[0] ?? 'VERSION_CONFLICT';
     } catch (error) {
-      await client.query('ROLLBACK');
+      evictWith = await this.rollbackKeepingPrimaryCause(client);
       throw error;
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 
@@ -686,6 +696,7 @@ export class PurchaseOrdersRepository {
     actorIdentityId: string;
   }): Promise<PurchaseOrderRow | 'VERSION_CONFLICT' | 'INVALID_STATE'> {
     const client = await this.pool().connect();
+    let evictWith: Error | undefined;
     try {
       await client.query('BEGIN');
       const locked = await client.query<{
@@ -765,10 +776,10 @@ export class PurchaseOrdersRepository {
       await client.query('COMMIT');
       return result.rows[0]!;
     } catch (error) {
-      await client.query('ROLLBACK');
+      evictWith = await this.rollbackKeepingPrimaryCause(client);
       throw error;
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 

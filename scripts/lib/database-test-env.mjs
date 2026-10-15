@@ -167,6 +167,10 @@ const MIGRATION_EFFECT_CHECKS = {
   '0096_metadata_budget_compound_filter': {
     fieldFlag: ['meta', 'fields', 'budgets', 'code', 'in_filter'],
   },
+  '0097_client_customer_360': { table: 'pty.client_units' },
+  '0098_metadata_seed_customer_360': {
+    fieldFlag: ['meta', 'fields', 'client', 'group_name', 'in_list'],
+  },
 };
 
 /**
