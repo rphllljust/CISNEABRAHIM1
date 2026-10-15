@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { cn } from './utils/cn';
+import { WorkspaceHeader } from './workspace-frame';
 
 /**
  * Composicao visual "enterprise" — componentes OPT-IN.
@@ -60,10 +61,13 @@ export type MetricTone = 'neutral' | 'warning' | 'critical' | 'info';
  * produto; teal fica reservado a identidade (logo, accent de navegacao, contexto).
  */
 const METRIC_TONE: Record<MetricTone, string> = {
-  neutral: 'border-[color:var(--erp-border)] bg-[color:var(--erp-surface)] text-[color:var(--erp-text-secondary)]',
+  neutral:
+    'border-[color:var(--erp-border)] bg-[color:var(--erp-surface)] text-[color:var(--erp-text-secondary)]',
   info: 'border-[color:var(--color-info-border)] bg-[color:var(--color-info-bg)] text-[color:var(--erp-info)]',
-  warning: 'border-[color:var(--color-warning-border)] bg-[color:var(--color-warning-bg)] text-[color:var(--erp-warning)]',
-  critical: 'border-[color:var(--color-critical-border)] bg-[color:var(--color-critical-bg)] text-[color:var(--erp-critical)]',
+  warning:
+    'border-[color:var(--color-warning-border)] bg-[color:var(--color-warning-bg)] text-[color:var(--erp-warning)]',
+  critical:
+    'border-[color:var(--color-critical-border)] bg-[color:var(--color-critical-bg)] text-[color:var(--erp-critical)]',
 };
 
 export function EnterpriseMetric({
@@ -220,9 +224,7 @@ export function PrimaryRecordCell({
           {context}
         </p>
       ) : null}
-      {meta ? (
-        <p className="mt-0.5 font-mono text-[11px] text-gray-400">{meta}</p>
-      ) : null}
+      {meta ? <p className="mt-0.5 font-mono text-[11px] text-gray-400">{meta}</p> : null}
     </div>
   );
 }
@@ -270,17 +272,16 @@ export function RecordStatusCell({
   accent?: 'none' | 'warning' | 'critical';
 }) {
   const accentClass =
-    accent === 'critical'
-      ? 'before:bg-red-400'
-      : accent === 'warning'
-        ? 'before:bg-amber-400'
-        : '';
+    accent === 'critical' ? 'before:bg-red-400' : accent === 'warning' ? 'before:bg-amber-400' : '';
   return (
     <div
       className={cn(
         'relative flex flex-col items-start gap-1',
         accent !== 'none' &&
-          cn('pl-2.5 before:absolute before:top-0 before:bottom-0 before:left-0 before:w-0.5 before:rounded-full before:content-[""]', accentClass),
+          cn(
+            'pl-2.5 before:absolute before:top-0 before:bottom-0 before:left-0 before:w-0.5 before:rounded-full before:content-[""]',
+            accentClass,
+          ),
       )}
     >
       {badge}
@@ -452,41 +453,25 @@ export function WorklistHeader({
    * ser a primeira linha da bancada.
    */
   return (
-    <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--color-divider-strong)] pb-1.5">
-      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
-        <h1 className="m-0 text-[1.375rem] leading-tight font-bold tracking-tight text-[color:var(--erp-text)]">
-          {title}
-        </h1>
-        {typeof count === 'number' ? (
-          <span
-            className="cisne-type-object leading-none tabular-nums text-[color:var(--color-navy-800)]"
-            aria-label={`${count} registros no recorte`}
-          >
-            {count}
-          </span>
-        ) : null}
-        {description ? (
-          <span className="cisne-type-helper">{description}</span>
-        ) : null}
-      </div>
-
-      <div className="flex shrink-0 items-center gap-2">
-        {/* RECORTE ATIVO — muda com o filtro, e por isso vive ao lado do dado, não do título. */}
-        {context ? <span className="cisne-type-helper">{context}</span> : null}
-        {action ? <div className="flex shrink-0 items-center gap-1.5">{action}</div> : null}
-      </div>
-
-      {/*
-        INDICADORES EM FAIXA COMPACTA — uma régua de números, não três cartões.
-
-        Ocupam a largura inteira abaixo da linha de identidade porque são CLICÁVEIS e funcionam
-        como recorte rápido: cada célula aplica o seu filtro. Um card por número daria peso de
-        painel executivo a um controle de filtro.
-      */}
-      {metrics ? (
-        <div className="flex w-full flex-wrap items-center gap-x-1">{metrics}</div>
-      ) : null}
-    </header>
+    <>
+      <WorkspaceHeader
+        title={title}
+        identity={description}
+        scope={context}
+        action={action}
+        status={
+          typeof count === 'number' ? (
+            <span
+              aria-label={`${count} registros no recorte`}
+              className="text-lg font-semibold tabular-nums"
+            >
+              {count}
+            </span>
+          ) : undefined
+        }
+      />
+      {metrics ? <div className="mb-2 flex flex-wrap items-center gap-2">{metrics}</div> : null}
+    </>
   );
 }
 
@@ -743,9 +728,7 @@ export function WorklistStatePanel({
       <p
         className={cn(
           'm-0 text-[13px] font-semibold',
-          isCritical
-            ? 'text-[color:var(--color-red-700)]'
-            : 'text-[color:var(--erp-text)]',
+          isCritical ? 'text-[color:var(--color-red-700)]' : 'text-[color:var(--erp-text)]',
         )}
       >
         {title}
@@ -760,9 +743,7 @@ export function WorklistStatePanel({
           {description}
         </p>
       ) : null}
-      {action ? (
-        <div className="ml-auto flex flex-wrap items-center gap-2">{action}</div>
-      ) : null}
+      {action ? <div className="ml-auto flex flex-wrap items-center gap-2">{action}</div> : null}
     </section>
   );
 }

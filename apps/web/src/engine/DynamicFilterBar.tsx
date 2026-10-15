@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { t } from '../i18n';
 import type { MetaEntitySchema, MetaField } from './types';
 
@@ -28,16 +28,33 @@ export function DynamicFilterBar({
 }: DynamicFilterBarProps): React.ReactElement | null {
   const filterable = useFilterableFields(schema);
   const activeCount = Object.values(values).filter((value) => value.trim() !== '').length;
+  const [expanded, setExpanded] = useState(false);
 
   if (filterable.length === 0) {
     return null;
   }
 
   return (
-    <form
-      data-testid="dynamic-filter-bar"
-      data-entity={schema.name}
-      /*
+    <section
+      className="border-b border-[var(--erp-border)] bg-white"
+      aria-label="Filtros por metadados"
+    >
+      <button
+        type="button"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((previous) => !previous)}
+        className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-semibold text-[var(--erp-text-secondary)]"
+      >
+        <span>
+          {t('filters.title')}
+          {activeCount > 0 ? ` · ${activeCount} ativos` : ''}
+        </span>
+        <span aria-hidden>{expanded ? '−' : '+'}</span>
+      </button>
+      <form
+        data-testid="dynamic-filter-bar"
+        data-entity={schema.name}
+        /*
         SUPERFICIE DE FILTRO — uma faixa de operacao, nao um formulario de consulta.
 
         Antes: `mb-3 flex flex-wrap items-end gap-3` com um titulo "FILTROS (n)" em 12px uppercase
@@ -50,41 +67,43 @@ export function DynamicFilterBar({
         da faixa deixa de ser um bloco e passa a ser um rotulo inline. Sem caixa: a faixa pertence a
         area de trabalho e e delimitada por divisor estrutural.
       */
-      className="cisne-filter-surface"
-      onSubmit={(event) => event.preventDefault()}
-    >
-      <p className="cisne-meta-label m-0 mr-3 shrink-0">
-        {t('filters.title')}
-        {activeCount > 0 ? <span className="ml-1 font-semibold">({activeCount})</span> : null}
-      </p>
+        className="cisne-filter-surface"
+        hidden={!expanded}
+        onSubmit={(event) => event.preventDefault()}
+      >
+        <p className="cisne-meta-label m-0 mr-3 shrink-0">
+          {t('filters.title')}
+          {activeCount > 0 ? <span className="ml-1 font-semibold">({activeCount})</span> : null}
+        </p>
 
-      {filterable.map((field) => (
-        <div
-          key={field.name}
-          className="min-w-36 border-l border-[color:var(--color-divider)] px-2.5 first:border-l-0 first:pl-0"
-        >
-          <label htmlFor={`filter-${field.name}`} className="cisne-meta-label mb-0.5 block">
-            {field.label}
-          </label>
-          <FilterControl
-            field={field}
-            value={values[field.name] ?? ''}
-            onChange={(next) => onChange(field.name, next)}
-          />
-        </div>
-      ))}
+        {filterable.map((field) => (
+          <div
+            key={field.name}
+            className="min-w-36 border-l border-[color:var(--color-divider)] px-2.5 first:border-l-0 first:pl-0"
+          >
+            <label htmlFor={`filter-${field.name}`} className="cisne-meta-label mb-0.5 block">
+              {field.label}
+            </label>
+            <FilterControl
+              field={field}
+              value={values[field.name] ?? ''}
+              onChange={(next) => onChange(field.name, next)}
+            />
+          </div>
+        ))}
 
-      {activeCount > 0 ? (
-        <button
-          type="button"
-          data-testid="dynamic-filter-clear"
-          className="cisne-type-action ml-auto inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-          onClick={onClear}
-        >
-          {t('filters.clear')}
-        </button>
-      ) : null}
-    </form>
+        {activeCount > 0 ? (
+          <button
+            type="button"
+            data-testid="dynamic-filter-clear"
+            className="cisne-type-action ml-auto inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+            onClick={onClear}
+          >
+            {t('filters.clear')}
+          </button>
+        ) : null}
+      </form>
+    </section>
   );
 }
 
@@ -147,9 +166,7 @@ export function useFilterableFields(schema: MetaEntitySchema): MetaField[] {
   return useMemo(
     () =>
       schema.fields
-        .filter(
-          (field) => field.inFilter && schema.allowedPermLevels.includes(field.permLevel),
-        )
+        .filter((field) => field.inFilter && schema.allowedPermLevels.includes(field.permLevel))
         .slice()
         .sort((left, right) => left.fieldOrder - right.fieldOrder),
     [schema],

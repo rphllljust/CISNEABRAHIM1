@@ -1,5 +1,69 @@
-import type { ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useId,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
+import { useMediaQuery } from '../shell/hooks/useMediaQuery';
 import { cn } from './utils/cn';
+
+const WorkspaceContext = createContext<{
+  host: HTMLElement | null;
+  setOpen: (id: string, open: boolean) => void;
+} | null>(null);
+
+/** One dock per page; portals preserve the caller's data, commands and React context. */
+export function WorkspaceContextHost({ children }: { children: ReactNode }) {
+  const [host, setHost] = useState<HTMLElement | null>(null);
+  const [panels, setPanels] = useState<ReadonlySet<string>>(new Set());
+  const setOpen = useCallback((id: string, open: boolean) => {
+    setPanels((previous) => {
+      if (previous.has(id) === open) return previous;
+      const next = new Set(previous);
+      if (open) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
+  const value = useMemo(() => ({ host, setOpen }), [host, setOpen]);
+  return (
+    <WorkspaceContext.Provider value={value}>
+      <div
+        className={cn(
+          'grid min-h-0 min-w-0 flex-1 items-start',
+          panels.size > 0 && 'xl:grid-cols-[minmax(0,1fr)_22rem] xl:gap-4',
+        )}
+        data-layout="context-workbench"
+        data-context-open={panels.size > 0}
+      >
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
+        <aside
+          ref={setHost}
+          hidden={panels.size === 0}
+          aria-label="Contexto da seleção"
+          className="sticky top-3 min-h-0 max-h-[calc(100dvh-7rem)] overflow-y-auto border-l border-[var(--erp-border)] bg-white"
+        />
+      </div>
+    </WorkspaceContext.Provider>
+  );
+}
+
+export function useWorkspaceContextDock(open: boolean): HTMLElement | null {
+  const workspace = useContext(WorkspaceContext);
+  const id = useId();
+  const desktop = useMediaQuery('(min-width: 80rem)');
+  const setOpen = workspace?.setOpen;
+  useEffect(() => {
+    if (!setOpen) return;
+    setOpen(id, open && desktop);
+    return () => setOpen(id, false);
+  }, [id, open, desktop, setOpen]);
+  return desktop ? (workspace?.host ?? null) : null;
+}
 
 /**
  * WORKSPACE FRAME — a geometria de area de trabalho do CISNE, em UM lugar.
@@ -103,13 +167,16 @@ export function WorkspaceHeader({
   status?: ReactNode;
 }) {
   return (
-    <header className="mb-2.5 flex flex-wrap items-start justify-between gap-x-5 gap-y-2 border-b border-[color:var(--color-divider-strong)] pb-2.5">
+    <header
+      className="mb-3 grid gap-3 border-l-4 border-brand-600 bg-white px-4 py-3 lg:grid-cols-[minmax(0,1fr)_auto]"
+      data-layout="worklist-identity"
+    >
       <div className="min-w-0">
-        <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
+        <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <h1 className="m-0 text-[length:var(--type-workspace-size)] leading-tight font-[650] tracking-[-0.01em] text-[color:var(--color-text-primary)]">
             {title}
           </h1>
-          {status ? <span className="min-w-0">{status}</span> : null}
+          {status ? <div className="min-w-0">{status}</div> : null}
         </div>
         {identity || scope ? (
           <p className="m-0 mt-0.5 flex flex-wrap items-center gap-x-2 text-[12px] text-[color:var(--color-text-secondary)]">
@@ -126,7 +193,11 @@ export function WorkspaceHeader({
         ) : null}
       </div>
 
-      {action ? <div className="flex shrink-0 items-center gap-1.5">{action}</div> : null}
+      {action ? (
+        <div className="flex shrink-0 items-start gap-1.5 lg:border-l lg:border-[var(--erp-border)] lg:pl-4">
+          {action}
+        </div>
+      ) : null}
     </header>
   );
 }
@@ -145,7 +216,12 @@ export function WorkspaceHeader({
 export function WorkspaceStatusLine({
   items,
 }: {
-  items: Array<{ value: ReactNode; label: string; tone?: 'neutral' | 'alert'; onClick?: () => void }>;
+  items: Array<{
+    value: ReactNode;
+    label: string;
+    tone?: 'neutral' | 'alert';
+    onClick?: () => void;
+  }>;
 }) {
   if (items.length === 0) {
     return null;
@@ -215,13 +291,13 @@ export function WorkspaceToolbar({
   return (
     <div
       className={cn(
-        'mb-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-[color:var(--color-divider)] pb-2',
+        'mb-2 grid items-start gap-2 border-b border-[var(--erp-border)] bg-white p-3 xl:grid-cols-[minmax(12rem,1fr)_minmax(0,2fr)]',
         className,
       )}
       data-region="workspace-toolbar"
     >
       {views ? <div className="flex min-w-0 flex-wrap items-center gap-1.5">{views}</div> : null}
-      <div className="ml-auto flex min-w-0 flex-wrap items-center gap-1.5">{children}</div>
+      <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">{children}</div>
     </div>
   );
 }
@@ -311,22 +387,44 @@ export function WorkspaceBody({
   contextWidth?: string;
   className?: string;
 }) {
+  const [contextOpen, setContextOpen] = useState(false);
+  const desktop = useMediaQuery('(min-width: 80rem)');
   if (!context) {
     return (
-      <div className={cn('grid min-h-0 min-w-0 flex-1 grid-cols-1', className)} data-region="work-split">
+      <div
+        className={cn('grid min-h-0 min-w-0 flex-1 grid-cols-1', className)}
+        data-region="work-split"
+      >
         {children}
       </div>
     );
   }
 
   return (
-    <div
-      className={cn('grid min-h-0 min-w-0 flex-1 items-stretch gap-3.5', className)}
-      style={{ gridTemplateColumns: `minmax(0,1fr) ${contextWidth}` }}
-      data-region="work-split"
+    <section
+      className="flex min-h-0 min-w-0 flex-1 flex-col"
+      aria-label="Área de trabalho e contexto"
     >
-      <div className="flex min-h-0 min-w-0 flex-col">{children}</div>
-      {/*
+      <div className="mb-2 flex justify-end">
+        <button
+          type="button"
+          aria-expanded={contextOpen}
+          onClick={() => setContextOpen((previous) => !previous)}
+          className="rounded border border-[var(--erp-border)] bg-white px-3 py-1.5 text-xs font-medium text-brand-700"
+        >
+          {contextOpen ? 'Fechar contexto do processo' : 'Contexto do processo'}
+        </button>
+      </div>
+      <div
+        className={cn('grid min-h-0 min-w-0 flex-1 items-stretch gap-3.5', className)}
+        style={{
+          gridTemplateColumns:
+            contextOpen && desktop ? `minmax(0,1fr) ${contextWidth}` : 'minmax(0,1fr)',
+        }}
+        data-region="work-split"
+      >
+        <div className="flex min-h-0 min-w-0 flex-col">{children}</div>
+        {/*
         A COLUNA DE APOIO ROLA SOZINHA; ELA NAO ESTICA A PAGINA.
 
         DEFEITO MEDIDO: numa grade com `items-stretch`, a ALTURA DA LINHA e a do mais alto dos dois
@@ -345,8 +443,16 @@ export function WorkspaceBody({
 
         Isto NAO corta conteudo: tudo o que estava na coluna continua alcancavel por rolagem.
       */}
-      <div className="flex min-h-0 min-w-0 flex-col overflow-y-auto">{context}</div>
-    </div>
+        {contextOpen ? (
+          <div
+            className="flex min-h-0 min-w-0 flex-col overflow-y-auto"
+            data-layout="workspace-context"
+          >
+            {context}
+          </div>
+        ) : null}
+      </div>
+    </section>
   );
 }
 
@@ -508,23 +614,23 @@ export function ContextFacts({
   facts: Array<{ label: string; value: ReactNode }>;
   columns?: 1 | 2;
 }) {
-  const visible = facts.filter((fact) => fact.value !== null && fact.value !== undefined && fact.value !== '');
+  const visible = facts.filter(
+    (fact) => fact.value !== null && fact.value !== undefined && fact.value !== '',
+  );
   if (visible.length === 0) {
     return <p className="cisne-type-helper m-0">Nenhum dado publicado.</p>;
   }
   return (
-    <dl
-      className={cn(
-        'm-0 grid gap-x-4 gap-y-1.5',
-        columns === 2 ? 'grid-cols-2' : 'grid-cols-1',
-      )}
-    >
+    <dl className={cn('m-0 grid gap-x-4 gap-y-1.5', columns === 2 ? 'grid-cols-2' : 'grid-cols-1')}>
       {visible.map((fact) => (
         <div key={fact.label} className="min-w-0">
           <dt className="text-[10px] font-medium tracking-wide text-[color:var(--color-text-muted)] uppercase">
             {fact.label}
           </dt>
-          <dd className="m-0 truncate text-[12px] text-[color:var(--color-text-primary)]" title={typeof fact.value === 'string' ? fact.value : undefined}>
+          <dd
+            className="m-0 truncate text-[12px] text-[color:var(--color-text-primary)]"
+            title={typeof fact.value === 'string' ? fact.value : undefined}
+          >
             {fact.value}
           </dd>
         </div>
@@ -560,13 +666,17 @@ export function WorkspaceEmpty({
       aria-label={title}
       className="flex min-h-0 flex-1 flex-col items-center justify-center gap-1.5 px-6 py-10 text-center"
     >
-      <p className="m-0 text-[13px] font-semibold text-[color:var(--color-text-primary)]">{title}</p>
+      <p className="m-0 text-[13px] font-semibold text-[color:var(--color-text-primary)]">
+        {title}
+      </p>
       {description ? (
         <p className="m-0 max-w-[46ch] text-[12px] text-[color:var(--color-text-secondary)]">
           {description}
         </p>
       ) : null}
-      {action ? <div className="mt-1.5 flex flex-wrap items-center justify-center gap-2">{action}</div> : null}
+      {action ? (
+        <div className="mt-1.5 flex flex-wrap items-center justify-center gap-2">{action}</div>
+      ) : null}
     </section>
   );
 }
@@ -577,7 +687,13 @@ export function WorkspaceEmpty({
  * Sem spinner central: o shell, o cabecalho, a toolbar e o contexto continuam montados, e apenas as
  * linhas da grade aparecem como placeholders. A tela nao "desmonta" durante o carregamento.
  */
-export function WorkspaceSkeletonRows({ rows = 8, columns = 5 }: { rows?: number; columns?: number }) {
+export function WorkspaceSkeletonRows({
+  rows = 8,
+  columns = 5,
+}: {
+  rows?: number;
+  columns?: number;
+}) {
   return (
     <div aria-hidden="true" className="min-h-0 flex-1">
       {Array.from({ length: rows }).map((_, rowIndex) => (
@@ -590,7 +706,9 @@ export function WorkspaceSkeletonRows({ rows = 8, columns = 5 }: { rows?: number
             <span
               key={columnIndex}
               className="h-2.5 rounded-[2px] bg-[color:var(--color-surface-sunken-soft)]"
-              style={{ width: columnIndex === 0 ? '26%' : `${12 + ((rowIndex + columnIndex) % 3) * 4}%` }}
+              style={{
+                width: columnIndex === 0 ? '26%' : `${12 + ((rowIndex + columnIndex) % 3) * 4}%`,
+              }}
             />
           ))}
         </div>

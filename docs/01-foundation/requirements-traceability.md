@@ -781,6 +781,18 @@ Classificação: **interpretação de engenharia / projeção de leitura**. Sem 
 
 ## FATURAMENTO E TOKENS VISUAIS GLOBAIS — 2026-10-14
 
+## RECOMPOSIÇÃO ESTRUTURAL E DRAWER DINÂMICO — 2026-10-15
+
+Classificação: interpretação de engenharia visual/interação autorizada na solicitação desta sessão. Nenhuma BR, capability ou contrato empresarial foi criado ou promovido.
+
+| Fonte | Implementação parcial | Teste / evidência | Aceite |
+| --- | --- | --- | --- |
+| Pedido de reconstrução estrutural global; complementos “drawer dinâmico” e “não fixo” | Shell por processo, host dinâmico em ModulePage, DynamicContextDrawer/ContextDrawer acoplados somente quando abertos; WorkspaceHeader/WorklistHeader unificados; disclosure de filtros/contexto; Object Page com decisão lateral e navegação de seção; dashboard fila-first; adaptações Clientes/Receber/Pagar/Billing | Parser TSX e diff-check; quatro casos de comportamento adicionados em `ui/workspace-recomposition.test.tsx`, não executados; lint/typecheck/Vitest bloqueados pela instalação incompleta (403 anterior / cache offline incompleto) | BLOCKED; sem commit/deploy novo, sem aceite visual e sem afirmação de propagação verificada em todas as rotas |
+
+Registro de execução: `docs/00-governance/prompt-execution-log.md`, seção RECOMPOSIÇÃO ESTRUTURAL DO FRONTEND / DRAWER DINÂMICO.
+
+### Registro histórico da execução de faturamento abaixo
+
 Classificação: interpretação de engenharia e aderência visual à instrução do responsável. Nenhuma BR foi criada, promovida ou alterada.
 
 | SOURCE | EVIDENCE | BUSINESS RULE | IMPLEMENTATION | TEST | ACCEPTANCE |

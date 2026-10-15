@@ -26,8 +26,6 @@ import {
 } from '../../engine/DynamicFilterBuilder';
 import { advancedFilterFromGroup } from '../../engine';
 import {
-  ContextFacts,
-  ContextSection,
   WorkspaceActiveFilters,
   WorkspaceBody,
   WorkspaceEmpty,
@@ -44,12 +42,12 @@ import {
 } from '../api/finance-api';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import { FinanceStatusBadge } from '../components/FinanceStatusBadge';
-import { FinanceSituationStrip, formatSummaryAmounts, publishedCount } from '../components/FinanceSituation';
 import {
-  FinanceWorklistToolbar,
-  financeControlClass,
-} from '../components/FinanceWorklistToolbar';
-import { FinanceTitleContext } from '../components/FinanceTitleContext';
+  FinanceSituationStrip,
+  formatSummaryAmounts,
+  publishedCount,
+} from '../components/FinanceSituation';
+import { FinanceWorklistToolbar, financeControlClass } from '../components/FinanceWorklistToolbar';
 import { RECEIVABLES_ALLOWED_FILTERS, RECEIVABLES_BUILT_IN_VIEWS } from './finance-smart-list';
 import { receivableEngineRow } from '../utils/finance-engine-rows';
 import {
@@ -110,7 +108,9 @@ function toSortable(row: ReceivableDetail): ReceivableSortable {
     dueDate: row.dueDate,
     reference: row.externalReference ?? row.origin.billingDocumentId ?? null,
     amount: Number.isFinite(Number(row.principal)) ? Number(row.principal) : null,
-    outstanding: Number.isFinite(Number(row.remainingBalance)) ? Number(row.remainingBalance) : null,
+    outstanding: Number.isFinite(Number(row.remainingBalance))
+      ? Number(row.remainingBalance)
+      : null,
     // Atraso vem do modulo compartilhado: Recebiveis e Pagaveis leem o vencimento pela MESMA regra.
     overdueDays: daysPastDue(row.dueDate),
     status: row.status,
@@ -310,7 +310,8 @@ export function ReceivablesListPage() {
   const hasActiveQuery = Boolean(search || dueFrom || dueTo || statusForQuery);
   const portfolioEmpty =
     page !== null && page.total === 0 && !smartList.isFiltered && !hasActiveQuery;
-  const recorteEmpty = page !== null && page.total === 0 && (smartList.isFiltered || hasActiveQuery);
+  const recorteEmpty =
+    page !== null && page.total === 0 && (smartList.isFiltered || hasActiveQuery);
 
   const activeFilterChips = [
     ...(statusForQuery
@@ -322,9 +323,17 @@ export function ReceivablesListPage() {
           },
         ]
       : []),
-    ...(search ? [{ id: 'q', label: `Busca: ${search}`, onRemove: () => patchParams({ q: null }) }] : []),
+    ...(search
+      ? [{ id: 'q', label: `Busca: ${search}`, onRemove: () => patchParams({ q: null }) }]
+      : []),
     ...(dueFrom
-      ? [{ id: 'dueFrom', label: `Vence de ${dueFrom}`, onRemove: () => patchParams({ dueFrom: null }) }]
+      ? [
+          {
+            id: 'dueFrom',
+            label: `Vence de ${dueFrom}`,
+            onRemove: () => patchParams({ dueFrom: null }),
+          },
+        ]
       : []),
     ...(dueTo
       ? [{ id: 'dueTo', label: `Vence até ${dueTo}`, onRemove: () => patchParams({ dueTo: null }) }]
@@ -402,114 +411,7 @@ export function ReceivablesListPage() {
           <FinanceSituationStrip items={situationItems} />
         </div>
 
-        <WorkspaceBody
-          className="min-h-0 flex-1 pt-2"
-          context={
-            <WorkspacePane
-              aria-label="Contexto do título"
-              surface="support"
-              className="hidden h-full overflow-auto xl:flex"
-              data-region="context-region"
-            >
-              <WorkspacePaneHeader title="Contexto do título" />
-              {previewRow ? (
-                <FinanceTitleContext
-                  reference={previewRow.externalReference ?? previewRow.id.slice(0, 8)}
-                  status={previewRow.status}
-                  statusLabels={RECEIVABLE_STATUS_LABELS}
-                  dueDate={previewRow.dueDate}
-                  principal={previewRow.principal}
-                  remainingBalance={previewRow.remainingBalance}
-                  settledAmount={previewRow.settledAmount}
-                  currencyCode={previewRow.currencyCode}
-                  paymentTerms={previewRow.paymentTerms}
-                  originKind={formatOriginKind(previewRow.origin.kind)}
-                  originReference={previewRow.origin.billingDocumentId || null}
-                  installmentsCount={previewRow.installments.length}
-                  settlementsCount={previewRow.settlements.length}
-                  createdAt={previewRow.createdAt}
-                  updatedAt={previewRow.updatedAt}
-                  counterpartyLabel="Cliente"
-                  counterpartyHref={`/app/clients/${previewRow.clientId}`}
-                  relations={<ReceivableChain row={previewRow} />}
-                  actions={
-                    <>
-                      <Link
-                        to={`/app/finance/receivables/${previewRow.id}`}
-                        className="inline-flex h-[var(--control-height)] items-center rounded-[3px] border border-[color:var(--color-brand-600)] bg-[color:var(--color-brand-600)] px-2.5 text-[12px] font-semibold text-white no-underline hover:bg-[color:var(--color-brand-700)]"
-                      >
-                        {previewRow.status === 'OVERDUE'
-                          ? 'Abrir e tratar cobrança'
-                          : 'Abrir título'}
-                      </Link>
-                      <button
-                        type="button"
-                        className={financeControlClass}
-                        onClick={() => setDrawerOpen(true)}
-                      >
-                        Prévia
-                      </button>
-                    </>
-                  }
-                />
-              ) : (
-                /*
-                  SEM SELECAO — A COLUNA DIZ O RECORTE, E NAO FICA VAZIA.
-                  Uma coluna de contexto em branco e o defeito que faz a bancada parecer inacabada.
-                  O que ela mostra aqui e FATO que a tela ja possui: qual conjunto foi lido, quantos
-                  titulos ele tem, qual janela de vencimento esta aplicada.
-                */
-                <>
-                  <ContextSection title="Recorte lido">
-                    <ContextFacts
-                      facts={[
-                        { label: 'Títulos no recorte', value: publishedCount(page?.total) ?? 'Não lido' },
-                        { label: 'Situação', value: statusForQuery ? (RECEIVABLE_STATUS_LABELS[statusForQuery] ?? statusForQuery) : 'Todas' },
-                        { label: 'Busca', value: search || 'Sem termo' },
-                        { label: 'Vence de', value: dueFrom || 'Sem início' },
-                        { label: 'Vence até', value: dueTo || 'Sem fim' },
-                        {
-                          label: 'Nesta página',
-                          value: state.phase === 'ready' ? String(orderedRows.length) : 'Não lido',
-                        },
-                      ]}
-                    />
-                  </ContextSection>
-                  {/*
-                    CONTEXTO E DADO EMPRESARIAL, NAO TUTORIAL.
-
-                    Aqui havia "Como ler esta carteira" com tres bullets explicando a propria tela
-                    ("valores e contagens vem do resumo do servidor...", "selecione um titulo para
-                    ver..."). Instrucao de operador nao e contexto: a coluna responde "o que e este
-                    trabalho", e explicar a interface consome a area mais cara sem entregar fato.
-
-                    No lugar ficam as PROVENIENCIA dos numeros que ja estao na coluna — o que o
-                    servidor agregou e o que e leitura derivada. Isso e contexto de negocio: diz de
-                    onde vem o valor e o que ele NAO inclui.
-                  */}
-                  <ContextSection title="Origem dos números">
-                    <ContextFacts
-                      facts={[
-                        {
-                          label: 'Valores e contagens',
-                          value: 'Resumo do servidor sobre o recorte',
-                        },
-                        {
-                          label: 'Atraso',
-                          value: 'Leitura do vencimento persistido',
-                        },
-                        {
-                          label: 'Faixa de aging',
-                          value: 'Não publicada pelo domínio a receber',
-                        },
-                      ]}
-                    />
-                  </ContextSection>
-                </>
-              )}
-            </WorkspacePane>
-          }
-        >
+        <WorkspaceBody className="min-h-0 flex-1 pt-2">
           <WorkspacePane className="h-full overflow-hidden" data-region="worklist-master">
             <WorkspacePaneHeader
               title="Títulos a receber"
@@ -572,7 +474,11 @@ export function ReceivablesListPage() {
             {/* FILTRO COMPOSTO — a arvore AND/OR da engine, aplicada no SERVIDOR. */}
             {schema ? (
               <div className="shrink-0 px-3 pt-2" data-region="command-filter-surface">
-                <DynamicFilterBuilder schema={schema} value={filterGroup} onChange={setFilterGroup} />
+                <DynamicFilterBuilder
+                  schema={schema}
+                  value={filterGroup}
+                  onChange={setFilterGroup}
+                />
               </div>
             ) : null}
 
@@ -591,7 +497,15 @@ export function ReceivablesListPage() {
                     run: (ids) =>
                       exportSelectionToCsv(
                         'contas-a-receber-selecionadas.csv',
-                        ['Título', 'Vencimento', 'Situação', 'Atraso', 'Principal', 'Saldo', 'Moeda'],
+                        [
+                          'Título',
+                          'Vencimento',
+                          'Situação',
+                          'Atraso',
+                          'Principal',
+                          'Saldo',
+                          'Moeda',
+                        ],
                         orderedRows
                           .filter((row) => ids.includes(row.id))
                           .map((row) => [
@@ -648,7 +562,11 @@ export function ReceivablesListPage() {
                     title="Não foi possível ler a carteira"
                     description={state.message}
                     action={
-                      <button type="button" className={financeControlClass} onClick={() => void reload()}>
+                      <button
+                        type="button"
+                        className={financeControlClass}
+                        onClick={() => void reload()}
+                      >
                         Tentar novamente
                       </button>
                     }
@@ -790,7 +708,8 @@ export function ReceivablesListPage() {
                   className={`flex shrink-0 items-center justify-between py-1.5 text-[11px] text-[color:var(--color-text-secondary)] ${worklistGroupClass}`}
                 >
                   <span aria-live="polite" className="tabular-nums">
-                    {page.offset + 1}–{Math.min(page.offset + page.limit, page.total)} de {page.total}
+                    {page.offset + 1}–{Math.min(page.offset + page.limit, page.total)} de{' '}
+                    {page.total}
                   </span>
                   <ModulePagination
                     pageNumber={safePageNumber}
@@ -889,18 +808,24 @@ export function buildReceivablePreview(row: ReceivableDetail): ContextPreviewBod
 
   return {
     identifier: row.externalReference ?? row.id,
-    subtitle: `Origem: ${origin.kind}`,
+    subtitle: `Origem: ${formatOriginKind(origin.kind)}`,
     status: <FinanceStatusBadge status={row.status} labels={RECEIVABLE_STATUS_LABELS} />,
     facts: [
       { label: 'Vencimento', value: <DateTime value={row.dueDate} mode="date" /> },
       { label: 'Atraso', value: overdueLabel(row.dueDate) ?? 'sem atraso' },
-      { label: 'Principal', value: <Money value={row.principal} currencyCode={row.currencyCode} /> },
+      {
+        label: 'Principal',
+        value: <Money value={row.principal} currencyCode={row.currencyCode} />,
+      },
       {
         label: 'Saldo',
         value: <Money value={row.remainingBalance} currencyCode={row.currencyCode} emphasis />,
         emphasis: true,
       },
-      { label: 'Recebido', value: <Money value={row.settledAmount} currencyCode={row.currencyCode} /> },
+      {
+        label: 'Recebido',
+        value: <Money value={row.settledAmount} currencyCode={row.currencyCode} />,
+      },
       { label: 'Parcelas', value: String(row.installments.length) },
       { label: 'Liquidações', value: String(row.settlements.length) },
       { label: 'Condição de pagamento', value: row.paymentTerms },
@@ -912,7 +837,11 @@ export function buildReceivablePreview(row: ReceivableDetail): ContextPreviewBod
        * Relacao sem rotulo humano NAO exibe o identificador tecnico: o vinculo existe (e navega,
        * quando ha destino real), mas o valor mostrado e o nome do objeto.
        */
-      { label: 'Cliente', value: 'Abrir cadastro do cliente', href: `/app/clients/${row.clientId}` },
+      {
+        label: 'Cliente',
+        value: 'Abrir cadastro do cliente',
+        href: `/app/clients/${row.clientId}`,
+      },
       {
         label: 'Ordem de serviço',
         value: 'Abrir planejamento da ordem',

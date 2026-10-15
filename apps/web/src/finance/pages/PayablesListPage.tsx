@@ -25,8 +25,6 @@ import {
 } from '../../engine/DynamicFilterBuilder';
 import { advancedFilterFromGroup } from '../../engine';
 import {
-  ContextFacts,
-  ContextSection,
   WorkspaceActiveFilters,
   WorkspaceBody,
   WorkspaceEmpty,
@@ -48,11 +46,7 @@ import {
   formatSummaryAmounts,
   publishedCount,
 } from '../components/FinanceSituation';
-import {
-  FinanceWorklistToolbar,
-  financeControlClass,
-} from '../components/FinanceWorklistToolbar';
-import { FinanceTitleContext } from '../components/FinanceTitleContext';
+import { FinanceWorklistToolbar, financeControlClass } from '../components/FinanceWorklistToolbar';
 import { PAYABLES_ALLOWED_FILTERS, PAYABLES_BUILT_IN_VIEWS } from './finance-smart-list';
 import { payableEngineRow } from '../utils/finance-engine-rows';
 import {
@@ -107,7 +101,9 @@ function toSortable(row: PayableDetail): PayableSortable {
     dueDate: row.dueDate,
     reference: row.externalReference ?? row.origin.reference ?? null,
     amount: Number.isFinite(Number(row.principal)) ? Number(row.principal) : null,
-    outstanding: Number.isFinite(Number(row.remainingBalance)) ? Number(row.remainingBalance) : null,
+    outstanding: Number.isFinite(Number(row.remainingBalance))
+      ? Number(row.remainingBalance)
+      : null,
     overdueDays: daysPastDue(row.dueDate),
     status: row.status,
   };
@@ -228,7 +224,8 @@ export function PayablesListPage() {
     urlSync: true,
     initialSort: { key: 'dueDate', direction: 'asc' },
     sortAccessors: {
-      externalReference: (row: PayableDetail) => row.externalReference ?? row.origin.reference ?? row.id,
+      externalReference: (row: PayableDetail) =>
+        row.externalReference ?? row.origin.reference ?? row.id,
       dueDate: (row: PayableDetail) => new Date(row.dueDate).getTime(),
       status: (row: PayableDetail) => row.status,
       agingBucket: (row: PayableDetail) => row.agingBucket,
@@ -311,9 +308,17 @@ export function PayablesListPage() {
           },
         ]
       : []),
-    ...(search ? [{ id: 'q', label: `Busca: ${search}`, onRemove: () => patchParams({ q: null }) }] : []),
+    ...(search
+      ? [{ id: 'q', label: `Busca: ${search}`, onRemove: () => patchParams({ q: null }) }]
+      : []),
     ...(dueFrom
-      ? [{ id: 'dueFrom', label: `Vence de ${dueFrom}`, onRemove: () => patchParams({ dueFrom: null }) }]
+      ? [
+          {
+            id: 'dueFrom',
+            label: `Vence de ${dueFrom}`,
+            onRemove: () => patchParams({ dueFrom: null }),
+          },
+        ]
       : []),
     ...(dueTo
       ? [{ id: 'dueTo', label: `Vence até ${dueTo}`, onRemove: () => patchParams({ dueTo: null }) }]
@@ -383,123 +388,7 @@ export function PayablesListPage() {
           <FinanceSituationStrip items={situationItems} />
         </div>
 
-        <WorkspaceBody
-          className="min-h-0 flex-1 pt-2"
-          context={
-            <WorkspacePane
-              aria-label="Contexto do título"
-              surface="support"
-              className="hidden h-full overflow-auto xl:flex"
-              data-region="context-region"
-            >
-              <WorkspacePaneHeader title="Contexto do título" />
-              {previewRow ? (
-                <FinanceTitleContext
-                  reference={previewRow.externalReference ?? previewRow.origin.reference ?? previewRow.id.slice(0, 8)}
-                  status={previewRow.status}
-                  statusLabels={PAYABLE_STATUS_LABELS}
-                  dueDate={previewRow.dueDate}
-                  principal={previewRow.principal}
-                  remainingBalance={previewRow.remainingBalance}
-                  settledAmount={previewRow.paidAmount}
-                  currencyCode={previewRow.currencyCode}
-                  agingBucket={previewRow.agingBucket}
-                  paymentTerms={previewRow.paymentTerms}
-                  originKind={previewRow.origin.kind}
-                  originReference={previewRow.origin.reference || null}
-                  installmentsCount={previewRow.installments.length}
-                  settlementsCount={previewRow.payments.length}
-                  createdAt={previewRow.createdAt}
-                  updatedAt={previewRow.updatedAt}
-                  counterpartyLabel="Fornecedor"
-                  counterpartyHref={`/app/suppliers/${previewRow.counterpartyId}`}
-                  actions={
-                    <>
-                      <Link
-                        to={`/app/finance/payables/${previewRow.id}`}
-                        className="inline-flex h-[var(--control-height)] items-center rounded-[3px] border border-[color:var(--color-brand-600)] bg-[color:var(--color-brand-600)] px-2.5 text-[12px] font-semibold text-white no-underline hover:bg-[color:var(--color-brand-700)]"
-                      >
-                        {previewRow.status === 'OVERDUE'
-                          ? 'Abrir e regularizar'
-                          : 'Abrir título'}
-                      </Link>
-                      <button
-                        type="button"
-                        className={financeControlClass}
-                        onClick={() => setDrawerOpen(true)}
-                      >
-                        Prévia
-                      </button>
-                    </>
-                  }
-                />
-              ) : (
-                <>
-                  <ContextSection title="Recorte lido">
-                    <ContextFacts
-                      facts={[
-                        { label: 'Títulos no recorte', value: publishedCount(page?.total) ?? 'Não lido' },
-                        {
-                          label: 'Situação',
-                          value: statusForQuery
-                            ? (PAYABLE_STATUS_LABELS[statusForQuery] ?? statusForQuery)
-                            : 'Todas',
-                        },
-                        {
-                          label: 'Faixa',
-                          value: agingFilter
-                            ? (AGING_BUCKET_LABELS[agingFilter] ?? agingFilter)
-                            : 'Todas',
-                        },
-                        { label: 'Busca', value: search || 'Sem termo' },
-                        { label: 'Vence de', value: dueFrom || 'Sem início' },
-                        { label: 'Vence até', value: dueTo || 'Sem fim' },
-                        {
-                          label: 'Nesta página',
-                          value: state.phase === 'ready' ? String(orderedRows.length) : 'Não lido',
-                        },
-                      ]}
-                    />
-                  </ContextSection>
-                  {/*
-                    CONTEXTO E DADO EMPRESARIAL, NAO TUTORIAL.
-
-                    Aqui havia "Como ler esta carteira" — instrucao de operador dentro da coluna que
-                    existe para dar FATO. Um ERP Tier-1 nao ensina o proprio produto no contexto
-                    operacional.
-
-                    No lugar fica a PROVENIENCIA dos numeros: o que e resumo do servidor, o que e
-                    fato persistido e o que e recorte aplicado localmente. Isso muda a leitura do
-                    operador — ele passa a saber o ALCANCE de cada numero, o que e informacao de
-                    negocio, e nao ajuda de interface.
-                  */}
-                  <ContextSection title="Origem dos números">
-                    <ContextFacts
-                      facts={[
-                        {
-                          label: 'Valores e contagens',
-                          value: 'Resumo do servidor sobre o recorte',
-                        },
-                        {
-                          label: 'Faixa de atraso',
-                          value: 'Fato persistido do título',
-                        },
-                        {
-                          label: 'Atraso',
-                          value: 'Leitura do vencimento persistido',
-                        },
-                        {
-                          label: 'Recorte por faixa',
-                          value: 'Aplicado nesta página',
-                        },
-                      ]}
-                    />
-                  </ContextSection>
-                </>
-              )}
-            </WorkspacePane>
-          }
-        >
+        <WorkspaceBody className="min-h-0 flex-1 pt-2">
           <WorkspacePane className="h-full overflow-hidden" data-region="worklist-master">
             <WorkspacePaneHeader
               title="Títulos a pagar"
@@ -551,14 +440,24 @@ export function PayablesListPage() {
               <WorkspaceActiveFilters
                 filters={activeFilterChips}
                 onClearAll={() =>
-                  patchParams({ status: null, agingBucket: null, q: null, dueFrom: null, dueTo: null })
+                  patchParams({
+                    status: null,
+                    agingBucket: null,
+                    q: null,
+                    dueFrom: null,
+                    dueTo: null,
+                  })
                 }
               />
             </div>
 
             {schema ? (
               <div className="shrink-0 px-3 pt-2" data-region="command-filter-surface">
-                <DynamicFilterBuilder schema={schema} value={filterGroup} onChange={setFilterGroup} />
+                <DynamicFilterBuilder
+                  schema={schema}
+                  value={filterGroup}
+                  onChange={setFilterGroup}
+                />
               </div>
             ) : null}
 
@@ -577,7 +476,16 @@ export function PayablesListPage() {
                     run: (ids) =>
                       exportSelectionToCsv(
                         'contas-a-pagar-selecionadas.csv',
-                        ['Referência', 'Origem', 'Vencimento', 'Atraso', 'Situação', 'Faixa', 'Saldo', 'Moeda'],
+                        [
+                          'Referência',
+                          'Origem',
+                          'Vencimento',
+                          'Atraso',
+                          'Situação',
+                          'Faixa',
+                          'Saldo',
+                          'Moeda',
+                        ],
                         orderedRows
                           .filter((row) => ids.includes(row.id))
                           .map((row) => [
@@ -630,7 +538,11 @@ export function PayablesListPage() {
                     title="Não foi possível ler a carteira"
                     description={state.message}
                     action={
-                      <button type="button" className={financeControlClass} onClick={() => void reload()}>
+                      <button
+                        type="button"
+                        className={financeControlClass}
+                        onClick={() => void reload()}
+                      >
                         Tentar novamente
                       </button>
                     }
@@ -816,7 +728,8 @@ export function PayablesListPage() {
                   className={`flex shrink-0 items-center justify-between py-1.5 text-[11px] text-[color:var(--color-text-secondary)] ${worklistGroupClass}`}
                 >
                   <span aria-live="polite" className="tabular-nums">
-                    {page.offset + 1}–{Math.min(page.offset + page.limit, page.total)} de {page.total}
+                    {page.offset + 1}–{Math.min(page.offset + page.limit, page.total)} de{' '}
+                    {page.total}
                   </span>
                   <ModulePagination
                     pageNumber={safePageNumber}
@@ -860,7 +773,10 @@ export function buildPayablePreview(row: PayableDetail): ContextPreviewBody {
       { label: 'Vencimento', value: <DateTime value={row.dueDate} mode="date" /> },
       { label: 'Atraso', value: overdueLabel(row.dueDate) ?? 'sem atraso' },
       { label: 'Faixa', value: AGING_BUCKET_LABELS[row.agingBucket] ?? row.agingBucket },
-      { label: 'Principal', value: <Money value={row.principal} currencyCode={row.currencyCode} /> },
+      {
+        label: 'Principal',
+        value: <Money value={row.principal} currencyCode={row.currencyCode} />,
+      },
       {
         label: 'Saldo',
         value: <Money value={row.remainingBalance} currencyCode={row.currencyCode} emphasis />,

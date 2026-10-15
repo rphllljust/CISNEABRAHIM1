@@ -42,7 +42,13 @@ function renderFact(value: ReactNode | string | null | undefined): ReactNode {
   return value;
 }
 
-function ObjectActionButton({ action, variant }: { action: ObjectAction; variant: 'primary' | 'secondary' }) {
+function ObjectActionButton({
+  action,
+  variant,
+}: {
+  action: ObjectAction;
+  variant: 'primary' | 'secondary';
+}) {
   const disabled = action.disabled === true;
   const label = toHumanText(action.label) ?? action.label;
 
@@ -105,7 +111,9 @@ export function EnterpriseObjectHeader({
 
   const visibleMetadata = metadata
     .map((field) => ({ ...field, rendered: renderFact(field.value) }))
-    .filter((field) => field.rendered !== null && field.rendered !== undefined && field.rendered !== '');
+    .filter(
+      (field) => field.rendered !== null && field.rendered !== undefined && field.rendered !== '',
+    );
 
   /*
    * ACAO DE MENU COM DESTINO PRECISA NAVEGAR.
@@ -143,8 +151,14 @@ export function EnterpriseObjectHeader({
   ];
 
   return (
-    <header className={cn('cisne-divider--section bg-transparent px-0 pt-1 pb-3', className)}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <header
+      className={cn(
+        'grid gap-3 border-l-4 border-brand-600 bg-white p-4 lg:grid-cols-[minmax(0,1fr)_auto]',
+        className,
+      )}
+      data-layout="object-identity"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3 lg:col-span-2">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             {humanReference ? (
@@ -187,7 +201,7 @@ export function EnterpriseObjectHeader({
         para que a primeira dobra do objeto continue sendo trabalho, e nao identidade.
       */}
       {visibleMetadata.length > 0 ? (
-        <dl className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-3 lg:grid-cols-5">
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-2 border-t border-[var(--erp-border)] pt-3 sm:grid-cols-3 lg:col-span-2 lg:grid-cols-5">
           {visibleMetadata.map((field) => (
             <div key={field.label} className="min-w-0">
               <dt className="text-[10px] font-medium tracking-wide text-[color:var(--color-text-muted)] uppercase">

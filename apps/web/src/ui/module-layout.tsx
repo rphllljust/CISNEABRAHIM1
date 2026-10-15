@@ -7,6 +7,7 @@ import { PageHeader } from './PageHeader';
 import { Pagination } from './Pagination';
 import { SkeletonTable } from './Skeleton';
 import { cn } from './utils/cn';
+import { WorkspaceContextHost } from './workspace-frame';
 
 export const filterControlClass =
   'w-full rounded-md border-0 bg-white py-2 px-3 text-sm text-gray-900 ring-1 ring-gray-300 ring-inset outline-none focus:ring-2 focus:ring-brand-500';
@@ -47,10 +48,15 @@ export function ModulePage({
   return (
     <main
       id="main-content"
-      className={cn('w-full', fills && 'flex min-h-0 flex-1 flex-col', PAGE_FRAME_CLASS[layout], className)}
+      className={cn(
+        'w-full',
+        fills && 'flex min-h-0 flex-1 flex-col',
+        PAGE_FRAME_CLASS[layout],
+        className,
+      )}
       data-layout-mode={layout}
     >
-      {children}
+      <WorkspaceContextHost>{children}</WorkspaceContextHost>
     </main>
   );
 }
@@ -82,16 +88,15 @@ export function FilterCard({ children, className }: { children: ReactNode; class
  * Agora a grade e a propria area de trabalho: sem raio, sem sombra, sem contorno decorativo. O que
  * a delimita e o divisor estrutural do header da grade e a largura da fila.
  */
-export function ModuleTableCard({ children, className }: { children: ReactNode; className?: string }) {
+export function ModuleTableCard({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <div
-      className={cn(
-        'mb-2 w-full min-w-0 overflow-x-auto bg-white',
-        className,
-      )}
-    >
-      {children}
-    </div>
+    <div className={cn('mb-2 w-full min-w-0 overflow-x-auto bg-white', className)}>{children}</div>
   );
 }
 
@@ -190,13 +195,7 @@ export function ModulePageHeader({
  * — o operador via "Carregando…" sem saber de que tela. Aqui o titulo da pagina e o bloco de
  * estado convivem, na MESMA hierarquia das telas que ja carregaram.
  */
-export function ModuleStatePage({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactNode;
-}) {
+export function ModuleStatePage({ title, children }: { title: string; children: ReactNode }) {
   return (
     <ModulePage>
       <ModulePageHeader title={title} />

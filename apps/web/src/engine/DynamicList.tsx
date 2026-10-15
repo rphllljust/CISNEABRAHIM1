@@ -167,6 +167,11 @@ export function DynamicList({
 }: DynamicListProps): React.ReactElement {
   const columns = useColumns(schema);
   const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null);
+  const [previewedId, setPreviewedId] = useState<string | null>(null);
+  const openContext = (row: DynamicListRow): void => {
+    setPreviewedId(row.id);
+    onRowClick?.(row);
+  };
 
   /*
    * ESTADO DA EDIÇÃO INLINE.
@@ -179,12 +184,16 @@ export function DynamicList({
   const dirty = useEditableRows(rows, editable, onRowChange, onSaveRows, isCellReadOnly);
 
   const sorted = useMemo(
-    () => sortRows(rows.map((row) => dirty.merge(row)), sort),
+    () =>
+      sortRows(
+        rows.map((row) => dirty.merge(row)),
+        sort,
+      ),
     [rows, sort, dirty],
   );
   const selectable = selectedIds !== undefined && onSelectionChange !== undefined;
   const owner = ownerField
-    ? schema?.fields.find((field) => field.name === ownerField) ?? null
+    ? (schema?.fields.find((field) => field.name === ownerField) ?? null)
     : null;
   const aging = resolveAgingField(schema, agingField);
 
@@ -196,11 +205,7 @@ export function DynamicList({
   const listView = schema?.views.find((view) => view.viewType === 'list');
   const computedFields = useMemo(
     () =>
-      readComputedFields(
-        listView?.layout,
-        schema?.allowedPermLevels ?? [],
-        schema?.computedFields,
-      ),
+      readComputedFields(listView?.layout, schema?.allowedPermLevels ?? [], schema?.computedFields),
     [listView?.layout, schema?.allowedPermLevels, schema?.computedFields],
   );
   const rowAccentRules = useMemo(
@@ -215,8 +220,7 @@ export function DynamicList({
         ? selectedIds.includes(id)
         : selectedIds.has(id);
 
-  const allSelected =
-    selectable && rows.length > 0 && rows.every((row) => isSelected(row.id));
+  const allSelected = selectable && rows.length > 0 && rows.every((row) => isSelected(row.id));
 
   const toggleSort = (name: string): void => {
     setSort((current) =>
@@ -238,13 +242,12 @@ export function DynamicList({
       return;
     }
     const current = Array.isArray(selectedIds) ? selectedIds : [...selectedIds];
-    onSelectionChange(
-      isSelected(id) ? current.filter((value) => value !== id) : [...current, id],
-    );
+    onSelectionChange(isSelected(id) ? current.filter((value) => value !== id) : [...current, id]);
   };
 
   const extraColumns = (owner ? 1 : 0) + (aging ? 1 : 0) + computedFields.length;
-  const totalColumns = columns.length + extraColumns + (renderRowActions ? 1 : 0) + (selectable ? 1 : 0);
+  const totalColumns =
+    columns.length + extraColumns + (renderRowActions ? 1 : 0) + (selectable ? 1 : 0);
 
   /*
    * AGREGAÇÕES — o rodapé é calculado a partir das DECLARAÇÕES do metadado, não de um
@@ -260,7 +263,11 @@ export function DynamicList({
 
   if (!schema) {
     return (
-      <p className="text-sm text-gray-600" data-testid="dynamic-list-awaiting-schema" aria-busy="true">
+      <p
+        className="text-sm text-gray-600"
+        data-testid="dynamic-list-awaiting-schema"
+        aria-busy="true"
+      >
         {t('common.loading')}
       </p>
     );
@@ -290,7 +297,7 @@ export function DynamicList({
           </button>
         </div>
       ) : null}
-    {/*
+      {/*
       CONTENÇÃO DA GRADE — a grade densa NÃO PODE VAZAR para cima do contexto.
 
       A `DynamicList` devolvia uma `<table>` nua. Dentro de uma grade de duas colunas
@@ -303,273 +310,315 @@ export function DynamicList({
       coluna, ela ROLA dentro da própria coluna em vez de invadir a vizinha. É a mesma garantia que
       `min-w-0` dá na coluna — sem ela, `minmax(0,1fr)` não basta.
     */}
-    <div className="w-full min-w-0 max-w-full overflow-x-auto">
-    <table
-      className="w-full text-sm"
-      data-testid="dynamic-list"
-      data-entity={schema.name}
-      aria-label={ariaLabel}
-      data-column-count={String(columns.length)}
-      /*
-       * `data-list-count` é o número de linhas RENDERIZADAS — não um total que a engine
-       * calculou. Serve à prova de que o filtro do KPI mudou o conjunto exibido: sem ele, a
-       * única forma de medir seria contar `tr` no teste, o que confundiria linha de rodapé
-       * com registro.
-       */
-      data-list-count={String(rows.length)}
-    >
-      <thead>
-        <tr>
-          {selectable ? (
-            <th scope="col" className={cn(DYNAMIC_LIST_HEAD_CELL, 'w-8')}>
-              <input
-                type="checkbox"
-                data-testid="dynamic-list-select-all"
-                aria-label={t('list.selectRow')}
-                checked={allSelected}
-                onChange={toggleAll}
-              />
-            </th>
-          ) : null}
-          {columns.map((column) => (
-            <th
-              key={column.name}
-              scope="col"
-              /*
-               * ALINHAMENTO DO CABEÇALHO SEGUE O TIPO DA COLUNA.
-               *
-               * Numa coluna de dinheiro os valores ficam à direita (é assim que se comparam
-               * grandezas), e um cabeçalho à esquerda flutuando longe dos próprios números é o
-               * detalhe que denuncia grade inacabada em ERP. O eixo do cabeçalho é o MESMO da
-               * célula, derivado do TIPO do metadado — não de uma lista de nomes de campo.
-               *
-               * DENSIDADE — A CLASSE VIVE EM `DYNAMIC_LIST_HEAD_CELL`, UMA VEZ. Ver a nota dela:
-               * esta grade era a que media 26px de cabeçalho onde o contrato pede 36px, porque as
-               * cinco células de cabeçalho redeclaravam o próprio estilo e divergiam da grade
-               * principal do produto.
-               */
-              className={cn(DYNAMIC_LIST_HEAD_CELL, isNumericField(column) ? 'text-right' : 'text-left')}
-              aria-sort={
-                sort?.field === column.name
-                  ? sort.direction === 'asc'
-                    ? 'ascending'
-                    : 'descending'
-                  : 'none'
-              }
-            >
-              <button
-                type="button"
-                className={[
-                  'inline-flex items-center gap-1',
-                  isNumericField(column) ? 'flex-row-reverse' : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                onClick={() => toggleSort(column.name)}
-              >
-                {column.label}
-                {sort?.field === column.name ? (sort.direction === 'asc' ? ' ↑' : ' ↓') : ''}
-              </button>
-            </th>
-          ))}
-          {owner ? (
-            <th scope="col" className={DYNAMIC_LIST_HEAD_CELL}>
-              {owner.label}
-            </th>
-          ) : null}
-          {aging ? (
-            <th scope="col" className={DYNAMIC_LIST_HEAD_CELL}>
-              Aging
-            </th>
-          ) : null}
-          {/*
+      <div className="w-full min-w-0 max-w-full overflow-x-auto">
+        <table
+          className="w-full text-sm"
+          data-testid="dynamic-list"
+          data-entity={schema.name}
+          aria-label={ariaLabel}
+          data-column-count={String(columns.length)}
+          /*
+           * `data-list-count` é o número de linhas RENDERIZADAS — não um total que a engine
+           * calculou. Serve à prova de que o filtro do KPI mudou o conjunto exibido: sem ele, a
+           * única forma de medir seria contar `tr` no teste, o que confundiria linha de rodapé
+           * com registro.
+           */
+          data-list-count={String(rows.length)}
+        >
+          <thead>
+            <tr>
+              {selectable ? (
+                <th scope="col" className={cn(DYNAMIC_LIST_HEAD_CELL, 'w-8')}>
+                  <input
+                    type="checkbox"
+                    data-testid="dynamic-list-select-all"
+                    aria-label={t('list.selectRow')}
+                    checked={allSelected}
+                    onChange={toggleAll}
+                  />
+                </th>
+              ) : null}
+              {columns.map((column) => (
+                <th
+                  key={column.name}
+                  scope="col"
+                  /*
+                   * ALINHAMENTO DO CABEÇALHO SEGUE O TIPO DA COLUNA.
+                   *
+                   * Numa coluna de dinheiro os valores ficam à direita (é assim que se comparam
+                   * grandezas), e um cabeçalho à esquerda flutuando longe dos próprios números é o
+                   * detalhe que denuncia grade inacabada em ERP. O eixo do cabeçalho é o MESMO da
+                   * célula, derivado do TIPO do metadado — não de uma lista de nomes de campo.
+                   *
+                   * DENSIDADE — A CLASSE VIVE EM `DYNAMIC_LIST_HEAD_CELL`, UMA VEZ. Ver a nota dela:
+                   * esta grade era a que media 26px de cabeçalho onde o contrato pede 36px, porque as
+                   * cinco células de cabeçalho redeclaravam o próprio estilo e divergiam da grade
+                   * principal do produto.
+                   */
+                  className={cn(
+                    DYNAMIC_LIST_HEAD_CELL,
+                    isNumericField(column) ? 'text-right' : 'text-left',
+                  )}
+                  aria-sort={
+                    sort?.field === column.name
+                      ? sort.direction === 'asc'
+                        ? 'ascending'
+                        : 'descending'
+                      : 'none'
+                  }
+                >
+                  <button
+                    type="button"
+                    className={[
+                      'inline-flex items-center gap-1',
+                      isNumericField(column) ? 'flex-row-reverse' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    onClick={() => toggleSort(column.name)}
+                  >
+                    {column.label}
+                    {sort?.field === column.name ? (sort.direction === 'asc' ? ' ↑' : ' ↓') : ''}
+                  </button>
+                </th>
+              ))}
+              {owner ? (
+                <th scope="col" className={DYNAMIC_LIST_HEAD_CELL}>
+                  {owner.label}
+                </th>
+              ) : null}
+              {aging ? (
+                <th scope="col" className={DYNAMIC_LIST_HEAD_CELL}>
+                  Aging
+                </th>
+              ) : null}
+              {/*
             COLUNAS COMPUTADAS — rótulo do metadado, valor derivado por fórmula. A engine não
             sabe o que "Dias em atraso" significa: ela sabe aplicar `diff_days`.
           */}
-          {computedFields.map((field) => (
-            <th
-              key={field.name}
-              scope="col"
-              data-computed-field={field.name}
-              className={DYNAMIC_LIST_HEAD_CELL}
-            >
-              {field.label}
-            </th>
-          ))}
-          {renderRowActions ? (
-            <th scope="col" className={cn(DYNAMIC_LIST_HEAD_CELL, 'text-right')}>
-              {t('common.actions')}
-            </th>
-          ) : null}
-        </tr>
-      </thead>
-      <tbody>
-        {sorted.length === 0 ? (
-          <tr>
-            <td colSpan={totalColumns} className="px-2 py-3 text-gray-500">
-              {emptyMessage ?? t('common.empty')}
-            </td>
-          </tr>
-        ) : (
-          sorted.map((row) => {
-            const accent = evaluateRowAccent(rowAccentRules, row);
-            return (
-            <tr
-              key={row.id}
-              data-testid="dynamic-list-row"
-              data-row-id={row.id}
-              /* O ACCENT é publicado como TOKEN semântico; o design system decide a cor. */
-              data-row-accent={accent ?? null}
-              className={[
-                onRowClick ? 'cursor-pointer hover:bg-[color:var(--color-grid-row-hover)]' : '',
-                isSelected(row.id) ? 'bg-[color:var(--erp-surface-selected)]' : '',
-                accent ? rowAccentClass(accent) : '',
-              ]
-                .filter(Boolean)
-                .join(' ')}
-              onClick={onRowClick ? () => onRowClick(row) : undefined}
-            >
-              {selectable ? (
-                <td className="h-[var(--row-height)] w-8 border-b border-[color:var(--color-border-muted)] px-2 py-0.5">
-                  <input
-                    type="checkbox"
-                    data-testid="dynamic-list-select-row"
-                    aria-label={t('list.selectRow')}
-                    checked={isSelected(row.id)}
-                    onChange={() => toggleRow(row.id)}
-                    // Sem isto, marcar a caixa também abriria o detalhe da linha.
-                    onClick={(event) => event.stopPropagation()}
-                  />
-                </td>
-              ) : null}
-              {columns.map((column) => (
-                <td
-                  key={column.name}
-                  /*
-                   * ALTURA DA LINHA É DO TOKEN; LARGURA É DO NAVEGADOR.
-                   *
-                   * Medido em `/app/service-orders`: as linhas saíam com 105px enquanto o texto de
-                   * cada célula tinha UMA linha de 18,5px. A causa não era a célula — era um valor
-                   * longo e inquebrável numa coluna de referência (identificador técnico) que, com
-                   * `table-layout: auto`, ALARGAVA a coluna e obrigava as demais células a quebrar
-                   * em várias linhas.
-                   *
-                   * `max-w-0` + `truncate` fazem a célula respeitar a largura calculada em vez de
-                   * esticá-la, e a grade volta a ter altura previsível mesmo quando o dado que
-                   * chega é um identificador comprido. O valor continua íntegro no DOM (nada é
-                   * cortado do dado, só da pintura) e o eixo numérico permanece à direita.
-                   */
-                  className={[
-                    'h-[var(--row-height)] max-w-0 truncate border-b border-[color:var(--color-border-muted)] px-2 py-0.5 text-[length:var(--type-body-size)]',
-                    isNumericField(column) ? 'text-right tabular-nums whitespace-nowrap' : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
+              {computedFields.map((field) => (
+                <th
+                  key={field.name}
+                  scope="col"
+                  data-computed-field={field.name}
+                  className={DYNAMIC_LIST_HEAD_CELL}
                 >
-                  {dirty.isEditable(column, row) ? (
-                    <InlineCell
-                      field={column}
-                      row={row}
-                      value={dirty.valueFor(row, column.name)}
-                      onChange={(next) => dirty.edit(row.id, column.name, next)}
-                      onCommit={() => dirty.commit(row.id)}
-                      onRevert={() => dirty.revert(row.id)}
-                    />
-                  ) : (
-                    renderCell?.(column, row) ?? (
-                      <FieldRenderer field={column} value={row[column.name]} />
-                    )
-                  )}
-                </td>
+                  {field.label}
+                </th>
               ))}
-              {owner ? (
-                <td className="h-[var(--row-height)] max-w-0 truncate border-b border-gray-100 px-2 py-0.5 text-[length:var(--type-body-size)]">
-                  <OwnerCell
-                    row={row}
-                    ownerField={owner}
-                    onReassign={onReassign}
-                    reassignOptions={reassignOptions}
-                  />
-                </td>
+              {renderRowActions ? (
+                <th scope="col" className={cn(DYNAMIC_LIST_HEAD_CELL, 'text-right')}>
+                  {t('common.actions')}
+                </th>
               ) : null}
-              {aging ? (
-                <td className="h-[var(--row-height)] max-w-0 truncate border-b border-gray-100 px-2 py-0.5 text-[length:var(--type-body-size)]">
-                  <AgingBadge value={row[aging.name]} />
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.length === 0 ? (
+              <tr>
+                <td colSpan={totalColumns} className="px-2 py-3 text-gray-500">
+                  {emptyMessage ?? t('common.empty')}
                 </td>
-              ) : null}
-              {/*
+              </tr>
+            ) : (
+              sorted.map((row) => {
+                const accent = evaluateRowAccent(rowAccentRules, row);
+                return (
+                  <tr
+                    key={row.id}
+                    data-testid="dynamic-list-row"
+                    data-row-id={row.id}
+                    tabIndex={onRowClick ? 0 : undefined}
+                    data-context-selected={
+                      onRowClick && previewedId === row.id ? 'true' : undefined
+                    }
+                    /* O ACCENT é publicado como TOKEN semântico; o design system decide a cor. */
+                    data-row-accent={accent ?? null}
+                    className={[
+                      onRowClick
+                        ? 'cursor-pointer hover:bg-[color:var(--color-grid-row-hover)]'
+                        : '',
+                      isSelected(row.id) || (onRowClick && previewedId === row.id)
+                        ? 'bg-[color:var(--erp-surface-selected)]'
+                        : '',
+                      accent ? rowAccentClass(accent) : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    onClick={
+                      onRowClick
+                        ? (event) => {
+                            if (
+                              (event.target as HTMLElement).closest(
+                                'a,button,input,select,textarea,[role="button"]',
+                              )
+                            )
+                              return;
+                            openContext(row);
+                          }
+                        : undefined
+                    }
+                    onKeyDown={
+                      onRowClick
+                        ? (event) => {
+                            if (event.target !== event.currentTarget) return;
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              openContext(row);
+                            }
+                            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                              event.preventDefault();
+                              const sibling =
+                                event.key === 'ArrowDown'
+                                  ? event.currentTarget.nextElementSibling
+                                  : event.currentTarget.previousElementSibling;
+                              if (sibling instanceof HTMLElement) sibling.focus();
+                            }
+                          }
+                        : undefined
+                    }
+                  >
+                    {selectable ? (
+                      <td className="h-[var(--row-height)] w-8 border-b border-[color:var(--color-border-muted)] px-2 py-0.5">
+                        <input
+                          type="checkbox"
+                          data-testid="dynamic-list-select-row"
+                          aria-label={t('list.selectRow')}
+                          checked={isSelected(row.id)}
+                          onChange={() => toggleRow(row.id)}
+                          // Sem isto, marcar a caixa também abriria o detalhe da linha.
+                          onClick={(event) => event.stopPropagation()}
+                        />
+                      </td>
+                    ) : null}
+                    {columns.map((column) => (
+                      <td
+                        key={column.name}
+                        /*
+                         * ALTURA DA LINHA É DO TOKEN; LARGURA É DO NAVEGADOR.
+                         *
+                         * Medido em `/app/service-orders`: as linhas saíam com 105px enquanto o texto de
+                         * cada célula tinha UMA linha de 18,5px. A causa não era a célula — era um valor
+                         * longo e inquebrável numa coluna de referência (identificador técnico) que, com
+                         * `table-layout: auto`, ALARGAVA a coluna e obrigava as demais células a quebrar
+                         * em várias linhas.
+                         *
+                         * `max-w-0` + `truncate` fazem a célula respeitar a largura calculada em vez de
+                         * esticá-la, e a grade volta a ter altura previsível mesmo quando o dado que
+                         * chega é um identificador comprido. O valor continua íntegro no DOM (nada é
+                         * cortado do dado, só da pintura) e o eixo numérico permanece à direita.
+                         */
+                        className={[
+                          'h-[var(--row-height)] max-w-0 truncate border-b border-[color:var(--color-border-muted)] px-2 py-0.5 text-[length:var(--type-body-size)]',
+                          isNumericField(column) ? 'text-right tabular-nums whitespace-nowrap' : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
+                      >
+                        {dirty.isEditable(column, row) ? (
+                          <InlineCell
+                            field={column}
+                            row={row}
+                            value={dirty.valueFor(row, column.name)}
+                            onChange={(next) => dirty.edit(row.id, column.name, next)}
+                            onCommit={() => dirty.commit(row.id)}
+                            onRevert={() => dirty.revert(row.id)}
+                          />
+                        ) : (
+                          (renderCell?.(column, row) ?? (
+                            <FieldRenderer field={column} value={row[column.name]} />
+                          ))
+                        )}
+                      </td>
+                    ))}
+                    {owner ? (
+                      <td className="h-[var(--row-height)] max-w-0 truncate border-b border-gray-100 px-2 py-0.5 text-[length:var(--type-body-size)]">
+                        <OwnerCell
+                          row={row}
+                          ownerField={owner}
+                          onReassign={onReassign}
+                          reassignOptions={reassignOptions}
+                        />
+                      </td>
+                    ) : null}
+                    {aging ? (
+                      <td className="h-[var(--row-height)] max-w-0 truncate border-b border-gray-100 px-2 py-0.5 text-[length:var(--type-body-size)]">
+                        <AgingBadge value={row[aging.name]} />
+                      </td>
+                    ) : null}
+                    {/*
                 CÉLULAS COMPUTADAS — o valor é CALCULADO aqui, a partir do DTO da linha.
                 Fórmula que não resolve (data ausente, op desconhecida) devolve `null` e a
                 célula mostra "—": um número inventado seria pior que um vazio declarado.
               */}
-              {computedFields.map((field) => (
-                <td
-                  key={field.name}
-                  data-computed-cell={field.name}
-                  className="h-[var(--row-height)] max-w-0 truncate border-b border-gray-100 px-2 py-0.5 text-[length:var(--type-body-size)] tabular-nums"
-                >
-                  <ComputedCell field={field} row={row} />
-                </td>
-              ))}
-              {renderRowActions ? (
-                <td
-                  className="h-[var(--row-height)] border-b border-gray-100 px-2 py-0.5 text-[length:var(--type-body-size)] text-right"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  {renderRowActions(row)}
-                </td>
-              ) : null}
-            </tr>
-            );
-          })
-        )}
-      </tbody>
-      {footer.length > 0 ? (
-        <tfoot>
-          <tr data-testid="dynamic-list-totals">
-            {selectable ? <td className="border-t border-gray-300 px-2 py-1.5" /> : null}
-            {columns.map((column, index) => (
-              <td
-                key={column.name}
-                data-total-field={column.name}
-                className="border-t border-gray-300 px-2 py-1.5 text-xs font-semibold"
-              >
-                {index === 0 ? (
-                  <span data-testid="dynamic-list-total-count">
-                    {sorted.length} {t('list.count').toLowerCase()}
-                  </span>
-                ) : null}
-                {/*
+                    {computedFields.map((field) => (
+                      <td
+                        key={field.name}
+                        data-computed-cell={field.name}
+                        className="h-[var(--row-height)] max-w-0 truncate border-b border-gray-100 px-2 py-0.5 text-[length:var(--type-body-size)] tabular-nums"
+                      >
+                        <ComputedCell field={field} row={row} />
+                      </td>
+                    ))}
+                    {renderRowActions ? (
+                      <td
+                        className="h-[var(--row-height)] border-b border-gray-100 px-2 py-0.5 text-[length:var(--type-body-size)] text-right"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        {renderRowActions(row)}
+                      </td>
+                    ) : null}
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+          {footer.length > 0 ? (
+            <tfoot>
+              <tr data-testid="dynamic-list-totals">
+                {selectable ? <td className="border-t border-gray-300 px-2 py-1.5" /> : null}
+                {columns.map((column, index) => (
+                  <td
+                    key={column.name}
+                    data-total-field={column.name}
+                    className="border-t border-gray-300 px-2 py-1.5 text-xs font-semibold"
+                  >
+                    {index === 0 ? (
+                      <span data-testid="dynamic-list-total-count">
+                        {sorted.length} {t('list.count').toLowerCase()}
+                      </span>
+                    ) : null}
+                    {/*
                   TOTAL GERAL no header: soma dos campos que DECLARAM agregação. Antes a engine
                   somava por tipo (`currency`); agora totaliza o que o metadado mandar.
                 */}
-                {aggregateLabel(column, sorted, footer)}
-              </td>
-            ))}
-            {owner ? <td className="border-t border-gray-300 px-2 py-1.5" /> : null}
-            {aging ? (
-              <td
-                data-total-field="__aging"
-                className="border-t border-gray-300 px-2 py-1.5 text-xs font-semibold"
-              >
-                {t('list.avgAging')}: {averageAging(sorted, aging.name)}
-              </td>
-            ) : null}
-            {computedFields.map((field) => (
-              <td
-                key={field.name}
-                data-total-computed-field={field.name}
-                className="border-t border-gray-300 px-2 py-1.5 text-xs font-semibold"
-              >
-                {aggregateLabel(field, sorted, footer)}
-              </td>
-            ))}
-            {renderRowActions ? <td className="border-t border-gray-300" /> : null}
-          </tr>
-        </tfoot>
-      ) : null}
-    </table>
-    </div>
+                    {aggregateLabel(column, sorted, footer)}
+                  </td>
+                ))}
+                {owner ? <td className="border-t border-gray-300 px-2 py-1.5" /> : null}
+                {aging ? (
+                  <td
+                    data-total-field="__aging"
+                    className="border-t border-gray-300 px-2 py-1.5 text-xs font-semibold"
+                  >
+                    {t('list.avgAging')}: {averageAging(sorted, aging.name)}
+                  </td>
+                ) : null}
+                {computedFields.map((field) => (
+                  <td
+                    key={field.name}
+                    data-total-computed-field={field.name}
+                    className="border-t border-gray-300 px-2 py-1.5 text-xs font-semibold"
+                  >
+                    {aggregateLabel(field, sorted, footer)}
+                  </td>
+                ))}
+                {renderRowActions ? <td className="border-t border-gray-300" /> : null}
+              </tr>
+            </tfoot>
+          ) : null}
+        </table>
+      </div>
     </>
   );
 }
@@ -603,10 +652,7 @@ function aggregateLabel(
 }
 
 /** Valor de uma célula: computado por fórmula, ou direto do campo. */
-function resolveCellValue(
-  column: MetaField | ComputedField,
-  row: DynamicListRow,
-): unknown {
+function resolveCellValue(column: MetaField | ComputedField, row: DynamicListRow): unknown {
   if (isComputedField(column)) {
     return evaluateFormula(column.formula, row);
   }
@@ -707,7 +753,11 @@ function buildFooter(
       continue;
     }
     const values = rows.map((row) => evaluateFormula(field.formula, row));
-    entries.push({ name: field.name, kind: field.aggregation, total: applyAggregation(field.aggregation, values) });
+    entries.push({
+      name: field.name,
+      kind: field.aggregation,
+      total: applyAggregation(field.aggregation, values),
+    });
   }
   return entries;
 }
@@ -854,10 +904,7 @@ function useEditableRows(
   const saveRef = useRef(onSaveRows);
   saveRef.current = onSaveRows;
 
-  const merge = useCallback(
-    (row: DynamicListRow): DynamicListRow => draft[row.id] ?? row,
-    [draft],
-  );
+  const merge = useCallback((row: DynamicListRow): DynamicListRow => draft[row.id] ?? row, [draft]);
 
   const count = Object.keys(draft).length;
 
@@ -963,7 +1010,8 @@ function OwnerCell({
 
   if (!onReassign || !reassignOptions || reassignOptions.length === 0) {
     return (
-      <span data-testid="dynamic-list-owner" className="cisne-type-body">`n        {display}
+      <span data-testid="dynamic-list-owner" className="cisne-type-body">
+        `n {display}
       </span>
     );
   }
@@ -1059,10 +1107,7 @@ function useColumns(schema: MetaEntitySchema | null): MetaField[] {
   }, [schema]);
 }
 
-function resolveAgingField(
-  schema: MetaEntitySchema | null,
-  explicit?: string,
-): MetaField | null {
+function resolveAgingField(schema: MetaEntitySchema | null, explicit?: string): MetaField | null {
   if (!schema) {
     return null;
   }

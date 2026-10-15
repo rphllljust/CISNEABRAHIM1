@@ -21148,3 +21148,32 @@ STATUS: **PASS_WITH_RESTRICTIONS**
 - A worklist existente mantém WorklistHeader, Saved Views, filtros compostos, State Panel, Context Drawer, comandos semânticos e ações em lote; a composição de paginação explicita intervalo e universo do recorte quando publicado.
 - ESLint e typecheck focados API/Web: PASS. Unit API: 4/4 PASS (runner permaneceu ativo após relatório). UI: 7 casos aprovados; o processo encerrou pelo timeout após as asserções, sem status de saída limpo. Integração PostgreSQL não executada: `TEST_DATABASE_URL` e servidor/container PostgreSQL não estão disponíveis; nenhuma integração foi alegada.
 - Sem alteração de schema, índice, regra empresarial ou migration. Produção permanece **NO-GO** até CI validar a query contra PostgreSQL.
+
+## RECOMPOSIÇÃO ESTRUTURAL DO FRONTEND / DRAWER DINÂMICO — 2026-10-15
+
+STATUS: **BLOCKED** — implementação parcial preservada, não promovida para main.
+
+Fonte: solicitação explícita desta sessão “CISNE — RECONSTRUÇÃO VISUAL BRUSCA DO FRONTEND REAL”, complementada por “Quero drawer dinâmico”, “Não fixo” e “Continue oq estava fazendo”. Classificação: decisão de apresentação/interação autorizada pelo responsável; não altera regra empresarial, API, capability, banco ou máquina de estados.
+
+### Delta estrutural implementado, ainda sem aceite
+
+- Shell recomposto em seletor de processo + navegação da área atual, respeitando os probes de autorização existentes. Breadcrumb transferido para a topbar. Command Palette existente preservada.
+- ModulePage recebe host contextual compartilhado. DynamicContextDrawer e ContextDrawer usam portal no desktop: nenhuma coluna antes da seleção, nenhuma modalidade que impeça a operação da fila. Fechamento libera a largura. Viewport estreito mantém sobreposição. O conteúdo continua sendo fornecido pela página, sem nova busca ou inferência de relações.
+- Clientes abandona o painel permanente e a duplicação desktop/mobile; usa o mesmo DynamicContextDrawer para o conteúdo já autorizado. Recebíveis e Pagáveis removem a coluna permanente e mantêm a prévia já existente no drawer dinâmico.
+- WorkspaceBody passa a expor contexto de processo sob disclosure voluntário. WorklistHeader reutiliza WorkspaceHeader; identidade, resumo e comando têm zonas próprias. Filtros metadata e criação de Saved Views tornam-se disclosures, mantendo as visões sempre acessíveis.
+- EnterpriseObjectPage separa corpo do registro e coluna de decisão/contexto. ObjectPanel publica âncoras; navegação de seção usa somente painéis realmente recebidos. EnterpriseObjectHeader reorganiza identidade, ações e fatos. A propagação depende dos consumidores existentes, não constitui validação individual de todas as rotas.
+- Dashboard: fila em largura integral por padrão; ContextDrawer apenas por seleção; análises e contexto de recorte passam a disclosure secundário. Fluxo e situação permanecem com as fontes existentes. Removida a camada de CSS acrescentada no fim do dashboard pelo trabalho anterior.
+- DynamicList ganha abertura de contexto por Enter/Espaço e navegação de foco por setas, sem capturar links, botões ou inputs. Billing usa seleção de linha e modo workspace.
+- Incluídos quatro casos em `apps/web/src/ui/workspace-recomposition.test.tsx`: seleção/troca/fechamento preservando filtro, enquadramento mobile, disclosure de contexto e separação conteúdo/decisão em Object Page.
+
+### Gates e bloqueio
+
+- TypeScript transpileModule: arquivos TSX alterados passaram no parser. Uma função de apresentação que ficou sem uso foi religada ao subtitle da prévia de recebível. Isto **não é typecheck completo**.
+- Typecheck completo tentado: BLOCKED — tipos node/vite/vitest e pacotes workspace não resolvidos, porque a instalação não concluiu.
+- ESLint focado tentado: BLOCKED — executável não instalado.
+- Vitest focado tentado: BLOCKED — executável não instalado; nenhum teste de comportamento é declarado aprovado.
+- Instalação offline tentada: `ERR_PNPM_NO_OFFLINE_TARBALL` para React 19.2.8. A tentativa online anterior recebeu 403; não foi contornada.
+- `git diff --check`: PASS até o registro desta execução; reexecutar sobre o diff final.
+- Sem screenshot/validação visual de produção; sem full suite; sem mudança de workflow para ignorar gates.
+
+Não foi criado novo commit, não houve avanço de main nem deployment nesta execução. Aguardar executor com dependências do projeto disponíveis, executar os gates focados, corrigir eventual falha real e somente então publicar. Não declarar reconstrução global concluída ou Railway SUCCESS.

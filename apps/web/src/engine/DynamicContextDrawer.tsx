@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { t } from '../i18n';
+import { useWorkspaceContextDock } from '../ui/workspace-frame';
 
 /**
  * CONTEXT DRAWER — painel lateral com cross-references do registro.
@@ -39,6 +41,7 @@ export function DynamicContextDrawer({
   children,
 }: DynamicContextDrawerProps): React.ReactElement | null {
   const panelRef = useRef<HTMLDivElement>(null);
+  const dock = useWorkspaceContextDock(open);
 
   /*
    * SAIDA PELO TECLADO — o painel declara `aria-modal="true"`, e a declaracao precisa ser VERDADEIRA.
@@ -71,23 +74,23 @@ export function DynamicContextDrawer({
 
   /* FOCO ENTRA NO PAINEL ao abrir — `aria-modal` so e honesto se o foco estiver dentro dele. */
   useEffect(() => {
-    if (open) {
+    if (open && !dock) {
       panelRef.current?.focus();
     }
-  }, [open]);
+  }, [open, dock]);
 
   if (!open) {
     return null;
   }
 
-  return (
+  const panel = (
     <div
       ref={panelRef}
       tabIndex={-1}
       data-testid="dynamic-context-drawer"
       data-cross-ref-count={crossReferences.length}
-      role="dialog"
-      aria-modal="true"
+      role={dock ? 'region' : 'dialog'}
+      aria-modal={dock ? undefined : true}
       aria-label={title}
       /*
         CONTEXTO EMPRESARIAL — nao modal lateral generico.
@@ -101,7 +104,11 @@ export function DynamicContextDrawer({
         e a unica superficie realmente elevada sobre a work area, que e exatamente o "elevated
         surface somente quando necessaria".
       */
-      className="cisne-context-surface fixed inset-y-0 right-0 z-40 flex w-full max-w-[380px] flex-col border-l border-l-[color:var(--erp-border-strong)] shadow-[var(--shadow-dialog)]"
+      className={
+        dock
+          ? 'cisne-context-surface flex min-h-0 w-full flex-col'
+          : 'cisne-context-surface fixed inset-y-0 right-0 z-40 flex w-full max-w-[380px] flex-col border-l border-l-[color:var(--erp-border-strong)] shadow-[var(--shadow-dialog)]'
+      }
     >
       <header className="cisne-divider--section flex items-center justify-between gap-2 bg-[color:var(--color-surface-context-strong)] px-3 py-2">
         <h2 className="cisne-type-workspace m-0 truncate text-[color:var(--erp-text)]">{title}</h2>
@@ -117,6 +124,7 @@ export function DynamicContextDrawer({
       </header>
 
       <div className="flex-1 overflow-y-auto px-3 py-2">
+        {children ? <div className="mb-3">{children}</div> : null}
         {crossReferences.length === 0 ? (
           <p className="cisne-type-helper m-0" data-testid="dynamic-context-drawer-empty">
             Nenhuma referência cruzada para este registro.
@@ -155,11 +163,10 @@ export function DynamicContextDrawer({
             ))}
           </ul>
         )}
-
-        {children ? <div className="mt-2">{children}</div> : null}
       </div>
     </div>
   );
+  return dock ? createPortal(panel, dock) : panel;
 }
 
 /**
@@ -173,8 +180,6 @@ export type DrawerSelection<Row> = {
   open: boolean;
 };
 
-export function drawerSelection<Row>(
-  row: Row | null,
-): DrawerSelection<Row> {
+export function drawerSelection<Row>(row: Row | null): DrawerSelection<Row> {
   return { row, open: row !== null };
 }

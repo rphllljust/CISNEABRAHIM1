@@ -366,7 +366,7 @@ export function OperationalDashboardPage() {
   const domainLabel = domain ? WORK_DOMAIN_LABELS[domain] : 'Tudo';
 
   const headerProps = {
-    title: 'Visão geral',
+    title: 'Central de operações',
     description: 'Acompanhe a execução operacional e o trabalho que exige decisão.',
     period: filters.period,
     periodOptions,
@@ -485,7 +485,7 @@ export function OperationalDashboardPage() {
         governanca global a partir das regioes, e sem elas a faixa de orientacao se confundia
         com o primeiro bloco de dado.
       */}
-      <div data-region="work-surface">
+      <div className="flex min-h-0 flex-1 flex-col" data-region="work-surface">
         <div data-region="operating-header">
           <DashboardWorkbenchHeader
             {...headerProps}
@@ -532,37 +532,6 @@ export function OperationalDashboardPage() {
             >
               <WorkbenchKpiStrip kpis={workbenchKpis} />
             </section>
-
-            {showOperationDistribution || showAging || attentionItems.length > 0 ? (
-              <section
-                className="dashboard-analytics"
-                aria-label="Análise operacional"
-                data-layout="operational-analytics"
-              >
-                {showOperationDistribution ? <OperationDistribution snapshot={snapshot} available /> : null}
-                {showAging ? <AgingDistribution aging={snapshot.charts.financialAging} available /> : null}
-                {attentionItems.length > 0 ? <ExceptionSurface items={attentionItems} /> : null}
-              </section>
-            ) : null}
-
-            {productivitySection ? (
-              <section
-                className="dashboard-summary"
-                aria-label="Saúde da empresa no período"
-                {...semanticSectionAttrs([
-                  'productivity.completed_count',
-                  'productivity.on_time_rate',
-                  'productivity.avg_cycle_hours',
-                  'productivity.rework_rate',
-                ])}
-              >
-                <MetricStrip
-                  kpis={productivitySection.kpis}
-                  volume={productivitySection.volume}
-                  excludeIds={workbenchKpiIds}
-                />
-              </section>
-            ) : null}
 
             <div data-layout="compact-process-flow">
               <BusinessChainFlow stages={flowStages} domainLabel={domainLabel} />
@@ -717,82 +686,116 @@ export function OperationalDashboardPage() {
                 RAIL OPERACIONAL CONTÍNUO: acompanha somente a superfície da fila e preserva o
                 recorte enquanto o operador troca a seleção.
               */}
-                <aside
-                  className="dashboard-cc__context"
-                  data-layout="operational-context"
-                  aria-label={
-                    selected
-                      ? 'Contexto da entidade selecionada'
-                      : 'Contexto operacional do recorte'
-                  }
-                >
-                  {selected ? (
-                    <ContextDrawer
-                      open
-                      variant="inline"
-                      className="dashboard-context-drawer"
-                      title="Contexto do trabalho"
-                      onClose={() => setSelected(null)}
-                      preview={{
-                        identifier: selected.businessReference,
-                        subtitle: selected.title,
-                        status: (
-                          <StatusBadge
-                            label={overdueLabel(selected.dueAt) ?? selected.status}
-                            tone={daysOverdue(selected.dueAt) !== null ? 'error' : 'info'}
-                          />
-                        ),
-                        facts: [
-                          { label: 'Cliente / contexto', value: selected.contextLabel || '—' },
-                          { label: 'Domínio', value: WORK_DOMAIN_LABELS[selected.domain] },
-                          { label: 'Natureza', value: WORK_KIND_LABELS[selected.kind] },
-                          { label: 'Situação', value: selected.status },
-                          { label: 'Motivo', value: selected.reason },
-                          { label: 'Ocorrido em', value: formatMoment(selected.occurredAt) },
-                          { label: 'Vencimento', value: formatMoment(selected.dueAt) },
-                          {
-                            label: 'Prazo',
-                            value: overdueLabel(selected.dueAt) ?? 'Sem atraso',
-                            emphasis: daysOverdue(selected.dueAt) !== null,
-                          },
-                        ],
-                        nextAction: {
-                          label: selected.actionLabel,
-                          onClick: () => {
-                            void navigate(selected.targetRoute);
-                          },
-                          kind: 'primary',
+                {selected ? (
+                  <ContextDrawer
+                    open
+                    className="dashboard-context-drawer"
+                    title="Contexto do trabalho"
+                    onClose={() => setSelected(null)}
+                    preview={{
+                      identifier: selected.businessReference,
+                      subtitle: selected.title,
+                      status: (
+                        <StatusBadge
+                          label={overdueLabel(selected.dueAt) ?? selected.status}
+                          tone={daysOverdue(selected.dueAt) !== null ? 'error' : 'info'}
+                        />
+                      ),
+                      facts: [
+                        { label: 'Cliente / contexto', value: selected.contextLabel || '—' },
+                        { label: 'Domínio', value: WORK_DOMAIN_LABELS[selected.domain] },
+                        { label: 'Natureza', value: WORK_KIND_LABELS[selected.kind] },
+                        { label: 'Situação', value: selected.status },
+                        { label: 'Motivo', value: selected.reason },
+                        { label: 'Ocorrido em', value: formatMoment(selected.occurredAt) },
+                        { label: 'Vencimento', value: formatMoment(selected.dueAt) },
+                        {
+                          label: 'Prazo',
+                          value: overdueLabel(selected.dueAt) ?? 'Sem atraso',
+                          emphasis: daysOverdue(selected.dueAt) !== null,
                         },
-                        detailHref: selected.targetRoute,
-                        detailLabel: 'Abrir na tela de origem',
-                      }}
-                    />
-                  ) : (
-                    <OperationalContextRail
-                      unitLabel={unitLabel}
-                      domainLabel={domainLabel}
-                      periodLabel={periodLabel}
-                      generatedAtFormatted={
-                        snapshot ? formatGeneratedAt(snapshot.generatedAt) : null
-                      }
-                      queueStateLabel={
-                        inboxPhase === 'ready'
-                          ? `${queueTotal ?? 0} ${plural(queueTotal ?? 0, 'item', 'itens')} na fila`
-                          : inboxPhase === 'loading'
-                            ? 'Leitura em andamento'
-                            : 'Fila não publicada nesta leitura'
-                      }
-                      pageCount={inbox?.items.length ?? 0}
-                      situationLabel={
-                        situation
-                          ? situationBadgeLabel(situation)
-                          : 'Situação não avaliada neste recorte'
-                      }
-                    />
-                  )}
-                </aside>
+                      ],
+                      nextAction: {
+                        label: selected.actionLabel,
+                        onClick: () => {
+                          void navigate(selected.targetRoute);
+                        },
+                        kind: 'primary',
+                      },
+                      detailHref: selected.targetRoute,
+                      detailLabel: 'Abrir na tela de origem',
+                    }}
+                  />
+                ) : null}
               </div>
             </div>
+
+            <details
+              className="border-t border-[var(--erp-border)] bg-white p-3"
+              data-layout="operational-insight"
+            >
+              <summary className="cursor-pointer text-xs font-semibold text-[var(--erp-text-secondary)]">
+                Contexto do recorte e análise operacional
+              </summary>
+              <div className="mt-3 grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+                <div className="min-w-0 space-y-3">
+                  {showOperationDistribution || showAging || attentionItems.length > 0 ? (
+                    <section
+                      className="dashboard-analytics"
+                      aria-label="Análise operacional"
+                      data-layout="operational-analytics"
+                    >
+                      {showOperationDistribution ? (
+                        <OperationDistribution snapshot={snapshot} available />
+                      ) : null}
+                      {showAging ? (
+                        <AgingDistribution aging={snapshot.charts.financialAging} available />
+                      ) : null}
+                      {attentionItems.length > 0 ? (
+                        <ExceptionSurface items={attentionItems} />
+                      ) : null}
+                    </section>
+                  ) : null}
+                  {productivitySection ? (
+                    <section
+                      className="dashboard-summary"
+                      aria-label="Saúde da empresa no período"
+                      {...semanticSectionAttrs([
+                        'productivity.completed_count',
+                        'productivity.on_time_rate',
+                        'productivity.avg_cycle_hours',
+                        'productivity.rework_rate',
+                      ])}
+                    >
+                      <MetricStrip
+                        kpis={productivitySection.kpis}
+                        volume={productivitySection.volume}
+                        excludeIds={workbenchKpiIds}
+                      />
+                    </section>
+                  ) : null}
+                </div>
+                <OperationalContextRail
+                  unitLabel={unitLabel}
+                  domainLabel={domainLabel}
+                  periodLabel={periodLabel}
+                  generatedAtFormatted={snapshot ? formatGeneratedAt(snapshot.generatedAt) : null}
+                  queueStateLabel={
+                    inboxPhase === 'ready'
+                      ? `${queueTotal ?? 0} ${plural(queueTotal ?? 0, 'item', 'itens')} na fila`
+                      : inboxPhase === 'loading'
+                        ? 'Leitura em andamento'
+                        : 'Fila não publicada nesta leitura'
+                  }
+                  pageCount={inbox?.items.length ?? 0}
+                  situationLabel={
+                    situation
+                      ? situationBadgeLabel(situation)
+                      : 'Situação não avaliada neste recorte'
+                  }
+                />
+              </div>
+            </details>
 
             {/*
             RODAPE OPERACIONAL — leitura secundaria (rotas alternativas de modulo), fora da area de
@@ -1298,7 +1301,9 @@ function OperationDistribution({
   }
   if (stops.length === 0) {
     return (
-      <p className="dashboard-analytics__compact-state" role="status">Nenhuma ordem no recorte publicado.</p>
+      <p className="dashboard-analytics__compact-state" role="status">
+        Nenhuma ordem no recorte publicado.
+      </p>
     );
   }
 
@@ -1433,11 +1438,7 @@ function AgingDistribution({
  *
  * Sem exceções publicadas, a superfície some em vez de reservar área para uma não-notícia.
  */
-function ExceptionSurface({
-  items,
-}: {
-  items: ExecutiveDashboardSnapshot['attention'];
-}) {
+function ExceptionSurface({ items }: { items: ExecutiveDashboardSnapshot['attention'] }) {
   const ordered = [...items].sort((left, right) => {
     const rank = { critical: 0, warning: 1, info: 2 } as const;
     const delta = rank[left.severity] - rank[right.severity];
@@ -1499,7 +1500,6 @@ function ExceptionSurface({
           })}
         </ul>
       ) : null}
-
     </section>
   );
 }

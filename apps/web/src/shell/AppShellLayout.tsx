@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 import { cn } from '../ui/utils/cn';
 import { useAuth } from '../auth/context/AuthProvider';
 import { useAlertBadge } from '../alerts/hooks/useAlerts';
@@ -7,7 +7,6 @@ import { CommandPalette, useCommandPaletteShortcut } from '../operator/commands/
 import { isReleaseModuleEnabled } from '../release-scope/feature-flags';
 import { ReleaseScopeGate } from '../release-scope/ReleaseScopeGate';
 import { PAGE_FRAME_CLASS, usePageLayoutMode } from './page-layout';
-import { ShellBreadcrumbs } from './ShellBreadcrumbs';
 import { ShellBrandMark } from './ShellBrandMark';
 import { ShellErrorBoundary } from './ShellErrorBoundary';
 import { ShellMobileDrawer } from './ShellMobileDrawer';
@@ -21,8 +20,6 @@ import './shell.css';
 import './module-layout.css';
 
 export function AppShellLayout() {
-  const location = useLocation();
-  const hideBreadcrumbs = location.pathname === '/app';
   /**
    * LARGURA DA SUPERFICIE DE TRABALHO — page layout modes (Pagina 9 do relatorio).
    *
@@ -97,7 +94,7 @@ export function AppShellLayout() {
         principal preserva a largura restante para listas e contexto empresarial.
       */}
       <aside
-        className="shell__sidebar fixed inset-y-0 z-30 hidden w-[13.5rem] flex-col border-r border-[var(--color-shell-border)] bg-[var(--color-shell-surface)] lg:flex"
+        className="shell__sidebar fixed inset-y-0 z-30 hidden w-[15.5rem] flex-col border-r border-[var(--color-shell-border)] bg-[var(--color-shell-surface)] lg:flex"
         aria-label="Barra lateral"
       >
         {/*
@@ -146,7 +143,7 @@ export function AppShellLayout() {
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col lg:pl-[13.5rem]">
+      <div className="flex min-w-0 flex-1 flex-col lg:pl-[15.5rem]">
         <ShellTopBar
           onMenuToggle={toggleMobileNav}
           menuExpanded={mobileNavOpen && !isDesktop}
@@ -179,7 +176,6 @@ export function AppShellLayout() {
               layoutMode === 'fullBleed' && 'px-0',
             )}
           >
-            {!hideBreadcrumbs ? <ShellBreadcrumbs /> : null}
             <ReleaseScopeGate>
               <ShellErrorBoundary>
                 <Outlet />

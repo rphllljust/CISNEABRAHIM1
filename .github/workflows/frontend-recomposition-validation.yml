@@ -1,0 +1,51 @@
+name: Frontend recomposition validation
+
+on:
+  push:
+    branches:
+      - 'validation/frontend-recomposition-20261015'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-recomposition-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused-web-gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Focused lint
+        working-directory: apps/web
+        run: |
+          mapfile -t changed < <(git diff --name-only a5fb4018fd049989dc755461a334eb99fbba5d11 HEAD -- src | sed -n '/\.tsx\?$/p' | sed 's|^apps/web/||')
+          test "${#changed[@]}" -gt 0
+          pnpm exec eslint "${changed[@]}"
+      - name: Web typecheck
+        run: pnpm --filter @cisne/web typecheck
+      - name: Focused interaction contracts
+        run: >-
+          pnpm --filter @cisne/web exec vitest run --config vite.config.ts
+          src/ui/workspace-recomposition.test.tsx
+          src/enterprise-object/enterprise-object.contract.test.tsx
+          src/enterprise-object/propagation.ui.test.tsx
+          src/dashboard/components/cockpit-structure.test.tsx
+          src/shell/shell.components.test.tsx
+      - name: Build web
+        run: pnpm --filter @cisne/web build
+      - name: Diff check
+        run: git diff --check a5fb4018fd049989dc755461a334eb99fbba5d11 HEAD

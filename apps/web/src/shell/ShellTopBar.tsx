@@ -7,6 +7,7 @@ import { GlobalSearchBar } from '../search/components/GlobalSearchBar';
 import { formatUserMenuLabel } from './format-identity';
 import { Dropdown } from '../ui/Dropdown';
 import { LanguageSwitcher } from '../i18n/LanguageSwitcher';
+import { ShellBreadcrumbs } from './ShellBreadcrumbs';
 
 type ShellTopBarProps = {
   onMenuToggle: () => void;
@@ -77,7 +78,10 @@ export function ShellTopBar({
         cara de "formulario horizontal". Um teto em 600px mantem o campo com o tamanho de um CAMPO
         — busca de ERP nao e hero — e devolve o meio da barra para o que e chrome de verdade.
       */}
-      <div className="shell__search w-full min-w-0 max-w-[37.5rem]">
+      <div className="hidden min-w-0 flex-1 lg:block">
+        <ShellBreadcrumbs />
+      </div>
+      <div className="shell__search w-full min-w-0 max-w-[26rem]">
         <GlobalSearchBar compact />
       </div>
 
