@@ -150,6 +150,7 @@ export class PurchaseOrdersRepository {
     orderBy?: string,
   ): Promise<{ rows: PurchaseOrderRow[]; summary: PurchaseOrderCurrencySummaryRow[] }> {
     const client = await this.pool().connect();
+    let evictWith: Error | undefined;
     try {
       // Página e resumo usam o mesmo snapshot, mesmo se um pedido mudar durante a leitura.
       await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
@@ -200,10 +201,14 @@ export class PurchaseOrdersRepository {
       await client.query('COMMIT');
       return { rows: page.rows, summary: summary.rows };
     } catch (error) {
-      await client.query('ROLLBACK').catch(() => undefined);
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackFailure) {
+        evictWith = rollbackFailure instanceof Error ? rollbackFailure : new Error(String(rollbackFailure));
+      }
       throw error;
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 
