@@ -573,8 +573,11 @@ describe('Proposta — object page canonica', () => {
         }
         return section;
       });
-    // Elo de origem (cliente) e elos gerados (OS, recebível) com rotulo de negocio.
-    expect(within(chain).getAllByText(new RegExp(CLIENT_NAME.slice(0, 12))).length).toBeGreaterThan(0);
+    // Aguarda a linhagem assentar: o painel aparece primeiro em loading e o payload vem em seguida.
+    await waitFor(() => {
+      expect(within(chain).getAllByText(new RegExp(CLIENT_NAME.slice(0, 12))).length).toBeGreaterThan(0);
+    });
+    // Elo de origem (cliente) e elos gerados (OS, recebível) com rótulo de negócio.
     expect(within(chain).getAllByText(/OS-2026-0007/).length).toBeGreaterThan(0);
     expect(within(chain).getAllByText(/AR-0001/).length).toBeGreaterThan(0);
     // A ligacao e nomeada em linguagem de negocio, nao por chave tecnica.
