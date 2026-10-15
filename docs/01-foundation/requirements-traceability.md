@@ -791,6 +791,8 @@ Classificação: interpretação de engenharia visual/interação autorizada na 
 
 Registro de execução: `docs/00-governance/prompt-execution-log.md`, seção RECOMPOSIÇÃO ESTRUTURAL DO FRONTEND / DRAWER DINÂMICO.
 
+Atualização de validação/publicação: implementação `557bb0a16c448f45c98310023b55e516c3109a9d`, CI focado run `38819244628` **SUCCESS** (lint/typecheck/build/diff e 52/52 testes); Railway Web deployment `d0b62823-afae-4e55-b0e9-52420e127d03` **SUCCESS**; API **SKIPPED**. O bloqueio de dependências foi resolvido pelo executor CI autorizado. Aceite: **PASS_WITH_RESTRICTIONS**, pois a verificação visual autenticada de cada rota não ocorreu (navegador na tela de login). Não se afirma que todos os fluxos solicitados foram funcionalmente recriados; houve recomposição dos primitives e das páginas específicas registradas.
+
 ### Registro histórico da execução de faturamento abaixo
 
 Classificação: interpretação de engenharia e aderência visual à instrução do responsável. Nenhuma BR foi criada, promovida ou alterada.

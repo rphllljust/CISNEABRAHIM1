@@ -21177,3 +21177,22 @@ Fonte: solicitação explícita desta sessão “CISNE — RECONSTRUÇÃO VISUAL
 - Sem screenshot/validação visual de produção; sem full suite; sem mudança de workflow para ignorar gates.
 
 Não foi criado novo commit, não houve avanço de main nem deployment nesta execução. Aguardar executor com dependências do projeto disponíveis, executar os gates focados, corrigir eventual falha real e somente então publicar. Não declarar reconstrução global concluída ou Railway SUCCESS.
+
+## VALIDAÇÃO REMOTA E PUBLICAÇÃO DA RECOMPOSIÇÃO — 2026-10-15
+
+STATUS: **PASS_WITH_RESTRICTIONS** — gates focados e deployment aprovados; aceite visual autenticado não executado.
+
+Autorização: resposta “Sim” ao uso de branch temporária exclusivamente para validação remota, seguida de avanço de main após aprovação dos gates. Classificação: execução de engenharia autorizada; não altera domínio.
+
+- Branch temporária: `validation/frontend-recomposition-20261015`; nenhum PR ou ambiente Railway paralelo criado.
+- Commit da implementação: `557bb0a16c448f45c98310023b55e516c3109a9d`.
+- Workflow específico: `.github/workflows/frontend-recomposition-validation.yml`, limitado à branch temporária, sem deploy e sem modificar o CI existente. Run `38819244628`, job `116711477237`, **SUCCESS**.
+- Dependências instaladas com lockfile no runner; lint dos TS/TSX alterados **PASS**; typecheck Web **PASS**; testes focados **52/52 PASS** em 5 suítes; build Web **PASS**; diff-check **PASS**.
+- Testes: `workspace-recomposition` (4), `enterprise-object.contract` (22), `enterprise-object/propagation` (16), `cockpit-structure` (8), `shell.components` (2). Não foi disparada manualmente a full suite nem adotados snapshots antigos como autoridade de layout.
+- Main avançada por fast-forward de `a5fb4018fd049989dc755461a334eb99fbba5d11` para o SHA validado. Nenhum force push.
+- Railway `@cisne/web`: deployment `d0b62823-afae-4e55-b0e9-52420e127d03`, **SUCCESS**, confirmado em `2026-10-15T22:48:40.650Z`, região `us-west2`, commit `557bb0a16c448f45c98310023b55e516c3109a9d`.
+- Railway `@cisne/api`: tentativa `d6f2de8c-0f93-42fa-9cf0-0d679d447e98`, **SKIPPED**, esperado porque nenhuma API foi alterada.
+- Navegador chegou ao formulário de login do CISNE. Sem sessão autenticada, não foi possível inspecionar visualmente todas as páginas empresariais. O deployment e os contratos automatizados estão aprovados; não se declara aceite visual global nem implementação de funcionalidades empresariais ausentes.
+- Propagação real dos Object Page primitives inclui Customer 360, Contract 360, OS 360, Planejamento, Execução, Medição, Propostas, Pedidos, Ativos, Recebíveis, Pagáveis, Tesouraria, Fornecedores e Catálogo. Os primitives compartilhados alteram composição; esta enumeração não equivale a validação visual individual de cada rota.
+
+Este registro complementa e supera o bloqueio técnico da execução anterior, preservado acima como histórico. O commit documental posterior não altera o código validado/implantado.
