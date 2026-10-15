@@ -1224,6 +1224,38 @@ async function assertPreDeltaState(connectionString, deltaFile) {
       return;
     }
 
+    if (deltaFile === '0098_metadata_seed_customer_360.sql') {
+      const clientEntity = await client.query(
+        `SELECT id FROM meta.entities WHERE name = 'client' LIMIT 1`,
+      );
+      if ((clientEntity.rowCount ?? 0) === 0) {
+        throw new Error('Expected meta.entities client before 0098 delta');
+      }
+      const customer360Fields = await client.query(
+        `SELECT 1
+         FROM meta.fields
+         WHERE entity_id = $1
+           AND name = ANY($2::text[])
+         LIMIT 1`,
+        [clientEntity.rows[0].id, ['group_name', 'parent_client_name', 'child_count', 'external_reference']],
+      );
+      if ((customer360Fields.rowCount ?? 0) > 0) {
+        throw new Error('Incremental baseline incorrectly contains Customer 360 fields before 0098');
+      }
+      const customer360Permissions = await client.query(
+        `SELECT 1
+         FROM meta.permissions
+         WHERE entity_id = $1
+           AND action = ANY($2::text[])
+         LIMIT 1`,
+        [clientEntity.rows[0].id, ['contact-manage', 'unit-manage', 'hierarchy-manage', 'audit-read']],
+      );
+      if ((customer360Permissions.rowCount ?? 0) > 0) {
+        throw new Error('Incremental baseline incorrectly contains Customer 360 permissions before 0098');
+      }
+      return;
+    }
+
     throw new Error(`Unsupported incremental delta migration: ${deltaFile}`);
   } finally {
     await client.end();
