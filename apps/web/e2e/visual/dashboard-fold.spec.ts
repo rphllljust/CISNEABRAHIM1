@@ -47,12 +47,6 @@ const WORK_INBOX_PAGE = {
 test.describe('visao geral — fila decisoria exercitada', () => {
   test.use({ viewport: { width: 1440, height: 900 } });
 
-  test.beforeEach(() => {
-    test.skip(
-      test.info().project.name !== 'desktop',
-      'Esta prova tem contrato fixo de 1440x900 e roda uma única vez no projeto desktop.',
-    );
-  });
 
   test('primeira dobra com fila, excecao, acao, contexto e fluxo', async ({ page }) => {
     /*
