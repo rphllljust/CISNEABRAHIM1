@@ -39,7 +39,7 @@ export function DynamicViewSwitcher({
       role="tablist"
       aria-label={t('views.title')}
       data-testid="dynamic-view-switcher"
-      className="mb-3 flex flex-wrap gap-2"
+      className="cisne-view-switcher"
     >
       {views.map((view) => {
         const supported = supportedViewTypes.includes(view.viewType);
@@ -53,11 +53,7 @@ export function DynamicViewSwitcher({
             data-testid="dynamic-view-tab"
             data-view-type={view.viewType}
             data-view-supported={supported ? 'true' : 'false'}
-            className={`rounded border px-2 py-1 text-xs ${
-              active
-                ? 'border-slate-800 bg-slate-800 text-white'
-                : 'border-slate-300 bg-white text-slate-700'
-            } ${supported ? '' : 'opacity-60'}`}
+            className="cisne-view-tab"
             onClick={() => onChange(view.viewType)}
           >
             {view.label}
