@@ -23,6 +23,7 @@ describe('proposals administrative flow e2e (frontend)', () => {
     return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const { pathname } = parseRequestPath(input);
       if (
+        pathname === '/api/v1/me' ||
         pathname.startsWith('/api/v1/commercial/') ||
         pathname.startsWith('/api/v1/clients')
       ) {
@@ -120,7 +121,7 @@ describe('proposals administrative flow e2e (frontend)', () => {
             json: async () => ({ items: [], limit: 20, offset: 0 }),
           } as Response;
         }
-        if (pathname.startsWith('/api/v1/commercial/')) {
+        if (pathname === '/api/v1/me' || pathname.startsWith('/api/v1/commercial/')) {
           return commercialMock(input, init);
         }
         return shellMock(input, init);
