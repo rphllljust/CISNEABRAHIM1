@@ -712,12 +712,19 @@ export function ServiceOrdersEngineListPage() {
             sem explicação, e o próximo a mexer no metadado repetiria o mesmo eixo.
           */}
           {refusedViews.length > 0 ? (
-            <p className="cisne-type-helper m-0" data-testid="service-orders-refused-views">
-              {refusedViews.length === 1
-                ? '1 visão declarada no metadata store não é oferecida: '
-                : `${refusedViews.length} visões declaradas no metadata store não são oferecidas: `}
-              {refusedViews.map((view) => `${view.label} (${view.reason})`).join(' ')}
-            </p>
+            <details
+              className="cisne-engine-capability-note"
+              data-testid="service-orders-refused-views"
+            >
+              <summary>
+                {refusedViews.length === 1
+                  ? '1 visão indisponível nesta entidade'
+                  : `${refusedViews.length} visões indisponíveis nesta entidade`}
+              </summary>
+              <p>
+                {refusedViews.map((view) => `${view.label} (${view.reason})`).join(' ')}
+              </p>
+            </details>
           ) : null}
 
           <DynamicKpiDrilldown
@@ -737,36 +744,40 @@ export function ServiceOrdersEngineListPage() {
             Agora é uma faixa com divisores: os seis sinais são células separadas por régua, a
             hierarquia vem do número e do rótulo, e a grade sobe para a dobra.
           */}
-          <section
-            className="cisne-engine-signal-strip"
-            aria-label="Cockpit operacional da carteira"
-          >
-            <OperationalSignal label="Na página" value={operationalSnapshot.pageTotal} detail="ordens carregadas" />
-            <OperationalSignal label="Liberadas nesta página" value={operationalSnapshot.released} detail="prontas para execução" />
-            <OperationalSignal label="Em execução nesta página" value={operationalSnapshot.inExecution} detail="campo ativo" />
-            <OperationalSignal label="Pausadas nesta página" value={operationalSnapshot.paused} detail="atenção operacional" tone="warning" />
-            <OperationalSignal label="Com prazo nesta página" value={operationalSnapshot.withDeadline} detail="deadline informado" />
-            <OperationalSignal
-              label="Sem responsável"
-              value={operationalSnapshot.unassigned}
-              detail="nesta página"
-              tone={operationalSnapshot.unassigned > 0 ? 'warning' : 'default'}
-            />
-            <OperationalSignal
-              label="Fechadas nesta página"
-              value={operationalSnapshot.completed + operationalSnapshot.cancelled}
-              detail="concluídas/canceladas"
-            />
-          </section>
+          {items.length > 0 ? (
+            <section
+              className="cisne-engine-signal-strip"
+              aria-label="Cockpit operacional da carteira"
+            >
+              <OperationalSignal label="Na página" value={operationalSnapshot.pageTotal} detail="ordens carregadas" />
+              <OperationalSignal label="Liberadas nesta página" value={operationalSnapshot.released} detail="prontas para execução" />
+              <OperationalSignal label="Em execução nesta página" value={operationalSnapshot.inExecution} detail="campo ativo" />
+              <OperationalSignal label="Pausadas nesta página" value={operationalSnapshot.paused} detail="atenção operacional" tone="warning" />
+              <OperationalSignal label="Com prazo nesta página" value={operationalSnapshot.withDeadline} detail="deadline informado" />
+              <OperationalSignal
+                label="Sem responsável"
+                value={operationalSnapshot.unassigned}
+                detail="nesta página"
+                tone={operationalSnapshot.unassigned > 0 ? 'warning' : 'default'}
+              />
+              <OperationalSignal
+                label="Fechadas nesta página"
+                value={operationalSnapshot.completed + operationalSnapshot.cancelled}
+                detail="concluídas/canceladas"
+              />
+            </section>
+          ) : null}
 
-          <div className="mb-2">
-            <DynamicExportCsv
-              schema={schema}
-              rows={visibleRows}
-              fileName="ordens-de-servico"
-              columns={listColumns(schema)}
-            />
-          </div>
+          {visibleRows.length > 0 ? (
+            <div className="cisne-engine-export">
+              <DynamicExportCsv
+                schema={schema}
+                rows={visibleRows}
+                fileName="ordens-de-servico"
+                columns={listColumns(schema)}
+              />
+            </div>
+          ) : null}
 
           {/*
             GRAMÁTICA DE REGIÕES — a ordem da família.
@@ -778,6 +789,7 @@ export function ServiceOrdersEngineListPage() {
 
                 OPERATING HEADER -> SAVED VIEWS -> COMMAND/FILTER -> WORK QUEUE
           */}
+          <div className="cisne-query-deck">
           <div data-region="saved-view-surface">
           <DynamicSavedViewsBar
             views={savedViews.views}
@@ -894,6 +906,7 @@ export function ServiceOrdersEngineListPage() {
             />
           </WorklistFilterBar>
           </div>
+          </div>
 
           {/*
             MOTIVO DO LOTE — o operador informa antes de cancelar em massa.
@@ -939,7 +952,11 @@ export function ServiceOrdersEngineListPage() {
             <DynamicList
               schema={schema}
               rows={visibleRows}
-              emptyMessage="Nenhuma ordem de serviço no seu escopo."
+              emptyMessage={
+                statusFilter || search.trim()
+                  ? 'Nenhuma ordem de serviço corresponde aos filtros aplicados.'
+                  : 'Nenhuma ordem de serviço no seu escopo.'
+              }
               selectedIds={selectedIds}
               onSelectionChange={setSelectedIds}
               ownerField="client_snapshot"
@@ -1002,42 +1019,45 @@ export function ServiceOrdersEngineListPage() {
             Indicadores de estado e prazo desta região são contagens da página corrente e aparecem
             rotulados como tal.
           */}
-          <WorklistFooter
-            rangeLabel={
-              pageBusy
-                ? 'Atualizando carteira...'
-                : recutTotal === null
-                  ? `${pageOffset + 1}–${pageOffset + items.length} nesta página · total não publicado`
-                  : `${pageOffset + 1}–${pageOffset + items.length} de ${recutTotal} no recorte`
-            }
-            extra={
-              statusFilter || search.trim()
-                ? `${items.length} nesta página${statusFilter ? ` · situação: ${stateLabel(statusFilter)}` : ''}`
-                : undefined
-            }
-          >
-            <ModulePagination
-              pageNumber={pageNumber}
-              previousDisabled={pageOffset === 0}
-              nextDisabled={canGoNext !== true}
-              onPrevious={() => setPageOffset(Math.max(0, pageOffset - PAGE_SIZE))}
-              onNext={() => setPageOffset(pageOffset + PAGE_SIZE)}
-            />
-          </WorklistFooter>
           {items.length === 0 ? (
-            <WorklistStatePanel
-              title={
-                statusFilter || search.trim()
-                  ? 'Nenhuma ordem de serviço corresponde aos filtros aplicados.'
-                  : 'Nenhuma ordem de serviço no seu escopo.'
+            activeViewType === 'list' ? null : (
+              <WorklistStatePanel
+                title={
+                  statusFilter || search.trim()
+                    ? 'Nenhuma ordem de serviço corresponde aos filtros aplicados.'
+                    : 'Nenhuma ordem de serviço no seu escopo.'
+                }
+                description={
+                  statusFilter || search.trim()
+                    ? 'Ajuste a situação ou o termo de busca, ou limpe os filtros para ver a carteira completa.'
+                    : 'As ordens de serviço nascem de solicitações aprovadas ou propostas aceitas; quando a primeira for aberta ela aparece aqui.'
+                }
+              />
+            )
+          ) : (
+            <WorklistFooter
+              rangeLabel={
+                pageBusy
+                  ? 'Atualizando carteira...'
+                  : recutTotal === null
+                    ? `${pageOffset + 1}–${pageOffset + items.length} nesta página · total não publicado`
+                    : `${pageOffset + 1}–${pageOffset + items.length} de ${recutTotal} no recorte`
               }
-              description={
+              extra={
                 statusFilter || search.trim()
-                  ? 'Ajuste a situação ou o termo de busca, ou limpe os filtros para ver a carteira completa.'
-                  : 'As ordens de serviço nascem de solicitações aprovadas ou propostas aceitas; quando a primeira for aberta ela aparece aqui.'
+                  ? `${items.length} nesta página${statusFilter ? ` · situação: ${stateLabel(statusFilter)}` : ''}`
+                  : undefined
               }
-            />
-          ) : null}
+            >
+              <ModulePagination
+                pageNumber={pageNumber}
+                previousDisabled={pageOffset === 0}
+                nextDisabled={canGoNext !== true}
+                onPrevious={() => setPageOffset(Math.max(0, pageOffset - PAGE_SIZE))}
+                onNext={() => setPageOffset(pageOffset + PAGE_SIZE)}
+              />
+            </WorklistFooter>
+          )}
           </div>
         </>
       ) : null}
