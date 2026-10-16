@@ -127,6 +127,9 @@ describe('Finance backoffice UI', () => {
   it('overview uses counts and server aging, not a client-side balance total', async () => {
     vi.stubGlobal('fetch', createFinanceFetchMock());
     renderWithProviders(<FinanceOverviewPage />);
+    await userEvent.setup().click(
+      await screen.findByRole('button', { name: 'Contexto do processo' }),
+    );
     await waitFor(() => {
       expect(screen.getByLabelText(/quantidade de títulos a receber/i)).toHaveTextContent('2');
     });

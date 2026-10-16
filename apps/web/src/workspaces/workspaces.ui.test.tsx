@@ -409,6 +409,9 @@ describe('workspaces de domínio', () => {
       router: { initialEntries: ['/app/finance'] },
     });
 
+    await userEvent.setup().click(
+      await screen.findByRole('button', { name: 'Contexto do processo' }),
+    );
     await waitFor(() => {
       expect(screen.getByLabelText('Quantidade de títulos a receber')).toHaveTextContent('2');
     });
@@ -479,6 +482,10 @@ describe('workspaces de domínio', () => {
   it('posição zerada não vira parede de zeros: diz que não há títulos nem contas', async () => {
     stubEmptyFinanceFetch({ byDomain: { FINANCEIRO: 0 } });
     renderWithProviders(<FinanceOverviewPage />, { router: { initialEntries: ['/app/finance'] } });
+
+    const contextToggle = await screen.findByRole('button', { name: 'Contexto do processo' });
+    expect(contextToggle).toHaveAttribute('aria-expanded', 'false');
+    await userEvent.setup().click(contextToggle);
 
     /*
      * A frase mudou com a leitura: a posicao zerada nao afirma apenas "nada vencido" — ela diz que

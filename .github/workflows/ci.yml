@@ -92,6 +92,7 @@ jobs:
   unit-tests:
     name: Unit tests
     runs-on: ubuntu-latest
+    timeout-minutes: 2
     needs: unit-test-shards
     if: always()
     steps:
@@ -174,7 +175,6 @@ jobs:
       - name: Install Playwright Chromium (web visual regression)
         run: pnpm --filter @cisne/web exec playwright install chromium --with-deps
       - name: Web visual regression
-        continue-on-error: true
         run: pnpm --filter @cisne/web test:visual
         env:
           CI: 'true'
