@@ -86,6 +86,7 @@ type MockOptions = {
   quality?: unknown;
   hierarchy?: unknown;
   updateAllowed?: boolean;
+  manageContactsAllowed?: boolean;
 };
 
 /**
@@ -131,7 +132,7 @@ function createFetchMock(options: MockOptions = {}) {
           ...(options.updateAllowed === false ? [] : ['client:client:update']),
           'client:client:deactivate',
           'client:client:activate',
-          'client:contact:manage',
+          ...(options.manageContactsAllowed === false ? [] : ['client:contact:manage']),
           'client:unit:manage',
           'client:hierarchy:manage',
           'client:audit:read',
@@ -445,7 +446,7 @@ describe('Customer 360 — contatos', () => {
 
   /* SEM CAPABILITY O PAINEL É SOMENTE LEITURA — nenhum comando é oferecido. */
   it('não oferece comandos de contato sem a capability', async () => {
-    renderPage({ updateAllowed: false });
+    renderPage({ manageContactsAllowed: false });
     await awaitHeader();
 
     await waitFor(() => {
