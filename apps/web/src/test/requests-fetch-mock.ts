@@ -319,6 +319,32 @@ export function createRequestsFetchMock(options: RequestsFetchMockOptions = {}) 
     const { pathname, searchParams } = parseRequestPath(input);
     const method = init?.method ?? 'GET';
 
+    if (pathname === '/api/v1/me' && method === 'GET') {
+      const permissions = [
+        ...(listAllowed ? ['requests:service-request:list', 'requests:service-request:read'] : []),
+        ...(createAllowed ? ['requests:service-request:create'] : []),
+        ...(updateAllowed ? ['requests:service-request:update'] : []),
+        ...(submitAllowed ? ['requests:service-request:submit'] : []),
+        ...(reviewAllowed ? ['requests:service-request:review'] : []),
+        ...(approveAllowed ? ['requests:service-request:approve'] : []),
+        ...(rejectAllowed ? ['requests:service-request:reject'] : []),
+        ...(cancelAllowed ? ['requests:service-request:cancel'] : []),
+        'requests:service-request:convert',
+        ...(options.clientListAllowed !== false ? ['client:client:list', 'client:client:read'] : []),
+      ];
+      return jsonResponse({
+        usuario: {
+          id: MOCK_IDENTITY_ID,
+          nome: null,
+          email: null,
+          identity_id: MOCK_IDENTITY_ID,
+        },
+        permissoes_efetivas: permissions,
+        escopo_ativo: null,
+        escopos_disponiveis: [{ tipo: 'GLOBAL', resource_id: null, label: 'Global' }],
+      });
+    }
+
     const documentsResponse = documentsMock.handle(pathname, method, init, searchParams);
     if (documentsResponse) {
       return documentsResponse;
