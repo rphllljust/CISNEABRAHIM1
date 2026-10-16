@@ -165,6 +165,18 @@ describe('ServiceOrdersEngineListPage — recorte e paginação server-side', ()
     vi.unstubAllGlobals();
   });
 
+  it('mantém a worklist na gramática visual Midnight & Champagne', async () => {
+    vi.stubGlobal('fetch', createOrdersMock());
+
+    await renderPage();
+
+    expect(document.querySelector('.cisne-engine-workspace')).toBeInTheDocument();
+    expect(screen.getByTestId('dynamic-kpi-drilldown')).toHaveClass('cisne-kpi-strip');
+    expect(screen.getByTestId('dynamic-list').parentElement).toHaveClass(
+      'cisne-worklist-table-surface',
+    );
+  });
+
   it('pede a primeira página com limit e offset explícitos', async () => {
     const fetchMock = createOrdersMock();
     vi.stubGlobal('fetch', fetchMock);
