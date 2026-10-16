@@ -172,9 +172,24 @@ describe('ServiceOrdersEngineListPage — recorte e paginação server-side', ()
 
     expect(document.querySelector('.cisne-engine-workspace')).toBeInTheDocument();
     expect(screen.getByTestId('dynamic-kpi-drilldown')).toHaveClass('cisne-kpi-strip');
+    expect(document.querySelector('.cisne-query-deck')).toBeInTheDocument();
     expect(screen.getByTestId('dynamic-list').parentElement).toHaveClass(
       'cisne-worklist-table-surface',
     );
+  });
+
+  it('não mostra paginação nem cockpit redundante quando o recorte está vazio', async () => {
+    vi.stubGlobal('fetch', createOrdersMock([]));
+
+    renderWithProviders(<ServiceOrdersEngineListPage />, { metadata: true });
+
+    await waitFor(() => {
+      expect(screen.getByText('Nenhuma ordem de serviço no seu escopo.')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole('button', { name: 'Anterior' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/1–0 de 0/)).not.toBeInTheDocument();
+    expect(document.querySelector('.cisne-engine-signal-strip')).not.toBeInTheDocument();
   });
 
   it('pede a primeira página com limit e offset explícitos', async () => {
