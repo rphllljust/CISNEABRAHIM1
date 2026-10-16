@@ -48,7 +48,7 @@ export function DynamicKpiDrilldown({
   return (
     <div
       data-testid="dynamic-kpi-drilldown"
-      className="cisne-divider mb-2 flex flex-wrap items-stretch gap-0 border-y border-gray-200 bg-white"
+      className="cisne-kpi-strip"
       role="group"
       aria-label="Recortes operacionais"
     >
@@ -79,10 +79,9 @@ export function DynamicKpiDrilldown({
             aria-pressed={drillable ? active : undefined}
             aria-label={`${metric.label} ${metric.value}`}
             className={cn(
-              'flex min-w-28 flex-col items-start gap-0.5 border-r border-gray-200 px-3 py-1.5 text-left last:border-r-0',
+              'cisne-kpi-card',
               'transition-colors focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-brand-500',
-              active && 'bg-brand-50',
-              drillable ? 'cursor-pointer hover:bg-gray-50' : 'cursor-default',
+              drillable ? 'cursor-pointer' : 'cursor-default',
             )}
             onClick={() => {
               if (metric.filterField !== undefined && onDrilldown) {
