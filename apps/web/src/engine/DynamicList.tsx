@@ -310,7 +310,7 @@ export function DynamicList({
       coluna, ela ROLA dentro da própria coluna em vez de invadir a vizinha. É a mesma garantia que
       `min-w-0` dá na coluna — sem ela, `minmax(0,1fr)` não basta.
     */}
-      <div className="w-full min-w-0 max-w-full overflow-x-auto">
+      <div className="cisne-worklist-table-surface w-full min-w-0 max-w-full overflow-x-auto">
         <table
           className="w-full text-sm"
           data-testid="dynamic-list"
@@ -416,7 +416,7 @@ export function DynamicList({
           <tbody>
             {sorted.length === 0 ? (
               <tr>
-                <td colSpan={totalColumns} className="px-2 py-3 text-gray-500">
+                <td colSpan={totalColumns} className="px-3 py-6 text-center text-[color:var(--color-text-muted)]">
                   {emptyMessage ?? t('common.empty')}
                 </td>
               </tr>
