@@ -34,17 +34,17 @@
    * Consumidores legados de `brand-*` continuam funcionando, agora na paleta azul usada por ações,
    * links, seleção e foco.
    */
-  --color-brand-50: #edf4ff;
-  --color-brand-100: #dbeaff;
-  --color-brand-200: #b9d6ff;
-  --color-brand-300: #89bbff;
-  --color-brand-400: #4b91ff;
-  --color-brand-500: #146ef5;
-  --color-brand-600: #075ee8;
-  --color-brand-700: #0349bd;
-  --color-brand-800: #07388d;
-  --color-brand-900: #082e6f;
-  --color-brand-950: #061e4b;
+  --color-brand-50: #e6e9ee;
+  --color-brand-100: #d8dfe8;
+  --color-brand-200: #bbc8d8;
+  --color-brand-300: #91a2b8;
+  --color-brand-400: #657d9c;
+  --color-brand-500: #405b7b;
+  --color-brand-600: #102944;
+  --color-brand-700: #0b2038;
+  --color-brand-800: #081d37;
+  --color-brand-900: #05162c;
+  --color-brand-950: #030d18;
 
   /*
    * NAVY OPERACIONAL — a familia da sidebar e do texto forte.
@@ -53,11 +53,11 @@
    * azulado) para o chrome do shell, distinto do cinza-azulado dos neutros de conteudo. Sem essa
    * distincao a sidebar lia como "cinza escuro" em vez de "navy corporativo".
    */
-  --color-navy-500: #173f73;
-  --color-navy-600: #102f56;
-  --color-navy-700: #0b2443;
-  --color-navy-800: #081d37;
-  --color-navy-900: #05162c;
+  --color-navy-500: #153556;
+  --color-navy-600: #0e2945;
+  --color-navy-700: #091f36;
+  --color-navy-800: #07182b;
+  --color-navy-900: #04101f;
 
   /*
    * CHROME DO SHELL — OS DEGRAUS DO NAVY, NOMEADOS.
@@ -98,13 +98,13 @@
    * NOTA DE CONTRASTE: `nav-text` #DCE6F2 sobre #0B1F3B entrega ~13:1; `nav-text-muted` #91A4BA
    * entrega ~5.6:1 — ambos acima de AA para texto pequeno.
    */
-  --color-shell-surface: #081d37;
-  --color-shell-chrome: #0d2a4d;
-  --color-shell-dock: #102f56;
-  --color-shell-dock-ink: #146ef5;
+  --color-shell-surface: #061629;
+  --color-shell-chrome: #0a203a;
+  --color-shell-dock: #0d2440;
+  --color-shell-dock-ink: #102944;
   --color-on-shell: #ffffff;
-  --color-on-shell-muted: #a9bdd4;
-  --color-on-shell-dim: #7994b2;
+  --color-on-shell-muted: #9cacc0;
+  --color-on-shell-dim: #8b9db4;
 
   /*
    * HOVER / ATIVO SOBRE NAVY — os dois estados de interacao da navegacao escura.
@@ -117,10 +117,10 @@
    * navy, o `blue-600` puro perde contraste contra o fundo escuro e a barra de 2px desaparece. O
    * `blue-500` mantem a mesma familia de matiz e continua legivel a 2px de espessura.
    */
-  --color-shell-hover: #102f56;
-  --color-shell-active: rgb(20 110 245 / 20%);
+  --color-shell-hover: #0d2945;
+  --color-shell-active: rgb(0 0 0 / 24%);
   --color-shell-active-ink: #ffffff;
-  --color-shell-active-indicator: #42a0ff;
+  --color-shell-active-indicator: #7b91ab;
   --color-shell-border: rgb(255 255 255 / 8%);
   --color-on-shell-nav: #dce6f2;
 
@@ -174,16 +174,16 @@
    * internet" que de comando de ERP. `#2563EB` tem matiz mais frio e mais profundo: ele se apoia no
    * navy do chrome e le como ACAO, nao como hiperlink.
    */
-  --color-blue-50: #eff6ff;
-  --color-blue-100: #dbeafe;
-  --color-blue-200: #bfdbfe;
-  --color-blue-300: #93c5fd;
-  --color-blue-400: #60a5fa;
-  --color-blue-500: #3b82f6;
+  --color-blue-50: #e6e9ee;
+  --color-blue-100: #d8dfe8;
+  --color-blue-200: #bbc8d8;
+  --color-blue-300: #91a2b8;
+  --color-blue-400: #657d9c;
+  --color-blue-500: #405b7b;
   --color-blue-600: var(--erp-action);
   --color-blue-700: var(--erp-action-hover);
   --color-blue-800: var(--erp-action-active);
-  --color-blue-900: #1e3a8a;
+  --color-blue-900: #071a30;
 
   /* ANALYTICS — roxo para eixo TEMPORAL/analitico. Nunca para estado operacional. */
   --color-violet-50: #f5f3ff;
@@ -332,10 +332,10 @@
    * "este e o registro que estou operando".
    */
   --color-surface-selected: var(--erp-surface-selected);
-  --color-surface-selected-border: #bfdbfe;
+  --color-surface-selected-border: #b7c2d0;
 
   /* ESTADOS SEMANTICOS DE SUPERFICIE — cada um com FUNCAO, nunca por variedade. */
-  --color-surface-info: #eff6ff;
+  --color-surface-info: #e6e9ee;
   --color-surface-success: #f0fdf4;
   --color-surface-warning: #fffbeb;
   --color-surface-critical: #fef2f2;
@@ -352,11 +352,11 @@
    */
   --color-divider: #e8e4db;
   --color-divider-strong: #d8d4cb;
-  --color-rule-accent: #2563eb;
+  --color-rule-accent: #102944;
 
   /* GRAMATICA DE GRADE — compartilhada por TODAS as worklists do produto. */
   --color-surface-grid-head: var(--color-surface-header);
-  --color-grid-head-ink: #475569;
+  --color-grid-head-ink: #3f4a58;
   --color-grid-row-hover: #f6f4ee;
 
   /*
@@ -377,8 +377,8 @@
   --color-border-strong: var(--erp-border-strong);
 
   /* FOCO — halo de 3-4px sobre o azul de interacao. Visivel sem ser faixa. */
-  --color-focus-ring: #2563eb;
-  --color-focus-ring-soft: rgb(37 99 235 / 22%);
+  --color-focus-ring: #173b62;
+  --color-focus-ring-soft: rgb(16 41 68 / 22%);
 
   /*
    * ═════════════════════════════════════════════════════════════════════════════════════════════
@@ -412,14 +412,14 @@
   --color-error-border: #fecaca;
 
   --color-info-fg: var(--erp-info);
-  --color-info-bg: #eff6ff;
-  --color-info-border: #bfdbfe;
+  --color-info-bg: #e6e9ee;
+  --color-info-border: #b7c2d0;
 
   /* TEXTO SEMANTICO LEGIVEL (nao o tom puro, que e claro demais para rotulo). */
   --color-success-ink: #15803d;
   --color-warning-ink: #c96a00;
   --color-critical-ink: #b91c1c;
-  --color-info-ink: #1d4ed8;
+  --color-info-ink: #173b62;
   --color-neutral-ink: var(--erp-neutral);
 
   /*
@@ -429,8 +429,8 @@
   --color-op-draft-bg: #fffbeb;
   --color-op-active-fg: #15803d;
   --color-op-active-bg: #f0fdf4;
-  --color-op-progress-fg: #1d4ed8;
-  --color-op-progress-bg: #eff6ff;
+  --color-op-progress-fg: #173b62;
+  --color-op-progress-bg: #e6e9ee;
   --color-op-paused-fg: #b45309;
   --color-op-paused-bg: #fffbeb;
   --color-op-blocked-fg: #b91c1c;
@@ -598,21 +598,21 @@
     --erp-canvas: #faf9f6;
     --erp-surface: #ffffff;
     --erp-surface-support: #f4f2ed;
-    --erp-surface-selected: #edf4ff;
+    --erp-surface-selected: #e6e9ee;
     --erp-border: #e6e2da;
     --erp-border-strong: #d5d0c5;
     --erp-text: #0b1d3a;
-    --erp-text-secondary: #465d7b;
-    --erp-text-muted: #7185a0;
-    --erp-text-disabled: #9babbe;
-    --erp-action: #075ee8;
-    --erp-action-hover: #0349bd;
-    --erp-action-active: #07388d;
+    --erp-text-secondary: #344967;
+    --erp-text-muted: #5b6e84;
+    --erp-text-disabled: #8995a4;
+    --erp-action: #102944;
+    --erp-action-hover: #0b2038;
+    --erp-action-active: #061626;
     --erp-success: #16a34a;
     --erp-warning: #d97706;
     --erp-critical: #dc2626;
-    --erp-info: #075ee8;
-    --erp-neutral: #7185a0;
+    --erp-info: #173b62;
+    --erp-neutral: #5b6e84;
     color: var(--color-text-primary);
     background: var(--color-surface-app);
     font-family: var(--font-sans);
