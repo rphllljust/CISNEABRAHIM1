@@ -56,8 +56,8 @@ export function ShellMobileDrawer({ open, onClose, alertCount, alertsLoading }: 
       <aside className="shell-drawer" role="dialog" aria-modal="true" aria-label="Menu de navegação">
         <header className="shell-drawer__header">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500">
-              <ShellBrandMark className="h-4 w-4 text-white" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-400">
+              <ShellBrandMark className="h-4 w-4 text-navy-800" />
             </div>
             <p className="shell-drawer__title">CISNE RONDÔNIA</p>
           </div>

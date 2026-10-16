@@ -39,9 +39,9 @@ function buildNavLinkClass(isActive: boolean, theme: 'dark' | 'light') {
   if (theme === 'dark') {
     return cn(
       'group relative flex h-[var(--nav-row-height)] items-center gap-2 rounded-[4px] px-2.5 text-[13px] no-underline transition-colors',
-      'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400',
+      'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus-ring)]',
       isActive
-        ? 'bg-[var(--color-shell-active)] font-semibold text-[var(--color-shell-active-ink)] shadow-[inset_2px_0_0_0_var(--color-shell-active-indicator)]'
+        ? 'bg-[image:var(--color-shell-active)] font-semibold text-[var(--color-shell-active-ink)] shadow-[inset_2px_0_0_0_var(--color-shell-active-indicator)]'
         : 'font-normal text-[var(--color-on-shell-nav)] hover:bg-[var(--color-shell-hover)] hover:text-[var(--color-on-shell)]',
     );
   }

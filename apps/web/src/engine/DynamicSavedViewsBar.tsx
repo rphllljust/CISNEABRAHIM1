@@ -75,7 +75,7 @@ export function DynamicSavedViewsBar({
                   type="button"
                   data-testid="dynamic-saved-view"
                   data-view-name={view.name}
-                  className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center bg-white px-2 text-gray-700 hover:bg-brand-600 hover:text-white"
+                  className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center bg-white px-2 text-gray-700 hover:bg-cisne-action hover:text-white"
                   onClick={() => onApply(view)}
                 >
                   {view.name}

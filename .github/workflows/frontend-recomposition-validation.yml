@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - 'validation/frontend-recomposition-20261015'
+      - 'theme/midnight-completion'
 
 permissions:
   contents: read
@@ -32,7 +33,7 @@ jobs:
       - name: Focused lint
         working-directory: apps/web
         run: |
-          mapfile -t changed < <(git diff --name-only a5fb4018fd049989dc755461a334eb99fbba5d11 HEAD -- src | sed -n '/\.tsx\?$/p' | sed 's|^apps/web/||')
+          mapfile -t changed < <(git diff --name-only c87fa4559153f19aa4bfdfca7000523061c4cc1e HEAD -- src | sed -n '/\.tsx\?$/p' | sed 's|^apps/web/||')
           test "${#changed[@]}" -gt 0
           pnpm exec eslint "${changed[@]}"
       - name: Web typecheck
@@ -46,6 +47,24 @@ jobs:
           src/dashboard/components/cockpit-structure.test.tsx
           src/shell/shell.components.test.tsx
       - name: Build web
+        env:
+          VITE_CISNE_SURFACE: dev
         run: pnpm --filter @cisne/web build
+      - name: Install browser
+        run: pnpm --filter @cisne/web exec playwright install --with-deps chromium
+      - name: Midnight theme browser acceptance
+        working-directory: apps/web
+        run: |
+          pnpm run preview:visual > ../../tmp-preview.log 2>&1 &
+          pnpm exec playwright test --config e2e/proof/playwright.proof.config.ts midnight-theme.spec.ts
+      - name: Upload theme evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: midnight-theme-evidence
+          path: |
+            apps/web/tmp-proof/midnight-*.png
+            apps/web/test-results-proof/
+          if-no-files-found: ignore
       - name: Diff check
-        run: git diff --check a5fb4018fd049989dc755461a334eb99fbba5d11 HEAD
+        run: git diff --check c87fa4559153f19aa4bfdfca7000523061c4cc1e HEAD

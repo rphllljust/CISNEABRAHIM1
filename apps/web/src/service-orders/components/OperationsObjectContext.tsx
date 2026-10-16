@@ -178,7 +178,7 @@ export function OperationsObjectContext({ order }: { order: ServiceOrderSummary 
         <div className="flex flex-wrap items-center gap-2">
           <Link
             to={`/app/service-orders/${order.id}/execution`}
-            className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md bg-brand-600 px-2.5 text-white no-underline hover:bg-brand-700"
+            className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md bg-cisne-action px-2.5 text-white no-underline hover:bg-cisne-action-hover"
           >
             Abrir execução
           </Link>

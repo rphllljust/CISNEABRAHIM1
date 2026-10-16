@@ -57,7 +57,7 @@ export function ObjectStateFlow({
                 title={step.hint}
                 className={cn(
                   'rounded px-1.5 py-0.5 text-xs',
-                  isCurrent && 'bg-brand-600 font-semibold text-white',
+                  isCurrent && 'bg-cisne-action font-semibold text-white',
                   !isCurrent && isDone && 'font-medium text-gray-700',
                   !isCurrent && !isDone && 'text-gray-500',
                   step.terminal && !isCurrent && 'text-gray-600 italic',

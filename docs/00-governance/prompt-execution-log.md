@@ -21250,3 +21250,19 @@ Evidência: CI 38941737108 do commit a81c595. Shards 2/4 e 4/4 passaram; 1/4 e 3
 - Shell e gate responsivo reutilizam o seletor compartilhado do título atual.
 
 Validação local: os reporters registraram 13 testes de workspaces, 11 de finance-backoffice, 7 de previsão de caixa e 4 de cockpit aprovados. Entretanto o runner local não concluiu o encerramento; tentativas isoladas atingiram o limite externo de execução. Estes resultados NÃO equivalem a uma suíte terminada com exit code 0. ESLint focado e typecheck Web são verificados separadamente; o CI do novo SHA deve confirmar a execução completa. Sem merge e sem deploy nesta etapa.
+
+
+## CONCLUSÃO DO TEMA MIDNIGHT & CHAMPAGNE — 2026-10-16
+
+STATUS: **IN_PROGRESS** — implementação candidata; validação remota e deploy pendentes.
+
+Autorização: solicitação explícita para concluir a aplicação integral da direção 1a do arquivo anexado `Sistema sofisticado premium.zip` e finalizar com deploy. Interpretação de engenharia visual; não altera domínio, API, banco, permissões ou capabilities. A direção 1b/1c não foi aplicada.
+
+- Cores fixas dos seletores existentes de tabelas, filtros, seleção, contexto, alertas e gráficos conectadas aos tokens globais, sem uma camada de overrides adicional.
+- Famílias neutras slate/gray e superfícies antigas passam a usar papel marfim e tinta midnight. Instrument Sans e JetBrains Mono self-hosted preservadas e propagadas ao login.
+- Comandos compartilhados usam midnight com texto inverso; champagne fica na identidade, seleção e foco.
+- Feedbacks de sucesso, alerta e erro mantêm famílias independentes; foregrounds escuros, foco e limites de controles recebem pares de contraste verificáveis. Props, roles, labels, aria-expanded e contratos financeiros preservados.
+- Helper Playwright atualizado para o mesmo heading ancorado homologado pelo helper Vitest; gate visual não foi afrouxado nem recebeu continue-on-error.
+- Prova de browser focada inclui cinco superfícies em desktop/mobile e pares de contraste. Fixtures são dados de teste, nunca fonte de totais de produção.
+
+Evidência local: lint focado, typecheck Web e build passaram antes dos ajustes finais de controles; diff-check passou. Vitest local reportou 20 testes de UI aprovados, mas não concluiu teardown e atingiu timeout 124: não equivale a uma suíte aprovada. Chromium indisponível; download local retornou arquivo inválido. Gates finais serão executados no workflow existente de validação frontend, adaptado para esta branch. Nenhuma aprovação remota ou publicação é presumida neste registro.

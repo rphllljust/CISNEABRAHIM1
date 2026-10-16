@@ -83,7 +83,7 @@ export function AppShellLayout() {
   return (
     <div className="cisne-app shell-enterprise flex min-h-dvh bg-[var(--color-canvas)] font-sans text-[var(--color-text-primary)] antialiased">
       <a
-        className="shell__skip-link bg-brand-600 text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+        className="shell__skip-link bg-cisne-action text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
         href="#main-content"
       >
         Ir para o conteúdo principal
@@ -111,8 +111,8 @@ export function AppShellLayout() {
             A marca usa azul de interacao sobre navy; cyan/teal fica restrito aos detalhes de apoio
             dentro da area de trabalho.
           */}
-          <div className="flex h-7 w-7 items-center justify-center rounded-[4px] bg-[var(--color-blue-600)]">
-            <ShellBrandMark className="h-3.5 w-3.5 text-white" />
+          <div className="flex h-7 w-7 items-center justify-center rounded-[4px] bg-[var(--color-shell-dock-ink)]">
+            <ShellBrandMark className="h-3.5 w-3.5 text-[var(--color-shell-surface)]" />
           </div>
           <div className="min-w-0 leading-tight">
             <p className="truncate text-[13px] font-semibold tracking-tight text-[var(--color-on-shell)]">
@@ -128,7 +128,7 @@ export function AppShellLayout() {
 
         <div className="border-t border-[var(--color-shell-border)] p-2.5">
           <div className="flex items-center gap-2.5 rounded-[4px] bg-[var(--color-shell-dock)] px-2.5 py-1.5">
-            <div className="flex h-6 w-6 items-center justify-center rounded-[4px] bg-[var(--color-blue-600)] text-[10px] font-bold text-white">
+            <div className="flex h-6 w-6 items-center justify-center rounded-[4px] bg-[var(--color-shell-dock-ink)] text-[10px] font-bold text-[var(--color-shell-surface)]">
               CN
             </div>
             <div className="min-w-0 leading-tight">

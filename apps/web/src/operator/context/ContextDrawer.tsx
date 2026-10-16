@@ -166,7 +166,7 @@ export function ContextDrawer({
         {preview.nextAction ? (
           preview.nextAction.href ? (
             <Link
-              className="inline-flex items-center justify-center rounded-md border border-brand-600 bg-brand-600 px-3 py-2 text-xs font-semibold text-white no-underline hover:bg-brand-700"
+              className="inline-flex items-center justify-center rounded-md border border-cisne-action bg-cisne-action px-3 py-2 text-xs font-semibold text-white no-underline hover:bg-cisne-action-hover"
               to={preview.nextAction.href}
             >
               {preview.nextAction.label}
@@ -174,7 +174,7 @@ export function ContextDrawer({
           ) : (
             <button
               type="button"
-              className="inline-flex items-center justify-center rounded-md border border-brand-600 bg-brand-600 px-3 py-2 text-xs font-semibold text-white hover:bg-brand-700"
+              className="inline-flex items-center justify-center rounded-md border border-cisne-action bg-cisne-action px-3 py-2 text-xs font-semibold text-white hover:bg-cisne-action-hover"
               onClick={preview.nextAction.onClick}
             >
               {preview.nextAction.label}

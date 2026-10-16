@@ -74,18 +74,18 @@
     align-items: center;
     border-radius: 0.375rem;
     border: 0;
-    background-color: var(--color-brand-700);
+    background-color: var(--color-cisne-action);
     padding: 0.5rem 1rem;
     font-size: 0.875rem;
     font-weight: 600;
-    color: #fff !important;
+    color: var(--color-text-inverse) !important;
     text-decoration: none;
     box-shadow: 0 1px 2px rgb(17 24 39 / 5%);
   }
 
   .cisne-app a.button-link:hover,
   .cisne-app .button-link:hover {
-    background-color: var(--color-brand-800);
+    background-color: var(--color-cisne-action-hover);
   }
 
   .cisne-app .button-secondary {
@@ -94,7 +94,7 @@
     align-items: center;
     border-radius: 0.375rem;
     border: 1px solid var(--color-border-default);
-    background: #fff;
+    background: var(--color-canvas-work);
     padding: 0.5rem 1rem;
     font-size: 0.875rem;
     font-weight: 600;
@@ -139,7 +139,7 @@
     margin-bottom: 1rem;
     border-radius: var(--radius-md);
     border: 1px solid var(--color-border-default);
-    background: #fff;
+    background: var(--color-canvas-work);
     padding: 0.75rem;
     box-shadow: none;
     outline: none;
@@ -162,7 +162,7 @@
     width: 100%;
     border: 0;
     border-radius: 0.375rem;
-    background: #fff;
+    background: var(--color-canvas-work);
     padding: 0.5rem 0.75rem;
     font: inherit;
     font-size: 0.875rem;
@@ -206,7 +206,7 @@
     border-spacing: 0;
     overflow: hidden;
     border-radius: var(--radius-md);
-    background: #fff;
+    background: var(--color-canvas-work);
     box-shadow: 0 1px 0 rgb(15 23 42 / 4%), 0 12px 28px rgb(15 23 42 / 5%);
     outline: 1px solid var(--color-border-default);
   }
@@ -217,7 +217,7 @@
     margin-bottom: 1.5rem;
     overflow: hidden;
     border-radius: var(--radius-md);
-    background: #fff;
+    background: var(--color-canvas-work);
     box-shadow: 0 1px 0 rgb(15 23 42 / 4%), 0 12px 28px rgb(15 23 42 / 5%);
     outline: 1px solid var(--color-border-default);
   }
@@ -318,7 +318,7 @@
     align-items: center;
     border-radius: 0.375rem;
     border: 1px solid var(--color-border-default);
-    background: #fff;
+    background: var(--color-canvas-work);
     padding: 0.5rem 1rem;
     font-size: 0.875rem;
     font-weight: 600;
@@ -351,7 +351,7 @@
     margin-bottom: 1.5rem;
     border-radius: var(--radius-md);
     border: 1px solid var(--color-border-default);
-    background: #fff;
+    background: var(--color-canvas-work);
     padding: 1rem;
     box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
     outline: none;

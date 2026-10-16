@@ -232,7 +232,7 @@ export function WorkbenchQueueItem({
  * aumentou — antes ambas tinham contorno e peso parecidos, o que e o "8 botoes com o mesmo peso".
  */
 export const workbenchPrimaryActionClass =
-  'cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md bg-brand-600 px-2.5 no-underline text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60';
+  'cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md bg-cisne-action px-2.5 no-underline text-white transition-colors hover:bg-cisne-action-hover disabled:cursor-not-allowed disabled:opacity-60';
 
 export const workbenchSecondaryActionClass =
   'cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 no-underline transition-colors hover:bg-gray-100 hover:text-gray-900';

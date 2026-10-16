@@ -148,7 +148,7 @@ export function GlobalSearchBar({ compact = false }: GlobalSearchBarProps) {
         />
         <button
           type="button"
-          className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded-md bg-brand-600 px-3 py-1 text-xs font-semibold text-white shadow-sm hover:bg-brand-700"
+          className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded-md bg-cisne-action px-3 py-1 text-xs font-semibold text-white shadow-sm hover:bg-cisne-action-hover"
           onClick={() => submitSearch()}
         >
           Buscar

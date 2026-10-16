@@ -68,7 +68,7 @@ function ObjectActionButton({
         className={cn(
           'cisne-type-action inline-flex min-h-[var(--control-height)] items-center justify-center gap-1.5 rounded-[4px] px-3 no-underline transition-colors',
           variant === 'primary'
-            ? 'bg-brand-600 text-white hover:bg-brand-700'
+            ? 'bg-cisne-action text-white hover:bg-cisne-action-hover'
             : 'border border-[color:var(--color-border-default)] bg-white text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-surface-hover)]',
         )}
       >
@@ -153,7 +153,7 @@ export function EnterpriseObjectHeader({
   return (
     <header
       className={cn(
-        'grid gap-3 border-l-4 border-brand-600 bg-white p-4 lg:grid-cols-[minmax(0,1fr)_auto]',
+        'grid gap-3 border-l-4 border-cisne-action bg-white p-4 lg:grid-cols-[minmax(0,1fr)_auto]',
         className,
       )}
       data-layout="object-identity"

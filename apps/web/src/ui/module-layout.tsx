@@ -124,7 +124,7 @@ export function ModulePrimaryLink({
     <Link
       to={to}
       className={cn(
-        'cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md bg-brand-600 px-3 text-white no-underline transition-colors hover:bg-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500',
+        'cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md bg-cisne-action px-3 text-white no-underline transition-colors hover:bg-cisne-action-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500',
         className,
       )}
     >
@@ -323,6 +323,6 @@ export const moduleTableHeadClass = 'bg-slate-50';
 export const moduleTableHeaderCellClass =
   'px-4 py-2.5 text-left text-xs font-bold tracking-wide text-slate-600 uppercase';
 
-export const moduleTableRowClass = 'transition hover:bg-[#f8fbfb]';
+export const moduleTableRowClass = 'transition hover:bg-surface-hover';
 
 export const moduleTableCellClass = 'px-4 py-3 text-sm text-slate-700 whitespace-nowrap';

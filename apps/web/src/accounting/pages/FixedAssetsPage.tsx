@@ -254,7 +254,7 @@ export function FixedAssetsPage() {
           </div>
           <button
             type="button"
-            className="shrink-0 rounded-md border border-brand-600 bg-brand-600 px-2.5 py-1 text-[13px] font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="shrink-0 rounded-md border border-cisne-action bg-cisne-action px-2.5 py-1 text-[13px] font-semibold text-white transition-colors hover:bg-cisne-action-hover disabled:cursor-not-allowed disabled:opacity-60"
             disabled={registering}
             onClick={() => void submitRegister()}
           >

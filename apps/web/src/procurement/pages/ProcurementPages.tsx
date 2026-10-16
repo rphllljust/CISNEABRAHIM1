@@ -266,7 +266,7 @@ function ProcurementLists() {
           </WorklistField>
           <button
             type="submit"
-            className="rounded border border-brand-600 bg-brand-600 px-2.5 py-1 text-[13px] font-semibold text-white transition-colors hover:bg-brand-700"
+            className="rounded border border-cisne-action bg-cisne-action px-2.5 py-1 text-[13px] font-semibold text-white transition-colors hover:bg-cisne-action-hover"
           >
             Buscar
           </button>

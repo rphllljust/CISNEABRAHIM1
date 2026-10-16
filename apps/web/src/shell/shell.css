@@ -162,7 +162,7 @@
   width: min(18rem, 88vw);
   height: 100dvh;
   border-right: 1px solid rgb(255 255 255 / 5%);
-  background: var(--color-navy-900);
+  background: var(--color-shell-surface);
   box-shadow: var(--shadow-dialog);
 }
 

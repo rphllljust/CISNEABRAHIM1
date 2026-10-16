@@ -387,7 +387,7 @@ export function RowActionMenu({
  * contornado, junto com todas as outras.
  */
 export const rowPrimaryActionClass =
-  'cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md bg-brand-600 px-2 text-white no-underline transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60';
+  'cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md bg-cisne-action px-2 text-white no-underline transition-colors hover:bg-cisne-action-hover disabled:cursor-not-allowed disabled:opacity-60';
 
 /**
  * Acao secundaria dentro do menu "•••" — discreta ate o hover, para que o menu leia como lista de
