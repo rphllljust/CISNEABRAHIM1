@@ -1,6 +1,4 @@
-import { useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
-import { ChevronRight, Layers3 } from 'lucide-react';
+import { NavLink } from 'react-router-dom';
 import { cn } from '../ui/utils/cn';
 import { resolveNavIcon } from './nav-icons';
 import { isNavItemVisible, useNavAccess } from './useNavAccess';
@@ -13,7 +11,65 @@ type ShellNavListProps = {
   theme?: 'dark' | 'light';
 };
 
-/** Process navigator: choose a business area, then its authorised work surfaces. */
+/**
+ * ITEM DE NAVEGACAO — 36px, a densidade da especificacao do app shell.
+ *
+ * Eram ~30px (`py-[0.3125rem]` sobre 13px). 36px devolve a faixa 34-38px que o sistema documenta
+ * como densidade de navegacao e mantem a area de clique confortavel para ponteiro, sem que o menu
+ * vire uma lista de botoes de toque.
+ *
+ * O ESTADO ATIVO E UM LAVADO AZUL DE 12%, COM BARRA DE 2px — NAO UM BLOCO PINTADO.
+ *
+ * O contrato do app shell e explicito:
+ *
+ *   active nav  background rgba(37,99,235,0.12)   +   indicator 2-3px   +   tinta de alto contraste
+ *   hover       nav-hover
+ *
+ * Antes o ativo era `--color-shell-dock` — um azul de CHROME (o mesmo do dock de conta) com 3px de
+ * accent. Dois defeitos: (a) o estado ativo reutilizava a cor de outra regiao, de modo que "voce esta
+ * aqui" e "bloco de conta" liam igual; (b) era um retangulo de ponta a ponta, ou seja, o elemento
+ * com MAIS area pintada do chrome inteiro numa tela onde o trabalho e o que importa.
+ *
+ * Agora o ativo usa o AZUL DE INTERACAO em 14% de opacidade, com barra de 2px e tinta BRANCA em peso
+ * 600. O item continua inequivoco — barra + contraste + peso fazem isso — sem pintar area. E o azul e
+ * a mesma familia da acao primaria do produto: o operador aprende uma cor para "isto esta ativo /
+ * isto e o comando", na navegacao e na superficie.
+ */
+function buildNavLinkClass(isActive: boolean, theme: 'dark' | 'light') {
+  if (theme === 'dark') {
+    return cn(
+      'group relative flex h-[var(--nav-row-height)] items-center gap-2 rounded-[4px] px-2.5 text-[13px] no-underline transition-colors',
+      'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400',
+      isActive
+        ? 'bg-[var(--color-shell-active)] font-semibold text-[var(--color-shell-active-ink)] shadow-[inset_2px_0_0_0_var(--color-shell-active-indicator)]'
+        : 'font-normal text-[var(--color-on-shell-nav)] hover:bg-[var(--color-shell-hover)] hover:text-[var(--color-on-shell)]',
+    );
+  }
+
+  return cn(
+    'group flex h-[var(--nav-row-height)] items-center gap-2 rounded-[4px] px-2.5 text-[13px] no-underline transition-colors',
+    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500',
+    isActive
+      ? 'bg-[var(--color-surface-selected)] font-semibold text-[var(--color-blue-800)] shadow-[inset_2px_0_0_0_var(--color-blue-600)]'
+      : 'font-normal text-[color:var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[color:var(--color-text-primary)]',
+  );
+}
+
+function iconClass(isActive: boolean, theme: 'dark' | 'light') {
+  if (theme === 'dark') {
+    return cn(
+      'h-4 w-4 shrink-0',
+      isActive
+        ? 'text-[var(--color-on-shell)]'
+        : 'text-[var(--color-on-shell-muted)] group-hover:text-[var(--color-on-shell-nav)]',
+    );
+  }
+  return cn(
+    'h-4 w-4 shrink-0',
+    isActive ? 'text-[var(--color-blue-700)]' : 'text-[color:var(--color-text-muted)]',
+  );
+}
+
 export function ShellNavList({
   onNavigate,
   alertCount = 0,
@@ -21,131 +77,89 @@ export function ShellNavList({
   theme = 'dark',
 }: ShellNavListProps) {
   const { loading, access } = useNavAccess();
-  const { pathname } = useLocation();
-  const [choice, setChoice] = useState<{ path: string; id: string } | null>(null);
-  const groups = SHELL_NAV_GROUPS.map((group) => ({
-    ...group,
-    items: group.items.filter((item) => isNavItemVisible(item.id, access, loading)),
-  })).filter((group) => group.items.length > 0);
-  const current = groups
-    .flatMap((group) => group.items.map((item) => ({ group, item })))
-    .filter(
-      ({ item }) =>
-        pathname === item.path || (item.path !== '/app' && pathname.startsWith(`${item.path}/`)),
-    )
-    .sort((a, b) => b.item.path.length - a.item.path.length)[0]?.group;
-  const selected =
-    groups.find((group) => group.id === (choice?.path === pathname ? choice.id : current?.id)) ??
-    groups[0];
 
   return (
     <nav
       className={cn(
-        'sidebar-scroll flex min-h-0 flex-1 flex-col overflow-y-auto',
-        theme === 'dark' ? 'text-[var(--color-on-shell-nav)]' : 'bg-white text-[var(--erp-text)]',
+        'sidebar-scroll flex-1 space-y-1 overflow-y-auto px-2.5 py-2',
+        theme === 'dark' ? 'bg-[var(--color-shell-surface)]' : 'bg-white',
       )}
       aria-label="Navegação principal"
     >
       {loading ? (
-        <p className="px-3 py-2 text-xs" aria-live="polite">
+        <p className="px-2 text-[13px] text-[var(--color-on-shell-muted)]" aria-live="polite">
           Carregando navegação…
         </p>
       ) : null}
-      <div className="grid min-h-0 flex-1 grid-cols-[3.25rem_minmax(0,1fr)]">
-        <div
-          className="flex flex-col items-center gap-1 border-r border-[var(--color-shell-border)] bg-black/15 py-3"
-          role="group"
-          aria-label="Processos de negócio"
-        >
-          {groups.map((group) => {
-            const Icon = resolveNavIcon(group.items[0]?.id ?? 'home');
-            return (
-              <button
-                key={group.id}
-                type="button"
-                title={group.label}
-                aria-label={group.label}
-                aria-pressed={selected?.id === group.id}
-                onClick={() => setChoice({ path: pathname, id: group.id })}
-                className={cn(
-                  'flex size-10 shrink-0 items-center justify-center rounded-md focus-visible:outline-2 focus-visible:outline-blue-400',
-                  selected?.id === group.id
-                    ? 'bg-brand-600 text-white'
-                    : 'text-[var(--color-on-shell-muted)] hover:bg-white/10 hover:text-white',
-                )}
-              >
-                <Icon className="size-[18px]" aria-hidden="true" focusable={false} />
-              </button>
-            );
-          })}
-        </div>
-        <div className="min-w-0 px-2 py-3">
-          {selected ? (
-            <section aria-label={selected.label}>
-              <div className="mb-4 px-2">
-                <p className="mb-1 text-[9px] font-semibold uppercase tracking-[.16em] text-[var(--color-on-shell-dim)]">
-                  Área de trabalho
-                </p>
-                <h2 className="m-0 text-sm font-semibold leading-tight">{selected.label}</h2>
-              </div>
-              <ul className="m-0 flex list-none flex-col gap-1 p-0">
-                {selected.items.map((item) => {
-                  const Icon = resolveNavIcon(item.id);
-                  return (
-                    <li key={item.id}>
-                      <NavLink
-                        to={item.path}
-                        end={item.path === '/app' || item.id === 'finance-overview'}
-                        onClick={onNavigate}
-                        className={({ isActive }) =>
-                          cn(
-                            'group flex min-h-9 items-center gap-2 rounded px-2 py-1.5 text-xs no-underline focus-visible:outline-2 focus-visible:outline-blue-400',
-                            isActive
-                              ? 'bg-[var(--color-shell-active)] font-semibold text-white'
-                              : 'hover:bg-[var(--color-shell-hover)]',
-                          )
-                        }
-                      >
-                        <Icon
-                          className="size-4 shrink-0 opacity-70"
-                          aria-hidden="true"
-                          focusable={false}
-                        />
-                        <span className="min-w-0 flex-1">{item.label}</span>
-                        {item.id === 'alerts' && !alertsLoading && alertCount > 0 ? (
-                          <span className="text-xs text-red-300">
-                            {alertCount > 99 ? '99+' : alertCount}
-                          </span>
-                        ) : null}
-                        <ChevronRight className="size-3 shrink-0 opacity-40" aria-hidden />
-                      </NavLink>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          ) : null}
-          <div className="mt-6 border-t border-[var(--color-shell-border)] pt-3">
-            <p className="px-2 text-[9px] font-semibold uppercase tracking-[.14em] text-[var(--color-on-shell-dim)]">
-              Cadeia empresarial
-            </p>
-            <ol className="m-0 list-none space-y-2 px-2 pt-2 text-[10px] text-[var(--color-on-shell-muted)]">
-              {['Operação', 'Medição', 'Faturamento', 'Financeiro', 'Fiscal', 'Contabilidade'].map(
-                (label, index) => (
-                  <li key={label} className="flex items-center gap-2">
-                    <span className="font-mono opacity-50">0{index + 1}</span>
-                    {label}
-                  </li>
-                ),
+      {SHELL_NAV_GROUPS.map((group) => {
+        const visibleItems = group.items.filter((item) => isNavItemVisible(item.id, access, loading));
+        if (visibleItems.length === 0) {
+          return null;
+        }
+
+        return (
+          <section key={group.id} aria-label={group.label} className="pt-2.5 first:pt-0">
+            {/*
+              SECTION LABEL — 10px, uppercase, tracking moderado, azul-acinzentado discreto.
+              Ele separa GRUPOS por TOM, nao por caixa: a sidebar precisa de profundidade visual, e
+              uma borda por grupo faria dela uma lista de retangulos.
+            */}
+            <p
+              className={cn(
+                'mb-1 px-2.5 text-[10px] font-semibold uppercase tracking-[0.1em]',
+                theme === 'dark'
+                  ? 'text-[var(--color-on-shell-dim)]'
+                  : 'text-[color:var(--color-text-muted)]',
               )}
-            </ol>
-          </div>
-        </div>
-      </div>
-      <div className="flex items-center gap-2 border-t border-[var(--color-shell-border)] px-3 py-2 text-[10px] text-[var(--color-on-shell-muted)]">
-        <Layers3 className="size-3" aria-hidden />
-        CISNE · ERP operacional
-      </div>
+            >
+              {group.label}
+            </p>
+            <ul className="m-0 flex list-none flex-col gap-px p-0">
+              {visibleItems.map((item) => {
+                const Icon = resolveNavIcon(item.id);
+                return (
+                  <li key={item.id}>
+                    <NavLink
+                      to={item.path}
+                      className={({ isActive }) => buildNavLinkClass(isActive, theme)}
+                      end={item.path === '/app'}
+                      onClick={onNavigate}
+                    >
+                      {({ isActive }) => (
+                        <>
+                          {/*
+                            `aria-hidden` no lucide NAO basta: quando o rotulo acessivel do
+                            `<svg>` tambem e renderizado, o leitor de tela le
+                            "Users Clientes" — nome do modulo prefixado pelo nome do icone.
+                            `focusable={false}` tambem tira o icone da ordem de tabulacao no
+                            Edge/IE legado.
+                          */}
+                          <Icon
+                            className={iconClass(isActive, theme)}
+                            strokeWidth={2}
+                            aria-hidden="true"
+                            aria-label={undefined}
+                            focusable={false}
+                          />
+                          <span className="min-w-0 flex-1">{item.label}</span>
+                          {item.id === 'alerts' && !alertsLoading && alertCount > 0 ? (
+                            <span
+                              className="inline-flex min-w-5 justify-center rounded-full bg-red-500/15 px-1.5 text-xs font-medium text-red-400"
+                              aria-hidden="true"
+                            >
+                              {alertCount > 99 ? '99+' : alertCount}
+                            </span>
+                          ) : null}
+                        </>
+                      )}
+                    </NavLink>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        );
+      })}
     </nav>
   );
 }

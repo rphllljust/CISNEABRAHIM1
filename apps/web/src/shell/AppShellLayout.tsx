@@ -94,7 +94,7 @@ export function AppShellLayout() {
         principal preserva a largura restante para listas e contexto empresarial.
       */}
       <aside
-        className="shell__sidebar fixed inset-y-0 z-30 hidden w-[15.5rem] flex-col border-r border-[var(--color-shell-border)] bg-[var(--color-shell-surface)] lg:flex"
+        className="shell__sidebar fixed inset-y-0 z-30 hidden w-[13.5rem] flex-col border-r border-[var(--color-shell-border)] bg-[var(--color-shell-surface)] lg:flex"
         aria-label="Barra lateral"
       >
         {/*
@@ -143,7 +143,7 @@ export function AppShellLayout() {
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col lg:pl-[15.5rem]">
+      <div className="flex min-w-0 flex-1 flex-col lg:pl-[13.5rem]">
         <ShellTopBar
           onMenuToggle={toggleMobileNav}
           menuExpanded={mobileNavOpen && !isDesktop}
