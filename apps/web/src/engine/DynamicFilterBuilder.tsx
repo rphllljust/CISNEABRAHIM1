@@ -439,13 +439,13 @@ export function DynamicFilterBuilder({
         e o resumo do recorte ativo e visivel MESMO FECHADO — porque um filtro composto aplicado e
         estado da tela, e estado da tela nao pode ficar escondido atras de um disclosure recolhido.
       */
-      className="cisne-divider px-0 py-1.5"
+      className="cisne-advanced-filter-band"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <button
           type="button"
           data-testid="dynamic-filter-builder-toggle"
-          className="cisne-meta-label inline-flex min-h-[var(--control-height)] items-center gap-1 rounded-md px-1.5 hover:bg-gray-100 hover:text-gray-900"
+          className="cisne-meta-label inline-flex min-h-[var(--control-height)] items-center gap-1 rounded-md px-1.5 hover:bg-[color:var(--color-surface-hover)] hover:text-[color:var(--color-text-primary)]"
           aria-expanded={open}
           onClick={() => setOpen((current) => !current)}
         >
