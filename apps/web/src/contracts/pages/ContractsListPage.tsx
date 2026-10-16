@@ -371,9 +371,9 @@ export function ContractsListPage() {
         autorizado) e as visoes salvas continuam na MESMA linha de operacao — sem formulario cru,
         sem cartao de respiro largo empurrando a grade para fora da primeira dobra.
       */}
+      <div className="cisne-query-deck mb-2">
       <WorkspaceToolbar
         views={
-          items.length > 0 ? (
             <div data-region="saved-view-surface">
               {/*
                 VISOES SALVAS — integradas a command surface, na MESMA faixa dos filtros que elas
@@ -395,7 +395,6 @@ export function ContractsListPage() {
                 }}
               />
             </div>
-          ) : undefined
         }
       >
         {/*
@@ -407,7 +406,7 @@ export function ContractsListPage() {
           no dono da barra: o wrapper reserva a largura minima e impede o encolhimento.
         */}
         <WorklistField label="Cliente" htmlFor="contract-client-search" grow>
-          <span className="min-w-0 flex-1 [&>div>span]:shrink-0 [&>div>span]:whitespace-nowrap">
+          <span className="min-w-[24rem] flex-1 [&>div>span]:shrink-0 [&>div>span]:whitespace-nowrap">
             <HumanLookupField
               label="Cliente"
               htmlFor="contract-client-search"
@@ -511,7 +510,7 @@ export function ContractsListPage() {
       {/*
         FILTRO AVANÇADO COMPOSTO — área própria, dirigida por METADADO.
       */}
-      <div data-region="advanced-filter-surface" className="mb-2">
+      <div data-region="advanced-filter-surface">
         <DynamicFilterBuilder
           schema={contractSchema}
           value={advancedGroup}
@@ -527,6 +526,7 @@ export function ContractsListPage() {
             setUrlParams(params, { replace: true });
           }}
         />
+      </div>
       </div>
 
       {/*
