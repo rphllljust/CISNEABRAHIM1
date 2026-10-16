@@ -1677,6 +1677,24 @@
   background: #fbfaf7;
 }
 
+.cisne-query-deck > [data-region='workspace-toolbar'] {
+  margin-bottom: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.cisne-query-deck > [data-region='advanced-filter-surface'] {
+  border-top: 1px solid #ece8df;
+  background: #fbfaf7;
+}
+
+.cisne-query-deck > [data-region='advanced-filter-surface'] .cisne-advanced-filter-band {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
 .cisne-engine-capability-note {
   margin: -0.25rem 0 0;
   padding: 0 0.25rem;
