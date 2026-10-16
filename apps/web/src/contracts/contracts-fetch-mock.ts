@@ -126,6 +126,30 @@ export function createContractsFetchMock(options: ContractsFetchMockOptions = {}
       const { pathname, searchParams } = parseRequestPath(input);
       const method = init?.method ?? 'GET';
 
+      if (pathname === '/api/v1/me' && method === 'GET') {
+        const permissions = [
+          ...(listAllowed ? ['commercial:contract:list', 'commercial:contract:read'] : []),
+          ...(createAllowed ? ['commercial:contract:create'] : []),
+          'commercial:contract:update',
+          'commercial:contract:activate',
+          'commercial:contract:close',
+          'commercial:contract:expire',
+          'client:client:list',
+          'client:client:read',
+        ];
+        return jsonResponse({
+          usuario: {
+            id: MOCK_IDENTITY_ID,
+            nome: null,
+            email: null,
+            identity_id: MOCK_IDENTITY_ID,
+          },
+          permissoes_efetivas: permissions,
+          escopo_ativo: null,
+          escopos_disponiveis: [{ tipo: 'GLOBAL', resource_id: null, label: 'Global' }],
+        });
+      }
+
       if (pathname === '/api/v1/clients' && method === 'GET') {
         return jsonResponse({
           items: [
