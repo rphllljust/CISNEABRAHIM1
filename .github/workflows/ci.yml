@@ -204,3 +204,47 @@ jobs:
             apps/api/dist
             apps/web/dist
             packages/database/dist
+  # Deploy only direct pushes to main, after every required CI gate is green.
+  deploy-production:
+    name: Deploy production (Railway)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [static-quality, unit-tests, database-and-integration, build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment:
+      name: production
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Configure RAILWAY_TOKEN under Settings > Secrets and variables > Actions > Secrets.
+      # Create a project-scoped Railway token; never store it in this file or in Variables.
+      # Configure the non-secret IDs under Settings > Secrets and variables > Actions > Variables:
+      # RAILWAY_PROJECT_ID, RAILWAY_ENVIRONMENT (production), and RAILWAY_WEB_SERVICE_ID.
+      # These values target the production web service; set the IDs for this Railway project.
+      - name: Install Railway CLI
+        run: npm install --global @railway/cli
+
+      - name: Validate deploy configuration
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
+          RAILWAY_ENVIRONMENT: ${{ vars.RAILWAY_ENVIRONMENT }}
+          RAILWAY_SERVICE_ID: ${{ vars.RAILWAY_WEB_SERVICE_ID }}
+        run: |
+          test -n "$RAILWAY_TOKEN" || { echo 'Missing Actions Secret: RAILWAY_TOKEN' >&2; exit 1; }
+          test -n "$RAILWAY_PROJECT_ID" || { echo 'Missing Actions Variable: RAILWAY_PROJECT_ID' >&2; exit 1; }
+          test -n "$RAILWAY_ENVIRONMENT" || { echo 'Missing Actions Variable: RAILWAY_ENVIRONMENT' >&2; exit 1; }
+          test -n "$RAILWAY_SERVICE_ID" || { echo 'Missing Actions Variable: RAILWAY_WEB_SERVICE_ID' >&2; exit 1; }
+
+      # railway up uploads this checked-out source tree and waits for the Railway build result.
+      # Keep Railway's service root directory/build settings aligned with the monorepo web app.
+      - name: Upload and deploy web service
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
+          RAILWAY_ENVIRONMENT: ${{ vars.RAILWAY_ENVIRONMENT }}
+          RAILWAY_SERVICE_ID: ${{ vars.RAILWAY_WEB_SERVICE_ID }}
+        run: railway up --project "$RAILWAY_PROJECT_ID" --environment "$RAILWAY_ENVIRONMENT" --service "$RAILWAY_SERVICE_ID" --ci
