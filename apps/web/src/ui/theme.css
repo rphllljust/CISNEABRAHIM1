@@ -8,6 +8,23 @@
   --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   /*
+   * NEUTROS QUENTES — fundos e separadores mais leves, mantendo contraste de leitura.
+   * O navy e o azul de ação continuam como as cores de identidade e comando.
+   */
+  --color-gray-50: #fbfaf7;
+  --color-gray-100: #f5f3ee;
+  --color-gray-200: #e9e6dd;
+  --color-gray-300: #d8d4cb;
+  --color-gray-400: #aaa59b;
+  --color-gray-500: #77736a;
+  --color-gray-600: #5d594f;
+  --color-gray-700: #423f37;
+  --color-gray-800: #2b2923;
+  --color-gray-900: #191813;
+  --color-gray-950: #0d0c09;
+
+
+  /*
    * CISNE INTERACTION — BLUE ACTIONS + NAVY NAVIGATION.
    *
    * A escala `brand` e o AZUL de interacao para manter compatibilidade com consumidores legados
@@ -125,8 +142,8 @@
    * interacao com significado — o acento (teal/azul) fica reservado ao estado que o operador
    * ESCOLHEU. Com azul no hover, o acento aparecia em toda a barra ao menor movimento.
    */
-  --color-surface-hover: #f1f5f9;
-  --color-surface-sunken-soft: #e9eef5;
+  --color-surface-hover: #f5f3ee;
+  --color-surface-sunken-soft: #efede7;
 
   /*
    * SUPERFICIE DE CONSULTA — o campo de busca do application shell.
@@ -136,8 +153,8 @@
    * do componente (o que impedia o shell de participar do tema); nomeados aqui, o campo de busca
    * segue a mesma politica de superficie do resto do chrome.
    */
-  --color-search-surface: #f4f7fb;
-  --color-search-border: #d8e0e9;
+  --color-search-surface: #fbfaf7;
+  --color-search-border: #e6e2da;
 
   /*
    * SELECAO DE RESULTADO — o item sob o cursor na lista de sugestoes.
@@ -285,7 +302,7 @@
    * `--color-surface-app` mantem-se como alias porque varias superficies o consomem.
    */
   --color-canvas: var(--erp-canvas);
-  --color-canvas-secondary: #f4f7fb;
+  --color-canvas-secondary: #f7f5f0;
   --color-surface-app: var(--erp-canvas);
 
   /* LEVEL 1 — PRIMARY WORK SURFACE: BRANCO PURO. Onde o operador passa o dia. */
@@ -300,12 +317,12 @@
    * por cima dele).
    */
   --color-surface-context: var(--erp-surface-support);
-  --color-surface-context-strong: #e4eaf1;
+  --color-surface-context-strong: #ece9e1;
   --color-surface-support: var(--erp-surface-support);
   /* CABECALHO TONAL — faixa de titulo, cabecalho de grade, barra de ferramentas. */
-  --color-surface-header: #f0f4f8;
-  --color-surface-sunken: #f3f5f7;
-  --color-surface-muted: #f8fafc;
+  --color-surface-header: #f7f5ef;
+  --color-surface-sunken: #f2f0eb;
+  --color-surface-muted: #fbfaf8;
 
   /*
    * SELECAO — AZUL DE INTERACAO, nao teal.
@@ -322,7 +339,7 @@
   --color-surface-success: #f0fdf4;
   --color-surface-warning: #fffbeb;
   --color-surface-critical: #fef2f2;
-  --color-surface-neutral: #f8fafc;
+  --color-surface-neutral: #fbfaf7;
   /* ACENTO DE APOIO CISNE — contexto/relacao informativa. NUNCA fundo global. */
   --color-surface-teal-soft: #ecfeff;
 
@@ -333,14 +350,14 @@
    * A espessura e o unico sinal de profundidade — e e suficiente: o olho denso le regua melhor que
    * sombra difusa.
    */
-  --color-divider: #e5e7eb;
-  --color-divider-strong: #d6dce4;
+  --color-divider: #e8e4db;
+  --color-divider-strong: #d8d4cb;
   --color-rule-accent: #2563eb;
 
   /* GRAMATICA DE GRADE — compartilhada por TODAS as worklists do produto. */
   --color-surface-grid-head: var(--color-surface-header);
   --color-grid-head-ink: #475569;
-  --color-grid-row-hover: #f4f6f8;
+  --color-grid-row-hover: #f6f4ee;
 
   /*
    * TEXTO — tres degraus e um desabilitado. Com quatro cinzas parecidos, nada se le.
@@ -355,8 +372,8 @@
    * BORDAS — a linguagem de divisor do ERP.
    */
   --color-border-default: var(--erp-border);
-  --color-border-muted: #eef1f4;
-  --color-border-subtle: #eef1f4;
+  --color-border-muted: #eeece6;
+  --color-border-subtle: #eeece6;
   --color-border-strong: var(--erp-border-strong);
 
   /* FOCO — halo de 3-4px sobre o azul de interacao. Visivel sem ser faixa. */
@@ -578,12 +595,12 @@
 
 @layer base {
   :root {
-    --erp-canvas: #f3f7fc;
+    --erp-canvas: #faf9f6;
     --erp-surface: #ffffff;
-    --erp-surface-support: #edf3fa;
+    --erp-surface-support: #f4f2ed;
     --erp-surface-selected: #edf4ff;
-    --erp-border: #d4e0ee;
-    --erp-border-strong: #b6c8dc;
+    --erp-border: #e6e2da;
+    --erp-border-strong: #d5d0c5;
     --erp-text: #0b1d3a;
     --erp-text-secondary: #465d7b;
     --erp-text-muted: #7185a0;
