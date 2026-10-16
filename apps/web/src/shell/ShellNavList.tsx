@@ -39,9 +39,9 @@ function buildNavLinkClass(isActive: boolean, theme: 'dark' | 'light') {
   if (theme === 'dark') {
     return cn(
       'group relative flex h-[var(--nav-row-height)] items-center gap-2 rounded-[4px] px-2.5 text-[13px] no-underline transition-colors',
-      'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400',
+      'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-400',
       isActive
-        ? 'bg-[var(--color-shell-active)] font-semibold text-[var(--color-shell-active-ink)] shadow-[inset_2px_0_0_0_var(--color-shell-active-indicator)]'
+        ? 'bg-[linear-gradient(90deg,var(--color-shell-active),transparent)] font-semibold text-[var(--color-shell-active-ink)] shadow-[inset_2px_0_0_0_var(--color-shell-active-indicator)]'
         : 'font-normal text-[var(--color-on-shell-nav)] hover:bg-[var(--color-shell-hover)] hover:text-[var(--color-on-shell)]',
     );
   }
@@ -60,7 +60,7 @@ function iconClass(isActive: boolean, theme: 'dark' | 'light') {
     return cn(
       'h-4 w-4 shrink-0',
       isActive
-        ? 'text-[var(--color-on-shell)]'
+        ? 'text-[var(--color-brand-400)]'
         : 'text-[var(--color-on-shell-muted)] group-hover:text-[var(--color-on-shell-nav)]',
     );
   }
