@@ -546,7 +546,7 @@ export function ContractsListPage() {
           `data-region="worklist-master"` e declarado no proprio painel: a fila inclui os estados
           (vazio/sem resultado), nao apenas a tabela.
         */}
-        <WorkspacePane className="h-full overflow-hidden" data-region="worklist-master">
+        <WorkspacePane className={items.length === 0 ? 'overflow-hidden' : 'h-full overflow-hidden'} data-region="worklist-master">
           {items.length === 0 ? (
             /*
               ESTADO VAZIO — A MOLDURA PERMANECE; so o miolo da grade muda. O cabecalho e a
