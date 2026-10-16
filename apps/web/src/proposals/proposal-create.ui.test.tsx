@@ -43,6 +43,32 @@ function createProposalCreateFetchMock(captured: CapturedCreate = { payloads: []
       });
     }
 
+    if (pathname === '/api/v1/me' && method === 'GET') {
+      return jsonResponse({
+        usuario: {
+          id: '00000000-0000-4000-8000-000000000001',
+          nome: null,
+          email: null,
+          identity_id: '00000000-0000-4000-8000-000000000001',
+        },
+        permissoes_efetivas: [
+          'commercial:proposal:list',
+          'commercial:proposal:read',
+          'commercial:proposal:create',
+          'commercial:proposal:update',
+          'commercial:proposal:issue',
+          'commercial:proposal:accept',
+          'commercial:proposal:reject',
+          'commercial:proposal:expire',
+          'commercial:proposal:cancel',
+          'client:client:list',
+          'client:client:read',
+        ],
+        escopo_ativo: null,
+        escopos_disponiveis: [{ tipo: 'GLOBAL', resource_id: null, label: 'Global' }],
+      });
+    }
+
     if (pathname === '/api/v1/requests/service-requests/operational-units' && method === 'GET') {
       return jsonResponse({ items: ['UN-POA-01'] });
     }
