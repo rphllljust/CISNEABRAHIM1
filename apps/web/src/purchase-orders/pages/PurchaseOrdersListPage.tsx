@@ -599,7 +599,7 @@ export function PurchaseOrdersListPage() {
         estado vazio explica o que um pedido de compra é.
       */}
       <WorkspaceBody>
-        <WorkspacePane className="h-full overflow-hidden">
+        <WorkspacePane className={items.length === 0 ? 'overflow-hidden' : 'h-full overflow-hidden'}>
           <div className="flex min-h-0 flex-1 flex-col" data-region="worklist-master">
             {items.length === 0 ? (
               <WorkspaceEmpty
