@@ -21196,3 +21196,40 @@ Autorização: resposta “Sim” ao uso de branch temporária exclusivamente pa
 - Propagação real dos Object Page primitives inclui Customer 360, Contract 360, OS 360, Planejamento, Execução, Medição, Propostas, Pedidos, Ativos, Recebíveis, Pagáveis, Tesouraria, Fornecedores e Catálogo. Os primitives compartilhados alteram composição; esta enumeração não equivale a validação visual individual de cada rota.
 
 Este registro complementa e supera o bloqueio técnico da execução anterior, preservado acima como histórico. O commit documental posterior não altera o código validado/implantado.
+
+## APLICAÇÃO DO TEMA MIDNIGHT & CHAMPAGNE — 2026-10-16
+
+STATUS: **PENDING_VALIDATION** — tema aplicado em tokens; os gates automatizados ainda não foram executados.
+
+Autorização: solicitação explícita para abrir PR da branch `theme/midnight-champagne` contra `main`, usando a direção visual Midnight & Champagne do material anexado. Classificação: interpretação de engenharia visual. Sem alteração de regra empresarial, API, capability, banco ou máquina de estados.
+
+### Arquivos alterados
+
+- `apps/web/package.json`: adicionadas `@fontsource/instrument-sans` e `@fontsource/jetbrains-mono` (^5.2.5).
+- `apps/web/src/main.tsx`: carregados localmente os pesos Instrument Sans 400/500/600/700 e JetBrains Mono 400/500; Inter e IBM Plex Mono seguem como fallback.
+- `apps/web/src/ui/theme.css`: tokens atualizados para a paleta Midnight & Champagne, preservando alterações posteriores já presentes em `main`.
+- `pnpm-lock.yaml`: resoluções 5.3.0 adicionadas para as duas dependências.
+- `docs/00-governance/prompt-execution-log.md`: este registro.
+
+### Commits de código
+
+- `47881b7` — declara fontes Instrument Sans e JetBrains Mono.
+- `46085f0` — aplica a paleta e sincroniza o lockfile.
+
+### Validação pendente
+
+- `pnpm install`, typecheck, lint, testes, build e aceite visual não foram executados nesta sessão.
+- O lockfile foi atualizado para corresponder às dependências declaradas; a instalação e os quality gates devem ser confirmados pelo CI do PR.
+
+### Riscos conhecidos
+
+- A família `blue-*` permanece parcialmente mapeada; níveis claros podem manter azul em pontos da interface.
+- Hexadecimais escritos diretamente no JSX (41 ocorrências em 16 arquivos TSX, conforme a análise anexada) não foram migrados.
+- `OperationalDashboardPage` não foi reescrita nesta mudança.
+
+### Próximos passos
+
+1. Aguardar e corrigir eventuais falhas do CI do PR.
+2. Revisar capturas de tela das rotas principais antes do aceite visual.
+3. Tratar separadamente o mapeamento residual de `blue-*` e a recomposição do dashboard.
+
