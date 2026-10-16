@@ -65,9 +65,9 @@ const METRIC_TONE: Record<MetricTone, string> = {
     'border-[color:var(--erp-border)] bg-[color:var(--erp-surface)] text-[color:var(--erp-text-secondary)]',
   info: 'border-[color:var(--color-info-border)] bg-[color:var(--color-info-bg)] text-[color:var(--erp-info)]',
   warning:
-    'border-[color:var(--color-warning-border)] bg-[color:var(--color-warning-bg)] text-[color:var(--erp-warning)]',
+    'border-[color:var(--color-warning-border)] bg-[color:var(--color-warning-bg)] text-[color:var(--color-warning-fg)]',
   critical:
-    'border-[color:var(--color-critical-border)] bg-[color:var(--color-critical-bg)] text-[color:var(--erp-critical)]',
+    'border-[color:var(--color-critical-border)] bg-[color:var(--color-critical-bg)] text-[color:var(--color-critical-fg)]',
 };
 
 export function EnterpriseMetric({
@@ -139,7 +139,7 @@ export function EnterpriseField({
 
 /** Controle de toolbar: mesma semantica dos filtros atuais, densidade governada. */
 export const enterpriseControlClass =
-  'min-h-[var(--control-height)] w-full rounded-md border-0 bg-white px-2 text-[length:var(--type-body-size)] text-gray-900 ring-1 ring-gray-300 ring-inset outline-none focus:ring-2 focus:ring-brand-500';
+  'min-h-[var(--control-height)] w-full rounded-md border-0 bg-white px-2 text-[length:var(--type-body-size)] text-gray-900 ring-1 ring-border-control ring-inset outline-none focus:ring-2 focus:ring-focus-ring';
 
 /* ---------------------------------------------------------------------- tabela */
 
@@ -534,7 +534,7 @@ export function WorklistField({
 
 /** Controle denso da barra compacta — altura governada pelo token de densidade. */
 export const worklistControlClass =
-  'min-h-[var(--control-height)] rounded-md border-0 bg-white px-1.5 text-[length:var(--type-body-size)] text-gray-900 ring-1 ring-gray-300 ring-inset outline-none focus:ring-2 focus:ring-brand-500';
+  'min-h-[var(--control-height)] rounded-md border-0 bg-white px-1.5 text-[length:var(--type-body-size)] text-gray-900 ring-1 ring-border-control ring-inset outline-none focus:ring-2 focus:ring-focus-ring';
 
 export const worklistSelectClass = cn(worklistControlClass, 'cursor-pointer');
 
@@ -737,7 +737,7 @@ export function WorklistStatePanel({
         <p
           className={cn(
             'm-0 text-xs',
-            isCritical ? 'text-[color:var(--erp-critical)]' : 'text-[color:var(--erp-text-muted)]',
+            isCritical ? 'text-[color:var(--color-critical-fg)]' : 'text-[color:var(--erp-text-muted)]',
           )}
         >
           {description}

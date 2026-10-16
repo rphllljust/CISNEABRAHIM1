@@ -899,7 +899,7 @@ a.dashboard-kpi-list__cell:focus-visible {
   font-weight: 750;
   line-height: 1.12;
   letter-spacing: -0.022em;
-  color: var(--color-navy-800);
+  color: var(--color-text-primary);
 }
 
 .dashboard-workspace-head__description {
