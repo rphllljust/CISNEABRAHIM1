@@ -883,7 +883,7 @@ export function ServiceRequestsListPage() {
         coluna aqui seria criar uma segunda gramática de contexto que a tela não tem.
       */}
       <WorkspaceBody>
-        <WorkspacePane className="h-full overflow-hidden">
+        <WorkspacePane className={items.length === 0 ? 'overflow-hidden' : 'h-full overflow-hidden'}>
           {items.length === 0 ? (
             <section
               aria-label="Fila operacional de solicitações"
