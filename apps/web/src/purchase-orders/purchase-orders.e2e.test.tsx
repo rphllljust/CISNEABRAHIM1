@@ -52,6 +52,7 @@ describe('purchase orders administrative flow e2e (frontend)', () => {
     return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const { pathname } = parseRequestPath(input);
       if (
+        pathname === '/api/v1/me' ||
         pathname.startsWith('/api/v1/commercial/') ||
         pathname.startsWith('/api/v1/clients')
       ) {

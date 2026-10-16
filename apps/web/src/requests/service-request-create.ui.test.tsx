@@ -51,6 +51,26 @@ function createServiceRequestCreateFetchMock(
       });
     }
 
+    if (pathname === '/api/v1/me' && method === 'GET') {
+      return jsonResponse({
+        usuario: {
+          id: '00000000-0000-4000-8000-000000000001',
+          nome: null,
+          email: null,
+          identity_id: '00000000-0000-4000-8000-000000000001',
+        },
+        permissoes_efetivas: [
+          'requests:service-request:list',
+          'requests:service-request:read',
+          'requests:service-request:create',
+          'client:client:list',
+          'client:client:read',
+        ],
+        escopo_ativo: null,
+        escopos_disponiveis: [{ tipo: 'GLOBAL', resource_id: null, label: 'Global' }],
+      });
+    }
+
     if (pathname === '/api/v1/requests/service-requests/operational-units' && method === 'GET') {
       return jsonResponse({ items: [UNIT] });
     }

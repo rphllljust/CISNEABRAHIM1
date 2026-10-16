@@ -104,9 +104,22 @@ function createFetchMock(options: { duplicate?: DuplicateFixture | 'denied' | 'e
         session: { id: 'sid', expiresAt: '2026-12-31T00:00:00.000Z', status: 'ACTIVE' },
       });
     }
-    // Hidratação de sessão: o provider faz `catalog.comandos.map` sem guarda.
     if (pathname === '/api/v1/me') {
-      return jsonResponse({ identity_id: '11111111-1111-4111-8111-111111111111', permissoes_efetivas: [] });
+      return jsonResponse({
+        usuario: {
+          id: '11111111-1111-4111-8111-111111111111',
+          nome: null,
+          email: null,
+          identity_id: '11111111-1111-4111-8111-111111111111',
+        },
+        permissoes_efetivas: [
+          'client:client:list',
+          'client:client:read',
+          'client:client:create',
+        ],
+        escopo_ativo: null,
+        escopos_disponiveis: [{ tipo: 'GLOBAL', resource_id: null, label: 'Global' }],
+      });
     }
     if (pathname === '/api/v1/service-orders/command-catalog') {
       return jsonResponse({ comandos: [] });

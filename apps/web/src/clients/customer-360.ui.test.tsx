@@ -119,8 +119,25 @@ function createFetchMock(options: MockOptions = {}) {
      */
     if (pathname === '/api/v1/me' && method === 'GET') {
       return jsonResponse({
-        identity_id: '11111111-1111-4111-8111-111111111111',
-        permissoes_efetivas: [],
+        usuario: {
+          id: '11111111-1111-4111-8111-111111111111',
+          nome: null,
+          email: null,
+          identity_id: '11111111-1111-4111-8111-111111111111',
+        },
+        permissoes_efetivas: [
+          'client:client:list',
+          'client:client:read',
+          ...(options.updateAllowed === false ? [] : ['client:client:update']),
+          'client:client:deactivate',
+          'client:client:activate',
+          'client:contact:manage',
+          'client:unit:manage',
+          'client:hierarchy:manage',
+          'client:audit:read',
+        ],
+        escopo_ativo: null,
+        escopos_disponiveis: [{ tipo: 'GLOBAL', resource_id: null, label: 'Global' }],
       });
     }
     if (pathname === '/api/v1/service-orders/command-catalog' && method === 'GET') {

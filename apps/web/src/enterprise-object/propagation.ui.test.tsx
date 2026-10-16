@@ -295,6 +295,20 @@ function createFetchMock(options: MockOptions = {}) {
         session: { id: 'session-1', expiresAt: '2026-12-31T00:00:00.000Z', status: 'ACTIVE' },
       });
     }
+    if (pathname === '/api/v1/me' && method === 'GET') {
+      return jsonResponse({
+        usuario: { id: ACTOR_ID, nome: null, email: null, identity_id: ACTOR_ID },
+        permissoes_efetivas: [
+          'commercial:purchase-order:list',
+          'commercial:purchase-order:read',
+          ...(po.canUpdate ? ['commercial:purchase-order:update'] : []),
+          ...(po.canRegister ? ['commercial:purchase-order:register'] : []),
+          ...(po.canCancel ? ['commercial:purchase-order:cancel'] : []),
+        ],
+        escopo_ativo: null,
+        escopos_disponiveis: [{ tipo: 'GLOBAL', resource_id: null, label: 'Global' }],
+      });
+    }
     if (pathname === '/api/v1/authz/probe' && method === 'GET') {
       return jsonResponse({ status: 'ok' });
     }
