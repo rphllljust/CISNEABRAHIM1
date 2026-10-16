@@ -168,7 +168,7 @@ export function WorkspaceHeader({
 }) {
   return (
     <header
-      className="mb-3 grid gap-3 border-l-4 border-brand-600 bg-white px-4 py-3 lg:grid-cols-[minmax(0,1fr)_auto]"
+      className="mb-2 grid gap-2 border-b border-[color:var(--color-divider)] bg-transparent px-1 py-2.5 lg:grid-cols-[minmax(0,1fr)_auto]"
       data-layout="worklist-identity"
     >
       <div className="min-w-0">
@@ -194,7 +194,7 @@ export function WorkspaceHeader({
       </div>
 
       {action ? (
-        <div className="flex shrink-0 items-start gap-1.5 lg:border-l lg:border-[var(--erp-border)] lg:pl-4">
+        <div className="flex shrink-0 items-start gap-1.5">
           {action}
         </div>
       ) : null}
@@ -291,7 +291,7 @@ export function WorkspaceToolbar({
   return (
     <div
       className={cn(
-        'mb-2 grid items-start gap-2 border-b border-[var(--erp-border)] bg-white p-3 xl:grid-cols-[minmax(12rem,1fr)_minmax(0,2fr)]',
+        'mb-2 grid items-start gap-2 overflow-hidden rounded-[10px] border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-header)] p-2.5 xl:grid-cols-[minmax(12rem,1fr)_minmax(0,2fr)]',
         className,
       )}
       data-region="workspace-toolbar"
@@ -299,7 +299,7 @@ export function WorkspaceToolbar({
       {views ? <div className="flex min-w-0 flex-wrap items-center gap-1.5">{views}</div> : null}
       <div
         className={cn(
-          'flex min-w-0 flex-wrap items-center justify-end gap-1.5',
+          'flex min-w-0 flex-wrap items-center justify-start gap-2',
           !views && 'xl:col-span-2',
         )}
       >
@@ -671,18 +671,18 @@ export function WorkspaceEmpty({
       role="status"
       aria-live="polite"
       aria-label={title}
-      className="flex min-h-0 flex-1 flex-col items-center justify-center gap-1.5 px-6 py-10 text-center"
+      className="m-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-[10px] border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-header)] px-3 py-2.5 text-left"
     >
       <p className="m-0 text-[13px] font-semibold text-[color:var(--color-text-primary)]">
         {title}
       </p>
       {description ? (
-        <p className="m-0 max-w-[46ch] text-[12px] text-[color:var(--color-text-secondary)]">
+        <p className="m-0 min-w-0 flex-1 text-[12px] text-[color:var(--color-text-secondary)]">
           {description}
         </p>
       ) : null}
       {action ? (
-        <div className="mt-1.5 flex flex-wrap items-center justify-center gap-2">{action}</div>
+        <div className="ml-auto flex flex-wrap items-center gap-2">{action}</div>
       ) : null}
     </section>
   );
