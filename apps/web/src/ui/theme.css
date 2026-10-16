@@ -26,6 +26,23 @@
   --color-gray-900: #191813;
   --color-gray-950: #0d0c09;
 
+  /*
+   * MIDNIGHT & CHAMPAGNE — neutraliza a familia slate do Tailwind.
+   * O dashboard e componentes legados ainda consomem slate-* diretamente; sem este mapa,
+   * eles continuam azul-cinza mesmo quando os tokens ERP ja estao em marfim.
+   */
+  --color-slate-50: #fbfaf7;
+  --color-slate-100: #f8f6f1;
+  --color-slate-200: #f0ece4;
+  --color-slate-300: #e2ded4;
+  --color-slate-400: #9a9ea9;
+  --color-slate-500: #7a7f8e;
+  --color-slate-600: #6b7183;
+  --color-slate-700: #4a5063;
+  --color-slate-800: #3a4152;
+  --color-slate-900: #141a26;
+  --color-slate-950: #0b1221;
+
 
   /*
    * CISNE INTERACTION — BLUE ACTIONS + NAVY NAVIGATION.
@@ -126,7 +143,7 @@
   --color-shell-dock-ink: #c9a96a;
   --color-on-shell: #f4f1ea;
   --color-on-shell-muted: #9aa3b8;
-  --color-on-shell-dim: #6b7183;
+  --color-on-shell-dim: #4e5872;
 
   /*
    * HOVER / ATIVO SOBRE NAVY — os dois estados de interacao da navegacao escura.
@@ -211,16 +228,16 @@
    * internet" que de comando de ERP. `#2563EB` tem matiz mais frio e mais profundo: ele se apoia no
    * navy do chrome e le como ACAO, nao como hiperlink.
    */
-  --color-blue-50: #e6e9ee;
-  --color-blue-100: #d8dfe8;
-  --color-blue-200: #bbc8d8;
-  --color-blue-300: #91a2b8;
-  --color-blue-400: #657d9c;
-  --color-blue-500: #405b7b;
+  --color-blue-50: #f8f6f1;
+  --color-blue-100: #f3ecd9;
+  --color-blue-200: #e3d6b8;
+  --color-blue-300: #d7b877;
+  --color-blue-400: #c9a96a;
+  --color-blue-500: #a9853f;
   --color-blue-600: var(--erp-action);
   --color-blue-700: var(--erp-action-hover);
   --color-blue-800: var(--erp-action-active);
-  --color-blue-900: #071a30;
+  --color-blue-900: #060a14;
 
   /* ANALYTICS — roxo para eixo TEMPORAL/analitico. Nunca para estado operacional. */
   --color-violet-50: #f5f3ff;
@@ -651,8 +668,8 @@
   --panel-head-height: 2.5rem; /*   40px — cabecalho de painel/regiao */
   --tab-height: 2.25rem; /*         36px */
   --nav-row-height: 2.25rem; /*     36px */
-  --shell-chrome-height: 3.25rem; /* 52px — topbar (contrato visual) */
-  --shell-brand-height: 3rem; /*    48px */
+  --shell-chrome-height: 3.75rem; /* 60px — topbar do tema Midnight & Champagne */
+  --shell-brand-height: 4.25rem; /* 68px — marca com monograma Champagne */
   --header-height: 3.25rem;
   --toolbar-height: 2.5rem;
   --process-strip-height: 5rem; /*  80px — faixa de fluxo de processo */
