@@ -493,7 +493,7 @@ export function WorklistFilterBar({
 }) {
   return (
     <section aria-label="Filtros da lista">
-      <div className="cisne-filter-surface border-y border-gray-200 bg-white px-2 py-1">
+      <div className="cisne-filter-surface cisne-worklist-filterbar">
         {children}
         <span className="hidden min-w-6 flex-1 sm:block" aria-hidden="true" />
         {meta ? <span className="cisne-type-helper ml-auto tabular-nums">{meta}</span> : null}
@@ -577,7 +577,7 @@ export function WorklistClearFilters({
  * regua estrutural, e a hierarquia vem do cabecalho sticky e do alinhamento numerico.
  */
 export const worklistTableCardClass =
-  'mb-2 w-full min-w-0 max-w-full overflow-x-auto border-y border-[color:var(--color-divider-strong)] bg-white';
+  'cisne-worklist-table-surface mb-2 w-full min-w-0 max-w-full overflow-x-auto';
 
 export const worklistTableClass = 'w-full border-separate border-spacing-0';
 
@@ -719,7 +719,7 @@ export function WorklistStatePanel({
       role={isCritical ? 'alert' : 'status'}
       aria-live={isCritical ? undefined : 'polite'}
       className={cn(
-        'mb-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-y px-3 py-2.5',
+        'cisne-worklist-state flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2.5',
         isCritical
           ? 'border-[color:var(--color-red-100)] bg-[color:var(--color-surface-critical)]'
           : 'border-[color:var(--erp-border)] bg-[color:var(--erp-surface-support)]',

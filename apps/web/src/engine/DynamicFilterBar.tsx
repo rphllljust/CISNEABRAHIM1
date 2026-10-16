@@ -36,14 +36,14 @@ export function DynamicFilterBar({
 
   return (
     <section
-      className="border-b border-[var(--erp-border)] bg-white"
+      className="cisne-filter-section"
       aria-label="Filtros por metadados"
     >
       <button
         type="button"
         aria-expanded={expanded}
         onClick={() => setExpanded((previous) => !previous)}
-        className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-semibold text-[var(--erp-text-secondary)]"
+        className="flex w-full items-center justify-between text-left text-xs font-semibold"
       >
         <span>
           {t('filters.title')}
@@ -67,7 +67,7 @@ export function DynamicFilterBar({
         da faixa deixa de ser um bloco e passa a ser um rotulo inline. Sem caixa: a faixa pertence a
         area de trabalho e e delimitada por divisor estrutural.
       */
-        className="cisne-filter-surface"
+        className="cisne-filter-surface px-3 py-2"
         hidden={!expanded}
         onSubmit={(event) => event.preventDefault()}
       >
@@ -96,7 +96,7 @@ export function DynamicFilterBar({
           <button
             type="button"
             data-testid="dynamic-filter-clear"
-            className="cisne-type-action ml-auto inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+            className="cisne-type-action ml-auto inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-surface-hover)] hover:text-[color:var(--color-text-primary)]"
             onClick={onClear}
           >
             {t('filters.clear')}

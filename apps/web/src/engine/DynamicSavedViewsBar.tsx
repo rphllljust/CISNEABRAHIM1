@@ -51,7 +51,7 @@ export function DynamicSavedViewsBar({
         clicavel unico (aplicar + remover lendo como um controle so), e o ato de salvar fica
         subordinado a direita. A visao aplicada e um comando de primeira classe, nao um chip perdido.
       */
-      className="grid gap-2 border-b border-[var(--erp-border)] bg-white px-3 py-2 lg:grid-cols-[minmax(0,1fr)_auto]"
+      className="cisne-saved-views grid gap-2 px-3 py-2 lg:grid-cols-[minmax(0,1fr)_auto]"
     >
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <span className="cisne-meta-label shrink-0">{t('views.saved')}</span>
@@ -69,13 +69,13 @@ export function DynamicSavedViewsBar({
             {views.map((view) => (
               <li
                 key={view.id}
-                className="inline-flex items-center overflow-hidden rounded-md ring-1 ring-gray-300 ring-inset"
+                className="inline-flex items-center overflow-hidden rounded-md ring-1 ring-[color:var(--color-border-default)] ring-inset"
               >
                 <button
                   type="button"
                   data-testid="dynamic-saved-view"
                   data-view-name={view.name}
-                  className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center bg-white px-2 text-gray-700 hover:bg-brand-600 hover:text-white"
+                  className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center bg-white px-2 text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-brand-50)] hover:text-[color:var(--color-text-primary)]"
                   onClick={() => onApply(view)}
                 >
                   {view.name}
@@ -84,7 +84,7 @@ export function DynamicSavedViewsBar({
                   type="button"
                   data-testid="dynamic-saved-view-delete"
                   aria-label={`${t('views.delete')}: ${view.name}`}
-                  className="inline-flex min-h-[var(--control-height)] items-center border-l border-gray-300 bg-white px-1.5 text-gray-500 hover:bg-red-50 hover:text-red-700"
+                  className="inline-flex min-h-[var(--control-height)] items-center border-l border-[color:var(--color-border-default)] bg-white px-1.5 text-[color:var(--color-text-muted)] hover:bg-red-50 hover:text-red-700"
                   onClick={() => onDelete(view.id)}
                 >
                   ×
@@ -100,7 +100,7 @@ export function DynamicSavedViewsBar({
             type="button"
             aria-expanded={saving}
             onClick={() => setSaving((previous) => !previous)}
-            className="text-xs font-medium text-brand-700"
+            className="text-xs font-semibold text-[color:var(--color-brand-700)]"
           >
             {saving ? 'Cancelar' : t('views.save')}
           </button>
