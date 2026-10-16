@@ -1704,6 +1704,73 @@
   margin-top: -0.25rem;
 }
 
+.cisne-kanban-board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(12.5rem, 1fr);
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.125rem;
+  scrollbar-color: #c9c3b8 transparent;
+  scrollbar-width: thin;
+}
+
+.cisne-kanban-column {
+  min-width: 12.5rem;
+  overflow: hidden;
+  border: 1px solid #ece8df;
+  border-radius: 10px;
+  background: #fbfaf7;
+}
+
+.cisne-kanban-column--drop {
+  border-color: #c9a96a;
+  box-shadow: inset 0 0 0 1px #e3d6b8;
+}
+
+.cisne-kanban-column__header {
+  min-height: 3.25rem;
+  padding: 0.625rem 0.75rem 0.5rem;
+  border-bottom: 1px solid #f0ece4;
+  background: #fff;
+}
+
+.cisne-kanban-column__title {
+  margin: 0;
+  color: #3a4152;
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.cisne-kanban-column__meta {
+  margin: 0.125rem 0 0;
+  color: #9a9ea9;
+  font-size: 0.65625rem;
+}
+
+.cisne-kanban-column__body {
+  min-height: 5.5rem;
+  margin: 0;
+  padding: 0.625rem;
+  list-style: none;
+}
+
+.cisne-kanban-card {
+  border: 1px solid #e7e3da;
+  border-radius: 8px;
+  background: #fff;
+  padding: 0.625rem 0.75rem;
+}
+
+.cisne-kanban-empty {
+  display: flex;
+  min-height: 4.25rem;
+  align-items: center;
+  justify-content: center;
+  color: #aaa59c;
+  font-size: 0.6875rem;
+}
+
 .cisne-worklist-table-surface {
   overflow: hidden;
   border: 1px solid #ece8df;
