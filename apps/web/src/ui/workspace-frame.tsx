@@ -297,7 +297,14 @@ export function WorkspaceToolbar({
       data-region="workspace-toolbar"
     >
       {views ? <div className="flex min-w-0 flex-wrap items-center gap-1.5">{views}</div> : null}
-      <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">{children}</div>
+      <div
+        className={cn(
+          'flex min-w-0 flex-wrap items-center justify-end gap-1.5',
+          !views && 'xl:col-span-2',
+        )}
+      >
+        {children}
+      </div>
     </div>
   );
 }
