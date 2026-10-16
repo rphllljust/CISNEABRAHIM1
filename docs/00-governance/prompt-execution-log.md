@@ -21233,3 +21233,20 @@ Autorização: solicitação explícita para abrir PR da branch `theme/midnight-
 2. Revisar capturas de tela das rotas principais antes do aceite visual.
 3. Tratar separadamente o mapeamento residual de `blue-*` e a recomposição do dashboard.
 
+
+## CORREÇÃO DOS CONTRATOS DE TESTE DE UI DO PR 14 — 2026-10-16
+
+STATUS: **IN_PROGRESS** — correções candidatas; CI remoto ainda deve validar o novo SHA.
+
+Autorização: solicitação explícita para corrigir helper de login, seletores financeiros e contrato da seção de operações no PR 14. Classificação: interpretação de engenharia de testes; sem alteração de domínio, dados de produção ou autorização.
+
+Evidência: CI 38941737108 do commit a81c595. Shards 2/4 e 4/4 passaram; 1/4 e 3/4 falharam em consultas ambíguas ao contexto financeiro, título antigo e expectativa de rail permanente.
+
+- Helper de login usa expressão regular ancorada para Central de operações, aguarda heading visível e verifica que pertence ao landmark main.
+- Helper de contexto identifica semanticamente o workspace principal e exclui os controles de workspaces aninhados; exige unicidade e verifica aria-expanded antes/depois do clique.
+- Testes financeiros preservam contagens 2/1, aging do servidor, ausência de total monetário inventado e estado vazio; apenas abrem o contexto antes das consultas.
+- Realizado (fato) continua consultado como heading de nível 2, conforme correção anterior.
+- Cockpit seleciona Operações no grupo de recorte e verifica URL, região Fluxo operacional e drilldown da etapa; não exige um drawer de entidade sem seleção.
+- Shell e gate responsivo reutilizam o seletor compartilhado do título atual.
+
+Validação local: os reporters registraram 13 testes de workspaces, 11 de finance-backoffice, 7 de previsão de caixa e 4 de cockpit aprovados. Entretanto o runner local não concluiu o encerramento; tentativas isoladas atingiram o limite externo de execução. Estes resultados NÃO equivalem a uma suíte terminada com exit code 0. ESLint focado e typecheck Web são verificados separadamente; o CI do novo SHA deve confirmar a execução completa. Sem merge e sem deploy nesta etapa.

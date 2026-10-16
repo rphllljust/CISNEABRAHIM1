@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetTokenStoreForTests, tokenStore } from '../auth/storage/token-store';
 import { createFinanceFetchMock, MOCK_RECEIVABLE_ID, MOCK_STATEMENT_ID } from '../test/finance-fetch-mock';
 import { renderWithProviders } from '../test/render-with-providers';
+import { openPrimaryProcessContext } from '../test/workspace-ui-helpers';
 import { formatMoneyBrl } from '../ui/format/money';
 import { BankReconciliationPage } from './pages/BankReconciliationPage';
 import { FinanceOverviewPage } from './pages/FinanceOverviewPage';
@@ -127,9 +128,7 @@ describe('Finance backoffice UI', () => {
   it('overview uses counts and server aging, not a client-side balance total', async () => {
     vi.stubGlobal('fetch', createFinanceFetchMock());
     renderWithProviders(<FinanceOverviewPage />);
-    await userEvent.setup().click(
-      await screen.findByRole('button', { name: 'Contexto do processo' }),
-    );
+    await openPrimaryProcessContext(userEvent.setup());
     await waitFor(() => {
       expect(screen.getByLabelText(/quantidade de títulos a receber/i)).toHaveTextContent('2');
     });

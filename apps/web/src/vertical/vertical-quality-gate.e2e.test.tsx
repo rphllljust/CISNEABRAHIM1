@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../App';
 import { resetTokenStoreForTests } from '../auth/storage/token-store';
-import { loginAndReachApp } from '../test/login-ui-helpers';
+import { APP_HOME_HEADING, loginAndReachApp } from '../test/login-ui-helpers';
 import { createShellFetchMock } from '../test/shell-fetch-mock';
 
 type ViewportProfile = 'mobile' | 'tablet' | 'desktop';
@@ -83,6 +83,6 @@ describe('first vertical UI quality gate (responsive)', () => {
     await waitFor(() => {
       expect(screen.queryByRole('link', { name: /clientes/i })).not.toBeInTheDocument();
     });
-    expect(screen.getByRole('heading', { level: 1, name: /visão geral/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: APP_HOME_HEADING })).toBeInTheDocument();
   });
 });
