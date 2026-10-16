@@ -91,8 +91,16 @@ for (const width of [1440, 390]) {
         const overflow = await page.evaluate(() =>
           document.documentElement.scrollWidth - document.documentElement.clientWidth,
         );
-        expect(overflow, 'tables must scroll locally instead of widening the page').toBeLessThanOrEqual(1);
         await page.screenshot({ path: `tmp-proof/midnight-${width}-${surface.profile}.png`, fullPage: true });
+        if (overflow > 1) {
+          console.log('OVERFLOW_DIAGNOSTIC', await page.locator('#main-content').evaluate((main) =>
+            Array.from(main.querySelectorAll<HTMLElement>('*'))
+              .filter((el) => el.getBoundingClientRect().right > document.documentElement.clientWidth + 1)
+              .slice(0, 20)
+              .map((el) => ({ tag: el.tagName, class: el.className, width: el.getBoundingClientRect().width })),
+          ));
+        }
+        expect(overflow, 'tables must scroll locally instead of widening the page').toBeLessThanOrEqual(1);
       });
     }
   });

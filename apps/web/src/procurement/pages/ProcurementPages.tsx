@@ -264,7 +264,7 @@ function ProcurementLists() {
               ))}
             </select>
           </WorklistField>
-          <Button type="submit">
+          <Button type="submit" aria-label={undefined}>
             Buscar
           </Button>
           <WorklistClearFilters

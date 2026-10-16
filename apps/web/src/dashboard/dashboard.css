@@ -887,6 +887,7 @@ a.dashboard-kpi-list__cell:focus-visible {
 
 .dashboard-workspace-head__identity {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: var(--spacing-3);
   min-width: 0;
@@ -912,6 +913,9 @@ a.dashboard-kpi-list__cell:focus-visible {
 
 .dashboard-workspace-head__controls {
   display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
   align-items: center;
   gap: var(--spacing-2);
   margin-left: auto;
@@ -919,6 +923,7 @@ a.dashboard-kpi-list__cell:focus-visible {
 
 .dashboard-workspace-head__scope {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--spacing-2);
   margin: 0 var(--spacing-1) 0 0;
