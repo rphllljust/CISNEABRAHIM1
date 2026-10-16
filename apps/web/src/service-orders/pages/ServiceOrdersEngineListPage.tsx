@@ -619,7 +619,7 @@ export function ServiceOrdersEngineListPage() {
   useCommandPaletteShortcut(useCallback(() => setPaletteOpen(true), []));
 
   return (
-    <ModulePage layout="workspace">
+    <ModulePage layout="workspace" className="cisne-engine-workspace">
       {/*
         SUPERFÍCIE DE TRABALHO — cabeçalho, visões salvas e comandos numa faixa própria.
 
@@ -738,7 +738,7 @@ export function ServiceOrdersEngineListPage() {
             hierarquia vem do número e do rótulo, e a grade sobe para a dobra.
           */}
           <section
-            className="cisne-divider flex flex-wrap items-stretch gap-0 py-1.5"
+            className="cisne-engine-signal-strip"
             aria-label="Cockpit operacional da carteira"
           >
             <OperationalSignal label="Na página" value={operationalSnapshot.pageTotal} detail="ordens carregadas" />
@@ -1237,7 +1237,7 @@ function OperationalSignal({
       de uma régua, não de uma caixa âmbar inteira: exceção precisa ser visível sem virar um bloco
       que compete com as outras cinco células.
     */
-    <div className="min-w-[9rem] flex-1 border-l border-gray-200 px-3 py-0.5 first:border-l-0 first:pl-0">
+    <div className="cisne-engine-signal">
       <p className="cisne-meta-label m-0">{label}</p>
       <p
         className={cn(
