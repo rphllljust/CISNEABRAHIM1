@@ -952,7 +952,11 @@ export function ServiceOrdersEngineListPage() {
             <DynamicList
               schema={schema}
               rows={visibleRows}
-              emptyMessage="Nenhuma ordem de serviço no seu escopo."
+              emptyMessage={
+                statusFilter || search.trim()
+                  ? 'Nenhuma ordem de serviço corresponde aos filtros aplicados.'
+                  : 'Nenhuma ordem de serviço no seu escopo.'
+              }
               selectedIds={selectedIds}
               onSelectionChange={setSelectedIds}
               ownerField="client_snapshot"
@@ -1016,18 +1020,20 @@ export function ServiceOrdersEngineListPage() {
             rotulados como tal.
           */}
           {items.length === 0 ? (
-            <WorklistStatePanel
-              title={
-                statusFilter || search.trim()
-                  ? 'Nenhuma ordem de serviço corresponde aos filtros aplicados.'
-                  : 'Nenhuma ordem de serviço no seu escopo.'
-              }
-              description={
-                statusFilter || search.trim()
-                  ? 'Ajuste a situação ou o termo de busca, ou limpe os filtros para ver a carteira completa.'
-                  : 'As ordens de serviço nascem de solicitações aprovadas ou propostas aceitas; quando a primeira for aberta ela aparece aqui.'
-              }
-            />
+            activeViewType === 'list' ? null : (
+              <WorklistStatePanel
+                title={
+                  statusFilter || search.trim()
+                    ? 'Nenhuma ordem de serviço corresponde aos filtros aplicados.'
+                    : 'Nenhuma ordem de serviço no seu escopo.'
+                }
+                description={
+                  statusFilter || search.trim()
+                    ? 'Ajuste a situação ou o termo de busca, ou limpe os filtros para ver a carteira completa.'
+                    : 'As ordens de serviço nascem de solicitações aprovadas ou propostas aceitas; quando a primeira for aberta ela aparece aqui.'
+                }
+              />
+            )
           ) : (
             <WorklistFooter
               rangeLabel={
