@@ -76,7 +76,7 @@ export function GlobalSearchBar({ compact = false }: GlobalSearchBarProps) {
             topbar branca separa os dois planos sem borda pesada; o foco troca para branco + ring
             azul, que e quando o operador esta de fato digitando.
           */
-          className="w-full rounded-md border border-[var(--color-search-border)] bg-[var(--color-search-surface)] py-2 pr-3 pl-9 text-[13px] text-[var(--color-text-primary)] outline-none transition placeholder:text-[var(--color-on-shell-muted)] focus:border-[var(--color-cisne-action)] focus:bg-white focus:ring-2 focus:ring-[var(--color-cisne-action)]/25"
+          className="w-full rounded-md border border-[var(--color-border-control)] bg-[var(--color-search-surface)] py-2 pr-3 pl-9 text-[13px] text-[var(--color-text-primary)] outline-none transition placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-cisne-action)] focus:bg-white focus:ring-2 focus:ring-[var(--color-cisne-action)]/25"
           type="search"
           role="combobox"
           aria-autocomplete="list"
@@ -148,7 +148,7 @@ export function GlobalSearchBar({ compact = false }: GlobalSearchBarProps) {
         />
         <button
           type="button"
-          className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded-md bg-brand-600 px-3 py-1 text-xs font-semibold text-white shadow-sm hover:bg-brand-700"
+          className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded-md bg-cisne-action px-3 py-1 text-xs font-semibold text-white shadow-sm hover:bg-cisne-action-hover"
           onClick={() => submitSearch()}
         >
           Buscar

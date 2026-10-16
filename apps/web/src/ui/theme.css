@@ -20,11 +20,24 @@
   --color-gray-300: #d8d4cb;
   --color-gray-400: #aaa59b;
   --color-gray-500: #77736a;
-  --color-gray-600: #5d594f;
-  --color-gray-700: #423f37;
-  --color-gray-800: #2b2923;
-  --color-gray-900: #191813;
-  --color-gray-950: #0d0c09;
+  --color-gray-600: #4a5063;
+  --color-gray-700: #3a4152;
+  --color-gray-800: #23283e;
+  --color-gray-900: #141a26;
+  --color-gray-950: #060a14;
+
+  /* Legacy slate utilities share the warm paper / midnight hierarchy. */
+  --color-slate-50: #fbfaf7;
+  --color-slate-100: #f5f3ee;
+  --color-slate-200: #e7e3da;
+  --color-slate-300: #c3bfb4;
+  --color-slate-400: #9a9ea9;
+  --color-slate-500: #6b7183;
+  --color-slate-600: #4a5063;
+  --color-slate-700: #3a4152;
+  --color-slate-800: #23283e;
+  --color-slate-900: #141a26;
+  --color-slate-950: #0b1221;
 
 
   /*
@@ -126,7 +139,7 @@
   --color-shell-dock-ink: #c9a96a;
   --color-on-shell: #f4f1ea;
   --color-on-shell-muted: #9aa3b8;
-  --color-on-shell-dim: #6b7183;
+  --color-on-shell-dim: #9aa3b8;
 
   /*
    * HOVER / ATIVO SOBRE NAVY — os dois estados de interacao da navegacao escura.
@@ -146,7 +159,7 @@
    * destino escolhido.
    */
   --color-shell-hover: rgb(255 255 255 / 4%);
-  --color-shell-active: rgb(201 169 106 / 18%);
+  --color-shell-active: linear-gradient(90deg, rgb(201 169 106 / 18%), transparent);
   --color-shell-active-ink: #f4f1ea;
   --color-shell-active-indicator: #c9a96a;
   --color-shell-border: rgb(255 255 255 / 6%);
@@ -211,16 +224,16 @@
    * internet" que de comando de ERP. `#2563EB` tem matiz mais frio e mais profundo: ele se apoia no
    * navy do chrome e le como ACAO, nao como hiperlink.
    */
-  --color-blue-50: #e6e9ee;
-  --color-blue-100: #d8dfe8;
-  --color-blue-200: #bbc8d8;
-  --color-blue-300: #91a2b8;
-  --color-blue-400: #657d9c;
-  --color-blue-500: #405b7b;
+  --color-blue-50: var(--color-surface-muted);
+  --color-blue-100: var(--color-surface-selected);
+  --color-blue-200: var(--color-brand-200);
+  --color-blue-300: var(--color-brand-300);
+  --color-blue-400: var(--color-brand-400);
+  --color-blue-500: var(--color-navy-500);
   --color-blue-600: var(--erp-action);
   --color-blue-700: var(--erp-action-hover);
   --color-blue-800: var(--erp-action-active);
-  --color-blue-900: #071a30;
+  --color-blue-900: var(--color-navy-900);
 
   /* ANALYTICS — roxo para eixo TEMPORAL/analitico. Nunca para estado operacional. */
   --color-violet-50: #f5f3ff;
@@ -254,7 +267,8 @@
   --color-cisne-brand-strong: var(--color-navy-900);
   --color-cisne-action: var(--erp-action);
   --color-cisne-action-hover: var(--erp-action-hover);
-  --color-cisne-action-muted: var(--color-blue-50);
+  --color-cisne-action-active: var(--erp-action-active);
+  --color-cisne-action-muted: var(--color-surface-selected);
 
   --color-accent: var(--color-brand-600);
   --color-accent-muted: var(--color-brand-50);
@@ -419,10 +433,12 @@
   --color-border-muted: #ece8df;
   --color-border-subtle: #ece8df;
   --color-border-strong: var(--erp-border-strong);
+  /* Control boundaries need 3:1 against paper; dividers remain deliberately subtle. */
+  --color-border-control: #85818a;
 
   /* FOCO — halo de 3-4px sobre o azul de interacao. Visivel sem ser faixa. */
   /* MIDNIGHT & CHAMPAGNE (tema 1a) — anel de foco em champagne, para pousar na mesma famlia do acento. */
-  --color-focus-ring: #c9a96a;
+  --color-focus-ring: #a9853f;
   --color-focus-ring-soft: rgb(201 169 106 / 32%);
 
   /*
@@ -444,15 +460,15 @@
    * paleta marfim/dourado/navy. Os FG (texto) continuam vindo de `--erp-*`, mas os
    * BG (fundo) e as bordas saem da famlia azul-cinza e vao para marfim quente.
    */
-  --color-success-fg: var(--erp-success);
+  --color-success-fg: #2a704f;
   --color-success-bg: #e9f1e8;
   --color-success-border: #c6dec1;
 
-  --color-warning-fg: var(--erp-warning);
+  --color-warning-fg: #7a5c2a;
   --color-warning-bg: #f6ead1;
   --color-warning-border: #e3d6b8;
 
-  --color-critical-fg: var(--erp-critical);
+  --color-critical-fg: #8c3523;
   --color-critical-bg: #f6e3dc;
   --color-critical-border: #e4bfae;
 
@@ -467,7 +483,7 @@
 
   /* TEXTO SEMANTICO LEGIVEL (nao o tom puro, que e claro demais para rotulo). */
   --color-success-ink: #2a704f;
-  --color-warning-ink: #8c6c33;
+  --color-warning-ink: #7a5c2a;
   --color-critical-ink: #8c3523;
   --color-info-ink: #141a26;
   --color-neutral-ink: var(--erp-neutral);

@@ -16,19 +16,19 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 /**
  * VARIANTES DE COMANDO — CONTRATO DE COR DO ERP.
  *
- *   PRIMARY     bg #2563EB / hover #1D4ED8 / text #FFFFFF
+ *   PRIMARY     midnight / hover midnight raised / inverse text
  *   SECONDARY   bg #FFFFFF / border #D6DCE4 / text #0F172A
  *   TERTIARY    transparente
  *   DANGER      vermelho SOMENTE para comando destrutivo
  *
- * O comando primario usa azul forte de interacao. Cyan/teal fica reservado a apoio e contexto.
+ * O comando primário usa midnight; champagne identifica seleção e identidade.
  *
  * O `danger` mantem vermelho cheio: e o unico comando que pode destruir dado, e a cor precisa ser
  * exclusiva dele. Se qualquer outro botao pudesse ser vermelho, o vermelho deixaria de avisar.
  */
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    'border border-[color:var(--color-blue-600)] bg-[color:var(--color-blue-600)] text-white hover:bg-[color:var(--color-blue-700)] hover:border-[color:var(--color-blue-700)] active:bg-[color:var(--color-blue-800)] disabled:opacity-70',
+    'border border-[color:var(--color-cisne-action)] bg-[color:var(--color-cisne-action)] text-white hover:bg-[color:var(--color-cisne-action-hover)] hover:border-[color:var(--color-cisne-action-hover)] active:bg-[color:var(--color-cisne-action-active)] disabled:opacity-70',
   secondary:
     'border border-[color:var(--color-border-strong)] bg-white text-[color:var(--color-text-primary)] hover:bg-[color:var(--color-surface-hover)] active:bg-[color:var(--color-surface-sunken-soft)] disabled:opacity-70',
   ghost:

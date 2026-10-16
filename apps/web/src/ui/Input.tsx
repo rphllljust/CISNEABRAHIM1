@@ -28,8 +28,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       readOnly={readOnly}
       aria-invalid={invalid || undefined}
       className={cn(
-        'block min-h-[var(--control-height)] w-full rounded-[5px] border border-[color:var(--color-border-strong)] bg-white px-2.5 py-1 text-[length:var(--type-body-size)] text-[color:var(--color-text-primary)] outline-none focus:border-[color:var(--color-focus-ring)] focus:ring-2 focus:ring-[color:var(--color-focus-ring-soft)] disabled:cursor-not-allowed disabled:bg-[color:var(--color-surface-sunken)] disabled:text-[color:var(--color-text-disabled)]',
-        invalid && 'border-[color:var(--color-critical-fg)]',
+        'block min-h-[var(--control-height)] w-full rounded-[5px] border border-[color:var(--color-border-control)] bg-white px-2.5 py-1 text-[length:var(--type-body-size)] text-[color:var(--color-text-primary)] outline-none focus:border-[color:var(--color-focus-ring)] focus:ring-2 focus:ring-[color:var(--color-focus-ring-soft)] disabled:cursor-not-allowed disabled:bg-[color:var(--color-surface-sunken)] disabled:text-[color:var(--color-text-disabled)]',
+        invalid && 'border-[color:var(--color-critical-fg)] focus:border-[color:var(--color-critical-fg)] focus:ring-[color:var(--color-critical-border)]',
         className,
       )}
       {...props}

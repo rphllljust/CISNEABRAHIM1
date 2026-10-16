@@ -53,7 +53,7 @@ export function NextActionPanel({ action, className }: NextActionPanelProps) {
       {action.kind === 'act' && action.to ? (
         <Link
           to={action.to}
-          className="inline-flex min-h-9 items-center rounded-md bg-brand-600 px-3.5 py-2 text-sm font-semibold text-white no-underline hover:bg-brand-700"
+          className="inline-flex min-h-9 items-center rounded-md bg-cisne-action px-3.5 py-2 text-sm font-semibold text-white no-underline hover:bg-cisne-action-hover"
         >
           {label}
         </Link>

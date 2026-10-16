@@ -68,7 +68,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: #64748b;
+  color: var(--color-text-muted);
 }
 
 .dashboard-queue-head span:nth-child(1),
@@ -119,7 +119,7 @@
 }
 
 .dashboard-queue-item--selected {
-  background: var(--color-brand-50);
+  background: var(--color-surface-selected);
 }
 
 /* ---------------------------------------------------------------- celulas */

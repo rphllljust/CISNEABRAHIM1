@@ -266,7 +266,7 @@ function ViewChip({
       className={cn(
         'rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
         active
-          ? 'border-brand-600 bg-brand-600 text-white'
+          ? 'border-cisne-action bg-cisne-action text-white'
           : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50',
         system && !active ? 'border-dashed' : '',
       )}

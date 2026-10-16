@@ -97,7 +97,7 @@ export function DynamicBulkActions({
             type="button"
             data-testid="dynamic-bulk-apply"
             disabled={busy || selected === null}
-            className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md bg-brand-600 px-3 text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md bg-cisne-action px-3 text-white hover:bg-cisne-action-hover disabled:cursor-not-allowed disabled:opacity-50"
             onClick={() => {
               if (selected) {
                 onApply(selected.command, selectedIds);

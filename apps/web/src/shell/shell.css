@@ -52,9 +52,9 @@
 }
 
 .shell__search {
-  /* O teto da busca global vive no utilitario do componente (420-560px); aqui apenas garante que
-     ela nunca estoure o container em telas estreitas. */
-  max-width: 100%;
+  /* Keep the unlayered rule from overriding the utility's desktop search limit. */
+  flex: 0 1 26rem;
+  max-width: min(26rem, 100%);
 }
 
 /*
@@ -162,7 +162,7 @@
   width: min(18rem, 88vw);
   height: 100dvh;
   border-right: 1px solid rgb(255 255 255 / 5%);
-  background: var(--color-navy-900);
+  background: var(--color-shell-surface);
   box-shadow: var(--shadow-dialog);
 }
 
@@ -209,7 +209,13 @@ body.shell-drawer-open {
   da superficie, nao a uma faixa propria.
 */
 .shell-breadcrumbs {
-  margin-bottom: 0.25rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.shell-breadcrumbs nav {
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
 
 /*
