@@ -85,7 +85,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
       - name: Unit tests shard
-        run: pnpm test -- --shard=${{ matrix.shard }}
+        run: pnpm exec turbo run test -- --shard=${{ matrix.shard }}
 
   # Stable check name: every matrix shard must pass before this check is green.
   unit-tests:
