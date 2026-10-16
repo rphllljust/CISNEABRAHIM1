@@ -189,6 +189,8 @@ describe('ServiceOrdersEngineListPage — recorte e paginação server-side', ()
 
     expect(screen.queryByRole('button', { name: 'Anterior' })).not.toBeInTheDocument();
     expect(screen.queryByText(/1–0 de 0/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('dynamic-list')).not.toBeInTheDocument();
+    expect(screen.queryByText('0 registros')).not.toBeInTheDocument();
     expect(document.querySelector('.cisne-engine-signal-strip')).not.toBeInTheDocument();
   });
 
