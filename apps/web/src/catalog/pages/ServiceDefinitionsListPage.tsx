@@ -664,22 +664,24 @@ export function ServiceDefinitionsListPage() {
         </div>
       )}
 
-      <WorklistFooter
-        rangeLabel={`${offset + 1}–${offset + listState.items.length} nesta página`}
-        extra={
-          filteredItems.length !== listState.items.length
-            ? `${filteredItems.length} após o recorte de versão`
-            : undefined
-        }
-      >
-        <ModulePagination
-          pageNumber={pageNumber}
-          previousDisabled={offset === 0}
-          nextDisabled={!hasMore}
-          onPrevious={() => void loadPage(Math.max(0, offset - PAGE_SIZE))}
-          onNext={() => void loadPage(offset + PAGE_SIZE)}
-        />
-      </WorklistFooter>
+      {listState.items.length > 0 ? (
+        <WorklistFooter
+          rangeLabel={`${offset + 1}–${offset + listState.items.length} nesta página`}
+          extra={
+            filteredItems.length !== listState.items.length
+              ? `${filteredItems.length} após o recorte de versão`
+              : undefined
+          }
+        >
+          <ModulePagination
+            pageNumber={pageNumber}
+            previousDisabled={offset === 0}
+            nextDisabled={!hasMore}
+            onPrevious={() => void loadPage(Math.max(0, offset - PAGE_SIZE))}
+            onNext={() => void loadPage(offset + PAGE_SIZE)}
+          />
+        </WorklistFooter>
+      ) : null}
       </div>
 
       {/*
