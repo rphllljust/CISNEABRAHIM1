@@ -186,7 +186,7 @@ export function DynamicKanban({
   if (derivedColumns && derivedColumns.length > 0) {
     return (
       <div
-        className="flex gap-3 overflow-x-auto"
+        className="cisne-kanban-board"
         data-testid="dynamic-kanban"
         data-entity={schema?.name ?? null}
         data-grouping="derived"
@@ -230,7 +230,7 @@ export function DynamicKanban({
 
   return (
     <div
-      className="flex gap-3 overflow-x-auto"
+      className="cisne-kanban-board"
       data-testid="dynamic-kanban"
       data-entity={schema?.name ?? null}
       data-grouping="workflow"
@@ -318,8 +318,8 @@ function KanbanColumn({
 }): React.ReactElement {
   return (
     <section
-      className={`min-w-56 flex-1 rounded-lg border bg-gray-50 ${
-        isDropTarget ? 'border-slate-500 ring-2 ring-slate-400/40' : 'border-gray-200'
+      className={`cisne-kanban-column ${
+        isDropTarget ? 'cisne-kanban-column--drop' : ''
       }`}
       aria-label={title}
       data-kanban-column={columnKey}
@@ -337,14 +337,14 @@ function KanbanColumn({
         })
       }
     >
-      <header className="border-b border-gray-200 px-2 py-1.5">
-        <h3 className="text-xs font-semibold text-gray-700">{title}</h3>
-        {description ? <p className="text-[11px] text-gray-500">{description}</p> : null}
+      <header className="cisne-kanban-column__header">
+        <h3 className="cisne-kanban-column__title">{title}</h3>
+        {description ? <p className="cisne-kanban-column__meta">{description}</p> : null}
         <p className="text-[11px] text-gray-500" data-kanban-count={columnKey}>
           {cards.length}
         </p>
       </header>
-      <ul className="space-y-2 p-2">
+      <ul className="cisne-kanban-column__body">
         {cards.map((card) => (
           <li key={card.id}>
             <article
@@ -354,7 +354,7 @@ function KanbanColumn({
               draggable={onCardDrop !== undefined}
               onDragStart={onCardDrop ? () => handleDragStart(card.id) : undefined}
               onDragEnd={onCardDrop ? handleDragEnd : undefined}
-              className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-left"
+              className="cisne-kanban-card w-full text-left"
             >
               {renderCardHeader ? (
                 /*
@@ -437,7 +437,7 @@ function KanbanColumn({
           </li>
         ))}
         {cards.length === 0 ? (
-          <li className="px-1 py-2 text-[11px] text-gray-400" data-kanban-empty={columnKey}>
+          <li className="cisne-kanban-empty" data-kanban-empty={columnKey}>
             {emptyText ?? 'Vazio'}
           </li>
         ) : null}
