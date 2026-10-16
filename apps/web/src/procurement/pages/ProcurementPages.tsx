@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { DateTime, EmptyState, Field, Input, Money, worklistTableCardClass } from '../../ui';
+import { Button, DateTime, EmptyState, Field, Input, Money, worklistTableCardClass } from '../../ui';
 import { ModulePage, ModulePagination, ModulePrimaryLink, ModuleTableLink } from '../../ui/module-layout';
 import {
   EnterpriseMetric,
@@ -264,12 +264,9 @@ function ProcurementLists() {
               ))}
             </select>
           </WorklistField>
-          <button
-            type="submit"
-            className="rounded border border-cisne-action bg-cisne-action px-2.5 py-1 text-[13px] font-semibold text-white transition-colors hover:bg-cisne-action-hover"
-          >
+          <Button type="submit">
             Buscar
-          </button>
+          </Button>
           <WorklistClearFilters
             visible={
               appliedTerm !== '' ||
