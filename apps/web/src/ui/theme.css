@@ -4,8 +4,11 @@
  * CISNE enterprise palette — navy navigation, blue actions, semantic state colors.
  */
 @theme {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-sans:
+    'Instrument Sans', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    sans-serif;
+  --font-mono:
+    'JetBrains Mono', 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   /*
    * NEUTROS QUENTES — fundos e separadores mais leves, mantendo contraste de leitura.
@@ -34,17 +37,24 @@
    * Consumidores legados de `brand-*` continuam funcionando, agora na paleta azul usada por ações,
    * links, seleção e foco.
    */
-  --color-brand-50: #e6e9ee;
-  --color-brand-100: #d8dfe8;
-  --color-brand-200: #bbc8d8;
-  --color-brand-300: #91a2b8;
-  --color-brand-400: #657d9c;
-  --color-brand-500: #405b7b;
-  --color-brand-600: #102944;
-  --color-brand-700: #0b2038;
-  --color-brand-800: #081d37;
-  --color-brand-900: #05162c;
-  --color-brand-950: #030d18;
+  /*
+   * MIDNIGHT & CHAMPAGNE (tema 1a) — a famlia `brand` passa a ser o DOURADO CHAMPAGNE,
+   * cor de identidade da linha de produto. O azul de acao de aplicativo saiu daqui e
+   * passou para a famlia `navy` abaixo, que agora carrega o navy profundo da sidebar
+   * e o acento de botao primario. Consumidores legados de `brand-*` continuam
+   * funcionando porque a nomenclatura foi preservada; muda apenas o valor renderizado.
+   */
+  --color-brand-50: #f8f6f1;
+  --color-brand-100: #f0ece4;
+  --color-brand-200: #e3d6b8;
+  --color-brand-300: #d7b877;
+  --color-brand-400: #c9a96a;
+  --color-brand-500: #b8954f;
+  --color-brand-600: #a9853f;
+  --color-brand-700: #8c6c33;
+  --color-brand-800: #6b5a33;
+  --color-brand-900: #4a3f24;
+  --color-brand-950: #2a2416;
 
   /*
    * NAVY OPERACIONAL — a familia da sidebar e do texto forte.
@@ -53,11 +63,16 @@
    * azulado) para o chrome do shell, distinto do cinza-azulado dos neutros de conteudo. Sem essa
    * distincao a sidebar lia como "cinza escuro" em vez de "navy corporativo".
    */
-  --color-navy-500: #153556;
-  --color-navy-600: #0e2945;
-  --color-navy-700: #091f36;
-  --color-navy-800: #07182b;
-  --color-navy-900: #04101f;
+  /*
+   * MIDNIGHT & CHAMPAGNE (tema 1a) — o navy ficou mais profundo e com um matiz um
+   * grau mais frio (0B1221 em vez de 081D37). A sidebar e o botao primario pousam
+   * nessa famlia; o acento visual sobre esse navy e o champagne de `--color-brand-*`.
+   */
+  --color-navy-500: #3a4460;
+  --color-navy-600: #23283e;
+  --color-navy-700: #141a26;
+  --color-navy-800: #0b1221;
+  --color-navy-900: #060a14;
 
   /*
    * CHROME DO SHELL — OS DEGRAUS DO NAVY, NOMEADOS.
@@ -98,13 +113,20 @@
    * NOTA DE CONTRASTE: `nav-text` #DCE6F2 sobre #0B1F3B entrega ~13:1; `nav-text-muted` #91A4BA
    * entrega ~5.6:1 — ambos acima de AA para texto pequeno.
    */
-  --color-shell-surface: #061629;
-  --color-shell-chrome: #0a203a;
-  --color-shell-dock: #0d2440;
-  --color-shell-dock-ink: #102944;
-  --color-on-shell: #ffffff;
-  --color-on-shell-muted: #9cacc0;
-  --color-on-shell-dim: #8b9db4;
+  /*
+   * MIDNIGHT & CHAMPAGNE (tema 1a) — a sidebar vai para `#0B1221` (navy profundo com
+   * matiz azul explcito). O ponto de identidade dentro dela (dock-ink) deixa de ser
+   * o azul de aplicativo e passa a ser o CHAMPAGNE (#C9A96A), que e o acento visual
+   * do tema. A tinta sobre navy fica em tom marfim/azul-cinza baixo para preservar
+   * o contraste AA.
+   */
+  --color-shell-surface: #0b1221;
+  --color-shell-chrome: #141a26;
+  --color-shell-dock: #1a2238;
+  --color-shell-dock-ink: #c9a96a;
+  --color-on-shell: #f4f1ea;
+  --color-on-shell-muted: #9aa3b8;
+  --color-on-shell-dim: #6b7183;
 
   /*
    * HOVER / ATIVO SOBRE NAVY — os dois estados de interacao da navegacao escura.
@@ -117,12 +139,18 @@
    * navy, o `blue-600` puro perde contraste contra o fundo escuro e a barra de 2px desaparece. O
    * `blue-500` mantem a mesma familia de matiz e continua legivel a 2px de espessura.
    */
-  --color-shell-hover: #0d2945;
-  --color-shell-active: rgb(0 0 0 / 24%);
-  --color-shell-active-ink: #ffffff;
-  --color-shell-active-indicator: #7b91ab;
-  --color-shell-border: rgb(255 255 255 / 8%);
-  --color-on-shell-nav: #dce6f2;
+  /*
+   * MIDNIGHT & CHAMPAGNE (tema 1a) — o estado ATIVO sobre navy e um gradiente de
+   * champagne a 18% com indicador esquerdo em `#C9A96A`. O HOVER e um degrau
+   * neutro translcido para nao confundir com o acento, que fica reservado ao
+   * destino escolhido.
+   */
+  --color-shell-hover: rgb(255 255 255 / 4%);
+  --color-shell-active: rgb(201 169 106 / 18%);
+  --color-shell-active-ink: #f4f1ea;
+  --color-shell-active-indicator: #c9a96a;
+  --color-shell-border: rgb(255 255 255 / 6%);
+  --color-on-shell-nav: #e6e8ee;
 
   /*
    * TINTA DE NAVEGACAO SOBRE NAVY — o degrau de LEGIBILIDADE do item.
@@ -142,8 +170,12 @@
    * interacao com significado — o acento (teal/azul) fica reservado ao estado que o operador
    * ESCOLHEU. Com azul no hover, o acento aparecia em toda a barra ao menor movimento.
    */
-  --color-surface-hover: #f5f3ee;
-  --color-surface-sunken-soft: #efede7;
+  /*
+   * MIDNIGHT & CHAMPAGNE (tema 1a) — hover vai para marfim quente em vez de slate
+   * azulado, para pertencer a mesma famlia que o canvas (#F5F3EE) e o papel (#FBFAF7).
+   */
+  --color-surface-hover: #f3f0e9;
+  --color-surface-sunken-soft: #ece8df;
 
   /*
    * SUPERFICIE DE CONSULTA — o campo de busca do application shell.
@@ -153,15 +185,20 @@
    * do componente (o que impedia o shell de participar do tema); nomeados aqui, o campo de busca
    * segue a mesma politica de superficie do resto do chrome.
    */
-  --color-search-surface: #fbfaf7;
-  --color-search-border: #e6e2da;
+  /*
+   * MIDNIGHT & CHAMPAGNE (tema 1a) — campo de busca em papel puro sobre canvas marfim,
+   * com borda levemente mais quente para pertencer a mesma famlia que o topbar.
+   */
+  --color-search-surface: #ffffff;
+  --color-search-border: #e2ded4;
 
   /*
    * SELECAO DE RESULTADO — o item sob o cursor na lista de sugestoes.
    * Azul de INFORMACAO e correto aqui: a lista de sugestoes e leitura assistida e o realce indica
    * "este e o item apontado". Nao e decoracao — e o unico azul de superficie que permanece.
    */
-  --color-surface-highlight: #eff6ff;
+  /* MIDNIGHT & CHAMPAGNE (tema 1a) — realce de item na lista de sugestoes em champagne a 10%. */
+  --color-surface-highlight: #f3ecd9;
 
   /*
    * AZUL DE INTERACAO — o azul de OPERACAO do CISNE.
@@ -302,7 +339,8 @@
    * `--color-surface-app` mantem-se como alias porque varias superficies o consomem.
    */
   --color-canvas: var(--erp-canvas);
-  --color-canvas-secondary: #f7f5f0;
+  /* MIDNIGHT & CHAMPAGNE (tema 1a) — canvas secundario em marfim um grau mais claro que o principal. */
+  --color-canvas-secondary: #faf8f2;
   --color-surface-app: var(--erp-canvas);
 
   /* LEVEL 1 — PRIMARY WORK SURFACE: BRANCO PURO. Onde o operador passa o dia. */
@@ -317,12 +355,14 @@
    * por cima dele).
    */
   --color-surface-context: var(--erp-surface-support);
-  --color-surface-context-strong: #ece9e1;
+  /* MIDNIGHT & CHAMPAGNE (tema 1a) — contexto forte em marfim quente. */
+  --color-surface-context-strong: #ece8df;
   --color-surface-support: var(--erp-surface-support);
   /* CABECALHO TONAL — faixa de titulo, cabecalho de grade, barra de ferramentas. */
-  --color-surface-header: #f7f5ef;
-  --color-surface-sunken: #f2f0eb;
-  --color-surface-muted: #fbfaf8;
+  /* MIDNIGHT & CHAMPAGNE (tema 1a) — cabecalho de painel e superficies afundadas em marfim quente. */
+  --color-surface-header: #fbfaf7;
+  --color-surface-sunken: #f0ece4;
+  --color-surface-muted: #f8f6f1;
 
   /*
    * SELECAO — AZUL DE INTERACAO, nao teal.
@@ -332,7 +372,8 @@
    * "este e o registro que estou operando".
    */
   --color-surface-selected: var(--erp-surface-selected);
-  --color-surface-selected-border: #b7c2d0;
+  /* MIDNIGHT & CHAMPAGNE (tema 1a) — borda de linha selecionada em champagne medio. */
+  --color-surface-selected-border: #d7b877;
 
   /* ESTADOS SEMANTICOS DE SUPERFICIE — cada um com FUNCAO, nunca por variedade. */
   --color-surface-info: #e6e9ee;
@@ -350,14 +391,16 @@
    * A espessura e o unico sinal de profundidade — e e suficiente: o olho denso le regua melhor que
    * sombra difusa.
    */
-  --color-divider: #e8e4db;
-  --color-divider-strong: #d8d4cb;
-  --color-rule-accent: #102944;
+  /* MIDNIGHT & CHAMPAGNE (tema 1a) — divisorias em marfim neutro e regua de acento em champagne. */
+  --color-divider: #e7e3da;
+  --color-divider-strong: #c3bfb4;
+  --color-rule-accent: #c9a96a;
 
   /* GRAMATICA DE GRADE — compartilhada por TODAS as worklists do produto. */
   --color-surface-grid-head: var(--color-surface-header);
-  --color-grid-head-ink: #3f4a58;
-  --color-grid-row-hover: #f6f4ee;
+  /* MIDNIGHT & CHAMPAGNE (tema 1a) — cabecalho de grade em azul-cinza baixo, hover em marfim quente. */
+  --color-grid-head-ink: #6b7183;
+  --color-grid-row-hover: #faf8f2;
 
   /*
    * TEXTO — tres degraus e um desabilitado. Com quatro cinzas parecidos, nada se le.
@@ -372,13 +415,15 @@
    * BORDAS — a linguagem de divisor do ERP.
    */
   --color-border-default: var(--erp-border);
-  --color-border-muted: #eeece6;
-  --color-border-subtle: #eeece6;
+  /* MIDNIGHT & CHAMPAGNE (tema 1a) — bordas sutis em marfim quente. */
+  --color-border-muted: #ece8df;
+  --color-border-subtle: #ece8df;
   --color-border-strong: var(--erp-border-strong);
 
   /* FOCO — halo de 3-4px sobre o azul de interacao. Visivel sem ser faixa. */
-  --color-focus-ring: #173b62;
-  --color-focus-ring-soft: rgb(16 41 68 / 22%);
+  /* MIDNIGHT & CHAMPAGNE (tema 1a) — anel de foco em champagne, para pousar na mesma famlia do acento. */
+  --color-focus-ring: #c9a96a;
+  --color-focus-ring-soft: rgb(201 169 106 / 32%);
 
   /*
    * ═════════════════════════════════════════════════════════════════════════════════════════════
@@ -394,61 +439,77 @@
    * o backend nao publicou nao e um resultado positivo — pintar "sem ocorrencia" de verde ensina o
    * operador a ler verde onde nao ha informacao.
    */
+  /*
+   * MIDNIGHT & CHAMPAGNE (tema 1a) — status semanticos re-tingidos para pertencer a
+   * paleta marfim/dourado/navy. Os FG (texto) continuam vindo de `--erp-*`, mas os
+   * BG (fundo) e as bordas saem da famlia azul-cinza e vao para marfim quente.
+   */
   --color-success-fg: var(--erp-success);
-  --color-success-bg: #f0fdf4;
-  --color-success-border: #bbf7d0;
+  --color-success-bg: #e9f1e8;
+  --color-success-border: #c6dec1;
 
   --color-warning-fg: var(--erp-warning);
-  --color-warning-bg: #fff7ed;
-  --color-warning-border: #fed7aa;
+  --color-warning-bg: #f6ead1;
+  --color-warning-border: #e3d6b8;
 
   --color-critical-fg: var(--erp-critical);
-  --color-critical-bg: #fef2f2;
-  --color-critical-border: #fecaca;
+  --color-critical-bg: #f6e3dc;
+  --color-critical-border: #e4bfae;
 
   /* ALIASES LEGADOS — `error-*` e `red-*` continuam validos e apontam para a mesma semantica. */
-  --color-error-fg: #ef4444;
-  --color-error-bg: #fef2f2;
-  --color-error-border: #fecaca;
+  --color-error-fg: #b5452f;
+  --color-error-bg: #f6e3dc;
+  --color-error-border: #e4bfae;
 
   --color-info-fg: var(--erp-info);
-  --color-info-bg: #e6e9ee;
-  --color-info-border: #b7c2d0;
+  --color-info-bg: #ece8df;
+  --color-info-border: #c3bfb4;
 
   /* TEXTO SEMANTICO LEGIVEL (nao o tom puro, que e claro demais para rotulo). */
-  --color-success-ink: #15803d;
-  --color-warning-ink: #c96a00;
-  --color-critical-ink: #b91c1c;
-  --color-info-ink: #173b62;
+  --color-success-ink: #2a704f;
+  --color-warning-ink: #8c6c33;
+  --color-critical-ink: #8c3523;
+  --color-info-ink: #141a26;
   --color-neutral-ink: var(--erp-neutral);
 
   /*
    * ESTADO OPERACIONAL — o que a entidade ESTA. Cada um responde com uma cor e so uma.
    */
-  --color-op-draft-fg: #b45309;
-  --color-op-draft-bg: #fffbeb;
-  --color-op-active-fg: #15803d;
-  --color-op-active-bg: #f0fdf4;
-  --color-op-progress-fg: #173b62;
-  --color-op-progress-bg: #e6e9ee;
-  --color-op-paused-fg: #b45309;
-  --color-op-paused-bg: #fffbeb;
-  --color-op-blocked-fg: #b91c1c;
-  --color-op-blocked-bg: #fef2f2;
-  --color-op-complete-fg: #475569;
-  --color-op-complete-bg: #f8fafc;
+  /*
+   * MIDNIGHT & CHAMPAGNE (tema 1a) — estados operacionais e financeiros re-tingidos.
+   * Draft e paused viram ambar escuro em marfim; progress vira navy em marfim; complete
+   * vira azul-cinza baixo em marfim neutro. A famlia continua a mesma do canvas.
+   */
+  --color-op-draft-fg: #8c6c33;
+  --color-op-draft-bg: #f6ead1;
+  --color-op-active-fg: #2a704f;
+  --color-op-active-bg: #e9f1e8;
+  --color-op-progress-fg: #141a26;
+  --color-op-progress-bg: #ece8df;
+  --color-op-paused-fg: #8c6c33;
+  --color-op-paused-bg: #f6ead1;
+  --color-op-blocked-fg: #8c3523;
+  --color-op-blocked-bg: #f6e3dc;
+  --color-op-complete-fg: #6b7183;
+  --color-op-complete-bg: #f3f0e9;
 
   /* FINANCEIRO */
-  --color-fin-positive-fg: #15803d;
-  --color-fin-negative-fg: #b91c1c;
-  --color-fin-pending-fg: #b45309;
-  --color-fin-ready-fg: #1d4ed8;
+  --color-fin-positive-fg: #2a704f;
+  --color-fin-negative-fg: #8c3523;
+  --color-fin-pending-fg: #8c6c33;
+  --color-fin-ready-fg: #141a26;
 
-  /* CISNE TEAL — ACENTO DE APOIO. Contexto, relacao, identidade. Nunca fundo global. */
-  --color-teal: #0891b2;
-  --color-teal-soft: #ecfeff;
-  --color-teal-border: #a5f3fc;
-  --color-teal-ink: #0e7490;
+  /*
+   * MIDNIGHT & CHAMPAGNE (tema 1a) — o `teal` legado deixa de ser cyan e vai para o
+   * CHAMPAGNE do tema, para pousar na mesma famlia. Consumidores que usam `--color-teal*`
+   * continuam funcionando; passam a ler em dourado em vez de ciano. Isso NAO transforma
+   * dourado em "acento de contexto" — mantem apenas o papel de token de identidade
+   * secundaria onde ja era usado.
+   */
+  --color-teal: #a9853f;
+  --color-teal-soft: #f3ecd9;
+  --color-teal-border: #e3d6b8;
+  --color-teal-ink: #6b5a33;
 
   /*
    * ═════════════════════════════════════════════════════════════════════════════════════════════
@@ -489,10 +550,14 @@
    * Sombra nesses cinco lugares e o que faz a pagina virar "card farm": cada elemento flutua no
    * mesmo plano falso e o operador perde a nocao de qual superficie e a de trabalho.
    */
-  --shadow-sm: 0 1px 2px rgb(15 23 42 / 6%);
-  --shadow-md: 0 4px 12px -2px rgb(15 23 42 / 8%), 0 2px 4px -2px rgb(15 23 42 / 4%);
-  --shadow-dialog: 0 12px 40px rgb(15 23 42 / 14%);
-  --shadow-overlay: 0 -4px 16px rgb(15 23 42 / 5%);
+  /*
+   * MIDNIGHT & CHAMPAGNE (tema 1a) — sombras tingidas no navy do tema (#141A26 em RGB
+   * 20 26 38) em vez do slate azul-cinza. Mesma hierarquia, mesma intensidade.
+   */
+  --shadow-sm: 0 1px 2px rgb(20 26 38 / 4%);
+  --shadow-md: 0 4px 12px -2px rgb(20 26 38 / 8%), 0 2px 4px -2px rgb(20 26 38 / 4%);
+  --shadow-dialog: 0 12px 40px rgb(20 26 38 / 14%);
+  --shadow-overlay: 0 -4px 16px rgb(20 26 38 / 5%);
   /* Nenhuma sombra — o valor explicito para quem precisa DECLARAR a ausencia. */
   --shadow-none: none;
 
@@ -595,24 +660,43 @@
 
 @layer base {
   :root {
-    --erp-canvas: #faf9f6;
+    /*
+     * ═══════════════════════════════════════════════════════════════════════════════════════════
+     * MIDNIGHT & CHAMPAGNE — bloco atomico de tokens da paleta 1a.
+     *
+     * Fonte: estudo "Central de operacoes — tres direcoes premium", opcao 1a
+     * (Midnight & Champagne — navy profundo, marfim e dourado).
+     *
+     * O que estes 18 tokens decidem:
+     *   canvas/surface   fundo da pagina em MARFIM QUENTE (#F5F3EE), papel em #FBFAF7
+     *   border           bordas tambem na famlia quente, nao mais azul-cinza
+     *   text             navy quase preto (#141A26) sobre marfim, com rodape em azul-cinza baixo
+     *   action           o acao primario e o PROPRIO NAVY da sidebar (#0B1221), nao mais azul
+     *                    de aplicativo. O champagne entra como realce de identidade (via brand-*)
+     *   success/warning/critical  verde floresta, ambar escuro e terracota — da mesma paleta
+     *                    quente do canvas, para nao parecer semaforo de web app generico
+     *
+     * O resto do sistema continua referenciando `var(--erp-*)` — nenhuma pagina precisa mudar.
+     * ═══════════════════════════════════════════════════════════════════════════════════════════
+     */
+    --erp-canvas: #f5f3ee;
     --erp-surface: #ffffff;
-    --erp-surface-support: #f4f2ed;
-    --erp-surface-selected: #e6e9ee;
-    --erp-border: #e6e2da;
-    --erp-border-strong: #d5d0c5;
-    --erp-text: #0b1d3a;
-    --erp-text-secondary: #344967;
-    --erp-text-muted: #5b6e84;
-    --erp-text-disabled: #8995a4;
-    --erp-action: #102944;
-    --erp-action-hover: #0b2038;
-    --erp-action-active: #061626;
-    --erp-success: #16a34a;
-    --erp-warning: #d97706;
-    --erp-critical: #dc2626;
-    --erp-info: #173b62;
-    --erp-neutral: #5b6e84;
+    --erp-surface-support: #fbfaf7;
+    --erp-surface-selected: #f3ecd9;
+    --erp-border: #e7e3da;
+    --erp-border-strong: #c3bfb4;
+    --erp-text: #141a26;
+    --erp-text-secondary: #4a5063;
+    --erp-text-muted: #6b7183;
+    --erp-text-disabled: #9a9ea9;
+    --erp-action: #0b1221;
+    --erp-action-hover: #141a26;
+    --erp-action-active: #23283e;
+    --erp-success: #3e9b6e;
+    --erp-warning: #c3842a;
+    --erp-critical: #b5452f;
+    --erp-info: #141a26;
+    --erp-neutral: #6b7183;
     color: var(--color-text-primary);
     background: var(--color-surface-app);
     font-family: var(--font-sans);
@@ -1393,3 +1477,4 @@
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 1px;
 }
+

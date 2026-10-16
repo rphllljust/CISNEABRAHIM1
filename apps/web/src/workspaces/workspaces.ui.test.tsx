@@ -6,6 +6,7 @@ import { resetTokenStoreForTests, tokenStore } from '../auth/storage/token-store
 import { FinanceOverviewPage } from '../finance/pages/FinanceOverviewPage';
 import { createFinanceFetchMock } from '../test/finance-fetch-mock';
 import { renderWithProviders } from '../test/render-with-providers';
+import { openPrimaryProcessContext } from '../test/workspace-ui-helpers';
 import { parseRequestPath } from '../test/request-url';
 import {
   WORK_DOMAINS,
@@ -409,6 +410,7 @@ describe('workspaces de domínio', () => {
       router: { initialEntries: ['/app/finance'] },
     });
 
+    await openPrimaryProcessContext(userEvent.setup());
     await waitFor(() => {
       expect(screen.getByLabelText('Quantidade de títulos a receber')).toHaveTextContent('2');
     });
@@ -479,6 +481,8 @@ describe('workspaces de domínio', () => {
   it('posição zerada não vira parede de zeros: diz que não há títulos nem contas', async () => {
     stubEmptyFinanceFetch({ byDomain: { FINANCEIRO: 0 } });
     renderWithProviders(<FinanceOverviewPage />, { router: { initialEntries: ['/app/finance'] } });
+
+    await openPrimaryProcessContext(userEvent.setup());
 
     /*
      * A frase mudou com a leitura: a posicao zerada nao afirma apenas "nada vencido" — ela diz que

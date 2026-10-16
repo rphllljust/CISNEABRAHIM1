@@ -5,23 +5,19 @@ on:
     branches:
       - master
       - main
-      # Branch de trabalho autorizada. Sem este gatilho as correcoes ficam sem
-      # validacao: o push em main so acontece no merge, e o PR esbarra no conflito
-      # de docs/00-governance/prompt-execution-log.md, de modo que nenhuma execucao
-      # jamais mediria o SHA que recebe as correcoes.
       - 'rc/**'
   pull_request:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # PRs e branches de trabalho cancelam execuções antigas; main preserva a ativa.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
 
 env:
   FORCE_COLOR: '1'
-  # Disposable CI-only credentials — never reuse outside ephemeral runners.
   POSTGRES_USER: cisne_ci
   POSTGRES_PASSWORD: cisne_ci_disposable_password
   POSTGRES_DB: cisne_ci
@@ -40,63 +36,75 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 9.15.9
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
           cache: pnpm
-
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
+        run: pnpm install --frozen-lockfile --prefer-offline
       - name: Lint
         run: pnpm lint
-
       - name: Typecheck
         run: pnpm typecheck
-
       - name: Dependency audit (high severity and above)
         run: pnpm audit:deps
-
       - name: SRC-002 business gate
         run: pnpm gate:src-002
 
-  unit-tests:
-    name: Unit tests
+  unit-test-shards:
+    name: Unit tests (${{ matrix.shard }})
     runs-on: ubuntu-latest
-    needs: static-quality
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ['1/4', '2/4', '3/4', '4/4']
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 9.15.9
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
           cache: pnpm
-
+      - name: Restore Turbo task cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-unit-${{ matrix.shard }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-unit-${{ matrix.shard }}-
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --prefer-offline
+      - name: Unit tests shard
+        run: pnpm exec turbo run test -- --shard=${{ matrix.shard }}
 
-      - name: Unit tests
-        run: pnpm test
+  # Stable check name: every matrix shard must pass before this check is green.
+  unit-tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    needs: unit-test-shards
+    if: always()
+    steps:
+      - name: Require every shard to pass
+        env:
+          SHARDS_RESULT: ${{ needs.unit-test-shards.result }}
+        run: test "$SHARDS_RESULT" = "success"
 
   database-and-integration:
     name: Database gate / Integration / API E2E
     runs-on: ubuntu-latest
-    needs: unit-tests
+    needs: [static-quality, unit-tests]
     timeout-minutes: 30
     services:
       postgres:
@@ -115,43 +123,31 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 9.15.9
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
           cache: pnpm
-
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
+        run: pnpm install --frozen-lockfile --prefer-offline
       - name: Create disposable integration-test database
         env:
           PGPASSWORD: cisne_ci_disposable_password
-        # `psql -c` aceita SQL puro OU um unico meta-comando, nunca os dois: a forma
-        # anterior mandava `\gexec` para o servidor e o job morria com
-        # `ERROR: syntax error at or near "\"` antes de qualquer teste. Pelo stdin o
-        # meta-comando e interpretado pelo psql e o CREATE continua idempotente.
         run: |
           psql -h localhost -U cisne_ci -d cisne_ci -v ON_ERROR_STOP=1 <<'SQL'
           SELECT format('CREATE DATABASE %I OWNER %I', 'cisne_ci_test', 'cisne_ci')
           WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'cisne_ci_test')\gexec
           SQL
-
       - name: Database migration gate
         run: pnpm gate:database
-
       - name: Apply migrations to integration-test database
         run: pnpm db:migrate:test
-
       - name: Integration tests
         run: pnpm test:integration
-
       - name: API end-to-end tests
         run: pnpm test:e2e
 
@@ -163,34 +159,26 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 9.15.9
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
           cache: pnpm
-
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
+        run: pnpm install --frozen-lockfile --prefer-offline
       - name: Build
         run: pnpm build
-
       - name: Install Playwright Chromium (web visual regression)
         run: pnpm --filter @cisne/web exec playwright install chromium --with-deps
-
       - name: Web visual regression
-        continue-on-error: true # Diagnostic for this release; must not block build artifacts or promotion.
         run: pnpm --filter @cisne/web test:visual
         env:
           CI: 'true'
           VITE_CISNE_SURFACE: 'dev'
-
       - name: Upload visual regression diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -201,13 +189,10 @@ jobs:
           path: |
             apps/web/test-results
             apps/web/playwright-report
-
       - name: Emit build metadata
         run: node scripts/ci-emit-build-metadata.mjs
-
       - name: Emit deploy manifest (artifact digest)
         run: node scripts/cd/emit-deploy-manifest.mjs
-
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -220,3 +205,66 @@ jobs:
             apps/api/dist
             apps/web/dist
             packages/database/dist
+
+  # Publicação somente após push em main e sucesso dos gates obrigatórios.
+  deploy-production:
+    name: Deploy production (Railway)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [static-quality, unit-tests, database-and-integration, build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    environment:
+      name: production
+
+    concurrency:
+      group: railway-web-production
+      cancel-in-progress: false
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout do commit validado
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+
+      - name: Instalar Railway CLI
+        # Para builds reproduzíveis, fixe aqui a versão aprovada do CLI.
+        run: npm install --global @railway/cli
+
+      - name: Validar configuração e publicar
+        env:
+          CI: 'true'
+          # Settings > Secrets and variables > Actions > Secrets:
+          # RAILWAY_TOKEN: token de projeto limitado ao ambiente de produção.
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+          # Settings > Secrets and variables > Actions > Variables:
+          # IDs do projeto e do serviço web; ambiente: production ou seu ID.
+          RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
+          RAILWAY_SERVICE_ID: ${{ vars.RAILWAY_WEB_SERVICE_ID }}
+          RAILWAY_ENVIRONMENT: ${{ vars.RAILWAY_ENVIRONMENT }}
+
+        run: |
+          set -euo pipefail
+
+          : "${RAILWAY_TOKEN:?Configure o Secret RAILWAY_TOKEN}"
+          : "${RAILWAY_PROJECT_ID:?Configure a Variable RAILWAY_PROJECT_ID}"
+          : "${RAILWAY_SERVICE_ID:?Configure a Variable RAILWAY_WEB_SERVICE_ID}"
+          : "${RAILWAY_ENVIRONMENT:?Configure a Variable RAILWAY_ENVIRONMENT}"
+
+          # Envia o checkout para o serviço existente, usando seu build no Railway.
+          # Não use --detach: o job deve acompanhar a publicação.
+          railway up \
+            --project "$RAILWAY_PROJECT_ID" \
+            --environment "$RAILWAY_ENVIRONMENT" \
+            --service "$RAILWAY_SERVICE_ID" \
+            --message "GitHub Actions: $GITHUB_SHA"

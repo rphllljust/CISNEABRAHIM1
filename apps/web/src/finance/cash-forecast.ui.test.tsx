@@ -85,7 +85,7 @@ describe('Previsão de caixa — leitura de tesouraria', () => {
     await project();
 
     await waitFor(() => {
-      expect(screen.getByText(/realizado \(fato\)/i)).toBeInTheDocument();
+      expect(screen.getByRole('heading', { level: 2, name: 'Realizado (fato)' })).toBeInTheDocument();
     });
     expect(screen.getAllByText(/previsto no horizonte/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/saldo projetado/i).length).toBeGreaterThan(0);
@@ -133,7 +133,7 @@ describe('Previsão de caixa — leitura de tesouraria', () => {
     await project();
 
     await waitFor(() => {
-      expect(screen.getByText(/realizado \(fato\)/i)).toBeInTheDocument();
+      expect(screen.getByRole('heading', { level: 2, name: 'Realizado (fato)' })).toBeInTheDocument();
     });
     expect(screen.queryByText(/títulos já vencidos/i)).not.toBeInTheDocument();
   });

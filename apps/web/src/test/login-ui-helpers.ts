@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import type { UserEvent } from '@testing-library/user-event';
 import { expect } from 'vitest';
 
@@ -7,6 +7,7 @@ export const LOGIN_USUARIO_LABEL = /^usuário/i;
 export const LOGIN_SENHA_LABEL = /^senha/i;
 export const LOGIN_SUBMIT_BUTTON = /^entrar/i;
 export const LOGIN_FORM_HEADING = /acessar conta/i;
+export const APP_HOME_HEADING = /^central de operações\b/i;
 
 type LoginCredentials = {
   login: string;
@@ -29,7 +30,7 @@ export async function submitLoginForm(
 
 export async function loginAndReachApp(user: UserEvent): Promise<void> {
   await submitLoginForm(user);
-  await waitFor(() => {
-    expect(screen.getByRole('heading', { level: 1, name: /visão geral/i })).toBeInTheDocument();
-  });
+  const heading = await screen.findByRole('heading', { level: 1, name: APP_HOME_HEADING });
+  expect(heading).toBeVisible();
+  expect(screen.getByRole('main')).toContainElement(heading);
 }

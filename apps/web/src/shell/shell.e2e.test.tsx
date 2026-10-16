@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../App';
 import { tokenStore } from '../auth/storage/token-store';
 import { resetTokenStoreForTests } from '../auth/storage/token-store';
-import { loginAndReachApp, LOGIN_FORM_HEADING } from '../test/login-ui-helpers';
+import { APP_HOME_HEADING, loginAndReachApp, LOGIN_FORM_HEADING } from '../test/login-ui-helpers';
 import { createShellFetchMock } from '../test/shell-fetch-mock';
 
 describe('protected application shell', () => {
@@ -285,7 +285,7 @@ describe('protected application shell', () => {
     await loginAndReachApp(user);
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { level: 1, name: /visão geral/i })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { level: 1, name: APP_HOME_HEADING })).toBeInTheDocument();
     });
   });
 });

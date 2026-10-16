@@ -14,7 +14,7 @@ import { createShellFetchMock } from '../test/shell-fetch-mock';
  * A tese desta wave e que a interface NAO desmonta quando falta publicacao. Estes testes rodam a
  * rota de verdade e provam, no DOM renderizado:
  *
- *   1. o CONTEXT RAIL existe SEM selecao (com os fatos reais do recorte);
+ *   1. o fluxo mantém o recorte operacional; o drawer de entidade exige seleção;
  *   2. a FILA VAZIA nao desmonta o cockpit (cabecalho de grade + superficie reservada);
  *   3. as TRES superficies ANALITICAS permanecem, com estado governado quando nao ha dado;
  *   4. a faixa de KPIs continua com a mesma estrutura.
@@ -67,40 +67,33 @@ describe('cockpit /app — estrutura estavel com dado escasso', () => {
     window.history.pushState({}, '', '/login');
   });
 
-  /*
-   * O CONTEXT RAIL E PERSISTENTE — sem selecao ele mostra o CONTEXTO OPERACIONAL do recorte.
-   *
-   * Antes, a coluna da direita so existia com item selecionado: sem selecao a direita ficava vazia,
-   * que e metade do "oceano branco" apontado. Aqui a coluna e o alvo do teste, nao um detalhe.
-   */
-  it('keeps the context rail present without a selected entity', async () => {
+  /* O rail persistente foi substituído pelo drawer sob demanda. O fluxo continua
+   * nomeado e navegável no recorte de Operações, mesmo sem item selecionado. */
+  it('keeps the process flow in the operations section without an empty entity drawer', async () => {
     mockApp();
     render(<App />);
-    await loginAndReachApp(userEvent.setup());
+    const user = userEvent.setup();
+    await loginAndReachApp(user);
+
+    const main = within(screen.getByRole('main'));
+    const domains = within(await main.findByRole('group', { name: /recorte por domínio/i }));
+    const operations = domains.getByRole('button', { name: /^operações$/i });
+    await user.click(operations);
 
     await waitFor(() => {
-      expect(
-        screen.getByRole('complementary', { name: /contexto operacional do recorte/i }),
-      ).toBeInTheDocument();
+      expect(operations).toHaveAttribute('aria-pressed', 'true');
+      expect(new URLSearchParams(window.location.search).get('domain')).toBe('OPERACOES');
     });
 
-    const rail = within(
-      screen.getByRole('complementary', { name: /contexto operacional do recorte/i }),
-    );
-
-    // Os fatos REAIS do recorte, nao placeholder.
-    expect(rail.getByRole('heading', { name: /contexto operacional/i })).toBeInTheDocument();
-    expect(rail.getByText('Escopo')).toBeInTheDocument();
-    expect(rail.getByText('Domínio')).toBeInTheDocument();
-    expect(rail.getByText('Período')).toBeInTheDocument();
-
-    // O processo e os atalhos reais fecham a terceira zona sem inventar dado.
-    expect(rail.getByRole('heading', { name: /processo atual/i })).toBeInTheDocument();
-    expect(rail.getByRole('heading', { name: /atalhos contextuais/i })).toBeInTheDocument();
-    expect(rail.getByRole('link', { name: /central de trabalho/i })).toHaveAttribute(
+    const flow = within(await main.findByRole('region', { name: /^fluxo operacional$/i }));
+    expect(flow.getByRole('heading', { level: 2, name: /^fluxo operacional$/i })).toBeVisible();
+    expect(flow.getByRole('link', { name: /^ordem de serviço:/i })).toHaveAttribute(
       'href',
-      '/app/work-inbox',
+      '/app/service-orders?status=active',
     );
+    expect(
+      main.queryByRole('complementary', { name: /contexto da entidade selecionada/i }),
+    ).not.toBeInTheDocument();
   });
 
   /*
