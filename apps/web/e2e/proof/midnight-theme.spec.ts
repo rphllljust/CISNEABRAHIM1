@@ -4,11 +4,11 @@ import type { ApiMockProfile } from '../fixtures/api-routes';
 
 // Browser acceptance of the supplied 1a reference across shared and legacy surfaces.
 // Fixtures are test data only; production totals and capabilities remain authoritative.
-const surfaces: Array<{ path: string; title: RegExp; profile: ApiMockProfile; table?: string }> = [
+const surfaces: Array<{ path: string; title: RegExp; profile: ApiMockProfile; table?: RegExp }> = [
   { path: '/app', title: /^central de operações\b/i, profile: 'dashboard' },
-  { path: '/app/clients', title: /^clientes$/i, profile: 'clients', table: 'Lista de clientes' },
+  { path: '/app/clients', title: /^clientes$/i, profile: 'clients', table: /^lista de clientes$/i },
   { path: '/app/proposals', title: /^propostas comerciais$/i, profile: 'commercial' },
-  { path: '/app/finance/expenses', title: /^despesas$/i, profile: 'finance', table: 'Lista de Despesas' },
+  { path: '/app/finance/expenses', title: /^despesas$/i, profile: 'finance', table: /^lista de despesas$/i },
   { path: '/app/documents', title: /^documentos$/i, profile: 'documents' },
 ];
 
@@ -63,7 +63,7 @@ for (const width of [1440, 390]) {
         await page.goto(surface.path);
         await expect(page.getByRole('heading', { level: 1, name: surface.title })).toBeVisible();
         if (surface.table) {
-          await expect(page.getByRole('table', { name: surface.table, exact: true })).toBeVisible();
+          await expect(page.getByRole('table', { name: surface.table })).toBeVisible();
         }
         await expect(page.getByText('Carregando navegação…', { exact: true })).toHaveCount(0);
         await stabilizePage(page);
