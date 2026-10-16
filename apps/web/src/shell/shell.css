@@ -209,7 +209,35 @@ body.shell-drawer-open {
   da superficie, nao a uma faixa propria.
 */
 .shell-breadcrumbs {
-  margin-bottom: 0.25rem;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.shell-breadcrumbs__trail {
+  min-width: 0;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.shell-breadcrumbs__trail > span {
+  min-width: 0;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.shell-breadcrumbs__trail > span:last-child {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shell-breadcrumbs__trail > span:last-child > span[aria-current='page'] {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /*

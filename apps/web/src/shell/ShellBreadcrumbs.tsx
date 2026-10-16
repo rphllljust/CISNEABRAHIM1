@@ -12,7 +12,7 @@ export function ShellBreadcrumbs() {
 
   return (
     <div className="shell-breadcrumbs">
-      <Breadcrumb items={items} />
+      <Breadcrumb items={items} className="shell-breadcrumbs__trail" />
     </div>
   );
 }

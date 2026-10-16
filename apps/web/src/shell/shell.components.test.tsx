@@ -20,7 +20,9 @@ describe('shell breadcrumbs', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveClass(
+      'shell-breadcrumbs__trail',
+    );
     expect(screen.getByText('Clientes')).toHaveAttribute('aria-current', 'page');
   });
 });
