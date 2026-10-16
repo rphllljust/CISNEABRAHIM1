@@ -949,51 +949,61 @@ export function ServiceOrdersEngineListPage() {
               onCardClick={openRow}
             />
           ) : activeViewType === 'list' ? (
-            <DynamicList
-              schema={schema}
-              rows={visibleRows}
-              emptyMessage={
-                statusFilter || search.trim()
-                  ? 'Nenhuma ordem de serviço corresponde aos filtros aplicados.'
-                  : 'Nenhuma ordem de serviço no seu escopo.'
-              }
-              selectedIds={selectedIds}
-              onSelectionChange={setSelectedIds}
-              ownerField="client_snapshot"
-              showTotals
-              /*
-               * AGING NO EIXO REAL DA ENTIDADE: o prazo operacional (`deadline_at`), não a
-               * data de criação — que a listagem nem recebe. É a distância até o PRAZO que
-               * diz se uma OS está atrasada, e é isso que a cor comunica.
-               */
-              agingField="deadline_at"
-              /*
-               * A LINHA NAVEGA; o painel de contexto abre por um botão PRÓPRIO.
-               *
-               * Os dois gestos existiram na mesma linha em algum momento, e o clique ficou com
-               * o drawer — o que apagou a ida ao detalhe: a lista deixou de abrir a OS e as
-               * provas de browser (campo novo, transição nova, reordenação) passaram a falhar
-               * por não haver detalhe para inspecionar. Um clique não pode significar duas
-               * coisas: navegar é o que a linha promete desde que a lista existe, e o contexto
-               * ganhou botão explícito, que também anuncia a ação a quem usa teclado.
-               */
-              onRowClick={openRow}
-              renderRowActions={(row) => (
-                <button
-                  type="button"
-                  data-testid="dynamic-open-context"
-                  data-context-row={row.id}
-                  className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                  onClick={(event) => {
-                    // Sem `stopPropagation` o botão também navegaria — o clique subiria ao `<tr>`.
-                    event.stopPropagation();
-                    openContext(row);
-                  }}
-                >
-                  Contexto
-                </button>
-              )}
-            />
+            visibleRows.length === 0 ? (
+              <WorklistStatePanel
+                title={
+                  statusFilter || search.trim() || Object.keys(filters).length > 0
+                    ? 'Nenhuma ordem de serviço corresponde aos filtros aplicados.'
+                    : 'Nenhuma ordem de serviço no seu escopo.'
+                }
+                description={
+                  statusFilter || search.trim() || Object.keys(filters).length > 0
+                    ? 'Ajuste o recorte ou limpe os filtros para voltar à carteira disponível.'
+                    : 'As ordens de serviço nascem de solicitações aprovadas ou propostas aceitas; quando a primeira for aberta ela aparece aqui.'
+                }
+              />
+            ) : (
+              <DynamicList
+                schema={schema}
+                rows={visibleRows}
+                selectedIds={selectedIds}
+                onSelectionChange={setSelectedIds}
+                ownerField="client_snapshot"
+                showTotals
+                /*
+                 * AGING NO EIXO REAL DA ENTIDADE: o prazo operacional (`deadline_at`), não a
+                 * data de criação — que a listagem nem recebe. É a distância até o PRAZO que
+                 * diz se uma OS está atrasada, e é isso que a cor comunica.
+                 */
+                agingField="deadline_at"
+                /*
+                 * A LINHA NAVEGA; o painel de contexto abre por um botão PRÓPRIO.
+                 *
+                 * Os dois gestos existiram na mesma linha em algum momento, e o clique ficou com
+                 * o drawer — o que apagou a ida ao detalhe: a lista deixou de abrir a OS e as
+                 * provas de browser (campo novo, transição nova, reordenação) passaram a falhar
+                 * por não haver detalhe para inspecionar. Um clique não pode significar duas
+                 * coisas: navegar é o que a linha promete desde que a lista existe, e o contexto
+                 * ganhou botão explícito, que também anuncia a ação a quem usa teclado.
+                 */
+                onRowClick={openRow}
+                renderRowActions={(row) => (
+                  <button
+                    type="button"
+                    data-testid="dynamic-open-context"
+                    data-context-row={row.id}
+                    className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md px-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                    onClick={(event) => {
+                      // Sem `stopPropagation` o botão também navegaria — o clique subiria ao `<tr>`.
+                      event.stopPropagation();
+                      openContext(row);
+                    }}
+                  >
+                    Contexto
+                  </button>
+                )}
+              />
+            )
           ) : (
             /*
              * AS DEMAIS VIEWS VÊM DO STORE, sem branch por tipo nesta tela.
