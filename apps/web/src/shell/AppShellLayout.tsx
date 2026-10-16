@@ -7,7 +7,6 @@ import { CommandPalette, useCommandPaletteShortcut } from '../operator/commands/
 import { isReleaseModuleEnabled } from '../release-scope/feature-flags';
 import { ReleaseScopeGate } from '../release-scope/ReleaseScopeGate';
 import { PAGE_FRAME_CLASS, usePageLayoutMode } from './page-layout';
-import { ShellBrandMark } from './ShellBrandMark';
 import { ShellErrorBoundary } from './ShellErrorBoundary';
 import { ShellMobileDrawer } from './ShellMobileDrawer';
 import { ShellNavList } from './ShellNavList';
@@ -94,7 +93,7 @@ export function AppShellLayout() {
         principal preserva a largura restante para listas e contexto empresarial.
       */}
       <aside
-        className="shell__sidebar fixed inset-y-0 z-30 hidden w-[13.5rem] flex-col border-r border-[var(--color-shell-border)] bg-[var(--color-shell-surface)] lg:flex"
+        className="shell__sidebar fixed inset-y-0 z-30 hidden w-[15.25rem] flex-col border-r border-[var(--color-shell-border)] bg-[var(--color-shell-surface)] lg:flex"
         aria-label="Barra lateral"
       >
         {/*
@@ -111,14 +110,17 @@ export function AppShellLayout() {
             A marca usa azul de interacao sobre navy; cyan/teal fica restrito aos detalhes de apoio
             dentro da area de trabalho.
           */}
-          <div className="flex h-7 w-7 items-center justify-center rounded-[4px] bg-[var(--color-blue-600)]">
-            <ShellBrandMark className="h-3.5 w-3.5 text-white" />
+          <div
+            className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px] bg-[linear-gradient(140deg,#E8D3A0,#A9853F)] text-[13px] font-bold text-[var(--color-shell-surface)]"
+            aria-hidden="true"
+          >
+            CR
           </div>
           <div className="min-w-0 leading-tight">
-            <p className="truncate text-[13px] font-semibold tracking-tight text-[var(--color-on-shell)]">
+            <p className="truncate text-[14px] font-semibold tracking-tight text-[var(--color-on-shell)]">
               Cisne Rondônia
             </p>
-            <p className="truncate text-[9px] font-semibold uppercase tracking-[0.14em] text-[var(--color-on-shell-muted)]">
+            <p className="truncate font-mono text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--color-brand-400)]">
               ERP corporativo
             </p>
           </div>
@@ -143,7 +145,7 @@ export function AppShellLayout() {
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col lg:pl-[13.5rem]">
+      <div className="flex min-w-0 flex-1 flex-col lg:pl-[15.25rem]">
         <ShellTopBar
           onMenuToggle={toggleMobileNav}
           menuExpanded={mobileNavOpen && !isDesktop}

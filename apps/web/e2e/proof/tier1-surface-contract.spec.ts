@@ -230,9 +230,9 @@ async function assertSurfaceContract(page: Page, route: string, workSelector: st
   );
 
   /*
-   * CONTRATO 4 — TOPBAR == BRANCA, com regua de 1px embaixo.
+   * CONTRATO 4 — TOPBAR == PAPEL MARFIM do tema Midnight & Champagne, com regua de 1px embaixo.
    */
-  expect(topbarRgb, `topbar deve ser branca em ${route}`).toEqual([255, 255, 255]);
+  expect(topbarRgb, `topbar deve usar o papel marfim do tema em ${route}`).toEqual([251, 250, 247]);
   expect(
     Number.parseFloat(topbar!.borderBottomWidth),
     `topbar deve ter regua inferior de 1px em ${route}`,
@@ -251,13 +251,13 @@ async function assertGeometryContract(page: Page, route: string) {
   expect(sidebar, `sidebar ausente em ${route}`).not.toBeNull();
   expect(topbar, `topbar ausente em ${route}`).not.toBeNull();
 
-  /* sidebar: ~220px (faixa 208-220). */
-  expect(sidebar!.box.width, `sidebar deve medir 208-220px em ${route}`).toBeGreaterThanOrEqual(208);
-  expect(sidebar!.box.width, `sidebar deve medir 208-220px em ${route}`).toBeLessThanOrEqual(220);
+  /* Midnight & Champagne 1a: sidebar de 244px. */
+  expect(sidebar!.box.width, `sidebar deve medir 240-248px em ${route}`).toBeGreaterThanOrEqual(240);
+  expect(sidebar!.box.width, `sidebar deve medir 240-248px em ${route}`).toBeLessThanOrEqual(248);
 
-  /* topbar: 50px exatos. */
-  expect(topbar!.box.height, `topbar deve medir 50px em ${route}`).toBeGreaterThanOrEqual(48);
-  expect(topbar!.box.height, `topbar deve medir 50px em ${route}`).toBeLessThanOrEqual(52);
+  /* Midnight & Champagne 1a: topbar de 60px. */
+  expect(topbar!.box.height, `topbar deve medir 60px em ${route}`).toBeGreaterThanOrEqual(58);
+  expect(topbar!.box.height, `topbar deve medir 60px em ${route}`).toBeLessThanOrEqual(62);
 
   /* O conteudo comeca imediatamente abaixo do topbar (sem faixa morta). */
   const content = await readSurface(page, { selector: '.shell__content', label: 'content' });

@@ -51,7 +51,7 @@ export function ShellTopBar({
       sidebar navy delimita por baixo. A moldura fecha.
     */
     <header
-      className="shell__topbar sticky top-0 z-20 flex h-[var(--shell-chrome-height)] shrink-0 items-center gap-3 border-b border-[var(--color-border-default)] bg-[var(--color-surface-raised)] px-4 sm:px-5 lg:px-6"
+      className="shell__topbar sticky top-0 z-20 flex h-[var(--shell-chrome-height)] shrink-0 items-center gap-3 border-b border-[var(--color-border-default)] bg-[var(--color-surface-header)] px-4 sm:px-5 lg:px-8"
       role="banner"
     >
       <button
@@ -138,7 +138,7 @@ export function ShellTopBar({
                 ambiente vira metadata: e a hierarquia de um application shell, nao de um formulario.
               */}
               <span
-                className="flex h-7 w-7 items-center justify-center rounded-[4px] bg-[var(--color-brand-600)] text-[11px] font-semibold text-[var(--color-text-inverse)]"
+                className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[var(--color-shell-surface)] text-[12px] font-semibold text-[#E8D3A0] shadow-[0_0_0_2px_var(--color-surface-header),0_0_0_3px_var(--color-brand-400)]"
                 aria-hidden="true"
               >
                 CN

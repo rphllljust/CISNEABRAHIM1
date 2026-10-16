@@ -40,7 +40,7 @@
 }
 
 .shell__brand {
-  background: rgb(255 255 255 / 2%);
+  background: transparent;
 }
 
 .shell__account-card {
@@ -54,7 +54,7 @@
 .shell__search {
   /* O teto da busca global vive no utilitario do componente (420-560px); aqui apenas garante que
      ela nunca estoure o container em telas estreitas. */
-  max-width: 100%;
+  max-width: min(26rem, 100%);
 }
 
 /*

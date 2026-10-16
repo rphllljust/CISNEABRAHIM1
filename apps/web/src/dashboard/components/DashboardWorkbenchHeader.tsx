@@ -82,6 +82,7 @@ export function DashboardWorkbenchHeader({
   const hasExtraFilters = activeFilters.length > 0;
   const badge = situation ? situationBadgeLabel(situation) : null;
   const situationTone = situation?.level ?? 'unknown';
+  const periodOptionLabel = periodOptions.find((option) => option.value === period)?.label ?? period;
 
   return (
     /*
@@ -94,6 +95,9 @@ export function DashboardWorkbenchHeader({
     <div className="dashboard-workspace-head" role="group" aria-label="Contexto do workspace">
       <div className="dashboard-workspace-head__row">
         <div className="dashboard-workspace-head__identity">
+          <p className="dashboard-workspace-head__eyebrow">
+            Painel operacional · {periodOptionLabel}
+          </p>
           <h1 className="dashboard-workspace-head__title">{title}</h1>
           <p className="dashboard-workspace-head__description">{description}</p>
         </div>
