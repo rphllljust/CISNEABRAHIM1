@@ -659,6 +659,7 @@ export function ServiceRequestsListPage() {
         operador remonta todo dia — situação, prioridade, origem, unidade, janela desejada — fica à
         vista e é aplicado por um clique.
       */}
+      <div className="cisne-query-deck mb-2">
       <WorkspaceToolbar
         views={
           <DynamicSavedViewsBar
@@ -866,6 +867,7 @@ export function ServiceRequestsListPage() {
             setUrlParams(params, { replace: true });
           }}
         />
+      </div>
       </div>
 
 
