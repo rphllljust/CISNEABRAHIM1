@@ -659,6 +659,7 @@ export function ServiceRequestsListPage() {
         operador remonta todo dia — situação, prioridade, origem, unidade, janela desejada — fica à
         vista e é aplicado por um clique.
       */}
+      <div className="cisne-query-deck mb-2">
       <WorkspaceToolbar
         views={
           <DynamicSavedViewsBar
@@ -867,6 +868,7 @@ export function ServiceRequestsListPage() {
           }}
         />
       </div>
+      </div>
 
 
       {/*
@@ -881,14 +883,13 @@ export function ServiceRequestsListPage() {
         coluna aqui seria criar uma segunda gramática de contexto que a tela não tem.
       */}
       <WorkspaceBody>
-        <WorkspacePane className="h-full overflow-hidden">
+        <WorkspacePane className={items.length === 0 ? 'overflow-hidden' : 'h-full overflow-hidden'}>
           {items.length === 0 ? (
             <section
               aria-label="Fila operacional de solicitações"
-              className="flex min-h-0 min-w-0 flex-1 flex-col"
+              className="min-w-0"
               data-region="worklist-master"
             >
-              {queueHeadRow}
               <WorkspaceEmpty
                 title={
                   hasFilterChips
@@ -947,33 +948,35 @@ export function ServiceRequestsListPage() {
             RODAPÉ DA JANELA — intervalo REAL da página e paginação, fora do contêiner de rolagem
             (`shrink-0`): paginar não pode depender de rolar até o fim da fila.
           */}
-          <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[color:var(--color-divider)] px-3 py-1.5">
-            <p className="m-0 cisne-type-helper text-gray-400">
-              {offset + 1}–{offset + items.length} nesta página · janela desejada é expectativa
-              registrada, não prazo contratado.
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={offset === 0}
-                onClick={() => void loadPage(Math.max(0, offset - PAGE_SIZE), filters)}
-              >
-                Anterior
-              </button>
-              <span className="cisne-type-helper text-gray-500 tabular-nums">
-                Página {Math.floor(offset / PAGE_SIZE) + 1}
-              </span>
-              <button
-                type="button"
-                className="rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!hasMore}
-                onClick={() => void loadPage(offset + PAGE_SIZE, filters)}
-              >
-                Próxima
-              </button>
+          {items.length > 0 ? (
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[color:var(--color-divider)] px-3 py-1.5">
+              <p className="m-0 cisne-type-helper text-gray-400">
+                {offset + 1}–{offset + items.length} nesta página · janela desejada é expectativa
+                registrada, não prazo contratado.
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={offset === 0}
+                  onClick={() => void loadPage(Math.max(0, offset - PAGE_SIZE), filters)}
+                >
+                  Anterior
+                </button>
+                <span className="cisne-type-helper text-gray-500 tabular-nums">
+                  Página {Math.floor(offset / PAGE_SIZE) + 1}
+                </span>
+                <button
+                  type="button"
+                  className="rounded border border-gray-300 bg-white px-2 py-1 cisne-type-body font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={!hasMore}
+                  onClick={() => void loadPage(offset + PAGE_SIZE, filters)}
+                >
+                  Próxima
+                </button>
+              </div>
             </div>
-          </div>
+          ) : null}
         </WorkspacePane>
       </WorkspaceBody>
 

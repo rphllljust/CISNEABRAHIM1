@@ -441,7 +441,7 @@ export function PurchaseOrdersListPage() {
           />
         }
         action={
-          capabilities.canCreate ? (
+          capabilities.canCreate && (items.length > 0 || hasActiveFilters) ? (
             <ModulePrimaryLink to="/app/purchase-orders/new">Novo pedido</ModulePrimaryLink>
           ) : null
         }
@@ -454,6 +454,7 @@ export function PurchaseOrdersListPage() {
         para o construtor composto: três réguas para a mesma pergunta ("qual recorte estou lendo"),
         ~90px que a grade pagava em toda dobra.
       */}
+      <div className="cisne-query-deck mb-2">
       <WorkspaceToolbar
         views={
           <div data-region="saved-view-surface">
@@ -524,7 +525,8 @@ export function PurchaseOrdersListPage() {
             />
           </WorklistField>
 
-          <WorklistField label="Cliente" htmlFor="po-client-search">
+          <WorklistField label="Cliente" htmlFor="po-client-search" grow>
+            <span className="min-w-[22rem] flex-1">
             <HumanLookupField
               variant="compact"
               label="Cliente"
@@ -535,6 +537,7 @@ export function PurchaseOrdersListPage() {
               emptyOptionLabel="Todos os clientes"
               emptyMessage="Nenhum cliente encontrado para a busca."
             />
+            </span>
           </WorklistField>
           <WorklistField label="Unidade" htmlFor="po-unit-filter">
             <input
@@ -588,6 +591,7 @@ export function PurchaseOrdersListPage() {
           }}
         />
       </div>
+      </div>
 
       {/*
         ÁREA DE TRABALHO — a grade é elástica e ocupa a altura que o shell deixou.
@@ -595,7 +599,7 @@ export function PurchaseOrdersListPage() {
         estado vazio explica o que um pedido de compra é.
       */}
       <WorkspaceBody>
-        <WorkspacePane className="h-full overflow-hidden">
+        <WorkspacePane className={items.length === 0 ? 'overflow-hidden' : 'h-full overflow-hidden'}>
           <div className="flex min-h-0 flex-1 flex-col" data-region="worklist-master">
             {items.length === 0 ? (
               <WorkspaceEmpty
