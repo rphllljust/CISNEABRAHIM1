@@ -33,7 +33,7 @@ export function WorkbenchSummaryStrip({ children }: { children: ReactNode }) {
   return (
     <section
       aria-label="Resumo da fila"
-      className="mb-2 flex flex-wrap items-stretch gap-0 border-y border-gray-200 bg-gray-50/80 px-2 py-2"
+      className="mb-2 flex flex-wrap items-stretch gap-0 overflow-hidden rounded-[10px] border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-header)]"
     >
       {children}
     </section>
@@ -79,7 +79,7 @@ export function WorkbenchMetric({
   );
 
   const className =
-    'flex min-w-28 flex-col items-start gap-0.5 border-l border-gray-200 px-4 py-1 no-underline transition-colors first:border-l-0';
+    'flex min-w-28 flex-col items-start gap-0.5 border-l border-[color:var(--color-divider)] px-4 py-2 no-underline transition-colors first:border-l-0';
 
   if (href) {
     return (
@@ -123,8 +123,8 @@ export function WorkbenchQueue({
 }) {
   const isEmpty = count === 0 || (!children && count === undefined);
   return (
-    <section className="mb-2" aria-label={regionLabel ?? title}>
-      <div className="mb-0 flex flex-wrap items-center justify-between gap-2 border-y border-gray-200 bg-gray-100 px-2.5 py-1.5">
+    <section className="mb-2 overflow-hidden rounded-[10px] border border-[color:var(--color-border-default)] bg-white" aria-label={regionLabel ?? title}>
+      <div className="mb-0 flex min-h-10 flex-wrap items-center justify-between gap-2 border-b border-[color:var(--color-divider)] bg-[color:var(--color-surface-header)] px-3 py-1.5">
         <div className="flex items-baseline gap-2">
           <h2 className="cisne-type-workspace m-0">{title}</h2>
           {typeof count === 'number' ? (
@@ -133,7 +133,7 @@ export function WorkbenchQueue({
         </div>
         {action ? <div className="flex shrink-0 items-center gap-1.5">{action}</div> : null}
       </div>
-      {description ? <p className="cisne-type-helper m-0 border-b border-gray-100 bg-white px-2.5 py-1">{description}</p> : null}
+      {description ? <p className="cisne-type-helper m-0 border-b border-[color:var(--color-divider)] bg-white px-3 py-1.5">{description}</p> : null}
       {isEmpty ? (
         <EmptyState
           title={emptyTitle ?? 'Nada nesta fila'}
