@@ -464,7 +464,7 @@
   --color-success-bg: #e9f1e8;
   --color-success-border: #c6dec1;
 
-  --color-warning-fg: #8c6c33;
+  --color-warning-fg: #7a5c2a;
   --color-warning-bg: #f6ead1;
   --color-warning-border: #e3d6b8;
 
@@ -483,7 +483,7 @@
 
   /* TEXTO SEMANTICO LEGIVEL (nao o tom puro, que e claro demais para rotulo). */
   --color-success-ink: #2a704f;
-  --color-warning-ink: #8c6c33;
+  --color-warning-ink: #7a5c2a;
   --color-critical-ink: #8c3523;
   --color-info-ink: #141a26;
   --color-neutral-ink: var(--erp-neutral);
