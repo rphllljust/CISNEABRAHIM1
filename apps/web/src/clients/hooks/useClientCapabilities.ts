@@ -1,14 +1,15 @@
-import { useEffect, useState } from 'react';
-import { ClientsApiError, probeClientCapabilities, type ClientCapabilities } from '../api/clients-api';
+import { useMemo } from 'react';
 import { useAuth } from '../../auth/context/AuthProvider';
+import { useSessionMeta } from '../../service-orders/context/SessionMetaProvider';
+import type { ClientCapabilities } from '../api/clients-api';
 
 /**
- * ESTADO INICIAL E DE NEGAÇÃO — NEGAÇÃO EM TODAS, INCLUSIVE NAS DO CUSTOMER 360.
+ * CAPABILITIES DE UI — projeção dos grants efetivos já publicados por GET /me.
  *
- * Exaustividade aqui é requisito, não estilo: uma capacidade acrescentada ao tipo e esquecida
- * neste objeto fica `undefined`, e os painéis que a consomem passam a oferecer (ou a esconder)
- * comandos com base em ausência de valor em vez de uma decisão. As quatro capacidades novas estão
- * declaradas explicitamente por isso.
+ * Antes este hook descobria permissão disparando POST/PATCH contra payload inválido e UUID
+ * sintético. Isso poluía produção e tratava 400/404 como "tem permissão". O backend já publica os
+ * grants efetivos uma vez por sessão; a UI apenas projeta esse contrato. O servidor continua sendo
+ * a barreira autoritativa e revalida cada comando com escopo.
  */
 const EMPTY_CAPABILITIES: ClientCapabilities = {
   canList: false,
@@ -24,52 +25,33 @@ const EMPTY_CAPABILITIES: ClientCapabilities = {
 };
 
 export function useClientCapabilities() {
-  const { status } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [capabilities, setCapabilities] = useState<ClientCapabilities>(EMPTY_CAPABILITIES);
-  const [error, setError] = useState(false);
+  const { status: authStatus } = useAuth();
+  const session = useSessionMeta();
 
-  useEffect(() => {
-    if (status === 'loading') {
-      setLoading(true);
-      return;
+  const capabilities = useMemo<ClientCapabilities>(() => {
+    if (authStatus !== 'authenticated' || session.status !== 'ready') {
+      return EMPTY_CAPABILITIES;
     }
-
-    if (status !== 'authenticated') {
-      setLoading(false);
-      setCapabilities(EMPTY_CAPABILITIES);
-      return;
-    }
-
-    const controller = new AbortController();
-    let cancelled = false;
-
-    void probeClientCapabilities(controller.signal)
-      .then((result) => {
-        if (!cancelled) {
-          setCapabilities(result);
-          setError(false);
-          setLoading(false);
-        }
-      })
-      .catch((probeError: unknown) => {
-        if (cancelled) {
-          return;
-        }
-        if (probeError instanceof ClientsApiError && probeError.kind === 'denied') {
-          setCapabilities(EMPTY_CAPABILITIES);
-          setError(false);
-        } else {
-          setError(true);
-        }
-        setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-      controller.abort();
+    return {
+      canList: session.can('client:client:list'),
+      canCreate: session.can('client:client:create'),
+      canRead: session.can('client:client:read'),
+      canUpdate: session.can('client:client:update'),
+      canDeactivate: session.can('client:client:deactivate'),
+      canActivate: session.can('client:client:activate'),
+      canManageContacts: session.can('client:contact:manage'),
+      canManageUnits: session.can('client:unit:manage'),
+      canManageHierarchy: session.can('client:hierarchy:manage'),
+      canReadAudit: session.can('client:audit:read'),
     };
-  }, [status]);
+  }, [authStatus, session]);
 
-  return { loading, capabilities, error };
+  return {
+    loading:
+      authStatus === 'loading' ||
+      (authStatus === 'authenticated' &&
+        (session.status === 'idle' || session.status === 'loading')),
+    capabilities,
+    error: authStatus === 'authenticated' && session.status === 'error',
+  };
 }
