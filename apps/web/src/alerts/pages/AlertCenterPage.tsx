@@ -6,7 +6,7 @@ import {
   type BusinessAlertListItem,
   type BusinessAlertType,
 } from '../types/alerts.types';
-import { ModulePage, ModulePageHeader, ModuleStatePage, ModuleLoadingState, ModuleDeniedState, ModuleErrorState, UnitScopeLabel } from '../../ui/module-layout';
+import { ModulePage, ModuleStatePage, ModuleLoadingState, ModuleDeniedState, ModuleErrorState, UnitScopeLabel } from '../../ui/module-layout';
 import {
   WorklistException,
   WorklistField,
@@ -14,6 +14,7 @@ import {
   worklistSelectClass,
 } from '../../ui/enterprise-list';
 import { StatusBadge } from '../../ui/StatusBadge';
+import { WorkspaceHeader } from '../../ui/workspace-frame';
 import {
   WorkbenchMetric,
   WorkbenchQueue,
@@ -116,10 +117,20 @@ export function AlertCenterPage() {
   );
 
   return (
-    <ModulePage>
-      <ModulePageHeader
+    <ModulePage layout="workspace">
+      <WorkspaceHeader
         title="Central de alertas"
-        description="Alertas persistentes derivados das políticas operacionais — não substituem ações no fluxo."
+        identity="Alertas persistentes derivados das políticas operacionais — não substituem ações no fluxo."
+        status={
+          items.length > 0 ? (
+            <span className="text-[12px] text-[color:var(--color-text-muted)]">
+              <strong className="font-semibold tabular-nums text-[color:var(--color-text-primary)]">
+                {items.length}
+              </strong>{' '}
+              no recorte
+            </span>
+          ) : undefined
+        }
         action={toolbarAction}
       />
 
