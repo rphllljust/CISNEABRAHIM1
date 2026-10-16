@@ -5,6 +5,10 @@ on:
     branches:
       - 'validation/frontend-recomposition-20261015'
       - 'theme/midnight-completion'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/web/e2e/proof/midnight-theme.spec.ts'
 
 permissions:
   contents: read
@@ -33,7 +37,7 @@ jobs:
       - name: Focused lint
         working-directory: apps/web
         run: |
-          mapfile -t changed < <(git diff --name-only c87fa4559153f19aa4bfdfca7000523061c4cc1e HEAD -- src | sed -n '/\.tsx\?$/p' | sed 's|^apps/web/||')
+          mapfile -t changed < <(git diff --name-only c87fa4559153f19aa4bfdfca7000523061c4cc1e HEAD -- src e2e | sed -n '/\.tsx\?$/p' | sed 's|^apps/web/||')
           test "${#changed[@]}" -gt 0
           pnpm exec eslint "${changed[@]}"
       - name: Web typecheck
