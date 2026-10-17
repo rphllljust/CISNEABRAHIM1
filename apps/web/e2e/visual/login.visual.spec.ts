@@ -40,6 +40,7 @@ test.describe('login page visual regression', () => {
       const cardRect = cardElement.getBoundingClientRect();
       return {
         heroHeight: heroRect.height,
+        heroBottom: heroRect.bottom,
         cardTop: cardRect.top,
         heroTop: heroRect.top,
         scrollWidth: document.documentElement.scrollWidth,
@@ -49,7 +50,9 @@ test.describe('login page visual regression', () => {
 
     expect(geometry).not.toBeNull();
     expect(geometry!.heroHeight).toBeGreaterThan(200);
+    expect(geometry!.heroHeight).toBeLessThanOrEqual(270);
     expect(geometry!.cardTop).toBeGreaterThan(geometry!.heroTop);
+    expect(geometry!.cardTop).toBeLessThan(geometry!.heroBottom);
     expect(geometry!.scrollWidth).toBeLessThanOrEqual(geometry!.viewportWidth + 1);
   });
 
