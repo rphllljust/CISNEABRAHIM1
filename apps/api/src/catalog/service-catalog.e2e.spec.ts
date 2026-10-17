@@ -119,7 +119,6 @@ describe('Service catalog E2E', () => {
         archetype: 'RENTAL',
         measurementMode: 'BY_PERIOD',
         measurementBasis: 'TIME',
-        defaultUnitCode: 'DAY',
         allowedUnits: [{ unitCode: 'DAY', isDefault: true, sortOrder: 0 }],
         pricingModels: [
           {
@@ -148,7 +147,6 @@ describe('Service catalog E2E', () => {
     });
     expect(reloadResponse.statusCode).toBe(200);
     const reloaded = JSON.parse(reloadResponse.body) as {
-      defaultUnitCode: string | null;
       allowedUnits: Array<{ unitCode: string; isDefault: boolean; sortOrder: number }>;
       pricingModels: Array<{
         modelCode: string;
@@ -158,7 +156,6 @@ describe('Service catalog E2E', () => {
         sortOrder: number;
       }>;
     };
-    expect(reloaded.defaultUnitCode).toBe('DAY');
     expect(reloaded.allowedUnits).toEqual([
       expect.objectContaining({ unitCode: 'DAY', isDefault: true, sortOrder: 0 }),
     ]);
