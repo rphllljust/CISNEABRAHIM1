@@ -210,6 +210,29 @@ describe('Service catalog PostgreSQL integration', () => {
     expect(reactivated.status).toBe('ACTIVE');
   });
 
+  it('rejects inconsistent or duplicated allowed units before persistence', async () => {
+    const { identityId, categoryId } = await seedActor();
+    const actor = { identityId, sessionId: 'sid' };
+
+    await expect(
+      catalogAccess.create(actor, {
+        ...createPayload(categoryId, 'DUPLICATE_ALLOWED_UNIT'),
+        allowedUnits: [
+          { unitCode: 'DAY', isDefault: true, sortOrder: 0 },
+          { unitCode: 'DAY', isDefault: false, sortOrder: 1 },
+        ],
+      }),
+    ).rejects.toMatchObject({ code: CATALOG_ERROR_CODES.VALIDATION_FAILED });
+
+    await expect(
+      catalogAccess.create(actor, {
+        ...createPayload(categoryId, 'DEFAULT_UNIT_MISMATCH'),
+        defaultUnitCode: 'HOUR',
+        allowedUnits: [{ unitCode: 'DAY', isDefault: true, sortOrder: 0 }],
+      }),
+    ).rejects.toMatchObject({ code: CATALOG_ERROR_CODES.VALIDATION_FAILED });
+  });
+
   it('rejects duplicate service codes', async () => {
     const { identityId, categoryId } = await seedActor();
     const actor = { identityId, sessionId: 'sid' };
