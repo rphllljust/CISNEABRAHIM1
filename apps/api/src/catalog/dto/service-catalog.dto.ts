@@ -78,6 +78,18 @@ function parsePositiveInt(value: unknown, field: string): number {
   return parsed;
 }
 
+function parseNonNegativeInt(value: unknown, field: string): number {
+  const parsed = typeof value === 'number' ? value : Number.parseInt(String(value), 10);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new CatalogHttpException(
+      HttpStatus.BAD_REQUEST,
+      CATALOG_ERROR_CODES.VALIDATION_FAILED,
+      `Invalid ${field}.`,
+    );
+  }
+  return parsed;
+}
+
 function parseAllowedUnits(body: Record<string, unknown>): AllowedUnitInput[] {
   const raw = body['allowedUnits'];
   if (!Array.isArray(raw)) {
@@ -100,7 +112,7 @@ function parseAllowedUnits(body: Record<string, unknown>): AllowedUnitInput[] {
       unitCode: parseRequiredString(record, 'unitCode'),
       isDefault: record['isDefault'] === true,
       sortOrder:
-        record['sortOrder'] === undefined ? undefined : parsePositiveInt(record['sortOrder'], 'sortOrder'),
+        record['sortOrder'] === undefined ? undefined : parseNonNegativeInt(record['sortOrder'], 'sortOrder'),
     };
   });
 }
@@ -144,7 +156,7 @@ function parseResourceRequirements(
           ? undefined
           : parsePositiveInt(record['minQuantity'], 'minQuantity'),
       sortOrder:
-        record['sortOrder'] === undefined ? undefined : parsePositiveInt(record['sortOrder'], 'sortOrder'),
+        record['sortOrder'] === undefined ? undefined : parseNonNegativeInt(record['sortOrder'], 'sortOrder'),
     };
   });
 }
@@ -188,7 +200,7 @@ function parseLaborRequirements(
           ? undefined
           : parsePositiveInt(record['minQuantity'], 'minQuantity'),
       sortOrder:
-        record['sortOrder'] === undefined ? undefined : parsePositiveInt(record['sortOrder'], 'sortOrder'),
+        record['sortOrder'] === undefined ? undefined : parseNonNegativeInt(record['sortOrder'], 'sortOrder'),
     };
   });
 }
@@ -233,7 +245,7 @@ function parseExecutionRequirements(
           ? undefined
           : (config as ExecutionRequirementInput['config']),
       sortOrder:
-        record['sortOrder'] === undefined ? undefined : parsePositiveInt(record['sortOrder'], 'sortOrder'),
+        record['sortOrder'] === undefined ? undefined : parseNonNegativeInt(record['sortOrder'], 'sortOrder'),
     };
   });
 }
@@ -317,7 +329,7 @@ function parsePricingModels(body: Record<string, unknown>, required = false): Pr
             : parseRequiredString(record, 'internalCost'),
       currencyCode: parseOptionalString(record, 'currencyCode'),
       sortOrder:
-        record['sortOrder'] === undefined ? undefined : parsePositiveInt(record['sortOrder'], 'sortOrder'),
+        record['sortOrder'] === undefined ? undefined : parseNonNegativeInt(record['sortOrder'], 'sortOrder'),
     };
   });
 }
