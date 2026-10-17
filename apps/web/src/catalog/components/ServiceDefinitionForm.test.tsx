@@ -200,7 +200,7 @@ describe('ServiceDefinitionForm accessibility', () => {
     render(
       <ServiceDefinitionForm
         formId="catalog-form"
-        state={createEmptyFormState()}
+        state={createConfiguredState()}
         errors={{}}
         referenceData={referenceData}
         includeCode
