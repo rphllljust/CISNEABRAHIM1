@@ -10,6 +10,7 @@ import type { IdentityAuthzContext } from '../../authorization/types/authz-decis
 import { AUTHZ_ACTIONS } from '../../authorization/types/authz-actions';
 import { LINEAGE_STATUSES } from '../domain/service-catalog-status';
 import type {
+  CatalogVersionFilter,
   CreateServiceDefinitionInput,
   CreateServiceDefinitionVersionInput,
   UpdateDraftServiceDefinitionInput,
@@ -124,7 +125,13 @@ export class ServiceCatalogAccessService {
 
   async listDefinitions(
     actor: IdentityAuthzContext,
-    query: { limit: number; offset: number; status?: 'ACTIVE' | 'INACTIVE'; search?: string },
+    query: {
+      limit: number;
+      offset: number;
+      status?: 'ACTIVE' | 'INACTIVE';
+      version?: CatalogVersionFilter;
+      search?: string;
+    },
   ): Promise<{ items: ServiceDefinitionResponse[]; limit: number; offset: number }> {
     await this.authz.assertListAction(actor);
 
@@ -133,6 +140,28 @@ export class ServiceCatalogAccessService {
     if (query.status) {
       clauses.push(`d.status = $${params.length + 1}`);
       params.push(query.status);
+    }
+    if (query.version === 'HAS_DRAFT') {
+      clauses.push(`EXISTS (
+        SELECT 1
+        FROM cat.service_definition_versions filter_version
+        WHERE filter_version.service_definition_id = d.id
+          AND filter_version.status = 'DRAFT'
+      )`);
+    } else if (query.version === 'HAS_PUBLISHED') {
+      clauses.push(`EXISTS (
+        SELECT 1
+        FROM cat.service_definition_versions filter_version
+        WHERE filter_version.service_definition_id = d.id
+          AND filter_version.status = 'ACTIVE'
+      )`);
+    } else if (query.version === 'NO_PUBLISHED') {
+      clauses.push(`NOT EXISTS (
+        SELECT 1
+        FROM cat.service_definition_versions filter_version
+        WHERE filter_version.service_definition_id = d.id
+          AND filter_version.status = 'ACTIVE'
+      )`);
     }
     if (query.search) {
       // Nome (versao vigente ACTIVE; senao DRAFT) OU code operacional. O EXISTS resolve o nome no
