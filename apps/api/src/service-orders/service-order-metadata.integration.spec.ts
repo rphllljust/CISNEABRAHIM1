@@ -270,6 +270,25 @@ describe('B4 — service order metadata HTTP contract', () => {
     return (JSON.parse(orderResponse.body) as { id: string }).id;
   }
 
+  async function seedIncompleteServiceOrder(
+    token: string,
+    unitId = UNIT_A,
+  ): Promise<{ id: string; rowVersion: number }> {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/service-orders',
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        origin: 'AUTHORIZED_DIRECT',
+        unitId,
+        description: 'OS sem definição de serviço',
+      },
+    });
+    expect(response.statusCode).toBe(201);
+    const body = JSON.parse(response.body) as { id: string; rowVersion: number };
+    return { id: body.id, rowVersion: body.rowVersion };
+  }
+
   async function getJson<T>(url: string, token?: string): Promise<{ status: number; body: T | null }> {
     const response = await app.inject({
       method: 'GET',
@@ -331,6 +350,93 @@ describe('B4 — service order metadata HTTP contract', () => {
     expect(prepare?.usuario_tem_permissao).toBe(true);
     // Commandos invalidos saem na lista propria, nunca em comandos_validos.
     expect(body?.comandos_invalidos_para_status).toContain('release');
+
+    const detail = await getJson<{ rowVersion: number }>(
+      `/api/v1/service-orders/${orderId}`,
+      token,
+    );
+    const prepareResponse = await app.inject({
+      method: 'POST',
+      url: `/api/v1/service-orders/${orderId}/prepare`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { rowVersion: detail.body?.rowVersion },
+    });
+    expect(prepareResponse.statusCode).toBe(200);
+  });
+
+  it('Caso 3A: DRAFT sem serviço não publica prepare e o command direto continua protegido com 409', async () => {
+    const { token } = await loginAdmin();
+    const order = await seedIncompleteServiceOrder(token);
+
+    const { status, body } = await getJson<AvailableActionsResponse>(
+      `/api/v1/service-orders/${order.id}/available-actions`,
+      token,
+    );
+
+    expect(status).toBe(200);
+    const comandos = body?.comandos_validos.map((entry) => entry.comando) ?? [];
+    expect(comandos).not.toContain('prepare');
+    expect(comandos).toContain('cancel');
+
+    const detail = await getJson<{
+      controlCenter?: {
+        nextAction: {
+          step: string;
+          transition: string | null;
+          availableTransitions: string[];
+          blockers: string[];
+        };
+      };
+    }>(`/api/v1/service-orders/${order.id}`, token);
+    expect(detail.status).toBe(200);
+    expect(detail.body?.controlCenter?.nextAction.step).toBe('WAITING');
+    expect(detail.body?.controlCenter?.nextAction.transition).toBeNull();
+    expect(detail.body?.controlCenter?.nextAction.availableTransitions).not.toContain('prepare');
+    expect(detail.body?.controlCenter?.nextAction.availableTransitions).toContain('cancel');
+    expect(detail.body?.controlCenter?.nextAction.blockers).toContain(
+      'SERVICE_DEFINITION_REQUIRED',
+    );
+
+    const prepareResponse = await app.inject({
+      method: 'POST',
+      url: `/api/v1/service-orders/${order.id}/prepare`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { rowVersion: order.rowVersion },
+    });
+    expect(prepareResponse.statusCode).toBe(409);
+    expect(JSON.parse(prepareResponse.body)).toMatchObject({
+      error: {
+        code: 'SERVICE_ORDERS_SERVICE_REQUIRED',
+      },
+    });
+  });
+
+  it('Caso 3B: usuário sem permissão de prepare não recebe prepare mesmo com DRAFT pronto', async () => {
+    const { token: adminToken } = await loginAdmin();
+    const orderId = await seedServiceOrder(adminToken);
+
+    const { token: readOnlyToken } = await login([
+      {
+        action: AUTHZ_ACTIONS.ServiceOrdersServiceOrderRead,
+        resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+        scopeType: AUTHZ_SCOPES.Global,
+      },
+      {
+        action: AUTHZ_ACTIONS.ServiceOrdersServiceOrderCancel,
+        resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+        scopeType: AUTHZ_SCOPES.Global,
+      },
+    ]);
+
+    const { status, body } = await getJson<AvailableActionsResponse>(
+      `/api/v1/service-orders/${orderId}/available-actions`,
+      readOnlyToken,
+    );
+
+    expect(status).toBe(200);
+    const comandos = body?.comandos_validos.map((entry) => entry.comando) ?? [];
+    expect(comandos).not.toContain('prepare');
+    expect(comandos).toContain('cancel');
   });
 
   // Caso 4

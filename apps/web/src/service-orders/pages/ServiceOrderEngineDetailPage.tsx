@@ -358,6 +358,7 @@ export function ServiceOrderEngineDetailPage() {
             <ActionBar
               schema={schema}
               currentState={currentState}
+              availableCommands={controlCenter?.nextAction.availableTransitions}
               busy={busy}
               onCommand={(command) =>
                 /*

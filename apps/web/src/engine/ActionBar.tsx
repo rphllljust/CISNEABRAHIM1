@@ -15,6 +15,7 @@ export type ActionBarProps = {
   /** Estado atual do registro. */
   currentState: string;
   onCommand: (command: string, transition: MetaTransition) => void;
+  availableCommands?: readonly string[];
   busy?: boolean;
 };
 
@@ -22,6 +23,7 @@ export function ActionBar({
   schema,
   currentState,
   onCommand,
+  availableCommands,
   busy = false,
 }: ActionBarProps): React.ReactElement | null {
   const workflow = schema.workflow;
@@ -29,9 +31,12 @@ export function ActionBar({
     return null;
   }
 
+  const commandSet =
+    availableCommands === undefined ? null : new Set(availableCommands);
   const available = workflow.transitions
     .filter((transition) => transition.fromStates.includes(currentState))
     .filter((transition) => transition.allowed)
+    .filter((transition) => commandSet === null || commandSet.has(transition.command))
     .slice()
     .sort((left, right) => left.buttonOrder - right.buttonOrder);
 

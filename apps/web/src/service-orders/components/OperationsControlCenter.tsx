@@ -49,10 +49,12 @@ const NEXT_STEP_LABELS: Record<string, string> = {
   COMPLETE: 'Concluir execução',
   RESUME: 'Retomar execução',
   MEASURE: 'Gerar medição',
+  WAITING: 'Aguardando pré-condições',
   CLOSED: 'Ciclo encerrado',
 };
 
 const BLOCKER_LABELS: Record<string, string> = {
+  SERVICE_DEFINITION_REQUIRED: 'Defina um serviço antes de preparar a ordem.',
   NO_ACTIVE_ALLOCATION: 'Nenhum recurso ativo alocado para a execução.',
   EXECUTION_OCCURRENCES_REGISTERED: 'Há ocorrências registradas na execução.',
 };

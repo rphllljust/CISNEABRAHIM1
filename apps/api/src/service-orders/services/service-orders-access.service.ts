@@ -31,6 +31,7 @@ import { SERVICE_ORDER_HISTORY_EVENTS, SERVICE_ORDER_ORIGINS } from '../domain/s
 import {
   assertServiceOrderPreparePreconditions,
   assertServiceOrderReleasePreconditions,
+  serviceOrderPreparePreconditionCode,
   ServiceOrderReleaseError,
 } from '../domain/service-order-release';
 import { assertPurchaseOrderRequirement, BillingEntitlementError } from '../../billing/domain/billing-entitlement';
@@ -266,9 +267,14 @@ export class ServiceOrdersAccessService {
     facts: ServiceOrderControlCenterFacts,
   ): Promise<ControlCenterControl> {
     const status = row.status as ServiceOrderStatus;
-    const candidates = CONTROL_CENTER_TRANSITION_ORDER.filter((transition) =>
-      canTransition(status, transition),
-    );
+    const preparePrecondition = serviceOrderPreparePreconditionCode({
+      status: row.status,
+      serviceDefinitionId: row.service_definition_id,
+      serviceDefinitionVersionId: row.service_definition_version_id,
+    });
+    const candidates = CONTROL_CENTER_TRANSITION_ORDER
+      .filter((transition) => canTransition(status, transition))
+      .filter((transition) => transition !== 'prepare' || preparePrecondition === null);
     const [availableTransitions, measurement, billing] = await Promise.all([
       this.controlCenterAuthz.availableTransitions(actor, row, candidates),
       this.controlCenterAuthz.canReadMeasurement(actor, row),
@@ -296,6 +302,10 @@ export class ServiceOrdersAccessService {
       serviceRequestId: row.service_request_id,
       facts: visible,
       availableTransitions,
+      readinessBlockers:
+        preparePrecondition === 'SERVICE_REQUIRED'
+          ? ['SERVICE_DEFINITION_REQUIRED']
+          : [],
     });
   }
 
