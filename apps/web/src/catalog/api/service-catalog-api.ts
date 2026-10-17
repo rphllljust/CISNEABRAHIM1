@@ -45,7 +45,6 @@ type CatalogErrorBody = {
   };
 };
 
-const PROBE_DEFINITION_ID = '00000000-0000-4000-8000-000000000002';
 
 function classifyError(status: number, code: CatalogErrorCode | undefined): CatalogApiErrorKind {
   if (code === CATALOG_ERROR_CODES.DENIED || status === 403) {
@@ -292,83 +291,6 @@ export type CatalogCapabilities = {
   canDeactivate: boolean;
   canActivate: boolean;
 };
-
-async function probeMutation(
-  path: string,
-  method: 'POST' | 'PATCH',
-  body: unknown,
-): Promise<boolean> {
-  try {
-    await requestJson(path, {
-      method,
-      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    return true;
-  } catch (error) {
-    if (error instanceof CatalogApiError) {
-      if (error.kind === 'denied') {
-        return false;
-      }
-      if (
-        error.kind === 'not_found' ||
-        error.kind === 'validation' ||
-        error.kind === 'invalid_state' ||
-        error.kind === 'version_conflict' ||
-        error.kind === 'publish_invalid'
-      ) {
-        return true;
-      }
-    }
-    return false;
-  }
-}
-
-export async function probeCatalogCapabilities(signal?: AbortSignal): Promise<CatalogCapabilities> {
-  let canList = false;
-  try {
-    await listServiceDefinitions({ limit: 1, offset: 0 }, signal);
-    canList = true;
-  } catch (error) {
-    if (error instanceof CatalogApiError && error.kind === 'denied') {
-      canList = false;
-    }
-  }
-
-  const [canCreate, canRead, canUpdate, canPublish, canDeactivate, canActivate] = await Promise.all([
-    probeMutation('/api/v1/catalog/service-definitions', 'POST', {}),
-    (async () => {
-      try {
-        await getServiceDefinition(PROBE_DEFINITION_ID, signal);
-        return true;
-      } catch (error) {
-        if (error instanceof CatalogApiError) {
-          return error.kind !== 'denied';
-        }
-        return false;
-      }
-    })(),
-    probeMutation(
-      `/api/v1/catalog/service-definitions/${PROBE_DEFINITION_ID}/versions/1`,
-      'PATCH',
-      { lineageVersion: 1 },
-    ),
-    probeMutation(
-      `/api/v1/catalog/service-definitions/${PROBE_DEFINITION_ID}/versions/1/publish`,
-      'POST',
-      { lineageVersion: 1 },
-    ),
-    probeMutation(`/api/v1/catalog/service-definitions/${PROBE_DEFINITION_ID}/deactivate`, 'POST', {
-      lineageVersion: 1,
-      reason: 'probe',
-    }),
-    probeMutation(`/api/v1/catalog/service-definitions/${PROBE_DEFINITION_ID}/activate`, 'POST', {
-      lineageVersion: 1,
-    }),
-  ]);
-
-  return { canList, canCreate, canRead, canUpdate, canPublish, canDeactivate, canActivate };
-}
 
 export async function probeCatalogListAccess(signal?: AbortSignal): Promise<boolean> {
   try {
