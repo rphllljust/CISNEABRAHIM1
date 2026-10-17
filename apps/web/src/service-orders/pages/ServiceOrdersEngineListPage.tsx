@@ -1169,52 +1169,63 @@ export function ServiceOrdersEngineListPage() {
                 digitado: o motivo é registro de auditoria e NÃO é preenchido pela tela.
               */}
               <div className="cisne-divider--top mt-2 pt-2">
-                <label className="mb-1 block">
-                  <span className="cisne-meta-label mb-0.5 block">
-                    Motivo (obrigatório para cancelar ou reabrir)
-                  </span>
-                  <input
-                    type="text"
-                    className="min-h-[var(--control-height)] w-full rounded-md border-0 bg-white px-1.5 text-[length:var(--type-body-size)] ring-1 ring-gray-300 ring-inset outline-none focus:ring-2 focus:ring-brand-500"
-                    value={commandReason}
-                    onChange={(event) => setCommandReason(event.target.value)}
-                    placeholder="Informe o motivo real"
-                  />
-                </label>
+                {(detailState.detail.controlCenter?.nextAction.availableTransitions.includes('cancel') ||
+                  detailState.detail.controlCenter?.nextAction.availableTransitions.includes('reopen')) ? (
+                  <label className="mb-1 block">
+                    <span className="cisne-meta-label mb-0.5 block">
+                      Motivo (obrigatório para cancelar ou reabrir)
+                    </span>
+                    <input
+                      type="text"
+                      className="min-h-[var(--control-height)] w-full rounded-md border-0 bg-white px-1.5 text-[length:var(--type-body-size)] ring-1 ring-gray-300 ring-inset outline-none focus:ring-2 focus:ring-brand-500"
+                      value={commandReason}
+                      onChange={(event) => setCommandReason(event.target.value)}
+                      placeholder="Informe o motivo real"
+                    />
+                  </label>
+                ) : null}
 
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <Button
-                    variant="secondary"
-                    loading={commandBusy}
-                    onClick={() => void runContextCommand('prepare')}
-                  >
-                    Preparar
-                  </Button>
-                  <Button
-                    variant="primary"
-                    loading={commandBusy}
-                    onClick={() => void runContextCommand('release')}
-                  >
-                    Liberar
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    disabled={commandReason.trim() === ''}
-                    loading={commandBusy}
-                    title={commandReason.trim() === '' ? 'Informe o motivo para executar' : undefined}
-                    onClick={() => void runContextCommand('reopen')}
-                  >
-                    Reabrir
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    disabled={commandReason.trim() === ''}
-                    loading={commandBusy}
-                    title={commandReason.trim() === '' ? 'Informe o motivo para executar' : undefined}
-                    onClick={() => void runContextCommand('cancel')}
-                  >
-                    Cancelar
-                  </Button>
+                  {detailState.detail.controlCenter?.nextAction.availableTransitions.includes('prepare') ? (
+                    <Button
+                      variant="secondary"
+                      loading={commandBusy}
+                      onClick={() => void runContextCommand('prepare')}
+                    >
+                      Preparar
+                    </Button>
+                  ) : null}
+                  {detailState.detail.controlCenter?.nextAction.availableTransitions.includes('release') ? (
+                    <Button
+                      variant="primary"
+                      loading={commandBusy}
+                      onClick={() => void runContextCommand('release')}
+                    >
+                      Liberar
+                    </Button>
+                  ) : null}
+                  {detailState.detail.controlCenter?.nextAction.availableTransitions.includes('reopen') ? (
+                    <Button
+                      variant="secondary"
+                      disabled={commandReason.trim() === ''}
+                      loading={commandBusy}
+                      title={commandReason.trim() === '' ? 'Informe o motivo para executar' : undefined}
+                      onClick={() => void runContextCommand('reopen')}
+                    >
+                      Reabrir
+                    </Button>
+                  ) : null}
+                  {detailState.detail.controlCenter?.nextAction.availableTransitions.includes('cancel') ? (
+                    <Button
+                      variant="secondary"
+                      disabled={commandReason.trim() === ''}
+                      loading={commandBusy}
+                      title={commandReason.trim() === '' ? 'Informe o motivo para executar' : undefined}
+                      onClick={() => void runContextCommand('cancel')}
+                    >
+                      Cancelar
+                    </Button>
+                  ) : null}
                 </div>
 
                 {commandError ? (

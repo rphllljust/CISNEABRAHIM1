@@ -240,6 +240,81 @@ describe('ServiceOrderPlanningPage', () => {
     expect(MOCK_ASSET_B_ID).toBeTruthy();
   });
 
+  it('mantém próxima ação em espera quando o control center está bloqueado', async () => {
+    const base = createServiceOrdersFetchMock({
+      orderStatus: 'DRAFT',
+      controlCenter: {
+        progression: [
+          {
+            code: 'DEMAND',
+            state: 'CURRENT',
+            at: null,
+            detail: 'Defina um serviço antes de preparar a ordem',
+            ownerStatus: 'DRAFT',
+          },
+        ],
+        plannedVsActual: {
+          plannedResources: 0,
+          activeAllocations: 0,
+          executionEntries: 0,
+          executedQuantityTotal: null,
+          divergences: [],
+        },
+        downstream: {
+          measurement: { count: 0, status: null, createdAt: null },
+          billing: {
+            count: 0,
+            status: null,
+            createdAt: null,
+            totalAmount: null,
+            currencyCode: null,
+          },
+        },
+        nextAction: {
+          step: 'Aguardar definição do serviço',
+          transition: null,
+          availableTransitions: ['cancel'],
+          blockers: ['SERVICE_DEFINITION_REQUIRED'],
+        },
+      },
+    });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input);
+      if (
+        (init?.method ?? 'GET') === 'GET' &&
+        url.includes(`/api/v1/service-orders/${MOCK_SERVICE_ORDER_ID}/available-actions`)
+      ) {
+        return new Response(
+          JSON.stringify({
+            service_order_id: MOCK_SERVICE_ORDER_ID,
+            status_atual: 'DRAFT',
+            comandos_validos: [
+              {
+                comando: 'cancel',
+                label: 'Cancelar',
+                requer_permissao: 'service-orders:service-order:cancel',
+                usuario_tem_permissao: true,
+              },
+            ],
+            comandos_invalidos_para_status: ['prepare', 'release'],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      return base(input, init);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderServiceOrderRoutes(`/app/service-orders/${MOCK_SERVICE_ORDER_ID}/planning`);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Aguardar definição do serviço').length).toBeGreaterThan(0);
+    });
+
+    expect(screen.getByText('SERVICE_DEFINITION_REQUIRED')).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Próxima ação' })).queryByText(/^Cancelar$/)).not.toBeInTheDocument();
+  });
+
   it('shows forbidden state when read access is denied', async () => {
     vi.stubGlobal('fetch', createServiceOrdersFetchMock({ serviceOrderReadAllowed: false }));
     renderServiceOrderRoutes(`/app/service-orders/${MOCK_SERVICE_ORDER_ID}/planning`);

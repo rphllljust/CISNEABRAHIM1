@@ -178,6 +178,89 @@ describe('ServiceOrdersEngineListPage — recorte e paginação server-side', ()
     );
   });
 
+  it('drawer publica somente comandos autorizados pelo control center', async () => {
+    const blockedOrder = { ...ORDERS[0]!, status: 'DRAFT' };
+    const base = createOrdersMock([blockedOrder]);
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const method = init?.method ?? 'GET';
+      const { pathname } = parseRequestPath(input);
+
+      if (pathname === `/api/v1/service-orders/${blockedOrder.id}` && method === 'GET') {
+        return jsonResponse({
+          id: blockedOrder.id,
+          internalCode: 'OS-INT-0001',
+          orderNumber: blockedOrder.orderNumber,
+          unitId: 'unit-demo',
+          status: 'DRAFT',
+          origin: 'AUTHORIZED_DIRECT',
+          clientId: null,
+          clientSnapshot: blockedOrder.clientSnapshot,
+          serviceDefinitionId: null,
+          serviceDefinitionVersionId: null,
+          serviceSnapshot: {
+            serviceCode: '',
+            serviceName: '',
+            requirements: { resources: [], labor: [], execution: [] },
+          },
+          description: null,
+          rowVersion: 1,
+          createdAt: '2026-10-17T12:00:00.000Z',
+          preparedAt: null,
+          releasedAt: null,
+          startedAt: null,
+          pausedAt: null,
+          completedAt: null,
+          cancelledAt: null,
+          statusBeforeCancel: null,
+          updatedAt: '2026-10-17T12:00:00.000Z',
+          historyEvents: [],
+          controlCenter: {
+            progression: [],
+            plannedVsActual: {
+              plannedResources: 0,
+              activeAllocations: 0,
+              executionEntries: 0,
+              executedQuantityTotal: null,
+              divergences: [],
+            },
+            downstream: {
+              measurement: { count: 0, status: null, createdAt: null },
+              billing: {
+                count: 0,
+                status: null,
+                createdAt: null,
+                totalAmount: null,
+                currencyCode: null,
+              },
+            },
+            nextAction: {
+              step: 'Aguardar definição do serviço',
+              transition: null,
+              availableTransitions: ['cancel'],
+              blockers: ['SERVICE_DEFINITION_REQUIRED'],
+            },
+          },
+        });
+      }
+
+      return base(input, init);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+
+    await renderPage();
+    await user.click(screen.getByRole('button', { name: 'Contexto' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('OS-INT-0001')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole('button', { name: 'Preparar' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Liberar' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reabrir' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancelar' })).toBeInTheDocument();
+  });
+
   it('não mostra paginação nem cockpit redundante quando o recorte está vazio', async () => {
     vi.stubGlobal('fetch', createOrdersMock([]));
 
