@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { listOperationalUnits } from '../../requests/api/service-requests-api';
 
 /**
@@ -21,35 +21,66 @@ export type OperationalUnitOption = {
   label: string;
 };
 
-export function useOperationalUnits(): {
+export type OperationalUnitsLoader = (
+  signal?: AbortSignal,
+) => Promise<{ items: string[] }>;
+
+export type OperationalUnitsStatus = 'loading' | 'ready' | 'error';
+
+export function useOperationalUnits(
+  loader: OperationalUnitsLoader = listOperationalUnits,
+): {
   units: string[];
   options: OperationalUnitOption[];
   unitId: string;
   setUnitId: (value: string) => void;
+  status: OperationalUnitsStatus;
+  error: unknown;
+  reload: () => void;
 } {
   const [units, setUnits] = useState<string[]>([]);
   const [unitId, setUnitId] = useState('');
+  const [status, setStatus] = useState<OperationalUnitsStatus>('loading');
+  const [error, setError] = useState<unknown>(null);
+  const [revision, setRevision] = useState(0);
+
+  const reload = useCallback(() => setRevision((current) => current + 1), []);
 
   useEffect(() => {
     const controller = new AbortController();
-    void listOperationalUnits(controller.signal)
+    setStatus('loading');
+    setError(null);
+
+    void loader(controller.signal)
       .then((response) => {
         if (controller.signal.aborted) {
           return;
         }
         setUnits(response.items);
-        setUnitId((current) => current || response.items[0] || '');
+        setUnitId((current) =>
+          current && response.items.includes(current) ? current : response.items[0] || '',
+        );
+        setStatus('ready');
       })
-      .catch(() => undefined);
+      .catch((reason: unknown) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+        setUnits([]);
+        setUnitId('');
+        setError(reason);
+        setStatus('error');
+      });
+
     return () => controller.abort();
-  }, []);
+  }, [loader, revision]);
 
   const options: OperationalUnitOption[] = units.map((value, index) => ({
     value,
     label: units.length === 1 ? 'Unidade autorizada' : `Unidade autorizada ${index + 1}`,
   }));
 
-  return { units, options, unitId, setUnitId };
+  return { units, options, unitId, setUnitId, status, error, reload };
 }
 
 /**

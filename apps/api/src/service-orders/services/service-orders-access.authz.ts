@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AuthorizationRepository } from '../../authorization/repositories/authorization.repository';
+import { ScopeContextRepository } from '../../authorization/repositories/scope-context.repository';
 import { PolicyDecisionPointService } from '../../authorization/services/policy-decision-point.service';
 import { ScopeEnforcementService } from '../../authorization/services/scope-enforcement.service';
 import {
@@ -28,6 +29,7 @@ export class ServiceOrdersAccessAuthz {
   constructor(
     private readonly repository: ServiceOrdersRepository,
     private readonly authorizationRepository: AuthorizationRepository,
+    private readonly scopeContextRepository: ScopeContextRepository,
     private readonly policyDecisionPoint: PolicyDecisionPointService,
     private readonly scopeEnforcement: ScopeEnforcementService,
   ) {}
@@ -62,6 +64,47 @@ export class ServiceOrdersAccessAuthz {
     }
   }
 
+  /**
+   * Unidades registradas que o ator pode usar no comando de criação de OS.
+   *
+   * A decisão é a MESMA do POST de criação: PDP + capability `service-order:create` + contexto
+   * da unidade. O endpoint não reaproveita a listagem de Requests e não trata scope_ref global
+   * como autorização do usuário.
+   */
+  async listCreateAuthorizedUnitIds(actor: IdentityAuthzContext): Promise<string[]> {
+    const [directGrants, roleDerived, registeredUnitIds] = await Promise.all([
+      this.authorizationRepository.findActiveGrants(
+        actor.identityId,
+        AUTHZ_ACTIONS.ServiceOrdersServiceOrderCreate,
+        AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+      ),
+      this.authorizationRepository.findRoleDerivedActionRows(
+        actor.identityId,
+        AUTHZ_ACTIONS.ServiceOrdersServiceOrderCreate,
+      ),
+      this.scopeContextRepository.listUnitScopeRefs(),
+    ]);
+
+    if (directGrants.length === 0 && roleDerived.length === 0) {
+      throw serviceOrdersAccessDenied();
+    }
+    if (registeredUnitIds.length === 0) {
+      return [];
+    }
+
+    const decisions = await this.policyDecisionPoint.decideBatch(
+      actor,
+      {
+        action: AUTHZ_ACTIONS.ServiceOrdersServiceOrderCreate,
+        resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+      },
+      registeredUnitIds.map((unitId) => ({ unitId })),
+      { audit: false },
+    );
+
+    return registeredUnitIds.filter((_, index) => decisions[index]?.result === 'ALLOW');
+  }
+
   async assertCreateAction(
     actor: IdentityAuthzContext,
     unitId: string,
@@ -72,31 +115,14 @@ export class ServiceOrdersAccessAuthz {
       {
         action: AUTHZ_ACTIONS.ServiceOrdersServiceOrderCreate,
         resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+        context: {
+          unitId,
+          ...(clientId ? { clientId } : {}),
+        },
       },
       { audit: true },
     );
     if (decision.result === 'DENY') {
-      throw serviceOrdersAccessDenied();
-    }
-
-    const grants = await this.authorizationRepository.findActiveGrants(
-      actor.identityId,
-      AUTHZ_ACTIONS.ServiceOrdersServiceOrderCreate,
-      AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
-    );
-    const hasAccess = grants.some((grant) => {
-      if (grant.scope_type === AUTHZ_SCOPES.Global && grant.resource_id === null) {
-        return true;
-      }
-      if (grant.scope_type === AUTHZ_SCOPES.Unit && grant.resource_id === unitId) {
-        return true;
-      }
-      if (clientId && grant.scope_type === AUTHZ_SCOPES.Client && grant.resource_id === clientId) {
-        return true;
-      }
-      return false;
-    });
-    if (!hasAccess) {
       throw serviceOrdersAccessDenied();
     }
   }

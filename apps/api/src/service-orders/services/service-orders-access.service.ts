@@ -299,6 +299,12 @@ export class ServiceOrdersAccessService {
     });
   }
 
+  async listOperationalUnits(
+    actor: IdentityAuthzContext,
+  ): Promise<{ items: string[] }> {
+    return { items: await this.authz.listCreateAuthorizedUnitIds(actor) };
+  }
+
   async list(
     actor: IdentityAuthzContext,
     query: ListServiceOrdersQuery,

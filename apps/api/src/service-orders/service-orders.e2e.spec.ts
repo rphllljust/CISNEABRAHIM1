@@ -30,6 +30,7 @@ import { AUTHZ_SCOPES } from '../authorization/types/authz-scopes';
 import { SERVICE_ORDER_ORIGINS, SERVICE_ORDER_STATUSES } from './domain/service-order';
 
 const UNIT_A = 'unit-so-e2e';
+const UNIT_B = 'unit-so-e2e-b';
 
 describe('Service orders E2E', () => {
   let app: NestFastifyApplication;
@@ -100,6 +101,60 @@ describe('Service orders E2E', () => {
   afterAll(async () => {
     await pool.end();
     await app.close();
+  });
+
+  it('lists only units authorized for service-order creation and accepts that unit on POST', async () => {
+    await insertScopeRef(pool, { scopeType: 'UNIT', refId: UNIT_B });
+
+    const login = normalizeLoginIdentifier(`so-unit-scope-${crypto.randomUUID()}@cisne.invalid`);
+    const passwordHash = await hashPassword(AUTH_TEST_PASSWORD);
+    const { identityId } = await insertIdentity(pool, login, passwordHash);
+    await insertGrant(pool, {
+      identityId,
+      action: AUTHZ_ACTIONS.ServiceOrdersServiceOrderCreate,
+      resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+      scopeType: AUTHZ_SCOPES.Unit,
+      resourceId: UNIT_A,
+      grantedByIdentityId: identityId,
+    });
+
+    const loginResponse = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: { login, password: AUTH_TEST_PASSWORD },
+    });
+    const unitScopedToken = parseAuthTokenResponse(loginResponse.body).accessToken;
+
+    const unitsResponse = await app.inject({
+      method: 'GET',
+      url: '/api/v1/service-orders/operational-units',
+      headers: { authorization: `Bearer ${unitScopedToken}` },
+    });
+    expect(unitsResponse.statusCode).toBe(200);
+    expect(JSON.parse(unitsResponse.body)).toEqual({ items: [UNIT_A] });
+
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/api/v1/service-orders',
+      headers: { authorization: `Bearer ${unitScopedToken}` },
+      payload: {
+        origin: SERVICE_ORDER_ORIGINS.AuthorizedDirect,
+        unitId: UNIT_A,
+        description: 'OS com escopo de unidade',
+      },
+    });
+    expect(createResponse.statusCode).toBe(201);
+
+    const deniedOtherUnit = await app.inject({
+      method: 'POST',
+      url: '/api/v1/service-orders',
+      headers: { authorization: `Bearer ${unitScopedToken}` },
+      payload: {
+        origin: SERVICE_ORDER_ORIGINS.AuthorizedDirect,
+        unitId: UNIT_B,
+      },
+    });
+    expect(deniedOtherUnit.statusCode).toBe(403);
   });
 
   it('creates and reads a DRAFT service order via HTTP', async () => {

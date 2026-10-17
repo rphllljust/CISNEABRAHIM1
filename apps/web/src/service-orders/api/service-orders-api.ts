@@ -196,6 +196,22 @@ export async function listServiceOrders(
   });
 }
 
+/**
+ * Unidades válidas para o comando de CRIAÇÃO de OS do ator autenticado.
+ *
+ * Diferente do endpoint compartilhado de Requests, esta rota pertence a Service Orders e aplica
+ * `service-orders:service-order:create` + escopo antes de publicar as opções.
+ */
+export async function listServiceOrderOperationalUnits(
+  signal?: AbortSignal,
+): Promise<{ items: string[] }> {
+  return requestJson<{ items: string[] }>('/api/v1/service-orders/operational-units', {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+}
+
 export async function getServiceOrder(
   serviceOrderId: string,
   signal?: AbortSignal,
