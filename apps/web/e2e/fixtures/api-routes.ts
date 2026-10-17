@@ -30,6 +30,45 @@ type RouteContext = {
   profile: ApiMockProfile;
 };
 
+const VISUAL_PROFILE_PERMISSIONS: Partial<Record<ApiMockProfile, readonly string[]>> = {
+  clients: [
+    'client:client:list',
+    'client:client:create',
+    'client:client:read',
+    'client:client:update',
+    'client:client:deactivate',
+    'client:client:activate',
+    'client:contact:manage',
+    'client:unit:manage',
+    'client:hierarchy:manage',
+    'client:audit:read',
+  ],
+  commercial: [
+    'commercial:proposal:list',
+    'commercial:proposal:create',
+    'commercial:proposal:read',
+    'commercial:proposal:update',
+    'commercial:proposal:issue',
+    'commercial:proposal:accept',
+    'commercial:proposal:reject',
+    'commercial:proposal:expire',
+    'commercial:proposal:cancel',
+    'commercial:purchase-order:list',
+    'commercial:purchase-order:create',
+    'commercial:purchase-order:read',
+    'commercial:purchase-order:update',
+    'commercial:purchase-order:register',
+    'commercial:purchase-order:cancel',
+    'commercial:contract:list',
+    'commercial:contract:create',
+    'commercial:contract:read',
+    'commercial:contract:update',
+    'commercial:contract:activate',
+    'commercial:contract:close',
+    'commercial:contract:expire',
+  ],
+};
+
 function jsonBody(body: unknown, status = 200): { status: number; contentType: string; body: string } {
   return {
     status,
@@ -83,6 +122,26 @@ async function handleApiRoute(route: Route, context: RouteContext): Promise<void
       return;
     }
     await fulfillJson(route, { error: { code: 'AUTH_UNAUTHORIZED', message: 'Unauthorized.' } }, 401);
+    return;
+  }
+
+  if (pathname === '/api/v1/me' && method === 'GET') {
+    const auth = authHeader(route);
+    if (!auth?.startsWith('Bearer ')) {
+      await fulfillJson(route, { error: { code: 'AUTH_UNAUTHORIZED', message: 'Unauthorized.' } }, 401);
+      return;
+    }
+    await fulfillJson(route, {
+      usuario: {
+        id: MOCK_IDENTITY_ID,
+        nome: null,
+        email: null,
+        identity_id: MOCK_IDENTITY_ID,
+      },
+      permissoes_efetivas: [...(VISUAL_PROFILE_PERMISSIONS[context.profile] ?? [])],
+      escopo_ativo: null,
+      escopos_disponiveis: [{ tipo: 'GLOBAL', resource_id: null, label: 'Global' }],
+    });
     return;
   }
 
