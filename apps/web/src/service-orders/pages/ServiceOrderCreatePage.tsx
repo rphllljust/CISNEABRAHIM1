@@ -2,6 +2,7 @@ import { useId, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   createServiceOrder,
+  listServiceOrderOperationalUnits,
   SERVICE_ORDER_ORIGINS,
   ServiceOrdersApiError,
   type CreateServiceOrderPayload,
@@ -79,7 +80,15 @@ type FieldErrors = {
 
 export function ServiceOrderCreatePage() {
   const navigate = useNavigate();
-  const { options: unitOptions, unitId: defaultUnitId } = useOperationalUnits();
+  const {
+    options: unitOptions,
+    unitId: defaultUnitId,
+    status: unitsStatus,
+    error: unitsError,
+    reload: reloadUnits,
+  } = useOperationalUnits(listServiceOrderOperationalUnits);
+  const unitsDenied =
+    unitsError instanceof ServiceOrdersApiError && unitsError.kind === 'denied';
 
   const originId = useId();
   const unitId_ = useId();
@@ -236,16 +245,40 @@ export function ServiceOrderCreatePage() {
               unidade: aceitar texto arbitrário só trocaria um bloqueio honesto por um 400 — e
               pior, sugeriria que a unidade é escolha do operador, quando ela é ESCOPO concedido.
             */}
-            {unitOptions.length === 0 ? (
+            {unitsStatus === 'loading' ? (
+              <p className="cisne-type-helper m-0" role="status" aria-live="polite">
+                Carregando unidades autorizadas para criação…
+              </p>
+            ) : null}
+
+            {unitsStatus === 'error' ? (
+              <div
+                data-testid="so-create-unit-error"
+                role="alert"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800 ring-1 ring-red-500/20 ring-inset"
+              >
+                <span>
+                  {unitsDenied
+                    ? 'Você não tem permissão para criar ordens de serviço.'
+                    : 'Não foi possível carregar as unidades autorizadas para criação.'}
+                </span>
+                {!unitsDenied ? (
+                  <Button type="button" variant="secondary" onClick={reloadUnits}>
+                    Tentar novamente
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+
+            {unitsStatus === 'ready' && unitOptions.length === 0 ? (
               <p
                 data-testid="so-create-no-unit"
                 role="alert"
                 className="m-0 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900 ring-1 ring-amber-500/30 ring-inset"
               >
-                <strong className="block">Nenhuma unidade autorizada no seu escopo.</strong>
-                A ordem de serviço exige uma unidade, e a unidade precisa estar concedida ao seu
-                acesso — não é um dado que se digita. Registre a unidade operacional no seu escopo
-                e volte a esta tela.
+                <strong className="block">Nenhuma unidade autorizada para criar esta OS.</strong>
+                O servidor não publicou nenhuma unidade registrada compatível com seu escopo de
+                criação. A unidade continua governada pela autorização — não é um campo livre.
               </p>
             ) : null}
 
@@ -297,10 +330,14 @@ export function ServiceOrderCreatePage() {
                   data-testid="so-create-unit"
                   className="cisne-type-body min-h-[var(--control-height)] w-full rounded-md border border-gray-300 bg-white px-2"
                   value={effectiveUnitId}
-                  disabled={submitting}
+                  disabled={submitting || unitsStatus !== 'ready'}
                   onChange={(event) => setUnitId(event.target.value)}
                 >
-                  {unitOptions.length === 0 ? <option value="">Nenhuma unidade autorizada</option> : null}
+                  {unitsStatus === 'loading' ? <option value="">Carregando unidades…</option> : null}
+                  {unitsStatus === 'error' ? <option value="">Unidades indisponíveis</option> : null}
+                  {unitsStatus === 'ready' && unitOptions.length === 0 ? (
+                    <option value="">Nenhuma unidade autorizada</option>
+                  ) : null}
                   {unitOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
@@ -418,7 +455,7 @@ export function ServiceOrderCreatePage() {
                 data-testid="so-create-submit"
                 loading={submitting}
                 loadingText="Criando…"
-                disabled={!effectiveUnitId}
+                disabled={unitsStatus !== 'ready' || !effectiveUnitId}
               >
                 Criar OS
               </Button>
