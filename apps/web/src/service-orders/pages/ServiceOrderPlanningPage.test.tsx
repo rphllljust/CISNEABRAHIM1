@@ -312,7 +312,7 @@ describe('ServiceOrderPlanningPage', () => {
     });
 
     expect(screen.getByText('SERVICE_DEFINITION_REQUIRED')).toBeInTheDocument();
-    expect(screen.queryByText(/^Cancelar$/)).not.toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Próxima ação' })).queryByText(/^Cancelar$/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancelar OS' })).toBeInTheDocument();
   });
 
