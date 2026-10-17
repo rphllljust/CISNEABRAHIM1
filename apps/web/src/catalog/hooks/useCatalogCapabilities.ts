@@ -1,11 +1,16 @@
-import { useEffect, useState } from 'react';
-import {
-  CatalogApiError,
-  probeCatalogCapabilities,
-  type CatalogCapabilities,
-} from '../api/service-catalog-api';
+import { useMemo } from 'react';
+import type { CatalogCapabilities } from '../api/service-catalog-api';
 import { useAuth } from '../../auth/context/AuthProvider';
+import { useSessionMeta } from '../../service-orders/context/SessionMetaProvider';
 
+/**
+ * CAPABILITIES DE UI — projeção dos grants efetivos já publicados por GET /me.
+ *
+ * O hook antigo inferia autorização enviando POST/PATCH inválidos contra o catálogo e
+ * interpretava 400/404 como "tem permissão". Isso gerava CATALOG_VALIDATION_FAILED real em
+ * produção sem representar uma tentativa de criação. /me já é a fonte autoritativa dos grants
+ * efetivos da sessão; a UI apenas projeta esse contrato. O backend continua revalidando cada ação.
+ */
 const EMPTY_CAPABILITIES: CatalogCapabilities = {
   canList: false,
   canCreate: false,
@@ -16,53 +21,37 @@ const EMPTY_CAPABILITIES: CatalogCapabilities = {
   canActivate: false,
 };
 
+export function catalogCapabilitiesFromPermissions(
+  can: (permission: string) => boolean,
+): CatalogCapabilities {
+  return {
+    canList: can('catalog:service:list'),
+    canCreate: can('catalog:service:create'),
+    canRead: can('catalog:service:read'),
+    canUpdate: can('catalog:service:update'),
+    canPublish: can('catalog:service:publish'),
+    canDeactivate: can('catalog:service:deactivate'),
+    canActivate: can('catalog:service:activate'),
+  };
+}
+
 export function useCatalogCapabilities() {
-  const { status } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [capabilities, setCapabilities] = useState<CatalogCapabilities>(EMPTY_CAPABILITIES);
-  const [error, setError] = useState(false);
+  const { status: authStatus } = useAuth();
+  const session = useSessionMeta();
 
-  useEffect(() => {
-    if (status === 'loading') {
-      setLoading(true);
-      return;
+  const capabilities = useMemo<CatalogCapabilities>(() => {
+    if (authStatus !== 'authenticated' || session.status !== 'ready') {
+      return EMPTY_CAPABILITIES;
     }
+    return catalogCapabilitiesFromPermissions(session.can);
+  }, [authStatus, session]);
 
-    if (status !== 'authenticated') {
-      setLoading(false);
-      setCapabilities(EMPTY_CAPABILITIES);
-      return;
-    }
-
-    const controller = new AbortController();
-    let cancelled = false;
-
-    void probeCatalogCapabilities(controller.signal)
-      .then((result) => {
-        if (!cancelled) {
-          setCapabilities(result);
-          setError(false);
-          setLoading(false);
-        }
-      })
-      .catch((probeError: unknown) => {
-        if (cancelled) {
-          return;
-        }
-        if (probeError instanceof CatalogApiError && probeError.kind === 'denied') {
-          setCapabilities(EMPTY_CAPABILITIES);
-          setError(false);
-        } else {
-          setError(true);
-        }
-        setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [status]);
-
-  return { loading, capabilities, error };
+  return {
+    loading:
+      authStatus === 'loading' ||
+      (authStatus === 'authenticated' &&
+        (session.status === 'idle' || session.status === 'loading')),
+    capabilities,
+    error: authStatus === 'authenticated' && session.status === 'error',
+  };
 }
