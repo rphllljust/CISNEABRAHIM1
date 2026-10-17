@@ -19,25 +19,17 @@ import {
 import type { PolicyOption, UnitOfMeasureOption } from '../api/catalog-reference-api';
 import {
   ARCHETYPE_LABELS,
-  BILLING_ENTITLEMENT_POLICIES,
   BILLING_ENTITLEMENT_POLICY_LABELS,
-  EXECUTION_CONDITION_TYPES,
   EXECUTION_CONDITION_TYPE_LABELS,
-  EXECUTION_REQUIREMENT_TYPES,
   EXECUTION_REQUIREMENT_TYPE_LABELS,
-  MEASUREMENT_BASES,
   MEASUREMENT_BASIS_LABELS,
-  MEASUREMENT_MODES,
   MEASUREMENT_MODE_LABELS,
-  OPERATIONAL_ARCHETYPES,
-  PRICING_MODEL_CODES,
   PRICING_MODEL_LABELS,
   REQUIREMENT_LEVEL_LABELS,
   vocabularyLabel,
 } from '../constants/catalog-vocabulary';
 import type { CatalogReferenceData } from '../hooks/useCatalogReferenceData';
 import type { RequirementLevel } from '../types/service-catalog.types';
-import { REQUIREMENT_LEVELS as DOMAIN_REQUIREMENT_LEVELS } from '../types/service-catalog.types';
 import {
   validateServiceDefinitionForm,
   type ServiceDefinitionFormErrors,
@@ -61,14 +53,6 @@ import {
  * validacao, o payload e montado pelas mesmas funcoes e cada capacidade de escrita continua
  * decidindo quem edita o que (inclusive o CUSTO INTERNO, dado sensivel).
  */
-
-const REQUIREMENT_LEVEL_OPTIONS: RequirementLevel[] = [...DOMAIN_REQUIREMENT_LEVELS];
-
-function parseRequirementLevel(value: string): RequirementLevel {
-  return REQUIREMENT_LEVEL_OPTIONS.includes(value as RequirementLevel)
-    ? (value as RequirementLevel)
-    : 'OPTIONAL';
-}
 
 function replaceAt<T>(items: T[], index: number, next: T): T[] {
   const copy = [...items];
@@ -197,8 +181,25 @@ export function ServiceDefinitionForm({
   const resourceTypes = referenceData.resourceTypes;
   const laborTypes = referenceData.laborTypes;
   const pricingPolicies = referenceData.pricingModels;
-  const pricingModelCodes =
-    pricingPolicies.length > 0 ? pricingPolicies.map((policy) => policy.code) : [...PRICING_MODEL_CODES];
+  const vocabulary = referenceData.vocabulary;
+  const archetypes = vocabulary.archetypes;
+  const billingPolicies = vocabulary.billingEntitlementPolicies;
+  const requirementLevels = vocabulary.requirementLevels;
+  const evidenceTypes = vocabulary.executionRequirementTypes;
+  const conditionTypes = vocabulary.executionConditionTypes;
+  const measurementBases = referenceData.measurementModels
+    .map((policy) => policy.basis)
+    .filter((basis): basis is string => Boolean(basis));
+  const selectedMeasurementPolicy = referenceData.measurementModels.find(
+    (policy) => policy.basis === state.measurementBasis,
+  );
+  const measurementModes =
+    selectedMeasurementPolicy?.compatibleMeasurementModes ?? vocabulary.measurementModes;
+  const pricingModelCodes = pricingPolicies
+    .map((policy) => policy.code)
+    .filter((code): code is string => Boolean(code));
+  const defaultRequirementLevel: RequirementLevel | undefined =
+    requirementLevels.includes('OPTIONAL') ? 'OPTIONAL' : requirementLevels[0];
 
   // A validacao continua vindo de `catalog-form-state.ts`; o builder decide apenas QUANDO
   // mostrar o erro (campo ja tocado) para nao gritar em um formulario intocado.
@@ -239,22 +240,30 @@ export function ServiceDefinitionForm({
   );
 
   function addUnit(): void {
+    const option = units.find(
+      (unit) => !state.allowedUnits.some((entry) => entry.unitCode === unit.code),
+    );
+    if (!option) return;
     update('allowedUnits', [
       ...state.allowedUnits,
       {
-        unitCode: units[0]?.code ?? 'UN',
-        isDefault: state.allowedUnits.length === 0,
+        unitCode: option.code,
+        isDefault: false,
         sortOrder: state.allowedUnits.length,
       },
     ]);
   }
 
   function addPricingModel(): void {
+    const policy = pricingPolicies.find(
+      (entry) => entry.code && !state.pricingModels.some((model) => model.modelCode === entry.code),
+    );
+    if (!policy?.code) return;
     update('pricingModels', [
       ...state.pricingModels,
       {
-        modelCode: 'DAILY',
-        unitCode: null,
+        modelCode: policy.code,
+        unitCode: policy.requiredUnitCode ?? policy.impliedUnitCode ?? null,
         salePrice: null,
         internalCost: null,
         currencyCode: 'BRL',
@@ -264,11 +273,15 @@ export function ServiceDefinitionForm({
   }
 
   function addResourceRequirement(): void {
+    const option = resourceTypes.find(
+      (type) => !state.resourceRequirements.some((entry) => entry.resourceTypeCode === type.code),
+    );
+    if (!option || !defaultRequirementLevel) return;
     update('resourceRequirements', [
       ...state.resourceRequirements,
       {
-        resourceTypeCode: resourceTypes[0]?.code ?? 'OTHER',
-        requirementLevel: 'OPTIONAL',
+        resourceTypeCode: option.code,
+        requirementLevel: defaultRequirementLevel,
         minQuantity: 1,
         sortOrder: state.resourceRequirements.length,
       },
@@ -276,11 +289,15 @@ export function ServiceDefinitionForm({
   }
 
   function addLaborRequirement(): void {
+    const option = laborTypes.find(
+      (type) => !state.laborRequirements.some((entry) => entry.laborTypeCode === type.code),
+    );
+    if (!option || !defaultRequirementLevel) return;
     update('laborRequirements', [
       ...state.laborRequirements,
       {
-        laborTypeCode: laborTypes[0]?.code ?? 'DRIVER',
-        requirementLevel: 'OPTIONAL',
+        laborTypeCode: option.code,
+        requirementLevel: defaultRequirementLevel,
         minQuantity: 1,
         sortOrder: state.laborRequirements.length,
       },
@@ -288,20 +305,67 @@ export function ServiceDefinitionForm({
   }
 
   function addExecutionRequirement(): void {
+    const requirementType = evidenceTypes.find(
+      (type) => !state.executionRequirements.some((entry) => entry.requirementType === type),
+    );
+    if (!requirementType || !defaultRequirementLevel) return;
     update('executionRequirements', [
       ...state.executionRequirements,
       {
-        requirementType: 'PHOTO',
-        requirementLevel: 'OPTIONAL',
+        requirementType,
+        requirementLevel: defaultRequirementLevel,
         config: null,
         sortOrder: state.executionRequirements.length,
       },
     ]);
   }
 
+  function setDefaultUnit(unitCode: string): void {
+    onChange({
+      ...state,
+      defaultUnitCode: unitCode,
+      allowedUnits: state.allowedUnits.map((unit) => ({
+        ...unit,
+        isDefault: unitCode !== '' && unit.unitCode === unitCode,
+      })),
+    });
+    setTouched((previous) => ({ ...previous, defaultUnitCode: true, allowedUnits: true }));
+  }
+
+  function buildConditionalConfig(conditionType: string) {
+    if (conditionType === 'WHEN_MEASUREMENT_BASIS_IS') {
+      const measurementBasis = measurementBases[0];
+      return measurementBasis
+        ? { schemaVersion: 1 as const, conditional: { conditionType, measurementBasis } }
+        : { schemaVersion: 1 as const, conditional: { conditionType } };
+    }
+    if (conditionType === 'WHEN_ARCHETYPE_IS') {
+      const archetype = archetypes[0];
+      return archetype
+        ? { schemaVersion: 1 as const, conditional: { conditionType, archetype } }
+        : { schemaVersion: 1 as const, conditional: { conditionType } };
+    }
+    if (conditionType === 'WHEN_RESOURCE_TYPE_IS') {
+      const resourceTypeCode = resourceTypes[0]?.code;
+      return resourceTypeCode
+        ? { schemaVersion: 1 as const, conditional: { conditionType, resourceTypeCode } }
+        : { schemaVersion: 1 as const, conditional: { conditionType } };
+    }
+    if (conditionType === 'WHEN_LABOR_TYPE_IS') {
+      const laborTypeCode = laborTypes[0]?.code;
+      return laborTypeCode
+        ? { schemaVersion: 1 as const, conditional: { conditionType, laborTypeCode } }
+        : { schemaVersion: 1 as const, conditional: { conditionType } };
+    }
+    return null;
+  }
+
   const categoryError = errorFor('categoryId');
   const allowedUnitsError = errorFor('allowedUnits');
   const pricingModelsError = errorFor('pricingModels');
+  const resourceRequirementsError = errorFor('resourceRequirements');
+  const laborRequirementsError = errorFor('laborRequirements');
+  const executionRequirementsError = errorFor('executionRequirements');
 
   return (
     <form id={formId} className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_20rem]" noValidate>
