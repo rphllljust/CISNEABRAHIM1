@@ -441,7 +441,7 @@ export function ServiceDefinitionForm({
               onChange={(event) => update('archetype', event.target.value)}
               disabled={readOnly}
             >
-              {OPERATIONAL_ARCHETYPES.map((archetype) => (
+              {archetypes.map((archetype) => (
                 <option key={archetype} value={archetype}>
                   {ARCHETYPE_LABELS[archetype] ?? archetype}
                 </option>
@@ -475,7 +475,7 @@ export function ServiceDefinitionForm({
               onChange={(event) => update('measurementMode', event.target.value)}
               disabled={readOnly}
             >
-              {MEASUREMENT_MODES.map((mode) => (
+              {measurementModes.map((mode) => (
                 <option key={mode} value={mode}>
                   {vocabularyLabel(MEASUREMENT_MODE_LABELS, mode)}
                 </option>
@@ -490,7 +490,7 @@ export function ServiceDefinitionForm({
               onChange={(event) => update('measurementBasis', event.target.value)}
               disabled={readOnly}
             >
-              {MEASUREMENT_BASES.map((basis) => (
+              {measurementBases.map((basis) => (
                 <option key={basis} value={basis}>
                   {vocabularyLabel(MEASUREMENT_BASIS_LABELS, basis)}
                 </option>
@@ -505,7 +505,7 @@ export function ServiceDefinitionForm({
               onChange={(event) => update('billingEntitlementPolicy', event.target.value)}
               disabled={readOnly}
             >
-              {BILLING_ENTITLEMENT_POLICIES.map((policy) => (
+              {billingPolicies.map((policy) => (
                 <option key={policy} value={policy}>
                   {vocabularyLabel(BILLING_ENTITLEMENT_POLICY_LABELS, policy)}
                 </option>
@@ -830,7 +830,7 @@ export function ServiceDefinitionForm({
                     )
                   }
                 >
-                  {REQUIREMENT_LEVEL_OPTIONS.map((level) => (
+                  {requirementLevels.map((level) => (
                     <option key={level} value={level}>
                       {vocabularyLabel(REQUIREMENT_LEVEL_LABELS, level)}
                     </option>
@@ -942,7 +942,7 @@ export function ServiceDefinitionForm({
                     )
                   }
                 >
-                  {REQUIREMENT_LEVEL_OPTIONS.map((level) => (
+                  {requirementLevels.map((level) => (
                     <option key={level} value={level}>
                       {vocabularyLabel(REQUIREMENT_LEVEL_LABELS, level)}
                     </option>
@@ -1031,7 +1031,7 @@ export function ServiceDefinitionForm({
                     )
                   }
                 >
-                  {EXECUTION_REQUIREMENT_TYPES.map((type) => (
+                  {evidenceTypes.map((type) => (
                     <option key={type} value={type}>
                       {vocabularyLabel(EXECUTION_REQUIREMENT_TYPE_LABELS, type)}
                     </option>
@@ -1054,7 +1054,7 @@ export function ServiceDefinitionForm({
                     )
                   }
                 >
-                  {REQUIREMENT_LEVEL_OPTIONS.map((level) => (
+                  {requirementLevels.map((level) => (
                     <option key={level} value={level}>
                       {vocabularyLabel(REQUIREMENT_LEVEL_LABELS, level)}
                     </option>
@@ -1082,7 +1082,7 @@ export function ServiceDefinitionForm({
                     }
                   >
                     <option value="">Selecione…</option>
-                    {EXECUTION_CONDITION_TYPES.map((condition) => (
+                    {conditionTypes.map((condition) => (
                       <option key={condition} value={condition}>
                         {vocabularyLabel(EXECUTION_CONDITION_TYPE_LABELS, condition)}
                       </option>
