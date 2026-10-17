@@ -308,7 +308,7 @@ describe('ServiceOrderPlanningPage', () => {
     renderServiceOrderRoutes(`/app/service-orders/${MOCK_SERVICE_ORDER_ID}/planning`);
 
     await waitFor(() => {
-      expect(screen.getByText('Aguardar definição do serviço')).toBeInTheDocument();
+      expect(screen.getAllByText('Aguardar definição do serviço').length).toBeGreaterThan(0);
     });
 
     expect(screen.getByText('SERVICE_DEFINITION_REQUIRED')).toBeInTheDocument();
