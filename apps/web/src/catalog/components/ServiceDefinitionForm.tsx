@@ -115,12 +115,22 @@ function pricingUnitHint(
   return undefined;
 }
 
-const BLOCKER_LABELS: Partial<Record<keyof ServiceDefinitionFormState, string>> = {
+const BLOCKER_LABELS: Record<keyof ServiceDefinitionFormState, string> = {
   code: 'código',
   name: 'nome',
+  description: 'descrição',
   categoryId: 'categoria',
-  allowedUnits: 'unidade permitida',
-  pricingModels: 'modelo de preço',
+  archetype: 'arquétipo operacional',
+  measurementMode: 'modo de medição',
+  measurementBasis: 'base de medição',
+  billingEntitlementPolicy: 'política de faturamento',
+  requiresPurchaseOrder: 'exigência de Purchase Order',
+  defaultUnitCode: 'unidade padrão',
+  allowedUnits: 'unidades permitidas',
+  pricingModels: 'modelos de preço',
+  resourceRequirements: 'recursos físicos',
+  laborRequirements: 'mão de obra',
+  executionRequirements: 'evidências',
 };
 
 /**
@@ -440,6 +450,7 @@ export function ServiceDefinitionForm({
               value={state.archetype}
               onChange={(event) => update('archetype', event.target.value)}
               disabled={readOnly}
+              invalid={Boolean(errorFor('archetype'))}
             >
               <option value="">Selecione…</option>
               {archetypes.map((archetype) => (
@@ -475,6 +486,7 @@ export function ServiceDefinitionForm({
               value={state.measurementMode}
               onChange={(event) => update('measurementMode', event.target.value)}
               disabled={readOnly}
+              invalid={Boolean(errorFor('measurementMode'))}
             >
               <option value="">Selecione…</option>
               {measurementModes.map((mode) => (
@@ -509,6 +521,7 @@ export function ServiceDefinitionForm({
                 }));
               }}
               disabled={readOnly}
+              invalid={Boolean(errorFor('measurementBasis'))}
             >
               <option value="">Selecione…</option>
               {measurementBases.map((basis) => (
