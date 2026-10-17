@@ -1,6 +1,10 @@
 import { vi } from 'vitest';
 import { parseRequestPath } from './request-url';
-import { createClientsFetchMock } from './clients-fetch-mock';
+import {
+  createClientsFetchMock,
+  MOCK_IDENTITY_ID,
+  MOCK_SESSION_ID,
+} from './clients-fetch-mock';
 import {
   CATALOG_LINEAGE_STATUSES,
   VERSION_STATUSES,
@@ -63,7 +67,27 @@ function referenceLists() {
       items: [{ code: 'DAILY', persistedCode: 'PER_PERIOD', requiredUnitCode: 'DAY', impliedUnitCode: null, description: null }],
     },
     measurementModels: {
-      items: [{ code: 'TIME', measurementMode: 'BY_PERIOD', measurementBasis: 'TIME', description: null }],
+      items: [
+        {
+          basis: 'TIME',
+          defaultMeasurementMode: 'BY_PERIOD',
+          compatibleMeasurementModes: ['BY_PERIOD', 'BY_QUANTITY'],
+          suggestedUnitCodes: ['HOUR', 'DAY'],
+        },
+      ],
+    },
+    vocabulary: {
+      archetypes: ['RENTAL', 'TRANSPORT', 'CONSTRUCTION', 'LABOR', 'OTHER'],
+      measurementModes: ['BY_PERIOD', 'BY_QUANTITY', 'BY_EVENT', 'CHECKLIST'],
+      billingEntitlementPolicies: ['MEASUREMENT_APPROVED', 'FIXED_PRICE', 'PERIODIC', 'MILESTONE'],
+      requirementLevels: ['REQUIRED', 'OPTIONAL', 'CONDITIONAL'],
+      executionRequirementTypes: ['PHOTO', 'DOCUMENT', 'SIGNATURE', 'LOCATION', 'OBSERVATION'],
+      executionConditionTypes: [
+        'WHEN_MEASUREMENT_BASIS_IS',
+        'WHEN_ARCHETYPE_IS',
+        'WHEN_RESOURCE_TYPE_IS',
+        'WHEN_LABOR_TYPE_IS',
+      ],
     },
   };
 }
@@ -147,10 +171,53 @@ export function createCatalogFetchMock(options: CatalogFetchMockOptions = {}) {
     const { pathname, searchParams } = parseRequestPath(input);
     const method = init?.method ?? 'GET';
 
+    if (pathname === '/api/v1/me' && method === 'GET') {
+      const permissions = [
+        ...(listAllowed ? ['catalog:service:list', 'catalog:service:read'] : []),
+        ...(createAllowed ? ['catalog:service:create'] : []),
+        ...(updateAllowed ? ['catalog:service:update'] : []),
+        ...(publishAllowed ? ['catalog:service:publish'] : []),
+        'catalog:service:deactivate',
+        'catalog:service:activate',
+        'catalog:unit:list',
+        'resources:resource-type:list',
+        'resources:labor-type:list',
+        'commercial:policy:read',
+      ];
+      return jsonResponse({
+        usuario: {
+          id: MOCK_IDENTITY_ID,
+          nome: null,
+          email: null,
+          identity_id: MOCK_IDENTITY_ID,
+        },
+        permissoes_efetivas: permissions,
+        escopo_ativo: null,
+        escopos_disponiveis: [{ tipo: 'GLOBAL', resource_id: null, label: 'Global' }],
+        session_id: MOCK_SESSION_ID,
+      });
+    }
+
     if (pathname.startsWith('/api/v1/catalog/service-definitions')) {
       const auth = init?.headers ? new Headers(init.headers).get('authorization') : null;
       if (!auth?.startsWith('Bearer ')) {
         return catalogError('AUTH_UNAUTHORIZED', 401);
+      }
+
+      if (pathname === '/api/v1/catalog/service-definitions/categories' && method === 'GET') {
+        if (!listAllowed) {
+          return catalogError('CATALOG_DENIED', 403);
+        }
+        return jsonResponse({
+          items: [{ id: MOCK_CATEGORY_ID, code: 'LOCACAO', name: 'Locação' }],
+        });
+      }
+
+      if (pathname === '/api/v1/catalog/service-definitions/reference-data' && method === 'GET') {
+        if (!listAllowed) {
+          return catalogError('CATALOG_DENIED', 403);
+        }
+        return jsonResponse(referenceLists().vocabulary);
       }
 
       if (pathname === '/api/v1/catalog/service-definitions' && method === 'GET') {
@@ -160,12 +227,18 @@ export function createCatalogFetchMock(options: CatalogFetchMockOptions = {}) {
         // O mock resolve a busca no SERVIDOR (nome ou code), como o backend real: filtrar so a
         // pagina atual faria o teste passar mesmo se o termo nunca fosse enviado.
         const term = (searchParams.get('q') ?? '').trim().toLowerCase();
-        const matches =
+        const matchesSearch =
           term.length === 0 ||
           definition.code.toLowerCase().includes(term) ||
           (definition.name ?? '').toLowerCase().includes(term);
+        const version = searchParams.get('version');
+        const matchesVersion =
+          !version ||
+          (version === 'HAS_DRAFT' && definition.currentDraftVersion !== null) ||
+          (version === 'HAS_PUBLISHED' && definition.latestPublishedVersion !== null) ||
+          (version === 'NO_PUBLISHED' && definition.latestPublishedVersion === null);
         return jsonResponse({
-          items: matches ? [definition] : [],
+          items: matchesSearch && matchesVersion ? [definition] : [],
           limit: Number(searchParams.get('limit') ?? '20'),
           offset: Number(searchParams.get('offset') ?? '0'),
         });
