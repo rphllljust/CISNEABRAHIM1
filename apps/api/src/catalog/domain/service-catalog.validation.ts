@@ -148,10 +148,7 @@ export function assertDefaultUnitConsistency(
 ): string | undefined {
   const markedDefault = units.find((unit) => unit.isDefault)?.unitCode;
   if (!defaultUnitCode) {
-    if (markedDefault) {
-      throw new CatalogValidationError('DEFAULT_UNIT_MISMATCH');
-    }
-    return undefined;
+    return markedDefault ? normalizeUnitCode(markedDefault) : undefined;
   }
 
   const normalizedDefault = normalizeUnitCode(defaultUnitCode);
