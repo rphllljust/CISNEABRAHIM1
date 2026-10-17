@@ -1,6 +1,7 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetTokenStoreForTests, tokenStore } from '../../auth/storage/token-store';
+import { OperationsControlCenter } from './OperationsControlCenter';
 import { renderServiceOrderRoutes } from '../../test/render-service-order-routes';
 import {
   createServiceOrdersFetchMock,
@@ -132,4 +133,42 @@ describe('OperationsControlCenter (service order)', () => {
       screen.getByText(/nenhum recurso ativo alocado para a execução/i),
     ).toBeInTheDocument();
   });
+  it('does not announce prepare when backend marks next action as WAITING', () => {
+    render(
+      <OperationsControlCenter
+        measurementHref="/measurement"
+        controlCenter={{
+          progression: [],
+          plannedVsActual: {
+            plannedResources: 0,
+            activeAllocations: 0,
+            executionEntries: 0,
+            executedQuantityTotal: null,
+            divergences: [],
+          },
+          downstream: {
+            measurement: { count: 0, status: null, createdAt: null },
+            billing: {
+              count: 0,
+              status: null,
+              createdAt: null,
+              totalAmount: null,
+              currencyCode: null,
+            },
+          },
+          nextAction: {
+            step: 'WAITING',
+            transition: null,
+            availableTransitions: ['cancel'],
+            blockers: ['SERVICE_DEFINITION_REQUIRED'],
+          },
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Próxima ação indisponível')).toBeInTheDocument();
+    expect(screen.getByText('Defina um serviço antes de preparar a ordem.')).toBeInTheDocument();
+    expect(screen.queryByText('Preparar a ordem')).not.toBeInTheDocument();
+  });
+
 });

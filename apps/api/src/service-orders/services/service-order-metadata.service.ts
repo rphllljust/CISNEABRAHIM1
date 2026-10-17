@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { AUTHZ_SCOPES } from '../../authorization/types/authz-scopes';
 import type { IdentityAuthzContext } from '../../authorization/types/authz-decision';
 import { SERVICE_ORDER_STATUSES, type ServiceOrderStatus } from '../domain/service-order';
+import { serviceOrderPreparePreconditionCode } from '../domain/service-order-release';
 import {
   TRANSITIONS,
   canTransition,
@@ -58,6 +59,13 @@ export type AvailableActionsResponse = {
   status_atual: string;
   comandos_validos: AvailableAction[];
   comandos_invalidos_para_status: string[];
+  comandos_bloqueados_por_precondicao: string[];
+};
+
+export type AvailableActionContext = {
+  status: ServiceOrderStatus;
+  serviceDefinitionId: string | null;
+  serviceDefinitionVersionId: string | null;
 };
 
 export type AuditTimelineResponse = {
@@ -144,38 +152,47 @@ export class ServiceOrderMetadataService {
   }
 
   /**
-   * Comandos validos para o status atual, com a permissao especifica de cada um.
+   * Comandos publicáveis para a OS no contexto atual.
    *
-   * `comandos_validos` vem EXCLUSIVAMENTE de `canTransition` sobre o mapa
-   * `TRANSITIONS`. Os demais comandos vao para `comandos_invalidos_para_status`.
+   * A state machine continua decidindo se o comando existe no estado; precondições de negócio
+   * reutilizam a mesma policy do command handler. Permissão continua exposta separadamente para
+   * a UI explicar um comando existente mas não executável pelo ator.
    */
   getAvailableActions(
     serviceOrderId: string,
-    status: ServiceOrderStatus,
+    context: AvailableActionContext,
     permissions: ReadonlySet<string>,
   ): AvailableActionsResponse {
     const validos: AvailableAction[] = [];
     const invalidos: string[] = [];
+    const bloqueadosPorPrecondicao: string[] = [];
+    const preparePrecondition = serviceOrderPreparePreconditionCode(context);
 
     for (const comando of COMMAND_NAMES) {
-      if (canTransition(status, comando)) {
-        const requerPermissao = COMMAND_PERMISSIONS[comando];
-        validos.push({
-          comando,
-          label: COMMAND_LABELS[comando],
-          requer_permissao: requerPermissao,
-          usuario_tem_permissao: permissions.has(requerPermissao),
-        });
+      if (!canTransition(context.status, comando)) {
+        invalidos.push(comando);
         continue;
       }
-      invalidos.push(comando);
+      if (comando === 'prepare' && preparePrecondition !== null) {
+        bloqueadosPorPrecondicao.push(comando);
+        continue;
+      }
+
+      const requerPermissao = COMMAND_PERMISSIONS[comando];
+      validos.push({
+        comando,
+        label: COMMAND_LABELS[comando],
+        requer_permissao: requerPermissao,
+        usuario_tem_permissao: permissions.has(requerPermissao),
+      });
     }
 
     return {
       service_order_id: serviceOrderId,
-      status_atual: status,
+      status_atual: context.status,
       comandos_validos: validos,
       comandos_invalidos_para_status: invalidos,
+      comandos_bloqueados_por_precondicao: bloqueadosPorPrecondicao,
     };
   }
 

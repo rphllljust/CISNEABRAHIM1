@@ -270,6 +270,21 @@ describe('B4 — service order metadata HTTP contract', () => {
     return (JSON.parse(orderResponse.body) as { id: string }).id;
   }
 
+  async function seedIncompleteServiceOrder(token: string, unitId = UNIT_A): Promise<string> {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/service-orders',
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        origin: 'AUTHORIZED_DIRECT',
+        unitId,
+        description: 'OS sem definição de serviço',
+      },
+    });
+    expect(response.statusCode).toBe(201);
+    return (JSON.parse(response.body) as { id: string }).id;
+  }
+
   async function getJson<T>(url: string, token?: string): Promise<{ status: number; body: T | null }> {
     const response = await app.inject({
       method: 'GET',
@@ -331,6 +346,86 @@ describe('B4 — service order metadata HTTP contract', () => {
     expect(prepare?.usuario_tem_permissao).toBe(true);
     // Commandos invalidos saem na lista propria, nunca em comandos_validos.
     expect(body?.comandos_invalidos_para_status).toContain('release');
+    expect(body?.comandos_bloqueados_por_precondicao).not.toContain('prepare');
+  });
+
+  it('Caso 3b: DRAFT sem service definition bloqueia prepare na capability e mantém 409 no command', async () => {
+    const { token } = await loginAdmin();
+    const orderId = await seedIncompleteServiceOrder(token);
+    const auth = { authorization: `Bearer ${token}` };
+
+    const { status, body } = await getJson<AvailableActionsResponse>(
+      `/api/v1/service-orders/${orderId}/available-actions`,
+      token,
+    );
+
+    expect(status).toBe(200);
+    const comandos = body?.comandos_validos.map((entry) => entry.comando) ?? [];
+    expect(comandos).not.toContain('prepare');
+    expect(comandos).toContain('cancel');
+    expect(body?.comandos_bloqueados_por_precondicao).toContain('prepare');
+
+    const detailResponse = await app.inject({
+      method: 'GET',
+      url: `/api/v1/service-orders/${orderId}`,
+      headers: auth,
+    });
+    expect(detailResponse.statusCode).toBe(200);
+    const detail = JSON.parse(detailResponse.body) as {
+      rowVersion: number;
+      controlCenter: {
+        nextAction: {
+          step: string;
+          transition: string | null;
+          availableTransitions: string[];
+          blockers: string[];
+        };
+      };
+    };
+    expect(detail.controlCenter.nextAction.transition).toBeNull();
+    expect(detail.controlCenter.nextAction.step).toBe('WAITING');
+    expect(detail.controlCenter.nextAction.availableTransitions).not.toContain('prepare');
+    expect(detail.controlCenter.nextAction.availableTransitions).toContain('cancel');
+    expect(detail.controlCenter.nextAction.blockers).toContain('SERVICE_DEFINITION_REQUIRED');
+
+    const prepare = await app.inject({
+      method: 'POST',
+      url: `/api/v1/service-orders/${orderId}/prepare`,
+      headers: auth,
+      payload: { rowVersion: detail.rowVersion },
+    });
+    expect(prepare.statusCode).toBe(409);
+    expect(JSON.parse(prepare.body)).toMatchObject({
+      error: { code: 'SERVICE_ORDERS_SERVICE_REQUIRED' },
+    });
+  });
+
+  it('Caso 3c: DRAFT pronta sem permissão não publica prepare em availableTransitions', async () => {
+    const { token: adminToken } = await loginAdmin();
+    const orderId = await seedServiceOrder(adminToken);
+
+    const { token: readOnlyToken } = await login([
+      {
+        action: AUTHZ_ACTIONS.ServiceOrdersServiceOrderRead,
+        resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+        scopeType: AUTHZ_SCOPES.Global,
+      },
+    ]);
+
+    const detail = await getJson<{
+      controlCenter: { nextAction: { availableTransitions: string[] } };
+    }>(`/api/v1/service-orders/${orderId}`, readOnlyToken);
+
+    expect(detail.status).toBe(200);
+    expect(detail.body?.controlCenter.nextAction.availableTransitions).not.toContain('prepare');
+
+    const available = await getJson<AvailableActionsResponse>(
+      `/api/v1/service-orders/${orderId}/available-actions`,
+      readOnlyToken,
+    );
+    expect(available.status).toBe(200);
+    const prepare = available.body?.comandos_validos.find((entry) => entry.comando === 'prepare');
+    expect(prepare?.usuario_tem_permissao).toBe(false);
   });
 
   // Caso 4

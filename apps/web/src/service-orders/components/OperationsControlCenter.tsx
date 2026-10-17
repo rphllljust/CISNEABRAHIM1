@@ -49,10 +49,12 @@ const NEXT_STEP_LABELS: Record<string, string> = {
   COMPLETE: 'Concluir execução',
   RESUME: 'Retomar execução',
   MEASURE: 'Gerar medição',
+  WAITING: 'Próxima ação indisponível',
   CLOSED: 'Ciclo encerrado',
 };
 
 const BLOCKER_LABELS: Record<string, string> = {
+  SERVICE_DEFINITION_REQUIRED: 'Defina um serviço antes de preparar a ordem.',
   NO_ACTIVE_ALLOCATION: 'Nenhum recurso ativo alocado para a execução.',
   EXECUTION_OCCURRENCES_REGISTERED: 'Há ocorrências registradas na execução.',
 };
@@ -124,7 +126,7 @@ export function OperationsControlCenter({
               {NEXT_STEP_LABELS[nextAction.step] ?? nextAction.step}
             </p>
             <p className="mt-0.5 text-xs text-gray-500">
-              Derivado pelo backend do estado real da OS e das suas permissões.
+              Derivado pelo backend do estado real da OS, das precondições e das suas permissões.
             </p>
           </div>
           <div className="flex flex-wrap gap-1">
