@@ -563,12 +563,20 @@ export function ServiceOrderPlanningPage() {
   const clientName = serviceOrderClientName(order);
   const stateFlow = buildServiceOrderStateFlow(order);
 
-  const nextAction = buildServiceOrderNextAction({
-    serviceOrderId: order.id,
-    orderNumber: order.orderNumber,
-    availableActions: commands.data?.comandos_validos ?? [],
-    canReadServiceOrder: capabilities.canRead,
-  });
+  const nextAction =
+    controlCenter && controlCenter.nextAction.blockers.length > 0
+      ? ({
+          kind: 'waiting',
+          label: controlCenter.nextAction.step,
+          description: controlCenter.nextAction.blockers.join(' · '),
+          waitingOn: 'Operação',
+        } as const)
+      : buildServiceOrderNextAction({
+          serviceOrderId: order.id,
+          orderNumber: order.orderNumber,
+          availableActions: commands.data?.comandos_validos ?? [],
+          canReadServiceOrder: capabilities.canRead,
+        });
 
   const relations = buildAuthorizedRelations(
     buildServiceOrderRelationSpecs({
