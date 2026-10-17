@@ -405,7 +405,9 @@ describe('B4 — service order metadata HTTP contract', () => {
     });
     expect(prepareResponse.statusCode).toBe(409);
     expect(JSON.parse(prepareResponse.body)).toMatchObject({
-      code: 'SERVICE_ORDERS_SERVICE_REQUIRED',
+      error: {
+        code: 'SERVICE_ORDERS_SERVICE_REQUIRED',
+      },
     });
   });
 
