@@ -24,7 +24,7 @@ export type LaborTypeOption = {
 };
 
 export type PolicyOption = {
-  code: string;
+  code?: string;
   label?: string;
   persistedCode?: string;
   requiredUnitCode?: string | null;
