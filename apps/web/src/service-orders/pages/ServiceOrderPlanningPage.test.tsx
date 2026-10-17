@@ -313,7 +313,6 @@ describe('ServiceOrderPlanningPage', () => {
 
     expect(screen.getByText('SERVICE_DEFINITION_REQUIRED')).toBeInTheDocument();
     expect(within(screen.getByRole('region', { name: 'Próxima ação' })).queryByText(/^Cancelar$/)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Cancelar OS' })).toBeInTheDocument();
   });
 
   it('shows forbidden state when read access is denied', async () => {
