@@ -2,8 +2,9 @@ import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { ServiceDefinitionForm } from './ServiceDefinitionForm';
 import { createEmptyFormState } from '../utils/catalog-form-state';
+import type { CatalogReferenceData } from '../hooks/useCatalogReferenceData';
 
-const referenceData = {
+const referenceData: CatalogReferenceData = {
   categories: [],
   units: [
     { id: '1', code: 'DAY', name: 'Dia', status: 'ACTIVE' },
@@ -26,7 +27,7 @@ const referenceData = {
     archetypes: ['RENTAL'],
     measurementModes: ['BY_PERIOD', 'BY_QUANTITY'],
     billingEntitlementPolicies: ['MEASUREMENT_APPROVED'],
-    requirementLevels: ['REQUIRED', 'OPTIONAL', 'CONDITIONAL'] as const,
+    requirementLevels: ['REQUIRED', 'OPTIONAL', 'CONDITIONAL'],
     executionRequirementTypes: ['PHOTO', 'DOCUMENT'],
     executionConditionTypes: [
       'WHEN_MEASUREMENT_BASIS_IS',
