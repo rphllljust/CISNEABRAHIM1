@@ -42,7 +42,9 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-function createFetchMock(options: { units?: string[]; createStatus?: number } = {}) {
+function createFetchMock(
+  options: { units?: string[]; unitsStatus?: number; createStatus?: number } = {},
+) {
   const units = options.units ?? ['UNIDADE-A', 'UNIDADE-B'];
   return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const raw =
@@ -63,7 +65,13 @@ function createFetchMock(options: { units?: string[]; createStatus?: number } = 
       return jsonResponse({ comandos: [] });
     }
     // LOOKUP DE UNIDADE — a origem do dado é o servidor, não uma lista no frontend.
-    if (pathname === '/api/v1/requests/service-requests/operational-units') {
+    if (pathname === '/api/v1/service-orders/operational-units') {
+      if (options.unitsStatus && options.unitsStatus >= 400) {
+        return jsonResponse(
+          { error: { code: 'SERVICE_ORDERS_DENIED', message: 'denied' } },
+          options.unitsStatus,
+        );
+      }
       return jsonResponse({ items: units });
     }
     /*
@@ -130,7 +138,9 @@ function createFetchMock(options: { units?: string[]; createStatus?: number } = 
   });
 }
 
-function renderCreate(options: { units?: string[]; createStatus?: number } = {}) {
+function renderCreate(
+  options: { units?: string[]; unitsStatus?: number; createStatus?: number } = {},
+) {
   const mock = createFetchMock(options);
   vi.stubGlobal('fetch', mock);
   renderWithProviders(
@@ -220,7 +230,7 @@ describe('Nova OS — contrato de criação', () => {
     await awaitForm();
 
     expect(screen.getByTestId('so-create-no-unit')).toHaveTextContent(
-      'Registre a unidade operacional no seu escopo e volte a esta tela.',
+      'O servidor não publicou nenhuma unidade registrada compatível com seu escopo de criação.',
     );
 
     // O controle continua sendo um SELETOR — não vira texto livre.
@@ -230,6 +240,16 @@ describe('Nova OS — contrato de criação', () => {
 
     // E nenhum POST sai enquanto o bloqueio existir.
     expect(postCalls(mock)).toHaveLength(0);
+  });
+
+  it('não transforma 403 ao carregar unidades em lista vazia', async () => {
+    renderCreate({ unitsStatus: 403 });
+    await awaitForm();
+
+    const alert = await screen.findByTestId('so-create-unit-error');
+    expect(alert).toHaveTextContent('Você não tem permissão para criar ordens de serviço.');
+    expect(screen.queryByTestId('so-create-no-unit')).not.toBeInTheDocument();
+    expect(screen.getByTestId('so-create-submit')).toBeDisabled();
   });
 
   /* As unidades vêm do servidor — o formulário não mantém lista própria. */
@@ -366,7 +386,7 @@ describe('Nova OS — contrato de criação', () => {
      * nó que este teste quer provar, em vez de afrouxar o matcher.
      */
     expect(screen.getByTestId('so-create-no-unit')).toHaveTextContent(
-      'Nenhuma unidade autorizada no seu escopo.',
+      'Nenhuma unidade autorizada para criar esta OS.',
     );
   });
 
