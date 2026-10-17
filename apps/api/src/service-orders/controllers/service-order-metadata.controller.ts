@@ -57,7 +57,11 @@ export class ServiceOrderMetadataController {
 
     return this.metadata.getAvailableActions(
       serviceOrderId,
-      detail.status as ServiceOrderStatus,
+      {
+        status: detail.status as ServiceOrderStatus,
+        serviceDefinitionId: detail.serviceDefinitionId,
+        serviceDefinitionVersionId: detail.serviceDefinitionVersionId,
+      },
       permissions,
     );
   }

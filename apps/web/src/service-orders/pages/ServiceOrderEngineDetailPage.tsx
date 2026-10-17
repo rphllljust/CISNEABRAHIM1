@@ -358,6 +358,7 @@ export function ServiceOrderEngineDetailPage() {
             <ActionBar
               schema={schema}
               currentState={currentState}
+              availableCommands={controlCenter?.nextAction.availableTransitions}
               busy={busy}
               onCommand={(command) =>
                 /*
@@ -624,6 +625,14 @@ function relationsFromRow(row: ServiceOrderEngineRow): SmartRelation[] {
   return relations;
 }
 
+const NEXT_ACTION_STEP_LABELS: Record<string, string> = {
+  WAITING: 'Próxima ação indisponível',
+};
+
+const NEXT_ACTION_BLOCKER_LABELS: Record<string, string> = {
+  SERVICE_DEFINITION_REQUIRED: 'Defina um serviço antes de preparar a ordem.',
+};
+
 function nextActionFromControlCenter(
   controlCenter: ServiceOrderControlCenter | null,
   serviceOrderId: string,
@@ -635,9 +644,19 @@ function nextActionFromControlCenter(
   if (nextAction.blockers.length > 0) {
     return {
       kind: 'waiting',
-      label: nextAction.step,
-      description: nextAction.blockers.join(' · '),
+      label: NEXT_ACTION_STEP_LABELS[nextAction.step] ?? nextAction.step,
+      description: nextAction.blockers
+        .map((blocker) => NEXT_ACTION_BLOCKER_LABELS[blocker] ?? blocker)
+        .join(' · '),
       waitingOn: 'Operação',
+    };
+  }
+  if (nextAction.step === 'WAITING') {
+    return {
+      kind: 'waiting',
+      label: 'Nenhuma próxima ação disponível',
+      description: 'O backend não publicou uma transição executável para este contexto.',
+      waitingOn: 'Permissão ou pré-condição',
     };
   }
   if (nextAction.transition) {
