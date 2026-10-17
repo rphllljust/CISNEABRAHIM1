@@ -4,6 +4,7 @@ import {
   CatalogApiError,
   getServiceDefinition,
   getServiceDefinitionVersion,
+  publishServiceDefinitionVersion,
 } from '../api/service-catalog-api';
 import { mapCatalogErrorToMessage } from '../api/catalog-error-messages';
 import {
@@ -35,6 +36,9 @@ import {
 import { VERSION_STATUSES, type ServiceDefinitionVersion } from '../types/service-catalog.types';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { Money } from '../../ui';
+import { ConfirmDialog } from '../../clients/components/ConfirmDialog';
+import { VersionConflictNotice } from '../components/VersionConflictNotice';
+import { useCatalogCapabilities } from '../hooks/useCatalogCapabilities';
 
 type VersionDetailState =
   | { phase: 'loading' }
@@ -91,7 +95,12 @@ function formatEvidenceCondition(
 export function ServiceDefinitionVersionDetailPage() {
   const { definitionId = '', versionNumber = '' } = useParams();
   const parsedVersion = Number(versionNumber);
+  const { capabilities } = useCatalogCapabilities();
   const [state, setState] = useState<VersionDetailState>({ phase: 'loading' });
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
+  const [versionConflict, setVersionConflict] = useState(false);
 
   const reload = useCallback(async () => {
     setState({ phase: 'loading' });
@@ -130,6 +139,34 @@ export function ServiceDefinitionVersionDetailPage() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  async function handlePublish(): Promise<void> {
+    if (state.phase !== 'ready' || state.version.status !== VERSION_STATUSES.Draft) {
+      return;
+    }
+
+    setPublishing(true);
+    setPublishError(null);
+    setVersionConflict(false);
+    try {
+      await publishServiceDefinitionVersion(definitionId, state.version.version, {
+        lineageVersion: state.lineageVersion,
+      });
+      setPublishOpen(false);
+      await reload();
+    } catch (error) {
+      if (error instanceof CatalogApiError && error.kind === 'version_conflict') {
+        setVersionConflict(true);
+      }
+      setPublishError(
+        error instanceof CatalogApiError
+          ? mapCatalogErrorToMessage(error.code, error.status)
+          : 'Não foi possível publicar a versão.',
+      );
+    } finally {
+      setPublishing(false);
+    }
+  }
 
   if (state.phase === 'loading') {
     return (
@@ -187,6 +224,7 @@ export function ServiceDefinitionVersionDetailPage() {
 
   const { version } = state;
   const isPublished = version.status === VERSION_STATUSES.Published;
+  const canPublish = version.status === VERSION_STATUSES.Draft && capabilities.canPublish;
 
   return (
     <ModulePage>
@@ -212,6 +250,17 @@ export function ServiceDefinitionVersionDetailPage() {
             */
             title={`${version.code} — v${version.version}`}
             status={{ label: VERSION_STATUS_LABELS[version.status] }}
+            primaryAction={
+              canPublish
+                ? {
+                    id: 'publish',
+                    label: 'Publicar',
+                    onSelect: () => setPublishOpen(true),
+                    disabled: publishing,
+                    loading: publishing,
+                  }
+                : null
+            }
             secondaryActions={[
               ...(!isPublished && version.status === VERSION_STATUSES.Draft
                 ? [
@@ -235,6 +284,13 @@ export function ServiceDefinitionVersionDetailPage() {
           />
         }
       >
+
+      {versionConflict ? <VersionConflictNotice onReload={() => void reload()} /> : null}
+      {publishError ? (
+        <p className="form-error" role="alert">
+          {publishError}
+        </p>
+      ) : null}
 
       {isPublished ? (
         <p
@@ -326,6 +382,20 @@ export function ServiceDefinitionVersionDetailPage() {
       <p>
         <Link to={`/app/catalog/${definitionId}`}>Voltar à definição</Link>
       </p>
+
+      <ConfirmDialog
+        open={publishOpen}
+        title={`Publicar versão v${version.version}`}
+        description="A publicação é validada pelo backend. Versões publicadas tornam-se imutáveis."
+        confirmLabel={publishing ? 'Publicando…' : 'Confirmar publicação'}
+        confirmDisabled={publishing}
+        onCancel={() => {
+          if (!publishing) {
+            setPublishOpen(false);
+          }
+        }}
+        onConfirm={() => void handlePublish()}
+      />
       </EnterpriseObjectPage>
     </ModulePage>
   );
