@@ -1,4 +1,6 @@
 import {
+  ensureOperationalLaborTypesBaseline,
+  ensurePhysicalResourceTypesBaseline,
   ensureUnitsOfMeasureBaseline,
   hashPassword,
   insertCatalogCategory,
@@ -54,6 +56,8 @@ describe('Service catalog E2E', () => {
     await truncateCatalogTables(pool);
     await truncateIdentityAndAuthorizationTables(pool);
     await ensureUnitsOfMeasureBaseline(pool);
+    await ensurePhysicalResourceTypesBaseline(pool);
+    await ensureOperationalLaborTypesBaseline(pool);
   });
 
   afterAll(async () => {
@@ -119,8 +123,50 @@ describe('Service catalog E2E', () => {
         archetype: 'RENTAL',
         measurementMode: 'BY_PERIOD',
         measurementBasis: 'TIME',
-        allowedUnits: [{ unitCode: 'DAY', isDefault: true }],
-        pricingModels: [{ modelCode: 'DAILY', salePrice: '1200.00' }],
+        billingEntitlementPolicy: 'MEASUREMENT_APPROVED',
+        requiresPurchaseOrder: true,
+        defaultUnitCode: 'DAY',
+        allowedUnits: [{ unitCode: 'DAY', isDefault: true, sortOrder: 0 }],
+        pricingModels: [
+          {
+            modelCode: 'DAILY',
+            unitCode: 'DAY',
+            salePrice: '1200.00',
+            internalCost: '900.00',
+            currencyCode: 'BRL',
+            sortOrder: 0,
+          },
+        ],
+        resourceRequirements: [
+          {
+            resourceTypeCode: 'WATER_TRUCK',
+            requirementLevel: 'REQUIRED',
+            minQuantity: 1,
+            sortOrder: 0,
+          },
+        ],
+        laborRequirements: [
+          {
+            laborTypeCode: 'DRIVER',
+            requirementLevel: 'REQUIRED',
+            minQuantity: 1,
+            sortOrder: 0,
+          },
+        ],
+        executionRequirements: [
+          {
+            requirementType: 'PHOTO',
+            requirementLevel: 'CONDITIONAL',
+            config: {
+              schemaVersion: 1,
+              conditional: {
+                conditionType: 'WHEN_MEASUREMENT_BASIS_IS',
+                measurementBasis: 'TIME',
+              },
+            },
+            sortOrder: 0,
+          },
+        ],
       },
     });
     expect(createResponse.statusCode).toBe(201);
@@ -130,6 +176,67 @@ describe('Service catalog E2E', () => {
       status: string;
     };
     expect(created.status).toBe('DRAFT');
+
+    const createdVersionResponse = await app.inject({
+      method: 'GET',
+      url: `/api/v1/catalog/service-definitions/${created.serviceDefinitionId}/versions/1`,
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    expect(createdVersionResponse.statusCode).toBe(200);
+    const createdVersion = JSON.parse(createdVersionResponse.body) as {
+      defaultUnitCode: string | null;
+      requiresPurchaseOrder: boolean;
+      allowedUnits: Array<{ unitCode: string; isDefault: boolean; sortOrder: number }>;
+      pricingModels: Array<{ modelCode: string; salePrice: string | null; internalCost: string | null }>;
+      resourceRequirements: Array<{ resourceTypeCode: string; minQuantity: number }>;
+      laborRequirements: Array<{ laborTypeCode: string; minQuantity: number }>;
+      executionRequirements: Array<{
+        requirementType: string;
+        requirementLevel: string;
+        config: { conditional?: { measurementBasis?: string } } | null;
+      }>;
+    };
+    expect(createdVersion).toMatchObject({
+      defaultUnitCode: 'DAY',
+      requiresPurchaseOrder: true,
+    });
+    expect(createdVersion.allowedUnits).toEqual([
+      expect.objectContaining({ unitCode: 'DAY', isDefault: true, sortOrder: 0 }),
+    ]);
+    expect(createdVersion.pricingModels[0]).toMatchObject({
+      modelCode: 'DAILY',
+      salePrice: '1200',
+      internalCost: '900',
+    });
+    expect(createdVersion.resourceRequirements[0]).toMatchObject({
+      resourceTypeCode: 'WATER_TRUCK',
+      minQuantity: 1,
+    });
+    expect(createdVersion.laborRequirements[0]).toMatchObject({
+      laborTypeCode: 'DRIVER',
+      minQuantity: 1,
+    });
+    expect(createdVersion.executionRequirements[0]).toMatchObject({
+      requirementType: 'PHOTO',
+      requirementLevel: 'CONDITIONAL',
+      config: { conditional: { measurementBasis: 'TIME' } },
+    });
+
+    const draftFilterResponse = await app.inject({
+      method: 'GET',
+      url: '/api/v1/catalog/service-definitions?limit=10&offset=0&version=HAS_DRAFT',
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    expect(draftFilterResponse.statusCode).toBe(200);
+    expect((JSON.parse(draftFilterResponse.body) as { items: unknown[] }).items).toHaveLength(1);
+
+    const publishedBeforeResponse = await app.inject({
+      method: 'GET',
+      url: '/api/v1/catalog/service-definitions?limit=10&offset=0&version=HAS_PUBLISHED',
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    expect(publishedBeforeResponse.statusCode).toBe(200);
+    expect((JSON.parse(publishedBeforeResponse.body) as { items: unknown[] }).items).toHaveLength(0);
 
     const definitionResponse = await app.inject({
       method: 'GET',
@@ -148,6 +255,29 @@ describe('Service catalog E2E', () => {
     expect(publishResponse.statusCode).toBe(200);
     const published = JSON.parse(publishResponse.body) as { status: string };
     expect(published.status).toBe('PUBLISHED');
+
+    const publishedFilterResponse = await app.inject({
+      method: 'GET',
+      url: '/api/v1/catalog/service-definitions?limit=10&offset=0&version=HAS_PUBLISHED',
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    expect(publishedFilterResponse.statusCode).toBe(200);
+    expect((JSON.parse(publishedFilterResponse.body) as { items: unknown[] }).items).toHaveLength(1);
+
+    const referenceDataResponse = await app.inject({
+      method: 'GET',
+      url: '/api/v1/catalog/service-definitions/reference-data',
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    expect(referenceDataResponse.statusCode).toBe(200);
+    const referenceData = JSON.parse(referenceDataResponse.body) as {
+      archetypes: string[];
+      executionRequirementTypes: string[];
+      executionConditionTypes: string[];
+    };
+    expect(referenceData.archetypes).toContain('RENTAL');
+    expect(referenceData.executionRequirementTypes).toContain('PHOTO');
+    expect(referenceData.executionConditionTypes).toContain('WHEN_MEASUREMENT_BASIS_IS');
 
     const listResponse = await app.inject({
       method: 'GET',
