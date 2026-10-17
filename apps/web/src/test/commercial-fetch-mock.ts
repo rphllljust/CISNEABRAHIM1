@@ -345,6 +345,36 @@ export function createCommercialFetchMock(options: CommercialFetchMockOptions = 
     const { pathname } = parseRequestPath(input);
     const method = init?.method ?? 'GET';
 
+    if (pathname === '/api/v1/me' && method === 'GET') {
+      const permissions = [
+        ...(proposalListAllowed ? ['commercial:proposal:list', 'commercial:proposal:read'] : []),
+        ...(proposalCreateAllowed ? ['commercial:proposal:create'] : []),
+        ...(proposalUpdateAllowed ? ['commercial:proposal:update'] : []),
+        ...(proposalIssueAllowed ? ['commercial:proposal:issue'] : []),
+        ...(proposalAcceptAllowed ? ['commercial:proposal:accept'] : []),
+        ...(proposalRejectAllowed ? ['commercial:proposal:reject'] : []),
+        ...(proposalExpireAllowed ? ['commercial:proposal:expire'] : []),
+        ...(proposalCancelAllowed ? ['commercial:proposal:cancel'] : []),
+        ...(poListAllowed ? ['commercial:purchase-order:list', 'commercial:purchase-order:read'] : []),
+        ...(poCreateAllowed ? ['commercial:purchase-order:create'] : []),
+        ...(poUpdateAllowed ? ['commercial:purchase-order:update'] : []),
+        ...(poRegisterAllowed ? ['commercial:purchase-order:register'] : []),
+        ...(poCancelAllowed ? ['commercial:purchase-order:cancel'] : []),
+        ...(options.clientListAllowed ?? true ? ['client:client:list', 'client:client:read'] : []),
+      ];
+      return jsonResponse({
+        usuario: {
+          id: MOCK_IDENTITY_ID,
+          nome: null,
+          email: null,
+          identity_id: MOCK_IDENTITY_ID,
+        },
+        permissoes_efetivas: permissions,
+        escopo_ativo: null,
+        escopos_disponiveis: [{ tipo: 'GLOBAL', resource_id: null, label: 'Global' }],
+      });
+    }
+
     if (pathname.startsWith('/api/v1/commercial/proposals')) {
       const auth = init?.headers ? new Headers(init.headers).get('authorization') : null;
       if (!auth?.startsWith('Bearer ')) {

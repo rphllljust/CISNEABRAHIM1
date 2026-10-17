@@ -18,16 +18,21 @@ export function App() {
     <LanguageProvider>
       <BrowserRouter>
         <AuthProvider>
-          <SessionMetaBridge />
-          {/*
-            METADATA PROVIDER — a engine de ERP.
-            Envolve as rotas inteiras para que qualquer tela possa consumir metadado sem
-            montar provider próprio. O cache é por entidade, então navegar entre telas da
-            mesma entidade não refaz a chamada.
-          */}
-          <MetadataProvider>
-            <AppRoutes />
-        </MetadataProvider>
+          <SessionMetaBridge>
+            {/*
+              METADATA PROVIDER — a engine de ERP.
+              Envolve as rotas inteiras para que qualquer tela possa consumir metadado sem
+              montar provider próprio. O cache é por entidade, então navegar entre telas da
+              mesma entidade não refaz a chamada.
+
+              O SessionMetaBridge PRECISA envolver esta árvore: ele hidrata /me uma vez e
+              publica as permissões efetivas para as telas. Auto-fechado, ele fazia a request
+              em produção, mas descartava o contexto antes de chegar às rotas.
+            */}
+            <MetadataProvider>
+              <AppRoutes />
+            </MetadataProvider>
+          </SessionMetaBridge>
         </AuthProvider>
       </BrowserRouter>
     </LanguageProvider>

@@ -1,10 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import { useAuth } from '../../auth/context/AuthProvider';
-import {
-  ContractsApiError,
-  probeContractCapabilities,
-  type ContractCapabilities,
-} from '../api/contracts-api';
+import { useSessionMeta } from '../../service-orders/context/SessionMetaProvider';
+import type { ContractCapabilities } from '../api/contracts-api';
 
 const EMPTY_CAPABILITIES: ContractCapabilities = {
   canList: false,
@@ -17,52 +14,30 @@ const EMPTY_CAPABILITIES: ContractCapabilities = {
 };
 
 export function useContractCapabilities() {
-  const { status } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [capabilities, setCapabilities] = useState<ContractCapabilities>(EMPTY_CAPABILITIES);
-  const [error, setError] = useState(false);
+  const { status: authStatus } = useAuth();
+  const session = useSessionMeta();
 
-  useEffect(() => {
-    if (status === 'loading') {
-      setLoading(true);
-      return;
+  const capabilities = useMemo<ContractCapabilities>(() => {
+    if (authStatus !== 'authenticated' || session.status !== 'ready') {
+      return EMPTY_CAPABILITIES;
     }
-
-    if (status !== 'authenticated') {
-      setLoading(false);
-      setCapabilities(EMPTY_CAPABILITIES);
-      return;
-    }
-
-    const controller = new AbortController();
-    let cancelled = false;
-
-    void probeContractCapabilities(controller.signal)
-      .then((result) => {
-        if (!cancelled) {
-          setCapabilities(result);
-          setError(false);
-          setLoading(false);
-        }
-      })
-      .catch((probeError: unknown) => {
-        if (cancelled) {
-          return;
-        }
-        if (probeError instanceof ContractsApiError && probeError.kind === 'denied') {
-          setCapabilities(EMPTY_CAPABILITIES);
-          setError(false);
-        } else {
-          setError(true);
-        }
-        setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-      controller.abort();
+    return {
+      canList: session.can('commercial:contract:list'),
+      canCreate: session.can('commercial:contract:create'),
+      canRead: session.can('commercial:contract:read'),
+      canUpdate: session.can('commercial:contract:update'),
+      canActivate: session.can('commercial:contract:activate'),
+      canClose: session.can('commercial:contract:close'),
+      canExpire: session.can('commercial:contract:expire'),
     };
-  }, [status]);
+  }, [authStatus, session]);
 
-  return { loading, capabilities, error };
+  return {
+    loading:
+      authStatus === 'loading' ||
+      (authStatus === 'authenticated' &&
+        (session.status === 'idle' || session.status === 'loading')),
+    capabilities,
+    error: authStatus === 'authenticated' && session.status === 'error',
+  };
 }

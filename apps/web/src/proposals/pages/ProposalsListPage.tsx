@@ -335,34 +335,20 @@ export function ProposalsListPage() {
   /*
    * COMANDO REAL A PARTIR DO CONTEXTO.
    *
-   * DUAS BARREIRAS INDEPENDENTES, e é isso que torna o comando honesto:
-   *   1. `readiness.availableTransitions` — o BACKEND decide quais transições a versão vigente
-   *      admite. O frontend não conhece a máquina de estados e não a reimplementa.
-   *   2. `capabilities.can*` — o BACKEND decide o que o ator pode fazer.
-   * Um comando só aparece na interseção das duas. `rowVersion` vai no payload: concorrência
-   * otimista é do domínio, e conflito de versão vira mensagem — não é mascarado.
+   * `readiness.availableTransitions` é montado pelo BACKEND para ESTA proposta: estado, permissão
+   * e escopo já foram avaliados antes de a resposta chegar à tela. Cruzá-lo novamente com um probe
+   * global não aumenta segurança e pode esconder comando válido ou oferecer comando fora de escopo.
+   * A UI apenas exclui `revise`, que abre fluxo de formulário, e executa as demais transições
+   * publicadas. `rowVersion` continua no payload para concorrência otimista.
    */
   const availableCommands = useMemo<ProposalContextCommand[]>(() => {
     if (detailState.phase !== 'ready') {
       return [];
     }
-    const allowed: Record<ProposalTransition, boolean> = {
-      issue: capabilities.canIssue,
-      accept: capabilities.canAccept,
-      reject: capabilities.canReject,
-      expire: capabilities.canExpire,
-      cancel: capabilities.canCancel,
-      /*
-       * `revise` cria uma NOVA versão — é um fluxo de formulário, não um comando de linha. Ele não
-       * é oferecido aqui para não transformar criação de documento em clique de contexto.
-       */
-      revise: false,
-    };
     return detailState.detail.readiness.availableTransitions.filter(
-      (transition): transition is ProposalContextCommand =>
-        transition !== 'revise' && allowed[transition],
+      (transition): transition is ProposalContextCommand => transition !== 'revise',
     );
-  }, [capabilities, detailState]);
+  }, [detailState]);
 
   const runContextCommand = useCallback(
     async (command: ProposalContextCommand) => {

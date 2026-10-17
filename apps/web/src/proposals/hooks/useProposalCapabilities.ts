@@ -1,10 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import { useAuth } from '../../auth/context/AuthProvider';
-import {
-  ProposalsApiError,
-  probeProposalCapabilities,
-  type ProposalCapabilities,
-} from '../api/proposals-api';
+import { useSessionMeta } from '../../service-orders/context/SessionMetaProvider';
+import type { ProposalCapabilities } from '../api/proposals-api';
 
 const EMPTY_CAPABILITIES: ProposalCapabilities = {
   canList: false,
@@ -19,52 +16,32 @@ const EMPTY_CAPABILITIES: ProposalCapabilities = {
 };
 
 export function useProposalCapabilities() {
-  const { status } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [capabilities, setCapabilities] = useState<ProposalCapabilities>(EMPTY_CAPABILITIES);
-  const [error, setError] = useState(false);
+  const { status: authStatus } = useAuth();
+  const session = useSessionMeta();
 
-  useEffect(() => {
-    if (status === 'loading') {
-      setLoading(true);
-      return;
+  const capabilities = useMemo<ProposalCapabilities>(() => {
+    if (authStatus !== 'authenticated' || session.status !== 'ready') {
+      return EMPTY_CAPABILITIES;
     }
-
-    if (status !== 'authenticated') {
-      setLoading(false);
-      setCapabilities(EMPTY_CAPABILITIES);
-      return;
-    }
-
-    const controller = new AbortController();
-    let cancelled = false;
-
-    void probeProposalCapabilities(controller.signal)
-      .then((result) => {
-        if (!cancelled) {
-          setCapabilities(result);
-          setError(false);
-          setLoading(false);
-        }
-      })
-      .catch((probeError: unknown) => {
-        if (cancelled) {
-          return;
-        }
-        if (probeError instanceof ProposalsApiError && probeError.kind === 'denied') {
-          setCapabilities(EMPTY_CAPABILITIES);
-          setError(false);
-        } else {
-          setError(true);
-        }
-        setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-      controller.abort();
+    return {
+      canList: session.can('commercial:proposal:list'),
+      canCreate: session.can('commercial:proposal:create'),
+      canRead: session.can('commercial:proposal:read'),
+      canUpdate: session.can('commercial:proposal:update'),
+      canIssue: session.can('commercial:proposal:issue'),
+      canAccept: session.can('commercial:proposal:accept'),
+      canReject: session.can('commercial:proposal:reject'),
+      canExpire: session.can('commercial:proposal:expire'),
+      canCancel: session.can('commercial:proposal:cancel'),
     };
-  }, [status]);
+  }, [authStatus, session]);
 
-  return { loading, capabilities, error };
+  return {
+    loading:
+      authStatus === 'loading' ||
+      (authStatus === 'authenticated' &&
+        (session.status === 'idle' || session.status === 'loading')),
+    capabilities,
+    error: authStatus === 'authenticated' && session.status === 'error',
+  };
 }

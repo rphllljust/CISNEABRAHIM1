@@ -175,6 +175,30 @@ function createClientObjectFetchMock(options: FetchFixtureOptions = {}) {
       });
     }
 
+    if (pathname === '/api/v1/me' && method === 'GET') {
+      return jsonResponse({
+        usuario: {
+          id: '11111111-1111-4111-8111-111111111111',
+          nome: null,
+          email: null,
+          identity_id: '11111111-1111-4111-8111-111111111111',
+        },
+        permissoes_efetivas: [
+          'client:client:list',
+          'client:client:read',
+          ...(capabilities.update ? ['client:client:update'] : []),
+          ...(capabilities.deactivate ? ['client:client:deactivate'] : []),
+          ...(capabilities.activate ? ['client:client:activate'] : []),
+          'client:contact:manage',
+          'client:unit:manage',
+          'client:hierarchy:manage',
+          'client:audit:read',
+        ],
+        escopo_ativo: null,
+        escopos_disponiveis: [{ tipo: 'GLOBAL', resource_id: null, label: 'Global' }],
+      });
+    }
+
     if (pathname === '/api/v1/clients' && method === 'GET') {
       return jsonResponse({ items: [], limit: 1, offset: 0, total: 0, totalPages: 0 });
     }

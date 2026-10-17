@@ -74,22 +74,39 @@ export function SessionMetaProvider({
     let cancelled = false;
     setState((current) => ({ ...current, status: 'loading' }));
 
-    void Promise.all([fetchMe(controller.signal), fetchCommandCatalog(controller.signal)])
-      .then(([me, catalog]) => {
+    /*
+     * /me é a fonte AUTORITATIVA de permissões da aplicação inteira.
+     *
+     * O catálogo de comandos pertence a Service Orders e é enriquecimento de rótulos. Antes os
+     * dois eram carregados em Promise.all: uma falha no catálogo derrubava também permissões de
+     * Clientes, Solicitações, Propostas, Pedidos e Contratos. Isso transformava uma dependência
+     * opcional de OS em gate global de autorização de UI.
+     *
+     * Agora /me decide o estado da sessão. O catálogo é best-effort; sem ele, commandLabel já tem
+     * fallback para o nome canônico do comando. Nenhuma permissão é inventada.
+     */
+    void fetchMe(controller.signal)
+      .then(async (me) => {
+        let catalog: CommandCatalogEntry[] = [];
+        try {
+          const response = await fetchCommandCatalog(controller.signal);
+          catalog = response.comandos;
+        } catch {
+          // Enriquecimento de OS indisponível não invalida os grants efetivos de /me.
+        }
         if (cancelled) {
           return;
         }
         setState({
           me,
           permissions: new Set(me.permissoes_efetivas),
-          catalog: catalog.comandos,
+          catalog,
           status: 'ready',
         });
       })
       .catch(() => {
         if (!cancelled) {
-          // Falha de hidratação NÃO inventa permissão: o estado fica sem permissões
-          // e a UI desabilita as ações que dependem delas.
+          // Falha de /me NÃO inventa permissão: a UI fica fail-closed.
           setState({ me: null, permissions: EMPTY_PERMISSIONS, catalog: [], status: 'error' });
         }
       });

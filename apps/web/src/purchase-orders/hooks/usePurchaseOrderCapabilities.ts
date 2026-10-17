@@ -1,10 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import { useAuth } from '../../auth/context/AuthProvider';
-import {
-  PurchaseOrdersApiError,
-  probePurchaseOrderCapabilities,
-  type PurchaseOrderCapabilities,
-} from '../api/purchase-orders-api';
+import { useSessionMeta } from '../../service-orders/context/SessionMetaProvider';
+import type { PurchaseOrderCapabilities } from '../api/purchase-orders-api';
 
 const EMPTY_CAPABILITIES: PurchaseOrderCapabilities = {
   canList: false,
@@ -16,52 +13,29 @@ const EMPTY_CAPABILITIES: PurchaseOrderCapabilities = {
 };
 
 export function usePurchaseOrderCapabilities() {
-  const { status } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [capabilities, setCapabilities] = useState<PurchaseOrderCapabilities>(EMPTY_CAPABILITIES);
-  const [error, setError] = useState(false);
+  const { status: authStatus } = useAuth();
+  const session = useSessionMeta();
 
-  useEffect(() => {
-    if (status === 'loading') {
-      setLoading(true);
-      return;
+  const capabilities = useMemo<PurchaseOrderCapabilities>(() => {
+    if (authStatus !== 'authenticated' || session.status !== 'ready') {
+      return EMPTY_CAPABILITIES;
     }
-
-    if (status !== 'authenticated') {
-      setLoading(false);
-      setCapabilities(EMPTY_CAPABILITIES);
-      return;
-    }
-
-    const controller = new AbortController();
-    let cancelled = false;
-
-    void probePurchaseOrderCapabilities(controller.signal)
-      .then((result) => {
-        if (!cancelled) {
-          setCapabilities(result);
-          setError(false);
-          setLoading(false);
-        }
-      })
-      .catch((probeError: unknown) => {
-        if (cancelled) {
-          return;
-        }
-        if (probeError instanceof PurchaseOrdersApiError && probeError.kind === 'denied') {
-          setCapabilities(EMPTY_CAPABILITIES);
-          setError(false);
-        } else {
-          setError(true);
-        }
-        setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-      controller.abort();
+    return {
+      canList: session.can('commercial:purchase-order:list'),
+      canCreate: session.can('commercial:purchase-order:create'),
+      canRead: session.can('commercial:purchase-order:read'),
+      canUpdate: session.can('commercial:purchase-order:update'),
+      canRegister: session.can('commercial:purchase-order:register'),
+      canCancel: session.can('commercial:purchase-order:cancel'),
     };
-  }, [status]);
+  }, [authStatus, session]);
 
-  return { loading, capabilities, error };
+  return {
+    loading:
+      authStatus === 'loading' ||
+      (authStatus === 'authenticated' &&
+        (session.status === 'idle' || session.status === 'loading')),
+    capabilities,
+    error: authStatus === 'authenticated' && session.status === 'error',
+  };
 }

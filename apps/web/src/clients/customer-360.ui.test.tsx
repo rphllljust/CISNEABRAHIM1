@@ -86,6 +86,7 @@ type MockOptions = {
   quality?: unknown;
   hierarchy?: unknown;
   updateAllowed?: boolean;
+  manageContactsAllowed?: boolean;
 };
 
 /**
@@ -119,8 +120,25 @@ function createFetchMock(options: MockOptions = {}) {
      */
     if (pathname === '/api/v1/me' && method === 'GET') {
       return jsonResponse({
-        identity_id: '11111111-1111-4111-8111-111111111111',
-        permissoes_efetivas: [],
+        usuario: {
+          id: '11111111-1111-4111-8111-111111111111',
+          nome: null,
+          email: null,
+          identity_id: '11111111-1111-4111-8111-111111111111',
+        },
+        permissoes_efetivas: [
+          'client:client:list',
+          'client:client:read',
+          ...(options.updateAllowed === false ? [] : ['client:client:update']),
+          'client:client:deactivate',
+          'client:client:activate',
+          ...(options.manageContactsAllowed === false ? [] : ['client:contact:manage']),
+          'client:unit:manage',
+          'client:hierarchy:manage',
+          'client:audit:read',
+        ],
+        escopo_ativo: null,
+        escopos_disponiveis: [{ tipo: 'GLOBAL', resource_id: null, label: 'Global' }],
       });
     }
     if (pathname === '/api/v1/service-orders/command-catalog' && method === 'GET') {
@@ -428,7 +446,7 @@ describe('Customer 360 — contatos', () => {
 
   /* SEM CAPABILITY O PAINEL É SOMENTE LEITURA — nenhum comando é oferecido. */
   it('não oferece comandos de contato sem a capability', async () => {
-    renderPage({ updateAllowed: false });
+    renderPage({ manageContactsAllowed: false });
     await awaitHeader();
 
     await waitFor(() => {

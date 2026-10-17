@@ -553,6 +553,29 @@ export async function installAccountingMocks(page: Page): Promise<void> {
       return;
     }
 
+    if (pathname === '/api/v1/me' && method === 'GET') {
+      if (!hasBearerToken(route)) {
+        await fulfillJson(
+          route,
+          { error: { code: 'AUTH_UNAUTHORIZED', message: 'Unauthorized.' } },
+          401,
+        );
+        return;
+      }
+      await fulfillJson(route, {
+        usuario: {
+          id: MOCK_IDENTITY_ID,
+          nome: null,
+          email: null,
+          identity_id: MOCK_IDENTITY_ID,
+        },
+        permissoes_efetivas: [],
+        escopo_ativo: null,
+        escopos_disponiveis: [{ tipo: 'GLOBAL', resource_id: null, label: 'Global' }],
+      });
+      return;
+    }
+
     if (pathname === '/api/v1/auth/refresh' && method === 'POST') {
       await fulfillJson(route, {
         accessToken: 'visual-access-token-2',

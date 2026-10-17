@@ -194,6 +194,33 @@ export function createClientsFetchMock(options: ClientsFetchMockOptions = {}) {
     const { pathname, searchParams } = parseRequestPath(input);
     const method = init?.method ?? 'GET';
 
+    // GET /me é a fonte real de capabilities da UI. O mock projeta as MESMAS flags que já
+    // governam os endpoints abaixo; não usa mais 400/404 de UUID sintético como autorização.
+    if (pathname === '/api/v1/me' && method === 'GET') {
+      const permissions = [
+        ...(listAllowed ? ['client:client:list', 'client:client:read'] : []),
+        ...(createAllowed ? ['client:client:create'] : []),
+        ...(updateAllowed ? ['client:client:update'] : []),
+        ...(deactivateAllowed ? ['client:client:deactivate'] : []),
+        ...(activateAllowed ? ['client:client:activate'] : []),
+        'client:contact:manage',
+        'client:unit:manage',
+        'client:hierarchy:manage',
+        'client:audit:read',
+      ];
+      return jsonResponse({
+        usuario: {
+          id: MOCK_IDENTITY_ID,
+          nome: null,
+          email: null,
+          identity_id: MOCK_IDENTITY_ID,
+        },
+        permissoes_efetivas: permissions,
+        escopo_ativo: null,
+        escopos_disponiveis: [{ tipo: 'GLOBAL', resource_id: null, label: 'Global' }],
+      });
+    }
+
     if (!pathname.startsWith('/api/v1/clients')) {
       return shellMock(input, init);
     }

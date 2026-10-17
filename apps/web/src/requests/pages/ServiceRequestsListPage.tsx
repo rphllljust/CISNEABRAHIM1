@@ -1050,12 +1050,14 @@ export function ServiceRequestsListPage() {
               ) : null}
 
               {/*
-                COMMAND LAYER — comandos REAIS do domínio, guardados pelas CAPABILITIES reais.
-                Cada botão é uma TRANSIÇÃO de processo (não `PATCH status`). Rejeitar e cancelar
-                exigem motivo digitado: o campo é do operador, porque motivo é auditoria.
+                COMMAND LAYER — a fonte é o readiness AUTORITATIVO do detalhe.
+                `availableTransitions` já cruza máquina de estados + autorização + escopo para ESTE
+                registro no backend. A lista não cruza novamente com capability global e não oferece
+                `convert` quando o servidor não publicou essa transição. Rejeitar e cancelar exigem
+                motivo digitado: o campo é do operador, porque motivo é auditoria.
               */}
               <div className="cisne-divider--top mt-2 pt-2">
-                {(capabilities.canReject || capabilities.canCancel) ? (
+                {(detailState.detail.readiness.availableTransitions.includes('reject') || detailState.detail.readiness.availableTransitions.includes('cancel')) ? (
                   <label className="mb-1 block">
                     <span className="cisne-meta-label mb-0.5 block">
                       Motivo (obrigatório para rejeitar ou cancelar)
@@ -1071,7 +1073,7 @@ export function ServiceRequestsListPage() {
                 ) : null}
 
                 <div className="flex flex-wrap items-center gap-1.5">
-                  {capabilities.canSubmit ? (
+                  {detailState.detail.readiness.availableTransitions.includes('submit') ? (
                     <Button
                       variant="secondary"
                       loading={commandBusy}
@@ -1080,7 +1082,7 @@ export function ServiceRequestsListPage() {
                       Enviar
                     </Button>
                   ) : null}
-                  {capabilities.canReview ? (
+                  {detailState.detail.readiness.availableTransitions.includes('startReview') ? (
                     <Button
                       variant="secondary"
                       loading={commandBusy}
@@ -1089,7 +1091,7 @@ export function ServiceRequestsListPage() {
                       Iniciar análise
                     </Button>
                   ) : null}
-                  {capabilities.canApprove ? (
+                  {detailState.detail.readiness.availableTransitions.includes('approve') ? (
                     <Button
                       variant="primary"
                       loading={commandBusy}
@@ -1098,7 +1100,7 @@ export function ServiceRequestsListPage() {
                       Aprovar
                     </Button>
                   ) : null}
-                  {capabilities.canReject ? (
+                  {detailState.detail.readiness.availableTransitions.includes('reject') ? (
                     <Button
                       variant="secondary"
                       disabled={commandReason.trim() === ''}
@@ -1109,7 +1111,7 @@ export function ServiceRequestsListPage() {
                       Rejeitar
                     </Button>
                   ) : null}
-                  {capabilities.canCancel ? (
+                  {detailState.detail.readiness.availableTransitions.includes('cancel') ? (
                     <Button
                       variant="secondary"
                       disabled={commandReason.trim() === ''}
@@ -1120,19 +1122,21 @@ export function ServiceRequestsListPage() {
                       Cancelar
                     </Button>
                   ) : null}
-                  <Button
-                    variant="secondary"
-                    loading={commandBusy}
-                    disabled={detailState.detail.readiness.blockers.length > 0}
-                    title={
-                      detailState.detail.readiness.blockers.length > 0
-                        ? 'Existem pendências registradas para a conversão'
-                        : undefined
-                    }
-                    onClick={() => void runCommand('convert')}
-                  >
-                    Converter em OS
-                  </Button>
+                  {detailState.detail.readiness.availableTransitions.includes('convert') ? (
+                    <Button
+                      variant="secondary"
+                      loading={commandBusy}
+                      disabled={detailState.detail.readiness.blockers.length > 0}
+                      title={
+                        detailState.detail.readiness.blockers.length > 0
+                          ? 'Existem pendências registradas para a conversão'
+                          : undefined
+                      }
+                      onClick={() => void runCommand('convert')}
+                    >
+                      Converter em OS
+                    </Button>
+                  ) : null}
                 </div>
 
                 {commandError ? (
