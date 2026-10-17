@@ -13,6 +13,26 @@ export type ServiceOrderReleaseCandidate = {
   service_snapshot: Record<string, unknown>;
 };
 
+export type ServiceOrderPrepareReadinessCandidate = {
+  status: string;
+  serviceDefinitionId: string | null;
+  serviceDefinitionVersionId: string | null;
+};
+
+export type ServiceOrderPreparePreconditionCode = 'INVALID_STATE' | 'SERVICE_REQUIRED';
+
+export function serviceOrderPreparePreconditionCode(
+  order: ServiceOrderPrepareReadinessCandidate,
+): ServiceOrderPreparePreconditionCode | null {
+  if (order.status !== SERVICE_ORDER_STATUSES.Draft) {
+    return 'INVALID_STATE';
+  }
+  if (!order.serviceDefinitionId || !order.serviceDefinitionVersionId) {
+    return 'SERVICE_REQUIRED';
+  }
+  return null;
+}
+
 export type ClientReleaseLookup = {
   id: string;
   status: ClientStatus;
@@ -62,10 +82,12 @@ export function assertServiceOrderReleasePreconditions(
 }
 
 export function assertServiceOrderPreparePreconditions(order: ServiceOrderReleaseCandidate): void {
-  if (order.status !== SERVICE_ORDER_STATUSES.Draft) {
-    throw new ServiceOrderReleaseError('INVALID_STATE');
-  }
-  if (!order.service_definition_id || !order.service_definition_version_id) {
-    throw new ServiceOrderReleaseError('SERVICE_REQUIRED');
+  const code = serviceOrderPreparePreconditionCode({
+    status: order.status,
+    serviceDefinitionId: order.service_definition_id,
+    serviceDefinitionVersionId: order.service_definition_version_id,
+  });
+  if (code) {
+    throw new ServiceOrderReleaseError(code);
   }
 }

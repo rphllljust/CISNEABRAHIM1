@@ -53,12 +53,11 @@ export class ServiceOrderMetadataController {
   ): Promise<AvailableActionsResponse> {
     const actor = { identityId: auth.sub, sessionId: auth.sid };
     const detail = await this.serviceOrdersAccess.getById(actor, serviceOrderId);
-    const permissions = await this.metadata.getEffectivePermissions(actor);
 
     return this.metadata.getAvailableActions(
       serviceOrderId,
       detail.status as ServiceOrderStatus,
-      permissions,
+      detail.controlCenter?.nextAction.availableTransitions ?? [],
     );
   }
 

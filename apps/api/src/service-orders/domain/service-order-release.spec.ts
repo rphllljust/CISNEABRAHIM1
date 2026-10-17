@@ -4,6 +4,7 @@ import { SERVICE_ORDER_STATUSES } from './service-order';
 import {
   assertServiceOrderPreparePreconditions,
   assertServiceOrderReleasePreconditions,
+  serviceOrderPreparePreconditionCode,
   ServiceOrderReleaseError,
 } from './service-order-release';
 
@@ -64,14 +65,46 @@ describe('service-order-release', () => {
     ).not.toThrow();
   });
 
-  it('requires service before prepare', () => {
-    expect(() =>
+  it('uses the same prepare precondition policy for readiness and command execution', () => {
+    expect(
+      serviceOrderPreparePreconditionCode({
+        status: SERVICE_ORDER_STATUSES.Draft,
+        serviceDefinitionId: null,
+        serviceDefinitionVersionId: null,
+      }),
+    ).toBe('SERVICE_REQUIRED');
+
+    try {
       assertServiceOrderPreparePreconditions({
         ...baseOrder,
         status: SERVICE_ORDER_STATUSES.Draft,
         service_definition_id: null,
         service_definition_version_id: null,
+      });
+    } catch (error) {
+      expect((error as ServiceOrderReleaseError).code).toBe('SERVICE_REQUIRED');
+    }
+
+    expect(
+      serviceOrderPreparePreconditionCode({
+        status: SERVICE_ORDER_STATUSES.Draft,
+        serviceDefinitionId: baseOrder.service_definition_id,
+        serviceDefinitionVersionId: baseOrder.service_definition_version_id,
       }),
-    ).toThrow(ServiceOrderReleaseError);
+    ).toBeNull();
+    expect(() =>
+      assertServiceOrderPreparePreconditions({
+        ...baseOrder,
+        status: SERVICE_ORDER_STATUSES.Draft,
+      }),
+    ).not.toThrow();
+
+    expect(
+      serviceOrderPreparePreconditionCode({
+        status: SERVICE_ORDER_STATUSES.Prepared,
+        serviceDefinitionId: baseOrder.service_definition_id,
+        serviceDefinitionVersionId: baseOrder.service_definition_version_id,
+      }),
+    ).toBe('INVALID_STATE');
   });
 });

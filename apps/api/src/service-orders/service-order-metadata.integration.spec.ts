@@ -270,6 +270,21 @@ describe('B4 — service order metadata HTTP contract', () => {
     return (JSON.parse(orderResponse.body) as { id: string }).id;
   }
 
+  async function seedIncompleteServiceOrder(token: string, unitId = UNIT_A): Promise<string> {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/service-orders',
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        origin: 'AUTHORIZED_DIRECT',
+        unitId,
+        description: 'OS sem definição de serviço',
+      },
+    });
+    expect(response.statusCode).toBe(201);
+    return (JSON.parse(response.body) as { id: string }).id;
+  }
+
   async function getJson<T>(url: string, token?: string): Promise<{ status: number; body: T | null }> {
     const response = await app.inject({
       method: 'GET',
@@ -331,6 +346,117 @@ describe('B4 — service order metadata HTTP contract', () => {
     expect(prepare?.usuario_tem_permissao).toBe(true);
     // Commandos invalidos saem na lista propria, nunca em comandos_validos.
     expect(body?.comandos_invalidos_para_status).toContain('release');
+  });
+
+  it('Caso 3A: DRAFT sem definicao de servico nao publica prepare e o command continua protegido com 409', async () => {
+    const { token } = await loginAdmin();
+    const orderId = await seedIncompleteServiceOrder(token);
+    const auth = { authorization: `Bearer ${token}` };
+
+    const detailResponse = await app.inject({
+      method: 'GET',
+      url: `/api/v1/service-orders/${orderId}`,
+      headers: auth,
+    });
+    expect(detailResponse.statusCode).toBe(200);
+    const detail = JSON.parse(detailResponse.body) as {
+      status: string;
+      rowVersion: number;
+      controlCenter?: {
+        nextAction: {
+          step: string;
+          transition: string | null;
+          availableTransitions: string[];
+          blockers: string[];
+        };
+      };
+    };
+    expect(detail.status).toBe(SERVICE_ORDER_STATUSES.Draft);
+    expect(detail.controlCenter?.nextAction.step).toBe('WAITING');
+    expect(detail.controlCenter?.nextAction.transition).toBeNull();
+    expect(detail.controlCenter?.nextAction.availableTransitions).not.toContain('prepare');
+    expect(detail.controlCenter?.nextAction.availableTransitions).toContain('cancel');
+    expect(detail.controlCenter?.nextAction.blockers).toContain('SERVICE_DEFINITION_REQUIRED');
+
+    const available = await getJson<AvailableActionsResponse>(
+      `/api/v1/service-orders/${orderId}/available-actions`,
+      token,
+    );
+    expect(available.status).toBe(200);
+    const comandos = available.body?.comandos_validos.map((entry) => entry.comando) ?? [];
+    expect(comandos).not.toContain('prepare');
+    expect(comandos).toContain('cancel');
+
+    const directPrepare = await app.inject({
+      method: 'POST',
+      url: `/api/v1/service-orders/${orderId}/prepare`,
+      headers: auth,
+      payload: { rowVersion: detail.rowVersion },
+    });
+    expect(directPrepare.statusCode).toBe(409);
+    expect(JSON.parse(directPrepare.body)).toMatchObject({
+      error: {
+        code: 'SERVICE_ORDERS_SERVICE_REQUIRED',
+      },
+    });
+  });
+
+  it('Caso 3B: DRAFT pronto publica prepare e o command e aceito', async () => {
+    const { token } = await loginAdmin();
+    const orderId = await seedServiceOrder(token);
+    const auth = { authorization: `Bearer ${token}` };
+
+    const available = await getJson<AvailableActionsResponse>(
+      `/api/v1/service-orders/${orderId}/available-actions`,
+      token,
+    );
+    expect(available.status).toBe(200);
+    expect(available.body?.comandos_validos.map((entry) => entry.comando)).toContain('prepare');
+
+    const detail = await app.inject({
+      method: 'GET',
+      url: `/api/v1/service-orders/${orderId}`,
+      headers: auth,
+    });
+    const rowVersion = (JSON.parse(detail.body) as { rowVersion: number }).rowVersion;
+
+    const prepare = await app.inject({
+      method: 'POST',
+      url: `/api/v1/service-orders/${orderId}/prepare`,
+      headers: auth,
+      payload: { rowVersion },
+    });
+    expect(prepare.statusCode).toBe(200);
+    expect((JSON.parse(prepare.body) as { status: string }).status).toBe(
+      SERVICE_ORDER_STATUSES.Prepared,
+    );
+  });
+
+  it('Caso 3C: DRAFT pronto sem permissao de prepare nao publica prepare', async () => {
+    const { token: adminToken } = await loginAdmin();
+    const orderId = await seedServiceOrder(adminToken);
+
+    const { token } = await login([
+      {
+        action: AUTHZ_ACTIONS.ServiceOrdersServiceOrderRead,
+        resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+        scopeType: AUTHZ_SCOPES.Global,
+      },
+      {
+        action: AUTHZ_ACTIONS.ServiceOrdersServiceOrderCancel,
+        resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+        scopeType: AUTHZ_SCOPES.Global,
+      },
+    ]);
+
+    const available = await getJson<AvailableActionsResponse>(
+      `/api/v1/service-orders/${orderId}/available-actions`,
+      token,
+    );
+    expect(available.status).toBe(200);
+    const comandos = available.body?.comandos_validos.map((entry) => entry.comando) ?? [];
+    expect(comandos).not.toContain('prepare');
+    expect(comandos).toContain('cancel');
   });
 
   // Caso 4

@@ -336,6 +336,11 @@ function renderObjectPage(detail: ServiceOrderDetail, options: MockOptions = {})
   return renderServiceOrderRoutes(`/app/service-orders/${SERVICE_ORDER_ID}/planning`);
 }
 
+function renderEngineDetail(detail: ServiceOrderDetail, options: MockOptions = {}) {
+  vi.stubGlobal('fetch', planningFetchMock(detail, options));
+  return renderServiceOrderRoutes(`/app/service-orders/${SERVICE_ORDER_ID}`);
+}
+
 /**
  * Referencia humana do cabecalho (chip mono) somada ao item final do breadcrumb; ambos
  * mostram o numero real da OS.
@@ -513,6 +518,37 @@ describe('ordem de serviço — object page canônica', () => {
     expect(screen.queryByRole('region', { name: 'Próxima ação' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Preparar OS' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Preparar' })).not.toBeInTheDocument();
+  });
+
+  it('OS 360 nao anuncia nem habilita prepare quando a capability do backend bloqueia a precondicao', async () => {
+    const blockedControlCenter = controlCenter({
+      status: SERVICE_ORDER_STATUSES.Draft,
+      availableTransitions: ['cancel'],
+    });
+    blockedControlCenter.nextAction = {
+      step: 'WAITING',
+      transition: null,
+      availableTransitions: ['cancel'],
+      blockers: ['SERVICE_DEFINITION_REQUIRED'],
+    };
+
+    renderEngineDetail(
+      orderDetail({
+        status: SERVICE_ORDER_STATUSES.Draft,
+        serviceDefinitionId: null,
+        serviceDefinitionVersionId: null,
+        preparedAt: null,
+        releasedAt: null,
+        controlCenter: blockedControlCenter,
+      }),
+    );
+
+    expect((await screen.findAllByText(ORDER_NUMBER)).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: 'Preparar' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancelar' })).toBeEnabled();
+    expect(screen.queryByText(/^Preparar a ordem$/i)).not.toBeInTheDocument();
+    expect(screen.getAllByText(/Aguardando pré-condições/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Defina um serviço antes de preparar a ordem/i).length).toBeGreaterThan(0);
   });
 
   it('leva a transição de ciclo de vida confirmada para o recorte REAL da lista', async () => {
