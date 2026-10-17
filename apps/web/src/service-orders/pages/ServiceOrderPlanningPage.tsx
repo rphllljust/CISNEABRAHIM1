@@ -14,6 +14,7 @@ import {
   ObjectPanel,
   ObjectStateFlow,
   SmartRelationBar,
+  type NextAction,
   type ObjectAction,
 } from '../../enterprise-object';
 import { ActivityTimeline } from '../../operator';
@@ -563,14 +564,14 @@ export function ServiceOrderPlanningPage() {
   const clientName = serviceOrderClientName(order);
   const stateFlow = buildServiceOrderStateFlow(order);
 
-  const nextAction =
+  const nextAction: NextAction | null =
     controlCenter && controlCenter.nextAction.blockers.length > 0
       ? ({
           kind: 'waiting',
           label: controlCenter.nextAction.step,
           description: controlCenter.nextAction.blockers.join(' · '),
           waitingOn: 'Operação',
-        } as const)
+        })
       : buildServiceOrderNextAction({
           serviceOrderId: order.id,
           orderNumber: order.orderNumber,
