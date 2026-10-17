@@ -264,11 +264,11 @@ describe('ServiceDefinitionForm accessibility', () => {
   it('mostra rótulo humano nos vocabulários, mantendo o código como valor', () => {
     renderForm();
 
-    const mode = screen.getByLabelText<HTMLSelectElement>('Modo de medição');
+    const mode = screen.getByLabelText<HTMLSelectElement>(/Modo de medição/i);
     expect(mode).toHaveValue('BY_PERIOD');
     expect(mode.selectedOptions[0]?.textContent).toBe('Por período');
 
-    const basis = screen.getByLabelText<HTMLSelectElement>('Base de medição');
+    const basis = screen.getByLabelText<HTMLSelectElement>(/Base de medição/i);
     expect(basis).toHaveValue('TIME');
     expect(basis.selectedOptions[0]?.textContent).toBe('Tempo');
 
