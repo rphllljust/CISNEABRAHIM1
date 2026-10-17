@@ -65,59 +65,44 @@ export class ServiceOrdersAccessAuthz {
   }
 
   /**
-   * Unidades que o ator pode selecionar PARA CRIAR uma OS.
+   * Unidades registradas que o ator pode usar no comando de criação de OS.
    *
-   * A fonte anterior vinha do endpoint de Requests e listava scope_refs globais, guardado por
-   * `requests:service-request:list`. Isso confundia "unidade registrada no sistema" com
-   * "unidade autorizada para este comando de Service Orders".
-   *
-   * Esta projeção usa exatamente a mesma autoridade de `assertCreateAction`: PDP + grants
-   * ativos de `service-orders:service-order:create`. GLOBAL e CLIENT permitem escolher entre
-   * as unidades registradas (a restrição CLIENT é revalidada quando o clientId chega no POST);
-   * UNIT expõe somente as âncoras correspondentes. Nenhum grant é criado aqui.
+   * A decisão é a MESMA do POST de criação: PDP + capability `service-order:create` + contexto
+   * da unidade. O endpoint não reaproveita a listagem de Requests e não trata scope_ref global
+   * como autorização do usuário.
    */
   async listCreateAuthorizedUnitIds(actor: IdentityAuthzContext): Promise<string[]> {
-    const decision = await this.policyDecisionPoint.decide(
-      actor,
-      {
-        action: AUTHZ_ACTIONS.ServiceOrdersServiceOrderCreate,
-        resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
-      },
-      { audit: true },
-    );
-    if (decision.result === 'DENY') {
-      throw serviceOrdersAccessDenied();
-    }
-
-    const [grants, registeredUnitIds] = await Promise.all([
+    const [directGrants, roleDerived, registeredUnitIds] = await Promise.all([
       this.authorizationRepository.findActiveGrants(
         actor.identityId,
         AUTHZ_ACTIONS.ServiceOrdersServiceOrderCreate,
         AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
       ),
+      this.authorizationRepository.findRoleDerivedActionRows(
+        actor.identityId,
+        AUTHZ_ACTIONS.ServiceOrdersServiceOrderCreate,
+      ),
       this.scopeContextRepository.listUnitScopeRefs(),
     ]);
 
-    const hasBroadCreateScope = grants.some(
-      (grant) =>
-        (grant.scope_type === AUTHZ_SCOPES.Global && grant.resource_id === null) ||
-        (grant.scope_type === AUTHZ_SCOPES.Client && Boolean(grant.resource_id)),
-    );
-    if (hasBroadCreateScope) {
-      return registeredUnitIds;
+    if (directGrants.length === 0 && roleDerived.length === 0) {
+      throw serviceOrdersAccessDenied();
+    }
+    if (registeredUnitIds.length === 0) {
+      return [];
     }
 
-    const unitGrants = new Set(
-      grants
-        .filter(
-          (grant) =>
-            grant.scope_type === AUTHZ_SCOPES.Unit &&
-            typeof grant.resource_id === 'string' &&
-            grant.resource_id.length > 0,
-        )
-        .map((grant) => grant.resource_id as string),
+    const decisions = await this.policyDecisionPoint.decideBatch(
+      actor,
+      {
+        action: AUTHZ_ACTIONS.ServiceOrdersServiceOrderCreate,
+        resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+      },
+      registeredUnitIds.map((unitId) => ({ unitId })),
+      { audit: false },
     );
-    return registeredUnitIds.filter((unitId) => unitGrants.has(unitId));
+
+    return registeredUnitIds.filter((_, index) => decisions[index]?.result === 'ALLOW');
   }
 
   async assertCreateAction(
@@ -130,31 +115,14 @@ export class ServiceOrdersAccessAuthz {
       {
         action: AUTHZ_ACTIONS.ServiceOrdersServiceOrderCreate,
         resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+        context: {
+          unitId,
+          ...(clientId ? { clientId } : {}),
+        },
       },
       { audit: true },
     );
     if (decision.result === 'DENY') {
-      throw serviceOrdersAccessDenied();
-    }
-
-    const grants = await this.authorizationRepository.findActiveGrants(
-      actor.identityId,
-      AUTHZ_ACTIONS.ServiceOrdersServiceOrderCreate,
-      AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
-    );
-    const hasAccess = grants.some((grant) => {
-      if (grant.scope_type === AUTHZ_SCOPES.Global && grant.resource_id === null) {
-        return true;
-      }
-      if (grant.scope_type === AUTHZ_SCOPES.Unit && grant.resource_id === unitId) {
-        return true;
-      }
-      if (clientId && grant.scope_type === AUTHZ_SCOPES.Client && grant.resource_id === clientId) {
-        return true;
-      }
-      return false;
-    });
-    if (!hasAccess) {
       throw serviceOrdersAccessDenied();
     }
   }
