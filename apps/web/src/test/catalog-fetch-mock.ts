@@ -69,11 +69,11 @@ function referenceLists() {
 }
 
 export function createCatalogFetchMock(options: CatalogFetchMockOptions = {}) {
-  const clientsMock = createClientsFetchMock();
   const listAllowed = options.catalogListAllowed ?? true;
   const createAllowed = options.catalogCreateAllowed ?? true;
   const updateAllowed = options.catalogUpdateAllowed ?? true;
   const publishAllowed = options.catalogPublishAllowed ?? true;
+  const clientsMock = createClientsFetchMock();
 
   const definitionId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
   let lineageVersion = 1;
@@ -146,6 +146,26 @@ export function createCatalogFetchMock(options: CatalogFetchMockOptions = {}) {
   return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const { pathname, searchParams } = parseRequestPath(input);
     const method = init?.method ?? 'GET';
+
+    if (pathname === '/api/v1/me' && method === 'GET') {
+      const response = await clientsMock(input, init);
+      const body = (await response.json()) as {
+        permissoes_efetivas?: string[];
+        [key: string]: unknown;
+      };
+      return jsonResponse({
+        ...body,
+        permissoes_efetivas: [
+          ...(body.permissoes_efetivas ?? []),
+          ...(listAllowed ? ['catalog:service:list', 'catalog:service:read'] : []),
+          ...(createAllowed ? ['catalog:service:create'] : []),
+          ...(updateAllowed ? ['catalog:service:update'] : []),
+          ...(publishAllowed ? ['catalog:service:publish'] : []),
+          'catalog:service:deactivate',
+          'catalog:service:activate',
+        ],
+      });
+    }
 
     if (pathname.startsWith('/api/v1/catalog/service-definitions')) {
       const auth = init?.headers ? new Headers(init.headers).get('authorization') : null;
