@@ -78,6 +78,18 @@ function parsePositiveInt(value: unknown, field: string): number {
   return parsed;
 }
 
+function parseNonNegativeInt(value: unknown, field: string): number {
+  const parsed = typeof value === 'number' ? value : Number.parseInt(String(value), 10);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new CatalogHttpException(
+      HttpStatus.BAD_REQUEST,
+      CATALOG_ERROR_CODES.VALIDATION_FAILED,
+      `Invalid ${field}.`,
+    );
+  }
+  return parsed;
+}
+
 function parseAllowedUnits(body: Record<string, unknown>): AllowedUnitInput[] {
   const raw = body['allowedUnits'];
   if (!Array.isArray(raw)) {
@@ -100,7 +112,7 @@ function parseAllowedUnits(body: Record<string, unknown>): AllowedUnitInput[] {
       unitCode: parseRequiredString(record, 'unitCode'),
       isDefault: record['isDefault'] === true,
       sortOrder:
-        record['sortOrder'] === undefined ? undefined : parsePositiveInt(record['sortOrder'], 'sortOrder'),
+        record['sortOrder'] === undefined ? undefined : parseNonNegativeInt(record['sortOrder'], 'sortOrder'),
     };
   });
 }
@@ -144,7 +156,7 @@ function parseResourceRequirements(
           ? undefined
           : parsePositiveInt(record['minQuantity'], 'minQuantity'),
       sortOrder:
-        record['sortOrder'] === undefined ? undefined : parsePositiveInt(record['sortOrder'], 'sortOrder'),
+        record['sortOrder'] === undefined ? undefined : parseNonNegativeInt(record['sortOrder'], 'sortOrder'),
     };
   });
 }
@@ -188,7 +200,7 @@ function parseLaborRequirements(
           ? undefined
           : parsePositiveInt(record['minQuantity'], 'minQuantity'),
       sortOrder:
-        record['sortOrder'] === undefined ? undefined : parsePositiveInt(record['sortOrder'], 'sortOrder'),
+        record['sortOrder'] === undefined ? undefined : parseNonNegativeInt(record['sortOrder'], 'sortOrder'),
     };
   });
 }
@@ -233,7 +245,7 @@ function parseExecutionRequirements(
           ? undefined
           : (config as ExecutionRequirementInput['config']),
       sortOrder:
-        record['sortOrder'] === undefined ? undefined : parsePositiveInt(record['sortOrder'], 'sortOrder'),
+        record['sortOrder'] === undefined ? undefined : parseNonNegativeInt(record['sortOrder'], 'sortOrder'),
     };
   });
 }
@@ -317,7 +329,7 @@ function parsePricingModels(body: Record<string, unknown>, required = false): Pr
             : parseRequiredString(record, 'internalCost'),
       currencyCode: parseOptionalString(record, 'currencyCode'),
       sortOrder:
-        record['sortOrder'] === undefined ? undefined : parsePositiveInt(record['sortOrder'], 'sortOrder'),
+        record['sortOrder'] === undefined ? undefined : parseNonNegativeInt(record['sortOrder'], 'sortOrder'),
     };
   });
 }
@@ -539,15 +551,20 @@ export function parseDeactivateServiceDefinitionInput(
   };
 }
 
+export const CATALOG_VERSION_FILTERS = ['HAS_DRAFT', 'HAS_PUBLISHED', 'NO_PUBLISHED'] as const;
+export type CatalogVersionFilter = (typeof CATALOG_VERSION_FILTERS)[number];
+
 export function parseListServiceDefinitionsQuery(query: Record<string, unknown>): {
   limit: number;
   offset: number;
   status?: LineageStatus;
+  version?: CatalogVersionFilter;
   search?: string;
 } {
   const limitRaw = query['limit'];
   const offsetRaw = query['offset'];
   const statusRaw = query['status'];
+  const versionRaw = query['version'];
   const searchRaw = query['q'];
 
   let limit = 20;
@@ -588,7 +605,22 @@ export function parseListServiceDefinitionsQuery(query: Record<string, unknown>)
     status = statusRaw;
   }
 
-  return { limit, offset, status, search: parseCatalogSearchQuery(searchRaw) };
+  let version: CatalogVersionFilter | undefined;
+  if (versionRaw !== undefined) {
+    if (
+      typeof versionRaw !== 'string' ||
+      !(CATALOG_VERSION_FILTERS as readonly string[]).includes(versionRaw)
+    ) {
+      throw new CatalogHttpException(
+        HttpStatus.BAD_REQUEST,
+        CATALOG_ERROR_CODES.VALIDATION_FAILED,
+        'Invalid query parameters.',
+      );
+    }
+    version = versionRaw as CatalogVersionFilter;
+  }
+
+  return { limit, offset, status, version, search: parseCatalogSearchQuery(searchRaw) };
 }
 
 /**
