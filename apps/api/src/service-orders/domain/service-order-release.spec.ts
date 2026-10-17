@@ -4,6 +4,7 @@ import { SERVICE_ORDER_STATUSES } from './service-order';
 import {
   assertServiceOrderPreparePreconditions,
   assertServiceOrderReleasePreconditions,
+  serviceOrderPreparePreconditionCode,
   ServiceOrderReleaseError,
 } from './service-order-release';
 
@@ -64,14 +65,46 @@ describe('service-order-release', () => {
     ).not.toThrow();
   });
 
-  it('requires service before prepare', () => {
+  it('requires service before prepare and exposes the same readiness decision', () => {
+    const order = {
+      ...baseOrder,
+      status: SERVICE_ORDER_STATUSES.Draft,
+      service_definition_id: null,
+      service_definition_version_id: null,
+    };
+    expect(
+      serviceOrderPreparePreconditionCode({
+        status: order.status,
+        serviceDefinitionId: order.service_definition_id,
+        serviceDefinitionVersionId: order.service_definition_version_id,
+      }),
+    ).toBe('SERVICE_REQUIRED');
+    expect(() => assertServiceOrderPreparePreconditions(order)).toThrow(ServiceOrderReleaseError);
+  });
+
+  it('declares a complete draft ready for prepare', () => {
+    expect(
+      serviceOrderPreparePreconditionCode({
+        status: SERVICE_ORDER_STATUSES.Draft,
+        serviceDefinitionId: baseOrder.service_definition_id,
+        serviceDefinitionVersionId: baseOrder.service_definition_version_id,
+      }),
+    ).toBeNull();
     expect(() =>
       assertServiceOrderPreparePreconditions({
         ...baseOrder,
         status: SERVICE_ORDER_STATUSES.Draft,
-        service_definition_id: null,
-        service_definition_version_id: null,
       }),
-    ).toThrow(ServiceOrderReleaseError);
+    ).not.toThrow();
+  });
+
+  it('declares an incompatible state unavailable for prepare', () => {
+    expect(
+      serviceOrderPreparePreconditionCode({
+        status: SERVICE_ORDER_STATUSES.Prepared,
+        serviceDefinitionId: baseOrder.service_definition_id,
+        serviceDefinitionVersionId: baseOrder.service_definition_version_id,
+      }),
+    ).toBe('INVALID_STATE');
   });
 });

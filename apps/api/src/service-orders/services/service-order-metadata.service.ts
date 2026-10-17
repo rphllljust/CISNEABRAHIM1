@@ -152,23 +152,27 @@ export class ServiceOrderMetadataService {
   getAvailableActions(
     serviceOrderId: string,
     status: ServiceOrderStatus,
-    permissions: ReadonlySet<string>,
+    availableTransitions: readonly ServiceOrderTransition[],
   ): AvailableActionsResponse {
+    const available = new Set(availableTransitions);
     const validos: AvailableAction[] = [];
     const invalidos: string[] = [];
 
     for (const comando of COMMAND_NAMES) {
-      if (canTransition(status, comando)) {
-        const requerPermissao = COMMAND_PERMISSIONS[comando];
-        validos.push({
-          comando,
-          label: COMMAND_LABELS[comando],
-          requer_permissao: requerPermissao,
-          usuario_tem_permissao: permissions.has(requerPermissao),
-        });
+      if (!canTransition(status, comando)) {
+        invalidos.push(comando);
         continue;
       }
-      invalidos.push(comando);
+      if (!available.has(comando)) {
+        continue;
+      }
+
+      validos.push({
+        comando,
+        label: COMMAND_LABELS[comando],
+        requer_permissao: COMMAND_PERMISSIONS[comando],
+        usuario_tem_permissao: true,
+      });
     }
 
     return {
