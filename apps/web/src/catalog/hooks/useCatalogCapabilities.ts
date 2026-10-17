@@ -1,10 +1,7 @@
-import { useEffect, useState } from 'react';
-import {
-  CatalogApiError,
-  probeCatalogCapabilities,
-  type CatalogCapabilities,
-} from '../api/service-catalog-api';
+import { useMemo } from 'react';
+import type { CatalogCapabilities } from '../api/service-catalog-api';
 import { useAuth } from '../../auth/context/AuthProvider';
+import { useSessionMeta } from '../../service-orders/context/SessionMetaProvider';
 
 const EMPTY_CAPABILITIES: CatalogCapabilities = {
   canList: false,
@@ -17,52 +14,30 @@ const EMPTY_CAPABILITIES: CatalogCapabilities = {
 };
 
 export function useCatalogCapabilities() {
-  const { status } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [capabilities, setCapabilities] = useState<CatalogCapabilities>(EMPTY_CAPABILITIES);
-  const [error, setError] = useState(false);
+  const { status: authStatus } = useAuth();
+  const sessionMeta = useSessionMeta();
 
-  useEffect(() => {
-    if (status === 'loading') {
-      setLoading(true);
-      return;
+  const capabilities = useMemo<CatalogCapabilities>(() => {
+    if (authStatus !== 'authenticated' || sessionMeta.status !== 'ready') {
+      return EMPTY_CAPABILITIES;
     }
-
-    if (status !== 'authenticated') {
-      setLoading(false);
-      setCapabilities(EMPTY_CAPABILITIES);
-      return;
-    }
-
-    const controller = new AbortController();
-    let cancelled = false;
-
-    void probeCatalogCapabilities(controller.signal)
-      .then((result) => {
-        if (!cancelled) {
-          setCapabilities(result);
-          setError(false);
-          setLoading(false);
-        }
-      })
-      .catch((probeError: unknown) => {
-        if (cancelled) {
-          return;
-        }
-        if (probeError instanceof CatalogApiError && probeError.kind === 'denied') {
-          setCapabilities(EMPTY_CAPABILITIES);
-          setError(false);
-        } else {
-          setError(true);
-        }
-        setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-      controller.abort();
+    return {
+      canList: sessionMeta.can('catalog:service:list'),
+      canCreate: sessionMeta.can('catalog:service:create'),
+      canRead: sessionMeta.can('catalog:service:read'),
+      canUpdate: sessionMeta.can('catalog:service:update'),
+      canPublish: sessionMeta.can('catalog:service:publish'),
+      canDeactivate: sessionMeta.can('catalog:service:deactivate'),
+      canActivate: sessionMeta.can('catalog:service:activate'),
     };
-  }, [status]);
+  }, [authStatus, sessionMeta]);
 
-  return { loading, capabilities, error };
+  return {
+    loading:
+      authStatus === 'loading' ||
+      (authStatus === 'authenticated' &&
+        (sessionMeta.status === 'idle' || sessionMeta.status === 'loading')),
+    capabilities,
+    error: authStatus === 'authenticated' && sessionMeta.status === 'error',
+  };
 }

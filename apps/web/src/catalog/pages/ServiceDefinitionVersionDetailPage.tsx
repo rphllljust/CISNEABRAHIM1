@@ -1,9 +1,10 @@
 import { Link, useParams } from 'react-router-dom';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
   CatalogApiError,
   getServiceDefinition,
   getServiceDefinitionVersion,
+  publishServiceDefinitionVersion,
 } from '../api/service-catalog-api';
 import { mapCatalogErrorToMessage } from '../api/catalog-error-messages';
 import {
@@ -21,9 +22,23 @@ import {
   VERSION_STATUS_LABELS,
   VersionStatusBadge,
 } from '../components/VersionStatusBadge';
-import { ARCHETYPE_LABELS } from '../constants/catalog-vocabulary';
+import {
+  ARCHETYPE_LABELS,
+  BILLING_ENTITLEMENT_POLICY_LABELS,
+  EXECUTION_CONDITION_TYPE_LABELS,
+  EXECUTION_REQUIREMENT_TYPE_LABELS,
+  MEASUREMENT_BASIS_LABELS,
+  MEASUREMENT_MODE_LABELS,
+  PRICING_MODEL_LABELS,
+  REQUIREMENT_LEVEL_LABELS,
+  vocabularyLabel,
+} from '../constants/catalog-vocabulary';
 import { VERSION_STATUSES, type ServiceDefinitionVersion } from '../types/service-catalog.types';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
+import { Money } from '../../ui';
+import { ConfirmDialog } from '../../clients/components/ConfirmDialog';
+import { VersionConflictNotice } from '../components/VersionConflictNotice';
+import { useCatalogCapabilities } from '../hooks/useCatalogCapabilities';
 
 type VersionDetailState =
   | { phase: 'loading' }
@@ -44,10 +59,48 @@ function formatDateTime(value: string | null): string {
   return new Date(value).toLocaleString('pt-BR');
 }
 
+function formatCategory(version: ServiceDefinitionVersion): string {
+  if (version.categoryName && version.categoryCode) {
+    return `${version.categoryName} (${version.categoryCode})`;
+  }
+  return version.categoryName ?? version.categoryCode ?? version.categoryId;
+}
+
+function formatEvidenceCondition(
+  requirement: ServiceDefinitionVersion['executionRequirements'][number],
+): string | null {
+  const conditional = requirement.config?.conditional;
+  if (!conditional) {
+    return null;
+  }
+  const label = vocabularyLabel(
+    EXECUTION_CONDITION_TYPE_LABELS,
+    conditional.conditionType,
+  );
+  if (conditional.measurementBasis) {
+    return `${label} ${vocabularyLabel(MEASUREMENT_BASIS_LABELS, conditional.measurementBasis)}`;
+  }
+  if (conditional.archetype) {
+    return `${label} ${ARCHETYPE_LABELS[conditional.archetype] ?? conditional.archetype}`;
+  }
+  if (conditional.resourceTypeCode) {
+    return `${label} ${conditional.resourceTypeCode}`;
+  }
+  if (conditional.laborTypeCode) {
+    return `${label} ${conditional.laborTypeCode}`;
+  }
+  return label;
+}
+
 export function ServiceDefinitionVersionDetailPage() {
   const { definitionId = '', versionNumber = '' } = useParams();
   const parsedVersion = Number(versionNumber);
+  const { capabilities } = useCatalogCapabilities();
   const [state, setState] = useState<VersionDetailState>({ phase: 'loading' });
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
+  const [versionConflict, setVersionConflict] = useState(false);
 
   const reload = useCallback(async () => {
     setState({ phase: 'loading' });
@@ -86,6 +139,34 @@ export function ServiceDefinitionVersionDetailPage() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  async function handlePublish(): Promise<void> {
+    if (state.phase !== 'ready' || state.version.status !== VERSION_STATUSES.Draft) {
+      return;
+    }
+
+    setPublishing(true);
+    setPublishError(null);
+    setVersionConflict(false);
+    try {
+      await publishServiceDefinitionVersion(definitionId, state.version.version, {
+        lineageVersion: state.lineageVersion,
+      });
+      setPublishOpen(false);
+      await reload();
+    } catch (error) {
+      if (error instanceof CatalogApiError && error.kind === 'version_conflict') {
+        setVersionConflict(true);
+      }
+      setPublishError(
+        error instanceof CatalogApiError
+          ? mapCatalogErrorToMessage(error.code, error.status)
+          : 'Não foi possível publicar a versão.',
+      );
+    } finally {
+      setPublishing(false);
+    }
+  }
 
   if (state.phase === 'loading') {
     return (
@@ -143,6 +224,7 @@ export function ServiceDefinitionVersionDetailPage() {
 
   const { version } = state;
   const isPublished = version.status === VERSION_STATUSES.Published;
+  const canPublish = version.status === VERSION_STATUSES.Draft && capabilities.canPublish;
 
   return (
     <ModulePage>
@@ -168,6 +250,17 @@ export function ServiceDefinitionVersionDetailPage() {
             */
             title={`${version.code} — v${version.version}`}
             status={{ label: VERSION_STATUS_LABELS[version.status] }}
+            primaryAction={
+              canPublish
+                ? {
+                    id: 'publish',
+                    label: 'Publicar',
+                    onSelect: () => setPublishOpen(true),
+                    disabled: publishing,
+                    loading: publishing,
+                  }
+                : null
+            }
             secondaryActions={[
               ...(!isPublished && version.status === VERSION_STATUSES.Draft
                 ? [
@@ -192,6 +285,13 @@ export function ServiceDefinitionVersionDetailPage() {
         }
       >
 
+      {versionConflict ? <VersionConflictNotice onReload={() => void reload()} /> : null}
+      {publishError ? (
+        <p className="form-error" role="alert">
+          {publishError}
+        </p>
+      ) : null}
+
       {isPublished ? (
         <p
           className="m-0 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
@@ -206,9 +306,24 @@ export function ServiceDefinitionVersionDetailPage() {
           items={[
             { label: 'Nome', value: version.name },
             { label: 'Status', value: <VersionStatusBadge status={version.status} /> },
+            { label: 'Categoria', value: formatCategory(version) },
             { label: 'Publicada em', value: formatDateTime(version.publishedAt) },
             { label: 'Arquétipo', value: ARCHETYPE_LABELS[version.archetype] ?? version.archetype },
-            { label: 'Medição', value: `${version.measurementMode} / ${version.measurementBasis}` },
+            {
+              label: 'Medição',
+              value: `${vocabularyLabel(MEASUREMENT_MODE_LABELS, version.measurementMode)} / ${vocabularyLabel(MEASUREMENT_BASIS_LABELS, version.measurementBasis)}`,
+            },
+            {
+              label: 'Política de faturamento',
+              value: vocabularyLabel(
+                BILLING_ENTITLEMENT_POLICY_LABELS,
+                version.billingEntitlementPolicy,
+              ),
+            },
+            { label: 'Exige Purchase Order', value: version.requiresPurchaseOrder ? 'Sim' : 'Não' },
+            { label: 'Unidade padrão', value: version.defaultUnitCode ?? '—' },
+            { label: 'Rascunho atual da definição', value: state.currentDraftVersion ?? 'Nenhum' },
+            { label: 'Versão de concorrência da definição', value: state.lineageVersion },
             { label: 'Descrição', value: version.description ?? '—' },
           ]}
         />
@@ -223,31 +338,43 @@ export function ServiceDefinitionVersionDetailPage() {
           />
           <VersionList
             title="Modelos de preço"
-            items={version.pricingModels.map((model) =>
-              [
-                model.modelCode,
-                model.unitCode ? `/ ${model.unitCode}` : null,
-                model.salePrice ? `— venda ${model.salePrice}` : null,
-              ]
-                .filter(Boolean)
-                .join(' '),
-            )}
+            items={version.pricingModels.map((model) => (
+              <span key={`${model.modelCode}-${model.sortOrder}`}>
+                {vocabularyLabel(PRICING_MODEL_LABELS, model.modelCode)}
+                {model.unitCode ? ` · ${model.unitCode}` : ''}
+                {' · venda '}
+                <Money value={model.salePrice} currencyCode={model.currencyCode} />
+                {' · custo interno '}
+                <Money value={model.internalCost} currencyCode={model.currencyCode} />
+              </span>
+            ))}
           />
           <VersionList
             title="Requisitos de recurso"
             items={version.resourceRequirements.map(
-              (item) => `${item.resourceTypeCode} (${item.requirementLevel})`,
+              (item) =>
+                `${item.resourceTypeCode} · ${vocabularyLabel(REQUIREMENT_LEVEL_LABELS, item.requirementLevel)} · quantidade mínima ${item.minQuantity}`,
             )}
           />
           <VersionList
             title="Requisitos de mão de obra"
-            items={version.laborRequirements.map((item) => `${item.laborTypeCode} (${item.requirementLevel})`)}
+            items={version.laborRequirements.map(
+              (item) =>
+                `${item.laborTypeCode} · ${vocabularyLabel(REQUIREMENT_LEVEL_LABELS, item.requirementLevel)} · quantidade mínima ${item.minQuantity}`,
+            )}
           />
           <VersionList
             title="Requisitos de evidência"
-            items={version.executionRequirements.map(
-              (item) => `${item.requirementType} (${item.requirementLevel})`,
-            )}
+            items={version.executionRequirements.map((item) => {
+              const condition = formatEvidenceCondition(item);
+              return [
+                vocabularyLabel(EXECUTION_REQUIREMENT_TYPE_LABELS, item.requirementType),
+                vocabularyLabel(REQUIREMENT_LEVEL_LABELS, item.requirementLevel),
+                condition,
+              ]
+                .filter(Boolean)
+                .join(' · ');
+            })}
           />
         </div>
       </section>
@@ -255,12 +382,26 @@ export function ServiceDefinitionVersionDetailPage() {
       <p>
         <Link to={`/app/catalog/${definitionId}`}>Voltar à definição</Link>
       </p>
+
+      <ConfirmDialog
+        open={publishOpen}
+        title={`Publicar versão v${version.version}`}
+        description="A publicação é validada pelo backend. Versões publicadas tornam-se imutáveis."
+        confirmLabel={publishing ? 'Publicando…' : 'Confirmar publicação'}
+        confirmDisabled={publishing}
+        onCancel={() => {
+          if (!publishing) {
+            setPublishOpen(false);
+          }
+        }}
+        onConfirm={() => void handlePublish()}
+      />
       </EnterpriseObjectPage>
     </ModulePage>
   );
 }
 
-function VersionList({ title, items }: { title: string; items: string[] }) {
+function VersionList({ title, items }: { title: string; items: ReactNode[] }) {
   return (
     <section className="min-w-0 rounded-md border border-slate-200 bg-slate-50/60 p-3">
       <h3 className="mt-0 mb-2 text-sm font-semibold text-gray-900">{title}</h3>
@@ -269,7 +410,7 @@ function VersionList({ title, items }: { title: string; items: string[] }) {
       ) : (
         <ul className="m-0 list-disc space-y-1 pl-5 text-sm text-gray-700">
           {items.map((item, index) => (
-            <li key={`${item}-${index}`}>{item}</li>
+            <li key={index}>{item}</li>
           ))}
         </ul>
       )}

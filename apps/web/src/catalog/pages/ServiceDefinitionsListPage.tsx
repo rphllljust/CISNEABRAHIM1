@@ -171,6 +171,7 @@ export function ServiceDefinitionsListPage() {
             limit: PAGE_SIZE,
             offset,
             status: statusFilter || undefined,
+            version: versionFilter || undefined,
             search: debouncedSearch || undefined,
           },
           signal,
@@ -201,7 +202,7 @@ export function ServiceDefinitionsListPage() {
         });
       }
     },
-    [statusFilter, debouncedSearch],
+    [statusFilter, versionFilter, debouncedSearch],
   );
 
   useEffect(() => {
@@ -337,24 +338,6 @@ export function ServiceDefinitionsListPage() {
     [commandReason, detailState],
   );
 
-  const filteredItems = useMemo(() => {
-    if (listState.phase !== 'ready') {
-      return [];
-    }
-    return listState.items.filter((item) => {
-      if (versionFilter === 'HAS_DRAFT' && item.currentDraftVersion === null) {
-        return false;
-      }
-      if (versionFilter === 'HAS_PUBLISHED' && item.latestPublishedVersion === null) {
-        return false;
-      }
-      if (versionFilter === 'NO_PUBLISHED' && item.latestPublishedVersion !== null) {
-        return false;
-      }
-      return true;
-    });
-  }, [listState, versionFilter]);
-
   if (listState.phase === 'loading') {
     return (
       <ModuleStatePage title="Catálogo de serviços">
@@ -483,7 +466,7 @@ export function ServiceDefinitionsListPage() {
       <WorklistFilterBar
         meta={
           <>
-            {filteredItems.length} de {listState.items.length} nesta página
+            {listState.items.length} de {listState.items.length} nesta página
             {versionFilter ? ' · recorte de versão vale só nesta página' : ''}
           </>
         }
@@ -536,24 +519,20 @@ export function ServiceDefinitionsListPage() {
 
       <div data-region="worklist-master">
       {/*
-        RECORTE DE VERSAO E LOCAL, NAO DO SERVIDOR.
-        O contrato de `/catalog/service-definitions` publica apenas `status` e `q`
-        (ver `ListServiceDefinitionsParams`). Nao existe filtro de versao publicado, e
-        recortar no navegador uma lista paginada no servidor mentiria: um servico com
-        rascunho na proxima pagina apareceria como inexistente.
-        A tela declara o escopo em vez de esconder a limitacao — PARK registrado:
-        filtro de versao no servidor.
+        RECORTE DE VERSAO NO SERVIDOR.
+        O filtro viaja junto de status, busca, limit e offset; portanto a pagina recebida ja pertence
+        ao dataset filtrado. Nenhuma definicao da pagina seguinte e escondida por filtro local.
       */}
-      {filteredItems.length === 0 ? (
+      {listState.items.length === 0 ? (
         <WorklistStatePanel
           title={
             versionFilter
-              ? 'Nenhuma definição nesta página corresponde ao recorte de versão.'
+              ? 'Nenhuma definição corresponde ao recorte de versão.'
               : 'Nenhuma definição encontrada para os filtros selecionados.'
           }
           description={
             versionFilter
-              ? 'O recorte de versão ainda não é resolvido pelo servidor — avance a página ou limpe o filtro.'
+              ? 'O servidor não encontrou definições para este status de versão e os demais filtros.'
               : 'Ajuste a busca ou o status, ou limpe os filtros para ver o portfólio completo.'
           }
           action={
@@ -590,7 +569,7 @@ export function ServiceDefinitionsListPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredItems.map((definition) => (
+              {listState.items.map((definition) => (
                 <tr
                   key={definition.id}
                   className={worklistRowClass}
@@ -668,8 +647,8 @@ export function ServiceDefinitionsListPage() {
         <WorklistFooter
           rangeLabel={`${offset + 1}–${offset + listState.items.length} nesta página`}
           extra={
-            filteredItems.length !== listState.items.length
-              ? `${filteredItems.length} após o recorte de versão`
+            listState.items.length !== listState.items.length
+              ? `${listState.items.length} após o recorte de versão`
               : undefined
           }
         >

@@ -19,25 +19,17 @@ import {
 import type { PolicyOption, UnitOfMeasureOption } from '../api/catalog-reference-api';
 import {
   ARCHETYPE_LABELS,
-  BILLING_ENTITLEMENT_POLICIES,
   BILLING_ENTITLEMENT_POLICY_LABELS,
-  EXECUTION_CONDITION_TYPES,
   EXECUTION_CONDITION_TYPE_LABELS,
-  EXECUTION_REQUIREMENT_TYPES,
   EXECUTION_REQUIREMENT_TYPE_LABELS,
-  MEASUREMENT_BASES,
   MEASUREMENT_BASIS_LABELS,
-  MEASUREMENT_MODES,
   MEASUREMENT_MODE_LABELS,
-  OPERATIONAL_ARCHETYPES,
-  PRICING_MODEL_CODES,
   PRICING_MODEL_LABELS,
   REQUIREMENT_LEVEL_LABELS,
   vocabularyLabel,
 } from '../constants/catalog-vocabulary';
 import type { CatalogReferenceData } from '../hooks/useCatalogReferenceData';
 import type { RequirementLevel } from '../types/service-catalog.types';
-import { REQUIREMENT_LEVELS as DOMAIN_REQUIREMENT_LEVELS } from '../types/service-catalog.types';
 import {
   validateServiceDefinitionForm,
   type ServiceDefinitionFormErrors,
@@ -61,14 +53,6 @@ import {
  * validacao, o payload e montado pelas mesmas funcoes e cada capacidade de escrita continua
  * decidindo quem edita o que (inclusive o CUSTO INTERNO, dado sensivel).
  */
-
-const REQUIREMENT_LEVEL_OPTIONS: RequirementLevel[] = [...DOMAIN_REQUIREMENT_LEVELS];
-
-function parseRequirementLevel(value: string): RequirementLevel {
-  return REQUIREMENT_LEVEL_OPTIONS.includes(value as RequirementLevel)
-    ? (value as RequirementLevel)
-    : 'OPTIONAL';
-}
 
 function replaceAt<T>(items: T[], index: number, next: T): T[] {
   const copy = [...items];
@@ -131,12 +115,22 @@ function pricingUnitHint(
   return undefined;
 }
 
-const BLOCKER_LABELS: Partial<Record<keyof ServiceDefinitionFormState, string>> = {
+const BLOCKER_LABELS: Record<keyof ServiceDefinitionFormState, string> = {
   code: 'código',
   name: 'nome',
+  description: 'descrição',
   categoryId: 'categoria',
-  allowedUnits: 'unidade permitida',
-  pricingModels: 'modelo de preço',
+  archetype: 'arquétipo operacional',
+  measurementMode: 'modo de medição',
+  measurementBasis: 'base de medição',
+  billingEntitlementPolicy: 'política de faturamento',
+  requiresPurchaseOrder: 'exigência de Purchase Order',
+  defaultUnitCode: 'unidade padrão',
+  allowedUnits: 'unidades permitidas',
+  pricingModels: 'modelos de preço',
+  resourceRequirements: 'recursos físicos',
+  laborRequirements: 'mão de obra',
+  executionRequirements: 'evidências',
 };
 
 /**
@@ -197,8 +191,25 @@ export function ServiceDefinitionForm({
   const resourceTypes = referenceData.resourceTypes;
   const laborTypes = referenceData.laborTypes;
   const pricingPolicies = referenceData.pricingModels;
-  const pricingModelCodes =
-    pricingPolicies.length > 0 ? pricingPolicies.map((policy) => policy.code) : [...PRICING_MODEL_CODES];
+  const vocabulary = referenceData.vocabulary;
+  const archetypes = vocabulary.archetypes;
+  const billingPolicies = vocabulary.billingEntitlementPolicies;
+  const requirementLevels = vocabulary.requirementLevels;
+  const evidenceTypes = vocabulary.executionRequirementTypes;
+  const conditionTypes = vocabulary.executionConditionTypes;
+  const measurementBases = referenceData.measurementModels
+    .map((policy) => policy.basis)
+    .filter((basis): basis is string => Boolean(basis));
+  const selectedMeasurementPolicy = referenceData.measurementModels.find(
+    (policy) => policy.basis === state.measurementBasis,
+  );
+  const measurementModes =
+    selectedMeasurementPolicy?.compatibleMeasurementModes ?? vocabulary.measurementModes;
+  const pricingModelCodes = pricingPolicies
+    .map((policy) => policy.code)
+    .filter((code): code is string => Boolean(code));
+  const defaultRequirementLevel: RequirementLevel | undefined =
+    requirementLevels.includes('OPTIONAL') ? 'OPTIONAL' : requirementLevels[0];
 
   // A validacao continua vindo de `catalog-form-state.ts`; o builder decide apenas QUANDO
   // mostrar o erro (campo ja tocado) para nao gritar em um formulario intocado.
@@ -239,22 +250,30 @@ export function ServiceDefinitionForm({
   );
 
   function addUnit(): void {
+    const option = units.find(
+      (unit) => !state.allowedUnits.some((entry) => entry.unitCode === unit.code),
+    );
+    if (!option) return;
     update('allowedUnits', [
       ...state.allowedUnits,
       {
-        unitCode: units[0]?.code ?? 'UN',
-        isDefault: state.allowedUnits.length === 0,
+        unitCode: option.code,
+        isDefault: false,
         sortOrder: state.allowedUnits.length,
       },
     ]);
   }
 
   function addPricingModel(): void {
+    const policy = pricingPolicies.find(
+      (entry) => entry.code && !state.pricingModels.some((model) => model.modelCode === entry.code),
+    );
+    if (!policy?.code) return;
     update('pricingModels', [
       ...state.pricingModels,
       {
-        modelCode: 'DAILY',
-        unitCode: null,
+        modelCode: policy.code,
+        unitCode: policy.requiredUnitCode ?? policy.impliedUnitCode ?? null,
         salePrice: null,
         internalCost: null,
         currencyCode: 'BRL',
@@ -264,11 +283,15 @@ export function ServiceDefinitionForm({
   }
 
   function addResourceRequirement(): void {
+    const option = resourceTypes.find(
+      (type) => !state.resourceRequirements.some((entry) => entry.resourceTypeCode === type.code),
+    );
+    if (!option || !defaultRequirementLevel) return;
     update('resourceRequirements', [
       ...state.resourceRequirements,
       {
-        resourceTypeCode: resourceTypes[0]?.code ?? 'OTHER',
-        requirementLevel: 'OPTIONAL',
+        resourceTypeCode: option.code,
+        requirementLevel: defaultRequirementLevel,
         minQuantity: 1,
         sortOrder: state.resourceRequirements.length,
       },
@@ -276,11 +299,15 @@ export function ServiceDefinitionForm({
   }
 
   function addLaborRequirement(): void {
+    const option = laborTypes.find(
+      (type) => !state.laborRequirements.some((entry) => entry.laborTypeCode === type.code),
+    );
+    if (!option || !defaultRequirementLevel) return;
     update('laborRequirements', [
       ...state.laborRequirements,
       {
-        laborTypeCode: laborTypes[0]?.code ?? 'DRIVER',
-        requirementLevel: 'OPTIONAL',
+        laborTypeCode: option.code,
+        requirementLevel: defaultRequirementLevel,
         minQuantity: 1,
         sortOrder: state.laborRequirements.length,
       },
@@ -288,20 +315,67 @@ export function ServiceDefinitionForm({
   }
 
   function addExecutionRequirement(): void {
+    const requirementType = evidenceTypes.find(
+      (type) => !state.executionRequirements.some((entry) => entry.requirementType === type),
+    );
+    if (!requirementType || !defaultRequirementLevel) return;
     update('executionRequirements', [
       ...state.executionRequirements,
       {
-        requirementType: 'PHOTO',
-        requirementLevel: 'OPTIONAL',
+        requirementType,
+        requirementLevel: defaultRequirementLevel,
         config: null,
         sortOrder: state.executionRequirements.length,
       },
     ]);
   }
 
+  function setDefaultUnit(unitCode: string): void {
+    onChange({
+      ...state,
+      defaultUnitCode: unitCode,
+      allowedUnits: state.allowedUnits.map((unit) => ({
+        ...unit,
+        isDefault: unitCode !== '' && unit.unitCode === unitCode,
+      })),
+    });
+    setTouched((previous) => ({ ...previous, defaultUnitCode: true, allowedUnits: true }));
+  }
+
+  function buildConditionalConfig(conditionType: string) {
+    if (conditionType === 'WHEN_MEASUREMENT_BASIS_IS') {
+      const measurementBasis = measurementBases[0];
+      return measurementBasis
+        ? { schemaVersion: 1 as const, conditional: { conditionType, measurementBasis } }
+        : { schemaVersion: 1 as const, conditional: { conditionType } };
+    }
+    if (conditionType === 'WHEN_ARCHETYPE_IS') {
+      const archetype = archetypes[0];
+      return archetype
+        ? { schemaVersion: 1 as const, conditional: { conditionType, archetype } }
+        : { schemaVersion: 1 as const, conditional: { conditionType } };
+    }
+    if (conditionType === 'WHEN_RESOURCE_TYPE_IS') {
+      const resourceTypeCode = resourceTypes[0]?.code;
+      return resourceTypeCode
+        ? { schemaVersion: 1 as const, conditional: { conditionType, resourceTypeCode } }
+        : { schemaVersion: 1 as const, conditional: { conditionType } };
+    }
+    if (conditionType === 'WHEN_LABOR_TYPE_IS') {
+      const laborTypeCode = laborTypes[0]?.code;
+      return laborTypeCode
+        ? { schemaVersion: 1 as const, conditional: { conditionType, laborTypeCode } }
+        : { schemaVersion: 1 as const, conditional: { conditionType } };
+    }
+    return null;
+  }
+
   const categoryError = errorFor('categoryId');
   const allowedUnitsError = errorFor('allowedUnits');
   const pricingModelsError = errorFor('pricingModels');
+  const resourceRequirementsError = errorFor('resourceRequirements');
+  const laborRequirementsError = errorFor('laborRequirements');
+  const executionRequirementsError = errorFor('executionRequirements');
 
   return (
     <form id={formId} className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_20rem]" noValidate>
@@ -370,14 +444,16 @@ export function ServiceDefinitionForm({
             {categoryError ? <FieldError>{categoryError}</FieldError> : null}
           </div>
 
-          <Field label="Arquétipo operacional" htmlFor={archetypeId}>
+          <Field label="Arquétipo operacional" htmlFor={archetypeId} required error={errorFor('archetype')}>
             <Select
               id={archetypeId}
               value={state.archetype}
               onChange={(event) => update('archetype', event.target.value)}
               disabled={readOnly}
+              invalid={Boolean(errorFor('archetype'))}
             >
-              {OPERATIONAL_ARCHETYPES.map((archetype) => (
+              <option value="">Selecione…</option>
+              {archetypes.map((archetype) => (
                 <option key={archetype} value={archetype}>
                   {ARCHETYPE_LABELS[archetype] ?? archetype}
                 </option>
@@ -404,14 +480,16 @@ export function ServiceDefinitionForm({
         description="Como o serviço é medido e quando pode ser faturado."
       >
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <Field label="Modo de medição" htmlFor={measurementModeId}>
+          <Field label="Modo de medição" htmlFor={measurementModeId} required error={errorFor('measurementMode')}>
             <Select
               id={measurementModeId}
               value={state.measurementMode}
               onChange={(event) => update('measurementMode', event.target.value)}
               disabled={readOnly}
+              invalid={Boolean(errorFor('measurementMode'))}
             >
-              {MEASUREMENT_MODES.map((mode) => (
+              <option value="">Selecione…</option>
+              {measurementModes.map((mode) => (
                 <option key={mode} value={mode}>
                   {vocabularyLabel(MEASUREMENT_MODE_LABELS, mode)}
                 </option>
@@ -419,14 +497,34 @@ export function ServiceDefinitionForm({
             </Select>
           </Field>
 
-          <Field label="Base de medição" htmlFor={measurementBasisId}>
+          <Field label="Base de medição" htmlFor={measurementBasisId} required error={errorFor('measurementBasis')}>
             <Select
               id={measurementBasisId}
               value={state.measurementBasis}
-              onChange={(event) => update('measurementBasis', event.target.value)}
+              onChange={(event) => {
+                const measurementBasis = event.target.value;
+                const policy = referenceData.measurementModels.find(
+                  (entry) => entry.basis === measurementBasis,
+                );
+                const compatible = policy?.compatibleMeasurementModes ?? [];
+                onChange({
+                  ...state,
+                  measurementBasis,
+                  measurementMode: compatible.includes(state.measurementMode)
+                    ? state.measurementMode
+                    : (policy?.defaultMeasurementMode ?? ''),
+                });
+                setTouched((previous) => ({
+                  ...previous,
+                  measurementBasis: true,
+                  measurementMode: true,
+                }));
+              }}
               disabled={readOnly}
+              invalid={Boolean(errorFor('measurementBasis'))}
             >
-              {MEASUREMENT_BASES.map((basis) => (
+              <option value="">Selecione…</option>
+              {measurementBases.map((basis) => (
                 <option key={basis} value={basis}>
                   {vocabularyLabel(MEASUREMENT_BASIS_LABELS, basis)}
                 </option>
@@ -441,7 +539,8 @@ export function ServiceDefinitionForm({
               onChange={(event) => update('billingEntitlementPolicy', event.target.value)}
               disabled={readOnly}
             >
-              {BILLING_ENTITLEMENT_POLICIES.map((policy) => (
+              <option value="">Selecione…</option>
+              {billingPolicies.map((policy) => (
                 <option key={policy} value={policy}>
                   {vocabularyLabel(BILLING_ENTITLEMENT_POLICY_LABELS, policy)}
                 </option>
@@ -453,7 +552,7 @@ export function ServiceDefinitionForm({
             <Select
               id={defaultUnitId}
               value={state.defaultUnitCode}
-              onChange={(event) => update('defaultUnitCode', event.target.value)}
+              onChange={(event) => setDefaultUnit(event.target.value)}
               disabled={readOnly}
             >
               <option value="">—</option>
@@ -486,7 +585,11 @@ export function ServiceDefinitionForm({
         title="Unidades e medidas permitidas"
         description="Unidades aceitas na medição e no preço do serviço."
         action={
-          <Button variant="secondary" onClick={addUnit} disabled={readOnly}>
+          <Button
+            variant="secondary"
+            onClick={addUnit}
+            disabled={readOnly || units.every((unit) => state.allowedUnits.some((entry) => entry.unitCode === unit.code))}
+          >
             + Adicionar unidade
           </Button>
         }
@@ -511,15 +614,18 @@ export function ServiceDefinitionForm({
                   id={`${formId}-unit-${index}`}
                   value={unit.unitCode}
                   disabled={readOnly}
-                  onChange={(event) =>
-                    update(
-                      'allowedUnits',
-                      replaceAt(state.allowedUnits, index, {
+                  onChange={(event) => {
+                    const unitCode = event.target.value;
+                    onChange({
+                      ...state,
+                      defaultUnitCode: unit.isDefault ? unitCode : state.defaultUnitCode,
+                      allowedUnits: replaceAt(state.allowedUnits, index, {
                         ...unit,
-                        unitCode: event.target.value,
+                        unitCode,
                       }),
-                    )
-                  }
+                    });
+                    setTouched((previous) => ({ ...previous, allowedUnits: true, defaultUnitCode: true }));
+                  }}
                 >
                   {units.map((option) => (
                     <option key={option.code} value={option.code}>
@@ -539,15 +645,7 @@ export function ServiceDefinitionForm({
                     name={`${formId}-default-unit-radio`}
                     checked={unit.isDefault}
                     disabled={readOnly}
-                    onChange={() =>
-                      update(
-                        'allowedUnits',
-                        state.allowedUnits.map((entry, entryIndex) => ({
-                          ...entry,
-                          isDefault: entryIndex === index,
-                        })),
-                      )
-                    }
+                    onChange={() => setDefaultUnit(unit.unitCode)}
                   />
                   Padrão
                 </label>
@@ -557,12 +655,15 @@ export function ServiceDefinitionForm({
           onChange={(index, item) =>
             update('allowedUnits', replaceAt(state.allowedUnits, index, item))
           }
-          onRemove={(index) =>
-            update(
-              'allowedUnits',
-              state.allowedUnits.filter((_, entryIndex) => entryIndex !== index),
-            )
-          }
+          onRemove={(index) => {
+            const removed = state.allowedUnits[index];
+            onChange({
+              ...state,
+              defaultUnitCode: removed?.isDefault ? '' : state.defaultUnitCode,
+              allowedUnits: state.allowedUnits.filter((_, entryIndex) => entryIndex !== index),
+            });
+            setTouched((previous) => ({ ...previous, allowedUnits: true, defaultUnitCode: true }));
+          }}
           onAdd={addUnit}
           addLabel="Nova unidade"
           removeLabel="Remover"
@@ -576,7 +677,11 @@ export function ServiceDefinitionForm({
         title="Modelos de preço"
         description="Como o serviço é cobrado: modelo, unidade e valores."
         action={
-          <Button variant="secondary" onClick={addPricingModel} disabled={readOnly}>
+          <Button
+            variant="secondary"
+            onClick={addPricingModel}
+            disabled={readOnly || pricingModelCodes.every((code) => state.pricingModels.some((entry) => entry.modelCode === code))}
+          >
             + Adicionar modelo de preço
           </Button>
         }
@@ -707,7 +812,11 @@ export function ServiceDefinitionForm({
         title="Requisitos de recurso físico"
         description="Recursos que a execução precisa ter disponíveis."
         action={
-          <Button variant="secondary" onClick={addResourceRequirement} disabled={readOnly}>
+          <Button
+            variant="secondary"
+            onClick={addResourceRequirement}
+            disabled={readOnly || !defaultRequirementLevel || resourceTypes.every((type) => state.resourceRequirements.some((entry) => entry.resourceTypeCode === type.code))}
+          >
             + Adicionar recurso físico
           </Button>
         }
@@ -717,6 +826,7 @@ export function ServiceDefinitionForm({
             : 'O servidor recusa o mesmo tipo de recurso duas vezes e exige quantidade mínima inteira de pelo menos 1.'
         }
       >
+        {resourceRequirementsError ? <FieldError>{resourceRequirementsError}</FieldError> : null}
         <CollectionEditor
           items={state.resourceRequirements}
           getKey={(item, index) => `${item.resourceTypeCode}-${index}`}
@@ -761,12 +871,12 @@ export function ServiceDefinitionForm({
                       'resourceRequirements',
                       replaceAt(state.resourceRequirements, index, {
                         ...item,
-                        requirementLevel: parseRequirementLevel(event.target.value),
+                        requirementLevel: event.target.value as RequirementLevel,
                       }),
                     )
                   }
                 >
-                  {REQUIREMENT_LEVEL_OPTIONS.map((level) => (
+                  {requirementLevels.map((level) => (
                     <option key={level} value={level}>
                       {vocabularyLabel(REQUIREMENT_LEVEL_LABELS, level)}
                     </option>
@@ -819,7 +929,11 @@ export function ServiceDefinitionForm({
         title="Requisitos de mão de obra"
         description="Funções que a execução precisa alocar."
         action={
-          <Button variant="secondary" onClick={addLaborRequirement} disabled={readOnly}>
+          <Button
+            variant="secondary"
+            onClick={addLaborRequirement}
+            disabled={readOnly || !defaultRequirementLevel || laborTypes.every((type) => state.laborRequirements.some((entry) => entry.laborTypeCode === type.code))}
+          >
             + Adicionar mão de obra
           </Button>
         }
@@ -829,6 +943,7 @@ export function ServiceDefinitionForm({
             : 'O servidor recusa a mesma função duas vezes e exige quantidade mínima inteira de pelo menos 1.'
         }
       >
+        {laborRequirementsError ? <FieldError>{laborRequirementsError}</FieldError> : null}
         <CollectionEditor
           items={state.laborRequirements}
           getKey={(item, index) => `${item.laborTypeCode}-${index}`}
@@ -873,12 +988,12 @@ export function ServiceDefinitionForm({
                       'laborRequirements',
                       replaceAt(state.laborRequirements, index, {
                         ...item,
-                        requirementLevel: parseRequirementLevel(event.target.value),
+                        requirementLevel: event.target.value as RequirementLevel,
                       }),
                     )
                   }
                 >
-                  {REQUIREMENT_LEVEL_OPTIONS.map((level) => (
+                  {requirementLevels.map((level) => (
                     <option key={level} value={level}>
                       {vocabularyLabel(REQUIREMENT_LEVEL_LABELS, level)}
                     </option>
@@ -931,12 +1046,17 @@ export function ServiceDefinitionForm({
         title="Requisitos de evidência"
         description="Evidências exigidas para comprovar a execução."
         action={
-          <Button variant="secondary" onClick={addExecutionRequirement} disabled={readOnly}>
+          <Button
+            variant="secondary"
+            onClick={addExecutionRequirement}
+            disabled={readOnly || !defaultRequirementLevel || evidenceTypes.every((type) => state.executionRequirements.some((entry) => entry.requirementType === type))}
+          >
             + Adicionar evidência
           </Button>
         }
         footer="O servidor exige a condição quando o nível é Condicional e recusa o mesmo tipo de evidência duas vezes."
       >
+        {executionRequirementsError ? <FieldError>{executionRequirementsError}</FieldError> : null}
         <CollectionEditor
           items={state.executionRequirements}
           getKey={(item, index) => `${item.requirementType}-${index}`}
@@ -967,7 +1087,7 @@ export function ServiceDefinitionForm({
                     )
                   }
                 >
-                  {EXECUTION_REQUIREMENT_TYPES.map((type) => (
+                  {evidenceTypes.map((type) => (
                     <option key={type} value={type}>
                       {vocabularyLabel(EXECUTION_REQUIREMENT_TYPE_LABELS, type)}
                     </option>
@@ -980,17 +1100,23 @@ export function ServiceDefinitionForm({
                   id={`${formId}-evidence-level-${index}`}
                   value={item.requirementLevel}
                   disabled={readOnly}
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    const requirementLevel = event.target.value as RequirementLevel;
+                    const firstCondition = conditionTypes[0] ?? '';
                     update(
                       'executionRequirements',
                       replaceAt(state.executionRequirements, index, {
                         ...item,
-                        requirementLevel: parseRequirementLevel(event.target.value),
+                        requirementLevel,
+                        config:
+                          requirementLevel === 'CONDITIONAL'
+                            ? buildConditionalConfig(firstCondition)
+                            : null,
                       }),
-                    )
-                  }
+                    );
+                  }}
                 >
-                  {REQUIREMENT_LEVEL_OPTIONS.map((level) => (
+                  {requirementLevels.map((level) => (
                     <option key={level} value={level}>
                       {vocabularyLabel(REQUIREMENT_LEVEL_LABELS, level)}
                     </option>
@@ -999,6 +1125,7 @@ export function ServiceDefinitionForm({
               </Field>
 
               {item.requirementLevel === 'CONDITIONAL' ? (
+                <>
                 <Field label="Condição da evidência" htmlFor={`${formId}-evidence-condition-${index}`}>
                   <Select
                     id={`${formId}-evidence-condition-${index}`}
@@ -1009,22 +1136,148 @@ export function ServiceDefinitionForm({
                         'executionRequirements',
                         replaceAt(state.executionRequirements, index, {
                           ...item,
-                          config: {
-                            schemaVersion: 1,
-                            conditional: { conditionType: event.target.value },
-                          },
+                          config: buildConditionalConfig(event.target.value),
                         }),
                       )
                     }
                   >
                     <option value="">Selecione…</option>
-                    {EXECUTION_CONDITION_TYPES.map((condition) => (
+                    {conditionTypes.map((condition) => (
                       <option key={condition} value={condition}>
                         {vocabularyLabel(EXECUTION_CONDITION_TYPE_LABELS, condition)}
                       </option>
                     ))}
                   </Select>
                 </Field>
+
+                {item.config?.conditional?.conditionType === 'WHEN_MEASUREMENT_BASIS_IS' ? (
+                  <Field label="Base da condição" htmlFor={`${formId}-evidence-condition-value-${index}`}>
+                    <Select
+                      id={`${formId}-evidence-condition-value-${index}`}
+                      value={item.config.conditional.measurementBasis ?? ''}
+                      disabled={readOnly}
+                      onChange={(event) =>
+                        update(
+                          'executionRequirements',
+                          replaceAt(state.executionRequirements, index, {
+                            ...item,
+                            config: {
+                              schemaVersion: 1,
+                              conditional: {
+                                conditionType: 'WHEN_MEASUREMENT_BASIS_IS',
+                                measurementBasis: event.target.value,
+                              },
+                            },
+                          }),
+                        )
+                      }
+                    >
+                      <option value="">Selecione…</option>
+                      {measurementBases.map((basis) => (
+                        <option key={basis} value={basis}>
+                          {vocabularyLabel(MEASUREMENT_BASIS_LABELS, basis)}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                ) : null}
+
+                {item.config?.conditional?.conditionType === 'WHEN_ARCHETYPE_IS' ? (
+                  <Field label="Arquétipo da condição" htmlFor={`${formId}-evidence-condition-value-${index}`}>
+                    <Select
+                      id={`${formId}-evidence-condition-value-${index}`}
+                      value={item.config.conditional.archetype ?? ''}
+                      disabled={readOnly}
+                      onChange={(event) =>
+                        update(
+                          'executionRequirements',
+                          replaceAt(state.executionRequirements, index, {
+                            ...item,
+                            config: {
+                              schemaVersion: 1,
+                              conditional: {
+                                conditionType: 'WHEN_ARCHETYPE_IS',
+                                archetype: event.target.value,
+                              },
+                            },
+                          }),
+                        )
+                      }
+                    >
+                      <option value="">Selecione…</option>
+                      {archetypes.map((archetype) => (
+                        <option key={archetype} value={archetype}>
+                          {ARCHETYPE_LABELS[archetype] ?? archetype}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                ) : null}
+
+                {item.config?.conditional?.conditionType === 'WHEN_RESOURCE_TYPE_IS' ? (
+                  <Field label="Recurso da condição" htmlFor={`${formId}-evidence-condition-value-${index}`}>
+                    <Select
+                      id={`${formId}-evidence-condition-value-${index}`}
+                      value={item.config.conditional.resourceTypeCode ?? ''}
+                      disabled={readOnly}
+                      onChange={(event) =>
+                        update(
+                          'executionRequirements',
+                          replaceAt(state.executionRequirements, index, {
+                            ...item,
+                            config: {
+                              schemaVersion: 1,
+                              conditional: {
+                                conditionType: 'WHEN_RESOURCE_TYPE_IS',
+                                resourceTypeCode: event.target.value,
+                              },
+                            },
+                          }),
+                        )
+                      }
+                    >
+                      <option value="">Selecione…</option>
+                      {resourceTypes.map((type) => (
+                        <option key={type.code} value={type.code}>
+                          {referenceTypeLabel(type.code, resourceTypes)}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                ) : null}
+
+                {item.config?.conditional?.conditionType === 'WHEN_LABOR_TYPE_IS' ? (
+                  <Field label="Função da condição" htmlFor={`${formId}-evidence-condition-value-${index}`}>
+                    <Select
+                      id={`${formId}-evidence-condition-value-${index}`}
+                      value={item.config.conditional.laborTypeCode ?? ''}
+                      disabled={readOnly}
+                      onChange={(event) =>
+                        update(
+                          'executionRequirements',
+                          replaceAt(state.executionRequirements, index, {
+                            ...item,
+                            config: {
+                              schemaVersion: 1,
+                              conditional: {
+                                conditionType: 'WHEN_LABOR_TYPE_IS',
+                                laborTypeCode: event.target.value,
+                              },
+                            },
+                          }),
+                        )
+                      }
+                    >
+                      <option value="">Selecione…</option>
+                      {laborTypes.map((type) => (
+                        <option key={type.code} value={type.code}>
+                          {referenceTypeLabel(type.code, laborTypes)}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                ) : null}
+                </>
               ) : null}
             </div>
           )}

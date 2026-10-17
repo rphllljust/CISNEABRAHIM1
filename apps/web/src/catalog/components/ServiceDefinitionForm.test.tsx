@@ -1,9 +1,10 @@
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { ServiceDefinitionForm } from './ServiceDefinitionForm';
-import { createEmptyFormState } from '../utils/catalog-form-state';
+import { createEmptyFormState, type ServiceDefinitionFormState } from '../utils/catalog-form-state';
+import type { CatalogReferenceData } from '../hooks/useCatalogReferenceData';
 
-const referenceData = {
+const referenceData: CatalogReferenceData = {
   categories: [],
   units: [
     { id: '1', code: 'DAY', name: 'Dia', status: 'ACTIVE' },
@@ -13,7 +14,28 @@ const referenceData = {
   laborTypes: [{ id: '1', code: 'DRIVER', name: 'Motorista', status: 'ACTIVE' }],
   // O endpoint real de políticas não devolve `label`: o rótulo humano vem do vocabulário do catálogo.
   pricingModels: [{ code: 'DAILY' }, { code: 'PER_KM' }],
-  measurementModels: [{ code: 'TIME' }],
+  measurementModels: [
+    {
+      code: 'TIME',
+      basis: 'TIME',
+      defaultMeasurementMode: 'BY_PERIOD',
+      compatibleMeasurementModes: ['BY_PERIOD', 'BY_QUANTITY'],
+      suggestedUnitCodes: ['DAY'],
+    },
+  ],
+  vocabulary: {
+    archetypes: ['RENTAL'],
+    measurementModes: ['BY_PERIOD', 'BY_QUANTITY'],
+    billingEntitlementPolicies: ['MEASUREMENT_APPROVED'],
+    requirementLevels: ['REQUIRED', 'OPTIONAL', 'CONDITIONAL'],
+    executionRequirementTypes: ['PHOTO', 'DOCUMENT'],
+    executionConditionTypes: [
+      'WHEN_MEASUREMENT_BASIS_IS',
+      'WHEN_ARCHETYPE_IS',
+      'WHEN_RESOURCE_TYPE_IS',
+      'WHEN_LABOR_TYPE_IS',
+    ],
+  },
 };
 
 /** Códigos INTERNOS: nenhum deles pode aparecer como texto na tela do operador. */
@@ -73,7 +95,29 @@ function expectNoInternalCodeOnScreen() {
   }
 }
 
-function renderForm(state = createEmptyFormState()) {
+function createConfiguredState(): ServiceDefinitionFormState {
+  return {
+    ...createEmptyFormState(),
+    archetype: 'RENTAL',
+    measurementMode: 'BY_PERIOD',
+    measurementBasis: 'TIME',
+    billingEntitlementPolicy: 'MEASUREMENT_APPROVED',
+    defaultUnitCode: 'DAY',
+    allowedUnits: [{ unitCode: 'DAY', isDefault: true, sortOrder: 0 }],
+    pricingModels: [
+      {
+        modelCode: 'DAILY',
+        unitCode: 'DAY',
+        salePrice: null,
+        internalCost: null,
+        currencyCode: 'BRL',
+        sortOrder: 0,
+      },
+    ],
+  };
+}
+
+function renderForm(state = createConfiguredState()) {
   return render(
     <ServiceDefinitionForm
       formId="catalog-form"
@@ -156,7 +200,7 @@ describe('ServiceDefinitionForm accessibility', () => {
     render(
       <ServiceDefinitionForm
         formId="catalog-form"
-        state={createEmptyFormState()}
+        state={createConfiguredState()}
         errors={{}}
         referenceData={referenceData}
         includeCode
@@ -193,14 +237,38 @@ describe('ServiceDefinitionForm accessibility', () => {
     expectNoInternalCodeOnScreen();
   });
 
+  it('renderiza o valor tipado exigido para evidência condicional', () => {
+    renderForm({
+      ...createConfiguredState(),
+      executionRequirements: [
+        {
+          requirementType: 'PHOTO',
+          requirementLevel: 'CONDITIONAL',
+          config: {
+            schemaVersion: 1,
+            conditional: {
+              conditionType: 'WHEN_RESOURCE_TYPE_IS',
+              resourceTypeCode: 'TRUCK',
+            },
+          },
+          sortOrder: 0,
+        },
+      ],
+    });
+
+    expect(screen.getByLabelText('Condição da evidência')).toHaveValue('WHEN_RESOURCE_TYPE_IS');
+    expect(screen.getByLabelText('Recurso da condição')).toHaveValue('TRUCK');
+    expectNoInternalCodeOnScreen();
+  });
+
   it('mostra rótulo humano nos vocabulários, mantendo o código como valor', () => {
     renderForm();
 
-    const mode = screen.getByLabelText<HTMLSelectElement>('Modo de medição');
+    const mode = screen.getByLabelText<HTMLSelectElement>(/Modo de medição/i);
     expect(mode).toHaveValue('BY_PERIOD');
     expect(mode.selectedOptions[0]?.textContent).toBe('Por período');
 
-    const basis = screen.getByLabelText<HTMLSelectElement>('Base de medição');
+    const basis = screen.getByLabelText<HTMLSelectElement>(/Base de medição/i);
     expect(basis).toHaveValue('TIME');
     expect(basis.selectedOptions[0]?.textContent).toBe('Tempo');
 

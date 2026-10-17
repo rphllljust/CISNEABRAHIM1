@@ -98,6 +98,8 @@ export type ServiceDefinitionVersion = {
   version: number;
   status: VersionStatus;
   categoryId: string;
+  categoryCode: string | null;
+  categoryName: string | null;
   archetype: string;
   name: string;
   description: string | null;

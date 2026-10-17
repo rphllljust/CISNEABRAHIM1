@@ -10,6 +10,8 @@ function version(partial: Partial<ServiceDefinitionVersion>): ServiceDefinitionV
     version: 1,
     status: 'DRAFT',
     categoryId: 'cat-id',
+    categoryCode: 'CAT',
+    categoryName: 'Categoria',
     archetype: 'RENTAL',
     name: 'Test',
     description: null,

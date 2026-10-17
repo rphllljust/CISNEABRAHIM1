@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { useId, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { CatalogApiError, createServiceDefinition } from '../api/service-catalog-api';
 import { mapCatalogErrorToMessage } from '../api/catalog-error-messages';
 import { ServiceDefinitionForm, listFormBlockers } from '../components/ServiceDefinitionForm';
@@ -26,11 +26,40 @@ export function ServiceDefinitionCreatePage() {
   const formId = useId();
   const errorId = useId();
   const { capabilities, loading: capabilitiesLoading } = useCatalogCapabilities();
-  const { data: referenceData, loading: referenceLoading } = useCatalogReferenceData();
+  const {
+    data: referenceData,
+    loading: referenceLoading,
+    issues: referenceIssues,
+    reload: reloadReferences,
+  } = useCatalogReferenceData();
   const [formState, setFormState] = useState<ServiceDefinitionFormState>(createEmptyFormState);
   const [fieldErrors, setFieldErrors] = useState<ReturnType<typeof validateServiceDefinitionForm>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const pristineState = useMemo(() => createEmptyFormState(), []);
+  const dirty = JSON.stringify(formState) !== JSON.stringify(pristineState);
+
+  useEffect(() => {
+    if (!dirty || submitting) return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [dirty, submitting]);
+
+  function focusFirstInvalidField(): void {
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+    });
+  }
+
+  function abandon(): void {
+    if (!dirty || window.confirm('Descartar as alterações desta definição?')) {
+      void navigate('/app/catalog');
+    }
+  }
 
   // Mesma validação autoritativa, traduzida para o rodapé da barra: a ação principal nunca fica
   // desabilitada sem dizer o que falta.
@@ -43,6 +72,26 @@ export function ServiceDefinitionCreatePage() {
         <p aria-busy="true" aria-live="polite" className="text-sm text-gray-500">
           Carregando formulário…
         </p>
+      </ModulePage>
+    );
+  }
+
+  if (referenceIssues.length > 0) {
+    const denied = referenceIssues.filter((issue) => issue.kind === 'denied').map((issue) => issue.source);
+    const failed = referenceIssues.filter((issue) => issue.kind !== 'denied').map((issue) => issue.source);
+    return (
+      <ModulePage>
+        <PageHeader title="Nova definição de serviço" />
+        <Alert tone="error">
+          {denied.length > 0
+            ? `Sem permissão para consultar: ${denied.join(', ')}.`
+            : `Não foi possível carregar: ${failed.join(', ')}.`}
+        </Alert>
+        <div className="mt-3">
+          <Button type="button" variant="secondary" onClick={reloadReferences}>
+            Tentar novamente
+          </Button>
+        </div>
       </ModulePage>
     );
   }
@@ -69,6 +118,7 @@ export function ServiceDefinitionCreatePage() {
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       setSubmitError(null);
+      focusFirstInvalidField();
       return;
     }
 
@@ -125,9 +175,9 @@ export function ServiceDefinitionCreatePage() {
             : 'A publicação e a validação de regras são executadas exclusivamente pelo backend.'
         }
       >
-        <Link to="/app/catalog" className="button-link button-secondary">
+        <Button type="button" variant="secondary" onClick={abandon}>
           Cancelar
-        </Link>
+        </Button>
         <Button
           type="button"
           disabled={submitting || blockers.length > 0}

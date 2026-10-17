@@ -8,8 +8,19 @@ import {
 import { SecurityAuditService } from '../../audit/services/security-audit.service';
 import type { IdentityAuthzContext } from '../../authorization/types/authz-decision';
 import { AUTHZ_ACTIONS } from '../../authorization/types/authz-actions';
-import { LINEAGE_STATUSES } from '../domain/service-catalog-status';
+import {
+  LINEAGE_STATUSES,
+  MEASUREMENT_MODES,
+  OPERATIONAL_ARCHETYPES,
+} from '../domain/service-catalog-status';
+import { BILLING_ENTITLEMENT_POLICIES } from '../domain/service-catalog.validation';
+import {
+  EXECUTION_CONDITION_TYPES,
+  EXECUTION_REQUIREMENT_TYPES,
+} from '../domain/execution-requirement';
+import { REQUIREMENT_LEVELS } from '../domain/requirement-level';
 import type {
+  CatalogVersionFilter,
   CreateServiceDefinitionInput,
   CreateServiceDefinitionVersionInput,
   UpdateDraftServiceDefinitionInput,
@@ -32,6 +43,7 @@ import {
 } from './service-catalog-access.errors';
 import {
   assertValidCatalogDefinitionId,
+  resolveAllowedUnitConfiguration,
   resolveCommercialCatalogAccessInput,
   resolveExecutionRequirementsCatalogAccess,
 } from './service-catalog-input-resolution';
@@ -59,9 +71,13 @@ export class ServiceCatalogAccessService {
         'Invalid request body.',
       );
     }
-    await this.referenceValidation.assertActiveUnitReferences(
-      input.allowedUnits.map((unit) => unit.unitCode),
+    const unitConfiguration = resolveAllowedUnitConfiguration(
+      input.allowedUnits,
       input.defaultUnitCode,
+    );
+    await this.referenceValidation.assertActiveUnitReferences(
+      unitConfiguration.allowedUnits.map((unit) => unit.unitCode),
+      unitConfiguration.defaultUnitCode,
     );
     await this.referenceValidation.assertActiveResourceTypeReferences(
       (input.resourceRequirements ?? []).map((requirement) => requirement.resourceTypeCode),
@@ -69,11 +85,15 @@ export class ServiceCatalogAccessService {
     await this.referenceValidation.assertActiveLaborTypeReferences(
       (input.laborRequirements ?? []).map((requirement) => requirement.laborTypeCode),
     );
-    const commercial = resolveCommercialCatalogAccessInput(input);
+    const commercial = resolveCommercialCatalogAccessInput({
+      ...input,
+      allowedUnits: unitConfiguration.allowedUnits,
+    });
 
     try {
       const created = await this.repository.createDefinitionWithDraft({
         ...input,
+        ...unitConfiguration,
         ...commercial,
         resourceRequirements: input.resourceRequirements ?? [],
         laborRequirements: input.laborRequirements ?? [],
@@ -122,9 +142,27 @@ export class ServiceCatalogAccessService {
     return { items: await this.repository.listActiveCategories() };
   }
 
+  async listReferenceData(actor: IdentityAuthzContext) {
+    await this.authz.assertListAction(actor);
+    return {
+      archetypes: [...OPERATIONAL_ARCHETYPES],
+      measurementModes: [...MEASUREMENT_MODES],
+      billingEntitlementPolicies: [...BILLING_ENTITLEMENT_POLICIES],
+      requirementLevels: [...REQUIREMENT_LEVELS],
+      executionRequirementTypes: [...EXECUTION_REQUIREMENT_TYPES],
+      executionConditionTypes: [...EXECUTION_CONDITION_TYPES],
+    };
+  }
+
   async listDefinitions(
     actor: IdentityAuthzContext,
-    query: { limit: number; offset: number; status?: 'ACTIVE' | 'INACTIVE'; search?: string },
+    query: {
+      limit: number;
+      offset: number;
+      status?: 'ACTIVE' | 'INACTIVE';
+      version?: CatalogVersionFilter;
+      search?: string;
+    },
   ): Promise<{ items: ServiceDefinitionResponse[]; limit: number; offset: number }> {
     await this.authz.assertListAction(actor);
 
@@ -133,6 +171,28 @@ export class ServiceCatalogAccessService {
     if (query.status) {
       clauses.push(`d.status = $${params.length + 1}`);
       params.push(query.status);
+    }
+    if (query.version === 'HAS_DRAFT') {
+      clauses.push(`EXISTS (
+        SELECT 1
+        FROM cat.service_definition_versions filter_version
+        WHERE filter_version.service_definition_id = d.id
+          AND filter_version.status = 'DRAFT'
+      )`);
+    } else if (query.version === 'HAS_PUBLISHED') {
+      clauses.push(`EXISTS (
+        SELECT 1
+        FROM cat.service_definition_versions filter_version
+        WHERE filter_version.service_definition_id = d.id
+          AND filter_version.status = 'ACTIVE'
+      )`);
+    } else if (query.version === 'NO_PUBLISHED') {
+      clauses.push(`NOT EXISTS (
+        SELECT 1
+        FROM cat.service_definition_versions filter_version
+        WHERE filter_version.service_definition_id = d.id
+          AND filter_version.status = 'ACTIVE'
+      )`);
     }
     if (query.search) {
       // Nome (versao vigente ACTIVE; senao DRAFT) OU code operacional. O EXISTS resolve o nome no
@@ -191,9 +251,13 @@ export class ServiceCatalogAccessService {
         throw catalogAccessNotFound();
       }
     }
-    await this.referenceValidation.assertActiveUnitReferences(
-      input.allowedUnits.map((unit) => unit.unitCode),
+    const unitConfiguration = resolveAllowedUnitConfiguration(
+      input.allowedUnits,
       input.defaultUnitCode,
+    );
+    await this.referenceValidation.assertActiveUnitReferences(
+      unitConfiguration.allowedUnits.map((unit) => unit.unitCode),
+      unitConfiguration.defaultUnitCode,
     );
     await this.referenceValidation.assertActiveResourceTypeReferences(
       (input.resourceRequirements ?? []).map((requirement) => requirement.resourceTypeCode),
@@ -204,11 +268,15 @@ export class ServiceCatalogAccessService {
     const commercial =
       input.pricingModels.length === 0 && input.sourceVersion !== undefined
         ? { measurementBasis: input.measurementBasis, pricingModels: [] as const }
-        : resolveCommercialCatalogAccessInput(input);
+        : resolveCommercialCatalogAccessInput({
+            ...input,
+            allowedUnits: unitConfiguration.allowedUnits,
+          });
 
     const created = await this.repository.createDraftVersion({
       definitionId,
       ...input,
+      ...unitConfiguration,
       measurementBasis: commercial.measurementBasis,
       pricingModels: [...commercial.pricingModels],
       resourceRequirements: input.resourceRequirements ?? [],
@@ -299,9 +367,13 @@ export class ServiceCatalogAccessService {
         'Invalid request body.',
       );
     }
+    const unitConfiguration = resolveAllowedUnitConfiguration(
+      input.allowedUnits,
+      input.defaultUnitCode,
+    );
     await this.referenceValidation.assertActiveUnitReferences(
-      input.allowedUnits.map((unit) => unit.unitCode),
-      input.defaultUnitCode ?? undefined,
+      unitConfiguration.allowedUnits.map((unit) => unit.unitCode),
+      unitConfiguration.defaultUnitCode,
     );
     await this.referenceValidation.assertActiveResourceTypeReferences(
       (input.resourceRequirements ?? []).map((requirement) => requirement.resourceTypeCode),
@@ -309,7 +381,10 @@ export class ServiceCatalogAccessService {
     await this.referenceValidation.assertActiveLaborTypeReferences(
       (input.laborRequirements ?? []).map((requirement) => requirement.laborTypeCode),
     );
-    const commercial = resolveCommercialCatalogAccessInput(input);
+    const commercial = resolveCommercialCatalogAccessInput({
+      ...input,
+      allowedUnits: unitConfiguration.allowedUnits,
+    });
 
     const updated = await this.repository.updateDraftVersion({
       definitionId,
@@ -321,8 +396,8 @@ export class ServiceCatalogAccessService {
       measurementMode: input.measurementMode,
       measurementBasis: commercial.measurementBasis,
       description: input.description,
-      defaultUnitCode: input.defaultUnitCode,
-      allowedUnits: input.allowedUnits,
+      defaultUnitCode: unitConfiguration.defaultUnitCode,
+      allowedUnits: unitConfiguration.allowedUnits,
       resourceRequirements: input.resourceRequirements ?? [],
       laborRequirements: input.laborRequirements ?? [],
       pricingModels: commercial.pricingModels,

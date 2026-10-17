@@ -2,9 +2,12 @@ import { HttpStatus } from '@nestjs/common';
 import type { MeasurementMode } from '../domain/service-catalog-status';
 import {
   CatalogValidationError,
+  assertAllowedUnits,
   assertCommercialCatalogInput,
+  assertDefaultUnitConsistency,
   assertExecutionRequirementsCatalog,
   assertUuid,
+  type AllowedUnitInput,
 } from '../domain/service-catalog.validation';
 import type { NormalizedExecutionRequirementInput, ExecutionRequirementInput } from '../domain/execution-requirement';
 import { CATALOG_ERROR_CODES } from '../errors/catalog-error-codes';
@@ -17,6 +20,27 @@ export function assertValidCatalogDefinitionId(definitionId: string): void {
   } catch (error) {
     if (error instanceof CatalogValidationError) {
       throw catalogAccessNotFound();
+    }
+    throw error;
+  }
+}
+
+export function resolveAllowedUnitConfiguration(
+  allowedUnits: AllowedUnitInput[],
+  defaultUnitCode?: string | null,
+) {
+  try {
+    const normalizedUnits = assertAllowedUnits(allowedUnits);
+    return {
+      allowedUnits: normalizedUnits,
+      defaultUnitCode: assertDefaultUnitConsistency(normalizedUnits, defaultUnitCode),
+    };
+  } catch (error) {
+    if (error instanceof CatalogValidationError) {
+      const code =
+        CATALOG_ERROR_CODES[error.code as keyof typeof CATALOG_ERROR_CODES] ??
+        CATALOG_ERROR_CODES.VALIDATION_FAILED;
+      throw new CatalogHttpException(HttpStatus.BAD_REQUEST, code, 'Invalid request body.');
     }
     throw error;
   }

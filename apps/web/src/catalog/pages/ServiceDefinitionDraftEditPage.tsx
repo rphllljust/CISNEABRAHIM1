@@ -42,7 +42,12 @@ export function ServiceDefinitionDraftEditPage() {
   const formId = useId();
   const errorId = useId();
   const { capabilities } = useCatalogCapabilities();
-  const { data: referenceData, loading: referenceLoading } = useCatalogReferenceData();
+  const {
+    data: referenceData,
+    loading: referenceLoading,
+    issues: referenceIssues,
+    reload: reloadReferences,
+  } = useCatalogReferenceData();
   const [state, setState] = useState<EditState>({ phase: 'loading' });
   const [fieldErrors, setFieldErrors] = useState<ReturnType<typeof validateServiceDefinitionForm>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -96,6 +101,26 @@ export function ServiceDefinitionDraftEditPage() {
         <p aria-busy="true" aria-live="polite" className="text-sm text-gray-500">
           Carregando rascunho…
         </p>
+      </ModulePage>
+    );
+  }
+
+  if (referenceIssues.length > 0) {
+    const denied = referenceIssues.filter((issue) => issue.kind === 'denied').map((issue) => issue.source);
+    const failed = referenceIssues.filter((issue) => issue.kind !== 'denied').map((issue) => issue.source);
+    return (
+      <ModulePage>
+        <PageHeader title="Editar rascunho" />
+        <Alert tone="error">
+          {denied.length > 0
+            ? `Sem permissão para consultar: ${denied.join(', ')}.`
+            : `Não foi possível carregar: ${failed.join(', ')}.`}
+        </Alert>
+        <div className="mt-3">
+          <Button type="button" variant="secondary" onClick={reloadReferences}>
+            Tentar novamente
+          </Button>
+        </div>
       </ModulePage>
     );
   }
@@ -166,6 +191,9 @@ export function ServiceDefinitionDraftEditPage() {
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       setSubmitError(null);
+      requestAnimationFrame(() => {
+        document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+      });
       return;
     }
 

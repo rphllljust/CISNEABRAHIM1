@@ -97,6 +97,8 @@ export type ServiceDefinitionSummary = ServiceDefinitionRow & {
 
 export type ServiceDefinitionVersionDetail = ServiceDefinitionVersionRow & {
   code: string;
+  category_code: string | null;
+  category_name: string | null;
   allowed_units: AllowedUnitRow[];
   resource_requirements: ResourceRequirementRow[];
   labor_requirements: LaborRequirementRow[];
@@ -132,6 +134,8 @@ export type ServiceDefinitionVersionResponse = {
   version: number;
   status: VersionApiStatus;
   categoryId: string;
+  categoryCode: string | null;
+  categoryName: string | null;
   archetype: string;
   name: string;
   description: string | null;
@@ -203,6 +207,8 @@ export function toServiceDefinitionVersionResponse(
     version: row.version,
     status: toVersionApiStatus(row.status),
     categoryId: row.category_id,
+    categoryCode: row.category_code,
+    categoryName: row.category_name,
     archetype: row.archetype,
     name: row.name,
     description: row.description,
