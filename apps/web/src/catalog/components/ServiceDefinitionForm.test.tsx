@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { ServiceDefinitionForm } from './ServiceDefinitionForm';
-import { createEmptyFormState } from '../utils/catalog-form-state';
+import { createEmptyFormState, type ServiceDefinitionFormState } from '../utils/catalog-form-state';
 import type { CatalogReferenceData } from '../hooks/useCatalogReferenceData';
 
 const referenceData: CatalogReferenceData = {
@@ -95,7 +95,7 @@ function expectNoInternalCodeOnScreen() {
   }
 }
 
-function createConfiguredState() {
+function createConfiguredState(): ServiceDefinitionFormState {
   return {
     ...createEmptyFormState(),
     archetype: 'RENTAL',
