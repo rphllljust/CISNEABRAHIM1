@@ -7,6 +7,7 @@ import {
   assertDefaultUnitConsistency,
   assertExecutionRequirementsCatalog,
   assertUuid,
+  type AllowedUnitInput,
 } from '../domain/service-catalog.validation';
 import type { NormalizedExecutionRequirementInput, ExecutionRequirementInput } from '../domain/execution-requirement';
 import { CATALOG_ERROR_CODES } from '../errors/catalog-error-codes';
@@ -25,7 +26,7 @@ export function assertValidCatalogDefinitionId(definitionId: string): void {
 }
 
 export function resolveAllowedUnitConfiguration(
-  allowedUnits: Array<{ unitCode: string; isDefault: boolean; sortOrder?: number }>,
+  allowedUnits: AllowedUnitInput[],
   defaultUnitCode?: string | null,
 ) {
   try {
