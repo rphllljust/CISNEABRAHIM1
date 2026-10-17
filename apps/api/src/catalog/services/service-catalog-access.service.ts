@@ -43,6 +43,7 @@ import {
 } from './service-catalog-access.errors';
 import {
   assertValidCatalogDefinitionId,
+  resolveAllowedUnitConfiguration,
   resolveCommercialCatalogAccessInput,
   resolveExecutionRequirementsCatalogAccess,
 } from './service-catalog-input-resolution';
@@ -70,9 +71,13 @@ export class ServiceCatalogAccessService {
         'Invalid request body.',
       );
     }
-    await this.referenceValidation.assertActiveUnitReferences(
-      input.allowedUnits.map((unit) => unit.unitCode),
+    const unitConfiguration = resolveAllowedUnitConfiguration(
+      input.allowedUnits,
       input.defaultUnitCode,
+    );
+    await this.referenceValidation.assertActiveUnitReferences(
+      unitConfiguration.allowedUnits.map((unit) => unit.unitCode),
+      unitConfiguration.defaultUnitCode,
     );
     await this.referenceValidation.assertActiveResourceTypeReferences(
       (input.resourceRequirements ?? []).map((requirement) => requirement.resourceTypeCode),
@@ -80,11 +85,15 @@ export class ServiceCatalogAccessService {
     await this.referenceValidation.assertActiveLaborTypeReferences(
       (input.laborRequirements ?? []).map((requirement) => requirement.laborTypeCode),
     );
-    const commercial = resolveCommercialCatalogAccessInput(input);
+    const commercial = resolveCommercialCatalogAccessInput({
+      ...input,
+      allowedUnits: unitConfiguration.allowedUnits,
+    });
 
     try {
       const created = await this.repository.createDefinitionWithDraft({
         ...input,
+        ...unitConfiguration,
         ...commercial,
         resourceRequirements: input.resourceRequirements ?? [],
         laborRequirements: input.laborRequirements ?? [],
@@ -242,9 +251,13 @@ export class ServiceCatalogAccessService {
         throw catalogAccessNotFound();
       }
     }
-    await this.referenceValidation.assertActiveUnitReferences(
-      input.allowedUnits.map((unit) => unit.unitCode),
+    const unitConfiguration = resolveAllowedUnitConfiguration(
+      input.allowedUnits,
       input.defaultUnitCode,
+    );
+    await this.referenceValidation.assertActiveUnitReferences(
+      unitConfiguration.allowedUnits.map((unit) => unit.unitCode),
+      unitConfiguration.defaultUnitCode,
     );
     await this.referenceValidation.assertActiveResourceTypeReferences(
       (input.resourceRequirements ?? []).map((requirement) => requirement.resourceTypeCode),
@@ -255,11 +268,15 @@ export class ServiceCatalogAccessService {
     const commercial =
       input.pricingModels.length === 0 && input.sourceVersion !== undefined
         ? { measurementBasis: input.measurementBasis, pricingModels: [] as const }
-        : resolveCommercialCatalogAccessInput(input);
+        : resolveCommercialCatalogAccessInput({
+            ...input,
+            allowedUnits: unitConfiguration.allowedUnits,
+          });
 
     const created = await this.repository.createDraftVersion({
       definitionId,
       ...input,
+      ...unitConfiguration,
       measurementBasis: commercial.measurementBasis,
       pricingModels: [...commercial.pricingModels],
       resourceRequirements: input.resourceRequirements ?? [],
@@ -350,9 +367,13 @@ export class ServiceCatalogAccessService {
         'Invalid request body.',
       );
     }
+    const unitConfiguration = resolveAllowedUnitConfiguration(
+      input.allowedUnits,
+      input.defaultUnitCode,
+    );
     await this.referenceValidation.assertActiveUnitReferences(
-      input.allowedUnits.map((unit) => unit.unitCode),
-      input.defaultUnitCode ?? undefined,
+      unitConfiguration.allowedUnits.map((unit) => unit.unitCode),
+      unitConfiguration.defaultUnitCode,
     );
     await this.referenceValidation.assertActiveResourceTypeReferences(
       (input.resourceRequirements ?? []).map((requirement) => requirement.resourceTypeCode),
@@ -360,7 +381,10 @@ export class ServiceCatalogAccessService {
     await this.referenceValidation.assertActiveLaborTypeReferences(
       (input.laborRequirements ?? []).map((requirement) => requirement.laborTypeCode),
     );
-    const commercial = resolveCommercialCatalogAccessInput(input);
+    const commercial = resolveCommercialCatalogAccessInput({
+      ...input,
+      allowedUnits: unitConfiguration.allowedUnits,
+    });
 
     const updated = await this.repository.updateDraftVersion({
       definitionId,
@@ -372,8 +396,8 @@ export class ServiceCatalogAccessService {
       measurementMode: input.measurementMode,
       measurementBasis: commercial.measurementBasis,
       description: input.description,
-      defaultUnitCode: input.defaultUnitCode,
-      allowedUnits: input.allowedUnits,
+      defaultUnitCode: unitConfiguration.defaultUnitCode,
+      allowedUnits: unitConfiguration.allowedUnits,
       resourceRequirements: input.resourceRequirements ?? [],
       laborRequirements: input.laborRequirements ?? [],
       pricingModels: commercial.pricingModels,
