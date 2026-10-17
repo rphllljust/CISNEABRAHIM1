@@ -168,7 +168,13 @@ export class ServiceCatalogRepository {
     definitionId: string,
     versionNumber: number,
   ): Promise<ServiceDefinitionVersionDetail | null> {
-    const version = await this.pool().query<ServiceDefinitionVersionRow & { code: string }>(
+    const version = await this.pool().query<
+      ServiceDefinitionVersionRow & {
+        code: string;
+        category_code: string | null;
+        category_name: string | null;
+      }
+    >(
       `SELECT v.id,
               v.service_definition_id,
               v.version,
@@ -185,9 +191,12 @@ export class ServiceCatalogRepository {
               v.published_at,
               v.created_at,
               v.updated_at,
-              d.code
+              d.code,
+              category.code AS category_code,
+              category.name AS category_name
        FROM cat.service_definition_versions v
        INNER JOIN cat.service_definitions d ON d.id = v.service_definition_id
+       LEFT JOIN cat.service_categories category ON category.id = v.category_id
        WHERE v.service_definition_id = $1
          AND v.version = $2`,
       [definitionId, versionNumber],
