@@ -119,8 +119,18 @@ describe('Service catalog E2E', () => {
         archetype: 'RENTAL',
         measurementMode: 'BY_PERIOD',
         measurementBasis: 'TIME',
-        allowedUnits: [{ unitCode: 'DAY', isDefault: true }],
-        pricingModels: [{ modelCode: 'DAILY', salePrice: '1200.00' }],
+        defaultUnitCode: 'DAY',
+        allowedUnits: [{ unitCode: 'DAY', isDefault: true, sortOrder: 0 }],
+        pricingModels: [
+          {
+            modelCode: 'DAILY',
+            unitCode: 'DAY',
+            salePrice: '1200.00',
+            internalCost: '900.00',
+            currencyCode: 'BRL',
+            sortOrder: 0,
+          },
+        ],
       },
     });
     expect(createResponse.statusCode).toBe(201);
@@ -130,6 +140,35 @@ describe('Service catalog E2E', () => {
       status: string;
     };
     expect(created.status).toBe('DRAFT');
+
+    const reloadResponse = await app.inject({
+      method: 'GET',
+      url: `/api/v1/catalog/service-definitions/${created.serviceDefinitionId}/versions/${created.version}`,
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    expect(reloadResponse.statusCode).toBe(200);
+    const reloaded = JSON.parse(reloadResponse.body) as {
+      defaultUnitCode: string | null;
+      allowedUnits: Array<{ unitCode: string; isDefault: boolean; sortOrder: number }>;
+      pricingModels: Array<{
+        modelCode: string;
+        unitCode: string | null;
+        salePrice: string | null;
+        internalCost: string | null;
+        sortOrder: number;
+      }>;
+    };
+    expect(reloaded.defaultUnitCode).toBe('DAY');
+    expect(reloaded.allowedUnits).toEqual([
+      expect.objectContaining({ unitCode: 'DAY', isDefault: true, sortOrder: 0 }),
+    ]);
+    expect(reloaded.pricingModels[0]).toMatchObject({
+      modelCode: 'DAILY',
+      unitCode: 'DAY',
+      salePrice: '1200',
+      internalCost: '900',
+      sortOrder: 0,
+    });
 
     const definitionResponse = await app.inject({
       method: 'GET',
