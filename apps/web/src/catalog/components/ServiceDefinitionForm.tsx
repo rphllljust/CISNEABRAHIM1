@@ -1112,6 +1112,7 @@ export function ServiceDefinitionForm({
               </Field>
 
               {item.requirementLevel === 'CONDITIONAL' ? (
+                <>
                 <Field label="Condição da evidência" htmlFor={`${formId}-evidence-condition-${index}`}>
                   <Select
                     id={`${formId}-evidence-condition-${index}`}
@@ -1135,6 +1136,135 @@ export function ServiceDefinitionForm({
                     ))}
                   </Select>
                 </Field>
+
+                {item.config?.conditional?.conditionType === 'WHEN_MEASUREMENT_BASIS_IS' ? (
+                  <Field label="Base da condição" htmlFor={`${formId}-evidence-condition-value-${index}`}>
+                    <Select
+                      id={`${formId}-evidence-condition-value-${index}`}
+                      value={item.config.conditional.measurementBasis ?? ''}
+                      disabled={readOnly}
+                      onChange={(event) =>
+                        update(
+                          'executionRequirements',
+                          replaceAt(state.executionRequirements, index, {
+                            ...item,
+                            config: {
+                              schemaVersion: 1,
+                              conditional: {
+                                conditionType: 'WHEN_MEASUREMENT_BASIS_IS',
+                                measurementBasis: event.target.value,
+                              },
+                            },
+                          }),
+                        )
+                      }
+                    >
+                      <option value="">Selecione…</option>
+                      {measurementBases.map((basis) => (
+                        <option key={basis} value={basis}>
+                          {vocabularyLabel(MEASUREMENT_BASIS_LABELS, basis)}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                ) : null}
+
+                {item.config?.conditional?.conditionType === 'WHEN_ARCHETYPE_IS' ? (
+                  <Field label="Arquétipo da condição" htmlFor={`${formId}-evidence-condition-value-${index}`}>
+                    <Select
+                      id={`${formId}-evidence-condition-value-${index}`}
+                      value={item.config.conditional.archetype ?? ''}
+                      disabled={readOnly}
+                      onChange={(event) =>
+                        update(
+                          'executionRequirements',
+                          replaceAt(state.executionRequirements, index, {
+                            ...item,
+                            config: {
+                              schemaVersion: 1,
+                              conditional: {
+                                conditionType: 'WHEN_ARCHETYPE_IS',
+                                archetype: event.target.value,
+                              },
+                            },
+                          }),
+                        )
+                      }
+                    >
+                      <option value="">Selecione…</option>
+                      {archetypes.map((archetype) => (
+                        <option key={archetype} value={archetype}>
+                          {ARCHETYPE_LABELS[archetype] ?? archetype}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                ) : null}
+
+                {item.config?.conditional?.conditionType === 'WHEN_RESOURCE_TYPE_IS' ? (
+                  <Field label="Recurso da condição" htmlFor={`${formId}-evidence-condition-value-${index}`}>
+                    <Select
+                      id={`${formId}-evidence-condition-value-${index}`}
+                      value={item.config.conditional.resourceTypeCode ?? ''}
+                      disabled={readOnly}
+                      onChange={(event) =>
+                        update(
+                          'executionRequirements',
+                          replaceAt(state.executionRequirements, index, {
+                            ...item,
+                            config: {
+                              schemaVersion: 1,
+                              conditional: {
+                                conditionType: 'WHEN_RESOURCE_TYPE_IS',
+                                resourceTypeCode: event.target.value,
+                              },
+                            },
+                          }),
+                        )
+                      }
+                    >
+                      <option value="">Selecione…</option>
+                      {resourceTypes.map((type) => (
+                        <option key={type.code} value={type.code}>
+                          {referenceTypeLabel(type.code, resourceTypes)}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                ) : null}
+
+                {item.config?.conditional?.conditionType === 'WHEN_LABOR_TYPE_IS' ? (
+                  <Field label="Função da condição" htmlFor={`${formId}-evidence-condition-value-${index}`}>
+                    <Select
+                      id={`${formId}-evidence-condition-value-${index}`}
+                      value={item.config.conditional.laborTypeCode ?? ''}
+                      disabled={readOnly}
+                      onChange={(event) =>
+                        update(
+                          'executionRequirements',
+                          replaceAt(state.executionRequirements, index, {
+                            ...item,
+                            config: {
+                              schemaVersion: 1,
+                              conditional: {
+                                conditionType: 'WHEN_LABOR_TYPE_IS',
+                                laborTypeCode: event.target.value,
+                              },
+                            },
+                          }),
+                        )
+                      }
+                    >
+                      <option value="">Selecione…</option>
+                      {laborTypes.map((type) => (
+                        <option key={type.code} value={type.code}>
+                          {referenceTypeLabel(type.code, laborTypes)}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                ) : null}
+                </>
               ) : null}
             </div>
           )}
