@@ -171,6 +171,7 @@ export function ServiceDefinitionsListPage() {
             limit: PAGE_SIZE,
             offset,
             status: statusFilter || undefined,
+            version: versionFilter || undefined,
             search: debouncedSearch || undefined,
           },
           signal,
@@ -201,7 +202,7 @@ export function ServiceDefinitionsListPage() {
         });
       }
     },
-    [statusFilter, debouncedSearch],
+    [statusFilter, versionFilter, debouncedSearch],
   );
 
   useEffect(() => {
@@ -337,24 +338,6 @@ export function ServiceDefinitionsListPage() {
     [commandReason, detailState],
   );
 
-  const filteredItems = useMemo(() => {
-    if (listState.phase !== 'ready') {
-      return [];
-    }
-    return listState.items.filter((item) => {
-      if (versionFilter === 'HAS_DRAFT' && item.currentDraftVersion === null) {
-        return false;
-      }
-      if (versionFilter === 'HAS_PUBLISHED' && item.latestPublishedVersion === null) {
-        return false;
-      }
-      if (versionFilter === 'NO_PUBLISHED' && item.latestPublishedVersion !== null) {
-        return false;
-      }
-      return true;
-    });
-  }, [listState, versionFilter]);
-
   if (listState.phase === 'loading') {
     return (
       <ModuleStatePage title="Catálogo de serviços">
@@ -483,7 +466,7 @@ export function ServiceDefinitionsListPage() {
       <WorklistFilterBar
         meta={
           <>
-            {filteredItems.length} de {listState.items.length} nesta página
+            {listState.items.length} de {listState.items.length} nesta página
             {versionFilter ? ' · recorte de versão vale só nesta página' : ''}
           </>
         }
@@ -544,7 +527,7 @@ export function ServiceDefinitionsListPage() {
         A tela declara o escopo em vez de esconder a limitacao — PARK registrado:
         filtro de versao no servidor.
       */}
-      {filteredItems.length === 0 ? (
+      {listState.items.length === 0 ? (
         <WorklistStatePanel
           title={
             versionFilter
@@ -590,7 +573,7 @@ export function ServiceDefinitionsListPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredItems.map((definition) => (
+              {listState.items.map((definition) => (
                 <tr
                   key={definition.id}
                   className={worklistRowClass}
@@ -668,8 +651,8 @@ export function ServiceDefinitionsListPage() {
         <WorklistFooter
           rangeLabel={`${offset + 1}–${offset + listState.items.length} nesta página`}
           extra={
-            filteredItems.length !== listState.items.length
-              ? `${filteredItems.length} após o recorte de versão`
+            listState.items.length !== listState.items.length
+              ? `${listState.items.length} após o recorte de versão`
               : undefined
           }
         >
