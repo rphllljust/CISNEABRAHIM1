@@ -246,9 +246,18 @@ export function buildControlCenter(input: {
   serviceRequestId: string | null;
   facts: ServiceOrderControlCenterFacts;
   availableTransitions: ServiceOrderTransition[];
+  readinessBlockers?: string[];
 }): ControlCenterControl {
   const progression = buildControlCenterProgression(input);
   const next = nextServiceOrderStep(input.status);
+  const effectiveTransition =
+    next.transition && input.availableTransitions.includes(next.transition)
+      ? next.transition
+      : null;
+  const nextStep =
+    next.transition && effectiveTransition === null
+      ? 'WAITING'
+      : next.step;
 
   const divergences: string[] = [];
   if (input.facts.planned_resource_count > 0 && input.facts.active_allocation_count === 0) {
@@ -286,13 +295,13 @@ export function buildControlCenter(input: {
       },
     },
     nextAction: {
-      step: next.step,
-      transition:
-        next.transition && input.availableTransitions.includes(next.transition)
-          ? next.transition
-          : null,
+      step: nextStep,
+      transition: effectiveTransition,
       availableTransitions: input.availableTransitions,
-      blockers: controlCenterBlockers({ status: input.status, facts: input.facts }),
+      blockers: [
+        ...controlCenterBlockers({ status: input.status, facts: input.facts }),
+        ...(input.readinessBlockers ?? []),
+      ],
     },
   };
 }
