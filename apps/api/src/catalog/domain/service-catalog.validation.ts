@@ -127,11 +127,41 @@ export function assertAllowedUnits(units: AllowedUnitInput[]): AllowedUnitInput[
       sortOrder: unit.sortOrder ?? index,
     };
   });
+  const codes = new Set<string>();
+  for (const unit of normalized) {
+    if (codes.has(unit.unitCode)) {
+      throw new CatalogValidationError('DUPLICATE_ALLOWED_UNIT');
+    }
+    codes.add(unit.unitCode);
+  }
+
   const defaultCount = normalized.filter((unit) => unit.isDefault).length;
   if (defaultCount > 1) {
     throw new CatalogValidationError('MULTIPLE_DEFAULT_UNITS');
   }
   return normalized;
+}
+
+export function assertDefaultUnitConsistency(
+  units: AllowedUnitInput[],
+  defaultUnitCode?: string | null,
+): string | undefined {
+  const markedDefault = units.find((unit) => unit.isDefault)?.unitCode;
+  if (!defaultUnitCode) {
+    if (markedDefault) {
+      throw new CatalogValidationError('DEFAULT_UNIT_MISMATCH');
+    }
+    return undefined;
+  }
+
+  const normalizedDefault = normalizeUnitCode(defaultUnitCode);
+  if (!units.some((unit) => normalizeUnitCode(unit.unitCode) === normalizedDefault)) {
+    throw new CatalogValidationError('DEFAULT_UNIT_NOT_ALLOWED');
+  }
+  if (!markedDefault || normalizeUnitCode(markedDefault) !== normalizedDefault) {
+    throw new CatalogValidationError('DEFAULT_UNIT_MISMATCH');
+  }
+  return normalizedDefault;
 }
 
 export type ResourceRequirementInput = {
