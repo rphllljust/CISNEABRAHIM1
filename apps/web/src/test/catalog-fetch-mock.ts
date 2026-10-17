@@ -142,6 +142,8 @@ export function createCatalogFetchMock(options: CatalogFetchMockOptions = {}) {
       version: 1,
       status: VERSION_STATUSES.Published,
       categoryId: MOCK_CATEGORY_ID,
+      categoryCode: 'LOCACAO',
+      categoryName: 'Locação',
       archetype: 'RENTAL',
       name: 'Locação demo',
       description: null,
