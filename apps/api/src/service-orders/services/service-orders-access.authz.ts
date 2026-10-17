@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AuthorizationRepository } from '../../authorization/repositories/authorization.repository';
+import { ScopeContextRepository } from '../../authorization/repositories/scope-context.repository';
 import { PolicyDecisionPointService } from '../../authorization/services/policy-decision-point.service';
 import { ScopeEnforcementService } from '../../authorization/services/scope-enforcement.service';
 import {
@@ -28,6 +29,7 @@ export class ServiceOrdersAccessAuthz {
   constructor(
     private readonly repository: ServiceOrdersRepository,
     private readonly authorizationRepository: AuthorizationRepository,
+    private readonly scopeContextRepository: ScopeContextRepository,
     private readonly policyDecisionPoint: PolicyDecisionPointService,
     private readonly scopeEnforcement: ScopeEnforcementService,
   ) {}
@@ -60,6 +62,62 @@ export class ServiceOrdersAccessAuthz {
         throw serviceOrdersAccessDenied();
       }
     }
+  }
+
+  /**
+   * Unidades que o ator pode selecionar PARA CRIAR uma OS.
+   *
+   * A fonte anterior vinha do endpoint de Requests e listava scope_refs globais, guardado por
+   * `requests:service-request:list`. Isso confundia "unidade registrada no sistema" com
+   * "unidade autorizada para este comando de Service Orders".
+   *
+   * Esta projeção usa exatamente a mesma autoridade de `assertCreateAction`: PDP + grants
+   * ativos de `service-orders:service-order:create`. GLOBAL e CLIENT permitem escolher entre
+   * as unidades registradas (a restrição CLIENT é revalidada quando o clientId chega no POST);
+   * UNIT expõe somente as âncoras correspondentes. Nenhum grant é criado aqui.
+   */
+  async listCreateAuthorizedUnitIds(actor: IdentityAuthzContext): Promise<string[]> {
+    const decision = await this.policyDecisionPoint.decide(
+      actor,
+      {
+        action: AUTHZ_ACTIONS.ServiceOrdersServiceOrderCreate,
+        resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+      },
+      { audit: true },
+    );
+    if (decision.result === 'DENY') {
+      throw serviceOrdersAccessDenied();
+    }
+
+    const [grants, registeredUnitIds] = await Promise.all([
+      this.authorizationRepository.findActiveGrants(
+        actor.identityId,
+        AUTHZ_ACTIONS.ServiceOrdersServiceOrderCreate,
+        AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+      ),
+      this.scopeContextRepository.listUnitScopeRefs(),
+    ]);
+
+    const hasBroadCreateScope = grants.some(
+      (grant) =>
+        (grant.scope_type === AUTHZ_SCOPES.Global && grant.resource_id === null) ||
+        (grant.scope_type === AUTHZ_SCOPES.Client && Boolean(grant.resource_id)),
+    );
+    if (hasBroadCreateScope) {
+      return registeredUnitIds;
+    }
+
+    const unitGrants = new Set(
+      grants
+        .filter(
+          (grant) =>
+            grant.scope_type === AUTHZ_SCOPES.Unit &&
+            typeof grant.resource_id === 'string' &&
+            grant.resource_id.length > 0,
+        )
+        .map((grant) => grant.resource_id as string),
+    );
+    return registeredUnitIds.filter((unitId) => unitGrants.has(unitId));
   }
 
   async assertCreateAction(
