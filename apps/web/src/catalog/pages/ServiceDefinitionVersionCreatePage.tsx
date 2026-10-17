@@ -38,7 +38,12 @@ export function ServiceDefinitionVersionCreatePage() {
   const formId = useId();
   const errorId = useId();
   const { capabilities } = useCatalogCapabilities();
-  const { data: referenceData, loading: referenceLoading } = useCatalogReferenceData();
+  const {
+    data: referenceData,
+    loading: referenceLoading,
+    issues: referenceIssues,
+    reload: reloadReferences,
+  } = useCatalogReferenceData();
   const [state, setState] = useState<PageState>({ phase: 'loading' });
   const [fieldErrors, setFieldErrors] = useState<ReturnType<typeof validateServiceDefinitionForm>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -97,6 +102,26 @@ export function ServiceDefinitionVersionCreatePage() {
     );
   }
 
+  if (referenceIssues.length > 0) {
+    const denied = referenceIssues.filter((issue) => issue.kind === 'denied').map((issue) => issue.source);
+    const failed = referenceIssues.filter((issue) => issue.kind !== 'denied').map((issue) => issue.source);
+    return (
+      <ModulePage>
+        <PageHeader title="Criar nova versão" />
+        <Alert tone="error">
+          {denied.length > 0
+            ? `Sem permissão para consultar: ${denied.join(', ')}.`
+            : `Não foi possível carregar: ${failed.join(', ')}.`}
+        </Alert>
+        <div className="mt-3">
+          <Button type="button" variant="secondary" onClick={reloadReferences}>
+            Tentar novamente
+          </Button>
+        </div>
+      </ModulePage>
+    );
+  }
+
   if (!capabilities.canUpdate) {
     return (
       <ModulePage>
@@ -143,6 +168,9 @@ export function ServiceDefinitionVersionCreatePage() {
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       setSubmitError(null);
+      requestAnimationFrame(() => {
+        document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+      });
       return;
     }
 
