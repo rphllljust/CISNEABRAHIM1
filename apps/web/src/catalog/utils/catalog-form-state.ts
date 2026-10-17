@@ -34,23 +34,14 @@ export function createEmptyFormState(): ServiceDefinitionFormState {
     name: '',
     description: '',
     categoryId: '',
-    archetype: 'RENTAL',
-    measurementMode: 'BY_PERIOD',
-    measurementBasis: 'TIME',
-    billingEntitlementPolicy: 'MEASUREMENT_APPROVED',
+    archetype: '',
+    measurementMode: '',
+    measurementBasis: '',
+    billingEntitlementPolicy: '',
     requiresPurchaseOrder: false,
     defaultUnitCode: '',
-    allowedUnits: [{ unitCode: 'DAY', isDefault: true, sortOrder: 0 }],
-    pricingModels: [
-      {
-        modelCode: 'DAILY',
-        unitCode: 'DAY',
-        salePrice: null,
-        internalCost: null,
-        currencyCode: 'BRL',
-        sortOrder: 0,
-      },
-    ],
+    allowedUnits: [],
+    pricingModels: [],
     resourceRequirements: [],
     laborRequirements: [],
     executionRequirements: [],
@@ -153,11 +144,100 @@ export function validateServiceDefinitionForm(
   if (!state.categoryId.trim()) {
     errors.categoryId = 'Categoria é obrigatória.';
   }
+  if (!state.archetype.trim()) {
+    errors.archetype = 'Arquétipo operacional é obrigatório.';
+  }
+  if (!state.measurementMode.trim()) {
+    errors.measurementMode = 'Modo de medição é obrigatório.';
+  }
+  if (!state.measurementBasis.trim()) {
+    errors.measurementBasis = 'Base de medição é obrigatória.';
+  }
+
   if (state.allowedUnits.length === 0) {
     errors.allowedUnits = 'Informe ao menos uma unidade permitida.';
+  } else {
+    const unitCodes = state.allowedUnits.map((unit) => unit.unitCode.trim()).filter(Boolean);
+    if (new Set(unitCodes).size !== unitCodes.length) {
+      errors.allowedUnits = 'A mesma unidade não pode ser adicionada duas vezes.';
+    } else {
+      const markedDefaults = state.allowedUnits.filter((unit) => unit.isDefault);
+      if (markedDefaults.length > 1) {
+        errors.allowedUnits = 'Selecione no máximo uma unidade padrão.';
+      } else if (state.defaultUnitCode) {
+        const selected = state.allowedUnits.find(
+          (unit) => unit.unitCode === state.defaultUnitCode && unit.isDefault,
+        );
+        if (!selected) {
+          errors.allowedUnits = 'A unidade padrão deve pertencer às unidades permitidas.';
+        }
+      } else if (markedDefaults.length > 0) {
+        errors.allowedUnits = 'A unidade marcada como padrão deve coincidir com a unidade padrão.';
+      }
+    }
   }
+
   if (state.pricingModels.length === 0) {
     errors.pricingModels = 'Informe ao menos um modelo de preço.';
+  } else if (
+    new Set(state.pricingModels.map((model) => model.modelCode)).size !==
+    state.pricingModels.length
+  ) {
+    errors.pricingModels = 'O mesmo modelo de preço não pode ser adicionado duas vezes.';
+  }
+
+  if (
+    state.resourceRequirements.some(
+      (item) => !Number.isInteger(item.minQuantity) || item.minQuantity < 1,
+    ) ||
+    new Set(state.resourceRequirements.map((item) => item.resourceTypeCode)).size !==
+      state.resourceRequirements.length
+  ) {
+    errors.resourceRequirements =
+      'Recursos físicos não podem repetir tipo e exigem quantidade mínima inteira de pelo menos 1.';
+  }
+
+  if (
+    state.laborRequirements.some(
+      (item) => !Number.isInteger(item.minQuantity) || item.minQuantity < 1,
+    ) ||
+    new Set(state.laborRequirements.map((item) => item.laborTypeCode)).size !==
+      state.laborRequirements.length
+  ) {
+    errors.laborRequirements =
+      'Mão de obra não pode repetir função e exige quantidade mínima inteira de pelo menos 1.';
+  }
+
+  const evidenceTypes = state.executionRequirements.map((item) => item.requirementType);
+  if (new Set(evidenceTypes).size !== evidenceTypes.length) {
+    errors.executionRequirements = 'O mesmo tipo de evidência não pode ser adicionado duas vezes.';
+  } else {
+    const invalidConditional = state.executionRequirements.some((item) => {
+      if (item.requirementLevel !== 'CONDITIONAL') {
+        return Boolean(item.config?.conditional);
+      }
+      const condition = item.config?.conditional;
+      if (!condition?.conditionType) {
+        return true;
+      }
+      if (condition.conditionType === 'WHEN_MEASUREMENT_BASIS_IS') {
+        return !condition.measurementBasis;
+      }
+      if (condition.conditionType === 'WHEN_ARCHETYPE_IS') {
+        return !condition.archetype;
+      }
+      if (condition.conditionType === 'WHEN_RESOURCE_TYPE_IS') {
+        return !condition.resourceTypeCode;
+      }
+      if (condition.conditionType === 'WHEN_LABOR_TYPE_IS') {
+        return !condition.laborTypeCode;
+      }
+      return true;
+    });
+    if (invalidConditional) {
+      errors.executionRequirements =
+        'Evidência condicional exige uma condição válida e o respectivo valor.';
+    }
   }
   return errors;
 }
