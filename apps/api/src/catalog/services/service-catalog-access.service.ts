@@ -8,7 +8,17 @@ import {
 import { SecurityAuditService } from '../../audit/services/security-audit.service';
 import type { IdentityAuthzContext } from '../../authorization/types/authz-decision';
 import { AUTHZ_ACTIONS } from '../../authorization/types/authz-actions';
-import { LINEAGE_STATUSES } from '../domain/service-catalog-status';
+import {
+  LINEAGE_STATUSES,
+  MEASUREMENT_MODES,
+  OPERATIONAL_ARCHETYPES,
+} from '../domain/service-catalog-status';
+import { BILLING_ENTITLEMENT_POLICIES } from '../domain/service-catalog.validation';
+import {
+  EXECUTION_CONDITION_TYPES,
+  EXECUTION_REQUIREMENT_TYPES,
+} from '../domain/execution-requirement';
+import { REQUIREMENT_LEVELS } from '../domain/requirement-level';
 import type {
   CatalogVersionFilter,
   CreateServiceDefinitionInput,
@@ -121,6 +131,18 @@ export class ServiceCatalogAccessService {
   ): Promise<{ items: Array<{ id: string; code: string; name: string }> }> {
     await this.authz.assertListAction(actor);
     return { items: await this.repository.listActiveCategories() };
+  }
+
+  async listReferenceData(actor: IdentityAuthzContext) {
+    await this.authz.assertListAction(actor);
+    return {
+      archetypes: [...OPERATIONAL_ARCHETYPES],
+      measurementModes: [...MEASUREMENT_MODES],
+      billingEntitlementPolicies: [...BILLING_ENTITLEMENT_POLICIES],
+      requirementLevels: [...REQUIREMENT_LEVELS],
+      executionRequirementTypes: [...EXECUTION_REQUIREMENT_TYPES],
+      executionConditionTypes: [...EXECUTION_CONDITION_TYPES],
+    };
   }
 
   async listDefinitions(
