@@ -208,8 +208,8 @@ export function ServiceDefinitionVersionCreatePage() {
             </span>
           ) : (
             <span role="note">
-              Sem versão publicada anterior: a nova versão começa vazia, exceto pelos padrões do
-              catálogo.
+              Sem versão publicada anterior: a nova versão começa vazia e deve ser configurada com
+              referências carregadas do servidor.
             </span>
           )
         }
