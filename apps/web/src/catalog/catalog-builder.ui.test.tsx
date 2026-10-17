@@ -133,6 +133,8 @@ function draftVersion(): ServiceDefinitionVersion {
     version: DRAFT_VERSION,
     status: VERSION_STATUSES.Draft,
     categoryId: CATEGORY_ID,
+    categoryCode: 'LOCACAO',
+    categoryName: 'Locação',
     archetype: 'RENTAL',
     name: 'Locação demo',
     description: null,
