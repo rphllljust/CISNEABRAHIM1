@@ -519,24 +519,20 @@ export function ServiceDefinitionsListPage() {
 
       <div data-region="worklist-master">
       {/*
-        RECORTE DE VERSAO E LOCAL, NAO DO SERVIDOR.
-        O contrato de `/catalog/service-definitions` publica apenas `status` e `q`
-        (ver `ListServiceDefinitionsParams`). Nao existe filtro de versao publicado, e
-        recortar no navegador uma lista paginada no servidor mentiria: um servico com
-        rascunho na proxima pagina apareceria como inexistente.
-        A tela declara o escopo em vez de esconder a limitacao — PARK registrado:
-        filtro de versao no servidor.
+        RECORTE DE VERSAO NO SERVIDOR.
+        O filtro viaja junto de status, busca, limit e offset; portanto a pagina recebida ja pertence
+        ao dataset filtrado. Nenhuma definicao da pagina seguinte e escondida por filtro local.
       */}
       {listState.items.length === 0 ? (
         <WorklistStatePanel
           title={
             versionFilter
-              ? 'Nenhuma definição nesta página corresponde ao recorte de versão.'
+              ? 'Nenhuma definição corresponde ao recorte de versão.'
               : 'Nenhuma definição encontrada para os filtros selecionados.'
           }
           description={
             versionFilter
-              ? 'O recorte de versão ainda não é resolvido pelo servidor — avance a página ou limpe o filtro.'
+              ? 'O servidor não encontrou definições para este status de versão e os demais filtros.'
               : 'Ajuste a busca ou o status, ou limpe os filtros para ver o portfólio completo.'
           }
           action={
