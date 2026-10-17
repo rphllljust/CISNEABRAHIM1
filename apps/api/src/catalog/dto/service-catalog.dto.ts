@@ -528,7 +528,8 @@ export function parseUpdateDraftServiceDefinitionInput(
     measurementBasis,
     description:
       description === undefined ? undefined : description === null ? null : parseRequiredString(record, 'description'),
-    defaultUnitCode: defaultUnitCode ?? null,
+    defaultUnitCode:
+      defaultUnitCodeRaw === undefined ? undefined : (defaultUnitCode ?? null),
     allowedUnits,
     resourceRequirements: assertResourceRequirements(resourceRequirements),
     laborRequirements: assertLaborRequirements(laborRequirements),
