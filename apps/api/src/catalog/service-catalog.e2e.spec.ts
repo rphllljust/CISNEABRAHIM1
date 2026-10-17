@@ -289,6 +289,42 @@ describe('Service catalog E2E', () => {
     expect(listBody.items.length).toBeGreaterThan(0);
   });
 
+  it('rejects an invalid duplicated unit through the real HTTP boundary', async () => {
+    const { accessToken, categoryId } = await loginWithCatalogGrants();
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/catalog/service-definitions',
+      headers: { authorization: `Bearer ${accessToken}` },
+      payload: {
+        code: 'SERVICO_UNIDADE_DUPLICADA',
+        name: 'Serviço inválido',
+        categoryId,
+        archetype: 'RENTAL',
+        measurementMode: 'BY_PERIOD',
+        measurementBasis: 'TIME',
+        defaultUnitCode: 'DAY',
+        allowedUnits: [
+          { unitCode: 'DAY', isDefault: true, sortOrder: 0 },
+          { unitCode: 'DAY', isDefault: false, sortOrder: 1 },
+        ],
+        pricingModels: [
+          {
+            modelCode: 'DAILY',
+            unitCode: 'DAY',
+            currencyCode: 'BRL',
+            sortOrder: 0,
+          },
+        ],
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(parseCatalogError(response.body).error.code).toBe(
+      CATALOG_ERROR_CODES.VALIDATION_FAILED,
+    );
+  });
+
   it('returns not found for unknown service definition', async () => {
     const { accessToken } = await loginWithCatalogGrants();
     const response = await app.inject({
