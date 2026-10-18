@@ -182,7 +182,9 @@ type CapturedRequest = {
  * Mock da API do catálogo: sessão, capabilities (todas autorizadas), dados de referência e as
  * MUTAÇÕES reais que as páginas fazem. O corpo enviado é capturado para provar o payload.
  */
-function createCatalogBuilderMock(options: { version?: ServiceDefinitionVersion } = {}) {
+function createCatalogBuilderMock(
+  options: { version?: ServiceDefinitionVersion; permissions?: string[] } = {},
+) {
   const captured: CapturedRequest[] = [];
   const version = options.version ?? draftVersion();
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -206,7 +208,7 @@ function createCatalogBuilderMock(options: { version?: ServiceDefinitionVersion 
           email: null,
           identity_id: '00000000-0000-4000-8000-000000000001',
         },
-        permissoes_efetivas: [
+        permissoes_efetivas: options.permissions ?? [
           'catalog:service:list',
           'catalog:service:create',
           'catalog:service:read',
@@ -605,16 +607,17 @@ describe('Builder do catálogo de serviços', () => {
   });
 
   it('renderiza estado negado honesto quando a capability de edição não existe', async () => {
-    const { fetchMock } = createCatalogBuilderMock();
-    const deniedMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const { pathname } = parseRequestPath(input);
-      const method = (init?.method ?? 'GET').toUpperCase();
-      if (pathname.startsWith('/api/v1/catalog/service-definitions') && method !== 'GET') {
-        return catalogError('CATALOG_DENIED', 403);
-      }
-      return fetchMock(input, init);
+    const { fetchMock } = createCatalogBuilderMock({
+      permissions: [
+        'catalog:service:list',
+        'catalog:service:create',
+        'catalog:service:read',
+        'catalog:service:publish',
+        'catalog:service:deactivate',
+        'catalog:service:activate',
+      ],
     });
-    vi.stubGlobal('fetch', deniedMock);
+    vi.stubGlobal('fetch', fetchMock);
     renderDraftEditor();
 
     expect(await screen.findByText(/não tem permissão para editar rascunhos/i)).toBeInTheDocument();
