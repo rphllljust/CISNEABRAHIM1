@@ -14,7 +14,7 @@ test.describe('executive dashboard visual regression', () => {
   });
 
   test('dashboard ready state', async ({ page }) => {
-    await expect(page.locator('#main-content.dashboard-page')).toHaveScreenshot('dashboard-ready.png', {
+    await expect(page.locator('#main-content')).toHaveScreenshot('dashboard-ready.png', {
       animations: 'disabled',
       mask: [page.locator('.dashboard-page__meta time'), page.locator('.dashboard-command__refresh')],
     });
