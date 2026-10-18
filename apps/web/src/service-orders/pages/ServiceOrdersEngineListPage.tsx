@@ -17,6 +17,7 @@ import {
   type ServiceOrderListFilter,
   type ServiceOrderListOrder,
 } from '../types/service-order-list.types';
+import { formatServiceOrderOrigin, toHumanStatusLabel } from '../utils/service-order-labels';
 import { Skeleton } from '../../ui/Skeleton';
 import {
   CommandPalette,
@@ -63,8 +64,7 @@ import {
 } from '../../ui/enterprise-list';
 import { ModulePage, ModulePagination } from '../../ui/module-layout';
 import { Button } from '../../ui/Button';
-import { cn } from '../../ui/utils/cn';
-import { serviceOrderEngineRows, type ServiceOrderEngineRow } from './service-order-engine-rows';
+import { serviceOrderEngineRows, serviceOrderWorklistSchema, type ServiceOrderEngineRow } from './service-order-engine-rows';
 
 /**
  * CAMPOS DO FILTRO AVANÇADO PARA O CONVERSOR COMPARTILHADO.
@@ -154,7 +154,8 @@ const DEFAULT_DESTINATIONS = [
 export function ServiceOrdersEngineListPage() {
   const navigate = useNavigate();
   const { identityId } = useAuth();
-  const { schema, status } = useEntitySchema('service-orders');
+  const { schema: entitySchema, status } = useEntitySchema('service-orders');
+  const schema = useMemo(() => serviceOrderWorklistSchema(entitySchema), [entitySchema]);
   const [searchParams, setSearchParams] = useSearchParams();
 
   /**
@@ -299,12 +300,14 @@ export function ServiceOrdersEngineListPage() {
 
   // A busca digitada espera antes de virar requisição: sem o atraso, cada tecla é uma ida à rede.
   useEffect(() => {
+    // Só uma alteração real da busca reinicia a página; o timer inicial não pode desfazer Próxima.
+    if (searchInput.trim() === search) return;
     const timer = window.setTimeout(() => {
       setSearch(searchInput.trim());
       setPageOffset(0);
     }, 300);
     return () => window.clearTimeout(timer);
-  }, [searchInput]);
+  }, [searchInput, search]);
 
   const filters = useMemo(() => {
     const values: Record<string, string> = {};
@@ -451,25 +454,6 @@ export function ServiceOrdersEngineListPage() {
     [rows, kpiSpecs],
   );
 
-  const operationalSnapshot = useMemo(() => {
-    const countStatus = (expected: string): number =>
-      rows.filter((row) => toDisplayText(row['status']) === expected).length;
-    const withDeadline = rows.filter((row) => toDisplayText(row['deadline_at']).trim() !== '').length;
-    const unassigned = rows.filter(
-      (row) => toDisplayText(row['assigned_workforce_name']).trim() === '',
-    ).length;
-    return {
-      pageTotal: rows.length,
-      released: countStatus('RELEASED'),
-      inExecution: countStatus('IN_EXECUTION'),
-      paused: countStatus('PAUSED'),
-      completed: countStatus('COMPLETED'),
-      cancelled: countStatus('CANCELLED'),
-      withDeadline,
-      unassigned,
-    };
-  }, [rows]);
-
   const updateFilter = (field: string, value: string): void => {
     const next = new URLSearchParams(searchParams);
     if (value.trim() === '') {
@@ -523,7 +507,7 @@ export function ServiceOrdersEngineListPage() {
     const references: CrossReference[] = [];
     const status = toDisplayText(row['status']);
     if (status.trim() !== '') {
-      references.push({ label: 'Situação', detail: status });
+      references.push({ label: 'Situação', detail: toHumanStatusLabel(status) });
     }
     const client = toDisplayText(row['client_snapshot']);
     if (client.trim() !== '') {
@@ -646,7 +630,7 @@ export function ServiceOrdersEngineListPage() {
               {entityLabel('service-orders', schema?.label ?? 'Ordens de serviço')}
             </h1>
             <p className="cisne-type-helper m-0 mt-0.5">
-              Cockpit operacional renderizado pela engine a partir do metadata store e da carteira autorizada.
+              Carteira autorizada de ordens de serviço, com situação e contexto operacional.
             </p>
           </div>
           {/*
@@ -732,41 +716,6 @@ export function ServiceOrdersEngineListPage() {
             activeFilters={filters}
             onDrilldown={(field, value) => updateFilter(field, value)}
           />
-
-          {/*
-            COCKPIT DA CARTEIRA — a faixa de sinais, NÃO um card.
-
-            Antes era `rounded-md border bg-white shadow-[...] px-3 py-3`: um card de 109px dentro
-            da área de trabalho, que já é branca. Somado ao cabeçalho em card, isso empurrava a
-            primeira linha REAL da grade para fora da primeira dobra (medido: 0 registros visíveis
-            na dobra com 17 carregados).
-
-            Agora é uma faixa com divisores: os seis sinais são células separadas por régua, a
-            hierarquia vem do número e do rótulo, e a grade sobe para a dobra.
-          */}
-          {items.length > 0 ? (
-            <section
-              className="cisne-engine-signal-strip"
-              aria-label="Cockpit operacional da carteira"
-            >
-              <OperationalSignal label="Na página" value={operationalSnapshot.pageTotal} detail="ordens carregadas" />
-              <OperationalSignal label="Liberadas nesta página" value={operationalSnapshot.released} detail="prontas para execução" />
-              <OperationalSignal label="Em execução nesta página" value={operationalSnapshot.inExecution} detail="campo ativo" />
-              <OperationalSignal label="Pausadas nesta página" value={operationalSnapshot.paused} detail="atenção operacional" tone="warning" />
-              <OperationalSignal label="Com prazo nesta página" value={operationalSnapshot.withDeadline} detail="deadline informado" />
-              <OperationalSignal
-                label="Sem responsável"
-                value={operationalSnapshot.unassigned}
-                detail="nesta página"
-                tone={operationalSnapshot.unassigned > 0 ? 'warning' : 'default'}
-              />
-              <OperationalSignal
-                label="Fechadas nesta página"
-                value={operationalSnapshot.completed + operationalSnapshot.cancelled}
-                detail="concluídas/canceladas"
-              />
-            </section>
-          ) : null}
 
           {visibleRows.length > 0 ? (
             <div className="cisne-engine-export">
@@ -944,7 +893,6 @@ export function ServiceOrdersEngineListPage() {
             <DynamicKanban
               schema={schema}
               rows={visibleRows}
-              ownerField="client_snapshot"
               stateLabel={stateLabel}
               onCardClick={openRow}
             />
@@ -968,13 +916,6 @@ export function ServiceOrdersEngineListPage() {
                 rows={visibleRows}
                 selectedIds={selectedIds}
                 onSelectionChange={setSelectedIds}
-                ownerField="client_snapshot"
-                showTotals
-                /*
-                 * AGING NO EIXO REAL DA ENTIDADE: o prazo operacional (`deadline_at`), não a
-                 * data de criação — que a listagem nem recebe. É a distância até o PRAZO que
-                 * diz se uma OS está atrasada, e é isso que a cor comunica.
-                 */
                 agingField="deadline_at"
                 /*
                  * A LINHA NAVEGA; o painel de contexto abre por um botão PRÓPRIO.
@@ -1108,7 +1049,7 @@ export function ServiceOrdersEngineListPage() {
                 <dt className="cisne-meta-label pt-0.5">Código interno</dt>
                 <dd className="cisne-meta-value m-0 font-mono">{detailState.detail.internalCode}</dd>
                 <dt className="cisne-meta-label pt-0.5">Origem</dt>
-                <dd className="cisne-meta-value m-0">{detailState.detail.origin}</dd>
+                <dd className="cisne-meta-value m-0">{formatServiceOrderOrigin(detailState.detail.origin) ?? '—'}</dd>
                 {detailState.detail.contractReference ? (
                   <>
                     <dt className="cisne-meta-label pt-0.5">Contrato</dt>
@@ -1257,39 +1198,6 @@ export function ServiceOrdersEngineListPage() {
         onNavigate={(path) => void navigate(path)}
       />
     </ModulePage>
-  );
-}
-
-function OperationalSignal({
-  label,
-  value,
-  detail,
-  tone = 'default',
-}: {
-  label: string;
-  value: number;
-  detail: string;
-  tone?: 'default' | 'warning';
-}) {
-  return (
-    /*
-      SINAL OPERACIONAL — célula da faixa, não card.
-      A distinção entre "atenção" e "normal" continua existindo, mas agora vem da COR DO NÚMERO e
-      de uma régua, não de uma caixa âmbar inteira: exceção precisa ser visível sem virar um bloco
-      que compete com as outras cinco células.
-    */
-    <div className="cisne-engine-signal">
-      <p className="cisne-meta-label m-0">{label}</p>
-      <p
-        className={cn(
-          'cisne-type-object m-0 leading-none tabular-nums',
-          tone === 'warning' ? 'text-amber-700' : 'text-gray-900',
-        )}
-      >
-        {value}
-      </p>
-      <p className="cisne-type-helper m-0 truncate">{detail}</p>
-    </div>
   );
 }
 

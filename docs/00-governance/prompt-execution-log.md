@@ -21250,3 +21250,16 @@ Evidência: CI 38941737108 do commit a81c595. Shards 2/4 e 4/4 passaram; 1/4 e 3
 - Shell e gate responsivo reutilizam o seletor compartilhado do título atual.
 
 Validação local: os reporters registraram 13 testes de workspaces, 11 de finance-backoffice, 7 de previsão de caixa e 4 de cockpit aprovados. Entretanto o runner local não concluiu o encerramento; tentativas isoladas atingiram o limite externo de execução. Estes resultados NÃO equivalem a uma suíte terminada com exit code 0. ESLint focado e typecheck Web são verificados separadamente; o CI do novo SHA deve confirmar a execução completa. Sem merge e sem deploy nesta etapa.
+
+
+## Correção focada da Worklist de OS — 2026-10-18
+
+Classificação: interpretação de engenharia de apresentação, autorizada pela solicitação explícita de corrigir a auditoria da lista de OS e promover após os gates obrigatórios. Não altera regra empresarial, backend, banco, lifecycle ou commands.
+
+Evidência de contrato: `toServiceOrderListResponse` já inclui `toServiceOrderResponse`, que publica `internalCode`, `createdAt` e `origin`. O adaptador Web usava `id`, `null` e `null` nesses campos. A coluna Cliente usava o slot de responsável; `OwnerCell` continha o literal `n. Drawer e identidade da ficha exibiam enums diretamente.
+
+Correção: tipagem e mapeamento dos campos publicados; Cliente como coluna/card field autorizado do schema existente (sem slot de responsável); remoção do literal no renderer compartilhado; labels existentes de estado/origem em drawer e identidade da ficha, preservando tokens canônicos; remoção da segunda faixa redundante de indicadores e totalização redundante; debounce só reinicia paginação após alteração efetiva da busca. Pessoas não foi alterado: o intervalo vazio é montado na própria tela, independentemente do paginador compartilhado.
+
+Rastreabilidade: solicitação atual → adaptador/Worklist/renderer/identidade da OS → testes `ServiceOrdersEngineListPage.test.tsx` e `service-orders-list.e2e.test.tsx` (campos, ausência, drawer, abertura da ficha, busca e paginação). Dados de teste são sintéticos; nenhuma mutação empresarial de produção é necessária.
+
+Gates locais: lint focado e typecheck Web aprovados na primeira execução. Os testes locais reportaram a validação dos campos e do drawer, e revelaram uma corrida concreta do debounce com a paginação, corrigida no mesmo escopo. Após a correção, os 12 casos da Worklist reportaram sucesso; o encerramento do runner ainda deve ser confirmado. CI e validação em produção permanecem pendentes; este registro não declara release aprovado.
