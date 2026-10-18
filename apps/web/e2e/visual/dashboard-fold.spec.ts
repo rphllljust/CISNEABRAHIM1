@@ -56,7 +56,7 @@ test.describe('visao geral — fila decisoria exercitada', () => {
      * o dev server (era isso que produzia 404 e 200 para a MESMA rota).
      */
     await prepareAuthenticatedSession(page, 'dashboard');
-    await expect(page.getByRole('heading', { level: 1, name: /visão geral/i })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Central de operações' })).toBeVisible();
 
     await page.route('**/api/v1/work-inbox**', async (route) => {
       await route.fulfill({
@@ -68,7 +68,7 @@ test.describe('visao geral — fila decisoria exercitada', () => {
 
     // Recarrega JA com o intercept da fila ativo: a prova e desta renderizacao.
     await page.goto('/app');
-    await expect(page.getByRole('heading', { level: 1, name: /visão geral/i })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Central de operações' })).toBeVisible();
     await stabilizePage(page);
 
     const fold = 900;

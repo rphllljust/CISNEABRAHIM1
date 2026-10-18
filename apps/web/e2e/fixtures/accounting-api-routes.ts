@@ -637,7 +637,7 @@ export async function prepareAccountingSession(page: Page): Promise<void> {
   await page.getByLabel(/^usuário/i).fill(TEST_LOGIN);
   await page.getByLabel(/^senha/i).fill(TEST_PASSWORD);
   await page.getByRole('button', { name: /^entrar/i }).click();
-  await expect(page.getByRole('heading', { level: 1, name: /visão geral/i })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Central de operações' })).toBeVisible();
 }
 
 export async function stabilizeAccountingPage(page: Page): Promise<void> {
