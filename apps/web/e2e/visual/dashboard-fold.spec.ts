@@ -95,7 +95,8 @@ test.describe('visao geral — fila decisoria exercitada', () => {
     await expect(processFlow.getByText('Ordem de serviço', { exact: true })).toBeVisible();
     await expect(processFlow.getByText('Recebimento', { exact: true })).toBeVisible();
 
-    // 6. ANALYTICS COM DRILLDOWN REAL na coluna lateral (drawer FECHADO).
+    // 6. ANALYTICS COM DRILLDOWN REAL — progressive disclosure keeps them out of the primary work surface.
+    await page.getByText('Contexto do recorte e análise operacional', { exact: true }).click();
     await expect(page.getByRole('heading', { name: /ordens por situação/i })).toBeVisible();
     await expect(page.getByRole('heading', { name: /atraso por faixa/i })).toBeVisible();
     // Cada segmento abre a lista filtrada que produziu o numero.
