@@ -161,6 +161,9 @@ describe('Central de fechamento', () => {
       expect(screen.getByLabelText(/competência/i)).not.toBeDisabled();
     });
     const periodSelect = screen.getByLabelText(/competência/i);
+    await waitFor(() => {
+      expect(within(periodSelect).getAllByRole('option').length).toBeGreaterThan(1);
+    });
     const options = within(periodSelect).getAllByRole('option');
     // Rótulo humano: competência + intervalo. O uuid nunca é o texto da opção.
     expect(options.some((option) => /2026-09/.test(option.textContent ?? ''))).toBe(true);
