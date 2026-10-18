@@ -1,4 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { EXECUTIVE_DASHBOARD_SNAPSHOT } from './executive-dashboard-snapshot';
 
 /**
  * Tráfego determinístico da CONTABILIDADE (Família 4).
@@ -611,6 +612,14 @@ export async function installAccountingMocks(page: Page): Promise<void> {
       return;
     }
 
+    // O App Shell carrega o snapshot executivo para compor os KPIs e a navegação global,
+    // inclusive quando a prova abre uma rota de Contabilidade. A fixture antes deixava essa
+    // requisição cair no 404 genérico; a página então recebia um payload sem `charts`.
+    if (pathname.startsWith('/api/v1/dashboard/executive') && method === 'GET') {
+      await fulfillJson(route, EXECUTIVE_DASHBOARD_SNAPSHOT);
+      return;
+    }
+
     if (pathname.startsWith('/api/v1/search') && method === 'GET') {
       await fulfillJson(route, {
         query: { raw: 'test', kind: 'text' },
@@ -637,7 +646,7 @@ export async function prepareAccountingSession(page: Page): Promise<void> {
   await page.getByLabel(/^usuário/i).fill(TEST_LOGIN);
   await page.getByLabel(/^senha/i).fill(TEST_PASSWORD);
   await page.getByRole('button', { name: /^entrar/i }).click();
-  await expect(page.getByRole('heading', { level: 1, name: /visão geral/i })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Central de operações' })).toBeVisible();
 }
 
 export async function stabilizeAccountingPage(page: Page): Promise<void> {
