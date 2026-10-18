@@ -117,6 +117,13 @@ describe('ServiceDefinitionForm accessibility', () => {
     expect(screen.getByRole('button', { name: '+ Adicionar mão de obra' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '+ Adicionar evidência' })).toBeInTheDocument();
 
+    // Uma intenção, uma ação: o repetidor não duplica o comando do cabeçalho.
+    expect(screen.queryByRole('button', { name: 'Nova unidade' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Novo modelo de preço' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Novo recurso físico' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Nova mão de obra' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Nova evidência' })).not.toBeInTheDocument();
+
     // Remover é ação secundária com nome acessível explícito — nunca um botão azul "Remover".
     const remove = screen.getByRole('button', { name: 'Remover o modelo de preço 1' });
     expect(remove).toHaveTextContent('Remover');
