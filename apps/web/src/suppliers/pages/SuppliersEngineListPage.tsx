@@ -42,6 +42,7 @@ import { supplierEngineRows, type SupplierEngineRow } from './supplier-engine-ro
 import { useSupplierAvailableActions } from '../hooks/useSupplierAvailableActions';
 import { mapSupplierErrorToMessage } from '../api/supplier-error-messages';
 import type { SupplierDetail, SupplierSummary } from '../types/supplier.types';
+import { formatCnpj } from '../../clients/utils/format-cnpj';
 
 /**
  * WORKLIST DE FORNECEDORES — cadastro de terceiros como fila de trabalho.
@@ -607,6 +608,9 @@ export function SuppliersEngineListPage() {
             // DENSIDADE: a celula empilhava TRES linhas (estado, excecao e proxima acao), o que
             // dobrava a altura de TODA a grade — medido, a pagina tinha 1675px para 18 linhas e
             // apenas 5 registros cabiam na primeira dobra. Estado e excecao cabem na MESMA linha.
+            if (field.name === 'normalized_tax_id') {
+              return <span className="font-mono tabular-nums">{formatCnpj(item.taxId)}</span>;
+            }
             if (field.name === 'status') {
               const exception = supplierException(item.status);
               const nextAction = nextActionLabel(item.status);
