@@ -207,7 +207,7 @@ test.describe('aceite de browser — superficies de negocio', () => {
   }) => {
     await login(page, 'dashboard');
     await page.goto('/app');
-    await expect(page.getByRole('heading', { level: 1, name: /visão geral/i })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Central de operações' })).toBeVisible();
     await expect(page.locator('main#main-content')).toHaveCount(1);
 
     const body = (await page.locator('body').innerText()) ?? '';
