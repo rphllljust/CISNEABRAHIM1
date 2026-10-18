@@ -13,7 +13,7 @@ export async function prepareAuthenticatedSession(
   await page.getByLabel(/^usuário/i).fill(TEST_LOGIN);
   await page.getByLabel(/^senha/i).fill(TEST_PASSWORD);
   await page.getByRole('button', { name: /^entrar/i }).click();
-  await expect(page.getByRole('heading', { level: 1, name: /visão geral/i })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: /central de operações/i })).toBeVisible();
 }
 
 export async function stabilizePage(page: Page): Promise<void> {
