@@ -96,12 +96,12 @@ async function measure(page: Page) {
         const shadow = getComputedStyle(el).boxShadow;
         if (shadow && shadow !== 'none' && !shadow.includes('inset')) {
           // CSS rings also resolve through box-shadow. A 0/0/0 spread ring is a border, not elevation.
-          const geometry = shadow.match(/(-?\\d+(?:\\.\\d+)?)px\\s+(-?\\d+(?:\\.\\d+)?)px\\s+(-?\\d+(?:\\.\\d+)?)px/);
+          const geometry = shadow.match(/(-?\d+(?:\.\d+)?)px\s+(-?\d+(?:\.\d+)?)px\s+(-?\d+(?:\.\d+)?)px/);
           const isBorderRing = geometry
             ? Number(geometry[1]) === 0 && Number(geometry[2]) === 0 && Number(geometry[3]) === 0
             : false;
           if (!isBorderRing) {
-            const cls = (el.getAttribute('class') ?? '').split(/\\s+/).find((c) => c.startsWith('shadow')) ?? '';
+            const cls = (el.getAttribute('class') ?? '').split(/\s+/).find((c) => c.startsWith('shadow')) ?? '';
             shadowOffenders.push(`${el.tagName.toLowerCase()}${cls ? `.${cls}` : ''}`);
             if (shadowOffenders.length >= 5) break;
           }
