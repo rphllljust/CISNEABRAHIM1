@@ -1,0 +1,57 @@
+name: Visual baseline repair
+
+on:
+  push:
+    branches:
+      - baseline/app-shell-visual-contract
+
+permissions:
+  contents: read
+
+concurrency:
+  group: visual-baseline-repair-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regenerate-remaining-app-shell-baselines:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --prefer-offline
+      - run: pnpm --filter @cisne/web exec playwright install chromium --with-deps
+      - name: Regenerate remaining approved App Shell baselines
+        continue-on-error: true
+        run: >-
+          pnpm --filter @cisne/web exec playwright test
+          e2e/visual/accounting.visual.spec.ts
+          e2e/visual/billing.visual.spec.ts
+          e2e/visual/clients.visual.spec.ts
+          e2e/visual/dashboard.visual.spec.ts
+          e2e/visual/finance.visual.spec.ts
+          e2e/visual/fiscal.visual.spec.ts
+          e2e/visual/inventory.visual.spec.ts
+          e2e/visual/procurement.visual.spec.ts
+          e2e/visual/proposals.visual.spec.ts
+          e2e/visual/purchase-orders.visual.spec.ts
+          e2e/visual/suppliers.visual.spec.ts
+          e2e/visual/final-3-acceptance.visual.spec.ts
+          e2e/visual/final-acceptance.visual.spec.ts
+          --update-snapshots
+        env:
+          CI: 'true'
+          VITE_CISNE_SURFACE: 'dev'
+      - name: Upload remaining baselines
+        uses: actions/upload-artifact@v4
+        with:
+          name: remaining-app-shell-baselines-${{ github.run_id }}
+          if-no-files-found: error
+          retention-days: 1
+          path: apps/web/e2e/visual/*-snapshots
