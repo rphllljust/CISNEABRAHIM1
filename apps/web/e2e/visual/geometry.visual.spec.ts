@@ -35,7 +35,7 @@ const ROUTES: Route[] = [
   { path: '/app/inventory', profile: 'inventory', label: 'Estoque' },
   { path: '/app/proposals', profile: 'commercial', label: 'Comercial · Propostas' },
   { path: '/app/work-inbox', profile: 'dashboard', label: 'WORKBENCH · Central de trabalho' },
-  /* Central de fechamento exige o perfil contábil dedicado; coberta por accounting.visual.spec.ts. */
+  { path: '/app/closing', profile: 'dashboard', label: 'WORKBENCH · Central de fechamento' },
   /*
     PARK_FIXTURE_GAP: Conciliacao exige `finance:reconciliation`, que o perfil `finance` do harness
     NAO mocka — a tela responde "Acesso negado", que e o comportamento CORRETO do backend
@@ -95,15 +95,11 @@ async function measure(page: Page) {
         }
         const shadow = getComputedStyle(el).boxShadow;
         if (shadow && shadow !== 'none' && !shadow.includes('inset')) {
-          // CSS rings also resolve through box-shadow. A 0/0/0 spread ring is a border, not elevation.
-          const geometry = shadow.match(/(-?\d+(?:\.\d+)?)px\s+(-?\d+(?:\.\d+)?)px\s+(-?\d+(?:\.\d+)?)px/);
-          const isBorderRing = geometry
-            ? Number(geometry[1]) === 0 && Number(geometry[2]) === 0 && Number(geometry[3]) === 0
-            : false;
-          if (!isBorderRing) {
-            const cls = (el.getAttribute('class') ?? '').split(/\s+/).find((c) => c.startsWith('shadow')) ?? '';
-            shadowOffenders.push(`${el.tagName.toLowerCase()}${cls ? `.${cls}` : ''}`);
-            if (shadowOffenders.length >= 5) break;
+          // Primeiro token de classe basta para localizar o ofensor no relatório.
+          const cls = (el.getAttribute('class') ?? '').split(/\s+/).find((c) => c.startsWith('shadow')) ?? '';
+          shadowOffenders.push(`${el.tagName.toLowerCase()}${cls ? `.${cls}` : ''}`);
+          if (shadowOffenders.length >= 5) {
+            break;
           }
         }
       }
@@ -171,11 +167,10 @@ test.describe('evidencia visual medida por dominio', () => {
 
       // --- filtros compactos (nao o card gigante) -----------------------------------
       if (m.filtersHeight !== null) {
-        const compactLimit = m.clientWidth >= 1024 ? 72 : 144;
         expect(
           m.filtersHeight,
-          `${route.label}: filtros devem permanecer compactos mesmo quando quebram linha no viewport estreito`,
-        ).toBeLessThanOrEqual(compactLimit);
+          `${route.label}: a barra de filtros deve ser compacta (uma linha), nao um card`,
+        ).toBeLessThanOrEqual(72);
       }
 
       // --- primeira dobra contem trabalho util --------------------------------------

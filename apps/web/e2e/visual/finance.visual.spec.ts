@@ -34,7 +34,7 @@ test.describe('finance visual', () => {
     ).toBeVisible();
     await expect(page.getByText('CC-OPER')).toBeVisible();
     await expect(page.getByLabel(/identificador da despesa/i)).toHaveCount(0);
-    await expect(page.getByText(/3 no recorte/)).toBeVisible();
+    await expect(page.getByText(/3 despesa\(s\) no total/)).toBeVisible();
     await assertNoPageLevelHorizontalOverflow(page);
 
     await stabilizePage(page);

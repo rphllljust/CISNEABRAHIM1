@@ -59,9 +59,8 @@ test.describe('inventory visual', () => {
   test('stock lists without results', async ({ page }) => {
     await openInventory(page);
 
-    const search = page.getByRole('searchbox', { name: 'Buscar' });
-    await search.fill('Zinco Inexistente');
-    await search.press('Enter');
+    await page.getByRole('searchbox', { name: 'Buscar' }).fill('Zinco Inexistente');
+    await page.getByRole('button', { name: 'Buscar' }).click();
 
     await expect(page.getByText('Nenhum depósito encontrado.')).toBeVisible();
     await expect(page.getByText('Nenhum item de estoque encontrado.')).toBeVisible();

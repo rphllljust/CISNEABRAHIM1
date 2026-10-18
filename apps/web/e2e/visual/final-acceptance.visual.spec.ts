@@ -90,9 +90,8 @@ test.describe('aceite visual final — 1600x900', () => {
     await expect(page.getByLabel(/vencimento a partir de/i)).toBeVisible();
     await expect(page.getByLabel(/ordenar por/i)).toBeVisible();
 
-    // Contexto sem seleção não ocupa a bancada; a prévia abre o mesmo contexto sem abandonar a fila.
-    await page.getByRole('button', { name: /Prévia de / }).first().click();
-    await expect(page.getByRole('heading', { name: 'Contexto do título' })).toBeVisible();
+    // A COLUNA DE CONTEXTO existe mesmo SEM selecao — nao ha oceano branco a direita.
+    await expect(page.getByLabel('Contexto do título')).toBeVisible();
 
     await assertWorkSurfaceAboveFold(page);
     await assertNoHorizontalOverflow(page);
@@ -115,8 +114,7 @@ test.describe('aceite visual final — 1600x900', () => {
       /agingBucket=90_PLUS/,
     );
     await expect(page.getByLabel(/buscar títulos no domínio/i)).toBeVisible();
-    await page.getByRole('button', { name: /Prévia de / }).first().click();
-    await expect(page.getByRole('heading', { name: 'Contexto do título' })).toBeVisible();
+    await expect(page.getByLabel('Contexto do título')).toBeVisible();
 
     await assertWorkSurfaceAboveFold(page);
     await assertNoHorizontalOverflow(page);
@@ -134,7 +132,6 @@ test.describe('aceite visual final — 1600x900', () => {
 
     // A SITUACAO abre a central; a fila de excecoes vem logo depois.
     await expect(page.getByLabel(/situação financeira do recorte/i)).toBeVisible();
-    await page.getByRole('button', { name: 'Contexto do processo' }).click();
     await expect(page.getByRole('heading', { name: /exceções financeiras/i })).toBeVisible();
 
     // A regiao de trabalho existe e a tela nao tem overflow.

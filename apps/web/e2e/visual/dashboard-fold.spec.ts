@@ -56,7 +56,7 @@ test.describe('visao geral — fila decisoria exercitada', () => {
      * o dev server (era isso que produzia 404 e 200 para a MESMA rota).
      */
     await prepareAuthenticatedSession(page, 'dashboard');
-    await expect(page.getByRole('heading', { level: 1, name: 'Central de operações' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /visão geral/i })).toBeVisible();
 
     await page.route('**/api/v1/work-inbox**', async (route) => {
       await route.fulfill({
@@ -68,7 +68,7 @@ test.describe('visao geral — fila decisoria exercitada', () => {
 
     // Recarrega JA com o intercept da fila ativo: a prova e desta renderizacao.
     await page.goto('/app');
-    await expect(page.getByRole('heading', { level: 1, name: 'Central de operações' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /visão geral/i })).toBeVisible();
     await stabilizePage(page);
 
     const fold = 900;
@@ -95,8 +95,7 @@ test.describe('visao geral — fila decisoria exercitada', () => {
     await expect(processFlow.getByText('Ordem de serviço', { exact: true })).toBeVisible();
     await expect(processFlow.getByText('Recebimento', { exact: true })).toBeVisible();
 
-    // 6. ANALYTICS COM DRILLDOWN REAL — progressive disclosure keeps them out of the primary work surface.
-    await page.getByText('Contexto do recorte e análise operacional', { exact: true }).click();
+    // 6. ANALYTICS COM DRILLDOWN REAL na coluna lateral (drawer FECHADO).
     await expect(page.getByRole('heading', { name: /ordens por situação/i })).toBeVisible();
     await expect(page.getByRole('heading', { name: /atraso por faixa/i })).toBeVisible();
     // Cada segmento abre a lista filtrada que produziu o numero.

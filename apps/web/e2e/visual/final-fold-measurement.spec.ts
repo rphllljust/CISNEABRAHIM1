@@ -49,13 +49,11 @@ test.describe('medicao da primeira dobra — 1600x900', () => {
   test('contas a receber — situacao, fila e contexto acima da dobra', async ({ page }) => {
     await page.goto('/app/finance/receivables');
     await expect(page.getByRole('heading', { level: 1, name: 'Contas a receber' })).toBeVisible();
-    await page.getByRole('button', { name: /Prévia de / }).first().click();
-    await page.getByRole('button', { name: /Prévia de / }).first().click();
     await stabilizePage(page);
 
     const situation = await rectOf(page, '[data-region="situation-surface"]');
     const worklist = await rectOf(page, '[data-region="worklist-master"]');
-    const context = await rectOf(page, 'aside[aria-label="Contexto da seleção"]');
+    const context = await rectOf(page, '[data-region="context-region"]');
 
     expect(situation, 'a faixa de situacao precisa existir').not.toBeNull();
     expect(worklist, 'a regiao de trabalho precisa existir').not.toBeNull();
@@ -90,7 +88,7 @@ test.describe('medicao da primeira dobra — 1600x900', () => {
 
     const situation = await rectOf(page, '[data-region="situation-surface"]');
     const worklist = await rectOf(page, '[data-region="worklist-master"]');
-    const context = await rectOf(page, 'aside[aria-label="Contexto da seleção"]');
+    const context = await rectOf(page, '[data-region="context-region"]');
 
     expect(situation!.y).toBeLessThan(FOLD);
     expect(worklist!.y).toBeLessThan(FOLD);
@@ -102,7 +100,7 @@ test.describe('medicao da primeira dobra — 1600x900', () => {
 
   test('dashboard — situacao, trabalho, processo e contexto na primeira dobra', async ({ page }) => {
     await page.goto('/app');
-    await expect(page.getByRole('heading', { level: 1, name: 'Central de operações' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /visão geral/i })).toBeVisible();
     await stabilizePage(page);
 
     /*
@@ -114,12 +112,11 @@ test.describe('medicao da primeira dobra — 1600x900', () => {
     const queue = await rectOf(page, '.dashboard-queue');
     const flow = await rectOf(page, '.dashboard-chain');
     const analytics = await rectOf(page, '.dashboard-analytics');
-    const context = await rectOf(page, 'aside[aria-label="Contexto da seleção"]');
+    const context = await rectOf(page, '.dashboard-cc__context');
 
     expect(header, 'o cabecalho de orientacao precisa existir').not.toBeNull();
     expect(queue, 'a fila precisa existir').not.toBeNull();
-    // Sem item selecionado, o contexto é sob demanda e não reserva uma coluna vazia.
-    expect(context).toBeNull();
+    expect(context, 'a coluna de contexto precisa existir').not.toBeNull();
 
     // 1. SITUACAO (cabecalho) acima da dobra.
     expect(header!.y).toBeLessThan(FOLD);
@@ -138,7 +135,8 @@ test.describe('medicao da primeira dobra — 1600x900', () => {
       expect(flow.y, 'o fluxo precisa vir antes da fila').toBeLessThan(queue!.y);
     }
 
-    // 4. CONTEXTO é sob demanda; sem seleção, toda a largura permanece com o trabalho.
+    // 4. CONTEXTO presente na mesma tela (coluna propria, a direita).
+    expect(context!.width).toBeGreaterThanOrEqual(280);
 
     // 5. A FILA DOMINA: com trabalho publicado, ela ocupa uma faixa util da primeira dobra.
     expect(queue!.height, `a fila ocupou ${queue!.height}px`).toBeGreaterThan(120);

@@ -15,7 +15,7 @@ test.describe('billing dashboard visual regression', () => {
   });
 
   test('billing work queue empty state', async ({ page }) => {
-    await expect(page.locator('#main-content')).toHaveScreenshot('billing-empty.png', {
+    await expect(page.locator('#main-content.billing-page')).toHaveScreenshot('billing-empty.png', {
       animations: 'disabled',
     });
   });

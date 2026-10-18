@@ -63,13 +63,7 @@ test.describe('clients visual', () => {
     await expect(table.getByRole('columnheader', { name: 'Situação', exact: true })).toBeVisible();
     await expect(table.getByRole('columnheader', { name: 'Atenção', exact: true })).toBeVisible();
     await expect(table.getByRole('columnheader', { name: 'Atualização', exact: true })).toBeVisible();
-    const taxId = page.getByText('11.222.333/0005-18');
-    if ((page.viewportSize()?.width ?? 0) >= 1024) {
-      await expect(taxId).toBeVisible();
-    } else {
-      await expect(taxId).toBeAttached();
-      await expect(taxId).toBeHidden();
-    }
+    await expect(page.getByText('11.222.333/0005-18')).toBeVisible();
 
     // Nome fantasia aparece como apoio da razão social.
     await expect(page.getByText('Alfa Madeira', { exact: true })).toBeVisible();

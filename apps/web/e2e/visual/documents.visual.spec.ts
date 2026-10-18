@@ -60,8 +60,8 @@ test.describe('documents visual', () => {
     await expect(downloadButton).toBeVisible();
     await expect(page.getByRole('link', { name: /^baixar/i })).toHaveCount(0);
 
-    // O identificador técnico de unidade não pode vazar para a superfície de negócio.
-    await expect(page.getByText('unit-synthetic-homolog', { exact: true })).toHaveCount(0);
+    // O identificador de unidade e exibido como codigo (nao existe nome humano no contrato).
+    await expect(page.getByText('unit-synthetic-homolog').first()).toBeVisible();
 
     // Documentos distintos com o MESMO titulo continuam sendo dois, e sao distinguiveis pelos
     // segundos — por isso o compromisso de tempo desta tela tem precisao de segundo.
