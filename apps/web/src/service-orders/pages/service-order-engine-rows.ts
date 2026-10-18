@@ -1,3 +1,5 @@
+import { listColumns } from '../../engine/DynamicExportCsv';
+import type { MetaEntitySchema } from '../../engine/types';
 import type { ServiceOrderDetail } from '../types/service-order.types';
 import type { ServiceOrderSummary } from '../api/service-orders-api';
 
@@ -19,34 +21,18 @@ function clientSnapshotText(snapshot: Record<string, unknown> | null): string | 
   return typeof name === 'string' && name.trim() !== '' ? name : null;
 }
 
-/**
- * Campos que a LISTAGEM não devolve.
- *
- * `ServiceOrderSummary` não carrega `origin` nem `contractReference`; a lista só recebe o que
- * o endpoint de listagem projeta. Preencher com `null` é a verdade — inventar rótulo a partir
- * de outro campo faria a coluna mentir.
- */
 export function serviceOrderEngineRows(items: ServiceOrderSummary[]): ServiceOrderEngineRow[] {
   return items.map((item) => ({
     id: item.id,
     order_number: item.orderNumber,
-    internal_code: item.id,
+    internal_code: item.internalCode ?? null,
     status: item.status,
     unit_id: item.unitId,
-    origin: null,
+    origin: item.origin ?? null,
     description: item.description,
     priority: null,
     row_version: item.rowVersion,
-    /*
-     * `created_at` FICA NULO na listagem, e isso é deliberado.
-     *
-     * `ServiceOrderSummary` NÃO devolve `createdAt` — só `updatedAt` e `deadlineAt`. Rotular
-     * `updatedAt` como `created_at` fazia a coluna "Criada em" exibir a data da última
-     * alteração, e o aging (derivado dela) mentir sobre a idade do registro. Preencher com um
-     * valor de outro campo é pior que deixar vazio: a coluna some e o aging cai para
-     * `deadlineAt`, que é o eixo temporal REAL desta entidade.
-     */
-    created_at: null,
+    created_at: item.createdAt ?? null,
     deadline_at: item.deadlineAt,
     updated_at: item.updatedAt,
     contract_reference: null,
@@ -116,4 +102,23 @@ function purchaseOrderSnapshotText(
     }
   }
   return null;
+}
+
+/** Cliente é uma coluna de negócio, nunca o slot de responsável da engine. */
+export function serviceOrderWorklistSchema(schema: MetaEntitySchema | null): MetaEntitySchema | null {
+  if (!schema) return null;
+  const client = schema.fields.find((field) => field.name === 'client_snapshot');
+  if (!client || !schema.allowedPermLevels.includes(client.permLevel)) return schema;
+  const columns = listColumns(schema).map((field) => field.name);
+  if (!columns.includes(client.name)) columns.splice(1, 0, client.name);
+  return {
+    ...schema,
+    fields: schema.fields.map((field) => field === client ? { ...field, inList: true } : field),
+    views: schema.views.map((view) => {
+      if (view.viewType === 'list') return { ...view, layout: { ...view.layout, columns } };
+      if (view.viewType !== 'kanban') return view;
+      const cardFields = view.layout.cardFields ?? [schema.labelField];
+      return { ...view, layout: { ...view.layout, cardFields: [...new Set([...cardFields, client.name])] } };
+    }),
+  };
 }

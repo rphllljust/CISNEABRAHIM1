@@ -21250,3 +21250,24 @@ Evidência: CI 38941737108 do commit a81c595. Shards 2/4 e 4/4 passaram; 1/4 e 3
 - Shell e gate responsivo reutilizam o seletor compartilhado do título atual.
 
 Validação local: os reporters registraram 13 testes de workspaces, 11 de finance-backoffice, 7 de previsão de caixa e 4 de cockpit aprovados. Entretanto o runner local não concluiu o encerramento; tentativas isoladas atingiram o limite externo de execução. Estes resultados NÃO equivalem a uma suíte terminada com exit code 0. ESLint focado e typecheck Web são verificados separadamente; o CI do novo SHA deve confirmar a execução completa. Sem merge e sem deploy nesta etapa.
+
+
+## Correção focada da Worklist de OS — 2026-10-18
+
+Classificação: interpretação de engenharia de apresentação, autorizada pela solicitação explícita de corrigir a auditoria da lista de OS e promover após os gates obrigatórios. Não altera regra empresarial, backend, banco, lifecycle ou commands.
+
+Evidência de contrato: `toServiceOrderListResponse` já inclui `toServiceOrderResponse`, que publica `internalCode`, `createdAt` e `origin`. O adaptador Web usava `id`, `null` e `null` nesses campos. A coluna Cliente usava o slot de responsável; `OwnerCell` continha o literal `n. Drawer e identidade da ficha exibiam enums diretamente.
+
+Correção: tipagem e mapeamento dos campos publicados; Cliente como coluna/card field autorizado do schema existente (sem slot de responsável); remoção do literal no renderer compartilhado; labels existentes de estado/origem em drawer e identidade da ficha, preservando tokens canônicos; remoção da segunda faixa redundante de indicadores e totalização redundante; debounce só reinicia paginação após alteração efetiva da busca. Pessoas não foi alterado: o intervalo vazio é montado na própria tela, independentemente do paginador compartilhado.
+
+Rastreabilidade: solicitação atual → adaptador/Worklist/renderer/identidade da OS → testes `ServiceOrdersEngineListPage.test.tsx` e `service-orders-list.e2e.test.tsx` (campos, ausência, drawer, abertura da ficha, busca e paginação). Dados de teste são sintéticos; nenhuma mutação empresarial de produção é necessária.
+
+Gates locais: lint focado e typecheck Web aprovados na primeira execução. Os testes locais reportaram a validação dos campos e do drawer, e revelaram uma corrida concreta do debounce com a paginação, corrigida no mesmo escopo. Após a correção, os 12 casos da Worklist reportaram sucesso; o encerramento do runner ainda deve ser confirmado. CI e validação em produção permanecem pendentes; este registro não declara release aprovado.
+
+Gate CI #362: shards 1/4, 2/4 e 3/4 aprovados. O shard 4/4 revelou uma fixture obsoleta em `catalog-builder.ui.test.tsx`: o caso de negação concedia `catalog:service:update` em `/me` e tentava negar uma sonda POST que a UI já não executa. Correção restrita ao mock desse teste: negar o grant na sessão, mantendo as asserções de acesso negado e ausência de Salvar rascunho. Nenhuma mudança no produto Catálogo.
+
+Gate CI #363: lint/typecheck/audit, quatro shards unitários, migrations, integração PostgreSQL e API E2E aprovados. Build aprovado; regressão visual atingiu o timeout. O artefato do job 117659632321 demonstra falha na preparação compartilhada: a fixture procura o heading antigo `Visão geral`, mas o DOM autenticado já apresenta `Central de operações`. Correção restrita a essa expectativa em `e2e/fixtures/visual-helpers.ts`, sem alterar produto, snapshots ou critérios de qualidade. Lint focado e typecheck aprovados; o primeiro teste focado foi bloqueado por Chromium local ausente, antes de executar a UI.
+
+A instalação local do Chromium retornou um arquivo ZIP inválido e falhou; portanto não há aprovação local do caso Playwright. A confirmação executável dessa fixture fica com o gate visual obrigatório do CI, que já possui navegador instalado. `git diff --check` aprovado.
+
+Gate CI #364 — agrupamento de regressão visual: 165 falhas, com 72 ocorrências da mesma assinatura `heading /visão geral/i` após o login. A aplicação entrega `Central de operações`; o lote é composto por helpers/factories visuais de Contabilidade e Fiscal e specs de Dashboard/aceite. Correção restrita aos seletores desatualizados, sem snapshots, frontend de produção, backend ou domínio. Os demais grupos permanecem separados para processamento apenas se o próximo gate os confirmar como bloqueadores remanescentes.

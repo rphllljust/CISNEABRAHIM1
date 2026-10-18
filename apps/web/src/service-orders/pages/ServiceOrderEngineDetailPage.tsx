@@ -1,3 +1,4 @@
+import { formatServiceOrderOrigin, toHumanStatusLabel } from '../utils/service-order-labels';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
@@ -221,8 +222,8 @@ export function ServiceOrderEngineDetailPage() {
     { label: 'Código interno', value: detail?.internalCode ?? null },
     { label: 'Cliente', value: client },
     { label: 'Unidade operacional', value: detail?.unitId ?? toDisplayText(row['unit_id']) },
-    { label: 'Situação', value: currentState },
-    { label: 'Origem', value: detail?.origin ?? null },
+    { label: 'Situação', value: toHumanStatusLabel(currentState) },
+    { label: 'Origem', value: formatServiceOrderOrigin(detail?.origin) },
   ];
 
   /*
@@ -284,7 +285,7 @@ export function ServiceOrderEngineDetailPage() {
           id: toDisplayText(row['proposal_id']),
           businessReference: toDisplayText(row['proposal_number'] ?? row['proposal_id']),
           route: `/app/proposals/${toDisplayText(row['proposal_id'])}`,
-          status: toDisplayText(row['status']),
+          status: toHumanStatusLabel(toDisplayText(row['status'])),
           relation: 'ORIGIN',
         }]
       : []),
@@ -303,7 +304,7 @@ export function ServiceOrderEngineDetailPage() {
       kind: 'Ordem de serviço',
       id: row.id,
       businessReference: toDisplayText(row['order_number']),
-      status: currentState,
+      status: toHumanStatusLabel(currentState),
       relation: 'ROOT',
     },
   ];
@@ -318,7 +319,7 @@ export function ServiceOrderEngineDetailPage() {
           reference={orderNumber}
           title={orderNumber || schema.label}
           subtitle={client}
-          status={{ label: currentState, description: 'Estado atual da ordem' }}
+          status={{ label: toHumanStatusLabel(currentState), description: 'Estado atual da ordem' }}
           metadata={[
             { label: 'Cliente', value: client },
             { label: 'Unidade', value: toDisplayText(row['unit_id']) },

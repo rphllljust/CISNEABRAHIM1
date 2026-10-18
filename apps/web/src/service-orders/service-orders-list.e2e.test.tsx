@@ -77,5 +77,10 @@ describe('service orders list e2e (frontend)', () => {
     await waitFor(() => {
       expect(screen.getByTestId('dynamic-form')).toBeInTheDocument();
     });
+    const identity = screen.getByRole('region', { name: 'Identidade da ordem' });
+    expect(within(identity).getByText('Liberada')).toBeInTheDocument();
+    expect(within(identity).getByText('Solicitação de serviço')).toBeInTheDocument();
+    expect(identity).not.toHaveTextContent('RELEASED');
+    expect(identity).not.toHaveTextContent('SERVICE_REQUEST');
   }, 20000);
 });

@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetTokenStoreForTests, tokenStore } from '../../auth/storage/token-store';
@@ -6,6 +6,8 @@ import { renderWithProviders } from '../../test/render-with-providers';
 import { createShellFetchMock } from '../../test/shell-fetch-mock';
 import { parseRequestPath } from '../../test/request-url';
 import { ServiceOrdersEngineListPage } from './ServiceOrdersEngineListPage';
+import { serviceOrderEngineRows } from './service-order-engine-rows';
+import type { ServiceOrderSummary } from '../api/service-orders-api';
 
 /**
  * WORKLIST DE ORDENS DE SERVIÇO — RECORTE E PAGINAÇÃO SERVER-SIDE.
@@ -26,6 +28,10 @@ const ORDERS = Array.from({ length: 25 }, (_, index) => {
   return {
     id: `11111111-1111-4111-8111-${String(index + 1).padStart(12, '0')}`,
     orderNumber: `OS-${number}`,
+    internalCode: `SO-INT-${number}`,
+    createdAt: '2026-10-17T12:00:00.000Z',
+    updatedAt: '2026-10-18T12:00:00.000Z',
+    origin: 'AUTHORIZED_DIRECT',
     // Metade liberada, metade em execução: dá recorte real de situação.
     status: index % 2 === 0 ? 'RELEASED' : 'IN_EXECUTION',
     clientSnapshot: { legalName: `Cliente ${number}` },
@@ -66,7 +72,9 @@ const SERVICE_ORDERS_META = {
   labelField: 'order_number',
   fields: [
     metaField('order_number', 'Número da OS', { inList: true, listOrder: 10 }),
-    metaField('client_snapshot', 'Cliente', { inList: true, listOrder: 20 }),
+    metaField('client_snapshot', 'Cliente', { inList: false, listOrder: 20 }),
+    metaField('internal_code', 'Código interno', { inList: true, listOrder: 40 }),
+    metaField('created_at', 'Criada em', { inList: true, listOrder: 50, type: 'datetime' }),
     metaField('status', 'Situação', {
       inList: true,
       listOrder: 30,
@@ -74,6 +82,7 @@ const SERVICE_ORDERS_META = {
       inFilter: true,
       options: {
         options: [
+          { value: 'DRAFT', label: 'Rascunho' },
           { value: 'RELEASED', label: 'Liberada' },
           { value: 'IN_EXECUTION', label: 'Em execução' },
         ],
@@ -84,7 +93,7 @@ const SERVICE_ORDERS_META = {
     {
       viewType: 'list',
       label: 'Lista de ordens de serviço',
-      layout: { columns: ['order_number', 'client_snapshot', 'status'] },
+      layout: { columns: ['order_number', 'internal_code', 'status', 'created_at'] },
       isDefault: true,
     },
   ],
@@ -178,6 +187,33 @@ describe('ServiceOrdersEngineListPage — recorte e paginação server-side', ()
     );
   });
 
+  it('publica código humano, criação e cliente em colunas distintas, sem KPI duplicado', async () => {
+    const fetchMock = createOrdersMock();
+    vi.stubGlobal('fetch', fetchMock);
+    await renderPage();
+    const table = screen.getByTestId('dynamic-list');
+    expect(within(table).getByText('SO-INT-0001')).toBeInTheDocument();
+    expect(within(table).queryByText(ORDERS[0]!.id)).not.toBeInTheDocument();
+    expect(within(table).getAllByText('17/10/2026, 08:00')).toHaveLength(PAGE_SIZE);
+    expect(within(table).getByText('Cliente 0001')).toBeInTheDocument();
+    expect(within(table).queryByText(/Sem responsável|`n/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('dynamic-list-owner')).not.toBeInTheDocument();
+    expect(document.querySelector('.cisne-engine-signal-strip')).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method && init.method !== 'GET')).toBe(false);
+  });
+
+  it('não usa UUID, atualização ou responsável como reserva de campos ausentes', () => {
+    const order: ServiceOrderSummary = {
+      id: 'technical-id', orderNumber: 'OS-0001', unitId: 'CISNE-RO-PVH',
+      status: 'DRAFT', clientId: null, clientSnapshot: null, description: null,
+      rowVersion: 1, updatedAt: '2026-10-18T12:00:00.000Z', deadlineAt: null,
+      assignedWorkforceMember: { id: 'person-id', memberCode: 'P-1', displayName: 'Operador' },
+    };
+    const [row] = serviceOrderEngineRows([order]);
+    expect(row).toMatchObject({ id: 'technical-id', internal_code: null, created_at: null,
+      origin: null, client_snapshot: null, assigned_workforce_name: 'Operador', status: 'DRAFT' });
+  });
+
   it('drawer publica somente comandos autorizados pelo control center', async () => {
     const blockedOrder = { ...ORDERS[0]!, status: 'DRAFT' };
     const base = createOrdersMock([blockedOrder]);
@@ -259,6 +295,10 @@ describe('ServiceOrdersEngineListPage — recorte e paginação server-side', ()
     expect(screen.queryByRole('button', { name: 'Liberar' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Reabrir' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancelar' })).toBeInTheDocument();
+    expect(screen.getByText('Autorizada diretamente')).toBeInTheDocument();
+    expect(screen.queryByText('AUTHORIZED_DIRECT')).not.toBeInTheDocument();
+    expect(screen.queryByText('DRAFT')).not.toBeInTheDocument();
+
   });
 
   it('não mostra paginação nem cockpit redundante quando o recorte está vazio', async () => {

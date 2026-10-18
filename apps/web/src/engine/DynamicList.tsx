@@ -1011,7 +1011,7 @@ function OwnerCell({
   if (!onReassign || !reassignOptions || reassignOptions.length === 0) {
     return (
       <span data-testid="dynamic-list-owner" className="cisne-type-body">
-        `n {display}
+        {display}
       </span>
     );
   }

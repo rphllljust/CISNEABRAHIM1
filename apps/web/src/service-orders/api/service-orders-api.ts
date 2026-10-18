@@ -117,6 +117,10 @@ export type AssignedWorkforceMember = {
 
 export type ServiceOrderSummary = {
   id: string;
+  /** Campos publicados pelo serializer de listagem; ausentes não recebem fallback. */
+  internalCode?: string;
+  createdAt?: string;
+  origin?: string;
   orderNumber: string;
   unitId: string;
   status: ServiceOrderStatus;
