@@ -166,6 +166,28 @@ async function handleApiRoute(route: Route, context: RouteContext): Promise<void
     return;
   }
 
+  // Metadata is part of the supplier worklist contract: DynamicList does not invent columns.
+  if (context.profile === 'suppliers' && pathname === '/api/v1/meta/suppliers' && method === 'GET') {
+    const field = (name: string, label: string, type: 'data' | 'select', order: number) => ({
+      name, label, type, required: false, readOnly: true, permLevel: 0, options: null,
+      fieldOrder: order, inForm: false, inList: true, listOrder: order,
+      inFilter: name === 'status',
+      inSearch: name === 'legal_name' || name === 'trade_name' || name === 'normalized_tax_id',
+    });
+    await fulfillJson(route, {
+      name: 'suppliers', label: 'Fornecedores', description: 'Cadastro de fornecedores',
+      dataSchema: 'public', dataTable: 'suppliers', labelField: 'legal_name',
+      fields: [
+        field('legal_name', 'Fornecedor', 'data', 0), field('trade_name', 'Nome fantasia', 'data', 1),
+        field('normalized_tax_id', 'CNPJ', 'data', 2), field('payment_terms', 'Pagamento', 'data', 3),
+        field('currency_code', 'Moeda', 'data', 4), field('status', 'Estado', 'select', 5),
+      ],
+      views: [{ viewType: 'list', label: 'Lista', layout: { columns: ['legal_name', 'trade_name', 'normalized_tax_id', 'payment_terms', 'currency_code', 'status'] }, isDefault: true }],
+      workflow: null, permissions: [], allowedPermLevels: [0],
+    });
+    return;
+  }
+
   if (context.profile === 'commercial' && (await handleCommercialApiRoute(route))) {
     return;
   }
