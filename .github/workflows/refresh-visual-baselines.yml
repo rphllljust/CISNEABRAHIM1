@@ -34,6 +34,8 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
+      - name: Build web
+        run: pnpm --filter @cisne/web build
       - name: Install Playwright Chromium
         run: pnpm --filter @cisne/web exec playwright install chromium --with-deps
       - name: Regenerate visual baselines
@@ -44,7 +46,7 @@ jobs:
           VITE_CISNE_SURFACE: 'dev'
       - name: Commit regenerated baselines
         run: |
-          git add 'apps/web/e2e/visual/**/*-snapshots/*.png'
+          git add apps/web/e2e/visual/*-snapshots/*.png
           if git diff --cached --quiet; then
             echo "No baseline changes."
             exit 0
