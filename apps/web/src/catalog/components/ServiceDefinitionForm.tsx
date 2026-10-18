@@ -304,8 +304,8 @@ export function ServiceDefinitionForm({
   const pricingModelsError = errorFor('pricingModels');
 
   return (
-    <form id={formId} className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_20rem]" noValidate>
-      <div className="grid min-w-0 gap-3">
+    <form id={formId} className="grid min-w-0 max-w-full gap-3 lg:grid-cols-[minmax(0,1fr)_20rem]" noValidate>
+      <div className="grid min-w-0 gap-3 [&>section]:min-w-0">
       <BuilderSection
         title="Identificação"
         description="O que o serviço é e como o negócio o classifica."
@@ -563,8 +563,6 @@ export function ServiceDefinitionForm({
               state.allowedUnits.filter((_, entryIndex) => entryIndex !== index),
             )
           }
-          onAdd={addUnit}
-          addLabel="Nova unidade"
           removeLabel="Remover"
           removeAriaLabel={(_, index) => `Remover a unidade ${index + 1}`}
           emptyMessage="Nenhuma unidade permitida ainda. Ao menos uma é obrigatória."
@@ -693,8 +691,6 @@ export function ServiceDefinitionForm({
               state.pricingModels.filter((_, entryIndex) => entryIndex !== index),
             )
           }
-          onAdd={addPricingModel}
-          addLabel="Novo modelo de preço"
           removeLabel="Remover"
           removeAriaLabel={(_, index) => `Remover o modelo de preço ${index + 1}`}
           emptyMessage="Nenhum modelo de preço ainda. Ao menos um é obrigatório."
@@ -805,8 +801,6 @@ export function ServiceDefinitionForm({
               state.resourceRequirements.filter((_, entryIndex) => entryIndex !== index),
             )
           }
-          onAdd={addResourceRequirement}
-          addLabel="Novo recurso físico"
           removeLabel="Remover"
           removeAriaLabel={(_, index) => `Remover o recurso físico ${index + 1}`}
           emptyMessage="Nenhum recurso físico exigido para este serviço."
@@ -917,8 +911,6 @@ export function ServiceDefinitionForm({
               state.laborRequirements.filter((_, entryIndex) => entryIndex !== index),
             )
           }
-          onAdd={addLaborRequirement}
-          addLabel="Nova mão de obra"
           removeLabel="Remover"
           removeAriaLabel={(_, index) => `Remover a mão de obra ${index + 1}`}
           emptyMessage="Nenhuma mão de obra exigida para este serviço."
@@ -1037,8 +1029,6 @@ export function ServiceDefinitionForm({
               state.executionRequirements.filter((_, entryIndex) => entryIndex !== index),
             )
           }
-          onAdd={addExecutionRequirement}
-          addLabel="Nova evidência"
           removeLabel="Remover"
           removeAriaLabel={(_, index) => `Remover a evidência ${index + 1}`}
           emptyMessage="Nenhuma evidência exigida para este serviço."
