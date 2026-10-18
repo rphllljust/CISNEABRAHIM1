@@ -182,9 +182,22 @@ type CapturedRequest = {
  * Mock da API do catálogo: sessão, capabilities (todas autorizadas), dados de referência e as
  * MUTAÇÕES reais que as páginas fazem. O corpo enviado é capturado para provar o payload.
  */
-function createCatalogBuilderMock(options: { version?: ServiceDefinitionVersion } = {}) {
+const CATALOG_PERMISSIONS = [
+  'catalog:service:list',
+  'catalog:service:create',
+  'catalog:service:read',
+  'catalog:service:update',
+  'catalog:service:publish',
+  'catalog:service:deactivate',
+  'catalog:service:activate',
+];
+
+function createCatalogBuilderMock(
+  options: { version?: ServiceDefinitionVersion; permissions?: string[] } = {},
+) {
   const captured: CapturedRequest[] = [];
   const version = options.version ?? draftVersion();
+  const permissions = options.permissions ?? CATALOG_PERMISSIONS;
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const { pathname } = parseRequestPath(input);
     const method = (init?.method ?? 'GET').toUpperCase();
@@ -206,15 +219,7 @@ function createCatalogBuilderMock(options: { version?: ServiceDefinitionVersion 
           email: null,
           identity_id: '00000000-0000-4000-8000-000000000001',
         },
-        permissoes_efetivas: [
-          'catalog:service:list',
-          'catalog:service:create',
-          'catalog:service:read',
-          'catalog:service:update',
-          'catalog:service:publish',
-          'catalog:service:deactivate',
-          'catalog:service:activate',
-        ],
+        permissoes_efetivas: permissions,
         escopo_ativo: null,
         escopos_disponiveis: [{ tipo: 'GLOBAL', resource_id: null, label: 'Global' }],
       });
@@ -604,17 +609,13 @@ describe('Builder do catálogo de serviços', () => {
     }
   });
 
-  it('renderiza estado negado honesto quando a capability de edição não existe', async () => {
-    const { fetchMock } = createCatalogBuilderMock();
-    const deniedMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const { pathname } = parseRequestPath(input);
-      const method = (init?.method ?? 'GET').toUpperCase();
-      if (pathname.startsWith('/api/v1/catalog/service-definitions') && method !== 'GET') {
-        return catalogError('CATALOG_DENIED', 403);
-      }
-      return fetchMock(input, init);
+  it('renderiza estado negado honesto quando /me não publica a capability de edição', async () => {
+    const { fetchMock } = createCatalogBuilderMock({
+      permissions: CATALOG_PERMISSIONS.filter(
+        (permission) => permission !== 'catalog:service:update',
+      ),
     });
-    vi.stubGlobal('fetch', deniedMock);
+    vi.stubGlobal('fetch', fetchMock);
     renderDraftEditor();
 
     expect(await screen.findByText(/não tem permissão para editar rascunhos/i)).toBeInTheDocument();
