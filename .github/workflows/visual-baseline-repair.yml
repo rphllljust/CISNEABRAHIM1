@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - baseline/app-shell-visual-contract
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
