@@ -40,7 +40,7 @@ jobs:
         run: pnpm --filter @cisne/web exec playwright install chromium --with-deps
       - name: Regenerate visual baselines
         continue-on-error: true
-        run: pnpm --filter @cisne/web exec playwright test --update-snapshots
+        run: pnpm --filter @cisne/web exec playwright test --update-snapshots --retries=0
         env:
           CI: 'true'
           VITE_CISNE_SURFACE: 'dev'
