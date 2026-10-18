@@ -21,8 +21,6 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref_name }}
       - uses: pnpm/action-setup@v4
         with:
           version: 9.15.9
