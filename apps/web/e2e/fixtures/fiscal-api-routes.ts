@@ -1,4 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { EXECUTIVE_DASHBOARD_SNAPSHOT } from './executive-dashboard-snapshot';
 
 /**
  * Tráfego determinístico do FISCAL (Família 5).
@@ -395,6 +396,14 @@ export async function installFiscalMocks(page: Page): Promise<void> {
 
     if (pathname === '/api/v1/alerts' && method === 'GET') {
       await fulfillJson(route, []);
+      return;
+    }
+
+    // O App Shell consome o snapshot executivo para KPIs e navegação global também nas rotas
+    // fiscais. Sem esta rota, a fixture respondia o 404 genérico e a página recebia um payload
+    // sem `charts`.
+    if (pathname.startsWith('/api/v1/dashboard/executive') && method === 'GET') {
+      await fulfillJson(route, EXECUTIVE_DASHBOARD_SNAPSHOT);
       return;
     }
 
