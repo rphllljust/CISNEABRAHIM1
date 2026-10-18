@@ -166,6 +166,51 @@ async function handleApiRoute(route: Route, context: RouteContext): Promise<void
     return;
   }
 
+  // Finance title worklists are metadata-driven as well; publish only the list projection used by the fixture.
+  if (context.profile === 'finance' && (pathname === '/api/v1/meta/receivables' || pathname === '/api/v1/meta/payables') && method === 'GET') {
+    const receivable = pathname.endsWith('/receivables');
+    const ownerField = receivable ? 'client_id' : 'counterparty_id';
+    const field = (name: string, label: string, type: 'data' | 'currency' | 'date' | 'datetime' | 'select', order: number) => ({
+      name, label, type, required: false, readOnly: true, permLevel: 0, options: null,
+      fieldOrder: order, inForm: false, inList: true, listOrder: order, inFilter: name === 'lifecycle', inSearch: name === 'external_reference',
+    });
+    await fulfillJson(route, {
+      name: receivable ? 'receivables' : 'payables',
+      label: receivable ? 'Contas a receber' : 'Contas a pagar',
+      description: null, dataSchema: 'finance', dataTable: receivable ? 'receivables' : 'payables', labelField: 'external_reference',
+      fields: [
+        field('external_reference', 'Título', 'data', 0), field(ownerField, receivable ? 'Cliente' : 'Contraparte', 'data', 1),
+        field('principal', 'Principal', 'currency', 2), field('due_date', 'Vencimento', 'date', 3),
+        field('lifecycle', 'Situação', 'select', 4), field('created_at', 'Criado em', 'datetime', 5),
+      ],
+      views: [{ viewType: 'list', label: 'Lista', layout: { columns: ['external_reference', ownerField, 'principal', 'due_date', 'lifecycle', 'created_at'] }, isDefault: true }],
+      workflow: null, permissions: [], allowedPermLevels: [0],
+    });
+    return;
+  }
+
+  // Metadata is part of the supplier worklist contract: DynamicList does not invent columns.
+  if (context.profile === 'suppliers' && pathname === '/api/v1/meta/suppliers' && method === 'GET') {
+    const field = (name: string, label: string, type: 'data' | 'select', order: number) => ({
+      name, label, type, required: false, readOnly: true, permLevel: 0, options: null,
+      fieldOrder: order, inForm: false, inList: true, listOrder: order,
+      inFilter: name === 'status',
+      inSearch: name === 'legal_name' || name === 'trade_name' || name === 'normalized_tax_id',
+    });
+    await fulfillJson(route, {
+      name: 'suppliers', label: 'Fornecedores', description: 'Cadastro de fornecedores',
+      dataSchema: 'public', dataTable: 'suppliers', labelField: 'legal_name',
+      fields: [
+        field('legal_name', 'Fornecedor', 'data', 0), field('trade_name', 'Nome fantasia', 'data', 1),
+        field('normalized_tax_id', 'CNPJ', 'data', 2), field('payment_terms', 'Pagamento', 'data', 3),
+        field('currency_code', 'Moeda', 'data', 4), field('status', 'Estado', 'select', 5),
+      ],
+      views: [{ viewType: 'list', label: 'Lista', layout: { columns: ['legal_name', 'trade_name', 'normalized_tax_id', 'payment_terms', 'currency_code', 'status'] }, isDefault: true }],
+      workflow: null, permissions: [], allowedPermLevels: [0],
+    });
+    return;
+  }
+
   if (context.profile === 'commercial' && (await handleCommercialApiRoute(route))) {
     return;
   }
