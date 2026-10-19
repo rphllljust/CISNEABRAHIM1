@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   createServiceOrder,
   listServiceOrderOperationalUnits,
@@ -80,6 +80,7 @@ type FieldErrors = {
 
 export function ServiceOrderCreatePage() {
   const navigate = useNavigate();
+  const [urlParams] = useSearchParams();
   const {
     options: unitOptions,
     unitId: defaultUnitId,
@@ -103,7 +104,14 @@ export function ServiceOrderCreatePage() {
     SERVICE_ORDER_ORIGINS.AuthorizedDirect,
   );
   const [unitId, setUnitId] = useState('');
-  const [clientId, setClientId] = useState('');
+  /*
+   * CONTEXTO RECEBIDO DA OBJECT PAGE DO CLIENTE.
+   *
+   * Chegando por `/app/service-orders/new?clientId=…` o cliente já vem escolhido, e o operador
+   * não precisa voltar à lista para buscá-lo de novo. É apenas o valor INICIAL: o backend segue
+   * validando existência, autorização e escopo no POST.
+   */
+  const [clientId, setClientId] = useState(() => urlParams.get('clientId')?.trim() ?? '');
   /*
    * UM ESTADO POR VÍNCULO — e não um `linkId` compartilhado.
    *

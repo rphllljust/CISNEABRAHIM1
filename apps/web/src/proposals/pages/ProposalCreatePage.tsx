@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useEffect, useState, type FormEvent } from 'react';
 import { listClients } from '../../clients/api/clients-api';
 import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
@@ -25,9 +25,20 @@ const CREATE_DESCRIPTION =
 
 export function ProposalCreatePage() {
   const navigate = useNavigate();
+  const [urlParams] = useSearchParams();
   const { options: unitOptions } = useOperationalUnits();
   const { capabilities, loading: capabilitiesLoading } = useProposalCapabilities();
-  const [values, setValues] = useState<ProposalFormValues>(EMPTY_PROPOSAL_FORM);
+  /**
+   * CONTEXTO RECEBIDO DA OBJECT PAGE DO CLIENTE.
+   *
+   * Chegando por `/app/proposals/new?clientId=…`, o cliente já vem escolhido: o operador não
+   * precisa voltar à lista para buscá-lo de novo. É apenas o valor INICIAL do formulário — o
+   * backend continua validando existência, autorização e escopo do cliente no POST.
+   */
+  const contextClientId = urlParams.get('clientId')?.trim() ?? '';
+  const [values, setValues] = useState<ProposalFormValues>(() =>
+    contextClientId ? { ...EMPTY_PROPOSAL_FORM, clientId: contextClientId } : EMPTY_PROPOSAL_FORM,
+  );
   const [fieldErrors, setFieldErrors] = useState<ProposalFormFieldErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);

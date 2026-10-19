@@ -22,6 +22,7 @@ import {
 } from '../components/ClientHierarchyPanel';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useClientCapabilities } from '../hooks/useClientCapabilities';
+import { useSessionMeta } from '../../service-orders/context/SessionMetaProvider';
 import { useClientRelatedRecords } from '../hooks/useClientRelatedRecords';
 import { CLIENT_STATUSES, type Client } from '../types/client.types';
 import { buildClientRelationSpecs } from '../utils/client-relations';
@@ -88,6 +89,7 @@ export function ClientDetailPage() {
   const navigate = useNavigate();
   const reasonId = useId();
   const { capabilities } = useClientCapabilities();
+  const session = useSessionMeta();
   const [state, setState] = useState<DetailState>({ phase: 'loading' });
   const [actionError, setActionError] = useState<string | null>(null);
   const [versionConflict, setVersionConflict] = useState(false);
@@ -280,6 +282,37 @@ export function ClientDetailPage() {
     onReactivate: () => setActivateOpen(true),
   });
 
+  /**
+   * INICIAR PROCESSO A PARTIR DO CLIENTE.
+   *
+   * O Cliente já oferecia contexto (SmartRelationBar leva às listas filtradas por `clientId`) e a
+   * cadeia real (BusinessChain), mas era um objeto TERMINAL para CRIAÇÃO: não havia caminho para
+   * abrir um processo novo com o cliente preenchido, então o operador voltava ao módulo de destino
+   * e buscava o mesmo cliente outra vez.
+   *
+   * Cada ação carrega `clientId` na URL — o parâmetro que as telas de destino JÁ sabem ler. Nenhum
+   * destino novo foi criado: só o contexto passou a viajar.
+   *
+   * A ação só aparece com a capability REAL de criar naquele módulo, projetada de `/me` pelo
+   * `SessionMetaProvider`. Sem grant, sem botão — e o backend continua recusando a criação de
+   * qualquer forma.
+   */
+  const startFlowActions: ObjectAction[] = [];
+  if (session.can('commercial:proposal:create')) {
+    startFlowActions.push({
+      id: 'new-proposal',
+      label: 'Nova proposta',
+      to: `/app/proposals/new?clientId=${client.id}`,
+    });
+  }
+  if (session.can('service-orders:service-order:create')) {
+    startFlowActions.push({
+      id: 'new-service-order',
+      label: 'Nova ordem de serviço',
+      to: `/app/service-orders/new?clientId=${client.id}`,
+    });
+  }
+
   return (
     <ModulePage layout="wide" className="clients-page">
       <EnterpriseObjectPage
@@ -300,6 +333,7 @@ export function ClientDetailPage() {
             metadata={buildClientMetadata(client)}
             primaryAction={primaryAction}
             destructiveActions={destructiveActions}
+            secondaryActions={startFlowActions}
           />
         }
         stateFlow={
