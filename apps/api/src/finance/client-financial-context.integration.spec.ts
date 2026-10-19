@@ -122,10 +122,22 @@ describe('Client financial context integration', () => {
    * Serve de ORÁCULO contra o agregado do read model.
    */
   async function canonicalPositions(clientId: string) {
-    const sql = buildReceivablePositionsSql({ scopeClause: '$1::text IS NOT NULL', tzParam: '$2' });
+    /*
+     * O oráculo precisa usar a MESMA data de referência do read model agregado.
+     *
+     * O agregado classifica vencimento com CURRENT_DATE da sessão do PostgreSQL. Usar aqui um
+     * timezone fixo cria duas noções de "hoje" no intervalo UTC 00:00–04:00 e transforma um
+     * título de ontem em OPEN apenas neste lado da comparação.
+     */
+    const asOfDate = await dbDate(0);
+    const sql = buildReceivablePositionsSql({
+      scopeClause: '$1::text IS NOT NULL',
+      tzParam: '$2',
+      asOfParam: '$2',
+    });
     const rows = await pool.query<{ status: string; remaining: string; principal: string }>(sql, [
       clientId,
-      'America/Porto_Velho',
+      asOfDate,
     ]);
     return rows.rows;
   }
