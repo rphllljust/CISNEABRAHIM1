@@ -93,7 +93,7 @@ describe('operational dashboard e2e (frontend)', () => {
     // A FILA E O ELEMENTO DOMINANTE — grade real, com cabecalho de colunas e rodape de paginacao.
     const queue = central.getByRole('region', { name: /fila de trabalho do recorte/i });
     expect(within(queue).getByRole('table')).toBeInTheDocument();
-    expect(within(queue).getByRole('columnheader', { name: /natureza \/ prazo/i })).toBeInTheDocument();
+    expect(within(queue).getByRole('columnheader', { name: /natureza \/ atraso/i })).toBeInTheDocument();
     expect(within(queue).getByRole('columnheader', { name: /^domínio$/i })).toBeInTheDocument();
     expect(within(queue).queryByRole('columnheader', { name: /^prioridade$/i })).not.toBeInTheDocument();
     expect(within(queue).queryByRole('columnheader', { name: /^responsável$/i })).not.toBeInTheDocument();
