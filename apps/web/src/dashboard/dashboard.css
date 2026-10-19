@@ -4435,7 +4435,7 @@ a.dashboard-exceptions__row:focus-visible {
 }
 
 /* PRIORIDADE — bolinha semantica + texto. A bolinha nao substitui a palavra. */
-.dashboard-queue__priority {
+.dashboard-queue__nature {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
@@ -4501,7 +4501,7 @@ a.dashboard-exceptions__row:focus-visible {
 }
 
 .dashboard-queue__context,
-.dashboard-queue__owner {
+.dashboard-queue__domain {
   font-size: 0.75rem;
   color: var(--color-slate-600);
   overflow: hidden;
@@ -4509,7 +4509,7 @@ a.dashboard-exceptions__row:focus-visible {
   white-space: nowrap;
 }
 
-.dashboard-queue__owner {
+.dashboard-queue__domain {
   color: var(--color-slate-500);
 }
 
