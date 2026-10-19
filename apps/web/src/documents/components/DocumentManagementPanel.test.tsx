@@ -232,7 +232,9 @@ describe('DocumentManagementPanel', () => {
     vi.stubGlobal(
       'fetch',
       createRequestsFetchMock({
-        documents: { documentsReadAllowed: false, documentsAllowed: false },
+        // Negação declarada em `/me`: o painel projeta capabilities dos grants publicados,
+        // então "sem permissão" precisa ser AUSÊNCIA de grant, não só uma flag do mock.
+        documents: { documentsReadAllowed: false, documentsAllowed: false, grants: [] },
       }),
     );
     renderPanel([]);

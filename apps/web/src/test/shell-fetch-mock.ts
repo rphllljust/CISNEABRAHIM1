@@ -61,6 +61,36 @@ export function createShellFetchMock(options: ShellFetchMockOptions = {}) {
       return jsonResponse({ error: { code: 'AUTH_UNAUTHORIZED', message: 'Unauthorized.' } }, 401);
     }
 
+    if (url.endsWith('/api/v1/me') && method === 'GET') {
+      /*
+        GRANTS PUBLICADOS PELA SESSÃO.
+
+        `useDocumentCapabilities` (e os hooks equivalentes) projetam as capabilities de UI a partir
+        de `/me` — antes eles inferiam permissão disparando mutações com IDs sintéticos, o que
+        falhava em produção sem ação do operador. Sem este handler, toda tela que projeta
+        capability recebia lista vazia e renderizava "sem permissão", medindo a ausência do mock
+        em vez do comportamento do produto. O backend continua sendo a barreira autoritativa: aqui
+        apenas se declara o que a sessão publica.
+      */
+      return jsonResponse({
+        usuario: {
+          id: MOCK_IDENTITY_ID,
+          nome: null,
+          email: null,
+          identity_id: MOCK_IDENTITY_ID,
+        },
+        permissoes_efetivas: [
+          'documents:document:read',
+          'documents:document:list',
+          'documents:document:create',
+          'documents:document:upload-version',
+          'documents:document:download',
+        ],
+        escopo_ativo: null,
+        escopos_disponiveis: [{ tipo: 'GLOBAL', resource_id: null, label: 'Global' }],
+      });
+    }
+
     if (url.endsWith('/api/v1/auth/refresh') && method === 'POST') {
       return jsonResponse({
         accessToken: 'access-token-2',
