@@ -89,9 +89,9 @@
                                e UMA linha elastica (a fila) que absorve todo o espaco restante;
      COLUNA DE CONTEXTO        360px, `border-left`, sem overlay, da toolbar ao rodape.
 
-   Com o contexto ABERTO a grade ganha a segunda coluna; fechado, a zona de trabalho ocupa a
-   largura inteira. Nada abaixo de 1280px tenta ser duas colunas: em tela estreita a coluna de
-   contexto roubaria mais do que entrega.
+   A segunda coluna depende da largura REAL da bancada, nao da viewport global. O shell ja publica
+   um container inline; a Central usa esse container para decidir quando sete colunas de fila +
+   business context realmente cabem. Em largura menor a fila preserva 100% da bancada.
    ============================================================================ */
 
 .dashboard-cc {
@@ -262,79 +262,79 @@
   overflow: auto;
 }
 
-.dashboard-cc[data-layout='operations-control-center'] .dashboard-cc__workspace {
-  grid-template-columns: minmax(0, 1fr) 340px;
-}
-
 .dashboard-cc[data-layout='operations-control-center'] .dashboard-cc__priority {
   grid-column: 1;
   min-height: 24rem;
 }
 
 .dashboard-cc[data-layout='operations-control-center'] .dashboard-cc__context {
-  grid-column: 2;
-  grid-row: 1 / span 4;
   align-self: stretch;
-  background: var(--color-surface-support);
-}
-
-@media (max-width: 1279px) {
-  .dashboard-cc[data-layout='operations-control-center'] .dashboard-cc__work {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .dashboard-cc[data-layout='operations-control-center'] .dashboard-cc__context {
-    grid-column: 1;
-    grid-row: auto;
-  }
 }
 
 /*
-  A COLUNA DE CONTEXTO E UMA COLUNA, NAO UM PAINEL FLUTUANTE — E ELA E PERSISTENTE.
+  BUSINESS CONTEXT — UMA SUPPORT SURFACE, TRES ESTADOS DE ENQUADRAMENTO.
 
-  Ela encosta na zona de trabalho (`border-left`), tem a altura dela e o scroll e DELA. Sem selecao
-  ela mostra o contexto operacional do recorte; com selecao, o contexto da entidade. Nos dois casos
-  a coluna EXISTE: uma terceira zona que aparece e desaparece deixa a direita vazia na maior parte
-  do tempo, e e isso que produz o "oceano branco".
+  - sem seleção e bancada estreita: permanece DEPOIS da fila, sem comprimir a grade;
+  - com seleção e bancada estreita: o MESMO ContextDrawer vira painel lateral;
+  - bancada >= 80rem REAIS: a support surface ocupa a segunda coluna, neutra ou selecionada.
+
+  O limiar usa o container do shell-page-frame, não a viewport. Assim sidebar e gutters entram na
+  decisão e uma janela 1280/1366px não finge ter espaço que a bancada não possui.
 */
 .dashboard-cc__context {
-  display: none;
+  display: flex;
   min-width: 0;
   min-height: 0;
+  max-height: 18rem;
+  overflow: auto;
 }
 
-@media (min-width: 1280px) {
-  .dashboard-cc__workspace {
+.dashboard-cc--context .dashboard-cc__context {
+  position: fixed;
+  top: var(--shell-chrome-height);
+  right: 0;
+  bottom: 0;
+  z-index: calc(var(--z-modal) - 1);
+  width: min(24rem, calc(100vw - 1.5rem));
+  max-height: none;
+  border-left: 1px solid var(--dashboard-line-strong);
+  border-radius: 0;
+  box-shadow: var(--shadow-dialog);
+}
+
+.dashboard-cc__context .dashboard-rail,
+.dashboard-cc__context .dashboard-context-drawer {
+  position: static;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+@container (min-width: 80rem) {
+  .dashboard-cc[data-layout='operations-control-center'] .dashboard-cc__work {
     grid-template-columns: minmax(0, 1fr) 340px;
-    align-items: stretch;
   }
 
-  .dashboard-cc__context {
-    display: block;
+  .dashboard-cc[data-layout='operations-control-center'] .dashboard-cc__priority {
+    grid-column: 1;
+  }
+
+  .dashboard-cc[data-layout='operations-control-center'] .dashboard-cc__context,
+  .dashboard-cc--context .dashboard-cc__context {
+    position: static;
+    grid-column: 2;
+    grid-row: 1;
+    width: auto;
+    max-height: none;
+    z-index: auto;
     border-left: 1px solid var(--dashboard-line-strong);
-    padding-left: 0.75rem;
-    background: var(--erp-surface-support);
-  }
-
-  .dashboard-cc__context .dashboard-rail,
-  .dashboard-cc__context .dashboard-context-drawer {
-    border: 0;
     border-radius: 0;
-    background: transparent;
     box-shadow: none;
   }
-}
-
-/* A coluna de contexto so pode ser `sticky` porque a pagina (nao ela) rola. */
-.dashboard-context-drawer,
-.dashboard-rail {
-  position: sticky;
-  top: var(--spacing-2);
-  max-height: calc(100dvh - 9.5rem);
-  border: 1px solid var(--dashboard-line-strong);
-  border-radius: var(--radius-md);
-  background: var(--dashboard-surface);
-  overflow: hidden;
 }
 
 /*
@@ -994,42 +994,6 @@ a.dashboard-kpi-list__cell:focus-visible {
   outline-offset: 1px;
 }
 
-/* BOTAO COM ALTURA GOVERNADA — `--control-height` (30px), na faixa 32-36px do sistema. */
-.dashboard-workspace-head__refresh {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  height: 2.375rem;
-  padding: 0 1rem;
-  border: 1px solid #0b1221;
-  border-radius: 9px;
-  background: #0b1221;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: #f4f1ea;
-  cursor: pointer;
-}
-
-.dashboard-workspace-head__refresh:hover:not(:disabled) {
-  background: #141a26;
-  border-color: #141a26;
-}
-
-.dashboard-workspace-head__refresh:disabled {
-  opacity: 0.6;
-  cursor: progress;
-}
-
-.dashboard-workspace-head__refresh:focus-visible {
-  outline: 2px solid var(--color-brand-500);
-  outline-offset: 1px;
-}
-
-.dashboard-workspace-head__refresh-icon {
-  width: 0.875rem;
-  height: 0.875rem;
-}
-
 /*
   WORKSPACE TABS — o recorte de dominio e NAVEGACAO DE AREA, nao formulario.
 
@@ -1156,17 +1120,6 @@ a.dashboard-kpi-list__cell:focus-visible {
   border-left: 1px solid currentColor;
   font-weight: 500;
   opacity: 0.72;
-}
-
-.dashboard-workspace-head__overdue {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  min-height: 1.625rem;
-  padding: 0 var(--spacing-2);
-  font-size: 0.75rem;
-  color: var(--color-slate-700);
-  cursor: pointer;
 }
 
 .dashboard-workspace-head__filter-list {
@@ -4482,7 +4435,7 @@ a.dashboard-exceptions__row:focus-visible {
 }
 
 /* PRIORIDADE — bolinha semantica + texto. A bolinha nao substitui a palavra. */
-.dashboard-queue__priority {
+.dashboard-queue__nature {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
@@ -4548,7 +4501,7 @@ a.dashboard-exceptions__row:focus-visible {
 }
 
 .dashboard-queue__context,
-.dashboard-queue__owner {
+.dashboard-queue__domain {
   font-size: 0.75rem;
   color: var(--color-slate-600);
   overflow: hidden;
@@ -4556,7 +4509,7 @@ a.dashboard-exceptions__row:focus-visible {
   white-space: nowrap;
 }
 
-.dashboard-queue__owner {
+.dashboard-queue__domain {
   color: var(--color-slate-500);
 }
 

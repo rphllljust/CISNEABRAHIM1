@@ -1,4 +1,3 @@
-import { RefreshCw } from 'lucide-react';
 import {
   WORK_DOMAIN_LABELS,
   type WorkDomain,
@@ -20,14 +19,9 @@ export type DashboardWorkbenchHeaderProps = {
   onClearFilters?: () => void;
   generatedAt: string | null;
   generatedAtFormatted: string | null;
-  isRefreshing: boolean;
-  onRefresh: () => void;
   /** UNICO filtro de dominio da tela: alimenta fila, cadeia e faixa de indicadores. */
   domain: WorkDomain | null;
   onDomainChange: (domain: WorkDomain | null) => void;
-  /** UNICO refinamento temporal da tela. */
-  overdueOnly: boolean;
-  onOverdueChange: (value: boolean) => void;
   /** Situacao do recorte — avaliada pelo painel, exibida aqui como fato de contexto. */
   situation: OperationalSituation | null;
   /** Quantos itens a fila de trabalho publicou para o recorte ativo. */
@@ -50,8 +44,10 @@ const SITUATION_TONE_CLASS = {
  *
  * A composicao nova e a mesma informacao, com massa visual menor:
  *
- *   linha 1  identidade (titulo + descricao) | escopo e periodo | atualizado, periodo, atualizar
- *   linha 2  recorte de dominio (unico lugar da tela onde o recorte vive) | situacao e refinamento
+ *   linha 1  identidade (titulo + descricao) | escopo, atualização e período
+ *   linha 2  recorte de domínio (único lugar da tela onde o recorte vive) | situação do recorte
+ *
+ * Comandos que operam a fila (vencidos/atualizar) vivem na própria work surface, não aqui.
  *
  * A SITUACAO DO RECORTE subiu para ca de proposito. Antes eram dois lugares concorrentes dizendo se
  * havia problema: um banner no meio do conteudo e a contagem NAO publicada em outro. Agora existe
@@ -70,12 +66,8 @@ export function DashboardWorkbenchHeader({
   onClearFilters,
   generatedAt,
   generatedAtFormatted,
-  isRefreshing,
-  onRefresh,
   domain,
   onDomainChange,
-  overdueOnly,
-  onOverdueChange,
   situation,
   queueTotal,
 }: DashboardWorkbenchHeaderProps) {
@@ -134,17 +126,6 @@ export function DashboardWorkbenchHeader({
               ))}
             </select>
           </label>
-
-          <button
-            type="button"
-            className="dashboard-workspace-head__refresh"
-            onClick={onRefresh}
-            disabled={isRefreshing}
-            aria-busy={isRefreshing}
-          >
-            <RefreshCw className="dashboard-workspace-head__refresh-icon" strokeWidth={2.2} aria-hidden />
-            <span>{isRefreshing ? 'Atualizando…' : 'Atualizar'}</span>
-          </button>
         </div>
       </div>
 
@@ -210,15 +191,6 @@ export function DashboardWorkbenchHeader({
               ) : null}
             </>
           ) : null}
-
-          <label className="dashboard-workspace-head__overdue">
-            <input
-              type="checkbox"
-              checked={overdueOnly}
-              onChange={(event) => onOverdueChange(event.target.checked)}
-            />
-            Somente vencidos
-          </label>
         </div>
       </div>
     </div>
