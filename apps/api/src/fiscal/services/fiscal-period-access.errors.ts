@@ -2,6 +2,10 @@ import { HttpException, HttpStatus } from '@nestjs/common';
 import { AuthzHttpException } from '../../authorization/errors/authz-http.exception';
 import { FiscalPeriodError } from '../domain/fiscal-period';
 import { FiscalPeriodValidationError } from '../domain/fiscal-period.validation';
+// A validacao de listagem reutiliza as guardas `requireFiscalPage*`/`optionalFiscalWhitelist` de
+// fiscal-document.validation, que lanca `FiscalValidationError` (nao `FiscalPeriodValidationError`).
+// Sem esse reconhecimento, uma query de listagem malformada virava 500 em vez de 400.
+import { FiscalValidationError } from '../domain/fiscal-document.validation';
 import { FISCAL_ERROR_CODES } from '../errors/fiscal-error-codes';
 import { FiscalHttpException } from '../errors/fiscal-http.exception';
 
@@ -12,7 +16,7 @@ export function mapFiscalPeriodDomainError(error: unknown): HttpException {
   if (error instanceof HttpException) {
     return error;
   }
-  if (error instanceof FiscalPeriodValidationError) {
+  if (error instanceof FiscalPeriodValidationError || error instanceof FiscalValidationError) {
     return new FiscalHttpException(
       HttpStatus.BAD_REQUEST,
       FISCAL_ERROR_CODES.VALIDATION_FAILED,
