@@ -1224,6 +1224,22 @@ async function assertPreDeltaState(connectionString, deltaFile) {
       return;
     }
 
+    if (deltaFile === '0099_fix_service_order_aging_metadata.sql') {
+      const agingFormula = await client.query(
+        `SELECT 1
+         FROM meta.computed_fields f
+         INNER JOIN meta.entities e ON e.id = f.entity_id
+         WHERE e.name = 'service-orders'
+           AND f.name = 'aging_days'
+           AND f.formula = '{"op":"diff_days","args":["today","updated_at"]}'::jsonb
+         LIMIT 1`,
+      );
+      if ((agingFormula.rowCount ?? 0) === 0) {
+        throw new Error('Expected service order aging formula based on updated_at before 0099 delta');
+      }
+      return;
+    }
+
     if (deltaFile === '0098_metadata_seed_customer_360.sql') {
       const clientEntity = await client.query(
         `SELECT id FROM meta.entities WHERE name = 'client' LIMIT 1`,

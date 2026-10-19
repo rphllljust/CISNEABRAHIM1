@@ -171,6 +171,9 @@ const MIGRATION_EFFECT_CHECKS = {
   '0098_metadata_seed_customer_360': {
     fieldFlag: ['meta', 'fields', 'client', 'group_name', 'in_list'],
   },
+  '0099_fix_service_order_aging_metadata': {
+    computedFormula: ['service-orders', 'aging_days', { op: 'diff_days', args: ['today', 'deadline_at'] }],
+  },
 };
 
 /**
@@ -290,6 +293,19 @@ async function migrationEffectsPresent(pool, tag) {
    * existe (criada por migration anterior) e `row` provaria só que o campo foi semeado — nenhum dos
    * dois distingue "a flag foi ligada" de "a migration nunca rodou".
    */
+  if (check.computedFormula) {
+    const [entityName, computedFieldName, formula] = check.computedFormula;
+    const result = await pool.query(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM meta.computed_fields f
+         INNER JOIN meta.entities e ON e.id = f.entity_id
+         WHERE e.name = $1 AND f.name = $2 AND f.formula = $3::jsonb
+       ) AS exists`,
+      [entityName, computedFieldName, JSON.stringify(formula)],
+    );
+    return result.rows[0]?.exists === true;
+  }
   if (check.fieldFlag) {
     const [schema, table, entityName, fieldName, flagColumn] = check.fieldFlag;
     const relation = `${quoteIdentifier(schema)}.${quoteIdentifier(table)}`;

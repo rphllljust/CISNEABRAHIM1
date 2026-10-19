@@ -960,6 +960,20 @@ $$;`);
       await applySqlFile(pool, '0098_metadata_seed_customer_360.sql');
     }
 
+    const serviceOrderAgingFormula = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM meta.computed_fields f
+         INNER JOIN meta.entities e ON e.id = f.entity_id
+         WHERE e.name = 'service-orders'
+           AND f.name = 'aging_days'
+           AND f.formula = '{"op":"diff_days","args":["today","deadline_at"]}'::jsonb
+       ) AS exists`,
+    );
+    if (!serviceOrderAgingFormula.rows[0]?.exists) {
+      await applySqlFile(pool, '0099_fix_service_order_aging_metadata.sql');
+    }
+
     await syncDrizzleJournal(pool);
   } finally {
     await pool.end();
