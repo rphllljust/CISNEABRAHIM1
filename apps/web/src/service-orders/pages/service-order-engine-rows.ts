@@ -20,11 +20,17 @@ function clientSnapshotText(snapshot: Record<string, unknown> | null): string | 
 }
 
 /**
- * Campos que a LISTAGEM não devolve.
+ * Campos da LISTAGEM que antes ficavam vazios por engano.
  *
- * `ServiceOrderSummary` não carrega `origin` nem `contractReference`; a lista só recebe o que
- * o endpoint de listagem projeta. Preencher com `null` é a verdade — inventar rótulo a partir
- * de outro campo faria a coluna mentir.
+ * O endpoint de listagem devolve `ServiceOrderListResponse = ServiceOrderResponse & {...}`, e
+ * `ServiceOrderResponse` JÁ traz `origin` e `createdAt` — confirmado no payload real de produção
+ * (`origin: "PROPOSAL"`, `createdAt: "2026-10-19T16:01:34.417Z"`). A coluna "Origem" mostrava "—"
+ * e "Criada em" mostrava "—" porque o tipo do cliente omitia os dois campos e o adaptador os
+ * sobrescrevia com `null`, não porque o backend não os tivesse.
+ *
+ * `origin` é dado persistido (`so.service_orders.origin`), nunca rótulo derivado. `created_at`
+ * agora recebe o `createdAt` REAL: antes era anulado para não rotular `updatedAt` como criação —
+ * mas anular deixou a coluna vazia quando o dado sempre esteve disponível.
  */
 export function serviceOrderEngineRows(items: ServiceOrderSummary[]): ServiceOrderEngineRow[] {
   return items.map((item) => ({
@@ -33,20 +39,11 @@ export function serviceOrderEngineRows(items: ServiceOrderSummary[]): ServiceOrd
     internal_code: item.id,
     status: item.status,
     unit_id: item.unitId,
-    origin: null,
+    origin: item.origin,
     description: item.description,
     priority: null,
     row_version: item.rowVersion,
-    /*
-     * `created_at` FICA NULO na listagem, e isso é deliberado.
-     *
-     * `ServiceOrderSummary` NÃO devolve `createdAt` — só `updatedAt` e `deadlineAt`. Rotular
-     * `updatedAt` como `created_at` fazia a coluna "Criada em" exibir a data da última
-     * alteração, e o aging (derivado dela) mentir sobre a idade do registro. Preencher com um
-     * valor de outro campo é pior que deixar vazio: a coluna some e o aging cai para
-     * `deadlineAt`, que é o eixo temporal REAL desta entidade.
-     */
-    created_at: null,
+    created_at: item.createdAt,
     deadline_at: item.deadlineAt,
     updated_at: item.updatedAt,
     contract_reference: null,

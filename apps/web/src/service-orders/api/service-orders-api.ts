@@ -120,11 +120,13 @@ export type ServiceOrderSummary = {
   orderNumber: string;
   unitId: string;
   status: ServiceOrderStatus;
+  origin: string;
   clientId: string | null;
   clientSnapshot: Record<string, unknown> | null;
   description: string | null;
   location?: Record<string, unknown>;
   rowVersion: number;
+  createdAt: string;
   updatedAt: string;
   /** Projecao de despacho: responsavel atribuido por alocacao ativa. */
   assignedWorkforceMember: AssignedWorkforceMember | null;
