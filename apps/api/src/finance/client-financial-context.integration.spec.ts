@@ -130,9 +130,24 @@ describe('Client financial context integration', () => {
     return rows.rows;
   }
 
-  // Datas fixas mantêm o teste independente da virada de dia entre UTC e o fuso financeiro.
-  const overdueDate = '2000-01-01';
-  const futureDate = '2099-12-31';
+  /**
+   * DATAS ANCORADAS NO RELÓGIO DO BANCO, NÃO NO DO NODE.
+   *
+   * O banco roda em `America/Cuiaba` (UTC-4) e classifica vencimento com `CURRENT_DATE` — que é a
+   * data LOCAL do servidor. Calcular "ontem" com `Date.now()` e fatiar em UTC produz, à noite, uma
+   * data que ainda é HOJE para o banco: os títulos não apareciam como vencidos e o teste falhava
+   * acusando o serviço, quando o defeito estava na expectativa.
+   *
+   * `CURRENT_DATE - n` faz a âncora vir da MESMA fonte que a regra sob teste. Um teste de
+   * vencimento não pode depender de duas noções diferentes de "hoje".
+   */
+  async function dbDate(offsetDays: number): Promise<string> {
+    const row = await pool.query<{ d: string }>(
+      `SELECT (CURRENT_DATE + $1::int)::text AS d`,
+      [offsetDays],
+    );
+    return row.rows[0]!.d;
+  }
 
   it('matches the canonical per-title derivation for open, overdue and due', async () => {
     const { identityId, actor } = await seedActor();
@@ -146,8 +161,8 @@ describe('Client financial context integration', () => {
      *   a vencer : vence em 30 dias, saldo integral
      *   parcial  : venceu ontem, com metade liquidada (continua vencido pelo SALDO)
      */
-    const yesterday = overdueDate;
-    const inThirtyDays = futureDate;
+    const yesterday = await dbDate(-1);
+    const inThirtyDays = await dbDate(30);
 
     const overdueId = await chain.chain({
       unit,
@@ -212,7 +227,7 @@ describe('Client financial context integration', () => {
     const unit = `UF-${run}-rev`;
     const clientId = await chain.newClient(unit);
 
-    const yesterday = overdueDate;
+    const yesterday = await dbDate(-1);
     const receivableId = await chain.chain({
       unit,
       principal: '300.0000',
@@ -262,7 +277,7 @@ describe('Client financial context integration', () => {
     const unit = `UF-${run}-can`;
     const clientId = await chain.newClient(unit);
 
-    const yesterday = overdueDate;
+    const yesterday = await dbDate(-1);
     const kept = await chain.chain({ unit, principal: '50.0000', dueDate: yesterday });
     const cancelled = await chain.chain({
       unit,
@@ -293,7 +308,7 @@ describe('Client financial context integration', () => {
     const chain = bindFinancialChain(pool, identityId, run);
     const unit = `UF-${run}-noauth`;
     const clientId = await chain.newClient(unit);
-    const yesterday = overdueDate;
+    const yesterday = await dbDate(-1);
     const receivableId = await chain.chain({ unit, principal: '10.0000', dueDate: yesterday });
     await pool.query(`UPDATE fin.receivables SET client_id = $2 WHERE id = $1`, [
       receivableId,
@@ -351,7 +366,7 @@ describe('Client financial context integration', () => {
     const clientA = await chain.newClient(unitA);
     const clientB = await chain.newClient(unitB);
 
-    const yesterday = overdueDate;
+    const yesterday = await dbDate(-1);
     const a = await chain.chain({ unit: unitA, principal: '10.0000', dueDate: yesterday });
     const b = await chain.chain({ unit: unitB, principal: '20.0000', dueDate: yesterday });
     await pool.query(`UPDATE fin.receivables SET client_id = $2 WHERE id = $1`, [a, clientA]);
