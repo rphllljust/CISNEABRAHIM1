@@ -18,6 +18,7 @@ import { ProposalCommercialItems } from '../components/ProposalCommercialItems';
 import { ProposalRevisionPanel } from '../components/ProposalRevisionPanel';
 import { VersionConflictNotice } from '../components/VersionConflictNotice';
 import { useProposalCapabilities } from '../hooks/useProposalCapabilities';
+import { useSessionMeta } from '../../service-orders/context/SessionMetaProvider';
 import { useAuth } from '../../auth/context/AuthProvider';
 import {
   PROPOSAL_ACCEPTANCE_ORIGINS,
@@ -109,6 +110,7 @@ export function ProposalDetailPage() {
   const reasonId = useId();
   const { identityId } = useAuth();
   const { capabilities } = useProposalCapabilities();
+  const session = useSessionMeta();
   const [state, setState] = useState<DetailState>({ phase: 'loading' });
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
@@ -352,9 +354,33 @@ export function ProposalDetailPage() {
   const primaryAction: ObjectAction | null = primaryTransition
     ? transitionAction(primaryTransition)
     : null;
+  /**
+   * CONTINUIDADE DO PROCESSO — proposta aceita abre a operação.
+   *
+   * Antes desta alteração a proposta ACEITA terminava em espera genérica
+   * ("Seguir com o fluxo comercial (pedido de compra / operação)"): um texto que manda o operador
+   * procurar sozinho onde continuar. O contrato de OS já suporta exatamente este caminho — origem
+   * `PROPOSAL` exige `proposalId` —, então a ação leva a proposta REAL na URL e a tela de criação
+   * já entra com vínculo e origem preenchidos.
+   *
+   * Só aparece quando o usuário tem a capability real de criar OS. Sem grant, sem botão; o backend
+   * continua validando o vínculo no POST.
+   */
+  const canStartOperationFromProposal =
+    currentVersion?.status === PROPOSAL_VERSION_STATUSES.Accepted &&
+    session.can('service-orders:service-order:create');
   const secondaryActions: ObjectAction[] = [
     ...(canEdit
       ? [{ id: 'edit', label: 'Editar rascunho', to: `/app/proposals/${proposal.id}/edit` }]
+      : []),
+    ...(canStartOperationFromProposal
+      ? [
+          {
+            id: 'start-service-order',
+            label: 'Iniciar ordem de serviço',
+            to: `/app/service-orders/new?proposalId=${proposal.id}&clientId=${proposal.clientId}`,
+          },
+        ]
       : []),
     ...secondaryTransitions
       .filter((transition) => !DESTRUCTIVE_TRANSITIONS.includes(transition))

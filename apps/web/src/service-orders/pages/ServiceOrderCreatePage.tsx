@@ -100,16 +100,19 @@ export function ServiceOrderCreatePage() {
   const notesId = useId();
   const rcId = useId();
 
-  const [origin, setOrigin] = useState<ServiceOrderOrigin>(
-    SERVICE_ORDER_ORIGINS.AuthorizedDirect,
+  const [origin, setOrigin] = useState<ServiceOrderOrigin>(() =>
+    urlParams.get('proposalId')?.trim()
+      ? SERVICE_ORDER_ORIGINS.Proposal
+      : SERVICE_ORDER_ORIGINS.AuthorizedDirect,
   );
   const [unitId, setUnitId] = useState('');
   /*
-   * CONTEXTO RECEBIDO DA OBJECT PAGE DO CLIENTE.
+   * CONTEXTO RECEBIDO DA OBJECT PAGE DO CLIENTE OU DA PROPOSTA.
    *
-   * Chegando por `/app/service-orders/new?clientId=…` o cliente já vem escolhido, e o operador
-   * não precisa voltar à lista para buscá-lo de novo. É apenas o valor INICIAL: o backend segue
-   * validando existência, autorização e escopo no POST.
+   * Chegando por `/app/service-orders/new?clientId=…` o cliente já vem escolhido; chegando por
+   * `…?proposalId=…` a proposta já vem vinculada e a origem passa a ser PROPOSAL (que é o que o
+   * contrato exige: origem PROPOSAL obriga `proposalId`). É apenas o valor INICIAL: o backend
+   * segue validando existência, autorização e escopo no POST.
    */
   const [clientId, setClientId] = useState(() => urlParams.get('clientId')?.trim() ?? '');
   /*
@@ -120,7 +123,7 @@ export function ServiceOrderCreatePage() {
    * enviava o vínculo errado. Separar os estados elimina a contaminação entre os dois e permite que o
    * valor escolhido em cada origem sobreviva à troca de volta.
    */
-  const [proposalId, setProposalId] = useState('');
+  const [proposalId, setProposalId] = useState(() => urlParams.get('proposalId')?.trim() ?? '');
   const [purchaseOrderId, setPurchaseOrderId] = useState('');
   const [description, setDescription] = useState('');
   const [operationalNotes, setOperationalNotes] = useState('');
