@@ -52,7 +52,7 @@ describe('operational dashboard e2e (frontend)', () => {
     const centralRoot = dashboard.getByRole('group', { name: /central operacional/i });
     const central = within(centralRoot);
 
-    const visualOrder = ['situation-strip', 'compact-process-flow', 'work-area', 'operational-analytics']
+    const visualOrder = ['situation-strip', 'work-area', 'compact-process-flow', 'operational-analytics']
       .map((layout) => Array.from(centralRoot.querySelectorAll<HTMLElement>('[data-layout]'))
         .find((element) => element.getAttribute('data-layout') === layout))
       .filter((element): element is HTMLElement => element !== undefined)
@@ -93,6 +93,10 @@ describe('operational dashboard e2e (frontend)', () => {
     // A FILA E O ELEMENTO DOMINANTE — grade real, com cabecalho de colunas e rodape de paginacao.
     const queue = central.getByRole('region', { name: /fila de trabalho do recorte/i });
     expect(within(queue).getByRole('table')).toBeInTheDocument();
+    expect(within(queue).getByRole('columnheader', { name: /natureza \/ prazo/i })).toBeInTheDocument();
+    expect(within(queue).getByRole('columnheader', { name: /^domínio$/i })).toBeInTheDocument();
+    expect(within(queue).queryByRole('columnheader', { name: /^prioridade$/i })).not.toBeInTheDocument();
+    expect(within(queue).queryByRole('columnheader', { name: /^responsável$/i })).not.toBeInTheDocument();
     expect(within(queue).getByRole('columnheader', { name: /próxima ação/i })).toBeInTheDocument();
     // A grade publica as referencias REAIS do read model, uma linha por item de trabalho.
     expect(
@@ -111,10 +115,25 @@ describe('operational dashboard e2e (frontend)', () => {
       'true',
     );
 
-    // A COLUNA DE CONTEXTO NAO RESERVA AREA SEM SELECAO ATIVA.
+    // BUSINESS CONTEXT PERSISTENTE: sem seleção, a support surface continua publicando fatos
+    // autoritativos do recorte. Selecionar uma linha evolui o MESMO espaço para o objeto.
+    const contextSurface = centralRoot.querySelector<HTMLElement>('.dashboard-cc__context');
+    expect(contextSurface).not.toBeNull();
+    expect(within(contextSurface!).getByText('Contexto operacional')).toBeInTheDocument();
+    expect(within(contextSurface!).getByText('Processo atual')).toBeInTheDocument();
+
+    const referenceButton = within(queue).getAllByRole('button', { name: /^SO-\d{4}-\d{6}$/ })[0]!;
+    const reference = referenceButton.textContent ?? '';
+    await user.click(referenceButton);
     expect(
-      dashboard.queryByRole('complementary', { name: /contexto da entidade selecionada/i }),
-    ).not.toBeInTheDocument();
+      await within(contextSurface!).findByRole('heading', { name: /contexto do trabalho/i }),
+    ).toBeInTheDocument();
+    expect(within(contextSurface!).getByText(reference)).toBeInTheDocument();
+
+    // UM dono por intenção operacional: não há um segundo refresh/vencidos no header.
+    expect(central.getAllByRole('button', { name: 'Atualizar' })).toHaveLength(1);
+    expect(central.getAllByRole('button', { name: 'Atrasados' })).toHaveLength(1);
+    expect(central.queryByRole('checkbox', { name: 'Somente vencidos' })).not.toBeInTheDocument();
 
     // FAIXA DE INDICADORES: cada numero tem drill para o recorte que o produziu.
     const kpiStrip = central.getByRole('region', { name: /indicadores operacionais/i });
@@ -224,7 +243,7 @@ describe('operational dashboard e2e (frontend)', () => {
     await user.click(await screen.findByRole('button', { name: 'Financeiro' }));
     await waitFor(() => expect(window.location.search).toContain('domain=FINANCEIRO'));
 
-    await user.click(screen.getByRole('checkbox', { name: 'Somente vencidos' }));
+    await user.click(screen.getByRole('button', { name: 'Atrasados' }));
     await waitFor(() => expect(window.location.search).toContain('overdue=true'));
 
     expect(
@@ -237,6 +256,36 @@ describe('operational dashboard e2e (frontend)', () => {
         );
       }),
     ).toBe(true);
+  });
+
+  it('refreshes the executive snapshot and work queue from the single work-surface command', async () => {
+    const shellMock = createShellFetchMock();
+    const dashboardMock = createDashboardFetchMock();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input);
+      if (url.includes('/api/v1/dashboard/executive') || url.includes('/api/v1/work-inbox')) {
+        return dashboardMock(input, init);
+      }
+      return shellMock(input, init);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    const user = userEvent.setup();
+    await login(user);
+
+    await screen.findByRole('region', { name: /fila de trabalho do recorte/i });
+    const countCalls = (needle: string) =>
+      fetchMock.mock.calls.filter(([input]) => requestUrl(input).includes(needle)).length;
+    const queueBefore = countCalls('/api/v1/work-inbox');
+    const snapshotBefore = countCalls('/api/v1/dashboard/executive');
+
+    await user.click(screen.getByRole('button', { name: 'Atualizar' }));
+
+    await waitFor(() => {
+      expect(countCalls('/api/v1/work-inbox')).toBeGreaterThan(queueBefore);
+      expect(countCalls('/api/v1/dashboard/executive')).toBeGreaterThan(snapshotBefore);
+    });
   });
 
   it('reflects period filter in URL when user changes period', async () => {
