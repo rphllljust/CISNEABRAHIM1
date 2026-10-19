@@ -213,6 +213,7 @@ export class ServiceOrdersAccessService {
       proposalSnapshot,
       purchaseOrderId,
       purchaseOrderSnapshot,
+      customerPurchaseOrderNumber: validated.customerPurchaseOrderNumber ?? null,
       rcNumber,
       contractId,
       contractReference: contractId
@@ -372,6 +373,7 @@ export class ServiceOrdersAccessService {
       serviceDefinitionVersionId: validated.serviceDefinitionVersionId,
       proposalId: validated.proposalId,
       purchaseOrderId: validated.purchaseOrderId,
+      customerPurchaseOrderNumber: validated.customerPurchaseOrderNumber,
       rcNumber: validated.rcNumber,
       contractReference: validated.contractReference,
     };
