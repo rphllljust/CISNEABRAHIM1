@@ -44,8 +44,10 @@ const SITUATION_TONE_CLASS = {
  *
  * A composicao nova e a mesma informacao, com massa visual menor:
  *
- *   linha 1  identidade (titulo + descricao) | escopo e periodo | atualizado, periodo, atualizar
- *   linha 2  recorte de dominio (unico lugar da tela onde o recorte vive) | situacao e refinamento
+ *   linha 1  identidade (titulo + descricao) | escopo, atualização e período
+ *   linha 2  recorte de domínio (único lugar da tela onde o recorte vive) | situação do recorte
+ *
+ * Comandos que operam a fila (vencidos/atualizar) vivem na própria work surface, não aqui.
  *
  * A SITUACAO DO RECORTE subiu para ca de proposito. Antes eram dois lugares concorrentes dizendo se
  * havia problema: um banner no meio do conteudo e a contagem NAO publicada em outro. Agora existe
@@ -124,7 +126,6 @@ export function DashboardWorkbenchHeader({
               ))}
             </select>
           </label>
-
         </div>
       </div>
 
@@ -190,7 +191,6 @@ export function DashboardWorkbenchHeader({
               ) : null}
             </>
           ) : null}
-
         </div>
       </div>
     </div>
