@@ -171,6 +171,13 @@ const MIGRATION_EFFECT_CHECKS = {
   '0098_metadata_seed_customer_360': {
     fieldFlag: ['meta', 'fields', 'client', 'group_name', 'in_list'],
   },
+  '0099_customer_purchase_order_number': {
+    column: ['so', 'service_orders', 'customer_purchase_order_number'],
+  },
+  '0100_customer_item_reference': {
+    column: ['com', 'proposal_items', 'customer_item_reference'],
+  },
+  '0101_proposal_contact': { column: ['com', 'proposals', 'contact_id'] },
 };
 
 /**

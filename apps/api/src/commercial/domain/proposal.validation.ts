@@ -33,6 +33,7 @@ export type ProposalItemInput = {
 
 export type CreateProposalInput = {
   clientId: string;
+  contactId?: string;
   unitId: string;
   title: string;
   pricingStructure: ProposalPricingStructure;

@@ -181,6 +181,7 @@ export const PROPOSAL_WORKBENCH_SELECT = `
     p.id,
     p.proposal_code,
     p.client_id,
+    p.contact_id,
     p.unit_id,
     p.title,
     p.current_version_number,

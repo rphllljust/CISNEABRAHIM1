@@ -132,12 +132,14 @@ export class ProposalsAccessService {
 
     await this.authz.assertCreateAction(actor, input.clientId, input.unitId);
     await this.referenceValidation.assertClientActive(input.clientId);
+    await this.referenceValidation.assertContactBelongsToClient(input.clientId, input.contactId);
     await this.referenceValidation.assertUnitRegistered(input.unitId);
     await this.referenceValidation.assertServiceReferences(validated.items);
 
     const created = await this.proposalsRepository.createProposal({
       proposalCode: generateProposalCode(),
       clientId: input.clientId,
+      contactId: input.contactId ?? null,
       unitId: input.unitId,
       title: input.title.trim(),
       pricingStructure: validated.pricingStructure,

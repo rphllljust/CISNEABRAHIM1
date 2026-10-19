@@ -12,7 +12,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { serviceDefinitions, serviceDefinitionVersions } from './service-catalog';
-import { clients } from './clients';
+import { clientContacts, clients } from './clients';
 import { documents } from './documents';
 import { identities } from './identity';
 
@@ -49,6 +49,21 @@ export const proposals = comSchema.table(
     clientId: uuid('client_id')
       .notNull()
       .references(() => clients.id, { onDelete: 'restrict' }),
+    /*
+      CONTATO DO CLIENTE PARA ESTA PROPOSTA — referência ao cadastro, nunca cópia de nome.
+
+      O documento comercial nomeia com quem se fala (`A/C: Sr. Josivan`). O CISNE já tem esse dado
+      como ENTIDADE (`pty.client_contacts`, com `purpose` e `role`); copiar o nome para uma coluna
+      de texto criaria uma segunda fonte para o mesmo fato, que envelhece em silêncio quando o
+      contato muda de nome, e-mail ou papel.
+
+      Opcional de propósito: nem toda proposta nomeia um contato, e exigir um obrigaria a inventar
+      vínculo. `ON DELETE SET NULL` porque remover o contato do cadastro não deve impedir a
+      proposta de existir — ela perde a referência, não a história.
+    */
+    contactId: uuid('contact_id').references(() => clientContacts.id, {
+      onDelete: 'set null',
+    }),
     unitId: text('unit_id').notNull(),
     title: text('title').notNull(),
     currentVersionNumber: integer('current_version_number'),
@@ -65,6 +80,7 @@ export const proposals = comSchema.table(
   (table) => [
     uniqueIndex('proposals_proposal_code_uidx').on(table.proposalCode),
     index('proposals_client_id_idx').on(table.clientId),
+    index('proposals_contact_id_idx').on(table.contactId),
     index('proposals_unit_id_idx').on(table.unitId),
     check('proposals_proposal_code_not_empty_chk', sql`length(trim(${table.proposalCode})) > 0`),
     check('proposals_title_not_empty_chk', sql`length(trim(${table.title})) > 0`),

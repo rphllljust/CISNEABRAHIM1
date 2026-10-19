@@ -29,6 +29,27 @@ export class ProposalsReferenceValidationService {
     }
   }
 
+  /**
+   * Contato da proposta e uma ENTIDADE do Cliente (`pty.client_contacts`), nao uma copia textual.
+   * Quando informado, o contato precisa existir, pertencer a ESTE Cliente e estar ativo.
+   */
+  async assertContactBelongsToClient(
+    clientId: string,
+    contactId: string | undefined,
+  ): Promise<void> {
+    if (!contactId) {
+      return;
+    }
+    const contact = await this.proposalsRepository.findActiveContactOfClient(clientId, contactId);
+    if (!contact) {
+      throw new CommercialHttpException(
+        HttpStatus.BAD_REQUEST,
+        COMMERCIAL_ERROR_CODES.CONTACT_NOT_FOUND,
+        'Contact does not belong to the client or is inactive.',
+      );
+    }
+  }
+
   async assertUnitRegistered(unitId: string): Promise<void> {
     const registered = await this.proposalsRepository.isUnitRegistered(unitId);
     if (!registered) {

@@ -708,5 +708,12 @@
       "when": 179090750000000000,
       "tag": "0100_customer_item_reference",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 179090800000000000,
+      "tag": "0101_proposal_contact",
+      "breakpoints": true
     }  ]
 }

@@ -79,6 +79,7 @@ export function parseCreateProposalInput(body: unknown): CreateProposalInput {
   }
   return {
     clientId: parseRequiredStringField(record, 'clientId'),
+    contactId: parseOptionalStringField(record, 'contactId'),
     unitId: parseRequiredStringField(record, 'unitId'),
     title: parseRequiredStringField(record, 'title'),
     pricingStructure,

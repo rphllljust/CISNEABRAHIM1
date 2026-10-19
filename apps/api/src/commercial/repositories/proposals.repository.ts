@@ -36,6 +36,7 @@ const PROPOSAL_SELECT = `
     id,
     proposal_code,
     client_id,
+    contact_id,
     unit_id,
     title,
     current_version_number,
@@ -102,6 +103,25 @@ export class ProposalsRepository {
       `SELECT id, legal_name, trade_name, normalized_tax_id, status::text AS status
        FROM pty.clients WHERE id = $1`,
       [clientId],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  /**
+   * Contato do CLIENTE que pode ser citado na proposta. Devolve `null` quando o contato nao
+   * existe, quando pertence a outro Cliente ou quando ja foi desativado. A assinatura recebe o
+   * `clientId` de proposito: a proposta so aponta para contato DO PROPRIO Cliente, e essa regra
+   * e decidida aqui, no backend, nao na tela.
+   */
+  async findActiveContactOfClient(
+    clientId: string,
+    contactId: string,
+  ): Promise<{ id: string; client_id: string; name: string } | null> {
+    const result = await this.pool().query<{ id: string; client_id: string; name: string }>(
+      `SELECT id, client_id, name
+       FROM pty.client_contacts
+       WHERE id = $1 AND client_id = $2 AND deactivated_at IS NULL`,
+      [contactId, clientId],
     );
     return result.rows[0] ?? null;
   }
@@ -454,16 +474,17 @@ export class ProposalsRepository {
 
       const proposalResult = await client.query<ProposalRow>(
         `INSERT INTO com.proposals (
-           proposal_code, client_id, unit_id, title, current_version_number,
+           proposal_code, client_id, contact_id, unit_id, title, current_version_number,
            created_by_identity_id, updated_by_identity_id
          )
-         VALUES ($1, $2, $3, $4, 1, $5, $5)
+         VALUES ($1, $2, $3, $4, $5, 1, $6, $6)
          RETURNING
-           id, proposal_code, client_id, unit_id, title, current_version_number,
+           id, proposal_code, client_id, contact_id, unit_id, title, current_version_number,
            row_version, created_at, updated_at`,
         [
           input.proposalCode,
           input.clientId,
+          input.contactId ?? null,
           input.unitId,
           input.title,
           input.actorIdentityId,

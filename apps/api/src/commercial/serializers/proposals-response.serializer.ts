@@ -24,6 +24,7 @@ export type ProposalResponse = {
   id: string;
   proposalCode: string;
   clientId: string;
+  contactId: string | null;
   unitId: string;
   title: string;
   currentVersionNumber: number | null;
@@ -190,6 +191,7 @@ export function toProposalResponse(row: ProposalRow): ProposalResponse {
     id: row.id,
     proposalCode: row.proposal_code,
     clientId: row.client_id,
+    contactId: row.contact_id,
     unitId: row.unit_id,
     title: row.title,
     currentVersionNumber: row.current_version_number,

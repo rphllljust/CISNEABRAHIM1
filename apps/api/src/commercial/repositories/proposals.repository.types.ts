@@ -7,6 +7,7 @@ export type ProposalRow = {
   id: string;
   proposal_code: string;
   client_id: string;
+  contact_id: string | null;
   unit_id: string;
   title: string;
   current_version_number: number | null;
@@ -113,6 +114,7 @@ export type ServiceSnapshotSource = {
 export type CreateProposalPersistenceInput = {
   proposalCode: string;
   clientId: string;
+  contactId?: string | null;
   unitId: string;
   title: string;
   pricingStructure: string;
