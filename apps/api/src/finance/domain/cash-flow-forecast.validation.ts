@@ -1,4 +1,4 @@
-import { assertCurrencyCode } from '../../platform/kernel/money-math';
+import { MoneyValidationError, assertCurrencyCode } from '../../platform/kernel/money-math';
 import { CashForecastError, asCashForecastIsoDate } from './cash-flow-forecast';
 
 export type ProjectCashForecastInput = {
@@ -27,9 +27,20 @@ export function validateProjectCashForecastInput(input: ProjectCashForecastInput
   if (horizonEndsOn < asOf) {
     throw new CashForecastError('CASH_FORECAST_INVALID');
   }
+  // MoneyValidationError is a kernel-level error; translate it into the domain error so
+  // invalid request input is reported as 400 instead of escaping as an unexpected 500.
+  let currencyCode: string;
+  try {
+    currencyCode = assertCurrencyCode(input.currencyCode);
+  } catch (error) {
+    if (error instanceof MoneyValidationError) {
+      throw new CashForecastError('CASH_FORECAST_INVALID');
+    }
+    throw error;
+  }
   return {
     unitId: requireNonEmpty(input.unitId, 'CASH_FORECAST_INVALID'),
-    currencyCode: assertCurrencyCode(input.currencyCode),
+    currencyCode,
     asOf,
     horizonEndsOn,
   };

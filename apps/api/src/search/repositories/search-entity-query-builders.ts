@@ -390,7 +390,7 @@ function assetSearchQuery(
                           '/app/assets/' || a.id::text AS entity_href,
                           a.asset_code AS highlight`,
     fromClause: `rpt.read_physical_assets a
-                 LEFT JOIN rpt.read_vehicle_profiles vp ON vp.physical_asset_id = a.id`,
+                 LEFT JOIN rpt.read_vehicle_profiles vp ON vp.asset_id = a.id`,
     predicate: `(${match.clause}) AND (${filterClause})`,
     params: [...match.params, ...filterParams],
     orderBy: 'a.created_at DESC, a.id DESC',
