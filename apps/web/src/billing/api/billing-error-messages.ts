@@ -1,6 +1,41 @@
 import { BILLING_ERROR_CODES } from '../types/billing.types';
 
+/**
+ * CÓDIGOS DO REGISTRO DE EMISSOR que chegam pela emissão do documento.
+ *
+ * A emissão do documento de faturamento é delegada ao registro do emissor, então a falha chega
+ * aqui com o vocabulário DELE (`ISSUER_*`) e não com um `BILLING_*`. Sem estes casos o operador
+ * via "Não foi possível concluir a operação de faturamento." — genérico, sem dizer o que falta
+ * nem onde corrigir, embora o servidor tivesse nomeado a causa exata.
+ *
+ * Medido em produção (2026-10-19): com a medição aprovada e o faturamento preparado em
+ * R$ 3000, o `POST .../documents` respondia 409 `ISSUER_DEFAULT_NOT_FOUND` e a tela só mostrava
+ * a mensagem genérica. O operador não tinha como saber que faltava o CNPJ do emissor.
+ *
+ * Cada mensagem diz o QUE falta e ONDE resolver: emissão é um passo que o operador conduz, e um
+ * erro que não aponta a correção só produz nova tentativa idêntica.
+ */
+const ISSUER_ERROR_MESSAGES: Record<string, string> = {
+  ISSUER_DEFAULT_NOT_FOUND:
+    'Não há estabelecimento emissor com CNPJ ativo. Cadastre os dados fiscais da empresa emissora (razão social, CNPJ e estabelecimento) antes de emitir o documento.',
+  ISSUER_LEGAL_ENTITY_NOT_FOUND:
+    'A empresa emissora não foi encontrada. Verifique o cadastro fiscal do emissor.',
+  ISSUER_ESTABLISHMENT_NOT_FOUND:
+    'O estabelecimento emissor não foi encontrado. Verifique o cadastro fiscal do emissor.',
+  ISSUER_TAX_REGISTRATION_NOT_FOUND:
+    'O estabelecimento emissor não tem inscrição fiscal registrada. Cadastre-a antes de emitir.',
+  ISSUER_CERTIFICATE_NOT_FOUND:
+    'O estabelecimento emissor não tem certificado digital registrado.',
+  ISSUER_DENIED: 'Você não tem permissão para operar o registro do emissor.',
+  ISSUER_VALIDATION_FAILED: 'Os dados fiscais do emissor estão incompletos ou inválidos.',
+  ISSUER_NOT_FOUND: 'Registro do emissor não encontrado.',
+};
+
 export function mapBillingErrorToMessage(code: string | undefined, status: number): string {
+  const issuerMessage = code ? ISSUER_ERROR_MESSAGES[code] : undefined;
+  if (issuerMessage) {
+    return issuerMessage;
+  }
   switch (code) {
     case BILLING_ERROR_CODES.DENIED:
       return 'Você não tem permissão para esta operação de faturamento.';
