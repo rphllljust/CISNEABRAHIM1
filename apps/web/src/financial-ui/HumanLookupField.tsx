@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Field, Input, Select } from '../ui';
 import { cn } from '../ui/utils/cn';
 
@@ -39,6 +40,7 @@ export function HumanLookupField({
   value,
   onChange,
   emptyMessage = 'Nenhum registro encontrado para a busca.',
+  emptyAction,
   emptyOptionLabel,
   className,
   initialLabel,
@@ -63,6 +65,16 @@ export function HumanLookupField({
   value: string;
   onChange: (id: string) => void;
   emptyMessage?: string;
+  /**
+   * AÇÃO DE CADASTRO QUANDO A BUSCA NÃO DEvolve NADA.
+   *
+   * A busca vazia tem duas causas diferentes: filtro sem resultado e cadastro inexistente. Sem
+   * distinguir, o operador lê "nenhum registro encontrado" numa tela onde NADA pode ser encontrado
+   * e precisa descobrir sozinho que a dependência é cadastral. Quando o chamador conhece o cadastro
+   * de origem (ex.: fornecedor), passa aqui o rótulo e o destino; o componente mostra a orientação
+   * e o caminho, mantendo o operador no fluxo em que estava.
+   */
+  emptyAction?: { label: string; to: string };
   /** Rótulo da opção vazia. Em filtro, "Todos" é mais honesto que "Selecione". */
   emptyOptionLabel?: string;
   className?: string;
@@ -208,6 +220,14 @@ export function HumanLookupField({
       {phase === 'ready' && options.length === 0 ? (
         <p className="mt-1 text-sm text-gray-500" role="status">
           {emptyMessage}
+          {emptyAction ? (
+            <>
+              {' '}
+              <Link className="font-semibold text-brand-700 no-underline hover:text-brand-800" to={emptyAction.to}>
+                {emptyAction.label}
+              </Link>
+            </>
+          ) : null}
         </p>
       ) : null}
       {phase === 'error' ? (
