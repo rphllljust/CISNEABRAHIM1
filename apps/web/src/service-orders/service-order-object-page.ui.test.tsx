@@ -293,9 +293,29 @@ function planningFetchMock(detail: ServiceOrderDetail, options: MockOptions = {}
      * no 403 genérico abaixo e a seção desapareceria.
      */
     if (pathname === '/api/v1/me' && method === 'GET') {
+      /*
+        GRANTS DA SESSAO — fonte autoritativa das capabilities de UI.
+
+        A object page deixou de sondar o backend com POST/PATCH para descobrir permissao: ela
+        projeta `can()` de `/me` (SessionMetaProvider). Declarar apenas `:read` fazia a proxima
+        acao, as relacoes e o comando de alocacao desaparecerem da tela e o teste falhava por
+        FIXTURE, nao por defeito de produto. O conjunto abaixo cobre os fluxos desta suite;
+        `usuario_tem_permissao` continua vindo da `available-actions` do backend.
+      */
       return jsonResponse({
         usuario: { id: ACTOR_ID, nome: null, email: null, identity_id: ACTOR_ID },
-        permissoes_efetivas: ['service-orders:service-order:read'],
+        permissoes_efetivas: [
+          'service-orders:service-order:read',
+          'service-orders:service-order:list',
+          'service-orders:service-order:prepare',
+          'service-orders:service-order:release',
+          'service-orders:service-order:cancel',
+          'service-orders:service-order:reopen',
+          'service-orders:planned-resource:read',
+          'service-orders:planned-resource:plan',
+          'service-orders:resource-allocation:read',
+          'service-orders:resource-allocation:allocate',
+        ],
         escopo_ativo: null,
         escopos_disponiveis: [],
       });

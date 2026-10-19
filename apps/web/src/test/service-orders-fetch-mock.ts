@@ -1872,6 +1872,77 @@ export function createServiceOrdersFetchMock(options: ServiceOrdersFetchMockOpti
       });
     }
 
+    /*
+      SESSAO — precisa vir ANTES do filtro de rotas de OS abaixo.
+
+      O `AuthProvider` só sai de `loading` quando `/auth/session` responde; sem essa resposta ele
+      nunca fica `authenticated`, o `SessionMetaBridge` não hidrata `/me`, `session.can()` responde
+      sempre `false` e TODA action protegida por capability desaparece da tela — o teste falha por
+      FIXTURE, não por defeito de produto.
+
+      A posição importa: mais abaixo existe um `return upstream(...)` que desvia para a rede tudo
+      que não é `/service-orders`, e o teste não tem rede. Estas duas rotas de sessão pertencem ao
+      escopo do dublê porque são a fonte das capabilities que a tela de OS projeta.
+    */
+    if (pathname === '/api/v1/auth/session' && method === 'GET') {
+      return jsonResponse({
+        identityId: 'actor-demo',
+        session: { id: 'sid', expiresAt: '2026-12-31T00:00:00.000Z', status: 'ACTIVE' },
+      });
+    }
+
+    if (pathname === '/api/v1/me' && method === 'GET') {
+      /*
+        GRANTS EFETIVOS DA SESSAO — a fonte autoritativa das capabilities de UI.
+
+        As telas de OS deixaram de sondar o backend com POST/PATCH para descobrir permissão; hoje
+        projetam `can()` a partir daqui (SessionMetaProvider). Por isso este dublê declara os grants
+        que cada fluxo testado exercita — antes bastava a permissão de leitura, porque a sonda
+        respondia pelo status HTTP.
+
+        `usuario_tem_permissao` da `available-actions` continua vindo do backend (state machine);
+        aqui declaramos apenas os grants DA SESSÃO.
+      */
+      return jsonResponse({
+        usuario: { id: 'actor-demo', nome: null, email: null, identity_id: 'actor-demo' },
+        permissoes_efetivas: [
+          'service-orders:service-order:read',
+          'service-orders:service-order:list',
+          'service-orders:service-order:create',
+          'service-orders:service-order:prepare',
+          'service-orders:service-order:release',
+          'service-orders:service-order:cancel',
+          'service-orders:service-order:reopen',
+          'service-orders:service-order:update',
+          'service-orders:planned-resource:read',
+          'service-orders:planned-resource:plan',
+          'service-orders:planned-resource:update',
+          'service-orders:planned-resource:remove',
+          'service-orders:resource-allocation:read',
+          'service-orders:resource-allocation:allocate',
+          'service-orders:resource-allocation:reallocate',
+          'service-orders:resource-allocation:remove',
+          'service-orders:execution:read',
+          'service-orders:execution:start',
+          'service-orders:execution:pause',
+          'service-orders:execution:resume',
+          'service-orders:execution:complete',
+          'service-orders:execution:record',
+          'service-orders:operational-cost:read',
+          'service-orders:operational-cost:record',
+          'measurements:measurement:read',
+          'measurements:measurement:create',
+          'measurements:measurement:update',
+          'measurements:measurement:submit',
+          'measurements:measurement:review',
+          'measurements:measurement:approve',
+          'measurements:measurement:reject',
+        ],
+        escopo_ativo: null,
+        escopos_disponiveis: [{ tipo: 'GLOBAL', resource_id: null, label: 'Global' }],
+      });
+    }
+
     if (!pathname.startsWith('/api/v1/service-orders') && pathname !== '/api/v1/billing/worklist') {
       return upstream(input, init);
     }
@@ -2002,14 +2073,6 @@ export function createServiceOrdersFetchMock(options: ServiceOrdersFetchMockOpti
       return jsonResponse({ comandos: COMMAND_CATALOG_FIXTURE });
     }
 
-    if (pathname === '/api/v1/me' && method === 'GET') {
-      return jsonResponse({
-        usuario: { id: 'actor-demo', nome: null, email: null, identity_id: 'actor-demo' },
-        permissoes_efetivas: ['service-orders:service-order:read'],
-        escopo_ativo: null,
-        escopos_disponiveis: [{ tipo: 'GLOBAL', resource_id: null, label: 'Global' }],
-      });
-    }
 
     const availableActionsMatch = pathname.match(
       /^\/api\/v1\/service-orders\/([^/]+)\/available-actions$/,
