@@ -77,6 +77,8 @@ export type ProposalItemRow = {
   commercial_snapshot: Record<string, unknown> | null;
   quantity: string | null;
   unit_code: string | null;
+  customer_item_reference: string | null;
+  customer_unit_code: string | null;
   unit_sale_price_amount: string | null;
   unit_internal_cost_amount: string | null;
   line_sale_amount: string | null;

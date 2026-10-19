@@ -23,6 +23,8 @@ export type ProposalItemInput = {
   serviceDefinitionVersionId?: string;
   quantity?: string;
   unitCode?: string;
+  customerItemReference?: string;
+  customerUnitCode?: string;
   unitSalePrice?: string;
   unitInternalCost?: string;
   lineSaleAmount?: string;

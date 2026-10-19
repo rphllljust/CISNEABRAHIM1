@@ -701,5 +701,12 @@
       "when": 179090700000000000,
       "tag": "0099_customer_purchase_order_number",
       "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "7",
+      "when": 179090750000000000,
+      "tag": "0100_customer_item_reference",
+      "breakpoints": true
     }  ]
 }

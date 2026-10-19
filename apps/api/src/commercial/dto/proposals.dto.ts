@@ -56,6 +56,8 @@ function parseItems(raw: unknown): ProposalItemInput[] | undefined {
           : undefined,
       quantity: typeof record['quantity'] === 'string' ? record['quantity'] : undefined,
       unitCode: typeof record['unitCode'] === 'string' ? record['unitCode'] : undefined,
+      customerItemReference: typeof record['customerItemReference'] === 'string' ? record['customerItemReference'] : undefined,
+      customerUnitCode: typeof record['customerUnitCode'] === 'string' ? record['customerUnitCode'] : undefined,
       unitSalePrice:
         typeof record['unitSalePrice'] === 'string' ? record['unitSalePrice'] : undefined,
       unitInternalCost:

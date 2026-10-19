@@ -75,6 +75,8 @@ export type ProposalItemResponse = {
   commercialSnapshot: Record<string, unknown> | null;
   quantity: string | null;
   unitCode: string | null;
+  customerItemReference: string | null;
+  customerUnitCode: string | null;
   unitSalePrice: string | null;
   unitInternalCost: string | null;
   lineSaleAmount: string | null;
@@ -356,6 +358,8 @@ export function toProposalItemResponse(
     commercialSnapshot: maskCommercialSnapshot(row.commercial_snapshot, visibility),
     quantity: commercial.quantity,
     unitCode: commercial.unitCode,
+    customerItemReference: commercial.customerItemReference ?? null,
+    customerUnitCode: commercial.customerUnitCode ?? null,
     unitSalePrice: commercial.unitSalePrice,
     unitInternalCost: maskInternalCost(commercial.unitInternalCost, visibility),
     lineSaleAmount: commercial.lineSaleAmount,

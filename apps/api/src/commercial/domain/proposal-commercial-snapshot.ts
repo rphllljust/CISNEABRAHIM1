@@ -6,6 +6,8 @@ export type ProposalItemCommercialSnapshot = {
   itemKind: ProposalItemKind;
   description: string;
   unitCode: string | null;
+  customerItemReference: string | null;
+  customerUnitCode: string | null;
   quantity: string | null;
   unitSalePrice: string | null;
   unitInternalCost: string | null;
@@ -20,6 +22,8 @@ export function buildCommercialItemSnapshot(
     | 'item_kind'
     | 'description'
     | 'unit_code'
+    | 'customer_item_reference'
+    | 'customer_unit_code'
     | 'quantity'
     | 'unit_sale_price_amount'
     | 'unit_internal_cost_amount'
@@ -32,6 +36,8 @@ export function buildCommercialItemSnapshot(
     itemKind: item.item_kind as ProposalItemKind,
     description: item.description,
     unitCode: item.unit_code,
+    customerItemReference: item.customer_item_reference,
+    customerUnitCode: item.customer_unit_code,
     quantity: formatMoneyAmountForApi(item.quantity),
     unitSalePrice: formatMoneyAmountForApi(item.unit_sale_price_amount),
     unitInternalCost: formatMoneyAmountForApi(item.unit_internal_cost_amount),
@@ -48,6 +54,8 @@ export function resolveCommercialItemFields(
   | 'itemKind'
   | 'description'
   | 'unitCode'
+  | 'customerItemReference'
+  | 'customerUnitCode'
   | 'quantity'
   | 'unitSalePrice'
   | 'unitInternalCost'
@@ -60,6 +68,8 @@ export function resolveCommercialItemFields(
       itemKind: snapshot.itemKind,
       description: snapshot.description,
       unitCode: snapshot.unitCode,
+      customerItemReference: snapshot.customerItemReference ?? null,
+      customerUnitCode: snapshot.customerUnitCode ?? null,
       quantity: snapshot.quantity,
       unitSalePrice: snapshot.unitSalePrice,
       unitInternalCost: snapshot.unitInternalCost,
@@ -72,6 +82,8 @@ export function resolveCommercialItemFields(
     itemKind: row.item_kind as ProposalItemKind,
     description: row.description,
     unitCode: row.unit_code,
+    customerItemReference: row.customer_item_reference,
+    customerUnitCode: row.customer_unit_code,
     quantity: formatMoneyAmountForApi(row.quantity),
     unitSalePrice: formatMoneyAmountForApi(row.unit_sale_price_amount),
     unitInternalCost: formatMoneyAmountForApi(row.unit_internal_cost_amount),

@@ -164,6 +164,15 @@ export const proposalItems = comSchema.table(
     commercialSnapshot: jsonb('commercial_snapshot'),
     quantity: numeric('quantity', { precision: 18, scale: 4 }),
     unitCode: text('unit_code'),
+    /*
+      REFERENCIA EXTERNA DO CLIENTE — como ELE identifica o item.
+
+      unit_code acima e a unidade INTERNA do Catalogo (DAY). customer_unit_code e a unidade
+      NA ORIGEM do documento do cliente (UA). Nao sao intercambiaveis: sem mapeamento declarado,
+      traduzir uma na outra seria inventar equivalencia.
+    */
+    customerItemReference: text('customer_item_reference'),
+    customerUnitCode: text('customer_unit_code'),
     unitSalePriceAmount: numeric('unit_sale_price_amount', { precision: 18, scale: 4 }),
     unitInternalCostAmount: numeric('unit_internal_cost_amount', { precision: 18, scale: 4 }),
     lineSaleAmount: numeric('line_sale_amount', { precision: 18, scale: 4 }),
