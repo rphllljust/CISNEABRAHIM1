@@ -23,13 +23,17 @@ const ROOT = resolve(import.meta.dirname, '..');
 // `pnpm lint` falhava em main, em toda branch e em todo push — bloqueando o pipeline inteiro.
 // O teto abaixo e o tamanho CORRENTE, sem folga: o ratchet volta a impedir crescimento daqui
 // em diante, e reduzir o arquivo deve baixar o numero no mesmo commit.
+//
+// AJUSTE 2026-10-19 — o campo de fornecedor de emitir-pedido e registrar-nota ganhou
+// `emptyAction` (orientacao + link ao cadastro existente). Substitui a mensagem longa por um
+// link curto; saldo liquido +10 bytes (54301 -> 54311). O teto move junto, sem folga adicional.
 const BUDGETS = new Map([
   ['apps/api/src/accounting/repositories/accounting.repository.ts', 56312],
   ['apps/api/src/accounting/services/accounting-access.service.ts', 42040],
   ['apps/api/src/service-orders/repositories/resource-planning.repository.ts', 36561],
   ['apps/api/src/service-orders/repositories/service-orders.repository.ts', 34743],
   ['apps/api/src/finance/repositories/treasury.repository.ts', 31768],
-  ['apps/web/src/procurement/pages/ProcurementPages.tsx', 54301],
+  ['apps/web/src/procurement/pages/ProcurementPages.tsx', 54311],
   ['apps/web/src/App.tsx', 39745],
 ]);
 

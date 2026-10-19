@@ -4,20 +4,19 @@ import { describe, expect, it, vi } from 'vitest';
 import { HumanLookupField, type HumanLookupOption } from './HumanLookupField';
 
 /**
- * Orientação de cadastro ausente no lookusp humano.
+ * Orientação de cadastro ausente no lookup humano.
  *
  * A busca vazia confundia duas causas: filtro sem resultado e cadastro inexistente. Num fluxo
  * onde NADA pode ser encontrado (ex.: emitir pedido sem fornecedor cadastrado), "nenhum registro
  * encontrado" não diz ao operador que a dependência é cadastral nem para onde ir. Estes casos
- * travam o contrato: com `emptyAction` o componente orienta e encaminha; sem ela, mantém o texto
- * simples de busca, sem inventar navegação.
+ * travam o contrato: com `emptyAction` o componente orienta e encaminha para o cadastro de
+ * origem; sem ela, mantém o texto simples de busca, sem inventar navegação.
  */
 function renderField(props: {
   emptyMessage?: string;
   emptyAction?: { label: string; to: string };
 }) {
-  const empty: HumanLookupOption[] = [];
-  const search = vi.fn(async () => empty);
+  const search = vi.fn(async (): Promise<HumanLookupOption[]> => []);
   render(
     <MemoryRouter>
       <HumanLookupField
@@ -35,29 +34,31 @@ function renderField(props: {
 
 describe('HumanLookupField empty state', () => {
   it('shows the search-empty message without inventing a registration path', async () => {
-    renderField({ emptyMessage: 'Nenhum fornecedor encontrado para a busca.' });
+    renderField({});
     const status = await screen.findByRole('status', {}, { timeout: 3000 });
-    expect(status).toHaveTextContent('Nenhum fornecedor encontrado para a busca.');
+    expect(status).toHaveTextContent('Nenhum registro encontrado para a busca.');
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 
-  it('orients and links to the existing registration screen when the caller names it', async () => {
-    renderField({
-      emptyMessage:
-        'Nenhum fornecedor cadastrado ou encontrado para esta busca. O pedido ao fornecedor exige um fornecedor ativo no cadastro.',
-      emptyAction: { label: 'Cadastrar fornecedor', to: '/app/suppliers/new' },
-    });
+  it('orients toward registration and links to the existing screen when the caller names it', async () => {
+    renderField({ emptyAction: { label: 'Cadastrar', to: '/app/suppliers/new' } });
     const status = await screen.findByRole('status', {}, { timeout: 3000 });
-    expect(status).toHaveTextContent('exige um fornecedor ativo no cadastro');
-    const link = await screen.findByRole('link', { name: 'Cadastrar fornecedor' });
+    expect(status).toHaveTextContent('Nada cadastrado para escolher.');
+    const link = await screen.findByRole('link', { name: 'Cadastrar' });
     expect(link).toHaveAttribute('href', '/app/suppliers/new');
   });
 
-  it('keeps the link inside the same status region so it is announced together', async () => {
+  it('keeps an explicit emptyMessage when the caller supplies one', async () => {
     renderField({
-      emptyMessage: 'Nenhum fornecedor cadastrado ou encontrado para esta busca.',
-      emptyAction: { label: 'Cadastrar fornecedor', to: '/app/suppliers/new' },
+      emptyMessage: 'Nenhum fornecedor cadastrado ou encontrado.',
+      emptyAction: { label: 'Cadastrar', to: '/app/suppliers/new' },
     });
+    const status = await screen.findByRole('status', {}, { timeout: 3000 });
+    expect(status).toHaveTextContent('Nenhum fornecedor cadastrado ou encontrado.');
+  });
+
+  it('announces the orientation and the link in the same status region', async () => {
+    renderField({ emptyAction: { label: 'Cadastrar', to: '/app/suppliers/new' } });
     const status = await screen.findByRole('status', {}, { timeout: 3000 });
     await waitFor(() => {
       expect(status.querySelector('a')).not.toBeNull();

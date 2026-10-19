@@ -18,6 +18,9 @@ export type HumanLookupOption = {
 const compactControlClass =
   'rounded border border-gray-300 bg-white px-2 py-1 text-[13px] text-gray-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30';
 
+/** Mensagem padrão de busca sem resultado, quando o chamador não declara cadastro de origem. */
+const DEFAULT_EMPTY = 'Nenhum registro encontrado para a busca.';
+
 /**
  * Seleção humana de uma entidade que a API endereça por identificador.
  *
@@ -39,7 +42,7 @@ export function HumanLookupField({
   search,
   value,
   onChange,
-  emptyMessage = 'Nenhum registro encontrado para a busca.',
+  emptyMessage,
   emptyAction,
   emptyOptionLabel,
   className,
@@ -66,13 +69,13 @@ export function HumanLookupField({
   onChange: (id: string) => void;
   emptyMessage?: string;
   /**
-   * AÇÃO DE CADASTRO QUANDO A BUSCA NÃO DEvolve NADA.
+   * AÇÃO DE CADASTRO QUANDO A BUSCA NÃO DEVOLVE NADA.
    *
-   * A busca vazia tem duas causas diferentes: filtro sem resultado e cadastro inexistente. Sem
-   * distinguir, o operador lê "nenhum registro encontrado" numa tela onde NADA pode ser encontrado
-   * e precisa descobrir sozinho que a dependência é cadastral. Quando o chamador conhece o cadastro
-   * de origem (ex.: fornecedor), passa aqui o rótulo e o destino; o componente mostra a orientação
-   * e o caminho, mantendo o operador no fluxo em que estava.
+   * A busca vazia tem duas causas: filtro sem resultado e cadastro inexistente. Sem distinguir,
+   * o operador lê "nenhum registro encontrado" numa tela onde NADA pode ser encontrado e precisa
+   * descobrir sozinho que a dependência é cadastral. Quando o chamador conhece o cadastro de
+   * origem, passa o rótulo e o destino; o componente mostra a orientação e o caminho, mantendo o
+   * operador no fluxo em que estava.
    */
   emptyAction?: { label: string; to: string };
   /** Rótulo da opção vazia. Em filtro, "Todos" é mais honesto que "Selecione". */
@@ -219,7 +222,7 @@ export function HumanLookupField({
       </Field>
       {phase === 'ready' && options.length === 0 ? (
         <p className="mt-1 text-sm text-gray-500" role="status">
-          {emptyMessage}
+          {emptyMessage || (emptyAction ? 'Nada cadastrado para escolher.' : DEFAULT_EMPTY)}
           {emptyAction ? (
             <>
               {' '}

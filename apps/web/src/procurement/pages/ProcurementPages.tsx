@@ -856,8 +856,7 @@ export function PurchaseRequestPage() {
             search={searchSupplierOptions}
             value={supplierId}
             onChange={setSupplierId}
-            emptyMessage="Nenhum fornecedor cadastrado ou encontrado para esta busca. O pedido ao fornecedor exige um fornecedor ativo no cadastro."
-            emptyAction={{ label: 'Cadastrar fornecedor', to: '/app/suppliers/new' }}
+            emptyAction={{ label: 'Cadastrar', to: '/app/suppliers/new' }}
           />
         </CreateRecordForm>
       </div>
@@ -1171,8 +1170,7 @@ export function SupplierInvoicePage() {
           search={searchSupplierOptions}
           value={supplierId}
           onChange={setSupplierId}
-          emptyMessage="Nenhum fornecedor cadastrado ou encontrado para esta busca. A nota do fornecedor exige um fornecedor ativo no cadastro."
-          emptyAction={{ label: 'Cadastrar fornecedor', to: '/app/suppliers/new' }}
+          emptyAction={{ label: 'Cadastrar', to: '/app/suppliers/new' }}
         />
         <Field label="Número" htmlFor="si-number" required>
           <Input id="si-number" value={invoiceNumber} onChange={(event) => setInvoiceNumber(event.target.value)} required />
