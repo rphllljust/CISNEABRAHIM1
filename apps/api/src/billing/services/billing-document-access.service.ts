@@ -189,6 +189,7 @@ export class BillingDocumentAccessService {
             dueDate: validated.dueDate ?? null,
             issuedAt,
             actorIdentityId: actor.identityId,
+            ...this.buildDocumentTraceability(order, billingRecord),
           }),
       );
 
@@ -311,6 +312,7 @@ export class BillingDocumentAccessService {
             dueDate: validated.dueDate ?? null,
             issuedAt,
             actorIdentityId: actor.identityId,
+            ...this.buildDocumentTraceability(order, billingRecord),
           }),
       );
 
@@ -430,6 +432,49 @@ export class BillingDocumentAccessService {
       actorIdentityId: actor.identityId,
       reason,
     });
+  }
+
+  /**
+   * Rastreabilidade operacional que o documento impresso declara: OS, RC, proposta e medicao.
+   *
+   * Tudo aqui JA ESTA GRAVADO — a OS carrega `order_number`, `rc_number` e `proposal_snapshot`;
+   * o faturamento carrega `measurement_id`. Nada e derivado por suposicao e nada e calculado:
+   * o que nao existir permanece nulo e o PDF imprime ausencia.
+   */
+  private buildDocumentTraceability(
+    order: ServiceOrderRow,
+    billingRecord: BillingRecordRow,
+  ): {
+    serviceOrderNumber: string | null;
+    rcNumber: string | null;
+    proposalNumber: string | null;
+    measurementNumber: string | null;
+    serviceName: string | null;
+  } {
+    const proposalSnapshot = order.proposal_snapshot;
+    const proposalNumber =
+      proposalSnapshot && typeof proposalSnapshot === 'object'
+        ? (proposalSnapshot as { proposalNumber?: unknown }).proposalNumber
+        : null;
+
+    /*
+     * NOME DO SERVICO — texto comercial real, congelado em `service_snapshot.serviceName` no
+     * momento em que a OS nasceu. E o que descreve a linha faturada: o `line_label` do
+     * faturamento e apenas `Linha N`, um placeholder que nao descreve nada.
+     */
+    const serviceSnapshot = order.service_snapshot;
+    const serviceName =
+      serviceSnapshot && typeof serviceSnapshot === 'object'
+        ? (serviceSnapshot as { serviceName?: unknown }).serviceName
+        : null;
+
+    return {
+      serviceOrderNumber: order.order_number ?? null,
+      rcNumber: order.rc_number ?? null,
+      proposalNumber: typeof proposalNumber === 'string' ? proposalNumber : null,
+      measurementNumber: billingRecord.measurement_id ? billingRecord.measurement_id : null,
+      serviceName: typeof serviceName === 'string' ? serviceName : null,
+    };
   }
 
   private async requireBillingDocumentForRecord(billingDocumentId: string, billingRecordId: string) {

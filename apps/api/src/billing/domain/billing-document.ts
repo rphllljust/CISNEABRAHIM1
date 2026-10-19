@@ -55,6 +55,39 @@ export type BillingDocumentPdfSnapshot = {
   purchaseOrderNumber: string | null;
   contractReference: string | null;
   commercialReference: Record<string, unknown>;
+  itemCount: number;
+  /**
+   * RASTREABILIDADE OPERACIONAL no documento impresso.
+   *
+   * Todos os campos abaixo JA EXISTEM no banco no instante da emissao. Nenhum e calculado,
+   * nenhum e derivado por suposicao: sao copiados do registro da OS e do snapshot comercial
+   * congelado da medicao. Cada um e opcional porque o fato pode realmente nao existir (OS sem
+   * proposta, sem RC, sem medicao) — e nesse caso o documento mostra ausencia, nunca um valor
+   * inventado.
+   */
+  serviceOrderNumber: string | null;
+  customerPurchaseOrderNumber: string | null;
+  /**
+   * O termo "RC" e o valor que a OS carrega. NAO ha interpretacao associada.
+   *
+   * A governanca do CISNE classifica RC como `UNKNOWN` / `AMBIGUOUS`
+   * (`docs/05-ubiquitous-language/business-nouns-catalog.md`:
+   * "Nao evidenciado em SRC-001; nao registrar como definitivo";
+   * `docs/02-source-analysis/ambiguous-terms.md`; `naming-policy.md`: "Aguardar fonte").
+   *
+   * Rotula-lo como referencia "interna" ou "do cliente" seria afirmar uma semantica que nenhuma
+   * fonte sustenta. O documento imprime o termo cru e o valor — nada alem do que se sabe.
+   */
+  rcNumber: string | null;
+  proposalNumber: string | null;
+  measurementNumber: string | null;
+  /**
+   * Nome do servico faturado, lido do snapshot congelado da OS (`service_snapshot.serviceName`).
+   * E o texto comercial REAL da linha; `line_label` do faturamento e placeholder sintetico.
+   */
+  serviceName: string | null;
+  servicePeriod: { startedAt: string | null; completedAt: string | null } | null;
+  status: string;
   items: BillingDocumentItemSnapshot[];
 };
 

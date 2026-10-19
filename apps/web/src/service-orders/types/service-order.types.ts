@@ -72,6 +72,15 @@ export type ServiceOrderDetail = {
   proposalSnapshot?: Record<string, unknown> | null;
   purchaseOrderId?: string | null;
   purchaseOrderSnapshot?: Record<string, unknown> | null;
+  /**
+   * PEDIDO DO CLIENTE e RC — fatos distintos do pedido interno da CISNE.
+   *
+   * O detalhe da OS ja devolvia os dois (`toServiceOrderResponse`); faltavam apenas aqui. Sem
+   * eles a Nota Fatura impressa nao tinha como declarar o pedido 41926266 nem a RC 991487, que
+   * sao o que o cliente usa para aceitar a cobranca.
+   */
+  customerPurchaseOrderNumber?: string | null;
+  rcNumber?: string | null;
   contractReference?: string | null;
   contractSnapshot?: Record<string, unknown> | null;
   serviceDefinitionId: string | null;

@@ -165,11 +165,57 @@ export function ServiceOrderBillingDocumentPage() {
   }, [billing, order]);
 
   const activeDocument = documents.find((doc) => doc.status === 'FINALIZED');
+
+  /**
+   * RASTREABILIDADE IMPRESSA — cada valor vem de um campo já existente.
+   *
+   * `customerPurchaseOrderNumber` e `rcNumber` vêm da OS; `proposalNumber` vem do snapshot da
+   * proposta congelado na OS; `measurementNumber` do próprio faturamento. Nenhum é derivado de
+   * outro: quando o fato não existe, o campo fica nulo e o documento imprime travessão.
+   */
+  const proposalNumber =
+    order?.proposalSnapshot && typeof order.proposalSnapshot === 'object'
+      ? ((order.proposalSnapshot as { proposalNumber?: unknown }).proposalNumber as
+          | string
+          | undefined)
+      : undefined;
+
+  const servicePeriodLabel = useMemo(() => {
+    const snapshot = billing?.commercialReferenceSnapshot as
+      | { servicePeriod?: { startedAt?: string; completedAt?: string } }
+      | undefined;
+    const period = snapshot?.servicePeriod;
+    if (!period?.startedAt && !period?.completedAt) {
+      return null;
+    }
+    const fmt = (value?: string) => (value ? formatDatePtBr(value) : '—');
+    return `${fmt(period.startedAt)} a ${fmt(period.completedAt)}`;
+  }, [billing]);
+
+  // Nome do serviço congelado no snapshot da OS — texto comercial real da linha faturada.
+  const serviceName = useMemo(() => {
+    const snapshot = order?.serviceSnapshot as { serviceName?: unknown } | undefined;
+    const name = snapshot?.serviceName;
+    return typeof name === 'string' && name.trim().length > 0 ? name : null;
+  }, [order]);
+
   const preview = billing
     ? buildBillingDocumentPreview(billing, {
         dueDate: dueDate || null,
         documentNumber: activeDocument?.documentNumber ?? null,
         purchaseOrderNumber: poNumber,
+        customerPurchaseOrderNumber:
+          activeDocument?.customerPurchaseOrderNumberSnapshot ??
+          order?.customerPurchaseOrderNumber ??
+          null,
+        rcNumber: order?.rcNumber ?? null,
+        serviceOrderNumber: order?.orderNumber ?? null,
+        proposalNumber: typeof proposalNumber === 'string' ? proposalNumber : null,
+        measurementNumber: billing.measurementId ?? null,
+        serviceName,
+        servicePeriodLabel,
+        issuedAt: activeDocument?.issuedAt ?? null,
+        status: activeDocument?.status ?? null,
         commercialReferenceLabel,
         // Emissor sempre do documento emitido (originado no registro backend);
         // sem documento emitido o preview não inventa identidade fiscal.

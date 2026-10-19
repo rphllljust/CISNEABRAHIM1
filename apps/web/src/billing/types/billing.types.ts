@@ -156,6 +156,12 @@ export type BillingDocumentDetail = {
   proposalId: string | null;
   purchaseOrderId: string | null;
   purchaseOrderNumberSnapshot: string | null;
+  /**
+   * PEDIDO DO CLIENTE — distinto do pedido interno da CISNE (`purchaseOrderNumberSnapshot`).
+   * Existe no documento desde a migration 0099 e o backend já o devolve; o tipo do cliente
+   * apenas não o declarava, então a Nota Fatura impressa não conseguia exibi-lo.
+   */
+  customerPurchaseOrderNumberSnapshot: string | null;
   contractReference: string | null;
   currencyCode: string;
   paymentTerms: string;

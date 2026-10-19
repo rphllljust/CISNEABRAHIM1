@@ -16,7 +16,37 @@ import type {
  */
 const BILLING_DOCUMENT_LABEL = 'NOTA FATURA';
 const FISCAL_DISCLAIMER =
-  'Faturamento interno da Release 1. Documento de cobrança operacional. Não constitui NF-e, NFS-e nem documento fiscal oficial autorizado.';
+  'Documento comercial interno — não substitui documento fiscal eletrônico quando exigível.';
+const BILLING_DOCUMENT_STATUS_FINALIZED = 'FINALIZED';
+
+function presentOrNull(value: string | null | undefined): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+/**
+ * Periodo de execucao JA congelado no snapshot comercial da medicao. Lido, nunca recalculado.
+ * Devolve nulo quando o snapshot nao o traz — o PDF entao declara ausencia.
+ */
+function readServicePeriod(
+  snapshot: Record<string, unknown> | null,
+): { startedAt: string | null; completedAt: string | null } | null {
+  if (!snapshot || typeof snapshot !== 'object') {
+    return null;
+  }
+  const raw = snapshot['servicePeriod'];
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const period = raw as { startedAt?: unknown; completedAt?: unknown };
+  const startedAt = typeof period.startedAt === 'string' ? period.startedAt : null;
+  const completedAt = typeof period.completedAt === 'string' ? period.completedAt : null;
+  return startedAt || completedAt ? { startedAt, completedAt } : null;
+}
+
 
 export type BillingEmitterReference = {
   legalName: string;
@@ -50,6 +80,13 @@ export class BillingDocumentArtifactService {
     dueDate: string | null;
     issuedAt: string;
     actorIdentityId: string;
+    serviceOrderNumber?: string | null;
+    rcNumber?: string | null;
+    proposalNumber?: string | null;
+    measurementNumber?: string | null;
+    serviceName?: string | null;
+    servicePeriod?: { startedAt: string | null; completedAt: string | null } | null;
+    status?: string;
   }): Promise<PersistedBillingArtifact> {
     const snapshot = this.buildPdfSnapshot({
       ...input,
@@ -92,7 +129,17 @@ export class BillingDocumentArtifactService {
     customerPurchaseOrderNumber: string | null;
     dueDate: string | null;
     issuedAt: string;
+    /** Rastreabilidade operacional da OS e da medicao — ja gravada, apenas transportada. */
+    serviceOrderNumber?: string | null;
+    rcNumber?: string | null;
+    proposalNumber?: string | null;
+    measurementNumber?: string | null;
+    serviceName?: string | null;
+    servicePeriod?: { startedAt: string | null; completedAt: string | null } | null;
+    status?: string;
   }): BillingDocumentPdfSnapshot {
+    const commercialReference = input.billingRecord.commercial_reference_snapshot;
+
     return {
       documentNumber: input.documentNumber,
       documentCategory: BILLING_DOCUMENT_LABEL,
@@ -110,7 +157,22 @@ export class BillingDocumentArtifactService {
       totalAmount: input.billingRecord.total_amount,
       purchaseOrderNumber: input.purchaseOrderNumber,
       contractReference: input.billingRecord.contract_reference,
-      commercialReference: input.billingRecord.commercial_reference_snapshot,
+      commercialReference,
+      itemCount: input.billingItems.length,
+      /*
+       * Cada campo cai para o snapshot JA CONGELADO quando o chamador nao o informa. Isso nao e
+       * valor sintetico: e a mesma fonte que o documento registra, apenas lida de onde ela
+       * sempre esteve. Sem nada em nenhuma das fontes, o campo fica nulo e o PDF imprime o
+       * travessao — nunca um valor inventado.
+       */
+      serviceOrderNumber: presentOrNull(input.serviceOrderNumber),
+      customerPurchaseOrderNumber: presentOrNull(input.customerPurchaseOrderNumber),
+      rcNumber: presentOrNull(input.rcNumber),
+      proposalNumber: presentOrNull(input.proposalNumber),
+      measurementNumber: presentOrNull(input.measurementNumber),
+      serviceName: presentOrNull(input.serviceName),
+      servicePeriod: input.servicePeriod ?? readServicePeriod(commercialReference),
+      status: presentOrNull(input.status) ?? BILLING_DOCUMENT_STATUS_FINALIZED,
       items: input.billingItems.map((item) => ({
         lineNumber: item.line_number,
         billingItemId: item.id,

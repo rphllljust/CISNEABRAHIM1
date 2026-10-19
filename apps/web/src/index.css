@@ -2885,6 +2885,354 @@ main:not(.login-page):not(.dashboard-page):not(.shell-page):not(#main-content) {
   font-size: 0.8125rem;
 }
 
+/* ============================================================
+   NOTA FATURA — representação impressa (A4)
+   Densidade e formalidade de documento fiscal empresarial, com
+   identidade própria do CISNE. Sem brasão público, sem título
+   NFS-e, sem chave/protocolo/QR de autenticação fictícios.
+   ============================================================ */
+.nf-sheet {
+  --nf-ink: #111827;
+  --nf-subtle: #6b7280;
+  --nf-rule: #d1d5db;
+  --nf-rule-strong: #111827;
+  --nf-band: #f3f4f6;
+  margin-top: 1rem;
+  padding: 1.5rem 1.75rem;
+  border: 1px solid var(--billing-border);
+  border-radius: 0.5rem;
+  background: #fff;
+  color: var(--nf-ink);
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+
+.nf-sheet p {
+  margin: 0;
+}
+
+/* -------------------------------------------------- cabeçalho */
+.nf-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid var(--nf-rule-strong);
+}
+
+.nf-header__emitter {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+/* Marca do cisne + wordmark. Discreta: identidade empresarial, não peça publicitária. */
+.nf-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-bottom: 0.1875rem;
+}
+
+.nf-header__mark {
+  width: 1.375rem;
+  height: 1.375rem;
+  flex: 0 0 auto;
+  color: var(--nf-ink);
+}
+
+.nf-header__wordmark {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--nf-ink);
+}
+
+.nf-header__legal-name {
+  font-size: 0.6875rem;
+  color: var(--nf-subtle);
+}
+
+.nf-header__line {
+  margin-top: 0.125rem !important;
+  font-size: 0.6875rem;
+  color: var(--nf-subtle);
+}
+
+.nf-header__doc {
+  flex: 0 0 auto;
+  min-width: 11.5rem;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--nf-rule-strong);
+  text-align: left;
+}
+
+.nf-header__doc-title {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.nf-header__doc-label {
+  margin-top: 0.375rem !important;
+  font-size: 0.5625rem;
+  letter-spacing: 0.08em;
+  color: var(--nf-subtle);
+}
+
+.nf-header__doc-number {
+  font-size: 0.875rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.nf-header__doc-status {
+  margin-top: 0.375rem !important;
+  font-size: 0.625rem;
+  color: var(--nf-subtle);
+}
+
+/* ---------------------------------------------------- seções */
+.nf-section {
+  margin-top: 0.875rem;
+}
+
+.nf-section__title {
+  margin: 0 0 0.4375rem;
+  padding-bottom: 0.1875rem;
+  border-bottom: 1px solid var(--nf-rule);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ----------------------------------------------------- campos */
+.nf-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.0625rem;
+  min-width: 0;
+}
+
+.nf-field__label {
+  font-size: 0.5625rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--nf-subtle);
+}
+
+.nf-field__value {
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.nf-field__value--strong {
+  font-weight: 700;
+}
+
+.nf-grid {
+  display: grid;
+  gap: 0.5rem 0.875rem;
+}
+
+.nf-grid--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.nf-grid--4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.nf-grid + .nf-grid {
+  margin-top: 0.5rem;
+}
+
+/* ---------------------------------------------------- cliente */
+.nf-client {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.6fr);
+  gap: 0.875rem;
+}
+
+.nf-client__name {
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.nf-client__identity .nf-field {
+  margin-top: 0.1875rem;
+}
+
+/* ------------------------------------------------------ tabela */
+.nf-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+
+.nf-table thead th {
+  padding: 0.3125rem 0.375rem;
+  background: var(--nf-band);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.nf-table tbody td {
+  padding: 0.3125rem 0.375rem;
+  border-bottom: 1px solid var(--nf-rule);
+  vertical-align: top;
+}
+
+.nf-table tbody tr:nth-child(even) td {
+  background: #fafafa;
+}
+
+.nf-table__num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.nf-table__line {
+  width: 1.75rem;
+  color: var(--nf-subtle);
+}
+
+.nf-table__amount {
+  font-weight: 700;
+}
+
+.nf-table__empty {
+  padding: 0.75rem !important;
+  text-align: center;
+  color: var(--nf-subtle);
+}
+
+/* ------------------------------------------------------ totais */
+.nf-totals {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+  margin-top: 0.625rem;
+}
+
+.nf-totals__count {
+  font-size: 0.6875rem;
+  color: var(--nf-subtle);
+}
+
+.nf-totals__box {
+  min-width: 13rem;
+  padding: 0.4375rem 0.625rem;
+  background: var(--nf-band);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.125rem;
+}
+
+.nf-totals__label {
+  font-size: 0.5625rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--nf-subtle);
+}
+
+.nf-totals__value {
+  font-size: 1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------ rodapé */
+.nf-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-top: 1.25rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--nf-rule);
+}
+
+.nf-footer__disclaimer {
+  flex: 1 1 auto;
+  font-size: 0.625rem;
+  color: var(--nf-subtle);
+}
+
+.nf-footer__number {
+  flex: 0 0 auto;
+  font-size: 0.625rem;
+  color: var(--nf-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------- impressão em A4 */
+@page {
+  size: A4;
+  margin: 12mm;
+}
+
+@media print {
+  .nf-sheet {
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    font-size: 8.6pt;
+    color: #000;
+  }
+
+  .nf-header {
+    border-bottom-color: #000;
+  }
+
+  .nf-header__doc {
+    border-color: #000;
+  }
+
+  .nf-table thead th {
+    background: #e8e8e8 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .nf-table tbody tr:nth-child(even) td {
+    background: #f7f7f7 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .nf-totals__box {
+    background: #e8e8e8 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .nf-section {
+    break-inside: avoid;
+  }
+
+  .nf-table thead {
+    display: table-header-group;
+  }
+
+  .nf-table tr {
+    break-inside: avoid;
+  }
+
+  .nf-footer {
+    break-inside: avoid;
+  }
+}
+
 .billing-doc-preview {
   margin-top: 1rem;
   padding: 1.25rem;

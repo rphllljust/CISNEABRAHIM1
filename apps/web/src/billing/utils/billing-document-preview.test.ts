@@ -77,7 +77,11 @@ describe('buildBillingDocumentPreview', () => {
     expect(preview.dueDate).toBe('2026-02-14');
     expect(preview.purchaseOrderNumber).toBe('PO-DEMO-01');
     expect(preview.items).toHaveLength(1);
-    expect(preview.fiscalDisclaimer).toContain('Não constitui NF-e');
+    // O rodapé declara o que o documento é. Antes dizia "Não constitui NF-e"; a declaração
+    // passou a nomear o que o documento É (documento comercial interno) e o que ele NÃO
+    // substitui, sem citar sigla de documento fiscal que poderia sugerir emissão oficial.
+    expect(preview.fiscalDisclaimer).toContain('Documento comercial interno');
+    expect(preview.fiscalDisclaimer).toContain('não substitui documento fiscal eletrônico');
   });
 
   it('never fabricates an issuer when no emitted document exists', () => {
