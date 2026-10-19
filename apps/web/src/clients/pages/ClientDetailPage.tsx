@@ -312,6 +312,13 @@ export function ClientDetailPage() {
       to: `/app/service-orders/new?clientId=${client.id}`,
     });
   }
+  if (session.can('commercial:contract:create')) {
+    startFlowActions.push({
+      id: 'new-contract',
+      label: 'Novo contrato',
+      to: `/app/contracts/new?clientId=${client.id}`,
+    });
+  }
 
   return (
     <ModulePage layout="wide" className="clients-page">

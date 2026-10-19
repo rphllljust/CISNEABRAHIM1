@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { ScrollText } from 'lucide-react';
 import { listClients } from '../../clients/api/clients-api';
@@ -67,8 +67,19 @@ function RequiredLegend({ children }: { children: ReactNode }) {
  */
 export function ContractsCreatePage() {
   const navigate = useNavigate();
+  const [urlParams] = useSearchParams();
   const { capabilities, loading: capabilitiesLoading } = useContractCapabilities();
-  const [values, setValues] = useState({ ...EMPTY_CONTRACT_FORM });
+  /**
+   * CONTEXTO RECEBIDO DA OBJECT PAGE DO CLIENTE.
+   *
+   * Chegando por `/app/contracts/new?clientId=…` o cliente já vem escolhido e o operador não
+   * precisa procurá-lo outra vez. É apenas o valor INICIAL do formulário — o backend continua
+   * validando existência, autorização, escopo e elegibilidade do cliente no POST.
+   */
+  const contextClientId = urlParams.get('clientId')?.trim() ?? '';
+  const [values, setValues] = useState(() =>
+    contextClientId ? { ...EMPTY_CONTRACT_FORM, clientId: contextClientId } : { ...EMPTY_CONTRACT_FORM },
+  );
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<string, string>>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
