@@ -960,6 +960,43 @@ $$;`);
       await applySqlFile(pool, '0098_metadata_seed_customer_360.sql');
     }
 
+    /*
+      COBERTURA 0099–0101.
+
+      Estas tres migrations nasceram no mesmo ciclo das colunas de referencia do cliente
+      (pedido de compra do cliente, codigo externo do item, contato da proposta) e ficaram
+      sem bloco aqui. `ensure-migrations-journal-coverage.spec.ts` falhava em main por isso:
+      sem prova de efeito, `syncDrizzleJournal` registraria o hash como aplicado mesmo num
+      banco onde a coluna nunca foi criada, e o migrator passaria a pulá-la para sempre.
+
+      O probe e a COLUNA, nao a tabela: as tabelas ja existiam antes destas migrations, entao
+      `tableExists` responderia `true` num banco onde o efeito real nao aconteceu.
+    */
+    const hasCustomerPurchaseOrderNumber = await columnExists(
+      pool,
+      'so',
+      'service_orders',
+      'customer_purchase_order_number',
+    );
+    if (!hasCustomerPurchaseOrderNumber) {
+      await applySqlFile(pool, '0099_customer_purchase_order_number.sql');
+    }
+
+    const hasCustomerItemReference = await columnExists(
+      pool,
+      'com',
+      'proposal_items',
+      'customer_item_reference',
+    );
+    if (!hasCustomerItemReference) {
+      await applySqlFile(pool, '0100_customer_item_reference.sql');
+    }
+
+    const hasProposalContact = await columnExists(pool, 'com', 'proposals', 'contact_id');
+    if (!hasProposalContact) {
+      await applySqlFile(pool, '0101_proposal_contact.sql');
+    }
+
     await syncDrizzleJournal(pool);
   } finally {
     await pool.end();
