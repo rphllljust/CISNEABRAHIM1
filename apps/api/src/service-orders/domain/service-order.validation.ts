@@ -24,6 +24,7 @@ export type CreateServiceOrderInput = {
   operationalNotes?: string;
   proposalId?: string;
   purchaseOrderId?: string;
+  customerPurchaseOrderNumber?: string;
   rcNumber?: string;
   contractReference?: string;
   idempotencyKey?: string;
@@ -40,6 +41,7 @@ export type UpdateServiceOrderInput = {
   serviceDefinitionVersionId?: string | null;
   proposalId?: string | null;
   purchaseOrderId?: string | null;
+  customerPurchaseOrderNumber?: string | null;
   rcNumber?: string | null;
   contractReference?: string | null;
 };
@@ -102,6 +104,7 @@ export function validateCreateServiceOrderInput(input: CreateServiceOrderInput):
     unitId,
     description: input.description?.trim() || undefined,
     operationalNotes: input.operationalNotes?.trim() || undefined,
+    customerPurchaseOrderNumber: input.customerPurchaseOrderNumber?.trim() || undefined,
     rcNumber: input.rcNumber?.trim() || undefined,
     contractReference: input.contractReference?.trim() || undefined,
     idempotencyKey: input.idempotencyKey?.trim() || undefined,
@@ -141,6 +144,7 @@ export function validateUpdateServiceOrderInput(
     priority: input.priority === undefined ? undefined : input.priority?.trim() || null,
     operationalNotes:
       input.operationalNotes === undefined ? undefined : input.operationalNotes?.trim() || null,
+    customerPurchaseOrderNumber: input.customerPurchaseOrderNumber === undefined ? undefined : input.customerPurchaseOrderNumber?.trim() || null,
     rcNumber: input.rcNumber === undefined ? undefined : input.rcNumber?.trim() || null,
     contractReference:
       input.contractReference === undefined ? undefined : input.contractReference?.trim() || null,

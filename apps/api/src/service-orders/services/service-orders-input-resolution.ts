@@ -136,6 +136,7 @@ function collectMutableFields(input: UpdateServiceOrderInput): ServiceOrderMutab
   if (input.serviceDefinitionVersionId !== undefined) fields.push('serviceDefinitionVersionId');
   if (input.proposalId !== undefined) fields.push('proposalId');
   if (input.purchaseOrderId !== undefined) fields.push('purchaseOrderId');
+  if (input.customerPurchaseOrderNumber !== undefined) fields.push('customerPurchaseOrderNumber');
   if (input.rcNumber !== undefined) fields.push('rcNumber');
   if (input.contractReference !== undefined) fields.push('contractReference');
   return fields;

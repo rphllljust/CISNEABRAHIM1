@@ -236,6 +236,7 @@ export class BillingDocumentRepository {
            proposal_id,
            purchase_order_id,
            purchase_order_number_snapshot,
+           customer_purchase_order_number_snapshot,
            contract_reference,
            currency_code,
            payment_terms,
@@ -251,8 +252,8 @@ export class BillingDocumentRepository {
          VALUES (
            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'FINALIZED', 'NOTA_FATURA',
            $12, $13, $14::jsonb, $15, $16, $17::jsonb, $18::jsonb, $19, $20, $21, $22,
-           $23, $24, $25::date, $26, $27::timestamptz, $28, $29, $30,
-           $31, $31
+           $23, $24, $25, $26::date, $27, $28::timestamptz, $29, $30, $31,
+           $32, $32
          )
          RETURNING ${BILLING_DOCUMENT_RETURNING}`,
         [
@@ -277,6 +278,7 @@ export class BillingDocumentRepository {
           input.billingRecord.proposal_id,
           input.billingRecord.purchase_order_id,
           input.purchaseOrderNumber,
+          input.customerPurchaseOrderNumber ?? null,
           input.billingRecord.contract_reference,
           input.billingRecord.currency_code,
           input.billingRecord.payment_terms,
@@ -437,6 +439,7 @@ export class BillingDocumentRepository {
            proposal_id,
            purchase_order_id,
            purchase_order_number_snapshot,
+           customer_purchase_order_number_snapshot,
            contract_reference,
            currency_code,
            payment_terms,
@@ -452,8 +455,8 @@ export class BillingDocumentRepository {
          VALUES (
            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'FINALIZED', 'NOTA_FATURA',
            $12, $13, $14::jsonb, $15, $16, $17::jsonb, $18::jsonb, $19, $20, $21, $22,
-           $23, $24, $25::date, $26, $27::timestamptz, $28, $29, $30,
-           $31, $31
+           $23, $24, $25, $26::date, $27, $28::timestamptz, $29, $30, $31,
+           $32, $32
          )
          RETURNING ${BILLING_DOCUMENT_RETURNING}`,
         [
@@ -478,6 +481,7 @@ export class BillingDocumentRepository {
           input.billingRecord.proposal_id,
           input.billingRecord.purchase_order_id,
           input.purchaseOrderNumber,
+          input.customerPurchaseOrderNumber ?? null,
           input.billingRecord.contract_reference,
           input.billingRecord.currency_code,
           input.billingRecord.payment_terms,

@@ -10,6 +10,7 @@ export type ServiceOrderMutableField =
   | 'serviceDefinitionVersionId'
   | 'proposalId'
   | 'purchaseOrderId'
+  | 'customerPurchaseOrderNumber'
   | 'rcNumber'
   | 'contractReference';
 
@@ -23,6 +24,7 @@ const DRAFT_MUTABLE_FIELDS = new Set<ServiceOrderMutableField>([
   'serviceDefinitionVersionId',
   'proposalId',
   'purchaseOrderId',
+  'customerPurchaseOrderNumber',
   'rcNumber',
   'contractReference',
 ]);
@@ -40,6 +42,7 @@ const CRITICAL_FIELDS = new Set<ServiceOrderMutableField>([
   'serviceDefinitionVersionId',
   'proposalId',
   'purchaseOrderId',
+  'customerPurchaseOrderNumber',
   'rcNumber',
   'contractReference',
 ]);

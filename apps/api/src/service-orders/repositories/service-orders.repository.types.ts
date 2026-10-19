@@ -19,6 +19,7 @@ export type ServiceOrderRow = {
   proposal_snapshot: Record<string, unknown> | null;
   purchase_order_id: string | null;
   purchase_order_snapshot: Record<string, unknown> | null;
+  customer_purchase_order_number: string | null;
   rc_number: string | null;
   contract_id: string | null;
   contract_reference: string | null;
@@ -86,6 +87,7 @@ export type CreateServiceOrderPersistenceInput = {
   proposalSnapshot?: Record<string, unknown> | null;
   purchaseOrderId?: string | null;
   purchaseOrderSnapshot?: Record<string, unknown> | null;
+  customerPurchaseOrderNumber?: string | null;
   rcNumber?: string | null;
   contractId?: string | null;
   contractReference?: string | null;
@@ -110,6 +112,7 @@ export type ConvertServiceRequestPersistenceInput = {
   serviceSnapshot: Record<string, unknown>;
   proposalSnapshot: Record<string, unknown> | null;
   purchaseOrderSnapshot: Record<string, unknown> | null;
+  customerPurchaseOrderNumber: string | null;
   rcNumber: string | null;
   contractId?: string | null;
   contractReference?: string | null;
@@ -139,6 +142,7 @@ export type UpdateServiceOrderPersistenceInput = {
   proposalSnapshot?: Record<string, unknown> | null;
   purchaseOrderId?: string | null;
   purchaseOrderSnapshot?: Record<string, unknown> | null;
+  customerPurchaseOrderNumber?: string | null;
   rcNumber?: string | null;
   contractId?: string | null;
   contractReference?: string | null;

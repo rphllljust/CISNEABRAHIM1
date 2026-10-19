@@ -518,7 +518,7 @@ export class ServiceOrdersRepository {
          client_id, client_snapshot, service_definition_id, service_definition_version_id,
          service_snapshot, description, location, priority, operational_notes,
          service_request_id, proposal_id, proposal_snapshot, purchase_order_id, purchase_order_snapshot,
-         rc_number, contract_id, contract_reference, contract_snapshot,
+         customer_purchase_order_number, rc_number, contract_id, contract_reference, contract_snapshot,
          created_by_identity_id, updated_by_identity_id
        )
        VALUES (
@@ -526,8 +526,8 @@ export class ServiceOrdersRepository {
          $6, $7::jsonb, $8, $9,
          $10::jsonb, $11, $12::jsonb, $13, $14,
          $15, $16, $17::jsonb, $18, $19::jsonb,
-         $20, $21, $22, $23::jsonb,
-         $24, $24
+         $20, $21, $22, $23, $24::jsonb,
+         $25, $25
        )
        RETURNING ${SERVICE_ORDER_RETURNING}`,
       [
@@ -550,6 +550,7 @@ export class ServiceOrdersRepository {
         input.proposalSnapshot ? JSON.stringify(input.proposalSnapshot) : null,
         input.purchaseOrderId ?? null,
         input.purchaseOrderSnapshot ? JSON.stringify(input.purchaseOrderSnapshot) : null,
+        input.customerPurchaseOrderNumber ?? null,
         input.rcNumber ?? null,
         input.contractId ?? null,
         input.contractReference ?? null,

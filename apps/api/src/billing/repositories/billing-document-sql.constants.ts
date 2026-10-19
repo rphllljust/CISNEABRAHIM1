@@ -4,7 +4,7 @@ export const BILLING_DOCUMENT_RETURNING = `
   replaces_document_id, status::text AS status, document_category,
   emitter_legal_name, emitter_tax_id, emitter_address_snapshot,
   client_legal_name_snapshot, client_tax_id_snapshot, billing_address_snapshot,
-  commercial_reference_snapshot, proposal_id, purchase_order_id, purchase_order_number_snapshot,
+  commercial_reference_snapshot, proposal_id, purchase_order_id, purchase_order_number_snapshot, customer_purchase_order_number_snapshot,
   contract_reference, currency_code, payment_terms,
   due_date::text AS due_date, total_amount::text AS total_amount, issued_at,
   stored_document_id, artifact_sha256, artifact_byte_size::text AS artifact_byte_size,

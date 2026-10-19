@@ -694,6 +694,12 @@
                         "when":  179090650000000000,
                         "tag":  "0098_metadata_seed_customer_360",
                         "breakpoints":  true
-                    }
-                ]
+                    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 179090700000000000,
+      "tag": "0099_customer_purchase_order_number",
+      "breakpoints": true
+    }  ]
 }

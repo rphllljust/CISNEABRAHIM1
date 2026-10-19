@@ -43,6 +43,7 @@ export class ServiceRequestConversionService implements ServiceRequestConversion
       serviceSnapshot: snapshots.serviceSnapshot,
       proposalSnapshot: snapshots.proposalSnapshot,
       purchaseOrderSnapshot: snapshots.purchaseOrderSnapshot,
+      customerPurchaseOrderNumber: snapshots.customerPurchaseOrderNumber,
       rcNumber: snapshots.rcNumber,
       contractReference: snapshots.contractReference,
       contractSnapshot: snapshots.contractSnapshot,
@@ -68,6 +69,7 @@ export class ServiceRequestConversionService implements ServiceRequestConversion
     clientSnapshot: Record<string, unknown> | null;
     proposalSnapshot: Record<string, unknown> | null;
     purchaseOrderSnapshot: Record<string, unknown> | null;
+    customerPurchaseOrderNumber: string | null;
     rcNumber: string | null;
     contractReference: string | null;
     contractSnapshot: Record<string, unknown> | null;
@@ -158,6 +160,7 @@ export class ServiceRequestConversionService implements ServiceRequestConversion
       clientSnapshot,
       proposalSnapshot,
       purchaseOrderSnapshot,
+      customerPurchaseOrderNumber: null,
       rcNumber,
       contractReference: contractId
         ? (contractSnapshot as { contractNumber?: string }).contractNumber ?? contractReference

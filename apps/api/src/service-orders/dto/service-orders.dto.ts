@@ -50,6 +50,7 @@ export function parseCreateServiceOrderInput(body: unknown): CreateServiceOrderI
     operationalNotes: parseOptionalString(record, 'operationalNotes'),
     proposalId: parseOptionalString(record, 'proposalId'),
     purchaseOrderId: parseOptionalString(record, 'purchaseOrderId'),
+    customerPurchaseOrderNumber: parseOptionalString(record, 'customerPurchaseOrderNumber'),
     rcNumber: parseOptionalString(record, 'rcNumber'),
     contractReference: parseOptionalString(record, 'contractReference'),
     idempotencyKey: parseOptionalString(record, 'idempotencyKey'),
@@ -113,6 +114,7 @@ export function parseUpdateServiceOrderInput(body: unknown): UpdateServiceOrderI
       record['proposalId'] === null ? null : parseOptionalString(record, 'proposalId'),
     purchaseOrderId:
       record['purchaseOrderId'] === null ? null : parseOptionalString(record, 'purchaseOrderId'),
+    customerPurchaseOrderNumber: record['customerPurchaseOrderNumber'] === null ? null : parseOptionalString(record, 'customerPurchaseOrderNumber'),
     rcNumber: record['rcNumber'] === null ? null : parseOptionalString(record, 'rcNumber'),
     contractReference:
       record['contractReference'] === null

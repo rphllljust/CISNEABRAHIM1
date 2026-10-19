@@ -68,6 +68,17 @@ export const serviceOrders = soSchema.table(
       onDelete: 'restrict',
     }),
     purchaseOrderSnapshot: jsonb('purchase_order_snapshot'),
+    /*
+      PEDIDO DE COMPRA DO CLIENTE — o outro lado da relação.
+
+      `purchase_order_id` acima é o Purchase Order INTERNO: a compra que a CISNE faz de um
+      fornecedor. Este campo é o documento oposto — o pedido que o CLIENTE emite contra a CISNE,
+      onde a CISNE é FORNECEDORA (ex.: pedido 41926266 da AMAGGI).
+
+      Opcional e sem unicidade global de propósito: nem toda OS nasce de pedido do cliente, e
+      clientes diferentes podem usar o mesmo número.
+    */
+    customerPurchaseOrderNumber: text('customer_purchase_order_number'),
     rcNumber: text('rc_number'),
     contractReference: text('contract_reference'),
     contractSnapshot: jsonb('contract_snapshot'),

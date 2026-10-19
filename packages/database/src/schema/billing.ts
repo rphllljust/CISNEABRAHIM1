@@ -143,6 +143,16 @@ export const billingDocuments = bilSchema.table('billing_documents', {
   proposalId: uuid('proposal_id').references(() => proposals.id),
   purchaseOrderId: uuid('purchase_order_id').references(() => purchaseOrders.id),
   purchaseOrderNumberSnapshot: text('purchase_order_number_snapshot'),
+  /*
+    PEDIDO DE COMPRA DO CLIENTE no instante da emissão.
+
+    Deliberadamente SEPARADO de `purchase_order_number_snapshot` acima: aquele é a compra que a
+    CISNE fez de um fornecedor, este é o pedido que o cliente fez à CISNE. Os dois podem coexistir
+    na mesma cobrança e significam coisas opostas — juntá-los faria o número de um aparecer como se
+    fosse o do outro, e é justamente este que precisa constar no documento fiscal quando o cliente
+    o exige.
+  */
+  customerPurchaseOrderNumberSnapshot: text('customer_purchase_order_number_snapshot'),
   contractReference: text('contract_reference'),
   currencyCode: text('currency_code').notNull().default('BRL'),
   paymentTerms: text('payment_terms').notNull(),

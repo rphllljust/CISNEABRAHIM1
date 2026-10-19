@@ -46,6 +46,7 @@ export class BillingDocumentArtifactService {
     billingRecord: BillingRecordRow;
     billingItems: BillingItemRow[];
     purchaseOrderNumber: string | null;
+    customerPurchaseOrderNumber: string | null;
     dueDate: string | null;
     issuedAt: string;
     actorIdentityId: string;
@@ -88,6 +89,7 @@ export class BillingDocumentArtifactService {
     billingRecord: BillingRecordRow;
     billingItems: BillingItemRow[];
     purchaseOrderNumber: string | null;
+    customerPurchaseOrderNumber: string | null;
     dueDate: string | null;
     issuedAt: string;
   }): BillingDocumentPdfSnapshot {

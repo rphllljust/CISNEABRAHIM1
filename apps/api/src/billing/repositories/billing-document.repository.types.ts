@@ -24,6 +24,7 @@ export type BillingDocumentRow = {
   proposal_id: string | null;
   purchase_order_id: string | null;
   purchase_order_number_snapshot: string | null;
+  customer_purchase_order_number_snapshot: string | null;
   contract_reference: string | null;
   currency_code: string;
   payment_terms: string;
@@ -103,6 +104,7 @@ export type IssueBillingDocumentPersistenceInput = {
   billingRecord: BillingRecordRow;
   billingItems: BillingItemRow[];
   purchaseOrderNumber: string | null;
+  customerPurchaseOrderNumber: string | null;
   dueDate: string | null;
   issuedAt: string;
   actorIdentityId: string;

@@ -26,6 +26,7 @@ export type ServiceOrderResponse = {
   proposalSnapshot: Record<string, unknown> | null;
   purchaseOrderId: string | null;
   purchaseOrderSnapshot: Record<string, unknown> | null;
+  customerPurchaseOrderNumber: string | null;
   rcNumber: string | null;
   contractReference: string | null;
   contractSnapshot: Record<string, unknown> | null;
@@ -97,6 +98,7 @@ export function toServiceOrderResponse(row: ServiceOrderRow): ServiceOrderRespon
     proposalSnapshot: row.proposal_snapshot,
     purchaseOrderId: row.purchase_order_id,
     purchaseOrderSnapshot: row.purchase_order_snapshot,
+    customerPurchaseOrderNumber: row.customer_purchase_order_number,
     rcNumber: row.rc_number,
     contractReference: row.contract_reference,
     contractSnapshot: row.contract_snapshot,

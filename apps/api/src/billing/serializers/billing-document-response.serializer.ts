@@ -44,6 +44,7 @@ export type BillingDocumentDetailResponse = {
   proposalId: string | null;
   purchaseOrderId: string | null;
   purchaseOrderNumberSnapshot: string | null;
+  customerPurchaseOrderNumberSnapshot: string | null;
   contractReference: string | null;
   currencyCode: string;
   paymentTerms: string;
@@ -128,6 +129,7 @@ export function toBillingDocumentDetailResponse(
     proposalId: row.proposal_id,
     purchaseOrderId: row.purchase_order_id,
     purchaseOrderNumberSnapshot: row.purchase_order_number_snapshot,
+    customerPurchaseOrderNumberSnapshot: row.customer_purchase_order_number_snapshot,
     contractReference: row.contract_reference,
     currencyCode: row.currency_code,
     paymentTerms: row.payment_terms,
