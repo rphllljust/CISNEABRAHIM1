@@ -14,7 +14,7 @@ import { createShellFetchMock } from '../test/shell-fetch-mock';
  * A tese desta wave e que a interface NAO desmonta quando falta publicacao. Estes testes rodam a
  * rota de verdade e provam, no DOM renderizado:
  *
- *   1. o fluxo mantém o recorte operacional; o drawer de entidade exige seleção;
+ *   1. o fluxo mantém o recorte operacional; o business context permanece mesmo sem seleção;
  *   2. a FILA VAZIA nao desmonta o cockpit (cabecalho de grade + superficie reservada);
  *   3. as TRES superficies ANALITICAS permanecem, com estado governado quando nao ha dado;
  *   4. a faixa de KPIs continua com a mesma estrutura.
@@ -67,9 +67,9 @@ describe('cockpit /app — estrutura estavel com dado escasso', () => {
     window.history.pushState({}, '', '/login');
   });
 
-  /* O rail persistente foi substituído pelo drawer sob demanda. O fluxo continua
-   * nomeado e navegável no recorte de Operações, mesmo sem item selecionado. */
-  it('keeps the process flow in the operations section without an empty entity drawer', async () => {
+  /* O contexto neutro do recorte permanece na support surface; a entidade selecionada evolui
+   * esse mesmo espaço. O fluxo continua nomeado e navegável no recorte de Operações. */
+  it('keeps the process flow and neutral business context in the operations section', async () => {
     mockApp();
     render(<App />);
     const user = userEvent.setup();
@@ -91,9 +91,8 @@ describe('cockpit /app — estrutura estavel com dado escasso', () => {
       'href',
       '/app/service-orders?status=active',
     );
-    expect(
-      main.queryByRole('complementary', { name: /contexto da entidade selecionada/i }),
-    ).not.toBeInTheDocument();
+    const context = main.getByRole('region', { name: /contexto da decisão/i });
+    expect(within(context).getByText(/contexto operacional/i)).toBeInTheDocument();
   });
 
   /*
@@ -111,7 +110,10 @@ describe('cockpit /app — estrutura estavel com dado escasso', () => {
 
     // 1. O cabecalho de colunas continua no DOM — a grade nao desaparece.
     expect(within(queue).getByRole('columnheader', { name: /próxima ação/i })).toBeInTheDocument();
-    expect(within(queue).getByRole('columnheader', { name: /prioridade/i })).toBeInTheDocument();
+    expect(within(queue).getByRole('columnheader', { name: /natureza \/ atraso/i })).toBeInTheDocument();
+    expect(within(queue).getByRole('columnheader', { name: /^domínio$/i })).toBeInTheDocument();
+    expect(within(queue).queryByRole('columnheader', { name: /prioridade/i })).not.toBeInTheDocument();
+    expect(within(queue).queryByRole('columnheader', { name: /responsável/i })).not.toBeInTheDocument();
 
     // 2. A linha de vazio e UNICA e compacta, na mesma superficie.
     expect(within(queue).getByText(/nenhum trabalho neste recorte/i)).toBeInTheDocument();
