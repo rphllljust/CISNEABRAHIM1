@@ -5,11 +5,8 @@ import { probeCatalogListAccess } from '../catalog/api/service-catalog-api';
 import { probeAssetListAccess } from '../assets/api/physical-assets-api';
 import { probeServiceRequestListAccess } from '../requests/api/service-requests-api';
 import { probeProposalListAccess } from '../proposals/api/proposals-api';
-import { probeContractCapabilities } from '../contracts/api/contracts-api';
 import { probeSupplierListAccess } from '../suppliers/api/suppliers-api';
 import { probePurchaseOrderListAccess } from '../purchase-orders/api/purchase-orders-api';
-import { probeBillingCapabilities } from '../billing/api/billing-api';
-import { probeDocumentCapabilities } from '../documents/api/documents-api';
 import { probeServiceOrderListAccess } from '../service-orders/api/service-orders-api';
 import { probePersonListAccess } from '../people/api/people-api';
 import {
@@ -32,6 +29,7 @@ import { probeInventoryReadAccess } from '../inventory/api/inventory-api';
 import { probePayrollReadAccess } from '../payroll/api/payroll-api';
 import { probeAccessAdminAccess } from '../access-admin/api/access-admin-api';
 import { useAuth } from '../auth/context/AuthProvider';
+import { useSessionMeta } from '../service-orders/context/SessionMetaProvider';
 import { isReleaseModuleEnabled } from '../release-scope/feature-flags';
 import { SHELL_NAV_ITEMS } from './nav-config';
 import { hasEntryRead, probeExplicitCapability, probeSurfaceAccess, resolveAuthorizedUnit, SURFACE_ACCESS_CONTRACT_VERSION } from './surface-access';
@@ -175,6 +173,7 @@ export function resetNavAccessCacheForTests(): void {
 
 export function useNavAccess(): NavAccessState {
   const { status, identityId } = useAuth();
+  const session = useSessionMeta();
   const [state, setState] = useState<NavAccessState>({
     loading: true,
     access: INITIAL_ACCESS,
@@ -355,26 +354,17 @@ export function useNavAccess(): NavAccessState {
         }
 
         if (item.accessCheck === 'document-list') {
-          try {
-            const capabilities = await probeDocumentCapabilities(controller.signal);
-            nextAccess[item.id] = capabilities.canList;
-          } catch {
-            if (!cancelled) {
-              nextAccess[item.id] = false;
-            }
-          }
+          /*
+            Projeção do grant publicado por `/me`, em vez de sonda que disparava POST em
+            `/documents` e `/documents/:id/versions` com IDs sintéticos só para inferir leitura
+            de lista. Navegação não deve mutar nada; a lista continua sendo barrada pelo backend.
+          */
+          nextAccess[item.id] = session.can('documents:document:list');
           continue;
         }
 
         if (item.accessCheck === 'billing-list') {
-          try {
-            const capabilities = await probeBillingCapabilities(controller.signal);
-            nextAccess[item.id] = capabilities.canRead;
-          } catch {
-            if (!cancelled) {
-              nextAccess[item.id] = false;
-            }
-          }
+          nextAccess[item.id] = session.can('billing:billing-record:read');
           continue;
         }
 
@@ -603,14 +593,7 @@ export function useNavAccess(): NavAccessState {
         }
 
         if (item.accessCheck === 'contract-list') {
-          try {
-            const capabilities = await probeContractCapabilities(controller.signal);
-            nextAccess[item.id] = capabilities.canList;
-          } catch {
-            if (!cancelled) {
-              nextAccess[item.id] = false;
-            }
-          }
+          nextAccess[item.id] = session.can('commercial:contract:list');
           continue;
         }
 

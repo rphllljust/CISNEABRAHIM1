@@ -1,8 +1,17 @@
-import { useEffect, useState } from 'react';
-import { probeBillingCapabilities } from '../api/billing-api';
-import { probeBillingDocumentCapabilities } from '../api/billing-document-api';
+import { useMemo } from 'react';
 import type { BillingCapabilities } from '../types/billing.types';
+import { useAuth } from '../../auth/context/AuthProvider';
+import { useSessionMeta } from '../../service-orders/context/SessionMetaProvider';
 
+/**
+ * CAPABILITIES DE UI — projeção dos grants efetivos já publicados por GET /me.
+ *
+ * O hook antigo descobria permissão disparando POST num documento de faturamento com UUID
+ * sintético e interpretava a resposta como autorização. Isso gerava BILLING_* reais em produção
+ * a cada montagem da tela, sem representar tentativa do operador — e abria GET de PDF para
+ * inferir `canDownloadDocument`. `/me` já publica os grants efetivos da sessão; a UI apenas
+ * projeta esse contrato. O backend continua sendo a barreira autoritativa.
+ */
 const DEFAULT_CAPABILITIES: BillingCapabilities = {
   canRead: false,
   canPrepare: false,
@@ -13,41 +22,28 @@ const DEFAULT_CAPABILITIES: BillingCapabilities = {
 };
 
 export function useBillingCapabilities(): { capabilities: BillingCapabilities; loading: boolean } {
-  const [capabilities, setCapabilities] = useState<BillingCapabilities>(DEFAULT_CAPABILITIES);
-  const [loading, setLoading] = useState(true);
+  const { status: authStatus } = useAuth();
+  const session = useSessionMeta();
 
-  useEffect(() => {
-    const controller = new AbortController();
-    let cancelled = false;
-
-    void Promise.all([
-      probeBillingCapabilities(controller.signal),
-      probeBillingDocumentCapabilities(controller.signal),
-    ])
-      .then(([billing, documents]) => {
-        if (!cancelled) {
-          setCapabilities({
-            ...billing,
-            ...documents,
-          });
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setCapabilities(DEFAULT_CAPABILITIES);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-      controller.abort();
+  const capabilities = useMemo<BillingCapabilities>(() => {
+    if (authStatus !== 'authenticated' || session.status !== 'ready') {
+      return DEFAULT_CAPABILITIES;
+    }
+    return {
+      canRead: session.can('billing:billing-record:read'),
+      canPrepare: session.can('billing:billing-record:prepare'),
+      canVoid: session.can('billing:billing-record:void'),
+      canIssueDocument: session.can('billing:billing-document:issue'),
+      canReadDocument: session.can('billing:billing-document:read'),
+      canDownloadDocument: session.can('billing:billing-document:download'),
     };
-  }, []);
+  }, [authStatus, session]);
 
-  return { capabilities, loading };
+  return {
+    capabilities,
+    loading:
+      authStatus === 'loading' ||
+      (authStatus === 'authenticated' &&
+        (session.status === 'idle' || session.status === 'loading')),
+  };
 }

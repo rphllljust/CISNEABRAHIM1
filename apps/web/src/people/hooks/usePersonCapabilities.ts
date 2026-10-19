@@ -1,7 +1,16 @@
-import { useEffect, useState } from 'react';
-import { PeopleApiError, probePersonCapabilities, type PersonCapabilities } from '../api/people-api';
+import { useMemo } from 'react';
+import type { PersonCapabilities } from '../api/people-api';
 import { useAuth } from '../../auth/context/AuthProvider';
+import { useSessionMeta } from '../../service-orders/context/SessionMetaProvider';
 
+/**
+ * CAPABILITIES DE UI — projeção dos grants efetivos já publicados por GET /me.
+ *
+ * O hook antigo disparava POST/PATCH/activate/deactivate contra um UUID sintético a cada montagem
+ * da tela. Isso gerava PERSON_VALIDATION_FAILED e PERSON_NOT_FOUND reais em produção sem
+ * representar tentativa do operador, e tratava 400/404 como "tem permissão". `/me` já publica os
+ * grants efetivos da sessão; a UI apenas projeta esse contrato. O backend continua autoritativo.
+ */
 const EMPTY_CAPABILITIES: PersonCapabilities = {
   canList: false,
   canCreate: false,
@@ -12,52 +21,29 @@ const EMPTY_CAPABILITIES: PersonCapabilities = {
 };
 
 export function usePersonCapabilities() {
-  const { status } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [capabilities, setCapabilities] = useState<PersonCapabilities>(EMPTY_CAPABILITIES);
-  const [error, setError] = useState(false);
+  const { status: authStatus } = useAuth();
+  const session = useSessionMeta();
 
-  useEffect(() => {
-    if (status === 'loading') {
-      setLoading(true);
-      return;
+  const capabilities = useMemo<PersonCapabilities>(() => {
+    if (authStatus !== 'authenticated' || session.status !== 'ready') {
+      return EMPTY_CAPABILITIES;
     }
-
-    if (status !== 'authenticated') {
-      setLoading(false);
-      setCapabilities(EMPTY_CAPABILITIES);
-      return;
-    }
-
-    const controller = new AbortController();
-    let cancelled = false;
-
-    void probePersonCapabilities(controller.signal)
-      .then((result) => {
-        if (!cancelled) {
-          setCapabilities(result);
-          setError(false);
-          setLoading(false);
-        }
-      })
-      .catch((probeError: unknown) => {
-        if (cancelled) {
-          return;
-        }
-        if (probeError instanceof PeopleApiError && probeError.kind === 'denied') {
-          setCapabilities(EMPTY_CAPABILITIES);
-          setError(false);
-        } else {
-          setError(true);
-        }
-        setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-      controller.abort();
+    return {
+      canList: session.can('people:person:list'),
+      canCreate: session.can('people:person:create'),
+      canRead: session.can('people:person:read'),
+      canUpdate: session.can('people:person:update'),
+      canDeactivate: session.can('people:person:deactivate'),
+      canActivate: session.can('people:person:activate'),
     };
-  }, [status]);
+  }, [authStatus, session]);
 
-  return { loading, capabilities, error };
+  return {
+    loading:
+      authStatus === 'loading' ||
+      (authStatus === 'authenticated' &&
+        (session.status === 'idle' || session.status === 'loading')),
+    capabilities,
+    error: authStatus === 'authenticated' && session.status === 'error',
+  };
 }

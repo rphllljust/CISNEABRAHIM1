@@ -1,12 +1,17 @@
-import { useEffect, useState } from 'react';
-import {
-  AssetsApiError,
-  listPhysicalResourceTypes,
-  probeAssetCapabilities,
-  type AssetCapabilities,
-} from '../api/physical-assets-api';
+import { useEffect, useMemo, useState } from 'react';
+import { listPhysicalResourceTypes, type AssetCapabilities } from '../api/physical-assets-api';
 import { useAuth } from '../../auth/context/AuthProvider';
+import { useSessionMeta } from '../../service-orders/context/SessionMetaProvider';
 
+/**
+ * CAPABILITIES DE UI — projeção dos grants efetivos já publicados por GET /me.
+ *
+ * O hook antigo descobria permissão disparando POST/PATCH/activate/deactivate contra um UUID
+ * sintético a cada montagem da tela. Isso gerava ASSET_VALIDATION_FAILED e ASSET_NOT_FOUND reais
+ * em produção sem representar tentativa do operador, e tratava 400/404 como "tem permissão".
+ * `/me` já publica os grants efetivos da sessão; a UI apenas projeta esse contrato. O backend
+ * continua sendo a barreira autoritativa e revalida cada comando com escopo.
+ */
 const EMPTY_CAPABILITIES: AssetCapabilities = {
   canList: false,
   canCreate: false,
@@ -17,54 +22,31 @@ const EMPTY_CAPABILITIES: AssetCapabilities = {
 };
 
 export function useAssetCapabilities() {
-  const { status } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [capabilities, setCapabilities] = useState<AssetCapabilities>(EMPTY_CAPABILITIES);
-  const [error, setError] = useState(false);
+  const { status: authStatus } = useAuth();
+  const session = useSessionMeta();
 
-  useEffect(() => {
-    if (status === 'loading') {
-      setLoading(true);
-      return;
+  const capabilities = useMemo<AssetCapabilities>(() => {
+    if (authStatus !== 'authenticated' || session.status !== 'ready') {
+      return EMPTY_CAPABILITIES;
     }
-
-    if (status !== 'authenticated') {
-      setLoading(false);
-      setCapabilities(EMPTY_CAPABILITIES);
-      return;
-    }
-
-    const controller = new AbortController();
-    let cancelled = false;
-
-    void probeAssetCapabilities(controller.signal)
-      .then((result) => {
-        if (!cancelled) {
-          setCapabilities(result);
-          setError(false);
-          setLoading(false);
-        }
-      })
-      .catch((probeError: unknown) => {
-        if (cancelled) {
-          return;
-        }
-        if (probeError instanceof AssetsApiError && probeError.kind === 'denied') {
-          setCapabilities(EMPTY_CAPABILITIES);
-          setError(false);
-        } else {
-          setError(true);
-        }
-        setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-      controller.abort();
+    return {
+      canList: session.can('resources:asset:list'),
+      canCreate: session.can('resources:asset:create'),
+      canRead: session.can('resources:asset:read'),
+      canUpdate: session.can('resources:asset:update'),
+      canDeactivate: session.can('resources:asset:deactivate'),
+      canActivate: session.can('resources:asset:activate'),
     };
-  }, [status]);
+  }, [authStatus, session]);
 
-  return { loading, capabilities, error };
+  return {
+    loading:
+      authStatus === 'loading' ||
+      (authStatus === 'authenticated' &&
+        (session.status === 'idle' || session.status === 'loading')),
+    capabilities,
+    error: authStatus === 'authenticated' && session.status === 'error',
+  };
 }
 
 export function useAssetResourceTypes() {

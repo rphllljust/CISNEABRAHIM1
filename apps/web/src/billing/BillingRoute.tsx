@@ -1,45 +1,33 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { probeBillingCapabilities } from './api/billing-api';
 import { useAuth } from '../auth/context/AuthProvider';
+import { useSessionMeta } from '../service-orders/context/SessionMetaProvider';
 
 type BillingRouteProps = {
   children: ReactNode;
 };
 
+/**
+ * GUARDA DE ROTA DO FATURAMENTO — projeção do grant publicado por `/me`.
+ *
+ * Antes esta guarda disparava POST num documento de faturamento com UUID sintético para decidir
+ * se o operador podia entrar na tela. Isso mutava o backend na simples navegação e ainda podia
+ * negar acesso a quem tinha a permissão (`canRead` dependia do resultado da sonda). A sessão já
+ * publica `billing:billing-record:read`; a guarda apenas projeta esse contrato.
+ */
 export function BillingRoute({ children }: BillingRouteProps) {
   const location = useLocation();
-  const { expireSession } = useAuth();
-  const [state, setState] = useState<'loading' | 'allowed' | 'denied' | 'session_expired'>('loading');
+  const { status } = useAuth();
+  const session = useSessionMeta();
 
-  useEffect(() => {
-    const controller = new AbortController();
-    let cancelled = false;
+  const loading =
+    status === 'loading' || (status === 'authenticated' && session.status !== 'ready');
 
-    void probeBillingCapabilities(controller.signal)
-      .then((capabilities) => {
-        if (!cancelled) {
-          setState(capabilities.canRead ? 'allowed' : 'denied');
-        }
-      })
-      .catch((error: unknown) => {
-        if (cancelled) {
-          return;
-        }
-        if (error instanceof Error && error.message === 'denied') {
-          setState('denied');
-          return;
-        }
-        setState('denied');
-      });
+  if (status === 'unauthenticated') {
+    return <Navigate to="/login" replace state={{ reason: 'session_expired', from: location.pathname }} />;
+  }
 
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [expireSession, location.pathname]);
-
-  if (state === 'loading') {
+  if (loading) {
     return (
       <div className="shell-loading" aria-busy="true" aria-live="polite">
         <p>Verificando acesso…</p>
@@ -47,11 +35,7 @@ export function BillingRoute({ children }: BillingRouteProps) {
     );
   }
 
-  if (state === 'session_expired') {
-    return <Navigate to="/login" replace state={{ reason: 'session_expired', from: location.pathname }} />;
-  }
-
-  if (state === 'denied') {
+  if (!session.can('billing:billing-record:read')) {
     return (
       <Navigate
         to="/app/no-access"
