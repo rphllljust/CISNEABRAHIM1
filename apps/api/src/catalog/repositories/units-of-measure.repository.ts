@@ -145,10 +145,27 @@ export class UnitsOfMeasureRepository {
     defaultUnitCode: string | null | undefined,
     requireActive: boolean,
   ): Promise<UnitReferenceValidation> {
-    const codes = [...new Set(unitCodes)];
-    if (defaultUnitCode) {
-      codes.push(defaultUnitCode);
-    }
+    /*
+      O `defaultUnitCode` é uma unidade ENTRE as permitidas — não uma unidade extra.
+
+      Esta função comparava `rowCount` do banco com o tamanho do array, e o array era montado
+      como `[...new Set(unitCodes)]` seguido de `codes.push(defaultUnitCode)`. O push acontecia
+      DEPOIS da deduplicação, então o caso normal — unidade padrão já presente em `allowedUnits`,
+      que é justamente o que o domínio exige — virava `['DAY','DAY']`: dois elementos no array,
+      uma única linha no banco, `rowCount !== length`, e a resposta era
+      `CATALOG_INVALID_UNIT` para uma unidade registrada e ACTIVE.
+
+      Efeito medido em produção: TODA definição de serviço com `defaultUnitCode` era recusada
+      com "One or more unit codes are not registered in the catalog", enquanto a mesma definição
+      sem `defaultUnitCode` era aceita. O erro ainda apontava para a unidade, escondendo a causa.
+
+      A correção une as duas origens ANTES de deduplicar: o conjunto resultante é exatamente o
+      que precisa existir no catálogo.
+    */
+    const codes = [...new Set([
+      ...unitCodes,
+      ...(defaultUnitCode ? [defaultUnitCode] : []),
+    ])];
     if (codes.length === 0) {
       return 'INVALID_UNIT';
     }
