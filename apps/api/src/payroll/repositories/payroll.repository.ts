@@ -86,7 +86,7 @@ export class PayrollRepository {
     const conditions = ['unit_id = $1'];
     if (input.q) {
       values.push(`%${input.q}%`);
-      conditions.push(`(code ILIKE ${values.length} OR display_name ILIKE ${values.length})`);
+      conditions.push(`(code ILIKE $${values.length} OR display_name ILIKE $${values.length})`);
     }
     const where = conditions.join(' AND ');
     const totalResult = await this.pool().query<{ total: string }>(
@@ -101,7 +101,7 @@ export class PayrollRepository {
          FROM pay.employment_contracts
         WHERE ${where}
         ORDER BY display_name ASC, code ASC, id ASC
-        LIMIT ${values.length + 1} OFFSET ${values.length + 2}`,
+        LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
       pageValues,
     );
     return {
@@ -181,7 +181,7 @@ export class PayrollRepository {
          FROM pay.payroll_periods
         WHERE ${where}
         ORDER BY competence_year DESC, competence_month DESC, id DESC
-        LIMIT ${values.length + 1} OFFSET ${values.length + 2}`,
+        LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
       pageValues,
     );
     return {
