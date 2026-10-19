@@ -30,6 +30,7 @@ import { semanticSectionAttrs } from '../semantic-dashboard';
 import { ModuleDeniedState, ModulePage } from '../../ui';
 import { ContextDrawer } from '../../operator';
 import { StatusBadge } from '../../ui/StatusBadge';
+import { WorkspacePane } from '../../ui/workspace-frame';
 import { Money } from '../../ui/Money';
 import { cn } from '../../ui/utils/cn';
 import {
@@ -60,10 +61,9 @@ import '../dashboard.css';
  * A composicao atual tem a anatomia de uma central operacional:
  *
  *   LINHA 1  indicadores acionaveis
- *   LINHA 2  distribuicao | carteira | excecoes
- *   LINHA 3  produtividade e tendencia publicada
- *   LINHA 4  fluxo operacional
- *   LINHA 5  workbench: fila real + contexto lateral persistente
+ *   LINHA 2  workbench: fila real + business context persistente
+ *   LINHA 3  fluxo operacional
+ *   LINHA 4  analise secundaria em progressive disclosure
  *
  * ─────────────────────────────────────────────────────────────────────────────────────────────
  * REGRA DE AREA — a mesma de antes, agora aplicada a composicao inteira
@@ -74,11 +74,10 @@ import '../dashboard.css';
  * ─────────────────────────────────────────────────────────────────────────────────────────────
  * O CONTEXTO NAO E UM MODAL
  *
- * Em viewport larga o `ContextDrawer` entra em modo `inline`: ele e uma COLUNA do grid, ao lado da
- * fila, com `border-left`, sem overlay e sem bloquear o scroll da worklist. Filtros, saved view,
- * paginacao, selecao e posicao de scroll sobrevivem — que e a razao de existir um context drawer
- * num ERP. Abaixo de 1280px o MESMO primitivo volta ao modo overlay, porque em tela estreita a
- * coluna roubaria mais do que entrega.
+ * O business context usa a support surface governada do CISNE. A geometria responde a largura REAL
+ * da bancada por container query: com espaco suficiente, contexto e fila convivem; sem espaco, a
+ * fila preserva a largura inteira e o contexto selecionado usa o mesmo ContextDrawer como painel.
+ * Filtros, paginacao, selecao e posicao de scroll sobrevivem.
  *
  * ─────────────────────────────────────────────────────────────────────────────────────────────
  * NENHUM COMANDO FOI INVENTADO
@@ -246,6 +245,7 @@ export function OperationalDashboardPage() {
   const [inbox, setInbox] = useState<WorkInboxPage | null>(null);
   const [inboxPhase, setInboxPhase] = useState<'loading' | 'ready' | 'denied' | 'error'>('loading');
   const [selected, setSelected] = useState<WorkItem | null>(null);
+  const [queueRevision, setQueueRevision] = useState(0);
 
   /*
    * A FILA E RECORTADA PELO SERVIDOR com o mesmo recorte do workspace: dominio, natureza,
@@ -279,7 +279,7 @@ export function OperationalDashboardPage() {
         }
       });
     return () => controller.abort();
-  }, [domain, viewKind, serverOverdue, offset]);
+  }, [domain, viewKind, serverOverdue, offset, queueRevision]);
 
   /*
    * SELECAO — o contexto e SOB DEMANDA, e por isso NAO existe auto-selecao aqui.
@@ -334,6 +334,11 @@ export function OperationalDashboardPage() {
     [setSearchParams],
   );
 
+  const refreshWorkspace = useCallback(() => {
+    setQueueRevision((revision) => revision + 1);
+    void reload();
+  }, [reload]);
+
   /*
    * BUSCA LOCAL — recorta SOMENTE a pagina recebida, e a faixa diz isso em voz alta. O read model
    * nao publica parametro de texto; apresentar este campo como "busca global" faria o operador
@@ -371,13 +376,9 @@ export function OperationalDashboardPage() {
     period: filters.period,
     periodOptions,
     onPeriodChange: (period: string) => setFilters({ period }),
-    isRefreshing,
-    onRefresh: () => void reload(),
     domain,
     onDomainChange: (nextDomain: WorkDomain | null) =>
       updateOperationalRecorte('domain', nextDomain),
-    overdueOnly,
-    onOverdueChange: (value: boolean) => updateOperationalRecorte('overdue', value ? 'true' : null),
     situation,
     queueTotal: inboxPhase === 'ready' ? (inbox?.total ?? null) : null,
   };
@@ -533,10 +534,6 @@ export function OperationalDashboardPage() {
               <WorkbenchKpiStrip kpis={workbenchKpis} />
             </section>
 
-            <div data-layout="compact-process-flow">
-              <BusinessChainFlow stages={flowStages} domainLabel={domainLabel} />
-            </div>
-
             <div className="dashboard-cc__work" data-layout="work-area">
               <div className="dashboard-cc__workspace" data-layout="main-workspace">
                 <section
@@ -622,8 +619,8 @@ export function OperationalDashboardPage() {
                       <button
                         type="button"
                         className="dashboard-queuebar__button"
-                        onClick={() => void reload()}
-                        disabled={isRefreshing}
+                        onClick={refreshWorkspace}
+                        disabled={isRefreshing || inboxPhase === 'loading'}
                       >
                         <RefreshCw
                           className="dashboard-queuebar__button-icon"
@@ -683,12 +680,20 @@ export function OperationalDashboardPage() {
                 </section>
 
                 {/*
-                RAIL OPERACIONAL CONTÍNUO: acompanha somente a superfície da fila e preserva o
-                recorte enquanto o operador troca a seleção.
+                BUSINESS CONTEXT PERSISTENTE — a support surface e a mesma com ou sem selecao.
+                Sem selecao, publica apenas fatos reais do recorte. Com selecao, o mesmo espaço
+                evolui para o ContextDrawer existente, sem navegar para fora da fila.
               */}
-                {selected ? (
+                <WorkspacePane
+                  as="section"
+                  surface="support"
+                  className="dashboard-cc__context"
+                  aria-label="Contexto da decisão"
+                >
+                  {selected ? (
                   <ContextDrawer
                     open
+                    variant="inline"
                     className="dashboard-context-drawer"
                     title="Contexto do trabalho"
                     onClose={() => setSelected(null)}
@@ -700,34 +705,35 @@ export function OperationalDashboardPage() {
                           label={overdueLabel(selected.dueAt) ?? selected.status}
                           tone={daysOverdue(selected.dueAt) !== null ? 'error' : 'info'}
                         />
-                      ),
-                      facts: [
-                        { label: 'Cliente / contexto', value: selected.contextLabel || '—' },
-                        { label: 'Domínio', value: WORK_DOMAIN_LABELS[selected.domain] },
-                        { label: 'Natureza', value: WORK_KIND_LABELS[selected.kind] },
-                        { label: 'Situação', value: selected.status },
-                        { label: 'Motivo', value: selected.reason },
-                        { label: 'Ocorrido em', value: formatMoment(selected.occurredAt) },
-                        { label: 'Vencimento', value: formatMoment(selected.dueAt) },
-                        {
-                          label: 'Prazo',
-                          value: overdueLabel(selected.dueAt) ?? 'Sem atraso',
-                          emphasis: daysOverdue(selected.dueAt) !== null,
-                        },
-                      ],
-                      nextAction: {
-                        label: selected.actionLabel,
-                        onClick: () => {
-                          void navigate(selected.targetRoute);
-                        },
-                        kind: 'primary',
-                      },
-                      detailHref: selected.targetRoute,
-                      detailLabel: 'Abrir na tela de origem',
-                    }}
-                  />
-                ) : null}
+                  ) : (
+                    <OperationalContextRail
+                      unitLabel={unitLabel}
+                      domainLabel={domainLabel}
+                      periodLabel={periodLabel}
+                      generatedAtFormatted={snapshot ? formatGeneratedAt(snapshot.generatedAt) : null}
+                      queueStateLabel={
+                        inboxPhase === 'ready'
+                          ? queueTotal === null
+                            ? 'Total não publicado nesta leitura'
+                            : `${queueTotal} ${plural(queueTotal, 'item', 'itens')} na fila`
+                          : inboxPhase === 'loading'
+                            ? 'Leitura em andamento'
+                            : 'Fila não publicada nesta leitura'
+                      }
+                      pageCount={inboxPhase === 'ready' ? (inbox?.items.length ?? null) : null}
+                      situationLabel={
+                        situation
+                          ? situationBadgeLabel(situation)
+                          : 'Situação não avaliada neste recorte'
+                      }
+                    />
+                  )}
+                </WorkspacePane>
               </div>
+            </div>
+
+            <div data-layout="compact-process-flow">
+              <BusinessChainFlow stages={flowStages} domainLabel={domainLabel} />
             </div>
 
             <details
@@ -737,7 +743,7 @@ export function OperationalDashboardPage() {
               <summary className="cursor-pointer text-xs font-semibold text-[var(--erp-text-secondary)]">
                 Contexto do recorte e análise operacional
               </summary>
-              <div className="mt-3 grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+              <div className="mt-3 min-w-0 space-y-3">
                 <div className="min-w-0 space-y-3">
                   {showOperationDistribution || showAging || attentionItems.length > 0 ? (
                     <section
@@ -775,25 +781,6 @@ export function OperationalDashboardPage() {
                     </section>
                   ) : null}
                 </div>
-                <OperationalContextRail
-                  unitLabel={unitLabel}
-                  domainLabel={domainLabel}
-                  periodLabel={periodLabel}
-                  generatedAtFormatted={snapshot ? formatGeneratedAt(snapshot.generatedAt) : null}
-                  queueStateLabel={
-                    inboxPhase === 'ready'
-                      ? `${queueTotal ?? 0} ${plural(queueTotal ?? 0, 'item', 'itens')} na fila`
-                      : inboxPhase === 'loading'
-                        ? 'Leitura em andamento'
-                        : 'Fila não publicada nesta leitura'
-                  }
-                  pageCount={inbox?.items.length ?? 0}
-                  situationLabel={
-                    situation
-                      ? situationBadgeLabel(situation)
-                      : 'Situação não avaliada neste recorte'
-                  }
-                />
               </div>
             </details>
 
@@ -847,7 +834,7 @@ function OperationalContextRail({
   periodLabel: string | null;
   generatedAtFormatted: string | null;
   queueStateLabel: string;
-  pageCount: number;
+  pageCount: number | null;
   situationLabel: string;
 }) {
   return (
@@ -879,7 +866,9 @@ function OperationalContextRail({
           <div className="dashboard-rail__fact">
             <dt>Nesta página</dt>
             <dd className="tabular-nums">
-              {pageCount} {plural(pageCount, 'item lido', 'itens lidos')}
+              {pageCount === null
+                ? 'Não publicado'
+                : `${pageCount} ${plural(pageCount, 'item lido', 'itens lidos')}`}
             </dd>
           </div>
           <div className="dashboard-rail__fact">
@@ -1037,11 +1026,11 @@ function WorkQueue({
             role="row"
             style={{ gridTemplateColumns: QUEUE_COLUMNS }}
           >
-            <span role="columnheader">Prioridade</span>
+            <span role="columnheader">Natureza / prazo</span>
             <span role="columnheader">Documento</span>
             <span role="columnheader">Contexto</span>
             <span role="columnheader">Etapa</span>
-            <span role="columnheader">Responsável</span>
+            <span role="columnheader">Domínio</span>
             <span role="columnheader">Prazo</span>
             <span role="columnheader">Próxima ação</span>
           </div>
@@ -1087,11 +1076,11 @@ function WorkQueue({
               role="row"
               style={{ gridTemplateColumns: QUEUE_COLUMNS }}
             >
-              <span role="columnheader">Prioridade</span>
+              <span role="columnheader">Natureza / prazo</span>
               <span role="columnheader">Documento</span>
               <span role="columnheader">Contexto</span>
               <span role="columnheader">Etapa</span>
-              <span role="columnheader">Responsável</span>
+              <span role="columnheader">Domínio</span>
               <span role="columnheader">Prazo</span>
               <span role="columnheader">Próxima ação</span>
             </div>
@@ -1124,9 +1113,10 @@ function WorkQueue({
                         )}
                         aria-hidden
                       />
+                      {WORK_KIND_LABELS[item.kind]}
                       {late !== null
-                        ? `${late} ${late === 1 ? 'dia' : 'dias'}`
-                        : WORK_KIND_LABELS[item.kind]}
+                        ? ` · ${late} ${late === 1 ? 'dia' : 'dias'} em atraso`
+                        : null}
                     </span>
 
                     <span className="dashboard-queue__doc" role="cell">
