@@ -1050,7 +1050,7 @@ function WorkQueue({
             role="row"
             style={{ gridTemplateColumns: QUEUE_COLUMNS }}
           >
-            <span role="columnheader">Natureza / prazo</span>
+            <span role="columnheader">Natureza / atraso</span>
             <span role="columnheader">Documento</span>
             <span role="columnheader">Contexto</span>
             <span role="columnheader">Etapa</span>
@@ -1100,7 +1100,7 @@ function WorkQueue({
               role="row"
               style={{ gridTemplateColumns: QUEUE_COLUMNS }}
             >
-              <span role="columnheader">Natureza / prazo</span>
+              <span role="columnheader">Natureza / atraso</span>
               <span role="columnheader">Documento</span>
               <span role="columnheader">Contexto</span>
               <span role="columnheader">Etapa</span>
@@ -1125,7 +1125,7 @@ function WorkQueue({
                     )}
                     style={{ gridTemplateColumns: QUEUE_COLUMNS }}
                   >
-                    <span className="dashboard-queue__priority" role="cell">
+                    <span className="dashboard-queue__nature" role="cell">
                       <span
                         className={cn(
                           'dashboard-queue__dot',
@@ -1167,7 +1167,7 @@ function WorkQueue({
                       <StatusBadge label={item.status} tone="info" />
                     </span>
 
-                    <span className="dashboard-queue__owner" role="cell" title={item.reason}>
+                    <span className="dashboard-queue__domain" role="cell" title={item.reason}>
                       {WORK_DOMAIN_LABELS[item.domain]}
                     </span>
 
