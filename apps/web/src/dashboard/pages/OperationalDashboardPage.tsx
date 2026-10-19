@@ -282,11 +282,9 @@ export function OperationalDashboardPage() {
   }, [domain, viewKind, serverOverdue, offset, queueRevision]);
 
   /*
-   * SELECAO — o contexto e SOB DEMANDA, e por isso NAO existe auto-selecao aqui.
-   *
-   * Contexto sem intencao do usuario e ruido, nao ajuda. A UNICA excecao e a selecao que deixa de
-   * existir no recorte (item filtrado para fora): ai a selecao e LIMPA, nunca trocada por outro
-   * item sem o operador pedir.
+   * SELECAO DO OBJETO — o contexto DA ENTIDADE e sob demanda; o contexto neutro do RECORTE
+   * permanece na support surface. Nao existe auto-selecao: trocar o recorte nunca escolhe outro
+   * objeto pelo operador. Se o item selecionado sair do conjunto, a selecao e apenas limpa.
    */
   useEffect(() => {
     setSelected((current) =>
@@ -538,7 +536,7 @@ export function OperationalDashboardPage() {
               <div className="dashboard-cc__workspace" data-layout="main-workspace">
                 <section
                   className="dashboard-cc__priority"
-                  aria-label="Fila prioritária"
+                  aria-label="Fila operacional"
                   data-layout="priority-work-area"
                 >
                   {/*
@@ -691,20 +689,46 @@ export function OperationalDashboardPage() {
                   aria-label="Contexto da decisão"
                 >
                   {selected ? (
-                  <ContextDrawer
-                    open
-                    variant="inline"
-                    className="dashboard-context-drawer"
-                    title="Contexto do trabalho"
-                    onClose={() => setSelected(null)}
-                    preview={{
-                      identifier: selected.businessReference,
-                      subtitle: selected.title,
-                      status: (
-                        <StatusBadge
-                          label={overdueLabel(selected.dueAt) ?? selected.status}
-                          tone={daysOverdue(selected.dueAt) !== null ? 'error' : 'info'}
-                        />
+                    <ContextDrawer
+                      open
+                      variant="inline"
+                      className="dashboard-context-drawer"
+                      title="Contexto do trabalho"
+                      onClose={() => setSelected(null)}
+                      preview={{
+                        identifier: selected.businessReference,
+                        subtitle: selected.title,
+                        status: (
+                          <StatusBadge
+                            label={overdueLabel(selected.dueAt) ?? selected.status}
+                            tone={daysOverdue(selected.dueAt) !== null ? 'error' : 'info'}
+                          />
+                        ),
+                        facts: [
+                          { label: 'Cliente / contexto', value: selected.contextLabel || '—' },
+                          { label: 'Domínio', value: WORK_DOMAIN_LABELS[selected.domain] },
+                          { label: 'Natureza', value: WORK_KIND_LABELS[selected.kind] },
+                          { label: 'Situação', value: selected.status },
+                          { label: 'Motivo', value: selected.reason },
+                          { label: 'Ocorrido em', value: formatMoment(selected.occurredAt) },
+                          { label: 'Vencimento', value: formatMoment(selected.dueAt) },
+                          {
+                            label: 'Prazo',
+                            value: overdueLabel(selected.dueAt) ?? 'Sem atraso',
+                            emphasis: daysOverdue(selected.dueAt) !== null,
+                          },
+                        ],
+                        nextAction: {
+                          label: selected.actionLabel,
+                          onClick: () => {
+                            void navigate(selected.targetRoute);
+                          },
+                          kind: 'primary',
+                        },
+                        detailHref: selected.targetRoute,
+                        detailLabel: 'Abrir na tela de origem',
+                      }}
+                    />
                   ) : (
                     <OperationalContextRail
                       unitLabel={unitLabel}
