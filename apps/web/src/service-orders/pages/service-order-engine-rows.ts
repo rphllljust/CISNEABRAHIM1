@@ -36,7 +36,13 @@ export function serviceOrderEngineRows(items: ServiceOrderSummary[]): ServiceOrd
   return items.map((item) => ({
     id: item.id,
     order_number: item.orderNumber,
-    internal_code: item.id,
+    /*
+     * `internal_code` é o CÓDIGO INTERNO da OS (`SO-INT-2026-…`), publicado pela listagem.
+     * Antes recebia `item.id` — o UUID — e a coluna "Código interno" mostrava
+     * `163016a3-fef5-4cca-9a76-6170…` truncado num slot de 134px: identificador técnico
+     * apresentado como código de negócio, transbordando e sem valor para o operador.
+     */
+    internal_code: item.internalCode,
     status: item.status,
     unit_id: item.unitId,
     origin: item.origin,

@@ -26,6 +26,7 @@ import { serviceOrderEngineRows } from './service-order-engine-rows';
 const summary = (overrides: Partial<ServiceOrderSummary> = {}): ServiceOrderSummary => ({
   id: '163016a3-fef5-4cca-9a76-6170500eddfd',
   orderNumber: 'OS-2026-E870CB41',
+  internalCode: 'SO-INT-2026-453712D0',
   unitId: 'CISNE-RO-PVH',
   status: 'COMPLETED',
   origin: 'PROPOSAL',
@@ -48,6 +49,25 @@ const summary = (overrides: Partial<ServiceOrderSummary> = {}): ServiceOrderSumm
 });
 
 describe('serviceOrderEngineRows — Origem e Criada em na worklist', () => {
+  /*
+   * CÓDIGO INTERNO É CÓDIGO, NÃO UUID.
+
+   * A worklist preenchia `internal_code` com `item.id`. A coluna "Código interno" exibia
+   * `163016a3-fef5-4cca-9a76-6170500eddfd` — o UUID — truncado num slot de 134px, com
+   * `scrollWidth` 295. Identificador técnico apresentado como código de negócio, transbordando.
+   * O backend sempre publicou `internalCode` (`SO-INT-2026-…`); o adaptador é que o descartava.
+   */
+  it('usa o código interno publicado, nunca o UUID do registro', () => {
+    const [row] = serviceOrderEngineRows([summary()]);
+
+    expect(row!['internal_code']).toBe('SO-INT-2026-453712D0');
+    expect(row!['internal_code']).not.toBe(summary().id);
+    // Código de negócio não tem a forma de um UUID.
+    expect(String(row!['internal_code'])).not.toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
+  });
+
   it('leva a origem PERSISTIDA da linha para a coluna, em vez de anular', () => {
     const [row] = serviceOrderEngineRows([summary()]);
 

@@ -118,6 +118,14 @@ export type AssignedWorkforceMember = {
 export type ServiceOrderSummary = {
   id: string;
   orderNumber: string;
+  /**
+   * CÓDIGO INTERNO da OS (`SO-INT-2026-…`), já publicado pela listagem.
+   *
+   * O tipo não o declarava, e o adaptador da worklist preenchia `internal_code` com `id` —
+   * o UUID. A coluna "Código interno" exibia `163016a3-fef5-4cca-9a76-6170…` truncado:
+   * identificador técnico apresentado como código de negócio.
+   */
+  internalCode: string;
   unitId: string;
   status: ServiceOrderStatus;
   origin: string;

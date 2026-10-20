@@ -178,6 +178,14 @@ const MIGRATION_EFFECT_CHECKS = {
     column: ['com', 'proposal_items', 'customer_item_reference'],
   },
   '0101_proposal_contact': { column: ['com', 'proposals', 'contact_id'] },
+  /*
+   * 0102 nao cria coluna nem tabela: reescreve o `layout` da view `list` de `service-orders`
+   * no metadata store. A sonda verifica o efeito REAL — a flag `in_list` do campo `origin`,
+   * que continua publicado na lista depois da poda de colunas.
+   */
+  '0102_service_order_worklist_columns': {
+    fieldFlag: ['meta', 'fields', 'service-orders', 'origin', 'in_list'],
+  },
 };
 
 /**
