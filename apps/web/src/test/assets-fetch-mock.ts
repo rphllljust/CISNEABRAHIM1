@@ -218,6 +218,34 @@ export function createAssetsFetchMock(options: AssetsFetchMockOptions = {}) {
     const { pathname, searchParams } = parseRequestPath(input);
     const method = init?.method ?? 'GET';
 
+    /*
+      GRANTS PUBLICADOS PELA SESSÃO (`/me`).
+
+      As telas de Ativo projetam capability de `/me` desde que a sonda por POST foi removida. Cada
+      grant abaixo deriva da MESMA flag que o handler já honra, então desligar a flag continua
+      negando de fato. Sem esta resposta a sessão nunca fica pronta e as ações de ciclo de vida
+      somem — o teste mediria o mock, não o produto.
+    */
+    if (pathname === '/api/v1/me' && method === 'GET') {
+      return jsonResponse({
+        usuario: {
+          id: '11111111-1111-4111-8111-111111111111',
+          nome: null,
+          email: null,
+          identity_id: '11111111-1111-4111-8111-111111111111',
+        },
+        permissoes_efetivas: [
+          ...(listAllowed ? ['resources:asset:list', 'resources:asset:read'] : []),
+          ...(createAllowed ? ['resources:asset:create'] : []),
+          ...(updateAllowed ? ['resources:asset:update'] : []),
+          ...(deactivateAllowed ? ['resources:asset:deactivate'] : []),
+          ...(activateAllowed ? ['resources:asset:activate'] : []),
+        ],
+        escopo_ativo: null,
+        escopos_disponiveis: [{ tipo: 'GLOBAL', resource_id: null, label: 'Global' }],
+      });
+    }
+
     if (pathname === '/api/v1/resources/physical-resource-types') {
       const auth = init?.headers ? new Headers(init.headers).get('authorization') : null;
       if (!auth?.startsWith('Bearer ')) {

@@ -9,6 +9,14 @@ export const MOCK_UNIT_ID = 'UN-DEV-001';
 
 export type ShellFetchMockOptions = {
   probeAllowed?: boolean;
+  /**
+   * Grants adicionais publicados por `GET /api/v1/me`, somados ao conjunto padrão.
+   *
+   * Cada dublê de domínio que delega ao shell (pessoas, por exemplo) declara em `/me` os mesmos
+   * grants que suas flags de handler já governam. Sem isso, a tela projeta capability vazia e
+   * nega por falta de declaração — o teste mediria o mock, não o produto.
+   */
+  extraPermissions?: string[];
 };
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -85,6 +93,7 @@ export function createShellFetchMock(options: ShellFetchMockOptions = {}) {
           'documents:document:create',
           'documents:document:upload-version',
           'documents:document:download',
+          ...(options.extraPermissions ?? []),
         ],
         escopo_ativo: null,
         escopos_disponiveis: [{ tipo: 'GLOBAL', resource_id: null, label: 'Global' }],

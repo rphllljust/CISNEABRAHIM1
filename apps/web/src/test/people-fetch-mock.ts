@@ -44,12 +44,31 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 export function createPeopleFetchMock(options: PeopleFetchMockOptions = {}) {
-  const shellMock = createShellFetchMock({ probeAllowed: options.probeAllowed });
   const listAllowed = options.personListAllowed ?? true;
   const createAllowed = options.personCreateAllowed ?? true;
   const updateAllowed = options.personUpdateAllowed ?? true;
   const deactivateAllowed = options.personDeactivateAllowed ?? true;
   const activateAllowed = options.personActivateAllowed ?? true;
+
+  /*
+    GRANTS PUBLICADOS PELA SESSÃO (`/me`).
+
+    As telas de Pessoa projetam capability de `/me` desde que a sonda por POST foi removida. Cada
+    grant abaixo deriva da MESMA flag que o handler já honra, então desligar a flag continua
+    negando de fato (o cenário de acesso negado permanece exercitável).
+  */
+  const personGrants = [
+    ...(listAllowed ? ['people:person:list', 'people:person:read'] : []),
+    ...(createAllowed ? ['people:person:create'] : []),
+    ...(updateAllowed ? ['people:person:update'] : []),
+    ...(deactivateAllowed ? ['people:person:deactivate'] : []),
+    ...(activateAllowed ? ['people:person:activate'] : []),
+  ];
+
+  const shellMock = createShellFetchMock({
+    probeAllowed: options.probeAllowed,
+    extraPermissions: personGrants,
+  });
   const laborTypes = options.laborTypes ?? [{ code: 'OPERATOR', name: 'Operador' }];
 
   const store: Person[] = options.seed

@@ -99,6 +99,35 @@ function createAssetBuilderFetchMock(
       });
     }
 
+    /*
+      GRANTS PUBLICADOS PELA SESSÃO.
+
+      A tela de Ativo projeta capability de `/me` desde que a sonda por POST foi removida. Sem esta
+      resposta, a sessão nunca fica pronta e a tela renderiza bloqueada — os testes mediam a ausência
+      do mock. `resources:asset:create` deriva de `createAllowed`, a MESMA flag que o handler de POST
+      já honra: desligá-la continua produzindo negação real.
+    */
+    if (pathname === '/api/v1/me' && method === 'GET') {
+      return jsonResponse({
+        usuario: {
+          id: '00000000-0000-4000-8000-000000000001',
+          nome: null,
+          email: null,
+          identity_id: '00000000-0000-4000-8000-000000000001',
+        },
+        permissoes_efetivas: [
+          'resources:asset:list',
+          'resources:asset:read',
+          'resources:asset:update',
+          'resources:asset:deactivate',
+          'resources:asset:activate',
+          ...(options.createAllowed === false ? [] : ['resources:asset:create']),
+        ],
+        escopo_ativo: null,
+        escopos_disponiveis: [{ tipo: 'GLOBAL', resource_id: null, label: 'Global' }],
+      });
+    }
+
     if (
       pathname === '/api/v1/requests/service-requests/operational-units' &&
       method === 'GET'
