@@ -118,6 +118,15 @@ describe('Client financial context integration', () => {
   }
 
   /**
+   * FUSO DO NEGÓCIO — a única noção de "hoje" que este spec usa.
+   *
+   * É o mesmo valor que o oráculo (`buildReceivablePositionsSql`) recebe em `asOf`. A âncora das
+   * datas de fixture deriva dele para que "ontem" signifique onteAntes para o oráculo e para o
+   * serviço, independentemente do fuso do servidor de CI.
+   */
+  const BUSINESS_TIMEZONE = 'America/Porto_Velho';
+
+  /**
    * Posição canônica por título — a MESMA consulta que a tela de títulos usa para classificar.
    * Serve de ORÁCULO contra o agregado do read model.
    */
@@ -125,7 +134,7 @@ describe('Client financial context integration', () => {
     const sql = buildReceivablePositionsSql({ scopeClause: '$1::text IS NOT NULL', tzParam: '$2' });
     const rows = await pool.query<{ status: string; remaining: string; principal: string }>(sql, [
       clientId,
-      'America/Porto_Velho',
+      BUSINESS_TIMEZONE,
     ]);
     return rows.rows;
   }
@@ -133,18 +142,22 @@ describe('Client financial context integration', () => {
   /**
    * DATAS ANCORADAS NO RELÓGIO DO BANCO, NÃO NO DO NODE.
    *
-   * O banco roda em `America/Cuiaba` (UTC-4) e classifica vencimento com `CURRENT_DATE` — que é a
-   * data LOCAL do servidor. Calcular "ontem" com `Date.now()` e fatiar em UTC produz, à noite, uma
-   * data que ainda é HOJE para o banco: os títulos não apareciam como vencidos e o teste falhava
-   * acusando o serviço, quando o defeito estava na expectativa.
+   * Calcular "ontem" com `Date.now()` e fatiar em UTC produz, à noite, uma data que ainda é HOJE
+   * para a regra: os títulos não apareciam como vencidos e o teste acusava o serviço, quando o
+   * defeito estava na expectativa. `CURRENT_DATE - n` faz a âncora vir do banco.
    *
-   * `CURRENT_DATE - n` faz a âncora vir da MESMA fonte que a regra sob teste. Um teste de
-   * vencimento não pode depender de duas noções diferentes de "hoje".
+   * FUSO: a âncora tem de ser o MESMO de `asOf` no oráculo
+   * (`buildReceivablePositionsSql` usa `(NOW() AT TIME ZONE 'America/Porto_Velho')::date`).
+   * `CURRENT_DATE` é a data local da SESSÃO, não necessariamente a do negócio: com o servidor de CI
+   * em UTC, entre 00:00 e 04:00 UTC `CURRENT_DATE` está um dia À FRENTE de Porto Velho (UTC-4).
+   * Nessa janela `due_date = ontem(UTC)` cai em "hoje" no fuso do negócio, a regra canônica lê o
+   * título como OPEN e o teste falha por relógio, não por comportamento. Ancorar no fuso do negócio
+   * elimina a janela e mantém a regra financeira intacta.
    */
   async function dbDate(offsetDays: number): Promise<string> {
     const row = await pool.query<{ d: string }>(
-      `SELECT (CURRENT_DATE + $1::int)::text AS d`,
-      [offsetDays],
+      `SELECT ((NOW() AT TIME ZONE $2::text)::date + $1::int)::text AS d`,
+      [offsetDays, BUSINESS_TIMEZONE],
     );
     return row.rows[0]!.d;
   }
