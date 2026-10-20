@@ -54,30 +54,36 @@ describe('ServiceOrderBillingDocumentPage', () => {
     expect(screen.getByText(/PDF persistido é gerado exclusivamente pelo backend/i)).toBeInTheDocument();
   });
 
-  it('shows the business chain so billing connects to what it generated', async () => {
-    vi.stubGlobal(
-      'fetch',
-      createServiceOrdersFetchMock({
-        orderCompleted: true,
-        seedMeasurement: 'approved',
-        seedBilling: 'prepared',
-        purchaseOrderPaymentTerms: '30 DDL',
-      }),
-    );
+  /*
+    A CADELA ANCORA NO DOCUMENTO EMITIDO, NAO NO REGISTRO.
+
+    Este teste trava o defeito corrigido: a tela pedia
+    `/business-chain/BILLING_DOCUMENT/<id do REGISTRO DE FATURAMENTO>`. O backend resolve a
+    ancora em `rpt.read_billing_documents` — a tabela de DOCUMENTOS EMITIDOS. Com o id do
+    registro nenhum no era encontrado e a resposta era 403 na superficie autorizada.
+
+    Aqui o faturamento está PREPARADO e SEM documento emitido: nao existe ancora valida, e a
+    tela nao deve sequer disparar a consulta (segundo caminho para o mesmo 403).
+  */
+  it('não consulta a cadeia sem documento emitido — não há âncora válida', async () => {
+    const fetchMock = createServiceOrdersFetchMock({
+      orderCompleted: true,
+      seedMeasurement: 'approved',
+      seedBilling: 'prepared',
+      purchaseOrderPaymentTerms: '30 DDL',
+    });
+    vi.stubGlobal('fetch', fetchMock);
     renderBillingRoutes(documentPath);
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /OS-2026-DEMO01/i })).toBeInTheDocument();
     });
 
-    const chain = await screen.findByRole('heading', { name: /cadeia de negócio do faturamento/i });
-    const section = chain.closest('section');
-    expect(section).not.toBeNull();
-    // Continuidade real: o que foi executado e o que o faturamento gerou.
-    expect(within(section!).getAllByText(/MED-2026-0001/).length).toBeGreaterThan(0);
-    expect(within(section!).getAllByText(/AR-0001/).length).toBeGreaterThan(0);
-    // Elos navegaveis por clique.
-    expect(within(section!).getAllByRole('link').length).toBeGreaterThan(0);
+    const chainCalls = fetchMock.mock.calls.filter((call) => {
+      const url = typeof call[0] === 'string' ? call[0] : String((call[0] as Request).url ?? '');
+      return url.includes('/business-chain/');
+    });
+    expect(chainCalls).toHaveLength(0);
   });
 
   it('blocks issuance when commercial terms mismatch is unresolved', async () => {

@@ -128,19 +128,56 @@ export function ServiceOrderBillingDocumentPage() {
   const order = state.phase === 'ready' ? state.order : null;
   const documents = state.phase === 'ready' ? state.documents : [];
 
-  // Cadeia empresarial ancorada no REGISTRO de faturamento: mostra de onde veio
-  // (medição/OS) e o que ele gerou (recebível), sem o front remontar linhagem.
-  const businessChain = useBusinessChain('BILLING_DOCUMENT', billing?.id ?? '');
+  /*
+    DOCUMENTO ATIVO — o emitido. É a chave da cadeia empresarial, o estado do documento e a
+    origem do emissor/numero no preview. Um único ponto de verdade na tela.
+  */
+  const activeDocument = documents.find((doc) => doc.status === 'FINALIZED');
 
-  const commercialReferenceLabel = useMemo(
-    () => readCommercialReferenceLabel(billing?.commercialReferenceSnapshot ?? null),
-    [billing],
-  );
+  /*
+    CADEIA EMPRESARIAL ANCORADA NO DOCUMENTO EMITIDO.
+
+    DEFEITO CORRIGIDO: a ancora era `billing?.id`, o identificador do REGISTRO de faturamento.
+    A rota `/business-chain/BILLING_DOCUMENT/:id` resolve o no em `rpt.read_billing_documents`
+    — a tabela de DOCUMENTOS EMITIDOS, cuja chave e o id do documento, nao o do registro.
+    Com o id errado nenhum no era encontrado, `anchorAuthorized` ficava falso e o backend
+    respondia 403 (corretamente: o anchor pedido nao existia). A tela exibia erro de cadeia
+    numa superficie autorizada a le-lo.
+
+    Passa agora o id do documento ativo. Sem documento emitido nao ha cadeia a ancorar — e a
+    consulta nao e disparada com id vazio, segundo caminho para o mesmo 403.
+  */
+  const businessChain = useBusinessChain('BILLING_DOCUMENT', activeDocument?.id ?? '');
+
+  /*
+    REFERENCIA COMERCIAL — o snapshot do faturamento guarda `proposalId` (UUID), nao o numero
+    humano da proposta. Sem numero, o rotulo caia no generico "Referencia comercial", que nao
+    identifica nada. O numero real existe na OS (`proposalSnapshot.proposalNumber`) e e o mesmo
+    fato ja congelado quando a OS nasceu; por isso a OS e a segunda fonte legitima, nao uma
+    invencao do front.
+  */
+  const proposalNumberFromOrder = useMemo(() => {
+    const snapshot = order?.proposalSnapshot as { proposalNumber?: unknown } | null | undefined;
+    const value = snapshot?.proposalNumber;
+    return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+  }, [order]);
 
   const poNumber =
     billing?.purchaseOrderId && order?.purchaseOrderSnapshot
       ? ((order.purchaseOrderSnapshot as { poNumber?: string }).poNumber ?? billing.purchaseOrderId)
       : null;
+
+  const commercialReferenceLabel = useMemo(
+    () =>
+      readCommercialReferenceLabel(billing?.commercialReferenceSnapshot ?? null, {
+        proposalNumber: proposalNumberFromOrder,
+        purchaseOrderNumber:
+          order?.purchaseOrderSnapshot && typeof order.purchaseOrderSnapshot === 'object'
+            ? ((order.purchaseOrderSnapshot as { poNumber?: unknown }).poNumber as string | undefined)
+            : null,
+      }),
+    [billing, order, proposalNumberFromOrder],
+  );
 
   const termsDivergence = useMemo(() => {
     if (!billing || !order) {
@@ -163,8 +200,6 @@ export function ServiceOrderBillingDocumentPage() {
     }
     return null;
   }, [billing, order]);
-
-  const activeDocument = documents.find((doc) => doc.status === 'FINALIZED');
 
   /**
    * RASTREABILIDADE IMPRESSA — cada valor vem de um campo já existente.
@@ -366,8 +401,45 @@ export function ServiceOrderBillingDocumentPage() {
         <p className="billing-page__eyebrow">Nota Fatura digital</p>
         <div className="billing-page__title-row">
           <h1>{order.orderNumber}</h1>
-          <BillingStatusBadge status={billing.status} />
         </div>
+        {/*
+          DOIS ESTADOS, DOIS CONCEITOS — não é o mesmo fato publicado duas vezes.
+
+          `billing.status` é o estado do PROCESSO de faturamento da OS (PREPARED enquanto a base
+          está preparada e o documento ainda pode ser emitido; VOIDED quando o processo foi
+          anulado). `activeDocument.status` é o estado do DOCUMENTO emitido (FINALIZED; CANCELLED
+          se substituído ou cancelado).
+
+          Antes, o cabeçalho mostrava apenas o primeiro, rotulado "Em preparação", e o documento
+          impresso mostrava o segundo, rotulado "Emitida" — na mesma superfície, sem dizer que
+          eram coisas diferentes. A tela parecia contradizer-se.
+
+          Agora cada estado aparece com o nome do que descreve. Não houve alteração de valor,
+          origem ou autoridade: os dois continuam vindo do backend, intocados.
+        */}
+        <dl className="billing-doc-states" aria-label="Estados do faturamento">
+          <div className="billing-doc-states__item">
+            <dt>Processo de faturamento</dt>
+            <dd>
+              <BillingStatusBadge status={billing.status} />
+            </dd>
+          </div>
+          <div className="billing-doc-states__item">
+            <dt>Documento emitido</dt>
+            <dd>
+              {activeDocument ? (
+                <>
+                  <BillingStatusBadge status={activeDocument.status} />
+                  <span className="billing-doc-states__ref">
+                    {activeDocument.documentNumber}
+                  </span>
+                </>
+              ) : (
+                <span className="billing-doc-states__none">Nenhum documento emitido</span>
+              )}
+            </dd>
+          </div>
+        </dl>
         <p className="billing-page__meta">
           Documento interno · PDF gerado pelo servidor
         </p>

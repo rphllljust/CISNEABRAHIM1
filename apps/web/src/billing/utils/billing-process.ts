@@ -80,23 +80,39 @@ export function suggestDeclaredPaymentTerms(order: ServiceOrderDetail): string {
   return resolveAuthoritativePaymentTerms(order)?.value ?? '';
 }
 
-export function readCommercialReferenceLabel(snapshot: Record<string, unknown> | null | undefined): string {
-  if (!snapshot) {
-    return '—';
-  }
-  const poNumber = snapshot.poNumber ?? snapshot.purchaseOrderNumber;
+/**
+ * Rótulo da REFERÊNCIA COMERCIAL do faturamento.
+ *
+ * O snapshot do faturamento congela `proposalId`/`purchaseOrderId` — UUIDs — e não o número
+ * humano que identifica o documento comercial do cliente. Quando o snapshot já traz o número,
+ * ele manda. Quando não traz, a segunda fonte é o próprio registro de origem (OS), que carrega
+ * `proposalSnapshot.proposalNumber` e `purchaseOrderSnapshot.poNumber` congelados no nascimento
+ * da OS. Ambas são fontes autoritativas já persistidas — nenhuma é derivada aqui.
+ *
+ * Sem nenhuma das duas o rótulo diz "Referência não registrada": ausência explícita, nunca um
+ * genérico que pareça dado.
+ */
+export function readCommercialReferenceLabel(
+  snapshot: Record<string, unknown> | null | undefined,
+  fallback?: { proposalNumber?: string | null; purchaseOrderNumber?: string | null } | null,
+): string {
+  const poNumber =
+    snapshot?.poNumber ??
+    snapshot?.purchaseOrderNumber ??
+    fallback?.purchaseOrderNumber ??
+    null;
   if (typeof poNumber === 'string' && poNumber.trim()) {
     return `PO ${poNumber.trim()}`;
   }
-  const proposalNumber = snapshot.proposalNumber;
+  const proposalNumber = snapshot?.proposalNumber ?? fallback?.proposalNumber ?? null;
   if (typeof proposalNumber === 'string' && proposalNumber.trim()) {
     return `Proposta ${proposalNumber.trim()}`;
   }
-  const contractReference = snapshot.contractReference;
+  const contractReference = snapshot?.contractReference;
   if (typeof contractReference === 'string' && contractReference.trim()) {
     return `Contrato ${contractReference.trim()}`;
   }
-  return 'Referência comercial';
+  return 'Referência não registrada';
 }
 
 export function readDocumentLabels(snapshot: Record<string, unknown> | null | undefined): string[] {
