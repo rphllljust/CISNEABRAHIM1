@@ -27,7 +27,12 @@ export type RequestsFetchMockOptions = {
   requestStatus?: ServiceRequest['status'];
   versionConflictOnUpdate?: boolean;
   clientListAllowed?: boolean;
-  documents?: DocumentsFetchMockOptions;
+  /**
+   * Grants de documento publicados por `/me`. Ausente = o conjunto completo (read/list/create/
+   * upload-version/download), que é o que o painel precisa para renderizar. Uma suíte que prova
+   * ausência de permissão passa `grants: []`.
+   */
+  documents?: DocumentsFetchMockOptions & { grants?: string[] };
   linkedChain?: ServiceRequestLinked[];
 };
 
@@ -320,6 +325,23 @@ export function createRequestsFetchMock(options: RequestsFetchMockOptions = {}) 
     const method = init?.method ?? 'GET';
 
     if (pathname === '/api/v1/me' && method === 'GET') {
+      /*
+        GRANTS DE DOCUMENTO.
+
+        `useDocumentCapabilities` projeta as capabilities do painel a partir de `/me` (antes ele
+        inferia permissão disparando mutações com IDs sintéticos). Sem estes grants aqui, o painel
+        recebia lista vazia de permissões e renderizava "Você não tem permissão para visualizar
+        documentos neste escopo" em TODA suíte que monta o componente — o teste media a ausência
+        da declaração, não o comportamento do produto. Mesmo critério que o restante deste arquivo
+        já usa para `requests:*`.
+      */
+      const documentPermissions = [
+        'documents:document:read',
+        'documents:document:list',
+        'documents:document:create',
+        'documents:document:upload-version',
+        'documents:document:download',
+      ];
       const permissions = [
         ...(listAllowed ? ['requests:service-request:list', 'requests:service-request:read'] : []),
         ...(createAllowed ? ['requests:service-request:create'] : []),
@@ -331,6 +353,7 @@ export function createRequestsFetchMock(options: RequestsFetchMockOptions = {}) 
         ...(cancelAllowed ? ['requests:service-request:cancel'] : []),
         'requests:service-request:convert',
         ...(options.clientListAllowed !== false ? ['client:client:list', 'client:client:read'] : []),
+        ...(options.documents?.grants ?? documentPermissions),
       ];
       return jsonResponse({
         usuario: {

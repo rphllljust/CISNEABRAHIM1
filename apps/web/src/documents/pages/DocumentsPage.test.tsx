@@ -203,7 +203,11 @@ describe('DocumentsPage', () => {
     await waitFor(() => {
       expect(listQueries(mock).some((params) => params.get('categoryCode') === 'EVIDENCE')).toBe(true);
     });
-    expect(screen.getByRole('combobox', { name: 'Tipo' })).toHaveValue('EVIDENCE');
+    // A listagem já saiu, mas a barra de filtros só monta quando as capabilities de sessão
+    // publicadas por `/me` resolvem — a asserção espera a barra, não assume que ela veio junto.
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'Tipo' })).toHaveValue('EVIDENCE');
+    });
   });
 
   it('distinguishes an empty catalogue from a search without results, and offers a way back', async () => {

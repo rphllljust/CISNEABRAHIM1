@@ -304,6 +304,21 @@ function createFetchMock(options: MockOptions = {}) {
           ...(po.canUpdate ? ['commercial:purchase-order:update'] : []),
           ...(po.canRegister ? ['commercial:purchase-order:register'] : []),
           ...(po.canCancel ? ['commercial:purchase-order:cancel'] : []),
+          /*
+            PESSOA e ATIVO — este mock já declara as flags `person`/`asset` acima, e as telas
+            projetam capability de `/me`. Cada grant deriva da MESMA flag que o handler equivalente
+            já honra, então desligá-la continua negando de fato.
+          */
+          'people:person:list',
+          'people:person:read',
+          ...(person.canUpdate ? ['people:person:update'] : []),
+          ...(person.canActivate ? ['people:person:activate'] : []),
+          ...(person.canDeactivate ? ['people:person:deactivate'] : []),
+          'resources:asset:list',
+          'resources:asset:read',
+          ...(asset.canUpdate ? ['resources:asset:update'] : []),
+          ...(asset.canActivate ? ['resources:asset:activate'] : []),
+          ...(asset.canDeactivate ? ['resources:asset:deactivate'] : []),
         ],
         escopo_ativo: null,
         escopos_disponiveis: [{ tipo: 'GLOBAL', resource_id: null, label: 'Global' }],

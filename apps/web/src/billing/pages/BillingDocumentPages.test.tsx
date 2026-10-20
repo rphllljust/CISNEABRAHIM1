@@ -35,12 +35,22 @@ describe('ServiceOrderBillingDocumentPage', () => {
 
     expect(screen.getByRole('navigation', { name: /etapas do documento/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /resumo do faturamento/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /dados do cliente/i })).toBeInTheDocument();
+    // "Dados do cliente" aparece duas vezes com propósitos distintos: a SEÇÃO da página
+    // (`#doc-client`, h2) e o título dentro da pré-visualização da nota (`#nf-client-heading`, h3).
+    // A asserção fixa a seção pelo seu container; o preview é verificado à parte, no <article>.
+    const clientSection = document.querySelector('#doc-client') as HTMLElement;
+    expect(clientSection).toBeTruthy();
+    expect(within(clientSection).getByRole('heading', { name: /dados do cliente/i })).toBeInTheDocument();
     expect(screen.getByRole('article', { name: /pré-visualização da nota fatura/i })).toBeInTheDocument();
     expect(screen.getByRole('article', { name: /pré-visualização da nota fatura/i })).toHaveTextContent(
       'NOTA FATURA',
     );
-    expect(screen.getByText(/Atribuído na emissão/i)).toBeInTheDocument();
+    // "Atribuído na emissão" é o RÓTULO do número do documento e aparece em três pontos da nota
+    // (header, campo do bloco e rodapé). A asserção fixa o lugar contratual: o número no header.
+    const previewArticle = screen.getByRole('article', { name: /pré-visualização da nota fatura/i });
+    expect(previewArticle.querySelector('.nf-header__doc-number')).toHaveTextContent(
+      /Atribuído na emissão/i,
+    );
     expect(screen.getByText(/PDF persistido é gerado exclusivamente pelo backend/i)).toBeInTheDocument();
   });
 
@@ -194,7 +204,12 @@ describe('ServiceOrderBillingDocumentPage', () => {
       expect(screen.getByLabelText(/pré-visualização da nota fatura/i)).toBeInTheDocument();
     });
 
-    expect(screen.getByLabelText(/data de vencimento/i)).toBeInTheDocument();
+    // O campo de vencimento só existe quando a emissão está liberada (`canIssue`), que depende da
+    // LISTA DE DOCUMENTOS já carregada (`hasActiveFinalizedDocument`) além do preview. Esperar o
+    // preview não garante essa lista; a espera é pelo próprio campo, que é a condição contratual.
+    await waitFor(() => {
+      expect(screen.getByLabelText(/data de vencimento/i)).toBeInTheDocument();
+    });
     expect(document.querySelector('.billing-doc-preview')).toBeTruthy();
     expect(document.querySelector('.billing-doc-sticky-actions')).toBeTruthy();
     expect(document.querySelector('.billing-doc-workflow-nav')).toBeTruthy();

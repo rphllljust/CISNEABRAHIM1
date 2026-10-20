@@ -1937,6 +1937,25 @@ export function createServiceOrdersFetchMock(options: ServiceOrdersFetchMockOpti
           'measurements:measurement:review',
           'measurements:measurement:approve',
           'measurements:measurement:reject',
+          /*
+            BILLING — espelha as flags DESTE dublê, que já são de faturamento.
+
+            O mock responde `/api/v1/billing/worklist`, aceita `BillingSeedKind` e declara
+            `billingAllowed`/`billingReadAllowed`/`billingDocumentAllowed` com default `true`. As
+            telas projetam capability de `/me`; servir billing sem publicar o grant correspondente
+            publica uma sessão incompleta do próprio contrato — a tela nega por falta de declaração,
+            não por defeito. Cada grant abaixo é condicionado à MESMA flag que o handler já honra,
+            então desligá-la continua produzindo negação real.
+          */
+          ...(billingReadAllowed !== false
+            ? ['billing:billing-record:read', 'billing:billing-document:read']
+            : []),
+          ...(billingAllowed !== false
+            ? ['billing:billing-record:prepare', 'billing:billing-record:void']
+            : []),
+          ...(billingDocumentAllowed !== false
+            ? ['billing:billing-document:issue', 'billing:billing-document:download']
+            : []),
         ],
         escopo_ativo: null,
         escopos_disponiveis: [{ tipo: 'GLOBAL', resource_id: null, label: 'Global' }],
