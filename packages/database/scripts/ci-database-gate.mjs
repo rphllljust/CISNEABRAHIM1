@@ -1278,6 +1278,38 @@ async function assertPreDeltaState(connectionString, deltaFile) {
       return;
     }
 
+    /*
+      0102_service_order_worklist_columns — poda de colunas secundárias na worklist de OS.
+
+      O delta NÃO cria artefato de schema: reescreve `meta.views.layout` da view `list` de
+      `service-orders`, tirando `internal_code` e `created_at` da fila. Por isso a prova é de
+      CONTEÚDO, não de coluna: no baseline a lista ainda publica as seis colunas originais, e
+      a migration é justamente o que remove duas delas.
+
+      Um baseline sem a view (ou com layout inesperado) não prova nada — nesse caso o gate
+      falha, porque `syncDrizzleJournal` registraria a migration como aplicada sem evidência.
+    */
+    if (deltaFile === '0102_service_order_worklist_columns.sql') {
+      const listColumns = await client.query(
+        `SELECT v.layout -> 'columns' AS columns
+           FROM "meta"."views" v
+           JOIN "meta"."entities" e ON e.id = v.entity_id
+          WHERE e.name = 'service-orders'
+            AND v.view_type = 'list'
+          LIMIT 1`,
+      );
+      const columns = listColumns.rows[0]?.columns;
+      if (!Array.isArray(columns)) {
+        throw new Error('Incremental baseline has no service-orders list view before 0102');
+      }
+      if (!columns.includes('internal_code')) {
+        throw new Error(
+          'Incremental baseline incorrectly omits service-orders internal_code before 0102',
+        );
+      }
+      return;
+    }
+
     throw new Error(`Unsupported incremental delta migration: ${deltaFile}`);
   } finally {
     await client.end();
