@@ -16,6 +16,15 @@ export type FinanceListQuery = {
   sortBy?: string;
   sortDir?: string;
   /**
+   * Faixa de aging (contas a pagar).
+   *
+   * Tipado aqui — e não como string livre — porque a faixa é um CONJUNTO FECHADO. Aceitar
+   * qualquer texto e deixar o SQL comparar produziria lista vazia, que o operador leria
+   * como "não há títulos nesta faixa" quando na verdade a faixa pedida não existe. Valor
+   * desconhecido é recusado com 400.
+   */
+  agingBucket?: string;
+  /**
    * Filtro composto já parseado contra o allow-list da ENTIDADE.
    *
    * O parser é genérico
@@ -28,6 +37,23 @@ export type FinanceListQuery = {
 
 const SORT_DIRECTIONS = new Set(['asc', 'desc']);
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Faixas de aging aceitas — espelham `PAYABLE_AGING_BUCKETS` do domínio.
+ *
+ * Declaradas aqui (e não importadas do domínio) por dependência de camada: o DTO é da borda
+ * HTTP e não deve depender do domínio de UM módulo financeiro. Há um teste de contrato
+ * garantindo que as duas listas permanecem iguais.
+ */
+const AGING_BUCKETS = new Set([
+  'SETTLED',
+  'CANCELLED',
+  'CURRENT',
+  '1_30',
+  '31_60',
+  '61_90',
+  '90_PLUS',
+]);
 
 function badRequest(): FinanceHttpException {
   return new FinanceHttpException(
@@ -84,7 +110,20 @@ export function parseFinanceListQuery(query: Record<string, unknown>): FinanceLi
     // Direcao desconhecida NAO vira default silencioso: e recusada. O default `desc` e
     // aplicado apenas quando o parametro esta ausente.
     sortDir: parseOptionalSortDir(query['sortDir']),
+    agingBucket: parseOptionalAgingBucket(query['agingBucket']),
   };
+}
+
+/** Faixa de aging conhecida ou ausente. Valor fora do conjunto fechado é 400, nunca vazio. */
+function parseOptionalAgingBucket(value: unknown): string | undefined {
+  const parsed = parseOptionalString(value);
+  if (parsed === undefined) {
+    return undefined;
+  }
+  if (!AGING_BUCKETS.has(parsed)) {
+    throw badRequest();
+  }
+  return parsed;
 }
 
 /** Data ISO (`AAAA-MM-DD`) ou ausente. Formato inesperado e recusado, nunca coagido. */

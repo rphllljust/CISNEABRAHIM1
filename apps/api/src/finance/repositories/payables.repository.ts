@@ -29,6 +29,7 @@ import type {
   ReversePaymentPersistenceInput,
 } from './payables.repository.types';
 import {
+  buildAgingBucketExpr,
   buildPayableAdvancedClause,
   type PayableAdvancedFilter,
 } from './payable-list-sql';
@@ -137,6 +138,8 @@ export class PayablesRepository {
     search?: string;
     /** Filtro composto já validado pelo contrato; ausente = sem recorte composto. */
     advanced?: PayableAdvancedFilter;
+    /** Faixa de aging — predicado canônico, o mesmo do summary e do aging agregado. */
+    agingBucket?: string;
     limit: number;
     offset: number;
     sortBy: 'due_date' | 'created_at';
@@ -190,6 +193,20 @@ export class PayablesRepository {
       }
     }
 
+    /*
+     * FAIXA DE AGING — primeiro passo de filtragem de faixa no SERVIDOR.
+     *
+     * Antes, `agingBucket` existia só na serialização: era um rótulo calculado depois que a
+     * página já tinha sido escolhida. Como consequência, "filtrar por 31-60" não recortava
+     * nada — a tela filtrava em memória sobre a página atual e o `total` continuava sendo o
+     * da carteira. Agora entra no `WHERE`, então `total`, paginação e drilldown falam da
+     * MESMA faixa.
+     */
+    if (input.agingBucket) {
+      params.push(input.agingBucket);
+      where.push(`${buildAgingBucketExpr('CURRENT_DATE')} = $${params.length}`);
+    }
+
     const whereSql = `WHERE ${where.join(' AND ')}`;
     // Ordenacao por allow-list; `due_date` + `id` garante ordem TOTAL (sem empate entre paginas).
     const sortColumn = input.sortBy === 'due_date' ? 'r.due_date' : 'r.created_at';
@@ -221,6 +238,8 @@ export class PayablesRepository {
     dueFrom?: string;
     dueTo?: string;
     search?: string;
+    /** Faixa de aging — MESMO predicado da lista e do aging agregado. */
+    agingBucket?: string;
   }): Promise<Array<{
     currency_code: string;
     total_count: string;
@@ -249,8 +268,22 @@ export class PayablesRepository {
     if (input.dueFrom) { params.push(input.dueFrom); where.push(`r.due_date >= ${params.length}::date`); }
     if (input.dueTo) { params.push(input.dueTo); where.push(`r.due_date <= ${params.length}::date`); }
     if (input.search) {
-      params.push(`%${input.search.replace(/[%_\\]/g, '\\  async listAll(): Promise<PayableRow[]> {')}%`);
-      where.push(`r.external_reference ILIKE ${params.length}`);
+      /*
+       * Curinga escapado, mesmo tratamento de `listPage`: o termo e do operador e nunca vira
+       * padrao livre no servidor. O placeholder PRECISA ser substituido por `$n` — o valor
+       * `params.length` sozinho produz `ILIKE 3`, que o Postgres rejeita.
+       */
+      params.push(`%${input.search.replace(/[%_\\]/g, '\\$&')}%`);
+      where.push(`r.external_reference ILIKE $${params.length}`);
+    }
+    if (input.agingBucket) {
+      /*
+       * Sumário respeita a faixa: se a tela mostra "31-60", os totais publicados são os da
+       * faixa, não os da carteira inteira. Mesma expressão da lista — impossível concordarem
+       * por acidente e divergirem por manutenção.
+       */
+      params.push(input.agingBucket);
+      where.push(`${buildAgingBucketExpr('CURRENT_DATE')} = $${params.length}`);
     }
     const result = await this.pool().query<{
       currency_code: string; total_count: string; open_count: string; overdue_count: string;
@@ -270,6 +303,65 @@ export class PayablesRepository {
        FROM fin.payables r
        WHERE ${where.join(' AND ')}
        GROUP BY r.currency_code ORDER BY r.currency_code`,
+      params,
+    );
+    return result.rows;
+  }
+
+  /**
+   * AGING AUTORITATIVO — agregacao no BANCO sobre a carteira INTEIRA do escopo.
+   *
+   * ANTES: `PayablesAccessService.aging()` pedia `list({ limit: AGING_SCAN_LIMIT })` e
+   * agregava as linhas em memoria. Isso fazia a pagina representar a carteira: com mais
+   * titulos que o limite, o resto simplesmente nao existia no calculo, e o aging publicado
+   * era o aging da PRIMEIRA PAGINA. Page != dataset.
+   *
+   * AGORA: uma unica consulta agrega por faixa. O `WHERE` de escopo/filtro e o MESMO da
+   * listagem, entao lista, summary e aging falam do mesmo conjunto por construcao.
+   *
+   * A classificacao reproduz `classifyPayableAging` no SQL, e nao em TS, para que o numero
+   * publicado nao dependa de quantas linhas couberam na memoria:
+   *   - lifecycle = 'CANCELLED'                 -> CANCELLED
+   *   - restante <= 0                           -> SETTLED
+   *   - dias de atraso <= 0                     -> CURRENT
+   *   - <= 30 / <= 60 / <= 90 / > 90            -> 1_30 / 31_60 / 61_90 / 90_PLUS
+   *
+   * `as_of` entra como parametro tipado: o corte de data e o mesmo que a tela exibe, sem
+   * depender do relogio do processo nem do fuso do servidor.
+   */
+  async agingBuckets(input: {
+    scopeClause: string;
+    scopeParams: unknown[];
+    asOf: string;
+  }): Promise<Array<{ bucket: string; count: string; remaining: string; currency_code: string }>> {
+    const params: unknown[] = [...input.scopeParams];
+    params.push(input.asOf);
+    const asOfParam = `$${params.length}::date`;
+
+    // Faixa vem da expressão CANÔNICA compartilhada com a lista e o filtro composto.
+    const bucketExpr = buildAgingBucketExpr(asOfParam);
+
+    // Saldo restante precisa usar a MESMA expressão que a faixa — senão o valor somado em
+    // "1_30" poderia não ser o saldo do título que foi classificado em "1_30".
+    const paidExpr = `COALESCE((
+        SELECT sum(CASE WHEN p.reverses_payment_id IS NULL THEN p.amount ELSE -p.amount END)
+        FROM fin.payments p WHERE p.payable_id = r.id), 0)`;
+    const remainingExpr = `(r.principal - ${paidExpr})`;
+
+    const result = await this.pool().query<{
+      bucket: string;
+      count: string;
+      remaining: string;
+      currency_code: string;
+    }>(
+      `SELECT ${bucketExpr} AS bucket,
+              count(*)::text AS count,
+              COALESCE(sum(${remainingExpr}), 0)::text AS remaining,
+              r.currency_code
+         FROM fin.payables r
+        WHERE ${input.scopeClause}
+        GROUP BY ${bucketExpr}, r.currency_code
+        ORDER BY bucket, r.currency_code`,
       params,
     );
     return result.rows;
