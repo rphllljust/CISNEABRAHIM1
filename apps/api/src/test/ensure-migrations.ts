@@ -90,8 +90,33 @@ async function columnExists(
   return result.rows[0]?.exists === true;
 }
 
-function readMigrationSql(filePath: string): string {
-  const bytes = readFileSync(filePath);
+/**
+ * A worklist de OS ja foi podada (migration 0102)?
+ *
+ * A 0102 nao cria artefato de schema: ela reescreve `meta.views.layout` da view `list` de
+ * `service-orders` para que `internal_code` e `created_at` saiam da fila. A sonda pergunta
+ * pelo RESULTADO — o campo esta fora da lista — porque e isso que a migration entrega.
+ *
+ * Ausencia de qualquer um dos elementos (view, layout) conta como "ainda nao aplicada": sem
+ * view publicada a worklist nao tem coluna nenhuma, e o migrator precisa rodar.
+ */
+async function serviceOrderListOmitsInternalCode(pool: pg.Pool): Promise<boolean> {
+  const result = await pool.query<{ columns: unknown }>(
+    `SELECT v.layout -> 'columns' AS columns
+       FROM "meta"."views" v
+       JOIN "meta"."entities" e ON e.id = v.entity_id
+      WHERE e.name = 'service-orders'
+        AND v.view_type = 'list'
+      LIMIT 1`,
+  );
+  const columns = result.rows[0]?.columns;
+  if (!Array.isArray(columns)) {
+    return false;
+  }
+  return !columns.includes('internal_code');
+}
+
+function readMigrationSql(filePath: string): string {  const bytes = readFileSync(filePath);
   const isUtf16Le =
     bytes.length >= 2 &&
     ((bytes[0] === 0xff && bytes[1] === 0xfe) || (bytes.length >= 4 && bytes[1] === 0 && bytes[3] === 0));
@@ -995,6 +1020,15 @@ $$;`);
     const hasProposalContact = await columnExists(pool, 'com', 'proposals', 'contact_id');
     if (!hasProposalContact) {
       await applySqlFile(pool, '0101_proposal_contact.sql');
+    }
+
+    /*
+     * 0102 nao cria coluna nem tabela: reescreve o `layout` da view `list` de `service-orders`.
+     * O efeito e a PODA de colunas secundarias da worklist. A sonda pergunta pelo resultado —
+     * `internal_code` fora da lista — e nao pela existencia de um artefato de schema.
+     */
+    if (!(await serviceOrderListOmitsInternalCode(pool))) {
+      await applySqlFile(pool, '0102_service_order_worklist_columns.sql');
     }
 
     await syncDrizzleJournal(pool);
