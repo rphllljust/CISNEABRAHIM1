@@ -1256,6 +1256,28 @@ async function assertPreDeltaState(connectionString, deltaFile) {
       return;
     }
 
+    /*
+      0101_proposal_contact — aponta a proposta para o CONTATO do cliente.
+
+      O delta é aditivo: `com.proposals.contact_id` (uuid, anulável) e o índice de busca. A
+      verificação é de COLUNA, não de tabela: `com.proposals` já existe no baseline, então provar a
+      tabela não distinguiria "a coluna foi criada" de "a migration nunca rodou".
+    */
+    if (deltaFile === '0101_proposal_contact.sql') {
+      const contactColumn = await client.query(
+        `SELECT 1
+         FROM information_schema.columns
+         WHERE table_schema = 'com'
+           AND table_name = 'proposals'
+           AND column_name = 'contact_id'
+         LIMIT 1`,
+      );
+      if ((contactColumn.rowCount ?? 0) > 0) {
+        throw new Error('Incremental baseline incorrectly contains com.proposals.contact_id before 0101');
+      }
+      return;
+    }
+
     throw new Error(`Unsupported incremental delta migration: ${deltaFile}`);
   } finally {
     await client.end();
