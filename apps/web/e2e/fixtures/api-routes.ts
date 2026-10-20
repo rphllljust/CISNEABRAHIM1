@@ -31,6 +31,22 @@ type RouteContext = {
 };
 
 const VISUAL_PROFILE_PERMISSIONS: Partial<Record<ApiMockProfile, readonly string[]>> = {
+  /*
+   * BILLING — a suíte visual de faturamento usa o perfil `billing-empty`, mas ele não publicava
+   * capability nenhuma. Sem `billing:billing-record:read` a página de Faturamento interno nega
+   * acesso corretamente ("Acesso negado… exigida para esta área"), e o teste falhava antes de
+   * chegar ao snapshot — pelo mesmo motivo em todas as execuções.
+
+   * O perfil serve a worklist vazia (`/billing/worklist`) e precisa das MESMAS capabilities de
+   * leitura que a tela exige. Nenhuma permissão de ESCRITA é publicada: a baseline é de estado
+   * vazio, e emitir/cancelar não faz parte do que ela retrata.
+   */
+  'billing-empty': [
+    'billing:billing-record:list',
+    'billing:billing-record:read',
+    'billing:billing-record:prepare',
+    'billing:billing-document:read',
+  ],
   clients: [
     'client:client:list',
     'client:client:create',

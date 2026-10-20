@@ -100,7 +100,7 @@ test.describe('medicao da primeira dobra — 1600x900', () => {
 
   test('dashboard — situacao, trabalho, processo e contexto na primeira dobra', async ({ page }) => {
     await page.goto('/app');
-    await expect(page.getByRole('heading', { level: 1, name: /visão geral/i })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /central de operações/i })).toBeVisible();
     await stabilizePage(page);
 
     /*

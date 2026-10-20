@@ -38,7 +38,7 @@ test.describe('prova do vazio /app', () => {
       });
     });
     await page.goto('/app');
-    await expect(page.getByRole('heading', { level: 1, name: /visão geral/i })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /central de operações/i })).toBeVisible();
     await stabilizePage(page);
 
     const queue = page.locator('.dashboard-queue');

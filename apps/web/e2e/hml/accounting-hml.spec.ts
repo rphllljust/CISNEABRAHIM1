@@ -66,7 +66,7 @@ function attachGuards(page: Page): { jsErrors: string[]; serverErrors: string[] 
 async function signIn(page: Page): Promise<void> {
   await page.goto(`${HML_WEB}/login`, { waitUntil: 'domcontentloaded' });
   const alreadySignedIn = await page
-    .getByRole('heading', { level: 1, name: /visão geral/i })
+    .getByRole('heading', { level: 1, name: /central de operações/i })
     .isVisible()
     .catch(() => false);
   if (!alreadySignedIn) {
@@ -76,7 +76,7 @@ async function signIn(page: Page): Promise<void> {
     await page.getByLabel(/^senha/i).fill(HML_PASSWORD);
     await page.getByRole('button', { name: /^entrar/i }).click();
   }
-  await expect(page.getByRole('heading', { level: 1, name: /visão geral/i })).toBeVisible({
+  await expect(page.getByRole('heading', { level: 1, name: /central de operações/i })).toBeVisible({
     timeout: 30_000,
   });
 }

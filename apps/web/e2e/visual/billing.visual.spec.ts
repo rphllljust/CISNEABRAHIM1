@@ -15,7 +15,17 @@ test.describe('billing dashboard visual regression', () => {
   });
 
   test('billing work queue empty state', async ({ page }) => {
-    await expect(page.locator('#main-content.billing-page')).toHaveScreenshot('billing-empty.png', {
+    /*
+     * ALVO DO SNAPSHOT — o landmark real da página.
+     *
+     * O spec mirava `#main-content.billing-page`. A classe `billing-page` não existe no
+     * Faturamento interno: a página é composta por `ModulePage` (que publica `#main-content`) e
+     * pelo `WorklistHeader`. O locator nunca resolvia — o teste ficava em timeout antes de
+     * comparar qualquer pixel, e o snapshot persistido jamais foi exercitado.
+     *
+     * Mesmo defeito e mesma correção já aplicados em `dashboard.visual.spec.ts`.
+     */
+    await expect(page.locator('#main-content')).toHaveScreenshot('billing-empty.png', {
       animations: 'disabled',
     });
   });
