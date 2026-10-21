@@ -156,6 +156,19 @@ export type TaxRule = {
   code: string;
   name: string;
   status: string;
+  versions: Array<{
+    id: string;
+    taxRuleId: string;
+    versionNumber: number;
+    status: string;
+    calculationMethod: string;
+    roundingMode: string;
+    rate: string | null;
+    fixedAmount: string | null;
+    sourceReference: string;
+    effectiveFrom: string;
+    effectiveTo: string | null;
+  }>;
 };
 
 export type TaxCalculation = {
