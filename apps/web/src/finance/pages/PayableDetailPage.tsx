@@ -30,9 +30,12 @@ import {
   type ObjectStateStep,
 } from '../../enterprise-object';
 import { ActivityTimeline, type ActivityFact } from '../../operator';
+import { useCommands, type CommandContext } from '../../platform/commands';
+import { useMe } from '../../service-orders/context/SessionMetaProvider';
 import { cancelPayable, getPayable, payPayable, reversePayable } from '../api/finance-api';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import { FinanceStatusBadge } from '../components/FinanceStatusBadge';
+import { FINANCE_ENTITIES, PAYABLE_COMMAND_IDS } from '../commands/finance-commands';
 import type { PayableDetail, Payment } from '../types/finance.types';
 import { buildReversePaymentPayload, selectReversablePayments } from '../utils/payable-actions';
 
@@ -164,6 +167,8 @@ export function payableStateSteps(item: PayableDetail): {
  */
 export function PayableDetailPage() {
   const { payableId = '' } = useParams();
+  /** Permissões efetivas do ator (`/me`). Vazio até carregar — e vazio não autoriza. */
+  const { permissions } = useMe();
   const [reversalPaymentId, setReversalPaymentId] = useState('');
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [showCancelForm, setShowCancelForm] = useState(false);
@@ -173,6 +178,40 @@ export function PayableDetailPage() {
     mapError: mapFinanceErrorToMessage,
     enabled: Boolean(payableId),
   });
+
+  /*
+   * COMANDO DO TÍTULO — resolvido AQUI, antes de qualquer `return` antecipado.
+   *
+   * Regra de hooks: a lista de hooks precisa ser idêntica em todo render. A página tem retornos
+   * antecipados para idle/loading/denied/error; resolver o comando DEPOIS deles mudaria a
+   * quantidade de hooks entre o render de carregamento e o de sucesso ("Rendered more hooks than
+   * during the previous render"). Por isso o contexto usa apenas o que já existe neste ponto — e
+   * `state.phase !== 'ready'` significa estado DESCONHECIDO, que na Command Layer bloqueia
+   * transições (fail-closed) sem esconder navegação.
+   */
+  const commandContext: CommandContext = {
+    entity: FINANCE_ENTITIES.payable,
+    state: state.phase === 'ready' ? state.data.status : null,
+    lifecycle: state.phase === 'ready' ? state.data.lifecycle : null,
+    /*
+     * CAPABILITIES DO ATOR, resolvidas pelo servidor em `/me`.
+     *
+     * Enquanto não carregam, o conjunto é VAZIO — e o contrato do registry é fail-closed: sem
+     * capability, o comando fica `hidden`. Renderizar a ação "enquanto carrega" produziria o
+     * piscar de botão que some depois, e o operador já teria se preparado para clicar.
+     */
+    capabilities: permissions,
+    target:
+      state.phase === 'ready'
+        ? { id: state.data.id, reference: state.data.externalReference ?? state.data.id }
+        : undefined,
+  };
+
+  const { commands: payableCommands } = useCommands(commandContext);
+
+  /** Veredito de um comando pelo id. `null` = comando não registrado. */
+  const commandAvailability = (id: string) =>
+    payableCommands.find((command) => command.definition.id === id)?.availability ?? null;
 
   /*
    * Estados de página resolvidos pela MESMA moldura do recebível: negação, ausência e falha não
@@ -262,26 +301,55 @@ export function PayableDetailPage() {
   );
 
   /*
-   * COMANDOS DO TÍTULO — apresentados como COMMANDS, com disponibilidade derivada do estado.
-   * Cada um abre o formulário que o servidor exige (valor/motivo), porque são operações com
-   * validação de versão, saldo e idempotência: não são um "editar status".
+   * COMANDOS DO TÍTULO — disponibilidade decidida pela COMMAND LAYER, não por esta tela.
+   *
+   * ANTES: esta página montava `secondaryActions` com `disabled` calculado localmente a partir de
+   * `reversablePayments`. A MESMA ação tinha regra própria aqui e outra na lista — e a divergência
+   * entre elas era o defeito que a frente de Command Layer existe para eliminar. Pior: sem
+   * capability declarada, o botão aparecia para quem o servidor recusaria.
+   *
+   * AGORA: os comandos vêm do registry (`finance.payable.registerPayment`,
+   * `finance.payable.reversePayment`, `finance.payable.cancel`), com capability real, estados
+   * permitidos e entrada obrigatória declarados UMA vez em `finance-commands.ts`. Esta página só
+   * declara o CONTEXTO (entidade, estado, lifecycle, capabilities) e traduz o comando escolhido no
+   * formulário que o servidor exige — porque estas operações têm versão, saldo e idempotência, e
+   * não são um "editar status".
+   *
+   * O servidor continua sendo a autoridade final: ele revalida capability, estado e rowVersion.
    */
+  /**
+   * Ação de cabeçalho e ações secundárias derivam do MESMO veredito da Command Layer.
+   *
+   * `hidden` (sem capability) continua sendo ausência total: nem rótulo, nem contagem. `disabled`
+   * aparece com o motivo REAL que o registry calculou — estado ou entrada pendente —, em vez do
+   * motivo genérico que a página inventava.
+   */
+  const paymentAvailability = commandAvailability(PAYABLE_COMMAND_IDS.pay);
+  const reversalAvailability = commandAvailability(PAYABLE_COMMAND_IDS.reversePayment);
+  const cancelAvailability = commandAvailability(PAYABLE_COMMAND_IDS.cancel);
+
   const secondaryActions: ObjectAction[] = [];
-  if (!closed) {
+  if (reversalAvailability && reversalAvailability.status !== 'hidden') {
     secondaryActions.push({
       id: 'reverse-payment',
       label: 'Estornar pagamento',
-      disabled: reversablePayments.length === 0,
-      disabledReason: 'Não há pagamento estornável neste título.',
+      disabled: reversalAvailability.status !== 'available',
+      disabledReason:
+        reversalAvailability.status === 'disabled' ? reversalAvailability.reason : undefined,
       onSelect: () => {
         setShowPaymentForm(false);
         setShowCancelForm(false);
         document.getElementById('reversal-payment-select')?.focus();
       },
     });
+  }
+  if (cancelAvailability && cancelAvailability.status !== 'hidden') {
     secondaryActions.push({
       id: 'cancel',
       label: 'Cancelar título',
+      disabled: cancelAvailability.status !== 'available',
+      disabledReason:
+        cancelAvailability.status === 'disabled' ? cancelAvailability.reason : undefined,
       onSelect: () => {
         setShowPaymentForm(false);
         setShowCancelForm(true);
@@ -337,11 +405,23 @@ export function PayableDetailPage() {
             subtitle={item.origin.reference ?? undefined}
             status={{ label: statusLabel, tone: toneForStatusSafe(item.status) }}
             primaryAction={
-              closed
+              /*
+               * Ação primária segue o MESMO veredito da Command Layer que as secundárias.
+               *
+               * `hidden` (sem `finance:payable:pay`) devolve `null`: a ação não existe para este
+               * ator — nem rótulo, nem botão cinza. `disabled` aparece com o motivo real calculado
+               * pelo registry (título liquidado/cancelado, estado desconhecido).
+               */
+              !paymentAvailability || paymentAvailability.status === 'hidden'
                 ? null
                 : {
                     id: 'pay',
                     label: 'Registrar pagamento',
+                    disabled: paymentAvailability.status !== 'available',
+                    disabledReason:
+                      paymentAvailability.status === 'disabled'
+                        ? paymentAvailability.reason
+                        : undefined,
                     onSelect: () => {
                       setShowCancelForm(false);
                       setShowPaymentForm(true);
