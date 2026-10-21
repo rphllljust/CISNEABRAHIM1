@@ -1,15 +1,15 @@
 import type { ArgumentsHost } from '@nestjs/common';
 import { FILTER_CATCH_EXCEPTIONS } from '@nestjs/common/constants';
 import { describe, expect, it } from 'vitest';
-import { PayableValidationError } from '../../finance/domain/payable.validation';
-import { ReceivableValidationError } from '../../finance/domain/receivable.validation';
-import { TreasuryValidationError } from '../../finance/domain/treasury.validation';
+import { PayableValidationError } from '../domain/payable.validation';
+import { ReceivableValidationError } from '../domain/receivable.validation';
+import { TreasuryValidationError } from '../domain/treasury.validation';
 import { FinanceValidationFilter } from './finance-validation.filter';
 
 /**
  * ENTRADA INVALIDA DO FINANCEIRO = 400, NUNCA 500.
  *
- * O defeito medido em producao (SHA 55537b00), em
+ * O defeito medido em PRODUCAO (SHA 55537b00), em
  * `POST /finance/receivables/:id/settlements`:
  *
  *   amount vazio        -> HTTP 500 INTERNAL_ERROR
@@ -23,9 +23,6 @@ import { FinanceValidationFilter } from './finance-validation.filter';
  *
  * Consequencia operacional: erro de digitacao do operador chegava como "erro interno do
  * servidor" e poluia o monitoramento como falha de infraestrutura.
- *
- * Estes testes cobrem o FILTRO. O teste de contrato de ponta a ponta (status HTTP real) vive no
- * e2e do Financeiro, porque exige a aplicacao montada.
  */
 
 function createHost(): { host: ArgumentsHost; status: number[]; body: unknown[] } {
@@ -67,13 +64,13 @@ describe('FinanceValidationFilter', () => {
     expect(status).toEqual([400]);
     expect(status).not.toContain(500);
 
-    const payload = body[0] as { error: { code: string; field: string; correlationId: string } };
+    const payload = body[0] as { error: { code: string; field: string } };
     expect(payload.error.code).toBe('FINANCE_VALIDATION_FAILED');
     // O campo invalido acompanha a resposta: o cliente destaca o input em vez de adivinhar.
     expect(payload.error.field).toBe('amount');
   });
 
-  it('devolve o NOME do campo, e nao o payload recebido', () => {
+  it('devolve o NOME do campo, e nao o valor recebido', () => {
     /*
      * `field` e nome de campo do contrato publico. Ecoar o valor recebido seria reflexao de
      * entrada: um `amount` com HTML voltaria no corpo da resposta.
@@ -92,9 +89,7 @@ describe('FinanceValidationFilter', () => {
      * filtro os capturasse, tudo viraria 400 e o cliente perderia a distincao entre "voce
      * mandou errado" e "o objeto mudou" — que exige reacao diferente.
      *
-     * O teste garante que o filtro e ESTREITO: so as tres classes de validacao.
-     * `FILTER_CATCH_EXCEPTIONS` e a constante oficial do Nest onde `@Catch(...)` guarda as
-     * classes declaradas.
+     * O filtro declara exatamente as TRES classes de validacao, nada mais.
      */
     const registered = Reflect.getMetadata(
       FILTER_CATCH_EXCEPTIONS,

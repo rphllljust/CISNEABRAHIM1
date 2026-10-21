@@ -1,4 +1,4 @@
-import { Controller, Get, HttpCode, HttpStatus, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus, Param, Post, Query, Req, UseFilters, UseGuards } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import { CurrentAuth } from '../../auth/decorators/current-auth.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -9,6 +9,7 @@ import {
   type ReceivableAdvancedFilter,
 } from '../repositories/receivable-list-sql';
 import { FinanceHttpException } from '../errors/finance-http.exception';
+import { FinanceValidationFilter } from '../errors/finance-validation.filter';
 import { FINANCE_ERROR_CODES } from '../errors/finance-error-codes';
 import {
   validateCancelReceivableInput,
@@ -41,6 +42,7 @@ function parseReceivableAdvancedFilterOrThrow(
 }
 
 @Controller('finance/receivables')
+@UseFilters(FinanceValidationFilter)
 @UseGuards(JwtAuthGuard)
 export class ReceivablesController {
   constructor(private readonly receivablesAccess: ReceivablesAccessService) {}
