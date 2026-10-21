@@ -206,6 +206,8 @@ jobs:
         run: node scripts/ci/visual-regression-ratchet.mjs artifacts/ci/web-visual.log
       - name: Emit build metadata
         run: node scripts/ci-emit-build-metadata.mjs
+      - name: Package immutable Railway release
+        run: node scripts/cd/railway-immutable-release.mjs
       - name: Emit deploy manifest (artifact digest)
         run: node scripts/cd/emit-deploy-manifest.mjs
       - name: Upload build artifacts
@@ -217,18 +219,4 @@ jobs:
           path: |
             artifacts/ci/build-metadata.json
             artifacts/cd/deploy-manifest.json
-            apps/api/dist
-            apps/web/dist
-            packages/database/dist
-            packages/database/migrations
-            package.json
-            pnpm-workspace.yaml
-            pnpm-lock.yaml
-            apps/api/package.json
-            apps/web/package.json
-            packages/database/package.json
-            packages/eslint-config/package.json
-            packages/tsconfig/package.json
-            docker/release/Dockerfile.api
-            docker/release/Dockerfile.web
-            docker/railway/nginx.conf
+            artifacts/railway/release
