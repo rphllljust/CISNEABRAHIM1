@@ -117,13 +117,15 @@ jobs:
     needs: resolve-ci-artifact
     timeout-minutes: 35
     env:
-      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_API_TOKEN || secrets.RAILWAY_TOKEN }}
       RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID || 'feededf6-22ad-4f3e-b8d3-2ba577149d89' }}
       RAILWAY_PRODUCTION_ENVIRONMENT_ID: ${{ vars.RAILWAY_PRODUCTION_ENVIRONMENT_ID || '607953af-ae54-4aa2-a5cc-88fc0fe6247d' }}
       RAILWAY_HML_ENVIRONMENT_NAME: hml
       RAILWAY_API_SERVICE_ID: ${{ vars.RAILWAY_API_SERVICE_ID || '9a8120f5-1b31-4ca2-8f85-7bfcc78c1c4e' }}
       RAILWAY_WEB_SERVICE_ID: ${{ vars.RAILWAY_WEB_SERVICE_ID || '6c3a12aa-4287-4144-9a78-7a38aba2e270' }}
+      RAILWAY_POSTGRES_SERVICE_ID: ${{ vars.RAILWAY_POSTGRES_SERVICE_ID || 'dff29aaa-9d59-42eb-a479-5f93ebbc359e' }}
       CD_COMMIT_SHA: ${{ needs.resolve-ci-artifact.outputs.source_sha }}
+      CD_ARTIFACT_DIGEST: ${{ needs.resolve-ci-artifact.outputs.artifact_digest }}
       CD_BUILD_RUN_ID: ${{ needs.resolve-ci-artifact.outputs.ci_run_id }}
     steps:
       - uses: actions/checkout@v4
@@ -155,38 +157,88 @@ jobs:
       - name: Prepare immutable Railway release root
         run: node scripts/cd/railway-immutable-release.mjs
 
-      - name: Install Railway CLI
-        run: npm install --global @railway/cli@latest
+      - name: Install runtime tooling
+        run: |
+          pnpm install --frozen-lockfile --prefer-offline
+          npm install --global @railway/cli@5.23.3
 
       - id: hml
-        name: Ensure isolated Railway HML environment
+        name: Ensure isolated Railway HML environment and Postgres
         run: node scripts/cd/railway-ensure-hml.mjs
-
-      - name: Stamp HML release identity without triggering source deploy
-        env:
-          HML_ENV_ID: ${{ steps.hml.outputs.environment_id }}
-          RELEASE_SHA: ${{ needs.resolve-ci-artifact.outputs.source_sha }}
-          RELEASE_DIGEST: ${{ needs.resolve-ci-artifact.outputs.artifact_digest }}
-        run: |
-          set -euo pipefail
-          railway variable set CISNE_RELEASE_SHA="$RELEASE_SHA" CISNE_RELEASE_DIGEST="$RELEASE_DIGEST"             --project "$RAILWAY_PROJECT_ID" --environment "$HML_ENV_ID" --service "$RAILWAY_API_SERVICE_ID" --skip-deploys
-          railway variable set CISNE_RELEASE_SHA="$RELEASE_SHA" CISNE_RELEASE_DIGEST="$RELEASE_DIGEST"             --project "$RAILWAY_PROJECT_ID" --environment "$HML_ENV_ID" --service "$RAILWAY_WEB_SERVICE_ID" --skip-deploys
 
       - name: Deploy API immutable runtime bundle to HML
         env:
           HML_ENV_ID: ${{ steps.hml.outputs.environment_id }}
         run: |
-          cp docker/release/Dockerfile.api artifacts/railway/release/docker/hml/Dockerfile.api
-          railway up artifacts/railway/release --path-as-root --ci             --project "$RAILWAY_PROJECT_ID" --environment "$HML_ENV_ID"             --service "$RAILWAY_API_SERVICE_ID"             --message "CISNE HML ${{ needs.resolve-ci-artifact.outputs.source_sha }} ${{ needs.resolve-ci-artifact.outputs.artifact_digest }}"
+          railway up artifacts/railway/release --path-as-root \
+            --project "$RAILWAY_PROJECT_ID" \
+            --environment "$HML_ENV_ID" \
+            --service "$RAILWAY_API_SERVICE_ID" \
+            --message "CISNE HML ${{ needs.resolve-ci-artifact.outputs.source_sha }} ${{ needs.resolve-ci-artifact.outputs.artifact_digest }}"
 
       - name: Deploy Web immutable runtime bundle to HML
         env:
           HML_ENV_ID: ${{ steps.hml.outputs.environment_id }}
         run: |
-          cp docker/release/Dockerfile.web artifacts/railway/release/docker/railway/Dockerfile.web
-          railway up artifacts/railway/release --path-as-root --ci             --project "$RAILWAY_PROJECT_ID" --environment "$HML_ENV_ID"             --service "$RAILWAY_WEB_SERVICE_ID"             --message "CISNE HML ${{ needs.resolve-ci-artifact.outputs.source_sha }} ${{ needs.resolve-ci-artifact.outputs.artifact_digest }}"
+          railway up artifacts/railway/release --path-as-root \
+            --project "$RAILWAY_PROJECT_ID" \
+            --environment "$HML_ENV_ID" \
+            --service "$RAILWAY_WEB_SERVICE_ID" \
+            --message "CISNE HML ${{ needs.resolve-ci-artifact.outputs.source_sha }} ${{ needs.resolve-ci-artifact.outputs.artifact_digest }}"
 
-      - name: HML release evidence
+      - id: hml-domains
+        name: Resolve HML public domains
+        env:
+          HML_ENV_ID: ${{ steps.hml.outputs.environment_id }}
+        run: |
+          railway domain --project "$RAILWAY_PROJECT_ID" --environment "$HML_ENV_ID" --service "$RAILWAY_API_SERVICE_ID" --json > /tmp/hml-api-domain.json
+          railway domain --project "$RAILWAY_PROJECT_ID" --environment "$HML_ENV_ID" --service "$RAILWAY_WEB_SERVICE_ID" --json > /tmp/hml-web-domain.json
+          echo "api_url=$(node scripts/cd/extract-railway-domain.mjs /tmp/hml-api-domain.json)" >> "$GITHUB_OUTPUT"
+          echo "web_url=$(node scripts/cd/extract-railway-domain.mjs /tmp/hml-web-domain.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Generate ephemeral HML smoke credential
+        run: |
+          HML_LOGIN="hml-cd-${GITHUB_RUN_ID}@cisne.invalid"
+          HML_PASSWORD="$(openssl rand -hex 24)"
+          echo "::add-mask::$HML_PASSWORD"
+          echo "HML_SMOKE_LOGIN=$HML_LOGIN" >> "$GITHUB_ENV"
+          echo "HML_SMOKE_PASSWORD=$HML_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Bootstrap synthetic HML operator
+        env:
+          HML_ENV_ID: ${{ steps.hml.outputs.environment_id }}
+          HML_SYNTHETIC_SEED_CONFIRM: I_UNDERSTAND
+          BOOTSTRAP_CONFIRM: I_UNDERSTAND
+          BOOTSTRAP_ADMIN_LOGIN: ${{ env.HML_SMOKE_LOGIN }}
+          BOOTSTRAP_ADMIN_PASSWORD: ${{ env.HML_SMOKE_PASSWORD }}
+        run: |
+          railway run --project "$RAILWAY_PROJECT_ID" --environment "$HML_ENV_ID" --service "$RAILWAY_API_SERVICE_ID" \
+            node scripts/hml/bootstrap-synthetic.mjs
+
+      - name: HML readiness and authenticated smoke
+        env:
+          HML_PUBLIC_API_URL: ${{ steps.hml-domains.outputs.api_url }}
+        run: |
+          curl -fsS "$HML_PUBLIC_API_URL/api/v1/health/ready"
+          pnpm --filter @cisne/api hml:smoke
+
+      - name: Prove HML SHA and digest from deployed Web bits
+        env:
+          HML_PUBLIC_WEB_URL: ${{ steps.hml-domains.outputs.web_url }}
+          EXPECTED_SHA: ${{ needs.resolve-ci-artifact.outputs.source_sha }}
+          EXPECTED_DIGEST: ${{ needs.resolve-ci-artifact.outputs.artifact_digest }}
+        run: |
+          curl -fsS "$HML_PUBLIC_WEB_URL/release-manifest.json" -o /tmp/hml-release.json
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const manifest = JSON.parse(readFileSync('/tmp/hml-release.json', 'utf8'));
+          if (manifest.commitSha !== process.env.EXPECTED_SHA || manifest.artifactDigest !== process.env.EXPECTED_DIGEST) {
+            throw new Error(`DEPLOY REFUSED: HML provenance mismatch sha=${manifest.commitSha} digest=${manifest.artifactDigest}`);
+          }
+          console.log(`HML_SHA=${manifest.commitSha} HML_DIGEST=${manifest.artifactDigest}`);
+          NODE
+
+      - name: HML deployment evidence
         env:
           HML_ENV_ID: ${{ steps.hml.outputs.environment_id }}
         run: |
