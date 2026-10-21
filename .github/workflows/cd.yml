@@ -209,6 +209,19 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: cisne-promotion-${{ github.run_id }}
+          # MESMA ARMADILHA CORRIGIDA EM `resolve-ci-artifact`, e repetida aqui.
+          #
+          # `upload-artifact` remove o prefixo comum dos paths declarados. O bundle e upado com
+          # `artifacts/ci/build-metadata.json`, `artifacts/cd/deploy-manifest.json` e
+          # `artifacts/railway/release` — prefixo comum `artifacts/` — entao o zip publica
+          # `ci/`, `cd/` e `railway/` na RAIZ.
+          #
+          # Sem `path:`, o download joga esses diretorios na raiz do workspace e
+          # `scripts/cd/verify-provenance.mjs` procura `artifacts/ci/build-metadata.json`:
+          # ENOENT, job HML morre ANTES de qualquer deploy (medido no run 39675544425).
+          #
+          # Baixar sob `artifacts` recria o prefixo esperado pelos scripts.
+          path: artifacts
 
       - name: Verify HML provenance and digest
         env:
