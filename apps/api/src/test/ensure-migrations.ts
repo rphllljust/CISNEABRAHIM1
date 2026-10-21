@@ -1041,7 +1041,7 @@ $$;`);
      * registraria o hash como aplicado num banco onde a tabela nunca foi criada, e o migrator
      * passaria a pulá-la para sempre.
      */
-    if (!(await tableExists(pool, 'plt', 'saved_views'))) {
+    if (!(await tableExists(pool, 'plt.saved_views'))) {
       await applySqlFile(pool, '0103_saved_views.sql');
     }
 

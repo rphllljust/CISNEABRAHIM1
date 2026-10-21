@@ -1310,8 +1310,6 @@ async function assertPreDeltaState(connectionString, deltaFile) {
       return;
     }
 
-    }
-
     /*
       0103_saved_views — cria `plt.saved_views`, a persistência corporativa de Saved Views.
       O baseline (N-1) tem de estar SEM a tabela: se ela já existisse antes do delta, o gate não
