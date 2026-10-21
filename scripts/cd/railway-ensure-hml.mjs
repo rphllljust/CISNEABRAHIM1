@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { appendFileSync } from 'node:fs';
 
-const token = process.env.RAILWAY_TOKEN;
+const token = process.env.RAILWAY_API_TOKEN;
 const projectId = process.env.RAILWAY_PROJECT_ID;
 const sourceEnvironmentId = process.env.RAILWAY_PRODUCTION_ENVIRONMENT_ID;
 const apiServiceId = process.env.RAILWAY_API_SERVICE_ID;
@@ -12,7 +12,7 @@ const releaseDigest = process.env.CD_ARTIFACT_DIGEST;
 const name = process.env.RAILWAY_HML_ENVIRONMENT_NAME || 'hml';
 
 for (const [key, value] of Object.entries({
-  RAILWAY_TOKEN: token,
+  RAILWAY_API_TOKEN: token,
   RAILWAY_PROJECT_ID: projectId,
   RAILWAY_PRODUCTION_ENVIRONMENT_ID: sourceEnvironmentId,
   RAILWAY_API_SERVICE_ID: apiServiceId,
