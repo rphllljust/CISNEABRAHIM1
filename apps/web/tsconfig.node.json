@@ -4,5 +4,5 @@
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
     "noEmit": true
   },
-  "include": ["vite.config.ts", "eslint.config.mjs", "playwright.config.ts"]
+  "include": ["vite.config.ts", "eslint.config.mjs", "playwright.config.ts", "playwright.visual-critical.config.ts"]
 }
