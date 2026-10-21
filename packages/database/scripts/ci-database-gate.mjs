@@ -1310,6 +1310,25 @@ async function assertPreDeltaState(connectionString, deltaFile) {
       return;
     }
 
+    }
+
+    /*
+      0103_saved_views — cria `plt.saved_views`, a persistência corporativa de Saved Views.
+      O baseline (N-1) tem de estar SEM a tabela: se ela já existisse antes do delta, o gate não
+      provaria nada e `syncDrizzleJournal` registraria a migration como aplicada sem evidência.
+    */
+    if (deltaFile === '0103_saved_views.sql') {
+      const existing = await client.query(
+        `SELECT to_regclass('plt.saved_views') AS reg`,
+      );
+      if (existing.rows[0]?.reg !== null) {
+        throw new Error(
+          'Incremental baseline already contains plt.saved_views before 0103',
+        );
+      }
+      return;
+    }
+
     throw new Error(`Unsupported incremental delta migration: ${deltaFile}`);
   } finally {
     await client.end();
