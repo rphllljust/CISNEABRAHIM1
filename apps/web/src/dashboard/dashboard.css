@@ -5193,7 +5193,7 @@ a.dashboard-exceptions__row:focus-visible {
   min-height: 2.25rem;
 }
 
-@media (max-width: 1099px) {
+@media (min-width: 641px) and (max-width: 1099px) {
   .dashboard-cc[data-layout='operations-control-center'] .dashboard-chain__stages {
     border: 0;
     background: transparent;
