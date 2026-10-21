@@ -436,9 +436,9 @@ function TaxRuleDetail({ taxRuleId }: { taxRuleId: string }) {
           {/*
          * IDENTIDADE DA REGRA — faixa densa acima do detalhe, não cartão `rounded-xl p-6`.
          * Código, nome, situação e unidade continuam sendo exatamente os valores do servidor.
-         */
-        <section
-          className="mb-3 rounded-md border border-gray-200 bg-white"
+         */}
+          <section
+            className="mb-3 rounded-md border border-gray-200 bg-white"
           aria-label="Identificação da regra tributária"
         >
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-3 py-2">
