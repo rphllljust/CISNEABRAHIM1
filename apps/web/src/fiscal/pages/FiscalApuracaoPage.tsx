@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Button, DateTime, Money } from '../../ui';
-import { ModuleLoadingState, ModulePage, ModulePagination } from '../../ui/module-layout';
+import { ModuleErrorState, ModuleLoadingState, ModulePage, ModulePagination } from '../../ui/module-layout';
 import { cn } from '../../ui/utils/cn';
 import {
   EnterpriseMetric,
@@ -29,6 +29,7 @@ import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import { OperationalUnitOptions, useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
 import {
+  BackofficeApiError,
   getTaxCalculation,
   listTaxCalculations,
   reproduceTaxCalculation,
@@ -85,7 +86,8 @@ export function FiscalApuracaoPage() {
   const [items, setItems] = useState<TaxCalculationSummary[]>([]);
   const [preview, setPreview] = useState<TaxCalculationSummary | null>(null);
   const [total, setTotal] = useState(0);
-  const [listPhase, setListPhase] = useState<'idle' | 'loading' | 'ready' | 'denied' | 'error'>('idle');
+  const [listPhase, setListPhase] = useState<'idle' | 'loading' | 'ready' | 'forbidden' | 'error'>('idle');
+  const [retrying, setRetrying] = useState(false);
   const [offset, setOffset] = useState(0);
 
   const loader = useCallback((signal?: AbortSignal) => getTaxCalculation(activeId, signal), [activeId]);
@@ -109,28 +111,55 @@ export function FiscalApuracaoPage() {
     autoLoad: Boolean(activeId),
   });
 
-  useEffect(() => {
-    if (!applied) {
-      return;
-    }
-    const controller = new AbortController();
-    setListPhase('loading');
-    void listTaxCalculations(
-      { unitId: applied.unitId, q: applied.q || undefined, limit: PAGE_SIZE, offset },
-      controller.signal,
-    )
-      .then((response) => {
+  const loadList = useCallback(
+    async (signal?: AbortSignal, retainErrorState = false): Promise<void> => {
+      if (!applied) {
+        return;
+      }
+      if (!retainErrorState) {
+        setListPhase('loading');
+      }
+      try {
+        const response = await listTaxCalculations(
+          { unitId: applied.unitId, q: applied.q || undefined, limit: PAGE_SIZE, offset },
+          signal,
+        );
+        if (signal?.aborted) {
+          return;
+        }
         setItems(response.items);
         setTotal(response.total);
         setListPhase('ready');
-      })
-      .catch(() => {
+      } catch (error) {
+        if (signal?.aborted) {
+          return;
+        }
         setItems([]);
         setTotal(0);
-        setListPhase('denied');
-      });
+        setListPhase(
+          error instanceof BackofficeApiError && (error.status === 401 || error.status === 403)
+            ? 'forbidden'
+            : 'error',
+        );
+      }
+    },
+    [applied, offset],
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadList(controller.signal);
     return () => controller.abort();
-  }, [applied, offset]);
+  }, [loadList]);
+
+  const retryList = useCallback(async (): Promise<void> => {
+    setRetrying(true);
+    try {
+      await loadList(undefined, true);
+    } finally {
+      setRetrying(false);
+    }
+  }, [loadList]);
 
   const gate = activeId
     ? renderQueryGate(
@@ -247,12 +276,27 @@ export function FiscalApuracaoPage() {
         />
       ) : null}
 
-      {listPhase === 'denied' ? (
+      {listPhase === 'forbidden' ? (
         <WorklistStatePanel
           tone="critical"
           title="Sem permissão para listar apurações desta unidade"
           description="A consulta foi recusada pelo servidor. Esta unidade não está no seu escopo de leitura fiscal."
         />
+      ) : null}
+
+      {listPhase === 'error' ? (
+        <div className="flex flex-col gap-3">
+          <ModuleErrorState
+            title="Não foi possível carregar as apurações"
+            message="Ocorreu um erro ao comunicar com o servidor. Tente novamente em instantes."
+            retryable={false}
+          />
+          <div>
+            <Button type="button" variant="secondary" onClick={() => void retryList()} disabled={retrying}>
+              {retrying ? 'Tentando novamente…' : 'Tentar novamente'}
+            </Button>
+          </div>
+        </div>
       ) : null}
 
       {listPhase === 'loading' ? <ModuleLoadingState title="Apuração" message="Carregando apurações…" /> : null}
