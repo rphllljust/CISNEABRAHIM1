@@ -106,7 +106,10 @@ jobs:
   database-and-integration:
     name: Database gate / Integration / API E2E
     runs-on: ubuntu-latest
-    needs: [static-quality, unit-tests]
+    # SEM `needs`. Este job NAO consome artefato, cache ou resultado de `static-quality` nem de
+    # `unit-tests`: ele faz checkout proprio, instala dependencias e roda contra um PostgreSQL
+    # de servico proprio. A dependencia anterior era artificial e custava o tempo do job mais
+    # lento a todos os outros. Quem garante que TODOS precisam passar juntos e `release-ready`.
     timeout-minutes: 30
     services:
       postgres:
@@ -153,14 +156,66 @@ jobs:
       - name: API end-to-end tests
         run: pnpm test:e2e
 
-  build:
+  build-release:
     name: Build / artifacts
     runs-on: ubuntu-latest
-    needs: database-and-integration
+    # SEM `needs`. O pacote imutavel (artefato + manifest + digest) NAO depende do resultado de
+    # integracao ou de unidade — ele empacota o MESMO commit, e a promocao so acontece se
+    # `release-ready` confirmar que todos os gates passaram.
+    #
+    # Antes: `needs: database-and-integration` colocava o build atras do gate de ~21 min. O
+    # artefato ficava refem do job mais lento, e qualquer falha visual (que rodava DENTRO deste
+    # job) impedia o artefato de existir — foi o que travou uma correcao de backend por 13m19s
+    # sem que nada de errado houvesse no codigo.
     timeout-minutes: 45
     permissions:
       contents: read
       actions: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+      - name: Build
+        run: pnpm build
+      - name: Emit build metadata
+        run: node scripts/ci-emit-build-metadata.mjs
+      - name: Package immutable Railway release
+        run: node scripts/cd/railway-immutable-release.mjs
+      - name: Emit deploy manifest (artifact digest)
+        run: node scripts/cd/emit-deploy-manifest.mjs
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cisne-build-${{ github.run_id }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            artifacts/ci/build-metadata.json
+            artifacts/cd/deploy-manifest.json
+            artifacts/railway/release
+
+  visual-regression:
+    name: Visual regression
+    runs-on: ubuntu-latest
+    # JOB PROPRIO, sem `needs`. Antes rodava DENTRO de `build` — e como `continue-on-error`
+    # existisse apenas no step, uma falha de snapshot impedia `Emit build metadata`,
+    # `Package immutable release` e `Upload build artifacts` de rodarem (todos `skipped`).
+    # Resultado medido: 13m19s de build e o pacote imutavel nunca existiu, por causa de UI.
+    #
+    # A cobertura NAO diminui: o mesmo `pnpm test:visual`, o mesmo ratchet de divida, os mesmos
+    # artefatos de diagnostico. O que muda e que a falha de UI agora reprova ESTE job e o
+    # `release-ready`, em vez de matar a release inteira antes de o pacote ser produzido.
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -204,19 +259,58 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           VISUAL_OUTCOME: ${{ steps.web-visual.outcome }}
         run: node scripts/ci/visual-regression-ratchet.mjs artifacts/ci/web-visual.log
-      - name: Emit build metadata
-        run: node scripts/ci-emit-build-metadata.mjs
-      - name: Package immutable Railway release
-        run: node scripts/cd/railway-immutable-release.mjs
-      - name: Emit deploy manifest (artifact digest)
-        run: node scripts/cd/emit-deploy-manifest.mjs
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: cisne-build-${{ github.run_id }}
-          if-no-files-found: error
-          retention-days: 14
-          path: |
-            artifacts/ci/build-metadata.json
-            artifacts/cd/deploy-manifest.json
-            artifacts/railway/release
+
+  release-ready:
+    name: Release ready
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # AGREGADOR OBRIGATORIO — o UNICO contrato que o CD consome.
+    #
+    # O CD dispara em `workflow_run: [CI] types: [completed]` e aceita qualquer conclusao
+    # `success`. Sem um agregador, "a CI passou" pode significar "os jobs que rodaram passaram",
+    # e um job ausente nunca reprova. Este job transforma a topologia inteira em UM veredito:
+    # se qualquer gate required falhou, foi cancelado ou simplesmente nao rodou, aqui e `failure`.
+    #
+    # `if: always()` e deliberado: o job TEM de rodar mesmo quando um gate falha — e exatamente
+    # nesse caso que ele precisa reprovar. Um `release-ready` que nao roda quando algo falha
+    # seria um falso verde.
+    needs:
+      - static-quality
+      - unit-tests
+      - database-and-integration
+      - build-release
+      - visual-regression
+    if: always()
+    steps:
+      - name: Require every required gate to pass
+        env:
+          STATIC: ${{ needs.static-quality.result }}
+          UNIT: ${{ needs.unit-tests.result }}
+          DATABASE: ${{ needs.database-and-integration.result }}
+          BUILD: ${{ needs.build-release.result }}
+          VISUAL: ${{ needs.visual-regression.result }}
+        run: |
+          echo "static-quality            : $STATIC"
+          echo "unit-tests                : $UNIT"
+          echo "database-and-integration  : $DATABASE"
+          echo "build-release             : $BUILD"
+          echo "visual-regression         : $VISUAL"
+          failed=0
+          for pair in \
+            "static-quality:$STATIC" \
+            "unit-tests:$UNIT" \
+            "database-and-integration:$DATABASE" \
+            "build-release:$BUILD" \
+            "visual-regression:$VISUAL"
+          do
+            name="${pair%%:*}"
+            result="${pair##*:}"
+            if [ "$result" != "success" ]; then
+              echo "::error::required gate '$name' concluded '$result' — release is NOT ready"
+              failed=1
+            fi
+          done
+          if [ "$failed" -ne 0 ]; then
+            exit 1
+          fi
+          echo "release-ready: every required gate succeeded"
