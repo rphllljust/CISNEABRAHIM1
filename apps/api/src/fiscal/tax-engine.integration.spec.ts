@@ -323,6 +323,35 @@ describe('Tax engine PostgreSQL integration', () => {
       expect(otherUnit.items).toEqual([]);
     });
 
+    it('returns every persisted version in the authorized rule detail', async () => {
+      const actor = await seedActor();
+      const { rule, published } = await publishFixture(actor);
+      const draft = await tax.createVersion(actor, rule.id, {
+        calculationMethod: TAX_CALCULATION_METHODS.PercentOfBase,
+        rate: '7.0000',
+        sourceReference: TEST_FIXTURE_SOURCE_REFERENCE,
+        effectiveFrom: '2026-07-01',
+        effectiveTo: null,
+      });
+
+      const detail = await tax.getRule(actor, rule.id);
+
+      expect(detail.versions).toEqual([
+        expect.objectContaining({
+          id: draft.id,
+          versionNumber: 2,
+          status: 'DRAFT',
+          sourceReference: TEST_FIXTURE_SOURCE_REFERENCE,
+        }),
+        expect.objectContaining({
+          id: published.id,
+          versionNumber: 1,
+          status: 'PUBLISHED',
+          rate: published.rate,
+        }),
+      ]);
+    });
+
     it('denies the rule list without tax read authorization', async () => {
       const admin = await seedActor();
       const stranger = await seedActor(false);
