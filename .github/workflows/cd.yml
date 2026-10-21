@@ -28,13 +28,63 @@ env:
   RAILWAY_API_SERVICE_ID: 9a8120f5-1b31-4ca2-8f85-7bfcc78c1c4e
 
 jobs:
+  release-authority:
+    name: Assert release-ready authority
+    runs-on: ubuntu-latest
+    # AUTORIDADE DE RELEASE — o UNICO criterio que autoriza o CD.
+    #
+    # Antes: o CD se pendenurava em `workflow_run.conclusion == 'success'`, que significa
+    # apenas "os jobs que rodaram passaram". Um job required que nao rodou (condicao nao
+    # satisfeita, matriz vazia, cancelamento) NAO aparece na conclusao — e a release passava
+    # sem ele. "A CI passou" nao e a mesma afirmacao que "a release esta pronta".
+    #
+    # Agora o CD LE o veredito do job `release-ready` do run de CI e exige `success` explicito.
+    # Se o job nao existir (run antigo, antes desta arquitetura) ou nao tiver sucesso, o deploy
+    # e recusado — fail-closed.
+    if: github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch'
+    outputs:
+      authorized: ${{ steps.assert.outputs.authorized }}
+      ci_run_id: ${{ steps.assert.outputs.ci_run_id }}
+    steps:
+      - id: assert
+        name: Require release-ready == success
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IS_DISPATCH: ${{ github.event_name == 'workflow_dispatch' }}
+          RUN_ID: ${{ github.event.workflow_run.id || inputs.ci_run_id }}
+          WORKFLOW_SHA: ${{ github.event.workflow_run.head_sha || '' }}
+        run: |
+          set -euo pipefail
+          if [ -z "$RUN_ID" ]; then
+            echo "::error::No CI run id to resolve release authority from."
+            exit 1
+          fi
+          echo "ci_run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+
+          # A autoridade vem do JOB, nao da conclusao do run.
+          jobs_json=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs?per_page=100")
+          ready=$(printf '%s' "$jobs_json" | node --input-type=module -e '
+            let raw = "";
+            for await (const chunk of process.stdin) raw += chunk;
+            const jobs = JSON.parse(raw).jobs ?? [];
+            const job = jobs.find((entry) => entry.name === "Release ready");
+            if (!job) { console.log("MISSING"); process.exit(0); }
+            console.log(`${job.conclusion ?? job.status}`);
+          ')
+
+          echo "release-ready job: $ready"
+          if [ "$ready" != "success" ]; then
+            echo "::error::DEPLOY REFUSED — release-ready concluded '$ready', not 'success'. A release pode ser promovida apenas por veredito explicito de release-ready."
+            exit 1
+          fi
+          echo "authorized=true" >> "$GITHUB_OUTPUT"
+          echo "release authority granted for CI run $RUN_ID (sha ${WORKFLOW_SHA:-dispatch})"
+
   resolve-ci-artifact:
     name: Resolve CI artifact (build once)
     runs-on: ubuntu-latest
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == 'push')
+    needs: release-authority
+    if: needs.release-authority.outputs.authorized == 'true'
     outputs:
       ci_run_id: ${{ steps.resolve.outputs.ci_run_id }}
       source_sha: ${{ steps.provenance.outputs.source_sha }}
@@ -42,11 +92,8 @@ jobs:
     steps:
       - id: resolve
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.ci_run_id }}" ]; then
-            echo "ci_run_id=${{ inputs.ci_run_id }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "ci_run_id=${{ github.event.workflow_run.id }}" >> "$GITHUB_OUTPUT"
-          fi
+          # Consome exatamente o run de CI cuja release-ready autorizou a promocao.
+          echo "ci_run_id=${{ needs.release-authority.outputs.ci_run_id }}" >> "$GITHUB_OUTPUT"
 
       - name: Download CI immutable release
         uses: actions/download-artifact@v4
