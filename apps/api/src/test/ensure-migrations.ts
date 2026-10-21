@@ -1031,6 +1031,20 @@ $$;`);
       await applySqlFile(pool, '0102_service_order_worklist_columns.sql');
     }
 
+    /*
+     * 0103 cria `plt.saved_views` — a persistência corporativa de Saved Views, que substitui o
+     * `localStorage` como fonte e é o que torna `scope: ROLE` real (publicada para o perfil) em
+     * vez de uma marcação local.
+     *
+     * A sonda é a TABELA, não uma coluna dela: a migration cria o artefato inteiro, e a pergunta
+     * "a tabela existe" responde exatamente pelo efeito. Sem este bloco, `syncDrizzleJournal`
+     * registraria o hash como aplicado num banco onde a tabela nunca foi criada, e o migrator
+     * passaria a pulá-la para sempre.
+     */
+    if (!(await tableExists(pool, 'plt.saved_views'))) {
+      await applySqlFile(pool, '0103_saved_views.sql');
+    }
+
     await syncDrizzleJournal(pool);
   } finally {
     await pool.end();

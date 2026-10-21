@@ -23,7 +23,15 @@ import type {
 } from '../../platform/bounded-contexts/enterprise-core-ports';
 import { ENTERPRISE_CORE_PORT } from '../../platform/bounded-contexts/enterprise-core-ports';
 import { assertUuid } from '../../platform/kernel/uuid';
-import { PAYABLE_LIFECYCLES, PAYABLE_ORIGIN_KINDS, PayableError, summarizePayableAging, type PostedPayment } from '../domain/payable';
+import { sumMoneyAmounts } from '../../platform/kernel/money-math';
+import {
+  PAYABLE_LIFECYCLES,
+  PAYABLE_ORIGIN_KINDS,
+  PayableError,
+  emptyPayableAgingSummary,
+  type PayableAgingBucket,
+  type PayableAgingSummary,
+} from '../domain/payable';
 import {
   validateCancelPayableInput,
   validateCreateExpenseCategoryInput,
@@ -82,8 +90,16 @@ function buildPayablePage(
   return { items, limit, offset, total, totalPages: limit > 0 ? Math.ceil(total / limit) : 0 };
 }
 
-/** Maior lote aceito por `parseFinanceListQuery` — usado por agregacoes sobre a carteira. */
-const AGING_SCAN_LIMIT = 100;
+/**
+ * Data civil (`YYYY-MM-DD`) para o corte do aging no SQL.
+ *
+ * O bucket e decidido por DIA, nao por instante: `as_of - due_date` em SQL e subtracao de
+ * datas. Enviar um timestamp faria o Postgres comparar dia contra horario e mudar de faixa
+ * perto da meia-noite. UTC e o mesmo criterio de `calendarDaysOverdue` no dominio.
+ */
+function toDateOnly(value: Date): string {
+  return value.toISOString().slice(0, 10);
+}
 
 /**
  * Ordenacao por allow-list: nenhum nome de coluna vem do cliente.
@@ -206,7 +222,7 @@ export class PayablesAccessService implements FinancePayablePort {
    */
   async list(
     actor: IdentityAuthzContext,
-    query: { limit: number; offset: number; status?: string; q?: string; dueFrom?: string; dueTo?: string; sortBy?: string; sortDir?: string; advanced?: PayableAdvancedFilter },
+    query: { limit: number; offset: number; status?: string; q?: string; dueFrom?: string; dueTo?: string; sortBy?: string; sortDir?: string; advanced?: PayableAdvancedFilter; agingBucket?: string },
   ): Promise<PayableListResponse> {
     // Gate de LISTA (capability + grant aplicavel). Sem ele a negacao virava lista vazia.
     await this.authz.assertPayableList(actor);
@@ -217,7 +233,9 @@ export class PayablesAccessService implements FinancePayablePort {
       AUTHZ_RESOURCE_TYPES.FinancePayable,
     );
 
-    const scope = this.scopeEnforcement.buildFinancialTitleListFilter(grants);
+    const scope = this.scopeEnforcement.buildFinancialTitleListFilter(grants, undefined, {
+      supportsClientAnchor: false,
+    });
     if (scope.clause === 'FALSE') {
       return buildPayablePage([], query.limit, query.offset, 0);
     }
@@ -230,6 +248,7 @@ export class PayablesAccessService implements FinancePayablePort {
       dueTo: query.dueTo,
       search: query.q,
       advanced: query.advanced,
+      agingBucket: query.agingBucket,
       limit: query.limit,
       offset: query.offset,
       sortBy: normalizePayableSortBy(query.sortBy),
@@ -283,19 +302,22 @@ export class PayablesAccessService implements FinancePayablePort {
 
   async summary(
     actor: IdentityAuthzContext,
-    query: { status?: string; q?: string; dueFrom?: string; dueTo?: string },
+    query: { status?: string; q?: string; dueFrom?: string; dueTo?: string; agingBucket?: string },
   ): Promise<PayableSummaryResponse> {
     await this.authz.assertPayableList(actor);
     const grants = await this.authorizationRepository.findActiveGrants(
       actor.identityId, AUTHZ_ACTIONS.FinancePayableList, AUTHZ_RESOURCE_TYPES.FinancePayable,
     );
-    const scope = this.scopeEnforcement.buildFinancialTitleListFilter(grants);
+    const scope = this.scopeEnforcement.buildFinancialTitleListFilter(grants, undefined, {
+      supportsClientAnchor: false,
+    });
     if (scope.clause === 'FALSE') {
       return { total: 0, openCount: 0, overdueCount: 0, dueCount: 0, paidCount: 0, aging90PlusCount: 0, amounts: [] };
     }
     const rows = await this.repository.summarize({
       scopeClause: scope.clause, scopeParams: scope.params, status: query.status,
       dueFrom: query.dueFrom, dueTo: query.dueTo, search: query.q,
+      agingBucket: query.agingBucket,
     });
     return {
       total: rows.reduce((sum, row) => sum + Number(row.total_count), 0),
@@ -311,26 +333,86 @@ export class PayablesAccessService implements FinancePayablePort {
     };
   }
 
+  /**
+   * AGING SOBRE O DATASET COMPLETO.
+   *
+   * ANTES: `(await this.list(actor, { limit: AGING_SCAN_LIMIT })).items` — o aging agregava a
+   * PRIMEIRA PAGINA e publicava o resultado como se fosse a carteira. Duas consequencias
+   * concretas: com mais titulos que o limite, o excedente sumia do total; e o numero mudava
+   * se alguem alterasse o tamanho da pagina. Pagina nao e carteira.
+   *
+   * AGORA: a agregacao acontece no banco (`repository.agingBuckets`), sob o MESMO escopo de
+   * autorizacao da listagem e sem `LIMIT`. A semantica de faixa e a mesma de
+   * `classifyPayableAging` — as duas sao mantidas em paralelo de proposito, porque a tela
+   * classifica UMA linha e o aging agrega N, e as duas precisam concordar.
+   *
+   * AUSENCIA != ZERO: sem escopo aplicavel, `buildFinancialTitleListFilter` devolve `FALSE`
+   * e o retorno e "sem dados" — nao um aging de zeros que finge carteira vazia. Por isso
+   * `unavailable` acompanha a resposta: cada faixa so vira `0` quando a consulta REALMENTE
+   * respondeu por aquela faixa, e o campo `complete` diz se a resposta cobre o dataset.
+   */
   async aging(actor: IdentityAuthzContext, asOf?: Date) {
-    // Aging agrega sobre a carteira inteira do ator, nao sobre uma pagina: usa o maior
-    // lote permitido, com o mesmo escopo e filtro aplicados no SQL.
-    const details = (await this.list(actor, { limit: AGING_SCAN_LIMIT, offset: 0 })).items;
-    const items = details.map((item) => ({
-      lifecycle: item.lifecycle,
-      principal: item.principal,
-      dueDate: item.dueDate,
-      payments: item.payments.map(
-        (payment): PostedPayment => ({
-          kind: payment.kind,
-          amount: payment.amount,
-          installmentId: payment.installmentId,
-          reversesPaymentId: payment.reversesPaymentId,
-        }),
-      ),
-    }));
+    await this.authz.assertPayableList(actor);
+
+    const grants = await this.authorizationRepository.findActiveGrants(
+      actor.identityId,
+      AUTHZ_ACTIONS.FinancePayableList,
+      AUTHZ_RESOURCE_TYPES.FinancePayable,
+    );
+    const scope = this.scopeEnforcement.buildFinancialTitleListFilter(grants, undefined, {
+      supportsClientAnchor: false,
+    });
+
+    const asOfDate = asOf ?? new Date();
+    const asOfIso = asOfDate.toISOString();
+
+    // Sem concessao aplicavel nao existe carteira a medir. Devolver zeros aqui seria
+    // transformar "nao posso ver" em "nao existe divida".
+    if (scope.clause === 'FALSE') {
+      return {
+        asOf: asOfIso,
+        buckets: emptyPayableAgingSummary(),
+        byCurrency: [],
+        complete: false,
+        unavailableReason: 'NO_SCOPE_GRANT' as const,
+      };
+    }
+
+    const rows = await this.repository.agingBuckets({
+      scopeClause: scope.clause,
+      scopeParams: scope.params,
+      asOf: toDateOnly(asOfDate),
+    });
+
+    const buckets = emptyPayableAgingSummary();
+    const byCurrency = new Map<string, PayableAgingSummary>();
+
+    for (const row of rows) {
+      const bucket = row.bucket as PayableAgingBucket;
+      if (!(bucket in buckets)) {
+        // Faixa desconhecida nunca e silenciosamente ignorada: viraria total errado.
+        continue;
+      }
+      buckets[bucket].count += Number(row.count);
+      buckets[bucket].remaining = sumMoneyAmounts([buckets[bucket].remaining, row.remaining]);
+
+      const currencyBucket = byCurrency.get(row.currency_code) ?? emptyPayableAgingSummary();
+      currencyBucket[bucket].count += Number(row.count);
+      currencyBucket[bucket].remaining = sumMoneyAmounts([
+        currencyBucket[bucket].remaining,
+        row.remaining,
+      ]);
+      byCurrency.set(row.currency_code, currencyBucket);
+    }
+
     return {
-      asOf: (asOf ?? new Date()).toISOString(),
-      buckets: summarizePayableAging(items, asOf),
+      asOf: asOfIso,
+      buckets,
+      byCurrency: [...byCurrency.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([currencyCode, summary]) => ({ currencyCode, buckets: summary })),
+      complete: true,
+      unavailableReason: null,
     };
   }
 

@@ -97,9 +97,23 @@ export type PayableDetail = {
 
 export type PayableAgingSummary = Record<string, { count: number; remaining: string }>;
 
+/**
+ * Aging de contas a pagar, agregado no SERVIDOR sobre a carteira inteira.
+ *
+ * `buckets` sempre traz todas as faixas; o que muda com `complete` é a PROCEDÊNCIA do
+ * número. Com `complete: true`, cada faixa foi contada pelo banco sobre o dataset completo.
+ * Com `complete: false`, `unavailableReason` explica por que o recorte não existe para este
+ * ator — e a tela precisa dizer "indisponível", nunca pintar zeros.
+ *
+ * `byCurrency` existe porque somar moedas diferentes é uma conta sem significado: cada
+ * moeda tem o seu próprio aging, e a tela escolhe a que o título devolve.
+ */
 export type PayableAgingResponse = {
   asOf: string;
   buckets: PayableAgingSummary;
+  byCurrency: Array<{ currencyCode: string; buckets: PayableAgingSummary }>;
+  complete: boolean;
+  unavailableReason: string | null;
 };
 
 export type FinancialAccountMovement = {

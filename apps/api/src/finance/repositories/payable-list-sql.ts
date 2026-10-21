@@ -43,7 +43,49 @@ export const PAYABLE_FILTER_SPECS: AdvancedFilterFieldSpec[] = [
   { name: 'dueDate', kind: 'date' },
   { name: 'createdAt', kind: 'date' },
   { name: 'updatedAt', kind: 'date' },
+  { name: 'agingBucket', kind: 'text' },
 ];
+
+/**
+ * EXPRESSÃO CANÔNICA DE FAIXA DE AGING.
+ *
+ * Fonte ÚNICA da semântica de faixa no SQL. Lista, summary e aging agregado chamam esta
+ * função — é isso que garante que o drilldown de uma faixa devolva exatamente os títulos
+ * que somaram naquele valor. Duplicar o `CASE` em três lugares seria a receita para o
+ * número da tela e o número da lista divergirem sem ninguém perceber.
+ *
+ * Reproduz `classifyPayableAging` do domínio, inclusive a PRECEDÊNCIA:
+ *   1. cancelado vence tudo (um título cancelado não "venceu");
+ *   2. restante <= 0 é liquidado;
+ *   3. só então a faixa por dias de atraso.
+ */
+export function buildAgingBucketExpr(asOfParam: string): string {
+  // Mesmo estorno consciente de `remainingBalance`: pagamento revertido subtrai.
+  const paidExpr = `COALESCE((
+      SELECT sum(CASE WHEN p.reverses_payment_id IS NULL THEN p.amount ELSE -p.amount END)
+      FROM fin.payments p WHERE p.payable_id = r.id), 0)`;
+  const remainingExpr = `(r.principal - ${paidExpr})`;
+  return `CASE
+      WHEN r.lifecycle = 'CANCELLED' THEN 'CANCELLED'
+      WHEN ${remainingExpr} <= 0 THEN 'SETTLED'
+      WHEN (${asOfParam} - r.due_date) <= 0 THEN 'CURRENT'
+      WHEN (${asOfParam} - r.due_date) <= 30 THEN '1_30'
+      WHEN (${asOfParam} - r.due_date) <= 60 THEN '31_60'
+      WHEN (${asOfParam} - r.due_date) <= 90 THEN '61_90'
+      ELSE '90_PLUS'
+    END`;
+}
+
+/** Faixas válidas — permite recusar valor inválido em vez de devolver lista vazia silenciosa. */
+export const PAYABLE_AGING_BUCKET_VALUES = [
+  'SETTLED',
+  'CANCELLED',
+  'CURRENT',
+  '1_30',
+  '31_60',
+  '61_90',
+  '90_PLUS',
+] as const;
 
 export type PayableAdvancedFilter = AdvancedFilter;
 
@@ -93,6 +135,25 @@ export function buildPayableFilterCondition(
       const cast = condition.field === 'dueDate' ? '::date' : '::timestamptz';
       return {
         clause: `${column} ${condition.operator === 'before' ? '<' : '>'} ${param}${cast}`,
+        params: [condition.value],
+      };
+    }
+    case 'agingBucket': {
+      /*
+       * A faixa NÃO é coluna: é derivada de lifecycle + saldo + vencimento. Por isso o
+       * predicado compara a EXPRESSÃO canônica, e não `r.aging_bucket`. Um valor fora das
+       * faixas conhecidas é recusado (`null` → condição descartada) em vez de virar
+       * `= 'xxx'` e devolver lista vazia como se a carteira não tivesse nada.
+       */
+      if (condition.operator !== 'eq') {
+        return null;
+      }
+      if (!(PAYABLE_AGING_BUCKET_VALUES as readonly string[]).includes(condition.value)) {
+        return null;
+      }
+      // O corte de data do filtro é "hoje" — o mesmo que a listagem usa em `statusPredicates`.
+      return {
+        clause: `${buildAgingBucketExpr('CURRENT_DATE')} = ${param}`,
         params: [condition.value],
       };
     }

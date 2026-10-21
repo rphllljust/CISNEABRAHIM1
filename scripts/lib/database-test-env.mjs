@@ -186,6 +186,13 @@ const MIGRATION_EFFECT_CHECKS = {
   '0102_service_order_worklist_columns': {
     fieldFlag: ['meta', 'fields', 'service-orders', 'origin', 'in_list'],
   },
+  /*
+   * 0103 cria a tabela `plt.saved_views` — a persistência corporativa de Saved Views, que
+   * substitui o `localStorage` como fonte e é o que torna `scope: ROLE` realmente publicado.
+   * A sonda é a TABELA: a migration cria o artefato inteiro, e a existência dele responde
+   * exatamente pelo efeito. Prouvar só uma coluna deixaria a tabela ausente passar como aplicada.
+   */
+  '0103_saved_views': { table: ['plt', 'saved_views'] },
 };
 
 /**

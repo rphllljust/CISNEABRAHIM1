@@ -116,8 +116,22 @@ export class ScopeEnforcementService {
    *
    * Usado para empurrar o escopo para o SQL: nada e lido do banco antes de a autorizacao
    * estar aplicada. Sem concessao utilizavel => `FALSE` (fail-closed, nao le nada).
+   *
+   * ─────────────────────────────────────────────────────────────────────────────────────────
+   * SOMENTE RECEBIVEIS POSSUEM COLUNA `client_id`.
+   *
+   * `fin.payables` nao tem `client_id`: o titulo a pagar se relaciona com a contraparte por
+   * `counterparty_id`, que nao e um Cliente do CRM. Emitir `client_id` para a carteira a pagar
+   * gerava SQL invalido (`column "client_id" does not exist`) e o operador recebia erro no
+   * lugar do recorte. Por isso o chamador declara, via `supportsClientAnchor`, se a tabela
+   * consultada tem essa ancora — e uma concessao CLIENTE que nao pode ser traduzida vira
+   * `FALSE` (nao le nada), nunca um `TRUE` silencioso que ampliaria o acesso.
    */
-  buildFinancialTitleListFilter(grants: GrantRow[], tableAlias?: string): ScopeSqlPredicate {
+  buildFinancialTitleListFilter(
+    grants: GrantRow[],
+    tableAlias?: string,
+    options: { supportsClientAnchor?: boolean } = {},
+  ): ScopeSqlPredicate {
     const hasGlobal = grants.some(
       (grant) => grant.scope_type === AUTHZ_SCOPES.Global && grant.resource_id === null,
     );
@@ -125,12 +139,17 @@ export class ScopeEnforcementService {
       return { clause: 'TRUE', params: [] };
     }
 
+    // Default `true` preserva o comportamento de recebiveis, que e o caso original.
+    const supportsClientAnchor = options.supportsClientAnchor ?? true;
+
     const unitIds = grants
       .filter((grant) => grant.scope_type === AUTHZ_SCOPES.Unit && grant.resource_id !== null)
       .map((grant) => grant.resource_id as string);
-    const clientIds = grants
-      .filter((grant) => grant.scope_type === AUTHZ_SCOPES.Client && grant.resource_id !== null)
-      .map((grant) => grant.resource_id as string);
+    const clientIds = supportsClientAnchor
+      ? grants
+          .filter((grant) => grant.scope_type === AUTHZ_SCOPES.Client && grant.resource_id !== null)
+          .map((grant) => grant.resource_id as string)
+      : [];
 
     if (unitIds.length === 0 && clientIds.length === 0) {
       return { clause: 'FALSE', params: [] };

@@ -278,6 +278,19 @@ export function FinanceOverviewPage() {
   const { receivables, payables, overdueReceivables, overduePayables, accounts, aging } =
     state.data;
   const agingEntries = aging.data ? Object.entries(aging.data.buckets) : [];
+
+  /**
+   * O aging veio do DATASET COMPLETO?
+   *
+   * O servidor agrega sobre a carteira inteira do escopo (`complete: true`). Quando não há
+   * recorte aplicável, ele responde `complete: false` com o motivo — e neste caso as faixas
+   * vêm zeradas NÃO porque não há dívida, mas porque não há base autorizada para medi-la.
+   * Tratar isso como zero seria transformar "não posso ver" em "não existe": a diferença
+   * entre uma carteira quitada e uma base ilegível.
+   */
+  const agingIsAuthoritative = aging.data?.complete === true;
+  const agingUnavailableReason = aging.data?.unavailableReason ?? null;
+  const agingHasData = agingEntries.some(([, item]) => Number(item.count || 0) > 0);
   const positionIsEmpty = isPositionEmpty(state.data);
 
   const receivableItems = receivables.data?.items ?? [];
@@ -792,6 +805,31 @@ export function FinanceOverviewPage() {
                         </tbody>
                       </table>
                     </div>
+                  ) : aging.data && !agingIsAuthoritative ? (
+                    /*
+                     * BASE INDISPONÍVEL — não é zero.
+                     *
+                     * Sem recorte autorizado o servidor devolve faixas zeradas com
+                     * `complete: false`. Renderizar a tabela aqui mostraria uma carteira a
+                     * pagar "em dia" para um operador que simplesmente não tem concessão
+                     * para vê-la. A tela diz o que sabe: não há base para medir.
+                     */
+                    <div className="mt-4 rounded-[10px] border border-gray-200 bg-gray-50 px-4 py-3">
+                      <p className="text-[13px] text-gray-700">
+                        Aging de contas a pagar indisponível para o seu acesso.
+                      </p>
+                      <p className="mt-1 text-[11px] text-gray-500">
+                        {agingUnavailableReason === 'NO_SCOPE_GRANT'
+                          ? 'Não há concessão de leitura sobre títulos a pagar neste escopo. O indicador não é zero — é não apurado.'
+                          : 'O recorte da carteira não pôde ser apurado nesta leitura.'}
+                      </p>
+                    </div>
+                  ) : aging.data && !agingHasData ? (
+                    /* Base apurada e realmente vazia: aqui o zero é um FATO, e pode ser dito. */
+                    <p className="mt-4 text-[13px] text-gray-600">
+                      Nenhum título a pagar nas faixas de vencimento — posição em{' '}
+                      <DateTime value={aging.data.asOf} mode="date" />.
+                    </p>
                   ) : null}
                 </WorkspaceZone>
               </div>
