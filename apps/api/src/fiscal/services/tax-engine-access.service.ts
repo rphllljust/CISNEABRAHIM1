@@ -137,7 +137,8 @@ export class TaxEngineAccessService {
         id: rule.id,
         unitId: rule.unit_id,
       });
-      return toTaxRuleResponse(rule);
+      const versions = await this.repository.listRuleVersions(rule.id);
+      return toTaxRuleResponse(rule, versions);
     } catch (error) {
       throw mapTaxEngineDomainError(error);
     }
