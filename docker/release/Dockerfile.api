@@ -1,0 +1,22 @@
+# Runtime-only Railway image for an already validated CISNE release.
+# No application source is copied and no application build runs here.
+FROM node:24-alpine
+WORKDIR /app
+ENV NODE_ENV=production
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
+
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY apps/api/package.json ./apps/api/
+COPY apps/web/package.json ./apps/web/
+COPY packages/database/package.json ./packages/database/
+COPY packages/eslint-config/package.json ./packages/eslint-config/
+COPY packages/tsconfig/package.json ./packages/tsconfig/
+RUN pnpm install --prod --frozen-lockfile
+
+COPY apps/api/dist ./apps/api/dist
+COPY packages/database/dist ./packages/database/dist
+COPY packages/database/migrations ./packages/database/migrations
+COPY artifacts/release-identity.json ./artifacts/release-identity.json
+
+EXPOSE 3000
+CMD ["node", "apps/api/dist/main.js"]

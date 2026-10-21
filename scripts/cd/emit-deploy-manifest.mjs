@@ -37,9 +37,7 @@ function computeArtifactDigest(artifactPaths) {
 }
 
 const artifactPaths = [
-  resolve(root, 'apps/api/dist'),
-  resolve(root, 'apps/web/dist'),
-  resolve(root, 'packages/database/dist'),
+  resolve(root, 'artifacts/railway/release'),
 ];
 
 const buildMetadataPath = resolve(root, 'artifacts/ci/build-metadata.json');

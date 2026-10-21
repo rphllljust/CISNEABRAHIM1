@@ -21,6 +21,11 @@ permissions:
 
 env:
   FORCE_COLOR: '1'
+  RAILWAY_PROJECT_ID: feededf6-22ad-4f3e-b8d3-2ba577149d89
+  RAILWAY_PRODUCTION_ENVIRONMENT_ID: 607953af-ae54-4aa2-a5cc-88fc0fe6247d
+  RAILWAY_POSTGRES_SERVICE_ID: dff29aaa-9d59-42eb-a479-5f93ebbc359e
+  RAILWAY_WEB_SERVICE_ID: 6c3a12aa-4287-4144-9a78-7a38aba2e270
+  RAILWAY_API_SERVICE_ID: 9a8120f5-1b31-4ca2-8f85-7bfcc78c1c4e
 
 jobs:
   resolve-ci-artifact:
@@ -43,7 +48,7 @@ jobs:
             echo "ci_run_id=${{ github.event.workflow_run.id }}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Download CI build artifact (no rebuild)
+      - name: Download CI immutable release
         uses: actions/download-artifact@v4
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -62,22 +67,19 @@ jobs:
           import { resolve } from 'node:path';
           const manifest = JSON.parse(readFileSync(resolve(process.env.ARTIFACT_ROOT, 'artifacts/cd/deploy-manifest.json'), 'utf8'));
           const sourceSha = manifest.commitSha;
-          if (typeof sourceSha !== 'string' || !/^[0-9a-f]{40}$/i.test(sourceSha)) {
-            throw new Error(`Invalid MANIFEST_SHA: ${String(sourceSha)}`);
-          }
+          if (typeof sourceSha !== 'string' || !/^[0-9a-f]{40}$/i.test(sourceSha)) throw new Error('Invalid MANIFEST_SHA');
           if (process.env.WORKFLOW_SOURCE_SHA && process.env.WORKFLOW_SOURCE_SHA !== sourceSha) {
             throw new Error(`SOURCE_SHA/MANIFEST_SHA mismatch: source=${process.env.WORKFLOW_SOURCE_SHA} manifest=${sourceSha}`);
           }
           appendFileSync(process.env.GITHUB_OUTPUT, `source_sha=${sourceSha}\n`, 'utf8');
           NODE
 
-      - name: Checkout exact manifest source
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: ${{ steps.source.outputs.source_sha }}
           fetch-depth: 1
 
-      - name: Restore CI artifact into workspace
+      - name: Restore immutable release into workspace
         run: cp -a "${{ runner.temp }}/cisne-build-${{ steps.resolve.outputs.ci_run_id }}/." .
 
       - id: provenance
@@ -95,45 +97,18 @@ jobs:
           path: |
             artifacts/ci/build-metadata.json
             artifacts/cd/deploy-manifest.json
-            apps/api/dist
-            apps/web/dist
-            packages/database/dist
+            artifacts/railway/release
 
   deploy-hml:
-    name: Deploy HML + smoke
+    name: Railway HML / migrations / readiness / authenticated smoke
     runs-on: ubuntu-latest
     needs: resolve-ci-artifact
-    timeout-minutes: 25
-    services:
-      postgres:
-        image: postgres:18-alpine
-        env:
-          POSTGRES_USER: cisne_hml_cd
-          POSTGRES_PASSWORD: cisne_hml_cd_password
-          POSTGRES_DB: cisne_hml_cd
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U cisne_hml_cd -d cisne_hml_cd"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 12
+    timeout-minutes: 40
     env:
-      CISNE_ENV: hml
-      NODE_ENV: production
-      DATABASE_URL: postgresql://cisne_hml_cd:cisne_hml_cd_password@localhost:5432/cisne_hml_cd
-      JWT_SECRET: hml-cd-jwt-secret-with-at-least-32-characters
-      JWT_ISSUER: cisne-api-hml
-      JWT_AUDIENCE: cisne-clients-hml
-      CORS_ORIGIN: http://localhost:5174
-      OBJECT_STORAGE_PROVIDER: filesystem
-      OBJECT_STORAGE_ROOT: .object-storage-hml-cd
-      OBJECT_STORAGE_BUCKET: cisne-hml-documents
-      HML_INTEGRATIONS_SANDBOX: 'true'
-      EMAIL_NOTIFICATION_CONFIGURED: 'false'
-      WHATSAPP_NOTIFICATION_CONFIGURED: 'false'
-      HML_PUBLIC_API_URL: http://127.0.0.1:3000
+      RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+      RAILWAY_HML_ENVIRONMENT_NAME: hml
       CD_COMMIT_SHA: ${{ needs.resolve-ci-artifact.outputs.source_sha }}
+      CD_ARTIFACT_DIGEST: ${{ needs.resolve-ci-artifact.outputs.artifact_digest }}
       CD_BUILD_RUN_ID: ${{ needs.resolve-ci-artifact.outputs.ci_run_id }}
     steps:
       - uses: actions/checkout@v4
@@ -150,69 +125,122 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
 
+      - name: Install dependencies for policy and smoke only
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Install pinned Railway CLI
+        run: npm install --global @railway/cli@5.23.3
+
       - name: Download promotion bundle
         uses: actions/download-artifact@v4
         with:
           name: cisne-promotion-${{ github.run_id }}
 
-      - name: Verify HML provenance and artifact digest
+      - name: Verify HML provenance and digest
         env:
           PROVENANCE_EXPECTED_SHA: ${{ needs.resolve-ci-artifact.outputs.source_sha }}
           PROVENANCE_EXPECTED_DIGEST: ${{ needs.resolve-ci-artifact.outputs.artifact_digest }}
           PROVENANCE_VERIFY_CHECKOUT: 'true'
         run: node scripts/cd/verify-provenance.mjs
 
-      - run: pnpm install --frozen-lockfile
+      - name: Focused immutable-release tests
+        run: node --test scripts/cd/railway-immutable-release.test.mjs
+
+      - name: Enforce existing migration safety policy
+        run: >
+          pnpm --filter @cisne/api exec tsx -e
+          "import { assessMigrationsDirectory, assertSafeMigrationDeploy } from './src/ops/cd/migration-policy.ts';
+          const a=assessMigrationsDirectory();
+          assertSafeMigrationDeploy(a, process.env.CD_ALLOW_BREAKING_MIGRATIONS==='I_UNDERSTAND');
+          console.log(JSON.stringify(a));"
+
+      - id: hml
+        name: Ensure isolated HML and Postgres without source app deploys
+        run: node scripts/cd/railway-ensure-hml.mjs
+
+      - name: Deploy exact API + Web release to HML
+        env:
+          RAILWAY_TARGET_ENVIRONMENT_ID: ${{ steps.hml.outputs.environment_id }}
+        run: node scripts/cd/railway-production-deploy.mjs
+
+      - id: hml-domains
+        name: Resolve HML public domains
+        env:
+          HML_ENV_ID: ${{ steps.hml.outputs.environment_id }}
+        run: |
+          railway domain --project "$RAILWAY_PROJECT_ID" --environment "$HML_ENV_ID" --service "$RAILWAY_API_SERVICE_ID" --json > /tmp/hml-api-domain.json
+          railway domain --project "$RAILWAY_PROJECT_ID" --environment "$HML_ENV_ID" --service "$RAILWAY_WEB_SERVICE_ID" --json > /tmp/hml-web-domain.json
+          echo "api_url=$(node scripts/cd/extract-railway-domain.mjs /tmp/hml-api-domain.json)" >> "$GITHUB_OUTPUT"
+          echo "web_url=$(node scripts/cd/extract-railway-domain.mjs /tmp/hml-web-domain.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Generate ephemeral HML smoke credential
+        run: |
+          HML_LOGIN="hml-cd-${GITHUB_RUN_ID}@cisne.invalid"
+          HML_PASSWORD="$(openssl rand -hex 24)"
+          echo "::add-mask::$HML_PASSWORD"
+          echo "HML_SMOKE_LOGIN=$HML_LOGIN" >> "$GITHUB_ENV"
+          echo "HML_SMOKE_PASSWORD=$HML_PASSWORD" >> "$GITHUB_ENV"
 
       - name: Bootstrap synthetic HML operator
         env:
+          HML_ENV_ID: ${{ steps.hml.outputs.environment_id }}
           HML_SYNTHETIC_SEED_CONFIRM: I_UNDERSTAND
-          BOOTSTRAP_ADMIN_LOGIN: hml-cd@cisne.invalid
-          BOOTSTRAP_ADMIN_PASSWORD: Synthetic-HML-CD-Password-123!
           BOOTSTRAP_CONFIRM: I_UNDERSTAND
-          HML_SMOKE_LOGIN: hml-cd@cisne.invalid
-          HML_SMOKE_PASSWORD: Synthetic-HML-CD-Password-123!
-        run: node scripts/hml/bootstrap-synthetic.mjs
-
-      - name: Start API from CI artifact (no rebuild)
+          BOOTSTRAP_ADMIN_LOGIN: ${{ env.HML_SMOKE_LOGIN }}
+          BOOTSTRAP_ADMIN_PASSWORD: ${{ env.HML_SMOKE_PASSWORD }}
         run: |
-          node apps/api/dist/main.js &
-          for i in $(seq 1 30); do
-            if curl -sf http://127.0.0.1:3000/api/v1/health/ready; then
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "API failed readiness"
-          exit 1
+          railway run --project "$RAILWAY_PROJECT_ID" --environment "$HML_ENV_ID" --service "$RAILWAY_API_SERVICE_ID"             node scripts/hml/bootstrap-synthetic.mjs
 
-      - name: CD unit tests (pipeline simulation)
-        run: pnpm --filter @cisne/api test:cd
-
-      - name: Promote same artifact to HML
+      - name: HML readiness and authenticated smoke
         env:
-          HML_SMOKE_LOGIN: hml-cd@cisne.invalid
-          HML_SMOKE_PASSWORD: Synthetic-HML-CD-Password-123!
-        run: node scripts/cd/promote.mjs
+          HML_PUBLIC_API_URL: ${{ steps.hml-domains.outputs.api_url }}
+        run: |
+          curl --fail --show-error --silent "$HML_PUBLIC_API_URL/api/v1/health/ready"
+          pnpm --filter @cisne/api hml:smoke
 
-      - name: Record HML deploy manifest
-        run: cat artifacts/cd/deploy-manifest.json
+      - name: Prove HML SHA and digest
+        env:
+          HML_ENV_ID: ${{ steps.hml.outputs.environment_id }}
+          EXPECTED_SHA: ${{ needs.resolve-ci-artifact.outputs.source_sha }}
+          EXPECTED_DIGEST: ${{ needs.resolve-ci-artifact.outputs.artifact_digest }}
+          HML_PUBLIC_WEB_URL: ${{ steps.hml-domains.outputs.web_url }}
+        run: |
+          set -euo pipefail
+          for service in "$RAILWAY_API_SERVICE_ID" "$RAILWAY_WEB_SERVICE_ID"; do
+            railway variable list --json --project "$RAILWAY_PROJECT_ID" --environment "$HML_ENV_ID" --service "$service" |
+              EXPECTED_SHA="$EXPECTED_SHA" EXPECTED_DIGEST="$EXPECTED_DIGEST" node --input-type=module -e '
+                let s=""; for await (const c of process.stdin) s+=c;
+                const v=JSON.parse(s); const get=(k)=>Array.isArray(v)?v.find((x)=>x.name===k)?.value:v[k];
+                if(get("CISNE_RELEASE_SHA")!==process.env.EXPECTED_SHA) throw new Error("HML SHA mismatch");
+                if(get("CISNE_RELEASE_DIGEST")!==process.env.EXPECTED_DIGEST) throw new Error("HML digest mismatch");
+              '
+          done
+          curl --fail --show-error --silent "$HML_PUBLIC_WEB_URL/release-identity.json" |
+            EXPECTED_SHA="$EXPECTED_SHA" node --input-type=module -e '
+              let s=""; for await (const c of process.stdin) s+=c;
+              if(JSON.parse(s).sourceSha!==process.env.EXPECTED_SHA) throw new Error("HML Web SHA mismatch");
+            '
 
   acceptance:
     name: Acceptance gate
     runs-on: ubuntu-latest
     needs: deploy-hml
     steps:
-      - run: echo "HML smoke passed — acceptance gate open for production promotion"
+      - run: echo "HML immutable release passed migrations, readiness, smoke and provenance"
 
   deploy-production:
-    name: Promote to production (manual gate)
+    name: Promote same immutable release to production
     runs-on: ubuntu-latest
-    needs: acceptance
+    needs: [resolve-ci-artifact, acceptance]
     environment: production
+    timeout-minutes: 40
     env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       PRD_PROMOTION_APPROVED: I_UNDERSTAND
-      CD_REQUIRE_SECRET_STORE: 'false'
+      PRD_PROMOTION_APPROVED_BY: ${{ github.actor }}
+      PRD_PROMOTION_APPROVAL_SOURCE: github-environment
+      PROD_PUBLIC_API_URL: https://cisneapi-production.up.railway.app
+      PROD_PUBLIC_WEB_URL: https://cisneweb-production-db99.up.railway.app
     steps:
       - uses: actions/checkout@v4
         with:
@@ -228,22 +256,70 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
 
-      - name: Download promotion bundle (same artifact digest)
+      - name: Install dependencies for smoke only
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Install pinned Railway CLI
+        run: npm install --global @railway/cli@5.23.3
+
+      - name: Download same promotion bundle
         uses: actions/download-artifact@v4
         with:
           name: cisne-promotion-${{ github.run_id }}
 
-      - name: Verify production provenance and artifact digest
+      - name: Verify production provenance and digest
         env:
           PROVENANCE_EXPECTED_SHA: ${{ needs.resolve-ci-artifact.outputs.source_sha }}
           PROVENANCE_EXPECTED_DIGEST: ${{ needs.resolve-ci-artifact.outputs.artifact_digest }}
           PROVENANCE_VERIFY_CHECKOUT: 'true'
         run: node scripts/cd/verify-provenance.mjs
 
-      - run: pnpm install --frozen-lockfile
+      - name: Fail closed if production smoke credentials are unavailable
+        env:
+          PROD_SMOKE_LOGIN: ${{ secrets.PROD_SMOKE_LOGIN }}
+          PROD_SMOKE_PASSWORD: ${{ secrets.PROD_SMOKE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$PROD_SMOKE_LOGIN"
+          test -n "$PROD_SMOKE_PASSWORD"
 
-      - name: Promote same artifact to production (no rebuild)
-        run: node scripts/cd/promote.mjs --production
+      - name: Promote API + Web from exact same artifact
+        env:
+          RAILWAY_TARGET_ENVIRONMENT_ID: ${{ env.RAILWAY_PRODUCTION_ENVIRONMENT_ID }}
+          CISNE_DEPLOY_COMMIT_SHA: ${{ needs.resolve-ci-artifact.outputs.source_sha }}
+          CISNE_DEPLOY_ARTIFACT_DIGEST: ${{ needs.resolve-ci-artifact.outputs.artifact_digest }}
+        run: node scripts/cd/railway-production-deploy.mjs
+
+      - name: Production readiness
+        run: curl --fail --show-error --silent "$PROD_PUBLIC_API_URL/api/v1/health/ready"
+
+      - name: Production authenticated /me + capabilities smoke
+        env:
+          HML_PUBLIC_API_URL: ${{ env.PROD_PUBLIC_API_URL }}
+          HML_SMOKE_LOGIN: ${{ secrets.PROD_SMOKE_LOGIN }}
+          HML_SMOKE_PASSWORD: ${{ secrets.PROD_SMOKE_PASSWORD }}
+        run: pnpm --filter @cisne/api hml:smoke
+
+      - name: Prove production SHA and digest
+        env:
+          EXPECTED_SHA: ${{ needs.resolve-ci-artifact.outputs.source_sha }}
+          EXPECTED_DIGEST: ${{ needs.resolve-ci-artifact.outputs.artifact_digest }}
+        run: |
+          set -euo pipefail
+          for service in "$RAILWAY_API_SERVICE_ID" "$RAILWAY_WEB_SERVICE_ID"; do
+            railway variable list --json --project "$RAILWAY_PROJECT_ID" --environment "$RAILWAY_PRODUCTION_ENVIRONMENT_ID" --service "$service" |
+              EXPECTED_SHA="$EXPECTED_SHA" EXPECTED_DIGEST="$EXPECTED_DIGEST" node --input-type=module -e '
+                let s=""; for await (const c of process.stdin) s+=c;
+                const v=JSON.parse(s); const get=(k)=>Array.isArray(v)?v.find((x)=>x.name===k)?.value:v[k];
+                if(get("CISNE_RELEASE_SHA")!==process.env.EXPECTED_SHA) throw new Error("production SHA mismatch");
+                if(get("CISNE_RELEASE_DIGEST")!==process.env.EXPECTED_DIGEST) throw new Error("production digest mismatch");
+              '
+          done
+          curl --fail --show-error --silent "$PROD_PUBLIC_WEB_URL/release-identity.json" |
+            EXPECTED_SHA="$EXPECTED_SHA" node --input-type=module -e '
+              let s=""; for await (const c of process.stdin) s+=c;
+              if(JSON.parse(s).sourceSha!==process.env.EXPECTED_SHA) throw new Error("production Web SHA mismatch");
+            '
 
       - name: Record production manifest
         run: cat artifacts/cd/deploy-manifest.json
