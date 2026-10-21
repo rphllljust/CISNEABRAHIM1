@@ -40,6 +40,18 @@ const artifactPaths = [
   resolve(root, 'apps/api/dist'),
   resolve(root, 'apps/web/dist'),
   resolve(root, 'packages/database/dist'),
+  resolve(root, 'packages/database/migrations'),
+  resolve(root, 'package.json'),
+  resolve(root, 'pnpm-workspace.yaml'),
+  resolve(root, 'pnpm-lock.yaml'),
+  resolve(root, 'apps/api/package.json'),
+  resolve(root, 'apps/web/package.json'),
+  resolve(root, 'packages/database/package.json'),
+  resolve(root, 'packages/eslint-config/package.json'),
+  resolve(root, 'packages/tsconfig/package.json'),
+  resolve(root, 'docker/release/Dockerfile.api'),
+  resolve(root, 'docker/release/Dockerfile.web'),
+  resolve(root, 'docker/railway/nginx.conf'),
 ];
 
 const buildMetadataPath = resolve(root, 'artifacts/ci/build-metadata.json');

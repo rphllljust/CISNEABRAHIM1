@@ -1,0 +1,7 @@
+# Runtime-only Railway image for an already validated CISNE release.
+# No Vite/source build is allowed in promotion.
+FROM nginx:1.27-alpine
+COPY docker/railway/nginx.conf /etc/nginx/conf.d/default.conf
+COPY apps/web/dist /usr/share/nginx/html
+COPY artifacts/cd/deploy-manifest.json /usr/share/nginx/html/release-manifest.json
+EXPOSE 80

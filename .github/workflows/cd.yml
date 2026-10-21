@@ -98,41 +98,31 @@ jobs:
             apps/api/dist
             apps/web/dist
             packages/database/dist
+            packages/database/migrations
+            package.json
+            pnpm-workspace.yaml
+            pnpm-lock.yaml
+            apps/api/package.json
+            apps/web/package.json
+            packages/database/package.json
+            packages/eslint-config/package.json
+            packages/tsconfig/package.json
+            docker/release/Dockerfile.api
+            docker/release/Dockerfile.web
+            docker/railway/nginx.conf
 
   deploy-hml:
-    name: Deploy HML + smoke
+    name: Deploy immutable release to Railway HML
     runs-on: ubuntu-latest
     needs: resolve-ci-artifact
-    timeout-minutes: 25
-    services:
-      postgres:
-        image: postgres:18-alpine
-        env:
-          POSTGRES_USER: cisne_hml_cd
-          POSTGRES_PASSWORD: cisne_hml_cd_password
-          POSTGRES_DB: cisne_hml_cd
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U cisne_hml_cd -d cisne_hml_cd"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 12
+    timeout-minutes: 35
     env:
-      CISNE_ENV: hml
-      NODE_ENV: production
-      DATABASE_URL: postgresql://cisne_hml_cd:cisne_hml_cd_password@localhost:5432/cisne_hml_cd
-      JWT_SECRET: hml-cd-jwt-secret-with-at-least-32-characters
-      JWT_ISSUER: cisne-api-hml
-      JWT_AUDIENCE: cisne-clients-hml
-      CORS_ORIGIN: http://localhost:5174
-      OBJECT_STORAGE_PROVIDER: filesystem
-      OBJECT_STORAGE_ROOT: .object-storage-hml-cd
-      OBJECT_STORAGE_BUCKET: cisne-hml-documents
-      HML_INTEGRATIONS_SANDBOX: 'true'
-      EMAIL_NOTIFICATION_CONFIGURED: 'false'
-      WHATSAPP_NOTIFICATION_CONFIGURED: 'false'
-      HML_PUBLIC_API_URL: http://127.0.0.1:3000
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID || 'feededf6-22ad-4f3e-b8d3-2ba577149d89' }}
+      RAILWAY_PRODUCTION_ENVIRONMENT_ID: ${{ vars.RAILWAY_PRODUCTION_ENVIRONMENT_ID || '607953af-ae54-4aa2-a5cc-88fc0fe6247d' }}
+      RAILWAY_HML_ENVIRONMENT_NAME: hml
+      RAILWAY_API_SERVICE_ID: ${{ vars.RAILWAY_API_SERVICE_ID || '9a8120f5-1b31-4ca2-8f85-7bfcc78c1c4e' }}
+      RAILWAY_WEB_SERVICE_ID: ${{ vars.RAILWAY_WEB_SERVICE_ID || '6c3a12aa-4287-4144-9a78-7a38aba2e270' }}
       CD_COMMIT_SHA: ${{ needs.resolve-ci-artifact.outputs.source_sha }}
       CD_BUILD_RUN_ID: ${{ needs.resolve-ci-artifact.outputs.ci_run_id }}
     steps:
@@ -162,41 +152,46 @@ jobs:
           PROVENANCE_VERIFY_CHECKOUT: 'true'
         run: node scripts/cd/verify-provenance.mjs
 
-      - run: pnpm install --frozen-lockfile
+      - name: Prepare immutable Railway release root
+        run: node scripts/cd/railway-immutable-release.mjs
 
-      - name: Bootstrap synthetic HML operator
+      - name: Install Railway CLI
+        run: npm install --global @railway/cli@latest
+
+      - id: hml
+        name: Ensure isolated Railway HML environment
+        run: node scripts/cd/railway-ensure-hml.mjs
+
+      - name: Stamp HML release identity without triggering source deploy
         env:
-          HML_SYNTHETIC_SEED_CONFIRM: I_UNDERSTAND
-          BOOTSTRAP_ADMIN_LOGIN: hml-cd@cisne.invalid
-          BOOTSTRAP_ADMIN_PASSWORD: Synthetic-HML-CD-Password-123!
-          BOOTSTRAP_CONFIRM: I_UNDERSTAND
-          HML_SMOKE_LOGIN: hml-cd@cisne.invalid
-          HML_SMOKE_PASSWORD: Synthetic-HML-CD-Password-123!
-        run: node scripts/hml/bootstrap-synthetic.mjs
-
-      - name: Start API from CI artifact (no rebuild)
+          HML_ENV_ID: ${{ steps.hml.outputs.environment_id }}
+          RELEASE_SHA: ${{ needs.resolve-ci-artifact.outputs.source_sha }}
+          RELEASE_DIGEST: ${{ needs.resolve-ci-artifact.outputs.artifact_digest }}
         run: |
-          node apps/api/dist/main.js &
-          for i in $(seq 1 30); do
-            if curl -sf http://127.0.0.1:3000/api/v1/health/ready; then
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "API failed readiness"
-          exit 1
+          set -euo pipefail
+          railway variable set CISNE_RELEASE_SHA="$RELEASE_SHA" CISNE_RELEASE_DIGEST="$RELEASE_DIGEST"             --project "$RAILWAY_PROJECT_ID" --environment "$HML_ENV_ID" --service "$RAILWAY_API_SERVICE_ID" --skip-deploys
+          railway variable set CISNE_RELEASE_SHA="$RELEASE_SHA" CISNE_RELEASE_DIGEST="$RELEASE_DIGEST"             --project "$RAILWAY_PROJECT_ID" --environment "$HML_ENV_ID" --service "$RAILWAY_WEB_SERVICE_ID" --skip-deploys
 
-      - name: CD unit tests (pipeline simulation)
-        run: pnpm --filter @cisne/api test:cd
-
-      - name: Promote same artifact to HML
+      - name: Deploy API immutable runtime bundle to HML
         env:
-          HML_SMOKE_LOGIN: hml-cd@cisne.invalid
-          HML_SMOKE_PASSWORD: Synthetic-HML-CD-Password-123!
-        run: node scripts/cd/promote.mjs
+          HML_ENV_ID: ${{ steps.hml.outputs.environment_id }}
+        run: |
+          cp docker/release/Dockerfile.api artifacts/railway/release/docker/hml/Dockerfile.api
+          railway up artifacts/railway/release --path-as-root --ci             --project "$RAILWAY_PROJECT_ID" --environment "$HML_ENV_ID"             --service "$RAILWAY_API_SERVICE_ID"             --message "CISNE HML ${{ needs.resolve-ci-artifact.outputs.source_sha }} ${{ needs.resolve-ci-artifact.outputs.artifact_digest }}"
 
-      - name: Record HML deploy manifest
-        run: cat artifacts/cd/deploy-manifest.json
+      - name: Deploy Web immutable runtime bundle to HML
+        env:
+          HML_ENV_ID: ${{ steps.hml.outputs.environment_id }}
+        run: |
+          cp docker/release/Dockerfile.web artifacts/railway/release/docker/railway/Dockerfile.web
+          railway up artifacts/railway/release --path-as-root --ci             --project "$RAILWAY_PROJECT_ID" --environment "$HML_ENV_ID"             --service "$RAILWAY_WEB_SERVICE_ID"             --message "CISNE HML ${{ needs.resolve-ci-artifact.outputs.source_sha }} ${{ needs.resolve-ci-artifact.outputs.artifact_digest }}"
+
+      - name: HML release evidence
+        env:
+          HML_ENV_ID: ${{ steps.hml.outputs.environment_id }}
+        run: |
+          railway deployment list --json --limit 1 --project "$RAILWAY_PROJECT_ID" --environment "$HML_ENV_ID" --service "$RAILWAY_API_SERVICE_ID"
+          railway deployment list --json --limit 1 --project "$RAILWAY_PROJECT_ID" --environment "$HML_ENV_ID" --service "$RAILWAY_WEB_SERVICE_ID"
 
   acceptance:
     name: Acceptance gate
@@ -208,7 +203,7 @@ jobs:
   deploy-production:
     name: Promote to production (manual gate)
     runs-on: ubuntu-latest
-    needs: acceptance
+    needs: [acceptance, resolve-ci-artifact]
     environment: production
     env:
       PRD_PROMOTION_APPROVED: I_UNDERSTAND
@@ -240,10 +235,33 @@ jobs:
           PROVENANCE_VERIFY_CHECKOUT: 'true'
         run: node scripts/cd/verify-provenance.mjs
 
-      - run: pnpm install --frozen-lockfile
+      - name: Prepare immutable Railway release root
+        run: node scripts/cd/railway-immutable-release.mjs
 
-      - name: Promote same artifact to production (no rebuild)
-        run: node scripts/cd/promote.mjs --production
+      - name: Install Railway CLI
+        run: npm install --global @railway/cli@latest
+
+      - name: Promote API immutable runtime bundle to production
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID || 'feededf6-22ad-4f3e-b8d3-2ba577149d89' }}
+          RAILWAY_PRODUCTION_ENVIRONMENT_ID: ${{ vars.RAILWAY_PRODUCTION_ENVIRONMENT_ID || '607953af-ae54-4aa2-a5cc-88fc0fe6247d' }}
+          RAILWAY_API_SERVICE_ID: ${{ vars.RAILWAY_API_SERVICE_ID || '9a8120f5-1b31-4ca2-8f85-7bfcc78c1c4e' }}
+        run: |
+          cp docker/release/Dockerfile.api artifacts/railway/release/docker/hml/Dockerfile.api
+          railway variable set CISNE_RELEASE_SHA="${{ needs.resolve-ci-artifact.outputs.source_sha }}" CISNE_RELEASE_DIGEST="${{ needs.resolve-ci-artifact.outputs.artifact_digest }}"             --project "$RAILWAY_PROJECT_ID" --environment "$RAILWAY_PRODUCTION_ENVIRONMENT_ID" --service "$RAILWAY_API_SERVICE_ID" --skip-deploys
+          railway up artifacts/railway/release --path-as-root --ci             --project "$RAILWAY_PROJECT_ID" --environment "$RAILWAY_PRODUCTION_ENVIRONMENT_ID"             --service "$RAILWAY_API_SERVICE_ID"             --message "CISNE PROD ${{ needs.resolve-ci-artifact.outputs.source_sha }} ${{ needs.resolve-ci-artifact.outputs.artifact_digest }}"
+
+      - name: Promote Web immutable runtime bundle to production
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID || 'feededf6-22ad-4f3e-b8d3-2ba577149d89' }}
+          RAILWAY_PRODUCTION_ENVIRONMENT_ID: ${{ vars.RAILWAY_PRODUCTION_ENVIRONMENT_ID || '607953af-ae54-4aa2-a5cc-88fc0fe6247d' }}
+          RAILWAY_WEB_SERVICE_ID: ${{ vars.RAILWAY_WEB_SERVICE_ID || '6c3a12aa-4287-4144-9a78-7a38aba2e270' }}
+        run: |
+          cp docker/release/Dockerfile.web artifacts/railway/release/docker/railway/Dockerfile.web
+          railway variable set CISNE_RELEASE_SHA="${{ needs.resolve-ci-artifact.outputs.source_sha }}" CISNE_RELEASE_DIGEST="${{ needs.resolve-ci-artifact.outputs.artifact_digest }}"             --project "$RAILWAY_PROJECT_ID" --environment "$RAILWAY_PRODUCTION_ENVIRONMENT_ID" --service "$RAILWAY_WEB_SERVICE_ID" --skip-deploys
+          railway up artifacts/railway/release --path-as-root --ci             --project "$RAILWAY_PROJECT_ID" --environment "$RAILWAY_PRODUCTION_ENVIRONMENT_ID"             --service "$RAILWAY_WEB_SERVICE_ID"             --message "CISNE PROD ${{ needs.resolve-ci-artifact.outputs.source_sha }} ${{ needs.resolve-ci-artifact.outputs.artifact_digest }}"
 
       - name: Record production manifest
         run: cat artifacts/cd/deploy-manifest.json

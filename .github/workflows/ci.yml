@@ -218,3 +218,15 @@ jobs:
             apps/api/dist
             apps/web/dist
             packages/database/dist
+            packages/database/migrations
+            package.json
+            pnpm-workspace.yaml
+            pnpm-lock.yaml
+            apps/api/package.json
+            apps/web/package.json
+            packages/database/package.json
+            packages/eslint-config/package.json
+            packages/tsconfig/package.json
+            docker/release/Dockerfile.api
+            docker/release/Dockerfile.web
+            docker/railway/nginx.conf
