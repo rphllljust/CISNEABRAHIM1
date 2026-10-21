@@ -120,7 +120,7 @@ async function handleApiRoute(route: Route, context: RouteContext): Promise<void
         refreshToken: 'visual-refresh-token',
         tokenType: 'Bearer',
         expiresIn: 900,
-        session: { id: MOCK_SESSION_ID, expiresAt: '2026-08-29T12:00:00.000Z', status: 'active' },
+        session: { id: MOCK_SESSION_ID, expiresAt: '2099-12-31T23:59:59.000Z', status: 'active' },
       });
       return;
     }
@@ -133,7 +133,7 @@ async function handleApiRoute(route: Route, context: RouteContext): Promise<void
     if (auth?.startsWith('Bearer ')) {
       await fulfillJson(route, {
         identityId: MOCK_IDENTITY_ID,
-        session: { id: MOCK_SESSION_ID, expiresAt: '2026-08-29T12:00:00.000Z', status: 'active' },
+        session: { id: MOCK_SESSION_ID, expiresAt: '2099-12-31T23:59:59.000Z', status: 'active' },
       });
       return;
     }
@@ -167,7 +167,7 @@ async function handleApiRoute(route: Route, context: RouteContext): Promise<void
       refreshToken: 'visual-refresh-token-2',
       tokenType: 'Bearer',
       expiresIn: 900,
-      session: { id: MOCK_SESSION_ID, expiresAt: '2026-08-29T12:00:00.000Z', status: 'active' },
+      session: { id: MOCK_SESSION_ID, expiresAt: '2099-12-31T23:59:59.000Z', status: 'active' },
     });
     return;
   }
@@ -279,8 +279,8 @@ async function handleApiRoute(route: Route, context: RouteContext): Promise<void
       rowCount: 0,
       fileSizeBytes: 0,
       errorMessage: null,
-      createdAt: '2026-08-29T12:00:00.000Z',
-      completedAt: '2026-08-29T12:00:00.000Z',
+      createdAt: '2099-12-31T23:59:59.000Z',
+      completedAt: '2099-12-31T23:59:59.000Z',
       downloadReady: false,
     });
     return;
@@ -292,7 +292,7 @@ async function handleApiRoute(route: Route, context: RouteContext): Promise<void
       return;
     }
     await fulfillJson(route, {
-      generatedAt: '2026-08-29T12:00:00.000Z',
+      generatedAt: '2099-12-31T23:59:59.000Z',
       businessTimezone: 'America/Porto_Velho',
       period: { preset: 'week', from: '2026-08-23', to: '2026-08-29' },
       visibility: {
@@ -320,7 +320,7 @@ async function handleApiRoute(route: Route, context: RouteContext): Promise<void
 
   if (pathname === '/api/v1/dashboard/operational' && method === 'GET') {
     await fulfillJson(route, {
-      generatedAt: '2026-08-29T12:00:00.000Z',
+      generatedAt: '2099-12-31T23:59:59.000Z',
       visibility: {
         serviceRequests: true,
         serviceOrders: false,
