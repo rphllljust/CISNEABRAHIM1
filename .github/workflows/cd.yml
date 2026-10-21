@@ -233,13 +233,29 @@ jobs:
       - name: Focused immutable-release tests
         run: node --test scripts/cd/railway-immutable-release.test.mjs
 
-      - name: Enforce existing migration safety policy
+      - name: Enforce migration safety policy on the release DELTA
+        # Avalia APENAS as migrations pendentes (fora do `_journal.json`), nunca o historico.
+        #
+        # Antes: `assessMigrationsDirectory()` varria as 104 migrations do repositorio e
+        # encontrava para sempre as mesmas quatro do PASSADO que usam ALTER COLUMN/DROP
+        # CONSTRAINT (0010, 0071, 0078, 0088). Medido no run 39682188718: reprovou uma release
+        # em que NENHUMA migration nova existia — o gate bloqueava TODA promocao.
+        #
+        # Agora: migration ja registrada no journal e HISTORIA, nao risco de release. O que pode
+        # quebrar a proxima promocao e a migration que ainda vai rodar.
+        #
+        # FAIL-CLOSED preservado: se o journal nao puder ser lido, `assessPendingMigrations`
+        # LANCA em vez de devolver "nada pendente".
+        #
+        # `CD_ALLOW_BREAKING_MIGRATIONS` continua existindo como escape MANUAL excepcional e
+        # NUNCA e habilitado por padrao — o gate nao foi desligado, so foi escopado.
         run: >
           pnpm --filter @cisne/api exec tsx -e
-          "import { assessMigrationsDirectory, assertSafeMigrationDeploy } from './src/ops/cd/migration-policy.ts';
-          const a=assessMigrationsDirectory();
-          assertSafeMigrationDeploy(a, process.env.CD_ALLOW_BREAKING_MIGRATIONS==='I_UNDERSTAND');
-          console.log(JSON.stringify(a));"
+          "import { assessPendingMigrations, assertSafeMigrationDeploy } from './src/ops/cd/migration-policy.ts';
+          const { pending, applied } = assessPendingMigrations();
+          console.log(`applied=${applied.length} pending=${pending.length}`);
+          assertSafeMigrationDeploy(pending, process.env.CD_ALLOW_BREAKING_MIGRATIONS==='I_UNDERSTAND');
+          console.log(JSON.stringify(pending));"
 
       - id: hml
         name: Ensure isolated HML and Postgres without source app deploys

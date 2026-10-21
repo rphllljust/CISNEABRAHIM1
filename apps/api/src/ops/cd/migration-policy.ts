@@ -56,6 +56,88 @@ export function assessMigrationsDirectory(migrationsDir = findMigrationsDirector
   return files.map((file) => assessMigrationFile(file));
 }
 
+/** Tag de migration sem a extensao: `0103_saved_views.sql` -> `0103_saved_views`. */
+function migrationTag(fileName: string): string {
+  return fileName.replace(/\.sql$/, '');
+}
+
+/**
+ * Tags registradas no journal do Drizzle — a fonte de "o que o repositorio considera aplicado".
+ *
+ * O journal (`meta/_journal.json`) e versionado junto das migrations e e exatamente o que
+ * `drizzle-kit migrate` consulta para decidir o que aplicar. Nao inventamos um segundo registro:
+ * usar o mesmo arquivo garante que o gate e o migrator enxerguem o MESMO conjunto.
+ */
+export function readAppliedMigrationTags(
+  journalPath = join(findMigrationsDirectory(), 'meta', '_journal.json'),
+): string[] {
+  const raw = readFileSync(journalPath, 'utf8');
+  const parsed: unknown = JSON.parse(raw);
+  if (typeof parsed !== 'object' || parsed === null) {
+    throw new Error('Invalid migrations journal: not an object');
+  }
+  const entries = (parsed as { entries?: unknown }).entries;
+  if (!Array.isArray(entries)) {
+    throw new Error('Invalid migrations journal: missing entries');
+  }
+  const tags: string[] = [];
+  for (const entry of entries) {
+    const tag = (entry as { tag?: unknown }).tag;
+    if (typeof tag === 'string' && tag.length > 0) {
+      tags.push(tag);
+    }
+  }
+  return tags;
+}
+
+/**
+ * Avalia APENAS as migrations ainda NAO registradas no journal — o delta real de release.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * O DEFEITO QUE ESTA FUNCAO CORRIGE
+ * ---------------------------------------------------------------------------------------------
+ *
+ * `assessMigrationsDirectory()` varre o diretorio inteiro. Como o repositorio acumula 104
+ * migrations, o gate encontrava para sempre as mesmas quatro do PASSADO que usam
+ * `ALTER COLUMN`/`DROP CONSTRAINT` — `0010_physical_resource_types`, `0071_operational_authority_gates`,
+ * `0078_workforce_member_allocation`, `0088_metadata_views_v4`.
+ *
+ * Medido no CD run 39682188718: `Enforce existing migration safety policy` reprovou uma release
+ * em que NENHUMA migration nova existia. Efeito pratico — o gate bloqueava TODA promocao,
+ * permanentemente, e a unica saida aparente seria `CD_ALLOW_BREAKING_MIGRATIONS=I_UNDERSTAND`,
+ * que desliga a protecao para todo o futuro.
+ *
+ * A INTENCAO do gate estava certa (impedir migration destrutiva), o CONJUNTO analisado estava
+ * errado: migration ja aplicada nao e risco de release, e HISTORIA. O que pode quebrar a proxima
+ * promocao e a migration que ainda vai rodar.
+ *
+ * ---------------------------------------------------------------------------------------------
+ * FAIL-CLOSED
+ * ---------------------------------------------------------------------------------------------
+ *
+ * Se o journal nao puder ser lido (arquivo ausente, JSON invalido, `entries` ausente), esta
+ * funcao LANCA em vez de devolver lista vazia. Devolver `[]` significaria "nada pendente" — a
+ * conclusao mais perigosa possivel — e o deploy passaria sem avaliar nada.
+ */
+export function assessPendingMigrations(
+  migrationsDir = findMigrationsDirectory(),
+): { pending: MigrationAssessment[]; applied: string[] } {
+  const applied = readAppliedMigrationTags(join(migrationsDir, 'meta', '_journal.json'));
+  const appliedSet = new Set(applied);
+
+  const pendingFiles = readdirSync(migrationsDir)
+    .filter((name) => name.endsWith('.sql'))
+    // O delta e o que NAO esta no journal. Migration historica ja aplicada nunca entra no risco.
+    .filter((name) => !appliedSet.has(migrationTag(name)))
+    .sort()
+    .map((name) => join(migrationsDir, name));
+
+  return {
+    pending: pendingFiles.map((file) => assessMigrationFile(file)),
+    applied,
+  };
+}
+
 export function assertSafeMigrationDeploy(
   assessments: MigrationAssessment[],
   allowBreaking: boolean,
