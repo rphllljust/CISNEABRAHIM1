@@ -37,7 +37,7 @@ function period(id: string, code: string, status: 'OPEN' | 'CLOSED') {
 function readiness(overrides: Partial<ClosingReadiness> = {}): ClosingReadiness {
   return {
     unitId: UNIT,
-    period: period(PERIOD_ID, '2026-09', 'OPEN'),
+    period: period(PERIOD_ID, '2099-09', 'OPEN'),
     closeReady: false,
     accounting: { evaluated: true, periodStatus: 'OPEN', journalCounts: { DRAFT: 5 } },
     fiscal: { evaluated: true, unauthorized: 2, rejected: 2, pendingAuthorization: 0, draft: 0 },
@@ -90,7 +90,7 @@ function createClosingFetchMock(options: {
     if (pathname === '/api/v1/auth/session' && method === 'GET') {
       return jsonResponse({
         identityId: '00000000-0000-4000-8000-000000000001',
-        session: { id: 'sid', expiresAt: '2026-12-31T00:00:00.000Z', status: 'ACTIVE' },
+        session: { id: 'sid', expiresAt: '2099-12-31T00:00:00.000Z', status: 'ACTIVE' },
       });
     }
     if (pathname === '/api/v1/requests/service-requests/operational-units' && method === 'GET') {
@@ -99,7 +99,7 @@ function createClosingFetchMock(options: {
     if (pathname === '/api/v1/accounting/periods' && method === 'GET') {
       return jsonResponse({
         unitId: UNIT,
-        items: [period(PERIOD_ID, '2026-09', status), period(PERIOD_CLOSED_ID, '2026-08', 'CLOSED')],
+        items: [period(PERIOD_ID, '2099-09', status), period(PERIOD_CLOSED_ID, '2099-08', 'CLOSED')],
       });
     }
     if (pathname === '/api/v1/closing/readiness' && method === 'GET') {
@@ -107,10 +107,10 @@ function createClosingFetchMock(options: {
     }
     if (pathname.endsWith('/close') && method === 'POST') {
       closeCalls.count += 1;
-      return jsonResponse(period(PERIOD_ID, '2026-09', 'CLOSED'));
+      return jsonResponse(period(PERIOD_ID, '2099-09', 'CLOSED'));
     }
     if (pathname.endsWith('/reopen') && method === 'POST') {
-      return jsonResponse(period(PERIOD_ID, '2026-09', 'OPEN'));
+      return jsonResponse(period(PERIOD_ID, '2099-09', 'OPEN'));
     }
     return jsonResponse({ error: { code: 'ACCOUNTING_NOT_FOUND', message: 'Not found.' } }, 404);
   });
@@ -163,7 +163,7 @@ describe('Central de fechamento', () => {
     const periodSelect = screen.getByLabelText(/competência/i);
     const options = within(periodSelect).getAllByRole('option');
     // Rótulo humano: competência + intervalo. O uuid nunca é o texto da opção.
-    expect(options.some((option) => /2026-09/.test(option.textContent ?? ''))).toBe(true);
+    expect(options.some((option) => /2099-09/.test(option.textContent ?? ''))).toBe(true);
     expect(options.every((option) => !(option.textContent ?? '').includes(PERIOD_ID))).toBe(true);
 
     await user.selectOptions(periodSelect, PERIOD_ID);
