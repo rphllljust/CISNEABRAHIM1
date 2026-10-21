@@ -274,6 +274,15 @@ jobs:
           PROVENANCE_VERIFY_CHECKOUT: 'true'
         run: node scripts/cd/verify-provenance.mjs
 
+      - name: Fail closed if production smoke credentials are unavailable
+        env:
+          PROD_SMOKE_LOGIN: ${{ secrets.PROD_SMOKE_LOGIN }}
+          PROD_SMOKE_PASSWORD: ${{ secrets.PROD_SMOKE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$PROD_SMOKE_LOGIN"
+          test -n "$PROD_SMOKE_PASSWORD"
+
       - name: Promote API + Web from exact same artifact
         env:
           RAILWAY_TARGET_ENVIRONMENT_ID: ${{ env.RAILWAY_PRODUCTION_ENVIRONMENT_ID }}
