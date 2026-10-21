@@ -11,8 +11,29 @@ on:
         description: CI workflow run id to promote (defaults to triggering run)
         required: false
 
+# CONCORRENCIA DO CD — grupo UNICO de producao, nunca compartilhado com o CI.
+#
+# O QUE ESTAVA ERRADO
+#
+# A formula anterior era `cd-${{ github.event.workflow_run.id || github.run_id }}`: um grupo
+# DIFERENTE por run. Na pratica isso nao serializava nada — dois runs de CD disparados por dois
+# pushes em `main` rodavam em PARALELO, cada um promovendo a sua release para o mesmo ambiente
+# de producao. Com `cancel-in-progress: false` e grupos distintos, nenhum esperava ninguem:
+# duas promocoes concorrentes, API e Web de SHAs potencialmente diferentes.
+#
+# POLITICA ATUAL
+#
+#   grupo `cd-production`, `cancel-in-progress: false`.
+#
+#   - CD NAO e cancelado por commit novo, por CI novo ou por outro CD: uma release que ja
+#     comecou a promover HML nunca e interrompida no meio (interromper deixaria HML e producao
+#     em estados diferentes, que e exatamente o que a promocao imutavel existe para impedir).
+#   - A PROXIMA release ESPERA a atual terminar: mesmo grupo + `cancel-in-progress: false`
+#     significa fila, nao paralelismo.
+#   - O grupo NAO tem relacao com `ci-main`/`ci-pr-*`: o CI pode ser cancelado a vontade sem
+#     tocar em nada que esteja promovendo.
 concurrency:
-  group: cd-${{ github.event.workflow_run.id || github.run_id }}
+  group: cd-production
   cancel-in-progress: false
 
 permissions:
