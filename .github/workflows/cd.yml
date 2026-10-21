@@ -32,6 +32,8 @@ jobs:
        github.event.workflow_run.event == 'push')
     outputs:
       ci_run_id: ${{ steps.resolve.outputs.ci_run_id }}
+      source_sha: ${{ steps.provenance.outputs.source_sha }}
+      artifact_digest: ${{ steps.provenance.outputs.artifact_digest }}
     steps:
       - id: resolve
         run: |
@@ -47,6 +49,43 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ steps.resolve.outputs.ci_run_id }}
           name: cisne-build-${{ steps.resolve.outputs.ci_run_id }}
+          path: ${{ runner.temp }}/cisne-build-${{ steps.resolve.outputs.ci_run_id }}
+
+      - id: source
+        name: Resolve immutable source SHA
+        env:
+          ARTIFACT_ROOT: ${{ runner.temp }}/cisne-build-${{ steps.resolve.outputs.ci_run_id }}
+          WORKFLOW_SOURCE_SHA: ${{ github.event.workflow_run.head_sha || '' }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync, readFileSync } from 'node:fs';
+          import { resolve } from 'node:path';
+          const manifest = JSON.parse(readFileSync(resolve(process.env.ARTIFACT_ROOT, 'artifacts/cd/deploy-manifest.json'), 'utf8'));
+          const sourceSha = manifest.commitSha;
+          if (typeof sourceSha !== 'string' || !/^[0-9a-f]{40}$/i.test(sourceSha)) {
+            throw new Error(`Invalid MANIFEST_SHA: ${String(sourceSha)}`);
+          }
+          if (process.env.WORKFLOW_SOURCE_SHA && process.env.WORKFLOW_SOURCE_SHA !== sourceSha) {
+            throw new Error(`SOURCE_SHA/MANIFEST_SHA mismatch: source=${process.env.WORKFLOW_SOURCE_SHA} manifest=${sourceSha}`);
+          }
+          appendFileSync(process.env.GITHUB_OUTPUT, `source_sha=${sourceSha}\n`, 'utf8');
+          NODE
+
+      - name: Checkout exact manifest source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.source.outputs.source_sha }}
+          fetch-depth: 1
+
+      - name: Restore CI artifact into workspace
+        run: cp -a "${{ runner.temp }}/cisne-build-${{ steps.resolve.outputs.ci_run_id }}/." .
+
+      - id: provenance
+        name: Verify immutable build provenance
+        env:
+          PROVENANCE_EXPECTED_SHA: ${{ steps.source.outputs.source_sha }}
+          PROVENANCE_VERIFY_CHECKOUT: 'true'
+        run: node scripts/cd/verify-provenance.mjs
 
       - name: Upload promotion bundle
         uses: actions/upload-artifact@v4
@@ -94,10 +133,13 @@ jobs:
       EMAIL_NOTIFICATION_CONFIGURED: 'false'
       WHATSAPP_NOTIFICATION_CONFIGURED: 'false'
       HML_PUBLIC_API_URL: http://127.0.0.1:3000
-      CD_COMMIT_SHA: ${{ github.sha }}
+      CD_COMMIT_SHA: ${{ needs.resolve-ci-artifact.outputs.source_sha }}
       CD_BUILD_RUN_ID: ${{ needs.resolve-ci-artifact.outputs.ci_run_id }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-ci-artifact.outputs.source_sha }}
+          fetch-depth: 1
 
       - uses: pnpm/action-setup@v4
         with:
@@ -112,6 +154,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: cisne-promotion-${{ github.run_id }}
+
+      - name: Verify HML provenance and artifact digest
+        env:
+          PROVENANCE_EXPECTED_SHA: ${{ needs.resolve-ci-artifact.outputs.source_sha }}
+          PROVENANCE_EXPECTED_DIGEST: ${{ needs.resolve-ci-artifact.outputs.artifact_digest }}
+          PROVENANCE_VERIFY_CHECKOUT: 'true'
+        run: node scripts/cd/verify-provenance.mjs
 
       - run: pnpm install --frozen-lockfile
 
@@ -166,6 +215,9 @@ jobs:
       CD_REQUIRE_SECRET_STORE: 'false'
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-ci-artifact.outputs.source_sha }}
+          fetch-depth: 1
 
       - uses: pnpm/action-setup@v4
         with:
@@ -180,6 +232,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: cisne-promotion-${{ github.run_id }}
+
+      - name: Verify production provenance and artifact digest
+        env:
+          PROVENANCE_EXPECTED_SHA: ${{ needs.resolve-ci-artifact.outputs.source_sha }}
+          PROVENANCE_EXPECTED_DIGEST: ${{ needs.resolve-ci-artifact.outputs.artifact_digest }}
+          PROVENANCE_VERIFY_CHECKOUT: 'true'
+        run: node scripts/cd/verify-provenance.mjs
 
       - run: pnpm install --frozen-lockfile
 
