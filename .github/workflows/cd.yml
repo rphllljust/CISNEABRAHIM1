@@ -54,6 +54,12 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ steps.resolve.outputs.ci_run_id }}
           name: cisne-build-${{ steps.resolve.outputs.ci_run_id }}
+          # O artefato cisne-build publica `cd/`, `ci/` e `railway/` na raiz do
+          # zip. O upload do CI inclui o prefixo `artifacts/...`, que o
+          # upload-artifact remove. Baixar sob um diretório `artifacts` recriava
+          # o prefixo e o manifest virava `artifacts/artifacts/cd/...` (ENOENT
+          # em produção). A raiz baixada passa a ser o próprio ARTIFACT_ROOT;
+          # o restore recoloca o prefixo `artifacts/` esperado pelos scripts.
           path: ${{ runner.temp }}/cisne-build-${{ steps.resolve.outputs.ci_run_id }}
 
       - id: source
@@ -65,7 +71,7 @@ jobs:
           node --input-type=module <<'NODE'
           import { appendFileSync, readFileSync } from 'node:fs';
           import { resolve } from 'node:path';
-          const manifest = JSON.parse(readFileSync(resolve(process.env.ARTIFACT_ROOT, 'artifacts/cd/deploy-manifest.json'), 'utf8'));
+          const manifest = JSON.parse(readFileSync(resolve(process.env.ARTIFACT_ROOT, 'cd/deploy-manifest.json'), 'utf8'));
           const sourceSha = manifest.commitSha;
           if (typeof sourceSha !== 'string' || !/^[0-9a-f]{40}$/i.test(sourceSha)) throw new Error('Invalid MANIFEST_SHA');
           if (process.env.WORKFLOW_SOURCE_SHA && process.env.WORKFLOW_SOURCE_SHA !== sourceSha) {
@@ -80,7 +86,7 @@ jobs:
           fetch-depth: 1
 
       - name: Restore immutable release into workspace
-        run: cp -a "${{ runner.temp }}/cisne-build-${{ steps.resolve.outputs.ci_run_id }}/." .
+        run: cp -a "${{ runner.temp }}/cisne-build-${{ steps.resolve.outputs.ci_run_id }}/." artifacts/
 
       - id: provenance
         name: Verify immutable build provenance
