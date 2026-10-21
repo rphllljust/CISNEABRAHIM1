@@ -55,6 +55,8 @@ jobs:
         run: pnpm audit:deps
       - name: SRC-002 business gate
         run: pnpm gate:src-002
+      - name: Immutable Railway release focused test
+        run: node --test scripts/cd/railway-immutable-release.test.mjs
 
   unit-test-shards:
     name: Unit tests (${{ matrix.shard }})
