@@ -1,104 +1,83 @@
 #!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const token = process.env.RAILWAY_TOKEN;
 const projectId = process.env.RAILWAY_PROJECT_ID;
-const environmentId = process.env.RAILWAY_PRODUCTION_ENVIRONMENT_ID;
+const environmentId = process.env.RAILWAY_TARGET_ENVIRONMENT_ID;
 const apiServiceId = process.env.RAILWAY_API_SERVICE_ID;
 const webServiceId = process.env.RAILWAY_WEB_SERVICE_ID;
-const releaseSha = process.env.CISNE_DEPLOY_COMMIT_SHA;
-const releaseDigest = process.env.CISNE_DEPLOY_ARTIFACT_DIGEST;
+const expectedSha =
+  process.env.CISNE_DEPLOY_COMMIT_SHA ?? process.env.CD_COMMIT_SHA ?? process.env.RELEASE_SHA;
+const expectedDigest =
+  process.env.CISNE_DEPLOY_ARTIFACT_DIGEST ?? process.env.CD_ARTIFACT_DIGEST ?? process.env.RELEASE_DIGEST;
 const releaseRoot = resolve(process.cwd(), 'artifacts/railway/release');
 
 for (const [key, value] of Object.entries({
-  RAILWAY_TOKEN: token,
   RAILWAY_PROJECT_ID: projectId,
-  RAILWAY_PRODUCTION_ENVIRONMENT_ID: environmentId,
+  RAILWAY_TARGET_ENVIRONMENT_ID: environmentId,
   RAILWAY_API_SERVICE_ID: apiServiceId,
   RAILWAY_WEB_SERVICE_ID: webServiceId,
-  CISNE_DEPLOY_COMMIT_SHA: releaseSha,
-  CISNE_DEPLOY_ARTIFACT_DIGEST: releaseDigest,
+  RELEASE_SHA: expectedSha,
+  RELEASE_DIGEST: expectedDigest,
 })) {
   if (!value) throw new Error(`${key} is required`);
 }
 
 const manifest = JSON.parse(
-  readFileSync(resolve(releaseRoot, 'artifacts/cd/deploy-manifest.json'), 'utf8'),
+  readFileSync(resolve(process.cwd(), 'artifacts/cd/deploy-manifest.json'), 'utf8'),
 );
-if (manifest.commitSha !== releaseSha || manifest.artifactDigest !== releaseDigest) {
+if (manifest.commitSha !== expectedSha || manifest.artifactDigest !== expectedDigest) {
   throw new Error(
-    `DEPLOY REFUSED: release identity mismatch manifestSha=${manifest.commitSha} expectedSha=${releaseSha} manifestDigest=${manifest.artifactDigest} expectedDigest=${releaseDigest}`,
+    `DEPLOY REFUSED: identity mismatch manifestSha=${manifest.commitSha} expectedSha=${expectedSha} manifestDigest=${manifest.artifactDigest} expectedDigest=${expectedDigest}`,
   );
 }
 
-async function gql(query, variables) {
-  const response = await fetch('https://backboard.railway.com/graphql/v2', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ query, variables }),
-  });
-  const body = await response.json();
-  if (!response.ok || body.errors?.length) {
-    throw new Error(`Railway GraphQL failed: ${JSON.stringify(body.errors ?? body)}`);
-  }
-  return body.data;
-}
-
-for (const serviceId of [apiServiceId, webServiceId]) {
-  await gql(
-    `mutation variableCollectionUpsert($input: VariableCollectionUpsertInput!) {
-      variableCollectionUpsert(input: $input)
-    }`,
-    {
-      input: {
-        projectId,
-        environmentId,
-        serviceId,
-        variables: {
-          CISNE_RELEASE_SHA: releaseSha,
-          CISNE_RELEASE_DIGEST: releaseDigest,
-        },
-        replace: false,
-        skipDeploys: true,
-      },
-    },
-  );
-}
-
-function deploy(serviceId, label) {
-  const child = spawnSync(
-    'railway',
-    [
-      'up',
-      releaseRoot,
-      '--path-as-root',
-      '--project',
-      projectId,
-      '--environment',
-      environmentId,
-      '--service',
-      serviceId,
-      '--message',
-      `CISNE PROD ${releaseSha} ${releaseDigest} ${label}`,
-    ],
-    {
+function run(args) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const child = spawn('railway', args, {
       cwd: process.cwd(),
       env: process.env,
       stdio: 'inherit',
       shell: false,
-    },
-  );
-  if (child.error) throw child.error;
-  if (child.status !== 0) {
-    throw new Error(`Railway ${label} deployment failed with exit ${child.status}`);
-  }
+    });
+    child.on('error', rejectPromise);
+    child.on('exit', (code) => {
+      if (code === 0) resolvePromise();
+      else rejectPromise(new Error(`railway ${args.join(' ')} exited ${code}`));
+    });
+  });
 }
 
-deploy(apiServiceId, 'api');
-deploy(webServiceId, 'web');
-console.log(`[railway-production] sha=${releaseSha} digest=${releaseDigest} api=SUCCESS web=SUCCESS`);
+async function stamp(serviceId) {
+  await run([
+    'variable', 'set',
+    `CISNE_RELEASE_SHA=${expectedSha}`,
+    `CISNE_RELEASE_DIGEST=${expectedDigest}`,
+    '--skip-deploys',
+    '--project', projectId,
+    '--environment', environmentId,
+    '--service', serviceId,
+  ]);
+}
+
+async function deploy(serviceId, label) {
+  await run([
+    'up', releaseRoot,
+    '--path-as-root',
+    '--project', projectId,
+    '--environment', environmentId,
+    '--service', serviceId,
+    '--message', `CISNE ${label} ${expectedSha} ${expectedDigest}`,
+  ]);
+}
+
+await Promise.all([stamp(apiServiceId), stamp(webServiceId)]);
+await Promise.all([
+  deploy(apiServiceId, 'api'),
+  deploy(webServiceId, 'web'),
+]);
+
+console.log(
+  `[railway-release] environment=${environmentId} sha=${expectedSha} digest=${expectedDigest} api=SUCCESS web=SUCCESS`,
+);
