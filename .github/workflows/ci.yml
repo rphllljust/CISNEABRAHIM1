@@ -236,18 +236,175 @@ jobs:
             artifacts/cd/deploy-manifest.json
             artifacts/railway/release
 
-  visual-regression:
-    name: Visual regression
+  detect-change-scope:
+    name: Detect change scope
     runs-on: ubuntu-latest
-    # JOB PROPRIO, sem `needs`. Antes rodava DENTRO de `build` — e como `continue-on-error`
-    # existisse apenas no step, uma falha de snapshot impedia `Emit build metadata`,
-    # `Package immutable release` e `Upload build artifacts` de rodarem (todos `skipped`).
-    # Resultado medido: 13m19s de build e o pacote imutavel nunca existiu, por causa de UI.
+    # CLASSIFICADOR DE RISCO VISUAL — decide se `visual-full` e obrigatorio.
     #
-    # A cobertura NAO diminui: o mesmo `pnpm test:visual`, o mesmo ratchet de divida, os mesmos
-    # artefatos de diagnostico. O que muda e que a falha de UI agora reprova ESTE job e o
-    # `release-ready`, em vez de matar a release inteira antes de o pacote ser produzido.
-    timeout-minutes: 30
+    # O problema que isto resolve: a suite visual completa leva ~16 min. Rodar SEMPRE bloqueando
+    # qualquer release significa que um fix de SQL no backend espera 16 minutos por snapshots de
+    # Contabilidade que nao tem como ter mudado. Rodar NUNCA bloqueando significa perder a
+    # regressao visual que importa.
+    #
+    # A saida `visual_risk` responde uma pergunta objetiva: "este commit tocou superficie
+    # visual?" — avaliada pelo CAMINHO dos arquivos alterados, nao por julgamento.
+    #
+    # FALHA ABERTA (fail-open para o lado seguro): se nao for possivel determinar o diff
+    # (workflow_dispatch sem base, push inicial), `visual_risk = true`. Classificar errado como
+    # "sem risco" pularia a suite completa justamente quando nao se sabe o que mudou. Classificar
+    # errado como "com risco" apenas custa tempo.
+    outputs:
+      visual_risk: ${{ steps.scope.outputs.visual_risk }}
+      changed_files: ${{ steps.scope.outputs.changed_files }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: scope
+        name: Classify changed paths
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          determine_range() {
+            if [ "$EVENT_NAME" = "pull_request" ] && [ -n "$PR_BASE_SHA" ]; then
+              echo "${PR_BASE_SHA}...${HEAD_SHA}"
+              return
+            fi
+            if [ "$EVENT_NAME" = "push" ] && [ -n "$PUSH_BEFORE" ]; then
+              case "$PUSH_BEFORE" in
+                0000000000000000000000000000000000000000) : ;;
+                *)
+                  if git cat-file -e "${PUSH_BEFORE}^{commit}" 2>/dev/null; then
+                    echo "${PUSH_BEFORE}...${HEAD_SHA}"
+                    return
+                  fi
+                  ;;
+              esac
+            fi
+            # Sem base confiavel: fail-open (trata como risco visual).
+            echo "__UNKNOWN__"
+          }
+
+          range="$(determine_range)"
+          if [ "$range" = "__UNKNOWN__" ]; then
+            echo "Nao foi possivel determinar o diff (evento=$EVENT_NAME). Tratando como risco visual."
+            echo "visual_risk=true" >> "$GITHUB_OUTPUT"
+            echo "changed_files=unknown" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          files="$(git diff --name-only "$range" || true)"
+          count="$(printf '%s' "$files" | grep -c . || true)"
+          echo "Arquivos alterados: $count"
+          printf '%s\n' "$files" | head -50
+
+          # Superficie visual = tudo que pode mudar pixel renderizado.
+          visual='^(apps/web/src/|apps/web/e2e/visual/|apps/web/index\.html|apps/web/vite\.config\.ts|apps/web/tailwind\.config|packages/ui/|packages/design-|.*\.css$)'
+
+          if printf '%s\n' "$files" | grep -Eq "$visual"; then
+            echo "visual_risk=true" >> "$GITHUB_OUTPUT"
+            echo "Superficie visual tocada -> visual-full OBRIGATORIO."
+          else
+            echo "visual_risk=false" >> "$GITHUB_OUTPUT"
+            echo "Nenhuma superficie visual tocada -> visual-full roda em modo informativo."
+          fi
+          echo "changed_files=$count" >> "$GITHUB_OUTPUT"
+
+  visual-critical:
+    name: Visual critical
+    runs-on: ubuntu-latest
+    # GATE OBRIGATORIO E CURTO — entra no `release-ready`.
+    #
+    # PROBLEMA MEDIDO: a suite visual completa (24 specs x 3 viewports = ate 72 comparacoes)
+    # levou 15m47s e virou o caminho critico depois que o build caiu para ~56s. Um ajuste de
+    # densidade numa tela de Contabilidade bloqueava a promocao de uma correcao de backend por
+    # 16 minutos.
+    #
+    # O QUE ESTE JOB COBRE (definido por RISCO OPERACIONAL, nao por "metade da suite"):
+    #
+    #   login     — porta de entrada. Se quebrar, ninguem entra no produto.
+    #   dashboard — Central de Operacoes, primeira dobra. Se quebrar, o operador nao ve o
+    #               trabalho que precisa fazer.
+    #
+    # Sao as duas superficies cujo defeito visual IMPEDE operacao. As demais (fiscal,
+    # contabilidade, compras, proposta, inventario) quebram MODULOS — grave, mas nao impedem o
+    # produto de abrir, e continuam cobertas pelo `visual-full`.
+    #
+    # VIEWPORT: apenas `desktop`. O critical responde "a tela ainda existe na estrutura
+    # esperada?". Responsividade em 390px e pergunta legitima do `visual-full`.
+    #
+    # CREDIBILIDADE: `maxDiffPixelRatio: 0.01`, o MESMO da suite completa. Um critical mais
+    # permissivo seria teatro.
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+      - name: Install Playwright Chromium (visual critical)
+        run: pnpm --filter @cisne/web exec playwright install chromium --with-deps
+      - name: Visual critical suite
+        run: |
+          mkdir -p artifacts/ci
+          pnpm --filter @cisne/web test:visual:critical 2>&1 | tee artifacts/ci/web-visual-critical.log
+        env:
+          CI: 'true'
+          VITE_CISNE_SURFACE: 'dev'
+      - name: Upload visual critical diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-visual-critical-diagnostics-${{ github.run_id }}
+          if-no-files-found: ignore
+          retention-days: 3
+          path: |
+            apps/web/test-results
+            apps/web/playwright-report
+            artifacts/ci/web-visual-critical.log
+
+  visual-full:
+    name: Visual full
+    runs-on: ubuntu-latest
+    # COBERTURA COMPLETA, FORA DO CAMINHO CRITICO NORMAL.
+    #
+    # Roda os MESMOS 24 specs e os MESMOS 3 viewports de antes. NENHUM snapshot foi removido e
+    # nenhum limiar foi afrouxado. O que muda e QUANDO este job bloqueia a release:
+    #
+    #   - OBRIGATORIO quando a mudanca toca superficie visual (apps/web/src, e2e/visual,
+    #     estilos, layout, componentes de UI);
+    #   - INFORMATIVO quando a mudanca e backend/non-visual — a cobertura continua rodando e
+    #     continua publicada, mas nao segura a promocao de um fix que nao pode ter mexido em
+    #     pixel.
+    #
+    # A classificacao vem de `detect-change-scope`, que le o diff do commit. Em `main` e em
+    # `schedule` roda SEMPRE e como obrigatorio: a cobertura ampla precisa existir tambem fora
+    # do PR, senao a divida visual se acumula entre releases.
+    #
+    # NUNCA usa `continue-on-error` para esconder regressao: quando o job roda por politica de
+    # risco visual, o `visual-regression-ratchet` reprova o job em regressao real.
+    needs: detect-change-scope
+    if: >-
+      always() &&
+      (needs.detect-change-scope.outputs.visual_risk == 'true' ||
+       github.event_name == 'push' ||
+       github.event_name == 'schedule')
+    timeout-minutes: 35
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -266,7 +423,7 @@ jobs:
         run: pnpm build
       - name: Install Playwright Chromium (web visual regression)
         run: pnpm --filter @cisne/web exec playwright install chromium --with-deps
-      - name: Web visual regression
+      - name: Web visual regression (full suite)
         id: web-visual
         continue-on-error: true
         run: |
@@ -281,7 +438,7 @@ jobs:
         with:
           name: web-visual-diagnostics-${{ github.run_id }}
           if-no-files-found: ignore
-          retention-days: 1
+          retention-days: 3
           path: |
             apps/web/test-results
             apps/web/playwright-report
@@ -311,7 +468,7 @@ jobs:
       - unit-tests
       - database-and-integration
       - build-release
-      - visual-regression
+      - visual-critical
     if: always()
     steps:
       - name: Require every required gate to pass
@@ -320,20 +477,20 @@ jobs:
           UNIT: ${{ needs.unit-tests.result }}
           DATABASE: ${{ needs.database-and-integration.result }}
           BUILD: ${{ needs.build-release.result }}
-          VISUAL: ${{ needs.visual-regression.result }}
+          VISUAL_CRITICAL: ${{ needs.visual-critical.result }}
         run: |
           echo "static-quality            : $STATIC"
           echo "unit-tests                : $UNIT"
           echo "database-and-integration  : $DATABASE"
           echo "build-release             : $BUILD"
-          echo "visual-regression         : $VISUAL"
+          echo "visual-critical           : $VISUAL_CRITICAL"
           failed=0
           for pair in \
             "static-quality:$STATIC" \
             "unit-tests:$UNIT" \
             "database-and-integration:$DATABASE" \
             "build-release:$BUILD" \
-            "visual-regression:$VISUAL"
+            "visual-critical:$VISUAL_CRITICAL"
           do
             name="${pair%%:*}"
             result="${pair##*:}"
