@@ -136,12 +136,36 @@ jobs:
         run: test "$SHARDS_RESULT" = "success"
 
   database-and-integration:
-    name: Database gate / Integration / API E2E
+    name: Database gate / Integration
     runs-on: ubuntu-latest
-    # SEM `needs`. Este job NAO consome artefato, cache ou resultado de `static-quality` nem de
-    # `unit-tests`: ele faz checkout proprio, instala dependencias e roda contra um PostgreSQL
-    # de servico proprio. A dependencia anterior era artificial e custava o tempo do job mais
-    # lento a todos os outros. Quem garante que TODOS precisam passar juntos e `release-ready`.
+    # SEM `needs`. Nao consome artefato nem resultado de outro job: checkout, dependencias e
+    # PostgreSQL proprios. A dependencia anterior era artificial e custava o tempo do job mais
+    # lento a todos os outros.
+    #
+    # ─────────────────────────────────────────────────────────────────────────────────────────
+    # SEPARADO DE `api-e2e` (CI/CD-06)
+    # ─────────────────────────────────────────────────────────────────────────────────────────
+    #
+    # GARGALO MEDIDO: este job levou 21m26s no run 39665977954, porque rodava
+    # `Integration tests` E `API end-to-end tests` SEQUENCIALMENTE contra o MESMO banco
+    # (`cisne_ci_test`), ambos disputando o mesmo advisory lock global
+    # (`INTEGRATION_TEST_DB_LOCK_KEY = 0x43534e45`).
+    #
+    # Separar em dois jobs usando o MESMO banco seria paralelismo cosmetico: o lock faria o
+    # segundo esperar o primeiro de qualquer forma — a serializacao apenas sairia do workflow e
+    # iria para o Postgres.
+    #
+    # AGORA cada job tem BANCO PROPRIO:
+    #   este job    -> cisne_ci_integration
+    #   api-e2e     -> cisne_ci_e2e
+    #
+    # POR QUE ISSO RESOLVE O LOCK SEM MEXER NO LOCK
+    #
+    # Advisory locks do Postgres sao escopados POR DATABASE, nao pelo cluster. Duas conexoes em
+    # databases diferentes pegam locks diferentes mesmo com a MESMA chave `0x43534e45`. Ou seja:
+    # a exclusividade do banco torna o lock global inofensivo por construcao — nenhuma linha de
+    # `integration-test-db-lock.ts` precisa mudar, e o lock continua protegendo o que deve
+    # proteger (acesso concorrente ao MESMO banco dentro do proprio job).
     timeout-minutes: 30
     services:
       postgres:
@@ -157,6 +181,10 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12
+    env:
+      # BANCO EXCLUSIVO DESTE JOB. `TEST_DATABASE_URL` aponta para ELE e para mais nenhum.
+      INTEGRATION_DATABASE_NAME: cisne_ci_integration
+      TEST_DATABASE_URL: postgresql://cisne_ci:cisne_ci_disposable_password@localhost:5432/cisne_ci_integration
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -171,20 +199,71 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
-      - name: Create disposable integration-test database
+      - name: Create disposable integration database
         env:
           PGPASSWORD: cisne_ci_disposable_password
         run: |
-          psql -h localhost -U cisne_ci -d cisne_ci -v ON_ERROR_STOP=1 <<'SQL'
-          SELECT format('CREATE DATABASE %I OWNER %I', 'cisne_ci_test', 'cisne_ci')
-          WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'cisne_ci_test')\gexec
+          psql -h localhost -U cisne_ci -d cisne_ci -v ON_ERROR_STOP=1 <<SQL
+          SELECT format('CREATE DATABASE %I OWNER %I', '${INTEGRATION_DATABASE_NAME}', 'cisne_ci')
+          WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${INTEGRATION_DATABASE_NAME}')\gexec
           SQL
       - name: Database migration gate
         run: pnpm gate:database
-      - name: Apply migrations to integration-test database
+      - name: Apply migrations to integration database
         run: pnpm db:migrate:test
       - name: Integration tests
         run: pnpm test:integration
+
+  api-e2e:
+    name: API E2E
+    runs-on: ubuntu-latest
+    # PAR DO `database-and-integration`, com BANCO PROPRIO. Nenhum dos dois espera o outro.
+    #
+    # Mesmo servico Postgres por conveniencia de imagem, mas DATABASE distinto: o advisory lock
+    # de `cisne_ci_integration` nao existe em `cisne_ci_e2e`, porque locks sao por database.
+    #
+    # MIGRATIONS PROPIAS: `ensure-migrations` (globalSetup do vitest.e2e) aplica no banco deste
+    # job. Ele nao herda schema de ninguem — se aplicar errado, falha aqui, isolado.
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: cisne_ci
+          POSTGRES_PASSWORD: cisne_ci_disposable_password
+          POSTGRES_DB: cisne_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cisne_ci -d cisne_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      E2E_DATABASE_NAME: cisne_ci_e2e
+      TEST_DATABASE_URL: postgresql://cisne_ci:cisne_ci_disposable_password@localhost:5432/cisne_ci_e2e
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+      - name: Create disposable e2e database
+        env:
+          PGPASSWORD: cisne_ci_disposable_password
+        run: |
+          psql -h localhost -U cisne_ci -d cisne_ci -v ON_ERROR_STOP=1 <<SQL
+          SELECT format('CREATE DATABASE %I OWNER %I', '${E2E_DATABASE_NAME}', 'cisne_ci')
+          WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${E2E_DATABASE_NAME}')\gexec
+          SQL
       - name: API end-to-end tests
         run: pnpm test:e2e
 
@@ -467,6 +546,7 @@ jobs:
       - static-quality
       - unit-tests
       - database-and-integration
+      - api-e2e
       - build-release
       - visual-critical
     if: always()
@@ -476,12 +556,14 @@ jobs:
           STATIC: ${{ needs.static-quality.result }}
           UNIT: ${{ needs.unit-tests.result }}
           DATABASE: ${{ needs.database-and-integration.result }}
+          E2E: ${{ needs.api-e2e.result }}
           BUILD: ${{ needs.build-release.result }}
           VISUAL_CRITICAL: ${{ needs.visual-critical.result }}
         run: |
           echo "static-quality            : $STATIC"
           echo "unit-tests                : $UNIT"
           echo "database-and-integration  : $DATABASE"
+          echo "api-e2e                   : $E2E"
           echo "build-release             : $BUILD"
           echo "visual-critical           : $VISUAL_CRITICAL"
           failed=0
@@ -489,6 +571,7 @@ jobs:
             "static-quality:$STATIC" \
             "unit-tests:$UNIT" \
             "database-and-integration:$DATABASE" \
+            "api-e2e:$E2E" \
             "build-release:$BUILD" \
             "visual-critical:$VISUAL_CRITICAL"
           do
