@@ -16,7 +16,7 @@ RUN pnpm install --prod --frozen-lockfile
 COPY apps/api/dist ./apps/api/dist
 COPY packages/database/dist ./packages/database/dist
 COPY packages/database/migrations ./packages/database/migrations
-COPY artifacts/cd/deploy-manifest.json ./artifacts/cd/deploy-manifest.json
+COPY artifacts/release-identity.json ./artifacts/release-identity.json
 
 EXPOSE 3000
 CMD ["node", "apps/api/dist/main.js"]
