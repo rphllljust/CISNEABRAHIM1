@@ -54,7 +54,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ steps.resolve.outputs.ci_run_id }}
           name: cisne-build-${{ steps.resolve.outputs.ci_run_id }}
-          path: ${{ runner.temp }}/cisne-build-${{ steps.resolve.outputs.ci_run_id }}
+          path: ${{ runner.temp }}/cisne-build-${{ steps.resolve.outputs.ci_run_id }}/artifacts
 
       - id: source
         name: Resolve immutable source SHA
