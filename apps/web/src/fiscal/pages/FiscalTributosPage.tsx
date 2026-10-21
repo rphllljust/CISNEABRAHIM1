@@ -432,12 +432,13 @@ function TaxRuleDetail({ taxRuleId }: { taxRuleId: string }) {
       />
       {gate}
       {state.phase === 'ready' ? (
-        /*
+        <>
+          {/*
          * IDENTIDADE DA REGRA — faixa densa acima do detalhe, não cartão `rounded-xl p-6`.
          * Código, nome, situação e unidade continuam sendo exatamente os valores do servidor.
-         */
-        <section
-          className="mb-3 rounded-md border border-gray-200 bg-white"
+         */}
+          <section
+            className="mb-3 rounded-md border border-gray-200 bg-white"
           aria-label="Identificação da regra tributária"
         >
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-3 py-2">
@@ -469,6 +470,61 @@ function TaxRuleDetail({ taxRuleId }: { taxRuleId: string }) {
             </span>
           </div>
         </section>
+
+        <section className="rounded-md border border-gray-200 bg-white" aria-label="Histórico de versões">
+          <div className="border-b border-gray-100 px-3 py-2">
+            <h2 className="text-[13px] font-semibold text-gray-900">Histórico de versões</h2>
+          </div>
+          {state.data.versions.length === 0 ? (
+            <WorklistStatePanel
+              title="Nenhuma versão persistida"
+              description="Esta regra ainda não possui versões tributárias persistidas."
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className={worklistTableClass}>
+                <thead>
+                  <tr>
+                    <th scope="col" className={worklistHeadCellClass}>Versão</th>
+                    <th scope="col" className={worklistHeadCellClass}>Situação</th>
+                    <th scope="col" className={worklistHeadCellClass}>Vigência</th>
+                    <th scope="col" className={worklistHeadCellClass}>Método</th>
+                    <th scope="col" className={worklistNumericHeadCellClass}>Alíquota / valor</th>
+                    <th scope="col" className={worklistHeadCellClass}>Fonte</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {state.data.versions.map((version) => (
+                    <tr key={version.id} className={worklistRowClass}>
+                      <td className={worklistCellClass}>v{version.versionNumber}</td>
+                      <td className={worklistCellRaisedClass}>
+                        <FinanceStatusBadge
+                          status={version.status}
+                          labels={{ PUBLISHED: 'Publicada', DRAFT: 'Rascunho' }}
+                        />
+                      </td>
+                      <td className={cn(worklistCellRaisedClass, 'tabular-nums')}>
+                        {version.effectiveFrom} → {version.effectiveTo ?? 'aberta'}
+                      </td>
+                      <td className={worklistCellRaisedClass}>{version.calculationMethod}</td>
+                      <td className={worklistNumericCellClass}>
+                        {version.rate ? (
+                          <Money value={version.rate} currencyCode="BRL" />
+                        ) : (
+                          (version.fixedAmount ?? 'UNKNOWN')
+                        )}
+                      </td>
+                      <td className={cn(worklistCellRaisedClass, 'whitespace-normal')}>
+                        {version.sourceReference || 'UNKNOWN'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+        </>
       ) : null}
     </ModulePage>
   );

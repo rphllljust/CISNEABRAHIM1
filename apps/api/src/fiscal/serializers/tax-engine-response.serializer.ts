@@ -14,6 +14,7 @@ export type TaxRuleResponse = {
   code: string;
   name: string;
   status: string;
+  versions: TaxRuleVersionResponse[];
 };
 
 /** Item de listagem de regras: identifica a versao publicada vigente sem consulta extra. */
@@ -171,13 +172,17 @@ export function toTaxCalculationSummaryResponse(
   };
 }
 
-export function toTaxRuleResponse(row: TaxRuleRow): TaxRuleResponse {
+export function toTaxRuleResponse(
+  row: TaxRuleRow,
+  versions: TaxRuleVersionRow[] = [],
+): TaxRuleResponse {
   return {
     id: row.id,
     unitId: row.unit_id,
     code: row.code,
     name: row.name,
     status: row.status,
+    versions: versions.map(toTaxRuleVersionResponse),
   };
 }
 

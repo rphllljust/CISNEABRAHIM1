@@ -178,6 +178,17 @@ export class TaxEngineRepository {
     return result.rows[0] ?? null;
   }
 
+  async listRuleVersions(taxRuleId: string): Promise<TaxRuleVersionRow[]> {
+    const result = await this.pool().query<TaxRuleVersionRow>(
+      `SELECT ${VERSION_RETURNING}
+       FROM fis.tax_rule_versions v
+       WHERE v.tax_rule_id = $1
+       ORDER BY v.version_number DESC`,
+      [taxRuleId],
+    );
+    return result.rows;
+  }
+
   async findPublishedVersionForEffectiveOn(
     unitId: string,
     code: string,
