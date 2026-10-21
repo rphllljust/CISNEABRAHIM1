@@ -10,6 +10,7 @@ import { isCorsOriginAllowed } from './infrastructure/http/cors-origin-policy';
 import { collectRuntimeConfigErrors } from './platform/runtime-config/runtime-config';
 import { ApiExceptionFilter } from './infrastructure/http/api-exception.filter';
 import { InvalidUuidFilter } from './infrastructure/http/invalid-uuid.filter';
+import { FinanceValidationFilter } from './infrastructure/http/finance-validation.filter';
 
 config({ path: resolve(__dirname, '../../../.env') });
 
@@ -41,7 +42,11 @@ async function bootstrap(): Promise<void> {
     allowedHeaders: ['Authorization', 'Content-Type', 'X-Correlation-Id', 'X-Request-Id'],
   });
   app.useGlobalInterceptors(new SecurityHeadersInterceptor());
-  app.useGlobalFilters(new ApiExceptionFilter(), new InvalidUuidFilter());
+  app.useGlobalFilters(
+    new ApiExceptionFilter(),
+    new InvalidUuidFilter(),
+    new FinanceValidationFilter(),
+  );
 
   await app.listen({ port, host });
 }
