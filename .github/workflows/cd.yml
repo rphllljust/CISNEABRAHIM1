@@ -209,9 +209,9 @@ jobs:
           HML_ENV_ID: ${{ steps.hml.outputs.environment_id }}
           HML_SYNTHETIC_SEED_CONFIRM: I_UNDERSTAND
           BOOTSTRAP_CONFIRM: I_UNDERSTAND
-          BOOTSTRAP_ADMIN_LOGIN: ${{ env.HML_SMOKE_LOGIN }}
-          BOOTSTRAP_ADMIN_PASSWORD: ${{ env.HML_SMOKE_PASSWORD }}
         run: |
+          export BOOTSTRAP_ADMIN_LOGIN="$HML_SMOKE_LOGIN"
+          export BOOTSTRAP_ADMIN_PASSWORD="$HML_SMOKE_PASSWORD"
           railway run --project "$RAILWAY_PROJECT_ID" --environment "$HML_ENV_ID" --service "$RAILWAY_API_SERVICE_ID" \
             node scripts/hml/bootstrap-synthetic.mjs
 
@@ -222,20 +222,29 @@ jobs:
           curl -fsS "$HML_PUBLIC_API_URL/api/v1/health/ready"
           pnpm --filter @cisne/api hml:smoke
 
-      - name: Prove HML SHA and digest from deployed Web bits
+      - name: Prove HML API/Web SHA and digest from deployed bits
         env:
+          HML_ENV_ID: ${{ steps.hml.outputs.environment_id }}
           HML_PUBLIC_WEB_URL: ${{ steps.hml-domains.outputs.web_url }}
           EXPECTED_SHA: ${{ needs.resolve-ci-artifact.outputs.source_sha }}
           EXPECTED_DIGEST: ${{ needs.resolve-ci-artifact.outputs.artifact_digest }}
         run: |
-          curl -fsS "$HML_PUBLIC_WEB_URL/release-manifest.json" -o /tmp/hml-release.json
+          railway service files download /app/artifacts/cd/deploy-manifest.json /tmp/hml-api-release.json \
+            --project "$RAILWAY_PROJECT_ID" --environment "$HML_ENV_ID" --service "$RAILWAY_API_SERVICE_ID" --overwrite
+          curl -fsS "$HML_PUBLIC_WEB_URL/release-manifest.json" -o /tmp/hml-web-release.json
           node --input-type=module <<'NODE'
           import { readFileSync } from 'node:fs';
-          const manifest = JSON.parse(readFileSync('/tmp/hml-release.json', 'utf8'));
-          if (manifest.commitSha !== process.env.EXPECTED_SHA || manifest.artifactDigest !== process.env.EXPECTED_DIGEST) {
-            throw new Error(`DEPLOY REFUSED: HML provenance mismatch sha=${manifest.commitSha} digest=${manifest.artifactDigest}`);
+          const api = JSON.parse(readFileSync('/tmp/hml-api-release.json', 'utf8'));
+          const web = JSON.parse(readFileSync('/tmp/hml-web-release.json', 'utf8'));
+          for (const [name, manifest] of [['api', api], ['web', web]]) {
+            if (manifest.commitSha !== process.env.EXPECTED_SHA || manifest.artifactDigest !== process.env.EXPECTED_DIGEST) {
+              throw new Error(`DEPLOY REFUSED: HML ${name} mismatch sha=${manifest.commitSha} digest=${manifest.artifactDigest}`);
+            }
           }
-          console.log(`HML_SHA=${manifest.commitSha} HML_DIGEST=${manifest.artifactDigest}`);
+          if (api.commitSha !== web.commitSha || api.artifactDigest !== web.artifactDigest) {
+            throw new Error('DEPLOY REFUSED: HML API/Web release identity diverged');
+          }
+          console.log(`HML_SHA=${api.commitSha} HML_DIGEST=${api.artifactDigest}`);
           NODE
 
       - name: HML deployment evidence
@@ -325,20 +334,28 @@ jobs:
           HML_SMOKE_PASSWORD="$PROD_SMOKE_PASSWORD" \
           pnpm --filter @cisne/api hml:smoke
 
-      - name: Prove production SHA and digest from deployed Web bits
+      - name: Prove production API/Web SHA and digest from deployed bits
         env:
           EXPECTED_SHA: ${{ needs.resolve-ci-artifact.outputs.source_sha }}
           EXPECTED_DIGEST: ${{ needs.resolve-ci-artifact.outputs.artifact_digest }}
         run: |
           curl -fsS "$PROD_PUBLIC_API_URL/api/v1/health/ready"
-          curl -fsS "$PROD_PUBLIC_WEB_URL/release-manifest.json" -o /tmp/prod-release.json
+          railway service files download /app/artifacts/cd/deploy-manifest.json /tmp/prod-api-release.json \
+            --project "$RAILWAY_PROJECT_ID" --environment "$RAILWAY_PRODUCTION_ENVIRONMENT_ID" --service "$RAILWAY_API_SERVICE_ID" --overwrite
+          curl -fsS "$PROD_PUBLIC_WEB_URL/release-manifest.json" -o /tmp/prod-web-release.json
           node --input-type=module <<'NODE'
           import { readFileSync } from 'node:fs';
-          const manifest = JSON.parse(readFileSync('/tmp/prod-release.json', 'utf8'));
-          if (manifest.commitSha !== process.env.EXPECTED_SHA || manifest.artifactDigest !== process.env.EXPECTED_DIGEST) {
-            throw new Error(`DEPLOY REFUSED: production provenance mismatch sha=${manifest.commitSha} digest=${manifest.artifactDigest}`);
+          const api = JSON.parse(readFileSync('/tmp/prod-api-release.json', 'utf8'));
+          const web = JSON.parse(readFileSync('/tmp/prod-web-release.json', 'utf8'));
+          for (const [name, manifest] of [['api', api], ['web', web]]) {
+            if (manifest.commitSha !== process.env.EXPECTED_SHA || manifest.artifactDigest !== process.env.EXPECTED_DIGEST) {
+              throw new Error(`DEPLOY REFUSED: production ${name} mismatch sha=${manifest.commitSha} digest=${manifest.artifactDigest}`);
+            }
           }
-          console.log(`PROD_SHA=${manifest.commitSha} PROD_DIGEST=${manifest.artifactDigest}`);
+          if (api.commitSha !== web.commitSha || api.artifactDigest !== web.artifactDigest) {
+            throw new Error('DEPLOY REFUSED: production API/Web release identity diverged');
+          }
+          console.log(`PROD_SHA=${api.commitSha} PROD_DIGEST=${api.artifactDigest}`);
           NODE
 
       - name: Record production manifest
