@@ -432,7 +432,8 @@ function TaxRuleDetail({ taxRuleId }: { taxRuleId: string }) {
       />
       {gate}
       {state.phase === 'ready' ? (
-        /*
+        <>
+          {/*
          * IDENTIDADE DA REGRA — faixa densa acima do detalhe, não cartão `rounded-xl p-6`.
          * Código, nome, situação e unidade continuam sendo exatamente os valores do servidor.
          */
@@ -523,6 +524,7 @@ function TaxRuleDetail({ taxRuleId }: { taxRuleId: string }) {
             </div>
           )}
         </section>
+        </>
       ) : null}
     </ModulePage>
   );
