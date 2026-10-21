@@ -10,21 +10,7 @@ import { join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export const DEFAULT_ARTIFACT_PATHS = [
-  'apps/api/dist',
-  'apps/web/dist',
-  'packages/database/dist',
-  'packages/database/migrations',
-  'package.json',
-  'pnpm-workspace.yaml',
-  'pnpm-lock.yaml',
-  'apps/api/package.json',
-  'apps/web/package.json',
-  'packages/database/package.json',
-  'packages/eslint-config/package.json',
-  'packages/tsconfig/package.json',
-  'docker/release/Dockerfile.api',
-  'docker/release/Dockerfile.web',
-  'docker/railway/nginx.conf',
+  'artifacts/railway/release',
 ];
 
 function walkFiles(current) {
