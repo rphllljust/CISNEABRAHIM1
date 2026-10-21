@@ -33,6 +33,15 @@ export function prepareImmutableRailwayRelease({
     expectedArtifactDigest: source.artifactDigest,
   });
 
+  // Railway services already point at these Dockerfile paths. The aliases are
+  // exact copies of sealed runtime Dockerfiles; no source Dockerfile is used.
+  const apiAlias = resolve(output, 'docker/hml/Dockerfile.api');
+  const webAlias = resolve(output, 'docker/railway/Dockerfile.web');
+  mkdirSync(dirname(apiAlias), { recursive: true });
+  mkdirSync(dirname(webAlias), { recursive: true });
+  cpSync(resolve(output, 'docker/release/Dockerfile.api'), apiAlias);
+  cpSync(resolve(output, 'docker/release/Dockerfile.web'), webAlias);
+
   return {
     output,
     sourceSha: copied.sourceSha,
