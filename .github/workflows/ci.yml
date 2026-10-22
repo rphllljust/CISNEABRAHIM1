@@ -1,4 +1,4 @@
-﻿name: CI
+name: CI
 
 on:
   push:
@@ -343,6 +343,29 @@ jobs:
         env:
           TEST_DATABASE_URL: postgresql://cisne_ci:cisne_ci_disposable_password@localhost:5432/cisne_ci_integration_${{ matrix.db_suffix }}
         run: pnpm db:migrate:test
+      # ───────────────────────────────────────────────────────────────────────────────────────
+      # BUILD DO WORKSPACE — O QUE O TURBO FAZIA POR NOS
+      # ───────────────────────────────────────────────────────────────────────────────────────
+      #
+      # CAUSA RAIZ MEDIDA (run 39782887902, os 4 shards, 29 arquivos cada, falha em ~40s):
+      #
+      #     Error: Failed to resolve entry for package "@cisne/database".
+      #     File: apps/api/src/test/integration-test-db-serializer.ts:7:7
+      #
+      # O sharding estava CERTO: cada shard coletou exatamente 29 arquivos (29/29/29/27 = 114).
+      # O que faltou foi o BUILD do workspace. `turbo.json` declara
+      #
+      #     "test:integration": { "dependsOn": ["^build"], ... }
+      #
+      # ou seja, o Turbo garantia o build das dependencias de workspace ANTES de rodar os testes.
+      # Ao trocar para execucao direta (`pnpm --filter @cisne/api test:integration`) para garantir
+      # que `INTEGRATION_SHARD` chegasse ao Vitest, o `^build` deixou de acontecer junto — e o
+      # serializer importa `@cisne/database`, que precisa de `dist/`.
+      #
+      # CORRECAO: buildar explicitamente as dependencias de workspace. Mantem as duas garantias
+      # que antes se perdiam uma sem a outra — env sem filtro E pacote compilado.
+      - name: Build workspace packages
+        run: pnpm --filter @cisne/api... build
       - name: Integration tests (shard)
         env:
           INTEGRATION_DATABASE_NAME: cisne_ci_integration_${{ matrix.db_suffix }}
