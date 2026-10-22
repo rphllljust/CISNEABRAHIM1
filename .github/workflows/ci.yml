@@ -348,7 +348,9 @@ jobs:
           INTEGRATION_DATABASE_NAME: cisne_ci_integration_${{ matrix.db_suffix }}
           TEST_DATABASE_URL: postgresql://cisne_ci:cisne_ci_disposable_password@localhost:5432/cisne_ci_integration_${{ matrix.db_suffix }}
           INTEGRATION_SHARD: ${{ matrix.shard }}
-        run: pnpm test:integration
+        # CI chama a suite diretamente para garantir que INTEGRATION_SHARD chegue ao Vitest
+        # sem depender do allowlist de env do Turbo.
+        run: pnpm --filter @cisne/api test:integration
 
   # NOME ESTAVEL: cada shard precisa passar antes deste check ficar verde.
   #
