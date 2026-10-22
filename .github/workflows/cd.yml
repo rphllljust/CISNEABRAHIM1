@@ -72,14 +72,51 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           IS_DISPATCH: ${{ github.event_name == 'workflow_dispatch' }}
-          RUN_ID: ${{ github.event.workflow_run.id || inputs.ci_run_id }}
+          # Mesma causa do coolify-release.yml: `workflow_run.id` aponta para o run de CI
+          # que disparou o evento, e o `concurrency` do CI pode ter cancelado esse run
+          # quando dois pushes chegam proximos. Resolvemos pelo SHA.
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha || inputs.ci_run_id }}
           WORKFLOW_SHA: ${{ github.event.workflow_run.head_sha || '' }}
         run: |
           set -euo pipefail
-          if [ -z "$RUN_ID" ]; then
+          if [ -z "$EXPECTED_SHA" ]; then
             echo "::error::No CI run id to resolve release authority from."
             exit 1
           fi
+
+          # No dispatch manual o input E o run id; no evento e o SHA do push.
+          if [ "$IS_DISPATCH" = "true" ]; then
+            RUN_ID="$EXPECTED_SHA"
+          else
+            runs_json=$(gh api \
+              "repos/${{ github.repository }}/actions/runs?head_sha=$EXPECTED_SHA&per_page=100")
+            selection=$(printf '%s' "$runs_json" | EXPECTED_SHA="$EXPECTED_SHA" node --input-type=module -e '
+              let s=""; for await (const c of process.stdin) s+=c;
+              const expected=process.env.EXPECTED_SHA;
+              const runs=(JSON.parse(s).workflow_runs ?? []).filter(
+                (entry)=>entry.name==="CI" && entry.head_sha===expected,
+              );
+              if (runs.length===0) { console.log("MISSING"); process.exit(0); }
+              const completed=runs.filter((entry)=>entry.status==="completed");
+              const pool=completed.length>0 ? completed : runs;
+              const run=pool.sort((a,b)=>b.id-a.id)[0];
+              console.log([run.id, run.head_branch, run.status].join(" "));
+            ')
+            if [ "$selection" = "MISSING" ]; then
+              echo "::error::No completed CI run for $EXPECTED_SHA"
+              exit 1
+            fi
+            read -r RUN_ID HEAD_BRANCH RUN_STATUS <<< "$selection"
+            if [ "$HEAD_BRANCH" != "main" ]; then
+              echo "::error::CI run $RUN_ID is on '$HEAD_BRANCH' (expected main)"
+              exit 1
+            fi
+            if [ "$RUN_STATUS" != "completed" ]; then
+              echo "::error::CI run $RUN_ID still '$RUN_STATUS'"
+              exit 1
+            fi
+          fi
+
           echo "ci_run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
 
           # A autoridade vem do JOB, nao da conclusao do run.
