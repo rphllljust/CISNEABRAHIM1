@@ -212,9 +212,10 @@ jobs:
     # DENTRO DO SHARD PERMANECE SERIAL (`maxWorkers: 1`, `fileParallelism: false`): o database e
     # unico, entao paralelizar ali seria espera de lock, nao velocidade.
     #
-    # COBERTURA: nenhuma reducao. O Vitest particiona por hash estavel do caminho — os shards
-    # recebem particoes DISJUNTAS e a UNIAO e exatamente o conjunto dos 114 arquivos. Nenhum
-    # arquivo removido, nenhum silenciado, nenhum `--exclude` novo.
+    # COBERTURA: nenhuma reducao. O plano ponderado descobre todos os *.integration.spec.ts,
+    # atribui cada arquivo a exatamente um shard e falha se a particao nao for completa/disjunta.
+    # Os pesos vieram do run 39783611641; specs novos entram automaticamente com peso mediano
+    # conservador. Nenhum arquivo removido, nenhum silenciado, nenhum `--exclude` novo.
     #
     # MIGRATIONS: cada shard aplica as SUAS, contra o SEU database, via `ensure-migrations`
     # (globalSetup) — nenhum shard herda schema de outro. Se aplicar errado, falha ali, isolado.
@@ -243,12 +244,16 @@ jobs:
       matrix:
         include:
           - shard: '1/4'
+            index: 1
             db_suffix: s1
           - shard: '2/4'
+            index: 2
             db_suffix: s2
           - shard: '3/4'
+            index: 3
             db_suffix: s3
           - shard: '4/4'
+            index: 4
             db_suffix: s4
     services:
       postgres:
@@ -366,12 +371,16 @@ jobs:
       # que antes se perdiam uma sem a outra — env sem filtro E pacote compilado.
       - name: Build workspace packages
         run: pnpm --filter @cisne/api... build
-      - name: Integration tests (shard)
+      - name: Integration tests (duration-balanced shard)
         env:
           INTEGRATION_DATABASE_NAME: cisne_ci_integration_${{ matrix.db_suffix }}
           TEST_DATABASE_URL: postgresql://cisne_ci:cisne_ci_disposable_password@localhost:5432/cisne_ci_integration_${{ matrix.db_suffix }}
-          INTEGRATION_SHARD: ${{ matrix.shard }}
-        run: pnpm --filter @cisne/api test:integration
+          INTEGRATION_SHARD_DEBUG: '1'
+        run: |
+          set -euo pipefail
+          files="$(node scripts/ci/integration-shard-plan.mjs --index ${{ matrix.index }} --count 4)"
+          test -n "$files"
+          pnpm --filter @cisne/api exec vitest run --config vitest.integration.config.ts $files
 
   # NOME ESTAVEL: cada shard precisa passar antes deste check ficar verde.
   #
