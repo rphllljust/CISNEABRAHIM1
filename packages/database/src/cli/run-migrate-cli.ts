@@ -1,11 +1,16 @@
 #!/usr/bin/env node
 /**
- * Hermetic migration CLI — applies the bundled drizzle migrations to DATABASE_URL.
+ * Hermetic migration CLI — applies the bundled drizzle migrations to the database.
  *
  * Usage (release artifact or monorepo):
  *   node packages/database/dist/cli/run-migrate-cli.js
+ *
  * Env:
- *   DATABASE_URL          required PostgreSQL connection URL
+ *   DATABASE_URL          PostgreSQL connection URL (inline)
+ *   DATABASE_URL_FILE     path to a file containing the URL. Takes precedence over
+ *                         DATABASE_URL and exists so the runner can mount the
+ *                         credential as a secret file instead of inlining it in the
+ *                         process environment (same contract as the API runtime).
  *   CISNE_MIGRATIONS_DIR  optional override for the migrations folder
  *                         (default: <package>/migrations relative to this file)
  *
@@ -13,15 +18,25 @@
  */
 import { Pool } from 'pg';
 import { resolveMigrationsFolder, runMigrations } from '../migrate';
+import { readSecretValue } from './secret-value';
 
 async function main(): Promise<void> {
-  const databaseUrl = process.env['DATABASE_URL']?.trim();
+  let databaseUrl: string | undefined;
+  try {
+    databaseUrl = readSecretValue('DATABASE_URL');
+  } catch (error) {
+    console.error('CONFIGURATION_ERROR');
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
+
   if (!databaseUrl) {
     console.error(
-      'CONFIGURATION_ERROR\nDATABASE_URL is required to run migrations (postgres:// or postgresql:// URL).',
+      'CONFIGURATION_ERROR\nDATABASE_URL (or DATABASE_URL_FILE) is required to run migrations (postgres:// or postgresql:// URL).',
     );
     process.exit(1);
   }
+
   const migrationsFolder = resolveMigrationsFolder(process.env['CISNE_MIGRATIONS_DIR']);
   const pool = new Pool({ connectionString: databaseUrl, max: 2 });
 
