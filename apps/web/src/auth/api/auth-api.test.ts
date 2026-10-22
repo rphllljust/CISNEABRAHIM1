@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AUTH_ERROR_CODES } from '../types/auth.types';
 import {
   buildApiBaseUrlCandidates,
+  getApiBaseUrl,
   loginRequest,
   mapAuthErrorToUserMessage,
   resetApiBaseUrlCacheForTests,
@@ -11,6 +12,9 @@ import {
 describe('auth-api', () => {
   afterEach(() => {
     resetApiBaseUrlCacheForTests();
+    delete (window as Window & {
+      __CISNE_RUNTIME_CONFIG__?: { apiBaseUrl?: string };
+    }).__CISNE_RUNTIME_CONFIG__;
     vi.unstubAllGlobals();
   });
 
@@ -38,6 +42,16 @@ describe('auth-api', () => {
     await expect(loginRequest('user', 'wrong')).rejects.toMatchObject({
       userMessage: 'invalid_credentials',
     });
+  });
+
+  it('prefers runtime API URL over build-time configuration', () => {
+    (window as Window & {
+      __CISNE_RUNTIME_CONFIG__?: { apiBaseUrl?: string };
+    }).__CISNE_RUNTIME_CONFIG__ = {
+      apiBaseUrl: 'https://api.runtime.example',
+    };
+
+    expect(getApiBaseUrl()).toBe('https://api.runtime.example');
   });
 
   it('prefers vite proxy for LAN browser access before direct API host', () => {
