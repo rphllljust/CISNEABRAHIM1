@@ -78,6 +78,12 @@ loadVitestEnv();
  */
 const shard = process.env['INTEGRATION_SHARD']?.trim() || undefined;
 
+/**
+ * INSTRUMENTACAO (FASE 1 do CI-FAST). Reporter ativado apenas quando o executor define o
+ * arquivo de saida — em uso local nada muda e nenhum arquivo e criado.
+ */
+const timingsFile = process.env['INTEGRATION_TIMINGS_FILE']?.trim() || undefined;
+
 export default defineConfig({
   plugins: [swc.vite({ module: { type: 'es6' } })],
   test: {
@@ -92,9 +98,17 @@ export default defineConfig({
     sequence: { concurrent: false },
     hookTimeout: 180_000,
     testTimeout: 300_000,
-    globalSetup: ['./src/test/ensure-migrations.ts'],
+    // O executor cria o banco a partir de um TEMPLATE ja migrado (FASE 4). Rodar o globalSetup
+    // de migracao novamente sobre um clone aplicaria a cadeia inteira outra vez — custo puro,
+    // ja que o template e a fonte de verdade do schema. `INTEGRATION_SCHEMA_PREPARED=1` sinaliza
+    // exatamente essa condicao; sem ela (local, ou shard legado) o globalSetup roda como sempre.
+    globalSetup:
+      process.env['INTEGRATION_SCHEMA_PREPARED'] === '1' ? [] : ['./src/test/ensure-migrations.ts'],
     setupFiles: ['./src/test/integration-test-db-serializer.ts'],
     // STRING 'I/N' — o Vitest faz `options.shard.split('/')` e converte para { index, count }.
     ...(shard ? { shard } : {}),
+    ...(timingsFile
+      ? { reporters: ['default', './src/test/ci-timings-reporter.mjs'] }
+      : {}),
   },
 });
