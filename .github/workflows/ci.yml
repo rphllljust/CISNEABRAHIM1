@@ -1,4 +1,4 @@
-﻿name: CI
+name: CI
 
 on:
   push:
@@ -225,8 +225,20 @@ jobs:
   # Nenhum `continue-on-error`, nenhum `|| true`, nenhum retry, nenhum timeout inflado.
   integration-executor:
     name: Integration
-    # SELF-HOSTED QUENTE. Enquanto o runner OVH nao existir, o fallback abaixo mantem o CI
-    # funcionando (ver comentario seguinte) — mas o estado final e o runner dedicado.
+    # ─────────────────────────────────────────────────────────────────────────────────────────
+    # EXECUTION PLANE — runner OVH QUENTE
+    # ─────────────────────────────────────────────────────────────────────────────────────────
+    #
+    # `CI_INTEGRATION_RUNNER` e uma variavel de repositorio. Quando o runner OVH esta online
+    # (`scripts/ci/bootstrap-runner.sh` registra com os labels `self-hosted,cisne-ci,ovh`), basta:
+    #
+    #     gh variable set CI_INTEGRATION_RUNNER --body "self-hosted"
+    #
+    # e o executor passa a rodar no host quente, sem alterar este arquivo.
+    #
+    # O fallback `ubuntu-latest` existe apenas ate o runner existir. Ele nao e o estado final:
+    # num runner gerenciado o overhead e pago por job e o PostgreSQL sobe como container,
+    # exatamente o que a arquitetura elimina. Ver `docs/ci/` para o corte definitivo.
     runs-on: ${{ vars.CI_INTEGRATION_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 25
     steps:
@@ -241,17 +253,26 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
+      # ─────────────────────────────────────────────────────────────────────────────────────────
+      # CACHE PERSISTENTE (so no runner quente)
+      # ─────────────────────────────────────────────────────────────────────────────────────────
+      #
+      # No runner OVH o `pnpm store` vive em `${CACHE_ROOT}/pnpm-store`, configurado no bootstrap.
+      # Ele SOBREVIVE entre jobs — `actions/checkout` limpa o workspace, nao o store. Isso e o
+      # que faz o install cair de segundos para sub-segundo.
+      #
+      # `node_modules` NAO e cacheado: e mutavel, dependente de plataforma e a causa classica de
+      # CI "verde localmente, quebrado no runner". O `--frozen-lockfile` + store e deterministico.
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
       # ─────────────────────────────────────────────────────────────────────────────────────────
       # POSTGRESQL — UMA VEZ
       # ─────────────────────────────────────────────────────────────────────────────────────────
       #
-      # No runner self-hosted o servico ja esta residente e NAO deve ser iniciado como container
-      # efemero (o `services:` do Actions nao existe fora do runner gerenciado). O executor se
-      # conecta via `INTEGRATION_ADMIN_URL`.
+      # No runner OVH o PostgreSQL ja esta residente (`cisne-ci-postgres`, loopback apenas), criado
+      # pelo bootstrap. Nao ha container efemero para subir.
       #
-      # Em `ubuntu-latest` (fallback) sobe-se o servico normalmente.
+      # Em `ubuntu-latest` (fallback) sobe-se o servico aqui.
       - name: Start PostgreSQL (hosted runner fallback)
         if: vars.CI_INTEGRATION_RUNNER == ''
         run: |

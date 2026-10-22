@@ -33,6 +33,7 @@
 // Cleanup roda SEMPRE (try/finally). Residuo de run anterior e removido no inicio.
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { availableParallelism } from 'node:os';
 import { join, relative, sep } from 'node:path';
 import pg from 'pg';
 
@@ -199,7 +200,7 @@ function runWorker(n, specs) {
   });
 }
 
-function writeMetrics(results, integrationSec, discoveredCount) {
+function writeMetrics(results, integrationSec, discoveredCount, phases) {
   mkdirSync(CI_DIR, { recursive: true });
   const seconds = results.map((r) => r.sec);
   const metrics = {
@@ -211,16 +212,34 @@ function writeMetrics(results, integrationSec, discoveredCount) {
     slowestShardSec: seconds.length ? Math.max(...seconds) : null,
     fastestShardSec: seconds.length ? Math.min(...seconds) : null,
     runnerSeconds: seconds.reduce((sum, s) => sum + s, 0),
+    phases,
     shards: results,
   };
   writeFileSync(join(CI_DIR, 'ci-metrics.json'), `${JSON.stringify(metrics, null, 2)}\n`);
   return metrics;
 }
 
+/** Marca o fim de uma fase e devolve a duracao. Medir cada etapa e o que permite decidir. */
+function makePhaseTimer() {
+  const phases = {};
+  let last = Date.now();
+  return {
+    mark(name) {
+      const now = Date.now();
+      phases[name] = Math.round(((now - last) / 1000) * 10) / 10;
+      last = now;
+    },
+    get all() {
+      return phases;
+    },
+  };
+}
+
 async function main() {
   mkdirSync(CI_DIR, { recursive: true });
   const startedAt = Date.now();
 
+  const phases = makePhaseTimer();
   const discovered = discoverSpecs();
   if (discovered.length === 0) {
     throw new Error('no integration specs discovered — refusing to report success');
@@ -232,6 +251,7 @@ async function main() {
   for (let n = 1; n <= WORKERS; n++) plans.push(await planForWorker(n));
   validatePartition(plans, discovered);
   process.stdout.write('shard plan validated: complete, disjoint, no phantoms\n');
+  phases.mark('plan');
 
   let results = [];
   let setupError = null;
@@ -242,6 +262,8 @@ async function main() {
       const dropped = await dropAllEphemeral(client);
       if (dropped > 0) process.stdout.write(`cleanup: dropped ${dropped} stale ephemeral databases\n`);
     });
+
+    phases.mark('hygiene');
 
     // TEMPLATE: migrations aplicadas UMA vez. O script de migracao usa TEST_DATABASE_URL.
     process.stdout.write(`applying migrations once into ${TEMPLATE_DB}\n`);
@@ -270,14 +292,41 @@ async function main() {
       }
     });
     process.stdout.write(`cloned ${WORKERS} ephemeral databases from template\n`);
+    phases.mark('migrate+clone');
 
     // WORKERS EM PARALELO. O paralelismo esta ENTRE workers, nao dentro deles.
-    results = await Promise.all(
-      Array.from({ length: WORKERS }, (_, i) => runWorker(i + 1, plans[i])),
+    //
+    // CONCORRENCIA CONTROLADA, NAO `Promise.all` CEGO.
+    //
+    // Disparar 8 processos de uma vez num host com menos de 8 nucleos livres faz eles competirem
+    // por CPU: o tempo total sobe e o resultado parece "os testes ficaram lentos". O teto e
+    // derivado dos nucleos reais (`os.availableParallelism()`), nao do numero de shards — shard e
+    // unidade de ISOLAMENTO (um database cada), nao unidade de concorrencia.
+    //
+    // `INTEGRATION_MAX_CONCURRENCY` permite ajustar por medicao sem mexer no codigo.
+    const cores = availableParallelism();
+    const configured = Number(process.env['INTEGRATION_MAX_CONCURRENCY'] ?? 0);
+    const maxConcurrency = configured > 0 ? Math.min(configured, WORKERS) : Math.min(cores, WORKERS);
+    process.stdout.write(
+      `concurrency: ${maxConcurrency} simultaneous worker(s) ` +
+        `(cores=${cores}, workers=${WORKERS}, override=${configured || 'auto'})\n`,
     );
 
+    const queue = Array.from({ length: WORKERS }, (_, i) => i + 1);
+    results = new Array(WORKERS);
+
+    async function drain() {
+      for (;;) {
+        const n = queue.shift();
+        if (n === undefined) return;
+        results[n - 1] = await runWorker(n, plans[n - 1]);
+      }
+    }
+    await Promise.all(Array.from({ length: maxConcurrency }, drain));
+
     const integrationSec = Math.round(((Date.now() - startedAt) / 1000) * 10) / 10;
-    const metrics = writeMetrics(results, integrationSec, discovered.length);
+    phases.mark("workers");
+    const metrics = writeMetrics(results, integrationSec, discovered.length, phases.all);
 
     process.stdout.write('\n');
     for (const r of results) {
