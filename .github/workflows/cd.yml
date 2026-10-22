@@ -307,13 +307,19 @@ jobs:
         #
         # `CD_ALLOW_BREAKING_MIGRATIONS` continua existindo como escape MANUAL excepcional e
         # NUNCA e habilitado por padrao — o gate nao foi desligado, so foi escopado.
+        # FIX `bad substitution`: o `-e` recebia o script entre ASPAS DUPLAS, entao o SHELL
+        # expandia `${applied.length}` ANTES de o tsx ver o codigo — e `${...}` nao e sintaxe
+        # valida do bash. Medido no run 39697131764:
+        #   line 1: ${applied.length}: bad substitution
+        # Agora o script vai entre ASPAS SIMPLES (o shell nao toca em nada) e a concatenacao
+        # usa `+` em vez de template literal.
         run: >
           pnpm --filter @cisne/api exec tsx -e
-          "import { assessPendingMigrations, assertSafeMigrationDeploy } from './src/ops/cd/migration-policy.ts';
+          'import { assessPendingMigrations, assertSafeMigrationDeploy } from "./src/ops/cd/migration-policy.ts";
           const { pending, applied } = assessPendingMigrations();
-          console.log(`applied=${applied.length} pending=${pending.length}`);
-          assertSafeMigrationDeploy(pending, process.env.CD_ALLOW_BREAKING_MIGRATIONS==='I_UNDERSTAND');
-          console.log(JSON.stringify(pending));"
+          console.log("applied=" + applied.length + " pending=" + pending.length);
+          assertSafeMigrationDeploy(pending, process.env.CD_ALLOW_BREAKING_MIGRATIONS === "I_UNDERSTAND");
+          console.log(JSON.stringify(pending));'
 
       - id: hml
         name: Ensure isolated HML and Postgres without source app deploys
