@@ -204,7 +204,7 @@ jobs:
     #
     # A CORRECAO (mesmo raciocinio ja aplicado ao separar `api-e2e` deste job)
     #
-    # Cada shard recebe um DATABASE PROPRIO: `cisne_ci_integration_s1` ... `_s4`. Databases
+    # Cada shard recebe um DATABASE PROPRIO: `cisne_ci_integration_s1` ... `_s8`. Databases
     # distintos => locks distintos, mesmo com a MESMA chave. O lock global vira inofensivo por
     # construcao, sem alterar uma linha de `integration-test-db-lock.ts`, e continua protegendo
     # acesso concorrente ao MESMO database dentro do shard.
@@ -240,21 +240,33 @@ jobs:
       #
       # CORRECAO MINIMA: o sufixo passa a ser um CAMPO DA MATRIX, resolvido pelo proprio GitHub.
       # Nenhuma funcao na expressao, nenhum shard novo, nenhum nome de database alterado
-      # (`s1`..`s4` continuam os mesmos).
+      # (`s1`..`s8` ficam declarados explicitamente).
       matrix:
         include:
-          - shard: '1/4'
+          - shard: '1/8'
             index: 1
             db_suffix: s1
-          - shard: '2/4'
+          - shard: '2/8'
             index: 2
             db_suffix: s2
-          - shard: '3/4'
+          - shard: '3/8'
             index: 3
             db_suffix: s3
-          - shard: '4/4'
+          - shard: '4/8'
             index: 4
             db_suffix: s4
+          - shard: '5/8'
+            index: 5
+            db_suffix: s5
+          - shard: '6/8'
+            index: 6
+            db_suffix: s6
+          - shard: '7/8'
+            index: 7
+            db_suffix: s7
+          - shard: '8/8'
+            index: 8
+            db_suffix: s8
     services:
       postgres:
         image: postgres:18-alpine
@@ -378,14 +390,14 @@ jobs:
           INTEGRATION_SHARD_DEBUG: '1'
         run: |
           set -euo pipefail
-          files="$(node scripts/ci/integration-shard-plan.mjs --index ${{ matrix.index }} --count 4)"
+          files="$(node scripts/ci/integration-shard-plan.mjs --index ${{ matrix.index }} --count 8)"
           test -n "$files"
           pnpm --filter @cisne/api exec vitest run --config vitest.integration.config.ts $files
 
   # NOME ESTAVEL: cada shard precisa passar antes deste check ficar verde.
   #
   # Mesma construcao de `unit-tests` sobre `unit-test-shards`. Existe porque `matrix` produz
-  # checks com nomes distintos (`Integration (1/4)` ...), e um agregador por nome estavel evita
+  # checks com nomes distintos (`Integration (1/8)` ... `Integration (8/8)`), e um agregador por nome estavel evita
   # que um shard ausente passe despercebido pelo `release-ready`.
   #
   # `if: always()` e obrigatorio: o job TEM de rodar quando um shard falha — e nesse caso que
