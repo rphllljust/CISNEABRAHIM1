@@ -63,6 +63,24 @@ test('refuses when an application uuid is missing', () => {
   assert.throws(() => buildDeployPlan(payload(), { api: 'x', worker: 'y' }), DeployRefusedError);
 });
 
+for (const [label, workerRuntime] of [
+  ['worker command ausente', {}],
+  ['worker command vazio', { command: [] }],
+  ['worker command nao-array', { command: 'node apps/api/dist/worker/main.js' }],
+]) {
+  test(`refuses ${label}`, () => {
+    const withBrokenWorker = payload({
+      runtime: {
+        api: { healthPath: '/api/v1/health/ready' },
+        worker: workerRuntime,
+        web: { healthPath: '/health' },
+      },
+    });
+    // Sem command explicito o worker herdaria o CMD da API e rodaria main.js.
+    assert.throws(() => buildDeployPlan(withBrokenWorker, apps), DeployRefusedError);
+  });
+}
+
 test('waitForDeployment returns on finished', async () => {
   const client = { deployment: async () => ({ status: 'finished' }) };
   const detail = await waitForDeployment(client, 'dep-1', { timeoutMs: 1000 });

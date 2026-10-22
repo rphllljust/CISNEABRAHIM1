@@ -75,10 +75,15 @@ export function buildDeployPlan(payload, apps) {
   // `start_command` e necessario porque as tres aplicacoes usam a MESMA imagem.
   // A API e o Web herdam o CMD do Dockerfile; o worker precisa de outro processo.
   // Sem isso, o worker subiria como uma segunda API e nunca consumiria a fila.
-  const commandOf = (key) => {
-    const command = payload.runtime?.[key]?.command;
-    return Array.isArray(command) && command.length > 0 ? command.join(' ') : null;
-  };
+  //
+  // O command do worker e OBRIGATORIO: ausente significa payload incompleto, e um
+  // deploy silencioso em que o worker roda o CMD da API e pior do que recusar.
+  const workerCommand = payload.runtime?.worker?.command;
+  if (!Array.isArray(workerCommand) || workerCommand.length === 0) {
+    throw new DeployRefusedError(
+      'runtime.worker.command ausente no payload: sem ele o worker rodaria o CMD da API',
+    );
+  }
 
   return [
     {
@@ -86,14 +91,14 @@ export function buildDeployPlan(payload, apps) {
       uuid: apps.api,
       image: apiImage,
       healthPath: payload.runtime?.api?.healthPath,
-      startCommand: null, // herda o CMD do Dockerfile (inclui ensure-production-credentials)
+      startCommand: null, // herda o CMD do Dockerfile runtime-only
     },
     {
       key: 'worker',
       uuid: apps.worker,
       image: workerImage,
       healthPath: null,
-      startCommand: commandOf('worker'),
+      startCommand: workerCommand.join(' '),
     },
     {
       key: 'web',
