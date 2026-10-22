@@ -1,4 +1,4 @@
-name: CI
+﻿name: CI
 
 on:
   push:
@@ -201,8 +201,35 @@ jobs:
     timeout-minutes: 30
     strategy:
       fail-fast: false
+      # MATRIX COM DOIS CAMPOS, SEM FUNCAO NA EXPRESSAO.
+      #
+      # CAUSA RAIZ MEDIDA (runs 39721011312 e 39721504213): ambos concluiram `failure` SEM
+      # instanciar job nenhum (`jobs: []`), com o GH reportando "This run likely failed because
+      # of a workflow file issue". Os dois runs sao exatamente os commits que introduziram esta
+      # matrix; o commit anterior (73e4c01e) validou e rodou 12 jobs normalmente.
+      #
+      # O defeito era derivar o nome do database com uma FUNCAO dentro da expressao:
+      #
+      #     INTEGRATION_DATABASE_NAME: cisne_ci_integration_${{ matrix.db_suffix }}
+      #
+      # `replace()` nunca foi usado em NENHUM workflow deste repositorio (verificado com
+      # `git grep` em `origin/main`): e codigo novo, e era o unico elemento sem precedente que
+      # restava depois de descartar, por comparacao com o `origin/main` que passa, a barra em
+      # `'1/4'` e o proprio contexto `matrix`.
+      #
+      # CORRECAO MINIMA: o sufixo passa a ser um CAMPO DA MATRIX, resolvido pelo proprio GitHub.
+      # Nenhuma funcao na expressao, nenhum shard novo, nenhum nome de database alterado
+      # (`s1`..`s4` continuam os mesmos).
       matrix:
-        shard: ['1/4', '2/4', '3/4', '4/4']
+        include:
+          - shard: '1/4'
+            db_suffix: s1
+          - shard: '2/4'
+            db_suffix: s2
+          - shard: '3/4'
+            db_suffix: s3
+          - shard: '4/4'
+            db_suffix: s4
     services:
       postgres:
         image: postgres:18-alpine
@@ -264,7 +291,7 @@ jobs:
       - name: Create disposable integration database
         env:
           PGPASSWORD: cisne_ci_disposable_password
-          INTEGRATION_DATABASE_NAME: cisne_ci_integration_s${{ replace(matrix.shard, '/', '') }}
+          INTEGRATION_DATABASE_NAME: cisne_ci_integration_${{ matrix.db_suffix }}
         run: |
           psql -h localhost -U cisne_ci -d cisne_ci -v ON_ERROR_STOP=1 <<SQL
           SELECT format('CREATE DATABASE %I OWNER %I', '${INTEGRATION_DATABASE_NAME}', 'cisne_ci')
@@ -272,8 +299,8 @@ jobs:
           SQL
       - name: Integration tests (shard)
         env:
-          INTEGRATION_DATABASE_NAME: cisne_ci_integration_s${{ replace(matrix.shard, '/', '') }}
-          TEST_DATABASE_URL: postgresql://cisne_ci:cisne_ci_disposable_password@localhost:5432/cisne_ci_integration_s${{ replace(matrix.shard, '/', '') }}
+          INTEGRATION_DATABASE_NAME: cisne_ci_integration_${{ matrix.db_suffix }}
+          TEST_DATABASE_URL: postgresql://cisne_ci:cisne_ci_disposable_password@localhost:5432/cisne_ci_integration_${{ matrix.db_suffix }}
           INTEGRATION_SHARD: ${{ matrix.shard }}
         run: pnpm test:integration
 
