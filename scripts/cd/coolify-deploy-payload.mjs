@@ -18,6 +18,9 @@ export function buildCoolifyDeployPayload({
   sourceSha,
   artifactDigest,
   apiImage,
+  // Opcional: imagem dedicada do worker (mesmos bits da API, CMD diferente).
+  // Ausente => worker herda a imagem da API e depende de WORKER_ENABLED.
+  workerImage,
   webImage,
 }) {
   const normalizedSha = requireMatch('sourceSha', sourceSha, SHA_RE).toLowerCase();
@@ -31,6 +34,9 @@ export function buildCoolifyDeployPayload({
     apiImage,
     IMAGE_BY_DIGEST_RE,
   ).toLowerCase();
+  const normalizedWorkerImage = workerImage
+    ? requireMatch('workerImage', workerImage, IMAGE_BY_DIGEST_RE).toLowerCase()
+    : normalizedApiImage;
   const normalizedWebImage = requireMatch(
     'webImage',
     webImage,
@@ -43,7 +49,7 @@ export function buildCoolifyDeployPayload({
     artifactDigest: normalizedArtifactDigest,
     images: {
       api: normalizedApiImage,
-      worker: normalizedApiImage,
+      worker: normalizedWorkerImage,
       web: normalizedWebImage,
     },
     runtime: {
@@ -69,6 +75,7 @@ function runCli() {
     sourceSha: process.env.COOLIFY_SOURCE_SHA,
     artifactDigest: process.env.COOLIFY_ARTIFACT_DIGEST,
     apiImage: process.env.COOLIFY_API_IMAGE,
+    workerImage: process.env.COOLIFY_WORKER_IMAGE,
     webImage: process.env.COOLIFY_WEB_IMAGE,
   });
   const output = resolve(

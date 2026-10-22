@@ -81,6 +81,7 @@ jobs:
     env:
       REGISTRY: ghcr.io
       API_REPOSITORY: ghcr.io/${{ github.repository_owner }}/cisne-api
+      WORKER_REPOSITORY: ghcr.io/${{ github.repository_owner }}/cisne-worker
       WEB_REPOSITORY: ghcr.io/${{ github.repository_owner }}/cisne-web
     steps:
       - uses: actions/checkout@v4
@@ -137,11 +138,36 @@ jobs:
             org.opencontainers.image.revision=${{ needs.release-authority.outputs.source_sha }}
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
 
+      # O worker compartilha o MESMO codigo da API, mas executa outro processo.
+      #
+      # POR QUE ESTA IMAGEM EXISTE (medido no Coolify 4.4.7): com
+      # build_pack=dockerimage NENHUM campo da API materializa `command:` no
+      # compose gerado -- start_command e docker_compose_custom_start_command sao
+      # ignorados, custom_docker_run_options gera apenas `entrypoint` (Cmd=null) e
+      # docker_compose_raw e proibido em applications. O processo e sempre o CMD
+      # da imagem, entao o worker precisa de uma imagem com CMD proprio.
+      #
+      # Derivar da imagem da API garante bits identicos; so o CMD muda.
+      - id: worker
+        name: Publish Worker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/release/Dockerfile.worker
+          build-args: |
+            CISNE_API_IMAGE=${{ env.API_REPOSITORY }}@${{ steps.api.outputs.digest }}
+          push: true
+          tags: ${{ env.WORKER_REPOSITORY }}:${{ needs.release-authority.outputs.source_sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ needs.release-authority.outputs.source_sha }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
       - name: Emit fail-closed Coolify deploy payload
         env:
           COOLIFY_SOURCE_SHA: ${{ needs.release-authority.outputs.source_sha }}
           COOLIFY_ARTIFACT_DIGEST: ${{ steps.provenance.outputs.artifact_digest }}
           COOLIFY_API_IMAGE: ${{ env.API_REPOSITORY }}@${{ steps.api.outputs.digest }}
+          COOLIFY_WORKER_IMAGE: ${{ env.WORKER_REPOSITORY }}@${{ steps.worker.outputs.digest }}
           COOLIFY_WEB_IMAGE: ${{ env.WEB_REPOSITORY }}@${{ steps.web.outputs.digest }}
         run: node scripts/cd/coolify-deploy-payload.mjs
 
