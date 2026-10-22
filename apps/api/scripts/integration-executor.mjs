@@ -34,7 +34,8 @@
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
-import { join, relative, sep } from 'node:path';
+import { join, relative, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
 const WORKERS = Number(process.env['INTEGRATION_WORKERS'] ?? 8);
@@ -43,8 +44,16 @@ const ADMIN_URL =
   'postgresql://cisne_ci:cisne_ci_disposable_password@127.0.0.1:5432/postgres';
 const TEMPLATE_DB = process.env['INTEGRATION_TEMPLATE_DB'] ?? 'cisne_integration_template';
 const DB_PREFIX = process.env['INTEGRATION_DB_PREFIX'] ?? 'cisne_it_';
-const PLAN_SCRIPT = 'scripts/ci/integration-shard-plan.mjs';
-const CI_DIR = 'artifacts/ci';
+
+// RAIZ DO REPOSITORIO derivada do proprio arquivo, NAO de `process.cwd()`.
+//
+// O executor vive em `apps/api/scripts/`, mas opera sobre o monorepo inteiro: o scheduler esta em
+// `scripts/ci/`, os specs em `apps/api/src`, e os artefatos em `artifacts/ci`. Amarrar isso ao CWD
+// faria o comportamento mudar conforme o diretorio de chamada — e um CI que se comporta diferente
+// por diretorio de chamada e um CI imprevisivel. `../../..` a partir deste arquivo e a raiz.
+const REPO_ROOT = resolve(fileURLToPath(new URL('../../..', import.meta.url)));
+const PLAN_SCRIPT = join(REPO_ROOT, 'scripts', 'ci', 'integration-shard-plan.mjs');
+const CI_DIR = join(REPO_ROOT, 'artifacts', 'ci');
 
 /** Nome de database efemero do worker `n` (1-based). */
 const dbName = (n) => `${DB_PREFIX}${String(n).padStart(2, '0')}`;
@@ -91,7 +100,7 @@ async function terminateTemplateConnections(client) {
 }
 
 function discoverSpecs() {
-  const root = join(process.cwd(), 'apps', 'api');
+  const root = join(REPO_ROOT, 'apps', 'api');
   const srcRoot = join(root, 'src');
   const out = [];
   const walk = (dir) => {
@@ -107,11 +116,14 @@ function discoverSpecs() {
 
 /** Chama o scheduler LPT para o worker `n` e devolve a lista de specs. */
 function planForWorker(n) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolvePlan, reject) => {
     const child = spawn(
       process.execPath,
       [PLAN_SCRIPT, '--index', String(n), '--count', String(WORKERS)],
-      { stdio: ['ignore', 'pipe', 'pipe'] },
+      // `cwd: REPO_ROOT` e obrigatorio: `integration-shard-plan.mjs` descobre os specs a partir de
+      // `process.cwd()`. Sem isto, chamar o executor de `apps/api` faria o scheduler procurar
+      // `apps/api/apps/api/src` e falhar com "no integration specs discovered".
+      { stdio: ['ignore', 'pipe', 'pipe'], cwd: REPO_ROOT },
     );
     let stdout = '';
     let stderr = '';
@@ -123,7 +135,7 @@ function planForWorker(n) {
         reject(new Error(`shard plan failed for worker ${n}: ${stderr.trim() || `exit ${code}`}`));
         return;
       }
-      resolve(stdout.trim().split(/\s+/).filter(Boolean));
+      resolvePlan(stdout.trim().split(/\s+/).filter(Boolean));
     });
   });
 }

@@ -1,4 +1,4 @@
-name: CI
+﻿name: CI
 
 on:
   push:
@@ -318,7 +318,7 @@ jobs:
           JWT_ISSUER: cisne-api
           JWT_AUDIENCE: cisne-clients
           CORS_ORIGIN: http://localhost:5173
-        run: node scripts/ci/integration-executor.mjs
+        run: node apps/api/scripts/integration-executor.mjs
       # ─────────────────────────────────────────────────────────────────────────────────────────
       # INSTRUMENTACAO — historico por spec para o scheduler LPT do proximo run
       # ─────────────────────────────────────────────────────────────────────────────────────────
