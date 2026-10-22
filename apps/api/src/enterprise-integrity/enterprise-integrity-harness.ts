@@ -272,10 +272,18 @@ export async function createEnterpriseIntegrityContext(): Promise<EnterpriseInte
     await insertScopeRef(pool, { scopeType: 'UNIT', refId: MASTER_BUSINESS_UNIT });
   }
 
+  // Os tres seeds abaixo usam a MESMA senha de teste. O hash de bcrypt custa
+  // ~100 ms por chamada e nao e segredo — calcular uma vez por contexto remove
+  // 2/3 do custo de hashing sem alterar o que a autenticacao de teste verifica.
+  let sharedPasswordHash: string | null = null;
+  async function testPasswordHash(): Promise<string> {
+    sharedPasswordHash ??= await hashPassword(AUTH_TEST_PASSWORD);
+    return sharedPasswordHash;
+  }
+
   async function seedAdminActor(): Promise<UatActor> {
     const login = normalizeLoginIdentifier(`ent-admin-${crypto.randomUUID()}@cisne.invalid`);
-    const passwordHash = await hashPassword(AUTH_TEST_PASSWORD);
-    const { identityId } = await insertIdentity(pool, login, passwordHash);
+    const { identityId } = await insertIdentity(pool, login, await testPasswordHash());
     await grantUatProfile(pool, identityId, identityId, 'control_admin');
     await grantEnterpriseCapabilities(pool, identityId);
     return { identityId, sessionId: 'sid-enterprise-admin' };
@@ -283,16 +291,14 @@ export async function createEnterpriseIntegrityContext(): Promise<EnterpriseInte
 
   async function seedOperationalActor(): Promise<UatActor> {
     const login = normalizeLoginIdentifier(`ent-ops-${crypto.randomUUID()}@cisne.invalid`);
-    const passwordHash = await hashPassword(AUTH_TEST_PASSWORD);
-    const { identityId } = await insertIdentity(pool, login, passwordHash);
+    const { identityId } = await insertIdentity(pool, login, await testPasswordHash());
     await grantUatProfile(pool, identityId, identityId, 'executor');
     return { identityId, sessionId: 'sid-enterprise-ops' };
   }
 
   async function seedFinancialChecker(): Promise<UatActor> {
     const login = normalizeLoginIdentifier(`ent-checker-${crypto.randomUUID()}@cisne.invalid`);
-    const passwordHash = await hashPassword(AUTH_TEST_PASSWORD);
-    const { identityId } = await insertIdentity(pool, login, passwordHash);
+    const { identityId } = await insertIdentity(pool, login, await testPasswordHash());
     await grantUatProfile(pool, identityId, identityId, 'control_admin');
     await grantEnterpriseCapabilities(pool, identityId);
     const matrices = module.get(ApprovalMatrixAccessService);

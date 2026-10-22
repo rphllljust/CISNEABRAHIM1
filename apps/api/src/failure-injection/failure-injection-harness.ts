@@ -161,10 +161,15 @@ export async function createFailureInjectionTestContext(): Promise<FailureInject
     await insertScopeRef(pool, { scopeType: 'UNIT', refId: CONCURRENCY_UNIT });
   }
 
+  // bcrypt custa ~100 ms por chamada e este seed roda uma vez POR TESTE. A senha
+  // e constante no contexto e o hash resultante e o mesmo que a autenticacao de
+  // teste verifica, entao calcular uma vez nao enfraquece nada.
+  let sharedPasswordHash: string | null = null;
+
   async function seedAdminActor(): Promise<UatActor> {
     const login = normalizeLoginIdentifier(`failure-inj-${crypto.randomUUID()}@cisne.invalid`);
-    const passwordHash = await hashPassword(AUTH_TEST_PASSWORD);
-    const { identityId } = await insertIdentity(pool, login, passwordHash);
+    sharedPasswordHash ??= await hashPassword(AUTH_TEST_PASSWORD);
+    const { identityId } = await insertIdentity(pool, login, sharedPasswordHash);
     await grantUatProfile(pool, identityId, identityId, 'control_admin');
     return { identityId, sessionId: 'sid-failure' };
   }
