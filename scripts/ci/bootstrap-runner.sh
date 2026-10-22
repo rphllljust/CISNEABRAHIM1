@@ -176,5 +176,6 @@ Caches: ${CACHE_ROOT}
 Test PostgreSQL: 127.0.0.1:${PG_PORT} (container ${PG_CONTAINER})
 
 Proximo passo no repositorio (uma vez):
-  gh variable set CI_INTEGRATION_RUNNER --body "self-hosted"
+  gh variable set CI_INTEGRATION_RUNNER --body "ovh"
+  gh variable set CI_INTEGRATION_WORKERS --body "3"
 EOF

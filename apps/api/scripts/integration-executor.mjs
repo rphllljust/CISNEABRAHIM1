@@ -32,13 +32,53 @@
 //
 // Cleanup roda SEMPRE (try/finally). Residuo de run anterior e removido no inicio.
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
-import { availableParallelism } from 'node:os';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { availableParallelism, loadavg } from 'node:os';
 import { join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
-const WORKERS = Number(process.env['INTEGRATION_WORKERS'] ?? 8);
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// POLITICA DE CONCORRENCIA — EXPLICITA, NAO DERIVADA DA MAQUINA
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+//
+// O hardware real e o VPS-1, nao uma maquina de 8 vCPU. A quantidade de workers e uma DECISAO DE
+// POLITICA registrada no workflow (`CI_INTEGRATION_WORKERS`), nao um valor que o executor inventa.
+//
+// `os.availableParallelism()` e METRICA, nao politica: ele reporta os nucleos e vai para os logs/
+// metricas do run. Usa-lo como autoridade final produzia dois erros opostos:
+//
+//   - numa maquina grande, escalava para 8 sem ninguem ter decidido isso;
+//   - numa maquina pequena, limitava a 2 e impedia testar oversubscription controlada.
+//
+// Oversubscription controlada e legitima e precisa ser MEDIVEL: 4 workers em 2 vCPU pode vencer 3
+// se o workload for I/O-bound (espera de banco) em vez de CPU-bound. A regra de promocao 3 -> 4 e
+// matematica (T4 <= 0.90 * T3) e esta documentada; o executor so executa a politica configurada.
+//
+// Default 3: estado inicial do VPS-1.
+const DEFAULT_WORKERS = 3;
+const MIN_WORKERS = 1;
+const MAX_WORKERS = 32;
+
+function resolveWorkerCount(raw) {
+  if (raw == null || String(raw).trim() === '') {
+    return DEFAULT_WORKERS;
+  }
+  const parsed = Number(String(raw).trim());
+  if (!Number.isInteger(parsed) || parsed < MIN_WORKERS || parsed > MAX_WORKERS) {
+    // Fail-closed: um valor invalido NAO pode cair silenciosamente no default. Cair no default
+    // significaria "o operador pediu 6, o CI rodou 3 e ninguem percebeu" — silencioso e errado.
+    throw new Error(
+      `CI_INTEGRATION_WORKERS must be an integer between ${MIN_WORKERS} and ${MAX_WORKERS}, ` +
+        `received "${raw}".`,
+    );
+  }
+  return parsed;
+}
+
+const WORKERS = resolveWorkerCount(
+  process.env['CI_INTEGRATION_WORKERS'] ?? process.env['INTEGRATION_WORKERS'],
+);
 const ADMIN_URL =
   process.env['INTEGRATION_ADMIN_URL'] ??
   'postgresql://cisne_ci:cisne_ci_disposable_password@127.0.0.1:5432/postgres';
@@ -114,7 +154,48 @@ function discoverSpecs() {
   return out.sort();
 }
 
-/** Chama o scheduler LPT para o worker `n` e devolve a lista de specs. */
+/**
+ * Amostra de pressao de memoria — o que decide se o hardware aguentou a concorrencia.
+ *
+ * Le `/proc/meminfo` diretamente. Nao instala stack de observabilidade: o dado necessario sao
+ * quatro numeros que o kernel ja mantem. `MemAvailable` e a metrica honesta de folga real (nao
+ * `MemFree`, que conta cache como indisponivel e assusta sem motivo).
+ *
+ * Swap e o sinal que importa para a regra 3 vs 4: swap-in/out durante testes significa que o host
+ * nao tem RAM para aquela concorrencia, e qualquer ganho de tempo seria comprado com degradacao.
+ */
+function sampleMemory() {
+  try {
+    const raw = readFileSync('/proc/meminfo', 'utf8');
+    const kb = (key) => {
+      const m = new RegExp(`^${key}:\\s+(\\d+)`, 'm').exec(raw);
+      return m ? Number(m[1]) : null;
+    };
+    const toMb = (value) => (value == null ? null : Math.round(value / 1024));
+    return {
+      memTotalMb: toMb(kb('MemTotal')),
+      memAvailableMb: toMb(kb('MemAvailable')),
+      swapTotalMb: toMb(kb('SwapTotal')),
+      swapFreeMb: toMb(kb('SwapFree')),
+      swapInPages: kb('pswpin'),
+      swapOutPages: kb('pswpout'),
+    };
+  } catch {
+    // Fora do Linux nao ha /proc. Metrica ausente e aceitavel; metrica inventada nao e.
+    return null;
+  }
+}
+
+/** Carga media do host — distingue "lento por teste" de "lento por host saturado". */
+function sampleLoad() {
+  try {
+    return Math.round(loadavg()[0] * 100) / 100;
+  } catch {
+    return null;
+  }
+}
+
+
 function planForWorker(n) {
   return new Promise((resolvePlan, reject) => {
     const child = spawn(
@@ -212,12 +293,15 @@ function runWorker(n, specs) {
   });
 }
 
-function writeMetrics(results, integrationSec, discoveredCount, phases) {
+function writeMetrics(results, integrationSec, discoveredCount, phases, env) {
   mkdirSync(CI_DIR, { recursive: true });
   const seconds = results.map((r) => r.sec);
+  const { memBefore, memAfter, loadDuring } = env ?? {};
   const metrics = {
     generatedAt: new Date().toISOString(),
     shardCount: WORKERS,
+    workerPolicy: 'CI_INTEGRATION_WORKERS',
+    availableParallelism: availableParallelism(),
     integrationSec,
     specCountExpected: discoveredCount,
     specsCovered: results.reduce((sum, r) => sum + r.specs, 0),
@@ -225,6 +309,28 @@ function writeMetrics(results, integrationSec, discoveredCount, phases) {
     fastestShardSec: seconds.length ? Math.min(...seconds) : null,
     runnerSeconds: seconds.reduce((sum, s) => sum + s, 0),
     phases,
+    // PRESSAO DE RECURSOS — o que decide se a concorrencia coube no hardware.
+    //
+    // `swapUsedDeltaMb` e o numero que reprova uma promocao 3 -> 4: se o swap cresceu durante os
+    // testes, o ganho de tempo foi comprado com degradacao de memoria, e a regra de promocao exige
+    // zero degradacao de swap.
+    memory: {
+      before: memBefore,
+      after: memAfter,
+      swapUsedDeltaMb:
+        memBefore?.swapFreeMb != null && memAfter?.swapFreeMb != null
+          ? memBefore.swapFreeMb - memAfter.swapFreeMb
+          : null,
+      swapInPagesDelta:
+        memBefore?.swapInPages != null && memAfter?.swapInPages != null
+          ? memAfter.swapInPages - memBefore.swapInPages
+          : null,
+      swapOutPagesDelta:
+        memBefore?.swapOutPages != null && memAfter?.swapOutPages != null
+          ? memAfter.swapOutPages - memBefore.swapOutPages
+          : null,
+    },
+    loadAverageDuring: loadDuring ?? null,
     shards: results,
   };
   writeFileSync(join(CI_DIR, 'ci-metrics.json'), `${JSON.stringify(metrics, null, 2)}\n`);
@@ -252,6 +358,8 @@ async function main() {
   const startedAt = Date.now();
 
   const phases = makePhaseTimer();
+  // Pressao de memoria ANTES: comparar com o "depois" e o que prova se a concorrencia coube.
+  const memBefore = sampleMemory();
   const discovered = discoverSpecs();
   if (discovered.length === 0) {
     throw new Error('no integration specs discovered — refusing to report success');
@@ -308,20 +416,17 @@ async function main() {
 
     // WORKERS EM PARALELO. O paralelismo esta ENTRE workers, nao dentro deles.
     //
-    // CONCORRENCIA CONTROLADA, NAO `Promise.all` CEGO.
+    // CONCORRENCIA = CI_INTEGRATION_WORKERS, SEM DERIVACAO DA MAQUINA.
     //
-    // Disparar 8 processos de uma vez num host com menos de 8 nucleos livres faz eles competirem
-    // por CPU: o tempo total sobe e o resultado parece "os testes ficaram lentos". O teto e
-    // derivado dos nucleos reais (`os.availableParallelism()`), nao do numero de shards — shard e
-    // unidade de ISOLAMENTO (um database cada), nao unidade de concorrencia.
+    // Antes o teto vinha de `os.availableParallelism()`. Isso confundia METRICA com POLITICA: a
+    // quantidade de workers precisa ser uma decisao registrada (e comparavel entre runs), nao algo
+    // que muda conforme o host escolhido pelo scheduler. Aqui ela e exatamente a configurada.
     //
-    // `INTEGRATION_MAX_CONCURRENCY` permite ajustar por medicao sem mexer no codigo.
+    // `availableParallelism()` continua sendo medido e reportado — como observabilidade, para que
+    // a comparacao 3 vs 4 seja interpretavel no hardware real.
     const cores = availableParallelism();
-    const configured = Number(process.env['INTEGRATION_MAX_CONCURRENCY'] ?? 0);
-    const maxConcurrency = configured > 0 ? Math.min(configured, WORKERS) : Math.min(cores, WORKERS);
     process.stdout.write(
-      `concurrency: ${maxConcurrency} simultaneous worker(s) ` +
-        `(cores=${cores}, workers=${WORKERS}, override=${configured || 'auto'})\n`,
+      `concurrency: ${WORKERS} simultaneous worker(s) (policy=CI_INTEGRATION_WORKERS, cores=${cores})\n`,
     );
 
     const queue = Array.from({ length: WORKERS }, (_, i) => i + 1);
@@ -334,11 +439,17 @@ async function main() {
         results[n - 1] = await runWorker(n, plans[n - 1]);
       }
     }
-    await Promise.all(Array.from({ length: maxConcurrency }, drain));
+    // Todos os workers configurados sobem JUNTOS — a politica ja decidiu quantos. O `drain` existe
+    // apenas para reutilizar o padrao de fila, nao para reduzir concorrencia.
+    await Promise.all(Array.from({ length: WORKERS }, drain));
 
     const integrationSec = Math.round(((Date.now() - startedAt) / 1000) * 10) / 10;
     phases.mark("workers");
-    const metrics = writeMetrics(results, integrationSec, discovered.length, phases.all);
+    const metrics = writeMetrics(results, integrationSec, discovered.length, phases.all, {
+      memBefore,
+      memAfter: sampleMemory(),
+      loadDuring: sampleLoad(),
+    });
 
     process.stdout.write('\n');
     for (const r of results) {

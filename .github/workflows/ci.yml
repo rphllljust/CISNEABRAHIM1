@@ -1,4 +1,4 @@
-﻿name: CI
+name: CI
 
 on:
   push:
@@ -226,20 +226,23 @@ jobs:
   integration-executor:
     name: Integration
     # ─────────────────────────────────────────────────────────────────────────────────────────
-    # EXECUTION PLANE — runner OVH QUENTE
+    # EXECUTION PLANE — runner OVH qUENTE, SELECIONADO POR LABELS ESPECIFICAS
     # ─────────────────────────────────────────────────────────────────────────────────────────
     #
-    # `CI_INTEGRATION_RUNNER` e uma variavel de repositorio. Quando o runner OVH esta online
-    # (`scripts/ci/bootstrap-runner.sh` registra com os labels `self-hosted,cisne-ci,ovh`), basta:
+    # `[self-hosted, cisne-ci, ovh]` — NAO apenas `self-hosted`.
     #
-    #     gh variable set CI_INTEGRATION_RUNNER --body "self-hosted"
+    # `self-hosted` sozinho aceita QUALQUER runner self-hosted da conta. Num repositorio que
+    # tambem hospeda runners de outras finalidades, isso significa que a integracao do CISNE pode
+    # cair numa maquina sem PostgreSQL, sem os caches persistentes ou sem os recursos que o
+    # executor assume. O conjunto de labels e o CONTRATO do execution plane.
     #
-    # e o executor passa a rodar no host quente, sem alterar este arquivo.
+    # O runner correspondente e criado por `scripts/ci/bootstrap-runner.sh`, que registra
+    # exatamente estes labels.
     #
-    # O fallback `ubuntu-latest` existe apenas ate o runner existir. Ele nao e o estado final:
-    # num runner gerenciado o overhead e pago por job e o PostgreSQL sobe como container,
-    # exatamente o que a arquitetura elimina. Ver `docs/ci/` para o corte definitivo.
-    runs-on: ${{ vars.CI_INTEGRATION_RUNNER || 'ubuntu-latest' }}
+    # ENQUANTO O RUNNER NAO EXISTIR, o job usa `ubuntu-latest` como migracao. O fallback e
+    # transitorio e deve ser removido assim que o OVH estiver comprovado — ver
+    # `docs/ci/execution-plane.md`.
+    runs-on: ${{ vars.CI_INTEGRATION_RUNNER == 'ovh' && fromJSON('["self-hosted","cisne-ci","ovh"]') || 'ubuntu-latest' }}
     timeout-minutes: 25
     steps:
       - name: Checkout
@@ -308,7 +311,14 @@ jobs:
       # ─────────────────────────────────────────────────────────────────────────────────────────
       - name: Run integration executor
         env:
-          INTEGRATION_WORKERS: '8'
+          # POLITICA DE CONCORRENCIA EXPLICITA PARA O VPS-1.
+          #
+          # Default 3. O valor 4 so vira padrao se medido pelo menos 10% mais rapido COM zero
+          # degradacao de swap/OOM — regra de promocao em docs/ci/execution-plane.md.
+          #
+          # NAO derive de `os.availableParallelism()`: isso confunde METRICA com POLITICA e faz
+          # o comportamento mudar conforme o host escolhido pelo scheduler.
+          CI_INTEGRATION_WORKERS: ${{ vars.CI_INTEGRATION_WORKERS || '3' }}
           INTEGRATION_ADMIN_URL: postgresql://cisne_ci:cisne_ci_disposable_password@127.0.0.1:5432/postgres
           INTEGRATION_TEMPLATE_DB: cisne_integration_template
           INTEGRATION_DB_PREFIX: cisne_it_
