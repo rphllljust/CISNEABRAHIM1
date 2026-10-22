@@ -1,10 +1,25 @@
 #!/usr/bin/env bash
-# BOOTSTRAP DO RUNNER OVH DE CI — reproduzivel, idempotente, nao-interativo.
+# BOOTSTRAP DO RUNNER SELF-HOSTED — REFERENCIA, NAO USAR NO VPS-1
+#
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+# AVISO ARQUITETURAL (2026-10-22)
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+#
+# O CI do CISNE roda em runners GitHub-hosted. O VPS-1 da OVH e o host de PRODUCAO
+# (Coolify + CISNE API + CISNE Web) e NAO deve executar CI.
+#
+# Este script permanece no repositorio como referencia para o cenario em que o CI volte a
+# precisar de um host dedicado — e nesse caso sera um VPS EXCLUSIVO de CI, nunca o de producao.
+#
+# NAO EXECUTE ESTE SCRIPT NO VPS-1.
+# Ver docs/ci/execution-plane.md.
+#
+# BOOTSTRAP DO RUNNER SELF-HOSTED DE CI — reproduzivel, idempotente, nao-interativo.
 #
 # Uso (como root, numa VM Linux limpa):
 #
-#   CINE_RUNNER_TOKEN=<token> \
-#   CINE_REPO_URL=https://github.com/rphllljust/CISNEABRAHIM1 \
+#   CISNE_RUNNER_TOKEN=<token> \
+#   CISNE_REPO_URL=https://github.com/rphllljust/CISNEABRAHIM1 \
 #   bash scripts/ci/bootstrap-runner.sh
 #
 # O token vem de: GitHub > Settings > Actions > Runners > New self-hosted runner.

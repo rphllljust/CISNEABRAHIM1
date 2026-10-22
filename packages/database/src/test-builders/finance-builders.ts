@@ -8,6 +8,18 @@ export async function truncateFinanceTables(client: DbClient): Promise<void> {
     SET status = 'UNRECONCILED', unreconciled_at = NOW()
     WHERE status = 'CONFIRMED'
   `);
+  // ────────────────────────────────────────────────────────────────────────────────────────────
+  // ORCAMENTO E COBRANCA TEM TRUNCATE PROPRIO MAIS ABAIXO
+  // ────────────────────────────────────────────────────────────────────────────────────────────
+  //
+  // `fin.budget_lines` e `fin.receivable_collections` (com seus tres netos: collection_actions,
+  // collection_promises, collection_history) sao limpos por blocos `TRUNCATE ... CASCADE`
+  // dedicados no fim desta funcao. Um `DELETE` avulso aqui seria REDUNDANTE e ainda criaria
+  // aparencia de ordem correta onde ela nao existe.
+  //
+  // Registro isso porque a auditoria estatica acusou estas tabelas como "filhos restritivos nao
+  // limpos": a heuristica so enxerga `DELETE FROM`, nao `TRUNCATE`. O comportamento real esta
+  // correto — a lacuna era da ferramenta, nao do helper.
   await client.query('DELETE FROM fin.reconciliation_matches');
   await client.query('DELETE FROM fin.reconciliations');
   await client.query('DELETE FROM fin.bank_statement_lines');
