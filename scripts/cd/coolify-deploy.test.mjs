@@ -21,7 +21,7 @@ function payload(overrides = {}) {
     images: { api: apiImage, worker: apiImage, web: webImage },
     runtime: {
       api: { healthPath: '/api/v1/health/ready' },
-      worker: {},
+      worker: { command: ['node', 'apps/api/dist/worker/main.js'] },
       web: { healthPath: '/health' },
     },
     ...overrides,
@@ -40,6 +40,12 @@ test('builds a plan that pins worker to the API image', () => {
   // worker nao expoe health HTTP
   assert.equal(byKey.worker.healthPath, null);
   assert.equal(byKey.api.sourceSha, sha);
+
+  // api e web herdam o CMD da imagem; o worker precisa de processo proprio,
+  // senao subiria como uma segunda API e nunca consumiria a fila.
+  assert.equal(byKey.api.startCommand, null);
+  assert.equal(byKey.web.startCommand, null);
+  assert.equal(byKey.worker.startCommand, 'node apps/api/dist/worker/main.js');
 });
 
 for (const [name, patch] of [
@@ -93,6 +99,9 @@ test('runDeployPlan pins, deploys and waits for every application in order', asy
   const client = {
     pinImage: async (uuid, image) => {
       events.push(['pin', uuid, image]);
+    },
+    setStartCommand: async (uuid, command) => {
+      events.push(['start', uuid, command]);
     },
     deploy: async (uuid) => {
       events.push(['deploy', uuid]);

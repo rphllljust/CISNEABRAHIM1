@@ -72,10 +72,36 @@ export function buildDeployPlan(payload, apps) {
     }
   }
 
+  // `start_command` e necessario porque as tres aplicacoes usam a MESMA imagem.
+  // A API e o Web herdam o CMD do Dockerfile; o worker precisa de outro processo.
+  // Sem isso, o worker subiria como uma segunda API e nunca consumiria a fila.
+  const commandOf = (key) => {
+    const command = payload.runtime?.[key]?.command;
+    return Array.isArray(command) && command.length > 0 ? command.join(' ') : null;
+  };
+
   return [
-    { key: 'api', uuid: apps.api, image: apiImage, healthPath: payload.runtime?.api?.healthPath },
-    { key: 'worker', uuid: apps.worker, image: workerImage, healthPath: null },
-    { key: 'web', uuid: apps.web, image: webImage, healthPath: payload.runtime?.web?.healthPath },
+    {
+      key: 'api',
+      uuid: apps.api,
+      image: apiImage,
+      healthPath: payload.runtime?.api?.healthPath,
+      startCommand: null, // herda o CMD do Dockerfile (inclui ensure-production-credentials)
+    },
+    {
+      key: 'worker',
+      uuid: apps.worker,
+      image: workerImage,
+      healthPath: null,
+      startCommand: commandOf('worker'),
+    },
+    {
+      key: 'web',
+      uuid: apps.web,
+      image: webImage,
+      healthPath: payload.runtime?.web?.healthPath,
+      startCommand: null, // nginx do Dockerfile
+    },
   ].map((entry) => ({ ...entry, sourceSha }));
 }
 
@@ -118,14 +144,15 @@ export function createCoolifyClient({ baseUrl, token, fetchImpl = fetch }) {
      */
     pinImage: (uuid, image) => {
       const { repository, digest } = splitImage(image);
-      return call(`/applications/${uuid}`, {
-        method: 'PATCH',
-        body: {
-          docker_registry_image_name: repository.replace(/^ghcr\.io\//, ''),
-          docker_registry_image_tag: `@${digest}`,
-        },
-      });
+      const body = {
+        docker_registry_image_name: repository.replace(/^ghcr\.io\//, ''),
+        docker_registry_image_tag: `@${digest}`,
+      };
+      return call(`/applications/${uuid}`, { method: 'PATCH', body });
     },
+    /** Define o processo que a aplicacao executa (worker != CMD do Dockerfile). */
+    setStartCommand: (uuid, startCommand) =>
+      call(`/applications/${uuid}`, { method: 'PATCH', body: { start_command: startCommand } }),
     deploy: (uuid) => call(`/deploy?uuid=${uuid}`, { method: 'POST' }),
     deployment: (uuid) => call(`/deployments/${uuid}`),
   };
@@ -168,6 +195,11 @@ export async function runDeployPlan(plan, client, options = {}) {
   for (const step of plan) {
     onStep(`[coolify-deploy] ${step.key}: fixando imagem ${step.image}`);
     await client.pinImage(step.uuid, step.image);
+
+    if (step.startCommand) {
+      onStep(`[coolify-deploy] ${step.key}: start_command = ${step.startCommand}`);
+      await client.setStartCommand(step.uuid, step.startCommand);
+    }
 
     onStep(`[coolify-deploy] ${step.key}: disparando deployment`);
     const started = await client.deploy(step.uuid);
