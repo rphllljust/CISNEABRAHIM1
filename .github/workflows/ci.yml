@@ -1,4 +1,4 @@
-name: CI
+﻿name: CI
 
 on:
   push:
@@ -183,119 +183,52 @@ jobs:
       - name: Database migration gate
         run: pnpm gate:database
 
-  integration-shards:
-    name: Integration (${{ matrix.shard }})
-    runs-on: ubuntu-latest
-    # ─────────────────────────────────────────────────────────────────────────────────────────
-    # SHARDING REAL — PARALELISMO ENTRE DATABASES, NAO DENTRO DE UM DATABASE
-    # ─────────────────────────────────────────────────────────────────────────────────────────
-    #
-    # GARGALO MEDIDO: 114 arquivos `*.integration.spec.ts` (38.727 linhas) rodavam em FILA UNICA
-    # (`maxWorkers: 1`, `fileParallelism: false`). O passo `Integration tests` do run 39719203623
-    # comecou em 03:52:58Z e seguia `in_progress` ~11 min depois, contra `timeout-minutes: 30`.
-    # Na serie historica este job e o caminho critico: 21m26s no run 39665977954.
-    #
-    # POR QUE NAO BASTAVA AUMENTAR CONCORRENCIA
-    #
-    # `integration-test-db-serializer.ts` adquire `pg_advisory_lock(0x43534e45)` antes de cada
-    # arquivo, e os 114 compartilham UM database. Como advisory locks sao escopados POR DATABASE,
-    # liberar workers contra o mesmo database so moveria a serializacao do Vitest para o Postgres
-    # — trocando um gargalo visivel por uma espera de lock opaca.
-    #
-    # A CORRECAO (mesmo raciocinio ja aplicado ao separar `api-e2e` deste job)
-    #
-    # Cada shard recebe um DATABASE PROPRIO: `cisne_ci_integration_s1` ... `_s8`. Databases
-    # distintos => locks distintos, mesmo com a MESMA chave. O lock global vira inofensivo por
-    # construcao, sem alterar uma linha de `integration-test-db-lock.ts`, e continua protegendo
-    # acesso concorrente ao MESMO database dentro do shard.
-    #
-    # DENTRO DO SHARD PERMANECE SERIAL (`maxWorkers: 1`, `fileParallelism: false`): o database e
-    # unico, entao paralelizar ali seria espera de lock, nao velocidade.
-    #
-    # COBERTURA: nenhuma reducao. O plano ponderado descobre todos os *.integration.spec.ts,
-    # atribui cada arquivo a exatamente um shard e falha se a particao nao for completa/disjunta.
-    # Os pesos vieram do run 39783611641; specs novos entram automaticamente com peso mediano
-    # conservador. Nenhum arquivo removido, nenhum silenciado, nenhum `--exclude` novo.
-    #
-    # MIGRATIONS: cada shard aplica as SUAS, contra o SEU database, via `ensure-migrations`
-    # (globalSetup) — nenhum shard herda schema de outro. Se aplicar errado, falha ali, isolado.
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      # MATRIX COM DOIS CAMPOS, SEM FUNCAO NA EXPRESSAO.
-      #
-      # CAUSA RAIZ MEDIDA (runs 39721011312 e 39721504213): ambos concluiram `failure` SEM
-      # instanciar job nenhum (`jobs: []`), com o GH reportando "This run likely failed because
-      # of a workflow file issue". Os dois runs sao exatamente os commits que introduziram esta
-      # matrix; o commit anterior (73e4c01e) validou e rodou 12 jobs normalmente.
-      #
-      # O defeito era derivar o nome do database com uma FUNCAO dentro da expressao:
-      #
-      #     INTEGRATION_DATABASE_NAME: cisne_ci_integration_${{ matrix.db_suffix }}
-      #
-      # `replace()` nunca foi usado em NENHUM workflow deste repositorio (verificado com
-      # `git grep` em `origin/main`): e codigo novo, e era o unico elemento sem precedente que
-      # restava depois de descartar, por comparacao com o `origin/main` que passa, a barra em
-      # `'1/4'` e o proprio contexto `matrix`.
-      #
-      # CORRECAO MINIMA: o sufixo passa a ser um CAMPO DA MATRIX, resolvido pelo proprio GitHub.
-      # Nenhuma funcao na expressao, nenhum shard novo, nenhum nome de database alterado
-      # (`s1`..`s8` ficam declarados explicitamente).
-      matrix:
-        include:
-          - shard: '1/8'
-            index: 1
-            db_suffix: s1
-          - shard: '2/8'
-            index: 2
-            db_suffix: s2
-          - shard: '3/8'
-            index: 3
-            db_suffix: s3
-          - shard: '4/8'
-            index: 4
-            db_suffix: s4
-          - shard: '5/8'
-            index: 5
-            db_suffix: s5
-          - shard: '6/8'
-            index: 6
-            db_suffix: s6
-          - shard: '7/8'
-            index: 7
-            db_suffix: s7
-          - shard: '8/8'
-            index: 8
-            db_suffix: s8
-    services:
-      postgres:
-        image: postgres:18-alpine
-        env:
-          POSTGRES_USER: cisne_ci
-          POSTGRES_PASSWORD: cisne_ci_disposable_password
-          POSTGRES_DB: cisne_ci
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U cisne_ci -d cisne_ci"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 12
-    env:
-      # env DE NIVEL DE JOB — APENAS O QUE O SERVICO PRECISA REPETIR.
-      #
-      # A baseline declarava aqui `INTEGRATION_DATABASE_NAME` e `TEST_DATABASE_URL`. Este job nao
-      # pode repetir isso: os dois valores carregam o database DO SHARD, e `matrix` nao existe no
-      # escopo de `env:` de job — declara-lo aqui rejeitava o workflow inteiro (run 39721011312,
-      # `jobs: []`). Por isso o valor por shard vive nos `env:` dos STEPS.
-      #
-      # POSTGRES_* tambem repetem o `env:` GLOBAL do workflow (linhas 51-61). Nao acrescentam
-      # nada e ficam aqui apenas para manter o bloco explicito; se um dia divergirem, o global tem
-      # precedencia menor que o job, e o job passa a ser a fonte. Comportamento identico ao global
-      # hoje, o que mantem paridade funcional com a baseline.
-      POSTGRES_USER: cisne_ci
-      POSTGRES_PASSWORD: cisne_ci_disposable_password
-      POSTGRES_DB: cisne_ci
+  # ═══════════════════════════════════════════════════════════════════════════════════════════════
+  # INTEGRATION EXECUTOR — UM host quente, N workers locais, N bancos efemeros
+  # ═══════════════════════════════════════════════════════════════════════════════════════════════
+  #
+  # O QUE ESTE JOB SUBSTITUI
+  #
+  # Antes: 8 jobs `Integration (1/8..8/8)` em runners FRIOS do GitHub. Cada um pagava
+  #   13s container + 2s checkout + 3s pnpm + 5s node + 3s install + 3s migrate + 19s build
+  # = 44s de overhead, 8x = 352s desperdicados, contra 146s de teste real.
+  #
+  # Medido no run 39785822308 (o run que foi para a main):
+  #   shard mais lento 196s | mais rapido 127s | overhead repetido 352s | total ~28 runner-min
+  #
+  # Agora o overhead e pago UMA vez neste job, e o paralelismo acontece ENTRE processos locais,
+  # nao entre maquinas frias.
+  #
+  # ISOLAMENTO — A GARANTIA QUE NAO MUDA
+  #
+  # Cada worker recebe `TEST_DATABASE_URL` de um database FISICAMENTE distinto
+  # (`cisne_it_01`..`cisne_it_08`), clonado de um template ja migrado. Advisory locks no Postgres
+  # sao escopados POR DATABASE: dois workers em bancos diferentes pegam locks diferentes mesmo com
+  # a MESMA chave `0x43534e45`. Por isso `maxWorkers: 1` pode permanecer DENTRO de cada worker
+  # sem nenhuma contencao ENTRE workers.
+  #
+  # MIGRATIONS UMA VEZ
+  #
+  # `cisne_integration_template` recebe a cadeia completa uma vez (~3s). Os 8 bancos sao clones
+  # `CREATE DATABASE ... TEMPLATE` (~120ms cada). Antes: 8 x 3s. Agora: 1 x 3s + 8 x 120ms.
+  #
+  # FAIL-CLOSED (inegociavel — ver scripts/ci/integration-executor.mjs)
+  #
+  #   worker falhou / morreu        -> exit 1
+  #   spec sem shard                -> exit 1
+  #   spec duplicado                -> exit 1
+  #   scheduler quebrou             -> exit 1
+  #   cobertura incompleta          -> exit 1
+  #   banco nao clonou              -> exit 1
+  #   cleanup falhou                -> exit 1
+  #
+  # Nenhum `continue-on-error`, nenhum `|| true`, nenhum retry, nenhum timeout inflado.
+  integration-executor:
+    name: Integration
+    # SELF-HOSTED QUENTE. Enquanto o runner OVH nao existir, o fallback abaixo mantem o CI
+    # funcionando (ver comentario seguinte) — mas o estado final e o runner dedicado.
+    runs-on: ${{ vars.CI_INTEGRATION_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -310,109 +243,84 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
-      # ───────────────────────────────────────────────────────────────────────────────────────
-      # `matrix` NO `env:` DO STEP, NAO NO `env:` DO JOB
-      # ───────────────────────────────────────────────────────────────────────────────────────
+      # ─────────────────────────────────────────────────────────────────────────────────────────
+      # POSTGRESQL — UMA VEZ
+      # ─────────────────────────────────────────────────────────────────────────────────────────
       #
-      # CAUSA RAIZ MEDIDA (run 39721011312): o run falhou SEM instanciar job nenhum —
-      # `jobs: []`, `gh run view` dizendo "This run likely failed because of a workflow file
-      # issue". O GitHub rejeitou o workflow inteiro na validacao.
+      # No runner self-hosted o servico ja esta residente e NAO deve ser iniciado como container
+      # efemero (o `services:` do Actions nao existe fora do runner gerenciado). O executor se
+      # conecta via `INTEGRATION_ADMIN_URL`.
       #
-      # O defeito era declarar `env:` de NIVEL DE JOB com `matrix.*`:
-      #
-      #     env:                                     # <- escopo de JOB
-      #       TEST_DATABASE_URL: ...s${{ matrix.shard }}
-      #
-      # `matrix` nao existe no contexto de `env:` de job: ele so e materializado quando o job
-      # entra em execucao, por shard. O `origin/main` usa `matrix.*` apenas em `name`,
-      # `cache.key` e `run` — contextos onde o valor ja e o do shard corrente.
-      #
-      # Correcao MINIMA: os valores descem para o `env:` dos STEPS que os consomem, onde
-      # `matrix` e valido. Nenhum nome de database, nenhum shard e nenhuma estrategia mudou.
-      - name: Create disposable integration database
-        env:
-          PGPASSWORD: cisne_ci_disposable_password
-          INTEGRATION_DATABASE_NAME: cisne_ci_integration_${{ matrix.db_suffix }}
+      # Em `ubuntu-latest` (fallback) sobe-se o servico normalmente.
+      - name: Start PostgreSQL (hosted runner fallback)
+        if: vars.CI_INTEGRATION_RUNNER == ''
         run: |
-          psql -h localhost -U cisne_ci -d cisne_ci -v ON_ERROR_STOP=1 <<SQL
-          SELECT format('CREATE DATABASE %I OWNER %I', '${INTEGRATION_DATABASE_NAME}', 'cisne_ci')
-          WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${INTEGRATION_DATABASE_NAME}')\gexec
-          SQL
-      # ───────────────────────────────────────────────────────────────────────────────────────
-      # APLICAR MIGRATIONS NO DATABASE DO SHARD — STEP QUE FALTAVA
-      # ───────────────────────────────────────────────────────────────────────────────────────
+          docker run -d --name cisne-ci-pg \
+            -e POSTGRES_USER=cisne_ci \
+            -e POSTGRES_PASSWORD=cisne_ci_disposable_password \
+            -e POSTGRES_DB=postgres \
+            -p 5432:5432 \
+            --health-cmd "pg_isready -U cisne_ci -d postgres" \
+            --health-interval 5s --health-timeout 5s --health-retries 12 \
+            postgres:18-alpine
+          for i in $(seq 1 30); do
+            if docker exec cisne-ci-pg pg_isready -U cisne_ci -d postgres >/dev/null 2>&1; then
+              echo "postgres ready"; exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::postgres did not become ready"; exit 1
+      # ─────────────────────────────────────────────────────────────────────────────────────────
+      # BUILD — UMA VEZ (FASE 3)
+      # ─────────────────────────────────────────────────────────────────────────────────────────
       #
-      # DEFEITO MEDIDO (run 39722020814, shard 1/4): os testes falharam em massa com
+      # Antes: `pnpm --filter @cisne/api... build` rodava DENTRO de cada um dos 8 shards (19s x 8).
+      # `...` inclui as dependencias de workspace — o serializer importa `@cisne/database`, que
+      # resolve para `dist/`. Sem build o Vitest falha na COLETA ("Failed to resolve entry for
+      # package @cisne/database"), nao no teste.
       #
-      #     relation "identity.identities" does not exist
-      #     relation "identity.credentials" does not exist
-      #
-      # ..nao porque o codigo estivesse errado, mas porque o database do shard estava VAZIO: nenhum
-      # schema havia sido criado. O `origin/main` tinha exatamente este passo —
-      #
-      #     - name: Apply migrations to integration database
-      #       run: pnpm db:migrate:test
-      #
-      # — e eu o perdi ao reescrever o job. `ensure-migrations` (globalSetup) reconcilia journal e
-      # confere cobertura; ele NAO substitui a aplicacao da cadeia. Cada shard aplica as SUAS
-      # migrations contra o SEU database, como antes, sem herdar schema de ninguem.
-      - name: Apply migrations to integration database
-        env:
-          TEST_DATABASE_URL: postgresql://cisne_ci:cisne_ci_disposable_password@localhost:5432/cisne_ci_integration_${{ matrix.db_suffix }}
-        run: pnpm db:migrate:test
-      # ───────────────────────────────────────────────────────────────────────────────────────
-      # BUILD DO WORKSPACE — O QUE O TURBO FAZIA POR NOS
-      # ───────────────────────────────────────────────────────────────────────────────────────
-      #
-      # CAUSA RAIZ MEDIDA (run 39782887902, os 4 shards, 29 arquivos cada, falha em ~40s):
-      #
-      #     Error: Failed to resolve entry for package "@cisne/database".
-      #     File: apps/api/src/test/integration-test-db-serializer.ts:7:7
-      #
-      # O sharding estava CERTO: cada shard coletou exatamente 29 arquivos (29/29/29/27 = 114).
-      # O que faltou foi o BUILD do workspace. `turbo.json` declara
-      #
-      #     "test:integration": { "dependsOn": ["^build"], ... }
-      #
-      # ou seja, o Turbo garantia o build das dependencias de workspace ANTES de rodar os testes.
-      # Ao trocar para execucao direta (`pnpm --filter @cisne/api test:integration`) para garantir
-      # que `INTEGRATION_SHARD` chegasse ao Vitest, o `^build` deixou de acontecer junto — e o
-      # serializer importa `@cisne/database`, que precisa de `dist/`.
-      #
-      # CORRECAO: buildar explicitamente as dependencias de workspace. Mantem as duas garantias
-      # que antes se perdiam uma sem a outra — env sem filtro E pacote compilado.
+      # Agora roda uma vez, aqui.
       - name: Build workspace packages
         run: pnpm --filter @cisne/api... build
-      - name: Integration tests (duration-balanced shard)
+      # ─────────────────────────────────────────────────────────────────────────────────────────
+      # EXECUTOR: template -> clones -> 8 workers -> agregacao -> cleanup
+      # ─────────────────────────────────────────────────────────────────────────────────────────
+      - name: Run integration executor
         env:
-          INTEGRATION_DATABASE_NAME: cisne_ci_integration_${{ matrix.db_suffix }}
-          TEST_DATABASE_URL: postgresql://cisne_ci:cisne_ci_disposable_password@localhost:5432/cisne_ci_integration_${{ matrix.db_suffix }}
+          INTEGRATION_WORKERS: '8'
+          INTEGRATION_ADMIN_URL: postgresql://cisne_ci:cisne_ci_disposable_password@127.0.0.1:5432/postgres
+          INTEGRATION_TEMPLATE_DB: cisne_integration_template
+          INTEGRATION_DB_PREFIX: cisne_it_
+          INTEGRATION_SCHEMA_PREPARED: '1'
           INTEGRATION_SHARD_DEBUG: '1'
-        run: |
-          set -euo pipefail
-          files="$(node scripts/ci/integration-shard-plan.mjs --index ${{ matrix.index }} --count 8)"
-          test -n "$files"
-          pnpm --filter @cisne/api exec vitest run --config vitest.integration.config.ts $files
-
-  # NOME ESTAVEL: cada shard precisa passar antes deste check ficar verde.
-  #
-  # Mesma construcao de `unit-tests` sobre `unit-test-shards`. Existe porque `matrix` produz
-  # checks com nomes distintos (`Integration (1/8)` ... `Integration (8/8)`), e um agregador por nome estavel evita
-  # que um shard ausente passe despercebido pelo `release-ready`.
-  #
-  # `if: always()` e obrigatorio: o job TEM de rodar quando um shard falha — e nesse caso que
-  # ele precisa reprovar. Um agregador que nao roda quando algo falha seria falso verde.
-  integration-tests:
-    name: Integration tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    needs: integration-shards
-    if: always()
-    steps:
-      - name: Require every shard to pass
-        env:
-          SHARDS_RESULT: ${{ needs.integration-shards.result }}
-        run: test "$SHARDS_RESULT" = "success"
+          JWT_SECRET: ci-jwt-secret-at-least-32-characters-long
+          JWT_ISSUER: cisne-api
+          JWT_AUDIENCE: cisne-clients
+          CORS_ORIGIN: http://localhost:5173
+        run: node scripts/ci/integration-executor.mjs
+      # ─────────────────────────────────────────────────────────────────────────────────────────
+      # INSTRUMENTACAO — historico por spec para o scheduler LPT do proximo run
+      # ─────────────────────────────────────────────────────────────────────────────────────────
+      - name: Collect integration timings
+        if: always()
+        run: node scripts/ci/integration-timings.mjs collect || true
+      - name: Publish CI metrics
+        if: always()
+        run: node scripts/ci/integration-timings.mjs summary
+      - name: Upload CI telemetry
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-telemetry-${{ github.run_id }}
+          if-no-files-found: ignore
+          retention-days: 14
+          path: |
+            artifacts/ci/integration-timings.json
+            artifacts/ci/ci-metrics.json
+            artifacts/ci/integration.*.timings.ndjson
+      - name: Stop PostgreSQL (hosted runner fallback)
+        if: always() && vars.CI_INTEGRATION_RUNNER == ''
+        run: docker rm -f cisne-ci-pg || true
 
   api-e2e:
     name: API E2E
@@ -765,7 +673,10 @@ jobs:
     # GATES AGREGADOS — SO O QUE PROMOVE
     # ─────────────────────────────────────────────────────────────────────────────────────────
     #
-    #   unit-tests / integration-tests : nomes ESTAVEIS que agregam seus respectivos matrix.
+    #   unit-tests           : nome ESTAVEL que agrega o matrix de shards unitarios. Uma matrix
+    #                          gera um check por shard; agregar pelo nome estavel impede que um
+    #                          shard ausente passe despercebido.
+    #   integration-executor : job UNICO (nao matrix). Agregar seria uma camada sem funcao.
     #                                    Uma matrix gera checks por shard; agregar pelo nome
     #                                    estavel impede que um shard ausente passe despercebido.
     #   database-migration-gate        : journal/cobertura de migrations (gate barato, uma vez).
@@ -786,7 +697,7 @@ jobs:
       - static-quality
       - unit-tests
       - database-migration-gate
-      - integration-tests
+      - integration-executor
       - api-e2e
       - build-release
       - visual-critical
@@ -797,7 +708,7 @@ jobs:
           STATIC: ${{ needs.static-quality.result }}
           UNIT: ${{ needs.unit-tests.result }}
           MIGRATIONS: ${{ needs.database-migration-gate.result }}
-          INTEGRATION: ${{ needs.integration-tests.result }}
+          INTEGRATION: ${{ needs.integration-executor.result }}
           E2E: ${{ needs.api-e2e.result }}
           BUILD: ${{ needs.build-release.result }}
           VISUAL_CRITICAL: ${{ needs.visual-critical.result }}
@@ -805,7 +716,7 @@ jobs:
           echo "static-quality            : $STATIC"
           echo "unit-tests                : $UNIT"
           echo "database-migration-gate   : $MIGRATIONS"
-          echo "integration-tests         : $INTEGRATION"
+          echo "integration-executor      : $INTEGRATION"
           echo "api-e2e                   : $E2E"
           echo "build-release             : $BUILD"
           echo "visual-critical           : $VISUAL_CRITICAL"
@@ -814,7 +725,7 @@ jobs:
             "static-quality:$STATIC" \
             "unit-tests:$UNIT" \
             "database-migration-gate:$MIGRATIONS" \
-            "integration-tests:$INTEGRATION" \
+            "integration-executor:$INTEGRATION" \
             "api-e2e:$E2E" \
             "build-release:$BUILD" \
             "visual-critical:$VISUAL_CRITICAL"
