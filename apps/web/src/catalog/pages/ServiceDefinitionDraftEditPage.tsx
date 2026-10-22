@@ -41,7 +41,7 @@ export function ServiceDefinitionDraftEditPage() {
   const navigate = useNavigate();
   const formId = useId();
   const errorId = useId();
-  const { capabilities } = useCatalogCapabilities();
+  const { capabilities, loading: capabilitiesLoading } = useCatalogCapabilities();
   const { data: referenceData, loading: referenceLoading } = useCatalogReferenceData();
   const [state, setState] = useState<EditState>({ phase: 'loading' });
   const [fieldErrors, setFieldErrors] = useState<ReturnType<typeof validateServiceDefinitionForm>>({});
@@ -89,7 +89,7 @@ export function ServiceDefinitionDraftEditPage() {
   const blockers =
     state.phase === 'ready' ? listFormBlockers(state.formState, { includeCode: false }) : [];
 
-  if (state.phase === 'loading' || referenceLoading) {
+  if (state.phase === 'loading' || referenceLoading || capabilitiesLoading) {
     return (
       <ModulePage>
         <PageHeader title="Editar rascunho" />
