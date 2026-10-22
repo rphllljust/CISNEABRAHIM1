@@ -18,6 +18,7 @@
  * e, portanto, cujo job `Release ready` concluiu `success`.
  * Se houver varios `success`, vale o de maior id. Qualquer outro conjunto recusa.
  */
+import { readFileSync } from 'node:fs';
 
 export const WORKFLOW_NAME = 'CI';
 export const RELEASE_JOB_NAME = 'Release ready';
@@ -110,8 +111,6 @@ function runCli() {
   if (!runsPath) {
     throw new AuthorizationRefusedError('EXPECTED_RUNS_FILE nao definido');
   }
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { readFileSync } = require('node:fs');
   const runs = JSON.parse(readFileSync(runsPath, 'utf8')).workflow_runs ?? [];
   const run = selectAuthorizingRun(runs, expectedSha);
   process.stdout.write(String(run.id));
