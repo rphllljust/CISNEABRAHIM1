@@ -1,0 +1,125 @@
+name: Visual full
+
+# SUITE VISUAL COMPLETA — COBERTURA INTEGRAL, CADENCIA PROPRIA.
+#
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+# POR QUE ESTE WORKFLOW EXISTE
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+#
+# MEDIDO (run 39719203623): a suite visual completa levou 10m31s — passo `Web visual regression
+# (full suite)`, 03:53:14Z -> 04:03:36Z. Ela NAO estava no `needs` do `release-ready`, mas rodava
+# DENTRO do workflow `CI` em todo `push` para `main`. Como o CD dispara em
+# `workflow_run: [CI] types: [completed]`, o evento que autoriza a promocao so chegava depois que
+# o visual completo terminasse. Um fix de backend esperava ~10 min por snapshots de telas que nao
+# tinham como ter mudado.
+#
+# A suite completa sai do workflow `CI`. Sai TAMBEM o evento `completed` que ela atrasava.
+#
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+# O QUE NAO MUDA — E PRECISA FICAR ESCRITO
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+#
+#   - NENHUM snapshot removido. NENHUM limiar afrouxado (`maxDiffPixelRatio` intacto).
+#   - os MESMOS 24 specs, os MESMOS 3 viewports de antes.
+#   - `Visual critical` PERMANECE no `release-ready` do `ci.yml`: login + dashboard, as telas cujo
+#     defeito visual IMPEDE operar, continuam bloqueando promocao em TODA mudanca.
+#   - regressao visual continua reprovando via `visual-regression-ratchet` — nada e silenciado.
+#
+# A divisao e por RISCO DE PROMOCAO, nao por conveniencia. Quem promove nao espera a cadeia
+# inteira; quem toca pixel recebe a cadeia inteira, bloqueando.
+#
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+# GATILHOS
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+#
+#   schedule  : nightly. A cobertura ampla precisa existir tambem entre releases — senao a divida
+#               visual se acumula silenciosamente e so aparece quando ja e regressao.
+#   dispatch  : manual, para inspecao sob demanda.
+#   PR        : OBRIGATORIO quando o diff toca superficie visual. Em PR, bloquear e correto:
+#               PR nao promove, entao nao ha caminho critico a proteger.
+#
+# `push` em `main` NAO dispara este workflow de proposito. E exatamente esse o atraso que a
+# separacao elimina.
+
+on:
+  schedule:
+    # 04:17 UTC — fora de qualquer janela de release típica.
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'apps/web/src/**'
+      - 'apps/web/e2e/visual/**'
+      - 'apps/web/index.html'
+      - 'apps/web/vite.config.ts'
+      - 'apps/web/tailwind.config**'
+      - 'packages/ui/**'
+      - 'packages/design-**'
+      - '**/*.css'
+
+concurrency:
+  # Grupo proprio, jamais compartilhado com `CI` ou `CD`. Cancelar uma run visual superseded nao
+  # interrompe promocao alguma.
+  group: visual-full-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+
+env:
+  FORCE_COLOR: '1'
+
+jobs:
+  visual-full:
+    name: Visual full
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+      - name: Build
+        run: pnpm build
+      - name: Install Playwright Chromium (web visual regression)
+        run: pnpm --filter @cisne/web exec playwright install chromium --with-deps
+      - name: Web visual regression (full suite)
+        id: web-visual
+        # `continue-on-error` NAO esconde regressao: a decisao de vermelho/verde fica no ratchet
+        # abaixo, que reprova o job em regressao real. Sair cedo aqui impediria o upload dos
+        # diagnosticos e a analise do ratchet — que e justamente o que precisa existir quando a
+        # suite falha.
+        continue-on-error: true
+        run: |
+          mkdir -p artifacts/ci
+          pnpm --filter @cisne/web test:visual 2>&1 | tee artifacts/ci/web-visual.log
+        env:
+          CI: 'true'
+          VITE_CISNE_SURFACE: 'dev'
+      - name: Upload visual regression diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-visual-diagnostics-${{ github.run_id }}
+          if-no-files-found: ignore
+          retention-days: 7
+          path: |
+            apps/web/test-results
+            apps/web/playwright-report
+            artifacts/ci/web-visual.log
+      - name: Visual regression debt ratchet
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          VISUAL_OUTCOME: ${{ steps.web-visual.outcome }}
+        run: node scripts/ci/visual-regression-ratchet.mjs artifacts/ci/web-visual.log
