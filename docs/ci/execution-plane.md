@@ -1,217 +1,204 @@
-﻿# CI Execution Plane — runner OVH
+# CI Execution Plane — GitHub-hosted
 
-Este documento cobre **o que existe hoje** e **o corte para o runner dedicado**. Não descreve a
-estrutura do monorepo; para isso, ver [`repository-structure.md`](./repository-structure.md).
+Este documento cobre **onde o CI executa** e **por que**. Para a estrutura do monorepo, ver
+[`../17-bootstrap/repository-structure.md`](../17-bootstrap/repository-structure.md).
 
-## Por que o runner existe
+> **Mudança de decisão (2026-10-22).** A versão anterior descrevia um runner self-hosted no VPS-1
+> da OVH. Essa premissa foi **revogada**: o VPS-1 é o host de produção/runtime (Coolify + CISNE
+> API + CISNE Web) e não hospeda CI. O bootstrap de runner permanece no repositório apenas como
+> referência caso a decisão mude.
 
-Medição da baseline (run `39785822308`, o run que foi para a `main`):
+## Separação de planos
 
-| Métrica | Valor |
+```
+GitHub                       OVH VPS-1
+──────────────────           ────────────────────────────
+source authority             Coolify (deploy/runtime)
+CI / control plane           CISNE API
+quality gates                CISNE Web
+Release ready                proxy / rede / logs
+release authority            banco de runtime
+```
+
+**O CI nunca roda no host de produção.** Motivo medido, não estético:
+
+| Fato | Consequência se compartilhado |
 | --- | --- |
-| `commit → Release Ready` | 3m24s |
-| Shard mais lento | 196s |
-| Shard mais rápido | 127s |
-| **Overhead por shard** | **44s** (13 container + 2 checkout + 3 pnpm + 5 node + 3 install + 3 migrate + 19 build) |
-| 8 shards × 44s | **352s desperdiçados** |
-| Teste real | 146s |
-| Total | ~28 runner-minutes |
+| VPS-1 tem 2 vCPU / 3,8 GB | 3 workers Vitest + PostgreSQL competiriam com php-fpm, Horizon e Reverb |
+| Disco é HDD (`ROTA=1`) | 114 specs com `TRUNCATE` frequente saturariam I/O da aplicação |
+| Docker socket compartilhado | CI poderia afetar containers de produção |
+| Sem margem de RAM | OOM do kernel mata o processo que escolher — possivelmente a aplicação |
 
-O gargalo não era o GitHub Actions. Era pagar o mesmo overhead de setup oito vezes, em oito
-máquinas frias, para executar 146s de teste.
+Isolamento não é preferência: é o que impede que um teste pesado degrade a aplicação em uso.
 
-## Arquitetura
+## Arquitetura do CI
 
 ```
 GitHub Actions (control plane)
   ├─ static-quality ─┐
   ├─ unit shards ────┤
-  ├─ database-gate ──┤
-  ├─ build-release ──┤   fan-out imediato, sem `needs` artificial
+  ├─ database-gate ──┤   fan-out imediato, sem `needs` artificial
+  ├─ build-release ──┤
   ├─ visual-critical ┤
   ├─ api-e2e ────────┤
   └─ integration-executor ──┐
                             ▼
                      Release ready (fail-closed)
-
-integration-executor (execution plane)
-  checkout      1×
-  pnpm install  1×
-  build         1×
-  PostgreSQL    1×  (residente no host)
-  migrations    1×  → cisne_integration_template
-  clones        8×  → cisne_it_01..08    (~120ms cada)
-  workers       8×  Vitest paralelos, LPT ponderado, maxWorkers: 1
-  cleanup       sempre, inclusive em falha
 ```
 
-GitHub decide (branch protection, required checks, `Release Ready`, merge). O runner apenas
-executa carga pesada.
+### integration-executor (job único, `ubuntu-latest`)
 
-## Por que o isolamento continua correto
+```
+checkout           1×
+pnpm install       1×
+build workspace    1×     → @cisne/database/dist para o serializer
+PostgreSQL         1×     → services.postgres do job
+migrations         1×     → cisne_integration_template
+clones             N×     → cisne_it_01..N  (CREATE DATABASE ... TEMPLATE)
+workers            N×     → Vitest paralelos, maxWorkers: 1, banco próprio cada
+cleanup            sempre  → finally, inclusive em falha
+```
 
-Cada worker recebe `TEST_DATABASE_URL` de um database **fisicamente distinto**
-(`cisne_it_01`..`cisne_it_08`). Advisory locks no Postgres são escopados **por database**: dois
-workers em bancos diferentes pegam locks diferentes mesmo com a **mesma** chave `0x43534e45`.
+Nenhum `needs` artificial: todos os gates independentes começam juntos.
+
+### Por que isolamento por database funciona
+
+Cada worker recebe `TEST_DATABASE_URL` de um database **fisicamente distinto**. Advisory locks
+no Postgres são escopados **por database**: dois workers em bancos diferentes pegam locks
+diferentes mesmo com a **mesma** chave `0x43534e45`.
 
 Consequência: `maxWorkers: 1` permanece dentro de cada worker, sem nenhuma contenção entre
 workers. Nenhuma linha de `integration-test-db-lock.ts` foi alterada.
 
-**Shard é unidade de isolamento. Concorrência é unidade de CPU.** São dimensões diferentes — o
-executor deriva o paralelismo real de `os.availableParallelism()`, não do número de shards.
+**Shard é unidade de isolamento. Concorrência é unidade de política.**
 
-## Provisionar o runner
+## Política de concorrência
 
-Pré-requisito: uma VM Linux (alvo: 8 vCPU, 16 GB RAM, NVMe 100 GB), isolada da aplicação.
-
-```bash
-# Token: GitHub > Settings > Actions > Runners > New self-hosted runner
-export CISNE_REPO_URL=https://github.com/rphllljust/CISNEABRAHIM1
-export CISNE_RUNNER_TOKEN=<token>
-
-sudo -E bash scripts/ci/bootstrap-runner.sh
-```
-
-O bootstrap é idempotente e configura:
-
-- Docker (para o PostgreSQL de teste)
-- Node 22 + pnpm 9.15.9 — **a mesma versão do CI**, para não divergir
-- PostgreSQL residente `cisne-ci-postgres`, escutando **apenas** em `127.0.0.1`
-- Caches persistentes em `/opt/cisne-ci-cache` (`pnpm-store`, `turbo`)
-- Runner `self-hosted` com labels `self-hosted,cisne-ci,ovh`
-- Serviço systemd (sobrevive a reboot)
-
-Caches ficam **fora** do workspace: `actions/checkout` limpa o diretório de trabalho a cada job,
-então um store dentro dele seria apagado. Isso é o que faz o install cair para sub-segundo.
-
-## Política de concorrência — VPS-1
-
-A quantidade de workers é **política explícita**, não derivada da máquina:
+A quantidade de workers é **política explícita**, nunca derivada do host:
 
 ```yaml
 CI_INTEGRATION_WORKERS: ${{ vars.CI_INTEGRATION_WORKERS || '3' }}
 ```
 
-**3 workers é o baseline.** 4 é candidato. `os.availableParallelism()` é métrica reportada no
-`ci-metrics.json`, nunca a autoridade.
+`os.availableParallelism()` é **métrica** publicada em `ci-metrics.json`, não autoridade.
+Derivar dele produzia dois erros opostos: numa máquina grande escalava sem ninguém decidir;
+numa máquina pequena limitava e impedia testar oversubscription controlada.
 
-Por quê: derivar de vCPU produzia dois erros opostos — numa máquina grande escalava para 8 sem
-ninguém ter decidido; numa máquina pequena limitava a 2 e impedia testar oversubscription
-controlada. Este workload é **I/O-bound** (espera de PostgreSQL), então oversubscription pode
-vencer. Mas só a medição decide.
-
-### Regra matemática de promoção 3 → 4
-
-```
-T3 = tempo total com 3 workers
-T4 = tempo total com 4 workers
-
-4 vence SOMENTE se:
-  T4 <= 0.90 × T3        (pelo menos 10% mais rápido)
-
-E simultaneamente:
-  OOM events            = 0
-  swap usado não cresce (swapUsedDeltaMb <= 0)
-  swap-in/out durante   = estável
-  workers mortos        = 0
-  flakiness nova        = 0
-  erros PostgreSQL      = 0
-```
-
-Se a diferença ficar próxima do limite, decidir por **mediana de múltiplos runs** — nunca pelo
-melhor run isolado. Escolher 4 por um run favorável é escolher por acaso.
-
-### Como medir
-
-Mesmo commit, mesmo runner, mesma versão de PostgreSQL, mesmos 114 specs, mesmo build.
-
-```bash
-gh variable set CI_INTEGRATION_WORKERS --body "3"   # baseline
-# ... rodar, registrar integrationSec e ci-metrics.json
-
-gh variable set CI_INTEGRATION_WORKERS --body "4"   # candidato
-# ... rodar, comparar
-```
-
-`ci-metrics.json` já publica o necessário para a decisão:
-
-| Campo | Uso |
-| --- | --- |
-| `integrationSec` | T3 / T4 |
-| `slowestShardSec` | caminho crítico |
-| `memory.before` / `memory.after` | folga real (`MemAvailable`) |
-| `memory.swapUsedDeltaMb` | **reprova a promoção se > 0** |
-| `memory.swapInPagesDelta` / `swapOutPagesDelta` | pressão de memória |
-| `loadAverageDuring` | distingue lentidão de teste × host saturado |
-| `availableParallelism` | hardware real, para interpretar o resultado |
-
-### Fora de política
-
-5, 6 ou 8 workers no VPS-1 **não** são alvo. Este hardware tem política de 3–4.
-
-## Ativar o runner no CI
-
-```bash
-gh variable set CI_INTEGRATION_RUNNER --body "self-hosted"
-```
-
-O workflow já lê essa variável:
-
-```yaml
-runs-on: ${{ vars.CI_INTEGRATION_RUNNER || 'ubuntu-latest' }}
-```
-
-Sem a variável, o CI roda em `ubuntu-latest` (fallback transitório — sobe PostgreSQL como
-container). Com a variável, o executor inteiro roda no host quente.
-
-## Segurança
-
-| Item | Política |
-| --- | --- |
-| PostgreSQL de teste | loopback apenas (`127.0.0.1`), nunca exposto |
-| Credenciais do banco | descartáveis por design; não são secrets de produção |
-| Token do runner | por variável de ambiente; nunca versionado |
-| Usuário do runner | `cisne-ci` dedicado, nunca root |
-| CI × produção | hosts separados; CI não disputa CPU/RAM/I/O com runtime |
-
-`fsync=off` e `synchronous_commit=off` no PostgreSQL de teste são seguros **porque** o banco só
-contém dados descartáveis, e aceleram migrations e fixtures. Nunca use isso num banco real.
-
-## Fail-closed
-
-Nenhuma otimização pode gerar falso verde. O executor aborta (`exit 1`) quando:
-
-| Condição | Motivo |
-| --- | --- |
-| worker falhou ou morreu | resultado incompleto |
-| spec sem shard | cobertura perdida |
-| spec duplicado | trabalho repetido mascarando órfão |
-| scheduler quebrou | partição não confiável |
-| cobertura incompleta | `executados != descobertos` |
-| banco não clonou | worker rodaria contra banco errado |
-| cleanup falhou | resíduo contamina o próximo run |
-
-O `Release Ready` continua sendo o único agregador exigido pela ruleset da `main`, e reprova
-`skipped`, `cancelled` e `failure` — só `success` explícito produz verde.
-
-## Observabilidade
-
-Cada run publica `artifacts/ci/ci-metrics.json`:
+### Baseline validada — run `39794404313`
 
 ```json
 {
-  "shardCount": 8,
+  "shardCount": 3,
+  "integrationSec": 373.7,
+  "specCountExpected": 114,
+  "specsCovered": 114,
+  "slowestShardSec": 370.7,
+  "fastestShardSec": 359.5,
+  "runnerSeconds": 1099.7,
+  "phases": { "plan": 0.1, "migrate+clone": 2.9, "workers": 370.7 },
+  "memory": { "swapUsedDeltaMb": 0 }
+}
+```
+
+Desbalanceamento LPT: **1,03×** (370,7 vs 359,5). 114/114 specs, zero órfão, zero duplicata.
+
+### Promoção de concorrência
+
+Comparação controlada de 3 vs 4 workers no **mesmo commit, mesma runner class, mesmo PostgreSQL**:
+
+```
+4 vence SOMENTE se:
+  median(T4) <= 0.90 × median(T3)
+E simultaneamente:
+  OOM = 0 · swap não cresce · workers mortos = 0 · cobertura 114/114
+```
+
+Instrumento: `node scripts/ci/benchmark-workers.mjs` (lê `artifacts/bench/w<N>-run<M>.json`).
+
+Benchmark **decide política**; o CI normal executa o vencedor. Rodar 3 e 4 em cada PR duplicaria
+custo sem produzir informação nova.
+
+## Scheduler LPT
+
+`scripts/ci/integration-shard-plan.mjs` distribui os 114 specs por duração.
+
+**Fonte de peso, em ordem:**
+
+1. `artifacts/ci/integration-timings.json` — mediana das últimas 5 amostras reais por spec
+2. `SEED_MS` — tabela medida, semente de bootstrap quando não há histórico
+3. mediana global — conservadora, para spec novo sem histórico
+
+**Spec sem peso nunca é descartado.** Ele entra com peso mediano.
+
+O histórico é lido tolerando BOM: sem isso, um arquivo salvo por editor faria o LPT descartar
+todo o histórico em silêncio e degradar o balanceamento sem nenhum sinal.
+
+Validação fail-closed antes de qualquer teste:
+
+```
+descobertos == alocados == únicos == 114
+zero duplicata · zero órfão · zero fantasma
+```
+
+Qualquer violação: `exit 1`. Cobertura perdida com CI verde seria falso verde.
+
+## Ferramentas
+
+| Arquivo | Função |
+| --- | --- |
+| `apps/api/scripts/integration-executor.mjs` | orquestra template, clones, workers e cleanup |
+| `scripts/ci/integration-shard-plan.mjs` | scheduler LPT, determinístico e fail-closed |
+| `scripts/ci/integration-timings.mjs` | coleta histórico por spec e publica métricas |
+| `apps/api/src/test/ci-timings-reporter.mjs` | reporter do Vitest (`onTestModuleEnd`) |
+| `scripts/ci/benchmark-workers.mjs` | comparador 3 vs 4 com a regra dos 10% |
+
+## Fail-closed
+
+| Condição | Resultado |
+| --- | --- |
+| worker falhou ou morreu | `exit 1` |
+| spec sem shard / duplicado / fantasma | `exit 1` |
+| scheduler quebrou | `exit 1` |
+| cobertura incompleta | `exit 1` |
+| banco não clonou | `exit 1` |
+| prefixo de database inválido | `exit 1` — impede `DROP` fora do namespace `cisne_*` |
+| cleanup falhou | `exit 1` — resíduo contamina o próximo run |
+
+`Release ready` continua sendo o único agregador exigido pela ruleset da `main`, e reprova
+`skipped`, `cancelled` e `failure` — apenas `success` explícito produz verde.
+
+## Telemetria
+
+`collect` e `summary` rodam em steps próprios com tratamento explícito: falha vira `::warning::`
+identificável e publica `artifacts/ci/telemetry-failure.log`. Não existe `|| true` genérico — a
+falha é visível sem derrubar um CI válido por problema secundário.
+
+## Observabilidade
+
+`artifacts/ci/ci-metrics.json` por run:
+
+```json
+{
+  "shardCount": 3,
+  "workerPolicy": "CI_INTEGRATION_WORKERS",
+  "availableParallelism": 4,
   "integrationSec": 0,
   "specCountExpected": 114,
   "specsCovered": 114,
   "slowestShardSec": 0,
   "runnerSeconds": 0,
   "phases": { "plan": 0, "hygiene": 0, "migrate+clone": 0, "workers": 0 },
-  "shards": [{ "worker": 1, "specs": 13, "exitCode": 0, "sec": 0 }]
+  "memory": { "swapUsedDeltaMb": 0, "swapInPagesDelta": 0 },
+  "loadAverageDuring": 0,
+  "shards": [{ "worker": 1, "specs": 38, "exitCode": 0, "sec": 0 }]
 }
 ```
 
-E `artifacts/ci/integration-timings.json` mantém as últimas 5 amostras por spec. O scheduler LPT
-usa a **mediana** dessas amostras como peso — resistente a outlier, reativo a regressão.
+## Se o CI voltar a precisar de host dedicado
 
-Specs sem histórico entram com peso mediano conservador e ganham histórico na primeira execução.
+A condição para reabrir a decisão é **medida**, não preferência: o tempo de integração passar a
+dominar o caminho crítico de forma que não possa ser tratado dentro do horário do runner
+GitHub-hosted. Nesse caso, o caminho é **um VPS dedicado a CI**, nunca o VPS de produção.
+
+`bootstrap-runner.sh` permanece no repositório para esse cenário. Ele **não** deve ser executado
+no VPS-1.

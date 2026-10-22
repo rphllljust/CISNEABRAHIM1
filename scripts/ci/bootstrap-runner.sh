@@ -1,5 +1,20 @@
-#!/usr/bin/env bash
-# BOOTSTRAP DO RUNNER OVH DE CI — reproduzivel, idempotente, nao-interativo.
+﻿#!/usr/bin/env bash
+# BOOTSTRAP DO RUNNER SELF-HOSTED — REFERENCIA, NAO USAR NO VPS-1
+#
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+# AVISO ARQUITETURAL (2026-10-22)
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+#
+# O CI do CISNE roda em runners GitHub-hosted. O VPS-1 da OVH e o host de PRODUCAO
+# (Coolify + CISNE API + CISNE Web) e NAO deve executar CI.
+#
+# Este script permanece no repositorio como referencia para o cenario em que o CI volte a
+# precisar de um host dedicado — e nesse caso sera um VPS EXCLUSIVO de CI, nunca o de producao.
+#
+# NAO EXECUTE ESTE SCRIPT NO VPS-1.
+# Ver docs/ci/execution-plane.md.
+#
+# BOOTSTRAP DO RUNNER SELF-HOSTED DE CI — reproduzivel, idempotente, nao-interativo.
 #
 # Uso (como root, numa VM Linux limpa):
 #

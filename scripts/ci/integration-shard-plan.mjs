@@ -1,4 +1,4 @@
-import { readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
 const args = new Map();
@@ -14,8 +14,29 @@ if (!Number.isInteger(index) || !Number.isInteger(count) || index < 1 || count <
 
 const root = join(process.cwd(), 'apps', 'api');
 const srcRoot = join(root, 'src');
+const TIMINGS_PATH = join(process.cwd(), 'artifacts', 'ci', 'integration-timings.json');
 
-const measuredMs = {
+/**
+ * PESOS DO SCHEDULER — HISTORICO REAL, NAO TABELA CONGELADA.
+ *
+ * Antes esta funcao carregava um objeto `measuredMs` com 114 entradas medidas uma unica vez. Isso
+ * foi util para PROVAR o algoritmo LPT, mas vira divida na arquitetura definitiva:
+ *
+ *   - um spec que fica mais lento nunca atualiza o proprio peso;
+ *   - um spec novo entra sem peso para sempre;
+ *   - a tabela precisa ser editada a mao a cada mudanca de performance.
+ *
+ * AGORA: o peso vem de `artifacts/ci/integration-timings.json`, produzido pelo reporter do Vitest
+ * a cada run. A mediana das ultimas amostras e resistente a outlier e reage a regressao.
+ *
+ * SEED (bootstrap): na primeira execucao nao existe historico. Sem peso, o LPT cairia no mediano
+ * global para TODOS os specs e o balanceamento seria aleatorio — melhor que nada, mas pior do que
+ * aproveitar a medicao que ja temos. Por isso a tabela abaixo sobrevive como SEMENTE, consultada
+ * apenas quando o spec nao tem amostra propria.
+ *
+ * REGRA INVIOLAVEL: spec sem peso NUNCA e descartado. Ele recebe o peso mediano conservador.
+ */
+const SEED_MS = {
   "src/accounting/accounting-posting.integration.spec.ts": 8888,
   "src/accounting/accounting-read.integration.spec.ts": 5636,
   "src/accounting/accounting-reporting.integration.spec.ts": 8200,
@@ -129,8 +150,32 @@ const measuredMs = {
   "src/synthetic-seed/fullstack-data-reconciliation.integration.spec.ts": 223,
   "src/synthetic-seed/synthetic-business-seed.integration.spec.ts": 752,
   "src/uat/uat-business.integration.spec.ts": 8304,
-  "src/vertical/first-vertical-quality-gate.integration.spec.ts": 2668
+  "src/vertical/first-vertical-quality-gate.integration.spec.ts": 2668,
 };
+
+/** Mediana — resistente a outlier; um run lento isolado nao desloca o peso. */
+function median(values) {
+  if (values.length === 0) return null;
+  const s = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 === 0 ? Math.round((s[mid - 1] + s[mid]) / 2) : s[mid];
+}
+
+/** Carrega o historico por spec. Ausencia de arquivo nao e erro: e o primeiro run. */
+function loadHistory() {
+  if (!existsSync(TIMINGS_PATH)) return {};
+  try {
+    // `JSON.parse` rejeita BOM (`\uFEFF`) no inicio. O arquivo e escrito pelo proprio CI em UTF-8
+    // puro, mas um editor ou script de operador pode introduzir BOM — e nesse caso o historico
+    // seria descartado em SILENCIO, degradando o balanceamento sem nenhum sinal visivel.
+    const raw = readFileSync(TIMINGS_PATH, 'utf8').replace(/^\uFEFF/, '');
+    const parsed = JSON.parse(raw);
+    return parsed?.specs ?? {};
+  } catch {
+    // Historico corrompido nao pode derrubar o planejamento: caimos no SEED, que e deterministico.
+    return {};
+  }
+}
 
 function walk(dir) {
   const out = [];
@@ -148,19 +193,33 @@ const files = walk(srcRoot)
 
 if (files.length === 0) throw new Error('no integration specs discovered');
 
-const knownWeights = Object.values(measuredMs).sort((a, b) => a - b);
+const history = loadHistory();
+
+/** Peso de um spec: mediana do historico; senao SEED; senao mediano global. */
+const knownWeights = Object.values(SEED_MS).sort((a, b) => a - b);
 const medianWeight = knownWeights[Math.floor(knownWeights.length / 2)] ?? 5000;
+
+const weightOf = (file) => {
+  const samples = history[file]?.samples;
+  if (Array.isArray(samples) && samples.length > 0) {
+    const m = median(samples);
+    if (m != null && m > 0) return m;
+  }
+  return SEED_MS[file] ?? medianWeight;
+};
 
 const bins = Array.from({ length: count }, (_, i) => ({ index: i + 1, total: 0, files: [] }));
 
 for (const file of [...files].sort((a, b) => {
-  const wa = measuredMs[a] ?? medianWeight;
-  const wb = measuredMs[b] ?? medianWeight;
+  const wa = weightOf(a);
+  const wb = weightOf(b);
   return wb - wa || a.localeCompare(b);
 })) {
+  // LPT: aloca sempre no bin de menor carga acumulada. Desempate pelo indice garante que a mesma
+  // entrada produza a mesma particao — determinismo e requisito, nao conveniencia.
   bins.sort((a, b) => a.total - b.total || a.index - b.index);
   const target = bins[0];
-  const weight = measuredMs[file] ?? medianWeight;
+  const weight = weightOf(file);
   target.files.push(file);
   target.total += weight;
 }
@@ -172,18 +231,17 @@ if (assigned.length !== files.length || new Set(assigned).size !== files.length)
   throw new Error('integration shard plan is not a complete disjoint partition');
 }
 
-const unknown = files.filter((file) => measuredMs[file] == null);
 if (process.env['INTEGRATION_SHARD_DEBUG'] === '1') {
+  const fromHistory = files.filter((f) => Array.isArray(history[f]?.samples) && history[f].samples.length > 0);
   for (const bin of bins) {
     process.stderr.write(
       `shard ${bin.index}/${count}: files=${bin.files.length} predicted_ms=${bin.total}\n`,
     );
   }
-  if (unknown.length > 0) {
-    process.stderr.write(
-      `unmeasured specs=${unknown.length}; default_weight_ms=${medianWeight}: ${unknown.join(', ')}\n`,
-    );
-  }
+  process.stderr.write(
+    `weights: history=${fromHistory.length} seed=${files.length - fromHistory.length} ` +
+      `median_fallback_ms=${medianWeight}\n`,
+  );
 }
 
 const selected = bins[index - 1];

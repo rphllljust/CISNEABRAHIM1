@@ -226,24 +226,47 @@ jobs:
   integration-executor:
     name: Integration
     # ─────────────────────────────────────────────────────────────────────────────────────────
-    # EXECUTION PLANE — runner OVH qUENTE, SELECIONADO POR LABELS ESPECIFICAS
+    # EXECUTION PLANE = GITHUB-HOSTED (decisao explicita, nao fallback)
     # ─────────────────────────────────────────────────────────────────────────────────────────
     #
-    # `[self-hosted, cisne-ci, ovh]` — NAO apenas `self-hosted`.
+    # O CI NAO roda no VPS de producao. Decisao arquitetural:
     #
-    # `self-hosted` sozinho aceita QUALQUER runner self-hosted da conta. Num repositorio que
-    # tambem hospeda runners de outras finalidades, isso significa que a integracao do CISNE pode
-    # cair numa maquina sem PostgreSQL, sem os caches persistentes ou sem os recursos que o
-    # executor assume. O conjunto de labels e o CONTRATO do execution plane.
+    #   GitHub  -> CI / control plane / release authority
+    #   OVH-1   -> PRODUCAO: Coolify, CISNE API, CISNE Web, runtime, proxy, banco de runtime
     #
-    # O runner correspondente e criado por `scripts/ci/bootstrap-runner.sh`, que registra
-    # exatamente estes labels.
+    # Um runner de CI no VPS-1 compartilharia CPU, RAM, disco e socket do Docker com a aplicacao
+    # em producao. Com 2 vCPU e 3,8 GB, 3 workers Vitest + PostgreSQL competiriam com php-fpm,
+    # Horizon e Reverb pelo mesmo hardware. Isolamento nao e preferencia estetica: e o que impede
+    # que um teste pesado degrade a aplicacao que o cliente esta usando.
     #
-    # ENQUANTO O RUNNER NAO EXISTIR, o job usa `ubuntu-latest` como migracao. O fallback e
-    # transitorio e deve ser removido assim que o OVH estiver comprovado — ver
-    # `docs/ci/execution-plane.md`.
-    runs-on: ${{ vars.CI_INTEGRATION_RUNNER == 'ovh' && fromJSON('["self-hosted","cisne-ci","ovh"]') || 'ubuntu-latest' }}
+    # `ubuntu-latest` aqui nao e "fallback ate o OVH existir" — e o execution plane atual e
+    # definitivo. Nao existe `CI_INTEGRATION_RUNNER` nem selecao por labels.
+    runs-on: ubuntu-latest
     timeout-minutes: 25
+    # ─────────────────────────────────────────────────────────────────────────────────────────
+    # POSTGRESQL — SERVICO DO JOB, UMA VEZ
+    # ─────────────────────────────────────────────────────────────────────────────────────────
+    #
+    # `services:` e o mecanismo deterministico do Actions: o container sobe antes dos steps e e
+    # destruido com o job. Nada de `docker run` manual, nada de start/stop condicional, nada de
+    # PostgreSQL residente em runner compartilhado.
+    #
+    # Este servidor NAO tem relacao com o banco de producao. Credenciais sao descartaveis por
+    # design; o database de runtime do CISNE vive em outro host, gerido pelo Coolify.
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: cisne_ci
+          POSTGRES_PASSWORD: cisne_ci_disposable_password
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cisne_ci -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -256,54 +279,18 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
-      # ─────────────────────────────────────────────────────────────────────────────────────────
-      # CACHE PERSISTENTE (so no runner quente)
-      # ─────────────────────────────────────────────────────────────────────────────────────────
-      #
-      # No runner OVH o `pnpm store` vive em `${CACHE_ROOT}/pnpm-store`, configurado no bootstrap.
-      # Ele SOBREVIVE entre jobs — `actions/checkout` limpa o workspace, nao o store. Isso e o
-      # que faz o install cair de segundos para sub-segundo.
-      #
       # `node_modules` NAO e cacheado: e mutavel, dependente de plataforma e a causa classica de
-      # CI "verde localmente, quebrado no runner". O `--frozen-lockfile` + store e deterministico.
+      # CI "verde localmente, quebrado no runner". `--frozen-lockfile` + cache do pnpm e
+      # deterministico.
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
       # ─────────────────────────────────────────────────────────────────────────────────────────
-      # POSTGRESQL — UMA VEZ
+      # BUILD — UMA VEZ
       # ─────────────────────────────────────────────────────────────────────────────────────────
       #
-      # No runner OVH o PostgreSQL ja esta residente (`cisne-ci-postgres`, loopback apenas), criado
-      # pelo bootstrap. Nao ha container efemero para subir.
-      #
-      # Em `ubuntu-latest` (fallback) sobe-se o servico aqui.
-      - name: Start PostgreSQL (hosted runner fallback)
-        if: vars.CI_INTEGRATION_RUNNER == ''
-        run: |
-          docker run -d --name cisne-ci-pg \
-            -e POSTGRES_USER=cisne_ci \
-            -e POSTGRES_PASSWORD=cisne_ci_disposable_password \
-            -e POSTGRES_DB=postgres \
-            -p 5432:5432 \
-            --health-cmd "pg_isready -U cisne_ci -d postgres" \
-            --health-interval 5s --health-timeout 5s --health-retries 12 \
-            postgres:18-alpine
-          for i in $(seq 1 30); do
-            if docker exec cisne-ci-pg pg_isready -U cisne_ci -d postgres >/dev/null 2>&1; then
-              echo "postgres ready"; exit 0
-            fi
-            sleep 1
-          done
-          echo "::error::postgres did not become ready"; exit 1
-      # ─────────────────────────────────────────────────────────────────────────────────────────
-      # BUILD — UMA VEZ (FASE 3)
-      # ─────────────────────────────────────────────────────────────────────────────────────────
-      #
-      # Antes: `pnpm --filter @cisne/api... build` rodava DENTRO de cada um dos 8 shards (19s x 8).
-      # `...` inclui as dependencias de workspace — o serializer importa `@cisne/database`, que
+      # `...` inclui as dependencias de workspace: o serializer importa `@cisne/database`, que
       # resolve para `dist/`. Sem build o Vitest falha na COLETA ("Failed to resolve entry for
-      # package @cisne/database"), nao no teste.
-      #
-      # Agora roda uma vez, aqui.
+      # package @cisne/database"), nao no teste — foi exatamente o defeito do run 39782887902.
       - name: Build workspace packages
         run: pnpm --filter @cisne/api... build
       # ─────────────────────────────────────────────────────────────────────────────────────────
@@ -311,10 +298,11 @@ jobs:
       # ─────────────────────────────────────────────────────────────────────────────────────────
       - name: Run integration executor
         env:
-          # POLITICA DE CONCORRENCIA EXPLICITA PARA O VPS-1.
+          # POLITICA DE CONCORRENCIA — EXPLICITA, NAO DERIVADA DO HOST
           #
-          # Default 3. O valor 4 so vira padrao se medido pelo menos 10% mais rapido COM zero
-          # degradacao de swap/OOM — regra de promocao em docs/ci/execution-plane.md.
+          # Default 3 (medido e validado no run 39794404313: 114/114 specs, 3 workers,
+          # desequilibrio de 3,1%, zero swap). O valor 4 so vira padrao apos benchmark
+          # controlado conforme docs/ci/execution-plane.md.
           #
           # NAO derive de `os.availableParallelism()`: isso confunde METRICA com POLITICA e faz
           # o comportamento mudar conforme o host escolhido pelo scheduler.
@@ -332,12 +320,53 @@ jobs:
       # ─────────────────────────────────────────────────────────────────────────────────────────
       # INSTRUMENTACAO — historico por spec para o scheduler LPT do proximo run
       # ─────────────────────────────────────────────────────────────────────────────────────────
+      #
+      # TELEMETRIA NAO DERRUBA O CI, MAS TAMBEM NAO FALHA EM SILENCIO.
+      #
+      # Antes: `node ... collect || true`. O `|| true` engolia qualquer erro — inclusive um
+      # schema quebrado que faria a telemetria parar de funcionar para sempre, sem ninguem notar
+      # ate o scheduler perder todo o historico.
+      #
+      # Agora a coleta roda num step proprio com tratamento explicito: falha vira `::warning::`
+      # identificavel, o diagnostico e publicado como artifact, e o exit code NAO propaga. Assim
+      # um defeito de instrumentacao e VISIVEL sem transformar um CI verde em vermelho por causa
+      # de um problema secundario.
       - name: Collect integration timings
         if: always()
-        run: node scripts/ci/integration-timings.mjs collect || true
+        shell: bash
+        run: |
+          set -uo pipefail
+          if out=$(node scripts/ci/integration-timings.mjs collect 2>&1); then
+            printf '%s\n' "$out"
+          else
+            status=$?
+            printf '%s\n' "$out"
+            echo "::warning title=CI telemetry::integration-timings collect failed (exit $status). The test result is unaffected, but the LPT scheduler will fall back to conservative weights on the next run."
+            mkdir -p artifacts/ci
+            {
+              echo "collect_exit=$status"
+              echo "at=$(date -u +%FT%TZ)"
+              echo '--- output ---'
+              printf '%s\n' "$out"
+            } > artifacts/ci/telemetry-failure.log
+            # Diagnostico publicado; falha NAO propaga para o veredito do job.
+            exit 0
+          fi
       - name: Publish CI metrics
         if: always()
-        run: node scripts/ci/integration-timings.mjs summary
+        shell: bash
+        run: |
+          set -uo pipefail
+          if out=$(node scripts/ci/integration-timings.mjs summary 2>&1); then
+            printf '%s\n' "$out"
+          else
+            status=$?
+            printf '%s\n' "$out"
+            echo "::warning title=CI telemetry::integration-timings summary failed (exit $status)."
+            mkdir -p artifacts/ci
+            { echo "summary_exit=$status"; printf '%s\n' "$out"; } >> artifacts/ci/telemetry-failure.log
+            exit 0
+          fi
       - name: Upload CI telemetry
         if: always()
         uses: actions/upload-artifact@v4
@@ -349,9 +378,10 @@ jobs:
             artifacts/ci/integration-timings.json
             artifacts/ci/ci-metrics.json
             artifacts/ci/integration.*.timings.ndjson
-      - name: Stop PostgreSQL (hosted runner fallback)
-        if: always() && vars.CI_INTEGRATION_RUNNER == ''
-        run: docker rm -f cisne-ci-pg || true
+            artifacts/ci/telemetry-failure.log
+      # Nao ha step de parada do PostgreSQL: `services:` e destruido pelo proprio Actions quando o
+      # job termina, inclusive em falha ou cancelamento. Um teardown manual aqui seria redundante
+      # e, pior, daria a impressao de que o ciclo de vida do banco esta sob nosso controle.
 
   api-e2e:
     name: API E2E
