@@ -67,19 +67,43 @@ jobs:
       authorized: ${{ steps.assert.outputs.authorized }}
       ci_run_id: ${{ steps.assert.outputs.ci_run_id }}
     steps:
+      # O seletor de autoridade e um modulo versionado e testado
+      # (scripts/cd/select-authorizing-run.mjs); precisa estar no runner.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
       - id: assert
         name: Require release-ready == success
         env:
           GH_TOKEN: ${{ github.token }}
           IS_DISPATCH: ${{ github.event_name == 'workflow_dispatch' }}
-          RUN_ID: ${{ github.event.workflow_run.id || inputs.ci_run_id }}
-          WORKFLOW_SHA: ${{ github.event.workflow_run.head_sha || '' }}
+          # Mesma causa do coolify-release.yml: `workflow_run.id` aponta para o run de CI
+          # que disparou o evento, e o `concurrency` do CI pode ter cancelado esse run
+          # quando dois pushes chegam proximos. Resolvemos o run pelo SHA.
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha || inputs.ci_run_id }}
         run: |
           set -euo pipefail
-          if [ -z "$RUN_ID" ]; then
+          if [ -z "$EXPECTED_SHA" ]; then
             echo "::error::No CI run id to resolve release authority from."
             exit 1
           fi
+
+          # No dispatch manual o input E o run id; no evento e o SHA do push.
+          if [ "$IS_DISPATCH" = "true" ]; then
+            RUN_ID="$EXPECTED_SHA"
+          else
+            runs_json=$(gh api \
+              "repos/${{ github.repository }}/actions/runs?head_sha=$EXPECTED_SHA&per_page=100")
+            printf '%s' "$runs_json" > /tmp/ci-runs.json
+            if ! RUN_ID=$(EXPECTED_SHA="$EXPECTED_SHA" EXPECTED_RUNS_FILE=/tmp/ci-runs.json \
+                node scripts/cd/select-authorizing-run.mjs 2>/tmp/selector.err); then
+              echo "::error::DEPLOY REFUSED — $(cat /tmp/selector.err)"
+              exit 1
+            fi
+            test -n "$RUN_ID"
+          fi
+
           echo "ci_run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
 
           # A autoridade vem do JOB, nao da conclusao do run.
