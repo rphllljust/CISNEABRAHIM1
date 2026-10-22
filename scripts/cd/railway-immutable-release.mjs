@@ -17,6 +17,7 @@ export const RELEASE_INPUTS = [
   'packages/database/dist',
   'packages/database/migrations',
   'docker/railway/nginx.conf',
+  'docker/release/runtime-config.js.template',
 ];
 
 function copyInto(root, output, relativePath) {

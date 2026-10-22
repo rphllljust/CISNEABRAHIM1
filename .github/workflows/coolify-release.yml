@@ -1,0 +1,141 @@
+name: Coolify Release Images
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ci_run_id:
+        description: CI run id whose Release Ready verdict authorizes publication
+        required: true
+        type: string
+
+concurrency:
+  group: coolify-release-images
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+  packages: write
+
+jobs:
+  release-authority:
+    name: Require Release Ready
+    runs-on: ubuntu-latest
+    outputs:
+      ci_run_id: ${{ steps.authority.outputs.ci_run_id }}
+      source_sha: ${{ steps.authority.outputs.source_sha }}
+    steps:
+      - id: authority
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id || inputs.ci_run_id }}
+        run: |
+          set -euo pipefail
+          test -n "$RUN_ID"
+
+          run_json=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID")
+          source_sha=$(printf '%s' "$run_json" | node --input-type=module -e '
+            let s=""; for await (const c of process.stdin) s+=c;
+            const run=JSON.parse(s);
+            if (run.head_branch !== "main") throw new Error(`refusing non-main run: ${run.head_branch}`);
+            if (!/^[0-9a-f]{40}$/i.test(run.head_sha ?? "")) throw new Error("invalid CI head SHA");
+            process.stdout.write(run.head_sha);
+          ')
+
+          jobs_json=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs?per_page=100")
+          ready=$(printf '%s' "$jobs_json" | node --input-type=module -e '
+            let s=""; for await (const c of process.stdin) s+=c;
+            const jobs=JSON.parse(s).jobs ?? [];
+            const job=jobs.find((entry)=>entry.name==="Release ready");
+            process.stdout.write(job?.conclusion ?? job?.status ?? "MISSING");
+          ')
+          if [ "$ready" != "success" ]; then
+            echo "::error::publication refused: Release ready=$ready"
+            exit 1
+          fi
+
+          echo "ci_run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Publish immutable API/Web images
+    runs-on: ubuntu-latest
+    needs: release-authority
+    env:
+      REGISTRY: ghcr.io
+      API_REPOSITORY: ghcr.io/${{ github.repository_owner }}/cisne-api
+      WEB_REPOSITORY: ghcr.io/${{ github.repository_owner }}/cisne-web
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-authority.outputs.source_sha }}
+          fetch-depth: 1
+
+      - name: Download authorized CI artifact
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ needs.release-authority.outputs.ci_run_id }}
+          name: cisne-build-${{ needs.release-authority.outputs.ci_run_id }}
+          path: artifacts
+
+      - id: provenance
+        name: Verify immutable artifact provenance
+        env:
+          PROVENANCE_EXPECTED_SHA: ${{ needs.release-authority.outputs.source_sha }}
+          PROVENANCE_VERIFY_CHECKOUT: 'true'
+        run: node scripts/cd/verify-provenance.mjs
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - id: api
+        name: Publish API image
+        uses: docker/build-push-action@v6
+        with:
+          context: artifacts/railway/release
+          file: artifacts/railway/release/docker/hml/Dockerfile.api
+          push: true
+          tags: ${{ env.API_REPOSITORY }}:${{ needs.release-authority.outputs.source_sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ needs.release-authority.outputs.source_sha }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+      - id: web
+        name: Publish Web image
+        uses: docker/build-push-action@v6
+        with:
+          context: artifacts/railway/release
+          file: artifacts/railway/release/docker/railway/Dockerfile.web
+          push: true
+          tags: ${{ env.WEB_REPOSITORY }}:${{ needs.release-authority.outputs.source_sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ needs.release-authority.outputs.source_sha }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+      - name: Emit fail-closed Coolify deploy payload
+        env:
+          COOLIFY_SOURCE_SHA: ${{ needs.release-authority.outputs.source_sha }}
+          COOLIFY_ARTIFACT_DIGEST: ${{ steps.provenance.outputs.artifact_digest }}
+          COOLIFY_API_IMAGE: ${{ env.API_REPOSITORY }}@${{ steps.api.outputs.digest }}
+          COOLIFY_WEB_IMAGE: ${{ env.WEB_REPOSITORY }}@${{ steps.web.outputs.digest }}
+        run: node scripts/cd/coolify-deploy-payload.mjs
+
+      - name: Upload Coolify deployment payload
+        uses: actions/upload-artifact@v4
+        with:
+          name: coolify-release-${{ needs.release-authority.outputs.source_sha }}
+          if-no-files-found: error
+          retention-days: 30
+          path: artifacts/coolify/deploy-payload.json
