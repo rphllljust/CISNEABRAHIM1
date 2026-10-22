@@ -182,9 +182,12 @@ type CapturedRequest = {
  * Mock da API do catálogo: sessão, capabilities (todas autorizadas), dados de referência e as
  * MUTAÇÕES reais que as páginas fazem. O corpo enviado é capturado para provar o payload.
  */
-function createCatalogBuilderMock(options: { version?: ServiceDefinitionVersion } = {}) {
+function createCatalogBuilderMock(
+  options: { version?: ServiceDefinitionVersion; revoke?: string[] } = {},
+) {
   const captured: CapturedRequest[] = [];
   const version = options.version ?? draftVersion();
+  const revoked = new Set(options.revoke ?? []);
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const { pathname } = parseRequestPath(input);
     const method = (init?.method ?? 'GET').toUpperCase();
@@ -214,7 +217,7 @@ function createCatalogBuilderMock(options: { version?: ServiceDefinitionVersion 
           'catalog:service:publish',
           'catalog:service:deactivate',
           'catalog:service:activate',
-        ],
+        ].filter((permission) => !revoked.has(permission)),
         escopo_ativo: null,
         escopos_disponiveis: [{ tipo: 'GLOBAL', resource_id: null, label: 'Global' }],
       });
@@ -605,19 +608,35 @@ describe('Builder do catálogo de serviços', () => {
   });
 
   it('renderiza estado negado honesto quando a capability de edição não existe', async () => {
-    const { fetchMock } = createCatalogBuilderMock();
-    const deniedMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const { pathname } = parseRequestPath(input);
-      const method = (init?.method ?? 'GET').toUpperCase();
-      if (pathname.startsWith('/api/v1/catalog/service-definitions') && method !== 'GET') {
-        return catalogError('CATALOG_DENIED', 403);
-      }
-      return fetchMock(input, init);
-    });
-    vi.stubGlobal('fetch', deniedMock);
+    // A capability de UI vem de GET /me (permissoes_efetivas) — ver useCatalogCapabilities.
+    // Negar a mutation provaria um contrato que não existe mais (a sonda POST/PATCH foi
+    // removida), então a negação precisa acontecer no próprio /me.
+    const { fetchMock } = createCatalogBuilderMock({ revoke: ['catalog:service:update'] });
+    vi.stubGlobal('fetch', fetchMock);
     renderDraftEditor();
 
     expect(await screen.findByText(/não tem permissão para editar rascunhos/i)).toBeInTheDocument();
+
+    // Prova de que a decisão veio do /me já resolvido, e não de um estado transitório em que
+    // as capabilities ainda estão vazias: o /me precisa ter sido consultado.
+    expect(
+      fetchMock.mock.calls.some(([input]) => parseRequestPath(input).pathname === '/api/v1/me'),
+    ).toBe(true);
+
+    // O builder completo nunca pode aparecer para quem não tem a capability de edição.
     expect(screen.queryByRole('button', { name: 'Salvar rascunho' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '+ Adicionar modelo de preço' })).not.toBeInTheDocument();
+  });
+
+  it('não apresenta o estado negado para quem TEM a capability de edição', async () => {
+    // Contraprova do teste acima: com catalog:service:update concedida pelo /me, a tela
+    // precisa montar o builder e nunca exibir a mensagem de falta de permissão. Sem esta
+    // contraprova, o teste de negação passaria por estado transitório sem provar nada.
+    const { fetchMock } = createCatalogBuilderMock();
+    vi.stubGlobal('fetch', fetchMock);
+    renderDraftEditor();
+
+    await waitForBuilder();
+    expect(screen.queryByText(/não tem permissão para editar rascunhos/i)).not.toBeInTheDocument();
   });
 });
