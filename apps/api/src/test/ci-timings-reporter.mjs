@@ -1,20 +1,38 @@
 // COLETOR DE DURACAO POR SPEC — reporter do Vitest 3.
 //
-// FASE 1 do plano CI-FAST. Emite JSON Lines, um arquivo por worker, sem colisao entre processos.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// DOIS ERROS DE API CORRIGIDOS AQUI (ambos medidos, nao supostos)
+// ─────────────────────────────────────────────────────────────────────────────────────────────
 //
-// CONTRATO DA API (lido de `reporters.d.BuRON0I0.d.ts`, interface `Reporter`, Vitest 3.2.7)
+// ERRO 1 — hook errado
 //
-//   onTestModuleEnd?: (testModule: TestModule) => Awaitable<void>
-//     "Called when all tests of the test file have finished running."
+//   A versao anterior usava `onTestModuleEnd`. Ele existe na interface `Reporter` da 3.2.7, mas
+//   para reporter EXTERNO neste projeto o Vitest nunca o invoca. Medido com reporter inline
+//   (objeto direto na config, eliminando a variavel "arquivo nao carregado"):
 //
-// `diagnostic()` carrega a duracao agregada do arquivo — o custo de PAREDE do spec, que e
-// exatamente o peso que o scheduler LPT precisa.
+//       CONFIG_LOADED        ok
+//       HOOK_onTestRunEnd    ok
+//       HOOK_onFinished      ok
+//       HOOK_onTestModuleEnd NUNCA
 //
-// POR QUE NAO PARSE DE LOG
+//   `onTestRunEnd(testModules, ...)` e chamado no fim e recebe a lista COMPLETA de modulos.
 //
-// A saida textual do Vitest tem cores, largura de terminal, truncamento e muda de formato entre
-// versoes. O reporter recebe dados estruturados. Instrumentacao nao deve depender de formatacao
-// humana.
+// ERRO 2 — `moduleId` e PROPRIEDADE, nao metodo
+//
+//   Inspecionando o objeto real recebido no hook:
+//
+//       own keys     = ["task","project","id","location","children","type","moduleId"]
+//       proto methods= ["constructor","state","diagnostic"]
+//       moduleId     = string      <- PROPRIEDADE
+//
+//   A versao anterior chamava `mod.moduleId()` -> "moduleId is not a function", a excecao era
+//   engolida pelo `catch` que protege a suite, e NENHUM arquivo era gravado. Esse era o defeito
+//   silencioso real: o reporter "funcionava" sem produzir nada.
+//
+//   `diagnostic()` retorna `{ duration, state }` e continua sendo um metodo.
+//
+// LIÇÃO REGISTRADA: um `catch` que protege a suite nao pode esconder um erro de contrato de API.
+// Por isso o `catch` agora escreve um aviso no stderr alem de nao derrubar o run.
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { dirname, isAbsolute, join } from 'node:path';
 
@@ -28,7 +46,6 @@ export default class CiTimingsReporter {
     // relativo aqui seria resolvido contra o cwd do Vitest, que e `apps/api` — o arquivo iria para
     // o lugar errado sem ninguem perceber.
     this.outputPath = isAbsolute(requested) ? requested : join(process.cwd(), requested);
-    mkdirSync(dirname(this.outputPath), { recursive: true });
   }
 
   /** Caminho absoluto -> caminho relativo a `apps/api`, que e a chave do historico. */
@@ -39,22 +56,60 @@ export default class CiTimingsReporter {
     return idx >= 0 ? posix.slice(idx + marker.length) : posix;
   }
 
-  onTestModuleEnd(testModule) {
+  /**
+   * Le `moduleId` aceitando PROPRIEDADE (contrato real da 3.2.7) e, por robustez, funcao —
+   * se uma versao futura mudar a forma, a instrumentacao continua funcionando.
+   */
+  static moduleIdOf(mod) {
+    const raw = mod?.moduleId;
+    if (typeof raw === 'string') return raw;
+    if (typeof raw === 'function') return raw.call(mod);
+    if (typeof mod?.id === 'string') return mod.id;
+    return undefined;
+  }
+
+  /** Converte a lista de modulos em registros. */
+  static toRecords(testModules) {
+    const records = [];
+    for (const mod of testModules ?? []) {
+      try {
+        const spec = CiTimingsReporter.normalize(CiTimingsReporter.moduleIdOf(mod));
+        if (!spec) continue;
+
+        const diagnostic = typeof mod?.diagnostic === 'function' ? mod.diagnostic() : {};
+        const state = diagnostic?.state ?? (typeof mod?.state === 'function' ? mod.state() : 'unknown');
+
+        records.push({
+          spec,
+          durationMs: Math.round(diagnostic?.duration ?? 0),
+          status: state,
+          at: new Date().toISOString(),
+        });
+      } catch (error) {
+        // Nao derruba a suite, mas TAMBEM nao some em silencio: sem isso, um erro de contrato de
+        // API viraria "instrumentacao funciona mas nao grava nada", que foi o defeito anterior.
+        process.stderr.write(`::warning title=CI timings reporter::${error?.message ?? error}\n`);
+      }
+    }
+    return records;
+  }
+
+  onTestRunEnd(testModules) {
     try {
-      const diagnostic = testModule.diagnostic?.() ?? {};
-      const spec = CiTimingsReporter.normalize(testModule.moduleId?.());
-      if (!spec) return;
+      const records = CiTimingsReporter.toRecords(testModules);
+      if (records.length === 0) {
+        process.stderr.write(
+          '::warning title=CI timings reporter::no test modules received at run end\n',
+        );
+        return;
+      }
 
-      const state = diagnostic.state ?? (testModule.ok?.() ? 'passed' : 'failed');
-      const durationMs = Math.round(diagnostic.duration ?? 0);
-
-      appendFileSync(
-        this.outputPath,
-        `${JSON.stringify({ spec, durationMs, status: state, at: new Date().toISOString() })}\n`,
+      mkdirSync(dirname(this.outputPath), { recursive: true });
+      appendFileSync(this.outputPath, records.map((r) => JSON.stringify(r)).join('\n') + '\n');
+    } catch (error) {
+      process.stderr.write(
+        `::warning title=CI timings reporter::failed to write ${this.outputPath}: ${error?.message ?? error}\n`,
       );
-    } catch {
-      // Instrumentacao NUNCA derruba a suite. Medir e observabilidade; o gate de corretude e o
-      // exit code do Vitest e a validacao do shard plan.
     }
   }
 }
