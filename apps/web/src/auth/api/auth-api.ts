@@ -101,8 +101,21 @@ export function buildApiBaseUrlCandidates(
   return dedupe(candidates);
 }
 
+function getRuntimeApiBaseUrl(): string | undefined {
+  if (typeof window !== 'undefined') {
+    const runtimeConfig = (window as Window & {
+      __CISNE_RUNTIME_CONFIG__?: { apiBaseUrl?: string };
+    }).__CISNE_RUNTIME_CONFIG__;
+    const runtimeApiBaseUrl = runtimeConfig?.apiBaseUrl?.trim();
+    if (runtimeApiBaseUrl) {
+      return runtimeApiBaseUrl;
+    }
+  }
+  return import.meta.env.VITE_API_BASE_URL;
+}
+
 function getApiBaseUrlCandidatesFromRuntime(): string[] {
-  return buildApiBaseUrlCandidates(import.meta.env.VITE_API_BASE_URL, {
+  return buildApiBaseUrlCandidates(getRuntimeApiBaseUrl(), {
     isDev: import.meta.env.DEV,
     browserHostname: getBrowserHostname(),
   });
