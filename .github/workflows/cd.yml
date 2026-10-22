@@ -162,8 +162,17 @@ jobs:
   resolve-ci-artifact:
     name: Resolve CI artifact (build once)
     runs-on: ubuntu-latest
-    needs: credentials-preflight
-    if: needs.credentials-preflight.result == 'success'
+    # DUAS dependencias REAIS, ambas consumidas de fato:
+    #   credentials-preflight - porta: sem credencial nao ha deploy a resolver
+    #   release-authority     - fonte do ci_run_id, usado no step de resolve abaixo
+    #
+    # ANTES: apenas credentials-preflight. Como release-authority saiu do needs ao inserir o
+    # preflight, needs.release-authority.outputs.ci_run_id passou a resolver VAZIO - em GitHub
+    # Actions o output de um job so existe para quem o declara em needs. O download tentava
+    # "cisne-build-" (sem id). Medido no run 39701916347:
+    #   ##[error]Unable to download artifact(s): Not Found
+    needs: [credentials-preflight, release-authority]
+    if: needs.credentials-preflight.result == 'success' && needs.release-authority.outputs.authorized == 'true'
     outputs:
       ci_run_id: ${{ steps.resolve.outputs.ci_run_id }}
       source_sha: ${{ steps.provenance.outputs.source_sha }}
