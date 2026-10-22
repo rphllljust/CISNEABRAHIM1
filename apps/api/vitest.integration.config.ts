@@ -107,8 +107,22 @@ export default defineConfig({
     setupFiles: ['./src/test/integration-test-db-serializer.ts'],
     // STRING 'I/N' — o Vitest faz `options.shard.split('/')` e converte para { index, count }.
     ...(shard ? { shard } : {}),
+    // O CAMINHO DO REPORTER PRECISA CHEGAR AO REPORTER.
+    //
+    // Antes: `reporters: ['default', './src/test/ci-timings-reporter.mjs']` — a variavel
+    // `INTEGRATION_TIMINGS_FILE` decidia SE o reporter era ativado, mas seu VALOR nunca era
+    // repassado. O reporter caia no default relativo e gravava em `apps/api/artifacts/ci/`
+    // (cwd do Vitest), enquanto `integration-timings.mjs collect` procurava em
+    // `<repo>/artifacts/ci/` e falhava com "no integration timing files found".
+    //
+    // Consequencia medida (run 39830834987): o collect falhava, nenhum historico era gravado, o
+    // cache nao tinha o que salvar, e o LPT voltava ao SEED no run seguinte — silenciosamente,
+    // porque o warning de telemetria era o unico sinal.
+    //
+    // O formato de tupla `[path, options]` e o que o Vitest usa para passar opcoes ao
+    // construtor de um reporter customizado.
     ...(timingsFile
-      ? { reporters: ['default', './src/test/ci-timings-reporter.mjs'] }
+      ? { reporters: ['default', ['./src/test/ci-timings-reporter.mjs', { outputPath: timingsFile }]] }
       : {}),
   },
 });

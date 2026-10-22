@@ -74,19 +74,34 @@ function collect() {
   const history = readJson(HISTORY_PATH, { schemaVersion: 1, specs: {} });
   history.specs ??= {};
 
-  const dir = CI_DIR;
-  if (!existsSync(dir)) {
-    throw new Error(`${dir} not found — no timings were produced by the shards`);
+  // ONDE PROCURAR OS .ndjson
+  //
+  // O executor escreve em `<repo>/artifacts/ci` (REPO_ROOT derivado de import.meta.url), mas o
+  // Vitest roda com cwd em `apps/api`. Ja aconteceu de o reporter cair no default relativo e
+  // gravar em `apps/api/artifacts/ci`, deixando o collect sem nada para ler e o historico sem
+  // ser gravado — em silencio, porque a unica evidencia era um warning de telemetria.
+  //
+  // Procuramos nos DOIS lugares conhecidos. Se nada for encontrado, o erro lista os diretorios
+  // verificados: diagnostico imediato em vez de "no files found" sem contexto.
+  const candidates = [
+    CI_DIR,
+    join(process.cwd(), 'apps', 'api', 'artifacts', 'ci'),
+    join(process.cwd(), 'artifacts', 'ci'),
+  ].filter((dir, i, all) => all.indexOf(dir) === i);
+
+  const isTimingFile = (name) =>
+    name === 'integration.timings.ndjson' || /^integration\.s\d+\.timings\.ndjson$/.test(name);
+
+  const dir = candidates.find((d) => existsSync(d) && readdirSync(d).some(isTimingFile));
+
+  if (!dir) {
+    const inspected = candidates
+      .map((d) => `${d}${existsSync(d) ? ' (exists, no timing files)' : ' (absent)'}`)
+      .join('; ');
+    throw new Error(`no integration timing files found. Inspected: ${inspected}`);
   }
 
-  // Aceita nomes com sufixo do shard e tambem o arquivo unico (executor local).
-  const files = readdirSync(dir).filter(
-    (name) => name === 'integration.timings.ndjson' || /^integration\.s\d+\.timings\.ndjson$/.test(name),
-  );
-
-  if (files.length === 0) {
-    throw new Error('no integration timing files found in artifacts/ci');
-  }
+  const files = readdirSync(dir).filter(isTimingFile);
 
   let recorded = 0;
   const seen = new Set();
