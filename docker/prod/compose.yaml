@@ -111,7 +111,18 @@ services:
       dockerfile: docker/hml/Dockerfile.api
     container_name: cisne_prod_worker
     restart: unless-stopped
-    command: ['node', 'dist/worker/main.js']
+    # PATH CORRETO DO WORKER DENTRO DA IMAGEM
+    #
+    # `apps/api/package.json` declara `"start:worker": "node dist/worker/main.js"` — relativo ao
+    # DIRETORIO DO PACOTE (`apps/api`), nao a raiz do monorepo.
+    #
+    # Dentro da imagem o `WORKDIR` e `/app` e o build produz
+    # `/app/apps/api/dist/worker/main.js`. O comando anterior (`dist/worker/main.js`) resolvia para
+    # `/app/dist/worker/main.js`, que NAO existe — o container subia e morria imediatamente,
+    # e o health check `pgrep` nunca encontrava o processo.
+    #
+    # O mesmo vale para o health check abaixo: o padrao precisa casar com o argv real.
+    command: ['node', 'apps/api/dist/worker/main.js']
     env_file:
       - ../../.env.prod
     environment:
@@ -124,7 +135,7 @@ services:
       - s3_access_key_id
       - s3_secret_access_key
     healthcheck:
-      test: ['CMD-SHELL', 'pgrep -f "dist/worker/main.js" >/dev/null || exit 1']
+      test: ['CMD-SHELL', 'pgrep -f "apps/api/dist/worker/main.js" >/dev/null || exit 1']
       interval: 15s
       timeout: 5s
       retries: 5
