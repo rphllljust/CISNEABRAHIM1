@@ -631,8 +631,36 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
+      # MEDIDO: `playwright install chromium --with-deps` levou 622s e era 91% do job
+      # (a suite em si leva 40s). O custo e quase todo download do browser + apt de
+      # dependencias do sistema. O cache abaixo guarda APENAS o browser, com chave pela
+      # versao pinada do Playwright -- nao ha estado de teste nem snapshot cacheado.
+      # Cache miss cai no install normal (fail-open para o caminho lento, nunca para um
+      # falso verde).
+      #
+      # GANHO MEDIDO com este cache (runs 39859726524 e 39860828242):
+      #   Install Playwright Chromium  622s -> 22-30s
+      #   Visual critical (job)        684s -> 70-93s
+      #   suite em si                   40s -> 27-42s (cobertura intacta)
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
       - name: Install Playwright Chromium (visual critical)
-        run: pnpm --filter @cisne/web exec playwright install chromium --with-deps
+        # Com o browser em cache, `--with-deps` (apt) ainda custaria centenas de segundos
+        # por reinstalar bibliotecas do sistema. Ele so roda no cache miss; no hit, o
+        # browser ja esta completo em ~/.cache/ms-playwright.
+        run: |
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
+            echo "browser em cache — pulando download/apt"
+            pnpm --filter @cisne/web exec playwright install chromium
+          else
+            pnpm --filter @cisne/web exec playwright install chromium --with-deps
+          fi
       - name: Visual critical suite
         run: |
           mkdir -p artifacts/ci
@@ -702,8 +730,24 @@ jobs:
         run: pnpm install --frozen-lockfile --prefer-offline
       - name: Build
         run: pnpm build
+      # Mesmo cache de browser do `visual-critical`: o custo dominante e download +
+      # apt, nao a suite. Chave pela versao do lockfile; miss cai no install completo.
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
       - name: Install Playwright Chromium (web visual regression)
-        run: pnpm --filter @cisne/web exec playwright install chromium --with-deps
+        run: |
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
+            echo "browser em cache — pulando download/apt"
+            pnpm --filter @cisne/web exec playwright install chromium
+          else
+            pnpm --filter @cisne/web exec playwright install chromium --with-deps
+          fi
       - name: Web visual regression (full suite)
         id: web-visual
         continue-on-error: true
