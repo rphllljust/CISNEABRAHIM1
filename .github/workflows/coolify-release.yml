@@ -152,3 +152,22 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           path: artifacts/coolify/deploy-payload.json
+
+      # Ultimo metro do release: materializa o payload no runtime real.
+      #
+      # Coolify continua dono do runtime. Nada aqui faz git pull, build no VPS,
+      # docker pull manual ou compose manual -- apenas a API oficial v1:
+      # PATCH da imagem imutavel por digest + POST /deploy + estado terminal.
+      #
+      # Fail-closed: sem COOLIFY_TOKEN/UUIDs o step falha (o secret e obrigatorio
+      # para o deploy ser real). O deploy recusa tag mutavel e recusa worker com
+      # digest diferente da API.
+      - name: Deploy authorized digests to Coolify
+        env:
+          COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_API_UUID: ${{ secrets.COOLIFY_API_UUID }}
+          COOLIFY_WORKER_UUID: ${{ secrets.COOLIFY_WORKER_UUID }}
+          COOLIFY_WEB_UUID: ${{ secrets.COOLIFY_WEB_UUID }}
+          COOLIFY_DEPLOY_PAYLOAD: artifacts/coolify/deploy-payload.json
+        run: node scripts/cd/coolify-deploy.mjs
