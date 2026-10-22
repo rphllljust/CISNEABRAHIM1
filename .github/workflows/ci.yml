@@ -135,38 +135,74 @@ jobs:
           SHARDS_RESULT: ${{ needs.unit-test-shards.result }}
         run: test "$SHARDS_RESULT" = "success"
 
-  database-and-integration:
-    name: Database gate / Integration
+  database-migration-gate:
+    name: Database migration gate
     runs-on: ubuntu-latest
-    # SEM `needs`. Nao consome artefato nem resultado de outro job: checkout, dependencias e
-    # PostgreSQL proprios. A dependencia anterior era artificial e custava o tempo do job mais
-    # lento a todos os outros.
+    # GATE BARATO, EXECUTADO UMA VEZ SO. Sem `needs`.
     #
+    # `pnpm gate:database` valida o journal de migrations e a cobertura por arquivo SQL. Ele NAO
+    # depende de database populado e NUNCA precisou rodar por shard — antes rodava dentro do job
+    # de integracao, o que amarrou um gate de ~8s ao job mais lento do pipeline e multiplicaria
+    # esse custo por shard. Aqui ele continua sendo UM step, verde ou vermelho, exatamente como
+    # antes; o que muda e que ele nao fica mais na retaguarda de 11+ minutos de testes.
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+      - name: Database migration gate
+        run: pnpm gate:database
+
+  integration-shards:
+    name: Integration (${{ matrix.shard }})
+    runs-on: ubuntu-latest
     # ─────────────────────────────────────────────────────────────────────────────────────────
-    # SEPARADO DE `api-e2e` (CI/CD-06)
+    # SHARDING REAL — PARALELISMO ENTRE DATABASES, NAO DENTRO DE UM DATABASE
     # ─────────────────────────────────────────────────────────────────────────────────────────
     #
-    # GARGALO MEDIDO: este job levou 21m26s no run 39665977954, porque rodava
-    # `Integration tests` E `API end-to-end tests` SEQUENCIALMENTE contra o MESMO banco
-    # (`cisne_ci_test`), ambos disputando o mesmo advisory lock global
-    # (`INTEGRATION_TEST_DB_LOCK_KEY = 0x43534e45`).
+    # GARGALO MEDIDO: 114 arquivos `*.integration.spec.ts` (38.727 linhas) rodavam em FILA UNICA
+    # (`maxWorkers: 1`, `fileParallelism: false`). O passo `Integration tests` do run 39719203623
+    # comecou em 03:52:58Z e seguia `in_progress` ~11 min depois, contra `timeout-minutes: 30`.
+    # Na serie historica este job e o caminho critico: 21m26s no run 39665977954.
     #
-    # Separar em dois jobs usando o MESMO banco seria paralelismo cosmetico: o lock faria o
-    # segundo esperar o primeiro de qualquer forma — a serializacao apenas sairia do workflow e
-    # iria para o Postgres.
+    # POR QUE NAO BASTAVA AUMENTAR CONCORRENCIA
     #
-    # AGORA cada job tem BANCO PROPRIO:
-    #   este job    -> cisne_ci_integration
-    #   api-e2e     -> cisne_ci_e2e
+    # `integration-test-db-serializer.ts` adquire `pg_advisory_lock(0x43534e45)` antes de cada
+    # arquivo, e os 114 compartilham UM database. Como advisory locks sao escopados POR DATABASE,
+    # liberar workers contra o mesmo database so moveria a serializacao do Vitest para o Postgres
+    # — trocando um gargalo visivel por uma espera de lock opaca.
     #
-    # POR QUE ISSO RESOLVE O LOCK SEM MEXER NO LOCK
+    # A CORRECAO (mesmo raciocinio ja aplicado ao separar `api-e2e` deste job)
     #
-    # Advisory locks do Postgres sao escopados POR DATABASE, nao pelo cluster. Duas conexoes em
-    # databases diferentes pegam locks diferentes mesmo com a MESMA chave `0x43534e45`. Ou seja:
-    # a exclusividade do banco torna o lock global inofensivo por construcao — nenhuma linha de
-    # `integration-test-db-lock.ts` precisa mudar, e o lock continua protegendo o que deve
-    # proteger (acesso concorrente ao MESMO banco dentro do proprio job).
+    # Cada shard recebe um DATABASE PROPRIO: `cisne_ci_integration_s1` ... `_s4`. Databases
+    # distintos => locks distintos, mesmo com a MESMA chave. O lock global vira inofensivo por
+    # construcao, sem alterar uma linha de `integration-test-db-lock.ts`, e continua protegendo
+    # acesso concorrente ao MESMO database dentro do shard.
+    #
+    # DENTRO DO SHARD PERMANECE SERIAL (`maxWorkers: 1`, `fileParallelism: false`): o database e
+    # unico, entao paralelizar ali seria espera de lock, nao velocidade.
+    #
+    # COBERTURA: nenhuma reducao. O Vitest particiona por hash estavel do caminho — os shards
+    # recebem particoes DISJUNTAS e a UNIAO e exatamente o conjunto dos 114 arquivos. Nenhum
+    # arquivo removido, nenhum silenciado, nenhum `--exclude` novo.
+    #
+    # MIGRATIONS: cada shard aplica as SUAS, contra o SEU database, via `ensure-migrations`
+    # (globalSetup) — nenhum shard herda schema de outro. Se aplicar errado, falha ali, isolado.
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ['1/4', '2/4', '3/4', '4/4']
     services:
       postgres:
         image: postgres:18-alpine
@@ -182,9 +218,11 @@ jobs:
           --health-timeout 5s
           --health-retries 12
     env:
-      # BANCO EXCLUSIVO DESTE JOB. `TEST_DATABASE_URL` aponta para ELE e para mais nenhum.
-      INTEGRATION_DATABASE_NAME: cisne_ci_integration
-      TEST_DATABASE_URL: postgresql://cisne_ci:cisne_ci_disposable_password@localhost:5432/cisne_ci_integration
+      # BANCO EXCLUSIVO DESTE SHARD. O sufixo vem do proprio `matrix.shard` reduzido a digitos
+      # (`1/4` -> `1`), de modo que dois shards JAMAIS compartilham nome de database.
+      INTEGRATION_DATABASE_NAME: cisne_ci_integration_s${{ replace(matrix.shard, '/', '') }}
+      TEST_DATABASE_URL: postgresql://cisne_ci:cisne_ci_disposable_password@localhost:5432/cisne_ci_integration_s${{ replace(matrix.shard, '/', '') }}
+      INTEGRATION_SHARD: ${{ matrix.shard }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -197,6 +235,13 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
+      - name: Restore Turbo task cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-integration-${{ matrix.shard }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-integration-${{ matrix.shard }}-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
       - name: Create disposable integration database
@@ -207,12 +252,28 @@ jobs:
           SELECT format('CREATE DATABASE %I OWNER %I', '${INTEGRATION_DATABASE_NAME}', 'cisne_ci')
           WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${INTEGRATION_DATABASE_NAME}')\gexec
           SQL
-      - name: Database migration gate
-        run: pnpm gate:database
-      - name: Apply migrations to integration database
-        run: pnpm db:migrate:test
-      - name: Integration tests
+      - name: Integration tests (shard)
         run: pnpm test:integration
+
+  # NOME ESTAVEL: cada shard precisa passar antes deste check ficar verde.
+  #
+  # Mesma construcao de `unit-tests` sobre `unit-test-shards`. Existe porque `matrix` produz
+  # checks com nomes distintos (`Integration (1/4)` ...), e um agregador por nome estavel evita
+  # que um shard ausente passe despercebido pelo `release-ready`.
+  #
+  # `if: always()` e obrigatorio: o job TEM de rodar quando um shard falha — e nesse caso que
+  # ele precisa reprovar. Um agregador que nao roda quando algo falha seria falso verde.
+  integration-tests:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    needs: integration-shards
+    if: always()
+    steps:
+      - name: Require every shard to pass
+        env:
+          SHARDS_RESULT: ${{ needs.integration-shards.result }}
+        run: test "$SHARDS_RESULT" = "success"
 
   api-e2e:
     name: API E2E
@@ -460,29 +521,36 @@ jobs:
   visual-full:
     name: Visual full
     runs-on: ubuntu-latest
-    # COBERTURA COMPLETA, FORA DO CAMINHO CRITICO NORMAL.
+    # ─────────────────────────────────────────────────────────────────────────────────────────
+    # RETIRADO DO CAMINHO CRITICO DO CD — SEM REDUZIR UM PIXEL DE COBERTURA
+    # ─────────────────────────────────────────────────────────────────────────────────────────
     #
-    # Roda os MESMOS 24 specs e os MESMOS 3 viewports de antes. NENHUM snapshot foi removido e
-    # nenhum limiar foi afrouxado. O que muda e QUANDO este job bloqueia a release:
+    # MEDIDO: a suite completa (24 specs x 3 viewports = ate 72 comparacoes) levou 10m31s no run
+    # 39719203623 (passo `Web visual regression (full suite)`, 03:53:14Z -> 04:03:36Z). Ela NAO
+    # estava no `needs` do `release-ready`, mas rodava DENTRO do workflow `CI` em todo `push` —
+    # e o CD dispara em `workflow_run: [CI] types: [completed]`. Consequencia: o evento que
+    # autoriza a promocao so chegava depois que o visual completo terminasse. Um fix de backend
+    # esperava ~10 min por snapshots de telas que nao tinham como ter mudado.
     #
-    #   - OBRIGATORIO quando a mudanca toca superficie visual (apps/web/src, e2e/visual,
-    #     estilos, layout, componentes de UI);
-    #   - INFORMATIVO quando a mudanca e backend/non-visual — a cobertura continua rodando e
-    #     continua publicada, mas nao segura a promocao de um fix que nao pode ter mexido em
-    #     pixel.
+    # AGORA: a suite completa vive em `visual-full.yml`, com gatilhos proprios (nightly,
+    # manual, e obrigatoria em PR cujo diff toca superficie visual). Este workflow `CI` deixa de
+    # emitir `Visual full` e, portanto, deixa de atrasar o `completed` que libera o CD.
     #
-    # A classificacao vem de `detect-change-scope`, que le o diff do commit. Em `main` e em
-    # `schedule` roda SEMPRE e como obrigatorio: a cobertura ampla precisa existir tambem fora
-    # do PR, senao a divida visual se acumula entre releases.
+    # O QUE NAO MUDA
     #
-    # NUNCA usa `continue-on-error` para esconder regressao: quando o job roda por politica de
-    # risco visual, o `visual-regression-ratchet` reprova o job em regressao real.
+    #   - NENHUM snapshot removido; NENHUM limiar afrouxado (`maxDiffPixelRatio` intacto);
+    #   - `Visual critical` PERMANECE no `release-ready` (ver `release-ready.needs` abaixo);
+    #   - a regressao visual continua bloqueando release: `visual-critical` no caminho critico,
+    #     `visual-full` bloqueante em PR com risco visual e no nightly.
+    #
+    # Este job e mantido APENAS para `pull_request` com risco visual, onde bloquear e correto e o
+    # `completed` do CI nao autoriza promocao alguma (PR nao promove). Em `push` para `main` —
+    # o evento que dispara o CD — o visual completo NAO roda aqui: ele roda no `visual-full.yml`.
     needs: detect-change-scope
     if: >-
       always() &&
-      (needs.detect-change-scope.outputs.visual_risk == 'true' ||
-       github.event_name == 'push' ||
-       github.event_name == 'schedule')
+      github.event_name == 'pull_request' &&
+      needs.detect-change-scope.outputs.visual_risk == 'true'
     timeout-minutes: 35
     steps:
       - name: Checkout
@@ -542,10 +610,44 @@ jobs:
     # `if: always()` e deliberado: o job TEM de rodar mesmo quando um gate falha — e exatamente
     # nesse caso que ele precisa reprovar. Um `release-ready` que nao roda quando algo falha
     # seria um falso verde.
+    #
+    # ─────────────────────────────────────────────────────────────────────────────────────────
+    # FAIL-CLOSED — POR QUE `skipped` E `cancelled` REPROVAM
+    # ─────────────────────────────────────────────────────────────────────────────────────────
+    #
+    # O teste e `$result != "success"`, e NAO `$result == "failure"`. A diferenca e o ponto
+    # inteiro: um job `skipped` (condicao `if` nao satisfeita), `cancelled` (concurrency matou o
+    # run) ou com nome divergente devolve algo DIFERENTE de `success` — e todos reprovam.
+    #
+    # Um agregador escrito como `!= "failure"` transformaria job ausente em liberacao de release.
+    # Este e escrito para que a UNICA entrada que produz verde seja `success` explicito.
+    #
+    # ─────────────────────────────────────────────────────────────────────────────────────────
+    # GATES AGREGADOS — SO O QUE PROMOVE
+    # ─────────────────────────────────────────────────────────────────────────────────────────
+    #
+    #   unit-tests / integration-tests : nomes ESTAVEIS que agregam seus respectivos matrix.
+    #                                    Uma matrix gera checks por shard; agregar pelo nome
+    #                                    estavel impede que um shard ausente passe despercebido.
+    #   database-migration-gate        : journal/cobertura de migrations (gate barato, uma vez).
+    #   visual-critical                : UNICO visual no caminho de release (login + dashboard).
+    #
+    # FORA DO `needs`, E POR QUE ISSO NAO ENFRAQUECE NADA
+    #
+    #   detect-change-scope : classificador de risco, nao gate. Seu resultado entra em
+    #                         `visual-full`, nao na decisao de promocao.
+    #   visual-full         : permanece bloqueante em PR com risco visual. Em `push` para `main`
+    #                         ele sai deste workflow (que e o que dispara o CD) e passa a viver em
+    #                         `visual-full.yml` (nightly + manual) — sem perder cobertura: os
+    #                         mesmos specs, os mesmos viewports, os mesmos limiares. A divisao e
+    #                         por RISCO DE PROMOCAO, nao por conveniencia: `visual-critical` cobre
+    #                         as telas cujo defeito IMPEDE operar; as demais continuam cobertas,
+    #                         apenas em cadencia propria.
     needs:
       - static-quality
       - unit-tests
-      - database-and-integration
+      - database-migration-gate
+      - integration-tests
       - api-e2e
       - build-release
       - visual-critical
@@ -555,14 +657,16 @@ jobs:
         env:
           STATIC: ${{ needs.static-quality.result }}
           UNIT: ${{ needs.unit-tests.result }}
-          DATABASE: ${{ needs.database-and-integration.result }}
+          MIGRATIONS: ${{ needs.database-migration-gate.result }}
+          INTEGRATION: ${{ needs.integration-tests.result }}
           E2E: ${{ needs.api-e2e.result }}
           BUILD: ${{ needs.build-release.result }}
           VISUAL_CRITICAL: ${{ needs.visual-critical.result }}
         run: |
           echo "static-quality            : $STATIC"
           echo "unit-tests                : $UNIT"
-          echo "database-and-integration  : $DATABASE"
+          echo "database-migration-gate   : $MIGRATIONS"
+          echo "integration-tests         : $INTEGRATION"
           echo "api-e2e                   : $E2E"
           echo "build-release             : $BUILD"
           echo "visual-critical           : $VISUAL_CRITICAL"
@@ -570,13 +674,16 @@ jobs:
           for pair in \
             "static-quality:$STATIC" \
             "unit-tests:$UNIT" \
-            "database-and-integration:$DATABASE" \
+            "database-migration-gate:$MIGRATIONS" \
+            "integration-tests:$INTEGRATION" \
             "api-e2e:$E2E" \
             "build-release:$BUILD" \
             "visual-critical:$VISUAL_CRITICAL"
           do
             name="${pair%%:*}"
             result="${pair##*:}"
+            # FAIL-CLOSED: apenas `success` produz verde. `skipped`, `cancelled`, vazio e
+            # `failure` reprovam todos.
             if [ "$result" != "success" ]; then
               echo "::error::required gate '$name' concluded '$result' — release is NOT ready"
               failed=1
