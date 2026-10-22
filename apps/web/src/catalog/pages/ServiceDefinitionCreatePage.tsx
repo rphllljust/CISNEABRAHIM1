@@ -118,14 +118,17 @@ export function ServiceDefinitionCreatePage() {
       />
 
       <StickyActionBar
-        className="!static"
+        className="!static !mx-0 !px-0"
         note={
           blockers.length > 0
             ? `Faltam: ${blockers.join(', ')}.`
             : 'A publicação e a validação de regras são executadas exclusivamente pelo backend.'
         }
       >
-        <Link to="/app/catalog" className="button-link button-secondary">
+        <Link
+          to="/app/catalog"
+          className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center justify-center rounded-[5px] border border-[color:var(--color-border-strong)] bg-white px-2.5 py-1 text-[color:var(--color-text-primary)] no-underline transition-colors duration-[var(--duration-fast)] ease-[var(--ease-standard)] hover:bg-[color:var(--color-surface-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--color-focus-ring)]"
+        >
           Cancelar
         </Link>
         <Button
