@@ -101,11 +101,69 @@ jobs:
           echo "authorized=true" >> "$GITHUB_OUTPUT"
           echo "release authority granted for CI run $RUN_ID (sha ${WORKFLOW_SHA:-dispatch})"
 
+  credentials-preflight:
+    name: Require deployment credentials
+    runs-on: ubuntu-latest
+    # Roda DEPOIS de `release-authority` (nao ha deploy a provisionar se a release nao foi
+    # autorizada) e ANTES de `resolve-ci-artifact`. Nada de caro acontece antes dele.
+    needs: release-authority
+    if: needs.release-authority.outputs.authorized == 'true'
+    # PREFLIGHT DE CREDENCIAIS — a primeira coisa que roda no CD.
+    #
+    # O DEFEITO QUE ISSO ELIMINA
+    #
+    # Medido no run 39696441128: o CD percorreu `release-authority`, `resolve-ci-artifact`,
+    # download do bundle, `verify-provenance`, testes de release e o MIGRATION GATE inteiro —
+    # e so entao falhou com `RAILWAY_API_TOKEN is required`, porque a secret nunca foi criada.
+    #
+    # Custo de descobrir tarde: um run de CD completo (e, no pior caso, um novo ciclo
+    # CI -> release-ready) antes de a falta de credencial aparecer. Credencial ausente e um
+    # problema de PROVISIONAMENTO, conhecido antes de qualquer trabalho: deve falhar no segundo
+    # zero, nao no minuto 40.
+    #
+    # LISTA COMPLETA E FECHADA: estas sao TODAS as credenciais que o CD consome. Auditar aqui
+    # significa nunca mais descobrir uma secret faltando no meio da promocao.
+    #
+    #   RAILWAY_TOKEN        — Railway CLI/API em HML e producao (token unico; a mesma autoridade
+    #                          era referenciada como RAILWAY_API_TOKEN e RAILWAY_TOKEN)
+    #   PROD_SMOKE_LOGIN     — operador do smoke autenticado
+    #   PROD_SMOKE_PASSWORD  — senha do mesmo operador
+    #
+    # NAO imprime valor algum: so diz QUAL nome falta.
+    steps:
+      - name: Check required secrets are provisioned
+        env:
+          RAILWAY_TOKEN_VALUE: ${{ secrets.RAILWAY_TOKEN }}
+          SMOKE_LOGIN: ${{ secrets.PROD_SMOKE_LOGIN }}
+          SMOKE_PASSWORD: ${{ secrets.PROD_SMOKE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          missing=""
+          for pair in \
+            "RAILWAY_TOKEN:$RAILWAY_TOKEN_VALUE" \
+            "PROD_SMOKE_LOGIN:$SMOKE_LOGIN" \
+            "PROD_SMOKE_PASSWORD:$SMOKE_PASSWORD"
+          do
+            name="${pair%%:*}"
+            value="${pair#*:}"
+            if [ -z "$value" ]; then
+              echo "::error::missing required secret '$name' — provision it before releasing"
+              missing="$missing $name"
+            else
+              echo "ok: $name is provisioned"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::DEPLOY REFUSED — missing secrets:$missing"
+            exit 1
+          fi
+          echo "credentials preflight: all required secrets present"
+
   resolve-ci-artifact:
     name: Resolve CI artifact (build once)
     runs-on: ubuntu-latest
-    needs: release-authority
-    if: needs.release-authority.outputs.authorized == 'true'
+    needs: credentials-preflight
+    if: needs.credentials-preflight.result == 'success'
     outputs:
       ci_run_id: ${{ steps.resolve.outputs.ci_run_id }}
       source_sha: ${{ steps.provenance.outputs.source_sha }}
@@ -179,7 +237,7 @@ jobs:
     needs: resolve-ci-artifact
     timeout-minutes: 40
     env:
-      RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+      RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       RAILWAY_HML_ENVIRONMENT_NAME: hml
       CD_COMMIT_SHA: ${{ needs.resolve-ci-artifact.outputs.source_sha }}
       CD_ARTIFACT_DIGEST: ${{ needs.resolve-ci-artifact.outputs.artifact_digest }}
@@ -249,13 +307,19 @@ jobs:
         #
         # `CD_ALLOW_BREAKING_MIGRATIONS` continua existindo como escape MANUAL excepcional e
         # NUNCA e habilitado por padrao — o gate nao foi desligado, so foi escopado.
+        # FIX `bad substitution`: o `-e` recebia o script entre ASPAS DUPLAS, entao o SHELL
+        # expandia `${applied.length}` ANTES de o tsx ver o codigo — e `${...}` nao e sintaxe
+        # valida do bash. Medido no run 39697131764:
+        #   line 1: ${applied.length}: bad substitution
+        # Agora o script vai entre ASPAS SIMPLES (o shell nao toca em nada) e a concatenacao
+        # usa `+` em vez de template literal.
         run: >
           pnpm --filter @cisne/api exec tsx -e
-          "import { assessPendingMigrations, assertSafeMigrationDeploy } from './src/ops/cd/migration-policy.ts';
+          'import { assessPendingMigrations, assertSafeMigrationDeploy } from "./src/ops/cd/migration-policy.ts";
           const { pending, applied } = assessPendingMigrations();
-          console.log(`applied=${applied.length} pending=${pending.length}`);
-          assertSafeMigrationDeploy(pending, process.env.CD_ALLOW_BREAKING_MIGRATIONS==='I_UNDERSTAND');
-          console.log(JSON.stringify(pending));"
+          console.log("applied=" + applied.length + " pending=" + pending.length);
+          assertSafeMigrationDeploy(pending, process.env.CD_ALLOW_BREAKING_MIGRATIONS === "I_UNDERSTAND");
+          console.log(JSON.stringify(pending));'
 
       - id: hml
         name: Ensure isolated HML and Postgres without source app deploys
