@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 # BOOTSTRAP DO RUNNER SELF-HOSTED — REFERENCIA, NAO USAR NO VPS-1
 #
 # ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -18,8 +18,8 @@
 #
 # Uso (como root, numa VM Linux limpa):
 #
-#   CINE_RUNNER_TOKEN=<token> \
-#   CINE_REPO_URL=https://github.com/rphllljust/CISNEABRAHIM1 \
+#   CISNE_RUNNER_TOKEN=<token> \
+#   CISNE_REPO_URL=https://github.com/rphllljust/CISNEABRAHIM1 \
 #   bash scripts/ci/bootstrap-runner.sh
 #
 # O token vem de: GitHub > Settings > Actions > Runners > New self-hosted runner.

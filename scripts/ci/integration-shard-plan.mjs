@@ -153,6 +153,9 @@ const SEED_MS = {
   "src/vertical/first-vertical-quality-gate.integration.spec.ts": 2668,
 };
 
+/** Versao do schema do historico. Incompatibilidade vira fallback explicito, nunca silencioso. */
+const HISTORY_SCHEMA_VERSION = 1;
+
 /** Mediana — resistente a outlier; um run lento isolado nao desloca o peso. */
 function median(values) {
   if (values.length === 0) return null;
@@ -161,20 +164,100 @@ function median(values) {
   return s.length % 2 === 0 ? Math.round((s[mid - 1] + s[mid]) / 2) : s[mid];
 }
 
-/** Carrega o historico por spec. Ausencia de arquivo nao e erro: e o primeiro run. */
+/** Emite o aviso no formato que o GitHub Actions transforma em anotacao da UI. */
+function warn(title, message) {
+  process.stderr.write(`::warning title=${title}::${message}\n`);
+}
+
+/**
+ * Valida e carrega o historico por spec.
+ *
+ * CONTRATO EXPLICITO, NAO "QUALQUER JSON COM `specs` SERVE".
+ *
+ * Antes qualquer excecao caia num `catch { return {} }` — JSON truncado, schema invalido, arquivo
+ * corrompido: o historico desaparecia e o scheduler voltava ao SEED sem que ninguem soubesse. Isso
+ * contradiz a regra de que telemetria nao pode sumir silenciosamente.
+ *
+ * AGORA:
+ *   - arquivo ausente e primeiro run (nao e defeito, sem aviso);
+ *   - arquivo estruturalmente invalido -> warning + fallback global ao SEED;
+ *   - entrada de spec invalida -> warning + ignore daquela entrada (as demais valem);
+ *   - NUNCA descarta um spec da particao. Historico ruim degrada o BALANCEAMENTO, nao a cobertura.
+ *
+ * O aviso traz numeros suficientes para diagnostico sem despejar o arquivo inteiro no log.
+ */
 function loadHistory() {
-  if (!existsSync(TIMINGS_PATH)) return {};
+  const stats = { history: 0, seed: 0, median: 0, invalidEntries: 0, present: false };
+
+  if (!existsSync(TIMINGS_PATH)) {
+    return { specs: {}, stats };
+  }
+  stats.present = true;
+
+  let parsed;
   try {
     // `JSON.parse` rejeita BOM (`\uFEFF`) no inicio. O arquivo e escrito pelo proprio CI em UTF-8
     // puro, mas um editor ou script de operador pode introduzir BOM — e nesse caso o historico
     // seria descartado em SILENCIO, degradando o balanceamento sem nenhum sinal visivel.
     const raw = readFileSync(TIMINGS_PATH, 'utf8').replace(/^\uFEFF/, '');
-    const parsed = JSON.parse(raw);
-    return parsed?.specs ?? {};
-  } catch {
-    // Historico corrompido nao pode derrubar o planejamento: caimos no SEED, que e deterministico.
-    return {};
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    warn(
+      'Integration timing history',
+      `JSON parse failed; falling back to seed weights. file=${TIMINGS_PATH} cause=${error.message}`,
+    );
+    return { specs: {}, stats };
   }
+
+  const specEntries = parsed?.specs;
+  if (typeof specEntries !== 'object' || specEntries === null || Array.isArray(specEntries)) {
+    warn(
+      'Integration timing history',
+      `invalid schema (specs is not an object); falling back to seed weights. ` +
+        `file=${TIMINGS_PATH} schemaVersion=${JSON.stringify(parsed?.schemaVersion)}`,
+    );
+    return { specs: {}, stats };
+  }
+
+  if (parsed.schemaVersion !== HISTORY_SCHEMA_VERSION) {
+    // Schema diferente pode significar semantica diferente das amostras. Usar por adivinhacao
+    // produziria pesos errados com aparencia de validos.
+    warn(
+      'Integration timing history',
+      `schemaVersion mismatch (expected ${HISTORY_SCHEMA_VERSION}, got ` +
+        `${JSON.stringify(parsed.schemaVersion)}); falling back to seed weights. file=${TIMINGS_PATH}`,
+    );
+    return { specs: {}, stats };
+  }
+
+  const specs = {};
+  const invalid = [];
+
+  for (const [spec, entry] of Object.entries(specEntries)) {
+    const samples = entry?.samples;
+    const valid =
+      Array.isArray(samples) &&
+      samples.length > 0 &&
+      samples.every((s) => typeof s === 'number' && Number.isFinite(s) && s > 0);
+
+    if (!valid) {
+      invalid.push(spec);
+      continue;
+    }
+    specs[spec] = { samples };
+  }
+
+  stats.invalidEntries = invalid.length;
+  if (invalid.length > 0) {
+    warn(
+      'Integration timing history',
+      `${invalid.length} spec entr(ies) have invalid samples and were ignored; ` +
+        `those specs fall back to seed/median weights. totalSpecs=${Object.keys(specEntries).length} ` +
+        `examples=${invalid.slice(0, 3).join(', ')}`,
+    );
+  }
+
+  return { specs, stats };
 }
 
 function walk(dir) {
@@ -193,12 +276,24 @@ const files = walk(srcRoot)
 
 if (files.length === 0) throw new Error('no integration specs discovered');
 
-const history = loadHistory();
+const { specs: history, stats } = loadHistory();
 
-/** Peso de um spec: mediana do historico; senao SEED; senao mediano global. */
+/**
+ * Mediana global da semente: peso conservador para spec sem historico E sem entrada no SEED.
+ *
+ * Sem isso, um spec novo (adicionado hoje) receberia peso zero e seria empilhado num shard
+ * arbitrario, quebrando o balanceamento justamente na primeira execucao dele.
+ */
 const knownWeights = Object.values(SEED_MS).sort((a, b) => a - b);
 const medianWeight = knownWeights[Math.floor(knownWeights.length / 2)] ?? 5000;
 
+/**
+ * Peso de um spec: mediana do historico; senao SEED; senao mediano global.
+ *
+ * PURO: nao incrementa contadores. `weightOf` e chamado mais de uma vez por spec (no `sort` e na
+ * alocacao), entao contabilizar aqui produziria numeros inflados — `seed=1374` para 114 specs. A
+ * contagem e feita uma unica vez, depois da particao.
+ */
 const weightOf = (file) => {
   const samples = history[file]?.samples;
   if (Array.isArray(samples) && samples.length > 0) {
@@ -231,17 +326,34 @@ if (assigned.length !== files.length || new Set(assigned).size !== files.length)
   throw new Error('integration shard plan is not a complete disjoint partition');
 }
 
+// Contagem por FONTE, feita uma vez por spec. E a evidencia observavel de que o historico foi
+// usado: sem isso, "history=0" em todo run passaria despercebido — exatamente o defeito que
+// motivou esta correcao.
+for (const file of files) {
+  const samples = history[file]?.samples;
+  const fromHistory =
+    Array.isArray(samples) && samples.length > 0 && (median(samples) ?? 0) > 0;
+  if (fromHistory) stats.history++;
+  else if (SEED_MS[file] != null) stats.seed++;
+  else stats.median++;
+}
+
+
+// O resumo de pesos e SEMPRE emitido: e a evidencia de que o historico foi usado e de quanto veio
+// de cada fonte. Sem ele, "history=0" em todo run passaria despercebido — que foi exatamente o
+// defeito que motivou esta correcao.
+process.stderr.write(
+  `weights: history=${stats.history} seed=${stats.seed} median=${stats.median} ` +
+    `history_file=${stats.present ? 'present' : 'absent'}` +
+    `${stats.invalidEntries > 0 ? ` invalid_entries=${stats.invalidEntries}` : ''}\n`,
+);
+
 if (process.env['INTEGRATION_SHARD_DEBUG'] === '1') {
-  const fromHistory = files.filter((f) => Array.isArray(history[f]?.samples) && history[f].samples.length > 0);
   for (const bin of bins) {
     process.stderr.write(
       `shard ${bin.index}/${count}: files=${bin.files.length} predicted_ms=${bin.total}\n`,
     );
   }
-  process.stderr.write(
-    `weights: history=${fromHistory.length} seed=${files.length - fromHistory.length} ` +
-      `median_fallback_ms=${medianWeight}\n`,
-  );
 }
 
 const selected = bins[index - 1];

@@ -1,4 +1,4 @@
-# CI Execution Plane — GitHub-hosted
+﻿# CI Execution Plane — GitHub-hosted
 
 Este documento cobre **onde o CI executa** e **por que**. Para a estrutura do monorepo, ver
 [`../17-bootstrap/repository-structure.md`](../17-bootstrap/repository-structure.md).
@@ -25,11 +25,17 @@ release authority            banco de runtime
 | Fato | Consequência se compartilhado |
 | --- | --- |
 | VPS-1 tem 2 vCPU / 3,8 GB | 3 workers Vitest + PostgreSQL competiriam com php-fpm, Horizon e Reverb |
-| Disco é HDD (`ROTA=1`) | 114 specs com `TRUNCATE` frequente saturariam I/O da aplicação |
+| storage apresentado como rotacional ao guest (`ROTA=1`) | 114 specs com `TRUNCATE` frequente disputariam I/O com a aplicação |
 | Docker socket compartilhado | CI poderia afetar containers de produção |
 | Sem margem de RAM | OOM do kernel mata o processo que escolher — possivelmente a aplicação |
 
 Isolamento não é preferência: é o que impede que um teste pesado degrade a aplicação em uso.
+
+**Sobre `ROTA=1`:** em ambiente virtualizado, esse flag indica como o storage é *apresentado ao
+guest* pelo hipervisor — não prova que a mídia física subjacente seja rotacional. Um volume de
+rede ou um disco virtual sobre SSD pode reportar `ROTA=1`. A conclusão defensável é "o guest
+enxerga um dispositivo rotacional"; afirmar "HDD físico comprovado" exigiria benchmark de I/O
+real no host, que não foi executado.
 
 ## Arquitetura do CI
 
@@ -141,6 +147,61 @@ zero duplicata · zero órfão · zero fantasma
 ```
 
 Qualquer violação: `exit 1`. Cobertura perdida com CI verde seria falso verde.
+
+## Persistência do histórico entre runs
+
+`ubuntu-latest` é efêmero: o workspace nasce limpo a cada run. Publicar
+`integration-timings.json` como **artifact** não faz o próximo run enxergar o arquivo — artifact é
+registro, não entrada. Sem restaurar antes do executor, o LPT cairia no `SEED` em todo run e a
+frase "histórico real → mediana → LPT" seria falsa entre execuções.
+
+A persistência usa `actions/cache@v4` com escopo mínimo:
+
+```yaml
+- name: Restore integration timing history
+  uses: actions/cache@v4
+  with:
+    path: artifacts/ci/integration-timings.json
+    key: integration-timings-v1-${{ github.run_id }}
+    restore-keys: |
+      integration-timings-v1-
+```
+
+Por que o `run_id` na chave: o cache do Actions é **imutável** — não sobrescreve chave existente.
+Uma chave fixa seria escrita no primeiro run e nunca atualizada. Com `run_id`, cada run grava uma
+entrada nova; `restore-keys` com prefixo estável traz a mais recente.
+
+**O que NÃO é cacheado:** `node_modules`, workspace, databases, `ci-metrics.json` e `.ndjson`.
+Esses são telemetria de um run específico e não devem reaparecer no seguinte.
+
+### Como verificar que está funcionando
+
+O scheduler emite uma linha de pesos em **todo** run:
+
+```
+weights: history=N seed=M median=K history_file=present|absent
+```
+
+- Run 1: `history=0 ... history_file=absent` (primeiro run, sem cache)
+- Run 2: `history>0 ... history_file=present` ← **prova de persistência**
+
+Se Run 2 mostrar `history=0`, a persistência está quebrada — não importa que o artifact exista.
+
+## Histórico inválido não degrada em silêncio
+
+Arquivo ausente é primeiro run (sem aviso). Arquivo presente mas inválido produz
+`::warning title=Integration timing history::` com arquivo, causa e fallback aplicado.
+
+| Situação | Comportamento |
+| --- | --- |
+| arquivo ausente | sem aviso; `SEED` — é o primeiro run |
+| JSON truncado/corrompido | warning + `SEED` global |
+| `schemaVersion` incompatível | warning + `SEED` global |
+| `specs` não é objeto | warning + `SEED` global |
+| `samples` inválido em um spec | warning + ignora **apenas** aquela entrada |
+| BOM no início | tolerado, sem aviso |
+
+**Histórico ruim degrada o balanceamento, nunca a cobertura.** Nenhum spec é descartado.
 
 ## Ferramentas
 

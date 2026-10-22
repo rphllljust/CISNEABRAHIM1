@@ -285,6 +285,32 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
       # ─────────────────────────────────────────────────────────────────────────────────────────
+      # HISTORICO DO SCHEDULER — PRECISA SOBREVIVER AO RUN
+      # ─────────────────────────────────────────────────────────────────────────────────────────
+      #
+      # `ubuntu-latest` e efemero: o workspace nasce limpo a cada run. Publicar
+      # `integration-timings.json` como artifact NAO faz o proximo run enxergar o arquivo — artifact
+      # e registro, nao entrada. Sem restaurar antes, o LPT cairia no SEED em todo run e a frase
+      # "historico real -> mediana -> LPT" seria falsa entre execucoes.
+      #
+      # `actions/cache` resolve com semantica nativa:
+      #
+      #   key         inclui `github.run_id` -> cada run grava uma entrada NOVA (cache imutavel)
+      #   restore-keys prefixo estavel -> run N+1 restaura a entrada mais recente compativel
+      #
+      # O `run_id` no fim da chave e o que torna isso correto: o cache do Actions nao sobrescreve
+      # chave existente, entao uma chave fixa seria escrita uma vez e nunca atualizada.
+      #
+      # ESCOPO MINIMO: SO o arquivo de pesos. Nao cacheamos `node_modules`, workspace, databases,
+      # `ci-metrics.json` nem `.ndjson` de run antigo — sao telemetria de UM run e nao devem
+      # reaparecer no seguinte.
+      - name: Restore integration timing history
+        uses: actions/cache@v4
+        with:
+          path: artifacts/ci/integration-timings.json
+          key: integration-timings-v1-${{ github.run_id }}
+          restore-keys: |
+            integration-timings-v1-
       # BUILD — UMA VEZ
       # ─────────────────────────────────────────────────────────────────────────────────────────
       #
@@ -294,7 +320,7 @@ jobs:
       - name: Build workspace packages
         run: pnpm --filter @cisne/api... build
       # ─────────────────────────────────────────────────────────────────────────────────────────
-      # EXECUTOR: template -> clones -> 8 workers -> agregacao -> cleanup
+      # EXECUTOR: template -> N clones -> N workers -> agregacao -> cleanup
       # ─────────────────────────────────────────────────────────────────────────────────────────
       - name: Run integration executor
         env:
