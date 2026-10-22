@@ -1,0 +1,26 @@
+# CISNE Worker — mesma release da API, processo de fila.
+#
+# POR QUE ESTA IMAGEM EXISTE
+#
+# O worker e a API compartilham o MESMO codigo (mesmo dist, mesmo artefato
+# autorizado), mas executam processos diferentes:
+#
+#   api    -> node apps/api/dist/main.js          (HTTP em :3000)
+#   worker -> node apps/api/dist/worker/main.js   (outbox, inbox, reports)
+#
+# O Coolify 4.4.7 com build_pack=dockerimage NAO materializa `command:` no
+# compose gerado: `start_command`, `docker_compose_custom_start_command` e
+# `custom_docker_run_options` sao ignorados, e `docker_compose_raw` e proibido
+# em applications. Ou seja: o processo e sempre o CMD da imagem.
+#
+# A alternativa era deixar o worker rodando o CMD da API e depender de
+# WORKER_ENABLED=true. Isso funciona (o binario sobe os workers de fila), mas
+# sobe TAMBEM o servidor HTTP inteiro num container que nao deve receber
+# trafego -- custo de memoria e superficie desnecessarios.
+#
+# Esta imagem herda exatamente o mesmo conteudo da API e troca SO o processo.
+# O digest do artefato continua sendo o mesmo; a proveniencia e verificada pelo
+# mesmo pipeline (tag == source SHA).
+ARG CISNE_API_IMAGE
+FROM ${CISNE_API_IMAGE}
+CMD ["node", "apps/api/dist/worker/main.js"]

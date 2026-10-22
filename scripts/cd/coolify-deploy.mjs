@@ -59,10 +59,25 @@ export function buildDeployPlan(payload, apps) {
   const webImage = requireMatch('images.web', payload.images?.web, IMAGE_BY_DIGEST_RE);
   const workerImage = requireMatch('images.worker', payload.images?.worker, IMAGE_BY_DIGEST_RE);
 
-  // Worker e o MESMO binario da API; divergencia reprova antes de qualquer efeito.
-  if (workerImage !== apiImage) {
+  // O worker roda o MESMO codigo da API, mas em outro processo.
+  //
+  // Duas formas validas, ambas fail-closed:
+  //   a) imagem dedicada `cisne-worker` (recomendada): CMD proprio, entao o
+  //      container sobe apenas o processo de fila;
+  //   b) mesma imagem da API + WORKER_ENABLED=true: funciona (o binario sobe
+  //      outbox/inbox/reports), mas tambem levanta o servidor HTTP num container
+  //      que nao deve receber trafego.
+  //
+  // MOTIVO (medido no Coolify 4.4.7): com build_pack=dockerimage NENHUM campo da
+  // API materializa `command:` no compose gerado -- start_command e
+  // docker_compose_custom_start_command sao ignorados, custom_docker_run_options
+  // gera apenas `entrypoint` (deixando Cmd=null) e docker_compose_raw e proibido
+  // em applications. O processo e sempre o CMD da imagem.
+  const workerIsApi = workerImage === apiImage;
+  const workerIsDedicated = /cisne-worker/i.test(payload.images?.worker ?? '');
+  if (!workerIsApi && !workerIsDedicated) {
     throw new DeployRefusedError(
-      `worker deve usar a imagem da API: api=${apiImage} worker=${workerImage}`,
+      `worker deve usar a imagem da API ou a imagem dedicada cisne-worker: api=${apiImage} worker=${workerImage}`,
     );
   }
 
@@ -76,8 +91,7 @@ export function buildDeployPlan(payload, apps) {
   // A API e o Web herdam o CMD do Dockerfile; o worker precisa de outro processo.
   // Sem isso, o worker subiria como uma segunda API e nunca consumiria a fila.
   //
-  // O command do worker e OBRIGATORIO: ausente significa payload incompleto, e um
-  // deploy silencioso em que o worker roda o CMD da API e pior do que recusar.
+  // O command do worker e OBRIGATORIO: ausente significa payload incompleto.
   const workerCommand = payload.runtime?.worker?.command;
   if (!Array.isArray(workerCommand) || workerCommand.length === 0) {
     throw new DeployRefusedError(
@@ -111,6 +125,7 @@ export function buildDeployPlan(payload, apps) {
 
   const apiParts = parseImage('images.api', apiImage);
   const webParts = parseImage('images.web', webImage);
+  const workerParts = parseImage('images.worker', workerImage);
 
   return [
     {
@@ -125,11 +140,13 @@ export function buildDeployPlan(payload, apps) {
     {
       key: 'worker',
       uuid: apps.worker,
-      repository: apiParts.repository,
+      repository: workerParts.repository,
       tag: sourceSha,
-      expectedDigest: apiParts.digest, // MESMO digest da API
+      expectedDigest: workerParts.digest,
       healthPath: null,
-      startCommand: workerCommand.join(' '),
+      // Com imagem dedicada o CMD ja e o do worker. O start_command nao e
+      // materializado pelo Coolify nesse build_pack, entao nao dependemos dele.
+      startCommand: null,
     },
     {
       key: 'web',

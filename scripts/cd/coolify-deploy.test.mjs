@@ -104,7 +104,25 @@ test('4: recusa tag de deploy diferente do source SHA', () => {
   );
 });
 
-test('worker com digest diferente da API e recusado', () => {
+test('worker com imagem dedicada cisne-worker e aceito', () => {
+  const workerDigest = `sha256:${'6'.repeat(64)}`;
+  const plan = buildDeployPlan(
+    payload({
+      images: {
+        api: API_IMAGE,
+        worker: `ghcr.io/rphllljust/cisne-worker@${workerDigest}`,
+        web: WEB_IMAGE,
+      },
+    }),
+    apps,
+  );
+  const byKey = Object.fromEntries(plan.map((e) => [e.key, e]));
+  assert.equal(byKey.worker.repository, 'ghcr.io/rphllljust/cisne-worker');
+  assert.equal(byKey.worker.expectedDigest, workerDigest);
+  assert.equal(byKey.api.repository, 'ghcr.io/rphllljust/cisne-api');
+});
+
+test('worker com imagem totalmente estranha e recusado', () => {
   assert.throws(
     () => buildDeployPlan(payload({ images: { api: API_IMAGE, worker: WEB_IMAGE, web: WEB_IMAGE } }), apps),
     DeployRefusedError,
