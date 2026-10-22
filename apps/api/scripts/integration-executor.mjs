@@ -98,6 +98,15 @@ const CI_DIR = join(REPO_ROOT, 'artifacts', 'ci');
 /** Nome de database efemero do worker `n` (1-based). */
 const dbName = (n) => `${DB_PREFIX}${String(n).padStart(2, '0')}`;
 
+/**
+ * Filhos vivos — para que o cancelamento do workflow nao deixe Vitest orfao.
+ *
+ * Quando o GitHub cancela um job, o runner envia SIGTERM ao processo principal. Sem handler, Node
+ * morre imediatamente e os 3-4 processos Vitest ficam rodando contra um PostgreSQL que sera
+ * destruido logo depois: trabalho orfao competindo por CPU com o proximo run.
+ */
+const liveChildren = new Set();
+
 function adminUrlFor(database) {
   const url = new URL(ADMIN_URL);
   url.pathname = `/${database}`;
@@ -117,10 +126,30 @@ async function withAdmin(fn) {
 /**
  * Remove bancos efemeros, inclusive residuos de execucoes anteriores cujo processo morreu.
  * Roda no inicio (higiene) e no finally (limpeza garantida).
+ *
+ * SEGURANCA DO PATTERN — o namespace e validado antes de qualquer DROP.
+ *
+ * `DB_PREFIX` vem do ambiente. Um valor errado (vazio, `postgres`, `%`) transformaria o cleanup
+ * numa varredura destrutiva que atinge bancos alheios — inclusive de aplicacao, se o servidor for
+ * compartilhado. Por isso o prefixo precisa casar um formato estreito e conhecido; qualquer coisa
+ * fora disso e FAIL CLOSED, nao "tenta mesmo assim".
  */
+function assertSafePrefix(prefix) {
+  // Exige `cisne_` + identificador e permite apenas minusculas, digitos e underscore.
+  if (!/^cisne_[a-z0-9_]{1,40}_$/.test(prefix)) {
+    throw new Error(
+      `Refusing to clean up: INTEGRATION_DB_PREFIX "${prefix}" does not match the required ` +
+        `namespace pattern ^cisne_[a-z0-9_]+_$ . A wrong prefix could drop unrelated databases.`,
+    );
+  }
+}
+
 async function dropAllEphemeral(client) {
+  assertSafePrefix(DB_PREFIX);
   const { rows } = await client.query(
-    `SELECT datname FROM pg_database WHERE datname LIKE $1 AND datname <> $2`,
+    `SELECT datname FROM pg_database
+     WHERE datname LIKE $1 AND datname <> $2
+       AND datname NOT IN ('postgres', 'template0', 'template1')`,
     [`${DB_PREFIX}%`, TEMPLATE_DB],
   );
   for (const { datname } of rows) {
@@ -274,6 +303,10 @@ function runWorker(n, specs) {
         shell: process.platform === 'win32',
       },
     );
+
+    // Registro do filho para que o handler de SIGTERM possa encerra-lo no cancelamento.
+    liveChildren.add(child);
+    child.on('close', () => liveChildren.delete(child));
 
     const finish = (code, signal) => {
       resolve({
@@ -500,6 +533,57 @@ async function main() {
 
   process.stdout.write(`integration executor: all ${discovered.length} specs passed\n`);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// CANCELAMENTO — SIGTERM/SIGINT nao podem deixar processo nem database orfao
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+//
+// Fluxo no cancelamento:
+//   1. para de aceitar trabalho novo (a flag impede novos spawns);
+//   2. envia SIGTERM aos Vitest vivos — eles tem chance de fechar conexoes e sair limpos;
+//   3. espera um limite racional (grace);
+//   4. SIGKILL no que restar;
+//   5. o `finally` do `main` roda o cleanup dos databases.
+//
+// `main()` continua sendo quem faz o cleanup: o handler apenas garante que nao ha filho vivo
+// segurando conexao quando o `DROP DATABASE` acontecer.
+let shuttingDown = false;
+
+async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  process.stderr.write(`received ${signal}: stopping ${liveChildren.size} worker(s)\n`);
+
+  for (const child of liveChildren) {
+    try {
+      child.kill('SIGTERM');
+    } catch {
+      // Processo ja saiu.
+    }
+  }
+
+  const GRACE_MS = 10_000;
+  const deadline = Date.now() + GRACE_MS;
+  while (liveChildren.size > 0 && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 200));
+  }
+
+  for (const child of liveChildren) {
+    try {
+      child.kill('SIGKILL');
+    } catch {
+      // Processo ja saiu.
+    }
+  }
+
+  // Nao chamamos `process.exit` aqui: deixamos o `finally` de `main()` concluir o cleanup dos
+  // databases. Sair agora deixaria `cisne_it_*` para tras.
+
+  process.exitCode = 1;
+}
+
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+process.on('SIGINT', () => void shutdown('SIGINT'));
 
 main().catch((error) => {
   process.stderr.write(`integration executor crashed: ${error?.stack ?? error}\n`);
