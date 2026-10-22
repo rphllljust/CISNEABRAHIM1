@@ -637,6 +637,11 @@ jobs:
       # versao pinada do Playwright -- nao ha estado de teste nem snapshot cacheado.
       # Cache miss cai no install normal (fail-open para o caminho lento, nunca para um
       # falso verde).
+      #
+      # GANHO MEDIDO com este cache (runs 39859726524 e 39860828242):
+      #   Install Playwright Chromium  622s -> 22-30s
+      #   Visual critical (job)        684s -> 70-93s
+      #   suite em si                   40s -> 27-42s (cobertura intacta)
       - name: Cache Playwright browsers
         id: playwright-cache
         uses: actions/cache@v4
