@@ -265,6 +265,17 @@ jobs:
           --health-timeout 5s
           --health-retries 12
     env:
+      # env DE NIVEL DE JOB — APENAS O QUE O SERVICO PRECISA REPETIR.
+      #
+      # A baseline declarava aqui `INTEGRATION_DATABASE_NAME` e `TEST_DATABASE_URL`. Este job nao
+      # pode repetir isso: os dois valores carregam o database DO SHARD, e `matrix` nao existe no
+      # escopo de `env:` de job — declara-lo aqui rejeitava o workflow inteiro (run 39721011312,
+      # `jobs: []`). Por isso o valor por shard vive nos `env:` dos STEPS.
+      #
+      # POSTGRES_* tambem repetem o `env:` GLOBAL do workflow (linhas 51-61). Nao acrescentam
+      # nada e ficam aqui apenas para manter o bloco explicito; se um dia divergirem, o global tem
+      # precedencia menor que o job, e o job passa a ser a fonte. Comportamento identico ao global
+      # hoje, o que mantem paridade funcional com a baseline.
       POSTGRES_USER: cisne_ci
       POSTGRES_PASSWORD: cisne_ci_disposable_password
       POSTGRES_DB: cisne_ci
@@ -280,13 +291,6 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
-      - name: Restore Turbo task cache
-        uses: actions/cache@v4
-        with:
-          path: .turbo
-          key: turbo-${{ runner.os }}-integration-${{ matrix.shard }}-${{ github.sha }}
-          restore-keys: |
-            turbo-${{ runner.os }}-integration-${{ matrix.shard }}-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
       # ───────────────────────────────────────────────────────────────────────────────────────
