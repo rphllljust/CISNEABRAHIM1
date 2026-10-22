@@ -1,4 +1,4 @@
-﻿name: CI
+name: CI
 
 on:
   push:
@@ -138,14 +138,34 @@ jobs:
   database-migration-gate:
     name: Database migration gate
     runs-on: ubuntu-latest
-    # GATE BARATO, EXECUTADO UMA VEZ SO. Sem `needs`.
+    # GATE UMA VEZ SO, MAS CONTRA POSTGRES PROPRIO. Sem `needs`.
     #
-    # `pnpm gate:database` valida o journal de migrations e a cobertura por arquivo SQL. Ele NAO
-    # depende de database populado e NUNCA precisou rodar por shard — antes rodava dentro do job
-    # de integracao, o que amarrou um gate de ~8s ao job mais lento do pipeline e multiplicaria
-    # esse custo por shard. Aqui ele continua sendo UM step, verde ou vermelho, exatamente como
-    # antes; o que muda e que ele nao fica mais na retaguarda de 11+ minutos de testes.
+    # `pnpm gate:database` NAO e um gate puramente estatico: ele abre conexao `pg.Client` real
+    # (`scripts/ci-database-gate.mjs`) para aplicar a cadeia completa de migrations em um database
+    # FRESCO e conferir os schemas resultantes. Ele so functiona onde existe um servidor Postgres.
+    #
+    # DEFEITO MEDIDO (run 39722020814): quando este gate foi separado para job proprio, o job
+    # nasceu SEM servico `postgres` — herdou do job de integracao apenas a intencao, nao o servico.
+    # O step falhou em 0.5s com `CI database gate: FAIL` / `Exit status 1`, sem sequer chegar a
+    # executar migration alguma: nao havia banco para conectar.
+    #
+    # CORRECAO: serviço `postgres` identico ao que o job de origem tinha. O gate continua sendo UM
+    # step, executado UMA vez — nao vira gate por shard.
     timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: cisne_ci
+          POSTGRES_PASSWORD: cisne_ci_disposable_password
+          POSTGRES_DB: cisne_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cisne_ci -d cisne_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -297,6 +317,28 @@ jobs:
           SELECT format('CREATE DATABASE %I OWNER %I', '${INTEGRATION_DATABASE_NAME}', 'cisne_ci')
           WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${INTEGRATION_DATABASE_NAME}')\gexec
           SQL
+      # ───────────────────────────────────────────────────────────────────────────────────────
+      # APLICAR MIGRATIONS NO DATABASE DO SHARD — STEP QUE FALTAVA
+      # ───────────────────────────────────────────────────────────────────────────────────────
+      #
+      # DEFEITO MEDIDO (run 39722020814, shard 1/4): os testes falharam em massa com
+      #
+      #     relation "identity.identities" does not exist
+      #     relation "identity.credentials" does not exist
+      #
+      # ..nao porque o codigo estivesse errado, mas porque o database do shard estava VAZIO: nenhum
+      # schema havia sido criado. O `origin/main` tinha exatamente este passo —
+      #
+      #     - name: Apply migrations to integration database
+      #       run: pnpm db:migrate:test
+      #
+      # — e eu o perdi ao reescrever o job. `ensure-migrations` (globalSetup) reconcilia journal e
+      # confere cobertura; ele NAO substitui a aplicacao da cadeia. Cada shard aplica as SUAS
+      # migrations contra o SEU database, como antes, sem herdar schema de ninguem.
+      - name: Apply migrations to integration database
+        env:
+          TEST_DATABASE_URL: postgresql://cisne_ci:cisne_ci_disposable_password@localhost:5432/cisne_ci_integration_${{ matrix.db_suffix }}
+        run: pnpm db:migrate:test
       - name: Integration tests (shard)
         env:
           INTEGRATION_DATABASE_NAME: cisne_ci_integration_${{ matrix.db_suffix }}
