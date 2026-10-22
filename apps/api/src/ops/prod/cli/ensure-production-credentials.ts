@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readFileSync } from 'node:fs';
 import { Pool, type PoolClient } from 'pg';
 import { hashPassword, validatePasswordStrength } from '@cisne/database';
 
@@ -87,8 +88,30 @@ async function rollbackKeepingPrimaryCause(client: PoolClient): Promise<Error | 
   }
 }
 
+/**
+ * Le a URL do banco aceitando a forma montada em arquivo.
+ *
+ * Em producao a credencial e entregue como secret file, nao inline. Exigir
+ * `DATABASE_URL` no environment forçaria o valor a existir no processo -- o que
+ * o proprio `prod-secrets.ts` proibe quando o secret store esta habilitado.
+ * Contrato identico ao runtime (`platform/runtime-config/secret-value.ts`):
+ * `NAME_FILE` tem precedencia, conteudo recebe trim, arquivo ilegivel ou vazio
+ * e erro (nunca fallback silencioso).
+ */
+function readDatabaseUrl(): string {
+  const filePath = process.env['DATABASE_URL_FILE']?.trim();
+  if (filePath) {
+    const raw = readFileSync(filePath, 'utf8').trim();
+    if (!raw) {
+      throw new Error(`CONFIGURATION_ERROR: DATABASE_URL_FILE points to an empty secret file`);
+    }
+    return raw;
+  }
+  return required('DATABASE_URL');
+}
+
 async function main(): Promise<void> {
-  const databaseUrl = required('DATABASE_URL');
+  const databaseUrl = readDatabaseUrl();
   const pool = new Pool({ connectionString: databaseUrl, max: 1 });
   const client = await pool.connect();
   let evictWith: Error | undefined;

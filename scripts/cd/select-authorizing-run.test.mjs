@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   assertReleaseReadyPassed,
   AuthorizationRefusedError,
@@ -9,6 +14,7 @@ import {
 
 const SHA = 'a'.repeat(40);
 const OTHER_SHA = 'b'.repeat(40);
+const CLI_PATH = fileURLToPath(new URL('./select-authorizing-run.mjs', import.meta.url));
 
 let nextId = 1000;
 function run(overrides = {}) {
@@ -105,4 +111,46 @@ test('prefere o success de maior id quando ha varios', () => {
 
 test('expectedSha malformado recusa', () => {
   assert.throws(() => selectAuthorizingRun([run()], 'abc'), AuthorizationRefusedError);
+});
+
+/**
+ * O entrypoint CLI e o caminho que o workflow realmente executa. Ele quebrou em
+ * producao com "[release-authority] require is not defined" porque usava
+ * `require` num modulo `.mjs`. As funcoes puras passavam; o CLI nao era testado.
+ * Estes testes fecham essa lacuna.
+ */
+test('CLI: imprime o run id quando o CI autoriza', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'cisne-selector-'));
+  try {
+    const file = join(dir, 'runs.json');
+    writeFileSync(file, JSON.stringify({ workflow_runs: [run({ id: 777 })] }), 'utf8');
+    const stdout = execFileSync(process.execPath, [CLI_PATH], {
+      env: { ...process.env, EXPECTED_SHA: SHA, EXPECTED_RUNS_FILE: file },
+      encoding: 'utf8',
+    });
+    assert.equal(stdout.trim(), '777');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('CLI: sai != 0 quando o CI nao autoriza', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'cisne-selector-'));
+  try {
+    const file = join(dir, 'runs.json');
+    writeFileSync(
+      file,
+      JSON.stringify({ workflow_runs: [run({ id: 8, conclusion: 'cancelled' })] }),
+      'utf8',
+    );
+    assert.throws(() =>
+      execFileSync(process.execPath, [CLI_PATH], {
+        env: { ...process.env, EXPECTED_SHA: SHA, EXPECTED_RUNS_FILE: file },
+        encoding: 'utf8',
+        stdio: 'pipe',
+      }),
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
