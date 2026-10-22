@@ -85,34 +85,62 @@ export function buildDeployPlan(payload, apps) {
     );
   }
 
+  // CONTRATO DE IMAGEM NO COOLIFY (medido em 4.4.7, nao suposto):
+  //
+  //   O Coolify NAO aceita `@sha256:...` nem `sha256:...` em
+  //   `docker_registry_image_tag` (422 "field format is invalid"). Ele quer uma TAG.
+  //
+  //   O Coolify tambem prefixa com docker.io quando o NOME nao traz registry, o que
+  //   produzia `pull access denied for rphllljust/cisne-api` -- o Docker ia para
+  //   docker.io em vez de ghcr.io. Portanto o nome enviado precisa incluir o host.
+  //
+  // Imutabilidade preservada: a tag publicada pelo workflow E o source SHA, e o
+  // digest autorizado continua sendo verificado ANTES do deploy
+  // (`verifyPublishedDigest`: manifest da tag precisa resolver exatamente para
+  // `expectedDigest`, e o worker herda o digest da API). A tag por SHA nunca e
+  // reescrita com conteudo diferente porque cada SHA e um build distinto.
+  const parseImage = (name, image) => {
+    const at = image.lastIndexOf('@');
+    const repository = image.slice(0, at);
+    const digest = image.slice(at + 1);
+    if (!repository.includes('/')) {
+      throw new DeployRefusedError(`${name}: repository sem host de registry: ${repository}`);
+    }
+    return { repository, digest };
+  };
+
+  const apiParts = parseImage('images.api', apiImage);
+  const webParts = parseImage('images.web', webImage);
+
   return [
     {
       key: 'api',
       uuid: apps.api,
-      image: apiImage,
+      repository: apiParts.repository,
+      tag: sourceSha,
+      expectedDigest: apiParts.digest,
       healthPath: payload.runtime?.api?.healthPath,
       startCommand: null, // herda o CMD do Dockerfile runtime-only
     },
     {
       key: 'worker',
       uuid: apps.worker,
-      image: workerImage,
+      repository: apiParts.repository,
+      tag: sourceSha,
+      expectedDigest: apiParts.digest, // MESMO digest da API
       healthPath: null,
       startCommand: workerCommand.join(' '),
     },
     {
       key: 'web',
       uuid: apps.web,
-      image: webImage,
+      repository: webParts.repository,
+      tag: sourceSha,
+      expectedDigest: webParts.digest,
       healthPath: payload.runtime?.web?.healthPath,
       startCommand: null, // nginx do Dockerfile
     },
   ].map((entry) => ({ ...entry, sourceSha }));
-}
-
-function splitImage(image) {
-  const at = image.lastIndexOf('@');
-  return { repository: image.slice(0, at), digest: image.slice(at + 1) };
 }
 
 /** Cliente minimo da API oficial v1 do Coolify. */
@@ -147,19 +175,83 @@ export function createCoolifyClient({ baseUrl, token, fetchImpl = fetch }) {
      * Aponta a aplicacao para uma imagem imutavel.
      * O Coolify separa nome do repositorio e tag; o digest vai como tag `@sha256:...`.
      */
-    pinImage: (uuid, image) => {
-      const { repository, digest } = splitImage(image);
-      const body = {
-        docker_registry_image_name: repository.replace(/^ghcr\.io\//, ''),
-        docker_registry_image_tag: `@${digest}`,
-      };
-      return call(`/applications/${uuid}`, { method: 'PATCH', body });
+    pinImage: (uuid, { repository, tag }) => {
+      if (!repository.includes('/')) {
+        throw new DeployRefusedError(`repository sem host de registry: ${repository}`);
+      }
+      if (!SHA_RE.test(tag)) {
+        throw new DeployRefusedError(`tag de deploy precisa ser o source SHA: ${tag}`);
+      }
+      return call(`/applications/${uuid}`, {
+        method: 'PATCH',
+        body: {
+          docker_registry_image_name: repository,
+          docker_registry_image_tag: tag,
+        },
+      });
     },
     /** Define o processo que a aplicacao executa (worker != CMD do Dockerfile). */
     setStartCommand: (uuid, startCommand) =>
       call(`/applications/${uuid}`, { method: 'PATCH', body: { start_command: startCommand } }),
     deploy: (uuid) => call(`/deploy?uuid=${uuid}`, { method: 'POST' }),
     deployment: (uuid) => call(`/deployments/${uuid}`),
+  };
+}
+
+/**
+ * Provenance ANTES do deploy: o manifest da tag `<repository>:<sourceSha>` precisa
+ * resolver exatamente para `expectedDigest`.
+ *
+ * Existe porque o Coolify so aceita tag (nao digest). Assim a imutabilidade nao e
+ * abandonada: ela e verificada no registry antes de o runtime ser tocado. Se a tag
+ * apontar para outro digest, o deploy e reprovado sem efeito.
+ */
+export async function verifyPublishedDigest(plan, resolveManifestDigest) {
+  const checked = new Map();
+  for (const step of plan) {
+    const key = `${step.repository}:${step.tag}`;
+    let digest = checked.get(key);
+    if (digest === undefined) {
+      digest = await resolveManifestDigest(step.repository, step.tag);
+      if (!digest) {
+        throw new DeployRefusedError(`manifest ausente para ${key}`);
+      }
+      digest = String(digest).trim().toLowerCase();
+      checked.set(key, digest);
+    }
+    if (digest !== step.expectedDigest) {
+      throw new DeployRefusedError(
+        `${key} resolve para ${digest}, mas o payload autoriza ${step.expectedDigest}`,
+      );
+    }
+  }
+  return plan;
+}
+
+/** Resolve o digest real da tag no GHCR usando apenas manifest anonimo. */
+export function createGhcrDigestResolver({ fetchImpl = fetch } = {}) {
+  return async function resolveManifestDigest(repository, tag) {
+    const [host, ...rest] = repository.split('/');
+    const path = rest.join('/');
+    const tokenResponse = await fetchImpl(
+      `https://${host}/token?scope=repository:${path}:pull&service=${host}`,
+    );
+    if (!tokenResponse.ok) {
+      throw new DeployRefusedError(`token GHCR negado para ${repository}`);
+    }
+    const { token } = await tokenResponse.json();
+    const manifestResponse = await fetchImpl(`https://${host}/v2/${path}/manifests/${tag}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept:
+          'application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json,application/vnd.docker.distribution.manifest.v2+json',
+      },
+    });
+    if (!manifestResponse.ok) {
+      return null;
+    }
+    // O digest da tag e o cabecalho Docker-Content-Digest (o corpo e o manifest).
+    return manifestResponse.headers.get('docker-content-digest');
   };
 }
 
@@ -195,11 +287,19 @@ function defaultSleep(ms) {
  * `onStep` permite narrar progresso sem acoplar ao console.
  */
 export async function runDeployPlan(plan, client, options = {}) {
-  const { timeoutMs, intervalMs, sleep, onStep = () => {} } = options;
+  const { timeoutMs, intervalMs, sleep, onStep = () => {}, resolveManifestDigest } = options;
+
+  // Provenance ANTES de tocar o runtime: tag -> digest precisa bater com o payload.
+  if (resolveManifestDigest) {
+    onStep('[coolify-deploy] verificando digests publicados no GHCR');
+    await verifyPublishedDigest(plan, resolveManifestDigest);
+    onStep('[coolify-deploy] digests conferem com o payload autorizado');
+  }
+
   const results = [];
   for (const step of plan) {
-    onStep(`[coolify-deploy] ${step.key}: fixando imagem ${step.image}`);
-    await client.pinImage(step.uuid, step.image);
+    onStep(`[coolify-deploy] ${step.key}: fixando ${step.repository}:${step.tag}`);
+    await client.pinImage(step.uuid, { repository: step.repository, tag: step.tag });
 
     if (step.startCommand) {
       onStep(`[coolify-deploy] ${step.key}: start_command = ${step.startCommand}`);
@@ -219,7 +319,14 @@ export async function runDeployPlan(plan, client, options = {}) {
       intervalMs,
       sleep,
     });
-    results.push({ key: step.key, deploymentUuid, status: finished?.status ?? 'unknown' });
+    results.push({
+      key: step.key,
+      deploymentUuid,
+      status: finished?.status ?? 'unknown',
+      repository: step.repository,
+      tag: step.tag,
+      digest: step.expectedDigest,
+    });
     onStep(`[coolify-deploy] ${step.key}: ${finished?.status} confirmado`);
   }
   return results;
@@ -248,6 +355,9 @@ async function runCli() {
   const results = await runDeployPlan(plan, client, {
     timeoutMs: Number(process.env.COOLIFY_DEPLOY_TIMEOUT_MS ?? 600_000),
     onStep: (message) => console.log(message),
+    // Provenance: confirma que cada tag resolve para o digest autorizado antes
+    // de qualquer efeito no runtime.
+    resolveManifestDigest: createGhcrDigestResolver(),
   });
 
   console.log(`[coolify-deploy] concluido ${JSON.stringify(results)}`);
