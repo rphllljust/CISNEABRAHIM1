@@ -218,11 +218,9 @@ jobs:
           --health-timeout 5s
           --health-retries 12
     env:
-      # BANCO EXCLUSIVO DESTE SHARD. O sufixo vem do proprio `matrix.shard` reduzido a digitos
-      # (`1/4` -> `1`), de modo que dois shards JAMAIS compartilham nome de database.
-      INTEGRATION_DATABASE_NAME: cisne_ci_integration_s${{ replace(matrix.shard, '/', '') }}
-      TEST_DATABASE_URL: postgresql://cisne_ci:cisne_ci_disposable_password@localhost:5432/cisne_ci_integration_s${{ replace(matrix.shard, '/', '') }}
-      INTEGRATION_SHARD: ${{ matrix.shard }}
+      POSTGRES_USER: cisne_ci
+      POSTGRES_PASSWORD: cisne_ci_disposable_password
+      POSTGRES_DB: cisne_ci
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -244,15 +242,39 @@ jobs:
             turbo-${{ runner.os }}-integration-${{ matrix.shard }}-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
+      # ───────────────────────────────────────────────────────────────────────────────────────
+      # `matrix` NO `env:` DO STEP, NAO NO `env:` DO JOB
+      # ───────────────────────────────────────────────────────────────────────────────────────
+      #
+      # CAUSA RAIZ MEDIDA (run 39721011312): o run falhou SEM instanciar job nenhum —
+      # `jobs: []`, `gh run view` dizendo "This run likely failed because of a workflow file
+      # issue". O GitHub rejeitou o workflow inteiro na validacao.
+      #
+      # O defeito era declarar `env:` de NIVEL DE JOB com `matrix.*`:
+      #
+      #     env:                                     # <- escopo de JOB
+      #       TEST_DATABASE_URL: ...s${{ matrix.shard }}
+      #
+      # `matrix` nao existe no contexto de `env:` de job: ele so e materializado quando o job
+      # entra em execucao, por shard. O `origin/main` usa `matrix.*` apenas em `name`,
+      # `cache.key` e `run` — contextos onde o valor ja e o do shard corrente.
+      #
+      # Correcao MINIMA: os valores descem para o `env:` dos STEPS que os consomem, onde
+      # `matrix` e valido. Nenhum nome de database, nenhum shard e nenhuma estrategia mudou.
       - name: Create disposable integration database
         env:
           PGPASSWORD: cisne_ci_disposable_password
+          INTEGRATION_DATABASE_NAME: cisne_ci_integration_s${{ replace(matrix.shard, '/', '') }}
         run: |
           psql -h localhost -U cisne_ci -d cisne_ci -v ON_ERROR_STOP=1 <<SQL
           SELECT format('CREATE DATABASE %I OWNER %I', '${INTEGRATION_DATABASE_NAME}', 'cisne_ci')
           WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${INTEGRATION_DATABASE_NAME}')\gexec
           SQL
       - name: Integration tests (shard)
+        env:
+          INTEGRATION_DATABASE_NAME: cisne_ci_integration_s${{ replace(matrix.shard, '/', '') }}
+          TEST_DATABASE_URL: postgresql://cisne_ci:cisne_ci_disposable_password@localhost:5432/cisne_ci_integration_s${{ replace(matrix.shard, '/', '') }}
+          INTEGRATION_SHARD: ${{ matrix.shard }}
         run: pnpm test:integration
 
   # NOME ESTAVEL: cada shard precisa passar antes deste check ficar verde.
