@@ -2,10 +2,10 @@
   "name": "cisne-rondonia",
   "version": "0.0.0",
   "private": true,
-  "packageManager": "pnpm@9.15.9",
+  "packageManager": "pnpm@10.34.7",
   "engines": {
     "node": ">=24.0.0 <25.0.0",
-    "pnpm": ">=9.0.0 <10.0.0"
+    "pnpm": ">=10.0.0 <11.0.0"
   },
   "pnpm": {
     "overrides": {
