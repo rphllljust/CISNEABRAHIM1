@@ -1,4 +1,4 @@
-﻿# CI Execution Plane — GitHub-hosted
+# CI Execution Plane — GitHub-hosted
 
 Este documento cobre **onde o CI executa** e **por que**. Para a estrutura do monorepo, ver
 [`../17-bootstrap/repository-structure.md`](../17-bootstrap/repository-structure.md).
@@ -123,6 +123,39 @@ Instrumento: `node scripts/ci/benchmark-workers.mjs` (lê `artifacts/bench/w<N>-
 
 Benchmark **decide política**; o CI normal executa o vencedor. Rodar 3 e 4 em cada PR duplicaria
 custo sem produzir informação nova.
+
+#### Resultado do benchmark 3 vs 4 — REPROVADO
+
+Run `39882592182` (branch `perf/integration-4-workers`), mesmo commit base, mesma runner class,
+mesmo PostgreSQL. Limite pré-registrado **antes** do teste: `0,90 × mediana(T3)`.
+
+| Config | `Integration` |
+| --- | --- |
+| T3 (3 workers) | 644 / 593 / 513 s → mediana **593 s** |
+| T4 (4 workers) | **608 s** |
+| Limite para vencer | **533,7 s** |
+
+**4 workers não só não venceu: ficou 15 s mais lento.** Política permanece `3`.
+
+##### Por que — medido, não suposto
+
+A hipótese inicial ("round-trips de limpeza dominam o custo") foi **testada e refutada** em banco
+clonado do schema real de produção (312 tabelas via `pg_dump --schema-only` + restore em banco
+descartável), não em estimativa:
+
+| Medida | Custo |
+| --- | --- |
+| round-trip Postgres local | 0,31 ms |
+| `beforeEach` inteiro (8 truncates + 26 deletes) | 59,1 ms |
+| 26 `DELETE`s de `truncateServiceOrderTables` | 8,5 ms |
+| `TRUNCATE TABLE` listado (alternativa) | **144,8 ms** |
+
+O `beforeEach` explica **3,0%** dos ~2000 ms por `it()`. E trocar os 26 `DELETE`s por um `TRUNCATE`
+listado é **17× mais lento** (`ACCESS EXCLUSIVE` + checkpoint/WAL, com tabelas já vazias).
+
+Conclusão que orienta o trabalho seguinte: o custo do `Integration` é **CPU-bound**. Os 4 vCPU de
+`ubuntu-latest` já estão saturados de trabalho real de teste, então um 4º processo só disputa CPU.
+**Não há ociosidade de CPU a recuperar**; o ganho tem de vir do corpo dos specs, não da topologia.
 
 ## Scheduler LPT
 
