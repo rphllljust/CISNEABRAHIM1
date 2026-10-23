@@ -309,3 +309,33 @@ test('modulo inacessivel nao entra em visible', async()=>{
     assert.match(String(error.message),/finance/);
   }
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// CONTRATO DA SONDA — MODULE_ENTRY_READS precisa espelhar surface-access.ts.
+//
+// DEFEITO MEDIDO (release 40039709574): a sonda usava `routes` do module-registry, que sao
+// PREFIXOS DECLARATIVOS e nao endpoints. `/api/v1/finance` nao existe: os controllers
+// registram `finance/receivables`, `finance/budgets` etc., sem @Get() na raiz. Resultado:
+// 7 modulos reprovados com 404 por defeito da SONDA, enquanto `people` passava porque tem
+// @Get() raiz. Este teste impede que a sonda volte a divergir do que o menu realmente chama.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+test('MODULE_ENTRY_READS cobre todos os modulos construidos e usa rota de sub-caminho', async()=>{
+  const {readFileSync}=await import('node:fs');
+  const source=readFileSync(new URL('./coolify-postdeploy-smoke.mjs',import.meta.url),'utf8');
+  const block=source.slice(source.indexOf('MODULE_ENTRY_READS'),source.indexOf('};',source.indexOf('MODULE_ENTRY_READS')));
+  const entries=[...block.matchAll(/'?([a-z-]+)'?:\s*'(\/api\/v1\/[^']+)'/g)].map((m)=>[m[1],m[2]]);
+  const map=Object.fromEntries(entries);
+
+  // Todo modulo construido precisa de sonda: habilitado sem sonda = nao provado.
+  for(const moduleCode of ['finance','accounting','fiscal','inventory','payroll','procurement','suppliers','contracts','people','alerts','reports','approval-matrix','operational-profitability']){
+    assert.ok(map[moduleCode],`${moduleCode} sem sonda de leitura declarada`);
+  }
+
+  // A rota precisa ser endpoint real, nao o prefixo do registry: ao menos 3 segmentos.
+  for(const [moduleCode,route] of Object.entries(map)){
+    const path=route.split('?')[0];
+    const segments=path.split('/').filter(Boolean);
+    assert.ok(segments.length>=3,`${moduleCode}: '${route}' parece prefixo declarativo, nao endpoint real`);
+  }
+});

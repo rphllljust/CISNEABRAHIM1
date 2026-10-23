@@ -13,6 +13,35 @@ const SHA_RE = /^[0-9a-f]{40}$/i;
  */
 const STUB_MODULE_CODES = new Set(['rentals', 'transport']);
 
+/**
+ * ROTA DE LEITURA REAL POR MODULO — a sonda que o MENU usa.
+ *
+ * POR QUE NAO USAR `routes` DO REGISTRY (defeito medido no release 40039709574):
+ *
+ * Os `routes` do module-registry sao PREFIXOS DECLARATIVOS (metadata de gate), nao
+ * endpoints. `/api/v1/finance` nao existe como rota: os controllers registram
+ * `finance/receivables`, `finance/budgets` etc., sem `@Get()` na raiz. Sondar o prefixo
+ * devolvia 404 em 7 modulos e reprovava o deploy por defeito da SONDA, nao da producao.
+ *
+ * A fonte correta e `apps/web/src/shell/surface-access.ts` (SURFACE_ENTRY_READS), que e
+ * literalmente o que `useNavAccess` chama para decidir se o item aparece no menu.
+ */
+const MODULE_ENTRY_READS = {
+  finance: '/api/v1/finance/receivables?limit=1&offset=0',
+  accounting: '/api/v1/accounting/journals?limit=1&offset=0',
+  fiscal: '/api/v1/fiscal/documents?page=0&pageSize=1',
+  inventory: '/api/v1/inventory/items?limit=1&offset=0',
+  payroll: '/api/v1/payroll/periods?page=0&pageSize=1',
+  procurement: '/api/v1/procurement/requests?limit=1&offset=0',
+  suppliers: '/api/v1/suppliers?limit=1&offset=0',
+  contracts: '/api/v1/commercial/contracts?limit=1&offset=0',
+  people: '/api/v1/people?limit=1&offset=0',
+  alerts: '/api/v1/alerts?limit=1&offset=0',
+  reports: '/api/v1/reports?limit=1&offset=0',
+  'approval-matrix': '/api/v1/authz/approval-matrices?limit=1&offset=0',
+  'operational-profitability': '/api/v1/analytics/operational-profitability?limit=1&offset=0',
+};
+
 function required(name, value) {
   const normalized = String(value ?? '').trim();
   if (!normalized) throw new DeployRefusedError(`${name} ausente`);
@@ -286,63 +315,38 @@ export async function verifyProduction({
   // identidade autenticada do smoke. `enabled` no catalogo com rota que responde 403/404
   // FEATURE_DISABLED e exatamente a incoerencia que faz o menu mostrar item inutil.
   //
-  // TESTA TODAS AS ROTAS, NAO SO A PRIMEIRA.
+  // SONDAGEM DE ACESSO REAL — a MESMA rota que o menu usa (MODULE_ENTRY_READS).
   //
-  // DEFEITO QUE ISTO FECHA (medido em 2026-10-23): a versao anterior usava `routes[0]` e
-  // concatenava `?limit=1&offset=0` cegamente. Para modulo com varias rotas, a primeira pode
-  // nao ser a leitura de entrada que o menu usa; e para rota que JA tem query string a
-  // concatenacao produzia `...?unitId=x&limit=1?limit=1&offset=0`, URL invalida que nao prova
-  // nada. Efeito pratico: o smoke dizia PASS enquanto o operador nao via o menu.
+  // DEFEITOS QUE ISTO FECHA, os dois medidos em producao:
+  //
+  //  1. `visible=[]` no release abf17d39: o SUMMARY do registry nao traz `routes`.
+  //  2. 404 em 7 modulos no release 40039709574: os `routes` do registry sao PREFIXOS
+  //     declarativos. `/api/v1/finance` nao existe — so `finance/receivables` etc.
+  //     Sondar o prefixo reprovava o deploy por defeito da sonda, nao da producao.
+  //
+  // A sonda agora usa MODULE_ENTRY_READS, espelho de `surface-access.ts`, que e
+  // literalmente o que `useNavAccess` chama para decidir se o item entra no menu.
   const unreachable = [];
   const visible = [];
   for (const entry of enabled) {
-    // O SUMMARY (`GET /modules/registry`) NAO traz `routes` — so o DETAIL
-    // (`GET /modules/registry/:code`) traz. Ler `entry.routes` do summary devolve
-    // `undefined`, o loop pulava todo mundo e `visible` saia VAZIO mesmo com os 13
-    // modulos habilitados. Foi exatamente o que aconteceu no release abf17d39.
-    let routes = Array.isArray(entry?.routes) ? entry.routes.filter(Boolean) : [];
-    if (routes.length === 0) {
-      const detail = await fetchChecked(
-        fetchImpl,
-        `${apiUrl}/api/v1/modules/registry/${encodeURIComponent(String(entry.moduleCode))}`,
-        { method: 'GET', headers: authHeaders },
-        `module detail ${entry.moduleCode}`,
-      );
-      if (detail.ok) {
-        const body = await jsonSafe(detail);
-        if (Array.isArray(body?.routes)) routes = body.routes.filter(Boolean);
-      }
-    }
-    if (routes.length === 0) {
-      // Sem rota declarada nao ha o que sondar: reporta como nao provado, nunca como visivel.
-      unreachable.push(`${entry.moduleCode} [sem rota declarada no registry]`);
+    const moduleCode = String(entry?.moduleCode ?? '');
+    const route = MODULE_ENTRY_READS[moduleCode];
+    if (!route) {
+      // Modulo habilitado sem sonda declarada: NAO PROVADO, nunca "visivel".
+      unreachable.push(`${moduleCode} [sem sonda de leitura declarada em MODULE_ENTRY_READS]`);
       continue;
     }
 
-    // Basta UMA rota alcancavel para o modulo ser utilizavel pelo operador.
-    let reachable = false;
-    const failures = [];
-    for (const route of routes) {
-      // Respeita query pre-existente: usa '?' ou '&' conforme a rota.
-      const separator = route.includes('?') ? '&' : '?';
-      const probe = await fetchImpl(`${apiUrl}${route}${separator}limit=1&offset=0`, {
-        method: 'GET',
-        headers: authHeaders,
-      });
-      // 400/422 sao aceitaveis: a rota existe e autorizou, o contrato de query reclamou.
-      // 403/404/500 nao sao: significam superficie anunciada que o operador nao alcanca.
-      if ([403, 404, 500].includes(probe.status)) {
-        failures.push(`${route} -> HTTP ${probe.status}`);
-      } else {
-        reachable = true;
-        break;
-      }
-    }
-
-    if (!reachable) {
-      unreachable.push(`${entry.moduleCode} [${failures.join(', ')}]`);
+    const probe = await fetchImpl(`${apiUrl}${route}`, {
+      method: 'GET',
+      headers: authHeaders,
+    });
+    // 400/422 sao aceitaveis: a rota existe e autorizou, o contrato de query reclamou.
+    // 403/404/500 nao sao: significam superficie anunciada que o operador nao alcanca.
+    if ([403, 404, 500].includes(probe.status)) {
+      unreachable.push(`${moduleCode} (${route}) -> HTTP ${probe.status}`);
     } else {
-      visible.push(entry.moduleCode);
+      visible.push(moduleCode);
     }
   }
   if (unreachable.length > 0) {
