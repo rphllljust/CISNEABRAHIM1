@@ -17,6 +17,7 @@ export const RELEASE_INPUTS = [
   'packages/database/dist',
   'packages/database/migrations',
   'docker/release/nginx.conf',
+  'docker/release/security-headers.inc',
   'docker/release/runtime-config.js.template',
 ];
 
