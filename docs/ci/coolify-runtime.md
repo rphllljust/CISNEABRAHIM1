@@ -58,6 +58,14 @@ respectivas guardas:
 | `CORS_ORIGIN` ausente ou vazio | browser descarta a resposta | smoke exige `Access-Control-Allow-Origin` com `Origin` real |
 | `runtime-config.js` cacheavel | browser mantem config antiga apos o deploy | `nginx.conf` envia `no-store`; smoke exige o cabecalho |
 | variavel de ambiente ausente no Coolify | container sobe e nao serve | `requiredEnvironment` no payload + `verifyRequiredEnvironment` antes do deploy |
+| `PROD_SMOKE_PASSWORD` divergente do perfil em producao | release falha com 401 depois do deploy | rodar o smoke localmente antes de mergear mudanca de credencial |
+
+A ultima linha e erro de operacao, nao de arquitetura: ao rotacionar as senhas dos perfis,
+o secret `PROD_SMOKE_PASSWORD` precisa ser atualizado na MESMA janela. O release de
+`632a129e` falhou com `login smoke falhou: HTTP 401` exatamente por isso — o deploy havia
+concluido (`status: finished` nos tres apps, com SHA e digest corretos) e a falha veio
+depois, no smoke. O gate funcionou: barrou a promocao de um release cuja credencial de
+verificacao estava obsoleta.
 
 `requiredEnvironment` e **executado**, nao apenas declarado: o deploy recusa
 variavel ausente, vazia ou duplicada em producao. O Coolify guarda duas entradas
