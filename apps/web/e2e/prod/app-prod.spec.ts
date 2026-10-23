@@ -26,8 +26,8 @@ test.describe('produção /app', () => {
     }
 
     await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
-    await page.getByLabel(/^usuário/i).fill(USER!);
-    await page.getByLabel(/^senha/i).fill(PASSWORD!);
+    await page.getByLabel(/^usuário/i).fill(USER);
+    await page.getByLabel(/^senha/i).fill(PASSWORD);
     await page.getByRole('button', { name: /^entrar/i }).click();
     await page.waitForURL(/\/app/, { timeout: 60_000 });
     await page.waitForLoadState('networkidle').catch(() => undefined);
