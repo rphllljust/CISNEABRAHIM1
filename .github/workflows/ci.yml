@@ -327,8 +327,24 @@ jobs:
           # POLITICA DE CONCORRENCIA — EXPLICITA, NAO DERIVADA DO HOST
           #
           # Default 3 (medido e validado no run 39794404313: 114/114 specs, 3 workers,
-          # desequilibrio de 3,1%, zero swap). O valor 4 so vira padrao apos benchmark
-          # controlado conforme docs/ci/execution-plane.md.
+          # desequilibrio de 3,1%, zero swap).
+          #
+          # 4 WORKERS FOI TESTADO E REPROVADO (run 39882592182, PR #78). Nao retente sem
+          # mudar a premissa. Resultado medido, com limite pre-registrado ANTES do teste:
+          #   T3 (3 workers): 644 / 593 / 513 s  -> mediana 593 s
+          #   T4 (4 workers): 608 s
+          #   limite para vencer: 0,90 x 593 = 533,7 s  -> REPROVADO (608 > 533,7)
+          # Nao so nao ganhou: ficou 15 s MAIS LENTO que a mediana de 3 workers.
+          #
+          # A causa esta medida, nao suposta — o custo do Integration e CPU-bound, sobra zero
+          # ociosidade de CPU em `ubuntu-latest` (4 vCPU) para um 4o processo consumir.
+          # Medicoes em banco clonado do schema real (312 tabelas), nao em estimativa:
+          #   - round-trip Postgres local                   = 0,31 ms
+          #   - beforeEach inteiro (8 trunc + 26 deletes)   = 59,1 ms = 3,0% dos ~2000 ms por it()
+          #   - os 26 DELETEs de truncateServiceOrderTables = 8,5 ms
+          #   - TRUNCATE listado (alternativa testada)      = 144,8 ms — 17x MAIS LENTO
+          # Ou seja: nem I/O de banco nem limpeza explicam o tempo, logo paralelizar mais nao
+          # ajuda. O ganho tem de vir do CORPO dos specs, nao da topologia de execucao.
           #
           # NAO derive de `os.availableParallelism()`: isso confunde METRICA com POLITICA e faz
           # o comportamento mudar conforme o host escolhido pelo scheduler.
