@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   harden:
-    name: Enforce HTTPS / redirects / redaction
+    name: Enforce HTTPS / redirects
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20

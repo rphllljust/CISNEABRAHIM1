@@ -113,17 +113,10 @@ export function buildTlsCutoverPlan({
     api: {
       domains: rawDomains(api, 'api'),
       forceHttps: Boolean(api?.is_force_https_enabled),
-      permanentRedirect: Boolean(api?.is_permanent_redirect_enabled),
-      redaction: Boolean(api?.redact_all_env_values_in_logs),
     },
     web: {
       domains: rawDomains(web, 'web'),
       forceHttps: Boolean(web?.is_force_https_enabled),
-      permanentRedirect: Boolean(web?.is_permanent_redirect_enabled),
-      redaction: Boolean(web?.redact_all_env_values_in_logs),
-    },
-    worker: {
-      redaction: Boolean(worker?.redact_all_env_values_in_logs),
     },
     env: {
       cors: currentCors,
@@ -136,11 +129,8 @@ export function buildTlsCutoverPlan({
     webDomains: normalizeBase(original.web.domains) !== normalizeBase(desiredDomains.web),
     cors: currentCors.value !== desiredCors,
     publicApi: normalizeBase(currentPublicApi.value) !== desiredPublicApi,
-    apiFlags:
-      !original.api.forceHttps || !original.api.permanentRedirect || !original.api.redaction,
-    webFlags:
-      !original.web.forceHttps || !original.web.permanentRedirect || !original.web.redaction,
-    workerRedaction: !original.worker.redaction,
+    apiForceHttps: !original.api.forceHttps,
+    webForceHttps: !original.web.forceHttps,
   };
 
   return {
@@ -253,32 +243,20 @@ async function applyDesired(plan, client, uuids) {
   }
 
   const appOps = [];
-  if (plan.changed.apiDomains || plan.changed.apiFlags) {
+  if (plan.changed.apiDomains || plan.changed.apiForceHttps) {
     appOps.push(
       patchApplication(client, uuids.api, {
         domains: plan.desired.apiDomains,
         is_force_https_enabled: true,
-        is_permanent_redirect_enabled: true,
-        redact_all_env_values_in_logs: true,
       }),
     );
     mutationCount += 1;
   }
-  if (plan.changed.webDomains || plan.changed.webFlags) {
+  if (plan.changed.webDomains || plan.changed.webForceHttps) {
     appOps.push(
       patchApplication(client, uuids.web, {
         domains: plan.desired.webDomains,
         is_force_https_enabled: true,
-        is_permanent_redirect_enabled: true,
-        redact_all_env_values_in_logs: true,
-      }),
-    );
-    mutationCount += 1;
-  }
-  if (plan.changed.workerRedaction) {
-    appOps.push(
-      patchApplication(client, uuids.worker, {
-        redact_all_env_values_in_logs: true,
       }),
     );
     mutationCount += 1;
@@ -293,18 +271,10 @@ async function rollback(plan, client, uuids, options) {
     patchApplication(client, uuids.api, {
       domains: plan.original.api.domains,
       is_force_https_enabled: plan.original.api.forceHttps,
-      is_permanent_redirect_enabled: plan.original.api.permanentRedirect,
-      // Redaction fica ligada mesmo no rollback: nao depende do cutover TLS.
-      redact_all_env_values_in_logs: true,
     }),
     patchApplication(client, uuids.web, {
       domains: plan.original.web.domains,
       is_force_https_enabled: plan.original.web.forceHttps,
-      is_permanent_redirect_enabled: plan.original.web.permanentRedirect,
-      redact_all_env_values_in_logs: true,
-    }),
-    patchApplication(client, uuids.worker, {
-      redact_all_env_values_in_logs: true,
     }),
     replaceProductionEnvironment(
       client,
@@ -346,10 +316,9 @@ async function waitForTlsReady({
         `TLS nao ficou pronto em ${timeoutMs}ms: ${JSON.stringify({
           httpsConfigured: last.httpsConfigured,
           certificateValid: last.certificateValid,
-          permanentRedirects: last.permanentRedirects,
+          httpRedirects: last.httpRedirects,
           hsts: last.hsts,
           env: last.env,
-          redaction: last.coolify,
         })}`,
       );
     }

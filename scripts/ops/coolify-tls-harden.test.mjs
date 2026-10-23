@@ -46,7 +46,6 @@ test('plano promove dominios e envs HTTP para HTTPS no mesmo SHA', () => {
   assert.equal(plan.desired.corsOrigin, 'https://app.example.test');
   assert.equal(plan.desired.publicApiUrl, 'https://api.example.test');
   assert.equal(plan.runtimeRestartRequired, true);
-  assert.equal(plan.changed.workerRedaction, true);
 });
 
 test('plano seguro e idempotente nao exige restart', () => {
@@ -148,7 +147,7 @@ function mutableClient() {
   };
 }
 
-test('hardening aplica HTTPS/redaction, redeploya e executa smoke', async () => {
+test('hardening aplica HTTPS somente com campos suportados, redeploya e executa smoke', async () => {
   const client = mutableClient();
   let smokeCalls = 0;
   const result = await hardenProductionTls({
@@ -175,7 +174,6 @@ test('hardening aplica HTTPS/redaction, redeploya e executa smoke', async () => 
   assert.equal(result.runtimeRestarted, true);
   assert.equal(client.apps.api.fqdn, 'https://api.example.test');
   assert.equal(client.apps.web.fqdn, 'https://app.example.test');
-  assert.equal(client.apps.worker.redact_all_env_values_in_logs, true);
   assert.equal(client.envs.api[0].real_value, 'https://app.example.test');
   assert.equal(client.envs.web[0].real_value, 'https://api.example.test');
   assert.equal(smokeCalls, 1);
@@ -185,9 +183,16 @@ test('hardening aplica HTTPS/redaction, redeploya e executa smoke', async () => 
     client.calls.some((entry) => entry.method === 'PATCH' && /\/envs$/.test(entry.path)),
     false,
   );
+  const applicationPatches = client.calls.filter(
+    (entry) => entry.method === 'PATCH' && /^\/applications\/[^/]+$/.test(entry.path),
+  );
+  for (const patch of applicationPatches) {
+    assert.equal('redact_all_env_values_in_logs' in patch.body, false);
+    assert.equal('is_permanent_redirect_enabled' in patch.body, false);
+  }
 });
 
-test('falha de TLS restaura domains/env e preserva redaction', async () => {
+test('falha de TLS restaura domains/env usando somente campos suportados', async () => {
   const client = mutableClient();
   await assert.rejects(
     () =>
@@ -217,7 +222,6 @@ test('falha de TLS restaura domains/env e preserva redaction', async () => {
   assert.equal(client.apps.web.fqdn, 'http://app.example.test');
   assert.equal(client.envs.api[0].real_value, 'http://app.example.test');
   assert.equal(client.envs.web[0].real_value, 'http://api.example.test');
-  assert.equal(client.apps.api.redact_all_env_values_in_logs, true);
   assert.equal(client.deployments.length, 4);
 });
 

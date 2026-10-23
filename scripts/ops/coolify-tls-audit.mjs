@@ -195,15 +195,12 @@ export async function auditProductionTls({
     httpsConfigured.web &&
     certificateValid.api &&
     certificateValid.web &&
-    permanentRedirects.api &&
-    permanentRedirects.web &&
+    httpRedirects.api &&
+    httpRedirects.web &&
     envCoherence.corsOrigin &&
     envCoherence.publicApiUrl &&
     apiHttps.hsts &&
-    webHttps.hsts &&
-    logRedaction.api &&
-    logRedaction.web &&
-    logRedaction.worker;
+    webHttps.hsts;
 
   return {
     sourceSha: expectedSha,
@@ -214,6 +211,7 @@ export async function auditProductionTls({
     },
     httpsConfigured,
     certificateValid,
+    httpRedirects,
     permanentRedirects,
     hsts: { api: apiHttps.hsts, web: webHttps.hsts },
     env: {
@@ -257,7 +255,7 @@ async function main() {
 
   console.log(`[tls-audit] ${JSON.stringify(result)}`);
   if (!result.readyForHttpsOnly) {
-    throw new DeployRefusedError('producao nao esta em HTTPS-only com redirect, HSTS, env coerente e log redaction');
+    throw new DeployRefusedError('producao nao esta em HTTPS-only com redirect HTTP->HTTPS, HSTS e env coerente');
   }
 }
 
