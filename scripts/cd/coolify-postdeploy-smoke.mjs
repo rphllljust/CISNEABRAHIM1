@@ -234,17 +234,34 @@ export async function verifyProduction({
     if (!response.ok) throw new DeployRefusedError(`${label}: HTTP ${response.status}`);
   }
 
+  // ───────────────────────────────────────────────────────────────────────────────────────────
+  // LOGS: a janela precisa cobrir a INICIALIZACAO, nao so o presente.
+  // ───────────────────────────────────────────────────────────────────────────────────────────
+  //
+  // DEFEITO MEDIDO (release 513e2d5c): `MIGRATIONS OK: applied=0 total=104` era emitida na
+  // LINHA 1 do log do container, e o smoke lia `lines=200` de um log de 568 linhas. A prova
+  // existia e ficava fora da janela — o deploy era recusado por "migrations: log da API nao
+  // confirmou MIGRATIONS OK" mesmo tendo migrado com sucesso.
+  //
+  // Uma janela fixa e uma aposta no volume de log, e o volume cresce com o trafego. Por isso
+  // a leitura e ampliada e o resultado reporta quantas linhas vieram, para que a proxima
+  // falha desse tipo seja diagnosticavel pela propria mensagem.
+  const LOG_LINES = 2000;
   const logPayloads = await Promise.all(
     Object.entries(uuids).map(async ([key, uuid]) => {
-      const payload = await client.call(`/applications/${uuid}/logs?lines=200&show_timestamps=true`);
+      const payload = await client.call(`/applications/${uuid}/logs?lines=${LOG_LINES}&show_timestamps=true`);
       return [key, logsText(payload)];
     }),
   );
 
   const logsByKey = Object.fromEntries(logPayloads);
+  const apiLogLines = String(logsByKey.api ?? '').split('\n').filter((l) => l.trim()).length;
   if (!/MIGRATIONS OK:\s*applied=\d+\s+total=\d+/i.test(logsByKey.api ?? '')) {
+    // Mensagem inclui o VOLUME lido: se o problema for a janela de log, o proximo a ler
+    // sabe disso sem investigar do zero.
     throw new DeployRefusedError(
-      'migrations: log da API nao confirmou MIGRATIONS OK para esta inicializacao',
+      `migrations: log da API nao confirmou MIGRATIONS OK para esta inicializacao ` +
+        `(lidas ${apiLogLines} linhas, limite ${LOG_LINES})`,
     );
   }
 
