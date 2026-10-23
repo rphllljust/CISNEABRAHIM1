@@ -19,15 +19,41 @@ const WEB_IMAGE = `ghcr.io/rphllljust/cisne-web@${WEB_DIGEST}`;
 
 const apps = { api: 'uuid-api', worker: 'uuid-worker', web: 'uuid-web' };
 
+/**
+ * Ambiente MINIMO valido no Coolify para o plano passar.
+ *
+ * Espelha o contrato real: a API precisa de `CORS_ORIGIN` (senao nao devolve
+ * Access-Control-Allow-Origin e o browser bloqueia o login) e o Web precisa de
+ * `CISNE_PUBLIC_API_URL` (senao o browser nao sabe para qual API chamar).
+ */
+const ENV_OK = {
+  'uuid-api': [
+    { key: 'CORS_ORIGIN', real_value: 'http://app.example.test' },
+    { key: 'JWT_SECRET', real_value: 'x'.repeat(40) },
+  ],
+  'uuid-web': [
+    { key: 'CISNE_PUBLIC_API_URL', real_value: 'http://api.example.test' },
+  ],
+};
+
 function payload(overrides = {}) {
   return {
     sourceSha: SHA,
     artifactDigest: `sha256:${'5'.repeat(64)}`,
     images: { api: API_IMAGE, worker: API_IMAGE, web: WEB_IMAGE },
     runtime: {
-      api: { healthPath: '/api/v1/health/ready', command: ['node', 'apps/api/dist/main.js'] },
+      api: {
+        healthPath: '/api/v1/health/ready',
+        command: ['node', 'apps/api/dist/main.js'],
+        // Espelha o payload real: sem CORS_ORIGIN a API nao autoriza a origem do Web.
+        requiredEnvironment: ['CORS_ORIGIN'],
+      },
       worker: { command: ['node', 'apps/api/dist/worker/main.js'] },
-      web: { healthPath: '/health' },
+      web: {
+        healthPath: '/health',
+        // Espelha o payload real: o Web precisa saber para qual API o browser deve chamar.
+        requiredEnvironment: ['CISNE_PUBLIC_API_URL'],
+      },
     },
     ...overrides,
   };
@@ -202,6 +228,7 @@ test('orquestra api -> worker -> web e devolve deployment uuid + digest', async 
       events.push(['poll', uuid]);
       return { status: 'finished' };
     },
+    listEnvironment: async (uuid) => ENV_OK[uuid] ?? [],
   };
 
   const plan = buildDeployPlan(payload(), apps);
@@ -227,6 +254,7 @@ test('runDeployPlan verifica provenance antes de pinar quando recebe o resolvedo
       return { deployments: [{ deployment_uuid: 'dep' }] };
     },
     deployment: async () => ({ status: 'finished' }),
+    listEnvironment: async (uuid) => ENV_OK[uuid] ?? [],
   };
   await runDeployPlan(buildDeployPlan(payload(), apps), client, {
     timeoutMs: 500,
@@ -245,12 +273,133 @@ test('runDeployPlan recusa quando o Coolify nao devolve deployment_uuid', async 
     setStartCommand: async () => undefined,
     deploy: async () => ({}),
     deployment: async () => ({ status: 'finished' }),
+    listEnvironment: async () => [],
   };
   await assert.rejects(
     () => runDeployPlan(buildDeployPlan(payload(), apps), client, { timeoutMs: 500 }),
     DeployRefusedError,
   );
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// CONTRATO DE AMBIENTE — `requiredEnvironment` precisa ser EXECUTADO, nao apenas declarado.
+//
+// O payload declarava `CORS_ORIGIN` (api) e `CISNE_PUBLIC_API_URL` (web) desde o inicio, e
+// nada no caminho de deploy lia o campo. O incidente de producao provou o custo: containers
+// saudaveis, `/health/ready` verde, `restarts=0`, e a tela de login dizendo "Nao foi possivel
+// conectar ao servidor". Estes testes travam a transformacao do campo em contrato fail-closed.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+function clientComEnv(envsByUuid) {
+  return {
+    pinImage: async () => undefined,
+    setStartCommand: async () => undefined,
+    deploy: async () => ({ deployments: [{ deployment_uuid: 'dep' }] }),
+    deployment: async () => ({ status: 'finished' }),
+    listEnvironment: async (uuid) => envsByUuid[uuid] ?? [],
+  };
+}
+
+test('recusa deploy quando variavel obrigatoria esta ausente no Coolify', async () => {
+  // Sem CORS_ORIGIN a API nao devolve Access-Control-Allow-Origin e o browser bloqueia.
+  const client = clientComEnv({
+    'uuid-api': [{ key: 'JWT_SECRET', real_value: 'x'.repeat(40) }],
+    'uuid-web': ENV_OK['uuid-web'],
+  });
+  await assert.rejects(
+    () => runDeployPlan(buildDeployPlan(payload(), apps), client, { timeoutMs: 500 }),
+    /variavel obrigatoria ausente: CORS_ORIGIN/,
+  );
+});
+
+test('recusa deploy quando variavel obrigatoria esta vazia', async () => {
+  // Variavel presente com valor vazio tem o mesmo efeito pratico de ausente: a lista de
+  // origens permitidas fica vazia e todo login pelo browser falha.
+  const client = clientComEnv({
+    'uuid-api': [{ key: 'CORS_ORIGIN', real_value: '   ' }],
+    'uuid-web': ENV_OK['uuid-web'],
+  });
+  await assert.rejects(
+    () => runDeployPlan(buildDeployPlan(payload(), apps), client, { timeoutMs: 500 }),
+    /variavel obrigatoria vazia: CORS_ORIGIN/,
+  );
+});
+
+test('recusa deploy quando variavel esta duplicada (ambiguidade de runtime)', async () => {
+  // A API v1 do Coolify nao tem PATCH: recriar exige DELETE + POST. Sem conferir
+  // cardinalidade sobram duas entradas de PRODUCAO com a mesma chave e nao ha como
+  // saber qual valor o container recebe.
+  const client = clientComEnv({
+    'uuid-api': [
+      { key: 'CORS_ORIGIN', real_value: 'http://antigo.example.test', is_preview: false },
+      { key: 'CORS_ORIGIN', real_value: 'http://app.example.test', is_preview: false },
+    ],
+    'uuid-web': ENV_OK['uuid-web'],
+  });
+  await assert.rejects(
+    () => runDeployPlan(buildDeployPlan(payload(), apps), client, { timeoutMs: 500 }),
+    /variavel duplicada \(2x\) no Coolify: CORS_ORIGIN/,
+  );
+});
+
+test('ignora a entrada de preview ao contar variaveis', async () => {
+  // O Coolify guarda DUAS entradas por variavel: producao (`is_preview: false`) e preview
+  // (`is_preview: true`). Somente a de producao e injetada no container de producao.
+  // Contar as duas reprovaria TODA variavel -- falso positivo medido contra a API real.
+  const client = clientComEnv({
+    'uuid-api': [
+      { key: 'CORS_ORIGIN', real_value: 'http://app.example.test', is_preview: false },
+      { key: 'CORS_ORIGIN', real_value: 'http://app.example.test', is_preview: true },
+    ],
+    'uuid-web': [
+      { key: 'CISNE_PUBLIC_API_URL', real_value: 'http://api.example.test', is_preview: false },
+      { key: 'CISNE_PUBLIC_API_URL', real_value: 'http://api.example.test', is_preview: true },
+    ],
+  });
+  const results = await runDeployPlan(buildDeployPlan(payload(), apps), client, { timeoutMs: 500 });
+  assert.deepEqual(results.map((r) => r.key), ['api', 'worker', 'web']);
+});
+
+test('recusa deploy quando CISNE_PUBLIC_API_URL do Web esta ausente', async () => {
+  const client = clientComEnv({
+    'uuid-api': ENV_OK['uuid-api'],
+    'uuid-web': [],
+  });
+  await assert.rejects(
+    () => runDeployPlan(buildDeployPlan(payload(), apps), client, { timeoutMs: 500 }),
+    /variavel obrigatoria ausente: CISNE_PUBLIC_API_URL/,
+  );
+});
+
+test('ambiente completo e aceito e o deploy prossegue', async () => {
+  const client = clientComEnv(ENV_OK);
+  const results = await runDeployPlan(buildDeployPlan(payload(), apps), client, { timeoutMs: 500 });
+  assert.deepEqual(results.map((r) => r.key), ['api', 'worker', 'web']);
+});
+
+test('verificacao de ambiente roda ANTES de pinar qualquer imagem', async () => {
+  const order = [];
+  const client = {
+    pinImage: async () => order.push('pin'),
+    setStartCommand: async () => order.push('start'),
+    deploy: async () => {
+      order.push('deploy');
+      return { deployments: [{ deployment_uuid: 'dep' }] };
+    },
+    deployment: async () => ({ status: 'finished' }),
+    listEnvironment: async (uuid) => {
+      order.push(`env:${uuid}`);
+      return ENV_OK[uuid] ?? [];
+    },
+  };
+  await runDeployPlan(buildDeployPlan(payload(), apps), client, { timeoutMs: 500 });
+  assert.ok(order.includes('env:uuid-api'), 'ambiente da API nao foi verificado');
+  assert.ok(
+    order.indexOf('env:uuid-api') < order.indexOf('pin'),
+    'ambiente precisa ser verificado antes de pinar a imagem',
+  );
+});
+
 
 // 14: token nunca aparece em erro
 test('14: mensagem de erro nunca vaza o token', async () => {

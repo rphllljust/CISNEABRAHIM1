@@ -135,6 +135,10 @@ export function buildDeployPlan(payload, apps) {
       tag: sourceSha,
       expectedDigest: apiParts.digest,
       healthPath: payload.runtime?.api?.healthPath,
+      // Variaveis que a aplicacao EXIGE para funcionar no browser. Sem elas o container
+      // sobe saudavel e o usuario nao consegue logar -- foi exatamente o incidente.
+      // `CORS_ORIGIN` vazio em producao = lista de origens permitidas VAZIA.
+      requiredEnvironment: payload.runtime?.api?.requiredEnvironment ?? [],
       startCommand: null, // herda o CMD do Dockerfile runtime-only
     },
     {
@@ -155,6 +159,7 @@ export function buildDeployPlan(payload, apps) {
       tag: sourceSha,
       expectedDigest: webParts.digest,
       healthPath: payload.runtime?.web?.healthPath,
+      requiredEnvironment: payload.runtime?.web?.requiredEnvironment ?? [],
       startCommand: null, // nginx do Dockerfile
     },
   ].map((entry) => ({ ...entry, sourceSha }));
@@ -212,7 +217,86 @@ export function createCoolifyClient({ baseUrl, token, fetchImpl = fetch }) {
       call(`/applications/${uuid}`, { method: 'PATCH', body: { start_command: startCommand } }),
     deploy: (uuid) => call(`/deploy?uuid=${uuid}`, { method: 'POST' }),
     deployment: (uuid) => call(`/deployments/${uuid}`),
+    /**
+     * Lista as variaveis de ambiente da aplicacao.
+     *
+     * `real_value` existe no Coolify 4.4.7 e e o valor que o container recebe; `value`
+     * fica mascarado quando a variavel e secreta. Usamos `real_value` com fallback para
+     * `value` porque o objetivo e provar que a variavel NAO esta vazia, e o valor mascarado
+     * nao permite essa conclusao. O valor nunca e registrado em log.
+     */
+    listEnvironment: (uuid) => call(`/applications/${uuid}/envs`),
   };
+}
+
+/**
+ * Verifica que as variaveis de ambiente obrigatorias existem e NAO estao vazias no Coolify.
+ *
+ * POR QUE ESTA FUNCAO EXISTE
+ * -----------------------------------------------------------------------------------------
+ * `requiredEnvironment` era apenas DECLARATIVO no payload: nada no caminho de deploy lia o
+ * campo. O incidente de producao provou o custo disso -- `CORS_ORIGIN` estava ausente,
+ * `CISNE_PUBLIC_API_URL` apontava `https://` para uma API que so serve HTTP, os containers
+ * subiram com `restarts=0`, `/health/ready` respondia `database=up` e a tela de login dizia
+ * "Nao foi possivel conectar ao servidor". Configuracao manual no painel do Coolify virou
+ * estado magico que o pipeline nao enxergava.
+ *
+ * Esta funcao transforma "precisa estar configurado" em contrato executavel: o deploy reprova
+ * ANTES de tocar o runtime.
+ *
+ * Nunca registra o VALOR da variavel (pode ser segredo). Reporta apenas a chave.
+ */
+export async function verifyRequiredEnvironment(plan, client, { onStep = () => {} } = {}) {
+  const problemas = [];
+
+  for (const step of plan) {
+    const required = Array.isArray(step.requiredEnvironment) ? step.requiredEnvironment : [];
+    if (required.length === 0) continue;
+
+    const envs = await client.listEnvironment(step.uuid);
+    const byKey = new Map();
+    for (const item of Array.isArray(envs) ? envs : []) {
+      const key = item?.key;
+      if (typeof key !== 'string') continue;
+      // O Coolify guarda DUAS entradas por variavel: a de producao (`is_preview: false`) e
+      // uma de preview (`is_preview: true`). Apenas a nao-preview e injetada no container de
+      // producao. Contar as duas produziria "duplicata" em toda variavel -- falso positivo
+      // medido contra a API real do Coolify 4.4.7. Filtrar por `is_preview` e o que separa
+      // ambiguidade REAL (duas entradas de producao) de ruido estrutural do painel.
+      if (item?.is_preview === true) continue;
+      const atual = byKey.get(key) ?? [];
+      atual.push(item);
+      byKey.set(key, atual);
+    }
+
+    for (const key of required) {
+      const entries = byKey.get(key) ?? [];
+      if (entries.length === 0) {
+        problemas.push(`${step.key}: variavel obrigatoria ausente: ${key}`);
+        continue;
+      }
+      // A API v1 do Coolify nao tem PATCH: recriar uma variavel exige DELETE + POST. Se as
+      // duas etapas rodarem sem conferir cardinalidade, sobram DUAS entradas com a mesma
+      // chave e nao ha como saber qual valor o container recebe. Ambiguidade de runtime e
+      // recusada, nunca tolerada.
+      if (entries.length > 1) {
+        problemas.push(`${step.key}: variavel duplicada (${entries.length}x) no Coolify: ${key}`);
+        continue;
+      }
+      const valor = entries[0]?.real_value ?? entries[0]?.value;
+      if (typeof valor !== 'string' || valor.trim() === '') {
+        problemas.push(`${step.key}: variavel obrigatoria vazia: ${key}`);
+      }
+    }
+  }
+
+  if (problemas.length > 0) {
+    throw new DeployRefusedError(
+      `ambiente de runtime invalido, deploy recusado: ${problemas.join(' | ')}`,
+    );
+  }
+  onStep('[coolify-deploy] variaveis obrigatorias presentes e nao vazias');
+  return true;
 }
 
 /**
@@ -312,6 +396,11 @@ export async function runDeployPlan(plan, client, options = {}) {
     await verifyPublishedDigest(plan, resolveManifestDigest);
     onStep('[coolify-deploy] digests conferem com o payload autorizado');
   }
+
+  // Configuracao de runtime ANTES de tocar o runtime. Uma imagem correta com ambiente
+  // incompleto produz um container saudavel que nao serve o usuario (incidente CORS).
+  onStep('[coolify-deploy] verificando variaveis de ambiente obrigatorias');
+  await verifyRequiredEnvironment(plan, client, { onStep });
 
   const results = [];
   for (const step of plan) {
