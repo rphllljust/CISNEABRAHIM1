@@ -39,5 +39,6 @@ test('packages only immutable runtime inputs under provider-neutral release path
   assert.equal(existsSync(resolve(output, 'docker/release/Dockerfile.api')), true);
   assert.equal(existsSync(resolve(output, 'docker/release/Dockerfile.web')), true);
   assert.equal(existsSync(resolve(output, 'docker/release/nginx.conf')), true);
+  assert.equal(existsSync(resolve(output, 'docker/release/security-headers.inc')), true);
   assert.equal(existsSync(resolve(output, 'artifacts/release-identity.json')), true);
 });
