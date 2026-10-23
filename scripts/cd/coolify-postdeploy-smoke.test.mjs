@@ -260,3 +260,19 @@ test('recusa registry vazio: nao prova superficie de modulos', async()=>{
     /module registry vazio/,
   );
 });
+
+test('devolve a superficie de modulos entregue, para auditoria', async()=>{
+  // Sem isso, "o smoke passou" nao dizia QUAIS modulos o operador recebeu: um deploy
+  // verde podia entregar produto mutilado e ninguem percebia.
+  const {client,fetchImpl}=fixture({
+    modules:[
+      {moduleCode:'clients',name:'Clientes',status:'available',availability:true,routes:['/api/v1/clients']},
+      {moduleCode:'finance',name:'Financeiro',status:'enabled',availability:true,routes:['/api/v1/finance']},
+      {moduleCode:'payroll',name:'Folha',status:'not_released',availability:false,routes:['/api/v1/payroll']},
+    ],
+  });
+  const result=await verifyProduction({client,fetchImpl,sourceSha:SHA,repositories:repos,uuids,login:'smoke',password:'secret'});
+  assert.equal(result.modules.total,3);
+  assert.deepEqual(result.modules.enabled,['finance']);
+  assert.deepEqual(result.modules.notReleased,['payroll']);
+});
