@@ -19,4 +19,4 @@ COPY packages/database/migrations ./packages/database/migrations
 COPY artifacts/release-identity.json ./artifacts/release-identity.json
 
 EXPOSE 3000
-CMD ["node", "apps/api/dist/main.js"]
+CMD ["sh", "-c", "node packages/database/dist/cli/run-migrate-cli.js && exec node apps/api/dist/main.js"]
