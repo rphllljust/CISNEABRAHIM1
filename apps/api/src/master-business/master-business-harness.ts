@@ -108,6 +108,16 @@ export async function createMasterBusinessTestContext(): Promise<MasterBusinessT
     resourceTypesAccess: module.get(PhysicalResourceTypesAccessService),
   };
 
+  /**
+   * Limpeza entre testes.
+   *
+   * NAO paralelizar os truncates: `createIntegrationTestPool` usa `max: 1` de
+   * proposito, para que o advisory lock da isolation fique na MESMA conexao do
+   * processo. Com uma unica conexao, `Promise.all` so enfileira — nao ha ganho e
+   * ha risco de mudar a ordem de aquisicao do lock. O ganho real desta limpeza
+   * veio de cachear o hash de senha em `seedAdminActor` (bcrypt e o custo
+   * dominante), nao de mudar o paralelismo do banco.
+   */
   async function resetDatabase(): Promise<void> {
     resetSyntheticCnpjSequence();
     await truncateDocumentTables(pool);
@@ -127,10 +137,15 @@ export async function createMasterBusinessTestContext(): Promise<MasterBusinessT
     await ensureTestDefaultIssuer(pool);
   }
 
+  // O hash e deterministico para a mesma senha+params e NAO e segredo: o custo do
+  // bcrypt (~100 ms por chamada) nao precisa ser pago uma vez por teste. O cast
+  // continua real — o hash gerado aqui e o que a autenticacao de teste verifica.
+  let sharedPasswordHash: string | null = null;
+
   async function seedAdminActor(): Promise<UatActor> {
     const login = normalizeLoginIdentifier(`master-biz-${crypto.randomUUID()}@cisne.invalid`);
-    const passwordHash = await hashPassword(AUTH_TEST_PASSWORD);
-    const { identityId } = await insertIdentity(pool, login, passwordHash);
+    sharedPasswordHash ??= await hashPassword(AUTH_TEST_PASSWORD);
+    const { identityId } = await insertIdentity(pool, login, sharedPasswordHash);
     await grantUatProfile(pool, identityId, identityId, 'control_admin');
     return { identityId, sessionId: 'sid-master' };
   }
