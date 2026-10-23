@@ -154,6 +154,13 @@ export async function verifyProduction({
     }),
   );
 
+  const logsByKey = Object.fromEntries(logPayloads);
+  if (!/MIGRATIONS OK:\s*applied=\d+\s+total=\d+/i.test(logsByKey.api ?? '')) {
+    throw new DeployRefusedError(
+      'migrations: log da API nao confirmou MIGRATIONS OK para esta inicializacao',
+    );
+  }
+
   const fiveHundreds = logPayloads.flatMap(([key, text]) =>
     findFiveHundreds(text).map((line) => `${key}: ${line.slice(0, 240)}`),
   );
@@ -175,6 +182,7 @@ export async function verifyProduction({
     readiness: { status: readyBody.status, database: readyBody.checks.database.status },
     webHealth: 'ok',
     authenticatedSmoke: 'ok',
+    migrations: 'ok',
     recent5xx: 0,
   };
 }
@@ -204,7 +212,7 @@ async function main() {
   });
 
   console.log(
-    `[coolify-postdeploy] PASS source=${result.sourceSha} readiness=${result.readiness.status} database=${result.readiness.database} web=${result.webHealth} auth=${result.authenticatedSmoke} recent5xx=${result.recent5xx}`,
+    `[coolify-postdeploy] PASS source=${result.sourceSha} readiness=${result.readiness.status} database=${result.readiness.database} web=${result.webHealth} auth=${result.authenticatedSmoke} migrations=${result.migrations} recent5xx=${result.recent5xx}`,
   );
 }
 
