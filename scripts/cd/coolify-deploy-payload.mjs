@@ -57,6 +57,12 @@ export function buildCoolifyDeployPayload({
         port: 3000,
         healthPath: '/api/v1/health/ready',
         command: ['node', 'apps/api/dist/main.js'],
+        // `CORS_ORIGIN` e obrigatorio em producao: `auth.config.ts` NAO aplica os defaults de
+        // localhost quando `CISNE_ENV=production`, entao sem esta variavel a lista de origens
+        // permitidas fica VAZIA e a API nao devolve `Access-Control-Allow-Origin`. Resultado
+        // medido: a tela de login falha no browser ("Nao foi possivel conectar ao servidor")
+        // enquanto a API responde 200 para qualquer cliente que nao seja um browser.
+        requiredEnvironment: ['CORS_ORIGIN'],
       },
       worker: {
         command: ['node', 'apps/api/dist/worker/main.js'],

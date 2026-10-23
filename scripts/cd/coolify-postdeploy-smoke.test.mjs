@@ -18,7 +18,15 @@ function response(status, body, contentType='application/json') {
   );
 }
 
-function fixture({badTag=false,badDb=false,logs='MIGRATIONS OK: applied=0 total=104'}={}) {
+function fixture({
+  badTag=false,
+  badDb=false,
+  logs='MIGRATIONS OK: applied=0 total=104',
+  // Padrao: Web anuncia exatamente a API do runtime (contrato correto).
+  advertisedApi='https://api.example.test',
+  // Padrao: API autoriza a origem do Web (contrato correto). null = header ausente.
+  corsAllowed='https://app.example.test',
+}={}) {
   const apps={
     'api-uuid':{fqdn:'https://api.example.test',status:'running:healthy',docker_registry_image_name:repos.api,docker_registry_image_tag:badTag?'latest':SHA},
     'worker-uuid':{fqdn:null,status:'running',docker_registry_image_name:repos.worker,docker_registry_image_tag:SHA},
@@ -31,11 +39,23 @@ function fixture({badTag=false,badDb=false,logs='MIGRATIONS OK: applied=0 total=
   const fetchImpl=async(url,init={})=>{
     if(url.endsWith('/api/v1/health/ready')) return response(200,{status:'ready',checks:{database:{status:badDb?'down':'up'}}});
     if(url.endsWith('/health')) return response(200,'ok','text/plain');
+    // runtime-config: o Web anuncia a API que o browser deve chamar.
+    if(url.endsWith('/runtime-config.js')) {
+      return response(200,`window.__CISNE_RUNTIME_CONFIG__ = { apiBaseUrl: "${advertisedApi}" };`,'text/javascript');
+    }
     if(url.endsWith('/api/v1/auth/login')) {
       const payload=JSON.parse(init.body);
       assert.equal(payload.login,'smoke');
       assert.equal(payload.password,'secret');
       return response(200,{accessToken:'token'});
+    }
+    // A sonda de CORS envia Origin e nao leva authorization; devolve o header de volta.
+    if(url.endsWith('/api/v1/auth/session') && init.headers?.origin) {
+      const headers={};
+      if(corsAllowed!=null) headers['access-control-allow-origin']=corsAllowed;
+      return new Response(JSON.stringify({ok:true}),{
+        status:200,headers:{'content-type':'application/json',...headers},
+      });
     }
     if(url.includes('/api/v1/auth/session')||url.includes('/api/v1/me')||url.includes('/api/v1/catalog/service-definitions')) {
       assert.equal(init.headers.authorization,'Bearer token');
@@ -93,4 +113,51 @@ test('recusa producao sem prova de migrations no log da API', async()=>{
     ()=>verifyProduction({client,fetchImpl,sourceSha:SHA,repositories:repos,uuids,login:'smoke',password:'secret'}),
     /MIGRATIONS OK/,
   );
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// REGRESSAO DO BUG REAL: "Nao foi possivel conectar ao servidor" na tela de login.
+//
+// A API estava saudavel, o login por curl funcionava e `restarts=0` em tudo — e o browser
+// nao conseguia logar. As duas causas estao abaixo, cada uma com seu teste.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+test('recusa Web que anuncia API em esquema diferente (http vs https)', async()=>{
+  // O bug: runtime-config apontava https:// para uma API que so serve http://.
+  const {client,fetchImpl}=fixture({advertisedApi:'http://api.example.test'});
+  await assert.rejects(
+    ()=>verifyProduction({client,fetchImpl,sourceSha:SHA,repositories:repos,uuids,login:'smoke',password:'secret'}),
+    /runtime-config aponta para API diferente/,
+  );
+});
+
+test('recusa Web que anuncia outro host de API', async()=>{
+  const {client,fetchImpl}=fixture({advertisedApi:'https://outra-api.example.test'});
+  await assert.rejects(
+    ()=>verifyProduction({client,fetchImpl,sourceSha:SHA,repositories:repos,uuids,login:'smoke',password:'secret'}),
+    /runtime-config aponta para API diferente/,
+  );
+});
+
+test('recusa API sem Access-Control-Allow-Origin para a origem do Web', async()=>{
+  // O bug: CORS_ORIGIN vazio em producao -> API nao devolvia o header -> browser descarta.
+  const {client,fetchImpl}=fixture({corsAllowed:null});
+  await assert.rejects(
+    ()=>verifyProduction({client,fetchImpl,sourceSha:SHA,repositories:repos,uuids,login:'smoke',password:'secret'}),
+    /CORS: API nao autoriza a origem do Web/,
+  );
+});
+
+test('recusa API que autoriza origem diferente da origem do Web', async()=>{
+  const {client,fetchImpl}=fixture({corsAllowed:'https://outra-app.example.test'});
+  await assert.rejects(
+    ()=>verifyProduction({client,fetchImpl,sourceSha:SHA,repositories:repos,uuids,login:'smoke',password:'secret'}),
+    /CORS: API autoriza origem diferente/,
+  );
+});
+
+test('aceita Access-Control-Allow-Origin curinga', async()=>{
+  const {client,fetchImpl}=fixture({corsAllowed:'*'});
+  const result=await verifyProduction({client,fetchImpl,sourceSha:SHA,repositories:repos,uuids,login:'smoke',password:'secret'});
+  assert.equal(result.authenticatedSmoke,'ok');
 });

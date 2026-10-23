@@ -137,6 +137,68 @@ export async function verifyProduction({
     throw new DeployRefusedError(`login smoke falhou: HTTP ${loginResponse.status}`);
   }
 
+  // ───────────────────────────────────────────────────────────────────────────────────────────
+  // PROVA DE QUE O NAVEGADOR CONSEGUE LOGAR
+  // ───────────────────────────────────────────────────────────────────────────────────────────
+  //
+  // DEFEITO MEDIDO EM PRODUCAO (nao pego por este smoke antes desta correcao):
+  // a tela de login respondia "Nao foi possivel conectar ao servidor" com a API saudavel,
+  // o login funcionando por curl e `restarts=0` em todos os containers. Duas causas somadas,
+  // ambas invisiveis para as assercoes anteriores:
+  //
+  //   1. `/runtime-config.js` do Web apontava `https://` para uma API que so serve HTTP
+  //      (Traefik sem certificado valido) -> o browser falha no handshake TLS.
+  //   2. A API nao devolvia `Access-Control-Allow-Origin` porque `CORS_ORIGIN` estava vazio
+  //      em producao -> mesmo com a URL certa, o browser descarta a resposta.
+  //
+  // O login acima usa `fetch` de servidor: nao envia `Origin` e nao aplica CORS. Por isso
+  // passava com o browser completamente bloqueado. Uma checagem que nao reproduz o browser
+  // nao prova que o browser funciona.
+  //
+  // As duas assercoes abaixo fecham essa lacuna e sao FAIL-CLOSED: reprovam o deploy.
+
+  // (1) O Web precisa anunciar para onde o browser deve chamar, no mesmo esquema e host
+  //     que o smoke esta usando. Divergencia de esquema (http vs https) quebra o login.
+  const runtimeConfig = await fetchChecked(
+    fetchImpl,
+    `${webUrl}/runtime-config.js`,
+    { method: 'GET' },
+    'web runtime-config',
+  );
+  if (!runtimeConfig.ok) {
+    throw new DeployRefusedError(`web runtime-config: HTTP ${runtimeConfig.status}`);
+  }
+  const runtimeConfigText = await runtimeConfig.text();
+  const advertised = /apiBaseUrl\s*:\s*["']([^"']+)["']/.exec(runtimeConfigText)?.[1];
+  if (!advertised) {
+    throw new DeployRefusedError('web runtime-config nao declara apiBaseUrl');
+  }
+  const normalizeBase = (value) => String(value ?? '').trim().replace(/\/+$/, '');
+  if (normalizeBase(advertised) !== normalizeBase(apiUrl)) {
+    throw new DeployRefusedError(
+      `web runtime-config aponta para API diferente do runtime: advertised=${advertised} actual=${apiUrl}`,
+    );
+  }
+
+  // (2) A API precisa autorizar a origem do Web. Reproduz o preflight do browser enviando
+  //     `Origin` e exigindo `Access-Control-Allow-Origin` de volta. Sem isso o login falha
+  //     no browser mesmo retornando 200 aqui.
+  const corsProbe = await fetchImpl(`${apiUrl}/api/v1/auth/session`, {
+    method: 'GET',
+    headers: { origin: webUrl },
+  });
+  const allowedOrigin = corsProbe.headers.get('access-control-allow-origin');
+  if (!allowedOrigin) {
+    throw new DeployRefusedError(
+      `CORS: API nao autoriza a origem do Web (${webUrl}); defina CORS_ORIGIN na API`,
+    );
+  }
+  if (allowedOrigin !== '*' && normalizeBase(allowedOrigin) !== normalizeBase(webUrl)) {
+    throw new DeployRefusedError(
+      `CORS: API autoriza origem diferente do Web: allowed=${allowedOrigin} expected=${webUrl}`,
+    );
+  }
+
   const authHeaders = { authorization: `Bearer ${token}` };
   for (const [label, path] of [
     ['auth session', '/api/v1/auth/session'],
