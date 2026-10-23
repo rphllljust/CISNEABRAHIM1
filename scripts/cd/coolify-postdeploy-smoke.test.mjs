@@ -18,7 +18,7 @@ function response(status, body, contentType='application/json') {
   );
 }
 
-function fixture({badTag=false,badDb=false,logs='ok'}={}) {
+function fixture({badTag=false,badDb=false,logs='MIGRATIONS OK: applied=0 total=104'}={}) {
   const apps={
     'api-uuid':{fqdn:'https://api.example.test',status:'running:healthy',docker_registry_image_name:repos.api,docker_registry_image_tag:badTag?'latest':SHA},
     'worker-uuid':{fqdn:null,status:'running',docker_registry_image_name:repos.worker,docker_registry_image_tag:SHA},
@@ -26,7 +26,7 @@ function fixture({badTag=false,badDb=false,logs='ok'}={}) {
   };
   const client={
     getApplication:async(uuid)=>apps[uuid],
-    call:async()=>({logs}),
+    call:async(path)=>({logs:path.includes('api-uuid')?logs:'runtime ok'}),
   };
   const fetchImpl=async(url,init={})=>{
     if(url.endsWith('/api/v1/health/ready')) return response(200,{status:'ready',checks:{database:{status:badDb?'down':'up'}}});
@@ -51,6 +51,7 @@ test('prova runtime, readiness, banco, web, auth e ausencia de 5xx', async()=>{
   const result=await verifyProduction({client,fetchImpl,sourceSha:SHA,repositories:repos,uuids,login:'smoke',password:'secret'});
   assert.equal(result.readiness.database,'up');
   assert.equal(result.authenticatedSmoke,'ok');
+  assert.equal(result.migrations,'ok');
   assert.equal(result.recent5xx,0);
 });
 
@@ -71,7 +72,7 @@ test('recusa readiness sem database=up', async()=>{
 });
 
 test('recusa 5xx estruturado nos logs recentes', async()=>{
-  const {client,fetchImpl}=fixture({logs:'{"statusCode":500,"path":"/api/v1/x"}'});
+  const {client,fetchImpl}=fixture({logs:'MIGRATIONS OK: applied=0 total=104\n{"statusCode":500,"path":"/api/v1/x"}'});
   await assert.rejects(
     ()=>verifyProduction({client,fetchImpl,sourceSha:SHA,repositories:repos,uuids,login:'smoke',password:'secret'}),
     /5xx encontrado/,
@@ -83,5 +84,13 @@ test('credenciais de smoke sao obrigatorias', async()=>{
   await assert.rejects(
     ()=>verifyProduction({client,fetchImpl,sourceSha:SHA,repositories:repos,uuids,login:'',password:''}),
     DeployRefusedError,
+  );
+});
+
+test('recusa producao sem prova de migrations no log da API', async()=>{
+  const {client,fetchImpl}=fixture({logs:'api started sem migration proof'});
+  await assert.rejects(
+    ()=>verifyProduction({client,fetchImpl,sourceSha:SHA,repositories:repos,uuids,login:'smoke',password:'secret'}),
+    /MIGRATIONS OK/,
   );
 });
