@@ -84,6 +84,13 @@ const shard = process.env['INTEGRATION_SHARD']?.trim() || undefined;
  */
 const timingsFile = process.env['INTEGRATION_TIMINGS_FILE']?.trim() || undefined;
 
+// Instrumentacao POR TESTE (irma do reporter por arquivo). O reporter acima mede
+// o custo do spec; este mede o custo de cada `it()`. Sem isso, "Integration leva
+// 593s" nao diz ONDE o tempo esta: poucos testes caros, bootstrap Nest no
+// beforeAll, ou limpeza/seed no beforeEach. E sem essa distincao qualquer
+// otimizacao seria chute.
+const testsFile = process.env['INTEGRATION_TESTS_FILE']?.trim() || undefined;
+
 export default defineConfig({
   plugins: [swc.vite({ module: { type: 'es6' } })],
   test: {
@@ -123,6 +130,18 @@ export default defineConfig({
     // construtor de um reporter customizado.
     ...(timingsFile
       ? { reporters: ['default', ['./src/test/ci-timings-reporter.mjs', { outputPath: timingsFile }]] }
+      : {}),
+    // O reporter por teste so e ativado quando o executor informa o caminho —
+    // mesmo contrato do reporter por arquivo, pelo mesmo motivo (caminho tem que
+    // chegar ao reporter, senao ele grava no cwd errado).
+    ...(testsFile
+      ? {
+          reporters: [
+            'default',
+            ['./src/test/ci-timings-reporter.mjs', { outputPath: timingsFile ?? 'artifacts/ci/integration.timings.ndjson' }],
+            ['./src/test/ci-test-timings-reporter.mjs', { outputPath: testsFile }],
+          ],
+        }
       : {}),
   },
 });

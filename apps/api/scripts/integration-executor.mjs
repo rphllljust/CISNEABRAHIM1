@@ -280,6 +280,10 @@ function runWorker(n, specs) {
   return new Promise((resolve) => {
     const started = Date.now();
     const timingsPath = join(CI_DIR, `integration.s${n}.timings.ndjson`);
+    // Instrumentacao POR TESTE: separa o custo de cada `it()` do custo de
+    // bootstrap Nest / limpeza / seed. Sem isso, "Integration leva 593s" nao diz
+    // onde atacar, e otimizar viraria chute.
+    const testsPath = join(CI_DIR, `integration.s${n}.tests.ndjson`);
     const child = spawn(
       'pnpm',
       [
@@ -299,6 +303,7 @@ function runWorker(n, specs) {
           TEST_DATABASE_URL: adminUrlFor(dbName(n)),
           INTEGRATION_DB_NAME: dbName(n),
           INTEGRATION_TIMINGS_FILE: timingsPath,
+          INTEGRATION_TESTS_FILE: testsPath,
         },
         shell: process.platform === 'win32',
       },
