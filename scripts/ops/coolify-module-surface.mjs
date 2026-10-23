@@ -70,9 +70,27 @@ function productionEnvValue(envs, key) {
   if (entries.length === 0) return { state: 'missing', value: null, count: 0 };
   if (entries.length > 1) return { state: 'ambiguous', value: null, count: entries.length };
   const entry = entries[0];
-  const value = entry?.real_value ?? entry?.value;
-  if (typeof value !== 'string') return { state: 'missing', value: null, count: 1 };
-  return { state: 'ok', value: value.trim(), count: 1 };
+  const raw = entry?.real_value ?? entry?.value;
+  if (typeof raw !== 'string') return { state: 'missing', value: null, count: 1 };
+  return { state: 'ok', value: normalizeEnvValue(raw), count: 1, raw };
+}
+
+/**
+ * Normaliza o valor de env lido do Coolify.
+ *
+ * O Coolify devolve `real_value` com ASPAS literais quando a variavel foi gravada como
+ * literal: `real_value` vem `'true'`, nao `true`. Sem normalizar, o script compara
+ * `'true'` com `true`, acusa divergencia e entra em --fix eterno.
+ *
+ * Escopo deliberadamente estreito: remove APENAS um par de aspas simples ou duplas que
+ * envolve o valor inteiro. Nada mais e tolerado — `true ` (espaco), `" true"`,
+ * `True`, `1` ou string vazia continuam divergentes, porque um valor invalido nao pode
+ * ser mascarado como se fosse o correto.
+ */
+export function normalizeEnvValue(raw) {
+  const trimmed = String(raw ?? '').trim();
+  const quoted = /^(['"])(.*)\1$/s.exec(trimmed);
+  return (quoted ? quoted[2] : trimmed).trim();
 }
 
 /**
