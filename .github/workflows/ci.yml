@@ -88,7 +88,7 @@ jobs:
       - name: SRC-002 business gate
         run: pnpm gate:src-002
       - name: Immutable release focused tests
-        run: node --test scripts/cd/railway-immutable-release.test.mjs scripts/cd/coolify-deploy-payload.test.mjs
+        run: node --test scripts/cd/immutable-release.test.mjs scripts/cd/provider-cutover.test.mjs scripts/cd/coolify-deploy-payload.test.mjs
 
   unit-test-shards:
     name: Unit tests (${{ matrix.shard }})
@@ -495,8 +495,8 @@ jobs:
         run: pnpm build
       - name: Emit build metadata
         run: node scripts/ci-emit-build-metadata.mjs
-      - name: Package immutable Railway release
-        run: node scripts/cd/railway-immutable-release.mjs
+      - name: Package immutable release
+        run: node scripts/cd/immutable-release.mjs
       - name: Emit deploy manifest (artifact digest)
         run: node scripts/cd/emit-deploy-manifest.mjs
       - name: Upload build artifacts
@@ -508,7 +508,7 @@ jobs:
           path: |
             artifacts/ci/build-metadata.json
             artifacts/cd/deploy-manifest.json
-            artifacts/railway/release
+            artifacts/release
 
   detect-change-scope:
     name: Detect change scope

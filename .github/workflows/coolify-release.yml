@@ -118,8 +118,8 @@ jobs:
         name: Publish API image
         uses: docker/build-push-action@v6
         with:
-          context: artifacts/railway/release
-          file: artifacts/railway/release/docker/hml/Dockerfile.api
+          context: artifacts/release
+          file: artifacts/release/docker/release/Dockerfile.api
           push: true
           tags: ${{ env.API_REPOSITORY }}:${{ needs.release-authority.outputs.source_sha }}
           labels: |
@@ -130,8 +130,8 @@ jobs:
         name: Publish Web image
         uses: docker/build-push-action@v6
         with:
-          context: artifacts/railway/release
-          file: artifacts/railway/release/docker/railway/Dockerfile.web
+          context: artifacts/release
+          file: artifacts/release/docker/release/Dockerfile.web
           push: true
           tags: ${{ env.WEB_REPOSITORY }}:${{ needs.release-authority.outputs.source_sha }}
           labels: |

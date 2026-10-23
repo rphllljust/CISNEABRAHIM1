@@ -3,63 +3,70 @@
 | Campo | Valor |
 | ----- | ----- |
 | Document ID | OPS-CD-001 |
-| Prompt | 87 |
+| Status | IMPLEMENTED |
+| Runtime authority | Coolify on OVH VPS |
+| Image registry | GHCR |
 
-## Fluxo
+## Fluxo autoritativo
 
 ```
-commit → CI → artifact (digest) → HML deploy + smoke → acceptance → production (gate manual)
+main
+→ CI
+→ Release ready
+→ immutable artifact + provenance
+→ GHCR (api / worker / web)
+→ Coolify API
+→ OVH production
 ```
+
+Railway não participa do fluxo de build, promoção ou produção.
 
 ## Build once
 
-- CI job `build` compila **uma vez** e publica `cisne-build-<run_id>`
-- CD baixa o mesmo artifact — **sem** `pnpm build` no deploy PRD
-- `deploy-manifest.json` registra `artifactDigest` + `commitSha`
+- CI compila uma vez e publica `cisne-build-<run_id>`.
+- O bundle imutável vive em `artifacts/release`.
+- `deploy-manifest.json` registra `artifactDigest`, `commitSha` e `buildRunId`.
+- Divergência entre SOURCE_SHA, BUILD_SHA e MANIFEST_SHA bloqueia o release.
 
-## Rastreabilidade
+## Release authority
 
-Cada deploy registra: `version`, `commitSha`, `artifactDigest`, `buildRunId`, `timestamp`, `environment`.
+`.github/workflows/coolify-release.yml` só publica quando o job `Release ready` do CI do mesmo SHA terminou com `success`.
 
-## HML
+Imagens publicadas no GHCR:
 
-- Deploy automático após CI verde (`workflow_run`)
-- Smoke obrigatório (`hml:smoke` / `runCdPromotion`)
-- Migrations via Drizzle — sem SQL manual
+- `cisne-api:<SOURCE_SHA>`
+- `cisne-worker:<SOURCE_SHA>`
+- `cisne-web:<SOURCE_SHA>`
 
-## Produção
+O deploy usa digests imutáveis; `latest` é proibido.
 
-- Job `deploy-production` usa `environment: production` (aprovação manual GitHub)
-- Exige `PRD_PROMOTION_APPROVED=I_UNDERSTAND`
-- Promove **mesmo** `artifactDigest` validado em HML
+## Runtime
+
+Coolify é o plano de implantação. O VPS não compila source e não funciona como runner de CI.
+
+A promoção é:
+
+```
+PATCH imagem por digest
+→ POST deploy
+→ estado terminal
+→ prova de SHA/digest implantados
+```
 
 ## Migrations
 
-Classificação em `migration-policy.ts`:
-
-| Risco | Exemplos |
-| ----- | -------- |
-| backward-compatible | ADD COLUMN, CREATE INDEX, CREATE TABLE |
-| breaking-high-risk | DROP TABLE/COLUMN, TRUNCATE, ALTER COLUMN |
-
-Breaking exige `CD_ALLOW_BREAKING_MIGRATIONS=I_UNDERSTAND` + deploy coordenado (expand/contract).
-
-## Secrets
-
-- `cd-secrets.ts` bloqueia secrets embutidos no artifact
-- Secrets runtime via env/secret store — nunca no bundle
+A política em `migration-policy.ts` permanece fail-closed. Mudança incompatível exige expand/contract; o gate não pode ser enfraquecido para liberar deploy.
 
 ## Rollback
 
-- `cd-rollback.ts` mantém histórico por ambiente
-- Rollback de aplicação = redeploy digest anterior
-- **DB não reverte automaticamente**
+Rollback de aplicação = redeploy de digest anterior autorizado. Banco de dados não é revertido automaticamente.
 
-## Comandos
+## Arquitetura congelada
 
-```bash
-pnpm build && node scripts/cd/emit-deploy-manifest.mjs
-pnpm cd:promote              # HML
-node scripts/cd/promote.mjs --production  # após gate
-pnpm --filter @cisne/api test:cd
-```
+GitHub = source/release authority.
+GHCR = registry.
+Coolify = deployment/runtime plane.
+OVH VPS = compute.
+Traefik = edge.
+
+Nenhum workflow alternativo pode promover produção em paralelo.

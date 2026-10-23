@@ -10,7 +10,7 @@ import { join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export const DEFAULT_ARTIFACT_PATHS = [
-  'artifacts/railway/release',
+  'artifacts/release',
 ];
 
 function walkFiles(current) {
