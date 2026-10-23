@@ -12,25 +12,29 @@ import { auditProductionTls, parsePublicUrls } from './coolify-tls-audit.mjs';
 const SHA_RE = /^[0-9a-f]{40}$/i;
 
 /**
- * NOTA DE CONTRATO (medida em producao, run 39971906142):
+ * NOTA DE CONTRATO — medido em producao, nao suposto.
  *
- * O `PATCH /applications/{uuid}` do Coolify devolve 422
- * `{"errors":{"redact_all_env_values_in_logs":["This field is not allowed."]}}`
- * para o token do CI. O campo EXISTE no openapi oficial, mas exige
- * "team admin permissions" — que o token de automacao nao possui.
+ * Fonte primaria: o openapi.yaml do coollabsio/coolify `main` NAO descreve a
+ * versao instalada. O Coolify em producao e 4.4.7 (ver coolify-deploy.mjs).
  *
- * `is_permanent_redirect_enabled` e campo suportado, mas tambem falhou no
- * MESMO request: o Coolify aplica a validacao antes de qualquer escrita, entao
- * a presenca do campo proibido reprova o payload inteiro. Por isso os dois
- * apareceram no erro do rollback.
+ * Runs que provaram isso, em ordem:
  *
- * Consequencia: redaction de env em log NAO e campo de TLS e NAO pode ser
- * escrita por este script. Ela segue OBSERVADA e reportada pela auditoria
- * (coolify.apiEnvLogRedaction), e a habilitacao e uma acao administrativa
- * pendente, nao um efeito do cutover.
+ *  39971906142 (SHA 41a02037): PATCH -> 422
+ *    redact_all_env_values_in_logs: "This field is not allowed."
+ *  39978741652 (SHA 7e41b6c8): PATCH -> 422
+ *    is_permanent_redirect_enabled: "This field is not allowed."
  *
- * Nao reative `redact_all_env_values_in_logs` neste payload sem antes prover
- * um token com nivel admin: reintroduz o 422 que derrubou o hardening.
+ * Conclusao: NENHUM dos dois campos existe no contrato do Coolify 4.4.7. Nao e
+ * permissao de token — e ausencia de campo na versao instalada. `redaction`
+ * exige team admin em versoes novas; `permanent_redirect` so existe em versao
+ * mais nova que a instalada.
+ *
+ * Portanto o payload de escrita suportado e: `domains` + `is_force_https_enabled`.
+ * Qualquer campo alem disso reintroduz o 422 e derruba o hardening E o rollback.
+ *
+ * Redaction de env em log e redirect permanente seguem AUDITADOS e reportados
+ * (coolify.apiEnvLogRedaction, permanentRedirects) como pendencias de upgrade,
+ * nao como efeitos deste script. Ver README de ops para o caminho de upgrade.
  */
 
 function required(name, value) {
@@ -280,7 +284,6 @@ async function applyDesired(plan, client, uuids) {
       patchApplication(client, uuids.api, {
         domains: plan.desired.apiDomains,
         is_force_https_enabled: true,
-        is_permanent_redirect_enabled: true,
       }),
     );
     mutationCount += 1;
@@ -290,31 +293,30 @@ async function applyDesired(plan, client, uuids) {
       patchApplication(client, uuids.web, {
         domains: plan.desired.webDomains,
         is_force_https_enabled: true,
-        is_permanent_redirect_enabled: true,
       }),
     );
     mutationCount += 1;
   }
-  // Nenhum PATCH no worker: `redact_all_env_values_in_logs` exige admin
-  // (ver NOTA DE CONTRATO). O worker nao tem campo de TLS a aplicar.
+  // Payload suportado e APENAS `domains` + `is_force_https_enabled`.
+  // `is_permanent_redirect_enabled` e `redact_all_env_values_in_logs` nao
+  // existem no Coolify 4.4.7 e devolvem 422 (ver NOTA DE CONTRATO).
   await Promise.all(appOps);
 
   return mutationCount;
 }
 
 async function rollback(plan, client, uuids, options) {
-  // O rollback NAO reenvia `redact_all_env_values_in_logs`: foi exatamente esse
-  // campo que fez o rollback original falhar com 422 (ver NOTA DE CONTRATO).
+  // O rollback usa o MESMO payload suportado do apply. Reenviar campo ausente
+  // no contrato foi o que fez o rollback morrer em 422 nos runs 39971906142 e
+  // 39978741652, deixando o cutover sem recuperacao.
   await Promise.all([
     patchApplication(client, uuids.api, {
       domains: plan.original.api.domains,
       is_force_https_enabled: plan.original.api.forceHttps,
-      is_permanent_redirect_enabled: plan.original.api.permanentRedirect,
     }),
     patchApplication(client, uuids.web, {
       domains: plan.original.web.domains,
       is_force_https_enabled: plan.original.web.forceHttps,
-      is_permanent_redirect_enabled: plan.original.web.permanentRedirect,
     }),
     replaceProductionEnvironment(
       client,

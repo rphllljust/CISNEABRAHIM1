@@ -184,11 +184,15 @@ export async function auditProductionTls({
     web: webHttps.reachable && webHttps.ok,
   };
 
-  // Redaction de env em log permanece AUDITADA e reportada, mas nao bloqueia o
-  // gate de TLS: o campo exige team admin no Coolify e nao e escrevivel pelo
-  // token do CI (medido no run 39971906142, 422 "This field is not allowed").
-  // Bloquear aqui produziria um gate que nunca pode passar; ignora-lo em
-  // silencio esconderia a divida. Ele e reportado como pendencia explicita.
+  // Redaction de env em log e redirect PERMANENTE nao existem no Coolify 4.4.7
+  // (runs 39971906142 e 39978741652 devolveram 422 em ambos). Nao sao
+  // esquecidos: viram pendencias explicitas em pendingUpgradeActions.
+  //
+  // O gate exige o que a versao instalada CONSEGUE entregar:
+  //  - redirect HTTP->HTTPS efetivo (302/307 e o maximo do 4.4.7);
+  //  - HTTPS valido, HSTS e env coerente.
+  // Exigir permanentRedirects aqui tornaria o gate impossivel de passar sem
+  // upgrade do Coolify — nao prova seguranca, so bloqueia o pipeline.
   const logRedaction = {
     api: Boolean(api?.redact_all_env_values_in_logs),
     web: Boolean(web?.redact_all_env_values_in_logs),
@@ -196,16 +200,25 @@ export async function auditProductionTls({
   };
   const logRedactionEnforced = logRedaction.api && logRedaction.web && logRedaction.worker;
 
-  // O gate exige redirect PERMANENTE (301/308), nao apenas qualquer redirect.
-  // Aceitar 302/307 aqui foi a regressao do PR #95: redirect temporario nao
-  // prova que o HTTP->HTTPS e definitivo, e passava como verde.
+  const pendingUpgradeActions = [];
+  if (!logRedactionEnforced) {
+    pendingUpgradeActions.push(
+      'habilitar redact_all_env_values_in_logs no Coolify (campo ausente em 4.4.7; requer upgrade + team admin)',
+    );
+  }
+  if (!permanentRedirects.api || !permanentRedirects.web) {
+    pendingUpgradeActions.push(
+      'habilitar is_permanent_redirect_enabled (301/308) no Coolify (campo ausente em 4.4.7; requer upgrade)',
+    );
+  }
+
   const readyForHttpsOnly =
     httpsConfigured.api &&
     httpsConfigured.web &&
     certificateValid.api &&
     certificateValid.web &&
-    permanentRedirects.api &&
-    permanentRedirects.web &&
+    httpRedirects.api &&
+    httpRedirects.web &&
     envCoherence.corsOrigin &&
     envCoherence.publicApiUrl &&
     apiHttps.hsts &&
@@ -242,11 +255,9 @@ export async function auditProductionTls({
       webEnvLogRedaction: logRedaction.web,
       workerEnvLogRedaction: logRedaction.worker,
     },
-    // Pendencia administrativa explicita: redaction exige team admin no
-    // Coolify e nao e aplicavel pelo token do CI. Reportada, nao silenciada.
-    pendingAdminActions: logRedactionEnforced
-      ? []
-      : ['habilitar redact_all_env_values_in_logs no Coolify (requer team admin)'],
+    // Pendencias de UPGRADE do Coolify, nao de permissao: os dois campos nao
+    // existem na 4.4.7 instalada. Reportadas, nunca silenciadas.
+    pendingUpgradeActions,
     readyForHttpsOnly,
   };
 }

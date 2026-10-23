@@ -187,12 +187,15 @@ test('hardening aplica HTTPS somente com campos suportados, redeploya e executa 
     (entry) => entry.method === 'PATCH' && /^\/applications\/[^/]+$/.test(entry.path),
   );
   for (const patch of applicationPatches) {
-    // Regressao do run 39971906142: este campo exige team admin no Coolify e
-    // reprova o payload inteiro com 422, inclusive o rollback.
+    // Ambos os campos NAO existem no Coolify 4.4.7 e devolvem 422, reprovando
+    // o payload inteiro — inclusive o rollback. Runs 39971906142 e 39978741652.
     assert.equal('redact_all_env_values_in_logs' in patch.body, false);
-    // Este campo E suportado e E requisito de TLS: deve ir no payload.
-    assert.equal('is_permanent_redirect_enabled' in patch.body, true);
-    assert.equal(patch.body.is_permanent_redirect_enabled, true);
+    assert.equal('is_permanent_redirect_enabled' in patch.body, false);
+    // O contrato suportado e exatamente `domains` + `is_force_https_enabled`.
+    assert.deepEqual(
+      Object.keys(patch.body).sort(),
+      ['domains', 'is_force_https_enabled'],
+    );
   }
 });
 

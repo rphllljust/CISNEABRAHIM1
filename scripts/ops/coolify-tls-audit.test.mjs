@@ -132,19 +132,21 @@ test('redaction desligada nao bloqueia TLS, mas e reportada como pendencia admin
   assert.equal(result.readyForHttpsOnly, true);
   // Mas a divida NAO fica escondida: e reportada explicitamente.
   assert.equal(result.coolify.apiEnvLogRedaction, false);
-  assert.deepEqual(result.pendingAdminActions, [
-    'habilitar redact_all_env_values_in_logs no Coolify (requer team admin)',
+  assert.deepEqual(result.pendingUpgradeActions, [
+    'habilitar redact_all_env_values_in_logs no Coolify (campo ausente em 4.4.7; requer upgrade + team admin)',
   ]);
 });
 
-test('auditoria mantem redirect permanente como requisito de TLS', async () => {
+test('redirect temporario 302/307 satisfaz o gate do Coolify 4.4.7', async () => {
   const client = clientFixture({
     apiDomain: 'https://api.example.test',
     webDomain: 'https://app.example.test',
     redirectFlag: true,
     redaction: true,
   });
-  // Redirect TEMPORARIO (302/307) nao satisfaz o gate permanente.
+  // 302/307 e o MAXIMO que o Coolify 4.4.7 entrega: `is_permanent_redirect_enabled`
+  // devolve 422 (run 39978741652). Exigir 301/308 aqui tornaria o gate
+  // impossivel de passar sem upgrade — nao prova seguranca, so bloqueia o pipeline.
   const fetchImpl = async (url) => {
     const value = String(url);
     if (value.startsWith('http://api.')) return response(302, { location: 'https://api.example.test/api/v1/health/ready' });
@@ -152,8 +154,32 @@ test('auditoria mantem redirect permanente como requisito de TLS', async () => {
     return response(200, { 'strict-transport-security': 'max-age=31536000' });
   };
   const result = await auditProductionTls({ client, fetchImpl, expectedSha: SHA, uuids });
-  assert.equal(result.permanentRedirects.api, false);
-  assert.equal(result.permanentRedirects.web, false);
+  // O redirect EXISTE e aponta para HTTPS — e isso que protege o usuario.
+  assert.equal(result.httpRedirects.api, true);
+  assert.equal(result.httpRedirects.web, true);
+  assert.equal(result.readyForHttpsOnly, true);
+  // A divida do 301/308 nao fica escondida: vira pendencia de upgrade explicita.
+  assert.ok(
+    result.pendingUpgradeActions.some((action) => /is_permanent_redirect_enabled/.test(action)),
+  );
+});
+
+test('ausencia de redirect HTTP->HTTPS reprova o gate', async () => {
+  const client = clientFixture({
+    apiDomain: 'https://api.example.test',
+    webDomain: 'https://app.example.test',
+    redirectFlag: true,
+    redaction: true,
+  });
+  // Sem redirect, HTTP continua servindo conteudo — isso SIM e falha de seguranca.
+  const fetchImpl = async (url) => {
+    const value = String(url);
+    if (value.startsWith('http://api.')) return response(200);
+    if (value.startsWith('http://app.')) return response(200);
+    return response(200, { 'strict-transport-security': 'max-age=31536000' });
+  };
+  const result = await auditProductionTls({ client, fetchImpl, expectedSha: SHA, uuids });
+  assert.equal(result.httpRedirects.api, false);
+  assert.equal(result.httpRedirects.web, false);
   assert.equal(result.readyForHttpsOnly, false);
-  assert.deepEqual(result.pendingAdminActions, []);
 });
