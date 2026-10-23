@@ -28,6 +28,13 @@ function fixture({
   corsAllowed='https://app.example.test',
   // Padrao: runtime-config nao-cacheavel (exigido pelo nginx.conf).
   runtimeConfigCache='no-store, no-cache, must-revalidate',
+  // Superficie de modulos reportada pela API em /modules/registry.
+  modules=[
+    {moduleCode:'clients',name:'Clientes',status:'available',availability:true,routes:['/api/v1/clients']},
+    {moduleCode:'finance',name:'Financeiro',status:'enabled',availability:true,routes:['/api/v1/finance']},
+  ],
+  // Rotas de modulo que respondem 403/404/500 (superficie anunciada mas inacessivel).
+  unreachableRoutes=[],
 }={}) {
   const apps={
     'api-uuid':{fqdn:'https://api.example.test',status:'running:healthy',docker_registry_image_name:repos.api,docker_registry_image_tag:badTag?'latest':SHA},
@@ -67,6 +74,19 @@ function fixture({
       });
     }
     if(url.includes('/api/v1/auth/session')||url.includes('/api/v1/me')||url.includes('/api/v1/catalog/service-definitions')) {
+      assert.equal(init.headers.authorization,'Bearer token');
+      return response(200,{ok:true});
+    }
+    // Registro de modulos: o smoke agora prova coerencia de superficie front/back.
+    // Formato real de `GET /api/v1/modules/registry` (ModuleRegistrySummary[]).
+    if(url.includes('/api/v1/modules/registry')) {
+      assert.equal(init.headers.authorization,'Bearer token');
+      return response(200,modules);
+    }
+    // Rotas de modulo: existem e autorizam, salvo as declaradas inacessiveis.
+    const moduleRouteHit=unreachableRoutes.find((route)=>url.includes(route));
+    if(moduleRouteHit) return response(403,{message:'FEATURE_DISABLED'});
+    if(url.includes('/api/v1/finance')||url.includes('/api/v1/clients')||url.includes('/api/v1/service-orders')) {
       assert.equal(init.headers.authorization,'Bearer token');
       return response(200,{ok:true});
     }
@@ -200,5 +220,43 @@ test('recusa runtime-config com Cache-Control duplicado', async()=>{
   await assert.rejects(
     ()=>verifyProduction({client,fetchImpl,sourceSha:SHA,repositories:repos,uuids,login:'smoke',password:'secret'}),
     /Cache-Control duplicado/,
+  );
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// COERENCIA DE SUPERFICIE — as duas familias de flags sao independentes e podem divergir.
+//
+// DEFEITO QUE ESTES CASOS FECHAM (medido em 2026-10-23): o artefato de producao era compilado
+// com os 13 modulos construidos DESLIGADOS, e o smoke passava porque so provava health, login
+// e `catalog`. Nenhum modulo gated era tocado. O operador recebia menu mutilado com o deploy
+// "verde".
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+test('recusa modulo anunciado como enabled que responde FEATURE_DISABLED', async()=>{
+  const {client,fetchImpl}=fixture({unreachableRoutes:['/api/v1/finance']});
+  await assert.rejects(
+    ()=>verifyProduction({client,fetchImpl,sourceSha:SHA,repositories:repos,uuids,login:'smoke',password:'secret'}),
+    /anunciados como enabled mas inacessiveis: finance/,
+  );
+});
+
+test('recusa modulo STUB habilitado em producao', async()=>{
+  const {client,fetchImpl}=fixture({
+    modules:[
+      {moduleCode:'clients',name:'Clientes',status:'available',availability:true,routes:['/api/v1/clients']},
+      {moduleCode:'rentals',name:'Locacoes',status:'enabled',availability:true,routes:['/api/v1/clients']},
+    ],
+  });
+  await assert.rejects(
+    ()=>verifyProduction({client,fetchImpl,sourceSha:SHA,repositories:repos,uuids,login:'smoke',password:'secret'}),
+    /modulos STUB habilitados em producao: rentals/,
+  );
+});
+
+test('recusa registry vazio: nao prova superficie de modulos', async()=>{
+  const {client,fetchImpl}=fixture({modules:[]});
+  await assert.rejects(
+    ()=>verifyProduction({client,fetchImpl,sourceSha:SHA,repositories:repos,uuids,login:'smoke',password:'secret'}),
+    /module registry vazio/,
   );
 });

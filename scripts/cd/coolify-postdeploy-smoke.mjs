@@ -5,6 +5,14 @@ import { createCoolifyClient, DeployRefusedError } from './coolify-deploy.mjs';
 
 const SHA_RE = /^[0-9a-f]{40}$/i;
 
+/**
+ * Modulos STUB comprovados: sem backend real por tras, permanecem desligados em TODOS os
+ * ambientes (`apps/web/src/release-scope/feature-flags.ts` -> STUB_MODULES). Se um deles
+ * aparecer `enabled` no registry de producao, alguem ligou superficie sem produto — o
+ * operador clicaria num menu que nao leva a lugar nenhum.
+ */
+const STUB_MODULE_CODES = new Set(['rentals', 'transport']);
+
 function required(name, value) {
   const normalized = String(value ?? '').trim();
   if (!normalized) throw new DeployRefusedError(`${name} ausente`);
@@ -232,6 +240,70 @@ export async function verifyProduction({
   ]) {
     const response = await fetchChecked(fetchImpl, `${apiUrl}${path}`, { method: 'GET', headers: authHeaders }, label);
     if (!response.ok) throw new DeployRefusedError(`${label}: HTTP ${response.status}`);
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────────────────────
+  // COERENCIA DE SUPERFICIE: o Web nao pode anunciar modulo que a API recusa
+  // ───────────────────────────────────────────────────────────────────────────────────────────
+  //
+  // DEFEITO QUE ESTA CHECAGEM FECHA (medido em 2026-10-23):
+  //
+  // As duas familias de flags sao INDEPENDENTES: o web le `VITE_FEATURE_MODULE_*` em BUILD
+  // e a API le `FEATURE_MODULE_*` em RUNTIME. Nada as acopla. O artefato de producao estava
+  // saindo com os 13 modulos construidos DESLIGADOS (job Build / artifacts sem env), e o
+  // smoke passava porque so provava health, login e `catalog` — nenhum modulo gated.
+  //
+  // A assercao abaixo le o registro de modulos da API e exige que todo modulo reportado como
+  // `enabled` seja realmente alcancavel. Divergencia (API `not_released` enquanto o menu
+  // mostra o item, ou o inverso) vira falha de deploy, nao bug descoberto pelo operador.
+  const modulesResponse = await fetchChecked(
+    fetchImpl,
+    `${apiUrl}/api/v1/modules/registry`,
+    { method: 'GET', headers: authHeaders },
+    'module registry',
+  );
+  if (!modulesResponse.ok) {
+    throw new DeployRefusedError(`module registry: HTTP ${modulesResponse.status}`);
+  }
+  const modulesBody = await jsonSafe(modulesResponse);
+  const modules = Array.isArray(modulesBody) ? modulesBody : (modulesBody?.modules ?? []);
+  if (modules.length === 0) {
+    throw new DeployRefusedError('module registry vazio: nao prova superficie de modulos');
+  }
+
+  const notReleased = modules.filter((entry) => entry?.status === 'not_released');
+  const enabled = modules.filter((entry) => entry?.status === 'enabled');
+
+  // Modulo sem backend real (STUB) nao deve estar habilitado em producao.
+  const stubEnabled = enabled.filter((entry) => STUB_MODULE_CODES.has(String(entry?.moduleCode)));
+  if (stubEnabled.length > 0) {
+    throw new DeployRefusedError(
+      `modulos STUB habilitados em producao: ${stubEnabled.map((e) => e.moduleCode).join(', ')}`,
+    );
+  }
+
+  // Todo modulo que a API reporta como `enabled` precisa ser realmente alcancavel pela
+  // identidade autenticada do smoke. `enabled` no catalogo com rota que responde 403/404
+  // FEATURE_DISABLED e exatamente a incoerencia que faz o menu mostrar item inutil.
+  const unreachable = [];
+  for (const entry of enabled) {
+    const route = Array.isArray(entry?.routes) ? entry.routes[0] : null;
+    if (!route) continue;
+    // Limite=1 porque so importa autorizacao, nao volume de dados.
+    const probe = await fetchImpl(`${apiUrl}${route}?limit=1&offset=0`, {
+      method: 'GET',
+      headers: authHeaders,
+    });
+    // 400/422 sao aceitaveis: a rota existe e autorizou, o contrato de query reclamou.
+    // 403/404/500 nao sao: significam superficie anunciada que o operador nao alcanca.
+    if ([403, 404, 500].includes(probe.status)) {
+      unreachable.push(`${entry.moduleCode} (${route}) -> HTTP ${probe.status}`);
+    }
+  }
+  if (unreachable.length > 0) {
+    throw new DeployRefusedError(
+      `modulos anunciados como enabled mas inacessiveis: ${unreachable.join('; ')}`,
+    );
   }
 
   // ───────────────────────────────────────────────────────────────────────────────────────────
