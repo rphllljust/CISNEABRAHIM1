@@ -326,13 +326,20 @@ jobs:
         env:
           # POLITICA DE CONCORRENCIA — EXPLICITA, NAO DERIVADA DO HOST
           #
-          # Default 3 (medido e validado no run 39794404313: 114/114 specs, 3 workers,
-          # desequilibrio de 3,1%, zero swap). O valor 4 so vira padrao apos benchmark
-          # controlado conforme docs/ci/execution-plane.md.
+          # 3 -> 4 workers: BENCHMARK EM ANDAMENTO (branch perf/integration-4-workers).
           #
-          # NAO derive de `os.availableParallelism()`: isso confunde METRICA com POLITICA e faz
-          # o comportamento mudar conforme o host escolhido pelo scheduler.
-          CI_INTEGRATION_WORKERS: ${{ vars.CI_INTEGRATION_WORKERS || '3' }}
+          # A regra de decisao e matematica (scripts/ci/benchmark-workers.mjs): 4 vence
+          # SOMENTE se median(T4) <= 0.90 * median(T3) E, em todos os runs de 4,
+          # OOM=0, swapUsedDelta<=0, nenhum worker morto e nenhum erro de Postgres.
+          #
+          # Dado que motivou testar: soma das medianas dos 114 specs = 1210.6 s.
+          # Com 3 workers o piso teorico e 404 s, mas o medido e 593 s (68% do piso) —
+          # sobra ~190 s de overhead. `ubuntu-latest` tem 4 vCPU, entao o 4o worker
+          # usa CPU ociosa sem oversubscription real.
+          #
+          # NAO derive de `os.availableParallelism()`: isso confunde METRICA com POLITICA
+          # e faz o comportamento mudar conforme o host escolhido pelo scheduler.
+          CI_INTEGRATION_WORKERS: ${{ vars.CI_INTEGRATION_WORKERS || '4' }}
           INTEGRATION_ADMIN_URL: postgresql://cisne_ci:cisne_ci_disposable_password@127.0.0.1:5432/postgres
           INTEGRATION_TEMPLATE_DB: cisne_integration_template
           INTEGRATION_DB_PREFIX: cisne_it_
