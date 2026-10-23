@@ -72,7 +72,7 @@ test('auditoria identifica cutover pendente quando Coolify ainda anuncia HTTP', 
   assert.equal(result.readyForHttpsOnly, false);
 });
 
-test('auditoria aprova HTTPS, redirect permanente, HSTS e env coerente', async () => {
+test('auditoria aprova HTTPS, redirect HTTP->HTTPS, HSTS e env coerente', async () => {
   const client = clientFixture({
     apiDomain: 'https://api.example.test',
     webDomain: 'https://app.example.test',
@@ -82,10 +82,10 @@ test('auditoria aprova HTTPS, redirect permanente, HSTS e env coerente', async (
   const fetchImpl = async (url) => {
     const value = String(url);
     if (value.startsWith('http://api.')) {
-      return response(308, { location: 'https://api.example.test/api/v1/health/ready' });
+      return response(302, { location: 'https://api.example.test/api/v1/health/ready' });
     }
     if (value.startsWith('http://app.')) {
-      return response(308, { location: 'https://app.example.test/health' });
+      return response(307, { location: 'https://app.example.test/health' });
     }
     return response(200, { 'strict-transport-security': 'max-age=31536000; includeSubDomains' });
   };
@@ -93,8 +93,10 @@ test('auditoria aprova HTTPS, redirect permanente, HSTS e env coerente', async (
   const result = await auditProductionTls({ client, fetchImpl, expectedSha: SHA, uuids });
   assert.equal(result.certificateValid.api, true);
   assert.equal(result.certificateValid.web, true);
-  assert.equal(result.permanentRedirects.api, true);
-  assert.equal(result.permanentRedirects.web, true);
+  assert.equal(result.httpRedirects.api, true);
+  assert.equal(result.httpRedirects.web, true);
+  assert.equal(result.permanentRedirects.api, false);
+  assert.equal(result.permanentRedirects.web, false);
   assert.equal(result.env.corsOrigin.matchesHttpsWeb, true);
   assert.equal(result.env.publicApiUrl.matchesHttpsApi, true);
   assert.equal(result.readyForHttpsOnly, true);
@@ -109,7 +111,7 @@ test('auditoria recusa runtime que nao corresponde ao SHA esperado', async () =>
 });
 
 
-test('auditoria reprova HTTPS completo quando redaction de env esta desligado', async () => {
+test('redaction desligada e reportada, mas nao bloqueia TLS quando o endpoint desta versao nao suporta update', async () => {
   const client = clientFixture({
     apiDomain: 'https://api.example.test',
     webDomain: 'https://app.example.test',
@@ -124,6 +126,6 @@ test('auditoria reprova HTTPS completo quando redaction de env esta desligado', 
   };
   const result = await auditProductionTls({ client, fetchImpl, expectedSha: SHA, uuids });
   assert.equal(result.certificateValid.api, true);
-  assert.equal(result.readyForHttpsOnly, false);
+  assert.equal(result.readyForHttpsOnly, true);
   assert.equal(result.coolify.apiEnvLogRedaction, false);
 });
