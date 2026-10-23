@@ -27,6 +27,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { env } from './secret-envelope.mjs';
 
 const IMAGE_BY_DIGEST_RE = /^[a-z0-9.-]+(?::[0-9]+)?\/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$/i;
 const SHA_RE = /^[0-9a-f]{40}$/i;
@@ -356,21 +357,21 @@ function readPayload(path) {
 
 async function runCli() {
   const payloadPath = resolve(
-    process.env.COOLIFY_DEPLOY_PAYLOAD || 'artifacts/coolify/deploy-payload.json',
+    env('COOLIFY_DEPLOY_PAYLOAD') || 'artifacts/coolify/deploy-payload.json',
   );
   const plan = buildDeployPlan(readPayload(payloadPath), {
-    api: process.env.COOLIFY_API_UUID,
-    worker: process.env.COOLIFY_WORKER_UUID,
-    web: process.env.COOLIFY_WEB_UUID,
+    api: env('COOLIFY_API_UUID'),
+    worker: env('COOLIFY_WORKER_UUID'),
+    web: env('COOLIFY_WEB_UUID'),
   });
 
   const client = createCoolifyClient({
-    baseUrl: process.env.COOLIFY_BASE_URL,
-    token: process.env.COOLIFY_TOKEN,
+    baseUrl: env('COOLIFY_BASE_URL'),
+    token: env('COOLIFY_TOKEN'),
   });
 
   const results = await runDeployPlan(plan, client, {
-    timeoutMs: Number(process.env.COOLIFY_DEPLOY_TIMEOUT_MS ?? 600_000),
+    timeoutMs: Number(env('COOLIFY_DEPLOY_TIMEOUT_MS') ?? 600_000),
     onStep: (message) => console.log(message),
     // Provenance: confirma que cada tag resolve para o digest autorizado antes
     // de qualquer efeito no runtime.

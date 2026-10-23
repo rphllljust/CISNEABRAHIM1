@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 import { appendFileSync } from 'node:fs';
+import { env } from './secret-envelope.mjs';
 
-const token = process.env.RAILWAY_API_TOKEN;
-const projectId = process.env.RAILWAY_PROJECT_ID;
-const sourceEnvironmentId = process.env.RAILWAY_PRODUCTION_ENVIRONMENT_ID;
-const apiServiceId = process.env.RAILWAY_API_SERVICE_ID;
-const webServiceId = process.env.RAILWAY_WEB_SERVICE_ID;
-const postgresServiceId = process.env.RAILWAY_POSTGRES_SERVICE_ID;
-const releaseSha = process.env.CD_COMMIT_SHA;
-const releaseDigest = process.env.CD_ARTIFACT_DIGEST;
-const name = process.env.RAILWAY_HML_ENVIRONMENT_NAME || 'hml';
+const token = env('RAILWAY_API_TOKEN');
+const projectId = env('RAILWAY_PROJECT_ID');
+const sourceEnvironmentId = env('RAILWAY_PRODUCTION_ENVIRONMENT_ID');
+const apiServiceId = env('RAILWAY_API_SERVICE_ID');
+const webServiceId = env('RAILWAY_WEB_SERVICE_ID');
+const postgresServiceId = env('RAILWAY_POSTGRES_SERVICE_ID');
+const releaseSha = env('CD_COMMIT_SHA');
+const releaseDigest = env('CD_ARTIFACT_DIGEST');
+const name = env('RAILWAY_HML_ENVIRONMENT_NAME') || 'hml';
 
 for (const [key, value] of Object.entries({
   RAILWAY_API_TOKEN: token,
