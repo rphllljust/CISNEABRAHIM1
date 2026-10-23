@@ -188,3 +188,17 @@ test('recusa runtime-config sem Cache-Control', async()=>{
     /Cache-Control no-store/,
   );
 });
+
+test('recusa runtime-config com Cache-Control duplicado', async()=>{
+  // DEFEITO MEDIDO (release e705c6bb): `expires -1` no nginx adicionava um SEGUNDO
+  // Cache-Control ao lado do add_header. `headers.get` une os dois com ", ", e um leitor que
+  // pegasse o primeiro veria "no-cache" em vez de "no-store" — a guarda passaria a medir o
+  // clima, nao a politica. Cabecalho duplicado e ambiguidade de caching: reprova.
+  const {client,fetchImpl}=fixture({
+    runtimeConfigCache:'no-cache, no-store, no-cache, must-revalidate',
+  });
+  await assert.rejects(
+    ()=>verifyProduction({client,fetchImpl,sourceSha:SHA,repositories:repos,uuids,login:'smoke',password:'secret'}),
+    /Cache-Control duplicado/,
+  );
+});

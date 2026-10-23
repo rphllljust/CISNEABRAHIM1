@@ -184,8 +184,22 @@ export async function verifyProduction({
   // antiga continua com o login quebrado depois do deploy — o sintoma sobrevive a correcao e
   // parece "producao ainda quebrada". `no-store` e exigido porque este arquivo e a cola entre
   // o Web e a API: valor obsoleto nao e degradacao, e indisponibilidade de login.
+  // `headers.get` une cabecalhos repetidos com ", ". A assinatura da duplicata medida em
+  // e705c6bb era `no-cache, no-store, no-cache, must-revalidate`: a diretiva `no-cache`
+  // aparecendo DUAS vezes revela dois cabecalhos empilhados (`expires -1` + `add_header`).
+  // Uma politica correta declara cada diretiva no maximo uma vez.
   const cacheControl = runtimeConfig.headers?.get?.('cache-control') ?? '';
-  if (!/no-store/i.test(cacheControl)) {
+  const diretivas = cacheControl
+    .split(',')
+    .map((part) => part.trim().toLowerCase())
+    .filter(Boolean);
+  const repetidas = diretivas.filter((d, i) => diretivas.indexOf(d) !== i);
+  if (repetidas.length > 0) {
+    throw new DeployRefusedError(
+      `web runtime-config tem Cache-Control duplicado e ambiguo (diretivas repetidas: ${[...new Set(repetidas)].join(', ')}): '${cacheControl}'`,
+    );
+  }
+  if (!diretivas.includes('no-store')) {
     throw new DeployRefusedError(
       `web runtime-config precisa de Cache-Control no-store (recebido: '${cacheControl || 'AUSENTE'}')`,
     );
