@@ -3,10 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
-import {
-  packageImmutableRailwayRelease,
-  RELEASE_INPUTS,
-} from './railway-immutable-release.mjs';
+import { packageImmutableRelease, RELEASE_INPUTS } from './immutable-release.mjs';
 
 function write(root, path, content = path) {
   const target = resolve(root, path);
@@ -14,7 +11,7 @@ function write(root, path, content = path) {
   writeFileSync(target, content);
 }
 
-test('packages only immutable runtime inputs and canonical Railway Dockerfile paths', () => {
+test('packages only immutable runtime inputs under provider-neutral release paths', () => {
   const root = mkdtempSync(join(tmpdir(), 'cisne-release-src-'));
   for (const path of RELEASE_INPUTS) {
     if (path.endsWith('/dist') || path.endsWith('/migrations')) {
@@ -36,10 +33,11 @@ test('packages only immutable runtime inputs and canonical Railway Dockerfile pa
   );
 
   const output = mkdtempSync(join(tmpdir(), 'cisne-release-out-'));
-  packageImmutableRailwayRelease({ root, output });
+  packageImmutableRelease({ root, output });
 
   assert.equal(existsSync(resolve(output, 'apps/api/src/forbidden.ts')), false);
-  assert.equal(existsSync(resolve(output, 'docker/hml/Dockerfile.api')), true);
-  assert.equal(existsSync(resolve(output, 'docker/railway/Dockerfile.web')), true);
+  assert.equal(existsSync(resolve(output, 'docker/release/Dockerfile.api')), true);
+  assert.equal(existsSync(resolve(output, 'docker/release/Dockerfile.web')), true);
+  assert.equal(existsSync(resolve(output, 'docker/release/nginx.conf')), true);
   assert.equal(existsSync(resolve(output, 'artifacts/release-identity.json')), true);
 });

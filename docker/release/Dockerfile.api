@@ -1,4 +1,4 @@
-# Runtime-only Railway image for an already validated CISNE release.
+# Runtime-only API image for an already validated CISNE release.
 # No application source is copied and no application build runs here.
 FROM node:24-alpine
 WORKDIR /app

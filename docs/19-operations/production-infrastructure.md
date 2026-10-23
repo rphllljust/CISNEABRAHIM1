@@ -135,8 +135,8 @@ Artefatos:
 | Item | Status |
 | ---- | ------ |
 | RPO/RTO | `TARGET_NOT_DEFINED` (DDP-016) |
-| Provedor cloud definitivo | ADR-006 `PROPOSED` |
-| Região / residência de dados | decisão pendente |
+| Provedor cloud definitivo | OVH VPS + Coolify — IMPLEMENTED |
+| Runtime | OVH VPS gerenciado pelo Coolify |
 
 ## Documentos relacionados
 

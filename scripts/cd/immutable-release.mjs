@@ -16,7 +16,7 @@ export const RELEASE_INPUTS = [
   'apps/web/dist',
   'packages/database/dist',
   'packages/database/migrations',
-  'docker/railway/nginx.conf',
+  'docker/release/nginx.conf',
   'docker/release/runtime-config.js.template',
 ];
 
@@ -28,9 +28,9 @@ function copyInto(root, output, relativePath) {
   cpSync(from, to, { recursive: true });
 }
 
-export function packageImmutableRailwayRelease({
+export function packageImmutableRelease({
   root = process.cwd(),
-  output = resolve(process.cwd(), 'artifacts/railway/release'),
+  output = resolve(process.cwd(), 'artifacts/release'),
 } = {}) {
   const metadata = JSON.parse(
     readFileSync(resolve(root, 'artifacts/ci/build-metadata.json'), 'utf8'),
@@ -44,12 +44,11 @@ export function packageImmutableRailwayRelease({
 
   for (const relativePath of RELEASE_INPUTS) copyInto(root, output, relativePath);
 
-  const apiDockerfile = resolve(output, 'docker/hml/Dockerfile.api');
-  const webDockerfile = resolve(output, 'docker/railway/Dockerfile.web');
-  mkdirSync(dirname(apiDockerfile), { recursive: true });
-  mkdirSync(dirname(webDockerfile), { recursive: true });
-  cpSync(resolve(root, 'docker/release/Dockerfile.api'), apiDockerfile);
-  cpSync(resolve(root, 'docker/release/Dockerfile.web'), webDockerfile);
+  for (const name of ['Dockerfile.api', 'Dockerfile.web']) {
+    const target = resolve(output, 'docker/release', name);
+    mkdirSync(dirname(target), { recursive: true });
+    cpSync(resolve(root, 'docker/release', name), target);
+  }
 
   const identity = {
     sourceSha: metadata.commitSha,
@@ -67,8 +66,6 @@ const isMain =
   fileURLToPath(import.meta.url) === resolve(process.argv[1]);
 
 if (isMain) {
-  const result = packageImmutableRailwayRelease();
-  console.log(
-    `[railway-release] packaged source=${result.sourceSha} root=${result.output}`,
-  );
+  const result = packageImmutableRelease();
+  console.log(`[release] packaged source=${result.sourceSha} root=${result.output}`);
 }

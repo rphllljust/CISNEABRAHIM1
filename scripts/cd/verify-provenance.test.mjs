@@ -9,12 +9,13 @@ const SHA = '0123456789abcdef0123456789abcdef01234567';
 
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'cisne-provenance-'));
-  for (const path of ['apps/api/dist', 'apps/web/dist', 'packages/database/dist', 'artifacts/ci', 'artifacts/cd']) {
+  for (const path of ['apps/api/dist', 'apps/web/dist', 'packages/database/dist', 'artifacts/ci', 'artifacts/cd', 'artifacts/release']) {
     mkdirSync(join(root, path), { recursive: true });
   }
   writeFileSync(join(root, 'apps/api/dist/main.js'), 'api');
   writeFileSync(join(root, 'apps/web/dist/index.html'), 'web');
   writeFileSync(join(root, 'packages/database/dist/index.js'), 'db');
+  writeFileSync(join(root, 'artifacts/release/runtime.txt'), 'immutable-release');
   const metadata = { commitSha: SHA, buildRunId: '42' };
   writeFileSync(join(root, 'artifacts/ci/build-metadata.json'), JSON.stringify(metadata));
   const artifactDigest = computeArtifactDigest(root);
