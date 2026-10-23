@@ -50,9 +50,9 @@ describe('TechnicalAlertSchedulerBootstrap', () => {
         .mockResolvedValueOnce({
           evaluatedAt: '2026-10-23T14:00:00.000Z',
           firing: [{
-            alertType: 'high_error_rate',
-            status: 'firing',
-            severity: 'warning',
+            alertType: 'HIGH_ERROR_RATE',
+            status: 'FIRING',
+            severity: 'WARNING',
             title: 'Alta taxa de erro HTTP',
             message: 'Taxa de erro HTTP acima do limiar.',
             observedValue: '0.10',
@@ -64,9 +64,9 @@ describe('TechnicalAlertSchedulerBootstrap', () => {
         .mockResolvedValueOnce({
           evaluatedAt: '2026-10-23T14:00:10.000Z',
           firing: [{
-            alertType: 'high_error_rate',
-            status: 'firing',
-            severity: 'warning',
+            alertType: 'HIGH_ERROR_RATE',
+            status: 'FIRING',
+            severity: 'WARNING',
             title: 'Alta taxa de erro HTTP',
             message: 'Taxa de erro HTTP acima do limiar.',
             observedValue: '0.11',
@@ -78,9 +78,9 @@ describe('TechnicalAlertSchedulerBootstrap', () => {
         .mockResolvedValueOnce({
           evaluatedAt: '2026-10-23T14:00:20.000Z',
           firing: [{
-            alertType: 'high_error_rate',
-            status: 'firing',
-            severity: 'critical',
+            alertType: 'HIGH_ERROR_RATE',
+            status: 'FIRING',
+            severity: 'CRITICAL',
             title: 'Alta taxa de erro HTTP',
             message: 'Taxa de erro HTTP acima do limiar.',
             observedValue: '0.25',
@@ -93,10 +93,10 @@ describe('TechnicalAlertSchedulerBootstrap', () => {
           evaluatedAt: '2026-10-23T14:00:30.000Z',
           firing: [],
           recentlyResolved: [{
-            alertType: 'high_error_rate',
-            status: 'resolved',
-            severity: 'info',
-            title: 'high_error_rate resolved',
+            alertType: 'HIGH_ERROR_RATE',
+            status: 'RESOLVED',
+            severity: 'INFO',
+            title: 'HIGH_ERROR_RATE resolved',
             message: 'Condição normalizada.',
             observedValue: '',
             firingSince: null,
@@ -120,14 +120,14 @@ describe('TechnicalAlertSchedulerBootstrap', () => {
       'Technical alert firing',
       'TECHNICAL_ALERT_CRITICAL',
       expect.objectContaining({
-        alertType: 'high_error_rate',
-        severity: 'critical',
-        previousSeverity: 'warning',
+        alertType: 'HIGH_ERROR_RATE',
+        severity: 'CRITICAL',
+        previousSeverity: 'WARNING',
       }),
     );
     expect(log.info).toHaveBeenCalledWith(
       'Technical alert resolved',
-      expect.objectContaining({ alertType: 'high_error_rate' }),
+      expect.objectContaining({ alertType: 'HIGH_ERROR_RATE' }),
     );
 
     scheduler.onModuleDestroy();
