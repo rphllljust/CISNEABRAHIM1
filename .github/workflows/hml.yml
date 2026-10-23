@@ -11,6 +11,14 @@ on:
       - 'docker/hml/**'
       - '.env.hml.example'
       - 'scripts/hml/**'
+      - '.github/workflows/hml.yml'
+  pull_request:
+    paths:
+      - 'apps/api/src/ops/hml/**'
+      - 'docker/hml/**'
+      - '.env.hml.example'
+      - 'scripts/hml/**'
+      - '.github/workflows/hml.yml'
 
 permissions:
   contents: read
@@ -31,6 +39,12 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+
+      # @cisne/database publica somente ./dist via main/exports. Os testes HML
+      # importam o pacote workspace por esse contrato, portanto o build e
+      # dependencia real do teste, nao efeito colateral do gerenciador.
+      - name: Build database workspace dependency
+        run: pnpm --filter @cisne/database build
 
       - name: HML unit tests
         run: pnpm --filter @cisne/api test:hml
