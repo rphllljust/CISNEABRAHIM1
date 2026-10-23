@@ -29,7 +29,7 @@ jobs:
     steps:
       # Necessario porque o seletor de autoridade e um modulo versionado
       # (scripts/cd/select-authorizing-run.mjs) e nao um inline no YAML.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 1
 
@@ -84,13 +84,13 @@ jobs:
       WORKER_REPOSITORY: ghcr.io/${{ github.repository_owner }}/cisne-worker
       WEB_REPOSITORY: ghcr.io/${{ github.repository_owner }}/cisne-web
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.release-authority.outputs.source_sha }}
           fetch-depth: 1
 
       - name: Download authorized CI artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           github-token: ${{ github.token }}
           run-id: ${{ needs.release-authority.outputs.ci_run_id }}
@@ -105,18 +105,18 @@ jobs:
         run: node scripts/cd/verify-provenance.mjs
 
       - name: Login to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - id: api
         name: Publish API image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: artifacts/release
           file: artifacts/release/docker/release/Dockerfile.api
@@ -128,7 +128,7 @@ jobs:
 
       - id: web
         name: Publish Web image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: artifacts/release
           file: artifacts/release/docker/release/Dockerfile.web
@@ -150,7 +150,7 @@ jobs:
       # Derivar da imagem da API garante bits identicos; so o CMD muda.
       - id: worker
         name: Publish Worker image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/release/Dockerfile.worker
@@ -172,7 +172,7 @@ jobs:
         run: node scripts/cd/coolify-deploy-payload.mjs
 
       - name: Upload Coolify deployment payload
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coolify-release-${{ needs.release-authority.outputs.source_sha }}
           if-no-files-found: error
