@@ -296,8 +296,28 @@ export async function verifyProduction({
   const unreachable = [];
   const visible = [];
   for (const entry of enabled) {
-    const routes = Array.isArray(entry?.routes) ? entry.routes.filter(Boolean) : [];
-    if (routes.length === 0) continue;
+    // O SUMMARY (`GET /modules/registry`) NAO traz `routes` — so o DETAIL
+    // (`GET /modules/registry/:code`) traz. Ler `entry.routes` do summary devolve
+    // `undefined`, o loop pulava todo mundo e `visible` saia VAZIO mesmo com os 13
+    // modulos habilitados. Foi exatamente o que aconteceu no release abf17d39.
+    let routes = Array.isArray(entry?.routes) ? entry.routes.filter(Boolean) : [];
+    if (routes.length === 0) {
+      const detail = await fetchChecked(
+        fetchImpl,
+        `${apiUrl}/api/v1/modules/registry/${encodeURIComponent(String(entry.moduleCode))}`,
+        { method: 'GET', headers: authHeaders },
+        `module detail ${entry.moduleCode}`,
+      );
+      if (detail.ok) {
+        const body = await jsonSafe(detail);
+        if (Array.isArray(body?.routes)) routes = body.routes.filter(Boolean);
+      }
+    }
+    if (routes.length === 0) {
+      // Sem rota declarada nao ha o que sondar: reporta como nao provado, nunca como visivel.
+      unreachable.push(`${entry.moduleCode} [sem rota declarada no registry]`);
+      continue;
+    }
 
     // Basta UMA rota alcancavel para o modulo ser utilizavel pelo operador.
     let reachable = false;
