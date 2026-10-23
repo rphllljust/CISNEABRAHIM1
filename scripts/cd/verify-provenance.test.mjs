@@ -64,8 +64,25 @@ test('rejects SHA divergence', () => {
 test('rejects artifact mutation after build', () => {
   const { root } = fixture();
   try {
-    writeFileSync(join(root, 'apps/web/dist/index.html'), 'mutated');
+    // O digest cobre `DEFAULT_ARTIFACT_PATHS` (artifacts/release), que e o que o
+    // release imutavel consome — nao os diretorios de build das apps. Mutar
+    // `apps/web/dist` nao altera o digest por contrato; e preciso mutar um
+    // arquivo DENTRO do caminho coberto para provar a deteccao.
+    writeFileSync(join(root, 'artifacts/release/runtime.txt'), 'mutated-after-build');
     assert.throws(() => verifyProvenance({ root, expectedSourceSha: SHA }), /Artifact digest mismatch/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('mutation outside the covered artifact path does not change the digest', () => {
+  const { root, artifactDigest } = fixture();
+  try {
+    writeFileSync(join(root, 'apps/web/dist/index.html'), 'mutated');
+    // Contrato explicito: `apps/web/dist` nao esta em DEFAULT_ARTIFACT_PATHS.
+    assert.equal(computeArtifactDigest(root), artifactDigest);
+    const result = verifyProvenance({ root, expectedSourceSha: SHA });
+    assert.equal(result.artifactDigest, artifactDigest);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

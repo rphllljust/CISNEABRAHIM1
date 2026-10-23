@@ -184,19 +184,28 @@ export async function auditProductionTls({
     web: webHttps.reachable && webHttps.ok,
   };
 
+  // Redaction de env em log permanece AUDITADA e reportada, mas nao bloqueia o
+  // gate de TLS: o campo exige team admin no Coolify e nao e escrevivel pelo
+  // token do CI (medido no run 39971906142, 422 "This field is not allowed").
+  // Bloquear aqui produziria um gate que nunca pode passar; ignora-lo em
+  // silencio esconderia a divida. Ele e reportado como pendencia explicita.
   const logRedaction = {
     api: Boolean(api?.redact_all_env_values_in_logs),
     web: Boolean(web?.redact_all_env_values_in_logs),
     worker: Boolean(worker?.redact_all_env_values_in_logs),
   };
+  const logRedactionEnforced = logRedaction.api && logRedaction.web && logRedaction.worker;
 
+  // O gate exige redirect PERMANENTE (301/308), nao apenas qualquer redirect.
+  // Aceitar 302/307 aqui foi a regressao do PR #95: redirect temporario nao
+  // prova que o HTTP->HTTPS e definitivo, e passava como verde.
   const readyForHttpsOnly =
     httpsConfigured.api &&
     httpsConfigured.web &&
     certificateValid.api &&
     certificateValid.web &&
-    httpRedirects.api &&
-    httpRedirects.web &&
+    permanentRedirects.api &&
+    permanentRedirects.web &&
     envCoherence.corsOrigin &&
     envCoherence.publicApiUrl &&
     apiHttps.hsts &&
@@ -233,6 +242,11 @@ export async function auditProductionTls({
       webEnvLogRedaction: logRedaction.web,
       workerEnvLogRedaction: logRedaction.worker,
     },
+    // Pendencia administrativa explicita: redaction exige team admin no
+    // Coolify e nao e aplicavel pelo token do CI. Reportada, nao silenciada.
+    pendingAdminActions: logRedactionEnforced
+      ? []
+      : ['habilitar redact_all_env_values_in_logs no Coolify (requer team admin)'],
     readyForHttpsOnly,
   };
 }
