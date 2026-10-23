@@ -167,6 +167,19 @@ export function collectRuntimeConfigErrors(
     if (workerEnabled !== undefined && !['true', 'false'].includes(workerEnabled)) {
       push('WORKER_ENABLED', `unsupported value "${workerEnabled}" (expected true|false)`);
     }
+
+    const alertScanEnabled = env['ALERT_SCAN_ENABLED'];
+    if (hard && alertScanEnabled !== 'true') {
+      push('ALERT_SCAN_ENABLED', 'must be true for production-like worker runtime');
+    } else if (
+      alertScanEnabled !== undefined &&
+      !['true', 'false'].includes(alertScanEnabled)
+    ) {
+      push(
+        'ALERT_SCAN_ENABLED',
+        `unsupported value "${alertScanEnabled}" (expected true|false)`,
+      );
+    }
   }
 
   return errors;

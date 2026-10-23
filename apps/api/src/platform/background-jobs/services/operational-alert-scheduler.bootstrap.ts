@@ -16,6 +16,12 @@ export class OperationalAlertSchedulerBootstrap implements OnModuleInit, OnModul
       this.logger.log('Operational alert scan scheduler disabled (ALERT_SCAN_ENABLED != true)');
       return;
     }
+    // O módulo também existe na API. Somente o processo worker agenda a varredura;
+    // a idempotência permanece como segunda barreira contra duplicação.
+    if (process.env['WORKER_ENABLED'] !== 'true') {
+      this.logger.log('Operational alert scan scheduler idle outside dedicated worker');
+      return;
+    }
     void this.enqueueScan('bootstrap');
     this.timer = setInterval(() => {
       void this.enqueueScan('interval');

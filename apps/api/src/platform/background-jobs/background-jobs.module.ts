@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { AlertsModule } from '../../alerts/alerts.module';
 import { DatabaseModule } from '../../infrastructure/database/database.module';
 import { NotificationsModule } from '../../notifications/notifications.module';
+import { ObservabilityModule } from '../../observability/observability.module';
 import { NotificationDispatchJobHandler } from './handlers/notification-dispatch.handler';
 import { OperationalAlertScanJobHandler } from './handlers/operational-alert-scan.handler';
 import { BackgroundJobsRepository } from './repositories/background-jobs.repository';
@@ -11,7 +12,7 @@ import { BackgroundJobHandlerRegistry } from './services/background-job-handler.
 import { BackgroundWorkerService } from './services/background-worker.service';
 
 @Module({
-  imports: [DatabaseModule, NotificationsModule, forwardRef(() => AlertsModule)],
+  imports: [DatabaseModule, NotificationsModule, ObservabilityModule, forwardRef(() => AlertsModule)],
   providers: [
     BackgroundJobsRepository,
     BackgroundJobEnqueueService,

@@ -23,6 +23,9 @@ test('builds immutable Coolify payload with worker pinned to API image', () => {
     'node',
     'apps/api/dist/worker/main.js',
   ]);
+  assert.deepEqual(payload.runtime.worker.requiredEnvironment, [
+    'ALERT_SCAN_ENABLED',
+  ]);
   assert.deepEqual(payload.runtime.web.requiredEnvironment, [
     'CISNE_PUBLIC_API_URL',
   ]);

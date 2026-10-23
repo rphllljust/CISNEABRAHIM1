@@ -66,6 +66,7 @@ export function buildCoolifyDeployPayload({
       },
       worker: {
         command: ['node', 'apps/api/dist/worker/main.js'],
+        requiredEnvironment: ['ALERT_SCAN_ENABLED'],
       },
       web: {
         port: 80,

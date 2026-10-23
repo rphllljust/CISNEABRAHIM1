@@ -41,8 +41,27 @@ describe('runtime config validation', () => {
       CISNE_ENV: 'production',
       DATABASE_URL: 'postgresql://user:pass@postgres:5432/cisne_production',
       JWT_SECRET: 'b'.repeat(40),
+      ALERT_SCAN_ENABLED: 'true',
     });
     expect(collectRuntimeConfigErrors('worker', env)).toEqual([]);
+  });
+
+  it('requires proactive alert scanning in production worker runtime', () => {
+    const base = {
+      NODE_ENV: 'production',
+      CISNE_ENV: 'production',
+      DATABASE_URL: 'postgresql://user:pass@postgres:5432/cisne_production',
+      JWT_SECRET: 'b'.repeat(40),
+    };
+
+    const missing = collectRuntimeConfigErrors('worker', withEnv(base));
+    const disabled = collectRuntimeConfigErrors(
+      'worker',
+      withEnv({ ...base, ALERT_SCAN_ENABLED: 'false' }),
+    );
+
+    expect(missing.some((e) => e.startsWith('ALERT_SCAN_ENABLED:'))).toBe(true);
+    expect(disabled.some((e) => e.startsWith('ALERT_SCAN_ENABLED:'))).toBe(true);
   });
 
   it('fails fast when DATABASE_URL is missing in a production-like env', () => {
