@@ -258,6 +258,12 @@ export async function verifyRequiredEnvironment(plan, client, { onStep = () => {
     for (const item of Array.isArray(envs) ? envs : []) {
       const key = item?.key;
       if (typeof key !== 'string') continue;
+      // O Coolify guarda DUAS entradas por variavel: a de producao (`is_preview: false`) e
+      // uma de preview (`is_preview: true`). Apenas a nao-preview e injetada no container de
+      // producao. Contar as duas produziria "duplicata" em toda variavel -- falso positivo
+      // medido contra a API real do Coolify 4.4.7. Filtrar por `is_preview` e o que separa
+      // ambiguidade REAL (duas entradas de producao) de ruido estrutural do painel.
+      if (item?.is_preview === true) continue;
       const atual = byKey.get(key) ?? [];
       atual.push(item);
       byKey.set(key, atual);

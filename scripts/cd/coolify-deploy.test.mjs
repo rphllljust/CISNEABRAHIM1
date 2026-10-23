@@ -327,12 +327,12 @@ test('recusa deploy quando variavel obrigatoria esta vazia', async () => {
 
 test('recusa deploy quando variavel esta duplicada (ambiguidade de runtime)', async () => {
   // A API v1 do Coolify nao tem PATCH: recriar exige DELETE + POST. Sem conferir
-  // cardinalidade sobram duas entradas com a mesma chave e nao ha como saber qual valor
-  // o container recebe.
+  // cardinalidade sobram duas entradas de PRODUCAO com a mesma chave e nao ha como
+  // saber qual valor o container recebe.
   const client = clientComEnv({
     'uuid-api': [
-      { key: 'CORS_ORIGIN', real_value: 'http://antigo.example.test' },
-      { key: 'CORS_ORIGIN', real_value: 'http://app.example.test' },
+      { key: 'CORS_ORIGIN', real_value: 'http://antigo.example.test', is_preview: false },
+      { key: 'CORS_ORIGIN', real_value: 'http://app.example.test', is_preview: false },
     ],
     'uuid-web': ENV_OK['uuid-web'],
   });
@@ -340,6 +340,24 @@ test('recusa deploy quando variavel esta duplicada (ambiguidade de runtime)', as
     () => runDeployPlan(buildDeployPlan(payload(), apps), client, { timeoutMs: 500 }),
     /variavel duplicada \(2x\) no Coolify: CORS_ORIGIN/,
   );
+});
+
+test('ignora a entrada de preview ao contar variaveis', async () => {
+  // O Coolify guarda DUAS entradas por variavel: producao (`is_preview: false`) e preview
+  // (`is_preview: true`). Somente a de producao e injetada no container de producao.
+  // Contar as duas reprovaria TODA variavel -- falso positivo medido contra a API real.
+  const client = clientComEnv({
+    'uuid-api': [
+      { key: 'CORS_ORIGIN', real_value: 'http://app.example.test', is_preview: false },
+      { key: 'CORS_ORIGIN', real_value: 'http://app.example.test', is_preview: true },
+    ],
+    'uuid-web': [
+      { key: 'CISNE_PUBLIC_API_URL', real_value: 'http://api.example.test', is_preview: false },
+      { key: 'CISNE_PUBLIC_API_URL', real_value: 'http://api.example.test', is_preview: true },
+    ],
+  });
+  const results = await runDeployPlan(buildDeployPlan(payload(), apps), client, { timeoutMs: 500 });
+  assert.deepEqual(results.map((r) => r.key), ['api', 'worker', 'web']);
 });
 
 test('recusa deploy quando CISNE_PUBLIC_API_URL do Web esta ausente', async () => {
