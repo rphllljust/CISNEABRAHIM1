@@ -184,6 +184,12 @@ export async function auditProductionTls({
     web: webHttps.reachable && webHttps.ok,
   };
 
+  const logRedaction = {
+    api: Boolean(api?.redact_all_env_values_in_logs),
+    web: Boolean(web?.redact_all_env_values_in_logs),
+    worker: Boolean(worker?.redact_all_env_values_in_logs),
+  };
+
   const readyForHttpsOnly =
     httpsConfigured.api &&
     httpsConfigured.web &&
@@ -194,7 +200,10 @@ export async function auditProductionTls({
     envCoherence.corsOrigin &&
     envCoherence.publicApiUrl &&
     apiHttps.hsts &&
-    webHttps.hsts;
+    webHttps.hsts &&
+    logRedaction.api &&
+    logRedaction.web &&
+    logRedaction.worker;
 
   return {
     sourceSha: expectedSha,
@@ -222,9 +231,9 @@ export async function auditProductionTls({
       webPermanentRedirectFlag: Boolean(web?.is_permanent_redirect_enabled),
       apiCertificateResolver: api?.traefik_certificate_resolver ?? null,
       webCertificateResolver: web?.traefik_certificate_resolver ?? null,
-      apiEnvLogRedaction: Boolean(api?.redact_all_env_values_in_logs),
-      webEnvLogRedaction: Boolean(web?.redact_all_env_values_in_logs),
-      workerEnvLogRedaction: Boolean(worker?.redact_all_env_values_in_logs),
+      apiEnvLogRedaction: logRedaction.api,
+      webEnvLogRedaction: logRedaction.web,
+      workerEnvLogRedaction: logRedaction.worker,
     },
     readyForHttpsOnly,
   };
@@ -247,6 +256,9 @@ async function main() {
   });
 
   console.log(`[tls-audit] ${JSON.stringify(result)}`);
+  if (!result.readyForHttpsOnly) {
+    throw new DeployRefusedError('producao nao esta em HTTPS-only com redirect, HSTS, env coerente e log redaction');
+  }
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {

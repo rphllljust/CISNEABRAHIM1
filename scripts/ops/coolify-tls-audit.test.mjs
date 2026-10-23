@@ -107,3 +107,23 @@ test('auditoria recusa runtime que nao corresponde ao SHA esperado', async () =>
     /runtime tag divergiu de main/,
   );
 });
+
+
+test('auditoria reprova HTTPS completo quando redaction de env esta desligado', async () => {
+  const client = clientFixture({
+    apiDomain: 'https://api.example.test',
+    webDomain: 'https://app.example.test',
+    redirectFlag: true,
+    redaction: false,
+  });
+  const fetchImpl = async (url) => {
+    const value = String(url);
+    if (value.startsWith('http://api.')) return response(308, { location: 'https://api.example.test/api/v1/health/ready' });
+    if (value.startsWith('http://app.')) return response(308, { location: 'https://app.example.test/health' });
+    return response(200, { 'strict-transport-security': 'max-age=31536000' });
+  };
+  const result = await auditProductionTls({ client, fetchImpl, expectedSha: SHA, uuids });
+  assert.equal(result.certificateValid.api, true);
+  assert.equal(result.readyForHttpsOnly, false);
+  assert.equal(result.coolify.apiEnvLogRedaction, false);
+});
