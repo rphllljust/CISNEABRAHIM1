@@ -1,0 +1,75 @@
+name: Production module surface
+
+# Audita e alinha a superficie de modulos da API de producao ao contrato de release.
+#
+# POR QUE ESTE WORKFLOW EXISTE
+#
+# `VITE_FEATURE_MODULE_*` (build) e `FEATURE_MODULE_*` (runtime) sao familias independentes:
+# nada as acopla. O bundle pode anunciar um modulo que a API recusa (403 FEATURE_DISABLED) ou
+# a API pode servir um modulo que o menu nao mostra. Ambos sao falha de release.
+#
+# O token do Coolify e write-only no GitHub (nunca revelavel), entao a leitura do estado real
+# acontece AQUI, com o secret injetado pelo Actions — nao ha caminho que exija copiar o valor.
+#
+# Escopos:
+#   - `contents: read`  : baixar o repositorio
+#   - nenhum write no repo: este workflow nao altera codigo
+#
+# Uso:
+#   gh workflow run production-module-surface.yml -f apply=false   # audita (fail-closed)
+#   gh workflow run production-module-surface.yml -f apply=true    # corrige + redeploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Aplicar correcao e redeployar a API (false = so auditar)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+permissions:
+  contents: read
+
+concurrency:
+  # Nunca dois alinhamentos de superficie ao mesmo tempo: os dois escreveriam as mesmas envs.
+  group: production-module-surface
+  cancel-in-progress: false
+
+jobs:
+  surface:
+    name: Audit and align module surface
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+
+      # Roda ANTES de qualquer escrita: prova que o contrato do repositorio continua valido.
+      - name: Repository release contract tests
+        run: node --test scripts/ops/coolify-module-surface.test.mjs
+
+      - name: Audit module surface (read-only)
+        if: ${{ github.event.inputs.apply != 'true' }}
+        env:
+          COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_API_UUID: ${{ secrets.COOLIFY_API_UUID }}
+        run: node scripts/ops/coolify-module-surface.mjs
+
+      - name: Align module surface and redeploy API
+        if: ${{ github.event.inputs.apply == 'true' }}
+        env:
+          COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_API_UUID: ${{ secrets.COOLIFY_API_UUID }}
+        run: node scripts/ops/coolify-module-surface.mjs --fix
