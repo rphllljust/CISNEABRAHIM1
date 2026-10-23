@@ -360,6 +360,14 @@ export async function verifyProduction({
     authenticatedSmoke: 'ok',
     migrations: 'ok',
     recent5xx: 0,
+    // Superficie de modulos efetivamente servida pela API nesta producao.
+    // Vai no log do deploy para que a decisao de release seja AUDITAVEL: sem isso,
+    // "o smoke passou" nao dizia QUAIS modulos o operador recebeu.
+    modules: {
+      total: modules.length,
+      enabled: enabled.map((entry) => entry.moduleCode),
+      notReleased: notReleased.map((entry) => entry.moduleCode),
+    },
   };
 }
 
@@ -389,6 +397,11 @@ async function main() {
 
   console.log(
     `[coolify-postdeploy] PASS source=${result.sourceSha} readiness=${result.readiness.status} database=${result.readiness.database} web=${result.webHealth} auth=${result.authenticatedSmoke} migrations=${result.migrations} recent5xx=${result.recent5xx}`,
+  );
+  // Prova auditavel da superficie entregue ao operador. Se um modulo construido nao
+  // aparecer aqui, o deploy "verde" nao significa produto completo.
+  console.log(
+    `[coolify-postdeploy] modules total=${result.modules.total} enabled=[${result.modules.enabled.join(',')}] notReleased=[${result.modules.notReleased.join(',')}]`,
   );
 }
 
