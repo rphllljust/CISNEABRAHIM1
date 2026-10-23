@@ -21,6 +21,6 @@
 # Esta imagem herda exatamente o mesmo conteudo da API e troca SO o processo.
 # O digest do artefato continua sendo o mesmo; a proveniencia e verificada pelo
 # mesmo pipeline (tag == source SHA).
-ARG CISNE_API_IMAGE
+ARG CISNE_API_IMAGE=ghcr.io/rphllljust/cisne-api:missing-build-arg
 FROM ${CISNE_API_IMAGE}
 CMD ["node", "apps/api/dist/worker/main.js"]

@@ -197,3 +197,15 @@ jobs:
           COOLIFY_WEB_UUID: ${{ secrets.COOLIFY_WEB_UUID }}
           COOLIFY_DEPLOY_PAYLOAD: artifacts/coolify/deploy-payload.json
         run: node scripts/cd/coolify-deploy.mjs
+
+      - name: Smoke real de producao
+        env:
+          COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_API_UUID: ${{ secrets.COOLIFY_API_UUID }}
+          COOLIFY_WORKER_UUID: ${{ secrets.COOLIFY_WORKER_UUID }}
+          COOLIFY_WEB_UUID: ${{ secrets.COOLIFY_WEB_UUID }}
+          PROD_SMOKE_LOGIN: ${{ secrets.PROD_SMOKE_LOGIN }}
+          PROD_SMOKE_PASSWORD: ${{ secrets.PROD_SMOKE_PASSWORD }}
+          PROD_SMOKE_EXPECTED_SHA: ${{ needs.release-authority.outputs.source_sha }}
+        run: node scripts/cd/production-smoke.mjs
