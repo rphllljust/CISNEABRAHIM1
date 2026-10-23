@@ -13,7 +13,7 @@ import { test } from '@playwright/test';
  *   pnpm --filter @cisne/web exec playwright test --config e2e/prod/playwright.prod.config.ts
  */
 
-const BASE_URL = process.env.PROD_BASE_URL ?? 'https://cisneweb-production-db99.up.railway.app';
+const BASE_URL = process.env.PROD_BASE_URL;
 const USER = process.env.PROD_USER;
 const PASSWORD = process.env.PROD_PASSWORD;
 
@@ -21,7 +21,9 @@ test.describe('produção /app', () => {
   test.use({ viewport: { width: 1728, height: 900 } });
 
   test('captura /app no artefato publicado', async ({ page }) => {
-    test.skip(!USER || !PASSWORD, 'PROD_USER/PROD_PASSWORD não fornecidos — captura autenticada impossível');
+    if (!BASE_URL || !USER || !PASSWORD) {
+      throw new Error('PROD_BASE_URL, PROD_USER e PROD_PASSWORD sao obrigatorios para prova real de producao');
+    }
 
     await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
     await page.getByLabel(/^usuário/i).fill(USER!);
