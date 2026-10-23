@@ -187,8 +187,12 @@ test('hardening aplica HTTPS somente com campos suportados, redeploya e executa 
     (entry) => entry.method === 'PATCH' && /^\/applications\/[^/]+$/.test(entry.path),
   );
   for (const patch of applicationPatches) {
+    // Regressao do run 39971906142: este campo exige team admin no Coolify e
+    // reprova o payload inteiro com 422, inclusive o rollback.
     assert.equal('redact_all_env_values_in_logs' in patch.body, false);
-    assert.equal('is_permanent_redirect_enabled' in patch.body, false);
+    // Este campo E suportado e E requisito de TLS: deve ir no payload.
+    assert.equal('is_permanent_redirect_enabled' in patch.body, true);
+    assert.equal(patch.body.is_permanent_redirect_enabled, true);
   }
 });
 
@@ -223,6 +227,15 @@ test('falha de TLS restaura domains/env usando somente campos suportados', async
   assert.equal(client.envs.api[0].real_value, 'http://app.example.test');
   assert.equal(client.envs.web[0].real_value, 'http://api.example.test');
   assert.equal(client.deployments.length, 4);
+  // O rollback original morria em 422 por reenviar redaction.
+  const rollbackPatches = client.calls.filter(
+    (entry) => entry.method === 'PATCH' && /^\/applications\/[^/]+$/.test(entry.path),
+  );
+  assert.equal(
+    rollbackPatches.some((entry) => 'redact_all_env_values_in_logs' in entry.body),
+    false,
+    'rollback nao pode reenviar redact_all_env_values_in_logs',
+  );
 });
 
 test('nginx Web aplica HSTS e snippet nos locations que definem add_header', async () => {

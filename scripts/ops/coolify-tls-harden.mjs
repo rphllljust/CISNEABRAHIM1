@@ -11,6 +11,28 @@ import { auditProductionTls, parsePublicUrls } from './coolify-tls-audit.mjs';
 
 const SHA_RE = /^[0-9a-f]{40}$/i;
 
+/**
+ * NOTA DE CONTRATO (medida em producao, run 39971906142):
+ *
+ * O `PATCH /applications/{uuid}` do Coolify devolve 422
+ * `{"errors":{"redact_all_env_values_in_logs":["This field is not allowed."]}}`
+ * para o token do CI. O campo EXISTE no openapi oficial, mas exige
+ * "team admin permissions" — que o token de automacao nao possui.
+ *
+ * `is_permanent_redirect_enabled` e campo suportado, mas tambem falhou no
+ * MESMO request: o Coolify aplica a validacao antes de qualquer escrita, entao
+ * a presenca do campo proibido reprova o payload inteiro. Por isso os dois
+ * apareceram no erro do rollback.
+ *
+ * Consequencia: redaction de env em log NAO e campo de TLS e NAO pode ser
+ * escrita por este script. Ela segue OBSERVADA e reportada pela auditoria
+ * (coolify.apiEnvLogRedaction), e a habilitacao e uma acao administrativa
+ * pendente, nao um efeito do cutover.
+ *
+ * Nao reative `redact_all_env_values_in_logs` neste payload sem antes prover
+ * um token com nivel admin: reintroduz o 422 que derrubou o hardening.
+ */
+
 function required(name, value) {
   const normalized = String(value ?? '').trim();
   if (!normalized) throw new DeployRefusedError(`${name} ausente`);
@@ -113,10 +135,17 @@ export function buildTlsCutoverPlan({
     api: {
       domains: rawDomains(api, 'api'),
       forceHttps: Boolean(api?.is_force_https_enabled),
+      permanentRedirect: Boolean(api?.is_permanent_redirect_enabled),
     },
     web: {
       domains: rawDomains(web, 'web'),
       forceHttps: Boolean(web?.is_force_https_enabled),
+      permanentRedirect: Boolean(web?.is_permanent_redirect_enabled),
+    },
+    worker: {
+      // Apenas leitura: o worker nunca recebe PATCH deste script. Ver NOTA DE
+      // CONTRATO (redaction exige team admin no Coolify).
+      redaction: Boolean(worker?.redact_all_env_values_in_logs),
     },
     env: {
       cors: currentCors,
@@ -129,8 +158,11 @@ export function buildTlsCutoverPlan({
     webDomains: normalizeBase(original.web.domains) !== normalizeBase(desiredDomains.web),
     cors: currentCors.value !== desiredCors,
     publicApi: normalizeBase(currentPublicApi.value) !== desiredPublicApi,
-    apiForceHttps: !original.api.forceHttps,
-    webForceHttps: !original.web.forceHttps,
+    apiFlags: !original.api.forceHttps || !original.api.permanentRedirect,
+    webFlags: !original.web.forceHttps || !original.web.permanentRedirect,
+    // Redaction NAO entra em `changed`: o campo exige team admin no Coolify e
+    // nao e escrevivel por este token, entao nao pode ser gatilho de mutacao.
+    workerRedaction: false,
   };
 
   return {
@@ -248,6 +280,7 @@ async function applyDesired(plan, client, uuids) {
       patchApplication(client, uuids.api, {
         domains: plan.desired.apiDomains,
         is_force_https_enabled: true,
+        is_permanent_redirect_enabled: true,
       }),
     );
     mutationCount += 1;
@@ -257,24 +290,31 @@ async function applyDesired(plan, client, uuids) {
       patchApplication(client, uuids.web, {
         domains: plan.desired.webDomains,
         is_force_https_enabled: true,
+        is_permanent_redirect_enabled: true,
       }),
     );
     mutationCount += 1;
   }
+  // Nenhum PATCH no worker: `redact_all_env_values_in_logs` exige admin
+  // (ver NOTA DE CONTRATO). O worker nao tem campo de TLS a aplicar.
   await Promise.all(appOps);
 
   return mutationCount;
 }
 
 async function rollback(plan, client, uuids, options) {
+  // O rollback NAO reenvia `redact_all_env_values_in_logs`: foi exatamente esse
+  // campo que fez o rollback original falhar com 422 (ver NOTA DE CONTRATO).
   await Promise.all([
     patchApplication(client, uuids.api, {
       domains: plan.original.api.domains,
       is_force_https_enabled: plan.original.api.forceHttps,
+      is_permanent_redirect_enabled: plan.original.api.permanentRedirect,
     }),
     patchApplication(client, uuids.web, {
       domains: plan.original.web.domains,
       is_force_https_enabled: plan.original.web.forceHttps,
+      is_permanent_redirect_enabled: plan.original.web.permanentRedirect,
     }),
     replaceProductionEnvironment(
       client,

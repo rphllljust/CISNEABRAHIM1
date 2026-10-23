@@ -16,7 +16,10 @@ permissions:
 
 jobs:
   harden:
-    name: Enforce HTTPS / redirects
+    # `redaction` saiu do nome porque nao e aplicavel por este caminho: o campo
+    # exige team admin no Coolify (422 "This field is not allowed", run 39971906142).
+    # Ela e auditada e reportada em pendingAdminActions, nao imposta aqui.
+    name: Enforce HTTPS / permanent redirects
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
