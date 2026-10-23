@@ -12,6 +12,7 @@ import { BusinessMetricsCollectorService } from './services/business-metrics-col
 import { DatabaseInstrumentationService } from './services/database-instrumentation.service';
 import { ObservabilityMetricsService } from './services/observability-metrics.service';
 import { PlatformMetricsCollectorService } from './services/platform-metrics-collector.service';
+import { TechnicalAlertSchedulerBootstrap } from './services/technical-alert-scheduler.bootstrap';
 import { TechnicalAlertService } from './services/technical-alert.service';
 
 @Global()
@@ -32,6 +33,7 @@ import { TechnicalAlertService } from './services/technical-alert.service';
     BusinessMetricsCollectorService,
     ObservabilityMetricsService,
     TechnicalAlertService,
+    TechnicalAlertSchedulerBootstrap,
   ],
   exports: [
     MetricsRegistryService,
