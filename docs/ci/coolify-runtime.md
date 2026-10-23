@@ -59,17 +59,31 @@ respectivas guardas:
 | `runtime-config.js` cacheavel | browser mantem config antiga apos o deploy | `nginx.conf` envia `no-store`; smoke exige o cabecalho |
 | variavel de ambiente ausente no Coolify | container sobe e nao serve | `requiredEnvironment` no payload + `verifyRequiredEnvironment` antes do deploy |
 | `PROD_SMOKE_PASSWORD` divergente do perfil em producao | release falha com 401 depois do deploy | rodar o smoke localmente antes de mergear mudanca de credencial |
+| `expires` + `add_header` no mesmo `location` | DOIS `Cache-Control` na resposta; leitor pega o primeiro e ve a diretiva errada | guarda recusa diretiva repetida, nao apenas ausencia de `no-store` |
+| janela de log menor que a inicializacao | prova de migration existe mas fica fora da leitura; release recusado por engano | janela de 2000 linhas; erro reporta linhas lidas |
 
-A ultima linha e erro de operacao, nao de arquitetura: ao rotacionar as senhas dos perfis,
-o secret `PROD_SMOKE_PASSWORD` precisa ser atualizado na MESMA janela. O release de
-`632a129e` falhou com `login smoke falhou: HTTP 401` exatamente por isso — o deploy havia
-concluido (`status: finished` nos tres apps, com SHA e digest corretos) e a falha veio
-depois, no smoke. O gate funcionou: barrou a promocao de um release cuja credencial de
-verificacao estava obsoleta.
+A linha do `PROD_SMOKE_PASSWORD` e erro de operacao, nao de arquitetura: ao rotacionar as
+senhas dos perfis, o secret precisa ser atualizado na MESMA janela. O release de `632a129e`
+falhou com `login smoke falhou: HTTP 401` exatamente por isso — o deploy havia concluido
+(`status: finished` nos tres apps, com SHA e digest corretos) e a falha veio depois, no smoke.
+O gate funcionou: barrou a promocao de um release cuja credencial de verificacao estava
+obsoleta. Detalhe que custou outra iteracao: `echo senha | gh secret set` pelo PowerShell
+inclui o `\n` no valor. Usar `gh secret set --body`.
+
+A linha do `expires` e um caso de guarda que media o clima: a diretiva `no-cache` aparecia
+duas vezes porque `expires -1` emite o proprio `Cache-Control` **alem** do `add_header`.
+`headers.get` une os dois com `, `, e qualquer leitor que pegasse o primeiro via `no-cache`
+em vez de `no-store`. Corrigido removendo `expires`; a guarda passou a recusar **diretiva
+repetida**, que e a assinatura real da duplicata.
+
+A linha da janela de log: `MIGRATIONS OK` e emitida na **linha 1** do log do container, e o
+smoke lia `lines=200` de um log de 568 linhas. A prova existia e nao era vista. Uma janela
+fixa e uma aposta no volume de log, e o volume cresce com o trafego.
 
 `requiredEnvironment` e **executado**, nao apenas declarado: o deploy recusa
 variavel ausente, vazia ou duplicada em producao. O Coolify guarda duas entradas
 por variavel (`is_preview: true` / `false`); apenas a de producao conta.
+
 
 ## Current cutover constraints
 
