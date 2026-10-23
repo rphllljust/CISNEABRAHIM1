@@ -285,24 +285,49 @@ export async function verifyProduction({
   // Todo modulo que a API reporta como `enabled` precisa ser realmente alcancavel pela
   // identidade autenticada do smoke. `enabled` no catalogo com rota que responde 403/404
   // FEATURE_DISABLED e exatamente a incoerencia que faz o menu mostrar item inutil.
+  //
+  // TESTA TODAS AS ROTAS, NAO SO A PRIMEIRA.
+  //
+  // DEFEITO QUE ISTO FECHA (medido em 2026-10-23): a versao anterior usava `routes[0]` e
+  // concatenava `?limit=1&offset=0` cegamente. Para modulo com varias rotas, a primeira pode
+  // nao ser a leitura de entrada que o menu usa; e para rota que JA tem query string a
+  // concatenacao produzia `...?unitId=x&limit=1?limit=1&offset=0`, URL invalida que nao prova
+  // nada. Efeito pratico: o smoke dizia PASS enquanto o operador nao via o menu.
   const unreachable = [];
+  const visible = [];
   for (const entry of enabled) {
-    const route = Array.isArray(entry?.routes) ? entry.routes[0] : null;
-    if (!route) continue;
-    // Limite=1 porque so importa autorizacao, nao volume de dados.
-    const probe = await fetchImpl(`${apiUrl}${route}?limit=1&offset=0`, {
-      method: 'GET',
-      headers: authHeaders,
-    });
-    // 400/422 sao aceitaveis: a rota existe e autorizou, o contrato de query reclamou.
-    // 403/404/500 nao sao: significam superficie anunciada que o operador nao alcanca.
-    if ([403, 404, 500].includes(probe.status)) {
-      unreachable.push(`${entry.moduleCode} (${route}) -> HTTP ${probe.status}`);
+    const routes = Array.isArray(entry?.routes) ? entry.routes.filter(Boolean) : [];
+    if (routes.length === 0) continue;
+
+    // Basta UMA rota alcancavel para o modulo ser utilizavel pelo operador.
+    let reachable = false;
+    const failures = [];
+    for (const route of routes) {
+      // Respeita query pre-existente: usa '?' ou '&' conforme a rota.
+      const separator = route.includes('?') ? '&' : '?';
+      const probe = await fetchImpl(`${apiUrl}${route}${separator}limit=1&offset=0`, {
+        method: 'GET',
+        headers: authHeaders,
+      });
+      // 400/422 sao aceitaveis: a rota existe e autorizou, o contrato de query reclamou.
+      // 403/404/500 nao sao: significam superficie anunciada que o operador nao alcanca.
+      if ([403, 404, 500].includes(probe.status)) {
+        failures.push(`${route} -> HTTP ${probe.status}`);
+      } else {
+        reachable = true;
+        break;
+      }
+    }
+
+    if (!reachable) {
+      unreachable.push(`${entry.moduleCode} [${failures.join(', ')}]`);
+    } else {
+      visible.push(entry.moduleCode);
     }
   }
   if (unreachable.length > 0) {
     throw new DeployRefusedError(
-      `modulos anunciados como enabled mas inacessiveis: ${unreachable.join('; ')}`,
+      `modulos anunciados como enabled mas inacessiveis pela identidade do smoke: ${unreachable.join('; ')}`,
     );
   }
 
@@ -366,6 +391,9 @@ export async function verifyProduction({
     modules: {
       total: modules.length,
       enabled: enabled.map((entry) => entry.moduleCode),
+      // Modulos cujo endpoint a identidade do smoke REALMENTE alcancou. Diferenca entre
+      // `enabled` e `visible` = menu mostraria item que a API recusa.
+      visible,
       notReleased: notReleased.map((entry) => entry.moduleCode),
     },
   };
@@ -401,7 +429,7 @@ async function main() {
   // Prova auditavel da superficie entregue ao operador. Se um modulo construido nao
   // aparecer aqui, o deploy "verde" nao significa produto completo.
   console.log(
-    `[coolify-postdeploy] modules total=${result.modules.total} enabled=[${result.modules.enabled.join(',')}] notReleased=[${result.modules.notReleased.join(',')}]`,
+    `[coolify-postdeploy] modules total=${result.modules.total} enabled=[${result.modules.enabled.join(',')}] visible=[${result.modules.visible.join(',')}] notReleased=[${result.modules.notReleased.join(',')}]`,
   );
 }
 
