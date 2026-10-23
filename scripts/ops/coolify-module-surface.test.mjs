@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildSurfacePlan } from './coolify-module-surface.mjs';
+import { buildSurfacePlan, normalizeEnvValue } from './coolify-module-surface.mjs';
 
 /**
  * CONTRATO DE SUPERFICIE — modulo liberado exige FEATURE_MODULE_*=true na API.
@@ -118,4 +118,41 @@ test('cobre os 13 modulos construidos e exatamente 2 stub', () => {
   assert.equal(keys.length, 15);
   assert.ok(keys.includes('FEATURE_MODULE_OPERATIONAL_PROFITABILITY'));
   assert.ok(keys.includes('FEATURE_MODULE_APPROVAL_MATRIX'));
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// NORMALIZACAO DE VALOR — medido em producao (run 40029246247).
+//
+// O Coolify devolve `real_value` com ASPAS literais (`'true'`) quando a variavel foi gravada
+// como literal. Sem normalizar, o script comparava `'true'` com `true`, acusava divergencia e
+// entraria em --fix eterno. A normalizacao e estreita de proposito: so remove um par de aspas
+// envolvendo o valor inteiro. Qualquer outra forma continua divergente.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+test('normaliza aspas literais devolvidas pelo Coolify', () => {
+  assert.equal(normalizeEnvValue("'true'"), 'true');
+  assert.equal(normalizeEnvValue('"false"'), 'false');
+  assert.equal(normalizeEnvValue("'true' "), 'true');
+  assert.equal(normalizeEnvValue('true'), 'true');
+});
+
+test('nao mascara valor invalido como se fosse o correto', () => {
+  // Nenhum destes pode virar 'true'/'false': seriam dados errados passando por verde.
+  for (const bad of ['True', 'TRUE', '1', 'yes', 'true,false', "'tru'e", '', '  ']) {
+    const normalized = normalizeEnvValue(bad);
+    assert.notEqual(normalized, 'true', `nao deveria normalizar ${JSON.stringify(bad)} para true`);
+    assert.notEqual(normalized, 'false', `nao deveria normalizar ${JSON.stringify(bad)} para false`);
+  }
+});
+
+test('plano aceita aspas literais como valor correto', () => {
+  const envs = envsWith({ FEATURE_MODULE_FINANCE: "'true'", FEATURE_MODULE_RENTALS: "'false'" });
+  const plan = buildSurfacePlan(envs);
+  assert.deepEqual(plan.mismatches, []);
+});
+
+test('plano continua reprovando valor invalido mesmo entre aspas', () => {
+  const plan = buildSurfacePlan(envsWith({ FEATURE_MODULE_FINANCE: "'True'" }));
+  assert.equal(plan.mismatches.length, 1);
+  assert.equal(plan.mismatches[0].key, 'FEATURE_MODULE_FINANCE');
 });
