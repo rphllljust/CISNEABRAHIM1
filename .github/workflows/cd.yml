@@ -154,6 +154,13 @@ jobs:
     #   PROD_SMOKE_PASSWORD  — senha do mesmo operador
     #
     # NAO imprime valor algum: so diz QUAL nome falta.
+    #
+    # DEFEITO MEDIDO (run 39883399921): este preflight passou, e o job seguinte morreu com
+    #   TypeError: Cannot convert argument to a ByteString because the character at
+    #   index 7 has a value of 65279 which is greater than 255
+    # `-z` so detecta string VAZIA. Um secret com BOM (U+FEFF) nao e vazio, entao passava aqui
+    # e explodia depois, num ponto que nao dizia qual variavel estava suja. Detectar o invisivel
+    # AQUI e onde a mensagem ainda tem o nome da variavel.
     steps:
       - name: Check required secrets are provisioned
         env:
@@ -163,6 +170,7 @@ jobs:
         run: |
           set -euo pipefail
           missing=""
+          dirty=""
           for pair in \
             "RAILWAY_TOKEN:$RAILWAY_TOKEN_VALUE" \
             "PROD_SMOKE_LOGIN:$SMOKE_LOGIN" \
@@ -173,6 +181,19 @@ jobs:
             if [ -z "$value" ]; then
               echo "::error::missing required secret '$name' — provision it before releasing"
               missing="$missing $name"
+            # BOM U+FEFF, zero-width U+200B e NBSP U+00A0 quebram header HTTP (fetch rejeita
+            # code point > 255) ou chegam ao servidor como caractere a mais. Espaco e quebra de
+            # linha nas pontas sao residuo de copy-paste. Nenhum deles e valor de configuracao.
+            #
+            # Comparado por BYTES UTF-8 em vez de `grep -P`: o -P nao esta garantido em todo
+            # runner, e uma checagem de integridade nao pode depender de feature opcional.
+            elif printf '%s' "$value" | LC_ALL=C od -An -tx1 | tr -d ' \n' \
+                 | grep -qE 'efbbbf|e2808b|c2a0'; then
+              echo "::error::secret '$name' contains a BOM/zero-width/NBSP character — repaste the value without invisible characters"
+              dirty="$dirty $name"
+            elif [ "x$value" != "x$(printf '%s' "$value" | tr -d '\r\n')" ]; then
+              echo "::error::secret '$name' has a trailing newline — repaste the value"
+              dirty="$dirty $name"
             else
               echo "ok: $name is provisioned"
             fi
@@ -181,7 +202,11 @@ jobs:
             echo "::error::DEPLOY REFUSED — missing secrets:$missing"
             exit 1
           fi
-          echo "credentials preflight: all required secrets present"
+          if [ -n "$dirty" ]; then
+            echo "::error::DEPLOY REFUSED — secrets with invisible characters:$dirty"
+            exit 1
+          fi
+          echo "credentials preflight: all required secrets present and clean"
 
   resolve-ci-artifact:
     name: Resolve CI artifact (build once)

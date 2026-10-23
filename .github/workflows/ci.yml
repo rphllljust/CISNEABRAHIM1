@@ -89,6 +89,12 @@ jobs:
         run: pnpm gate:src-002
       - name: Immutable release focused tests
         run: node --test scripts/cd/railway-immutable-release.test.mjs scripts/cd/coolify-deploy-payload.test.mjs
+      # Envelope de secret: BOM/zero-width/NBSP quebram header HTTP e nao sao detectados por
+      # `-z`. Ver scripts/cd/secret-envelope.test.mjs e scripts/cd/credentials-preflight.test.sh.
+      - name: Secret envelope and preflight tests
+        run: |
+          node --test scripts/cd/secret-envelope.test.mjs
+          bash scripts/cd/credentials-preflight.test.sh
 
   unit-test-shards:
     name: Unit tests (${{ matrix.shard }})
