@@ -1,10 +1,6 @@
 name: Production TLS audit
 
 on:
-  workflow_run:
-    workflows: [Coolify Release Images]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -17,20 +13,17 @@ permissions:
 jobs:
   audit:
     name: Audit production TLS / domains
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
           package-manager-cache: false
-      - name: Verify Coolify runtime, domains, TLS and redirects
+      - name: Verify Coolify runtime, domains, TLS, redirects and redaction
         env:
-          EXPECTED_SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          EXPECTED_SOURCE_SHA: ${{ github.sha }}
           COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
           COOLIFY_API_UUID: ${{ secrets.COOLIFY_API_UUID }}
