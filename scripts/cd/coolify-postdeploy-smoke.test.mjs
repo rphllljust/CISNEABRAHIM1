@@ -236,7 +236,7 @@ test('recusa modulo anunciado como enabled que responde FEATURE_DISABLED', async
   const {client,fetchImpl}=fixture({unreachableRoutes:['/api/v1/finance']});
   await assert.rejects(
     ()=>verifyProduction({client,fetchImpl,sourceSha:SHA,repositories:repos,uuids,login:'smoke',password:'secret'}),
-    /anunciados como enabled mas inacessiveis: finance/,
+    /anunciados como enabled mas inacessiveis pela identidade do smoke: finance/,
   );
 });
 
@@ -275,4 +275,37 @@ test('devolve a superficie de modulos entregue, para auditoria', async()=>{
   assert.equal(result.modules.total,3);
   assert.deepEqual(result.modules.enabled,['finance']);
   assert.deepEqual(result.modules.notReleased,['payroll']);
+});
+
+test('prova rota com query pre-existente sem corromper a URL', async()=>{
+  // DEFEITO MEDIDO (2026-10-23): a versao anterior concatenava `?limit=1&offset=0` sempre.
+  // Para rota que JA tem query, gerava `...?unitId=x&limit=1?limit=1&offset=0` — URL
+  // invalida que nao provava acesso, enquanto o smoke dizia PASS e o operador nao via o menu.
+  const seen=[];
+  const {client,fetchImpl}=fixture({
+    modules:[
+      {moduleCode:'finance',name:'Financeiro',status:'enabled',availability:true,
+       routes:['/api/v1/finance/receivables?limit=1&offset=0']},
+    ],
+  });
+  const wrapped=async(url,init)=>{
+    seen.push(url);
+    return fetchImpl(url,init);
+  };
+  const result=await verifyProduction({client,fetchImpl:wrapped,sourceSha:SHA,repositories:repos,uuids,login:'smoke',password:'secret'});
+  const financeProbe=seen.find((u)=>u.includes('/api/v1/finance/receivables'));
+  assert.ok(financeProbe,'a sonda do finance deveria ter sido feita');
+  // Um unico '?' na URL: a query existente foi respeitada.
+  assert.equal(financeProbe.split('?').length-1,1,'URL nao pode ter dois separadores de query');
+  assert.deepEqual(result.modules.visible,['finance']);
+});
+
+test('modulo inacessivel nao entra em visible', async()=>{
+  const {client,fetchImpl}=fixture({unreachableRoutes:['/api/v1/finance']});
+  try{
+    await verifyProduction({client,fetchImpl,sourceSha:SHA,repositories:repos,uuids,login:'smoke',password:'secret'});
+    assert.fail('deveria reprovar modulo inacessivel');
+  }catch(error){
+    assert.match(String(error.message),/finance/);
+  }
 });
