@@ -156,4 +156,4 @@ mesmo SHA nas três aplicações.
 1. **Domínio/TLS público** — decisão do proprietário.
 2. **Backup off-host** — bloqueio explícito de DR.
 3. **TLS do painel Coolify** — exposto em `http://:8000`; priorizado fora deste ciclo.
-4. **Cutover/DNS** — Railway permanece como fallback até as provas acima.
+4. **Cutover/DNS** — não existe fallback Railway. Rollback operacional usa o último digest GHCR comprovadamente saudável e redeploy controlado pelo Coolify.

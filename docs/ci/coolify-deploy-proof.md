@@ -100,6 +100,6 @@ rede `coolify`. Muda quem executa o probe, não a exigência.
 2. **Backup off-host** — backup no mesmo VPS não encerra DR. Bloqueio explícito.
 3. **TLS do painel Coolify** — exposto em `http://40.160.38.255:8000` sem TLS;
    fora do escopo deste ciclo por decisão de priorização.
-4. **Cutover/DNS** — Railway permanece como fallback até as provas acima.
+4. **Cutover/DNS** — não existe fallback Railway. Rollback operacional usa o último digest GHCR comprovadamente saudável e redeploy controlado pelo Coolify.
 5. `PROD_REQUIRE_DB_TLS=false` aceito: tráfego Postgres não sai da rede docker
    isolada `coolify` (nenhuma porta publicada).
