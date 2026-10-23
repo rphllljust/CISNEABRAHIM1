@@ -197,3 +197,16 @@ jobs:
           COOLIFY_WEB_UUID: ${{ secrets.COOLIFY_WEB_UUID }}
           COOLIFY_DEPLOY_PAYLOAD: artifacts/coolify/deploy-payload.json
         run: node scripts/cd/coolify-deploy.mjs
+
+
+      - name: Prove production runtime
+        env:
+          COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_API_UUID: ${{ secrets.COOLIFY_API_UUID }}
+          COOLIFY_WORKER_UUID: ${{ secrets.COOLIFY_WORKER_UUID }}
+          COOLIFY_WEB_UUID: ${{ secrets.COOLIFY_WEB_UUID }}
+          EXPECTED_SOURCE_SHA: ${{ needs.release-authority.outputs.source_sha }}
+          PROD_SMOKE_LOGIN: ${{ secrets.PROD_SMOKE_LOGIN }}
+          PROD_SMOKE_PASSWORD: ${{ secrets.PROD_SMOKE_PASSWORD }}
+        run: node scripts/cd/production-smoke.mjs
