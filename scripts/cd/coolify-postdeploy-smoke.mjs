@@ -180,6 +180,17 @@ export async function verifyProduction({
     );
   }
 
+  // O arquivo precisa ser NAO-CACHEAVEL. Caso contrario um browser que ja carregou a config
+  // antiga continua com o login quebrado depois do deploy — o sintoma sobrevive a correcao e
+  // parece "producao ainda quebrada". `no-store` e exigido porque este arquivo e a cola entre
+  // o Web e a API: valor obsoleto nao e degradacao, e indisponibilidade de login.
+  const cacheControl = runtimeConfig.headers?.get?.('cache-control') ?? '';
+  if (!/no-store/i.test(cacheControl)) {
+    throw new DeployRefusedError(
+      `web runtime-config precisa de Cache-Control no-store (recebido: '${cacheControl || 'AUSENTE'}')`,
+    );
+  }
+
   // (2) A API precisa autorizar a origem do Web. Reproduz o preflight do browser enviando
   //     `Origin` e exigindo `Access-Control-Allow-Origin` de volta. Sem isso o login falha
   //     no browser mesmo retornando 200 aqui.

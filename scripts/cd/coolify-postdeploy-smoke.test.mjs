@@ -26,6 +26,8 @@ function fixture({
   advertisedApi='https://api.example.test',
   // Padrao: API autoriza a origem do Web (contrato correto). null = header ausente.
   corsAllowed='https://app.example.test',
+  // Padrao: runtime-config nao-cacheavel (exigido pelo nginx.conf).
+  runtimeConfigCache='no-store, no-cache, must-revalidate',
 }={}) {
   const apps={
     'api-uuid':{fqdn:'https://api.example.test',status:'running:healthy',docker_registry_image_name:repos.api,docker_registry_image_tag:badTag?'latest':SHA},
@@ -41,7 +43,14 @@ function fixture({
     if(url.endsWith('/health')) return response(200,'ok','text/plain');
     // runtime-config: o Web anuncia a API que o browser deve chamar.
     if(url.endsWith('/runtime-config.js')) {
-      return response(200,`window.__CISNE_RUNTIME_CONFIG__ = { apiBaseUrl: "${advertisedApi}" };`,'text/javascript');
+      return new Response(
+        `window.__CISNE_RUNTIME_CONFIG__ = { apiBaseUrl: "${advertisedApi}" };`,
+        { status:200, headers:{
+          'content-type':'text/javascript',
+          // Config de runtime nao pode ser cacheada (ver nginx.conf).
+          'cache-control': runtimeConfigCache,
+        } },
+      );
     }
     if(url.endsWith('/api/v1/auth/login')) {
       const payload=JSON.parse(init.body);
@@ -160,4 +169,22 @@ test('aceita Access-Control-Allow-Origin curinga', async()=>{
   const {client,fetchImpl}=fixture({corsAllowed:'*'});
   const result=await verifyProduction({client,fetchImpl,sourceSha:SHA,repositories:repos,uuids,login:'smoke',password:'secret'});
   assert.equal(result.authenticatedSmoke,'ok');
+});
+
+test('recusa runtime-config cacheavel', async()=>{
+  // Sem no-store, um browser que ja carregou a config antiga mantem o login quebrado
+  // depois do deploy: o sintoma sobrevive a correcao e parece "producao ainda quebrada".
+  const {client,fetchImpl}=fixture({runtimeConfigCache:'public, max-age=600'});
+  await assert.rejects(
+    ()=>verifyProduction({client,fetchImpl,sourceSha:SHA,repositories:repos,uuids,login:'smoke',password:'secret'}),
+    /Cache-Control no-store/,
+  );
+});
+
+test('recusa runtime-config sem Cache-Control', async()=>{
+  const {client,fetchImpl}=fixture({runtimeConfigCache:''});
+  await assert.rejects(
+    ()=>verifyProduction({client,fetchImpl,sourceSha:SHA,repositories:repos,uuids,login:'smoke',password:'secret'}),
+    /Cache-Control no-store/,
+  );
 });
