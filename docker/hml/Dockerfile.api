@@ -5,7 +5,7 @@
 # Final image: no devDependencies, no source tree, no source maps, no .env.
 
 FROM node:24-alpine AS builder
-RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
+RUN corepack enable && corepack prepare pnpm@10.34.7 --activate
 WORKDIR /app
 COPY . .
 RUN pnpm install --frozen-lockfile
@@ -16,7 +16,7 @@ RUN find /app/apps/api/dist /app/packages/database/dist -name '*.map' -delete
 FROM node:24-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
+RUN corepack enable && corepack prepare pnpm@10.34.7 --activate
 # Workspace manifests only (no sources): pnpm install --prod resolves every
 # runtime require from the lockfile and links @cisne/database to the real dir.
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
