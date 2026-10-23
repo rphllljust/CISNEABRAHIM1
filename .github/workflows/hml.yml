@@ -11,6 +11,14 @@ on:
       - 'docker/hml/**'
       - '.env.hml.example'
       - 'scripts/hml/**'
+      - '.github/workflows/hml.yml'
+  pull_request:
+    paths:
+      - 'apps/api/src/ops/hml/**'
+      - 'docker/hml/**'
+      - '.env.hml.example'
+      - 'scripts/hml/**'
+      - '.github/workflows/hml.yml'
 
 permissions:
   contents: read
