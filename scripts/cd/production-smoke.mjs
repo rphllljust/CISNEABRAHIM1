@@ -44,7 +44,7 @@ export function assertRuntimeApplication(application, label, expectedSha) {
     throw new DeployRefusedError(`${label}: runtime nao saudavel (status=${status || 'missing'})`);
   }
   const tag = String(application?.docker_registry_image_tag ?? '').trim();
-  if (tag && tag !== expectedSha) {
+  if (tag !== expectedSha) {
     throw new DeployRefusedError(`${label}: tag implantada diverge do SOURCE_SHA`);
   }
 }

@@ -88,7 +88,7 @@ jobs:
       - name: SRC-002 business gate
         run: pnpm gate:src-002
       - name: Immutable release focused tests
-        run: node --test scripts/cd/immutable-release.test.mjs scripts/cd/provider-cutover.test.mjs scripts/cd/coolify-deploy-payload.test.mjs
+        run: node --test scripts/cd/immutable-release.test.mjs scripts/cd/provider-cutover.test.mjs scripts/cd/coolify-deploy-payload.test.mjs scripts/cd/coolify-deploy.test.mjs scripts/cd/production-smoke.test.mjs
 
   unit-test-shards:
     name: Unit tests (${{ matrix.shard }})
