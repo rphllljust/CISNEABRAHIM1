@@ -29,7 +29,7 @@ on:
 #   PR     -> grupo `ci-pr-<numero>`; runs superseded do MESMO PR sao cancelados. Um push novo
 #             no PR invalida o anterior: so o SHA mais recente interessa.
 #   MAIN   -> grupo `ci-main`; runs superseded TAMBEM sao cancelados.
-#   CD     -> grupo PROPRIO (`cd-production`, em cd.yml). NUNCA compartilha grupo com o CI.
+#   RELEASE -> grupo proprio em `coolify-release.yml`. NUNCA compartilha grupo com o CI.
 #
 # POR QUE CANCELAR `main` E SEGURO AQUI
 #
@@ -40,7 +40,7 @@ on:
 # a run ativa era justamente o que criava a fila.
 #
 # O que NUNCA acontece: um CI novo cancelar uma release em HML ou producao. `workflow_run`
-# nao propaga cancelamento, e o CD tem grupo proprio (ver cd.yml).
+# nao propaga cancelamento, e o release Coolify tem grupo proprio em `coolify-release.yml`.
 concurrency:
   group: ${{ github.event_name == 'pull_request' && format('ci-pr-{0}', github.event.pull_request.number) || 'ci-main' }}
   cancel-in-progress: true
