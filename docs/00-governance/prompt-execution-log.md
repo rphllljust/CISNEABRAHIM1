@@ -21250,3 +21250,29 @@ Evidência: CI 38941737108 do commit a81c595. Shards 2/4 e 4/4 passaram; 1/4 e 3
 - Shell e gate responsivo reutilizam o seletor compartilhado do título atual.
 
 Validação local: os reporters registraram 13 testes de workspaces, 11 de finance-backoffice, 7 de previsão de caixa e 4 de cockpit aprovados. Entretanto o runner local não concluiu o encerramento; tentativas isoladas atingiram o limite externo de execução. Estes resultados NÃO equivalem a uma suíte terminada com exit code 0. ESLint focado e typecheck Web são verificados separadamente; o CI do novo SHA deve confirmar a execução completa. Sem merge e sem deploy nesta etapa.
+
+## F1.1 + F1.2 — ESPINHA DE POSTING ECONÔMICO E CONFIABILIDADE TRANSACIONAL — 2026-10-24
+
+Autorização: solicitação explícita para concluir a espinha econômico-contábil (F1.1) e eliminar os caminhos de posting inseguros restantes (F1.2), com entrega até produção validada. Classificação: interpretação de engenharia sobre requisito confirmado do plano diretor; sem alteração de regra de negócio.
+
+Objeto: `BUSINESS COMMAND → FINANCIAL STATE → TRANSACTIONAL OUTBOX → ACCOUNTING EVENT → POSTING RULE → JOURNAL → AUDITABLE RESULT`. O domínio de ORIGEM publica o fato; a CONTROLADORIA decide a contabilização; FINANCE nunca escreve journal.
+
+Defeitos de causa raiz corrigidos (todos com prova de execução):
+
+- `describePostingFailure` lia o corpo PLANO `{code,message}`, mas `AccountingHttpException` carrega corpo ANINHADO `{error:{code,message}}` (`buildDomainHttpExceptionBody`). O código nunca era encontrado e a função caía em `error.message`, que numa `HttpException` do Nest é o NOME DA CLASSE. O operador via `ACCOUNTING_RULE_NOT_CONFIGURED: Accounting Http Exception`. Provado com sentinela: `SENTINEL_FINAL_CHECK` substituído por `ACCOUNTING_RULE_NOT_CONFIGURED: No published accounting posting rule is configured for this economic event.`, com `status = FAILED` preservado.
+- Rota da trilha emitida como `/app/finance/economic-trace/...` enquanto o roteador registra `/app/accounting/economic-trace/:factKind/:factId`: todo drill-through levava a rota inexistente. Base única + teste que compara com a definição real do `AppRoutes`.
+- Migrations 0104/0105/0106 existiam como SQL mas NÃO estavam no journal do Drizzle: um deploy não criaria nenhum artefato da espinha. Registradas; o gate incremental (N-1 → N) passou a exigir asserção de pré-delta. Provado no banco vazio pelo runner de release: `MIGRATIONS OK: applied=107 total=107`.
+- `0105` não registrava os valores do contrato no enum `evt.domain_event_type`: FISCAL/INVENTORY/PAYROLL gravavam rótulo desconhecido (`invalid input value for enum evt.domain_event_type: "FISCAL_DOCUMENT_AUTHORIZED"`), e o documento era autorizado enquanto a publicação do fato estourava. Teste de paridade contrato↔migrations, verificado com dentes (falha 2/2 removendo uma linha de ALTER TYPE).
+- INVENTORY nunca publicava o fato: a publicação estava em `postMovements`, que NÃO TEM CHAMADOR. O caminho real é `withLockedPositions` + `insertMovement`; a publicação foi movida para o método de ESCRITA.
+- Posting síncrono remanescente removido em INVENTORY, FISCAL (`tax.calculate`) e PAYROLL (`reopenPeriod`). Os três publicam o FATO na própria transação e a CONTROLADORIA consome pela outbox.
+- `mapInventoryDomainError`, `mapFiscalDomainError` e `mapAccountingDomainError` descartavam a causa primária (500 genérico). Passaram a preservar `cause`, que é o que tornou visíveis `ACCOUNTING_RULE_NOT_CONFIGURED` e a violação de FK de autor.
+- Harness: `plt.economic_events`/`evt.outbox_events`/`evt.domain_events` não são cobertos pelos helpers de TRUNCATE; como os specs truncam `identity.identities`, fatos de testes anteriores apontavam para ator inexistente. `evt.domain_events` é APPEND-ONLY (o banco recusa DELETE) — a contagem passou a ser escopada ao período, sem apagar auditoria.
+
+Gates: api typecheck/lint/build PASS; api 1385 testes PASS; integração accounting 60/60, inventory 12/12, fiscal 48/48, payroll 11/11, enterprise-integrity 3/3, finance/client-financial-context 6/6; database gate (fresh + incremental) PASS; SRC-002 PASS; scripts gate OK; source-size ratchet PASS; web typecheck/lint PASS; browser gate 15/15 (login real, `Controladoria → Contabilização`, fila, drill-through, trilha econômica, console sem 403 inesperado).
+
+Publicação: PR #108 e PR #109. CI de `main` verde com `Release ready`. Release `Coolify Release Images` concluído.
+
+Produção validada (`678f8db2`): `readiness=ready database=up web=ok auth=ok migrations=ok recent5xx=0`; `modules total=23`, `enabled` e `visible` idênticos em 13 módulos, `notReleased=[]` — incluindo `accounting`. Digests publicados: api `sha256:0617395d…`, worker `sha256:50ede933…`, web `sha256:24425c0f…`.
+
+Observação de correção de sonda (fato): o deploy de `679c7bea` já havia sido concluído com api/worker/web `finished` e foi reprovado apenas pelo smoke, que sondava rotas inexistentes (`/api/v1/reports` e `/api/v1/authz/approval-matrices`). As rotas publicadas são `/api/v1/reports/catalog` e `/api/v1/authz/access-admin/approval-matrices`. Corrigidas no PR #109, com 21/21 testes do próprio script.
+
