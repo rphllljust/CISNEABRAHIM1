@@ -9,8 +9,7 @@ import {
   ECONOMIC_STATE_LABELS,
   ECONOMIC_TRACE_KIND_LABELS,
   EconomicTraceApiError,
-  fetchPaymentTrace,
-  fetchSettlementTrace,
+  fetchFactTrace,
   retryEconomicPosting,
   type EconomicTraceView,
 } from '../api/economic-trace-api';
@@ -59,7 +58,18 @@ function failureCopy(reason: unknown): { message: string; denied: boolean } {
 
 export function EconomicTracePage() {
   const params = useParams<{ factKind: string; factId: string }>();
-  const factKind = params.factKind === 'payment' ? 'payment' : 'settlement';
+  /**
+   * O RÓTULO VEM DA ROTA, NÃO DE UMA RECLASSIFICAÇÃO LOCAL.
+   *
+   * Antes: `params.factKind === 'payment' ? 'payment' : 'settlement'`. Todo fato que não
+   * fosse pagamento virava LIQUIDAÇÃO — então um fato de INVENTORY pedia
+   * `/economic-trace/settlement/<id>`, levava 404 e a tela dizia "Este fato econômico não
+   * existe", embora o fato estivesse na fila e fosse acessível.
+   *
+   * O rótulo publicado pelo servidor (`item.route`) é a verdade. O frontend transporta,
+   * não reclassifica: quem decide o tipo do fato é o backend.
+   */
+  const factKind = (params.factKind ?? '').trim();
   const factId = params.factId ?? '';
 
   const [state, setState] = useState<State>({ phase: 'loading' });
@@ -78,10 +88,7 @@ export function EconomicTracePage() {
     async function run() {
       setState({ phase: 'loading' });
       try {
-        const data =
-          factKind === 'payment'
-            ? await fetchPaymentTrace(factId, controller.signal)
-            : await fetchSettlementTrace(factId, controller.signal);
+        const data = await fetchFactTrace(factKind, factId, controller.signal);
         if (active && !controller.signal.aborted) {
           setState({ phase: 'ready', data });
         }

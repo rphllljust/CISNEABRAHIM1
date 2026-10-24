@@ -1,4 +1,4 @@
-﻿import { getApiBaseUrl } from '../../auth/api/auth-api';
+import { getApiBaseUrl } from '../../auth/api/auth-api';
 import { tokenStore } from '../../auth/storage/token-store';
 
 /**
@@ -223,6 +223,30 @@ export function fetchPaymentTrace(
   signal?: AbortSignal,
 ): Promise<EconomicTraceView> {
   return getJson(`/api/v1/accounting/economic-trace/payment/${encodeURIComponent(paymentId)}`, signal);
+}
+
+/**
+ * TRILHA DE QUALQUER FATO DA ESPINHA, PELO RÓTULO QUE A FILA ENTREGOU.
+ *
+ * DEFEITO MEDIDO EM PRODUÇÃO: a página fazia
+ * `params.factKind === 'payment' ? 'payment' : 'settlement'`. Um fato de INVENTORY caía
+ * no ramo `settlement` e pedia `/economic-trace/settlement/<id>` — a API respondia 404 e
+ * o operador via "Este fato econômico não existe", embora o fato existisse e estivesse na
+ * fila.
+ *
+ * Aqui o rótulo do caminho é USADO como veio do servidor: é ele que a worklist publicou
+ * em `item.route`. O frontend não reclassifica o fato — ele transporta a decisão que já
+ * foi tomada no backend.
+ */
+export function fetchFactTrace(
+  factKind: string,
+  factId: string,
+  signal?: AbortSignal,
+): Promise<EconomicTraceView> {
+  return getJson(
+    `/api/v1/accounting/economic-trace/${encodeURIComponent(factKind)}/${encodeURIComponent(factId)}`,
+    signal,
+  );
 }
 
 export function fetchEconomicWorklist(

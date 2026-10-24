@@ -1,4 +1,4 @@
-﻿import { render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EconomicTracePage } from './pages/EconomicTracePage';
@@ -25,6 +25,16 @@ vi.mock('./api/economic-trace-api', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('./api/economic-trace-api');
   return {
     ...actual,
+    /**
+     * A página passou a usar `fetchFactTrace(factKind, factId)` — uma função só, porque o
+     * rótulo do fato vem da rota publicada pelo backend e não deve ser reclassificado no
+     * frontend. O mock acompanha: os dois mocks antigos permanecem para os testes que
+     * verificam qual ENDPOINT foi escolhido, mas o caminho real passa por aqui.
+     */
+    fetchFactTrace: (factKind: unknown, factId: unknown, ...rest: unknown[]) =>
+      (String(factKind) === 'payment'
+        ? mockFetchPaymentTrace(factId, ...rest)
+        : mockFetchSettlementTrace(factId, ...rest)) as Promise<never>,
     fetchSettlementTrace: (...args: unknown[]) => mockFetchSettlementTrace(...args) as Promise<never>,
     fetchPaymentTrace: (...args: unknown[]) => mockFetchPaymentTrace(...args) as Promise<never>,
     retryEconomicPosting: (...args: unknown[]) => mockRetryPosting(...args) as Promise<never>,
