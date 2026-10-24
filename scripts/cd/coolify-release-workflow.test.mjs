@@ -89,8 +89,21 @@ describe('coolify-release.yml — comandos de shell portaveis', () => {
     );
     assert.match(
       source,
-      /node apps\/web\/node_modules\/@playwright\/test\/cli\.js install --with-deps chromium/,
-      'a instalacao do Chromium deve usar o CLI do pacote, sem depender de gerenciador no PATH',
+      /node scripts\/cd\/install-playwright-chromium\.mjs/,
+      'a instalacao do Chromium deve vir do script dedicado',
+    );
+    // Caminho fixo para `node_modules` e suposicao sobre o layout de instalacao: em pnpm
+    // workspaces o pacote pode viver em `node_modules/.pnpm/...` e o caminho direto pelo
+    // workspace nem sempre existe. Isso reprovou no CI com `Cannot find module`.
+    assert.doesNotMatch(
+      source,
+      /node apps\/web\/node_modules\//,
+      'o workflow nao pode depender de caminho fixo em node_modules',
+    );
+    assert.doesNotMatch(
+      source,
+      /^\s*pnpm exec playwright/m,
+      'pnpm nao esta no PATH de todos os steps',
     );
   });
 
