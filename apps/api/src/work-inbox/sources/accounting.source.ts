@@ -7,6 +7,8 @@ import {
   type ClosingReadinessResponse,
 } from '../../accounting/services/closing-readiness.service';
 import { AccountingAccessService } from '../../accounting/services/accounting-access.service';
+import { EconomicTraceReadModelService } from '../../accounting/repositories/economic-trace.read-model';
+import type { EconomicWorkItem } from '../../platform/bounded-contexts/economic-trace.contract';
 import { ScopeContextRepository } from '../../authorization/repositories/scope-context.repository';
 import type { WorkItem } from '../contracts/work-item.contract';
 import type { WorkItemActor, WorkItemSource } from './work-item-source';
@@ -39,6 +41,7 @@ export class AccountingWorkSource implements WorkItemSource {
     private readonly closingReadiness: ClosingReadinessService,
     private readonly accountingAccess: AccountingAccessService,
     private readonly scopeContext: ScopeContextRepository,
+    private readonly economicTrace: EconomicTraceReadModelService,
   ) {}
 
   async collect(actor: WorkItemActor): Promise<WorkItem[]> {
@@ -53,10 +56,18 @@ export class AccountingWorkSource implements WorkItemSource {
   }
 
   private async collectUnit(actor: WorkItemActor, unitId: string): Promise<Array<WorkItem | null>> {
+    // F1.1 — EXCEÇÕES DE CONTABILIZAÇÃO entram na MESMA fila de trabalho do domínio.
+    //
+    // Antes desta fase, um fato econômico sem journal era invisível: existia em `fin.*`,
+    // não existia em `acc.*`, e nenhuma fila o mostrava. Agora ele aparece aqui — na
+    // Central de trabalho que o operador já usa — porque é exatamente o que esta fila
+    // existe para responder: "o que exige minha atenção agora?".
+    const postingItems = await this.collectPostingExceptions(unitId);
+
     const periods = await this.openPeriods(actor, unitId);
     if (periods === null) {
-      // Unidade fora do escopo do ator: nenhum item, nenhuma contagem, nenhum sinal de existencia.
-      return [];
+      // Unidade fora do escopo do ator: nenhum item, nenhuma contagem, nenhum sinal de existência.
+      return postingItems;
     }
     const items = await Promise.all(
       periods.map(async (period) => {
@@ -67,7 +78,26 @@ export class AccountingWorkSource implements WorkItemSource {
         return toClosingWorkItem(readiness);
       }),
     );
-    return items;
+    return [...postingItems, ...items];
+  }
+
+  /**
+   * Exceções de posting → itens de trabalho.
+   *
+   * Reusa o MESMO read model da superfície contábil (`EconomicTraceReadModelService`).
+   * Não existe segunda regra de "o que é exceção": a worklist do read model já a define
+   * (outbox FAILED, ou evento publicado sem posting).
+   *
+   * Leitura negada para o recorte desta unidade não produz item nem sinal de existência —
+   * a mesma regra das demais leituras desta fonte.
+   */
+  private async collectPostingExceptions(unitId: string): Promise<WorkItem[]> {
+    try {
+      const page = await this.economicTrace.worklist(unitId, 50, 0);
+      return page.items.map(postingExceptionToWorkItem);
+    } catch {
+      return [];
+    }
   }
 
   /** Periodos ABERTOS da unidade. `null` = a unidade nao esta autorizada para este ator. */
@@ -149,6 +179,38 @@ export function describeBlockers(blockers: ClosingException[]): string {
   return blockers
     .map((blocker) => `${blocker.kind}: ${blocker.observedCount} pendência(s) — ${blocker.detail}`)
     .join(' | ');
+}
+
+/**
+ * F1.1 — EXCEÇÃO DE CONTABILIZAÇÃO → ITEM DE TRABALHO.
+ *
+ * A deduplicação é por FATO (`CONTABILIDADE:POSTING:<factKind>:<factId>`): o mesmo fato
+ * nunca entra duas vezes, ainda que eventos ou tentativas se multipliquem.
+ *
+ * `kind` = `EXCEPTION` porque não é um prazo vencido nem uma aprovação: é uma divergência
+ * persistida entre o mundo financeiro e o contábil. A severidade vem do read model, não
+ * é recalculada aqui.
+ */
+export function postingExceptionToWorkItem(item: EconomicWorkItem): WorkItem {
+  return {
+    id: `CONTABILIDADE:POSTING:${item.factKind}:${item.factId}`,
+    domain: 'CONTABILIDADE',
+    kind: 'EXCEPTION',
+    businessReference:
+      item.factKind === 'SETTLEMENT' ? `Liquidação ${item.amount}` : `Pagamento ${item.amount}`,
+    title:
+      item.factKind === 'SETTLEMENT'
+        ? 'Liquidação sem contabilização'
+        : 'Pagamento sem contabilização',
+    contextLabel: `Unidade ${item.unitId} · ${item.reference}`,
+    status: item.accountingState,
+    reason: item.reason,
+    occurredAt: item.firstFailedAt ?? new Date().toISOString(),
+    dueAt: null,
+    actionLabel: item.nextAction.label,
+    targetRoute: item.route,
+    unitId: item.unitId,
+  };
 }
 
 function deduplicateById(items: WorkItem[]): WorkItem[] {

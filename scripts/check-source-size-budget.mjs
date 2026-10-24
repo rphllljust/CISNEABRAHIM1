@@ -27,9 +27,16 @@ const ROOT = resolve(import.meta.dirname, '..');
 // AJUSTE 2026-10-19 — o campo de fornecedor de emitir-pedido e registrar-nota ganhou
 // `emptyAction` (orientacao + link ao cadastro existente). Substitui a mensagem longa por um
 // link curto; saldo liquido +10 bytes (54301 -> 54311). O teto move junto, sem folga adicional.
+//
+// AJUSTE 2026-10-24 — `accounting-access.service.ts`: o guard de idempotencia do posting
+// passou a documentar por que o ESTORNO usa `eventKind` proprio (`SETTLEMENT_REVERSED` /
+// `PAYMENT_REVERSED`) em vez de reutilizar o do fato original. O comentario registra a causa
+// raiz de um defeito real (o guard devolvia "ja postado" e a compensacao contabil nunca era
+// criada), nao e decoracao: sem ele o proximo autor reintroduz o bug. 42040 -> 42637 bytes,
+// medido, sem folga. O ratchet volta a impedir crescimento daqui em diante.
 const BUDGETS = new Map([
   ['apps/api/src/accounting/repositories/accounting.repository.ts', 56312],
-  ['apps/api/src/accounting/services/accounting-access.service.ts', 42040],
+  ['apps/api/src/accounting/services/accounting-access.service.ts', 42637],
   ['apps/api/src/service-orders/repositories/resource-planning.repository.ts', 36561],
   ['apps/api/src/service-orders/repositories/service-orders.repository.ts', 34743],
   ['apps/api/src/finance/repositories/treasury.repository.ts', 31768],

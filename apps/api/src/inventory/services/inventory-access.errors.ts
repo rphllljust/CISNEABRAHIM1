@@ -24,10 +24,22 @@ export function mapInventoryDomainError(error: unknown): InventoryHttpException 
     );
   }
   if (!(error instanceof InventoryError)) {
+    /*
+     * ERRO INESPERADO — a CAUSA PRIMÁRIA é preservada.
+     *
+     * Antes, qualquer coisa que não fosse `InventoryError` virava um 500 genérico e a
+     * causa real era descartada aqui. O sintoma observado era um teste de integração
+     * relatando apenas `Inventory Http Exception` — o NOME da classe — sem nenhuma
+     * pista do que de fato falhou. Depurar isso exigiu instrumentação temporária.
+     *
+     * Preservar `cause` não expõe nada ao cliente (o corpo HTTP continua sendo
+     * `Unexpected inventory error.`); mantém a informação para log e para o stack.
+     */
     return new InventoryHttpException(
       HttpStatus.INTERNAL_SERVER_ERROR,
       INVENTORY_ERROR_CODES.VALIDATION_FAILED,
       'Unexpected inventory error.',
+      { cause: error },
     );
   }
   switch (error.code) {

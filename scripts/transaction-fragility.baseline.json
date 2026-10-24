@@ -1,11 +1,11 @@
 {
   "$comment": "Baseline do gate E em scripts/check-scripts.mjs. Ver o cabecalho de scripts/lib/transaction-discipline.mjs para o defeito medido e para o caminho de saida. Este numero so pode DIMINUIR: o gate falha se a contagem subir, e falha se um arquivo novo introduzir o padrao. Para reduzir, endureca o bloco (preserve a causa primaria e descarte a conexao cujo encerramento nao pode ser confirmado) e rode `node scripts/check-scripts.mjs --update-transaction-baseline`.",
   "pattern": "catch { await client.query('ROLLBACK'); throw } combinado com client.release() sem argumento",
-  "measuredAt": "2026-09-26",
-  "maskedErrorSites": 89,
-  "filesWithMaskedErrorSites": 38,
+  "measuredAt": "2026-10-24",
+  "maskedErrorSites": 87,
+  "filesWithMaskedErrorSites": 36,
   "bareReleaseCalls": 129,
-  "evictingReleaseCalls": 9,
+  "evictingReleaseCalls": 24,
   "allowlist": [
     "apps/api/src/accounting/repositories/accounting.repository.ts",
     "apps/api/src/auth/repositories/identity-auth.repository.ts",
@@ -19,7 +19,6 @@
     "apps/api/src/clients/repositories/clients.repository.ts",
     "apps/api/src/commercial/repositories/contracts.repository.ts",
     "apps/api/src/commercial/repositories/proposals.repository.ts",
-    "apps/api/src/commercial/repositories/purchase-orders.repository.ts",
     "apps/api/src/documents/repositories/documents.repository.ts",
     "apps/api/src/establishments/cli/bootstrap-own-company.ts",
     "apps/api/src/finance/repositories/bank-reconciliation.repository.ts",
@@ -43,7 +42,6 @@
     "apps/api/src/service-orders/repositories/resource-planning.repository.ts",
     "apps/api/src/service-orders/repositories/service-order-execution.repository.ts",
     "apps/api/src/service-orders/repositories/service-orders.repository.ts",
-    "apps/api/src/suppliers/repositories/suppliers.repository.ts",
     "packages/database/src/seed/synthetic-seed-compensation.ts"
   ]
 }

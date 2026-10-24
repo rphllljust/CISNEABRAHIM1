@@ -2,6 +2,11 @@ import { Injectable } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
 import { classifyRowVersion } from '../../infrastructure/database/optimistic-lock';
 import { DatabaseService } from '../../infrastructure/database/database.service';
+import { EconomicEventLedgerRepository } from '../../platform/outbox/repositories/economic-event-ledger.repository';
+import {
+  ECONOMIC_EVENT_KINDS,
+  ECONOMIC_EVENT_SOURCE_KINDS,
+} from '../../platform/bounded-contexts/economic-event-contract';
 import {
   FISCAL_EVENT_TYPES,
   FISCAL_STATUSES,
@@ -31,7 +36,16 @@ const DOCUMENT_RETURNING = `
 
 @Injectable()
 export class FiscalRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    /**
+     * F1.2 — o fato econômico do documento fiscal é publicado DENTRO da transação
+     * que o autoriza/cancela. Antes, o posting era chamado depois do COMMIT, em outra
+     * transação: se o processo caísse no meio, o documento ficava autorizado e o
+     * journal não existia — sem evento, sem retry, sem ninguém sabendo.
+     */
+    private readonly economicEvents: EconomicEventLedgerRepository,
+  ) {}
 
   private pool(): Pool {
     const connection = this.databaseService.getConnection();
@@ -332,6 +346,18 @@ export class FiscalRepository {
         input.actorIdentityId,
         input.extra ?? {},
       );
+
+      /**
+       * F1.2 — CANCELAMENTO é fato econômico de ESTORNO, na mesma transação.
+       *
+       * Publica `FISCAL_DOCUMENT_CANCELLED` apontando o documento original. ACCOUNTING
+       * responde com journal COMPENSATÓRIO; o lançamento de autorização permanece
+       * POSTED e nunca é apagado nem reescrito.
+       */
+      if (input.nextStatus === FISCAL_STATUSES.Cancelled) {
+        await this.publishCancelledFact(client, result.rows[0]!, input.actorIdentityId);
+      }
+
       await client.query('COMMIT');
       return { ...(await this.hydrate(result.rows[0]!)) };
     } catch (error) {
@@ -412,6 +438,19 @@ export class FiscalRepository {
         outcome: input.outcome,
         gatewayId: input.gatewayId,
       });
+
+      // ───────────────────────────────────────────────────────────────────────────
+      // F1.2 — FATO ECONÔMICO NA MESMA FRONTEIRA TRANSACIONAL (autorização).
+      //
+      // Só a AUTORIZAÇÃO é fato econômico: é ela que gera obrigação/receita
+      // contábil. Documento submetido/rejeitado/timed-out não gera journal — e por
+      // isso não publica evento, em vez de publicar um evento que ACCOUNTING teria de
+      // ignorar.
+      // ───────────────────────────────────────────────────────────────────────────
+      if (input.nextStatus === FISCAL_STATUSES.Authorized) {
+        await this.publishAuthorizedFact(client, result.rows[0]!, input.actorIdentityId);
+      }
+
       await client.query('COMMIT');
       return this.hydrate(result.rows[0]!);
     } catch (error) {
@@ -576,6 +615,82 @@ export class FiscalRepository {
        WHERE id = $1`,
       [id, actorIdentityId],
     );
+  }
+
+  /**
+   * F1.2 — publica o fato econômico da AUTORIZAÇÃO dentro da transação corrente.
+   *
+   * O valor é a soma das linhas do documento — o mesmo cálculo que o posting usava
+   * quando era chamado de fora. A diferença não é o número: é ONDE ele entra. Aqui a
+   * transação ainda está aberta, então documento autorizado e evento são indivisíveis.
+   */
+  private async publishAuthorizedFact(
+    client: PoolClient,
+    document: FiscalDocumentRow,
+    actorIdentityId: string,
+  ): Promise<void> {
+    const amount = await this.documentPostingAmount(client, document.id);
+    if (amount === null) {
+      // Documento sem valor econômico: não há fato a publicar. Não inventamos zero.
+      return;
+    }
+    await this.economicEvents.record(client, {
+      unitId: document.unit_id,
+      eventKind: ECONOMIC_EVENT_KINDS.FiscalDocumentAuthorized,
+      sourceKind: ECONOMIC_EVENT_SOURCE_KINDS.FiscalDocument,
+      sourceId: document.id,
+      amount,
+      currencyCode: document.currency_code,
+      occurredOn: document.issued_on.slice(0, 10),
+      actorIdentityId,
+      sourceReference: document.idempotency_key,
+      context: { sourceKind: document.source_kind, billingDocumentId: document.billing_document_id },
+    });
+  }
+
+  /** F1.2 — publica o ESTORNO do cancelamento na mesma transação. */
+  private async publishCancelledFact(
+    client: PoolClient,
+    document: FiscalDocumentRow,
+    actorIdentityId: string,
+  ): Promise<void> {
+    const amount = await this.documentPostingAmount(client, document.id);
+    if (amount === null) {
+      return;
+    }
+    await this.economicEvents.record(client, {
+      unitId: document.unit_id,
+      eventKind: ECONOMIC_EVENT_KINDS.FiscalDocumentCancelled,
+      sourceKind: ECONOMIC_EVENT_SOURCE_KINDS.FiscalDocument,
+      sourceId: document.id,
+      amount,
+      currencyCode: document.currency_code,
+      occurredOn: document.issued_on.slice(0, 10),
+      actorIdentityId,
+      sourceReference: document.idempotency_key,
+      reversesSourceId: document.id,
+      context: { cancelReason: null },
+    });
+  }
+
+  /**
+   * Soma das linhas do documento, dentro da transação corrente.
+   *
+   * `null` quando não há linha com valor — não convertemos ausência em `0`: um fato
+   * de valor zero não existe contabilmente.
+   */
+  private async documentPostingAmount(
+    client: PoolClient,
+    fiscalDocumentId: string,
+  ): Promise<string | null> {
+    const result = await client.query<{ total: string | null }>(
+      `SELECT SUM(line_amount)::text AS total
+         FROM fis.fiscal_document_items
+        WHERE fiscal_document_id = $1`,
+      [fiscalDocumentId],
+    );
+    const total = result.rows[0]?.total;
+    return total && Number(total) > 0 ? total : null;
   }
 }
 

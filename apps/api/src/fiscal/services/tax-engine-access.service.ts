@@ -271,7 +271,19 @@ export class TaxEngineAccessService {
         ruleVersionId: version.id,
         resultAmount: computed.resultAmount,
       });
-      await this.accountingIntegration.tryPostConfirmedTaxCalculation(actor, aggregate.calculation.id);
+      /*
+       * F1.2 — SEM POSTING SÍNCRONO.
+       *
+       * Era `accountingIntegration.postConfirmedTaxCalculation(...)` aqui, DEPOIS do
+       * commit do cálculo. Duas consequências: o cálculo falhava quando o port contábil
+       * não estava disponível (`FISCAL_GATEWAY_NOT_CONFIGURED`, mascarado como
+       * `Fiscal Http Exception`), e o posting rodava fora da transação.
+       *
+       * O fato `TAX_CALCULATION_CONFIRMED` agora é publicado na MESMA transação do
+       * cálculo (`TaxEngineRepository.persist`). A CONTROLADORIA decide o posting de
+       * forma retentável e observável: falha vira `FAILED` + `last_error` na outbox, e
+       * aparece na Central de Contabilidade com comando de reprocessar.
+       */
       return toTaxCalculationResponse(aggregate);
     } catch (error) {
       throw mapTaxEngineDomainError(error);

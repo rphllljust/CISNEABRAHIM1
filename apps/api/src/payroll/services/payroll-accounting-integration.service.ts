@@ -103,31 +103,15 @@ export class PayrollAccountingIntegrationService {
     });
   }
 
-  async tryPostClosedPeriod(actor: IdentityAuthzContext, payrollPeriodId: string): Promise<void> {
-    if (!this.accounting) {
-      return;
-    }
-    try {
-      await this.postClosedPeriod(actor, payrollPeriodId);
-    } catch {
-      return;
-    }
-  }
-
-  async tryReverseReopenedPeriod(
-    actor: IdentityAuthzContext,
-    payrollPeriodId: string,
-    reason: string,
-  ): Promise<void> {
-    if (!this.accounting) {
-      return;
-    }
-    try {
-      await this.reverseReopenedPeriod(actor, payrollPeriodId, reason);
-    } catch {
-      return;
-    }
-  }
+  /**
+   * F1.1 — REMOVIDOS: `tryPostClosedPeriod` / `tryReverseReopenedPeriod`.
+   *
+   * Eram `catch { return; }` sobre posting contábil obrigatório de fechamento de
+   * folha: a competência fechava e o journal podia não existir, em silêncio.
+   *
+   * O chamador passa a usar `postClosedPeriod` / `reverseReopenedPeriod`, que
+   * PROPAGAM a falha. Nenhum substituto best-effort foi reintroduzido.
+   */
 
   private requireAccounting(): AccountingLedgerPort {
     if (!this.accounting) {

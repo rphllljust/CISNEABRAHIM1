@@ -1,4 +1,4 @@
-import { Global, Module } from '@nestjs/common';
+﻿import { Global, Module } from '@nestjs/common';
 import { SuppliersModule } from '../suppliers/suppliers.module';
 import { AuditModule } from '../audit/audit.module';
 import { AuthModule } from '../auth/auth.module';
@@ -32,6 +32,7 @@ import { PayablesRepository } from './repositories/payables.repository';
 import { ExpenseAccessAuthz } from './services/expense-access.authz';
 import { ExpenseAccessService } from './services/expense-access.service';
 import { ReceivablesRepository } from './repositories/receivables.repository';
+import { EconomicEventLedgerRepository } from '../platform/outbox/repositories/economic-event-ledger.repository';
 import { TreasuryRepository } from './repositories/treasury.repository';
 import { PayablesAccessAuthz } from './services/payables-access.authz';
 import { PayablesAccessService } from './services/payables-access.service';
@@ -41,10 +42,23 @@ import { ReceivablesAccessAuthz } from './services/receivables-access.authz';
 import { ReceivablesAccessService } from './services/receivables-access.service';
 import { TreasuryAccessAuthz } from './services/treasury-access.authz';
 import { TreasuryAccessService } from './services/treasury-access.service';
+import { OutboxModule } from '../platform/outbox/outbox.module';
 
 @Global()
 @Module({
-  imports: [DatabaseModule, AuthModule, AuthorizationModule, AuditModule, SuppliersModule],
+  imports: [
+    DatabaseModule,
+    AuthModule,
+    AuthorizationModule,
+    AuditModule,
+    SuppliersModule,
+    /**
+     * F1.1 — FINANCE precisa publicar FATO ECONÔMICO na outbox transacional na
+     * MESMA transação que confirma liquidação/pagamento. Importar `OutboxModule`
+     * (PLATFORM) é dependência permitida pelo grafo: FINANCE → PLATFORM.
+     */
+    OutboxModule,
+  ],
   controllers: [
     ReceivablesController,
     CollectionsController,
@@ -55,10 +69,11 @@ import { TreasuryAccessService } from './services/treasury-access.service';
     BankStatementsController,
     BudgetController,
     CashFlowForecastController,
-    ClientFinancialContextController,
+    ClientFinancialContextController, 
   ],
   providers: [
     ReceivablesRepository,
+    EconomicEventLedgerRepository, 
     ReceivablesAccessAuthz,
     ReceivablesAccessService,
     CollectionsRepository,

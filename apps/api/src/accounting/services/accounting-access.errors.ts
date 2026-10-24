@@ -37,10 +37,14 @@ export function mapAccountingDomainError(error: unknown): AccountingHttpExceptio
     );
   }
   if (!(error instanceof AccountingError)) {
+    // ERRO INESPERADO — a CAUSA PRIMÁRIA é preservada (mesmo padrão de INVENTORY e
+    // FISCAL). Sem isto, a superfície relatava apenas `Accounting Http Exception`, o
+    // NOME da classe, e a causa real era descartada exatamente onde ela existia.
     return new AccountingHttpException(
       HttpStatus.INTERNAL_SERVER_ERROR,
       ACCOUNTING_ERROR_CODES.VALIDATION_FAILED,
       'Unexpected accounting error.',
+      { cause: error },
     );
   }
   switch (error.code) {

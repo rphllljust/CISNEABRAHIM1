@@ -193,6 +193,36 @@ const MIGRATION_EFFECT_CHECKS = {
    * exatamente pelo efeito. Prouvar só uma coluna deixaria a tabela ausente passar como aplicada.
    */
   '0103_saved_views': { table: ['plt', 'saved_views'] },
+  /*
+   * F1.1 — 0104 cria o ledger do FATO econômico. A sonda é a TABELA `fin.economic_events`:
+   * a migration cria o artefato inteiro (tabela, índice único de deduplicação
+   * `(event_kind, source_id)` e as views de contrato publicado), e a existência da tabela
+   * responde pelo efeito que a migração promete. ProvR só uma coluna deixaria a tabela
+   * ausente passar como aplicada.
+   */
+  '0104_economic_events': { table: ['fin', 'economic_events'] },
+  /*
+   * F1.2 — 0105 sobe o ledger para a PLATAFORMA. O fato econômico é vocabulário comum a
+   * FINANCE/FISCAL/INVENTORY/PAYROLL/ASSETS: em `fin.*` obrigaria os outros domínios a ler
+   * o schema de FINANCE, o que a regra de fronteira proíbe.
+   *
+   * A sonda é a COLUNA `reverses_source_id` — e não apenas a tabela — porque o efeito
+   * distintivo da 0105 é promover o vínculo de ESTORNO a vínculo indexado. Uma tabela
+   * vazia criada sem essa coluna passaria como "aplicada" sem entregar o contrato.
+   */
+  '0105_platform_economic_events': {
+    column: ['plt', 'economic_events', 'reverses_source_id'],
+  },
+  /*
+   * F1.2 — 0106 recria os contratos publicados de FINANCE com paridade de colunas.
+   *
+   * A sonda é `rpt.read_settlements.reversed_at`: é exatamente a coluna que faltava quando
+   * 0080/0081 adicionaram as colunas de estorno às tabelas de origem sem recriar a view.
+   * Sondar a existência da view não provaria nada — ela já existia no estado quebrado.
+   */
+  '0106_published_read_contracts_refresh': {
+    column: ['rpt', 'read_settlements', 'reversed_at'],
+  },
 };
 
 /**

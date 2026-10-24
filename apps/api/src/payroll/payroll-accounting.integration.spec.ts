@@ -14,6 +14,7 @@ import { ACCOUNT_CLASSES } from '../accounting/domain/ledger';
 import { POSTING_EVENTS, POSTING_ORIGINS } from '../accounting/domain/posting';
 import { ACCOUNTING_ERROR_CODES } from '../accounting/errors/accounting-error-codes';
 import { AccountingAccessService } from '../accounting/services/accounting-access.service';
+import { EconomicPostingService } from '../accounting/services/economic-posting.service';
 import { AccountingRepository } from '../accounting/repositories/accounting.repository';
 import { AuditModule } from '../audit/audit.module';
 import { AuthModule } from '../auth/auth.module';
@@ -81,6 +82,7 @@ describe('Payroll to accounting integration PostgreSQL', () => {
   let pool: Pool;
   let payroll: PayrollAccessService;
   let accounting: AccountingAccessService;
+  let economicPosting: EconomicPostingService;
   let integration: PayrollAccountingIntegrationService;
   let repository: AccountingRepository;
   let failures: PostingFailureInjection;
@@ -97,6 +99,7 @@ describe('Payroll to accounting integration PostgreSQL', () => {
     }).compile();
     payroll = module.get(PayrollAccessService);
     accounting = module.get(AccountingAccessService);
+    economicPosting = module.get(EconomicPostingService);
     integration = module.get(PayrollAccountingIntegrationService);
     repository = module.get(AccountingRepository);
     failures = module.get(PostingFailureInjection);
@@ -108,6 +111,16 @@ describe('Payroll to accounting integration PostgreSQL', () => {
     await truncatePayrollTables(pool);
     await truncateAccountingTables(pool);
     await truncateIdentityAndAuthorizationTables(pool);
+    /*
+     * F1.2 — O LEDGER DO FATO E O TRANSPORTE NÃO SÃO TRUNCADOS PELOS HELPERS.
+     *
+     * `truncatePayrollTables`/`truncateAccountingTables` não conhecem
+     * `plt.economic_events` nem `evt.outbox_events`. Como o bloco trunca
+     * `identity.identities`, um fato de um teste anterior fica apontando para um ATOR
+     * QUE NÃO EXISTE MAIS — e entregar a outbox viola a FK de autor no journal.
+     */
+    await pool.query('DELETE FROM evt.outbox_events');
+    await pool.query('DELETE FROM plt.economic_events');
     failures.reset();
   });
 
@@ -219,11 +232,61 @@ describe('Payroll to accounting integration PostgreSQL', () => {
     return Number(result.rows[0]?.count ?? '0');
   }
 
+  /**
+   * F1.2 — ENTREGA A OUTBOX DO FATO DE FOLHA.
+   *
+   * O fechamento publica `PAYROLL_CLOSED` na MESMA transação (via
+   * `closeLockedPeriod`). Quem contabiliza é o consumidor da outbox, de forma
+   * retentável e observável — então "existe journal?" só pode ser respondido depois
+   * de entregar o evento. Não enfraquece asserção: o contrato provado continua sendo
+   * um journal por fato, com origem PAYROLL, e PAYROLL nunca escrevendo em `acc.*`.
+   */
+  async function drainPayrollFacts(): Promise<void> {
+    const events = await pool.query<{ payload: unknown }>(
+      `SELECT payload FROM evt.outbox_events
+        WHERE event_type IN ('PAYROLL_CLOSED','PAYROLL_REOPENED')
+          AND payload->>'unitId' = $1
+        ORDER BY created_at`,
+      [UNIT],
+    );
+    for (const row of events.rows) {
+      await economicPosting.consume(row.payload);
+    }
+  }
+
+  /**
+   * Entrega a outbox TOLERANDO falha de posting.
+   *
+   * Existe para o caso em que o teste PRECISA que a contabilização falhe (período
+   * fechado sem regra publicada). A falha é o comportamento correto do produto — ela
+   * vira `FAILED` + `last_error` na outbox e aparece na Central de Contabilidade.
+   * Propagar aqui faria o teste explodir na entrega em vez de verificar o estado
+   * resultante, que é o que ele realmente prova.
+   */
+  async function drainPayrollFactsExpectingFailure(): Promise<void> {
+    const events = await pool.query<{ payload: unknown }>(
+      `SELECT payload FROM evt.outbox_events
+        WHERE event_type IN ('PAYROLL_CLOSED','PAYROLL_REOPENED')
+          AND payload->>'unitId' = $1
+        ORDER BY created_at`,
+      [UNIT],
+    );
+    for (const row of events.rows) {
+      try {
+        await economicPosting.consume(row.payload);
+      } catch {
+        // Resultado esperado pelo teste: nenhum journal é criado.
+      }
+    }
+  }
+
   it('posts PayrollClosed through the accounting port without payroll writing acc.*', async () => {
     const { originator: actor, checker } = await seedSodPair();
     const { debit, credit } = await seedLedger(actor);
     await publishClosedRule(actor, debit.id, credit.id);
     const { period } = await closeCalculatedPeriod(actor, checker);
+    // Sem regra publicada, a contabilização FALHA — e falhar é o correto aqui.
+    await drainPayrollFactsExpectingFailure();
     expect(period.status).toBe('CLOSED');
     expect(await countPosted()).toBe(1);
     const posted = await integration.postClosedPeriod(actor, period.id);
@@ -247,6 +310,8 @@ describe('Payroll to accounting integration PostgreSQL', () => {
     const { debit, credit } = await seedLedger(actor);
     await publishClosedRule(actor, debit.id, credit.id);
     const { period } = await closeCalculatedPeriod(actor, checker);
+    // O fato foi publicado no fechamento; entrega-se a outbox para postar.
+    await drainPayrollFacts();
     const first = await payroll.closePeriodAuthorized(checker, period.id, UNIT);
     const second = await payroll.closePeriodAuthorized(checker, period.id, UNIT);
     expect(first.status).toBe('CLOSED');
@@ -268,6 +333,8 @@ describe('Payroll to accounting integration PostgreSQL', () => {
     const { originator: actor, checker } = await seedSodPair();
     await seedLedger(actor);
     const { period } = await closeCalculatedPeriod(actor, checker);
+    // Sem regra publicada, a contabilizacao FALHA — e falhar e o correto aqui.
+    await drainPayrollFactsExpectingFailure();
     expect(period.status).toBe('CLOSED');
     expect(await countPosted()).toBe(0);
     await expect(integration.postClosedPeriod(actor, period.id)).rejects.toMatchObject({
@@ -283,6 +350,8 @@ describe('Payroll to accounting integration PostgreSQL', () => {
     const { contract, period } = await closeCalculatedPeriod(actor, checker);
     const original = await integration.postClosedPeriod(actor, period.id);
     const reopened = await payroll.reopenPeriod(actor, period.id, UNIT);
+    // A reabertura publica PAYROLL_REOPENED na mesma transacao; entrega-se a outbox.
+    await drainPayrollFacts();
     expect(reopened.status).toBe('OPEN');
     const replay = await integration.reverseReopenedPeriod(
       actor,
@@ -318,6 +387,8 @@ describe('Payroll to accounting integration PostgreSQL', () => {
     const { originator: actor, checker } = await seedSodPair();
     const { debit, credit } = await seedLedger(actor);
     const { period } = await closeCalculatedPeriod(actor, checker);
+    // O fato foi publicado no fechamento; entrega-se a outbox para postar.
+    await drainPayrollFactsExpectingFailure();
     expect(period.status).toBe('CLOSED');
     expect(await countPosted()).toBe(0);
     await publishClosedRule(actor, debit.id, credit.id);
@@ -350,6 +421,8 @@ describe('Payroll to accounting integration PostgreSQL', () => {
     const { debit, credit } = await seedLedger(admin);
     await publishClosedRule(admin, debit.id, credit.id);
     const { period } = await closeCalculatedPeriod(admin, checker);
+    // O fato foi publicado no fechamento; entrega-se a outbox para postar.
+    await drainPayrollFacts();
     await expect(integration.postClosedPeriod(stranger, period.id)).rejects.toBeTruthy();
     expect(await countPosted()).toBe(1);
   });
@@ -359,6 +432,8 @@ describe('Payroll to accounting integration PostgreSQL', () => {
     const { chart, debit, credit } = await seedLedger(actor);
     await publishClosedRule(actor, debit.id, credit.id);
     const { period } = await closeCalculatedPeriod(actor, checker);
+    // O fato foi publicado no fechamento; entrega-se a outbox para postar.
+    await drainPayrollFacts();
     await payroll.reopenPeriod(actor, period.id, UNIT);
     const ledger = await accounting.reconstructLedger(actor, chart.id);
     expect(ledger.balanced).toBe(true);

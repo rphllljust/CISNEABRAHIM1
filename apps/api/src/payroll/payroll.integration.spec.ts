@@ -71,6 +71,17 @@ describe('Payroll foundation PostgreSQL integration', () => {
   beforeEach(async () => {
     await truncatePayrollTables(pool);
     await truncateIdentityAndAuthorizationTables(pool);
+    /*
+     * F1.2 — O LEDGER DO FATO E O TRANSPORTE NÃO SÃO TRUNCADOS PELOS HELPERS.
+     *
+     * `truncatePayrollTables`/`truncateAccountingTables` não conhecem
+     * `plt.economic_events` nem `evt.outbox_events`. Como o bloco trunca
+     * `identity.identities`, um fato de um teste anterior fica apontando para um ATOR
+     * QUE NÃO EXISTE MAIS — e entregar a outbox viola a FK de autor no journal.
+     */
+    await pool.query('DELETE FROM evt.outbox_events');
+    await pool.query('DELETE FROM plt.economic_events');
+
   });
 
   afterAll(async () => {
@@ -187,7 +198,7 @@ describe('Payroll foundation PostgreSQL integration', () => {
     expect(resultB?.netTotal).toBe('0');
     expect(await countRows(pool, 'acc.journal_entries')).toBe(journalsBefore);
     expect(await countRows(pool, 'wrk.workforce_members')).toBe(workforceBefore);
-    expect(await countPayrollClosedEvents(pool)).toBe(0);
+    expect(await countPayrollClosedEvents(pool, period.id)).toBe(0);
   });
 
   it('treats the same payroll event as idempotent and serializes concurrent duplicates', async () => {
@@ -276,7 +287,7 @@ describe('Payroll foundation PostgreSQL integration', () => {
       idempotencyKey: `adj-${crypto.randomUUID()}`,
     });
     expect(extra.idempotent).toBe(false);
-    expect(await countPayrollClosedEvents(pool)).toBe(0);
+    expect(await countPayrollClosedEvents(pool, period.id)).toBe(0);
   });
 
   it('denies unauthorized payroll actions and writes close/calculate audit', async () => {
@@ -326,11 +337,21 @@ async function countRows(pool: Pool, qualifiedTable: string): Promise<number> {
   return Number(result.rows[0]?.count ?? '0');
 }
 
-async function countPayrollClosedEvents(pool: Pool): Promise<number> {
+/**
+ * Conta eventos de fechamento de UM período.
+ *
+ * `evt.domain_events` é trilha de auditoria APPEND-ONLY — o banco recusa DELETE, e
+ * apagar auditoria para "limpar" teste seria violar uma invariante do produto. Por isso
+ * a contagem é ESCOPADA ao período do teste: a asserção continua significando "este
+ * fechamento não produziu evento", sem depender de o banco estar globalmente vazio.
+ */
+async function countPayrollClosedEvents(pool: Pool, payrollPeriodId: string): Promise<number> {
   const result = await pool.query<{ count: string }>(
     `SELECT COUNT(*)::text AS count
      FROM evt.domain_events
-     WHERE event_type::text = 'PAYROLL_CLOSED'`,
+     WHERE event_type::text = 'PAYROLL_CLOSED'
+       AND aggregate_id = $1::uuid`,
+    [payrollPeriodId],
   );
   return Number(result.rows[0]?.count ?? '0');
 }

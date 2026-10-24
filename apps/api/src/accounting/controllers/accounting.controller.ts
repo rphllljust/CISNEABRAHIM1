@@ -18,6 +18,7 @@ import {
 } from '../domain/posting.validation';
 import { AccountingAccessService } from '../services/accounting-access.service';
 import { AccountingReportingService } from '../services/accounting-reporting.service';
+import { EconomicPostingService } from '../services/economic-posting.service';
 
 @Controller('accounting')
 @UseGuards(JwtAuthGuard)
@@ -25,6 +26,7 @@ export class AccountingController {
   constructor(
     private readonly accountingAccess: AccountingAccessService,
     private readonly accountingReporting: AccountingReportingService,
+    private readonly economicPosting: EconomicPostingService,
   ) {}
 
   @Post('charts')
@@ -292,6 +294,25 @@ export class AccountingController {
     return this.accountingAccess.requestPosting(
       { identityId: auth.sub, sessionId: auth.sid },
       body,
+    );
+  }
+
+  /**
+   * F1.1 — REPROCESSAMENTO AUTORIZADO de um fato econômico cuja contabilização falhou.
+   *
+   * É o comando real que a worklist oferece. Não é um "força posting": reentrega o
+   * MESMO evento persistido, e a idempotência do posting impede journal duplicado.
+   * A autorização (`accounting:posting-request:create`) é decidida no serviço.
+   */
+  @Post('economic-events/:outboxEventId/retry')
+  @HttpCode(200)
+  retryEconomicEvent(
+    @CurrentAuth() auth: AccessTokenClaims,
+    @Param('outboxEventId') outboxEventId: string,
+  ) {
+    return this.economicPosting.retryFromOutbox(
+      { identityId: auth.sub, sessionId: auth.sid },
+      outboxEventId,
     );
   }
 

@@ -293,8 +293,24 @@ export const SHELL_NAV_GROUPS: ShellNavGroup[] = [
   },
   {
     id: 'accounting',
-    label: 'Contabilidade',
+    label: 'Controladoria',
     items: [
+      /**
+       * F1.1/F1.2 — ACCOUNTING OPERATIONS é a porta de entrada do domínio.
+       *
+       * A ordem importa: o operador contábil entra para RESOLVER contabilização
+       * pendente, não para consultar plano de contas. Plano de contas, lançamentos e
+       * relatórios continuam existindo como apoio — mas a primeira entrada da seção é
+       * o trabalho que exige decisão.
+       */
+      {
+        id: 'accounting-operations',
+        label: 'Contabilização',
+        path: '/app/accounting/economic-posting',
+        capabilityId: 'accounting:journal:read',
+        accessCheck: 'accounting-journal-read',
+        featureFlag: 'accounting',
+      },
       {
         id: 'accounting-chart',
         label: 'Plano de Contas',

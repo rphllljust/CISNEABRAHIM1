@@ -124,14 +124,30 @@ describe('accounting source — leitura e autorizacao', () => {
         input.readiness(query),
       ),
     };
+    /**
+     * F1.1 — o read model de posting é dependência da fonte. Por padrão devolve fila
+     * vazia: os testes de fechamento abaixo medem SÓ o comportamento de fechamento.
+     * Os testes de exceção de contabilização injetam um read model com itens.
+     */
+    const economicTrace = {
+      worklist: vi.fn().mockResolvedValue({
+        counts: { pending: 0, failed: 0, reversed: 0 },
+        items: [],
+        limit: 50,
+        offset: 0,
+        total: 0,
+      }),
+    };
     return {
       scopeContext,
       accountingAccess,
       closingReadiness,
+      economicTrace,
       source: new AccountingWorkSource(
         closingReadiness as never,
         accountingAccess as never,
         scopeContext as never,
+        economicTrace as never,
       ),
     };
   }
@@ -203,5 +219,120 @@ describe('accounting source — leitura e autorizacao', () => {
     });
 
     await expect(source.collect(ACTOR)).rejects.toThrow('Unexpected accounting error.');
+  });
+
+  /**
+   * F1.1 — EXCEÇÕES DE CONTABILIZAÇÃO NA FILA DE TRABALHO.
+   *
+   * O valor da fase não está em ter uma tela nova: está em a divergência aparecer no
+   * MESMO lugar onde o operador já trabalha. Estes testes provam que a fonte contábil
+   * publica o fato sem journal e que a chave lógica impede duplicação.
+   */
+  it('publica exceção de contabilização como item de trabalho', async () => {
+    const { source, economicTrace } = build({
+      units: ['UN-A'],
+      periods: async () => ({ unitId: 'UN-A', items: [] }),
+      readiness: async () => ({ unitId: 'UN-A', period: period(), blockers: [] }),
+    });
+    economicTrace.worklist.mockResolvedValue({
+      counts: { pending: 0, failed: 1, reversed: 0 },
+      items: [
+        {
+          factKind: 'SETTLEMENT',
+          factId: 'settlement-1',
+          unitId: 'UN-A',
+          reference: 'RECEIVABLE_SETTLEMENT 12345678',
+          amount: '500.0000',
+          currencyCode: 'BRL',
+          financialState: 'SETTLED',
+          accountingState: 'FAILED',
+          situation: 'ATTENTION',
+          severity: 'CRITICAL',
+          reason: 'Contabilização falhou após 3 tentativa(s): ACCOUNTING_RULE_NOT_CONFIGURED',
+          firstFailedAt: '2026-10-15T10:00:00.000Z',
+          attempts: 3,
+          nextAction: {
+            command: 'RETRY_POSTING',
+            label: 'Reprocessar contabilização',
+            reason: 'A contabilização falhou.',
+            owner: 'accounting:posting-request',
+          },
+          availableCommands: ['RETRY_POSTING'],
+          route: '/app/accounting/economic-trace/settlement/settlement-1',
+        },
+      ],
+      limit: 50,
+      offset: 0,
+      total: 1,
+    });
+
+    const items = await source.collect(ACTOR);
+
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      id: 'CONTABILIDADE:POSTING:SETTLEMENT:settlement-1',
+      domain: 'CONTABILIDADE',
+      kind: 'EXCEPTION',
+      title: 'Liquidação sem contabilização',
+      actionLabel: 'Reprocessar contabilização',
+      targetRoute: '/app/accounting/economic-trace/settlement/settlement-1',
+      unitId: 'UN-A',
+    });
+  });
+
+  it('a mesma exceção nunca entra duas vezes na fila', async () => {
+    const { source, economicTrace } = build({
+      units: ['UN-A', 'UN-A'],
+      periods: async () => ({ unitId: 'UN-A', items: [] }),
+      readiness: async () => ({ unitId: 'UN-A', period: period(), blockers: [] }),
+    });
+    economicTrace.worklist.mockResolvedValue({
+      counts: { pending: 0, failed: 1, reversed: 0 },
+      items: [
+        {
+          factKind: 'SETTLEMENT',
+          factId: 'settlement-1',
+          unitId: 'UN-A',
+          reference: 'REF',
+          amount: '10.0000',
+          currencyCode: 'BRL',
+          financialState: 'SETTLED',
+          accountingState: 'FAILED',
+          situation: 'ATTENTION',
+          severity: 'CRITICAL',
+          reason: 'Falhou',
+          firstFailedAt: null,
+          attempts: 1,
+          nextAction: { command: null, label: 'Ver', reason: '-', owner: null },
+          availableCommands: [],
+          route: '/app/accounting/economic-trace/settlement/settlement-1',
+        },
+      ],
+      limit: 50,
+      offset: 0,
+      total: 1,
+    });
+
+    const items = await source.collect(ACTOR);
+    expect(items).toHaveLength(1);
+  });
+
+  it('leitura negada do recorte de posting nao inventa item nem derruba a fonte', async () => {
+    const { source, economicTrace } = build({
+      units: ['UN-A'],
+      periods: async () => ({ unitId: 'UN-A', items: [period()] }),
+      readiness: async (query) => ({
+        unitId: query.unitId,
+        period: period(),
+        blockers: [blocker()],
+      }),
+    });
+    economicTrace.worklist.mockRejectedValue(new HttpException('Access denied.', 403));
+
+    const items = await source.collect(ACTOR);
+
+    // Nenhum item de posting, mas o bloqueador de fechamento continua na fila.
+    expect(items).toHaveLength(1);
+    expect(items[0]!.id).toContain('CLOSING');
   });
 });

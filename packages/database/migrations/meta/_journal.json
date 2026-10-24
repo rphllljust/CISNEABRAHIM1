@@ -729,5 +729,26 @@
       "when": 179090900000000000,
       "tag": "0103_saved_views",
       "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 179090950000000000,
+      "tag": "0104_economic_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "7",
+      "when": 179091000000000000,
+      "tag": "0105_platform_economic_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 179091050000000000,
+      "tag": "0106_published_read_contracts_refresh",
+      "breakpoints": true
     }  ]
 }

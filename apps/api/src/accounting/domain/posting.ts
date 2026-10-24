@@ -15,6 +15,19 @@ export const POSTING_EVENTS = {
   SettlementConfirmed: 'SETTLEMENT_CONFIRMED',
   PayableRecognized: 'PAYABLE_RECOGNIZED',
   PaymentConfirmed: 'PAYMENT_CONFIRMED',
+  /**
+   * F1.1 — eventos de ESTORNO, distintos do fato original.
+   *
+   * Antes o estorno reutilizava o `eventKind` do fato original. Como
+   * `acc.accounting_posting_requests` é único por
+   * `(origin_kind, event_kind, source_id)`, o registro da compensação colidia com o
+   * registro do fato original: o estorno não conseguia existir como posting próprio,
+   * a busca de idempotência o confundia com o original, e a compensação contábil
+   * simplesmente não acontecia. `REVERSAL` é um FATO CONTÁBIL DIFERENTE e precisa de
+   * chave própria.
+   */
+  SettlementReversed: 'SETTLEMENT_REVERSED',
+  PaymentReversed: 'PAYMENT_REVERSED',
   FiscalDocumentAuthorized: 'FISCAL_DOCUMENT_AUTHORIZED',
   FiscalDocumentCancelled: 'FISCAL_DOCUMENT_CANCELLED',
   TaxCalculationConfirmed: 'TAX_CALCULATION_CONFIRMED',
@@ -53,8 +66,10 @@ const EVENT_SET = new Set<string>(Object.values(POSTING_EVENTS));
 const EVENT_ORIGIN: Record<PostingEventKind, PostingOriginKind> = {
   RECEIVABLE_RECOGNIZED: POSTING_ORIGINS.Finance,
   SETTLEMENT_CONFIRMED: POSTING_ORIGINS.Finance,
+  SETTLEMENT_REVERSED: POSTING_ORIGINS.Finance,
   PAYABLE_RECOGNIZED: POSTING_ORIGINS.Finance,
   PAYMENT_CONFIRMED: POSTING_ORIGINS.Finance,
+  PAYMENT_REVERSED: POSTING_ORIGINS.Finance,
   FISCAL_DOCUMENT_AUTHORIZED: POSTING_ORIGINS.Fiscal,
   FISCAL_DOCUMENT_CANCELLED: POSTING_ORIGINS.Fiscal,
   TAX_CALCULATION_CONFIRMED: POSTING_ORIGINS.Fiscal,
@@ -70,8 +85,10 @@ const EVENT_ORIGIN: Record<PostingEventKind, PostingOriginKind> = {
 const EVENT_JOURNAL_SOURCE: Record<PostingEventKind, JournalSourceKind> = {
   RECEIVABLE_RECOGNIZED: JOURNAL_SOURCE_KINDS.Billing,
   SETTLEMENT_CONFIRMED: JOURNAL_SOURCE_KINDS.Settlement,
+  SETTLEMENT_REVERSED: JOURNAL_SOURCE_KINDS.Settlement,
   PAYABLE_RECOGNIZED: JOURNAL_SOURCE_KINDS.Payment,
   PAYMENT_CONFIRMED: JOURNAL_SOURCE_KINDS.Payment,
+  PAYMENT_REVERSED: JOURNAL_SOURCE_KINDS.Payment,
   FISCAL_DOCUMENT_AUTHORIZED: JOURNAL_SOURCE_KINDS.Tax,
   FISCAL_DOCUMENT_CANCELLED: JOURNAL_SOURCE_KINDS.Tax,
   TAX_CALCULATION_CONFIRMED: JOURNAL_SOURCE_KINDS.Tax,
@@ -111,9 +128,23 @@ export function journalSourceKindForEvent(eventKind: string): JournalSourceKind 
 }
 
 const REVERSAL_ORIGINAL_EVENT: Partial<Record<PostingEventKind, PostingEventKind>> = {
+  SETTLEMENT_REVERSED: POSTING_EVENTS.SettlementConfirmed,
+  PAYMENT_REVERSED: POSTING_EVENTS.PaymentConfirmed,
   FISCAL_DOCUMENT_CANCELLED: POSTING_EVENTS.FiscalDocumentAuthorized,
   PAYROLL_REOPENED: POSTING_EVENTS.PayrollClosed,
 };
+
+/** O evento é um ESTORNO (compensação), não um fato novo original. */
+const REVERSAL_EVENTS = new Set<PostingEventKind>([
+  POSTING_EVENTS.SettlementReversed,
+  POSTING_EVENTS.PaymentReversed,
+  POSTING_EVENTS.FiscalDocumentCancelled,
+  POSTING_EVENTS.PayrollReopened,
+]);
+
+export function isReversalPostingEvent(eventKind: string): boolean {
+  return REVERSAL_EVENTS.has(assertPostingEvent(eventKind));
+}
 
 export function originalEventKindForReversal(eventKind: string): PostingEventKind {
   const event = assertPostingEvent(eventKind);

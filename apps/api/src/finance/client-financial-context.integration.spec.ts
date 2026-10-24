@@ -6,6 +6,7 @@ import { AuthModule } from '../auth/auth.module';
 import { applyAuthTestEnv } from '../auth/test/auth-test-env';
 import { AuthorizationModule } from '../authorization/authorization.module';
 import { DatabaseModule } from '../infrastructure/database/database.module';
+import { OutboxModule } from '../platform/outbox/outbox.module';
 import { ScopeEnforcementService } from '../authorization/services/scope-enforcement.service';
 import { ClientFinancialContextRepository } from './repositories/client-financial-context.repository';
 import { ClientFinancialContextService } from './services/client-financial-context.service';
@@ -70,7 +71,7 @@ describe('Client financial context integration', () => {
     applyAuthTestEnv(testDatabaseUrl);
 
     const module: TestingModule = await Test.createTestingModule({
-      imports: [DatabaseModule, AuthModule, AuditModule, AuthorizationModule],
+      imports: [DatabaseModule, AuthModule, AuditModule, AuthorizationModule, OutboxModule],
       providers: [
         ClientFinancialContextRepository,
         ClientFinancialContextService,

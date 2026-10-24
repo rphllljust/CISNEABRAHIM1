@@ -14,6 +14,7 @@ import { ACCOUNT_CLASSES } from '../accounting/domain/ledger';
 import { POSTING_EVENTS, POSTING_ORIGINS } from '../accounting/domain/posting';
 import { ACCOUNTING_ERROR_CODES } from '../accounting/errors/accounting-error-codes';
 import { AccountingAccessService } from '../accounting/services/accounting-access.service';
+import { EconomicPostingService } from '../accounting/services/economic-posting.service';
 import { AccountingRepository } from '../accounting/repositories/accounting.repository';
 import { AuditModule } from '../audit/audit.module';
 import { AuthModule } from '../auth/auth.module';
@@ -132,6 +133,7 @@ describe('Fiscal to accounting integration PostgreSQL', () => {
   let fiscal: FiscalAccessService;
   let tax: TaxEngineAccessService;
   let accounting: AccountingAccessService;
+  let economicPosting: EconomicPostingService;
   let integration: FiscalAccountingIntegrationService;
   let repository: AccountingRepository;
   let failures: PostingFailureInjection;
@@ -158,6 +160,7 @@ describe('Fiscal to accounting integration PostgreSQL', () => {
     fiscal = module.get(FiscalAccessService);
     tax = module.get(TaxEngineAccessService);
     accounting = module.get(AccountingAccessService);
+    economicPosting = module.get(EconomicPostingService);
     integration = module.get(FiscalAccountingIntegrationService);
     repository = module.get(AccountingRepository);
     failures = module.get(PostingFailureInjection);
@@ -169,6 +172,20 @@ describe('Fiscal to accounting integration PostgreSQL', () => {
     await truncateFiscalTables(pool);
     await truncateAccountingTables(pool);
     await truncateIdentityAndAuthorizationTables(pool);
+    /*
+     * F1.2 — O LEDGER DO FATO E O TRANSPORTE NÃO SÃO TRUNCADOS PELOS HELPERS.
+     *
+     * `truncateFiscalTables`/`truncateAccountingTables` não conhecem `plt.economic_events`
+     * nem `evt.outbox_events`. Como este bloco trunca `identity.identities`, um fato
+     * publicado por um teste anterior fica apontando para um ATOR QUE NÃO EXISTE MAIS.
+     * Ao entregar a outbox, o posting tentava gravar `created_by_identity_id` órfão e
+     * violava a FK de `acc.journal_entries` — um erro que parecia contábil e era, na
+     * verdade, estado residual entre testes.
+     *
+     * Limpar os dois aqui mantém cada teste isolado: só os fatos DESTE teste existem.
+     */
+    await pool.query('DELETE FROM evt.outbox_events');
+    await pool.query('DELETE FROM plt.economic_events');
     gateway.next = { outcome: 'AUTHORIZED', protocolCode: 'PROT-ACC-1' };
     credentialing.approved = true;
     failures.reset();
@@ -286,12 +303,40 @@ describe('Fiscal to accounting integration PostgreSQL', () => {
     return Number(result.rows[0]?.count ?? '0');
   }
 
+  /**
+   * F1.2 — ENTREGA A OUTBOX DO FATO FISCAL.
+   *
+   * FISCAL não contabiliza mais dentro do comando: ele publica o FATO econômico na
+   * outbox, na mesma transação da autorização/cancelamento/cálculo. Quem contabiliza é
+   * o consumidor, de forma retentável e observável. Portanto "existe journal?" só pode
+   * ser respondido depois de entregar o evento.
+   *
+   * Isto não enfraquece asserção alguma: o que se prova continua sendo que a origem
+   * fiscal gera UM journal por fato, com a origem correta, e que FISCAL nunca escreve
+   * em `acc.*`.
+   */
+  async function drainEconomicFacts(): Promise<void> {
+    const events = await pool.query<{ payload: unknown }>(
+      `SELECT payload FROM evt.outbox_events
+        WHERE event_type IN (
+          'FISCAL_DOCUMENT_AUTHORIZED','FISCAL_DOCUMENT_CANCELLED','TAX_CALCULATION_CONFIRMED'
+        )
+          AND payload->>'unitId' = $1
+        ORDER BY created_at`,
+      [UNIT],
+    );
+    for (const row of events.rows) {
+      await economicPosting.consume(row.payload);
+    }
+  }
+
   it('posts FiscalDocumentAuthorized through the accounting port without fiscal writing acc.*', async () => {
     const actor = await seedActor();
     const { debit, credit } = await seedLedger(actor);
     await publishEventRule(actor, POSTING_EVENTS.FiscalDocumentAuthorized, debit.id, credit.id);
     const authorized = await authorizeDocument(actor);
     expect(authorized.status).toBe(FISCAL_STATUSES.Authorized);
+    await drainEconomicFacts();
     expect(await countPosted()).toBe(1);
     const posted = await integration.postAuthorizedDocument(actor, authorized.id);
     expect(posted.idempotent).toBe(true);
@@ -325,6 +370,7 @@ describe('Fiscal to accounting integration PostgreSQL', () => {
       effectiveOn: '2026-03-10',
       idempotencyKey: `tax-acc-${crypto.randomUUID()}`,
     });
+    await drainEconomicFacts();
     expect(await countPosted()).toBe(1);
     const replay = await integration.postConfirmedTaxCalculation(actor, calculated.id);
     expect(replay.idempotent).toBe(true);
@@ -351,6 +397,7 @@ describe('Fiscal to accounting integration PostgreSQL', () => {
     const second = await integration.postAuthorizedDocument(actor, authorized.id);
     expect(second.journalEntryId).toBe(first.journalEntryId);
     expect(second.idempotent).toBe(true);
+    await drainEconomicFacts();
     expect(await countPosted()).toBe(1);
     expect(await repository.countDuplicatePostings()).toBe(0);
   });
@@ -403,6 +450,7 @@ describe('Fiscal to accounting integration PostgreSQL', () => {
       'Cancel official document',
     );
     expect(replay.idempotent).toBe(true);
+    await drainEconomicFacts();
     expect(await countPosted()).toBe(2);
     const kinds = await pool.query<{ kind: string }>(
       `SELECT kind::text AS kind FROM acc.journal_entries WHERE status = 'POSTED' ORDER BY created_at`,
@@ -449,6 +497,9 @@ describe('Fiscal to accounting integration PostgreSQL', () => {
       rowVersion: authorized.rowVersion,
       reason: 'Cancel official document',
     });
+    // Autorizacao e cancelamento publicaram seus fatos; a contabilizacao acontece
+    // na entrega da outbox — inclusive o estorno compensatorio.
+    await drainEconomicFacts();
     const ledger = await accounting.reconstructLedger(actor, chart.id);
     expect(ledger.balanced).toBe(true);
     expect(ledger.totalDebits).toBe(ledger.totalCredits);

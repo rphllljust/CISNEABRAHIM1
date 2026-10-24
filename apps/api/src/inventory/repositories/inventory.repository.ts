@@ -1,6 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
 import { DatabaseService } from '../../infrastructure/database/database.service';
+import { EconomicEventLedgerRepository } from '../../platform/outbox/repositories/economic-event-ledger.repository';
+import {
+  ECONOMIC_EVENT_KINDS,
+  ECONOMIC_EVENT_SOURCE_KINDS,
+} from '../../platform/bounded-contexts/economic-event-contract';
+import { INVENTORY_ACCOUNTING_CURRENCY } from '../domain/inventory-accounting';
 import { publishedWindowsOverlap } from '../domain/costing';
 import { InventoryError } from '../domain/inventory';
 import type {
@@ -57,7 +63,14 @@ const MOVEMENT_RETURNING_ALIASED = `
 
 @Injectable()
 export class InventoryRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    /**
+     * F1.2 — movimentação com custo publica o fato econômico DENTRO da transação que
+     * a grava. Antes o posting era chamado depois do COMMIT, em outra transação.
+     */
+    private readonly economicEvents: EconomicEventLedgerRepository,
+  ) {}
 
   private pool(): Pool {
     const connection = this.databaseService.getConnection();
@@ -551,9 +564,13 @@ export class InventoryRepository {
       }
       const inserted: StockMovementRow[] = [];
       for (const input of inputs) {
+        // `insertMovement` publica o fato econômico na MESMA transação — ver o bloco
+        // F1.2 dentro dele. A publicação vive no caminho de ESCRITA para valer para
+        // todo chamador, não apenas para este método.
         const row = await this.insertMovement(client, input);
         inserted.push(row);
       }
+
       await client.query('COMMIT');
       return inserted;
     } catch (error) {
@@ -710,6 +727,46 @@ export class InventoryRepository {
     if (!row) {
       throw new InventoryError('INVENTORY_NOT_FOUND');
     }
+
+    /*
+     * F1.2 — O FATO ECONÔMICO É PUBLICADO AQUI, NO CAMINHO REAL DE ESCRITA.
+     *
+     * DEFEITO MEDIDO. A publicação do fato estava em `postMovements`, e
+     * `postMovements` NÃO TEM UM ÚNICO CHAMADOR: o caminho que realmente grava
+     * movimentação é `withLockedPositions` + `insertMovement`. A espinha
+     * INVENTORY → ACCOUNTING, portanto, nunca era acionada — o estoque movimentava e
+     * nenhum fato econômico existia. O sintoma medido foi `plt.economic_events` com
+     * ZERO linhas depois de uma entrada de estoque com custo.
+     *
+     * Publicar no MÉTODO DE ESCRITA — e não no método de serviço — garante que TODO
+     * chamador que grava movimentação publique o fato. Os três caminhos do serviço
+     * (`postStock`, estorno e reserva) passam por aqui.
+     *
+     * Atomicidade: `client` é a conexão da transação que gravou a movimentação.
+     * Rollback do estoque ⇒ rollback do fato. Nunca há estoque movimentado sem fato,
+     * nem fato sem estoque.
+     *
+     * Só movimentação COM CUSTO é fato econômico: sem valor não há o que contabilizar.
+     */
+    if (input.totalCost && Number(input.totalCost) > 0) {
+      await this.economicEvents.record(client, {
+        unitId: row.unit_id,
+        eventKind: ECONOMIC_EVENT_KINDS.InventoryMovementPosted,
+        sourceKind: ECONOMIC_EVENT_SOURCE_KINDS.InventoryMovement,
+        sourceId: row.id,
+        amount: input.totalCost,
+        currencyCode: INVENTORY_ACCOUNTING_CURRENCY,
+        occurredOn: row.occurred_on,
+        actorIdentityId: input.actorIdentityId,
+        sourceReference: row.idempotency_key,
+        context: {
+          inventoryItemId: row.inventory_item_id,
+          warehouseId: row.warehouse_id,
+          movementType: row.movement_type,
+        },
+      });
+    }
+
     return row;
   }
 
