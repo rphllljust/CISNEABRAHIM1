@@ -40,8 +40,26 @@ const MODULE_ENTRY_READS = {
   contracts: '/api/v1/commercial/contracts?limit=1&offset=0',
   people: '/api/v1/people?limit=1&offset=0',
   alerts: '/api/v1/alerts?limit=1&offset=0',
-  reports: '/api/v1/reports?limit=1&offset=0',
-  'approval-matrix': '/api/v1/authz/approval-matrices?limit=1&offset=0',
+  /*
+   * SONDAS CORRIGIDAS PARA AS ROTAS QUE EXISTEM.
+   *
+   * As duas entradas anteriores apontavam para caminhos que nunca existiram:
+   *
+   *   /api/v1/reports?limit=1&offset=0
+   *     → o `ReportExportController` (`@Controller('reports')`) publica `catalog`,
+   *       `exports`, `exports/preview` e `exports/:id`. NÃO existe `GET /reports`, então
+   *       a sonda recebia 404 e o deploy era recusado por um modulo que está saudável.
+   *
+   *   /api/v1/authz/approval-matrices?limit=1&offset=0
+   *     → as matrizes vivem sob `@Controller('authz/access-admin')`. O caminho real é
+   *       `/authz/access-admin/approval-matrices`.
+   *
+   * Uma sonda que aponta para rota inexistente não mede disponibilidade: mede a própria
+   * sonda. Pior, ela reprova o deploy de um runtime correto — foi exatamente o que
+   * aconteceu com 679c7bea, com api/worker/web todos `finished`.
+   */
+  reports: '/api/v1/reports/catalog',
+  'approval-matrix': '/api/v1/authz/access-admin/approval-matrices',
   'operational-profitability': '/api/v1/analytics/operational-profitability?limit=1&offset=0',
 };
 
