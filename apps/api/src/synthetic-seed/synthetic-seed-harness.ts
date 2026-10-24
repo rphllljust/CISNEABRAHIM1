@@ -31,6 +31,7 @@ import { ServiceRequestsAccessService } from '../requests/services/service-reque
 import { ServiceOrdersAccessService } from '../service-orders/services/service-orders-access.service';
 import { ServiceOrderPlanningAccessService } from '../service-orders/services/service-order-planning-access.service';
 import { ServiceOrderExecutionAccessService } from '../service-orders/services/service-order-execution-access.service';
+import { OperationsService } from '../service-orders/services/operations.service';
 import { MeasurementsAccessService } from '../measurements/services/measurements-access.service';
 import { BillingAccessService } from '../billing/services/billing-access.service';
 import { BillingDocumentAccessService } from '../billing/services/billing-document-access.service';
@@ -96,6 +97,7 @@ export async function createSyntheticSeedHarness(pool: Pool): Promise<SyntheticS
     serviceOrdersAccess: moduleRef.get(ServiceOrdersAccessService),
     planningAccess: moduleRef.get(ServiceOrderPlanningAccessService),
     executionAccess: moduleRef.get(ServiceOrderExecutionAccessService),
+      operationsAccess: moduleRef.get(OperationsService),
     measurementsAccess: moduleRef.get(MeasurementsAccessService),
     billingAccess: moduleRef.get(BillingAccessService),
     billingDocumentAccess: moduleRef.get(BillingDocumentAccessService),
