@@ -545,6 +545,8 @@ export class OperationsRepository {
    */
   async recordDispatch(input: RecordDispatchInput): Promise<DispatchPersistenceResult> {
     const client = await this.pool().connect();
+    // Falha do ROLLBACK quando houver; decide a eviction no finally.
+    let evictWith: Error | undefined;
     try {
       await client.query('BEGIN');
 
@@ -561,15 +563,15 @@ export class OperationsRepository {
 
       const order = await this.lockOrder(client, input.serviceOrderId);
       if (!order) {
-        await client.query('ROLLBACK');
+        await rollbackKeepingPrimaryCause(client);
         return { outcome: 'not_found' };
       }
       if (order.row_version !== input.rowVersion) {
-        await client.query('ROLLBACK');
+        await rollbackKeepingPrimaryCause(client);
         return { outcome: 'version_conflict' };
       }
       if (order.status !== 'RELEASED') {
-        await client.query('ROLLBACK');
+        await rollbackKeepingPrimaryCause(client);
         return { outcome: 'invalid_state' };
       }
 
@@ -585,7 +587,7 @@ export class OperationsRepository {
         [input.serviceOrderId],
       );
       if (alreadyDispatched.rows[0]) {
-        await client.query('ROLLBACK');
+        await rollbackKeepingPrimaryCause(client);
         return { outcome: 'already_dispatched', dispatchId: alreadyDispatched.rows[0].id };
       }
 
@@ -652,7 +654,7 @@ export class OperationsRepository {
         [input.serviceOrderId, input.actorIdentityId, input.rowVersion],
       );
       if (!bumped.rows[0]) {
-        await client.query('ROLLBACK');
+        await rollbackKeepingPrimaryCause(client);
         return { outcome: 'version_conflict' };
       }
 
@@ -683,7 +685,7 @@ export class OperationsRepository {
         rowVersion: bumped.rows[0].row_version,
       };
     } catch (error) {
-      await client.query('ROLLBACK');
+      evictWith = await rollbackKeepingPrimaryCause(client);
       if (isIdempotencyKeyViolation(error)) {
         const replay = await this.findIdempotency(
           this.pool() as unknown as PoolClient,
@@ -698,7 +700,7 @@ export class OperationsRepository {
       }
       throw error;
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 
@@ -710,6 +712,8 @@ export class OperationsRepository {
     idempotencyKey: string;
   }): Promise<DispatchPersistenceResult> {
     const client = await this.pool().connect();
+    // Falha do ROLLBACK quando houver; decide a eviction no finally.
+    let evictWith: Error | undefined;
     try {
       await client.query('BEGIN');
 
@@ -731,11 +735,11 @@ export class OperationsRepository {
       );
       const row = dispatch.rows[0];
       if (!row) {
-        await client.query('ROLLBACK');
+        await rollbackKeepingPrimaryCause(client);
         return { outcome: 'not_dispatched' };
       }
       if (row.checked_in_at) {
-        await client.query('ROLLBACK');
+        await rollbackKeepingPrimaryCause(client);
         return { outcome: 'already_checked_in' };
       }
 
@@ -767,7 +771,7 @@ export class OperationsRepository {
         [input.serviceOrderId, input.actorIdentityId, input.rowVersion],
       );
       if (!bumped.rows[0]) {
-        await client.query('ROLLBACK');
+        await rollbackKeepingPrimaryCause(client);
         return { outcome: 'version_conflict' };
       }
 
@@ -786,13 +790,13 @@ export class OperationsRepository {
         rowVersion: bumped.rows[0].row_version,
       };
     } catch (error) {
-      await client.query('ROLLBACK');
+      evictWith = await rollbackKeepingPrimaryCause(client);
       if (isIdempotencyKeyViolation(error)) {
         return { outcome: 'idempotency_conflict' };
       }
       throw error;
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 
@@ -809,6 +813,8 @@ export class OperationsRepository {
    */
   async recordActual(input: RecordExecutionActualInput) {
     const client = await this.pool().connect();
+    // Falha do ROLLBACK quando houver; decide a eviction no finally.
+    let evictWith: Error | undefined;
     try {
       await client.query('BEGIN');
 
@@ -824,15 +830,15 @@ export class OperationsRepository {
 
       const order = await this.lockOrder(client, input.serviceOrderId);
       if (!order) {
-        await client.query('ROLLBACK');
+        await rollbackKeepingPrimaryCause(client);
         return { outcome: 'not_found' as const };
       }
       if (order.row_version !== input.rowVersion) {
-        await client.query('ROLLBACK');
+        await rollbackKeepingPrimaryCause(client);
         return { outcome: 'version_conflict' as const };
       }
       if (order.status !== 'IN_EXECUTION' && order.status !== 'PAUSED') {
-        await client.query('ROLLBACK');
+        await rollbackKeepingPrimaryCause(client);
         return { outcome: 'invalid_state' as const };
       }
 
@@ -896,7 +902,7 @@ export class OperationsRepository {
         [input.serviceOrderId, input.actorIdentityId, input.rowVersion],
       );
       if (!bumped.rows[0]) {
-        await client.query('ROLLBACK');
+        await rollbackKeepingPrimaryCause(client);
         return { outcome: 'version_conflict' as const };
       }
 
@@ -927,33 +933,35 @@ export class OperationsRepository {
         rowVersion: bumped.rows[0].row_version,
       };
     } catch (error) {
-      await client.query('ROLLBACK');
+      evictWith = await rollbackKeepingPrimaryCause(client);
       if (isIdempotencyKeyViolation(error)) {
         return { outcome: 'idempotency_conflict' as const };
       }
       throw error;
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 
   /** Registra leitura de medidor. A monotonicidade é garantida por TRIGGER. */
   async recordMeterReading(input: RecordExecutionMeterInput) {
     const client = await this.pool().connect();
+    // Falha do ROLLBACK quando houver; decide a eviction no finally.
+    let evictWith: Error | undefined;
     try {
       await client.query('BEGIN');
 
       const order = await this.lockOrder(client, input.serviceOrderId);
       if (!order) {
-        await client.query('ROLLBACK');
+        await rollbackKeepingPrimaryCause(client);
         return { outcome: 'not_found' as const };
       }
       if (order.row_version !== input.rowVersion) {
-        await client.query('ROLLBACK');
+        await rollbackKeepingPrimaryCause(client);
         return { outcome: 'version_conflict' as const };
       }
       if (order.status !== 'IN_EXECUTION' && order.status !== 'PAUSED') {
-        await client.query('ROLLBACK');
+        await rollbackKeepingPrimaryCause(client);
         return { outcome: 'invalid_state' as const };
       }
 
@@ -1011,7 +1019,7 @@ export class OperationsRepository {
           [input.serviceOrderId, input.actorIdentityId, input.rowVersion],
         );
         if (!bumped.rows[0]) {
-          await client.query('ROLLBACK');
+          await rollbackKeepingPrimaryCause(client);
           return { outcome: 'version_conflict' as const };
         }
 
@@ -1033,43 +1041,45 @@ export class OperationsRepository {
          * permite ao operador ver o motivo real em vez de um 500.
          */
         if (isCheckViolation(error, 'METER_READING_NOT_MONOTONIC')) {
-          await client.query('ROLLBACK');
+          await rollbackKeepingPrimaryCause(client);
           return { outcome: 'meter_not_monotonic' as const };
         }
         if (isUniqueViolation(error)) {
-          await client.query('ROLLBACK');
+          await rollbackKeepingPrimaryCause(client);
           return { outcome: 'duplicate_final_reading' as const };
         }
         throw error;
       }
     } catch (error) {
-      await client.query('ROLLBACK').catch(() => undefined);
+      evictWith = await rollbackKeepingPrimaryCause(client);
       if (isIdempotencyKeyViolation(error)) {
         return { outcome: 'idempotency_conflict' as const };
       }
       throw error;
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 
   /** Registra abastecimento com procedência. */
   async recordFuel(input: RecordExecutionFuelInput) {
     const client = await this.pool().connect();
+    // Falha do ROLLBACK quando houver; decide a eviction no finally.
+    let evictWith: Error | undefined;
     try {
       await client.query('BEGIN');
 
       const order = await this.lockOrder(client, input.serviceOrderId);
       if (!order) {
-        await client.query('ROLLBACK');
+        await rollbackKeepingPrimaryCause(client);
         return { outcome: 'not_found' as const };
       }
       if (order.row_version !== input.rowVersion) {
-        await client.query('ROLLBACK');
+        await rollbackKeepingPrimaryCause(client);
         return { outcome: 'version_conflict' as const };
       }
       if (order.status !== 'IN_EXECUTION' && order.status !== 'PAUSED') {
-        await client.query('ROLLBACK');
+        await rollbackKeepingPrimaryCause(client);
         return { outcome: 'invalid_state' as const };
       }
 
@@ -1125,7 +1135,7 @@ export class OperationsRepository {
         [input.serviceOrderId, input.actorIdentityId, input.rowVersion],
       );
       if (!bumped.rows[0]) {
-        await client.query('ROLLBACK');
+        await rollbackKeepingPrimaryCause(client);
         return { outcome: 'version_conflict' as const };
       }
 
@@ -1152,33 +1162,35 @@ export class OperationsRepository {
       await client.query('COMMIT');
       return { outcome: 'success' as const, record, rowVersion: bumped.rows[0].row_version };
     } catch (error) {
-      await client.query('ROLLBACK');
+      evictWith = await rollbackKeepingPrimaryCause(client);
       if (isIdempotencyKeyViolation(error)) {
         return { outcome: 'idempotency_conflict' as const };
       }
       throw error;
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 
   /** Registra a assinatura do cliente. */
   async recordSignature(input: RecordExecutionSignatureInput) {
     const client = await this.pool().connect();
+    // Falha do ROLLBACK quando houver; decide a eviction no finally.
+    let evictWith: Error | undefined;
     try {
       await client.query('BEGIN');
 
       const order = await this.lockOrder(client, input.serviceOrderId);
       if (!order) {
-        await client.query('ROLLBACK');
+        await rollbackKeepingPrimaryCause(client);
         return { outcome: 'not_found' as const };
       }
       if (order.row_version !== input.rowVersion) {
-        await client.query('ROLLBACK');
+        await rollbackKeepingPrimaryCause(client);
         return { outcome: 'version_conflict' as const };
       }
       if (order.status === 'CANCELLED' || order.status === 'DRAFT' || order.status === 'PREPARED') {
-        await client.query('ROLLBACK');
+        await rollbackKeepingPrimaryCause(client);
         return { outcome: 'invalid_state' as const };
       }
 
@@ -1226,7 +1238,7 @@ export class OperationsRepository {
         [input.serviceOrderId, input.actorIdentityId, input.rowVersion],
       );
       if (!bumped.rows[0]) {
-        await client.query('ROLLBACK');
+        await rollbackKeepingPrimaryCause(client);
         return { outcome: 'version_conflict' as const };
       }
 
@@ -1240,13 +1252,13 @@ export class OperationsRepository {
       await client.query('COMMIT');
       return { outcome: 'success' as const, signature, rowVersion: bumped.rows[0].row_version };
     } catch (error) {
-      await client.query('ROLLBACK');
+      evictWith = await rollbackKeepingPrimaryCause(client);
       if (isIdempotencyKeyViolation(error)) {
         return { outcome: 'idempotency_conflict' as const };
       }
       throw error;
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 
@@ -1279,6 +1291,8 @@ export class OperationsRepository {
     resolvableSituationIds: string[];
   }): Promise<void> {
     const client = await this.pool().connect();
+    // Falha do ROLLBACK quando houver; decide a eviction no finally.
+    let evictWith: Error | undefined;
     try {
       await client.query('BEGIN');
 
@@ -1329,10 +1343,24 @@ export class OperationsRepository {
 
       await client.query('COMMIT');
     } catch (error) {
-      await client.query('ROLLBACK');
+      /**
+       * PRESERVAR A CAUSA PRIMÁRIA E EVICTAR A CONEXÃO.
+       *
+       * Executar o ROLLBACK e relançar o erro no mesmo bloco engole a falha do
+       * ROLLBACK: quando ele também falha (conexão terminada, transação já abortada
+       * pelo servidor), a rejeição do rollback SOBRESCREVE a causa original e o
+       * operador lê "Connection terminated unexpectedly" quando a causa era uma
+       * constraint.
+       *
+       * `rollbackKeepingPrimaryCause` executa o ROLLBACK devolvendo a falha dele sem
+       * substituir o erro primário. `release(evictWith)` remove a conexão do pool
+       * quando o ROLLBACK falhou: um cliente nesse estado está indefinido e
+       * reutilizá-lo propagaria a transação abortada para o próximo comando.
+       */
+      evictWith = await rollbackKeepingPrimaryCause(client);
       throw error;
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 
@@ -1625,4 +1653,29 @@ function isCheckViolation(error: unknown, pattern: string): boolean {
 
 function isUniqueViolation(error: unknown): boolean {
   return (error as { code?: string })?.code === '23505';
+}
+
+/**
+ * Executa ROLLBACK sem mascarar o erro primário.
+ *
+ * O anti-padrão `evictWith = await rollbackKeepingPrimaryCause(client); throw error;` parece correto e não
+ * é: se o próprio ROLLBACK falha (conexão terminada, transação já abortada pelo
+ * servidor), a promessa rejeitada SOBRESCREVE a causa original. O operador então lê
+ * "Connection terminated unexpectedly" quando a causa era uma violação de constraint.
+ *
+ * Devolve a falha do ROLLBACK (ou `undefined` quando ele funcionou). O chamador
+ * decide o que fazer com a conexão; a causa primária é dele, sempre.
+ *
+ * Mesmo contrato do helper homônimo em `establishment-registry.repository.ts` — o
+ * padrão já existe no repositório e é reutilizado aqui em vez de reinventado.
+ */
+async function rollbackKeepingPrimaryCause(client: PoolClient): Promise<Error | undefined> {
+  try {
+    await client.query('ROLLBACK');
+    return undefined;
+  } catch (rollbackFailure) {
+    return rollbackFailure instanceof Error
+      ? rollbackFailure
+      : new Error(String(rollbackFailure));
+  }
 }
