@@ -28,7 +28,10 @@ const STUB_MODULE_CODES = new Set(['rentals', 'transport']);
  */
 const MODULE_ENTRY_READS = {
   finance: '/api/v1/finance/receivables?limit=1&offset=0',
-  accounting: '/api/v1/accounting/journals?limit=1&offset=0',
+  // `/accounting/journals` NAO existe como GET raiz: accounting.controller.ts so expoe
+  // `charts/:chartId/journals` e `journals/:journalId`. `periods` e a leitura de entrada
+  // real do modulo contabil.
+  accounting: '/api/v1/accounting/periods?limit=1&offset=0',
   fiscal: '/api/v1/fiscal/documents?page=0&pageSize=1',
   inventory: '/api/v1/inventory/items?limit=1&offset=0',
   payroll: '/api/v1/payroll/periods?page=0&pageSize=1',
