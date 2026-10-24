@@ -325,11 +325,14 @@ test('MODULE_ENTRY_READS cobre todos os modulos construidos e usa rota de sub-ca
   const source=readFileSync(new URL('./coolify-postdeploy-smoke.mjs',import.meta.url),'utf8');
   const block=source.slice(source.indexOf('MODULE_ENTRY_READS'),source.indexOf('};',source.indexOf('MODULE_ENTRY_READS')));
   const entries=[...block.matchAll(/'?([a-z-]+)'?:\s*'(\/api\/v1\/[^']+)'/g)].map((m)=>[m[1],m[2]]);
+  const nulls=[...block.matchAll(/'?([a-z-]+)'?:\s*null/g)].map((m)=>m[1]);
   const map=Object.fromEntries(entries);
 
   // Todo modulo construido precisa de sonda: habilitado sem sonda = nao provado.
+  // `null` e ausencia DECLARADA de superficie de UI (approval-matrix so tem @Post e nao
+  // esta em nav-config.ts). Omitir continua falhando: a declaracao e obrigatoria.
   for(const moduleCode of ['finance','accounting','fiscal','inventory','payroll','procurement','suppliers','contracts','people','alerts','reports','approval-matrix','operational-profitability']){
-    assert.ok(map[moduleCode],`${moduleCode} sem sonda de leitura declarada`);
+    assert.ok(map[moduleCode] || nulls.includes(moduleCode),`${moduleCode} sem sonda de leitura declarada`);
   }
 
   // A rota precisa ser endpoint real, nao o prefixo do registry: ao menos 3 segmentos.
