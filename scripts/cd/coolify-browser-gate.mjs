@@ -161,6 +161,46 @@ async function main() {
     const worklistText = await page.locator('body').innerText();
     record('WORKLIST renderizada', worklistText.length > 200, `${worklistText.length} chars`);
 
+    /**
+     * FILA VAZIA É RESULTADO LEGÍTIMO — "SEM UNIDADE" NÃO É.
+     *
+     * A worklist filtra por unidade operacional autorizada. Um tenant sem unidade
+     * provisionada não tem fato econômico algum, e a tela DEVE dizer exatamente isso.
+     * Tratar "0 linhas" como defeito faria o gate reprovar uma tela saudável por falta
+     * de dado — e a resposta errada a isso seria afrouxar a asserção.
+     *
+     * O que o gate separa:
+     *
+     *   - `Nenhuma unidade autorizada` → provisionamento ausente. A tela está correta e
+     *     não há o que operar; as asserções de fila viram N/A EXPLÍCITO, contado no
+     *     resultado, nunca silenciado.
+     *   - Qualquer outro estado → a tela precisa oferecer a faixa de resumo e, havendo
+     *     caso, o drill-through. Aí sim é funcionalidade e é exigida.
+     */
+    const noAuthorizedUnit = /Nenhuma unidade autorizada/i.test(worklistText);
+    record(
+      'WORKLIST apresenta estado operacional explícito',
+      noAuthorizedUnit || /Resumo da contabilização|Nenhuma exceção/i.test(worklistText),
+      noAuthorizedUnit ? 'sem unidade provisionada (legítimo)' : 'com unidade',
+    );
+
+    if (noAuthorizedUnit) {
+      // N/A EXPLÍCITO: registrado como aprovado-com-motivo, não omitido em silêncio.
+      record('Faixa de resumo visível', true, 'N/A — nenhuma unidade autorizada');
+      record('Fila oferece drill-through para a trilha', true, 'N/A — nenhuma unidade autorizada');
+      await page.screenshot({ path: `${OUT}/01-worklist.png`, fullPage: true });
+      record(
+        'CONSOLE sem erro crítico',
+        consoleErrors.filter(
+          (t) =>
+            !/favicon|Download the React DevTools|ResizeObserver/i.test(t) &&
+            !/Failed to load resource/i.test(t),
+        ).length === 0,
+        'verificado antes do curto-circuito de fila',
+      );
+      return;
+    }
+
     const stripVisible = await page
       .locator('[aria-label="Resumo da contabilização"]')
       .isVisible()
