@@ -70,6 +70,108 @@ export type PaymentOverduePayloadV1 = PayloadBase & {
   overdueDetectedAt: string;
 };
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// DISPATCH + EXECUTION + ACTUALS
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Nenhum destes payloads carrega ator, sessão, grant ou permissão: a autorização
+// é do comando, não do fato. `assertAuthorizationIndependentPayload` recusaria —
+// e é justamente o que impede um evento de virar vetor de vazamento de escopo.
+
+/** Fato de despacho: a ordem SAIU, com janela e recursos confirmados. */
+export type ServiceOrderDispatchedPayloadV1 = PayloadBase & {
+  serviceOrderId: string;
+  unitId: string;
+  clientId: string | null;
+  orderNumber: string;
+  dispatchId: string;
+  windowStart: string;
+  windowEnd: string;
+  /** Quantidade de recursos confirmados no ato (nunca a lista nominal). */
+  confirmedResourceCount: number;
+  dispatchedAt: string;
+};
+
+export type ServiceExecutionStartedPayloadV1 = PayloadBase & {
+  serviceOrderId: string;
+  unitId: string;
+  clientId: string | null;
+  orderNumber: string;
+  startedAt: string;
+};
+
+export type ServiceExecutionPausedPayloadV1 = PayloadBase & {
+  serviceOrderId: string;
+  unitId: string;
+  pausedAt: string;
+};
+
+export type ServiceExecutionResumedPayloadV1 = PayloadBase & {
+  serviceOrderId: string;
+  unitId: string;
+  resumedAt: string;
+};
+
+/** Progresso medido. Alimenta a leitura de SLA por ritmo. */
+export type ServiceProgressRecordedPayloadV1 = PayloadBase & {
+  serviceOrderId: string;
+  unitId: string;
+  entryId: string;
+  progressKind: string;
+  quantityValue: string | null;
+  unitCode: string | null;
+  recordedAt: string;
+};
+
+/**
+ * Uso de RECURSO. É o fato que o COSTING consome por categoria.
+ *
+ * `actualKind` e `unitOfMeasure` são o vocabulário do domínio; o valor é string
+ * decimal para não perder precisão no transporte.
+ */
+export type ResourceUsageRecordedPayloadV1 = PayloadBase & {
+  serviceOrderId: string;
+  unitId: string;
+  actualId: string;
+  actualKind: string;
+  actualValue: string;
+  unitOfMeasure: string;
+  physicalAssetId: string | null;
+  workforceMemberId: string | null;
+  occurredAt: string;
+};
+
+export type ExecutionExceptionReportedPayloadV1 = PayloadBase & {
+  serviceOrderId: string;
+  unitId: string;
+  occurrenceId: string;
+  occurrenceCode: string;
+  reportedAt: string;
+};
+
+/** Conclusão da execução: os realizados estão congelados. */
+export type ExecutionCompletedPayloadV1 = PayloadBase & {
+  serviceOrderId: string;
+  unitId: string;
+  clientId: string | null;
+  orderNumber: string;
+  executionClosureId: string;
+  actualCount: number;
+  completedAt: string;
+};
+
+/** Base de medição publicada: a capability seguinte já pode trabalhar. */
+export type MeasurementBasisReadyPayloadV1 = PayloadBase & {
+  serviceOrderId: string;
+  unitId: string;
+  clientId: string | null;
+  orderNumber: string;
+  measurementBasisId: string;
+  executionClosureId: string;
+  lineCount: number;
+  preparedAt: string;
+};
+
 export type DomainEventPayloadV1 =
   | ServiceRequestSubmittedPayloadV1
   | ServiceOrderReleasedPayloadV1
@@ -78,7 +180,16 @@ export type DomainEventPayloadV1 =
   | MeasurementSubmittedPayloadV1
   | MeasurementApprovedPayloadV1
   | BillingReadyPayloadV1
-  | PaymentOverduePayloadV1;
+  | PaymentOverduePayloadV1
+  | ServiceOrderDispatchedPayloadV1
+  | ServiceExecutionStartedPayloadV1
+  | ServiceExecutionPausedPayloadV1
+  | ServiceExecutionResumedPayloadV1
+  | ServiceProgressRecordedPayloadV1
+  | ResourceUsageRecordedPayloadV1
+  | ExecutionExceptionReportedPayloadV1
+  | ExecutionCompletedPayloadV1
+  | MeasurementBasisReadyPayloadV1;
 
 export function assertDomainEventPayloadVersion(version: number): void {
   if (version !== DOMAIN_EVENT_PAYLOAD_VERSION) {
@@ -135,6 +246,60 @@ export function buildBillingReadyPayloadV1(
 export function buildPaymentOverduePayloadV1(
   input: Omit<PaymentOverduePayloadV1, 'schemaVersion'>,
 ): PaymentOverduePayloadV1 {
+  return withSchemaVersion(input);
+}
+
+export function buildServiceOrderDispatchedPayloadV1(
+  input: Omit<ServiceOrderDispatchedPayloadV1, 'schemaVersion'>,
+): ServiceOrderDispatchedPayloadV1 {
+  return withSchemaVersion(input);
+}
+
+export function buildServiceExecutionStartedPayloadV1(
+  input: Omit<ServiceExecutionStartedPayloadV1, 'schemaVersion'>,
+): ServiceExecutionStartedPayloadV1 {
+  return withSchemaVersion(input);
+}
+
+export function buildServiceExecutionPausedPayloadV1(
+  input: Omit<ServiceExecutionPausedPayloadV1, 'schemaVersion'>,
+): ServiceExecutionPausedPayloadV1 {
+  return withSchemaVersion(input);
+}
+
+export function buildServiceExecutionResumedPayloadV1(
+  input: Omit<ServiceExecutionResumedPayloadV1, 'schemaVersion'>,
+): ServiceExecutionResumedPayloadV1 {
+  return withSchemaVersion(input);
+}
+
+export function buildServiceProgressRecordedPayloadV1(
+  input: Omit<ServiceProgressRecordedPayloadV1, 'schemaVersion'>,
+): ServiceProgressRecordedPayloadV1 {
+  return withSchemaVersion(input);
+}
+
+export function buildResourceUsageRecordedPayloadV1(
+  input: Omit<ResourceUsageRecordedPayloadV1, 'schemaVersion'>,
+): ResourceUsageRecordedPayloadV1 {
+  return withSchemaVersion(input);
+}
+
+export function buildExecutionExceptionReportedPayloadV1(
+  input: Omit<ExecutionExceptionReportedPayloadV1, 'schemaVersion'>,
+): ExecutionExceptionReportedPayloadV1 {
+  return withSchemaVersion(input);
+}
+
+export function buildExecutionCompletedPayloadV1(
+  input: Omit<ExecutionCompletedPayloadV1, 'schemaVersion'>,
+): ExecutionCompletedPayloadV1 {
+  return withSchemaVersion(input);
+}
+
+export function buildMeasurementBasisReadyPayloadV1(
+  input: Omit<MeasurementBasisReadyPayloadV1, 'schemaVersion'>,
+): MeasurementBasisReadyPayloadV1 {
   return withSchemaVersion(input);
 }
 

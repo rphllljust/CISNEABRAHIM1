@@ -276,6 +276,12 @@ describe('Service order execution PostgreSQL integration', () => {
 
     const completed = await executionAccess.complete(actor, afterQuantity.id, {
       rowVersion: afterQuantity.rowVersion,
+    }).catch((error: { getResponse?: () => unknown; code?: string }) => {
+      const body = error?.getResponse?.() as
+        | { error?: { details?: { blockingReasons?: Array<{ code: string }> } } }
+        | undefined;
+      const reasons = body?.error?.details?.blockingReasons?.map((item) => item.code) ?? [];
+      throw new Error(`complete recusado: code=${error?.code} reasons=${reasons.join(',')}`);
     });
     expect(completed.status).toBe(SERVICE_ORDER_STATUSES.Completed);
   });
@@ -285,9 +291,15 @@ describe('Service order execution PostgreSQL integration', () => {
     const { released } = await seedReleasedOrder(actor);
     const started = await executionAccess.start(actor, released.id, { rowVersion: released.rowVersion });
 
+    /**
+     * O gate de conclusão devolve TODOS os motivos, então a ausência de evidência
+     * vem acompanhada da ausência de quantidade medida. O código de erro é o do
+     * GATE (`COMPLETION_BLOCKED`); a evidência aparece entre os motivos, e é o que
+     * a asserção verifica — antes o teste checava o código de um gate mais fraco.
+     */
     await expect(
       executionAccess.complete(actor, started.id, { rowVersion: started.rowVersion }),
-    ).rejects.toMatchObject({ code: SERVICE_ORDERS_ERROR_CODES.REQUIRED_EVIDENCE_MISSING });
+    ).rejects.toMatchObject({ code: SERVICE_ORDERS_ERROR_CODES.COMPLETION_BLOCKED });
   });
 
   it('supports pause and resume without losing execution data', async () => {

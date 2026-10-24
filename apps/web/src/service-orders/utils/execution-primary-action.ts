@@ -1,5 +1,29 @@
 import { SERVICE_ORDER_STATUSES } from '../types/service-order.types';
 
+/**
+ * AÇÃO PRIMÁRIA DA EXECUÇÃO.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * A DECISÃO DE CONCLUIR NÃO VIVE AQUI
+ * ═══════════════════════════════════════════════════════════════════════════════
+ *
+ * A versão anterior recebia `requirementsComplete` — um booleano CALCULADO na tela
+ * a partir das evidências — e habilitava "Concluir OS" com ele:
+ *
+ *     if (status === IN_EXECUTION && requirementsComplete) → complete
+ *
+ * Esse é exatamente o padrão proibido: uma segunda implementação da regra de
+ * conclusão, em outra linguagem, que não conhece medidor final, combustível, horas
+ * por pessoa, material, assinatura nem situação aberta. O operador via "Concluir"
+ * habilitado e o backend recusava.
+ *
+ * AGORA a pergunta chega RESOLVIDA: `backendAllowsComplete` é
+ * `completionGate.canComplete`, e `completionBlockedReason` é o primeiro motivo
+ * declarado pelo domínio. A tela apenas apresenta.
+ *
+ * `status` continua governando QUAL comando de estado é possível (iniciar, retomar,
+ * pausar) — isso é navegação, não regra de conclusão.
+ */
 export type PrimaryActionKind = 'start' | 'resume' | 'record' | 'complete' | 'none';
 
 export type PrimaryAction = {
@@ -11,10 +35,16 @@ export type PrimaryAction = {
 
 export function resolvePrimaryAction(input: {
   status: string;
-  requirementsComplete: boolean;
+  /**
+   * `completionGate.canComplete` do BACKEND. Não recalcular: este valor é a
+   * resposta do domínio, e é o mesmo que o comando aplica.
+   */
+  backendAllowsComplete: boolean;
+  /** Primeiro motivo de bloqueio declarado pelo backend, quando houver. */
+  completionBlockedReason?: string | null;
   canMutate: boolean;
 }): PrimaryAction {
-  const { status, requirementsComplete, canMutate } = input;
+  const { status, backendAllowsComplete, completionBlockedReason, canMutate } = input;
 
   if (!canMutate) {
     return {
@@ -42,7 +72,7 @@ export function resolvePrimaryAction(input: {
   }
 
   if (status === SERVICE_ORDER_STATUSES.InExecution) {
-    if (requirementsComplete) {
+    if (backendAllowsComplete) {
       return {
         kind: 'complete',
         label: 'Concluir OS',
@@ -53,6 +83,8 @@ export function resolvePrimaryAction(input: {
       kind: 'record',
       label: 'Registrar atividade',
       ariaLabel: 'Registrar atividade de execução',
+      // O motivo é do BACKEND. Quando ele não disse, a tela admite que não sabe.
+      disabledReason: completionBlockedReason ?? undefined,
     };
   }
 
