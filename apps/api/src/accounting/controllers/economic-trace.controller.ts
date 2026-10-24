@@ -53,6 +53,30 @@ export class EconomicTraceController {
   payment(@CurrentAuth() auth: AccessTokenClaims, @Param('paymentId') paymentId: string) {
     return this.traceAccess.forPayment({ identityId: auth.sub, sessionId: auth.sid }, paymentId);
   }
+
+  /**
+   * TRILHA DE QUALQUER FATO DA ESPINHA, PELO SEU `source_id`.
+   *
+   * `settlement` e `payment` cobrem só FINANCE. INVENTORY, FISCAL, PAYROLL e
+   * FIXED_ASSET publicam pela MESMA espinha e precisam da mesma trilha — sem esta rota,
+   * a fila oferecia um caso e a trilha não tinha por onde abrir.
+   *
+   * O `factKind` no caminho é o rótulo publicado pelo próprio fato; `:factId` é o
+   * `source_id`. A autorização é a mesma de qualquer trilha econômica, decidida no
+   * serviço — o caminho não amplia acesso.
+   */
+  @Get(':factKind/:factId')
+  byFact(
+    @CurrentAuth() auth: AccessTokenClaims,
+    @Param('factKind') factKind: string,
+    @Param('factId') factId: string,
+  ) {
+    return this.traceAccess.forFact(
+      { identityId: auth.sub, sessionId: auth.sid },
+      factKind,
+      factId,
+    );
+  }
 }
 
 /**

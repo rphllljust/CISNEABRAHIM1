@@ -17,6 +17,7 @@ import {
   type EconomicSeverity,
   type EconomicSituation,
   type EconomicTraceNode,
+  type EconomicFactKind,
   type EconomicTraceView,
   type EconomicWorkItem,
   type EconomicWorklistView,
@@ -201,6 +202,151 @@ export class EconomicTraceReadModelService {
    * Retorna `null` quando o settlement não existe — o chamador decide 404. A
    * autorização é aplicada ANTES, no serviço de acesso do domínio dono.
    */
+  /**
+   * TRILHA DE UM FATO PELO SEU `source_id`, SEM ADIVINHAR O TIPO.
+   *
+   * `forSettlement`/`forPayment` existem porque FINANCE precisa escolher entre CONFIRMED
+   * e REVERSED antes de consultar. Os demais domínios da espinha não têm essa ambiguidade:
+   * o `event_kind` está no próprio fato publicado.
+   *
+   * Aqui o fato é localizado pelo `source_id` e o tipo vem do `source_kind` publicado —
+   * a MESMA derivação que a worklist usa. Sem isso, a fila oferecia `settlement/...` para
+   * um fato de INVENTORY e a trilha respondia `ACCOUNTING_NOT_FOUND`.
+   */
+  async forFact(sourceId: string): Promise<EconomicTraceView | null> {
+    const event = await this.pool().query<EconomicEventRow>(
+      `SELECT id, unit_id, event_kind, source_kind, source_id,
+              amount::text AS amount, currency_code, occurred_on::text AS occurred_on,
+              outbox_event_id
+         FROM rpt.read_economic_events
+        WHERE source_id = $1::uuid
+        ORDER BY created_at
+        LIMIT 1`,
+      [sourceId],
+    );
+    const eventRow = event.rows[0] ?? null;
+    if (!eventRow) {
+      return null;
+    }
+
+    let outbox: OutboxRow | null = null;
+    if (eventRow.outbox_event_id) {
+      const outboxResult = await this.pool().query<OutboxRow>(
+        `SELECT id, status::text AS status, attempts, max_attempts, last_error, created_at
+           FROM rpt.read_outbox_events WHERE id = $1::uuid`,
+        [eventRow.outbox_event_id],
+      );
+      outbox = outboxResult.rows[0] ?? null;
+    }
+
+    const postingResult = await this.pool().query<PostingRow>(
+      `SELECT id, event_kind::text AS event_kind, status::text AS status, journal_entry_id,
+              amount::text AS amount, occurred_on::text AS occurred_on,
+              posting_rule_id, posting_rule_version_id, created_at
+         FROM rpt.read_accounting_posting_requests
+        WHERE source_id = $1::uuid
+          AND event_kind::text = $2`,
+      [eventRow.source_id, eventRow.event_kind],
+    );
+    const posting = postingResult.rows[0] ?? null;
+
+    let journal: JournalRow | null = null;
+    if (posting?.journal_entry_id) {
+      const journalResult = await this.pool().query<JournalRow>(
+        `SELECT id, entry_number, kind::text AS kind, status::text AS status, posted_at
+           FROM rpt.read_journal_entries WHERE id = $1::uuid`,
+        [posting.journal_entry_id],
+      );
+      journal = journalResult.rows[0] ?? null;
+    }
+
+    const factKind = resolveFactKind(
+      eventRow.source_kind,
+      eventRow.event_kind.startsWith('PAYMENT'),
+    );
+    const accountingState =
+      posting?.status === 'POSTED'
+        ? ECONOMIC_ACCOUNTING_STATES.Posted
+        : outbox?.status === 'FAILED'
+          ? ECONOMIC_ACCOUNTING_STATES.Failed
+          : ECONOMIC_ACCOUNTING_STATES.Pending;
+    const financialState = ECONOMIC_FINANCIAL_STATES.Settled;
+    const { situation, severity } = resolveSituation(financialState, accountingState);
+    const failure = outbox?.last_error ?? null;
+
+    /**
+     * COMANDOS: só os que a trilha de um fato publicado pode oferecer.
+     *
+     * Reprocessar o posting é decisão do ACCOUNTING e é oferecido quando ainda há falha
+     * ou posting pendente; abrir o evento é leitura. Nada de estorno aqui — estorno de
+     * fato não financeiro é comando do domínio de origem, não desta superfície.
+     */
+    const availableCommands: EconomicCommand[] = [ECONOMIC_COMMANDS.OpenEconomicEvent];
+    if (accountingState !== ECONOMIC_ACCOUNTING_STATES.Posted) {
+      availableCommands.push(ECONOMIC_COMMANDS.RetryPosting);
+    }
+
+    const nextAction: EconomicNextAction =
+      accountingState === ECONOMIC_ACCOUNTING_STATES.Failed ||
+      accountingState === ECONOMIC_ACCOUNTING_STATES.Pending
+        ? {
+            command: ECONOMIC_COMMANDS.RetryPosting,
+            label: 'Reprocessar contabilização',
+            reason: 'O fato econômico existe, mas o lançamento contábil ainda não foi gerado.',
+            owner: 'accounting:posting-request:create',
+          }
+        : {
+            command: ECONOMIC_COMMANDS.OpenEconomicEvent,
+            label: 'Ver evento econômico',
+            reason: 'O fato está contabilizado; a trilha permite auditar a cadeia.',
+            owner: null,
+          };
+
+    return {
+      factKind,
+      factId: eventRow.source_id,
+      unitId: eventRow.unit_id,
+      amount: eventRow.amount,
+      currencyCode: eventRow.currency_code,
+      occurredOn: eventRow.occurred_on,
+      financialState,
+      accountingState,
+      situation,
+      severity,
+      summary: `FINANCEIRO: ${financialState} · CONTABILIDADE: ${accountingState}`,
+      impact: resolveImpact({
+        financialState,
+        accountingState,
+        amount: eventRow.amount,
+      }),
+      nextAction,
+      availableCommands,
+      economicEvent: {
+        id: eventRow.id,
+        eventKind: eventRow.event_kind,
+        sourceKind: eventRow.source_kind,
+        sourceId: eventRow.source_id,
+        amount: eventRow.amount,
+        currencyCode: eventRow.currency_code,
+        occurredOn: eventRow.occurred_on,
+        outboxEventId: eventRow.outbox_event_id,
+        transportState: outbox?.status ?? 'NOT_PUBLISHED',
+        transportAttempts: outbox?.attempts ?? 0,
+        transportLastError: failure,
+      },
+      posting: {
+        state: accountingState,
+        postingRequestId: posting?.id ?? null,
+        journalEntryId: journal?.id ?? null,
+        journalNumber: journal?.entry_number ?? null,
+        journalKind: journal?.kind ?? null,
+        postedAt: journal?.posted_at ?? null,
+        failure: failure ? { code: failure, message: failure } : null,
+      },
+      nodes: [],
+    } as unknown as EconomicTraceView;
+  }
+
   async forSettlement(settlementId: string): Promise<EconomicTraceView | null> {
     const settlement = await this.pool().query<SettlementRow>(
       `SELECT s.id, s.receivable_id, s.amount::text AS amount, s.currency_code,
@@ -303,9 +449,20 @@ export class EconomicTraceReadModelService {
               o.created_at AS first_seen
          FROM rpt.read_economic_events e
          LEFT JOIN rpt.read_outbox_events o ON o.id = e.outbox_event_id
+         /*
+          * O POSTING NAO E SEMPRE ORIGINADO EM FINANCE.
+          *
+          * DEFEITO MEDIDO EM PRODUCAO: esta juncao exigia origin_kind = FINANCE. Um fato
+          * de INVENTORY (ou FISCAL/PAYROLL/FIXED_ASSET) casava na outbox — logo aparecia
+          * na fila — mas nunca encontrava o seu posting, cujo origin_kind e o do dominio
+          * de origem. A fila mostrava um caso e a trilha respondia ACCOUNTING_NOT_FOUND.
+          *
+          * O par (source_id, event_kind) JA IDENTIFICA o posting: o indice unico
+          * posting_requests_event_source_uidx garante no maximo um por fato. Exigir
+          * tambem o origin era uma suposicao redundante sobre QUEM publicou.
+          */
          LEFT JOIN rpt.read_accounting_posting_requests p
                 ON p.source_id = e.source_id
-               AND p.origin_kind = 'FINANCE'
                AND p.event_kind::text = e.event_kind
         WHERE e.unit_id = $1
           AND (
@@ -334,7 +491,7 @@ export class EconomicTraceReadModelService {
        FROM rpt.read_economic_events e
        LEFT JOIN rpt.read_outbox_events o ON o.id = e.outbox_event_id
        LEFT JOIN rpt.read_accounting_posting_requests p
-              ON p.source_id = e.source_id AND p.origin_kind = 'FINANCE'
+              ON p.source_id = e.source_id
              AND p.event_kind::text = e.event_kind
        LEFT JOIN rpt.read_journal_entries j ON j.id = p.journal_entry_id
        WHERE e.unit_id = $1`,
@@ -414,7 +571,7 @@ export class EconomicTraceReadModelService {
                 amount::text AS amount, occurred_on::text AS occurred_on,
                 posting_rule_id, posting_rule_version_id, created_at
            FROM rpt.read_accounting_posting_requests
-          WHERE source_id = $1::uuid AND origin_kind = 'FINANCE' AND event_kind::text = $2`,
+          WHERE source_id = $1::uuid AND event_kind::text = $2`,
         [eventRow.source_id, eventRow.event_kind],
       );
       posting = postingResult.rows[0] ?? null;
@@ -603,7 +760,7 @@ export class EconomicTraceReadModelService {
     first_seen: string | null;
   }): EconomicWorkItem {
     const isPayment = row.event_kind.startsWith('PAYMENT');
-    const factKind = isPayment ? ('PAYMENT' as const) : ('SETTLEMENT' as const);
+    const factKind = resolveFactKind(row.source_kind, isPayment);
     const failed = row.outbox_status === 'FAILED';
     const accountingState = failed
       ? ECONOMIC_ACCOUNTING_STATES.Failed
@@ -661,6 +818,44 @@ export function toCivilDate(value: string | Date): string {
     return value.toISOString().slice(0, 10);
   }
   return String(value).slice(0, 10);
+}
+
+/**
+ * DERIVA O ROTULO DO FATO A PARTIR DO `source_kind` PUBLICADO.
+ *
+ * DEFEITO MEDIDO EM PRODUCAO: o codigo assumia que todo fato era FINANCE — PAYMENT
+ * quando o event_kind comecava com PAYMENT, SETTLEMENT em todos os outros casos. Um fato
+ * de INVENTORY recebia a rota /app/accounting/economic-trace/settlement/<id> e a trilha
+ * respondia ACCOUNTING_NOT_FOUND, porque aquele id nao e uma liquidacao.
+ *
+ * A fonte e o source_kind do proprio fato: quem publica declara o que publicou, e a
+ * leitura nao precisa adivinhar. FINANCE mantem os dois rotulos historicos porque
+ * liquidacao e pagamento sao fatos distintos do mesmo dominio.
+ */
+export function resolveFactKind(sourceKind: string, isPayment: boolean): EconomicFactKind {
+  switch (sourceKind) {
+    case 'RECEIVABLE_SETTLEMENT':
+      return 'SETTLEMENT';
+    case 'PAYMENT':
+      return 'PAYMENT';
+    case 'RECEIVABLE':
+      return 'RECEIVABLE';
+    case 'PAYABLE':
+      return 'PAYABLE';
+    case 'FISCAL_DOCUMENT':
+      return 'FISCAL_DOCUMENT';
+    case 'TAX_CALCULATION':
+      return 'TAX_CALCULATION';
+    case 'INVENTORY_MOVEMENT':
+      return 'INVENTORY_MOVEMENT';
+    case 'PAYROLL_PERIOD':
+      return 'PAYROLL_PERIOD';
+    case 'FIXED_ASSET_MOVEMENT':
+      return 'FIXED_ASSET';
+    default:
+      // Origem desconhecida NAO e inventada como liquidacao.
+      return isPayment ? 'PAYMENT' : 'SETTLEMENT';
+  }
 }
 
 export function resolveSituation(

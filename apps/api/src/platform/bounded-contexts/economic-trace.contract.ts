@@ -171,9 +171,30 @@ export type EconomicEventSummary = {
  * É o payload que a experiência consome — detalhe do título, worklist de exceção e
  * cockpit usam o MESMO contrato, sem cálculo próprio.
  */
+/**
+ * IDENTIDADE DO FATO ECONÔMICO NA TRILHA.
+ *
+ * A F1.1 nasceu com dois rótulos porque só FINANCE publicava fato. A F1.2 passou
+ * FISCAL, INVENTORY, PAYROLL e FIXED_ASSET a publicar pela mesma espinha, mas o tipo
+ * ficou para trás: todo fato que não fosse PAYMENT era rotulado `SETTLEMENT`, gerando
+ * rota de trilha inexistente e `ACCOUNTING_NOT_FOUND` para fatos que não são liquidação.
+ *
+ * O rótulo é derivado do `source_kind` que o próprio fato publicou.
+ */
+export type EconomicFactKind =
+  | 'SETTLEMENT'
+  | 'PAYMENT'
+  | 'RECEIVABLE'
+  | 'PAYABLE'
+  | 'FISCAL_DOCUMENT'
+  | 'TAX_CALCULATION'
+  | 'INVENTORY_MOVEMENT'
+  | 'PAYROLL_PERIOD'
+  | 'FIXED_ASSET';
+
 export type EconomicTraceView = {
-  /** Identidade do fato no FINANCE. */
-  factKind: 'SETTLEMENT' | 'PAYMENT';
+  /** Identidade do fato na espinha econômica. */
+  factKind: EconomicFactKind;
   factId: string;
   unitId: string;
   amount: string;
@@ -196,7 +217,7 @@ export type EconomicTraceView = {
 
 /** Item de worklist: exceção econômica que exige ação. */
 export type EconomicWorkItem = {
-  factKind: 'SETTLEMENT' | 'PAYMENT';
+  factKind: EconomicFactKind;
   factId: string;
   unitId: string;
   reference: string;

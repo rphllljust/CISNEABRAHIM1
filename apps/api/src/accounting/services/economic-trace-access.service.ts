@@ -61,6 +61,36 @@ export class EconomicTraceAccessService {
     return this.filterCommands(actor, trace);
   }
 
+  /**
+   * TRILHA DE FATO NÃO FINANCEIRO (INVENTORY, FISCAL, PAYROLL, FIXED_ASSET).
+   *
+   * A trilha é a MESMA cadeia (fato → evento → posting → journal), então a autorização
+   * usa `AccountingJournalRead`: quem pode ler o diário contábil pode ler a trilha de um
+   * fato que ele contabiliza. Não há ampliação de acesso — é a mesma capability que a
+   * worklist já exige para listar as exceções.
+   */
+  async forFact(
+    actor: IdentityAuthzContext,
+    factKind: string,
+    factId: string,
+  ): Promise<EconomicTraceView> {
+    assertUuid(factId, 'factId');
+    const trace = await this.readModel.forFact(factId);
+    if (!trace) {
+      throw this.notFound();
+    }
+    // O rótulo do caminho precisa descrever o fato REAL: um pedido de `settlement/...`
+    // para um fato de INVENTORY é rota errada, não sinônimo. Recusar mantém a URL honesta.
+    if (trace.factKind !== factKind.trim().toUpperCase()) {
+      throw this.notFound();
+    }
+    await this.authz.assertAccountingAction(actor, AUTHZ_ACTIONS.AccountingJournalRead, {
+      id: factId,
+      unitId: trace.unitId,
+    });
+    return this.filterCommands(actor, trace);
+  }
+
   async forPayment(actor: IdentityAuthzContext, paymentId: string): Promise<EconomicTraceView> {
     assertUuid(paymentId, 'paymentId');
     const owner = await this.readModel.paymentOwner(paymentId);
