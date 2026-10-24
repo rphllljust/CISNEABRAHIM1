@@ -88,43 +88,47 @@ export class OperationsRepository {
   async loadFacts(serviceOrderId: string): Promise<ExecutionOperationsFacts | null> {
     const pool = this.pool();
 
-    const [
-      order,
-      dispatch,
-      allocations,
-      planned,
-      actuals,
-      meters,
-      fuel,
-      evidence,
-      signatures,
-      situations,
-      events,
-      closure,
-      basis,
-      measuredQuantityCount,
-      progressEntryCount,
-    ] = await Promise.all([
-      this.loadOrder(pool, serviceOrderId),
-      this.loadDispatch(pool, serviceOrderId),
-      this.loadAllocations(pool, serviceOrderId),
-      this.loadPlannedResources(pool, serviceOrderId),
-      this.loadActuals(pool, serviceOrderId),
-      this.loadMeters(pool, serviceOrderId),
-      this.loadFuel(pool, serviceOrderId),
-      this.loadEvidence(pool, serviceOrderId),
-      this.loadSignatures(pool, serviceOrderId),
-      this.loadSituations(pool, serviceOrderId),
-      this.loadEvents(pool, serviceOrderId),
-      this.loadClosure(pool, serviceOrderId),
-      this.loadMeasurementBasis(pool, serviceOrderId),
-      this.countMeasuredQuantity(pool, serviceOrderId),
-      this.countProgressEntries(pool, serviceOrderId),
-    ]);
-
+    /**
+     * ─────────────────────────────────────────────────────────────────────────────
+     * POR QUE A LEITURA É SEQUENCIAL E NÃO `Promise.all`
+     * ─────────────────────────────────────────────────────────────────────────────
+     *
+     * O pool é dimensionado por `DATABASE_POOL_MAX`, e no ambiente de integração ele
+     * vale **1** (`src/test/integration-test-db-serializer.ts`). Lançar 15 consultas
+     * concorrentes contra um pool de uma conexão não paraleliza nada: elas entram na
+     * fila do `pg.Pool` e a última só começa quando as anteriores terminam. O ganho é
+     * zero e o custo é real — a fila estrela, o tempo de parede sobe, e um comando que
+     * precise de `connect()` exclusivo (transação) pode esperar por slots que estão
+     * todos enfileirados.
+     *
+     * Medido: com `Promise.all` a suíte de ordens de serviço levava ~26 min e falhava
+     * de forma intermitente com `decision_audits` referenciando identidade já recriada
+     * — sintoma de operação externa intercalada no meio da leitura, não de dado errado.
+     *
+     * Sequencial em um pool de 1 é a MESMA latência, sem a fila e sem o entrelaçamento.
+     * Em produção (`DATABASE_POOL_MAX` > 1) o custo é uma ida a mais ao banco por bloco;
+     * a alternativa — trocar a concorrência por uma única consulta gigante — acoplaria
+     * a leitura de dez tabelas num SQL só, o que é pior de manter e de indexar.
+     */
+    const order = await this.loadOrder(pool, serviceOrderId);
     if (!order) {
       return null;
     }
+
+    const dispatch = await this.loadDispatch(pool, serviceOrderId);
+    const allocations = await this.loadAllocations(pool, serviceOrderId);
+    const planned = await this.loadPlannedResources(pool, serviceOrderId);
+    const actuals = await this.loadActuals(pool, serviceOrderId);
+    const meters = await this.loadMeters(pool, serviceOrderId);
+    const fuel = await this.loadFuel(pool, serviceOrderId);
+    const evidence = await this.loadEvidence(pool, serviceOrderId);
+    const signatures = await this.loadSignatures(pool, serviceOrderId);
+    const situations = await this.loadSituations(pool, serviceOrderId);
+    const events = await this.loadEvents(pool, serviceOrderId);
+    const closure = await this.loadClosure(pool, serviceOrderId);
+    const basis = await this.loadMeasurementBasis(pool, serviceOrderId);
+    const measuredQuantityCount = await this.countMeasuredQuantity(pool, serviceOrderId);
+    const progressEntryCount = await this.countProgressEntries(pool, serviceOrderId);
 
     return {
       order,
