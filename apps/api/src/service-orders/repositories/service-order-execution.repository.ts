@@ -231,6 +231,38 @@ export class ServiceOrderExecutionRepository {
         }
       }
 
+      /**
+       * FECHAMENTO DA EXECUÇÃO + BASE DE MEDIÇÃO — no MESMO COMMIT da conclusão.
+       *
+       * Aqui está a fronteira que a capability anterior não tinha: `COMPLETED` é o
+       * estado do AGREGADO, e `EXECUTION_CLOSED` é o FATO de que os realizados foram
+       * congelados e a base de medição foi publicada. Produzir um sem o outro é como
+       * o sistema passava a permitir medição sobre dados ainda mutáveis.
+       *
+       * Os dois fatos de outbox (`EXECUTION_COMPLETED` e `MEASUREMENT_BASIS_READY`)
+       * nascem dentro de `closeExecution`, também nesta transação.
+       */
+      if (input.transition === 'complete' && input.closure) {
+        const closure = await this.closeExecutionInTransaction(client, input);
+        await client.query(
+          `INSERT INTO so.execution_events
+             (service_order_id, event_kind, from_status, to_status, detail,
+              is_blocking, actor_identity_id, occurred_at, idempotency_key)
+           VALUES ($1, 'EXECUTION_CLOSED', $2, $3, $4::jsonb, false, $5, NOW(), $6)
+           ON CONFLICT (idempotency_key) DO NOTHING`,
+          [
+            input.serviceOrderId,
+            input.currentStatus,
+            input.nextStatus,
+            JSON.stringify(closure),
+            input.actorIdentityId,
+            input.idempotencyKey
+              ? `${input.idempotencyKey}:closed`
+              : `closed:${String(closure['closureId'])}`,
+          ],
+        );
+      }
+
       await client.query('COMMIT');
       return { outcome: 'success', rowVersion: updated.rows[0].row_version };
     } catch (error) {
@@ -519,6 +551,107 @@ export class ServiceOrderExecutionRepository {
     } finally {
       client.release();
     }
+  }
+
+  /**
+   * Cria o FECHAMENTO e publica a BASE DE MEDIÇÃO, dentro da transação do chamador.
+   *
+   * A lógica vive aqui (e não no `OperationsRepository`) porque a transação em curso
+   * já é a deste repositório: abrir uma segunda conexão quebraria a atomicidade que
+   * é o ponto inteiro da operação.
+   */
+  private async closeExecutionInTransaction(
+    client: PoolClient,
+    input: ExecutionTransitionPersistenceInput,
+  ): Promise<Record<string, unknown>> {
+    const closure = input.closure!;
+
+    const nextNumber = await client.query<{ next: number }>(
+      `SELECT COALESCE(MAX(closure_number), 0) + 1 AS next
+       FROM so.execution_closures WHERE service_order_id = $1`,
+      [input.serviceOrderId],
+    );
+    const closureNumber = nextNumber.rows[0]?.next ?? 1;
+
+    const created = await client.query<{ id: string; closed_at: string }>(
+      `INSERT INTO so.execution_closures (
+         service_order_id, unit_id, closure_number, actuals_snapshot, plan_vs_actual,
+         evidence_summary, resolved_situations, closed_by_identity_id, completion_command_id
+       ) VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6::jsonb, $7::jsonb, $8, $9)
+       RETURNING id, closed_at`,
+      [
+        input.serviceOrderId,
+        closure.unitId,
+        closureNumber,
+        JSON.stringify(closure.actualsSnapshot),
+        JSON.stringify(closure.planVsActual),
+        JSON.stringify(closure.evidenceSummary),
+        JSON.stringify(closure.resolvedSituations),
+        input.actorIdentityId,
+        input.idempotencyKey ?? null,
+      ],
+    );
+    const closureRow = created.rows[0]!;
+
+    // A base anterior deixa de ser READY antes da nova entrar (índice parcial).
+    await client.query(
+      `UPDATE so.measurement_basis
+       SET status = 'SUPERSEDED', superseded_at = NOW(),
+           superseded_by_identity_id = $2, row_version = row_version + 1
+       WHERE service_order_id = $1 AND status = 'READY'`,
+      [input.serviceOrderId, input.actorIdentityId],
+    );
+
+    const basis = await client.query<{ id: string; prepared_at: string }>(
+      `INSERT INTO so.measurement_basis (
+         service_order_id, closure_id, unit_id, status, lines, actuals, evidence,
+         prepared_by_identity_id
+       ) VALUES ($1, $2, $3, 'READY', $4::jsonb, $5::jsonb, $6::jsonb, $7)
+       RETURNING id, prepared_at`,
+      [
+        input.serviceOrderId,
+        closureRow.id,
+        closure.unitId,
+        JSON.stringify(closure.measurementLines),
+        JSON.stringify(closure.measurementActuals),
+        JSON.stringify(closure.measurementEvidence),
+        input.actorIdentityId,
+      ],
+    );
+    const basisRow = basis.rows[0]!;
+
+    const actualCount = Number(
+      (closure.actualsSnapshot['recordCount'] as number | undefined) ?? 0,
+    );
+
+    await this.outboxWriter.appendExecutionCompleted(client, {
+      serviceOrderId: input.serviceOrderId,
+      unitId: closure.unitId,
+      clientId: closure.clientId,
+      orderNumber: closure.orderNumber,
+      executionClosureId: closureRow.id,
+      actualCount,
+      completedAt: closureRow.closed_at,
+    });
+
+    await this.outboxWriter.appendMeasurementBasisReady(client, {
+      serviceOrderId: input.serviceOrderId,
+      unitId: closure.unitId,
+      clientId: closure.clientId,
+      orderNumber: closure.orderNumber,
+      measurementBasisId: basisRow.id,
+      executionClosureId: closureRow.id,
+      lineCount: closure.measurementLines.length,
+      preparedAt: basisRow.prepared_at,
+    });
+
+    return {
+      closureId: closureRow.id,
+      closureNumber,
+      measurementBasisId: basisRow.id,
+      lineCount: closure.measurementLines.length,
+      actualCount,
+    };
   }
 
   private async findIdempotencyInClient(

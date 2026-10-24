@@ -159,6 +159,17 @@ export const AUTHZ_ACTIONS = {
   ServiceOrdersServiceOrderUpdate: 'service-orders:service-order:update',
   ServiceOrdersServiceOrderPrepare: 'service-orders:service-order:prepare',
   ServiceOrdersServiceOrderRelease: 'service-orders:service-order:release',
+  /**
+   * DESPACHO — tirar a ordem da mesa e mandá-la para a rua.
+   *
+   * Ação PRÓPRIA, distinta de `release`. A distinção é de negócio, não de
+   * granularidade técnica: liberar significa "o comercial autorizou a execução";
+   * despachar significa "a operação confirmou recursos, janela e prontidão, e
+   * assume a saída". Quem pode liberar não necessariamente pode despachar (o
+   * comercial libera, a central de controle despacha), e juntar as duas impediria
+   * separar responsabilidade.
+   */
+  ServiceOrdersServiceOrderDispatch: 'service-orders:service-order:dispatch',
   ServiceOrdersServiceOrderCancel: 'service-orders:service-order:cancel',
   ServiceOrdersServiceOrderReopen: 'service-orders:service-order:reopen',
   ServiceOrdersPlannedResourcePlan: 'service-orders:planned-resource:plan',

@@ -8,12 +8,19 @@ import { OutboxModule } from '../platform/outbox/outbox.module';
 import { SERVICE_REQUEST_CONVERSION_PORT } from '../requests/domain/service-request-conversion.port';
 import { ServiceOrderExecutionController } from './controllers/service-order-execution.controller';
 import { OperationalCostController } from './controllers/operational-cost.controller';
+import {
+  OperationsCommandController,
+  OperationsQueryController,
+  ServiceOrderOperationsQueryController,
+} from './controllers/operations.controller';
 import { ServiceOrdersController } from './controllers/service-orders.controller';
 import { ServiceOrderPlanningController } from './controllers/service-order-planning.controller';
 import { MeController, ServiceOrderMetadataController } from './controllers/service-order-metadata.controller';
 import { ServiceOrderMetadataRepository } from './services/service-order-metadata.repository';
 import { ServiceOrderMetadataService } from './services/service-order-metadata.service';
 import { ServiceOrderExecutionRepository } from './repositories/service-order-execution.repository';
+import { OperationsRepository } from './repositories/operations.repository';
+import { OperationsService } from './services/operations.service';
 import { OperationalCostRepository } from './repositories/operational-cost.repository';
 import { ServiceOrdersRepository } from './repositories/service-orders.repository';
 import { ResourcePlanningRepository } from './repositories/resource-planning.repository';
@@ -28,11 +35,24 @@ import { ServiceRequestConversionService } from './services/service-request-conv
 
 @Module({
   imports: [DatabaseModule, AuthModule, AuthorizationModule, AuditModule, OutboxModule, CommercialModule],
-  controllers: [ServiceOrdersController, ServiceOrderMetadataController, MeController, ServiceOrderPlanningController, ServiceOrderExecutionController, OperationalCostController],
+  controllers: [
+    ServiceOrdersController,
+    ServiceOrderMetadataController,
+    MeController,
+    ServiceOrderPlanningController,
+    ServiceOrderExecutionController,
+    OperationalCostController,
+    // DISPATCH + EXECUTION + ACTUALS — leitura e comandos separados.
+    OperationsQueryController,
+    ServiceOrderOperationsQueryController,
+    OperationsCommandController,
+  ],
   providers: [
     ServiceOrdersRepository,
     ResourcePlanningRepository,
     ServiceOrderExecutionRepository,
+    OperationsRepository,
+    OperationsService,
     OperationalCostRepository,
     ServiceOrdersAccessAuthz,
     ServiceOrderMetadataRepository,

@@ -13,11 +13,20 @@ import {
 import {
   assertAuthorizationIndependentPayload,
   buildBillingReadyPayloadV1,
+  buildExecutionCompletedPayloadV1,
+  buildExecutionExceptionReportedPayloadV1,
   buildMeasurementApprovedPayloadV1,
+  buildMeasurementBasisReadyPayloadV1,
   buildMeasurementSubmittedPayloadV1,
+  buildResourceUsageRecordedPayloadV1,
+  buildServiceExecutionPausedPayloadV1,
+  buildServiceExecutionResumedPayloadV1,
+  buildServiceExecutionStartedPayloadV1,
   buildServiceOrderAssignedPayloadV1,
   buildServiceOrderCompletedPayloadV1,
+  buildServiceOrderDispatchedPayloadV1,
   buildServiceOrderReleasedPayloadV1,
+  buildServiceProgressRecordedPayloadV1,
   buildServiceRequestSubmittedPayloadV1,
 } from '../../../events/domain/event-payloads.v1';
 import { OutboxRepository } from '../repositories/outbox.repository';
@@ -224,6 +233,210 @@ export class OutboxDomainEventWriter {
   ): Promise<void> {
     assertAuthorizationIndependentPayload(input.payload);
     await this.outboxRepository.append(input, client);
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  // DISPATCH + EXECUTION + ACTUALS
+  // ═════════════════════════════════════════════════════════════════════════════
+  //
+  // Todos recebem o `PoolClient` do comando: o evento nasce na MESMA transação do
+  // estado. Se o COMMIT falha, o evento não existe — nunca há fato órfão nem
+  // evento publicado para estado que não mudou.
+  //
+  // A `idempotencyKey` de cada um deriva do FATO (id do registro + natureza), não
+  // do request: reenviar o comando com outra chave não duplica o evento.
+
+  async appendServiceOrderDispatched(
+    client: PoolClient,
+    input: {
+      serviceOrderId: string;
+      unitId: string;
+      clientId: string | null;
+      orderNumber: string;
+      dispatchId: string;
+      windowStart: string;
+      windowEnd: string;
+      confirmedResourceCount: number;
+      dispatchedAt: string;
+    },
+  ): Promise<void> {
+    const payload = buildServiceOrderDispatchedPayloadV1(input);
+    await this.append(client, {
+      eventType: DOMAIN_EVENT_TYPES.ServiceOrderDispatched,
+      aggregateType: AGGREGATE_TYPES.ServiceExecution,
+      aggregateId: input.serviceOrderId,
+      payload,
+      occurredAt: input.dispatchedAt,
+      idempotencyKey: `service-execution:${input.serviceOrderId}:dispatched`,
+    });
+  }
+
+  async appendServiceExecutionStarted(
+    client: PoolClient,
+    input: {
+      serviceOrderId: string;
+      unitId: string;
+      clientId: string | null;
+      orderNumber: string;
+      startedAt: string;
+    },
+  ): Promise<void> {
+    const payload = buildServiceExecutionStartedPayloadV1(input);
+    await this.append(client, {
+      eventType: DOMAIN_EVENT_TYPES.ServiceExecutionStarted,
+      aggregateType: AGGREGATE_TYPES.ServiceExecution,
+      aggregateId: input.serviceOrderId,
+      payload,
+      occurredAt: input.startedAt,
+      idempotencyKey: `service-execution:${input.serviceOrderId}:started`,
+    });
+  }
+
+  async appendServiceExecutionPaused(
+    client: PoolClient,
+    input: { serviceOrderId: string; unitId: string; pausedAt: string },
+  ): Promise<void> {
+    const payload = buildServiceExecutionPausedPayloadV1(input);
+    await this.append(client, {
+      eventType: DOMAIN_EVENT_TYPES.ServiceExecutionPaused,
+      aggregateType: AGGREGATE_TYPES.ServiceExecution,
+      aggregateId: input.serviceOrderId,
+      payload,
+      occurredAt: input.pausedAt,
+      // Pausar pode acontecer várias vezes numa ordem: a chave carrega o instante.
+      idempotencyKey: `service-execution:${input.serviceOrderId}:paused:${input.pausedAt}`,
+    });
+  }
+
+  async appendServiceExecutionResumed(
+    client: PoolClient,
+    input: { serviceOrderId: string; unitId: string; resumedAt: string },
+  ): Promise<void> {
+    const payload = buildServiceExecutionResumedPayloadV1(input);
+    await this.append(client, {
+      eventType: DOMAIN_EVENT_TYPES.ServiceExecutionResumed,
+      aggregateType: AGGREGATE_TYPES.ServiceExecution,
+      aggregateId: input.serviceOrderId,
+      payload,
+      occurredAt: input.resumedAt,
+      idempotencyKey: `service-execution:${input.serviceOrderId}:resumed:${input.resumedAt}`,
+    });
+  }
+
+  async appendServiceProgressRecorded(
+    client: PoolClient,
+    input: {
+      serviceOrderId: string;
+      unitId: string;
+      entryId: string;
+      progressKind: string;
+      quantityValue: string | null;
+      unitCode: string | null;
+      recordedAt: string;
+    },
+  ): Promise<void> {
+    const payload = buildServiceProgressRecordedPayloadV1(input);
+    await this.append(client, {
+      eventType: DOMAIN_EVENT_TYPES.ServiceProgressRecorded,
+      aggregateType: AGGREGATE_TYPES.ServiceExecution,
+      aggregateId: input.serviceOrderId,
+      payload,
+      occurredAt: input.recordedAt,
+      idempotencyKey: `service-execution:${input.serviceOrderId}:progress:${input.entryId}`,
+    });
+  }
+
+  async appendResourceUsageRecorded(
+    client: PoolClient,
+    input: {
+      serviceOrderId: string;
+      unitId: string;
+      actualId: string;
+      actualKind: string;
+      actualValue: string;
+      unitOfMeasure: string;
+      physicalAssetId: string | null;
+      workforceMemberId: string | null;
+      occurredAt: string;
+    },
+  ): Promise<void> {
+    const payload = buildResourceUsageRecordedPayloadV1(input);
+    await this.append(client, {
+      eventType: DOMAIN_EVENT_TYPES.ResourceUsageRecorded,
+      aggregateType: AGGREGATE_TYPES.ServiceExecution,
+      aggregateId: input.serviceOrderId,
+      payload,
+      occurredAt: input.occurredAt,
+      idempotencyKey: `service-execution:${input.serviceOrderId}:actual:${input.actualId}`,
+    });
+  }
+
+  async appendExecutionExceptionReported(
+    client: PoolClient,
+    input: {
+      serviceOrderId: string;
+      unitId: string;
+      occurrenceId: string;
+      occurrenceCode: string;
+      reportedAt: string;
+    },
+  ): Promise<void> {
+    const payload = buildExecutionExceptionReportedPayloadV1(input);
+    await this.append(client, {
+      eventType: DOMAIN_EVENT_TYPES.ExecutionExceptionReported,
+      aggregateType: AGGREGATE_TYPES.ServiceExecution,
+      aggregateId: input.serviceOrderId,
+      payload,
+      occurredAt: input.reportedAt,
+      idempotencyKey: `service-execution:${input.serviceOrderId}:exception:${input.occurrenceId}`,
+    });
+  }
+
+  async appendExecutionCompleted(
+    client: PoolClient,
+    input: {
+      serviceOrderId: string;
+      unitId: string;
+      clientId: string | null;
+      orderNumber: string;
+      executionClosureId: string;
+      actualCount: number;
+      completedAt: string;
+    },
+  ): Promise<void> {
+    const payload = buildExecutionCompletedPayloadV1(input);
+    await this.append(client, {
+      eventType: DOMAIN_EVENT_TYPES.ExecutionCompleted,
+      aggregateType: AGGREGATE_TYPES.ServiceExecution,
+      aggregateId: input.serviceOrderId,
+      payload,
+      occurredAt: input.completedAt,
+      idempotencyKey: `service-execution:${input.serviceOrderId}:closed:${input.executionClosureId}`,
+    });
+  }
+
+  async appendMeasurementBasisReady(
+    client: PoolClient,
+    input: {
+      serviceOrderId: string;
+      unitId: string;
+      clientId: string | null;
+      orderNumber: string;
+      measurementBasisId: string;
+      executionClosureId: string;
+      lineCount: number;
+      preparedAt: string;
+    },
+  ): Promise<void> {
+    const payload = buildMeasurementBasisReadyPayloadV1(input);
+    await this.append(client, {
+      eventType: DOMAIN_EVENT_TYPES.MeasurementBasisReady,
+      aggregateType: AGGREGATE_TYPES.ServiceExecution,
+      aggregateId: input.serviceOrderId,
+      payload,
+      occurredAt: input.preparedAt,
+      idempotencyKey: `measurement-basis:${input.measurementBasisId}:ready`,
+    });
   }
 }
 

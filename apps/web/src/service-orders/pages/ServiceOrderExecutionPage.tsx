@@ -35,8 +35,9 @@ import {
 import { SERVICE_ORDER_STATUSES, type ServiceOrderDetail } from '../types/service-order.types';
 import { createIdempotencyKey } from '../utils/create-idempotency-key';
 import { resolvePrimaryAction } from '../utils/execution-primary-action';
+import { getServiceOrderOverview } from '../api/operations-api';
+import type { ServiceOrderOverview } from '../types/operations.types';
 import {
-  allRequiredEvidenceSatisfied,
   buildRequirementCoverage,
   collectSatisfiedEvidenceKinds,
   isFileEvidenceKind,
@@ -60,6 +61,11 @@ type PageState =
       order: ServiceOrderDetail;
       bundle: ExecutionBundle;
       allocations: ResourceAllocation[];
+      /**
+       * Read model do backend com o GATE. `null` quando não foi possível ler —
+       * nesse caso a conclusão fica INDISPONÍVEL, nunca habilitada por suposição.
+       */
+      overview: ServiceOrderOverview | null;
     };
 
 type ConfirmAction = 'complete' | 'pause' | null;
@@ -140,15 +146,25 @@ export function ServiceOrderExecutionPage() {
     const seq = ++requestSeq.current;
     setState({ phase: 'loading' });
     try {
-      const [order, bundle, allocations] = await Promise.all([
+      /**
+       * O OVERVIEW é lido junto com o bundle porque é ele quem traz o GATE DE
+       * CONCLUSÃO. A tela não decide "pode concluir": recebe `canComplete` e a
+       * lista de motivos do domínio.
+       *
+       * `getServiceOrderOverview` falha de forma independente: se o overview não
+       * carregar, a execução continua utilizável e a conclusão fica
+       * INDISPONÍVEL — nunca habilitada por suposição.
+       */
+      const [order, bundle, allocations, overview] = await Promise.all([
         getServiceOrder(serviceOrderId),
         getExecutionBundle(serviceOrderId),
         listAllocations(serviceOrderId),
+        getServiceOrderOverview(serviceOrderId).catch(() => null),
       ]);
       if (seq !== requestSeq.current) {
         return;
       }
-      setState({ phase: 'ready', order, bundle, allocations });
+      setState({ phase: 'ready', order, bundle, allocations, overview });
     } catch (error) {
       if (seq !== requestSeq.current) {
         return;
@@ -177,19 +193,30 @@ export function ServiceOrderExecutionPage() {
     void reload();
   }, [reload]);
 
-  const applyOrderUpdate = useCallback((order: ServiceOrderDetail, bundle?: ExecutionBundle) => {
-    setState((current) => {
-      if (current.phase !== 'ready') {
-        return current;
-      }
-      return {
-        phase: 'ready',
-        order,
-        bundle: bundle ?? { ...current.bundle, status: order.status },
-        allocations: current.allocations,
-      };
-    });
-  }, []);
+  /**
+   * Aplica uma atualização preservando o GATE do backend.
+   *
+   * `overview` é opcional na assinatura, mas quando o chamador o tem deve passá-lo:
+   * registrar um realizado MUDA a prontidão de conclusão, e manter o gate antigo
+   * deixaria o botão "Concluir" desabilitado por um motivo que já foi resolvido.
+   */
+  const applyOrderUpdate = useCallback(
+    (order: ServiceOrderDetail, bundle?: ExecutionBundle, overview?: ServiceOrderOverview | null) => {
+      setState((current) => {
+        if (current.phase !== 'ready') {
+          return current;
+        }
+        return {
+          phase: 'ready',
+          order,
+          bundle: bundle ?? { ...current.bundle, status: order.status },
+          allocations: current.allocations,
+          overview: overview === undefined ? current.overview : overview,
+        };
+      });
+    },
+    [],
+  );
 
   const runTransition = useCallback(
     async (action: 'start' | 'pause' | 'resume' | 'complete') => {
@@ -300,11 +327,12 @@ export function ServiceOrderExecutionPage() {
             nextRowVersion = result.rowVersion;
           }
         }
-        const [order, bundle] = await Promise.all([
+        const [order, bundle, overview] = await Promise.all([
           getServiceOrder(serviceOrderId),
           getExecutionBundle(serviceOrderId),
+          getServiceOrderOverview(serviceOrderId).catch(() => null),
         ]);
-        applyOrderUpdate({ ...order, rowVersion: nextRowVersion }, bundle);
+        applyOrderUpdate({ ...order, rowVersion: nextRowVersion }, bundle, overview);
         setActivityOpen(false);
         setFeedback({ tone: 'success', message: 'Registro salvo.' });
       } catch (error) {
@@ -336,13 +364,15 @@ export function ServiceOrderExecutionPage() {
           description: input.description,
           idempotencyKey: createIdempotencyKey(),
         });
-        const [order, bundle] = await Promise.all([
+        const [order, bundle, overview] = await Promise.all([
           getServiceOrder(serviceOrderId),
           getExecutionBundle(serviceOrderId),
+          getServiceOrderOverview(serviceOrderId).catch(() => null),
         ]);
         applyOrderUpdate(
           result.rowVersion ? { ...order, rowVersion: result.rowVersion } : order,
           bundle,
+          overview,
         );
         setOccurrenceOpen(false);
         setFeedback({ tone: 'success', message: 'Ocorrência registrada.' });
@@ -379,13 +409,15 @@ export function ServiceOrderExecutionPage() {
         },
       });
       onProgress(100);
-      const [order, bundle] = await Promise.all([
+      const [order, bundle, overview] = await Promise.all([
         getServiceOrder(serviceOrderId),
         getExecutionBundle(serviceOrderId),
+        getServiceOrderOverview(serviceOrderId).catch(() => null),
       ]);
       applyOrderUpdate(
         result.rowVersion ? { ...order, rowVersion: result.rowVersion } : order,
         bundle,
+        overview,
       );
     },
     [applyOrderUpdate, serviceOrderId, state],
@@ -433,14 +465,25 @@ export function ServiceOrderExecutionPage() {
   const requirements = parseExecutionRequirements(order.serviceSnapshot);
   const satisfiedKinds = collectSatisfiedEvidenceKinds(bundle);
   const coverage = buildRequirementCoverage(requirements, satisfiedKinds);
-  const requirementsComplete = allRequiredEvidenceSatisfied(requirements, satisfiedKinds);
+  /**
+   * A DECISÃO DA CONCLUSÃO VEM DO BACKEND.
+   *
+   * `overview.completionGate.canComplete` é a resposta do domínio — a MESMA que o
+   * comando `COMPLETE` aplica no servidor. Sem overview, a conclusão não é
+   * habilitada: assumir "pode" por ausência de informação é como um botão passa a
+   * existir sem regra.
+   */
+  const backendAllowsComplete = state.overview?.completionGate.canComplete ?? false;
+  const completionBlockedReason =
+    state.overview?.completionGate.blockingReasons[0]?.reason ?? null;
   const canMutate =
     order.status === SERVICE_ORDER_STATUSES.Released ||
     order.status === SERVICE_ORDER_STATUSES.InExecution ||
     order.status === SERVICE_ORDER_STATUSES.Paused;
   const primary = resolvePrimaryAction({
     status: order.status,
-    requirementsComplete,
+    backendAllowsComplete,
+    completionBlockedReason,
     canMutate,
   });
   const pendingActivityKinds = requirements

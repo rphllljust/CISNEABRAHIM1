@@ -90,6 +90,25 @@ export type ExecutionTransitionPersistenceInput = {
   commandName: string;
   idempotencyKey?: string | null;
   responsePayload: Record<string, unknown>;
+  /**
+   * FECHAMENTO DA EXECUÇÃO — executado DENTRO da mesma transação da conclusão.
+   *
+   * Presente apenas quando `transition === 'complete'`. É o que garante que a OS
+   * não fica `COMPLETED` com os realizados ainda abertos: o mesmo COMMIT que muda
+   * o status cria o fechamento e publica a base de medição.
+   */
+  closure?: {
+    unitId: string;
+    clientId: string | null;
+    orderNumber: string;
+    actualsSnapshot: Record<string, unknown>;
+    planVsActual: Record<string, unknown>;
+    evidenceSummary: Record<string, unknown>;
+    resolvedSituations: unknown[];
+    measurementLines: unknown[];
+    measurementActuals: Record<string, unknown>;
+    measurementEvidence: Record<string, unknown>;
+  } | null;
 };
 
 export type RecordExecutionPersistenceResult =

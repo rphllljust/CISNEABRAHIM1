@@ -1089,6 +1089,23 @@ $$;`);
       await applySqlFile(pool, '0106_published_read_contracts_refresh.sql');
     }
 
+    /*
+     * DISPATCH + EXECUTION + ACTUALS — a 0107 abre a vertical operacional.
+     *
+     * A sonda é `so.execution_actuals`: é a tabela que NÃO existia de forma alguma
+     * antes desta migration, e sem ela não há REALIZADO — logo não há custo real,
+     * não há variação e a conclusão da execução não pode ser satisfeita.
+     *
+     * Sondar o despacho provaria menos: o fato de despacho só produz consequência
+     * porque o realizado é capturável depois dele. Reportar `so.execution_actuals`
+     * como existente sem as tabelas vizinhas também não acontece — a migration cria
+     * todas juntas e falha inteira se alguma faltar (as FKs e triggers da mesma
+     * unidade de execução dependem disso).
+     */
+    if (!(await tableExists(pool, 'so.execution_actuals'))) {
+      await applySqlFile(pool, '0107_dispatch_execution_actuals.sql');
+    }
+
     await syncDrizzleJournal(pool);
   } finally {
     await pool.end();

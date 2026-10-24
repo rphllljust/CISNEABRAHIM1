@@ -186,6 +186,21 @@ function buildAvailableActionsResponse(serviceOrderId: string, status: string) {
   };
 }
 
+/**
+ * Lê um instante ISO opcional de um objeto de mock SEM assumir a forma.
+ *
+ * O mock não registra o ciclo de vida completo; devolver `null` para o que não foi
+ * registrado é o comportamento honesto — inventar um instante faria a tela exibir
+ * "iniciada" para uma ordem que o teste nunca iniciou.
+ */
+function readMockInstant(source: unknown, key: string): string | null {
+  if (!source || typeof source !== 'object') {
+    return null;
+  }
+  const value = (source as Record<string, unknown>)[key];
+  return typeof value === 'string' ? value : null;
+}
+
 function jsonResponse(body: unknown, status = 200): Response {
   return {
     ok: status >= 200 && status < 300,
@@ -1962,13 +1977,152 @@ export function createServiceOrdersFetchMock(options: ServiceOrdersFetchMockOpti
       });
     }
 
-    if (!pathname.startsWith('/api/v1/service-orders') && pathname !== '/api/v1/billing/worklist') {
+    if (!pathname.startsWith('/api/v1/service-orders') && pathname !== '/api/v1/billing/worklist' && !pathname.startsWith('/api/v1/query/')) {
       return upstream(input, init);
     }
 
     const auth = init?.headers ? new Headers(init.headers).get('authorization') : null;
     if (!auth?.startsWith('Bearer ')) {
       return orderError('AUTH_UNAUTHORIZED', 401);
+    }
+
+    /**
+     * OVERVIEW DE OPERAÇÕES — o read model que carrega o GATE DE CONCLUSÃO.
+     *
+     * A tela de execução passou a ler `completionGate.canComplete` do backend em
+     * vez de calcular a conclusão a partir das evidências. Este mock responde o
+     * contrato REAL do endpoint, para que o teste e2e exercite o caminho de
+     * produção: sem esta rota, a tela não teria decisão alguma e a conclusão
+     * ficaria indisponível — que é o comportamento correto quando o backend não
+     * responde, mas não o que este teste quer provar.
+     *
+     * O gate é derivado das MESMAS condições que o teste controla (evidência
+     * registrada), para que a asserção continue significando o mesmo.
+     */
+    const overviewMatch = pathname.match(
+      /^\/api\/v1\/query\/service-orders\/([^/]+)\/overview$/,
+    );
+    if (overviewMatch && method === 'GET') {
+      const targetId = overviewMatch[1]!;
+      const order = getOrder(targetId);
+      if (!order) {
+        return orderError('SERVICE_ORDERS_NOT_FOUND', 404);
+      }
+      const orderEntries = entries.get(targetId) ?? [];
+      const hasObservation = orderEntries.some(
+        (entry: { entryType: string }) => entry.entryType === 'OBSERVATION',
+      );
+      const hasQuantity = orderEntries.some(
+        (entry: { entryType: string }) => entry.entryType === 'QUANTITY',
+      );
+      const canComplete = hasObservation && hasQuantity;
+
+      return jsonResponse({
+        identity: {
+          serviceOrderId: order.id,
+          orderNumber: order.orderNumber,
+          internalCode: order.internalCode ?? null,
+          serviceLabel: order.serviceSnapshot?.serviceName ?? null,
+          clientLabel: order.clientSnapshot?.tradeName ?? null,
+          unitId: order.unitId,
+          description: order.description ?? null,
+          rowVersion: order.rowVersion,
+        },
+        businessContext: {
+          origin: order.origin ?? null,
+          contractReference: null,
+          customerPurchaseOrderNumber: null,
+          priority: null,
+        },
+        statuses: {
+          operational: order.status,
+          planning: 'CONFIRMED',
+          reservation: 'CONFIRMED',
+          dispatch: 'DISPATCHED',
+          execution: order.status === 'PAUSED' ? 'PAUSED' : 'IN_PROGRESS',
+          actuals: orderEntries.length ? 'PARTIAL' : 'NONE',
+          measurement: 'NOT_READY',
+          billing: 'NOT_ELIGIBLE',
+          accounting: 'NOT_APPLICABLE',
+        },
+        process: [],
+        currentStage: 'IN_EXECUTION',
+        planning: { plannedResourceCount: 2, activeAllocationCount: 2, activeResources: [] },
+        dispatch: {
+          dispatchedAt: '2026-10-24T08:00:00.000Z',
+          checkedInAt: '2026-10-24T08:10:00.000Z',
+          windowStart: '2026-10-24T08:00:00.000Z',
+          windowEnd: '2026-10-24T20:00:00.000Z',
+          readiness: {
+            ready: true,
+            status: 'READY',
+            blockingReasons: [],
+            warnings: [],
+            dimensions: [],
+            nextAction: null,
+            summary: 'Pronto para despachar.',
+          },
+        },
+        execution: {
+          /**
+           * `MockOrder` não declara os instantes de ciclo; eles são opcionais no
+           * contrato real. Lê-se via índice com fallback nulo para não afirmar um
+           * instante que o mock nunca registrou — a diferença importa porque o
+           * gate distingue "não iniciada" de "iniciada".
+           */
+          startedAt: readMockInstant(order, 'startedAt'),
+          pausedAt: readMockInstant(order, 'pausedAt'),
+          completedAt: readMockInstant(order, 'completedAt'),
+          executionClosedAt: null,
+          measurementBasisPreparedAt: null,
+        },
+        actuals: {
+          comparison: { lines: [], substitutions: [], recordCount: 0, hasActuals: false, summary: '' },
+          records: [],
+          meters: [],
+          fuel: [],
+          evidence: [],
+          signatures: [],
+        },
+        completionGate: {
+          canComplete,
+          blockingReasons: canComplete
+            ? []
+            : [
+                {
+                  reasonCode: 'REQUIRED_EVIDENCE_MISSING',
+                  reason: 'Uma evidência exigida pelo serviço não foi anexada.',
+                  resource: null,
+                  missingCode: 'OBSERVATION',
+                  resolution: 'ATTACH_EVIDENCE',
+                  resolutionLabel: 'Anexar a evidência',
+                },
+              ],
+          nextAction: canComplete ? null : 'ATTACH_EVIDENCE',
+          nextActionLabel: canComplete ? null : 'Anexar a evidência',
+          consequences: [
+            { code: 'ACTUALS_FROZEN', label: 'Os dados reais de execução serão congelados.' },
+          ],
+          summary: canComplete
+            ? 'Pronto para concluir: todos os requisitos de execução estão atendidos.'
+            : 'Conclusão bloqueada.',
+        },
+        economics: { plannedRevenue: null, plannedCost: null, currencyCode: null },
+        situations: [],
+        timeline: [],
+        nextAction: {
+          code: canComplete ? 'COMPLETE' : 'ATTACH_EVIDENCE',
+          label: canComplete ? 'Concluir' : 'Anexar a evidência',
+          explanation: null,
+        },
+        availableCommands: [],
+        decisionExplanation: {
+          completionSummary: canComplete ? 'Pronto para concluir.' : 'Conclusão bloqueada.',
+          onCompletion: [],
+          dispatchSummary: 'Pronto para despachar.',
+        },
+        freshness: { readAt: new Date().toISOString(), authority: 'SERVER' },
+      });
     }
 
     if (pathname === '/api/v1/billing/worklist' && method === 'GET') {

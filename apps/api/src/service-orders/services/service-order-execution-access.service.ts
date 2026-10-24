@@ -44,6 +44,17 @@ import {
 import type { ServiceOrderServiceSnapshot } from '../domain/service-order-snapshot';
 import { SERVICE_ORDER_STATUSES } from '../domain/service-order';
 import { assertTransition, ServiceOrderStateError } from '../domain/service-order.state-machine';
+import { OperationsRepository } from '../repositories/operations.repository';
+import { buildActualsComparison, buildResourceSubstitutions } from '../domain/execution-actuals';
+import { evaluateCompletionGate, type CompletionGate } from '../domain/completion-gate';
+import {
+  buildCompletionFacts,
+  buildExecutedResources,
+  toActualFacts,
+} from './operations-facts.provider';
+import type { ExecutionOperationsFacts, ExecutionActualRow } from '../repositories/operations.repository.types';
+import { SERVICE_ORDERS_ERROR_CODES } from '../errors/service-orders-error-codes';
+import { ServiceOrdersHttpException } from '../errors/service-orders-http.exception';
 import { ServiceOrderExecutionRepository } from '../repositories/service-order-execution.repository';
 import type {
   ExecutionEntryRow,
@@ -78,6 +89,7 @@ export class ServiceOrderExecutionAccessService {
     private readonly serviceOrdersRepository: ServiceOrdersRepository,
     private readonly executionRepository: ServiceOrderExecutionRepository,
     private readonly planningRepository: ResourcePlanningRepository,
+    private readonly operationsRepository: OperationsRepository,
     private readonly authz: ServiceOrdersAccessAuthz,
     private readonly securityAudit: SecurityAuditService,
     @Optional() @Inject(FAULT_INJECTION_PORT) private readonly faultInjection?: FaultInjectionPort,
@@ -166,6 +178,47 @@ export class ServiceOrderExecutionAccessService {
       }
     }
 
+    /**
+     * ESTADO PRIMEIRO, GATE DEPOIS.
+     *
+     * A conclusão só é possível em `IN_EXECUTION`. `PAUSED` NÃO entra: concluir
+     * durante a pausa esconderia tempo que ninguém mediu. E aqui a causa é de
+     * ESTADO, não de dado faltante — devolver `COMPLETION_BLOCKED` faria o operador
+     * procurar um campo quando o que falta é retomar a execução.
+     *
+     * A state machine é autoridade do ESTADO; o gate é autoridade dos REQUISITOS.
+     */
+    if (order.status !== SERVICE_ORDER_STATUSES.InExecution) {
+      throw serviceOrdersInvalidState(
+        'Service order is not in a valid state for this operation.',
+      );
+    }
+
+    /**
+     * GATE DE CONCLUSÃO — a autoridade é o DOMÍNIO, não a contagem de evidência.
+     *
+     * A verificação anterior olhava apenas evidência exigida pelo snapshot. Faltava
+     * o que a conclusão realmente precisa: medidor final, combustível real, horas
+     * por pessoa, material, assinatura e situações abertas. Sem isso era possível
+     * concluir uma execução SEM NENHUM REALIZADO, e medição e custo eram produzidos
+     * sobre o planejado sem que nada indicasse a falta.
+     *
+     * Os fatos são lidos UMA vez e o domínio decide. Os motivos voltam TODOS, para
+     * que o operador resolva de uma vez em vez de descobrir um por um.
+     */
+    const operationsFacts = await this.operationsRepository.loadFacts(serviceOrderId);
+    if (!operationsFacts) {
+      throw serviceOrdersAccessNotFound();
+    }
+
+    const completionGate = evaluateCompletionGate(
+      buildCompletionFacts(operationsFacts, { completionBlockedReasons: [] }),
+    );
+
+    if (!completionGate.canComplete) {
+      throw this.completionBlocked(completionGate);
+    }
+
     const [entries, evidence] = await Promise.all([
       this.executionRepository.listEntries(serviceOrderId),
       this.executionRepository.listEvidence(serviceOrderId),
@@ -189,7 +242,7 @@ export class ServiceOrderExecutionAccessService {
 
     let nextStatus: string;
     try {
-      nextStatus = assertTransition(order.status as typeof SERVICE_ORDER_STATUSES.Released, 'complete');
+      nextStatus = assertTransition(order.status, 'complete');
     } catch (error) {
       if (error instanceof ServiceOrderStateError) {
         throw serviceOrdersInvalidState('Service order is not in a valid state for this operation.');
@@ -207,6 +260,12 @@ export class ServiceOrderExecutionAccessService {
       commandName: EXECUTION_COMMANDS.Complete,
       idempotencyKey: validated.idempotencyKey,
       responsePayload: {},
+      /**
+       * O fechamento viaja na MESMA transação. Construir o snapshot aqui (e não
+       * depois do COMMIT) é o que impede a janela em que a OS já está concluída e
+       * os realizados ainda podem mudar.
+       */
+      closure: buildExecutionClosureInput(operationsFacts, completionGate, order),
     });
 
     if (result.outcome === 'version_conflict') {
@@ -584,4 +643,190 @@ export class ServiceOrderExecutionAccessService {
       metadata,
     });
   }
+
+  /**
+   * Conclusão recusada pelo GATE.
+   *
+   * `409 CONFLICT` com código próprio e os motivos no corpo: o estado do negócio
+   * impede, e o operador precisa saber EXATAMENTE o que falta. Devolver um 400
+   * genérico obrigaria a tela a traduzir, e é assim que a causa se perde.
+   */
+  private completionBlocked(gate: CompletionGate): ServiceOrderCompletionBlockedException {
+    return new ServiceOrderCompletionBlockedException(gate);
+  }
+}
+
+/**
+ * Conclusão recusada — com os MOTIVOS no corpo do erro.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * POR QUE ESTA CLASSE EXISTE
+ * ═══════════════════════════════════════════════════════════════════════════════
+ *
+ * O corpo de erro do projeto é `{ error: { code, message } }` e não tem onde
+ * carregar a lista de bloqueios. Devolver só a frase faria o operador recarregar a
+ * tela para descobrir o que falta — o comportamento que esta capability elimina.
+ *
+ * A subclasse acrescenta `details` e `resolution` ao MESMO envelope, então nenhum
+ * consumidor existente quebra: quem lê `code`/`message` continua igual, e quem quer
+ * a lista passa a ter.
+ */
+export class ServiceOrderCompletionBlockedException extends ServiceOrdersHttpException {
+  constructor(readonly gate: CompletionGate) {
+    super(409, SERVICE_ORDERS_ERROR_CODES.COMPLETION_BLOCKED, gate.summary);
+  }
+
+  override getResponse(): Record<string, unknown> {
+    const base = super.getResponse() as Record<string, unknown>;
+    const error = (base['error'] ?? {}) as Record<string, unknown>;
+    return {
+      ...base,
+      error: {
+        ...error,
+        details: {
+          blockingReasons: this.gate.blockingReasons.map((item) => ({
+            code: item.reasonCode,
+            message: item.reason,
+            missingCode: item.missingCode,
+            resourceCode: item.resource?.code ?? null,
+            resolution: item.resolution,
+          })),
+          canComplete: this.gate.canComplete,
+        },
+        resolution: {
+          command: this.gate.nextAction,
+          label: this.gate.nextActionLabel,
+        },
+      },
+    };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MONTAGEM DO FECHAMENTO
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Materializa o que a conclusão CONGELA.
+ *
+ * Três artefatos, cada um com um consumidor real:
+ *
+ *   `actualsSnapshot`  → o realizado no instante do fechamento. É o que o COSTING
+ *                        consome e o que impede variação retroativa.
+ *   `planVsActual`     → a comparação planejado × realizado, com substituições.
+ *   `measurementLines` → a BASE DE MEDIÇÃO por unidade. É o insumo da capability
+ *                        seguinte; sem ela, "pronto para medir" seria só um rótulo.
+ *
+ * A função é PURA: recebe fatos e o gate, devolve o registro. Não consulta banco.
+ */
+export function buildExecutionClosureInput(
+  facts: ExecutionOperationsFacts,
+  gate: CompletionGate,
+  order: { unit_id: string; client_id: string | null; order_number: string },
+): {
+  unitId: string;
+  clientId: string | null;
+  orderNumber: string;
+  actualsSnapshot: Record<string, unknown>;
+  planVsActual: Record<string, unknown>;
+  evidenceSummary: Record<string, unknown>;
+  resolvedSituations: unknown[];
+  measurementLines: unknown[];
+  measurementActuals: Record<string, unknown>;
+  measurementEvidence: Record<string, unknown>;
+} {
+  const actualFacts = toActualFacts(facts);
+  const substitutes = buildResourceSubstitutions(buildExecutedResources(facts));
+
+  // Planejado por tipo, para a comparação congelada.
+  const planned: Record<string, { quantity: string; unitOfMeasure: string }> = {};
+  const plannedLabor = facts.plannedResources
+    .filter((row) => row.status === 'PLANNED' && row.requirement_kind === 'LABOR')
+    .reduce((sum, row) => sum + Number(row.planned_quantity), 0);
+  if (plannedLabor > 0) {
+    planned['LABOR_HOURS'] = { quantity: String(plannedLabor), unitOfMeasure: 'H' };
+  }
+
+  const comparison = buildActualsComparison({
+    actuals: actualFacts,
+    planned,
+    substitutions: substitutes,
+  });
+
+  /**
+   * BASE DE MEDIÇÃO — uma linha por unidade de medida do realizado.
+   *
+   * A quantidade MEDIDA é o valor real; o planejado acompanha como referência. Não
+   * há preço aqui: precificação é da MEDIÇÃO/BILLING, não da execução.
+   */
+  const byUnit = new Map<string, { actual: number; planned: number; count: number }>();
+  for (const row of facts.actuals) {
+    const bucket = byUnit.get(row.unit_of_measure) ?? { actual: 0, planned: 0, count: 0 };
+    bucket.actual += Number(row.actual_value);
+    bucket.planned += Number(row.planned_value ?? '0');
+    bucket.count += 1;
+    byUnit.set(row.unit_of_measure, bucket);
+  }
+
+  const measurementLines = [...byUnit.entries()].map(([unitCode, bucket]) => ({
+    unitCode,
+    actualQuantity: String(bucket.actual),
+    plannedQuantity: bucket.planned > 0 ? String(bucket.planned) : null,
+    recordCount: bucket.count,
+    source: 'EXECUTION_ACTUALS',
+  }));
+
+  const verifiedEvidence = facts.evidence.filter((row) => row.status === 'VERIFIED');
+
+  return {
+    unitId: order.unit_id,
+    clientId: order.client_id,
+    orderNumber: order.order_number,
+    actualsSnapshot: {
+      recordCount: facts.actuals.length,
+      meters: facts.meters.length,
+      fuelRecords: facts.fuel.length,
+      signatures: facts.signatures.length,
+      capturedAt: new Date().toISOString(),
+      byKind: summariseByKind(facts.actuals),
+    },
+    planVsActual: {
+      lines: comparison.lines.map((line) => ({
+        group: line.group,
+        actualValue: line.actualValue,
+        plannedValue: line.plannedValue,
+        variance: line.variance,
+        explainable: line.explainable,
+      })),
+      substitutions: comparison.substitutions,
+      summary: comparison.summary,
+    },
+    evidenceSummary: {
+      total: facts.evidence.length,
+      verified: verifiedEvidence.length,
+      kinds: [...new Set(facts.evidence.map((row) => row.evidence_kind))],
+    },
+    resolvedSituations: gate.blockingReasons.map((item) => ({
+      reasonCode: item.reasonCode,
+      resolution: item.resolution,
+    })),
+    measurementLines,
+    measurementActuals: Object.fromEntries(
+      [...byUnit.entries()].map(([unitCode, bucket]) => [
+        unitCode,
+        String(bucket.actual),
+      ]),
+    ),
+    measurementEvidence: {
+      verifiedKinds: [...new Set(verifiedEvidence.map((row) => row.evidence_kind))],
+    },
+  };
+}
+
+function summariseByKind(rows: ExecutionActualRow[]): Record<string, number> {
+  const summary: Record<string, number> = {};
+  for (const row of rows) {
+    summary[row.actual_kind] = (summary[row.actual_kind] ?? 0) + Number(row.actual_value);
+  }
+  return summary;
 }

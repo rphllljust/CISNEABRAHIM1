@@ -223,6 +223,20 @@ const MIGRATION_EFFECT_CHECKS = {
   '0106_published_read_contracts_refresh': {
     column: ['rpt', 'read_settlements', 'reversed_at'],
   },
+  /*
+   * DISPATCH + EXECUTION + ACTUALS — 0107 abre a vertical operacional completa.
+   *
+   * A sonda é `so.execution_actuals` porque é a tabela que NÃO existia de forma
+   * alguma antes desta migration: sem ela não há REALIZADO, e sem realizado não há
+   * custo real nem variação. As demais tabelas da 0107 (despacho, medidores,
+   * combustível, assinatura, eventos, fechamento, base de medição) dependem desta
+   * para produzir consequência — um realizado que não existe torna a conclusão
+   * impossível e a medição vazia.
+   *
+   * Sondar `so.service_order_dispatches` provaria menos: a prontidão e o comando de
+   * despacho só geram efeito real porque o realizado é capturável depois deles.
+   */
+  '0107_dispatch_execution_actuals': { table: ['so', 'execution_actuals'] },
 };
 
 /**
