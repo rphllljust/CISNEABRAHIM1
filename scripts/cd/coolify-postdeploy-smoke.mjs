@@ -476,6 +476,17 @@ async function main() {
   console.log(
     `[coolify-postdeploy] modules total=${result.modules.total} enabled=[${result.modules.enabled.join(',')}] visible=[${result.modules.visible.join(',')}] notReleased=[${result.modules.notReleased.join(',')}]`,
   );
+  /**
+   * URL publica do WEB, emitida para o gate de browser de producao.
+   *
+   * O smoke prova o RUNTIME (build servido, `runtime-config` correto, CORS, login).
+   * Ele NAO abre navegador nem renderiza a interface — essa prova pertence ao browser
+   * gate. Como ele depende de a URL publica ser resolvida pelo Coolify (que so existe
+   * aqui, via secret), a URL e publicada como linha auditavel em vez de recalculada em
+   * outro script. Nao e secret: e o endereco publico que qualquer visitante ve.
+   */
+  console.log(`[coolify-postdeploy] web-url=${result.webUrl}`);
+  console.log(`[coolify-postdeploy] api-url=${result.apiUrl}`);
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
