@@ -238,7 +238,7 @@ jobs:
           BROWSER_GATE_OUT: artifacts/browser-gate
         run: |
           set -euo pipefail
-          node apps/web/node_modules/@playwright/test/cli.js install --with-deps chromium
+          node scripts/cd/install-playwright-chromium.mjs
           node scripts/cd/coolify-browser-gate.mjs
 
       - name: Upload browser gate evidence

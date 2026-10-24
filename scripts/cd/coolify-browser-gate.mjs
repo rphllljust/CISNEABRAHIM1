@@ -29,29 +29,41 @@
  * negação seja a CORRETA (fail-closed), em vez de tratá-la como erro.
  */
 import { mkdirSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 /**
  * `@playwright/test` é dependência do workspace `apps/web`, não da raiz.
  *
  * Este script vive em `scripts/cd/`, então um `import '@playwright/test'` simples
- * falharia na resolução de módulo — o gate nunca rodaria e o release reprovaria por
- * um motivo que nada tem a ver com produção. A importação é resolvida a partir do
- * `node_modules` do workspace que realmente declara a dependência.
+ * falharia a resolução. A primeira correção apontou um CAMINHO FIXO para
+ * `apps/web/node_modules/@playwright/test/index.mjs` — e isso reprovou no CI com
+ * `Cannot find module`, porque em pnpm workspaces o pacote pode viver em
+ * `node_modules/.pnpm/...` e o caminho direto pelo workspace nem sempre existe
+ * (localmente é um junction; no runner, não).
+ *
+ * Caminho fixo é SUPOSIÇÃO sobre o layout de instalação. A resolução de módulo do Node,
+ * ancorada no workspace que DECLARA a dependência, é o mecanismo que qualquer `import`
+ * usa: se o pacote está instalado, ele é encontrado; se não está, falha alto e cedo.
  */
-const playwrightEntry = resolve(
-  import.meta.dirname,
-  '..',
-  '..',
-  'apps',
-  'web',
-  'node_modules',
-  '@playwright',
-  'test',
-  'index.mjs',
-);
-const { chromium } = await import(pathToFileURL(playwrightEntry).href);
+const webWorkspace = resolve(import.meta.dirname, '..', '..', 'apps', 'web');
+const requireFromWeb = createRequire(resolve(webWorkspace, 'package.json'));
+const playwrightEntry = requireFromWeb.resolve('@playwright/test');
+/**
+ * O `require.resolve` devolve a entrada CJS (`index.js`). Importar um pacote CJS por
+ * `import()` deixa a API pública em `default` — sem este desembrulho, `chromium` chega
+ * `undefined` e o gate morre com `Cannot read properties of undefined (reading
+ * 'launch')`, um erro que não diz nada sobre a causa. Aceita as duas formas para não
+ * depender de qual entrada o resolver escolher.
+ */
+const playwrightModule = await import(pathToFileURL(playwrightEntry).href);
+const chromium = playwrightModule.chromium ?? playwrightModule.default?.chromium;
+if (!chromium) {
+  throw new Error(
+    `@playwright/test resolvido em ${playwrightEntry} nao expoe 'chromium' (interop ESM/CJS)`,
+  );
+}
 
 const OUT = process.env['BROWSER_GATE_OUT'] ?? 'artifacts/browser-gate';
 
