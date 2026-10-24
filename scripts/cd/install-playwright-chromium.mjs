@@ -36,10 +36,14 @@ const webWorkspace = resolve(repoRoot, 'apps', 'web');
 function resolvePlaywrightCli() {
   const requireFromWeb = createRequire(resolve(webWorkspace, 'package.json'));
   try {
-    // `@playwright/test` exporta `cli.js` no pacote; resolvemos o módulo e subimos um
-    // nível, porque a entrada pública é `index.mjs`/`index.js`.
+    // O CLI vive DENTRO do pacote `@playwright/test`: `<pkgDir>/cli.js`.
+    // `require.resolve('@playwright/test')` aponta para `<pkgDir>/index.js`, então o
+    // diretório do pacote é o DIRETÓRIO DESSE ARQUIVO — não o pai.
+    //
+    // Erro real medido no release 40110370065: subir um nível resolvia para
+    // `.../node_modules/@playwright/cli.js` (sem `/test`), caminho inexistente.
     const testEntry = requireFromWeb.resolve('@playwright/test');
-    const packageDir = resolve(dirname(testEntry), '..');
+    const packageDir = dirname(testEntry);
     return resolve(packageDir, 'cli.js');
   } catch (error) {
     throw new Error(
