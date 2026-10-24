@@ -34,6 +34,44 @@
 
 CREATE SCHEMA IF NOT EXISTS "plt";--> statement-breakpoint
 
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- F1.2 — os VALORES do enum `evt.domain_event_type` que os novos produtores usam
+-- ═══════════════════════════════════════════════════════════════════════════════
+--
+-- O DEFEITO MEDIDO. A F1.2 passou FISCAL, INVENTORY e PAYROLL a publicar o fato
+-- econômico pela outbox, e esses fatos entram em `evt.domain_events`, cujo
+-- `event_type` é o enum `evt.domain_event_type`. A 0104 registrou apenas os quatro
+-- valores de FINANCE. Os demais produtores gravavam um rótulo que o enum não
+-- conhecia:
+--
+--   invalid input value for enum evt.domain_event_type: "FISCAL_DOCUMENT_AUTHORIZED"
+--
+-- O efeito era o PIOR possível: o documento fiscal era autorizado, e a publicação
+-- do FATO econômico estourava. `plt.economic_events.event_kind` é `text` com
+-- CHECK (não enum), então a tabela do ledger aceitaria o valor — o que reprovava
+-- era só o transporte. Um novo produtor parecia pronto em revisão de código e
+-- quebrava na primeira autorização real.
+--
+-- A LISTA É A DO CONTRATO, NÃO A DO CHAMADOR. `ECONOMIC_EVENT_KINDS`
+-- (`platform/bounded-contexts/economic-event-contract.ts`) é a fonte de verdade e
+-- tem 16 valores; `economic-event-contract.spec.ts` fixa essa lista. Aqui os 16
+-- são registrados no enum, para que ledger, transporte e contrato não possam
+-- divergir sem uma migration.
+--
+-- ADD VALUE IF NOT EXISTS é idempotente e seguro em enum já existente.
+ALTER TYPE "evt"."domain_event_type" ADD VALUE IF NOT EXISTS 'RECEIVABLE_RECOGNIZED';--> statement-breakpoint
+ALTER TYPE "evt"."domain_event_type" ADD VALUE IF NOT EXISTS 'PAYABLE_RECOGNIZED';--> statement-breakpoint
+ALTER TYPE "evt"."domain_event_type" ADD VALUE IF NOT EXISTS 'FISCAL_DOCUMENT_AUTHORIZED';--> statement-breakpoint
+ALTER TYPE "evt"."domain_event_type" ADD VALUE IF NOT EXISTS 'FISCAL_DOCUMENT_CANCELLED';--> statement-breakpoint
+ALTER TYPE "evt"."domain_event_type" ADD VALUE IF NOT EXISTS 'TAX_CALCULATION_CONFIRMED';--> statement-breakpoint
+ALTER TYPE "evt"."domain_event_type" ADD VALUE IF NOT EXISTS 'INVENTORY_MOVEMENT_POSTED';--> statement-breakpoint
+ALTER TYPE "evt"."domain_event_type" ADD VALUE IF NOT EXISTS 'PAYROLL_CLOSED';--> statement-breakpoint
+ALTER TYPE "evt"."domain_event_type" ADD VALUE IF NOT EXISTS 'PAYROLL_REOPENED';--> statement-breakpoint
+ALTER TYPE "evt"."domain_event_type" ADD VALUE IF NOT EXISTS 'FIXED_ASSET_ACQUIRED';--> statement-breakpoint
+ALTER TYPE "evt"."domain_event_type" ADD VALUE IF NOT EXISTS 'FIXED_ASSET_DISPOSED';--> statement-breakpoint
+ALTER TYPE "evt"."domain_event_type" ADD VALUE IF NOT EXISTS 'FIXED_ASSET_TRANSFERRED';--> statement-breakpoint
+ALTER TYPE "evt"."domain_event_type" ADD VALUE IF NOT EXISTS 'FIXED_ASSET_DEPRECIATED';--> statement-breakpoint
+
 CREATE TABLE IF NOT EXISTS "plt"."economic_events" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "unit_id" text NOT NULL,
