@@ -110,6 +110,8 @@ import {
 import { PeriodClosePage } from './accounting/pages/PeriodClosePage';
 import { ClosingCenterPage } from './accounting/pages/ClosingCenterPage';
 import { AccountingPostingOriginsPage } from './accounting/pages/AccountingPostingOriginsPage';
+import { EconomicPostingWorklistPage } from './accounting/pages/EconomicPostingWorklistPage';
+import { EconomicTracePage } from './accounting/pages/EconomicTracePage';
 import { FixedAssetsPage } from './accounting/pages/FixedAssetsPage';
 import {
   ProcurementRoute,
@@ -789,6 +791,30 @@ export function AppRoutes() {
                 element={
                   <AccountingRoute>
                     <JournalsPage />
+                  </AccountingRoute>
+                }
+              />
+              {/*
+                F1.1 — SUPERFÍCIE DA TRILHA ECONÔMICA.
+
+                A worklist é o trabalho (contabilização pendente/falha). A trilha é a
+                cadeia de UM fato até o lançamento. Ambas ficam sob AccountingRoute
+                porque é ACCOUNTING que decide posting e é o journal que fecha a
+                cadeia — a autorização real continua no backend.
+              */}
+              <Route
+                path="/app/accounting/economic-posting"
+                element={
+                  <AccountingRoute>
+                    <EconomicPostingWorklistPage />
+                  </AccountingRoute>
+                }
+              />
+              <Route
+                path="/app/accounting/economic-trace/:factKind/:factId"
+                element={
+                  <AccountingRoute>
+                    <EconomicTracePage />
                   </AccountingRoute>
                 }
               />

@@ -291,11 +291,14 @@ export class FiscalAccessService implements FiscalDocumentPort {
       await this.audit(actor, SECURITY_AUDIT_ACTIONS.FiscalDocumentCancel, aggregate.document.id, {
         reason: validated.reason,
       });
-      await this.accountingIntegration.tryReverseCancelledDocument(
-        actor,
-        aggregate.document.id,
-        validated.reason,
-      );
+      /**
+       * F1.2 — o posting NÃO é mais chamado aqui.
+       *
+       * `FiscalRepository.transition` publica `FISCAL_DOCUMENT_CANCELLED` na MESMA
+       * transação que cancela o documento; ACCOUNTING consome pela outbox e emite o
+       * journal compensatório com retry e visibilidade. Chamar o posting também aqui
+       * duplicaria o caminho — e um fato não pode ter duas espinhas.
+       */
       return this.toResponse(aggregate);
     } catch (error) {
       throw mapFiscalDomainError(error);
@@ -487,8 +490,16 @@ export class FiscalAccessService implements FiscalDocumentPort {
         gatewayId: this.gateway.gatewayId,
         protocolCode: result.protocolCode ?? null,
       });
-      await this.accountingIntegration.tryPostAuthorizedDocument(actor, aggregate.document.id);
     }
+    /**
+     * F1.2 — o posting NÃO é mais chamado aqui.
+     *
+     * `FiscalRepository.recordAuthorizationAttempt` publica
+     * `FISCAL_DOCUMENT_AUTHORIZED` na MESMA transação que grava a autorização. Antes
+     * a autorização commitava e SÓ DEPOIS o posting rodava em outra transação: se o
+     * processo caísse no intervalo, o documento ficava autorizado sem journal e sem
+     * evento. O fato agora é atômico com o estado.
+     */
     return this.toResponse(aggregate);
   }
 

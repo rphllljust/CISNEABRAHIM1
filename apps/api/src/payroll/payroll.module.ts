@@ -1,8 +1,9 @@
-import { Global, Module } from '@nestjs/common';
+﻿import { Global, Module } from '@nestjs/common';
 import { AuditModule } from '../audit/audit.module';
 import { AuthModule } from '../auth/auth.module';
 import { AuthorizationModule } from '../authorization/authorization.module';
 import { DatabaseModule } from '../infrastructure/database/database.module';
+import { OutboxModule } from '../platform/outbox/outbox.module';
 import { ENTERPRISE_CORE_PORT } from '../platform/bounded-contexts/enterprise-core-ports';
 import { PayrollController } from './controllers/payroll.controller';
 import { PayrollRepository } from './repositories/payroll.repository';
@@ -17,7 +18,17 @@ import { PayrollAccountingIntegrationService } from './services/payroll-accounti
  */
 @Global()
 @Module({
-  imports: [DatabaseModule, AuthModule, AuthorizationModule, AuditModule],
+  imports: [
+    DatabaseModule,
+    AuthModule,
+    AuthorizationModule,
+    AuditModule,
+    /**
+     * F1.2 — o repositorio publica o fato economico na outbox transacional, dentro da
+     * propria transacao do comando. DOMINIO -> PLATFORM e dependencia permitida.
+     */
+    OutboxModule,
+  ],
   controllers: [PayrollController],
   providers: [
     PayrollRepository,

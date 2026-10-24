@@ -1,4 +1,4 @@
-import { Global, Module } from '@nestjs/common';
+﻿import { Global, Module } from '@nestjs/common';
 import { AuditModule } from '../audit/audit.module';
 import { AuthModule } from '../auth/auth.module';
 import { AuthorizationModule } from '../authorization/authorization.module';
@@ -21,6 +21,7 @@ import { Src006FiscalCredentialing } from './ports/src006-fiscal-credentialing';
 import { UnconfiguredFiscalAuthorizationGateway } from './ports/unconfigured-fiscal-authorization.gateway';
 import { UnconfiguredFiscalCertificatePort } from './ports/unconfigured-fiscal-certificate.port';
 import { FiscalRepository } from './repositories/fiscal.repository';
+import { OutboxModule } from '../platform/outbox/outbox.module';
 import { FiscalPeriodRepository } from './repositories/fiscal-period.repository';
 import { TaxAssessmentRepository } from './repositories/tax-assessment.repository';
 import { TaxEngineRepository } from './repositories/tax-engine.repository';
@@ -40,7 +41,19 @@ import { TaxEngineAccessService } from './services/tax-engine-access.service';
  */
 @Global()
 @Module({
-  imports: [DatabaseModule, AuthModule, AuthorizationModule, AuditModule, IssuerRegistryModule],
+  imports: [
+    DatabaseModule,
+    AuthModule,
+    AuthorizationModule,
+    AuditModule,
+    IssuerRegistryModule,
+    /**
+     * F1.2 — FISCAL publica o fato econômico na outbox transacional, dentro da
+     * própria transação de autorização/cancelamento. FISCAL → PLATFORM é
+     * dependência permitida pelo grafo.
+     */
+    OutboxModule,
+  ],
   controllers: [FiscalController, TaxEngineController, TaxAssessmentController, FiscalPeriodController],
   providers: [
     FiscalRepository,

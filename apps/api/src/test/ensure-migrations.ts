@@ -1045,6 +1045,50 @@ $$;`);
       await applySqlFile(pool, '0103_saved_views.sql');
     }
 
+    /*
+     * F1.1 — o ledger de fatos econômicos. A migration cria a tabela, o índice único
+     * de deduplicação (event_kind, source_id) e a view `rpt.read_economic_events`.
+     * A sonda é a TABELA: ela responde pelo efeito inteiro. Sem este bloco,
+     * `syncDrizzleJournal` registraria o hash como aplicado num banco onde o artefato
+     * nunca nasceu, e o migrator passaria a pulá-lo para sempre.
+     */
+    if (!(await tableExists(pool, 'fin.economic_events'))) {
+      await applySqlFile(pool, '0104_economic_events.sql');
+    }
+
+    /*
+     * F1.2 — o ledger de fatos econômicos sobe para a PLATAFORMA.
+     *
+     * O fato econômico é vocabulário comum a FINANCE/FISCAL/INVENTORY/PAYROLL/ASSETS:
+     * guardá-lo em `fin.*` obrigava todo outro domínio a ler o schema de FINANCE, o que
+     * a regra de fronteira proíbe. A 0105 cria `plt.economic_events`, migra as linhas e
+     * repointa `rpt.read_economic_events`.
+     *
+     * A sonda é `plt.economic_events`: uma chave ESTRANGEIRA viva para `fin.economic_events`
+     * não responderia pelo que importa (a tabela de destino existir e conter as linhas).
+     */
+    if (!(await tableExists(pool, 'plt.economic_events'))) {
+      await applySqlFile(pool, '0105_platform_economic_events.sql');
+    }
+
+    /*
+     * F1.2 — os read contracts de FINANCE precisam refletir as colunas correntes.
+     *
+     * A 0080/0081 criaram as views `rpt.read_settlements`/`read_payments`/`read_payables`
+     * e depois adicionaram colunas às tabelas de origem sem recriar as views. A trilha
+     * econômica lê `rpt.*` (contrato publicado), então a coluna que falta aqui vira
+     * `column ... does not exist` em produção de desenvolvimento.
+     *
+     * A sonda é a COLUNA que a 0106 devolve: só ela prova que a view foi atualizada.
+     * A view já existir não prova nada — é exatamente o estado quebrado.
+     */
+    if (
+      (await tableExists(pool, 'rpt.read_settlements')) &&
+      !(await columnExists(pool, 'rpt', 'read_settlements', 'reversed_at'))
+    ) {
+      await applySqlFile(pool, '0106_published_read_contracts_refresh.sql');
+    }
+
     await syncDrizzleJournal(pool);
   } finally {
     await pool.end();

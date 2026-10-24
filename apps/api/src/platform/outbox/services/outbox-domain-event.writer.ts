@@ -5,6 +5,12 @@ import {
   DOMAIN_EVENT_TYPES,
 } from '../../../events/domain/domain-event-type';
 import {
+  ECONOMIC_EVENT_KINDS,
+  type EconomicEventKind,
+  type EconomicEventPayloadV1,
+  economicEventIdempotencyKey,
+} from '../../bounded-contexts/economic-event-contract';
+import {
   assertAuthorizationIndependentPayload,
   buildBillingReadyPayloadV1,
   buildMeasurementApprovedPayloadV1,
@@ -167,6 +173,44 @@ export class OutboxDomainEventWriter {
     });
   }
 
+  /**
+   * F1.1 — FATO ECONÔMICO.
+   *
+   * Publica o evento que ACCOUNTING consome para decidir posting. Chamado SEMPRE
+   * dentro da transação do comando financeiro (`PoolClient` recebido do chamador),
+   * de modo que `COMMIT` do estado econômico e `INSERT` do evento são atômicos: ou
+   * ambos existem, ou nenhum.
+   *
+   * Devolve o `outboxEventId` para que o chamador grave em `fin.economic_events` a
+   * trilha `fato → transporte`, sem segunda chamada de rede.
+   */
+  async appendEconomicEvent(
+    client: PoolClient,
+    input: {
+      aggregateType: string;
+      aggregateId: string;
+      occurredAt: string;
+      payload: EconomicEventPayloadV1;
+    },
+  ): Promise<string> {
+    const eventType = domainEventTypeForEconomicEvent(input.payload.eventKind);
+    return this.outboxRepository.append(
+      {
+        eventType,
+        aggregateType: input.aggregateType,
+        aggregateId: input.aggregateId,
+        payload: input.payload,
+        occurredAt: input.occurredAt,
+        idempotencyKey: economicEventIdempotencyKey({
+          eventKind: input.payload.eventKind,
+          sourceId: input.payload.sourceId,
+          reversesSourceId: input.payload.reversesSourceId,
+        }),
+      },
+      client,
+    );
+  }
+
   private async append(
     client: PoolClient,
     input: {
@@ -180,5 +224,50 @@ export class OutboxDomainEventWriter {
   ): Promise<void> {
     assertAuthorizationIndependentPayload(input.payload);
     await this.outboxRepository.append(input, client);
+  }
+}
+
+/** Mapa evento econômico → `evt.domain_event_type`. Exaustivo. */
+export function domainEventTypeForEconomicEvent(
+  eventKind: EconomicEventKind,
+): (typeof DOMAIN_EVENT_TYPES)[keyof typeof DOMAIN_EVENT_TYPES] {
+  switch (eventKind) {
+    case ECONOMIC_EVENT_KINDS.SettlementConfirmed:
+      return DOMAIN_EVENT_TYPES.SettlementConfirmed;
+    case ECONOMIC_EVENT_KINDS.SettlementReversed:
+      return DOMAIN_EVENT_TYPES.SettlementReversed;
+    case ECONOMIC_EVENT_KINDS.PaymentConfirmed:
+      return DOMAIN_EVENT_TYPES.PaymentConfirmed;
+    case ECONOMIC_EVENT_KINDS.PaymentReversed:
+      return DOMAIN_EVENT_TYPES.PaymentReversed;
+    // ── F1.2 ──────────────────────────────────────────────────────────────────
+    case ECONOMIC_EVENT_KINDS.FiscalDocumentAuthorized:
+      return DOMAIN_EVENT_TYPES.FiscalDocumentAuthorized;
+    case ECONOMIC_EVENT_KINDS.FiscalDocumentCancelled:
+      return DOMAIN_EVENT_TYPES.FiscalDocumentCancelled;
+    case ECONOMIC_EVENT_KINDS.TaxCalculationConfirmed:
+      return DOMAIN_EVENT_TYPES.TaxCalculationConfirmed;
+    case ECONOMIC_EVENT_KINDS.InventoryMovementPosted:
+      return DOMAIN_EVENT_TYPES.InventoryMovementPosted;
+    case ECONOMIC_EVENT_KINDS.PayrollClosed:
+      return DOMAIN_EVENT_TYPES.PayrollClosed;
+    case ECONOMIC_EVENT_KINDS.PayrollReopened:
+      return DOMAIN_EVENT_TYPES.PayrollReopened;
+    case ECONOMIC_EVENT_KINDS.ReceivableRecognized:
+    case ECONOMIC_EVENT_KINDS.PayableRecognized:
+      // Reconhecimento é derivado do BILLING_READY: não há tipo de transporte
+      // próprio, e criar um sem consumidor seria inventar vocabulário.
+      throw new Error(`UNSUPPORTED_ECONOMIC_EVENT_KIND:${eventKind}`);
+    case ECONOMIC_EVENT_KINDS.FixedAssetAcquired:
+    case ECONOMIC_EVENT_KINDS.FixedAssetDisposed:
+    case ECONOMIC_EVENT_KINDS.FixedAssetTransferred:
+    case ECONOMIC_EVENT_KINDS.FixedAssetDepreciated:
+      // O imobilizado posta DENTRO da própria transação contábil: o fato contábil e o
+      // journal são o MESMO comando, e não há atravessia de fronteira a fazer.
+      throw new Error(`UNSUPPORTED_ECONOMIC_EVENT_KIND:${eventKind}`);
+    default: {
+      const exhaustive: never = eventKind;
+      throw new Error(`UNSUPPORTED_ECONOMIC_EVENT_KIND:${String(exhaustive)}`);
+    }
   }
 }

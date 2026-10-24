@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+﻿import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
 import { classifyRowVersion } from '../../infrastructure/database/optimistic-lock';
@@ -28,6 +28,11 @@ import type {
   PaymentRow,
   ReversePaymentPersistenceInput,
 } from './payables.repository.types';
+import { EconomicEventLedgerRepository } from '../../platform/outbox/repositories/economic-event-ledger.repository';
+import {
+  ECONOMIC_EVENT_KINDS,
+  ECONOMIC_EVENT_SOURCE_KINDS,
+} from '../../platform/bounded-contexts/economic-event-contract';
 import {
   buildAgingBucketExpr,
   buildPayableAdvancedClause,
@@ -67,7 +72,10 @@ function toPosted(payments: PaymentRow[]): PostedPayment[] {
 
 @Injectable()
 export class PayablesRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly economicEvents: EconomicEventLedgerRepository,
+  ) {}
 
   private pool(): Pool {
     const connection = this.databaseService.getConnection();
@@ -623,6 +631,32 @@ export class PayablesRepository {
         [payable.id, input.actorIdentityId],
       );
 
+      // ───────────────────────────────────────────────────────────────────────────
+      // F1.1 — FATO ECONÔMICO NA MESMA FRONTEIRA TRANSACIONAL.
+      //
+      // A saída de caixa estava sendo confirmada sem que o ACCOUNTING soubesse. A
+      // partir daqui o PAYMENT_CONFIRMED entra na MESMA transação: ou o pagamento e
+      // o evento existem, ou nenhum dos dois.
+      // ───────────────────────────────────────────────────────────────────────────
+      const payment = inserted.rows[0]!;
+      await this.economicEvents.record(client, {
+        unitId: payable.unit_id,
+        eventKind: ECONOMIC_EVENT_KINDS.PaymentConfirmed,
+        sourceKind: ECONOMIC_EVENT_SOURCE_KINDS.Payment,
+        sourceId: payment.id,
+        amount: payment.amount,
+        currencyCode: payment.currency_code,
+        occurredOn: payment.paid_at,
+        actorIdentityId: input.actorIdentityId,
+        sourceReference: payment.payment_reference,
+        context: {
+          payableId: payable.id,
+          installmentId: payment.installment_id,
+          originKind: payable.origin_kind,
+          originId: payable.origin_id,
+        },
+      });
+
       await client.query('COMMIT');
       return { payable: updated.rows[0]!, payment: inserted.rows[0]!, idempotent: false };
     } catch (error) {
@@ -739,6 +773,33 @@ export class PayablesRepository {
          RETURNING ${PAYABLE_RETURNING}`,
         [payable.id, input.actorIdentityId],
       );
+
+      // F1.1 — ESTORNO DE PAGAMENTO É FATO NOVO E COMPENSATÓRIO.
+      //
+      // O pagamento original permanece intacto (kind=PAYMENT, seu valor, seu autor).
+      // O estorno é uma segunda linha (kind=REVERSAL, reverses_payment_id) e um
+      // segundo evento econômico. ACCOUNTING responde com journal de reversão; o
+      // journal original nunca é apagado nem reescrito.
+      const reversal = inserted.rows[0]!;
+      await this.economicEvents.record(client, {
+        unitId: payable.unit_id,
+        eventKind: ECONOMIC_EVENT_KINDS.PaymentReversed,
+        sourceKind: ECONOMIC_EVENT_SOURCE_KINDS.Payment,
+        sourceId: reversal.id,
+        amount: reversal.amount,
+        currencyCode: payable.currency_code,
+        occurredOn: reversal.paid_at,
+        actorIdentityId: input.actorIdentityId,
+        sourceReference: reversal.payment_reference,
+        reversesSourceId: source.id,
+        context: {
+          payableId: payable.id,
+          installmentId: reversal.installment_id,
+          reason: input.reason,
+          originKind: payable.origin_kind,
+          originId: payable.origin_id,
+        },
+      });
 
       await client.query('COMMIT');
       return { payable: updated.rows[0]!, payment: inserted.rows[0]!, idempotent: false };

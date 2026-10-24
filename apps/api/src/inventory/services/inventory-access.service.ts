@@ -52,7 +52,7 @@ import {
   type ReserveStockInput,
 } from '../domain/inventory.validation';
 import { InventoryRepository } from '../repositories/inventory.repository';
-import type { PersistMovementInput } from '../repositories/inventory.repository.types';
+import type { PersistMovementInput, StockMovementRow } from '../repositories/inventory.repository.types';
 import {
   toBalanceResponse,
   toCostingRuleResponse,
@@ -352,7 +352,7 @@ export class InventoryAccessService implements InventoryStockPort {
         validated.idempotencyKey,
       );
       if (existing.length > 0) {
-        await this.accountingIntegration.tryPostPostedMovements(actor, existing);
+        await this.accountingIntegration.postPostedMovement(actor, existing[0]!.id);
         const balance = await this.repository.getBalance(
           validated.warehouseId,
           validated.inventoryItemId,
@@ -369,7 +369,7 @@ export class InventoryAccessService implements InventoryStockPort {
         throw new InventoryError('INVENTORY_NOT_FOUND');
       }
       const movements = await this.persistPosted(actor, item, validated);
-      await this.accountingIntegration.tryPostPostedMovements(actor, movements);
+      await this.postAllMovements(actor, movements);
       await this.audit(actor, SECURITY_AUDIT_ACTIONS.InventoryMove, item.id, {
         movementType: validated.movementType,
         commandKey: validated.idempotencyKey,
@@ -506,7 +506,7 @@ export class InventoryAccessService implements InventoryStockPort {
       }
       const existing = await this.repository.findMovementsByCommand(unitId, reversalKey);
       if (existing.length > 0) {
-        await this.accountingIntegration.tryPostPostedMovements(actor, existing);
+        await this.accountingIntegration.postPostedMovement(actor, existing[0]!.id);
         const first = originals[0];
         const balance = await this.repository.getBalance(first!.warehouse_id, first!.inventory_item_id);
         return {
@@ -566,7 +566,7 @@ export class InventoryAccessService implements InventoryStockPort {
           return rows;
         },
       );
-      await this.accountingIntegration.tryPostPostedMovements(actor, reversed);
+      await this.postAllMovements(actor, reversed);
       const balance = await this.repository.getBalance(
         originals[0]!.warehouse_id,
         originals[0]!.inventory_item_id,
@@ -578,6 +578,25 @@ export class InventoryAccessService implements InventoryStockPort {
       };
     } catch (error) {
       throw mapInventoryDomainError(error);
+    }
+  }
+
+  /**
+   * F1.1 — posting de N movimentações com falha PROPAGADA.
+   *
+   * Substitui `tryPostPostedMovements`, que engolia a falha de cada linha. Aqui a
+   * primeira falha interrompe e sobe: não existe mais "movimentei 3 de 5 e o
+   * estoque ficou sem journal em 2 sem ninguém saber".
+   *
+   * A idempotência continua garantida pelo ACCOUNTING (`posting_requests` único por
+   * evento/fonte), então repetir a chamada após falha parcial NÃO duplica journal.
+   */
+  private async postAllMovements(
+    actor: IdentityAuthzContext,
+    movements: StockMovementRow[],
+  ): Promise<void> {
+    for (const movement of movements) {
+      await this.accountingIntegration.postPostedMovement(actor, movement.id);
     }
   }
 

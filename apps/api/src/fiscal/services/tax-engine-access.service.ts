@@ -271,7 +271,9 @@ export class TaxEngineAccessService {
         ruleVersionId: version.id,
         resultAmount: computed.resultAmount,
       });
-      await this.accountingIntegration.tryPostConfirmedTaxCalculation(actor, aggregate.calculation.id);
+      // F1.1 — falha de posting PROPAGA. Antes era `tryPostConfirmedTaxCalculation`,
+      // que engolia: o tributo era calculado e o journal podia não existir.
+      await this.accountingIntegration.postConfirmedTaxCalculation(actor, aggregate.calculation.id);
       return toTaxCalculationResponse(aggregate);
     } catch (error) {
       throw mapTaxEngineDomainError(error);

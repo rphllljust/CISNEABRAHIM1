@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+﻿import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
 import { classifyRowVersion } from '../../infrastructure/database/optimistic-lock';
@@ -22,6 +22,11 @@ import {
   RECONCILIATION_TARGET_KINDS,
 } from '../domain/bank-reconciliation';
 import { CollectionsRepository } from './collections.repository';
+import { EconomicEventLedgerRepository } from '../../platform/outbox/repositories/economic-event-ledger.repository';
+import {
+  ECONOMIC_EVENT_KINDS,
+  ECONOMIC_EVENT_SOURCE_KINDS,
+} from '../../platform/bounded-contexts/economic-event-contract';
 import {
   buildReceivableAdvancedClause,
   type ReceivableAdvancedFilter,
@@ -60,6 +65,7 @@ export class ReceivablesRepository {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly collections: CollectionsRepository,
+    private readonly economicEvents: EconomicEventLedgerRepository,
   ) {}
 
   private pool(): Pool {
@@ -486,6 +492,33 @@ export class ReceivablesRepository {
         actorIdentityId: input.actorIdentityId,
       });
 
+      // ───────────────────────────────────────────────────────────────────────────
+      // F1.1 — FATO ECONÔMICO NA MESMA FRONTEIRA TRANSACIONAL.
+      //
+      // Antes daqui o FINANCE confirmava a entrada de caixa e o ACCOUNTING nunca
+      // sabia: o journal do SETTLEMENT só existia se alguém chamasse posting
+      // manualmente. Agora o evento entra na transação; se o evento falhar, o
+      // settlement NÃO é confirmado, e vice-versa.
+      // ───────────────────────────────────────────────────────────────────────────
+      const settlement = inserted.rows[0]!;
+      await this.economicEvents.record(client, {
+        unitId: receivable.unit_id,
+        eventKind: ECONOMIC_EVENT_KINDS.SettlementConfirmed,
+        sourceKind: ECONOMIC_EVENT_SOURCE_KINDS.ReceivableSettlement,
+        sourceId: settlement.id,
+        amount: settlement.amount,
+        currencyCode: settlement.currency_code,
+        occurredOn: settlement.settled_at,
+        actorIdentityId: input.actorIdentityId,
+        sourceReference: receivable.external_reference,
+        context: {
+          receivableId: receivable.id,
+          clientId: receivable.client_id,
+          installmentId: settlement.installment_id,
+          dueDate: receivable.due_date,
+        },
+      });
+
       await client.query('COMMIT');
       return { receivable: updated.rows[0]!, settlement: inserted.rows[0]!, idempotent: false };
     } catch (error) {
@@ -591,6 +624,29 @@ export class ReceivablesRepository {
          RETURNING ${RECEIVABLE_RETURNING}`,
         [receivable.id, input.actorIdentityId],
       );
+
+      // F1.1 — ESTORNO É FATO NOVO, NUNCA DELETE/UPDATE DE HISTÓRIA.
+      //
+      // O settlement original permanece POSTED com seus valores e autor; o estorno é
+      // um segundo fato econômico que aponta para o primeiro. O ACCOUNTING reage com
+      // posting COMPENSATÓRIO, jamais apagando o journal original.
+      await this.economicEvents.record(client, {
+        unitId: receivable.unit_id,
+        eventKind: ECONOMIC_EVENT_KINDS.SettlementReversed,
+        sourceKind: ECONOMIC_EVENT_SOURCE_KINDS.ReceivableSettlement,
+        sourceId: reversed.rows[0]!.id,
+        amount: reversed.rows[0]!.amount,
+        currencyCode: receivable.currency_code,
+        occurredOn: reversed.rows[0]!.reversed_at ?? new Date().toISOString(),
+        actorIdentityId: input.actorIdentityId,
+        sourceReference: receivable.external_reference,
+        reversesSourceId: settlement.id,
+        context: {
+          receivableId: receivable.id,
+          clientId: receivable.client_id,
+          reason: input.reason,
+        },
+      });
 
       await client.query('COMMIT');
       return {

@@ -737,6 +737,17 @@ export class AccountingAccessService implements AccountingLedgerPort {
       }
       const sourceId = assertUuid(input.sourceId, 'sourceId');
       const actorIdentityId = assertUuid(input.actorIdentityId, 'actorIdentityId');
+      /**
+       * F1.1 — o estorno tem `eventKind` PRÓPRIO (`SETTLEMENT_REVERSED` /
+       * `PAYMENT_REVERSED`), então `findRequestByEvent(origin, eventKind, sourceId)`
+       * encontra o posting da COMPENSAÇÃO, nunca o do fato original. É o que torna
+       * este guard correto: se ele retorna `idempotent: true`, a compensação de fato
+       * já existe.
+       *
+       * Antes da correção, o estorno reusava o `eventKind` do fato original e este
+       * mesmo guard confundia os dois — devolvia "já postado" e a compensação
+       * contábil nunca era criada.
+       */
       const existing = await this.postingRepository.findRequestByEvent(originKind, eventKind, sourceId);
       if (existing?.status === POSTING_REQUEST_STATUSES.Posted && existing.journal_entry_id) {
         return {

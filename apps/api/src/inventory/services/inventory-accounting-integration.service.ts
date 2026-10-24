@@ -13,7 +13,6 @@ import {
 } from '../domain/inventory-accounting';
 import { InventoryError } from '../domain/inventory';
 import { InventoryRepository } from '../repositories/inventory.repository';
-import type { StockMovementRow } from '../repositories/inventory.repository.types';
 import { InventoryAccessAuthz } from './inventory-access.authz';
 
 @Injectable()
@@ -61,25 +60,15 @@ export class InventoryAccountingIntegrationService {
     });
   }
 
-  async tryPostPostedMovement(actor: IdentityAuthzContext, movementId: string): Promise<void> {
-    if (!this.accounting) {
-      return;
-    }
-    try {
-      await this.postPostedMovement(actor, movementId);
-    } catch {
-      return;
-    }
-  }
-
-  async tryPostPostedMovements(
-    actor: IdentityAuthzContext,
-    movements: StockMovementRow[],
-  ): Promise<void> {
-    for (const movement of movements) {
-      await this.tryPostPostedMovement(actor, movement.id);
-    }
-  }
+  /**
+   * F1.1 — REMOVIDOS: `tryPostPostedMovement` / `tryPostPostedMovements`.
+   *
+   * Eram `catch { return; }` sobre posting contábil obrigatório de movimentação com
+   * custo: o estoque era movimentado e o journal podia não existir, em silêncio.
+   *
+   * O chamador passa a usar `postPostedMovement`, que PROPAGA a falha. Nenhum
+   * substituto best-effort foi reintroduzido.
+   */
 
   private requireAccounting(): AccountingLedgerPort {
     if (!this.accounting) {

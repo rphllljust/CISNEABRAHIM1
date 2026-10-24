@@ -29,10 +29,25 @@ export function mapReceivableDomainError(error: unknown): FinanceHttpException {
     );
   }
   if (!(error instanceof ReceivableError)) {
+    /**
+     * F1.1 — A CAUSA ORIGINAL É PRESERVADA.
+     *
+     * Antes deste ajuste, qualquer falha de infraestrutura — inclusive uma falha ao
+     * gravar o fato econômico na outbox — chegava ao chamador como "Unexpected
+     * finance error." sem SQLSTATE, sem constraint e sem stack. Na F1.1 isso custou
+     * duas rodadas de diagnóstico: a causa real (`occurredOn.slice is not a function`,
+     * porque `timestamptz` chega como `Date`) estava invisível.
+     *
+     * `HttpException` aceita `cause`. Ela NÃO é serializada na resposta HTTP (o filtro
+     * publica status/código/mensagem), mas fica disponível para log, para a stack e
+     * para quem depura. Preservar a causa é o oposto de engolir a falha — é o que
+     * torna a falha diagnosticável sem vazar detalhe interno para o cliente.
+     */
     return new FinanceHttpException(
       HttpStatus.INTERNAL_SERVER_ERROR,
       FINANCE_ERROR_CODES.VALIDATION_FAILED,
       'Unexpected finance error.',
+      { cause: error },
     );
   }
   switch (error.code) {

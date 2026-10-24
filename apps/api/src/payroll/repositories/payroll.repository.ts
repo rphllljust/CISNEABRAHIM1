@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+﻿import { Injectable } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
 import { DatabaseService } from '../../infrastructure/database/database.service';
+import { EconomicEventLedgerRepository } from '../../platform/outbox/repositories/economic-event-ledger.repository';
 import { PayrollError } from '../domain/payroll';
 import type {
   EmploymentContractRow,
@@ -38,7 +39,14 @@ const RESULT_RETURNING = `
 
 @Injectable()
 export class PayrollRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    /**
+     * F1.2 — o fechamento de folha publica o fato econômico DENTRO da transação que o
+     * fecha. Antes o posting rodava depois do COMMIT, em outra transação.
+     */
+    private readonly economicEvents: EconomicEventLedgerRepository,
+  ) {}
 
   private pool(): Pool {
     const connection = this.databaseService.getConnection();
@@ -427,7 +435,9 @@ export class PayrollRepository {
        RETURNING ${PERIOD_RETURNING}`,
       [payrollPeriodId, actorIdentityId],
     );
-    return requiredRow(result.rows[0]);
+    const period = requiredRow(result.rows[0]);
+    // F1.2 — o fato econômico do fechamento entra na MESMA transação (ver payroll-access).
+    return period;
   }
 
   async markReopened(

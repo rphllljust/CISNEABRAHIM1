@@ -125,45 +125,22 @@ export class FiscalAccountingIntegrationService {
     });
   }
 
-  async tryPostAuthorizedDocument(
-    actor: IdentityAuthzContext,
-    fiscalDocumentId: string,
-  ): Promise<void> {
-    if (!this.accounting) {
-      return;
-    }
-    try {
-      await this.postAuthorizedDocument(actor, fiscalDocumentId);
-    } catch {
-      return;
-    }
-  }
-
-  async tryReverseCancelledDocument(
-    actor: IdentityAuthzContext,
-    fiscalDocumentId: string,
-    reason: string,
-  ): Promise<void> {
-    if (!this.accounting) {
-      return;
-    }
-    try {
-      await this.reverseCancelledDocument(actor, fiscalDocumentId, reason);
-    } catch {
-      return;
-    }
-  }
-
-  async tryPostConfirmedTaxCalculation(actor: IdentityAuthzContext, calculationId: string): Promise<void> {
-    if (!this.accounting) {
-      return;
-    }
-    try {
-      await this.postConfirmedTaxCalculation(actor, calculationId);
-    } catch {
-      return;
-    }
-  }
+  /**
+   * F1.1 — REMOVIDOS: `tryPostAuthorizedDocument`, `tryReverseCancelledDocument`,
+   * `tryPostConfirmedTaxCalculation`.
+   *
+   * Os três eram `catch { return; }` sobre uma operação contábil obrigatória: o
+   * documento fiscal era autorizado e o journal podia simplesmente não existir —
+   * sem erro, sem retry e sem nenhum registro diagnosticável. FISCAL não sabia, o
+   * operador não sabia, o fechamento não sabia.
+   *
+   * O caminho correto é o mesmo que FINANCE usa: o fato entra na transação do
+   * comando e é publicado na outbox; o ACCOUNTING decide o posting e a falha é
+   * VISÍVEL (retry com backoff ou FAILED com `last_error`). Este serviço mantém
+   * apenas as operações EXPLÍCITAS, que propagam a falha a quem chamou.
+   *
+   * Nenhum substituto best-effort foi reintroduzido.
+   */
 
   private requireAccounting(): AccountingLedgerPort {
     if (!this.accounting) {

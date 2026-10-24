@@ -83,6 +83,10 @@ const EXPECTED_TABLES = [
   'evt.domain_events',
   'evt.notification_intents',
   'plt.background_jobs',
+  // F1.1/F1.2 — ledger do FATO econômico. Vive na PLATAFORMA porque o vocabulário é
+  // comum a FINANCE/FISCAL/INVENTORY/PAYROLL/ASSETS; em `fin.*` obrigaria os outros
+  // domínios a ler o schema de FINANCE, o que a regra de fronteira proíbe.
+  'plt.economic_events',
   'evt.outbox_events',
   'int.integration_inbox',
   'int.integration_inbox_effects',
@@ -278,6 +282,11 @@ const EXPECTED_READ_CONTRACTS = [
   'rpt.read_collection_actions',
   'rpt.read_collection_promises',
   'rpt.read_collection_history',
+  // F1.1/F1.2 — contratos publicados que a TRILHA ECONÔMICA lê. A trilha nunca alcança
+  // as tabelas privadas de FINANCE/ACCOUNTING; ela compõe a cadeia por estes contratos.
+  'rpt.read_economic_events',
+  'rpt.read_accounting_posting_requests',
+  'rpt.read_outbox_events',
 ];
 
 function adminConnectionString() {
@@ -1322,6 +1331,82 @@ async function assertPreDeltaState(connectionString, deltaFile) {
       if (existing.rows[0]?.reg !== null) {
         throw new Error(
           'Incremental baseline already contains plt.saved_views before 0103',
+        );
+      }
+      return;
+    }
+
+    /*
+      0104_economic_events — cria o ledger de fatos econômicos (`fin.economic_events`), os
+      valores de enum do transporte e as views de contrato publicado que a trilha econômica lê.
+
+      O baseline (N-1) tem de estar SEM a tabela. Se ela já existisse, o gate não provaria nada
+      e `syncDrizzleJournal` registraria a migration como aplicada sem evidência.
+    */
+    if (deltaFile === '0104_economic_events.sql') {
+      const existing = await client.query(
+        `SELECT to_regclass('fin.economic_events') AS reg`,
+      );
+      if (existing.rows[0]?.reg !== null) {
+        throw new Error(
+          'Incremental baseline already contains fin.economic_events before 0104',
+        );
+      }
+      return;
+    }
+
+    /*
+      0105_platform_economic_events — o ledger do fato econômico sobe de `fin.*` para `plt.*`.
+
+      O fato econômico é vocabulário comum a FINANCE/FISCAL/INVENTORY/PAYROLL/ASSETS: guardá-lo
+      em `fin.*` obrigava todo outro domínio a ler o schema de FINANCE, o que a regra de fronteira
+      proíbe. O baseline tem de conter a tabela ANTIGA (é dela que a migration migra as linhas) e
+      NÃO pode conter a nova — senão não há migração a provar.
+    */
+    if (deltaFile === '0105_platform_economic_events.sql') {
+      const legacy = await client.query(`SELECT to_regclass('fin.economic_events') AS reg`);
+      if (legacy.rows[0]?.reg === null) {
+        throw new Error(
+          'Incremental baseline is missing fin.economic_events before 0105 (nothing to migrate)',
+        );
+      }
+      const target = await client.query(`SELECT to_regclass('plt.economic_events') AS reg`);
+      if (target.rows[0]?.reg !== null) {
+        throw new Error(
+          'Incremental baseline already contains plt.economic_events before 0105',
+        );
+      }
+      return;
+    }
+
+    /*
+      0106_published_read_contracts_refresh — recria as views `rpt.read_*` de FINANCE com
+      paridade de COLUNAS em relação às tabelas de origem.
+
+      Este delta existe justamente porque uma migration anterior adicionou colunas às tabelas
+      sem recriar as views. Então a asserção do baseline é o INVERSO do habitual: a view precisa
+      existir e estar DEFASADA (sem as colunas de estorno). Se o baseline já tivesse as colunas,
+      não haveria defeito a corrigir e o gate não provaria nada.
+    */
+    if (deltaFile === '0106_published_read_contracts_refresh.sql') {
+      const existing = await client.query(
+        `SELECT to_regclass('rpt.read_settlements') AS reg`,
+      );
+      if (existing.rows[0]?.reg === null) {
+        throw new Error(
+          'Incremental baseline is missing rpt.read_settlements before 0106',
+        );
+      }
+      const stale = await client.query(
+        `SELECT column_name
+           FROM information_schema.columns
+          WHERE table_schema = 'rpt'
+            AND table_name = 'read_settlements'
+            AND column_name = 'reversed_at'`,
+      );
+      if (stale.rows.length > 0) {
+        throw new Error(
+          'Incremental baseline rpt.read_settlements already has reversed_at before 0106 (no drift to repair)',
         );
       }
       return;

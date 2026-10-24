@@ -1,6 +1,12 @@
-import { Injectable } from '@nestjs/common';
+﻿import { Injectable } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
 import { DatabaseService } from '../../infrastructure/database/database.service';
+import { EconomicEventLedgerRepository } from '../../platform/outbox/repositories/economic-event-ledger.repository';
+import {
+  ECONOMIC_EVENT_KINDS,
+  ECONOMIC_EVENT_SOURCE_KINDS,
+} from '../../platform/bounded-contexts/economic-event-contract';
+import { INVENTORY_ACCOUNTING_CURRENCY } from '../domain/inventory-accounting';
 import { publishedWindowsOverlap } from '../domain/costing';
 import { InventoryError } from '../domain/inventory';
 import type {
@@ -57,7 +63,14 @@ const MOVEMENT_RETURNING_ALIASED = `
 
 @Injectable()
 export class InventoryRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    /**
+     * F1.2 — movimentação com custo publica o fato econômico DENTRO da transação que
+     * a grava. Antes o posting era chamado depois do COMMIT, em outra transação.
+     */
+    private readonly economicEvents: EconomicEventLedgerRepository,
+  ) {}
 
   private pool(): Pool {
     const connection = this.databaseService.getConnection();
@@ -554,6 +567,48 @@ export class InventoryRepository {
         const row = await this.insertMovement(client, input);
         inserted.push(row);
       }
+
+      /**
+       * F1.2 — FATO ECONÔMICO NA MESMA TRANSAÇÃO da movimentação.
+       *
+       * Só movimentação com CUSTO é fato econômico: sem custo não há valor a
+       * contabilizar e o evento não deve existir (em vez de publicar zero, que
+       * ACCOUNTING teria de recusar). O posting deixou de ser chamado depois do
+       * COMMIT — se o processo caísse no intervalo, o estoque movimentava sem journal.
+       */
+      for (const [index, movement] of inserted.entries()) {
+        const totalCost = movement.total_cost;
+        if (!totalCost || Number(totalCost) <= 0) {
+          continue;
+        }
+        // O ator vem do INPUT do comando: `StockMovementRow` não publica coluna de
+        // autor, e inventar um id aqui corromperia a trilha de auditoria.
+        const actorIdentityId = inputs[index]?.actorIdentityId;
+        if (!actorIdentityId) {
+          // Sem ator nao ha trilha: recusar e melhor que gravar fato orfao de autor.
+          throw new InventoryError('INVENTORY_MOVEMENT_ACTOR_REQUIRED');
+        }
+        await this.economicEvents.record(client, {
+          unitId: movement.unit_id,
+          eventKind: ECONOMIC_EVENT_KINDS.InventoryMovementPosted,
+          sourceKind: ECONOMIC_EVENT_SOURCE_KINDS.InventoryMovement,
+          sourceId: movement.id,
+          amount: totalCost,
+          currencyCode: INVENTORY_ACCOUNTING_CURRENCY,
+          occurredOn: movement.occurred_on,
+          actorIdentityId,
+          sourceReference: movement.idempotency_key,
+          context: {
+            inventoryItemId: movement.inventory_item_id,
+            warehouseId: movement.warehouse_id,
+            movementType: movement.movement_type,
+            quantity: movement.quantity,
+            originKind: movement.origin_kind,
+            costingRuleVersionId: movement.costing_rule_version_id,
+          },
+        });
+      }
+
       await client.query('COMMIT');
       return inserted;
     } catch (error) {

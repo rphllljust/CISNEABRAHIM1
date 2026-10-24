@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+﻿import { HttpStatus, Injectable } from '@nestjs/common';
 import { AUTHZ_ERROR_CODES } from '../../authorization/errors/authz-error-codes';
 import { AuthzHttpException } from '../../authorization/errors/authz-http.exception';
 import {
@@ -14,6 +14,16 @@ import { SodEnforcementService } from '../../authorization/services/sod-enforcem
 import { SOD_DUTIES, resolveSodScope } from '../../authorization/domain/segregation-of-duties';
 import type { PayrollContractPort } from '../../platform/bounded-contexts/enterprise-core-ports';
 import { assertUuid } from '../../platform/kernel/uuid';
+import { EconomicEventLedgerRepository } from '../../platform/outbox/repositories/economic-event-ledger.repository';
+import {
+  ECONOMIC_EVENT_KINDS,
+  ECONOMIC_EVENT_SOURCE_KINDS,
+} from '../../platform/bounded-contexts/economic-event-contract';
+import {
+  PAYROLL_ACCOUNTING_CURRENCY,
+  payrollClosedPostingAmount,
+  payrollCompetenceReference,
+} from '../domain/payroll-accounting';
 import {
   PAYROLL_PERIOD_STATUSES,
   PayrollError,
@@ -65,6 +75,8 @@ export class PayrollAccessService implements PayrollContractPort {
     private readonly securityAudit: SecurityAuditService,
     private readonly accountingIntegration: PayrollAccountingIntegrationService,
     private readonly sod: SodEnforcementService,
+    /** F1.2 — publica o fato econômico do fechamento na transação que o fecha. */
+    private readonly economicEvents: EconomicEventLedgerRepository,
   ) {}
 
   async createContract(
@@ -260,7 +272,8 @@ export class PayrollAccessService implements PayrollContractPort {
         });
       }
       const closed = await this.closeLockedPeriod(periodId, unitId, actor.identityId);
-      await this.accountingIntegration.tryPostClosedPeriod(actor, periodId);
+      // F1.2 — o posting não é chamado aqui: o fato é publicado dentro da transação
+      // de closeLockedPeriod e ACCOUNTING consome pela outbox.
       await this.securityAudit.record({
         actorIdentityId: actor.identityId,
         actorSessionId: actor.sessionId,
@@ -311,7 +324,7 @@ export class PayrollAccessService implements PayrollContractPort {
         assertPeriodCanReopen(period.status);
         return this.repository.markReopened(client, periodId, actor.identityId);
       });
-      await this.accountingIntegration.tryReverseReopenedPeriod(
+      await this.accountingIntegration.reverseReopenedPeriod(
         actor,
         periodId,
         'Payroll competence reopened',
@@ -441,11 +454,50 @@ export class PayrollAccessService implements PayrollContractPort {
         return period;
       }
       assertPeriodCanClose(period.status);
-      return this.repository.markClosed(
-        client,
-        payrollPeriodId,
-        actorIdentityId ?? period.created_by_identity_id,
+      const actor = actorIdentityId ?? period.created_by_identity_id;
+      const closed = await this.repository.markClosed(client, payrollPeriodId, actor);
+
+      /**
+       * F1.2 — FATO ECONÔMICO NA MESMA TRANSAÇÃO DO FECHAMENTO.
+       *
+       * Antes: `markClosed` commitava e o posting rodava depois, em outra transação.
+       * Se o processo caísse no intervalo, a competência ficava fechada sem journal e
+       * sem evento — invisível, irrecuperável pela fila.
+       *
+       * O valor é o MESMO que o posting usava: soma dos ganhos + encargos
+       * empregador dos resultados mais recentes. Sem esse valor não há folha a
+       * contabilizar, e o fato não é publicado (em vez de publicar zero).
+       */
+      const results = await this.repository.listLatestResults(closed.id);
+      const amount = payrollClosedPostingAmount(
+        results.map((result) => ({
+          earningTotal: result.earning_total,
+          employerChargeTotal: result.employer_charge_total,
+        })),
       );
+      if (amount && Number(amount) > 0) {
+        await this.economicEvents.record(client, {
+          unitId: closed.unit_id,
+          eventKind: ECONOMIC_EVENT_KINDS.PayrollClosed,
+          sourceKind: ECONOMIC_EVENT_SOURCE_KINDS.PayrollPeriod,
+          sourceId: closed.id,
+          amount,
+          currencyCode: PAYROLL_ACCOUNTING_CURRENCY,
+          occurredOn: closed.ends_on,
+          actorIdentityId: actor,
+          sourceReference: payrollCompetenceReference({
+            unitId: closed.unit_id,
+            competenceYear: Number(closed.competence_year),
+            competenceMonth: Number(closed.competence_month),
+          }),
+          context: {
+            competenceYear: Number(closed.competence_year),
+            competenceMonth: Number(closed.competence_month),
+          },
+        });
+      }
+
+      return closed;
     });
   }
 
