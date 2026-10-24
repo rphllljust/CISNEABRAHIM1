@@ -199,6 +199,7 @@ jobs:
         run: node scripts/cd/coolify-deploy.mjs
 
       - name: Verify production runtime and authenticated smoke
+        id: prod-smoke
         env:
           COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
@@ -208,4 +209,43 @@ jobs:
           COOLIFY_SOURCE_SHA: ${{ needs.release-authority.outputs.source_sha }}
           PROD_SMOKE_LOGIN: ${{ secrets.PROD_SMOKE_LOGIN }}
           PROD_SMOKE_PASSWORD: ${{ secrets.PROD_SMOKE_PASSWORD }}
-        run: node scripts/cd/coolify-postdeploy-smoke.mjs
+        # `tee` preserva a saida no log E permite extrair a URL publica do Web para o
+        # gate de browser. A URL so existe aqui: ela vem do Coolify via secret.
+        run: |
+          set -euo pipefail
+          node scripts/cd/coolify-postdeploy-smoke.mjs | tee smoke.log
+          WEB_URL=$(sed -n 's/.*\[coolify-postdeploy\] web-url=//p' smoke.log | tail -1)
+          test -n "$WEB_URL"
+          echo "web_url=$WEB_URL" >> "$GITHUB_OUTPUT"
+
+      # ───────────────────────────────────────────────────────────────────────────────
+      # BROWSER GATE DE PRODUCAO
+      # ───────────────────────────────────────────────────────────────────────────────
+      #
+      # O smoke acima prova o RUNTIME (build servido, runtime-config, CORS, login por
+      # fetch). Ele NAO executa JavaScript de aplicacao: nao monta o React, nao resolve a
+      # navegacao por permissao, nao carrega chunk de rota preguicosa.
+      #
+      # Este step abre um Chromium real contra o dominio publico e exige a cadeia
+      # operacional: login pelo formulario -> App Shell -> Controladoria -> Contabilizacao
+      # -> fila -> trilha economica. E a unica prova de que a INTERFACE funciona no
+      # runtime real, e ele REPROVA o release quando nao funciona.
+      - name: Browser gate against production
+        env:
+          CISNE_PROD_WEB_URL: ${{ steps.prod-smoke.outputs.web_url }}
+          PROD_SMOKE_LOGIN: ${{ secrets.PROD_SMOKE_LOGIN }}
+          PROD_SMOKE_PASSWORD: ${{ secrets.PROD_SMOKE_PASSWORD }}
+          BROWSER_GATE_OUT: artifacts/browser-gate
+        run: |
+          set -euo pipefail
+          pnpm exec playwright install --with-deps chromium
+          node scripts/cd/coolify-browser-gate.mjs
+
+      - name: Upload browser gate evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-gate-${{ needs.release-authority.outputs.source_sha }}
+          path: artifacts/browser-gate
+          if-no-files-found: warn
+          retention-days: 14

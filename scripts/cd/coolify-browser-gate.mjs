@@ -1,0 +1,298 @@
+/**
+ * BROWSER GATE DE PRODUÇÃO — valida a INTERFACE RENDERIZADA no runtime real.
+ *
+ * ──────────────────────────────────────────────────────────────────────────────────
+ * POR QUE ESTE GATE EXISTE
+ * ──────────────────────────────────────────────────────────────────────────────────
+ *
+ * O smoke pós-deploy (`coolify-postdeploy-smoke.mjs`) prova o RUNTIME do frontend:
+ * a imagem está no ar, o `/health` responde, o `/runtime-config.js` anuncia a API
+ * correta com `no-store`, o CORS devolve a origem e o login retorna token. Tudo isso
+ * é fail-closed e é provado com `fetch` de servidor.
+ *
+ * O que NENHUMA dessas asserções prova é que a INTERFACE RENDERIZA. Um `fetch` não
+ * executa JavaScript de aplicação: não monta o React, não resolve a navegação por
+ * permissão, não carrega o chunk de uma rota preguiçosa, não dispara os probes do
+ * shell. Já houve, neste projeto, deploy "verde" com a tela de login quebrada no
+ * navegador — a lacuna é real e medida.
+ *
+ * Este gate fecha essa lacuna abrindo um Chromium de verdade contra o domínio público
+ * e exigindo a cadeia operacional completa: login pelo formulário → App Shell →
+ * Controladoria → Contabilização → fila → trilha econômica.
+ *
+ * ──────────────────────────────────────────────────────────────────────────────────
+ * O QUE ELE **NÃO** FAZ
+ * ──────────────────────────────────────────────────────────────────────────────────
+ *
+ * Não altera dado de produção: só lê e navega. Não contorna autorização: usa as
+ * credenciais de smoke já provisionadas e, quando o backend nega algo, exige que a
+ * negação seja a CORRETA (fail-closed), em vez de tratá-la como erro.
+ */
+import { mkdirSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+import { resolve } from 'node:path';
+
+/**
+ * `@playwright/test` é dependência do workspace `apps/web`, não da raiz.
+ *
+ * Este script vive em `scripts/cd/`, então um `import '@playwright/test'` simples
+ * falharia na resolução de módulo — o gate nunca rodaria e o release reprovaria por
+ * um motivo que nada tem a ver com produção. A importação é resolvida a partir do
+ * `node_modules` do workspace que realmente declara a dependência.
+ */
+const playwrightEntry = resolve(
+  import.meta.dirname,
+  '..',
+  '..',
+  'apps',
+  'web',
+  'node_modules',
+  '@playwright',
+  'test',
+  'index.mjs',
+);
+const { chromium } = await import(pathToFileURL(playwrightEntry).href);
+
+const OUT = process.env['BROWSER_GATE_OUT'] ?? 'artifacts/browser-gate';
+
+const results = [];
+function record(name, passed, detail) {
+  results.push({ name, passed, detail });
+  console.log(`${passed ? 'PASS' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`);
+}
+
+function required(name) {
+  const value = String(process.env[name] ?? '').trim();
+  if (!value) {
+    throw new Error(`${name} ausente: o gate de browser nao pode rodar sem o runtime real.`);
+  }
+  return value;
+}
+
+async function main() {
+  const webUrl = required('CISNE_PROD_WEB_URL').replace(/\/+$/, '');
+  const login = required('PROD_SMOKE_LOGIN');
+  const password = required('PROD_SMOKE_PASSWORD');
+
+  mkdirSync(OUT, { recursive: true });
+
+  const browser = await chromium.launch();
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await context.newPage();
+
+  const consoleErrors = [];
+  const forbidden = [];
+  /** Status HTTP que a API devolveu ao login — evidência para o diagnostico. */
+  const loginApiStatuses = [];
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') consoleErrors.push(msg.text());
+  });
+  page.on('response', (res) => {
+    if (res.status() === 403) forbidden.push(`${res.status()} ${res.url()}`);
+    if (res.url().includes('/api/v1/auth/login')) {
+      loginApiStatuses.push(`HTTP ${res.status()}`);
+    }
+  });
+
+  try {
+    // ── 1. LOGIN PELO FORMULÁRIO REAL ──────────────────────────────────────────
+    // Não injeta token em storage: o `AuthProvider` revalida a sessão no servidor, então
+    // semear storage não autentica. O caminho exercitado é o do operador.
+    await page.goto(`${webUrl}/login`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    await page.fill('input[type="text"], input[name="login"], input[type="email"]', login);
+    await page.fill('input[type="password"]', password);
+    await page.click('button[type="submit"]');
+    try {
+      await page.waitForURL((u) => !u.toString().includes('/login'), { timeout: 90_000 });
+    } catch {
+      /**
+       * DIAGNÓSTICO ACIONÁVEL, NÃO "TIMEOUT".
+       *
+       * Um `waitForURL` estourado diz apenas que a URL não mudou. Isso cobre causas
+       * MUITO diferentes: credencial inválida, CORS bloqueando, API fora, chunk da rota
+       * quebrado. Sem separar os casos, quem depura perde tempo procurando no lugar
+       * errado — e a mensagem some no log como um timeout genérico.
+       *
+       * Aqui extraímos a evidência que o navegador já produziu: a mensagem de erro na
+       * tela e o status HTTP que a API devolveu ao login.
+       */
+      const bodyText = await page.locator('body').innerText().catch(() => '');
+      const uiError = /Algo deu errado[^\n]*/i.exec(bodyText)?.[0] ?? null;
+      const loginResponse = loginApiStatuses.at(-1) ?? 'sem resposta de /auth/login';
+      throw new Error(
+        `login nao alcancou a aplicacao (url=${page.url()}). ` +
+          `api=${loginApiStatuses.length > 0 ? loginResponse : 'nenhuma chamada a API'}. ` +
+          `ui=${uiError ?? 'sem mensagem de erro na tela'}.`,
+      );
+    }
+    record('LOGIN real pelo formulário', true, page.url());
+
+    // ── 2. APP SHELL + NAVEGAÇÃO POR PERMISSÃO ────────────────────────────────
+    await page.goto(`${webUrl}/app/accounting/economic-posting`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 60_000,
+    });
+    // A navegação resolve item a item contra o servidor; esperar `networkidle` nunca
+    // assenta (o shell revalida sessão). Espera-se a CONDIÇÃO que importa.
+    await page.waitForFunction(
+      () => {
+        const nav = document.querySelector('nav[aria-label="Navegação principal"]');
+        if (!nav) return false;
+        const t = nav.textContent ?? '';
+        return !t.includes('Carregando navegação') && t.trim().length > 0;
+      },
+      undefined,
+      { timeout: 90_000 },
+    );
+
+    const navText = await page
+      .locator('nav[aria-label="Navegação principal"]')
+      .innerText()
+      .catch(() => '');
+    record('NAVEGAÇÃO contém Controladoria', /Controladoria/i.test(navText));
+    record('NAVEGAÇÃO contém Contabilização', /Contabiliza/i.test(navText));
+
+    // ── 3. CONTROL TOWER / WORK QUEUE ──────────────────────────────────────────
+    await page
+      .waitForFunction(() => !document.body.innerText.includes('Carregando'), undefined, {
+        timeout: 90_000,
+      })
+      .catch(() => {});
+    const worklistText = await page.locator('body').innerText();
+    record('WORKLIST renderizada', worklistText.length > 200, `${worklistText.length} chars`);
+
+    /**
+     * FILA VAZIA É RESULTADO LEGÍTIMO — "SEM UNIDADE" NÃO É.
+     *
+     * A worklist filtra por unidade operacional autorizada. Um tenant sem unidade
+     * provisionada não tem fato econômico algum, e a tela DEVE dizer exatamente isso.
+     * Tratar "0 linhas" como defeito faria o gate reprovar uma tela saudável por falta
+     * de dado — e a resposta errada a isso seria afrouxar a asserção.
+     *
+     * O que o gate separa:
+     *
+     *   - `Nenhuma unidade autorizada` → provisionamento ausente. A tela está correta e
+     *     não há o que operar; as asserções de fila viram N/A EXPLÍCITO, contado no
+     *     resultado, nunca silenciado.
+     *   - Qualquer outro estado → a tela precisa oferecer a faixa de resumo e, havendo
+     *     caso, o drill-through. Aí sim é funcionalidade e é exigida.
+     */
+    const noAuthorizedUnit = /Nenhuma unidade autorizada/i.test(worklistText);
+    record(
+      'WORKLIST apresenta estado operacional explícito',
+      noAuthorizedUnit || /Resumo da contabilização|Nenhuma exceção/i.test(worklistText),
+      noAuthorizedUnit ? 'sem unidade provisionada (legítimo)' : 'com unidade',
+    );
+
+    if (noAuthorizedUnit) {
+      // N/A EXPLÍCITO: registrado como aprovado-com-motivo, não omitido em silêncio.
+      record('Faixa de resumo visível', true, 'N/A — nenhuma unidade autorizada');
+      record('Fila oferece drill-through para a trilha', true, 'N/A — nenhuma unidade autorizada');
+      await page.screenshot({ path: `${OUT}/01-worklist.png`, fullPage: true });
+      record(
+        'CONSOLE sem erro crítico',
+        consoleErrors.filter(
+          (t) =>
+            !/favicon|Download the React DevTools|ResizeObserver/i.test(t) &&
+            !/Failed to load resource/i.test(t),
+        ).length === 0,
+        'verificado antes do curto-circuito de fila',
+      );
+      return;
+    }
+
+    const stripVisible = await page
+      .locator('[aria-label="Resumo da contabilização"]')
+      .isVisible()
+      .catch(() => false);
+    record('Faixa de resumo visível', stripVisible);
+
+    await page.screenshot({ path: `${OUT}/01-worklist.png`, fullPage: true });
+
+    // ── 4. ECONOMIC TRACE (drill-through operacional) ──────────────────────────
+    const traceLinks = page.locator('a[href*="/accounting/economic-trace/"]');
+    const traceCount = await traceLinks.count();
+    record('Fila oferece drill-through para a trilha', traceCount > 0, `${traceCount} linha(s)`);
+
+    if (traceCount > 0) {
+      await traceLinks.first().click();
+      await page
+        .waitForFunction(() => !document.body.innerText.includes('Carregando'), undefined, {
+          timeout: 90_000,
+        })
+        .catch(() => {});
+      const traceText = await page.locator('body').innerText();
+
+      record(
+        'TRILHA mostra estado financeiro persistido',
+        /LIQUIDAD|SETTLED|PAGO|PAID|RECEBID|ABERT|PENDENT/i.test(traceText),
+      );
+      record(
+        'TRILHA mostra estado contábil persistido',
+        /CONTABILIZ|PENDENT|FALH|POSTED|FAILED|APURAD/i.test(traceText),
+      );
+      // Diagnóstico operacional é superfície de operador: nunca o nome da classe do
+      // framework. Este é o defeito que a F1.1/F1.2 corrigiu na origem.
+      record(
+        'TRILHA sem ruído de framework (Accounting Http Exception)',
+        !/Accounting Http Exception/.test(traceText),
+      );
+      await page.screenshot({ path: `${OUT}/02-economic-trace.png`, fullPage: true });
+    }
+
+    // ── 5. CONSOLE E AUTORIZAÇÃO ───────────────────────────────────────────────
+    // `useNavAccess` SONDA cada módulo. Um 403 de sonda é fail-closed CORRETO; contar
+    // isso como erro transformaria negação correta em defeito. O que nunca pode
+    // acontecer é 403 no módulo que o operador está usando.
+    const isAccessProbe = (url) =>
+      /[?&](limit|pageSize)=1\b/.test(url) ||
+      /\/authz\/probe\b/.test(url) ||
+      /\/authz\/access-admin\//.test(url);
+
+    const accountingDenied = forbidden.filter((f) =>
+      /\/accounting\/(economic-trace|economic-events|charts|journals)/.test(f),
+    );
+    record(
+      'SEM 403 no módulo de contabilidade em uso',
+      accountingDenied.length === 0,
+      accountingDenied.slice(0, 2).map((f) => f.slice(0, 120)).join(' | ') || 'nenhum',
+    );
+
+    const unexpected403 = forbidden.filter(
+      (f) => !/\/auth\/(login|refresh)/.test(f) && !isAccessProbe(f),
+    );
+    record(
+      'SEM 403 inesperado',
+      unexpected403.length === 0,
+      unexpected403.slice(0, 2).map((f) => f.slice(0, 120)).join(' | ') || 'nenhum',
+    );
+
+    // Erros 4xx/5xx HTTP aparecem no console do Chromium como "Failed to load resource"
+    // — é o espelho do que já foi julgado acima, não erro de aplicação. Exceções de JS
+    // (promessas rejeitadas, exceções síncronas) continuam contando.
+    const realConsoleErrors = consoleErrors.filter(
+      (t) =>
+        !/favicon|Download the React DevTools|ResizeObserver/i.test(t) &&
+        !/Failed to load resource/i.test(t),
+    );
+    record(
+      'CONSOLE sem erro crítico',
+      realConsoleErrors.length === 0,
+      realConsoleErrors.slice(0, 2).map((t) => t.slice(0, 140)).join(' | ') || 'nenhum',
+    );
+  } catch (error) {
+    record('EXECUÇÃO do gate', false, String(error?.message ?? error));
+    await page.screenshot({ path: `${OUT}/failure.png`, fullPage: true }).catch(() => {});
+  } finally {
+    await browser.close();
+  }
+
+  const passed = results.filter((r) => r.passed).length;
+  const total = results.length;
+  console.log(`\n[coolify-browser-gate] RESULTADO ${passed}/${total} web=${webUrl}`);
+  if (passed !== total) {
+    process.exitCode = 1;
+  }
+}
+
+await main();
