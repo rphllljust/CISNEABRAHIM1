@@ -80,7 +80,6 @@ export async function truncateServiceOrderTables(client: DbClient): Promise<void
   await client.query('DELETE FROM so.execution_entry_history_events');
   await client.query('DELETE FROM so.operational_cost_entries');
   await client.query('DELETE FROM so.execution_occurrences');
-  await client.query('DELETE FROM so.execution_occurrences');
   /**
    * DISPATCH + EXECUTION + ACTUALS (0107) — filhos de `so.service_orders` que
    * chegaram depois e TODOS com FK RESTRICT.
