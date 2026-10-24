@@ -230,6 +230,29 @@ jobs:
       # operacional: login pelo formulario -> App Shell -> Controladoria -> Contabilizacao
       # -> fila -> trilha economica. E a unica prova de que a INTERFACE funciona no
       # runtime real, e ele REPROVA o release quando nao funciona.
+      # ───────────────────────────────────────────────────────────────────────────────
+      # DEPENDENCIAS DE VALIDACAO (Playwright) PARA O BROWSER GATE
+      # ───────────────────────────────────────────────────────────────────────────────
+      #
+      # O job do release baixa o ARTIFACT imutavel ja autorizado; ele NAO instala
+      # dependencias de workspace (medido: `Cannot find module '@playwright/test'`).
+      # Playwright e o Chromium sao ferramenta de VALIDACAO, nao de runtime publicado —
+      # instalar aqui mantem a imagem publicada intocada.
+      #
+      # `pnpm/action-setup` e obrigatorio: sem ele o binario `pnpm` nao existe no PATH
+      # deste job (foi o defeito do release 40104324422, `pnpm: command not found`).
+      # Declarar a action e a forma deterministica de garantir o binario.
+      - name: Setup pnpm (browser gate)
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js (browser gate)
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+
+      - name: Install validation dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter @cisne/web...
+
       - name: Browser gate against production
         env:
           CISNE_PROD_WEB_URL: ${{ steps.prod-smoke.outputs.web_url }}

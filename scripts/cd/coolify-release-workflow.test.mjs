@@ -67,18 +67,52 @@ function runBlocks(source) {
 }
 
 describe('coolify-release.yml — comandos de shell portaveis', () => {
-  it('nao invoca `pnpm` dentro de step que nao configura o proprio PATH', () => {
-    const offending = runBlocks(readWorkflow()).filter((block) =>
-      /(^|\n)\s*pnpm\s/.test(block),
-    );
-    // Os steps que usam pnpm declaram `pnpm/action-setup` antes. Se um bloquear o outro,
-    // este teste fica vermelho em vez de o release falhar em producao.
-    for (const block of offending) {
-      assert.ok(
-        /corepack|pnpm\/action-setup|PNPM_HOME/.test(block),
-        `bloco usa pnpm sem configurar o PATH:\n${block}`,
-      );
+  it('todo `pnpm` do workflow tem `pnpm/action-setup` no mesmo job', () => {
+    /**
+     * A regra é do JOB, não do bloco: `pnpm/action-setup` exporta o binário para os
+     * steps SEGUINTES do mesmo job. O defeito real (release 40104324422) foi exatamente
+     * um job do release SEM setup nenhum chamando `pnpm` — `command not found`, exit 127.
+     *
+     * Verificar bloco a bloco daria falso negativo quando o pnpm está instalado por um
+     * step anterior do mesmo job, e falso positivo quando o setup existe em outro job.
+     */
+    const source = readWorkflow();
+    const usesPnpm = runBlocks(source).some((block) => /(^|\n)\s*pnpm\s/.test(block));
+    if (!usesPnpm) {
+      return;
     }
+    assert.match(
+      source,
+      /pnpm\/action-setup@v\d+/,
+      'o workflow usa pnpm e precisa declarar pnpm/action-setup (senao o binario nao existe no PATH)',
+    );
+  });
+
+  it('o job que roda o browser gate instala as dependencias antes', () => {
+    const source = readWorkflow();
+    /**
+     * DEFEITO REAL: o job do release baixa o artifact imutavel e NAO instala
+     * dependencias de workspace. O gate reprovou com
+     * `Cannot find module '@playwright/test'` — a ferramenta de validacao simplesmente
+     * nao existia ali. Setup do pnpm e do Node sao obrigatorios: sem eles o binario
+     * `pnpm` nao esta no PATH (defeito do release 40104324422).
+     */
+    assert.match(source, /pnpm\/action-setup@v\d+/, 'falta o setup do pnpm');
+    assert.match(source, /actions\/setup-node@v\d+/, 'falta o setup do Node.js');
+    assert.match(
+      source,
+      /pnpm install --frozen-lockfile[^\n]*--filter @cisne\/web/,
+      'o gate depende de @playwright/test: as dependencias do workspace precisam ser instaladas',
+    );
+
+    // A instalacao precisa vir ANTES do gate, senao o modulo continua ausente.
+    const installIndex = source.indexOf('Install validation dependencies');
+    const gateIndex = source.indexOf('Browser gate against production');
+    assert.ok(installIndex > 0 && gateIndex > 0, 'steps do gate ausentes');
+    assert.ok(
+      installIndex < gateIndex,
+      'as dependencias devem ser instaladas ANTES de executar o gate',
+    );
   });
 
   it('o browser gate instala o Chromium pelo CLI do proprio pacote', () => {
