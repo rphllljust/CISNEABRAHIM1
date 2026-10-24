@@ -40,8 +40,15 @@ const MODULE_ENTRY_READS = {
   contracts: '/api/v1/commercial/contracts?limit=1&offset=0',
   people: '/api/v1/people?limit=1&offset=0',
   alerts: '/api/v1/alerts?limit=1&offset=0',
-  reports: '/api/v1/reports?limit=1&offset=0',
-  'approval-matrix': '/api/v1/authz/approval-matrices?limit=1&offset=0',
+  // `/reports` NAO existe como GET raiz: report-export.controller.ts expoe
+  // `catalog`, `exports`, `exports/preview`, `exports/:exportId`. `catalog` e a
+  // leitura de entrada real do modulo de relatorios.
+  reports: '/api/v1/reports/catalog?limit=1&offset=0',
+  // approval-matrix TEM apenas @Post (`/authz/approval-matrices` nao aceita GET) e nao
+  // possui item de menu em nav-config.ts: e modulo gated de escopo sem superficie de UI.
+  // Inventar um GET aqui reprovaria o deploy para sempre. `null` = nao ha leitura de
+  // entrada a sondar; o smoke reporta como `notVisibleByDesign`, nunca como visivel.
+  'approval-matrix': null,
   'operational-profitability': '/api/v1/analytics/operational-profitability?limit=1&offset=0',
 };
 
@@ -331,12 +338,20 @@ export async function verifyProduction({
   // literalmente o que `useNavAccess` chama para decidir se o item entra no menu.
   const unreachable = [];
   const visible = [];
+  const notVisibleByDesign = [];
   for (const entry of enabled) {
     const moduleCode = String(entry?.moduleCode ?? '');
-    const route = MODULE_ENTRY_READS[moduleCode];
-    if (!route) {
-      // Modulo habilitado sem sonda declarada: NAO PROVADO, nunca "visivel".
+    // `undefined` = modulo que o smoke nao conhece (falha: sonda faltando).
+    // `null`      = modulo SEM superficie de UI por desenho (approval-matrix so tem @Post
+    //               e nao esta em nav-config). Nao ha o que sondar, e inventar uma rota
+    //               reprovaria o deploy para sempre.
+    if (!(moduleCode in MODULE_ENTRY_READS)) {
       unreachable.push(`${moduleCode} [sem sonda de leitura declarada em MODULE_ENTRY_READS]`);
+      continue;
+    }
+    const route = MODULE_ENTRY_READS[moduleCode];
+    if (route === null) {
+      notVisibleByDesign.push(moduleCode);
       continue;
     }
 
@@ -421,6 +436,9 @@ export async function verifyProduction({
       // Modulos cujo endpoint a identidade do smoke REALMENTE alcancou. Diferenca entre
       // `enabled` e `visible` = menu mostraria item que a API recusa.
       visible,
+      // Habilitados que por DESENHO nao tem superficie de UI (sem GET, sem item de menu).
+      // Separado de `visible` para nao fingir que foram provados nem trata-los como falha.
+      notVisibleByDesign,
       notReleased: notReleased.map((entry) => entry.moduleCode),
     },
   };
@@ -456,7 +474,7 @@ async function main() {
   // Prova auditavel da superficie entregue ao operador. Se um modulo construido nao
   // aparecer aqui, o deploy "verde" nao significa produto completo.
   console.log(
-    `[coolify-postdeploy] modules total=${result.modules.total} enabled=[${result.modules.enabled.join(',')}] visible=[${result.modules.visible.join(',')}] notReleased=[${result.modules.notReleased.join(',')}]`,
+    `[coolify-postdeploy] modules total=${result.modules.total} enabled=[${result.modules.enabled.join(',')}] visible=[${result.modules.visible.join(',')}] noUi=[${result.modules.notVisibleByDesign.join(',')}] notReleased=[${result.modules.notReleased.join(',')}]`,
   );
 }
 
