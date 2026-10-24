@@ -374,7 +374,16 @@ function TaxAssessmentsList() {
                       <td className={cn(worklistCellRaisedClass, 'whitespace-normal')}>
                         {item.obligation ? (
                           <>
-                            <span className="block">{item.obligation.status}</span>
+                            {item.obligation.payableId ? (
+                              <Link
+                                to={`/app/finance/payables/${item.obligation.payableId}`}
+                                className="block text-[12px] font-medium text-brand-700 no-underline hover:text-brand-800"
+                              >
+                                Abrir título a pagar
+                              </Link>
+                            ) : (
+                              <span className="block">{item.obligation.status}</span>
+                            )}
                             <span className="block text-[11px] text-gray-500 tabular-nums">
                               {item.obligation.amount}
                             </span>
@@ -530,7 +539,16 @@ function TaxAssessmentDetail({ assessmentId }: { assessmentId: string }) {
                 </span>
                 <span>
                   Pagável{' '}
-                  <span className="font-mono">{state.data.obligation?.payableId ?? '—'}</span>
+                  {state.data.obligation?.payableId ? (
+                    <Link
+                      to={`/app/finance/payables/${state.data.obligation.payableId}`}
+                      className="font-mono text-brand-700 no-underline hover:text-brand-800"
+                    >
+                      {state.data.obligation.payableId}
+                    </Link>
+                  ) : (
+                    <span className="font-mono">—</span>
+                  )}
                 </span>
                 <span>
                   Versão <strong>{state.data.rowVersion}</strong>
