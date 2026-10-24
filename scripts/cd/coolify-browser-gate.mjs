@@ -190,10 +190,32 @@ async function main() {
      *     caso, o drill-through. Aí sim é funcionalidade e é exigida.
      */
     const noAuthorizedUnit = /Nenhuma unidade autorizada/i.test(worklistText);
+    /**
+     * A FAIXA DE RESUMO NÃO REPETE O PRÓPRIO `aria-label` NO TEXTO.
+     *
+     * A asserção anterior procurava a string "Resumo da contabilização" no texto da
+     * página. Esse é o `aria-label` do elemento — rótulo de acessibilidade, não conteúdo
+     * visível. A faixa renderiza os NÚMEROS: `UNIDADE / UN-PROD-001 / N FALHARAM /
+     * N PENDENTES / N ESTORNADAS`. A busca nunca podia casar, e o gate reprovava uma tela
+     * CORRETA por um seletor errado — um falso negativo que corrói a confiança no gate.
+     *
+     * Medido em produção: a faixa exibia `1 FALHARAM · 0 PENDENTES · 0 ESTORNADAS` e a
+     * asserção reprovava.
+     *
+     * Agora exige CONTEÚDO OPERACIONAL: estado vazio explícito, OU os contadores que o
+     * operador usa para decidir. Não afrouxou — ficou mais concreta.
+     */
+    const stripElement = page.locator('[aria-label="Resumo da contabilização"]');
+    const stripText = (await stripElement.innerText().catch(() => '')) || '';
+    const hasOperationalCounters = /FALHARAM|PENDENTES|ESTORNADAS/i.test(stripText);
     record(
       'WORKLIST apresenta estado operacional explícito',
-      noAuthorizedUnit || /Resumo da contabilização|Nenhuma exceção/i.test(worklistText),
-      noAuthorizedUnit ? 'sem unidade provisionada (legítimo)' : 'com unidade',
+      noAuthorizedUnit || hasOperationalCounters || /Nenhuma exceção/i.test(worklistText),
+      noAuthorizedUnit
+        ? 'sem unidade provisionada (legítimo)'
+        : hasOperationalCounters
+          ? stripText.replace(/\n+/g, ' ').slice(0, 80)
+          : 'com unidade, sem contadores',
     );
 
     if (noAuthorizedUnit) {
