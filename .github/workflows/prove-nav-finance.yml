@@ -1,0 +1,55 @@
+name: Prove nav Financeiro
+
+# PROVA DO ELO FINAL da superficie de modulos: sessao autenticada -> menu.
+#
+# POR QUE ESTE WORKFLOW EXISTE
+#
+# Todos os elos anteriores ja estavam provados em producao: bundle com
+# VITE_FEATURE_MODULE_FINANCE=true (verificado baixando o JS servido da URL real),
+# FEATURE_MODULE_FINANCE=true no Coolify, registry reportando `enabled`, e
+# /api/v1/finance/receivables respondendo 401 sem token (a rota existe).
+#
+# O que NUNCA foi provado: se o usuario AUTENTICADO consegue LER a rota de entrada que o
+# menu usa. Essa e a unica pergunta que separa "problema de RBAC" de "problema de
+# menu/cache" - e ela exige credencial real, que so existe aqui nos secrets.
+#
+# O script reproduz `useNavAccess`: login + as sondas de `finance-overview`. O status HTTP
+# decide o diagnostico. Nada e interpretado.
+
+on:
+  workflow_dispatch:
+    inputs:
+      prod_api_url:
+        description: 'URL publica da API de producao (ex.: https://api.exemplo.com)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: Prove Financeiro visibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+
+      - name: Contract tests of the probe classifier
+        run: node --test scripts/ops/prove-nav-finance.test.mjs
+
+      - name: Prove nav visibility with the real identity
+        env:
+          # URL publica da API de producao. Nao e segredo: e o mesmo valor que o
+          # runtime-config.js entrega ao browser.
+          PROD_API_URL: ${{ inputs.prod_api_url }}
+          PROD_SMOKE_LOGIN: ${{ secrets.PROD_SMOKE_LOGIN }}
+          PROD_SMOKE_PASSWORD: ${{ secrets.PROD_SMOKE_PASSWORD }}
+        run: node scripts/ops/prove-nav-finance.mjs
