@@ -30,6 +30,10 @@ on:
         options:
           - 'false'
           - 'true'
+      prod_api_url:
+        description: 'URL publica da API de producao (para a prova de RBAC)'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -73,3 +77,15 @@ jobs:
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
           COOLIFY_API_UUID: ${{ secrets.COOLIFY_API_UUID }}
         run: node scripts/ops/coolify-module-surface.mjs --fix
+
+      # PROVA DO ELO FINAL: a identidade autenticada CONSEGUE LER a rota de entrada que
+      # o menu usa? `enabled` no registry nao responde isso; so o status HTTP autenticado
+      # responde. 200 = RBAC ok (se o menu nao mostra, e frontend/cache). 403 = falta
+      # capability. Roda DEPOIS do --fix para medir o estado final, nao o anterior.
+      - name: Prove Financeiro visibility with the real identity
+        if: ${{ github.event.inputs.apply == 'true' }}
+        env:
+          PROD_API_URL: ${{ inputs.prod_api_url }}
+          PROD_SMOKE_LOGIN: ${{ secrets.PROD_SMOKE_LOGIN }}
+          PROD_SMOKE_PASSWORD: ${{ secrets.PROD_SMOKE_PASSWORD }}
+        run: node scripts/ops/prove-nav-finance.mjs
