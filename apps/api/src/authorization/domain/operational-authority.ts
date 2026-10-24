@@ -8,6 +8,16 @@ export const OPERATIONAL_AUTHORITY_ACTIONS = [
   AUTHZ_ACTIONS.ServiceOrdersServiceOrderCreate,
   AUTHZ_ACTIONS.ServiceOrdersServiceOrderPrepare,
   AUTHZ_ACTIONS.ServiceOrdersServiceOrderRelease,
+  /**
+   * DESPACHO — mesma natureza de autoridade operacional que a liberação.
+   *
+   * Quem libera decide que a ordem PODE ser executada; quem despacha assume que ela
+   * SAI. Ambas são decisões operacionais de mesma classe (SRC-008), e por isso a
+   * capability entra no conjunto. Deixá-la fora faria o despacho depender de um
+   * grant que o perfil operacional padrão não possui — e o comando existiria sem
+   * ninguém poder executá-lo.
+   */
+  AUTHZ_ACTIONS.ServiceOrdersServiceOrderDispatch,
   AUTHZ_ACTIONS.ServiceOrdersServiceOrderCancel,
   AUTHZ_ACTIONS.ServiceOrdersServiceOrderReopen,
   AUTHZ_ACTIONS.RequestsServiceRequestApprove,

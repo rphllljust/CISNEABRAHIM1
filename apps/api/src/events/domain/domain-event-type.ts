@@ -27,6 +27,24 @@ export const DOMAIN_EVENT_TYPES = {
   InventoryMovementPosted: 'INVENTORY_MOVEMENT_POSTED',
   PayrollClosed: 'PAYROLL_CLOSED',
   PayrollReopened: 'PAYROLL_REOPENED',
+  /**
+   * DISPATCH + EXECUTION + ACTUALS — fatos operacionais.
+   *
+   * Antes desta lista, despachar e executar não publicavam fato algum: o
+   * CONTROL TOWER não sabia que uma ordem saiu, e a MEDIÇÃO não sabia que o
+   * realizado estava fechado. O efeito medido era uma tela de operação que só
+   * refletia o que o próprio operador tinha feito, sem consequência cross-domain.
+   */
+  ServiceOrderDispatched: 'SERVICE_ORDER_DISPATCHED',
+  ServiceExecutionStarted: 'SERVICE_EXECUTION_STARTED',
+  ServiceExecutionPaused: 'SERVICE_EXECUTION_PAUSED',
+  ServiceExecutionResumed: 'SERVICE_EXECUTION_RESUMED',
+  ServiceProgressRecorded: 'SERVICE_PROGRESS_RECORDED',
+  ResourceUsageRecorded: 'RESOURCE_USAGE_RECORDED',
+  ExecutionExceptionReported: 'EXECUTION_EXCEPTION_REPORTED',
+  ExecutionCompleted: 'EXECUTION_COMPLETED',
+  ExecutionCancelled: 'EXECUTION_CANCELLED',
+  MeasurementBasisReady: 'MEASUREMENT_BASIS_READY',
 } as const;
 
 export type DomainEventType = (typeof DOMAIN_EVENT_TYPES)[keyof typeof DOMAIN_EVENT_TYPES];
@@ -54,12 +72,41 @@ export function isEconomicDomainEventType(value: string): boolean {
   return ECONOMIC_DOMAIN_EVENT_TYPES.has(value);
 }
 
+/**
+ * DISPATCH + EXECUTION + ACTUALS — os fatos OPERACIONAIS que precisam atravessar
+ * a fronteira do domínio de Ordens de Serviço?
+ *
+ * A distinção importa: `SERVICE_ORDER_ASSIGNED` e `SERVICE_ORDER_RELEASED` são do
+ * agregado; os abaixo são da EXECUÇÃO e alimentam COSTING, SITUAÇÕES e MEDIÇÃO.
+ *
+ * `EXECUTION_COMPLETED` e `MEASUREMENT_BASIS_READY` são os dois que a capability
+ * seguinte consome — e é por isso que a conclusão os publica no MESMO commit.
+ */
+const EXECUTION_DOMAIN_EVENT_TYPES = new Set<string>([
+  DOMAIN_EVENT_TYPES.ServiceOrderDispatched,
+  DOMAIN_EVENT_TYPES.ServiceExecutionStarted,
+  DOMAIN_EVENT_TYPES.ServiceExecutionPaused,
+  DOMAIN_EVENT_TYPES.ServiceExecutionResumed,
+  DOMAIN_EVENT_TYPES.ServiceProgressRecorded,
+  DOMAIN_EVENT_TYPES.ResourceUsageRecorded,
+  DOMAIN_EVENT_TYPES.ExecutionExceptionReported,
+  DOMAIN_EVENT_TYPES.ExecutionCompleted,
+  DOMAIN_EVENT_TYPES.ExecutionCancelled,
+  DOMAIN_EVENT_TYPES.MeasurementBasisReady,
+]);
+
+export function isExecutionDomainEventType(value: string): boolean {
+  return EXECUTION_DOMAIN_EVENT_TYPES.has(value);
+}
+
 export const AGGREGATE_TYPES = {
   ServiceRequest: 'service-request',
   ServiceOrder: 'service-order',
   Measurement: 'measurement',
   BillingRecord: 'billing-record',
   BillingDocument: 'billing-document',
+  /** Fato da execução: a timeline e o custeio leem por este agregado. */
+  ServiceExecution: 'service-execution',
 } as const;
 
 export type AggregateType = (typeof AGGREGATE_TYPES)[keyof typeof AGGREGATE_TYPES];

@@ -1412,6 +1412,66 @@ async function assertPreDeltaState(connectionString, deltaFile) {
       return;
     }
 
+    /*
+      DISPATCH + EXECUTION + ACTUALS — 0107 abre a vertical operacional.
+
+      A asserção é o INVERSO do habitual, como em 0106: o baseline (N-1) precisa
+      NÃO ter os objetos da capability. Sem esse lado, o delta não provaria nada —
+      se `so.execution_actuals` já existisse antes da 0107, a migration seria
+      redundante e o gate passaria sem que ninguém tivesse percebido.
+
+      Sondamos três coisas, cada uma por um motivo diferente:
+
+        so.execution_actuals          o REALIZADO dimensionado (a razão da migration)
+        so.service_order_dispatches   o FATO de despacho (não é status)
+        rpt.read_execution_actuals    o contrato publicado que o frontend lê
+
+      Sondar só a primeira deixaria um baseline com despacho já presente passar como
+      "pré-0107" — e aí o gate estaria medindo outra coisa.
+    */
+    if (deltaFile === '0107_dispatch_execution_actuals.sql') {
+      const preExisting = await client.query(
+        `SELECT
+           to_regclass('so.execution_actuals') AS actuals,
+           to_regclass('so.service_order_dispatches') AS dispatches,
+           to_regclass('rpt.read_execution_actuals') AS read_actuals`,
+      );
+      const row = preExisting.rows[0] ?? {};
+      if (row.actuals !== null) {
+        throw new Error(
+          'Incremental baseline incorrectly contains so.execution_actuals before 0107',
+        );
+      }
+      if (row.dispatches !== null) {
+        throw new Error(
+          'Incremental baseline incorrectly contains so.service_order_dispatches before 0107',
+        );
+      }
+      if (row.read_actuals !== null) {
+        throw new Error(
+          'Incremental baseline incorrectly contains rpt.read_execution_actuals before 0107',
+        );
+      }
+
+      // O enum da outbox não pode ter os fatos operacionais ANTES da 0107: publicá-los
+      // sem o valor registrado é o defeito da 0105 (rótulo desconhecido no COMMIT).
+      const preExistingEnum = await client.query(
+        `SELECT 1
+           FROM pg_enum e
+           JOIN pg_type t ON t.oid = e.enumtypid
+           JOIN pg_namespace n ON n.oid = t.typnamespace
+          WHERE n.nspname = 'evt'
+            AND t.typname = 'domain_event_type'
+            AND e.enumlabel IN ('SERVICE_ORDER_DISPATCHED', 'MEASUREMENT_BASIS_READY')`,
+      );
+      if (preExistingEnum.rows.length > 0) {
+        throw new Error(
+          'Incremental baseline incorrectly contains operational outbox event types before 0107',
+        );
+      }
+      return;
+    }
+
     throw new Error(`Unsupported incremental delta migration: ${deltaFile}`);
   } finally {
     await client.end();

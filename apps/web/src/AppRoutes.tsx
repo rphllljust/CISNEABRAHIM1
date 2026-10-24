@@ -63,7 +63,7 @@ import { ContractsDetailPage } from './contracts/pages/ContractsDetailPage';
 import { OperationalDashboardPage } from './dashboard/pages/OperationalDashboardPage';
 import { AlertCenterPage } from './alerts/pages/AlertCenterPage';
 import { MyInboxPage } from './work-inbox/pages/MyInboxPage';
-import { OperationsWorkspacePage } from './service-orders/pages/OperationsWorkspacePage';
+import { OperationsDispatchWorkspacePage } from './service-orders/pages/OperationsDispatchWorkspacePage';
 import { SearchResultsPage } from './search/pages/SearchResultsPage';
 import { ReportsPage } from './reports/pages/ReportsPage';
 import { OperationalProfitabilityPage } from './analytics/pages/OperationalProfitabilityPage';
@@ -174,7 +174,21 @@ export function AppRoutes() {
               />
               <Route
                 path="/app/workspaces/operacoes"
-                element={<OperationsWorkspacePage />}
+                element={<OperationsDispatchWorkspacePage />}
+              />
+              {/*
+                DISPATCH BOARD e EXECUTION CONSOLE — rotas próprias.
+                O workspace concentra a estação; estas duas existem para que o
+                operador possa manter uma aba aberta só no despacho (ou só na
+                execução) durante o turno, em vez de trocar de aba toda hora.
+              */}
+              <Route
+                path="/app/operations/dispatch"
+                element={<OperationsDispatchWorkspacePage initialTab="dispatch" />}
+              />
+              <Route
+                path="/app/operations/execution"
+                element={<OperationsDispatchWorkspacePage initialTab="execution" />}
               />
               <Route
                 path="/app/workspaces/financeiro"

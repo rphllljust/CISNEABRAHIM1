@@ -53,6 +53,7 @@ import { PhysicalAssetsAccessService } from '../resources/services/physical-asse
 import { PhysicalResourceTypesAccessService } from '../resources/services/physical-resource-types-access.service';
 import { ServiceOrdersModule } from '../service-orders/service-orders.module';
 import { ServiceOrderExecutionAccessService } from '../service-orders/services/service-order-execution-access.service';
+import { OperationsService } from '../service-orders/services/operations.service';
 import { ServiceOrderPlanningAccessService } from '../service-orders/services/service-order-planning-access.service';
 import { ServiceOrdersAccessService } from '../service-orders/services/service-orders-access.service';
 import { grantUatProfile, runUatVerticalScenario, type UatVerticalServices } from '../uat/uat-vertical-runner';
@@ -120,6 +121,7 @@ describe('Master business direct API bypass (Prompt 98)', () => {
       serviceOrdersAccess: serviceModule.get(ServiceOrdersAccessService),
       planningAccess: serviceModule.get(ServiceOrderPlanningAccessService),
       executionAccess: serviceModule.get(ServiceOrderExecutionAccessService),
+    operationsAccess: serviceModule.get(OperationsService),
       measurementsAccess: serviceModule.get(MeasurementsAccessService),
       billingAccess: serviceModule.get(BillingAccessService),
       billingDocumentAccess: serviceModule.get(BillingDocumentAccessService),

@@ -33,6 +33,7 @@ import type { PhysicalAssetsAccessService } from '../resources/services/physical
 import type { PhysicalResourceTypesAccessService } from '../resources/services/physical-resource-types-access.service';
 import { PLANNED_RESOURCE_KINDS } from '../service-orders/domain/resource-planning';
 import type { ServiceOrderExecutionAccessService } from '../service-orders/services/service-order-execution-access.service';
+import type { OperationsService } from '../service-orders/services/operations.service';
 import type { ServiceOrderPlanningAccessService } from '../service-orders/services/service-order-planning-access.service';
 import type { ServiceOrdersAccessService } from '../service-orders/services/service-orders-access.service';
 import { buildSyntheticUatClient } from '../master-business/synthetic-test-data';
@@ -54,6 +55,15 @@ export type UatVerticalServices = {
   serviceOrdersAccess: ServiceOrdersAccessService;
   planningAccess: ServiceOrderPlanningAccessService;
   executionAccess: ServiceOrderExecutionAccessService;
+  /**
+   * Comandos de REALIZADO (medidor, combustível, realizado dimensionado).
+   *
+   * A conclusão deixou de aceitar execução sem realizado: o gate exige leitura final
+   * do medidor e combustível real para o veículo escalado. Sem este serviço o runner
+   * não conseguiria produzir uma execução realista, e a etapa de conclusão passaria a
+   * exercitar um caminho que o operador nunca percorre.
+   */
+  operationsAccess: OperationsService;
   measurementsAccess: MeasurementsAccessService;
   billingAccess: BillingAccessService;
   billingDocumentAccess: BillingDocumentAccessService;
@@ -390,10 +400,109 @@ export async function runUatVerticalScenario(
       quantityValue: scenario.quantityValue,
       unitCode: scenario.defaultUnitCode,
     });
-    const afterQuantity = await services.serviceOrdersAccess.getById(actor, startedExecution.id);
+
+    /**
+     * ─────────────────────────────────────────────────────────────────────────────
+     * ACTUALS EXIGIDOS PELA CONCLUSÃO
+     * ─────────────────────────────────────────────────────────────────────────────
+     *
+     * O gate de conclusão passou a exigir o REALIZADO: veículo escalado precisa de
+     * leitura final de odômetro e de combustível real. Antes bastava a evidência do
+     * snapshot, e este runner concluía uma execução sem nenhum dado real — o defeito
+     * que a capability corrigiu.
+     *
+     * A correção aqui é de SEED, não de regra: o runner passa a registrar o que uma
+     * execução real produz. A abertura do medidor é registrada antes da leitura final
+     * para que a monotonicidade do banco tenha referência — o caminho exercitado é o
+     * do operador, não um atalho.
+     */
+    stage = 'execution:actuals';
+    const allocations = await services.planningAccess.listAllocations(actor, startedExecution.id);
+    const assets = allocations.filter((item) => item.status === 'ACTIVE' && item.physicalAssetId);
+
+    for (const [index, allocation] of assets.entries()) {
+      const assetId = allocation.physicalAssetId as string;
+      const suffixKey = `${index}-${assetId}`;
+      /**
+       * O medidor e o realizado dependem da NATUREZA do ativo, e a distinção vem da
+       * mesma fonte que o domínio usa: `classification = 'VEHICLE'`.
+       *
+       *   VEHICLE    → odômetro (km) + combustível (L) + horas de mão de obra
+       *   MACHINE /
+       *   EQUIPMENT  → horímetro (h) + horas de equipamento
+       *
+       * Tratar os dois como "veículo" faria o runner pedir combustível de uma
+       * escavadeira; tratar como "equipamento" deixaria o caminhão sem combustível.
+       */
+      /**
+       * A natureza do ativo vem da CLASSIFICAÇÃO do catálogo — a MESMA fonte que o
+       * domínio usa para decidir condutor e equipamento.
+       *
+       * Inferir por regex sobre o código do tipo seria repetir o defeito que esta
+       * capability corrigiu: `WATER_TRUCK` não casa com nenhum padrão em português e
+       * o serviço passaria a exigir horímetro de um caminhão. `listed` já foi lido
+       * acima para o planejamento, então a classificação está em mãos sem consulta
+       * extra.
+       */
+      const allocationResourceType = listed.items.find(
+        (item) => item.code === allocation.resourceTypeCode,
+      );
+      const isVehicle = allocationResourceType?.classification === 'VEHICLE';
+
+      const meterKind = isVehicle ? 'ODOMETER' : 'HOUR_METER';
+      const meterUnit = isVehicle ? 'KM' : 'H';
+      const initialReading = isVehicle ? '100000' : '5000';
+      const finalReading = isVehicle ? '100420' : '5007.8';
+
+      let version = (await services.serviceOrdersAccess.getById(actor, startedExecution.id)).rowVersion;
+      await services.operationsAccess.registerMeter(actor, startedExecution.id, {
+        physicalAssetId: assetId,
+        meterKind,
+        readingValue: initialReading,
+        unitOfMeasure: meterUnit,
+        isInitial: true,
+        rowVersion: version,
+        idempotencyKey: `uat-meter-initial-${suffixKey}`,
+      });
+
+      version = (await services.serviceOrdersAccess.getById(actor, startedExecution.id)).rowVersion;
+      await services.operationsAccess.registerMeter(actor, startedExecution.id, {
+        physicalAssetId: assetId,
+        meterKind,
+        readingValue: finalReading,
+        unitOfMeasure: meterUnit,
+        isFinal: true,
+        rowVersion: version,
+        idempotencyKey: `uat-meter-final-${suffixKey}`,
+      });
+
+      if (isVehicle) {
+        version = (await services.serviceOrdersAccess.getById(actor, startedExecution.id)).rowVersion;
+        await services.operationsAccess.registerFuel(actor, startedExecution.id, {
+          physicalAssetId: assetId,
+          volumeLiters: '130',
+          unitPrice: '6.2',
+          odometerReading: finalReading,
+          rowVersion: version,
+          idempotencyKey: `uat-fuel-${suffixKey}`,
+        });
+      } else {
+        version = (await services.serviceOrdersAccess.getById(actor, startedExecution.id)).rowVersion;
+        await services.operationsAccess.registerActual(actor, startedExecution.id, {
+          actualKind: 'EQUIPMENT_HOURS',
+          physicalAssetId: assetId,
+          actualValue: '7.8',
+          unitOfMeasure: 'H',
+          rowVersion: version,
+          idempotencyKey: `uat-equipment-hours-${suffixKey}`,
+        });
+      }
+    }
+
+    const afterActuals = await services.serviceOrdersAccess.getById(actor, startedExecution.id);
     stage = 'execution:complete';
-    const completed = await services.executionAccess.complete(actor, afterQuantity.id, {
-      rowVersion: afterQuantity.rowVersion,
+    const completed = await services.executionAccess.complete(actor, afterActuals.id, {
+      rowVersion: afterActuals.rowVersion,
     });
 
     if (options?.stopAfter === 'completed_execution') {

@@ -45,6 +45,7 @@ import { PhysicalAssetsAccessService } from '../resources/services/physical-asse
 import { PhysicalResourceTypesAccessService } from '../resources/services/physical-resource-types-access.service';
 import { ServiceOrdersModule } from '../service-orders/service-orders.module';
 import { ServiceOrderExecutionAccessService } from '../service-orders/services/service-order-execution-access.service';
+import { OperationsService } from '../service-orders/services/operations.service';
 import { ServiceOrderPlanningAccessService } from '../service-orders/services/service-order-planning-access.service';
 import { ServiceOrdersAccessService } from '../service-orders/services/service-orders-access.service';
 import { evaluateUatProfileChecks } from './uat-profile-checks';
@@ -97,6 +98,7 @@ describe('Business UAT (Prompt 89)', () => {
       serviceOrdersAccess: module.get(ServiceOrdersAccessService),
       planningAccess: module.get(ServiceOrderPlanningAccessService),
       executionAccess: module.get(ServiceOrderExecutionAccessService),
+      operationsAccess: module.get(OperationsService),
       measurementsAccess: module.get(MeasurementsAccessService),
       billingAccess: module.get(BillingAccessService),
       billingDocumentAccess: module.get(BillingDocumentAccessService),

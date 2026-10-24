@@ -80,6 +80,34 @@ export async function truncateServiceOrderTables(client: DbClient): Promise<void
   await client.query('DELETE FROM so.execution_entry_history_events');
   await client.query('DELETE FROM so.operational_cost_entries');
   await client.query('DELETE FROM so.execution_occurrences');
+  /**
+   * DISPATCH + EXECUTION + ACTUALS (0107) — filhos de `so.service_orders` que
+   * chegaram depois e TODOS com FK RESTRICT.
+   *
+   * A ordem aqui é de dependência, não alfabética:
+   *
+   *   `measurement_basis`   → referencia `execution_closures`; sai primeiro
+   *   `execution_closures`  → remove após a base de medição
+   *   `execution_actuals`   → referencia `execution_evidence`
+   *   `execution_meter_readings` / `execution_fuel_records` / `execution_signatures`
+   *                         → referenciam `execution_evidence`
+   *   `execution_evidence`  → por último, porque os três acima apontam para ela
+   *
+   * Sem esta limpeza, o `beforeEach` de QUALQUER suite que usa este helper falha ao
+   * apagar `so.service_orders`, e a falha aparece num teste que não tem relação
+   * nenhuma com a capability — exatamente o tipo de erro que já custou tempo neste
+   * repositório (a regressão de ordem de `billing_documents` descrita no spec deste
+   * próprio arquivo).
+   */
+  await client.query('DELETE FROM so.measurement_basis');
+  await client.query('DELETE FROM so.execution_closures');
+  await client.query('DELETE FROM so.execution_situations');
+  await client.query('DELETE FROM so.execution_events');
+  await client.query('DELETE FROM so.execution_actuals');
+  await client.query('DELETE FROM so.execution_meter_readings');
+  await client.query('DELETE FROM so.execution_fuel_records');
+  await client.query('DELETE FROM so.execution_signatures');
+  await client.query('DELETE FROM so.service_order_dispatches');
   await client.query('DELETE FROM so.execution_evidence');
   await client.query('DELETE FROM so.execution_entries');
   await client.query('DELETE FROM so.execution_command_idempotency');
