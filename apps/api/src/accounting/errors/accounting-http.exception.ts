@@ -10,7 +10,8 @@ export class AccountingHttpException extends HttpException {
     status: HttpStatus,
     readonly code: AccountingErrorCode,
     message: string,
+    options?: { cause?: unknown },
   ) {
-    super(buildDomainHttpExceptionBody(code, message), status);
+    super(buildDomainHttpExceptionBody(code, message), status, options);
   }
 }

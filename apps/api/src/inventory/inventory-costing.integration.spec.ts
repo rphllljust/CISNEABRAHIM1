@@ -25,6 +25,7 @@ import { ADJUSTMENT_EFFECTS, STOCK_MOVEMENT_TYPES } from './domain/inventory';
 import { STOCK_ORIGINS } from './domain/costing';
 import { INVENTORY_ERROR_CODES } from './errors/inventory-error-codes';
 import { InventoryModule } from './inventory.module';
+import { EconomicPostingService } from '../accounting/services/economic-posting.service';
 import { InventoryAccessService } from './services/inventory-access.service';
 import { InventoryAccountingIntegrationService } from './services/inventory-accounting-integration.service';
 import { InventoryRepository } from './repositories/inventory.repository';
@@ -77,6 +78,7 @@ describe('Inventory costing and accounting PostgreSQL', () => {
   let inventory: InventoryAccessService;
   let accounting: AccountingAccessService;
   let integration: InventoryAccountingIntegrationService;
+  let economicPosting: EconomicPostingService;
   let repository: InventoryRepository;
   const testDatabaseUrl = process.env['TEST_DATABASE_URL'];
 
@@ -91,6 +93,7 @@ describe('Inventory costing and accounting PostgreSQL', () => {
     inventory = module.get(InventoryAccessService);
     accounting = module.get(AccountingAccessService);
     integration = module.get(InventoryAccountingIntegrationService);
+    economicPosting = module.get(EconomicPostingService);
     repository = module.get(InventoryRepository);
     pool = new Pool({ connectionString: testDatabaseUrl });
   });
@@ -200,6 +203,29 @@ describe('Inventory costing and accounting PostgreSQL', () => {
       `SELECT COUNT(*)::text AS count FROM acc.journal_entries WHERE status = 'POSTED'`,
     );
     return Number(result.rows[0]?.count ?? '0');
+  }
+
+  /**
+   * F1.2 — DRENA A OUTBOX DA MOVIMENTAÇÃO.
+   *
+   * O estoque NÃO contabiliza mais durante `postStock`: ele publica o FATO econômico na
+   * outbox, na mesma transação da movimentação. Quem contabiliza é o consumidor da
+   * outbox, de forma retentável e observável. Então "existe journal?" só pode ser
+   * respondido DEPOIS de entregar o evento.
+   *
+   * Isto não enfraquece a asserção — torna explícito o contrato novo. O que se prova
+   * continua sendo o mesmo: a movimentação gera UM journal, a origem é INVENTORY, e o
+   * inventário nunca escreve em `acc.*`.
+   */
+  async function drainOutbox(sourceId: string): Promise<void> {
+    const events = await pool.query<{ payload: unknown }>(
+      `SELECT payload FROM evt.outbox_events
+        WHERE aggregate_id = $1::uuid AND event_type = 'INVENTORY_MOVEMENT_POSTED'`,
+      [sourceId],
+    );
+    for (const row of events.rows) {
+      await economicPosting.consume(row.payload);
+    }
   }
 
   it('posts entry, exit, transfer, adjustment and reversal with explicit cost and version', async () => {
@@ -393,6 +419,8 @@ describe('Inventory costing and accounting PostgreSQL', () => {
       description: 'Receipt',
       idempotencyKey: `acc-${crypto.randomUUID()}`,
     });
+    // O fato já está publicado; a contabilização acontece na entrega da outbox.
+    await drainOutbox(inbound.movements[0]!.id);
     expect(await countPostedJournals()).toBe(1);
     const retried = await integration.postPostedMovement(actor, inbound.movements[0]!.id);
     expect(retried?.idempotent).toBe(true);

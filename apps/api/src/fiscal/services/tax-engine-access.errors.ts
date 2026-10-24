@@ -16,10 +16,14 @@ export function mapTaxEngineDomainError(error: unknown): FiscalHttpException {
     );
   }
   if (!(error instanceof TaxEngineError)) {
+    // ERRO INESPERADO — a CAUSA PRIMÁRIA é preservada (mesmo padrão do INVENTORY).
+    // Sem isto, um teste de integração relatava apenas `Fiscal Http Exception`, o NOME
+    // da classe, e a causa real era descartada exatamente onde ela existia.
     return new FiscalHttpException(
       HttpStatus.INTERNAL_SERVER_ERROR,
       FISCAL_ERROR_CODES.VALIDATION_FAILED,
       'Unexpected tax engine error.',
+      { cause: error },
     );
   }
   switch (error.code) {

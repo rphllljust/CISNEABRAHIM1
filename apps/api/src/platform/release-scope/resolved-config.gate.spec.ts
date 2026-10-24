@@ -53,6 +53,17 @@ function runGate(extraEnv: Record<string, string> = {}, extraArgs: string[] = []
     shell: false,
     env: { ...process.env, HML_ENV_FILE: COMPOSE_SERVICE_ENV_FILE, ...extraEnv },
     maxBuffer: 64 * 1024 * 1024,
+    /*
+     * TIMEOUT EXPLÍCITO — o gate invoca `docker compose config`, que pode demorar muito
+     * sob contenção de CPU (suíte inteira em paralelo). Sem limite, o processo ficava
+     * pendurado até o timeout de 15s do vitest e o teste reprovava com
+     * "a sanitização descarta as variáveis herdadas divergentes" — um erro que não tinha
+     * relação alguma com a sanitização. Medido: 2,6s sozinho, 35,8s em execução plena.
+     *
+     * Com o limite, a lentidão externa cai no caminho já existente de
+     * `dockerUnavailable()` — inconclusivo e explícito — em vez de virar falha falsa.
+     */
+    timeout: 60_000,
   });
 
   const stdout = result.stdout ?? '';

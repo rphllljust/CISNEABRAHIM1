@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
 import { DatabaseService } from '../../infrastructure/database/database.service';
+import {
+  ECONOMIC_EVENT_KINDS,
+  ECONOMIC_EVENT_SOURCE_KINDS,
+} from '../../platform/bounded-contexts/economic-event-contract';
+import { EconomicEventLedgerRepository } from '../../platform/outbox/repositories/economic-event-ledger.repository';
 import { publishedWindowsOverlap, TaxEngineError } from '../domain/tax-engine';
 import type {
   PersistTaxCalculationInput,
@@ -34,7 +39,15 @@ const CALCULATION_RETURNING = `
 
 @Injectable()
 export class TaxEngineRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    /**
+     * F1.2 — o cálculo tributário CONFIRMADO é fato econômico e é publicado na MESMA
+     * transação. Substitui a chamada síncrona ao port contábil, que acoplava FISCAL a
+     * ACCOUNTING e fazia o cálculo falhar quando o port não estava disponível.
+     */
+    private readonly economicEvents: EconomicEventLedgerRepository,
+  ) {}
 
   /**
    * Página de cálculos tributários da unidade, no MESMO predicado da contagem. A linha é o
@@ -456,6 +469,46 @@ export class TaxEngineRepository {
             }),
           ],
         );
+        /*
+         * F1.2 — O CÁLCULO CONFIRMADO É FATO ECONÔMICO, PUBLICADO AQUI.
+         *
+         * DEFEITO MEDIDO. `TaxEngineAccessService.calculate` chamava
+         * `accountingIntegration.postConfirmedTaxCalculation` SÍNCRONO, depois do
+         * commit. Isso reprovava por dois motivos independentes:
+         *
+         *  1. ACOPLAMENTO — o port contábil é `@Optional()` no módulo; quando ausente, o
+         *     cálculo falhava com `FISCAL_GATEWAY_NOT_CONFIGURED`, escondendo a causa
+         *     real atrás de `Fiscal Http Exception`.
+         *  2. ORDEM — o posting rodava fora da transação. Se o processo caísse no
+         *     intervalo, o tributo estava calculado e o journal não existia.
+         *
+         * O contrato da F1.2 é a ORIGEM publicar o FATO e a CONTROLADORIA decidir o
+         * posting. O fato é publicado na MESMA transação do cálculo, então
+         * `rollback do cálculo ⇒ rollback do fato`.
+         *
+         * Só cálculo com valor POSITIVO é fato econômico: alíquota zero não gera valor
+         * a contabilizar e publicar zero obrigaria o ACCOUNTING a recusar.
+         */
+        if (Number(input.resultAmount) > 0) {
+          await this.economicEvents.record(client, {
+            unitId: input.unitId,
+            eventKind: ECONOMIC_EVENT_KINDS.TaxCalculationConfirmed,
+            sourceKind: ECONOMIC_EVENT_SOURCE_KINDS.TaxCalculation,
+            sourceId: calculationRow.id,
+            amount: input.resultAmount,
+            currencyCode: input.currencyCode,
+            occurredOn: input.effectiveOn,
+            actorIdentityId: input.actorIdentityId,
+            sourceReference: input.idempotencyKey,
+            context: {
+              taxRuleId: input.taxRuleId,
+              taxRuleVersionId: input.taxRuleVersionId,
+              baseAmount: input.baseAmount,
+              rate: input.rate,
+            },
+          });
+        }
+
         await client.query('COMMIT');
         const hydrated = await this.findCalculationById(calculationRow.id);
         if (!hydrated) {

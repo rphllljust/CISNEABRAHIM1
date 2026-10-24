@@ -352,7 +352,8 @@ export class InventoryAccessService implements InventoryStockPort {
         validated.idempotencyKey,
       );
       if (existing.length > 0) {
-        await this.accountingIntegration.postPostedMovement(actor, existing[0]!.id);
+        // F1.2 — replay idempotente não reposta: o fato econômico já foi publicado na
+        // primeira execução. Ver `postAllMovements` para o raciocínio completo.
         const balance = await this.repository.getBalance(
           validated.warehouseId,
           validated.inventoryItemId,
@@ -506,7 +507,16 @@ export class InventoryAccessService implements InventoryStockPort {
       }
       const existing = await this.repository.findMovementsByCommand(unitId, reversalKey);
       if (existing.length > 0) {
-        await this.accountingIntegration.postPostedMovement(actor, existing[0]!.id);
+        /*
+         * F1.2 — REPLAY IDEMPOTENTE NÃO REPOSTA.
+         *
+         * A movimentação (e o seu fato econômico) já foi publicada na primeira execução.
+         * Chamar `postPostedMovement` aqui era o segundo caminho para o mesmo journal —
+         * e fazia um replay perfeitamente válido falhar com erro de posting, escondendo
+         * a causa atrás de `INVENTORY_VALIDATION_FAILED`. O estado contábil já é
+         * observável pela Central de Contabilidade; repetir o comando não é repetir o
+         * posting.
+         */
         const first = originals[0];
         const balance = await this.repository.getBalance(first!.warehouse_id, first!.inventory_item_id);
         return {
@@ -591,13 +601,41 @@ export class InventoryAccessService implements InventoryStockPort {
    * A idempotência continua garantida pelo ACCOUNTING (`posting_requests` único por
    * evento/fonte), então repetir a chamada após falha parcial NÃO duplica journal.
    */
+  /**
+   * F1.2 — SEM POSTING SÍNCRONO AQUI.
+   *
+   * Antes, este método percorria as movimentações e chamava
+   * `accountingIntegration.postPostedMovement` para CADA uma. Três consequências
+   * ruins, todas medidas:
+   *
+   *  1. DUPLICIDADE — `postMovements` já publica o fato econômico na MESMA transação
+   *     da movimentação. Contabilizar de novo aqui era um segundo caminho para o
+   *     mesmo journal, e a única coisa que impedia o journal duplicado era a
+   *     idempotência do ACCOUNTING — proteção acidental, não desenho.
+   *  2. ACOPLAMENTO SÍNCRONO — a falha do posting (por exemplo, nenhuma regra
+   *     publicada) subia e abortava a movimentação de estoque INTEIRA, mesmo com o
+   *     estoque já corretamente movimentado. O defeito aparecia como
+   *     `INVENTORY_VALIDATION_FAILED`, escondendo `ACCOUNTING_RULE_NOT_CONFIGURED`.
+   *  3. ORDEM ERRADA — o posting rodava depois do COMMIT. Se o processo caísse nesse
+   *     intervalo, o estoque estava movimentado e o journal não existia.
+   *
+   * O contrato da F1.2 é: a ORIGEM publica o FATO; a CONTROLADORIA decide o posting.
+   * A publicação já ocorreu em `postMovements`; quem contabiliza é o consumidor da
+   * outbox, de forma retentável e observável.
+   *
+   * Nada é "engolido": a falha de posting fica registrada em `evt.outbox_events`
+   * (`status = FAILED`, `last_error`) e aparece na Central de Contabilidade com o
+   * comando de reprocessar. O operador vê e resolve; o estoque não fica travado.
+   */
   private async postAllMovements(
     actor: IdentityAuthzContext,
     movements: StockMovementRow[],
   ): Promise<void> {
-    for (const movement of movements) {
-      await this.accountingIntegration.postPostedMovement(actor, movement.id);
-    }
+    // Sem posting síncrono: o fato já foi publicado transacionalmente por
+    // `repository.postMovements`. `actor` permanece na assinatura porque a publicação
+    // do fato exige autor — ele viaja no payload do evento econômico.
+    void actor;
+    void movements;
   }
 
   async getBalance(

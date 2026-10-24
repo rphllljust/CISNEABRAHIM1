@@ -9,7 +9,8 @@ export class InventoryHttpException extends HttpException {
     status: HttpStatus,
     readonly code: InventoryErrorCode,
     message: string,
+    options?: { cause?: unknown },
   ) {
-    super(buildDomainHttpExceptionBody(code, message), status);
+    super(buildDomainHttpExceptionBody(code, message), status, options);
   }
 }

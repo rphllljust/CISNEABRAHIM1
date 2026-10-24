@@ -1,4 +1,4 @@
-﻿import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { AUTHZ_ERROR_CODES } from '../../authorization/errors/authz-error-codes';
 import { AuthzHttpException } from '../../authorization/errors/authz-http.exception';
 import {
@@ -322,13 +322,54 @@ export class PayrollAccessService implements PayrollContractPort {
       const reopened = await this.repository.withLockedPeriod(periodId, async (client, period) => {
         this.assertPeriodUnit(period, unitId);
         assertPeriodCanReopen(period.status);
-        return this.repository.markReopened(client, periodId, actor.identityId);
+        const row = await this.repository.markReopened(client, periodId, actor.identityId);
+
+        /**
+         * F1.2 — O ESTORNO DA REABERTURA É FATO ECONÔMICO NA MESMA TRANSAÇÃO.
+         *
+         * Antes, `reverseReopenedPeriod` era chamado SÍNCRONO logo depois do commit.
+         * Isso tinha os dois defeitos que a F1.2 elimina:
+         *
+         *  1. ACOPLAMENTO — o port contábil é `@Optional()`; sem `AccountingModule`
+         *     carregado, a reabertura falhava com `Payroll Http Exception` genérica, e a
+         *     competência não reabria por um motivo que nada tinha a ver com folha.
+         *  2. ORDEM — o estorno rodava fora da transação. Queda do processo no intervalo
+         *     deixava a competência reaberta sem estorno e sem registro diagnosticável.
+         *
+         * O valor é o MESMO que o fechamento publicou: soma de ganhos + encargos
+         * empregador dos resultados mais recentes. É ele que a compensação precisa
+         * estornar, e o contrato liga os dois fatos por `reversesSourceId`.
+         */
+        const results = await this.repository.listLatestResults(row.id);
+        const amount = payrollClosedPostingAmount(
+          results.map((result) => ({
+            earningTotal: result.earning_total,
+            employerChargeTotal: result.employer_charge_total,
+          })),
+        );
+        if (amount && Number(amount) > 0) {
+          await this.economicEvents.record(client, {
+            unitId: row.unit_id,
+            eventKind: ECONOMIC_EVENT_KINDS.PayrollReopened,
+            sourceKind: ECONOMIC_EVENT_SOURCE_KINDS.PayrollPeriod,
+            sourceId: row.id,
+            amount,
+            currencyCode: PAYROLL_ACCOUNTING_CURRENCY,
+            occurredOn: row.ends_on,
+            actorIdentityId: actor.identityId,
+            sourceReference: payrollCompetenceReference({
+              unitId: row.unit_id,
+              competenceYear: row.competence_year,
+              competenceMonth: row.competence_month,
+            }),
+            reversesSourceId: row.id,
+            context: { payrollPeriodId: row.id, reason: 'Payroll competence reopened' },
+          });
+        }
+        return row;
       });
-      await this.accountingIntegration.reverseReopenedPeriod(
-        actor,
-        periodId,
-        'Payroll competence reopened',
-      );
+      // Sem posting síncrono: o fato `PAYROLL_REOPENED` já foi publicado acima e a
+      // CONTROLADORIA decide a compensação pela outbox, de forma retentável e visível.
       await this.securityAudit.record({
         actorIdentityId: actor.identityId,
         actorSessionId: actor.sessionId,

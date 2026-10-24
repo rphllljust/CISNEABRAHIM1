@@ -1,4 +1,4 @@
-﻿import { Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
 import { DatabaseService } from '../../infrastructure/database/database.service';
 import { EconomicEventLedgerRepository } from '../../platform/outbox/repositories/economic-event-ledger.repository';
@@ -564,49 +564,11 @@ export class InventoryRepository {
       }
       const inserted: StockMovementRow[] = [];
       for (const input of inputs) {
+        // `insertMovement` publica o fato econômico na MESMA transação — ver o bloco
+        // F1.2 dentro dele. A publicação vive no caminho de ESCRITA para valer para
+        // todo chamador, não apenas para este método.
         const row = await this.insertMovement(client, input);
         inserted.push(row);
-      }
-
-      /**
-       * F1.2 — FATO ECONÔMICO NA MESMA TRANSAÇÃO da movimentação.
-       *
-       * Só movimentação com CUSTO é fato econômico: sem custo não há valor a
-       * contabilizar e o evento não deve existir (em vez de publicar zero, que
-       * ACCOUNTING teria de recusar). O posting deixou de ser chamado depois do
-       * COMMIT — se o processo caísse no intervalo, o estoque movimentava sem journal.
-       */
-      for (const [index, movement] of inserted.entries()) {
-        const totalCost = movement.total_cost;
-        if (!totalCost || Number(totalCost) <= 0) {
-          continue;
-        }
-        // O ator vem do INPUT do comando: `StockMovementRow` não publica coluna de
-        // autor, e inventar um id aqui corromperia a trilha de auditoria.
-        const actorIdentityId = inputs[index]?.actorIdentityId;
-        if (!actorIdentityId) {
-          // Sem ator nao ha trilha: recusar e melhor que gravar fato orfao de autor.
-          throw new InventoryError('INVENTORY_MOVEMENT_ACTOR_REQUIRED');
-        }
-        await this.economicEvents.record(client, {
-          unitId: movement.unit_id,
-          eventKind: ECONOMIC_EVENT_KINDS.InventoryMovementPosted,
-          sourceKind: ECONOMIC_EVENT_SOURCE_KINDS.InventoryMovement,
-          sourceId: movement.id,
-          amount: totalCost,
-          currencyCode: INVENTORY_ACCOUNTING_CURRENCY,
-          occurredOn: movement.occurred_on,
-          actorIdentityId,
-          sourceReference: movement.idempotency_key,
-          context: {
-            inventoryItemId: movement.inventory_item_id,
-            warehouseId: movement.warehouse_id,
-            movementType: movement.movement_type,
-            quantity: movement.quantity,
-            originKind: movement.origin_kind,
-            costingRuleVersionId: movement.costing_rule_version_id,
-          },
-        });
       }
 
       await client.query('COMMIT');
@@ -765,6 +727,46 @@ export class InventoryRepository {
     if (!row) {
       throw new InventoryError('INVENTORY_NOT_FOUND');
     }
+
+    /*
+     * F1.2 — O FATO ECONÔMICO É PUBLICADO AQUI, NO CAMINHO REAL DE ESCRITA.
+     *
+     * DEFEITO MEDIDO. A publicação do fato estava em `postMovements`, e
+     * `postMovements` NÃO TEM UM ÚNICO CHAMADOR: o caminho que realmente grava
+     * movimentação é `withLockedPositions` + `insertMovement`. A espinha
+     * INVENTORY → ACCOUNTING, portanto, nunca era acionada — o estoque movimentava e
+     * nenhum fato econômico existia. O sintoma medido foi `plt.economic_events` com
+     * ZERO linhas depois de uma entrada de estoque com custo.
+     *
+     * Publicar no MÉTODO DE ESCRITA — e não no método de serviço — garante que TODO
+     * chamador que grava movimentação publique o fato. Os três caminhos do serviço
+     * (`postStock`, estorno e reserva) passam por aqui.
+     *
+     * Atomicidade: `client` é a conexão da transação que gravou a movimentação.
+     * Rollback do estoque ⇒ rollback do fato. Nunca há estoque movimentado sem fato,
+     * nem fato sem estoque.
+     *
+     * Só movimentação COM CUSTO é fato econômico: sem valor não há o que contabilizar.
+     */
+    if (input.totalCost && Number(input.totalCost) > 0) {
+      await this.economicEvents.record(client, {
+        unitId: row.unit_id,
+        eventKind: ECONOMIC_EVENT_KINDS.InventoryMovementPosted,
+        sourceKind: ECONOMIC_EVENT_SOURCE_KINDS.InventoryMovement,
+        sourceId: row.id,
+        amount: input.totalCost,
+        currencyCode: INVENTORY_ACCOUNTING_CURRENCY,
+        occurredOn: row.occurred_on,
+        actorIdentityId: input.actorIdentityId,
+        sourceReference: row.idempotency_key,
+        context: {
+          inventoryItemId: row.inventory_item_id,
+          warehouseId: row.warehouse_id,
+          movementType: row.movement_type,
+        },
+      });
+    }
+
     return row;
   }
 
