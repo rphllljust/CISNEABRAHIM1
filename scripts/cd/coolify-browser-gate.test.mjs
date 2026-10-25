@@ -89,18 +89,92 @@ describe('browser gate — cobertura da vertical de medição', () => {
   });
 
   /**
-   * ESTADO VAZIO É RESULTADO LEGÍTIMO, NÃO AUSÊNCIA DE PROVA.
+   * ─────────────────────────────────────────────────────────────────────────────
+   * ESTADO VAZIO NÃO É APROVAÇÃO DE NEGÓCIO
+   * ─────────────────────────────────────────────────────────────────────────────
    *
-   * Um tenant sem ordem selecionada não tem o que medir. O gate precisa registrar
-   * isso como N/A EXPLÍCITO — asserção aprovada COM MOTIVO —, e não pular o bloco
-   * em silêncio. Silêncio é indistinguível de "não verifiquei".
+   * Abrir a estação sem unidade prova apenas que a tela sabe pedir a unidade.
+   * Num release de aceite, chamar isso de PASS é afirmar sucesso sobre o que não
+   * se olhou.
+   *
+   * O gate precisa declarar NOT_APPLICABLE com motivo, e o veredito de negócio
+   * precisa ficar SEPARADO do veredito de runtime.
    */
-  it('estado vazio da medição é N/A explícito, nunca omissão', () => {
+  it('estado vazio é NOT_APPLICABLE explícito, nunca aprovação de negócio', () => {
     const source = readGate();
     assert.match(
       source,
-      /N\/A — nenhuma ordem selecionada/,
-      'o curto-circuito de estado vazio precisa declarar N/A com motivo',
+      /NOT_APPLICABLE — nenhuma medição na fila desta unidade/,
+      'o motivo do N/A precisa ser declarado com o nome correto',
+    );
+    assert.match(
+      source,
+      /businessVerified = false|businessVerified/,
+      'o veredito de negócio precisa existir e ser separado do de runtime',
+    );
+  });
+
+  /**
+   * ─────────────────────────────────────────────────────────────────────────────
+   * A UNIDADE VEM DO SERVIDOR, NÃO DE FIXTURE
+   * ─────────────────────────────────────────────────────────────────────────────
+   *
+   * Sem `unitId` a estação não carrega fila, e o gate ficaria eternamente em N/A.
+   * A unidade precisa ser resolvida da resposta REAL de `/api/v1/me`, nunca
+   * inventada nem assumida como `UN-PROD-001`.
+   */
+  it('resolução de unidade vem do servidor autenticado', () => {
+    const source = readGate();
+    assert.match(source, /resolvedUnitId/, 'o gate precisa resolver a unidade real');
+    assert.match(
+      source,
+      /\/api\/v1\/me/,
+      'a unidade deve vir de /api/v1/me, não de constante',
+    );
+    assert.doesNotMatch(
+      source,
+      /'UN-PROD-001'|"UN-PROD-001"/,
+      'unidade não pode ser inventada no gate',
+    );
+  });
+
+  /**
+   * PROVA DE NEGÓCIO EXIGE ORDEM REAL NA FILA — e entra por ela, como o operador.
+   */
+  it('prova de negócio entra pela fila e exige aceite + elegibilidade', () => {
+    const source = readGate();
+    assert.match(source, /queueLinks/, 'o gate precisa procurar ordem na fila');
+    assert.match(
+      source,
+      /businessVerified = eligibility && acceptance && commercialUnit/,
+      'negócio só é verificado com aceite E elegibilidade E unidade comercial',
+    );
+  });
+
+  /**
+   * ─────────────────────────────────────────────────────────────────────────────
+   * "RENDERIZADA" NÃO É "LONGA"
+   * ─────────────────────────────────────────────────────────────────────────────
+   *
+   * A asserção `length > 200` reprovou produção com `16 chars` — que eram a
+   * instrução correta da tela. Exigir volume de texto é falso negativo por
+   * TAMANHO, irmão do falso negativo por vocabulário.
+   *
+   * O que a asserção deve provar é que a aplicação APARECEU.
+   */
+  it('renderização é provada por shell visível, não por volume de texto', () => {
+    const source = readGate();
+    assert.match(
+      source,
+      /shellRendered/,
+      'a prova de renderização precisa do shell, não do tamanho do texto',
+    );
+    // O comentário que documenta o defeito CITA a asserção antiga; o que não pode
+    // voltar é a CHAMADA executável. `record(` é o que registra a asserção.
+    assert.doesNotMatch(
+      source,
+      /record\(\s*'MEDIÇÃO renderizada',\s*\n?\s*measurementText\.length > 200/,
+      'limiar arbitrário de texto reprovou tela saudável; não pode voltar',
     );
   });
 
@@ -118,12 +192,12 @@ describe('browser gate — cobertura da vertical de medição', () => {
    * no conteúdo visível. O critério tem de ser o que a tela precisa para operar:
    * uma ordem selecionada.
    */
-  it('estado vazio é decidido por ordem selecionada, não por vocabulário', () => {
+  it('estado vazio é decidido por estrutura, não por vocabulário', () => {
     const source = readGate();
     assert.match(
       source,
-      /hasSelectedOrder/,
-      'o gate precisa decidir estado vazio por estrutura (ordem selecionada)',
+      /queueCount/,
+      'o gate precisa decidir estado vazio pela fila real, não por palavra na tela',
     );
     assert.doesNotMatch(
       source,

@@ -96,6 +96,15 @@ async function main() {
   const forbidden = [];
   /** Status HTTP que a API devolveu ao login — evidência para o diagnostico. */
   const loginApiStatuses = [];
+  /**
+   * Vereditos separados, declarados AQUI para sobreviverem ao `try`/`catch`.
+   *
+   * `runtimeVerified` = a aplicação subiu, autenticou e renderizou.
+   * `businessVerified` = a capability desta release foi observada funcionando.
+   */
+  let runtimeVerified = false;
+  let businessVerified = false;
+  let businessReason;
   page.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text());
   });
@@ -138,6 +147,49 @@ async function main() {
       );
     }
     record('LOGIN real pelo formulário', true, page.url());
+
+    /**
+     * ───────────────────────────────────────────────────────────────────────────
+     * RESOLVE A UNIDADE REAL DO OPERADOR — SEM ELA NÃO HÁ PROVA DE NEGÓCIO
+     * ───────────────────────────────────────────────────────────────────────────
+     *
+     * A estação de medição exige `unitId` na URL antes de carregar a fila. Abrir
+     * `/app/measurement` sem unidade provou apenas que a tela sabe pedir a unidade
+     * — e o gate chamava isso de aprovado. Isso é PROVA DE RUNTIME, não de negócio:
+     * dizer "aceite visível: N/A" num release de aceite é não ter provado nada.
+     *
+     * A unidade vem do TOKEN já autenticado, consultando a API pela sessão do
+     * próprio navegador. Não se inventa `unitId`, não se usa fixture e não se
+     * assume `UN-PROD-001`: a fonte é a resposta real de `/api/v1/me`.
+     */
+    const resolvedUnitId = await page.evaluate(async () => {
+      const meResponse = await fetch('/api/v1/me', {
+        headers: { Accept: 'application/json' },
+        credentials: 'include',
+      });
+      if (!meResponse.ok) return null;
+      const me = await meResponse.json();
+      const lists = [me?.unidades, me?.units, me?.usuario?.unidades, me?.identity?.units];
+      for (const list of lists) {
+        if (Array.isArray(list)) {
+          for (const entry of list) {
+            const candidate =
+              typeof entry === 'string' ? entry : (entry?.unitId ?? entry?.id ?? entry?.code);
+            if (typeof candidate === 'string' && candidate.trim().length > 0) {
+              return candidate.trim();
+            }
+          }
+        }
+      }
+      const single = me?.unitId ?? me?.unidadeId ?? me?.usuario?.unitId;
+      return typeof single === 'string' && single.trim().length > 0 ? single.trim() : null;
+    });
+
+    record(
+      'UNIDADE operacional resolvida pelo servidor',
+      typeof resolvedUnitId === 'string' && resolvedUnitId.length > 0,
+      resolvedUnitId ?? 'nenhuma unidade publicada para o operador',
+    );
 
     // ── 2. APP SHELL + NAVEGAÇÃO POR PERMISSÃO ────────────────────────────────
     await page.goto(`${webUrl}/app/accounting/economic-posting`, {
@@ -302,10 +354,15 @@ async function main() {
      *     operador);
      *   - 403/404/409/5xx nas rotas da própria capability.
      *
-     * Medir sem ordem de serviço elegível é resultado LEGÍTIMO: a tela precisa
-     * dizer isso e o bloco vira N/A EXPLÍCITO — nunca omitido em silêncio.
+     * Medir sem ordem de serviço elegível é resultado LEGÍTIMO — mas NÃO é prova
+     * de negócio. O gate distingue os dois: `runtimeVerified` (a estação carrega
+     * sem quebrar) e `businessVerified` (aceite e elegibilidade observados). Só o
+     * segundo autoriza dizer que a capability foi validada em produção.
      */
-    await page.goto(`${webUrl}/app/measurement`, {
+    const measurementUrl = resolvedUnitId
+      ? `${webUrl}/app/measurement?unitId=${encodeURIComponent(resolvedUnitId)}`
+      : `${webUrl}/app/measurement`;
+    await page.goto(measurementUrl, {
       waitUntil: 'domcontentloaded',
       timeout: 60_000,
     });
@@ -315,11 +372,36 @@ async function main() {
       })
       .catch(() => {});
     const measurementText = await page.locator('body').innerText().catch(() => '');
+    /**
+     * ───────────────────────────────────────────────────────────────────────────
+     * "RENDERIZADA" NÃO É "LONGA" — MEDIDO EM PRODUÇÃO
+     * ───────────────────────────────────────────────────────────────────────────
+     *
+     * A primeira versão exigia `measurementText.length > 200` e reprovou produção
+     * com `MEDIÇÃO renderizada — 16 chars`. Os 16 caracteres eram a INSTRUÇÃO
+     * correta do produto: sem `unitId` na URL a tela pede a unidade antes de
+     * carregar a fila.
+     *
+     * Exigir volume de texto reprova uma tela saudável — é falso negativo por
+     * TAMANHO, irmão do falso negativo por vocabulário que este mesmo gate já
+     * corrigiu. O que a asserção deve provar é que a aplicação APARECEU, isto é,
+     * que o shell renderizou em vez de uma página em branco ou um erro.
+     */
+    const shellRendered = await page
+      .locator('main#main-content')
+      .isVisible()
+      .catch(() => false);
     record(
       'MEDIÇÃO renderizada',
-      measurementText.length > 200,
-      `${measurementText.length} chars`,
+      shellRendered && measurementText.trim().length > 0,
+      `${measurementText.length} chars, shell=${shellRendered ? 'visível' : 'ausente'}`,
     );
+    /**
+     * `runtimeVerified` exige a estação ABERTA na unidade real. Abrir sem unidade
+     * prova apenas que a tela sabe pedir a unidade — o deploy subiu, e só.
+     */
+    runtimeVerified =
+      shellRendered && measurementText.trim().length > 0 && typeof resolvedUnitId === 'string' && resolvedUnitId.length > 0;
     record(
       'MEDIÇÃO sem FEATURE_DISABLED',
       !/FEATURE_DISABLED/.test(measurementText),
@@ -331,63 +413,72 @@ async function main() {
 
     /**
      * ───────────────────────────────────────────────────────────────────────────
-     * ESTADO VAZIO É DETECTADO POR ESTRUTURA, NÃO POR PALAVRA
+     * PROVA DE NEGÓCIO: PROCURA UMA ORDEM ELEGÍVEL, NÃO ESPERA QUE ELA APAREÇA
      * ───────────────────────────────────────────────────────────────────────────
      *
-     * A primeira versão procurava /Nenhuma|Vazio|sem ordem/ no texto e reprovou a
-     * produção com 331 chars de conteúdo — a página renderizou corretamente, só
-     * não usou a palavra que o regex esperava. Reprovar por vocabulário é o mesmo
-     * falso negativo que o gate da contabilidade já corrigiu.
+     * Abrir a estação com a unidade certa já prova RUNTIME (a tela carrega sem
+     * quebrar). Provar NEGÓCIO exige uma medição real em decisão: é nela que o
+     * aceite do cliente e a elegibilidade de faturamento existem.
      *
-     * O critério agora é o que a tela REALMENTE precisa para operar: uma ordem
-     * selecionada. Sem `serviceOrderId` na URL e sem link de OS na fila, não há
-     * medição a conferir — e exigir painéis de aceite/elegibilidade aí seria
-     * exigir dado que não existe.
+     * A fila é a fonte: se houver item, o operador entra por ele. Sem item, o gate
+     * NÃO inventa caso e NÃO declara a capability validada — emite
+     * NOT_APPLICABLE com motivo, separado do veredito de runtime.
      */
-    const hasOrderInUrl = /[?&]serviceOrderId=/.test(page.url());
-    const orderLinks = await page.locator('a[href*="serviceOrderId="]').count().catch(() => 0);
-    const hasSelectedOrder = hasOrderInUrl || orderLinks > 0;
+    const queueLinks = page.locator('a[href*="serviceOrderId="], button[data-service-order-id]');
+    const queueCount = await queueLinks.count().catch(() => 0);
 
-    if (!hasSelectedOrder) {
-      // N/A EXPLÍCITO: registrado como aprovado-com-motivo, nunca omitido.
-      record(
-        'MEDIÇÃO apresenta estado vazio explícito',
-        true,
-        `N/A — nenhuma ordem selecionada (${measurementText.length} chars renderizados)`,
-      );
-      record(
-        'MEDIÇÃO expõe elegibilidade de faturamento',
-        true,
-        'N/A — sem ordem selecionada',
-      );
-      record('MEDIÇÃO expõe aceite do cliente', true, 'N/A — sem ordem selecionada');
-      await page.screenshot({ path: `${OUT}/03-measurement.png`, fullPage: true });
-    } else {
-      // Havendo ordem, o workbench precisa expor a decisão do BACKEND. Estas são as
-      // superfícies que o operador usa para decidir; sem elas a tela não opera.
-      record(
-        'MEDIÇÃO expõe elegibilidade de faturamento',
-        /Elegib|READY_TO_BILL|Pronto para faturar/i.test(measurementText),
-      );
-      record(
-        'MEDIÇÃO expõe aceite do cliente',
-        /Aceite|ACEITE|Aceita/i.test(measurementText),
-      );
+    if (queueCount > 0) {
+      // Entra pela FILA — o caminho do operador, não uma URL montada à mão.
+      await queueLinks.first().click();
+      await page
+        .waitForFunction(() => !document.body.innerText.includes('Carregando'), undefined, {
+          timeout: 90_000,
+        })
+        .catch(() => {});
+      const workbenchText = await page.locator('body').innerText().catch(() => '');
+
+      const eligibility = /Elegib|READY_TO_BILL|Pronto para faturar/i.test(workbenchText);
+      const acceptance = /Aceite|ACEITE|Aceita/i.test(workbenchText);
       /**
        * A UNIDADE COMERCIAL É A DO CONTRATO.
        *
        * Se a tela exibir `HOUR` ou `KM` como unidade de MEDIÇÃO, a fronteira
-       * comercial/física vazou: fato operacional virou quantidade faturável. A
-       * asserção é negativa de propósito — é o defeito que esta release corrigiu.
+       * comercial/física vazou: fato operacional virou quantidade faturável.
        */
+      const commercialUnit =
+        !/\bHOUR\b/.test(workbenchText) || /\bDAY\b|\bTRIP\b|\bM3\b/.test(workbenchText);
+
+      record(
+        'MEDIÇÃO expõe elegibilidade de faturamento',
+        eligibility,
+        `${workbenchText.length} chars`,
+      );
+      record('MEDIÇÃO expõe aceite do cliente', acceptance);
       record(
         'MEDIÇÃO não mede em unidade física (HOUR/KM)',
-        !/\bHOUR\b/.test(measurementText) || /\bDAY\b|\bTRIP\b|\bM3\b/.test(measurementText),
+        commercialUnit,
         'unidade comercial preservada',
       );
+
+      businessVerified = eligibility && acceptance && commercialUnit;
+      businessReason = businessVerified
+        ? 'aceite e elegibilidade observados em medição real'
+        : 'workbench aberto sem expor aceite/elegibilidade';
+      await page.screenshot({ path: `${OUT}/03-measurement-workbench.png`, fullPage: true });
+    } else {
+      /**
+       * NOT_APPLICABLE — e o nome diz exatamente isso.
+       *
+       * A tentação é chamar de "PASS" porque a tela não quebrou. Seria mentira:
+       * num release de aceite, "não há caso" é ausência de prova de negócio, não
+       * aprovação dela. O veredito fica separado e explícito.
+       */
+      businessReason = 'NOT_APPLICABLE — nenhuma medição na fila desta unidade';
+      record('MEDIÇÃO expõe elegibilidade de faturamento', true, businessReason);
+      record('MEDIÇÃO expõe aceite do cliente', true, businessReason);
+      record('MEDIÇÃO não mede em unidade física (HOUR/KM)', true, businessReason);
       await page.screenshot({ path: `${OUT}/03-measurement.png`, fullPage: true });
     }
-
     const measurementDenied = forbidden.filter((f) => /\/measurements?\b/.test(f));
     record(
       'SEM 403/404 nas rotas de medição',
@@ -436,6 +527,28 @@ async function main() {
   const passed = results.filter((r) => r.passed).length;
   const total = results.length;
   console.log(`\n[coolify-browser-gate] RESULTADO ${passed}/${total} web=${webUrl}`);
+
+  /**
+   * ─────────────────────────────────────────────────────────────────────────────
+   * DOIS VEREDITOS, PORQUE SÃO DUAS COISAS DIFERENTES
+   * ─────────────────────────────────────────────────────────────────────────────
+   *
+   * `runtimeVerified`: a aplicação subiu, autenticou e renderizou sem erro crítico.
+   * É o que um deploy saudável prova.
+   *
+   * `businessVerified`: a CAPABILITY desta release foi observada funcionando numa
+   * medição real — aceite e elegibilidade visíveis. É o que autoriza dizer
+   * "produção validada" em vez de "produção no ar".
+   *
+   * Sem caso na fila, `businessVerified` é FALSE e o motivo é
+   * NOT_APPLICABLE. Um único número (19/20) esconderia essa distinção: quem lê
+   * "quase tudo verde" conclui que o negócio foi provado quando ele não foi.
+   */
+  console.log(
+    `[coolify-browser-gate] runtimeVerified=${runtimeVerified} businessVerified=${businessVerified}`,
+  );
+  console.log(`[coolify-browser-gate] businessReason=${businessReason ?? 'não avaliado'}`);
+
   if (passed !== total) {
     process.exitCode = 1;
   }
