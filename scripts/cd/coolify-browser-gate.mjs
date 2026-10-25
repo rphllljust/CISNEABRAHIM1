@@ -104,23 +104,53 @@ function required(name) {
  *
  *   `UNIDADE UN-PROD-001   1 FALHARAM   0 PENDENTES   0 ESTORNADAS`
  *
- * Três fontes foram tentadas antes desta, e as três primeiras não servem:
+ * ─────────────────────────────────────────────────────────────────────────────
+ * DEFEITO REAL QUE A LISTA DE REJEIÇÃO FECHA (medido em produção)
+ * ─────────────────────────────────────────────────────────────────────────────
  *
- *   1. `fetch('/api/v1/me')` relativo → resolve contra a origem do SPA e recebe
- *      `index.html` (`SyntaxError: Unexpected token '<'`).
- *   2. escutar `/api/v1/me` → devolve identidade e permissões, NÃO a unidade.
- *   3. ler token de storage → o `tokenStore` guarda o access token em MEMÓRIA,
- *      por design; ler de storage seria enfraquecer isso.
+ * A primeira versão aceitava qualquer token depois de `UNIDADE`. Em produção o
+ * gate extraiu o valor `Selecione` — palavra do SELETOR de unidade da própria
+ * tela, não um código — e montou `/app/measurement?unitId=Selecione`. O backend
+ * não reconheceu, o guard redirecionou, e o shell nunca renderizou:
  *
- * Extraída como função pura porque o defeito anterior — um delimitador de fim
- * de comentário ausente — deixou a navegação inteira DENTRO do comentário: a
- * checagem de sintaxe passou, o teste por regex passou, e o código simplesmente
- * não rodava. Só comportamento pega isso.
+ *   FAIL  MEDIÇÃO renderizada — 16 chars, shell=ausente
+ *
+ * Um valor plausível e errado é pior que nenhum: com `null` o gate saberia que
+ * não tem unidade; com "Selecione" ele acha que tem. A rejeição abaixo é
+ * explícita sobre RÓTULOS DE INTERFACE, que nunca são códigos.
  */
+const UI_LABEL_TOKENS = new Set(
+  [
+    'SELECIONE',
+    'SELECIONAR',
+    'ESCOLHA',
+    'UNIDADE',
+    'UNIDADES',
+    'TODAS',
+    'TODOS',
+    'NENHUMA',
+    'NENHUM',
+    'CARREGANDO',
+    'FILTRO',
+    'BUSCAR',
+    'PESQUISAR',
+  ].map((token) => token.toUpperCase()),
+);
+
 export function extractOperationalUnit(worklistText) {
   if (typeof worklistText !== 'string') return null;
   const match = /UNIDADE\s+([A-Z0-9][A-Z0-9._-]{2,})/i.exec(worklistText);
-  return match?.[1] ?? null;
+  if (!match?.[1]) return null;
+  const candidate = match[1].trim();
+  /**
+   * Um CÓDIGO tem dígito ou separador (`UN-PROD-001`, `MATRIZ.SP-01`). Um RÓTULO
+   * é uma palavra só, sem dígito. As duas condições juntas evitam que "Selecione"
+   * passe como unidade sem precisar listar toda palavra possível.
+   */
+  const looksLikeCode = /[0-9._-]/.test(candidate);
+  if (!looksLikeCode) return null;
+  if (UI_LABEL_TOKENS.has(candidate.toUpperCase())) return null;
+  return candidate;
 }
 
 /**

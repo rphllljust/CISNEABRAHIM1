@@ -64,6 +64,37 @@ describe('extractOperationalUnit — extração por comportamento', () => {
     assert.equal(extractOperationalUnit(null), null);
     assert.equal(extractOperationalUnit(42), null);
   });
+
+  /**
+   * ─────────────────────────────────────────────────────────────────────────────
+   * RÓTULO DE INTERFACE NÃO É CÓDIGO DE UNIDADE
+   * ─────────────────────────────────────────────────────────────────────────────
+   *
+   * DEFEITO REAL MEDIDO EM PRODUÇÃO (release 40241021656):
+   *
+   *   PASS  UNIDADE operacional resolvida pelo servidor — Selecione
+   *
+   * O gate extraiu "Selecione" — palavra do SELETOR de unidade da tela — e montou
+   * `/app/measurement?unitId=Selecione`. O backend não reconheceu, o guard
+   * redirecionou, e a estação nunca renderizou:
+   *
+   *   FAIL  MEDIÇÃO renderizada — 16 chars, shell=ausente
+   *
+   * Um valor plausível e errado é PIOR que nenhum: com null o gate sabe que não
+   * tem unidade; com "Selecione" ele acha que tem.
+   */
+  it('rejeita rótulos de interface como unidade', () => {
+    assert.equal(extractOperationalUnit('UNIDADE Selecione'), null);
+    assert.equal(extractOperationalUnit('UNIDADE Selecione unidade para continuar'), null);
+    assert.equal(extractOperationalUnit('UNIDADE Todas as unidades'), null);
+    assert.equal(extractOperationalUnit('UNIDADE Carregando'), null);
+  });
+
+  it('aceita código real que contém separador ou dígito', () => {
+    assert.equal(extractOperationalUnit('UNIDADE UN-PROD-001'), 'UN-PROD-001');
+    assert.equal(extractOperationalUnit('UNIDADE MATRIZ.SP-01'), 'MATRIZ.SP-01');
+    assert.equal(extractOperationalUnit('UNIDADE FILIAL_2'), 'FILIAL_2');
+  });
 });
 
 describe('o gate executa — código útil não pode estar comentado', () => {
