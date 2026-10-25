@@ -151,9 +151,11 @@ export async function getMeasurementWorkbench(
   serviceOrderId: string,
   signal?: AbortSignal,
 ): Promise<MeasurementWorkbenchReadModel> {
-  return requestJson<MeasurementWorkbenchReadModel>(
-    `/api/v1/query/measurements/${encodeURIComponent(serviceOrderId)}/workbench`,
-    { method: 'GET', headers: authHeaders(), signal },
+  return normalizeWorkbench(
+    await requestJson<MeasurementWorkbenchReadModel>(
+      `/api/v1/query/measurements/${encodeURIComponent(serviceOrderId)}/workbench`,
+      { method: 'GET', headers: authHeaders(), signal },
+    ),
   );
 }
 
@@ -175,10 +177,99 @@ export async function getMeasurementWorkQueue(
   if (input.at !== undefined) {
     params.set('at', input.at);
   }
-  return requestJson<MeasurementWorkQueueReadModel>(
+  const payload = await requestJson<MeasurementWorkQueueReadModel>(
     `/api/v1/query/measurements/queue?${params.toString()}`,
     { method: 'GET', headers: authHeaders(), signal },
   );
+  return normalizeWorkQueue(payload);
+}
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * A FILA É NORMALIZADA NA FRONTEIRA HTTP — E ISSO NÃO É CINTO DE SEGURANÇA
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * O contrato declara `items` e `counts` sempre presentes. Na prática o navegador
+ * quebrou em produção com:
+ *
+ *   TypeError: Cannot read properties of undefined (reading 'map')
+ *
+ * A tela lia `queueData.items.length` e `items.map(...)` direto da resposta. Uma
+ * resposta sem essas chaves — proxy que corta o corpo, erro parcial, versão de
+ * backend diferente do frontend durante o deploy — derrubava a ESTAÇÃO INTEIRA,
+ * incluindo as colunas que não dependem da fila.
+ *
+ * O reparo é na fronteira, e o motivo é de arquitetura: o React recebe um tipo
+ * que afirma `items: WorkQueueItem[]`, então o valor que chega precisa HONRAR o
+ * tipo. Normalizar aqui mantém uma única porta de entrada do dado; espalhar
+ * `?? []` pelas telas faria cada componente inventar sua própria tolerância.
+ *
+ * Lista vazia é a resposta correta para "não recebi a lista": a fila fica vazia e
+ * a tela continua operável. O que NÃO se faz aqui é inventar item, contagem ou
+ * qualquer valor de negócio — a normalização só garante a FORMA declarada.
+ */
+function normalizeWorkQueue(
+  payload: MeasurementWorkQueueReadModel | null | undefined,
+): MeasurementWorkQueueReadModel {
+  return {
+    context: payload?.context ?? { unitId: '', at: new Date().toISOString() },
+    counts: payload?.counts ?? {},
+    items: Array.isArray(payload?.items) ? payload.items : [],
+    // `authority` continua `SERVER`: a forma é garantida aqui, a AFIRMAÇÃO de
+    // frescura continua sendo do servidor. Um clique do cliente nunca a produz.
+    freshness: payload?.freshness ?? { readAt: new Date().toISOString(), authority: 'SERVER' },
+  };
+}
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * O WORKBENCH TAMBÉM É NORMALIZADO — MESMA RAZÃO, SUPERFÍCIE MAIOR
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * `MeasurementDecisionContext` percorre treze coleções com `.map` (linhas da base,
+ * histórico de aceite, dimensões da elegibilidade, motivos de bloqueio, comandos,
+ * situações, marcos, passos, eventos, ajustes). Todas são `readonly T[]` no tipo.
+ *
+ * O defeito que derrubou produção não escolhe superfície: qualquer resposta sem a
+ * chave correspondente quebrava o render inteiro. Normalizar só a FILA deixaria a
+ * estação de trabalho — a tela principal da capability — exposta ao mesmo erro.
+ *
+ * A garantia é de FORMA, e só dela:
+ *
+ *   - coleção ausente ou não-lista → `[]`;
+ *   - `nextAction` é `null` quando ausente: "sem próxima ação" é um estado real
+ *     do domínio, não um objeto vazio inventado;
+ *   - escalares ausentes → `null`, nunca `0`, `''` ou `false`. Um zero inventado
+ *     numa quantidade viraria valor de negócio afirmado pelo cliente.
+ *   - `freshness` preserva `authority: 'SERVER'`.
+ */
+function normalizeWorkbench(
+  payload: MeasurementWorkbenchReadModel | null | undefined,
+): MeasurementWorkbenchReadModel {
+  // `unknown[]` e não genérico: o payload chega em `Partial`, então a inferência
+  // cairia em `any[]` e a fronteira devolveria dado não verificado ao React.
+  const arrayOf = (value: unknown): readonly unknown[] =>
+    Array.isArray(value) ? value : [];
+
+  const source = (payload ?? {}) as Partial<MeasurementWorkbenchReadModel>;
+
+  return {
+    ...source,
+    variances: arrayOf(source.variances),
+    adjustments: arrayOf(source.adjustments),
+    items: arrayOf(source.items),
+    evidence: arrayOf(source.evidence),
+    situations: arrayOf(source.situations),
+    relationships: arrayOf(source.relationships),
+    documentFlow: arrayOf(source.documentFlow),
+    timeline: arrayOf(source.timeline),
+    availableCommands: arrayOf(source.availableCommands),
+    nextAction: source.nextAction ?? null,
+    freshness: source.freshness ?? {
+      readAt: new Date().toISOString(),
+      authority: 'SERVER',
+    },
+  } as MeasurementWorkbenchReadModel;
 }
 
 /** LACUNA DE RECEITA por estágio da cadeia. */
@@ -220,14 +311,16 @@ export async function recordCustomerAcceptance(
   measurementId: string,
   payload: RecordAcceptancePayload,
 ): Promise<MeasurementWorkbenchReadModel> {
-  return requestJson<MeasurementWorkbenchReadModel>(
-    `/api/v1/service-orders/${encodeURIComponent(serviceOrderId)}/measurements/${encodeURIComponent(
-      measurementId,
-    )}/acceptance`,
-    {
-      method: 'POST',
-      headers: jsonHeaders(),
-      body: JSON.stringify(payload),
-    },
+  return normalizeWorkbench(
+    await requestJson<MeasurementWorkbenchReadModel>(
+      `/api/v1/service-orders/${encodeURIComponent(serviceOrderId)}/measurements/${encodeURIComponent(
+        measurementId,
+      )}/acceptance`,
+      {
+        method: 'POST',
+        headers: jsonHeaders(),
+        body: JSON.stringify(payload),
+      },
+    ),
   );
 }

@@ -91,16 +91,44 @@ describe('browser gate — cobertura da vertical de medição', () => {
   /**
    * ESTADO VAZIO É RESULTADO LEGÍTIMO, NÃO AUSÊNCIA DE PROVA.
    *
-   * Um tenant sem ordem de serviço elegível não tem o que medir. O gate precisa
-   * registrar isso como N/A EXPLÍCITO — asserção aprovada COM MOTIVO —, e não
-   * pular o bloco em silêncio. Silêncio é indistinguível de "não verifiquei".
+   * Um tenant sem ordem selecionada não tem o que medir. O gate precisa registrar
+   * isso como N/A EXPLÍCITO — asserção aprovada COM MOTIVO —, e não pular o bloco
+   * em silêncio. Silêncio é indistinguível de "não verifiquei".
    */
   it('estado vazio da medição é N/A explícito, nunca omissão', () => {
     const source = readGate();
     assert.match(
       source,
-      /N\/A — nenhuma ordem elegível/,
+      /N\/A — nenhuma ordem selecionada/,
       'o curto-circuito de estado vazio precisa declarar N/A com motivo',
+    );
+  });
+
+  /**
+   * ─────────────────────────────────────────────────────────────────────────────
+   * A DETECÇÃO É ESTRUTURAL, NÃO POR PALAVRA
+   * ─────────────────────────────────────────────────────────────────────────────
+   *
+   * A primeira versão procurava /Nenhuma|Vazio|sem ordem/ no TEXTO da página e
+   * reprovou produção com `MEDIÇÃO renderizada — 331 chars`: a página estava
+   * correta, só não usava a palavra que o regex esperava.
+   *
+   * Reprovar por vocabulário é falso negativo por SELETOR — o mesmo defeito que
+   * o gate da contabilidade já havia corrigido ao parar de procurar o `aria-label`
+   * no conteúdo visível. O critério tem de ser o que a tela precisa para operar:
+   * uma ordem selecionada.
+   */
+  it('estado vazio é decidido por ordem selecionada, não por vocabulário', () => {
+    const source = readGate();
+    assert.match(
+      source,
+      /hasSelectedOrder/,
+      'o gate precisa decidir estado vazio por estrutura (ordem selecionada)',
+    );
+    assert.doesNotMatch(
+      source,
+      /noMeasurementOrder/,
+      'a detecção por vocabulário reprovou produção saudável; não pode voltar',
     );
   });
 });
