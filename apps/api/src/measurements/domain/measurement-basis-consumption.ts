@@ -238,14 +238,34 @@ export function parseMeasurementBasisActuals(raw: unknown): Record<string, strin
  *
  *   1. a base existe e está `READY` (uma base substituída é passado);
  *   2. a base pertence à MESMA ordem que a medição;
- *   3. a base possui ao menos uma linha com quantidade real.
+ *   3. a base possui ao menos uma linha com quantidade real, OU o serviço é de
+ *      preço global e existe quantidade registrada na execução.
  *
- * A condição 3 é a que impede medir um fechamento sem realizado: uma base vazia
- * produziria uma medição vazia e o faturamento falharia depois, longe da causa.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * POR QUE A CONDIÇÃO 3 ADMITE A QUANTIDADE DE EXECUÇÃO
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * `byUnit` no fechamento agrega `so.execution_actuals` — o realizado POR RECURSO.
+ * Um serviço de preço global (`measurementBasis = GLOBAL_COMPLETION`) medido na
+ * unidade de serviço não aponta recurso nenhum, então não há realizado a agregar e
+ * a base publica `lines: []`.
+ *
+ * Exigir linha de base aí tornaria NÃO MEDÍVEL uma venda legítima: "serviço
+ * concluído por 1 SERVICE" é exatamente o que esse modo de medição cobra. A
+ * quantidade existe — foi registrada como entrada de execução (`recordQuantity`),
+ * que é o apontamento operacional do que foi entregue.
+ *
+ * O fallback NÃO é a volta do caminho antigo: a ORIGEM continua sendo a base
+ * publicada (o item nasce com `sourceMeasurementBasisId`), e a quantidade de
+ * execução entra apenas como o REALIZADO quando a base não trouxe nenhum. Uma
+ * medição com realizado na base nunca é substituída — o fallback só preenche o
+ * que está vazio, e nunca sobrescreve fato congelado.
  */
 export function assertBasisConsumable(input: {
   basis: PublishedMeasurementBasis | null;
   serviceOrderId: string;
+  /** Quantidades registradas na execução, por unidade. Vazio quando não há. */
+  executionQuantities?: ReadonlyArray<{ unitCode: string; quantity: string }>;
 }): void {
   if (!input.basis) {
     throw new MeasurementError('MEASUREMENT_BASIS_NOT_PUBLISHED');
@@ -256,9 +276,32 @@ export function assertBasisConsumable(input: {
   if (input.basis.serviceOrderId !== input.serviceOrderId) {
     throw new MeasurementError('MEASUREMENT_BASIS_ORDER_MISMATCH');
   }
-  if (input.basis.lines.length === 0) {
+  if (input.basis.lines.length === 0 && !hasExecutionQuantity(input.executionQuantities)) {
     throw new MeasurementError('MEASUREMENT_BASIS_EMPTY');
   }
+}
+
+/**
+ * Há quantidade de execução utilizável como realizado?
+ *
+ * Zero é recusado de propósito: registrar "0 unidades entregues" e medi-lo daria
+ * uma linha de valor zero que parece medição conferida. Sem quantidade positiva o
+ * fechamento não tem realizado, e a base continua sendo recusada.
+ */
+function hasExecutionQuantity(
+  quantities: ReadonlyArray<{ unitCode: string; quantity: string }> | undefined,
+): boolean {
+  if (!quantities || quantities.length === 0) {
+    return false;
+  }
+  return quantities.some((item) => {
+    const unitCode = readString(item.unitCode);
+    if (unitCode === null) {
+      return false;
+    }
+    const value = readDecimalString(item.quantity);
+    return value !== null && Number(value) > 0;
+  });
 }
 
 /**
@@ -297,7 +340,80 @@ export type BasisDerivedItem = {
   measuredQuantity: string;
 };
 
-export function deriveItemsFromBasis(basis: PublishedMeasurementBasis): BasisDerivedItem[] {
+/**
+ * Deriva os itens quando a base publicou `lines: []`.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * SERVIÇO DE PREÇO GLOBAL NÃO TEM REALIZADO POR RECURSO
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * `GLOBAL_COMPLETION` cobra o serviço entregue, não uma quantidade por recurso —
+ * então o fechamento não tem `execution_actuals` a agregar e publica base vazia.
+ * Recusar aí tornaria não medível a venda que o próprio modo de medição descreve.
+ *
+ * A quantidade vem da ENTRADA DE EXECUÇÃO (`recordQuantity`), que é o apontamento
+ * operacional do que foi entregue. A ORIGEM continua sendo a BASE: o item nasce
+ * com `sourceMeasurementBasisId` e `sourceExecutionEntryId: null`, porque a
+ * procedência do item é a base publicada — a quantidade de execução só supre o
+ * REALIZADO que a base não trouxe.
+ *
+ * `plannedQuantity` fica `null`: sem linha na base não há planejado congelado, e
+ * preencher com o realizado seria afirmar um plano que não existiu.
+ */
+function deriveItemsFromExecutionQuantity(
+  basis: PublishedMeasurementBasis,
+  executionQuantities: ReadonlyArray<{ unitCode: string; quantity: string }>,
+): BasisDerivedItem[] {
+  const byUnit = new Map<string, number>();
+
+  for (const item of executionQuantities) {
+    const unitCode = readString(item.unitCode);
+    if (unitCode === null) {
+      continue;
+    }
+    const value = readDecimalString(item.quantity);
+    if (value === null) {
+      continue;
+    }
+    byUnit.set(unitCode, (byUnit.get(unitCode) ?? 0) + Number(value));
+  }
+
+  const items: BasisDerivedItem[] = [];
+  for (const [unitCode, quantity] of byUnit.entries()) {
+    if (!(quantity > 0)) {
+      continue;
+    }
+    const actualQuantity = String(quantity);
+    items.push({
+      origin: MEASUREMENT_ITEM_ORIGINS.Basis,
+      sourceMeasurementBasisId: basis.id,
+      // A chave da linha é a UNIDADE, a mesma convenção do produtor da base.
+      sourceBasisLineKey: unitCode,
+      sourceExecutionEntryId: null,
+      unitCode,
+      plannedQuantity: null,
+      plannedUnitOfMeasure: null,
+      actualQuantity,
+      measuredQuantity: actualQuantity,
+    });
+  }
+
+  return items;
+}
+
+export function deriveItemsFromBasis(
+  basis: PublishedMeasurementBasis,
+  executionQuantities?: ReadonlyArray<{ unitCode: string; quantity: string }>,
+): BasisDerivedItem[] {
+  /**
+   * O fallback só entra quando a base NÃO publicou linha nenhuma. Uma base com
+   * realizado nunca é substituída: o fato congelado no fechamento tem precedência
+   * sobre a quantidade de execução, sempre.
+   */
+  if (basis.lines.length === 0 && executionQuantities && executionQuantities.length > 0) {
+    return deriveItemsFromExecutionQuantity(basis, executionQuantities);
+  }
+
   return basis.lines.map((line) => ({
     origin: MEASUREMENT_ITEM_ORIGINS.Basis,
     sourceMeasurementBasisId: basis.id,

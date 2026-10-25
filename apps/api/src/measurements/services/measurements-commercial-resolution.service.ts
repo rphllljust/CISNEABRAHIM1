@@ -154,10 +154,24 @@ export class MeasurementsCommercialResolutionService {
     const basisRow = await this.capabilityRepository.findReadyBasis(order.id);
     const basis = toPublishedBasis(basisRow);
 
+    /**
+     * QUANTIDADE DE EXECUÇÃO — o realizado de um serviço de preço global.
+     *
+     * A base agrega `so.execution_actuals` (realizado POR RECURSO). Um serviço
+     * `GLOBAL_COMPLETION` entregue na unidade de serviço não aponta recurso, então
+     * a base publica `lines: []`. A quantidade entregue existe e está registrada
+     * como entrada de execução; ela é lida AQUI e repassada ao domínio, que decide
+     * se o fallback se aplica. Buscar sempre é barato (uma consulta por criação de
+     * medição) e evita que o serviço tenha de adivinhar o modo de medição.
+     */
+    const executionQuantities = (await this.measurementsRepository.listExecutionQuantityEntries(order.id)).map(
+      (entry) => ({ unitCode: entry.quantity_unit_code, quantity: entry.quantity_value }),
+    );
+
     // A recusa é do DOMÍNIO: base ausente, substituída, de outra ordem ou vazia
     // cada uma tem o seu código de erro. Aqui só traduzimos.
     try {
-      assertBasisConsumable({ basis, serviceOrderId: order.id });
+      assertBasisConsumable({ basis, serviceOrderId: order.id, executionQuantities });
     } catch (error) {
       if (error instanceof MeasurementError) {
         throw mapMeasurementDomainError(error);
@@ -166,7 +180,7 @@ export class MeasurementsCommercialResolutionService {
     }
 
     const serviceSnapshot = order.service_snapshot as unknown as ServiceOrderServiceSnapshot;
-    const derived = deriveItemsFromBasis(basis!);
+    const derived = deriveItemsFromBasis(basis!, executionQuantities);
 
     return derived.map((item) => {
       const primaryPricing = this.resolvePricingLine(

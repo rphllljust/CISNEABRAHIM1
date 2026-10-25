@@ -165,6 +165,45 @@ describe('assertBasisConsumable', () => {
       assertBasisConsumable({ basis: basis({ lines: [] }), serviceOrderId: 'so-1' }),
     ).toThrow(MeasurementError);
   });
+
+  /**
+   * ─────────────────────────────────────────────────────────────────────────────
+   * SERVIÇO DE PREÇO GLOBAL: BASE VAZIA, QUANTIDADE DE EXECUÇÃO PRESENTE
+   * ─────────────────────────────────────────────────────────────────────────────
+   *
+   * `GLOBAL_COMPLETION` cobra o serviço entregue, não quantidade por recurso: não
+   * há `execution_actuals` a agregar e a base publica `lines: []`. Exigir linha de
+   * base tornaria não medível a venda que esse modo de medição descreve.
+   */
+  it('base vazia COM quantidade de execução é consumível (preço global)', () => {
+    expect(() =>
+      assertBasisConsumable({
+        basis: basis({ lines: [] }),
+        serviceOrderId: 'so-1',
+        executionQuantities: [{ unitCode: 'SERVICE', quantity: '1' }],
+      }),
+    ).not.toThrow();
+  });
+
+  it('base vazia com quantidade ZERO continua recusada', () => {
+    expect(() =>
+      assertBasisConsumable({
+        basis: basis({ lines: [] }),
+        serviceOrderId: 'so-1',
+        executionQuantities: [{ unitCode: 'SERVICE', quantity: '0' }],
+      }),
+    ).toThrow(MeasurementError);
+  });
+
+  it('base vazia com quantidade em unidade VAZIA continua recusada', () => {
+    expect(() =>
+      assertBasisConsumable({
+        basis: basis({ lines: [] }),
+        serviceOrderId: 'so-1',
+        executionQuantities: [{ unitCode: '   ', quantity: '1' }],
+      }),
+    ).toThrow(MeasurementError);
+  });
 });
 
 describe('deriveItemsFromBasis — três verdades preservadas', () => {
@@ -210,6 +249,73 @@ describe('deriveItemsFromBasis — três verdades preservadas', () => {
     );
     expect(items[0]!.plannedQuantity).toBeNull();
     expect(items[0]!.plannedUnitOfMeasure).toBeNull();
+  });
+
+  /**
+   * ─────────────────────────────────────────────────────────────────────────────
+   * FALLBACK DA QUANTIDADE DE EXECUÇÃO
+   * ─────────────────────────────────────────────────────────────────────────────
+   *
+   * A base vazia continua sendo a ORIGEM do item: `sourceMeasurementBasisId`
+   * preenchido e `sourceExecutionEntryId` nulo. O que a execução supre é o
+   * REALIZADO que a base não trouxe — não a procedência.
+   */
+  it('base vazia deriva o item do realizado de execução, preservando a ORIGEM na base', () => {
+    const items = deriveItemsFromBasis(basis({ lines: [] }), [
+      { unitCode: 'SERVICE', quantity: '1' },
+    ]);
+
+    expect(items).toHaveLength(1);
+    const item = items[0]!;
+    expect(item.origin).toBe(MEASUREMENT_ITEM_ORIGINS.Basis);
+    expect(item.sourceMeasurementBasisId).toBe('basis-1');
+    expect(item.sourceBasisLineKey).toBe('SERVICE');
+    // Não é o caminho histórico: a entrada de execução NÃO vira identidade.
+    expect(item.sourceExecutionEntryId).toBeNull();
+    expect(item.unitCode).toBe('SERVICE');
+    expect(item.actualQuantity).toBe('1');
+    expect(item.measuredQuantity).toBe('1');
+    // Sem linha na base não há planejado congelado; preencher com o realizado
+    // afirmaria um plano que não existiu.
+    expect(item.plannedQuantity).toBeNull();
+    expect(item.plannedUnitOfMeasure).toBeNull();
+  });
+
+  it('quantidades de execução da MESMA unidade somam numa única linha', () => {
+    const items = deriveItemsFromBasis(basis({ lines: [] }), [
+      { unitCode: 'SERVICE', quantity: '1' },
+      { unitCode: 'SERVICE', quantity: '2' },
+    ]);
+
+    expect(items).toHaveLength(1);
+    expect(items[0]!.actualQuantity).toBe('3');
+  });
+
+  it('quantidades de unidades diferentes geram linhas distintas', () => {
+    const items = deriveItemsFromBasis(basis({ lines: [] }), [
+      { unitCode: 'SERVICE', quantity: '1' },
+      { unitCode: 'DAY', quantity: '2' },
+    ]);
+
+    expect(items).toHaveLength(2);
+    const units = items.map((item) => item.unitCode).sort();
+    expect(units).toEqual(['DAY', 'SERVICE']);
+  });
+
+  it('quantidade ZERO não produz linha — medição de valor zero não é medição', () => {
+    const items = deriveItemsFromBasis(basis({ lines: [] }), [
+      { unitCode: 'SERVICE', quantity: '0' },
+    ]);
+
+    expect(items).toHaveLength(0);
+  });
+
+  it('base COM realizado nunca é substituída pela quantidade de execução', () => {
+    // `basis()` traz 2 linhas com realizado congelado; o fallback não entra.
+    const items = deriveItemsFromBasis(basis(), [{ unitCode: 'SERVICE', quantity: '999' }]);
+
+    expect(items).toHaveLength(2);
+    expect(items.map((item) => item.unitCode)).not.toContain('SERVICE');
   });
 });
 
