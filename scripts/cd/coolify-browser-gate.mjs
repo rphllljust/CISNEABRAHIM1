@@ -315,10 +315,29 @@ async function main() {
       })
       .catch(() => {});
     const measurementText = await page.locator('body').innerText().catch(() => '');
+    /**
+     * ───────────────────────────────────────────────────────────────────────────
+     * "RENDERIZADA" NÃO É "LONGA" — MEDIDO EM PRODUÇÃO
+     * ───────────────────────────────────────────────────────────────────────────
+     *
+     * A primeira versão exigia `measurementText.length > 200` e reprovou produção
+     * com `MEDIÇÃO renderizada — 16 chars`. Os 16 caracteres eram a INSTRUÇÃO
+     * correta do produto: sem `unitId` na URL a tela pede a unidade antes de
+     * carregar a fila.
+     *
+     * Exigir volume de texto reprova uma tela saudável — é falso negativo por
+     * TAMANHO, irmão do falso negativo por vocabulário que este mesmo gate já
+     * corrigiu. O que a asserção deve provar é que a aplicação APARECEU, isto é,
+     * que o shell renderizou em vez de uma página em branco ou um erro.
+     */
+    const shellRendered = await page
+      .locator('main#main-content')
+      .isVisible()
+      .catch(() => false);
     record(
       'MEDIÇÃO renderizada',
-      measurementText.length > 200,
-      `${measurementText.length} chars`,
+      shellRendered && measurementText.trim().length > 0,
+      `${measurementText.length} chars, shell=${shellRendered ? 'visível' : 'ausente'}`,
     );
     record(
       'MEDIÇÃO sem FEATURE_DISABLED',
@@ -330,37 +349,29 @@ async function main() {
     );
 
     /**
-     * ───────────────────────────────────────────────────────────────────────────
-     * ESTADO VAZIO É DETECTADO POR ESTRUTURA, NÃO POR PALAVRA
-     * ───────────────────────────────────────────────────────────────────────────
+     * O CRITÉRIO DE ESTADO VAZIO É A UNIDADE, NÃO A ORDEM.
      *
-     * A primeira versão procurava /Nenhuma|Vazio|sem ordem/ no texto e reprovou a
-     * produção com 331 chars de conteúdo — a página renderizou corretamente, só
-     * não usou a palavra que o regex esperava. Reprovar por vocabulário é o mesmo
-     * falso negativo que o gate da contabilidade já corrigiu.
+     * A tela exige `unitId` na URL antes de carregar a fila; sem ele mostra a
+     * instrução. Exigir painéis de aceite/elegibilidade aí seria exigir dado que a
+     * própria tela declara não ter — e foi exatamente o que reprovou produção.
      *
-     * O critério agora é o que a tela REALMENTE precisa para operar: uma ordem
-     * selecionada. Sem `serviceOrderId` na URL e sem link de OS na fila, não há
-     * medição a conferir — e exigir painéis de aceite/elegibilidade aí seria
-     * exigir dado que não existe.
+     * Com `unitId` presente a estação carrega; se houver ordem selecionada, as
+     * asserções de negócio são exigidas.
      */
-    const hasOrderInUrl = /[?&]serviceOrderId=/.test(page.url());
+    const hasUnit = /[?&]unitId=/.test(page.url());
     const orderLinks = await page.locator('a[href*="serviceOrderId="]').count().catch(() => 0);
-    const hasSelectedOrder = hasOrderInUrl || orderLinks > 0;
+    const hasSelectedOrder = /[?&]serviceOrderId=/.test(page.url()) || orderLinks > 0;
 
-    if (!hasSelectedOrder) {
+    if (!hasUnit || !hasSelectedOrder) {
       // N/A EXPLÍCITO: registrado como aprovado-com-motivo, nunca omitido.
+      const reason = !hasUnit ? 'sem unidade na URL' : 'sem ordem selecionada';
       record(
         'MEDIÇÃO apresenta estado vazio explícito',
         true,
-        `N/A — nenhuma ordem selecionada (${measurementText.length} chars renderizados)`,
+        `N/A — ${reason} (${measurementText.length} chars renderizados)`,
       );
-      record(
-        'MEDIÇÃO expõe elegibilidade de faturamento',
-        true,
-        'N/A — sem ordem selecionada',
-      );
-      record('MEDIÇÃO expõe aceite do cliente', true, 'N/A — sem ordem selecionada');
+      record('MEDIÇÃO expõe elegibilidade de faturamento', true, `N/A — ${reason}`);
+      record('MEDIÇÃO expõe aceite do cliente', true, `N/A — ${reason}`);
       await page.screenshot({ path: `${OUT}/03-measurement.png`, fullPage: true });
     } else {
       // Havendo ordem, o workbench precisa expor a decisão do BACKEND. Estas são as

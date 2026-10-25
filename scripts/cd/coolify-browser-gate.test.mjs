@@ -91,16 +91,50 @@ describe('browser gate — cobertura da vertical de medição', () => {
   /**
    * ESTADO VAZIO É RESULTADO LEGÍTIMO, NÃO AUSÊNCIA DE PROVA.
    *
-   * Um tenant sem ordem selecionada não tem o que medir. O gate precisa registrar
-   * isso como N/A EXPLÍCITO — asserção aprovada COM MOTIVO —, e não pular o bloco
-   * em silêncio. Silêncio é indistinguível de "não verifiquei".
+   * A tela exige `unitId` na URL antes de carregar a fila. Sem ele mostra a
+   * instrução — comportamento CORRETO do produto, medido em produção com 16 chars.
+   *
+   * O gate precisa registrar isso como N/A EXPLÍCITO com MOTIVO, e não pular o
+   * bloco em silêncio. Silêncio é indistinguível de "não verifiquei".
    */
   it('estado vazio da medição é N/A explícito, nunca omissão', () => {
     const source = readGate();
     assert.match(
       source,
-      /N\/A — nenhuma ordem selecionada/,
+      /N\/A — \$\{reason\}/,
       'o curto-circuito de estado vazio precisa declarar N/A com motivo',
+    );
+    assert.match(
+      source,
+      /sem unidade na URL/,
+      'o motivo do N/A precisa nomear a causa real: unidade ausente',
+    );
+  });
+
+  /**
+   * ─────────────────────────────────────────────────────────────────────────────
+   * "RENDERIZADA" NÃO É "LONGA"
+   * ─────────────────────────────────────────────────────────────────────────────
+   *
+   * A asserção `length > 200` reprovou produção com `16 chars` — que eram a
+   * instrução correta da tela. Exigir volume de texto é falso negativo por
+   * TAMANHO, irmão do falso negativo por vocabulário.
+   *
+   * O que a asserção deve provar é que a aplicação APARECEU.
+   */
+  it('renderização é provada por shell visível, não por volume de texto', () => {
+    const source = readGate();
+    assert.match(
+      source,
+      /shellRendered/,
+      'a prova de renderização precisa do shell, não do tamanho do texto',
+    );
+    // O comentário que documenta o defeito CITA a asserção antiga; o que não pode
+    // voltar é a CHAMADA executável. `record(` é o que registra a asserção.
+    assert.doesNotMatch(
+      source,
+      /record\(\s*'MEDIÇÃO renderizada',\s*\n?\s*measurementText\.length > 200/,
+      'limiar arbitrário de texto reprovou tela saudável; não pode voltar',
     );
   });
 
