@@ -562,6 +562,23 @@ async function main() {
     const measurementText = await page.locator('body').innerText().catch(() => '');
     /**
      * ───────────────────────────────────────────────────────────────────────────
+     * DIAGNÓSTICO ACIONÁVEL QUANDO O SHELL NÃO APARECE
+     * ───────────────────────────────────────────────────────────────────────────
+     *
+     * `16 chars, shell=ausente` diz apenas que falta o `main#main-content`. Isso
+     * cobre causas MUITO diferentes, e cada uma se corrige em lugar distinto:
+     *
+     *   - redirecionou para /app/no-access -> falta capability ao ator do smoke;
+     *   - redirecionou para /login         -> sessão não persistiu;
+     *   - "Verificando acesso…" congelado  -> sonda de autorização lenta ou presa;
+     *   - página em branco                 -> chunk da rota não carregou.
+     *
+     * Sem separar os casos, a próxima tentativa vira adivinhação. A URL final e o
+     * texto visível vão para o log.
+     */
+    const measurementUrlAfter = page.url();
+    /**
+     * ───────────────────────────────────────────────────────────────────────────
      * "RENDERIZADA" NÃO É "LONGA" — MEDIDO EM PRODUÇÃO
      * ───────────────────────────────────────────────────────────────────────────
      *
@@ -582,7 +599,9 @@ async function main() {
     record(
       'MEDIÇÃO renderizada',
       shellRendered && measurementText.trim().length > 0,
-      `${measurementText.length} chars, shell=${shellRendered ? 'visível' : 'ausente'}`,
+      shellRendered
+        ? `${measurementText.length} chars, shell=visível`
+        : `${measurementText.length} chars, shell=ausente, url=${measurementUrlAfter}, texto="${measurementText.trim().slice(0, 90)}"`,
     );
     /**
      * `runtimeVerified` exige a estação ABERTA na unidade real. Abrir sem unidade
