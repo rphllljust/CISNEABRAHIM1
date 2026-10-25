@@ -21303,3 +21303,39 @@ Evidência de execução: `master-business-bypass.e2e.spec.ts` 5/5 PASS; `advers
 
 Commit `07960ba7` no PR #120. Sondas temporárias de diagnóstico removidas; `packages/database/scripts/tmp-u.mjs` excluído.
 
+### Fronteira comercial/física — correção de MODELAGEM, não de teste
+
+O CI do PR #120 isolou duas regressões: `master-business.integration.spec.ts` esperava `20000n` e recebia `4295000n`; `enterprise-integrity.integration.spec.ts` esperava `30000n` e recebia `78000n`.
+
+Causa raiz única: a base de medição publicava uma linha por `unit_of_measure` de `so.execution_actuals` sem distinguir fato físico de quantidade comercial, e o seed declarava `HOUR`/`KM` em `allowedUnits` para satisfazer essa base. Consequência: o contrato passou a oferecer horímetro e odômetro como unidade FATURÁVEL, e a soma das quantidades medidas deixou de reconciliar com a quantidade executada — `420 KM` somado a `9.5 HOUR` produziu `429.5` onde o contrato cobrava `2 TRIP`.
+
+A correção foi de modelagem, preservando a semântica em vez de ajustar a expectativa:
+
+- `allowedUnits` declara somente a unidade comercial do cenário (`DAY`, `TRIP`, `SERVICE`);
+- `buildExecutionClosureInput` recebe `contractUnits` e publica na base apenas a unidade que o contrato reconhece — sem contrato conhecido, nenhuma linha é publicada;
+- `assertBasisConsumable` e `deriveItemsFromBasis` aceitam o fallback de quantidade de execução apenas quando a unidade é a MESMA do contrato.
+
+Semântica comprovada: `3 DAY` contratados com `7.8 HOUR` executadas medem `3 DAY`; as horas permanecem como realizado físico e não contaminam o valor faturável. Fato físico sem par comercial mantém a recusa `MEASUREMENT_BASIS_EMPTY` — a resposta honesta quando não existe regra de conversão declarada. Nenhuma conversão foi inventada e nenhuma soma de unidades heterogêneas é produzida.
+
+Evidência: domínio `measurement-basis-consumption` 44/44; `master-business` 9/9; `enterprise-integrity` 3/3; `billing` 20/20; `service-orders` integração 132/132; medição integração 30/30; typecheck e lint limpos. Commit `e3b41c22`.
+
+### Entrega em produção — PR #120
+
+PR #120 mergeado em `main` como `66370f11`. CI da `main` verde em todos os gates, incluindo `Integration` e `Release ready`. Release `Coolify Release Images` (`40222747568`) autorizado pelo job `Release ready` e executou a cadeia: imagens imutáveis API/Web/Worker publicadas no GHCR, provenance verificada, payload fail-closed emitido, deploy no Coolify concluído com estado terminal `finished`, e smoke autenticado aprovado com `readiness=ready database=up web=ok auth=ok migrations=ok recent5xx=0`.
+
+O browser gate reprovou o MESMO release com 12/13 pela causa correta: `TypeError: Cannot read properties of undefined (reading 'map')`. A `MeasurementWorkbenchPage` lia `queueData.items.length` e `items.map(...)` diretamente da resposta HTTP; uma resposta sem `items` derrubava a estação inteira, inclusive as colunas que não dependem da fila.
+
+Correção na fronteira HTTP (PR #122), com o motivo declarado: o React recebe um tipo que AFIRMA `items: WorkQueueItem[]`, então o valor entregue precisa honrar o tipo. Normalizar em uma única porta mantém uma só fonte da garantia; espalhar `?? []` pelas telas faria cada componente inventar sua própria tolerância. A normalização garante FORMA e nunca conteúdo: não inventa item, contagem ou valor de negócio, e preserva `authority: 'SERVER'` porque a afirmação de frescura continua sendo do servidor.
+
+Evidência: teste novo 5/5 cobrindo a resposta degenerada real; teste com dentes verificado (removendo a normalização da fronteira, 4/5 falham); suíte `service-orders` web 176/176; fitness 21/21; build 3/3; typecheck e lint limpos.
+
+### Cobertura de produção da capability no browser gate
+
+O browser gate provava apenas a trilha econômica da contabilidade. Com a vertical de medição entregue, o gate continuaria verde SEM abrir a página nova — falso positivo por AFIRMAÇÃO, o pior tipo, porque afirma sucesso sobre o que não olhou.
+
+PR #121 acrescenta a cobertura: visita `/app/measurement` e exige elegibilidade de faturamento visível, aceite do cliente visível, ausência de `FEATURE_DISABLED`, ausência de `Measurement Http Exception` (nome de classe do framework vazando para o operador), ausência de 403/404 nas rotas de medição, e uma asserção NEGATIVA — a medição não pode exibir `HOUR`/`KM` como unidade de medida, que é exatamente o defeito que a fronteira comercial/física corrigiu. Estado vazio permanece resultado legítimo e é registrado como N/A explícito com motivo, contado no resultado, nunca omitido em silêncio.
+
+Evidência: 7/7 no teste do gate; mutação removendo a visita à página reprova 1/7; suíte `scripts/cd` 97/97 em 9 arquivos; `gate:scripts` OK. Mergeado como `07d4731c`.
+
+Classificação: fatos de execução verificados em CI e em produção; nenhuma regra de negócio alterada; nenhuma expectativa correta ajustada; nenhum `skip` usado para obter verde.
+
