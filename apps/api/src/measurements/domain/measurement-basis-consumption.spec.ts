@@ -168,19 +168,20 @@ describe('assertBasisConsumable', () => {
 
   /**
    * ─────────────────────────────────────────────────────────────────────────────
-   * SERVIÇO DE PREÇO GLOBAL: BASE VAZIA, QUANTIDADE DE EXECUÇÃO PRESENTE
+   * SERVIÇO DE PREÇO GLOBAL: BASE VAZIA, QUANTIDADE COMERCIAL PRESENTE
    * ─────────────────────────────────────────────────────────────────────────────
    *
    * `GLOBAL_COMPLETION` cobra o serviço entregue, não quantidade por recurso: não
    * há `execution_actuals` a agregar e a base publica `lines: []`. Exigir linha de
    * base tornaria não medível a venda que esse modo de medição descreve.
    */
-  it('base vazia COM quantidade de execução é consumível (preço global)', () => {
+  it('base vazia COM quantidade na unidade do contrato é consumível (preço global)', () => {
     expect(() =>
       assertBasisConsumable({
         basis: basis({ lines: [] }),
         serviceOrderId: 'so-1',
         executionQuantities: [{ unitCode: 'SERVICE', quantity: '1' }],
+        contractUnits: new Set(['SERVICE']),
       }),
     ).not.toThrow();
   });
@@ -191,6 +192,7 @@ describe('assertBasisConsumable', () => {
         basis: basis({ lines: [] }),
         serviceOrderId: 'so-1',
         executionQuantities: [{ unitCode: 'SERVICE', quantity: '0' }],
+        contractUnits: new Set(['SERVICE']),
       }),
     ).toThrow(MeasurementError);
   });
@@ -201,6 +203,65 @@ describe('assertBasisConsumable', () => {
         basis: basis({ lines: [] }),
         serviceOrderId: 'so-1',
         executionQuantities: [{ unitCode: '   ', quantity: '1' }],
+        contractUnits: new Set(['SERVICE']),
+      }),
+    ).toThrow(MeasurementError);
+  });
+
+  /**
+   * ─────────────────────────────────────────────────────────────────────────────
+   * FATO FÍSICO NÃO É QUANTIDADE COMERCIAL
+   * ─────────────────────────────────────────────────────────────────────────────
+   *
+   * `7.8 HOUR` executadas não são `7.8 DAY` contratados; `420 KM` não são `420
+   * TRIP`. Aceitar o fato físico como quantidade comercial inventaria a taxa de
+   * conversão, e o valor faturado sairia de uma suposição. A recusa é a resposta
+   * honesta: sem regra de conversão declarada, não há como medir.
+   */
+  it('base vazia com realizado em HOUR e contrato em DAY é RECUSADA', () => {
+    expect(() =>
+      assertBasisConsumable({
+        basis: basis({ lines: [] }),
+        serviceOrderId: 'so-1',
+        executionQuantities: [{ unitCode: 'HOUR', quantity: '7.8' }],
+        contractUnits: new Set(['DAY']),
+      }),
+    ).toThrow(MeasurementError);
+  });
+
+  it('base vazia com realizado em KM e contrato em TRIP é RECUSADA', () => {
+    expect(() =>
+      assertBasisConsumable({
+        basis: basis({ lines: [] }),
+        serviceOrderId: 'so-1',
+        executionQuantities: [{ unitCode: 'KM', quantity: '420' }],
+        contractUnits: new Set(['TRIP']),
+      }),
+    ).toThrow(MeasurementError);
+  });
+
+  it('quantidade comercial presente ao lado de fatos físicos é consumível', () => {
+    // O contrato declara DAY; o operador registrou 3 DAY (comercial) e 7.8 HOUR
+    // (físico). O comercial supre a medição; o físico não entra.
+    expect(() =>
+      assertBasisConsumable({
+        basis: basis({ lines: [] }),
+        serviceOrderId: 'so-1',
+        executionQuantities: [
+          { unitCode: 'DAY', quantity: '3' },
+          { unitCode: 'HOUR', quantity: '7.8' },
+        ],
+        contractUnits: new Set(['DAY']),
+      }),
+    ).not.toThrow();
+  });
+
+  it('sem unidade contratual declarada, base vazia é recusada', () => {
+    expect(() =>
+      assertBasisConsumable({
+        basis: basis({ lines: [] }),
+        serviceOrderId: 'so-1',
+        executionQuantities: [{ unitCode: 'DAY', quantity: '3' }],
       }),
     ).toThrow(MeasurementError);
   });
@@ -253,17 +314,19 @@ describe('deriveItemsFromBasis — três verdades preservadas', () => {
 
   /**
    * ─────────────────────────────────────────────────────────────────────────────
-   * FALLBACK DA QUANTIDADE DE EXECUÇÃO
+   * FALLBACK DA QUANTIDADE COMERCIAL DE EXECUÇÃO
    * ─────────────────────────────────────────────────────────────────────────────
    *
    * A base vazia continua sendo a ORIGEM do item: `sourceMeasurementBasisId`
    * preenchido e `sourceExecutionEntryId` nulo. O que a execução supre é o
    * REALIZADO que a base não trouxe — não a procedência.
    */
-  it('base vazia deriva o item do realizado de execução, preservando a ORIGEM na base', () => {
-    const items = deriveItemsFromBasis(basis({ lines: [] }), [
-      { unitCode: 'SERVICE', quantity: '1' },
-    ]);
+  it('base vazia deriva o item do realizado comercial, preservando a ORIGEM na base', () => {
+    const items = deriveItemsFromBasis(
+      basis({ lines: [] }),
+      [{ unitCode: 'SERVICE', quantity: '1' }],
+      new Set(['SERVICE']),
+    );
 
     expect(items).toHaveLength(1);
     const item = items[0]!;
@@ -282,30 +345,72 @@ describe('deriveItemsFromBasis — três verdades preservadas', () => {
   });
 
   it('quantidades de execução da MESMA unidade somam numa única linha', () => {
-    const items = deriveItemsFromBasis(basis({ lines: [] }), [
-      { unitCode: 'SERVICE', quantity: '1' },
-      { unitCode: 'SERVICE', quantity: '2' },
-    ]);
+    const items = deriveItemsFromBasis(
+      basis({ lines: [] }),
+      [
+        { unitCode: 'SERVICE', quantity: '1' },
+        { unitCode: 'SERVICE', quantity: '2' },
+      ],
+      new Set(['SERVICE']),
+    );
 
     expect(items).toHaveLength(1);
     expect(items[0]!.actualQuantity).toBe('3');
   });
 
-  it('quantidades de unidades diferentes geram linhas distintas', () => {
-    const items = deriveItemsFromBasis(basis({ lines: [] }), [
-      { unitCode: 'SERVICE', quantity: '1' },
-      { unitCode: 'DAY', quantity: '2' },
-    ]);
+  it('unidades contratuais diferentes geram linhas distintas', () => {
+    const items = deriveItemsFromBasis(
+      basis({ lines: [] }),
+      [
+        { unitCode: 'SERVICE', quantity: '1' },
+        { unitCode: 'DAY', quantity: '2' },
+      ],
+      new Set(['SERVICE', 'DAY']),
+    );
 
     expect(items).toHaveLength(2);
     const units = items.map((item) => item.unitCode).sort();
     expect(units).toEqual(['DAY', 'SERVICE']);
   });
 
+  /**
+   * O FATO FÍSICO NÃO CONTAMINA O VALOR FATURÁVEL.
+   *
+   * `3 DAY` contratados com `7.8 HOUR` executadas medem `3 DAY`. As horas ficam no
+   * realizado de custo e não viram quantidade comercial — somá-las ao dia seria
+   * somar unidades diferentes, e convertê-las seria inventar a taxa.
+   */
+  it('fatos físicos NÃO entram na derivação comercial', () => {
+    const items = deriveItemsFromBasis(
+      basis({ lines: [] }),
+      [
+        { unitCode: 'DAY', quantity: '3' },
+        { unitCode: 'HOUR', quantity: '7.8' },
+      ],
+      new Set(['DAY']),
+    );
+
+    expect(items).toHaveLength(1);
+    expect(items[0]!.unitCode).toBe('DAY');
+    expect(items[0]!.actualQuantity).toBe('3');
+  });
+
+  it('sem nenhuma unidade contratual presente, não deriva linha alguma', () => {
+    const items = deriveItemsFromBasis(
+      basis({ lines: [] }),
+      [{ unitCode: 'HOUR', quantity: '7.8' }],
+      new Set(['DAY']),
+    );
+
+    expect(items).toHaveLength(0);
+  });
+
   it('quantidade ZERO não produz linha — medição de valor zero não é medição', () => {
-    const items = deriveItemsFromBasis(basis({ lines: [] }), [
-      { unitCode: 'SERVICE', quantity: '0' },
-    ]);
+    const items = deriveItemsFromBasis(
+      basis({ lines: [] }),
+      [{ unitCode: 'SERVICE', quantity: '0' }],
+      new Set(['SERVICE']),
+    );
 
     expect(items).toHaveLength(0);
   });

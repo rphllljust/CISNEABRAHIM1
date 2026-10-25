@@ -195,36 +195,30 @@ export async function runUatVerticalScenario(
     stage = 'catalog:create';
     /**
      * ─────────────────────────────────────────────────────────────────────────────
-     * AS UNIDADES DO SERVIÇO COBREM TODO REALIZADO DA BASE PUBLICADA
+     * O CONTRATO DECLARA UNIDADE COMERCIAL — E SÓ ELA
      * ─────────────────────────────────────────────────────────────────────────────
      *
-     * A medição consome a BASE que o fechamento publica, e a base agrega o
-     * realizado POR UNIDADE DE MEDIDA. Este runner registra, além da
-     * quantidade na unidade do cenário:
+     * `allowedUnits` do serviço é a lista de unidades em que a VENDA pode ser
+     * medida e cobrada. Ela é a fronteira entre quantidade comercial e fato físico:
      *
-     *   veículo     → leituras em `KM` e combustível em `L`
-     *   equipamento → horas em `HOUR`
+     *   contrato  → `DAY`, `TRIP`, `SERVICE`   (o que o cliente compra)
+     *   realizado → `HOUR`, `KM`, `L`          (o que a operação aponta)
      *
-     * Declarar apenas `scenario.defaultUnitCode` fazia a criação da medição
-     * falhar com `MEASUREMENTS_UNIT_NOT_ALLOWED`, e o teste reprovava por um
-     * motivo de DADOS. Antes desta capability o problema não aparecia porque a
-     * medição lia `so.execution_entries`, que só registrava a quantidade.
+     * Declarar `HOUR`/`KM` aqui — como eu fiz antes — transforma fato físico em
+     * unidade faturável, e a medição passa a medir horímetro e odômetro como se
+     * fossem dias e viagens. Foi exatamente isso que quebrou a reconciliação: a
+     * soma das quantidades medidas deixou de fechar com a quantidade executada,
+     * porque `420 KM` e `9.5 HOUR` somavam valores que nenhum preço declarado
+     * sustenta.
      *
-     * A correção é de SEED, não de regra: medir em unidade que o contrato não
-     * previu realmente não é medível, e o domínio está certo em recusar. As
-     * unidades extras só entram quando o cenário produz realizado nelas.
+     * O realizado continua sendo registrado em `HOUR`/`KM` (é fato, e não se
+     * reescreve fato para caber no contrato). O que muda é que ele NÃO vira linha
+     * de medição: a base publica apenas a unidade contratual, e o custo operacional
+     * é apurado no custo da OS.
      */
     const allowedUnits = [
       { unitCode: scenario.defaultUnitCode, isDefault: true, sortOrder: 0 },
-      ...(scenario.resourceTypeCodes.length > 0
-        ? [
-            { unitCode: 'HOUR', isDefault: false, sortOrder: 1 },
-            { unitCode: 'KM', isDefault: false, sortOrder: 2 },
-          ]
-        : []),
-    ].filter(
-      (unit, index, list) => list.findIndex((item) => item.unitCode === unit.unitCode) === index,
-    );
+    ];
     const draft = await services.catalogAccess.create(actor, {
       code: `UAT-SRV-${options?.deterministicSuffix ?? suffix}`,
       name: scenario.serviceName,
@@ -559,20 +553,12 @@ export async function runUatVerticalScenario(
         });
 
         /**
-         * ─────────────────────────────────────────────────────────────────────────
-         * REALIZADO DO VEÍCULO — a base de medição lê `so.execution_actuals`
-         * ─────────────────────────────────────────────────────────────────────────
+         * REALIZADO DO VEÍCULO — fatos físicos, não unidade comercial.
          *
-         * `so.measurement_basis.lines` é agregada a partir de `so.execution_actuals`
-         * (uma linha por `unit_of_measure`). Medidor e combustível vivem em tabelas
-         * próprias e NÃO entram nessa agregação; uma execução de transporte que só
-         * registrasse odômetro e abastecimento publicaria `lines: []`, e a medição
-         * recusaria com `MEASUREMENT_BASIS_EMPTY`.
-         *
-         * A correção é de SEED, não de regra: uma viagem real produz distância
-         * percorrida e horas de motorista. A quantidade `TRIP` do plano é registro
-         * de execução (`so.execution_entries`), não realizado de custo — por isso o
-         * realizado é declarado aqui separadamente.
+         * Odômetro e combustível vivem em tabelas próprias. Distância e horas de
+         * motorista são `execution_actuals` em `KM` e `HOUR` — as unidades FÍSICAS
+         * do realizado. A unidade comercial da venda é `TRIP`, e transformar uma na
+         * outra seria inventar conversão que nenhuma fonte declara.
          */
         version = (await services.serviceOrdersAccess.getById(actor, startedExecution.id))
           .rowVersion;

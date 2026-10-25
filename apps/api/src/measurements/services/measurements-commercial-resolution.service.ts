@@ -153,6 +153,19 @@ export class MeasurementsCommercialResolutionService {
   ): Promise<MeasurementItemPersistenceDraft[]> {
     const basisRow = await this.capabilityRepository.findReadyBasis(order.id);
     const basis = toPublishedBasis(basisRow);
+    const serviceSnapshot = order.service_snapshot as unknown as ServiceOrderServiceSnapshot;
+
+    /**
+     * ─────────────────────────────────────────────────────────────────────────────
+     * UNIDADES CONTRATUAIS — a FRONTEIRA entre fato físico e quantidade comercial
+     * ─────────────────────────────────────────────────────────────────────────────
+     *
+     * `so.execution_actuals` registra fatos físicos (`HOUR`, `KM`, `L`); o contrato
+     * cobra em unidade comercial (`DAY`, `TRIP`, `M3`). Só a unidade que o contrato
+     * declara pode virar quantidade medida; converter uma na outra seria inventar
+     * uma taxa que nenhuma fonte declarou.
+     */
+    const contractUnits = new Set(serviceSnapshot.allowedUnits.map((unit) => unit.unitCode));
 
     /**
      * QUANTIDADE DE EXECUÇÃO — o realizado de um serviço de preço global.
@@ -171,7 +184,7 @@ export class MeasurementsCommercialResolutionService {
     // A recusa é do DOMÍNIO: base ausente, substituída, de outra ordem ou vazia
     // cada uma tem o seu código de erro. Aqui só traduzimos.
     try {
-      assertBasisConsumable({ basis, serviceOrderId: order.id, executionQuantities });
+      assertBasisConsumable({ basis, serviceOrderId: order.id, executionQuantities, contractUnits });
     } catch (error) {
       if (error instanceof MeasurementError) {
         throw mapMeasurementDomainError(error);
@@ -179,8 +192,7 @@ export class MeasurementsCommercialResolutionService {
       throw error;
     }
 
-    const serviceSnapshot = order.service_snapshot as unknown as ServiceOrderServiceSnapshot;
-    const derived = deriveItemsFromBasis(basis!, executionQuantities);
+    const derived = deriveItemsFromBasis(basis!, executionQuantities, contractUnits);
 
     return derived.map((item) => {
       const primaryPricing = this.resolvePricingLine(

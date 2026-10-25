@@ -266,6 +266,11 @@ export function assertBasisConsumable(input: {
   serviceOrderId: string;
   /** Quantidades registradas na execução, por unidade. Vazio quando não há. */
   executionQuantities?: ReadonlyArray<{ unitCode: string; quantity: string }>;
+  /**
+   * Unidades que o CONTRATO declara. Só elas são candidatas a suprir o realizado;
+   * qualquer outra é fato físico e não quantidade comercial.
+   */
+  contractUnits?: ReadonlySet<string>;
 }): void {
   if (!input.basis) {
     throw new MeasurementError('MEASUREMENT_BASIS_NOT_PUBLISHED');
@@ -276,27 +281,49 @@ export function assertBasisConsumable(input: {
   if (input.basis.serviceOrderId !== input.serviceOrderId) {
     throw new MeasurementError('MEASUREMENT_BASIS_ORDER_MISMATCH');
   }
-  if (input.basis.lines.length === 0 && !hasExecutionQuantity(input.executionQuantities)) {
+  if (
+    input.basis.lines.length === 0 &&
+    !hasExecutionQuantity(input.executionQuantities, input.contractUnits ?? new Set())
+  ) {
     throw new MeasurementError('MEASUREMENT_BASIS_EMPTY');
   }
 }
 
 /**
- * Há quantidade de execução utilizável como realizado?
+ * Há quantidade de execução utilizável como realizado COMERCIAL?
  *
- * Zero é recusado de propósito: registrar "0 unidades entregues" e medi-lo daria
- * uma linha de valor zero que parece medição conferida. Sem quantidade positiva o
- * fechamento não tem realizado, e a base continua sendo recusada.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * REALIZADO FÍSICO NÃO É QUANTIDADE COMERCIAL
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * `so.execution_actuals` carrega FATOS FÍSICOS: horas de equipamento, distância
+ * percorrida, litros abastecidos. O contrato cobra em UNIDADE COMERCIAL: `DAY`,
+ * `TRIP`, `M3`, `TON`.
+ *
+ * `7.8 HOUR` executadas não são `7.8 DAY` contratados, e `420 KM` não são `420
+ * TRIP`. Aceitar um pelo outro inventaria uma conversão que nenhuma fonte declara,
+ * e o valor faturado passaria a ser derivado de uma suposição. Somar unidades
+ * heterogêneas é o mesmo erro visto pelo outro lado.
+ *
+ * A regra é de COMPATIBILIDADE SEMÂNTICA: a quantidade de execução só supre o
+ * realizado quando a sua unidade é a MESMA que o contrato declara. Quando não é, a
+ * base sem linha continua sendo recusa — e a recusa é honesta, porque o sistema
+ * não sabe quantos `DAY` correspondem a `7.8 HOUR` sem uma regra de conversão que
+ * alguém tenha declarado. Inventar essa taxa seria produzir receita arbitrária.
+ *
+ * Zero também é recusado: medir "0 unidades entregues" daria uma linha de valor
+ * zero que parece medição conferida.
  */
 function hasExecutionQuantity(
   quantities: ReadonlyArray<{ unitCode: string; quantity: string }> | undefined,
+  contractUnits: ReadonlySet<string>,
 ): boolean {
   if (!quantities || quantities.length === 0) {
     return false;
   }
   return quantities.some((item) => {
     const unitCode = readString(item.unitCode);
-    if (unitCode === null) {
+    if (unitCode === null || !contractUnits.has(unitCode)) {
       return false;
     }
     const value = readDecimalString(item.quantity);
@@ -363,12 +390,24 @@ export type BasisDerivedItem = {
 function deriveItemsFromExecutionQuantity(
   basis: PublishedMeasurementBasis,
   executionQuantities: ReadonlyArray<{ unitCode: string; quantity: string }>,
+  contractUnits: ReadonlySet<string>,
 ): BasisDerivedItem[] {
   const byUnit = new Map<string, number>();
 
   for (const item of executionQuantities) {
     const unitCode = readString(item.unitCode);
     if (unitCode === null) {
+      continue;
+    }
+    /**
+     * SÓ A UNIDADE COMERCIAL ENTRA.
+     *
+     * `HOUR`, `KM` e `L` são fatos físicos registrados pelo operador; o contrato
+     * cobra em `DAY`, `TRIP`, `M3`. Aceitar o fato físico como quantidade
+     * comercial inventaria a taxa de conversão — e o valor faturado passaria a
+     * sair de uma suposição em vez de um preço declarado.
+     */
+    if (!contractUnits.has(unitCode)) {
       continue;
     }
     const value = readDecimalString(item.quantity);
@@ -404,6 +443,7 @@ function deriveItemsFromExecutionQuantity(
 export function deriveItemsFromBasis(
   basis: PublishedMeasurementBasis,
   executionQuantities?: ReadonlyArray<{ unitCode: string; quantity: string }>,
+  contractUnits?: ReadonlySet<string>,
 ): BasisDerivedItem[] {
   /**
    * O fallback só entra quando a base NÃO publicou linha nenhuma. Uma base com
@@ -411,7 +451,11 @@ export function deriveItemsFromBasis(
    * sobre a quantidade de execução, sempre.
    */
   if (basis.lines.length === 0 && executionQuantities && executionQuantities.length > 0) {
-    return deriveItemsFromExecutionQuantity(basis, executionQuantities);
+    return deriveItemsFromExecutionQuantity(
+      basis,
+      executionQuantities,
+      contractUnits ?? new Set(),
+    );
   }
 
   return basis.lines.map((line) => ({
