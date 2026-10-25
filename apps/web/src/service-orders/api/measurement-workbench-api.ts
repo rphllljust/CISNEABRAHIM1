@@ -175,10 +175,48 @@ export async function getMeasurementWorkQueue(
   if (input.at !== undefined) {
     params.set('at', input.at);
   }
-  return requestJson<MeasurementWorkQueueReadModel>(
+  const payload = await requestJson<MeasurementWorkQueueReadModel>(
     `/api/v1/query/measurements/queue?${params.toString()}`,
     { method: 'GET', headers: authHeaders(), signal },
   );
+  return normalizeWorkQueue(payload);
+}
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * A FILA É NORMALIZADA NA FRONTEIRA HTTP — E ISSO NÃO É CINTO DE SEGURANÇA
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * O contrato declara `items` e `counts` sempre presentes. Na prática o navegador
+ * quebrou em produção com:
+ *
+ *   TypeError: Cannot read properties of undefined (reading 'map')
+ *
+ * A tela lia `queueData.items.length` e `items.map(...)` direto da resposta. Uma
+ * resposta sem essas chaves — proxy que corta o corpo, erro parcial, versão de
+ * backend diferente do frontend durante o deploy — derrubava a ESTAÇÃO INTEIRA,
+ * incluindo as colunas que não dependem da fila.
+ *
+ * O reparo é na fronteira, e o motivo é de arquitetura: o React recebe um tipo
+ * que afirma `items: WorkQueueItem[]`, então o valor que chega precisa HONRAR o
+ * tipo. Normalizar aqui mantém uma única porta de entrada do dado; espalhar
+ * `?? []` pelas telas faria cada componente inventar sua própria tolerância.
+ *
+ * Lista vazia é a resposta correta para "não recebi a lista": a fila fica vazia e
+ * a tela continua operável. O que NÃO se faz aqui é inventar item, contagem ou
+ * qualquer valor de negócio — a normalização só garante a FORMA declarada.
+ */
+function normalizeWorkQueue(
+  payload: MeasurementWorkQueueReadModel | null | undefined,
+): MeasurementWorkQueueReadModel {
+  return {
+    context: payload?.context ?? { unitId: '', at: new Date().toISOString() },
+    counts: payload?.counts ?? {},
+    items: Array.isArray(payload?.items) ? payload.items : [],
+    // `authority` continua `SERVER`: a forma é garantida aqui, a AFIRMAÇÃO de
+    // frescura continua sendo do servidor. Um clique do cliente nunca a produz.
+    freshness: payload?.freshness ?? { readAt: new Date().toISOString(), authority: 'SERVER' },
+  };
 }
 
 /** LACUNA DE RECEITA por estágio da cadeia. */
