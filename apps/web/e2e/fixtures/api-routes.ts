@@ -11,6 +11,7 @@ import { handleClientsApiRoute } from './clients-api-routes';
 import { handleDocumentsApiRoute } from './documents-api-routes';
 import { handleFinanceApiRoute } from './finance-api-routes';
 import { handleInventoryApiRoute } from './inventory-api-routes';
+import { handleMeasurementApiRoute } from './measurement-api-routes';
 import { handleProcurementApiRoute } from './procurement-api-routes';
 import { handleSuppliersApiRoute } from './suppliers-api-routes';
 
@@ -24,7 +25,8 @@ export type ApiMockProfile =
   | 'suppliers'
   | 'procurement'
   | 'inventory'
-  | 'finance';
+  | 'finance'
+  | 'measurement';
 
 type RouteContext = {
   profile: ApiMockProfile;
@@ -82,6 +84,28 @@ const VISUAL_PROFILE_PERMISSIONS: Partial<Record<ApiMockProfile, readonly string
     'commercial:contract:activate',
     'commercial:contract:close',
     'commercial:contract:expire',
+  ],
+  /**
+   * MEDIÇÃO — o perfil da estação de trabalho e da lacuna de receita.
+   *
+   * A suíte visual não abria NENHUMA rota de medição. Um `TypeError` de render
+   * chegou ao cliente e a suíte ficou verde o tempo todo, porque cobertura que não
+   * abre a rota não é cobertura.
+   *
+   * As capabilities aqui são as LEITURAS que a tela exige mais os comandos que ela
+   * OFERECE. Nenhuma permissão de escrita além das que a própria tela publica: o
+   * perfil retrata o operador que pode conferir e decidir, não um administrador.
+   */
+  measurement: [
+    'measurements:measurement:create',
+    'measurements:measurement:read',
+    'measurements:measurement:update',
+    'measurements:measurement:submit',
+    'measurements:measurement:review',
+    'measurements:measurement:approve',
+    'measurements:measurement:reject',
+    'measurements:measurement:accept',
+    'billing:billing-record:prepare',
   ],
 };
 
@@ -207,6 +231,21 @@ async function handleApiRoute(route: Route, context: RouteContext): Promise<void
   }
 
   if (context.profile === 'finance' && (await handleFinanceApiRoute(route))) {
+    return;
+  }
+
+  /**
+   * MEDIÇÃO — a fila e a lacuna de receita.
+   *
+   * O perfil devolve o ESTADO VAZIO REAL do domínio: fila sem itens e nenhum
+   * estágio com lacuna. É o que um tenant recém-provisionado vê, e é deliberado —
+   * o spec visual prova que a tela renderiza esse estado SEM quebrar, que foi
+   * exatamente o defeito encontrado em produção.
+   *
+   * Inventar itens de fila aqui faria o teste medir um dado que o backend não
+   * produz, e um erro de contrato passaria despercebido.
+   */
+  if (context.profile === 'measurement' && (await handleMeasurementApiRoute(route))) {
     return;
   }
 
