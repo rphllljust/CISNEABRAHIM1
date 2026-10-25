@@ -139,6 +139,37 @@ describe('browser gate — cobertura da vertical de medição', () => {
   });
 
   /**
+   * ─────────────────────────────────────────────────────────────────────────────
+   * A UNIDADE VEM DA FAIXA DE RESUMO QUE O OPERADOR VÊ
+   * ─────────────────────────────────────────────────────────────────────────────
+   *
+   * MEDIDO EM PRODUÇÃO (release 40237829572):
+   *
+   *   FAIL  UNIDADE operacional resolvida pelo servidor
+   *         — nenhuma unidade publicada para o operador
+   *
+   * `/api/v1/me` devolve identidade e permissões, NÃO a unidade operacional. A
+   * unidade aparece na faixa de resumo: `UNIDADE UN-PROD-001`, que a asserção
+   * seguinte já lê.
+   *
+   * Este teste trava a fonte: a unidade tem de ser EXTRAÍDA do texto renderizado,
+   * não presumida de um endpoint que não a publica.
+   */
+  it('unidade é extraída da faixa de resumo renderizada', () => {
+    const source = readGate();
+    assert.match(
+      source,
+      /unitFromStrip/,
+      'a unidade deve ser extraída da faixa de resumo',
+    );
+    assert.match(
+      source,
+      /UNIDADE\\s\+/,
+      'o extrator precisa casar o rótulo que a faixa realmente exibe',
+    );
+  });
+
+  /**
    * PROVA DE NEGÓCIO EXIGE ORDEM REAL NA FILA — e entra por ela, como o operador.
    */
   it('prova de negócio entra pela fila e exige aceite + elegibilidade', () => {

@@ -97,6 +97,34 @@ function required(name) {
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
+ * EXTRAÇÃO DA UNIDADE OPERACIONAL — FUNÇÃO PURA E TESTÁVEL
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * A unidade vive na FAIXA DE RESUMO que o operador lê:
+ *
+ *   `UNIDADE UN-PROD-001   1 FALHARAM   0 PENDENTES   0 ESTORNADAS`
+ *
+ * Três fontes foram tentadas antes desta, e as três primeiras não servem:
+ *
+ *   1. `fetch('/api/v1/me')` relativo → resolve contra a origem do SPA e recebe
+ *      `index.html` (`SyntaxError: Unexpected token '<'`).
+ *   2. escutar `/api/v1/me` → devolve identidade e permissões, NÃO a unidade.
+ *   3. ler token de storage → o `tokenStore` guarda o access token em MEMÓRIA,
+ *      por design; ler de storage seria enfraquecer isso.
+ *
+ * Extraída como função pura porque o defeito anterior — um delimitador de fim
+ * de comentário ausente — deixou a navegação inteira DENTRO do comentário: a
+ * checagem de sintaxe passou, o teste por regex passou, e o código simplesmente
+ * não rodava. Só comportamento pega isso.
+ */
+export function extractOperationalUnit(worklistText) {
+  if (typeof worklistText !== 'string') return null;
+  const match = /UNIDADE\s+([A-Z0-9][A-Z0-9._-]{2,})/i.exec(worklistText);
+  return match?.[1] ?? null;
+}
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
  * O VEREDITO É UMA FUNÇÃO PURA — E É TESTÁVEL COMO TAL
  * ─────────────────────────────────────────────────────────────────────────────
  *
@@ -254,18 +282,26 @@ async function main() {
      * — e o gate chamava isso de aprovado. Isso é PROVA DE RUNTIME, não de negócio:
      * dizer "aceite visível: N/A" num release de aceite é não ter provado nada.
      *
-     * A unidade vem da resposta que o APP já recebeu de `/api/v1/me` (capturada
-     * pelo listener acima). Não se inventa `unitId`, não se usa fixture, não se
-     * assume `UN-PROD-001` e não se lê token de storage — o token é de memória por
-     * design, e o gate não enfraquece isso para se autenticar.
+     * ─────────────────────────────────────────────────────────────────────────────
+     * A FONTE DA UNIDADE É A FAIXA DE RESUMO QUE O OPERADOR JÁ VÊ
+     * ─────────────────────────────────────────────────────────────────────────────
+     *
+     * Duas tentativas anteriores falharam, e as duas por buscarem a unidade numa
+     * porta que não a publica:
+     *
+     * 1ª `fetch('/api/v1/me')` relativo → resolveu contra a origem do SPA e recebeu
+     *    `index.html` (`SyntaxError: Unexpected token '<'`).
+     * 2ª escutar `/api/v1/me` → o endpoint devolve identidade e permissões, NÃO a
+     *    unidade operacional. Resultado medido em produção:
+     *    "nenhuma unidade publicada para o operador".
+     *
+     * A unidade ESTÁ na tela: a faixa de resumo da controladoria exibe
+     * `UNIDADE UN-PROD-001`. É a mesma fonte que o gate já usa na asserção
+     * anterior (`WORKLIST apresenta estado operacional explícito`), e é o valor
+     * que o operador lê para decidir. Nada é inventado: o código é EXTRAÍDO do
+     * texto renderizado pelo produto.
      */
-    const resolvedUnitId = unitIdFromSession;
 
-    record(
-      'UNIDADE operacional resolvida pelo servidor',
-      typeof resolvedUnitId === 'string' && resolvedUnitId.length > 0,
-      resolvedUnitId ?? 'nenhuma unidade publicada para o operador',
-    );
     // ── 2. APP SHELL + NAVEGAÇÃO POR PERMISSÃO ────────────────────────────────
     await page.goto(`${webUrl}/app/accounting/economic-posting`, {
       waitUntil: 'domcontentloaded',
@@ -299,6 +335,37 @@ async function main() {
       .catch(() => {});
     const worklistText = await page.locator('body').innerText();
     record('WORKLIST renderizada', worklistText.length > 200, `${worklistText.length} chars`);
+
+    /**
+     * ───────────────────────────────────────────────────────────────────────────
+     * RESOLVE A UNIDADE REAL DO OPERADOR — SEM ELA NÃO HÁ PROVA DE NEGÓCIO
+     * ───────────────────────────────────────────────────────────────────────────
+     *
+     * A estação de medição exige `unitId` na URL antes de carregar a fila. Abrir
+     * `/app/measurement` sem unidade provou apenas que a tela sabe pedir a unidade.
+     *
+     * ─────────────────────────────────────────────────────────────────────────────
+     * DUAS FONTES TENTADAS ANTES, E POR QUE FALHARAM
+     * ─────────────────────────────────────────────────────────────────────────────
+     *
+     * 1ª `fetch('/api/v1/me')` relativo → resolveu contra a origem do SPA e recebeu
+     *    `index.html`: `SyntaxError: Unexpected token '<'`.
+     * 2ª escutar a resposta de `/api/v1/me` → o endpoint devolve identidade e
+     *    permissões, NÃO a unidade operacional. Medido em produção:
+     *    "nenhuma unidade publicada para o operador".
+     *
+     * A unidade ESTÁ na tela: a faixa de resumo exibe `UNIDADE UN-PROD-001` — o
+     * mesmo valor que a asserção seguinte lê, e que o operador usa para decidir.
+     * O código é EXTRAÍDO do texto renderizado pelo produto; nada é inventado.
+     */
+    const unitFromStrip = extractOperationalUnit(worklistText);
+    const resolvedUnitId = unitFromStrip ?? unitIdFromSession;
+
+    record(
+      'UNIDADE operacional resolvida pelo servidor',
+      typeof resolvedUnitId === 'string' && resolvedUnitId.length > 0,
+      resolvedUnitId ?? 'nenhuma unidade publicada para o operador',
+    );
 
     /**
      * FILA VAZIA É RESULTADO LEGÍTIMO — "SEM UNIDADE" NÃO É.
