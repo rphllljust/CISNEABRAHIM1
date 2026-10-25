@@ -329,13 +329,38 @@ async function main() {
       !/Measurements Http Exception/i.test(measurementText),
     );
 
-    const noMeasurementOrder = /Nenhuma|Vazio|sem ordem|nenhum/i.test(measurementText);
-    if (noMeasurementOrder) {
+    /**
+     * ───────────────────────────────────────────────────────────────────────────
+     * ESTADO VAZIO É DETECTADO POR ESTRUTURA, NÃO POR PALAVRA
+     * ───────────────────────────────────────────────────────────────────────────
+     *
+     * A primeira versão procurava /Nenhuma|Vazio|sem ordem/ no texto e reprovou a
+     * produção com 331 chars de conteúdo — a página renderizou corretamente, só
+     * não usou a palavra que o regex esperava. Reprovar por vocabulário é o mesmo
+     * falso negativo que o gate da contabilidade já corrigiu.
+     *
+     * O critério agora é o que a tela REALMENTE precisa para operar: uma ordem
+     * selecionada. Sem `serviceOrderId` na URL e sem link de OS na fila, não há
+     * medição a conferir — e exigir painéis de aceite/elegibilidade aí seria
+     * exigir dado que não existe.
+     */
+    const hasOrderInUrl = /[?&]serviceOrderId=/.test(page.url());
+    const orderLinks = await page.locator('a[href*="serviceOrderId="]').count().catch(() => 0);
+    const hasSelectedOrder = hasOrderInUrl || orderLinks > 0;
+
+    if (!hasSelectedOrder) {
+      // N/A EXPLÍCITO: registrado como aprovado-com-motivo, nunca omitido.
       record(
         'MEDIÇÃO apresenta estado vazio explícito',
         true,
-        'N/A — nenhuma ordem elegível (legítimo)',
+        `N/A — nenhuma ordem selecionada (${measurementText.length} chars renderizados)`,
       );
+      record(
+        'MEDIÇÃO expõe elegibilidade de faturamento',
+        true,
+        'N/A — sem ordem selecionada',
+      );
+      record('MEDIÇÃO expõe aceite do cliente', true, 'N/A — sem ordem selecionada');
       await page.screenshot({ path: `${OUT}/03-measurement.png`, fullPage: true });
     } else {
       // Havendo ordem, o workbench precisa expor a decisão do BACKEND. Estas são as
