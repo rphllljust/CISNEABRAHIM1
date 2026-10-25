@@ -160,6 +160,57 @@ async function main() {
     }
   });
 
+  /**
+   * A UNIDADE VEM DA RESPOSTA REAL DE `/api/v1/me` QUE O PRÓPRIO APP FAZ.
+   *
+   * ─────────────────────────────────────────────────────────────────────────────
+   * DUAS TENTATIVAS ERRADAS ANTES DESTA (registradas para não repetir)
+   * ─────────────────────────────────────────────────────────────────────────────
+   *
+   * 1ª: `fetch('/api/v1/me')` relativo dentro de `page.evaluate`. Resolveu contra a
+   *     origem do SPA — que devolve `index.html` — e o parse estourou:
+   *     `SyntaxError: Unexpected token '<', "<!doctype "... is not valid JSON`.
+   *
+   * 2ª: ler o token de `localStorage` para chamar a API com `Authorization`. O
+   *     `tokenStore` mantém o access token em MEMÓRIA (`let accessToken`), nunca em
+   *     storage — por design, e com razão: token em storage é token exposto a XSS.
+   *     O gate não deve enfraquecer isso para se autenticar.
+   *
+   * A fonte correta é a RESPOSTA QUE O APP JÁ RECEBE. O `AuthProvider` consulta
+   * `/api/v1/me` na sessão autenticada; o gate escuta essa resposta. Nenhuma
+   * requisição extra, nenhum token manipulado, nenhuma URL inventada.
+   */
+  let unitIdFromSession = null;
+  page.on('response', async (res) => {
+    if (unitIdFromSession) return;
+    if (!/\/api\/v1\/me\b/.test(res.url())) return;
+    if (res.status() !== 200) return;
+    try {
+      const contentType = res.headers()['content-type'] ?? '';
+      if (!contentType.includes('application/json')) return;
+      const me = await res.json();
+      const lists = [me?.unidades, me?.units, me?.usuario?.unidades, me?.identity?.units];
+      for (const list of lists) {
+        if (Array.isArray(list)) {
+          for (const entry of list) {
+            const candidate =
+              typeof entry === 'string' ? entry : (entry?.unitId ?? entry?.id ?? entry?.code);
+            if (typeof candidate === 'string' && candidate.trim().length > 0) {
+              unitIdFromSession = candidate.trim();
+              return;
+            }
+          }
+        }
+      }
+      const single = me?.unitId ?? me?.unidadeId ?? me?.usuario?.unitId;
+      if (typeof single === 'string' && single.trim().length > 0) {
+        unitIdFromSession = single.trim();
+      }
+    } catch {
+      // Resposta não-JSON: a asserção de unidade abaixo reprova com motivo claro.
+    }
+  });
+
   try {
     // ── 1. LOGIN PELO FORMULÁRIO REAL ──────────────────────────────────────────
     // Não injeta token em storage: o `AuthProvider` revalida a sessão no servidor, então
@@ -203,39 +254,18 @@ async function main() {
      * — e o gate chamava isso de aprovado. Isso é PROVA DE RUNTIME, não de negócio:
      * dizer "aceite visível: N/A" num release de aceite é não ter provado nada.
      *
-     * A unidade vem do TOKEN já autenticado, consultando a API pela sessão do
-     * próprio navegador. Não se inventa `unitId`, não se usa fixture e não se
-     * assume `UN-PROD-001`: a fonte é a resposta real de `/api/v1/me`.
+     * A unidade vem da resposta que o APP já recebeu de `/api/v1/me` (capturada
+     * pelo listener acima). Não se inventa `unitId`, não se usa fixture, não se
+     * assume `UN-PROD-001` e não se lê token de storage — o token é de memória por
+     * design, e o gate não enfraquece isso para se autenticar.
      */
-    const resolvedUnitId = await page.evaluate(async () => {
-      const meResponse = await fetch('/api/v1/me', {
-        headers: { Accept: 'application/json' },
-        credentials: 'include',
-      });
-      if (!meResponse.ok) return null;
-      const me = await meResponse.json();
-      const lists = [me?.unidades, me?.units, me?.usuario?.unidades, me?.identity?.units];
-      for (const list of lists) {
-        if (Array.isArray(list)) {
-          for (const entry of list) {
-            const candidate =
-              typeof entry === 'string' ? entry : (entry?.unitId ?? entry?.id ?? entry?.code);
-            if (typeof candidate === 'string' && candidate.trim().length > 0) {
-              return candidate.trim();
-            }
-          }
-        }
-      }
-      const single = me?.unitId ?? me?.unidadeId ?? me?.usuario?.unitId;
-      return typeof single === 'string' && single.trim().length > 0 ? single.trim() : null;
-    });
+    const resolvedUnitId = unitIdFromSession;
 
     record(
       'UNIDADE operacional resolvida pelo servidor',
       typeof resolvedUnitId === 'string' && resolvedUnitId.length > 0,
       resolvedUnitId ?? 'nenhuma unidade publicada para o operador',
     );
-
     // ── 2. APP SHELL + NAVEGAÇÃO POR PERMISSÃO ────────────────────────────────
     await page.goto(`${webUrl}/app/accounting/economic-posting`, {
       waitUntil: 'domcontentloaded',
