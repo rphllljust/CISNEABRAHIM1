@@ -104,7 +104,10 @@ describe('getMeasurementWorkQueue — a resposta degenerada não quebra a tela',
     const queue = await getMeasurementWorkQueue('u-1');
 
     expect(queue.items).toHaveLength(1);
-    expect(queue.items[0].serviceOrderId).toBe('so-1');
+    // `noUncheckedIndexedAccess` exige o estreitamento: indexar sem verificar
+    // afirmaria ao compilador algo que ele não pode garantir.
+    const [first] = queue.items;
+    expect(first?.serviceOrderId).toBe('so-1');
     expect(queue.counts).toEqual({ total: 1 });
     expect(queue.freshness.readAt).toBe('2026-01-01T00:00:00.000Z');
   });
