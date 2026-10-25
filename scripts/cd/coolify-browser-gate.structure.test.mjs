@@ -121,12 +121,37 @@ describe('o gate executa — código útil não pode estar comentado', () => {
     );
   });
 
-  it('a extração usa a função pura, sobre o texto da worklist', () => {
+  it('a extração usa a função pura, sobre o texto da faixa', () => {
     const code = executableSource(readGate());
     assert.match(
       code,
-      /const unitFromStrip = extractOperationalUnit\(worklistText\);/,
-      'a unidade precisa ser extraída do texto realmente lido',
+      /const unitFromStrip = extractOperationalUnit\(stripText\);/,
+      'a unidade precisa ser extraída do texto da faixa, que é o elemento que a exibe',
+    );
+  });
+
+  /**
+   * A FAIXA É LIDA POR SELETOR PRÓPRIO, NÃO PELO CORPO.
+   *
+   * `EconomicStatusStrip` renderiza rótulo e valor como elementos IRMÃOS. Ler o
+   * corpo e esperar `UNIDADE <código>` na mesma linha falhou em produção: o
+   * `innerText` do corpo junta com quebra de linha e depende de quando a faixa
+   * monta. A leitura por `aria-label` é o que a asserção anterior já usa.
+   */
+  it('a faixa de resumo é lida pelo seu próprio seletor', () => {
+    const code = executableSource(readGate());
+    assert.match(code, /aria-label="Resumo da contabilização"/);
+    assert.match(code, /const stripText = \(await stripElement\.innerText\(\)/);
+  });
+
+  it('a unidade é extraída depois de a faixa ser lida', () => {
+    const code = executableSource(readGate());
+    const stripIndex = code.indexOf('const stripText =');
+    const unitIndex = code.indexOf('const unitFromStrip =');
+    assert.ok(stripIndex > 0 && unitIndex > 0, 'trechos ausentes');
+    assert.ok(
+      stripIndex < unitIndex,
+      'a extração acontece antes da leitura da faixa: usaria texto inexistente',
     );
   });
 

@@ -384,18 +384,11 @@ async function main() {
      *    permissões, NÃO a unidade operacional. Medido em produção:
      *    "nenhuma unidade publicada para o operador".
      *
-     * A unidade ESTÁ na tela: a faixa de resumo exibe `UNIDADE UN-PROD-001` — o
-     * mesmo valor que a asserção seguinte lê, e que o operador usa para decidir.
-     * O código é EXTRAÍDO do texto renderizado pelo produto; nada é inventado.
+     * A unidade ESTÁ na tela, na FAIXA DE RESUMO. O `innerText` do corpo pode não
+     * incluí-la de forma previsível (a faixa é lida por seletor próprio logo
+     * abaixo, com `aria-label="Resumo da contabilização"`). Por isso a extração
+     * acontece DEPOIS da faixa ser lida — ver o bloco `unitFromStrip` adiante.
      */
-    const unitFromStrip = extractOperationalUnit(worklistText);
-    const resolvedUnitId = unitFromStrip ?? unitIdFromSession;
-
-    record(
-      'UNIDADE operacional resolvida pelo servidor',
-      typeof resolvedUnitId === 'string' && resolvedUnitId.length > 0,
-      resolvedUnitId ?? 'nenhuma unidade publicada para o operador',
-    );
 
     /**
      * FILA VAZIA É RESULTADO LEGÍTIMO — "SEM UNIDADE" NÃO É.
@@ -440,6 +433,29 @@ async function main() {
         : hasOperationalCounters
           ? stripText.replace(/\n+/g, ' ').slice(0, 80)
           : 'com unidade, sem contadores',
+    );
+
+    /**
+     * ───────────────────────────────────────────────────────────────────────────
+     * RESOLVE A UNIDADE REAL DO OPERADOR — DEPOIS DE LER A FAIXA
+     * ───────────────────────────────────────────────────────────────────────────
+     *
+     * A faixa renderiza rótulo e valor como elementos IRMÃOS:
+     *
+     *   <span>Unidade</span> <span>UN-PROD-001</span>
+     *
+     * `innerText` do corpo junta com quebra de linha, e versões anteriores liam o
+     * corpo antes de a faixa existir — registrando "nenhuma unidade publicada"
+     * numa tela que exibia a unidade. A leitura aqui é do ELEMENTO da faixa, o
+     * mesmo que a asserção anterior já usa.
+     */
+    const unitFromStrip = extractOperationalUnit(stripText);
+    const resolvedUnitId = unitFromStrip ?? unitIdFromSession;
+
+    record(
+      'UNIDADE operacional resolvida pelo servidor',
+      typeof resolvedUnitId === 'string' && resolvedUnitId.length > 0,
+      resolvedUnitId ?? 'nenhuma unidade publicada para o operador',
     );
 
     if (noAuthorizedUnit) {
