@@ -45,20 +45,44 @@ describe('service acceptance (append-only, reject abre pendência)', () => {
     expect(audit).toMatchObject({ eventType: 'SERVICE_ACCEPTED', result: 'ACCEPTED', actorIdentityId: 'ops-1' });
   });
 
-  it('reject: abre pendência e NÃO apaga execução (HISTORY LOSS 0)', () => {
-    const { acceptance, pendingIssue, audit } = recordAcceptance(input({ result: ACCEPTANCE_RESULTS.Rejected }), {
-      authorized: true,
-      existingAcceptance: null,
-    });
+  it('reject: abre pendência com o MOTIVO, não com a observação (HISTORY LOSS 0)', () => {
+    const { acceptance, pendingIssue, audit } = recordAcceptance(
+      input({
+        result: ACCEPTANCE_RESULTS.Rejected,
+        observation: 'Serviço conferido com o responsável do cliente.',
+        rejectionReason: 'Volume medido não confere com o aferido em campo.',
+      }),
+      {
+        authorized: true,
+        existingAcceptance: null,
+      },
+    );
     expect(acceptance.result).toBe('REJECTED');
     expect(audit.eventType).toBe('SERVICE_REJECTED');
-    expect(pendingIssue).toMatchObject({ serviceOrderId: 'os-1', reason: 'Serviço conforme o escopo.' });
+    // A PENDÊNCIA diz o que corrigir, não o que se viu.
+    expect(pendingIssue).toMatchObject({
+      serviceOrderId: 'os-1',
+      reason: 'Volume medido não confere com o aferido em campo.',
+    });
+    // A OBSERVAÇÃO continua sendo o que foi visto, e a auditoria a preserva.
+    expect(acceptance.observation).toBe('Serviço conferido com o responsável do cliente.');
+    expect(audit.observation).toBe('Serviço conferido com o responsável do cliente.');
+    expect(audit.rejectionReason).toBe('Volume medido não confere com o aferido em campo.');
 
     const keptExecution = assertRejectionKeepsExecution(EXECUTION);
     const sameReference = assertExecutionHistoryIntact(EXECUTION);
     expect(keptExecution).toBe(EXECUTION);
     expect(sameReference).toBe(EXECUTION);
     expect((EXECUTION as { status: string }).status).toBe('COMPLETED');
+  });
+
+  it('reject SEM motivo declarado é barrado: pendência sem causa não é corrigível', () => {
+    expect(() =>
+      recordAcceptance(input({ result: ACCEPTANCE_RESULTS.Rejected }), {
+        authorized: true,
+        existingAcceptance: null,
+      }),
+    ).toThrow(SERVICE_ACCEPTANCE_ERROR_CODES.REJECTION_REASON_REQUIRED);
   });
 
   it('duplicate: segundo aceite é bloqueado', () => {
@@ -69,6 +93,7 @@ describe('service acceptance (append-only, reject abre pendência)', () => {
       acceptedAt: '2026-09-01T18:00:00.000Z',
       observation: 'Primeiro aceite',
       evidenceIds: [],
+      rejectionReason: null,
     };
     expect(() => recordAcceptance(input(), { authorized: true, existingAcceptance: existing })).toThrow(
       SERVICE_ACCEPTANCE_ERROR_CODES.ALREADY_RECORDED,

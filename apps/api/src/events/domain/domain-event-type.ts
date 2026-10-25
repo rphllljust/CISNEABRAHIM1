@@ -45,6 +45,27 @@ export const DOMAIN_EVENT_TYPES = {
   ExecutionCompleted: 'EXECUTION_COMPLETED',
   ExecutionCancelled: 'EXECUTION_CANCELLED',
   MeasurementBasisReady: 'MEASUREMENT_BASIS_READY',
+  /**
+   * MEASUREMENT → ACCEPTANCE → BILLING READINESS.
+   *
+   * Fatos desta capability. `MEASUREMENT_SUBMITTED` e `MEASUREMENT_APPROVED` já
+   * existiam e NÃO são recriados: o vocabulário existente é preservado.
+   *
+   * O que é genuinamente novo:
+   *
+   *   MEASUREMENT_CREATED                 a medição nasceu da BASE publicada
+   *   MEASUREMENT_ADJUSTMENT_AUTHORIZED   uma DECISÃO comercial com impacto
+   *   CUSTOMER_ACCEPTANCE_RECORDED        o cliente decidiu sobre a entrega
+   *   CUSTOMER_REJECTION_RECORDED         a recusa — fato distinto do aceite
+   *   BILLING_ELIGIBILITY_GRANTED         o READY_TO_BILL, consumível
+   *   BILLING_ELIGIBILITY_BLOCKED         a liberação foi PERDIDA
+   */
+  MeasurementCreated: 'MEASUREMENT_CREATED',
+  MeasurementAdjustmentAuthorized: 'MEASUREMENT_ADJUSTMENT_AUTHORIZED',
+  CustomerAcceptanceRecorded: 'CUSTOMER_ACCEPTANCE_RECORDED',
+  CustomerRejectionRecorded: 'CUSTOMER_REJECTION_RECORDED',
+  BillingEligibilityGranted: 'BILLING_ELIGIBILITY_GRANTED',
+  BillingEligibilityBlocked: 'BILLING_ELIGIBILITY_BLOCKED',
 } as const;
 
 export type DomainEventType = (typeof DOMAIN_EVENT_TYPES)[keyof typeof DOMAIN_EVENT_TYPES];
@@ -97,6 +118,29 @@ const EXECUTION_DOMAIN_EVENT_TYPES = new Set<string>([
 
 export function isExecutionDomainEventType(value: string): boolean {
   return EXECUTION_DOMAIN_EVENT_TYPES.has(value);
+}
+
+/**
+ * MEASUREMENT → ACCEPTANCE → BILLING READINESS — os fatos da CADEIA COMERCIAL.
+ *
+ * Distintos dos operacionais acima: estes atravessam a fronteira entre MEDIÇÃO,
+ * ACEITE e FATURAMENTO, e é por eles que o BILLING fica sabendo que pode cobrar.
+ * Manter os dois conjuntos separados impede que um consumidor de operação receba
+ * evento comercial por engano — e vice-versa.
+ */
+const COMMERCIAL_READINESS_DOMAIN_EVENT_TYPES = new Set<string>([
+  DOMAIN_EVENT_TYPES.MeasurementCreated,
+  DOMAIN_EVENT_TYPES.MeasurementSubmitted,
+  DOMAIN_EVENT_TYPES.MeasurementApproved,
+  DOMAIN_EVENT_TYPES.MeasurementAdjustmentAuthorized,
+  DOMAIN_EVENT_TYPES.CustomerAcceptanceRecorded,
+  DOMAIN_EVENT_TYPES.CustomerRejectionRecorded,
+  DOMAIN_EVENT_TYPES.BillingEligibilityGranted,
+  DOMAIN_EVENT_TYPES.BillingEligibilityBlocked,
+]);
+
+export function isCommercialReadinessDomainEventType(value: string): boolean {
+  return COMMERCIAL_READINESS_DOMAIN_EVENT_TYPES.has(value);
 }
 
 export const AGGREGATE_TYPES = {

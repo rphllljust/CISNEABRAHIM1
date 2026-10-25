@@ -224,6 +224,19 @@ export const AUTHZ_ACTIONS = {
   MeasurementsMeasurementReview: 'measurements:measurement:review',
   MeasurementsMeasurementApprove: 'measurements:measurement:approve',
   MeasurementsMeasurementReject: 'measurements:measurement:reject',
+  /**
+   * ACEITE DO CLIENTE — MEASUREMENT → ACCEPTANCE → BILLING READINESS.
+   *
+   * Ação PRÓPRIA, distinta de `approve` e de `reject`. A distinção é de negócio,
+   * não de granularidade técnica: APROVAR é a decisão interna da conferência;
+   * REGISTRAR ACEITE é registrar a decisão do CLIENTE sobre a entrega.
+   *
+   * Quem aprova internamente não necessariamente tem autoridade para declarar
+   * que o cliente aceitou — e juntar as duas permitiria que a mesma pessoa
+   * fechasse as duas pontas do controle comercial. É exatamente o controle que o
+   * aceite existe para estabelecer.
+   */
+  MeasurementsMeasurementAccept: 'measurements:measurement:accept',
   BillingBillingRecordPrepare: 'billing:billing-record:prepare',
   BillingBillingRecordRead: 'billing:billing-record:read',
   BillingBillingRecordVoid: 'billing:billing-record:void',

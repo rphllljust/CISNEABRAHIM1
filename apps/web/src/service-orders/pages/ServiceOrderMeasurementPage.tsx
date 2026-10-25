@@ -22,6 +22,8 @@ import { MeasurementSummaryPanel } from '../components/MeasurementSummaryPanel';
 import { MEASUREMENT_STATUS_LABELS } from '../components/MeasurementStatusBadge';
 import { MeasurementTimeline } from '../components/MeasurementTimeline';
 import { MeasurementVersionConflictBanner } from '../components/MeasurementVersionConflictBanner';
+import { getMeasurementWorkbench } from '../api/measurement-workbench-api';
+import type { MeasurementWorkbenchReadModel } from '../types/measurement-workbench.types';
 import { useMeasurementCapabilities } from '../hooks/useMeasurementCapabilities';
 import {
   MEASUREMENT_STATUSES,
@@ -85,20 +87,43 @@ export function ServiceOrderMeasurementPage() {
   const [rejectReason, setRejectReason] = useState('');
   const requestSeq = useRef(0);
 
+  /**
+   * SUPERFÍCIE DE COMANDOS publicada pelo backend.
+   *
+   * `null` significa "não foi possível ler" — e nesse caso nenhum comando é
+   * habilitado. Assumir habilitado por ausência de informação habilitaria um
+   * botão que o backend pode recusar.
+   */
+  const [workbench, setWorkbench] = useState<MeasurementWorkbenchReadModel | null>(null);
+
   const reload = useCallback(async () => {
     const seq = ++requestSeq.current;
     setState({ phase: 'loading' });
     setVersionConflict(false);
     try {
-      const [order, planned, measurement, execution] = await Promise.all([
+      /**
+       * O WORKBENCH É A AUTORIDADE DA HABILITAÇÃO.
+       *
+       * Esta página já carrega a ordem, o planejamento e a medição — leituras
+       * necessárias à CONFERÊNCIA. O que ela não pode fazer é decidir quais
+       * comandos estão habilitados, e é isso que o workbench publica: a mesma
+       * superfície que a estação de trabalho usa.
+       *
+       * O `catch` devolve `null` porque a conferência continua útil sem ele: a
+       * tela então NÃO habilita comando nenhum — conservador no ponto certo,
+       * porque sem a decisão do backend a única leitura honesta é "não sei".
+       */
+      const [order, planned, measurement, execution, workbenchRead] = await Promise.all([
         getServiceOrder(serviceOrderId),
         listPlannedResources(serviceOrderId),
         getMeasurement(serviceOrderId),
         getExecutionBundle(serviceOrderId).catch(() => null),
+        getMeasurementWorkbench(serviceOrderId).catch(() => null),
       ]);
       if (seq !== requestSeq.current) {
         return;
       }
+      setWorkbench(workbenchRead);
 
       const requirements = parseExecutionRequirements(order.serviceSnapshot);
       const satisfied = execution ? collectSatisfiedEvidenceKinds(execution) : new Set<string>();
@@ -146,6 +171,9 @@ export function ServiceOrderMeasurementPage() {
       const measurement = await createMeasurement(serviceOrderId);
       setState({ ...state, measurement });
       setFeedback({ tone: 'success', message: 'Medição criada a partir da execução.' });
+      // A medição passou a existir: a superfície de comandos muda de DRAFT para
+      // as transições, e precisa vir do backend.
+      await refreshWorkbench();
     } catch (error) {
       setFeedback({
         tone: 'error',
@@ -158,6 +186,33 @@ export function ServiceOrderMeasurementPage() {
       setSubmitting(false);
     }
   }
+
+  /**
+   * RECARREGA A SUPERFÍCIE DE COMANDOS.
+   *
+   * ─────────────────────────────────────────────────────────────────────────────
+   * O DEFEITO QUE ISTO FECHA
+   * ─────────────────────────────────────────────────────────────────────────────
+   *
+   * `runTransition` aplicava o agregado devolvido pelo comando
+   * (`setState({ ...state, measurement })`) e NÃO recarregava o workbench. O
+   * resultado: depois de submeter, a tela mostrava o estado NOVO e continuava
+   * com a superfície de comandos do estado ANTIGO — o botão "iniciar análise"
+   * nunca aparecia, porque o read model ainda dizia DRAFT.
+   *
+   * Duas leituras do mesmo agregado em instantes diferentes dentro da mesma tela
+   * é a definição de divergência. A correção é recarregar a decisão quando o
+   * estado muda: o comando já commitou, e a superfície precisa refleti-lo.
+   */
+  const refreshWorkbench = useCallback(async () => {
+    try {
+      const next = await getMeasurementWorkbench(serviceOrderId);
+      setWorkbench(next);
+    } catch {
+      // A superfície fica como está: os comandos anteriores continuam
+      // desabilitados se eram, e um erro de leitura não habilita nada.
+    }
+  }, [serviceOrderId]);
 
   async function runTransition(
     action: () => Promise<MeasurementDetail>,
@@ -174,6 +229,9 @@ export function ServiceOrderMeasurementPage() {
       setFeedback({ tone: 'success', message: successMessage });
       setApproveOpen(false);
       setRejectOpen(false);
+      // O estado mudou: a DECISÃO publicada precisa acompanhar, senão a tela
+      // mostra o novo status com os comandos do anterior.
+      await refreshWorkbench();
     } catch (error) {
       if (error instanceof ServiceOrdersApiError && error.kind === 'version_conflict') {
         setVersionConflict(true);
@@ -262,21 +320,76 @@ export function ServiceOrderMeasurementPage() {
    */
   const statusLabel = MEASUREMENT_STATUS_LABELS[status];
   const actionsBlocked = versionConflict || submitting;
+
+  /**
+   * ─────────────────────────────────────────────────────────────────────────────
+   * A HABILITAÇÃO VEM DO BACKEND — NÃO DE UMA CONJUNÇÃO LOCAL
+   * ─────────────────────────────────────────────────────────────────────────────
+   *
+   * Aqui existia:
+   *
+   *     const canApprove =
+   *       capabilities.canApprove && measurement?.status === MEASUREMENT_STATUSES.UnderReview;
+   *
+   * Duas coisas erradas numa linha:
+   *
+   *   1. é uma REGRA de negócio em React — qual estado permite aprovar;
+   *   2. ela é uma SEGUNDA implementação dessa regra, e a primeira mora no
+   *      backend, que hoje também considera a VARIAÇÃO acima da tolerância.
+   *
+   * O resultado medido: com variação pendente, o botão aparecia HABILITADO e o
+   * comando respondia 409 — o operador via a tela afirmar algo que o sistema
+   * recusava.
+   *
+   * Agora a página lê `availableCommands` do workbench. `capabilities.*` continua
+   * sendo usado para o que ele É (projeção de permissão de sessão), não para
+   * compor a regra.
+   *
+   * ─────────────────────────────────────────────────────────────────────────────
+   * NENHUMA CONDIÇÃO LOCAL É SOMADA — NEM A DE PERMISSÃO
+   * ─────────────────────────────────────────────────────────────────────────────
+   *
+   * `availableCommands[].enabled` já carrega TODAS as condições: estado, variação,
+   * política e — inclusive — `NOT_AUTHORIZED`, que o backend publica como motivo
+   * próprio quando o ator não tem a permissão.
+   *
+   * Somar `capabilities.canRead` aqui seria uma SEGUNDA fonte para a mesma
+   * decisão, e um bloqueio silencioso enquanto o `/me` não resolve, mesmo com o
+   * workbench já carregado.
+   *
+   * A única condição que a TELA acrescenta é de INTERFACE: enquanto um comando
+   * está em voo ou há conflito de versão, nada é clicável — reenviar por cima de
+   * um 409 seria last-write-wins.
+   */
+  const commandEnabled = (code: string): boolean =>
+    workbench?.availableCommands.find((command) => command.code === code)?.enabled === true;
+
   const canCreate =
-    capabilities.canCreate &&
-    !measurement &&
-    order.status === SERVICE_ORDER_STATUSES.Completed &&
-    !actionsBlocked;
-  const canSubmit =
-    capabilities.canSubmit && measurement?.status === MEASUREMENT_STATUSES.Draft;
-  const canStartReview =
-    capabilities.canReview && measurement?.status === MEASUREMENT_STATUSES.Submitted;
-  const canApprove =
-    capabilities.canApprove && measurement?.status === MEASUREMENT_STATUSES.UnderReview;
-  const canReject =
-    capabilities.canReject && measurement?.status === MEASUREMENT_STATUSES.UnderReview;
-  const canResubmit =
-    capabilities.canUpdate && measurement?.status === MEASUREMENT_STATUSES.Rejected;
+    capabilities.canCreate && !measurement && order.status === SERVICE_ORDER_STATUSES.Completed;
+  /**
+   * ─────────────────────────────────────────────────────────────────────────────
+   * VISIBILIDADE (backend) × HABILITAÇÃO (interface)
+   * ─────────────────────────────────────────────────────────────────────────────
+   *
+   * São duas perguntas DIFERENTES e misturá-las apaga justamente a informação de
+   * que o operador precisa:
+   *
+   *   `*Visible`  o comando existe PARA ESTE ESTADO da medição?  → backend
+   *   `*Enabled`  ele pode ser clicado AGORA?                     → backend E interface
+   *
+   * `actionsBlocked` (submissão em voo / conflito de versão) é um bloqueio de
+   * INTERFACE. Aplicá-lo em `visible` faria o botão DESAPARECER num conflito —
+   * e o operador leria a tela como se a decisão não existisse mais, quando o que
+   * aconteceu foi uma corrida com outro usuário.
+   *
+   * O comportamento correto num 409 é o botão continuar VISÍVEL e
+   * DESABILITADO, ao lado do banner que explica o conflito e oferece recarregar.
+   */
+  const canSubmitVisible = commandEnabled('SUBMIT');
+  const canStartReviewVisible = commandEnabled('START_REVIEW');
+  const canApproveVisible = commandEnabled('APPROVE');
+  const canRejectVisible = commandEnabled('REJECT');
+  const canResubmitVisible = commandEnabled('RESUBMIT');
 
   return (
     <EnterpriseObjectPage
@@ -372,7 +485,7 @@ export function ServiceOrderMeasurementPage() {
           <section className="measurement-section measurement-actions" aria-labelledby="measurement-actions-title">
             <h2 id="measurement-actions-title">Decisão</h2>
             <div className="measurement-actions__row">
-              {canSubmit ? (
+              {canSubmitVisible ? (
                 <button
                   type="button"
                   disabled={actionsBlocked}
@@ -389,7 +502,7 @@ export function ServiceOrderMeasurementPage() {
                   Submeter medição
                 </button>
               ) : null}
-              {canStartReview ? (
+              {canStartReviewVisible ? (
                 <button
                   type="button"
                   disabled={actionsBlocked}
@@ -406,7 +519,7 @@ export function ServiceOrderMeasurementPage() {
                   Iniciar análise
                 </button>
               ) : null}
-              {canApprove ? (
+              {canApproveVisible ? (
                 <button
                   type="button"
                   className="measurement-actions__approve"
@@ -416,7 +529,7 @@ export function ServiceOrderMeasurementPage() {
                   Aprovar medição…
                 </button>
               ) : null}
-              {canReject ? (
+              {canRejectVisible ? (
                 <button
                   type="button"
                   className="measurement-actions__reject"
@@ -426,7 +539,7 @@ export function ServiceOrderMeasurementPage() {
                   Rejeitar…
                 </button>
               ) : null}
-              {canResubmit ? (
+              {canResubmitVisible ? (
                 <button
                   type="button"
                   disabled={actionsBlocked}

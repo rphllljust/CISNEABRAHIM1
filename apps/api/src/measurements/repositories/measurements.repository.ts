@@ -25,6 +25,7 @@ import type {
   MeasurementAdjustmentRow,
   MeasurementCommandIdempotencyRow,
   MeasurementHistoryEventRow,
+  MeasurementItemPersistenceDraft,
   MeasurementItemRow,
   MeasurementRow,
   MeasurementTransitionInput,
@@ -229,23 +230,7 @@ export class MeasurementsRepository {
       const measurement = inserted.rows[0]!;
 
       for (const [index, item] of input.items.entries()) {
-        await client.query(
-          `INSERT INTO msr.measurement_items (
-             measurement_id, line_number, source_execution_entry_id, unit_code,
-             actual_quantity, measured_quantity, unit_price, line_amount, pricing_line_snapshot
-           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)`,
-          [
-            measurement.id,
-            index + 1,
-            item.sourceExecutionEntryId,
-            item.unitCode,
-            item.actualQuantity,
-            item.measuredQuantity,
-            item.unitPrice,
-            item.lineAmount,
-            JSON.stringify(item.pricingLineSnapshot),
-          ],
-        );
+        await this.insertMeasurementItem(client, measurement.id, index + 1, item);
       }
 
       await client.query(
@@ -300,23 +285,7 @@ export class MeasurementsRepository {
       ]);
 
       for (const [index, item] of input.items.entries()) {
-        await client.query(
-          `INSERT INTO msr.measurement_items (
-             measurement_id, line_number, source_execution_entry_id, unit_code,
-             actual_quantity, measured_quantity, unit_price, line_amount, pricing_line_snapshot
-           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)`,
-          [
-            input.measurementId,
-            index + 1,
-            item.sourceExecutionEntryId,
-            item.unitCode,
-            item.actualQuantity,
-            item.measuredQuantity,
-            item.unitPrice,
-            item.lineAmount,
-            JSON.stringify(item.pricingLineSnapshot),
-          ],
-        );
+        await this.insertMeasurementItem(client, input.measurementId, index + 1, item);
       }
 
       const updated = await client.query<{ row_version: number }>(
@@ -656,6 +625,45 @@ export class MeasurementsRepository {
     } finally {
       client.release();
     }
+  }
+
+  /**
+   * Insere UM item de medição, com a ORIGEM e as TRÊS QUANTIDADES.
+   *
+   * Um único lugar escreve item porque existem dois comandos que o fazem
+   * (criação e regeneração). Duas cópias do INSERT divergiriam na primeira vez
+   * que uma coluna nova aparecesse — e a divergência seria silenciosa: a
+   * regeneração gravaria item sem origem, ou sem planejado, e nada reprovaria.
+   */
+  private async insertMeasurementItem(
+    client: PoolClient,
+    measurementId: string,
+    lineNumber: number,
+    item: MeasurementItemPersistenceDraft,
+  ): Promise<void> {
+    await client.query(
+      `INSERT INTO msr.measurement_items (
+         measurement_id, line_number, source_measurement_basis_id, source_basis_line_key,
+         source_execution_entry_id, unit_code,
+         planned_quantity, planned_unit_of_measure,
+         actual_quantity, measured_quantity, unit_price, line_amount, pricing_line_snapshot
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb)`,
+      [
+        measurementId,
+        lineNumber,
+        item.sourceMeasurementBasisId,
+        item.sourceBasisLineKey,
+        item.sourceExecutionEntryId,
+        item.unitCode,
+        item.plannedQuantity,
+        item.plannedUnitOfMeasure,
+        item.actualQuantity,
+        item.measuredQuantity,
+        item.unitPrice,
+        item.lineAmount,
+        JSON.stringify(item.pricingLineSnapshot),
+      ],
+    );
   }
 
   private async findIdempotencyInClient(

@@ -78,6 +78,23 @@ const EXPECTED_TABLES = [
   'so.execution_entries',
   'so.operational_cost_entries',
   'msr.measurements',
+  // ── MEASUREMENT → ACCEPTANCE → BILLING READINESS (0108) ─────────────────────
+  //
+  // Cada tabela existe porque uma AFIRMAÇÃO de negócio deixaria de ser verificável
+  // sem ela:
+  //
+  //   so.measurement_basis               a BASE publicada (já existia na 0107; o gate
+  //                                      não a listava porque a capability anterior
+  //                                      não a consumia)
+  //   msr.measurement_variances          por que uma aprovação pode estar bloqueada
+  //   msr.customer_acceptances           a decisão imutável de aceite do cliente
+  //   msr.billing_eligibility_evaluations o READY_TO_BILL como modelo de decisão
+  //   msr.revenue_leakage_positions      a lacuna de receita por estágio da cadeia
+  'so.measurement_basis',
+  'msr.measurement_variances',
+  'msr.customer_acceptances',
+  'msr.billing_eligibility_evaluations',
+  'msr.revenue_leakage_positions',
   'bil.billing_records',
   'bil.billing_documents',
   'evt.domain_events',
@@ -197,6 +214,11 @@ const EXPECTED_READ_CONTRACTS = [
   'rpt.read_vehicle_profiles',
   'rpt.read_measurements',
   'rpt.read_measurement_items',
+  // ── MEASUREMENT → ACCEPTANCE → BILLING READINESS (0108) ─────────────────────
+  'rpt.read_measurement_variances',
+  'rpt.read_customer_acceptances',
+  'rpt.read_billing_eligibility_evaluations',
+  'rpt.read_revenue_leakage_positions',
   'rpt.read_billing_records',
   'rpt.read_billing_documents',
   'rpt.read_documents',
@@ -1472,9 +1494,94 @@ async function assertPreDeltaState(connectionString, deltaFile) {
       return;
     }
 
+    if (deltaFile === '0108_measurement_acceptance_billing_readiness.sql') {
+      await assertPreDeltaStateForBillingReadiness(client);
+      return;
+    }
+
     throw new Error(`Unsupported incremental delta migration: ${deltaFile}`);
   } finally {
     await client.end();
+  }
+}
+
+/**
+ * MEASUREMENT → ACCEPTANCE → BILLING READINESS — 0108.
+ *
+ * Mesma inversão das anteriores: o baseline (N-1) precisa NÃO ter os objetos da
+ * capability, senão o delta não prova nada.
+ *
+ * As sondas cobrem QUATRO afirmações distintas, cada uma com um motivo:
+ *
+ *   msr.measurement_variances             a variação deixou de ser conta de tela
+ *   msr.customer_acceptances              o aceite deixou de ser função pura
+ *   msr.billing_eligibility_evaluations   a elegibilidade deixou de ser filtro SQL
+ *   msr.revenue_leakage_positions         a lacuna de receita virou projeção
+ *
+ * Além das tabelas, sonda a COLUNA de origem e os valores de enum: publicar
+ * `CUSTOMER_ACCEPTANCE_RECORDED` sem o valor no tipo reverte o comando inteiro no
+ * COMMIT — o defeito que a 0105 já produziu uma vez.
+ */
+async function assertPreDeltaStateForBillingReadiness(client) {
+  const preExisting = await client.query(
+    `SELECT
+       to_regclass('msr.measurement_variances') AS variances,
+       to_regclass('msr.customer_acceptances') AS acceptances,
+       to_regclass('msr.billing_eligibility_evaluations') AS eligibility,
+       to_regclass('msr.revenue_leakage_positions') AS leakage,
+       to_regclass('rpt.read_customer_acceptances') AS read_acceptances`,
+  );
+  const row = preExisting.rows[0] ?? {};
+  for (const [key, label] of [
+    ['variances', 'msr.measurement_variances'],
+    ['acceptances', 'msr.customer_acceptances'],
+    ['eligibility', 'msr.billing_eligibility_evaluations'],
+    ['leakage', 'msr.revenue_leakage_positions'],
+    ['read_acceptances', 'rpt.read_customer_acceptances'],
+  ]) {
+    if (row[key] !== null) {
+      throw new Error(`Incremental baseline incorrectly contains ${label} before 0108`);
+    }
+  }
+
+  // A coluna de origem autoritativa não pode preexistir.
+  const originColumn = await client.query(
+    `SELECT 1
+       FROM information_schema.columns
+      WHERE table_schema = 'msr'
+        AND table_name = 'measurement_items'
+        AND column_name = 'source_measurement_basis_id'`,
+  );
+  if ((originColumn.rowCount ?? 0) > 0) {
+    throw new Error(
+      'Incremental baseline incorrectly contains msr.measurement_items.source_measurement_basis_id before 0108',
+    );
+  }
+
+  // A base de medição PRECISA existir antes: ela é o input desta capability, e um
+  // baseline sem ela testaria outra coisa (a vertical anterior não teria fechado).
+  const basis = await client.query(`SELECT to_regclass('so.measurement_basis') AS regclass`);
+  if (!basis.rows[0]?.regclass) {
+    throw new Error('Expected so.measurement_basis before 0108 delta');
+  }
+
+  const preExistingEnum = await client.query(
+    `SELECT 1
+       FROM pg_enum e
+       JOIN pg_type t ON t.oid = e.enumtypid
+       JOIN pg_namespace n ON n.oid = t.typnamespace
+      WHERE n.nspname = 'evt'
+        AND t.typname = 'domain_event_type'
+        AND e.enumlabel IN (
+          'MEASUREMENT_CREATED',
+          'CUSTOMER_ACCEPTANCE_RECORDED',
+          'BILLING_ELIGIBILITY_GRANTED'
+        )`,
+  );
+  if (preExistingEnum.rows.length > 0) {
+    throw new Error(
+      'Incremental baseline incorrectly contains measurement→billing outbox event types before 0108',
+    );
   }
 }
 

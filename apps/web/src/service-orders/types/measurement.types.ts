@@ -32,8 +32,35 @@ export type MeasurementsErrorCode =
 export type MeasurementItem = {
   id: string;
   lineNumber: number;
-  sourceExecutionEntryId: string;
+  /**
+   * ORIGEM AUTORITATIVA — a base publicada pelo fechamento da execução.
+   *
+   * `sourceExecutionEntryId` sozinho descrevia a origem ANTIGA: o item derivado
+   * de `so.execution_entries`, a leitura interna da execução. Depois desta
+   * capability o item novo nasce da base, e este campo traz a chave da linha
+   * publicada.
+   */
+  sourceMeasurementBasisId: string | null;
+  sourceBasisLineKey: string | null;
+  /**
+   * ORIGEM HISTÓRICA. `null` em item derivado da base.
+   *
+   * Medições criadas antes desta capability têm itens apontando para a entrada
+   * de execução, e esses registros NÃO são reescritos — trocar a origem no meio
+   * da vida do registro reescreveria passado.
+   */
+  sourceExecutionEntryId: string | null;
   unitCode: string;
+  /**
+   * AS TRÊS VERDADES.
+   *
+   * `plannedQuantity` (expectativa congelada da base), `actualQuantity`
+   * (realizado congelado no fechamento) e `measuredQuantity` (reconhecimento
+   * comercial). São campos SEPARADOS porque são três grandezas diferentes: somar
+   * as três num número só apagaria a decisão comercial.
+   */
+  plannedQuantity: string | null;
+  plannedUnitOfMeasure: string | null;
   actualQuantity: string;
   measuredQuantity: string;
   unitPrice: string | null;

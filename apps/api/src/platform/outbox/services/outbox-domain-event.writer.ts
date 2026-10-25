@@ -12,11 +12,16 @@ import {
 } from '../../bounded-contexts/economic-event-contract';
 import {
   assertAuthorizationIndependentPayload,
+  buildBillingEligibilityBlockedPayloadV1,
+  buildBillingEligibilityGrantedPayloadV1,
   buildBillingReadyPayloadV1,
+  buildCustomerAcceptanceRecordedPayloadV1,
   buildExecutionCompletedPayloadV1,
   buildExecutionExceptionReportedPayloadV1,
+  buildMeasurementAdjustmentAuthorizedPayloadV1,
   buildMeasurementApprovedPayloadV1,
   buildMeasurementBasisReadyPayloadV1,
+  buildMeasurementCreatedPayloadV1,
   buildMeasurementSubmittedPayloadV1,
   buildResourceUsageRecordedPayloadV1,
   buildServiceExecutionPausedPayloadV1,
@@ -436,6 +441,153 @@ export class OutboxDomainEventWriter {
       payload,
       occurredAt: input.preparedAt,
       idempotencyKey: `measurement-basis:${input.measurementBasisId}:ready`,
+    });
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  // MEASUREMENT → ACCEPTANCE → BILLING READINESS
+  // ═════════════════════════════════════════════════════════════════════════════
+  //
+  // Todos recebem o `PoolClient` do comando: o evento nasce na MESMA transação do
+  // estado. Se o COMMIT falha, o evento não existe — nunca há fato órfão nem
+  // evento publicado para estado que não mudou.
+  //
+  // A `idempotencyKey` deriva do FATO (id do registro + natureza), não do
+  // request: reenviar o comando com outra chave não duplica o evento.
+
+  async appendMeasurementCreated(
+    client: PoolClient,
+    input: {
+      measurementId: string;
+      serviceOrderId: string;
+      unitId: string;
+      orderNumber: string;
+      measurementBasisId: string;
+      executionClosureId: string;
+      itemCount: number;
+      createdAt: string;
+    },
+  ): Promise<void> {
+    const payload = buildMeasurementCreatedPayloadV1(input);
+    await this.append(client, {
+      eventType: DOMAIN_EVENT_TYPES.MeasurementCreated,
+      aggregateType: AGGREGATE_TYPES.Measurement,
+      aggregateId: input.measurementId,
+      payload,
+      occurredAt: input.createdAt,
+      idempotencyKey: `measurement:${input.measurementId}:created`,
+    });
+  }
+
+  async appendMeasurementAdjustmentAuthorized(
+    client: PoolClient,
+    input: {
+      measurementId: string;
+      serviceOrderId: string;
+      unitId: string;
+      orderNumber: string;
+      adjustmentId: string;
+      measurementItemId: string;
+      adjustmentQuantity: string;
+      unitCode: string;
+      financialImpact: string | null;
+      currencyCode: string | null;
+      reason: string;
+      decidedAt: string;
+    },
+  ): Promise<void> {
+    const payload = buildMeasurementAdjustmentAuthorizedPayloadV1(input);
+    await this.append(client, {
+      eventType: DOMAIN_EVENT_TYPES.MeasurementAdjustmentAuthorized,
+      aggregateType: AGGREGATE_TYPES.Measurement,
+      aggregateId: input.measurementId,
+      payload,
+      occurredAt: input.decidedAt,
+      idempotencyKey: `measurement-adjustment:${input.adjustmentId}:authorized`,
+    });
+  }
+
+  /**
+   * O FATO do aceite do cliente.
+   *
+   * Aceite e recusa são TIPOS DISTINTOS, não um tipo com campo de resultado: um
+   * consumidor que reage a `CUSTOMER_ACCEPTANCE_RECORDED` não precisa inspecionar
+   * payload para saber se deve liberar faturamento. A decisão fica no VOCABULÁRIO
+   * do evento, que é onde ela pode ser filtrada.
+   */
+  async appendCustomerAcceptanceRecorded(
+    client: PoolClient,
+    input: {
+      serviceOrderId: string;
+      measurementId: string;
+      unitId: string;
+      orderNumber: string;
+      acceptanceId: string;
+      cycleNumber: number;
+      result: string;
+      rejectionReason: string | null;
+      occurredAt: string;
+    },
+  ): Promise<void> {
+    const payload = buildCustomerAcceptanceRecordedPayloadV1(input);
+    const accepted = input.result === 'ACCEPTED';
+    await this.append(client, {
+      eventType: accepted
+        ? DOMAIN_EVENT_TYPES.CustomerAcceptanceRecorded
+        : DOMAIN_EVENT_TYPES.CustomerRejectionRecorded,
+      aggregateType: AGGREGATE_TYPES.Measurement,
+      aggregateId: input.measurementId,
+      payload,
+      occurredAt: input.occurredAt,
+      idempotencyKey: `customer-acceptance:${input.acceptanceId}:${accepted ? 'accepted' : 'rejected'}`,
+    });
+  }
+
+  async appendBillingEligibilityGranted(
+    client: PoolClient,
+    input: {
+      serviceOrderId: string;
+      measurementId: string;
+      unitId: string;
+      orderNumber: string;
+      totalAmount: string | null;
+      currencyCode: string | null;
+      releasedAt: string;
+    },
+  ): Promise<void> {
+    const payload = buildBillingEligibilityGrantedPayloadV1(input);
+    await this.append(client, {
+      eventType: DOMAIN_EVENT_TYPES.BillingEligibilityGranted,
+      aggregateType: AGGREGATE_TYPES.Measurement,
+      aggregateId: input.measurementId,
+      payload,
+      occurredAt: input.releasedAt,
+      // A chave inclui o instante: a MESMA medição pode ser liberada, bloqueada e
+      // liberada de novo. Sem o instante, a segunda liberação seria descartada
+      // como duplicata e o consumidor nunca sabería que voltou a estar pronta.
+      idempotencyKey: `billing-eligibility:${input.measurementId}:granted:${input.releasedAt}`,
+    });
+  }
+
+  async appendBillingEligibilityBlocked(
+    client: PoolClient,
+    input: {
+      serviceOrderId: string;
+      measurementId: string;
+      unitId: string;
+      orderNumber: string;
+      blockingReasons: string[];
+      evaluatedAt: string;
+    },
+  ): Promise<void> {
+    const payload = buildBillingEligibilityBlockedPayloadV1(input);
+    await this.append(client, {
+      eventType: DOMAIN_EVENT_TYPES.BillingEligibilityBlocked,
+      aggregateType: AGGREGATE_TYPES.Measurement,
+      aggregateId: input.measurementId,
+      payload,
+      occurredAt: input.evaluatedAt,
+      idempotencyKey: `billing-eligibility:${input.measurementId}:blocked:${input.evaluatedAt}`,
     });
   }
 }

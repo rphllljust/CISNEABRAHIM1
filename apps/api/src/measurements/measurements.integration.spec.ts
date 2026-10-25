@@ -46,6 +46,24 @@ import { ServiceOrderPlanningAccessService } from '../service-orders/services/se
 import { ServiceOrdersAccessService } from '../service-orders/services/service-orders-access.service';
 
 const UNIT_A = 'unit-msr-a';
+
+/**
+ * Normaliza decimal vindo do banco.
+ *
+ * O Postgres devolve `numeric(18,6)` como `'10.000000'`. Comparar com `'10'`
+ * funcionaria só enquanto ninguém mudasse a escala da coluna — e a asserção
+ * passaria a falhar por FORMATAÇÃO, não por valor, escondendo o dado real.
+ */
+function normalizeDecimal(value: string | null | undefined): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return value;
+  }
+  return String(parsed);
+}
 const TEST_CNPJ = '11222333000181';
 
 const SAMPLE_RESOURCE_REQUIREMENTS = [
@@ -259,23 +277,166 @@ describe('Measurements PostgreSQL integration', () => {
     return { completed, quantityValue, unitCode };
   }
 
-  it('creates measurement from completed service order with traceable items', async () => {
+  /**
+   * A MEDIÇÃO NASCE DA BASE PUBLICADA, NÃO DE `so.execution_entries`.
+   *
+   * Antes desta capability, `create` derivava itens de `so.execution_entries` — a
+   * leitura INTERNA da execução — enquanto `so.measurement_basis` era publicada
+   * no fechamento e ninguém a consumia. Duas verdades para a mesma execução.
+   *
+   * O teste agora afirma a origem AUTORITATIVA: o item aponta para a base e para
+   * a linha dela, e `sourceExecutionEntryId` é `null` em item novo.
+   */
+  it('creates measurement from the published basis with authoritative origin', async () => {
     const { actor } = await seedActor();
-    const { completed } = await seedCompletedOrder(actor);
+    const { completed } = await seedCompletedOrderWithBasis(actor);
 
     const measurement = await measurementsAccess.create(actor, completed.id);
 
     expect(measurement.status).toBe(MEASUREMENT_STATUSES.Draft);
     expect(measurement.items).toHaveLength(1);
-    expect(measurement.items[0]?.sourceExecutionEntryId).toBeTruthy();
-    expect(measurement.items[0]?.actualQuantity).toBe('1');
-    expect(measurement.items[0]?.measuredQuantity).toBe('1');
+    // ORIGEM AUTORITATIVA: a base publicada, com a chave da linha.
+    expect(measurement.items[0]?.sourceMeasurementBasisId).toBeTruthy();
+    expect(measurement.items[0]?.sourceBasisLineKey).toBeTruthy();
+    // O caminho interno da execução NÃO é preenchido em item novo.
+    expect(measurement.items[0]?.sourceExecutionEntryId).toBeNull();
+    expect(measurement.items[0]?.actualQuantity).toBe('12.5');
+    expect(measurement.items[0]?.measuredQuantity).toBe('12.5');
+    // TRÊS VERDADES: planejado vem da base, realizado e medido são campos distintos.
+    expect(normalizeDecimal(measurement.items[0]?.plannedQuantity)).toBe('10');
+    expect(measurement.items[0]?.actualQuantity).not.toBe(measurement.items[0]?.plannedQuantity);
     expect(measurement.commercialReferenceSnapshot.pricingLines).toBeTruthy();
   });
 
+  it('refuses measurement creation when the basis is not READY', async () => {
+    const { actor } = await seedActor();
+    const { completed } = await seedCompletedOrderWithBasis(actor, {
+      unitCode: 'M3',
+      quantityValue: '12.5',
+    });
+
+    // A base publicada é REBAIXADA para SUPERSEDED — o que acontece quando a
+    // execução é reaberta e fechada de novo. Uma base substituída é passado.
+    await pool.query(
+      `UPDATE so.measurement_basis
+          SET status = 'SUPERSEDED', superseded_at = NOW()
+        WHERE service_order_id = $1`,
+      [completed.id],
+    );
+
+    await expect(measurementsAccess.create(actor, completed.id)).rejects.toMatchObject({
+      code: MEASUREMENTS_ERROR_CODES.MEASUREMENT_BASIS_NOT_PUBLISHED,
+    });
+  });
+
+  /**
+   * Semeia a BASE DE MEDIÇÃO PUBLICADA para a ordem.
+   *
+   * ─────────────────────────────────────────────────────────────────────────────
+   * POR QUE O SEED ESCREVE O FATO, E NÃO UM ATALHO
+   * ─────────────────────────────────────────────────────────────────────────────
+   *
+   * O fechamento de execução (`EXECUTION_CLOSED`) é produzido pela capability
+   * ANTERIOR, com seu próprio completion gate. Reproduzi-lo aqui exigiria
+   * satisfazer odômetro final, combustível, horas por pessoa, assinatura e
+   * evidência verificada — um teste de medição que testaria execução.
+   *
+   * O seed escreve EXATAMENTE o que aquela capability publica no mesmo commit:
+   * `so.execution_closures` e `so.measurement_basis`, com as linhas por unidade
+   * no formato de `buildExecutionClosureInput`. Se o formato mudar lá, o teste
+   * de integração da execução reprova antes deste; e o teste de contrato deste
+   * arquivo lê a base pela VIEW PUBLICA, que é a mesma leitura do código real.
+   */
+  /**
+   * AJUSTA A BASE PUBLICADA PELA EXECUÇÃO — sem criar segunda verdade.
+   *
+   * ─────────────────────────────────────────────────────────────────────────────
+   * POR QUE NÃO SE INSERE O FECHAMENTO AQUI
+   * ─────────────────────────────────────────────────────────────────────────────
+   *
+   * A primeira versão deste seed INSERIA `so.execution_closures` e
+   * `so.measurement_basis` diretamente. Ela falhou no primeiro teste com
+   * `execution_closures_order_closure_number_uidx` — porque `executionAccess.complete`
+   * JÁ produz os dois registros no mesmo commit, com os realizados congelados.
+   *
+   * O seed estava tentando criar uma SEGUNDA verdade para o mesmo fato — o defeito
+   * exato que esta capability elimina, reproduzido dentro do próprio teste. A
+   * correção é usar a base que o sistema gerou e ajustar apenas as linhas que o
+   * cenário precisa (quantidade planejada de referência, por exemplo).
+   *
+   * Prova adicional de que a vertical anterior está íntegra: se o fechamento não
+   * publicasse a base, este helper falharia aqui, isolado, em vez de deixar a
+   * medição falhar mais adiante por um motivo confuso.
+   */
+  async function seedPublishedBasis(
+    serviceOrderId: string,
+    _actor: { identityId: string },
+    lines: Array<{ unitCode: string; actualQuantity: string; plannedQuantity: string | null; recordCount: number }>,
+  ): Promise<{ basisId: string; closureId: string }> {
+    const existing = await pool.query<{ id: string; closure_id: string }>(
+      `SELECT id, closure_id FROM so.measurement_basis
+        WHERE service_order_id = $1 AND status = 'READY'`,
+      [serviceOrderId],
+    );
+    const row = existing.rows[0];
+    if (!row) {
+      throw new Error(
+        `A conclusão da execução não publicou base de medição para ${serviceOrderId}. ` +
+          'A vertical EXECUTION CLOSED → MEASUREMENT_BASIS_READY está quebrada.',
+      );
+    }
+
+    // A quantidade REALIZADA vem do fechamento real e não é reescrita pelo teste:
+    // reescrevê-la faria o teste provar uma base que o sistema não produz. O
+    // PLANEJADO é referência de comparação e o cenário o declara.
+    await pool.query(
+      `UPDATE so.measurement_basis
+          SET lines = $2::jsonb, actuals = $3::jsonb
+        WHERE id = $1`,
+      [
+        row.id,
+        JSON.stringify(
+          lines.map((line) => ({
+            unitCode: line.unitCode,
+            actualQuantity: line.actualQuantity,
+            plannedQuantity: line.plannedQuantity,
+            recordCount: line.recordCount,
+            source: 'EXECUTION_ACTUALS',
+          })),
+        ),
+        JSON.stringify(
+          Object.fromEntries(lines.map((line) => [line.unitCode, line.actualQuantity])),
+        ),
+      ],
+    );
+
+    return { basisId: row.id, closureId: row.closure_id };
+  }
+
+  /** Ordem concluída COM base publicada — o handoff que a medição consome. */
+  async function seedCompletedOrderWithBasis(
+    actor: { identityId: string; sessionId: string },
+    options?: { unitCode?: string; quantityValue?: string; plannedQuantity?: string },
+  ) {
+    const unitCode = options?.unitCode ?? 'M3';
+    const quantityValue = options?.quantityValue ?? '12.5';
+    const plannedQuantity = options?.plannedQuantity ?? '10';
+
+    const seeded = await seedCompletedOrder(actor, { unitCode, quantityValue });
+    await seedPublishedBasis(seeded.completed.id, actor, [
+      {
+        unitCode,
+        actualQuantity: quantityValue,
+        plannedQuantity,
+        recordCount: 1,
+      },
+    ]);
+    return { ...seeded, plannedQuantity };
+  }
+
   it('rejects measurement creation when service order is not completed', async () => {
     const { actor } = await seedActor();
-    const { completed } = await seedCompletedOrder(actor);
+    const { completed } = await seedCompletedOrderWithBasis(actor, { unitCode: 'M3', quantityValue: '12.5' });
     await pool.query(`UPDATE so.service_orders SET status = 'RELEASED' WHERE id = $1`, [completed.id]);
 
     await expect(measurementsAccess.create(actor, completed.id)).rejects.toMatchObject({
@@ -285,7 +446,7 @@ describe('Measurements PostgreSQL integration', () => {
 
   it('rejects measured quantity divergence without authorized adjustment', async () => {
     const { actor } = await seedActor();
-    const { completed } = await seedCompletedOrder(actor, { unitCode: 'M3', quantityValue: '10' });
+    const { completed } = await seedCompletedOrderWithBasis(actor, { unitCode: 'M3', quantityValue: '10', plannedQuantity: '10' });
     const measurement = await measurementsAccess.create(actor, completed.id);
     const item = measurement.items[0]!;
 
@@ -299,7 +460,7 @@ describe('Measurements PostgreSQL integration', () => {
 
   it('allows divergence after formal adjustment authorization', async () => {
     const { actor } = await seedActor();
-    const { completed } = await seedCompletedOrder(actor, { unitCode: 'M3', quantityValue: '10' });
+    const { completed } = await seedCompletedOrderWithBasis(actor, { unitCode: 'M3', quantityValue: '10', plannedQuantity: '10' });
     const measurement = await measurementsAccess.create(actor, completed.id);
     const item = measurement.items[0]!;
 
@@ -321,7 +482,7 @@ describe('Measurements PostgreSQL integration', () => {
 
   it('submits and approves measurement with the same maximum authority', async () => {
     const { actor: preparer } = await seedActor();
-    const { completed } = await seedCompletedOrder(preparer);
+    const { completed } = await seedCompletedOrderWithBasis(preparer, { unitCode: 'M3', quantityValue: '12.5' });
     const measurement = await measurementsAccess.create(preparer, completed.id);
 
     const submitted = await measurementsAccess.submit(preparer, completed.id, measurement.id, {
@@ -345,7 +506,7 @@ describe('Measurements PostgreSQL integration', () => {
 
   it('rejects measurement during review', async () => {
     const { actor } = await seedActor();
-    const { completed } = await seedCompletedOrder(actor);
+    const { completed } = await seedCompletedOrderWithBasis(actor, { unitCode: 'M3', quantityValue: '12.5' });
     const measurement = await measurementsAccess.create(actor, completed.id);
     const submitted = await measurementsAccess.submit(actor, completed.id, measurement.id, {
       rowVersion: measurement.rowVersion,
@@ -376,7 +537,7 @@ describe('Measurements PostgreSQL integration', () => {
 
   it('returns version conflict on stale row version', async () => {
     const { actor } = await seedActor();
-    const { completed } = await seedCompletedOrder(actor);
+    const { completed } = await seedCompletedOrderWithBasis(actor, { unitCode: 'M3', quantityValue: '12.5' });
     const measurement = await measurementsAccess.create(actor, completed.id);
 
     await measurementsAccess.submit(actor, completed.id, measurement.id, {
@@ -392,7 +553,7 @@ describe('Measurements PostgreSQL integration', () => {
 
   it('allows only one concurrent approve transition', async () => {
     const { actor: preparer } = await seedActor();
-    const { completed } = await seedCompletedOrder(preparer);
+    const { completed } = await seedCompletedOrderWithBasis(preparer, { unitCode: 'M3', quantityValue: '12.5' });
     const measurement = await measurementsAccess.create(preparer, completed.id);
     const submitted = await measurementsAccess.submit(preparer, completed.id, measurement.id, {
       rowVersion: measurement.rowVersion,
@@ -429,7 +590,7 @@ describe('Measurements PostgreSQL integration', () => {
     'allows only one concurrent regeneration',
     async () => {
       const { actor } = await seedActor();
-      const { completed } = await seedCompletedOrder(actor);
+      const { completed } = await seedCompletedOrderWithBasis(actor, { unitCode: 'M3', quantityValue: '12.5' });
       const measurement = await measurementsAccess.create(actor, completed.id);
 
       const results = await Promise.allSettled([
@@ -451,7 +612,7 @@ describe('Measurements PostgreSQL integration', () => {
 
   it('denies a third party from approving a measurement', async () => {
     const { actor } = await seedActor();
-    const { completed } = await seedCompletedOrder(actor);
+    const { completed } = await seedCompletedOrderWithBasis(actor, { unitCode: 'M3', quantityValue: '12.5' });
     const measurement = await measurementsAccess.create(actor, completed.id);
     const submitted = await measurementsAccess.submit(actor, completed.id, measurement.id, {
       rowVersion: measurement.rowVersion,
@@ -473,7 +634,7 @@ describe('Measurements PostgreSQL integration', () => {
 
   it('denies unauthorized measurement read', async () => {
     const { actor } = await seedActor();
-    const { completed } = await seedCompletedOrder(actor);
+    const { completed } = await seedCompletedOrderWithBasis(actor, { unitCode: 'M3', quantityValue: '12.5' });
     const measurement = await measurementsAccess.create(actor, completed.id);
 
     const login = normalizeLoginIdentifier(`msr-deny-${crypto.randomUUID()}@cisne.invalid`);
@@ -494,7 +655,7 @@ describe('Measurements PostgreSQL integration', () => {
 
   it('preserves commercial snapshot pricing after catalog changes', async () => {
     const { actor } = await seedActor();
-    const { completed } = await seedCompletedOrder(actor);
+    const { completed } = await seedCompletedOrderWithBasis(actor, { unitCode: 'M3', quantityValue: '12.5' });
     const measurement = await measurementsAccess.create(actor, completed.id);
     const originalPrice = (
       measurement.commercialReferenceSnapshot as { pricingLines: Array<{ salePrice: string }> }
@@ -516,7 +677,7 @@ describe('Measurements PostgreSQL integration', () => {
   });
 
   async function seedApprovedMeasurement(actor: { identityId: string; sessionId: string }) {
-    const { completed } = await seedCompletedOrder(actor);
+    const { completed } = await seedCompletedOrderWithBasis(actor, { unitCode: 'M3', quantityValue: '12.5' });
     const measurement = await measurementsAccess.create(actor, completed.id);
     const submitted = await measurementsAccess.submit(actor, completed.id, measurement.id, {
       rowVersion: measurement.rowVersion,
@@ -537,7 +698,7 @@ describe('Measurements PostgreSQL integration', () => {
 
   it('rejects duplicate active measurement for the same service order', async () => {
     const { actor } = await seedActor();
-    const { completed } = await seedCompletedOrder(actor);
+    const { completed } = await seedCompletedOrderWithBasis(actor, { unitCode: 'M3', quantityValue: '12.5' });
     await measurementsAccess.create(actor, completed.id);
     await expect(measurementsAccess.create(actor, completed.id)).rejects.toMatchObject({
       code: MEASUREMENTS_ERROR_CODES.MEASUREMENT_ALREADY_EXISTS,
@@ -546,7 +707,7 @@ describe('Measurements PostgreSQL integration', () => {
 
   it('preserves commercial linkage with service order period and contract reference', async () => {
     const { actor } = await seedActor();
-    const { completed } = await seedCompletedOrder(actor);
+    const { completed } = await seedCompletedOrderWithBasis(actor, { unitCode: 'M3', quantityValue: '12.5' });
     await pool.query(
       `UPDATE so.service_orders
        SET contract_reference = $2,
@@ -594,18 +755,99 @@ describe('Measurements PostgreSQL integration', () => {
     ).rejects.toMatchObject({ code: MEASUREMENTS_ERROR_CODES.NOT_EDITABLE });
   });
 
-  it('derives billable items from actual execution entries with traceable origin', async () => {
+  /**
+   * A QUANTIDADE VEM DA BASE PUBLICADA — E A PROVA É O DESVIO CONSCIENTE.
+   *
+   * O teste altera `so.execution_entries` DEPOIS da publicação da base. Se a
+   * medição ainda lesse a entrada de execução, ela mediria 999. Lendo a base
+   * publicada, ela mede 12.5 — a verdade CONGELADA no fechamento.
+   *
+   * Este é o teste que reprova a reintrodução da segunda verdade. Sem ele, o
+   * caminho antigo poderia voltar sem que nenhuma asserção percebesse: os dois
+   * caminhos concordam enquanto ninguém mexer na execução.
+   */
+  it('measures the quantity frozen in the published basis, not the live execution entry', async () => {
     const { actor } = await seedActor();
-    const { completed, unitCode } = await seedCompletedOrder(actor, {
+    const { completed, unitCode } = await seedCompletedOrderWithBasis(actor, {
+      unitCode: 'M3',
+      quantityValue: '12.5',
+      plannedQuantity: '10',
+    });
+
+    // A execução é ALTERADA após o fechamento — simulação de reabertura/ajuste
+    // interno que, antes, vazaria para a medição.
+    await pool.query(
+      `UPDATE so.execution_entries SET quantity_value = 999 WHERE service_order_id = $1`,
+      [completed.id],
+    );
+
+    const measurement = await measurementsAccess.create(actor, completed.id);
+    const item = measurement.items[0]!;
+
+    expect(normalizeDecimal(item.actualQuantity)).toBe('12.5');
+    expect(item.measuredQuantity).toBe('12.5');
+    expect(normalizeDecimal(item.plannedQuantity)).toBe('10');
+    expect(normalizeDecimal(item.actualQuantity)).not.toBe('999');
+    expect(item.unitCode).toBe(unitCode);
+    expect(item.lineAmount).toBeTruthy();
+    // A origem é a BASE: nenhum vínculo com a entrada de execução mutável.
+    expect(item.sourceMeasurementBasisId).toBeTruthy();
+    expect(item.sourceExecutionEntryId).toBeNull();
+  });
+
+  /**
+   * O BANCO GARANTE "UMA EXECUÇÃO FECHADA, UMA MEDIÇÃO".
+   *
+   * O comando de criação recusa a segunda medição na aplicação. Esta asserção
+   * prova o nível ABAIXO: o índice parcial `measurement_items_basis_consumed_uidx`
+   * impediria o mesmo item derivado de duas bases, mesmo fora do fluxo do comando.
+   *
+   * Escrever direto na tabela é o ponto do teste: se a garantia vivesse só em
+   * JavaScript, este INSERT passaria e a "uma verdade operacional" seria uma
+   * convenção do serviço, não do sistema.
+   */
+  it('the database forbids consuming the same basis line twice', async () => {
+    const { actor } = await seedActor();
+    const { completed } = await seedCompletedOrderWithBasis(actor, {
       unitCode: 'M3',
       quantityValue: '12.5',
     });
     const measurement = await measurementsAccess.create(actor, completed.id);
     const item = measurement.items[0]!;
-    expect(item.sourceExecutionEntryId).toBeTruthy();
-    expect(item.actualQuantity).toBe('12.5');
-    expect(item.measuredQuantity).toBe('12.5');
-    expect(item.unitCode).toBe(unitCode);
-    expect(item.lineAmount).toBeTruthy();
+
+    /**
+     * DUAS GARANTIAS, EM DOIS NÍVEIS.
+     *
+     * `measurement_service_order_active_uq` barra a SEGUNDA medição ativa da
+     * mesma ordem — a garantia de mais alto nível, que torna a duplicidade
+     * impossível antes de chegar aos itens.
+     *
+     * Escrever a segunda medição direto na tabela é o ponto do teste: se a
+     * garantia vivesse só em JavaScript no serviço, este INSERT passaria.
+     */
+    await expect(
+      pool.query(
+        `INSERT INTO msr.measurements (service_order_id, unit_id, created_by_identity_id, updated_by_identity_id)
+         VALUES ($1, $2, $3, $3)`,
+        [completed.id, UNIT_A, actor.identityId],
+      ),
+    ).rejects.toMatchObject({ code: '23505' });
+
+    // Enquanto a medição existir, a base já está CONSUMIDA: o índice parcial
+    // impede que outra medição aponte para a mesma linha.
+    await expect(
+      pool.query(
+        `INSERT INTO msr.measurement_items (
+           measurement_id, line_number, source_measurement_basis_id, source_basis_line_key,
+           unit_code, actual_quantity, measured_quantity
+         ) VALUES ($1, 2, $2, $3, $4, 12.5, 12.5)`,
+        [
+          measurement.id,
+          item.sourceMeasurementBasisId,
+          item.sourceBasisLineKey,
+          item.unitCode,
+        ],
+      ),
+    ).rejects.toMatchObject({ code: '23505' });
   });
 });

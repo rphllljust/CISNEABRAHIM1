@@ -900,6 +900,346 @@ export function createServiceOrdersFetchMock(options: ServiceOrdersFetchMockOpti
     }
   }
 
+  /**
+   * WORKBENCH DA MEDIÇÃO — O MOCK REPRESENTA O BACKEND AUTORITATIVO.
+   *
+   * ─────────────────────────────────────────────────────────────────────────────
+   * POR QUE ESTE BUILDER EXISTE
+   * ─────────────────────────────────────────────────────────────────────────────
+   *
+   * A tela de conferência passou a ler `availableCommands` do backend em vez de
+   * compor permissão com status. Sem esta rota, o `fetch` cairia no `upstream` e
+   * a página ficaria sem decisão — correto quando o backend não responde, mas
+   * inútil para o teste.
+   *
+   * ─────────────────────────────────────────────────────────────────────────────
+   * A DECISÃO É DERIVADA DO ESTADO, AQUI, PORQUE ESTE MOCK É O BACKEND
+   * ─────────────────────────────────────────────────────────────────────────────
+   *
+   * É legítimo que o MOCK aplique a regra: ele representa o servidor, e é o
+   * servidor quem decide. O que o teste prova é que a TELA obedece a essa
+   * decisão — se a tela recalculasse por conta própria, a asserção de botão
+   * habilitado/desabilitado falharia.
+   */
+  function buildMeasurementWorkbench(
+    orderId: string,
+    opts: ServiceOrdersFetchMockOptions,
+  ) {
+    const order = getOrder(orderId);
+    /**
+     * ─────────────────────────────────────────────────────────────────────────────
+     * O ESTADO ATUAL, NÃO O SEED INICIAL
+     * ─────────────────────────────────────────────────────────────────────────────
+     *
+     * O workbench é uma LEITURA do estado vigente. Ler `opts.seedMeasurement`
+     * devolveria o estado INICIAL para sempre — e um fluxo que submete e espera
+     * "iniciar análise" nunca veria a transição, porque o read model continuaria
+     * respondendo DRAFT.
+     *
+     * O store `measurements` é a fonte viva que este mock já mantém para os
+     * comandos. Ler dele é o que faz o read model refletir o MESMO estado que o
+     * comando produziu — exatamente como no backend real, onde o read model é
+     * reconstruído depois do commit.
+     */
+    const liveMeasurement: MockMeasurement | undefined = measurements.get(orderId);
+    const status = liveMeasurement?.status ?? 'DRAFT';
+    const hasMeasurement = liveMeasurement !== undefined || opts.seedMeasurement !== undefined;
+    /**
+     * A VARIÁVEL RESOLVIDA DO ESCOPO, NÃO O CAMPO CRU DA OPÇÃO.
+     *
+     * `measurementAllowed` já foi normalizado para `true` quando a opção é
+     * omitida (linha ~312). Ler `opts.measurementAllowed` devolveria `undefined`
+     * e desabilitaria TODOS os comandos por `NOT_AUTHORIZED` — o teste mediria
+     * falta de permissão onde a intenção era medir o estado.
+     */
+    const measurementPermitted = measurementAllowed;
+    const divergent = opts.seedMeasurement === 'draft-divergent';
+    const items = buildMeasurementItems(orderId, divergent);
+    const total = items.reduce((sum, item) => sum + Number(item.lineAmount ?? 0), 0);
+
+    /**
+     * Um comando com a decisão já tomada — como o BACKEND a publica.
+     *
+     * A autorização é tratada como um motivo a mais: sem permissão, o comando
+     * fica desabilitado com `NOT_AUTHORIZED`, nunca oculto.
+     */
+    const command = (
+      code: string,
+      label: string,
+      enabled: boolean,
+      blockingReasons: string[] = [],
+      reasonLabels: string[] = [],
+      nextAction: string | null = null,
+    ) => {
+      const authorised = measurementPermitted;
+      if (!authorised) {
+        return {
+          code,
+          label,
+          enabled: false,
+          blockingReasons: ['NOT_AUTHORIZED'],
+          reasonLabels: ['Sem permissão para este comando.'],
+          nextAction: null,
+          requiredPermission: `measurements:measurement:${code.toLowerCase()}`,
+        };
+      }
+      return enabled
+        ? {
+            code,
+            label,
+            enabled: true,
+            blockingReasons: [],
+            reasonLabels: [],
+            nextAction: null,
+            requiredPermission: `measurements:measurement:${code.toLowerCase()}`,
+          }
+        : {
+            code,
+            label,
+            enabled: false,
+            blockingReasons,
+            reasonLabels,
+            nextAction,
+            requiredPermission: `measurements:measurement:${code.toLowerCase()}`,
+          };
+    };
+
+    const varianceRequiringDecision = divergent;
+    const approvalBlockers = varianceRequiringDecision
+      ? ['VARIANCE_REQUIRES_AUTHORIZATION']
+      : [];
+
+    const availableCommands = [
+      command('CREATE_MEASUREMENT', 'Gerar medição', false, ['ALREADY_RECORDED'], ['Esta ordem já possui medição.']),
+      command('REGENERATE_MEASUREMENT', 'Regerar itens', status === 'DRAFT'),
+      command('AUTHORIZE_ADJUSTMENT', 'Autorizar ajuste', status === 'DRAFT' && varianceRequiringDecision),
+      command('SUBMIT', 'Submeter medição', status === 'DRAFT' && !varianceRequiringDecision, varianceRequiringDecision ? ['VARIANCE_REQUIRES_AUTHORIZATION'] : [], varianceRequiringDecision ? ['Existe variação acima da tolerância sem decisão registrada.'] : [], varianceRequiringDecision ? 'AUTHORIZE_ADJUSTMENT' : null),
+      command('START_REVIEW', 'Iniciar análise', status === 'SUBMITTED'),
+      command(
+        'APPROVE',
+        'Aprovar medição',
+        status === 'UNDER_REVIEW' && approvalBlockers.length === 0,
+        approvalBlockers,
+        approvalBlockers.length > 0
+          ? ['Existe variação acima da tolerância sem decisão registrada.']
+          : [],
+        approvalBlockers.length > 0 ? 'AUTHORIZE_ADJUSTMENT' : null,
+      ),
+      command('REJECT', 'Rejeitar medição', status === 'UNDER_REVIEW'),
+      command('RESUBMIT', 'Reenviar medição', status === 'REJECTED'),
+    ];
+
+    const nextActionCode = (() => {
+      if (availableCommands.find((item) => item.code === 'AUTHORIZE_ADJUSTMENT')?.enabled) {
+        return 'AUTHORIZE_ADJUSTMENT';
+      }
+      for (const code of ['CREATE_MEASUREMENT', 'RESUBMIT', 'SUBMIT', 'START_REVIEW', 'APPROVE']) {
+        if (availableCommands.find((item) => item.code === code)?.enabled) {
+          return code;
+        }
+      }
+      return null;
+    })();
+
+    const nextActionLabel =
+      availableCommands.find((item) => item.code === nextActionCode)?.label ?? null;
+
+    return {
+      identity: {
+        measurementId: opts.seedMeasurement ? MOCK_MEASUREMENT_ID : null,
+        number: opts.seedMeasurement ? `${order.orderNumber}-M1` : null,
+        serviceOrderId: orderId,
+        orderNumber: order.orderNumber,
+        rowVersion: liveMeasurement?.rowVersion ?? 1,
+      },
+      businessContext: {
+        company: 'CISNE',
+        unit: order.unitId ?? 'CISNE-RO-PVH',
+        customer: order.clientSnapshot?.tradeName ?? null,
+        customerId: order.clientId ?? null,
+        /**
+         * `MockOrder` NÃO modela contrato comercial.
+         *
+         * Inventar uma referência aqui faria o read model afirmar um vínculo que
+         * o mock não tem — e o teste passaria a exercitar um cenário que não
+         * existe. `null` é a leitura honesta: "esta ordem sintética não declara
+         * contrato".
+         */
+        contract: null,
+        purchaseOrder: null,
+        responsible: null,
+      },
+      statuses: {
+        execution: 'CLOSED',
+        measurement: hasMeasurement ? status : 'NOT_CREATED',
+        acceptance: 'NOT_REQUIRED',
+        billingEligibility: status === 'APPROVED' ? 'READY' : 'BLOCKED',
+        billing: 'NOT_PREPARED',
+        accounting: 'NOT_APPLICABLE',
+      },
+      processContext: {
+        milestones: [
+          { stage: 'EXECUTION', label: 'Execução', state: 'COMPLETED', reachedAt: null },
+          { stage: 'MEASUREMENT', label: 'Medição', state: 'CURRENT', reachedAt: null },
+          { stage: 'BILLING', label: 'Faturamento', state: 'FUTURE', reachedAt: null },
+        ],
+        completedMilestones: ['EXECUTION'],
+        pendingMilestones: ['MEASUREMENT', 'BILLING'],
+        health: {
+          currentStage: 'MEASUREMENT',
+          currentStageLabel: 'Medição',
+          elapsedSeconds: 219_600,
+          targetSeconds: 691_200,
+          forecastSecondsRemaining: null,
+          risk: 'MEDIUM',
+          riskReason: 'Condição interna a resolver.',
+          ownerRole: 'OPERACOES',
+          blockingReason: null,
+          nextMilestone: null,
+        },
+        nextMilestone: nextActionLabel,
+      },
+      measurementBasis: {
+        basisId: 'basis-mock',
+        executionClosureId: 'closure-mock',
+        preparedAt: '2026-10-14T19:00:00.000Z',
+        lineCount: 1,
+        lines: [],
+      },
+      quantities: {
+        lines: items.map((item) => ({
+          dimensionKey: item.unitCode,
+          label: item.unitCode,
+          unitOfMeasure: item.unitCode,
+          planned: item.actualQuantity,
+          actual: item.actualQuantity,
+          measured: item.measuredQuantity,
+        })),
+        totals: { planned: 0, actual: 0, measured: 0 },
+      },
+      economics: {
+        grossValue: total > 0 ? total.toFixed(4) : null,
+        currency: 'BRL',
+        financialVariance: null,
+        revenueExposure: total > 0 ? total.toFixed(4) : null,
+      },
+      commercialContext: {
+        pricing: { source: 'SERVICE_CATALOG', lineCount: items.length, currencyCode: 'BRL' },
+        paymentTerms: null,
+        tolerance: { percentage: 5, source: 'DEFAULT' },
+        purchaseOrderRequirement: null,
+        billingPolicy: 'MEASUREMENT_APPROVED',
+      },
+      variances: divergent
+        ? [
+            {
+              dimension: 'QUANTITY',
+              dimensionKey: items[0]?.unitCode ?? 'SERVICE',
+              measurementItemId: items[0]?.id ?? null,
+              plannedValue: items[0]?.actualQuantity ?? null,
+              actualValue: items[0]?.actualQuantity ?? null,
+              measuredValue: items[0]?.measuredQuantity ?? null,
+              unitOfMeasure: items[0]?.unitCode ?? 'SERVICE',
+              absoluteDelta: '10',
+              percentageDelta: 50,
+              tolerancePercentage: 5,
+              toleranceSource: 'DEFAULT',
+              severity: 'HIGH',
+              financialImpact: null,
+              currencyCode: 'BRL',
+              requiresDecision: true,
+              decisionKind: 'AUTHORIZE_ADJUSTMENT',
+              blockingReason: 'VARIANCE_REQUIRES_AUTHORIZATION',
+              recommendedResolution: 'AUTHORIZE_ADJUSTMENT',
+              explanation: 'Quantidade medido acima do planejado.',
+            },
+          ]
+        : [],
+      varianceSummary: {
+        highestSeverity: divergent ? 'HIGH' : 'NONE',
+        decisionRequiredCount: divergent ? 1 : 0,
+        approvalClearable: !divergent,
+        summary: divergent
+          ? '1 divergência exige decisão.'
+          : 'Nenhuma divergência entre planejado, realizado e medido.',
+      },
+      adjustments: [],
+      items: items.map((item) => ({
+        id: item.id,
+        lineNumber: item.lineNumber,
+        unitCode: item.unitCode,
+        plannedQuantity: item.actualQuantity,
+        actualQuantity: item.actualQuantity,
+        measuredQuantity: item.measuredQuantity,
+        unitPrice: item.unitPrice,
+        lineAmount: item.lineAmount,
+        origin: 'BASIS',
+        sourceBasisLineKey: item.unitCode,
+      })),
+      evidence: [],
+      acceptance: {
+        policy: 'NOT_REQUIRED',
+        policySource: 'DEFAULT',
+        policyReason: 'Nenhuma fonte comercial declarou exigência de aceite.',
+        required: false,
+        state: 'NOT_REQUIRED',
+        blocksBilling: false,
+        blockingReason: null,
+        latest: null,
+        history: [],
+        nextActionCode: null,
+        nextActionLabel: null,
+      },
+      billingEligibility: {
+        result: status === 'APPROVED' ? 'READY' : 'BLOCKED',
+        dimensions: [
+          {
+            dimension: 'MEASUREMENT_APPROVED',
+            label: 'Medição aprovada',
+            status: status === 'APPROVED' ? 'SATISFIED' : 'BLOCKED',
+            statusLabel: status === 'APPROVED' ? 'Atendido' : 'Bloqueado',
+            reasonCode: status === 'APPROVED' ? null : 'MEASUREMENT_NOT_APPROVED',
+            detail:
+              status === 'APPROVED'
+                ? 'A medição está aprovada.'
+                : `A medição está em ${status}.`,
+            nextActionCode: status === 'APPROVED' ? null : 'APPROVE_MEASUREMENT',
+            nextActionLabel: status === 'APPROVED' ? null : 'Concluir a aprovação da medição',
+            blocking: status !== 'APPROVED',
+          },
+        ],
+        blockingReasons: status === 'APPROVED' ? [] : ['MEASUREMENT_NOT_APPROVED'],
+        nextAction:
+          status === 'APPROVED'
+            ? null
+            : { code: 'APPROVE_MEASUREMENT', label: 'Concluir a aprovação da medição' },
+        totalAmount: total > 0 ? total.toFixed(4) : null,
+        currencyCode: 'BRL',
+        summary: status === 'APPROVED' ? 'Pronto para faturar.' : 'Faturamento bloqueado.',
+        explanation:
+          status === 'APPROVED'
+            ? 'A medição aprovada libera o faturamento.'
+            : 'O faturamento exige a medição aprovada.',
+      },
+      situations: [],
+      relationships: [],
+      documentFlow: [],
+      timeline: [],
+      nextAction: nextActionCode
+        ? { code: nextActionCode, label: nextActionLabel, explanation: null }
+        : null,
+      availableCommands,
+      decisionExplanation: {
+        measurement: 'Resumo',
+        approval: 'Decisão do backend',
+        acceptance: 'Política do backend',
+        billing: 'Elegibilidade do backend',
+        onBilling: 'Consome a medição',
+      },
+      freshness: { readAt: new Date().toISOString(), authority: 'SERVER' },
+    };
+  }
+
   function buildMeasurementItems(orderId: string, divergent: boolean): MockMeasurementItem[] {
     const order = getOrder(orderId);
     const defaultUnit = order.serviceSnapshot.measurementModel?.defaultUnitCode ?? 'SERVICE';
@@ -1999,6 +2339,32 @@ export function createServiceOrdersFetchMock(options: ServiceOrdersFetchMockOpti
      * O gate é derivado das MESMAS condições que o teste controla (evidência
      * registrada), para que a asserção continue significando o mesmo.
      */
+    /**
+     * ───────────────────────────────────────────────────────────────────────────
+     * WORKBENCH DA MEDIÇÃO — a SUPERFÍCIE DE COMANDOS que a tela lê.
+     * ───────────────────────────────────────────────────────────────────────────
+     *
+     * A página de conferência deixou de decidir habilitação de comando em React:
+     * ela lê `availableCommands` deste contrato. Sem esta rota, o fetch cairia no
+     * `upstream` e a tela ficaria sem decisão — o comportamento CORRETO quando o
+     * backend não responde, mas não o que este teste precisa exercitar.
+     *
+     * As decisões são derivadas do ESTADO que o próprio mock controla
+     * (`seedMeasurement`), e não de uma regra nova: o mock aqui representa o
+     * BACKEND, e é ele quem decide.
+     */
+    const workbenchMatch = pathname.match(
+      /^\/api\/v1\/query\/measurements\/([^/]+)\/workbench$/,
+    );
+    if (workbenchMatch && method === 'GET') {
+      const targetId = workbenchMatch[1]!;
+      const order = getOrder(targetId);
+      if (!order) {
+        return orderError('MEASUREMENTS_NOT_FOUND', 404);
+      }
+      return jsonResponse(buildMeasurementWorkbench(targetId, options), 200);
+    }
+
     const overviewMatch = pathname.match(
       /^\/api\/v1\/query\/service-orders\/([^/]+)\/overview$/,
     );

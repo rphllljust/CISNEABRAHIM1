@@ -70,17 +70,35 @@ async function assertPlanningAllocationExecutionSeparation(
     .filter((id): id is string => id !== null);
   expect(allocationPlannedIds.every((id) => plannedIds.has(id))).toBe(true);
 
-  const executionEntryIds = new Set(execution.entries.map((entry) => entry.id));
   const measurement = await services.measurementsAccess.getById(
     actor,
     artifacts.serviceOrderId,
     artifacts.measurementId,
   );
+  /**
+   * ORIGEM AUTORITATIVA DO ITEM DE MEDIÇÃO.
+   *
+   * Esta invariante exigia `sourceExecutionEntryId` — o vínculo com a tabela
+   * INTERNA da execução. Depois da capability MEASUREMENT → ACCEPTANCE →
+   * BILLING READINESS o item novo nasce da BASE PUBLICADA e NÃO tem esse vínculo.
+   *
+   * A invariante foi ATUALIZADA, não removida: o que ela protege é "todo item tem
+   * procedência verificável". A procedência mudou de lugar — da entrada de
+   * execução para a base publicada — e a asserção passou a afirmar a origem NOVA.
+   * Removê-la deixaria um item sem procedência passar sem que nada reprovasse.
+   */
   for (const item of measurement.items) {
-    expect(executionEntryIds.has(item.sourceExecutionEntryId)).toBe(true);
+    const hasBasisOrigin = item.sourceMeasurementBasisId !== null && item.sourceBasisLineKey !== null;
+    const hasLegacyOrigin = item.sourceExecutionEntryId !== null;
+    expect(hasBasisOrigin || hasLegacyOrigin).toBe(true);
+    // As três verdades existem e são campos separados.
     expect(item.actualQuantity).toBeTruthy();
     expect(item.measuredQuantity).toBeTruthy();
   }
+  // Ao menos um item veio da base: é o caminho autoritativo desta capability.
+  expect(
+    measurement.items.some((item) => item.sourceMeasurementBasisId !== null),
+  ).toBe(true);
 
   expect(planned.some((item) => item.plannedQuantity !== null)).toBe(true);
   expect(allocations.some((item) => item.physicalAssetId !== null)).toBe(true);

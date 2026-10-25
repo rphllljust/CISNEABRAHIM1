@@ -237,6 +237,23 @@ const MIGRATION_EFFECT_CHECKS = {
    * despacho só geram efeito real porque o realizado é capturável depois deles.
    */
   '0107_dispatch_execution_actuals': { table: ['so', 'execution_actuals'] },
+  /*
+   * MEASUREMENT → ACCEPTANCE → BILLING READINESS — 0108 completa a cadeia.
+   *
+   * A sonda é `msr.customer_acceptances` porque é a tabela que expressa a
+   * MUDANÇA DE NATUREZA desta migration: o aceite deixou de ser função pura
+   * (`service-acceptance.ts`) e passou a ser FATO persistido com política,
+   * ciclo, motivo de recusa e idempotência.
+   *
+   * As demais tabelas da 0108 (variações, elegibilidade, lacuna de receita)
+   * dependem desta para produzir consequência: sem decisão de aceite registrada
+   * a elegibilidade nunca sai de PENDING, e a lacuna de receita nunca reporta
+   * `APPROVED_NOT_ACCEPTED` — ela mostraria tudo como bloqueio interno.
+   *
+   * Sondar `msr.measurement_variances` provaria só a re-formatação da comparação;
+   * sondar a aceitação prova o controle comercial que a capability entrega.
+   */
+  '0108_measurement_acceptance_billing_readiness': { table: ['msr', 'customer_acceptances'] },
 };
 
 /**

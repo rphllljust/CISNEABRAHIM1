@@ -68,6 +68,30 @@ export async function truncateServiceOrderTables(client: DbClient): Promise<void
   await client.query('DELETE FROM bil.billing_records');
 
   // ─── Nivel 1: netos de measurements ─────────────────────────────────────────────────────────
+  /**
+   * MEASUREMENT → ACCEPTANCE → BILLING READINESS (0108) — filhos de
+   * `msr.measurements` e de `so.service_orders`.
+   *
+   * A ordem é de DEPENDÊNCIA, não alfabética:
+   *
+   *   `revenue_leakage_positions`         → referencia `measurements` E `service_orders`
+   *   `billing_eligibility_evaluations`   → referencia `measurements` E `service_orders`
+   *   `customer_acceptances`              → referencia `measurements` E `service_orders`
+   *   `measurement_variances`             → referencia `measurement_items` (cascade)
+   *
+   * Todas com FK RESTRICT para `so.service_orders`: sem esta limpeza, o
+   * `beforeEach` de QUALQUER suite que usa este helper falha ao apagar
+   * `so.service_orders`, e a falha aparece num teste alheio à capability.
+   *
+   * Adivinhar a ordem em vez de declará-la já custou tempo aqui: o helper é
+   * verificado por um teste estático que compara a quantidade de instruções com a
+   * de tabelas distintas, para que uma tabela limpa DUAS vezes não esconda ordem
+   * errada.
+   */
+  await client.query('DELETE FROM msr.revenue_leakage_positions');
+  await client.query('DELETE FROM msr.billing_eligibility_evaluations');
+  await client.query('DELETE FROM msr.customer_acceptances');
+  await client.query('DELETE FROM msr.measurement_variances');
   await client.query('DELETE FROM msr.measurement_command_idempotency');
   await client.query('DELETE FROM msr.measurement_history_events');
   await client.query('DELETE FROM msr.measurement_adjustments');
