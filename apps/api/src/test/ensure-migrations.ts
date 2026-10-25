@@ -1106,6 +1106,28 @@ $$;`);
       await applySqlFile(pool, '0107_dispatch_execution_actuals.sql');
     }
 
+    /*
+     * MEASUREMENT → ACCEPTANCE → BILLING READINESS — a 0108 fecha a cadeia.
+     *
+     * A sonda é `msr.customer_acceptances`: é a tabela que expressa a MUDANÇA DE
+     * NATUREZA desta migration. O aceite deixou de ser função pura
+     * (`service-acceptance.ts`) e passou a ser FATO persistido com política,
+     * ciclo, motivo de recusa e idempotência.
+     *
+     * Sondar as demais tabelas provaria menos. `msr.measurement_variances`
+     * poderia existir sozinha e ainda assim a elegibilidade nunca sairia de
+     * PENDING — sem decisão de aceite registrada, o faturamento fica bloqueado
+     * para sempre e a lacuna de receita reportaria tudo como bloqueio interno.
+     *
+     * A 0108 também SUBSTITUI `measurement_item_origin_ck` (0023) por uma
+     * constraint que aceita origem pela base publicada. Se o bloco não rodar, a
+     * criação de medição falha com violação de CHECK — por isso a sonda é a
+     * tabela nova, e não uma coluna de `measurement_items`.
+     */
+    if (!(await tableExists(pool, 'msr.customer_acceptances'))) {
+      await applySqlFile(pool, '0108_measurement_acceptance_billing_readiness.sql');
+    }
+
     await syncDrizzleJournal(pool);
   } finally {
     await pool.end();

@@ -1,4 +1,10 @@
-import { hashPassword, insertCatalogCategory, insertGrant, insertIdentity, syntheticVehiclePlate } from '@cisne/database';
+import {
+  hashPassword,
+  insertCatalogCategory,
+  insertGrant,
+  insertIdentity,
+  syntheticVehiclePlate,
+} from '@cisne/database';
 import type { Pool } from 'pg';
 import { AUTHZ_RESOURCE_TYPES } from '../authorization/types/authz-resources';
 import { AUTHZ_SCOPES } from '../authorization/types/authz-scopes';
@@ -78,11 +84,13 @@ export function resolveResourceType(action: string): string {
   if (action.startsWith('people:')) return AUTHZ_RESOURCE_TYPES.PeoplePerson;
   if (action.startsWith('catalog:')) return AUTHZ_RESOURCE_TYPES.CatalogService;
   if (action.startsWith('commercial:proposal')) return AUTHZ_RESOURCE_TYPES.CommercialProposal;
-  if (action.startsWith('commercial:purchase-order')) return AUTHZ_RESOURCE_TYPES.CommercialPurchaseOrder;
+  if (action.startsWith('commercial:purchase-order'))
+    return AUTHZ_RESOURCE_TYPES.CommercialPurchaseOrder;
   if (action.startsWith('requests:')) return AUTHZ_RESOURCE_TYPES.RequestsServiceRequest;
   if (action.startsWith('documents:')) return AUTHZ_RESOURCE_TYPES.DocumentsDocument;
   if (action.startsWith('resources:asset')) return AUTHZ_RESOURCE_TYPES.ResourcesAsset;
-  if (action.startsWith('resources:resource-type')) return AUTHZ_RESOURCE_TYPES.ResourcesResourceType;
+  if (action.startsWith('resources:resource-type'))
+    return AUTHZ_RESOURCE_TYPES.ResourcesResourceType;
   if (action.startsWith('resources:labor')) return AUTHZ_RESOURCE_TYPES.ResourcesLaborType;
   if (action.startsWith('billing:')) return AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder;
   if (action.startsWith('measurements:')) return AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder;
@@ -113,7 +121,8 @@ export async function runUatVerticalScenario(
   unitId: string,
   options?: {
     reviewer?: UatActor;
-    stopAfter?: 'prepared' | 'released' | 'completed_execution' | 'measurement_approved' | 'complete';
+    stopAfter?:
+      'prepared' | 'released' | 'completed_execution' | 'measurement_approved' | 'complete';
     captureArtifacts?: boolean;
     deterministicSuffix?: string;
     syntheticClient?: UatFictionalClient;
@@ -184,6 +193,32 @@ export async function runUatVerticalScenario(
     });
 
     stage = 'catalog:create';
+    /**
+     * ─────────────────────────────────────────────────────────────────────────────
+     * O CONTRATO DECLARA UNIDADE COMERCIAL — E SÓ ELA
+     * ─────────────────────────────────────────────────────────────────────────────
+     *
+     * `allowedUnits` do serviço é a lista de unidades em que a VENDA pode ser
+     * medida e cobrada. Ela é a fronteira entre quantidade comercial e fato físico:
+     *
+     *   contrato  → `DAY`, `TRIP`, `SERVICE`   (o que o cliente compra)
+     *   realizado → `HOUR`, `KM`, `L`          (o que a operação aponta)
+     *
+     * Declarar `HOUR`/`KM` aqui — como eu fiz antes — transforma fato físico em
+     * unidade faturável, e a medição passa a medir horímetro e odômetro como se
+     * fossem dias e viagens. Foi exatamente isso que quebrou a reconciliação: a
+     * soma das quantidades medidas deixou de fechar com a quantidade executada,
+     * porque `420 KM` e `9.5 HOUR` somavam valores que nenhum preço declarado
+     * sustenta.
+     *
+     * O realizado continua sendo registrado em `HOUR`/`KM` (é fato, e não se
+     * reescreve fato para caber no contrato). O que muda é que ele NÃO vira linha
+     * de medição: a base publica apenas a unidade contratual, e o custo operacional
+     * é apurado no custo da OS.
+     */
+    const allowedUnits = [
+      { unitCode: scenario.defaultUnitCode, isDefault: true, sortOrder: 0 },
+    ];
     const draft = await services.catalogAccess.create(actor, {
       code: `UAT-SRV-${options?.deterministicSuffix ?? suffix}`,
       name: scenario.serviceName,
@@ -191,7 +226,7 @@ export async function runUatVerticalScenario(
       archetype: scenario.archetype,
       measurementMode: scenario.measurementMode,
       measurementBasis: scenario.measurementBasis,
-      allowedUnits: [{ unitCode: scenario.defaultUnitCode, isDefault: true, sortOrder: 0 }],
+      allowedUnits,
       pricingModels: [
         { modelCode: 'GLOBAL_PRICE', salePrice: '2500.0000', internalCost: '1800.0000' },
       ],
@@ -210,7 +245,12 @@ export async function runUatVerticalScenario(
 
     stage = 'catalog:publish';
     const definition = await services.catalogAccess.getDefinition(actor, draft.serviceDefinitionId);
-    const published = await services.catalogAccess.publishVersion(actor, draft.serviceDefinitionId, 1, definition.version);
+    const published = await services.catalogAccess.publishVersion(
+      actor,
+      draft.serviceDefinitionId,
+      1,
+      definition.version,
+    );
 
     stage = 'proposal:create';
     const proposal = await services.proposalsAccess.create(actor, {
@@ -251,9 +291,13 @@ export async function runUatVerticalScenario(
         },
       ],
     });
-    const registeredPo = await services.purchaseOrdersAccess.register(actor, purchaseOrder.purchaseOrder.id, {
-      rowVersion: purchaseOrder.purchaseOrder.rowVersion,
-    });
+    const registeredPo = await services.purchaseOrdersAccess.register(
+      actor,
+      purchaseOrder.purchaseOrder.id,
+      {
+        rowVersion: purchaseOrder.purchaseOrder.rowVersion,
+      },
+    );
 
     stage = 'service-request:create';
     const request = await services.serviceRequestsAccess.create(actor, {
@@ -268,17 +312,29 @@ export async function runUatVerticalScenario(
       location: requestLocation,
     });
     stage = 'service-request:submit';
-    const submitted = await services.serviceRequestsAccess.submit(actor, request.serviceRequest.id, {
-      rowVersion: request.serviceRequest.rowVersion,
-    });
+    const submitted = await services.serviceRequestsAccess.submit(
+      actor,
+      request.serviceRequest.id,
+      {
+        rowVersion: request.serviceRequest.rowVersion,
+      },
+    );
     stage = 'service-request:review';
-    const reviewed = await services.serviceRequestsAccess.startReview(actor, request.serviceRequest.id, {
-      rowVersion: submitted.serviceRequest.rowVersion,
-    });
+    const reviewed = await services.serviceRequestsAccess.startReview(
+      actor,
+      request.serviceRequest.id,
+      {
+        rowVersion: submitted.serviceRequest.rowVersion,
+      },
+    );
     stage = 'service-request:approve';
-    const approved = await services.serviceRequestsAccess.approve(actor, request.serviceRequest.id, {
-      rowVersion: reviewed.serviceRequest.rowVersion,
-    });
+    const approved = await services.serviceRequestsAccess.approve(
+      actor,
+      request.serviceRequest.id,
+      {
+        rowVersion: reviewed.serviceRequest.rowVersion,
+      },
+    );
 
     stage = 'service-request:document';
     const document = await services.documentsAccess.createWithUpload(
@@ -298,9 +354,13 @@ export async function runUatVerticalScenario(
     });
 
     stage = 'service-request:convert';
-    const converted = await services.serviceRequestsAccess.convert(actor, request.serviceRequest.id, {
-      rowVersion: approved.serviceRequest.rowVersion,
-    });
+    const converted = await services.serviceRequestsAccess.convert(
+      actor,
+      request.serviceRequest.id,
+      {
+        rowVersion: approved.serviceRequest.rowVersion,
+      },
+    );
     if (converted.serviceRequest.status !== SERVICE_REQUEST_STATUSES.Converted) {
       throw new Error(`Expected converted request, got ${converted.serviceRequest.status}`);
     }
@@ -332,7 +392,9 @@ export async function runUatVerticalScenario(
     }
 
     stage = 'service-order:release';
-    const released = await services.serviceOrdersAccess.release(actor, prepared.id, { rowVersion: prepared.rowVersion });
+    const released = await services.serviceOrdersAccess.release(actor, prepared.id, {
+      rowVersion: prepared.rowVersion,
+    });
 
     if (options?.stopAfter === 'released') {
       return {
@@ -370,7 +432,8 @@ export async function runUatVerticalScenario(
               ? syntheticVehiclePlate(options.vehiclePlateScenarioIndex, resourceTypeCode)
               : {
                   plate: `U${suffix.slice(0, 1)}-${indexSuffix(resourceTypeCode)}34`,
-                  normalizedPlate: `U${suffix.slice(0, 1)}${indexSuffix(resourceTypeCode)}34`.replace(/-/g, ''),
+                  normalizedPlate:
+                    `U${suffix.slice(0, 1)}${indexSuffix(resourceTypeCode)}34`.replace(/-/g, ''),
                   plateDisplay: `U${suffix.slice(0, 1)}-${indexSuffix(resourceTypeCode)}34`,
                 }
             : undefined,
@@ -454,7 +517,8 @@ export async function runUatVerticalScenario(
       const initialReading = isVehicle ? '100000' : '5000';
       const finalReading = isVehicle ? '100420' : '5007.8';
 
-      let version = (await services.serviceOrdersAccess.getById(actor, startedExecution.id)).rowVersion;
+      let version = (await services.serviceOrdersAccess.getById(actor, startedExecution.id))
+        .rowVersion;
       await services.operationsAccess.registerMeter(actor, startedExecution.id, {
         physicalAssetId: assetId,
         meterKind,
@@ -477,7 +541,8 @@ export async function runUatVerticalScenario(
       });
 
       if (isVehicle) {
-        version = (await services.serviceOrdersAccess.getById(actor, startedExecution.id)).rowVersion;
+        version = (await services.serviceOrdersAccess.getById(actor, startedExecution.id))
+          .rowVersion;
         await services.operationsAccess.registerFuel(actor, startedExecution.id, {
           physicalAssetId: assetId,
           volumeLiters: '130',
@@ -486,13 +551,44 @@ export async function runUatVerticalScenario(
           rowVersion: version,
           idempotencyKey: `uat-fuel-${suffixKey}`,
         });
+
+        /**
+         * REALIZADO DO VEÍCULO — fatos físicos, não unidade comercial.
+         *
+         * Odômetro e combustível vivem em tabelas próprias. Distância e horas de
+         * motorista são `execution_actuals` em `KM` e `HOUR` — as unidades FÍSICAS
+         * do realizado. A unidade comercial da venda é `TRIP`, e transformar uma na
+         * outra seria inventar conversão que nenhuma fonte declara.
+         */
+        version = (await services.serviceOrdersAccess.getById(actor, startedExecution.id))
+          .rowVersion;
+        await services.operationsAccess.registerActual(actor, startedExecution.id, {
+          actualKind: 'VEHICLE_DISTANCE',
+          physicalAssetId: assetId,
+          actualValue: '420',
+          unitOfMeasure: 'KM',
+          rowVersion: version,
+          idempotencyKey: `uat-vehicle-distance-${suffixKey}`,
+        });
+
+        version = (await services.serviceOrdersAccess.getById(actor, startedExecution.id))
+          .rowVersion;
+        await services.operationsAccess.registerActual(actor, startedExecution.id, {
+          actualKind: 'DRIVER_HOURS',
+          physicalAssetId: assetId,
+          actualValue: '9.5',
+          unitOfMeasure: 'HOUR',
+          rowVersion: version,
+          idempotencyKey: `uat-driver-hours-${suffixKey}`,
+        });
       } else {
-        version = (await services.serviceOrdersAccess.getById(actor, startedExecution.id)).rowVersion;
+        version = (await services.serviceOrdersAccess.getById(actor, startedExecution.id))
+          .rowVersion;
         await services.operationsAccess.registerActual(actor, startedExecution.id, {
           actualKind: 'EQUIPMENT_HOURS',
           physicalAssetId: assetId,
           actualValue: '7.8',
-          unitOfMeasure: 'H',
+          unitOfMeasure: 'HOUR',
           rowVersion: version,
           idempotencyKey: `uat-equipment-hours-${suffixKey}`,
         });
@@ -517,13 +613,23 @@ export async function runUatVerticalScenario(
     stage = 'measurement:create';
     const measurement = await services.measurementsAccess.create(actor, completed.id);
     stage = 'measurement:submit';
-    const submittedMeasurement = await services.measurementsAccess.submit(actor, completed.id, measurement.id, {
-      rowVersion: measurement.rowVersion,
-    });
+    const submittedMeasurement = await services.measurementsAccess.submit(
+      actor,
+      completed.id,
+      measurement.id,
+      {
+        rowVersion: measurement.rowVersion,
+      },
+    );
     stage = 'measurement:review';
-    const reviewedMeasurement = await services.measurementsAccess.startReview(actor, completed.id, measurement.id, {
-      rowVersion: submittedMeasurement.rowVersion,
-    });
+    const reviewedMeasurement = await services.measurementsAccess.startReview(
+      actor,
+      completed.id,
+      measurement.id,
+      {
+        rowVersion: submittedMeasurement.rowVersion,
+      },
+    );
     stage = 'measurement:approve';
     const measurementReviewer =
       options?.reviewer ?? (await createMeasurementReviewer(services.pool, actor.identityId));
@@ -567,7 +673,12 @@ export async function runUatVerticalScenario(
     assertNoStorageKeyLeak(notaFatura);
 
     stage = 'billing:download-pdf';
-    const pdf = await services.billingDocumentAccess.downloadPdf(actor, completed.id, billing.id, notaFatura.id);
+    const pdf = await services.billingDocumentAccess.downloadPdf(
+      actor,
+      completed.id,
+      billing.id,
+      notaFatura.id,
+    );
     if (pdf.buffer.subarray(0, 4).toString('ascii') !== '%PDF') {
       throw new Error('Billing PDF artifact invalid');
     }

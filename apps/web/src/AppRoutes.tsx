@@ -41,6 +41,8 @@ import { ServiceOrdersEngineListPage } from './service-orders/pages/ServiceOrder
 import { ExecutionShellLayout } from './service-orders/layout/ExecutionShellLayout';
 import { ServiceOrderExecutionPage } from './service-orders/pages/ServiceOrderExecutionPage';
 import { ServiceOrderMeasurementPage } from './service-orders/pages/ServiceOrderMeasurementPage';
+import { MeasurementWorkbenchPage } from './service-orders/pages/MeasurementWorkbenchPage';
+import { RevenueLeakagePage } from './service-orders/pages/RevenueLeakagePage';
 import { ServiceOrderCreatePage } from './service-orders/pages/ServiceOrderCreatePage';
 import { ServiceRequestCreatePage } from './requests/pages/ServiceRequestCreatePage';
 import { ServiceRequestDetailPage } from './requests/pages/ServiceRequestDetailPage';
@@ -570,6 +572,38 @@ export function AppRoutes() {
                 element={
                   <ServiceOrdersRoute>
                     <ServiceOrderMeasurementPage />
+                  </ServiceOrdersRoute>
+                }
+              />
+              {/*
+               * MEASUREMENT → ACCEPTANCE → BILLING READINESS.
+               *
+               * `measurement-workbench` é a ESTAÇÃO de trabalho — fila,
+               * medição ativa e contexto de decisão numa superfície só. A rota
+               * `measurement` acima permanece: é a conferência do agregado, e
+               * comandos existentes continuam chegando por ela.
+               */}
+              <Route
+                path="/app/service-orders/:serviceOrderId/measurement-workbench"
+                element={
+                  <ServiceOrdersRoute>
+                    <MeasurementWorkbenchPage />
+                  </ServiceOrdersRoute>
+                }
+              />
+              <Route
+                path="/app/measurement"
+                element={
+                  <ServiceOrdersRoute>
+                    <MeasurementWorkbenchPage />
+                  </ServiceOrdersRoute>
+                }
+              />
+              <Route
+                path="/app/measurement/revenue-leakage"
+                element={
+                  <ServiceOrdersRoute>
+                    <RevenueLeakagePage />
                   </ServiceOrdersRoute>
                 }
               />

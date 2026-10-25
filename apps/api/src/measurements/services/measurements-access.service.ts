@@ -22,7 +22,10 @@ import {
   type CommercialPricingLineSnapshot,
   type MeasurementCommercialReferenceSnapshot,
 } from '../domain/measurement';
-import { assertExecutionEntriesAvailableForMeasurement } from '../domain/measurement-invariants';
+import {
+  canRegenerateFromBasis,
+  isLegacyMeasurementOrigin,
+} from '../domain/measurement-basis-consumption';
 import { computeLineAmount } from '../domain/measurement-quantity';
 import { assertTransition, MeasurementStateError } from '../domain/measurement.state-machine';
 import {
@@ -39,6 +42,7 @@ import {
   type RowVersionCommandInput,
   type UpdateMeasurementItemInput,
 } from '../domain/measurement.validation';
+import { MeasurementCapabilityRepository } from '../repositories/measurement-capability.repository';
 import { MeasurementsRepository } from '../repositories/measurements.repository';
 import type { MeasurementRow } from '../repositories/measurements.repository.types';
 import {
@@ -64,6 +68,7 @@ import { assertValidMeasurementId } from './measurements-input-resolution';
 export class MeasurementsAccessService {
   constructor(
     private readonly measurementsRepository: MeasurementsRepository,
+    private readonly capabilityRepository: MeasurementCapabilityRepository,
     private readonly serviceOrdersRepository: ServiceOrdersRepository,
     private readonly authz: MeasurementsAccessAuthz,
     private readonly commercialResolution: MeasurementsCommercialResolutionService,
@@ -103,22 +108,15 @@ export class MeasurementsAccessService {
       throw mapMeasurementDomainError(new MeasurementError('SERVICE_ORDER_NOT_COMPLETED'));
     }
 
+    // ── ORIGEM AUTORITATIVA: A BASE PUBLICADA ────────────────────────────────
+    //
+    // A medição nova nasce da BASE que o fechamento da execução publicou, via
+    // contrato `rpt.read_measurement_basis`. Ela NÃO lê `so.execution_entries`:
+    // eram duas verdades para a mesma execução fechada, e a base publicada
+    // existia justamente para ser a única. A recusa de base ausente, substituída,
+    // de outra ordem ou vazia é do domínio, com código próprio por motivo.
     const commercialSnapshot = await this.commercialResolution.buildCommercialSnapshot(order);
-    const items = await this.commercialResolution.buildItemsFromExecution(order, commercialSnapshot);
-    const lockedEntryIds = await this.measurementsRepository.listApprovedMeasurementExecutionEntryIds(
-      order.id,
-    );
-    try {
-      assertExecutionEntriesAvailableForMeasurement(
-        items.map((item) => item.sourceExecutionEntryId),
-        lockedEntryIds,
-      );
-    } catch (error) {
-      if (error instanceof MeasurementError) {
-        throw mapMeasurementDomainError(error);
-      }
-      throw error;
-    }
+    const items = await this.commercialResolution.buildItemsFromBasis(order, commercialSnapshot);
 
     const result = await this.measurementsRepository.createMeasurement({
       serviceOrderId: order.id,
@@ -168,20 +166,53 @@ export class MeasurementsAccessService {
     }
 
     const commercialSnapshot = measurement.commercial_reference_snapshot as MeasurementCommercialReferenceSnapshot;
-    const items = await this.commercialResolution.buildItemsFromExecution(order, commercialSnapshot);
-    const lockedEntryIds = await this.measurementsRepository.listApprovedMeasurementExecutionEntryIds(
-      order.id,
+
+    /**
+     * QUAL CAMINHO REGENERAR — DECIDIDO PELO DOMÍNIO, NÃO AQUI.
+     *
+     * Medição criada pela BASE regenera da base. Medição HISTÓRICA (criada antes
+     * desta capability, com itens apontando para `execution_entries`) regenera
+     * pelo caminho que ela já usava: trocar a origem de um registro no meio da
+     * vida dele reescreveria passado.
+     *
+     * A decisão vem de `canRegenerateFromBasis`, e a razão da recusa é declarada.
+     */
+    const existingItems = await this.measurementsRepository.listItems(measurement.id);
+    const legacyOrigin = existingItems.some((row) =>
+      isLegacyMeasurementOrigin({
+        sourceMeasurementBasisId:
+          (row as unknown as { source_measurement_basis_id?: string | null })
+            .source_measurement_basis_id ?? null,
+        sourceExecutionEntryId: row.source_execution_entry_id ?? null,
+      }),
     );
-    try {
-      assertExecutionEntriesAvailableForMeasurement(
-        items.map((item) => item.sourceExecutionEntryId),
-        lockedEntryIds,
+    const basisRetrieval = await this.capabilityRepository.findLatestBasis(order.id);
+
+    /**
+     * MEDIÇÃO HISTÓRICA REGENERA PELO CAMINHO QUE ELA JÁ USAVA.
+     *
+     * A regra `canRegenerateFromBasis` produz a decisão; o que muda é o CONJUNTO
+     * de itens aplicado. Uma medição histórica NÃO pode passar pelo caminho da
+     * base (a origem não existe no registro dela), e uma medição nova NÃO pode
+     * passar pelo caminho histórico (seria reintroduzir a segunda verdade).
+     */
+    let items;
+    if (legacyOrigin) {
+      items = await this.commercialResolution.buildItemsFromExecutionHistory(
+        order,
+        commercialSnapshot,
       );
-    } catch (error) {
-      if (error instanceof MeasurementError) {
-        throw mapMeasurementDomainError(error);
+    } else {
+      const regenerateDecision = canRegenerateFromBasis({
+        hasBasis: basisRetrieval !== null && basisRetrieval.status === 'READY',
+        measurementCreatedByLegacyPath: false,
+      });
+      if (!regenerateDecision.allowed) {
+        throw mapMeasurementDomainError(
+          new MeasurementError(regenerateDecision.reason ?? 'MEASUREMENT_BASIS_NOT_PUBLISHED'),
+        );
       }
-      throw error;
+      items = await this.commercialResolution.buildItemsFromBasis(order, commercialSnapshot);
     }
 
     const result = await this.measurementsRepository.regenerateItems({

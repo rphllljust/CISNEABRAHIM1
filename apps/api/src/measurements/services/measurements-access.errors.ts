@@ -76,7 +76,28 @@ export function measurementsAlreadyExists(): MeasurementsHttpException {
 }
 
 export function mapMeasurementDomainError(error: MeasurementError): MeasurementsHttpException {
+  /**
+   * ─────────────────────────────────────────────────────────────────────────────
+   * FALHA DE BASE É 409, NÃO 400
+   * ─────────────────────────────────────────────────────────────────────────────
+   *
+   * "A base de medição não foi publicada" não é corpo malformado: a requisição
+   * está correta, a autorização passou, e o ESTADO do negócio impede. Devolver
+   * 400 culparia o cliente por uma condição da operação — e o operador leria
+   * "dados inválidos" para uma execução que ainda não fechou.
+   *
+   * `MEASUREMENT_BASIS_MALFORMED` é a exceção parcial: a origem é dado corrompido,
+   * mas quem pode corrigir é quem escreveu a base, não quem pediu a medição.
+   * Também 409, com código próprio.
+   */
   const codeMap: Record<string, (typeof MEASUREMENTS_ERROR_CODES)[keyof typeof MEASUREMENTS_ERROR_CODES]> = {
+    MEASUREMENT_BASIS_NOT_PUBLISHED: MEASUREMENTS_ERROR_CODES.MEASUREMENT_BASIS_NOT_PUBLISHED,
+    MEASUREMENT_BASIS_NOT_READY: MEASUREMENTS_ERROR_CODES.MEASUREMENT_BASIS_NOT_READY,
+    MEASUREMENT_BASIS_ORDER_MISMATCH: MEASUREMENTS_ERROR_CODES.MEASUREMENT_BASIS_ORDER_MISMATCH,
+    MEASUREMENT_BASIS_EMPTY: MEASUREMENTS_ERROR_CODES.MEASUREMENT_BASIS_EMPTY,
+    MEASUREMENT_BASIS_MALFORMED: MEASUREMENTS_ERROR_CODES.MEASUREMENT_BASIS_MALFORMED,
+    MEASUREMENT_BASIS_DUPLICATE_LINE: MEASUREMENTS_ERROR_CODES.MEASUREMENT_BASIS_DUPLICATE_LINE,
+    MEASUREMENT_LEGACY_ORIGIN: MEASUREMENTS_ERROR_CODES.MEASUREMENT_LEGACY_ORIGIN,
     SERVICE_ORDER_NOT_COMPLETED: MEASUREMENTS_ERROR_CODES.SERVICE_ORDER_NOT_COMPLETED,
     COMMERCIAL_REFERENCE_MISSING: MEASUREMENTS_ERROR_CODES.COMMERCIAL_REFERENCE_MISSING,
     MEASUREMENT_ITEMS_REQUIRED: MEASUREMENTS_ERROR_CODES.MEASUREMENT_ITEMS_REQUIRED,
@@ -92,11 +113,19 @@ export function mapMeasurementDomainError(error: MeasurementError): Measurements
     MEASUREMENT_NOT_EDITABLE: MEASUREMENTS_ERROR_CODES.NOT_EDITABLE,
   };
   const code = codeMap[error.code] ?? MEASUREMENTS_ERROR_CODES.VALIDATION_FAILED;
-  const status =
-    error.code === 'MEASUREMENT_DIVERGENCE_NOT_AUTHORIZED' ||
-    error.code === 'EXECUTION_ENTRY_ALREADY_MEASURED' ||
-    error.code === 'MEASUREMENT_NOT_EDITABLE'
-      ? HttpStatus.CONFLICT
-      : HttpStatus.BAD_REQUEST;
+  const conflictCodes = new Set([
+    'MEASUREMENT_DIVERGENCE_NOT_AUTHORIZED',
+    'EXECUTION_ENTRY_ALREADY_MEASURED',
+    'MEASUREMENT_NOT_EDITABLE',
+    // Base de medição: condição de ESTADO, não corpo inválido.
+    'MEASUREMENT_BASIS_NOT_PUBLISHED',
+    'MEASUREMENT_BASIS_NOT_READY',
+    'MEASUREMENT_BASIS_ORDER_MISMATCH',
+    'MEASUREMENT_BASIS_EMPTY',
+    'MEASUREMENT_BASIS_MALFORMED',
+    'MEASUREMENT_BASIS_DUPLICATE_LINE',
+    'MEASUREMENT_LEGACY_ORIGIN',
+  ]);
+  const status = conflictCodes.has(error.code) ? HttpStatus.CONFLICT : HttpStatus.BAD_REQUEST;
   return new MeasurementsHttpException(status, code, error.code);
 }

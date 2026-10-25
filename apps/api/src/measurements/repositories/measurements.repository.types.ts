@@ -83,20 +83,50 @@ export type UnitOfMeasureRow = {
   decimal_scale: number;
 };
 
+/**
+ * ITEM A PERSISTIR.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * DUAS ORIGENS, UMA ESTRUTURA, E A DIFERENÇA É DECLARADA NO TIPO
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ *   Origem AUTORITATIVA (novas medições)
+ *     `sourceMeasurementBasisId` + `sourceBasisLineKey` preenchidos,
+ *     `sourceExecutionEntryId` `null`.
+ *
+ *   Origem HISTÓRICA (medições criadas antes desta capability)
+ *     `sourceExecutionEntryId` preenchido, base `null`. Regenerar essas medições
+ *     é recusado pelo domínio: trocar a origem no meio da vida do registro
+ *     reescreveria passado.
+ *
+ * As três quantidades são campos SEPARADOS. `plannedQuantity` vem da base e é a
+ * referência de comparação; `actualQuantity` é o realizado congelado no
+ * fechamento; `measuredQuantity` é o reconhecimento comercial. Um tipo com um
+ * campo só apagaria a diferença entre as três verdades.
+ */
+export type MeasurementItemPersistenceDraft = {
+  /** Origem autoritativa. `null` apenas para itens históricos. */
+  sourceMeasurementBasisId: string | null;
+  /** Chave da linha na base publicada. `null` apenas para itens históricos. */
+  sourceBasisLineKey: string | null;
+  /** Origem histórica (`execution_entries`). `null` para itens novos. */
+  sourceExecutionEntryId: string | null;
+  unitCode: string;
+  plannedQuantity: string | null;
+  plannedUnitOfMeasure: string | null;
+  actualQuantity: string;
+  measuredQuantity: string;
+  unitPrice: string | null;
+  lineAmount: string | null;
+  pricingLineSnapshot: Record<string, unknown>;
+};
+
 export type CreateMeasurementPersistenceInput = {
   serviceOrderId: string;
   unitId: string;
   actorIdentityId: string;
   commercialReferenceSnapshot: Record<string, unknown>;
-  items: Array<{
-    sourceExecutionEntryId: string;
-    unitCode: string;
-    actualQuantity: string;
-    measuredQuantity: string;
-    unitPrice: string | null;
-    lineAmount: string | null;
-    pricingLineSnapshot: Record<string, unknown>;
-  }>;
+  items: MeasurementItemPersistenceDraft[];
 };
 
 export type CreateMeasurementPersistenceResult =

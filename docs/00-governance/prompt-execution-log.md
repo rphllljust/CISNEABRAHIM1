@@ -21276,3 +21276,30 @@ Produção validada (`678f8db2`): `readiness=ready database=up web=ok auth=ok mi
 
 Observação de correção de sonda (fato): o deploy de `679c7bea` já havia sido concluído com api/worker/web `finished` e foi reprovado apenas pelo smoke, que sondava rotas inexistentes (`/api/v1/reports` e `/api/v1/authz/approval-matrices`). As rotas publicadas são `/api/v1/reports/catalog` e `/api/v1/authz/access-admin/approval-matrices`. Corrigidas no PR #109, com 21/21 testes do próprio script.
 
+## MEDIÇÃO → ACEITE → ELEGIBILIDADE DE FATURAMENTO — CORREÇÃO DE SEED DO RUNNER DE UAT — 2026-10-25
+
+Autorização: solicitação explícita para fechar a vertical `MEASUREMENT_BASIS_READY → MEDIÇÃO → VARIAÇÃO → DECISÃO → APROVAÇÃO → ACEITE DO CLIENTE → ELEGIBILIDADE DE FATURAMENTO → READY_TO_BILL` como capability full-stack até `PRODUCTION VALIDATED`, com a instrução de corrigir a falha do spec isolado sem alterar regra de domínio para aceitar o defeito. Classificação: correção de DADOS de teste; nenhuma regra de negócio alterada.
+
+Fronteira declarada: emissão de nota, ciclo de recebível, liquidação, contabilização e fechamento de período ficam fora. O escopo termina em `READY_TO_BILL`.
+
+Sintoma: `master-business-bypass.e2e.spec.ts` com 5/5 falhas e `adversarial-security.e2e.spec.ts` igualmente reprovado no CI 120 pelo mesmo motivo. O erro exibido era `MEASUREMENTS_UNIT_NOT_ALLOWED` e, depois da primeira correção, `MEASUREMENT_BASIS_EMPTY`.
+
+Diagnóstico (fato, obtido por sonda instrumentada no spec e removida depois): a base publicada pelo fechamento agrega `so.execution_actuals` por `unit_of_measure`, mas o runner de UAT declarava apenas a unidade do cenário e, no cenário de veículo, não registrava nenhum realizado de custo. Antes desta capability a medição lia `so.execution_entries`, que registra a quantidade mas não a unidade de custo, e por isso a lacuna não aparecia.
+
+Causa raiz dupla:
+
+- Vocabulário de unidade. O catálogo (`cat.units_of_measure`) registra `HOUR` e `KM` e NÃO possui `H`; o realizado de custo usava `H`. A comparação do serviço de resolução comercial é por igualdade de string entre a unidade da linha da base e `allowedUnits` do contrato congelado na ordem de serviço.
+- Ausência de realizado no cenário de transporte. Medidor e combustível vivem em `so.execution_meter_readings` e `so.execution_fuel_records` e não entram na agregação da base; sem `execution_actuals` o fechamento publica `lines: []`.
+
+Correção aplicada (somente em `apps/api/src/uat/uat-vertical-runner.ts`):
+
+- `allowedUnits` do serviço passa a cobrir todo realizado que a base publica, deduplicado por unidade: unidade do cenário + `HOUR` + `KM` quando o cenário tem requisito de recurso.
+- O cenário de veículo passa a registrar `VEHICLE_DISTANCE` (`KM`) e `DRIVER_HOURS` (`HOUR`) pelo caminho do operador (`registerActual`), como uma viagem real produz.
+- O realizado de equipamento passou de `H` para `HOUR`, alinhando o seed ao vocabulário do catálogo.
+
+Regras de domínio preservadas sem relaxamento: `MEASUREMENTS_UNIT_NOT_ALLOWED` continua sendo recusa correta, porque medir em unidade que o contrato não previu realmente não é medível; `MEASUREMENT_BASIS_EMPTY` continua sendo recusa correta, porque base sem realizado produziria medição vazia e o faturamento falharia longe da causa. Nenhum teste foi ajustado para acomodar implementação errada.
+
+Evidência de execução: `master-business-bypass.e2e.spec.ts` 5/5 PASS; `adversarial-security.e2e.spec.ts` 12/12 PASS; suíte E2E completa da API 27/27 arquivos e 95/95 testes PASS; typecheck do pacote `api` limpo. Uma execução intermediária da suíte completa apresentou falha de CARREGAMENTO em `service-order-execution.e2e.spec.ts` que não se reproduziu nem isolada (2/2 PASS) nem na reexecução completa (27/27 PASS), caracterizada como intermitente de harness, não como regressão.
+
+Commit `07960ba7` no PR #120. Sondas temporárias de diagnóstico removidas; `packages/database/scripts/tmp-u.mjs` excluído.
+

@@ -172,6 +172,104 @@ export type MeasurementBasisReadyPayloadV1 = PayloadBase & {
   preparedAt: string;
 };
 
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * MEASUREMENT → ACCEPTANCE → BILLING READINESS — os fatos desta capability
+ * ═══════════════════════════════════════════════════════════════════════════════
+ *
+ * EVENTO REPRESENTA FATO, NÃO COMANDO.
+ *
+ *   `APPROVE_MEASUREMENT`   é COMANDO (uma intenção, que pode falhar)
+ *   `MEASUREMENT_APPROVED`  é FATO    (algo que aconteceu, e não se desfaz)
+ *
+ * O mesmo vale aqui: `RECORD_ACCEPTANCE` é o comando; o fato é que o cliente
+ * aceitou ou recusou. Um consumidor que reaja a `CUSTOMER_ACCEPTANCE_RECORDED`
+ * reage a algo que EXISTE no banco — não a uma tentativa.
+ *
+ * NENHUM payload carrega dado de autorização: `assertAuthorizationIndependentPayload`
+ * reprova campo com `actor`, `identity`, `session`, `grant` ou `permission`. Quem
+ * decidiu o quê é assunto da auditoria de segurança, não do fato de negócio.
+ */
+
+/** Medição criada sobre a base publicada pela execução. */
+export type MeasurementCreatedPayloadV1 = PayloadBase & {
+  measurementId: string;
+  serviceOrderId: string;
+  unitId: string;
+  orderNumber: string;
+  measurementBasisId: string;
+  executionClosureId: string;
+  itemCount: number;
+  createdAt: string;
+};
+
+/** Ajuste autorizado: uma DECISÃO com motivo e impacto econômico declarado. */
+export type MeasurementAdjustmentAuthorizedPayloadV1 = PayloadBase & {
+  measurementId: string;
+  serviceOrderId: string;
+  unitId: string;
+  orderNumber: string;
+  adjustmentId: string;
+  measurementItemId: string;
+  adjustmentQuantity: string;
+  unitCode: string;
+  financialImpact: string | null;
+  currencyCode: string | null;
+  reason: string;
+  decidedAt: string;
+};
+
+/** Decisão do cliente: aceite ou recusa, com ciclo declarado. */
+export type CustomerAcceptanceRecordedPayloadV1 = PayloadBase & {
+  acceptanceId: string;
+  measurementId: string;
+  serviceOrderId: string;
+  unitId: string;
+  orderNumber: string;
+  cycleNumber: number;
+  result: string;
+  rejectionReason: string | null;
+  occurredAt: string;
+};
+
+/**
+ * Faturamento liberado — o `READY_TO_BILL` como fato consumível.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * POR QUE O CAMPO SE CHAMA `releasedAt` E NÃO `grantedAt`
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * `assertAuthorizationIndependentPayload` reprova QUALQUER chave que contenha
+ * `grant` — a proteção existe porque dado de CONCESSÃO de acesso não pode viajar
+ * num fato de negócio. `grantedAt` (instante de liberação do faturamento) casa
+ * com esse filtro por semelhança de palavra e o COMMIT falhava com
+ * `AUTHORIZATION_SENSITIVE_PAYLOAD_FIELD:grantedAt`.
+ *
+ * A correção é de VOCABULÁRIO, não de filtro: afrouxar o guard para aceitar
+ * `grantedAt` abriria a porta para `grantId`/`grantScope` passarem também. O
+ * nome do campo passou a dizer o que ele é — o instante em que o faturamento foi
+ * LIBERADO — e a proteção continua tão estrita quanto era.
+ */
+export type BillingEligibilityGrantedPayloadV1 = PayloadBase & {
+  measurementId: string;
+  serviceOrderId: string;
+  unitId: string;
+  orderNumber: string;
+  totalAmount: string | null;
+  currencyCode: string | null;
+  releasedAt: string;
+};
+
+/** Faturamento deixou de estar liberado. Publicado SÓ quando havia liberação. */
+export type BillingEligibilityBlockedPayloadV1 = PayloadBase & {
+  measurementId: string;
+  serviceOrderId: string;
+  unitId: string;
+  orderNumber: string;
+  blockingReasons: string[];
+  evaluatedAt: string;
+};
+
 export type DomainEventPayloadV1 =
   | ServiceRequestSubmittedPayloadV1
   | ServiceOrderReleasedPayloadV1
@@ -189,7 +287,12 @@ export type DomainEventPayloadV1 =
   | ResourceUsageRecordedPayloadV1
   | ExecutionExceptionReportedPayloadV1
   | ExecutionCompletedPayloadV1
-  | MeasurementBasisReadyPayloadV1;
+  | MeasurementBasisReadyPayloadV1
+  | MeasurementCreatedPayloadV1
+  | MeasurementAdjustmentAuthorizedPayloadV1
+  | CustomerAcceptanceRecordedPayloadV1
+  | BillingEligibilityGrantedPayloadV1
+  | BillingEligibilityBlockedPayloadV1;
 
 export function assertDomainEventPayloadVersion(version: number): void {
   if (version !== DOMAIN_EVENT_PAYLOAD_VERSION) {
@@ -300,6 +403,36 @@ export function buildExecutionCompletedPayloadV1(
 export function buildMeasurementBasisReadyPayloadV1(
   input: Omit<MeasurementBasisReadyPayloadV1, 'schemaVersion'>,
 ): MeasurementBasisReadyPayloadV1 {
+  return withSchemaVersion(input);
+}
+
+export function buildMeasurementCreatedPayloadV1(
+  input: Omit<MeasurementCreatedPayloadV1, 'schemaVersion'>,
+): MeasurementCreatedPayloadV1 {
+  return withSchemaVersion(input);
+}
+
+export function buildMeasurementAdjustmentAuthorizedPayloadV1(
+  input: Omit<MeasurementAdjustmentAuthorizedPayloadV1, 'schemaVersion'>,
+): MeasurementAdjustmentAuthorizedPayloadV1 {
+  return withSchemaVersion(input);
+}
+
+export function buildCustomerAcceptanceRecordedPayloadV1(
+  input: Omit<CustomerAcceptanceRecordedPayloadV1, 'schemaVersion'>,
+): CustomerAcceptanceRecordedPayloadV1 {
+  return withSchemaVersion(input);
+}
+
+export function buildBillingEligibilityGrantedPayloadV1(
+  input: Omit<BillingEligibilityGrantedPayloadV1, 'schemaVersion'>,
+): BillingEligibilityGrantedPayloadV1 {
+  return withSchemaVersion(input);
+}
+
+export function buildBillingEligibilityBlockedPayloadV1(
+  input: Omit<BillingEligibilityBlockedPayloadV1, 'schemaVersion'>,
+): BillingEligibilityBlockedPayloadV1 {
   return withSchemaVersion(input);
 }
 

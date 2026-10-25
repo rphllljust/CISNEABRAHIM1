@@ -54,8 +54,19 @@ describe('measurement variance', () => {
         {
           id: 'item-1',
           lineNumber: 1,
-          sourceExecutionEntryId: 'entry-1',
+          /**
+           * ORIGEM AUTORITATIVA + AS TRÊS VERDADES.
+           *
+           * O fixture acompanha o contrato: o item novo carrega a base publicada
+           * e a chave da linha, e `sourceExecutionEntryId` é `null` — o caminho
+           * histórico não é preenchido em item derivado da base.
+           */
+          sourceMeasurementBasisId: 'basis-1',
+          sourceBasisLineKey: 'SERVICE',
+          sourceExecutionEntryId: null,
           unitCode: 'SERVICE',
+          plannedQuantity: '1',
+          plannedUnitOfMeasure: 'SERVICE',
           actualQuantity: '1',
           measuredQuantity: '1',
           unitPrice: null,

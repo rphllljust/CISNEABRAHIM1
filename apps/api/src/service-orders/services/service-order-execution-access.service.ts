@@ -265,7 +265,14 @@ export class ServiceOrderExecutionAccessService {
        * depois do COMMIT) é o que impede a janela em que a OS já está concluída e
        * os realizados ainda podem mudar.
        */
-      closure: buildExecutionClosureInput(operationsFacts, completionGate, order),
+      closure: buildExecutionClosureInput(operationsFacts, completionGate, {
+        ...order,
+        contractUnits: new Set(
+          (order.service_snapshot as unknown as ServiceOrderServiceSnapshot).allowedUnits.map(
+            (unit) => unit.unitCode,
+          ),
+        ),
+      }),
     });
 
     if (result.outcome === 'version_conflict') {
@@ -722,7 +729,23 @@ export class ServiceOrderCompletionBlockedException extends ServiceOrdersHttpExc
 export function buildExecutionClosureInput(
   facts: ExecutionOperationsFacts,
   gate: CompletionGate,
-  order: { unit_id: string; client_id: string | null; order_number: string },
+  order: {
+    unit_id: string;
+    client_id: string | null;
+    order_number: string;
+    /**
+     * UNIDADES COMERCIAIS do contrato (`service_snapshot.allowedUnits`).
+     *
+     * O REALIZADO é físico (`HOUR`, `KM`, `L`); a VENDA é comercial (`DAY`,
+     * `TRIP`, `M3`). A base publica apenas as unidades que o contrato reconhece,
+     * porque é dela que a medição deriva quantidade — e medir em unidade que o
+     * contrato não cobra produziria valor faturável inventado.
+     *
+     * Quando `undefined`, nenhuma linha é derivada: sem contrato conhecido a base
+     * não pode afirmar o que é comercial.
+     */
+    contractUnits?: ReadonlySet<string>;
+  },
 ): {
   unitId: string;
   clientId: string | null;
@@ -754,13 +777,38 @@ export function buildExecutionClosureInput(
   });
 
   /**
-   * BASE DE MEDIÇÃO — uma linha por unidade de medida do realizado.
+   * BASE DE MEDIÇÃO — uma linha por unidade COMERCIAL do realizado.
    *
    * A quantidade MEDIDA é o valor real; o planejado acompanha como referência. Não
    * há preço aqui: precificação é da MEDIÇÃO/BILLING, não da execução.
+   *
+   * ─────────────────────────────────────────────────────────────────────────────
+   * POR QUE O REALIZADO FÍSICO NÃO VIRA LINHA COMERCIAL
+   * ─────────────────────────────────────────────────────────────────────────────
+   *
+   * `so.execution_actuals` registra fatos físicos: `7.8 HOUR` de horímetro, `420
+   * KM` de odômetro, `130 L` de combustível. O contrato cobra `DAY`, `TRIP`, `M3`.
+   *
+   * Publicar a unidade física na base faria a medição medir em unidade que o
+   * contrato não precifica — e a soma das quantidades medidas deixaria de
+   * reconciliar com a quantidade executada, porque `7.8 HOUR` somado a `3 DAY`
+   * somam unidades diferentes. Converter uma na outra exigiria uma taxa que
+   * nenhuma fonte declara; inventá-la produziria receita arbitrária.
+   *
+   * A base, portanto, só publica a unidade que o CONTRATO declara. Quando o
+   * realizado não tem nenhuma unidade comercial, a base sai vazia — e a medição
+   * recusa com `MEASUREMENT_BASIS_EMPTY`, que é a resposta honesta: não há como
+   * saber quantos dias valem 7.8 horas sem uma regra de conversão declarada.
    */
+  const contractUnits = order.contractUnits;
   const byUnit = new Map<string, { actual: number; planned: number; count: number }>();
   for (const row of facts.actuals) {
+    if (contractUnits && !contractUnits.has(row.unit_of_measure)) {
+      continue;
+    }
+    if (!contractUnits) {
+      continue;
+    }
     const bucket = byUnit.get(row.unit_of_measure) ?? { actual: 0, planned: 0, count: 0 };
     bucket.actual += Number(row.actual_value);
     bucket.planned += Number(row.planned_value ?? '0');
