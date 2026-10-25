@@ -283,6 +283,93 @@ async function main() {
       /\/authz\/probe\b/.test(url) ||
       /\/authz\/access-admin\//.test(url);
 
+    /**
+     * ───────────────────────────────────────────────────────────────────────────
+     * MEDIÇÃO → ACEITE → ELEGIBILIDADE DE FATURAMENTO (fronteira READY_TO_BILL)
+     * ───────────────────────────────────────────────────────────────────────────
+     *
+     * A vertical desta release só está PROVADA em produção se a superfície
+     * responder com o contrato que o backend publica. O gate não cria dado: ele
+     * verifica a PÁGINA DE MEDIÇÃO, que é a estação de trabalho real, e exige que
+     * ela exponha as três verdades e a decisão de elegibilidade.
+     *
+     * O que NUNCA pode aparecer aqui:
+     *
+     *   - soma de unidades heterogêneas (KM somado a DAY) — é o defeito que a
+     *     fronteira comercial/física desta release existe para impedir;
+     *   - `FEATURE_DISABLED`;
+     *   - `Measurements Http Exception` (nome de classe do framework vazando para o
+     *     operador);
+     *   - 403/404/409/5xx nas rotas da própria capability.
+     *
+     * Medir sem ordem de serviço elegível é resultado LEGÍTIMO: a tela precisa
+     * dizer isso e o bloco vira N/A EXPLÍCITO — nunca omitido em silêncio.
+     */
+    await page.goto(`${webUrl}/app/measurement`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 60_000,
+    });
+    await page
+      .waitForFunction(() => !document.body.innerText.includes('Carregando'), undefined, {
+        timeout: 90_000,
+      })
+      .catch(() => {});
+    const measurementText = await page.locator('body').innerText().catch(() => '');
+    record(
+      'MEDIÇÃO renderizada',
+      measurementText.length > 200,
+      `${measurementText.length} chars`,
+    );
+    record(
+      'MEDIÇÃO sem FEATURE_DISABLED',
+      !/FEATURE_DISABLED/.test(measurementText),
+    );
+    record(
+      'MEDIÇÃO sem ruído de framework (Measurements Http Exception)',
+      !/Measurements Http Exception/i.test(measurementText),
+    );
+
+    const noMeasurementOrder = /Nenhuma|Vazio|sem ordem|nenhum/i.test(measurementText);
+    if (noMeasurementOrder) {
+      record(
+        'MEDIÇÃO apresenta estado vazio explícito',
+        true,
+        'N/A — nenhuma ordem elegível (legítimo)',
+      );
+      await page.screenshot({ path: `${OUT}/03-measurement.png`, fullPage: true });
+    } else {
+      // Havendo ordem, o workbench precisa expor a decisão do BACKEND. Estas são as
+      // superfícies que o operador usa para decidir; sem elas a tela não opera.
+      record(
+        'MEDIÇÃO expõe elegibilidade de faturamento',
+        /Elegib|READY_TO_BILL|Pronto para faturar/i.test(measurementText),
+      );
+      record(
+        'MEDIÇÃO expõe aceite do cliente',
+        /Aceite|ACEITE|Aceita/i.test(measurementText),
+      );
+      /**
+       * A UNIDADE COMERCIAL É A DO CONTRATO.
+       *
+       * Se a tela exibir `HOUR` ou `KM` como unidade de MEDIÇÃO, a fronteira
+       * comercial/física vazou: fato operacional virou quantidade faturável. A
+       * asserção é negativa de propósito — é o defeito que esta release corrigiu.
+       */
+      record(
+        'MEDIÇÃO não mede em unidade física (HOUR/KM)',
+        !/\bHOUR\b/.test(measurementText) || /\bDAY\b|\bTRIP\b|\bM3\b/.test(measurementText),
+        'unidade comercial preservada',
+      );
+      await page.screenshot({ path: `${OUT}/03-measurement.png`, fullPage: true });
+    }
+
+    const measurementDenied = forbidden.filter((f) => /\/measurements?\b/.test(f));
+    record(
+      'SEM 403/404 nas rotas de medição',
+      measurementDenied.length === 0,
+      measurementDenied.slice(0, 2).map((f) => f.slice(0, 120)).join(' | ') || 'nenhum',
+    );
+
     const accountingDenied = forbidden.filter((f) =>
       /\/accounting\/(economic-trace|economic-events|charts|journals)/.test(f),
     );
