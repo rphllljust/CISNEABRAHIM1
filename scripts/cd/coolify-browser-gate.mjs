@@ -68,9 +68,23 @@ if (!chromium) {
 const OUT = process.env['BROWSER_GATE_OUT'] ?? 'artifacts/browser-gate';
 
 const results = [];
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * TRÊS RESULTADOS, NÃO DOIS
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ *   `true`  → PASS          → PROVADO
+ *   `false` → FAIL          → QUEBROU
+ *   `null`  → NOT_APPLICABLE → NÃO PROVADO
+ *
+ * A distinção existe porque as duas primeiras são sobre a TELA (ela funciona ou
+ * não) e a terceira é sobre a PROVA DE NEGÓCIO (havia caso para provar?). Somar
+ * N/A na contagem de aprovados é como transformar "não medi" em "medi e passou".
+ */
 function record(name, passed, detail) {
   results.push({ name, passed, detail });
-  console.log(`${passed ? 'PASS' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`);
+  const label = passed === null ? 'N/A ' : passed ? 'PASS' : 'FAIL';
+  console.log(`${label}  ${name}${detail ? ` — ${detail}` : ''}`);
 }
 
 function required(name) {
@@ -79,6 +93,37 @@ function required(name) {
     throw new Error(`${name} ausente: o gate de browser nao pode rodar sem o runtime real.`);
   }
   return value;
+}
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * O VEREDITO É UMA FUNÇÃO PURA — E É TESTÁVEL COMO TAL
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * A decisão de saída vivia embutida no `main` e só podia ser julgada lendo o
+ * código-fonte com regex. Isso é o que permitiu o defeito passar: o teste
+ * afirmava `assert.match(source, /businessVerified/)` e ficava verde enquanto
+ * `businessVerified=false` produzia `exitCode=0`.
+ *
+ * Extraída aqui, a regra passa a ser exercitada por COMPORTAMENTO: quatro
+ * combinações de entrada, quatro saídas esperadas.
+ *
+ *   releaseVerified = assertionsPass && runtimeVerified && businessVerified
+ *
+ * `NOT_APPLICABLE` não entra na conjunção como aprovado: ele mantém
+ * `businessVerified = false`, e a entrega não é declarada validada.
+ */
+export function decideReleaseVerdict(input) {
+  const assertionsPass = input.passed === input.total && input.total > 0;
+  const runtimeVerified = input.runtimeVerified === true;
+  const businessVerified = input.businessVerified === true;
+  return {
+    assertionsPass,
+    runtimeVerified,
+    businessVerified,
+    releaseVerified: assertionsPass && runtimeVerified && businessVerified,
+    exitCode: assertionsPass && runtimeVerified && businessVerified ? 0 : 1,
+  };
 }
 
 async function main() {
@@ -467,16 +512,21 @@ async function main() {
       await page.screenshot({ path: `${OUT}/03-measurement-workbench.png`, fullPage: true });
     } else {
       /**
-       * NOT_APPLICABLE — e o nome diz exatamente isso.
+       * NOT_APPLICABLE — NÃO PROVADO, E O NOME DIZ ISSO.
        *
-       * A tentação é chamar de "PASS" porque a tela não quebrou. Seria mentira:
-       * num release de aceite, "não há caso" é ausência de prova de negócio, não
-       * aprovação dela. O veredito fica separado e explícito.
+       * A tentação é registrar `record(..., true, 'N/A')` para não pintar de
+       * vermelho uma tela saudável. Foi o que se fez, e o TOTAL passou a contar
+       * N/A como PASS: o gate saía verde sem ter provado o negócio.
+       *
+       * `record(name, null, ...)` marca o resultado como NÃO APLICÁVEL — nem
+       * aprovado nem reprovado naquela asserção —, e o veredito final exige
+       * `businessVerified`, que continua FALSE aqui. A tela não é punida; a
+       * ENTREGA não é declarada validada.
        */
       businessReason = 'NOT_APPLICABLE — nenhuma medição na fila desta unidade';
-      record('MEDIÇÃO expõe elegibilidade de faturamento', true, businessReason);
-      record('MEDIÇÃO expõe aceite do cliente', true, businessReason);
-      record('MEDIÇÃO não mede em unidade física (HOUR/KM)', true, businessReason);
+      record('MEDIÇÃO expõe elegibilidade de faturamento', null, businessReason);
+      record('MEDIÇÃO expõe aceite do cliente', null, businessReason);
+      record('MEDIÇÃO não mede em unidade física (HOUR/KM)', null, businessReason);
       await page.screenshot({ path: `${OUT}/03-measurement.png`, fullPage: true });
     }
     const measurementDenied = forbidden.filter((f) => /\/measurements?\b/.test(f));
@@ -524,34 +574,69 @@ async function main() {
     await browser.close();
   }
 
-  const passed = results.filter((r) => r.passed).length;
+  // N/A NÃO conta como aprovado: `r.passed` só é truthy para `true`. O total
+  // inclui os N/A porque a soma precisa refletir o que foi AVALIADO, não o que
+  // foi provado — e a distinção aparece explícita no log.
+  const passed = results.filter((r) => r.passed === true).length;
+  const notApplicable = results.filter((r) => r.passed === null).length;
   const total = results.length;
-  console.log(`\n[coolify-browser-gate] RESULTADO ${passed}/${total} web=${webUrl}`);
+  console.log(
+    `\n[coolify-browser-gate] RESULTADO ${passed}/${total} ` +
+      `(N/A ${notApplicable}) web=${webUrl}`,
+  );
 
   /**
    * ─────────────────────────────────────────────────────────────────────────────
-   * DOIS VEREDITOS, PORQUE SÃO DUAS COISAS DIFERENTES
+   * TRÊS VEREDITOS, PORQUE SÃO TRÊS COISAS DIFERENTES
    * ─────────────────────────────────────────────────────────────────────────────
    *
-   * `runtimeVerified`: a aplicação subiu, autenticou e renderizou sem erro crítico.
-   * É o que um deploy saudável prova.
-   *
+   * `assertionsPass`: as asserções de base (HTTP, console, shell, auth) passaram.
+   * `runtimeVerified`: a aplicação subiu na UNIDADE REAL e renderizou.
    * `businessVerified`: a CAPABILITY desta release foi observada funcionando numa
-   * medição real — aceite e elegibilidade visíveis. É o que autoriza dizer
-   * "produção validada" em vez de "produção no ar".
+   *   medição real — aceite, elegibilidade e unidade comercial visíveis.
    *
-   * Sem caso na fila, `businessVerified` é FALSE e o motivo é
-   * NOT_APPLICABLE. Um único número (19/20) esconderia essa distinção: quem lê
-   * "quase tudo verde" conclui que o negócio foi provado quando ele não foi.
+   * ─────────────────────────────────────────────────────────────────────────────
+   * POR QUE `passed === total` NÃO PODE SER O VEREDITO
+   * ─────────────────────────────────────────────────────────────────────────────
+   *
+   * O bloco NOT_APPLICABLE registrava `record(..., true, motivo)` para não pintar
+   * de vermelho uma tela saudável — e o TOTAL contava esses registros como PASS.
+   * Resultado medido: `runtimeVerified=true`, `businessVerified=false` e mesmo
+   * assim `exitCode = 0`. O pipeline ficava verde sem ter provado o negócio.
+   *
+   * `NOT_APPLICABLE` não é `PASS`: é NÃO PROVADO. Para esta release — medição →
+   * aceite → elegibilidade → READY_TO_BILL — só existe aprovação quando a
+   * capability foi efetivamente observada.
+   *
+   * A saída agora é a CONJUNÇÃO das três condições, nunca a contagem.
    */
-  console.log(
-    `[coolify-browser-gate] runtimeVerified=${runtimeVerified} businessVerified=${businessVerified}`,
-  );
-  console.log(`[coolify-browser-gate] businessReason=${businessReason ?? 'não avaliado'}`);
+  const verdict = decideReleaseVerdict({
+    passed,
+    total,
+    runtimeVerified,
+    businessVerified,
+  });
 
-  if (passed !== total) {
-    process.exitCode = 1;
+  console.log(`[coolify-browser-gate] assertionsPass=${verdict.assertionsPass}`);
+  console.log(`[coolify-browser-gate] runtimeVerified=${verdict.runtimeVerified}`);
+  console.log(`[coolify-browser-gate] businessVerified=${verdict.businessVerified}`);
+  console.log(`[coolify-browser-gate] businessReason=${businessReason ?? 'não avaliado'}`);
+  console.log(`[coolify-browser-gate] releaseVerified=${verdict.releaseVerified}`);
+
+  if (verdict.exitCode !== 0) {
+    process.exitCode = verdict.exitCode;
   }
 }
 
-await main();
+/**
+ * Executa quando chamado como SCRIPT, não quando importado.
+ *
+ * O teste de comportamento importa `decideReleaseVerdict`; sem esta guarda, o
+ * import abriria Chromium e navegaria contra produção só para ler uma função pura.
+ */
+const invokedDirectly =
+  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (invokedDirectly) {
+  await main();
+}
