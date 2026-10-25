@@ -97,6 +97,34 @@ function required(name) {
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
+ * EXTRAÇÃO DA UNIDADE OPERACIONAL — FUNÇÃO PURA E TESTÁVEL
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * A unidade vive na FAIXA DE RESUMO que o operador lê:
+ *
+ *   `UNIDADE UN-PROD-001   1 FALHARAM   0 PENDENTES   0 ESTORNADAS`
+ *
+ * Três fontes foram tentadas antes desta, e as três primeiras não servem:
+ *
+ *   1. `fetch('/api/v1/me')` relativo → resolve contra a origem do SPA e recebe
+ *      `index.html` (`SyntaxError: Unexpected token '<'`).
+ *   2. escutar `/api/v1/me` → devolve identidade e permissões, NÃO a unidade.
+ *   3. ler token de storage → o `tokenStore` guarda o access token em MEMÓRIA,
+ *      por design; ler de storage seria enfraquecer isso.
+ *
+ * Extraída como função pura porque o defeito anterior — um delimitador de fim
+ * de comentário ausente — deixou a navegação inteira DENTRO do comentário: a
+ * checagem de sintaxe passou, o teste por regex passou, e o código simplesmente
+ * não rodava. Só comportamento pega isso.
+ */
+export function extractOperationalUnit(worklistText) {
+  if (typeof worklistText !== 'string') return null;
+  const match = /UNIDADE\s+([A-Z0-9][A-Z0-9._-]{2,})/i.exec(worklistText);
+  return match?.[1] ?? null;
+}
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
  * O VEREDITO É UMA FUNÇÃO PURA — E É TESTÁVEL COMO TAL
  * ─────────────────────────────────────────────────────────────────────────────
  *
@@ -272,6 +300,8 @@ async function main() {
      * anterior (`WORKLIST apresenta estado operacional explícito`), e é o valor
      * que o operador lê para decidir. Nada é inventado: o código é EXTRAÍDO do
      * texto renderizado pelo produto.
+     */
+
     // ── 2. APP SHELL + NAVEGAÇÃO POR PERMISSÃO ────────────────────────────────
     await page.goto(`${webUrl}/app/accounting/economic-posting`, {
       waitUntil: 'domcontentloaded',
@@ -328,7 +358,7 @@ async function main() {
      * mesmo valor que a asserção seguinte lê, e que o operador usa para decidir.
      * O código é EXTRAÍDO do texto renderizado pelo produto; nada é inventado.
      */
-    const unitFromStrip = /UNIDADE\s+([A-Z0-9][A-Z0-9._-]{2,})/i.exec(worklistText)?.[1] ?? null;
+    const unitFromStrip = extractOperationalUnit(worklistText);
     const resolvedUnitId = unitFromStrip ?? unitIdFromSession;
 
     record(
