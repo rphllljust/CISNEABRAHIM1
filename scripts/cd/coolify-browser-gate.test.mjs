@@ -55,17 +55,26 @@ describe('browser gate — cobertura da vertical de medição', () => {
         ],
       },
       'UN-PROD-001',
-      25,
     );
     assert.deepEqual(ids, ['so-1', 'so-3']);
   });
 
   it('fallback de OS falha fechado quando a listagem não publica items', () => {
-    assert.deepEqual(extractMeasurementCandidateServiceOrderIds({}, 'UN-PROD-001', 25), []);
-    assert.deepEqual(
-      extractMeasurementCandidateServiceOrderIds({ items: [] }, '', 25),
-      [],
+    assert.deepEqual(extractMeasurementCandidateServiceOrderIds({}, 'UN-PROD-001'), []);
+    assert.deepEqual(extractMeasurementCandidateServiceOrderIds({ items: [] }, ''), []);
+  });
+
+  it('fallback não limita candidatos a 25 OS', () => {
+    const items = Array.from({ length: 40 }, (_, index) => ({
+      id: `so-${index + 1}`,
+      unitId: 'UN-PROD-001',
+    }));
+    const ids = extractMeasurementCandidateServiceOrderIds(
+      { items },
+      'UN-PROD-001',
     );
+    assert.equal(ids.length, 40);
+    assert.equal(ids.at(-1), 'so-40');
   });
 
   it('prova negócio somente com estados autoritativos do payload', () => {
