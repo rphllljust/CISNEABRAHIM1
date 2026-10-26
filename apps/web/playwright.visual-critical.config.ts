@@ -20,7 +20,8 @@ const previewPort = 4173;
  * DIVISÃO (sem reduzir cobertura total)
  *
  *   visual-critical (este arquivo) — as superfícies que, se quebrarem, quebram o PRODUTO:
- *       - login (porta de entrada), dashboard (primeira dobra), shell/rotas.
+ *       - login (porta de entrada), dashboard (primeira dobra) e medição (runtime contract).
+ *     Medição entra aqui porque seu browser gate já encontrou crash real em produção.
  *     Um viewport por spec (`desktop`): o objetivo é detectar QUEBRA ESTRUTURAL, não regressão
  *     de pixel em três larguras. Roda em minutos, é determinístico e obrigatório.
  *
