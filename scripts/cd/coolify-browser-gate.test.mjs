@@ -174,7 +174,21 @@ describe('browser gate — cobertura da vertical de medição', () => {
    */
   it('prova de negócio entra pela fila e exige aceite + elegibilidade', () => {
     const source = readGate();
-    assert.match(source, /queueLinks/, 'o gate precisa procurar ordem na fila');
+    assert.match(
+      source,
+      /ul\[aria-label="Itens de trabalho da medição"\] button/,
+      'o gate precisa usar o contrato acessível real da fila',
+    );
+    assert.doesNotMatch(
+      source,
+      /button\[data-service-order-id\]/,
+      'o componente real não publica data-service-order-id; esse seletor não pode voltar',
+    );
+    assert.match(
+      source,
+      /measurementWorkbenchRequests/,
+      'o gate precisa observar requests de workbench para provar o lifecycle',
+    );
     assert.match(
       source,
       /businessVerified = eligibility && acceptance && commercialUnit/,

@@ -197,6 +197,7 @@ async function main() {
 
   const consoleErrors = [];
   const forbidden = [];
+  const measurementWorkbenchRequests = [];
   /** Status HTTP que a API devolveu ao login — evidência para o diagnostico. */
   const loginApiStatuses = [];
   /**
@@ -210,6 +211,12 @@ async function main() {
   let businessReason;
   page.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text());
+  });
+  page.on('request', (request) => {
+    const url = request.url();
+    if (/\/api\/v1\/query\/measurements\/[^/?]+\/workbench(?:\?|$)/.test(url)) {
+      measurementWorkbenchRequests.push(url);
+    }
   });
   page.on('response', (res) => {
     if (res.status() === 403) forbidden.push(`${res.status()} ${res.url()}`);
@@ -550,6 +557,7 @@ async function main() {
     const measurementUrl = resolvedUnitId
       ? `${webUrl}/app/measurement?unitId=${encodeURIComponent(resolvedUnitId)}`
       : `${webUrl}/app/measurement`;
+    measurementWorkbenchRequests.length = 0;
     await page.goto(measurementUrl, {
       waitUntil: 'domcontentloaded',
       timeout: 60_000,
@@ -631,18 +639,25 @@ async function main() {
      * NÃO inventa caso e NÃO declara a capability validada — emite
      * NOT_APPLICABLE com motivo, separado do veredito de runtime.
      */
-    const queueLinks = page.locator('a[href*="serviceOrderId="], button[data-service-order-id]');
-    const queueCount = await queueLinks.count().catch(() => 0);
+    const queueItems = page.locator(
+      'ul[aria-label="Itens de trabalho da medição"] button',
+    );
+    const queueCount = await queueItems.count().catch(() => 0);
 
     if (queueCount > 0) {
       // Entra pela FILA — o caminho do operador, não uma URL montada à mão.
-      await queueLinks.first().click();
+      await queueItems.first().click();
       await page
         .waitForFunction(() => !document.body.innerText.includes('Carregando'), undefined, {
           timeout: 90_000,
         })
         .catch(() => {});
       const workbenchText = await page.locator('body').innerText().catch(() => '');
+      record(
+        'MEDIÇÃO workbench carregado somente após seleção da fila',
+        measurementWorkbenchRequests.length > 0,
+        measurementWorkbenchRequests[0] ?? 'nenhum request /workbench observado',
+      );
 
       const eligibility = /Elegib|READY_TO_BILL|Pronto para faturar/i.test(workbenchText);
       const acceptance = /Aceite|ACEITE|Aceita/i.test(workbenchText);
@@ -686,6 +701,11 @@ async function main() {
        * ENTREGA não é declarada validada.
        */
       businessReason = 'NOT_APPLICABLE — nenhuma medição na fila desta unidade';
+      record(
+        'MEDIÇÃO sem workbench órfão quando fila vazia',
+        measurementWorkbenchRequests.length === 0,
+        measurementWorkbenchRequests.slice(0, 2).join(' | ') || 'nenhum request /workbench',
+      );
       record('MEDIÇÃO expõe elegibilidade de faturamento', null, businessReason);
       record('MEDIÇÃO expõe aceite do cliente', null, businessReason);
       record('MEDIÇÃO não mede em unidade física (HOUR/KM)', null, businessReason);
