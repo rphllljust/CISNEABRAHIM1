@@ -2,76 +2,88 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { classifyChangeScope } from './change-scope.mjs';
 
+const required = (paths) => classifyChangeScope(paths).integrationRequired;
+
 describe('change-scope classifier', () => {
-  it('scripts/cd puro justifica Integration N/A', () => {
-    assert.deepEqual(
-      classifyChangeScope([
-        'scripts/cd/coolify-browser-gate.mjs',
-        'scripts/cd/coolify-browser-gate.test.mjs',
-      ]),
-      {
-        visualRisk: false,
-        integrationRequired: false,
-        changedFiles: '2',
-      },
-    );
+  it('scripts/cd-only => Integration NOT_APPLICABLE com razão explícita', () => {
+    const result = classifyChangeScope([
+      'scripts/cd/coolify-browser-gate.mjs',
+      'scripts/cd/coolify-browser-gate.test.mjs',
+    ]);
+    assert.equal(result.integrationRequired, false);
+    assert.equal(result.integrationReason, 'CD_ONLY_CHANGE');
+    assert.deepEqual(result.changedPaths, [
+      'scripts/cd/coolify-browser-gate.mjs',
+      'scripts/cd/coolify-browser-gate.test.mjs',
+    ]);
   });
 
-  it('mistura scripts/cd com backend exige Integration', () => {
-    assert.equal(
-      classifyChangeScope([
-        'scripts/cd/coolify-browser-gate.mjs',
-        'apps/api/src/measurements/application/measurement-workbench.reader.ts',
-      ]).integrationRequired,
-      true,
-    );
+  it('scripts/cd + backend => Integration real obrigatório', () => {
+    assert.equal(required([
+      'scripts/cd/coolify-browser-gate.mjs',
+      'apps/api/src/measurements/application/measurement-workbench.reader.ts',
+    ]), true);
   });
 
-  it('mudança de banco exige Integration', () => {
-    assert.equal(
-      classifyChangeScope(['packages/database/migrations/0107_example.sql'])
-        .integrationRequired,
-      true,
-    );
+  it('database => Integration real obrigatório', () => {
+    assert.equal(required(['packages/database/migrations/0107_example.sql']), true);
   });
 
-  it('mudança no próprio CI exige Integration por fail-closed', () => {
-    assert.equal(
-      classifyChangeScope(['.github/workflows/ci.yml']).integrationRequired,
-      true,
-    );
-    assert.equal(
-      classifyChangeScope(['scripts/ci/change-scope.mjs']).integrationRequired,
-      true,
-    );
+  it('workflow e scripts/ci => Integration real obrigatório', () => {
+    assert.equal(required(['.github/workflows/ci.yml']), true);
+    assert.equal(required(['scripts/ci/change-scope.mjs']), true);
   });
 
-  it('path desconhecido exige Integration', () => {
-    assert.equal(classifyChangeScope(['new-domain/file.ts']).integrationRequired, true);
+  it('shared/config/package/lockfile/tsconfig/Dockerfile => Integration real obrigatório', () => {
+    for (const path of [
+      'packages/shared/src/index.ts',
+      'package.json',
+      'pnpm-lock.yaml',
+      'tsconfig.json',
+      'apps/api/tsconfig.json',
+      'Dockerfile',
+      'apps/api/Dockerfile',
+    ]) {
+      assert.equal(required([path]), true, path);
+    }
   });
 
-  it('diff desconhecido ou vazio exige Integration e visual full', () => {
+  it('path desconhecido => Integration real obrigatório', () => {
+    assert.equal(required(['new-domain/file.ts']), true);
+  });
+
+  it('diff indeterminado ou vazio => Integration real obrigatório e visual fail-closed', () => {
     assert.deepEqual(classifyChangeScope([], { unknown: true }), {
       visualRisk: true,
       integrationRequired: true,
+      integrationReason: 'DIFF_INDETERMINATE',
       changedFiles: 'unknown',
+      changedPaths: ['<unknown>'],
     });
     assert.deepEqual(classifyChangeScope([]), {
       visualRisk: true,
       integrationRequired: true,
+      integrationReason: 'EMPTY_DIFF',
       changedFiles: '0',
+      changedPaths: [],
     });
   });
 
-  it('mantém a classificação visual existente', () => {
+  it('mutation: path desconhecido adicionado a CD-only restaura Integration obrigatório', () => {
+    const baseline = [
+      'scripts/cd/coolify-browser-gate.mjs',
+      'scripts/cd/coolify-browser-gate.structure.test.mjs',
+    ];
+    assert.equal(required(baseline), false);
+    assert.equal(required([...baseline, 'unexpected/new-surface.xyz']), true);
+  });
+
+  it('mantém classificação visual existente', () => {
     assert.equal(
       classifyChangeScope(['apps/web/src/service-orders/pages/MeasurementWorkbenchPage.tsx'])
         .visualRisk,
       true,
     );
-    assert.equal(
-      classifyChangeScope(['scripts/cd/coolify-browser-gate.mjs']).visualRisk,
-      false,
-    );
+    assert.equal(classifyChangeScope(['scripts/cd/coolify-browser-gate.mjs']).visualRisk, false);
   });
 });
