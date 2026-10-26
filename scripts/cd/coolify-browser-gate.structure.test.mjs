@@ -220,6 +220,14 @@ describe('o gate executa — código útil não pode estar comentado', () => {
     assert.match(code, /serviceOrdersUrl\.searchParams\.set\('unitId', resolvedUnitId\)/);
     assert.match(code, /context\.request\s*\.get\(serviceOrdersUrl\.toString\(\)/);
     assert.match(code, /extractMeasurementCandidateServiceOrderIds/);
+    assert.match(code, /while \(serviceOrdersHasMore\)/);
+    assert.match(code, /serviceOrdersPayload\?\.hasMore === true/);
+    assert.match(code, /serviceOrdersOffset \+= pageItems\.length/);
+    assert.doesNotMatch(
+      code,
+      /extractMeasurementCandidateServiceOrderIds\([\s\S]*?resolvedUnitId,\s*25\s*,?\s*\)/,
+      'descoberta de produção não pode truncar a prova aos primeiros 25 candidatos',
+    );
     assert.match(code, /candidateServiceOrderId/);
     assert.match(code, /serviceOrderId=\$\{encodeURIComponent\(candidateServiceOrderId\)\}/);
     assert.doesNotMatch(
