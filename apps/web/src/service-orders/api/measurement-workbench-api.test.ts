@@ -1,12 +1,14 @@
 import * as ts from 'typescript';
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { tokenStore } from '../../auth/storage/token-store';
 import {
   getMeasurementWorkQueue,
   getMeasurementWorkbench,
+  getRevenueLeakage,
+  MeasurementApiError,
   recordCustomerAcceptance,
-  WORKBENCH_COLLECTION_PATHS,
   REVENUE_LEAKAGE_COLLECTION_PATHS,
+  WORKBENCH_COLLECTION_PATHS,
 } from './measurement-workbench-api';
 
 function collectArrayPaths(typesSource: string, rootTypeName: string): string[] {
@@ -17,14 +19,12 @@ function collectArrayPaths(typesSource: string, rootTypeName: string): string[] 
     true,
     ts.ScriptKind.TS,
   );
-
   const declarations = new Map<string, ts.InterfaceDeclaration | ts.TypeAliasDeclaration>();
   sourceFile.forEachChild((node) => {
     if (ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node)) {
       declarations.set(node.name.text, node);
     }
   });
-
   const paths = new Set<string>();
 
   function visitMembers(
@@ -34,7 +34,7 @@ function collectArrayPaths(typesSource: string, rootTypeName: string): string[] 
   ): void {
     for (const member of members) {
       if (!ts.isPropertySignature(member) || !member.type || !member.name) continue;
-      const name = member.name.getText(sourceFile).replace(/^['\"]|['\"]$/g, '');
+      const name = member.name.getText(sourceFile).replace(/^['"]|['"]$/g, '');
       visitType(member.type, [...prefix, name], stack);
     }
   }
@@ -51,9 +51,9 @@ function collectArrayPaths(typesSource: string, rootTypeName: string): string[] 
     nextStack.add(name);
     if (ts.isInterfaceDeclaration(declaration)) {
       visitMembers(declaration.members, prefix, nextStack);
-      return;
+    } else {
+      visitType(declaration.type, prefix, nextStack);
     }
-    visitType(declaration.type, prefix, nextStack);
   }
 
   function visitArrayElement(
@@ -65,8 +65,7 @@ function collectArrayPaths(typesSource: string, rootTypeName: string): string[] 
     paths.add(prefix.join('.'));
     const last = prefix[prefix.length - 1];
     if (!last) return;
-    const elementPrefix = [...prefix.slice(0, -1), last + '[]'];
-    visitType(elementType, elementPrefix, stack);
+    visitType(elementType, [...prefix.slice(0, -1), last + '[]'], stack);
   }
 
   function visitType(
@@ -107,130 +106,160 @@ function collectArrayPaths(typesSource: string, rootTypeName: string): string[] 
 function configuredPaths(paths: ReadonlyArray<readonly string[]>): string[] {
   return paths.map((path) => path.join('.')).sort();
 }
-/**
- * ─────────────────────────────────────────────────────────────────────────────
- * DEFEITO DE PRODUÇÃO QUE ESTE TESTE TRAVA: A FILA DERRUBAVA A ESTAÇÃO INTEIRA
- * ─────────────────────────────────────────────────────────────────────────────
- *
- * O browser gate em produção reprovou 12/13 com:
- *
- *   FAIL  CONSOLE sem erro crítico
- *         TypeError: Cannot read properties of undefined (reading 'map')
- *
- * A tela lia `queueData.items.length` e `items.map(...)` direto da resposta. Uma
- * resposta sem `items` — proxy que corta o corpo, versão de backend diferente do
- * frontend durante o deploy, erro parcial — quebrava a página COMPLETA, inclusive
- * as colunas que não dependem da fila.
- *
- * O conserto foi na fronteira HTTP: o React recebe um tipo que AFIRMA
- * `items: WorkQueueItem[]`, então o valor entregue precisa honrar o tipo. Estes
- * testes exercitam a resposta degenerada que causou o erro real.
- *
- * O que a normalização NÃO faz: inventar item, contagem ou valor de negócio. Ela
- * garante FORMA, nunca conteúdo.
- */
-describe('getMeasurementWorkQueue — a resposta degenerada não quebra a tela', () => {
-  const originalFetch = globalThis.fetch;
 
-  beforeEach(() => {
-    vi.restoreAllMocks();
-    // Sessão mínima: a leitura exige token, e sem ele o cliente falha em 401
-    // ANTES da normalização — o teste passaria a medir outra coisa.
-    tokenStore.setTokens('test-access-token', 'test-refresh-token');
-  });
-
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-    tokenStore.clear();
-  });
-
-  function mockJson(body: unknown) {
-    // `vi.fn` já satisfaz o contrato de `typeof fetch` para uma leitura que só
-    // consome `status`, `ok` e `json`.
-    globalThis.fetch = vi.fn(async () =>
-      new Response(JSON.stringify(body), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    );
-  }
-
-  it('resposta SEM items devolve fila vazia em vez de undefined', async () => {
-    mockJson({ context: { unitId: 'u-1', at: '2026-01-01T00:00:00.000Z' } });
-
-    const queue = await getMeasurementWorkQueue('u-1');
-
-    expect(Array.isArray(queue.items)).toBe(true);
-    expect(queue.items).toHaveLength(0);
-    // É exatamente esta chamada que quebrava com "reading 'map'".
-    expect(() => queue.items.map((item) => item)).not.toThrow();
-  });
-
-  it('resposta SEM counts devolve objeto vazio', async () => {
-    mockJson({ items: [] });
-
-    const queue = await getMeasurementWorkQueue('u-1');
-
-    expect(queue.counts).toEqual({});
-  });
-
-  it('resposta SEM freshness mantém a autoridade no SERVIDOR', async () => {
-    mockJson({ items: [] });
-
-    const queue = await getMeasurementWorkQueue('u-1');
-
-    // A forma é garantida aqui; a AFIRMAÇÃO de frescura continua do servidor.
-    expect(queue.freshness.authority).toBe('SERVER');
-    expect(typeof queue.freshness.readAt).toBe('string');
-  });
-
-  it('items que não é lista é tratado como fila vazia', async () => {
-    mockJson({ items: 'nao-e-lista', counts: {} });
-
-    const queue = await getMeasurementWorkQueue('u-1');
-
-    expect(queue.items).toHaveLength(0);
-  });
-
-  it('resposta íntegra é preservada sem alteração', async () => {
-    const item = {
+function validWorkbench(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    identity: {
+      measurementId: null,
+      number: null,
       serviceOrderId: 'so-1',
       orderNumber: 'OS-1',
-      stage: 'MEASURED',
-      nextAction: 'REVIEW',
-    };
-    mockJson({
-      context: { unitId: 'u-1', at: '2026-01-01T00:00:00.000Z' },
-      counts: { total: 1 },
-      items: [item],
-      freshness: { readAt: '2026-01-01T00:00:00.000Z', authority: 'SERVER' },
-    });
+      rowVersion: null,
+    },
+    businessContext: {
+      company: null,
+      unit: 'UN-PROD-001',
+      customer: null,
+      customerId: null,
+      contract: null,
+      purchaseOrder: null,
+      responsible: null,
+    },
+    statuses: {
+      execution: 'COMPLETED',
+      measurement: 'DRAFT',
+      acceptance: 'NOT_APPLICABLE',
+      billingEligibility: 'BLOCKED',
+      billing: 'NOT_STARTED',
+      accounting: 'NOT_APPLICABLE',
+    },
+    processContext: {
+      milestones: [],
+      completedMilestones: [],
+      pendingMilestones: [],
+      health: {
+        currentStage: 'MEASUREMENT',
+        currentStageLabel: 'Medição',
+        elapsedSeconds: null,
+        targetSeconds: null,
+        forecastSecondsRemaining: null,
+        risk: 'LOW',
+        riskReason: '',
+        ownerRole: 'OPERATIONS',
+        blockingReason: null,
+        nextMilestone: null,
+      },
+      nextMilestone: null,
+    },
+    measurementBasis: {
+      basisId: null,
+      executionClosureId: null,
+      preparedAt: null,
+      lineCount: 0,
+      lines: [],
+    },
+    quantities: {
+      lines: [],
+      totals: { planned: 0, actual: 0, measured: 0 },
+    },
+    economics: {
+      grossValue: null,
+      currency: null,
+      financialVariance: null,
+      revenueExposure: null,
+    },
+    commercialContext: {
+      pricing: { source: null, lineCount: 0, currencyCode: null },
+      paymentTerms: null,
+      tolerance: { percentage: 0, source: 'TEST' },
+      purchaseOrderRequirement: null,
+      billingPolicy: 'TEST',
+    },
+    variances: [],
+    varianceSummary: {
+      highestSeverity: 'NONE',
+      decisionRequiredCount: 0,
+      approvalClearable: true,
+      summary: '',
+    },
+    adjustments: [],
+    items: [],
+    evidence: [],
+    acceptance: {
+      policy: 'NONE',
+      policySource: 'TEST',
+      policyReason: '',
+      required: false,
+      state: 'NOT_APPLICABLE',
+      blocksBilling: false,
+      blockingReason: null,
+      latest: null,
+      history: [],
+      nextActionCode: null,
+      nextActionLabel: null,
+    },
+    billingEligibility: {
+      result: 'BLOCKED',
+      dimensions: [],
+      blockingReasons: [],
+      nextAction: null,
+      totalAmount: null,
+      currencyCode: null,
+      summary: '',
+      explanation: '',
+    },
+    situations: [],
+    relationships: [],
+    documentFlow: [],
+    timeline: [],
+    nextAction: null,
+    availableCommands: [],
+    decisionExplanation: {
+      measurement: '',
+      approval: '',
+      acceptance: '',
+      billing: '',
+      onBilling: '',
+    },
+    freshness: { readAt: '2026-10-26T00:00:00.000Z', authority: 'SERVER' },
+    ...overrides,
+  };
+}
 
-    const queue = await getMeasurementWorkQueue('u-1');
+function validQueue(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    context: { unitId: 'UN-PROD-001', at: '2026-10-26T00:00:00.000Z' },
+    counts: {},
+    items: [],
+    freshness: { readAt: '2026-10-26T00:00:00.000Z', authority: 'SERVER' },
+    ...overrides,
+  };
+}
 
-    expect(queue.items).toHaveLength(1);
-    // `noUncheckedIndexedAccess` exige o estreitamento: indexar sem verificar
-    // afirmaria ao compilador algo que ele não pode garantir.
-    const [first] = queue.items;
-    expect(first?.serviceOrderId).toBe('so-1');
-    expect(queue.counts).toEqual({ total: 1 });
-    expect(queue.freshness.readAt).toBe('2026-01-01T00:00:00.000Z');
-  });
-});
+function validLeakage(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    context: { unitId: 'UN-PROD-001', at: '2026-10-26T00:00:00.000Z' },
+    stages: [],
+    total: { count: 0, amount: null, unknownAmountCount: 0, currencyCode: null },
+    positions: [],
+    freshness: { readAt: '2026-10-26T00:00:00.000Z', authority: 'SERVER' },
+    ...overrides,
+  };
+}
 
-/**
- * ─────────────────────────────────────────────────────────────────────────────
- * O WORKBENCH TEM A MESMA EXPOSIÇÃO — E UMA SUPERFÍCIE MAIOR
- * ─────────────────────────────────────────────────────────────────────────────
- *
- * `MeasurementDecisionContext` percorre treze coleções com `.map`. Normalizar
- * apenas a fila deixaria a tela PRINCIPAL da capability exposta ao mesmo
- * `TypeError` que derrubou produção.
- *
- * Os dois caminhos são cobertos: a leitura (GET) e o retorno do comando de aceite
- * (POST), porque ambos entregam o read model ao React.
- */
-describe('getMeasurementWorkbench — read model degenerado não quebra a estação', () => {
+async function expectContractFailure(promise: Promise<unknown>, code?: string): Promise<void> {
+  try {
+    await promise;
+    throw new Error('esperava MeasurementApiError de contrato');
+  } catch (error) {
+    expect(error).toBeInstanceOf(MeasurementApiError);
+    const typed = error as MeasurementApiError;
+    expect(typed.kind).toBe('contract');
+    if (code) expect(typed.code).toBe(code);
+  }
+}
+
+describe('measurement HTTP runtime contract — fail closed', () => {
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
@@ -252,134 +281,132 @@ describe('getMeasurementWorkbench — read model degenerado não quebra a estaç
     );
   }
 
-  it('workbench SEM coleções devolve listas vazias, não undefined', async () => {
-    mockJson({ identity: { serviceOrderId: 'so-1', orderNumber: 'OS-1' } });
+  it('aceita fila válida e preserva contexto autoritativo', async () => {
+    mockJson(validQueue());
+    const queue = await getMeasurementWorkQueue('UN-PROD-001');
+    expect(queue.context.unitId).toBe('UN-PROD-001');
+    expect(queue.items).toEqual([]);
+  });
 
+  it('fila sem items não vira falso "nenhum trabalho": falha contrato', async () => {
+    const body = validQueue();
+    delete body['items'];
+    mockJson(body);
+    await expectContractFailure(
+      getMeasurementWorkQueue('UN-PROD-001'),
+      'MEASUREMENT_QUEUE_CONTRACT_INVALID',
+    );
+  });
+
+  it('fila de outra unidade é rejeitada', async () => {
+    mockJson(validQueue({ context: { unitId: 'UN-ERRADA', at: '2026-10-26T00:00:00.000Z' } }));
+    await expectContractFailure(
+      getMeasurementWorkQueue('UN-PROD-001'),
+      'MEASUREMENT_QUEUE_UNIT_MISMATCH',
+    );
+  });
+
+  it('workbench válido atravessa o boundary sem reescrever negócio', async () => {
+    mockJson(validWorkbench());
     const workbench = await getMeasurementWorkbench('so-1');
-
-    // Cada uma destas é percorrida com `.map` pela tela.
-    expect(workbench.variances).toEqual([]);
-    expect(workbench.adjustments).toEqual([]);
-    expect(workbench.items).toEqual([]);
-    expect(workbench.evidence).toEqual([]);
-    expect(workbench.situations).toEqual([]);
-    expect(workbench.relationships).toEqual([]);
-    expect(workbench.documentFlow).toEqual([]);
-    expect(workbench.timeline).toEqual([]);
+    expect(workbench.identity.serviceOrderId).toBe('so-1');
     expect(workbench.availableCommands).toEqual([]);
-    expect(() => workbench.availableCommands.map((command) => command)).not.toThrow();
+    expect(workbench.quantities.lines).toEqual([]);
   });
 
-  it('workbench sem próxima ação devolve null — estado real do domínio', async () => {
-    mockJson({ items: [] });
-
-    const workbench = await getMeasurementWorkbench('so-1');
-
-    // "Sem próxima ação" é um estado de negócio; objeto vazio seria invenção.
-    expect(workbench.nextAction).toBeNull();
+  it('coleção ausente no workbench falha fechado em vez de virar []', async () => {
+    const body = validWorkbench();
+    const quantities = body['quantities'] as Record<string, unknown>;
+    delete quantities['lines'];
+    mockJson(body);
+    await expectContractFailure(
+      getMeasurementWorkbench('so-1'),
+      'MEASUREMENT_WORKBENCH_COLLECTION_INVALID',
+    );
   });
 
-  it('workbench preserva autoridade SERVER na frescura', async () => {
-    mockJson({ items: [] });
-
-    const workbench = await getMeasurementWorkbench('so-1');
-
-    expect(workbench.freshness.authority).toBe('SERVER');
+  it('pai obrigatório ausente vira erro de contrato controlado', async () => {
+    const body = validWorkbench();
+    delete body['processContext'];
+    mockJson(body);
+    await expectContractFailure(
+      getMeasurementWorkbench('so-1'),
+      'MEASUREMENT_WORKBENCH_COLLECTION_INVALID',
+    );
   });
 
-  /**
-   * ─────────────────────────────────────────────────────────────────────────────
-   * AS COLEÇÕES ANINHADAS DERRUBARAM PRODUÇÃO DEPOIS DA CORREÇÃO ANTERIOR
-   * ─────────────────────────────────────────────────────────────────────────────
-   *
-   * Defeito medido (release 40248272786, main 6aea8a2d), DEPOIS que a unidade
-   * passou a ser resolvida e a estação efetivamente carregou a fila:
-   *
-   *   url=/app/measurement?unitId=UN-PROD-001
-   *   TypeError: Cannot read properties of undefined (reading 'map')
-   *
-   * A normalização anterior cobria só as coleções de TOPO. A tela percorre também
-   * `basis.lines`, `acceptance.history`, `decision.dimensions`,
-   * `decision.blockingReasons`, `command.reasonLabels` e `processContext.milestones`.
-   *
-   * Estas dependem do objeto-PAI existir: se o backend omitir `decision` inteiro,
-   * `decision.dimensions` lança ANTES de qualquer `?? []`. Por isso o pai também
-   * precisa existir — normalizar só o array não basta.
-   */
-  it('coleções aninhadas não quebram o render quando o pai está ausente', async () => {
-    mockJson({ identity: { serviceOrderId: 'so-1' } });
-
-    const workbench = await getMeasurementWorkbench('so-1');
-
-    // Cada uma destas é percorrida com `.map` pela tela.
-    expect(workbench.measurementBasis.lines).toEqual([]);
-    expect(workbench.acceptance.history).toEqual([]);
-    expect(workbench.billingEligibility.dimensions).toEqual([]);
-    expect(workbench.billingEligibility.blockingReasons).toEqual([]);
-    expect(workbench.processContext.milestones).toEqual([]);
-    expect(() => workbench.measurementBasis.lines.map((line) => line)).not.toThrow();
-    expect(() => workbench.billingEligibility.blockingReasons.map((r) => r)).not.toThrow();
+  it('workbench de outra OS é rejeitado', async () => {
+    mockJson(
+      validWorkbench({
+        identity: {
+          measurementId: null,
+          number: null,
+          serviceOrderId: 'so-outra',
+          orderNumber: 'OS-OUTRA',
+          rowVersion: null,
+        },
+      }),
+    );
+    await expectContractFailure(
+      getMeasurementWorkbench('so-1'),
+      'MEASUREMENT_WORKBENCH_SERVICE_ORDER_MISMATCH',
+    );
   });
 
-  it('reasonLabels de cada comando é sempre lista', async () => {
-    mockJson({ availableCommands: [{ code: 'APPROVE', enabled: false }] });
-
-    const workbench = await getMeasurementWorkbench('so-1');
-
-    const [command] = workbench.availableCommands;
-    expect(command?.reasonLabels).toEqual([]);
-    expect(() => (command?.reasonLabels ?? []).map((label) => label)).not.toThrow();
+  it('comando incompleto não chega ao React', async () => {
+    mockJson(
+      validWorkbench({
+        availableCommands: [
+          {
+            code: 'APPROVE',
+            label: 'Aprovar',
+            enabled: false,
+            blockingReasons: [],
+            nextAction: null,
+            requiredPermission: 'measurement:approve',
+          },
+        ],
+      }),
+    );
+    await expectContractFailure(
+      getMeasurementWorkbench('so-1'),
+      'MEASUREMENT_WORKBENCH_COLLECTION_INVALID',
+    );
   });
 
-  it('estrutura aninhada íntegra é preservada', async () => {
-    mockJson({
-      measurementBasis: { lines: [{ lineKey: 'DAY', unitCode: 'DAY' }] },
-      acceptance: { history: [{ id: 'a-1' }] },
-      billingEligibility: { dimensions: [{ code: 'D1' }], blockingReasons: [{ code: 'B1' }] },
-      processContext: { milestones: [{ stage: 'MEASURED' }] },
-      availableCommands: [{ code: 'APPROVE', reasonLabels: ['pendente'] }],
+  it('retorno do aceite precisa corresponder à mesma OS e medição', async () => {
+    mockJson(
+      validWorkbench({
+        identity: {
+          measurementId: 'm-1',
+          number: 'M-1',
+          serviceOrderId: 'so-1',
+          orderNumber: 'OS-1',
+          rowVersion: 2,
+        },
+      }),
+    );
+    const result = await recordCustomerAcceptance('so-1', 'm-1', {
+      expectedVersion: 1,
+      idempotencyKey: 'key-1',
+      result: 'ACCEPTED',
+      observation: 'Conforme.',
     });
-
-    const workbench = await getMeasurementWorkbench('so-1');
-
-    expect(workbench.measurementBasis.lines).toHaveLength(1);
-    expect(workbench.acceptance.history).toHaveLength(1);
-    expect(workbench.billingEligibility.dimensions).toHaveLength(1);
-    expect(workbench.billingEligibility.blockingReasons).toHaveLength(1);
-    expect(workbench.processContext.milestones).toHaveLength(1);
-    const [command] = workbench.availableCommands;
-    expect(command?.reasonLabels).toEqual(['pendente']);
+    expect(result.identity.measurementId).toBe('m-1');
   });
 
-  it('workbench íntegro não é alterado', async () => {
-    mockJson({
-      identity: { serviceOrderId: 'so-1', orderNumber: 'OS-1' },
-      items: [{ lineKey: 'DAY', unitCode: 'DAY' }],
-      availableCommands: [{ code: 'APPROVE', enabled: true }],
-      nextAction: { code: 'APPROVE', label: 'Aprovar' },
-      freshness: { readAt: '2026-01-01T00:00:00.000Z', authority: 'SERVER' },
-    });
-
-    const workbench = await getMeasurementWorkbench('so-1');
-
-    expect(workbench.items).toHaveLength(1);
-    expect(workbench.availableCommands).toHaveLength(1);
-    expect(workbench.nextAction?.code).toBe('APPROVE');
-    expect(workbench.freshness.readAt).toBe('2026-01-01T00:00:00.000Z');
+  it('revenue leakage não aceita contexto de outra unidade', async () => {
+    mockJson(validLeakage({ context: { unitId: 'UN-ERRADA', at: '2026-10-26T00:00:00.000Z' } }));
+    await expectContractFailure(
+      getRevenueLeakage('UN-PROD-001'),
+      'MEASUREMENT_REVENUE_LEAKAGE_UNIT_MISMATCH',
+    );
   });
 
-  /**
-   * FITNESS TEST DE CONTRATO — CAMINHO COMPLETO, NÃO NOME DE CAMPO.
-   *
-   * O teste anterior tratava measurementBasis.lines e quantities.lines como
-   * o mesmo campo 'lines'. O AST parte dos read models raiz e preserva o
-   * caminho, inclusive dentro de elementos de listas.
-   */
-  it('cobre por caminho completo TODAS as coleções do Workbench e Revenue Leakage', async () => {
+  it('fitness: todas as coleções têm caminho completo no runtime gate', async () => {
     const fs = await import('node:fs');
     const path = await import('node:path');
     const url = await import('node:url');
-
     const here = path.dirname(url.fileURLToPath(import.meta.url));
     const typesSource = fs.readFileSync(
       path.join(here, '..', 'types', 'measurement-workbench.types.ts'),
@@ -392,32 +419,5 @@ describe('getMeasurementWorkbench — read model degenerado não quebra a estaç
     expect(configuredPaths(REVENUE_LEAKAGE_COLLECTION_PATHS)).toEqual(
       collectArrayPaths(typesSource, 'RevenueLeakageReadModel'),
     );
-  });
-  it('normalização estrutural não inventa item nem escalar', async () => {
-    // Só `identity` — nenhuma coleção, nenhum escalar de negócio.
-    mockJson({ identity: { serviceOrderId: 'so-1' } });
-
-    const workbench = await getMeasurementWorkbench('so-1');
-
-    // Listas viram [] (ausência de itens), nunca um item falso.
-    expect(workbench.variances).toEqual([]);
-    expect(workbench.items).toEqual([]);
-    // Escalar ausente continua ausente: nada de 0/'false' inventado.
-    expect(workbench.identity.rowVersion ?? null).toBeNull();
-  });
-
-  it('retorno do ACEITE também é normalizado — o comando entrega o read model', async () => {
-    mockJson({ identity: { serviceOrderId: 'so-1' } });
-
-    const workbench = await recordCustomerAcceptance('so-1', 'm-1', {
-      expectedVersion: 1,
-      idempotencyKey: 'k-1',
-      result: 'ACCEPTED',
-      observation: 'Recebido conforme contrato.',
-    });
-
-    expect(workbench.availableCommands).toEqual([]);
-    expect(workbench.items).toEqual([]);
-    expect(workbench.nextAction).toBeNull();
   });
 });

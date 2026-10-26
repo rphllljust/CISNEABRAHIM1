@@ -68,6 +68,12 @@ function toQueryState<T>(error: unknown): QueryState<T> {
     if (error.kind === 'not_found') {
       return { phase: 'not_found' };
     }
+    if (error.kind === 'contract') {
+      return {
+        phase: 'error',
+        message: 'Resposta incompatível com o contrato operacional da medição.',
+      };
+    }
     return { phase: 'error', message: error.code ?? 'Falha ao carregar a medição.' };
   }
   return { phase: 'error', message: 'Falha ao carregar a medição.' };
@@ -143,20 +149,28 @@ export function useMeasurementWorkbench(serviceOrderId: string) {
 
 /** FILA DE TRABALHO da unidade. */
 export function useMeasurementQueue(unitId: string, options: { limit?: number } = {}) {
-  const [state, setState] = useState<QueryState<MeasurementWorkQueueReadModel>>({
-    phase: 'loading',
-  });
+  const [state, setState] = useState<QueryState<MeasurementWorkQueueReadModel>>(() =>
+    unitId.trim().length > 0 ? { phase: 'loading' } : { phase: 'idle' },
+  );
   const [refreshing, setRefreshing] = useState(false);
   const requestSeq = useRef(0);
 
   const load = useCallback(
     async (mode: 'initial' | 'refresh') => {
+      const targetUnitId = unitId.trim();
       const seq = ++requestSeq.current;
-      if (mode === 'refresh') {
+      if (targetUnitId.length === 0) {
+        setRefreshing(false);
+        setState({ phase: 'idle' });
+        return;
+      }
+      if (mode === 'initial') {
+        setState({ phase: 'loading' });
+      } else {
         setRefreshing(true);
       }
       try {
-        const data = await getMeasurementWorkQueue(unitId, { limit: options.limit });
+        const data = await getMeasurementWorkQueue(targetUnitId, { limit: options.limit });
         if (seq === requestSeq.current) {
           setState({ phase: 'ready', data });
         }
@@ -186,18 +200,28 @@ export function useMeasurementQueue(unitId: string, options: { limit?: number } 
 
 /** LACUNA DE RECEITA por estágio. */
 export function useRevenueLeakage(unitId: string, options: { limit?: number } = {}) {
-  const [state, setState] = useState<QueryState<RevenueLeakageReadModel>>({ phase: 'loading' });
+  const [state, setState] = useState<QueryState<RevenueLeakageReadModel>>(() =>
+    unitId.trim().length > 0 ? { phase: 'loading' } : { phase: 'idle' },
+  );
   const [refreshing, setRefreshing] = useState(false);
   const requestSeq = useRef(0);
 
   const load = useCallback(
     async (mode: 'initial' | 'refresh') => {
+      const targetUnitId = unitId.trim();
       const seq = ++requestSeq.current;
-      if (mode === 'refresh') {
+      if (targetUnitId.length === 0) {
+        setRefreshing(false);
+        setState({ phase: 'idle' });
+        return;
+      }
+      if (mode === 'initial') {
+        setState({ phase: 'loading' });
+      } else {
         setRefreshing(true);
       }
       try {
-        const data = await getRevenueLeakage(unitId, { limit: options.limit });
+        const data = await getRevenueLeakage(targetUnitId, { limit: options.limit });
         if (seq === requestSeq.current) {
           setState({ phase: 'ready', data });
         }
