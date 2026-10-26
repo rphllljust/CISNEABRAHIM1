@@ -226,8 +226,10 @@ jobs:
   #   cleanup falhou                -> exit 1
   #
   # Nenhum `continue-on-error`, nenhum `|| true`, nenhum retry, nenhum timeout inflado.
-  integration-executor:
-    name: Integration
+  integration-suite:
+    name: Integration suite
+    needs: detect-change-scope
+    if: needs.detect-change-scope.outputs.integration_required == 'true'
     # ─────────────────────────────────────────────────────────────────────────────────────────
     # EXECUTION PLANE = GITHUB-HOSTED (decisao explicita, nao fallback)
     # ─────────────────────────────────────────────────────────────────────────────────────────
@@ -426,6 +428,52 @@ jobs:
       # job termina, inclusive em falha ou cancelamento. Um teardown manual aqui seria redundante
       # e, pior, daria a impressao de que o ciclo de vida do banco esta sob nosso controle.
 
+  integration-executor:
+    name: Integration
+    needs:
+      - detect-change-scope
+      - integration-suite
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Prove Integration execution or justified N/A
+        env:
+          CLASSIFIER: ${{ needs.detect-change-scope.result }}
+          REQUIRED: ${{ needs.detect-change-scope.outputs.integration_required }}
+          SUITE: ${{ needs.integration-suite.result }}
+        run: |
+          set -euo pipefail
+          echo "change-scope       : $CLASSIFIER"
+          echo "integration-required: $REQUIRED"
+          echo "integration-suite   : $SUITE"
+
+          if [ "$CLASSIFIER" != "success" ]; then
+            echo "::error::change-scope classifier concluded '$CLASSIFIER'"
+            exit 1
+          fi
+
+          case "$REQUIRED" in
+            true)
+              if [ "$SUITE" != "success" ]; then
+                echo "::error::Integration required but suite concluded '$SUITE'"
+                exit 1
+              fi
+              echo "Integration gate: suite executed and passed."
+              ;;
+            false)
+              if [ "$SUITE" != "skipped" ]; then
+                echo "::error::Integration N/A expected suite=skipped, got '$SUITE'"
+                exit 1
+              fi
+              echo "Integration gate: N/A justified by scripts/cd-only impact proof."
+              ;;
+            *)
+              echo "::error::Integration requirement is unknown ('$REQUIRED') — fail closed."
+              exit 1
+              ;;
+          esac
+
   api-e2e:
     name: API E2E
     runs-on: ubuntu-latest
@@ -578,12 +626,15 @@ jobs:
     # errado como "com risco" apenas custa tempo.
     outputs:
       visual_risk: ${{ steps.scope.outputs.visual_risk }}
+      integration_required: ${{ steps.scope.outputs.integration_required }}
       changed_files: ${{ steps.scope.outputs.changed_files }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      - name: Test change-scope classifier
+        run: node --test scripts/ci/change-scope.test.mjs
       - id: scope
         name: Classify changed paths
         env:
@@ -617,9 +668,8 @@ jobs:
 
           range="$(determine_range)"
           if [ "$range" = "__UNKNOWN__" ]; then
-            echo "Nao foi possivel determinar o diff (evento=$EVENT_NAME). Tratando como risco visual."
-            echo "visual_risk=true" >> "$GITHUB_OUTPUT"
-            echo "changed_files=unknown" >> "$GITHUB_OUTPUT"
+            echo "Nao foi possivel determinar o diff (evento=$EVENT_NAME). Fail-closed: visual e Integration obrigatorios."
+            node scripts/ci/change-scope.mjs --unknown >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -628,15 +678,297 @@ jobs:
           echo "Arquivos alterados: $count"
           printf '%s\n' "$files" | head -50
 
-          # Superficie visual = tudo que pode mudar pixel renderizado.
-          visual='^(apps/web/src/|apps/web/e2e/visual/|apps/web/index\.html|apps/web/vite\.config\.ts|apps/web/tailwind\.config|packages/ui/|packages/design-|.*\.css$)'
+          scope_outputs="$(printf '%s\n' "$files" | node scripts/ci/change-scope.mjs)"
+          printf '%s\n' "$scope_outputs" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$scope_outputs"
 
-          if printf '%s\n' "$files" | grep -Eq "$visual"; then
-            echo "visual_risk=true" >> "$GITHUB_OUTPUT"
-            echo "Superficie visual tocada -> visual-full OBRIGATORIO."
+          if printf '%s\n' "$scope_outputs" | grep -q '^integration_required=false
+          echo "changed_files=$count" >> "$GITHUB_OUTPUT"
+
+  visual-critical:
+    name: Visual critical
+    runs-on: ubuntu-latest
+    # GATE OBRIGATORIO E CURTO — entra no `release-ready`.
+    #
+    # PROBLEMA MEDIDO: a suite visual completa (24 specs x 3 viewports = ate 72 comparacoes)
+    # levou 15m47s e virou o caminho critico depois que o build caiu para ~56s. Um ajuste de
+    # densidade numa tela de Contabilidade bloqueava a promocao de uma correcao de backend por
+    # 16 minutos.
+    #
+    # O QUE ESTE JOB COBRE (definido por RISCO OPERACIONAL, nao por "metade da suite"):
+    #
+    #   login     — porta de entrada. Se quebrar, ninguem entra no produto.
+    #   dashboard — Central de Operacoes, primeira dobra. Se quebrar, o operador nao ve o
+    #               trabalho que precisa fazer.
+    #
+    # Sao as duas superficies cujo defeito visual IMPEDE operacao. As demais (fiscal,
+    # contabilidade, compras, proposta, inventario) quebram MODULOS — grave, mas nao impedem o
+    # produto de abrir, e continuam cobertas pelo `visual-full`.
+    #
+    # VIEWPORT: apenas `desktop`. O critical responde "a tela ainda existe na estrutura
+    # esperada?". Responsividade em 390px e pergunta legitima do `visual-full`.
+    #
+    # CREDIBILIDADE: `maxDiffPixelRatio: 0.01`, o MESMO da suite completa. Um critical mais
+    # permissivo seria teatro.
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+      # MEDIDO: `playwright install chromium --with-deps` levou 622s e era 91% do job
+      # (a suite em si leva 40s). O custo e quase todo download do browser + apt de
+      # dependencias do sistema. O cache abaixo guarda APENAS o browser, com chave pela
+      # versao pinada do Playwright -- nao ha estado de teste nem snapshot cacheado.
+      # Cache miss cai no install normal (fail-open para o caminho lento, nunca para um
+      # falso verde).
+      #
+      # GANHO MEDIDO com este cache (runs 39859726524 e 39860828242):
+      #   Install Playwright Chromium  622s -> 22-30s
+      #   Visual critical (job)        684s -> 70-93s
+      #   suite em si                   40s -> 27-42s (cobertura intacta)
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+      - name: Install Playwright Chromium (visual critical)
+        # Com o browser em cache, `--with-deps` (apt) ainda custaria centenas de segundos
+        # por reinstalar bibliotecas do sistema. Ele so roda no cache miss; no hit, o
+        # browser ja esta completo em ~/.cache/ms-playwright.
+        run: |
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
+            echo "browser em cache — pulando download/apt"
+            pnpm --filter @cisne/web exec playwright install chromium
           else
-            echo "visual_risk=false" >> "$GITHUB_OUTPUT"
-            echo "Nenhuma superficie visual tocada -> visual-full roda em modo informativo."
+            pnpm --filter @cisne/web exec playwright install chromium --with-deps
+          fi
+      - name: Visual critical suite
+        run: |
+          mkdir -p artifacts/ci
+          pnpm --filter @cisne/web test:visual:critical 2>&1 | tee artifacts/ci/web-visual-critical.log
+        env:
+          CI: 'true'
+          VITE_CISNE_SURFACE: 'dev'
+      - name: Upload visual critical diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-visual-critical-diagnostics-${{ github.run_id }}
+          if-no-files-found: ignore
+          retention-days: 3
+          path: |
+            apps/web/test-results
+            apps/web/playwright-report
+            artifacts/ci/web-visual-critical.log
+
+  visual-full:
+    name: Visual full
+    runs-on: ubuntu-latest
+    # ─────────────────────────────────────────────────────────────────────────────────────────
+    # RETIRADO DO CAMINHO CRITICO DO CD — SEM REDUZIR UM PIXEL DE COBERTURA
+    # ─────────────────────────────────────────────────────────────────────────────────────────
+    #
+    # MEDIDO: a suite completa (24 specs x 3 viewports = ate 72 comparacoes) levou 10m31s no run
+    # 39719203623 (passo `Web visual regression (full suite)`, 03:53:14Z -> 04:03:36Z). Ela NAO
+    # estava no `needs` do `release-ready`, mas rodava DENTRO do workflow `CI` em todo `push` —
+    # e o CD dispara em `workflow_run: [CI] types: [completed]`. Consequencia: o evento que
+    # autoriza a promocao so chegava depois que o visual completo terminasse. Um fix de backend
+    # esperava ~10 min por snapshots de telas que nao tinham como ter mudado.
+    #
+    # AGORA: a suite completa vive em `visual-full.yml`, com gatilhos proprios (nightly,
+    # manual, e obrigatoria em PR cujo diff toca superficie visual). Este workflow `CI` deixa de
+    # emitir `Visual full` e, portanto, deixa de atrasar o `completed` que libera o CD.
+    #
+    # O QUE NAO MUDA
+    #
+    #   - NENHUM snapshot removido; NENHUM limiar afrouxado (`maxDiffPixelRatio` intacto);
+    #   - `Visual critical` PERMANECE no `release-ready` (ver `release-ready.needs` abaixo);
+    #   - a regressao visual continua bloqueando release: `visual-critical` no caminho critico,
+    #     `visual-full` bloqueante em PR com risco visual e no nightly.
+    #
+    # Este job e mantido APENAS para `pull_request` com risco visual, onde bloquear e correto e o
+    # `completed` do CI nao autoriza promocao alguma (PR nao promove). Em `push` para `main` —
+    # o evento que dispara o CD — o visual completo NAO roda aqui: ele roda no `visual-full.yml`.
+    needs: detect-change-scope
+    if: >-
+      always() &&
+      github.event_name == 'pull_request' &&
+      needs.detect-change-scope.outputs.visual_risk == 'true'
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+      - name: Build
+        run: pnpm build
+      # Mesmo cache de browser do `visual-critical`: o custo dominante e download +
+      # apt, nao a suite. Chave pela versao do lockfile; miss cai no install completo.
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+      - name: Install Playwright Chromium (web visual regression)
+        run: |
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
+            echo "browser em cache — pulando download/apt"
+            pnpm --filter @cisne/web exec playwright install chromium
+          else
+            pnpm --filter @cisne/web exec playwright install chromium --with-deps
+          fi
+      - name: Web visual regression (full suite)
+        id: web-visual
+        continue-on-error: true
+        run: |
+          mkdir -p artifacts/ci
+          pnpm --filter @cisne/web test:visual 2>&1 | tee artifacts/ci/web-visual.log
+        env:
+          CI: 'true'
+          VITE_CISNE_SURFACE: 'dev'
+      - name: Upload visual regression diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-visual-diagnostics-${{ github.run_id }}
+          if-no-files-found: ignore
+          retention-days: 3
+          path: |
+            apps/web/test-results
+            apps/web/playwright-report
+            artifacts/ci/web-visual.log
+      - name: Visual regression debt ratchet
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          VISUAL_OUTCOME: ${{ steps.web-visual.outcome }}
+        run: node scripts/ci/visual-regression-ratchet.mjs artifacts/ci/web-visual.log
+
+  release-ready:
+    name: Release ready
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # AGREGADOR OBRIGATORIO — o UNICO contrato que o CD consome.
+    #
+    # O CD dispara em `workflow_run: [CI] types: [completed]` e aceita qualquer conclusao
+    # `success`. Sem um agregador, "a CI passou" pode significar "os jobs que rodaram passaram",
+    # e um job ausente nunca reprova. Este job transforma a topologia inteira em UM veredito:
+    # se qualquer gate required falhou, foi cancelado ou simplesmente nao rodou, aqui e `failure`.
+    #
+    # `if: always()` e deliberado: o job TEM de rodar mesmo quando um gate falha — e exatamente
+    # nesse caso que ele precisa reprovar. Um `release-ready` que nao roda quando algo falha
+    # seria um falso verde.
+    #
+    # ─────────────────────────────────────────────────────────────────────────────────────────
+    # FAIL-CLOSED — POR QUE `skipped` E `cancelled` REPROVAM
+    # ─────────────────────────────────────────────────────────────────────────────────────────
+    #
+    # O teste e `$result != "success"`, e NAO `$result == "failure"`. A diferenca e o ponto
+    # inteiro: um job `skipped` (condicao `if` nao satisfeita), `cancelled` (concurrency matou o
+    # run) ou com nome divergente devolve algo DIFERENTE de `success` — e todos reprovam.
+    #
+    # Um agregador escrito como `!= "failure"` transformaria job ausente em liberacao de release.
+    # Este e escrito para que a UNICA entrada que produz verde seja `success` explicito.
+    #
+    # ─────────────────────────────────────────────────────────────────────────────────────────
+    # GATES AGREGADOS — SO O QUE PROMOVE
+    # ─────────────────────────────────────────────────────────────────────────────────────────
+    #
+    #   unit-tests           : nome ESTAVEL que agrega o matrix de shards unitarios. Uma matrix
+    #                          gera um check por shard; agregar pelo nome estavel impede que um
+    #                          shard ausente passe despercebido.
+    #   integration-executor : gate ESTAVEL. Exige suite verde quando o impacto requer Integration
+    #                          ou prova N/A fail-closed quando o delta e exclusivamente scripts/cd/**.
+    #                                    Uma matrix gera checks por shard; agregar pelo nome
+    #                                    estavel impede que um shard ausente passe despercebido.
+    #   database-migration-gate        : journal/cobertura de migrations (gate barato, uma vez).
+    #   visual-critical                : UNICO visual no caminho de release (login + dashboard).
+    #
+    # FORA DO `needs`, E POR QUE ISSO NAO ENFRAQUECE NADA
+    #
+    #   detect-change-scope : classificador de risco, nao gate. Seu resultado entra em
+    #                         `visual-full`, nao na decisao de promocao.
+    #   visual-full         : permanece bloqueante em PR com risco visual. Em `push` para `main`
+    #                         ele sai deste workflow (que e o que dispara o CD) e passa a viver em
+    #                         `visual-full.yml` (nightly + manual) — sem perder cobertura: os
+    #                         mesmos specs, os mesmos viewports, os mesmos limiares. A divisao e
+    #                         por RISCO DE PROMOCAO, nao por conveniencia: `visual-critical` cobre
+    #                         as telas cujo defeito IMPEDE operar; as demais continuam cobertas,
+    #                         apenas em cadencia propria.
+    needs:
+      - static-quality
+      - unit-tests
+      - database-migration-gate
+      - integration-executor
+      - api-e2e
+      - build-release
+      - visual-critical
+    if: always()
+    steps:
+      - name: Require every required gate to pass
+        env:
+          STATIC: ${{ needs.static-quality.result }}
+          UNIT: ${{ needs.unit-tests.result }}
+          MIGRATIONS: ${{ needs.database-migration-gate.result }}
+          INTEGRATION: ${{ needs.integration-executor.result }}
+          E2E: ${{ needs.api-e2e.result }}
+          BUILD: ${{ needs.build-release.result }}
+          VISUAL_CRITICAL: ${{ needs.visual-critical.result }}
+        run: |
+          echo "static-quality            : $STATIC"
+          echo "unit-tests                : $UNIT"
+          echo "database-migration-gate   : $MIGRATIONS"
+          echo "integration-executor      : $INTEGRATION"
+          echo "api-e2e                   : $E2E"
+          echo "build-release             : $BUILD"
+          echo "visual-critical           : $VISUAL_CRITICAL"
+          failed=0
+          for pair in \
+            "static-quality:$STATIC" \
+            "unit-tests:$UNIT" \
+            "database-migration-gate:$MIGRATIONS" \
+            "integration-executor:$INTEGRATION" \
+            "api-e2e:$E2E" \
+            "build-release:$BUILD" \
+            "visual-critical:$VISUAL_CRITICAL"
+          do
+            name="${pair%%:*}"
+            result="${pair##*:}"
+            # FAIL-CLOSED: apenas `success` produz verde. `skipped`, `cancelled`, vazio e
+            # `failure` reprovam todos.
+            if [ "$result" != "success" ]; then
+              echo "::error::required gate '$name' concluded '$result' — release is NOT ready"
+              failed=1
+            fi
+          done
+          if [ "$failed" -ne 0 ]; then
+            exit 1
+          fi
+          echo "release-ready: every required gate succeeded"
+; then
+            echo "Integration N/A com prova de impacto: delta restrito a scripts/cd/**."
+          else
+            echo "Integration obrigatorio: delta toca caminho fora da allow-list N/A."
           fi
           echo "changed_files=$count" >> "$GITHUB_OUTPUT"
 
