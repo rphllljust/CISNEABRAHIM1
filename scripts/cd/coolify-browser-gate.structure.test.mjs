@@ -180,6 +180,40 @@ describe('o gate executa — código útil não pode estar comentado', () => {
     assert.match(code, /measurement\?unitId=\$\{encodeURIComponent\(resolvedUnitId\)\}/);
   });
 
+  it('medição espera sessão e fila por estrutura, nunca por vocabulário', () => {
+    const code = executableSource(readGate());
+    const measurementIndex = code.indexOf('const measurementUrl =');
+    const queuePromiseIndex = code.indexOf('const measurementQueueResponsePromise =', measurementIndex);
+    const gotoIndex = code.indexOf('await page.goto(measurementUrl', measurementIndex);
+    const shellWaitIndex = code.indexOf("locator('main#main-content')", measurementIndex);
+    const queueAwaitIndex = code.indexOf(
+      'const measurementQueueResponse = await measurementQueueResponsePromise;',
+      measurementIndex,
+    );
+    const textIndex = code.indexOf(
+      "const measurementText = await page.locator('body').innerText()",
+      measurementIndex,
+    );
+    const queueCountIndex = code.indexOf('const queueCount =', measurementIndex);
+
+    assert.ok(
+      [measurementIndex, queuePromiseIndex, gotoIndex, shellWaitIndex, queueAwaitIndex, textIndex, queueCountIndex]
+        .every((index) => index >= 0),
+      'trechos estruturais da medição ausentes',
+    );
+    assert.ok(queuePromiseIndex < gotoIndex, 'a espera da fila precisa ser armada antes da navegação');
+    assert.ok(gotoIndex < shellWaitIndex, 'o shell só pode ser esperado depois da navegação');
+    assert.ok(shellWaitIndex < textIndex, 'o corpo não pode ser lido antes do App Shell');
+    assert.ok(queueAwaitIndex < queueCountIndex, 'a fila não pode ser contada antes da resposta da API');
+
+    const measurementBootstrap = code.slice(measurementIndex, textIndex);
+    assert.doesNotMatch(
+      measurementBootstrap,
+      /innerText\.includes\(['"]Carregando['"]\)/,
+      'bootstrap da medição não pode depender de palavra/idioma para detectar sessão pronta',
+    );
+  });
+
   it('fila de medição usa seletor acessível real e bloqueia workbench órfão', () => {
     const code = executableSource(readGate());
     assert.match(code, /ul\[aria-label="Itens de trabalho da medição"\] button/);

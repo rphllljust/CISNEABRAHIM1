@@ -607,15 +607,52 @@ async function main() {
       ? `${webUrl}/app/measurement?unitId=${encodeURIComponent(resolvedUnitId)}`
       : `${webUrl}/app/measurement`;
     measurementWorkbenchRequests.length = 0;
+
+    /**
+     * ARMA A PROVA DA FILA ANTES DA NAVEGAÇÃO.
+     *
+     * O gate anterior esperava a PALAVRA "Carregando" sumir. Em produção o
+     * AuthProvider renderizou "Loading session…" e a condição ficou verdadeira
+     * imediatamente: o gate leu a tela antes de a sessão hidratar.
+     *
+     * Esperamos duas condições estruturais independentes:
+     *   1. o App Shell real (`main#main-content`) ficar visível;
+     *   2. a API responder a fila da unidade EXATA que estamos validando.
+     */
+    const measurementQueueResponsePromise =
+      typeof resolvedUnitId === 'string' && resolvedUnitId.length > 0
+        ? page
+            .waitForResponse(
+              (response) => {
+                const url = new URL(response.url());
+                return (
+                  url.pathname === '/api/v1/query/measurements/queue' &&
+                  url.searchParams.get('unitId') === resolvedUnitId
+                );
+              },
+              { timeout: 90_000 },
+            )
+            .catch(() => null)
+        : Promise.resolve(null);
+
     await page.goto(measurementUrl, {
       waitUntil: 'domcontentloaded',
       timeout: 60_000,
     });
+
     await page
-      .waitForFunction(() => !document.body.innerText.includes('Carregando'), undefined, {
-        timeout: 90_000,
-      })
+      .locator('main#main-content')
+      .waitFor({ state: 'visible', timeout: 90_000 })
       .catch(() => {});
+
+    const measurementQueueResponse = await measurementQueueResponsePromise;
+    const queueStatus = measurementQueueResponse?.status() ?? null;
+    record(
+      'MEDIÇÃO fila da unidade carregada',
+      queueStatus !== null && queueStatus >= 200 && queueStatus < 300,
+      queueStatus === null ? 'nenhuma resposta da fila observada' : `HTTP ${queueStatus}`,
+    );
+
     const measurementText = await page.locator('body').innerText().catch(() => '');
     /**
      * ───────────────────────────────────────────────────────────────────────────
