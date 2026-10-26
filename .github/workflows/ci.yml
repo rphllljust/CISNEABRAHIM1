@@ -89,8 +89,8 @@ jobs:
         run: pnpm audit:deps
       - name: SRC-002 business gate
         run: pnpm gate:src-002
-      - name: Immutable release focused tests
-        run: node --test scripts/cd/immutable-release.test.mjs scripts/cd/provider-cutover.test.mjs scripts/cd/coolify-deploy-payload.test.mjs scripts/cd/coolify-postdeploy-smoke.test.mjs scripts/ops/coolify-tls-audit.test.mjs scripts/ops/coolify-tls-harden.test.mjs
+      - name: CD / release / provenance contract tests
+        run: node --test scripts/cd/*.test.mjs scripts/ops/coolify-tls-audit.test.mjs scripts/ops/coolify-tls-harden.test.mjs
       # Impede que o artefato de producao volte a ser compilado com modulos CONSTRUIDOS
       # desligados. Falhou aqui = o operador receberia produto mutilado sem gate vermelho.
       # Roda no runner oficial do web (vitest), que resolve os imports de release-scope.
@@ -441,32 +441,48 @@ jobs:
         env:
           CLASSIFIER: ${{ needs.detect-change-scope.result }}
           REQUIRED: ${{ needs.detect-change-scope.outputs.integration_required }}
+          REASON: ${{ needs.detect-change-scope.outputs.integration_reason }}
+          CHANGED_PATHS: ${{ needs.detect-change-scope.outputs.changed_paths }}
+          CLASSIFIER_SHA: ${{ needs.detect-change-scope.outputs.classifier_sha }}
           SUITE: ${{ needs.integration-suite.result }}
         run: |
           set -euo pipefail
-          echo "change-scope       : $CLASSIFIER"
-          echo "integration-required: $REQUIRED"
-          echo "integration-suite   : $SUITE"
+          echo "change-scope=$CLASSIFIER"
+          echo "integration_required=$REQUIRED"
+          echo "integration_suite=$SUITE"
+          echo "reason=$REASON"
+          echo "changed_paths=$CHANGED_PATHS"
+          echo "classifier_sha=$CLASSIFIER_SHA"
 
           if [ "$CLASSIFIER" != "success" ]; then
             echo "::error::change-scope classifier concluded '$CLASSIFIER'"
             exit 1
           fi
+          if [ -z "$REASON" ] || [ -z "$CHANGED_PATHS" ] || [ -z "$CLASSIFIER_SHA" ]; then
+            echo "::error::impact evidence incomplete — refusing silent PASS"
+            exit 1
+          fi
 
           case "$REQUIRED" in
             true)
+              echo "mode=REAL_SUITE"
               if [ "$SUITE" != "success" ]; then
                 echo "::error::Integration required but suite concluded '$SUITE'"
                 exit 1
               fi
-              echo "Integration gate: suite executed and passed."
+              echo "Integration gate: REAL_SUITE passed."
               ;;
             false)
+              echo "mode=NOT_APPLICABLE"
+              if [ "$REASON" != "CD_ONLY_CHANGE" ]; then
+                echo "::error::Integration N/A without CD_ONLY_CHANGE reason ('$REASON')"
+                exit 1
+              fi
               if [ "$SUITE" != "skipped" ]; then
                 echo "::error::Integration N/A expected suite=skipped, got '$SUITE'"
                 exit 1
               fi
-              echo "Integration gate: N/A justified by scripts/cd-only impact proof."
+              echo "Integration gate: NOT_APPLICABLE reason=CD_ONLY_CHANGE."
               ;;
             *)
               echo "::error::Integration requirement is unknown ('$REQUIRED') — fail closed."
@@ -627,7 +643,10 @@ jobs:
     outputs:
       visual_risk: ${{ steps.scope.outputs.visual_risk }}
       integration_required: ${{ steps.scope.outputs.integration_required }}
+      integration_reason: ${{ steps.scope.outputs.integration_reason }}
       changed_files: ${{ steps.scope.outputs.changed_files }}
+      changed_paths: ${{ steps.scope.outputs.changed_paths }}
+      classifier_sha: ${{ steps.classifier_sha.outputs.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -635,6 +654,9 @@ jobs:
           fetch-depth: 0
       - name: Test change-scope classifier
         run: node --test scripts/ci/change-scope.test.mjs
+      - id: classifier_sha
+        name: Fingerprint change-scope classifier
+        run: echo "sha=$(git rev-parse HEAD:scripts/ci/change-scope.mjs)" >> "$GITHUB_OUTPUT"
       - id: scope
         name: Classify changed paths
         env:
