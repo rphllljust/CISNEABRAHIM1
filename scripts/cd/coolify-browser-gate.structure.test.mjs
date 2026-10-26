@@ -179,4 +179,12 @@ describe('o gate executa — código útil não pode estar comentado', () => {
     assert.match(code, /const resolvedUnitId = unitFromStrip \?\? unitIdFromSession;/);
     assert.match(code, /measurement\?unitId=\$\{encodeURIComponent\(resolvedUnitId\)\}/);
   });
+
+  it('fila de medição usa seletor acessível real e bloqueia workbench órfão', () => {
+    const code = executableSource(readGate());
+    assert.match(code, /ul\[aria-label="Itens de trabalho da medição"\] button/);
+    assert.doesNotMatch(code, /button\[data-service-order-id\]/);
+    assert.match(code, /measurementWorkbenchRequests\.length === 0/);
+    assert.match(code, /measurementWorkbenchRequests\.length > 0/);
+  });
 });

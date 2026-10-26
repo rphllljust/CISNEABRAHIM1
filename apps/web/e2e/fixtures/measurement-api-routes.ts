@@ -36,8 +36,6 @@ function hasBearerToken(route: Route): boolean {
   return route.request().headers().authorization?.startsWith('Bearer ') ?? false;
 }
 
-const MOCK_UNIT_ID = 'unit-1';
-
 /** Frescura declarada pelo SERVIDOR — o cliente nunca a inventa. */
 function freshness(): { readAt: string; authority: 'SERVER' } {
   return { readAt: new Date().toISOString(), authority: 'SERVER' };
@@ -49,9 +47,9 @@ function freshness(): { readAt: string; authority: 'SERVER' } {
  * As chaves de contagem são as que a tela lê para montar a faixa de resumo; omitir
  * uma faria a faixa renderizar `undefined` e o teste mediria um defeito do MOCK.
  */
-function emptyQueue(): unknown {
+function emptyQueue(unitId: string): unknown {
   return {
-    context: { unitId: MOCK_UNIT_ID, at: new Date().toISOString() },
+    context: { unitId, at: new Date().toISOString() },
     counts: {
       READY_NOT_PREPARED: 0,
       ACCEPTED_NOT_BILLABLE: 0,
@@ -65,18 +63,32 @@ function emptyQueue(): unknown {
 }
 
 /** LACUNA DE RECEITA — estágios sem ocorrência, todos com contagem zero. */
-function emptyRevenueLeakage(): unknown {
+function emptyRevenueLeakage(unitId: string): unknown {
+  const stage = (code: string, label: string) => ({
+    stage: code,
+    label,
+    count: 0,
+    amount: null,
+    unknownAmountCount: 0,
+    currencyCode: null,
+  });
+
   return {
-    context: { unitId: MOCK_UNIT_ID, at: new Date().toISOString() },
+    context: { unitId, at: new Date().toISOString() },
     stages: [
-      { stage: 'EXECUTED_NOT_MEASURED', label: 'Executado sem medir', count: 0, amount: null },
-      { stage: 'MEASURED_NOT_APPROVED', label: 'Medido sem aprovar', count: 0, amount: null },
-      { stage: 'APPROVED_NOT_ACCEPTED', label: 'Aprovado sem aceite', count: 0, amount: null },
-      { stage: 'ACCEPTED_NOT_BILLABLE', label: 'Aceito sem elegibilidade', count: 0, amount: null },
-      { stage: 'READY_NOT_PREPARED', label: 'Elegível sem preparar', count: 0, amount: null },
+      stage('EXECUTED_NOT_MEASURED', 'Executado sem medir'),
+      stage('MEASURED_NOT_APPROVED', 'Medido sem aprovar'),
+      stage('APPROVED_NOT_ACCEPTED', 'Aprovado sem aceite'),
+      stage('ACCEPTED_NOT_BILLABLE', 'Aceito sem elegibilidade'),
+      stage('READY_NOT_PREPARED', 'Elegível sem preparar'),
     ],
-    totalCount: 0,
-    totalAmount: null,
+    total: {
+      count: 0,
+      amount: null,
+      unknownAmountCount: 0,
+      currencyCode: null,
+    },
+    positions: [],
     freshness: freshness(),
   };
 }
@@ -97,11 +109,29 @@ export async function handleMeasurementApiRoute(route: Route): Promise<boolean> 
 
   if (method === 'GET') {
     if (pathname === '/api/v1/query/measurements/queue') {
-      await fulfillJson(route, emptyQueue());
+      const unitId = url.searchParams.get('unitId')?.trim() ?? '';
+      if (!unitId) {
+        await fulfillJson(
+          route,
+          { error: { code: 'MEASUREMENTS_VALIDATION_FAILED', message: 'unitId é obrigatório.' } },
+          400,
+        );
+        return true;
+      }
+      await fulfillJson(route, emptyQueue(unitId));
       return true;
     }
     if (pathname === '/api/v1/query/measurements/revenue-leakage') {
-      await fulfillJson(route, emptyRevenueLeakage());
+      const unitId = url.searchParams.get('unitId')?.trim() ?? '';
+      if (!unitId) {
+        await fulfillJson(
+          route,
+          { error: { code: 'MEASUREMENTS_VALIDATION_FAILED', message: 'unitId é obrigatório.' } },
+          400,
+        );
+        return true;
+      }
+      await fulfillJson(route, emptyRevenueLeakage(unitId));
       return true;
     }
   }

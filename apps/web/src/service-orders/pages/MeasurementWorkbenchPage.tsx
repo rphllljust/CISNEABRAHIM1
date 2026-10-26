@@ -263,7 +263,11 @@ export function MeasurementWorkbenchPage() {
         }
         active={
           <div>
-            {workbench.state.phase === 'loading' ? (
+            {workbench.state.phase === 'idle' ? (
+              <p className="text-xs text-gray-600">
+                Selecione uma ordem da fila para abrir a conferência de medição.
+              </p>
+            ) : workbench.state.phase === 'loading' ? (
               <p className="text-xs text-gray-500">Carregando medição…</p>
             ) : workbench.state.phase === 'denied' ? (
               <p className="text-xs text-gray-600">

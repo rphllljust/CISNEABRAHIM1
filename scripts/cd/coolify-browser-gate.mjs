@@ -153,6 +153,55 @@ export function extractOperationalUnit(worklistText) {
   return candidate;
 }
 
+
+const AUTHORITATIVE_ACCEPTANCE_STATES = new Set(['PENDING', 'ACCEPTED', 'REJECTED']);
+const AUTHORITATIVE_ACCEPTANCE_RESULTS = new Set(['ACCEPTED', 'REJECTED']);
+const AUTHORITATIVE_ELIGIBILITY_RESULTS = new Set(['READY', 'PENDING', 'BLOCKED']);
+
+function normalizedCode(value) {
+  return typeof value === 'string' ? value.trim().toUpperCase() : null;
+}
+
+export function hasOnlyCommercialMeasurementUnits(workbench) {
+  const units = [
+    ...(Array.isArray(workbench?.quantities?.lines)
+      ? workbench.quantities.lines.map((line) => line?.unitOfMeasure)
+      : []),
+    ...(Array.isArray(workbench?.measurementBasis?.lines)
+      ? workbench.measurementBasis.lines.map((line) => line?.unitCode)
+      : []),
+    ...(Array.isArray(workbench?.items)
+      ? workbench.items.map((item) => item?.unitCode)
+      : []),
+  ]
+    .map(normalizedCode)
+    .filter(Boolean);
+
+  return units.length > 0 && !units.some((unit) => unit === 'HOUR' || unit === 'KM');
+}
+
+export function evaluateMeasurementBusinessProof(workbench) {
+  const acceptanceState = normalizedCode(workbench?.acceptance?.state);
+  const acceptanceResult = normalizedCode(workbench?.acceptance?.latest?.result);
+  const eligibilityResult = normalizedCode(workbench?.billingEligibility?.result);
+
+  const acceptanceVerified =
+    AUTHORITATIVE_ACCEPTANCE_STATES.has(acceptanceState) ||
+    AUTHORITATIVE_ACCEPTANCE_RESULTS.has(acceptanceResult);
+  const eligibilityVerified = AUTHORITATIVE_ELIGIBILITY_RESULTS.has(eligibilityResult);
+  const commercialUnitVerified = hasOnlyCommercialMeasurementUnits(workbench);
+
+  return {
+    acceptanceState,
+    acceptanceResult,
+    eligibilityResult,
+    acceptanceVerified,
+    eligibilityVerified,
+    commercialUnitVerified,
+    verified: acceptanceVerified && eligibilityVerified && commercialUnitVerified,
+  };
+}
+
 /**
  * ─────────────────────────────────────────────────────────────────────────────
  * O VEREDITO É UMA FUNÇÃO PURA — E É TESTÁVEL COMO TAL
@@ -197,6 +246,7 @@ async function main() {
 
   const consoleErrors = [];
   const forbidden = [];
+  const measurementWorkbenchRequests = [];
   /** Status HTTP que a API devolveu ao login — evidência para o diagnostico. */
   const loginApiStatuses = [];
   /**
@@ -210,6 +260,12 @@ async function main() {
   let businessReason;
   page.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text());
+  });
+  page.on('request', (request) => {
+    const url = request.url();
+    if (/\/api\/v1\/query\/measurements\/[^/?]+\/workbench(?:\?|$)/.test(url)) {
+      measurementWorkbenchRequests.push(url);
+    }
   });
   page.on('response', (res) => {
     if (res.status() === 403) forbidden.push(`${res.status()} ${res.url()}`);
@@ -550,6 +606,7 @@ async function main() {
     const measurementUrl = resolvedUnitId
       ? `${webUrl}/app/measurement?unitId=${encodeURIComponent(resolvedUnitId)}`
       : `${webUrl}/app/measurement`;
+    measurementWorkbenchRequests.length = 0;
     await page.goto(measurementUrl, {
       waitUntil: 'domcontentloaded',
       timeout: 60_000,
@@ -631,46 +688,65 @@ async function main() {
      * NÃO inventa caso e NÃO declara a capability validada — emite
      * NOT_APPLICABLE com motivo, separado do veredito de runtime.
      */
-    const queueLinks = page.locator('a[href*="serviceOrderId="], button[data-service-order-id]');
-    const queueCount = await queueLinks.count().catch(() => 0);
+    const queueItems = page.locator(
+      'ul[aria-label="Itens de trabalho da medição"] button',
+    );
+    const queueCount = await queueItems.count().catch(() => 0);
 
     if (queueCount > 0) {
       // Entra pela FILA — o caminho do operador, não uma URL montada à mão.
-      await queueLinks.first().click();
+      const workbenchResponsePromise = page
+        .waitForResponse(
+          (response) =>
+            /\/api\/v1\/query\/measurements\/[^/?]+\/workbench(?:\?|$)/.test(response.url()),
+          { timeout: 90_000 },
+        )
+        .catch(() => null);
+      await queueItems.first().click();
+      const workbenchResponse = await workbenchResponsePromise;
       await page
         .waitForFunction(() => !document.body.innerText.includes('Carregando'), undefined, {
           timeout: 90_000,
         })
         .catch(() => {});
       const workbenchText = await page.locator('body').innerText().catch(() => '');
-
-      const eligibility = /Elegib|READY_TO_BILL|Pronto para faturar/i.test(workbenchText);
-      const acceptance = /Aceite|ACEITE|Aceita/i.test(workbenchText);
-      /**
-       * A UNIDADE COMERCIAL É A DO CONTRATO.
-       *
-       * Se a tela exibir `HOUR` ou `KM` como unidade de MEDIÇÃO, a fronteira
-       * comercial/física vazou: fato operacional virou quantidade faturável.
-       */
-      const commercialUnit =
-        !/\bHOUR\b/.test(workbenchText) || /\bDAY\b|\bTRIP\b|\bM3\b/.test(workbenchText);
-
       record(
-        'MEDIÇÃO expõe elegibilidade de faturamento',
-        eligibility,
-        `${workbenchText.length} chars`,
+        'MEDIÇÃO workbench carregado somente após seleção da fila',
+        measurementWorkbenchRequests.length > 0,
+        measurementWorkbenchRequests[0] ?? 'nenhum request /workbench observado',
       );
-      record('MEDIÇÃO expõe aceite do cliente', acceptance);
+
+      let workbenchPayload = null;
+      if (workbenchResponse && workbenchResponse.status() >= 200 && workbenchResponse.status() < 300) {
+        const contentType = workbenchResponse.headers()['content-type'] ?? '';
+        if (contentType.includes('application/json')) {
+          workbenchPayload = await workbenchResponse.json().catch(() => null);
+        }
+      }
+
+      const businessProof = evaluateMeasurementBusinessProof(workbenchPayload);
+      record(
+        'MEDIÇÃO publica resultado autoritativo de aceite',
+        businessProof.acceptanceVerified,
+        `state=${businessProof.acceptanceState ?? 'ausente'}, result=${businessProof.acceptanceResult ?? 'ausente'}`,
+      );
+      record(
+        'MEDIÇÃO publica resultado autoritativo de elegibilidade',
+        businessProof.eligibilityVerified,
+        `billingEligibility.result=${businessProof.eligibilityResult ?? 'ausente'}`,
+      );
       record(
         'MEDIÇÃO não mede em unidade física (HOUR/KM)',
-        commercialUnit,
-        'unidade comercial preservada',
+        businessProof.commercialUnitVerified,
+        businessProof.commercialUnitVerified
+          ? 'nenhuma unidade física proibida publicada'
+          : 'HOUR/KM publicado como unidade de medição',
       );
 
-      businessVerified = eligibility && acceptance && commercialUnit;
+      businessVerified = businessProof.verified;
       businessReason = businessVerified
-        ? 'aceite e elegibilidade observados em medição real'
-        : 'workbench aberto sem expor aceite/elegibilidade';
+        ? `aceite=${businessProof.acceptanceResult ?? businessProof.acceptanceState}; elegibilidade=${businessProof.eligibilityResult}; unidade comercial preservada`
+        : `prova semântica incompleta: aceite=${businessProof.acceptanceResult ?? businessProof.acceptanceState ?? 'ausente'}, elegibilidade=${businessProof.eligibilityResult ?? 'ausente'}, unidadeComercial=${businessProof.commercialUnitVerified}`;
       await page.screenshot({ path: `${OUT}/03-measurement-workbench.png`, fullPage: true });
     } else {
       /**
@@ -686,6 +762,11 @@ async function main() {
        * ENTREGA não é declarada validada.
        */
       businessReason = 'NOT_APPLICABLE — nenhuma medição na fila desta unidade';
+      record(
+        'MEDIÇÃO sem workbench órfão quando fila vazia',
+        measurementWorkbenchRequests.length === 0,
+        measurementWorkbenchRequests.slice(0, 2).join(' | ') || 'nenhum request /workbench',
+      );
       record('MEDIÇÃO expõe elegibilidade de faturamento', null, businessReason);
       record('MEDIÇÃO expõe aceite do cliente', null, businessReason);
       record('MEDIÇÃO não mede em unidade física (HOUR/KM)', null, businessReason);

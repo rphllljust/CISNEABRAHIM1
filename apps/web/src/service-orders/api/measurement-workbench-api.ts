@@ -51,6 +51,7 @@ export type MeasurementErrorKind =
   | 'invalid_state'
   | 'validation'
   | 'network'
+  | 'contract'
   | 'unknown';
 
 export class MeasurementApiError extends Error {
@@ -151,12 +152,12 @@ export async function getMeasurementWorkbench(
   serviceOrderId: string,
   signal?: AbortSignal,
 ): Promise<MeasurementWorkbenchReadModel> {
-  return normalizeWorkbench(
-    await requestJson<MeasurementWorkbenchReadModel>(
-      `/api/v1/query/measurements/${encodeURIComponent(serviceOrderId)}/workbench`,
-      { method: 'GET', headers: authHeaders(), signal },
-    ),
+  const targetServiceOrderId = requireRequestKey(serviceOrderId, 'MEASUREMENT_SERVICE_ORDER_REQUIRED');
+  const payload = await requestJson<MeasurementWorkbenchReadModel>(
+    `/api/v1/query/measurements/${encodeURIComponent(targetServiceOrderId)}/workbench`,
+    { method: 'GET', headers: authHeaders(), signal },
   );
+  return decodeWorkbench(payload, targetServiceOrderId);
 }
 
 /**
@@ -170,7 +171,8 @@ export async function getMeasurementWorkQueue(
   input: { limit?: number; at?: string } = {},
   signal?: AbortSignal,
 ): Promise<MeasurementWorkQueueReadModel> {
-  const params = new URLSearchParams({ unitId });
+  const targetUnitId = requireRequestKey(unitId, 'MEASUREMENT_UNIT_REQUIRED');
+  const params = new URLSearchParams({ unitId: targetUnitId });
   if (input.limit !== undefined) {
     params.set('limit', String(input.limit));
   }
@@ -181,7 +183,7 @@ export async function getMeasurementWorkQueue(
     `/api/v1/query/measurements/queue?${params.toString()}`,
     { method: 'GET', headers: authHeaders(), signal },
   );
-  return normalizeWorkQueue(payload);
+  return decodeWorkQueue(payload, targetUnitId);
 }
 
 /**
@@ -208,68 +210,426 @@ export async function getMeasurementWorkQueue(
  * a tela continua operável. O que NÃO se faz aqui é inventar item, contagem ou
  * qualquer valor de negócio — a normalização só garante a FORMA declarada.
  */
-function normalizeWorkQueue(
-  payload: MeasurementWorkQueueReadModel | null | undefined,
-): MeasurementWorkQueueReadModel {
-  return {
-    context: payload?.context ?? { unitId: '', at: new Date().toISOString() },
-    counts: payload?.counts ?? {},
-    items: Array.isArray(payload?.items) ? payload.items : [],
-    // `authority` continua `SERVER`: a forma é garantida aqui, a AFIRMAÇÃO de
-    // frescura continua sendo do servidor. Um clique do cliente nunca a produz.
-    freshness: payload?.freshness ?? { readAt: new Date().toISOString(), authority: 'SERVER' },
-  };
+function contractError(code: string): MeasurementApiError {
+  return new MeasurementApiError(0, code, 'contract');
 }
 
+function requireRequestKey(value: string, code: string): string {
+  const normalized = value.trim();
+  if (normalized.length === 0) {
+    throw contractError(code);
+  }
+  return normalized;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function requireRecord(value: unknown, code: string): Record<string, unknown> {
+  if (!isRecord(value)) {
+    throw contractError(code);
+  }
+  return value;
+}
+
+function requireString(value: unknown, code: string): string {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw contractError(code);
+  }
+  return value;
+}
+
+function requireNumber(value: unknown, code: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw contractError(code);
+  }
+  return value;
+}
+
+function requireNumberOrNull(value: unknown, code: string): number | null {
+  if (value === null) return null;
+  return requireNumber(value, code);
+}
+
+function requireBoolean(value: unknown, code: string): boolean {
+  if (typeof value !== 'boolean') {
+    throw contractError(code);
+  }
+  return value;
+}
+
+function requireStringValue(value: unknown, code: string): string {
+  if (typeof value !== 'string') {
+    throw contractError(code);
+  }
+  return value;
+}
+
+function requireStringOrNull(value: unknown, code: string): string | null {
+  if (value === null) return null;
+  return requireStringValue(value, code);
+}
+
+function requireStringArray(value: unknown, code: string): string[] {
+  if (!Array.isArray(value)) {
+    throw contractError(code);
+  }
+  const result: string[] = [];
+  for (const entry of value) {
+    if (typeof entry !== 'string') {
+      throw contractError(code);
+    }
+    result.push(entry);
+  }
+  return result;
+}
+
+function assertWorkbenchElementContracts(root: Record<string, unknown>): void {
+  for (const value of root['variances'] as unknown[]) {
+    const row = requireRecord(value, 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireStringValue(row['dimension'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireStringValue(row['dimensionKey'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireStringOrNull(row['plannedValue'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireStringOrNull(row['actualValue'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireStringOrNull(row['measuredValue'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireStringValue(row['absoluteDelta'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireNumberOrNull(row['percentageDelta'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireNumber(row['tolerancePercentage'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireStringValue(row['toleranceSource'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireStringValue(row['severity'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireStringOrNull(row['financialImpact'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireStringOrNull(row['currencyCode'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireBoolean(row['requiresDecision'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireStringValue(row['decisionKind'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireStringOrNull(row['blockingReason'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireStringOrNull(row['recommendedResolution'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireStringValue(row['explanation'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+  }
+
+  const quantities = requireRecord(root['quantities'], 'MEASUREMENT_WORKBENCH_QUANTITIES_INVALID');
+  for (const value of quantities['lines'] as unknown[]) {
+    const row = requireRecord(value, 'MEASUREMENT_WORKBENCH_QUANTITY_LINE_INVALID');
+    requireStringValue(row['dimensionKey'], 'MEASUREMENT_WORKBENCH_QUANTITY_LINE_INVALID');
+    requireStringValue(row['label'], 'MEASUREMENT_WORKBENCH_QUANTITY_LINE_INVALID');
+    requireStringValue(row['unitOfMeasure'], 'MEASUREMENT_WORKBENCH_QUANTITY_LINE_INVALID');
+    requireStringOrNull(row['planned'], 'MEASUREMENT_WORKBENCH_QUANTITY_LINE_INVALID');
+    requireStringOrNull(row['actual'], 'MEASUREMENT_WORKBENCH_QUANTITY_LINE_INVALID');
+    requireStringOrNull(row['measured'], 'MEASUREMENT_WORKBENCH_QUANTITY_LINE_INVALID');
+  }
+
+  for (const value of root['items'] as unknown[]) {
+    const row = requireRecord(value, 'MEASUREMENT_WORKBENCH_ITEM_INVALID');
+    requireStringValue(row['id'], 'MEASUREMENT_WORKBENCH_ITEM_INVALID');
+    requireNumber(row['lineNumber'], 'MEASUREMENT_WORKBENCH_ITEM_INVALID');
+    requireStringValue(row['unitCode'], 'MEASUREMENT_WORKBENCH_ITEM_INVALID');
+    requireStringValue(row['actualQuantity'], 'MEASUREMENT_WORKBENCH_ITEM_INVALID');
+    requireStringValue(row['measuredQuantity'], 'MEASUREMENT_WORKBENCH_ITEM_INVALID');
+    requireStringOrNull(row['unitPrice'], 'MEASUREMENT_WORKBENCH_ITEM_INVALID');
+    requireStringOrNull(row['lineAmount'], 'MEASUREMENT_WORKBENCH_ITEM_INVALID');
+    requireStringValue(row['origin'], 'MEASUREMENT_WORKBENCH_ITEM_INVALID');
+  }
+
+  const acceptance = requireRecord(root['acceptance'], 'MEASUREMENT_WORKBENCH_ACCEPTANCE_INVALID');
+  for (const value of acceptance['history'] as unknown[]) {
+    const row = requireRecord(value, 'MEASUREMENT_WORKBENCH_ACCEPTANCE_HISTORY_INVALID');
+    requireStringValue(row['id'], 'MEASUREMENT_WORKBENCH_ACCEPTANCE_HISTORY_INVALID');
+    requireNumber(row['cycleNumber'], 'MEASUREMENT_WORKBENCH_ACCEPTANCE_HISTORY_INVALID');
+    requireStringValue(row['result'], 'MEASUREMENT_WORKBENCH_ACCEPTANCE_HISTORY_INVALID');
+    requireStringOrNull(row['rejectionReason'], 'MEASUREMENT_WORKBENCH_ACCEPTANCE_HISTORY_INVALID');
+    requireStringValue(row['occurredAt'], 'MEASUREMENT_WORKBENCH_ACCEPTANCE_HISTORY_INVALID');
+  }
+
+  const eligibility = requireRecord(
+    root['billingEligibility'],
+    'MEASUREMENT_WORKBENCH_ELIGIBILITY_INVALID',
+  );
+  for (const value of eligibility['dimensions'] as unknown[]) {
+    const row = requireRecord(value, 'MEASUREMENT_WORKBENCH_ELIGIBILITY_DIMENSION_INVALID');
+    requireStringValue(row['dimension'], 'MEASUREMENT_WORKBENCH_ELIGIBILITY_DIMENSION_INVALID');
+    requireStringValue(row['label'], 'MEASUREMENT_WORKBENCH_ELIGIBILITY_DIMENSION_INVALID');
+    requireStringValue(row['status'], 'MEASUREMENT_WORKBENCH_ELIGIBILITY_DIMENSION_INVALID');
+    requireStringValue(row['statusLabel'], 'MEASUREMENT_WORKBENCH_ELIGIBILITY_DIMENSION_INVALID');
+    requireStringOrNull(row['reasonCode'], 'MEASUREMENT_WORKBENCH_ELIGIBILITY_DIMENSION_INVALID');
+    requireStringValue(row['detail'], 'MEASUREMENT_WORKBENCH_ELIGIBILITY_DIMENSION_INVALID');
+    requireStringOrNull(row['nextActionCode'], 'MEASUREMENT_WORKBENCH_ELIGIBILITY_DIMENSION_INVALID');
+    requireStringOrNull(row['nextActionLabel'], 'MEASUREMENT_WORKBENCH_ELIGIBILITY_DIMENSION_INVALID');
+    requireBoolean(row['blocking'], 'MEASUREMENT_WORKBENCH_ELIGIBILITY_DIMENSION_INVALID');
+  }
+
+  const processContext = requireRecord(
+    root['processContext'],
+    'MEASUREMENT_WORKBENCH_PROCESS_CONTEXT_INVALID',
+  );
+  for (const value of processContext['milestones'] as unknown[]) {
+    const row = requireRecord(value, 'MEASUREMENT_WORKBENCH_MILESTONE_INVALID');
+    requireStringValue(row['stage'], 'MEASUREMENT_WORKBENCH_MILESTONE_INVALID');
+    requireStringValue(row['label'], 'MEASUREMENT_WORKBENCH_MILESTONE_INVALID');
+    requireStringValue(row['state'], 'MEASUREMENT_WORKBENCH_MILESTONE_INVALID');
+    requireStringOrNull(row['reachedAt'], 'MEASUREMENT_WORKBENCH_MILESTONE_INVALID');
+  }
+
+  for (const value of root['availableCommands'] as unknown[]) {
+    const row = requireRecord(value, 'MEASUREMENT_WORKBENCH_COMMAND_INVALID');
+    requireStringValue(row['code'], 'MEASUREMENT_WORKBENCH_COMMAND_INVALID');
+    requireStringValue(row['label'], 'MEASUREMENT_WORKBENCH_COMMAND_INVALID');
+    requireBoolean(row['enabled'], 'MEASUREMENT_WORKBENCH_COMMAND_INVALID');
+    requireStringArray(row['blockingReasons'], 'MEASUREMENT_WORKBENCH_COMMAND_INVALID');
+    requireStringArray(row['reasonLabels'], 'MEASUREMENT_WORKBENCH_COMMAND_INVALID');
+    requireStringOrNull(row['nextAction'], 'MEASUREMENT_WORKBENCH_COMMAND_INVALID');
+    requireStringValue(row['requiredPermission'], 'MEASUREMENT_WORKBENCH_COMMAND_INVALID');
+  }
+}
+
+function assertServerFreshness(value: unknown, code: string): void {
+  const freshness = requireRecord(value, code);
+  requireString(freshness['readAt'], code);
+  if (freshness['authority'] !== 'SERVER') {
+    throw contractError(code);
+  }
+}
+
+export const WORKBENCH_COLLECTION_PATHS = [
+  ['variances'],
+  ['adjustments'],
+  ['items'],
+  ['evidence'],
+  ['situations'],
+  ['relationships'],
+  ['documentFlow'],
+  ['timeline'],
+  ['availableCommands'],
+  ['processContext', 'completedMilestones'],
+  ['processContext', 'pendingMilestones'],
+  ['processContext', 'milestones'],
+  ['measurementBasis', 'lines'],
+  ['quantities', 'lines'],
+  ['acceptance', 'history'],
+  ['billingEligibility', 'dimensions'],
+  ['billingEligibility', 'blockingReasons'],
+  ['availableCommands[]', 'blockingReasons'],
+  ['availableCommands[]', 'reasonLabels'],
+] as const;
+
+export const REVENUE_LEAKAGE_COLLECTION_PATHS = [
+  ['stages'],
+  ['positions'],
+] as const;
+
+type CollectionPath = readonly string[];
+
 /**
- * ─────────────────────────────────────────────────────────────────────────────
- * O WORKBENCH TAMBÉM É NORMALIZADO — MESMA RAZÃO, SUPERFÍCIE MAIOR
- * ─────────────────────────────────────────────────────────────────────────────
+ * Prova que TODA coleção declarada pelo contrato realmente chegou como array.
  *
- * `MeasurementDecisionContext` percorre treze coleções com `.map` (linhas da base,
- * histórico de aceite, dimensões da elegibilidade, motivos de bloqueio, comandos,
- * situações, marcos, passos, eventos, ajustes). Todas são `readonly T[]` no tipo.
- *
- * O defeito que derrubou produção não escolhe superfície: qualquer resposta sem a
- * chave correspondente quebrava o render inteiro. Normalizar só a FILA deixaria a
- * estação de trabalho — a tela principal da capability — exposta ao mesmo erro.
- *
- * A garantia é de FORMA, e só dela:
- *
- *   - coleção ausente ou não-lista → `[]`;
- *   - `nextAction` é `null` quando ausente: "sem próxima ação" é um estado real
- *     do domínio, não um objeto vazio inventado;
- *   - escalares ausentes → `null`, nunca `0`, `''` ou `false`. Um zero inventado
- *     numa quantidade viraria valor de negócio afirmado pelo cliente.
- *   - `freshness` preserva `authority: 'SERVER'`.
+ * Ausência NÃO vira []: numa superfície autoritativa isso esconderia perda de
+ * dados como "nenhum item". O boundary falha fechado e a UI entra em estado de
+ * erro controlado, preservando a verdade operacional.
  */
-function normalizeWorkbench(
+function assertCollections(
+  input: unknown,
+  paths: ReadonlyArray<CollectionPath>,
+  code: string,
+): Record<string, unknown> {
+  const root = requireRecord(input, code);
+
+  const visit = (
+    holder: Record<string, unknown>,
+    path: readonly string[],
+  ): void => {
+    const [head, ...rest] = path as [string, ...string[]];
+
+    if (head.endsWith('[]')) {
+      const key = head.slice(0, -2);
+      const list = holder[key];
+      if (!Array.isArray(list)) {
+        throw contractError(code);
+      }
+      for (const element of list) {
+        visit(requireRecord(element, code), rest);
+      }
+      return;
+    }
+
+    if (rest.length === 0) {
+      if (!Array.isArray(holder[head])) {
+        throw contractError(code);
+      }
+      return;
+    }
+
+    visit(requireRecord(holder[head], code), rest);
+  };
+
+  for (const path of paths) {
+    visit(root, path);
+  }
+  return root;
+}
+
+function decodeWorkQueue(
+  payload: MeasurementWorkQueueReadModel | null | undefined,
+  expectedUnitId: string,
+): MeasurementWorkQueueReadModel {
+  const root = assertCollections(payload, [['items']], 'MEASUREMENT_QUEUE_CONTRACT_INVALID');
+  const context = requireRecord(root['context'], 'MEASUREMENT_QUEUE_CONTEXT_INVALID');
+  const counts = requireRecord(root['counts'], 'MEASUREMENT_QUEUE_COUNTS_INVALID');
+  void counts;
+  assertServerFreshness(root['freshness'], 'MEASUREMENT_QUEUE_FRESHNESS_INVALID');
+
+  const actualUnitId = requireString(context['unitId'], 'MEASUREMENT_QUEUE_UNIT_INVALID');
+  if (actualUnitId !== expectedUnitId) {
+    throw contractError('MEASUREMENT_QUEUE_UNIT_MISMATCH');
+  }
+
+  for (const item of root['items'] as unknown[]) {
+    const row = requireRecord(item, 'MEASUREMENT_QUEUE_ITEM_INVALID');
+    requireString(row['serviceOrderId'], 'MEASUREMENT_QUEUE_ITEM_INVALID');
+    requireString(row['orderNumber'], 'MEASUREMENT_QUEUE_ITEM_INVALID');
+    requireRecord(row['nextAction'], 'MEASUREMENT_QUEUE_ITEM_INVALID');
+  }
+
+  return root as unknown as MeasurementWorkQueueReadModel;
+}
+
+function decodeWorkbench(
   payload: MeasurementWorkbenchReadModel | null | undefined,
+  expectedServiceOrderId: string,
+  expectedMeasurementId?: string,
 ): MeasurementWorkbenchReadModel {
-  // `unknown[]` e não genérico: o payload chega em `Partial`, então a inferência
-  // cairia em `any[]` e a fronteira devolveria dado não verificado ao React.
-  const arrayOf = (value: unknown): readonly unknown[] =>
-    Array.isArray(value) ? value : [];
+  const root = assertCollections(
+    payload,
+    WORKBENCH_COLLECTION_PATHS,
+    'MEASUREMENT_WORKBENCH_COLLECTION_INVALID',
+  );
 
-  const source = (payload ?? {}) as Partial<MeasurementWorkbenchReadModel>;
+  const identity = requireRecord(root['identity'], 'MEASUREMENT_WORKBENCH_IDENTITY_INVALID');
+  const businessContext = requireRecord(
+    root['businessContext'],
+    'MEASUREMENT_WORKBENCH_BUSINESS_CONTEXT_INVALID',
+  );
+  requireRecord(root['statuses'], 'MEASUREMENT_WORKBENCH_STATUSES_INVALID');
+  const processContext = requireRecord(
+    root['processContext'],
+    'MEASUREMENT_WORKBENCH_PROCESS_CONTEXT_INVALID',
+  );
+  const health = requireRecord(
+    processContext['health'],
+    'MEASUREMENT_WORKBENCH_PROCESS_HEALTH_INVALID',
+  );
+  const measurementBasis = requireRecord(
+    root['measurementBasis'],
+    'MEASUREMENT_WORKBENCH_BASIS_INVALID',
+  );
+  const quantities = requireRecord(root['quantities'], 'MEASUREMENT_WORKBENCH_QUANTITIES_INVALID');
+  const totals = requireRecord(
+    quantities['totals'],
+    'MEASUREMENT_WORKBENCH_QUANTITY_TOTALS_INVALID',
+  );
+  requireRecord(root['economics'], 'MEASUREMENT_WORKBENCH_ECONOMICS_INVALID');
+  const commercialContext = requireRecord(
+    root['commercialContext'],
+    'MEASUREMENT_WORKBENCH_COMMERCIAL_CONTEXT_INVALID',
+  );
+  requireRecord(commercialContext['pricing'], 'MEASUREMENT_WORKBENCH_PRICING_INVALID');
+  const tolerance = requireRecord(
+    commercialContext['tolerance'],
+    'MEASUREMENT_WORKBENCH_TOLERANCE_INVALID',
+  );
+  const varianceSummary = requireRecord(
+    root['varianceSummary'],
+    'MEASUREMENT_WORKBENCH_VARIANCE_SUMMARY_INVALID',
+  );
+  const acceptance = requireRecord(
+    root['acceptance'],
+    'MEASUREMENT_WORKBENCH_ACCEPTANCE_INVALID',
+  );
+  const eligibility = requireRecord(
+    root['billingEligibility'],
+    'MEASUREMENT_WORKBENCH_ELIGIBILITY_INVALID',
+  );
+  requireRecord(
+    root['decisionExplanation'],
+    'MEASUREMENT_WORKBENCH_DECISION_EXPLANATION_INVALID',
+  );
+  assertServerFreshness(root['freshness'], 'MEASUREMENT_WORKBENCH_FRESHNESS_INVALID');
 
-  return {
-    ...source,
-    variances: arrayOf(source.variances),
-    adjustments: arrayOf(source.adjustments),
-    items: arrayOf(source.items),
-    evidence: arrayOf(source.evidence),
-    situations: arrayOf(source.situations),
-    relationships: arrayOf(source.relationships),
-    documentFlow: arrayOf(source.documentFlow),
-    timeline: arrayOf(source.timeline),
-    availableCommands: arrayOf(source.availableCommands),
-    nextAction: source.nextAction ?? null,
-    freshness: source.freshness ?? {
-      readAt: new Date().toISOString(),
-      authority: 'SERVER',
-    },
-  } as MeasurementWorkbenchReadModel;
+  const actualServiceOrderId = requireString(
+    identity['serviceOrderId'],
+    'MEASUREMENT_WORKBENCH_SERVICE_ORDER_INVALID',
+  );
+  if (actualServiceOrderId !== expectedServiceOrderId) {
+    throw contractError('MEASUREMENT_WORKBENCH_SERVICE_ORDER_MISMATCH');
+  }
+
+  if (expectedMeasurementId !== undefined) {
+    const actualMeasurementId = requireString(
+      identity['measurementId'],
+      'MEASUREMENT_WORKBENCH_MEASUREMENT_INVALID',
+    );
+    if (actualMeasurementId !== expectedMeasurementId) {
+      throw contractError('MEASUREMENT_WORKBENCH_MEASUREMENT_MISMATCH');
+    }
+  }
+
+  requireString(identity['orderNumber'], 'MEASUREMENT_WORKBENCH_ORDER_NUMBER_INVALID');
+  requireString(businessContext['unit'], 'MEASUREMENT_WORKBENCH_UNIT_INVALID');
+  requireString(health['currentStageLabel'], 'MEASUREMENT_WORKBENCH_PROCESS_HEALTH_INVALID');
+  requireNumberOrNull(health['elapsedSeconds'], 'MEASUREMENT_WORKBENCH_PROCESS_HEALTH_INVALID');
+  requireString(health['risk'], 'MEASUREMENT_WORKBENCH_PROCESS_HEALTH_INVALID');
+  requireNumber(measurementBasis['lineCount'], 'MEASUREMENT_WORKBENCH_BASIS_INVALID');
+  requireNumber(totals['planned'], 'MEASUREMENT_WORKBENCH_QUANTITY_TOTALS_INVALID');
+  requireNumber(totals['actual'], 'MEASUREMENT_WORKBENCH_QUANTITY_TOTALS_INVALID');
+  requireNumber(totals['measured'], 'MEASUREMENT_WORKBENCH_QUANTITY_TOTALS_INVALID');
+  requireNumber(tolerance['percentage'], 'MEASUREMENT_WORKBENCH_TOLERANCE_INVALID');
+  requireString(varianceSummary['highestSeverity'], 'MEASUREMENT_WORKBENCH_VARIANCE_SUMMARY_INVALID');
+  requireNumber(
+    varianceSummary['decisionRequiredCount'],
+    'MEASUREMENT_WORKBENCH_VARIANCE_SUMMARY_INVALID',
+  );
+  requireBoolean(acceptance['required'], 'MEASUREMENT_WORKBENCH_ACCEPTANCE_INVALID');
+  requireString(acceptance['state'], 'MEASUREMENT_WORKBENCH_ACCEPTANCE_INVALID');
+  requireString(eligibility['result'], 'MEASUREMENT_WORKBENCH_ELIGIBILITY_INVALID');
+
+  if (!Object.prototype.hasOwnProperty.call(root, 'nextAction')) {
+    throw contractError('MEASUREMENT_WORKBENCH_NEXT_ACTION_INVALID');
+  }
+  if (root['nextAction'] !== null) {
+    requireRecord(root['nextAction'], 'MEASUREMENT_WORKBENCH_NEXT_ACTION_INVALID');
+  }
+
+  assertWorkbenchElementContracts(root);
+
+  return root as unknown as MeasurementWorkbenchReadModel;
+}
+
+function decodeRevenueLeakage(
+  payload: RevenueLeakageReadModel | null | undefined,
+  expectedUnitId: string,
+): RevenueLeakageReadModel {
+  const root = assertCollections(
+    payload,
+    REVENUE_LEAKAGE_COLLECTION_PATHS,
+    'MEASUREMENT_REVENUE_LEAKAGE_COLLECTION_INVALID',
+  );
+  const context = requireRecord(
+    root['context'],
+    'MEASUREMENT_REVENUE_LEAKAGE_CONTEXT_INVALID',
+  );
+  requireRecord(root['total'], 'MEASUREMENT_REVENUE_LEAKAGE_TOTAL_INVALID');
+  assertServerFreshness(
+    root['freshness'],
+    'MEASUREMENT_REVENUE_LEAKAGE_FRESHNESS_INVALID',
+  );
+
+  const actualUnitId = requireString(
+    context['unitId'],
+    'MEASUREMENT_REVENUE_LEAKAGE_UNIT_INVALID',
+  );
+  if (actualUnitId !== expectedUnitId) {
+    throw contractError('MEASUREMENT_REVENUE_LEAKAGE_UNIT_MISMATCH');
+  }
+
+  return root as unknown as RevenueLeakageReadModel;
 }
 
 /** LACUNA DE RECEITA por estágio da cadeia. */
@@ -278,17 +638,27 @@ export async function getRevenueLeakage(
   input: { limit?: number; at?: string } = {},
   signal?: AbortSignal,
 ): Promise<RevenueLeakageReadModel> {
-  const params = new URLSearchParams({ unitId });
+  const targetUnitId = requireRequestKey(unitId, 'MEASUREMENT_UNIT_REQUIRED');
+  const params = new URLSearchParams({ unitId: targetUnitId });
   if (input.limit !== undefined) {
     params.set('limit', String(input.limit));
   }
   if (input.at !== undefined) {
     params.set('at', input.at);
   }
-  return requestJson<RevenueLeakageReadModel>(
+  /**
+   * A LACUNA DE RECEITA TEM A MESMA EXPOSIÇÃO.
+   *
+   * `RevenueLeakagePage` faz `data.stages.map(...)` e `positions.map(...)`. Sem
+   * normalização, uma resposta sem `stages` derruba a tela — o mesmo defeito que
+   * já custou cinco releases na estação de medição. Aqui a garantia entra ANTES
+   * de o defeito existir, não depois.
+   */
+  const payload = await requestJson<RevenueLeakageReadModel>(
     `/api/v1/query/measurements/revenue-leakage?${params.toString()}`,
     { method: 'GET', headers: authHeaders(), signal },
   );
+  return decodeRevenueLeakage(payload, targetUnitId);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -311,16 +681,17 @@ export async function recordCustomerAcceptance(
   measurementId: string,
   payload: RecordAcceptancePayload,
 ): Promise<MeasurementWorkbenchReadModel> {
-  return normalizeWorkbench(
-    await requestJson<MeasurementWorkbenchReadModel>(
-      `/api/v1/service-orders/${encodeURIComponent(serviceOrderId)}/measurements/${encodeURIComponent(
-        measurementId,
-      )}/acceptance`,
-      {
-        method: 'POST',
-        headers: jsonHeaders(),
-        body: JSON.stringify(payload),
-      },
-    ),
+  const targetServiceOrderId = requireRequestKey(serviceOrderId, 'MEASUREMENT_SERVICE_ORDER_REQUIRED');
+  const targetMeasurementId = requireRequestKey(measurementId, 'MEASUREMENT_ID_REQUIRED');
+  const response = await requestJson<MeasurementWorkbenchReadModel>(
+    `/api/v1/service-orders/${encodeURIComponent(targetServiceOrderId)}/measurements/${encodeURIComponent(
+      targetMeasurementId,
+    )}/acceptance`,
+    {
+      method: 'POST',
+      headers: jsonHeaders(),
+      body: JSON.stringify(payload),
+    },
   );
+  return decodeWorkbench(response, targetServiceOrderId, targetMeasurementId);
 }
