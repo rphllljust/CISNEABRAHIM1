@@ -186,6 +186,70 @@ describe('getMeasurementWorkbench — read model degenerado não quebra a estaç
     expect(workbench.freshness.authority).toBe('SERVER');
   });
 
+  /**
+   * ─────────────────────────────────────────────────────────────────────────────
+   * AS COLEÇÕES ANINHADAS DERRUBARAM PRODUÇÃO DEPOIS DA CORREÇÃO ANTERIOR
+   * ─────────────────────────────────────────────────────────────────────────────
+   *
+   * Defeito medido (release 40248272786, main 6aea8a2d), DEPOIS que a unidade
+   * passou a ser resolvida e a estação efetivamente carregou a fila:
+   *
+   *   url=/app/measurement?unitId=UN-PROD-001
+   *   TypeError: Cannot read properties of undefined (reading 'map')
+   *
+   * A normalização anterior cobria só as coleções de TOPO. A tela percorre também
+   * `basis.lines`, `acceptance.history`, `decision.dimensions`,
+   * `decision.blockingReasons`, `command.reasonLabels` e `processContext.milestones`.
+   *
+   * Estas dependem do objeto-PAI existir: se o backend omitir `decision` inteiro,
+   * `decision.dimensions` lança ANTES de qualquer `?? []`. Por isso o pai também
+   * precisa existir — normalizar só o array não basta.
+   */
+  it('coleções aninhadas não quebram o render quando o pai está ausente', async () => {
+    mockJson({ identity: { serviceOrderId: 'so-1' } });
+
+    const workbench = await getMeasurementWorkbench('so-1');
+
+    // Cada uma destas é percorrida com `.map` pela tela.
+    expect(workbench.measurementBasis.lines).toEqual([]);
+    expect(workbench.acceptance.history).toEqual([]);
+    expect(workbench.billingEligibility.dimensions).toEqual([]);
+    expect(workbench.billingEligibility.blockingReasons).toEqual([]);
+    expect(workbench.processContext.milestones).toEqual([]);
+    expect(() => workbench.measurementBasis.lines.map((line) => line)).not.toThrow();
+    expect(() => workbench.billingEligibility.blockingReasons.map((r) => r)).not.toThrow();
+  });
+
+  it('reasonLabels de cada comando é sempre lista', async () => {
+    mockJson({ availableCommands: [{ code: 'APPROVE', enabled: false }] });
+
+    const workbench = await getMeasurementWorkbench('so-1');
+
+    const [command] = workbench.availableCommands;
+    expect(command?.reasonLabels).toEqual([]);
+    expect(() => (command?.reasonLabels ?? []).map((label) => label)).not.toThrow();
+  });
+
+  it('estrutura aninhada íntegra é preservada', async () => {
+    mockJson({
+      measurementBasis: { lines: [{ lineKey: 'DAY', unitCode: 'DAY' }] },
+      acceptance: { history: [{ id: 'a-1' }] },
+      billingEligibility: { dimensions: [{ code: 'D1' }], blockingReasons: [{ code: 'B1' }] },
+      processContext: { milestones: [{ stage: 'MEASURED' }] },
+      availableCommands: [{ code: 'APPROVE', reasonLabels: ['pendente'] }],
+    });
+
+    const workbench = await getMeasurementWorkbench('so-1');
+
+    expect(workbench.measurementBasis.lines).toHaveLength(1);
+    expect(workbench.acceptance.history).toHaveLength(1);
+    expect(workbench.billingEligibility.dimensions).toHaveLength(1);
+    expect(workbench.billingEligibility.blockingReasons).toHaveLength(1);
+    expect(workbench.processContext.milestones).toHaveLength(1);
+    const [command] = workbench.availableCommands;
+    expect(command?.reasonLabels).toEqual(['pendente']);
+  });
+
   it('workbench íntegro não é alterado', async () => {
     mockJson({
       identity: { serviceOrderId: 'so-1', orderNumber: 'OS-1' },

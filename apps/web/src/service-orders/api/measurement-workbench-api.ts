@@ -253,6 +253,46 @@ function normalizeWorkbench(
 
   const source = (payload ?? {}) as Partial<MeasurementWorkbenchReadModel>;
 
+  /**
+   * ─────────────────────────────────────────────────────────────────────────────
+   * AS COLEÇÕES ANINHADAS TAMBÉM SÃO PERCORRIDAS COM `.map`
+   * ─────────────────────────────────────────────────────────────────────────────
+   *
+   * Medido em produção (release 40248272786, main 6aea8a2d) DEPOIS que a unidade
+   * passou a ser resolvida corretamente:
+   *
+   *   url=/app/measurement?unitId=UN-PROD-001
+   *   TypeError: Cannot read properties of undefined (reading 'map')
+   *
+   * A normalização anterior cobria só as coleções de TOPO. A tela percorre
+   * também estruturas ANINHADAS:
+   *
+   *   basis.lines                     acceptance.history
+   *   decision.dimensions             decision.blockingReasons
+   *   command.reasonLabels            processContext.milestones
+   *
+   * Estas dependem do objeto-pai existir. Se o backend omitir o pai inteiro
+   * (`decision`, `processContext`), o acesso `decision.dimensions` lança antes de
+   * qualquer `?? []` — por isso normalizar só o array não basta: o PAI precisa
+   * existir.
+   *
+   * A garantia continua sendo de FORMA, nunca de conteúdo: um objeto vazio não
+   * afirma decisão nem processo; ele apenas impede que a ausência derrube a tela.
+   */
+  const objectOf = <T extends object>(value: unknown): T => {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      return value as T;
+    }
+    return {} as T;
+  };
+
+  const basis = objectOf<{ lines?: unknown }>(source.measurementBasis);
+  const acceptance = objectOf<{ history?: unknown }>(source.acceptance);
+  const decision = objectOf<{ dimensions?: unknown; blockingReasons?: unknown }>(
+    source.billingEligibility,
+  );
+  const processContext = objectOf<{ milestones?: unknown }>(source.processContext);
+
   return {
     ...source,
     variances: arrayOf(source.variances),
@@ -263,7 +303,19 @@ function normalizeWorkbench(
     relationships: arrayOf(source.relationships),
     documentFlow: arrayOf(source.documentFlow),
     timeline: arrayOf(source.timeline),
-    availableCommands: arrayOf(source.availableCommands),
+    availableCommands: arrayOf(source.availableCommands).map((command) => {
+      // `command.reasonLabels` é percorrido com `.map` por comando.
+      const entry = objectOf<{ reasonLabels?: unknown }>(command);
+      return { ...entry, reasonLabels: arrayOf(entry.reasonLabels) };
+    }),
+    measurementBasis: { ...basis, lines: arrayOf(basis.lines) },
+    acceptance: { ...acceptance, history: arrayOf(acceptance.history) },
+    billingEligibility: {
+      ...decision,
+      dimensions: arrayOf(decision.dimensions),
+      blockingReasons: arrayOf(decision.blockingReasons),
+    },
+    processContext: { ...processContext, milestones: arrayOf(processContext.milestones) },
     nextAction: source.nextAction ?? null,
     freshness: source.freshness ?? {
       readAt: new Date().toISOString(),
