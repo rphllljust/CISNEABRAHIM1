@@ -403,6 +403,140 @@ describe('measurement HTTP runtime contract — fail closed', () => {
     );
   });
 
+
+  const elementMutations: Array<{
+    name: string;
+    code: string;
+    mutate: (body: Record<string, unknown>) => void;
+  }> = [
+    {
+      name: 'variances',
+      code: 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID',
+      mutate: (body) => {
+        body['variances'] = [{
+          dimension: 'Quantidade',
+          dimensionKey: 'DAY',
+          plannedValue: null,
+          actualValue: '1',
+          measuredValue: '1',
+          absoluteDelta: '0',
+          percentageDelta: null,
+          tolerancePercentage: 'INVALID',
+          toleranceSource: 'CONTRACT',
+          severity: 'LOW',
+          financialImpact: null,
+          currencyCode: null,
+          requiresDecision: false,
+          decisionKind: 'NONE',
+          blockingReason: null,
+          recommendedResolution: null,
+          explanation: 'ok',
+        }];
+      },
+    },
+    {
+      name: 'quantities.lines',
+      code: 'MEASUREMENT_WORKBENCH_QUANTITY_LINE_INVALID',
+      mutate: (body) => {
+        const quantities = body['quantities'] as Record<string, unknown>;
+        quantities['lines'] = [{
+          dimensionKey: 'DAY',
+          label: 123,
+          unitOfMeasure: 'DAY',
+          planned: null,
+          actual: '1',
+          measured: '1',
+        }];
+      },
+    },
+    {
+      name: 'items',
+      code: 'MEASUREMENT_WORKBENCH_ITEM_INVALID',
+      mutate: (body) => {
+        body['items'] = [{
+          id: 'i-1',
+          lineNumber: '1',
+          unitCode: 'DAY',
+          actualQuantity: '1',
+          measuredQuantity: '1',
+          unitPrice: null,
+          lineAmount: null,
+          origin: 'BASIS',
+        }];
+      },
+    },
+    {
+      name: 'acceptance.history',
+      code: 'MEASUREMENT_WORKBENCH_ACCEPTANCE_HISTORY_INVALID',
+      mutate: (body) => {
+        const acceptance = body['acceptance'] as Record<string, unknown>;
+        acceptance['history'] = [{
+          id: 'a-1',
+          cycleNumber: '1',
+          result: 'ACCEPTED',
+          rejectionReason: null,
+          occurredAt: '2026-10-26T00:00:00.000Z',
+        }];
+      },
+    },
+    {
+      name: 'billingEligibility.dimensions',
+      code: 'MEASUREMENT_WORKBENCH_ELIGIBILITY_DIMENSION_INVALID',
+      mutate: (body) => {
+        const eligibility = body['billingEligibility'] as Record<string, unknown>;
+        eligibility['dimensions'] = [{
+          dimension: 'ACCEPTANCE',
+          label: 'Aceite',
+          status: 'SATISFIED',
+          statusLabel: 'Atendido',
+          reasonCode: null,
+          detail: 'ok',
+          nextActionCode: null,
+          nextActionLabel: null,
+          blocking: 'false',
+        }];
+      },
+    },
+    {
+      name: 'processContext.milestones',
+      code: 'MEASUREMENT_WORKBENCH_MILESTONE_INVALID',
+      mutate: (body) => {
+        const processContext = body['processContext'] as Record<string, unknown>;
+        processContext['milestones'] = [{
+          stage: 'MEASUREMENT',
+          label: undefined,
+          state: 'CURRENT',
+          reachedAt: null,
+        }];
+      },
+    },
+    {
+      name: 'availableCommands',
+      code: 'MEASUREMENT_WORKBENCH_COMMAND_INVALID',
+      mutate: (body) => {
+        body['availableCommands'] = [{
+          code: 'APPROVE',
+          label: 'Aprovar',
+          enabled: false,
+          blockingReasons: [],
+          reasonLabels: ['ok', 7],
+          nextAction: null,
+          requiredPermission: 'measurement:approve',
+        }];
+      },
+    },
+  ];
+
+  it.each(elementMutations)(
+    'mutation: elemento inválido em $name falha fechado',
+    async ({ code, mutate }) => {
+      const body = validWorkbench();
+      mutate(body);
+      mockJson(body);
+      await expectContractFailure(getMeasurementWorkbench('so-1'), code);
+    },
+  );
+
   it('fitness: todas as coleções têm caminho completo no runtime gate', async () => {
     const fs = await import('node:fs');
     const path = await import('node:path');

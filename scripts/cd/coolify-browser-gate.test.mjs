@@ -3,6 +3,10 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { it, describe } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import {
+  evaluateMeasurementBusinessProof,
+  hasOnlyCommercialMeasurementUnits,
+} from './coolify-browser-gate.mjs';
 
 /**
  * COBERTURA DE PRODUÇÃO DA CAPABILITY DE MEDIÇÃO NO BROWSER GATE.
@@ -38,34 +42,83 @@ describe('browser gate — cobertura da vertical de medição', () => {
     );
   });
 
-  it('exige que a medição apresente elegibilidade de faturamento', () => {
-    const source = readGate();
-    assert.match(
-      source,
-      /Elegib\|READY_TO_BILL|Elegib\|READY_TO_BILL\|Pronto para faturar/,
-      'a asserção de elegibilidade de faturamento saiu do gate',
+  it('prova negócio somente com estados autoritativos do payload', () => {
+    const proof = evaluateMeasurementBusinessProof({
+      acceptance: { state: 'ACCEPTED', latest: { result: 'ACCEPTED' } },
+      billingEligibility: { result: 'READY' },
+      quantities: { lines: [{ unitOfMeasure: 'DAY' }] },
+      measurementBasis: { lines: [{ unitCode: 'DAY' }] },
+      items: [{ unitCode: 'DAY' }],
+    });
+
+    assert.equal(proof.acceptanceVerified, true);
+    assert.equal(proof.eligibilityVerified, true);
+    assert.equal(proof.commercialUnitVerified, true);
+    assert.equal(proof.verified, true);
+  });
+
+  it('títulos sem estado autoritativo nunca aprovam negócio', () => {
+    const proof = evaluateMeasurementBusinessProof({
+      title: 'Aceite do cliente · Elegibilidade de faturamento',
+      acceptance: {},
+      billingEligibility: {},
+      quantities: { lines: [] },
+      measurementBasis: { lines: [] },
+      items: [],
+    });
+
+    assert.equal(proof.acceptanceVerified, false);
+    assert.equal(proof.eligibilityVerified, false);
+    assert.equal(proof.verified, false);
+  });
+
+  it('estado BLOCKED/PENDING ainda é prova semântica autoritativa, não READY inventado', () => {
+    const proof = evaluateMeasurementBusinessProof({
+      acceptance: { state: 'PENDING', latest: null },
+      billingEligibility: { result: 'BLOCKED' },
+      quantities: { lines: [{ unitOfMeasure: 'TRIP' }] },
+      measurementBasis: { lines: [] },
+      items: [],
+    });
+
+    assert.equal(proof.acceptanceVerified, true);
+    assert.equal(proof.eligibilityVerified, true);
+    assert.equal(proof.verified, true);
+  });
+
+  it('HOUR ou KM reprova mesmo misturado com DAY/TRIP/M3', () => {
+    assert.equal(
+      hasOnlyCommercialMeasurementUnits({
+        quantities: { lines: [{ unitOfMeasure: 'DAY' }, { unitOfMeasure: 'KM' }] },
+        measurementBasis: { lines: [{ unitCode: 'TRIP' }] },
+        items: [{ unitCode: 'M3' }],
+      }),
+      false,
     );
-  });
-
-  it('exige que a medição apresente o aceite do cliente', () => {
-    const source = readGate();
-    assert.match(source, /Aceite\|ACEITE/, 'a asserção de aceite saiu do gate');
-  });
-
-  /**
-   * A ASSERÇÃO NEGATIVA É O CORAÇÃO DESTA RELEASE.
-   *
-   * Medir em `HOUR`/`KM` significa que fato físico virou quantidade comercial —
-   * exatamente o defeito que a fronteira comercial/física corrigiu. Se alguém
-   * reintroduzir a soma de unidades heterogêneas na base de medição, o gate em
-   * produção precisa reprovar.
-   */
-  it('proíbe medida em unidade física', () => {
-    const source = readGate();
-    assert.match(
-      source,
-      /MEDIÇÃO não mede em unidade física/,
-      'a asserção que impede medir em HOUR/KM saiu do gate',
+    assert.equal(
+      hasOnlyCommercialMeasurementUnits({
+        quantities: { lines: [{ unitOfMeasure: 'HOUR' }, { unitOfMeasure: 'DAY' }] },
+        measurementBasis: { lines: [] },
+        items: [],
+      }),
+      false,
+    );
+    assert.equal(
+      hasOnlyCommercialMeasurementUnits({
+        quantities: { lines: [{ unitOfMeasure: 'DAY' }] },
+        measurementBasis: { lines: [{ unitCode: 'TRIP' }] },
+        items: [{ unitCode: 'M3' }],
+      }),
+      true,
+    );
+    assert.equal(
+      hasOnlyCommercialMeasurementUnits({
+        quantities: { lines: [] },
+        measurementBasis: { lines: [] },
+        items: [],
+      }),
+      false,
+      'ausência de unidade não é prova de unidade comercial',
     );
   });
 
@@ -191,8 +244,8 @@ describe('browser gate — cobertura da vertical de medição', () => {
     );
     assert.match(
       source,
-      /businessVerified = eligibility && acceptance && commercialUnit/,
-      'negócio só é verificado com aceite E elegibilidade E unidade comercial',
+      /businessVerified = businessProof\.verified/,
+      'negócio só é verificado pelo resultado semântico do payload autoritativo',
     );
   });
 

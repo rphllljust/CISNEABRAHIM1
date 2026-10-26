@@ -259,16 +259,126 @@ function requireBoolean(value: unknown, code: string): boolean {
   return value;
 }
 
-function requireRecordPath(
-  root: Record<string, unknown>,
-  path: readonly string[],
-  code: string,
-): Record<string, unknown> {
-  let current = root;
-  for (const segment of path) {
-    current = requireRecord(current[segment], code);
+function requireStringValue(value: unknown, code: string): string {
+  if (typeof value !== 'string') {
+    throw contractError(code);
   }
-  return current;
+  return value;
+}
+
+function requireStringOrNull(value: unknown, code: string): string | null {
+  if (value === null) return null;
+  return requireStringValue(value, code);
+}
+
+function requireStringArray(value: unknown, code: string): string[] {
+  if (!Array.isArray(value)) {
+    throw contractError(code);
+  }
+  const result: string[] = [];
+  for (const entry of value) {
+    if (typeof entry !== 'string') {
+      throw contractError(code);
+    }
+    result.push(entry);
+  }
+  return result;
+}
+
+function assertWorkbenchElementContracts(root: Record<string, unknown>): void {
+  for (const value of root['variances'] as unknown[]) {
+    const row = requireRecord(value, 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireStringValue(row['dimension'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireStringValue(row['dimensionKey'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireStringOrNull(row['plannedValue'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireStringOrNull(row['actualValue'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireStringOrNull(row['measuredValue'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireStringValue(row['absoluteDelta'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireNumberOrNull(row['percentageDelta'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireNumber(row['tolerancePercentage'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireStringValue(row['toleranceSource'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireStringValue(row['severity'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireStringOrNull(row['financialImpact'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireStringOrNull(row['currencyCode'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireBoolean(row['requiresDecision'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireStringValue(row['decisionKind'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireStringOrNull(row['blockingReason'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireStringOrNull(row['recommendedResolution'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+    requireStringValue(row['explanation'], 'MEASUREMENT_WORKBENCH_VARIANCE_INVALID');
+  }
+
+  const quantities = requireRecord(root['quantities'], 'MEASUREMENT_WORKBENCH_QUANTITIES_INVALID');
+  for (const value of quantities['lines'] as unknown[]) {
+    const row = requireRecord(value, 'MEASUREMENT_WORKBENCH_QUANTITY_LINE_INVALID');
+    requireStringValue(row['dimensionKey'], 'MEASUREMENT_WORKBENCH_QUANTITY_LINE_INVALID');
+    requireStringValue(row['label'], 'MEASUREMENT_WORKBENCH_QUANTITY_LINE_INVALID');
+    requireStringValue(row['unitOfMeasure'], 'MEASUREMENT_WORKBENCH_QUANTITY_LINE_INVALID');
+    requireStringOrNull(row['planned'], 'MEASUREMENT_WORKBENCH_QUANTITY_LINE_INVALID');
+    requireStringOrNull(row['actual'], 'MEASUREMENT_WORKBENCH_QUANTITY_LINE_INVALID');
+    requireStringOrNull(row['measured'], 'MEASUREMENT_WORKBENCH_QUANTITY_LINE_INVALID');
+  }
+
+  for (const value of root['items'] as unknown[]) {
+    const row = requireRecord(value, 'MEASUREMENT_WORKBENCH_ITEM_INVALID');
+    requireStringValue(row['id'], 'MEASUREMENT_WORKBENCH_ITEM_INVALID');
+    requireNumber(row['lineNumber'], 'MEASUREMENT_WORKBENCH_ITEM_INVALID');
+    requireStringValue(row['unitCode'], 'MEASUREMENT_WORKBENCH_ITEM_INVALID');
+    requireStringValue(row['actualQuantity'], 'MEASUREMENT_WORKBENCH_ITEM_INVALID');
+    requireStringValue(row['measuredQuantity'], 'MEASUREMENT_WORKBENCH_ITEM_INVALID');
+    requireStringOrNull(row['unitPrice'], 'MEASUREMENT_WORKBENCH_ITEM_INVALID');
+    requireStringOrNull(row['lineAmount'], 'MEASUREMENT_WORKBENCH_ITEM_INVALID');
+    requireStringValue(row['origin'], 'MEASUREMENT_WORKBENCH_ITEM_INVALID');
+  }
+
+  const acceptance = requireRecord(root['acceptance'], 'MEASUREMENT_WORKBENCH_ACCEPTANCE_INVALID');
+  for (const value of acceptance['history'] as unknown[]) {
+    const row = requireRecord(value, 'MEASUREMENT_WORKBENCH_ACCEPTANCE_HISTORY_INVALID');
+    requireStringValue(row['id'], 'MEASUREMENT_WORKBENCH_ACCEPTANCE_HISTORY_INVALID');
+    requireNumber(row['cycleNumber'], 'MEASUREMENT_WORKBENCH_ACCEPTANCE_HISTORY_INVALID');
+    requireStringValue(row['result'], 'MEASUREMENT_WORKBENCH_ACCEPTANCE_HISTORY_INVALID');
+    requireStringOrNull(row['rejectionReason'], 'MEASUREMENT_WORKBENCH_ACCEPTANCE_HISTORY_INVALID');
+    requireStringValue(row['occurredAt'], 'MEASUREMENT_WORKBENCH_ACCEPTANCE_HISTORY_INVALID');
+  }
+
+  const eligibility = requireRecord(
+    root['billingEligibility'],
+    'MEASUREMENT_WORKBENCH_ELIGIBILITY_INVALID',
+  );
+  for (const value of eligibility['dimensions'] as unknown[]) {
+    const row = requireRecord(value, 'MEASUREMENT_WORKBENCH_ELIGIBILITY_DIMENSION_INVALID');
+    requireStringValue(row['dimension'], 'MEASUREMENT_WORKBENCH_ELIGIBILITY_DIMENSION_INVALID');
+    requireStringValue(row['label'], 'MEASUREMENT_WORKBENCH_ELIGIBILITY_DIMENSION_INVALID');
+    requireStringValue(row['status'], 'MEASUREMENT_WORKBENCH_ELIGIBILITY_DIMENSION_INVALID');
+    requireStringValue(row['statusLabel'], 'MEASUREMENT_WORKBENCH_ELIGIBILITY_DIMENSION_INVALID');
+    requireStringOrNull(row['reasonCode'], 'MEASUREMENT_WORKBENCH_ELIGIBILITY_DIMENSION_INVALID');
+    requireStringValue(row['detail'], 'MEASUREMENT_WORKBENCH_ELIGIBILITY_DIMENSION_INVALID');
+    requireStringOrNull(row['nextActionCode'], 'MEASUREMENT_WORKBENCH_ELIGIBILITY_DIMENSION_INVALID');
+    requireStringOrNull(row['nextActionLabel'], 'MEASUREMENT_WORKBENCH_ELIGIBILITY_DIMENSION_INVALID');
+    requireBoolean(row['blocking'], 'MEASUREMENT_WORKBENCH_ELIGIBILITY_DIMENSION_INVALID');
+  }
+
+  const processContext = requireRecord(
+    root['processContext'],
+    'MEASUREMENT_WORKBENCH_PROCESS_CONTEXT_INVALID',
+  );
+  for (const value of processContext['milestones'] as unknown[]) {
+    const row = requireRecord(value, 'MEASUREMENT_WORKBENCH_MILESTONE_INVALID');
+    requireStringValue(row['stage'], 'MEASUREMENT_WORKBENCH_MILESTONE_INVALID');
+    requireStringValue(row['label'], 'MEASUREMENT_WORKBENCH_MILESTONE_INVALID');
+    requireStringValue(row['state'], 'MEASUREMENT_WORKBENCH_MILESTONE_INVALID');
+    requireStringOrNull(row['reachedAt'], 'MEASUREMENT_WORKBENCH_MILESTONE_INVALID');
+  }
+
+  for (const value of root['availableCommands'] as unknown[]) {
+    const row = requireRecord(value, 'MEASUREMENT_WORKBENCH_COMMAND_INVALID');
+    requireStringValue(row['code'], 'MEASUREMENT_WORKBENCH_COMMAND_INVALID');
+    requireStringValue(row['label'], 'MEASUREMENT_WORKBENCH_COMMAND_INVALID');
+    requireBoolean(row['enabled'], 'MEASUREMENT_WORKBENCH_COMMAND_INVALID');
+    requireStringArray(row['blockingReasons'], 'MEASUREMENT_WORKBENCH_COMMAND_INVALID');
+    requireStringArray(row['reasonLabels'], 'MEASUREMENT_WORKBENCH_COMMAND_INVALID');
+    requireStringOrNull(row['nextAction'], 'MEASUREMENT_WORKBENCH_COMMAND_INVALID');
+    requireStringValue(row['requiredPermission'], 'MEASUREMENT_WORKBENCH_COMMAND_INVALID');
+  }
 }
 
 function assertServerFreshness(value: unknown, code: string): void {
@@ -487,13 +597,7 @@ function decodeWorkbench(
     requireRecord(root['nextAction'], 'MEASUREMENT_WORKBENCH_NEXT_ACTION_INVALID');
   }
 
-  for (const command of root['availableCommands'] as unknown[]) {
-    const entry = requireRecord(command, 'MEASUREMENT_WORKBENCH_COMMAND_INVALID');
-    requireString(entry['code'], 'MEASUREMENT_WORKBENCH_COMMAND_INVALID');
-    requireString(entry['label'], 'MEASUREMENT_WORKBENCH_COMMAND_INVALID');
-    requireBoolean(entry['enabled'], 'MEASUREMENT_WORKBENCH_COMMAND_INVALID');
-    requireString(entry['requiredPermission'], 'MEASUREMENT_WORKBENCH_COMMAND_INVALID');
-  }
+  assertWorkbenchElementContracts(root);
 
   return root as unknown as MeasurementWorkbenchReadModel;
 }
