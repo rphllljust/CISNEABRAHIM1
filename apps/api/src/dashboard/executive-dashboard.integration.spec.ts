@@ -15,6 +15,8 @@ import { AUTHZ_ACTIONS } from '../authorization/types/authz-actions';
 import { AUTHZ_RESOURCE_TYPES } from '../authorization/types/authz-resources';
 import { AUTHZ_SCOPES } from '../authorization/types/authz-scopes';
 import { DatabaseModule } from '../infrastructure/database/database.module';
+import { resolveBusinessTimezone } from '../analytics/domain/business-timezone';
+import { toBusinessCalendarDate } from '../analytics/domain/business-timezone';
 import { ProductivityReadModelRepository } from '../analytics/repositories/productivity-read-model.repository';
 import { ExecutiveDashboardRepository } from './repositories/executive-dashboard.repository';
 import { OperationalDashboardRepository } from './repositories/operational-dashboard.repository';
@@ -29,6 +31,7 @@ describe('Executive dashboard authorization integration', () => {
   let access: ExecutiveDashboardAccessService;
   let identityOwner: string;
   let identityEmployee: string;
+  let periodQuery: { period: 'custom'; from: string; to: string };
   const testDatabaseUrl = process.env['TEST_DATABASE_URL'];
 
   beforeAll(async () => {
@@ -130,6 +133,12 @@ describe('Executive dashboard authorization integration', () => {
 
     const now = Date.now();
     const hour = 3_600_000;
+    const businessTimezone = resolveBusinessTimezone();
+    periodQuery = {
+      period: 'custom',
+      from: toBusinessCalendarDate(new Date(now - 24 * hour), businessTimezone),
+      to: toBusinessCalendarDate(new Date(now), businessTimezone),
+    };
     // OS A: concluída há 2h, com prazo planejado ainda futuro (on-time) e 2h de janela.
     const osA = await insertCompletedServiceOrder(pool, {
       orderNumber: `EXEC-A-${suffix}`,
@@ -181,7 +190,7 @@ describe('Executive dashboard authorization integration', () => {
   it('OWNER_ADMIN vê todas as métricas no escopo global e respeita unitId em todas as séries', async () => {
     const all = await access.getExecutiveSnapshot(
       { identityId: identityOwner, sessionId: 's-owner' },
-      {},
+      periodQuery,
     );
     expect(all.visibility.serviceOrders).toBe(true);
     expect(all.visibility.measurements).toBe(true);
@@ -198,7 +207,7 @@ describe('Executive dashboard authorization integration', () => {
 
     const onlyA = await access.getExecutiveSnapshot(
       { identityId: identityOwner, sessionId: 's-owner' },
-      { unitId: UNIT_A },
+      { ...periodQuery, unitId: UNIT_A },
     );
     expect(onlyA.productivity?.completed).toBe(1);
     const statusTotalA = onlyA.charts.serviceOrdersByStatus.items.reduce((s, item) => s + item.count, 0);
@@ -206,13 +215,13 @@ describe('Executive dashboard authorization integration', () => {
 
     const onlyB = await access.getExecutiveSnapshot(
       { identityId: identityOwner, sessionId: 's-owner' },
-      { unitId: UNIT_B },
+      { ...periodQuery, unitId: UNIT_B },
     );
     expect(onlyB.productivity?.completed).toBe(1);
 
     const unknown = await access.getExecutiveSnapshot(
       { identityId: identityOwner, sessionId: 's-owner' },
-      { unitId: 'unit-que-nao-existe' },
+      { ...periodQuery, unitId: 'unit-que-nao-existe' },
     );
     expect(unknown.productivity?.completed).toBe(0);
   });
@@ -220,7 +229,7 @@ describe('Executive dashboard authorization integration', () => {
   it('EMPLOYEE sem grants de recursos/medição/execução não infere essas métricas (masking)', async () => {
     const snapshot = await access.getExecutiveSnapshot(
       { identityId: identityEmployee, sessionId: 's-emp' },
-      {},
+      periodQuery,
     );
     expect(snapshot.visibility.serviceOrders).toBe(true);
     expect(snapshot.visibility.measurements).toBe(false);
@@ -238,7 +247,7 @@ describe('Executive dashboard authorization integration', () => {
 
     const filteredB = await access.getExecutiveSnapshot(
       { identityId: identityEmployee, sessionId: 's-emp' },
-      { unitId: UNIT_B },
+      { ...periodQuery, unitId: UNIT_B },
     );
     expect(filteredB.productivity?.completed).toBe(0); // escopo impede qualquer número de B
     expect(filteredB.charts.serviceOrdersByStatus.items).toHaveLength(0);
@@ -273,7 +282,7 @@ describe('Executive dashboard authorization integration', () => {
 
     const snapshot = await access.getExecutiveSnapshot(
       { identityId: identity, sessionId: 's-wrong' },
-      {},
+      periodQuery,
     );
     expect(snapshot.productivity?.completed).toBe(1); // somente A
     // Existe grant de recurso, mas o escopo B não intersecta com o escopo A:
@@ -311,7 +320,7 @@ describe('Executive dashboard authorization integration', () => {
 
     const snapshot = await access.getExecutiveSnapshot(
       { identityId: identity, sessionId: 's-cross' },
-      {},
+      periodQuery,
     );
     expect(snapshot.productivity?.completed).toBe(2); // SO list global enxerga as duas OS
     // utilization: janela planejada de 2h (7200s) apenas da OS A (escopo de recurso).
@@ -329,7 +338,7 @@ describe('Executive dashboard authorization integration', () => {
   it('negado sem nenhum grant operacional (fail closed)', async () => {
     const outsider = (await insertIdentity(pool, `exec-outsider-${crypto.randomUUID()}`)).identityId;
     await expect(
-      access.getExecutiveSnapshot({ identityId: outsider, sessionId: 's-x' }, {}),
+      access.getExecutiveSnapshot({ identityId: outsider, sessionId: 's-x' }, periodQuery),
     ).rejects.toMatchObject({ code: 'DASHBOARD_ACCESS_DENIED' });
   });
 });
