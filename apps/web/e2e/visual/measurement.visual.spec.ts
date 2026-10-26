@@ -79,17 +79,25 @@ test.describe('aceite de browser — medição e elegibilidade de faturamento', 
      * spec que só olha o DOM deixaria o mesmo defeito passar.
      */
     const consoleErrors: string[] = [];
+    const pageErrors: string[] = [];
+    const measurementRequests: string[] = [];
     page.on('console', (message) => {
       if (message.type() === 'error') {
         consoleErrors.push(message.text());
       }
     });
     page.on('pageerror', (error) => {
-      consoleErrors.push(String(error?.message ?? error));
+      pageErrors.push(String(error?.message ?? error));
+    });
+    page.on('request', (request) => {
+      const url = request.url();
+      if (url.includes('/api/v1/query/measurements/')) {
+        measurementRequests.push(url);
+      }
     });
 
     await login(page, 'measurement');
-    await page.goto('/app/measurement');
+    await page.goto('/app/measurement?unitId=UN-PROD-001');
     await stabilizePage(page);
 
     await assertSharedSurface(page, 'Medição');
@@ -119,10 +127,30 @@ test.describe('aceite de browser — medição e elegibilidade de faturamento', 
      * `TypeError ... reading 'map'` é o sintoma de read model sem coleção. Ele
      * nunca mais pode aparecer nesta rota, em nenhum ambiente.
      */
-    const mapErrors = consoleErrors.filter((text) => /reading 'map'/.test(text));
+    await expect(page.getByText('Nenhum trabalho pendente')).toBeVisible();
+    await expect(
+      page.getByText('Selecione uma ordem da fila para abrir a conferência de medição.'),
+    ).toBeVisible();
+
     expect(
-      mapErrors,
-      `Medição: read model degenerado derrubou o render — ${mapErrors.join(' | ')}`,
+      measurementRequests.filter((url) => /\/query\/measurements\/[^/?]+\/workbench/.test(url)),
+      'Medição: sem OS selecionada não pode haver request de workbench',
+    ).toHaveLength(0);
+    expect(
+      measurementRequests.filter((url) => url.includes('/query/measurements/queue?')),
+      'Medição: fila da unidade deve ser consultada exatamente uma vez',
+    ).toHaveLength(1);
+
+    const criticalConsoleErrors = consoleErrors.filter((text) =>
+      /TypeError|ReferenceError|Cannot read properties|reading 'map'/i.test(text),
+    );
+    expect(
+      criticalConsoleErrors,
+      `Medição: erro crítico de console — ${criticalConsoleErrors.join(' | ')}`,
+    ).toHaveLength(0);
+    expect(
+      pageErrors,
+      `Medição: pageerror no cenário real — ${pageErrors.join(' | ')}`,
     ).toHaveLength(0);
 
     await page.screenshot({ path: '../../tmp/acceptance/measurement-workbench.png' });
@@ -148,7 +176,7 @@ test.describe('aceite de browser — medição e elegibilidade de faturamento', 
     });
 
     await login(page, 'measurement');
-    await page.goto('/app/measurement/revenue-leakage');
+    await page.goto('/app/measurement/revenue-leakage?unitId=UN-PROD-001');
     await stabilizePage(page);
 
     await expect(page.locator('main#main-content')).toHaveCount(1);
