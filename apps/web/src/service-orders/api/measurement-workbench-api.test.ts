@@ -267,6 +267,67 @@ describe('getMeasurementWorkbench — read model degenerado não quebra a estaç
     expect(workbench.freshness.readAt).toBe('2026-01-01T00:00:00.000Z');
   });
 
+  /**
+   * ─────────────────────────────────────────────────────────────────────────────
+   * O TESTE QUE FECHA A CLASSE — TODA COLEÇÃO DO CONTRATO, NÃO UMA AMOSTRA
+   * ─────────────────────────────────────────────────────────────────────────────
+   *
+   * Cinco releases falharam por `reading 'map'`. A causa nunca foi uma coleção:
+   * foi a lista manual de coleções normalizadas, que competia com o contrato.
+   *
+   * Este teste deriva as coleções DO PRÓPRIO TIPO (`measurement-workbench.types.ts`)
+   * e exige que a normalização as cubra. Uma coleção nova no contrato sem registro
+   * em `WORKBENCH_COLLECTION_PATHS` reprova aqui — no CI, não em produção.
+   */
+  it('cobre TODAS as coleções declaradas no contrato', async () => {
+    // Import de MÓDULO, não desestruturação: `join`/`dirname` soltos disparam
+    // `unbound-method` do ESLint — o método perde o `this` do namespace.
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const url = await import('node:url');
+
+    const here = path.dirname(url.fileURLToPath(import.meta.url));
+    const typesSource = fs.readFileSync(
+      path.join(here, '..', 'types', 'measurement-workbench.types.ts'),
+      'utf8',
+    );
+    const apiSource = fs.readFileSync(path.join(here, 'measurement-workbench-api.ts'), 'utf8');
+
+    // Campos declarados como lista no contrato (`readonly x: T[]`).
+    const declared = [...typesSource.matchAll(/readonly\s+(\w+):\s*[\w<>|,\s]+\[];/g)].map(
+      (match) => match[1] as string,
+    );
+    expect(declared.length).toBeGreaterThan(15);
+
+    /**
+     * A lista de caminhos cobre nomes distintos: `lines` aparece em dois pais, e
+     * por isso o teste compara por NOME de campo, não por caminho completo. É o
+     * nível de garantia que importa aqui: "todo campo-lista foi considerado".
+     */
+    const coveredFields = new Set(
+      apiSource
+        .match(/\[\s*'[^']+'(?:,\s*'[^']+')*\s*,?\s*\]/g)
+        ?.flatMap((entry) => [...entry.matchAll(/'([^']+)'/g)].map((m) => m[1] as string))
+        .map((token) => token.replace('[]', '')) ?? [],
+    );
+
+    const missing = declared.filter((field) => !coveredFields.has(field));
+    expect(missing, `coleções do contrato sem normalização: ${missing.join(', ')}`).toEqual([]);
+  });
+
+  it('normalização estrutural não inventa item nem escalar', async () => {
+    // Só `identity` — nenhuma coleção, nenhum escalar de negócio.
+    mockJson({ identity: { serviceOrderId: 'so-1' } });
+
+    const workbench = await getMeasurementWorkbench('so-1');
+
+    // Listas viram [] (ausência de itens), nunca um item falso.
+    expect(workbench.variances).toEqual([]);
+    expect(workbench.items).toEqual([]);
+    // Escalar ausente continua ausente: nada de 0/'false' inventado.
+    expect(workbench.identity.rowVersion ?? null).toBeNull();
+  });
+
   it('retorno do ACEITE também é normalizado — o comando entrega o read model', async () => {
     mockJson({ identity: { serviceOrderId: 'so-1' } });
 

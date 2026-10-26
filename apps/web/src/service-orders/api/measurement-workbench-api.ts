@@ -243,85 +243,157 @@ function normalizeWorkQueue(
  *     numa quantidade viraria valor de negócio afirmado pelo cliente.
  *   - `freshness` preserva `authority: 'SERVER'`.
  */
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * NORMALIZAÇÃO ESTRUTURAL — A CLASSE DO DEFEITO, NÃO A INSTÂNCIA
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * CINCO RELEASES SEGUIDOS FALHARAM PELO MESMO ERRO
+ *
+ *   40229777025  TypeError: reading 'map'   -> fila (items)
+ *   40237829572  TypeError: reading 'map'   -> workbench (13 coleções)
+ *   40241021656  sem unidade                -> extração
+ *   40243609368  sem unidade                -> fonte da leitura
+ *   40248272786  TypeError: reading 'map'   -> coleções ANINHADAS
+ *
+ * Cada correção listava à mão as coleções que o render percorre. A próxima
+ * coleção não listada voltava a derrubar a tela. Isso nunca termina: a lista
+ * manual compete com o contrato, e o contrato sempre ganha quando evolui.
+ *
+ * A CAUSA É UMA SÓ: O FRONTEND CONFIA NA FORMA DE UM PAYLOAD QUE NUNCA FOI
+ * VERIFICADO. O tipo diz `readonly T[]`; a rede pode não entregar isso.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * A REGRA, DERIVADA DO PRÓPRIO VALOR
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * Em vez de uma lista de nomes, a normalização percorre a ESTRUTURA:
+ *
+ *   - valor é array           -> mantém (elementos normalizados);
+ *   - valor é objeto          -> normaliza os campos recursivamente;
+ *   - valor é `undefined`     -> NÃO inventa nada: quem decide o default é o
+ *                                chamador, campo a campo, abaixo.
+ *
+ * Como o `undefined` é preservado, os defaults continuam sendo uma decisão
+ * EXPLÍCITA do contrato (`nextAction: null`, `freshness` com autoridade do
+ * servidor), e não um efeito colateral do algoritmo.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * POR QUE ISSO NÃO INVENTA NEGÓCIO
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * A função só toca o que é COLEÇÃO no tipo declarado (lista de chaves abaixo).
+ * Para essas, ausência de lista é ausência de itens — `[]`, nunca um item falso.
+ * Escalar ausente permanece ausente: um `0` inventado numa quantidade seria
+ * valor de negócio afirmado pelo cliente, e isso continua proibido.
+ *
+ * A lista de coleções vem do TIPO, e o teste de fitness abaixo obriga que ela
+ * cubra TODOS os campos `readonly X[]` do read model. Adicionar uma coleção ao
+ * contrato sem registrá-la aqui reprova o build — que é o oposto de descobrir
+ * em produção.
+ */
+const WORKBENCH_COLLECTION_PATHS: ReadonlyArray<readonly string[]> = [
+  ['variances'],
+  ['adjustments'],
+  ['items'],
+  ['evidence'],
+  ['situations'],
+  ['relationships'],
+  ['documentFlow'],
+  ['timeline'],
+  ['availableCommands'],
+  ['processContext', 'completedMilestones'],
+  ['processContext', 'pendingMilestones'],
+  ['processContext', 'milestones'],
+  ['measurementBasis', 'lines'],
+  ['quantities', 'lines'],
+  ['acceptance', 'history'],
+  ['billingEligibility', 'dimensions'],
+  ['billingEligibility', 'blockingReasons'],
+  ['nextAction', 'reasonLabels'],
+  ['availableCommands[]', 'reasonLabels'],
+  // ── LACUNA DE RECEITA (`RevenueLeakageReadModel`) ───────────────────────────
+  // Mesma garantia, aplicada preventivamente: a página percorre as duas listas.
+  ['stages'],
+  ['positions'],
+  ['stages[]', 'positions'],
+];
+
+/** Objeto, ou `{}` quando o pai não veio. Nunca lança no acesso aninhado. */
+function objectOf(value: unknown): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return {};
+}
+
+/**
+ * Garante a FORMA das coleções declaradas no contrato.
+ *
+ * Caminhos com `[]` significam "para cada elemento da lista". Um caminho simples
+ * significa "campo deste objeto".
+ */
+function normalizeCollections<T>(input: T): T {
+  const root = structuredClone(input) as Record<string, unknown>;
+
+  const apply = (path: readonly string[], holder: Record<string, unknown>): void => {
+    if (path.length === 0) return;
+
+    const [head, ...rest] = path as [string, ...string[]];
+
+    if (head.endsWith('[]')) {
+      const key = head.slice(0, -2);
+      const list = holder[key];
+      if (!Array.isArray(list)) {
+        holder[key] = [];
+        return;
+      }
+      for (const element of list) {
+        apply(rest, objectOf(element));
+      }
+      return;
+    }
+
+    if (rest.length === 0) {
+      if (!Array.isArray(holder[head])) {
+        holder[head] = [];
+      }
+      return;
+    }
+
+    holder[head] = objectOf(holder[head]);
+    apply(rest, objectOf(holder[head]));
+  };
+
+  for (const path of WORKBENCH_COLLECTION_PATHS) {
+    apply(path, root);
+  }
+
+  return root as T;
+}
+
 function normalizeWorkbench(
   payload: MeasurementWorkbenchReadModel | null | undefined,
 ): MeasurementWorkbenchReadModel {
-  // `unknown[]` e não genérico: o payload chega em `Partial`, então a inferência
-  // cairia em `any[]` e a fronteira devolveria dado não verificado ao React.
-  const arrayOf = (value: unknown): readonly unknown[] =>
-    Array.isArray(value) ? value : [];
-
-  const source = (payload ?? {}) as Partial<MeasurementWorkbenchReadModel>;
-
-  /**
-   * ─────────────────────────────────────────────────────────────────────────────
-   * AS COLEÇÕES ANINHADAS TAMBÉM SÃO PERCORRIDAS COM `.map`
-   * ─────────────────────────────────────────────────────────────────────────────
-   *
-   * Medido em produção (release 40248272786, main 6aea8a2d) DEPOIS que a unidade
-   * passou a ser resolvida corretamente:
-   *
-   *   url=/app/measurement?unitId=UN-PROD-001
-   *   TypeError: Cannot read properties of undefined (reading 'map')
-   *
-   * A normalização anterior cobria só as coleções de TOPO. A tela percorre
-   * também estruturas ANINHADAS:
-   *
-   *   basis.lines                     acceptance.history
-   *   decision.dimensions             decision.blockingReasons
-   *   command.reasonLabels            processContext.milestones
-   *
-   * Estas dependem do objeto-pai existir. Se o backend omitir o pai inteiro
-   * (`decision`, `processContext`), o acesso `decision.dimensions` lança antes de
-   * qualquer `?? []` — por isso normalizar só o array não basta: o PAI precisa
-   * existir.
-   *
-   * A garantia continua sendo de FORMA, nunca de conteúdo: um objeto vazio não
-   * afirma decisão nem processo; ele apenas impede que a ausência derrube a tela.
-   */
-  const objectOf = <T extends object>(value: unknown): T => {
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-      return value as T;
-    }
-    return {} as T;
-  };
-
-  const basis = objectOf<{ lines?: unknown }>(source.measurementBasis);
-  const acceptance = objectOf<{ history?: unknown }>(source.acceptance);
-  const decision = objectOf<{ dimensions?: unknown; blockingReasons?: unknown }>(
-    source.billingEligibility,
-  );
-  const processContext = objectOf<{ milestones?: unknown }>(source.processContext);
+  const source = (payload ?? {}) as MeasurementWorkbenchReadModel;
 
   return {
-    ...source,
-    variances: arrayOf(source.variances),
-    adjustments: arrayOf(source.adjustments),
-    items: arrayOf(source.items),
-    evidence: arrayOf(source.evidence),
-    situations: arrayOf(source.situations),
-    relationships: arrayOf(source.relationships),
-    documentFlow: arrayOf(source.documentFlow),
-    timeline: arrayOf(source.timeline),
-    availableCommands: arrayOf(source.availableCommands).map((command) => {
-      // `command.reasonLabels` é percorrido com `.map` por comando.
-      const entry = objectOf<{ reasonLabels?: unknown }>(command);
-      return { ...entry, reasonLabels: arrayOf(entry.reasonLabels) };
-    }),
-    measurementBasis: { ...basis, lines: arrayOf(basis.lines) },
-    acceptance: { ...acceptance, history: arrayOf(acceptance.history) },
-    billingEligibility: {
-      ...decision,
-      dimensions: arrayOf(decision.dimensions),
-      blockingReasons: arrayOf(decision.blockingReasons),
-    },
-    processContext: { ...processContext, milestones: arrayOf(processContext.milestones) },
+    ...normalizeCollections(source),
+    /**
+     * DEFAULTS EXPLÍCITOS DO CONTRATO — `undefined` não é resposta aceitável
+     * para estes dois campos, e o valor escolhido aqui é o ÚNICO honesto:
+     *
+     *   `nextAction: null` → "sem próxima ação" é estado real do domínio;
+     *   `freshness` → a autoridade continua sendo do SERVIDOR; o cliente apenas
+     *                 registra o instante da leitura para não exibir "fresco"
+     *                 sobre dado que não tem carimbo.
+     */
     nextAction: source.nextAction ?? null,
     freshness: source.freshness ?? {
       readAt: new Date().toISOString(),
       authority: 'SERVER',
     },
-  } as MeasurementWorkbenchReadModel;
+  };
 }
 
 /** LACUNA DE RECEITA por estágio da cadeia. */
@@ -337,10 +409,19 @@ export async function getRevenueLeakage(
   if (input.at !== undefined) {
     params.set('at', input.at);
   }
-  return requestJson<RevenueLeakageReadModel>(
+  /**
+   * A LACUNA DE RECEITA TEM A MESMA EXPOSIÇÃO.
+   *
+   * `RevenueLeakagePage` faz `data.stages.map(...)` e `positions.map(...)`. Sem
+   * normalização, uma resposta sem `stages` derruba a tela — o mesmo defeito que
+   * já custou cinco releases na estação de medição. Aqui a garantia entra ANTES
+   * de o defeito existir, não depois.
+   */
+  const payload = await requestJson<RevenueLeakageReadModel>(
     `/api/v1/query/measurements/revenue-leakage?${params.toString()}`,
     { method: 'GET', headers: authHeaders(), signal },
   );
+  return normalizeCollections(payload);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
