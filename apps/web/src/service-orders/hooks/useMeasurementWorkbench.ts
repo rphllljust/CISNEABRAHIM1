@@ -45,6 +45,7 @@ import type {
 
 /** Estado de UMA leitura: carga inicial, recarga e erro são distintos. */
 export type QueryState<T> =
+  | { readonly phase: 'idle' }
   | { readonly phase: 'loading' }
   | { readonly phase: 'ready'; readonly data: T }
   | { readonly phase: 'denied' }
@@ -80,28 +81,40 @@ function toQueryState<T>(error: unknown): QueryState<T> {
  * para esqueleto apagaria a decisão em curso.
  */
 export function useMeasurementWorkbench(serviceOrderId: string) {
-  const [state, setState] = useState<QueryState<MeasurementWorkbenchReadModel>>({
-    phase: 'loading',
-  });
+  const [state, setState] = useState<QueryState<MeasurementWorkbenchReadModel>>(() =>
+    serviceOrderId.trim().length > 0 ? { phase: 'loading' } : { phase: 'idle' },
+  );
   const [refreshing, setRefreshing] = useState(false);
   const requestSeq = useRef(0);
 
   const load = useCallback(
     async (mode: 'initial' | 'refresh') => {
+      const targetServiceOrderId = serviceOrderId.trim();
       const seq = ++requestSeq.current;
-      if (mode === 'refresh') {
+
+      // Sem ordem selecionada não existe workbench para ler.
+      // A rota autoritativa exige :serviceOrderId; ausência de seleção é estado
+      // de UI (idle), não request inválido nem erro de rede.
+      if (targetServiceOrderId.length === 0) {
+        setRefreshing(false);
+        setState({ phase: 'idle' });
+        return;
+      }
+
+      if (mode === 'initial') {
+        // Ao trocar de ordem, não mantenha o read model da ordem anterior.
+        setState({ phase: 'loading' });
+      } else {
         setRefreshing(true);
       }
+
       try {
-        const data = await getMeasurementWorkbench(serviceOrderId);
+        const data = await getMeasurementWorkbench(targetServiceOrderId);
         if (seq === requestSeq.current) {
           setState({ phase: 'ready', data });
         }
       } catch (error) {
         if (seq === requestSeq.current) {
-          // Uma recarga que falha MANTÉM o dado anterior quando já havia dado:
-          // perder o caso lido por uma falha de rede é pior que mostrá-lo com
-          // aviso de desatualizado.
           setState((previous) =>
             previous.phase === 'ready' && mode === 'refresh' ? previous : toQueryState(error),
           );
@@ -121,7 +134,6 @@ export function useMeasurementWorkbench(serviceOrderId: string) {
 
   const refresh = useCallback(() => load('refresh'), [load]);
 
-  /** Substitui o read model por um já recomposto pelo backend (resultado de comando). */
   const replace = useCallback((data: MeasurementWorkbenchReadModel) => {
     setState({ phase: 'ready', data });
   }, []);

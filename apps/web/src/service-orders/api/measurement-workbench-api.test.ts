@@ -1,11 +1,112 @@
+import * as ts from 'typescript';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { tokenStore } from '../../auth/storage/token-store';
 import {
   getMeasurementWorkQueue,
   getMeasurementWorkbench,
   recordCustomerAcceptance,
+  WORKBENCH_COLLECTION_PATHS,
+  REVENUE_LEAKAGE_COLLECTION_PATHS,
 } from './measurement-workbench-api';
 
+function collectArrayPaths(typesSource: string, rootTypeName: string): string[] {
+  const sourceFile = ts.createSourceFile(
+    'measurement-workbench.types.ts',
+    typesSource,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+
+  const declarations = new Map<string, ts.InterfaceDeclaration | ts.TypeAliasDeclaration>();
+  sourceFile.forEachChild((node) => {
+    if (ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node)) {
+      declarations.set(node.name.text, node);
+    }
+  });
+
+  const paths = new Set<string>();
+
+  function visitMembers(
+    members: ts.NodeArray<ts.TypeElement>,
+    prefix: readonly string[],
+    stack: ReadonlySet<string>,
+  ): void {
+    for (const member of members) {
+      if (!ts.isPropertySignature(member) || !member.type || !member.name) continue;
+      const name = member.name.getText(sourceFile).replace(/^['\"]|['\"]$/g, '');
+      visitType(member.type, [...prefix, name], stack);
+    }
+  }
+
+  function visitNamed(
+    name: string,
+    prefix: readonly string[],
+    stack: ReadonlySet<string>,
+  ): void {
+    if (stack.has(name)) return;
+    const declaration = declarations.get(name);
+    if (!declaration) return;
+    const nextStack = new Set(stack);
+    nextStack.add(name);
+    if (ts.isInterfaceDeclaration(declaration)) {
+      visitMembers(declaration.members, prefix, nextStack);
+      return;
+    }
+    visitType(declaration.type, prefix, nextStack);
+  }
+
+  function visitArrayElement(
+    elementType: ts.TypeNode,
+    prefix: readonly string[],
+    stack: ReadonlySet<string>,
+  ): void {
+    if (prefix.length === 0) return;
+    paths.add(prefix.join('.'));
+    const last = prefix[prefix.length - 1];
+    if (!last) return;
+    const elementPrefix = [...prefix.slice(0, -1), last + '[]'];
+    visitType(elementType, elementPrefix, stack);
+  }
+
+  function visitType(
+    type: ts.TypeNode,
+    prefix: readonly string[],
+    stack: ReadonlySet<string>,
+  ): void {
+    if (ts.isArrayTypeNode(type)) {
+      visitArrayElement(type.elementType, prefix, stack);
+      return;
+    }
+    if (ts.isTypeReferenceNode(type)) {
+      const typeName = type.typeName.getText(sourceFile);
+      if ((typeName === 'Array' || typeName === 'ReadonlyArray') && type.typeArguments?.[0]) {
+        visitArrayElement(type.typeArguments[0], prefix, stack);
+        return;
+      }
+      visitNamed(typeName, prefix, stack);
+      return;
+    }
+    if (ts.isTypeLiteralNode(type)) {
+      visitMembers(type.members, prefix, stack);
+      return;
+    }
+    if (ts.isUnionTypeNode(type) || ts.isIntersectionTypeNode(type)) {
+      for (const child of type.types) visitType(child, prefix, stack);
+      return;
+    }
+    if (ts.isParenthesizedTypeNode(type) || ts.isTypeOperatorNode(type)) {
+      visitType(type.type, prefix, stack);
+    }
+  }
+
+  visitNamed(rootTypeName, [], new Set());
+  return [...paths].sort();
+}
+
+function configuredPaths(paths: ReadonlyArray<readonly string[]>): string[] {
+  return paths.map((path) => path.join('.')).sort();
+}
 /**
  * ─────────────────────────────────────────────────────────────────────────────
  * DEFEITO DE PRODUÇÃO QUE ESTE TESTE TRAVA: A FILA DERRUBAVA A ESTAÇÃO INTEIRA
@@ -268,20 +369,13 @@ describe('getMeasurementWorkbench — read model degenerado não quebra a estaç
   });
 
   /**
-   * ─────────────────────────────────────────────────────────────────────────────
-   * O TESTE QUE FECHA A CLASSE — TODA COLEÇÃO DO CONTRATO, NÃO UMA AMOSTRA
-   * ─────────────────────────────────────────────────────────────────────────────
+   * FITNESS TEST DE CONTRATO — CAMINHO COMPLETO, NÃO NOME DE CAMPO.
    *
-   * Cinco releases falharam por `reading 'map'`. A causa nunca foi uma coleção:
-   * foi a lista manual de coleções normalizadas, que competia com o contrato.
-   *
-   * Este teste deriva as coleções DO PRÓPRIO TIPO (`measurement-workbench.types.ts`)
-   * e exige que a normalização as cubra. Uma coleção nova no contrato sem registro
-   * em `WORKBENCH_COLLECTION_PATHS` reprova aqui — no CI, não em produção.
+   * O teste anterior tratava measurementBasis.lines e quantities.lines como
+   * o mesmo campo 'lines'. O AST parte dos read models raiz e preserva o
+   * caminho, inclusive dentro de elementos de listas.
    */
-  it('cobre TODAS as coleções declaradas no contrato', async () => {
-    // Import de MÓDULO, não desestruturação: `join`/`dirname` soltos disparam
-    // `unbound-method` do ESLint — o método perde o `this` do namespace.
+  it('cobre por caminho completo TODAS as coleções do Workbench e Revenue Leakage', async () => {
     const fs = await import('node:fs');
     const path = await import('node:path');
     const url = await import('node:url');
@@ -291,30 +385,14 @@ describe('getMeasurementWorkbench — read model degenerado não quebra a estaç
       path.join(here, '..', 'types', 'measurement-workbench.types.ts'),
       'utf8',
     );
-    const apiSource = fs.readFileSync(path.join(here, 'measurement-workbench-api.ts'), 'utf8');
 
-    // Campos declarados como lista no contrato (`readonly x: T[]`).
-    const declared = [...typesSource.matchAll(/readonly\s+(\w+):\s*[\w<>|,\s]+\[];/g)].map(
-      (match) => match[1] as string,
+    expect(configuredPaths(WORKBENCH_COLLECTION_PATHS)).toEqual(
+      collectArrayPaths(typesSource, 'MeasurementWorkbenchReadModel'),
     );
-    expect(declared.length).toBeGreaterThan(15);
-
-    /**
-     * A lista de caminhos cobre nomes distintos: `lines` aparece em dois pais, e
-     * por isso o teste compara por NOME de campo, não por caminho completo. É o
-     * nível de garantia que importa aqui: "todo campo-lista foi considerado".
-     */
-    const coveredFields = new Set(
-      apiSource
-        .match(/\[\s*'[^']+'(?:,\s*'[^']+')*\s*,?\s*\]/g)
-        ?.flatMap((entry) => [...entry.matchAll(/'([^']+)'/g)].map((m) => m[1] as string))
-        .map((token) => token.replace('[]', '')) ?? [],
+    expect(configuredPaths(REVENUE_LEAKAGE_COLLECTION_PATHS)).toEqual(
+      collectArrayPaths(typesSource, 'RevenueLeakageReadModel'),
     );
-
-    const missing = declared.filter((field) => !coveredFields.has(field));
-    expect(missing, `coleções do contrato sem normalização: ${missing.join(', ')}`).toEqual([]);
   });
-
   it('normalização estrutural não inventa item nem escalar', async () => {
     // Só `identity` — nenhuma coleção, nenhum escalar de negócio.
     mockJson({ identity: { serviceOrderId: 'so-1' } });

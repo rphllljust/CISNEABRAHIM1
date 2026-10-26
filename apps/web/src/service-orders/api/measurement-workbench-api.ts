@@ -287,12 +287,11 @@ function normalizeWorkQueue(
  * Escalar ausente permanece ausente: um `0` inventado numa quantidade seria
  * valor de negócio afirmado pelo cliente, e isso continua proibido.
  *
- * A lista de coleções vem do TIPO, e o teste de fitness abaixo obriga que ela
- * cubra TODOS os campos `readonly X[]` do read model. Adicionar uma coleção ao
- * contrato sem registrá-la aqui reprova o build — que é o oposto de descobrir
- * em produção.
+ * Cada read model possui sua própria lista de caminhos. O fitness test deriva
+ * os caminhos do AST TypeScript e compara por CAMINHO COMPLETO; adicionar uma
+ * coleção ao contrato sem normalização reprova no CI, antes de produção.
  */
-const WORKBENCH_COLLECTION_PATHS: ReadonlyArray<readonly string[]> = [
+export const WORKBENCH_COLLECTION_PATHS = [
   ['variances'],
   ['adjustments'],
   ['items'],
@@ -310,14 +309,16 @@ const WORKBENCH_COLLECTION_PATHS: ReadonlyArray<readonly string[]> = [
   ['acceptance', 'history'],
   ['billingEligibility', 'dimensions'],
   ['billingEligibility', 'blockingReasons'],
-  ['nextAction', 'reasonLabels'],
+  ['availableCommands[]', 'blockingReasons'],
   ['availableCommands[]', 'reasonLabels'],
-  // ── LACUNA DE RECEITA (`RevenueLeakageReadModel`) ───────────────────────────
-  // Mesma garantia, aplicada preventivamente: a página percorre as duas listas.
+] as const;
+
+export const REVENUE_LEAKAGE_COLLECTION_PATHS = [
   ['stages'],
   ['positions'],
-  ['stages[]', 'positions'],
-];
+] as const;
+
+type CollectionPath = readonly string[];
 
 /** Objeto, ou `{}` quando o pai não veio. Nunca lança no acesso aninhado. */
 function objectOf(value: unknown): Record<string, unknown> {
@@ -333,7 +334,10 @@ function objectOf(value: unknown): Record<string, unknown> {
  * Caminhos com `[]` significam "para cada elemento da lista". Um caminho simples
  * significa "campo deste objeto".
  */
-function normalizeCollections<T>(input: T): T {
+function normalizeCollections<T>(
+  input: T,
+  paths: ReadonlyArray<CollectionPath>,
+): T {
   const root = structuredClone(input) as Record<string, unknown>;
 
   const apply = (path: readonly string[], holder: Record<string, unknown>): void => {
@@ -365,7 +369,7 @@ function normalizeCollections<T>(input: T): T {
     apply(rest, objectOf(holder[head]));
   };
 
-  for (const path of WORKBENCH_COLLECTION_PATHS) {
+  for (const path of paths) {
     apply(path, root);
   }
 
@@ -378,7 +382,7 @@ function normalizeWorkbench(
   const source = (payload ?? {}) as MeasurementWorkbenchReadModel;
 
   return {
-    ...normalizeCollections(source),
+    ...normalizeCollections(source, WORKBENCH_COLLECTION_PATHS),
     /**
      * DEFAULTS EXPLÍCITOS DO CONTRATO — `undefined` não é resposta aceitável
      * para estes dois campos, e o valor escolhido aqui é o ÚNICO honesto:
@@ -421,7 +425,7 @@ export async function getRevenueLeakage(
     `/api/v1/query/measurements/revenue-leakage?${params.toString()}`,
     { method: 'GET', headers: authHeaders(), signal },
   );
-  return normalizeCollections(payload);
+  return normalizeCollections(payload, REVENUE_LEAKAGE_COLLECTION_PATHS);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
