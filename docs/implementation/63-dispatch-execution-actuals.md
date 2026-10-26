@@ -177,3 +177,30 @@ FK de ordem inexistente · read contract espelha tabela.
 - Motor de custeio completo — apenas os **fatos** que ele consome.
 - Resolução das dimensões QUALIFICATION e MAINTENANCE (dependem de modelagem ausente).
 - Medição: a base é **publicada**; o workbench de medição é da próxima capability.
+
+---
+
+## 9. Prova funcional em produção
+
+`scripts/cd/dispatch-execution-proof.mjs` exercita a cadeia pela API pública, com
+login real:
+
+```text
+LOGIN → LISTA → DISPATCH BOARD → EXECUTION CONSOLE → OBJECT PAGE
+      → GATE → ACTUALS → SITUAÇÕES → COMANDOS → MEASUREMENT READINESS
+```
+
+Execução:
+
+```bash
+CISNE_API_URL=https://<api> \
+PROD_SMOKE_LOGIN=<login> \
+PROD_SMOKE_PASSWORD=<senha> \
+node scripts/cd/dispatch-execution-proof.mjs
+```
+
+**Limite declarado:** o script NÃO cria contrato, catálogo, cliente nem ordem. Ele
+opera sobre o que já existe em produção. Quando não há ordem em execução, a etapa
+correspondente é reportada como `N/A` **com o motivo** — nunca é fabricado dado de
+negócio para o gate passar.
+
