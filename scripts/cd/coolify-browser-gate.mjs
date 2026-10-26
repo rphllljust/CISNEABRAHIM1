@@ -203,7 +203,7 @@ export function evaluateMeasurementBusinessProof(workbench) {
 }
 
 
-export function extractMeasurementCandidateServiceOrderIds(payload, unitId, limit = 25) {
+export function extractMeasurementCandidateServiceOrderIds(payload, unitId) {
   if (
     typeof unitId !== 'string' ||
     unitId.trim().length === 0 ||
@@ -229,7 +229,6 @@ export function extractMeasurementCandidateServiceOrderIds(payload, unitId, limi
     if (seen.has(id)) continue;
     seen.add(id);
     result.push(id);
-    if (result.length >= limit) break;
   }
   return result;
 }
@@ -833,32 +832,53 @@ async function main() {
         typeof queueAuthorization === 'string' &&
         queueAuthorization.length > 0
       ) {
-        const serviceOrdersUrl = new URL(measurementQueueResponse.url());
-        serviceOrdersUrl.pathname = '/api/v1/service-orders';
-        serviceOrdersUrl.search = '';
-        serviceOrdersUrl.searchParams.set('limit', '100');
-        serviceOrdersUrl.searchParams.set('offset', '0');
-        serviceOrdersUrl.searchParams.set('unitId', resolvedUnitId);
-        serviceOrdersUrl.searchParams.set('status', 'COMPLETED');
+        const candidateIds = [];
+        const seenCandidateIds = new Set();
+        let serviceOrdersOffset = 0;
+        let serviceOrdersHasMore = true;
 
-        const serviceOrdersResponse = await context.request
-          .get(serviceOrdersUrl.toString(), {
-            headers: {
-              Accept: 'application/json',
-              Authorization: queueAuthorization,
-            },
-          })
-          .catch(() => null);
+        while (serviceOrdersHasMore) {
+          const serviceOrdersUrl = new URL(measurementQueueResponse.url());
+          serviceOrdersUrl.pathname = '/api/v1/service-orders';
+          serviceOrdersUrl.search = '';
+          serviceOrdersUrl.searchParams.set('limit', '100');
+          serviceOrdersUrl.searchParams.set('offset', String(serviceOrdersOffset));
+          serviceOrdersUrl.searchParams.set('unitId', resolvedUnitId);
+          serviceOrdersUrl.searchParams.set('status', 'COMPLETED');
 
-        const serviceOrdersPayload =
-          serviceOrdersResponse?.ok() === true
-            ? await serviceOrdersResponse.json().catch(() => null)
-            : null;
-        const candidateIds = extractMeasurementCandidateServiceOrderIds(
-          serviceOrdersPayload,
-          resolvedUnitId,
-          25,
-        );
+          const serviceOrdersResponse = await context.request
+            .get(serviceOrdersUrl.toString(), {
+              headers: {
+                Accept: 'application/json',
+                Authorization: queueAuthorization,
+              },
+            })
+            .catch(() => null);
+          if (serviceOrdersResponse?.ok() !== true) break;
+
+          const serviceOrdersPayload = await serviceOrdersResponse.json().catch(() => null);
+          const pageIds = extractMeasurementCandidateServiceOrderIds(
+            serviceOrdersPayload,
+            resolvedUnitId,
+          );
+          for (const id of pageIds) {
+            if (seenCandidateIds.has(id)) continue;
+            seenCandidateIds.add(id);
+            candidateIds.push(id);
+          }
+
+          const pageItems = Array.isArray(serviceOrdersPayload?.items)
+            ? serviceOrdersPayload.items
+            : [];
+          serviceOrdersHasMore = serviceOrdersPayload?.hasMore === true;
+          if (!serviceOrdersHasMore) break;
+          if (pageItems.length === 0) {
+            throw new Error(
+              'Service orders pagination declared hasMore=true with an empty page.',
+            );
+          }
+          serviceOrdersOffset += pageItems.length;
+        }
 
         for (const serviceOrderId of candidateIds) {
           const probeUrl = new URL(measurementQueueResponse.url());
