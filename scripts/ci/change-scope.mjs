@@ -9,37 +9,45 @@ const VISUAL_RISK_PATTERNS = [
   /\.css$/,
 ];
 
-const INTEGRATION_NOT_REQUIRED_PATTERNS = [
-  /^scripts\/cd\//,
-];
+const CD_ONLY_PATTERN = /^scripts\/cd\//;
 
 export function classifyChangeScope(paths, options = {}) {
   const unknown = options.unknown === true;
   const normalized = Array.isArray(paths)
-    ? paths.map((path) => String(path).trim()).filter(Boolean)
+    ? [...new Set(paths.map((path) => String(path).trim()).filter(Boolean))].sort()
     : [];
 
-  if (unknown || normalized.length === 0) {
+  if (unknown) {
     return {
       visualRisk: true,
       integrationRequired: true,
-      changedFiles: unknown ? 'unknown' : String(normalized.length),
+      integrationReason: 'DIFF_INDETERMINATE',
+      changedFiles: 'unknown',
+      changedPaths: ['<unknown>'],
+    };
+  }
+
+  if (normalized.length === 0) {
+    return {
+      visualRisk: true,
+      integrationRequired: true,
+      integrationReason: 'EMPTY_DIFF',
+      changedFiles: '0',
+      changedPaths: [],
     };
   }
 
   const visualRisk = normalized.some((path) =>
     VISUAL_RISK_PATTERNS.some((pattern) => pattern.test(path)),
   );
-
-  const integrationRequired = normalized.some(
-    (path) =>
-      !INTEGRATION_NOT_REQUIRED_PATTERNS.some((pattern) => pattern.test(path)),
-  );
+  const cdOnly = normalized.every((path) => CD_ONLY_PATTERN.test(path));
 
   return {
     visualRisk,
-    integrationRequired,
+    integrationRequired: !cdOnly,
+    integrationReason: cdOnly ? 'CD_ONLY_CHANGE' : 'IMPACT_REQUIRES_INTEGRATION',
     changedFiles: String(normalized.length),
+    changedPaths: normalized,
   };
 }
 
@@ -48,7 +56,9 @@ function printOutputs(result) {
     [
       `visual_risk=${result.visualRisk ? 'true' : 'false'}`,
       `integration_required=${result.integrationRequired ? 'true' : 'false'}`,
+      `integration_reason=${result.integrationReason}`,
       `changed_files=${result.changedFiles}`,
+      `changed_paths=${JSON.stringify(result.changedPaths)}`,
     ].join('\n') + '\n',
   );
 }
