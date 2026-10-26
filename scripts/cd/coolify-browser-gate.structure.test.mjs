@@ -214,6 +214,21 @@ describe('o gate executa — código útil não pode estar comentado', () => {
     );
   });
 
+  it('fila vazia procura OS concluída read-only e prova o candidato no Chromium', () => {
+    const code = executableSource(readGate());
+    assert.match(code, /serviceOrdersUrl\.searchParams\.set\('status', 'COMPLETED'\)/);
+    assert.match(code, /serviceOrdersUrl\.searchParams\.set\('unitId', resolvedUnitId\)/);
+    assert.match(code, /context\.request\s*\.get\(serviceOrdersUrl\.toString\(\)/);
+    assert.match(code, /extractMeasurementCandidateServiceOrderIds/);
+    assert.match(code, /candidateServiceOrderId/);
+    assert.match(code, /serviceOrderId=\$\{encodeURIComponent\(candidateServiceOrderId\)\}/);
+    assert.doesNotMatch(
+      code,
+      /context\.request\s*\.(post|put|patch|delete)\(/,
+      'fallback de produção deve ser estritamente read-only',
+    );
+  });
+
   it('fila de medição usa seletor acessível real e bloqueia workbench órfão', () => {
     const code = executableSource(readGate());
     assert.match(code, /ul\[aria-label="Itens de trabalho da medição"\] button/);

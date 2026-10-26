@@ -202,6 +202,38 @@ export function evaluateMeasurementBusinessProof(workbench) {
   };
 }
 
+
+export function extractMeasurementCandidateServiceOrderIds(payload, unitId, limit = 25) {
+  if (
+    typeof unitId !== 'string' ||
+    unitId.trim().length === 0 ||
+    !payload ||
+    !Array.isArray(payload.items)
+  ) {
+    return [];
+  }
+
+  const result = [];
+  const seen = new Set();
+  for (const item of payload.items) {
+    if (
+      !item ||
+      typeof item !== 'object' ||
+      typeof item.id !== 'string' ||
+      item.id.trim().length === 0 ||
+      item.unitId !== unitId
+    ) {
+      continue;
+    }
+    const id = item.id.trim();
+    if (seen.has(id)) continue;
+    seen.add(id);
+    result.push(id);
+    if (result.length >= limit) break;
+  }
+  return result;
+}
+
 /**
  * ─────────────────────────────────────────────────────────────────────────────
  * O VEREDITO É UMA FUNÇÃO PURA — E É TESTÁVEL COMO TAL
@@ -786,28 +818,151 @@ async function main() {
         : `prova semântica incompleta: aceite=${businessProof.acceptanceResult ?? businessProof.acceptanceState ?? 'ausente'}, elegibilidade=${businessProof.eligibilityResult ?? 'ausente'}, unidadeComercial=${businessProof.commercialUnitVerified}`;
       await page.screenshot({ path: `${OUT}/03-measurement-workbench.png`, fullPage: true });
     } else {
-      /**
-       * NOT_APPLICABLE — NÃO PROVADO, E O NOME DIZ ISSO.
-       *
-       * A tentação é registrar `record(..., true, 'N/A')` para não pintar de
-       * vermelho uma tela saudável. Foi o que se fez, e o TOTAL passou a contar
-       * N/A como PASS: o gate saía verde sem ter provado o negócio.
-       *
-       * `record(name, null, ...)` marca o resultado como NÃO APLICÁVEL — nem
-       * aprovado nem reprovado naquela asserção —, e o veredito final exige
-       * `businessVerified`, que continua FALSE aqui. A tela não é punida; a
-       * ENTREGA não é declarada validada.
-       */
-      businessReason = 'NOT_APPLICABLE — nenhuma medição na fila desta unidade';
       record(
         'MEDIÇÃO sem workbench órfão quando fila vazia',
         measurementWorkbenchRequests.length === 0,
         measurementWorkbenchRequests.slice(0, 2).join(' | ') || 'nenhum request /workbench',
       );
-      record('MEDIÇÃO expõe elegibilidade de faturamento', null, businessReason);
-      record('MEDIÇÃO expõe aceite do cliente', null, businessReason);
-      record('MEDIÇÃO não mede em unidade física (HOUR/KM)', null, businessReason);
-      await page.screenshot({ path: `${OUT}/03-measurement.png`, fullPage: true });
+
+      const queueAuthorization =
+        measurementQueueResponse?.request().headers()['authorization'] ?? null;
+      let candidateServiceOrderId = null;
+
+      if (
+        measurementQueueResponse &&
+        typeof queueAuthorization === 'string' &&
+        queueAuthorization.length > 0
+      ) {
+        const serviceOrdersUrl = new URL(measurementQueueResponse.url());
+        serviceOrdersUrl.pathname = '/api/v1/service-orders';
+        serviceOrdersUrl.search = '';
+        serviceOrdersUrl.searchParams.set('limit', '100');
+        serviceOrdersUrl.searchParams.set('offset', '0');
+        serviceOrdersUrl.searchParams.set('unitId', resolvedUnitId);
+        serviceOrdersUrl.searchParams.set('status', 'COMPLETED');
+
+        const serviceOrdersResponse = await context.request
+          .get(serviceOrdersUrl.toString(), {
+            headers: {
+              Accept: 'application/json',
+              Authorization: queueAuthorization,
+            },
+          })
+          .catch(() => null);
+
+        const serviceOrdersPayload =
+          serviceOrdersResponse?.ok() === true
+            ? await serviceOrdersResponse.json().catch(() => null)
+            : null;
+        const candidateIds = extractMeasurementCandidateServiceOrderIds(
+          serviceOrdersPayload,
+          resolvedUnitId,
+          25,
+        );
+
+        for (const serviceOrderId of candidateIds) {
+          const probeUrl = new URL(measurementQueueResponse.url());
+          probeUrl.pathname =
+            `/api/v1/query/measurements/${encodeURIComponent(serviceOrderId)}/workbench`;
+          probeUrl.search = '';
+
+          const probeResponse = await context.request
+            .get(probeUrl.toString(), {
+              headers: {
+                Accept: 'application/json',
+                Authorization: queueAuthorization,
+              },
+            })
+            .catch(() => null);
+          if (probeResponse?.ok() !== true) continue;
+
+          const probePayload = await probeResponse.json().catch(() => null);
+          if (evaluateMeasurementBusinessProof(probePayload).verified) {
+            candidateServiceOrderId = serviceOrderId;
+            break;
+          }
+        }
+      }
+
+      if (candidateServiceOrderId) {
+        const candidateWorkbenchResponsePromise = page
+          .waitForResponse(
+            (response) => {
+              const url = new URL(response.url());
+              return (
+                url.pathname ===
+                `/api/v1/query/measurements/${candidateServiceOrderId}/workbench`
+              );
+            },
+            { timeout: 90_000 },
+          )
+          .catch(() => null);
+
+        measurementWorkbenchRequests.length = 0;
+        await page.goto(
+          `${webUrl}/app/measurement?unitId=${encodeURIComponent(
+            resolvedUnitId,
+          )}&serviceOrderId=${encodeURIComponent(candidateServiceOrderId)}`,
+          { waitUntil: 'domcontentloaded', timeout: 60_000 },
+        );
+        await page
+          .locator('main#main-content')
+          .waitFor({ state: 'visible', timeout: 90_000 })
+          .catch(() => {});
+
+        const candidateWorkbenchResponse = await candidateWorkbenchResponsePromise;
+        let candidateWorkbenchPayload = null;
+        if (
+          candidateWorkbenchResponse &&
+          candidateWorkbenchResponse.status() >= 200 &&
+          candidateWorkbenchResponse.status() < 300 &&
+          (candidateWorkbenchResponse.headers()['content-type'] ?? '').includes(
+            'application/json',
+          )
+        ) {
+          candidateWorkbenchPayload = await candidateWorkbenchResponse.json().catch(() => null);
+        }
+
+        const businessProof = evaluateMeasurementBusinessProof(candidateWorkbenchPayload);
+        record(
+          'MEDIÇÃO workbench histórico real carregado no Chromium',
+          measurementWorkbenchRequests.length > 0 && candidateWorkbenchResponse?.ok() === true,
+          candidateServiceOrderId,
+        );
+        record(
+          'MEDIÇÃO publica resultado autoritativo de aceite',
+          businessProof.acceptanceVerified,
+          `state=${businessProof.acceptanceState ?? 'ausente'}, result=${businessProof.acceptanceResult ?? 'ausente'}`,
+        );
+        record(
+          'MEDIÇÃO publica resultado autoritativo de elegibilidade',
+          businessProof.eligibilityVerified,
+          `billingEligibility.result=${businessProof.eligibilityResult ?? 'ausente'}`,
+        );
+        record(
+          'MEDIÇÃO não mede em unidade física (HOUR/KM)',
+          businessProof.commercialUnitVerified,
+          businessProof.commercialUnitVerified
+            ? 'nenhuma unidade física proibida publicada'
+            : 'HOUR/KM publicado ou unidade comercial ausente',
+        );
+
+        businessVerified = businessProof.verified;
+        businessReason = businessVerified
+          ? `fallback read-only: OS=${candidateServiceOrderId}; aceite=${businessProof.acceptanceResult ?? businessProof.acceptanceState}; elegibilidade=${businessProof.eligibilityResult}`
+          : `fallback encontrou OS, mas a prova semântica falhou: OS=${candidateServiceOrderId}`;
+        await page.screenshot({
+          path: `${OUT}/03-measurement-workbench-fallback.png`,
+          fullPage: true,
+        });
+      } else {
+        businessReason =
+          'NOT_APPLICABLE — nenhuma medição na fila e nenhuma OS concluída com prova semântica na unidade';
+        record('MEDIÇÃO expõe elegibilidade de faturamento', null, businessReason);
+        record('MEDIÇÃO expõe aceite do cliente', null, businessReason);
+        record('MEDIÇÃO não mede em unidade física (HOUR/KM)', null, businessReason);
+        await page.screenshot({ path: `${OUT}/03-measurement.png`, fullPage: true });
+      }
     }
     const measurementDenied = forbidden.filter((f) => /\/measurements?\b/.test(f));
     record(

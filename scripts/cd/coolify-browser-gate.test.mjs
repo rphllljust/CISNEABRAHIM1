@@ -5,6 +5,7 @@ import { it, describe } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   evaluateMeasurementBusinessProof,
+  extractMeasurementCandidateServiceOrderIds,
   hasOnlyCommercialMeasurementUnits,
 } from './coolify-browser-gate.mjs';
 
@@ -39,6 +40,31 @@ describe('browser gate — cobertura da vertical de medição', () => {
     assert.ok(
       source.includes('/app/measurement'),
       'o gate precisa visitar /app/measurement para provar a capability',
+    );
+  });
+
+  it('fallback de OS usa somente IDs reais da mesma unidade, sem duplicar', () => {
+    const ids = extractMeasurementCandidateServiceOrderIds(
+      {
+        items: [
+          { id: 'so-1', unitId: 'UN-PROD-001' },
+          { id: 'so-2', unitId: 'UN-OUTRA' },
+          { id: 'so-1', unitId: 'UN-PROD-001' },
+          { id: '', unitId: 'UN-PROD-001' },
+          { id: 'so-3', unitId: 'UN-PROD-001' },
+        ],
+      },
+      'UN-PROD-001',
+      25,
+    );
+    assert.deepEqual(ids, ['so-1', 'so-3']);
+  });
+
+  it('fallback de OS falha fechado quando a listagem não publica items', () => {
+    assert.deepEqual(extractMeasurementCandidateServiceOrderIds({}, 'UN-PROD-001', 25), []);
+    assert.deepEqual(
+      extractMeasurementCandidateServiceOrderIds({ items: [] }, '', 25),
+      [],
     );
   });
 
