@@ -82,6 +82,8 @@ describe('synthetic business seed (integration)', () => {
 
   it('rejects production NODE_ENV', async () => {
     process.env['NODE_ENV'] = 'production';
+    const previousCisneEnv = process.env['CISNE_ENV'];
+    process.env['CISNE_ENV'] = 'production';
     const identityId = await seedActor();
     try {
       await expect(
@@ -98,6 +100,8 @@ describe('synthetic business seed (integration)', () => {
       ).rejects.toThrow(/forbidden/i);
     } finally {
       process.env['NODE_ENV'] = 'test';
+      if (previousCisneEnv === undefined) delete process.env['CISNE_ENV'];
+      else process.env['CISNE_ENV'] = previousCisneEnv;
     }
   });
 
