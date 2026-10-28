@@ -72,9 +72,6 @@ jobs:
       - name: Grant HML pilot operator
         run: pnpm --filter @cisne/api hml:grant-pilot-operator
 
-      - name: Apply canonical portfolio seed
-        run: pnpm db:seed:portfolio
-
       - name: Execute synthetic business seed
         run: pnpm --filter @cisne/api hml:seed-synthetic
 
