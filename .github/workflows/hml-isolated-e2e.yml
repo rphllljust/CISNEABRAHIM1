@@ -49,9 +49,11 @@ jobs:
           from pathlib import Path
           p = Path(".env.hml")
           s = p.read_text()
-          s = s.replace("cisne_hml_password_change_me", "hml-gha-postgres-2026")
-          s = s.replace("hml-jwt-secret-with-at-least-32-characters-change-me", "hml-gha-jwt-secret-2026-rotated")
-          s = s.replace("hml-document-token-secret-change-me", "hml-gha-document-secret-2026-rotated")
+          import os, secrets
+          run_id = os.environ["GITHUB_RUN_ID"]
+          s = s.replace("cisne_hml_password_change_me", "hml-gha-" + run_id + "-" + secrets.token_hex(8))
+          s = s.replace("hml-jwt-secret-with-at-least-32-characters-change-me", "hml-jwt-" + run_id + "-" + secrets.token_hex(24))
+          s = s.replace("hml-document-token-secret-change-me", "hml-doc-" + run_id + "-" + secrets.token_hex(24))
           p.write_text(s)
           PY
           grep -q '^CISNE_ENV=hml$' .env.hml
