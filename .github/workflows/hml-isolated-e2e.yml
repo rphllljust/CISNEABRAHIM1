@@ -87,6 +87,15 @@ jobs:
           pnpm --filter @cisne/api test:hml
           pnpm --filter @cisne/api test:synthetic-seed
 
+      - name: Chromium HML real browser gate
+        env:
+          HML_WEB_URL: http://127.0.0.1:5174
+          HML_SMOKE_LOGIN: ${{ env.HML_SMOKE_LOGIN }}
+          HML_SMOKE_PASSWORD: ${{ env.HML_SMOKE_PASSWORD }}
+        run: |
+          pnpm --filter @cisne/web exec playwright install --with-deps chromium
+          pnpm --filter @cisne/web exec playwright test --config e2e/hml/playwright.hml.config.ts e2e/hml/fiscal-hml.spec.ts e2e/hml/accounting-hml.spec.ts
+
       - name: Upload HML evidence
         if: always()
         uses: actions/upload-artifact@v4
