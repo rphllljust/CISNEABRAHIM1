@@ -84,6 +84,8 @@ jobs:
 
       - name: HML API and database tests
         run: |
+          export DATABASE_URL="postgresql://${HML_POSTGRES_USER}:${HML_POSTGRES_PASSWORD}@127.0.0.1:5433/${HML_POSTGRES_DB}"
+          export TEST_DATABASE_URL="$DATABASE_URL"
           pnpm --filter @cisne/api test:hml
           pnpm --filter @cisne/api test:synthetic-seed
 
