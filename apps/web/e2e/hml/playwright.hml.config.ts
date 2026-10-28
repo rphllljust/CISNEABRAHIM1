@@ -31,8 +31,8 @@ export default defineConfig({
     timezoneId: 'America/Porto_Velho',
     colorScheme: 'light',
     viewport: { width: 1440, height: 900 },
-    trace: 'off',
-    screenshot: 'off',
-    video: 'off',
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
   },
 });
