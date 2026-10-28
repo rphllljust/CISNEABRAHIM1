@@ -16,7 +16,6 @@ if (process.env['HML_SYNTHETIC_SEED_CONFIRM'] !== 'I_UNDERSTAND') {
 const steps = [
   ['pnpm', ['--filter', '@cisne/database', 'bootstrap:production']],
   ['pnpm', ['--filter', '@cisne/api', 'hml:grant-pilot-operator']],
-  ['pnpm', ['db:seed:portfolio']],
 ];
 
 for (const [command, args] of steps) {
@@ -30,4 +29,4 @@ for (const [command, args] of steps) {
   }
 }
 
-console.log('HML synthetic bootstrap completed (fictional data only).');
+console.log('HML synthetic bootstrap completed (fictional data only). Canonical portfolio baseline is applied by the synthetic business runner.');
