@@ -404,8 +404,9 @@ async function runPartialFlow(
         idempotencyKey: `synthetic-equipment-hours-${suffix}`,
       });
     }
+    const startedCurrent = await services.serviceOrdersAccess.getById(actor, started.id);
     await services.executionAccess.recordObservation(actor, started.id, {
-      rowVersion: started.rowVersion,
+      rowVersion: startedCurrent.rowVersion,
       text: 'TESTE — execução sintética registrada',
     });
     const afterObservation = await services.serviceOrdersAccess.getById(actor, started.id);
