@@ -32,6 +32,7 @@ import {
   type SyntheticBusinessScenario,
 } from './synthetic-business-scenarios';
 import { isSyntheticScenarioComplete } from './synthetic-scenario-completion';
+import { ensureTestDefaultIssuer } from '../test/ensure-test-issuer';
 
 export type SyntheticSeedCounts = {
   clients: number;
@@ -463,6 +464,12 @@ export async function runSyntheticBusinessSeed(
 
   await ensureCatalogBaselineActor(pool);
   await ensureCisneServicePortfolioBaseline(pool);
+  // HML isolada precisa de um emissor fiscal sintético ativo para percorrer
+  // emissão de documento. Isto é deliberadamente limitado ao seed sintético;
+  // produção mantém o provisionamento fiscal real e fail-closed.
+  if (process.env['CISNE_ENV'] === 'hml') {
+    await ensureTestDefaultIssuer(pool);
+  }
 
   await withSyntheticSeedLock(pool, async (client) => {
     for (const scenario of scenarios) {
