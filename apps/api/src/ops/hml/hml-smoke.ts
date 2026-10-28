@@ -46,7 +46,7 @@ async function parseJsonSafe<T>(response: Response): Promise<T | null> {
   }
 }
 
-export async function runHmlDeploySmoke(
+/** Allows one bounded retry for API startup; HTTP failures remain fail-closed. */\nasync function requestStartupReady(\n  fetchImpl: FetchLike,\n  url: string,\n  timeoutMs: number,\n): Promise<Response> {\n  try {\n    return await request(fetchImpl, url, { method: 'GET' }, timeoutMs);\n  } catch (firstError) {\n    await new Promise((resolve) => setTimeout(resolve, 1500));\n    try {\n      return await request(fetchImpl, url, { method: 'GET' }, timeoutMs);\n    } catch {\n      throw firstError;\n    }\n  }\n}\n\nexport async function runHmlDeploySmoke(
   config: HmlSmokeConfig,
   fetchImpl: FetchLike = fetch,
 ): Promise<HmlSmokeResult> {
