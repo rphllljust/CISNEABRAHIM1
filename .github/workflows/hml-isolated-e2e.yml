@@ -1,0 +1,101 @@
+name: HML isolated end-to-end
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'hml/isolated-e2e-runner'
+
+permissions:
+  contents: read
+
+jobs:
+  hml-e2e:
+    name: HML Docker + synthetic business E2E
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CI: true
+      CISNE_ENV: hml
+      NODE_ENV: production
+      HML_SYNTHETIC_SEED_CONFIRM: I_UNDERSTAND
+      BOOTSTRAP_CONFIRM: I_UNDERSTAND
+      HML_INTEGRATIONS_SANDBOX: true
+      HML_SKIP_SMOKE: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.7
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Create isolated HML environment
+        shell: bash
+        run: |
+          cp .env.hml.example .env.hml
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path(".env.hml")
+          s = p.read_text()
+          s = s.replace("cisne_hml_password_change_me", "hml-gha-postgres-2026")
+          s = s.replace("hml-jwt-secret-with-at-least-32-characters-change-me", "hml-gha-jwt-secret-2026-rotated")
+          s = s.replace("hml-document-token-secret-change-me", "hml-gha-document-secret-2026-rotated")
+          p.write_text(s)
+          PY
+          grep -q '^CISNE_ENV=hml$' .env.hml
+          grep -q '^HML_INTEGRATIONS_SANDBOX=true$' .env.hml
+
+      - name: Resolved HML config gate
+        run: pnpm hml:config:gate
+
+      - name: Start isolated PostgreSQL, API and Web
+        run: pnpm hml:up
+
+      - name: Apply HML migrations and bootstrap
+        run: pnpm hml:deploy
+
+      - name: Grant HML pilot operator
+        run: pnpm --filter @cisne/api hml:grant-pilot-operator
+
+      - name: Apply canonical portfolio seed
+        run: pnpm db:seed:portfolio
+
+      - name: Execute synthetic business seed
+        run: pnpm --filter @cisne/api hml:seed-synthetic
+
+      - name: HML smoke
+        run: pnpm hml:smoke
+
+      - name: HML API and database tests
+        run: |
+          pnpm --filter @cisne/api test:hml
+          pnpm --filter @cisne/api test:synthetic-seed
+
+      - name: Upload HML evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hml-evidence
+          if-no-files-found: ignore
+          path: |
+            .backup/hml/**
+            tmp/**
+            artifacts/**
+            docker/hml/**
+            .env.hml.example
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: docker compose -f docker/hml/compose.yaml --env-file .env.hml logs --no-color
