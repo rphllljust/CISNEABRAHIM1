@@ -112,6 +112,8 @@ jobs:
             .backup/hml/**
             tmp/**
             artifacts/**
+            test-results-hml/**
+            playwright-report/**
             docker/hml/**
             .env.hml.example
 
