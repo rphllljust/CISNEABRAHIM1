@@ -59,7 +59,7 @@ jobs:
           grep -q '^CISNE_ENV=hml$' .env.hml
           grep -q '^HML_INTEGRATIONS_SANDBOX=true$' .env.hml
           # Propaga o ambiente isolado sem imprimir credenciais nos logs.
-          cat .env.hml >> "$GITHUB_ENV"
+          grep -Ev '^(#|[[:space:]]*$)' .env.hml >> "$GITHUB_ENV"
 
       - name: Resolved HML config gate
         run: pnpm hml:config:gate
