@@ -10,7 +10,7 @@ export const HML_PILOT_OPERATOR_EXTRA_ACTIONS = [
   AUTHZ_ACTIONS.PlatformDiagnosticsRead,
   AUTHZ_ACTIONS.AccountingJournalRead,
   AUTHZ_ACTIONS.AccountingJournalList,
-  AUTHZ_ACTIONS.AccountingPeriodOpen,
+  AUTHZ_ACTIONS.AccountingChartManage,
   AUTHZ_ACTIONS.FiscalDocumentRead,
   AUTHZ_ACTIONS.FiscalDocumentList,
   AUTHZ_ACTIONS.FiscalTaxRead,
