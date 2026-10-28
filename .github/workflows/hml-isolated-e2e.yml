@@ -63,6 +63,9 @@ jobs:
       - name: Start isolated PostgreSQL, API and Web
         run: pnpm hml:up
 
+      - name: Build database CLI dependency
+        run: pnpm --filter @cisne/database build
+
       - name: Apply HML migrations and bootstrap
         run: pnpm hml:deploy
 
