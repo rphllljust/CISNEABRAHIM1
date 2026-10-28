@@ -117,7 +117,7 @@ async function planAndAllocateExcavator(
   unitId: string,
   orderId: string,
   scenario: SyntheticBusinessScenario,
-): Promise<void> {
+): Promise<string> {
   const resourceTypeCode = 'EXCAVATOR';
   const listed = await services.resourceTypesAccess.list(actor, { limit: 50, offset: 0 });
   const resourceType = listed.items.find((item) => item.code === resourceTypeCode);
@@ -149,6 +149,7 @@ async function planAndAllocateExcavator(
     operationalStart: '2026-07-01T08:00:00.000Z',
     operationalEnd: '2026-07-01T18:00:00.000Z',
   });
+  return asset.id;
 }
 
 async function runPartialFlow(
@@ -364,13 +365,45 @@ async function runPartialFlow(
       rowVersion: prepared.rowVersion,
     });
 
+    let allocatedAssetId: string | undefined;
     if (scenario.flow.kind === 'measurement_pending') {
-      await planAndAllocateExcavator(services, actor, unitId, released.id, scenario);
+      allocatedAssetId = await planAndAllocateExcavator(services, actor, unitId, released.id, scenario);
     }
 
     const started = await services.executionAccess.start(actor, released.id, {
       rowVersion: released.rowVersion,
     });
+    if (allocatedAssetId) {
+      let rowVersion = started.rowVersion;
+      await services.operationsAccess.registerMeter(actor, started.id, {
+        physicalAssetId: allocatedAssetId,
+        meterKind: 'HOUR_METER',
+        readingValue: '5000',
+        unitOfMeasure: 'H',
+        isInitial: true,
+        rowVersion,
+        idempotencyKey: `synthetic-meter-initial-${suffix}`,
+      });
+      rowVersion = (await services.serviceOrdersAccess.getById(actor, started.id)).rowVersion;
+      await services.operationsAccess.registerMeter(actor, started.id, {
+        physicalAssetId: allocatedAssetId,
+        meterKind: 'HOUR_METER',
+        readingValue: '5007.8',
+        unitOfMeasure: 'H',
+        isFinal: true,
+        rowVersion,
+        idempotencyKey: `synthetic-meter-final-${suffix}`,
+      });
+      rowVersion = (await services.serviceOrdersAccess.getById(actor, started.id)).rowVersion;
+      await services.operationsAccess.registerActual(actor, started.id, {
+        actualKind: 'EQUIPMENT_HOURS',
+        physicalAssetId: allocatedAssetId,
+        actualValue: '7.8',
+        unitOfMeasure: 'HOUR',
+        rowVersion,
+        idempotencyKey: `synthetic-equipment-hours-${suffix}`,
+      });
+    }
     await services.executionAccess.recordObservation(actor, started.id, {
       rowVersion: started.rowVersion,
       text: 'TESTE — execução sintética registrada',
