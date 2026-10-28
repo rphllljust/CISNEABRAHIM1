@@ -56,7 +56,7 @@ export async function runHmlDeploySmoke(
   const checks: HmlSmokeCheck[] = [];
 
   try {
-    const live = await request(fetchImpl, `${base}/api/v1/health/live`, { method: 'GET' }, timeoutMs);
+    const live = await requestStartupReady(fetchImpl, `${base}/api/v1/health/live`, timeoutMs);
     checks.push(
       check('health_live', 'Health live', live.ok, live.status, live.ok ? 'ok' : await live.text()),
     );
