@@ -87,14 +87,18 @@ test.describe('HML isolada — Customer 360 → Contract 360 ↔ OS 360 (API rea
       await page.screenshot({ path: testInfo.outputPath(`${label}-os360-tablet.png`), fullPage: true });
       await page.setViewportSize({ width: 1440, height: 900 });
 
-      const measurement = page.getByRole('link', { name: 'Abrir medição' });
-      const billing = page.getByRole('link', { name: 'Abrir faturamento' });
+      const measurement = page.getByRole('link', { name: 'Abrir medição', exact: true });
+      const billing = page.getByRole('link', { name: 'Abrir faturamento', exact: true });
+      await expect(measurement).toHaveCount(1);
+      await expect(billing).toHaveCount(1);
       await expect(measurement).toBeVisible();
       await expect(billing).toBeVisible();
+      await expect(measurement).toHaveAttribute('href', `/app/service-orders/${serviceOrderId}/measurement`);
+      await expect(billing).toHaveAttribute('href', `/app/service-orders/${serviceOrderId}/billing`);
       await measurement.click();
       await expect(page).toHaveURL(new RegExp(`/app/service-orders/${serviceOrderId}/measurement`));
       await page.goto(`${baseUrl}/app/service-orders/${serviceOrderId}`);
-      await page.getByRole('link', { name: 'Abrir faturamento' }).click();
+      await page.getByRole('link', { name: 'Abrir faturamento', exact: true }).click();
       await expect(page).toHaveURL(new RegExp(`/app/service-orders/${serviceOrderId}/billing`));
       // Navegação financeira vinculada pelos IDs autoritativos da HML. 
       // O verificador econômico independente valida journal, outbox e somas em PostgreSQL.
