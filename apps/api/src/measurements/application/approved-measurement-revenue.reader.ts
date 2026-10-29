@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import { DatabaseService } from '../../infrastructure/database/database.service';
 import {
   resolveApprovedMeasurementRevenueEvidence,
@@ -26,9 +26,11 @@ export class ApprovedMeasurementRevenueReader {
     return connection.pool;
   }
 
-  async readForServiceOrder(serviceOrderId: string): Promise<ApprovedMeasurementRevenueEvidence> {
-    const result = await this.pool().query<ApprovedMeasurementRevenueRow>(
-      `SELECT NULLIF(UPPER(TRIM(mi.pricing_line_snapshot->>'currencyCode')), '') AS currency_code,
+  async readForServiceOrder(
+    serviceOrderId: string,
+    client?: PoolClient,
+  ): Promise<ApprovedMeasurementRevenueEvidence> {
+    const sql = `SELECT NULLIF(UPPER(TRIM(mi.pricing_line_snapshot->>'currencyCode')), '') AS currency_code,
               SUM(mi.line_amount)::text AS total_revenue,
               COUNT(*) FILTER (WHERE mi.line_amount IS NULL)::integer AS missing_amount_count
          FROM msr.measurements m
@@ -36,9 +38,10 @@ export class ApprovedMeasurementRevenueReader {
         WHERE m.service_order_id = $1
           AND m.status = 'APPROVED'::msr.measurement_status
         GROUP BY 1
-        ORDER BY 1`,
-      [serviceOrderId],
-    );
+        ORDER BY 1`;
+    const result = client
+      ? await client.query<ApprovedMeasurementRevenueRow>(sql, [serviceOrderId])
+      : await this.pool().query<ApprovedMeasurementRevenueRow>(sql, [serviceOrderId]);
     return resolveApprovedMeasurementRevenueEvidence(result.rows);
   }
 }
