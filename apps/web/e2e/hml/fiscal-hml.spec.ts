@@ -86,11 +86,22 @@ const ROUTES: Array<{ route: string; heading: RegExp; label: string }> = [
 test.describe('HML real — Fiscal (Família 5), 5 rotas, sem fixture', () => {
   test.describe.configure({ mode: 'serial' });
 
+  let sharedPage: Page;
+
+  test.beforeAll(async ({ browser }) => {
+    const context = await browser.newContext();
+    sharedPage = await context.newPage();
+    await signIn(sharedPage);
+  });
+
+  test.afterAll(async () => {
+    await sharedPage.context().close();
+  });
+
   for (const { route, heading, label } of ROUTES) {
-    test(`${label} — ${route}`, async ({ page }) => {
-      await signIn(page);
-      const guards = await openRoute(page, route, heading);
-      const main = page.locator('#main-content');
+    test(`${label} — ${route}`, async () => {
+      const guards = await openRoute(sharedPage, route, heading);
+      const main = sharedPage.locator('#main-content');
       const text = await main.innerText();
 
       // A tela publicou conteúdo real: ou área de resultado, ou estado declarado pela moldura.

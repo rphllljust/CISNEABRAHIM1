@@ -92,6 +92,10 @@ export function resolveResourceType(action: string): string {
   if (action.startsWith('resources:resource-type'))
     return AUTHZ_RESOURCE_TYPES.ResourcesResourceType;
   if (action.startsWith('resources:labor')) return AUTHZ_RESOURCE_TYPES.ResourcesLaborType;
+  if (action.startsWith('accounting:')) return AUTHZ_RESOURCE_TYPES.AccountingLedger;
+  if (action.startsWith('fiscal:document')) return AUTHZ_RESOURCE_TYPES.FiscalDocument;
+  if (action.startsWith('fiscal:tax')) return AUTHZ_RESOURCE_TYPES.FiscalTaxEngine;
+  if (action.startsWith('fiscal:period')) return AUTHZ_RESOURCE_TYPES.FiscalPeriod;
   if (action.startsWith('billing:')) return AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder;
   if (action.startsWith('measurements:')) return AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder;
   return AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder;

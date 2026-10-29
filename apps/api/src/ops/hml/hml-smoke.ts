@@ -46,6 +46,24 @@ async function parseJsonSafe<T>(response: Response): Promise<T | null> {
   }
 }
 
+/** Allows one bounded retry for API startup; HTTP failures remain fail-closed. */
+async function requestStartupReady(
+  fetchImpl: FetchLike,
+  url: string,
+  timeoutMs: number,
+): Promise<Response> {
+  try {
+    return await request(fetchImpl, url, { method: 'GET' }, timeoutMs);
+  } catch (firstError) {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      return await request(fetchImpl, url, { method: 'GET' }, timeoutMs);
+    } catch {
+      throw firstError;
+    }
+  }
+}
+
 export async function runHmlDeploySmoke(
   config: HmlSmokeConfig,
   fetchImpl: FetchLike = fetch,
@@ -56,7 +74,7 @@ export async function runHmlDeploySmoke(
   const checks: HmlSmokeCheck[] = [];
 
   try {
-    const live = await request(fetchImpl, `${base}/api/v1/health/live`, { method: 'GET' }, timeoutMs);
+    const live = await requestStartupReady(fetchImpl, `${base}/api/v1/health/live`, timeoutMs);
     checks.push(
       check('health_live', 'Health live', live.ok, live.status, live.ok ? 'ok' : await live.text()),
     );

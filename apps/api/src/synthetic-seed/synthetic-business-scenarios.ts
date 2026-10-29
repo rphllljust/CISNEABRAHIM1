@@ -28,13 +28,13 @@ export type SyntheticBusinessScenario = {
 export const SYNTHETIC_BUSINESS_SCENARIOS: SyntheticBusinessScenario[] = [
   {
     key: 'locacao-full',
-    displayLabel: 'Cliente Logística Norte — locação completa',
+    displayLabel: 'ALFA LOGÍSTICA TESTE LTDA — locação completa',
     cnpjIndex: 1001,
     flow: { kind: 'vertical', uatScenarioId: 'locacao', stopAfter: 'complete' },
   },
   {
     key: 'transporte-full',
-    displayLabel: 'Cliente Serviços Industriais — transporte completo',
+    displayLabel: 'BETA SERVIÇOS INDUSTRIAIS TESTE LTDA — transporte completo',
     cnpjIndex: 1002,
     flow: { kind: 'vertical', uatScenarioId: 'transporte', stopAfter: 'complete' },
   },

@@ -34,4 +34,4 @@ COPY --from=builder /app/packages/database/dist ./packages/database/dist
 COPY --from=builder /app/packages/database/migrations ./packages/database/migrations
 
 EXPOSE 3000
-CMD ["sh", "-c", "node apps/api/dist/ops/prod/cli/ensure-production-credentials.js && node apps/api/dist/main.js"]
+CMD ["sh", "-c", "if [ \"${CISNE_ENV:-production}\" = \"production\" ]; then node apps/api/dist/ops/prod/cli/ensure-production-credentials.js; fi; exec node apps/api/dist/main.js"]

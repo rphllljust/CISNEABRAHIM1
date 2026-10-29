@@ -32,6 +32,7 @@ import {
   type SyntheticBusinessScenario,
 } from './synthetic-business-scenarios';
 import { isSyntheticScenarioComplete } from './synthetic-scenario-completion';
+import { ensureTestDefaultIssuer } from '../test/ensure-test-issuer';
 
 export type SyntheticSeedCounts = {
   clients: number;
@@ -76,7 +77,7 @@ type DbClient = Pool | PoolClient;
 function formatSeedError(error: unknown): string {
   if (error && typeof error === 'object' && 'getResponse' in error && typeof error.getResponse === 'function') {
     const getResponse = (error as { getResponse: () => unknown }).getResponse;
-    const body: unknown = getResponse();
+    const body: unknown = getResponse.call(error);
     return typeof body === 'string' ? body : JSON.stringify(body);
   }
   if (error instanceof Error) {
@@ -116,7 +117,7 @@ async function planAndAllocateExcavator(
   unitId: string,
   orderId: string,
   scenario: SyntheticBusinessScenario,
-): Promise<void> {
+): Promise<string> {
   const resourceTypeCode = 'EXCAVATOR';
   const listed = await services.resourceTypesAccess.list(actor, { limit: 50, offset: 0 });
   const resourceType = listed.items.find((item) => item.code === resourceTypeCode);
@@ -148,6 +149,7 @@ async function planAndAllocateExcavator(
     operationalStart: '2026-07-01T08:00:00.000Z',
     operationalEnd: '2026-07-01T18:00:00.000Z',
   });
+  return asset.id;
 }
 
 async function runPartialFlow(
@@ -363,15 +365,48 @@ async function runPartialFlow(
       rowVersion: prepared.rowVersion,
     });
 
+    let allocatedAssetId: string | undefined;
     if (scenario.flow.kind === 'measurement_pending') {
-      await planAndAllocateExcavator(services, actor, unitId, released.id, scenario);
+      allocatedAssetId = await planAndAllocateExcavator(services, actor, unitId, released.id, scenario);
     }
 
     const started = await services.executionAccess.start(actor, released.id, {
       rowVersion: released.rowVersion,
     });
+    if (allocatedAssetId) {
+      let rowVersion = started.rowVersion;
+      await services.operationsAccess.registerMeter(actor, started.id, {
+        physicalAssetId: allocatedAssetId,
+        meterKind: 'HOUR_METER',
+        readingValue: '5000',
+        unitOfMeasure: 'H',
+        isInitial: true,
+        rowVersion,
+        idempotencyKey: `synthetic-meter-initial-${suffix}`,
+      });
+      rowVersion = (await services.serviceOrdersAccess.getById(actor, started.id)).rowVersion;
+      await services.operationsAccess.registerMeter(actor, started.id, {
+        physicalAssetId: allocatedAssetId,
+        meterKind: 'HOUR_METER',
+        readingValue: '5007.8',
+        unitOfMeasure: 'H',
+        isFinal: true,
+        rowVersion,
+        idempotencyKey: `synthetic-meter-final-${suffix}`,
+      });
+      rowVersion = (await services.serviceOrdersAccess.getById(actor, started.id)).rowVersion;
+      await services.operationsAccess.registerActual(actor, started.id, {
+        actualKind: 'EQUIPMENT_HOURS',
+        physicalAssetId: allocatedAssetId,
+        actualValue: '7.8',
+        unitOfMeasure: 'HOUR',
+        rowVersion,
+        idempotencyKey: `synthetic-equipment-hours-${suffix}`,
+      });
+    }
+    const startedCurrent = await services.serviceOrdersAccess.getById(actor, started.id);
     await services.executionAccess.recordObservation(actor, started.id, {
-      rowVersion: started.rowVersion,
+      rowVersion: startedCurrent.rowVersion,
       text: 'TESTE — execução sintética registrada',
     });
     const afterObservation = await services.serviceOrdersAccess.getById(actor, started.id);
@@ -463,6 +498,12 @@ export async function runSyntheticBusinessSeed(
 
   await ensureCatalogBaselineActor(pool);
   await ensureCisneServicePortfolioBaseline(pool);
+  // HML isolada precisa de um emissor fiscal sintético ativo para percorrer
+  // emissão de documento. Isto é deliberadamente limitado ao seed sintético;
+  // produção mantém o provisionamento fiscal real e fail-closed.
+  if (process.env['CISNE_ENV'] === 'hml') {
+    await ensureTestDefaultIssuer(pool);
+  }
 
   await withSyntheticSeedLock(pool, async (client) => {
     for (const scenario of scenarios) {
