@@ -2,6 +2,11 @@ import { Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { DatabaseService } from '../../infrastructure/database/database.service';
 import {
+  resolveApprovedMeasurementRevenueEvidence,
+  type ApprovedMeasurementRevenueEvidence,
+  type ApprovedMeasurementRevenueRow,
+} from '../domain/approved-measurement-revenue';
+import {
   OPERATIONAL_COST_ENTRY_RETURNING,
   type OperationalCostEntryRow,
   type RecordOperationalCostPersistenceInput,
@@ -53,20 +58,28 @@ export class OperationalCostRepository {
     return result.rows;
   }
 
-  async findApprovedMeasurementRevenue(serviceOrderId: string): Promise<string | null> {
-    const result = await this.pool().query<{ total_revenue: string | null }>(
-      `SELECT COALESCE(SUM(mi.line_amount), 0)::text AS total_revenue
-       FROM msr.measurements m
-       INNER JOIN msr.measurement_items mi ON mi.measurement_id = m.id
-       WHERE m.service_order_id = $1
-         AND m.status = 'APPROVED'::msr.measurement_status`,
+  async findApprovedMeasurementRevenueEvidence(
+    serviceOrderId: string,
+  ): Promise<ApprovedMeasurementRevenueEvidence> {
+    const result = await this.pool().query<ApprovedMeasurementRevenueRow>(
+      `SELECT NULLIF(UPPER(TRIM(mi.pricing_line_snapshot->>'currencyCode')), '') AS currency_code,
+              SUM(mi.line_amount)::text AS total_revenue,
+              COUNT(*) FILTER (WHERE mi.line_amount IS NULL)::integer AS missing_amount_count
+         FROM msr.measurements m
+         JOIN msr.measurement_items mi ON mi.measurement_id = m.id
+        WHERE m.service_order_id = $1
+          AND m.status = 'APPROVED'::msr.measurement_status
+        GROUP BY 1
+        ORDER BY 1`,
       [serviceOrderId],
     );
-    const total = result.rows[0]?.total_revenue;
-    if (!total || total === '0' || total === '0.0000') {
-      return null;
-    }
-    return total;
+    return resolveApprovedMeasurementRevenueEvidence(result.rows);
+  }
+
+  /** Legacy read contract; never sum currencies that have no common authority. */
+  async findApprovedMeasurementRevenue(serviceOrderId: string): Promise<string | null> {
+    const evidence = await this.findApprovedMeasurementRevenueEvidence(serviceOrderId);
+    return evidence.amount;
   }
 
   async recordCost(
