@@ -13,6 +13,8 @@ export type ServiceOrderResponse = {
   status: string;
   origin: string;
   clientId: string | null;
+  /** FK persistida de contrato, nunca inferida pelo nome do cliente. */
+  contractId: string | null;
   clientSnapshot: Record<string, unknown> | null;
   serviceDefinitionId: string | null;
   serviceDefinitionVersionId: string | null;
@@ -85,6 +87,7 @@ export function toServiceOrderResponse(row: ServiceOrderRow): ServiceOrderRespon
     status: row.status,
     origin: row.origin,
     clientId: row.client_id,
+    contractId: row.contract_id,
     clientSnapshot: row.client_snapshot,
     serviceDefinitionId: row.service_definition_id,
     serviceDefinitionVersionId: row.service_definition_version_id,

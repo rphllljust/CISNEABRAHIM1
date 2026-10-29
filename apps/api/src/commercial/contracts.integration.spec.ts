@@ -37,9 +37,11 @@ import { ContractsAccessService } from './services/contracts-access.service';
 import { ContractsOperationalValidationService } from './services/contracts-operational-validation.service';
 import { ServiceOrdersModule } from '../service-orders/service-orders.module';
 import { SERVICE_ORDER_ORIGINS } from '../service-orders/domain/service-order';
+import { parseListServiceOrdersQuery } from '../service-orders/domain/service-order-list.query';
 import { ServiceOrdersAccessService } from '../service-orders/services/service-orders-access.service';
 
 const UNIT_A = 'unit-ctr-a';
+const UNIT_B = 'unit-ctr-b';
 const TEST_CNPJ = '11222333000181';
 const TEST_CNPJ_ALT = '19131243000197';
 
@@ -59,6 +61,7 @@ async function grantContractAdmin(pool: Pool, identityId: string, grantedBy: str
     AUTHZ_ACTIONS.CatalogServicePublish,
     AUTHZ_ACTIONS.ServiceOrdersServiceOrderCreate,
     AUTHZ_ACTIONS.ServiceOrdersServiceOrderRead,
+    AUTHZ_ACTIONS.ServiceOrdersServiceOrderList,
   ]) {
     await insertGrant(pool, {
       identityId,
@@ -123,6 +126,7 @@ describe('Commercial contracts PostgreSQL integration', () => {
     await ensurePhysicalResourceTypesBaseline(pool);
     await ensureOperationalLaborTypesBaseline(pool);
     await insertScopeRef(pool, { scopeType: 'UNIT', refId: UNIT_A });
+    await insertScopeRef(pool, { scopeType: 'UNIT', refId: UNIT_B });
   });
 
   afterAll(async () => {
@@ -176,10 +180,11 @@ describe('Commercial contracts PostgreSQL integration', () => {
     contractNumber: string,
     validFrom = '2020-01-01',
     validTo: string | undefined = '2030-12-31',
+    unitId: string = UNIT_A,
   ) {
     const created = await contractsAccess.create(actor, {
       clientId,
-      unitId: UNIT_A,
+      unitId,
       contractNumber,
       title: 'Contrato operacional',
       scopeDescription: 'Escopo de serviços',
@@ -336,4 +341,83 @@ describe('Commercial contracts PostgreSQL integration', () => {
       code: COMMERCIAL_ERROR_CODES.CONTRACT_INVALID_STATE,
     });
   });
+
+  it('contractId filtra a OS autoritativa e o COUNT sem vazamento entre contratos, clientes e unidades', async () => {
+    const { actor } = await seedActor();
+    const clientA = await seedClient(actor, 'Cliente A', TEST_CNPJ);
+    const clientB = await seedClient(actor, 'Cliente B', TEST_CNPJ_ALT);
+    const published = await seedPublishedService(actor);
+    const suffix = crypto.randomUUID().slice(0, 8);
+    const a1 = await createActiveContract(actor, clientA.id, `A1-${suffix}`);
+    const a2 = await createActiveContract(actor, clientA.id, `A2-${suffix}`);
+    const b1 = await createActiveContract(actor, clientB.id, `B1-${suffix}`, '2020-01-01', '2030-12-31', UNIT_B);
+
+    const createOrder = (
+      unitId: string, clientId: string, contractReference: string,
+    ) => serviceOrdersAccess.create(actor, {
+      origin: SERVICE_ORDER_ORIGINS.AuthorizedDirect,
+      unitId,
+      clientId,
+      serviceDefinitionId: published.serviceDefinitionId,
+      serviceDefinitionVersionId: published.id,
+      contractReference,
+    });
+    const a1First = await createOrder(UNIT_A, clientA.id, a1.contract.contractNumber);
+    const a1Second = await createOrder(UNIT_A, clientA.id, a1.contract.contractNumber);
+    const a2Order = await createOrder(UNIT_A, clientA.id, a2.contract.contractNumber);
+    const b1Order = await createOrder(UNIT_B, clientB.id, b1.contract.contractNumber);
+
+    expect(a1First.contractId).toBe(a1.contract.id);
+    expect(a2Order.contractId).toBe(a2.contract.id);
+    expect(b1Order.contractId).toBe(b1.contract.id);
+
+    const list = (query: Record<string, unknown>) =>
+      serviceOrdersAccess.list(actor, parseListServiceOrdersQuery(query));
+    const first = await list({ contractId: a1.contract.id, limit: '1', offset: '0' });
+    const second = await list({ contractId: a1.contract.id, limit: '1', offset: '1' });
+    expect(first.total).toBe(2);
+    expect(first.hasMore).toBe(true);
+    expect(second.total).toBe(2);
+    expect(second.hasMore).toBe(false);
+    expect(new Set([...first.items, ...second.items].map((row) => row.id)))
+      .toEqual(new Set([a1First.id, a1Second.id]));
+    expect([...first.items, ...second.items].every((row) => row.contractId === a1.contract.id)).toBe(true);
+
+    // A2 pertence ao mesmo Cliente A; não é permitido "filtrar por cliente" no lugar do contrato.
+    const a2View = await list({ contractId: a2.contract.id, limit: '20', offset: '0' });
+    expect(a2View.total).toBe(1);
+    expect(a2View.items.map((row) => row.id)).toEqual([a2Order.id]);
+
+    const combined = await list({
+      contractId: a1.contract.id, clientId: clientA.id,
+      unitId: UNIT_A, status: a1First.status, limit: '20', offset: '0',
+    });
+    expect(combined.total).toBe(2);
+    const wrongClient = await list({ contractId: a1.contract.id, clientId: clientB.id });
+    expect(wrongClient.total).toBe(0);
+    const wrongUnit = await list({ contractId: a1.contract.id, unitId: UNIT_B });
+    expect(wrongUnit.total).toBe(0);
+    const missing = await list({ contractId: crypto.randomUUID() });
+    expect(missing.total).toBe(0);
+    expect(missing.items).toEqual([]);
+
+    // PDP unitário permanece vigente mesmo com contractId conhecido de outra unidade.
+    const scopedLogin = normalizeLoginIdentifier(`contract-scope-${crypto.randomUUID()}@cisne.invalid`);
+    const scopedHash = await hashPassword(AUTH_TEST_PASSWORD);
+    const scopedId = (await insertIdentity(pool, scopedLogin, scopedHash)).identityId;
+    await insertGrant(pool, {
+      identityId: scopedId,
+      action: AUTHZ_ACTIONS.ServiceOrdersServiceOrderList,
+      resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+      scopeType: AUTHZ_SCOPES.Unit,
+      resourceId: UNIT_A,
+      grantedByIdentityId: actor.identityId,
+    });
+    const scoped = { identityId: scopedId, sessionId: 'sid-scope' };
+    const scopedA = await serviceOrdersAccess.list(scoped, parseListServiceOrdersQuery({ contractId: a1.contract.id }));
+    const scopedB = await serviceOrdersAccess.list(scoped, parseListServiceOrdersQuery({ contractId: b1.contract.id }));
+    expect(scopedA.total).toBe(2);
+    expect(scopedB.total).toBe(0);
+    expect(scopedB.items).toEqual([]);
+  }, 60_000);
 });

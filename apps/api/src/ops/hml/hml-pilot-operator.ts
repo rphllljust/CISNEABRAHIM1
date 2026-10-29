@@ -8,6 +8,10 @@ import { assertHmlIsolation } from './hml-config';
 
 export const HML_PILOT_OPERATOR_EXTRA_ACTIONS = [
   AUTHZ_ACTIONS.PlatformDiagnosticsRead,
+  // Somente operador HML isolado: navegação real Contract 360 → OS → Receivable.
+  AUTHZ_ACTIONS.CommercialContractList,
+  AUTHZ_ACTIONS.CommercialContractRead,
+  AUTHZ_ACTIONS.FinanceReceivableRead,
   AUTHZ_ACTIONS.AccountingJournalRead,
   AUTHZ_ACTIONS.AccountingJournalList,
   AUTHZ_ACTIONS.AccountingChartManage,

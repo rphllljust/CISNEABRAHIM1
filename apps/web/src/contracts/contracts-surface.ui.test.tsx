@@ -31,6 +31,64 @@ function openContractsNav(path = '/app/contracts'): void {
 }
 
 describe('ContractsListPage — superfície operacional', () => {
+  it('Contrato 360 recebe apenas OS filtradas pelo contrato e navega ao documento real', async () => {
+    const mock = createContractsFetchMock();
+    vi.stubGlobal('fetch', mock.fetch);
+    render(<App />);
+    const user = userEvent.setup();
+    await loginAndReachApp(user);
+    openContractsNav();
+    await user.click(await screen.findByRole('link', { name: 'CTR-ACT-001' }));
+    const table = await screen.findByRole('table', { name: 'Ordens vinculadas ao contrato' });
+    expect(table.querySelector('a[href="/app/service-orders/77777777-7777-4777-8777-000000000001"]')).not.toBeNull();
+    expect(screen.getByRole('link', { name: 'Ver carteira do contrato' }))
+      .toHaveAttribute('href', '/app/service-orders?contractId=aaaaaaaa-aaaa-4aaa-8aaa-00000000000a');
+    const queries = mock.fetch.mock.calls.map(([input]) =>
+      new URL(typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url, 'http://127.0.0.1'));
+    expect(queries.some((url) => url.pathname === '/api/v1/service-orders' &&
+      url.searchParams.get('contractId') === 'aaaaaaaa-aaaa-4aaa-8aaa-00000000000a')).toBe(true);
+  });
+
+  it('Contrato 360 não revela a relação quando OS retorna 403', async () => {
+    const mock = createContractsFetchMock({ linkedOrdersAccess: 'denied' });
+    vi.stubGlobal('fetch', mock.fetch);
+    render(<App />);
+    const user = userEvent.setup();
+    await loginAndReachApp(user);
+    openContractsNav();
+    await user.click(await screen.findByRole('link', { name: 'CTR-ACT-001' }));
+    await screen.findByRole('heading', { name: 'CTR-ACT-001' });
+    await waitFor(() => {
+      expect(screen.queryByText('Carregando ordens vinculadas…')).not.toBeInTheDocument();
+    });
+    expect(screen.queryByRole('table', { name: 'Ordens vinculadas ao contrato' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Ver carteira do contrato' })).not.toBeInTheDocument();
+  });
+
+  it('Contrato 360 distingue HTTP 500 de carteira vazia', async () => {
+    const mock = createContractsFetchMock({ linkedOrdersAccess: 'error' });
+    vi.stubGlobal('fetch', mock.fetch);
+    render(<App />);
+    const user = userEvent.setup();
+    await loginAndReachApp(user);
+    openContractsNav();
+    await user.click(await screen.findByRole('link', { name: 'CTR-ACT-001' }));
+    expect(await screen.findByText(/A ausência de resposta não indica carteira vazia/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Nenhuma ordem vinculada ao contrato/i)).not.toBeInTheDocument();
+  });
+
+  it('sem total autoritativo, mostra linhas mas não inventa contagem', async () => {
+    const mock = createContractsFetchMock({ linkedOrdersAccess: 'unknown-total' });
+    vi.stubGlobal('fetch', mock.fetch);
+    render(<App />);
+    const user = userEvent.setup();
+    await loginAndReachApp(user);
+    openContractsNav();
+    await user.click(await screen.findByRole('link', { name: 'CTR-ACT-001' }));
+    expect(await screen.findByText('Total não publicado pelo servidor')).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'Ordens vinculadas ao contrato' })).toBeInTheDocument();
+  });
+
   it('recebe o contexto do Customer 360 na URL e usa o mesmo recorte na API', async () => {
     const mock = createContractsFetchMock();
     vi.stubGlobal('fetch', mock.fetch);

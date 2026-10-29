@@ -60,6 +60,8 @@ export const SERVICE_ORDER_LIST_DEFAULT_ORDER: ServiceOrderListOrder =
 
 export type ListServiceOrdersQuery = {
   clientId?: string;
+  /** Identificador autoritativo do contrato vinculado à OS (não deriva de clientId). */
+  contractId?: string;
   unitId?: string;
   status?: string;
   archetype?: string;
@@ -256,6 +258,7 @@ export function parseListServiceOrdersQuery(query: Record<string, unknown>): Lis
   const offset = Number.isFinite(offsetRaw) ? Math.max(offsetRaw, 0) : 0;
 
   const clientId = typeof query['clientId'] === 'string' ? query['clientId'].trim() : undefined;
+  const contractId = typeof query['contractId'] === 'string' ? query['contractId'].trim() : undefined;
   const unitId = typeof query['unitId'] === 'string' ? query['unitId'].trim() : undefined;
   const status = typeof query['status'] === 'string' ? query['status'].trim() : undefined;
   const archetype = typeof query['archetype'] === 'string' ? query['archetype'].trim() : undefined;
@@ -268,6 +271,13 @@ export function parseListServiceOrdersQuery(query: Record<string, unknown>): Lis
 
   if (clientId) {
     assertUuid(clientId, 'clientId');
+  }
+  // A recusa de UUID inválido é obrigatória: nunca retornar toda a carteira.
+  if (contractId) {
+    assertUuid(contractId, 'contractId');
+  }
+  if (query['contractId'] !== undefined && !contractId) {
+    throw new ServiceOrderListQueryError('contractId');
   }
   if (unitId && unitId.length === 0) {
     throw new ServiceOrderListQueryError('unitId');
@@ -305,6 +315,7 @@ export function parseListServiceOrdersQuery(query: Record<string, unknown>): Lis
 
   return {
     clientId,
+    contractId,
     unitId: unitId || undefined,
     status: status || undefined,
     archetype: archetype || undefined,
@@ -337,7 +348,11 @@ export function buildServiceOrderListSqlParts(
 
   if (query.clientId) {
     params.push(query.clientId);
-    clauses.push(`so.client_id = $${params.length}::uuid`);
+    clauses.push(`so.client_id = ${params.length}::uuid`);
+  }
+  if (query.contractId) {
+    params.push(query.contractId);
+    clauses.push(`so.contract_id = ${params.length}::uuid`);
   }
   if (query.unitId) {
     params.push(query.unitId);
