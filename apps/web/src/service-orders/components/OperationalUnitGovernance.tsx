@@ -206,7 +206,7 @@ export function OperationalUnitGovernance({
               <button type="button" className="underline" onClick={() => chooseCreate()}>Cadastrar unidade</button>
             ) : null}
             {canEdit ? (
-              <button type="button" className="underline" onClick={() => chooseEdit(active!.id)}>
+              <button type="button" className="underline" onClick={() => chooseEdit(active.id)}>
                 Editar cadastro
               </button>
             ) : null}
