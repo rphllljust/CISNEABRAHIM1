@@ -36,7 +36,7 @@ export async function findMeasurementForBilling(
   serviceOrderId: string,
 ): Promise<MeasurementForBillingRow | null> {
   const result = await pool.query<MeasurementForBillingRow>(
-    `SELECT id, service_order_id, status::text AS status, commercial_reference_snapshot
+    `SELECT id, service_order_id, status::text AS status, row_version, commercial_reference_snapshot
      FROM msr.measurements
      WHERE id = $1 AND service_order_id = $2`,
     [measurementId, serviceOrderId],
