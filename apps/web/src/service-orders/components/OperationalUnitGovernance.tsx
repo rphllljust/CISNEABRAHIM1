@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   createGovernedUnit,
   listGovernedUnits,
+  readGovernedUnitHistory,
+  type UnitGovernanceHistory,
   updateGovernedUnit,
   UnitGovernanceError,
   type UnitGovernanceDirectory,
@@ -20,11 +22,13 @@ export function OperationalUnitGovernance({
   const [phase, setPhase] = useState<'loading' | 'ready' | 'denied' | 'error'>('loading');
   const [directory, setDirectory] = useState<UnitGovernanceDirectory | null>(null);
   const [selection, setSelection] = useState('');
-  const [mode, setMode] = useState<'create' | 'edit'>('edit');
+  const [mode, setMode] = useState<'view' | 'create' | 'edit'>('view');
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [history, setHistory] = useState<UnitGovernanceHistory | null>(null);
+  const [historyState, setHistoryState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const replay = useRef<{ signature: string; key: string } | null>(null);
 
   async function refresh(signal?: AbortSignal) {
@@ -66,6 +70,8 @@ export function OperationalUnitGovernance({
     if (!chosen) return;
     setSelection(id);
     setMode('edit');
+    setHistory(null);
+    setHistoryState('idle');
     setCode(chosen.code);
     setName(chosen.name);
     setMessage(null);
@@ -74,6 +80,8 @@ export function OperationalUnitGovernance({
 
   function chooseCreate() {
     setMode('create');
+    setHistory(null);
+    setHistoryState('idle');
     setCode('');
     setName('');
     setMessage(null);
@@ -101,7 +109,9 @@ export function OperationalUnitGovernance({
         });
       await refresh();
       setSelection(saved.id);
-      setMode('edit');
+      setMode('view');
+      setHistory(null);
+      setHistoryState('idle');
       setCode(saved.code);
       setName(saved.name);
       setMessage('Identidade empresarial registrada e versionada.');
@@ -119,6 +129,19 @@ export function OperationalUnitGovernance({
         : 'Não foi possível concluir o comando.');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function showHistory() {
+    if (!active) return;
+    setHistoryState('loading');
+    try {
+      const loaded = await readGovernedUnitHistory(active.id);
+      setHistory(loaded);
+      setHistoryState('ready');
+    } catch {
+      setHistory(null);
+      setHistoryState('error');
     }
   }
 
@@ -140,6 +163,25 @@ export function OperationalUnitGovernance({
             ))}
           </div>
           {!directory.items.length ? <p>Nenhuma identidade empresarial cadastrada neste escopo.</p> : null}
+          {active ? (
+            <div className="mt-3">
+              <button type="button" className="underline" onClick={() => void showHistory()}>
+                Consultar histórico de identidade
+              </button>
+              {historyState === 'loading' ? <p>Consultando auditoria…</p> : null}
+              {historyState === 'error' ? <p role="alert">Auditoria indisponível. Nenhum histórico foi presumido.</p> : null}
+              {historyState === 'ready' && history ? (
+                <ol aria-label="Histórico da unidade" className="mt-2 list-inside list-decimal space-y-1">
+                  {history.events.map(event => (
+                    <li key={event.version}>
+                      {event.action === 'CREATED' ? 'Cadastro' : 'Atualização'} · versão {event.version}
+                      {' · '}{new Date(event.occurredAt).toLocaleString('pt-BR')}
+                    </li>
+                  ))}
+                </ol>
+              ) : null}
+            </div>
+          ) : null}
         </section>
         <section aria-label="Comandos de identidade organizacional" className="min-w-0">
           <div className="mb-2 flex gap-2">
