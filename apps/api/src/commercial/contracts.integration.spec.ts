@@ -37,6 +37,7 @@ import { ContractsAccessService } from './services/contracts-access.service';
 import { ContractsOperationalValidationService } from './services/contracts-operational-validation.service';
 import { ServiceOrdersModule } from '../service-orders/service-orders.module';
 import { SERVICE_ORDER_ORIGINS } from '../service-orders/domain/service-order';
+import { parseListServiceOrdersQuery } from '../service-orders/domain/service-order-list.query';
 import { ServiceOrdersAccessService } from '../service-orders/services/service-orders-access.service';
 
 const UNIT_A = 'unit-ctr-a';
@@ -59,6 +60,7 @@ async function grantContractAdmin(pool: Pool, identityId: string, grantedBy: str
     AUTHZ_ACTIONS.CatalogServicePublish,
     AUTHZ_ACTIONS.ServiceOrdersServiceOrderCreate,
     AUTHZ_ACTIONS.ServiceOrdersServiceOrderRead,
+    AUTHZ_ACTIONS.ServiceOrdersServiceOrderList,
   ]) {
     await insertGrant(pool, {
       identityId,
@@ -192,6 +194,79 @@ describe('Commercial contracts PostgreSQL integration', () => {
       rowVersion: created.contract.rowVersion,
     });
   }
+
+  it('isola A1 de A2 do mesmo cliente e B1 de outro cliente no PostgreSQL, inclusive COUNT e paginação', async () => {
+    const { actor } = await seedActor();
+    const clientA = await seedClient(actor, 'Cliente A', TEST_CNPJ);
+    const clientB = await seedClient(actor, 'Cliente B', TEST_CNPJ_ALT);
+    const service = await seedPublishedService(actor);
+    const contractA1 = await createActiveContract(actor, clientA.id, `CTR-A1-${crypto.randomUUID().slice(0, 8)}`);
+    const contractA2 = await createActiveContract(actor, clientA.id, `CTR-A2-${crypto.randomUUID().slice(0, 8)}`);
+    const contractB1 = await createActiveContract(actor, clientB.id, `CTR-B1-${crypto.randomUUID().slice(0, 8)}`);
+
+    const createLinked = async (clientId: string, reference: string) => {
+      return serviceOrdersAccess.create(actor, {
+        origin: SERVICE_ORDER_ORIGINS.AuthorizedDirect,
+        unitId: UNIT_A,
+        clientId,
+        contractReference: reference,
+        serviceDefinitionId: service.serviceDefinitionId,
+        serviceDefinitionVersionId: service.id,
+      });
+    };
+    const orderA1 = await createLinked(clientA.id, contractA1.contract.contractNumber);
+    const orderA1Second = await createLinked(clientA.id, contractA1.contract.contractNumber);
+    const orderA2 = await createLinked(clientA.id, contractA2.contract.contractNumber);
+    const orderB1 = await createLinked(clientB.id, contractB1.contract.contractNumber);
+    expect(orderA1.contractId).toBe(contractA1.contract.id);
+    expect(orderA2.contractId).toBe(contractA2.contract.id);
+    expect(orderB1.contractId).toBe(contractB1.contract.id);
+
+    const query = parseListServiceOrdersQuery({
+      contractId: contractA1.contract.id, clientId: clientA.id, unitId: UNIT_A, limit: 1, offset: 0,
+    });
+    const first = await serviceOrdersAccess.list(actor, query);
+    expect(first.total).toBe(2);
+    expect(first.items).toHaveLength(1);
+    expect(first.hasMore).toBe(true);
+    expect(first.items[0]?.contractId).toBe(contractA1.contract.id);
+
+    const second = await serviceOrdersAccess.list(actor, { ...query, offset: 1 });
+    expect(second.total).toBe(2);
+    expect(second.items).toHaveLength(1);
+    expect(second.hasMore).toBe(false);
+    expect(new Set([...first.items, ...second.items].map((order) => order.id))).toEqual(
+      new Set([orderA1.id, orderA1Second.id]),
+    );
+    expect([...first.items, ...second.items].map((order) => order.id)).not.toContain(orderA2.id);
+    expect([...first.items, ...second.items].map((order) => order.id)).not.toContain(orderB1.id);
+
+    const empty = await serviceOrdersAccess.list(actor, {
+      ...query, contractId: crypto.randomUUID(), offset: 0,
+    });
+    expect(empty.total).toBe(0);
+    expect(empty.items).toEqual([]);
+
+    const wrongClient = await serviceOrdersAccess.list(actor, {
+      ...query, clientId: clientB.id,
+    });
+    expect(wrongClient.total).toBe(0);
+    expect(wrongClient.items).toEqual([]);
+
+    const wrongUnit = await serviceOrdersAccess.list(actor, {
+      ...query, unitId: 'UNIT-OTHER',
+    });
+    expect(wrongUnit.total).toBe(0);
+
+    // A autorização continua prevalecendo; contractId não é uma capability.
+    const other = await insertIdentity(
+      pool, normalizeLoginIdentifier(`ctr-denied-${crypto.randomUUID()}@cisne.invalid`),
+      await hashPassword(AUTH_TEST_PASSWORD),
+    );
+    await expect(
+      serviceOrdersAccess.list({ identityId: other.identityId, sessionId: 'sid' }, query),
+    ).rejects.toBeDefined();
+  });
 
   it('rejects operational use when contract is outside validity window', async () => {
     const { actor } = await seedActor();
