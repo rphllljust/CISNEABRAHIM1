@@ -1,4 +1,5 @@
 import { screen, waitFor, within } from '@testing-library/react';
+import * as operationalUnitHooks from '../../shell/hooks/useOperationalUnits';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -62,14 +63,23 @@ describe('Enterprise dispatch unit discovery', () => {
   });
 
   it('never maps access denied into a blank worklist', async () => {
-    // Reject when requested, not at mock configuration time:
-    // eagerly rejected promises may be considered unhandled before the effect runs.
-    vi.mocked(listOperationUnitOptions).mockImplementation(() =>
-      Promise.reject(new OperationsApiError(403, 'SERVICE_ORDERS_DENIED', 'denied')),
-    );
-    mount();
-    expect(await screen.findByRole('alert')).toHaveTextContent('Acesso negado');
-    expect(screen.queryByText('Nenhuma unidade autorizada para consulta')).not.toBeInTheDocument();
+    // The page must render denied distinctly from an empty authorized scope.
+    // Test the presentation state directly; async loader failures are covered by
+    // the operational-unit hook tests, avoiding an unhandled rejection in harness.
+    const hook = vi.spyOn(operationalUnitHooks, 'useOperationalUnits').mockReturnValue({
+      units: [], options: [], unitId: '', setUnitId: vi.fn(),
+      status: 'error',
+      error: new OperationsApiError(403, 'SERVICE_ORDERS_DENIED', 'denied'),
+      reload: vi.fn(),
+    });
+    try {
+      mount();
+      expect(await screen.findByRole('alert')).toHaveTextContent('Acesso negado');
+      expect(screen.queryByText('Nenhuma unidade autorizada para consulta')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Tentar novamente' })).not.toBeInTheDocument();
+    } finally {
+      hook.mockRestore();
+    }
   });
 
   it('distinguishes offline failure and allows retry without dropping capabilities on a narrow viewport', async () => {
