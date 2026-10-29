@@ -448,6 +448,28 @@ async function runScenario(
   if (existingId) {
     const complete = await isSyntheticScenarioComplete(services.pool, scenario);
     if (complete) {
+      if (financeActors &&
+          (scenario.key === 'locacao-full' || scenario.key === 'transporte-full')) {
+        const origin = await services.pool.query<{
+          service_order_id: string; billing_document_id: string;
+        }>(
+          `SELECT so.id AS service_order_id, bd.id AS billing_document_id
+             FROM pty.clients c
+             JOIN so.service_orders so ON so.client_id = c.id
+             JOIN bil.billing_records br ON br.service_order_id = so.id
+             JOIN bil.billing_documents bd ON bd.billing_record_id = br.id
+            WHERE c.external_erp_id = $1 AND bd.status = 'FINALIZED'`,
+          [syntheticExternalRef(scenario.key)],
+        );
+        if (origin.rows.length !== 1) {
+          throw new Error('HML_FINANCIAL_RETRY_ORIGIN_INCONSISTENT');
+        }
+        await closeSyntheticFinancialChain(services, financeActors, {
+          key: scenario.key, unitId,
+          serviceOrderId: origin.rows[0]!.service_order_id,
+          billingDocumentId: origin.rows[0]!.billing_document_id,
+        });
+      }
       return { key: scenario.key, outcome: 'already_present' };
     }
     await compensateSyntheticScenario(services.pool, scenario.key);
