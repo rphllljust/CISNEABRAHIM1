@@ -127,6 +127,7 @@ function orderDetail(overrides: Partial<ServiceOrderDetail> = {}): ServiceOrderD
     status: SERVICE_ORDER_STATUSES.Completed,
     origin: 'SERVICE_REQUEST',
     clientId: CLIENT_ID,
+    contractId: null,
     clientSnapshot: { legalName: `${CLIENT_NAME} LTDA`, tradeName: CLIENT_NAME },
     serviceDefinitionId: null,
     serviceDefinitionVersionId: null,

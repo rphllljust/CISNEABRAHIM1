@@ -31,6 +31,7 @@ const summary = (overrides: Partial<ServiceOrderSummary> = {}): ServiceOrderSumm
   status: 'COMPLETED',
   origin: 'PROPOSAL',
   clientId: 'c67b4b13-1b90-4dbf-9039-c36124cc4031',
+  contractId: null,
   clientSnapshot: {
     status: 'ACTIVE',
     clientId: 'c67b4b13-1b90-4dbf-9039-c36124cc4031',
