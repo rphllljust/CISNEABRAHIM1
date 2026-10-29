@@ -152,6 +152,13 @@ describe('Service orders E2E', () => {
       items: [UNIT_A],
       details: [{ id: UNIT_A, code: 'PVH', name: 'Porto Velho', configured: true }],
     });
+    const operationsDenied = await app.inject({
+      method: 'GET',
+      url: '/api/v1/query/operations/units',
+      headers: { authorization: `Bearer ${unitScopedToken}` },
+    });
+    expect(operationsDenied.statusCode).toBe(403);
+
     // A missing directory record must not produce a fictitious business name.
     await pool.query('DELETE FROM pty.operational_units WHERE id = $1', [UNIT_A]);
     const unconfiguredResponse = await app.inject({
@@ -305,6 +312,15 @@ describe('Service orders E2E', () => {
       'SELECT version FROM pty.operational_units WHERE id = $1', [original.id],
     );
     expect(persisted.rows[0]?.version).toBe(3);
+    // Revoking the technical scope anchor must not cascade into business identity.
+    await pool.query(
+      `DELETE FROM "authorization".scope_refs WHERE scope_type = 'UNIT' AND ref_id = $1`,
+      [original.id],
+    );
+    const preserved = await pool.query<{ id: string; code: string }>(
+      'SELECT id, code FROM pty.operational_units WHERE id = $1', [original.id],
+    );
+    expect(preserved.rows).toEqual([{ id: original.id, code: 'PVH-TEST' }]);
 
   });
 
