@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { cn } from '../ui/utils/cn';
+import { ModuleLoadingState } from '../ui/module-layout';
 import { useAuth } from '../auth/context/AuthProvider';
 import { useAlertBadge } from '../alerts/hooks/useAlerts';
 import { CommandPalette, useCommandPaletteShortcut } from '../operator/commands/CommandPalette';
@@ -180,7 +181,9 @@ export function AppShellLayout() {
           >
             <ReleaseScopeGate>
               <ShellErrorBoundary>
-                <Outlet />
+                <Suspense fallback={<ModuleLoadingState message="Carregando área de trabalho…" />}>
+                  <Outlet />
+                </Suspense>
               </ShellErrorBoundary>
             </ReleaseScopeGate>
           </div>
