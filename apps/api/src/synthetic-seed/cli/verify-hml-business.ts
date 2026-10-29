@@ -37,16 +37,16 @@ async function main(): Promise<void> {
         throw new Error(`business verification failed: ${flow.key} service order is not COMPLETED`);
       }
       const measurement = await pool.query<{ id: string; status: string }>(
-        "SELECT id, status FROM msr.measurements WHERE service_order_id = $1::uuid AND status IN ('APPROVED', 'ACCEPTED') ORDER BY created_at DESC LIMIT 1",
+        "SELECT id, status FROM msr.measurements WHERE service_order_id = $1::uuid AND status = 'APPROVED' ORDER BY created_at DESC LIMIT 1",
         [orderRow.id],
       );
-      if (!measurement.rows[0]) throw new Error(`business verification failed: ${flow.key} has no approved measurement`);
+      if (!measurement.rows[0]) throw new Error(`business verification failed: ${flow.key} has no approved measurement`);\n      const lines = await pool.query<{ unit_code: string }>(\n        `SELECT unit_code FROM msr.measurement_items WHERE measurement_id = $1::uuid`,\n        [measurement.rows[0].id],\n      );\n      if (!lines.rows.length || lines.rows.some((line) => ['HOUR', 'KM'].includes(line.unit_code.toUpperCase()))) {\n        throw new Error(`business verification failed: ${flow.key} has no valid commercial measurement lines`);\n      }
       const billing = await pool.query<{ record_id: string; document_id: string }>(
         'SELECT br.id AS record_id, bd.id AS document_id FROM bil.billing_records br INNER JOIN bil.billing_documents bd ON bd.billing_record_id = br.id WHERE br.service_order_id = $1::uuid LIMIT 1',
         [orderRow.id],
       );
       if (!billing.rows[0]) throw new Error(`business verification failed: ${flow.key} has no billing record/document`);
-      evidence.push({ company: flow.company, scenario: flow.key, clientId: clientRow.id, serviceOrderId: orderRow.id, serviceOrderStatus: orderRow.status, measurementId: measurement.rows[0].id, measurementStatus: measurement.rows[0].status, billingRecordId: billing.rows[0].record_id, billingDocumentId: billing.rows[0].document_id });
+      evidence.push({ company: flow.company, scenario: flow.key, clientId: clientRow.id, serviceOrderId: orderRow.id, serviceOrderStatus: orderRow.status, measurementId: measurement.rows[0].id, measurementStatus: measurement.rows[0].status, commercialUnits: lines.rows.map((line) => line.unit_code), billingRecordId: billing.rows[0].record_id, billingDocumentId: billing.rows[0].document_id });
     }
     const verdict = {
       namespace, companiesVerified: `${evidence.length}/2`, businessFlowsVerified: `${evidence.length}/2`,
