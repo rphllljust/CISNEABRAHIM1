@@ -423,9 +423,9 @@ export class BillingRepository {
     try {
       await client.query('BEGIN');
 
-      if (input.measurementId) {
-        await lockMeasurementForBilling(client, input.measurementId);
-      }
+      const lockedMeasurement = input.measurementId
+        ? await lockMeasurementForBilling(client, input.measurementId)
+        : null;
 
       if (input.idempotencyKey) {
         const cached = await this.findBillingCommandIdempotency(
