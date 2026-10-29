@@ -248,28 +248,6 @@ describe('Service orders E2E', () => {
       'SELECT event_kind FROM pty.operational_unit_history WHERE unit_id = $1 ORDER BY version', [original.id],
     );
     expect(events.rows.map(row => row.event_kind)).toEqual(['CREATED', 'UPDATED']);
-    // Two different commands against one version: exactly one may commit.
-    const contenders = await Promise.all([
-      app.inject({
-        method: 'PATCH', url: `/api/v1/organization/operational-units/${original.id}`,
-        headers, payload: {
-          name: 'Concorrente A', expectedVersion: 2, idempotencyKey: 'update-pvh-race-a',
-        },
-      }),
-      app.inject({
-        method: 'PATCH', url: `/api/v1/organization/operational-units/${original.id}`,
-        headers, payload: {
-          name: 'Concorrente B', expectedVersion: 2, idempotencyKey: 'update-pvh-race-b',
-        },
-      }),
-    ]);
-    expect(contenders.map(result => result.statusCode).sort()).toEqual([200, 409]);
-    const persisted = await pool.query<{ version: number }>(
-      'SELECT version FROM pty.operational_units WHERE id = $1', [original.id],
-    );
-    expect(persisted.rows[0]?.version).toBe(3);
-
-
     const readLogin = normalizeLoginIdentifier(`unit-read-${crypto.randomUUID()}@cisne.invalid`);
     const { identityId: readerId } = await insertIdentity(pool, readLogin, hash);
     await insertGrant(pool, {
@@ -306,6 +284,28 @@ describe('Service orders E2E', () => {
       payload: { name: 'Sem permissão', expectedVersion: 2, idempotencyKey: 'update-pvh-003' },
     });
     expect(forbiddenAdmin.statusCode).toBe(403);
+
+    // Two different commands against one version: exactly one may commit.
+    const contenders = await Promise.all([
+      app.inject({
+        method: 'PATCH', url: `/api/v1/organization/operational-units/${original.id}`,
+        headers, payload: {
+          name: 'Concorrente A', expectedVersion: 2, idempotencyKey: 'update-pvh-race-a',
+        },
+      }),
+      app.inject({
+        method: 'PATCH', url: `/api/v1/organization/operational-units/${original.id}`,
+        headers, payload: {
+          name: 'Concorrente B', expectedVersion: 2, idempotencyKey: 'update-pvh-race-b',
+        },
+      }),
+    ]);
+    expect(contenders.map(result => result.statusCode).sort()).toEqual([200, 409]);
+    const persisted = await pool.query<{ version: number }>(
+      'SELECT version FROM pty.operational_units WHERE id = $1', [original.id],
+    );
+    expect(persisted.rows[0]?.version).toBe(3);
+
   });
 
   it('creates and reads a DRAFT service order via HTTP', async () => {
