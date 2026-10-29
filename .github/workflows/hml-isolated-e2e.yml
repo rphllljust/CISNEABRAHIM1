@@ -102,6 +102,13 @@ jobs:
           pnpm --filter @cisne/web exec playwright install --with-deps chromium
           pnpm --filter @cisne/web exec playwright test --config e2e/hml/playwright.hml.config.ts e2e/hml/fiscal-hml.spec.ts e2e/hml/accounting-hml.spec.ts
 
+      - name: HML authoritative business verdict
+        run: |
+          export DATABASE_URL="postgresql://${HML_POSTGRES_USER}:${HML_POSTGRES_PASSWORD}@127.0.0.1:5433/${HML_POSTGRES_DB}"
+          export CISNE_ENV=hml
+          export HML_INTEGRATIONS_SANDBOX=true
+          pnpm --filter @cisne/api exec tsx src/synthetic-seed/cli/verify-hml-business.ts
+
       - name: Upload HML evidence
         if: always()
         uses: actions/upload-artifact@v4
