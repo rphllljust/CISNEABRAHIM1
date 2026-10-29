@@ -24,6 +24,7 @@ import {
   type SmartRelation,
 } from '../../enterprise-object';
 import { ConfirmAction, Money } from '../../ui';
+import { BusinessChain, useBusinessChain } from '../../business-chain';
 import {
   serviceOrderEngineRow,
   type ServiceOrderEngineRow,
@@ -65,6 +66,10 @@ export function ServiceOrderEngineDetailPage() {
   );
   const [busy, setBusy] = useState(false);
   const [commandError, setCommandError] = useState<string | null>(null);
+  const businessChain = useBusinessChain(
+    'SERVICE_ORDER',
+    rowStatus === 'ready' ? serviceOrderId ?? '' : '',
+  );
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
@@ -398,6 +403,13 @@ export function ServiceOrderEngineDetailPage() {
         <ObjectContextBlock title="Identidade da ordem" fields={identityFields} columns={3} />
         <ObjectContextBlock title="Origem e vínculos" fields={originFields} columns={3} />
         <ServiceOrderCostToServePanel serviceOrderId={row.id} />
+        <BusinessChain
+          chain={businessChain.chain}
+          phase={businessChain.phase}
+          message={businessChain.message}
+          onRetry={businessChain.retry}
+          title="Cadeia empresarial da OS"
+        />
 
         <section aria-label="Operação" className="service-order-operational-canvas border-b border-gray-200 pb-6">
           <div className="service-order-section-heading mb-3 flex items-end gap-3">
