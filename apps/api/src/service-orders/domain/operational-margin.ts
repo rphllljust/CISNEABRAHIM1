@@ -3,6 +3,7 @@ import {
   aggregateOperationalProfitability,
   computeOperationalMargin,
   sumNullableMoneyAmounts,
+  subtractMoney,
 } from '../../commercial/domain/operational-financials';
 
 export type OperationalCostLineSummary = {
@@ -23,6 +24,10 @@ export type OperationalMarginSummary = {
   totalActualCost: string | null;
   estimatedMargin: string | null;
   actualMargin: string | null;
+  /** Actual less estimated: a positive variance is an overrun, not profit. */
+  estimatedToActualVariance: string | null;
+  /** Every reason is derived from authority/evidence, never a placeholder KPI. */
+  blockingReasons: string[];
   disclaimer: string;
   lines: OperationalCostLineSummary[];
 };
@@ -39,8 +44,18 @@ export function buildOperationalMarginSummary(input: {
     .filter((line) => line.costKind === 'ACTUAL')
     .map((line) => line.amount);
 
-  const totalEstimatedCost = sumNullableMoneyAmounts(estimated);
-  const totalActualCost = sumNullableMoneyAmounts(actual);
+  // A cost ledger can contain entries from distinct currencies. Never add
+  // different currencies together and present the result as one business fact.
+  const incompatibleCurrencies = input.lines.some(
+    (line) => line.currencyCode !== input.currencyCode,
+  );
+  const totalEstimatedCost = incompatibleCurrencies ? null : sumNullableMoneyAmounts(estimated);
+  const totalActualCost = incompatibleCurrencies ? null : sumNullableMoneyAmounts(actual);
+  const blockingReasons = [
+    ...(incompatibleCurrencies ? ['COST_CURRENCY_MISMATCH'] : []),
+    ...(input.revenue === null ? ['APPROVED_MEASUREMENT_REVENUE_UNAVAILABLE'] : []),
+    ...(totalActualCost === null && !incompatibleCurrencies ? ['ACTUAL_COST_EVIDENCE_MISSING'] : []),
+  ];
 
   return {
     capturedAt: new Date().toISOString(),
@@ -50,6 +65,11 @@ export function buildOperationalMarginSummary(input: {
     totalActualCost,
     estimatedMargin: computeOperationalMargin(input.revenue, totalEstimatedCost),
     actualMargin: computeOperationalMargin(input.revenue, totalActualCost),
+    estimatedToActualVariance:
+      totalEstimatedCost !== null && totalActualCost !== null
+        ? subtractMoney(totalActualCost, totalEstimatedCost)
+        : null,
+    blockingReasons,
     disclaimer: OPERATIONAL_PROFITABILITY_DISCLAIMER,
     lines: input.lines,
   };
