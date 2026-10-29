@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - 'hml/isolated-e2e-runner'
+      - 'test/hml-economic-spine-proof'
       - main
 
 concurrency:
