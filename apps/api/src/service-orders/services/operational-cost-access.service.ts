@@ -14,6 +14,7 @@ import {
   OperationalCostError,
 } from '../domain/operational-cost';
 import { buildOperationalMarginSummary } from '../domain/operational-margin';
+import type { ApprovedMeasurementRevenueEvidence } from '../domain/approved-measurement-revenue';
 import type { RecordOperationalCostInput } from '../domain/operational-cost.validation';
 import { OperationalCostRepository } from '../repositories/operational-cost.repository';
 import type { OperationalCostEntryRow } from '../repositories/operational-cost.repository.types';
@@ -53,7 +54,7 @@ export class OperationalCostAccessService {
     );
     const [entries, revenue] = await Promise.all([
       this.operationalCostRepository.listByServiceOrder(serviceOrderId),
-      this.operationalCostRepository.findApprovedMeasurementRevenue(serviceOrderId),
+      this.operationalCostRepository.findApprovedMeasurementRevenueEvidence(serviceOrderId),
     ]);
     return toOperationalCostBundleResponse(
       serviceOrderId,
@@ -123,10 +124,10 @@ export class OperationalCostAccessService {
     return toOperationalCostRecordResponse(entry, rowVersion);
   }
 
-  private buildSummary(entries: OperationalCostEntryRow[], revenue: string | null) {
-    return buildOperationalMarginSummary({
-      revenue,
-      currencyCode: entries[0]?.currency_code ?? 'BRL',
+  private buildSummary(entries: OperationalCostEntryRow[], revenue: ApprovedMeasurementRevenueEvidence) {
+    const summary = buildOperationalMarginSummary({
+      revenue: revenue.amount,
+      currencyCode: revenue.currencyCode ?? entries[0]?.currency_code ?? 'BRL',
       lines: entries.map((entry) => ({
         id: entry.id,
         category: entry.category,
@@ -137,6 +138,14 @@ export class OperationalCostAccessService {
         sourceExecutionEntryId: entry.source_execution_entry_id,
       })),
     });
+    const currencyOrAmountFailure = revenue.issue === 'UNVERIFIED_CURRENCY'
+      ? 'REVENUE_CURRENCY_UNVERIFIED'
+      : revenue.issue === 'MISSING_AMOUNT'
+        ? 'APPROVED_MEASUREMENT_AMOUNT_INCOMPLETE'
+        : null;
+    return currencyOrAmountFailure
+      ? { ...summary, blockingReasons: [...summary.blockingReasons, currencyOrAmountFailure] }
+      : summary;
   }
 
   private async requireServiceOrder(
