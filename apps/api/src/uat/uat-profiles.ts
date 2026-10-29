@@ -30,6 +30,8 @@ const ADMIN_GRANTS = [
   AUTHZ_ACTIONS.CommercialPurchaseOrderRegister,
   AUTHZ_ACTIONS.CommercialPurchaseOrderCancel,
   AUTHZ_ACTIONS.CommercialPurchaseOrderAuthorizeOverrun,
+  AUTHZ_ACTIONS.CommercialContractCreate,
+  AUTHZ_ACTIONS.CommercialContractActivate,
   AUTHZ_ACTIONS.RequestsServiceRequestCreate,
   AUTHZ_ACTIONS.RequestsServiceRequestRead,
   AUTHZ_ACTIONS.RequestsServiceRequestList,
