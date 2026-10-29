@@ -443,6 +443,18 @@ export class BillingRepository {
         }
       }
 
+      // A replay of the same committed command is returned above. A NEW
+      // prepare cannot use item prices captured before another measurement
+      // command changed approval, quantities, commercial value or version.
+      if (input.measurementId && (
+        !lockedMeasurement ||
+        lockedMeasurement.status !== 'APPROVED' ||
+        lockedMeasurement.row_version !== input.measurementVersion
+      )) {
+        await client.query('ROLLBACK');
+        return { outcome: 'measurement_changed' };
+      }
+
       const existing = input.measurementId
         ? await client.query(
             `SELECT id FROM bil.billing_records
