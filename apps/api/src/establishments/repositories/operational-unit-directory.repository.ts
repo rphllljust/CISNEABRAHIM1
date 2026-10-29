@@ -36,6 +36,44 @@ export class OperationalUnitDirectoryRepository {
     return result.rows;
   }
 
+  async listAllIds(): Promise<string[]> {
+    const result = await this.pool().query<{ id: string }>(
+      'SELECT id FROM pty.operational_units ORDER BY code, id',
+    );
+    return result.rows.map((row) => row.id);
+  }
+
+  async listHistory(id: string): Promise<Array<{
+    version: number;
+    action: string;
+    actorIdentityId: string;
+    occurredAt: string;
+    oldValue: unknown;
+    newValue: unknown;
+  }>> {
+    const result = await this.pool().query<{
+      version: number;
+      action: string;
+      actorIdentityId: string;
+      occurredAt: string;
+      oldValue: unknown;
+      newValue: unknown;
+    }>(
+      `SELECT version,
+              event_kind AS action,
+              actor_identity_id AS "actorIdentityId",
+              occurred_at AS "occurredAt",
+              before_value AS "oldValue",
+              after_value AS "newValue"
+         FROM pty.operational_unit_history
+        WHERE unit_id = $1
+        ORDER BY version DESC
+        LIMIT 100`,
+      [id],
+    );
+    return result.rows;
+  }
+
   async findById(id: string): Promise<OperationalUnitRow | null> {
     const result = await this.pool().query<OperationalUnitRow>(
       'SELECT id, code, business_name, version FROM pty.operational_units WHERE id = $1',
