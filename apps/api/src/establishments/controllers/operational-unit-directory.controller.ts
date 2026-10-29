@@ -16,6 +16,11 @@ export class OperationalUnitDirectoryController {
     return this.directory.listAdminVisible({ identityId: auth.sub, sessionId: auth.sid });
   }
 
+  @Get(':id/history')
+  history(@CurrentAuth() auth: AccessTokenClaims, @Param('id') id: string) {
+    return this.directory.getHistory({ identityId: auth.sub, sessionId: auth.sid }, id);
+  }
+
   @Post()
   create(@CurrentAuth() auth: AccessTokenClaims, @Req() request: FastifyRequest) {
     return this.directory.create({ identityId: auth.sub, sessionId: auth.sid },
