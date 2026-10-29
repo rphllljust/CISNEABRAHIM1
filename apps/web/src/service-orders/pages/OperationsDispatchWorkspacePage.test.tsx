@@ -5,11 +5,11 @@ import { Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderWithProviders } from '../../test/render-with-providers';
 import { OperationsDispatchWorkspacePage } from './OperationsDispatchWorkspacePage';
-import { OperationsApiError, getServiceOrderOverview, listOperationUnitOptions } from '../api/operations-api';
+import { OperationsApiError, checkInServiceOrder, getServiceOrderOverview, listOperationUnitOptions } from '../api/operations-api';
 
 vi.mock('../api/operations-api', async (importOriginal) => {
   const real = await importOriginal<typeof import('../api/operations-api')>();
-  return { ...real, listOperationUnitOptions: vi.fn(), getServiceOrderOverview: vi.fn() };
+  return { ...real, listOperationUnitOptions: vi.fn(), getServiceOrderOverview: vi.fn(), checkInServiceOrder: vi.fn() };
 });
 vi.mock('../components/OperationalUnitGovernance', () => ({
   OperationalUnitGovernance: () => null,
@@ -47,7 +47,7 @@ function mount() {
 }
 
 describe('Enterprise dispatch unit discovery', () => {
-  beforeEach(() => { vi.mocked(listOperationUnitOptions).mockReset(); vi.mocked(getServiceOrderOverview).mockReset(); });
+  beforeEach(() => { vi.mocked(listOperationUnitOptions).mockReset(); vi.mocked(getServiceOrderOverview).mockReset(); vi.mocked(checkInServiceOrder).mockReset(); });
 
   it('shows authorized names/codes without service orders and preserves the internal contract value', async () => {
     vi.mocked(listOperationUnitOptions).mockResolvedValue({
@@ -98,6 +98,56 @@ describe('Enterprise dispatch unit discovery', () => {
     expect(screen.getByTestId('station-measurement')).toHaveTextContent('unit-a:os-1');
     expect(screen.getByTestId('dispatch-active-unit')).toHaveTextContent('unit-a');
     expect(screen.getByTestId('station-chain')).toBeInTheDocument();
+  });
+
+  it('does not change the idempotency key or rowVersion when retrying uncertain check-in', async () => {
+    vi.mocked(listOperationUnitOptions).mockResolvedValue({
+      items: ['unit-a'],
+      details: [{ id: 'unit-a', code: 'PVH', name: 'Porto Velho', configured: true }],
+    });
+    const overview = {
+      identity: { serviceOrderId: 'os-1', unitId: 'unit-a', orderNumber: 'OS-001', rowVersion: 7, clientLabel: 'Cliente Alfa' },
+      businessContext: { contractReference: 'CT-001' }, statuses: { operational: 'RELEASED' },
+      availableCommands: [{ code: 'CHECK_IN', enabled: true, label: 'Registrar chegada' }],
+      dispatch: { readiness: { summary: 'Pronta', blockingReasons: [] } },
+      planning: { plannedResourceCount: 1, activeAllocationCount: 1 }, process: [],
+      actuals: { comparison: { recordCount: 0 } }, completionGate: { summary: 'Não elegível', blockingReasons: [] },
+      economics: { plannedCost: null, plannedRevenue: null, currencyCode: null },
+      nextAction: { label: 'Check-in', explanation: null },
+    } as Awaited<ReturnType<typeof getServiceOrderOverview>>;
+    vi.mocked(getServiceOrderOverview).mockResolvedValue(overview);
+    vi.mocked(checkInServiceOrder).mockRejectedValueOnce(new OperationsApiError(0, undefined, 'network')).mockResolvedValueOnce(overview);
+    mount();
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Selecionar OS' }));
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Registrar chegada' }));
+    const retry = await screen.findByRole('button', { name: 'Reenviar check-in com a mesma intenção' });
+    await waitFor(() => expect(retry).not.toBeDisabled());
+    await userEvent.setup().click(retry);
+    await waitFor(() => expect(checkInServiceOrder).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(checkInServiceOrder).mock.calls[0]?.[1]).toEqual(vi.mocked(checkInServiceOrder).mock.calls[1]?.[1]);
+  });
+
+  it('reports HTTP 409 and reloads without silently repeating the mutation', async () => {
+    vi.mocked(listOperationUnitOptions).mockResolvedValue({
+      items: ['unit-a'],
+      details: [{ id: 'unit-a', code: 'PVH', name: 'Porto Velho', configured: true }],
+    });
+    vi.mocked(getServiceOrderOverview).mockResolvedValue({
+      identity: { serviceOrderId: 'os-1', unitId: 'unit-a', orderNumber: 'OS-001', rowVersion: 7, clientLabel: 'Cliente Alfa' },
+      businessContext: { contractReference: 'CT-001' }, statuses: { operational: 'RELEASED' },
+      availableCommands: [{ code: 'CHECK_IN', enabled: true, label: 'Registrar chegada' }],
+      dispatch: { readiness: { summary: 'Pronta', blockingReasons: [] } },
+      planning: { plannedResourceCount: 1, activeAllocationCount: 1 }, process: [],
+      actuals: { comparison: { recordCount: 0 } }, completionGate: { summary: 'Não elegível', blockingReasons: [] },
+      economics: { plannedCost: null, plannedRevenue: null, currencyCode: null },
+      nextAction: { label: 'Check-in', explanation: null },
+    } as Awaited<ReturnType<typeof getServiceOrderOverview>>);
+    vi.mocked(checkInServiceOrder).mockRejectedValueOnce(new OperationsApiError(409, 'SERVICE_ORDERS_VERSION_CONFLICT', 'version_conflict'));
+    mount();
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Selecionar OS' }));
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Registrar chegada' }));
+    await screen.findByText(/Conflito de versão/);
+    expect(checkInServiceOrder).toHaveBeenCalledTimes(1);
   });
 
   it('separates absence of authorization from absence of operational orders', async () => {

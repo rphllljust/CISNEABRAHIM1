@@ -38,13 +38,19 @@ export function OperationsDispatchWorkspacePage({
   };
   const [refreshToken, setRefreshToken] = useState(0);
   const commandFlight = useRef(false);
+  const scopeRef = useRef<string | null>(null);
+  const pendingCheckIn = useRef<{
+    scope: string;
+    body: { rowVersion: number; idempotencyKey: string };
+    phase: 'submitting' | 'uncertain';
+  } | null>(null);
+  const [uncertainScope, setUncertainScope] = useState<string | null>(null);
   const [commandFeedback, setCommandFeedback] = useState<string | null>(null);
   const [commandBusy, setCommandBusy] = useState(false);
-  const [queueRefresh, setQueueRefresh] = useState(0);
   const requestGeneration = useRef(0);
   const [selection, setSelection] = useState<
     | { phase: 'idle' | 'loading'; key?: string }
-    | { phase: 'ready'; key: string; data: ServiceOrderOverview }
+    | { phase: 'ready' | 'refreshing'; key: string; data: ServiceOrderOverview }
     | { phase: 'denied' | 'error'; key: string }
   >({ phase: 'idle' });
   const switchTab = (nextTab: 'dispatch' | 'execution') => {
@@ -67,9 +73,14 @@ export function OperationsDispatchWorkspacePage({
   const denied = error instanceof OperationsApiError && error.kind === 'denied';
 
   const selectionKey = unitId && selectedOrderId ? `${unitId}:${selectedOrderId}` : null;
+  scopeRef.current = selectionKey;
+  useEffect(() => {
+    pendingCheckIn.current = null;
+    setUncertainScope(null);
+    setCommandFeedback(null);
+  }, [selectionKey]);
   const refreshStation = useCallback(() => {
     setRefreshToken(value => value + 1);
-    setQueueRefresh(value => value + 1);
   }, []);
 
   useEffect(() => {
@@ -79,7 +90,11 @@ export function OperationsDispatchWorkspacePage({
       return;
     }
     const controller = new AbortController();
-    setSelection({ phase: 'loading', key: selectionKey });
+    setSelection(previous =>
+      (previous.phase === 'ready' || previous.phase === 'refreshing') && previous.key === selectionKey
+        ? { ...previous, phase: 'refreshing' }
+        : { phase: 'loading', key: selectionKey },
+    );
     void getServiceOrderOverview(selectedOrderId, controller.signal)
       .then(data => {
         if (controller.signal.aborted || generation !== requestGeneration.current) return;
@@ -97,36 +112,48 @@ export function OperationsDispatchWorkspacePage({
     };
   }, [selectionKey, selectedOrderId, unitId, status, refreshToken]);
 
-  const currentSelection = selection.phase === 'ready' && selection.key === selectionKey ? selection.data : null;
-  const selectionPhase = currentSelection ? 'ready' : selectionKey && selection.key === selectionKey ? selection.phase : 'loading';
+  const currentSelection = (selection.phase === 'ready' || selection.phase === 'refreshing') &&
+    selection.key === selectionKey ? selection.data : null;
+  const selectionPhase = currentSelection ? selection.phase : selectionKey && selection.key === selectionKey ? selection.phase : 'loading';
 
-  // Commands never use a snapshot captured for another unit or OS.
-  const checkIn = useCallback(async () => {
-    if (commandFlight.current || !currentSelection || !selectionKey) return;
+  /** Immutable intent: network retry preserves key and payload, 409 never replays. */
+  const checkIn = useCallback(async (retry = false) => {
+    if (commandFlight.current || !currentSelection || !selectionKey ||
+        selectionPhase === 'refreshing') return;
+    const previous = pendingCheckIn.current;
+    const isRetry = retry && previous?.scope === selectionKey && previous.phase === 'uncertain';
+    if (retry && !isRetry) return;
+    if (!retry && previous?.phase === 'uncertain') return;
     const allowed = currentSelection.availableCommands.find(command => command.code === 'CHECK_IN');
-    if (!allowed?.enabled) return;
-    const intendedKey = selectionKey;
-    const intendedGeneration = requestGeneration.current;
+    if (!retry && !allowed?.enabled) return;
+    const body = isRetry && previous ? previous.body : {
+      rowVersion: currentSelection.identity.rowVersion,
+      idempotencyKey: createCommandKey(),
+    };
+    const scope = selectionKey;
+    pendingCheckIn.current = { scope, body, phase: 'submitting' };
     commandFlight.current = true;
     setCommandBusy(true);
     setCommandFeedback(null);
     try {
-      const updated = await checkInServiceOrder(currentSelection.identity.serviceOrderId, {
-        rowVersion: currentSelection.identity.rowVersion,
-        idempotencyKey: createCommandKey(),
-      });
-      if (intendedKey === selectionKey && intendedGeneration === requestGeneration.current &&
-          updated.identity.unitId === unitId && updated.identity.serviceOrderId === selectedOrderId) {
-        setSelection({ phase: 'ready', key: selectionKey, data: updated });
+      const updated = await checkInServiceOrder(currentSelection.identity.serviceOrderId, body);
+      if (scopeRef.current === scope && updated.identity.unitId === unitId &&
+          updated.identity.serviceOrderId === selectedOrderId) {
+        pendingCheckIn.current = null;
+        setUncertainScope(null);
+        setSelection({ phase: 'ready', key: scope, data: updated });
         setCommandFeedback('Chegada confirmada pelo servidor.');
       }
     } catch (error) {
-      if (intendedKey === selectionKey) {
+      if (scopeRef.current === scope) {
+        const network = error instanceof OperationsApiError && error.kind === 'network';
         const conflict = error instanceof OperationsApiError && error.kind === 'version_conflict';
-        setCommandFeedback(conflict
-          ? 'Conflito de versão: a OS será recarregada; o comando não foi repetido.'
-          : error instanceof OperationsApiError && error.kind === 'network'
-            ? 'Resultado indeterminado por falha de rede. Confira a OS antes de uma nova intenção.'
+        pendingCheckIn.current = network ? { scope, body, phase: 'uncertain' } : null;
+        setUncertainScope(network ? scope : null);
+        setCommandFeedback(network
+          ? 'Resultado indeterminado. Reenvie a mesma intenção ou confira o estado atualizado.'
+          : conflict
+            ? 'Conflito de versão: OS recarregada, sem repetição automática do comando.'
             : describeOperationsError(error));
       }
     } finally {
@@ -134,7 +161,7 @@ export function OperationsDispatchWorkspacePage({
       setCommandBusy(false);
       refreshStation();
     }
-  }, [currentSelection, selectionKey, unitId, selectedOrderId, refreshStation]);
+  }, [currentSelection, selectionKey, selectedOrderId, selectionPhase, unitId, refreshStation]);
 
   return (
     <ModulePage layout="workspace">
@@ -216,8 +243,8 @@ export function OperationsDispatchWorkspacePage({
           ) : null}
 
           {status === 'ready' && unitId && options.length > 0 ? (
-            tab === 'dispatch' ? <DispatchBoardPage unitId={unitId} refreshToken={queueRefresh} onSelectOrder={selectOrder} onCommandSettled={refreshStation} /> :
-              <ExecutionConsolePage unitId={unitId} refreshToken={queueRefresh} onSelectOrder={selectOrder} />
+            tab === 'dispatch' ? <DispatchBoardPage unitId={unitId} refreshToken={refreshToken} onSelectOrder={selectOrder} onCommandSettled={refreshStation} /> :
+              <ExecutionConsolePage unitId={unitId} refreshToken={refreshToken} onSelectOrder={selectOrder} />
           ) : null}
         </div>}
           active={
@@ -262,6 +289,7 @@ export function OperationsDispatchWorkspacePage({
               {selectedOrderId && status === 'ready' ? (
           <aside aria-label="Contexto da OS selecionada" className="mt-3 border-t border-gray-200 p-3 lg:border-l lg:border-t-0">
             {selectionPhase === 'loading' ? <p role="status">Carregando contexto autorizado…</p> : null}
+            {selectionPhase === 'refreshing' ? <p role="status">Atualizando o estado autoritativo da OS…</p> : null}
             {selectionPhase === 'denied' ? <p role="alert">A OS não pertence ao escopo autorizado desta unidade.</p> : null}
             {selectionPhase === 'error' ? <p role="alert">Não foi possível consultar a OS selecionada.</p> : null}
             {currentSelection ? (
@@ -285,11 +313,17 @@ export function OperationsDispatchWorkspacePage({
                     ))}
                   </ol>
                   {currentSelection.availableCommands.filter(command => command.enabled && command.code === 'CHECK_IN').map(command => (
-                    <button key={command.code} type="button" disabled={commandBusy}
+                    <button key={command.code} type="button" disabled={commandBusy || selectionPhase === 'refreshing' || uncertainScope === selectionKey}
                       onClick={() => void checkIn()} className="rounded bg-brand-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">
                       {commandBusy ? 'Registrando…' : command.label}
                     </button>
                   ))}
+                  {uncertainScope === selectionKey ? (
+                    <button type="button" disabled={commandBusy || selectionPhase === 'refreshing'}
+                      onClick={() => void checkIn(true)} className="rounded border border-amber-500 px-3 py-2 text-xs">
+                      Reenviar check-in com a mesma intenção
+                    </button>
+                  ) : null}
                   <p className="text-xs">Apontamentos persistidos: {currentSelection.actuals.comparison.recordCount}</p>
                   <p className="text-xs">Conclusão: {currentSelection.completionGate.summary}</p>
                   {currentSelection.completionGate.blockingReasons.map(reason => (
