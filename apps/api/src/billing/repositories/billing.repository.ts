@@ -185,12 +185,27 @@ export class BillingRepository {
                 COALESCE(so.service_snapshot->>'billingEntitlementPolicy', 'MEASUREMENT_APPROVED') AS entitlement_policy,
                 m.id AS measurement_id, m.status::text AS measurement_status, m.row_version AS measurement_version,
                 br.id AS billing_record_id, br.status::text AS billing_status, br.row_version AS billing_version,
-                CASE WHEN br.id IS NULL AND m.id IS NULL THEN NULL
-                     ELSE COALESCE(br.currency_code, NULLIF(m.commercial_reference_snapshot->>'currencyCode', ''),
-                       NULLIF(so.proposal_snapshot->>'currencyCode', ''), NULLIF(so.purchase_order_snapshot->>'currencyCode', ''), 'BRL') END AS currency_code,
+                CASE
+                   WHEN br.id IS NOT NULL THEN br.currency_code
+                   WHEN m.status = 'APPROVED'
+                     AND item_totals.currency_count = 1
+                     AND item_totals.invalid_currency_count = 0
+                     AND (NULLIF(UPPER(TRIM(m.commercial_reference_snapshot->>'currencyCode')), '') IS NULL
+                       OR UPPER(TRIM(m.commercial_reference_snapshot->>'currencyCode')) = item_totals.currency_code)
+                     THEN item_totals.currency_code
+                   WHEN COALESCE(so.service_snapshot->>'billingEntitlementPolicy', 'MEASUREMENT_APPROVED') <> 'MEASUREMENT_APPROVED'
+                     THEN COALESCE(NULLIF(so.proposal_snapshot->>'currencyCode', ''),
+                                   NULLIF(so.purchase_order_snapshot->>'currencyCode', ''), 'BRL')
+                   ELSE NULL
+                 END AS currency_code,
                 CASE WHEN br.status = 'PREPARED' THEN br.total_amount::text
                      WHEN m.status = 'APPROVED' AND item_totals.item_count > 0
-                       AND item_totals.priced_count = item_totals.item_count THEN item_totals.amount::text
+                       AND item_totals.priced_count = item_totals.item_count
+                       AND item_totals.currency_count = 1
+                       AND item_totals.invalid_currency_count = 0
+                       AND (NULLIF(UPPER(TRIM(m.commercial_reference_snapshot->>'currencyCode')), '') IS NULL
+                         OR UPPER(TRIM(m.commercial_reference_snapshot->>'currencyCode')) = item_totals.currency_code)
+                         THEN item_totals.amount::text
                      WHEN COALESCE(so.service_snapshot->>'billingEntitlementPolicy', 'MEASUREMENT_APPROVED') <> 'MEASUREMENT_APPROVED'
                        AND (${CONTRACTUAL_AMOUNT_SQL}) ~ '^[0-9]+(\\.[0-9]{1,4})?$' THEN (${CONTRACTUAL_AMOUNT_SQL})
                      ELSE NULL END AS amount,
@@ -210,7 +225,12 @@ export class BillingRepository {
                   WHEN br.status = 'PREPARED' AND NOT (${documentScopeClause}) THEN 'document_state_unknown'
                   WHEN doc.status = 'FINALIZED' THEN 'issued'
                   WHEN br.status = 'PREPARED' THEN 'prepared'
-                  WHEN m.status = 'APPROVED' AND (item_totals.item_count = 0 OR item_totals.priced_count <> item_totals.item_count) THEN 'billing_basis_missing'
+                  WHEN m.status = 'APPROVED' AND (
+                    item_totals.item_count = 0 OR item_totals.priced_count <> item_totals.item_count
+                    OR item_totals.currency_count <> 1 OR item_totals.invalid_currency_count > 0
+                    OR (NULLIF(UPPER(TRIM(m.commercial_reference_snapshot->>'currencyCode')), '') IS NOT NULL
+                        AND UPPER(TRIM(m.commercial_reference_snapshot->>'currencyCode')) <> item_totals.currency_code)
+                  ) THEN 'billing_basis_missing'
                   WHEN m.status = 'APPROVED' THEN 'ready'
                   WHEN COALESCE(so.service_snapshot->>'billingEntitlementPolicy', 'MEASUREMENT_APPROVED') <> 'MEASUREMENT_APPROVED'
                     AND (${CONTRACTUAL_AMOUNT_SQL}) ~ '^[0-9]+(\\.[0-9]{1,4})?$' THEN 'ready'
@@ -223,6 +243,13 @@ export class BillingRepository {
                     AND lower(regexp_replace(trim(br.payment_terms), '\\s+', ' ', 'g')) <> lower(regexp_replace(trim(br.payment_terms_authoritative), '\\s+', ' ', 'g')) THEN 'COMMERCIAL_TERMS_DIVERGE'
                   WHEN COALESCE(so.service_snapshot->>'billingEntitlementPolicy', 'MEASUREMENT_APPROVED') <> 'MEASUREMENT_APPROVED'
                     AND (${CONTRACTUAL_AMOUNT_SQL}) !~ '^[0-9]+(\\.[0-9]{1,4})?$' THEN 'BILLING_BASIS_MISSING'
+                  WHEN m.status = 'APPROVED' AND item_totals.item_count > 0 AND (item_totals.currency_count = 0 OR item_totals.invalid_currency_count > 0)
+                    THEN 'BILLING_CURRENCY_UNVERIFIED'
+                  WHEN m.status = 'APPROVED' AND item_totals.item_count > 0 AND (
+                    item_totals.currency_count > 1
+                    OR (NULLIF(UPPER(TRIM(m.commercial_reference_snapshot->>'currencyCode')), '') IS NOT NULL
+                        AND UPPER(TRIM(m.commercial_reference_snapshot->>'currencyCode')) <> item_totals.currency_code)
+                  ) THEN 'BILLING_CURRENCY_MISMATCH'
                   WHEN m.status = 'APPROVED' AND (item_totals.item_count = 0 OR item_totals.priced_count <> item_totals.item_count) THEN 'BILLING_BASIS_MISSING'
                   WHEN m.id IS NULL AND br.status IS DISTINCT FROM 'PREPARED'
                     AND COALESCE(so.service_snapshot->>'billingEntitlementPolicy', 'MEASUREMENT_APPROVED') = 'MEASUREMENT_APPROVED' THEN 'MEASUREMENT_MISSING'
@@ -234,6 +261,13 @@ export class BillingRepository {
                   WHEN doc.status = 'CANCELLED' THEN COALESCE(doc.cancel_reason, 'Documento interno cancelado')
                   WHEN COALESCE(so.service_snapshot->>'billingEntitlementPolicy', 'MEASUREMENT_APPROVED') <> 'MEASUREMENT_APPROVED'
                     AND (${CONTRACTUAL_AMOUNT_SQL}) !~ '^[0-9]+(\\.[0-9]{1,4})?$' THEN 'O snapshot comercial não contém uma base de faturamento válida para esta política.'
+                  WHEN m.status = 'APPROVED' AND item_totals.item_count > 0 AND (item_totals.currency_count = 0 OR item_totals.invalid_currency_count > 0)
+                    THEN 'Há itens aprovados sem moeda comercial válida: verificar o snapshot do preço.'
+                  WHEN m.status = 'APPROVED' AND item_totals.item_count > 0 AND (
+                    item_totals.currency_count > 1
+                    OR (NULLIF(UPPER(TRIM(m.commercial_reference_snapshot->>'currencyCode')), '') IS NOT NULL
+                        AND UPPER(TRIM(m.commercial_reference_snapshot->>'currencyCode')) <> item_totals.currency_code)
+                  ) THEN 'A moeda dos itens diverge entre linhas ou da referência comercial.'
                   WHEN m.status = 'APPROVED' AND (item_totals.item_count = 0 OR item_totals.priced_count <> item_totals.item_count) THEN 'A medição aprovada não possui valores apuráveis em todos os itens.'
                   WHEN m.id IS NULL AND br.status IS DISTINCT FROM 'PREPARED'
                     AND COALESCE(so.service_snapshot->>'billingEntitlementPolicy', 'MEASUREMENT_APPROVED') = 'MEASUREMENT_APPROVED' THEN 'A ordem concluída ainda não possui medição.'
@@ -254,7 +288,12 @@ export class BillingRepository {
            WHERE br0.service_order_id = so.id ORDER BY br0.created_at DESC, br0.id DESC LIMIT 1
          ) br ON TRUE
          LEFT JOIN LATERAL (
-           SELECT count(*) AS item_count, count(mi.line_amount) AS priced_count, sum(mi.line_amount) AS amount
+           SELECT count(*) AS item_count, count(mi.line_amount) AS priced_count, sum(mi.line_amount) AS amount,
+                  count(DISTINCT NULLIF(UPPER(TRIM(mi.pricing_line_snapshot->>'currencyCode')), '')) AS currency_count,
+                  count(*) FILTER (WHERE NULLIF(UPPER(TRIM(mi.pricing_line_snapshot->>'currencyCode')), '') IS NULL
+                     OR length(UPPER(TRIM(mi.pricing_line_snapshot->>'currencyCode'))) <> 3
+                     OR UPPER(TRIM(mi.pricing_line_snapshot->>'currencyCode')) ~ '[^A-Z]') AS invalid_currency_count,
+                  max(NULLIF(UPPER(TRIM(mi.pricing_line_snapshot->>'currencyCode')), '')) AS currency_code
            FROM msr.measurement_items mi WHERE mi.measurement_id = m.id
          ) item_totals ON TRUE
          LEFT JOIN LATERAL (
@@ -423,9 +462,9 @@ export class BillingRepository {
     try {
       await client.query('BEGIN');
 
-      if (input.measurementId) {
-        await lockMeasurementForBilling(client, input.measurementId);
-      }
+      const lockedMeasurement = input.measurementId
+        ? await lockMeasurementForBilling(client, input.measurementId)
+        : null;
 
       if (input.idempotencyKey) {
         const cached = await this.findBillingCommandIdempotency(
@@ -441,6 +480,18 @@ export class BillingRepository {
             return { outcome: 'idempotent', billingRecord };
           }
         }
+      }
+
+      // A replay of the same committed command is returned above. A NEW
+      // prepare cannot use item prices captured before another measurement
+      // command changed approval, quantities, commercial value or version.
+      if (input.measurementId && (
+        !lockedMeasurement ||
+        lockedMeasurement.status !== 'APPROVED' ||
+        lockedMeasurement.row_version !== input.measurementVersion
+      )) {
+        await client.query('ROLLBACK');
+        return { outcome: 'measurement_changed' };
       }
 
       const existing = input.measurementId

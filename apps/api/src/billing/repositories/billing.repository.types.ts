@@ -96,6 +96,7 @@ export type PurchaseOrderTermsRow = {
 export type PrepareBillingPersistenceInput = {
   serviceOrderId: string;
   measurementId: string | null;
+  measurementVersion: number | null;
   entitlementPolicy: string;
   clientId: string;
   unitId: string;
@@ -129,6 +130,7 @@ export type PrepareBillingPersistenceInput = {
 export type PrepareBillingPersistenceResult =
   | { outcome: 'created'; billingRecord: BillingRecordRow }
   | { outcome: 'already_exists' }
+  | { outcome: 'measurement_changed' }
   | { outcome: 'idempotent'; billingRecord: BillingRecordRow };
 
 export type VoidBillingPersistenceInput = {
